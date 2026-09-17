@@ -163,14 +163,22 @@ class SourceBroker @Inject internal constructor(
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
+		retireSupersededAuthority: Boolean = true,
 	) {
 		val consumerId = sessionConsumerId(logicalTrackingId)
 		val dao = database.sourceBrokerDao()
 		val affectedSources = (dao.currentDemands(consumerId).map(SourceDemandEntity::sourceKind) +
 			demands.map(SourceDemandEntity::sourceKind)).toSet()
-		val retiredReferences = currentAuthorityReferences(consumerId)
+		val retiredReferences = (
+			currentAuthorityReferences(consumerId) +
+				database.sourceSessionDao().lifecycleIntents(logicalTrackingId)
+					.mapNotNull { intent -> intent.sourceCallerAuthorityReference }
+					.map(::SourceCallerReplayReference)
+		).toSet()
 		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
-		tombstoneReferences(retiredReferences, "SESSION_DEMAND_REPLACED", wallTimeMs)
+		if (retireSupersededAuthority) {
+			retireAuthorityReferences(retiredReferences, "SESSION_DEMAND_REPLACED", wallTimeMs)
+		}
 		if (demands.isNotEmpty()) dao.insertDemands(demands)
 		affectedSources.forEach { sourceKind ->
 			rotateCurrentAuthorizationInTransaction(
@@ -199,9 +207,14 @@ class SourceBroker @Inject internal constructor(
 		val previouslyActiveSources = dao.currentDemands(consumerId)
 			.map(SourceDemandEntity::sourceKind)
 			.toSet()
-		val retiredReferences = currentAuthorityReferences(consumerId)
+		val retiredReferences = (
+			currentAuthorityReferences(consumerId) +
+				database.sourceSessionDao().lifecycleIntents(logicalTrackingId)
+					.mapNotNull { intent -> intent.sourceCallerAuthorityReference }
+					.map(::SourceCallerReplayReference)
+		).toSet()
 		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
-		tombstoneReferences(retiredReferences, "SESSION_DEMAND_STAGED", wallTimeMs)
+		retireAuthorityReferences(retiredReferences, "SESSION_DEMAND_STAGED", wallTimeMs)
 		if (demands.isNotEmpty()) {
 			dao.insertDemands(demands.map { demand ->
 				demand.copy(status = SourceDemandEntity.STATUS_BLOCKED)
@@ -289,28 +302,38 @@ class SourceBroker @Inject internal constructor(
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
+		retireCallerAuthority: Boolean = true,
 	) = database.withTransaction {
 		retireSessionDemandsInTransaction(
 			logicalTrackingId,
 			bootId,
 			elapsedRealtimeNanos,
 			wallTimeMs,
+			retireCallerAuthority,
 		)
 	}
 
-	/** Retires session authority atomically with a caller-owned lifecycle transaction. */
+	/** Retires session demands and, unless deferred for restart handoff, their caller authority. */
 	suspend fun retireSessionDemandsInTransaction(
 		logicalTrackingId: String,
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
+		retireCallerAuthority: Boolean = true,
 	): Int {
 		val dao = database.sourceBrokerDao()
 		val consumerId = sessionConsumerId(logicalTrackingId)
 		val affectedSources = dao.currentDemands(consumerId).map(SourceDemandEntity::sourceKind).toSet()
-		val retiredReferences = currentAuthorityReferences(consumerId)
+		val retiredReferences = (
+			currentAuthorityReferences(consumerId) +
+				database.sourceSessionDao().lifecycleIntents(logicalTrackingId)
+					.mapNotNull { intent -> intent.sourceCallerAuthorityReference }
+					.map(::SourceCallerReplayReference)
+		).toSet()
 		val updated = dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
-		tombstoneReferences(retiredReferences, "SESSION_DEMAND_RETIRED", wallTimeMs)
+		if (retireCallerAuthority) {
+			retireAuthorityReferences(retiredReferences, "SESSION_DEMAND_RETIRED", wallTimeMs)
+		}
 		affectedSources.forEach { sourceKind ->
 			rotateCurrentAuthorizationInTransaction(sourceKind, bootId, elapsedRealtimeNanos, wallTimeMs)
 		}
@@ -359,7 +382,7 @@ class SourceBroker @Inject internal constructor(
 		) == 1) {
 			"Exact purpose-owner demand retirement lost ownership"
 		}
-		tombstoneDemandAuthority(current, "PURPOSE_OWNER_DEMAND_RETIRED", wallTimeMs)
+		retireDemandAuthority(current, "PURPOSE_OWNER_DEMAND_RETIRED", wallTimeMs)
 		rotateCurrentAuthorizationInTransaction(
 			current.sourceKind,
 			bootId,
@@ -369,31 +392,61 @@ class SourceBroker @Inject internal constructor(
 		true
 	}
 
-	private suspend fun tombstoneReferences(
+	/** Retires every non-current session authority after its new DataStore reference is visible. */
+	internal suspend fun retireSupersededSessionAuthoritiesInTransaction(
+		logicalTrackingId: String,
+		currentReference: SourceCallerReplayReference,
+		expectedSupersededReference: SourceCallerReplayReference,
+		wallTimeMs: Long,
+	): Boolean {
+		val references = (
+			currentAuthorityReferences(sessionConsumerId(logicalTrackingId)) +
+				database.sourceSessionDao().lifecycleIntents(logicalTrackingId)
+					.mapNotNull { intent -> intent.sourceCallerAuthorityReference }
+					.map(::SourceCallerReplayReference)
+		).toSet()
+		val superseded = references
+			.filterTo(linkedSetOf()) { reference -> reference != currentReference }
+		if (expectedSupersededReference !in superseded) return false
+		retireAuthorityReferences(
+			superseded,
+			"SESSION_AUTHORITY_SUPERSEDED",
+			wallTimeMs,
+		)
+		return true
+	}
+
+	private suspend fun retireAuthorityReferences(
 		references: Set<SourceCallerReplayReference>,
 		reason: String,
 		wallTimeMs: Long,
 	) {
 		references.forEach { reference ->
-			check(sourceCallerAuthorityRepository.tombstone(reference, reason, wallTimeMs)) {
-				"Unable to tombstone source-caller authority"
+			when (sourceCallerAuthorityRepository.load(reference)) {
+				is StoredSourceCallerAuthorityLoadResult.Available ->
+					check(sourceCallerAuthorityRepository.retire(reference, reason, wallTimeMs)) {
+						"Unable to retire source-caller authority"
+					}
+				StoredSourceCallerAuthorityLoadResult.Missing,
+				StoredSourceCallerAuthorityLoadResult.Retired,
+				-> Unit
+				StoredSourceCallerAuthorityLoadResult.Corrupt ->
+					error("Corrupt source-caller authority cannot be retired")
 			}
 		}
 	}
 
-	private suspend fun tombstoneDemandAuthority(
+	private suspend fun retireDemandAuthority(
 		demand: SourceDemandEntity,
 		reason: String,
 		wallTimeMs: Long,
 	) {
 		demand.sourceCallerAuthorityReference?.let { reference ->
-			check(
-				sourceCallerAuthorityRepository.tombstone(
-					SourceCallerReplayReference(reference),
-					reason,
-					wallTimeMs,
-				),
-			) { "Unable to tombstone source-caller demand authority" }
+			retireAuthorityReferences(
+				setOf(SourceCallerReplayReference(reference)),
+				reason,
+				wallTimeMs,
+			)
 		}
 	}
 
@@ -418,7 +471,7 @@ class SourceBroker @Inject internal constructor(
 		).toSet()
 		val priorReferences = currentAuthorityReferences(consumerId)
 		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
-		tombstoneReferences(priorReferences, "AUTOMATIC_CONTROL_REPLACED", wallTimeMs)
+		retireAuthorityReferences(priorReferences, "AUTOMATIC_CONTROL_REPLACED", wallTimeMs)
 		if (!enabled) {
 			rotateCurrentAuthorizationsInTransaction(
 				affectedSourceKinds,
@@ -654,7 +707,7 @@ class SourceBroker @Inject internal constructor(
 				)
 			}
 			dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
-			tombstoneReferences(priorReferences, "AMBIENT_STEPS_RETIRED", wallTimeMs)
+			retireAuthorityReferences(priorReferences, "AMBIENT_STEPS_RETIRED", wallTimeMs)
 			rotateCurrentAuthorizationsInTransaction(
 				affectedSourceKinds,
 				bootId,
@@ -746,7 +799,7 @@ class SourceBroker @Inject internal constructor(
 		}?.let { unchanged -> return@withTransaction AmbientStepsDemandResult.Active(unchanged) }
 		val priorReferences = currentAuthorityReferences(consumerId)
 		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
-		tombstoneReferences(priorReferences, "AMBIENT_STEPS_REPLACED", wallTimeMs)
+		retireAuthorityReferences(priorReferences, "AMBIENT_STEPS_REPLACED", wallTimeMs)
 		val demand = SourceDemandEntity(
 			demandId = AmbientStepsDemandIdentity.create(
 				consumerId = consumerId,
@@ -1545,7 +1598,7 @@ class SourceBroker @Inject internal constructor(
 		suspend fun retireCurrentDemand(): Boolean {
 			val demand = currentDemand ?: return true
 			val retired = retireExactDemand(demand) == 1
-			if (retired) tombstoneDemandAuthority(demand, "AMBIENT_RADIO_RETIRED", wallTimeMs)
+			if (retired) retireDemandAuthority(demand, "AMBIENT_RADIO_RETIRED", wallTimeMs)
 			return retired
 		}
 

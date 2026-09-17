@@ -61,11 +61,16 @@ internal class FakeSourceCallerDemandDispatcher(
 		}
 		val receipt = SourceCallerAcceptanceReceipt(
 			reference = SourceCallerReplayReference(
-				"test:${request.manifest.logicalTrackingId}:${request.manifest.manifestRevision}",
+				if (request.mutation == SessionDemandMutation.AUTHORITY_ONLY) {
+					"test:${request.manifest.logicalTrackingId}:" +
+						"${request.manifest.manifestRevision}:authority:${java.util.UUID.randomUUID()}"
+				} else {
+					"test:${request.manifest.logicalTrackingId}:${request.manifest.manifestRevision}"
+				},
 			),
 			permittedDemandIdentities = identities,
 		)
-		check(repository.storeIfAbsent(
+		check(repository.insertIfAbsent(
 			receipt.reference,
 			StoredSourceCallerAuthority(
 				origin = when {
@@ -108,7 +113,10 @@ internal class FakeSourceCallerDemandDispatcher(
 					request.bootId,
 					request.elapsedRealtimeNanos,
 					request.wallTimeMs,
+					retireSupersededAuthority =
+						request.startOrigin != SessionStartOrigin.POLICY_RECONCILIATION,
 				)
+			SessionDemandMutation.AUTHORITY_ONLY -> Unit
 		}
 		return SessionSourceDemandDispatchResult.Permitted(receipt)
 	}
@@ -117,14 +125,22 @@ internal class FakeSourceCallerDemandDispatcher(
 		manifestIdentity: SourceCallerManifestIdentity,
 		reference: SourceCallerReplayReference,
 		replayKind: SourceCallerReplayKind,
-	): SourceCallerGuardResult = when (val loaded = repository.load(reference)) {
+	): SourceCallerGuardResult = if (
+		replayKind == SourceCallerReplayKind.POLICY_RECONCILIATION
+	) {
+		SourceCallerGuardResult.Rejected(
+			SourceCallerGuardRejection(
+				SourceCallerRejectionReason.REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE,
+			),
+		)
+	} else when (val loaded = repository.load(reference)) {
 		is StoredSourceCallerAuthorityLoadResult.Available ->
 			SourceCallerGuardResult.Permitted(
 				SourceCallerAcceptanceReceipt(reference, loaded.authority.permittedDemandIdentities),
 			)
 		StoredSourceCallerAuthorityLoadResult.Missing,
 		StoredSourceCallerAuthorityLoadResult.Corrupt,
-		StoredSourceCallerAuthorityLoadResult.Tombstoned,
+		StoredSourceCallerAuthorityLoadResult.Retired,
 		-> SourceCallerGuardResult.Rejected(
 			SourceCallerGuardRejection(SourceCallerRejectionReason.REPLAY_AUTHORITY_UNAVAILABLE),
 		)
@@ -141,4 +157,5 @@ internal class FakeSourceCallerDemandDispatcher(
 				it.logicalTrackingId == manifestIdentity.logicalTrackingId &&
 				it.manifestRevision == manifestIdentity.manifestRevision
 		}
+
 }

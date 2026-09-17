@@ -36,6 +36,7 @@ import com.adsamcik.tracker.tracker.api.activityTransitionCallbackCleanupDeadlin
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStore
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreFailureKind
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreResult
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.resilience.LogicalTrackingLifecycleState
@@ -262,7 +263,11 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 				is ActiveTrackingSessionStoreResult.Failure -> {
 					compensatePrepared(token, request.command.generation, "ACTIVE_DESCRIPTOR_SAVE_FAILED")
 					resolved.previousDescriptor?.let { activeTrackingSessionStore.clearExact(it) }
-					return retryableStartRejection("ACTIVE_DESCRIPTOR_SAVE_FAILED")
+					return if (stored.kind == ActiveTrackingSessionStoreFailureKind.CORRUPT) {
+						TrackingStartPreparationResult.Rejected("ACTIVE_DESCRIPTOR_CORRUPT")
+					} else {
+						retryableStartRejection("ACTIVE_DESCRIPTOR_SAVE_FAILED")
+					}
 				}
 			}
 			if (!trackingStartupGate.isReady ||
@@ -350,8 +355,12 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 			previousCommandGeneration = redeliveredCommand.generation,
 		)
 		val storedDescriptor = when (val stored = activeTrackingSessionStore.read()) {
-			is ActiveTrackingSessionStoreResult.Failure ->
-				return AndroidRedeliveryStartResolution.Deferred
+			is ActiveTrackingSessionStoreResult.Failure -> return when (stored.kind) {
+				ActiveTrackingSessionStoreFailureKind.CORRUPT ->
+					AndroidRedeliveryStartResolution.Rejected("ACTIVE_DESCRIPTOR_CORRUPT")
+				ActiveTrackingSessionStoreFailureKind.UNAVAILABLE ->
+					AndroidRedeliveryStartResolution.Deferred
+			}
 			is ActiveTrackingSessionStoreResult.Success -> stored.descriptor
 		}
 		val descriptorMatchesRun = storedDescriptor != null &&
@@ -404,7 +413,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		when (val replay = sourceCallerDemandDispatcher.replayPreparedSession(
 			SourceCallerManifestIdentity(run.logicalTrackingId, run.preparedManifestRevision),
 			priorReference,
-			SourceCallerReplayKind.RESTART,
+			SourceCallerReplayKind.ACTIVE_REDELIVERY,
 		)) {
 			is SourceCallerGuardResult.Permitted -> Unit
 			is SourceCallerGuardResult.Rejected -> {
@@ -633,8 +642,14 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 			return TrackingServicePreparedStartClaim.Rejected(envelopeFailure)
 		}
 		val descriptor = when (val stored = activeTrackingSessionStore.read()) {
-			is ActiveTrackingSessionStoreResult.Failure ->
-				return TrackingServicePreparedStartClaim.Deferred
+			is ActiveTrackingSessionStoreResult.Failure -> return when (stored.kind) {
+				ActiveTrackingSessionStoreFailureKind.CORRUPT -> {
+					compensatePrepared(token, commandGeneration, "ACTIVE_DESCRIPTOR_CORRUPT")
+					TrackingServicePreparedStartClaim.Rejected("ACTIVE_DESCRIPTOR_CORRUPT")
+				}
+				ActiveTrackingSessionStoreFailureKind.UNAVAILABLE ->
+					TrackingServicePreparedStartClaim.Deferred
+			}
 			is ActiveTrackingSessionStoreResult.Success -> stored.descriptor?.takeIf { current ->
 				current.logicalTrackingId == claim.logicalTrackingId &&
 					current.serviceRunId == claim.serviceRunId &&
@@ -661,7 +676,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 				claim.manifestRevision,
 			),
 			reference = reference,
-			replayKind = SourceCallerReplayKind.FOREGROUND_SERVICE,
+			replayKind = SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
 		)) {
 			is SourceCallerGuardResult.Permitted -> Unit
 			is SourceCallerGuardResult.Rejected -> {
@@ -722,7 +737,14 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 	): TrackingStartDescriptorResolution {
 		val stored = when (val result = activeTrackingSessionStore.read()) {
 			is ActiveTrackingSessionStoreResult.Failure ->
-				return TrackingStartDescriptorResolution.Failure("ACTIVE_DESCRIPTOR_READ_FAILED")
+				return TrackingStartDescriptorResolution.Failure(
+					when (result.kind) {
+						ActiveTrackingSessionStoreFailureKind.CORRUPT ->
+							"ACTIVE_DESCRIPTOR_CORRUPT"
+						ActiveTrackingSessionStoreFailureKind.UNAVAILABLE ->
+							"ACTIVE_DESCRIPTOR_READ_FAILED"
+					},
+				)
 			is ActiveTrackingSessionStoreResult.Success -> result.descriptor
 		}
 
@@ -756,7 +778,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		return when (val replay = sourceCallerDemandDispatcher.replayPreparedSession(
 			SourceCallerManifestIdentity(previous.logicalTrackingId, manifestRevision),
 			reference,
-			SourceCallerReplayKind.RECOVERY,
+			SourceCallerReplayKind.PROCESS_RECOVERY,
 		)) {
 			is SourceCallerGuardResult.Permitted -> null
 			is SourceCallerGuardResult.Rejected -> TrackingStartPreparationResult.Rejected(

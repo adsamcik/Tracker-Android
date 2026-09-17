@@ -24,6 +24,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.tracker.resilience.InactiveTrackingSessionStopHandler
 import com.adsamcik.tracker.tracker.resilience.InactiveTrackingSessionStopOutcome
 import com.adsamcik.tracker.tracker.resilience.PreviousExitRecoveryCoordinator
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreCorruptionException
 import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCommand
@@ -595,6 +596,11 @@ class DefaultTrackingStartupGate @Inject constructor(
 				null
 			} catch (cancelled: CancellationException) {
 				throw cancelled
+			} catch (_: ActiveTrackingSessionStoreCorruptionException) {
+				TrackingStartupResult.Blocked(
+					TrackingStartupStage.PREVIOUS_EXIT,
+					"ACTIVE_DESCRIPTOR_CORRUPT",
+				)
 			} catch (failure: Exception) {
 				TrackingStartupResult.RetryableFailure(
 					TrackingStartupStage.PREVIOUS_EXIT,
@@ -620,7 +626,7 @@ class DefaultTrackingStartupGate @Inject constructor(
 
 	private suspend fun applyPreviousExitLocked(
 		action: ApplicationStartupRecoveryAction,
-	): TrackingStartupResult.RetryableFailure? {
+	): TrackingStartupResult? {
 		if (previousExitApplied) return null
 		return try {
 			recoveryResolver.apply(action, deletionBarrier.currentGeneration)
@@ -628,6 +634,11 @@ class DefaultTrackingStartupGate @Inject constructor(
 			null
 		} catch (cancelled: CancellationException) {
 			throw cancelled
+		} catch (_: ActiveTrackingSessionStoreCorruptionException) {
+			TrackingStartupResult.Blocked(
+				TrackingStartupStage.PREVIOUS_EXIT,
+				"ACTIVE_DESCRIPTOR_CORRUPT",
+			)
 		} catch (failure: Exception) {
 			TrackingStartupResult.RetryableFailure(
 				TrackingStartupStage.PREVIOUS_EXIT,
@@ -646,10 +657,18 @@ class DefaultTrackingStartupGate @Inject constructor(
 		Result.failure(failure)
 	}
 
-	private fun pendingStopFailure(failure: Throwable) = TrackingStartupResult.RetryableFailure(
-		TrackingStartupStage.PREVIOUS_EXIT,
-		"$PENDING_STOP_FAILED:${failure.javaClass.simpleName.ifBlank { UNKNOWN_FAILURE }}",
-	)
+	private fun pendingStopFailure(failure: Throwable): TrackingStartupResult =
+		if (failure is ActiveTrackingSessionStoreCorruptionException) {
+			TrackingStartupResult.Blocked(
+				TrackingStartupStage.PREVIOUS_EXIT,
+				"ACTIVE_DESCRIPTOR_CORRUPT",
+			)
+		} else {
+			TrackingStartupResult.RetryableFailure(
+				TrackingStartupStage.PREVIOUS_EXIT,
+				"$PENDING_STOP_FAILED:${failure.javaClass.simpleName.ifBlank { UNKNOWN_FAILURE }}",
+			)
+		}
 
 	private fun deletionPendingFailure() = TrackingStartupResult.RetryableFailure(
 		TrackingStartupStage.STORAGE,

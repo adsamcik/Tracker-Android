@@ -12,6 +12,7 @@ import com.adsamcik.tracker.tracker.api.SourceCallerGuardRejection
 import com.adsamcik.tracker.tracker.api.SourceCallerGuardResult
 import com.adsamcik.tracker.tracker.api.SourceCallerManifestIdentity
 import com.adsamcik.tracker.tracker.api.SourceCallerRejectionReason
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayKind
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.SourceCallerRequest
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
@@ -51,18 +52,22 @@ internal fun interface SourceCallerAuthoritySnapshotReader {
 
 internal interface SourceCallerAcceptedAuthorityRepository {
 	/** Persists normalized authority before a caller receives its replay reference. */
-	suspend fun storeIfAbsent(
+	suspend fun insertIfAbsent(
 		reference: SourceCallerReplayReference,
 		authority: StoredSourceCallerAuthority,
 		createdAtMs: Long,
 	): Boolean
 	suspend fun load(reference: SourceCallerReplayReference): StoredSourceCallerAuthorityLoadResult
-	suspend fun tombstone(
+	suspend fun retire(
 		reference: SourceCallerReplayReference,
 		reason: String,
-		tombstonedAtMs: Long,
+		retiredAtMs: Long,
 	): Boolean
 	suspend fun delete(reference: SourceCallerReplayReference): Boolean
+	suspend fun pruneRetired(
+		retiredBeforeOrAtMs: Long,
+		limit: Int,
+	): Int
 }
 
 internal enum class StoredSourceCallerOrigin {
@@ -86,7 +91,7 @@ internal sealed interface StoredSourceCallerAuthorityLoadResult {
 
 	data object Missing : StoredSourceCallerAuthorityLoadResult
 	data object Corrupt : StoredSourceCallerAuthorityLoadResult
-	data object Tombstoned : StoredSourceCallerAuthorityLoadResult
+	data object Retired : StoredSourceCallerAuthorityLoadResult
 }
 
 /**
@@ -102,6 +107,11 @@ internal class ExactSourceCallerGuard @Inject constructor(
 	override suspend fun accept(request: SourceCallerRequest): SourceCallerGuardResult {
 		if (request is SourceCallerRequest.PurposeOwnerRetirement) {
 			return acceptPurposeOwnerRetirement(request)
+		}
+		if (request is SourceCallerRequest.Replay &&
+			request.replayKind == SourceCallerReplayKind.POLICY_RECONCILIATION
+		) {
+			return rejected(SourceCallerRejectionReason.REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE)
 		}
 		validateBoundExecution(request.requestedDemandIdentities.toSet())?.let { return it }
 		val currentAuthority = try {
@@ -148,8 +158,8 @@ internal class ExactSourceCallerGuard @Inject constructor(
 				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_UNAVAILABLE)
 			StoredSourceCallerAuthorityLoadResult.Corrupt ->
 				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_CORRUPT)
-			StoredSourceCallerAuthorityLoadResult.Tombstoned ->
-				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_TOMBSTONED)
+			StoredSourceCallerAuthorityLoadResult.Retired ->
+				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_RETIRED)
 		}
 		val identity = accepted.permittedDemandIdentities.singleOrNull()
 		if (identity == null ||
@@ -171,7 +181,7 @@ internal class ExactSourceCallerGuard @Inject constructor(
 		is SourceCallerEvaluation.Accepted -> {
 			val reference = SourceCallerReplayReference(UUID.randomUUID().toString())
 			try {
-				if (!authorityRepository.storeIfAbsent(
+				if (!authorityRepository.insertIfAbsent(
 					reference,
 					evaluation.authority.toStored(),
 					System.currentTimeMillis(),
@@ -208,8 +218,17 @@ internal class ExactSourceCallerGuard @Inject constructor(
 				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_UNAVAILABLE)
 			StoredSourceCallerAuthorityLoadResult.Corrupt ->
 				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_CORRUPT)
-			StoredSourceCallerAuthorityLoadResult.Tombstoned ->
-				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_TOMBSTONED)
+			StoredSourceCallerAuthorityLoadResult.Retired ->
+				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_RETIRED)
+		}
+		if (accepted.purpose != TrackingPurpose.SESSION_CAPTURE ||
+			accepted.origin !in setOf(
+				AcceptedSourceCallerOrigin.MANUAL,
+				AcceptedSourceCallerOrigin.AUTOMATIC,
+				AcceptedSourceCallerOrigin.RECOVERY,
+			)
+		) {
+			return rejected(SourceCallerRejectionReason.REPLAY_KIND_NOT_PERMITTED)
 		}
 		val requestedDemands = request.requestedDemandIdentities.toSet()
 		if (request.purpose != accepted.purpose) {

@@ -191,12 +191,6 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 		identity: com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity,
 	): Boolean = currentAuthority(identity)
 
-	override suspend fun tombstone(
-		reference: SourceCallerReplayReference,
-		reason: String,
-		wallTimeMs: Long,
-	): Boolean = false
-
 	override suspend fun permitsActivation(
 		reference: SourceCallerReplayReference,
 		manifestIdentity: SourceCallerManifestIdentity,

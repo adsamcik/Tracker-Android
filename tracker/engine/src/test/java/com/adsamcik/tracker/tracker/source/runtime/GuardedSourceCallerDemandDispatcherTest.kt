@@ -92,6 +92,39 @@ class GuardedSourceCallerDemandDispatcherTest {
 	}
 
 	@Test
+	fun `authority-only refresh issues a receipt without mutating broker demand`() = runTest {
+		val location = capture(TrackingSource.LOCATION)
+		val broker = brokerReturning(listOf(demand(TrackingSource.LOCATION)))
+		val dispatcher = dispatcher(
+			SourceCallerAuthoritySnapshot(
+				setOf(location),
+				TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+			),
+			broker,
+		)
+
+		dispatcher.dispatchSession(
+			sessionRequest(
+				bindings = listOf(binding(TrackingSource.LOCATION)),
+			).copy(mutation = SessionDemandMutation.AUTHORITY_ONLY),
+		).shouldBeInstanceOf<SessionSourceDemandDispatchResult.Permitted>()
+
+		coVerify(exactly = 0) {
+			broker.stageSessionDemandsInTransaction(any(), any(), any(), any(), any())
+		}
+		coVerify(exactly = 0) {
+			broker.replaceSessionDemandsInTransaction(
+				any(),
+				any(),
+				any(),
+				any(),
+				any(),
+				any(),
+			)
+		}
+	}
+
+	@Test
 	fun `automatic dispatch fails closed when Activity control readiness is missing`() = runTest {
 		val location = capture(TrackingSource.LOCATION)
 		val broker = brokerReturning(emptyList())
@@ -156,7 +189,7 @@ class GuardedSourceCallerDemandDispatcherTest {
 		val replay = dispatcher.replayPreparedSession(
 			MANIFEST,
 			accepted.receipt.reference,
-			SourceCallerReplayKind.FOREGROUND_SERVICE,
+			SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
 		).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
 
 		replay.rejection.reason shouldBe SourceCallerRejectionReason.REPLAY_AUTHORITY_ESCALATION
@@ -247,10 +280,29 @@ class GuardedSourceCallerDemandDispatcherTest {
 		val replay = dispatcher.replayPreparedSession(
 			replacementManifest,
 			accepted.receipt.reference,
-			SourceCallerReplayKind.RECOVERY,
+			SourceCallerReplayKind.PROCESS_RECOVERY,
 		).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
 
 		replay.rejection.reason shouldBe SourceCallerRejectionReason.REPLAY_AUTHORITY_ESCALATION
+	}
+
+	@Test
+	fun `policy reconciliation cannot enter the replay path`() = runTest {
+		val dispatcher = dispatcher(
+			SourceCallerAuthoritySnapshot(
+				setOf(capture(TrackingSource.LOCATION)),
+				TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+			),
+			brokerReturning(emptyList()),
+		)
+
+		dispatcher.replayPreparedSession(
+			MANIFEST,
+			SourceCallerReplayReference("old-reference"),
+			SourceCallerReplayKind.POLICY_RECONCILIATION,
+		).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+			.rejection.reason shouldBe
+			SourceCallerRejectionReason.REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE
 	}
 
 	@Test
@@ -278,7 +330,7 @@ class GuardedSourceCallerDemandDispatcherTest {
 		dispatcher.replayPreparedSession(
 			MANIFEST,
 			original.receipt.reference,
-			SourceCallerReplayKind.RECOVERY,
+			SourceCallerReplayKind.PROCESS_RECOVERY,
 		).shouldBeInstanceOf<SourceCallerGuardResult.Permitted>()
 
 		val replacementManifest = SourceCallerManifestIdentity(
@@ -472,7 +524,7 @@ class GuardedSourceCallerDemandDispatcherTest {
 		private val persisted =
 			mutableMapOf<SourceCallerReplayReference, StoredSourceCallerAuthority>()
 
-		override suspend fun storeIfAbsent(
+		override suspend fun insertIfAbsent(
 			reference: SourceCallerReplayReference,
 			authority: StoredSourceCallerAuthority,
 			createdAtMs: Long,
@@ -484,14 +536,19 @@ class GuardedSourceCallerDemandDispatcherTest {
 			StoredSourceCallerAuthorityLoadResult.Available(it)
 		} ?: StoredSourceCallerAuthorityLoadResult.Missing
 
-		override suspend fun tombstone(
+		override suspend fun retire(
 			reference: SourceCallerReplayReference,
 			reason: String,
-			tombstonedAtMs: Long,
+			retiredAtMs: Long,
 		): Boolean = persisted.remove(reference) != null
 
 		override suspend fun delete(reference: SourceCallerReplayReference): Boolean =
 			persisted.remove(reference) != null
+
+		override suspend fun pruneRetired(
+			retiredBeforeOrAtMs: Long,
+			limit: Int,
+		): Int = 0
 	}
 
 	private companion object {

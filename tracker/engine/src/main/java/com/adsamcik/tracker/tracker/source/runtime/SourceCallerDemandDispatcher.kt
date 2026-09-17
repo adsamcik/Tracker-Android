@@ -10,7 +10,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityEffectChecksum
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
@@ -36,6 +36,7 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
 import com.adsamcik.tracker.tracker.source.coordinator.SessionMode
 import com.adsamcik.tracker.tracker.source.coordinator.SessionManifestPurpose
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
+import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -46,6 +47,7 @@ import kotlinx.coroutines.CancellationException
 internal enum class SessionDemandMutation {
 	STAGE_UNTIL_FOREGROUND,
 	REPLACE_ACTIVE,
+	AUTHORITY_ONLY,
 }
 
 internal data class SessionSourceDemandDispatchRequest(
@@ -174,12 +176,6 @@ internal interface SourceCallerDemandDispatcher : SourceCallerCurrentAuthorityPr
 
 	suspend fun isCurrent(identity: TrackingPurposeLeaseIdentity): Boolean
 
-	suspend fun tombstone(
-		reference: SourceCallerReplayReference,
-		reason: String,
-		wallTimeMs: Long,
-	): Boolean
-
 	override suspend fun permitsActivation(
 		reference: SourceCallerReplayReference,
 		manifestIdentity: SourceCallerManifestIdentity,
@@ -191,6 +187,11 @@ internal fun interface CurrentSourceCallerAuthorityProvider {
 	suspend fun readCurrentManifest(
 		identity: SourceCallerManifestIdentity,
 	): SourceCallerAuthoritySnapshot?
+
+	suspend fun readReplayManifest(
+		identity: SourceCallerManifestIdentity,
+		replayKind: SourceCallerReplayKind,
+	): SourceCallerAuthoritySnapshot? = readCurrentManifest(identity)
 
 	suspend fun readCurrentPurpose(
 		requested: Set<SourceCallerDemandIdentity>,
@@ -221,7 +222,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		val manifestIdentity = request.manifest.toCallerIdentity()
 		validateManifestBindings(request, manifestIdentity)?.let { return rejected(it) }
 		val snapshot = try {
-			authorityReader.readCurrentManifest(manifestIdentity)
+			authorityReader.readReplayManifest(manifestIdentity, replayKind)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: RuntimeException) {
@@ -311,7 +312,10 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 					request.bootId,
 					request.elapsedRealtimeNanos,
 					request.wallTimeMs,
+					retireSupersededAuthority =
+						request.startOrigin != SessionStartOrigin.POLICY_RECONCILIATION,
 				)
+			SessionDemandMutation.AUTHORITY_ONLY -> Unit
 		}
 		return SessionSourceDemandDispatchResult.Permitted(permitted)
 	}
@@ -331,6 +335,11 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		reference: SourceCallerReplayReference,
 		replayKind: SourceCallerReplayKind,
 	): SourceCallerGuardResult {
+		if (replayKind == SourceCallerReplayKind.POLICY_RECONCILIATION) {
+			return replayRejected(
+				SourceCallerRejectionReason.REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE,
+			)
+		}
 		val snapshot = try {
 			authorityReader.readCurrentManifest(manifestIdentity)
 		} catch (cancelled: CancellationException) {
@@ -598,7 +607,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 								compensateAmbientRadio(attempt, active.demand.demandId)
 							}
 						}
-						tombstoneRetirementReceipt(attempt)
+						retireMutationReceipt(attempt)
 						throw cancelled
 					} catch (failure: RuntimeException) {
 						(mutation.value as? AmbientRadioDemandResult.Active)?.let { active ->
@@ -606,14 +615,14 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 								compensateAmbientRadio(attempt, active.demand.demandId)
 							}
 						}
-						tombstoneRetirementReceipt(attempt)
+						retireMutationReceipt(attempt)
 						throw failure
 					}
 					if (!current) {
 						(mutation.value as? AmbientRadioDemandResult.Active)?.let { active ->
 							compensateAmbientRadio(attempt, active.demand.demandId)
 						}
-						tombstoneRetirementReceipt(attempt)
+						retireMutationReceipt(attempt)
 						return@withAmbientRadioMutationLease GuardedPurposeDemandResult.Stale
 					}
 					try {
@@ -622,7 +631,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 							mutation.receipt.takeIf { request.requested },
 						)
 					} finally {
-						tombstoneRetirementReceipt(attempt)
+						retireMutationReceipt(attempt)
 					}
 				}
 				is GuardedPurposeDemandResult.Rejected -> mutation
@@ -635,18 +644,18 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		}
 	}
 
-	private suspend fun tombstoneRetirementReceipt(
+	private suspend fun retireMutationReceipt(
 		attempt: GuardedAmbientRadioAttempt,
 	) {
 		if (attempt.request.requested) return
 		val receipt = attempt.receipt ?: return
 		kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-			check(authorityRepository.tombstone(
+			check(authorityRepository.retire(
 				receipt.reference,
 				"PURPOSE_OWNER_RETIREMENT_COMPLETE",
 				attempt.request.wallTimeMs,
 			)) {
-				"Unable to tombstone purpose-owner retirement authority"
+				"Unable to retire purpose-owner mutation authority"
 			}
 		}
 	}
@@ -686,12 +695,6 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		)?.currentDemandIdentities
 			?.any { it.purposeLeaseIdentity == identity } == true
 
-	override suspend fun tombstone(
-		reference: SourceCallerReplayReference,
-		reason: String,
-		wallTimeMs: Long,
-	): Boolean = authorityRepository.tombstone(reference, reason, wallTimeMs)
-
 	override suspend fun permitsActivation(
 		reference: SourceCallerReplayReference,
 		manifestIdentity: SourceCallerManifestIdentity,
@@ -701,7 +704,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			is StoredSourceCallerAuthorityLoadResult.Available -> loaded.authority
 			StoredSourceCallerAuthorityLoadResult.Missing,
 			StoredSourceCallerAuthorityLoadResult.Corrupt,
-			StoredSourceCallerAuthorityLoadResult.Tombstoned,
+			StoredSourceCallerAuthorityLoadResult.Retired,
 			-> return false
 		}
 		if (accepted.purpose != TrackingPurpose.SESSION_CAPTURE) return false
@@ -881,6 +884,8 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 		val manifest = manifests.singleOrNull()
 		return if (manifest == null) {
 			readSessionless(request.requestedDemandIdentities)
+		} else if (request is SourceCallerRequest.Replay) {
+			readReplayManifest(manifest, request.replayKind) ?: unavailableSnapshot()
 		} else {
 			readCurrentManifest(manifest) ?: unavailableSnapshot()
 		}
@@ -888,11 +893,38 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 
 	override suspend fun readCurrentManifest(
 		identity: SourceCallerManifestIdentity,
+	): SourceCallerAuthoritySnapshot? = readCurrentManifest(
+		identity = identity,
+		requireLiveLease = true,
+		allowSuspendedSession = false,
+	)
+
+	override suspend fun readReplayManifest(
+		identity: SourceCallerManifestIdentity,
+		replayKind: SourceCallerReplayKind,
+	): SourceCallerAuthoritySnapshot? = readCurrentManifest(
+		identity = identity,
+		requireLiveLease =
+			replayKind == SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
+		allowSuspendedSession =
+			replayKind == SourceCallerReplayKind.ACTIVE_REDELIVERY ||
+				replayKind == SourceCallerReplayKind.PROCESS_RECOVERY,
+	)
+
+	private suspend fun readCurrentManifest(
+		identity: SourceCallerManifestIdentity,
+		requireLiveLease: Boolean,
+		allowSuspendedSession: Boolean,
 	): SourceCallerAuthoritySnapshot? {
 		repeat(AUTHORITY_READ_ATTEMPTS) {
 			val availabilityBefore = purposeAvailabilityReader.availability.value
 			val current = database.withTransaction {
-				readCurrentManifestInTransaction(identity, availabilityBefore)
+				readCurrentManifestInTransaction(
+					identity,
+					availabilityBefore,
+					requireLiveLease,
+					allowSuspendedSession,
+				)
 			} ?: return null
 			if (availabilityBefore == purposeAvailabilityReader.availability.value) return current
 		}
@@ -906,16 +938,30 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 	private suspend fun readCurrentManifestInTransaction(
 		identity: SourceCallerManifestIdentity,
 		availability: CurrentTrackingPurposeAvailability,
+		requireLiveLease: Boolean,
+		allowSuspendedSession: Boolean,
 	): SourceCallerAuthoritySnapshot? {
 		val sessionDao = database.sourceSessionDao()
 		val session = sessionDao.session(identity.logicalTrackingId)
-			?.takeIf { it.currentManifestRevision == identity.manifestRevision }
+			?.takeIf {
+				it.currentManifestRevision == identity.manifestRevision &&
+					it.state in setOf(
+						SessionLifecycleState.STARTING.name,
+						SessionLifecycleState.ACTIVE.name,
+						SessionLifecycleState.RECONFIGURING.name,
+					)
+			}
 			?: return null
 		val manifest = sessionDao.manifest(identity.logicalTrackingId, identity.manifestRevision)
 			?.takeIf {
 				it.rolloutRevision == session.rolloutRevision &&
 					it.effectiveBootId == session.lifecycleBootId &&
-					it.serviceRunId == session.currentServiceRunId
+					(
+						it.serviceRunId == session.currentServiceRunId ||
+							(allowSuspendedSession &&
+								session.state == SessionLifecycleState.ACTIVE.name &&
+								session.currentServiceRunId == null)
+						)
 			}
 			?: return null
 		val policyAuthority = database.sourcePolicyDao().authority()
@@ -932,7 +978,8 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 				it.ownerToken.isNotBlank() &&
 					it.generation == session.lifecycleLeaseGeneration &&
 					it.bootId == session.lifecycleBootId &&
-					it.expiresElapsedRealtimeNanos > SystemClock.elapsedRealtimeNanos()
+					(!requireLiveLease ||
+						it.expiresElapsedRealtimeNanos > SystemClock.elapsedRealtimeNanos())
 			}
 			?: return null
 		val bindings = sessionDao.manifestSources(
@@ -1050,14 +1097,15 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 internal class RoomSourceCallerAcceptedAuthorityRepository @Inject constructor(
 	private val database: AppDatabase,
 ) : SourceCallerAcceptedAuthorityRepository {
-	override suspend fun storeIfAbsent(
+	override suspend fun insertIfAbsent(
 		reference: SourceCallerReplayReference,
 		authority: StoredSourceCallerAuthority,
 		createdAtMs: Long,
-	): Boolean {
+	): Boolean = database.withTransaction {
+		require(createdAtMs >= 0L)
 		val dao = database.sourceCallerAuthorityDao()
-		if (dao.rows(reference.value).isNotEmpty()) return false
-		val rows = SourceCallerAcceptedAuthorityIntegrity.seal(
+		if (dao.rows(reference.value).isNotEmpty()) return@withTransaction false
+		val rows = SourceCallerAcceptedAuthorityEffectChecksum.seal(
 			authority.permittedDemandIdentities.map { identity ->
 				val lease = identity.purposeLeaseIdentity
 				SourceCallerAcceptedAuthorityEntity(
@@ -1077,38 +1125,38 @@ internal class RoomSourceCallerAcceptedAuthorityRepository @Inject constructor(
 					manifestRevision = identity.manifestIdentity?.manifestRevision,
 					status = SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE,
 					createdAtMs = createdAtMs,
-					tombstonedAtMs = null,
-					tombstoneReason = null,
-					integrityChecksum = "pending",
+					retiredAtMs = null,
+					retireReason = null,
+					effectChecksum = "pending",
 				)
 			},
 		)
-		return dao.insert(rows).size == rows.size
+		dao.insert(rows).size == rows.size
 	}
 
 	override suspend fun load(
 		reference: SourceCallerReplayReference,
-	): StoredSourceCallerAuthorityLoadResult {
+	): StoredSourceCallerAuthorityLoadResult = database.withTransaction {
 		val rows = database.sourceCallerAuthorityDao().rows(reference.value)
-		if (rows.isEmpty()) return StoredSourceCallerAuthorityLoadResult.Missing
+		if (rows.isEmpty()) return@withTransaction StoredSourceCallerAuthorityLoadResult.Missing
 		if (!rows.hasValidStoredAuthorityShape() ||
-			!SourceCallerAcceptedAuthorityIntegrity.isAuthentic(rows) ||
+			!SourceCallerAcceptedAuthorityEffectChecksum.isAuthentic(rows) ||
 			rows.any { it.reference != reference.value } ||
 			rows.map { it.formatVersion }.toSet() !=
 			setOf(SourceCallerAcceptedAuthorityEntity.FORMAT_VERSION) ||
 			rows.map { it.origin }.distinct().size != 1 ||
 			rows.map { it.acceptedPurpose }.distinct().size != 1 ||
 			rows.map { it.createdAtMs }.distinct().size != 1 ||
-			rows.map { it.tombstonedAtMs }.distinct().size != 1 ||
-			rows.map { it.tombstoneReason }.distinct().size != 1
-		) return StoredSourceCallerAuthorityLoadResult.Corrupt
-		if (rows.all { it.status == SourceCallerAcceptedAuthorityEntity.STATUS_TOMBSTONED }) {
-			return StoredSourceCallerAuthorityLoadResult.Tombstoned
+			rows.map { it.retiredAtMs }.distinct().size != 1 ||
+			rows.map { it.retireReason }.distinct().size != 1
+		) return@withTransaction StoredSourceCallerAuthorityLoadResult.Corrupt
+		if (rows.all { it.status == SourceCallerAcceptedAuthorityEntity.STATUS_RETIRED }) {
+			return@withTransaction StoredSourceCallerAuthorityLoadResult.Retired
 		}
 		if (rows.any { it.status != SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE }) {
-			return StoredSourceCallerAuthorityLoadResult.Corrupt
+			return@withTransaction StoredSourceCallerAuthorityLoadResult.Corrupt
 		}
-		return try {
+		try {
 			val identities = rows.mapTo(linkedSetOf()) { row ->
 				val source = TrackingSource.fromStableCode(row.sourceKind)
 				val purpose = TrackingPurpose.fromStableName(row.purpose)
@@ -1146,35 +1194,65 @@ internal class RoomSourceCallerAcceptedAuthorityRepository @Inject constructor(
 		}
 	}
 
-	override suspend fun tombstone(
+	override suspend fun retire(
 		reference: SourceCallerReplayReference,
 		reason: String,
-		tombstonedAtMs: Long,
-	): Boolean {
+		retiredAtMs: Long,
+	): Boolean = database.withTransaction {
 		require(reason.isNotBlank())
+		require(retiredAtMs >= 0L)
 		val dao = database.sourceCallerAuthorityDao()
 		val rows = dao.rows(reference.value)
 		if (rows.isEmpty() || !rows.hasValidStoredAuthorityShape() ||
-			!SourceCallerAcceptedAuthorityIntegrity.isAuthentic(rows)
-		) return false
-		if (rows.all { it.status == SourceCallerAcceptedAuthorityEntity.STATUS_TOMBSTONED }) {
-			return true
+			!SourceCallerAcceptedAuthorityEffectChecksum.isAuthentic(rows)
+		) return@withTransaction false
+		if (rows.all { it.status == SourceCallerAcceptedAuthorityEntity.STATUS_RETIRED }) {
+			return@withTransaction true
 		}
-		val tombstoned = SourceCallerAcceptedAuthorityIntegrity.seal(
+		if (rows.any { it.status != SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE }) {
+			return@withTransaction false
+		}
+		val retired = SourceCallerAcceptedAuthorityEffectChecksum.seal(
 			rows.map { row ->
 				row.copy(
-					status = SourceCallerAcceptedAuthorityEntity.STATUS_TOMBSTONED,
-					tombstonedAtMs = maxOf(tombstonedAtMs, row.createdAtMs),
-					tombstoneReason = reason,
-					integrityChecksum = "pending",
+					status = SourceCallerAcceptedAuthorityEntity.STATUS_RETIRED,
+					retiredAtMs = maxOf(retiredAtMs, row.createdAtMs),
+					retireReason = reason,
+					effectChecksum = "pending",
 				)
 			},
 		)
-		return dao.update(tombstoned) == tombstoned.size
+		dao.update(retired) == retired.size
 	}
 
 	override suspend fun delete(reference: SourceCallerReplayReference): Boolean =
-		database.sourceCallerAuthorityDao().delete(reference.value) > 0
+		database.withTransaction {
+			database.sourceCallerAuthorityDao().delete(reference.value) > 0
+		}
+
+	override suspend fun pruneRetired(
+		retiredBeforeOrAtMs: Long,
+		limit: Int,
+	): Int = database.withTransaction {
+		require(retiredBeforeOrAtMs >= 0L)
+		require(limit > 0)
+		val dao = database.sourceCallerAuthorityDao()
+		val references = dao.retiredReferencesForPrune(retiredBeforeOrAtMs, limit)
+		if (references.isEmpty()) {
+			0
+		} else {
+			check(references.all { reference ->
+				load(SourceCallerReplayReference(reference)) ==
+					StoredSourceCallerAuthorityLoadResult.Retired
+			}) {
+				"Retired source-caller authority prune encountered invalid rows"
+			}
+			check(dao.deleteReferences(references) >= references.size) {
+				"Retired source-caller authority prune lost rows"
+			}
+			references.size
+		}
+	}
 }
 
 private fun List<SourceCallerAcceptedAuthorityEntity>.hasValidStoredAuthorityShape(): Boolean =
@@ -1197,13 +1275,13 @@ private fun List<SourceCallerAcceptedAuthorityEntity>.hasValidStoredAuthoritySha
 			(row.manifestRevision == null || row.manifestRevision > 0L) &&
 			row.status in setOf(
 				SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE,
-				SourceCallerAcceptedAuthorityEntity.STATUS_TOMBSTONED,
+				SourceCallerAcceptedAuthorityEntity.STATUS_RETIRED,
 			) &&
 			row.createdAtMs >= 0L &&
-			(row.tombstonedAtMs == null) == (row.tombstoneReason == null) &&
-			(row.tombstonedAtMs == null || row.tombstonedAtMs >= row.createdAtMs) &&
-			(row.tombstoneReason == null || row.tombstoneReason.isNotBlank()) &&
-			row.integrityChecksum.isNotBlank()
+			(row.retiredAtMs == null) == (row.retireReason == null) &&
+			(row.retiredAtMs == null || row.retiredAtMs >= row.createdAtMs) &&
+			(row.retireReason == null || row.retireReason.isNotBlank()) &&
+			row.effectChecksum.isNotBlank()
 	}
 
 private fun CurrentTrackingPurposeAvailability.toSnapshot() = TrackingPurposeAvailabilitySnapshot(

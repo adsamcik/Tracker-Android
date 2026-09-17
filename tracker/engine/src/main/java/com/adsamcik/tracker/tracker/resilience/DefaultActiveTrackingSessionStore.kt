@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.resilience
 
 import android.content.Context
+import androidx.datastore.core.CorruptionException
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
@@ -8,7 +9,7 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
-import java.io.IOException
+import com.google.protobuf.InvalidProtocolBufferException
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.InputStream
 import java.io.OutputStream
@@ -17,14 +18,16 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 
-private object ActiveTrackingSessionSerializer : Serializer<ActiveTrackingSessionProto> {
+internal object ActiveTrackingSessionSerializer : Serializer<ActiveTrackingSessionProto> {
 	override val defaultValue: ActiveTrackingSessionProto =
 		ActiveTrackingSessionProto.getDefaultInstance()
 
-	override suspend fun readFrom(input: InputStream): ActiveTrackingSessionProto = try {
-		ActiveTrackingSessionProto.parseFrom(input)
-	} catch (exception: IOException) {
-		defaultValue
+	override suspend fun readFrom(input: InputStream): ActiveTrackingSessionProto {
+		try {
+			return ActiveTrackingSessionProto.parseFrom(input)
+		} catch (exception: InvalidProtocolBufferException) {
+			throw CorruptionException("Cannot read active tracking session proto", exception)
+		}
 	}
 
 	override suspend fun writeTo(
@@ -42,17 +45,22 @@ private val Context.activeTrackingSessionDataStore: DataStore<ActiveTrackingSess
 )
 
 @Singleton
-class DefaultActiveTrackingSessionStore @Inject constructor(
-	@ApplicationContext private val context: Context,
+class DefaultActiveTrackingSessionStore internal constructor(
+	private val dataStore: DataStore<ActiveTrackingSessionProto>,
 	private val dispatchers: DispatchersProvider,
 ) : ActiveTrackingSessionStore {
+	@Inject
+	constructor(
+		@ApplicationContext context: Context,
+		dispatchers: DispatchersProvider,
+	) : this(context.activeTrackingSessionDataStore, dispatchers)
 
 	override suspend fun read(): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
 		runStoreOperation {
 			// Normalize legacy descriptors as part of the read.  Older installs have no logical or
 			// service-run IDs; assigning them once here prevents every subsequent read from inventing
 			// a different correlation identity.
-			val stored = context.activeTrackingSessionDataStore.updateData { current ->
+			val stored = dataStore.updateData { current ->
 				current.normalizedForCurrentContract()
 			}
 			ActiveTrackingSessionStoreResult.Success(
@@ -65,7 +73,7 @@ class DefaultActiveTrackingSessionStore @Inject constructor(
 		descriptor: ActiveTrackingSessionDescriptor,
 	): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
 		runStoreOperation {
-			context.activeTrackingSessionDataStore.updateData {
+			dataStore.updateData {
 				descriptor.toProto()
 			}
 			ActiveTrackingSessionStoreResult.Success(descriptor)
@@ -78,7 +86,7 @@ class DefaultActiveTrackingSessionStore @Inject constructor(
 	): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
 		runStoreOperation {
 			var persisted: ActiveTrackingSessionProto? = null
-			context.activeTrackingSessionDataStore.updateData { current ->
+			dataStore.updateData { current ->
 				if (current.toDescriptor() == expected) {
 					replacement.toProto().also { persisted = it }
 				} else {
@@ -97,7 +105,7 @@ class DefaultActiveTrackingSessionStore @Inject constructor(
 		runStoreOperation {
 			val bound = expected.copy(sessionSegmentId = sessionSegmentId)
 			var persisted: ActiveTrackingSessionProto? = null
-			context.activeTrackingSessionDataStore.updateData { current ->
+			dataStore.updateData { current ->
 				when (current.toDescriptor()) {
 					expected -> bound.toProto().also { persisted = it }
 					bound -> current.also { persisted = it }
@@ -110,7 +118,7 @@ class DefaultActiveTrackingSessionStore @Inject constructor(
 
 	override suspend fun clear(): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
 		runStoreOperation {
-			context.activeTrackingSessionDataStore.updateData {
+			dataStore.updateData {
 				ActiveTrackingSessionProto.getDefaultInstance()
 			}
 			ActiveTrackingSessionStoreResult.Success(null)
@@ -122,7 +130,7 @@ class DefaultActiveTrackingSessionStore @Inject constructor(
 	): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
 		runStoreOperation {
 			var remaining: ActiveTrackingSessionProto? = null
-			context.activeTrackingSessionDataStore.updateData { current ->
+			dataStore.updateData { current ->
 				val currentDescriptor = current.toDescriptor()
 				if (
 					currentDescriptor?.logicalTrackingId == descriptor.logicalTrackingId &&
@@ -145,7 +153,7 @@ class DefaultActiveTrackingSessionStore @Inject constructor(
 	): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
 		runStoreOperation {
 			var remaining: ActiveTrackingSessionProto? = null
-			context.activeTrackingSessionDataStore.updateData { current ->
+			dataStore.updateData { current ->
 				if (current.toDescriptor() == descriptor) {
 					ActiveTrackingSessionProto.getDefaultInstance().also { remaining = it }
 				} else {
@@ -163,17 +171,43 @@ class DefaultActiveTrackingSessionStore @Inject constructor(
 		operation()
 	} catch (exception: CancellationException) {
 		throw exception
+	} catch (exception: CorruptionException) {
+		ActiveTrackingSessionStoreResult.Failure(
+			ActiveTrackingSessionStoreCorruptionException(exception),
+			ActiveTrackingSessionStoreFailureKind.CORRUPT,
+		)
 	} catch (exception: Exception) {
+		exception.corruptionCause()?.let { corruption ->
+			return ActiveTrackingSessionStoreResult.Failure(
+				ActiveTrackingSessionStoreCorruptionException(corruption),
+				ActiveTrackingSessionStoreFailureKind.CORRUPT,
+			)
+		}
 		if (!exception.isTrackingOperationalFailure()) throw exception
-		ActiveTrackingSessionStoreResult.Failure(exception)
+		ActiveTrackingSessionStoreResult.Failure(
+			exception,
+			ActiveTrackingSessionStoreFailureKind.UNAVAILABLE,
+		)
 	}
+}
+
+private fun Throwable.corruptionCause(): CorruptionException? {
+	val visited = mutableSetOf<Throwable>()
+	var current: Throwable? = this
+	while (current != null && visited.add(current)) {
+		if (current is CorruptionException) return current
+		current = current.cause
+	}
+	return null
 }
 
 private fun ActiveTrackingSessionProto.toDescriptor(): ActiveTrackingSessionDescriptor? {
 	if (!active) return null
-	val tier = PolicyTier.entries.firstOrNull { it.name == policyTier } ?: return null
-	if (tier == PolicyTier.OFF) return null
-	val persistedLifecycleState = lifecycleState.toLifecycleState()
+	val tier = PolicyTier.entries.firstOrNull { it.name == policyTier }
+		?.takeUnless { it == PolicyTier.OFF }
+		?: corruptActiveTrackingSession("Active descriptor has an invalid policy tier")
+	val persistedLifecycleState = lifecycleState.toLifecycleStateOrNull()
+		?: corruptActiveTrackingSession("Active descriptor has an invalid lifecycle state")
 	val stopCandidate = if (persistedLifecycleState == LogicalTrackingLifecycleState.STOP_CANDIDATE) {
 		TrackingStopCandidate(
 			reason = stopCandidateReason.toStopCandidateReason(),
@@ -184,23 +218,27 @@ private fun ActiveTrackingSessionProto.toDescriptor(): ActiveTrackingSessionDesc
 	}
 	val persistedRestartBootId = restartBootId.takeIf { it.isNotBlank() && restartToken.isNotBlank() }
 	val persistedRestartToken = restartToken.takeIf { persistedRestartBootId != null }
-	return ActiveTrackingSessionDescriptor(
-		isUserInitiated = userInitiated,
-		isAmbient = ambient,
-		policyTier = tier,
-		logicalTrackingId = logicalTrackingId.ifBlank { newDescriptorCorrelationId() },
-		serviceRunId = serviceRunId.ifBlank { newDescriptorCorrelationId() },
-		lifecycleState = persistedLifecycleState,
-		lifecycleRevision = lifecycleRevision,
-		lifecycleChangedAtEpochMs = lifecycleChangedAtEpochMs.takeIf { it > 0L },
-		stopCandidate = stopCandidate,
-		restartBootId = persistedRestartBootId,
-		restartToken = persistedRestartToken,
-		sessionSegmentId = sessionSegmentId.takeIf { it > 0L },
-		sourceCallerAuthorityReference = sourceCallerAuthorityReference
-			.takeIf(String::isNotBlank)
-			?.let(::SourceCallerReplayReference),
-	)
+	return try {
+		ActiveTrackingSessionDescriptor(
+			isUserInitiated = userInitiated,
+			isAmbient = ambient,
+			policyTier = tier,
+			logicalTrackingId = logicalTrackingId.ifBlank { newDescriptorCorrelationId() },
+			serviceRunId = serviceRunId.ifBlank { newDescriptorCorrelationId() },
+			lifecycleState = persistedLifecycleState,
+			lifecycleRevision = lifecycleRevision,
+			lifecycleChangedAtEpochMs = lifecycleChangedAtEpochMs.takeIf { it > 0L },
+			stopCandidate = stopCandidate,
+			restartBootId = persistedRestartBootId,
+			restartToken = persistedRestartToken,
+			sessionSegmentId = sessionSegmentId.takeIf { it > 0L },
+			sourceCallerAuthorityReference = sourceCallerAuthorityReference
+				.takeIf(String::isNotBlank)
+				?.let(::SourceCallerReplayReference),
+		)
+	} catch (exception: IllegalArgumentException) {
+		throw CorruptionException("Active tracking session descriptor is invalid", exception)
+	}
 }
 
 private fun ActiveTrackingSessionProto.normalizedForCurrentContract(): ActiveTrackingSessionProto {
@@ -233,13 +271,13 @@ private fun ActiveTrackingSessionDescriptor.toProto(): ActiveTrackingSessionProt
  */
 private fun newDescriptorCorrelationId(): String = java.util.UUID.randomUUID().toString()
 
-private fun String.toLifecycleState(): LogicalTrackingLifecycleState = when {
+private fun String.toLifecycleStateOrNull(): LogicalTrackingLifecycleState? = when {
 	isBlank() -> LogicalTrackingLifecycleState.ACTIVE // legacy v1 descriptor
 	else -> LogicalTrackingLifecycleState.entries.firstOrNull { it.name == this }
-		// An unrecognized future state must fail closed: never restart a session whose lifecycle
-		// this version cannot interpret.
-		?: LogicalTrackingLifecycleState.STOP_CANDIDATE
 }
+
+private fun corruptActiveTrackingSession(message: String): Nothing =
+	throw CorruptionException(message, IllegalArgumentException(message))
 
 private fun String.toStopCandidateReason(): TrackingStopCandidateReason =
 	TrackingStopCandidateReason.entries.firstOrNull { it.name == this }

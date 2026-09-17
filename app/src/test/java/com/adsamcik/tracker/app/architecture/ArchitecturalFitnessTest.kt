@@ -1132,7 +1132,7 @@ class ArchitecturalFitnessTest {
 					"""replaceAmbientStepsDemand|replaceAmbientWifiDemand(?:UnderHeldLease)?|""" +
 					"""replaceAmbientCellDemand(?:UnderHeldLease)?|withAmbientRadioMutationLease|""" +
 					"""compensateAmbient(?:Wifi|Cell)DemandUnderHeldLease|""" +
-					"""retireAcceptedPurposeDemand|""" +
+					"""retireAcceptedPurposeDemand|retireSupersededSessionAuthoritiesInTransaction|""" +
 					"""markSessionDemandsRetiring|retireSessionDemands(?:InTransaction)?|""" +
 					"""insertDemands)\s*\(""",
 			)
@@ -1195,7 +1195,7 @@ class ArchitecturalFitnessTest {
 					add("recovery must replay the previously accepted caller authority")
 				}
 				if ("replayPreparedSession(" !in coordinator ||
-					"SourceCallerReplayKind.FOREGROUND_SERVICE" !in coordinator
+					"SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY" !in coordinator
 				) add("foreground-service claim must replay exact caller authority")
 				if ("startServiceAndAwaitEnqueueResult(" !in automaticOutbox) {
 					add("automatic transition start must use the guarded prepared-start coordinator")
@@ -1218,6 +1218,8 @@ class ArchitecturalFitnessTest {
 					"sourceProjectionStateDao().lease(",
 					"purposeAvailabilityReader.availability.value",
 					"executionRevisionRegistry.identities.value",
+					"allowSuspendedSession",
+					"session.currentServiceRunId == null",
 				).filterNot(source::contains)
 					.mapTo(this) { marker -> "CurrentSourceCallerAuthorityReader missing $marker" }
 				listOf(
@@ -1232,8 +1234,37 @@ class ArchitecturalFitnessTest {
 					"Base64" in source
 				) add("accepted caller authority must remain in normalized Room rows")
 				if ("RoomSourceCallerAcceptedAuthorityRepository" !in source ||
-					"SourceCallerAcceptedAuthorityIntegrity" !in source
+					"SourceCallerAcceptedAuthorityEffectChecksum" !in source
 				) add("normalized Room caller authority repository is missing")
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `caller authority persistence is checksummed retirable and boundedly pruneable`() {
+			val entity = projectRoot.resolve(
+				"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/" +
+					"SourceCallerAuthorityEntity.kt",
+			).readText()
+			val dao = projectRoot.resolve(
+				"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/" +
+					"SourceCallerAuthorityDao.kt",
+			).readText()
+			val activeStore = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/" +
+					"DefaultActiveTrackingSessionStore.kt",
+			).readText()
+
+			buildList {
+				if ("effect_checksum" !in entity ||
+					"row.reference" !in entity ||
+					"row.formatVersion" !in entity
+				) add("caller authority effect checksum must bind reference and format")
+				if ("retiredReferencesForPrune" !in dao || "LIMIT :limit" !in dao) {
+					add("caller authority retirement pruning must remain bounded")
+				}
+				if ("throw CorruptionException(" !in activeStore ||
+					"ActiveTrackingSessionStoreFailureKind.CORRUPT" !in activeStore
+				) add("active-session proto corruption must remain typed and fail closed")
 			}.shouldBeEmpty()
 		}
 
@@ -1246,16 +1277,41 @@ class ArchitecturalFitnessTest {
 			val service = projectRoot.resolve(
 				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt",
 			).readText()
+			val sourceSession = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/" +
+					"TrackerServiceSourceSession.kt",
+			).readText()
+			val dispatcher = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"SourceCallerDemandDispatcher.kt",
+			).readText()
 
 			buildList {
 				if ("sourceCallerAuthorityReference: SourceCallerReplayReference" !in coordinator) {
 					add("reconfigure result must expose the newly accepted caller reference")
 				}
-				if ("activeTrackingSessionStore.replaceExact(expected, replacement)" !in service) {
-					add("TrackerService must CAS the new caller reference into durable restart state")
-				}
 				if ("activeSessionDescriptor = replacement" !in service) {
 					add("TrackerService must mirror the reconfigured caller reference in memory")
+				}
+				addAll(
+					orderedMarkerViolations(
+						sourceSession,
+						"reconfiguration caller authority handoff",
+						listOf(
+							"activeTrackingSessionStore.replaceExact(",
+							"session.sourceCallerAuthorityReference = replacementReference",
+							"coordinator.retireSupersededSourceCallerAuthority(",
+						),
+					),
+				)
+				if ("request.startOrigin != SessionStartOrigin.POLICY_RECONCILIATION" !in dispatcher) {
+					add("policy reconfiguration must defer predecessor authority retirement")
+				}
+				if ("SessionDemandMutation.AUTHORITY_ONLY" !in coordinator ||
+					"sourceCallerAuthorityReference = authorityReference.value" !in coordinator ||
+					"retireCallerAuthority = false" !in coordinator
+				) {
+					add("restart suspension must persist a fresh exact authority before retirement")
 				}
 			}.shouldBeEmpty()
 		}

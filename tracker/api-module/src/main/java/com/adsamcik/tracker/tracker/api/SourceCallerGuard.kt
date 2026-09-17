@@ -5,9 +5,14 @@ import com.adsamcik.tracker.shared.model.tracking.TrackingSource as CanonicalTra
 import com.adsamcik.tracker.shared.model.tracking.TrackingSourcePurposeIdentity as CanonicalSourcePurpose
 
 enum class SourceCallerReplayKind {
-	FOREGROUND_SERVICE,
-	RESTART,
-	RECOVERY,
+	/** Exact prepared intent delivered to the foreground service. */
+	FOREGROUND_SERVICE_DELIVERY,
+	/** Android redelivery of the unchanged prepared manifest and lease vector. */
+	ACTIVE_REDELIVERY,
+	/** Process recovery validates the old manifest before issuing any replacement acceptance. */
+	PROCESS_RECOVERY,
+	/** Never replayable: policy changes require a fresh acceptance and reference. */
+	POLICY_RECONCILIATION,
 }
 
 data class SourceCallerManifestIdentity(
@@ -229,11 +234,13 @@ enum class SourceCallerRejectionReason {
 	AUTHORITY_STORAGE_UNAVAILABLE,
 	REPLAY_AUTHORITY_UNAVAILABLE,
 	REPLAY_AUTHORITY_CORRUPT,
-	REPLAY_AUTHORITY_TOMBSTONED,
+	REPLAY_AUTHORITY_RETIRED,
 	REPLAY_PURPOSE_MISMATCH,
 	REPLAY_AUTHORITY_ESCALATION,
 	REPLAY_AUTHORITY_DOWNGRADE,
 	REPLAY_AUTHORITY_MISMATCH,
+	REPLAY_KIND_NOT_PERMITTED,
+	REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE,
 }
 
 val SourceCallerRejectionReason.isRetryable: Boolean

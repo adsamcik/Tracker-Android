@@ -122,7 +122,7 @@ class SourceCallerJavaCompatibilityTest {
 		SourceCallerAcceptanceReceipt receipt =
 				new SourceCallerAcceptanceReceipt(reference, Set.of(capture));
 		SourceCallerRequest.Replay replay = SourceCallerRequest.Replay.create(
-				SourceCallerReplayKind.RECOVERY,
+				SourceCallerReplayKind.PROCESS_RECOVERY,
 				receipt.getReference(),
 				TrackingPurpose.SESSION_CAPTURE,
 				receipt.getPermittedDemandIdentities()

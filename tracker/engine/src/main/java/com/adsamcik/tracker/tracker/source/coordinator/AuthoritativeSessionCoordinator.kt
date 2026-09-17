@@ -118,6 +118,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val session: LogicalTrackingSessionEntity,
 		val serviceRunId: String,
 		val expectedRunRevision: Long,
+		val sourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 	)
 	private data class FailedMaterializationShutdown(
 		val closed: Boolean,
@@ -1916,6 +1917,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 						verifiedManifest(current.logicalTrackingId, revision, serviceRunId)
 					}
 				}
+
 				if (currentManifestEnvelope == null) {
 					intentValidationFailure = "CURRENT_MANIFEST_INTEGRITY_FAILED"
 					return@withTransaction
@@ -2065,6 +2067,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					request.plan.revision,
 					applied,
 					SOURCE_RUNTIME_CLEANUP_PENDING,
+					requireNotNull(persisted).sourceCallerAuthorityReference(),
 				)
 			}
 			val finalPolicyFailure = validateSourcePolicy(request.plan)
@@ -2082,6 +2085,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 						request.plan.revision,
 						applied,
 						SOURCE_RUNTIME_CLEANUP_PENDING,
+						requireNotNull(persisted).sourceCallerAuthorityReference(),
 					)
 				}
 				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
@@ -2113,6 +2117,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					request.plan.revision,
 					applied,
 					"NO_SOURCE_ACTIVE_AFTER_RECONFIGURE",
+					requireNotNull(persisted).sourceCallerAuthorityReference(),
 				)
 			}
 			val acceptanceFailure = markReconfiguredIfPolicyCurrent(
@@ -2136,6 +2141,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 						request.plan.revision,
 						applied,
 						SOURCE_RUNTIME_CLEANUP_PENDING,
+						requireNotNull(persisted).sourceCallerAuthorityReference(),
 					)
 				}
 				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
@@ -2146,7 +2152,12 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					acceptanceFailure,
 					lease,
 				)
-				return SessionReconfigureResult.Failed(request.plan.revision, applied, acceptanceFailure)
+				return SessionReconfigureResult.Failed(
+					request.plan.revision,
+					applied,
+					acceptanceFailure,
+					requireNotNull(persisted).sourceCallerAuthorityReference(),
+				)
 			}
 			SessionReconfigureResult.Applied(
 				request.plan.revision,
@@ -2159,6 +2170,30 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		} finally {
 			releaseLease(lease)
 		}
+	}
+
+	suspend fun retireSupersededSourceCallerAuthority(
+		logicalTrackingId: String,
+		currentReference: SourceCallerReplayReference,
+		supersededReference: SourceCallerReplayReference,
+		wallTimeMs: Long,
+	): Boolean = database.withTransaction {
+		require(currentReference != supersededReference)
+		val session = database.sourceSessionDao().session(logicalTrackingId)
+			?: return@withTransaction false
+		val intentRevision = session.currentIntentRevision ?: return@withTransaction false
+		val currentIntent = database.sourceSessionDao()
+			.lifecycleIntent(logicalTrackingId, intentRevision)
+			?: return@withTransaction false
+		if (currentIntent.sourceCallerAuthorityReference != currentReference.value) {
+			return@withTransaction false
+		}
+		sourceBroker.retireSupersededSessionAuthoritiesInTransaction(
+			logicalTrackingId,
+			currentReference,
+			supersededReference,
+			wallTimeMs,
+		)
 	}
 
 	/** New runtime work must always be bound to one immutable, current policy revision. */
@@ -3234,11 +3269,47 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val manifestRevision = requireNotNull(session.currentManifestRevision)
 		val intentRevision = requireNotNull(session.currentIntentRevision) + 1L
 		val run = requireCurrentServiceRun(session)
+		val supersededAuthorityReference = requireNotNull(
+			dao.lifecycleIntent(
+				session.logicalTrackingId,
+				requireNotNull(session.currentIntentRevision),
+			)?.sourceCallerAuthorityReference,
+		) { "Suspend intent requires current source-caller authority" }
 		val manifestEnvelope = requireNotNull(
 			verifiedManifest(session.logicalTrackingId, manifestRevision, run.serviceRunId),
 		) { "Suspend manifest integrity failed" }
 		val cutoffElapsedRealtimeNanos = session.cutoffElapsedNanos ?: request.elapsedRealtimeNanos
 		val cutoffWallTimeMs = session.cutoffAtMs ?: request.wallTimeMs
+		val updated = session.copy(
+			currentIntentRevision = intentRevision,
+			lifecycleLeaseGeneration = lease.generation,
+			lifecycleBootId = lease.bootId,
+			cutoffAtMs = cutoffWallTimeMs,
+			cutoffElapsedNanos = cutoffElapsedRealtimeNanos,
+		)
+		check(dao.updateSession(updated) == 1)
+		val authorityReference = when (val guarded =
+			sourceCallerDemandDispatcher.dispatchSession(
+				SessionSourceDemandDispatchRequest(
+					manifest = manifestEnvelope.manifest,
+					bindings = manifestEnvelope.bindings,
+					sessionMode = SessionMode.valueOf(session.sessionMode),
+					startOrigin = SessionStartOrigin.valueOf(manifestEnvelope.manifest.startOrigin),
+					mutation = SessionDemandMutation.AUTHORITY_ONLY,
+					lifecycleLeaseGeneration = lease.generation,
+					bootId = request.clockDomainId,
+					elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+					wallTimeMs = request.wallTimeMs,
+				),
+			)
+		) {
+			is SessionSourceDemandDispatchResult.Permitted -> guarded.receipt.reference
+			is SessionSourceDemandDispatchResult.Rejected ->
+				throw SourceCallerDemandRejectedException(guarded.rejection.reason)
+		}
+		check(authorityReference.value != supersededAuthorityReference) {
+			"Suspend authority refresh must issue a new reference"
+		}
 		val intent = SessionLifecycleIntentVersionEntity(
 			logicalTrackingId = session.logicalTrackingId,
 			intentRevision = intentRevision,
@@ -3266,7 +3337,9 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				request.reason,
 				request.clockDomainId,
 				cutoffElapsedRealtimeNanos,
+				authorityReference.value,
 			),
+			sourceCallerAuthorityReference = authorityReference.value,
 		)
 		dao.insertLifecycleIntent(intent)
 		sourceBroker.markSessionDemandsRetiring(
@@ -3286,14 +3359,6 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				request.elapsedRealtimeNanos,
 			),
 		)
-		val updated = session.copy(
-			currentIntentRevision = intentRevision,
-			lifecycleLeaseGeneration = lease.generation,
-			lifecycleBootId = lease.bootId,
-			cutoffAtMs = cutoffWallTimeMs,
-			cutoffElapsedNanos = cutoffElapsedRealtimeNanos,
-		)
-		check(dao.updateSession(updated) == 1)
 		val updatedRun = run.copy(
 			state = SessionLifecycleState.STOPPING.name,
 			leaseGeneration = lease.generation,
@@ -3306,7 +3371,12 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				updatedRun,
 			) == 1,
 		)
-		return BoundServiceRunTransition(updated, run.serviceRunId, updatedRun.runRevision)
+		return BoundServiceRunTransition(
+			updated,
+			run.serviceRunId,
+			updatedRun.runRevision,
+			authorityReference,
+		)
 	}
 
 	private fun stopIntent(
@@ -3692,9 +3762,17 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			)
 			when (val drain = eventCoordinator.drainAvailable("${request.ownerToken}:projection")) {
 				is CoordinatorDrainResult.Complete -> if (drain.lastCompletedOrdinal < finalOrdinal) {
-					return SessionSuspendResult.DrainPending(durableSession.logicalTrackingId, finalOrdinal)
+					return SessionSuspendResult.DrainPending(
+						durableSession.logicalTrackingId,
+						finalOrdinal,
+						sourceCallerAuthorityReference = bound.sourceCallerAuthorityReference,
+					)
 				}
-				else -> return SessionSuspendResult.DrainPending(durableSession.logicalTrackingId, finalOrdinal)
+				else -> return SessionSuspendResult.DrainPending(
+					durableSession.logicalTrackingId,
+					finalOrdinal,
+					sourceCallerAuthorityReference = bound.sourceCallerAuthorityReference,
+				)
 			}
 			val sourceDrain = drainSettledSourceProducts(
 				durableSession.logicalTrackingId,
@@ -3715,6 +3793,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					reason = sourceDrain.reason,
 					sourceResults = sourceDrain.results,
 					sourceMemberships = sourceDrain.memberships,
+					sourceCallerAuthorityReference = bound.sourceCallerAuthorityReference,
 				)
 			}
 			database.withTransaction {
@@ -3744,6 +3823,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					lease.bootId,
 					cutoff.elapsedRealtimeNanos,
 					cutoff.wallTimeMs,
+					retireCallerAuthority = false,
 				)
 				resolveCleanupRequiredActions(
 					durableSession.logicalTrackingId,
@@ -3773,14 +3853,26 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					)
 			}
 			if (incomplete) {
-				return SessionSuspendResult.CleanupPending(durableSession.logicalTrackingId, finalOrdinal, acks)
+				return SessionSuspendResult.CleanupPending(
+					durableSession.logicalTrackingId,
+					finalOrdinal,
+					acks,
+					bound.sourceCallerAuthorityReference,
+				)
 			}
 			SessionSuspendResult.Suspended(
 				durableSession.logicalTrackingId,
 				finalOrdinal,
 				acks,
 				acks.any { it.status != SourceStopStatus.COMPLETE },
+				bound.sourceCallerAuthorityReference,
 			)
+		} catch (rejection: SourceCallerDemandRejectedException) {
+			if (rejection.disposition == TrackingStartFailureDisposition.RETRYABLE) {
+				SessionSuspendResult.Retryable(rejection.failureCode)
+			} else {
+				SessionSuspendResult.InvalidIntent(rejection.failureCode)
+			}
 		} finally {
 			releaseLease(lease)
 		}
@@ -5389,6 +5481,9 @@ private fun PersistedLifecycleIntent.withSourceCallerReceipt(
 	)
 }
 
+private fun PersistedLifecycleIntent.sourceCallerAuthorityReference(): SourceCallerReplayReference =
+	SourceCallerReplayReference(requireNotNull(intent.sourceCallerAuthorityReference))
+
 enum class SessionLifecycleState {
 	IDLE,
 	STARTING,
@@ -5544,6 +5639,7 @@ sealed interface SessionReconfigureResult {
 		val revision: Long,
 		val applied: List<AppliedSourcePlan>,
 		val failureCode: String,
+		val sourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 	) : SessionReconfigureResult
 	data class InvalidState(val state: String) : SessionReconfigureResult
 	data object NoActiveSession : SessionReconfigureResult
@@ -5626,11 +5722,13 @@ sealed interface SessionSuspendResult {
 		val finalAdmissionOrdinal: Long,
 		val acknowledgements: List<SourceStopAck>,
 		val incomplete: Boolean,
+		val sourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 	) : SessionSuspendResult
 	data class CleanupPending(
 		val logicalTrackingId: String,
 		val requiredOrdinal: Long,
 		val acknowledgements: List<SourceStopAck>,
+		val sourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 	) : SessionSuspendResult
 	data class DrainPending(
 		val logicalTrackingId: String,
@@ -5639,9 +5737,11 @@ sealed interface SessionSuspendResult {
 		val reason: String? = null,
 		val sourceResults: List<SourceProductDrainResult> = emptyList(),
 		val sourceMemberships: List<SourceDrainMembership> = emptyList(),
+		val sourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 	) : SessionSuspendResult
 	/** The requested suspension could not be durably represented without violating lifecycle intent. */
 	data class InvalidIntent(val code: String) : SessionSuspendResult
+	data class Retryable(val failureCode: String) : SessionSuspendResult
 	data object NoActiveSession : SessionSuspendResult
 	data object Busy : SessionSuspendResult
 }

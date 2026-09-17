@@ -1,11 +1,18 @@
 package com.adsamcik.tracker.tracker.resilience
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.core.DataStoreFactory
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import java.io.File
+import java.io.IOException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -199,5 +206,65 @@ class DefaultActiveTrackingSessionStoreTest {
 			context,
 			TestDispatchersProvider(dispatcher),
 		).read() shouldBe ActiveTrackingSessionStoreResult.Success(replacement)
+	}
+
+	@Test
+	fun `corrupt proto returns typed corruption instead of an empty descriptor`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val file = File(
+		context.cacheDir,
+		"active-tracking-corrupt-${java.util.UUID.randomUUID()}.pb",
+		).apply {
+		writeBytes(byteArrayOf(0x0A, 0x7F))
+		}
+		val dataStore = DataStoreFactory.create(
+		serializer = ActiveTrackingSessionSerializer,
+		scope = this,
+		produceFile = { file },
+		)
+		val store = DefaultActiveTrackingSessionStore(
+		dataStore,
+		TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+		)
+
+		val failure = store.read()
+		.shouldBeInstanceOf<ActiveTrackingSessionStoreResult.Failure>()
+		failure.kind shouldBe ActiveTrackingSessionStoreFailureKind.CORRUPT
+	}
+
+	@Test
+	fun `storage IOException returns typed unavailable instead of an empty descriptor`() = runTest {
+		val unavailable = object : DataStore<ActiveTrackingSessionProto> {
+			override val data: Flow<ActiveTrackingSessionProto> = flow {
+				throw IOException("storage unavailable")
+			}
+
+			override suspend fun updateData(
+				transform: suspend (t: ActiveTrackingSessionProto) -> ActiveTrackingSessionProto,
+			): ActiveTrackingSessionProto = throw IOException("storage unavailable")
+		}
+		val store = DefaultActiveTrackingSessionStore(
+			unavailable,
+			TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+		)
+
+		val failure = store.read()
+			.shouldBeInstanceOf<ActiveTrackingSessionStoreResult.Failure>()
+		failure.kind shouldBe ActiveTrackingSessionStoreFailureKind.UNAVAILABLE
+	}
+
+	@Test
+	fun `new service run preserves current caller authority reference`() {
+		val reference = SourceCallerReplayReference("current-authority")
+		val descriptor = ActiveTrackingSessionDescriptor(
+		isUserInitiated = true,
+		isAmbient = false,
+		policyTier = PolicyTier.PRECISION,
+		restartBootId = "boot:test",
+		restartToken = "restart-token",
+		sourceCallerAuthorityReference = reference,
+		)
+
+		descriptor.forNewServiceRun(100L).sourceCallerAuthorityReference shouldBe reference
 	}
 }

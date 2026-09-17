@@ -224,7 +224,7 @@ class AuthoritativeSessionCoordinatorTest {
 		val callerAuthority = database.sourceCallerAuthorityDao()
 			.rows("test:${started.logicalTrackingId}:1")
 		callerAuthority.size shouldBe 1
-		com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityIntegrity
+		com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityEffectChecksum
 			.isAuthentic(callerAuthority) shouldBe true
 		val stepsBinding = database.sourceSessionDao().manifestSources(started.logicalTrackingId, 1L).single()
 		stepsBinding.outputDestination shouldBe SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS
@@ -269,7 +269,7 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceBrokerDao().demandHistory("session:${started.logicalTrackingId}")
 			.single().status shouldBe SourceDemandEntity.STATUS_RETIRED
 		database.sourceCallerAuthorityDao().rows("test:${started.logicalTrackingId}:1")
-			.map { it.status }.distinct() shouldBe listOf("TOMBSTONED")
+			.map { it.status }.distinct() shouldBe listOf("RETIRED")
 		runtime.closed shouldBe true
 		sourceProductDrainRouter.requests shouldBe emptyList()
 	}
@@ -589,7 +589,7 @@ class AuthoritativeSessionCoordinatorTest {
 			),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 
-		subject.suspendForRestart(
+		val suspended = subject.suspendForRestart(
 			SessionSuspendRequest(
 				"source-suspend-owner",
 				"ANDROID_RESTART",
@@ -614,6 +614,37 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 		database.sourceSessionDao().serviceRun(started.serviceRunId)?.state shouldBe
 			SessionLifecycleState.FINALIZED.name
+		val suspendIntent = database.sourceSessionDao()
+			.lifecycleIntents(started.logicalTrackingId)
+			.last()
+		suspendIntent.desiredState shouldBe LifecycleDesiredState.ACTIVE.name
+		suspendIntent.sourceCallerAuthorityReference shouldBe
+			requireNotNull(suspended.sourceCallerAuthorityReference).value
+		(suspended.sourceCallerAuthorityReference == started.sourceCallerAuthorityReference) shouldBe false
+		suspendIntent.intentChecksum shouldBe stableLifecycleChecksum(
+			suspendIntent.logicalTrackingId,
+			suspendIntent.intentRevision,
+			suspendIntent.manifestRevision,
+			LifecycleDesiredState.ACTIVE,
+			suspendIntent.stopReason,
+			suspendIntent.requestBootId,
+			suspendIntent.requestedElapsedRealtimeNanos,
+			suspendIntent.sourceCallerAuthorityReference,
+		)
+		val oldReference = requireNotNull(started.sourceCallerAuthorityReference)
+		val currentReference = requireNotNull(suspended.sourceCallerAuthorityReference)
+		database.sourceCallerAuthorityDao().rows(oldReference.value)
+			.map { it.status }.distinct() shouldBe listOf("ACTIVE")
+		subject.retireSupersededSourceCallerAuthority(
+			started.logicalTrackingId,
+			currentReference,
+			oldReference,
+			2_100L,
+		) shouldBe true
+		database.sourceCallerAuthorityDao().rows(oldReference.value)
+			.map { it.status }.distinct() shouldBe listOf("RETIRED")
+		database.sourceCallerAuthorityDao().rows(currentReference.value)
+			.map { it.status }.distinct() shouldBe listOf("ACTIVE")
 	}
 
 	@Test
@@ -1544,9 +1575,17 @@ class AuthoritativeSessionCoordinatorTest {
 			"test:${started.logicalTrackingId}:2",
 		)
 		database.sourceCallerAuthorityDao().rows("test:${started.logicalTrackingId}:1")
-			.map { it.status }.distinct() shouldBe listOf("TOMBSTONED")
+			.map { it.status }.distinct() shouldBe listOf("ACTIVE")
 		database.sourceCallerAuthorityDao().rows("test:${started.logicalTrackingId}:2")
 			.map { it.status }.distinct() shouldBe listOf("ACTIVE")
+		subject.retireSupersededSourceCallerAuthority(
+			logicalTrackingId = started.logicalTrackingId,
+			currentReference = result.sourceCallerAuthorityReference,
+			supersededReference = requireNotNull(started.sourceCallerAuthorityReference),
+			wallTimeMs = 2_100L,
+		) shouldBe true
+		database.sourceCallerAuthorityDao().rows("test:${started.logicalTrackingId}:1")
+			.map { it.status }.distinct() shouldBe listOf("RETIRED")
 		database.sourceSessionDao().lifecycleActions(started.logicalTrackingId).map { it.actionRevision } shouldBe
 			listOf(1L, 2L)
 		val demandHistory = database.sourceBrokerDao().demandHistory("session:${started.logicalTrackingId}")
@@ -2115,7 +2154,7 @@ class AuthoritativeSessionCoordinatorTest {
 			SessionLifecycleState.STARTING.name
 		database.sourceSessionDao().manifests(old.logicalTrackingId).size shouldBe 2
 		database.sourceCallerAuthorityDao().rows("test:${old.logicalTrackingId}:1")
-			.map { it.status }.distinct() shouldBe listOf("TOMBSTONED")
+			.map { it.status }.distinct() shouldBe listOf("RETIRED")
 		database.sourceCallerAuthorityDao().rows("test:${old.logicalTrackingId}:2")
 			.map { it.status }.distinct() shouldBe listOf("ACTIVE")
 	}

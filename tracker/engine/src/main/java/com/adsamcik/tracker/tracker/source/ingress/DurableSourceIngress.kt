@@ -1195,6 +1195,7 @@ class RoomDurableSourceIngress @Inject constructor(
 			intent.stopReason.isNullOrBlank() ||
 			intent.stopDeadlineBootId != null ||
 			intent.stopDeadlineElapsedRealtimeNanos != null ||
+			intent.sourceCallerAuthorityReference.isNullOrBlank() ||
 			intent.intentChecksum != stableLifecycleChecksum(
 				intent.logicalTrackingId,
 				intent.intentRevision,
@@ -1203,6 +1204,7 @@ class RoomDurableSourceIngress @Inject constructor(
 				intent.stopReason,
 				intent.requestBootId,
 				intent.requestedElapsedRealtimeNanos,
+				intent.sourceCallerAuthorityReference,
 			)
 		) return null
 		val currentSourceActions = sessionDao.lifecycleActions(key.logicalTrackingId).filter { action ->

@@ -15,6 +15,11 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.source.battery.QualitativeBatteryImpactEstimator
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStore
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreResult
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
+import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
@@ -27,8 +32,10 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.mockk
 import io.mockk.slot
+import java.io.IOException
 import javax.inject.Provider
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
@@ -52,6 +59,7 @@ class TrackerServiceSourceSessionTest {
 	private lateinit var startupGate: FakeTrackingStartupGate
 	private lateinit var rolloutStore: RoomTrackingRolloutStateStore
 	private lateinit var statusProvider: DefaultTrackingSettingsStatusProvider
+	private lateinit var activeSessionStore: ActiveTrackingSessionStore
 
 	@Before
 	fun setUp() {
@@ -69,6 +77,7 @@ class TrackerServiceSourceSessionTest {
 			QualitativeBatteryImpactEstimator(),
 			TrackingCoordinatorTelemetry(),
 		)
+		activeSessionStore = mockk()
 		subject = TrackerServiceSourceSession(
 			database,
 			lifecycle,
@@ -78,6 +87,7 @@ class TrackerServiceSourceSessionTest {
 			statusProvider,
 			Provider { startupGate },
 			rolloutStore,
+			activeSessionStore,
 		)
 	}
 
@@ -662,6 +672,123 @@ class TrackerServiceSourceSessionTest {
 	}
 
 	@Test
+	fun `reconfiguration persists new caller reference before retiring predecessor`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
+		val changed = settings(SourceCollectionFrequency.BATTERY_SAVER, sourcePolicyRevision = 2)
+		val oldReference = SourceCallerReplayReference("authority-old")
+		val newReference = SourceCallerReplayReference("authority-new")
+		val descriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = oldReference,
+		)
+		val replacement = descriptor.copy(sourceCallerAuthorityReference = newReference)
+		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+			"logical",
+			"run",
+			emptyList(),
+			DesiredPlanStatus.EFFECTIVE,
+			oldReference,
+		)
+		coEvery { lifecycle.reconfigure(any()) } returns SessionReconfigureResult.Applied(
+			revision = 2L,
+			applied = emptyList(),
+			status = DesiredPlanStatus.EFFECTIVE,
+			sourceCallerAuthorityReference = newReference,
+		)
+		coEvery { activeSessionStore.read() } returns
+			ActiveTrackingSessionStoreResult.Success(descriptor)
+		coEvery { activeSessionStore.replaceExact(descriptor, replacement) } returns
+			ActiveTrackingSessionStoreResult.Success(replacement)
+		coEvery {
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical",
+				newReference,
+				oldReference,
+				any(),
+			)
+		} returns true
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, initial),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(initial),
+				ownerToken = "owner",
+			),
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+		subject.reconfigure(inputs(changed))
+			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
+
+		coVerifyOrder {
+			activeSessionStore.replaceExact(descriptor, replacement)
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical",
+				newReference,
+				oldReference,
+				any(),
+			)
+		}
+	}
+
+	@Test
+	fun `reconfiguration keeps predecessor authority live when descriptor propagation is unavailable`() =
+		runTest {
+			val rollout = allEventCanonical(revision = 5)
+			val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
+			val changed = settings(SourceCollectionFrequency.BATTERY_SAVER, sourcePolicyRevision = 2)
+			val oldReference = SourceCallerReplayReference("authority-old")
+			val newReference = SourceCallerReplayReference("authority-new")
+			coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+				"logical",
+				"run",
+				emptyList(),
+				DesiredPlanStatus.EFFECTIVE,
+				oldReference,
+			)
+			coEvery { lifecycle.reconfigure(any()) } returns SessionReconfigureResult.Applied(
+				revision = 2L,
+				applied = emptyList(),
+				status = DesiredPlanStatus.EFFECTIVE,
+				sourceCallerAuthorityReference = newReference,
+			)
+			coEvery { activeSessionStore.read() } returns ActiveTrackingSessionStoreResult.Failure(
+				IOException("temporarily unavailable"),
+			)
+			subject.start(
+				SourceSessionStartRequest(
+					rollout = rollout,
+					ownership = TrackingSessionOwnership.resolve(rollout, initial),
+					logicalTrackingId = "logical",
+					serviceRunId = "run",
+					origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+					foregroundCapabilityFlags = 1L,
+					planInputs = inputs(initial),
+					ownerToken = "owner",
+				),
+			).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+			subject.reconfigure(inputs(changed)) shouldBe
+				SourceSessionReconfigureOutcome.Rejected(
+					SessionReconfigureResult.InvalidState(
+						"SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED",
+					),
+				)
+
+			coVerify(exactly = 0) {
+				lifecycle.retireSupersededSourceCallerAuthority(any(), any(), any(), any())
+			}
+		}
+
+	@Test
 	fun `closed startup gate rejects all reconfiguration while stop remains the cleanup authority`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
 		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
@@ -725,6 +852,138 @@ class TrackerServiceSourceSessionTest {
 
 		coVerify(exactly = 1) { lifecycle.suspendForRestart(any()) }
 		startupGate.reconcileCalls shouldBe 1
+	}
+
+	@Test
+	fun `restart suspension persists fresh lease authority before retiring predecessor`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
+		val oldReference = SourceCallerReplayReference("suspend-old")
+		val newReference = SourceCallerReplayReference("suspend-new")
+		val descriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = oldReference,
+		)
+		val replacement = descriptor.copy(sourceCallerAuthorityReference = newReference)
+		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+			"logical",
+			"run",
+			emptyList(),
+			DesiredPlanStatus.EFFECTIVE,
+			oldReference,
+		)
+		coEvery { lifecycle.suspendForRestart(any()) } returns SessionSuspendResult.Suspended(
+			logicalTrackingId = "logical",
+			finalAdmissionOrdinal = 0L,
+			acknowledgements = emptyList(),
+			incomplete = false,
+			sourceCallerAuthorityReference = newReference,
+		)
+		coEvery { activeSessionStore.read() } returns
+			ActiveTrackingSessionStoreResult.Success(descriptor)
+		coEvery { activeSessionStore.replaceExact(descriptor, replacement) } returns
+			ActiveTrackingSessionStoreResult.Success(replacement)
+		coEvery {
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical",
+				newReference,
+				oldReference,
+				any(),
+			)
+		} returns true
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, enabled),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(enabled),
+				ownerToken = "owner",
+			),
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+		subject.stop("ANDROID_RESTART", preserveLogicalSession = true) shouldBe
+			SourceSessionStopOutcome.Stopped
+
+		coVerifyOrder {
+			activeSessionStore.replaceExact(descriptor, replacement)
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical",
+				newReference,
+				oldReference,
+				any(),
+			)
+		}
+	}
+
+	@Test
+	fun `completed suspension retries only descriptor propagation after storage recovers`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
+		val oldReference = SourceCallerReplayReference("suspend-retry-old")
+		val newReference = SourceCallerReplayReference("suspend-retry-new")
+		val descriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = oldReference,
+		)
+		val replacement = descriptor.copy(sourceCallerAuthorityReference = newReference)
+		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+			"logical",
+			"run",
+			emptyList(),
+			DesiredPlanStatus.EFFECTIVE,
+			oldReference,
+		)
+		coEvery { lifecycle.suspendForRestart(any()) } returns SessionSuspendResult.Suspended(
+			logicalTrackingId = "logical",
+			finalAdmissionOrdinal = 0L,
+			acknowledgements = emptyList(),
+			incomplete = false,
+			sourceCallerAuthorityReference = newReference,
+		)
+		coEvery { activeSessionStore.read() } returnsMany listOf(
+			ActiveTrackingSessionStoreResult.Failure(IOException("temporarily unavailable")),
+			ActiveTrackingSessionStoreResult.Success(descriptor),
+		)
+		coEvery { activeSessionStore.replaceExact(descriptor, replacement) } returns
+			ActiveTrackingSessionStoreResult.Success(replacement)
+		coEvery {
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical",
+				newReference,
+				oldReference,
+				any(),
+			)
+		} returns true
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, enabled),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(enabled),
+				ownerToken = "owner",
+			),
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+		subject.stop("ANDROID_RESTART", preserveLogicalSession = true) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.STORAGE_UNAVAILABLE)
+		subject.stop("ANDROID_RESTART", preserveLogicalSession = true) shouldBe
+			SourceSessionStopOutcome.Stopped
+
+		coVerify(exactly = 1) { lifecycle.suspendForRestart(any()) }
 	}
 
 	@Test

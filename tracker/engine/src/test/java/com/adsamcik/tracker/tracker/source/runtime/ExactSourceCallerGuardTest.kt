@@ -481,7 +481,7 @@ class ExactSourceCallerGuardTest {
 	}
 
 	@Test
-	fun `FGS restart and recovery replay only the exact persisted authority`() = runTest {
+	fun `FGS active redelivery and process recovery replay only exact persisted authority`() = runTest {
 		val location = capture(TrackingSource.LOCATION)
 		val steps = capture(TrackingSource.STEPS)
 		val original = setOf(location, steps)
@@ -494,7 +494,11 @@ class ExactSourceCallerGuardTest {
 			),
 		)
 
-		SourceCallerReplayKind.entries.forEach { kind ->
+		setOf(
+			SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
+			SourceCallerReplayKind.ACTIVE_REDELIVERY,
+			SourceCallerReplayKind.PROCESS_RECOVERY,
+		).forEach { kind ->
 			fixture.guard.accept(replay(receipt, kind, original)) shouldBe
 				SourceCallerGuardResult.Permitted(receipt)
 		}
@@ -567,7 +571,7 @@ class ExactSourceCallerGuardTest {
 			fixture.current = change.demands
 			fixture.guard.accept(
 				SourceCallerRequest.Replay(
-					replayKind = SourceCallerReplayKind.RECOVERY,
+					replayKind = SourceCallerReplayKind.PROCESS_RECOVERY,
 					reference = receipt.reference,
 					purpose = change.purpose,
 					requestedDemandIdentities = change.demands,
@@ -589,7 +593,7 @@ class ExactSourceCallerGuardTest {
 		)
 		val exactReplay = replay(
 			receipt,
-			SourceCallerReplayKind.RECOVERY,
+			SourceCallerReplayKind.PROCESS_RECOVERY,
 			setOf(location),
 		)
 		val currentMutations = listOf(
@@ -654,7 +658,7 @@ class ExactSourceCallerGuardTest {
 
 			fixture.guard.accept(
 				SourceCallerRequest.Replay(
-					replayKind = SourceCallerReplayKind.RECOVERY,
+					replayKind = SourceCallerReplayKind.PROCESS_RECOVERY,
 					reference = SourceCallerReplayReference("caller-forged"),
 					purpose = TrackingPurpose.SESSION_CAPTURE,
 					requestedDemandIdentities = setOf(location),
@@ -666,7 +670,7 @@ class ExactSourceCallerGuardTest {
 	fun `authority storage failures remain explicitly retryable`() = runTest {
 		val location = capture(TrackingSource.LOCATION)
 		val failingStore = object : SourceCallerAcceptedAuthorityRepository {
-			override suspend fun storeIfAbsent(
+			override suspend fun insertIfAbsent(
 				reference: SourceCallerReplayReference,
 				authority: StoredSourceCallerAuthority,
 				createdAtMs: Long,
@@ -677,13 +681,18 @@ class ExactSourceCallerGuardTest {
 			): StoredSourceCallerAuthorityLoadResult =
 				throw IllegalStateException("storage unavailable")
 
-			override suspend fun tombstone(
+			override suspend fun retire(
 				reference: SourceCallerReplayReference,
 				reason: String,
-				tombstonedAtMs: Long,
+				retiredAtMs: Long,
 			): Boolean = false
 
 			override suspend fun delete(reference: SourceCallerReplayReference): Boolean = false
+
+			override suspend fun pruneRetired(
+				retiredBeforeOrAtMs: Long,
+				limit: Int,
+			): Int = 0
 		}
 		val guard = ExactSourceCallerGuard(
 			SourceCallerAuthoritySnapshotReader {
@@ -707,7 +716,7 @@ class ExactSourceCallerGuardTest {
 
 		val replay = guard.accept(
 			SourceCallerRequest.Replay(
-				SourceCallerReplayKind.FOREGROUND_SERVICE,
+				SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
 				SourceCallerReplayReference("persisted"),
 				TrackingPurpose.SESSION_CAPTURE,
 				setOf(location),
@@ -718,7 +727,7 @@ class ExactSourceCallerGuardTest {
 	}
 
 	@Test
-	fun `replay cannot survive automatic or ambient readiness loss or replacement`() = runTest {
+	fun `session replay cannot survive automatic readiness loss and excludes ambient authority`() = runTest {
 		val capture = capture(TrackingSource.STEPS)
 		val control = control()
 		val automaticFixture = TrustedSourceCallerGuardFixtureFactory.create(
@@ -737,7 +746,7 @@ class ExactSourceCallerGuardTest {
 		automaticFixture.guard.accept(
 			replay(
 				automaticReceipt,
-				SourceCallerReplayKind.RESTART,
+				SourceCallerReplayKind.ACTIVE_REDELIVERY,
 				setOf(capture, control),
 			),
 		).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
@@ -748,7 +757,7 @@ class ExactSourceCallerGuardTest {
 		automaticFixture.guard.accept(
 			replay(
 				automaticReceipt,
-				SourceCallerReplayKind.RECOVERY,
+				SourceCallerReplayKind.PROCESS_RECOVERY,
 				setOf(capture, control),
 			),
 		) shouldBe rejected(
@@ -772,26 +781,47 @@ class ExactSourceCallerGuardTest {
 		ambientFixture.guard.accept(
 			replay(
 				ambientReceipt,
-				SourceCallerReplayKind.RECOVERY,
+				SourceCallerReplayKind.PROCESS_RECOVERY,
 				setOf(ambient),
 				TrackingPurpose.AMBIENT_PRODUCT,
 			),
 		).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
-			.rejection.reason shouldBe SourceCallerRejectionReason.AMBIENT_SOURCE_UNAVAILABLE
+			.rejection.reason shouldBe SourceCallerRejectionReason.REPLAY_KIND_NOT_PERMITTED
 		ambientFixture.availability = ambientReady(
 			withLease(ambient) { it.copy(ownerCasToken = "replaced") },
 		)
 		ambientFixture.guard.accept(
 			replay(
 				ambientReceipt,
-				SourceCallerReplayKind.FOREGROUND_SERVICE,
+				SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
 				setOf(ambient),
 				TrackingPurpose.AMBIENT_PRODUCT,
 			),
-		) shouldBe rejected(
-			SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
-			ambient,
+		).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+			.rejection.reason shouldBe SourceCallerRejectionReason.REPLAY_KIND_NOT_PERMITTED
+	}
+
+	@Test
+	fun `policy reconciliation cannot replay an old acceptance`() = runTest {
+		val location = capture(TrackingSource.LOCATION)
+		val fixture = TrustedSourceCallerGuardFixtureFactory.create(current = setOf(location))
+		val receipt = fixture.permit(
+			SourceCallerRequest.ManualSessionStart(
+				requestedCapturedSources = setOf(TrackingSource.LOCATION),
+				manifestIdentity = MANIFEST,
+				requestedDemandIdentities = setOf(location),
+			),
 		)
+
+		fixture.guard.accept(
+			replay(
+				receipt,
+				SourceCallerReplayKind.POLICY_RECONCILIATION,
+				setOf(location),
+			),
+		).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+			.rejection.reason shouldBe
+			SourceCallerRejectionReason.REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE
 	}
 
 	private fun replay(
@@ -966,7 +996,7 @@ internal class TrustedSourceCallerGuardFixture(
 			SourceCallerAuthoritySnapshot(current, availability)
 		},
 		authorityRepository = object : SourceCallerAcceptedAuthorityRepository {
-			override suspend fun storeIfAbsent(
+			override suspend fun insertIfAbsent(
 				reference: SourceCallerReplayReference,
 				authority: StoredSourceCallerAuthority,
 				createdAtMs: Long,
@@ -978,14 +1008,19 @@ internal class TrustedSourceCallerGuardFixture(
 				StoredSourceCallerAuthorityLoadResult.Available(it)
 			} ?: StoredSourceCallerAuthorityLoadResult.Missing
 
-			override suspend fun tombstone(
+			override suspend fun retire(
 				reference: SourceCallerReplayReference,
 				reason: String,
-				tombstonedAtMs: Long,
+				retiredAtMs: Long,
 			): Boolean = persisted.remove(reference) != null
 
 			override suspend fun delete(reference: SourceCallerReplayReference): Boolean =
 				persisted.remove(reference) != null
+
+			override suspend fun pruneRetired(
+				retiredBeforeOrAtMs: Long,
+				limit: Int,
+			): Int = 0
 		},
 	)
 

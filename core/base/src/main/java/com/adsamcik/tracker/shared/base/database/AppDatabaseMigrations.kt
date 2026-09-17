@@ -3560,9 +3560,9 @@ val MIGRATION_27_28: Migration = object : Migration(
 					manifest_revision INTEGER,
 					status TEXT NOT NULL,
 					created_at_ms INTEGER NOT NULL,
-					tombstoned_at_ms INTEGER,
-					tombstone_reason TEXT,
-					integrity_checksum TEXT NOT NULL,
+					retired_at_ms INTEGER,
+					retire_reason TEXT,
+					effect_checksum TEXT NOT NULL,
 					PRIMARY KEY(reference, source_kind, purpose)
 				)
 				""".trimIndent(),
@@ -3572,8 +3572,8 @@ val MIGRATION_27_28: Migration = object : Migration(
 					"ON source_caller_accepted_authority(logical_tracking_id, manifest_revision)",
 			)
 			execSQL(
-				"CREATE INDEX IF NOT EXISTS idx_source_caller_authority_status " +
-					"ON source_caller_accepted_authority(status)",
+				"CREATE INDEX IF NOT EXISTS idx_source_caller_authority_retired " +
+					"ON source_caller_accepted_authority(status, retired_at_ms)",
 			)
 			execSQL(
 				"""

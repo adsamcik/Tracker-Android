@@ -23,4 +23,24 @@ interface SourceCallerAuthorityDao {
 
 	@Query("DELETE FROM source_caller_accepted_authority WHERE reference = :reference")
 	suspend fun delete(reference: String): Int
+
+	@Query(
+		"""
+		SELECT reference
+		FROM source_caller_accepted_authority
+		GROUP BY reference
+		HAVING MIN(status) = 'RETIRED'
+			AND MAX(status) = 'RETIRED'
+			AND MAX(retired_at_ms) <= :retiredBeforeOrAtMs
+		ORDER BY MAX(retired_at_ms), reference
+		LIMIT :limit
+		""",
+	)
+	suspend fun retiredReferencesForPrune(
+		retiredBeforeOrAtMs: Long,
+		limit: Int,
+	): List<String>
+
+	@Query("DELETE FROM source_caller_accepted_authority WHERE reference IN (:references)")
+	suspend fun deleteReferences(references: Collection<String>): Int
 }

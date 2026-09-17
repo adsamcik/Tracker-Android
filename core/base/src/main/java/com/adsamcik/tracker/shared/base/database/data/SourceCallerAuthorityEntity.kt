@@ -13,7 +13,10 @@ import java.security.MessageDigest
 			value = ["logical_tracking_id", "manifest_revision"],
 			name = "idx_source_caller_authority_manifest",
 		),
-		Index(value = ["status"], name = "idx_source_caller_authority_status"),
+		Index(
+			value = ["status", "retired_at_ms"],
+			name = "idx_source_caller_authority_retired",
+		),
 	],
 )
 data class SourceCallerAcceptedAuthorityEntity(
@@ -33,29 +36,30 @@ data class SourceCallerAcceptedAuthorityEntity(
 	@ColumnInfo(name = "manifest_revision") val manifestRevision: Long?,
 	@ColumnInfo(name = "status") val status: String,
 	@ColumnInfo(name = "created_at_ms") val createdAtMs: Long,
-	@ColumnInfo(name = "tombstoned_at_ms") val tombstonedAtMs: Long?,
-	@ColumnInfo(name = "tombstone_reason") val tombstoneReason: String?,
-	@ColumnInfo(name = "integrity_checksum") val integrityChecksum: String,
+	@ColumnInfo(name = "retired_at_ms") val retiredAtMs: Long?,
+	@ColumnInfo(name = "retire_reason") val retireReason: String?,
+	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
 ) {
 	companion object {
-		const val FORMAT_VERSION = 1
+		const val FORMAT_VERSION = 2
 		const val STATUS_ACTIVE = "ACTIVE"
-		const val STATUS_TOMBSTONED = "TOMBSTONED"
+		const val STATUS_RETIRED = "RETIRED"
 	}
 }
 
-object SourceCallerAcceptedAuthorityIntegrity {
+/** Binds the opaque reference and every normalized authority/effect field to one format version. */
+object SourceCallerAcceptedAuthorityEffectChecksum {
 	fun seal(rows: List<SourceCallerAcceptedAuthorityEntity>): List<SourceCallerAcceptedAuthorityEntity> {
 		require(rows.isNotEmpty())
 		val checksum = compute(rows)
-		return rows.map { it.copy(integrityChecksum = checksum) }
+		return rows.map { it.copy(effectChecksum = checksum) }
 	}
 
 	fun isAuthentic(rows: List<SourceCallerAcceptedAuthorityEntity>): Boolean {
 		if (rows.isEmpty()) return false
-		val checksum = rows.first().integrityChecksum
+		val checksum = rows.first().effectChecksum
 		return checksum.isNotBlank() &&
-			rows.all { it.integrityChecksum == checksum } &&
+			rows.all { it.effectChecksum == checksum } &&
 			compute(rows) == checksum
 	}
 
@@ -82,8 +86,8 @@ object SourceCallerAcceptedAuthorityIntegrity {
 				row.manifestRevision ?: 0L,
 				row.status,
 				row.createdAtMs,
-				row.tombstonedAtMs ?: -1L,
-				row.tombstoneReason.orEmpty(),
+				row.retiredAtMs ?: -1L,
+				row.retireReason.orEmpty(),
 			).joinToString("\u001e")
 		}
 		return MessageDigest.getInstance("SHA-256")

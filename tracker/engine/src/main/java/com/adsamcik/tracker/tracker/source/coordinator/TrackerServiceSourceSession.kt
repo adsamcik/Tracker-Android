@@ -7,6 +7,9 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStore
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreResult
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.DemandReason
@@ -138,6 +141,7 @@ class TrackerServiceSourceSession @Inject constructor(
 	private val settingsStatusProvider: TrackingSettingsStatusProvider,
 	private val trackingStartupGateProvider: Provider<TrackingStartupGate>,
 	private val trackingRolloutStateStore: RoomTrackingRolloutStateStore,
+	private val activeTrackingSessionStore: ActiveTrackingSessionStore,
 ) {
 	private val mutex = Mutex()
 	private var active: ActiveSession? = null
@@ -210,6 +214,9 @@ class TrackerServiceSourceSession @Inject constructor(
 			foregroundCapabilityFlags = claim.desiredForegroundCapabilityFlags,
 			lastInputs = planInputs,
 			coordinatorStarted = true,
+			sourceCallerAuthorityReference = SourceCallerReplayReference(
+				requireNotNull(claim.intent.sourceCallerAuthorityReference),
+			),
 		)
 		// Attach cleanup ownership before the first provider side effect. If the Android service is
 		// stopped and cancels this coroutine mid-apply, stop() must still fence a partially-started
@@ -228,6 +235,17 @@ class TrackerServiceSourceSession @Inject constructor(
 			throw error
 		}
 		if (result is SessionStartResult.Started) {
+			val appliedReference = result.sourceCallerAuthorityReference
+				?: applyingSession.sourceCallerAuthorityReference
+			if (appliedReference != applyingSession.sourceCallerAuthorityReference) {
+				applyingSession.runtimeCleanupRequired = true
+				settingsStatusProvider.publishFailure(
+					SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED,
+				)
+				return@withLock SessionStartResult.InvalidIntent(
+					SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED,
+				)
+			}
 			pendingInputs = null
 			settingsStatusProvider.publishApplied(result.applied)
 		} else if (result.requiresRuntimeCleanup) {
@@ -277,6 +295,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			foregroundCapabilityFlags = request.foregroundCapabilityFlags,
 			lastInputs = planInputs,
 			coordinatorStarted = false,
+			sourceCallerAuthorityReference = null,
 		)
 		active = session
 		if (!ownership.eventCoordinatorRequired) {
@@ -300,6 +319,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			throw error
 		}
 		if (result is SessionStartResult.Started) {
+			session.sourceCallerAuthorityReference = result.sourceCallerAuthorityReference
 			settingsStatusProvider.publishApplied(result.applied)
 			SourceSessionStartOutcome.Started(result)
 		} else if (result.requiresRuntimeCleanup) {
@@ -374,6 +394,18 @@ class TrackerServiceSourceSession @Inject constructor(
 			val started = startCoordinator(session, inputs)
 			return@withLock if (started is SessionStartResult.Started) {
 				session.coordinatorStarted = true
+				if (!propagateSourceCallerAuthority(
+						session,
+						started.sourceCallerAuthorityReference,
+					)
+				) {
+					session.runtimeCleanupRequired = true
+					return@withLock SourceSessionReconfigureOutcome.Rejected(
+						SessionReconfigureResult.InvalidState(
+							SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED,
+						),
+					)
+				}
 				settingsStatusProvider.publishApplied(started.applied)
 				SourceSessionReconfigureOutcome.Started(started)
 			} else {
@@ -401,6 +433,38 @@ class TrackerServiceSourceSession @Inject constructor(
 			session.runtimeCleanupRequired = true
 			throw error
 		}
+		val committedReference = when (result) {
+			is SessionReconfigureResult.Applied -> result.sourceCallerAuthorityReference
+			is SessionReconfigureResult.Failed -> result.sourceCallerAuthorityReference
+			else -> null
+		}
+		if (committedReference != null &&
+			!propagateSourceCallerAuthority(session, committedReference)
+		) {
+			session.runtimeCleanupRequired = true
+			settingsStatusProvider.publishFailure(SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED)
+			return@withLock SourceSessionReconfigureOutcome.Rejected(
+				if (session.sourceCallerAuthorityReference == committedReference) {
+					when (result) {
+						is SessionReconfigureResult.Applied -> SessionReconfigureResult.Failed(
+							revision = result.revision,
+							applied = result.applied,
+							failureCode = SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED,
+							sourceCallerAuthorityReference = committedReference,
+						)
+						is SessionReconfigureResult.Failed -> result.copy(
+							failureCode = SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED,
+							sourceCallerAuthorityReference = committedReference,
+						)
+						else -> error("Committed reconfiguration reference requires a result")
+					}
+				} else {
+					SessionReconfigureResult.InvalidState(
+						SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED,
+					)
+				},
+			)
+		}
 		if (result is SessionReconfigureResult.Applied) {
 			session.lastInputs = inputs
 			settingsStatusProvider.publishApplied(result.applied)
@@ -412,6 +476,107 @@ class TrackerServiceSourceSession @Inject constructor(
 			settingsStatusProvider.publishFailure("PLAN_RECONFIGURE_REJECTED")
 			SourceSessionReconfigureOutcome.Rejected(result)
 		}
+	}
+
+	private suspend fun propagateSourceCallerAuthority(
+		session: ActiveSession,
+		currentReference: SourceCallerReplayReference?,
+		markCleanupOnFailure: Boolean = true,
+	): Boolean {
+		return try {
+			val replacementReference = currentReference ?: return false
+			val supersededReference = session.sourceCallerAuthorityReference
+			if (supersededReference == replacementReference) return true
+			val stored = when (val result = activeTrackingSessionStore.read()) {
+				is ActiveTrackingSessionStoreResult.Failure -> return false
+				is ActiveTrackingSessionStoreResult.Success -> result.descriptor
+			}
+			if (stored == null ||
+				stored.logicalTrackingId != session.logicalTrackingId ||
+				stored.serviceRunId != session.serviceRunId ||
+				stored.sourceCallerAuthorityReference != supersededReference
+			) {
+				if (stored?.logicalTrackingId == session.logicalTrackingId &&
+					stored.serviceRunId == session.serviceRunId &&
+					stored.sourceCallerAuthorityReference == replacementReference
+				) {
+					val retired = supersededReference == null ||
+						coordinator.retireSupersededSourceCallerAuthority(
+							session.logicalTrackingId,
+							replacementReference,
+							supersededReference,
+							Time.nowMillis,
+						)
+					if (retired) {
+						session.sourceCallerAuthorityReference = replacementReference
+					}
+					return retired
+				}
+				if (supersededReference != null &&
+					stored?.sourceCallerAuthorityReference != supersededReference
+				) {
+					retireUnreferencedSupersededAuthority(
+						session,
+						replacementReference,
+						supersededReference,
+					)
+				}
+				return false
+			}
+			val replacement = stored.copy(
+				sourceCallerAuthorityReference = replacementReference,
+			)
+			val persisted = when (val result =
+				activeTrackingSessionStore.replaceExact(stored, replacement)
+			) {
+				is ActiveTrackingSessionStoreResult.Failure -> return false
+				is ActiveTrackingSessionStoreResult.Success -> result.descriptor
+			}
+			if (persisted != replacement) {
+				if (supersededReference != null &&
+					persisted?.sourceCallerAuthorityReference != supersededReference
+				) {
+					retireUnreferencedSupersededAuthority(
+						session,
+						replacementReference,
+						supersededReference,
+					)
+				}
+				return false
+			}
+			session.sourceCallerAuthorityReference = replacementReference
+			val retired = supersededReference == null ||
+				coordinator.retireSupersededSourceCallerAuthority(
+					session.logicalTrackingId,
+					replacementReference,
+					supersededReference,
+					Time.nowMillis,
+				)
+			if (!retired) {
+				session.sourceCallerAuthorityReference = supersededReference
+			}
+			retired
+		} catch (cancelled: CancellationException) {
+			if (markCleanupOnFailure) session.runtimeCleanupRequired = true
+			throw cancelled
+		} catch (failure: Exception) {
+			if (!failure.isTrackingOperationalFailure()) throw failure
+			if (markCleanupOnFailure) session.runtimeCleanupRequired = true
+			false
+		}
+	}
+
+	private suspend fun retireUnreferencedSupersededAuthority(
+		session: ActiveSession,
+		currentReference: SourceCallerReplayReference,
+		supersededReference: SourceCallerReplayReference,
+	) {
+		coordinator.retireSupersededSourceCallerAuthority(
+			session.logicalTrackingId,
+			currentReference,
+			supersededReference,
+			Time.nowMillis,
+		)
 	}
 
 	private fun startupRejectedReconfigure(): SourceSessionReconfigureOutcome {
@@ -477,8 +642,25 @@ class TrackerServiceSourceSession @Inject constructor(
 		session: ActiveSession,
 		reason: String,
 	): SourceSessionStopOutcome {
+		session.pendingSourceCallerAuthorityReference?.let { pending ->
+			if (!propagateSourceCallerAuthority(
+					session,
+					pending,
+					markCleanupOnFailure = false,
+				)
+			) {
+				return SourceSessionStopOutcome.Retryable(
+					SourceSessionStopRetryCode.STORAGE_UNAVAILABLE,
+				)
+			}
+			session.pendingSourceCallerAuthorityReference = null
+			if (session.coordinatorSuspended) {
+				active = null
+				return SourceSessionStopOutcome.Stopped
+			}
+		}
 		val cutoff = currentStopCutoff(session.lastInputs.clockDomainId)
-		val outcome = coordinator.suspendForRestart(
+		val result = coordinator.suspendForRestart(
 			SessionSuspendRequest(
 				ownerToken = session.ownerToken,
 				reason = reason,
@@ -486,7 +668,24 @@ class TrackerServiceSourceSession @Inject constructor(
 				elapsedRealtimeNanos = cutoff.elapsedRealtimeNanos,
 				clockDomainId = cutoff.clockDomainId,
 			),
-		).toSourceSessionStopOutcome()
+		)
+		val authorityReference = result.sourceCallerAuthorityReferenceOrNull()
+		if (authorityReference != null) {
+			session.pendingSourceCallerAuthorityReference = authorityReference
+			session.coordinatorSuspended = result is SessionSuspendResult.Suspended
+			if (!propagateSourceCallerAuthority(
+					session,
+					authorityReference,
+					markCleanupOnFailure = false,
+				)
+			) {
+				return SourceSessionStopOutcome.Retryable(
+					SourceSessionStopRetryCode.STORAGE_UNAVAILABLE,
+				)
+			}
+			session.pendingSourceCallerAuthorityReference = null
+		}
+		val outcome = result.toSourceSessionStopOutcome()
 		if (outcome == SourceSessionStopOutcome.Stopped) {
 			active = null
 		}
@@ -592,6 +791,9 @@ class TrackerServiceSourceSession @Inject constructor(
 		val foregroundCapabilityFlags: Long,
 		var lastInputs: SourceSessionPlanInputs,
 		var coordinatorStarted: Boolean,
+		var sourceCallerAuthorityReference: SourceCallerReplayReference?,
+		var pendingSourceCallerAuthorityReference: SourceCallerReplayReference? = null,
+		var coordinatorSuspended: Boolean = false,
 		var runtimeCleanupRequired: Boolean = false,
 	)
 }
@@ -619,12 +821,27 @@ private fun SessionSuspendResult.toSourceSessionStopOutcome(): SourceSessionStop
 	is SessionSuspendResult.CleanupPending -> SourceSessionStopOutcome.Retryable(
 		SourceSessionStopRetryCode.CLEANUP_PENDING,
 	)
+	is SessionSuspendResult.Retryable -> SourceSessionStopOutcome.Retryable(
+		SourceSessionStopRetryCode.STORAGE_UNAVAILABLE,
+	)
 	is SessionSuspendResult.InvalidIntent -> error(
 		"Event-source suspension intent rejected: ${code}",
 	)
 	SessionSuspendResult.Busy -> SourceSessionStopOutcome.Retryable(
 		SourceSessionStopRetryCode.COORDINATOR_BUSY,
 	)
+}
+
+private fun SessionSuspendResult.sourceCallerAuthorityReferenceOrNull():
+	SourceCallerReplayReference? = when (this) {
+	is SessionSuspendResult.Suspended -> sourceCallerAuthorityReference
+	is SessionSuspendResult.CleanupPending -> sourceCallerAuthorityReference
+	is SessionSuspendResult.DrainPending -> sourceCallerAuthorityReference
+	is SessionSuspendResult.InvalidIntent,
+	is SessionSuspendResult.Retryable,
+	SessionSuspendResult.NoActiveSession,
+	SessionSuspendResult.Busy,
+	-> null
 }
 
 private fun SessionStopResult.toSourceSessionStopOutcome(): SourceSessionStopOutcome = when (this) {
@@ -671,6 +888,8 @@ private fun SessionStartOrigin.defaultCaptureMode(): CaptureReachabilityMode = w
 
 private const val STARTUP_RECOVERY_NOT_READY = "STARTUP_RECOVERY_NOT_READY"
 private const val ZERO_REACHABLE_CAPTURE_SOURCES = "ZERO_REACHABLE_CAPTURE_SOURCES"
+private const val SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED =
+	"SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED"
 
 private fun controlDependencies(
 	origin: SessionStartOrigin,

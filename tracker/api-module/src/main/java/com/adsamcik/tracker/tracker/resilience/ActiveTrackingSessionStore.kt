@@ -268,8 +268,19 @@ sealed interface ActiveTrackingSessionStoreResult {
 
 	data class Failure(
 		val cause: Throwable,
+		val kind: ActiveTrackingSessionStoreFailureKind =
+			ActiveTrackingSessionStoreFailureKind.UNAVAILABLE,
 	) : ActiveTrackingSessionStoreResult
 }
+
+enum class ActiveTrackingSessionStoreFailureKind {
+	CORRUPT,
+	UNAVAILABLE,
+}
+
+class ActiveTrackingSessionStoreCorruptionException(
+	cause: Throwable,
+) : IllegalStateException("Active tracking session persistence is corrupt", cause)
 
 interface ActiveTrackingSessionStore {
 	suspend fun read(): ActiveTrackingSessionStoreResult

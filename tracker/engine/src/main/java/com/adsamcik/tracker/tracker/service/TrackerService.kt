@@ -1237,29 +1237,19 @@ internal class TrackerService : CoreService() {
 				outcome.result.sourceCallerAuthorityReference
 			is SourceSessionReconfigureOutcome.Started ->
 				outcome.result.sourceCallerAuthorityReference
+			is SourceSessionReconfigureOutcome.Rejected ->
+				(outcome.result as? com.adsamcik.tracker.tracker.source.coordinator
+					.SessionReconfigureResult.Failed)
+					?.sourceCallerAuthorityReference
 			SourceSessionReconfigureOutcome.NotActive,
 			SourceSessionReconfigureOutcome.Unchanged,
-			is SourceSessionReconfigureOutcome.Rejected,
 			-> null
 		} ?: return outcome
 		val expected = activeSessionDescriptor
 			?: return sourceCallerDescriptorRejection("SOURCE_CALLER_DESCRIPTOR_MISSING")
 		val replacement = expected.copy(sourceCallerAuthorityReference = reference)
-		return when (val stored = activeTrackingSessionStore.replaceExact(expected, replacement)) {
-			is ActiveTrackingSessionStoreResult.Failure -> {
-				TrackerDiagnosticLog.failure(
-					TrackerDiagnosticFailureCode.TRACKING_SESSION_STORE_FAILED,
-					TrackingDiagnosticFailureReason.STORAGE_UNAVAILABLE,
-				)
-				sourceCallerDescriptorRejection("SOURCE_CALLER_DESCRIPTOR_SAVE_FAILED")
-			}
-			is ActiveTrackingSessionStoreResult.Success -> if (stored.descriptor == replacement) {
-				activeSessionDescriptor = replacement
-				outcome
-			} else {
-				sourceCallerDescriptorRejection("SOURCE_CALLER_DESCRIPTOR_CHANGED")
-			}
-		}
+		activeSessionDescriptor = replacement
+		return outcome
 	}
 
 	private fun sourceCallerDescriptorRejection(code: String) =
