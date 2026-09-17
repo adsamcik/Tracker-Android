@@ -738,7 +738,10 @@ internal class TrackerService : CoreService() {
 
 	/** Stops the providerless foreground shell without forcing Room through a closed startup gate. */
 	private fun abandonPreparedStartShell(startId: Int) {
-		TrackerDiagnosticLog.trackingPreparedShellStopped()
+		TrackerDiagnosticLog.failure(
+			TrackerDiagnosticFailureCode.TRACKING_PREPARED_SHELL_STOPPED,
+			TrackingDiagnosticFailureReason.TIMEOUT,
+		)
 		TrackerNotificationManager.postStartFailedNotification(this)
 		rollbackRejectedPreparedStartRuntime()
 		startSingleFlight.set(false)

@@ -71,10 +71,6 @@ object TrackerDiagnosticLog {
 		)
 	}
 
-	fun trackingPreparedShellStopped() {
-		Tracebox.log.error(TrackerTraceboxTemplates.TRACKING_PREPARED_SHELL_STOPPED)
-	}
-
 	fun trackingStopRequested() {
 		Tracebox.log.debug(TrackerTraceboxTemplates.TRACKING_STOP_REQUESTED)
 	}
@@ -160,6 +156,7 @@ enum class TrackerDiagnosticFailureCode {
 	TRACKING_CYCLE_FAILED,
 	TRACKING_PERSISTENCE_WRITE_FAILED,
 	TRACKING_PIPELINE_STAGE_FAILED,
+	TRACKING_PREPARED_SHELL_STOPPED,
 	TRACKING_PREPARED_START_FOREGROUND_FAILED,
 	TRACKING_REBASE_ENQUEUE_FAILED,
 	TRACKING_REDELIVERY_RESOLUTION_FAILED,
