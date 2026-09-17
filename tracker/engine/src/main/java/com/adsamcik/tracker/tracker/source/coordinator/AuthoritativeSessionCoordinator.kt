@@ -23,6 +23,8 @@ import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
 import com.adsamcik.tracker.tracker.api.SourceCallerAcceptanceReceipt
 import com.adsamcik.tracker.tracker.api.SourceCallerRejectionReason
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
+import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
+import com.adsamcik.tracker.tracker.api.isRetryable
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
@@ -214,6 +216,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		) return SessionStartPreparationResult.Rejected("LOGICAL_SESSION_ID_ALREADY_EXISTS")
 		val serviceRunId = serviceRunIdFor(request)
 		var failure: String? = null
+		var failureDisposition = TrackingStartFailureDisposition.TERMINAL
 		var alreadyAccepted = false
 		var prepared: PreparedSessionStart? = null
 		if (request.automaticTrigger != null) activityAutomationEpochAuthority.currentForValidation()
@@ -325,7 +328,6 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				draft = draft,
 				sessionMode = request.origin.toSessionMode(),
 				startOrigin = request.origin,
-				replayReference = request.sourceCallerReplayReference,
 				mutation = SessionDemandMutation.STAGE_UNTIL_FOREGROUND,
 				lease = lease,
 				bootId = request.clockDomainId,
@@ -366,8 +368,9 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			}
 		} catch (rejection: SourceCallerDemandRejectedException) {
 			failure = rejection.failureCode
+			failureDisposition = rejection.disposition
 		}
-		failure?.let { return SessionStartPreparationResult.Rejected(it) }
+		failure?.let { return SessionStartPreparationResult.Rejected(it, failureDisposition) }
 		if (alreadyAccepted) return SessionStartPreparationResult.AlreadyActive
 		val result = prepared ?: return SessionStartPreparationResult.AlreadyActive
 		if (request.automaticTrigger != null) activityAutomationDrainSignal.requestDrain()
@@ -392,6 +395,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		}
 		val serviceRunId = serviceRunIdFor(request)
 		var failure: String? = null
+		var failureDisposition = TrackingStartFailureDisposition.TERMINAL
 		var prepared: PreparedSessionStart? = null
 		try {
 			database.withTransaction {
@@ -503,7 +507,6 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				draft = draft,
 				sessionMode = SessionMode.MANUAL,
 				startOrigin = request.origin,
-				replayReference = request.sourceCallerReplayReference,
 				mutation = SessionDemandMutation.STAGE_UNTIL_FOREGROUND,
 				lease = lease,
 				bootId = request.clockDomainId,
@@ -535,14 +538,17 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			}
 		} catch (rejection: SourceCallerDemandRejectedException) {
 			failure = rejection.failureCode
-			finalizeInterruptedSession(
-				session,
-				lease,
-				request.wallTimeMs,
-				rejection.failureCode,
-			)
+			failureDisposition = rejection.disposition
+			if (rejection.disposition == TrackingStartFailureDisposition.TERMINAL) {
+				finalizeInterruptedSession(
+					session,
+					lease,
+					request.wallTimeMs,
+					rejection.failureCode,
+				)
+			}
 		}
-		failure?.let { return SessionStartPreparationResult.Rejected(it) }
+		failure?.let { return SessionStartPreparationResult.Rejected(it, failureDisposition) }
 		return prepared?.let(SessionStartPreparationResult::Prepared)
 			?: SessionStartPreparationResult.Rejected("RECOVERY_PREPARE_FAILED")
 	}
@@ -883,14 +889,19 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				intent.sourceCallerAuthorityReference.isNullOrBlank()
 			) return@withTransaction false
 			if (current.androidDeliveryState != AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name) {
+				val sourceCallerReference = requireNotNull(
+					intent.sourceCallerAuthorityReference,
+				).let(::SourceCallerReplayReference)
 				if (!sourceBroker.activatePreparedSessionDemandsInTransaction(
 					logicalTrackingId = current.logicalTrackingId,
 					serviceRunId = current.serviceRunId,
 					manifestRevision = current.preparedManifestRevision,
 					leaseGeneration = current.leaseGeneration,
+					sourceCallerAuthorityReference = sourceCallerReference.value,
 					bootId = currentBootId,
 					elapsedRealtimeNanos = elapsedRealtimeNanos,
 					wallTimeMs = wallTimeMs,
+					currentAuthority = sourceCallerDemandDispatcher,
 				)) return@withTransaction false
 				check(dao.updateServiceRun(
 					current.copy(
@@ -1025,7 +1036,15 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					run.desiredForegroundCapabilityFlags,
 				)
 				if (failure == null) {
-					SessionStartResult.Started(run.logicalTrackingId, run.serviceRunId, applied, effectiveStatus)
+					SessionStartResult.Started(
+						run.logicalTrackingId,
+						run.serviceRunId,
+						applied,
+						effectiveStatus,
+						SourceCallerReplayReference(
+							requireNotNull(persisted.intent.sourceCallerAuthorityReference),
+						),
+					)
 				} else {
 					val rollback = rollbackStalePolicySources(plan, executions, elapsedRealtimeNanos, wallTimeMs)
 					applied = rollback.applied
@@ -1444,7 +1463,6 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					draft = draft,
 					sessionMode = request.origin.toSessionMode(),
 					startOrigin = request.origin,
-					replayReference = request.sourceCallerReplayReference,
 					mutation = SessionDemandMutation.REPLACE_ACTIVE,
 					lease = lease,
 					bootId = request.clockDomainId,
@@ -1559,7 +1577,15 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					request.foregroundCapabilityFlags,
 				)
 				if (runningPolicyFailure == null) {
-					SessionStartResult.Started(logicalTrackingId, serviceRunId, applied, effectiveStatus)
+					SessionStartResult.Started(
+						logicalTrackingId,
+						serviceRunId,
+						applied,
+						effectiveStatus,
+						SourceCallerReplayReference(
+							requireNotNull(lifecycleIntent.intent.sourceCallerAuthorityReference),
+						),
+					)
 				} else {
 					val rollback = rollbackStalePolicySources(
 						request.plan,
@@ -1687,7 +1713,6 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				draft = draft,
 				sessionMode = SessionMode.MANUAL,
 				startOrigin = SessionStartOrigin.RECOVERY,
-				replayReference = request.sourceCallerReplayReference,
 				mutation = SessionDemandMutation.REPLACE_ACTIVE,
 				lease = lease,
 				bootId = request.clockDomainId,
@@ -1722,12 +1747,14 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			}
 		} catch (rejection: SourceCallerDemandRejectedException) {
 			callerFailure = rejection.failureCode
-			finalizeInterruptedSession(
-				session,
-				lease,
-				request.wallTimeMs,
-				rejection.failureCode,
-			)
+			if (rejection.disposition == TrackingStartFailureDisposition.TERMINAL) {
+				finalizeInterruptedSession(
+					session,
+					lease,
+					request.wallTimeMs,
+					rejection.failureCode,
+				)
+			}
 		}
 		policyFailure?.let { return SessionStartResult.InvalidPolicy(it) }
 		rolloutFailure?.let { return SessionStartResult.InvalidRollout(it) }
@@ -1786,7 +1813,15 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				request.foregroundCapabilityFlags,
 			)
 			if (runningPolicyFailure == null) {
-				SessionStartResult.Started(session.logicalTrackingId, serviceRunId, applied, effectiveStatus)
+				SessionStartResult.Started(
+					session.logicalTrackingId,
+					serviceRunId,
+					applied,
+					effectiveStatus,
+					SourceCallerReplayReference(
+						requireNotNull(lifecycleIntent.intent.sourceCallerAuthorityReference),
+					),
+				)
 			} else {
 				val rollback = rollbackStalePolicySources(
 					request.plan,
@@ -1983,7 +2018,6 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					draft = draft,
 					sessionMode = SessionMode.valueOf(current.sessionMode),
 					startOrigin = SessionStartOrigin.POLICY_RECONCILIATION,
-					replayReference = null,
 					mutation = SessionDemandMutation.REPLACE_ACTIVE,
 					lease = lease,
 					bootId = request.clockDomainId,
@@ -2114,7 +2148,14 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				)
 				return SessionReconfigureResult.Failed(request.plan.revision, applied, acceptanceFailure)
 			}
-			SessionReconfigureResult.Applied(request.plan.revision, applied, status)
+			SessionReconfigureResult.Applied(
+				request.plan.revision,
+				applied,
+				status,
+				SourceCallerReplayReference(
+					requireNotNull(persisted.intent.sourceCallerAuthorityReference),
+				),
+			)
 		} finally {
 			releaseLease(lease)
 		}
@@ -2423,7 +2464,6 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		draft: PersistedLifecycleIntent,
 		sessionMode: SessionMode,
 		startOrigin: SessionStartOrigin,
-		replayReference: SourceCallerReplayReference?,
 		mutation: SessionDemandMutation,
 		lease: LifecycleLeaseToken,
 		bootId: String,
@@ -2436,7 +2476,6 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				bindings = draft.bindings,
 				sessionMode = sessionMode,
 				startOrigin = startOrigin,
-				replayReference = replayReference,
 				mutation = mutation,
 				lifecycleLeaseGeneration = lease.generation,
 				bootId = bootId,
@@ -5317,6 +5356,12 @@ private class SourceCallerDemandRejectedException(
 	val reason: SourceCallerRejectionReason,
 ) : IllegalStateException(reason.name) {
 	val failureCode: String = "SOURCE_CALLER_GUARD_${reason.name}"
+	val disposition: TrackingStartFailureDisposition =
+		if (reason.isRetryable) {
+			TrackingStartFailureDisposition.RETRYABLE
+		} else {
+			TrackingStartFailureDisposition.TERMINAL
+		}
 }
 
 private fun PersistedLifecycleIntent.withSourceCallerReceipt(
@@ -5376,7 +5421,6 @@ data class SessionStartRequest(
 	val logicalTrackingId: String? = null,
 	val serviceRunId: String? = null,
 	val continuationAuthority: ServiceRunContinuationAuthority? = null,
-	val sourceCallerReplayReference: SourceCallerReplayReference? = null,
 )
 
 /** Exact authority to replace one active manual Android-service run without changing its session. */
@@ -5426,7 +5470,11 @@ sealed interface SessionStartPreparationResult {
 	data class Prepared(val start: PreparedSessionStart) : SessionStartPreparationResult
 	data object AlreadyActive : SessionStartPreparationResult
 	data object Busy : SessionStartPreparationResult
-	data class Rejected(val failureCode: String) : SessionStartPreparationResult
+	data class Rejected(
+		val failureCode: String,
+		val disposition: TrackingStartFailureDisposition =
+			TrackingStartFailureDisposition.TERMINAL,
+	) : SessionStartPreparationResult
 }
 
 data class ClaimedPreparedSessionStart(
@@ -5459,6 +5507,7 @@ sealed interface SessionStartResult {
 		val serviceRunId: String,
 		val applied: List<AppliedSourcePlan>,
 		val planStatus: DesiredPlanStatus,
+		val sourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 	) : SessionStartResult
 	data class Failed(
 		val logicalTrackingId: String,
@@ -5489,6 +5538,7 @@ sealed interface SessionReconfigureResult {
 		val revision: Long,
 		val applied: List<AppliedSourcePlan>,
 		val status: DesiredPlanStatus,
+		val sourceCallerAuthorityReference: SourceCallerReplayReference,
 	) : SessionReconfigureResult
 	data class Failed(
 		val revision: Long,

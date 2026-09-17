@@ -1116,15 +1116,25 @@ class ArchitecturalFitnessTest {
 	@Nested
 	inner class `Source caller authority` {
 		@Test
-		fun `production session demand reaches SourceBroker only through caller guard dispatcher`() {
+		fun `every production demand mutation reaches SourceBroker only through caller guard dispatcher`() {
 			val sourceRoot = projectRoot.resolve("tracker/engine/src/main")
 			val allowedFiles = setOf(
 				"SourceBroker.kt",
 				"SourceCallerDemandDispatcher.kt",
+				"AuthoritativeSessionCoordinator.kt",
+				"PreviousExitSourceSessionFinalizer.kt",
+				"ForceStopSourceSessionFinalizer.kt",
+				"ExplicitStopSourceSessionFinalizer.kt",
 			)
 			val directBrokerCalls = Regex(
 				"""\.(?:buildSessionDemands|stageSessionDemandsInTransaction|""" +
-					"""replaceSessionDemandsInTransaction|insertDemands)\s*\(""",
+					"""replaceSessionDemandsInTransaction|replaceAutomaticControlDemand|""" +
+					"""replaceAmbientStepsDemand|replaceAmbientWifiDemand(?:UnderHeldLease)?|""" +
+					"""replaceAmbientCellDemand(?:UnderHeldLease)?|withAmbientRadioMutationLease|""" +
+					"""compensateAmbient(?:Wifi|Cell)DemandUnderHeldLease|""" +
+					"""retireAcceptedPurposeDemand|""" +
+					"""markSessionDemandsRetiring|retireSessionDemands(?:InTransaction)?|""" +
+					"""insertDemands)\s*\(""",
 			)
 			sourceRoot.walkTopDown()
 				.filter { file ->
@@ -1133,6 +1143,23 @@ class ArchitecturalFitnessTest {
 				.flatMap { file ->
 					file.readLines().mapIndexedNotNull { index, line ->
 						if (directBrokerCalls.containsMatchIn(line)) {
+							"${file.relativeTo(projectRoot)}:${index + 1}: $line"
+						} else {
+							null
+						}
+					}
+				}
+				.toList()
+				.shouldBeEmpty()
+
+			sourceRoot.walkTopDown()
+				.filter { file ->
+					file.isFile && file.extension == "kt" &&
+						file.name !in setOf("SourceBroker.kt", "AuthoritativeSessionCoordinator.kt")
+				}
+				.flatMap { file ->
+					file.readLines().mapIndexedNotNull { index, line ->
+						if (".activatePreparedSessionDemandsInTransaction(" in line) {
 							"${file.relativeTo(projectRoot)}:${index + 1}: $line"
 						} else {
 							null
@@ -1162,13 +1189,15 @@ class ArchitecturalFitnessTest {
 				if ("requestManualTrackingStart" !in api ||
 					"startServiceAndAwaitEnqueue" !in api
 				) add("manual start must use the prepared-start coordinator")
-				if ("sourceCallerReplayReference =" !in coordinator) {
-					add("recovery must carry the previously accepted caller authority reference")
+				if ("validateRecoveryCallerAuthority(" !in coordinator ||
+					"previous.sourceCallerAuthorityReference" !in coordinator
+				) {
+					add("recovery must replay the previously accepted caller authority")
 				}
 				if ("replayPreparedSession(" !in coordinator ||
 					"SourceCallerReplayKind.FOREGROUND_SERVICE" !in coordinator
 				) add("foreground-service claim must replay exact caller authority")
-				if ("TrackerServiceApi.startServiceAndAwaitEnqueue(" !in automaticOutbox) {
+				if ("startServiceAndAwaitEnqueueResult(" !in automaticOutbox) {
 					add("automatic transition start must use the guarded prepared-start coordinator")
 				}
 			}.shouldBeEmpty()
@@ -1188,6 +1217,7 @@ class ArchitecturalFitnessTest {
 					"rolloutStateStore.load()",
 					"sourceProjectionStateDao().lease(",
 					"purposeAvailabilityReader.availability.value",
+					"executionRevisionRegistry.identities.value",
 				).filterNot(source::contains)
 					.mapTo(this) { marker -> "CurrentSourceCallerAuthorityReader missing $marker" }
 				listOf(
@@ -1196,7 +1226,85 @@ class ArchitecturalFitnessTest {
 					"registerListener(",
 				).filter(source::contains)
 					.mapTo(this) { marker -> "caller guard layer must not register providers: $marker" }
+				if ("SharedPreferencesSourceCallerAcceptedAuthorityRepository" in source ||
+					"getSharedPreferences(" in source ||
+					"ByteArrayOutputStream" in source ||
+					"Base64" in source
+				) add("accepted caller authority must remain in normalized Room rows")
+				if ("RoomSourceCallerAcceptedAuthorityRepository" !in source ||
+					"SourceCallerAcceptedAuthorityIntegrity" !in source
+				) add("normalized Room caller authority repository is missing")
 			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `reconfiguration rotates the durable caller reference into active session state`() {
+			val coordinator = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/" +
+					"AuthoritativeSessionCoordinator.kt",
+			).readText()
+			val service = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt",
+			).readText()
+
+			buildList {
+				if ("sourceCallerAuthorityReference: SourceCallerReplayReference" !in coordinator) {
+					add("reconfigure result must expose the newly accepted caller reference")
+				}
+				if ("activeTrackingSessionStore.replaceExact(expected, replacement)" !in service) {
+					add("TrackerService must CAS the new caller reference into durable restart state")
+				}
+				if ("activeSessionDescriptor = replacement" !in service) {
+					add("TrackerService must mirror the reconfigured caller reference in memory")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `provider-owning callers reconcile only after guarded demand dispatch`() {
+			val automatic = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"AutomaticStartTransitionMonitor.kt",
+			).readText()
+			val wifi = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/wifi/" +
+					"AmbientWifiDemandReconciler.kt",
+			).readText()
+			val cell = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/cell/" +
+					"AmbientCellDemandReconciler.kt",
+			).readText()
+			val steps = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/" +
+					"AmbientStepsDemandReconciler.kt",
+			).readText()
+
+			(
+				orderedMarkerViolations(
+					automatic,
+					"automatic control caller guard",
+					listOf(
+						"dispatchAutomaticControl(",
+						"ensureRegisteredAtLiveTail()",
+						"arbiter.setDemand(",
+					),
+				) +
+					orderedMarkerViolations(
+						wifi,
+						"ambient Wi-Fi caller guard",
+						listOf("dispatchAmbientRadio(", "sharedController.reconcileAmbientJoin()"),
+					) +
+					orderedMarkerViolations(
+						cell,
+						"ambient Cell caller guard",
+						listOf("dispatchAmbientRadio(", "sharedController.reconcileAmbientJoin()"),
+					) +
+					orderedMarkerViolations(
+						steps,
+						"ambient Steps caller guard",
+						listOf("dispatchAmbientSteps(", "AmbientStepsDemandReconciliation.DemandReady("),
+					)
+			).shouldBeEmpty()
 		}
 	}
 

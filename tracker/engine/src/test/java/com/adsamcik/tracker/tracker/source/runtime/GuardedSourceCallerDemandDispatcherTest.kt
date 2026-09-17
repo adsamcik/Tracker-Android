@@ -133,9 +133,11 @@ class GuardedSourceCallerDemandDispatcherTest {
 		)
 		val broker = brokerReturning(listOf(demand(TrackingSource.LOCATION)))
 		val dispatcher = GuardedSourceCallerDemandDispatcher(
+			database = mockk(relaxed = true),
 			authorityReader = CurrentSourceCallerAuthorityProvider { snapshot },
 			guard = guard,
 			sourceBroker = broker,
+			authorityRepository = repository,
 		)
 		val accepted = dispatcher.dispatchSession(
 			sessionRequest(bindings = listOf(binding(TrackingSource.LOCATION))),
@@ -161,6 +163,53 @@ class GuardedSourceCallerDemandDispatcherTest {
 	}
 
 	@Test
+	fun `prepared activation requires the exact current accepted authority`() = runTest {
+		var snapshot = SourceCallerAuthoritySnapshot(
+			setOf(capture(TrackingSource.LOCATION)),
+			TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+		)
+		val repository = InMemorySourceCallerAuthorityRepository()
+		val broker = brokerReturning(listOf(demand(TrackingSource.LOCATION)))
+		val dispatcher = GuardedSourceCallerDemandDispatcher(
+			database = mockk(relaxed = true),
+			authorityReader = CurrentSourceCallerAuthorityProvider { snapshot },
+			guard = ExactSourceCallerGuard(
+				SourceCallerAuthoritySnapshotReader { snapshot },
+				repository,
+			),
+			sourceBroker = broker,
+			authorityRepository = repository,
+		)
+		val accepted = dispatcher.dispatchSession(
+			sessionRequest(bindings = listOf(binding(TrackingSource.LOCATION))),
+		).shouldBeInstanceOf<SessionSourceDemandDispatchResult.Permitted>()
+		val demand = demand(TrackingSource.LOCATION).copy(
+			sourceCallerAuthorityReference = accepted.receipt.reference.value,
+		)
+
+		dispatcher.permitsActivation(
+			accepted.receipt.reference,
+			MANIFEST,
+			listOf(demand),
+		) shouldBe true
+
+		snapshot = SourceCallerAuthoritySnapshot(
+			setOf(
+				capture(TrackingSource.LOCATION).copy(
+					purposeLeaseIdentity = capture(TrackingSource.LOCATION)
+						.purposeLeaseIdentity.copy(consentEpoch = CONSENT_EPOCH + 1L),
+				),
+			),
+			TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+		)
+		dispatcher.permitsActivation(
+			accepted.receipt.reference,
+			MANIFEST,
+			listOf(demand),
+		) shouldBe false
+	}
+
+	@Test
 	fun `recovery cannot replace the accepted manifest identity`() = runTest {
 		var snapshot = SourceCallerAuthoritySnapshot(
 			setOf(capture(TrackingSource.LOCATION)),
@@ -173,9 +222,11 @@ class GuardedSourceCallerDemandDispatcherTest {
 		)
 		val broker = brokerReturning(listOf(demand(TrackingSource.LOCATION)))
 		val dispatcher = GuardedSourceCallerDemandDispatcher(
+			database = mockk(relaxed = true),
 			authorityReader = CurrentSourceCallerAuthorityProvider { snapshot },
 			guard = guard,
 			sourceBroker = broker,
+			authorityRepository = repository,
 		)
 		val accepted = dispatcher.dispatchSession(
 			sessionRequest(bindings = listOf(binding(TrackingSource.LOCATION))),
@@ -202,18 +253,79 @@ class GuardedSourceCallerDemandDispatcherTest {
 		replay.rejection.reason shouldBe SourceCallerRejectionReason.REPLAY_AUTHORITY_ESCALATION
 	}
 
+	@Test
+	fun `new recovery manifest receives a new acceptance after exact prior replay`() = runTest {
+		var snapshot = SourceCallerAuthoritySnapshot(
+			setOf(capture(TrackingSource.LOCATION)),
+			TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+		)
+		val repository = InMemorySourceCallerAuthorityRepository()
+		val guard = ExactSourceCallerGuard(
+			authorityReader = SourceCallerAuthoritySnapshotReader { snapshot },
+			authorityRepository = repository,
+		)
+		val broker = brokerReturning(listOf(demand(TrackingSource.LOCATION)))
+		val dispatcher = GuardedSourceCallerDemandDispatcher(
+			database = mockk(relaxed = true),
+			authorityReader = CurrentSourceCallerAuthorityProvider { snapshot },
+			guard = guard,
+			sourceBroker = broker,
+			authorityRepository = repository,
+		)
+		val original = dispatcher.dispatchSession(
+			sessionRequest(bindings = listOf(binding(TrackingSource.LOCATION))),
+		).shouldBeInstanceOf<SessionSourceDemandDispatchResult.Permitted>()
+		dispatcher.replayPreparedSession(
+			MANIFEST,
+			original.receipt.reference,
+			SourceCallerReplayKind.RECOVERY,
+		).shouldBeInstanceOf<SourceCallerGuardResult.Permitted>()
+
+		val replacementManifest = SourceCallerManifestIdentity(
+			MANIFEST.logicalTrackingId,
+			MANIFEST.manifestRevision + 1L,
+		)
+		snapshot = SourceCallerAuthoritySnapshot(
+			setOf(
+				capture(TrackingSource.LOCATION).copy(
+					manifestIdentity = replacementManifest,
+				),
+			),
+			TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+		)
+		val replacement = dispatcher.dispatchSession(
+			sessionRequest(
+				manifest = manifest(
+					manifestIdentity = replacementManifest,
+					startOrigin = SessionStartOrigin.RECOVERY,
+				),
+				startOrigin = SessionStartOrigin.RECOVERY,
+				bindings = listOf(
+					binding(
+						TrackingSource.LOCATION,
+						manifestIdentity = replacementManifest,
+					),
+				),
+			),
+		).shouldBeInstanceOf<SessionSourceDemandDispatchResult.Permitted>()
+
+		(replacement.receipt.reference == original.receipt.reference) shouldBe false
+	}
+
 	private fun dispatcher(
 		snapshot: SourceCallerAuthoritySnapshot,
 		broker: SourceBroker,
 	): GuardedSourceCallerDemandDispatcher {
 		val repository = InMemorySourceCallerAuthorityRepository()
 		return GuardedSourceCallerDemandDispatcher(
+			database = mockk(relaxed = true),
 			authorityReader = CurrentSourceCallerAuthorityProvider { snapshot },
 			guard = ExactSourceCallerGuard(
 				authorityReader = SourceCallerAuthoritySnapshotReader { snapshot },
 				authorityRepository = repository,
 			),
 			sourceBroker = broker,
+			authorityRepository = repository,
 		)
 	}
 
@@ -230,8 +342,23 @@ class GuardedSourceCallerDemandDispatcherTest {
 					any(),
 					any(),
 					any(),
+					any(),
 				)
-			} returns demands
+			} answers {
+				demands.map { demand ->
+					demand.copy(
+						logicalTrackingId = arg(0),
+						serviceRunId = arg(1),
+						manifestRevision = arg(2),
+						lifecycleLeaseGeneration = arg(3),
+						sourcePolicyRevision = arg(4),
+						requestedBootId = arg(6),
+						requestedElapsedRealtimeNanos = arg(7),
+						requestedAtMs = arg(8),
+						sourceCallerAuthorityReference = arg(9),
+					)
+				}
+			}
 			coEvery {
 				stageSessionDemandsInTransaction(any(), any(), any(), any(), any())
 			} returns Unit
@@ -240,9 +367,10 @@ class GuardedSourceCallerDemandDispatcherTest {
 	private fun sessionRequest(
 		sessionMode: SessionMode = SessionMode.MANUAL,
 		startOrigin: SessionStartOrigin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+		manifest: SessionManifestVersionEntity = manifest(sessionMode, startOrigin),
 		bindings: List<SessionManifestSourceEntity>,
 	) = SessionSourceDemandDispatchRequest(
-		manifest = manifest(sessionMode, startOrigin),
+		manifest = manifest,
 		bindings = bindings,
 		sessionMode = sessionMode,
 		startOrigin = startOrigin,
@@ -256,9 +384,10 @@ class GuardedSourceCallerDemandDispatcherTest {
 	private fun manifest(
 		sessionMode: SessionMode = SessionMode.MANUAL,
 		startOrigin: SessionStartOrigin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+		manifestIdentity: SourceCallerManifestIdentity = MANIFEST,
 	) = SessionManifestVersionEntity(
-		logicalTrackingId = MANIFEST.logicalTrackingId,
-		manifestRevision = MANIFEST.manifestRevision,
+		logicalTrackingId = manifestIdentity.logicalTrackingId,
+		manifestRevision = manifestIdentity.manifestRevision,
 		serviceRunId = "service-run",
 		sessionMode = sessionMode.name,
 		sourcePolicyRevision = POLICY_REVISION,
@@ -277,9 +406,10 @@ class GuardedSourceCallerDemandDispatcherTest {
 	private fun binding(
 		source: TrackingSource,
 		purpose: String = SourceBrokerPurpose.SESSION_CAPTURE,
+		manifestIdentity: SourceCallerManifestIdentity = MANIFEST,
 	) = SessionManifestSourceEntity(
-		logicalTrackingId = MANIFEST.logicalTrackingId,
-		manifestRevision = MANIFEST.manifestRevision,
+		logicalTrackingId = manifestIdentity.logicalTrackingId,
+		manifestRevision = manifestIdentity.manifestRevision,
 		sourceKind = source.stableCode,
 		purpose = purpose,
 		consentEpoch = CONSENT_EPOCH,
@@ -339,15 +469,29 @@ class GuardedSourceCallerDemandDispatcherTest {
 
 	private class InMemorySourceCallerAuthorityRepository :
 		SourceCallerAcceptedAuthorityRepository {
-		private val persisted = mutableMapOf<SourceCallerReplayReference, String>()
+		private val persisted =
+			mutableMapOf<SourceCallerReplayReference, StoredSourceCallerAuthority>()
 
 		override suspend fun storeIfAbsent(
 			reference: SourceCallerReplayReference,
-			encodedAuthority: String,
-		): Boolean = persisted.putIfAbsent(reference, encodedAuthority) == null
+			authority: StoredSourceCallerAuthority,
+			createdAtMs: Long,
+		): Boolean = persisted.putIfAbsent(reference, authority) == null
 
-		override suspend fun load(reference: SourceCallerReplayReference): String? =
-			persisted[reference]
+		override suspend fun load(
+			reference: SourceCallerReplayReference,
+		): StoredSourceCallerAuthorityLoadResult = persisted[reference]?.let {
+			StoredSourceCallerAuthorityLoadResult.Available(it)
+		} ?: StoredSourceCallerAuthorityLoadResult.Missing
+
+		override suspend fun tombstone(
+			reference: SourceCallerReplayReference,
+			reason: String,
+			tombstonedAtMs: Long,
+		): Boolean = persisted.remove(reference) != null
+
+		override suspend fun delete(reference: SourceCallerReplayReference): Boolean =
+			persisted.remove(reference) != null
 	}
 
 	private companion object {

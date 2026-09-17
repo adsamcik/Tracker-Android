@@ -24,6 +24,52 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackerServiceApiTest {
 	@Test
+	fun `typed start dispatch preserves retryable versus terminal preparation failure`() = runTest {
+		val command = TrackingStartCommand(1L)
+		val request = TrackingStartRequest(command, isUserInitiated = false, isAmbient = false)
+		val events = mutableListOf<String>()
+
+		TrackerServiceApi.dispatchPreparedStartResult(
+			request,
+			RecordingStartCoordinator(
+				TrackingStartPreparationResult.Rejected(
+					"TEMPORARY_STORAGE",
+					TrackingStartFailureDisposition.RETRYABLE,
+				),
+				events,
+			),
+			DispositionAuthority(TrackingStartCommandDisposition.Allowed, events),
+			platformEnqueue = { _, _ -> error("retryable prepare must not enqueue") },
+		) shouldBe TrackingStartDispatchResult.Retryable("TEMPORARY_STORAGE")
+
+		TrackerServiceApi.dispatchPreparedStartResult(
+			request,
+			RecordingStartCoordinator(
+				TrackingStartPreparationResult.Rejected(
+					"STALE_AUTHORITY",
+					TrackingStartFailureDisposition.TERMINAL,
+				),
+				mutableListOf(),
+			),
+			DispositionAuthority(TrackingStartCommandDisposition.Allowed, mutableListOf()),
+			platformEnqueue = { _, _ -> error("terminal prepare must not enqueue") },
+		) shouldBe TrackingStartDispatchResult.Terminal("STALE_AUTHORITY")
+
+		TrackerServiceApi.dispatchPreparedStart(
+			request,
+			RecordingStartCoordinator(
+				TrackingStartPreparationResult.Rejected(
+					"TEMPORARY_STORAGE",
+					TrackingStartFailureDisposition.RETRYABLE,
+				),
+				mutableListOf(),
+			),
+			DispositionAuthority(TrackingStartCommandDisposition.Allowed, mutableListOf()),
+			platformEnqueue = { _, _ -> error("compatibility adapter must fail closed") },
+		) shouldBe false
+	}
+
+	@Test
 	fun `prepared Room intent precedes platform enqueue and enqueue acknowledgement`() = runTest {
 		val events = mutableListOf<String>()
 		val token = PreparedTrackingStartToken("prepared-1")

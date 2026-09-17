@@ -7,7 +7,6 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
-import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.DemandReason
@@ -78,7 +77,6 @@ data class SourceSessionStartRequest(
 	val origin: SessionStartOrigin,
 	val captureMode: CaptureReachabilityMode = origin.defaultCaptureMode(),
 	val continuationAuthority: ServiceRunContinuationAuthority? = null,
-	val sourceCallerReplayReference: SourceCallerReplayReference? = null,
 	val automaticTrigger: AutomaticTrackingStartTrigger? = null,
 	val foregroundCapabilityFlags: Long,
 	val planInputs: SourceSessionPlanInputs,
@@ -186,7 +184,6 @@ class TrackerServiceSourceSession @Inject constructor(
 				logicalTrackingId = request.logicalTrackingId,
 				serviceRunId = request.serviceRunId,
 				continuationAuthority = request.continuationAuthority,
-				sourceCallerReplayReference = request.sourceCallerReplayReference,
 			),
 			delivery,
 		)
@@ -209,8 +206,6 @@ class TrackerServiceSourceSession @Inject constructor(
 			serviceRunId = claim.serviceRunId,
 			origin = claim.startOrigin,
 			captureMode = captureModeFor(claim.isUserInitiated, claim.isAmbient),
-			sourceCallerReplayReference = claim.intent.sourceCallerAuthorityReference
-				?.let(::SourceCallerReplayReference),
 			automaticTrigger = null,
 			foregroundCapabilityFlags = claim.desiredForegroundCapabilityFlags,
 			lastInputs = planInputs,
@@ -278,7 +273,6 @@ class TrackerServiceSourceSession @Inject constructor(
 			serviceRunId = request.serviceRunId,
 			origin = request.origin,
 			captureMode = request.captureMode,
-			sourceCallerReplayReference = request.sourceCallerReplayReference,
 			automaticTrigger = request.automaticTrigger,
 			foregroundCapabilityFlags = request.foregroundCapabilityFlags,
 			lastInputs = planInputs,
@@ -540,7 +534,6 @@ class TrackerServiceSourceSession @Inject constructor(
 				automaticTrigger = session.automaticTrigger,
 				logicalTrackingId = session.logicalTrackingId,
 				serviceRunId = session.serviceRunId,
-				sourceCallerReplayReference = session.sourceCallerReplayReference,
 			),
 		)
 	}
@@ -595,7 +588,6 @@ class TrackerServiceSourceSession @Inject constructor(
 		val serviceRunId: String,
 		val origin: SessionStartOrigin,
 		val captureMode: CaptureReachabilityMode,
-		val sourceCallerReplayReference: SourceCallerReplayReference?,
 		val automaticTrigger: AutomaticTrackingStartTrigger?,
 		val foregroundCapabilityFlags: Long,
 		var lastInputs: SourceSessionPlanInputs,

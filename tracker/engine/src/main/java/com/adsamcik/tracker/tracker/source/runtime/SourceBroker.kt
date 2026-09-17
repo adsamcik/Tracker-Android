@@ -35,6 +35,8 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.SourceCallerManifestIdentity
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import java.security.MessageDigest
 import java.util.Base64
 import javax.inject.Inject
@@ -48,15 +50,17 @@ import javax.inject.Singleton
  * reject callbacks that attempt to cross a purpose, policy, consent, manifest, or generation fence.
  */
 @Singleton
-class SourceBroker @Inject constructor(
+class SourceBroker @Inject internal constructor(
 	private val database: AppDatabase,
 	private val trackingRolloutStateStore: RoomTrackingRolloutStateStore,
 	private val ambientRadioMutationLeaseGuard: AmbientRadioMutationLeaseGuard,
+	private val sourceCallerAuthorityRepository: SourceCallerAcceptedAuthorityRepository,
 ) {
 	constructor(database: AppDatabase) : this(
 		database,
 		RoomTrackingRolloutStateStore(database),
 		RejectingAmbientRadioMutationLeaseGuard,
+		RoomSourceCallerAcceptedAuthorityRepository(database),
 	)
 
 	constructor(
@@ -66,6 +70,18 @@ class SourceBroker @Inject constructor(
 		database,
 		trackingRolloutStateStore,
 		RejectingAmbientRadioMutationLeaseGuard,
+		RoomSourceCallerAcceptedAuthorityRepository(database),
+	)
+
+	internal constructor(
+		database: AppDatabase,
+		trackingRolloutStateStore: RoomTrackingRolloutStateStore,
+		ambientRadioMutationLeaseGuard: AmbientRadioMutationLeaseGuard,
+	) : this(
+		database,
+		trackingRolloutStateStore,
+		ambientRadioMutationLeaseGuard,
+		RoomSourceCallerAcceptedAuthorityRepository(database),
 	)
 	fun sessionConsumerId(logicalTrackingId: String): String = "session:$logicalTrackingId"
 
@@ -83,6 +99,7 @@ class SourceBroker @Inject constructor(
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
+		sourceCallerAuthorityReference: String? = null,
 	): List<SourceDemandEntity> {
 		val consumerId = sessionConsumerId(logicalTrackingId)
 		return bindings.sortedWith(
@@ -134,6 +151,7 @@ class SourceBroker @Inject constructor(
 				retireBootId = null,
 				retireElapsedRealtimeNanos = null,
 				retiredAtMs = null,
+				sourceCallerAuthorityReference = sourceCallerAuthorityReference,
 			)
 		}
 	}
@@ -150,7 +168,9 @@ class SourceBroker @Inject constructor(
 		val dao = database.sourceBrokerDao()
 		val affectedSources = (dao.currentDemands(consumerId).map(SourceDemandEntity::sourceKind) +
 			demands.map(SourceDemandEntity::sourceKind)).toSet()
+		val retiredReferences = currentAuthorityReferences(consumerId)
 		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
+		tombstoneReferences(retiredReferences, "SESSION_DEMAND_REPLACED", wallTimeMs)
 		if (demands.isNotEmpty()) dao.insertDemands(demands)
 		affectedSources.forEach { sourceKind ->
 			rotateCurrentAuthorizationInTransaction(
@@ -179,7 +199,9 @@ class SourceBroker @Inject constructor(
 		val previouslyActiveSources = dao.currentDemands(consumerId)
 			.map(SourceDemandEntity::sourceKind)
 			.toSet()
+		val retiredReferences = currentAuthorityReferences(consumerId)
 		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
+		tombstoneReferences(retiredReferences, "SESSION_DEMAND_STAGED", wallTimeMs)
 		if (demands.isNotEmpty()) {
 			dao.insertDemands(demands.map { demand ->
 				demand.copy(status = SourceDemandEntity.STATUS_BLOCKED)
@@ -196,14 +218,16 @@ class SourceBroker @Inject constructor(
 	}
 
 	/** Opens only the exact foreground-accepted prepared demand vector. */
-	suspend fun activatePreparedSessionDemandsInTransaction(
+	internal suspend fun activatePreparedSessionDemandsInTransaction(
 		logicalTrackingId: String,
 		serviceRunId: String,
 		manifestRevision: Long,
 		leaseGeneration: Long,
+		sourceCallerAuthorityReference: String,
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
+		currentAuthority: SourceCallerCurrentAuthorityPredicate,
 	): Boolean {
 		val consumerId = sessionConsumerId(logicalTrackingId)
 		val dao = database.sourceBrokerDao()
@@ -216,8 +240,15 @@ class SourceBroker @Inject constructor(
 				demand.status !in setOf(
 					SourceDemandEntity.STATUS_BLOCKED,
 					SourceDemandEntity.STATUS_ACTIVE,
-				)
+			) ||
+				demand.sourceCallerAuthorityReference != sourceCallerAuthorityReference
 		}) return false
+		if (!currentAuthority.permitsActivation(
+				SourceCallerReplayReference(sourceCallerAuthorityReference),
+				SourceCallerManifestIdentity(logicalTrackingId, manifestRevision),
+				exact,
+			)
+		) return false
 		val blocked = exact.filter { it.status == SourceDemandEntity.STATUS_BLOCKED }
 		if (blocked.isEmpty()) return true
 		if (dao.activatePreparedSessionDemands(
@@ -277,18 +308,100 @@ class SourceBroker @Inject constructor(
 		val dao = database.sourceBrokerDao()
 		val consumerId = sessionConsumerId(logicalTrackingId)
 		val affectedSources = dao.currentDemands(consumerId).map(SourceDemandEntity::sourceKind).toSet()
+		val retiredReferences = currentAuthorityReferences(consumerId)
 		val updated = dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
+		tombstoneReferences(retiredReferences, "SESSION_DEMAND_RETIRED", wallTimeMs)
 		affectedSources.forEach { sourceKind ->
 			rotateCurrentAuthorizationInTransaction(sourceKind, bootId, elapsedRealtimeNanos, wallTimeMs)
 		}
 		return updated
 	}
 
+	private suspend fun currentAuthorityReferences(consumerId: String): Set<SourceCallerReplayReference> =
+		database.sourceBrokerDao().callerAuthorityReferences(consumerId).asSequence()
+			.map(::SourceCallerReplayReference)
+			.toSet()
+
+	internal suspend fun currentPurposeDemands(
+		consumerId: String,
+	): List<SourceDemandEntity> = database.withTransaction {
+		database.sourceBrokerDao().demandHistory(consumerId)
+			.filter { demand ->
+				demand.status == SourceDemandEntity.STATUS_ACTIVE ||
+					demand.status == SourceDemandEntity.STATUS_RETIRING ||
+					demand.status == SourceDemandEntity.STATUS_BLOCKED
+			}
+	}
+
+	internal suspend fun retireAcceptedPurposeDemand(
+		expected: SourceDemandEntity,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): Boolean = database.withTransaction {
+		val dao = database.sourceBrokerDao()
+		val current = dao.demandHistory(expected.consumerId)
+			.filter { demand ->
+				demand.status == SourceDemandEntity.STATUS_ACTIVE ||
+					demand.status == SourceDemandEntity.STATUS_RETIRING ||
+					demand.status == SourceDemandEntity.STATUS_BLOCKED
+			}
+			.singleOrNull()
+			?: return@withTransaction false
+		if (current != expected || current.sourceCallerAuthorityReference == null) {
+			return@withTransaction false
+		}
+		check(dao.retireConsumer(
+			expected.consumerId,
+			bootId,
+			elapsedRealtimeNanos,
+			wallTimeMs,
+		) == 1) {
+			"Exact purpose-owner demand retirement lost ownership"
+		}
+		tombstoneDemandAuthority(current, "PURPOSE_OWNER_DEMAND_RETIRED", wallTimeMs)
+		rotateCurrentAuthorizationInTransaction(
+			current.sourceKind,
+			bootId,
+			elapsedRealtimeNanos,
+			wallTimeMs,
+		)
+		true
+	}
+
+	private suspend fun tombstoneReferences(
+		references: Set<SourceCallerReplayReference>,
+		reason: String,
+		wallTimeMs: Long,
+	) {
+		references.forEach { reference ->
+			check(sourceCallerAuthorityRepository.tombstone(reference, reason, wallTimeMs)) {
+				"Unable to tombstone source-caller authority"
+			}
+		}
+	}
+
+	private suspend fun tombstoneDemandAuthority(
+		demand: SourceDemandEntity,
+		reason: String,
+		wallTimeMs: Long,
+	) {
+		demand.sourceCallerAuthorityReference?.let { reference ->
+			check(
+				sourceCallerAuthorityRepository.tombstone(
+					SourceCallerReplayReference(reference),
+					reason,
+					wallTimeMs,
+				),
+			) { "Unable to tombstone source-caller demand authority" }
+		}
+	}
+
 	/**
 	 * Replaces one application-scoped control demand before its provider is reconciled.
 	 * Fails closed if the authoritative policy has no current CONTROL epoch.
 	 */
-	suspend fun replaceAutomaticControlDemand(
+	internal suspend fun replaceAutomaticControlDemand(
 		consumerId: String,
 		source: SourceKind,
 		enabled: Boolean,
@@ -297,12 +410,15 @@ class SourceBroker @Inject constructor(
 		wallTimeMs: Long,
 		maximumAgeMs: Long,
 		desiredLatencyMs: Long,
+		sourceCallerAuthorityReference: String? = null,
 	): SourceDemandEntity? = database.withTransaction {
 		val dao = database.sourceBrokerDao()
 		val affectedSourceKinds = (
 			dao.currentDemands(consumerId).map(SourceDemandEntity::sourceKind) + source.stableCode
 		).toSet()
+		val priorReferences = currentAuthorityReferences(consumerId)
 		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
+		tombstoneReferences(priorReferences, "AUTOMATIC_CONTROL_REPLACED", wallTimeMs)
 		if (!enabled) {
 			rotateCurrentAuthorizationsInTransaction(
 				affectedSourceKinds,
@@ -434,6 +550,7 @@ class SourceBroker @Inject constructor(
 			retireBootId = null,
 			retireElapsedRealtimeNanos = null,
 			retiredAtMs = null,
+			sourceCallerAuthorityReference = sourceCallerAuthorityReference,
 		)
 		dao.insertDemands(listOf(demand))
 		rotateCurrentAuthorizationsInTransaction(
@@ -511,6 +628,7 @@ class SourceBroker @Inject constructor(
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
+		sourceCallerAuthorityReference: String? = null,
 	): AmbientStepsDemandResult = database.withTransaction {
 		require(consumerId.isNotBlank())
 		require(leaseIdentity.source == AmbientTrackingSource.STEPS)
@@ -525,6 +643,7 @@ class SourceBroker @Inject constructor(
 			reason: AmbientStepsDemandInactiveReason,
 			retention: AmbientStepsRetentionAuthorityEntity? = null,
 		): AmbientStepsDemandResult {
+			val priorReferences = currentAuthorityReferences(consumerId)
 			val exact = currentDemands.singleOrNull()?.takeIf { demand ->
 				retention != null &&
 					AmbientStepsDemandIdentity.matches(demand, retention, leaseIdentity)
@@ -535,6 +654,7 @@ class SourceBroker @Inject constructor(
 				)
 			}
 			dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
+			tombstoneReferences(priorReferences, "AMBIENT_STEPS_RETIRED", wallTimeMs)
 			rotateCurrentAuthorizationsInTransaction(
 				affectedSourceKinds,
 				bootId,
@@ -621,9 +741,12 @@ class SourceBroker @Inject constructor(
 				demand.maximumAgeMs == contract.maximumProviderItemAgeMs &&
 				demand.desiredLatencyMs == contract.targetPlanningLatencyMs &&
 				demand.requestedDeliveryLatencyMs == contract.requestedDeliveryLatencyMs &&
-				AmbientStepsDemandIdentity.matches(demand, retention, leaseIdentity)
+				AmbientStepsDemandIdentity.matches(demand, retention, leaseIdentity) &&
+				demand.sourceCallerAuthorityReference == sourceCallerAuthorityReference
 		}?.let { unchanged -> return@withTransaction AmbientStepsDemandResult.Active(unchanged) }
+		val priorReferences = currentAuthorityReferences(consumerId)
 		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
+		tombstoneReferences(priorReferences, "AMBIENT_STEPS_REPLACED", wallTimeMs)
 		val demand = SourceDemandEntity(
 			demandId = AmbientStepsDemandIdentity.create(
 				consumerId = consumerId,
@@ -658,6 +781,7 @@ class SourceBroker @Inject constructor(
 			retireBootId = null,
 			retireElapsedRealtimeNanos = null,
 			retiredAtMs = null,
+			sourceCallerAuthorityReference = sourceCallerAuthorityReference,
 		)
 		dao.insertDemands(listOf(demand))
 		rotateCurrentAuthorizationsInTransaction(
@@ -755,6 +879,7 @@ class SourceBroker @Inject constructor(
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
+		sourceCallerAuthorityReference: String? = null,
 	): AmbientRadioDemandResult =
 		withAmbientRadioMutationLease(leaseIdentity) {
 			replaceAmbientWifiDemandUnderHeldLease(
@@ -765,6 +890,7 @@ class SourceBroker @Inject constructor(
 				bootId,
 				elapsedRealtimeNanos,
 				wallTimeMs,
+				sourceCallerAuthorityReference,
 			)
 		}.toDemandResult()
 
@@ -776,6 +902,7 @@ class SourceBroker @Inject constructor(
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
+		sourceCallerAuthorityReference: String? = null,
 	): AmbientRadioDemandResult = database.withTransaction {
 		replaceAmbientRadioDemandInTransaction(
 					consumerId = consumerId,
@@ -786,6 +913,7 @@ class SourceBroker @Inject constructor(
 					bootId = bootId,
 					elapsedRealtimeNanos = elapsedRealtimeNanos,
 					wallTimeMs = wallTimeMs,
+					sourceCallerAuthorityReference = sourceCallerAuthorityReference,
 					latestAuthority = {
 						database.ambientWifiFactDao().latestAuthority()
 							?.takeIf(AmbientWifiAuthorityIntegrity::isAuthentic)
@@ -854,6 +982,7 @@ class SourceBroker @Inject constructor(
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
+		sourceCallerAuthorityReference: String? = null,
 	): AmbientRadioDemandResult =
 		withAmbientRadioMutationLease(leaseIdentity) {
 			replaceAmbientCellDemandUnderHeldLease(
@@ -864,6 +993,7 @@ class SourceBroker @Inject constructor(
 				bootId,
 				elapsedRealtimeNanos,
 				wallTimeMs,
+				sourceCallerAuthorityReference,
 			)
 		}.toDemandResult()
 
@@ -875,6 +1005,7 @@ class SourceBroker @Inject constructor(
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
+		sourceCallerAuthorityReference: String? = null,
 	): AmbientRadioDemandResult = database.withTransaction {
 		replaceAmbientRadioDemandInTransaction(
 					consumerId = consumerId,
@@ -885,6 +1016,7 @@ class SourceBroker @Inject constructor(
 					bootId = bootId,
 					elapsedRealtimeNanos = elapsedRealtimeNanos,
 					wallTimeMs = wallTimeMs,
+					sourceCallerAuthorityReference = sourceCallerAuthorityReference,
 					latestAuthority = {
 						database.ambientCellFactDao().latestAuthority()
 							?.takeIf(AmbientCellAuthorityIntegrity::isAuthentic)
@@ -1310,6 +1442,7 @@ class SourceBroker @Inject constructor(
 		latestRetentionAuthority: suspend () -> AmbientRadioRetentionAuthority?,
 		retireExactDemand: suspend (SourceDemandEntity) -> Int,
 		currentDeletionGeneration: suspend (Long) -> Long?,
+		sourceCallerAuthorityReference: String?,
 	): AmbientRadioDemandResult {
 		require(source == SourceKind.WIFI || source == SourceKind.CELL)
 		require(consumerId.isNotBlank())
@@ -1411,7 +1544,9 @@ class SourceBroker @Inject constructor(
 
 		suspend fun retireCurrentDemand(): Boolean {
 			val demand = currentDemand ?: return true
-			return retireExactDemand(demand) == 1
+			val retired = retireExactDemand(demand) == 1
+			if (retired) tombstoneDemandAuthority(demand, "AMBIENT_RADIO_RETIRED", wallTimeMs)
+			return retired
 		}
 
 		fun ownerReconciliationAuthority(
@@ -1532,6 +1667,7 @@ class SourceBroker @Inject constructor(
 				demand.maximumAgeMs == contract.maximumProviderItemAgeMs &&
 				demand.desiredLatencyMs == contract.targetPlanningLatencyMs &&
 				demand.requestedDeliveryLatencyMs == null
+				&& demand.sourceCallerAuthorityReference == sourceCallerAuthorityReference
 		}
 		val unchangedAuthority = priorAuthority?.takeIf { authority ->
 			authority.state == AmbientWifiAuthorityEntity.STATE_ACTIVE &&
@@ -1619,6 +1755,7 @@ class SourceBroker @Inject constructor(
 			retireBootId = null,
 			retireElapsedRealtimeNanos = null,
 			retiredAtMs = null,
+			sourceCallerAuthorityReference = sourceCallerAuthorityReference,
 		)
 		dao.insertDemands(listOf(demand))
 		insertAuthority(

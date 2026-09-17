@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
@@ -16,9 +17,14 @@ import com.adsamcik.tracker.tracker.source.runtime.AmbientStepsDemandInactiveRea
 import com.adsamcik.tracker.tracker.source.runtime.AmbientStepsDemandResult
 import com.adsamcik.tracker.tracker.source.runtime.AmbientStepsRetirementPlan
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
-import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import com.adsamcik.tracker.tracker.source.runtime.AmbientStepsDemandDispatchRequest
+import com.adsamcik.tracker.tracker.source.runtime.GuardedPurposeDemandResult
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerDemandDispatcher
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 data class AmbientStepsDemandBoundary(
 	val bootId: String,
@@ -40,6 +46,7 @@ data class AmbientStepsDemandBoundary(
 class AmbientStepsDemandReconciler internal constructor(
 	private val resolveCapability: suspend () -> AmbientStepsCapability,
 	private val sourceBroker: SourceBroker,
+	private val sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,
 	@Suppress("unused")
 	private val bootClockDomainProvider: BootClockDomainProvider,
 	private val sourcePolicyRepository: SourcePolicyRepository,
@@ -52,19 +59,23 @@ class AmbientStepsDemandReconciler internal constructor(
 	) -> CurrentRetentionAuthority = { policyRevision, consentEpoch, _ ->
 		currentRetentionAuthority(policyRevision, consentEpoch)
 	},
+	private val currentPurposeAvailabilityReader: CurrentTrackingPurposeAvailabilityReader,
 ) {
 	@Inject
 	constructor(
 		capabilityResolver: AndroidAmbientStepsCapabilityResolver,
 		sourceBroker: SourceBroker,
+		sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,
 		bootClockDomainProvider: BootClockDomainProvider,
 		sourcePolicyRepository: SourcePolicyRepository,
 		trackingRolloutStateStore: TrackingRolloutStateStore,
 		retentionAuthorityProducer: RetentionAuthorityProducer,
 		collectedDataLifecycleStore: CollectedDataLifecycleStore,
+		currentPurposeAvailabilityReader: CurrentTrackingPurposeAvailabilityReader,
 	) : this(
 		capabilityResolver::resolve,
 		sourceBroker,
+		sourceCallerDemandDispatcher,
 		bootClockDomainProvider,
 		sourcePolicyRepository,
 		trackingRolloutStateStore,
@@ -89,6 +100,7 @@ class AmbientStepsDemandReconciler internal constructor(
 				settlementOperationId = settlementOperationId,
 			)
 		},
+		currentPurposeAvailabilityReader,
 	)
 
 	internal suspend fun reconcileAt(
@@ -124,26 +136,69 @@ class AmbientStepsDemandReconciler internal constructor(
 				retirementComplete = retired,
 			)
 		}
+		val identity = currentPurposeAvailabilityReader.availability.value
+			.ambientSources.getValue(AmbientTrackingSource.STEPS)
+			.operationalIdentity
+			?: run {
+				val retired = retireDemand(boundary, lease)
+				return AmbientStepsDemandReconciliation.PolicyBlocked(
+					provider = null,
+					reason = if (retired) {
+						AmbientStepsDemandBlockReason.REQUEST_DISABLED
+					} else {
+						AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE
+					},
+				)
+			}
+		if (identity != lease.identity.purposeLeaseIdentity) {
+			val retired = retireDemand(boundary, lease)
+			return AmbientStepsDemandReconciliation.PolicyBlocked(
+				provider = null,
+				reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
+				retirementComplete = retired,
+			)
+		}
 		return when (val capability = resolveCapability()) {
 			is AmbientStepsCapability.ReadyForRegistration -> {
-				when (val demand = sourceBroker.replaceAmbientStepsDemand(
-					consumerId = CONSUMER_ID,
-					mechanism = capability.provider.toAcquisitionMechanism(),
-					leaseIdentity = lease.identity,
-					bootId = boundary.bootId,
-					elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
-					wallTimeMs = boundary.wallTimeMs,
+				when (val guarded = sourceCallerDemandDispatcher.dispatchAmbientSteps(
+					AmbientStepsDemandDispatchRequest(
+						identity = identity,
+						consumerId = CONSUMER_ID,
+						mechanism = capability.provider.toAcquisitionMechanism(),
+						bootId = boundary.bootId,
+						elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+						wallTimeMs = boundary.wallTimeMs,
+					),
 				)) {
-					is AmbientStepsDemandResult.Active -> AmbientStepsDemandReconciliation.DemandReady(
+					is GuardedPurposeDemandResult.Rejected,
+					GuardedPurposeDemandResult.Stale,
+					-> AmbientStepsDemandReconciliation.PolicyBlocked(
 						provider = capability.provider,
-						importAccess = capability.importAccess,
-						optionalPermissions = capability.optionalPermissions,
-						demandId = demand.demand.demandId,
+						reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
 					)
-					is AmbientStepsDemandResult.Inactive -> AmbientStepsDemandReconciliation.PolicyBlocked(
-						provider = capability.provider,
-						reason = demand.reason.toPublicReason(),
-					)
+					is GuardedPurposeDemandResult.Applied -> when (val demand = guarded.value) {
+						is AmbientStepsDemandResult.Active ->
+							if (isCurrentOrRetire(identity, boundary, lease)) {
+								AmbientStepsDemandReconciliation.DemandReady(
+									provider = capability.provider,
+									importAccess = capability.importAccess,
+									optionalPermissions = capability.optionalPermissions,
+									demandId = demand.demand.demandId,
+								)
+							} else {
+								retireDemand(boundary, lease)
+								AmbientStepsDemandReconciliation.PolicyBlocked(
+									provider = capability.provider,
+									reason =
+										AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
+								)
+							}
+						is AmbientStepsDemandResult.Inactive ->
+							AmbientStepsDemandReconciliation.PolicyBlocked(
+								provider = capability.provider,
+								reason = demand.reason.toPublicReason(),
+							)
+					}
 				}
 			}
 			is AmbientStepsCapability.PermissionRequired -> {
@@ -270,13 +325,29 @@ class AmbientStepsDemandReconciler internal constructor(
 	private suspend fun retireDemand(
 		boundary: AmbientStepsDemandBoundary,
 		lease: AmbientReconciliationLease,
-	): Boolean = sourceBroker.retireExactAmbientStepsDemand(
+	): Boolean {
+		require(lease.identity.source == AmbientTrackingSource.STEPS)
+		return sourceCallerDemandDispatcher.retireAmbientSteps(
 			consumerId = CONSUMER_ID,
-			leaseIdentity = lease.identity,
 			bootId = boundary.bootId,
 			elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
 			wallTimeMs = boundary.wallTimeMs,
-		)
+		) is GuardedPurposeDemandResult.Applied
+	}
+
+	private suspend fun isCurrentOrRetire(
+		identity: com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity,
+		boundary: AmbientStepsDemandBoundary,
+		lease: AmbientReconciliationLease,
+	): Boolean = try {
+		sourceCallerDemandDispatcher.isCurrent(identity)
+	} catch (cancelled: CancellationException) {
+		withContext(NonCancellable) { retireDemand(boundary, lease) }
+		throw cancelled
+	} catch (failure: RuntimeException) {
+		withContext(NonCancellable) { retireDemand(boundary, lease) }
+		throw failure
+	}
 
 	companion object {
 		const val CONSUMER_ID = "app:ambient:steps"
@@ -321,6 +392,7 @@ enum class AmbientStepsDemandBlockReason {
 	PERSISTENCE_INELIGIBLE,
 	RETENTION_POLICY_UNAVAILABLE,
 	ROLLOUT_CONTAINED,
+	CALLER_AUTHORITY_UNAVAILABLE,
 }
 
 private sealed interface AmbientStepsPolicyAuthority {

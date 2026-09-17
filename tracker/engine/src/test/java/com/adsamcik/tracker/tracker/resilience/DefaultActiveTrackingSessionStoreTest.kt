@@ -168,4 +168,36 @@ class DefaultActiveTrackingSessionStoreTest {
 		) shouldBe ActiveTrackingSessionStoreResult.Success(stopping)
 		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(stopping)
 	}
+
+	@Test
+	fun `reconfiguration atomically replaces the persisted caller authority reference`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val dispatcher = StandardTestDispatcher(testScheduler)
+		val store = DefaultActiveTrackingSessionStore(
+			context,
+			TestDispatchersProvider(dispatcher),
+		)
+		store.clear()
+		val original = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical-reconfigure",
+			serviceRunId = "run-reconfigure",
+			restartBootId = "boot:test",
+			restartToken = "restart-token",
+			sourceCallerAuthorityReference = SourceCallerReplayReference("authority-1"),
+		)
+		val replacement = original.copy(
+			sourceCallerAuthorityReference = SourceCallerReplayReference("authority-2"),
+		)
+		store.save(original)
+
+		store.replaceExact(original, replacement) shouldBe
+			ActiveTrackingSessionStoreResult.Success(replacement)
+		DefaultActiveTrackingSessionStore(
+			context,
+			TestDispatchersProvider(dispatcher),
+		).read() shouldBe ActiveTrackingSessionStoreResult.Success(replacement)
+	}
 }

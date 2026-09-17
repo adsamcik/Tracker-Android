@@ -28,8 +28,10 @@ import com.adsamcik.tracker.tracker.api.SourceCallerManifestIdentity
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayKind
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.TrackingStartPreparationResult
+import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
 import com.adsamcik.tracker.tracker.api.TrackingStartRequest
 import com.adsamcik.tracker.tracker.api.TrackingStartRequestCoordinator
+import com.adsamcik.tracker.tracker.api.isRetryable
 import com.adsamcik.tracker.tracker.api.activityTransitionCallbackCleanupDeadlineElapsedRealtimeNanos
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
@@ -101,7 +103,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		exactContinuationAuthority: ServiceRunContinuationAuthority? = null,
 	): TrackingStartPreparationResult {
 		if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) {
-			return TrackingStartPreparationResult.Rejected("TRACKING_STARTUP_NOT_READY")
+			return retryableStartRejection("TRACKING_STARTUP_NOT_READY")
 		}
 		val startupGeneration = trackingStartupGate.currentGeneration
 		return trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
@@ -110,7 +112,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 				exactContinuationAuthority = exactContinuationAuthority,
 				startupGeneration = startupGeneration,
 			)
-		} ?: TrackingStartPreparationResult.Rejected("TRACKING_STARTUP_GENERATION_CLOSED")
+		} ?: retryableStartRejection("TRACKING_STARTUP_GENERATION_CLOSED")
 	}
 
 	/**
@@ -127,10 +129,17 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		val descriptorResolution = resolveDescriptor(request, bootId)
 		val resolved = when (descriptorResolution) {
 			is TrackingStartDescriptorResolution.Failure ->
-				return TrackingStartPreparationResult.Rejected(descriptorResolution.code)
+				return if (descriptorResolution.code == "ACTIVE_DESCRIPTOR_READ_FAILED") {
+					retryableStartRejection(descriptorResolution.code)
+				} else {
+					TrackingStartPreparationResult.Rejected(descriptorResolution.code)
+				}
 			TrackingStartDescriptorResolution.AlreadyActive ->
 				return TrackingStartPreparationResult.AlreadyActive
 			is TrackingStartDescriptorResolution.Resolved -> descriptorResolution
+		}
+		if (resolved.origin == SessionStartOrigin.RECOVERY) {
+			validateRecoveryCallerAuthority(resolved)?.let { return it }
 		}
 		val continuationAuthority = exactContinuationAuthority ?: resolved.continuationAuthority
 		if (exactContinuationAuthority != null &&
@@ -141,7 +150,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		if (!trackingStartupGate.isReady ||
 			trackingStartupGate.currentGeneration != startupGeneration ||
 			bootClockDomainProvider.current() != bootId
-		) return TrackingStartPreparationResult.Rejected("TRACKING_STARTUP_GENERATION_CLOSED")
+		) return retryableStartRejection("TRACKING_STARTUP_GENERATION_CLOSED")
 
 		val automaticExpected = resolved.origin == SessionStartOrigin.AUTOMATIC_BACKGROUND_START
 		val currentAutomationEpoch = if (automaticExpected) {
@@ -176,7 +185,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
-			return TrackingStartPreparationResult.Rejected("TRACKING_ROLLOUT_UNAVAILABLE")
+			return retryableStartRejection("TRACKING_ROLLOUT_UNAVAILABLE")
 		}
 		val captureMode = captureModeFor(
 			resolved.descriptor.isUserInitiated,
@@ -215,8 +224,6 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 					origin = resolved.origin,
 					captureMode = captureMode,
 					continuationAuthority = continuationAuthority,
-					sourceCallerReplayReference =
-						resolved.previousDescriptor?.sourceCallerAuthorityReference,
 					automaticTrigger = request.automaticTrigger,
 					foregroundCapabilityFlags = foregroundMask,
 					planInputs = planInputs,
@@ -239,9 +246,12 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 				SessionStartPreparationResult.AlreadyActive ->
 					return TrackingStartPreparationResult.AlreadyActive
 				SessionStartPreparationResult.Busy ->
-					return TrackingStartPreparationResult.Rejected("SESSION_COORDINATOR_BUSY")
+					return retryableStartRejection("SESSION_COORDINATOR_BUSY")
 				is SessionStartPreparationResult.Rejected ->
-					return TrackingStartPreparationResult.Rejected(preparation.failureCode)
+					return TrackingStartPreparationResult.Rejected(
+						preparation.failureCode,
+						preparation.disposition,
+					)
 			}
 			val guardedDescriptor = resolved.descriptor.copy(
 				sourceCallerAuthorityReference =
@@ -252,7 +262,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 				is ActiveTrackingSessionStoreResult.Failure -> {
 					compensatePrepared(token, request.command.generation, "ACTIVE_DESCRIPTOR_SAVE_FAILED")
 					resolved.previousDescriptor?.let { activeTrackingSessionStore.clearExact(it) }
-					return TrackingStartPreparationResult.Rejected("ACTIVE_DESCRIPTOR_SAVE_FAILED")
+					return retryableStartRejection("ACTIVE_DESCRIPTOR_SAVE_FAILED")
 				}
 			}
 			if (!trackingStartupGate.isReady ||
@@ -261,7 +271,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 			) {
 				compensatePrepared(token, request.command.generation, "STARTUP_CLOSED_AFTER_PREPARE")
 				clearResolvedDescriptors(resolved, sourceCallerAuthorityReference)
-				return TrackingStartPreparationResult.Rejected("STARTUP_CLOSED_AFTER_PREPARE")
+				return retryableStartRejection("STARTUP_CLOSED_AFTER_PREPARE")
 			}
 			return TrackingStartPreparationResult.Prepared(
 				token = token,
@@ -279,14 +289,12 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 				// Preserve cancellation; exact PREPARED state is left for startup reconciliation.
 			}
 			throw cancelled
-		} catch (failure: Exception) {
+		} catch (_: Exception) {
 			if (roomPrepared) {
 				compensatePrepared(token, request.command.generation, "START_PREPARATION_FAILED")
 				clearResolvedDescriptors(resolved, sourceCallerAuthorityReference)
 			}
-			return TrackingStartPreparationResult.Rejected(
-				failure.message?.takeIf(String::isNotBlank) ?: "START_PREPARATION_FAILED",
-			)
+			return retryableStartRejection("START_PREPARATION_FAILED")
 		}
 	}
 
@@ -317,8 +325,13 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		redeliveredCommand: TrackingStartCommand,
 		startupGeneration: Long,
 	): AndroidRedeliveryStartResolution {
-		val run = database.sourceSessionDao().serviceRunByDeliveryToken(redeliveredToken.value)
-			?: return AndroidRedeliveryStartResolution.Rejected("REDELIVERED_START_NOT_FOUND")
+		val run = try {
+			database.sourceSessionDao().serviceRunByDeliveryToken(redeliveredToken.value)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			return AndroidRedeliveryStartResolution.Deferred
+		} ?: return AndroidRedeliveryStartResolution.Rejected("REDELIVERED_START_NOT_FOUND")
 		if (run.startCommandGeneration != redeliveredCommand.generation) {
 			return AndroidRedeliveryStartResolution.Rejected("REDELIVERED_START_COMMAND_MISMATCH")
 		}
@@ -337,7 +350,8 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 			previousCommandGeneration = redeliveredCommand.generation,
 		)
 		val storedDescriptor = when (val stored = activeTrackingSessionStore.read()) {
-			is ActiveTrackingSessionStoreResult.Failure -> null
+			is ActiveTrackingSessionStoreResult.Failure ->
+				return AndroidRedeliveryStartResolution.Deferred
 			is ActiveTrackingSessionStoreResult.Success -> stored.descriptor
 		}
 		val descriptorMatchesRun = storedDescriptor != null &&
@@ -359,6 +373,54 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 				"REDELIVERY_ACTIVE_ENVELOPE_INVALID",
 			)
 			return AndroidRedeliveryStartResolution.Rejected("REDELIVERY_ACTIVE_ENVELOPE_INVALID")
+		}
+		val priorIntent = try {
+			database.sourceSessionDao().lifecycleIntent(
+				run.logicalTrackingId,
+				run.preparedIntentRevision,
+			)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			return AndroidRedeliveryStartResolution.Deferred
+		}
+		val priorReference = priorIntent?.sourceCallerAuthorityReference
+			?.takeIf(String::isNotBlank)
+			?.let(::SourceCallerReplayReference)
+		if (priorReference == null ||
+			requireNotNull(storedDescriptor).sourceCallerAuthorityReference != priorReference
+		) {
+			finalizeRejectedRedelivery(
+				run.logicalTrackingId,
+				exactAuthority,
+				storedDescriptor,
+				bootId,
+				"REDELIVERY_SOURCE_CALLER_REFERENCE_MISSING",
+			)
+			return AndroidRedeliveryStartResolution.Rejected(
+				"REDELIVERY_SOURCE_CALLER_REFERENCE_MISSING",
+			)
+		}
+		when (val replay = sourceCallerDemandDispatcher.replayPreparedSession(
+			SourceCallerManifestIdentity(run.logicalTrackingId, run.preparedManifestRevision),
+			priorReference,
+			SourceCallerReplayKind.RESTART,
+		)) {
+			is SourceCallerGuardResult.Permitted -> Unit
+			is SourceCallerGuardResult.Rejected -> {
+				if (replay.rejection.reason.isRetryable) {
+					return AndroidRedeliveryStartResolution.Deferred
+				}
+				val failureCode = "REDELIVERY_SOURCE_CALLER_${replay.rejection.reason.name}"
+				finalizeRejectedRedelivery(
+					run.logicalTrackingId,
+					exactAuthority,
+					storedDescriptor,
+					bootId,
+					failureCode,
+				)
+				return AndroidRedeliveryStartResolution.Rejected(failureCode)
+			}
 		}
 		val recoveryCommand = when (
 			val reservation = trackingLifecycleCommandAuthority
@@ -404,6 +466,9 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 				AndroidRedeliveryStartResolution.Rejected("REDELIVERY_RECOVERY_NOT_PREPARED")
 			}
 			is TrackingStartPreparationResult.Rejected -> {
+				if (preparation.disposition == TrackingStartFailureDisposition.RETRYABLE) {
+					return AndroidRedeliveryStartResolution.Deferred
+				}
 				val failureCode = "REDELIVERY_RECOVERY_${preparation.failureCode}"
 				finalizeRejectedRedelivery(
 					run.logicalTrackingId,
@@ -535,10 +600,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
-			compensatePrepared(token, commandGeneration, "PREPARED_START_ROLLOUT_UNAVAILABLE")
-			return TrackingServicePreparedStartClaim.Rejected(
-				"PREPARED_START_ROLLOUT_UNAVAILABLE",
-			)
+			return TrackingServicePreparedStartClaim.Deferred
 		}
 		val preparedRolloutRevision = database.sourceSessionDao()
 			.serviceRun(claim.serviceRunId)
@@ -571,7 +633,8 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 			return TrackingServicePreparedStartClaim.Rejected(envelopeFailure)
 		}
 		val descriptor = when (val stored = activeTrackingSessionStore.read()) {
-			is ActiveTrackingSessionStoreResult.Failure -> null
+			is ActiveTrackingSessionStoreResult.Failure ->
+				return TrackingServicePreparedStartClaim.Deferred
 			is ActiveTrackingSessionStoreResult.Success -> stored.descriptor?.takeIf { current ->
 				current.logicalTrackingId == claim.logicalTrackingId &&
 					current.serviceRunId == claim.serviceRunId &&
@@ -602,6 +665,9 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		)) {
 			is SourceCallerGuardResult.Permitted -> Unit
 			is SourceCallerGuardResult.Rejected -> {
+				if (replay.rejection.reason.isRetryable) {
+					return TrackingServicePreparedStartClaim.Deferred
+				}
 				val failureCode = "SOURCE_CALLER_GUARD_${replay.rejection.reason.name}"
 				if (compensatePrepared(token, commandGeneration, failureCode)) {
 					clearPreparedDescriptor(descriptor)
@@ -659,12 +725,49 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 				return TrackingStartDescriptorResolution.Failure("ACTIVE_DESCRIPTOR_READ_FAILED")
 			is ActiveTrackingSessionStoreResult.Success -> result.descriptor
 		}
+
 		return resolveTrackingStartDescriptor(
 			request = request,
 			stored = stored,
 			bootId = bootId,
 			changedAtEpochMs = System.currentTimeMillis(),
 		)
+	}
+
+	private suspend fun validateRecoveryCallerAuthority(
+		resolved: TrackingStartDescriptorResolution.Resolved,
+	): TrackingStartPreparationResult.Rejected? {
+		val previous = resolved.previousDescriptor
+			?: return TrackingStartPreparationResult.Rejected(
+				"RECOVERY_SOURCE_CALLER_DESCRIPTOR_MISSING",
+			)
+		val reference = previous.sourceCallerAuthorityReference
+			?: return TrackingStartPreparationResult.Rejected(
+				"RECOVERY_SOURCE_CALLER_REFERENCE_MISSING",
+			)
+		val session = database.sourceSessionDao().session(previous.logicalTrackingId)
+			?: return TrackingStartPreparationResult.Rejected(
+				"RECOVERY_SOURCE_CALLER_SESSION_MISSING",
+			)
+		val manifestRevision = session.currentManifestRevision
+			?: return TrackingStartPreparationResult.Rejected(
+				"RECOVERY_SOURCE_CALLER_MANIFEST_MISSING",
+			)
+		return when (val replay = sourceCallerDemandDispatcher.replayPreparedSession(
+			SourceCallerManifestIdentity(previous.logicalTrackingId, manifestRevision),
+			reference,
+			SourceCallerReplayKind.RECOVERY,
+		)) {
+			is SourceCallerGuardResult.Permitted -> null
+			is SourceCallerGuardResult.Rejected -> TrackingStartPreparationResult.Rejected(
+				"RECOVERY_SOURCE_CALLER_${replay.rejection.reason.name}",
+				if (replay.rejection.reason.isRetryable) {
+					TrackingStartFailureDisposition.RETRYABLE
+				} else {
+					TrackingStartFailureDisposition.TERMINAL
+				},
+			)
+		}
 	}
 
 	private suspend fun compensatePrepared(
@@ -862,6 +965,12 @@ internal suspend fun runBoundedStartPreparationCancellationCleanup(
 
 private const val START_CLEANUP_NANOS_PER_MILLISECOND = 1_000_000L
 private const val DEFAULT_START_PREPARATION_CLEANUP_TIMEOUT_MS = 250L
+
+private fun retryableStartRejection(failureCode: String) =
+	TrackingStartPreparationResult.Rejected(
+		failureCode,
+		TrackingStartFailureDisposition.RETRYABLE,
+	)
 
 internal sealed interface AndroidRedeliveryStartResolution {
 	/** Startup/deletion authority is not stable yet; the exact token must remain untouched. */

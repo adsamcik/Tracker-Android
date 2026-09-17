@@ -9,7 +9,6 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import android.os.SystemClock
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
-import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
@@ -17,15 +16,16 @@ import com.adsamcik.tracker.tracker.source.projection.TrackingJoinSpecs
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 /** Application-scoped automatic-start demand; it is independent of tracking-session lifetime. */
 @Singleton
 class AutomaticStartTransitionMonitor @Inject constructor(
 	private val arbiter: ActivityRegistrationArbiter,
-	private val sourceBroker: SourceBroker,
+	private val sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,
 	private val clockDomainProvider: BootClockDomainProvider,
 	private val activityProjectionLane: ActivityAutomationProjectionLane,
-	private val currentPurposeAvailabilityReader: CurrentTrackingPurposeAvailabilityReader,
 ) {
 	suspend fun reconcile(
 		enabled: Boolean,
@@ -40,49 +40,29 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 		// Only Activity Transition callbacks carry the live, non-replayable background-start
 		// context used by automatic cold start. Continuous recognition remains a capture mechanism;
 		// it must never be registered as a hidden fallback control.
-		val currentControlAvailability =
-			currentPurposeAvailabilityReader.availability.value.automaticControl
 		val publishedReady =
 			controlAvailability as? AutomaticTrackingOperationalAvailability.Ready
-		val currentReady =
-			currentControlAvailability as? AutomaticTrackingOperationalAvailability.Ready
-		val identityCurrent = if (publishedReady != null &&
-			currentReady?.identity == publishedReady.identity
-		) {
-			try {
-				currentPurposeAvailabilityReader.isCurrent(publishedReady.identity)
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (_: Exception) {
-				false
-			}
-		} else {
-			false
-		}
 		val transitionControlEnabled = enabled &&
-			identityCurrent &&
+			publishedReady != null &&
 			useTransitionApi &&
 			transitions.isNotEmpty()
-		if (transitionControlEnabled) {
-			// An Activity capture registration may already be physically active. Persist the control
-			// consumer before appending the authorization revision so a callback cannot become control
-			// eligible in the gap between broker mutation and projection registration. Contained policy
-			// may leave this non-retaining cursor idle, but still creates no provider demand or wakeup.
-			activityProjectionLane.ensureRegisteredAtLiveTail()
-		}
-		val durableDemand = sourceBroker.replaceAutomaticControlDemand(
-			consumerId = AUTOMATIC_CONTROL_CONSUMER,
-			source = SourceKind.ACTIVITY,
-			enabled = transitionControlEnabled,
-			bootId = clockDomainProvider.current(),
-			elapsedRealtimeNanos = elapsedRealtimeNanos,
-			wallTimeMs = System.currentTimeMillis(),
-			maximumAgeMs = TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
-			desiredLatencyMs = desiredLatencyMs,
-		)
-		return if (!transitionControlEnabled || durableDemand == null) {
+		val boundaryBootId = clockDomainProvider.current()
+		val boundaryWallTimeMs = System.currentTimeMillis()
+		if (!transitionControlEnabled) {
+			val retired = sourceCallerDemandDispatcher.retireAutomaticControl(
+				consumerId = AUTOMATIC_CONTROL_CONSUMER,
+				source = SourceKind.ACTIVITY,
+				bootId = boundaryBootId,
+				elapsedRealtimeNanos = elapsedRealtimeNanos,
+				wallTimeMs = boundaryWallTimeMs,
+				maximumAgeMs = TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
+				desiredLatencyMs = desiredLatencyMs,
+			)
+			if (retired !is GuardedPurposeDemandResult.Applied) {
+				return blockedWithoutMutation()
+			}
 			val cleared = arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
-			if (enabled && cleared.status != ActivityRegistrationStatus.FAILED) {
+			return if (enabled && cleared.status != ActivityRegistrationStatus.FAILED) {
 				cleared.copy(
 					status = ActivityRegistrationStatus.BLOCKED,
 					failureCode = cleared.failureCode
@@ -91,16 +71,136 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 			} else {
 				cleared
 			}
-		} else {
-			arbiter.setDemand(
+		}
+		val readyIdentity = requireNotNull(publishedReady).identity
+		return when (sourceCallerDemandDispatcher.dispatchAutomaticControl(
+			AutomaticControlDemandDispatchRequest(
+				identity = readyIdentity,
+				consumerId = AUTOMATIC_CONTROL_CONSUMER,
+				bootId = boundaryBootId,
+				elapsedRealtimeNanos = elapsedRealtimeNanos,
+				wallTimeMs = boundaryWallTimeMs,
+				maximumAgeMs = TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
+				desiredLatencyMs = desiredLatencyMs,
+			),
+		)) {
+			is GuardedPurposeDemandResult.Rejected,
+			GuardedPurposeDemandResult.Stale,
+			-> {
+				val retired = sourceCallerDemandDispatcher.retireAutomaticControl(
+					AUTOMATIC_CONTROL_CONSUMER,
+					SourceKind.ACTIVITY,
+					boundaryBootId,
+					elapsedRealtimeNanos,
+					boundaryWallTimeMs,
+					TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
+					desiredLatencyMs,
+				)
+				if (retired is GuardedPurposeDemandResult.Applied) {
+					arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR).blocked()
+				} else {
+					blockedWithoutMutation()
+				}
+			}
+			is GuardedPurposeDemandResult.Applied -> try {
+				if (!sourceCallerDemandDispatcher.isCurrent(readyIdentity)) {
+					val retired = sourceCallerDemandDispatcher.retireAutomaticControl(
+						AUTOMATIC_CONTROL_CONSUMER,
+						SourceKind.ACTIVITY,
+						boundaryBootId,
+						elapsedRealtimeNanos,
+						boundaryWallTimeMs,
+						TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
+						desiredLatencyMs,
+					)
+					return if (retired is GuardedPurposeDemandResult.Applied) {
+						arbiter.clearDemand(
+							ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+						).blocked()
+					} else {
+						blockedWithoutMutation()
+					}
+				}
+				activityProjectionLane.ensureRegisteredAtLiveTail()
+				if (!sourceCallerDemandDispatcher.isCurrent(readyIdentity)) {
+					val retired = sourceCallerDemandDispatcher.retireAutomaticControl(
+						AUTOMATIC_CONTROL_CONSUMER,
+						SourceKind.ACTIVITY,
+						boundaryBootId,
+						elapsedRealtimeNanos,
+						boundaryWallTimeMs,
+						TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
+						desiredLatencyMs,
+					)
+					return if (retired is GuardedPurposeDemandResult.Applied) {
+						arbiter.clearDemand(
+							ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+						).blocked()
+					} else {
+						blockedWithoutMutation()
+					}
+				}
+				val registered = arbiter.setDemand(
 				ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
 				ActivityRegistrationDemand(
 					continuousRecognitionIntervalSeconds = null,
 					transitions = transitions,
 				),
 			)
+				if (registered.status == ActivityRegistrationStatus.FAILED) {
+					sourceCallerDemandDispatcher.retireAutomaticControl(
+						AUTOMATIC_CONTROL_CONSUMER,
+						SourceKind.ACTIVITY,
+						boundaryBootId,
+						elapsedRealtimeNanos,
+						boundaryWallTimeMs,
+						TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
+						desiredLatencyMs,
+					)
+				}
+				registered
+			} catch (cancelled: CancellationException) {
+				withContext(NonCancellable) {
+					sourceCallerDemandDispatcher.retireAutomaticControl(
+						AUTOMATIC_CONTROL_CONSUMER,
+						SourceKind.ACTIVITY,
+						boundaryBootId,
+						elapsedRealtimeNanos,
+						boundaryWallTimeMs,
+						TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
+						desiredLatencyMs,
+					)
+				}
+				throw cancelled
+			} catch (failure: RuntimeException) {
+				withContext(NonCancellable) {
+					sourceCallerDemandDispatcher.retireAutomaticControl(
+						AUTOMATIC_CONTROL_CONSUMER,
+						SourceKind.ACTIVITY,
+						boundaryBootId,
+						elapsedRealtimeNanos,
+						boundaryWallTimeMs,
+						TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
+						desiredLatencyMs,
+					)
+				}
+				throw failure
+			}
 		}
 	}
+
+	private fun ActivityRegistrationResult.blocked(): ActivityRegistrationResult =
+		if (status == ActivityRegistrationStatus.FAILED) this else copy(
+			status = ActivityRegistrationStatus.BLOCKED,
+			failureCode = failureCode ?: ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND,
+		)
+
+	private fun blockedWithoutMutation(): ActivityRegistrationResult =
+		ActivityRegistrationResult(
+			status = ActivityRegistrationStatus.BLOCKED,
+			snapshot = arbiter.snapshot(),
+			failureCode = ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND,
+		)
 
 	private companion object {
 		const val AUTOMATIC_CONTROL_CONSUMER = "app:automatic-start:activity"

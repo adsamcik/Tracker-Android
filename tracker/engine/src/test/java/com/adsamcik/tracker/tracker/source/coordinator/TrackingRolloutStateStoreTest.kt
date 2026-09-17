@@ -916,6 +916,7 @@ class TrackingRolloutStateStoreTest {
 			BootClockDomainProvider { "boot-1" },
 			FixedClock(fixedTimeMillis = 1L, fixedRealtimeNanos = 1L),
 			FakeSourceCallerDemandDispatcher(
+				database,
 				com.adsamcik.tracker.tracker.source.runtime.SourceBroker(database),
 			),
 			rolloutStore = store,

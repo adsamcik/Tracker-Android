@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.api;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose;
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource;
@@ -85,6 +86,12 @@ class SourceCallerJavaCompatibilityTest {
 						manifest,
 						Set.of(capture, control)
 				);
+		SourceCallerRequest.RecoverySessionStart recovery =
+				SourceCallerRequest.RecoverySessionStart.create(
+						Set.of(TrackingSource.LOCATION),
+						manifest,
+						Set.of(capture)
+				);
 		SourceCallerRequest.Ambient ambientRequest =
 				SourceCallerRequest.Ambient.create(
 						TrackingSource.WIFI,
@@ -96,9 +103,22 @@ class SourceCallerJavaCompatibilityTest {
 						TrackingSource.WIFI,
 						Set.of(ambient)
 				);
+		SourceCallerRequest.PurposeOwnerMutation ownerMutation =
+				SourceCallerRequest.PurposeOwnerMutation.create(
+						TrackingSource.ACTIVITY,
+						TrackingPurpose.CONTROL,
+						true,
+						Set.of(control)
+				);
 
 		SourceCallerReplayReference reference =
 				new SourceCallerReplayReference("java-replay-reference");
+		SourceCallerRequest.PurposeOwnerRetirement ownerRetirement =
+				SourceCallerRequest.PurposeOwnerRetirement.create(
+						TrackingSource.ACTIVITY,
+						TrackingPurpose.CONTROL,
+						reference
+				);
 		SourceCallerAcceptanceReceipt receipt =
 				new SourceCallerAcceptanceReceipt(reference, Set.of(capture));
 		SourceCallerRequest.Replay replay = SourceCallerRequest.Replay.create(
@@ -119,9 +139,12 @@ class SourceCallerJavaCompatibilityTest {
 		assertSame(ambientLease, ambientReady.getOperationalIdentity());
 		assertEquals(Set.of(TrackingSource.LOCATION), manual.getRequestedCapturedSources());
 		assertEquals(Set.of(TrackingSource.ACTIVITY), automatic.getDeclaredControlDependencies());
+		assertEquals(manifest, recovery.getManifestIdentity());
 		assertEquals(Set.of(ambient), ambientRequest.getRequestedDemandIdentities());
 		assertFalse(defaultOffAmbient.getEnabled());
+		assertTrue(ownerMutation.getEnabled());
 		assertEquals("java-replay-reference", reference.getValue());
+		assertSame(reference, ownerRetirement.getReference());
 		assertSame(reference, replay.getReference());
 		assertEquals(Set.of(capture), receipt.getPermittedDemandIdentities());
 	}

@@ -235,6 +235,7 @@ internal class TrackerService : CoreService() {
 			serviceGeneration = SERVICE_GENERATION_COUNTER.incrementAndGet()
 			activeServiceGeneration = serviceGeneration
 		}
+
 		TrackerRuntimeStopDispatcher.register(this) { command ->
 			check(Looper.myLooper() == Looper.getMainLooper()) {
 				"Tracker stop ownership must be acknowledged on the main thread"
@@ -286,7 +287,7 @@ internal class TrackerService : CoreService() {
 				val rollout = sessionRolloutState
 				val foregroundReady = rollout == null || prepareForegroundForSourcePlan(settings, rollout)
 				val reconfigured = if (foregroundReady) {
-					sourceSession.reconfigure(sourcePlanInputs(settings, demands))
+					reconfigureSourceSession(sourcePlanInputs(settings, demands))
 				} else {
 					null
 				}
@@ -320,6 +321,9 @@ internal class TrackerService : CoreService() {
 		super.onStartCommand(intent, flags, startId)
 		latestDeliveredStartId = maxOf(latestDeliveredStartId, startId)
 
+		if (!intent.isExactPreparedTrackingStartAction()) {
+			return discardStartRequest(startId)
+		}
 		val preparedToken = intent?.preparedTrackingStartTokenOrNull()
 			?: return discardStartRequest(startId)
 		val startCommand = intent.trackingStartCommandOrNull()
@@ -341,6 +345,7 @@ internal class TrackerService : CoreService() {
 			// B is now the most recently delivered start ID, so retiring A cannot stop the service.
 			stopSelfResult(it)
 		}
+
 		when (val commandDisposition = deliveredStart.commandDisposition) {
 			TrackingStartCommandDisposition.Allowed -> supersedeOlderExternalStop(startCommand)
 			TrackingStartCommandDisposition.Stale -> return discardPreparedStart(
@@ -1032,7 +1037,7 @@ internal class TrackerService : CoreService() {
 						batteryAwarePolicy.batteryLevelUpdates.collect {
 							orchestrator.onBatteryLevelChanged(scope = this@TrackerService)
 							val currentSettings = trackingParamsRepository.data.first()
-							val sourceResult = sourceSession.reconfigure(
+							val sourceResult = reconfigureSourceSession(
 								sourcePlanInputs(currentSettings, orchestrator.currentSourceDemands()),
 							)
 							if (sourceResult == null || sourceResult is SourceSessionReconfigureOutcome.Rejected) {
@@ -1154,7 +1159,7 @@ internal class TrackerService : CoreService() {
 							fullFidelity = profile.locationStrategy == LocationCollectionStrategy.FULL_FIDELITY,
 						)
 						val currentSettings = trackingParamsRepository.data.first()
-						val result = sourceSession.reconfigure(
+						val result = reconfigureSourceSession(
 							sourcePlanInputs(currentSettings, orchestrator.currentSourceDemands()),
 						)
 						if (result == null || result is SourceSessionReconfigureOutcome.Rejected) {
@@ -1199,7 +1204,7 @@ internal class TrackerService : CoreService() {
 		val outcome = try {
 			val currentSettings = trackingParamsRepository.data.first()
 			acceptedCaptureSources = refreshForegroundForRuntimePermissions(currentSettings)
-			sourceSession.reconfigure(
+			reconfigureSourceSession(
 				sourcePlanInputs(currentSettings, orchestrator.currentSourceDemands()),
 			)
 		} catch (cancelled: CancellationException) {
@@ -1211,6 +1216,7 @@ internal class TrackerService : CoreService() {
 			)
 			null
 		}
+
 		if (shouldStopAfterRuntimePermissionReconfigure(outcome, acceptedCaptureSources?.size)) {
 			requestGracefulStop(
 				reason = if (acceptedCaptureSources?.isEmpty() == true) {
@@ -1221,6 +1227,47 @@ internal class TrackerService : CoreService() {
 			)
 		}
 	}
+
+	private suspend fun reconfigureSourceSession(
+		inputs: SourceSessionPlanInputs,
+	): SourceSessionReconfigureOutcome {
+		val outcome = sourceSession.reconfigure(inputs)
+		val reference = when (outcome) {
+			is SourceSessionReconfigureOutcome.Applied ->
+				outcome.result.sourceCallerAuthorityReference
+			is SourceSessionReconfigureOutcome.Started ->
+				outcome.result.sourceCallerAuthorityReference
+			SourceSessionReconfigureOutcome.NotActive,
+			SourceSessionReconfigureOutcome.Unchanged,
+			is SourceSessionReconfigureOutcome.Rejected,
+			-> null
+		} ?: return outcome
+		val expected = activeSessionDescriptor
+			?: return sourceCallerDescriptorRejection("SOURCE_CALLER_DESCRIPTOR_MISSING")
+		val replacement = expected.copy(sourceCallerAuthorityReference = reference)
+		return when (val stored = activeTrackingSessionStore.replaceExact(expected, replacement)) {
+			is ActiveTrackingSessionStoreResult.Failure -> {
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.TRACKING_SESSION_STORE_FAILED,
+					TrackingDiagnosticFailureReason.STORAGE_UNAVAILABLE,
+				)
+				sourceCallerDescriptorRejection("SOURCE_CALLER_DESCRIPTOR_SAVE_FAILED")
+			}
+			is ActiveTrackingSessionStoreResult.Success -> if (stored.descriptor == replacement) {
+				activeSessionDescriptor = replacement
+				outcome
+			} else {
+				sourceCallerDescriptorRejection("SOURCE_CALLER_DESCRIPTOR_CHANGED")
+			}
+		}
+	}
+
+	private fun sourceCallerDescriptorRejection(code: String) =
+		SourceSessionReconfigureOutcome.Rejected(
+			com.adsamcik.tracker.tracker.source.coordinator.SessionReconfigureResult.InvalidState(
+				code,
+			),
+		)
 
 	private fun refreshForegroundForRuntimePermissions(settings: TrackingParamsState): Set<SourceKind>? {
 		val rollout = sessionRolloutState ?: return null
@@ -2245,6 +2292,9 @@ internal data class PreparedStartRuntimeState(
 		deliveredCommand: TrackingStartCommand,
 	): Int? = pendingPredecessor?.consume(deliveredToken, deliveredCommand)
 }
+
+internal fun Intent?.isExactPreparedTrackingStartAction(): Boolean =
+	this?.action == TrackerServiceContract.ACTION_PREPARED_START
 
 private data class PreparedForegroundHint(
 	val sources: Set<SourceKind>,

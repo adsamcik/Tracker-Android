@@ -235,11 +235,13 @@ import com.adsamcik.tracker.shared.base.database.data.SourceAppliedPlanStateEnti
 import com.adsamcik.tracker.shared.base.database.dao.SourcePlanStateDao
 import com.adsamcik.tracker.shared.base.database.dao.SourcePolicyDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceBrokerDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceCallerAuthorityDao
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.dao.SourceRuntimeStateDao
@@ -418,6 +420,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			SourcePolicyAuthorityEntity::class,
 			SourcePolicyEntity::class,
 			SourceConsentEpochEntity::class,
+			SourceCallerAcceptedAuthorityEntity::class,
 			SourceDemandEntity::class,
 			ProviderRegistrationGenerationEntity::class,
 			SourceAuthorizationEntity::class,
@@ -602,6 +605,8 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun sourcePolicyDao(): SourcePolicyDao
 
 	abstract fun sourceBrokerDao(): SourceBrokerDao
+
+	abstract fun sourceCallerAuthorityDao(): SourceCallerAuthorityDao
 
 	/**
 	 * Provides access to inferred session segments.

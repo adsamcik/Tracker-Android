@@ -51,8 +51,8 @@ suspend fun AppDatabase.rotateCurrentSourceAuthorizationInTransaction(
 
 /**
  * Immediately closes the selected policy purposes without waiting for Android provider teardown.
- * RETIRING demands continue to keep the physical callback barrier alive, but are excluded from the
- * new authorization revision and therefore cannot admit observations at or after this boundary.
+ * ACTIVE demands enter RETIRING so their callback barrier can drain. BLOCKED prepared demands are
+ * retired immediately and therefore can never be activated after this boundary.
  */
 suspend fun AppDatabase.fenceSourcePurposesInTransaction(
 	sourceKind: Int,

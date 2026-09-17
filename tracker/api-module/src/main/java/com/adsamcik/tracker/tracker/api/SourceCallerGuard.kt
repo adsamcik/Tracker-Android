@@ -89,6 +89,76 @@ sealed interface SourceCallerRequest {
 		}
 	}
 
+	data class RecoverySessionStart(
+		val requestedCapturedSources: Set<CanonicalTrackingSource>,
+		val manifestIdentity: SourceCallerManifestIdentity,
+		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
+	) : SourceCallerRequest {
+		companion object {
+			@JvmStatic
+			fun create(
+				requestedCapturedSources: Set<CanonicalTrackingSource>,
+				manifestIdentity: SourceCallerManifestIdentity,
+				requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
+			): RecoverySessionStart = RecoverySessionStart(
+				requestedCapturedSources,
+				manifestIdentity,
+				requestedDemandIdentities,
+			)
+		}
+	}
+
+	data class PurposeOwnerMutation(
+		val source: CanonicalTrackingSource,
+		val purpose: CanonicalTrackingPurpose,
+		val enabled: Boolean,
+		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
+	) : SourceCallerRequest {
+		init {
+			require(purpose == CanonicalTrackingPurpose.CONTROL ||
+				purpose == CanonicalTrackingPurpose.AMBIENT_PRODUCT)
+			require(source.supports(purpose))
+		}
+
+		companion object {
+			@JvmStatic
+			fun create(
+				source: CanonicalTrackingSource,
+				purpose: CanonicalTrackingPurpose,
+				enabled: Boolean,
+				requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
+			): PurposeOwnerMutation = PurposeOwnerMutation(
+				source,
+				purpose,
+				enabled,
+				requestedDemandIdentities,
+			)
+		}
+	}
+
+	data class PurposeOwnerRetirement(
+		val source: CanonicalTrackingSource,
+		val purpose: CanonicalTrackingPurpose,
+		val reference: SourceCallerReplayReference,
+	) : SourceCallerRequest {
+		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity> = emptySet()
+
+		init {
+			require(purpose == CanonicalTrackingPurpose.CONTROL ||
+				purpose == CanonicalTrackingPurpose.AMBIENT_PRODUCT)
+			require(source.supports(purpose))
+		}
+
+		companion object {
+			@JvmStatic
+			fun create(
+				source: CanonicalTrackingSource,
+				purpose: CanonicalTrackingPurpose,
+				reference: SourceCallerReplayReference,
+			): PurposeOwnerRetirement = PurposeOwnerRetirement(source, purpose, reference)
+		}
+	}
+
 	data class Ambient(
 		val source: CanonicalTrackingSource,
 		val enabled: Boolean = false,
@@ -135,6 +205,7 @@ data class SourceCallerReplayReference(
 enum class SourceCallerRejectionReason {
 	ZERO_CAPTURE_SOURCE_REQUEST,
 	AUTOMATIC_CONTROL_SET_MISMATCH,
+	AUTOMATIC_CONTROL_DISABLED,
 	MISSING_DEMAND_IDENTITY,
 	UNDECLARED_DEMAND,
 	DUPLICATE_DEMAND_IDENTITY,
@@ -155,12 +226,21 @@ enum class SourceCallerRejectionReason {
 	STALE_EXECUTION_REVISION,
 	STALE_OWNER_CAS_TOKEN,
 	AUTHORITY_PERSISTENCE_UNAVAILABLE,
+	AUTHORITY_STORAGE_UNAVAILABLE,
 	REPLAY_AUTHORITY_UNAVAILABLE,
+	REPLAY_AUTHORITY_CORRUPT,
+	REPLAY_AUTHORITY_TOMBSTONED,
 	REPLAY_PURPOSE_MISMATCH,
 	REPLAY_AUTHORITY_ESCALATION,
 	REPLAY_AUTHORITY_DOWNGRADE,
 	REPLAY_AUTHORITY_MISMATCH,
 }
+
+val SourceCallerRejectionReason.isRetryable: Boolean
+	get() = this in setOf(
+		SourceCallerRejectionReason.AUTHORITY_PERSISTENCE_UNAVAILABLE,
+		SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE,
+	)
 
 data class SourceCallerGuardRejection(
 	val reason: SourceCallerRejectionReason,

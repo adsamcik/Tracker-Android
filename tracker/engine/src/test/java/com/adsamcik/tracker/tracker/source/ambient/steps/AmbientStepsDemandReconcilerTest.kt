@@ -27,7 +27,19 @@ import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanis
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher
 import com.adsamcik.tracker.tracker.source.runtime.toSourceDemandContract
+import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
+import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailability
+import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
+import com.adsamcik.tracker.tracker.api.TrackingPurpose
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAuthorityRevision
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
+import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
+import com.adsamcik.tracker.tracker.api.TrackingSource
+import kotlinx.coroutines.flow.MutableStateFlow
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -70,6 +82,36 @@ class AmbientStepsDemandReconcilerTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `missing current caller authority blocks capability and provider demand`() = runTest {
+		bootstrapPolicy(ambientEnabled = true)
+		var capabilityProbes = 0
+		val unavailableReader = object : CurrentTrackingPurposeAvailabilityReader {
+			override val availability = MutableStateFlow(
+				CurrentTrackingPurposeAvailability.SAFE_DEFAULT,
+			)
+			override val authorityRevision = MutableStateFlow(
+				TrackingPurposeAuthorityRevision.UNAVAILABLE,
+			)
+		}
+		val subject = reconciler(
+			AmbientStepsCapability.ReadyForRegistration(
+				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				AmbientStepsImportAccess.FOREGROUND_ONLY,
+				emptySet(),
+			),
+			onResolve = { capabilityProbes++ },
+			currentPurposeReader = unavailableReader,
+		)
+
+		subject.reconcileAt(boundary(100L), lease()) shouldBe
+			AmbientStepsDemandReconciliation.PolicyBlocked(
+				null,
+				AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
+			)
+		capabilityProbes shouldBe 0
+	}
 
 	@Test
 	fun `ready capability creates exactly one provider-specific ambient demand`() = runTest {
@@ -380,18 +422,65 @@ class AmbientStepsDemandReconcilerTest {
 			CurrentRetentionAuthority = { policyRevision, consentEpoch, _ ->
 				currentRetentionAuthority(policyRevision, consentEpoch)
 			},
+		currentPurposeReader: CurrentTrackingPurposeAvailabilityReader =
+			readyAmbientStepsReader(),
 	) = AmbientStepsDemandReconciler(
 		resolveCapability = {
 			onResolve()
 			capability
 		},
 		sourceBroker = broker,
+		sourceCallerDemandDispatcher = TestPurposeSourceCallerDemandDispatcher(broker),
 		bootClockDomainProvider = BootClockDomainProvider { "boot-1" },
 		sourcePolicyRepository = policyRepository,
 		trackingRolloutStateStore = rolloutStore,
 		currentRetentionAuthority = currentRetentionAuthority,
 		currentSettlementRetentionAuthority = currentSettlementRetentionAuthority,
+		currentPurposeAvailabilityReader = currentPurposeReader,
 	)
+
+	private fun readyAmbientStepsReader(): CurrentTrackingPurposeAvailabilityReader {
+		val identity = TrackingPurposeLeaseIdentity(
+			sourcePurpose = TrackingSource.STEPS.forPurpose(TrackingPurpose.AMBIENT_PRODUCT),
+			policyRevision = 1L,
+			consentEpoch = 1L,
+			collectedDataEpoch = 0L,
+			rolloutRevision = 1L,
+			executionRevision = 1L,
+			ownerCasToken = "ambient-steps-test",
+		)
+		val published = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.copy(
+			ambientSources = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.ambientSources +
+				(
+					AmbientTrackingSource.STEPS to AmbientSourceOperationalAvailability.ready(
+						AmbientTrackingSource.STEPS,
+						AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+						identity,
+					)
+				),
+		)
+		return object : CurrentTrackingPurposeAvailabilityReader {
+			override val availability = MutableStateFlow(
+				CurrentTrackingPurposeAvailability(
+					published,
+					mapOf(
+						identity.sourcePurpose to com.adsamcik.tracker.tracker.api
+							.TrackingPurposeAuthorityVector(
+								identity.sourcePurpose,
+								identity.policyRevision,
+								identity.consentEpoch,
+								identity.collectedDataEpoch,
+								identity.rolloutRevision,
+								identity.executionRevision,
+							),
+					),
+				),
+			)
+			override val authorityRevision = MutableStateFlow(
+				TrackingPurposeAuthorityRevision(1L, 0L, 1L),
+			)
+		}
+	}
 
 	private fun boundary(elapsedRealtimeNanos: Long) = AmbientStepsDemandBoundary(
 		bootId = "boot-1",

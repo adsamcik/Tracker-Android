@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.api.registration.ActivityProviderCleanupResult
@@ -46,9 +47,6 @@ import com.adsamcik.tracker.tracker.api.AutomaticControlContainmentAttemptResult
 import com.adsamcik.tracker.tracker.api.AutomaticControlContainmentLoopResult
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
-import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailability
-import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
-import com.adsamcik.tracker.tracker.api.TrackingPurposeAuthorityRevision
 import com.adsamcik.tracker.tracker.api.reconcileUnavailableAutomaticControl
 import com.adsamcik.tracker.tracker.api.runAutomaticControlContainmentRetryLoop
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionCapability
@@ -66,7 +64,6 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.string.shouldNotBeBlank
 import io.mockk.mockk
 import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -91,6 +88,106 @@ class SourceBrokerTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `revocation fences blocked demand before foreground activation in one transaction`() =
+		runTest {
+			val demand = SourceDemandEntity(
+				demandId = "blocked-before-revocation",
+				consumerId = "session:logical",
+				sourceKind = SourceKind.LOCATION.stableCode,
+				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				manifestRevision = 1L,
+				lifecycleLeaseGeneration = 1L,
+				sourcePolicyRevision = 1L,
+				consentEpoch = 1L,
+				persistenceEligible = true,
+				qosCode = 0,
+				maximumAgeMs = 0L,
+				desiredLatencyMs = 0L,
+				requestedBootId = "boot-1",
+				requestedElapsedRealtimeNanos = 10L,
+				requestedAtMs = 10L,
+				status = SourceDemandEntity.STATUS_BLOCKED,
+				retireBootId = null,
+				retireElapsedRealtimeNanos = null,
+				retiredAtMs = null,
+				sourceCallerAuthorityReference = "caller-ref",
+			)
+			database.sourceBrokerDao().insertDemands(listOf(demand))
+
+			val activated = database.withTransaction {
+				database.sourceBrokerDao().markSourcePurposesRetiring(
+					SourceKind.LOCATION.stableCode,
+					listOf(SourceBrokerPurpose.SESSION_CAPTURE),
+					"boot-1",
+					20L,
+					20L,
+				)
+				subject.activatePreparedSessionDemandsInTransaction(
+					logicalTrackingId = "logical",
+					serviceRunId = "run",
+					manifestRevision = 1L,
+					leaseGeneration = 1L,
+					sourceCallerAuthorityReference = "caller-ref",
+					bootId = "boot-1",
+					elapsedRealtimeNanos = 21L,
+					wallTimeMs = 21L,
+					currentAuthority = SourceCallerCurrentAuthorityPredicate { _, _, _ -> true },
+				)
+			}
+
+			activated shouldBe false
+			database.sourceBrokerDao().demandsByIds(listOf(demand.demandId))
+				.single().status shouldBe SourceDemandEntity.STATUS_RETIRED
+		}
+
+	@Test
+	fun `prepared activation leaves blocked demand closed when caller authority is stale`() =
+		runTest {
+			val demand = SourceDemandEntity(
+				demandId = "blocked-stale-authority",
+				consumerId = "session:logical",
+				sourceKind = SourceKind.LOCATION.stableCode,
+				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				manifestRevision = 1L,
+				lifecycleLeaseGeneration = 1L,
+				sourcePolicyRevision = 1L,
+				consentEpoch = 1L,
+				persistenceEligible = true,
+				qosCode = 0,
+				maximumAgeMs = 0L,
+				desiredLatencyMs = 0L,
+				requestedBootId = "boot-1",
+				requestedElapsedRealtimeNanos = 10L,
+				requestedAtMs = 10L,
+				status = SourceDemandEntity.STATUS_BLOCKED,
+				retireBootId = null,
+				retireElapsedRealtimeNanos = null,
+				retiredAtMs = null,
+				sourceCallerAuthorityReference = "caller-ref",
+			)
+			database.sourceBrokerDao().insertDemands(listOf(demand))
+
+			subject.activatePreparedSessionDemandsInTransaction(
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				manifestRevision = 1L,
+				leaseGeneration = 1L,
+				sourceCallerAuthorityReference = "caller-ref",
+				bootId = "boot-1",
+				elapsedRealtimeNanos = 20L,
+				wallTimeMs = 20L,
+				currentAuthority = SourceCallerCurrentAuthorityPredicate { _, _, _ -> false },
+			) shouldBe false
+
+			database.sourceBrokerDao().demandsByIds(listOf(demand.demandId))
+				.single().status shouldBe SourceDemandEntity.STATUS_BLOCKED
+		}
 
 	@Test
 	fun `Activity automatic control enable disable and revoke rotate an independent epoch`() = runTest {
@@ -222,11 +319,10 @@ class SourceBrokerTest {
 			)
 			val monitor = AutomaticStartTransitionMonitor(
 				arbiter = arbiter,
-				sourceBroker = subject,
+				sourceCallerDemandDispatcher =
+					TestPurposeSourceCallerDemandDispatcher(subject),
 				clockDomainProvider = BootClockDomainProvider { "boot-1" },
 				activityProjectionLane = mockk<ActivityAutomationProjectionLane>(relaxed = true),
-				currentPurposeAvailabilityReader =
-					fixedCurrentPurposeAvailabilityReader(),
 			)
 
 			var schedulerCalls = 0
@@ -1265,14 +1361,6 @@ private val PRESSURE_TEST_WRITER = ExecutableSourceLaneCatalog.PRESSURE_SESSION_
 		bindingGeneration = binding.bindingGeneration,
 	)
 }
-
-private fun fixedCurrentPurposeAvailabilityReader() =
-	object : CurrentTrackingPurposeAvailabilityReader {
-		override val availability =
-			MutableStateFlow(CurrentTrackingPurposeAvailability.SAFE_DEFAULT)
-		override val authorityRevision =
-			MutableStateFlow(TrackingPurposeAuthorityRevision.UNAVAILABLE)
-	}
 
 private suspend fun activateAllBrokerTestProductLanes(
 	database: AppDatabase,

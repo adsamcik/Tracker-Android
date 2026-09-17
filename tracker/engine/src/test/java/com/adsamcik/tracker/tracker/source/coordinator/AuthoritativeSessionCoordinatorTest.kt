@@ -193,7 +193,7 @@ class AuthoritativeSessionCoordinatorTest {
 			activityAutomationEpochAuthority,
 			BootClockDomainProvider { currentBootId },
 			leaseClock,
-			FakeSourceCallerDemandDispatcher(SourceBroker(database)),
+			FakeSourceCallerDemandDispatcher(database, SourceBroker(database)),
 			rolloutStore = fixedEventRolloutStore(),
 			sourceProductDrainRouter = sourceProductDrainRouter,
 		)
@@ -205,6 +205,10 @@ class AuthoritativeSessionCoordinatorTest {
 	@Test
 	fun `session is durable before source start and closes after source drain`() = runTest {
 		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		started.sourceCallerAuthorityReference shouldBe
+			com.adsamcik.tracker.tracker.api.SourceCallerReplayReference(
+				"test:${started.logicalTrackingId}:1",
+			)
 
 		runtime.stateObservedAtStart shouldBe SessionLifecycleState.STARTING.name
 		runtime.manifestRevisionObservedAtStart shouldBe 1L
@@ -217,6 +221,11 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceSessionDao().lifecycleIntent(started.logicalTrackingId, 1L)
 			?.sourceCallerAuthorityReference shouldBe
 			"test:${started.logicalTrackingId}:1"
+		val callerAuthority = database.sourceCallerAuthorityDao()
+			.rows("test:${started.logicalTrackingId}:1")
+		callerAuthority.size shouldBe 1
+		com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityIntegrity
+			.isAuthentic(callerAuthority) shouldBe true
 		val stepsBinding = database.sourceSessionDao().manifestSources(started.logicalTrackingId, 1L).single()
 		stepsBinding.outputDestination shouldBe SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS
 		stepsBinding.writerOwner shouldBe SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
@@ -230,6 +239,8 @@ class AuthoritativeSessionCoordinatorTest {
 		activeDemand.purpose shouldBe SourceBrokerPurpose.SESSION_CAPTURE
 		activeDemand.manifestRevision shouldBe 1L
 		activeDemand.status shouldBe SourceDemandEntity.STATUS_ACTIVE
+		activeDemand.sourceCallerAuthorityReference shouldBe
+			"test:${started.logicalTrackingId}:1"
 
 		val stopped = subject.stop(
 			SessionStopRequest("test-owner", "manual", 2_000, 2_000_000, "boot-1", perSourceTimeoutMs = 100),
@@ -257,6 +268,8 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceBrokerDao().currentDemands("session:${started.logicalTrackingId}") shouldBe emptyList()
 		database.sourceBrokerDao().demandHistory("session:${started.logicalTrackingId}")
 			.single().status shouldBe SourceDemandEntity.STATUS_RETIRED
+		database.sourceCallerAuthorityDao().rows("test:${started.logicalTrackingId}:1")
+			.map { it.status }.distinct() shouldBe listOf("TOMBSTONED")
 		runtime.closed shouldBe true
 		sourceProductDrainRouter.requests shouldBe emptyList()
 	}
@@ -1104,7 +1117,7 @@ class AuthoritativeSessionCoordinatorTest {
 			activityAutomationEpochAuthority,
 			BootClockDomainProvider { currentBootId },
 			leaseClock,
-			FakeSourceCallerDemandDispatcher(SourceBroker(database)),
+			FakeSourceCallerDemandDispatcher(database, SourceBroker(database)),
 			rolloutStore = fixedEventRolloutStore(),
 			sourceProductDrainRouter = sourceProductDrainRouter,
 		)
@@ -1516,6 +1529,8 @@ class AuthoritativeSessionCoordinatorTest {
 		).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
 
 		result.revision shouldBe 2L
+		result.sourceCallerAuthorityReference.value shouldBe
+			"test:${started.logicalTrackingId}:2"
 		val manifests = database.sourceSessionDao().manifests(started.logicalTrackingId)
 		manifests.map { it.manifestRevision } shouldBe listOf(1L, 2L)
 		manifests.first() shouldBe firstManifest
@@ -1523,6 +1538,15 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceSessionDao().session(started.logicalTrackingId)?.currentManifestRevision shouldBe 2L
 		database.sourceSessionDao().lifecycleIntents(started.logicalTrackingId).map { it.intentRevision } shouldBe
 			listOf(1L, 2L)
+		database.sourceSessionDao().lifecycleIntents(started.logicalTrackingId)
+			.map { it.sourceCallerAuthorityReference } shouldBe listOf(
+			"test:${started.logicalTrackingId}:1",
+			"test:${started.logicalTrackingId}:2",
+		)
+		database.sourceCallerAuthorityDao().rows("test:${started.logicalTrackingId}:1")
+			.map { it.status }.distinct() shouldBe listOf("TOMBSTONED")
+		database.sourceCallerAuthorityDao().rows("test:${started.logicalTrackingId}:2")
+			.map { it.status }.distinct() shouldBe listOf("ACTIVE")
 		database.sourceSessionDao().lifecycleActions(started.logicalTrackingId).map { it.actionRevision } shouldBe
 			listOf(1L, 2L)
 		val demandHistory = database.sourceBrokerDao().demandHistory("session:${started.logicalTrackingId}")
@@ -1530,6 +1554,10 @@ class AuthoritativeSessionCoordinatorTest {
 		demandHistory.map { it.status } shouldBe listOf(
 			SourceDemandEntity.STATUS_RETIRED,
 			SourceDemandEntity.STATUS_ACTIVE,
+		)
+		demandHistory.map { it.sourceCallerAuthorityReference } shouldBe listOf(
+			"test:${started.logicalTrackingId}:1",
+			"test:${started.logicalTrackingId}:2",
 		)
 	}
 
@@ -2073,6 +2101,10 @@ class AuthoritativeSessionCoordinatorTest {
 		recovery.logicalTrackingId shouldBe old.logicalTrackingId
 		recovery.serviceRunId shouldBe "active-redelivery-recovery-run"
 		recovery.token shouldBe recoveryToken
+		recovery.sourceCallerAuthorityReference shouldBe
+			com.adsamcik.tracker.tracker.api.SourceCallerReplayReference(
+				"test:${old.logicalTrackingId}:2",
+			)
 		database.sourceSessionDao().serviceRun(old.serviceRunId)?.state shouldBe
 			SessionLifecycleState.FINALIZED.name
 		database.sourceSessionDao().serviceRun(old.serviceRunId)?.completionReason shouldBe
@@ -2082,6 +2114,10 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceSessionDao().session(old.logicalTrackingId)?.state shouldBe
 			SessionLifecycleState.STARTING.name
 		database.sourceSessionDao().manifests(old.logicalTrackingId).size shouldBe 2
+		database.sourceCallerAuthorityDao().rows("test:${old.logicalTrackingId}:1")
+			.map { it.status }.distinct() shouldBe listOf("TOMBSTONED")
+		database.sourceCallerAuthorityDao().rows("test:${old.logicalTrackingId}:2")
+			.map { it.status }.distinct() shouldBe listOf("ACTIVE")
 	}
 
 	@Test
@@ -3108,7 +3144,7 @@ class AuthoritativeSessionCoordinatorTest {
 			activityAutomationEpochAuthority,
 			BootClockDomainProvider { currentBootId },
 			leaseClock,
-			FakeSourceCallerDemandDispatcher(SourceBroker(database)),
+			FakeSourceCallerDemandDispatcher(database, SourceBroker(database)),
 			rolloutStore = fixedEventRolloutStore(),
 			sourceProductDrainRouter = sourceProductDrainRouter,
 		)
@@ -3888,7 +3924,7 @@ class AuthoritativeSessionCoordinatorTest {
 			activityAutomationEpochAuthority,
 			BootClockDomainProvider { currentBootId },
 			leaseClock,
-			FakeSourceCallerDemandDispatcher(SourceBroker(database)),
+			FakeSourceCallerDemandDispatcher(database, SourceBroker(database)),
 			rolloutStore = fixedEventRolloutStore(),
 			sourceProductDrainRouter = sourceProductDrainRouter,
 		)
@@ -3908,7 +3944,7 @@ class AuthoritativeSessionCoordinatorTest {
 			activityAutomationEpochAuthority,
 			BootClockDomainProvider { currentBootId },
 			leaseClock,
-			FakeSourceCallerDemandDispatcher(SourceBroker(database)),
+			FakeSourceCallerDemandDispatcher(database, SourceBroker(database)),
 			rolloutStore = fixedEventRolloutStore(),
 			sourceProductDrainRouter = sourceProductDrainRouter,
 		)

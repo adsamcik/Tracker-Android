@@ -5,6 +5,7 @@ import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runCurrent
@@ -12,6 +13,58 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class AmbientStepsProviderLifecycleOwnerTest {
+	@Test
+	fun `caller authority rejection prevents provider reconciliation`() = runTest {
+		var providerReconciled = false
+		val demand = AmbientStepsDemandReconciliation.PolicyBlocked(
+			provider = null,
+			reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
+		)
+		val subject = AmbientStepsProviderLifecycleOwner(
+			currentBoundary = { boundary(10L) },
+			reconcileDemand = { demand },
+			reconcileRegistration = { _, _ ->
+				providerReconciled = true
+				error("Provider reconciliation must remain closed")
+			},
+			closeRegistration = { completeCleanup() },
+		)
+
+		subject.reconcile() shouldBe AmbientStepsProviderRegistrationResult.Inactive(demand)
+		providerReconciled shouldBe false
+	}
+
+	@Test
+	fun `failed guarded provider reconciliation retires its ambient demand`() = runTest {
+		val boundary = boundary(10L)
+		val demand = AmbientStepsDemandReconciliation.DemandReady(
+			AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+			AmbientStepsImportAccess.FOREGROUND_ONLY,
+			emptySet(),
+			"demand-1",
+		)
+		var retireCount = 0
+		val subject = AmbientStepsProviderLifecycleOwner(
+			currentBoundary = { boundary },
+			reconcileDemand = { demand },
+			reconcileRegistration = { _, _ ->
+				AmbientStepsProviderRegistrationResult.Failed(
+					AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+					AmbientStepsProviderRegistrationFailure.PROVIDER_ACTIVATION_FAILED,
+					retryable = true,
+				)
+			},
+			closeRegistration = { completeCleanup() },
+			retireDemand = {
+				retireCount++
+				true
+			},
+		)
+
+		subject.reconcile().shouldBeInstanceOf<AmbientStepsProviderRegistrationResult.Failed>()
+		retireCount shouldBe 1
+	}
+
 	@Test
 	fun `reconcile uses one exact boundary for demand and registration`() = runTest {
 		val boundary = boundary(10L)

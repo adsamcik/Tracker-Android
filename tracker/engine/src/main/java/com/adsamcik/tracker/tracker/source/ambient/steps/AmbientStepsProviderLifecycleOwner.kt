@@ -44,6 +44,7 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 		AmbientStepsDemandBoundary,
 	) -> AmbientStepsProviderRegistrationResult,
 	private val closeRegistration: suspend () -> AmbientStepsProviderCleanupResult,
+	private val retireDemand: suspend (AmbientStepsDemandBoundary) -> Boolean = { true },
 ) : AmbientStepsProviderLifecycle {
 	@Inject
 	internal constructor(
@@ -64,6 +65,7 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 			demandReconciler::retireAfterRetentionAuthorityFailureAt,
 		reconcileRegistration = registrationCoordinator::reconcile,
 		closeRegistration = registrationCoordinator::closeForCollectedDataDeletion,
+		retireDemand = demandReconciler::retireDemand,
 	)
 
 	private val mutex = Mutex()
@@ -73,7 +75,34 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 	): AmbientStepsProviderRegistrationResult = mutex.withLock {
 		val boundary = currentBoundary()
 		val demand = reconcileDemand(boundary, lease)
-		reconcileRegistration(demand, boundary)
+		if (demand is AmbientStepsDemandReconciliation.PolicyBlocked &&
+			demand.reason == AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE
+		) {
+			return@withLock AmbientStepsProviderRegistrationResult.Inactive(demand)
+		}
+		try {
+			reconcileRegistration(demand, boundary).also { result ->
+				if (demand is AmbientStepsDemandReconciliation.DemandReady &&
+					result !is AmbientStepsProviderRegistrationResult.Active
+				) {
+					retireDemand(boundary)
+				}
+			}
+		} catch (cancelled: kotlinx.coroutines.CancellationException) {
+			if (demand is AmbientStepsDemandReconciliation.DemandReady) {
+				kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+					retireDemand(boundary)
+				}
+			}
+			throw cancelled
+		} catch (failure: RuntimeException) {
+			if (demand is AmbientStepsDemandReconciliation.DemandReady) {
+				kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+					retireDemand(boundary)
+				}
+			}
+			throw failure
+		}
 	}
 
 	internal suspend fun reconcileForRetentionFloor(

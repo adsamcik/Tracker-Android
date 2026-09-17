@@ -19,7 +19,7 @@ import com.adsamcik.tracker.tracker.source.runtime.DefaultAmbientStepsPurposeOwn
 import com.adsamcik.tracker.tracker.source.runtime.DefaultTrackingPurposePublicationRuntime
 import com.adsamcik.tracker.tracker.source.runtime.ExactSourceCallerGuard
 import com.adsamcik.tracker.tracker.source.runtime.GuardedSourceCallerDemandDispatcher
-import com.adsamcik.tracker.tracker.source.runtime.SharedPreferencesSourceCallerAcceptedAuthorityRepository
+import com.adsamcik.tracker.tracker.source.runtime.RoomSourceCallerAcceptedAuthorityRepository
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAcceptedAuthorityRepository
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthoritySnapshotReader
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerDemandDispatcher
@@ -89,7 +89,7 @@ internal abstract class TrackingPurposePublicationModule {
 
 	@Binds
 	internal abstract fun bindSourceCallerAuthorityRepository(
-		impl: SharedPreferencesSourceCallerAcceptedAuthorityRepository,
+		impl: RoomSourceCallerAcceptedAuthorityRepository,
 	): SourceCallerAcceptedAuthorityRepository
 
 	@Binds

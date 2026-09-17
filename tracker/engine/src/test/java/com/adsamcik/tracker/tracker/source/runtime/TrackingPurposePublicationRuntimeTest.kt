@@ -337,16 +337,18 @@ class TrackingPurposePublicationRuntimeTest {
 				): String = "rotation-${++token}"
 			},
 		)
+		val executionRegistry = TrackingPurposeExecutionRevisionRegistry()
 		val runtime = DefaultTrackingPurposePublicationRuntime(
 			issuer,
 			store,
-			TrackingPurposeExecutionRevisionRegistry(),
+			executionRegistry,
 			UnavailableRetentionAuthorityProducerForTest,
 		)
 		val secondLease = CompletableDeferred<TrackingPurposeLeaseIdentity>()
 		val releaseSecond = CompletableDeferred<Unit>()
 		var oldIdentity: TrackingPurposeLeaseIdentity? = null
 		runtime.registerAutomaticControlOwner(executionRevision = 1L) { lease ->
+			executionRegistry.identities.value[lease.identity.sourcePurpose] shouldBe lease.identity
 			if (lease.identity.collectedDataEpoch == 3L) {
 				oldIdentity = lease.identity
 			} else {

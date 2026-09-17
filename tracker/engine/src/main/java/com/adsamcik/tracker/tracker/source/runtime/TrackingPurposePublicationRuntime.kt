@@ -122,16 +122,27 @@ internal fun interface TrackingPurposeOwnerCasTokenFactory {
 internal class TrackingPurposeExecutionRevisionRegistry @Inject constructor() {
 	private val mutableRevisions =
 		MutableStateFlow<Map<TrackingSourcePurposeIdentity, Long>>(emptyMap())
+	private val mutableIdentities =
+		MutableStateFlow<Map<TrackingSourcePurposeIdentity, TrackingPurposeLeaseIdentity>>(emptyMap())
 	val revisions: StateFlow<Map<TrackingSourcePurposeIdentity, Long>> =
 		mutableRevisions.asStateFlow()
+	val identities: StateFlow<Map<TrackingSourcePurposeIdentity, TrackingPurposeLeaseIdentity>> =
+		mutableIdentities.asStateFlow()
 
 	fun update(sourcePurpose: TrackingSourcePurposeIdentity, executionRevision: Long) {
 		require(executionRevision >= 0L)
 		mutableRevisions.value = mutableRevisions.value + (sourcePurpose to executionRevision)
+		mutableIdentities.value = mutableIdentities.value - sourcePurpose
+	}
+
+	fun bind(identity: TrackingPurposeLeaseIdentity) {
+		require(mutableRevisions.value[identity.sourcePurpose] == identity.executionRevision)
+		mutableIdentities.value = mutableIdentities.value + (identity.sourcePurpose to identity)
 	}
 
 	fun remove(sourcePurpose: TrackingSourcePurposeIdentity) {
 		mutableRevisions.value = mutableRevisions.value - sourcePurpose
+		mutableIdentities.value = mutableIdentities.value - sourcePurpose
 	}
 }
 
@@ -1084,6 +1095,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 			is AutomaticLeaseRefresh.InProgress -> refresh.lease
 			AutomaticLeaseRefresh.Rejected -> return true
 		}
+		executionRevisionRegistry.bind(lease.identity)
 		if (!isCurrentAutomaticOwner(owner)) {
 			leaseIssuer.cancelAutomaticControl(lease.identity)
 			return false
@@ -1261,6 +1273,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 				?: TrackingRetentionFloorReconciliationFailureReason
 					.RETENTION_AUTHORITY_UNAVAILABLE
 		}
+		executionRevisionRegistry.bind(lease.identity.purposeLeaseIdentity)
 		if (
 			expectedRetainedFromMs != null &&
 			lease.purposeLeaseIdentity.retainedFromMs != expectedRetainedFromMs

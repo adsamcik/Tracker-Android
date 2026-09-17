@@ -783,6 +783,7 @@ class AppDatabaseMigration27To28Test {
 			"session_manifest_version",
 			"session_manifest_source",
 			"session_lifecycle_intent_version",
+			"source_caller_accepted_authority",
 			"lifecycle_desired_action",
 			"activity_automatic_start_action",
 			"source_demand",
@@ -797,6 +798,16 @@ class AppDatabaseMigration27To28Test {
 			}
 			assertEquals(0, columns["source_caller_authority_reference"])
 		}
+		database.query("PRAGMA table_info(source_caller_accepted_authority)").use { cursor ->
+			val nameColumn = cursor.getColumnIndexOrThrow("name")
+			val columns = buildSet {
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertTrue("reference" in columns)
+			assertTrue("format_version" in columns)
+			assertTrue("integrity_checksum" in columns)
+			assertTrue("tombstoned_at_ms" in columns)
+		}
 		database.query("PRAGMA table_info(source_demand)").use { cursor ->
 			val nameColumn = cursor.getColumnIndexOrThrow("name")
 			val notNullColumn = cursor.getColumnIndexOrThrow("notnull")
@@ -806,6 +817,7 @@ class AppDatabaseMigration27To28Test {
 			assertEquals(1, columns["minimum_acquisition_spec"])
 			assertEquals(1, columns["adaptive_reduction_allowed"])
 			assertEquals(0, columns["requested_delivery_latency_ms"])
+			assertEquals(0, columns["source_caller_authority_reference"])
 		}
 		database.query("PRAGMA table_info(provider_registration_generation)").use { cursor ->
 			val nameColumn = cursor.getColumnIndexOrThrow("name")

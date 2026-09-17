@@ -39,7 +39,13 @@ class SharedStepSourceControllerTest {
 			SourceApplyResult.Applied(applied(firstArg()))
 		}
 		coEvery { physical.close() } returns Unit
-		subject = SharedStepSourceController(physical, broker, sinkFactory, boot)
+		subject = SharedStepSourceController(
+			physical,
+			broker,
+			TestPurposeSourceCallerDemandDispatcher(broker),
+			sinkFactory,
+			boot,
+		)
 	}
 
 	@Test

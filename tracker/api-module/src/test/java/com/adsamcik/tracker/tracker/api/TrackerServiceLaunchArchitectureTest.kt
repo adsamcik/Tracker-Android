@@ -49,12 +49,15 @@ class TrackerServiceLaunchArchitectureTest {
 				"val command = entryPoint\\.trackingLifecycleCommandAuthority\\(\\)\\.reserveStop",
 		)
 		api shouldContain "suspend fun startServiceAndAwaitEnqueue("
+		api shouldContain "suspend fun startServiceAndAwaitEnqueueResult("
 		api shouldContain "enqueuePreparedStart(appContext, prepared, preparedCommand)"
 		api shouldContain "createPreparedStartIntent(context.applicationContext, prepared, command.generation)"
 		api shouldContain "ARG_PREPARED_SOURCE_MASK_HINT"
+		api shouldContain "Intent(TrackerServiceContract.ACTION_PREPARED_START)"
 		api shouldNotContain "createStartIntent("
 		api shouldNotContain "createRestartIntent("
 		service shouldContain "intent?.preparedTrackingStartTokenOrNull()"
+		service shouldContain "intent.isExactPreparedTrackingStartAction()"
 		service shouldContain "intent.preparedForegroundHintOrNull()"
 		service shouldNotContain "toAutomaticTrackingStartTrigger()"
 		service shouldContain Regex(
