@@ -4,11 +4,6 @@ import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose as CanonicalTr
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource as CanonicalTrackingSource
 import com.adsamcik.tracker.shared.model.tracking.TrackingSourcePurposeIdentity as CanonicalSourcePurpose
 
-enum class SourceCallerStartKind {
-	MANUAL,
-	AUTOMATIC,
-}
-
 enum class SourceCallerReplayKind {
 	FOREGROUND_SERVICE,
 	RESTART,
@@ -26,193 +21,94 @@ data class SourceCallerManifestIdentity(
 }
 
 /**
- * Exact authority presented for one requested demand. It describes no provider or acquisition
- * configuration; runtime and broker callers may only map an accepted identity to those effects.
+ * Exact demand requested by a caller. [purposeLeaseIdentity] is the canonical purpose authority
+ * vector; the manifest identity exists only for session-capture demand.
  */
 data class SourceCallerDemandIdentity(
-	val sourcePurpose: CanonicalSourcePurpose,
+	val purposeLeaseIdentity: TrackingPurposeLeaseIdentity,
 	val manifestIdentity: SourceCallerManifestIdentity?,
-	val sourcePolicyRevision: Long,
-	val consentEpoch: Long,
-	val collectedDataEpoch: Long,
-	val rolloutRevision: Long,
 ) {
-	init {
-		require(sourcePolicyRevision > 0L)
-		require(consentEpoch > 0L)
-		require(collectedDataEpoch >= 0L)
-		require(rolloutRevision >= 0L)
-	}
-}
-
-class SourceCallerAuthoritySnapshot(
-	currentDemandIdentities: Set<SourceCallerDemandIdentity>,
-	val purposeAvailability: TrackingPurposeAvailabilitySnapshot =
-		TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
-) {
-	val currentDemandIdentities = currentDemandIdentities.toSet()
+	val sourcePurpose: CanonicalSourcePurpose
+		get() = purposeLeaseIdentity.sourcePurpose
 
 	init {
-		require(
-			this.currentDemandIdentities
-				.map(SourceCallerDemandIdentity::sourcePurpose)
-				.distinct()
-				.size == this.currentDemandIdentities.size,
-		) {
-			"Current caller authority must contain at most one identity per demand"
+		when (purposeLeaseIdentity.purpose) {
+			CanonicalTrackingPurpose.SESSION_CAPTURE -> require(manifestIdentity != null) {
+				"Session-capture demand requires a manifest identity"
+			}
+			CanonicalTrackingPurpose.CONTROL,
+			CanonicalTrackingPurpose.AMBIENT_PRODUCT,
+			-> require(manifestIdentity == null) {
+				"Non-capture demand must remain sessionless"
+			}
 		}
 	}
 }
 
 sealed interface SourceCallerRequest {
-	val purpose: CanonicalTrackingPurpose
 	val requestedDemandIdentities: Set<SourceCallerDemandIdentity>
 
-	data class SessionStart(
-		val startKind: SourceCallerStartKind,
+	data class ManualSessionStart(
 		val requestedCapturedSources: Set<CanonicalTrackingSource>,
-		val declaredControlDependencies: Set<CanonicalTrackingSource> = emptySet(),
 		val manifestIdentity: SourceCallerManifestIdentity,
 		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
-	) : SourceCallerRequest {
-		override val purpose = CanonicalTrackingPurpose.SESSION_CAPTURE
-	}
+	) : SourceCallerRequest
+
+	data class AutomaticSessionStart(
+		val requestedCapturedSources: Set<CanonicalTrackingSource>,
+		val declaredControlDependencies: Set<CanonicalTrackingSource>,
+		val manifestIdentity: SourceCallerManifestIdentity,
+		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
+	) : SourceCallerRequest
 
 	data class Ambient(
-		val source: AmbientTrackingSource,
+		val source: CanonicalTrackingSource,
 		val enabled: Boolean = false,
 		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
-	) : SourceCallerRequest {
-		override val purpose = CanonicalTrackingPurpose.AMBIENT_PRODUCT
-	}
+	) : SourceCallerRequest
 
 	data class Replay(
 		val replayKind: SourceCallerReplayKind,
-		override val purpose: CanonicalTrackingPurpose,
+		val reference: SourceCallerReplayReference,
+		val purpose: CanonicalTrackingPurpose,
 		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
 	) : SourceCallerRequest
 }
 
-enum class AcceptedSourceCallerOrigin {
-	MANUAL,
-	AUTOMATIC,
-	AMBIENT,
-}
-
-class AcceptedSourceCallerAuthority(
-	val origin: AcceptedSourceCallerOrigin,
-	val purpose: CanonicalTrackingPurpose,
-	permittedDemandIdentities: Set<SourceCallerDemandIdentity>,
+@JvmInline
+value class SourceCallerReplayReference(
+	val value: String,
 ) {
-	val permittedDemandIdentities = permittedDemandIdentities.toSet()
-
 	init {
-		require(this.permittedDemandIdentities.isNotEmpty())
-		require(
-			this.permittedDemandIdentities
-				.map(SourceCallerDemandIdentity::sourcePurpose)
-				.distinct()
-				.size == this.permittedDemandIdentities.size,
-		) {
-			"Accepted caller authority must contain exactly one identity per demand"
-		}
-		when (origin) {
-			AcceptedSourceCallerOrigin.MANUAL -> {
-				require(purpose == CanonicalTrackingPurpose.SESSION_CAPTURE)
-				require(this.permittedDemandIdentities.all { identity ->
-					identity.sourcePurpose.purpose == CanonicalTrackingPurpose.SESSION_CAPTURE &&
-						identity.manifestIdentity != null
-				})
-				require(this.permittedDemandIdentities.map { identity -> identity.manifestIdentity }
-					.distinct().size == 1)
-			}
-			AcceptedSourceCallerOrigin.AUTOMATIC -> {
-				require(purpose == CanonicalTrackingPurpose.SESSION_CAPTURE)
-				require(this.permittedDemandIdentities.any { identity ->
-					identity.sourcePurpose.purpose == CanonicalTrackingPurpose.SESSION_CAPTURE &&
-						identity.manifestIdentity != null
-				})
-				require(this.permittedDemandIdentities.all { identity ->
-					when (identity.sourcePurpose.purpose) {
-						CanonicalTrackingPurpose.SESSION_CAPTURE ->
-							identity.manifestIdentity != null
-						CanonicalTrackingPurpose.CONTROL ->
-							identity.sourcePurpose.source == CanonicalTrackingSource.ACTIVITY &&
-								identity.manifestIdentity == null
-						CanonicalTrackingPurpose.AMBIENT_PRODUCT -> false
-					}
-				})
-				require(this.permittedDemandIdentities
-					.filter { identity ->
-						identity.sourcePurpose.purpose ==
-							CanonicalTrackingPurpose.SESSION_CAPTURE
-					}
-					.map { identity -> identity.manifestIdentity }
-					.distinct().size == 1)
-			}
-			AcceptedSourceCallerOrigin.AMBIENT -> {
-				require(purpose == CanonicalTrackingPurpose.AMBIENT_PRODUCT)
-				require(this.permittedDemandIdentities.single().let { identity ->
-					identity.sourcePurpose.purpose == CanonicalTrackingPurpose.AMBIENT_PRODUCT &&
-						identity.manifestIdentity == null &&
-						identity.sourcePurpose.source.toAmbientTrackingSourceOrNull() != null
-				})
-			}
-		}
+		require(value.isNotBlank())
 	}
-
-	override fun equals(other: Any?): Boolean =
-		this === other ||
-			other is AcceptedSourceCallerAuthority &&
-			origin == other.origin &&
-			purpose == other.purpose &&
-			permittedDemandIdentities == other.permittedDemandIdentities
-
-	override fun hashCode(): Int {
-		var result = origin.hashCode()
-		result = 31 * result + purpose.hashCode()
-		result = 31 * result + permittedDemandIdentities.hashCode()
-		return result
-	}
-
-	override fun toString(): String =
-		"AcceptedSourceCallerAuthority(origin=$origin, purpose=$purpose, " +
-			"permittedDemandIdentities=$permittedDemandIdentities)"
 }
-
-data class SourceCallerGuardInput(
-	val request: SourceCallerRequest,
-	val currentAuthority: SourceCallerAuthoritySnapshot,
-	/**
-	 * Trusted, durably restored result of an earlier acceptance. Replay callers must not construct
-	 * or widen this value from an Android Intent or recovery hint.
-	 */
-	val previouslyAcceptedAuthority: AcceptedSourceCallerAuthority? = null,
-)
 
 enum class SourceCallerRejectionReason {
 	ZERO_CAPTURE_SOURCE_REQUEST,
-	MANUAL_CONTROL_NOT_ALLOWED,
-	CONTROL_SOURCE_NOT_ALLOWED,
+	AUTOMATIC_CONTROL_SET_MISMATCH,
 	MISSING_DEMAND_IDENTITY,
 	UNDECLARED_DEMAND,
 	DUPLICATE_DEMAND_IDENTITY,
 	SESSION_MANIFEST_MISMATCH,
-	CONTROL_SESSION_CONFUSION,
 	AMBIENT_DISABLED,
-	AMBIENT_SESSION_CONFUSION,
+	AMBIENT_SOURCE_NOT_SUPPORTED,
 	AUTOMATIC_CONTROL_UNAVAILABLE,
 	AMBIENT_SOURCE_UNAVAILABLE,
+	READINESS_AUTHORITY_MISMATCH,
 	DEMAND_AUTHORITY_UNAVAILABLE,
 	STALE_MANIFEST_IDENTITY,
 	STALE_POLICY_REVISION,
 	STALE_CONSENT_EPOCH,
 	STALE_COLLECTED_DATA_EPOCH,
 	STALE_ROLLOUT_REVISION,
-	UNEXPECTED_REPLAY_AUTHORITY,
-	REPLAY_AUTHORITY_REQUIRED,
+	STALE_EXECUTION_REVISION,
+	STALE_OWNER_CAS_TOKEN,
+	AUTHORITY_PERSISTENCE_UNAVAILABLE,
+	REPLAY_AUTHORITY_UNAVAILABLE,
 	REPLAY_PURPOSE_MISMATCH,
 	REPLAY_AUTHORITY_ESCALATION,
+	REPLAY_AUTHORITY_DOWNGRADE,
 	REPLAY_AUTHORITY_MISMATCH,
 }
 
@@ -224,9 +120,33 @@ data class SourceCallerGuardRejection(
 	val ambientAvailability: AmbientSourceOperationalAvailability? = null,
 )
 
+/**
+ * Informational receipt only. Constructing or copying it grants no demand, provider, replay, or
+ * broker authority; the engine retains the opaque accepted capability in its trusted repository.
+ */
+class SourceCallerAcceptanceReceipt(
+	val reference: SourceCallerReplayReference,
+	permittedDemandIdentities: Set<SourceCallerDemandIdentity>,
+) {
+	val permittedDemandIdentities = permittedDemandIdentities.toSet()
+
+	override fun equals(other: Any?): Boolean =
+		this === other ||
+			other is SourceCallerAcceptanceReceipt &&
+			reference == other.reference &&
+			permittedDemandIdentities == other.permittedDemandIdentities
+
+	override fun hashCode(): Int =
+		31 * reference.hashCode() + permittedDemandIdentities.hashCode()
+
+	override fun toString(): String =
+		"SourceCallerAcceptanceReceipt(reference=$reference, " +
+			"permittedDemandIdentities=$permittedDemandIdentities)"
+}
+
 sealed interface SourceCallerGuardResult {
-	data class Accepted(
-		val authority: AcceptedSourceCallerAuthority,
+	data class Permitted(
+		val receipt: SourceCallerAcceptanceReceipt,
 	) : SourceCallerGuardResult
 
 	data class Rejected(
@@ -236,358 +156,8 @@ sealed interface SourceCallerGuardResult {
 
 fun interface SourceCallerGuard {
 	/**
-	 * Pure acceptance boundary. Implementations return exact demand authority and never start,
-	 * register, stop, or reconcile a provider.
+	 * The caller supplies only its request. Implementations acquire current authority internally,
+	 * persist accepted authority before returning, and never start or register a provider.
 	 */
-	fun accept(input: SourceCallerGuardInput): SourceCallerGuardResult
+	suspend fun accept(request: SourceCallerRequest): SourceCallerGuardResult
 }
-
-fun evaluateSourceCallerGuard(input: SourceCallerGuardInput): SourceCallerGuardResult =
-	when (val request = input.request) {
-		is SourceCallerRequest.SessionStart -> evaluateSessionStart(
-			request,
-			input.currentAuthority,
-			input.previouslyAcceptedAuthority,
-		)
-		is SourceCallerRequest.Ambient -> evaluateAmbient(
-			request,
-			input.currentAuthority,
-			input.previouslyAcceptedAuthority,
-		)
-		is SourceCallerRequest.Replay -> evaluateReplay(
-			request,
-			input.currentAuthority,
-			input.previouslyAcceptedAuthority,
-		)
-	}
-
-private fun evaluateSessionStart(
-	request: SourceCallerRequest.SessionStart,
-	currentAuthority: SourceCallerAuthoritySnapshot,
-	previouslyAcceptedAuthority: AcceptedSourceCallerAuthority?,
-): SourceCallerGuardResult {
-	if (previouslyAcceptedAuthority != null) {
-		return rejected(SourceCallerRejectionReason.UNEXPECTED_REPLAY_AUTHORITY)
-	}
-	if (request.requestedCapturedSources.isEmpty()) {
-		return rejected(SourceCallerRejectionReason.ZERO_CAPTURE_SOURCE_REQUEST)
-	}
-	when (request.startKind) {
-		SourceCallerStartKind.MANUAL -> if (request.declaredControlDependencies.isNotEmpty()) {
-			return rejected(SourceCallerRejectionReason.MANUAL_CONTROL_NOT_ALLOWED)
-		}
-		SourceCallerStartKind.AUTOMATIC -> {
-			val unsupportedControl = request.declaredControlDependencies
-				.filterNot { source -> source == CanonicalTrackingSource.ACTIVITY }
-				.minByOrNull(CanonicalTrackingSource::ordinal)
-			if (unsupportedControl != null) {
-				return rejected(
-					SourceCallerRejectionReason.CONTROL_SOURCE_NOT_ALLOWED,
-					source = unsupportedControl,
-					purpose = CanonicalTrackingPurpose.CONTROL,
-				)
-			}
-		}
-	}
-
-	val expectedKeys = buildSet {
-		request.requestedCapturedSources.forEach { source ->
-			add(source.forPurpose(CanonicalTrackingPurpose.SESSION_CAPTURE))
-		}
-		request.declaredControlDependencies.forEach { source ->
-			add(source.forPurpose(CanonicalTrackingPurpose.CONTROL))
-		}
-	}
-	validateDeclaredDemandSet(expectedKeys, request.requestedDemandIdentities)?.let { return it }
-	request.requestedDemandIdentities.sortedByDemandKey().forEach { identity ->
-		when (identity.sourcePurpose.purpose) {
-			CanonicalTrackingPurpose.SESSION_CAPTURE ->
-				if (identity.manifestIdentity != request.manifestIdentity) {
-					return rejected(
-						SourceCallerRejectionReason.SESSION_MANIFEST_MISMATCH,
-						identity.sourcePurpose,
-					)
-				}
-			CanonicalTrackingPurpose.CONTROL -> if (identity.manifestIdentity != null) {
-				return rejected(
-					SourceCallerRejectionReason.CONTROL_SESSION_CONFUSION,
-					identity.sourcePurpose,
-				)
-			}
-			CanonicalTrackingPurpose.AMBIENT_PRODUCT -> return rejected(
-				SourceCallerRejectionReason.UNDECLARED_DEMAND,
-				identity.sourcePurpose,
-			)
-		}
-	}
-	if (
-		request.startKind == SourceCallerStartKind.AUTOMATIC &&
-		CanonicalTrackingSource.ACTIVITY in request.declaredControlDependencies
-	) {
-		validateAutomaticControlAvailability(currentAuthority.purposeAvailability)?.let { return it }
-	}
-	validateCurrentAuthority(
-		request.requestedDemandIdentities,
-		currentAuthority.currentDemandIdentities,
-	)?.let { return it }
-
-	return SourceCallerGuardResult.Accepted(
-		AcceptedSourceCallerAuthority(
-			origin = when (request.startKind) {
-				SourceCallerStartKind.MANUAL -> AcceptedSourceCallerOrigin.MANUAL
-				SourceCallerStartKind.AUTOMATIC -> AcceptedSourceCallerOrigin.AUTOMATIC
-			},
-			purpose = request.purpose,
-			permittedDemandIdentities = request.requestedDemandIdentities,
-		),
-	)
-}
-
-private fun evaluateAmbient(
-	request: SourceCallerRequest.Ambient,
-	currentAuthority: SourceCallerAuthoritySnapshot,
-	previouslyAcceptedAuthority: AcceptedSourceCallerAuthority?,
-): SourceCallerGuardResult {
-	if (previouslyAcceptedAuthority != null) {
-		return rejected(SourceCallerRejectionReason.UNEXPECTED_REPLAY_AUTHORITY)
-	}
-	if (!request.enabled) {
-		return rejected(SourceCallerRejectionReason.AMBIENT_DISABLED)
-	}
-	val expectedKey = request.source.toTrackingSource()
-		.toCanonicalTrackingSource()
-		.forPurpose(CanonicalTrackingPurpose.AMBIENT_PRODUCT)
-	validateDeclaredDemandSet(setOf(expectedKey), request.requestedDemandIdentities)?.let {
-		return it
-	}
-	val identity = request.requestedDemandIdentities.single()
-	if (identity.manifestIdentity != null) {
-		return rejected(
-			SourceCallerRejectionReason.AMBIENT_SESSION_CONFUSION,
-			identity.sourcePurpose,
-		)
-	}
-	val availability = currentAuthority.purposeAvailability.ambientSources.getValue(request.source)
-	if (!availability.isOperational) {
-		return SourceCallerGuardResult.Rejected(
-			SourceCallerGuardRejection(
-				reason = SourceCallerRejectionReason.AMBIENT_SOURCE_UNAVAILABLE,
-				source = identity.sourcePurpose.source,
-				purpose = identity.sourcePurpose.purpose,
-				ambientAvailability = availability,
-			),
-		)
-	}
-	validateCurrentAuthority(
-		request.requestedDemandIdentities,
-		currentAuthority.currentDemandIdentities,
-	)?.let { return it }
-
-	return SourceCallerGuardResult.Accepted(
-		AcceptedSourceCallerAuthority(
-			origin = AcceptedSourceCallerOrigin.AMBIENT,
-			purpose = request.purpose,
-			permittedDemandIdentities = request.requestedDemandIdentities,
-		),
-	)
-}
-
-private fun evaluateReplay(
-	request: SourceCallerRequest.Replay,
-	currentAuthority: SourceCallerAuthoritySnapshot,
-	previouslyAcceptedAuthority: AcceptedSourceCallerAuthority?,
-): SourceCallerGuardResult {
-	val accepted = previouslyAcceptedAuthority
-		?: return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_REQUIRED)
-	if (request.purpose != accepted.purpose) {
-		return rejected(SourceCallerRejectionReason.REPLAY_PURPOSE_MISMATCH)
-	}
-	if (request.requestedDemandIdentities != accepted.permittedDemandIdentities) {
-		return rejected(replayMismatchReason(request, accepted))
-	}
-	when (accepted.origin) {
-		AcceptedSourceCallerOrigin.AUTOMATIC -> if (
-			accepted.permittedDemandIdentities.any { identity ->
-				identity.sourcePurpose ==
-					CanonicalTrackingSource.ACTIVITY.forPurpose(CanonicalTrackingPurpose.CONTROL)
-			}
-		) {
-			validateAutomaticControlAvailability(currentAuthority.purposeAvailability)?.let {
-				return it
-			}
-		}
-		AcceptedSourceCallerOrigin.AMBIENT -> {
-			val demand = accepted.permittedDemandIdentities.single()
-			val ambientSource = demand.sourcePurpose.source.toAmbientTrackingSourceOrNull()
-				?: return rejected(
-					SourceCallerRejectionReason.REPLAY_AUTHORITY_MISMATCH,
-					demand.sourcePurpose,
-				)
-			val availability =
-				currentAuthority.purposeAvailability.ambientSources.getValue(ambientSource)
-			if (!availability.isOperational) {
-				return SourceCallerGuardResult.Rejected(
-					SourceCallerGuardRejection(
-						reason = SourceCallerRejectionReason.AMBIENT_SOURCE_UNAVAILABLE,
-						source = demand.sourcePurpose.source,
-						purpose = demand.sourcePurpose.purpose,
-						ambientAvailability = availability,
-					),
-				)
-			}
-		}
-		AcceptedSourceCallerOrigin.MANUAL -> Unit
-	}
-	validateCurrentAuthority(
-		accepted.permittedDemandIdentities,
-		currentAuthority.currentDemandIdentities,
-	)?.let { return it }
-	return SourceCallerGuardResult.Accepted(accepted)
-}
-
-private fun validateDeclaredDemandSet(
-	expectedKeys: Set<CanonicalSourcePurpose>,
-	requestedIdentities: Set<SourceCallerDemandIdentity>,
-): SourceCallerGuardResult.Rejected? {
-	val duplicate = requestedIdentities.groupBy(SourceCallerDemandIdentity::sourcePurpose)
-		.filterValues { identities -> identities.size > 1 }
-		.keys
-		.sortedWith(demandKeyComparator)
-		.firstOrNull()
-	if (duplicate != null) {
-		return rejected(SourceCallerRejectionReason.DUPLICATE_DEMAND_IDENTITY, duplicate)
-	}
-	val requestedKeys = requestedIdentities.map(SourceCallerDemandIdentity::sourcePurpose).toSet()
-	val undeclared = (requestedKeys - expectedKeys).sortedWith(demandKeyComparator).firstOrNull()
-	if (undeclared != null) {
-		return rejected(SourceCallerRejectionReason.UNDECLARED_DEMAND, undeclared)
-	}
-	val missing = (expectedKeys - requestedKeys).sortedWith(demandKeyComparator).firstOrNull()
-	if (missing != null) {
-		return rejected(SourceCallerRejectionReason.MISSING_DEMAND_IDENTITY, missing)
-	}
-	return null
-}
-
-private fun validateAutomaticControlAvailability(
-	availability: TrackingPurposeAvailabilitySnapshot,
-): SourceCallerGuardResult.Rejected? {
-	val automatic = availability.automaticControl
-	if (automatic is AutomaticTrackingOperationalAvailability.Ready) return null
-	return SourceCallerGuardResult.Rejected(
-		SourceCallerGuardRejection(
-			reason = SourceCallerRejectionReason.AUTOMATIC_CONTROL_UNAVAILABLE,
-			source = CanonicalTrackingSource.ACTIVITY,
-			purpose = CanonicalTrackingPurpose.CONTROL,
-			automaticUnavailableReason =
-				(automatic as? AutomaticTrackingOperationalAvailability.Unavailable)?.reason,
-		),
-	)
-}
-
-private fun validateCurrentAuthority(
-	requestedIdentities: Set<SourceCallerDemandIdentity>,
-	currentIdentities: Set<SourceCallerDemandIdentity>,
-): SourceCallerGuardResult.Rejected? {
-	val currentByKey = currentIdentities.associateBy(SourceCallerDemandIdentity::sourcePurpose)
-	requestedIdentities.sortedByDemandKey().forEach { requested ->
-		val current = currentByKey[requested.sourcePurpose]
-			?: return rejected(
-				SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE,
-				requested.sourcePurpose,
-			)
-		if (requested.manifestIdentity != current.manifestIdentity) {
-			return rejected(
-				SourceCallerRejectionReason.STALE_MANIFEST_IDENTITY,
-				requested.sourcePurpose,
-			)
-		}
-		if (requested.sourcePolicyRevision != current.sourcePolicyRevision) {
-			return rejected(
-				SourceCallerRejectionReason.STALE_POLICY_REVISION,
-				requested.sourcePurpose,
-			)
-		}
-		if (requested.consentEpoch != current.consentEpoch) {
-			return rejected(
-				SourceCallerRejectionReason.STALE_CONSENT_EPOCH,
-				requested.sourcePurpose,
-			)
-		}
-		if (requested.collectedDataEpoch != current.collectedDataEpoch) {
-			return rejected(
-				SourceCallerRejectionReason.STALE_COLLECTED_DATA_EPOCH,
-				requested.sourcePurpose,
-			)
-		}
-		if (requested.rolloutRevision != current.rolloutRevision) {
-			return rejected(
-				SourceCallerRejectionReason.STALE_ROLLOUT_REVISION,
-				requested.sourcePurpose,
-			)
-		}
-	}
-	return null
-}
-
-private fun replayMismatchReason(
-	request: SourceCallerRequest.Replay,
-	accepted: AcceptedSourceCallerAuthority,
-): SourceCallerRejectionReason {
-	val acceptedByKey =
-		accepted.permittedDemandIdentities.associateBy(SourceCallerDemandIdentity::sourcePurpose)
-	val requestedByKey =
-		request.requestedDemandIdentities.associateBy(SourceCallerDemandIdentity::sourcePurpose)
-	if ((requestedByKey.keys - acceptedByKey.keys).isNotEmpty()) {
-		return SourceCallerRejectionReason.REPLAY_AUTHORITY_ESCALATION
-	}
-	val upgrades = requestedByKey.any { (key, requested) ->
-		val prior = acceptedByKey.getValue(key)
-		requested.manifestIdentity.isManifestUpgradeFrom(prior.manifestIdentity) ||
-			requested.sourcePolicyRevision > prior.sourcePolicyRevision ||
-			requested.consentEpoch > prior.consentEpoch ||
-			requested.collectedDataEpoch > prior.collectedDataEpoch ||
-			requested.rolloutRevision > prior.rolloutRevision
-	}
-	return if (upgrades) {
-		SourceCallerRejectionReason.REPLAY_AUTHORITY_ESCALATION
-	} else {
-		SourceCallerRejectionReason.REPLAY_AUTHORITY_MISMATCH
-	}
-}
-
-private fun SourceCallerManifestIdentity?.isManifestUpgradeFrom(
-	prior: SourceCallerManifestIdentity?,
-): Boolean = when {
-	prior == null -> this != null
-	this == null -> false
-	logicalTrackingId != prior.logicalTrackingId -> true
-	else -> manifestRevision > prior.manifestRevision
-}
-
-private fun rejected(
-	reason: SourceCallerRejectionReason,
-	demand: CanonicalSourcePurpose? = null,
-	source: CanonicalTrackingSource? = demand?.source,
-	purpose: CanonicalTrackingPurpose? = demand?.purpose,
-): SourceCallerGuardResult.Rejected = SourceCallerGuardResult.Rejected(
-	SourceCallerGuardRejection(
-		reason = reason,
-		source = source,
-		purpose = purpose,
-	),
-)
-
-private val demandKeyComparator =
-	compareBy<CanonicalSourcePurpose>(CanonicalSourcePurpose::source)
-		.thenBy(CanonicalSourcePurpose::purpose)
-
-private fun Set<SourceCallerDemandIdentity>.sortedByDemandKey(): List<SourceCallerDemandIdentity> =
-	sortedWith { left, right ->
-		demandKeyComparator.compare(left.sourcePurpose, right.sourcePurpose)
-	}
-
-private fun CanonicalTrackingSource.toAmbientTrackingSourceOrNull(): AmbientTrackingSource? =
-	AmbientTrackingSource.entries.singleOrNull { ambientSource ->
-		ambientSource.toTrackingSource().toCanonicalTrackingSource() == this
-	}

@@ -38,6 +38,9 @@ import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
+import com.adsamcik.tracker.tracker.api.TrackingPurpose
+import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
+import com.adsamcik.tracker.tracker.api.TrackingSource
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import io.kotest.matchers.shouldBe
 import org.junit.Rule
@@ -70,7 +73,7 @@ class TrackingSettingsScreenTest {
         autoTrackingMode = 1,
         autoTrackingEnabled = true,
 		automaticTrackingOperational = true,
-		automaticControlAvailability = AutomaticTrackingOperationalAvailability.Ready,
+		automaticControlAvailability = readyAutomaticControl(),
         transitionDetectionEnabled = true,
         notificationStyled = true,
         minDistance = 10,
@@ -85,6 +88,30 @@ class TrackingSettingsScreenTest {
         composeTestRule.onNodeWithTag("trackingSettingsList")
             .performScrollToNode(hasText(text, substring = true))
     }
+
+	private fun readyAutomaticControl() = AutomaticTrackingOperationalAvailability.Ready(
+		TrackingPurposeLeaseIdentity(
+			source = TrackingSource.ACTIVITY,
+			purpose = TrackingPurpose.CONTROL,
+			policyRevision = 1L,
+			consentEpoch = 1L,
+			collectedDataEpoch = 0L,
+			rolloutRevision = 0L,
+			executionRevision = 1L,
+			ownerCasToken = "settings-screen-test",
+		),
+	)
+
+	private fun ambientPurposeIdentity(source: AmbientTrackingSource) =
+		TrackingPurposeLeaseIdentity(
+			sourcePurpose = source.canonicalSource.forPurpose(TrackingPurpose.AMBIENT_PRODUCT),
+			policyRevision = 1L,
+			consentEpoch = 1L,
+			collectedDataEpoch = 0L,
+			rolloutRevision = 0L,
+			executionRevision = 1L,
+			ownerCasToken = "${source.name.lowercase()}-settings-test",
+		)
 
     @Test
     fun displaysPresetSelector() {
@@ -430,6 +457,7 @@ class TrackingSettingsScreenTest {
 					source = AmbientTrackingSource.STEPS,
 					state = AmbientSourceOperationalState.READY,
 					mechanism = AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+					operationalIdentity = ambientPurposeIdentity(AmbientTrackingSource.STEPS),
 				)
 			)
 		composeTestRule.setContent {
@@ -461,6 +489,7 @@ class TrackingSettingsScreenTest {
 					reason =
 						AmbientSourceUnavailableReason
 							.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
+					operationalIdentity = ambientPurposeIdentity(AmbientTrackingSource.STEPS),
 				)
 			)
 		composeTestRule.setContent {

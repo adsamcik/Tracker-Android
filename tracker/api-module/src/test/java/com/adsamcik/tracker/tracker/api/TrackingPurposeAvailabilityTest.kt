@@ -82,6 +82,7 @@ class TrackingPurposeAvailabilityTest {
 				mechanism = AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
 				reason =
 					AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
+				operationalIdentity = purposeIdentity(AmbientTrackingSource.STEPS),
 			),
 			permission(
 				AmbientTrackingSource.STEPS,
@@ -159,6 +160,56 @@ class TrackingPurposeAvailabilityTest {
 	}
 
 	@Test
+	fun `operational readiness requires exact bound authority while non-ready retains history only`() {
+		val ambientIdentity = purposeIdentity(AmbientTrackingSource.WIFI)
+		val ready = ready(
+			AmbientTrackingSource.WIFI,
+			AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS,
+			ambientIdentity,
+		)
+		ready.operationalIdentity shouldBe ambientIdentity
+		ready.lastIdentity shouldBe null
+
+		val unavailable = AmbientSourceOperationalAvailability(
+			source = AmbientTrackingSource.WIFI,
+			state = AmbientSourceOperationalState.UNAVAILABLE,
+			reason = AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+			lastIdentity = ambientIdentity,
+		)
+		unavailable.isOperational.shouldBeFalse()
+		unavailable.operationalIdentity shouldBe null
+		unavailable.lastIdentity shouldBe ambientIdentity
+
+		val automaticIdentity = TrackingPurposeLeaseIdentity(
+			source = TrackingSource.ACTIVITY,
+			purpose = TrackingPurpose.CONTROL,
+			policyRevision = 1L,
+			consentEpoch = 1L,
+			collectedDataEpoch = 0L,
+			rolloutRevision = 0L,
+			executionRevision = 1L,
+			ownerCasToken = "bound-control",
+		)
+		val automaticReady = AutomaticTrackingOperationalAvailability.Ready(automaticIdentity)
+		automaticReady.authorityIdentityOrNull shouldBe automaticIdentity
+		AutomaticTrackingOperationalAvailability.Unavailable(
+			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+			lastIdentity = automaticIdentity,
+		).authorityIdentityOrNull shouldBe null
+
+		shouldThrow<IllegalArgumentException> {
+			AutomaticTrackingOperationalAvailability.Ready(
+				automaticIdentity.copy(executionRevision = 0L),
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			AutomaticTrackingOperationalAvailability.Ready(
+				ambientIdentity,
+			)
+		}
+	}
+
+	@Test
 	fun `first report is accepted and the same terminal token cannot publish twice`() {
 		val store = AtomicTrackingPurposeAvailabilityStore()
 		val old = identity(policy = 10L, consent = 3L, rollout = 4L, token = "lease-old")
@@ -167,6 +218,7 @@ class TrackingPurposeAvailabilityTest {
 			availability = ready(
 				AmbientTrackingSource.STEPS,
 				AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+				old.purposeLeaseIdentity,
 			),
 		)
 		store.beginOrReplaceAmbientLease(old).shouldBeInstanceOf<AmbientLeaseStartResult.Started>()
@@ -207,6 +259,7 @@ class TrackingPurposeAvailabilityTest {
 			availability = ready(
 				AmbientTrackingSource.STEPS,
 				AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+				current.purposeLeaseIdentity,
 			),
 		)
 		store.beginOrReplaceAmbientLease(current)
@@ -236,6 +289,7 @@ class TrackingPurposeAvailabilityTest {
 			availability = ready(
 				AmbientTrackingSource.STEPS,
 				AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+				old.purposeLeaseIdentity,
 			),
 		)
 		store.beginOrReplaceAmbientLease(old).shouldBeInstanceOf<AmbientLeaseStartResult.Started>()
@@ -247,7 +301,7 @@ class TrackingPurposeAvailabilityTest {
 				ownerCasToken = "lease-regrant",
 			),
 			old.copy(rolloutRevision = 5L, ownerCasToken = "lease-rollout"),
-			old.copy(executionRevision = 6L, ownerCasToken = "lease-execution"),
+			old.copy(executionRevision = 7L, ownerCasToken = "lease-execution"),
 			old.copy(collectedDataEpoch = 3L, ownerCasToken = "lease-data"),
 			old.copy(ownerCasToken = "lease-new"),
 		).forEach { replacement ->
@@ -289,12 +343,29 @@ class TrackingPurposeAvailabilityTest {
 	}
 
 	@Test
+	fun `same-source ready report cannot substitute a different authority vector`() {
+		val identity = identity(policy = 10L, consent = 3L, rollout = 4L, token = "lease-source")
+
+		shouldThrow<IllegalArgumentException> {
+			AmbientSourceReconciliationReport(
+				identity = identity,
+				availability = ready(
+					AmbientTrackingSource.STEPS,
+					AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+					identity.copy(policyRevision = 11L).purposeLeaseIdentity,
+				),
+			)
+		}
+	}
+
+	@Test
 	fun `operational status without an issued lease grants no publication authority`() {
 		val store = AtomicTrackingPurposeAvailabilityStore()
 		val identity = identity(policy = 10L, consent = 3L, rollout = 4L, token = "lease-unissued")
 		val ready = ready(
 			AmbientTrackingSource.STEPS,
 			AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+			identity.purposeLeaseIdentity,
 		)
 
 		store.tryAccept(
@@ -318,6 +389,7 @@ class TrackingPurposeAvailabilityTest {
 				availability = ready(
 					AmbientTrackingSource.STEPS,
 					AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+					old.purposeLeaseIdentity,
 				),
 			),
 		).shouldBeInstanceOf<AmbientPublicationAcceptance.Accepted>()
@@ -326,13 +398,17 @@ class TrackingPurposeAvailabilityTest {
 			.shouldBeInstanceOf<AmbientLeaseStartResult.Started>()
 
 		started.snapshot.ambientSources.getValue(AmbientTrackingSource.STEPS) shouldBe
-			AmbientSourceOperationalAvailability.reconciliationPending(AmbientTrackingSource.STEPS)
+			AmbientSourceOperationalAvailability.reconciliationPending(
+				AmbientTrackingSource.STEPS,
+				old.purposeLeaseIdentity,
+			)
 		store.tryAccept(
 			AmbientSourceReconciliationReport(
 				identity = old,
 				availability = ready(
 					AmbientTrackingSource.STEPS,
 					AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+					old.purposeLeaseIdentity,
 				),
 			),
 		) shouldBe AmbientPublicationAcceptance.Rejected(
@@ -352,6 +428,7 @@ class TrackingPurposeAvailabilityTest {
 				availability = ready(
 					AmbientTrackingSource.STEPS,
 					AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+					identity.purposeLeaseIdentity,
 				),
 			),
 		).shouldBeInstanceOf<AmbientPublicationAcceptance.Accepted>()
@@ -366,6 +443,7 @@ class TrackingPurposeAvailabilityTest {
 				availability = ready(
 					AmbientTrackingSource.STEPS,
 					AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+					identity.purposeLeaseIdentity,
 				),
 			),
 		) shouldBe AmbientPublicationAcceptance.Rejected(
@@ -376,10 +454,12 @@ class TrackingPurposeAvailabilityTest {
 	private fun ready(
 		source: AmbientTrackingSource,
 		mechanism: AmbientAcquisitionMechanism,
+		identity: TrackingPurposeLeaseIdentity = purposeIdentity(source),
 	) = AmbientSourceOperationalAvailability(
 		source = source,
 		state = AmbientSourceOperationalState.READY,
 		mechanism = mechanism,
+		operationalIdentity = identity,
 	)
 
 	private fun permission(
@@ -405,5 +485,16 @@ class TrackingPurposeAvailabilityTest {
 		collectedDataEpoch = 2L,
 		rolloutRevision = rollout,
 		ownerCasToken = token,
+		executionRevision = 6L,
+	)
+
+	private fun purposeIdentity(source: AmbientTrackingSource) = TrackingPurposeLeaseIdentity(
+		sourcePurpose = source.canonicalSource.forPurpose(TrackingPurpose.AMBIENT_PRODUCT),
+		policyRevision = 1L,
+		consentEpoch = 1L,
+		collectedDataEpoch = 0L,
+		rolloutRevision = 0L,
+		executionRevision = 1L,
+		ownerCasToken = "${source.name.lowercase()}-owner",
 	)
 }

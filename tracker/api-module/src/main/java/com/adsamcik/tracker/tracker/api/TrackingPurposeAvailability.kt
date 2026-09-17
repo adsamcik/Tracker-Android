@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.api
 
+import com.adsamcik.tracker.shared.model.tracking.TrackingSource as CanonicalTrackingSource
+import com.adsamcik.tracker.shared.model.tracking.TrackingSourcePurposeIdentity as CanonicalSourcePurpose
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,21 +21,44 @@ enum class AutomaticTrackingUnavailableReason(
 }
 
 sealed interface AutomaticTrackingOperationalAvailability {
-	data object Ready : AutomaticTrackingOperationalAvailability
+	data class Ready(
+		val identity: TrackingPurposeLeaseIdentity,
+	) : AutomaticTrackingOperationalAvailability {
+		init {
+			require(identity.source == CanonicalTrackingSource.ACTIVITY)
+			require(identity.purpose == TrackingPurpose.CONTROL)
+			require(identity.executionRevision > 0L) {
+				"Operational automatic CONTROL requires a bound execution revision"
+			}
+		}
+	}
 
 	data class Unavailable(
 		val reason: AutomaticTrackingUnavailableReason,
-	) : AutomaticTrackingOperationalAvailability
+		val lastIdentity: TrackingPurposeLeaseIdentity? = null,
+	) : AutomaticTrackingOperationalAvailability {
+		init {
+			lastIdentity?.let { identity ->
+				require(identity.source == CanonicalTrackingSource.ACTIVITY)
+				require(identity.purpose == TrackingPurpose.CONTROL)
+			}
+		}
+	}
 
 	val isOperational: Boolean
 		get() = this is Ready
+
+	val authorityIdentityOrNull: TrackingPurposeLeaseIdentity?
+		get() = (this as? Ready)?.identity
 }
 
-enum class AmbientTrackingSource {
-	STEPS,
-	LOCATION,
-	WIFI,
-	CELL,
+enum class AmbientTrackingSource(
+	val canonicalSource: CanonicalTrackingSource,
+) {
+	STEPS(CanonicalTrackingSource.STEPS),
+	LOCATION(CanonicalTrackingSource.LOCATION),
+	WIFI(CanonicalTrackingSource.WIFI),
+	CELL(CanonicalTrackingSource.CELL),
 }
 
 enum class AmbientSourceOperationalState {
@@ -81,41 +106,73 @@ data class AmbientSourceOperationalAvailability(
 	val state: AmbientSourceOperationalState,
 	val mechanism: AmbientAcquisitionMechanism? = null,
 	val reason: AmbientSourceUnavailableReason? = null,
+	val operationalIdentity: TrackingPurposeLeaseIdentity? = null,
+	val lastIdentity: TrackingPurposeLeaseIdentity? = null,
 ) {
 	init {
 		require(mechanism == null || mechanism in source.allowedMechanisms()) {
 			"$mechanism is not an acquisition mechanism for $source"
 		}
+		operationalIdentity?.requireAmbientIdentity(source)
+		lastIdentity?.requireAmbientIdentity(source)
 		when (state) {
 			AmbientSourceOperationalState.READY -> {
 				require(mechanism != null) { "Ready ambient availability requires a mechanism" }
 				require(reason == null) { "Ready ambient availability must not carry a reason" }
+				require(operationalIdentity != null) {
+					"Ready ambient availability requires exact authority identity"
+				}
+				require(operationalIdentity.executionRevision > 0L) {
+					"Ready ambient availability requires a bound execution revision"
+				}
+				require(lastIdentity == null) {
+					"Ready ambient availability cannot also carry a last non-operational identity"
+				}
 			}
-			AmbientSourceOperationalState.DEGRADED -> require(
-				source == AmbientTrackingSource.STEPS &&
-					mechanism == AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS &&
-					reason ==
-					AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
-			) {
-				"Only Health Connect Steps may be operational with optional background-read gaps"
+			AmbientSourceOperationalState.DEGRADED -> {
+				require(
+					source == AmbientTrackingSource.STEPS &&
+						mechanism == AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS &&
+						reason ==
+						AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
+				) {
+					"Only Health Connect Steps may be operational with optional background-read gaps"
+				}
+				require(operationalIdentity != null && operationalIdentity.executionRevision > 0L) {
+					"Degraded operational ambient availability requires exact bound authority"
+				}
+				require(lastIdentity == null)
 			}
-			AmbientSourceOperationalState.WAITING -> require(
-				mechanism == null &&
-					reason == AmbientSourceUnavailableReason.RECONCILIATION_PENDING,
-			) {
-				"Waiting availability must be a provider-neutral pending reconciliation"
+			AmbientSourceOperationalState.WAITING -> {
+				require(
+					mechanism == null &&
+						reason == AmbientSourceUnavailableReason.RECONCILIATION_PENDING,
+				) {
+					"Waiting availability must be a provider-neutral pending reconciliation"
+				}
+				require(operationalIdentity == null) {
+					"Waiting ambient availability cannot grant authority"
+				}
 			}
-			AmbientSourceOperationalState.PERMISSION_REQUIRED -> require(
-				mechanism != null && reason == source.permissionReason(mechanism),
-			) {
-				"Permission remediation must match the source and selected mechanism"
+			AmbientSourceOperationalState.PERMISSION_REQUIRED -> {
+				require(mechanism != null && reason == source.permissionReason(mechanism)) {
+					"Permission remediation must match the source and selected mechanism"
+				}
+				require(operationalIdentity == null) {
+					"Permission-required ambient availability cannot grant authority"
+				}
 			}
-			AmbientSourceOperationalState.UNAVAILABLE -> require(
-				mechanism == null &&
-					reason != null &&
-					reason in source.unavailableReasons(),
-			) {
-				"Unavailable reason must match the source and must not imply an operational provider"
+			AmbientSourceOperationalState.UNAVAILABLE -> {
+				require(
+					mechanism == null &&
+						reason != null &&
+						reason in source.unavailableReasons(),
+				) {
+					"Unavailable reason must match the source and must not imply an operational provider"
+				}
+				require(operationalIdentity == null) {
+					"Unavailable ambient availability cannot grant authority"
+				}
 			}
 		}
 	}
@@ -127,10 +184,12 @@ data class AmbientSourceOperationalAvailability(
 	companion object {
 		fun reconciliationPending(
 			source: AmbientTrackingSource,
+			lastIdentity: TrackingPurposeLeaseIdentity? = null,
 		): AmbientSourceOperationalAvailability = AmbientSourceOperationalAvailability(
 			source = source,
 			state = AmbientSourceOperationalState.WAITING,
 			reason = AmbientSourceUnavailableReason.RECONCILIATION_PENDING,
+			lastIdentity = lastIdentity,
 		)
 	}
 }
@@ -213,8 +272,8 @@ data class AmbientReconciliationIdentity(
 		require(executionRevision >= 0L)
 	}
 
-	val sourcePurpose: TrackingSourcePurposeIdentity
-		get() = source.toTrackingSource().forPurpose(TrackingPurpose.AMBIENT_PRODUCT)
+	val sourcePurpose: CanonicalSourcePurpose
+		get() = source.canonicalSource.forPurpose(TrackingPurpose.AMBIENT_PRODUCT)
 
 	val purposeLeaseIdentity: TrackingPurposeLeaseIdentity
 		get() = TrackingPurposeLeaseIdentity(
@@ -233,7 +292,9 @@ data class AmbientReconciliationIdentity(
 				"Ambient reconciliation requires AMBIENT_PRODUCT purpose"
 			}
 			return AmbientReconciliationIdentity(
-				source = identity.source.toAmbientTrackingSource(),
+				source = AmbientTrackingSource.entries.single { source ->
+					source.canonicalSource == identity.source
+				},
 				policyRevision = identity.policyRevision,
 				consentEpoch = identity.consentEpoch,
 				collectedDataEpoch = identity.collectedDataEpoch,
@@ -260,6 +321,19 @@ data class AmbientSourceReconciliationReport(
 		require(identity.source == availability.source)
 		require(availability.state != AmbientSourceOperationalState.WAITING) {
 			"A completed reconciliation cannot publish the pre-reconciliation waiting state"
+		}
+		if (availability.isOperational) {
+			require(availability.operationalIdentity == identity.purposeLeaseIdentity) {
+				"Operational ambient publication must carry the exact reconciliation identity"
+			}
+		} else {
+			require(availability.operationalIdentity == null)
+			require(
+				availability.lastIdentity == null ||
+					availability.lastIdentity == identity.purposeLeaseIdentity,
+			) {
+				"Non-operational ambient publication may retain only its exact last identity"
+			}
 		}
 	}
 }
@@ -369,11 +443,15 @@ class AtomicTrackingPurposeAvailabilityStore :
 				},
 			)
 		}
+		val priorAvailability = mutableAvailability.value.ambientSources.getValue(identity.source)
 		ambientSlots[identity.source] = AmbientPublicationSlot(
 			identity = identity,
 			state = AmbientPublicationSlotState.ACTIVE,
 		)
-		publishPending(identity.source)
+		publishPending(
+			identity.source,
+			priorAvailability.operationalIdentity ?: priorAvailability.lastIdentity,
+		)
 		AmbientLeaseStartResult.Started(
 			lease = AmbientReconciliationLease(identity),
 			snapshot = mutableAvailability.value,
@@ -407,7 +485,12 @@ class AtomicTrackingPurposeAvailabilityStore :
 			state = AmbientPublicationSlotState.CANCELLED,
 		)
 		terminalTokens[expectedIdentity.leaseToken()] = AmbientPublicationRejection.CANCELLED
-		publishPending(expectedIdentity.source)
+		val priorAvailability =
+			mutableAvailability.value.ambientSources.getValue(expectedIdentity.source)
+		publishPending(
+			expectedIdentity.source,
+			priorAvailability.operationalIdentity ?: priorAvailability.lastIdentity,
+		)
 		AmbientPublicationAcceptance.Accepted(mutableAvailability.value)
 	}
 
@@ -441,10 +524,18 @@ class AtomicTrackingPurposeAvailabilityStore :
 		}
 	}
 
-	private fun publishPending(source: AmbientTrackingSource) {
+	private fun publishPending(
+		source: AmbientTrackingSource,
+		lastIdentity: TrackingPurposeLeaseIdentity?,
+	) {
 		mutableAvailability.value = mutableAvailability.value.copy(
 			ambientSources = mutableAvailability.value.ambientSources +
-				(source to AmbientSourceOperationalAvailability.reconciliationPending(source)),
+				(
+					source to AmbientSourceOperationalAvailability.reconciliationPending(
+						source,
+						lastIdentity,
+					)
+				),
 		)
 	}
 }
@@ -462,22 +553,13 @@ private data class AmbientLeaseToken(
 private fun AmbientReconciliationIdentity.leaseToken(): AmbientLeaseToken =
 	AmbientLeaseToken(source, ownerCasToken)
 
-fun AmbientTrackingSource.toTrackingSource(): TrackingSource = when (this) {
-	AmbientTrackingSource.STEPS -> TrackingSource.STEPS
-	AmbientTrackingSource.LOCATION -> TrackingSource.LOCATION
-	AmbientTrackingSource.WIFI -> TrackingSource.WIFI
-	AmbientTrackingSource.CELL -> TrackingSource.CELL
+private fun TrackingPurposeLeaseIdentity.requireAmbientIdentity(source: AmbientTrackingSource) {
+	require(this.source == source.canonicalSource)
+	require(purpose == TrackingPurpose.AMBIENT_PRODUCT)
 }
 
-private fun TrackingSource.toAmbientTrackingSource(): AmbientTrackingSource = when (this) {
-	TrackingSource.STEPS -> AmbientTrackingSource.STEPS
-	TrackingSource.LOCATION -> AmbientTrackingSource.LOCATION
-	TrackingSource.WIFI -> AmbientTrackingSource.WIFI
-	TrackingSource.CELL -> AmbientTrackingSource.CELL
-	TrackingSource.ACTIVITY,
-	TrackingSource.PRESSURE,
-	-> throw IllegalArgumentException("$this is not an approved ambient source")
-}
+internal fun AmbientTrackingSource.toTrackingSource(): TrackingSource =
+	canonicalSource.toApiTrackingSource()
 
 private enum class AmbientPublicationSlotState {
 	ACTIVE,

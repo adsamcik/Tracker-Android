@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.tracker.source.ambient
 
-import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalState
@@ -124,7 +123,11 @@ internal fun prepareAmbientRadioReport(
 		)
 	}
 	if (availability.isOperational &&
-		(evidence.executionGeneration == null || evidence.providerKey == null)
+		(
+			evidence.executionGeneration == null ||
+				evidence.providerKey == null ||
+				lease.identity.executionRevision != evidence.executionGeneration
+			)
 	) {
 		return AmbientRadioReportPreparation.Rejected(
 			evidence,
@@ -137,15 +140,19 @@ internal fun prepareAmbientRadioReport(
 			AmbientRadioReportPreparationRejection.NOT_RECONCILED,
 		)
 	}
+	if (
+		availability.operationalIdentity != null &&
+		availability.operationalIdentity != lease.purposeLeaseIdentity ||
+		availability.lastIdentity != null &&
+		availability.lastIdentity != lease.purposeLeaseIdentity
+	) {
+		return AmbientRadioReportPreparation.Rejected(
+			evidence,
+			AmbientRadioReportPreparationRejection.STALE_AUTHORITY,
+		)
+	}
 	val report = AmbientSourceReconciliationReport(
-		identity = AmbientReconciliationIdentity(
-			source = evidence.source,
-			policyRevision = actualPolicyRevision,
-			consentEpoch = actualConsentEpoch,
-			collectedDataEpoch = actualCollectedDataEpoch,
-			rolloutRevision = evidence.rolloutRevision,
-			ownerCasToken = lease.identity.ownerCasToken,
-		),
+		identity = lease.identity,
 		availability = availability,
 	)
 	val result = if (availability.isOperational) {

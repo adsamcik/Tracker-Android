@@ -3,35 +3,19 @@ package com.adsamcik.tracker.tracker.api
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource as CanonicalTrackingSource
 import com.adsamcik.tracker.shared.model.tracking.TrackingSourcePurposeIdentity as CanonicalIdentity
 
-/** Common source identity without replacing the existing public session-capture enum. */
+/** Legacy session-capture source alias retained only at the existing API compatibility boundary. */
 typealias TrackingSource = TrackingCaptureSource
 
 typealias TrackingPurpose =
 	com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 
-data class TrackingSourcePurposeIdentity(
-	val source: TrackingSource,
-	val purpose: TrackingPurpose,
-) {
-	val canonicalIdentity: CanonicalIdentity =
-		CanonicalIdentity(source.toCanonicalTrackingSource(), purpose)
-
-	companion object {
-		fun from(identity: CanonicalIdentity): TrackingSourcePurposeIdentity =
-			TrackingSourcePurposeIdentity(
-				source = identity.source.toApiTrackingSource(),
-				purpose = identity.purpose,
-			)
-	}
-}
-
-fun TrackingSource.supportsPurpose(purpose: TrackingPurpose): Boolean =
+internal fun TrackingSource.supportsPurpose(purpose: TrackingPurpose): Boolean =
 	toCanonicalTrackingSource().supports(purpose)
 
-fun TrackingSource.forPurpose(purpose: TrackingPurpose): TrackingSourcePurposeIdentity =
-	TrackingSourcePurposeIdentity(this, purpose)
+internal fun TrackingSource.forPurpose(purpose: TrackingPurpose): CanonicalIdentity =
+	toCanonicalTrackingSource().forPurpose(purpose)
 
-fun TrackingSource.toCanonicalTrackingSource(): CanonicalTrackingSource = when (this) {
+internal fun TrackingSource.toCanonicalTrackingSource(): CanonicalTrackingSource = when (this) {
 	TrackingSource.LOCATION -> CanonicalTrackingSource.LOCATION
 	TrackingSource.WIFI -> CanonicalTrackingSource.WIFI
 	TrackingSource.CELL -> CanonicalTrackingSource.CELL
@@ -40,7 +24,7 @@ fun TrackingSource.toCanonicalTrackingSource(): CanonicalTrackingSource = when (
 	TrackingSource.PRESSURE -> CanonicalTrackingSource.PRESSURE
 }
 
-fun CanonicalTrackingSource.toApiTrackingSource(): TrackingSource = when (this) {
+internal fun CanonicalTrackingSource.toApiTrackingSource(): TrackingSource = when (this) {
 	CanonicalTrackingSource.LOCATION -> TrackingSource.LOCATION
 	CanonicalTrackingSource.ACTIVITY -> TrackingSource.ACTIVITY
 	CanonicalTrackingSource.STEPS -> TrackingSource.STEPS
@@ -50,7 +34,7 @@ fun CanonicalTrackingSource.toApiTrackingSource(): TrackingSource = when (this) 
 }
 
 data class TrackingPurposeLeaseIdentity(
-	val sourcePurpose: TrackingSourcePurposeIdentity,
+	val sourcePurpose: CanonicalIdentity,
 	val policyRevision: Long,
 	val consentEpoch: Long,
 	val collectedDataEpoch: Long,
@@ -59,6 +43,25 @@ data class TrackingPurposeLeaseIdentity(
 	val executionRevision: Long,
 	val ownerCasToken: String,
 ) {
+	constructor(
+		source: TrackingSource,
+		purpose: TrackingPurpose,
+		policyRevision: Long,
+		consentEpoch: Long,
+		collectedDataEpoch: Long,
+		rolloutRevision: Long,
+		executionRevision: Long,
+		ownerCasToken: String,
+	) : this(
+		sourcePurpose = source.forPurpose(purpose),
+		policyRevision = policyRevision,
+		consentEpoch = consentEpoch,
+		collectedDataEpoch = collectedDataEpoch,
+		rolloutRevision = rolloutRevision,
+		executionRevision = executionRevision,
+		ownerCasToken = ownerCasToken,
+	)
+
 	init {
 		require(policyRevision > 0L)
 		require(consentEpoch > 0L)
@@ -68,7 +71,7 @@ data class TrackingPurposeLeaseIdentity(
 		require(ownerCasToken.isNotBlank())
 	}
 
-	val source: TrackingSource
+	val source: CanonicalTrackingSource
 		get() = sourcePurpose.source
 
 	val purpose: TrackingPurpose

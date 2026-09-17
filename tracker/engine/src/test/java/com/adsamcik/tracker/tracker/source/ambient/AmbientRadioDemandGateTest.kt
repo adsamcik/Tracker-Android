@@ -168,6 +168,7 @@ class AmbientRadioDemandGateTest {
 							source = AmbientTrackingSource.WIFI,
 							state = AmbientSourceOperationalState.UNAVAILABLE,
 							reason = AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+							lastIdentity = lease.purposeLeaseIdentity,
 						),
 					),
 				),
@@ -422,6 +423,7 @@ class AmbientRadioDemandGateTest {
 							source = AmbientTrackingSource.WIFI,
 							state = AmbientSourceOperationalState.READY,
 							mechanism = AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS,
+							operationalIdentity = lease.purposeLeaseIdentity,
 						),
 					),
 				),
@@ -458,6 +460,7 @@ class AmbientRadioDemandGateTest {
 					source = AmbientTrackingSource.CELL,
 					state = AmbientSourceOperationalState.READY,
 					mechanism = AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS,
+					operationalIdentity = currentLease.purposeLeaseIdentity,
 				),
 			),
 		)
@@ -488,6 +491,7 @@ class AmbientRadioDemandGateTest {
 			collectedDataEpoch = 2L,
 			rolloutRevision = 4L,
 			ownerCasToken = "owner-cas-1",
+			executionRevision = 1L,
 		),
 	)
 

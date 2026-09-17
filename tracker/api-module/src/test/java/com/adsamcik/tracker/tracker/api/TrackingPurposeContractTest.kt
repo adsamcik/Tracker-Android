@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.api
 
+import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose as CanonicalTrackingPurpose
+import com.adsamcik.tracker.shared.model.tracking.TrackingSource as CanonicalTrackingSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -29,6 +31,17 @@ class TrackingPurposeContractTest {
 		shouldThrow<IllegalArgumentException> {
 			TrackingSource.PRESSURE.forPurpose(TrackingPurpose.AMBIENT_PRODUCT)
 		}
+		TrackingSource.entries.forEach { legacySource ->
+			val canonicalSource = legacySource.toCanonicalTrackingSource()
+			canonicalSource.toApiTrackingSource() shouldBe legacySource
+			TrackingPurpose.entries.forEach { purpose ->
+				legacySource.supportsPurpose(purpose) shouldBe canonicalSource.supports(purpose)
+				if (canonicalSource.supports(purpose)) {
+					legacySource.forPurpose(purpose) shouldBe
+						canonicalSource.forPurpose(purpose)
+				}
+			}
+		}
 	}
 
 	@Test
@@ -48,6 +61,23 @@ class TrackingPurposeContractTest {
 		ambient.source shouldBe AmbientTrackingSource.WIFI
 		ambient.purposeLeaseIdentity shouldBe common
 		AmbientReconciliationLease(ambient).purposeLeaseIdentity shouldBe common
+	}
+
+	@Test
+	fun `legacy source constructor converts immediately to canonical lease identity`() {
+		val identity = TrackingPurposeLeaseIdentity(
+			source = TrackingSource.ACTIVITY,
+			purpose = TrackingPurpose.CONTROL,
+			policyRevision = 3L,
+			consentEpoch = 4L,
+			collectedDataEpoch = 5L,
+			rolloutRevision = 6L,
+			executionRevision = 7L,
+			ownerCasToken = "legacy-boundary",
+		)
+
+		identity.sourcePurpose shouldBe
+			CanonicalTrackingSource.ACTIVITY.forPurpose(CanonicalTrackingPurpose.CONTROL)
 	}
 
 	@Test
@@ -127,6 +157,16 @@ class TrackingPurposeContractTest {
 			.grantsAuthority shouldBe false
 		TrackingDecisionContainmentReason.entries.forEach { reason ->
 			reason.grantsAuthority shouldBe false
+		}
+	}
+
+	@Test
+	fun `unknown canonical source and purpose codes fail closed`() {
+		shouldThrow<IllegalArgumentException> {
+			CanonicalTrackingSource.fromStableCode(Int.MIN_VALUE)
+		}
+		shouldThrow<IllegalArgumentException> {
+			CanonicalTrackingPurpose.fromStableName("UNKNOWN")
 		}
 	}
 

@@ -10,6 +10,9 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
+import com.adsamcik.tracker.tracker.api.TrackingPurpose
+import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
+import com.adsamcik.tracker.tracker.api.TrackingSource
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
 import io.kotest.assertions.throwables.shouldThrow
@@ -42,7 +45,7 @@ class AutomaticStartTransitionMonitorTest {
 			useTransitionApi = false,
 			continuousIntervalSeconds = 5,
 			transitions = setOf(walkingEnter()),
-			controlAvailability = AutomaticTrackingOperationalAvailability.Ready,
+			controlAvailability = readyAutomaticControl(),
 		)
 
 		coVerify(exactly = 1) {
@@ -75,7 +78,7 @@ class AutomaticStartTransitionMonitorTest {
 			useTransitionApi = true,
 			continuousIntervalSeconds = 30,
 			transitions = emptySet(),
-			controlAvailability = AutomaticTrackingOperationalAvailability.Ready,
+			controlAvailability = readyAutomaticControl(),
 		)
 
 		coVerify(exactly = 1) {
@@ -143,7 +146,7 @@ class AutomaticStartTransitionMonitorTest {
 			useTransitionApi = true,
 			continuousIntervalSeconds = 30,
 			transitions = setOf(walkingEnter()),
-			controlAvailability = AutomaticTrackingOperationalAvailability.Ready,
+			controlAvailability = readyAutomaticControl(),
 		)
 
 		coVerify(exactly = 1) { arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR) }
@@ -165,7 +168,7 @@ class AutomaticStartTransitionMonitorTest {
 			useTransitionApi = true,
 			continuousIntervalSeconds = 30,
 			transitions = setOf(transition),
-			controlAvailability = AutomaticTrackingOperationalAvailability.Ready,
+			controlAvailability = readyAutomaticControl(),
 		)
 
 		coVerifyOrder {
@@ -200,7 +203,7 @@ class AutomaticStartTransitionMonitorTest {
 				useTransitionApi = true,
 				continuousIntervalSeconds = 30,
 				transitions = setOf(walkingEnter()),
-				controlAvailability = AutomaticTrackingOperationalAvailability.Ready,
+				controlAvailability = readyAutomaticControl(),
 			)
 		}
 
@@ -224,6 +227,19 @@ class AutomaticStartTransitionMonitorTest {
 			owners = emptySet(),
 			continuousRecognitionIntervalSeconds = null,
 			transitions = emptySet(),
+		),
+	)
+
+	private fun readyAutomaticControl() = AutomaticTrackingOperationalAvailability.Ready(
+		TrackingPurposeLeaseIdentity(
+			source = TrackingSource.ACTIVITY,
+			purpose = TrackingPurpose.CONTROL,
+			policyRevision = 1L,
+			consentEpoch = 1L,
+			collectedDataEpoch = 0L,
+			rolloutRevision = 0L,
+			executionRevision = 1L,
+			ownerCasToken = "transition-monitor-test",
 		),
 	)
 }
