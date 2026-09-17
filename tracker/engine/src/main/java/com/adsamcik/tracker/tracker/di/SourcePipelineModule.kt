@@ -21,8 +21,6 @@ import com.adsamcik.tracker.tracker.source.coordinator.RoomSourceProductDrainRou
 import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainRouter
 import com.adsamcik.tracker.tracker.source.coordinator.LegacySourceWriterTransitionBoundary
 import com.adsamcik.tracker.tracker.source.coordinator.PersistenceLegacySourceWriterTransitionBoundary
-import com.adsamcik.tracker.tracker.source.coordinator.SourceWriterRearmAuthority
-import com.adsamcik.tracker.tracker.source.coordinator.UnavailableSourceWriterRearmAuthority
 import com.adsamcik.tracker.tracker.source.coordinator.MonotonicRearmSourceWriterSupport
 import dagger.Module
 import dagger.Provides
@@ -92,12 +90,6 @@ object SourcePipelineModule {
 	internal fun provideLegacySourceWriterTransitionBoundary(
 		boundary: PersistenceLegacySourceWriterTransitionBoundary,
 	): LegacySourceWriterTransitionBoundary = boundary
-
-	@Provides
-	@Singleton
-	fun provideSourceWriterRearmAuthority(
-		unavailable: UnavailableSourceWriterRearmAuthority,
-	): SourceWriterRearmAuthority = unavailable
 }
 
 @Module

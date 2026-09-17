@@ -24,6 +24,13 @@ object SourceWriterGenerationContract {
 		return Math.addExact(bindingGeneration, 1L)
 	}
 
+	fun nextBindingGenerationForContainedOwner(containedOwnerGeneration: Long): Long? =
+		bindingGenerationForContainedOwner(containedOwnerGeneration)?.let { currentBinding ->
+			nextBindingGeneration(currentBinding).also { nextBinding ->
+				canonicalOwnerGeneration(nextBinding)
+			}
+		}
+
 	fun nextCanonicalOwnerGeneration(containedOwnerGeneration: Long): Long {
 		require(containedOwnerGeneration > 0L && containedOwnerGeneration % 2L == 1L)
 		return Math.addExact(containedOwnerGeneration, 1L)

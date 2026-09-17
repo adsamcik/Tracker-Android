@@ -5,7 +5,12 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterCanonicalActivation
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterCompletedFullDeletion
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterDestinationOwner
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationBinding
 import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterRearmAuthorityInput
 import com.adsamcik.tracker.shared.base.database.liveSourceProjectionActivationOrdinal
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
@@ -121,6 +126,11 @@ class PressureSessionFactWriterTransitionCoordinator @Inject internal constructo
 	)
 
 	suspend fun rearmAfterFullDeletion(updatedAtMs: Long) = engine.rearmAfterFullDeletion(updatedAtMs)
+
+	suspend fun rearmAfterFullDeletion(
+		completedFullDeletion: SourceWriterCompletedFullDeletion,
+		updatedAtMs: Long,
+	) = engine.rearmAfterFullDeletion(completedFullDeletion, updatedAtMs)
 }
 
 @Singleton
@@ -155,6 +165,11 @@ class ActivityCapturedFactWriterTransitionCoordinator @Inject internal construct
 	)
 
 	suspend fun rearmAfterFullDeletion(updatedAtMs: Long) = engine.rearmAfterFullDeletion(updatedAtMs)
+
+	suspend fun rearmAfterFullDeletion(
+		completedFullDeletion: SourceWriterCompletedFullDeletion,
+		updatedAtMs: Long,
+	) = engine.rearmAfterFullDeletion(completedFullDeletion, updatedAtMs)
 }
 
 @Singleton
@@ -189,6 +204,11 @@ class WifiSessionFactWriterTransitionCoordinator @Inject internal constructor(
 	)
 
 	suspend fun rearmAfterFullDeletion(updatedAtMs: Long) = engine.rearmAfterFullDeletion(updatedAtMs)
+
+	suspend fun rearmAfterFullDeletion(
+		completedFullDeletion: SourceWriterCompletedFullDeletion,
+		updatedAtMs: Long,
+	) = engine.rearmAfterFullDeletion(completedFullDeletion, updatedAtMs)
 }
 
 @Singleton
@@ -223,6 +243,11 @@ class CellSessionFactWriterTransitionCoordinator @Inject internal constructor(
 	)
 
 	suspend fun rearmAfterFullDeletion(updatedAtMs: Long) = engine.rearmAfterFullDeletion(updatedAtMs)
+
+	suspend fun rearmAfterFullDeletion(
+		completedFullDeletion: SourceWriterCompletedFullDeletion,
+		updatedAtMs: Long,
+	) = engine.rearmAfterFullDeletion(completedFullDeletion, updatedAtMs)
 }
 
 @Singleton
@@ -231,7 +256,6 @@ internal class SourceWriterTransitionEngineFactory private constructor(
 	private val catalog: ExecutableSourceLaneCatalog,
 	private val boundary: SourceWriterTransitionBoundary,
 	private val legacyWriterQuiescence: LegacySourceWriterTransitionBoundary,
-	private val rearmAuthority: SourceWriterRearmAuthority,
 	private val requestDrain: (SourceKind) -> Unit,
 ) {
 	@Inject
@@ -240,14 +264,12 @@ internal class SourceWriterTransitionEngineFactory private constructor(
 		catalog: ExecutableSourceLaneCatalog,
 		boundary: SourceWriterTransitionBoundary,
 		legacyWriterQuiescence: LegacySourceWriterTransitionBoundary,
-		rearmAuthority: SourceWriterRearmAuthority,
 		recoveryProvider: Provider<SourcePipelineRecovery>,
 	) : this(
 		database,
 		catalog,
 		boundary,
 		legacyWriterQuiescence,
-		rearmAuthority,
 		{ source ->
 			when (source) {
 				SourceKind.ACTIVITY -> recoveryProvider.get().requestActivityCapturedFactDrain()
@@ -264,7 +286,6 @@ internal class SourceWriterTransitionEngineFactory private constructor(
 		catalog,
 		boundary,
 		legacyWriterQuiescence,
-		rearmAuthority,
 		requestDrain,
 		spec,
 	)
@@ -279,7 +300,6 @@ internal class SourceWriterTransitionEngineFactory private constructor(
 			catalog,
 			SourceWriterTransitionBoundary.forTest(database, dependencies),
 			dependencies.legacyWriterQuiescence,
-			dependencies.rearmAuthority,
 			dependencies.requestDrain,
 		)
 	}
@@ -290,7 +310,6 @@ internal class SourceWriterTransitionEngine(
 	private val catalog: ExecutableSourceLaneCatalog,
 	private val boundary: SourceWriterTransitionBoundary,
 	private val legacyWriterQuiescence: LegacySourceWriterTransitionBoundary,
-	private val rearmAuthority: SourceWriterRearmAuthority,
 	private val requestDrain: (SourceKind) -> Unit,
 	private val spec: SourceWriterTransitionSpec,
 ) {
@@ -309,6 +328,7 @@ internal class SourceWriterTransitionEngine(
 				val rollout = currentRollout()
 				val active = exactActiveLane()
 				if (active?.matches(spec.binding, ProductProjectionStage.EVENT_SHADOW, rollout.revision) == true &&
+					active?.activatedRolloutRevision == rollout.revision &&
 					rollout.revision == successfulRevisionAfter(expectedRolloutRevision)
 				) {
 					return@withTransaction SourceWriterTransitionResult.AlreadyApplied(
@@ -374,6 +394,12 @@ internal class SourceWriterTransitionEngine(
 					val binding = executableBinding(lane)
 					val owner = currentOwner()
 					if (isCanonicalState(rollout, lane, owner, binding) &&
+						lane?.matchesExactCanonicalActivation(
+							spec = spec,
+							binding = binding,
+							owner = owner,
+							expectedActivationRevision = rollout.revision,
+						) == true &&
 						rollout.revision == successfulRevisionAfter(expectedRolloutRevision)
 					) {
 						return@withTransaction SourceWriterTransitionResult.AlreadyApplied(
@@ -457,10 +483,12 @@ internal class SourceWriterTransitionEngine(
 				val cutoff = lane?.captureAdmissionCutoffOrdinal
 				if (cutoff != null && rollout.revision == successfulRevisionAfter(expectedRolloutRevision) &&
 					rollout.isSourceContained(spec.source) &&
-					owner.isExactCandidate(spec, lane.bindingGeneration) &&
-					lane.matchesSourceBinding(binding) &&
-					lane.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL &&
-					lane.activatedRolloutRevision == expectedRolloutRevision
+					lane?.matchesExactCanonicalActivation(
+						spec = spec,
+						binding = binding,
+						owner = owner,
+						expectedActivationRevision = expectedRolloutRevision,
+					) == true
 				) {
 					return@withTransaction SourceWriterTransitionResult.AlreadyApplied(
 						spec.source,
@@ -543,8 +571,13 @@ internal class SourceWriterTransitionEngine(
 						SourceWriterGenerationContract.containedOwnerGeneration(
 							binding.bindingGeneration,
 						) &&
-					retired?.status == SourceProductProjectionLaneEntity.STATUS_RETIRED &&
-					retired.captureAdmissionCutoffOrdinal == expectedCutoffAdmissionOrdinal
+					retired?.isExactRetiredCanonical(
+						spec = spec,
+						binding = binding,
+						expectedActivationRevision =
+							previousRevision(expectedContainedRolloutRevision),
+						expectedCutoffAdmissionOrdinal = expectedCutoffAdmissionOrdinal,
+					) == true
 				) {
 					return@withTransaction SourceWriterTransitionResult.AlreadyApplied(
 						spec.source,
@@ -606,6 +639,22 @@ internal class SourceWriterTransitionEngine(
 	}
 
 	suspend fun rearmAfterFullDeletion(updatedAtMs: Long): SourceWriterTransitionResult {
+		return rearmAfterFullDeletionInternal(completedFullDeletion = null, updatedAtMs = updatedAtMs)
+	}
+
+	suspend fun rearmAfterFullDeletion(
+		completedFullDeletion: SourceWriterCompletedFullDeletion,
+		updatedAtMs: Long,
+	): SourceWriterTransitionResult =
+		rearmAfterFullDeletionInternal(
+			completedFullDeletion = completedFullDeletion,
+			updatedAtMs = updatedAtMs,
+		)
+
+	private suspend fun rearmAfterFullDeletionInternal(
+		completedFullDeletion: SourceWriterCompletedFullDeletion?,
+		updatedAtMs: Long,
+	): SourceWriterTransitionResult {
 		require(updatedAtMs >= 0L)
 		return boundary.run(
 			spec.source,
@@ -623,13 +672,15 @@ internal class SourceWriterTransitionEngine(
 					.latestProductLane(spec.source.stableCode)
 					?: block(SourceWriterTransitionBlocker.ACTIVE_LANE_MISSING)
 				if (retired.status != SourceProductProjectionLaneEntity.STATUS_RETIRED ||
+					retired.productStage != SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL ||
+					retired.activatedRolloutRevision <= 0L ||
 					retired.captureAdmissionCutoffOrdinal == null ||
-					retired.contiguousAdmissionOrdinal != retired.captureAdmissionCutoffOrdinal
+					retired.contiguousAdmissionOrdinal != retired.captureAdmissionCutoffOrdinal ||
+					retired.terminalDisposition !=
+					SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN
 				) block(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
 				val currentBinding = catalog.bindingFor(retired)
 					?: block(SourceWriterTransitionBlocker.BINDING_NOT_EXECUTABLE)
-				val nextBinding = catalog.nextRearmBinding(currentBinding)
-					?: block(SourceWriterTransitionBlocker.REARM_BINDING_CONTRACT_UNAVAILABLE)
 				val owner = currentOwner()
 				if (owner?.owner != spec.containedOwner ||
 					owner.ownerGeneration !=
@@ -637,14 +688,48 @@ internal class SourceWriterTransitionEngine(
 						currentBinding.bindingGeneration,
 					)
 				) block(SourceWriterTransitionBlocker.DESTINATION_OWNER_CONFLICT)
-				RearmSnapshot(rollout, currentBinding, nextBinding, owner.ownerGeneration)
+				val deletion = completedFullDeletion
+					?: block(SourceWriterTransitionBlocker.FULL_DELETION_PROOF_UNAVAILABLE)
+				val authorityInput = SourceWriterRearmAuthorityInput(
+					retiredCanonicalActivation = retired.canonicalActivation(
+						spec = spec,
+						writerOwner = spec.candidateOwner,
+						writerOwnerGeneration =
+							SourceWriterGenerationContract.canonicalOwnerGeneration(
+								currentBinding.bindingGeneration,
+							),
+					),
+					containedDestinationOwner = SourceWriterDestinationOwner(
+						sourceKind = owner.sourceKind,
+						destination = owner.destination,
+						owner = owner.owner,
+						ownerGeneration = owner.ownerGeneration,
+					),
+					completedFullDeletion = deletion,
+				)
+				val rearmBinding = catalog.nextRearmBinding(
+					current = currentBinding,
+					input = authorityInput,
+					destination = spec.destination,
+					candidateOwner = spec.candidateOwner,
+					containedOwner = spec.containedOwner,
+				) ?: block(SourceWriterTransitionBlocker.REARM_BINDING_CONTRACT_UNAVAILABLE)
+				RearmSnapshot(
+					rollout = rollout,
+					currentBinding = currentBinding,
+					rearmBinding = rearmBinding,
+					authorityInput = authorityInput,
+					containedOwnerGeneration = owner.ownerGeneration,
+					retiredLane = retired,
+				)
 			}
-			rearmAuthority.runIfFullDeletionAuthorized(
-				source = spec.source,
-				retiredBindingGeneration = snapshot.currentBinding.bindingGeneration,
-				containedOwnerGeneration = snapshot.containedOwnerGeneration,
-			) {
-				database.withTransaction {
+			snapshot.rearmBinding.declaration.runIfFullySupportedAndAuthorized(
+				snapshot.authorityInput,
+			) { authorizedNextBinding ->
+				if (authorizedNextBinding != snapshot.rearmBinding.nextContractBinding) {
+					block(SourceWriterTransitionBlocker.REARM_BINDING_CONTRACT_UNAVAILABLE)
+				}
+				val activation = database.withTransaction {
 					boundary.requireLease(lease)
 					val current = currentRollout()
 					if (current != snapshot.rollout || exactActiveLane() != null) {
@@ -657,13 +742,13 @@ internal class SourceWriterTransitionEngine(
 					val retired = database.sourceProjectionStateDao()
 						.latestProductLane(spec.source.stableCode)
 					if (retired == null ||
-						catalog.bindingFor(retired) != snapshot.currentBinding ||
-						retired.status != SourceProductProjectionLaneEntity.STATUS_RETIRED
+						retired != snapshot.retiredLane ||
+						catalog.bindingFor(retired) != snapshot.currentBinding
 					) block(SourceWriterTransitionBlocker.ACTIVE_LANE_CHANGED)
+					val nextRevision = nextRevision(snapshot.rollout.revision)
+					RoomTrackingRolloutStateStore(database, catalog)
+						.rearmInertShadowLane(snapshot.rearmBinding, nextRevision, updatedAtMs)
 				}
-				val nextRevision = nextRevision(snapshot.rollout.revision)
-				val activation = RoomTrackingRolloutStateStore(database, catalog)
-					.rearmInertShadowLane(snapshot.nextBinding, nextRevision, updatedAtMs)
 				SourceWriterTransitionResult.Applied(
 					source = spec.source,
 					phase = SourceWriterTransitionPhase.REARM_AFTER_FULL_DELETION,
@@ -682,8 +767,10 @@ internal class SourceWriterTransitionEngine(
 	private data class RearmSnapshot(
 		val rollout: TrackingRolloutState,
 		val currentBinding: ExecutableSourceLaneBinding,
-		val nextBinding: ExecutableSourceLaneBinding,
+		val rearmBinding: ExecutableSourceRearmBinding,
+		val authorityInput: SourceWriterRearmAuthorityInput,
 		val containedOwnerGeneration: Long,
+		val retiredLane: SourceProductProjectionLaneEntity,
 	)
 
 	private suspend fun currentRollout(): TrackingRolloutState =
@@ -991,40 +1078,6 @@ interface LegacySourceWriterTransitionBoundary {
 	}
 }
 
-/**
- * Source-owner supplied full-deletion fence. Implementations must keep their proof current through
- * [operation]; a preflight Boolean is insufficient because new retained rows could race rearm.
- */
-interface SourceWriterRearmAuthority {
-	suspend fun <T : Any> runIfFullDeletionAuthorized(
-		source: SourceKind,
-		retiredBindingGeneration: Long,
-		containedOwnerGeneration: Long,
-		operation: suspend () -> T,
-	): T?
-
-	companion object {
-		val ALWAYS = object : SourceWriterRearmAuthority {
-			override suspend fun <T : Any> runIfFullDeletionAuthorized(
-				source: SourceKind,
-				retiredBindingGeneration: Long,
-				containedOwnerGeneration: Long,
-				operation: suspend () -> T,
-			): T = operation()
-		}
-	}
-}
-
-@Singleton
-class UnavailableSourceWriterRearmAuthority @Inject constructor() : SourceWriterRearmAuthority {
-	override suspend fun <T : Any> runIfFullDeletionAuthorized(
-		source: SourceKind,
-		retiredBindingGeneration: Long,
-		containedOwnerGeneration: Long,
-		operation: suspend () -> T,
-	): T? = null
-}
-
 @Singleton
 class UnavailableLegacySourceWriterTransitionBoundary @Inject constructor() :
 	LegacySourceWriterTransitionBoundary {
@@ -1040,7 +1093,6 @@ internal data class SourceWriterTransitionTestDependencies(
 	val clock: Clock = FixedStepsWriterTransitionClock,
 	val legacyWriterQuiescence: LegacySourceWriterTransitionBoundary =
 		LegacySourceWriterTransitionBoundary.ALWAYS,
-	val rearmAuthority: SourceWriterRearmAuthority = UnavailableSourceWriterRearmAuthority(),
 	val requestDrain: (SourceKind) -> Unit = {},
 )
 
@@ -1106,6 +1158,74 @@ private fun SourceDestinationOwnerEntity?.isExactCandidate(
 		ownerGeneration ==
 			SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration)
 
+private fun SourceWriterTransitionSpec.contractBinding(
+	binding: ExecutableSourceLaneBinding,
+): SourceWriterGenerationBinding = SourceWriterGenerationBinding(
+	sourceKind = source.stableCode,
+	destination = destination,
+	candidateOwner = candidateOwner,
+	containedOwner = containedOwner,
+	bindingGeneration = binding.bindingGeneration,
+	projectionId = binding.projectionId,
+	projectionVersion = binding.projectionVersion,
+	canonicalStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+)
+
+private fun SourceProductProjectionLaneEntity.canonicalActivation(
+	spec: SourceWriterTransitionSpec,
+	writerOwner: String,
+	writerOwnerGeneration: Long,
+): SourceWriterCanonicalActivation = SourceWriterCanonicalActivation(
+	sourceKind = sourceKind,
+	destination = spec.destination,
+	writerOwner = writerOwner,
+	writerOwnerGeneration = writerOwnerGeneration,
+	writerBindingGeneration = bindingGeneration,
+	writerProjectionId = projectionId,
+	writerProjectionVersion = projectionVersion,
+	productStage = productStage,
+	activationRevision = activatedRolloutRevision,
+)
+
+private fun SourceProductProjectionLaneEntity.matchesExactCanonicalActivation(
+	spec: SourceWriterTransitionSpec,
+	binding: ExecutableSourceLaneBinding,
+	owner: SourceDestinationOwnerEntity?,
+	expectedActivationRevision: Long,
+): Boolean {
+	val exactOwner = owner ?: return false
+	return matchesSourceBinding(binding) &&
+		spec.contractBinding(binding).matchesCanonicalActivation(
+		canonicalActivation(
+			spec = spec,
+			writerOwner = exactOwner.owner,
+			writerOwnerGeneration = exactOwner.ownerGeneration,
+		),
+		expectedActivationRevision,
+	)
+}
+
+private fun SourceProductProjectionLaneEntity.isExactRetiredCanonical(
+	spec: SourceWriterTransitionSpec,
+	binding: ExecutableSourceLaneBinding,
+	expectedActivationRevision: Long,
+	expectedCutoffAdmissionOrdinal: Long,
+): Boolean = status == SourceProductProjectionLaneEntity.STATUS_RETIRED &&
+	terminalDisposition == SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN &&
+	captureAdmissionCutoffOrdinal == expectedCutoffAdmissionOrdinal &&
+	contiguousAdmissionOrdinal == expectedCutoffAdmissionOrdinal &&
+	matchesSourceBinding(binding) &&
+	spec.contractBinding(binding).matchesCanonicalActivation(
+		canonicalActivation(
+			spec = spec,
+			writerOwner = spec.candidateOwner,
+			writerOwnerGeneration = SourceWriterGenerationContract.canonicalOwnerGeneration(
+				binding.bindingGeneration,
+			),
+		),
+		expectedActivationRevision,
+	)
+
 private fun SourceProductProjectionLaneEntity.matchesSourceBinding(
 	binding: ExecutableSourceLaneBinding,
 ): Boolean = sourceKind == binding.source.stableCode &&
@@ -1113,6 +1233,11 @@ private fun SourceProductProjectionLaneEntity.matchesSourceBinding(
 	projectionId == binding.projectionId &&
 	projectionVersion == binding.projectionVersion &&
 	captureModeMask == binding.captureModeMask
+
+private fun previousRevision(current: Long): Long {
+	if (current <= 0L) block(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+	return current - 1L
+}
 
 private fun nextRevision(current: Long): Long {
 	if (current == Long.MAX_VALUE) block(SourceWriterTransitionBlocker.REVISION_EXHAUSTED)
@@ -1126,9 +1251,12 @@ private class SourceWriterTransitionBlockedException(
 private fun block(blocker: SourceWriterTransitionBlocker): Nothing =
 	throw SourceWriterTransitionBlockedException(blocker)
 
-/** Parent-owned core constants are required before a later re-arm generation can be executable. */
-internal const val CONTAINED_ACTIVITY_SESSION_OWNER = "CONTAINED_ACTIVITY_SESSION_FACTS"
+/** Coordinator compatibility aliases for the centralized destination-owner vocabulary. */
+internal const val CONTAINED_ACTIVITY_SESSION_OWNER =
+	SourceDestinationOwnerEntity.OWNER_CONTAINED_ACTIVITY_SESSION_FACTS
 internal const val CONTAINED_PRESSURE_SESSION_OWNER =
 	SourceDestinationOwnerEntity.OWNER_CONTAINED_PRESSURE_SESSION_FACTS
-internal const val CONTAINED_WIFI_SESSION_OWNER = "CONTAINED_WIFI_SESSION_FACTS"
-internal const val CONTAINED_CELL_SESSION_OWNER = "CONTAINED_CELL_SESSION_FACTS"
+internal const val CONTAINED_WIFI_SESSION_OWNER =
+	SourceDestinationOwnerEntity.OWNER_CONTAINED_WIFI_SESSION_FACTS
+internal const val CONTAINED_CELL_SESSION_OWNER =
+	SourceDestinationOwnerEntity.OWNER_CONTAINED_CELL_SESSION_FACTS
