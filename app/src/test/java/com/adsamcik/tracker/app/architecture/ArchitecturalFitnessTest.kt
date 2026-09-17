@@ -683,6 +683,7 @@ class ArchitecturalFitnessTest {
 				"TrackingDiagnosticContract.kt",
 				"TrackingDiagnosticPrivacy.kt",
 				"TrackingDiagnosticRecorder.kt",
+				"TrackingDiagnosticStorage.kt",
 				"TrackingDiagnosticWire.kt",
 			)
 			contractFiles.flatMap { fileName ->
@@ -752,16 +753,29 @@ class ArchitecturalFitnessTest {
 				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/" +
 					"TraceboxTrackingDiagnosticAdapter.kt",
 			).readText()
+			val roomStoreSource = projectRoot.resolve(
+				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/" +
+					"RoomTrackingDiagnosticStore.kt",
+			).readText()
 
 			buildList {
 				if ("id(\"tracker.android.hilt\")" !in diagnosticsBuild) {
 					add(":core:diagnostics must own its Hilt binding")
 				}
-				if ("TrackingDiagnosticRecorder.local()" !in moduleSource) {
-					add("production Hilt binding must select the local recorder")
+				if ("id(\"tracker.android.room\")" !in diagnosticsBuild) {
+					add(":core:diagnostics must own its bounded local Room store")
+				}
+				if ("TrackingDiagnosticRecorder.local(store)" !in moduleSource) {
+					add("production Hilt binding must select the module-owned local store")
+				}
+				if ("TraceboxTrackingDiagnosticAdapter.PRODUCTION" in moduleSource) {
+					add("Tracebox cannot replace the bounded queryable tracking event store")
 				}
 				if ("internal fun interface TrackingDiagnosticEventStore" !in recorderSource) {
 					add("storage boundary must remain internal to :core:diagnostics")
+				}
+				if ("append(event: EncodedTrackingDiagnosticEvent)" !in recorderSource) {
+					add("storage boundary must receive only correlation-free encoded events")
 				}
 				if (Regex("""public\s+(?:fun\s+interface|interface)\s+TrackingDiagnosticEventStore""")
 						.containsMatchIn(recorderSource)
@@ -775,6 +789,43 @@ class ArchitecturalFitnessTest {
 						.containsMatchIn(adapterSource)
 				) {
 					add("Tracebox tracking adapter must not be extensible")
+				}
+				if ("internal class RoomTrackingDiagnosticStore" !in roomStoreSource) {
+					add("bounded tracking diagnostics storage must remain module owned")
+				}
+				if (Regex("""\b(?:public\s+)?(?:fun\s+interface|interface)\s+""" +
+						"""TrackingDiagnosticEventStore""")
+						.containsMatchIn(roomStoreSource)
+				) {
+					add("Room tracking storage must not publish an append extension point")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `standalone tracking diagnostics schema is contained until convergence`() {
+			val databaseSource = projectRoot.resolve(
+				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/" +
+					"TrackingDiagnosticDatabase.kt",
+			).readText()
+			val containmentNote = projectRoot.resolve(
+				"core/diagnostics/schemas/README.md",
+			)
+
+			buildList {
+				if ("exportSchema = false" !in databaseSource) {
+					add("unreleased diagnostics v1 must not advertise an absent schema snapshot")
+				}
+				if ("operation_scope" in databaseSource || "scope_sequence" in databaseSource) {
+					add("diagnostics Room schema must not persist recorder correlation")
+				}
+				if ("last_observed_at_ms" in databaseSource) {
+					add("diagnostics Room schema must retain only its coarse time bucket")
+				}
+				if (!containmentNote.isFile) {
+					add("diagnostics schema containment note is missing")
+				} else if ("final convergence" !in containmentNote.readText()) {
+					add("diagnostics schema note must defer export activation to convergence")
 				}
 			}.shouldBeEmpty()
 		}
@@ -797,9 +848,7 @@ class ArchitecturalFitnessTest {
 				"result",
 				"reason",
 				"lifecycle",
-				"operation_scope",
-				"scope_sequence",
-				"coarse_local_timestamp",
+				"coarse_time_bucket",
 				"scope_duration_bucket",
 			)
 			val expectedKeys = mapOf(

@@ -1,6 +1,7 @@
 plugins {
     id("tracker.android.library")
     id("tracker.android.hilt")
+    id("tracker.android.room")
     id("tracker.android.test")
 }
 
@@ -9,7 +10,7 @@ android {
 }
 
 dependencies {
-    // Tracebox remains the sole local backend, but it is an implementation detail. Public tracking
-    // diagnostic signatures are the payload-free types owned by this module.
+    // Tracebox remains the crash/general diagnostics backend and an implementation detail. The
+    // bounded tracking-operational Room store is also owned entirely by this module.
     implementation(libs.tracebox)
 }

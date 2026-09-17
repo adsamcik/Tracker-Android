@@ -1,43 +1,58 @@
+@file:Suppress("SwallowedException", "TooGenericExceptionCaught")
+
 package com.adsamcik.tracker.diagnostics
 
 import dev.tracebox.Tracebox
 import dev.tracebox.api.public
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Final module-owned adapter for the fixed tracking recorder entry point.
  *
  * Tracebox types and failure handling remain private to this file. The adapter accepts only the
  * closed recorded event hierarchy and returns an explicit failure instead of throwing into
- * tracking.
+ * tracking. Coroutine cancellation always propagates.
  */
 internal class TraceboxTrackingDiagnosticAdapter internal constructor(
 	private val writer: (EncodedTrackingDiagnosticEvent) -> Unit,
-	private val failureReporter: () -> Unit,
+	private val failureReporter: suspend () -> Unit,
 ) : TrackingDiagnosticEventStore {
 	private val reportingFailure = AtomicBoolean(false)
 
-	override fun append(
-		event: RecordedTrackingDiagnosticEvent,
-	): TrackingDiagnosticStoreResult {
-		val encoded = EncodedTrackingDiagnosticEvent.from(event)
+	override suspend fun append(
+		event: EncodedTrackingDiagnosticEvent,
+	): TrackingDiagnosticStorageResult {
 		if (TrackingDiagnosticPrivacyValidator.validateAdapterSchema(
-				encoded.serializedFields.map { (field, _) -> field.wireName },
+				event.serializedFields.map { (field, _) -> field.wireName },
 			) !is TrackingDiagnosticPrivacyValidation.Allowed
 		) {
-			return TrackingDiagnosticStoreResult.FAILED
+			return TrackingDiagnosticStorageResult.PERMANENT_REJECTED
 		}
-		val writeSucceeded = runCatching { writer(encoded) }.isSuccess
-		if (writeSucceeded) return TrackingDiagnosticStoreResult.RECORDED_LOCALLY
+		val writeSucceeded = try {
+			writer(event)
+			true
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Throwable) {
+			false
+		}
+		if (writeSucceeded) return TrackingDiagnosticStorageResult.STORED
 
 		reportFailureSafely()
-		return TrackingDiagnosticStoreResult.FAILED
+		return TrackingDiagnosticStorageResult.STORAGE_RETRYABLE
 	}
 
-	private fun reportFailureSafely() {
+	private suspend fun reportFailureSafely() {
 		if (!reportingFailure.compareAndSet(false, true)) return
 		try {
-			runCatching(failureReporter)
+			try {
+				failureReporter()
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Throwable) {
+				Unit
+			}
 		} finally {
 			reportingFailure.set(false)
 		}
@@ -75,9 +90,7 @@ private fun writeInfo(event: EncodedTrackingDiagnosticEvent) {
 			public(event.value(TrackingDiagnosticField.RESULT)),
 			public(event.value(TrackingDiagnosticField.REASON)),
 			public(event.value(TrackingDiagnosticField.LIFECYCLE)),
-			public(event.value(TrackingDiagnosticField.OPERATION_SCOPE)),
-			public(event.value(TrackingDiagnosticField.SCOPE_SEQUENCE)),
-			public(event.value(TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP)),
+			public(event.value(TrackingDiagnosticField.COARSE_TIME_BUCKET)),
 			public(event.value(TrackingDiagnosticField.SCOPE_DURATION_BUCKET)),
 		)
 		TrackingDiagnosticSerializedSchema.ENQUEUE -> Tracebox.log.info(
@@ -89,9 +102,7 @@ private fun writeInfo(event: EncodedTrackingDiagnosticEvent) {
 			public(event.value(TrackingDiagnosticField.RESULT)),
 			public(event.value(TrackingDiagnosticField.REASON)),
 			public(event.value(TrackingDiagnosticField.LIFECYCLE)),
-			public(event.value(TrackingDiagnosticField.OPERATION_SCOPE)),
-			public(event.value(TrackingDiagnosticField.SCOPE_SEQUENCE)),
-			public(event.value(TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP)),
+			public(event.value(TrackingDiagnosticField.COARSE_TIME_BUCKET)),
 			public(event.value(TrackingDiagnosticField.SCOPE_DURATION_BUCKET)),
 			public(event.value(TrackingDiagnosticField.ENCODED_ENVELOPE_SIZE_BUCKET)),
 			public(event.value(TrackingDiagnosticField.QUEUE_BACKLOG_BUCKET)),
@@ -105,9 +116,7 @@ private fun writeInfo(event: EncodedTrackingDiagnosticEvent) {
 			public(event.value(TrackingDiagnosticField.RESULT)),
 			public(event.value(TrackingDiagnosticField.REASON)),
 			public(event.value(TrackingDiagnosticField.LIFECYCLE)),
-			public(event.value(TrackingDiagnosticField.OPERATION_SCOPE)),
-			public(event.value(TrackingDiagnosticField.SCOPE_SEQUENCE)),
-			public(event.value(TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP)),
+			public(event.value(TrackingDiagnosticField.COARSE_TIME_BUCKET)),
 			public(event.value(TrackingDiagnosticField.SCOPE_DURATION_BUCKET)),
 			public(event.value(TrackingDiagnosticField.DRAINED_ENVELOPE_COUNT_BUCKET)),
 			public(event.value(TrackingDiagnosticField.REMAINING_ENVELOPE_BACKLOG_BUCKET)),
@@ -121,9 +130,7 @@ private fun writeInfo(event: EncodedTrackingDiagnosticEvent) {
 			public(event.value(TrackingDiagnosticField.RESULT)),
 			public(event.value(TrackingDiagnosticField.REASON)),
 			public(event.value(TrackingDiagnosticField.LIFECYCLE)),
-			public(event.value(TrackingDiagnosticField.OPERATION_SCOPE)),
-			public(event.value(TrackingDiagnosticField.SCOPE_SEQUENCE)),
-			public(event.value(TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP)),
+			public(event.value(TrackingDiagnosticField.COARSE_TIME_BUCKET)),
 			public(event.value(TrackingDiagnosticField.SCOPE_DURATION_BUCKET)),
 			public(event.value(TrackingDiagnosticField.PERSISTED_ENVELOPE_COUNT_BUCKET)),
 		)
@@ -142,9 +149,7 @@ private fun writeWarning(event: EncodedTrackingDiagnosticEvent) {
 			public(event.value(TrackingDiagnosticField.RESULT)),
 			public(event.value(TrackingDiagnosticField.REASON)),
 			public(event.value(TrackingDiagnosticField.LIFECYCLE)),
-			public(event.value(TrackingDiagnosticField.OPERATION_SCOPE)),
-			public(event.value(TrackingDiagnosticField.SCOPE_SEQUENCE)),
-			public(event.value(TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP)),
+			public(event.value(TrackingDiagnosticField.COARSE_TIME_BUCKET)),
 			public(event.value(TrackingDiagnosticField.SCOPE_DURATION_BUCKET)),
 		)
 		TrackingDiagnosticSerializedSchema.ENQUEUE -> Tracebox.log.warn(
@@ -156,9 +161,7 @@ private fun writeWarning(event: EncodedTrackingDiagnosticEvent) {
 			public(event.value(TrackingDiagnosticField.RESULT)),
 			public(event.value(TrackingDiagnosticField.REASON)),
 			public(event.value(TrackingDiagnosticField.LIFECYCLE)),
-			public(event.value(TrackingDiagnosticField.OPERATION_SCOPE)),
-			public(event.value(TrackingDiagnosticField.SCOPE_SEQUENCE)),
-			public(event.value(TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP)),
+			public(event.value(TrackingDiagnosticField.COARSE_TIME_BUCKET)),
 			public(event.value(TrackingDiagnosticField.SCOPE_DURATION_BUCKET)),
 			public(event.value(TrackingDiagnosticField.ENCODED_ENVELOPE_SIZE_BUCKET)),
 			public(event.value(TrackingDiagnosticField.QUEUE_BACKLOG_BUCKET)),
@@ -172,9 +175,7 @@ private fun writeWarning(event: EncodedTrackingDiagnosticEvent) {
 			public(event.value(TrackingDiagnosticField.RESULT)),
 			public(event.value(TrackingDiagnosticField.REASON)),
 			public(event.value(TrackingDiagnosticField.LIFECYCLE)),
-			public(event.value(TrackingDiagnosticField.OPERATION_SCOPE)),
-			public(event.value(TrackingDiagnosticField.SCOPE_SEQUENCE)),
-			public(event.value(TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP)),
+			public(event.value(TrackingDiagnosticField.COARSE_TIME_BUCKET)),
 			public(event.value(TrackingDiagnosticField.SCOPE_DURATION_BUCKET)),
 			public(event.value(TrackingDiagnosticField.DRAINED_ENVELOPE_COUNT_BUCKET)),
 			public(event.value(TrackingDiagnosticField.REMAINING_ENVELOPE_BACKLOG_BUCKET)),
@@ -188,9 +189,7 @@ private fun writeWarning(event: EncodedTrackingDiagnosticEvent) {
 			public(event.value(TrackingDiagnosticField.RESULT)),
 			public(event.value(TrackingDiagnosticField.REASON)),
 			public(event.value(TrackingDiagnosticField.LIFECYCLE)),
-			public(event.value(TrackingDiagnosticField.OPERATION_SCOPE)),
-			public(event.value(TrackingDiagnosticField.SCOPE_SEQUENCE)),
-			public(event.value(TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP)),
+			public(event.value(TrackingDiagnosticField.COARSE_TIME_BUCKET)),
 			public(event.value(TrackingDiagnosticField.SCOPE_DURATION_BUCKET)),
 			public(event.value(TrackingDiagnosticField.PERSISTED_ENVELOPE_COUNT_BUCKET)),
 		)
@@ -209,9 +208,7 @@ private fun writeError(event: EncodedTrackingDiagnosticEvent) {
 			public(event.value(TrackingDiagnosticField.RESULT)),
 			public(event.value(TrackingDiagnosticField.REASON)),
 			public(event.value(TrackingDiagnosticField.LIFECYCLE)),
-			public(event.value(TrackingDiagnosticField.OPERATION_SCOPE)),
-			public(event.value(TrackingDiagnosticField.SCOPE_SEQUENCE)),
-			public(event.value(TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP)),
+			public(event.value(TrackingDiagnosticField.COARSE_TIME_BUCKET)),
 			public(event.value(TrackingDiagnosticField.SCOPE_DURATION_BUCKET)),
 		)
 		TrackingDiagnosticSerializedSchema.ENQUEUE -> Tracebox.log.error(
@@ -223,9 +220,7 @@ private fun writeError(event: EncodedTrackingDiagnosticEvent) {
 			public(event.value(TrackingDiagnosticField.RESULT)),
 			public(event.value(TrackingDiagnosticField.REASON)),
 			public(event.value(TrackingDiagnosticField.LIFECYCLE)),
-			public(event.value(TrackingDiagnosticField.OPERATION_SCOPE)),
-			public(event.value(TrackingDiagnosticField.SCOPE_SEQUENCE)),
-			public(event.value(TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP)),
+			public(event.value(TrackingDiagnosticField.COARSE_TIME_BUCKET)),
 			public(event.value(TrackingDiagnosticField.SCOPE_DURATION_BUCKET)),
 			public(event.value(TrackingDiagnosticField.ENCODED_ENVELOPE_SIZE_BUCKET)),
 			public(event.value(TrackingDiagnosticField.QUEUE_BACKLOG_BUCKET)),
@@ -239,9 +234,7 @@ private fun writeError(event: EncodedTrackingDiagnosticEvent) {
 			public(event.value(TrackingDiagnosticField.RESULT)),
 			public(event.value(TrackingDiagnosticField.REASON)),
 			public(event.value(TrackingDiagnosticField.LIFECYCLE)),
-			public(event.value(TrackingDiagnosticField.OPERATION_SCOPE)),
-			public(event.value(TrackingDiagnosticField.SCOPE_SEQUENCE)),
-			public(event.value(TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP)),
+			public(event.value(TrackingDiagnosticField.COARSE_TIME_BUCKET)),
 			public(event.value(TrackingDiagnosticField.SCOPE_DURATION_BUCKET)),
 			public(event.value(TrackingDiagnosticField.DRAINED_ENVELOPE_COUNT_BUCKET)),
 			public(event.value(TrackingDiagnosticField.REMAINING_ENVELOPE_BACKLOG_BUCKET)),
@@ -255,9 +248,7 @@ private fun writeError(event: EncodedTrackingDiagnosticEvent) {
 			public(event.value(TrackingDiagnosticField.RESULT)),
 			public(event.value(TrackingDiagnosticField.REASON)),
 			public(event.value(TrackingDiagnosticField.LIFECYCLE)),
-			public(event.value(TrackingDiagnosticField.OPERATION_SCOPE)),
-			public(event.value(TrackingDiagnosticField.SCOPE_SEQUENCE)),
-			public(event.value(TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP)),
+			public(event.value(TrackingDiagnosticField.COARSE_TIME_BUCKET)),
 			public(event.value(TrackingDiagnosticField.SCOPE_DURATION_BUCKET)),
 			public(event.value(TrackingDiagnosticField.PERSISTED_ENVELOPE_COUNT_BUCKET)),
 		)

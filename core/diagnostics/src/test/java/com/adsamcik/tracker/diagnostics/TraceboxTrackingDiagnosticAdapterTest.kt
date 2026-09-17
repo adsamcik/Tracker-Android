@@ -1,19 +1,22 @@
 package com.adsamcik.tracker.diagnostics
 
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class TraceboxTrackingDiagnosticAdapterTest {
 	@Test
-	fun `adapter serializes exact allowlisted keys and bucket values`() {
+	fun `adapter serializes exact allowlisted keys and bucket values`() = runTest {
 		val writes = mutableListOf<EncodedTrackingDiagnosticEvent>()
 		val adapter = TraceboxTrackingDiagnosticAdapter(
 			writer = { event -> writes += event },
 			failureReporter = { error("failure reporter must not run") },
 		)
 
-		adapter.append(recordedEnqueue()) shouldBe
-			TrackingDiagnosticStoreResult.RECORDED_LOCALLY
+		adapter.append(recordedEnqueue().encoded()) shouldBe
+			TrackingDiagnosticStorageResult.STORED
 
 		val encoded = writes.single()
 		encoded.schema shouldBe TrackingDiagnosticSerializedSchema.ENQUEUE
@@ -25,9 +28,7 @@ class TraceboxTrackingDiagnosticAdapterTest {
 			"result",
 			"reason",
 			"lifecycle",
-			"operation_scope",
-			"scope_sequence",
-			"coarse_local_timestamp",
+			"coarse_time_bucket",
 			"scope_duration_bucket",
 			"encoded_envelope_size_bucket",
 			"queue_backlog_bucket",
@@ -40,10 +41,9 @@ class TraceboxTrackingDiagnosticAdapterTest {
 			TrackingDiagnosticField.RESULT to "DEFERRED",
 			TrackingDiagnosticField.REASON to "BACKLOG_LIMIT",
 			TrackingDiagnosticField.LIFECYCLE to "PROGRESS",
-			TrackingDiagnosticField.OPERATION_SCOPE to
-				TrackingDiagnosticScopeOpaque.fixedForTest(11L).wireValue,
-			TrackingDiagnosticField.SCOPE_SEQUENCE to "EVENT_03",
-			TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP to "2026-09-17T09:30+02:00",
+			TrackingDiagnosticField.COARSE_TIME_BUCKET to
+				(1_789_630_524_522L /
+					TrackingDiagnosticCoarseTimeBucket.BUCKET_MILLISECONDS).toString(),
 			TrackingDiagnosticField.SCOPE_DURATION_BUCKET to "ONE_TO_FOUR_SECONDS",
 			TrackingDiagnosticField.ENCODED_ENVELOPE_SIZE_BUCKET to
 				"UP_TO_FOUR_KIBIBYTES",
@@ -72,19 +72,20 @@ class TraceboxTrackingDiagnosticAdapterTest {
 	}
 
 	@Test
-	fun `adapter failure is reported once and never becomes success`() {
+	fun `adapter failure is reported once and never becomes success`() = runTest {
 		var failureReports = 0
 		val adapter = TraceboxTrackingDiagnosticAdapter(
 			writer = { error("Tracebox unavailable") },
 			failureReporter = { failureReports += 1 },
 		)
 
-		adapter.append(recordedUnmetered()) shouldBe TrackingDiagnosticStoreResult.FAILED
+		adapter.append(recordedUnmetered().encoded()) shouldBe
+			TrackingDiagnosticStorageResult.STORAGE_RETRYABLE
 		failureReports shouldBe 1
 	}
 
 	@Test
-	fun `failure reporter failure does not escape or recurse`() {
+	fun `failure reporter failure does not escape or recurse`() = runTest {
 		var failureReports = 0
 		val adapter = TraceboxTrackingDiagnosticAdapter(
 			writer = { error("Tracebox unavailable") },
@@ -94,24 +95,45 @@ class TraceboxTrackingDiagnosticAdapterTest {
 			},
 		)
 
-		adapter.append(recordedUnmetered()) shouldBe TrackingDiagnosticStoreResult.FAILED
+		adapter.append(recordedUnmetered().encoded()) shouldBe
+			TrackingDiagnosticStorageResult.STORAGE_RETRYABLE
 		failureReports shouldBe 1
 	}
 
 	@Test
-	fun `failure reporting cannot recursively report another adapter failure`() {
+	fun `failure reporting cannot recursively report another adapter failure`() = runTest {
 		var failureReports = 0
 		lateinit var adapter: TraceboxTrackingDiagnosticAdapter
 		adapter = TraceboxTrackingDiagnosticAdapter(
 			writer = { error("Tracebox unavailable") },
 			failureReporter = {
 				failureReports += 1
-				adapter.append(recordedUnmetered())
+				adapter.append(recordedUnmetered().encoded())
 			},
 		)
 
-		adapter.append(recordedUnmetered()) shouldBe TrackingDiagnosticStoreResult.FAILED
+		adapter.append(recordedUnmetered().encoded()) shouldBe
+			TrackingDiagnosticStorageResult.STORAGE_RETRYABLE
 		failureReports shouldBe 1
+	}
+
+	@Test
+	fun `adapter rethrows writer and reporter cancellation`() = runTest {
+		val writerCancellation = TraceboxTrackingDiagnosticAdapter(
+			writer = { throw CancellationException("writer cancelled") },
+			failureReporter = { error("reporter must not run") },
+		)
+		runCatching { writerCancellation.append(recordedUnmetered().encoded()) }
+			.exceptionOrNull()
+			.shouldBeInstanceOf<CancellationException>()
+
+		val reporterCancellation = TraceboxTrackingDiagnosticAdapter(
+			writer = { error("Tracebox unavailable") },
+			failureReporter = { throw CancellationException("reporter cancelled") },
+		)
+		runCatching { reporterCancellation.append(recordedUnmetered().encoded()) }
+			.exceptionOrNull()
+			.shouldBeInstanceOf<CancellationException>()
 	}
 
 	@Test
@@ -192,12 +214,14 @@ class TraceboxTrackingDiagnosticAdapterTest {
 	): RecordedTrackingDiagnosticEvent = toRecordedEvent(
 		operationScope = TrackingDiagnosticScopeOpaque.fixedForTest(11L),
 		scopeSequence = scopeSequence,
-		coarseLocalTimestamp = TrackingDiagnosticCoarseLocalTimestamp.fromEpochMilliseconds(
+		coarseTimeBucket = TrackingDiagnosticCoarseTimeBucket.fromEpochMilliseconds(
 			epochMilliseconds = 1_789_630_524_522L,
-			zoneId = java.time.ZoneOffset.ofHours(2),
 		),
 		scopeDurationBucket = TrackingDiagnosticDurationBucket.ONE_TO_FOUR_SECONDS,
 	)
+
+	private fun RecordedTrackingDiagnosticEvent.encoded(): EncodedTrackingDiagnosticEvent =
+		EncodedTrackingDiagnosticEvent.from(this)
 
 	private fun reasonFor(result: TrackingDiagnosticResult): TrackingDiagnosticReason = when (result) {
 		TrackingDiagnosticResult.SUCCEEDED -> TrackingDiagnosticSuccessReason.COMPLETED

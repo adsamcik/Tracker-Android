@@ -1,10 +1,9 @@
 package com.adsamcik.tracker.diagnostics
 
 import java.security.SecureRandom
-import java.time.ZoneId
-import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.cancellation.CancellationException
 
 enum class TrackingDiagnosticScopeRejectionReason {
 	RECORDER_MISMATCH,
@@ -19,27 +18,22 @@ enum class TrackingDiagnosticScopeRejectionReason {
 }
 
 sealed interface TrackingDiagnosticRecordResult {
-	data object RecordedLocally : TrackingDiagnosticRecordResult
-	data object IgnoredByNoOpRecorder : TrackingDiagnosticRecordResult
-	data object RecorderFailed : TrackingDiagnosticRecordResult
+	data class Storage(
+		val result: TrackingDiagnosticStorageResult,
+	) : TrackingDiagnosticRecordResult
 
 	data class Rejected(
 		val reason: TrackingDiagnosticScopeRejectionReason,
 	) : TrackingDiagnosticRecordResult
 }
 
-internal enum class TrackingDiagnosticStoreResult {
-	RECORDED_LOCALLY,
-	IGNORED,
-	FAILED,
-}
-
 /**
  * Internal storage boundary for the local recorder. It is deliberately unavailable to consumers;
- * a storage implementation can receive only the already-closed, payload-free event shape.
+ * a storage implementation receives only the encoded payload-free shape, never recorder scope
+ * correlation.
  */
 internal fun interface TrackingDiagnosticEventStore {
-	fun append(event: RecordedTrackingDiagnosticEvent): TrackingDiagnosticStoreResult
+	suspend fun append(event: EncodedTrackingDiagnosticEvent): TrackingDiagnosticStorageResult
 }
 
 /**
@@ -52,8 +46,8 @@ class TrackingDiagnosticRecorder private constructor(
 	private val store: TrackingDiagnosticEventStore,
 	private val nanoClock: NanoClock,
 	private val wallClock: WallClock,
-	private val zoneProvider: ZoneProvider,
 	private val scopeOpaqueFactory: ScopeOpaqueFactory,
+	private val recordedEventProbe: (RecordedTrackingDiagnosticEvent) -> Unit,
 ) {
 	fun beginOperation(
 		source: TrackingDiagnosticSource,
@@ -69,7 +63,7 @@ class TrackingDiagnosticRecorder private constructor(
 	)
 
 	@Suppress("SwallowedException", "TooGenericExceptionCaught")
-	fun record(
+	suspend fun record(
 		scope: OperationScope,
 		event: TrackingDiagnosticEventRequest,
 	): TrackingDiagnosticRecordResult {
@@ -78,39 +72,49 @@ class TrackingDiagnosticRecorder private constructor(
 			return TrackingDiagnosticRecordResult.Rejected(consumption.reason)
 		}
 		consumption as ScopeConsumption.Accepted
-		val recordedEvent = event.toRecordedEvent(
-			operationScope = consumption.operationScope,
-			scopeSequence = TrackingDiagnosticScopeSequence.fromEventCount(consumption.eventCount),
-			coarseLocalTimestamp = TrackingDiagnosticCoarseLocalTimestamp.fromEpochMilliseconds(
-				epochMilliseconds = wallClock.readEpochMilliseconds(),
-				zoneId = zoneProvider.currentZone(),
-			),
-			scopeDurationBucket = TrackingDiagnosticDurationBucket.fromMilliseconds(
-				TimeUnit.NANOSECONDS.toMillis(consumption.elapsedNanos),
-			),
-		)
-		if (TrackingDiagnosticPrivacyValidator.validate(recordedEvent) !is
-			TrackingDiagnosticPrivacyValidation.Allowed
-		) {
-			scope.invalidate()
-			return TrackingDiagnosticRecordResult.Rejected(
-				TrackingDiagnosticScopeRejectionReason.PRIVACY_REJECTED,
-			)
-		}
 		return try {
-			when (store.append(recordedEvent)) {
-				TrackingDiagnosticStoreResult.RECORDED_LOCALLY ->
-					TrackingDiagnosticRecordResult.RecordedLocally
-				TrackingDiagnosticStoreResult.IGNORED ->
-					TrackingDiagnosticRecordResult.IgnoredByNoOpRecorder
-				TrackingDiagnosticStoreResult.FAILED -> {
-					scope.invalidate()
-					TrackingDiagnosticRecordResult.RecorderFailed
-				}
+			val recordedEvent = event.toRecordedEvent(
+				operationScope = consumption.operationScope,
+				scopeSequence =
+					TrackingDiagnosticScopeSequence.fromEventCount(consumption.eventCount),
+				coarseTimeBucket =
+					TrackingDiagnosticCoarseTimeBucket.fromEpochMilliseconds(
+						epochMilliseconds = wallClock.readEpochMilliseconds(),
+					),
+				scopeDurationBucket = TrackingDiagnosticDurationBucket.fromMilliseconds(
+					TimeUnit.NANOSECONDS.toMillis(consumption.elapsedNanos),
+				),
+			)
+			if (TrackingDiagnosticPrivacyValidator.validate(recordedEvent) !is
+				TrackingDiagnosticPrivacyValidation.Allowed
+			) {
+				scope.invalidate()
+				return TrackingDiagnosticRecordResult.Rejected(
+					TrackingDiagnosticScopeRejectionReason.PRIVACY_REJECTED,
+				)
 			}
+			recordedEventProbe(recordedEvent)
+			val storageResult = store.append(EncodedTrackingDiagnosticEvent.from(recordedEvent))
+			when (storageResult) {
+				TrackingDiagnosticStorageResult.STORAGE_RETRYABLE,
+				TrackingDiagnosticStorageResult.PERMANENT_REJECTED,
+				-> {
+					scope.invalidate()
+					TrackingDiagnosticRecordResult.Storage(storageResult)
+				}
+				TrackingDiagnosticStorageResult.STORED,
+				TrackingDiagnosticStorageResult.AGGREGATED,
+				TrackingDiagnosticStorageResult.DROPPED_RATE_LIMIT,
+				-> TrackingDiagnosticRecordResult.Storage(storageResult)
+			}
+		} catch (cancelled: CancellationException) {
+			scope.invalidate()
+			throw cancelled
 		} catch (_: Throwable) {
 			scope.invalidate()
-			TrackingDiagnosticRecordResult.RecorderFailed
+			TrackingDiagnosticRecordResult.Storage(
+				TrackingDiagnosticStorageResult.STORAGE_RETRYABLE,
+			)
 		}
 	}
 
@@ -199,10 +203,6 @@ class TrackingDiagnosticRecorder private constructor(
 		fun readEpochMilliseconds(): Long
 	}
 
-	private fun interface ZoneProvider {
-		fun currentZone(): ZoneId
-	}
-
 	private fun interface ScopeOpaqueFactory {
 		fun create(): TrackingDiagnosticScopeOpaque
 	}
@@ -224,29 +224,31 @@ class TrackingDiagnosticRecorder private constructor(
 		private val MAX_SCOPE_LIFETIME_NANOS = TimeUnit.MINUTES.toNanos(5L)
 
 		@JvmSynthetic
-		internal fun local(): TrackingDiagnosticRecorder {
+		internal fun local(store: TrackingDiagnosticEventStore): TrackingDiagnosticRecorder {
 			val random = SecureRandom()
+			val processEpoch = TrackingDiagnosticProcessEpoch.random(random)
 			return TrackingDiagnosticRecorder(
-				store = TraceboxTrackingDiagnosticAdapter.PRODUCTION,
+				store = store,
 				nanoClock = NanoClock(System::nanoTime),
 				wallClock = WallClock(System::currentTimeMillis),
-				zoneProvider = ZoneProvider(ZoneId::systemDefault),
 				scopeOpaqueFactory = ScopeOpaqueFactory {
-					TrackingDiagnosticScopeOpaque.random(random)
+					TrackingDiagnosticScopeOpaque.random(processEpoch, random)
 				},
+				recordedEventProbe = {},
 			)
 		}
 
 		@JvmSynthetic
-		internal fun noOpForTest(
+		internal fun droppingForTest(
 			nanoTime: () -> Long = { 0L },
 			epochMilliseconds: () -> Long = { 0L },
-			zoneId: ZoneId = ZoneOffset.UTC,
 		): TrackingDiagnosticRecorder = createTestRecorder(
-			store = TrackingDiagnosticEventStore { TrackingDiagnosticStoreResult.IGNORED },
+			store = TrackingDiagnosticEventStore {
+				TrackingDiagnosticStorageResult.DROPPED_RATE_LIMIT
+			},
 			nanoTime = nanoTime,
 			epochMilliseconds = epochMilliseconds,
-			zoneId = zoneId,
+			recordedEventProbe = {},
 		)
 
 		@JvmSynthetic
@@ -254,37 +256,47 @@ class TrackingDiagnosticRecorder private constructor(
 			recordedEvents: MutableList<RecordedTrackingDiagnosticEvent>,
 			nanoTime: () -> Long = { 0L },
 			epochMilliseconds: () -> Long = { 0L },
-			zoneId: ZoneId = ZoneOffset.UTC,
 			failWrites: Boolean = false,
+			throwWrites: Boolean = false,
+			cancelWrites: Boolean = false,
+			processEpochSeed: Long = 0L,
 		): TrackingDiagnosticRecorder = createTestRecorder(
-			store = TrackingDiagnosticEventStore { event ->
-				if (failWrites) {
-					TrackingDiagnosticStoreResult.FAILED
+			store = TrackingDiagnosticEventStore {
+				if (cancelWrites) {
+					throw CancellationException("Test storage cancellation")
+				} else if (throwWrites) {
+					error("Test storage failure")
+				} else if (failWrites) {
+					TrackingDiagnosticStorageResult.STORAGE_RETRYABLE
 				} else {
-					recordedEvents += event
-					TrackingDiagnosticStoreResult.RECORDED_LOCALLY
+					TrackingDiagnosticStorageResult.STORED
 				}
 			},
 			nanoTime = nanoTime,
 			epochMilliseconds = epochMilliseconds,
-			zoneId = zoneId,
+			processEpochSeed = processEpochSeed,
+			recordedEventProbe = { event -> recordedEvents += event },
 		)
 
 		private fun createTestRecorder(
 			store: TrackingDiagnosticEventStore,
 			nanoTime: () -> Long,
 			epochMilliseconds: () -> Long,
-			zoneId: ZoneId,
+			recordedEventProbe: (RecordedTrackingDiagnosticEvent) -> Unit,
+			processEpochSeed: Long = 0L,
 		): TrackingDiagnosticRecorder {
 			val scopeSequence = AtomicLong()
 			return TrackingDiagnosticRecorder(
 				store = store,
 				nanoClock = NanoClock(nanoTime),
 				wallClock = WallClock(epochMilliseconds),
-				zoneProvider = ZoneProvider { zoneId },
 				scopeOpaqueFactory = ScopeOpaqueFactory {
-					TrackingDiagnosticScopeOpaque.fixedForTest(scopeSequence.incrementAndGet())
+					TrackingDiagnosticScopeOpaque.fixedForTest(
+						scopeSeed = scopeSequence.incrementAndGet(),
+						processSeed = processEpochSeed,
+					)
 				},
+				recordedEventProbe = recordedEventProbe,
 			)
 		}
 	}

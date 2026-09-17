@@ -45,6 +45,10 @@ final class TrackingDiagnosticJavaVisibilityTest {
 			TrackingDiagnosticEvents.class,
 			TrackingDiagnosticMetricPolicy.class,
 			TrackingDiagnosticPrivacyValidator.class,
+			TrackingDiagnosticHistory.class,
+			TrackingDiagnosticDataControl.class,
+			TrackingDiagnosticMaintenance.class,
+			TrackingDiagnosticStoredEvent.class,
 			TrackerDiagnosticLog.class,
 			TrackerDiagnosticInfoCode.class,
 			TrackerDiagnosticWarningCode.class,
@@ -58,6 +62,18 @@ final class TrackingDiagnosticJavaVisibilityTest {
 				.forEach(this::assertPayloadFreeSignature);
 			Arrays.stream(type.getFields()).forEach(this::assertPayloadFreeField);
 		});
+	}
+
+	@Test
+	void healthQueryViewDoesNotExposeRecorderOwnedProcessScopeToken() {
+		Arrays.stream(TrackingDiagnosticStoredEvent.class.getDeclaredFields())
+			.filter(field -> !Modifier.isStatic(field.getModifiers()))
+			.forEach(field -> {
+				String name = field.getName().toLowerCase();
+				assertFalse(name.contains("operationscope"));
+				assertFalse(name.contains("processepoch"));
+				assertFalse(name.contains("token"));
+			});
 	}
 
 	@Test
