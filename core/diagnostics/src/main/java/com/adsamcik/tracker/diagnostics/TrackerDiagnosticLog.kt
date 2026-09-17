@@ -86,45 +86,6 @@ object TrackerDiagnosticLog {
 		)
 	}
 
-	@Suppress("LongParameterList")
-	fun trackingCoordinatorSessionMetrics(
-		projectionDrainCount: Long,
-		projectedEventCount: Long,
-		projectionDrainNanos: Long,
-		planRevisionCount: Long,
-		trackingFrameCount: Long,
-		trackingFrameWakeLockNanos: Long,
-		sourceTimerWakeupCount: Long,
-		sourceTimerRequestCount: Long,
-		motionPolicyChangeCount: Long,
-		stationaryOptimizationCount: Long,
-		fullFidelityRestoreCount: Long,
-	) {
-		Tracebox.log.info(
-			TrackerTraceboxTemplates.TRACKING_COORDINATOR_SESSION_COUNTS,
-			public(TrackingDiagnosticCountBucket.fromCount(projectionDrainCount).name),
-			public(TrackingDiagnosticCountBucket.fromCount(projectedEventCount).name),
-			public(TrackingDiagnosticCountBucket.fromCount(planRevisionCount).name),
-			public(TrackingDiagnosticCountBucket.fromCount(trackingFrameCount).name),
-			public(TrackingDiagnosticCountBucket.fromCount(sourceTimerWakeupCount).name),
-			public(TrackingDiagnosticCountBucket.fromCount(sourceTimerRequestCount).name),
-			public(TrackingDiagnosticCountBucket.fromCount(motionPolicyChangeCount).name),
-			public(TrackingDiagnosticCountBucket.fromCount(stationaryOptimizationCount).name),
-			public(TrackingDiagnosticCountBucket.fromCount(fullFidelityRestoreCount).name),
-		)
-		Tracebox.log.performanceEvent(
-			TrackerTraceboxTemplates.TRACKING_COORDINATOR_SESSION_TIMINGS,
-			public(
-				TrackingDiagnosticDurationBucket.fromNanoseconds(projectionDrainNanos).name,
-			),
-			public(
-				TrackingDiagnosticDurationBucket.fromNanoseconds(trackingFrameWakeLockNanos).name,
-			),
-		)
-	}
-
-	fun <T> processTrackingCycle(block: () -> T): T =
-		Tracebox.log.performanceSuspend(TrackerTraceboxTemplates.PROCESS_TRACKING_CYCLE) { block() }
 }
 
 enum class TrackerDiagnosticInfoCode {

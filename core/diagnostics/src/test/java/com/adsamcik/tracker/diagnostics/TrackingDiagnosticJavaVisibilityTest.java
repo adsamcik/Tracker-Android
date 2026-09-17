@@ -27,8 +27,13 @@ final class TrackingDiagnosticJavaVisibilityTest {
 		assertEquals(0, recorder.getInterfaces().length);
 		assertNoAccessibleConstructor(recorder);
 		assertNoAccessibleConstructor(scope);
+		assertFalse(Arrays.stream(recorder.getFields()).anyMatch(field ->
+			field.getName().equals("LOCAL") || field.getName().equals("NO_OP")
+		));
 		assertFalse(Arrays.stream(recorder.getDeclaredMethods()).anyMatch(method ->
-			Modifier.isProtected(method.getModifiers()) || method.getName().contains("Sink")
+			Modifier.isProtected(method.getModifiers())
+				|| method.getName().contains("Sink")
+				|| method.getName().contains("Store")
 		));
 	}
 

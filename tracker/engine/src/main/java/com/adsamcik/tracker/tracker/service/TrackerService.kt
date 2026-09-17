@@ -220,7 +220,6 @@ internal class TrackerService : CoreService() {
 	private var latestDeliveredStartId = 0
 	@Volatile private var activeExternalStop: ActiveExternalStop? = null
 	@Volatile private var stopReason: TrackingStopCandidateReason = TrackingStopCandidateReason.UNKNOWN
-	private var coordinatorMetricBaseline: com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorMetrics? = null
 	@Volatile private var sessionRolloutState: TrackingRolloutState? = null
 	@Volatile private var sessionStartOrigin: SessionStartOrigin? = null
 	@Volatile private var foregroundStarted = false
@@ -837,7 +836,6 @@ internal class TrackerService : CoreService() {
 		)
 		gracefulStopRequested = false
 		stopReason = TrackingStopCandidateReason.UNKNOWN
-		coordinatorMetricBaseline = coordinatorTelemetry.snapshot()
 		// A restart retains the logical session identity but is a distinct Android-service run.
 		val serviceRunDescriptor = preparedTrackingStart.descriptor
 		val isUserInitiated = serviceRunDescriptor.isUserInitiated
@@ -1384,9 +1382,7 @@ internal class TrackerService : CoreService() {
 		val wakeLockStartedAtNanos = Time.elapsedRealtimeNanos
 		wakeLock.acquire(Time.SECOND_IN_MILLISECONDS * 10L)
 		try {
-			TrackerDiagnosticLog.processTrackingCycle {
-				orchestrator.onCycleUpdate(this@TrackerService, cycle)
-			}
+			orchestrator.onCycleUpdate(this@TrackerService, cycle)
 		} finally {
 			if (wakeLock.isHeld) wakeLock.release()
 			coordinatorTelemetry.recordTrackingFrame(
@@ -1864,10 +1860,6 @@ internal class TrackerService : CoreService() {
 			)
 		}
 		acknowledgePresentationQuiescence(requireNotNull(finalShutdownResult))
-		coordinatorMetricBaseline?.let { baseline ->
-			recordCoordinatorSessionMetrics(coordinatorTelemetry.snapshot() - baseline)
-		}
-		coordinatorMetricBaseline = null
 		if (preparedRuntime.applied) {
 			HistoricalTrajectoryReconstructionWorker.schedule(context)
 		}

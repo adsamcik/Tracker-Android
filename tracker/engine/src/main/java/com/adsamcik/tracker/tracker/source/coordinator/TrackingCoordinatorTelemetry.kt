@@ -7,7 +7,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Low-overhead counters for the event-owned tracking pipeline and device gates. */
+/**
+ * Process-local runtime counters for technical status UI and later device gates.
+ *
+ * Raw values never cross into the tracking diagnostics recorder.
+ */
 @Singleton
 class TrackingCoordinatorTelemetry @Inject constructor() {
 	private val projectionDrainCount = AtomicLong()

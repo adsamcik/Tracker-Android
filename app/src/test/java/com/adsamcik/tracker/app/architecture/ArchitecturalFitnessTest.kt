@@ -683,6 +683,7 @@ class ArchitecturalFitnessTest {
 				"TrackingDiagnosticContract.kt",
 				"TrackingDiagnosticPrivacy.kt",
 				"TrackingDiagnosticRecorder.kt",
+				"TrackingDiagnosticWire.kt",
 			)
 			contractFiles.flatMap { fileName ->
 				val file = contractDirectory.resolve(fileName)
@@ -703,11 +704,17 @@ class ArchitecturalFitnessTest {
 		@Test
 		fun `tracking source modules cannot reference Tracebox directly`() {
 			val sourceDirectories = listOf(
+				projectRoot.resolve("tracker/api-module/src/main"),
+				projectRoot.resolve("tracker/control/src"),
 				projectRoot.resolve("tracker/engine/src/main"),
+				projectRoot.resolve("sensor/activity-api/src/main"),
 				projectRoot.resolve("sensor/activity/src/main"),
 			)
 			val buildFiles = listOf(
+				projectRoot.resolve("tracker/api-module/build.gradle.kts"),
+				projectRoot.resolve("tracker/control/build.gradle.kts"),
 				projectRoot.resolve("tracker/engine/build.gradle.kts"),
+				projectRoot.resolve("sensor/activity-api/build.gradle.kts"),
 				projectRoot.resolve("sensor/activity/build.gradle.kts"),
 			)
 
@@ -728,6 +735,196 @@ class ArchitecturalFitnessTest {
 			}
 
 			(sourceViolations + dependencyViolations).shouldBeEmpty()
+		}
+
+		@Test
+		fun `tracking recorder binding and storage boundary remain module owned`() {
+			val diagnosticsBuild = projectRoot.resolve("core/diagnostics/build.gradle.kts").readText()
+			val moduleSource = projectRoot.resolve(
+				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/" +
+					"TrackingDiagnosticRecorderModule.kt",
+			).readText()
+			val recorderSource = projectRoot.resolve(
+				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/" +
+					"TrackingDiagnosticRecorder.kt",
+			).readText()
+			val adapterSource = projectRoot.resolve(
+				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/" +
+					"TraceboxTrackingDiagnosticAdapter.kt",
+			).readText()
+
+			buildList {
+				if ("id(\"tracker.android.hilt\")" !in diagnosticsBuild) {
+					add(":core:diagnostics must own its Hilt binding")
+				}
+				if ("TrackingDiagnosticRecorder.local()" !in moduleSource) {
+					add("production Hilt binding must select the local recorder")
+				}
+				if ("internal fun interface TrackingDiagnosticEventStore" !in recorderSource) {
+					add("storage boundary must remain internal to :core:diagnostics")
+				}
+				if (Regex("""public\s+(?:fun\s+interface|interface)\s+TrackingDiagnosticEventStore""")
+						.containsMatchIn(recorderSource)
+				) {
+					add("tracking diagnostic storage must not become a public extension API")
+				}
+				if ("internal class TraceboxTrackingDiagnosticAdapter" !in adapterSource) {
+					add("Tracebox tracking adapter must remain final and internal")
+				}
+				if (Regex("""\bopen\s+class\s+TraceboxTrackingDiagnosticAdapter""")
+						.containsMatchIn(adapterSource)
+				) {
+					add("Tracebox tracking adapter must not be extensible")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `tracking diagnostic templates serialize exact allowlisted keys`() {
+			val templateSource = projectRoot.resolve(
+				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/" +
+					"TrackerTraceboxTemplates.kt",
+			).readText()
+			val templates = TRACEBOX_STATIC_TEMPLATE_DECLARATION.findAll(templateSource)
+				.associate { declaration ->
+					declaration.groupValues[1] to declaration.groupValues[2]
+				}
+			val baseKeys = listOf(
+				"source",
+				"purpose",
+				"pipeline_stage",
+				"operation",
+				"result",
+				"reason",
+				"lifecycle",
+				"operation_scope",
+				"scope_sequence",
+				"coarse_local_timestamp",
+				"scope_duration_bucket",
+			)
+			val expectedKeys = mapOf(
+				"TRACKING_DIAGNOSTIC_UNMETERED_EVENT" to baseKeys,
+				"TRACKING_DIAGNOSTIC_ENQUEUE_EVENT" to baseKeys + listOf(
+					"encoded_envelope_size_bucket",
+					"queue_backlog_bucket",
+				),
+				"TRACKING_DIAGNOSTIC_DRAIN_EVENT" to baseKeys + listOf(
+					"drained_envelope_count_bucket",
+					"remaining_envelope_backlog_bucket",
+				),
+				"TRACKING_DIAGNOSTIC_WRITE_BATCH_EVENT" to baseKeys +
+					"persisted_envelope_count_bucket",
+			)
+
+			expectedKeys.mapNotNull { (templateName, expected) ->
+				val template = templates[templateName]
+					?: return@mapNotNull "$templateName is missing"
+				val actual = Regex("""([a-z_]+)=\{\}""").findAll(template)
+					.map { match -> match.groupValues[1] }
+					.toList()
+				"$templateName keys $actual did not equal $expected".takeIf { actual != expected }
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `tracking coordinator runtime metrics do not cross into diagnostics as raw values`() {
+			val removedBridge = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/" +
+					"TrackerTelemetry.kt",
+			)
+			val diagnosticFacade = projectRoot.resolve(
+				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/" +
+					"TrackerDiagnosticLog.kt",
+			).readText()
+			val runtimeMetrics = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/" +
+					"TrackingCoordinatorTelemetry.kt",
+			).readText()
+
+			buildList {
+				if (removedBridge.exists()) {
+					add("raw coordinator counters still cross the tracking diagnostics boundary")
+				}
+				if ("trackingCoordinatorSessionMetrics" in diagnosticFacade) {
+					add("diagnostics facade still accepts raw coordinator counters or timings")
+				}
+				if ("performanceSuspend" in diagnosticFacade) {
+					add("tracking diagnostics facade still records raw operation timing")
+				}
+				if ("com.adsamcik.tracker.diagnostics" in runtimeMetrics) {
+					add("process-local coordinator metrics must remain isolated from diagnostics")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `removed tracking diagnostic methods have no production callers`() {
+			val removedFacadeCalls = findPatternMatching(
+				sourceDir = projectRoot,
+				pattern = Regex(
+					"""TrackerDiagnosticLog\.(?:processTrackingCycle|""" +
+						"""trackingCoordinatorSessionMetrics)\s*\(""",
+				),
+				excludeDirs = STANDARD_EXCLUDES + listOf(
+					"src/test",
+					"src/androidTest",
+					"src/commonTest",
+					"src/androidHostTest",
+					"src/testFixtures",
+				),
+				skipComments = true,
+			)
+			val removedBridgeCalls = findPatternMatching(
+				sourceDir = projectRoot,
+				pattern = Regex("""\brecordCoordinatorSessionMetrics\s*\("""),
+				excludeDirs = STANDARD_EXCLUDES + listOf(
+					"src/test",
+					"src/androidTest",
+					"src/commonTest",
+					"src/androidHostTest",
+					"src/testFixtures",
+				),
+				skipComments = true,
+			)
+
+			(removedFacadeCalls + removedBridgeCalls).shouldBeEmpty()
+		}
+
+		@Test
+		fun `tracking cycle update invokes orchestrator once and propagates errors`() {
+			val serviceSource = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/" +
+					"TrackerService.kt",
+			).readText()
+			val methodDeclaration =
+				"private suspend fun processCycleUpdate(cycle: TrackingCycle)"
+			val methodSource = serviceSource
+				.substringAfter(methodDeclaration)
+				.substringBefore("private fun createCycleDispatcher()")
+
+			buildList {
+				val invocation =
+					"orchestrator.onCycleUpdate(this@TrackerService, cycle)"
+				if (methodDeclaration !in serviceSource) {
+					add("TrackerService must retain processCycleUpdate")
+				}
+				if (Regex(Regex.escape(invocation)).findAll(methodSource).count() != 1) {
+					add("processCycleUpdate must invoke orchestrator.onCycleUpdate exactly once")
+				}
+				if ("TrackerDiagnosticLog." in methodSource ||
+					"TrackingDiagnosticRecorder" in methodSource
+				) {
+					add("processCycleUpdate must not restore removed diagnostic wrappers")
+				}
+				if (Regex("""\bcatch\s*\(""").containsMatchIn(methodSource) ||
+					"runCatching" in methodSource
+				) {
+					add("processCycleUpdate must propagate orchestrator errors after cleanup")
+				}
+				if (!Regex("""\bfinally\s*\{""").containsMatchIn(methodSource)) {
+					add("processCycleUpdate must retain wake-lock cleanup on failure")
+				}
+			}.shouldBeEmpty()
 		}
 
 		@Test

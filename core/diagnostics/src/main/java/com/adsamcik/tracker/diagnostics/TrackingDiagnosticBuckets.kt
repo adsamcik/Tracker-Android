@@ -49,12 +49,6 @@ enum class TrackingDiagnosticDurationBucket {
 				else -> THIRTY_SECONDS_OR_MORE
 			}
 		}
-
-		@JvmSynthetic
-		internal fun fromNanoseconds(durationNanoseconds: Long): TrackingDiagnosticDurationBucket {
-			require(durationNanoseconds >= 0L) { "Duration must be non-negative" }
-			return fromMilliseconds(durationNanoseconds / 1_000_000L)
-		}
 	}
 }
 
