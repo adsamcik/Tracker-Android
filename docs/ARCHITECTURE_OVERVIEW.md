@@ -161,6 +161,11 @@ surfaced as a typed startup block instead of being wiped or silently repaired. O
 preferences and points databases; their versions are independent. Future released
 schema changes require a new Room version, migration, and migration test.
 
+Framework SQLite inspection uses an explicit non-destructive corruption handler so corrupt active
+or migration-source files and their sidecars are not removed before application classification.
+Confirmed corruption/schema mismatch is blocked; lock, busy, and temporary open/I/O conditions
+remain retryable through the existing startup backoff and do not show permanent backup guidance.
+
 ## Dependency direction
 
 The intended dependency direction for ongoing boundary work is:

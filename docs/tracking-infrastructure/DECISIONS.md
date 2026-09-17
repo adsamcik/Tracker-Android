@@ -2,6 +2,21 @@
 
 Last updated: 2026-09-17
 
+## TI-D273 - Preserve corrupt file families and keep operational failures retryable
+
+- Status: **IMPLEMENTED_UNVALIDATED**, Review8a correction, 2026-09-17.
+- Every framework `SQLiteDatabase.openDatabase` used by active preflight, migration-backup
+  inspection, and legacy inspection now supplies Tracker's explicit no-op `DatabaseErrorHandler`.
+  Android's default corruption handler therefore cannot delete the main database or its WAL, SHM,
+  or journal sidecars before Tracker classifies the failure.
+- Confirmed corruption, failed read-only `quick_check(1)`, or schema mismatch remains permanently
+  contained and payload-free. Lock/busy failures and temporary open/path/disk/permission failures are typed retryable states. The
+  existing startup retry/backoff remains their owner; no lifecycle/source consumer is admitted
+  during the retry.
+- Retryable database states use temporary recovery copy and never the preservation/manual-backup
+  screen reserved for permanent containment. No wipe, rename, same-version repair, or v28 version
+  change is introduced.
+
 ## TI-D272 - Contain stale unshipped v28 databases before Room validation
 
 - Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-17.

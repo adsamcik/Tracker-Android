@@ -2,6 +2,8 @@ package com.adsamcik.tracker.app
 
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
+import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseRetryable
+import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseRetryableReason
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
@@ -122,6 +124,34 @@ class ApplicationStartupRecoveryTest {
 			waitBeforeRetry = { error("Blocked startup must not schedule a retry") },
 		) shouldBe blocked
 		attempts shouldBe 1
+	}
+
+	@Test
+	fun `database contention remains in the bounded retry loop until ready`() = runTest {
+		val delays = mutableListOf<Long>()
+		var attempts = 0
+		val ready = TrackingStartupResult.Ready(false, 0L)
+
+		driveTrackingStartup(
+			reconcile = {
+				attempts += 1
+				if (attempts == 1) {
+					TrackingStartupResult.RetryableFailure(
+						stage = TrackingStartupStage.STORAGE,
+						failureCode = "ACTIVE_DATABASE_CONTENDED",
+						databaseRetryable = TrackingDatabaseRetryable(
+							TrackingDatabaseRetryableReason.CONTENDED,
+						),
+					)
+				} else {
+					ready
+				}
+			},
+			waitBeforeRetry = { delays += it },
+		) shouldBe ready
+
+		attempts shouldBe 2
+		delays shouldBe listOf(500L)
 	}
 
 	private companion object {

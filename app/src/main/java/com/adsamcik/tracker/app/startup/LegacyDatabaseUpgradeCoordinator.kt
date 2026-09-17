@@ -3,6 +3,8 @@ package com.adsamcik.tracker.app.startup
 import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import com.adsamcik.tracker.shared.base.database.ActiveDatabaseBlockReason
 import com.adsamcik.tracker.shared.base.database.ActiveDatabaseOpenBlockedException
+import com.adsamcik.tracker.shared.base.database.ActiveDatabaseOpenRetryableException
+import com.adsamcik.tracker.shared.base.database.ActiveDatabaseRetryableReason
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportStatus
@@ -21,6 +23,9 @@ sealed interface LegacyDatabaseStartupResult {
 	data object Ready : LegacyDatabaseStartupResult
 	data class ActiveDatabaseBlocked(
 		val reason: ActiveDatabaseBlockReason,
+	) : LegacyDatabaseStartupResult
+	data class ActiveDatabaseRetryable(
+		val reason: ActiveDatabaseRetryableReason,
 	) : LegacyDatabaseStartupResult
 	data class Failed(
 		val message: String,
@@ -79,6 +84,13 @@ class LegacyDatabaseUpgradeCoordinator @Inject constructor(
 				public(blocked.reason.failureCode),
 			)
 			LegacyDatabaseStartupResult.ActiveDatabaseBlocked(blocked.reason)
+		} catch (retryable: ActiveDatabaseOpenRetryableException) {
+			readyForThisProcess.set(false)
+			Tracebox.log.warn(
+				TrackerTraceboxTemplates.ACTIVE_DATABASE_OPEN_RETRYABLE,
+				public(retryable.reason.failureCode),
+			)
+			LegacyDatabaseStartupResult.ActiveDatabaseRetryable(retryable.reason)
 		} catch (error: Throwable) {
 			readyForThisProcess.set(false)
 			Tracebox.log.error(error, TrackerTraceboxTemplates.LEGACY_DATABASE_IMPORT_FAILED)

@@ -2,6 +2,19 @@
 
 Last updated: 2026-09-17
 
+## TI-B342 - Review8a preservation and retryability sources, execution deferred
+
+- Static source now routes active preflight, migration-backup, and legacy framework SQLite
+  inspection through `openDatabasePreservingFiles`, whose explicit `DatabaseErrorHandler`
+  performs no deletion, rename, recovery, or sidecar cleanup.
+- Authored corrupt-family coverage snapshots SHA-256 for the main file and `-wal`, `-shm`, and
+  `-journal`, then asserts all remain present and byte-identical after direct preflight and guarded
+  open.
+- Authored contention coverage holds an exclusive SQLite lock, expects typed retryable preflight,
+  releases it, and expects normal v27 routing. Delegate-side lock exceptions, coordinator mapping,
+  startup retry state, closed consumers, and temporary UI routing also have focused source tests.
+- Status: **IMPLEMENTED_UNVALIDATED**. No command from the deferred validation batch was run.
+
 ## TI-B341 - Development-v28 containment sources, execution deferred
 
 - Production source adds a read-only active-file classifier and open-helper guard before Room,

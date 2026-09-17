@@ -301,6 +301,23 @@ class MainActivityCompose : ComponentActivity() {
 				return
 			}
 
+			StartupDestination.DatabaseRetryable -> {
+				AppTheme(darkTheme = darkTheme) {
+					StartupRecoveryScreen(
+						titleRes = R.string.database_retryable_title,
+						messageRes = R.string.database_retryable_message,
+						onRetry = {
+							viewModel.setStartupDestination(StartupDestination.Pending)
+							val mainImmediate =
+								(dispatchers.main as? MainCoroutineDispatcher)?.immediate
+									?: dispatchers.main
+							resolveStartup(mainImmediate, retry = true)
+						},
+					)
+				}
+				return
+			}
+
             StartupDestination.Onboarding,
             StartupDestination.OnboardingReadFailed -> Unit // handled below via startDestination = Setup
             StartupDestination.Main -> Unit
@@ -380,6 +397,7 @@ enum class StartupDestination {
 	Recovery,
 	DevelopmentDatabaseContainment,
 	DatabaseContainment,
+	DatabaseRetryable,
     Onboarding,
     OnboardingReadFailed,
     Main,
@@ -400,7 +418,12 @@ internal fun startupFailureDestination(result: TrackingStartupResult): StartupDe
 			null -> StartupDestination.Recovery
 			else -> StartupDestination.DatabaseContainment
 		}
-		is TrackingStartupResult.RetryableFailure -> StartupDestination.Recovery
+		is TrackingStartupResult.RetryableFailure ->
+			if (result.databaseRetryable != null) {
+				StartupDestination.DatabaseRetryable
+			} else {
+				StartupDestination.Recovery
+			}
 	}
 
 @Composable

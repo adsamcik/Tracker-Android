@@ -58,6 +58,7 @@ interface TrackingStartupGate {
 		is TrackingStartupResult.RetryableFailure -> TrackingAdmissionStartupResult.RetryableFailure(
 			result.stage,
 			result.failureCode,
+			result.databaseRetryable,
 		)
 		is TrackingStartupResult.Blocked -> TrackingAdmissionStartupResult.Blocked(
 			result.stage,
@@ -99,6 +100,7 @@ sealed interface TrackingAdmissionStartupResult {
 	data class RetryableFailure(
 		val stage: TrackingStartupStage,
 		val failureCode: String,
+		val databaseRetryable: TrackingDatabaseRetryable? = null,
 	) : TrackingAdmissionStartupResult
 
 	data class Blocked(
@@ -117,6 +119,7 @@ sealed interface TrackingStartupResult {
 	data class RetryableFailure(
 		val stage: TrackingStartupStage,
 		val failureCode: String,
+		val databaseRetryable: TrackingDatabaseRetryable? = null,
 	) : TrackingStartupResult
 
 	data class Blocked(
@@ -145,6 +148,15 @@ enum class TrackingDatabaseContainmentReason {
 
 enum class TrackingDatabaseRemediation {
 	PRESERVE_AND_BACK_UP_MANUALLY,
+}
+
+data class TrackingDatabaseRetryable(
+	val reason: TrackingDatabaseRetryableReason,
+)
+
+enum class TrackingDatabaseRetryableReason {
+	CONTENDED,
+	OPERATIONALLY_UNAVAILABLE,
 }
 
 enum class TrackingStartupStage {

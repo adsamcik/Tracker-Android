@@ -5,6 +5,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.adsamcik.tracker.shared.base.database.ActiveDatabaseBlockReason
 import com.adsamcik.tracker.shared.base.database.ActiveDatabaseOpenBlockedException
+import com.adsamcik.tracker.shared.base.database.ActiveDatabaseOpenRetryableException
+import com.adsamcik.tracker.shared.base.database.ActiveDatabaseRetryableReason
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseInfo
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
@@ -120,6 +122,23 @@ class LegacyDatabaseUpgradeCoordinatorTest {
 
 		coordinator.ensureReady() shouldBe LegacyDatabaseStartupResult.ActiveDatabaseBlocked(
 			ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28,
+		)
+
+		verify(exactly = 0) { repository.markFailed(any()) }
+		verify(exactly = 0) { repository.markComplete() }
+		coordinator.isReady() shouldBe false
+	}
+
+	@Test
+	fun `database contention is retryable and does not mutate legacy recovery state`() = runTest {
+		every { repository.inspect() } returns null
+		every { openHelper.writableDatabase } throws ActiveDatabaseOpenRetryableException(
+			ActiveDatabaseRetryableReason.CONTENDED,
+		)
+		val coordinator = coordinator()
+
+		coordinator.ensureReady() shouldBe LegacyDatabaseStartupResult.ActiveDatabaseRetryable(
+			ActiveDatabaseRetryableReason.CONTENDED,
 		)
 
 		verify(exactly = 0) { repository.markFailed(any()) }

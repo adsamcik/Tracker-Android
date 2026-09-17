@@ -20,6 +20,12 @@ unknown/unreadable files, no delegate open/file mutation, typed startup propagat
 lifecycle/source consumer recovery after containment. No tests, compilation, schema generation,
 lint, device, CI, or diff-check command was run; generated v28 JSON remains untouched.
 
+Review8a corrections are also **IMPLEMENTED_UNVALIDATED**. Active preflight, migration-backup,
+and legacy framework SQLite inspection opens now use an explicit non-destructive corruption
+handler. Corrupt main/WAL/SHM/journal families stay present and byte-identical in the authored regression source. Lock/busy and temporary
+open/path/disk/permission failures propagate as typed retryable storage states through the existing
+bounded-backoff startup owner; they do not become permanent containment or show manual-backup copy.
+
 ## Final finish-started local integration snapshot
 
 This section supersedes every older current-state classification below. Local `dev/v10` began this

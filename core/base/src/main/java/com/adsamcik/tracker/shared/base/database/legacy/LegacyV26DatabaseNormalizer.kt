@@ -6,6 +6,7 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
+import com.adsamcik.tracker.shared.base.database.openDatabasePreservingFiles
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 import java.io.Closeable
 import java.io.File
@@ -122,7 +123,7 @@ internal class LegacyV26DatabaseNormalizer(
 	}
 
 	private fun validate(file: File) {
-		SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY).use { database ->
+		openDatabasePreservingFiles(file, SQLiteDatabase.OPEN_READONLY).use { database ->
 			if (database.version != RELEASED_DATABASE_VERSION) {
 				throw LegacyDatabaseException(
 					"Expected normalized schema v26 but found v${database.version}",

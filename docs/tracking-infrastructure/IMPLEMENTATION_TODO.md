@@ -11,6 +11,10 @@
   authored fresh/reopen/v27 migration/containment tests in the frozen final validation batch.
 - Remaining remediation dependency: an explicit user-initiated active-database export/rename
   surface. Do not reuse the legacy-v26 delete flow or add an automatic destructive path.
+- [x] Review8a correction — **IMPLEMENTED_UNVALIDATED**: replace every framework SQLite inspection
+  open with an explicit no-op corruption handler; preserve corrupt main/WAL/SHM/journal files; map
+  lock/busy and temporary operational failures to typed retryable startup state; keep consumers
+  closed until retry succeeds; reserve permanent guidance for confirmed containment only.
 
 ## 2026-09-16 finish-started closure
 

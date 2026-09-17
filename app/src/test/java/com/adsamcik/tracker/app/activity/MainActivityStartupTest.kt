@@ -4,6 +4,8 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainment
 import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainmentReason
+import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseRetryable
+import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseRetryableReason
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingCompletionState
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import io.kotest.matchers.shouldBe
@@ -92,6 +94,19 @@ class MainActivityStartupTest {
 				),
 			),
 		) shouldBe StartupDestination.DatabaseContainment
+	}
+
+	@Test
+	fun `retryable database state does not use permanent containment guidance`() {
+		startupFailureDestination(
+			TrackingStartupResult.RetryableFailure(
+				stage = TrackingStartupStage.STORAGE,
+				failureCode = "ACTIVE_DATABASE_CONTENDED",
+				databaseRetryable = TrackingDatabaseRetryable(
+					TrackingDatabaseRetryableReason.CONTENDED,
+				),
+			),
+		) shouldBe StartupDestination.DatabaseRetryable
 	}
 
     private class FakeOnboardingRepository(

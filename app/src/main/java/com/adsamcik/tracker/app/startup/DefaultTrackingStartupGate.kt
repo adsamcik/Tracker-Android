@@ -12,6 +12,9 @@ import com.adsamcik.tracker.app.recentMainProcessExitCount
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
 import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import com.adsamcik.tracker.shared.base.database.ActiveDatabaseBlockReason
+import com.adsamcik.tracker.shared.base.database.ActiveDatabaseRetryableReason
+import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseRetryable
+import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseRetryableReason
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainment
 import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainmentReason
@@ -461,6 +464,14 @@ class DefaultTrackingStartupGate @Inject constructor(
 							reason = storage.reason.toTrackingContainmentReason(),
 						),
 					)
+				is LegacyDatabaseStartupResult.ActiveDatabaseRetryable ->
+					return TrackingStartupResult.RetryableFailure(
+						stage = TrackingStartupStage.STORAGE,
+						failureCode = storage.reason.failureCode,
+						databaseRetryable = TrackingDatabaseRetryable(
+							reason = storage.reason.toTrackingRetryableReason(),
+						),
+					)
 				is LegacyDatabaseStartupResult.Failed -> {
 					val failureCode = storage.message.ifBlank { STORAGE_NOT_READY }
 					return if (storage.requiresExplicitRetry) {
@@ -648,6 +659,14 @@ class DefaultTrackingStartupGate @Inject constructor(
 			TrackingDatabaseContainmentReason.RELEASED_V27_MIGRATION_VALIDATION_FAILED
 		ActiveDatabaseBlockReason.FINAL_V28_OPEN_VALIDATION_FAILED ->
 			TrackingDatabaseContainmentReason.FINAL_V28_OPEN_VALIDATION_FAILED
+	}
+
+	private fun ActiveDatabaseRetryableReason.toTrackingRetryableReason():
+		TrackingDatabaseRetryableReason = when (this) {
+		ActiveDatabaseRetryableReason.CONTENDED ->
+			TrackingDatabaseRetryableReason.CONTENDED
+		ActiveDatabaseRetryableReason.OPERATIONALLY_UNAVAILABLE ->
+			TrackingDatabaseRetryableReason.OPERATIONALLY_UNAVAILABLE
 	}
 
 	private companion object {

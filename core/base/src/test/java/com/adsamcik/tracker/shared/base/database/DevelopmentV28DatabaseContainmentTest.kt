@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
+import android.database.sqlite.SQLiteCantOpenDatabaseException
+import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteDatabaseLockedException
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
@@ -8,6 +11,8 @@ import androidx.test.core.app.ApplicationProvider
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import java.io.File
+import java.io.RandomAccessFile
+import java.security.MessageDigest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -125,15 +130,60 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
-	fun `unreadable database is contained`() {
-		databaseFile().apply {
-			parentFile?.mkdirs()
-			writeBytes(byteArrayOf(1, 2, 3, 4))
-		}
+	fun `database path obstruction is retryable rather than schema corruption`() {
+		databaseFile().mkdirs() shouldBe true
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Retryable(
+			ActiveDatabaseRetryableReason.OPERATIONALLY_UNAVAILABLE,
+		)
+	}
+
+	@Test
+	fun `temporary open failures use the retryable operational state`() {
+		SQLiteCantOpenDatabaseException("unable to open database file")
+			.activeDatabaseRetryableReason() shouldBe
+			ActiveDatabaseRetryableReason.OPERATIONALLY_UNAVAILABLE
+	}
+
+	@Test
+	fun `corrupt database family is contained and preserved byte for byte`() {
+		val before = createCorruptFileFamily()
 
 		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
 			ActiveDatabaseBlockReason.UNREADABLE_DATABASE,
 		)
+		assertFileFamilyUnchanged(before)
+
+		var delegateOpened = false
+		val helper = DevelopmentV28ContainmentOpenHelperFactory(
+			context = context,
+			databaseName = DATABASE_NAME,
+			delegate = FrameworkSQLiteOpenHelperFactory(),
+		).create(
+			SupportSQLiteOpenHelper.Configuration.builder(context)
+				.name(DATABASE_NAME)
+				.callback(object : SupportSQLiteOpenHelper.Callback(CURRENT_DATABASE_VERSION) {
+					override fun onCreate(db: SupportSQLiteDatabase) {
+						delegateOpened = true
+					}
+
+					override fun onUpgrade(
+						db: SupportSQLiteDatabase,
+						oldVersion: Int,
+						newVersion: Int,
+					) = Unit
+				})
+				.build(),
+		)
+
+		val failure = shouldThrow<ActiveDatabaseOpenBlockedException> {
+			helper.writableDatabase
+		}
+
+		failure.reason shouldBe ActiveDatabaseBlockReason.UNREADABLE_DATABASE
+		delegateOpened shouldBe false
+		assertFileFamilyUnchanged(before)
+		helper.close()
 	}
 
 	@Test
@@ -215,6 +265,101 @@ class DevelopmentV28DatabaseContainmentTest {
 		preflight() shouldBe ActiveDatabasePreflightResult.ReleasedV27
 	}
 
+	@Test
+	fun `database contention is retryable and a later preflight succeeds`() {
+		createFixture(version = LAST_RELEASED_ACTIVE_DATABASE_VERSION)
+		var delegateOpened = false
+		val guardedHelper = DevelopmentV28ContainmentOpenHelperFactory(
+			context = context,
+			databaseName = DATABASE_NAME,
+			delegate = FrameworkSQLiteOpenHelperFactory(),
+		).create(
+			SupportSQLiteOpenHelper.Configuration.builder(context)
+				.name(DATABASE_NAME)
+				.callback(
+					object : SupportSQLiteOpenHelper.Callback(
+						LAST_RELEASED_ACTIVE_DATABASE_VERSION,
+					) {
+						override fun onCreate(db: SupportSQLiteDatabase) =
+							error("Expected existing v27 fixture")
+
+						override fun onUpgrade(
+							db: SupportSQLiteDatabase,
+							oldVersion: Int,
+							newVersion: Int,
+						) = error("Expected no migration")
+
+						override fun onOpen(db: SupportSQLiteDatabase) {
+							delegateOpened = true
+						}
+					},
+				)
+				.build(),
+		)
+		val lockingDatabase = openDatabasePreservingFiles(
+			databaseFile(),
+			SQLiteDatabase.OPEN_READWRITE,
+		)
+		lockingDatabase.execSQL("PRAGMA journal_mode=DELETE")
+		lockingDatabase.execSQL("BEGIN EXCLUSIVE")
+		try {
+			preflight() shouldBe ActiveDatabasePreflightResult.Retryable(
+				ActiveDatabaseRetryableReason.CONTENDED,
+			)
+			shouldThrow<ActiveDatabaseOpenRetryableException> {
+				guardedHelper.readableDatabase
+			}.reason shouldBe ActiveDatabaseRetryableReason.CONTENDED
+			delegateOpened shouldBe false
+		} finally {
+			lockingDatabase.execSQL("ROLLBACK")
+			lockingDatabase.close()
+		}
+
+		preflight() shouldBe ActiveDatabasePreflightResult.ReleasedV27
+		guardedHelper.readableDatabase
+		delegateOpened shouldBe true
+		guardedHelper.close()
+	}
+
+	@Test
+	fun `guarded delegate contention remains retryable`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+		)
+		val helper = DevelopmentV28ContainmentOpenHelperFactory(
+			delegate = FrameworkSQLiteOpenHelperFactory(),
+			inspect = { ActiveDatabasePreflightResult.FinalV28 },
+		).create(
+			SupportSQLiteOpenHelper.Configuration.builder(context)
+				.name(DATABASE_NAME)
+				.callback(object : SupportSQLiteOpenHelper.Callback(CURRENT_DATABASE_VERSION) {
+					override fun onCreate(db: SupportSQLiteDatabase) = Unit
+
+					override fun onUpgrade(
+						db: SupportSQLiteDatabase,
+						oldVersion: Int,
+						newVersion: Int,
+					) = Unit
+
+					override fun onOpen(db: SupportSQLiteDatabase) {
+						throw SQLiteDatabaseLockedException("database is locked")
+					}
+				})
+				.build(),
+		)
+
+		val failure = shouldThrow<ActiveDatabaseOpenRetryableException> {
+			helper.writableDatabase
+		}
+
+		failure.reason shouldBe ActiveDatabaseRetryableReason.CONTENDED
+		helper.close()
+	}
+
 	private fun preflight(): ActiveDatabasePreflightResult =
 		ActiveDatabasePreflight(databaseFile()).inspect()
 
@@ -279,8 +424,43 @@ class DevelopmentV28DatabaseContainmentTest {
 
 	private fun databaseFile(): File = context.getDatabasePath(DATABASE_NAME)
 
+	private fun createCorruptFileFamily(): Map<File, String> {
+		val files = databaseFileFamily()
+		createFixture(version = LAST_RELEASED_ACTIVE_DATABASE_VERSION)
+		RandomAccessFile(files.first(), "rw").use { database ->
+			database.seek(0L)
+			database.write("not-a-sqlite-header".encodeToByteArray())
+		}
+		files.drop(1).forEachIndexed { index, file ->
+			file.writeBytes(ByteArray(64) { offset -> ((index + 1) * 31 + offset).toByte() })
+		}
+		return files.associateWith(::sha256)
+	}
+
+	private fun assertFileFamilyUnchanged(expected: Map<File, String>) {
+		expected.forEach { (file, hash) ->
+			file.exists() shouldBe true
+			sha256(file) shouldBe hash
+		}
+	}
+
+	private fun databaseFileFamily(): List<File> {
+		val main = databaseFile()
+		return listOf(
+			main,
+			File("${main.path}-wal"),
+			File("${main.path}-shm"),
+			File("${main.path}-journal"),
+		)
+	}
+
+	private fun sha256(file: File): String = MessageDigest.getInstance("SHA-256")
+		.digest(file.readBytes())
+		.joinToString(separator = "") { "%02x".format(it.toInt() and 0xff) }
+
 	private fun deleteFixture() {
 		context.deleteDatabase(DATABASE_NAME)
+		databaseFileFamily().forEach { it.delete() }
 	}
 
 	private companion object {

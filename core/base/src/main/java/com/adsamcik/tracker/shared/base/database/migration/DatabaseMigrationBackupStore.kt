@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.system.Os
 import android.system.OsConstants
+import com.adsamcik.tracker.shared.base.database.openDatabasePreservingFiles
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -169,11 +170,7 @@ class DatabaseMigrationBackupStore(
 	}
 
 	private fun checkpointAndReadVersion(source: File, targetVersion: Int): Int? {
-		return SQLiteDatabase.openDatabase(
-			source.path,
-			null,
-			SQLiteDatabase.OPEN_READWRITE,
-		).use { database ->
+		return openDatabasePreservingFiles(source, SQLiteDatabase.OPEN_READWRITE).use { database ->
 			val version = database.version
 			if (version <= 0 || version >= targetVersion) return@use null
 			database.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", null).use { cursor ->
@@ -266,11 +263,7 @@ class DatabaseMigrationBackupStore(
 			if (!hashMatches) return "backup bytes differ from the checkpointed source"
 		}
 		return try {
-			SQLiteDatabase.openDatabase(
-				file.path,
-				null,
-				SQLiteDatabase.OPEN_READONLY,
-			).use { database ->
+			openDatabasePreservingFiles(file, SQLiteDatabase.OPEN_READONLY).use { database ->
 				if (database.version != expectedVersion) {
 					return@use "expected schema v$expectedVersion but found v${database.version}"
 				}
