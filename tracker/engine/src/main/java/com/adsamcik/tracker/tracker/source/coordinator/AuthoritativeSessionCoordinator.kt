@@ -20,6 +20,9 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntit
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
+import com.adsamcik.tracker.tracker.api.SourceCallerAcceptanceReceipt
+import com.adsamcik.tracker.tracker.api.SourceCallerRejectionReason
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
@@ -61,6 +64,10 @@ import com.adsamcik.tracker.tracker.source.runtime.OwnedSourceShutdown
 import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeClaim
 import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeRegistry
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import com.adsamcik.tracker.tracker.source.runtime.SessionDemandMutation
+import com.adsamcik.tracker.tracker.source.runtime.SessionSourceDemandDispatchRequest
+import com.adsamcik.tracker.tracker.source.runtime.SessionSourceDemandDispatchResult
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerDemandDispatcher
 import com.adsamcik.tracker.tracker.source.runtime.SourceStartResult
 import com.adsamcik.tracker.tracker.source.runtime.SourceStopAck
 import com.adsamcik.tracker.tracker.source.runtime.SourceStopStatus
@@ -97,6 +104,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	private val activityAutomationEpochAuthority: ActivityAutomationEpochAuthority,
 	private val bootClockDomainProvider: BootClockDomainProvider,
 	private val clock: Clock,
+	private val sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,
 	private val rolloutStore: TrackingRolloutStateStore = RoomTrackingRolloutStateStore(database),
 	private val sourceBroker: SourceBroker = SourceBroker(database),
 	private val executableLaneCatalog: ExecutableSourceLaneCatalog = ExecutableSourceLaneCatalog(),
@@ -209,7 +217,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		var alreadyAccepted = false
 		var prepared: PreparedSessionStart? = null
 		if (request.automaticTrigger != null) activityAutomationEpochAuthority.currentForValidation()
-		database.withTransaction {
+		try {
+			database.withTransaction {
 			requireLeaseInTransaction(lease)
 			failure = validateSourcePolicyInTransaction(request.plan)
 				?: validateRolloutInTransaction(
@@ -312,22 +321,26 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			)
 			dao.insertManifest(draft.manifest)
 			dao.insertManifestSources(draft.bindings)
-			sourceBroker.stageSessionDemandsInTransaction(
-				logicalTrackingId,
-				draft.demands,
-				request.clockDomainId,
-				request.elapsedRealtimeNanos,
-				request.wallTimeMs,
+			val guardedDraft = dispatchSourceCallerDemands(
+				draft = draft,
+				sessionMode = request.origin.toSessionMode(),
+				startOrigin = request.origin,
+				replayReference = request.sourceCallerReplayReference,
+				mutation = SessionDemandMutation.STAGE_UNTIL_FOREGROUND,
+				lease = lease,
+				bootId = request.clockDomainId,
+				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+				wallTimeMs = request.wallTimeMs,
 			)
-			dao.insertLifecycleIntent(draft.intent)
-			dao.insertLifecycleActions(draft.actions)
+			dao.insertLifecycleIntent(guardedDraft.intent)
+			dao.insertLifecycleActions(guardedDraft.actions)
 			dao.insertServiceRun(
 				preparedServiceRun(
 					serviceRunId,
 					logicalTrackingId,
 					request,
 					delivery,
-					draft,
+					guardedDraft,
 					lease,
 				),
 			)
@@ -336,7 +349,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					triggerId = automaticAction.triggerId,
 					collectedDataEpoch = automaticAction.collectedDataEpoch,
 					logicalTrackingId = logicalTrackingId,
-					intentRevision = draft.intent.intentRevision,
+					intentRevision = guardedDraft.intent.intentRevision,
 					acceptedAtMs = request.wallTimeMs,
 				) == 1) { "Automatic-start action changed before lifecycle-intent acceptance" }
 			}
@@ -344,9 +357,15 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				delivery.token,
 				logicalTrackingId,
 				serviceRunId,
-				draft.manifest.manifestRevision,
-				draft.intent.intentRevision,
+				guardedDraft.manifest.manifestRevision,
+				guardedDraft.intent.intentRevision,
+				SourceCallerReplayReference(
+					requireNotNull(guardedDraft.intent.sourceCallerAuthorityReference),
+				),
 			)
+			}
+		} catch (rejection: SourceCallerDemandRejectedException) {
+			failure = rejection.failureCode
 		}
 		failure?.let { return SessionStartPreparationResult.Rejected(it) }
 		if (alreadyAccepted) return SessionStartPreparationResult.AlreadyActive
@@ -374,7 +393,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val serviceRunId = serviceRunIdFor(request)
 		var failure: String? = null
 		var prepared: PreparedSessionStart? = null
-		database.withTransaction {
+		try {
+			database.withTransaction {
 			requireLeaseInTransaction(lease)
 			failure = validateSourcePolicyInTransaction(request.plan)
 				?: validateRolloutInTransaction(
@@ -462,15 +482,6 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			supersedePendingActions(session.logicalTrackingId, request.wallTimeMs, request.elapsedRealtimeNanos)
 			dao.insertManifest(draft.manifest)
 			dao.insertManifestSources(draft.bindings)
-			sourceBroker.stageSessionDemandsInTransaction(
-				session.logicalTrackingId,
-				draft.demands,
-				request.clockDomainId,
-				request.elapsedRealtimeNanos,
-				request.wallTimeMs,
-			)
-			dao.insertLifecycleIntent(draft.intent)
-			dao.insertLifecycleActions(draft.actions)
 			dao.updateSession(
 				current.copy(
 					state = SessionLifecycleState.STARTING.name,
@@ -488,13 +499,26 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					lifecycleBootId = lease.bootId,
 				),
 			)
+			val guardedDraft = dispatchSourceCallerDemands(
+				draft = draft,
+				sessionMode = SessionMode.MANUAL,
+				startOrigin = request.origin,
+				replayReference = request.sourceCallerReplayReference,
+				mutation = SessionDemandMutation.STAGE_UNTIL_FOREGROUND,
+				lease = lease,
+				bootId = request.clockDomainId,
+				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+				wallTimeMs = request.wallTimeMs,
+			)
+			dao.insertLifecycleIntent(guardedDraft.intent)
+			dao.insertLifecycleActions(guardedDraft.actions)
 			dao.insertServiceRun(
 				preparedServiceRun(
 					serviceRunId,
 					session.logicalTrackingId,
 					request,
 					delivery,
-					draft,
+					guardedDraft,
 					lease,
 				),
 			)
@@ -504,6 +528,18 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				serviceRunId,
 				manifestRevision,
 				intentRevision,
+				SourceCallerReplayReference(
+					requireNotNull(guardedDraft.intent.sourceCallerAuthorityReference),
+				),
+			)
+			}
+		} catch (rejection: SourceCallerDemandRejectedException) {
+			failure = rejection.failureCode
+			finalizeInterruptedSession(
+				session,
+				lease,
+				request.wallTimeMs,
+				rejection.failureCode,
 			)
 		}
 		failure?.let { return SessionStartPreparationResult.Rejected(it) }
@@ -708,7 +744,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				manifest.acquisitionPlanRevision != run.desiredPlanRevision ||
 				manifest.serviceRunId != run.serviceRunId ||
 				intent.manifestRevision != run.preparedManifestRevision ||
-				intent.desiredState != LifecycleDesiredState.ACTIVE.name
+				intent.desiredState != LifecycleDesiredState.ACTIVE.name ||
+				intent.sourceCallerAuthorityReference.isNullOrBlank()
 			) {
 				rejection = "PREPARED_START_ROOM_ENVELOPE_STALE"
 				return@withTransaction
@@ -842,7 +879,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				manifest.acquisitionPlanRevision != current.desiredPlanRevision ||
 				manifest.serviceRunId != current.serviceRunId ||
 				intent.manifestRevision != current.preparedManifestRevision ||
-				intent.desiredState != LifecycleDesiredState.ACTIVE.name
+				intent.desiredState != LifecycleDesiredState.ACTIVE.name ||
+				intent.sourceCallerAuthorityReference.isNullOrBlank()
 			) return@withTransaction false
 			if (current.androidDeliveryState != AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name) {
 				if (!sourceBroker.activatePreparedSessionDemandsInTransaction(
@@ -1291,7 +1329,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			if (request.automaticTrigger != null) {
 				activityAutomationEpochAuthority.currentForValidation()
 			}
-			val created = database.withTransaction {
+			val created = try {
+				database.withTransaction {
 				requireLeaseInTransaction(lease)
 				intentPolicyFailure = validateSourcePolicyInTransaction(request.plan)
 				if (intentPolicyFailure != null) return@withTransaction false
@@ -1401,15 +1440,19 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				)
 				database.sourceSessionDao().insertManifest(draft.manifest)
 				database.sourceSessionDao().insertManifestSources(draft.bindings)
-				sourceBroker.replaceSessionDemandsInTransaction(
-					logicalTrackingId,
-					draft.demands,
-					request.clockDomainId,
-					request.elapsedRealtimeNanos,
-					request.wallTimeMs,
+				val guardedDraft = dispatchSourceCallerDemands(
+					draft = draft,
+					sessionMode = request.origin.toSessionMode(),
+					startOrigin = request.origin,
+					replayReference = request.sourceCallerReplayReference,
+					mutation = SessionDemandMutation.REPLACE_ACTIVE,
+					lease = lease,
+					bootId = request.clockDomainId,
+					elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+					wallTimeMs = request.wallTimeMs,
 				)
-				database.sourceSessionDao().insertLifecycleIntent(draft.intent)
-				database.sourceSessionDao().insertLifecycleActions(draft.actions)
+				database.sourceSessionDao().insertLifecycleIntent(guardedDraft.intent)
+				database.sourceSessionDao().insertLifecycleActions(guardedDraft.actions)
 				database.sourceSessionDao().insertServiceRun(
 					SourceServiceRunEntity(
 						serviceRunId = serviceRunId,
@@ -1438,13 +1481,17 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 							triggerId = automaticAction.triggerId,
 							collectedDataEpoch = automaticAction.collectedDataEpoch,
 							logicalTrackingId = logicalTrackingId,
-							intentRevision = draft.intent.intentRevision,
+							intentRevision = guardedDraft.intent.intentRevision,
 							acceptedAtMs = request.wallTimeMs,
 						) == 1,
 					) { "Automatic-start action changed before lifecycle-intent acceptance" }
 				}
-				persisted = draft
+				persisted = guardedDraft
 				true
+				}
+			} catch (rejection: SourceCallerDemandRejectedException) {
+				automaticActionFailure = rejection.failureCode
+				false
 			}
 			intentPolicyFailure?.let { return SessionStartResult.InvalidPolicy(it) }
 			intentRolloutFailure?.let { return SessionStartResult.InvalidRollout(it) }
@@ -1559,8 +1606,10 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val serviceRunId = serviceRunIdFor(request)
 		var policyFailure: String? = null
 		var rolloutFailure: String? = null
+		var callerFailure: String? = null
 		var persisted: PersistedLifecycleIntent? = null
-		database.withTransaction {
+		try {
+			database.withTransaction {
 			requireLeaseInTransaction(lease)
 			policyFailure = validateSourcePolicyInTransaction(request.plan)
 			if (policyFailure != null) return@withTransaction
@@ -1617,15 +1666,6 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			supersedePendingActions(session.logicalTrackingId, request.wallTimeMs, request.elapsedRealtimeNanos)
 			database.sourceSessionDao().insertManifest(draft.manifest)
 			database.sourceSessionDao().insertManifestSources(draft.bindings)
-			sourceBroker.replaceSessionDemandsInTransaction(
-				session.logicalTrackingId,
-				draft.demands,
-				request.clockDomainId,
-				request.elapsedRealtimeNanos,
-				request.wallTimeMs,
-			)
-			database.sourceSessionDao().insertLifecycleIntent(draft.intent)
-			database.sourceSessionDao().insertLifecycleActions(draft.actions)
 			database.sourceSessionDao().updateSession(
 				current.copy(
 					state = SessionLifecycleState.STARTING.name,
@@ -1643,6 +1683,19 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					lifecycleBootId = lease.bootId,
 				),
 			)
+			val guardedDraft = dispatchSourceCallerDemands(
+				draft = draft,
+				sessionMode = SessionMode.MANUAL,
+				startOrigin = SessionStartOrigin.RECOVERY,
+				replayReference = request.sourceCallerReplayReference,
+				mutation = SessionDemandMutation.REPLACE_ACTIVE,
+				lease = lease,
+				bootId = request.clockDomainId,
+				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+				wallTimeMs = request.wallTimeMs,
+			)
+			database.sourceSessionDao().insertLifecycleIntent(guardedDraft.intent)
+			database.sourceSessionDao().insertLifecycleActions(guardedDraft.actions)
 			database.sourceSessionDao().insertServiceRun(
 				SourceServiceRunEntity(
 					serviceRunId = serviceRunId,
@@ -1665,10 +1718,20 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					runRevision = 1L,
 				),
 			)
-			persisted = draft
+			persisted = guardedDraft
+			}
+		} catch (rejection: SourceCallerDemandRejectedException) {
+			callerFailure = rejection.failureCode
+			finalizeInterruptedSession(
+				session,
+				lease,
+				request.wallTimeMs,
+				rejection.failureCode,
+			)
 		}
 		policyFailure?.let { return SessionStartResult.InvalidPolicy(it) }
 		rolloutFailure?.let { return SessionStartResult.InvalidRollout(it) }
+		callerFailure?.let { return SessionStartResult.InvalidIntent(it) }
 		val lifecycleIntent = requireNotNull(persisted)
 		val sink = sinkFactory.forSession(session.logicalTrackingId, serviceRunId)
 		val executions = reconcileStartActions(
@@ -1803,7 +1866,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			var intentValidationFailure: String? = null
 			var persisted: PersistedLifecycleIntent? = null
 			var boundTransition: BoundServiceRunTransition? = null
-			database.withTransaction {
+			try {
+				database.withTransaction {
 				requireLeaseInTransaction(lease)
 				intentPolicyFailure = validateSourcePolicyInTransaction(request.plan)
 				if (intentPolicyFailure != null) return@withTransaction
@@ -1895,15 +1959,6 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				planStore.persistDesired(request.plan, DesiredPlanStatus.APPLYING)
 				database.sourceSessionDao().insertManifest(draft.manifest)
 				database.sourceSessionDao().insertManifestSources(draft.bindings)
-				sourceBroker.replaceSessionDemandsInTransaction(
-					current.logicalTrackingId,
-					draft.demands,
-					request.clockDomainId,
-					request.elapsedRealtimeNanos,
-					request.wallTimeMs,
-				)
-				database.sourceSessionDao().insertLifecycleIntent(draft.intent)
-				database.sourceSessionDao().insertLifecycleActions(draft.actions)
 				database.sourceSessionDao().updateSession(
 					current.copy(
 						state = SessionLifecycleState.RECONFIGURING.name,
@@ -1924,7 +1979,20 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 						runRevision = serviceRun.runRevision + 1L,
 					),
 				)
-				persisted = draft
+				val guardedDraft = dispatchSourceCallerDemands(
+					draft = draft,
+					sessionMode = SessionMode.valueOf(current.sessionMode),
+					startOrigin = SessionStartOrigin.POLICY_RECONCILIATION,
+					replayReference = null,
+					mutation = SessionDemandMutation.REPLACE_ACTIVE,
+					lease = lease,
+					bootId = request.clockDomainId,
+					elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+					wallTimeMs = request.wallTimeMs,
+				)
+				database.sourceSessionDao().insertLifecycleIntent(guardedDraft.intent)
+				database.sourceSessionDao().insertLifecycleActions(guardedDraft.actions)
+				persisted = guardedDraft
 				boundTransition = BoundServiceRunTransition(
 					session = current.copy(
 						state = SessionLifecycleState.RECONFIGURING.name,
@@ -1938,6 +2006,9 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					serviceRunId = serviceRun.serviceRunId,
 					expectedRunRevision = serviceRun.runRevision + 1L,
 				)
+				}
+			} catch (rejection: SourceCallerDemandRejectedException) {
+				intentValidationFailure = rejection.failureCode
 			}
 			intentPolicyFailure?.let { return SessionReconfigureResult.InvalidPolicy(it) }
 			intentValidationFailure?.let { return SessionReconfigureResult.InvalidIntent(it) }
@@ -2348,6 +2419,38 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		serviceRunId = serviceRunId,
 	)
 
+	private suspend fun dispatchSourceCallerDemands(
+		draft: PersistedLifecycleIntent,
+		sessionMode: SessionMode,
+		startOrigin: SessionStartOrigin,
+		replayReference: SourceCallerReplayReference?,
+		mutation: SessionDemandMutation,
+		lease: LifecycleLeaseToken,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): PersistedLifecycleIntent {
+		return when (val result = sourceCallerDemandDispatcher.dispatchSession(
+			SessionSourceDemandDispatchRequest(
+				manifest = draft.manifest,
+				bindings = draft.bindings,
+				sessionMode = sessionMode,
+				startOrigin = startOrigin,
+				replayReference = replayReference,
+				mutation = mutation,
+				lifecycleLeaseGeneration = lease.generation,
+				bootId = bootId,
+				elapsedRealtimeNanos = elapsedRealtimeNanos,
+				wallTimeMs = wallTimeMs,
+			),
+		)) {
+			is SessionSourceDemandDispatchResult.Permitted ->
+				draft.withSourceCallerReceipt(result.receipt)
+			is SessionSourceDemandDispatchResult.Rejected ->
+				throw SourceCallerDemandRejectedException(result.rejection.reason)
+		}
+	}
+
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "LongParameterList")
 	private suspend fun buildManifestDraft(
 		logicalTrackingId: String,
@@ -2567,6 +2670,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			automaticTrigger?.triggerId,
 			automaticTrigger?.automationEpoch,
 			automaticTrigger?.collectedDataEpoch,
+			null,
 		)
 		val intent = SessionLifecycleIntentVersionEntity(
 			logicalTrackingId = logicalTrackingId,
@@ -2589,6 +2693,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			stopDeadlineElapsedRealtimeNanos = null,
 			intentChecksum = intentChecksum,
 			triggerCollectedDataEpoch = automaticTrigger?.collectedDataEpoch,
+			sourceCallerAuthorityReference = null,
 		)
 		var nextActionRevision = database.sourceSessionDao().maximumActionRevision(logicalTrackingId) + 1L
 		val actions = plan.plans.values.sortedBy { it.source.stableCode }.mapNotNull { sourcePlan ->
@@ -2626,18 +2731,14 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				registrationGeneration = null,
 			)
 		}
-		val demands = sourceBroker.buildSessionDemands(
-			logicalTrackingId = logicalTrackingId,
-			serviceRunId = serviceRunId,
-			manifestRevision = manifestRevision,
-			lifecycleLeaseGeneration = lease.generation,
-			policyRevision = policyRevision,
-			bindings = bindings,
-			bootId = clockDomainId,
-			elapsedRealtimeNanos = elapsedRealtimeNanos,
-			wallTimeMs = wallTimeMs,
+		return PersistedLifecycleIntent(
+			manifest,
+			bindings,
+			intent,
+			actions,
+			emptyList(),
+			foregroundCapabilityFlags,
 		)
-		return PersistedLifecycleIntent(manifest, bindings, intent, actions, demands, foregroundCapabilityFlags)
 	}
 
 	private suspend fun captureAuthorizationCurrent(
@@ -5212,6 +5313,37 @@ private fun runRetirementAck(
 	serviceRunId = serviceRunId,
 )
 
+private class SourceCallerDemandRejectedException(
+	val reason: SourceCallerRejectionReason,
+) : IllegalStateException(reason.name) {
+	val failureCode: String = "SOURCE_CALLER_GUARD_${reason.name}"
+}
+
+private fun PersistedLifecycleIntent.withSourceCallerReceipt(
+	receipt: SourceCallerAcceptanceReceipt,
+): PersistedLifecycleIntent {
+	val reference = receipt.reference.value
+	return copy(
+		intent = intent.copy(
+			sourceCallerAuthorityReference = reference,
+			intentChecksum = stableLifecycleChecksum(
+				intent.logicalTrackingId,
+				intent.intentRevision,
+				intent.manifestRevision,
+				intent.desiredState,
+				intent.startOrigin,
+				intent.requestBootId,
+				intent.requestedElapsedRealtimeNanos,
+				intent.requestedWallTimeMs,
+				intent.triggerId,
+				intent.automationEpoch,
+				intent.triggerCollectedDataEpoch,
+				reference,
+			),
+		),
+	)
+}
+
 enum class SessionLifecycleState {
 	IDLE,
 	STARTING,
@@ -5244,6 +5376,7 @@ data class SessionStartRequest(
 	val logicalTrackingId: String? = null,
 	val serviceRunId: String? = null,
 	val continuationAuthority: ServiceRunContinuationAuthority? = null,
+	val sourceCallerReplayReference: SourceCallerReplayReference? = null,
 )
 
 /** Exact authority to replace one active manual Android-service run without changing its session. */
@@ -5286,6 +5419,7 @@ data class PreparedSessionStart(
 	val serviceRunId: String,
 	val manifestRevision: Long,
 	val intentRevision: Long,
+	val sourceCallerAuthorityReference: SourceCallerReplayReference,
 )
 
 sealed interface SessionStartPreparationResult {

@@ -789,6 +789,14 @@ class AppDatabaseMigration27To28Test {
 			"provider_registration_generation",
 			"source_authorization",
 		).forEach { table -> assertTableCount(database, table, 0) }
+		database.query("PRAGMA table_info(session_lifecycle_intent_version)").use { cursor ->
+			val nameColumn = cursor.getColumnIndexOrThrow("name")
+			val notNullColumn = cursor.getColumnIndexOrThrow("notnull")
+			val columns = buildMap {
+				while (cursor.moveToNext()) put(cursor.getString(nameColumn), cursor.getInt(notNullColumn))
+			}
+			assertEquals(0, columns["source_caller_authority_reference"])
+		}
 		database.query("PRAGMA table_info(source_demand)").use { cursor ->
 			val nameColumn = cursor.getColumnIndexOrThrow("name")
 			val notNullColumn = cursor.getColumnIndexOrThrow("notnull")

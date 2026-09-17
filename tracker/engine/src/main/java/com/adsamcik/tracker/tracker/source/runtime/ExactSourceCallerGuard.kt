@@ -51,7 +51,7 @@ internal class SourceCallerAuthoritySnapshot(
 
 internal fun interface SourceCallerAuthoritySnapshotReader {
 	/** Reads demand and purpose authority from one coherent engine-owned boundary. */
-	suspend fun read(): SourceCallerAuthoritySnapshot
+	suspend fun read(request: SourceCallerRequest): SourceCallerAuthoritySnapshot
 }
 
 internal interface SourceCallerAcceptedAuthorityRepository {
@@ -76,7 +76,7 @@ internal class ExactSourceCallerGuard @Inject constructor(
 	override suspend fun accept(request: SourceCallerRequest): SourceCallerGuardResult {
 		validateBoundExecution(request.requestedDemandIdentities.toSet())?.let { return it }
 		val currentAuthority = try {
-			authorityReader.read()
+			authorityReader.read(request)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
@@ -253,6 +253,11 @@ private fun evaluateManual(
 	validateSessionManifest(request.manifestIdentity, requestedDemands)?.let {
 		return SourceCallerEvaluation.Rejected(it.rejection)
 	}
+	validateCurrentManifestDemandSet(
+		request.manifestIdentity,
+		requestedDemands,
+		currentAuthority.currentDemandIdentities,
+	)?.let { return SourceCallerEvaluation.Rejected(it.rejection) }
 	validateCurrentAuthority(
 		requestedDemands,
 		currentAuthority.currentDemandIdentities,
@@ -306,6 +311,11 @@ private fun evaluateAutomatic(
 	validateSessionManifest(request.manifestIdentity, requestedDemands)?.let {
 		return SourceCallerEvaluation.Rejected(it.rejection)
 	}
+	validateCurrentManifestDemandSet(
+		request.manifestIdentity,
+		requestedDemands,
+		currentAuthority.currentDemandIdentities,
+	)?.let { return SourceCallerEvaluation.Rejected(it.rejection) }
 	val controlDemand = requestedDemands.single { identity ->
 		identity.sourcePurpose == ACTIVITY_CONTROL
 	}
@@ -397,6 +407,25 @@ private fun validateSessionManifest(
 			identity.sourcePurpose,
 		)
 	}
+}
+
+private fun validateCurrentManifestDemandSet(
+	manifestIdentity: SourceCallerManifestIdentity,
+	requestedIdentities: Set<SourceCallerDemandIdentity>,
+	currentIdentities: Set<SourceCallerDemandIdentity>,
+): SourceCallerGuardResult.Rejected? {
+	val currentManifestIdentities = currentIdentities.filterTo(linkedSetOf()) { identity ->
+		identity.manifestIdentity == manifestIdentity ||
+			(identity.sourcePurpose.purpose == TrackingPurpose.CONTROL &&
+				identity.manifestIdentity == null)
+	}
+	val requestedKeys = requestedIdentities.map(SourceCallerDemandIdentity::sourcePurpose).toSet()
+	val currentKeys = currentManifestIdentities.map(SourceCallerDemandIdentity::sourcePurpose).toSet()
+	val undeclared = (currentKeys - requestedKeys).sortedWith(DEMAND_KEY_COMPARATOR).firstOrNull()
+	if (undeclared != null) {
+		return rejected(SourceCallerRejectionReason.UNDECLARED_DEMAND, undeclared)
+	}
+	return null
 }
 
 private fun validateDeclaredDemandSet(

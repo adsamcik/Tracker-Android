@@ -23,6 +23,10 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
+import com.adsamcik.tracker.tracker.api.SourceCallerGuardResult
+import com.adsamcik.tracker.tracker.api.SourceCallerManifestIdentity
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayKind
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.TrackingStartPreparationResult
 import com.adsamcik.tracker.tracker.api.TrackingStartRequest
 import com.adsamcik.tracker.tracker.api.TrackingStartRequestCoordinator
@@ -59,6 +63,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.captureModeFor
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerDemandDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
@@ -84,6 +89,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 	private val collectionMotionController: CollectionMotionController,
 	private val activityAutomationEpochAuthority: ActivityAutomationEpochAuthority,
 	private val trackingLifecycleCommandAuthority: TrackingLifecycleCommandAuthority,
+	private val sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,
 ) : TrackingStartRequestCoordinator {
 	private val powerManager: PowerManager = context.getSystemServiceTyped(Context.POWER_SERVICE)
 
@@ -196,6 +202,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 
 		val token = PreparedTrackingStartToken(UUID.randomUUID().toString())
 		var roomPrepared = false
+		var sourceCallerAuthorityReference: SourceCallerReplayReference? = null
 		try {
 			val ownership = TrackingSessionOwnership.resolve(rollout, settings, captureMode)
 			val planInputs = sourcePlanInputs(settings, acceptedSources, resolved.origin, bootId)
@@ -208,6 +215,8 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 					origin = resolved.origin,
 					captureMode = captureMode,
 					continuationAuthority = continuationAuthority,
+					sourceCallerReplayReference =
+						resolved.previousDescriptor?.sourceCallerAuthorityReference,
 					automaticTrigger = request.automaticTrigger,
 					foregroundCapabilityFlags = foregroundMask,
 					planInputs = planInputs,
@@ -222,7 +231,11 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 				startupGeneration = startupGeneration,
 			)
 			when (preparation) {
-				is SessionStartPreparationResult.Prepared -> roomPrepared = true
+				is SessionStartPreparationResult.Prepared -> {
+					roomPrepared = true
+					sourceCallerAuthorityReference =
+						preparation.start.sourceCallerAuthorityReference
+				}
 				SessionStartPreparationResult.AlreadyActive ->
 					return TrackingStartPreparationResult.AlreadyActive
 				SessionStartPreparationResult.Busy ->
@@ -230,7 +243,11 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 				is SessionStartPreparationResult.Rejected ->
 					return TrackingStartPreparationResult.Rejected(preparation.failureCode)
 			}
-			when (val stored = activeTrackingSessionStore.save(resolved.descriptor)) {
+			val guardedDescriptor = resolved.descriptor.copy(
+				sourceCallerAuthorityReference =
+					requireNotNull(sourceCallerAuthorityReference),
+			)
+			when (val stored = activeTrackingSessionStore.save(guardedDescriptor)) {
 				is ActiveTrackingSessionStoreResult.Success -> Unit
 				is ActiveTrackingSessionStoreResult.Failure -> {
 					compensatePrepared(token, request.command.generation, "ACTIVE_DESCRIPTOR_SAVE_FAILED")
@@ -243,7 +260,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 				bootClockDomainProvider.current() != bootId
 			) {
 				compensatePrepared(token, request.command.generation, "STARTUP_CLOSED_AFTER_PREPARE")
-				clearResolvedDescriptors(resolved)
+				clearResolvedDescriptors(resolved, sourceCallerAuthorityReference)
 				return TrackingStartPreparationResult.Rejected("STARTUP_CLOSED_AFTER_PREPARE")
 			}
 			return TrackingStartPreparationResult.Prepared(
@@ -256,7 +273,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 			if (roomPrepared) try {
 				runBoundedStartPreparationCancellationCleanup(request.automaticTrigger) {
 					compensatePrepared(token, request.command.generation, "START_PREPARATION_CANCELLED")
-					clearResolvedDescriptors(resolved)
+					clearResolvedDescriptors(resolved, sourceCallerAuthorityReference)
 				}
 			} catch (_: Throwable) {
 				// Preserve cancellation; exact PREPARED state is left for startup reconciliation.
@@ -265,7 +282,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		} catch (failure: Exception) {
 			if (roomPrepared) {
 				compensatePrepared(token, request.command.generation, "START_PREPARATION_FAILED")
-				clearResolvedDescriptors(resolved)
+				clearResolvedDescriptors(resolved, sourceCallerAuthorityReference)
 			}
 			return TrackingStartPreparationResult.Rejected(
 				failure.message?.takeIf(String::isNotBlank) ?: "START_PREPARATION_FAILED",
@@ -566,6 +583,32 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 			compensatePrepared(token, commandGeneration, "PREPARED_START_DESCRIPTOR_MISSING")
 			return TrackingServicePreparedStartClaim.Rejected("PREPARED_START_DESCRIPTOR_MISSING")
 		}
+		val reference = claim.intent.sourceCallerAuthorityReference
+			?.takeIf(String::isNotBlank)
+			?.let(::SourceCallerReplayReference)
+		if (reference == null || descriptor.sourceCallerAuthorityReference != reference) {
+			if (compensatePrepared(token, commandGeneration, "SOURCE_CALLER_REFERENCE_MISSING")) {
+				clearPreparedDescriptor(descriptor)
+			}
+			return TrackingServicePreparedStartClaim.Rejected("SOURCE_CALLER_REFERENCE_MISSING")
+		}
+		when (val replay = sourceCallerDemandDispatcher.replayPreparedSession(
+			manifestIdentity = SourceCallerManifestIdentity(
+				claim.logicalTrackingId,
+				claim.manifestRevision,
+			),
+			reference = reference,
+			replayKind = SourceCallerReplayKind.FOREGROUND_SERVICE,
+		)) {
+			is SourceCallerGuardResult.Permitted -> Unit
+			is SourceCallerGuardResult.Rejected -> {
+				val failureCode = "SOURCE_CALLER_GUARD_${replay.rejection.reason.name}"
+				if (compensatePrepared(token, commandGeneration, failureCode)) {
+					clearPreparedDescriptor(descriptor)
+				}
+				return TrackingServicePreparedStartClaim.Rejected(failureCode)
+			}
+		}
 		return TrackingServicePreparedStartClaim.Claimed(
 			claim = claim,
 			descriptor = descriptor,
@@ -643,8 +686,13 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 
 	private suspend fun clearResolvedDescriptors(
 		resolved: TrackingStartDescriptorResolution.Resolved,
+		sourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 	) {
-		clearPreparedDescriptor(resolved.descriptor)
+		clearPreparedDescriptor(
+			resolved.descriptor.copy(
+				sourceCallerAuthorityReference = sourceCallerAuthorityReference,
+			),
+		)
 		resolved.previousDescriptor?.let { clearPreparedDescriptor(it) }
 	}
 

@@ -6,6 +6,7 @@ import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
 import java.io.IOException
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -196,6 +197,9 @@ private fun ActiveTrackingSessionProto.toDescriptor(): ActiveTrackingSessionDesc
 		restartBootId = persistedRestartBootId,
 		restartToken = persistedRestartToken,
 		sessionSegmentId = sessionSegmentId.takeIf { it > 0L },
+		sourceCallerAuthorityReference = sourceCallerAuthorityReference
+			.takeIf(String::isNotBlank)
+			?.let(::SourceCallerReplayReference),
 	)
 }
 
@@ -220,6 +224,7 @@ private fun ActiveTrackingSessionDescriptor.toProto(): ActiveTrackingSessionProt
 		.setRestartBootId(restartBootId.orEmpty())
 		.setRestartToken(restartToken.orEmpty())
 		.setSessionSegmentId(sessionSegmentId ?: 0L)
+		.setSourceCallerAuthorityReference(sourceCallerAuthorityReference?.value.orEmpty())
 		.build()
 
 /**

@@ -915,6 +915,9 @@ class TrackingRolloutStateStoreTest {
 			io.mockk.mockk(relaxed = true),
 			BootClockDomainProvider { "boot-1" },
 			FixedClock(fixedTimeMillis = 1L, fixedRealtimeNanos = 1L),
+			FakeSourceCallerDemandDispatcher(
+				com.adsamcik.tracker.tracker.source.runtime.SourceBroker(database),
+			),
 			rolloutStore = store,
 		)
 		val plan = com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision(

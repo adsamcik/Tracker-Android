@@ -522,6 +522,8 @@ class PreviousExitSourceSessionFinalizerTest {
 		serviceRunId = serviceRunId,
 		restartBootId = bootId,
 		restartToken = "restart-token",
+		sourceCallerAuthorityReference =
+			com.adsamcik.tracker.tracker.api.SourceCallerReplayReference("caller-authority"),
 	)
 
 	private class RecordingStore(

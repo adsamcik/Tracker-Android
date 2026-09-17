@@ -4,6 +4,7 @@ import android.app.Service
 import android.os.Build
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.TrackingStartRequest
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
 import com.adsamcik.tracker.tracker.resilience.LockedTrackingStartResult
@@ -330,6 +331,7 @@ class TrackerServiceRedeliveryRecoveryTest {
 		serviceRunId = "old-service-run",
 		restartBootId = BOOT_ID,
 		restartToken = "restart-token",
+		sourceCallerAuthorityReference = SourceCallerReplayReference("caller-authority"),
 	)
 
 	private companion object {

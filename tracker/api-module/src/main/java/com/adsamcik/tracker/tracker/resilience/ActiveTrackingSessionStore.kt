@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.resilience
 
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import java.util.UUID
 
 /**
@@ -140,6 +141,8 @@ data class ActiveTrackingSessionDescriptor(
 	val restartToken: String? = null,
 	/** Exact derived segment currently receiving this logical session's online aggregates. */
 	val sessionSegmentId: Long? = null,
+	/** Opaque guard reference mirrored from the current durable lifecycle intent. */
+	val sourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 ) {
 	init {
 		require(logicalTrackingId.isNotBlank()) { "logicalTrackingId must not be blank" }
@@ -170,7 +173,7 @@ data class ActiveTrackingSessionDescriptor(
 	/** Only active user sessions may be restarted after involuntary Android teardown. */
 	val isRestartEligible: Boolean
 		get() = isUserInitiated && lifecycleState == LogicalTrackingLifecycleState.ACTIVE &&
-			restartBootId != null && restartToken != null
+			restartBootId != null && restartToken != null && sourceCallerAuthorityReference != null
 
 	fun isRestartEligibleForBoot(currentBootId: String): Boolean =
 		isRestartEligible && restartBootId == currentBootId

@@ -1114,6 +1114,93 @@ class ArchitecturalFitnessTest {
 	}
 
 	@Nested
+	inner class `Source caller authority` {
+		@Test
+		fun `production session demand reaches SourceBroker only through caller guard dispatcher`() {
+			val sourceRoot = projectRoot.resolve("tracker/engine/src/main")
+			val allowedFiles = setOf(
+				"SourceBroker.kt",
+				"SourceCallerDemandDispatcher.kt",
+			)
+			val directBrokerCalls = Regex(
+				"""\.(?:buildSessionDemands|stageSessionDemandsInTransaction|""" +
+					"""replaceSessionDemandsInTransaction|insertDemands)\s*\(""",
+			)
+			sourceRoot.walkTopDown()
+				.filter { file ->
+					file.isFile && file.extension == "kt" && file.name !in allowedFiles
+				}
+				.flatMap { file ->
+					file.readLines().mapIndexedNotNull { index, line ->
+						if (directBrokerCalls.containsMatchIn(line)) {
+							"${file.relativeTo(projectRoot)}:${index + 1}: $line"
+						} else {
+							null
+						}
+					}
+				}
+				.toList()
+				.shouldBeEmpty()
+		}
+
+		@Test
+		fun `manual automatic foreground and recovery starts share the guarded coordinator path`() {
+			val api = projectRoot.resolve(
+				"tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/" +
+					"TrackerServiceApi.kt",
+			).readText()
+			val coordinator = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/" +
+					"DefaultTrackingStartRequestCoordinator.kt",
+			).readText()
+			val automaticOutbox = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/" +
+					"ActivityAutomationOutboxDispatcher.kt",
+			).readText()
+
+			buildList {
+				if ("requestManualTrackingStart" !in api ||
+					"startServiceAndAwaitEnqueue" !in api
+				) add("manual start must use the prepared-start coordinator")
+				if ("sourceCallerReplayReference =" !in coordinator) {
+					add("recovery must carry the previously accepted caller authority reference")
+				}
+				if ("replayPreparedSession(" !in coordinator ||
+					"SourceCallerReplayKind.FOREGROUND_SERVICE" !in coordinator
+				) add("foreground-service claim must replay exact caller authority")
+				if ("TrackerServiceApi.startServiceAndAwaitEnqueue(" !in automaticOutbox) {
+					add("automatic transition start must use the guarded prepared-start coordinator")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `caller authority reader samples every current authority coordinate without providers`() {
+			val source = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"SourceCallerDemandDispatcher.kt",
+			).readText()
+			buildList {
+				listOf(
+					"sessionDao.manifest(",
+					"sourcePolicyDao().authority()",
+					"sourceEvidenceStateDao().get()",
+					"rolloutStateStore.load()",
+					"sourceProjectionStateDao().lease(",
+					"purposeAvailabilityReader.availability.value",
+				).filterNot(source::contains)
+					.mapTo(this) { marker -> "CurrentSourceCallerAuthorityReader missing $marker" }
+				listOf(
+					"requestLocationUpdates(",
+					"registerActivityTransitionUpdates(",
+					"registerListener(",
+				).filter(source::contains)
+					.mapTo(this) { marker -> "caller guard layer must not register providers: $marker" }
+			}.shouldBeEmpty()
+		}
+	}
+
+	@Nested
 	inner class `Module dependency direction` {
 		@Test
 		fun `core network does not depend on the database module`() {

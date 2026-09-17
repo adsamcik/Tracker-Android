@@ -73,7 +73,7 @@ class SourceBroker @Inject constructor(
 	internal suspend fun authorizationDemands(source: SourceKind): List<SourceDemandEntity> =
 		database.sourceBrokerDao().authorizationDemands(source.stableCode)
 
-	fun buildSessionDemands(
+	internal fun buildSessionDemands(
 		logicalTrackingId: String,
 		serviceRunId: String,
 		manifestRevision: Long,
@@ -139,7 +139,7 @@ class SourceBroker @Inject constructor(
 	}
 
 	/** Must be called from the manifest/intent transaction. */
-	suspend fun replaceSessionDemandsInTransaction(
+	internal suspend fun replaceSessionDemandsInTransaction(
 		logicalTrackingId: String,
 		demands: List<SourceDemandEntity>,
 		bootId: String,
@@ -167,7 +167,7 @@ class SourceBroker @Inject constructor(
 	 * Existing authority is retired immediately, but the new vector remains [SourceDemandEntity.STATUS_BLOCKED]
 	 * until the owning Android service has successfully entered the foreground.
 	 */
-	suspend fun stageSessionDemandsInTransaction(
+	internal suspend fun stageSessionDemandsInTransaction(
 		logicalTrackingId: String,
 		demands: List<SourceDemandEntity>,
 		bootId: String,

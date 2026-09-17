@@ -79,6 +79,7 @@ import com.adsamcik.tracker.tracker.source.runtime.ProviderFlushOutcome
 import com.adsamcik.tracker.tracker.source.runtime.RegistrationRemovalOutcome
 import com.adsamcik.tracker.tracker.source.runtime.SessionCutoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceApplyResult
+import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionHandoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceCapabilities
 import com.adsamcik.tracker.tracker.source.runtime.SourceEventSink
@@ -192,6 +193,7 @@ class AuthoritativeSessionCoordinatorTest {
 			activityAutomationEpochAuthority,
 			BootClockDomainProvider { currentBootId },
 			leaseClock,
+			FakeSourceCallerDemandDispatcher(SourceBroker(database)),
 			rolloutStore = fixedEventRolloutStore(),
 			sourceProductDrainRouter = sourceProductDrainRouter,
 		)
@@ -212,6 +214,9 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceSessionDao().session(started.logicalTrackingId)?.currentServiceRunId shouldBe started.serviceRunId
 		val manifest = requireNotNull(database.sourceSessionDao().manifest(started.logicalTrackingId, 1L))
 		manifest.serviceRunId shouldBe started.serviceRunId
+		database.sourceSessionDao().lifecycleIntent(started.logicalTrackingId, 1L)
+			?.sourceCallerAuthorityReference shouldBe
+			"test:${started.logicalTrackingId}:1"
 		val stepsBinding = database.sourceSessionDao().manifestSources(started.logicalTrackingId, 1L).single()
 		stepsBinding.outputDestination shouldBe SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS
 		stepsBinding.writerOwner shouldBe SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
@@ -1099,6 +1104,7 @@ class AuthoritativeSessionCoordinatorTest {
 			activityAutomationEpochAuthority,
 			BootClockDomainProvider { currentBootId },
 			leaseClock,
+			FakeSourceCallerDemandDispatcher(SourceBroker(database)),
 			rolloutStore = fixedEventRolloutStore(),
 			sourceProductDrainRouter = sourceProductDrainRouter,
 		)
@@ -3102,6 +3108,7 @@ class AuthoritativeSessionCoordinatorTest {
 			activityAutomationEpochAuthority,
 			BootClockDomainProvider { currentBootId },
 			leaseClock,
+			FakeSourceCallerDemandDispatcher(SourceBroker(database)),
 			rolloutStore = fixedEventRolloutStore(),
 			sourceProductDrainRouter = sourceProductDrainRouter,
 		)
@@ -3881,6 +3888,7 @@ class AuthoritativeSessionCoordinatorTest {
 			activityAutomationEpochAuthority,
 			BootClockDomainProvider { currentBootId },
 			leaseClock,
+			FakeSourceCallerDemandDispatcher(SourceBroker(database)),
 			rolloutStore = fixedEventRolloutStore(),
 			sourceProductDrainRouter = sourceProductDrainRouter,
 		)
@@ -3900,6 +3908,7 @@ class AuthoritativeSessionCoordinatorTest {
 			activityAutomationEpochAuthority,
 			BootClockDomainProvider { currentBootId },
 			leaseClock,
+			FakeSourceCallerDemandDispatcher(SourceBroker(database)),
 			rolloutStore = fixedEventRolloutStore(),
 			sourceProductDrainRouter = sourceProductDrainRouter,
 		)

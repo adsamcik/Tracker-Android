@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.resilience
 
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.junit.Test
@@ -15,6 +16,7 @@ class ActiveTrackingSessionDescriptorTest {
 		restartBootId = "boot-1",
 		restartToken = "token-1",
 		sessionSegmentId = 42L,
+		sourceCallerAuthorityReference = SourceCallerReplayReference("caller-authority-1"),
 	)
 
 	@Test
@@ -47,6 +49,7 @@ class ActiveTrackingSessionDescriptorTest {
 	@Test
 	fun `legacy descriptor without boot fence cannot restart`() {
 		descriptor.copy(restartBootId = null, restartToken = null).isRestartEligible shouldBe false
+		descriptor.copy(sourceCallerAuthorityReference = null).isRestartEligible shouldBe false
 		descriptor.isRestartEligibleForBoot("boot-2") shouldBe false
 		descriptor.isRestartEligibleForBoot("boot-1") shouldBe true
 	}

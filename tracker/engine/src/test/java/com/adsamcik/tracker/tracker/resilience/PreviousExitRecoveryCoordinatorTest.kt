@@ -333,6 +333,8 @@ class PreviousExitRecoveryCoordinatorTest {
 			serviceRunId = "run:$logicalTrackingId",
 			restartBootId = TEST_BOOT_ID,
 			restartToken = "restart-token",
+			sourceCallerAuthorityReference =
+				com.adsamcik.tracker.tracker.api.SourceCallerReplayReference("caller-authority"),
 		)
 
 		const val TEST_BOOT_ID = "current-boot"

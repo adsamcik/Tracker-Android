@@ -3685,6 +3685,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 					stop_deadline_elapsed_realtime_nanos INTEGER,
 					intent_checksum TEXT NOT NULL,
 					trigger_collected_data_epoch INTEGER,
+					source_caller_authority_reference TEXT,
 					PRIMARY KEY(logical_tracking_id, intent_revision)
 				)
 				""".trimIndent(),

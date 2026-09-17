@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -31,12 +32,17 @@ class DefaultActiveTrackingSessionStoreTest {
 			restartBootId = "boot:test",
 			restartToken = "restart-token",
 			sessionSegmentId = 42L,
+			sourceCallerAuthorityReference = SourceCallerReplayReference("caller-authority"),
 		)
 
 		store.save(descriptor) shouldBe ActiveTrackingSessionStoreResult.Success(descriptor)
-		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(descriptor)
-		store.clear() shouldBe ActiveTrackingSessionStoreResult.Success(null)
-		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+		val recreated = DefaultActiveTrackingSessionStore(
+			context,
+			TestDispatchersProvider(dispatcher),
+		)
+		recreated.read() shouldBe ActiveTrackingSessionStoreResult.Success(descriptor)
+		recreated.clear() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+		recreated.read() shouldBe ActiveTrackingSessionStoreResult.Success(null)
 	}
 
 	@Test
