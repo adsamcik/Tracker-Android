@@ -50,6 +50,25 @@ sealed interface AutomaticTrackingOperationalAvailability {
 
 	val authorityIdentityOrNull: TrackingPurposeLeaseIdentity?
 		get() = (this as? Ready)?.identity
+
+	companion object {
+		@JvmStatic
+		fun ready(identity: TrackingPurposeLeaseIdentity): Ready =
+			Ready(identity)
+
+		@JvmStatic
+		@JvmOverloads
+		fun unavailable(
+			reason: AutomaticTrackingUnavailableReason,
+			lastIdentity: TrackingPurposeLeaseIdentity? = null,
+		): Unavailable = Unavailable(reason, lastIdentity)
+
+		/** Legacy callers receive fail-closed status; identityless Ready authority no longer exists. */
+		@JvmStatic
+		fun legacyUnavailable(): Unavailable = Unavailable(
+			AutomaticTrackingUnavailableReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
+		)
+	}
 }
 
 enum class AmbientTrackingSource(
@@ -182,6 +201,33 @@ data class AmbientSourceOperationalAvailability(
 			state == AmbientSourceOperationalState.DEGRADED
 
 	companion object {
+		@JvmStatic
+		fun ready(
+			source: AmbientTrackingSource,
+			mechanism: AmbientAcquisitionMechanism,
+			identity: TrackingPurposeLeaseIdentity,
+		): AmbientSourceOperationalAvailability = AmbientSourceOperationalAvailability(
+			source = source,
+			state = AmbientSourceOperationalState.READY,
+			mechanism = mechanism,
+			operationalIdentity = identity,
+		)
+
+		@JvmStatic
+		@JvmOverloads
+		fun unavailable(
+			source: AmbientTrackingSource,
+			reason: AmbientSourceUnavailableReason,
+			lastIdentity: TrackingPurposeLeaseIdentity? = null,
+		): AmbientSourceOperationalAvailability = AmbientSourceOperationalAvailability(
+			source = source,
+			state = AmbientSourceOperationalState.UNAVAILABLE,
+			reason = reason,
+			lastIdentity = lastIdentity,
+		)
+
+		@JvmStatic
+		@JvmOverloads
 		fun reconciliationPending(
 			source: AmbientTrackingSource,
 			lastIdentity: TrackingPurposeLeaseIdentity? = null,

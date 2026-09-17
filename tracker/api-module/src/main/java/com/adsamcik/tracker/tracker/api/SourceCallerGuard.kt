@@ -52,31 +52,79 @@ sealed interface SourceCallerRequest {
 		val requestedCapturedSources: Set<CanonicalTrackingSource>,
 		val manifestIdentity: SourceCallerManifestIdentity,
 		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
-	) : SourceCallerRequest
+	) : SourceCallerRequest {
+		companion object {
+			@JvmStatic
+			fun create(
+				requestedCapturedSources: Set<CanonicalTrackingSource>,
+				manifestIdentity: SourceCallerManifestIdentity,
+				requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
+			): ManualSessionStart = ManualSessionStart(
+				requestedCapturedSources,
+				manifestIdentity,
+				requestedDemandIdentities,
+			)
+		}
+	}
 
 	data class AutomaticSessionStart(
 		val requestedCapturedSources: Set<CanonicalTrackingSource>,
 		val declaredControlDependencies: Set<CanonicalTrackingSource>,
 		val manifestIdentity: SourceCallerManifestIdentity,
 		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
-	) : SourceCallerRequest
+	) : SourceCallerRequest {
+		companion object {
+			@JvmStatic
+			fun create(
+				requestedCapturedSources: Set<CanonicalTrackingSource>,
+				declaredControlDependencies: Set<CanonicalTrackingSource>,
+				manifestIdentity: SourceCallerManifestIdentity,
+				requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
+			): AutomaticSessionStart = AutomaticSessionStart(
+				requestedCapturedSources,
+				declaredControlDependencies,
+				manifestIdentity,
+				requestedDemandIdentities,
+			)
+		}
+	}
 
 	data class Ambient(
 		val source: CanonicalTrackingSource,
 		val enabled: Boolean = false,
 		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
-	) : SourceCallerRequest
+	) : SourceCallerRequest {
+		companion object {
+			@JvmStatic
+			@JvmOverloads
+			fun create(
+				source: CanonicalTrackingSource,
+				requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
+				enabled: Boolean = false,
+			): Ambient = Ambient(source, enabled, requestedDemandIdentities)
+		}
+	}
 
 	data class Replay(
 		val replayKind: SourceCallerReplayKind,
 		val reference: SourceCallerReplayReference,
 		val purpose: CanonicalTrackingPurpose,
 		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
-	) : SourceCallerRequest
+	) : SourceCallerRequest {
+		companion object {
+			@JvmStatic
+			fun create(
+				replayKind: SourceCallerReplayKind,
+				reference: SourceCallerReplayReference,
+				purpose: CanonicalTrackingPurpose,
+				requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
+			): Replay = Replay(replayKind, reference, purpose, requestedDemandIdentities)
+		}
+	}
 }
 
-@JvmInline
-value class SourceCallerReplayReference(
+/** Java-friendly opaque lookup token. Constructing a value does not create accepted authority. */
+data class SourceCallerReplayReference(
 	val value: String,
 ) {
 	init {
@@ -96,6 +144,7 @@ enum class SourceCallerRejectionReason {
 	AUTOMATIC_CONTROL_UNAVAILABLE,
 	AMBIENT_SOURCE_UNAVAILABLE,
 	READINESS_AUTHORITY_MISMATCH,
+	UNBOUND_EXECUTION_AUTHORITY,
 	DEMAND_AUTHORITY_UNAVAILABLE,
 	STALE_MANIFEST_IDENTITY,
 	STALE_POLICY_REVISION,

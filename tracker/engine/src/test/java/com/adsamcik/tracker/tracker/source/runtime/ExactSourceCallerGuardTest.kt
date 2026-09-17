@@ -46,6 +46,79 @@ class ExactSourceCallerGuardTest {
 	}
 
 	@Test
+	fun `manual only-X rejects requested unbound execution even when current is also unbound`() =
+		runTest {
+			val location = capture(TrackingSource.LOCATION)
+			val unboundLocation = unbound(location)
+			val boundFixture = TrustedSourceCallerGuardFixtureFactory.create(
+				current = setOf(location),
+			)
+
+			boundFixture.guard.accept(
+				SourceCallerRequest.ManualSessionStart(
+					requestedCapturedSources = setOf(TrackingSource.LOCATION),
+					manifestIdentity = MANIFEST,
+					requestedDemandIdentities = setOf(unboundLocation),
+				),
+			) shouldBe rejected(
+				SourceCallerRejectionReason.UNBOUND_EXECUTION_AUTHORITY,
+				unboundLocation,
+			)
+
+			val bothUnbound = TrustedSourceCallerGuardFixtureFactory.create(
+				current = setOf(unboundLocation),
+			)
+			bothUnbound.guard.accept(
+				SourceCallerRequest.ManualSessionStart(
+					requestedCapturedSources = setOf(TrackingSource.LOCATION),
+					manifestIdentity = MANIFEST,
+					requestedDemandIdentities = setOf(unboundLocation),
+				),
+			) shouldBe rejected(
+				SourceCallerRejectionReason.UNBOUND_EXECUTION_AUTHORITY,
+				unboundLocation,
+			)
+		}
+
+	@Test
+	fun `trusted snapshot rejects unbound current authority for a bound manual request`() = runTest {
+		val location = capture(TrackingSource.LOCATION)
+		val fixture = TrustedSourceCallerGuardFixtureFactory.create(
+			current = setOf(unbound(location)),
+		)
+
+		fixture.guard.accept(
+			SourceCallerRequest.ManualSessionStart(
+				requestedCapturedSources = setOf(TrackingSource.LOCATION),
+				manifestIdentity = MANIFEST,
+				requestedDemandIdentities = setOf(location),
+			),
+		) shouldBe rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
+	}
+
+	@Test
+	fun `multisource manual request rejects one unbound captured identity`() = runTest {
+		val location = capture(TrackingSource.LOCATION)
+		val steps = capture(TrackingSource.STEPS)
+		val unboundSteps = unbound(steps)
+		val fixture = TrustedSourceCallerGuardFixtureFactory.create(
+			current = setOf(location, steps),
+		)
+
+		fixture.guard.accept(
+			SourceCallerRequest.ManualSessionStart(
+				requestedCapturedSources =
+					setOf(TrackingSource.LOCATION, TrackingSource.STEPS),
+				manifestIdentity = MANIFEST,
+				requestedDemandIdentities = setOf(location, unboundSteps),
+			),
+		) shouldBe rejected(
+			SourceCallerRejectionReason.UNBOUND_EXECUTION_AUTHORITY,
+			unboundSteps,
+		)
+	}
+
+	@Test
 	fun `manual rejects hidden captured CONTROL and ambient demand`() = runTest {
 		val location = capture(TrackingSource.LOCATION)
 		listOf(
@@ -175,6 +248,42 @@ class ExactSourceCallerGuardTest {
 	}
 
 	@Test
+	fun `automatic request rejects unbound capture despite valid bound Activity CONTROL`() = runTest {
+		val steps = capture(TrackingSource.STEPS)
+		val unboundSteps = unbound(steps)
+		val activityControl = control()
+		val fixture = TrustedSourceCallerGuardFixtureFactory.create(
+			current = setOf(steps, activityControl),
+			availability = automaticReady(activityControl),
+		)
+
+		fixture.guard.accept(
+			SourceCallerRequest.AutomaticSessionStart(
+				requestedCapturedSources = setOf(TrackingSource.STEPS),
+				declaredControlDependencies = setOf(TrackingSource.ACTIVITY),
+				manifestIdentity = MANIFEST,
+				requestedDemandIdentities = setOf(unboundSteps, activityControl),
+			),
+		) shouldBe rejected(
+			SourceCallerRejectionReason.UNBOUND_EXECUTION_AUTHORITY,
+			unboundSteps,
+		)
+
+		val unboundControl = unbound(activityControl)
+		fixture.guard.accept(
+			SourceCallerRequest.AutomaticSessionStart(
+				requestedCapturedSources = setOf(TrackingSource.STEPS),
+				declaredControlDependencies = setOf(TrackingSource.ACTIVITY),
+				manifestIdentity = MANIFEST,
+				requestedDemandIdentities = setOf(steps, unboundControl),
+			),
+		) shouldBe rejected(
+			SourceCallerRejectionReason.UNBOUND_EXECUTION_AUTHORITY,
+			unboundControl,
+		)
+	}
+
+	@Test
 	fun `ambient is default-off source-local sessionless and readiness-bound`() = runTest {
 		val steps = ambient(TrackingSource.STEPS)
 		val wifi = ambient(TrackingSource.WIFI)
@@ -220,6 +329,27 @@ class ExactSourceCallerGuardTest {
 		) shouldBe rejected(
 			SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
 			steps,
+		)
+	}
+
+	@Test
+	fun `ambient request rejects unbound source identity before readiness acceptance`() = runTest {
+		val steps = ambient(TrackingSource.STEPS)
+		val unboundSteps = unbound(steps)
+		val fixture = TrustedSourceCallerGuardFixtureFactory.create(
+			current = setOf(steps),
+			availability = ambientReady(steps),
+		)
+
+		fixture.guard.accept(
+			SourceCallerRequest.Ambient(
+				source = TrackingSource.STEPS,
+				enabled = true,
+				requestedDemandIdentities = setOf(unboundSteps),
+			),
+		) shouldBe rejected(
+			SourceCallerRejectionReason.UNBOUND_EXECUTION_AUTHORITY,
+			unboundSteps,
 		)
 	}
 
@@ -343,6 +473,55 @@ class ExactSourceCallerGuardTest {
 					requestedDemandIdentities = change.demands,
 				),
 			) shouldBe rejected(change.reason)
+		}
+	}
+
+	@Test
+	fun `exact persisted replay rejects current authority-only mutations`() = runTest {
+		val location = capture(TrackingSource.LOCATION)
+		val fixture = TrustedSourceCallerGuardFixtureFactory.create(current = setOf(location))
+		val receipt = fixture.permit(
+			SourceCallerRequest.ManualSessionStart(
+				requestedCapturedSources = setOf(TrackingSource.LOCATION),
+				manifestIdentity = MANIFEST,
+				requestedDemandIdentities = setOf(location),
+			),
+		)
+		val exactReplay = replay(
+			receipt,
+			SourceCallerReplayKind.RECOVERY,
+			setOf(location),
+		)
+		val currentMutations = listOf(
+			setOf(
+				location.copy(
+					manifestIdentity = MANIFEST.copy(manifestRevision = 4L),
+				),
+			) to SourceCallerRejectionReason.STALE_MANIFEST_IDENTITY,
+			setOf(
+				location.copy(
+					manifestIdentity = MANIFEST.copy(logicalTrackingId = "other-logical"),
+				),
+			) to SourceCallerRejectionReason.STALE_MANIFEST_IDENTITY,
+			emptySet<SourceCallerDemandIdentity>() to
+				SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE,
+			setOf(withLease(location) { it.copy(policyRevision = 12L) }) to
+				SourceCallerRejectionReason.STALE_POLICY_REVISION,
+			setOf(withLease(location) { it.copy(consentEpoch = 8L) }) to
+				SourceCallerRejectionReason.STALE_CONSENT_EPOCH,
+			setOf(withLease(location) { it.copy(collectedDataEpoch = 6L) }) to
+				SourceCallerRejectionReason.STALE_COLLECTED_DATA_EPOCH,
+			setOf(withLease(location) { it.copy(rolloutRevision = 14L) }) to
+				SourceCallerRejectionReason.STALE_ROLLOUT_REVISION,
+			setOf(withLease(location) { it.copy(executionRevision = 18L) }) to
+				SourceCallerRejectionReason.STALE_EXECUTION_REVISION,
+			setOf(withLease(location) { it.copy(ownerCasToken = "current-owner-replaced") }) to
+				SourceCallerRejectionReason.STALE_OWNER_CAS_TOKEN,
+		)
+
+		currentMutations.forEach { (current, reason) ->
+			fixture.current = current
+			fixture.guard.accept(exactReplay) shouldBe rejected(reason, location)
 		}
 	}
 
@@ -531,6 +710,12 @@ class ExactSourceCallerGuardTest {
 	): SourceCallerDemandIdentity = demand.copy(
 		purposeLeaseIdentity = transform(demand.purposeLeaseIdentity),
 	)
+
+	private fun unbound(
+		demand: SourceCallerDemandIdentity,
+	): SourceCallerDemandIdentity = withLease(demand) { identity ->
+		identity.copy(executionRevision = 0L)
+	}
 
 	private fun replayLeaseMutation(
 		original: Set<SourceCallerDemandIdentity>,

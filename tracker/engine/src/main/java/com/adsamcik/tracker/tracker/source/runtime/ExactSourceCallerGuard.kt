@@ -41,6 +41,11 @@ internal class SourceCallerAuthoritySnapshot(
 		) {
 			"Current caller authority must contain at most one identity per demand"
 		}
+		require(this.currentDemandIdentities.all { identity ->
+			identity.purposeLeaseIdentity.executionRevision > 0L
+		}) {
+			"Current caller authority must omit unbound source-purpose identities"
+		}
 	}
 }
 
@@ -69,6 +74,7 @@ internal class ExactSourceCallerGuard @Inject constructor(
 	private val authorityRepository: SourceCallerAcceptedAuthorityRepository,
 ) : SourceCallerGuard {
 	override suspend fun accept(request: SourceCallerRequest): SourceCallerGuardResult {
+		validateBoundExecution(request.requestedDemandIdentities.toSet())?.let { return it }
 		val currentAuthority = try {
 			authorityReader.read()
 		} catch (cancelled: CancellationException) {
@@ -180,6 +186,9 @@ private class ExactAcceptedSourceCallerAuthority private constructor(
 					.distinct()
 					.size == permittedDemandIdentities.size,
 			)
+			require(permittedDemandIdentities.all { identity ->
+				identity.purposeLeaseIdentity.executionRevision > 0L
+			})
 			val captures = permittedDemandIdentities.filter { identity ->
 				identity.sourcePurpose.purpose == TrackingPurpose.SESSION_CAPTURE
 			}
@@ -229,6 +238,9 @@ private fun evaluateManual(
 ): SourceCallerEvaluation {
 	val capturedSources = request.requestedCapturedSources.toSet()
 	val requestedDemands = request.requestedDemandIdentities.toSet()
+	validateBoundExecution(requestedDemands)?.let {
+		return SourceCallerEvaluation.Rejected(it.rejection)
+	}
 	if (capturedSources.isEmpty()) {
 		return rejectedEvaluation(SourceCallerRejectionReason.ZERO_CAPTURE_SOURCE_REQUEST)
 	}
@@ -259,6 +271,9 @@ private fun evaluateAutomatic(
 	val capturedSources = request.requestedCapturedSources.toSet()
 	val declaredControls = request.declaredControlDependencies.toSet()
 	val requestedDemands = request.requestedDemandIdentities.toSet()
+	validateBoundExecution(requestedDemands)?.let {
+		return SourceCallerEvaluation.Rejected(it.rejection)
+	}
 	val availability = currentAuthority.purposeAvailability.automaticControl
 	if (availability !is AutomaticTrackingOperationalAvailability.Ready) {
 		return SourceCallerEvaluation.Rejected(
@@ -316,6 +331,9 @@ private fun evaluateAmbient(
 	currentAuthority: SourceCallerAuthoritySnapshot,
 ): SourceCallerEvaluation {
 	val requestedDemands = request.requestedDemandIdentities.toSet()
+	validateBoundExecution(requestedDemands)?.let {
+		return SourceCallerEvaluation.Rejected(it.rejection)
+	}
 	if (!request.source.supports(TrackingPurpose.AMBIENT_PRODUCT)) {
 		return rejectedEvaluation(
 			SourceCallerRejectionReason.AMBIENT_SOURCE_NOT_SUPPORTED,
@@ -403,6 +421,20 @@ private fun validateDeclaredDemandSet(
 		return rejected(SourceCallerRejectionReason.MISSING_DEMAND_IDENTITY, missing)
 	}
 	return null
+}
+
+private fun validateBoundExecution(
+	requestedIdentities: Set<SourceCallerDemandIdentity>,
+): SourceCallerGuardResult.Rejected? {
+	val unbound = requestedIdentities.sortedByDemandKey().firstOrNull { identity ->
+		identity.purposeLeaseIdentity.executionRevision <= 0L
+	}
+	return unbound?.let { identity ->
+		rejected(
+			SourceCallerRejectionReason.UNBOUND_EXECUTION_AUTHORITY,
+			identity.sourcePurpose,
+		)
+	}
 }
 
 private fun validateCurrentAuthority(

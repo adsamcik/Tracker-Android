@@ -76,6 +76,49 @@ data class TrackingPurposeLeaseIdentity(
 
 	val purpose: TrackingPurpose
 		get() = sourcePurpose.purpose
+
+	companion object {
+		@JvmStatic
+		fun create(
+			source: CanonicalTrackingSource,
+			purpose: TrackingPurpose,
+			policyRevision: Long,
+			consentEpoch: Long,
+			collectedDataEpoch: Long,
+			rolloutRevision: Long,
+			executionRevision: Long,
+			ownerCasToken: String,
+		): TrackingPurposeLeaseIdentity = TrackingPurposeLeaseIdentity(
+			sourcePurpose = source.forPurpose(purpose),
+			policyRevision = policyRevision,
+			consentEpoch = consentEpoch,
+			collectedDataEpoch = collectedDataEpoch,
+			rolloutRevision = rolloutRevision,
+			executionRevision = executionRevision,
+			ownerCasToken = ownerCasToken,
+		)
+
+		@JvmStatic
+		fun createLegacy(
+			source: TrackingSource,
+			purpose: TrackingPurpose,
+			policyRevision: Long,
+			consentEpoch: Long,
+			collectedDataEpoch: Long,
+			rolloutRevision: Long,
+			executionRevision: Long,
+			ownerCasToken: String,
+		): TrackingPurposeLeaseIdentity = TrackingPurposeLeaseIdentity(
+			source,
+			purpose,
+			policyRevision,
+			consentEpoch,
+			collectedDataEpoch,
+			rolloutRevision,
+			executionRevision,
+			ownerCasToken,
+		)
+	}
 }
 
 /**
