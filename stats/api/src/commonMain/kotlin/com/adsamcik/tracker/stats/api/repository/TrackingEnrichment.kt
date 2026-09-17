@@ -339,7 +339,8 @@ sealed interface TrackingEnrichmentIntervalUnionResult {
  * Computes a checked, sorted interval union against the entire authority range.
  *
  * COMPLETE requires continuous coverage from the exact start through the exact end. A contiguous
- * proper subset is PARTIAL; any internal hole is GAP.
+ * proper subset is PARTIAL; any internal hole is GAP. Overlapping and exactly adjacent intervals
+ * merge into one covered interval. All bounds are epoch milliseconds.
  */
 fun trackingEnrichmentIntervalUnionCoverage(
 	authorityRange: TrackingProductQueryScope.WallRange,
@@ -572,7 +573,16 @@ sealed interface TrackingEnrichmentSourceResult {
 			): TrackingEnrichmentSourceResult {
 				val factSnapshot = facts.toList()
 				if (factSnapshot.isEmpty() ||
-					factSnapshot.map { it.authority.identity }.distinct().size !=
+					factSnapshot.any {
+						it.window.intervalEndTime <= it.window.intervalStartTime
+					}
+				) {
+					return TrackingEnrichmentSourceResult.Rejected(
+						HistorySource.PRESSURE,
+						TrackingEnrichmentRejectionReason.INVALID_INTERVAL,
+					)
+				}
+				if (factSnapshot.map { it.authority.identity }.distinct().size !=
 					factSnapshot.size
 				) {
 					return TrackingEnrichmentSourceResult.Rejected(
@@ -584,8 +594,8 @@ sealed interface TrackingEnrichmentSourceResult {
 					metadata.authorityRange,
 					factSnapshot.map { fact ->
 						TrackingEnrichmentInterval(
-							fact.authority.observedFromInclusive,
-							fact.authority.observedToExclusive,
+							fact.window.intervalStartTime,
+							fact.window.intervalEndTime,
 						)
 					},
 				)
@@ -631,6 +641,7 @@ enum class TrackingEnrichmentRejectionReason {
 	CONFLICT,
 	ACQUISITION_REQUIRED,
 	INTERVAL_OVERFLOW,
+	INVALID_INTERVAL,
 }
 
 /** One immutable enrichment answer bound to the primary selection's exact snapshot and scope. */

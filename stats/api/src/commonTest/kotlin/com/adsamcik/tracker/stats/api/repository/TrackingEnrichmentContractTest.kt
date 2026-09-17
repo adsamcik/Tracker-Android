@@ -289,12 +289,18 @@ class TrackingEnrichmentContractTest {
 	}
 
 	@Test
-	fun `sparse individually complete Pressure windows produce aggregate gap`() {
+	fun `Pressure coverage uses actual window rather than broad authority envelope`() {
 		val request = request(setOf(HistorySource.PRESSURE))
 		val sessionIdentity = request.primary.origin.identity
 		val facts = listOf(
-			pressureFact(100L, 125L, sessionIdentity, "pressure-first"),
-			pressureFact(175L, 200L, sessionIdentity, "pressure-second"),
+			pressureFactWithinAuthority(
+				authorityFrom = 100L,
+				authorityTo = 200L,
+				windowFrom = 120L,
+				windowTo = 121L,
+				sessionIdentity = sessionIdentity,
+				seed = "pressure-sparse",
+			),
 		)
 		val range = wall(100L, 200L)
 		assertEquals(
@@ -302,7 +308,7 @@ class TrackingEnrichmentContractTest {
 			(TrackingEnrichmentSourceResult.Pressure.create(
 				facts,
 				PressureEnrichmentResultMetadata(
-					2,
+					1,
 					range,
 					TrackingEnrichmentAggregateCoverage.COMPLETE,
 				),
@@ -311,19 +317,106 @@ class TrackingEnrichmentContractTest {
 		val result = TrackingEnrichmentSourceResult.Pressure.create(
 			facts,
 			PressureEnrichmentResultMetadata(
-				2,
+				1,
 				range,
-				TrackingEnrichmentAggregateCoverage.GAP,
+				TrackingEnrichmentAggregateCoverage.PARTIAL,
 			),
 		) as TrackingEnrichmentSourceResult.Pressure
 		assertEquals(
-			TrackingEnrichmentAggregateCoverage.GAP,
+			TrackingEnrichmentAggregateCoverage.PARTIAL,
 			result.metadata.aggregateCoverage,
 		)
 		TrackingEnrichmentSnapshot(
 			request,
 			request.primary.readSnapshot,
 			listOf(result),
+		)
+	}
+
+	@Test
+	fun `adjacent and overlapping actual Pressure windows exactly cover authority range`() {
+		val request = request(setOf(HistorySource.PRESSURE))
+		val sessionIdentity = request.primary.origin.identity
+		val facts = listOf(
+			pressureFactWithinAuthority(
+				100L,
+				200L,
+				100L,
+				150L,
+				sessionIdentity,
+				"pressure-first",
+			),
+			pressureFactWithinAuthority(
+				100L,
+				200L,
+				150L,
+				180L,
+				sessionIdentity,
+				"pressure-adjacent",
+			),
+			pressureFactWithinAuthority(
+				100L,
+				200L,
+				170L,
+				200L,
+				sessionIdentity,
+				"pressure-overlap",
+			),
+		)
+		val result = TrackingEnrichmentSourceResult.Pressure.create(
+			facts,
+			PressureEnrichmentResultMetadata(
+				3,
+				wall(100L, 200L),
+				TrackingEnrichmentAggregateCoverage.COMPLETE,
+			),
+		) as TrackingEnrichmentSourceResult.Pressure
+
+		assertEquals(
+			TrackingEnrichmentAggregateCoverage.COMPLETE,
+			result.metadata.aggregateCoverage,
+		)
+		TrackingEnrichmentSnapshot(
+			request,
+			request.primary.readSnapshot,
+			listOf(result),
+		)
+	}
+
+	@Test
+	fun `empty and zero-duration Pressure coverage are typed invalid`() {
+		val request = request(setOf(HistorySource.PRESSURE))
+		val sessionIdentity = request.primary.origin.identity
+		val range = wall(100L, 200L)
+		assertEquals(
+			TrackingEnrichmentRejectionReason.INVALID_INTERVAL,
+			(TrackingEnrichmentSourceResult.Pressure.create(
+				emptyList(),
+				PressureEnrichmentResultMetadata(
+					1,
+					range,
+					TrackingEnrichmentAggregateCoverage.PARTIAL,
+				),
+			) as TrackingEnrichmentSourceResult.Rejected).reason,
+		)
+		val zero = pressureFactWithinAuthority(
+			100L,
+			200L,
+			120L,
+			120L,
+			sessionIdentity,
+			"pressure-zero",
+		)
+		assertEquals(
+			TrackingEnrichmentRejectionReason.INVALID_INTERVAL,
+			(TrackingEnrichmentSourceResult.Pressure.create(
+				listOf(zero),
+				PressureEnrichmentResultMetadata(
+					1,
+					range,
+					TrackingEnrichmentAggregateCoverage.PARTIAL,
+				),
+			) as TrackingEnrichmentSourceResult.Rejected).reason,
 		)
 	}
 
@@ -403,6 +496,19 @@ class TrackingEnrichmentContractTest {
 		PressureEnrichmentFact(
 			factAuthority(from, to, sessionIdentity, seed),
 			pressureWindow(from, to),
+		)
+
+	private fun pressureFactWithinAuthority(
+		authorityFrom: Long,
+		authorityTo: Long,
+		windowFrom: Long,
+		windowTo: Long,
+		sessionIdentity: TrackingProductIdentity,
+		seed: String,
+	): PressureEnrichmentFact =
+		PressureEnrichmentFact(
+			factAuthority(authorityFrom, authorityTo, sessionIdentity, seed),
+			pressureWindow(windowFrom, windowTo),
 		)
 
 	private fun factAuthority(
