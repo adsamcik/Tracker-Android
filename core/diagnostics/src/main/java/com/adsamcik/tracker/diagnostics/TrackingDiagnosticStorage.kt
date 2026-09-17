@@ -1,13 +1,18 @@
 package com.adsamcik.tracker.diagnostics
 
-/** Fixed local-storage limits. They are not runtime or remote configuration. */
+/**
+ * Fixed local-storage limits. They are not runtime or remote configuration.
+ *
+ * Minute-scale aggregation and rate windows are process-memory controls; only the 15-minute event
+ * bucket is persisted.
+ */
 object TrackingDiagnosticStorageLimits {
 	const val GLOBAL_EVENT_CAP = 512
 	const val PER_SOURCE_EVENT_CAP = 128
 	const val RETENTION_DAYS = 7L
-	const val MAX_ENCODED_EVENT_BYTES = 1_024
-	const val GLOBAL_ENCODED_BYTE_CAP = 512 * 1_024
-	const val PER_SOURCE_ENCODED_BYTE_CAP = 128 * 1_024
+	const val MAX_ENCODED_EVENT_BYTES = 512
+	const val GLOBAL_ENCODED_BYTE_CAP = 256 * 1_024
+	const val PER_SOURCE_ENCODED_BYTE_CAP = 64 * 1_024
 	const val AGGREGATION_WINDOW_MILLIS = 60_000L
 	const val RATE_LIMIT_WINDOW_MILLIS = 60_000L
 	const val GLOBAL_RATE_LIMIT = 240
@@ -18,6 +23,7 @@ object TrackingDiagnosticStorageLimits {
 	internal const val RETENTION_MILLIS =
 		RETENTION_DAYS * 24L * 60L * 60L * 1_000L
 	internal const val MAX_AGGREGATED_OCCURRENCES = 65
+	internal const val MAX_IN_MEMORY_AGGREGATION_KEYS = 256
 }
 
 /** Complete outcome of one local event-store attempt. */
@@ -35,7 +41,7 @@ enum class TrackingDiagnosticStorageResult {
  * It is local navigation state, not a stable event identifier or product authority.
  */
 class TrackingDiagnosticPageCursor internal constructor(
-	internal val beforeObservedAtMs: Long,
+	internal val beforeCoarseTimeBucket: Long,
 	internal val beforeRowId: Long,
 ) {
 	override fun toString(): String = "TrackingDiagnosticPageCursor(opaque)"
@@ -52,7 +58,7 @@ data class TrackingDiagnosticStoredMetrics(
 /**
  * Payload-free event view for a later local health evaluator.
  *
- * Recorder-owned process/scope correlation remains in storage and is intentionally omitted here.
+ * Recorder-owned process/scope correlation remains in memory and never enters storage.
  */
 data class TrackingDiagnosticStoredEvent(
 	val source: TrackingDiagnosticSource,
@@ -62,7 +68,7 @@ data class TrackingDiagnosticStoredEvent(
 	val result: TrackingDiagnosticResult,
 	val reason: TrackingDiagnosticReason,
 	val lifecycle: TrackingDiagnosticEventLifecycle,
-	val coarseLocalTimestamp: String,
+	val coarseTimeBucket: Long,
 	val scopeDurationBucket: TrackingDiagnosticDurationBucket,
 	val occurrenceCountBucket: TrackingDiagnosticCountBucket,
 	val metrics: TrackingDiagnosticStoredMetrics,

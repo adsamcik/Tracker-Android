@@ -15,17 +15,21 @@ product copy, runtime defaults, and the decision to expose only save/share actio
 - The closed tracking-operational event contract has a separate `:core:diagnostics` Room database
   because Tracebox does not expose the source/purpose keyset reads or transactional row/byte
   limits needed by the planned local health UI. This database accepts only the module-owned
-  serialized enum/bucket fields plus a recorder-owned process-epoch/scope token. It has no network,
-  export, attachment, arbitrary-text, Throwable, path, URI, checksum, sensor-value, or radio-ID
-  surface.
-- Tracking-operational storage is fixed at 512 rows globally, 128 rows per source, 512 KiB globally,
-  128 KiB per source, and 1 KiB per encoded event, with seven-day retention. Repeated identical
-  operational events aggregate within one minute, and persisted one-minute admission budgets are
-  240 events globally and 60 per source. Append and pruning are one Room transaction.
+  serialized enum/bucket fields. Recorder process epochs, operation scopes, and scope sequences
+  remain in memory and never enter Tracebox or Room. It has no network, export, attachment,
+  arbitrary-text, Throwable, path, URI, checksum, sensor-value, or radio-ID surface.
+- Tracking-operational storage is fixed at 512 rows globally, 128 rows per source, 256 KiB globally,
+  64 KiB per source, and 512 bytes per encoded event, with seven-day retention. Repeated identical
+  operational events aggregate within one minute, and one-minute admission budgets are 240 events
+  globally and 60 per source. Those minute-precision controls are bounded process memory and reset
+  after process death. Room persists only a 15-minute epoch bucket for ordering and retention.
+  Append and pruning are one Room transaction.
 - The pull-only health read API requires a source, optionally narrows to purpose, returns at most
-  100 rows per keyset page, and exposes no observer. Its read model omits the persisted process
-  token so it cannot become product authority. A maintenance helper exists, but no new background
-  work is scheduled in this implementation-only phase.
+  100 rows per keyset page, and exposes no observer or correlation token. A maintenance helper
+  exists, but no new background work is scheduled in this implementation-only phase.
+- This unreleased standalone database remains at version 1 with `exportSchema = false`. An exact
+  manual `TableInfo` contract is tracked now; the final convergence batch must enable export and
+  commit the generated v1 JSON before the first migration or version increment.
 - Tracker log templates are static. Arguments are limited to public structural counts, durations,
   booleans, and enums. Precise coordinates, tracked identifiers, exception messages, and arbitrary
   domain objects do not enter diagnostic calls.

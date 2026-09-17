@@ -2,11 +2,15 @@ package com.adsamcik.tracker.diagnostics
 
 import android.app.Application
 import androidx.room.Room
+import androidx.room.util.TableInfo
+import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteOpenHelper
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import java.time.ZoneOffset
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -20,7 +24,7 @@ import org.robolectric.annotation.Config
 class RoomTrackingDiagnosticStoreTest {
 	private lateinit var context: Application
 	private lateinit var database: TrackingDiagnosticDatabase
-	private var nowMs = 1_000L
+	private var nowMs = TrackingDiagnosticCoarseTimeBucket.BUCKET_MILLISECONDS
 
 	@Before
 	fun setUp() {
@@ -55,14 +59,16 @@ class RoomTrackingDiagnosticStoreTest {
 		TrackingDiagnosticStorageLimits.GLOBAL_EVENT_CAP shouldBe 512
 		TrackingDiagnosticStorageLimits.PER_SOURCE_EVENT_CAP shouldBe 128
 		TrackingDiagnosticStorageLimits.RETENTION_DAYS shouldBe 7L
-		TrackingDiagnosticStorageLimits.MAX_ENCODED_EVENT_BYTES shouldBe 1_024
-		TrackingDiagnosticStorageLimits.GLOBAL_ENCODED_BYTE_CAP shouldBe 512 * 1_024
-		TrackingDiagnosticStorageLimits.PER_SOURCE_ENCODED_BYTE_CAP shouldBe 128 * 1_024
+		TrackingDiagnosticStorageLimits.MAX_ENCODED_EVENT_BYTES shouldBe 512
+		TrackingDiagnosticStorageLimits.GLOBAL_ENCODED_BYTE_CAP shouldBe 256 * 1_024
+		TrackingDiagnosticStorageLimits.PER_SOURCE_ENCODED_BYTE_CAP shouldBe 64 * 1_024
 		TrackingDiagnosticStorageLimits.AGGREGATION_WINDOW_MILLIS shouldBe 60_000L
 		TrackingDiagnosticStorageLimits.RATE_LIMIT_WINDOW_MILLIS shouldBe 60_000L
 		TrackingDiagnosticStorageLimits.GLOBAL_RATE_LIMIT shouldBe 240
 		TrackingDiagnosticStorageLimits.PER_SOURCE_RATE_LIMIT shouldBe 60
 		TrackingDiagnosticStorageLimits.MAX_PAGE_SIZE shouldBe 100
+		maximumValidStoredEncodingBytes() <=
+			TrackingDiagnosticStorageLimits.MAX_ENCODED_EVENT_BYTES shouldBe true
 	}
 
 	@Test
@@ -100,9 +106,8 @@ class RoomTrackingDiagnosticStoreTest {
 	@Test
 	fun `append prunes source and global encoded byte footprints`() = runTest {
 		val event = recordedEvent()
-		val eventBytes = TrackingDiagnosticUtf8Size.encodedFields(
-			EncodedTrackingDiagnosticEvent.from(event).serializedFields,
-		)
+		val eventBytes = storedBytes(event)
+		(eventBytes <= TrackingDiagnosticStorageLimits.MAX_ENCODED_EVENT_BYTES) shouldBe true
 		val store = store(
 			policy = testPolicy(
 				maxEncodedEventBytes = eventBytes + 20,
@@ -136,7 +141,7 @@ class RoomTrackingDiagnosticStoreTest {
 	}
 
 	@Test
-	fun `identical operational events aggregate before the source rate limit drops them`() = runTest {
+	fun `identical operational events aggregate in memory before source rate limit`() = runTest {
 		val store = store(
 			policy = testPolicy(
 				globalRateLimit = 3,
@@ -162,6 +167,27 @@ class RoomTrackingDiagnosticStoreTest {
 	}
 
 	@Test
+	fun `process restart starts a new aggregate without persisted correlation state`() = runTest {
+		val processPolicy = testPolicy(
+			aggregationWindowMillis = 60_000L,
+			globalRateLimit = 1,
+			perSourceRateLimit = 1,
+		)
+		val firstProcess = store(policy = processPolicy)
+		firstProcess.append(recordedEvent(scopeSeed = 7L, processSeed = 11L)) shouldBe
+			TrackingDiagnosticStorageResult.STORED
+		nowMs += 1L
+
+		val secondProcess = store(policy = processPolicy)
+		secondProcess.append(recordedEvent(scopeSeed = 7L, processSeed = 12L)) shouldBe
+			TrackingDiagnosticStorageResult.STORED
+
+		secondProcess.querySource(TrackingDiagnosticSource.WIFI).page().events
+			.map { event -> event.occurrenceCountBucket } shouldContainExactly
+			listOf(TrackingDiagnosticCountBucket.ONE, TrackingDiagnosticCountBucket.ONE)
+	}
+
+	@Test
 	fun `global rate limit spans independent sources`() = runTest {
 		val store = store(
 			policy = testPolicy(
@@ -184,9 +210,7 @@ class RoomTrackingDiagnosticStoreTest {
 		TrackingDiagnosticUtf8Size.value("🙂") shouldBe 4
 
 		val event = recordedEvent()
-		val eventBytes = TrackingDiagnosticUtf8Size.encodedFields(
-			EncodedTrackingDiagnosticEvent.from(event).serializedFields,
-		)
+		val eventBytes = storedBytes(event)
 		val store = store(
 			policy = testPolicy(
 				maxEncodedEventBytes = eventBytes - 1,
@@ -200,10 +224,11 @@ class RoomTrackingDiagnosticStoreTest {
 	}
 
 	@Test
-	fun `maintenance prunes events older than the local retention bound`() = runTest {
-		val store = store(policy = testPolicy(retentionMillis = 100L))
+	fun `maintenance prunes only by coarse fifteen minute age bucket`() = runTest {
+		val oneBucket = TrackingDiagnosticCoarseTimeBucket.BUCKET_MILLISECONDS
+		val store = store(policy = testPolicy(retentionMillis = oneBucket))
 		store.append(recordedEvent()) shouldBe TrackingDiagnosticStorageResult.STORED
-		nowMs += 101L
+		nowMs += oneBucket * 2L
 
 		store.pruneExpiredAndOverflow() shouldBe TrackingDiagnosticMaintenanceResult.PRUNED
 
@@ -211,7 +236,18 @@ class RoomTrackingDiagnosticStoreTest {
 	}
 
 	@Test
-	fun `transaction failure rolls back event and rate state and becomes retryable`() = runTest {
+	fun `append permanently rejects an already expired coarse bucket`() = runTest {
+		val oneBucket = TrackingDiagnosticCoarseTimeBucket.BUCKET_MILLISECONDS
+		val staleEvent = recordedEvent()
+		nowMs += oneBucket * 2L
+		val store = store(policy = testPolicy(retentionMillis = oneBucket))
+
+		store.append(staleEvent) shouldBe TrackingDiagnosticStorageResult.PERMANENT_REJECTED
+		store.querySource(TrackingDiagnosticSource.WIFI).page().events shouldBe emptyList()
+	}
+
+	@Test
+	fun `transaction failure rolls back event and does not consume in-memory rate`() = runTest {
 		val failingStore = store(
 			policy = testPolicy(globalRateLimit = 1, perSourceRateLimit = 1),
 			transactionCheckpoint = { error("fail after write") },
@@ -229,6 +265,26 @@ class RoomTrackingDiagnosticStoreTest {
 	}
 
 	@Test
+	fun `transaction cancellation rolls back and propagates`() = runTest {
+		var cancel = true
+		val cancellingStore = store(
+			policy = testPolicy(globalRateLimit = 1, perSourceRateLimit = 1),
+			transactionCheckpoint = {
+				if (cancel) throw CancellationException("cancel append")
+			},
+		)
+
+		runCatching { cancellingStore.append(recordedEvent()) }
+			.exceptionOrNull()
+			.shouldBeInstanceOf<CancellationException>()
+		cancellingStore.querySource(TrackingDiagnosticSource.WIFI).page().events shouldBe
+			emptyList()
+		cancel = false
+		cancellingStore.append(recordedEvent(scopeSeed = 2L)) shouldBe
+			TrackingDiagnosticStorageResult.STORED
+	}
+
+	@Test
 	fun `closed database is retryable and does not escape`() = runTest {
 		val store = store()
 		database.close()
@@ -238,7 +294,7 @@ class RoomTrackingDiagnosticStoreTest {
 	}
 
 	@Test
-	fun `clear removes events and resets persisted rate limits`() = runTest {
+	fun `clear removes events and resets in-memory rate limits`() = runTest {
 		val store = store(policy = testPolicy(globalRateLimit = 1, perSourceRateLimit = 1))
 		store.append(recordedEvent()) shouldBe TrackingDiagnosticStorageResult.STORED
 		store.append(recordedEvent(scopeSeed = 2L)) shouldBe
@@ -315,19 +371,56 @@ class RoomTrackingDiagnosticStoreTest {
 	}
 
 	@Test
-	fun `stored schema contains only approved fields and bounded store metadata`() = runTest {
-		val store = store()
-		store.append(recordedEvent()) shouldBe TrackingDiagnosticStorageResult.STORED
+	fun `manual TableInfo contract matches final standalone v1 schema`() {
+		val manual = FrameworkSQLiteOpenHelperFactory().create(
+			SupportSQLiteOpenHelper.Configuration.builder(context)
+				.name(null)
+				.callback(object : SupportSQLiteOpenHelper.Callback(1) {
+					override fun onCreate(db: SupportSQLiteDatabase) {
+						createManualSchema(db)
+					}
 
-		val columns = mutableSetOf<String>()
-		database.openHelper.readableDatabase.query(
-			"PRAGMA table_info(tracking_diagnostic_event)",
-		).use { cursor ->
-			val nameColumn = cursor.getColumnIndexOrThrow("name")
-			while (cursor.moveToNext()) columns += cursor.getString(nameColumn)
+					override fun onUpgrade(
+						db: SupportSQLiteDatabase,
+						oldVersion: Int,
+						newVersion: Int,
+					) {
+						error("Standalone v1 schema has no migration")
+					}
+				})
+				.build(),
+		)
+		try {
+			TableInfo.read(manual.writableDatabase, EVENT_TABLE) shouldBe
+				TableInfo.read(database.openHelper.writableDatabase, EVENT_TABLE)
+		} finally {
+			manual.close()
 		}
+	}
 
-		columns shouldBe setOf(
+	@Test
+	fun `raw schema and rows cannot correlate process or operation instances`() = runTest {
+		val store = store()
+		store.append(recordedEvent(scopeSeed = 7L, processSeed = 11L)) shouldBe
+			TrackingDiagnosticStorageResult.STORED
+		nowMs += 1L
+		store.append(recordedEvent(scopeSeed = 8L, processSeed = 12L)) shouldBe
+			TrackingDiagnosticStorageResult.STORED
+
+		val raw = database.openHelper.readableDatabase
+		val tableInfo = TableInfo.read(raw, EVENT_TABLE)
+		val diagnosticTables = mutableListOf<String>()
+		raw.query(
+			"""
+			SELECT name FROM sqlite_master
+			WHERE type = 'table' AND name LIKE 'tracking_diagnostic_%'
+			ORDER BY name
+			""".trimIndent(),
+		).use { cursor ->
+			while (cursor.moveToNext()) diagnosticTables += cursor.getString(0)
+		}
+		diagnosticTables shouldContainExactly listOf(EVENT_TABLE)
+		tableInfo.columns.keys shouldBe setOf(
 			"event_id",
 			"source",
 			"purpose",
@@ -336,50 +429,71 @@ class RoomTrackingDiagnosticStoreTest {
 			"result",
 			"reason",
 			"lifecycle",
-			"operation_scope",
-			"scope_sequence",
-			"coarse_local_timestamp",
+			"coarse_time_bucket",
 			"scope_duration_bucket",
 			"encoded_envelope_size_bucket",
 			"queue_backlog_bucket",
 			"drained_envelope_count_bucket",
 			"remaining_envelope_backlog_bucket",
 			"persisted_envelope_count_bucket",
-			"last_observed_at_ms",
-			"repeat_count",
-			"encoded_byte_count",
+			"occurrence_count_bucket",
 		)
-		columns.none { column ->
-			Regex(
-				"throwable|message|path|uri|checksum|sensor|bssid|ssid|cell_id|radio_id",
-				RegexOption.IGNORE_CASE,
-			).containsMatchIn(column)
+		(tableInfo.columns.keys - "event_id") shouldBe
+			TrackingDiagnosticPrivacyValidator.allowedStoredFields
+				.map { field -> field.wireName }
+				.toSet()
+		tableInfo.columns.keys.none { column ->
+			column == "operation_scope" ||
+				column == "scope_sequence" ||
+				column.contains("timestamp") ||
+				column.endsWith("_ms") ||
+				column.contains("throwable") ||
+				column.contains("message") ||
+				column.contains("path") ||
+				column.contains("uri") ||
+				column.contains("checksum") ||
+				column.contains("sensor") ||
+				column.contains("radio")
 		} shouldBe true
-	}
+		tableInfo.indices.orEmpty().map { index -> index.name }.toSet() shouldBe setOf(
+			"index_tracking_diagnostic_event_source_purpose_recency",
+			"index_tracking_diagnostic_event_recency",
+		)
 
-	@Test
-	fun `persisted scope rotates its random process epoch across recorder processes`() = runTest {
-		val store = store()
-		store.append(recordedEvent(scopeSeed = 7L, processSeed = 11L)) shouldBe
-			TrackingDiagnosticStorageResult.STORED
-		nowMs += 1L
-		store.append(recordedEvent(scopeSeed = 7L, processSeed = 12L)) shouldBe
-			TrackingDiagnosticStorageResult.STORED
+		val rawValues = mutableListOf<String>()
+		raw.query("SELECT * FROM $EVENT_TABLE ORDER BY event_id").use { cursor ->
+			while (cursor.moveToNext()) {
+				repeat(cursor.columnCount) { column ->
+					if (!cursor.isNull(column)) rawValues += cursor.getString(column)
+				}
+			}
+		}
+		rawValues.none { value ->
+			value.startsWith("epoch_") ||
+				value.startsWith("scope_") ||
+				value.startsWith("EVENT_")
+		} shouldBe true
 
-		val tokens = mutableListOf<String>()
-		database.openHelper.readableDatabase.query(
+		val approvedRows = mutableListOf<List<String?>>()
+		raw.query(
 			"""
-			SELECT operation_scope
+			SELECT source, purpose, pipeline_stage, operation, result, reason, lifecycle,
+			       coarse_time_bucket, scope_duration_bucket, encoded_envelope_size_bucket,
+			       queue_backlog_bucket, drained_envelope_count_bucket,
+			       remaining_envelope_backlog_bucket, persisted_envelope_count_bucket,
+			       occurrence_count_bucket
 			FROM tracking_diagnostic_event
 			ORDER BY event_id
 			""".trimIndent(),
 		).use { cursor ->
-			while (cursor.moveToNext()) tokens += cursor.getString(0)
+			while (cursor.moveToNext()) {
+				approvedRows += List(cursor.columnCount) { column ->
+					cursor.getString(column)
+				}
+			}
 		}
-
-		tokens.size shouldBe 2
-		tokens.map { it.substringBefore("_scope_") }.distinct().size shouldBe 2
-		tokens.map { it.substringAfter("_scope_") }.distinct().size shouldBe 1
+		approvedRows.size shouldBe 2
+		approvedRows.distinct().size shouldBe 1
 	}
 
 	private fun store(
@@ -395,8 +509,8 @@ class RoomTrackingDiagnosticStoreTest {
 	private fun testPolicy(
 		globalEventCap: Int = 100,
 		perSourceEventCap: Int = 100,
-		retentionMillis: Long = 10_000L,
-		maxEncodedEventBytes: Int = 1_024,
+		retentionMillis: Long = TrackingDiagnosticCoarseTimeBucket.BUCKET_MILLISECONDS * 10L,
+		maxEncodedEventBytes: Int = TrackingDiagnosticStorageLimits.MAX_ENCODED_EVENT_BYTES,
 		globalEncodedByteCap: Long = 102_400L,
 		perSourceEncodedByteCap: Long = 102_400L,
 		aggregationWindowMillis: Long = 0L,
@@ -421,27 +535,116 @@ class RoomTrackingDiagnosticStoreTest {
 		purpose: TrackingDiagnosticPurpose = TrackingDiagnosticPurpose.SESSION_CAPTURE,
 		scopeSeed: Long = 1L,
 		processSeed: Long = 1L,
-	): RecordedTrackingDiagnosticEvent = TrackingDiagnosticEvents.unmetered(
-		source = source,
-		purpose = purpose,
-		pipelineStage = TrackingDiagnosticPipelineStage.LIFECYCLE,
-		operation = TrackingDiagnosticOperation.START,
-		result = TrackingDiagnosticResult.SUCCEEDED,
-		reason = TrackingDiagnosticSuccessReason.COMPLETED,
-		lifecycle = TrackingDiagnosticEventLifecycle.PROGRESS,
-	).toRecordedEvent(
-		operationScope = TrackingDiagnosticScopeOpaque.fixedForTest(
-			scopeSeed = scopeSeed,
-			processSeed = processSeed,
+	): EncodedTrackingDiagnosticEvent = EncodedTrackingDiagnosticEvent.from(
+		TrackingDiagnosticEvents.unmetered(
+			source = source,
+			purpose = purpose,
+			pipelineStage = TrackingDiagnosticPipelineStage.LIFECYCLE,
+			operation = TrackingDiagnosticOperation.START,
+			result = TrackingDiagnosticResult.SUCCEEDED,
+			reason = TrackingDiagnosticSuccessReason.COMPLETED,
+			lifecycle = TrackingDiagnosticEventLifecycle.PROGRESS,
+		).toRecordedEvent(
+			operationScope = TrackingDiagnosticScopeOpaque.fixedForTest(
+				scopeSeed = scopeSeed,
+				processSeed = processSeed,
+			),
+			scopeSequence = TrackingDiagnosticScopeSequence.EVENT_01,
+			coarseTimeBucket = TrackingDiagnosticCoarseTimeBucket.fromEpochMilliseconds(nowMs),
+			scopeDurationBucket = TrackingDiagnosticDurationBucket.UNDER_TEN_MILLISECONDS,
 		),
-		scopeSequence = TrackingDiagnosticScopeSequence.EVENT_01,
-		coarseLocalTimestamp = TrackingDiagnosticCoarseLocalTimestamp.fromEpochMilliseconds(
-			epochMilliseconds = nowMs,
-			zoneId = ZoneOffset.UTC,
-		),
-		scopeDurationBucket = TrackingDiagnosticDurationBucket.UNDER_TEN_MILLISECONDS,
 	)
+
+	private fun storedBytes(event: EncodedTrackingDiagnosticEvent): Int =
+		TrackingDiagnosticUtf8Size.encodedFields(
+			event.serializedFields +
+				(TrackingDiagnosticField.OCCURRENCE_COUNT_BUCKET to
+					TrackingDiagnosticCountBucket.ONE.name),
+		)
 
 	private fun TrackingDiagnosticReadResult.page(): TrackingDiagnosticPage =
 		shouldBeInstanceOf<TrackingDiagnosticReadResult.Page>().value
+
+	private fun createManualSchema(db: SupportSQLiteDatabase) {
+		db.execSQL(
+			"""
+			CREATE TABLE IF NOT EXISTS `tracking_diagnostic_event` (
+			    `event_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+			    `source` TEXT NOT NULL,
+			    `purpose` TEXT NOT NULL,
+			    `pipeline_stage` TEXT NOT NULL,
+			    `operation` TEXT NOT NULL,
+			    `result` TEXT NOT NULL,
+			    `reason` TEXT NOT NULL,
+			    `lifecycle` TEXT NOT NULL,
+			    `coarse_time_bucket` INTEGER NOT NULL,
+			    `scope_duration_bucket` TEXT NOT NULL,
+			    `encoded_envelope_size_bucket` TEXT,
+			    `queue_backlog_bucket` TEXT,
+			    `drained_envelope_count_bucket` TEXT,
+			    `remaining_envelope_backlog_bucket` TEXT,
+			    `persisted_envelope_count_bucket` TEXT,
+			    `occurrence_count_bucket` TEXT NOT NULL
+			)
+			""".trimIndent(),
+		)
+		db.execSQL(
+			"""
+			CREATE INDEX IF NOT EXISTS `index_tracking_diagnostic_event_source_purpose_recency`
+			ON `tracking_diagnostic_event` (
+			    `source`,
+			    `purpose`,
+			    `coarse_time_bucket`,
+			    `event_id`
+			)
+			""".trimIndent(),
+		)
+		db.execSQL(
+			"""
+			CREATE INDEX IF NOT EXISTS `index_tracking_diagnostic_event_recency`
+			ON `tracking_diagnostic_event` (`coarse_time_bucket`, `event_id`)
+			""".trimIndent(),
+		)
+	}
+
+	private fun maximumValidStoredEncodingBytes(): Int {
+		val base = listOf(
+			TrackingDiagnosticField.SOURCE to "PRESSURE",
+			TrackingDiagnosticField.PURPOSE to "CONTROL_CONTINUATION",
+			TrackingDiagnosticField.PIPELINE_STAGE to "DURABLE_INGRESS",
+			TrackingDiagnosticField.OPERATION to "UNREGISTER",
+			TrackingDiagnosticField.RESULT to "PERMANENT_FAILURE",
+			TrackingDiagnosticField.REASON to "PERMISSION_RECONCILIATION_FAILURE",
+			TrackingDiagnosticField.LIFECYCLE to "TERMINAL",
+			TrackingDiagnosticField.COARSE_TIME_BUCKET to Long.MAX_VALUE.toString(),
+			TrackingDiagnosticField.SCOPE_DURATION_BUCKET to
+				"ONE_HUNDRED_TO_NINE_HUNDRED_NINETY_NINE_MILLISECONDS",
+			TrackingDiagnosticField.OCCURRENCE_COUNT_BUCKET to "SIXTY_FIVE_OR_MORE",
+		)
+		val schemaMetrics = listOf(
+			listOf(
+				TrackingDiagnosticField.ENCODED_ENVELOPE_SIZE_BUCKET to
+					"UP_TO_SIXTY_FOUR_KIBIBYTES",
+				TrackingDiagnosticField.QUEUE_BACKLOG_BUCKET to
+					"ONE_HUNDRED_TWENTY_NINE_OR_MORE",
+			),
+			listOf(
+				TrackingDiagnosticField.DRAINED_ENVELOPE_COUNT_BUCKET to
+					"SIXTY_FIVE_OR_MORE",
+				TrackingDiagnosticField.REMAINING_ENVELOPE_BACKLOG_BUCKET to
+					"ONE_HUNDRED_TWENTY_NINE_OR_MORE",
+			),
+			listOf(
+				TrackingDiagnosticField.PERSISTED_ENVELOPE_COUNT_BUCKET to
+					"SIXTY_FIVE_OR_MORE",
+			),
+		)
+		return schemaMetrics.maxOf { metrics ->
+			TrackingDiagnosticUtf8Size.encodedFields(base + metrics)
+		}
+	}
+
+	private companion object {
+		const val EVENT_TABLE = "tracking_diagnostic_event"
+	}
 }

@@ -195,9 +195,16 @@ object TrackingDiagnosticEvents {
 		result: TrackingDiagnosticResult,
 		reason: TrackingDiagnosticReason,
 		lifecycle: TrackingDiagnosticEventLifecycle,
-	): TrackingDiagnosticEventRequest = UnmeteredTrackingDiagnosticRequest(
-		context = context(source, purpose, pipelineStage, operation, result, reason, lifecycle),
-	)
+	): TrackingDiagnosticEventRequest {
+		require(
+			TrackingDiagnosticMetricPolicy.allowedMetrics(source, pipelineStage, operation).isEmpty(),
+		) {
+			"$operation at $pipelineStage requires an operation-specific metric event"
+		}
+		return UnmeteredTrackingDiagnosticRequest(
+			context = context(source, purpose, pipelineStage, operation, result, reason, lifecycle),
+		)
+	}
 
 	@Suppress("LongParameterList")
 	fun enqueue(
@@ -375,21 +382,21 @@ private data class WriteTrackingDiagnosticRequest(
 internal fun TrackingDiagnosticEventRequest.toRecordedEvent(
 	operationScope: TrackingDiagnosticScopeOpaque,
 	scopeSequence: TrackingDiagnosticScopeSequence,
-	coarseLocalTimestamp: TrackingDiagnosticCoarseLocalTimestamp,
+	coarseTimeBucket: TrackingDiagnosticCoarseTimeBucket,
 	scopeDurationBucket: TrackingDiagnosticDurationBucket,
 ): RecordedTrackingDiagnosticEvent = when (this) {
 	is UnmeteredTrackingDiagnosticRequest -> UnmeteredRecordedTrackingDiagnosticEvent(
 		request = this,
 		operationScope = operationScope,
 		scopeSequence = scopeSequence,
-		coarseLocalTimestamp = coarseLocalTimestamp,
+		coarseTimeBucket = coarseTimeBucket,
 		scopeDurationBucket = scopeDurationBucket,
 	)
 	is EnqueueTrackingDiagnosticRequest -> EnqueueRecordedTrackingDiagnosticEvent(
 		request = this,
 		operationScope = operationScope,
 		scopeSequence = scopeSequence,
-		coarseLocalTimestamp = coarseLocalTimestamp,
+		coarseTimeBucket = coarseTimeBucket,
 		scopeDurationBucket = scopeDurationBucket,
 		encodedEnvelopeSizeBucket = encodedEnvelopeSizeBucket,
 		queueBacklogBucket = queueBacklogBucket,
@@ -398,7 +405,7 @@ internal fun TrackingDiagnosticEventRequest.toRecordedEvent(
 		request = this,
 		operationScope = operationScope,
 		scopeSequence = scopeSequence,
-		coarseLocalTimestamp = coarseLocalTimestamp,
+		coarseTimeBucket = coarseTimeBucket,
 		scopeDurationBucket = scopeDurationBucket,
 		drainedEnvelopeCountBucket = drainedEnvelopeCountBucket,
 		remainingEnvelopeBacklogBucket = remainingEnvelopeBacklogBucket,
@@ -407,7 +414,7 @@ internal fun TrackingDiagnosticEventRequest.toRecordedEvent(
 		request = this,
 		operationScope = operationScope,
 		scopeSequence = scopeSequence,
-		coarseLocalTimestamp = coarseLocalTimestamp,
+		coarseTimeBucket = coarseTimeBucket,
 		scopeDurationBucket = scopeDurationBucket,
 		persistedEnvelopeCountBucket = persistedEnvelopeCountBucket,
 	)
@@ -417,7 +424,7 @@ internal fun TrackingDiagnosticEventRequest.toRecordedEvent(
 internal sealed interface RecordedTrackingDiagnosticEvent : TrackingDiagnosticEventRequest {
 	val operationScope: TrackingDiagnosticScopeOpaque
 	val scopeSequence: TrackingDiagnosticScopeSequence
-	val coarseLocalTimestamp: TrackingDiagnosticCoarseLocalTimestamp
+	val coarseTimeBucket: TrackingDiagnosticCoarseTimeBucket
 	val scopeDurationBucket: TrackingDiagnosticDurationBucket
 	val metrics: Set<TrackingDiagnosticMetric>
 }
@@ -426,7 +433,7 @@ internal data class UnmeteredRecordedTrackingDiagnosticEvent(
 	private val request: TrackingDiagnosticEventRequest,
 	override val operationScope: TrackingDiagnosticScopeOpaque,
 	override val scopeSequence: TrackingDiagnosticScopeSequence,
-	override val coarseLocalTimestamp: TrackingDiagnosticCoarseLocalTimestamp,
+	override val coarseTimeBucket: TrackingDiagnosticCoarseTimeBucket,
 	override val scopeDurationBucket: TrackingDiagnosticDurationBucket,
 ) : RecordedTrackingDiagnosticEvent, TrackingDiagnosticEventRequest by request {
 	override val metrics: Set<TrackingDiagnosticMetric> = emptySet()
@@ -436,7 +443,7 @@ internal data class EnqueueRecordedTrackingDiagnosticEvent(
 	private val request: TrackingDiagnosticEventRequest,
 	override val operationScope: TrackingDiagnosticScopeOpaque,
 	override val scopeSequence: TrackingDiagnosticScopeSequence,
-	override val coarseLocalTimestamp: TrackingDiagnosticCoarseLocalTimestamp,
+	override val coarseTimeBucket: TrackingDiagnosticCoarseTimeBucket,
 	override val scopeDurationBucket: TrackingDiagnosticDurationBucket,
 	internal val encodedEnvelopeSizeBucket: TrackingDiagnosticSizeBucket,
 	internal val queueBacklogBucket: TrackingDiagnosticBacklogBucket,
@@ -451,7 +458,7 @@ internal data class DrainRecordedTrackingDiagnosticEvent(
 	private val request: TrackingDiagnosticEventRequest,
 	override val operationScope: TrackingDiagnosticScopeOpaque,
 	override val scopeSequence: TrackingDiagnosticScopeSequence,
-	override val coarseLocalTimestamp: TrackingDiagnosticCoarseLocalTimestamp,
+	override val coarseTimeBucket: TrackingDiagnosticCoarseTimeBucket,
 	override val scopeDurationBucket: TrackingDiagnosticDurationBucket,
 	internal val drainedEnvelopeCountBucket: TrackingDiagnosticCountBucket,
 	internal val remainingEnvelopeBacklogBucket: TrackingDiagnosticBacklogBucket,
@@ -466,7 +473,7 @@ internal data class WriteRecordedTrackingDiagnosticEvent(
 	private val request: TrackingDiagnosticEventRequest,
 	override val operationScope: TrackingDiagnosticScopeOpaque,
 	override val scopeSequence: TrackingDiagnosticScopeSequence,
-	override val coarseLocalTimestamp: TrackingDiagnosticCoarseLocalTimestamp,
+	override val coarseTimeBucket: TrackingDiagnosticCoarseTimeBucket,
 	override val scopeDurationBucket: TrackingDiagnosticDurationBucket,
 	internal val persistedEnvelopeCountBucket: TrackingDiagnosticCountBucket,
 ) : RecordedTrackingDiagnosticEvent, TrackingDiagnosticEventRequest by request {

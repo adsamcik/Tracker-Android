@@ -2,10 +2,11 @@ package com.adsamcik.tracker.diagnostics
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
-import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.cancellation.CancellationException
 
 class TrackingDiagnosticContractTest {
 	@Test
@@ -23,9 +24,8 @@ class TrackingDiagnosticContractTest {
 		val recorded = request.toRecordedEvent(
 			operationScope = TrackingDiagnosticScopeOpaque.fixedForTest(1L),
 			scopeSequence = TrackingDiagnosticScopeSequence.EVENT_01,
-			coarseLocalTimestamp = TrackingDiagnosticCoarseLocalTimestamp.fromEpochMilliseconds(
+			coarseTimeBucket = TrackingDiagnosticCoarseTimeBucket.fromEpochMilliseconds(
 				epochMilliseconds = 0L,
-				zoneId = ZoneOffset.UTC,
 			),
 			scopeDurationBucket = TrackingDiagnosticDurationBucket.UNDER_TEN_MILLISECONDS,
 		) as EnqueueRecordedTrackingDiagnosticEvent
@@ -43,6 +43,87 @@ class TrackingDiagnosticContractTest {
 			TrackingDiagnosticMetric.ENCODED_ENVELOPE_SIZE,
 			TrackingDiagnosticMetric.QUEUE_BACKLOG,
 		)
+	}
+
+	@Test
+	fun `metric validation requires the exact set for every stage and operation`() {
+		TrackingDiagnosticSource.entries.forEach { source ->
+			TrackingDiagnosticPipelineStage.entries.forEach { stage ->
+				TrackingDiagnosticOperation.entries.forEach { operation ->
+					val expected = TrackingDiagnosticMetricPolicy.allowedMetrics(
+						source,
+						stage,
+						operation,
+					)
+					TrackingDiagnosticPrivacyValidator.validateMetricSet(
+						source,
+						stage,
+						operation,
+						expected,
+					) shouldBe TrackingDiagnosticPrivacyValidation.Allowed
+
+					if (expected.isEmpty()) {
+						TrackingDiagnosticPrivacyValidator.validateMetricSet(
+							source,
+							stage,
+							operation,
+							setOf(TrackingDiagnosticMetric.PERSISTED_ENVELOPE_COUNT),
+						) shouldBe TrackingDiagnosticPrivacyValidation.Rejected(
+							TrackingDiagnosticPrivacyRejectionReason.METRIC_OPERATION_MISMATCH,
+						)
+					} else {
+						TrackingDiagnosticPrivacyValidator.validateMetricSet(
+							source,
+							stage,
+							operation,
+							emptySet(),
+						) shouldBe TrackingDiagnosticPrivacyValidation.Rejected(
+							TrackingDiagnosticPrivacyRejectionReason.METRIC_OPERATION_MISMATCH,
+						)
+						val wrongMetric = (TrackingDiagnosticMetric.entries.toSet() - expected).first()
+						TrackingDiagnosticPrivacyValidator.validateMetricSet(
+							source,
+							stage,
+							operation,
+							expected + wrongMetric,
+						) shouldBe TrackingDiagnosticPrivacyValidation.Rejected(
+							TrackingDiagnosticPrivacyRejectionReason.METRIC_OPERATION_MISMATCH,
+						)
+					}
+				}
+			}
+		}
+	}
+
+	@Test
+	fun `unmetered factory rejects every operation that requires metrics`() {
+		TrackingDiagnosticSource.entries.forEach { source ->
+			TrackingDiagnosticPipelineStage.entries.forEach { stage ->
+				TrackingDiagnosticOperation.entries.forEach { operation ->
+					val create = {
+						TrackingDiagnosticEvents.unmetered(
+							source = source,
+							purpose = TrackingDiagnosticPurpose.SESSION_CAPTURE,
+							pipelineStage = stage,
+							operation = operation,
+							result = TrackingDiagnosticResult.SUCCEEDED,
+							reason = TrackingDiagnosticSuccessReason.COMPLETED,
+							lifecycle = TrackingDiagnosticEventLifecycle.PROGRESS,
+						)
+					}
+					if (TrackingDiagnosticMetricPolicy.allowedMetrics(
+							source,
+							stage,
+							operation,
+						).isEmpty()
+					) {
+						create().operation shouldBe operation
+					} else {
+						shouldThrow<IllegalArgumentException> { create() }
+					}
+				}
+			}
+		}
 	}
 
 	@Test
@@ -111,8 +192,8 @@ class TrackingDiagnosticContractTest {
 			TrackingDiagnosticEvents.unmetered(
 				source = TrackingDiagnosticSource.STEPS,
 				purpose = TrackingDiagnosticPurpose.SESSION_CAPTURE,
-				pipelineStage = TrackingDiagnosticPipelineStage.PERSISTENCE,
-				operation = TrackingDiagnosticOperation.WRITE,
+				pipelineStage = TrackingDiagnosticPipelineStage.LIFECYCLE,
+				operation = TrackingDiagnosticOperation.START,
 				result = TrackingDiagnosticResult.SUCCEEDED,
 				reason = TrackingDiagnosticFailureReason.STORAGE_UNAVAILABLE,
 				lifecycle = TrackingDiagnosticEventLifecycle.TERMINAL,
@@ -176,14 +257,13 @@ class TrackingDiagnosticContractTest {
 	}
 
 	@Test
-	fun `recorder owns opaque scope sequence and coarse timestamp`() = runTest {
+	fun `recorder owns in-memory scope sequence and coarse time bucket`() = runTest {
 		val recordedEvents = mutableListOf<RecordedTrackingDiagnosticEvent>()
 		var elapsedNanos = 0L
 		val recorder = TrackingDiagnosticRecorder.recordingForTest(
 			recordedEvents = recordedEvents,
 			nanoTime = { elapsedNanos },
 			epochMilliseconds = { 1_789_630_524_522L },
-			zoneId = ZoneOffset.ofHours(2),
 		)
 		val scope = recorder.beginOperation(
 			TrackingDiagnosticSource.LOCATION,
@@ -203,14 +283,34 @@ class TrackingDiagnosticContractTest {
 			TrackingDiagnosticScopeSequence.EVENT_01,
 			TrackingDiagnosticScopeSequence.EVENT_02,
 		)
-		recordedEvents.map { it.operationScope.wireValue }.distinct().size shouldBe 1
-		recordedEvents.first().operationScope.wireValue.matches(
+		recordedEvents.map { it.operationScope.opaqueValue }.distinct().size shouldBe 1
+		recordedEvents.first().operationScope.opaqueValue.matches(
 			Regex("""epoch_[0-9a-f]{16}_scope_[0-9a-f]{8}"""),
 		) shouldBe true
-		recordedEvents.map { it.coarseLocalTimestamp.wireValue }.distinct() shouldBe
-			listOf("2026-09-17T09:30+02:00")
+		recordedEvents.map { it.coarseTimeBucket.epochQuarterHour }.distinct() shouldBe
+			listOf(1_789_630_524_522L / TrackingDiagnosticCoarseTimeBucket.BUCKET_MILLISECONDS)
 		recordedEvents.last().scopeDurationBucket shouldBe
 			TrackingDiagnosticDurationBucket.TEN_TO_NINETY_NINE_MILLISECONDS
+	}
+
+	@Test
+	fun `recorder rethrows cancellation instead of mapping it to storage failure`() = runTest {
+		val recorder = TrackingDiagnosticRecorder.recordingForTest(
+			recordedEvents = mutableListOf(),
+			cancelWrites = true,
+		)
+		val scope = recorder.beginOperation(
+			TrackingDiagnosticSource.LOCATION,
+			TrackingDiagnosticPurpose.SESSION_CAPTURE,
+			TrackingDiagnosticOperation.START,
+		)
+
+		runCatching { recorder.record(scope, unmetered()) }
+			.exceptionOrNull()
+			.shouldBeInstanceOf<CancellationException>()
+		recorder.record(scope, unmetered()) shouldBe TrackingDiagnosticRecordResult.Rejected(
+			TrackingDiagnosticScopeRejectionReason.ALREADY_TERMINATED,
+		)
 	}
 
 	@Test
@@ -241,7 +341,7 @@ class TrackingDiagnosticContractTest {
 			)
 		}
 
-		recordedEvents.map { it.operationScope.wireValue }.distinct().size shouldBe 2
+		recordedEvents.map { it.operationScope.opaqueValue }.distinct().size shouldBe 2
 	}
 
 	@Test
@@ -336,7 +436,7 @@ class TrackingDiagnosticContractTest {
 	}
 
 	@Test
-	fun `process restart rotates persisted operation scope epoch`() = runTest {
+	fun `process restart rotates in-memory operation scope epoch`() = runTest {
 		val firstProcessEvents = mutableListOf<RecordedTrackingDiagnosticEvent>()
 		val secondProcessEvents = mutableListOf<RecordedTrackingDiagnosticEvent>()
 		val firstRecorder = TrackingDiagnosticRecorder.recordingForTest(
@@ -361,8 +461,8 @@ class TrackingDiagnosticContractTest {
 					)
 			}
 
-		val first = firstProcessEvents.single().operationScope.wireValue
-		val second = secondProcessEvents.single().operationScope.wireValue
+		val first = firstProcessEvents.single().operationScope.opaqueValue
+		val second = secondProcessEvents.single().operationScope.opaqueValue
 		first.substringBefore("_scope_") == second.substringBefore("_scope_") shouldBe false
 		first.substringAfter("_scope_") shouldBe second.substringAfter("_scope_")
 	}

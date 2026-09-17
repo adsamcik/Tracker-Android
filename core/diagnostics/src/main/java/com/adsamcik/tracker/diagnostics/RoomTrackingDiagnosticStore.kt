@@ -4,8 +4,9 @@ package com.adsamcik.tracker.diagnostics
 
 import androidx.room.withTransaction
 import java.nio.charset.StandardCharsets
-import java.time.OffsetDateTime
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 internal class RoomTrackingDiagnosticStore(
 	private val database: TrackingDiagnosticDatabase,
@@ -17,70 +18,99 @@ internal class RoomTrackingDiagnosticStore(
 	TrackingDiagnosticDataControl,
 	TrackingDiagnosticMaintenance {
 	private val dao = database.diagnosticDao()
+	private val mutationMutex = Mutex()
+	private val aggregationState = linkedMapOf<AggregationKey, AggregationEntry>()
+	private var globalRateWindow: RateWindow? = null
+	private val sourceRateWindows = mutableMapOf<TrackingDiagnosticSource, RateWindow>()
 
 	override suspend fun append(
-		event: RecordedTrackingDiagnosticEvent,
-	): TrackingDiagnosticStorageResult {
-		val encoded = EncodedTrackingDiagnosticEvent.from(event)
-		if (TrackingDiagnosticPrivacyValidator.validateAdapterSchema(
-				encoded.serializedFields.map { (field, _) -> field.wireName },
-			) !is TrackingDiagnosticPrivacyValidation.Allowed
-		) {
-			return TrackingDiagnosticStorageResult.PERMANENT_REJECTED
-		}
-		val nowMs = wallClock().coerceAtLeast(0L)
-		val entity = encoded.toEntity(nowMs)
-		if (entity.encodedByteCount > policy.maxEncodedEventBytes) {
-			return TrackingDiagnosticStorageResult.PERMANENT_REJECTED
-		}
+		event: EncodedTrackingDiagnosticEvent,
+	): TrackingDiagnosticStorageResult = try {
+		mutationMutex.withLock {
+			if (TrackingDiagnosticPrivacyValidator.validateAdapterSchema(
+					event.serializedFields.map { (field, _) -> field.wireName },
+				) !is TrackingDiagnosticPrivacyValidation.Allowed
+			) {
+				return@withLock TrackingDiagnosticStorageResult.PERMANENT_REJECTED
+			}
+			val nowMs = wallClock().coerceAtLeast(0L)
+			val entity = event.toEntity()
+			if (TrackingDiagnosticPrivacyValidator.validateStoredSchema(
+					entity.storedFields().map { (field, _) -> field.wireName },
+				) !is TrackingDiagnosticPrivacyValidation.Allowed
+			) {
+				return@withLock TrackingDiagnosticStorageResult.PERMANENT_REJECTED
+			}
+			if (entity.encodedByteCount() > policy.maxEncodedEventBytes) {
+				return@withLock TrackingDiagnosticStorageResult.PERMANENT_REJECTED
+			}
+			if (entity.coarseTimeBucket < retentionCutoffBucket(nowMs)) {
+				return@withLock TrackingDiagnosticStorageResult.PERMANENT_REJECTED
+			}
+			val source = enumValueOf<TrackingDiagnosticSource>(entity.source)
+			if (!rateBudgetAvailable(source, nowMs)) {
+				return@withLock TrackingDiagnosticStorageResult.DROPPED_RATE_LIMIT
+			}
 
-		return runStorageOperation {
-			database.withTransaction {
-				pruneExpired(nowMs)
-				if (!consumeRateBudget(entity.source, nowMs)) {
-					return@withTransaction TrackingDiagnosticStorageResult.DROPPED_RATE_LIMIT
-				}
-				val aggregationCutoff = subtractFloorZero(nowMs, policy.aggregationWindowMillis)
-				val candidate = dao.findAggregationCandidate(
-					source = entity.source,
-					purpose = entity.purpose,
-					pipelineStage = entity.pipelineStage,
-					operation = entity.operation,
-					result = entity.result,
-					reason = entity.reason,
-					lifecycle = entity.lifecycle,
-					scopeDurationBucket = entity.scopeDurationBucket,
-					encodedEnvelopeSizeBucket = entity.encodedEnvelopeSizeBucket,
-					queueBacklogBucket = entity.queueBacklogBucket,
-					drainedEnvelopeCountBucket = entity.drainedEnvelopeCountBucket,
-					remainingEnvelopeBacklogBucket = entity.remainingEnvelopeBacklogBucket,
-					persistedEnvelopeCountBucket = entity.persistedEnvelopeCountBucket,
-					observedAfterMs = aggregationCutoff,
-				)
-				val result = if (candidate == null) {
-					check(dao.insert(entity) > 0L) { "Diagnostic event insert was rejected" }
-					TrackingDiagnosticStorageResult.STORED
-				} else {
-					val replacement = candidate.copy(
-						operationScope = entity.operationScope,
-						scopeSequence = entity.scopeSequence,
-						coarseLocalTimestamp = entity.coarseLocalTimestamp,
-						lastObservedAtMs = nowMs,
-						repeatCount = (candidate.repeatCount + 1)
-							.coerceAtMost(policy.maxAggregatedOccurrences),
-						encodedByteCount = entity.encodedByteCount,
-					)
-					check(dao.update(replacement) == 1) {
-						"Diagnostic aggregation target disappeared"
+			pruneAggregationState(nowMs)
+			val aggregationKey = entity.aggregationKey()
+			val previousAggregation = aggregationState[aggregationKey]
+			val operation = runStorageOperation {
+				database.withTransaction {
+					pruneExpired(nowMs)
+					val candidate = previousAggregation
+						?.takeIf { state ->
+							nowMs - state.lastSeenAtMs <= policy.aggregationWindowMillis
+						}
+						?.let { state -> dao.findById(state.rowId) }
+						?.takeIf { stored -> stored.aggregationKey() == aggregationKey }
+					val committed = if (candidate == null) {
+						val rowId = dao.insert(entity)
+						check(rowId > 0L) { "Diagnostic event insert was rejected" }
+						AppendCommit(
+							result = TrackingDiagnosticStorageResult.STORED,
+							rowId = rowId,
+							occurrenceCount = 1,
+						)
+					} else {
+						val nextCount = (requireNotNull(previousAggregation).occurrenceCount + 1)
+							.coerceAtMost(policy.maxAggregatedOccurrences)
+						val replacement = candidate.copy(
+							occurrenceCountBucket =
+								TrackingDiagnosticCountBucket.fromCount(nextCount.toLong()).name,
+						)
+						check(replacement.encodedByteCount() <= policy.maxEncodedEventBytes) {
+							"Aggregated diagnostic event exceeds its encoded byte bound"
+						}
+						check(dao.update(replacement) == 1) {
+							"Diagnostic aggregation target disappeared"
+						}
+						AppendCommit(
+							result = TrackingDiagnosticStorageResult.AGGREGATED,
+							rowId = candidate.eventId,
+							occurrenceCount = nextCount,
+						)
 					}
-					TrackingDiagnosticStorageResult.AGGREGATED
+					transactionCheckpoint()
+					enforceSourceLimits(entity.source, protectedRowId = committed.rowId)
+					enforceGlobalLimits(protectedRowId = committed.rowId)
+					committed
 				}
-				transactionCheckpoint()
-				enforceSourceLimits(entity.source)
-				enforceGlobalLimits()
-				result
+			}
+			when (operation) {
+				StorageOperation.Retryable ->
+					TrackingDiagnosticStorageResult.STORAGE_RETRYABLE
+				is StorageOperation.Succeeded -> {
+					recordRateBudget(source, nowMs)
+					recordAggregation(aggregationKey, operation.value, nowMs)
+					operation.value.result
+				}
 			}
 		}
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Throwable) {
+		TrackingDiagnosticStorageResult.STORAGE_RETRYABLE
 	}
 
 	override suspend fun querySource(
@@ -93,7 +123,7 @@ internal class RoomTrackingDiagnosticStore(
 		} else {
 			dao.querySourceBefore(
 				source = source.name,
-				beforeObservedAtMs = before.beforeObservedAtMs,
+				beforeCoarseTimeBucket = before.beforeCoarseTimeBucket,
 				beforeRowId = before.beforeRowId,
 				limit = readLimit,
 			)
@@ -112,39 +142,45 @@ internal class RoomTrackingDiagnosticStore(
 			dao.querySourcePurposeBefore(
 				source = source.name,
 				purpose = purpose.name,
-				beforeObservedAtMs = before.beforeObservedAtMs,
+				beforeCoarseTimeBucket = before.beforeCoarseTimeBucket,
 				beforeRowId = before.beforeRowId,
 				limit = readLimit,
 			)
 		}
 	}
 
-	override suspend fun clearAll(): TrackingDiagnosticClearResult = try {
-		database.withTransaction {
-			dao.deleteAllEvents()
-			dao.deleteAllRateLimits()
+	override suspend fun clearAll(): TrackingDiagnosticClearResult = mutationMutex.withLock {
+		try {
+			database.withTransaction {
+				dao.deleteAllEvents()
+			}
+			clearInMemoryState()
+			TrackingDiagnosticClearResult.CLEARED
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Throwable) {
+			TrackingDiagnosticClearResult.STORAGE_RETRYABLE
 		}
-		TrackingDiagnosticClearResult.CLEARED
-	} catch (cancelled: CancellationException) {
-		throw cancelled
-	} catch (_: Throwable) {
-		TrackingDiagnosticClearResult.STORAGE_RETRYABLE
 	}
 
-	override suspend fun pruneExpiredAndOverflow(): TrackingDiagnosticMaintenanceResult = try {
-		database.withTransaction {
-			pruneExpired(wallClock().coerceAtLeast(0L))
-			TrackingDiagnosticSource.entries.forEach { source ->
-				enforceSourceLimits(source.name)
+	override suspend fun pruneExpiredAndOverflow(): TrackingDiagnosticMaintenanceResult =
+		mutationMutex.withLock {
+			try {
+				database.withTransaction {
+					pruneExpired(wallClock().coerceAtLeast(0L))
+					TrackingDiagnosticSource.entries.forEach { source ->
+						enforceSourceLimits(source.name)
+					}
+					enforceGlobalLimits()
+				}
+				aggregationState.clear()
+				TrackingDiagnosticMaintenanceResult.PRUNED
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Throwable) {
+				TrackingDiagnosticMaintenanceResult.STORAGE_RETRYABLE
 			}
-			enforceGlobalLimits()
 		}
-		TrackingDiagnosticMaintenanceResult.PRUNED
-	} catch (cancelled: CancellationException) {
-		throw cancelled
-	} catch (_: Throwable) {
-		TrackingDiagnosticMaintenanceResult.STORAGE_RETRYABLE
-	}
 
 	private suspend fun query(
 		pageSize: Int,
@@ -165,7 +201,7 @@ internal class RoomTrackingDiagnosticStore(
 				val nextCursor = if (rows.size > pageSize) {
 					pageRows.lastOrNull()?.let { row ->
 						TrackingDiagnosticPageCursor(
-							beforeObservedAtMs = row.lastObservedAtMs,
+							beforeCoarseTimeBucket = row.coarseTimeBucket,
 							beforeRowId = row.eventId,
 						)
 					}
@@ -176,7 +212,7 @@ internal class RoomTrackingDiagnosticStore(
 					TrackingDiagnosticPage(
 						events = pageRows.map { row -> row.toStoredEvent() },
 						nextCursor = nextCursor,
-					)
+					),
 				)
 			}
 		} catch (cancelled: CancellationException) {
@@ -186,84 +222,124 @@ internal class RoomTrackingDiagnosticStore(
 		}
 	}
 
-	private suspend fun consumeRateBudget(source: String, nowMs: Long): Boolean {
-		val global = dao.nextRateLimit(
-			rateKey = GLOBAL_RATE_KEY,
-			nowMs = nowMs,
-			windowMillis = policy.rateLimitWindowMillis,
-		)
-		val sourceRateKey = "$SOURCE_RATE_KEY_PREFIX$source"
-		val sourceRate = dao.nextRateLimit(
-			rateKey = sourceRateKey,
-			nowMs = nowMs,
-			windowMillis = policy.rateLimitWindowMillis,
-		)
-		if (global.acceptedCount >= policy.globalRateLimit ||
-			sourceRate.acceptedCount >= policy.perSourceRateLimit
-		) {
-			return false
-		}
-		dao.writeRateLimit(global.copy(acceptedCount = global.acceptedCount + 1))
-		dao.writeRateLimit(sourceRate.copy(acceptedCount = sourceRate.acceptedCount + 1))
-		return true
+	private fun rateBudgetAvailable(source: TrackingDiagnosticSource, nowMs: Long): Boolean {
+		val global = globalRateWindow.activeAt(nowMs)
+		val sourceWindow = sourceRateWindows[source].activeAt(nowMs)
+		return global.acceptedCount < policy.globalRateLimit &&
+			sourceWindow.acceptedCount < policy.perSourceRateLimit
 	}
 
-	private suspend fun TrackingDiagnosticDao.nextRateLimit(
-		rateKey: String,
-		nowMs: Long,
-		windowMillis: Long,
-	): TrackingDiagnosticRateLimitEntity {
-		val current = readRateLimit(rateKey)
-		return if (
-			current == null ||
-			nowMs < current.windowStartedAtMs ||
-			nowMs - current.windowStartedAtMs >= windowMillis
+	private fun recordRateBudget(source: TrackingDiagnosticSource, nowMs: Long) {
+		globalRateWindow = globalRateWindow.activeAt(nowMs).incremented()
+		sourceRateWindows[source] = sourceRateWindows[source].activeAt(nowMs).incremented()
+	}
+
+	private fun RateWindow?.activeAt(nowMs: Long): RateWindow =
+		if (this == null) {
+			RateWindow(startedAtMs = nowMs, acceptedCount = 0)
+		} else if (
+			nowMs < this.startedAtMs ||
+			nowMs - this.startedAtMs >= policy.rateLimitWindowMillis
 		) {
-			TrackingDiagnosticRateLimitEntity(
-				rateKey = rateKey,
-				windowStartedAtMs = nowMs,
-				acceptedCount = 0,
-			)
+			RateWindow(startedAtMs = nowMs, acceptedCount = 0)
 		} else {
-			current
+			this
+		}
+
+	private fun RateWindow.incremented(): RateWindow =
+		copy(acceptedCount = acceptedCount + 1)
+
+	private fun pruneAggregationState(nowMs: Long) {
+		val iterator = aggregationState.iterator()
+		while (iterator.hasNext()) {
+			val state = iterator.next().value
+			if (
+				nowMs < state.lastSeenAtMs ||
+				nowMs - state.lastSeenAtMs > policy.aggregationWindowMillis
+			) {
+				iterator.remove()
+			}
+		}
+	}
+
+	private fun recordAggregation(
+		key: AggregationKey,
+		commit: AppendCommit,
+		nowMs: Long,
+	) {
+		aggregationState[key] = AggregationEntry(
+			rowId = commit.rowId,
+			occurrenceCount = commit.occurrenceCount,
+			lastSeenAtMs = nowMs,
+		)
+		while (
+			aggregationState.size >
+			TrackingDiagnosticStorageLimits.MAX_IN_MEMORY_AGGREGATION_KEYS
+		) {
+			val oldest = aggregationState.entries
+				.minBy { entry -> entry.value.lastSeenAtMs }
+				.key
+			aggregationState.remove(oldest)
 		}
 	}
 
 	private suspend fun pruneExpired(nowMs: Long) {
-		dao.deleteExpired(subtractFloorZero(nowMs, policy.retentionMillis))
+		dao.deleteExpired(retentionCutoffBucket(nowMs))
 	}
 
-	private suspend fun enforceSourceLimits(source: String) {
-		val footprint = dao.sourceFootprint(source)
+	private fun retentionCutoffBucket(nowMs: Long): Long {
+		val currentBucket =
+			TrackingDiagnosticCoarseTimeBucket.fromEpochMilliseconds(nowMs).epochQuarterHour
+		val retentionBuckets =
+			(policy.retentionMillis - 1L) /
+				TrackingDiagnosticCoarseTimeBucket.BUCKET_MILLISECONDS +
+				1L
+		return if (currentBucket <= retentionBuckets) {
+			0L
+		} else {
+			currentBucket - retentionBuckets
+		}
+	}
+
+	private suspend fun enforceSourceLimits(
+		source: String,
+		protectedRowId: Long? = null,
+	) {
 		deleteOverflow(
-			footprint = footprint,
+			rows = dao.sourceRowsOldest(source),
 			maxCount = policy.perSourceEventCap,
 			maxBytes = policy.perSourceEncodedByteCap,
+			protectedRowId = protectedRowId,
 		)
 	}
 
-	private suspend fun enforceGlobalLimits() {
+	private suspend fun enforceGlobalLimits(protectedRowId: Long? = null) {
 		deleteOverflow(
-			footprint = dao.globalFootprint(),
+			rows = dao.globalRowsOldest(),
 			maxCount = policy.globalEventCap,
 			maxBytes = policy.globalEncodedByteCap,
+			protectedRowId = protectedRowId,
 		)
 	}
 
 	private suspend fun deleteOverflow(
-		footprint: List<TrackingDiagnosticStoredFootprint>,
+		rows: List<TrackingDiagnosticEventEntity>,
 		maxCount: Int,
 		maxBytes: Long,
+		protectedRowId: Long? = null,
 	) {
-		var retainedCount = footprint.size
-		var retainedBytes = footprint.sumOf { row -> row.encodedByteCount.toLong() }
+		var retainedCount = rows.size
+		var retainedBytes = rows.sumOf { row -> row.encodedByteCount().toLong() }
 		val removals = buildList {
-			footprint.forEach { row ->
+			rows.filterNot { row -> row.eventId == protectedRowId }.forEach { row ->
 				if (retainedCount > maxCount || retainedBytes > maxBytes) {
 					add(row.eventId)
 					retainedCount -= 1
-					retainedBytes -= row.encodedByteCount
+					retainedBytes -= row.encodedByteCount()
 				}
+			}
+			check(retainedCount <= maxCount && retainedBytes <= maxBytes) {
+				"Diagnostic limits cannot retain the protected event"
 			}
 		}
 		if (removals.isNotEmpty()) {
@@ -273,19 +349,17 @@ internal class RoomTrackingDiagnosticStore(
 		}
 	}
 
-	private suspend fun runStorageOperation(
-		block: suspend () -> TrackingDiagnosticStorageResult,
-	): TrackingDiagnosticStorageResult = try {
-		block()
-	} catch (_: CancellationException) {
-		TrackingDiagnosticStorageResult.STORAGE_RETRYABLE
+	private suspend fun <T> runStorageOperation(
+		block: suspend () -> T,
+	): StorageOperation<T> = try {
+		StorageOperation.Succeeded(block())
+	} catch (cancelled: CancellationException) {
+		throw cancelled
 	} catch (_: Throwable) {
-		TrackingDiagnosticStorageResult.STORAGE_RETRYABLE
+		StorageOperation.Retryable
 	}
 
-	private fun EncodedTrackingDiagnosticEvent.toEntity(
-		observedAtMs: Long,
-	): TrackingDiagnosticEventEntity {
+	private fun EncodedTrackingDiagnosticEvent.toEntity(): TrackingDiagnosticEventEntity {
 		val fields = serializedFields.toMap()
 		return TrackingDiagnosticEventEntity(
 			source = fields.required(TrackingDiagnosticField.SOURCE),
@@ -295,10 +369,8 @@ internal class RoomTrackingDiagnosticStore(
 			result = fields.required(TrackingDiagnosticField.RESULT),
 			reason = fields.required(TrackingDiagnosticField.REASON),
 			lifecycle = fields.required(TrackingDiagnosticField.LIFECYCLE),
-			operationScope = fields.required(TrackingDiagnosticField.OPERATION_SCOPE),
-			scopeSequence = fields.required(TrackingDiagnosticField.SCOPE_SEQUENCE),
-			coarseLocalTimestamp =
-				fields.required(TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP),
+			coarseTimeBucket =
+				fields.required(TrackingDiagnosticField.COARSE_TIME_BUCKET).toLong(),
 			scopeDurationBucket =
 				fields.required(TrackingDiagnosticField.SCOPE_DURATION_BUCKET),
 			encodedEnvelopeSizeBucket =
@@ -310,9 +382,7 @@ internal class RoomTrackingDiagnosticStore(
 				fields[TrackingDiagnosticField.REMAINING_ENVELOPE_BACKLOG_BUCKET],
 			persistedEnvelopeCountBucket =
 				fields[TrackingDiagnosticField.PERSISTED_ENVELOPE_COUNT_BUCKET],
-			lastObservedAtMs = observedAtMs,
-			repeatCount = 1,
-			encodedByteCount = TrackingDiagnosticUtf8Size.encodedFields(serializedFields),
+			occurrenceCountBucket = TrackingDiagnosticCountBucket.ONE.name,
 		)
 	}
 
@@ -327,36 +397,25 @@ internal class RoomTrackingDiagnosticStore(
 		val parsedResult = enumValueOf<TrackingDiagnosticResult>(result)
 		val parsedReason = parseReason(parsedResult, reason)
 		check(parsedReason.isCompatibleWith(parsedResult))
-		check(operationScope.matches(PROCESS_SCOPE_PATTERN))
-		enumValueOf<TrackingDiagnosticScopeSequence>(scopeSequence)
-		val parsedCoarseTimestamp = OffsetDateTime.parse(coarseLocalTimestamp)
+		check(coarseTimeBucket >= 0L)
+		val occurrenceBucket = enumValueOf<TrackingDiagnosticCountBucket>(occurrenceCountBucket)
 		check(
-			parsedCoarseTimestamp.minute % COARSE_TIMESTAMP_MINUTES == 0 &&
-				parsedCoarseTimestamp.second == 0 &&
-				parsedCoarseTimestamp.nano == 0
+			occurrenceBucket != TrackingDiagnosticCountBucket.NOT_REPORTED &&
+				occurrenceBucket != TrackingDiagnosticCountBucket.ZERO,
 		)
-		check(repeatCount in 1..policy.maxAggregatedOccurrences)
-		val storedMetrics = buildSet {
-			if (encodedEnvelopeSizeBucket != null) {
-				add(TrackingDiagnosticMetric.ENCODED_ENVELOPE_SIZE)
-			}
-			if (queueBacklogBucket != null) add(TrackingDiagnosticMetric.QUEUE_BACKLOG)
-			if (drainedEnvelopeCountBucket != null) {
-				add(TrackingDiagnosticMetric.DRAINED_ENVELOPE_COUNT)
-			}
-			if (remainingEnvelopeBacklogBucket != null) {
-				add(TrackingDiagnosticMetric.REMAINING_ENVELOPE_BACKLOG)
-			}
-			if (persistedEnvelopeCountBucket != null) {
-				add(TrackingDiagnosticMetric.PERSISTED_ENVELOPE_COUNT)
-			}
-		}
+		val storedMetrics = metricSet()
 		check(
-			storedMetrics == TrackingDiagnosticMetricPolicy.allowedMetrics(
+			TrackingDiagnosticPrivacyValidator.validateMetricSet(
 				parsedSource,
 				parsedStage,
 				parsedOperation,
-			),
+				storedMetrics,
+			) is TrackingDiagnosticPrivacyValidation.Allowed,
+		)
+		check(
+			TrackingDiagnosticPrivacyValidator.validateStoredSchema(
+				storedFields().map { (field, _) -> field.wireName },
+			) is TrackingDiagnosticPrivacyValidation.Allowed,
 		)
 		return TrackingDiagnosticStoredEvent(
 			source = parsedSource,
@@ -366,10 +425,9 @@ internal class RoomTrackingDiagnosticStore(
 			result = parsedResult,
 			reason = parsedReason,
 			lifecycle = enumValueOf(lifecycle),
-			coarseLocalTimestamp = coarseLocalTimestamp,
+			coarseTimeBucket = coarseTimeBucket,
 			scopeDurationBucket = enumValueOf(scopeDurationBucket),
-			occurrenceCountBucket =
-				TrackingDiagnosticCountBucket.fromCount(repeatCount.toLong()),
+			occurrenceCountBucket = occurrenceBucket,
 			metrics = TrackingDiagnosticStoredMetrics(
 				encodedEnvelopeSizeBucket = encodedEnvelopeSizeBucket?.let { value ->
 					enumValueOf<TrackingDiagnosticSizeBucket>(value)
@@ -392,6 +450,72 @@ internal class RoomTrackingDiagnosticStore(
 		)
 	}
 
+	private fun TrackingDiagnosticEventEntity.aggregationKey(): AggregationKey = AggregationKey(
+		source = source,
+		purpose = purpose,
+		pipelineStage = pipelineStage,
+		operation = operation,
+		result = result,
+		reason = reason,
+		lifecycle = lifecycle,
+		coarseTimeBucket = coarseTimeBucket,
+		scopeDurationBucket = scopeDurationBucket,
+		encodedEnvelopeSizeBucket = encodedEnvelopeSizeBucket,
+		queueBacklogBucket = queueBacklogBucket,
+		drainedEnvelopeCountBucket = drainedEnvelopeCountBucket,
+		remainingEnvelopeBacklogBucket = remainingEnvelopeBacklogBucket,
+		persistedEnvelopeCountBucket = persistedEnvelopeCountBucket,
+	)
+
+	private fun TrackingDiagnosticEventEntity.metricSet(): Set<TrackingDiagnosticMetric> =
+		buildSet {
+			if (encodedEnvelopeSizeBucket != null) {
+				add(TrackingDiagnosticMetric.ENCODED_ENVELOPE_SIZE)
+			}
+			if (queueBacklogBucket != null) add(TrackingDiagnosticMetric.QUEUE_BACKLOG)
+			if (drainedEnvelopeCountBucket != null) {
+				add(TrackingDiagnosticMetric.DRAINED_ENVELOPE_COUNT)
+			}
+			if (remainingEnvelopeBacklogBucket != null) {
+				add(TrackingDiagnosticMetric.REMAINING_ENVELOPE_BACKLOG)
+			}
+			if (persistedEnvelopeCountBucket != null) {
+				add(TrackingDiagnosticMetric.PERSISTED_ENVELOPE_COUNT)
+			}
+		}
+
+	private fun TrackingDiagnosticEventEntity.storedFields(): List<Pair<TrackingDiagnosticField, String>> =
+		buildList {
+		add(TrackingDiagnosticField.SOURCE to source)
+		add(TrackingDiagnosticField.PURPOSE to purpose)
+		add(TrackingDiagnosticField.PIPELINE_STAGE to pipelineStage)
+		add(TrackingDiagnosticField.OPERATION to operation)
+		add(TrackingDiagnosticField.RESULT to result)
+		add(TrackingDiagnosticField.REASON to reason)
+		add(TrackingDiagnosticField.LIFECYCLE to lifecycle)
+		add(TrackingDiagnosticField.COARSE_TIME_BUCKET to coarseTimeBucket.toString())
+		add(TrackingDiagnosticField.SCOPE_DURATION_BUCKET to scopeDurationBucket)
+		encodedEnvelopeSizeBucket?.let { value ->
+			add(TrackingDiagnosticField.ENCODED_ENVELOPE_SIZE_BUCKET to value)
+		}
+		queueBacklogBucket?.let { value ->
+			add(TrackingDiagnosticField.QUEUE_BACKLOG_BUCKET to value)
+		}
+		drainedEnvelopeCountBucket?.let { value ->
+			add(TrackingDiagnosticField.DRAINED_ENVELOPE_COUNT_BUCKET to value)
+		}
+		remainingEnvelopeBacklogBucket?.let { value ->
+			add(TrackingDiagnosticField.REMAINING_ENVELOPE_BACKLOG_BUCKET to value)
+		}
+		persistedEnvelopeCountBucket?.let { value ->
+			add(TrackingDiagnosticField.PERSISTED_ENVELOPE_COUNT_BUCKET to value)
+		}
+		add(TrackingDiagnosticField.OCCURRENCE_COUNT_BUCKET to occurrenceCountBucket)
+	}
+
+	private fun TrackingDiagnosticEventEntity.encodedByteCount(): Int =
+		TrackingDiagnosticUtf8Size.encodedFields(storedFields())
+
 	private fun parseReason(
 		result: TrackingDiagnosticResult,
 		stableName: String,
@@ -413,14 +537,50 @@ internal class RoomTrackingDiagnosticStore(
 			enumValueOf<TrackingDiagnosticCancellationReason>(stableName)
 	}
 
-	private companion object {
-		const val GLOBAL_RATE_KEY = "GLOBAL"
-		const val SOURCE_RATE_KEY_PREFIX = "SOURCE:"
-		const val COARSE_TIMESTAMP_MINUTES = 15
-		val PROCESS_SCOPE_PATTERN = Regex("""epoch_[0-9a-f]{16}_scope_[0-9a-f]{8}""")
+	private fun clearInMemoryState() {
+		aggregationState.clear()
+		globalRateWindow = null
+		sourceRateWindows.clear()
+	}
 
-		fun subtractFloorZero(value: Long, delta: Long): Long =
-			if (value <= delta) 0L else value - delta
+	private data class AppendCommit(
+		val result: TrackingDiagnosticStorageResult,
+		val rowId: Long,
+		val occurrenceCount: Int,
+	)
+
+	private data class AggregationEntry(
+		val rowId: Long,
+		val occurrenceCount: Int,
+		val lastSeenAtMs: Long,
+	)
+
+	@Suppress("LongParameterList")
+	private data class AggregationKey(
+		val source: String,
+		val purpose: String,
+		val pipelineStage: String,
+		val operation: String,
+		val result: String,
+		val reason: String,
+		val lifecycle: String,
+		val coarseTimeBucket: Long,
+		val scopeDurationBucket: String,
+		val encodedEnvelopeSizeBucket: String?,
+		val queueBacklogBucket: String?,
+		val drainedEnvelopeCountBucket: String?,
+		val remainingEnvelopeBacklogBucket: String?,
+		val persistedEnvelopeCountBucket: String?,
+	)
+
+	private data class RateWindow(
+		val startedAtMs: Long,
+		val acceptedCount: Int,
+	)
+
+	private sealed interface StorageOperation<out T> {
+		data class Succeeded<T>(val value: T) : StorageOperation<T>
+		data object Retryable : StorageOperation<Nothing>
 	}
 }
 

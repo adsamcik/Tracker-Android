@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.diagnostics
 
-/** The complete set of fields the module-owned local adapter may encode. */
+/** The complete set of fields the module-owned adapter or bounded store may encode. */
 enum class TrackingDiagnosticField(val wireName: String) {
 	SOURCE("source"),
 	PURPOSE("purpose"),
@@ -9,15 +9,14 @@ enum class TrackingDiagnosticField(val wireName: String) {
 	RESULT("result"),
 	REASON("reason"),
 	LIFECYCLE("lifecycle"),
-	OPERATION_SCOPE("operation_scope"),
-	SCOPE_SEQUENCE("scope_sequence"),
-	COARSE_LOCAL_TIMESTAMP("coarse_local_timestamp"),
+	COARSE_TIME_BUCKET("coarse_time_bucket"),
 	SCOPE_DURATION_BUCKET("scope_duration_bucket"),
 	ENCODED_ENVELOPE_SIZE_BUCKET("encoded_envelope_size_bucket"),
 	QUEUE_BACKLOG_BUCKET("queue_backlog_bucket"),
 	DRAINED_ENVELOPE_COUNT_BUCKET("drained_envelope_count_bucket"),
 	REMAINING_ENVELOPE_BACKLOG_BUCKET("remaining_envelope_backlog_bucket"),
 	PERSISTED_ENVELOPE_COUNT_BUCKET("persisted_envelope_count_bucket"),
+	OCCURRENCE_COUNT_BUCKET("occurrence_count_bucket"),
 }
 
 enum class TrackingDiagnosticPrivacyRejectionReason {
@@ -44,9 +43,17 @@ sealed interface TrackingDiagnosticPrivacyValidation {
 }
 
 object TrackingDiagnosticPrivacyValidator {
-	val allowedFields: Set<TrackingDiagnosticField> = TrackingDiagnosticField.entries.toSet()
+	private val storedOnlyFields = setOf(TrackingDiagnosticField.OCCURRENCE_COUNT_BUCKET)
+
+	val allowedFields: Set<TrackingDiagnosticField> =
+		TrackingDiagnosticField.entries.toSet() - storedOnlyFields
+
+	internal val allowedStoredFields: Set<TrackingDiagnosticField> =
+		TrackingDiagnosticField.entries.toSet()
 
 	private val allowedWireNames = allowedFields.mapTo(mutableSetOf()) { field -> field.wireName }
+	private val allowedStoredWireNames =
+		allowedStoredFields.mapTo(mutableSetOf()) { field -> field.wireName }
 
 	private val forbiddenAliases =
 		listOf(
@@ -102,6 +109,8 @@ object TrackingDiagnosticPrivacyValidator {
 				"logicaltrackingid",
 				"servicerunid",
 				"sessionid",
+				"operationscope",
+				"scopesequence",
 			),
 			TrackingDiagnosticPrivacyRejectionReason.FILE_REFERENCES to setOf(
 				"filename",
@@ -156,26 +165,52 @@ object TrackingDiagnosticPrivacyValidator {
 			TrackingDiagnosticPrivacyValidation.Rejected(
 				TrackingDiagnosticPrivacyRejectionReason.INVALID_EVENT,
 			)
-		event.metrics != TrackingDiagnosticMetricPolicy.allowedMetrics(
+		else -> validateMetricSet(
 			event.source,
 			event.pipelineStage,
 			event.operation,
-		) &&
-			event.metrics.isNotEmpty() ->
+			event.metrics,
+		)
+	}
+
+	internal fun validateMetricSet(
+		source: TrackingDiagnosticSource,
+		pipelineStage: TrackingDiagnosticPipelineStage,
+		operation: TrackingDiagnosticOperation,
+		metrics: Set<TrackingDiagnosticMetric>,
+	): TrackingDiagnosticPrivacyValidation =
+		if (metrics == TrackingDiagnosticMetricPolicy.allowedMetrics(
+				source,
+				pipelineStage,
+				operation,
+			)
+		) {
+			TrackingDiagnosticPrivacyValidation.Allowed
+		} else {
 			TrackingDiagnosticPrivacyValidation.Rejected(
 				TrackingDiagnosticPrivacyRejectionReason.METRIC_OPERATION_MISMATCH,
 			)
-		else -> TrackingDiagnosticPrivacyValidation.Allowed
-	}
+		}
 
 	/**
 	 * Validates developer-authored schema keys only. Runtime values and arbitrary attribute maps are
 	 * intentionally not accepted by this API in any build type.
 	 */
 	fun validateAdapterSchema(fieldNames: Iterable<String>): TrackingDiagnosticPrivacyValidation {
+		return validateSchema(fieldNames, allowedWireNames)
+	}
+
+	internal fun validateStoredSchema(
+		fieldNames: Iterable<String>,
+	): TrackingDiagnosticPrivacyValidation = validateSchema(fieldNames, allowedStoredWireNames)
+
+	private fun validateSchema(
+		fieldNames: Iterable<String>,
+		allowedNames: Set<String>,
+	): TrackingDiagnosticPrivacyValidation {
 		fieldNames.forEach { fieldName ->
 			val normalized = fieldName.trim().lowercase()
-			if (normalized in allowedWireNames) return@forEach
+			if (normalized in allowedNames) return@forEach
 
 			val compact = normalized.filter(Char::isLetterOrDigit)
 			val forbiddenReason = forbiddenAliases.firstNotNullOfOrNull { (reason, aliases) ->

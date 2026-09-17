@@ -1,10 +1,12 @@
 package com.adsamcik.tracker.diagnostics
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.jupiter.api.Test
 import java.lang.reflect.Modifier
-import java.time.ZoneOffset
 
 class TrackingDiagnosticPrivacyValidatorTest {
 	@Test
@@ -76,9 +78,7 @@ class TrackingDiagnosticPrivacyValidatorTest {
 			"result",
 			"reason",
 			"lifecycle",
-			"operation_scope",
-			"scope_sequence",
-			"coarse_local_timestamp",
+			"coarse_time_bucket",
 			"scope_duration_bucket",
 			"encoded_envelope_size_bucket",
 			"queue_backlog_bucket",
@@ -89,10 +89,21 @@ class TrackingDiagnosticPrivacyValidatorTest {
 		TrackingDiagnosticPrivacyValidator.validateAdapterSchema(
 			TrackingDiagnosticPrivacyValidator.allowedFields.map { field -> field.wireName },
 		) shouldBe TrackingDiagnosticPrivacyValidation.Allowed
+		TrackingDiagnosticPrivacyValidator.validateStoredSchema(
+			TrackingDiagnosticPrivacyValidator.allowedStoredFields.map { field -> field.wireName },
+		) shouldBe TrackingDiagnosticPrivacyValidation.Allowed
+		TrackingDiagnosticPrivacyValidator.allowedStoredFields shouldBe
+			TrackingDiagnosticPrivacyValidator.allowedFields +
+				TrackingDiagnosticField.OCCURRENCE_COUNT_BUCKET
+		TrackingDiagnosticPrivacyValidator.validateAdapterSchema(
+			listOf(TrackingDiagnosticField.OCCURRENCE_COUNT_BUCKET.wireName),
+		) shouldBe TrackingDiagnosticPrivacyValidation.Rejected(
+			TrackingDiagnosticPrivacyRejectionReason.UNKNOWN_FIELD,
+		)
 	}
 
 	@Test
-	fun `encoded event contains generated scope metadata and no caller supplied raw values`() {
+	fun `encoded event omits in-memory correlation and caller supplied raw values`() {
 		val request = TrackingDiagnosticEvents.enqueue(
 			source = TrackingDiagnosticSource.WIFI,
 			purpose = TrackingDiagnosticPurpose.AMBIENT_PRODUCT,
@@ -107,27 +118,54 @@ class TrackingDiagnosticPrivacyValidatorTest {
 			request.toRecordedEvent(
 				operationScope = TrackingDiagnosticScopeOpaque.fixedForTest(42L),
 				scopeSequence = TrackingDiagnosticScopeSequence.EVENT_04,
-				coarseLocalTimestamp =
-					TrackingDiagnosticCoarseLocalTimestamp.fromEpochMilliseconds(
+				coarseTimeBucket =
+					TrackingDiagnosticCoarseTimeBucket.fromEpochMilliseconds(
 						epochMilliseconds = 1_789_630_524_522L,
-						zoneId = ZoneOffset.ofHours(2),
 					),
 				scopeDurationBucket = TrackingDiagnosticDurationBucket.ONE_TO_FOUR_SECONDS,
 			),
 		)
 		val fields = encoded.serializedFields.toMap()
 
-		fields[TrackingDiagnosticField.OPERATION_SCOPE]
-			?.matches(Regex("""epoch_[0-9a-f]{16}_scope_[0-9a-f]{8}""")) shouldBe true
-		fields[TrackingDiagnosticField.SCOPE_SEQUENCE] shouldBe "EVENT_04"
-		fields[TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP] shouldBe
-			"2026-09-17T09:30+02:00"
+		fields.keys.none { field ->
+			field.wireName == "operation_scope" || field.wireName == "scope_sequence"
+		} shouldBe true
+		fields[TrackingDiagnosticField.COARSE_TIME_BUCKET] shouldBe
+			(1_789_630_524_522L /
+				TrackingDiagnosticCoarseTimeBucket.BUCKET_MILLISECONDS).toString()
 		fields[TrackingDiagnosticField.ENCODED_ENVELOPE_SIZE_BUCKET] shouldBe
 			"UP_TO_SIXTEEN_KIBIBYTES"
 		fields[TrackingDiagnosticField.QUEUE_BACKLOG_BUCKET] shouldBe
 			"THIRTY_THREE_TO_ONE_HUNDRED_TWENTY_EIGHT"
 		("12345" in fields.values) shouldBe false
 		("77" in fields.values) shouldBe false
+	}
+
+	@Test
+	fun `encoder rejects an event whose empty metric set violates its operation`() {
+		val request = mockk<TrackingDiagnosticEventRequest>()
+		every { request.source } returns TrackingDiagnosticSource.WIFI
+		every { request.purpose } returns TrackingDiagnosticPurpose.SESSION_CAPTURE
+		every { request.pipelineStage } returns TrackingDiagnosticPipelineStage.DURABLE_INGRESS
+		every { request.operation } returns TrackingDiagnosticOperation.ENQUEUE
+		every { request.result } returns TrackingDiagnosticResult.SUCCEEDED
+		every { request.reason } returns TrackingDiagnosticSuccessReason.COMPLETED
+		every { request.lifecycle } returns TrackingDiagnosticEventLifecycle.PROGRESS
+		val invalid = UnmeteredRecordedTrackingDiagnosticEvent(
+			request = request,
+			operationScope = TrackingDiagnosticScopeOpaque.fixedForTest(1L),
+			scopeSequence = TrackingDiagnosticScopeSequence.EVENT_01,
+			coarseTimeBucket = TrackingDiagnosticCoarseTimeBucket.fromEpochMilliseconds(0L),
+			scopeDurationBucket = TrackingDiagnosticDurationBucket.UNDER_TEN_MILLISECONDS,
+		)
+
+		TrackingDiagnosticPrivacyValidator.validate(invalid) shouldBe
+			TrackingDiagnosticPrivacyValidation.Rejected(
+				TrackingDiagnosticPrivacyRejectionReason.METRIC_OPERATION_MISMATCH,
+			)
+		shouldThrow<IllegalArgumentException> {
+			EncodedTrackingDiagnosticEvent.from(invalid)
+		}
 	}
 
 	@Test
@@ -142,6 +180,8 @@ class TrackingDiagnosticPrivacyValidatorTest {
 			"sourceEventId" to TrackingDiagnosticPrivacyRejectionReason.OPAQUE_SELECTIONS,
 			"logicalTrackingId" to TrackingDiagnosticPrivacyRejectionReason.OPAQUE_SELECTIONS,
 			"serviceRunId" to TrackingDiagnosticPrivacyRejectionReason.OPAQUE_SELECTIONS,
+			"operationScope" to TrackingDiagnosticPrivacyRejectionReason.OPAQUE_SELECTIONS,
+			"scopeSequence" to TrackingDiagnosticPrivacyRejectionReason.OPAQUE_SELECTIONS,
 			"contentUri" to TrackingDiagnosticPrivacyRejectionReason.FILE_REFERENCES,
 			"sha256" to TrackingDiagnosticPrivacyRejectionReason.CHECKSUMS,
 			"androidId" to TrackingDiagnosticPrivacyRejectionReason.STABLE_IDENTIFIERS,

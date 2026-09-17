@@ -774,6 +774,9 @@ class ArchitecturalFitnessTest {
 				if ("internal fun interface TrackingDiagnosticEventStore" !in recorderSource) {
 					add("storage boundary must remain internal to :core:diagnostics")
 				}
+				if ("append(event: EncodedTrackingDiagnosticEvent)" !in recorderSource) {
+					add("storage boundary must receive only correlation-free encoded events")
+				}
 				if (Regex("""public\s+(?:fun\s+interface|interface)\s+TrackingDiagnosticEventStore""")
 						.containsMatchIn(recorderSource)
 				) {
@@ -800,6 +803,34 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
+		fun `standalone tracking diagnostics schema is contained until convergence`() {
+			val databaseSource = projectRoot.resolve(
+				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/" +
+					"TrackingDiagnosticDatabase.kt",
+			).readText()
+			val containmentNote = projectRoot.resolve(
+				"core/diagnostics/schemas/README.md",
+			)
+
+			buildList {
+				if ("exportSchema = false" !in databaseSource) {
+					add("unreleased diagnostics v1 must not advertise an absent schema snapshot")
+				}
+				if ("operation_scope" in databaseSource || "scope_sequence" in databaseSource) {
+					add("diagnostics Room schema must not persist recorder correlation")
+				}
+				if ("last_observed_at_ms" in databaseSource) {
+					add("diagnostics Room schema must retain only its coarse time bucket")
+				}
+				if (!containmentNote.isFile) {
+					add("diagnostics schema containment note is missing")
+				} else if ("final convergence" !in containmentNote.readText()) {
+					add("diagnostics schema note must defer export activation to convergence")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
 		fun `tracking diagnostic templates serialize exact allowlisted keys`() {
 			val templateSource = projectRoot.resolve(
 				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/" +
@@ -817,9 +848,7 @@ class ArchitecturalFitnessTest {
 				"result",
 				"reason",
 				"lifecycle",
-				"operation_scope",
-				"scope_sequence",
-				"coarse_local_timestamp",
+				"coarse_time_bucket",
 				"scope_duration_bucket",
 			)
 			val expectedKeys = mapOf(

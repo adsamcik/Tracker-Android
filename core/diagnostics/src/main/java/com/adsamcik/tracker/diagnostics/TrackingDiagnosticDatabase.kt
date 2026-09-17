@@ -7,7 +7,6 @@ import androidx.room.Database
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
@@ -18,11 +17,11 @@ import androidx.room.Update
 	tableName = "tracking_diagnostic_event",
 	indices = [
 		Index(
-			value = ["source", "purpose", "last_observed_at_ms", "event_id"],
+			value = ["source", "purpose", "coarse_time_bucket", "event_id"],
 			name = "index_tracking_diagnostic_event_source_purpose_recency",
 		),
 		Index(
-			value = ["last_observed_at_ms", "event_id"],
+			value = ["coarse_time_bucket", "event_id"],
 			name = "index_tracking_diagnostic_event_recency",
 		),
 	],
@@ -45,12 +44,8 @@ internal data class TrackingDiagnosticEventEntity(
 	val reason: String,
 	@ColumnInfo(name = "lifecycle")
 	val lifecycle: String,
-	@ColumnInfo(name = "operation_scope")
-	val operationScope: String,
-	@ColumnInfo(name = "scope_sequence")
-	val scopeSequence: String,
-	@ColumnInfo(name = "coarse_local_timestamp")
-	val coarseLocalTimestamp: String,
+	@ColumnInfo(name = "coarse_time_bucket")
+	val coarseTimeBucket: Long,
 	@ColumnInfo(name = "scope_duration_bucket")
 	val scopeDurationBucket: String,
 	@ColumnInfo(name = "encoded_envelope_size_bucket")
@@ -63,30 +58,8 @@ internal data class TrackingDiagnosticEventEntity(
 	val remainingEnvelopeBacklogBucket: String?,
 	@ColumnInfo(name = "persisted_envelope_count_bucket")
 	val persistedEnvelopeCountBucket: String?,
-	@ColumnInfo(name = "last_observed_at_ms")
-	val lastObservedAtMs: Long,
-	@ColumnInfo(name = "repeat_count")
-	val repeatCount: Int,
-	@ColumnInfo(name = "encoded_byte_count")
-	val encodedByteCount: Int,
-)
-
-@Entity(tableName = "tracking_diagnostic_rate_limit")
-internal data class TrackingDiagnosticRateLimitEntity(
-	@PrimaryKey
-	@ColumnInfo(name = "rate_key")
-	val rateKey: String,
-	@ColumnInfo(name = "window_started_at_ms")
-	val windowStartedAtMs: Long,
-	@ColumnInfo(name = "accepted_count")
-	val acceptedCount: Int,
-)
-
-internal data class TrackingDiagnosticStoredFootprint(
-	@ColumnInfo(name = "event_id")
-	val eventId: Long,
-	@ColumnInfo(name = "encoded_byte_count")
-	val encodedByteCount: Int,
+	@ColumnInfo(name = "occurrence_count_bucket")
+	val occurrenceCountBucket: String,
 )
 
 @Dao
@@ -97,49 +70,14 @@ internal interface TrackingDiagnosticDao {
 	@Update
 	suspend fun update(event: TrackingDiagnosticEventEntity): Int
 
-	@Query(
-		"""
-		SELECT * FROM tracking_diagnostic_event
-		WHERE source = :source
-		  AND purpose = :purpose
-		  AND pipeline_stage = :pipelineStage
-		  AND operation = :operation
-		  AND result = :result
-		  AND reason = :reason
-		  AND lifecycle = :lifecycle
-		  AND scope_duration_bucket = :scopeDurationBucket
-		  AND encoded_envelope_size_bucket IS :encodedEnvelopeSizeBucket
-		  AND queue_backlog_bucket IS :queueBacklogBucket
-		  AND drained_envelope_count_bucket IS :drainedEnvelopeCountBucket
-		  AND remaining_envelope_backlog_bucket IS :remainingEnvelopeBacklogBucket
-		  AND persisted_envelope_count_bucket IS :persistedEnvelopeCountBucket
-		  AND last_observed_at_ms >= :observedAfterMs
-		ORDER BY last_observed_at_ms DESC, event_id DESC
-		LIMIT 1
-		""",
-	)
-	suspend fun findAggregationCandidate(
-		source: String,
-		purpose: String,
-		pipelineStage: String,
-		operation: String,
-		result: String,
-		reason: String,
-		lifecycle: String,
-		scopeDurationBucket: String,
-		encodedEnvelopeSizeBucket: String?,
-		queueBacklogBucket: String?,
-		drainedEnvelopeCountBucket: String?,
-		remainingEnvelopeBacklogBucket: String?,
-		persistedEnvelopeCountBucket: String?,
-		observedAfterMs: Long,
-	): TrackingDiagnosticEventEntity?
+	@Query("SELECT * FROM tracking_diagnostic_event WHERE event_id = :eventId")
+	suspend fun findById(eventId: Long): TrackingDiagnosticEventEntity?
 
 	@Query(
 		"""
 		SELECT * FROM tracking_diagnostic_event
 		WHERE source = :source
-		ORDER BY last_observed_at_ms DESC, event_id DESC
+		ORDER BY coarse_time_bucket DESC, event_id DESC
 		LIMIT :limit
 		""",
 	)
@@ -150,16 +88,16 @@ internal interface TrackingDiagnosticDao {
 		SELECT * FROM tracking_diagnostic_event
 		WHERE source = :source
 		  AND (
-		    last_observed_at_ms < :beforeObservedAtMs OR
-		    (last_observed_at_ms = :beforeObservedAtMs AND event_id < :beforeRowId)
+		    coarse_time_bucket < :beforeCoarseTimeBucket OR
+		    (coarse_time_bucket = :beforeCoarseTimeBucket AND event_id < :beforeRowId)
 		  )
-		ORDER BY last_observed_at_ms DESC, event_id DESC
+		ORDER BY coarse_time_bucket DESC, event_id DESC
 		LIMIT :limit
 		""",
 	)
 	suspend fun querySourceBefore(
 		source: String,
-		beforeObservedAtMs: Long,
+		beforeCoarseTimeBucket: Long,
 		beforeRowId: Long,
 		limit: Int,
 	): List<TrackingDiagnosticEventEntity>
@@ -168,7 +106,7 @@ internal interface TrackingDiagnosticDao {
 		"""
 		SELECT * FROM tracking_diagnostic_event
 		WHERE source = :source AND purpose = :purpose
-		ORDER BY last_observed_at_ms DESC, event_id DESC
+		ORDER BY coarse_time_bucket DESC, event_id DESC
 		LIMIT :limit
 		""",
 	)
@@ -183,64 +121,58 @@ internal interface TrackingDiagnosticDao {
 		SELECT * FROM tracking_diagnostic_event
 		WHERE source = :source AND purpose = :purpose
 		  AND (
-		    last_observed_at_ms < :beforeObservedAtMs OR
-		    (last_observed_at_ms = :beforeObservedAtMs AND event_id < :beforeRowId)
+		    coarse_time_bucket < :beforeCoarseTimeBucket OR
+		    (coarse_time_bucket = :beforeCoarseTimeBucket AND event_id < :beforeRowId)
 		  )
-		ORDER BY last_observed_at_ms DESC, event_id DESC
+		ORDER BY coarse_time_bucket DESC, event_id DESC
 		LIMIT :limit
 		""",
 	)
 	suspend fun querySourcePurposeBefore(
 		source: String,
 		purpose: String,
-		beforeObservedAtMs: Long,
+		beforeCoarseTimeBucket: Long,
 		beforeRowId: Long,
 		limit: Int,
 	): List<TrackingDiagnosticEventEntity>
 
 	@Query(
 		"""
-		SELECT event_id, encoded_byte_count FROM tracking_diagnostic_event
+		SELECT * FROM tracking_diagnostic_event
 		WHERE source = :source
-		ORDER BY last_observed_at_ms ASC, event_id ASC
+		ORDER BY coarse_time_bucket ASC, event_id ASC
 		""",
 	)
-	suspend fun sourceFootprint(source: String): List<TrackingDiagnosticStoredFootprint>
+	suspend fun sourceRowsOldest(source: String): List<TrackingDiagnosticEventEntity>
 
 	@Query(
 		"""
-		SELECT event_id, encoded_byte_count FROM tracking_diagnostic_event
-		ORDER BY last_observed_at_ms ASC, event_id ASC
+		SELECT * FROM tracking_diagnostic_event
+		ORDER BY coarse_time_bucket ASC, event_id ASC
 		""",
 	)
-	suspend fun globalFootprint(): List<TrackingDiagnosticStoredFootprint>
+	suspend fun globalRowsOldest(): List<TrackingDiagnosticEventEntity>
 
 	@Query("DELETE FROM tracking_diagnostic_event WHERE event_id IN (:eventIds)")
 	suspend fun deleteEvents(eventIds: List<Long>): Int
 
-	@Query("DELETE FROM tracking_diagnostic_event WHERE last_observed_at_ms < :cutoffMs")
-	suspend fun deleteExpired(cutoffMs: Long): Int
+	@Query("DELETE FROM tracking_diagnostic_event WHERE coarse_time_bucket < :cutoffBucket")
+	suspend fun deleteExpired(cutoffBucket: Long): Int
 
 	@Query("DELETE FROM tracking_diagnostic_event")
 	suspend fun deleteAllEvents()
-
-	@Query("SELECT * FROM tracking_diagnostic_rate_limit WHERE rate_key = :rateKey")
-	suspend fun readRateLimit(rateKey: String): TrackingDiagnosticRateLimitEntity?
-
-	@Insert(onConflict = OnConflictStrategy.REPLACE)
-	suspend fun writeRateLimit(rateLimit: TrackingDiagnosticRateLimitEntity)
-
-	@Query("DELETE FROM tracking_diagnostic_rate_limit")
-	suspend fun deleteAllRateLimits()
 }
 
+/**
+ * Unreleased standalone v1 database.
+ *
+ * Schema JSON export is intentionally contained until the final convergence batch. Before the
+ * first version increment or migration, enable export and commit the generated v1 snapshot.
+ */
 @Database(
-	entities = [
-		TrackingDiagnosticEventEntity::class,
-		TrackingDiagnosticRateLimitEntity::class,
-	],
+	entities = [TrackingDiagnosticEventEntity::class],
 	version = 1,
-	exportSchema = true,
+	exportSchema = false,
 )
 internal abstract class TrackingDiagnosticDatabase : RoomDatabase() {
 	abstract fun diagnosticDao(): TrackingDiagnosticDao

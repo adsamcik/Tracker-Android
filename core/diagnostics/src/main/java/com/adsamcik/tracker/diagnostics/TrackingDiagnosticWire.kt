@@ -1,14 +1,10 @@
 package com.adsamcik.tracker.diagnostics
 
 import java.security.SecureRandom
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /** Random process epoch that rotates whenever a recorder is constructed. */
 internal class TrackingDiagnosticProcessEpoch private constructor(
-	internal val wireValue: String,
+	internal val opaqueValue: String,
 ) {
 	override fun toString(): String = "TrackingDiagnosticProcessEpoch(opaque)"
 
@@ -29,11 +25,11 @@ internal class TrackingDiagnosticProcessEpoch private constructor(
 /**
  * Random diagnostic correlation scoped to one process operation, never a product identity.
  *
- * The persisted representation combines a random process epoch with a short random scope. A new
- * recorder rotates the epoch, so the short scope cannot become a stable cross-process identity.
+ * The in-memory representation combines a random process epoch with a short random scope. It is
+ * never serialized, and a new recorder rotates the epoch.
  */
 internal class TrackingDiagnosticScopeOpaque private constructor(
-	internal val wireValue: String,
+	internal val opaqueValue: String,
 ) {
 	override fun toString(): String = "TrackingDiagnosticScopeOpaque(opaque)"
 
@@ -61,7 +57,7 @@ internal class TrackingDiagnosticScopeOpaque private constructor(
 			processEpoch: TrackingDiagnosticProcessEpoch,
 			scopeBytes: ByteArray,
 		): TrackingDiagnosticScopeOpaque = TrackingDiagnosticScopeOpaque(
-			"epoch_${processEpoch.wireValue}_scope_${encodeHex(scopeBytes)}",
+			"epoch_${processEpoch.opaqueValue}_scope_${encodeHex(scopeBytes)}",
 		)
 	}
 }
@@ -114,27 +110,20 @@ internal enum class TrackingDiagnosticScopeSequence {
 	}
 }
 
-internal class TrackingDiagnosticCoarseLocalTimestamp private constructor(
-	internal val wireValue: String,
+internal class TrackingDiagnosticCoarseTimeBucket private constructor(
+	internal val epochQuarterHour: Long,
 ) {
+	internal val wireValue: String
+		get() = epochQuarterHour.toString()
+
 	companion object {
-		private const val BUCKET_MINUTES = 15
-		private val FORMATTER = DateTimeFormatter
-			.ofPattern("uuuu-MM-dd'T'HH:mmXXX")
-			.withLocale(Locale.ROOT)
+		internal const val BUCKET_MILLISECONDS = 15L * 60L * 1_000L
 
 		fun fromEpochMilliseconds(
 			epochMilliseconds: Long,
-			zoneId: ZoneId,
-		): TrackingDiagnosticCoarseLocalTimestamp {
-			val localTime = Instant.ofEpochMilli(epochMilliseconds.coerceAtLeast(0L))
-				.atZone(zoneId)
-			val bucketed = localTime
-				.withMinute(localTime.minute - localTime.minute % BUCKET_MINUTES)
-				.withSecond(0)
-				.withNano(0)
-			return TrackingDiagnosticCoarseLocalTimestamp(FORMATTER.format(bucketed))
-		}
+		): TrackingDiagnosticCoarseTimeBucket = TrackingDiagnosticCoarseTimeBucket(
+			epochMilliseconds.coerceAtLeast(0L) / BUCKET_MILLISECONDS,
+		)
 	}
 }
 
@@ -152,9 +141,7 @@ private val BASE_TRACKING_DIAGNOSTIC_FIELDS = listOf(
 	TrackingDiagnosticField.RESULT,
 	TrackingDiagnosticField.REASON,
 	TrackingDiagnosticField.LIFECYCLE,
-	TrackingDiagnosticField.OPERATION_SCOPE,
-	TrackingDiagnosticField.SCOPE_SEQUENCE,
-	TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP,
+	TrackingDiagnosticField.COARSE_TIME_BUCKET,
 	TrackingDiagnosticField.SCOPE_DURATION_BUCKET,
 )
 
@@ -201,6 +188,12 @@ internal class EncodedTrackingDiagnosticEvent private constructor(
 
 	companion object {
 		fun from(event: RecordedTrackingDiagnosticEvent): EncodedTrackingDiagnosticEvent {
+			require(
+				TrackingDiagnosticPrivacyValidator.validate(event) is
+					TrackingDiagnosticPrivacyValidation.Allowed,
+			) {
+				"Tracking diagnostic event does not match its closed metric schema"
+			}
 			val commonValues = listOf(
 				event.source.name,
 				event.purpose.name,
@@ -209,9 +202,7 @@ internal class EncodedTrackingDiagnosticEvent private constructor(
 				event.result.name,
 				event.reason.stableName,
 				event.lifecycle.name,
-				event.operationScope.wireValue,
-				event.scopeSequence.name,
-				event.coarseLocalTimestamp.wireValue,
+				event.coarseTimeBucket.wireValue,
 				event.scopeDurationBucket.name,
 			)
 			val (schema, metricValues) = when (event) {
