@@ -41,7 +41,10 @@ final class TrackingDiagnosticJavaVisibilityTest {
 			TrackingDiagnosticMetricPolicy.class,
 			TrackingDiagnosticPrivacyValidator.class,
 			TrackerDiagnosticLog.class,
-			TrackerDiagnosticCode.class
+			TrackerDiagnosticInfoCode.class,
+			TrackerDiagnosticWarningCode.class,
+			TrackerDiagnosticFailureCode.class,
+			TrackerDiagnosticRejectionCode.class
 		);
 
 		contractTypes.forEach(type -> {
@@ -50,6 +53,35 @@ final class TrackingDiagnosticJavaVisibilityTest {
 				.forEach(this::assertPayloadFreeSignature);
 			Arrays.stream(type.getFields()).forEach(this::assertPayloadFreeField);
 		});
+	}
+
+	@Test
+	void trackingFacadeAcceptsNoThrowableStringOrFreeformParameters() {
+		Method[] methods = TrackerDiagnosticLog.class.getDeclaredMethods();
+		Arrays.stream(methods)
+			.filter(method -> Modifier.isPublic(method.getModifiers()) && !method.isSynthetic())
+			.flatMap(method -> Arrays.stream(method.getParameterTypes()))
+			.forEach(parameterType -> {
+				assertFalse(Throwable.class.isAssignableFrom(parameterType));
+				assertFalse(CharSequence.class.isAssignableFrom(parameterType));
+				assertFalse(parameterType.equals(Object.class));
+				assertFalse(parameterType.getName().equals("java.io.File"));
+				assertFalse(parameterType.getName().equals("java.net.URI"));
+				assertFalse(parameterType.getName().equals("java.nio.file.Path"));
+				assertFalse(java.util.Map.class.isAssignableFrom(parameterType));
+			});
+
+		Method failure = Arrays.stream(methods)
+			.filter(method -> method.getName().equals("failure"))
+			.findFirst()
+			.orElseThrow();
+		assertTrue(Arrays.equals(
+			new Class<?>[] {
+				TrackerDiagnosticFailureCode.class,
+				TrackingDiagnosticFailureReason.class,
+			},
+			failure.getParameterTypes()
+		));
 	}
 
 	@Test

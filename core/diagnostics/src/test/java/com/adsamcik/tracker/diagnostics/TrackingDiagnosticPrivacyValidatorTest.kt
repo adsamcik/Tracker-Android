@@ -81,6 +81,9 @@ class TrackingDiagnosticPrivacyValidatorTest {
 			"contentUri" to TrackingDiagnosticPrivacyRejectionReason.FILE_REFERENCES,
 			"sha256" to TrackingDiagnosticPrivacyRejectionReason.CHECKSUMS,
 			"androidId" to TrackingDiagnosticPrivacyRejectionReason.STABLE_IDENTIFIERS,
+			"exceptionMessage" to TrackingDiagnosticPrivacyRejectionReason.EXCEPTION_DETAILS,
+			"stackTrace" to TrackingDiagnosticPrivacyRejectionReason.EXCEPTION_DETAILS,
+			"cause" to TrackingDiagnosticPrivacyRejectionReason.EXCEPTION_DETAILS,
 			"providerPayload" to TrackingDiagnosticPrivacyRejectionReason.PROVIDER_PAYLOADS,
 		)
 

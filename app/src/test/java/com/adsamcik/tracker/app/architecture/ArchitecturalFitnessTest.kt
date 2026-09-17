@@ -422,7 +422,6 @@ class ArchitecturalFitnessTest {
 						STANDARD_EXCLUDES + listOf("src/test", "src/androidTest", "src/testFixtures"),
 					)
 				}
-				.filterNot { file -> file.name == "TrackerDiagnosticLog.kt" }
 				.flatMap { file ->
 					extractTraceboxCalls(file.readText()).flatMap { call ->
 						traceboxCallViolations(call).map { reason ->
@@ -729,6 +728,69 @@ class ArchitecturalFitnessTest {
 			}
 
 			(sourceViolations + dependencyViolations).shouldBeEmpty()
+		}
+
+		@Test
+		fun `tracking diagnostic calls cannot carry exceptions messages or paths`() {
+			val trackingSources = listOf(
+				projectRoot.resolve("tracker/engine/src/main"),
+				projectRoot.resolve("sensor/activity/src/main"),
+			)
+			val callStart = Regex("""TrackerDiagnosticLog\.([A-Za-z]+)\s*""")
+			val prohibitedArgument = Regex(
+				"""\b(?:error|failure|exception|throwable|cause|path|uri)\b|""" +
+					"""\.(?:message|localizedMessage|stackTraceToString)\b""",
+			)
+			val callViolations = trackingSources.flatMap { sourceDirectory ->
+				sourceDirectory.walkTopDown()
+					.filter { file -> file.isFile && file.extension == "kt" }
+					.flatMap { file ->
+						val source = file.readText()
+						callStart.findAll(source).mapNotNull { match ->
+							var cursor = match.range.last + 1
+							while (cursor < source.length && source[cursor].isWhitespace()) cursor++
+							if (cursor >= source.length || source[cursor] != '(') return@mapNotNull null
+							val end = matchingParenthesis(source, cursor) ?: return@mapNotNull null
+							val arguments = source.substring(cursor + 1, end)
+							val method = match.groupValues[1]
+							val missingTypedReason = when (method) {
+								"failure", "trackingProviderTeardownFailed" ->
+									"TrackingDiagnosticFailureReason." !in arguments
+								"rejected" -> "TrackingDiagnosticRejectedReason." !in arguments
+								else -> false
+							}
+							when {
+								prohibitedArgument.containsMatchIn(arguments) ->
+									"${file.relativeTo(projectRoot)}: $method carries free-form failure data"
+								missingTypedReason ->
+									"${file.relativeTo(projectRoot)}: $method lacks a typed reason"
+								else -> null
+							}
+						}
+					}
+					.toList()
+			}
+			val boundaryViolations = listOf(
+				"TrackerDiagnosticLog.kt",
+				"TraceboxTrackingDiagnosticAdapter.kt",
+			).flatMap { fileName ->
+				val file = projectRoot.resolve(
+					"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/$fileName",
+				)
+				val prohibitedBoundary = Regex(
+					"""\bThrowable\b|\.(?:message|localizedMessage|stackTraceToString)\b|""" +
+						"""\b(?:java\.io\.File|java\.net\.URI|java\.nio\.file\.Path)\b""",
+				)
+				file.readLines().mapIndexedNotNull { index, line ->
+					if (!isCommentLine(line) && prohibitedBoundary.containsMatchIn(line)) {
+						"$fileName:${index + 1}: $line"
+					} else {
+						null
+					}
+				}
+			}
+
+			(callViolations + boundaryViolations).shouldBeEmpty()
 		}
 
 		@Test
