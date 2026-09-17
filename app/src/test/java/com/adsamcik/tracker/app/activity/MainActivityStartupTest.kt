@@ -2,6 +2,8 @@ package com.adsamcik.tracker.app.activity
 
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
+import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainment
+import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainmentReason
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingCompletionState
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import io.kotest.matchers.shouldBe
@@ -57,6 +59,39 @@ class MainActivityStartupTest {
 		startupFailureDestination(
 			TrackingStartupResult.RetryableFailure(TrackingStartupStage.LIVE_V2, "LEASE"),
 		) shouldBe StartupDestination.Recovery
+	}
+
+	@Test
+	fun `contained databases use preservation-only startup guidance`() {
+		startupFailureDestination(
+			TrackingStartupResult.Blocked(
+				stage = TrackingStartupStage.STORAGE,
+				failureCode = "STALE_DEVELOPMENT_V28",
+				databaseContainment = TrackingDatabaseContainment(
+					TrackingDatabaseContainmentReason.STALE_DEVELOPMENT_V28,
+				),
+			),
+		) shouldBe StartupDestination.DevelopmentDatabaseContainment
+
+		startupFailureDestination(
+			TrackingStartupResult.Blocked(
+				stage = TrackingStartupStage.STORAGE,
+				failureCode = "INCOMPLETE_FINAL_V28_SCHEMA",
+				databaseContainment = TrackingDatabaseContainment(
+					TrackingDatabaseContainmentReason.INCOMPLETE_FINAL_V28_SCHEMA,
+				),
+			),
+		) shouldBe StartupDestination.DevelopmentDatabaseContainment
+
+		startupFailureDestination(
+			TrackingStartupResult.Blocked(
+				stage = TrackingStartupStage.STORAGE,
+				failureCode = "UNREADABLE_DATABASE",
+				databaseContainment = TrackingDatabaseContainment(
+					TrackingDatabaseContainmentReason.UNREADABLE_DATABASE,
+				),
+			),
+		) shouldBe StartupDestination.DatabaseContainment
 	}
 
     private class FakeOnboardingRepository(

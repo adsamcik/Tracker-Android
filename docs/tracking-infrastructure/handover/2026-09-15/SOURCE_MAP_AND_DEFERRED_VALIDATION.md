@@ -69,8 +69,10 @@ sources must run together at convergence; isolated source success cannot prove c
 
 v28 JSON is knowingly stale across the new source tables. Generate/review only after final SQL/
 entity composition, then run populated v27-to-v28 migration and production reopen on one
-representative emulator. Do not modify released v27 JSON to hide drift. Existing development v28
-databases need explicit safe handling if their old shape cannot open; no silent destructive reset.
+representative emulator. Do not modify released v27 JSON to hide drift. The 2026-09-17
+**IMPLEMENTED_UNVALIDATED** pre-open containment now preserves and blocks stale development-v28
+files that lack the final assembly marker/sentinels; it is not a release migration, repair, or
+silent destructive reset and still requires convergence execution.
 
 ## Known earlier execution debt
 

@@ -4,6 +4,9 @@ import android.app.ActivityManager
 import android.content.Context
 import com.adsamcik.tracker.app.ApplicationStartupRecoveryAction
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
+import com.adsamcik.tracker.shared.base.database.ActiveDatabaseBlockReason
+import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainment
+import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainmentReason
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.tracker.resilience.InactiveTrackingSessionStopHandler
@@ -151,6 +154,28 @@ class DefaultTrackingStartupGateTest {
 		)
 		gate.isReady shouldBe false
 		coVerify(exactly = 0) { resolver.apply(any(), any()) }
+		coVerify(exactly = 0) { sourceRecovery.recoverStartupAuthority() }
+	}
+
+	@Test
+	fun `stale development v28 blocks before lifecycle and source consumers`() = runTest {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns
+			LegacyDatabaseStartupResult.ActiveDatabaseBlocked(
+				ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28,
+			)
+
+		gate.reconcile() shouldBe TrackingStartupResult.Blocked(
+			stage = TrackingStartupStage.STORAGE,
+			failureCode = "STALE_DEVELOPMENT_V28",
+			databaseContainment = TrackingDatabaseContainment(
+				TrackingDatabaseContainmentReason.STALE_DEVELOPMENT_V28,
+			),
+		)
+
+		gate.isReady shouldBe false
+		coVerify(exactly = 0) { resolver.apply(any(), any()) }
+		coVerify(exactly = 0) { inactiveStopHandler.finalizeStoredSession(any()) }
 		coVerify(exactly = 0) { sourceRecovery.recoverStartupAuthority() }
 	}
 

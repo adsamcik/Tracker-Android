@@ -722,6 +722,7 @@ abstract class AppDatabase : RoomDatabase() {
 		override fun setupDatabase(database: Builder<AppDatabase>) {
 			database.addMigrations(*activeMigrations)
 			database.addCallback(TrackingOwnerValidationRoomCallback)
+			database.addCallback(FinalV28SchemaAssemblyRoomCallback)
 		}
 
 		override fun setupDatabase(context: Context, database: Builder<AppDatabase>) {
@@ -734,11 +735,15 @@ abstract class AppDatabase : RoomDatabase() {
 		override fun openHelperFactory(
 			context: Context,
 			delegate: SupportSQLiteOpenHelper.Factory,
-		): SupportSQLiteOpenHelper.Factory = MigrationBackupOpenHelperFactory(
-			delegate = delegate,
-			backupStore = DatabaseMigrationBackupStore(context),
+		): SupportSQLiteOpenHelper.Factory = DevelopmentV28ContainmentOpenHelperFactory(
+			context = context,
 			databaseName = databaseName,
-			targetVersion = CURRENT_DATABASE_VERSION,
+			delegate = MigrationBackupOpenHelperFactory(
+				delegate = delegate,
+				backupStore = DatabaseMigrationBackupStore(context),
+				databaseName = databaseName,
+				targetVersion = CURRENT_DATABASE_VERSION,
+			),
 		)
 
 		/**

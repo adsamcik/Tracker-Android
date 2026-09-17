@@ -1,6 +1,30 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-09-16
+Last updated: 2026-09-17
+
+## TI-D272 - Contain stale unshipped v28 databases before Room validation
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-17.
+- Premise: version 28 has not shipped. This is development-build containment, not a release
+  migration and not authority to bump the database version.
+- Decision: fresh databases and successful released-v27 `MIGRATION_27_28` receive the explicit
+  Room-master marker row `-280917 / tracker-v28-final-20260917`. Before the authoritative Room
+  helper opens the stable active file, a read-only preflight distinguishes absent/empty fresh,
+  released v27, final v28, stale development v28, and unknown/corrupt shapes. Final v28 also
+  requires one late assembly table, one pending-writer column, and one named index; this is a
+  bounded sentinel set, not a second full Room schema hash or an extra Room-managed entity/table.
+- Stale or unknown databases are blocked before migration backup, Room validation, legacy import
+  callback, lifecycle reconciliation, provider recovery, or consumer startup. The active database
+  file is preserved. There is no destructive fallback, wipe, same-version repair, silent table
+  creation on ordinary open, or success-shaped empty database.
+- The application publishes a typed `TrackingDatabaseContainment` state and shows preservation/
+  manual-backup guidance. Tracebox receives only the fixed local reason code. No upload or tracked
+  payload is introduced.
+- The existing legacy-v26 vault export/delete flow remains separate and cannot be selected for an
+  active stale-v28 block. A user-initiated active-database export/rename workflow is still a
+  follow-up UI dependency; this slice deliberately does not add a wipe.
+- Focused JVM, startup, UI-routing, and v27 migration test sources are authored but not executed.
+  Generated version-28 schema JSON remains untouched until the frozen convergence batch.
 
 ## TI-D271 - Close the finish-started scope without closing six-source assembly
 

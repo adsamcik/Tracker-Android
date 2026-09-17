@@ -95,6 +95,7 @@ class AppDatabaseMigration27To28Test {
 
 		helper.runMigrationsAndValidate(TEST_DATABASE, 28, true, MIGRATION_27_28).use { database ->
 			assertMigrationState(database)
+			assertFinalV28SchemaAssemblyMarker(database)
 		}
 
 		openProductionDatabase().let { database ->
@@ -152,6 +153,17 @@ class AppDatabaseMigration27To28Test {
 			} finally {
 				database.close()
 			}
+		}
+	}
+
+	private fun assertFinalV28SchemaAssemblyMarker(database: SupportSQLiteDatabase) {
+		database.query(
+			"SELECT identity_hash FROM room_master_table WHERE id = ?",
+			arrayOf(FINAL_V28_MARKER_ID),
+		).use { cursor ->
+			assertTrue(cursor.moveToFirst())
+			assertEquals(FINAL_V28_ASSEMBLY_ID, cursor.getString(0))
+			assertFalse(cursor.moveToNext())
 		}
 	}
 

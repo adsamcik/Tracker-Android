@@ -49,6 +49,7 @@ import com.adsamcik.tracker.app.ui.navigation.Setup
 import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainmentReason
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseState
@@ -266,6 +267,40 @@ class MainActivityCompose : ComponentActivity() {
 				return
 			}
 
+			StartupDestination.DevelopmentDatabaseContainment -> {
+				AppTheme(darkTheme = darkTheme) {
+					StartupRecoveryScreen(
+						titleRes = R.string.development_database_containment_title,
+						messageRes = R.string.development_database_containment_message,
+						onRetry = {
+							viewModel.setStartupDestination(StartupDestination.Pending)
+							val mainImmediate =
+								(dispatchers.main as? MainCoroutineDispatcher)?.immediate
+									?: dispatchers.main
+							resolveStartup(mainImmediate, retry = true)
+						},
+					)
+				}
+				return
+			}
+
+			StartupDestination.DatabaseContainment -> {
+				AppTheme(darkTheme = darkTheme) {
+					StartupRecoveryScreen(
+						titleRes = R.string.database_containment_title,
+						messageRes = R.string.database_containment_message,
+						onRetry = {
+							viewModel.setStartupDestination(StartupDestination.Pending)
+							val mainImmediate =
+								(dispatchers.main as? MainCoroutineDispatcher)?.immediate
+									?: dispatchers.main
+							resolveStartup(mainImmediate, retry = true)
+						},
+					)
+				}
+				return
+			}
+
             StartupDestination.Onboarding,
             StartupDestination.OnboardingReadFailed -> Unit // handled below via startDestination = Setup
             StartupDestination.Main -> Unit
@@ -343,6 +378,8 @@ enum class StartupDestination {
     Pending,
     LegacyRecovery,
 	Recovery,
+	DevelopmentDatabaseContainment,
+	DatabaseContainment,
     Onboarding,
     OnboardingReadFailed,
     Main,
@@ -353,12 +390,25 @@ internal fun startupFailureDestination(result: TrackingStartupResult): StartupDe
 		is TrackingStartupResult.Ready -> error("Ready startup has no failure destination")
 		is TrackingStartupResult.Blocked -> if (
 			result.stage == com.adsamcik.tracker.shared.base.startup.TrackingStartupStage.LEGACY_IMPORT
-		) StartupDestination.LegacyRecovery else StartupDestination.Recovery
+		) {
+			StartupDestination.LegacyRecovery
+		} else when (result.databaseContainment?.reason) {
+			TrackingDatabaseContainmentReason.STALE_DEVELOPMENT_V28,
+			TrackingDatabaseContainmentReason.INCOMPLETE_FINAL_V28_SCHEMA,
+			->
+				StartupDestination.DevelopmentDatabaseContainment
+			null -> StartupDestination.Recovery
+			else -> StartupDestination.DatabaseContainment
+		}
 		is TrackingStartupResult.RetryableFailure -> StartupDestination.Recovery
 	}
 
 @Composable
-private fun StartupRecoveryScreen(onRetry: () -> Unit) {
+private fun StartupRecoveryScreen(
+	onRetry: () -> Unit,
+	titleRes: Int = R.string.tracking_startup_recovery_title,
+	messageRes: Int = R.string.tracking_startup_recovery_message,
+) {
 	Surface(color = MaterialTheme.colorScheme.background) {
 		Box(
 			modifier = Modifier.fillMaxSize().padding(32.dp),
@@ -366,13 +416,13 @@ private fun StartupRecoveryScreen(onRetry: () -> Unit) {
 		) {
 			Column(horizontalAlignment = Alignment.CenterHorizontally) {
 				Text(
-					text = androidx.compose.ui.res.stringResource(R.string.tracking_startup_recovery_title),
+					text = androidx.compose.ui.res.stringResource(titleRes),
 					style = MaterialTheme.typography.headlineSmall,
 					textAlign = TextAlign.Center,
 				)
 				Spacer(Modifier.height(16.dp))
 				Text(
-					text = androidx.compose.ui.res.stringResource(R.string.tracking_startup_recovery_message),
+					text = androidx.compose.ui.res.stringResource(messageRes),
 					textAlign = TextAlign.Center,
 				)
 				Spacer(Modifier.height(24.dp))

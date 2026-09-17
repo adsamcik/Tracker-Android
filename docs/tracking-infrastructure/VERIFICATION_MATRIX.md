@@ -1,6 +1,23 @@
 # Tracking Infrastructure Verification Matrix
 
-Last updated: 2026-09-16
+Last updated: 2026-09-17
+
+## TI-B341 - Development-v28 containment sources, execution deferred
+
+- Production source adds a read-only active-file classifier and open-helper guard before Room,
+  migration backup, legacy import callback, and downstream startup recovery.
+- Authored core tests cover absent fresh, released v27 routing, exact final-v28 reopen, missing
+  final marker/table/column, unrecognized v28, unreadable bytes, and byte-for-byte preservation
+  with no delegate open.
+- The populated v27 migration source now asserts the final assembly marker. App tests cover typed
+  containment mapping, no legacy-state mutation, no previous-exit/source recovery invocation, and
+  preservation-only UI routing.
+- Expected deferred convergence commands include the focused `:core:base` JVM test, the populated
+  v27-to-v28 Android migration test, and the focused `:app` startup/UI unit tests before aggregate
+  `ciUnitTest`/`ciCheck`.
+- Status: **IMPLEMENTED_UNVALIDATED**. No Gradle, compile, test, lint, schema generation/drift,
+  diff-check, emulator/device, CI, release, or rollout command was executed. Generated v28 JSON
+  remains unchanged.
 
 ## TI-B340 - Finish-started integration receipt, no execution evidence
 

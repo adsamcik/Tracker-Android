@@ -27,6 +27,8 @@ object TrackerTraceboxTemplates {
 		LogTemplate.of("Activity source projection recovery was deferred")
 	val ACTIVITY_SOURCE_RECOVERY_FAILED =
 		LogTemplate.of("Activity source projection recovery failed")
+	val ACTIVE_DATABASE_OPEN_CONTAINED =
+		LogTemplate.of("Active database open contained: reason {}")
 	val AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED =
 		LogTemplate.of("Ambient Steps provider reconciliation failed")
 	val APPLICATION_INITIALIZATION_FAILED = LogTemplate.of("Application initialization failed")

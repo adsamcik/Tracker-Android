@@ -3,6 +3,8 @@ package com.adsamcik.tracker.app.startup
 import android.database.Cursor
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
+import com.adsamcik.tracker.shared.base.database.ActiveDatabaseBlockReason
+import com.adsamcik.tracker.shared.base.database.ActiveDatabaseOpenBlockedException
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseInfo
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
@@ -106,6 +108,23 @@ class LegacyDatabaseUpgradeCoordinatorTest {
 
 		verify { repository.resetForRetry() }
 		verify { openHelper.writableDatabase }
+	}
+
+	@Test
+	fun `stale development v28 is typed and does not mutate legacy recovery state`() = runTest {
+		every { repository.inspect() } returns null
+		every { openHelper.writableDatabase } throws ActiveDatabaseOpenBlockedException(
+			ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28,
+		)
+		val coordinator = coordinator()
+
+		coordinator.ensureReady() shouldBe LegacyDatabaseStartupResult.ActiveDatabaseBlocked(
+			ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28,
+		)
+
+		verify(exactly = 0) { repository.markFailed(any()) }
+		verify(exactly = 0) { repository.markComplete() }
+		coordinator.isReady() shouldBe false
 	}
 
 	private fun coordinator() = LegacyDatabaseUpgradeCoordinator(
