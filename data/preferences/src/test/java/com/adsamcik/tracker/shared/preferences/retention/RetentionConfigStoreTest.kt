@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlin.test.assertIs
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -72,6 +73,33 @@ class RetentionConfigStoreTest {
 		val config = store.config.first()
 		config shouldBe RetentionConfigState()
 	} }
+
+	@Test
+	fun `default retention configuration is not approved`() = runTest {
+		assertIs<ApprovedRetentionPolicyRead.Unavailable>(
+			store.currentApprovedPolicy(),
+		).reason shouldBe ApprovedRetentionPolicyUnavailableReason.NOT_APPROVED
+	}
+
+	@Test
+	fun `explicit saved configuration creates and rotates opaque approval`() = runTest {
+		store.update { copy(dataRetentionYears = 2, rawDataRetentionDays = 730) }
+		val first = assertIs<ApprovedRetentionPolicyRead.Available>(
+			store.currentApprovedPolicy(),
+		).policy
+
+		store.update { this }
+		assertIs<ApprovedRetentionPolicyRead.Available>(
+			store.currentApprovedPolicy(),
+		).policy shouldBe first
+
+		store.update { copy(dataRetentionYears = 3, rawDataRetentionDays = 1_095) }
+		val second = assertIs<ApprovedRetentionPolicyRead.Available>(
+			store.currentApprovedPolicy(),
+		).policy
+		second.revision shouldBe first.revision + 1L
+		(second.opaquePolicyId == first.opaquePolicyId) shouldBe false
+	}
 
 	@Test
 	fun `legacy migration preserves keep forever data setting`()  { runTest {

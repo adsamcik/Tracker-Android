@@ -231,6 +231,29 @@ class AmbientStepsDemandReconcilerTest {
 			emptyList()
 	}
 
+	@Test
+	fun `missing retention approval blocks provider probe and demand`() = runTest {
+		bootstrapPolicy(ambientEnabled = true)
+		var capabilityProbes = 0
+		val subject = reconciler(
+			AmbientStepsCapability.ReadyForRegistration(
+				AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS,
+				AmbientStepsImportAccess.FOREGROUND_ONLY,
+			),
+			onResolve = { capabilityProbes++ },
+			hasCurrentRetentionAuthority = { _, _ -> false },
+		)
+
+		subject.reconcileAt(boundary(100L)) shouldBe
+			AmbientStepsDemandReconciliation.PolicyBlocked(
+				provider = null,
+				reason = AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE,
+			)
+		capabilityProbes shouldBe 0
+		database.sourceBrokerDao().currentDemands(AmbientStepsDemandReconciler.CONSUMER_ID) shouldBe
+			emptyList()
+	}
+
 	private suspend fun bootstrapPolicy(ambientEnabled: Boolean) {
 		policyRepository.bootstrapFromLegacy(
 			TrackingParamsState(
@@ -244,6 +267,7 @@ class AmbientStepsDemandReconcilerTest {
 	private fun reconciler(
 		capability: AmbientStepsCapability,
 		onResolve: () -> Unit = {},
+		hasCurrentRetentionAuthority: suspend (Long, Long) -> Boolean = { _, _ -> true },
 	) = AmbientStepsDemandReconciler(
 		resolveCapability = {
 			onResolve()
@@ -253,6 +277,7 @@ class AmbientStepsDemandReconcilerTest {
 		bootClockDomainProvider = BootClockDomainProvider { "boot-1" },
 		sourcePolicyRepository = policyRepository,
 		trackingRolloutStateStore = rolloutStore,
+		hasCurrentRetentionAuthority = hasCurrentRetentionAuthority,
 	)
 
 	private fun boundary(elapsedRealtimeNanos: Long) = AmbientStepsDemandBoundary(

@@ -14,6 +14,9 @@ import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepository
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import com.adsamcik.tracker.shared.preferences.retention.DefaultRetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.LocationPassiveRetentionAuthority
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.lifecycle.DefaultCollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.settings.DefaultTrackerSettingsRepository
@@ -118,6 +121,7 @@ abstract class RepositoryModule {
 			sourcePolicyRepository: SourcePolicyRepository,
 			@ApplicationScope applicationScope: CoroutineScope,
 			trackingStartupGate: TrackingStartupGate,
+			retentionAuthorityProducer: RetentionAuthorityProducer,
 		): TrackingParamsRepository = AuthoritativeTrackingParamsRepository(
 			legacy = DefaultTrackingParamsRepository(
 				context = context,
@@ -126,6 +130,7 @@ abstract class RepositoryModule {
 			sourcePolicyRepository = sourcePolicyRepository,
 			applicationScope = applicationScope,
 			trackingStartupGate = trackingStartupGate,
+			retentionAuthorityProducer = retentionAuthorityProducer,
 		)
 
 		@Provides
@@ -151,6 +156,31 @@ abstract class RepositoryModule {
 			context = context,
 			ioDispatcher = dispatchers.io,
 		)
+
+		@Provides
+		@Singleton
+		fun provideRetentionAuthorityProducer(
+			database: AppDatabase,
+			sourcePolicyRepository: SourcePolicyRepository,
+			retentionConfigStore: RetentionConfigStore,
+			collectedDataLifecycleStore: CollectedDataLifecycleStore,
+			clock: Clock,
+			bootClockDomainProvider: BootClockDomainProvider,
+		): RetentionAuthorityProducer = DefaultRetentionAuthorityProducer(
+			database = database,
+			sourcePolicyRepository = sourcePolicyRepository,
+			retentionConfigStore = retentionConfigStore,
+			collectedDataLifecycleStore = collectedDataLifecycleStore,
+			effectiveTimeProvider = AndroidSourcePolicyEffectiveTimeProvider(
+				bootClockDomainProvider,
+				clock,
+			),
+		)
+
+		@Provides
+		fun provideLocationPassiveRetentionAuthority(
+			producer: RetentionAuthorityProducer,
+		): LocationPassiveRetentionAuthority = producer
 
 		@Provides
 		@Singleton

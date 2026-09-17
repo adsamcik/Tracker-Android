@@ -147,6 +147,23 @@ class RoomImportedAmbientStepsTransferTest {
 				it.factOrigins.all { origin ->
 					origin.kind == AmbientStepsHistoryFactOriginKind.PORTABLE_IMPORT
 				}
+
+				@Test
+				fun `production retention gate rejects portable Steps before any import write`() = runTest {
+					val archive = archive(completeDay(LocalDate.of(2026, 10, 25), count = 1L))
+					val subject = RoomImportPortableAmbientSteps(
+						database = database,
+						dao = database.importedAmbientStepsDao(),
+						ioDispatcher = Dispatchers.Unconfined,
+						ensurePortableRetention = { true },
+						requirePortableRetentionAuthority = true,
+					)
+
+					subject.importArchive(request(archive)) shouldBe ImportPortableAmbientStepsResult.Blocked(
+						PortableAmbientStepsImportBlockedReason.RETENTION_POLICY_UNAVAILABLE,
+					)
+					database.importedAmbientStepsDao().dayRevisionCount() shouldBe 0L
+				}
 		} shouldBe true
 		publicHistory.days.map { it.opaqueDayIdentity } shouldBe
 			archive.days.map { it.identity.value }

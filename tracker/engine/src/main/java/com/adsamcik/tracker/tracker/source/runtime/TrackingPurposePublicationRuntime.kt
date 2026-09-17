@@ -4,6 +4,11 @@ import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.shared.model.tracking.TrackingSourcePurposeIdentity
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
+import com.adsamcik.tracker.shared.preferences.retention.isActiveApproval
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.tracker.api.AmbientLeaseStartResult
@@ -87,6 +92,7 @@ internal class CurrentTrackingPurposeAuthorityReader @Inject constructor(
 	private val sourcePolicyRepository: SourcePolicyRepository,
 	private val collectedDataLifecycleStore: CollectedDataLifecycleStore,
 	private val rolloutStateStore: TrackingRolloutStateStore,
+	private val retentionAuthorityReader: RetentionAuthorityProducer,
 ) : TrackingPurposeAuthorityReader {
 	override suspend fun read(
 		sourcePurpose: TrackingSourcePurposeIdentity,
@@ -111,6 +117,17 @@ internal class CurrentTrackingPurposeAuthorityReader @Inject constructor(
 		val policy = policySnapshot[sourcePurpose.source]
 		val consentEpoch = policy.consentEpoch(sourcePurpose.purpose) ?: return null
 		val lifecycle = collectedDataLifecycleStore.snapshot()
+		if (
+			sourcePurpose.purpose == TrackingPurpose.AMBIENT_PRODUCT &&
+			retentionAuthorityReader.currentLiveAmbient(
+				source = sourcePurpose.source,
+				expectedSourcePolicyRevision = policySnapshot.revision,
+				expectedAmbientConsentEpoch = consentEpoch,
+				expectedCollectedDataEpoch = lifecycle.epoch,
+			) !is CurrentRetentionAuthority.Approved
+		) {
+			return null
+		}
 		val rollout = rolloutStateStore.load()
 		val executionRevision = registeredExecutionRevision.takeIf {
 			policy.persistenceEligible(sourcePurpose.purpose) &&
@@ -227,12 +244,14 @@ internal class DefaultTrackingPurposePublicationRuntime @Inject constructor(
 	private val leaseIssuer: SerializedTrackingPurposeLeaseIssuer,
 	private val reporter: TrackingPurposeAvailabilityReporter,
 	private val executionRevisionRegistry: TrackingPurposeExecutionRevisionRegistry,
+	private val retentionAuthorityProducer: RetentionAuthorityProducer,
 ) : TrackingPurposeSettingsReconciler, TrackingPurposeSourceOwnerRegistrar {
 	private val ownerMutex = Mutex()
 	private var automaticOwner: AutomaticControlOwnerRegistration? = null
 	private val ambientOwners = mutableMapOf<AmbientTrackingSource, AmbientOwnerRegistration>()
 
 	override suspend fun reconcileCurrentSettings() {
+		retentionAuthorityProducer.reconcileCurrentSettings()
 		reconcileAutomaticControl()
 		AmbientTrackingSource.entries.forEach { source ->
 			reconcileAmbient(source)
@@ -342,6 +361,22 @@ internal class DefaultTrackingPurposePublicationRuntime @Inject constructor(
 	}
 
 	private suspend fun reconcileAmbient(source: AmbientTrackingSource) {
+		val retention = retentionAuthorityProducer.reconcileLiveAmbient(source.canonicalSource)
+		if (!retention.isActiveApproval()) {
+			leaseIssuer.clearAmbient(source)
+			val unavailable = retention as? RetentionAuthorityResult.Unavailable
+			if (
+				unavailable?.reason !=
+				RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE
+			) {
+				reporter.publishAmbientUnavailable(
+					source,
+					com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
+						.RETENTION_POLICY_UNAVAILABLE,
+				)
+			}
+			return
+		}
 		val owner = ownerMutex.withLock { ambientOwners[source] }
 		val started = leaseIssuer.refreshAmbient(source, owner?.executionRevision ?: 0L) ?: return
 		if (!isCurrentAmbientOwner(source, owner)) {

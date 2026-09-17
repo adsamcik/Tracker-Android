@@ -547,6 +547,22 @@ class TrackingPurposeAvailabilityTest {
 	}
 
 	@Test
+	fun `trusted retention failure is published without operational identity`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+
+		store.publishAmbientUnavailable(
+			AmbientTrackingSource.LOCATION,
+			AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.LOCATION) shouldBe
+			AmbientSourceOperationalAvailability.unavailable(
+				AmbientTrackingSource.LOCATION,
+				AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+			)
+	}
+
+	@Test
 	fun `old completion is rejected after policy regrant rollout or owner token replacement`() {
 		val store = AtomicTrackingPurposeAvailabilityStore()
 		val old = identity(policy = 10L, consent = 3L, rollout = 4L, token = "lease-old")

@@ -16,6 +16,8 @@ import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.UnavailableRetentionAuthorityProducer
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -90,6 +92,8 @@ class DataSettingsViewModel @Inject constructor(
     private val legacyDatabaseRepository: LegacyDatabaseRepository,
     private val dispatchers: DispatchersProvider,
     private val deletionService: CollectedDataDeletionService,
+    private val retentionAuthorityProducer: RetentionAuthorityProducer =
+        UnavailableRetentionAuthorityProducer,
 ) : ViewModel() {
     private val smartGoalNotificationsKey: String
         get() = appContext.getString(R.string.settings_smart_goal_notifications_key)
@@ -162,6 +166,7 @@ class DataSettingsViewModel @Inject constructor(
                 retentionConfigStore.update {
                     copy(autoCleanupEnabled = enabled, autoPurgeEnabled = enabled)
                 }
+                retentionAuthorityProducer.reconcileCurrentSettings()
             }.getOrNull()
         }
     }
@@ -181,6 +186,7 @@ class DataSettingsViewModel @Inject constructor(
                         explorationRetentionDays = retentionDays,
                     )
                 }
+                retentionAuthorityProducer.reconcileCurrentSettings()
             }.getOrNull()
         }
     }

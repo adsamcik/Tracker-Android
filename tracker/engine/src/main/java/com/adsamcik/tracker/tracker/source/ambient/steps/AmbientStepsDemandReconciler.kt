@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.tracker.source.ambient.steps
 
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
@@ -38,6 +41,7 @@ class AmbientStepsDemandReconciler internal constructor(
 	private val bootClockDomainProvider: BootClockDomainProvider,
 	private val sourcePolicyRepository: SourcePolicyRepository,
 	private val trackingRolloutStateStore: TrackingRolloutStateStore,
+	private val hasCurrentRetentionAuthority: suspend (Long, Long) -> Boolean = { _, _ -> true },
 ) {
 	@Inject
 	constructor(
@@ -46,12 +50,22 @@ class AmbientStepsDemandReconciler internal constructor(
 		bootClockDomainProvider: BootClockDomainProvider,
 		sourcePolicyRepository: SourcePolicyRepository,
 		trackingRolloutStateStore: TrackingRolloutStateStore,
+		retentionAuthorityProducer: RetentionAuthorityProducer,
+		collectedDataLifecycleStore: CollectedDataLifecycleStore,
 	) : this(
 		capabilityResolver::resolve,
 		sourceBroker,
 		bootClockDomainProvider,
 		sourcePolicyRepository,
 		trackingRolloutStateStore,
+		{ policyRevision, consentEpoch ->
+			retentionAuthorityProducer.currentLiveAmbient(
+				source = TrackingSourceComponent.STEPS,
+				expectedSourcePolicyRevision = policyRevision,
+				expectedAmbientConsentEpoch = consentEpoch,
+				expectedCollectedDataEpoch = collectedDataLifecycleStore.snapshot().epoch,
+			) is CurrentRetentionAuthority.Approved
+		},
 	)
 
 	suspend fun reconcile(): AmbientStepsDemandReconciliation = reconcileAt(
@@ -124,6 +138,10 @@ class AmbientStepsDemandReconciler internal constructor(
 						AmbientStepsDemandBlockReason.REQUEST_DISABLED
 					!policy.ambientPersistenceEligible ->
 						AmbientStepsDemandBlockReason.PERSISTENCE_INELIGIBLE
+					!hasCurrentRetentionAuthority(
+						authority.snapshot.revision,
+						requireNotNull(policy.ambientConsentEpoch),
+					) -> AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE
 					!trackingRolloutStateStore.load().isCaptureReachable(
 						SourceKind.STEPS,
 						CaptureReachabilityMode.AMBIENT,
@@ -180,6 +198,7 @@ enum class AmbientStepsDemandBlockReason {
 	POLICY_MISSING,
 	CONSENT_REVOKED,
 	PERSISTENCE_INELIGIBLE,
+	RETENTION_POLICY_UNAVAILABLE,
 	ROLLOUT_CONTAINED,
 }
 

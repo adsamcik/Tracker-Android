@@ -405,6 +405,11 @@ interface TrackingPurposeAvailabilityReporter {
 	): AmbientPublicationAcceptance
 	/** Trusted authority loss reset. It can only return one source to pending. */
 	fun invalidateAmbient(source: AmbientTrackingSource)
+	/** Trusted retention failure publication. It cannot carry or create operational authority. */
+	fun publishAmbientUnavailable(
+		source: AmbientTrackingSource,
+		reason: AmbientSourceUnavailableReason,
+	)
 	fun tryAccept(
 		report: AmbientSourceReconciliationReport,
 	): AmbientPublicationAcceptance
@@ -906,10 +911,37 @@ class AtomicTrackingPurposeAvailabilityStore :
 					slot.state.terminalRejection()
 				}
 				slot.copy(state = terminal.toSlotState())
-			} ?: return@synchronized
+			}
 			publishPending(
 				source,
 				priorAvailability.operationalIdentity ?: priorAvailability.lastIdentity,
+			)
+		}
+	}
+
+	override fun publishAmbientUnavailable(
+		source: AmbientTrackingSource,
+		reason: AmbientSourceUnavailableReason,
+	) {
+		synchronized(lock) {
+			val priorAvailability = mutableAvailability.value.ambientSources.getValue(source)
+			ambientSlots[source] = ambientSlots[source]?.let { slot ->
+				val terminal = terminalTokens.getOrPut(
+					slot.identity.purposeLeaseIdentity.leaseToken(),
+				) {
+					slot.state.terminalRejection()
+				}
+				slot.copy(state = terminal.toSlotState())
+			}
+			mutableAvailability.value = mutableAvailability.value.copy(
+				ambientSources = mutableAvailability.value.ambientSources +
+					(
+						source to AmbientSourceOperationalAvailability.unavailable(
+							source,
+							reason,
+							priorAvailability.operationalIdentity ?: priorAvailability.lastIdentity,
+						)
+					),
 			)
 		}
 	}

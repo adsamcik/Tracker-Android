@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.OutputStream
@@ -44,6 +46,8 @@ class RetentionConfigStore(
     private val ioDispatcher: CoroutineDispatcher,
 ) {
     private val dataStore = context.retentionConfigDataStore
+    private val policyApprovalStore = RetentionPolicyApprovalStore(context, ioDispatcher)
+    private val updateMutex = Mutex()
 
     val config: Flow<RetentionConfigState> = flow {
         val migrated = runCatching {
@@ -54,15 +58,24 @@ class RetentionConfigStore(
     }
 
     suspend fun update(block: RetentionConfigState.() -> RetentionConfigState) {
-        withContext(ioDispatcher) {
-            ensureDataSettingsMigrated()
-            dataStore.updateData { current ->
-                val currentState = current.toDomain()
-                val newState = currentState.block()
-                newState.toProto()
+        updateMutex.withLock {
+            withContext(ioDispatcher) {
+                ensureDataSettingsMigrated()
+                val updated = dataStore.updateData { current ->
+                    val currentState = current.toDomain()
+                    val newState = currentState.block()
+                    newState.toProto()
+                }
+                policyApprovalStore.approve(updated.toDomain())
             }
         }
     }
+
+    suspend fun currentApprovedPolicy(): ApprovedRetentionPolicyRead =
+        withContext(ioDispatcher) {
+            val current = ensureDataSettingsMigrated().toDomain()
+            policyApprovalStore.current(current)
+        }
 
     /**
      * One-time migration of auto_cleanup_enabled and data_retention_years
@@ -116,6 +129,7 @@ class RetentionConfigStore(
                 builder.build()
             }
             if (clearLegacyKeys) {
+                policyApprovalStore.approve(migrated.toDomain())
                 runCatching {
                     Preferences(context).editSuspend {
                         remove("autoCleanupOldData")
@@ -131,6 +145,7 @@ suspend fun resetRetentionConfigForTests(context: Context) {
     context.retentionConfigDataStore.updateData {
         RetentionConfigProto.getDefaultInstance()
     }
+    RetentionPolicyApprovalStore(context, kotlinx.coroutines.Dispatchers.IO).resetForTests()
 }
 
 private fun RetentionConfigProto.toDomain(): RetentionConfigState {

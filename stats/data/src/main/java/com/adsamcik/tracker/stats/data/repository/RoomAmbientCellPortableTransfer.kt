@@ -11,6 +11,9 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellFactEnt
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellGapEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellReceiptEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.shared.model.tracking.TrackingSource
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.isActiveApproval
 import com.adsamcik.tracker.stats.api.repository.AmbientCellOrigin
 import com.adsamcik.tracker.stats.api.repository.AmbientCellCoverage
 import com.adsamcik.tracker.stats.api.repository.AmbientCellPortableFormatV1
@@ -33,11 +36,28 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 
 @Singleton
-internal class RoomAmbientCellPortableTransfer @Inject constructor(
+internal class RoomAmbientCellPortableTransfer internal constructor(
 	private val database: AppDatabase,
 	private val repository: RoomAmbientCellRepository,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+	private val ensurePortableRetention: suspend () -> Boolean = { true },
 ) : ExportPortableAmbientCell, ImportPortableAmbientCell {
+	@Inject
+	constructor(
+		database: AppDatabase,
+		repository: RoomAmbientCellRepository,
+		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+		retentionAuthorityProducer: RetentionAuthorityProducer,
+	) : this(
+		database,
+		repository,
+		ioDispatcher,
+		{
+			retentionAuthorityProducer.approvePortableImport(TrackingSource.CELL)
+				.isActiveApproval()
+		},
+	)
+
 	override suspend fun export(
 		request: ExportPortableAmbientCellRequest,
 		sink: PortableAmbientCellSink,
@@ -125,6 +145,9 @@ internal class RoomAmbientCellPortableTransfer @Inject constructor(
 		request: ImportPortableAmbientCellRequest,
 	): ImportPortableAmbientCellResult = withContext(ioDispatcher) {
 		try {
+			if (!ensurePortableRetention()) {
+				return@withContext ImportPortableAmbientCellResult.RetentionAuthorityUnavailable
+			}
 			database.withTransaction { importInTransaction(request) }
 		} catch (cancelled: CancellationException) {
 			throw cancelled

@@ -2,6 +2,8 @@ package com.adsamcik.tracker.shared.preferences.tracking
 
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.UnavailableRetentionAuthorityProducer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
@@ -32,6 +34,8 @@ class AuthoritativeTrackingParamsRepository(
 	private val sourcePolicyRepository: SourcePolicyRepository,
 	private val applicationScope: CoroutineScope,
 	private val trackingStartupGate: TrackingStartupGate,
+	private val retentionAuthorityProducer: RetentionAuthorityProducer =
+		UnavailableRetentionAuthorityProducer,
 ) : TrackingParamsRepository {
 	private val mutationMutex = Mutex()
 	private val scheduledMirrorRepairs = ConcurrentHashMap.newKeySet<Long>()
@@ -115,6 +119,7 @@ class AuthoritativeTrackingParamsRepository(
 				settings = requested,
 				reason = REASON_USER_SETTINGS,
 			)
+			retentionAuthorityProducer.reconcileCurrentSettings()
 			val authoritativeProjection = requested.withPolicy(effective)
 			legacy.update { authoritativeProjection }
 			effective.revision
@@ -249,6 +254,7 @@ class AuthoritativeTrackingParamsRepository(
 				persistenceEligible = enabled,
 				reason = REASON_USER_AMBIENT_SETTINGS,
 			)
+			retentionAuthorityProducer.reconcileLiveAmbient(source)
 			legacy.update { withPolicy(effective) }
 			effective.revision
 		}

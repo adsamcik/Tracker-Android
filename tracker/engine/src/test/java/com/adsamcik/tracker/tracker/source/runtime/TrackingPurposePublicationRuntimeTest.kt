@@ -5,6 +5,11 @@ import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.shared.model.tracking.TrackingSourcePurposeIdentity
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicy
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
@@ -70,6 +75,7 @@ class TrackingPurposePublicationRuntimeTest {
 				policy,
 				lifecycle,
 				rollout,
+				AlwaysApprovedRetentionAuthorityProducer,
 			)
 			val projection = CurrentTrackingPurposeAvailabilityProjection(
 				publishedReader = store,
@@ -155,6 +161,7 @@ class TrackingPurposePublicationRuntimeTest {
 				FixedSourcePolicyRepository(policy),
 				lifecycle,
 				FixedRolloutStateStore(rollout),
+				AlwaysApprovedRetentionAuthorityProducer,
 			)
 
 			reader.read(
@@ -209,6 +216,50 @@ class TrackingPurposePublicationRuntimeTest {
 	}
 
 	@Test
+	fun `unapproved retention never issues an ambient owner lease`() = runTest {
+		val policy = policySnapshot(revision = 12L)
+		val lifecycle = MutableLifecycleStore(CollectedDataLifecycleSnapshot(3L, null))
+		val reader = CurrentTrackingPurposeAuthorityReader(
+			FixedSourcePolicyRepository(policy),
+			lifecycle,
+			FixedRolloutStateStore(controlRollout(revision = 9L)),
+			UnavailableRetentionAuthorityProducerForTest,
+		)
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val issuer = SerializedTrackingPurposeLeaseIssuer(
+			authorityReader = reader,
+			reporter = store,
+			tokenFactory = TrackingPurposeOwnerCasTokenFactory { "owner-denied" },
+		)
+		val runtime = DefaultTrackingPurposePublicationRuntime(
+			issuer,
+			store,
+			TrackingPurposeExecutionRevisionRegistry(),
+			UnavailableRetentionAuthorityProducerForTest,
+		)
+		var callbackCount = 0
+
+		runtime.registerAmbientSourceOwner(
+			AmbientTrackingSource.STEPS,
+			executionRevision = 7L,
+		) { lease ->
+			callbackCount++
+			AmbientSourceOperationalAvailability.ready(
+				AmbientTrackingSource.STEPS,
+				AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+				lease.purposeLeaseIdentity,
+			)
+		}
+
+		callbackCount shouldBe 0
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.STEPS) shouldBe
+			AmbientSourceOperationalAvailability.unavailable(
+				AmbientTrackingSource.STEPS,
+				AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+			)
+	}
+
+	@Test
 	fun `lifecycle rotation replaces lease before stale callback and reissues ready`() = runTest {
 		val store = AtomicTrackingPurposeAvailabilityStore()
 		var authority = authority(
@@ -232,6 +283,7 @@ class TrackingPurposePublicationRuntimeTest {
 			issuer,
 			store,
 			TrackingPurposeExecutionRevisionRegistry(),
+			UnavailableRetentionAuthorityProducerForTest,
 		)
 		val secondLease = CompletableDeferred<TrackingPurposeLeaseIdentity>()
 		val releaseSecond = CompletableDeferred<Unit>()
@@ -467,7 +519,12 @@ class TrackingPurposePublicationRuntimeTest {
 		val executions = TrackingPurposeExecutionRevisionRegistry()
 		return Fixture(
 			store = store,
-			runtime = DefaultTrackingPurposePublicationRuntime(issuer, store, executions),
+			runtime = DefaultTrackingPurposePublicationRuntime(
+				issuer,
+				store,
+				executions,
+				AlwaysApprovedRetentionAuthorityProducer,
+			),
 		)
 	}
 
@@ -640,3 +697,67 @@ private class MutableRolloutStateStore(
 		this.state.value = state
 	}
 }
+
+private object AlwaysApprovedRetentionAuthorityProducer : RetentionAuthorityProducer {
+	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> = emptyList()
+
+	override suspend fun reconcileLiveAmbient(source: TrackingSource): RetentionAuthorityResult =
+		activeResult(source, RetentionAuthorityScope.LIVE_AMBIENT)
+
+	override suspend fun approvePortableImport(source: TrackingSource): RetentionAuthorityResult =
+		activeResult(source, RetentionAuthorityScope.PORTABLE_IMPORT)
+
+	override suspend fun revokePortableImport(source: TrackingSource): RetentionAuthorityResult =
+		unavailableResult(source)
+
+	override suspend fun reconcilePassiveLocationRetention(): RetentionAuthorityResult =
+		activeResult(TrackingSource.LOCATION, RetentionAuthorityScope.LIVE_AMBIENT)
+
+	override suspend fun currentLiveAmbient(
+		source: TrackingSource,
+		expectedSourcePolicyRevision: Long,
+		expectedAmbientConsentEpoch: Long,
+		expectedCollectedDataEpoch: Long,
+	): CurrentRetentionAuthority = CurrentRetentionAuthority.Approved("test-policy", 1L)
+}
+
+private object UnavailableRetentionAuthorityProducerForTest : RetentionAuthorityProducer {
+	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> = emptyList()
+
+	override suspend fun reconcileLiveAmbient(source: TrackingSource): RetentionAuthorityResult =
+		unavailableResult(source)
+
+	override suspend fun approvePortableImport(source: TrackingSource): RetentionAuthorityResult =
+		unavailableResult(source)
+
+	override suspend fun revokePortableImport(source: TrackingSource): RetentionAuthorityResult =
+		unavailableResult(source)
+
+	override suspend fun reconcilePassiveLocationRetention(): RetentionAuthorityResult =
+		unavailableResult(TrackingSource.LOCATION)
+
+	override suspend fun currentLiveAmbient(
+		source: TrackingSource,
+		expectedSourcePolicyRevision: Long,
+		expectedAmbientConsentEpoch: Long,
+		expectedCollectedDataEpoch: Long,
+	): CurrentRetentionAuthority = CurrentRetentionAuthority.Unavailable(
+		RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+	)
+}
+
+private fun unavailableResult(source: TrackingSource) = RetentionAuthorityResult.Unavailable(
+	source = source,
+	scope = RetentionAuthorityScope.LIVE_AMBIENT,
+	reason = RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+)
+
+private fun activeResult(
+	source: TrackingSource,
+	scope: RetentionAuthorityScope,
+) = RetentionAuthorityResult.Unchanged(
+	source = source,
+	scope = scope,
+	state = com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityState.ACTIVE,
+	approvalRevision = 1L,
+)
