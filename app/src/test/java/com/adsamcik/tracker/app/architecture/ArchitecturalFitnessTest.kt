@@ -858,6 +858,76 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
+		fun `removed tracking diagnostic methods have no production callers`() {
+			val removedFacadeCalls = findPatternMatching(
+				sourceDir = projectRoot,
+				pattern = Regex(
+					"""TrackerDiagnosticLog\.(?:processTrackingCycle|""" +
+						"""trackingCoordinatorSessionMetrics)\s*\(""",
+				),
+				excludeDirs = STANDARD_EXCLUDES + listOf(
+					"src/test",
+					"src/androidTest",
+					"src/commonTest",
+					"src/androidHostTest",
+					"src/testFixtures",
+				),
+				skipComments = true,
+			)
+			val removedBridgeCalls = findPatternMatching(
+				sourceDir = projectRoot,
+				pattern = Regex("""\brecordCoordinatorSessionMetrics\s*\("""),
+				excludeDirs = STANDARD_EXCLUDES + listOf(
+					"src/test",
+					"src/androidTest",
+					"src/commonTest",
+					"src/androidHostTest",
+					"src/testFixtures",
+				),
+				skipComments = true,
+			)
+
+			(removedFacadeCalls + removedBridgeCalls).shouldBeEmpty()
+		}
+
+		@Test
+		fun `tracking cycle update invokes orchestrator once and propagates errors`() {
+			val serviceSource = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/" +
+					"TrackerService.kt",
+			).readText()
+			val methodDeclaration =
+				"private suspend fun processCycleUpdate(cycle: TrackingCycle)"
+			val methodSource = serviceSource
+				.substringAfter(methodDeclaration)
+				.substringBefore("private fun createCycleDispatcher()")
+
+			buildList {
+				val invocation =
+					"orchestrator.onCycleUpdate(this@TrackerService, cycle)"
+				if (methodDeclaration !in serviceSource) {
+					add("TrackerService must retain processCycleUpdate")
+				}
+				if (Regex(Regex.escape(invocation)).findAll(methodSource).count() != 1) {
+					add("processCycleUpdate must invoke orchestrator.onCycleUpdate exactly once")
+				}
+				if ("TrackerDiagnosticLog." in methodSource ||
+					"TrackingDiagnosticRecorder" in methodSource
+				) {
+					add("processCycleUpdate must not restore removed diagnostic wrappers")
+				}
+				if (Regex("""\bcatch\s*\(""").containsMatchIn(methodSource) ||
+					"runCatching" in methodSource
+				) {
+					add("processCycleUpdate must propagate orchestrator errors after cleanup")
+				}
+				if (!Regex("""\bfinally\s*\{""").containsMatchIn(methodSource)) {
+					add("processCycleUpdate must retain wake-lock cleanup on failure")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
 		fun `tracking diagnostic calls cannot carry exceptions messages or paths`() {
 			val trackingSources = listOf(
 				projectRoot.resolve("tracker/engine/src/main"),

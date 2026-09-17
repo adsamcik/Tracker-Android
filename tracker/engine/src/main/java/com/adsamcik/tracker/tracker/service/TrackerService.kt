@@ -1382,9 +1382,7 @@ internal class TrackerService : CoreService() {
 		val wakeLockStartedAtNanos = Time.elapsedRealtimeNanos
 		wakeLock.acquire(Time.SECOND_IN_MILLISECONDS * 10L)
 		try {
-			TrackerDiagnosticLog.processTrackingCycle {
-				orchestrator.onCycleUpdate(this@TrackerService, cycle)
-			}
+			orchestrator.onCycleUpdate(this@TrackerService, cycle)
 		} finally {
 			if (wakeLock.isHeld) wakeLock.release()
 			coordinatorTelemetry.recordTrackingFrame(
