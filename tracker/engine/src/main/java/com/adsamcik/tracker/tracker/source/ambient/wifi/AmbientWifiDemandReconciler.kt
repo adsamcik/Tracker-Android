@@ -7,6 +7,7 @@ import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalState
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
 import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReconciliationEvidence
 import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReportPreparation
 import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReportPreparationRejection
@@ -265,7 +266,7 @@ data class AmbientWifiOwnerReconciliation(
 	): AmbientRadioReportPreparation = prepareAmbientRadioReport(
 		lease,
 		evidence,
-		outcome.toOperationalAvailability(),
+		outcome.toOperationalAvailability(lease.purposeLeaseIdentity),
 	)
 }
 
@@ -420,42 +421,55 @@ private fun AmbientWifiDemandBlockReason.afterAmbientJoinRetirement(
 		)
 }
 
-fun AmbientWifiDemandReconciliation.toOperationalAvailability():
+fun AmbientWifiDemandReconciliation.toOperationalAvailability(
+	identity: TrackingPurposeLeaseIdentity,
+):
 	AmbientSourceOperationalAvailability = when (this) {
 	is AmbientWifiDemandReconciliation.Active -> if (
 		sourceInstanceId != null && registrationGeneration != null
 	) {
-		ambientWifiAvailability(AmbientSourceOperationalState.READY)
+		if (identity.executionRevision > 0L) {
+			ambientWifiAvailability(AmbientSourceOperationalState.READY, identity = identity)
+		} else {
+			AmbientSourceOperationalAvailability.reconciliationPending(
+				AmbientTrackingSource.WIFI,
+				identity,
+			)
+		}
 	} else {
-		ambientWifiProviderUnavailable()
+		ambientWifiProviderUnavailable(identity)
 	}
 	is AmbientWifiDemandReconciliation.Degraded -> if (
 		sourceInstanceId == null || registrationGeneration == null
 	) {
-		ambientWifiProviderUnavailable()
+		ambientWifiProviderUnavailable(identity)
 	} else if (SourceDegradedReason.PERMISSION_MISSING in reasons) {
 		ambientWifiAvailability(
 			state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
 			reason = AmbientSourceUnavailableReason.WIFI_SCAN_PERMISSION_REQUIRED,
+			identity = identity,
 		)
 	} else if (reasons.any { it in NONOPERATIONAL_PLATFORM_REASONS }) {
 		ambientWifiAvailability(
 			state = AmbientSourceOperationalState.UNAVAILABLE,
 			reason = AmbientSourceUnavailableReason.PLATFORM_UNAVAILABLE,
+			identity = identity,
 		)
 	} else {
 		ambientWifiAvailability(
 			state = AmbientSourceOperationalState.UNAVAILABLE,
 			reason = reasons.toAmbientWifiReason(),
+			identity = identity,
 		)
 	}
 	is AmbientWifiDemandReconciliation.Inactive -> when (reason) {
 		AmbientWifiDemandBlockReason.RETENTION_APPROVAL_MISSING,
 		AmbientWifiDemandBlockReason.RETENTION_APPROVAL_MISMATCH,
-		-> ambientWifiRetentionUnavailable()
+		-> ambientWifiRetentionUnavailable(identity)
 		AmbientWifiDemandBlockReason.ROLLOUT_CONTAINED -> ambientWifiAvailability(
 			state = AmbientSourceOperationalState.UNAVAILABLE,
 			reason = AmbientSourceUnavailableReason.ROLLOUT_CONTAINED,
+			identity = identity,
 		)
 		AmbientWifiDemandBlockReason.AUTHORITY_INACTIVE,
 		AmbientWifiDemandBlockReason.POLICY_MISSING,
@@ -468,24 +482,31 @@ fun AmbientWifiDemandReconciliation.toOperationalAvailability():
 		AmbientWifiDemandBlockReason.STALE_RECONCILIATION_ATTEMPT,
 		AmbientWifiDemandBlockReason.OWNERSHIP_CONFLICT,
 		AmbientWifiDemandBlockReason.DELETION_AUTHORITY_MISMATCH,
-		-> AmbientSourceOperationalAvailability.reconciliationPending(AmbientTrackingSource.WIFI)
-		AmbientWifiDemandBlockReason.RUNTIME_JOIN_RETIRED -> ambientWifiProviderUnavailable()
+		-> AmbientSourceOperationalAvailability.reconciliationPending(
+			AmbientTrackingSource.WIFI,
+			identity,
+		)
+		AmbientWifiDemandBlockReason.RUNTIME_JOIN_RETIRED -> ambientWifiProviderUnavailable(identity)
 	}
-	is AmbientWifiDemandReconciliation.Unavailable -> reasons.toAmbientWifiUnavailable()
+	is AmbientWifiDemandReconciliation.Unavailable -> reasons.toAmbientWifiUnavailable(identity)
 }
 
-private fun Set<SourceDegradedReason>.toAmbientWifiUnavailable():
+private fun Set<SourceDegradedReason>.toAmbientWifiUnavailable(
+	identity: TrackingPurposeLeaseIdentity,
+):
 	AmbientSourceOperationalAvailability {
 	if (SourceDegradedReason.PERMISSION_MISSING in this) {
 		return ambientWifiAvailability(
 			state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
 			reason = AmbientSourceUnavailableReason.WIFI_SCAN_PERMISSION_REQUIRED,
+			identity = identity,
 		)
 	}
-	if (isEmpty()) return ambientWifiProviderUnavailable()
+	if (isEmpty()) return ambientWifiProviderUnavailable(identity)
 	return ambientWifiAvailability(
 		state = AmbientSourceOperationalState.UNAVAILABLE,
 		reason = toAmbientWifiReason(),
+		identity = identity,
 	)
 }
 
@@ -498,19 +519,26 @@ private fun Set<SourceDegradedReason>.toAmbientWifiReason(): AmbientSourceUnavai
 		else -> AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE
 	}
 
-private fun ambientWifiProviderUnavailable() = ambientWifiAvailability(
+private fun ambientWifiProviderUnavailable(
+	identity: TrackingPurposeLeaseIdentity,
+) = ambientWifiAvailability(
 	state = AmbientSourceOperationalState.UNAVAILABLE,
 	reason = AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+	identity = identity,
 )
 
-private fun ambientWifiRetentionUnavailable() = ambientWifiAvailability(
+private fun ambientWifiRetentionUnavailable(
+	identity: TrackingPurposeLeaseIdentity,
+) = ambientWifiAvailability(
 	state = AmbientSourceOperationalState.UNAVAILABLE,
 	reason = AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+	identity = identity,
 )
 
 private fun ambientWifiAvailability(
 	state: AmbientSourceOperationalState,
 	reason: AmbientSourceUnavailableReason? = null,
+	identity: TrackingPurposeLeaseIdentity,
 ) = AmbientSourceOperationalAvailability(
 	source = AmbientTrackingSource.WIFI,
 	state = state,
@@ -524,6 +552,14 @@ private fun ambientWifiAvailability(
 			error("The purpose matrix does not permit degraded Ambient Wi-Fi")
 	},
 	reason = reason,
+	operationalIdentity = identity.takeIf {
+		state == AmbientSourceOperationalState.READY ||
+			state == AmbientSourceOperationalState.DEGRADED
+	},
+	lastIdentity = identity.takeUnless {
+		state == AmbientSourceOperationalState.READY ||
+			state == AmbientSourceOperationalState.DEGRADED
+	},
 )
 
 private val PLATFORM_RADIO_REASONS = setOf(

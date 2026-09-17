@@ -44,11 +44,11 @@ class BackgroundTrackingApiLogicTest {
 	fun `approved control policy still requires independent consent`() {
 		effectiveAutomaticControlEligibility(
 			controlConsentEligible = false,
-			availability = AutomaticTrackingOperationalAvailability.Ready,
+			availability = readyAutomaticControl(),
 		) shouldBe false
 		effectiveAutomaticControlEligibility(
 			controlConsentEligible = true,
-			availability = AutomaticTrackingOperationalAvailability.Ready,
+			availability = readyAutomaticControl(),
 		) shouldBe true
 	}
 
@@ -101,7 +101,7 @@ class BackgroundTrackingApiLogicTest {
 			paramsPolicyRevision = 12L,
 			controlConsentEpoch = 5L,
 			configuredMode = 1,
-			availability = AutomaticTrackingOperationalAvailability.Ready,
+			availability = readyAutomaticControl(),
 		) shouldBe null
 	}
 
@@ -222,7 +222,7 @@ class BackgroundTrackingApiLogicTest {
 		var reconciliations = 0
 
 		reconcileUnavailableAutomaticControl(
-			availability = AutomaticTrackingOperationalAvailability.Ready,
+			availability = readyAutomaticControl(),
 			reconcileDisabled = {
 				reconciliations++
 				activityRegistrationResult(ActivityRegistrationStatus.APPLIED)
@@ -1073,5 +1073,18 @@ class BackgroundTrackingApiLogicTest {
 		),
 		failureCode = failureCode,
 		retryable = retryable,
+	)
+
+	private fun readyAutomaticControl() = AutomaticTrackingOperationalAvailability.Ready(
+		TrackingPurposeLeaseIdentity(
+			source = TrackingSource.ACTIVITY,
+			purpose = TrackingPurpose.CONTROL,
+			policyRevision = 1L,
+			consentEpoch = 1L,
+			collectedDataEpoch = 0L,
+			rolloutRevision = 0L,
+			executionRevision = 1L,
+			ownerCasToken = "background-api-test",
+		),
 	)
 }

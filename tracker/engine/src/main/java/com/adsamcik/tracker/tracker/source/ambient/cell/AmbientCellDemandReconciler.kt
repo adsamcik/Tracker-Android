@@ -7,6 +7,7 @@ import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalState
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
 import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReconciliationEvidence
 import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReportPreparation
 import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReportPreparationRejection
@@ -260,7 +261,7 @@ data class AmbientCellOwnerReconciliation(
 	): AmbientRadioReportPreparation = prepareAmbientRadioReport(
 		lease,
 		evidence,
-		outcome.toOperationalAvailability(),
+		outcome.toOperationalAvailability(lease.purposeLeaseIdentity),
 	)
 }
 
@@ -406,42 +407,55 @@ private fun AmbientCellDemandBlockReason.afterAmbientJoinRetirement(
 		)
 }
 
-fun AmbientCellDemandReconciliation.toOperationalAvailability():
+fun AmbientCellDemandReconciliation.toOperationalAvailability(
+	identity: TrackingPurposeLeaseIdentity,
+):
 	AmbientSourceOperationalAvailability = when (this) {
 	is AmbientCellDemandReconciliation.Active -> if (
 		sourceInstanceId != null && registrationGeneration != null
 	) {
-		ambientCellAvailability(AmbientSourceOperationalState.READY)
+		if (identity.executionRevision > 0L) {
+			ambientCellAvailability(AmbientSourceOperationalState.READY, identity = identity)
+		} else {
+			AmbientSourceOperationalAvailability.reconciliationPending(
+				AmbientTrackingSource.CELL,
+				identity,
+			)
+		}
 	} else {
-		ambientCellProviderUnavailable()
+		ambientCellProviderUnavailable(identity)
 	}
 	is AmbientCellDemandReconciliation.Degraded -> if (
 		sourceInstanceId == null || registrationGeneration == null
 	) {
-		ambientCellProviderUnavailable()
+		ambientCellProviderUnavailable(identity)
 	} else if (SourceDegradedReason.PERMISSION_MISSING in reasons) {
 		ambientCellAvailability(
 			state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
 			reason = AmbientSourceUnavailableReason.CELL_SCAN_PERMISSION_REQUIRED,
+			identity = identity,
 		)
 	} else if (reasons.any { it in CELL_NONOPERATIONAL_PLATFORM_REASONS }) {
 		ambientCellAvailability(
 			state = AmbientSourceOperationalState.UNAVAILABLE,
 			reason = AmbientSourceUnavailableReason.PLATFORM_UNAVAILABLE,
+			identity = identity,
 		)
 	} else {
 		ambientCellAvailability(
 			state = AmbientSourceOperationalState.UNAVAILABLE,
 			reason = reasons.toAmbientCellReason(),
+			identity = identity,
 		)
 	}
 	is AmbientCellDemandReconciliation.Inactive -> when (reason) {
 		AmbientCellDemandBlockReason.RETENTION_APPROVAL_MISSING,
 		AmbientCellDemandBlockReason.RETENTION_APPROVAL_MISMATCH,
-		-> ambientCellRetentionUnavailable()
+		-> ambientCellRetentionUnavailable(identity)
 		AmbientCellDemandBlockReason.ROLLOUT_CONTAINED -> ambientCellAvailability(
 			state = AmbientSourceOperationalState.UNAVAILABLE,
 			reason = AmbientSourceUnavailableReason.ROLLOUT_CONTAINED,
+			identity = identity,
 		)
 		AmbientCellDemandBlockReason.AUTHORITY_INACTIVE,
 		AmbientCellDemandBlockReason.POLICY_MISSING,
@@ -454,24 +468,31 @@ fun AmbientCellDemandReconciliation.toOperationalAvailability():
 		AmbientCellDemandBlockReason.STALE_RECONCILIATION_ATTEMPT,
 		AmbientCellDemandBlockReason.OWNERSHIP_CONFLICT,
 		AmbientCellDemandBlockReason.DELETION_AUTHORITY_MISMATCH,
-		-> AmbientSourceOperationalAvailability.reconciliationPending(AmbientTrackingSource.CELL)
-		AmbientCellDemandBlockReason.RUNTIME_JOIN_RETIRED -> ambientCellProviderUnavailable()
+		-> AmbientSourceOperationalAvailability.reconciliationPending(
+			AmbientTrackingSource.CELL,
+			identity,
+		)
+		AmbientCellDemandBlockReason.RUNTIME_JOIN_RETIRED -> ambientCellProviderUnavailable(identity)
 	}
-	is AmbientCellDemandReconciliation.Unavailable -> reasons.toAmbientCellUnavailable()
+	is AmbientCellDemandReconciliation.Unavailable -> reasons.toAmbientCellUnavailable(identity)
 }
 
-private fun Set<SourceDegradedReason>.toAmbientCellUnavailable():
+private fun Set<SourceDegradedReason>.toAmbientCellUnavailable(
+	identity: TrackingPurposeLeaseIdentity,
+):
 	AmbientSourceOperationalAvailability {
 	if (SourceDegradedReason.PERMISSION_MISSING in this) {
 		return ambientCellAvailability(
 			state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
 			reason = AmbientSourceUnavailableReason.CELL_SCAN_PERMISSION_REQUIRED,
+			identity = identity,
 		)
 	}
-	if (isEmpty()) return ambientCellProviderUnavailable()
+	if (isEmpty()) return ambientCellProviderUnavailable(identity)
 	return ambientCellAvailability(
 		state = AmbientSourceOperationalState.UNAVAILABLE,
 		reason = toAmbientCellReason(),
+		identity = identity,
 	)
 }
 
@@ -484,19 +505,26 @@ private fun Set<SourceDegradedReason>.toAmbientCellReason(): AmbientSourceUnavai
 		else -> AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE
 	}
 
-private fun ambientCellProviderUnavailable() = ambientCellAvailability(
+private fun ambientCellProviderUnavailable(
+	identity: TrackingPurposeLeaseIdentity,
+) = ambientCellAvailability(
 	state = AmbientSourceOperationalState.UNAVAILABLE,
 	reason = AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+	identity = identity,
 )
 
-private fun ambientCellRetentionUnavailable() = ambientCellAvailability(
+private fun ambientCellRetentionUnavailable(
+	identity: TrackingPurposeLeaseIdentity,
+) = ambientCellAvailability(
 	state = AmbientSourceOperationalState.UNAVAILABLE,
 	reason = AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+	identity = identity,
 )
 
 private fun ambientCellAvailability(
 	state: AmbientSourceOperationalState,
 	reason: AmbientSourceUnavailableReason? = null,
+	identity: TrackingPurposeLeaseIdentity,
 ) = AmbientSourceOperationalAvailability(
 	source = AmbientTrackingSource.CELL,
 	state = state,
@@ -510,6 +538,14 @@ private fun ambientCellAvailability(
 			error("The purpose matrix does not permit degraded Ambient Cell")
 	},
 	reason = reason,
+	operationalIdentity = identity.takeIf {
+		state == AmbientSourceOperationalState.READY ||
+			state == AmbientSourceOperationalState.DEGRADED
+	},
+	lastIdentity = identity.takeUnless {
+		state == AmbientSourceOperationalState.READY ||
+			state == AmbientSourceOperationalState.DEGRADED
+	},
 )
 
 private val CELL_PLATFORM_RADIO_REASONS = setOf(

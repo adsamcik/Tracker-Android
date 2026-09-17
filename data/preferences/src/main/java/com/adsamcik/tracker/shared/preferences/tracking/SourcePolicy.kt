@@ -4,11 +4,8 @@ import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.time.Clock
 import kotlinx.coroutines.flow.Flow
 
-enum class SourcePurpose(val stableName: String) {
-	SESSION_CAPTURE("SESSION_CAPTURE"),
-	CONTROL("CONTROL"),
-	AMBIENT_PRODUCT("AMBIENT_PRODUCT"),
-}
+typealias SourcePurpose =
+	com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 
 enum class SourceQos(val stableCode: Int) {
 	OFF(0),
@@ -111,18 +108,8 @@ data class SourcePolicy(
 	}
 }
 
-internal val AMBIENT_PRODUCT_SOURCES = setOf(
-	TrackingSourceComponent.LOCATION,
-	TrackingSourceComponent.STEPS,
-	TrackingSourceComponent.WIFI,
-	TrackingSourceComponent.CELL,
-)
-
-internal fun TrackingSourceComponent.supportsPurpose(purpose: SourcePurpose): Boolean = when (purpose) {
-	SourcePurpose.SESSION_CAPTURE -> true
-	SourcePurpose.CONTROL -> this == TrackingSourceComponent.ACTIVITY
-	SourcePurpose.AMBIENT_PRODUCT -> this in AMBIENT_PRODUCT_SOURCES
-}
+internal fun TrackingSourceComponent.supportsPurpose(purpose: SourcePurpose): Boolean =
+	supports(purpose)
 
 data class SourcePolicySnapshot(
 	val revision: Long,
