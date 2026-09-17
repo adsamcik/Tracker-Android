@@ -365,9 +365,9 @@ internal class DefaultTrackingPurposePublicationRuntime @Inject constructor(
 		if (!retention.isActiveApproval()) {
 			leaseIssuer.clearAmbient(source)
 			val unavailable = retention as? RetentionAuthorityResult.Unavailable
-			if (
-				unavailable?.reason !=
-				RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE
+			if (unavailable != null &&
+				unavailable.reason !=
+					RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE
 			) {
 				reporter.publishAmbientUnavailable(
 					source,

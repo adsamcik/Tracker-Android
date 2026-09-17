@@ -6,6 +6,7 @@ import androidx.preference.PreferenceManager
 import androidx.room.withTransaction
 import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
+import com.adsamcik.tracker.app.settings.CollectedDataDeletionCompletion
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -199,7 +200,10 @@ class TestDataSeeder @Inject constructor(
 
     private suspend fun resetCollectedTrackingData() {
         withContext(dispatchers.io) {
-            collectedDataDeletionService.deleteAll()
+            check(
+                collectedDataDeletionService.deleteAll() ==
+                    CollectedDataDeletionCompletion.Complete,
+            ) { "Collected-data deletion remains pending" }
         }
     }
 

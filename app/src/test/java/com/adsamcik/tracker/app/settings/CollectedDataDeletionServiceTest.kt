@@ -2,6 +2,7 @@ package com.adsamcik.tracker.app.settings
 
 import android.app.Application
 import android.database.sqlite.SQLiteException
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
@@ -14,9 +15,25 @@ import com.adsamcik.tracker.impexp.exporter.proto.ExportPlansProto
 import com.adsamcik.tracker.points.database.PointsAwardedDao
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.shared.base.database.legacy.LEGACY_DATABASE_NAME
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.DefaultRetentionAuthorityProducer
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityState
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigurationApprovalResult
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import com.adsamcik.tracker.shared.preferences.retention.resetRetentionConfigForTests
+import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTimeProvider
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupResult
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
@@ -35,8 +52,11 @@ import io.mockk.verify
 import java.io.File
 import javax.inject.Provider
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -305,14 +325,16 @@ class CollectedDataDeletionServiceTest {
 		coEvery { retention.reconcileCurrentSettings() } answers {
 			startupDeletionBarrier.isClosed shouldBe true
 			events += "retention"
-			emptyList()
+			disabledRetentionResults()
 		}
 		coEvery { purpose.reconcileCurrentSettings() } answers {
-			startupDeletionBarrier.isClosed shouldBe false
+			startupDeletionBarrier.isClosed shouldBe true
+			markerFile.exists() shouldBe true
 			events += "purpose"
 		}
 		coEvery { ambientSteps.reconcileAfterSettingsChange() } answers {
-			startupDeletionBarrier.isClosed shouldBe false
+			startupDeletionBarrier.isClosed shouldBe true
+			markerFile.exists() shouldBe true
 			events += "ambient"
 			AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
 		}
@@ -324,9 +346,226 @@ class CollectedDataDeletionServiceTest {
 
 		service.deleteAll()
 
-		events.indexOf("delete") < events.indexOf("retention") shouldBe true
-		events.indexOf("retention") < events.indexOf("purpose") shouldBe true
-		events.indexOf("purpose") < events.indexOf("ambient") shouldBe true
+		events shouldBe listOf("delete", "retention", "purpose", "retention", "ambient")
+	}
+
+	@Test
+	fun `real Room epoch mismatch keeps marker gate and provider shutdown`() = runTest {
+		resetRetentionTestState()
+		val database = AppDatabase.testDatabase(context)
+		try {
+			val lifecycle = MutableDeletionLifecycleStore()
+			val producer = roomRetentionProducer(
+				database,
+				lifecycle,
+				ambientStepsEnabled = true,
+				approvePolicy = true,
+			)
+			val purpose = mockk<TrackingPurposeSettingsReconciler>()
+			val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
+			coEvery { purpose.reconcileCurrentSettings() } just Runs
+			coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
+				AmbientStepsProviderCleanupResult(complete = true)
+			val service = createService(
+				collectedDataLifecycleStore = lifecycle,
+				ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
+				retentionAuthorityProducer = producer,
+				purposeSettingsReconciler = purpose,
+			) { _, epoch, retainedFromMs, updatedAtMs ->
+				publishRoomDeletionEpoch(database, epoch + 1L, retainedFromMs, updatedAtMs)
+			}
+
+			val result = service.deleteAll()
+
+			val retryable =
+				result.shouldBeInstanceOf<CollectedDataDeletionCompletion.Retryable>()
+			val failure = retryable.failure.shouldBeInstanceOf<
+				CollectedDataDeletionReconciliationFailure.RetentionAuthority>()
+			failure.failures.single().run {
+				source shouldBe TrackingSourceComponent.STEPS
+				reason shouldBe RetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED
+			}
+			markerFile.exists() shouldBe true
+			startupDeletionBarrier.isClosed shouldBe true
+			coVerify(exactly = 1) { purpose.reconcileCurrentSettings() }
+			coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
+			coVerify(exactly = 3) { ambientSteps.closeForCollectedDataDeletion() }
+			verify(exactly = 0) { automaticControlRestorer.schedule(any()) }
+		} finally {
+			database.close()
+			resetRetentionTestState()
+		}
+	}
+
+	@Test
+	fun `real Room explicitly disabled sources complete before provider reconciliation`() = runTest {
+		resetRetentionTestState()
+		val database = AppDatabase.testDatabase(context)
+		try {
+			val lifecycle = MutableDeletionLifecycleStore()
+			val producer = roomRetentionProducer(
+				database,
+				lifecycle,
+				ambientStepsEnabled = false,
+			)
+			val purpose = mockk<TrackingPurposeSettingsReconciler>()
+			val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
+			coEvery { purpose.reconcileCurrentSettings() } just Runs
+			coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
+				AmbientStepsProviderCleanupResult(complete = true)
+			coEvery { ambientSteps.reconcileAfterSettingsChange() } returns
+				AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
+			val service = createService(
+				collectedDataLifecycleStore = lifecycle,
+				ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
+				retentionAuthorityProducer = producer,
+				purposeSettingsReconciler = purpose,
+			) { _, epoch, retainedFromMs, updatedAtMs ->
+				publishRoomDeletionEpoch(database, epoch, retainedFromMs, updatedAtMs)
+			}
+
+			service.deleteAll() shouldBe CollectedDataDeletionCompletion.Complete
+
+			markerFile.exists() shouldBe false
+			startupDeletionBarrier.isClosed shouldBe false
+			coVerify(exactly = 1) { purpose.reconcileCurrentSettings() }
+			coVerify(exactly = 1) { ambientSteps.reconcileAfterSettingsChange() }
+		} finally {
+			database.close()
+			resetRetentionTestState()
+		}
+	}
+
+	@Test
+	fun `real Room enabled source reissues new epoch authority before provider reconciliation`() =
+		runTest {
+			resetRetentionTestState()
+			val database = AppDatabase.testDatabase(context)
+			try {
+				val lifecycle = MutableDeletionLifecycleStore()
+				val producer = roomRetentionProducer(
+					database,
+					lifecycle,
+					ambientStepsEnabled = true,
+					approvePolicy = true,
+				)
+				val purpose = mockk<TrackingPurposeSettingsReconciler>()
+				val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
+				coEvery { purpose.reconcileCurrentSettings() } coAnswers {
+					database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+						com.adsamcik.tracker.shared.base.database.data
+							.AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+					)?.collectedDataEpoch shouldBe 1L
+				}
+				coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
+					AmbientStepsProviderCleanupResult(complete = true)
+				coEvery { ambientSteps.reconcileAfterSettingsChange() } coAnswers {
+					database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+						com.adsamcik.tracker.shared.base.database.data
+							.AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+					)?.collectedDataEpoch shouldBe 1L
+					AmbientStepsSettingsReconciliationResult(
+						complete = true,
+						operational = false,
+					)
+				}
+				val service = createService(
+					collectedDataLifecycleStore = lifecycle,
+					ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
+					retentionAuthorityProducer = producer,
+					purposeSettingsReconciler = purpose,
+				) { _, epoch, retainedFromMs, updatedAtMs ->
+					publishRoomDeletionEpoch(database, epoch, retainedFromMs, updatedAtMs)
+				}
+
+				service.deleteAll() shouldBe CollectedDataDeletionCompletion.Complete
+
+				database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+					com.adsamcik.tracker.shared.base.database.data
+						.AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				)?.collectedDataEpoch shouldBe 1L
+				coVerify(exactly = 1) { purpose.reconcileCurrentSettings() }
+				coVerify(exactly = 1) { ambientSteps.reconcileAfterSettingsChange() }
+			} finally {
+				database.close()
+				resetRetentionTestState()
+			}
+		}
+
+	@Test
+	fun `integrity failure returns unverifiable debt and keeps provider off`() = runTest {
+		val retention = mockk<RetentionAuthorityProducer>()
+		val purpose = mockk<TrackingPurposeSettingsReconciler>()
+		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
+		coEvery { retention.reconcileCurrentSettings() } returns
+			retentionFailureResults(RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH)
+		coEvery { purpose.reconcileCurrentSettings() } just Runs
+		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
+			AmbientStepsProviderCleanupResult(complete = true)
+		val service = createService(
+			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
+			retentionAuthorityProducer = retention,
+			purposeSettingsReconciler = purpose,
+		) { _, _, _, _ -> }
+
+		val result = service.deleteAll()
+
+		result.shouldBeInstanceOf<CollectedDataDeletionCompletion.Unverifiable>()
+		markerFile.exists() shouldBe true
+		startupDeletionBarrier.isClosed shouldBe true
+		coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
+		coVerify(exactly = 3) { ambientSteps.closeForCollectedDataDeletion() }
+	}
+
+	@Test
+	fun `provider reconciliation failure is retryable and is closed again`() = runTest {
+		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
+		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
+			AmbientStepsProviderCleanupResult(complete = true)
+		coEvery { ambientSteps.reconcileAfterSettingsChange() } returns
+			AmbientStepsSettingsReconciliationResult(
+				complete = false,
+				operational = false,
+				failure = com.adsamcik.tracker.tracker.api
+					.AmbientStepsSettingsReconciliationFailure.PROVIDER_ACTIVATION_FAILED,
+				retryable = true,
+			)
+		val service = createService(
+			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
+		) { _, _, _, _ -> }
+
+		val result = service.deleteAll()
+
+		result.shouldBeInstanceOf<CollectedDataDeletionCompletion.Retryable>().failure shouldBe
+			CollectedDataDeletionReconciliationFailure.AmbientStepsProvider(
+				com.adsamcik.tracker.tracker.api
+					.AmbientStepsSettingsReconciliationFailure.PROVIDER_ACTIVATION_FAILED,
+			)
+		markerFile.exists() shouldBe true
+		startupDeletionBarrier.isClosed shouldBe true
+		coVerify(exactly = 1) { ambientSteps.reconcileAfterSettingsChange() }
+		coVerify(exactly = 3) { ambientSteps.closeForCollectedDataDeletion() }
+	}
+
+	@Test
+	fun `purpose reconciliation failure keeps marker gate and provider shutdown`() = runTest {
+		val purpose = mockk<TrackingPurposeSettingsReconciler>()
+		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
+		coEvery { purpose.reconcileCurrentSettings() } throws IOException("purpose unavailable")
+		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
+			AmbientStepsProviderCleanupResult(complete = true)
+		val service = createService(
+			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
+			purposeSettingsReconciler = purpose,
+		) { _, _, _, _ -> }
+
+		service.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+			CollectedDataDeletionReconciliationFailure.PurposeSettings,
+		)
+		markerFile.exists() shouldBe true
+		startupDeletionBarrier.isClosed shouldBe true
+		coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
+		coVerify(exactly = 3) { ambientSteps.closeForCollectedDataDeletion() }
 	}
 
 	@Test
@@ -681,9 +920,10 @@ class CollectedDataDeletionServiceTest {
 		ambientStepsProviderLifecycleProvider: Provider<AmbientStepsProviderLifecycle>? = null,
 		automaticControlRestorer: PostDeletionAutomaticControlRestorer =
 			this.automaticControlRestorer,
+		collectedDataLifecycleStore: CollectedDataLifecycleStore =
+			this.collectedDataLifecycleStore,
 		retentionAuthorityProducer: RetentionAuthorityProducer =
-			com.adsamcik.tracker.shared.preferences.retention
-				.UnavailableRetentionAuthorityProducer,
+			completeRetentionAuthorityProducer(),
 		purposeSettingsReconciler: TrackingPurposeSettingsReconciler =
 			TrackingPurposeSettingsReconciler { },
 		directorySync: (File) -> Unit = {},
@@ -708,6 +948,86 @@ class CollectedDataDeletionServiceTest {
 		directorySync = directorySync,
 	)
 
+	private suspend fun roomRetentionProducer(
+		database: AppDatabase,
+		lifecycle: CollectedDataLifecycleStore,
+		ambientStepsEnabled: Boolean,
+		approvePolicy: Boolean = false,
+	): RetentionAuthorityProducer {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState())
+		var effectiveTime = 1L
+		var wallTimeMs = System.currentTimeMillis()
+		val timeProvider = SourcePolicyEffectiveTimeProvider {
+			wallTimeMs = maxOf(wallTimeMs + 1L, System.currentTimeMillis())
+			SourcePolicyEffectiveTime(
+				bootId = "post-delete-test-boot",
+				elapsedRealtimeNanos = effectiveTime++,
+				wallTimeMs = wallTimeMs,
+			)
+		}
+		val policyRepository = RoomSourcePolicyRepository(database, timeProvider)
+		policyRepository.bootstrapFromLegacy(
+			TrackingParamsState(
+				ambientStepsEnabled = ambientStepsEnabled,
+				legacySettingsMigrationCompleted = true,
+			),
+		)
+		val configStore = RetentionConfigStore(context, Dispatchers.Unconfined)
+		val producer = DefaultRetentionAuthorityProducer(
+			database = database,
+			sourcePolicyRepository = policyRepository,
+			retentionConfigStore = configStore,
+			collectedDataLifecycleStore = lifecycle,
+			effectiveTimeProvider = timeProvider,
+		)
+		if (approvePolicy) {
+			val applied = configStore.updateWithApproval(
+				block = { this },
+				prepare = { stage ->
+					producer.preparePendingConfiguration(
+						stage.policy.configurationGeneration,
+					)
+				},
+				approve = { stage ->
+					producer.reconcilePendingConfiguration(
+						stage.policy.configurationGeneration,
+					)
+				},
+			)
+			check(applied.approval !is RetentionConfigurationApprovalResult.Unavailable)
+		}
+		return producer
+	}
+
+	private suspend fun resetRetentionTestState() {
+		Preferences(context).editSuspend {
+			remove("autoCleanupOldData")
+			remove("dataRetentionYears")
+		}
+		resetRetentionConfigForTests(context)
+	}
+
+	private suspend fun publishRoomDeletionEpoch(
+		database: AppDatabase,
+		epoch: Long,
+		retainedFromMs: Long?,
+		updatedAtMs: Long,
+	) {
+		database.withTransaction {
+			database.ambientStepsFactRevisionDao().deleteAllRetentionAuthorities()
+			database.ambientWifiFactDao().deleteAllRetentionAuthorities()
+			database.ambientCellFactDao().deleteAllRetentionAuthorities()
+			check(
+				database.sourceEvidenceStateDao().updateAfterFullDeletion(
+					epoch = epoch,
+					retainedFromMs = retainedFromMs,
+					deletedSourceEventHighWaterOrdinal = 0L,
+					updatedAtMs = updatedAtMs,
+				) == 1,
+			)
+		}
+	}
+
 	private fun appliedRegistrationResult() = ActivityRegistrationResult(
 		status = ActivityRegistrationStatus.APPLIED,
 		snapshot = ActivityRegistrationSnapshot(
@@ -722,6 +1042,58 @@ class CollectedDataDeletionServiceTest {
 	private fun completeAmbientStepsCleanup() = AmbientStepsProviderCleanupResult(
 		complete = true,
 	)
+
+	private fun completeRetentionAuthorityProducer(): RetentionAuthorityProducer =
+		mockk {
+			coEvery { reconcileCurrentSettings() } returns disabledRetentionResults()
+		}
+
+	private fun disabledRetentionResults(): List<RetentionAuthorityResult> = listOf(
+		TrackingSourceComponent.STEPS,
+		TrackingSourceComponent.WIFI,
+		TrackingSourceComponent.CELL,
+	).map { source ->
+		RetentionAuthorityResult.Unchanged(
+			source = source,
+			scope = RetentionAuthorityScope.LIVE_AMBIENT,
+			state = RetentionAuthorityState.REVOKED,
+			approvalRevision = null,
+		)
+	}
+
+	private fun retentionFailureResults(
+		reason: RetentionAuthorityUnavailableReason,
+	): List<RetentionAuthorityResult> =
+		listOf(
+			RetentionAuthorityResult.Unavailable(
+				source = TrackingSourceComponent.STEPS,
+				scope = RetentionAuthorityScope.LIVE_AMBIENT,
+				reason = reason,
+			),
+		) + disabledRetentionResults().filter {
+			it.source != TrackingSourceComponent.STEPS
+		}
+
+	private class MutableDeletionLifecycleStore : CollectedDataLifecycleStore {
+		private val state = MutableStateFlow(CollectedDataLifecycleSnapshot(0L, null))
+
+		override val snapshots: Flow<CollectedDataLifecycleSnapshot> = state
+
+		override suspend fun snapshot(): CollectedDataLifecycleSnapshot = state.value
+
+		override suspend fun beginFullDeletion(
+			deletedAtMs: Long,
+		): CollectedDataLifecycleSnapshot = state.value.copy(
+			epoch = state.value.epoch + 1L,
+			retainedFromMs = deletedAtMs,
+		).also { state.value = it }
+
+		override suspend fun advanceRetainedFrom(
+			retainedFromMs: Long,
+		): CollectedDataLifecycleSnapshot = state.value.copy(
+			retainedFromMs = maxOf(state.value.retainedFromMs ?: retainedFromMs, retainedFromMs),
+		).also { state.value = it }
+	}
 
 	private companion object {
 		val RETIRED_DATABASE_NAMES = listOf(

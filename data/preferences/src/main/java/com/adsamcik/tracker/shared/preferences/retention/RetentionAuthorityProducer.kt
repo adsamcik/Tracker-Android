@@ -170,7 +170,18 @@ interface RetentionAuthorityProducer :
 }
 
 object UnavailableRetentionAuthorityProducer : RetentionAuthorityProducer {
-	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> = emptyList()
+	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> = listOf(
+		TrackingSourceComponent.STEPS,
+		TrackingSourceComponent.LOCATION,
+		TrackingSourceComponent.WIFI,
+		TrackingSourceComponent.CELL,
+	).map { source ->
+		unavailable(
+			source,
+			RetentionAuthorityScope.LIVE_AMBIENT,
+			RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+	}
 
 	override suspend fun preparePendingConfiguration(
 		expectedConfigurationGeneration: Long,
@@ -575,22 +586,23 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		val lifecycle = readLifecycle()
 		val authority = sourcePolicyRepository.currentState()
 		val snapshot = (authority as? SourcePolicyAuthorityState.Active)?.snapshot
-		val policy = snapshot?.get(source)
-		if (
-			snapshot == null ||
-			policy?.ambientConsentEpoch == null ||
-			!policy.ambientPersistenceEligible
-		) {
-			revoke(source, RetentionAuthorityScope.LIVE_AMBIENT, lifecycle)
+		if (snapshot == null) {
+			val revoked = revoke(source, RetentionAuthorityScope.LIVE_AMBIENT, lifecycle)
+			if (revoked is RetentionAuthorityResult.Unavailable) return revoked
 			return unavailable(
 				source,
 				RetentionAuthorityScope.LIVE_AMBIENT,
 				RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE,
 			)
 		}
+		val policy = snapshot[source]
+		if (policy.ambientConsentEpoch == null || !policy.ambientPersistenceEligible) {
+			return revoke(source, RetentionAuthorityScope.LIVE_AMBIENT, lifecycle)
+		}
 		val approval = approvedPolicyOrNull()
 		if (approval == null) {
-			revoke(source, RetentionAuthorityScope.LIVE_AMBIENT, lifecycle)
+			val revoked = revoke(source, RetentionAuthorityScope.LIVE_AMBIENT, lifecycle)
+			if (revoked is RetentionAuthorityResult.Unavailable) return revoked
 			return unavailable(
 				source,
 				RetentionAuthorityScope.LIVE_AMBIENT,

@@ -93,7 +93,7 @@ class DataSettingsViewModelTest {
         every { backupRepository.backups } returns backupFlow
         every { legacyDatabaseRepository.states } returns legacyStateFlow
         every { backupRepository.latestBackup() } returns null
-        coEvery { deletionService.deleteAll() } just Runs
+        coEvery { deletionService.deleteAll() } returns CollectedDataDeletionCompletion.Complete
         every { appContext.getString(R.string.settings_smart_goal_notifications_key) } returns "smartGoalNotifications"
         every { preferences.observeBoolean("smartGoalNotifications", true) } returns smartGoalNotificationsFlow
         every { preferences.edit(any()) } just Runs
@@ -617,6 +617,22 @@ class DataSettingsViewModelTest {
         fun `reports failure when deletion encounters an ordinary filesystem error`() =
             runTest(testDispatcher) {
                 coEvery { deletionService.deleteAll() } throws IOException("fsync failed")
+                var result: DataDeletionResult? = null
+                val vm = createViewModel()
+
+                vm.deleteAllCollectedData { result = it }
+
+                result shouldBe DataDeletionResult.Failure
+                coVerify(exactly = 1) { deletionService.deleteAll() }
+            }
+
+        @Test
+        fun `reports failure while deletion retains typed reconciliation debt`() =
+            runTest(testDispatcher) {
+                coEvery { deletionService.deleteAll() } returns
+                    CollectedDataDeletionCompletion.Retryable(
+                        CollectedDataDeletionReconciliationFailure.PurposeSettings,
+                    )
                 var result: DataDeletionResult? = null
                 val vm = createViewModel()
 

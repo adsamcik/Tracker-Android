@@ -2,8 +2,10 @@ package com.adsamcik.tracker.app.di
 
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.source.coordinator.StepsSessionFactWriterTransitionCoordinator
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import dagger.hilt.EntryPoint
@@ -22,7 +24,9 @@ internal interface TrackingInfrastructureIntegrationEntryPoint {
 	fun activityRegistrationArbiter(): ActivityRegistrationArbiter
 	fun collectedDataLifecycleStore(): CollectedDataLifecycleStore
 	fun durableSourceIngress(): DurableSourceIngress
+	fun retentionAuthorityProducer(): RetentionAuthorityProducer
 	fun stepsWriterTransitionCoordinator(): StepsSessionFactWriterTransitionCoordinator
 	fun trackingHistoryRepository(): TrackingHistoryRepository
 	fun trackingParamsRepository(): TrackingParamsRepository
+	fun trackingPurposeSettingsReconciler(): TrackingPurposeSettingsReconciler
 }

@@ -4,6 +4,8 @@ import android.app.ActivityManager
 import android.content.Context
 import com.adsamcik.tracker.app.ApplicationStartupRecoveryAction
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
+import com.adsamcik.tracker.app.settings.CollectedDataDeletionCompletion
+import com.adsamcik.tracker.app.settings.CollectedDataDeletionReconciliationFailure
 import com.adsamcik.tracker.shared.base.database.ActiveDatabaseBlockReason
 import com.adsamcik.tracker.shared.base.database.ActiveDatabaseRetryableReason
 import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainment
@@ -69,7 +71,8 @@ class ApplicationStartupRecoveryResolverTest {
 class DefaultTrackingStartupGateTest {
 	private val storage = mockk<LegacyDatabaseUpgradeCoordinator>()
 	private val collectedDataDeletionService = mockk<CollectedDataDeletionService> {
-		coEvery { reconcilePendingDeletion() } just Runs
+		coEvery { reconcilePendingDeletion() } returns
+			CollectedDataDeletionCompletion.Complete
 	}
 	private val resolver = mockk<ApplicationStartupRecoveryResolver>()
 	private val lifecycleAuthority = mockk<TrackingLifecycleCommandAuthority> {
@@ -217,6 +220,36 @@ class DefaultTrackingStartupGateTest {
 		coVerify(exactly = 1) { collectedDataDeletionService.reconcilePendingDeletion() }
 		coVerify(exactly = 0) { storage.ensureReady(any()) }
 		coVerify(exactly = 0) { sourceRecovery.recoverStartupAuthority() }
+	}
+
+	@Test
+	fun `typed pending deletion retry debt blocks startup retryably`() = runTest {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { collectedDataDeletionService.reconcilePendingDeletion() } returns
+			CollectedDataDeletionCompletion.Retryable(
+				CollectedDataDeletionReconciliationFailure.PurposeSettings,
+			)
+
+		gate.reconcile() shouldBe TrackingStartupResult.RetryableFailure(
+			TrackingStartupStage.STORAGE,
+			"POST_DELETE_PURPOSE_SETTINGS",
+		)
+		coVerify(exactly = 0) { storage.ensureReady(any()) }
+	}
+
+	@Test
+	fun `typed pending deletion unverifiable debt blocks startup`() = runTest {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { collectedDataDeletionService.reconcilePendingDeletion() } returns
+			CollectedDataDeletionCompletion.Unverifiable(
+				CollectedDataDeletionReconciliationFailure.RetentionResultSetInvalid,
+			)
+
+		gate.reconcile() shouldBe TrackingStartupResult.Blocked(
+			TrackingStartupStage.STORAGE,
+			"POST_DELETE_RETENTION_RESULT_SET_INVALID",
+		)
+		coVerify(exactly = 0) { storage.ensureReady(any()) }
 	}
 
 	@Test

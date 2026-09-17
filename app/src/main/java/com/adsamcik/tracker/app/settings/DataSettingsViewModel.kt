@@ -382,13 +382,16 @@ class DataSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val result = withContext(dispatchers.io) {
                 try {
-                    deletionService.deleteAll()
-                    DataDeletionResult.Success
+                    when (deletionService.deleteAll()) {
+                        CollectedDataDeletionCompletion.Complete -> DataDeletionResult.Success
+                        is CollectedDataDeletionCompletion.Retryable,
+                        is CollectedDataDeletionCompletion.Unverifiable,
+                        -> DataDeletionResult.Failure
+                    }
                 } catch (error: CancellationException) {
                     throw error
                 } catch (_: Exception) {
-                    // A durable pending marker makes every ordinary storage/runtime failure
-                    // retryable. Always return a UI result instead of losing the callback.
+                    // The durable pending marker preserves unfinished deletion work.
                     DataDeletionResult.Failure
                 }
             }

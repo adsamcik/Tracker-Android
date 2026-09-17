@@ -32,8 +32,11 @@ import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBack
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupResult
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
+import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
@@ -82,6 +85,8 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 	private lateinit var coordinator: StepsSessionFactWriterTransitionCoordinator
 	private lateinit var deletionBarrier: TrackingStartupDeletionBarrier
 	private lateinit var startupGate: TrackingStartupGate
+	private lateinit var retentionAuthorityProducer: RetentionAuthorityProducer
+	private lateinit var purposeSettingsReconciler: TrackingPurposeSettingsReconciler
 	private lateinit var markerFile: File
 
 	@Before
@@ -96,6 +101,8 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		database = AppDatabase.database(context)
 		deletionBarrier = context.trackingStartupDeletionBarrier
 		startupGate = context.trackingStartupGate
+		retentionAuthorityProducer = entryPoint.retentionAuthorityProducer()
+		purposeSettingsReconciler = entryPoint.trackingPurposeSettingsReconciler()
 		markerFile = File(context.noBackupFilesDir, "collected-data-deletion-pending")
 	}
 
@@ -184,6 +191,8 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 			activityRegistrationArbiter = Provider { mocks.activityArbiter },
 			ambientStepsProviderLifecycle = Provider { mocks.ambientStepsProviderLifecycle },
 			automaticControlRestorer = mocks.automaticControlRestorer,
+			retentionAuthorityProducer = retentionAuthorityProducer,
+			purposeSettingsReconciler = purposeSettingsReconciler,
 			stepsWriterTransitionCoordinator = coordinatorProvider,
 			dispatchersProvider = dispatchersProvider,
 			traceboxHandleProvider = mocks.traceboxHandleProvider,
@@ -217,6 +226,8 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 			appliedRegistrationResult()
 		coEvery { mocks.ambientStepsProviderLifecycle.closeForCollectedDataDeletion() } returns
 			AmbientStepsProviderCleanupResult(complete = true)
+		coEvery { mocks.ambientStepsProviderLifecycle.reconcileAfterSettingsChange() } returns
+			AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
 		every { mocks.automaticControlRestorer.schedule(any()) } just Runs
 		every { mocks.traceboxHandleProvider.handle } returns mocks.traceboxHandle
 		every { mocks.traceboxHandle.delete(DeleteRequest.ALL_TRACEBOX_DATA) } returnsMany listOf(
@@ -248,7 +259,8 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		scenario: DeletionScenario,
 		fixture: DeletionFixture,
 	) {
-		fixture.service.reconcilePendingDeletion()
+		fixture.service.reconcilePendingDeletion() shouldBe
+			CollectedDataDeletionCompletion.Complete
 
 		fixture.counters.preRearm shouldBe 2
 		fixture.counters.postRearm shouldBe 2

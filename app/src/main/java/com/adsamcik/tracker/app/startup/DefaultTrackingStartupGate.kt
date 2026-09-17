@@ -10,6 +10,7 @@ import com.adsamcik.tracker.app.applicationStartupRecoveryAction
 import com.adsamcik.tracker.app.mostRecentMainProcessExit
 import com.adsamcik.tracker.app.recentMainProcessExitCount
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
+import com.adsamcik.tracker.app.settings.CollectedDataDeletionCompletion
 import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import com.adsamcik.tracker.shared.base.database.ActiveDatabaseBlockReason
 import com.adsamcik.tracker.shared.base.database.ActiveDatabaseRetryableReason
@@ -346,7 +347,19 @@ class DefaultTrackingStartupGate @Inject constructor(
 		try {
 			// Pending deletion owns its own mutex and may close/reopen this barrier. Running it
 			// before the startup lease avoids self-deadlock while still keeping it ahead of Room.
-			collectedDataDeletionService.reconcilePendingDeletion()
+			when (val deletion = collectedDataDeletionService.reconcilePendingDeletion()) {
+				CollectedDataDeletionCompletion.Complete -> Unit
+				is CollectedDataDeletionCompletion.Retryable ->
+					return TrackingStartupResult.RetryableFailure(
+						TrackingStartupStage.STORAGE,
+						deletion.failure.failureCode,
+					)
+				is CollectedDataDeletionCompletion.Unverifiable ->
+					return TrackingStartupResult.Blocked(
+						TrackingStartupStage.STORAGE,
+						deletion.failure.failureCode,
+					)
+			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (failure: Exception) {

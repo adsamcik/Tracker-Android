@@ -13,6 +13,7 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationFailur
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
+import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
@@ -26,7 +27,10 @@ import com.adsamcik.tracker.shared.base.database.legacy.LEGACY_DATABASE_NAME
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
-import com.adsamcik.tracker.shared.preferences.retention.UnavailableRetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.data.worker.AchievementWorker
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
@@ -47,9 +51,60 @@ import kotlinx.coroutines.withTimeout
 import javax.inject.Provider
 
 interface CollectedDataDeletionService {
-	suspend fun deleteAll()
+	suspend fun deleteAll(): CollectedDataDeletionCompletion
 
-	suspend fun reconcilePendingDeletion()
+	suspend fun reconcilePendingDeletion(): CollectedDataDeletionCompletion
+}
+
+/** Completion is reported only after post-clear authority and provider reconciliation. */
+sealed interface CollectedDataDeletionCompletion {
+	data object Complete : CollectedDataDeletionCompletion
+
+	data class Retryable(
+		val failure: CollectedDataDeletionReconciliationFailure,
+	) : CollectedDataDeletionCompletion
+
+	data class Unverifiable(
+		val failure: CollectedDataDeletionReconciliationFailure,
+	) : CollectedDataDeletionCompletion
+}
+
+sealed interface CollectedDataDeletionReconciliationFailure {
+	val failureCode: String
+
+	data class RetentionAuthority(
+		val failures: List<RetentionAuthorityResult.Unavailable>,
+	) : CollectedDataDeletionReconciliationFailure {
+		init {
+			require(failures.isNotEmpty())
+		}
+
+		override val failureCode: String = "POST_DELETE_RETENTION_AUTHORITY"
+	}
+
+	data object RetentionResultSetInvalid : CollectedDataDeletionReconciliationFailure {
+		override val failureCode: String = "POST_DELETE_RETENTION_RESULT_SET_INVALID"
+	}
+
+	data object PurposeSettings : CollectedDataDeletionReconciliationFailure {
+		override val failureCode: String = "POST_DELETE_PURPOSE_SETTINGS"
+	}
+
+	data class AmbientStepsProvider(
+		val failure: AmbientStepsSettingsReconciliationFailure,
+	) : CollectedDataDeletionReconciliationFailure {
+		override val failureCode: String = "POST_DELETE_AMBIENT_STEPS_PROVIDER"
+	}
+
+	data class AmbientStepsCleanup(
+		val failure: AmbientStepsProviderCleanupFailure,
+	) : CollectedDataDeletionReconciliationFailure {
+		override val failureCode: String = "POST_DELETE_AMBIENT_STEPS_CLEANUP"
+	}
+
+	data object AmbientStepsCleanupUnavailable : CollectedDataDeletionReconciliationFailure {
+		override val failureCode: String = "POST_DELETE_AMBIENT_STEPS_CLEANUP_UNAVAILABLE"
+	}
 }
 
 interface CollectedDataWriterQuiescer {
@@ -197,10 +252,8 @@ class DefaultCollectedDataDeletionService(
 	private val activityRegistrationArbiterProvider: Provider<ActivityRegistrationArbiter>? = null,
 	private val ambientStepsProviderLifecycleProvider: Provider<AmbientStepsProviderLifecycle>? = null,
 	private val automaticControlRestorer: PostDeletionAutomaticControlRestorer,
-	private val retentionAuthorityProducer: RetentionAuthorityProducer =
-		UnavailableRetentionAuthorityProducer,
-	private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler =
-		TrackingPurposeSettingsReconciler { },
+	private val retentionAuthorityProducer: RetentionAuthorityProducer,
+	private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler,
 	private val traceboxDataDeletion: suspend () -> Boolean,
 	private val trackingDiagnosticDataDeletion: suspend () -> Boolean = { true },
 	private val appDatabaseDeletion: suspend (Context, Long, Long?, Long) -> Unit =
@@ -221,20 +274,18 @@ class DefaultCollectedDataDeletionService(
 ) : CollectedDataDeletionService {
 	private val deletionMutex = Mutex()
 
-	override suspend fun deleteAll() {
+	override suspend fun deleteAll(): CollectedDataDeletionCompletion =
 		deletionMutex.withLock {
 			runDeletion(writeMarker = true)
 		}
-	}
 
-	override suspend fun reconcilePendingDeletion() {
+	override suspend fun reconcilePendingDeletion(): CollectedDataDeletionCompletion =
 		deletionMutex.withLock {
-			if (!markerFile.exists()) return@withLock
+			if (!markerFile.exists()) return@withLock CollectedDataDeletionCompletion.Complete
 			runDeletion(writeMarker = false)
 		}
-	}
 
-	private suspend fun runDeletion(writeMarker: Boolean) {
+	private suspend fun runDeletion(writeMarker: Boolean): CollectedDataDeletionCompletion {
 		var activityRegistrationArbiter: ActivityRegistrationArbiter? = null
 		var ambientStepsProviderLifecycle: AmbientStepsProviderLifecycle? = null
 		var deletionCompleted = false
@@ -275,12 +326,49 @@ class DefaultCollectedDataDeletionService(
 				updatedAtMs = lifecycleUpdatedAtMs,
 				removeRetiredDatabases = writeMarker,
 			)
-			retentionAuthorityProducer.reconcileCurrentSettings()
+			val initialRetention = reconcilePostDeletionRetention()
+			if (initialRetention != null) {
+				val purposeFailure = reconcilePostDeletionPurpose()
+				return keepAmbientStepsClosed(
+					ambientStepsProviderLifecycle,
+					if (initialRetention is CollectedDataDeletionCompletion.Unverifiable) {
+						initialRetention
+					} else {
+						purposeFailure ?: initialRetention
+					},
+				)
+			}
 			exportPlanStore.resetAllWatermarks()
 			deleteDiagnostics()
 			// Enqueue the durable recovery owner while the deletion marker and process barrier still
 			// fence Room/providers. It will make one attempt only after this generation is Ready.
 			automaticControlRestorer.schedule(lifecycle.epoch)
+			val purposeFailure = reconcilePostDeletionPurpose()
+			if (purposeFailure != null) {
+				return keepAmbientStepsClosed(
+					ambientStepsProviderLifecycle,
+					purposeFailure,
+				)
+			}
+			val confirmedRetention = reconcilePostDeletionRetention()
+			if (confirmedRetention != null) {
+				return keepAmbientStepsClosed(
+					ambientStepsProviderLifecycle,
+					confirmedRetention,
+				)
+			}
+			val ambientResult = ambientStepsProviderLifecycle?.reconcileAfterSettingsChange()
+			if (ambientResult != null && !ambientResult.complete) {
+				val failure = CollectedDataDeletionReconciliationFailure.AmbientStepsProvider(
+					requireNotNull(ambientResult.failure),
+				)
+				val classified = if (ambientResult.retryable) {
+					CollectedDataDeletionCompletion.Retryable(failure)
+				} else {
+					CollectedDataDeletionCompletion.Unverifiable(failure)
+				}
+				return keepAmbientStepsClosed(ambientStepsProviderLifecycle, classified)
+			}
 			deletionCompleted = true
 		} finally {
 			if (deletionCompleted) {
@@ -288,14 +376,89 @@ class DefaultCollectedDataDeletionService(
 			}
 		}
 		if (deletionCompleted) {
-			purposeSettingsReconciler.reconcileCurrentSettings()
-			val ambientResult = ambientStepsProviderLifecycle?.reconcileAfterSettingsChange()
-			if (ambientResult != null && !ambientResult.complete && !ambientResult.retryable) {
-				throw DatabaseMigrationBackupException(
-					"Ambient Steps post-deletion reconciliation failed: ${ambientResult.failure}",
+			clearDeletionMarker()
+		}
+		return CollectedDataDeletionCompletion.Complete
+	}
+
+	private suspend fun reconcilePostDeletionRetention(): CollectedDataDeletionCompletion? {
+		val results = try {
+			retentionAuthorityProducer.reconcileCurrentSettings()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return CollectedDataDeletionCompletion.Retryable(
+				CollectedDataDeletionReconciliationFailure.RetentionAuthority(
+					DURABLE_AMBIENT_SOURCES.map { source ->
+						RetentionAuthorityResult.Unavailable(
+							source,
+							RetentionAuthorityScope.LIVE_AMBIENT,
+							RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE,
+						)
+					},
+				),
+			)
+		}
+		val durable = results.filter {
+			it.scope == RetentionAuthorityScope.LIVE_AMBIENT &&
+				it.source in DURABLE_AMBIENT_SOURCES
+		}
+		if (durable.size != DURABLE_AMBIENT_SOURCES.size ||
+			durable.map { it.source }.toSet() != DURABLE_AMBIENT_SOURCES
+		) {
+			return CollectedDataDeletionCompletion.Unverifiable(
+				CollectedDataDeletionReconciliationFailure.RetentionResultSetInvalid,
+			)
+		}
+		val failures = durable.filterIsInstance<RetentionAuthorityResult.Unavailable>()
+		if (failures.isEmpty()) return null
+		val failure = CollectedDataDeletionReconciliationFailure.RetentionAuthority(failures)
+		return if (failures.any { it.reason in UNVERIFIABLE_RETENTION_FAILURES }) {
+			CollectedDataDeletionCompletion.Unverifiable(failure)
+		} else {
+			CollectedDataDeletionCompletion.Retryable(failure)
+		}
+	}
+
+	private suspend fun reconcilePostDeletionPurpose(): CollectedDataDeletionCompletion? = try {
+		purposeSettingsReconciler.reconcileCurrentSettings()
+		null
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		CollectedDataDeletionCompletion.Retryable(
+			CollectedDataDeletionReconciliationFailure.PurposeSettings,
+		)
+	}
+
+	private suspend fun keepAmbientStepsClosed(
+		lifecycle: AmbientStepsProviderLifecycle?,
+		original: CollectedDataDeletionCompletion,
+	): CollectedDataDeletionCompletion {
+		if (lifecycle == null) return original
+		val cleanup = try {
+			lifecycle.closeForCollectedDataDeletion()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return if (original is CollectedDataDeletionCompletion.Unverifiable) {
+				original
+			} else {
+				CollectedDataDeletionCompletion.Retryable(
+					CollectedDataDeletionReconciliationFailure.AmbientStepsCleanupUnavailable,
 				)
 			}
-			clearDeletionMarker()
+		}
+		if (cleanup.complete) return original
+		val failure = CollectedDataDeletionReconciliationFailure.AmbientStepsCleanup(
+			requireNotNull(cleanup.failure),
+		)
+		return if (original is CollectedDataDeletionCompletion.Unverifiable) {
+			original
+		} else if (cleanup.retryable) {
+			CollectedDataDeletionCompletion.Retryable(failure)
+		} else {
+			CollectedDataDeletionCompletion.Unverifiable(failure)
 		}
 	}
 
@@ -444,6 +607,16 @@ class DefaultCollectedDataDeletionService(
 	}
 
 	private companion object {
+		val DURABLE_AMBIENT_SOURCES = setOf(
+			TrackingSourceComponent.STEPS,
+			TrackingSourceComponent.WIFI,
+			TrackingSourceComponent.CELL,
+		)
+		val UNVERIFIABLE_RETENTION_FAILURES = setOf(
+			RetentionAuthorityUnavailableReason.APPROVAL_REVISION_EXHAUSTED,
+			RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH,
+			RetentionAuthorityUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+		)
 		val RETIRED_DATABASE_NAMES = listOf(
 			LEGACY_DATABASE_NAME,
 			"stats_database",

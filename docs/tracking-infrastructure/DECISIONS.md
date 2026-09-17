@@ -4106,9 +4106,10 @@ Each entry records repository evidence and does not duplicate the final architec
   reserved, or retiring compatible provider registration block deletion; `QUIESCED` is not used as
   an ownership predicate.
 - Source deletion installs a checksum-authenticated payload-free terminal RETRACT before removing
-  exact UPSERT payloads and all import authority in one Room transaction. The retraction survives
-  retry and authorizes cleanup of an older or corrected UPSERT replayed after deletion; success is
-  reported only after no payload/import state remains.
+  exact UPSERT payloads and all import authority in one Room transaction. Before redaction it also
+  preserves the exact native day/fact/gap identities as value-free replay footprints. The
+  retraction and footprints survive retry and later full-clear re-epoching, so an old exact or
+  rehashed portable import cannot resurrect the source; unrelated new identities remain eligible.
 - Retention removes whole uncertainty-crossing and replayed terminal lineages behind the durable
   floor. Malformed, foreign, orphaned, partial, or configured-overflow state and cancellation fail
   closed without partial mutation.
@@ -4559,3 +4560,18 @@ Each entry records repository evidence and does not duplicate the final architec
 - Retained Activity is a typed unavailable product shell with no value or fragments. Its authority
   remains visible to collision, correction, deletion-fence, and no-resurrection checks while portable
   payload export omits it. Production invocation and source-wide erase remain separate open work.
+
+## TI-D275 — Retention follows referenced consent identity, not its creation revision
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-17; source and focused test changes only.
+- A current source-policy revision may continue to reference an unchanged eligible consent epoch
+  created under an older global policy revision or boot. Retention and Ambient fact authorities
+  validate the exact referenced epoch, eligibility, persistence flag, source, and purpose without
+  requiring the consent row's origin revision or boot to equal the current policy.
+- Effective time is compared independently for policy, consent, and retention authority. Matching
+  boot domains require elapsed-realtime and wall-time ordering; different boot domains use wall
+  ordering only.
+- Full deletion remains pending and keeps startup admission closed until durable Ambient retention
+  results, purpose publication, and bounded Ambient Steps provider reconciliation complete.
+  Retryable and unverifiable post-delete debt is returned explicitly rather than appearing as
+  successful deletion.

@@ -40,6 +40,12 @@ class RetentionAuthorityProducerRoomTest {
 
 	@BeforeTest
 	fun setUp() = runTest {
+		effectiveTime = 0L
+		currentBoot = "boot-1"
+		lifecycle = CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = null)
+		approvedPolicy = ApprovedRetentionPolicyRead.Unavailable(
+			ApprovedRetentionPolicyUnavailableReason.NOT_APPROVED,
+		)
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		database.sourceEvidenceStateDao().ensure(
@@ -78,8 +84,8 @@ class RetentionAuthorityProducerRoomTest {
 
 		assertIs<RetentionAuthorityResult.Applied>(imported).state shouldBe
 			RetentionAuthorityState.ACTIVE
-		assertIs<RetentionAuthorityResult.Unavailable>(live).reason shouldBe
-			RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE
+		assertIs<RetentionAuthorityResult.Unchanged>(live).state shouldBe
+			RetentionAuthorityState.REVOKED
 		val storedImport = requireNotNull(
 			database.ambientWifiFactDao().latestRetentionAuthority(
 				AmbientWifiRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
@@ -112,6 +118,26 @@ class RetentionAuthorityProducerRoomTest {
 		database.ambientStepsFactRevisionDao().latestRetentionAuthority(
 			AmbientStepsRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
 		) shouldBe before
+	}
+
+	@Test
+	fun `cold reconciliation reports disabled durable ambient sources as revoked`() = runTest {
+		bootstrap()
+
+		val results = producer().reconcileCurrentSettings().filter {
+			it.scope == RetentionAuthorityScope.LIVE_AMBIENT &&
+				it.source in setOf(
+					TrackingSourceComponent.STEPS,
+					TrackingSourceComponent.WIFI,
+					TrackingSourceComponent.CELL,
+				)
+		}
+
+		results.size shouldBe 3
+		results.all {
+			it is RetentionAuthorityResult.Unchanged &&
+				it.state == RetentionAuthorityState.REVOKED
+		} shouldBe true
 	}
 
 	@Test
@@ -365,6 +391,40 @@ class RetentionAuthorityProducerRoomTest {
 		database.ambientWifiFactDao().latestRetentionAuthority(
 			AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
 		)?.effectiveBootId shouldBe "boot-2"
+	}
+
+	@Test
+	fun `reboot reissue preserves consent created under an older policy revision`() = runTest {
+		val settings = TrackingParamsState(
+			ambientWifiEnabled = true,
+			legacySettingsMigrationCompleted = true,
+		)
+		val original = policies.bootstrapFromLegacy(settings)
+		approvedPolicy = approved("policy-1", revision = 1L)
+		val producer = producer()
+		producer.reconcileLiveAmbient(TrackingSourceComponent.WIFI)
+		val consentEpoch = requireNotNull(
+			original[TrackingSourceComponent.WIFI].ambientConsentEpoch,
+		)
+		currentBoot = "boot-2"
+		val revised = policies.replaceCaptureSettings(
+			original.revision,
+			settings.copy(minTimeSeconds = settings.minTimeSeconds + 1),
+			reason = "TEST_UNRELATED_POLICY_CHANGE",
+		)
+
+		assertIs<RetentionAuthorityResult.Applied>(
+			producer.reconcileLiveAmbient(TrackingSourceComponent.WIFI),
+		)
+		requireNotNull(
+			database.ambientWifiFactDao().latestRetentionAuthority(
+				AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		).run {
+			sourcePolicyRevision shouldBe revised.revision
+			ambientConsentEpoch shouldBe consentEpoch
+			effectiveBootId shouldBe "boot-2"
+		}
 	}
 
 	@Test
