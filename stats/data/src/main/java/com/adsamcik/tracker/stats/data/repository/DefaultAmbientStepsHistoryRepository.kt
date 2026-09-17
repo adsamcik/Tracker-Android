@@ -48,6 +48,7 @@ import com.adsamcik.tracker.stats.api.repository.AmbientStepsSessionPartition
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityResult
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityQuery
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage as ApiStepsHistoryCoverage
 import java.time.DateTimeException
 import java.time.LocalDate
@@ -72,6 +73,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 	private val database: AppDatabase,
 	private val importedDao: ImportedAmbientStepsDao,
 	private val stepsSelector: StepsSegmentHistorySelector,
+	private val countDomainQuery: StepsCountDomainCompatibilityQuery,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : AmbientStepsHistoryRepository, AmbientStepsNumericRangeReader {
 	override suspend fun discoverNumericStructuralDaysInCurrentTransaction(
@@ -272,8 +274,30 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		} else {
 			emptyList()
 		}
-		val products = days.map { day ->
-			composePublicDay(day, native, imported, sessions)
+		val requestOwners = mutableListOf<Pair<Int, Int>>()
+		val sessionsByDay = days.map { day -> sessions.mapNotNull { it.forDay(day) } }
+		val compatibilityRequests = buildList {
+			days.forEachIndexed { dayIndex, day ->
+				val key = day.historyKey
+				val facts = native.factsByDay[key].orEmpty() +
+					imported.factsByDay[key].orEmpty()
+				sessionsByDay[dayIndex].forEachIndexed { sessionIndex, session ->
+					requestOwners += dayIndex to sessionIndex
+					add(session.countDomainCompatibilityRequest(facts))
+				}
+			}
+		}
+		val compatibilityByOwner = requestOwners.zip(
+			countDomainQuery.compare(compatibilityRequests),
+		).toMap()
+		val products = days.mapIndexed { dayIndex, day ->
+			val compatibleSessions = sessionsByDay[dayIndex].mapIndexed { sessionIndex, session ->
+				session.copy(
+					compatibility = compatibilityByOwner[dayIndex to sessionIndex]
+						?: StepsCountDomainCompatibilityResult.Unverifiable,
+				)
+			}
+			composePublicDay(day, native, imported, compatibleSessions)
 		}
 		check(database.sourceEvidenceStateDao().get()?.revision == expectedSourceEvidenceRevision) {
 			"Ambient Steps source evidence changed during range composition"
@@ -599,7 +623,7 @@ private fun composePublicDay(
 	val key = day.historyKey
 	val facts = native.factsByDay[key].orEmpty() + imported.factsByDay[key].orEmpty()
 	val gaps = native.gapsByDay[key].orEmpty() + imported.gapsByDay[key].orEmpty()
-	val daySessions = sessions.mapNotNull { it.forDay(day) }
+	val daySessions = sessions
 	val base = composeAmbientStepsDay(
 		day,
 		facts,
@@ -680,7 +704,6 @@ private fun QualifiedSessionStepsWindow.forDay(
 		startTimeMs = clippedStart,
 		endTimeMs = clippedEnd,
 		stepCount = null,
-		compatibility = StepsCountDomainCompatibilityResult.Unproven,
 	)
 }
 
@@ -1113,7 +1136,6 @@ private class AmbientStepsSessionRangeReader(
 						.map { it.zoneId }
 						.distinct()
 						.singleOrNull(),
-					compatibility = StepsCountDomainCompatibilityResult.Unproven,
 					countDomainOwners = buildList {
 						snapshot.factStatesByRun[serviceRunId].orEmpty()
 							.mapNotNullTo(this) {
@@ -1163,7 +1185,6 @@ private class AmbientStepsSessionRangeReader(
 										history.coverage == ApiStepsHistoryCoverage.COMPLETE
 								},
 								storedZoneId = run.storedZoneId,
-								compatibility = StepsCountDomainCompatibilityResult.Unproven,
 								origin = QualifiedSessionStepsOrigin.PORTABLE_IMPORT,
 							)
 						}
@@ -1178,7 +1199,6 @@ private class AmbientStepsSessionRangeReader(
 							endTimeMs = candidate.endTimeMs,
 							stepCount = null,
 							storedZoneId = null,
-							compatibility = StepsCountDomainCompatibilityResult.Unproven,
 							origin = QualifiedSessionStepsOrigin.PORTABLE_IMPORT,
 						)
 					}

@@ -2,10 +2,14 @@ package com.adsamcik.tracker.tracker.source.deletion
 
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainMaintenanceResult
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerLookupKey
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
 
 /**
  * Installs one payload-free latest-state retraction for an authenticated Steps fact.
@@ -53,23 +57,45 @@ internal suspend fun AppDatabase.insertStepsDeletionRetractionOrVerify(
 		StepsCountDomainWriteResult.NOT_APPLICABLE,
 		StepsCountDomainWriteResult.IDENTITY_CONFLICT,
 		StepsCountDomainWriteResult.REVISION_GAP,
-		StepsCountDomainWriteResult.TERMINALLY_RETRACTED,
+		StepsCountDomainWriteResult.TERMINAL_OWNER,
 		-> return false
 	}
-	return when (store.recordSessionFactRetraction(
+	val retractionResult = store.recordSessionFactRetraction(
 		retraction = retraction,
 		logicalTrackingId = requireNotNull(fact.logicalTrackingId),
 		serviceRunId = requireNotNull(fact.serviceRunId),
-	)) {
+	)
+	return when (retractionResult) {
 		StepsCountDomainWriteResult.INSERTED,
 		StepsCountDomainWriteResult.EXACT_REPLAY,
 		StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
 		StepsCountDomainWriteResult.NOT_APPLICABLE,
-		-> true
+		-> {
+			if (retractionResult != StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE) {
+				check(
+					store.removeOwners(
+						listOf(
+							StepsCountDomainOwnerLookupKey(
+									ownerKind =
+										StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+									ownerIdentity =
+										StepsCountDomainReceiptIntegrity.sessionFactOwnerIdentity(
+											fact.writerProjectionId,
+											fact.writerProjectionVersion,
+											fact.logicalFactId,
+										),
+									ownerRevision = fact.semanticRevision,
+								),
+						),
+					) !is StepsCountDomainMaintenanceResult.Overflow,
+				) { "Steps deletion count-domain owner batch exceeded its bound" }
+			}
+			true
+		}
 		StepsCountDomainWriteResult.UNPROVEN,
 		StepsCountDomainWriteResult.IDENTITY_CONFLICT,
 		StepsCountDomainWriteResult.REVISION_GAP,
-		StepsCountDomainWriteResult.TERMINALLY_RETRACTED,
+		StepsCountDomainWriteResult.TERMINAL_OWNER,
 		-> false
 	}
 }

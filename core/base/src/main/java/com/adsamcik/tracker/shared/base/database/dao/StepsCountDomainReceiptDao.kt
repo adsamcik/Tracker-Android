@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletenessMarkerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptEntity
 
@@ -13,7 +14,7 @@ enum class StepsCountDomainAppendResult {
 	EXACT_REPLAY,
 	IDENTITY_CONFLICT,
 	REVISION_GAP,
-	TERMINALLY_RETRACTED,
+	TERMINAL_OWNER,
 }
 
 /** Source-specific Room contract; AppDatabase registration belongs to serialized schema assembly. */
@@ -24,6 +25,11 @@ interface StepsCountDomainReceiptDao {
 
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertOwner(owner: StepsCountDomainOwnerRevisionEntity): Long
+
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	suspend fun insertCompletenessMarker(
+		marker: StepsCountDomainCompletenessMarkerEntity,
+	): Long
 
 	@Query(
 		"SELECT * FROM steps_count_domain_receipt WHERE receipt_identity = :identity LIMIT 1",
@@ -67,10 +73,20 @@ interface StepsCountDomainReceiptDao {
 		limit: Int,
 	): List<StepsCountDomainReceiptEntity>
 
+	@Query(
+		"SELECT * FROM steps_count_domain_completeness_marker WHERE owner_identity = :ownerIdentity " +
+			"AND owner_revision = :ownerRevision LIMIT 1",
+	)
+	suspend fun completenessMarker(
+		ownerIdentity: String,
+		ownerRevision: Long,
+	): StepsCountDomainCompletenessMarkerEntity?
+
 	@Transaction
 	suspend fun append(
 		storedReceipt: StepsCountDomainReceiptEntity?,
 		owner: StepsCountDomainOwnerRevisionEntity,
+		marker: StepsCountDomainCompletenessMarkerEntity? = null,
 	): StepsCountDomainAppendResult {
 		if (storedReceipt == null) {
 			if (owner.receiptIdentity != null) {
@@ -81,7 +97,30 @@ interface StepsCountDomainReceiptDao {
 			storedReceipt.ownerKind != owner.ownerKind ||
 			storedReceipt.scopeIdentity != owner.scopeIdentity ||
 			storedReceipt.ownerIdentity != owner.ownerIdentity ||
-			storedReceipt.ownerRevision != owner.ownerRevision
+			storedReceipt.ownerRevision != owner.ownerRevision ||
+			storedReceipt.effectChecksum != owner.ownerEffectChecksum
+		) {
+			return StepsCountDomainAppendResult.IDENTITY_CONFLICT
+		}
+		if ((owner.ownerKind == StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS) !=
+			(marker != null)
+		) {
+			return StepsCountDomainAppendResult.IDENTITY_CONFLICT
+		}
+		if (marker != null && (
+			marker.ownerKind != owner.ownerKind ||
+				marker.ownerIdentity != owner.ownerIdentity ||
+				marker.ownerRevision != owner.ownerRevision ||
+				owner.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_BIND &&
+				marker.terminalState !=
+				StepsCountDomainCompletenessMarkerEntity.STATE_COMPLETE ||
+				owner.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_BIND &&
+				storedReceipt?.completionEvidenceChecksum !=
+				marker.evidenceChecksum ||
+				owner.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN &&
+				marker.terminalState !=
+				StepsCountDomainCompletenessMarkerEntity.STATE_UNPROVEN
+			)
 		) {
 			return StepsCountDomainAppendResult.IDENTITY_CONFLICT
 		}
@@ -91,12 +130,23 @@ interface StepsCountDomainReceiptDao {
 		if (latest?.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_RETRACT &&
 			exact != latest
 		) {
-			return StepsCountDomainAppendResult.TERMINALLY_RETRACTED
+			return StepsCountDomainAppendResult.TERMINAL_OWNER
+		}
+		if (latest?.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN &&
+			exact != latest &&
+			owner.operation != StepsCountDomainOwnerRevisionEntity.OPERATION_RETRACT
+		) {
+			return StepsCountDomainAppendResult.TERMINAL_OWNER
 		}
 		if (exact != null) {
 			return if (exact == owner &&
 				(storedReceipt == null ||
-					receipt(storedReceipt.receiptIdentity) == storedReceipt)
+					receipt(storedReceipt.receiptIdentity) == storedReceipt) &&
+				(marker == null ||
+					completenessMarker(
+						marker.ownerIdentity,
+						marker.ownerRevision,
+					) == marker)
 			) {
 				StepsCountDomainAppendResult.EXACT_REPLAY
 			} else {
@@ -106,12 +156,13 @@ interface StepsCountDomainReceiptDao {
 		if (latest != null && latest.scopeIdentity != owner.scopeIdentity) {
 			return StepsCountDomainAppendResult.IDENTITY_CONFLICT
 		}
-		val revisionIsValid = if (
-			owner.ownerKind == StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS
-		) {
-			latest == null || owner.ownerRevision > latest.ownerRevision
-		} else {
-			owner.ownerRevision == (latest?.ownerRevision ?: 0L) + 1L
+		val revisionIsValid = when {
+			latest == null &&
+				owner.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN -> true
+			owner.ownerKind ==
+				StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS ->
+				latest == null || owner.ownerRevision > latest.ownerRevision
+			else -> owner.ownerRevision == (latest?.ownerRevision ?: 0L) + 1L
 		}
 		if (!revisionIsValid) {
 			return StepsCountDomainAppendResult.REVISION_GAP
@@ -133,6 +184,11 @@ interface StepsCountDomainReceiptDao {
 		if (insertOwner(owner) < 0L) {
 			return StepsCountDomainAppendResult.IDENTITY_CONFLICT
 		}
+		if (marker != null &&
+			insertCompletenessMarker(marker) < 0L
+		) {
+			return StepsCountDomainAppendResult.IDENTITY_CONFLICT
+		}
 		return StepsCountDomainAppendResult.INSERTED
 	}
 
@@ -147,8 +203,5 @@ interface StepsCountDomainReceiptDao {
 private fun StepsCountDomainReceiptEntity.hasSameImmutableDomain(
 	other: StepsCountDomainReceiptEntity,
 ): Boolean = domainIdentity == other.domainIdentity &&
-	providerDomainIdentity == other.providerDomainIdentity &&
-	sourceInstanceIdentity == other.sourceInstanceIdentity &&
-	registrationGeneration == other.registrationGeneration &&
 	collectedDataEpoch == other.collectedDataEpoch &&
 	countDomainVersion == other.countDomainVersion

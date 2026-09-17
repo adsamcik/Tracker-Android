@@ -28,18 +28,24 @@ class StepsCountDomainCompatibilityContractTest {
 
 	@Test
 	fun `request is bounded typed and defensively immutable`() {
-		val sessionInput = mutableListOf(reference(StepsCountDomainOwnerKind.SESSION_FACT, '1'))
-		val ambientInput = mutableListOf(reference(StepsCountDomainOwnerKind.AMBIENT_FACT, '2'))
+		val sessionInput = mutableListOf(
+			reference(StepsCountDomainOwnerKind.SESSION_FACT, '1'),
+			reference(StepsCountDomainOwnerKind.SESSION_COMPLETENESS, '2'),
+		)
+		val ambientInput = mutableListOf(
+			reference(StepsCountDomainOwnerKind.AMBIENT_FACT, '3'),
+			reference(StepsCountDomainOwnerKind.AMBIENT_FACT, '4'),
+		)
 		val request = StepsCountDomainCompatibilityRequest(sessionInput, ambientInput)
 		sessionInput.clear()
 		ambientInput.clear()
 
-		assertEquals(1, request.sessionOwners.size)
-		assertEquals(1, request.ambientOwners.size)
+		assertEquals(2, request.sessionOwners.size)
+		assertEquals(2, request.ambientOwners.size)
 		(request.sessionOwners as MutableList<*>).clear()
 		(request.ambientOwners as MutableList<*>).clear()
-		assertEquals(1, request.sessionOwners.size)
-		assertEquals(1, request.ambientOwners.size)
+		assertEquals(2, request.sessionOwners.size)
+		assertEquals(2, request.ambientOwners.size)
 
 		assertFailsWith<IllegalArgumentException> {
 			StepsCountDomainCompatibilityRequest(
@@ -53,18 +59,18 @@ class StepsCountDomainCompatibilityContractTest {
 				listOf(reference(StepsCountDomainOwnerKind.SESSION_FACT, '4')),
 			)
 		}
-		assertFailsWith<IllegalArgumentException> {
-			StepsCountDomainCompatibilityRequest(
-				List(MAX_STEPS_COUNT_DOMAIN_OWNERS_PER_SIDE + 1) { index ->
-					reference(
-						StepsCountDomainOwnerKind.SESSION_FACT,
-						"0123456789abcdef"[index % 16],
-						index.toLong() + 1L,
-					)
-				},
-				emptyList(),
-			)
-		}
+		val overflow = StepsCountDomainCompatibilityRequest(
+			List(MAX_STEPS_COUNT_DOMAIN_OWNERS_PER_SIDE + 1) { index ->
+				reference(
+					StepsCountDomainOwnerKind.SESSION_FACT,
+					"0123456789abcdef"[index % 16],
+					index.toLong() + 1L,
+				)
+			},
+			emptyList(),
+		)
+		assertEquals(true, overflow.exceedsOwnerBounds)
+		assertEquals(emptyList(), overflow.sessionOwners)
 	}
 
 	@Test

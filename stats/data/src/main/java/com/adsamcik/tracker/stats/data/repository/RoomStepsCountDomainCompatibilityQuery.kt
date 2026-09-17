@@ -9,10 +9,12 @@ import com.adsamcik.tracker.shared.base.database.StepsCountDomainStoredOwner
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletenessMarkerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
 import com.adsamcik.tracker.stats.api.repository.MAX_STEPS_COUNT_DOMAIN_REQUESTS
+import com.adsamcik.tracker.stats.api.repository.MAX_STEPS_COUNT_DOMAIN_OWNERS_PER_BATCH
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityQuery
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityRequest
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityResult
@@ -21,13 +23,17 @@ import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerIdentity
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerKind
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerReference
 import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /**
  * Bounded native receipt lookup.
  *
  * This reader never accepts time, count, zone, or source display names. The AppDatabase schema
- * owner may install the two additive tables later; until then every lookup remains Unproven.
+ * owner may install the additive tables and sentinel later; until then every lookup is Unproven.
  */
+@Singleton
 internal class RoomStepsCountDomainCompatibilityQuery @Inject constructor(
 	database: AppDatabase,
 ) : StepsCountDomainCompatibilityQuery {
@@ -36,30 +42,81 @@ internal class RoomStepsCountDomainCompatibilityQuery @Inject constructor(
 	override suspend fun compare(
 		requests: List<StepsCountDomainCompatibilityRequest>,
 	): List<StepsCountDomainCompatibilityResult> {
+		if (requests.size > MAX_STEPS_COUNT_DOMAIN_REQUESTS) {
+			return List(requests.size) { StepsCountDomainCompatibilityResult.Unverifiable }
+		}
 		val snapshot = requests.toList()
-		if (snapshot.size > MAX_STEPS_COUNT_DOMAIN_REQUESTS) {
-			return List(snapshot.size) { StepsCountDomainCompatibilityResult.Unverifiable }
+		val results = MutableList<StepsCountDomainCompatibilityResult?>(snapshot.size) { null }
+		val bounded = snapshot.mapIndexedNotNull { index, request ->
+			if (request.exceedsOwnerBounds) {
+				results[index] = StepsCountDomainCompatibilityResult.Unverifiable
+				null
+			} else {
+				IndexedRequest(index, request)
+			}
 		}
-		val keys = snapshot.flatMap { request ->
-			request.sessionOwners.map { it.toLookupKey() } +
-				request.ambientOwners.map { it.toLookupKey() }
-		}.distinct()
-		return when (val read = store.readOwners(keys)) {
-			StepsCountDomainOwnerRead.SchemaUnavailable ->
-				List(snapshot.size) { StepsCountDomainCompatibilityResult.Unproven }
-			StepsCountDomainOwnerRead.Overflow,
-			StepsCountDomainOwnerRead.Unverifiable,
-			-> List(snapshot.size) { StepsCountDomainCompatibilityResult.Unverifiable }
-			is StepsCountDomainOwnerRead.Ready ->
-				snapshot.map { request -> resolveStepsCountDomainCompatibility(request, read) }
+		bounded.toOwnerBoundedChunks().forEach { chunk ->
+			currentCoroutineContext().ensureActive()
+			val keys = chunk.flatMap { indexed ->
+				indexed.request.sessionOwners.map { it.toLookupKey() } +
+					indexed.request.ambientOwners.map { it.toLookupKey() }
+			}.distinct()
+			when (val read = store.readOwners(keys)) {
+				StepsCountDomainOwnerRead.SchemaUnavailable ->
+					chunk.forEach {
+						results[it.index] = StepsCountDomainCompatibilityResult.Unproven
+					}
+				StepsCountDomainOwnerRead.Overflow,
+				StepsCountDomainOwnerRead.Unverifiable,
+				-> chunk.forEach {
+					results[it.index] = StepsCountDomainCompatibilityResult.Unverifiable
+				}
+				is StepsCountDomainOwnerRead.Ready ->
+					chunk.forEach {
+						results[it.index] = resolveStepsCountDomainCompatibility(
+							it.request,
+							read,
+						)
+					}
+			}
 		}
+		return results.map { it ?: StepsCountDomainCompatibilityResult.Unverifiable }
 	}
+}
+
+private data class IndexedRequest(
+	val index: Int,
+	val request: StepsCountDomainCompatibilityRequest,
+)
+
+private fun List<IndexedRequest>.toOwnerBoundedChunks(): List<List<IndexedRequest>> {
+	if (isEmpty()) return emptyList()
+	val chunks = mutableListOf<MutableList<IndexedRequest>>()
+	var current = mutableListOf<IndexedRequest>()
+	var currentOwnerCount = 0
+	for (indexed in this) {
+		val ownerCount = indexed.request.sessionOwners.size + indexed.request.ambientOwners.size
+		if (current.isNotEmpty() &&
+			currentOwnerCount + ownerCount > MAX_STEPS_COUNT_DOMAIN_OWNERS_PER_BATCH
+		) {
+			chunks += current
+			current = mutableListOf()
+			currentOwnerCount = 0
+		}
+		current += indexed
+		currentOwnerCount += ownerCount
+	}
+	if (current.isNotEmpty()) chunks += current
+	return chunks
 }
 
 internal fun resolveStepsCountDomainCompatibility(
 	request: StepsCountDomainCompatibilityRequest,
 	read: StepsCountDomainOwnerRead.Ready,
 ): StepsCountDomainCompatibilityResult {
+	if (request.exceedsOwnerBounds) {
+		return StepsCountDomainCompatibilityResult.Unverifiable
+	}
 	if (request.sessionOwners.isEmpty() || request.ambientOwners.isEmpty() ||
 		request.sessionOwners.none {
 			it.kind == StepsCountDomainOwnerKind.SESSION_FACT
@@ -81,10 +138,14 @@ internal fun resolveStepsCountDomainCompatibility(
 		read.ownerFor(reference) ?: return StepsCountDomainCompatibilityResult.Unproven
 	}
 	val all = session + ambient
+	if (all.any { (reference, stored) ->
+			!stored.hasAuthenticSelectedOwner(reference)
+		}) {
+		return StepsCountDomainCompatibilityResult.Unverifiable
+	}
 	if (all.any { (_, stored) ->
 			stored.owner.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_RETRACT
-		}
-	) {
+		}) {
 		return StepsCountDomainCompatibilityResult.Deleted
 	}
 	if (all.any { (_, stored) ->
@@ -92,9 +153,6 @@ internal fun resolveStepsCountDomainCompatibility(
 		}
 	) {
 		return StepsCountDomainCompatibilityResult.Unproven
-	}
-	if (all.any { (reference, stored) -> !stored.hasAuthenticBinding(reference) }) {
-		return StepsCountDomainCompatibilityResult.Unverifiable
 	}
 	val sessionScopes = session.mapTo(linkedSetOf()) { (_, stored) ->
 		stored.owner.scopeIdentity
@@ -134,22 +192,52 @@ private fun StepsCountDomainOwnerRead.Ready.ownerFor(
 	return owners[key]?.let { reference to it }
 }
 
-private fun StepsCountDomainStoredOwner.hasAuthenticBinding(
+private fun StepsCountDomainStoredOwner.hasAuthenticSelectedOwner(
 	reference: StepsCountDomainOwnerReference,
 ): Boolean {
+	if (owner.ownerKind != reference.kind.storedCode ||
+		owner.ownerIdentity != reference.identity.encoded ||
+		owner.ownerRevision != reference.revision ||
+		owner.ownerEffectChecksum != reference.effect.encoded
+	) return false
+	return when (owner.operation) {
+		StepsCountDomainOwnerRevisionEntity.OPERATION_BIND -> hasAuthenticBinding()
+		StepsCountDomainOwnerRevisionEntity.OPERATION_RETRACT ->
+			receipt == null && completenessMarker == null
+		StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN ->
+			receipt == null && if (
+				owner.ownerKind ==
+				StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS
+			) {
+				completenessMarker?.terminalState ==
+					StepsCountDomainCompletenessMarkerEntity.STATE_UNPROVEN
+			} else {
+				completenessMarker == null
+			}
+		else -> false
+	}
+}
+
+private fun StepsCountDomainStoredOwner.hasAuthenticBinding(): Boolean {
 	val receipt = receipt ?: return false
-	return owner.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_BIND &&
-		owner.ownerKind == reference.kind.storedCode &&
-		owner.ownerIdentity == reference.identity.encoded &&
-		owner.ownerRevision == reference.revision &&
-		owner.ownerEffectChecksum == reference.effect.encoded &&
-		owner.receiptIdentity == receipt.receiptIdentity &&
+	return owner.receiptIdentity == receipt.receiptIdentity &&
 		owner.ownerEffectChecksum == receipt.effectChecksum &&
 		receipt.ownerKind == owner.ownerKind &&
 		receipt.scopeIdentity == owner.scopeIdentity &&
 		receipt.ownerIdentity == owner.ownerIdentity &&
 		receipt.ownerRevision == owner.ownerRevision &&
-		StepsCountDomainReceiptIntegrity.hasValidReceipt(receipt)
+		StepsCountDomainReceiptIntegrity.hasValidReceipt(receipt) &&
+		if (owner.ownerKind ==
+			StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS
+		) {
+			completenessMarker?.let { marker ->
+				marker.terminalState ==
+					StepsCountDomainCompletenessMarkerEntity.STATE_COMPLETE &&
+					marker.evidenceChecksum == receipt.completionEvidenceChecksum
+			} == true
+		} else {
+			completenessMarker == null && receipt.completionEvidenceChecksum == null
+		}
 }
 
 private data class StepsCountDomainCompatibilityKey(
@@ -182,7 +270,7 @@ private val StepsCountDomainOwnerKind.storedCode: String
 	}
 
 internal fun StepFactRevisionEntity.countDomainOwnerReferenceOrNull():
-	StepsCountDomainOwnerReference? = runCatching {
+	StepsCountDomainOwnerReference? = try {
 		StepsCountDomainOwnerReference(
 			kind = StepsCountDomainOwnerKind.SESSION_FACT,
 			identity = StepsCountDomainOwnerIdentity.opaque(
@@ -195,10 +283,12 @@ internal fun StepFactRevisionEntity.countDomainOwnerReferenceOrNull():
 			revision = semanticRevision,
 			effect = StepsCountDomainOwnerEffect.opaque(effectChecksum),
 		)
-	}.getOrNull()
+	} catch (_: IllegalArgumentException) {
+		null
+	}
 
 internal fun SourceSessionCompletenessEntity.countDomainOwnerReferenceOrNull():
-	StepsCountDomainOwnerReference? = runCatching {
+	StepsCountDomainOwnerReference? = try {
 		val effectChecksum = StepsCountDomainReceiptIntegrity.completenessEffectChecksum(this)
 		StepsCountDomainOwnerReference(
 			kind = StepsCountDomainOwnerKind.SESSION_COMPLETENESS,
@@ -213,10 +303,14 @@ internal fun SourceSessionCompletenessEntity.countDomainOwnerReferenceOrNull():
 			revision = StepsCountDomainReceiptIntegrity.completenessOwnerRevision(this),
 			effect = StepsCountDomainOwnerEffect.opaque(effectChecksum),
 		)
-	}.getOrNull()
+	} catch (_: IllegalArgumentException) {
+		null
+	} catch (_: ArithmeticException) {
+		null
+	}
 
 internal fun AmbientStepsFactRevisionEntity.countDomainOwnerReferenceOrNull():
-	StepsCountDomainOwnerReference? = runCatching {
+	StepsCountDomainOwnerReference? = try {
 		StepsCountDomainOwnerReference(
 			kind = StepsCountDomainOwnerKind.AMBIENT_FACT,
 			identity = StepsCountDomainOwnerIdentity.opaque(
@@ -229,4 +323,6 @@ internal fun AmbientStepsFactRevisionEntity.countDomainOwnerReferenceOrNull():
 			revision = semanticRevision,
 			effect = StepsCountDomainOwnerEffect.opaque(effectChecksum),
 		)
-	}.getOrNull()
+	} catch (_: IllegalArgumentException) {
+		null
+	}

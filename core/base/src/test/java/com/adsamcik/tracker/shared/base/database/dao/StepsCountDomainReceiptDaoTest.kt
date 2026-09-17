@@ -6,8 +6,11 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletenessMarkerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainSchemaMarkerEntity
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
@@ -41,15 +44,15 @@ class StepsCountDomainReceiptDaoTest {
 
 	@Test
 	fun `corrections retain their original domains and terminal retraction cannot resurrect`() = runTest {
-		val revisionOne = receipt(1L, "instance-a")
-		val revisionTwo = receipt(2L, "instance-a")
+		val revisionOne = receipt(1L, 'a')
+		val revisionTwo = receipt(2L, 'a')
 		dao.append(revisionOne, owner(revisionOne)) shouldBe StepsCountDomainAppendResult.INSERTED
 		dao.append(revisionTwo, owner(revisionTwo)) shouldBe StepsCountDomainAppendResult.INSERTED
 
 		dao.receipt(revisionOne.receiptIdentity) shouldBe revisionOne
 		dao.receipt(revisionTwo.receiptIdentity) shouldBe revisionTwo
 		dao.latestOwner(OWNER_KIND, OWNER_IDENTITY) shouldBe owner(revisionTwo)
-		val changedDomain = receipt(3L, "instance-b")
+		val changedDomain = receipt(3L, 'b')
 		dao.append(changedDomain, owner(changedDomain)) shouldBe
 			StepsCountDomainAppendResult.IDENTITY_CONFLICT
 
@@ -60,15 +63,15 @@ class StepsCountDomainReceiptDaoTest {
 		)
 		dao.append(null, retraction) shouldBe StepsCountDomainAppendResult.INSERTED
 		dao.append(
-			receipt(4L, "instance-a"),
-			owner(receipt(4L, "instance-a")),
-		) shouldBe StepsCountDomainAppendResult.TERMINALLY_RETRACTED
+			receipt(4L, 'a'),
+			owner(receipt(4L, 'a')),
+		) shouldBe StepsCountDomainAppendResult.TERMINAL_OWNER
 		dao.latestOwner(OWNER_KIND, OWNER_IDENTITY) shouldBe retraction
 	}
 
 	@Test
 	fun `exact replay conflict revision gap and bounded lookup stay distinct`() = runTest {
-		val first = receipt(1L, "instance-a")
+		val first = receipt(1L, 'a')
 		dao.append(first, owner(first)) shouldBe StepsCountDomainAppendResult.INSERTED
 		dao.append(first, owner(first)) shouldBe StepsCountDomainAppendResult.EXACT_REPLAY
 		dao.append(
@@ -76,11 +79,11 @@ class StepsCountDomainReceiptDaoTest {
 			owner(first).copy(linkedAtMs = 99L),
 		) shouldBe StepsCountDomainAppendResult.IDENTITY_CONFLICT
 
-		val third = receipt(3L, "instance-a")
+		val third = receipt(3L, 'a')
 		dao.append(third, owner(third)) shouldBe StepsCountDomainAppendResult.REVISION_GAP
 
 		val secondOwner = opaque('b')
-		val second = receipt(1L, "instance-a", secondOwner)
+		val second = receipt(1L, 'a', secondOwner)
 		dao.append(second, owner(second)) shouldBe StepsCountDomainAppendResult.INSERTED
 		dao.owners(listOf(OWNER_IDENTITY, secondOwner), 1) shouldContainExactly
 			listOf(owner(first))
@@ -88,7 +91,7 @@ class StepsCountDomainReceiptDaoTest {
 
 	@Test
 	fun `receipt and owner survive database reopen`() = runTest {
-		val receipt = receipt(1L, "instance-a")
+		val receipt = receipt(1L, 'a')
 		dao.append(receipt, owner(receipt)) shouldBe StepsCountDomainAppendResult.INSERTED
 		database.close()
 
@@ -99,6 +102,34 @@ class StepsCountDomainReceiptDaoTest {
 		dao.latestOwner(OWNER_KIND, OWNER_IDENTITY) shouldBe owner(receipt)
 	}
 
+	@Test
+	fun `terminal unproven cannot upgrade and receipt effect mismatch inserts nothing`() = runTest {
+		val unprovenOwnerIdentity = opaque('c')
+		val unproven = StepsCountDomainOwnerRevisionEntity(
+			ownerKind = OWNER_KIND,
+			scopeIdentity = opaque('9'),
+			ownerIdentity = unprovenOwnerIdentity,
+			ownerRevision = 1L,
+			operation = StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN,
+			receiptIdentity = null,
+			ownerEffectChecksum = "c".repeat(64),
+			linkedAtMs = 1L,
+		)
+		dao.append(null, unproven) shouldBe StepsCountDomainAppendResult.INSERTED
+		dao.append(null, unproven) shouldBe StepsCountDomainAppendResult.EXACT_REPLAY
+		val later = receipt(2L, 'a', unprovenOwnerIdentity)
+		dao.append(later, owner(later)) shouldBe
+			StepsCountDomainAppendResult.TERMINAL_OWNER
+
+		val mismatchedOwnerIdentity = opaque('d')
+		val receipt = receipt(1L, 'a', mismatchedOwnerIdentity)
+		dao.append(
+			receipt,
+			owner(receipt).copy(ownerEffectChecksum = "f".repeat(64)),
+		) shouldBe StepsCountDomainAppendResult.IDENTITY_CONFLICT
+		dao.receipt(receipt.receiptIdentity) shouldBe null
+	}
+
 	private fun openDatabase(): CountDomainTestDatabase =
 		Room.databaseBuilder(context, CountDomainTestDatabase::class.java, DATABASE_NAME)
 			.allowMainThreadQueries()
@@ -106,21 +137,16 @@ class StepsCountDomainReceiptDaoTest {
 
 	private fun receipt(
 		revision: Long,
-		sourceInstance: String,
+		tokenDigit: Char,
 		ownerIdentity: String = OWNER_IDENTITY,
 	): StepsCountDomainReceiptEntity {
-		val providerIdentity =
-			StepsCountDomainReceiptIntegrity.nativeProviderDomainIdentity("provider")
-		val sourceIdentity =
-			StepsCountDomainReceiptIntegrity.nativeSourceInstanceIdentity(sourceInstance)
-		val domainIdentity =
-			StepsCountDomainReceiptIntegrity.nativeDomainIdentity("provider", sourceInstance)
+		val domainIdentity = StepsCountDomainReceiptIntegrity.counterDomainIdentity(
+			StepsCounterDomainToken.opaque(opaque(tokenDigit)),
+		)
 		val effect = revision.toString().repeat(64).take(64)
 		val scopeIdentity = opaque('9')
 		val identity = StepsCountDomainReceiptIntegrity.receiptIdentity(
 			domainIdentity,
-			providerIdentity,
-			sourceIdentity,
 			OWNER_KIND,
 			scopeIdentity,
 			ownerIdentity,
@@ -133,12 +159,11 @@ class StepsCountDomainReceiptDaoTest {
 			1,
 			StepsCountDomainReceiptEntity.CURRENT_COUNT_DOMAIN_VERSION,
 			effect,
+			null,
 		)
 		return StepsCountDomainReceiptEntity(
 			identity,
 			domainIdentity,
-			providerIdentity,
-			sourceIdentity,
 			OWNER_KIND,
 			scopeIdentity,
 			ownerIdentity,
@@ -151,6 +176,7 @@ class StepsCountDomainReceiptDaoTest {
 			1,
 			StepsCountDomainReceiptEntity.CURRENT_COUNT_DOMAIN_VERSION,
 			effect,
+			null,
 		)
 	}
 
@@ -182,6 +208,8 @@ class StepsCountDomainReceiptDaoTest {
 	entities = [
 		StepsCountDomainReceiptEntity::class,
 		StepsCountDomainOwnerRevisionEntity::class,
+		StepsCountDomainCompletenessMarkerEntity::class,
+		StepsCountDomainSchemaMarkerEntity::class,
 	],
 	version = 1,
 	exportSchema = false,

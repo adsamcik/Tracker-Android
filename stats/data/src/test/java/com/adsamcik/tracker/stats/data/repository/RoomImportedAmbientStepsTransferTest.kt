@@ -1917,6 +1917,7 @@ class RoomImportedAmbientStepsTransferTest {
 		database,
 		database.importedAmbientStepsDao(),
 		StepsSegmentHistorySelector(database, SourceProductLaneExecutionAuthority { false }),
+		RoomStepsCountDomainCompatibilityQuery(database),
 		Dispatchers.Unconfined,
 	)
 

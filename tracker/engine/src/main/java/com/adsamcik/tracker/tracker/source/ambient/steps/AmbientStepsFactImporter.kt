@@ -31,6 +31,7 @@ import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionFloor
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -869,12 +870,6 @@ internal class AmbientStepsFactImporter internal constructor(
 			aggregate = aggregate,
 		)
 		if (!unchanged) {
-			latest?.let {
-				recordCountDomainOrThrow(
-					it,
-					authority.registration.physicalConfigurationFingerprint,
-				)
-			}
 			val nextRevision = Math.addExact(latest?.semanticRevision ?: 0L, 1L)
 			val fact = ambientFact(
 				authority = authority,
@@ -899,14 +894,14 @@ internal class AmbientStepsFactImporter internal constructor(
 			if (factDao.insert(fact) == INSERT_IGNORED) {
 				throw ConcurrentAmbientStepsImportException()
 			}
-			recordCountDomainOrThrow(fact, authority.registration.physicalConfigurationFingerprint)
+			recordCountDomainOrThrow(fact, aggregate.counterDomainToken)
 			if (!lifecycleChanged && evidenceDao.incrementRevision(fact.appliedAtMs) != 1) {
 				throw ConcurrentAmbientStepsImportException()
 			}
 		} else {
 			recordCountDomainOrThrow(
 				requireNotNull(latest),
-				authority.registration.physicalConfigurationFingerprint,
+				aggregate.counterDomainToken,
 			)
 		}
 		val appliedAtMs = maxOf(clock.currentTimeMillis(), aggregate.observedAtMs)
@@ -1093,7 +1088,7 @@ internal class AmbientStepsFactImporter internal constructor(
 		) {
 			recordCountDomainOrThrow(
 				requireNotNull(latest),
-				current.registration.physicalConfigurationFingerprint,
+				aggregate.counterDomainToken,
 			)
 			return AmbientStepsImportResult.Unchanged(
 				window = preflight.window.providerWindow,
@@ -1103,12 +1098,6 @@ internal class AmbientStepsFactImporter internal constructor(
 		val semanticRevision = if (unchanged) {
 			requireNotNull(latest).semanticRevision
 		} else {
-			latest?.let {
-				recordCountDomainOrThrow(
-					it,
-					current.registration.physicalConfigurationFingerprint,
-				)
-			}
 			val nextRevision = Math.addExact(latest?.semanticRevision ?: 0L, 1L)
 			val fact = ambientFact(
 				authority = current,
@@ -1135,7 +1124,7 @@ internal class AmbientStepsFactImporter internal constructor(
 			}
 			recordCountDomainOrThrow(
 				fact,
-				current.registration.physicalConfigurationFingerprint,
+				aggregate.counterDomainToken,
 			)
 			if (!lifecycleChanged && evidenceDao.incrementRevision(appliedAtMs) != 1) {
 				throw ConcurrentAmbientStepsImportException()
@@ -1145,7 +1134,7 @@ internal class AmbientStepsFactImporter internal constructor(
 		if (unchanged) {
 			recordCountDomainOrThrow(
 				requireNotNull(latest),
-				current.registration.physicalConfigurationFingerprint,
+				aggregate.counterDomainToken,
 			)
 		}
 
@@ -1683,18 +1672,18 @@ internal class AmbientStepsFactImporter internal constructor(
 
 	private suspend fun recordCountDomainOrThrow(
 		fact: AmbientStepsFactRevisionEntity,
-		providerDomain: String,
+		counterDomainToken: StepsCounterDomainToken?,
 	) {
-		when (StepsCountDomainStore(database).recordAmbientFact(fact, providerDomain)) {
+		when (StepsCountDomainStore(database).recordAmbientFact(fact, counterDomainToken)) {
 			StepsCountDomainWriteResult.INSERTED,
 			StepsCountDomainWriteResult.EXACT_REPLAY,
 			StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
+			StepsCountDomainWriteResult.UNPROVEN,
 			-> Unit
 			StepsCountDomainWriteResult.NOT_APPLICABLE,
-			StepsCountDomainWriteResult.UNPROVEN,
 			StepsCountDomainWriteResult.IDENTITY_CONFLICT,
 			StepsCountDomainWriteResult.REVISION_GAP,
-			StepsCountDomainWriteResult.TERMINALLY_RETRACTED,
+			StepsCountDomainWriteResult.TERMINAL_OWNER,
 			-> throw ConcurrentAmbientStepsImportException()
 		}
 	}

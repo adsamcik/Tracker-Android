@@ -4,14 +4,16 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
+import androidx.room.PrimaryKey
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import java.security.MessageDigest
 
 /**
  * Immutable opaque evidence for one producer-owned Steps count domain.
  *
- * Raw provider/source-instance identifiers are inputs to one-way identities only and are never
- * retained here. Authority revision, coverage semantics, version, and owner effect are bound into
- * [receiptIdentity] so a receipt cannot be moved to another correction or completeness state.
+ * The provider-issued [domainIdentity] is independent of QoS configuration, report latency,
+ * registration generation, and purpose-specific ownership. Authority revision, coverage semantics,
+ * completion evidence, version, and owner effect are bound into [receiptIdentity].
  */
 @Entity(
 	tableName = "steps_count_domain_receipt",
@@ -35,8 +37,6 @@ import java.security.MessageDigest
 data class StepsCountDomainReceiptEntity(
 	@ColumnInfo(name = "receipt_identity") val receiptIdentity: String,
 	@ColumnInfo(name = "domain_identity") val domainIdentity: String,
-	@ColumnInfo(name = "provider_domain_identity") val providerDomainIdentity: String,
-	@ColumnInfo(name = "source_instance_identity") val sourceInstanceIdentity: String,
 	@ColumnInfo(name = "owner_kind") val ownerKind: String,
 	@ColumnInfo(name = "scope_identity") val scopeIdentity: String,
 	@ColumnInfo(name = "owner_identity") val ownerIdentity: String,
@@ -49,18 +49,12 @@ data class StepsCountDomainReceiptEntity(
 	@ColumnInfo(name = "coverage_version") val coverageVersion: Int,
 	@ColumnInfo(name = "count_domain_version") val countDomainVersion: Int,
 	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+	@ColumnInfo(name = "completion_evidence_checksum")
+	val completionEvidenceChecksum: String?,
 ) {
 	init {
 		require(StepsCountDomainReceiptIntegrity.isOpaque(receiptIdentity))
 		require(StepsCountDomainReceiptIntegrity.isOpaque(domainIdentity))
-		require(StepsCountDomainReceiptIntegrity.isOpaque(providerDomainIdentity))
-		require(StepsCountDomainReceiptIntegrity.isOpaque(sourceInstanceIdentity))
-		require(
-			domainIdentity == StepsCountDomainReceiptIntegrity.nativeDomainIdentityFromOpaque(
-				providerDomainIdentity,
-				sourceInstanceIdentity,
-			),
-		)
 		require(ownerKind in StepsCountDomainOwnerRevisionEntity.BINDABLE_OWNER_KINDS)
 		require(StepsCountDomainReceiptIntegrity.isOpaque(scopeIdentity))
 		require(StepsCountDomainReceiptIntegrity.isOpaque(ownerIdentity))
@@ -73,6 +67,10 @@ data class StepsCountDomainReceiptEntity(
 		require(coverageVersion > 0)
 		require(countDomainVersion == CURRENT_COUNT_DOMAIN_VERSION)
 		require(StepsCountDomainReceiptIntegrity.isDigest(effectChecksum))
+		require(
+			(ownerKind == StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS) ==
+				StepsCountDomainReceiptIntegrity.isDigest(completionEvidenceChecksum),
+		)
 		require(receiptIdentity == StepsCountDomainReceiptIntegrity.receiptIdentity(this))
 		require(coverageKind in coverageKindsFor(ownerKind))
 	}
@@ -117,8 +115,8 @@ data class StepsCountDomainReceiptEntity(
  * Append-only exact owner membership.
  *
  * A correction appends the next owner revision. A RETRACT is terminal and deliberately has no
- * receipt. UNPROVEN records that terminal completeness existed without enough native receipt
- * evidence; it never upgrades itself into compatibility authority.
+ * receipt. UNPROVEN permits only byte-exact replay or a later source deletion RETRACT; it never
+ * upgrades into compatibility authority.
  */
 @Entity(
 	tableName = "steps_count_domain_owner_revision",
@@ -141,6 +139,10 @@ data class StepsCountDomainReceiptEntity(
 		Index(
 			value = ["receipt_identity"],
 			name = "idx_steps_count_domain_owner_receipt",
+		),
+		Index(
+			value = ["operation", "linked_at_ms", "owner_kind", "owner_identity"],
+			name = "idx_steps_count_domain_owner_terminal_age",
 		),
 	],
 )
@@ -171,7 +173,7 @@ data class StepsCountDomainOwnerRevisionEntity(
 				ownerKind in RETRACTABLE_OWNER_KINDS && receiptIdentity == null,
 			)
 			OPERATION_UNPROVEN -> require(
-				ownerKind == OWNER_SESSION_COMPLETENESS && receiptIdentity == null,
+				ownerKind in BINDABLE_OWNER_KINDS && receiptIdentity == null,
 			)
 		}
 	}
@@ -200,38 +202,97 @@ data class StepsCountDomainOwnerRevisionEntity(
 	}
 }
 
+/** Exact retirement evidence retained only for a session-completeness owner revision. */
+@Entity(
+	tableName = "steps_count_domain_completeness_marker",
+	primaryKeys = ["owner_identity", "owner_revision"],
+	foreignKeys = [
+		ForeignKey(
+			entity = StepsCountDomainOwnerRevisionEntity::class,
+			parentColumns = ["owner_kind", "owner_identity", "owner_revision"],
+			childColumns = ["owner_kind", "owner_identity", "owner_revision"],
+			onDelete = ForeignKey.CASCADE,
+			onUpdate = ForeignKey.NO_ACTION,
+			deferred = true,
+		),
+	],
+	indices = [
+		Index(
+			value = ["owner_kind", "owner_identity", "owner_revision"],
+			unique = true,
+			name = "idx_steps_count_domain_completeness_owner",
+		),
+	],
+)
+data class StepsCountDomainCompletenessMarkerEntity(
+	@ColumnInfo(name = "owner_kind") val ownerKind: String,
+	@ColumnInfo(name = "owner_identity") val ownerIdentity: String,
+	@ColumnInfo(name = "owner_revision") val ownerRevision: Long,
+	@ColumnInfo(name = "terminal_state") val terminalState: String,
+	@ColumnInfo(name = "last_admission_ordinal") val lastAdmissionOrdinal: Long?,
+	@ColumnInfo(name = "last_source_sequence") val lastSourceSequence: Long?,
+	@ColumnInfo(name = "provider_flush_outcome") val providerFlushOutcome: String,
+	@ColumnInfo(name = "registration_removal_outcome") val registrationRemovalOutcome: String,
+	@ColumnInfo(name = "registration_timeline_checksum") val registrationTimelineChecksum: String,
+	@ColumnInfo(name = "evidence_checksum") val evidenceChecksum: String,
+) {
+	init {
+		require(ownerKind == StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS)
+		require(StepsCountDomainReceiptIntegrity.isOpaque(ownerIdentity))
+		require(ownerRevision > 0L)
+		require(terminalState in TERMINAL_STATES)
+		require((lastAdmissionOrdinal == null) == (lastSourceSequence == null))
+		require(lastAdmissionOrdinal == null || lastAdmissionOrdinal > 0L)
+		require(lastSourceSequence == null || lastSourceSequence >= 0L)
+		require(providerFlushOutcome.isNotBlank())
+		require(registrationRemovalOutcome.isNotBlank())
+		require(StepsCountDomainReceiptIntegrity.isDigest(registrationTimelineChecksum))
+		require(StepsCountDomainReceiptIntegrity.isDigest(evidenceChecksum))
+		require(
+			evidenceChecksum == StepsCountDomainReceiptIntegrity.completenessMarkerChecksum(this),
+		)
+		if (terminalState == STATE_COMPLETE) {
+			require(lastAdmissionOrdinal != null && lastSourceSequence != null)
+			require(providerFlushOutcome in COMPLETE_FLUSH_OUTCOMES)
+			require(registrationRemovalOutcome in COMPLETE_REMOVAL_OUTCOMES)
+		}
+	}
+
+	companion object {
+		const val STATE_COMPLETE = "COMPLETE"
+		const val STATE_UNPROVEN = "UNPROVEN"
+		private val TERMINAL_STATES = setOf(STATE_COMPLETE, STATE_UNPROVEN)
+		private val COMPLETE_FLUSH_OUTCOMES =
+			setOf("COMPLETE", "NOT_SUPPORTED", "NOT_REQUESTED")
+		private val COMPLETE_REMOVAL_OUTCOMES = setOf("REMOVED", "NOT_REGISTERED")
+	}
+}
+
+/** Required sentinel so partially installed e500-era tables can never activate the corrected proof. */
+@Entity(tableName = "steps_count_domain_schema_marker")
+data class StepsCountDomainSchemaMarkerEntity(
+	@PrimaryKey @ColumnInfo(name = "id") val id: Int = REQUIRED_ID,
+	@ColumnInfo(name = "contract_version") val contractVersion: Int,
+	@ColumnInfo(name = "token_semantics") val tokenSemantics: String,
+	@ColumnInfo(name = "terminal_unproven") val terminalUnproven: Boolean,
+) {
+	init {
+		require(id == REQUIRED_ID)
+		require(contractVersion == REQUIRED_CONTRACT_VERSION)
+		require(tokenSemantics == REQUIRED_TOKEN_SEMANTICS)
+		require(terminalUnproven)
+	}
+
+	companion object {
+		const val REQUIRED_ID = 1
+		const val REQUIRED_CONTRACT_VERSION = 2
+		const val REQUIRED_TOKEN_SEMANTICS = "PROVIDER_COUNTER_EPOCH_V1"
+	}
+}
+
 /** Stable identities and checksums shared by the native Steps receipt producers and readers. */
 object StepsCountDomainReceiptIntegrity {
-	fun nativeProviderDomainIdentity(providerDomain: String): String {
-		require(providerDomain.isNotBlank())
-		return opaqueDigest("steps-count-provider-domain-v1", providerDomain)
-	}
-
-	fun nativeSourceInstanceIdentity(sourceInstanceId: String): String {
-		require(sourceInstanceId.isNotBlank())
-		return opaqueDigest("steps-count-source-instance-v1", sourceInstanceId)
-	}
-
-	fun nativeDomainIdentity(
-		providerDomain: String,
-		sourceInstanceId: String,
-	): String = nativeDomainIdentityFromOpaque(
-		nativeProviderDomainIdentity(providerDomain),
-		nativeSourceInstanceIdentity(sourceInstanceId),
-	)
-
-	fun nativeDomainIdentityFromOpaque(
-		providerDomainIdentity: String,
-		sourceInstanceIdentity: String,
-	): String {
-		require(isOpaque(providerDomainIdentity))
-		require(isOpaque(sourceInstanceIdentity))
-		return opaqueDigest(
-			"steps-count-native-domain-v1",
-			providerDomainIdentity,
-			sourceInstanceIdentity,
-		)
-	}
+	fun counterDomainIdentity(token: StepsCounterDomainToken): String = token.encoded
 
 	/**
 	 * Future portable extension point only.
@@ -340,8 +401,6 @@ object StepsCountDomainReceiptIntegrity {
 
 	fun receiptIdentity(receipt: StepsCountDomainReceiptEntity): String = receiptIdentity(
 		domainIdentity = receipt.domainIdentity,
-		providerDomainIdentity = receipt.providerDomainIdentity,
-		sourceInstanceIdentity = receipt.sourceInstanceIdentity,
 		ownerKind = receipt.ownerKind,
 		scopeIdentity = receipt.scopeIdentity,
 		ownerIdentity = receipt.ownerIdentity,
@@ -354,13 +413,12 @@ object StepsCountDomainReceiptIntegrity {
 		coverageVersion = receipt.coverageVersion,
 		countDomainVersion = receipt.countDomainVersion,
 		effectChecksum = receipt.effectChecksum,
+		completionEvidenceChecksum = receipt.completionEvidenceChecksum,
 	)
 
 	@Suppress("LongParameterList")
 	fun receiptIdentity(
 		domainIdentity: String,
-		providerDomainIdentity: String,
-		sourceInstanceIdentity: String,
 		ownerKind: String,
 		scopeIdentity: String,
 		ownerIdentity: String,
@@ -373,11 +431,10 @@ object StepsCountDomainReceiptIntegrity {
 		coverageVersion: Int,
 		countDomainVersion: Int,
 		effectChecksum: String,
+		completionEvidenceChecksum: String?,
 	): String = opaqueDigest(
-		"steps-count-domain-receipt-v1",
+		"steps-count-domain-receipt-v2",
 		domainIdentity,
-		providerDomainIdentity,
-		sourceInstanceIdentity,
 		ownerKind,
 		scopeIdentity,
 		ownerIdentity,
@@ -390,10 +447,73 @@ object StepsCountDomainReceiptIntegrity {
 		coverageVersion,
 		countDomainVersion,
 		effectChecksum,
+		completionEvidenceChecksum,
 	)
 
 	fun hasValidReceipt(receipt: StepsCountDomainReceiptEntity): Boolean =
 		receipt.receiptIdentity == receiptIdentity(receipt)
+
+	fun completenessMarkerChecksum(
+		marker: StepsCountDomainCompletenessMarkerEntity,
+	): String = completenessMarkerChecksum(
+		ownerKind = marker.ownerKind,
+		ownerIdentity = marker.ownerIdentity,
+		ownerRevision = marker.ownerRevision,
+		terminalState = marker.terminalState,
+		lastAdmissionOrdinal = marker.lastAdmissionOrdinal,
+		lastSourceSequence = marker.lastSourceSequence,
+		providerFlushOutcome = marker.providerFlushOutcome,
+		registrationRemovalOutcome = marker.registrationRemovalOutcome,
+		registrationTimelineChecksum = marker.registrationTimelineChecksum,
+	)
+
+	@Suppress("LongParameterList")
+	fun completenessMarkerChecksum(
+		ownerKind: String,
+		ownerIdentity: String,
+		ownerRevision: Long,
+		terminalState: String,
+		lastAdmissionOrdinal: Long?,
+		lastSourceSequence: Long?,
+		providerFlushOutcome: String,
+		registrationRemovalOutcome: String,
+		registrationTimelineChecksum: String,
+	): String = digest(
+		"steps-count-completeness-marker-v1",
+		ownerKind,
+		ownerIdentity,
+		ownerRevision,
+		terminalState,
+		lastAdmissionOrdinal,
+		lastSourceSequence,
+		providerFlushOutcome,
+		registrationRemovalOutcome,
+		registrationTimelineChecksum,
+	)
+
+	fun registrationTimelineChecksum(
+		rows: Collection<SourceSessionCompletenessEntity>,
+	): String {
+		val values = buildList<Any?> {
+			add("steps-count-registration-timeline-v1")
+			rows.sortedBy(SourceSessionCompletenessEntity::registrationGeneration).forEach { row ->
+				add(row.logicalTrackingId)
+				add(row.serviceRunId)
+				add(row.sourceKind)
+				add(row.sourceInstanceId)
+				add(row.registrationGeneration)
+				add(row.lastAdmissionOrdinal)
+				add(row.lastSourceSequence)
+				add(row.appDrainComplete)
+				add(row.providerCoverage)
+				add(row.stopStatus)
+				add(row.unresolvedSequenceStart)
+				add(row.unresolvedSequenceEnd)
+				add(row.updatedAtMs)
+			}
+		}
+		return digest(*values.toTypedArray())
+	}
 
 	internal fun isOpaque(value: String?): Boolean =
 		value != null && OPAQUE_IDENTITY.matches(value)

@@ -19,6 +19,7 @@ import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
 import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.WifiScanAttemptOutcome
 import com.adsamcik.tracker.tracker.source.model.WifiScanAttemptPayload
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.Test
@@ -220,6 +221,38 @@ class SourcePayloadCodecTest {
 
 		shouldThrow<IllegalArgumentException> {
 			codec.encode(ambiguous, STEP_BOUNDARY_KIND_PAYLOAD_VERSION)
+		}
+	}
+
+	@Test
+	fun `version six binds the opaque provider counter epoch without changing legacy bytes`() {
+		val token = StepsCounterDomainToken.opaque("sha256:${"a".repeat(64)}")
+		val payload = StepCounterWindowPayload(
+			bootClockDomainId = "boot-v6",
+			firstCumulativeCount = 100L,
+			lastCumulativeCount = 120L,
+			deltaCount = 20L,
+			windowStartElapsedRealtimeNanos = 10L,
+			windowEndElapsedRealtimeNanos = 20L,
+			firstProviderSequence = 1L,
+			lastProviderSequence = 2L,
+			boundaryKind = StepBoundaryKind.COVERED,
+			counterDomainToken = token,
+		)
+
+		codec.decode(
+			payload.source,
+			STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION,
+			codec.encode(payload, STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION).bytes,
+		) shouldBe payload
+		shouldThrow<IllegalArgumentException> {
+			codec.encode(
+				payload.copy(counterDomainToken = null),
+				STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			codec.encode(payload, RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION)
 		}
 	}
 

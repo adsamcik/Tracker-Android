@@ -106,7 +106,8 @@ internal data class QualifiedSessionStepsWindow(
 	val endTimeMs: Long,
 	val stepCount: Long?,
 	val storedZoneId: String?,
-	val compatibility: StepsCountDomainCompatibilityResult,
+	val compatibility: StepsCountDomainCompatibilityResult =
+		StepsCountDomainCompatibilityResult.Unproven,
 	val origin: QualifiedSessionStepsOrigin = QualifiedSessionStepsOrigin.LOCAL_CAPTURE,
 	val countDomainOwners: List<StepsCountDomainOwnerReference> = emptyList(),
 ) {

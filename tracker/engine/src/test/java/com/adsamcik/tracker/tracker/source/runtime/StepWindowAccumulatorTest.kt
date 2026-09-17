@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -87,6 +88,51 @@ class StepWindowAccumulatorTest {
 		assertEquals(8L, first.deltaCount)
 		assertEquals(100L, first.firstCumulativeCount)
 		assertFalse(first.baselineReset)
+	}
+
+	@Test
+	fun `counter domain token survives checkpoint and token rotation forces a new baseline`() {
+		val boundary = StepBaselineBoundary(7L)
+		val tokenA = token('a')
+		val tokenB = token('b')
+		val accumulator = StepWindowAccumulator(null, boundary)
+		accumulator.accept(
+			"boot:1",
+			100L,
+			1_000L,
+			1L,
+			counterDomainToken = tokenA,
+		)
+		val restored = requireNotNull(
+			decodeStepBaseline(
+				requireNotNull(accumulator.snapshot()).encode(),
+				STEP_BASELINE_VERSION,
+				boundary,
+			),
+		)
+
+		assertEquals(tokenA, restored.counterDomainToken)
+		val same = requireNotNull(
+			StepWindowAccumulator(restored, boundary).accept(
+				"boot:1",
+				105L,
+				2_000L,
+				2L,
+				counterDomainToken = tokenA,
+			),
+		)
+		val changed = requireNotNull(
+			StepWindowAccumulator(restored, boundary).accept(
+				"boot:1",
+				105L,
+				2_000L,
+				2L,
+				counterDomainToken = tokenB,
+			),
+		)
+
+		assertEquals(StepBoundaryKind.COVERED, same.boundaryKind)
+		assertEquals(StepBoundaryKind.BASELINE, changed.boundaryKind)
 	}
 
 	@Test
@@ -237,4 +283,7 @@ class StepWindowAccumulatorTest {
 		purposeMask,
 		effectiveElapsedRealtimeNanos,
 	)
+
+	private fun token(digit: Char) =
+		StepsCounterDomainToken.opaque("sha256:${digit.toString().repeat(64)}")
 }

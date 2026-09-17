@@ -3,6 +3,10 @@ package com.adsamcik.tracker.tracker.source.runtime
 import android.os.SystemClock
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
+import com.adsamcik.tracker.shared.base.database.withMonotonicStepsCountDomainRevision
 import com.adsamcik.tracker.shared.base.database.dao.PriorProcessRegistrationReconciliationResult
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
@@ -1062,6 +1066,7 @@ class SourceRegistrationRepository @Inject constructor(
 		payload: ByteArray,
 		updatedAtMs: Long,
 		terminalCompleteness: SourceSessionCompletenessEntity? = null,
+		terminalStepsCountDomainEvidence: StepsCountDomainRetirementEvidence? = null,
 	) {
 		database.withTransaction {
 			val currentRegistration = database.sourceRegistrationStateDao().get(
@@ -1101,11 +1106,51 @@ class SourceRegistrationRepository @Inject constructor(
 				stored.registrationGeneration == registration.state.registrationGeneration
 			) { "Runtime checkpoint was superseded by an incompatible registration" }
 			dao.save(stored)
-			terminalCompleteness?.let { completeness ->
-				check(completeness.sourceKind == registration.state.sourceKind)
-				check(completeness.sourceInstanceId == registration.state.sourceInstanceId)
-				check(completeness.registrationGeneration == registration.state.registrationGeneration)
+			terminalCompleteness?.let { candidate ->
+				check(candidate.sourceKind == registration.state.sourceKind)
+				check(candidate.sourceInstanceId == registration.state.sourceInstanceId)
+				check(candidate.registrationGeneration == registration.state.registrationGeneration)
+				val countDomainStore = StepsCountDomainStore(database)
+				val completeness = if (
+					candidate.sourceKind == SourceKind.STEPS.stableCode &&
+					countDomainStore.isInstalled()
+				) {
+					val existing = database.sourceSessionDao().completenessForServiceRun(
+						candidate.logicalTrackingId,
+						candidate.serviceRunId,
+					).singleOrNull {
+						it.sourceKind == candidate.sourceKind &&
+							it.sourceInstanceId == candidate.sourceInstanceId &&
+							it.registrationGeneration == candidate.registrationGeneration
+					}
+					candidate.withMonotonicStepsCountDomainRevision(existing)
+				} else {
+					candidate
+				}
 				database.sourceSessionDao().saveCompleteness(completeness)
+				if (completeness.sourceKind == SourceKind.STEPS.stableCode) {
+					val countDomainResult =
+						countDomainStore.recordSessionCompleteness(
+							completeness,
+							terminalStepsCountDomainEvidence
+								?: StepsCountDomainRetirementEvidence(
+									providerFlushOutcome = "UNOBSERVABLE",
+									registrationRemovalOutcome = "UNOBSERVABLE",
+								),
+						)
+					check(
+						countDomainResult in setOf(
+							StepsCountDomainWriteResult.INSERTED,
+							StepsCountDomainWriteResult.EXACT_REPLAY,
+							StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
+						),
+					) { "Unable to persist terminal-unproven Steps count-domain completeness" }
+					if (countDomainResult == StepsCountDomainWriteResult.INSERTED) {
+						check(
+							database.sourceEvidenceStateDao().incrementRevision(updatedAtMs) == 1,
+						) { "Unable to publish recovered Steps count-domain completeness" }
+					}
+				}
 			}
 		}
 	}

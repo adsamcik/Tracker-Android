@@ -19,6 +19,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
@@ -621,22 +622,7 @@ class StepsSessionFactProjectionLane private constructor(
 
 	private suspend fun recordCountDomainOrThrow(candidate: StepFactRevisionEntity) {
 		val admissionOrdinal = requireNotNull(candidate.sourceAdmissionOrdinal)
-		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(admissionOrdinal)
-			?: throw StepsSessionFactIdentityCollisionException(
-				admissionOrdinal,
-				"STEPS_COUNT_DOMAIN_WAL_MISSING",
-			)
 		val store = StepsCountDomainStore(database)
-		when (store.recordSessionWal(wal)) {
-			StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE -> return
-			StepsCountDomainWriteResult.INSERTED,
-			StepsCountDomainWriteResult.EXACT_REPLAY,
-			-> Unit
-			else -> throw StepsSessionFactIdentityCollisionException(
-				admissionOrdinal,
-				"STEPS_COUNT_DOMAIN_WAL_CONFLICT",
-			)
-		}
 		when (store.recordSessionFact(candidate)) {
 			StepsCountDomainWriteResult.INSERTED,
 			StepsCountDomainWriteResult.EXACT_REPLAY,
@@ -644,6 +630,28 @@ class StepsSessionFactProjectionLane private constructor(
 			else -> throw StepsSessionFactIdentityCollisionException(
 				admissionOrdinal,
 				"STEPS_COUNT_DOMAIN_FACT_CONFLICT",
+			)
+		}
+	}
+
+	private suspend fun recordWalCountDomainOrThrow(
+		admissionOrdinal: Long,
+		counterDomainToken: StepsCounterDomainToken?,
+	) {
+		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(admissionOrdinal)
+			?: throw StepsSessionFactIdentityCollisionException(
+				admissionOrdinal,
+				"STEPS_COUNT_DOMAIN_WAL_MISSING",
+			)
+		when (StepsCountDomainStore(database).recordSessionWal(wal, counterDomainToken)) {
+			StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
+			StepsCountDomainWriteResult.INSERTED,
+			StepsCountDomainWriteResult.EXACT_REPLAY,
+			StepsCountDomainWriteResult.UNPROVEN,
+			-> Unit
+			else -> throw StepsSessionFactIdentityCollisionException(
+				admissionOrdinal,
+				"STEPS_COUNT_DOMAIN_WAL_CONFLICT",
 			)
 		}
 	}
@@ -770,6 +778,7 @@ class StepsSessionFactProjectionLane private constructor(
 		val durationMs = (payload.windowEndElapsedRealtimeNanos -
 			payload.windowStartElapsedRealtimeNanos) / NANOS_PER_MILLISECOND
 		val startTimeMs = if (durationMs > endTimeMs) 0L else endTimeMs - durationMs
+		recordWalCountDomainOrThrow(admissionOrdinal, payload.counterDomainToken)
 		val logicalFactId = "$WRITER_ID:${eventId.value}"
 		val mutationId = "$logicalFactId:$SEMANTIC_REVISION:${StepFactRevisionEntity.OPERATION_UPSERT}"
 		val unsignedFact = StepFactRevisionEntity(

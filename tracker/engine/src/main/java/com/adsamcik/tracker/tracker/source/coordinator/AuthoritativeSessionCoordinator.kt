@@ -3,7 +3,9 @@ package com.adsamcik.tracker.tracker.source.coordinator
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
+import com.adsamcik.tracker.shared.base.database.withMonotonicStepsCountDomainRevision
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -4700,7 +4702,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		check(ack.hasMembership(logicalTrackingId, serviceRunId)) {
 			"Completeness acknowledgement lacks exact service-run membership"
 		}
-		val completeness = SourceSessionCompletenessEntity(
+		val candidate = SourceSessionCompletenessEntity(
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
 			sourceKind = ack.source.stableCode,
@@ -4715,9 +4717,30 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			unresolvedSequenceEnd = ack.unresolvedSequenceEndInclusive,
 			updatedAtMs = nowMs,
 		)
+		val countDomainStore = StepsCountDomainStore(database)
+		val completeness = if (ack.source == SourceKind.STEPS && countDomainStore.isInstalled()) {
+			val existing = database.sourceSessionDao().completenessForServiceRun(
+				logicalTrackingId,
+				serviceRunId,
+			).singleOrNull {
+				it.sourceKind == candidate.sourceKind &&
+					it.sourceInstanceId == candidate.sourceInstanceId &&
+					it.registrationGeneration == candidate.registrationGeneration
+			}
+			candidate.withMonotonicStepsCountDomainRevision(existing)
+		} else {
+			candidate
+		}
 		database.sourceSessionDao().saveCompleteness(completeness)
 		if (ack.source == SourceKind.STEPS) {
-			when (StepsCountDomainStore(database).recordSessionCompleteness(completeness)) {
+			val countDomainResult = countDomainStore.recordSessionCompleteness(
+				completeness,
+				StepsCountDomainRetirementEvidence(
+					providerFlushOutcome = ack.providerFlushOutcome.name,
+					registrationRemovalOutcome = ack.registrationRemovalOutcome.name,
+				),
+			)
+			when (countDomainResult) {
 				StepsCountDomainWriteResult.INSERTED,
 				StepsCountDomainWriteResult.EXACT_REPLAY,
 				StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
@@ -4729,8 +4752,13 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					error("Terminal Steps completeness conflicts with count-domain evidence")
 				StepsCountDomainWriteResult.REVISION_GAP ->
 					error("Terminal Steps completeness count-domain revision is not contiguous")
-				StepsCountDomainWriteResult.TERMINALLY_RETRACTED ->
-					error("Terminal Steps completeness count-domain owner was retracted")
+				StepsCountDomainWriteResult.TERMINAL_OWNER ->
+					error("Terminal Steps completeness count-domain owner cannot be replaced")
+			}
+			if (countDomainResult == StepsCountDomainWriteResult.INSERTED) {
+				check(database.sourceEvidenceStateDao().incrementRevision(nowMs) == 1) {
+					"Unable to publish terminal Steps count-domain completeness"
+				}
 			}
 		}
 	}

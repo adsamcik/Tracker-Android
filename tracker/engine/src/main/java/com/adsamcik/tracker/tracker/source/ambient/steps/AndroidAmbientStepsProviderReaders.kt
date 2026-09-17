@@ -10,6 +10,7 @@ import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.metadata.DataOrigin
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.time.TimeRangeFilter
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.google.android.gms.fitness.FitnessLocal
 import com.google.android.gms.fitness.data.LocalDataType
 import com.google.android.gms.fitness.data.LocalField
@@ -49,6 +50,11 @@ internal data class AmbientStepsProviderAggregate(
 	val window: AmbientStepsProviderReadWindow,
 	val stepCount: Long,
 	val observedAtMs: Long,
+	/**
+	 * Present only when this provider authenticates the exact underlying cumulative counter epoch.
+	 * Current Health Connect and Local Recording aggregate APIs do not expose that proof.
+	 */
+	val counterDomainToken: StepsCounterDomainToken? = null,
 	val logicalIntervalId: String = listOf(
 		"ambient-steps-provider-window-v1",
 		provider.name,

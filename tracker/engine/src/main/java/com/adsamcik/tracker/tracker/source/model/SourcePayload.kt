@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.source.model
 
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
+
 interface SourcePayload {
 	val source: SourceKind
 }
@@ -60,6 +62,8 @@ data class StepCounterWindowPayload(
 	val firstProviderSequence: Long,
 	val lastProviderSequence: Long,
 	val boundaryKind: StepBoundaryKind,
+	/** Opaque physical counter epoch, present from durable payload version 6 onward. */
+	val counterDomainToken: StepsCounterDomainToken? = null,
 ) : SourcePayload {
 	override val source: SourceKind = SourceKind.STEPS
 
@@ -74,6 +78,7 @@ data class StepCounterWindowPayload(
 		firstProviderSequence: Long,
 		lastProviderSequence: Long,
 		baselineReset: Boolean,
+		counterDomainToken: StepsCounterDomainToken? = null,
 	) : this(
 		bootClockDomainId = bootClockDomainId,
 		firstCumulativeCount = firstCumulativeCount,
@@ -84,6 +89,7 @@ data class StepCounterWindowPayload(
 		firstProviderSequence = firstProviderSequence,
 		lastProviderSequence = lastProviderSequence,
 		boundaryKind = StepBoundaryKind.fromLegacyResetFlag(baselineReset),
+		counterDomainToken = counterDomainToken,
 	)
 
 	/** Legacy projection compatibility. [boundaryKind] is the only stored source of truth. */

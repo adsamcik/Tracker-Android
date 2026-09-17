@@ -51,6 +51,7 @@ class AmbientStepsDayRepositoryTest {
 		repository = AmbientStepsDayRepository(
 			database,
 			StepsSegmentHistorySelector(database, SourceProductLaneExecutionAuthority { true }),
+			RoomStepsCountDomainCompatibilityQuery(database),
 			Dispatchers.Unconfined,
 		)
 	}
@@ -601,6 +602,7 @@ class AmbientStepsDayRepositoryTest {
 		database,
 		database.importedAmbientStepsDao(),
 		StepsSegmentHistorySelector(database, SourceProductLaneExecutionAuthority { true }),
+		RoomStepsCountDomainCompatibilityQuery(database),
 		Dispatchers.Unconfined,
 	)
 

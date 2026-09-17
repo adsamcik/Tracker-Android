@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.projection
 
 import android.app.Application
+import android.database.sqlite.SQLiteException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerLookupKey
@@ -8,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerRead
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -18,6 +20,11 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
+import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
+import com.adsamcik.tracker.tracker.source.ingress.STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
+import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import kotlinx.coroutines.test.runTest
@@ -46,21 +53,42 @@ class StepsCountDomainProducerContractTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun `session admission fact completeness and native ambient fact preserve one exact domain`() =
+	fun `same provider token survives independent registrations source instances and QoS fingerprints`() =
 		runTest {
 			val store = StepsCountDomainStore(database)
-			val wal = insertWal()
-			store.recordSessionWal(wal) shouldBe StepsCountDomainWriteResult.INSERTED
+			val token = token('a')
+			val wal = insertWal(
+				token = token,
+				sourceInstance = "session-owner-instance",
+				registrationGeneration = 1L,
+				physicalConfigurationFingerprint = "qos-low-latency",
+			)
+			store.recordSessionWal(wal, token) shouldBe StepsCountDomainWriteResult.INSERTED
+			val reconfiguredWal = insertWal(
+				token = token,
+				eventId = "event-reconfigured",
+				sourceInstance = "session-owner-instance-2",
+				registrationGeneration = 2L,
+				physicalConfigurationFingerprint = "qos-batched-high-latency",
+			)
+			store.recordSessionWal(reconfiguredWal, token) shouldBe
+				StepsCountDomainWriteResult.INSERTED
 			val fact = sessionFact(wal)
 			database.stepFactRevisionDao().insert(fact) shouldNotBe -1L
 			store.recordSessionFact(fact) shouldBe StepsCountDomainWriteResult.INSERTED
 			val completeness = completeness(wal)
 			database.sourceSessionDao().saveCompleteness(completeness)
-			store.recordSessionCompleteness(completeness) shouldBe
+			store.recordSessionCompleteness(
+				completeness,
+				completeRetirementEvidence(),
+			) shouldBe
 				StepsCountDomainWriteResult.INSERTED
-			val ambient = ambientFact()
+			val ambient = ambientFact(
+				sourceInstance = "ambient-owner-instance",
+				registrationGeneration = 9L,
+			)
 			database.ambientStepsFactRevisionDao().insert(ambient) shouldNotBe -1L
-			store.recordAmbientFact(ambient, PROVIDER_DOMAIN) shouldBe
+			store.recordAmbientFact(ambient, token) shouldBe
 				StepsCountDomainWriteResult.INSERTED
 
 			val sessionFactOwner = StepsCountDomainOwnerLookupKey(
@@ -91,20 +119,36 @@ class StepsCountDomainProducerContractTest {
 				),
 				ambient.semanticRevision,
 			)
+			val reconfiguredWalOwner = StepsCountDomainOwnerLookupKey(
+				StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+				StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
+					reconfiguredWal.admissionOrdinal,
+					reconfiguredWal.eventId,
+				),
+				1L,
+			)
 			val recovered = StepsCountDomainStore(database).readOwners(
-				listOf(sessionFactOwner, completenessOwner, ambientOwner),
+				listOf(
+					sessionFactOwner,
+					completenessOwner,
+					ambientOwner,
+					reconfiguredWalOwner,
+				),
 			) as StepsCountDomainOwnerRead.Ready
 			val domains = recovered.owners.values.mapNotNull { it.receipt?.domainIdentity }.toSet()
 
 			domains.size shouldBe 1
+			recovered.owners.values.mapNotNull { it.receipt?.registrationGeneration }.toSet() shouldBe
+				setOf(1L, 2L, 9L)
 		}
 
 	@Test
 	fun `correction retains old receipt and terminal session retraction blocks resurrection`() =
 		runTest {
 			val store = StepsCountDomainStore(database)
-			val wal = insertWal()
-			store.recordSessionWal(wal)
+			val token = token('a')
+			val wal = insertWal(token)
+			store.recordSessionWal(wal, token)
 			val fact = sessionFact(wal)
 			store.recordSessionFact(fact) shouldBe StepsCountDomainWriteResult.INSERTED
 
@@ -115,7 +159,7 @@ class StepsCountDomainProducerContractTest {
 				SERVICE_RUN_ID,
 			) shouldBe StepsCountDomainWriteResult.INSERTED
 			store.recordSessionFact(fact) shouldBe
-				StepsCountDomainWriteResult.TERMINALLY_RETRACTED
+				StepsCountDomainWriteResult.TERMINAL_OWNER
 
 			val ambientOne = ambientFact()
 			val ambientTwoUnsigned = ambientOne.copy(
@@ -133,10 +177,27 @@ class StepsCountDomainProducerContractTest {
 			val ambientTwo = ambientTwoUnsigned.copy(
 				effectChecksum = AmbientStepsFactIntegrity.effectChecksum(ambientTwoUnsigned),
 			)
-			store.recordAmbientFact(ambientOne, PROVIDER_DOMAIN) shouldBe
+			store.recordAmbientFact(ambientOne, token) shouldBe
 				StepsCountDomainWriteResult.INSERTED
-			store.recordAmbientFact(ambientTwo, PROVIDER_DOMAIN) shouldBe
+			store.recordAmbientFact(ambientTwo, token) shouldBe
 				StepsCountDomainWriteResult.INSERTED
+			val changedDomainUnsigned = ambientTwo.copy(
+				semanticRevision = 3L,
+				mutationId = AmbientStepsFactIntegrity.mutationId(
+					ambientTwo.logicalFactId,
+					3L,
+					AmbientStepsFactRevisionEntity.OPERATION_UPSERT,
+				),
+				stepCount = 9L,
+				observedAtMs = 4_000L,
+				appliedAtMs = 4_000L,
+				effectChecksum = "0".repeat(64),
+			)
+			val changedDomain = changedDomainUnsigned.copy(
+				effectChecksum = AmbientStepsFactIntegrity.effectChecksum(changedDomainUnsigned),
+			)
+			store.recordAmbientFact(changedDomain, token('b')) shouldBe
+				StepsCountDomainWriteResult.IDENTITY_CONFLICT
 
 			val ownerIdentity = StepsCountDomainReceiptIntegrity.ambientFactOwnerIdentity(
 				ambientOne.writerId,
@@ -164,9 +225,10 @@ class StepsCountDomainProducerContractTest {
 	@Test
 	fun `ambient database retraction trigger is terminal across a new store instance`() = runTest {
 		val store = StepsCountDomainStore(database)
+		val token = token('a')
 		val fact = ambientFact()
 		database.ambientStepsFactRevisionDao().insert(fact) shouldNotBe -1L
-		store.recordAmbientFact(fact, PROVIDER_DOMAIN) shouldBe
+		store.recordAmbientFact(fact, token) shouldBe
 			StepsCountDomainWriteResult.INSERTED
 		val retraction = ambientRetraction(fact)
 
@@ -188,20 +250,85 @@ class StepsCountDomainProducerContractTest {
 		) as StepsCountDomainOwnerRead.Ready
 		read.owners.values.single().owner.operation shouldBe
 			StepsCountDomainOwnerRevisionEntity.OPERATION_RETRACT
-		store.recordAmbientFact(fact, PROVIDER_DOMAIN) shouldBe
-			StepsCountDomainWriteResult.TERMINALLY_RETRACTED
+		store.recordAmbientFact(fact, token) shouldBe
+			StepsCountDomainWriteResult.TERMINAL_OWNER
+		val directResurrectionRejected = try {
+			database.ambientStepsFactRevisionDao().insert(
+				ambientFact().copy(
+					semanticRevision = 3L,
+					mutationId = AmbientStepsFactIntegrity.mutationId(
+						fact.logicalFactId,
+						3L,
+						AmbientStepsFactRevisionEntity.OPERATION_UPSERT,
+					),
+				),
+			)
+			false
+		} catch (_: SQLiteException) {
+			true
+		}
+		directResurrectionRejected shouldBe true
 	}
 
-	private suspend fun insertWal(): SourceEventWalEntity {
+	@Test
+	fun `partial retirement is terminal unproven and cannot upgrade to complete`() = runTest {
+		val store = StepsCountDomainStore(database)
+		val token = token('a')
+		val wal = insertWal(token)
+		store.recordSessionWal(wal, token) shouldBe StepsCountDomainWriteResult.INSERTED
+		val partial = completeness(wal).copy(
+			appDrainComplete = false,
+			providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+			stopStatus = "TIMED_OUT",
+			unresolvedSequenceStart = 2L,
+			unresolvedSequenceEnd = 3L,
+		)
+		database.sourceSessionDao().saveCompleteness(partial)
+		store.recordSessionCompleteness(
+			partial,
+			StepsCountDomainRetirementEvidence("FAILED", "REMOVED"),
+		) shouldBe StepsCountDomainWriteResult.INSERTED
+
+		val completed = completeness(wal).copy(updatedAtMs = partial.updatedAtMs + 1L)
+		database.sourceSessionDao().saveCompleteness(completed)
+		store.recordSessionCompleteness(
+			completed,
+			completeRetirementEvidence(),
+		) shouldBe StepsCountDomainWriteResult.TERMINAL_OWNER
+	}
+
+	private suspend fun insertWal(
+		token: StepsCounterDomainToken,
+		eventId: String = EVENT_ID,
+		sourceInstance: String = SOURCE_INSTANCE,
+		registrationGeneration: Long = 1L,
+		physicalConfigurationFingerprint: String = "configuration-not-domain",
+	): SourceEventWalEntity {
+		val payload = StepCounterWindowPayload(
+			bootClockDomainId = "boot",
+			firstCumulativeCount = 10L,
+			lastCumulativeCount = 15L,
+			deltaCount = 5L,
+			windowStartElapsedRealtimeNanos = 1_000_000_000L,
+			windowEndElapsedRealtimeNanos = 2_000_000_000L,
+			firstProviderSequence = 1L,
+			lastProviderSequence = 1L,
+			boundaryKind = StepBoundaryKind.COVERED,
+			counterDomainToken = token,
+		)
+		val encoded = DefaultSourcePayloadCodec().encode(
+			payload,
+			STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION,
+		)
 		val unsigned = SourceEventWalEntity(
-			eventId = EVENT_ID,
-			providerDedupKey = "steps-dedup",
+			eventId = eventId,
+			providerDedupKey = "steps-dedup-$eventId",
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			serviceRunId = SERVICE_RUN_ID,
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-			sourceInstanceId = SOURCE_INSTANCE,
-			registrationGeneration = 1L,
-			physicalConfigurationFingerprint = PROVIDER_DOMAIN,
+			sourceInstanceId = sourceInstance,
+			registrationGeneration = registrationGeneration,
+			physicalConfigurationFingerprint = physicalConfigurationFingerprint,
 			authorizationRevision = 1L,
 			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 			authorizationFingerprint = "a".repeat(64),
@@ -221,14 +348,13 @@ class StepsCountDomainProducerContractTest {
 			acquiredAtMs = 2_000L,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = 3,
-			payload = byteArrayOf(1, 2, 3),
-			payloadChecksum = "",
+			payloadVersion = STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION,
+			payload = encoded.bytes,
+			payloadChecksum = encoded.checksum,
 			createdAtMs = 2_000L,
 		)
-		val payloadSigned = unsigned.copy(payloadChecksum = unsigned.calculatedPayloadChecksum())
-		val signed = payloadSigned.copy(
-			integrityIdentity = payloadSigned.calculatedIntegrityIdentity(),
+		val signed = unsigned.copy(
+			integrityIdentity = unsigned.calculatedIntegrityIdentity(),
 		)
 		val rowId = database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(signed)
 		return signed.copy(admissionOrdinal = rowId)
@@ -281,8 +407,8 @@ class StepsCountDomainProducerContractTest {
 		logicalTrackingId = LOGICAL_TRACKING_ID,
 		serviceRunId = SERVICE_RUN_ID,
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-		sourceInstanceId = SOURCE_INSTANCE,
-		registrationGeneration = 1L,
+		sourceInstanceId = wal.sourceInstanceId,
+		registrationGeneration = wal.registrationGeneration,
 		lastAdmissionOrdinal = wal.admissionOrdinal,
 		lastSourceSequence = 1L,
 		appDrainComplete = true,
@@ -293,12 +419,15 @@ class StepsCountDomainProducerContractTest {
 		updatedAtMs = 3_000L,
 	)
 
-	private fun ambientFact(): AmbientStepsFactRevisionEntity {
+	private fun ambientFact(
+		sourceInstance: String = SOURCE_INSTANCE,
+		registrationGeneration: Long = 1L,
+	): AmbientStepsFactRevisionEntity {
 		val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
 			AmbientStepsFactRevisionEntity.PROVIDER_LOCAL_RECORDING_STEPS,
+			registrationGeneration,
 			1L,
-			1L,
-			SOURCE_INSTANCE,
+			sourceInstance,
 			1_000L,
 			0L,
 			"UTC",
@@ -318,9 +447,9 @@ class StepsCountDomainProducerContractTest {
 			operation = AmbientStepsFactRevisionEntity.OPERATION_UPSERT,
 			originKind = AmbientStepsFactRevisionEntity.ORIGIN_PROVIDER_AGGREGATE,
 			provider = AmbientStepsFactRevisionEntity.PROVIDER_LOCAL_RECORDING_STEPS,
-			registrationGeneration = 1L,
+			registrationGeneration = registrationGeneration,
 			continuitySegmentGeneration = 1L,
-			sourceInstanceId = SOURCE_INSTANCE,
+			sourceInstanceId = sourceInstance,
 			authorizationRevision = 2L,
 			authorizationFingerprint = "b".repeat(64),
 			windowStartTimeMs = 1_000L,
@@ -427,11 +556,18 @@ class StepsCountDomainProducerContractTest {
 		)
 	}
 
+	private fun completeRetirementEvidence() = StepsCountDomainRetirementEvidence(
+		providerFlushOutcome = "COMPLETE",
+		registrationRemovalOutcome = "REMOVED",
+	)
+
+	private fun token(digit: Char) =
+		StepsCounterDomainToken.opaque("sha256:${digit.toString().repeat(64)}")
+
 	private companion object {
 		const val LOGICAL_TRACKING_ID = "tracking"
 		const val SERVICE_RUN_ID = "run"
 		const val EVENT_ID = "event"
 		const val SOURCE_INSTANCE = "shared-instance"
-		const val PROVIDER_DOMAIN = "shared-provider-domain"
 	}
 }

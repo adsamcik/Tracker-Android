@@ -94,8 +94,15 @@ class StepsCountDomainCompatibilityRequest(
 	sessionOwners: List<StepsCountDomainOwnerReference>,
 	ambientOwners: List<StepsCountDomainOwnerReference>,
 ) {
-	private val sessionOwnersSnapshot = sessionOwners.toList()
-	private val ambientOwnersSnapshot = ambientOwners.toList()
+	val exceedsOwnerBounds: Boolean =
+		sessionOwners.size > MAX_STEPS_COUNT_DOMAIN_OWNERS_PER_SIDE ||
+			ambientOwners.size > MAX_STEPS_COUNT_DOMAIN_OWNERS_PER_SIDE ||
+			sessionOwners.size.toLong() + ambientOwners.size.toLong() >
+			MAX_STEPS_COUNT_DOMAIN_OWNERS_PER_REQUEST.toLong()
+	private val sessionOwnersSnapshot =
+		if (exceedsOwnerBounds) emptyList() else sessionOwners.toList()
+	private val ambientOwnersSnapshot =
+		if (exceedsOwnerBounds) emptyList() else ambientOwners.toList()
 
 	val sessionOwners: List<StepsCountDomainOwnerReference>
 		get() = sessionOwnersSnapshot.toList()
@@ -103,8 +110,6 @@ class StepsCountDomainCompatibilityRequest(
 		get() = ambientOwnersSnapshot.toList()
 
 	init {
-		require(sessionOwnersSnapshot.size <= MAX_STEPS_COUNT_DOMAIN_OWNERS_PER_SIDE)
-		require(ambientOwnersSnapshot.size <= MAX_STEPS_COUNT_DOMAIN_OWNERS_PER_SIDE)
 		require(sessionOwnersSnapshot.distinct().size == sessionOwnersSnapshot.size)
 		require(ambientOwnersSnapshot.distinct().size == ambientOwnersSnapshot.size)
 		require(sessionOwnersSnapshot.all {
@@ -140,6 +145,8 @@ interface StepsCountDomainCompatibilityQuery {
 
 const val MAX_STEPS_COUNT_DOMAIN_REQUESTS = 64
 const val MAX_STEPS_COUNT_DOMAIN_OWNERS_PER_SIDE = 256
+const val MAX_STEPS_COUNT_DOMAIN_OWNERS_PER_REQUEST = 512
+const val MAX_STEPS_COUNT_DOMAIN_OWNERS_PER_BATCH = 512
 
 private val STEPS_COUNT_DOMAIN_OPAQUE_IDENTITY = Regex("sha256:[0-9a-f]{64}")
 private val STEPS_COUNT_DOMAIN_DIGEST = Regex("[0-9a-f]{64}")

@@ -11,8 +11,11 @@ import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.tracker.source.ingress.STEP_BOUNDARY_KIND_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.ingress.STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
@@ -86,6 +89,8 @@ class StepSourceRuntime @Inject constructor(
 	private var batchingEnabled = false
 	private var metrics = RuntimeAdmissionMetrics()
 	private val processedCallbackSequence = MutableStateFlow(0L)
+	private var cachedCounterDomainTokenBootId: String? = null
+	private var cachedCounterDomainToken: StepsCounterDomainToken? = null
 
 	override suspend fun start(plan: StepsPlan, sink: SourceEventSink): SourceStartResult = lifecycleMutex.withLock {
 		startForClaimLocked(claim = null, plan, sink)
@@ -1225,6 +1230,8 @@ class StepSourceRuntime @Inject constructor(
 		if (cutoffElapsedNanos?.let { event.observedElapsedNanos > it } == true) return true
 		val attribution = event.attribution.resolve()
 		val activeRegistration = attribution.registration
+		val counterDomainToken =
+			resolveCounterDomainToken(activeRegistration.state.clockDomainId)
 		val preview = accumulator.preview(
 			activeRegistration.state.clockDomainId,
 			event.cumulativeCount,
@@ -1232,10 +1239,12 @@ class StepSourceRuntime @Inject constructor(
 			event.providerSequence,
 			event.receivedElapsedNanos,
 			activeRegistration.stepAuthorizationBoundary(),
+			counterDomainToken,
 		) ?: run {
 			metrics.recordFailure(event.providerSequence)
 			return persistStepHeadCheckpointUntilResolved(event, activeRegistration, accumulator)
 		}
+
 		val payload = preview.payload
 		val delayNanos = (event.receivedElapsedNanos - event.observedElapsedNanos).coerceAtLeast(0L)
 		val acquiredAtMs = (event.receivedWallTimeMs - delayNanos / NANOS_PER_MILLISECOND).coerceAtLeast(0L)
@@ -1278,7 +1287,11 @@ class StepSourceRuntime @Inject constructor(
 								emptySet()
 							},
 						),
-						payloadVersion = STEP_BOUNDARY_KIND_PAYLOAD_VERSION,
+						payloadVersion = if (counterDomainToken == null) {
+							STEP_BOUNDARY_KIND_PAYLOAD_VERSION
+						} else {
+							STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION
+						},
 						payload = payload,
 					)
 					PreparedStepAdmission(
@@ -1329,6 +1342,18 @@ class StepSourceRuntime @Inject constructor(
 				"Step atomic admission retry loop returned an unresolved retryable handoff",
 			)
 		}
+	}
+
+	private fun resolveCounterDomainToken(bootClockDomainId: String): StepsCounterDomainToken? {
+		if (cachedCounterDomainTokenBootId == bootClockDomainId) {
+			return cachedCounterDomainToken
+		}
+		val resolved = sensor?.let { activeSensor ->
+			StepsCounterDomainTokenIssuer.directSensor(activeSensor, bootClockDomainId)
+		}
+		cachedCounterDomainTokenBootId = bootClockDomainId
+		cachedCounterDomainToken = resolved
+		return resolved
 	}
 
 	private suspend fun persistStepHeadCheckpointUntilResolved(
@@ -1466,6 +1491,11 @@ class StepSourceRuntime @Inject constructor(
 			terminalCompleteness = ack.toTerminalCompleteness(
 				updatedAtMs = System.currentTimeMillis(),
 			),
+			terminalStepsCountDomainEvidence =
+				StepsCountDomainRetirementEvidence(
+					providerFlushOutcome = ack.providerFlushOutcome.name,
+					registrationRemovalOutcome = ack.registrationRemovalOutcome.name,
+				),
 		)
 	}
 

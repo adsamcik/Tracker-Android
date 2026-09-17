@@ -9,6 +9,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
 
 /**
  * Installs one immutable, payload-free marker for an exact Steps run crossed by raw retention.
@@ -124,6 +126,43 @@ suspend fun AppDatabase.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
 				}
 				.forEach { (writer, facts) ->
 					facts.chunked(RETENTION_FACT_DELETE_BATCH_SIZE).forEach { batch ->
+						val countDomainOwners = batch.flatMap { fact ->
+							val factOwner = StepsCountDomainOwnerLookupKey(
+								ownerKind =
+									StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+								ownerIdentity = StepsCountDomainReceiptIntegrity
+									.sessionFactOwnerIdentity(
+										fact.writerProjectionId,
+										fact.writerProjectionVersion,
+										fact.logicalFactId,
+									),
+								ownerRevision = fact.semanticRevision,
+							)
+							val walOwner = if (
+								fact.sourceAdmissionOrdinal != null &&
+								fact.sourceEventId != null
+							) {
+								StepsCountDomainOwnerLookupKey(
+									ownerKind =
+										StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+									ownerIdentity = StepsCountDomainReceiptIntegrity
+										.sessionWalOwnerIdentity(
+											fact.sourceAdmissionOrdinal,
+											fact.sourceEventId,
+										),
+									ownerRevision = 1L,
+								)
+							} else {
+								null
+							}
+							listOfNotNull(factOwner, walOwner)
+						}
+						countDomainOwners.chunked(COUNT_DOMAIN_OWNER_BATCH_SIZE).forEach {
+							check(
+								StepsCountDomainStore(this).removeOwners(it) !is
+									StepsCountDomainMaintenanceResult.Overflow,
+							) { "Steps count-domain retention owner batch exceeded its bound" }
+						}
 						val deletedBatch = factDao.deleteAuthenticatedUpsertRevisions(
 							writerProjectionId = writer.first,
 							writerProjectionVersion = writer.second,
@@ -332,4 +371,5 @@ private class AuthenticatedRetentionRunBuilder(val serviceRun: SourceServiceRunE
 private const val INSERT_IGNORED = -1L
 private const val RETENTION_RUN_PAGE_SIZE = 64
 private const val RETENTION_FACT_DELETE_BATCH_SIZE = 256
+private const val COUNT_DOMAIN_OWNER_BATCH_SIZE = 400
 private const val RETENTION_FACT_AUDIT_PAGE_SIZE = 256

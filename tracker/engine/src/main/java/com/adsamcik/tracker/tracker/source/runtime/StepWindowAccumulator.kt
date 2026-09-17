@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.runtime
 
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -13,6 +14,7 @@ internal data class StepBaseline(
 	val providerSequence: Long,
 	val boundary: StepBaselineBoundary? = null,
 	val authorizationBoundary: StepAuthorizationBoundary? = null,
+	val counterDomainToken: StepsCounterDomainToken? = null,
 )
 
 internal data class StepBaselineBoundary(
@@ -57,6 +59,7 @@ internal class StepWindowAccumulator(
 		providerSequence: Long,
 		receivedElapsedRealtimeNanos: Long = Long.MAX_VALUE,
 		authorizationBoundary: StepAuthorizationBoundary? = null,
+		counterDomainToken: StepsCounterDomainToken? = null,
 	): StepWindowPreview? {
 		require(cumulativeCount >= 0L)
 		val previous = baseline
@@ -69,7 +72,8 @@ internal class StepWindowAccumulator(
 			previousProviderElapsedNanos = previous?.elapsedRealtimeNanos,
 		) || previous?.providerSequence?.let { providerSequence <= it } == true) return null
 		val authorizedPrevious = previous?.takeIf {
-			it.authorizationBoundary == authorizationBoundary
+			it.authorizationBoundary == authorizationBoundary &&
+				it.counterDomainToken == counterDomainToken
 		}
 		val boundaryKind = when {
 			authorizedPrevious == null -> StepBoundaryKind.BASELINE
@@ -99,6 +103,7 @@ internal class StepWindowAccumulator(
 			firstProviderSequence = payloadBaseline?.providerSequence ?: providerSequence,
 			lastProviderSequence = providerSequence,
 			boundaryKind = boundaryKind,
+			counterDomainToken = counterDomainToken,
 		)
 		return StepWindowPreview(
 			payload = payload,
@@ -109,6 +114,7 @@ internal class StepWindowAccumulator(
 				providerSequence,
 				boundary,
 				authorizationBoundary,
+				counterDomainToken,
 			),
 		)
 	}
@@ -128,6 +134,7 @@ internal class StepWindowAccumulator(
 		providerSequence: Long,
 		receivedElapsedRealtimeNanos: Long = Long.MAX_VALUE,
 		authorizationBoundary: StepAuthorizationBoundary? = null,
+		counterDomainToken: StepsCounterDomainToken? = null,
 	): StepCounterWindowPayload? {
 		val preview = preview(
 			bootClockDomainId,
@@ -136,6 +143,7 @@ internal class StepWindowAccumulator(
 			providerSequence,
 			receivedElapsedRealtimeNanos,
 			authorizationBoundary,
+			counterDomainToken,
 		) ?: return null
 		check(commit(preview))
 		return preview.payload
@@ -162,6 +170,8 @@ internal fun StepBaseline.encode(): ByteArray = ByteArrayOutputStream().use { by
 			output.writeLong(authorization.purposeEligibilityMask)
 			output.writeLong(authorization.effectiveElapsedRealtimeNanos)
 		}
+		output.writeBoolean(counterDomainToken != null)
+		counterDomainToken?.let { output.writeUTF(it.encoded) }
 		output.writeLong(cumulativeCount)
 		output.writeLong(elapsedRealtimeNanos)
 		output.writeLong(providerSequence)
@@ -174,7 +184,9 @@ internal fun decodeStepBaseline(
 	version: Int,
 	expectedBoundary: StepBaselineBoundary? = null,
 ): StepBaseline? = runCatching {
-	if (version != STEP_BASELINE_VERSION || payload.isEmpty()) return@runCatching null
+	if (version !in LEGACY_STEP_BASELINE_VERSION..STEP_BASELINE_VERSION ||
+		payload.isEmpty()
+	) return@runCatching null
 	DataInputStream(ByteArrayInputStream(payload)).use { input ->
 		val registrationGeneration = input.readLong()
 		val boundary = if (registrationGeneration == NO_REGISTRATION_GENERATION) {
@@ -193,15 +205,24 @@ internal fun decodeStepBaseline(
 		} else {
 			null
 		}
+		val counterDomainToken = if (
+			version >= STEP_BASELINE_VERSION && input.readBoolean()
+		) {
+			StepsCounterDomainToken.opaque(input.readUTF())
+		} else {
+			null
+		}
 		StepBaseline(
 			input.readLong(),
 			input.readLong(),
 			input.readLong(),
 			boundary,
 			authorizationBoundary,
+			counterDomainToken,
 		).also { require(input.available() == 0) }
 	}
 }.getOrNull()
 
-internal const val STEP_BASELINE_VERSION = 5
+internal const val STEP_BASELINE_VERSION = 6
+private const val LEGACY_STEP_BASELINE_VERSION = 5
 private const val NO_REGISTRATION_GENERATION = 0L

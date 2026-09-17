@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 
 /** Counts from bounded source-event maintenance work. */
 data class SourceEventStoragePruneResult(
@@ -97,6 +98,15 @@ suspend fun AppDatabase.pruneSourceEventStorageBefore(
 						remainingEffectLimit -= sourceEffects
 					}
 					if (remainingWalLimit > 0) {
+						if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS) {
+							check(
+								StepsCountDomainStore(this).removeSessionWalOwnersForPrune(
+									safeOrdinal = sourceSafeOrdinal,
+									createdBeforeMs = createdBeforeMs,
+									limit = remainingWalLimit,
+								) !is StepsCountDomainMaintenanceResult.Overflow,
+							) { "Steps WAL count-domain prune batch exceeded its bound" }
+						}
 						val sourceWal = walDao.deleteProjectedSourceBatch(
 							sourceKind = sourceKind,
 							safeOrdinal = sourceSafeOrdinal,

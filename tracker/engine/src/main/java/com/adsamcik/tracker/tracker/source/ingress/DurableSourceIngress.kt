@@ -28,6 +28,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
@@ -378,7 +379,13 @@ class RoomDurableSourceIngress @Inject constructor(
 						candidate.source == SourceKind.STEPS
 					) {
 						walDao.getByAdmissionOrdinal(duplicate.existingAdmissionOrdinal)
-							?.let { database.recordStepsCountDomainWalOrThrow(it) }
+							?.let {
+								database.recordStepsCountDomainWalOrThrow(
+									it,
+									(candidate.payload as? StepCounterWindowPayload)
+										?.counterDomainToken,
+								)
+							}
 					}
 					if (duplicate is AdmissionResult.Duplicate && checkpoint != null) {
 						persistAtomicCheckpoint(
@@ -433,7 +440,13 @@ class RoomDurableSourceIngress @Inject constructor(
 						candidate.source == SourceKind.STEPS
 					) {
 						walDao.getByAdmissionOrdinal(duplicate.existingAdmissionOrdinal)
-							?.let { database.recordStepsCountDomainWalOrThrow(it) }
+							?.let {
+								database.recordStepsCountDomainWalOrThrow(
+									it,
+									(candidate.payload as? StepCounterWindowPayload)
+										?.counterDomainToken,
+								)
+							}
 					}
 					if (duplicate is AdmissionResult.Duplicate && checkpoint != null) {
 						persistAtomicCheckpoint(
@@ -447,6 +460,7 @@ class RoomDurableSourceIngress @Inject constructor(
 				if (candidate.source == SourceKind.STEPS) {
 					database.recordStepsCountDomainWalOrThrow(
 						entity.copy(admissionOrdinal = rowId),
+						(candidate.payload as? StepCounterWindowPayload)?.counterDomainToken,
 					)
 				}
 				checkpoint?.let {
@@ -670,7 +684,14 @@ class RoomDurableSourceIngress @Inject constructor(
 						if (delivery.source == SourceKind.STEPS) {
 							replay.units.forEach { admitted ->
 								walDao.getByAdmissionOrdinal(admitted.admissionOrdinal)
-									?.let { database.recordStepsCountDomainWalOrThrow(it) }
+									?.let { row ->
+										val token = delivery.units
+											.single { it.unitIndex == admitted.unitIndex }
+											.evidence.payload
+											.let { it as? StepCounterWindowPayload }
+											?.counterDomainToken
+										database.recordStepsCountDomainWalOrThrow(row, token)
+									}
 							}
 						}
 						return@transaction replay
@@ -980,6 +1001,8 @@ class RoomDurableSourceIngress @Inject constructor(
 					entities.forEachIndexed { index, entity ->
 						database.recordStepsCountDomainWalOrThrow(
 							entity.copy(admissionOrdinal = rowIds[index]),
+							(authorized[index].encoded.sourceUnit.evidence.payload as?
+								StepCounterWindowPayload)?.counterDomainToken,
 						)
 					}
 				}
@@ -1494,21 +1517,23 @@ private sealed interface CaptureSessionAuthority {
 	data object Invalid : CaptureSessionAuthority
 }
 
-private suspend fun AppDatabase.recordStepsCountDomainWalOrThrow(row: SourceEventWalEntity) {
-	when (StepsCountDomainStore(this).recordSessionWal(row)) {
+private suspend fun AppDatabase.recordStepsCountDomainWalOrThrow(
+	row: SourceEventWalEntity,
+	counterDomainToken: StepsCounterDomainToken?,
+) {
+	when (StepsCountDomainStore(this).recordSessionWal(row, counterDomainToken)) {
 		StepsCountDomainWriteResult.INSERTED,
 		StepsCountDomainWriteResult.EXACT_REPLAY,
 		StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
 		StepsCountDomainWriteResult.NOT_APPLICABLE,
+		StepsCountDomainWriteResult.UNPROVEN,
 		-> Unit
-		StepsCountDomainWriteResult.UNPROVEN ->
-			error("Steps WAL count-domain authority is incomplete")
 		StepsCountDomainWriteResult.IDENTITY_CONFLICT ->
 			error("Steps WAL count-domain identity conflicts with retained evidence")
 		StepsCountDomainWriteResult.REVISION_GAP ->
 			error("Steps WAL count-domain owner revision is not contiguous")
-		StepsCountDomainWriteResult.TERMINALLY_RETRACTED ->
-			error("Steps WAL count-domain owner was terminally retracted")
+		StepsCountDomainWriteResult.TERMINAL_OWNER ->
+			error("Steps WAL count-domain owner is terminal")
 	}
 }
 

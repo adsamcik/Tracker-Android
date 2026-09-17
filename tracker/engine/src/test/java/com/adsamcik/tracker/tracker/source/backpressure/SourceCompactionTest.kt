@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.source.backpressure
 
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
 import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
@@ -20,6 +21,12 @@ class SourceCompactionTest {
 
 		shouldThrow<IllegalArgumentException> {
 			SourceCompaction.mergeSteps(step(1, 2, 100, 105), step(4, 5, 105, 112))
+		}
+		shouldThrow<IllegalArgumentException> {
+			SourceCompaction.mergeSteps(
+				step(1, 2, 100, 105, token('a')),
+				step(3, 4, 105, 112, token('b')),
+			)
 		}
 	}
 
@@ -59,7 +66,13 @@ class SourceCompactionTest {
 		}
 	}
 
-	private fun step(firstSequence: Long, lastSequence: Long, firstCount: Long, lastCount: Long) =
+	private fun step(
+		firstSequence: Long,
+		lastSequence: Long,
+		firstCount: Long,
+		lastCount: Long,
+		counterDomainToken: StepsCounterDomainToken? = null,
+	) =
 		StepCounterWindowPayload(
 			bootClockDomainId = "boot",
 			firstCumulativeCount = firstCount,
@@ -70,7 +83,11 @@ class SourceCompactionTest {
 			firstProviderSequence = firstSequence,
 			lastProviderSequence = lastSequence,
 			baselineReset = false,
+			counterDomainToken = counterDomainToken,
 		)
+
+	private fun token(digit: Char) =
+		StepsCounterDomainToken.opaque("sha256:${digit.toString().repeat(64)}")
 
 	private fun pressure(first: Long, last: Long, count: Int, mean: Double) = PressureWindowPayload(
 		sampleCount = count,

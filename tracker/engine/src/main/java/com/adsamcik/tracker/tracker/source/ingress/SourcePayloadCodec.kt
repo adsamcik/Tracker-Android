@@ -20,6 +20,7 @@ import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.WifiScanAttemptOutcome
 import com.adsamcik.tracker.tracker.source.model.WifiScanAttemptPayload
 import com.adsamcik.tracker.tracker.source.model.expectedPressureSampleCount
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -128,6 +129,13 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 					writeInt(payload.boundaryKind.stableWireCode())
 				} else {
 					writeBoolean(payload.baselineReset)
+				}
+				if (payloadVersion >= STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION) {
+					writeUTF(requireNotNull(payload.counterDomainToken).encoded)
+				} else {
+					require(payload.counterDomainToken == null) {
+						"Legacy Steps payload cannot discard its counter-domain token"
+					}
 				}
 			}
 			is PressureWindowPayload -> {
@@ -300,6 +308,13 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 			firstProviderSequence = firstProviderSequence,
 			lastProviderSequence = lastProviderSequence,
 			boundaryKind = boundaryKind,
+			counterDomainToken = if (
+				payloadVersion >= STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION
+			) {
+				StepsCounterDomainToken.opaque(readUTF())
+			} else {
+				null
+			},
 		)
 	}
 
@@ -365,7 +380,7 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 
 	private companion object {
 		const val MINIMUM_VERSION = 1
-		const val CURRENT_VERSION = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
+		const val CURRENT_VERSION = STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION
 		const val LEGACY_V27_VERSION = 1
 		const val WIFI_ITEM_TIME_VERSION = 2
 		const val MAX_COLLECTION_SIZE = 100_000
@@ -382,6 +397,7 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 
 internal const val STEP_BOUNDARY_KIND_PAYLOAD_VERSION = 3
 internal const val PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION = 4
+internal const val STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION = 6
 
 private const val PRESSURE_ACCURACY_UNKNOWN_WIRE_CODE = 1
 private const val PRESSURE_ACCURACY_UNRELIABLE_WIRE_CODE = 2

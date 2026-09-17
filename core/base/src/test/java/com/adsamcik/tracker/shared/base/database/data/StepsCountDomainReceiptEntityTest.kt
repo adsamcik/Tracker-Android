@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.base.database.data
 
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.junit.Test
@@ -9,7 +10,8 @@ class StepsCountDomainReceiptEntityTest {
 	fun `receipt identity binds domain epoch authority coverage version and effect`() {
 		val base = receipt()
 
-		receipt(sourceInstance = "instance-b").receiptIdentity shouldNotBe base.receiptIdentity
+		receipt(tokenDigit = 'b').receiptIdentity shouldNotBe base.receiptIdentity
+		receipt(registrationGeneration = 3L).receiptIdentity shouldNotBe base.receiptIdentity
 		receipt(collectedDataEpoch = 8L).receiptIdentity shouldNotBe base.receiptIdentity
 		receipt(authorityRevision = 4L).receiptIdentity shouldNotBe base.receiptIdentity
 		receipt(
@@ -21,17 +23,12 @@ class StepsCountDomainReceiptEntityTest {
 	}
 
 	@Test
-	fun `native receipt retains only one-way provider and source identities`() {
-		val provider = "raw-provider-account"
-		val sourceInstance = "stable-device-instance"
-		val receipt = receipt(providerDomain = provider, sourceInstance = sourceInstance)
+	fun `receipt uses only the provider-issued opaque counter token`() {
+		val receipt = receipt(tokenDigit = 'c')
 
-		receipt.toString().contains(provider) shouldBe false
-		receipt.toString().contains(sourceInstance) shouldBe false
-		receipt.providerDomainIdentity.contains(provider) shouldBe false
-		receipt.sourceInstanceIdentity.contains(sourceInstance) shouldBe false
-		receipt.domainIdentity.contains(provider) shouldBe false
-		receipt.domainIdentity.contains(sourceInstance) shouldBe false
+		receipt.domainIdentity shouldBe opaque('c')
+		receipt.toString().contains("provider-account") shouldBe false
+		receipt.toString().contains("stable-device-instance") shouldBe false
 	}
 
 	@Test
@@ -48,31 +45,26 @@ class StepsCountDomainReceiptEntityTest {
 	}
 
 	private fun receipt(
-		providerDomain: String = "provider-domain",
-		sourceInstance: String = "instance-a",
+		tokenDigit: Char = 'a',
 		collectedDataEpoch: Long = 7L,
 		authorityRevision: Long = 3L,
+		registrationGeneration: Long = 2L,
 		coverageKind: String = StepsCountDomainReceiptEntity.COVERAGE_COVERED,
 		coverageVersion: Int = 1,
 		effectChecksum: String = "d".repeat(64),
 	): StepsCountDomainReceiptEntity {
-		val providerIdentity =
-			StepsCountDomainReceiptIntegrity.nativeProviderDomainIdentity(providerDomain)
-		val sourceIdentity =
-			StepsCountDomainReceiptIntegrity.nativeSourceInstanceIdentity(sourceInstance)
-		val domainIdentity =
-			StepsCountDomainReceiptIntegrity.nativeDomainIdentity(providerDomain, sourceInstance)
+		val domainIdentity = StepsCountDomainReceiptIntegrity.counterDomainIdentity(
+			StepsCounterDomainToken.opaque(opaque(tokenDigit)),
+		)
 		val ownerIdentity = opaque('a')
 		val scopeIdentity = opaque('9')
 		val identity = StepsCountDomainReceiptIntegrity.receiptIdentity(
 			domainIdentity = domainIdentity,
-			providerDomainIdentity = providerIdentity,
-			sourceInstanceIdentity = sourceIdentity,
 			ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
 			scopeIdentity = scopeIdentity,
 			ownerIdentity = ownerIdentity,
 			ownerRevision = 1L,
-			registrationGeneration = 2L,
+			registrationGeneration = registrationGeneration,
 			collectedDataEpoch = collectedDataEpoch,
 			authorityRevision = authorityRevision,
 			authorityFingerprint = "c".repeat(64),
@@ -80,17 +72,16 @@ class StepsCountDomainReceiptEntityTest {
 			coverageVersion = coverageVersion,
 			countDomainVersion = StepsCountDomainReceiptEntity.CURRENT_COUNT_DOMAIN_VERSION,
 			effectChecksum = effectChecksum,
+			completionEvidenceChecksum = null,
 		)
 		return StepsCountDomainReceiptEntity(
 			receiptIdentity = identity,
 			domainIdentity = domainIdentity,
-			providerDomainIdentity = providerIdentity,
-			sourceInstanceIdentity = sourceIdentity,
 			ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
 			scopeIdentity = scopeIdentity,
 			ownerIdentity = ownerIdentity,
 			ownerRevision = 1L,
-			registrationGeneration = 2L,
+			registrationGeneration = registrationGeneration,
 			collectedDataEpoch = collectedDataEpoch,
 			authorityRevision = authorityRevision,
 			authorityFingerprint = "c".repeat(64),
@@ -98,6 +89,7 @@ class StepsCountDomainReceiptEntityTest {
 			coverageVersion = coverageVersion,
 			countDomainVersion = StepsCountDomainReceiptEntity.CURRENT_COUNT_DOMAIN_VERSION,
 			effectChecksum = effectChecksum,
+			completionEvidenceChecksum = null,
 		)
 	}
 
