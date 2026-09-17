@@ -16,6 +16,10 @@ import com.adsamcik.tracker.shared.base.database.liveSourceProjectionActivationO
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 
 data class ExecutableSourceLaneBinding(
 	val source: SourceKind,
@@ -333,6 +337,9 @@ private fun expectedRearmCapability(source: SourceKind): SourceWriterRearmCapabi
 }
 
 interface TrackingRolloutStateStore {
+	val states: Flow<TrackingRolloutState>
+		get() = flow { emit(load()) }
+
 	suspend fun load(): TrackingRolloutState
 	suspend fun save(state: TrackingRolloutState, updatedAtMs: Long)
 }
@@ -343,6 +350,11 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 	private val executableLaneCatalog: ExecutableSourceLaneCatalog,
 ) : TrackingRolloutStateStore {
 	constructor(database: AppDatabase) : this(database, ExecutableSourceLaneCatalog())
+
+	override val states: Flow<TrackingRolloutState> =
+		database.trackingRolloutStateDao().observe()
+			.map { load() }
+			.distinctUntilChanged()
 
 	override suspend fun load(): TrackingRolloutState = database.withTransaction {
 		val dao = database.trackingRolloutStateDao()

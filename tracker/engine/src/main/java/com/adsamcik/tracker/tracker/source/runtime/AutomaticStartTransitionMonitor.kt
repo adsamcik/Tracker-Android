@@ -9,12 +9,14 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import android.os.SystemClock
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
+import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.TrackingJoinSpecs
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 
 /** Application-scoped automatic-start demand; it is independent of tracking-session lifetime. */
 @Singleton
@@ -23,6 +25,7 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 	private val sourceBroker: SourceBroker,
 	private val clockDomainProvider: BootClockDomainProvider,
 	private val activityProjectionLane: ActivityAutomationProjectionLane,
+	private val currentPurposeAvailabilityReader: CurrentTrackingPurposeAvailabilityReader,
 ) {
 	suspend fun reconcile(
 		enabled: Boolean,
@@ -37,8 +40,27 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 		// Only Activity Transition callbacks carry the live, non-replayable background-start
 		// context used by automatic cold start. Continuous recognition remains a capture mechanism;
 		// it must never be registered as a hidden fallback control.
+		val currentControlAvailability =
+			currentPurposeAvailabilityReader.availability.value.automaticControl
+		val publishedReady =
+			controlAvailability as? AutomaticTrackingOperationalAvailability.Ready
+		val currentReady =
+			currentControlAvailability as? AutomaticTrackingOperationalAvailability.Ready
+		val identityCurrent = if (publishedReady != null &&
+			currentReady?.identity == publishedReady.identity
+		) {
+			try {
+				currentPurposeAvailabilityReader.isCurrent(publishedReady.identity)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				false
+			}
+		} else {
+			false
+		}
 		val transitionControlEnabled = enabled &&
-			controlAvailability.isOperational &&
+			identityCurrent &&
 			useTransitionApi &&
 			transitions.isNotEmpty()
 		if (transitionControlEnabled) {

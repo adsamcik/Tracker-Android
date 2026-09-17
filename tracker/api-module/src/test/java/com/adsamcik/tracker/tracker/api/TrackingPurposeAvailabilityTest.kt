@@ -12,13 +12,13 @@ class TrackingPurposeAvailabilityTest {
 		val snapshot = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT
 
 		snapshot.automaticControl shouldBe AutomaticTrackingOperationalAvailability.Unavailable(
-			AutomaticTrackingUnavailableReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
+			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
 		)
-		AutomaticTrackingUnavailableReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED.stableCode shouldBe
-			"AUTO_005_CONTROL_EVIDENCE_UNRESOLVED"
-		AutomaticTrackingUnavailableReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED
+		AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE.stableCode shouldBe
+			"CONTROL_RETENTION_POLICY_UNAVAILABLE"
+		AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE
 			.containmentReason shouldBe
-			TrackingDecisionContainmentReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED
+			TrackingDecisionContainmentReason.RETENTION_AUTHORITY_UNAVAILABLE
 		snapshot.ambientSources.keys shouldBe setOf(
 			AmbientTrackingSource.STEPS,
 			AmbientTrackingSource.LOCATION,
@@ -31,6 +31,217 @@ class TrackingPurposeAvailabilityTest {
 			availability.mechanism shouldBe null
 			availability.reason shouldBe AmbientSourceUnavailableReason.RECONCILIATION_PENDING
 		}
+	}
+
+	@Test
+	fun `automatic control issue report cancel and regrant remain exact lease bound`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val first = automaticIdentity(policy = 8L, consent = 3L, token = "control-first")
+		val started = store.beginOrReplaceAutomaticControlLease(first)
+			.shouldBeInstanceOf<AutomaticControlLeaseStartResult.Started>()
+		started.lease.identity shouldBe first
+		started.snapshot.automaticControl shouldBe
+			AutomaticTrackingOperationalAvailability.Unavailable(
+				AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+			)
+
+		val unavailable = AutomaticControlReconciliationReport(
+			first,
+			AutomaticTrackingOperationalAvailability.Unavailable(
+				AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+				first,
+			),
+		)
+		store.tryAccept(unavailable)
+			.shouldBeInstanceOf<AutomaticControlPublicationAcceptance.Accepted>()
+		store.tryAccept(unavailable) shouldBe AutomaticControlPublicationAcceptance.Rejected(
+			TrackingPurposePublicationRejection.TOKEN_CONSUMED,
+		)
+
+		val regrant = first.copy(
+			policyRevision = 9L,
+			consentEpoch = 4L,
+			ownerCasToken = "control-regrant",
+		)
+		store.beginOrReplaceAutomaticControlLease(regrant)
+			.shouldBeInstanceOf<AutomaticControlLeaseStartResult.Started>()
+		store.tryAccept(unavailable) shouldBe AutomaticControlPublicationAcceptance.Rejected(
+			TrackingPurposePublicationRejection.STALE_IDENTITY,
+		)
+		store.cancelAutomaticControlLease(regrant)
+			.shouldBeInstanceOf<AutomaticControlPublicationAcceptance.Accepted>()
+		store.tryAccept(
+			AutomaticControlReconciliationReport(
+				regrant,
+				AutomaticTrackingOperationalAvailability.Unavailable(
+					AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+					regrant,
+				),
+			),
+		) shouldBe AutomaticControlPublicationAcceptance.Rejected(
+			TrackingPurposePublicationRejection.CANCELLED,
+		)
+	}
+
+	@Test
+	fun `automatic ready report requires the exact current identity`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val current = automaticIdentity(
+			policy = 8L,
+			consent = 3L,
+			token = "control-ready",
+			execution = 5L,
+		)
+		store.beginOrReplaceAutomaticControlLease(current)
+			.shouldBeInstanceOf<AutomaticControlLeaseStartResult.Started>()
+
+		store.tryAccept(
+			AutomaticControlReconciliationReport(
+				current,
+				AutomaticTrackingOperationalAvailability.Ready(current),
+			),
+		).shouldBeInstanceOf<AutomaticControlPublicationAcceptance.Accepted>()
+		store.availability.value.automaticControl shouldBe
+			AutomaticTrackingOperationalAvailability.Ready(current)
+
+		shouldThrow<IllegalArgumentException> {
+			AutomaticControlReconciliationReport(
+				current,
+				AutomaticTrackingOperationalAvailability.Ready(
+					current.copy(ownerCasToken = "different"),
+				),
+			)
+		}
+	}
+
+	@Test
+	fun `current projection rejects ready after deletion or rollout authority changes`() {
+		val automatic = automaticIdentity(
+			policy = 8L,
+			consent = 3L,
+			token = "control-current",
+			execution = 5L,
+		)
+		val ambient = identity(
+			policy = 8L,
+			consent = 3L,
+			rollout = 4L,
+			token = "ambient-current",
+		).purposeLeaseIdentity
+		val published = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.copy(
+			automaticControl = AutomaticTrackingOperationalAvailability.Ready(automatic),
+			ambientSources = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.ambientSources +
+				(
+					AmbientTrackingSource.STEPS to ready(
+						AmbientTrackingSource.STEPS,
+						AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+						ambient,
+					)
+				),
+		)
+		val matching = CurrentTrackingPurposeAvailability(
+			published,
+			mapOf(
+				automatic.sourcePurpose to automatic.toAuthorityVector(),
+				ambient.sourcePurpose to ambient.toAuthorityVector(),
+			),
+		)
+		matching.automaticControl shouldBe AutomaticTrackingOperationalAvailability.Ready(automatic)
+		matching.ambientSources.getValue(AmbientTrackingSource.STEPS).isOperational shouldBe true
+
+		val stale = CurrentTrackingPurposeAvailability(
+			published,
+			mapOf(
+				automatic.sourcePurpose to automatic.toAuthorityVector(
+					collectedDataEpoch = automatic.collectedDataEpoch + 1L,
+				),
+				ambient.sourcePurpose to ambient.toAuthorityVector(
+					rolloutRevision = ambient.rolloutRevision + 1L,
+				),
+			),
+		)
+
+		stale.automaticControl shouldBe AutomaticTrackingOperationalAvailability.Unavailable(
+			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+			automatic,
+		)
+		stale.ambientSources.getValue(AmbientTrackingSource.STEPS) shouldBe
+			AmbientSourceOperationalAvailability.reconciliationPending(
+				AmbientTrackingSource.STEPS,
+				ambient,
+			)
+
+		CurrentTrackingPurposeAvailability(
+			published,
+			mapOf(
+				automatic.sourcePurpose to automatic.toAuthorityVector().copy(
+					executionRevision = automatic.executionRevision + 1L,
+				),
+				ambient.sourcePurpose to ambient.toAuthorityVector(),
+			),
+		).automaticControl shouldBe AutomaticTrackingOperationalAvailability.Unavailable(
+			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+			automatic,
+		)
+	}
+
+	@Test
+	fun `automatic report remains first terminal after repeated authority invalidation`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val automatic = automaticIdentity(
+			policy = 8L,
+			consent = 3L,
+			token = "control-ready",
+			execution = 5L,
+		)
+		store.beginOrReplaceAutomaticControlLease(automatic)
+		store.tryAccept(
+			AutomaticControlReconciliationReport(
+				automatic,
+				AutomaticTrackingOperationalAvailability.Ready(automatic),
+			),
+		)
+
+		store.invalidateAutomaticControl()
+		store.invalidateAutomaticControl()
+
+		store.availability.value.automaticControl shouldBe
+			AutomaticTrackingOperationalAvailability.Unavailable(
+				AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+				automatic,
+			)
+		store.tryAccept(
+				AutomaticControlReconciliationReport(
+					automatic,
+					AutomaticTrackingOperationalAvailability.Ready(automatic),
+				),
+		) shouldBe AutomaticControlPublicationAcceptance.Rejected(
+			TrackingPurposePublicationRejection.TOKEN_CONSUMED,
+		)
+	}
+
+	@Test
+	fun `automatic invalidation before report remains cancelled`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val automatic = automaticIdentity(
+			policy = 8L,
+			consent = 3L,
+			token = "control-cancelled",
+			execution = 5L,
+		)
+		store.beginOrReplaceAutomaticControlLease(automatic)
+
+		store.invalidateAutomaticControl()
+		store.invalidateAutomaticControl()
+
+		store.tryAccept(
+			AutomaticControlReconciliationReport(
+				automatic,
+				AutomaticTrackingOperationalAvailability.Ready(automatic),
+			),
+		) shouldBe AutomaticControlPublicationAcceptance.Rejected(
+			TrackingPurposePublicationRejection.CANCELLED,
+		)
 	}
 
 	@Test
@@ -281,6 +492,61 @@ class TrackingPurposeAvailabilityTest {
 	}
 
 	@Test
+	fun `ambient report remains first terminal after repeated authority invalidation`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val identity = identity(policy = 10L, consent = 3L, rollout = 4L, token = "ambient-won")
+		val report = AmbientSourceReconciliationReport(
+			identity,
+			ready(
+				AmbientTrackingSource.STEPS,
+				AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+				identity.purposeLeaseIdentity,
+			),
+		)
+		store.beginOrReplaceAmbientLease(identity)
+		store.tryAccept(report)
+
+		store.invalidateAmbient(AmbientTrackingSource.STEPS)
+		store.invalidateAmbient(AmbientTrackingSource.STEPS)
+
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.STEPS) shouldBe
+			AmbientSourceOperationalAvailability.reconciliationPending(
+				AmbientTrackingSource.STEPS,
+				identity.purposeLeaseIdentity,
+			)
+		store.tryAccept(report) shouldBe AmbientPublicationAcceptance.Rejected(
+			AmbientPublicationRejection.TOKEN_CONSUMED,
+		)
+	}
+
+	@Test
+	fun `ambient invalidation before report remains cancelled`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val identity = identity(
+			policy = 10L,
+			consent = 3L,
+			rollout = 4L,
+			token = "ambient-cancelled",
+		)
+		val report = AmbientSourceReconciliationReport(
+			identity,
+			ready(
+				AmbientTrackingSource.STEPS,
+				AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+				identity.purposeLeaseIdentity,
+			),
+		)
+		store.beginOrReplaceAmbientLease(identity)
+
+		store.invalidateAmbient(AmbientTrackingSource.STEPS)
+		store.invalidateAmbient(AmbientTrackingSource.STEPS)
+
+		store.tryAccept(report) shouldBe AmbientPublicationAcceptance.Rejected(
+			AmbientPublicationRejection.CANCELLED,
+		)
+	}
+
+	@Test
 	fun `old completion is rejected after policy regrant rollout or owner token replacement`() {
 		val store = AtomicTrackingPurposeAvailabilityStore()
 		val old = identity(policy = 10L, consent = 3L, rollout = 4L, token = "lease-old")
@@ -496,5 +762,33 @@ class TrackingPurposeAvailabilityTest {
 		rolloutRevision = 0L,
 		executionRevision = 1L,
 		ownerCasToken = "${source.name.lowercase()}-owner",
+	)
+
+	private fun automaticIdentity(
+		policy: Long,
+		consent: Long,
+		token: String,
+		execution: Long = 0L,
+	) = TrackingPurposeLeaseIdentity(
+		source = TrackingSource.ACTIVITY,
+		purpose = TrackingPurpose.CONTROL,
+		policyRevision = policy,
+		consentEpoch = consent,
+		collectedDataEpoch = 2L,
+		rolloutRevision = 4L,
+		executionRevision = execution,
+		ownerCasToken = token,
+	)
+
+	private fun TrackingPurposeLeaseIdentity.toAuthorityVector(
+		collectedDataEpoch: Long = this.collectedDataEpoch,
+		rolloutRevision: Long = this.rolloutRevision,
+	) = TrackingPurposeAuthorityVector(
+		sourcePurpose = sourcePurpose,
+		policyRevision = policyRevision,
+		consentEpoch = consentEpoch,
+		collectedDataEpoch = collectedDataEpoch,
+		rolloutRevision = rolloutRevision,
+		executionRevision = executionRevision,
 	)
 }

@@ -16,6 +16,9 @@ import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -23,6 +26,23 @@ import org.junit.jupiter.api.Test
 
 @DisplayName("BackgroundTrackingApi Logic")
 class BackgroundTrackingApiLogicTest {
+	@Test
+	fun `settings observation retries after failure instead of ending the collector`() = runTest {
+		var subscriptions = 0
+		val failures = mutableListOf<String>()
+		val values = flow {
+			val subscription = ++subscriptions
+			emit(subscription)
+			if (subscription == 1) error("transient settings read")
+		}.retryingTrackingSettingsObservation(
+			onFailure = { failures += requireNotNull(it.message) },
+			waitBeforeRetry = {},
+		).take(2).toList()
+
+		values shouldBe listOf(1, 2)
+		failures shouldBe listOf("transient settings read")
+	}
+
 	@Test
 	fun `live control authority refreshes on policy revision or consent epoch rotation`() {
 		automaticControlAuthorityChanged(5L, 8L, 6L, 8L) shouldBe true
@@ -34,9 +54,13 @@ class BackgroundTrackingApiLogicTest {
 	fun `unapproved retention policy contains automatic control despite retained consent intent`() {
 		effectiveAutomaticControlEligibility(
 			controlConsentEligible = true,
-			availability = AutomaticTrackingOperationalAvailability.Unavailable(
-				AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+			availability = currentAvailability(
+				AutomaticTrackingOperationalAvailability.Unavailable(
+					AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+				),
 			),
+			currentPolicyRevision = 1L,
+			currentConsentEpoch = 1L,
 		) shouldBe false
 	}
 
@@ -44,12 +68,34 @@ class BackgroundTrackingApiLogicTest {
 	fun `approved control policy still requires independent consent`() {
 		effectiveAutomaticControlEligibility(
 			controlConsentEligible = false,
-			availability = readyAutomaticControl(),
+			availability = currentAvailability(readyAutomaticControl()),
+			currentPolicyRevision = 1L,
+			currentConsentEpoch = 1L,
 		) shouldBe false
 		effectiveAutomaticControlEligibility(
 			controlConsentEligible = true,
-			availability = readyAutomaticControl(),
+			availability = currentAvailability(readyAutomaticControl()),
+			currentPolicyRevision = 1L,
+			currentConsentEpoch = 1L,
 		) shouldBe true
+	}
+
+	@Test
+	fun `published ready cannot survive current policy or consent rotation`() {
+		val current = currentAvailability(readyAutomaticControl())
+
+		effectiveAutomaticControlEligibility(
+			controlConsentEligible = true,
+			availability = current,
+			currentPolicyRevision = 2L,
+			currentConsentEpoch = 1L,
+		) shouldBe false
+		effectiveAutomaticControlEligibility(
+			controlConsentEligible = true,
+			availability = current,
+			currentPolicyRevision = 1L,
+			currentConsentEpoch = 2L,
+		) shouldBe false
 	}
 
 	@Test
@@ -1087,4 +1133,28 @@ class BackgroundTrackingApiLogicTest {
 			ownerCasToken = "background-api-test",
 		),
 	)
+
+	private fun currentAvailability(
+		automatic: AutomaticTrackingOperationalAvailability,
+	): CurrentTrackingPurposeAvailability {
+		val current = (automatic as? AutomaticTrackingOperationalAvailability.Ready)
+			?.identity
+		return CurrentTrackingPurposeAvailability(
+			published = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.copy(
+				automaticControl = automatic,
+			),
+			currentAuthorities = current?.let { identity ->
+				mapOf(
+					identity.sourcePurpose to TrackingPurposeAuthorityVector(
+						sourcePurpose = identity.sourcePurpose,
+						policyRevision = identity.policyRevision,
+						consentEpoch = identity.consentEpoch,
+						collectedDataEpoch = identity.collectedDataEpoch,
+						rolloutRevision = identity.rolloutRevision,
+						executionRevision = identity.executionRevision,
+					),
+				)
+			}.orEmpty(),
+		)
+	}
 }

@@ -20,10 +20,21 @@ import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorTeleme
 import com.adsamcik.tracker.tracker.source.coordinator.EffectiveSourceState
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
+import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
+import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalState
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
+import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailability
+import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
+import com.adsamcik.tracker.tracker.api.TrackingPurpose
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAuthorityRevision
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAuthorityVector
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
+import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
+import com.adsamcik.tracker.tracker.api.TrackingSource
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
@@ -52,9 +63,20 @@ class TrackingSettingsViewModelTest {
     private val packageManager: PackageManager = mockk(relaxed = true)
     private var permissionsGranted = true
     private var nearbyWifiGranted = true
+	private var exactPurposeAuthorityCurrent = true
 
     // Backing state for the fake repository
 	private val paramsFlow = MutableStateFlow(TrackingParamsState(sourcePolicyRevision = 1L))
+	private val purposeAvailabilityFlow =
+		MutableStateFlow(CurrentTrackingPurposeAvailability.SAFE_DEFAULT)
+	private val purposeAvailabilityReader = object : CurrentTrackingPurposeAvailabilityReader {
+		override val availability = purposeAvailabilityFlow
+		override val authorityRevision =
+			MutableStateFlow(TrackingPurposeAuthorityRevision.UNAVAILABLE)
+
+		override suspend fun isCurrent(identity: TrackingPurposeLeaseIdentity): Boolean =
+			exactPurposeAuthorityCurrent && availability.value.isCurrent(identity)
+	}
 	private val trackingParamsRepository: TrackingParamsRepository = mockk()
 	private val activityWatcherController: ActivityWatcherController = mockk(relaxed = true)
     private val trackingStatusProvider = DefaultTrackingSettingsStatusProvider(
@@ -159,6 +181,8 @@ class TrackingSettingsViewModelTest {
         nearbyWifiGranted: Boolean = true,
     ): TrackingSettingsViewModel {
         paramsFlow.value = TrackingParamsState()
+		purposeAvailabilityFlow.value = CurrentTrackingPurposeAvailability.SAFE_DEFAULT
+		exactPurposeAuthorityCurrent = true
         permissionsGranted = true
         this.nearbyWifiGranted = nearbyWifiGranted
         return TrackingSettingsViewModel(
@@ -166,6 +190,7 @@ class TrackingSettingsViewModelTest {
             trackingParamsRepository,
             trackingStatusProvider,
             activityWatcherController,
+            purposeAvailabilityReader,
         )
     }
 
@@ -312,6 +337,102 @@ class TrackingSettingsViewModelTest {
 				}
 			}
 
+		@Test
+		fun `published source status replaces safe default without changing preference intent`() =
+			runTest(testDispatcher) {
+				val vm = createViewModel()
+				purposeAvailabilityFlow.value = CurrentTrackingPurposeAvailability(
+					published = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.copy(
+						ambientSources =
+							TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.ambientSources +
+								(
+									AmbientTrackingSource.WIFI to
+										AmbientSourceOperationalAvailability.unavailable(
+												AmbientTrackingSource.WIFI,
+												AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+											)
+								),
+					),
+					currentAuthorities = emptyMap(),
+				)
+
+				advanceUntilIdle()
+
+				vm.uiState.value.ambientWifiEnabled shouldBe false
+				vm.uiState.value.ambientSourceAvailability
+					.getValue(AmbientTrackingSource.WIFI)
+					.reason shouldBe AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE
+			}
+
+		@Test
+		fun `stale automatic and ambient ready identities project as nonoperational`() =
+			runTest(testDispatcher) {
+				paramsFlow.value = TrackingParamsState(
+					sourcePolicyRevision = 12L,
+					autoTrackingMode = 1,
+					ambientStepsEnabled = true,
+				)
+				val vm = TrackingSettingsViewModel(
+					context,
+					trackingParamsRepository,
+					trackingStatusProvider,
+					activityWatcherController,
+					purposeAvailabilityReader,
+				)
+				val control = purposeIdentity(
+					source = TrackingSource.ACTIVITY,
+					purpose = TrackingPurpose.CONTROL,
+					collectedDataEpoch = 3L,
+					rolloutRevision = 9L,
+				)
+				val ambient = purposeIdentity(
+					source = TrackingSource.STEPS,
+					purpose = TrackingPurpose.AMBIENT_PRODUCT,
+					collectedDataEpoch = 3L,
+					rolloutRevision = 9L,
+				)
+				purposeAvailabilityFlow.value = CurrentTrackingPurposeAvailability(
+					published = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.copy(
+						automaticControl =
+							AutomaticTrackingOperationalAvailability.Ready(control),
+						ambientSources =
+							TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.ambientSources +
+								(
+									AmbientTrackingSource.STEPS to
+										AmbientSourceOperationalAvailability.ready(
+											AmbientTrackingSource.STEPS,
+											AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+											ambient,
+										)
+								),
+					),
+					currentAuthorities = mapOf(
+						control.sourcePurpose to control.toAuthorityVector(
+							collectedDataEpoch = 4L,
+						),
+						ambient.sourcePurpose to ambient.toAuthorityVector(
+							rolloutRevision = 10L,
+						),
+					),
+				)
+
+				advanceUntilIdle()
+
+				vm.uiState.value.automaticTrackingOperational shouldBe false
+				vm.uiState.value.automaticControlAvailability shouldBe
+					AutomaticTrackingOperationalAvailability.Unavailable(
+						AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+						control,
+					)
+				vm.uiState.value.ambientSourceAvailability
+					.getValue(AmbientTrackingSource.STEPS).state shouldBe
+					AmbientSourceOperationalState.WAITING
+
+				vm.setAutoTrackingMode(2)
+				advanceUntilIdle()
+				io.mockk.verify { activityWatcherController.applyAutoTrackingMode(0) }
+			}
+
         @Test
         fun `barometer request remains stored when the device has no pressure sensor`() = runTest(testDispatcher) {
             every { context.hasPressureSensor } returns false
@@ -428,6 +549,34 @@ class TrackingSettingsViewModelTest {
             vm.uiState.value.autoTrackingMode shouldBe 0
             vm.uiState.value.autoTrackingEnabled shouldBe false
         }
+
+		@Test
+		fun `setAutoTrackingMode rechecks exact authority before applying watcher mode`() =
+			runTest(testDispatcher) {
+				val vm = createViewModel()
+				val control = purposeIdentity(
+					source = TrackingSource.ACTIVITY,
+					purpose = TrackingPurpose.CONTROL,
+					collectedDataEpoch = 3L,
+					rolloutRevision = 9L,
+				)
+				purposeAvailabilityFlow.value = CurrentTrackingPurposeAvailability(
+					published = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.copy(
+						automaticControl =
+							AutomaticTrackingOperationalAvailability.Ready(control),
+					),
+					currentAuthorities = mapOf(
+						control.sourcePurpose to control.toAuthorityVector(),
+					),
+				)
+				exactPurposeAuthorityCurrent = false
+				advanceUntilIdle()
+
+				vm.setAutoTrackingMode(2)
+				advanceUntilIdle()
+
+				io.mockk.verify { activityWatcherController.applyAutoTrackingMode(0) }
+			}
 
         @Test
         fun `granted auto tracking permission applies requested mode`() = runTest(testDispatcher) {
@@ -642,6 +791,7 @@ class TrackingSettingsViewModelTest {
                     trackingParamsRepository,
                     trackingStatusProvider,
                     activityWatcherController,
+					purposeAvailabilityReader,
                 )
                 advanceUntilIdle()
 
@@ -678,6 +828,7 @@ class TrackingSettingsViewModelTest {
                     trackingParamsRepository,
                     trackingStatusProvider,
                     activityWatcherController,
+					purposeAvailabilityReader,
                 )
                 advanceUntilIdle()
                 vm.uiState.value.wifiEnabled shouldBe true
@@ -711,4 +862,32 @@ class TrackingSettingsViewModelTest {
             vm.uiState.value.currentBatteryImpact shouldBe BatteryImpact.HIGH
         }
     }
+
+	private fun purposeIdentity(
+		source: TrackingSource,
+		purpose: TrackingPurpose,
+		collectedDataEpoch: Long,
+		rolloutRevision: Long,
+	) = TrackingPurposeLeaseIdentity(
+		source = source,
+		purpose = purpose,
+		policyRevision = 12L,
+		consentEpoch = 5L,
+		collectedDataEpoch = collectedDataEpoch,
+		rolloutRevision = rolloutRevision,
+		executionRevision = 1L,
+		ownerCasToken = "${source.name.lowercase()}-${purpose.name.lowercase()}",
+	)
+
+	private fun TrackingPurposeLeaseIdentity.toAuthorityVector(
+		collectedDataEpoch: Long = this.collectedDataEpoch,
+		rolloutRevision: Long = this.rolloutRevision,
+	) = TrackingPurposeAuthorityVector(
+		sourcePurpose = sourcePurpose,
+		policyRevision = policyRevision,
+		consentEpoch = consentEpoch,
+		collectedDataEpoch = collectedDataEpoch,
+		rolloutRevision = rolloutRevision,
+		executionRevision = executionRevision,
+	)
 }
