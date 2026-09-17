@@ -3,7 +3,7 @@ package com.adsamcik.tracker.diagnostics
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
-import java.lang.reflect.Proxy
+import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
 
 class TrackingDiagnosticContractTest {
@@ -20,7 +20,12 @@ class TrackingDiagnosticContractTest {
 			queuedEnvelopeBacklog = 9L,
 		)
 		val recorded = request.toRecordedEvent(
-			scopeEventCountBucket = TrackingDiagnosticCountBucket.ONE,
+			operationScope = TrackingDiagnosticScopeOpaque.fixedForTest(1L),
+			scopeSequence = TrackingDiagnosticScopeSequence.EVENT_01,
+			coarseLocalTimestamp = TrackingDiagnosticCoarseLocalTimestamp.fromEpochMilliseconds(
+				epochMilliseconds = 0L,
+				zoneId = ZoneOffset.UTC,
+			),
 			scopeDurationBucket = TrackingDiagnosticDurationBucket.UNDER_TEN_MILLISECONDS,
 		) as EnqueueRecordedTrackingDiagnosticEvent
 
@@ -56,8 +61,9 @@ class TrackingDiagnosticContractTest {
 							TrackingDiagnosticMetric.REMAINING_ENVELOPE_BACKLOG,
 						)
 						TrackingDiagnosticPipelineStage.PERSISTENCE to
-							TrackingDiagnosticOperation.WRITE ->
-							setOf(TrackingDiagnosticMetric.PERSISTED_ENVELOPE_COUNT)
+							TrackingDiagnosticOperation.WRITE -> setOf(
+							TrackingDiagnosticMetric.PERSISTED_ENVELOPE_COUNT,
+						)
 						else -> emptySet()
 					}
 
@@ -114,17 +120,18 @@ class TrackingDiagnosticContractTest {
 	}
 
 	@Test
-	fun `no-op recorder is explicit and terminal events invalidate their scope`() {
-		val scope = TrackingDiagnosticRecorder.NO_OP.beginOperation(
+	fun `fixed no-op factory is explicit and terminal events invalidate their scope`() {
+		val recorder = TrackingDiagnosticRecorder.noOpForTest()
+		val scope = recorder.beginOperation(
 			TrackingDiagnosticSource.LOCATION,
 			TrackingDiagnosticPurpose.SESSION_CAPTURE,
 			TrackingDiagnosticOperation.START,
 		)
 		val terminal = unmetered(lifecycle = TrackingDiagnosticEventLifecycle.TERMINAL)
 
-		TrackingDiagnosticRecorder.NO_OP.record(scope, terminal) shouldBe
+		recorder.record(scope, terminal) shouldBe
 			TrackingDiagnosticRecordResult.IgnoredByNoOpRecorder
-		TrackingDiagnosticRecorder.NO_OP.record(scope, terminal) shouldBe
+		recorder.record(scope, terminal) shouldBe
 			TrackingDiagnosticRecordResult.Rejected(
 				TrackingDiagnosticScopeRejectionReason.ALREADY_TERMINATED,
 			)
@@ -133,29 +140,31 @@ class TrackingDiagnosticContractTest {
 
 	@Test
 	fun `scope rejects recorder source purpose and operation reuse`() {
-		val scope = TrackingDiagnosticRecorder.NO_OP.beginOperation(
+		val recorder = TrackingDiagnosticRecorder.noOpForTest()
+		val otherRecorder = TrackingDiagnosticRecorder.noOpForTest()
+		val scope = recorder.beginOperation(
 			TrackingDiagnosticSource.LOCATION,
 			TrackingDiagnosticPurpose.SESSION_CAPTURE,
 			TrackingDiagnosticOperation.START,
 		)
 
-		TrackingDiagnosticRecorder.LOCAL.record(scope, unmetered()) shouldBe
+		otherRecorder.record(scope, unmetered()) shouldBe
 			TrackingDiagnosticRecordResult.Rejected(
 				TrackingDiagnosticScopeRejectionReason.RECORDER_MISMATCH,
 			)
-		TrackingDiagnosticRecorder.NO_OP.record(
+		recorder.record(
 			scope,
 			unmetered(source = TrackingDiagnosticSource.WIFI),
 		) shouldBe TrackingDiagnosticRecordResult.Rejected(
 			TrackingDiagnosticScopeRejectionReason.SOURCE_MISMATCH,
 		)
-		TrackingDiagnosticRecorder.NO_OP.record(
+		recorder.record(
 			scope,
 			unmetered(purpose = TrackingDiagnosticPurpose.AMBIENT_PRODUCT),
 		) shouldBe TrackingDiagnosticRecordResult.Rejected(
 			TrackingDiagnosticScopeRejectionReason.PURPOSE_MISMATCH,
 		)
-		TrackingDiagnosticRecorder.NO_OP.record(
+		recorder.record(
 			scope,
 			unmetered(operation = TrackingDiagnosticOperation.STOP),
 		) shouldBe TrackingDiagnosticRecordResult.Rejected(
@@ -164,29 +173,92 @@ class TrackingDiagnosticContractTest {
 	}
 
 	@Test
+	fun `recorder owns opaque scope sequence and coarse timestamp`() {
+		val recordedEvents = mutableListOf<RecordedTrackingDiagnosticEvent>()
+		var elapsedNanos = 0L
+		val recorder = TrackingDiagnosticRecorder.recordingForTest(
+			recordedEvents = recordedEvents,
+			nanoTime = { elapsedNanos },
+			epochMilliseconds = { 1_789_630_524_522L },
+			zoneId = ZoneOffset.ofHours(2),
+		)
+		val scope = recorder.beginOperation(
+			TrackingDiagnosticSource.LOCATION,
+			TrackingDiagnosticPurpose.SESSION_CAPTURE,
+			TrackingDiagnosticOperation.START,
+		)
+
+		recorder.record(scope, unmetered()) shouldBe TrackingDiagnosticRecordResult.RecordedLocally
+		elapsedNanos = TimeUnit.MILLISECONDS.toNanos(12L)
+		recorder.record(scope, unmetered()) shouldBe TrackingDiagnosticRecordResult.RecordedLocally
+
+		recordedEvents.map { it.scopeSequence } shouldBe listOf(
+			TrackingDiagnosticScopeSequence.EVENT_01,
+			TrackingDiagnosticScopeSequence.EVENT_02,
+		)
+		recordedEvents.map { it.operationScope.wireValue }.distinct().size shouldBe 1
+		recordedEvents.first().operationScope.wireValue.matches(
+			Regex("""scope_[0-9a-f]{24}"""),
+		) shouldBe true
+		recordedEvents.map { it.coarseLocalTimestamp.wireValue }.distinct() shouldBe
+			listOf("2026-09-17T09:30+02:00")
+		recordedEvents.last().scopeDurationBucket shouldBe
+			TrackingDiagnosticDurationBucket.TEN_TO_NINETY_NINE_MILLISECONDS
+	}
+
+	@Test
+	fun `separate scopes receive distinct process-local opaque values`() {
+		val recordedEvents = mutableListOf<RecordedTrackingDiagnosticEvent>()
+		val recorder = TrackingDiagnosticRecorder.recordingForTest(recordedEvents)
+
+		listOf(
+			recorder.beginOperation(
+				TrackingDiagnosticSource.STEPS,
+				TrackingDiagnosticPurpose.SESSION_CAPTURE,
+				TrackingDiagnosticOperation.READ,
+			),
+			recorder.beginOperation(
+				TrackingDiagnosticSource.STEPS,
+				TrackingDiagnosticPurpose.SESSION_CAPTURE,
+				TrackingDiagnosticOperation.READ,
+			),
+		).forEach { scope ->
+			recorder.record(
+				scope,
+				unmetered(
+					source = TrackingDiagnosticSource.STEPS,
+					operation = TrackingDiagnosticOperation.READ,
+				),
+			) shouldBe TrackingDiagnosticRecordResult.RecordedLocally
+		}
+
+		recordedEvents.map { it.operationScope.wireValue }.distinct().size shouldBe 2
+	}
+
+	@Test
 	fun `scope has a bounded event count`() {
-		val scope = TrackingDiagnosticRecorder.NO_OP.beginOperation(
+		val recorder = TrackingDiagnosticRecorder.noOpForTest()
+		val scope = recorder.beginOperation(
 			TrackingDiagnosticSource.LOCATION,
 			TrackingDiagnosticPurpose.SESSION_CAPTURE,
 			TrackingDiagnosticOperation.START,
 		)
 		repeat(16) {
-			TrackingDiagnosticRecorder.NO_OP.record(scope, unmetered()) shouldBe
+			recorder.record(scope, unmetered()) shouldBe
 				TrackingDiagnosticRecordResult.IgnoredByNoOpRecorder
 		}
 
-		TrackingDiagnosticRecorder.NO_OP.record(scope, unmetered()) shouldBe
+		recorder.record(scope, unmetered()) shouldBe
 			TrackingDiagnosticRecordResult.Rejected(
 				TrackingDiagnosticScopeRejectionReason.EVENT_LIMIT_EXCEEDED,
 			)
 	}
 
 	@Test
-	fun `scope lifetime and sink failures close without throwing into tracking`() {
+	fun `scope lifetime and store failures close without throwing into tracking`() {
 		var nowNanos = 0L
-		val expiringRecorder = reflectiveRecorder(
-			sink = { true },
-			nanoClock = { nowNanos },
+		val expiringRecorder = TrackingDiagnosticRecorder.noOpForTest(
+			nanoTime = { nowNanos },
 		)
 		val expiredScope = expiringRecorder.beginOperation(
 			TrackingDiagnosticSource.LOCATION,
@@ -199,10 +271,14 @@ class TrackingDiagnosticContractTest {
 			TrackingDiagnosticRecordResult.Rejected(
 				TrackingDiagnosticScopeRejectionReason.LIFETIME_EXCEEDED,
 			)
+		expiringRecorder.record(expiredScope, unmetered()) shouldBe
+			TrackingDiagnosticRecordResult.Rejected(
+				TrackingDiagnosticScopeRejectionReason.ALREADY_TERMINATED,
+			)
 
-		val failingRecorder = reflectiveRecorder(
-			sink = { error("local adapter unavailable") },
-			nanoClock = { 0L },
+		val failingRecorder = TrackingDiagnosticRecorder.recordingForTest(
+			recordedEvents = mutableListOf(),
+			failWrites = true,
 		)
 		val failingScope = failingRecorder.beginOperation(
 			TrackingDiagnosticSource.LOCATION,
@@ -232,35 +308,4 @@ class TrackingDiagnosticContractTest {
 		reason = TrackingDiagnosticSuccessReason.COMPLETED,
 		lifecycle = lifecycle,
 	)
-
-	private fun reflectiveRecorder(
-		sink: () -> Boolean,
-		nanoClock: () -> Long,
-	): TrackingDiagnosticRecorder {
-		val recorderClass = TrackingDiagnosticRecorder::class.java
-		val sinkClass = recorderClass.declaredClasses.single { type -> type.simpleName == "Sink" }
-		val clockClass = recorderClass.declaredClasses.single { type -> type.simpleName == "NanoClock" }
-		val sinkProxy = Proxy.newProxyInstance(
-			sinkClass.classLoader,
-			arrayOf(sinkClass),
-		) { _, method, _ ->
-			when (method.name) {
-				"record" -> sink()
-				else -> error("Unexpected sink method ${method.name}")
-			}
-		}
-		val clockProxy = Proxy.newProxyInstance(
-			clockClass.classLoader,
-			arrayOf(clockClass),
-		) { _, method, _ ->
-			when (method.name) {
-				"read" -> nanoClock()
-				else -> error("Unexpected clock method ${method.name}")
-			}
-		}
-		return recorderClass.getDeclaredConstructor(sinkClass, clockClass).run {
-			isAccessible = true
-			newInstance(sinkProxy, clockProxy) as TrackingDiagnosticRecorder
-		}
-	}
 }

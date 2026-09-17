@@ -66,7 +66,6 @@ object TrackerTraceboxTemplates {
 	val LEGACY_STEP_CONTROL_RETIREMENT_FAILED =
 		LogTemplate.of("Legacy Steps automatic-control retirement failed")
 	val PERSISTENCE_COMMIT_INCONSISTENT = LogTemplate.of("Persistence commit became inconsistent")
-	val PROCESS_TRACKING_CYCLE = LogTemplate.of("Process tracking cycle")
 	val RAW_LOCATION_REPAIR_COMPLETED =
 		LogTemplate.of("Canonical raw location observations repaired: count bucket {}")
 	val RAW_LOCATION_REPAIR_DECODE_FAILED =
@@ -77,15 +76,20 @@ object TrackerTraceboxTemplates {
 		LogTemplate.of("Startup source projection recovery was deferred")
 	val STEP_COUNTER_REGRESSED = LogTemplate.of("Step counter regressed")
 	val TRACKER_MODULE_INITIALIZATION_FAILED = LogTemplate.of("Tracker module initialization failed")
-	val TRACKING_COORDINATOR_SESSION_COUNTS = LogTemplate.of(
-		"Tracking coordinator session count buckets: projection drains {}, projected events {}, plan revisions {}, frames {}, source timer wakeups {}, source requests served {}, motion policy changes {}, stationary optimizations {}, fidelity restores {}",
+	val TRACKING_DIAGNOSTIC_UNMETERED_EVENT = LogTemplate.of(
+		"tracking_diagnostic_event source={} purpose={} pipeline_stage={} operation={} result={} reason={} lifecycle={} operation_scope={} scope_sequence={} coarse_local_timestamp={} scope_duration_bucket={}",
 	)
-	val TRACKING_COORDINATOR_SESSION_TIMINGS = LogTemplate.of(
-		"Tracking coordinator session duration buckets: projection {}, wake lock {}",
+	val TRACKING_DIAGNOSTIC_ENQUEUE_EVENT = LogTemplate.of(
+		"tracking_diagnostic_event source={} purpose={} pipeline_stage={} operation={} result={} reason={} lifecycle={} operation_scope={} scope_sequence={} coarse_local_timestamp={} scope_duration_bucket={} encoded_envelope_size_bucket={} queue_backlog_bucket={}",
 	)
-	val TRACKING_OPERATION_EVENT = LogTemplate.of(
-		"Tracking operation event: source {}, purpose {}, stage {}, operation {}, result {}, reason {}, lifecycle {}, scope event count {}, scope duration {}, metric one {}, metric one bucket {}, metric two {}, metric two bucket {}",
+	val TRACKING_DIAGNOSTIC_DRAIN_EVENT = LogTemplate.of(
+		"tracking_diagnostic_event source={} purpose={} pipeline_stage={} operation={} result={} reason={} lifecycle={} operation_scope={} scope_sequence={} coarse_local_timestamp={} scope_duration_bucket={} drained_envelope_count_bucket={} remaining_envelope_backlog_bucket={}",
 	)
+	val TRACKING_DIAGNOSTIC_WRITE_BATCH_EVENT = LogTemplate.of(
+		"tracking_diagnostic_event source={} purpose={} pipeline_stage={} operation={} result={} reason={} lifecycle={} operation_scope={} scope_sequence={} coarse_local_timestamp={} scope_duration_bucket={} persisted_envelope_count_bucket={}",
+	)
+	val TRACKING_DIAGNOSTIC_ADAPTER_FAILED =
+		LogTemplate.of("Local tracking diagnostic adapter failed")
 	val TRACKING_TYPED_FAILURE = LogTemplate.of("Tracking failure: code {}, reason {}")
 	val TRACKING_TYPED_REJECTION = LogTemplate.of("Tracking rejection: code {}, reason {}")
 	val TRACKING_CYCLE_FAILED = LogTemplate.of("Tracking cycle failed")

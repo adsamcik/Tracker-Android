@@ -4,6 +4,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.lang.reflect.Modifier
+import java.time.ZoneOffset
 
 class TrackingDiagnosticPrivacyValidatorTest {
 	@Test
@@ -64,9 +65,69 @@ class TrackingDiagnosticPrivacyValidatorTest {
 
 	@Test
 	fun `complete adapter allowlist is accepted`() {
+		val allowedWireNames =
+			TrackingDiagnosticPrivacyValidator.allowedFields.map { field -> field.wireName }.toSet()
+
+		allowedWireNames shouldBe setOf(
+			"source",
+			"purpose",
+			"pipeline_stage",
+			"operation",
+			"result",
+			"reason",
+			"lifecycle",
+			"operation_scope",
+			"scope_sequence",
+			"coarse_local_timestamp",
+			"scope_duration_bucket",
+			"encoded_envelope_size_bucket",
+			"queue_backlog_bucket",
+			"drained_envelope_count_bucket",
+			"remaining_envelope_backlog_bucket",
+			"persisted_envelope_count_bucket",
+		)
 		TrackingDiagnosticPrivacyValidator.validateAdapterSchema(
 			TrackingDiagnosticPrivacyValidator.allowedFields.map { field -> field.wireName },
 		) shouldBe TrackingDiagnosticPrivacyValidation.Allowed
+	}
+
+	@Test
+	fun `encoded event contains generated scope metadata and no caller supplied raw values`() {
+		val request = TrackingDiagnosticEvents.enqueue(
+			source = TrackingDiagnosticSource.WIFI,
+			purpose = TrackingDiagnosticPurpose.AMBIENT_PRODUCT,
+			pipelineStage = TrackingDiagnosticPipelineStage.DURABLE_INGRESS,
+			result = TrackingDiagnosticResult.DEFERRED,
+			reason = TrackingDiagnosticDeferredReason.BACKLOG_LIMIT,
+			lifecycle = TrackingDiagnosticEventLifecycle.PROGRESS,
+			encodedEnvelopeBytes = 12_345L,
+			queuedEnvelopeBacklog = 77L,
+		)
+		val encoded = EncodedTrackingDiagnosticEvent.from(
+			request.toRecordedEvent(
+				operationScope = TrackingDiagnosticScopeOpaque.fixedForTest(42L),
+				scopeSequence = TrackingDiagnosticScopeSequence.EVENT_04,
+				coarseLocalTimestamp =
+					TrackingDiagnosticCoarseLocalTimestamp.fromEpochMilliseconds(
+						epochMilliseconds = 1_789_630_524_522L,
+						zoneId = ZoneOffset.ofHours(2),
+					),
+				scopeDurationBucket = TrackingDiagnosticDurationBucket.ONE_TO_FOUR_SECONDS,
+			),
+		)
+		val fields = encoded.serializedFields.toMap()
+
+		fields[TrackingDiagnosticField.OPERATION_SCOPE]
+			?.matches(Regex("""scope_[0-9a-f]{24}""")) shouldBe true
+		fields[TrackingDiagnosticField.SCOPE_SEQUENCE] shouldBe "EVENT_04"
+		fields[TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP] shouldBe
+			"2026-09-17T09:30+02:00"
+		fields[TrackingDiagnosticField.ENCODED_ENVELOPE_SIZE_BUCKET] shouldBe
+			"UP_TO_SIXTEEN_KIBIBYTES"
+		fields[TrackingDiagnosticField.QUEUE_BACKLOG_BUCKET] shouldBe
+			"THIRTY_THREE_TO_ONE_HUNDRED_TWENTY_EIGHT"
+		("12345" in fields.values) shouldBe false
+		("77" in fields.values) shouldBe false
 	}
 
 	@Test
@@ -78,6 +139,9 @@ class TrackingDiagnosticPrivacyValidatorTest {
 			"rssi" to TrackingDiagnosticPrivacyRejectionReason.SENSOR_VALUES,
 			"bssid" to TrackingDiagnosticPrivacyRejectionReason.RADIO_IDENTIFIERS,
 			"selectedOpaqueId" to TrackingDiagnosticPrivacyRejectionReason.OPAQUE_SELECTIONS,
+			"sourceEventId" to TrackingDiagnosticPrivacyRejectionReason.OPAQUE_SELECTIONS,
+			"logicalTrackingId" to TrackingDiagnosticPrivacyRejectionReason.OPAQUE_SELECTIONS,
+			"serviceRunId" to TrackingDiagnosticPrivacyRejectionReason.OPAQUE_SELECTIONS,
 			"contentUri" to TrackingDiagnosticPrivacyRejectionReason.FILE_REFERENCES,
 			"sha256" to TrackingDiagnosticPrivacyRejectionReason.CHECKSUMS,
 			"androidId" to TrackingDiagnosticPrivacyRejectionReason.STABLE_IDENTIFIERS,
