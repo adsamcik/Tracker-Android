@@ -1,0 +1,143 @@
+package com.adsamcik.tracker.shared.base.database
+
+import android.app.Application
+import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNull
+import kotlinx.coroutines.test.runTest
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+
+@RunWith(RobolectricTestRunner::class)
+class AmbientStepsRetentionAuthorityRoomTest {
+	private lateinit var database: AppDatabase
+
+	@BeforeTest
+	fun setUp() {
+		val context: Application = ApplicationProvider.getApplicationContext()
+		database = AppDatabase.testDatabase(context)
+	}
+
+	@AfterTest
+	fun tearDown() {
+		database.close()
+	}
+
+	@Test
+	fun `retention is default reject and portable import is consent independent`() = runTest {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(collectedDataEpoch = 4L, updatedAtMs = 1L),
+		)
+
+		assertNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		)
+		val applied = assertIs<AmbientStepsRetentionAuthorityResult.Applied>(
+			database.applyAmbientStepsRetentionDecision(
+				AmbientStepsRetentionDecision.GrantPortableImport(
+					opaquePolicyId = "policy-1",
+					expectedCollectedDataEpoch = 4L,
+					effectiveBootId = "boot-1",
+					effectiveElapsedRealtimeNanos = 1L,
+					effectiveWallTimeMs = 1L,
+				),
+			),
+		)
+
+		assertEquals(AmbientStepsRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT, applied.scope)
+		val stored = requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(applied.scope),
+		)
+		assertNull(stored.sourcePolicyRevision)
+		assertNull(stored.ambientConsentEpoch)
+	}
+
+	@Test
+	fun `live grant and revoke require exact policy consent and approval revisions`() = runTest {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(collectedDataEpoch = 4L, updatedAtMs = 1L),
+		)
+		var elapsed = 1L
+		val policies = RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
+		}
+		policies.bootstrapFromLegacy(
+			TrackingParamsState(legacySettingsMigrationCompleted = true),
+		)
+		val enabled = policies.setNonCaptureConsent(
+			expectedPolicyRevision =
+				(policies.currentState() as SourcePolicyAuthorityState.Active).snapshot.revision,
+			source = TrackingSourceComponent.STEPS,
+			purpose = SourcePurpose.AMBIENT_PRODUCT,
+			eligible = true,
+			persistenceEligible = true,
+			reason = "TEST_ENABLE",
+		)
+		val consentEpoch = requireNotNull(
+			enabled[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+		)
+
+		val grant = assertIs<AmbientStepsRetentionAuthorityResult.Applied>(
+			database.applyAmbientStepsRetentionDecision(
+				AmbientStepsRetentionDecision.GrantLiveAmbient(
+					opaquePolicyId = "policy-1",
+					expectedCollectedDataEpoch = 4L,
+					expectedSourcePolicyRevision = enabled.revision,
+					expectedAmbientConsentEpoch = consentEpoch,
+					effectiveBootId = "boot-1",
+					effectiveElapsedRealtimeNanos = 10L,
+					effectiveWallTimeMs = 10L,
+				),
+			),
+		)
+		assertEquals(
+			AmbientStepsRetentionAuthorityUnavailableReason.STALE_APPROVAL_REVISION,
+			assertIs<AmbientStepsRetentionAuthorityResult.Unavailable>(
+				database.applyAmbientStepsRetentionDecision(
+					AmbientStepsRetentionDecision.Revoke(
+						scope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+						expectedCollectedDataEpoch = 4L,
+						effectiveBootId = "boot-1",
+						effectiveElapsedRealtimeNanos = 11L,
+						effectiveWallTimeMs = 11L,
+						expectedPreviousApprovalRevision = grant.approvalRevision + 1L,
+					),
+				),
+			).reason,
+		)
+		val revoke = assertIs<AmbientStepsRetentionAuthorityResult.Applied>(
+			database.applyAmbientStepsRetentionDecision(
+				AmbientStepsRetentionDecision.Revoke(
+					scope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+					expectedCollectedDataEpoch = 4L,
+					effectiveBootId = "boot-1",
+					effectiveElapsedRealtimeNanos = 12L,
+					effectiveWallTimeMs = 12L,
+					expectedPreviousApprovalRevision = grant.approvalRevision,
+				),
+			),
+		)
+
+		assertEquals(2L, revoke.approvalRevision)
+		assertEquals(
+			AmbientStepsRetentionAuthorityEntity.STATE_REVOKED,
+			database.ambientStepsFactRevisionDao()
+				.latestRetentionAuthority(AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT)
+				?.state,
+		)
+	}
+}

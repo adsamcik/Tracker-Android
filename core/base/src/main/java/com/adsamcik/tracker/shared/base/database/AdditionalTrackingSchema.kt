@@ -7,8 +7,35 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 internal fun createAdditionalTrackingTables(database: SupportSQLiteDatabase) {
 	createWifiSelectedDeletionTables(database)
 	createCellSelectedDeletionTables(database)
+	createAmbientStepsRetentionTable(database)
 	createAmbientRadioTables(database)
 	createRuntimeSettlementTables(database)
+}
+
+private fun createAmbientStepsRetentionTable(database: SupportSQLiteDatabase) {
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS ambient_steps_retention_authority (
+			scope TEXT NOT NULL,
+			approval_revision INTEGER NOT NULL,
+			state TEXT NOT NULL,
+			opaque_policy_id TEXT NOT NULL,
+			source_policy_revision INTEGER,
+			ambient_consent_epoch INTEGER,
+			collected_data_epoch INTEGER NOT NULL,
+			effective_boot_id TEXT NOT NULL,
+			effective_elapsed_realtime_nanos INTEGER NOT NULL,
+			effective_wall_time_ms INTEGER NOT NULL,
+			effect_checksum TEXT NOT NULL,
+			PRIMARY KEY(scope, approval_revision)
+		)
+		""".trimIndent(),
+	)
+	database.execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_ambient_steps_retention_effective " +
+			"ON ambient_steps_retention_authority(" +
+			"scope, effective_boot_id, effective_elapsed_realtime_nanos, approval_revision)",
+	)
 }
 
 private fun createWifiSelectedDeletionTables(database: SupportSQLiteDatabase) {

@@ -75,6 +75,7 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEn
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiDeletionMarkerEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactCursorEntity
@@ -278,6 +279,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			StepInterval::class,
 			StepFactRevisionEntity::class,
 			AmbientStepsFactRevisionEntity::class,
+			AmbientStepsRetentionAuthorityEntity::class,
 			AmbientStepsImportAuthorityTransitionEntity::class,
 			AmbientStepsImportCursorEntity::class,
 			AmbientStepsImportGapEntity::class,
@@ -1017,6 +1019,7 @@ abstract class AppDatabase : RoomDatabase() {
 			// Ambient Steps payload was authenticated and removed before this common cascade; its
 			// day fences, protected identities, and source fence remain as deletion authority.
 			database.stepFactRevisionDao().deleteAll()
+			database.ambientStepsFactRevisionDao().deleteAllRetentionAuthorities()
 			database.ambientStepsFactRevisionDao().deleteAll()
 			database.ambientStepsImportStateDao().deleteAllAuthorityTransitions()
 			database.ambientStepsImportStateDao().deleteAllGaps()
