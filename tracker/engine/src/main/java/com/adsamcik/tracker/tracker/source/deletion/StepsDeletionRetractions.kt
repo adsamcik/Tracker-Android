@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.source.deletion
 
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
@@ -28,15 +30,48 @@ internal suspend fun AppDatabase.insertStepsDeletionRetractionOrVerify(
 		scopeDeletionGeneration = fence.fenceGeneration,
 	)
 	val retraction = buildStepsDeletionRetraction(fact, fence, nextRevision, mutationId)
-	if (stepFactRevisionDao().insert(retraction) != INSERT_IGNORED) {
-		return true
+	val stored = if (stepFactRevisionDao().insert(retraction) != INSERT_IGNORED) {
+		true
+	} else {
+		stepFactRevisionDao().revision(
+			retraction.writerProjectionId,
+			retraction.writerProjectionVersion,
+			retraction.logicalFactId,
+			retraction.semanticRevision,
+		) == retraction
 	}
-	return stepFactRevisionDao().revision(
-		retraction.writerProjectionId,
-		retraction.writerProjectionVersion,
-		retraction.logicalFactId,
-		retraction.semanticRevision,
-	) == retraction
+	if (!stored) return false
+	if (fact.originKind != StepFactRevisionEntity.ORIGIN_LIVE_WAL) return true
+	val store = StepsCountDomainStore(this)
+	when (store.recordSessionFact(fact)) {
+		StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
+		StepsCountDomainWriteResult.UNPROVEN,
+		-> return true
+		StepsCountDomainWriteResult.INSERTED,
+		StepsCountDomainWriteResult.EXACT_REPLAY,
+		-> Unit
+		StepsCountDomainWriteResult.NOT_APPLICABLE,
+		StepsCountDomainWriteResult.IDENTITY_CONFLICT,
+		StepsCountDomainWriteResult.REVISION_GAP,
+		StepsCountDomainWriteResult.TERMINALLY_RETRACTED,
+		-> return false
+	}
+	return when (store.recordSessionFactRetraction(
+		retraction = retraction,
+		logicalTrackingId = requireNotNull(fact.logicalTrackingId),
+		serviceRunId = requireNotNull(fact.serviceRunId),
+	)) {
+		StepsCountDomainWriteResult.INSERTED,
+		StepsCountDomainWriteResult.EXACT_REPLAY,
+		StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
+		StepsCountDomainWriteResult.NOT_APPLICABLE,
+		-> true
+		StepsCountDomainWriteResult.UNPROVEN,
+		StepsCountDomainWriteResult.IDENTITY_CONFLICT,
+		StepsCountDomainWriteResult.REVISION_GAP,
+		StepsCountDomainWriteResult.TERMINALLY_RETRACTED,
+		-> false
+	}
 }
 
 @Suppress("LongMethod") // Explicit redaction keeps every cleared payload field reviewable.

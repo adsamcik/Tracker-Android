@@ -482,6 +482,7 @@ private fun AmbientStepsFactRevisionEntity.toNativeQualifiedFact(
 		requireNotNull(windowEndTimeMs),
 		requireNotNull(stepCount),
 	).contentChecksum.value,
+	countDomainOwner = countDomainOwnerReferenceOrNull(),
 )
 
 private data class NativeAmbientAuthorizationKey(

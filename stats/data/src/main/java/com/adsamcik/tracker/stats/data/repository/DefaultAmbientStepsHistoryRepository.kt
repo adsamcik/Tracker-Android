@@ -47,6 +47,7 @@ import com.adsamcik.tracker.stats.api.repository.AmbientStepsSessionOrigin
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsSessionPartition
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityResult
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage as ApiStepsHistoryCoverage
 import java.time.DateTimeException
 import java.time.LocalDate
@@ -679,7 +680,7 @@ private fun QualifiedSessionStepsWindow.forDay(
 		startTimeMs = clippedStart,
 		endTimeMs = clippedEnd,
 		stepCount = null,
-		compatibility = SessionAmbientCompatibility.Unproven,
+		compatibility = StepsCountDomainCompatibilityResult.Unproven,
 	)
 }
 
@@ -714,6 +715,12 @@ private fun AmbientStepsDayCause.toPublicCause(): AmbientStepsHistoryCause = whe
 		AmbientStepsHistoryCause.SESSION_VALUE_UNAVAILABLE
 	AmbientStepsDayCause.SESSION_OVERLAP -> AmbientStepsHistoryCause.SESSION_OVERLAP
 	AmbientStepsDayCause.SESSION_PROVIDER_COMPATIBILITY_UNPROVEN ->
+		AmbientStepsHistoryCause.SESSION_OWNERSHIP_UNVERIFIABLE
+	AmbientStepsDayCause.SESSION_COUNT_DOMAIN_CONFLICT ->
+		AmbientStepsHistoryCause.SESSION_OWNERSHIP_UNVERIFIABLE
+	AmbientStepsDayCause.SESSION_COUNT_DOMAIN_DELETED ->
+		AmbientStepsHistoryCause.DELETED
+	AmbientStepsDayCause.SESSION_COUNT_DOMAIN_UNVERIFIABLE ->
 		AmbientStepsHistoryCause.SESSION_OWNERSHIP_UNVERIFIABLE
 	AmbientStepsDayCause.SESSION_NOT_COVERED_BY_COMPATIBLE_AMBIENT_FACT ->
 		AmbientStepsHistoryCause.SESSION_NOT_COVERED
@@ -1106,7 +1113,19 @@ private class AmbientStepsSessionRangeReader(
 						.map { it.zoneId }
 						.distinct()
 						.singleOrNull(),
-					compatibility = SessionAmbientCompatibility.Unproven,
+					compatibility = StepsCountDomainCompatibilityResult.Unproven,
+					countDomainOwners = buildList {
+						snapshot.factStatesByRun[serviceRunId].orEmpty()
+							.mapNotNullTo(this) {
+								it.state?.countDomainOwnerReferenceOrNull()
+							}
+						snapshot.completenessByRun[serviceRunId].orEmpty()
+							.filter {
+								it.sourceKind ==
+									SourceDestinationOwnerEntity.SOURCE_STEPS
+							}
+							.mapNotNullTo(this) { it.countDomainOwnerReferenceOrNull() }
+					}.distinct(),
 				)
 			}
 		}
@@ -1144,7 +1163,7 @@ private class AmbientStepsSessionRangeReader(
 										history.coverage == ApiStepsHistoryCoverage.COMPLETE
 								},
 								storedZoneId = run.storedZoneId,
-								compatibility = SessionAmbientCompatibility.Unproven,
+								compatibility = StepsCountDomainCompatibilityResult.Unproven,
 								origin = QualifiedSessionStepsOrigin.PORTABLE_IMPORT,
 							)
 						}
@@ -1159,7 +1178,7 @@ private class AmbientStepsSessionRangeReader(
 							endTimeMs = candidate.endTimeMs,
 							stepCount = null,
 							storedZoneId = null,
-							compatibility = SessionAmbientCompatibility.Unproven,
+							compatibility = StepsCountDomainCompatibilityResult.Unproven,
 							origin = QualifiedSessionStepsOrigin.PORTABLE_IMPORT,
 						)
 					}

@@ -2,6 +2,8 @@ package com.adsamcik.tracker.tracker.source.coordinator
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -4698,23 +4700,39 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		check(ack.hasMembership(logicalTrackingId, serviceRunId)) {
 			"Completeness acknowledgement lacks exact service-run membership"
 		}
-		database.sourceSessionDao().saveCompleteness(
-			SourceSessionCompletenessEntity(
-				logicalTrackingId = logicalTrackingId,
-				serviceRunId = serviceRunId,
-				sourceKind = ack.source.stableCode,
-				sourceInstanceId = ack.sourceInstanceId.value,
-				registrationGeneration = ack.registrationGeneration,
-				lastAdmissionOrdinal = ack.lastAdmissionOrdinal,
-				lastSourceSequence = ack.lastDurablyAdmittedSequence,
-				appDrainComplete = ack.appDrainComplete,
-				providerCoverage = ack.providerCoverage.name,
-				stopStatus = ack.status.name,
-				unresolvedSequenceStart = ack.unresolvedSequenceStart,
-				unresolvedSequenceEnd = ack.unresolvedSequenceEndInclusive,
-				updatedAtMs = nowMs,
-			),
+		val completeness = SourceSessionCompletenessEntity(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceKind = ack.source.stableCode,
+			sourceInstanceId = ack.sourceInstanceId.value,
+			registrationGeneration = ack.registrationGeneration,
+			lastAdmissionOrdinal = ack.lastAdmissionOrdinal,
+			lastSourceSequence = ack.lastDurablyAdmittedSequence,
+			appDrainComplete = ack.appDrainComplete,
+			providerCoverage = ack.providerCoverage.name,
+			stopStatus = ack.status.name,
+			unresolvedSequenceStart = ack.unresolvedSequenceStart,
+			unresolvedSequenceEnd = ack.unresolvedSequenceEndInclusive,
+			updatedAtMs = nowMs,
 		)
+		database.sourceSessionDao().saveCompleteness(completeness)
+		if (ack.source == SourceKind.STEPS) {
+			when (StepsCountDomainStore(database).recordSessionCompleteness(completeness)) {
+				StepsCountDomainWriteResult.INSERTED,
+				StepsCountDomainWriteResult.EXACT_REPLAY,
+				StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
+				StepsCountDomainWriteResult.NOT_APPLICABLE,
+				-> Unit
+				StepsCountDomainWriteResult.UNPROVEN ->
+					error("Terminal Steps completeness lacks count-domain admission evidence")
+				StepsCountDomainWriteResult.IDENTITY_CONFLICT ->
+					error("Terminal Steps completeness conflicts with count-domain evidence")
+				StepsCountDomainWriteResult.REVISION_GAP ->
+					error("Terminal Steps completeness count-domain revision is not contiguous")
+				StepsCountDomainWriteResult.TERMINALLY_RETRACTED ->
+					error("Terminal Steps completeness count-domain owner was retracted")
+			}
+		}
 	}
 
 	private suspend fun freezeSettlementHighWater(

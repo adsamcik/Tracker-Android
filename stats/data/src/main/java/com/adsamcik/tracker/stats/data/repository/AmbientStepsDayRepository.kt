@@ -27,6 +27,7 @@ import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIden
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsFactV1
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityResult
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage as ApiStepsHistoryCoverage
 import java.time.ZoneId
 import javax.inject.Inject
@@ -387,7 +388,16 @@ internal class AmbientStepsDayRepository @Inject constructor(
 					.map { it.zoneId }
 					.distinct()
 					.singleOrNull(),
-				compatibility = SessionAmbientCompatibility.Unproven,
+				compatibility = StepsCountDomainCompatibilityResult.Unproven,
+				countDomainOwners = buildList {
+					stepsSnapshot?.factStatesByRun?.get(serviceRunId).orEmpty()
+						.mapNotNullTo(this) { it.state?.countDomainOwnerReferenceOrNull() }
+					stepsSnapshot?.completenessByRun?.get(serviceRunId).orEmpty()
+						.filter {
+							it.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS
+						}
+						.mapNotNullTo(this) { it.countDomainOwnerReferenceOrNull() }
+				}.distinct(),
 			)
 		}
 		val importedSessions = when (val imported = importedStepsReader.readEntriesInTransaction(
@@ -410,7 +420,7 @@ internal class AmbientStepsDayRepository @Inject constructor(
 									history.coverage == ApiStepsHistoryCoverage.COMPLETE
 							},
 							storedZoneId = run.storedZoneId,
-							compatibility = SessionAmbientCompatibility.Unproven,
+							compatibility = StepsCountDomainCompatibilityResult.Unproven,
 							origin = QualifiedSessionStepsOrigin.PORTABLE_IMPORT,
 						)
 					}
@@ -1033,6 +1043,7 @@ private fun AmbientStepsFactRevisionEntity.toQualifiedFact(
 		requireNotNull(windowEndTimeMs),
 		requireNotNull(stepCount),
 	).contentChecksum.value,
+	countDomainOwner = countDomainOwnerReferenceOrNull(),
 )
 
 private fun unavailableDay(
@@ -1052,7 +1063,7 @@ private fun com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEnt
 	endTimeMs = endTimeMs,
 	stepCount = null,
 	storedZoneId = null,
-	compatibility = SessionAmbientCompatibility.Unproven,
+	compatibility = StepsCountDomainCompatibilityResult.Unproven,
 	origin = QualifiedSessionStepsOrigin.PORTABLE_IMPORT,
 )
 

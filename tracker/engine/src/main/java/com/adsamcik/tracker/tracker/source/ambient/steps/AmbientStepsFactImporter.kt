@@ -2,6 +2,8 @@ package com.adsamcik.tracker.tracker.source.ambient.steps
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
@@ -867,6 +869,12 @@ internal class AmbientStepsFactImporter internal constructor(
 			aggregate = aggregate,
 		)
 		if (!unchanged) {
+			latest?.let {
+				recordCountDomainOrThrow(
+					it,
+					authority.registration.physicalConfigurationFingerprint,
+				)
+			}
 			val nextRevision = Math.addExact(latest?.semanticRevision ?: 0L, 1L)
 			val fact = ambientFact(
 				authority = authority,
@@ -884,12 +892,22 @@ internal class AmbientStepsFactImporter internal constructor(
 			)
 			val roomLifecycle = requireNotNull(evidenceDao.get())
 			if (roomLifecycle.collectedDataEpoch != lifecycle.epoch ||
-				roomLifecycle.retainedFromMs != lifecycle.retainedFromMs ||
-				factDao.insert(fact) == INSERT_IGNORED ||
-				(!lifecycleChanged && evidenceDao.incrementRevision(fact.appliedAtMs) != 1)
+				roomLifecycle.retainedFromMs != lifecycle.retainedFromMs
 			) {
 				throw ConcurrentAmbientStepsImportException()
 			}
+			if (factDao.insert(fact) == INSERT_IGNORED) {
+				throw ConcurrentAmbientStepsImportException()
+			}
+			recordCountDomainOrThrow(fact, authority.registration.physicalConfigurationFingerprint)
+			if (!lifecycleChanged && evidenceDao.incrementRevision(fact.appliedAtMs) != 1) {
+				throw ConcurrentAmbientStepsImportException()
+			}
+		} else {
+			recordCountDomainOrThrow(
+				requireNotNull(latest),
+				authority.registration.physicalConfigurationFingerprint,
+			)
 		}
 		val appliedAtMs = maxOf(clock.currentTimeMillis(), aggregate.observedAtMs)
 		val nextCursorRevision = Math.addExact(cursor.cursorRevision, 1L)
@@ -1073,6 +1091,10 @@ internal class AmbientStepsFactImporter internal constructor(
 		if (unchanged && preflight.window.endTimeMs == cursor.importedThroughTimeMs &&
 			aggregate.observedAtMs == cursor.lastObservedAtMs
 		) {
+			recordCountDomainOrThrow(
+				requireNotNull(latest),
+				current.registration.physicalConfigurationFingerprint,
+			)
 			return AmbientStepsImportResult.Unchanged(
 				window = preflight.window.providerWindow,
 				cursorRevision = cursor.cursorRevision,
@@ -1081,6 +1103,12 @@ internal class AmbientStepsFactImporter internal constructor(
 		val semanticRevision = if (unchanged) {
 			requireNotNull(latest).semanticRevision
 		} else {
+			latest?.let {
+				recordCountDomainOrThrow(
+					it,
+					current.registration.physicalConfigurationFingerprint,
+				)
+			}
 			val nextRevision = Math.addExact(latest?.semanticRevision ?: 0L, 1L)
 			val fact = ambientFact(
 				authority = current,
@@ -1105,10 +1133,20 @@ internal class AmbientStepsFactImporter internal constructor(
 			if (factDao.insert(fact) == INSERT_IGNORED) {
 				throw ConcurrentAmbientStepsImportException()
 			}
+			recordCountDomainOrThrow(
+				fact,
+				current.registration.physicalConfigurationFingerprint,
+			)
 			if (!lifecycleChanged && evidenceDao.incrementRevision(appliedAtMs) != 1) {
 				throw ConcurrentAmbientStepsImportException()
 			}
 			nextRevision
+		}
+		if (unchanged) {
+			recordCountDomainOrThrow(
+				requireNotNull(latest),
+				current.registration.physicalConfigurationFingerprint,
+			)
 		}
 
 		val nextCursorRevision = Math.addExact(cursor.cursorRevision, 1L)
@@ -1641,6 +1679,24 @@ internal class AmbientStepsFactImporter internal constructor(
 			retentionApprovalRevision = authority.retention.approvalRevision,
 		)
 		return unsealed.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsealed))
+	}
+
+	private suspend fun recordCountDomainOrThrow(
+		fact: AmbientStepsFactRevisionEntity,
+		providerDomain: String,
+	) {
+		when (StepsCountDomainStore(database).recordAmbientFact(fact, providerDomain)) {
+			StepsCountDomainWriteResult.INSERTED,
+			StepsCountDomainWriteResult.EXACT_REPLAY,
+			StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
+			-> Unit
+			StepsCountDomainWriteResult.NOT_APPLICABLE,
+			StepsCountDomainWriteResult.UNPROVEN,
+			StepsCountDomainWriteResult.IDENTITY_CONFLICT,
+			StepsCountDomainWriteResult.REVISION_GAP,
+			StepsCountDomainWriteResult.TERMINALLY_RETRACTED,
+			-> throw ConcurrentAmbientStepsImportException()
+		}
 	}
 
 	private suspend fun lifecycleSnapshotOrNull(): CollectedDataLifecycleSnapshot? = try {

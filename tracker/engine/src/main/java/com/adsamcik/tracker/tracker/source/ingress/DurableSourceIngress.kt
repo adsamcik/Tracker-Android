@@ -4,6 +4,8 @@ package com.adsamcik.tracker.tracker.source.ingress
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.markStepsRetentionTruncation
 import com.adsamcik.tracker.shared.base.database.dao.SourceBrokerDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
@@ -372,6 +374,12 @@ class RoomDurableSourceIngress @Inject constructor(
 						authorization,
 						captureAuthorization,
 					)
+					if (duplicate is AdmissionResult.Duplicate &&
+						candidate.source == SourceKind.STEPS
+					) {
+						walDao.getByAdmissionOrdinal(duplicate.existingAdmissionOrdinal)
+							?.let { database.recordStepsCountDomainWalOrThrow(it) }
+					}
 					if (duplicate is AdmissionResult.Duplicate && checkpoint != null) {
 						persistAtomicCheckpoint(
 							checkpoint,
@@ -390,14 +398,15 @@ class RoomDurableSourceIngress @Inject constructor(
 				}
 
 				val eventId = SourceEventId(UUID.randomUUID().toString())
+				val entity = candidate.toEntity(
+					eventId,
+					encoded,
+					System.currentTimeMillis(),
+					authorization,
+					captureAuthorization,
+				)
 				val rowId = walDao.insertIgnoringDuplicate(
-					candidate.toEntity(
-						eventId,
-						encoded,
-						System.currentTimeMillis(),
-						authorization,
-						captureAuthorization,
-					),
+					entity,
 				)
 				val admitted = if (rowId < 0L) {
 					candidate.providerDedupKey?.let { key ->
@@ -420,6 +429,12 @@ class RoomDurableSourceIngress @Inject constructor(
 						authorization,
 						captureAuthorization,
 					)
+					if (duplicate is AdmissionResult.Duplicate &&
+						candidate.source == SourceKind.STEPS
+					) {
+						walDao.getByAdmissionOrdinal(duplicate.existingAdmissionOrdinal)
+							?.let { database.recordStepsCountDomainWalOrThrow(it) }
+					}
 					if (duplicate is AdmissionResult.Duplicate && checkpoint != null) {
 						persistAtomicCheckpoint(
 							checkpoint,
@@ -428,6 +443,11 @@ class RoomDurableSourceIngress @Inject constructor(
 						)
 					}
 					return@transaction duplicate
+				}
+				if (candidate.source == SourceKind.STEPS) {
+					database.recordStepsCountDomainWalOrThrow(
+						entity.copy(admissionOrdinal = rowId),
+					)
 				}
 				checkpoint?.let {
 					persistAtomicCheckpoint(it, rowId, candidate.receivedElapsedRealtimeNanos)
@@ -646,6 +666,12 @@ class RoomDurableSourceIngress @Inject constructor(
 								causalOrderElapsedRealtimeNanos =
 									delivery.units.single().evidence.receivedElapsedRealtimeNanos,
 							)
+						}
+						if (delivery.source == SourceKind.STEPS) {
+							replay.units.forEach { admitted ->
+								walDao.getByAdmissionOrdinal(admitted.admissionOrdinal)
+									?.let { database.recordStepsCountDomainWalOrThrow(it) }
+							}
 						}
 						return@transaction replay
 					}
@@ -949,6 +975,13 @@ class RoomDurableSourceIngress @Inject constructor(
 				val rowIds = walDao.insertDeliveryUnits(entities)
 				check(rowIds.size == entities.size && rowIds.all { it > 0L }) {
 					"Unable to append every source delivery unit"
+				}
+				if (delivery.source == SourceKind.STEPS) {
+					entities.forEachIndexed { index, entity ->
+						database.recordStepsCountDomainWalOrThrow(
+							entity.copy(admissionOrdinal = rowIds[index]),
+						)
+					}
 				}
 				checkpoint?.let {
 					persistAtomicCheckpoint(
@@ -1459,6 +1492,24 @@ private sealed interface CaptureSessionAuthority {
 	data object Active : CaptureSessionAuthority
 	data class Stopping(val cutoffElapsedNanos: Long) : CaptureSessionAuthority
 	data object Invalid : CaptureSessionAuthority
+}
+
+private suspend fun AppDatabase.recordStepsCountDomainWalOrThrow(row: SourceEventWalEntity) {
+	when (StepsCountDomainStore(this).recordSessionWal(row)) {
+		StepsCountDomainWriteResult.INSERTED,
+		StepsCountDomainWriteResult.EXACT_REPLAY,
+		StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
+		StepsCountDomainWriteResult.NOT_APPLICABLE,
+		-> Unit
+		StepsCountDomainWriteResult.UNPROVEN ->
+			error("Steps WAL count-domain authority is incomplete")
+		StepsCountDomainWriteResult.IDENTITY_CONFLICT ->
+			error("Steps WAL count-domain identity conflicts with retained evidence")
+		StepsCountDomainWriteResult.REVISION_GAP ->
+			error("Steps WAL count-domain owner revision is not contiguous")
+		StepsCountDomainWriteResult.TERMINALLY_RETRACTED ->
+			error("Steps WAL count-domain owner was terminally retracted")
+	}
 }
 
 // Each nullable term is part of the immutable session authority; partial keys must fail closed.

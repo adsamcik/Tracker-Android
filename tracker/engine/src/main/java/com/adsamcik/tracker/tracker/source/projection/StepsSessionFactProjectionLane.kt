@@ -2,6 +2,8 @@ package com.adsamcik.tracker.tracker.source.projection
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.enqueueAllStepsGoalRepairs
 import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDayRange
 import com.adsamcik.tracker.shared.base.database.markStepsRetentionTruncation
@@ -581,7 +583,10 @@ class StepsSessionFactProjectionLane private constructor(
 		candidate: StepFactRevisionEntity,
 	): FactAdmission {
 		val dao = database.stepFactRevisionDao()
-		if (dao.insert(candidate) != INSERT_IGNORED) return FactAdmission.INSERTED
+		if (dao.insert(candidate) != INSERT_IGNORED) {
+			recordCountDomainOrThrow(candidate)
+			return FactAdmission.INSERTED
+		}
 
 		val byRevision = dao.revision(
 			candidate.writerProjectionId,
@@ -600,6 +605,7 @@ class StepsSessionFactProjectionLane private constructor(
 			requireNotNull(candidate.sourceAdmissionOrdinal),
 		)
 		if (byRevision == candidate && byMutation == candidate && byAdmission == candidate) {
+			recordCountDomainOrThrow(candidate)
 			return FactAdmission.EXACT_REPLAY
 		}
 		val collisions = buildList {
@@ -611,6 +617,35 @@ class StepsSessionFactProjectionLane private constructor(
 			admissionOrdinal = requireNotNull(candidate.sourceAdmissionOrdinal),
 			failureCode = "STEPS_IDENTITY_COLLISION_$collisions",
 		)
+	}
+
+	private suspend fun recordCountDomainOrThrow(candidate: StepFactRevisionEntity) {
+		val admissionOrdinal = requireNotNull(candidate.sourceAdmissionOrdinal)
+		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(admissionOrdinal)
+			?: throw StepsSessionFactIdentityCollisionException(
+				admissionOrdinal,
+				"STEPS_COUNT_DOMAIN_WAL_MISSING",
+			)
+		val store = StepsCountDomainStore(database)
+		when (store.recordSessionWal(wal)) {
+			StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE -> return
+			StepsCountDomainWriteResult.INSERTED,
+			StepsCountDomainWriteResult.EXACT_REPLAY,
+			-> Unit
+			else -> throw StepsSessionFactIdentityCollisionException(
+				admissionOrdinal,
+				"STEPS_COUNT_DOMAIN_WAL_CONFLICT",
+			)
+		}
+		when (store.recordSessionFact(candidate)) {
+			StepsCountDomainWriteResult.INSERTED,
+			StepsCountDomainWriteResult.EXACT_REPLAY,
+			-> Unit
+			else -> throw StepsSessionFactIdentityCollisionException(
+				admissionOrdinal,
+				"STEPS_COUNT_DOMAIN_FACT_CONFLICT",
+			)
+		}
 	}
 
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
