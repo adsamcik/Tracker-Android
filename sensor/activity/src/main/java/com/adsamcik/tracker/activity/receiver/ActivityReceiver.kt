@@ -25,7 +25,7 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatc
 import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
 import com.adsamcik.tracker.activity.api.registration.ActivityCallbackAdmissionBarrier
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
-import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
@@ -38,8 +38,6 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import dev.tracebox.Tracebox
-import dev.tracebox.api.public
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.TimeoutCancellationException
@@ -498,10 +496,7 @@ internal suspend fun finalizeActivityCallbackAuthority(
 		durablyRetryOwned -> ActivityCallbackFinalizationDisposition.DURABLE_RETRY
 		else -> {
 			val gapRecorded = runCatching { recordGap() }.getOrDefault(false)
-			Tracebox.log.warn(
-				TrackerTraceboxTemplates.ACTIVITY_CALLBACK_TERMINAL_GAP,
-				public(gapCode.telemetryCode),
-			)
+			TrackerDiagnosticLog.activityCallbackTerminalGap()
 			if (gapRecorded) {
 				ActivityCallbackFinalizationDisposition.TERMINAL_GAP_RECORDED
 			} else {

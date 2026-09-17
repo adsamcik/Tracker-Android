@@ -1,7 +1,8 @@
 package com.adsamcik.tracker.tracker.api
 
-import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
-import dev.tracebox.Tracebox
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
+import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -598,9 +599,9 @@ object BackgroundTrackingApi {
 		} catch (exception: CancellationException) {
 			throw exception
 		} catch (exception: Exception) {
-			Tracebox.log.error(
-				exception,
-				TrackerTraceboxTemplates.LEGACY_STEP_CONTROL_RETIREMENT_FAILED,
+			TrackerDiagnosticLog.failure(
+				TrackerDiagnosticFailureCode.LEGACY_STEP_CONTROL_RETIREMENT_FAILED,
+				TrackingDiagnosticFailureReason.RECOVERY_FAILURE,
 			)
 			throw exception
 		}
@@ -705,7 +706,10 @@ object BackgroundTrackingApi {
 			} catch (e: CancellationException) {
 				throw e
 			} catch (error: Exception) {
-				Tracebox.log.error(error, TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED)
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.ACTIVITY_RECOGNITION_FAILED,
+					TrackingDiagnosticFailureReason.PROVIDER_FAILURE,
+				)
 			}
 		}
 	}
@@ -756,7 +760,10 @@ object BackgroundTrackingApi {
 				activityControlConsentEpoch = null
 				reconcileControlEligibility(activityEligible = false)
 				publishActivityAutomationAuthority()
-				Tracebox.log.error(error, TrackerTraceboxTemplates.SOURCE_POLICY_OBSERVATION_FAILED)
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.SOURCE_POLICY_OBSERVATION_FAILED,
+					TrackingDiagnosticFailureReason.POLICY_READ_FAILURE,
+				)
 				delay(SOURCE_POLICY_RETRY_DELAY_MILLIS)
 				true
 			}
@@ -781,7 +788,10 @@ object BackgroundTrackingApi {
 			.catch { error ->
 				paramsInitialized = false
 				publishActivityAutomationAuthority()
-				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.APPLICATION_INITIALIZATION_FAILED,
+					TrackingDiagnosticFailureReason.INITIALIZATION_FAILURE,
+				)
 			}
 			.launchIn(scope)
 
@@ -791,7 +801,10 @@ object BackgroundTrackingApi {
 			R.string.settings_disabled_recharge_default
 		).onEach { disabledUntilRecharge = it }
 			.catch { error ->
-				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.APPLICATION_INITIALIZATION_FAILED,
+					TrackingDiagnosticFailureReason.INITIALIZATION_FAILURE,
+				)
 			}
 			.launchIn(scope)
 
@@ -809,7 +822,10 @@ object BackgroundTrackingApi {
 			}
 		}
 			.catch { error ->
-				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.APPLICATION_INITIALIZATION_FAILED,
+					TrackingDiagnosticFailureReason.INITIALIZATION_FAILURE,
+				)
 			}
 			.launchIn(scope)
 
@@ -819,7 +835,10 @@ object BackgroundTrackingApi {
 			com.adsamcik.tracker.activity.R.string.settings_activity_watcher_default
 		).onEach { activityWatcherEnabled = it }
 			.catch { error ->
-				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.APPLICATION_INITIALIZATION_FAILED,
+					TrackingDiagnosticFailureReason.INITIALIZATION_FAILURE,
+				)
 			}
 			.launchIn(scope)
 	}
@@ -1119,15 +1138,15 @@ object BackgroundTrackingApi {
 				waitBeforeRetry = { delayMillis -> delay(delayMillis) },
 				onAttemptCompleted = { attempt ->
 					attempt.cleanupFailure?.let { error ->
-						Tracebox.log.error(
-							error,
-							TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED,
+						TrackerDiagnosticLog.failure(
+							TrackerDiagnosticFailureCode.ACTIVITY_RECOGNITION_FAILED,
+							TrackingDiagnosticFailureReason.RECOVERY_FAILURE,
 						)
 					}
 					attempt.retryOwnershipFailure?.let { error ->
-						Tracebox.log.error(
-							error,
-							TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED,
+						TrackerDiagnosticLog.failure(
+							TrackerDiagnosticFailureCode.ACTIVITY_RECOGNITION_FAILED,
+							TrackingDiagnosticFailureReason.RECOVERY_FAILURE,
 						)
 					}
 				},

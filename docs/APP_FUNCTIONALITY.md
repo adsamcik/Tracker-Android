@@ -693,9 +693,11 @@ binds native symbols to the exact build identity. Debug-only emulator ABIs are n
 Application code emits only static templates with bounded structural values such
 as counts, durations, and enums. Precise coordinates, tracked identifiers,
 exception messages, and arbitrary object rendering are excluded. The
-`:core:diagnostics` module re-exports the Tracebox API as a dependency boundary;
-it does not own a parallel facade or data store. Tracker has no diagnostic Room
-storage, file-fallback migration, or legacy crash/log viewer.
+`:core:diagnostics` keeps Tracebox as an implementation-only dependency. Its tracking
+contract exposes only closed payload-free enums, operation-specific bucketed events,
+and a final local recorder; a separate fixed-code compatibility facade preserves legacy
+diagnostics without exposing Tracebox types to tracking source modules.
+Tracker has no diagnostic Room storage, file-fallback migration, or legacy crash/log viewer.
 
 The standard diagnostics policy keeps performance observations disabled. If the user enables the
 separate performance category, Tracker records bounded process-start elapsed/CPU time; battery,

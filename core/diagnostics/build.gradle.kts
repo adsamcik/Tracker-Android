@@ -8,5 +8,7 @@ android {
 }
 
 dependencies {
-    api(libs.tracebox)
+    // Tracebox remains the sole local backend, but it is an implementation detail. Public tracking
+    // diagnostic signatures are the payload-free types owned by this module.
+    implementation(libs.tracebox)
 }

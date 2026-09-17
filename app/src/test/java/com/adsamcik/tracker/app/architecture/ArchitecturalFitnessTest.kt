@@ -664,16 +664,165 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
-		fun `diagnostics boundary reexports Tracebox without a Tracker facade`() {
+		fun `tracking diagnostics contract keeps Tracebox implementation private`() {
 			val buildText = projectRoot.resolve("core/diagnostics/build.gradle.kts").readText()
-			if ("api(libs.tracebox)" !in buildText) {
-				error(":core:diagnostics must expose Tracebox directly")
+			buildList {
+				if ("implementation(libs.tracebox)" !in buildText) {
+					add(":core:diagnostics must own the local Tracebox implementation")
+				}
+				if ("api(libs.tracebox)" in buildText) {
+					add(":core:diagnostics must not expose Tracebox on its public API")
+				}
+			}.shouldBeEmpty()
+
+			val contractDirectory = projectRoot.resolve(
+				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics",
+			)
+			val contractFiles = listOf(
+				"TrackingDiagnosticBuckets.kt",
+				"TrackingDiagnosticContract.kt",
+				"TrackingDiagnosticPrivacy.kt",
+				"TrackingDiagnosticRecorder.kt",
+			)
+			contractFiles.flatMap { fileName ->
+				val file = contractDirectory.resolve(fileName)
+				check(file.isFile) { "Missing tracking diagnostics contract file $fileName" }
+				file.readLines().mapIndexedNotNull { index, line ->
+					if (
+						Regex("""dev\.tracebox|LogTemplate|TraceboxLogger|TraceboxConfiguration""")
+							.containsMatchIn(line)
+					) {
+						"$fileName:${index + 1}: $line"
+					} else {
+						null
+					}
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `tracking source modules cannot reference Tracebox directly`() {
+			val sourceDirectories = listOf(
+				projectRoot.resolve("tracker/engine/src/main"),
+				projectRoot.resolve("sensor/activity/src/main"),
+			)
+			val buildFiles = listOf(
+				projectRoot.resolve("tracker/engine/build.gradle.kts"),
+				projectRoot.resolve("sensor/activity/build.gradle.kts"),
+			)
+
+			val sourceViolations = sourceDirectories.flatMap { sourceDirectory ->
+				findPatternMatching(
+					sourceDir = sourceDirectory,
+					pattern = Regex("""\bdev\.tracebox\b|\bTracebox(?:\.|Logger\b|Configuration\b)"""),
+					excludeDirs = STANDARD_EXCLUDES,
+					skipComments = true,
+				).map { violation ->
+					"${sourceDirectory.relativeTo(projectRoot)}: $violation"
+				}
 			}
+			val dependencyViolations = buildFiles.filter { buildFile ->
+				"libs.tracebox" in buildFile.readText()
+			}.map { buildFile ->
+				"${buildFile.relativeTo(projectRoot)} exposes a direct Tracebox dependency"
+			}
+
+			(sourceViolations + dependencyViolations).shouldBeEmpty()
+		}
+
+		@Test
+		fun `tracking diagnostic calls cannot carry exceptions messages or paths`() {
+			val trackingSources = listOf(
+				projectRoot.resolve("tracker/engine/src/main"),
+				projectRoot.resolve("sensor/activity/src/main"),
+			)
+			val callStart = Regex("""TrackerDiagnosticLog\.([A-Za-z]+)\s*""")
+			val prohibitedArgument = Regex(
+				"""\b(?:error|failure|exception|throwable|cause|path|uri)\b|""" +
+					"""\.(?:message|localizedMessage|stackTraceToString)\b""",
+			)
+			val callViolations = trackingSources.flatMap { sourceDirectory ->
+				sourceDirectory.walkTopDown()
+					.filter { file -> file.isFile && file.extension == "kt" }
+					.flatMap { file ->
+						val source = file.readText()
+						callStart.findAll(source).mapNotNull { match ->
+							var cursor = match.range.last + 1
+							while (cursor < source.length && source[cursor].isWhitespace()) cursor++
+							if (cursor >= source.length || source[cursor] != '(') return@mapNotNull null
+							val end = matchingParenthesis(source, cursor) ?: return@mapNotNull null
+							val arguments = source.substring(cursor + 1, end)
+							val method = match.groupValues[1]
+							val missingTypedReason = when (method) {
+								"failure", "trackingProviderTeardownFailed" ->
+									"TrackingDiagnosticFailureReason." !in arguments
+								"rejected" -> "TrackingDiagnosticRejectedReason." !in arguments
+								else -> false
+							}
+							when {
+								prohibitedArgument.containsMatchIn(arguments) ->
+									"${file.relativeTo(projectRoot)}: $method carries free-form failure data"
+								missingTypedReason ->
+									"${file.relativeTo(projectRoot)}: $method lacks a typed reason"
+								else -> null
+							}
+						}
+					}
+					.toList()
+			}
+			val boundaryViolations = listOf(
+				"TrackerDiagnosticLog.kt",
+				"TraceboxTrackingDiagnosticAdapter.kt",
+			).flatMap { fileName ->
+				val file = projectRoot.resolve(
+					"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/$fileName",
+				)
+				val prohibitedBoundary = Regex(
+					"""\bThrowable\b|\.(?:message|localizedMessage|stackTraceToString)\b|""" +
+						"""\b(?:java\.io\.File|java\.net\.URI|java\.nio\.file\.Path)\b""",
+				)
+				file.readLines().mapIndexedNotNull { index, line ->
+					if (!isCommentLine(line) && prohibitedBoundary.containsMatchIn(line)) {
+						"$fileName:${index + 1}: $line"
+					} else {
+						null
+					}
+				}
+			}
+
+			(callViolations + boundaryViolations).shouldBeEmpty()
+		}
+
+		@Test
+		fun `tracking diagnostics public declarations contain no Tracebox types`() {
+			val contractDirectory = projectRoot.resolve(
+				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics",
+			)
+			val declarationPattern = Regex(
+				"""^\s*(?:public\s+)?(?:class|enum\s+class|sealed\s+interface|""" +
+					"""object|fun|val|var).*(?:Tracebox|LogTemplate|TraceboxLogger)""",
+			)
+
+			findPatternMatching(
+				sourceDir = contractDirectory,
+				pattern = declarationPattern,
+				excludeDirs = STANDARD_EXCLUDES,
+				excludeFiles = listOf(
+					"TraceboxTrackingDiagnosticAdapter.kt",
+					"TrackerDiagnosticLog.kt",
+					"TrackerTraceboxTemplates.kt",
+				),
+				skipComments = true,
+			).shouldBeEmpty()
+		}
+
+		@Test
+		fun `tracking diagnostics compatibility facade remains separate from contract types`() {
 			val diagnosticsDir = projectRoot.resolve("core/diagnostics/src/main")
 			if (diagnosticsDir.exists()) {
 				findPatternMatching(
 					sourceDir = diagnosticsDir,
-					pattern = Regex("TrackerDiagnostics|TrackerDiagnosticCode|TrackerLog"),
+					pattern = Regex("TrackerDiagnostics|TrackerLog"),
 					excludeDirs = STANDARD_EXCLUDES,
 				).shouldBeEmpty()
 			}

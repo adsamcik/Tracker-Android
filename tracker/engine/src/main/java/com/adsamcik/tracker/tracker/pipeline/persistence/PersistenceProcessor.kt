@@ -1,8 +1,9 @@
 package com.adsamcik.tracker.tracker.pipeline.persistence
 
-import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
-import dev.tracebox.Tracebox
 import android.database.sqlite.SQLiteConstraintException
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
+import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
@@ -385,7 +386,10 @@ class PersistenceProcessor @Inject constructor(
 		} catch (e: CancellationException) {
 			throw e
 		} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
-			Tracebox.log.error(error, TrackerTraceboxTemplates.TRACKING_PERSISTENCE_WRITE_FAILED)
+			TrackerDiagnosticLog.failure(
+				TrackerDiagnosticFailureCode.TRACKING_PERSISTENCE_WRITE_FAILED,
+				TrackingDiagnosticFailureReason.STORAGE_UNAVAILABLE,
+			)
 			return DurableAdmissionStatus.FAILED
 		}
 	}
@@ -805,7 +809,10 @@ class PersistenceProcessor @Inject constructor(
 			lastPersistenceFailure = e
 			commitStatusUnknown = true
 			if (reconcileUnknownCommit() == CommitResolution.COMMITTED) return true
-			Tracebox.log.error(e, TrackerTraceboxTemplates.TRACKING_PERSISTENCE_WRITE_FAILED)
+			TrackerDiagnosticLog.failure(
+				TrackerDiagnosticFailureCode.TRACKING_PERSISTENCE_WRITE_FAILED,
+				TrackingDiagnosticFailureReason.TIMEOUT,
+			)
 			return false
 		} catch (e: CancellationException) {
 			verifyCollectedDataAccess()
@@ -820,7 +827,10 @@ class PersistenceProcessor @Inject constructor(
 			lastPersistenceFailure = e
 			commitStatusUnknown = true
 			if (reconcileUnknownCommit() == CommitResolution.COMMITTED) return true
-			Tracebox.log.error(e, TrackerTraceboxTemplates.TRACKING_PERSISTENCE_WRITE_FAILED)
+			TrackerDiagnosticLog.failure(
+				TrackerDiagnosticFailureCode.TRACKING_PERSISTENCE_WRITE_FAILED,
+				TrackingDiagnosticFailureReason.STORAGE_UNAVAILABLE,
+			)
 			return false
 		}
 
@@ -962,7 +972,10 @@ class PersistenceProcessor @Inject constructor(
 				CommitResolution.ROLLED_BACK
 			}
 			else -> {
-				Tracebox.log.error(TrackerTraceboxTemplates.PERSISTENCE_COMMIT_INCONSISTENT)
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.PERSISTENCE_COMMIT_INCONSISTENT,
+					TrackingDiagnosticFailureReason.INTERNAL_INVARIANT,
+				)
 				CommitResolution.UNKNOWN
 			}
 		}

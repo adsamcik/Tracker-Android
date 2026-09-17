@@ -1,8 +1,9 @@
 package com.adsamcik.tracker.tracker.pipeline
 
-import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
-import dev.tracebox.Tracebox
 import android.content.Context
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
+import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -18,7 +19,10 @@ internal class TrackingPipeline(
 			} catch (error: CancellationException) {
 				throw error
 			} catch (error: Exception) {
-				Tracebox.log.error(error, TrackerTraceboxTemplates.TRACKING_PIPELINE_STAGE_FAILED)
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.TRACKING_PIPELINE_STAGE_FAILED,
+					TrackingDiagnosticFailureReason.PROCESSING_FAILURE,
+				)
 				StageResult.Continue
 			}
 			if (result == StageResult.Skip) break

@@ -1,7 +1,8 @@
 package com.adsamcik.tracker.tracker.service
 
-import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
-import dev.tracebox.Tracebox
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
+import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
 import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import kotlinx.coroutines.CancellationException
@@ -130,7 +131,10 @@ internal class TrackingCycleDispatcher(
 			queued.completions.forEach { it.cancel(e) }
 			throw e
 		} catch (e: Exception) {
-			Tracebox.log.error(e, TrackerTraceboxTemplates.TRACKING_CYCLE_FAILED)
+			TrackerDiagnosticLog.failure(
+				TrackerDiagnosticFailureCode.TRACKING_CYCLE_FAILED,
+				TrackingDiagnosticFailureReason.PROCESSING_FAILURE,
+			)
 			queued.completions.forEach { it.completeExceptionally(e) }
 		}
 	}
