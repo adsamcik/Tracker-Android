@@ -4643,14 +4643,32 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			check(acknowledgement.sourceInstanceId == provider.sourceInstanceId)
 			check(acknowledgement.registrationGeneration == provider.registrationGeneration)
 			val terminal = acknowledgement.hasTerminalLifecycleSettlement()
-			check(dao.updateRunRetirement(
+			val updatedAtMs = System.currentTimeMillis().coerceAtLeast(0L)
+			val persisted = if (acknowledgement.source == SourceKind.STEPS && !terminal) {
+				check(current.state == SourceRunRetirementEntity.STATE_REQUESTED) {
+					"Terminal Steps retirement cannot regress to requested"
+				}
 				current.copy(
-					state = when {
-						acknowledgement.source == SourceKind.STEPS && !terminal ->
-							SourceRunRetirementEntity.STATE_REQUESTED
-						acknowledgement.status == SourceStopStatus.PROCESS_RESTARTED ->
-							SourceRunRetirementEntity.STATE_INTERRUPTED
-						else -> SourceRunRetirementEntity.STATE_ACKNOWLEDGED
+					appliedRevision = null,
+					callbackEntryBarrierSequence = null,
+					lastSourceSequence = null,
+					lastAdmissionOrdinal = null,
+					failedAdmissionCount = null,
+					unresolvedSequenceStart = null,
+					unresolvedSequenceEnd = null,
+					registrationRemovalOutcome = null,
+					providerFlushOutcome = null,
+					providerCoverage = null,
+					appDrainComplete = null,
+					stopStatus = null,
+					updatedAtMs = updatedAtMs,
+				)
+			} else {
+				current.copy(
+					state = if (acknowledgement.status == SourceStopStatus.PROCESS_RESTARTED) {
+						SourceRunRetirementEntity.STATE_INTERRUPTED
+					} else {
+						SourceRunRetirementEntity.STATE_ACKNOWLEDGED
 					},
 					appliedRevision = acknowledgement.appliedRevision,
 					callbackEntryBarrierSequence = acknowledgement.callbackEntryBarrierSequence,
@@ -4664,8 +4682,11 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					providerCoverage = acknowledgement.providerCoverage.name,
 					appDrainComplete = acknowledgement.appDrainComplete,
 					stopStatus = acknowledgement.status.name,
-					updatedAtMs = System.currentTimeMillis().coerceAtLeast(0L),
-				),
+					updatedAtMs = updatedAtMs,
+				)
+			}
+			check(dao.updateRunRetirement(
+				persisted,
 			) == 1)
 		}
 	}

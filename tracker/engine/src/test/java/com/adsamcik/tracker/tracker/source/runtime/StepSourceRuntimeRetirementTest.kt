@@ -156,12 +156,15 @@ class StepSourceRuntimeRetirementTest {
 			scope = this,
 			completionOutcomes = ArrayDeque<Any>(listOf(false, true)),
 		)
-		assertIs<SourceStartResult.Started>(fixture.runtime.start(fixture.plan, fixture.sink))
+		val claim = runtimeClaim("transient-retirement")
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(claim, fixture.plan, fixture.sink))
 
-		val pending = fixture.runtime.quiesce(sessionCutoff(Long.MAX_VALUE))
+		val pending = assertIs<OwnedSourceShutdown.Incomplete>(
+			fixture.runtime.shutdownIfOwned(claim, sessionCutoff(Long.MAX_VALUE)),
+		)
 
-		assertEquals(SourceStopStatus.PROVIDER_FAILED, pending.status)
-		assertEquals(RegistrationRemovalOutcome.FAILED, pending.registrationRemovalOutcome)
+		assertEquals(SourceStopStatus.PROVIDER_FAILED, pending.stopAck?.status)
+		assertEquals(RegistrationRemovalOutcome.FAILED, pending.stopAck?.registrationRemovalOutcome)
 		coVerify(exactly = 0) {
 			fixture.repository.saveRuntimeState(
 				any(), any(), any(), any(), any(), any(), any(),
@@ -170,8 +173,12 @@ class StepSourceRuntimeRetirementTest {
 			)
 		}
 
-		fixture.runtime.close()
+		val released = assertIs<OwnedSourceShutdown.Released>(
+			fixture.runtime.shutdownIfOwned(claim, sessionCutoff(Long.MAX_VALUE)),
+		)
 
+		assertEquals(SourceStopStatus.COMPLETE, released.stopAck?.status)
+		assertEquals(RegistrationRemovalOutcome.REMOVED, released.stopAck?.registrationRemovalOutcome)
 		coVerify(exactly = 1) {
 			fixture.repository.saveRuntimeState(
 				any(), any(), any(), any(), any(), any(), any(),

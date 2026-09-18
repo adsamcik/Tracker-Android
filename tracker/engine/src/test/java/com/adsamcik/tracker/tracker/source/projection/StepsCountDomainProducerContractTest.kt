@@ -318,6 +318,12 @@ class StepsCountDomainProducerContractTest {
 				cursor.moveToFirst()
 				cursor.getLong(0) shouldBe 0L
 			}
+			database.openHelper.writableDatabase.query(
+				"SELECT COUNT(*) FROM steps_count_domain_completeness_marker",
+			).use { cursor ->
+				cursor.moveToFirst()
+				cursor.getLong(0) shouldBe 0L
+			}
 
 			val complete = completeness(wal).copy(updatedAtMs = pending.updatedAtMs + 1L)
 			database.sourceSessionDao().saveCompleteness(complete)

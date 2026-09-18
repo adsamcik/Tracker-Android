@@ -1186,12 +1186,25 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceSessionDao()
 			.completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
 			.none { completeness -> completeness.sourceKind == SourceKind.STEPS.stableCode } shouldBe true
-		database.sourceSessionDao().runRetirements(
+		val requestedRetirement = database.sourceSessionDao().runRetirements(
 			started.logicalTrackingId,
 			started.serviceRunId,
 			SourceKind.STEPS.stableCode,
-		).single().state shouldBe
+		).single()
+		requestedRetirement.state shouldBe
 			com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.STATE_REQUESTED
+		requestedRetirement.appliedRevision shouldBe null
+		requestedRetirement.callbackEntryBarrierSequence shouldBe null
+		requestedRetirement.lastSourceSequence shouldBe null
+		requestedRetirement.lastAdmissionOrdinal shouldBe null
+		requestedRetirement.failedAdmissionCount shouldBe null
+		requestedRetirement.unresolvedSequenceStart shouldBe null
+		requestedRetirement.unresolvedSequenceEnd shouldBe null
+		requestedRetirement.registrationRemovalOutcome shouldBe null
+		requestedRetirement.providerFlushOutcome shouldBe null
+		requestedRetirement.providerCoverage shouldBe null
+		requestedRetirement.appDrainComplete shouldBe null
+		requestedRetirement.stopStatus shouldBe null
 		runtime.stopStatus = SourceStopStatus.COMPLETE
 		runtime.registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED
 		subject.stop(
@@ -1210,6 +1223,20 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceSessionDao().completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
 			.single { completeness -> completeness.sourceKind == SourceKind.STEPS.stableCode }
 			.stopStatus shouldBe SourceStopStatus.COMPLETE.name
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single().let { receipt ->
+			receipt.state shouldBe
+				com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.STATE_ACKNOWLEDGED
+			receipt.callbackEntryBarrierSequence shouldBe 4L
+			receipt.lastSourceSequence shouldBe 4L
+			receipt.registrationRemovalOutcome shouldBe RegistrationRemovalOutcome.REMOVED.name
+			receipt.providerFlushOutcome shouldBe ProviderFlushOutcome.COMPLETE.name
+			receipt.appDrainComplete shouldBe true
+			receipt.stopStatus shouldBe SourceStopStatus.COMPLETE.name
+		}
 	}
 
 	@Test

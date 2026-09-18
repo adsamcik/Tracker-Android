@@ -157,6 +157,67 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
+	fun `trigger authentication normalizes only keyword case and insignificant whitespace`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.replaceTrigger(StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER) { sql ->
+			sql.replace("CREATE TRIGGER", "create\n\ttrigger")
+				.replace("AFTER INSERT ON", "after\tinsert\n on")
+				.replace("WHEN NEW.", "when\n NEW.")
+				.replace("BEGIN", "begin")
+				.replace("INSERT OR ABORT INTO", "insert\n or\tabort into")
+				.replace("VALUES", "values")
+				.replace("END", "end")
+		}
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.ValidV2
+	}
+
+	@Test
+	fun `case changed trigger literal is incompatible`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.replaceTrigger(StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER) { sql ->
+			sql.replace("'RETRACT'", "'retract'")
+		}
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `alternate identifier quoting in an expected trigger is incompatible`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.replaceTrigger(StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER) { sql ->
+			sql.replace("NEW.`operation`", "NEW.\"operation\"")
+		}
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `quote injected trigger literal is incompatible`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.replaceTrigger(StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER) { sql ->
+			sql.replace("'RETRACT'", "'''RETRACT'''")
+		}
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `extra expected-trigger body statement is incompatible`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.replaceTrigger(StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER) { sql ->
+			sql.substringBeforeLast("END") + "SELECT 1;\nEND"
+		}
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
 	fun `arbitrary extra trigger attached to Ambient facts is incompatible`() {
 		installSchema()
 		val sqlite = database.openHelper.writableDatabase
@@ -470,6 +531,21 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				"(id, contract_version, token_semantics, terminal_unproven) " +
 				"VALUES (1, 2, 'PROVIDER_COUNTER_EPOCH_V1', 1)",
 		)
+	}
+
+	private fun SupportSQLiteDatabase.replaceTrigger(
+		name: String,
+		transform: (String) -> String,
+	) {
+		val sql = query(
+			"SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = ?",
+			arrayOf(name),
+		).use { cursor ->
+			check(cursor.moveToFirst())
+			cursor.getString(0)
+		}
+		execSQL("DROP TRIGGER `$name`")
+		execSQL(transform(sql))
 	}
 
 	private fun installE500SchemaFixture() {

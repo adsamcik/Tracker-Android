@@ -536,15 +536,84 @@ object StepsCountDomainSchema {
 	private fun String.hasDeferredForeignKey(): Boolean =
 		normalizedSql().contains("DEFERRABLE INITIALLY DEFERRED")
 
-	private fun String.normalizedSql(): String = replace("`", "")
-		.replace("\"", "")
-		.replace(Regex("\\s+"), " ")
-		.trim()
-		.uppercase()
-		.replace(" IF NOT EXISTS ", " ")
-		.replace(Regex("\\s*\\(\\s*"), "(")
-		.replace(Regex("\\s*\\)\\s*"), ")")
-		.replace(Regex("\\s*,\\s*"), ",")
+	private fun String.normalizedSql(): String {
+		val tokens = mutableListOf<SqlToken>()
+		var offset = 0
+		while (offset < length) {
+			val current = this[offset]
+			when {
+				current.isWhitespace() -> offset += 1
+				current.isSqlQuote() -> {
+					val endExclusive = quotedSqlTokenEnd(offset, current)
+					tokens += SqlToken(substring(offset, endExclusive), quoted = true)
+					offset = endExclusive
+				}
+				current.isSqlBareTokenCharacter() -> {
+					val start = offset
+					while (offset < length && this[offset].isSqlBareTokenCharacter()) {
+						offset += 1
+					}
+					tokens += SqlToken(substring(start, offset).uppercase(), quoted = false)
+				}
+				else -> {
+					tokens += SqlToken(current.toString(), quoted = false)
+					offset += 1
+				}
+			}
+		}
+		val structuralTokens = tokens.withoutCreateIfNotExists()
+		return buildString {
+			var previous: SqlToken? = null
+			structuralTokens.forEach { token ->
+				if (previous?.isAtom == true && token.isAtom) append(' ')
+				append(token.text)
+				previous = token
+			}
+		}
+	}
+
+	private fun String.quotedSqlTokenEnd(start: Int, opener: Char): Int {
+		val closer = if (opener == '[') ']' else opener
+		var offset = start + 1
+		while (offset < length) {
+			if (this[offset] != closer) {
+				offset += 1
+				continue
+			}
+			if (offset + 1 < length && this[offset + 1] == closer) {
+				offset += 2
+				continue
+			}
+			return offset + 1
+		}
+		return length
+	}
+
+	private fun List<SqlToken>.withoutCreateIfNotExists(): List<SqlToken> {
+		val optionalClauseStart = indices.firstOrNull { index ->
+			index > 0 &&
+				this[index - 1].bareText in setOf("TABLE", "INDEX", "TRIGGER") &&
+				getOrNull(index).bareText == "IF" &&
+				getOrNull(index + 1).bareText == "NOT" &&
+				getOrNull(index + 2).bareText == "EXISTS"
+		} ?: return this
+		return filterIndexed { index, _ ->
+			index !in optionalClauseStart..optionalClauseStart + 2
+		}
+	}
+
+	private fun Char.isSqlQuote(): Boolean = this == '\'' || this == '"' || this == '`' || this == '['
+
+	private fun Char.isSqlBareTokenCharacter(): Boolean =
+		isLetterOrDigit() || this == '_' || this == '$'
+
+	private data class SqlToken(
+		val text: String,
+		val quoted: Boolean,
+	) {
+		val bareText: String? get() = text.takeUnless { quoted }
+		val isAtom: Boolean get() = quoted || text.first().isSqlBareTokenCharacter()
+	}
 
 	private data class SchemaColumn(
 		val name: String,
