@@ -27,6 +27,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.AmbientStepsPolicyRevisi
 import com.adsamcik.tracker.shared.preferences.tracking.AndroidSourcePolicyEffectiveTimeProvider
 import com.adsamcik.tracker.shared.preferences.tracking.AuthoritativeTrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityBootstrapCoordinator
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationCoordinator
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
@@ -161,6 +162,11 @@ abstract class RepositoryModule {
 		fun provideSourcePolicyRevisionReconciliationCoordinator(
 			repository: AuthoritativeTrackingParamsRepository,
 		): SourcePolicyRevisionReconciliationCoordinator = repository
+
+		@Provides
+		fun provideSourcePolicyAuthorityBootstrapCoordinator(
+			repository: AuthoritativeTrackingParamsRepository,
+		): SourcePolicyAuthorityBootstrapCoordinator = repository
 
 		@Provides
 		@Singleton

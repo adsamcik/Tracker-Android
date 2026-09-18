@@ -46,7 +46,9 @@ class AuthoritativeTrackingParamsRepository(
 	private val retentionAuthorityProducer: RetentionAuthorityProducer =
 		UnavailableRetentionAuthorityProducer,
 	private val ambientStepsPolicyRevisionReconciler: AmbientStepsPolicyRevisionReconciler,
-) : TrackingParamsRepository, SourcePolicyRevisionReconciliationCoordinator {
+) : TrackingParamsRepository,
+	SourcePolicyRevisionReconciliationCoordinator,
+	SourcePolicyAuthorityBootstrapCoordinator {
 	private val mutationMutex = Mutex()
 	private val reconciliationMutex = Mutex()
 	private val scheduledMirrorRepairs = ConcurrentHashMap.newKeySet<Long>()
@@ -314,6 +316,17 @@ class AuthoritativeTrackingParamsRepository(
 
 	override suspend fun reconcileCurrentPolicyRevision():
 		SourcePolicyRevisionReconciliationResult {
+		val authority = reconcileAuthorityForRetentionBootstrap()
+		val snapshot = when (authority) {
+			is SourcePolicyRevisionReconciliationResult.Complete -> authority.snapshot
+			is SourcePolicyRevisionReconciliationResult.Retryable -> return authority
+			is SourcePolicyRevisionReconciliationResult.Unverifiable -> return authority
+		}
+		return reconcilePolicyRevision(snapshot)
+	}
+
+	override suspend fun reconcileAuthorityForRetentionBootstrap():
+		SourcePolicyRevisionReconciliationResult {
 		val authority = sourcePolicyRepository.currentState()
 		val snapshot = when (authority) {
 			is SourcePolicyAuthorityState.Active -> authority.snapshot
@@ -345,7 +358,7 @@ class AuthoritativeTrackingParamsRepository(
 					),
 				).also(::publishReconciliationResult)
 		}
-		return reconcilePolicyRevision(snapshot)
+		return SourcePolicyRevisionReconciliationResult.Complete(snapshot)
 	}
 
 	private suspend fun reconcilePolicyRevision(
@@ -479,6 +492,15 @@ interface SourcePolicyRevisionReconciliationCoordinator {
 	val reconciliationState: StateFlow<SourcePolicyRevisionReconciliationState>
 
 	suspend fun reconcileCurrentPolicyRevision(): SourcePolicyRevisionReconciliationResult
+}
+
+/**
+ * Provider-free SourcePolicy bootstrap used while a durable deletion marker still closes runtime
+ * admission. Completion grants no provider, demand, authorization, or Ambient lifecycle authority.
+ */
+fun interface SourcePolicyAuthorityBootstrapCoordinator {
+	suspend fun reconcileAuthorityForRetentionBootstrap():
+		SourcePolicyRevisionReconciliationResult
 }
 
 object UnavailableSourcePolicyRevisionReconciliationCoordinator :

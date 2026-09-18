@@ -7,9 +7,11 @@ import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionAuthorityR
 import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionAuthorityUnavailableReason
 import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionDecision
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.SourceEvidenceRetentionBootstrapResult
 import com.adsamcik.tracker.shared.base.database.applyAmbientCellRetentionDecision
 import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecision
 import com.adsamcik.tracker.shared.base.database.applyAmbientWifiRetentionDecision
+import com.adsamcik.tracker.shared.base.database.bootstrapSourceEvidenceForRetention
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityIntegrity
@@ -289,6 +291,9 @@ class DefaultRetentionAuthorityProducer internal constructor(
 
 	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> =
 		mutex.withLock {
+			exactSourceEvidenceBootstrapFailure()?.let { reason ->
+				return@withLock unavailableReconciliationResults(reason)
+			}
 			(readPendingPolicyCandidate() as? RetentionPolicyCandidateRead.Available)?.let {
 				preparePendingConfigurationLocked(it.policy.configurationGeneration)
 			}
@@ -305,6 +310,40 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				}
 			}
 			results
+		}
+
+	private suspend fun exactSourceEvidenceBootstrapFailure():
+		RetentionAuthorityUnavailableReason? = try {
+		val lifecycle = readLifecycle()
+		val updatedAtMs = effectiveTimeProvider.now().wallTimeMs
+		when (
+			database.bootstrapSourceEvidenceForRetention(
+				expectedCollectedDataEpoch = lifecycle.epoch,
+				expectedRetainedFromMs = lifecycle.retainedFromMs,
+				updatedAtMs = updatedAtMs,
+				isLifecycleSnapshotCurrent = { readLifecycle() == lifecycle },
+			)
+		) {
+			is SourceEvidenceRetentionBootstrapResult.Ready -> null
+			SourceEvidenceRetentionBootstrapResult.LifecycleChanged ->
+				RetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED
+			SourceEvidenceRetentionBootstrapResult.ConflictingEvidence,
+			SourceEvidenceRetentionBootstrapResult.InvalidState,
+			-> RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH
+		}
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE
+	}
+
+	private fun unavailableReconciliationResults(
+		reason: RetentionAuthorityUnavailableReason,
+	): List<RetentionAuthorityResult> =
+		LIVE_AMBIENT_SOURCES.map { source ->
+			unavailable(source, RetentionAuthorityScope.LIVE_AMBIENT, reason)
+		} + PORTABLE_IMPORT_SOURCES.map { source ->
+			unavailable(source, RetentionAuthorityScope.PORTABLE_IMPORT, reason)
 		}
 
 	override suspend fun preparePendingConfiguration(

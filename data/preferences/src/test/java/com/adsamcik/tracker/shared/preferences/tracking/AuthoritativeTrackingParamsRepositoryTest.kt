@@ -277,6 +277,56 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	}
 
 	@Test
+	fun `retention bootstrap initializes SourcePolicy without startup Ready or provider work`() =
+		runTest {
+			val context = ApplicationProvider.getApplicationContext<Application>()
+			val bootstrapDatabase = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+				.allowMainThreadQueries()
+				.build()
+			val bootstrapPolicy = RoomSourcePolicyRepository(bootstrapDatabase) {
+				SourcePolicyEffectiveTime("deletion-bootstrap", 10L, 20L)
+			}
+			val bootstrapRetention = RecordingRetentionAuthorityProducer { true }
+			val bootstrapAmbientSteps = RecordingAmbientStepsPolicyRevisionReconciler()
+			val closedGate = object : TrackingStartupGate {
+				override val isReady: Boolean = false
+				override suspend fun reconcile(retryFailedStorage: Boolean) =
+					TrackingStartupResult.RetryableFailure(
+						TrackingStartupStage.STORAGE,
+						"COLLECTED_DATA_DELETION_PENDING",
+					)
+			}
+			val bootstrapScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+			val bootstrapRepository = AuthoritativeTrackingParamsRepository(
+				legacy = FakeTrackingParamsRepository(
+					TrackingParamsState(
+						ambientStepsEnabled = true,
+						legacySettingsMigrationCompleted = true,
+					),
+				),
+				sourcePolicyRepository = bootstrapPolicy,
+				applicationScope = bootstrapScope,
+				trackingStartupGate = closedGate,
+				retentionAuthorityProducer = bootstrapRetention,
+				ambientStepsPolicyRevisionReconciler = bootstrapAmbientSteps,
+			)
+			try {
+				val result = bootstrapRepository.reconcileAuthorityForRetentionBootstrap()
+					.shouldBeInstanceOf<SourcePolicyRevisionReconciliationResult.Complete>()
+
+				result.snapshot[TrackingSourceComponent.STEPS].ambientPersistenceEligible
+					.shouldBeTrue()
+				bootstrapRetention.fullReconciliations shouldBe 0
+				bootstrapAmbientSteps.events shouldBe emptyList()
+				bootstrapRepository.reconciliationState.value shouldBe
+					SourcePolicyRevisionReconciliationState.Uninitialized
+			} finally {
+				bootstrapScope.cancel()
+				bootstrapDatabase.close()
+			}
+		}
+
+	@Test
 	fun `closed startup gate rejects policy mutation without changing durable authority`() = runTest {
 		repository.data.first { it.sourcePolicyRevision == 1L }
 		val closedGate = object : TrackingStartupGate {

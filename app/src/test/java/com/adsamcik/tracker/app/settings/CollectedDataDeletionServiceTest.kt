@@ -31,8 +31,12 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigurationA
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.retention.resetRetentionConfigForTests
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityBootstrapCoordinator
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTimeProvider
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationDebt
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationFailure
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationResult
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
@@ -475,6 +479,82 @@ class CollectedDataDeletionServiceTest {
 				database.close()
 				resetRetentionTestState()
 			}
+		}
+
+	@Test
+	fun `startup retry bootstraps authority after DATABASE_CLEARED without provider activation`() =
+		runTest {
+			val events = mutableListOf<String>()
+			val debt = SourcePolicyRevisionReconciliationDebt(
+				policyRevision = null,
+				failures = listOf(
+					SourcePolicyRevisionReconciliationFailure.SourcePolicyUnavailable,
+				),
+			)
+			var bootstrapAvailable = false
+			val coordinator = SourcePolicyAuthorityBootstrapCoordinator {
+				startupDeletionBarrier.isClosed shouldBe true
+				markerFile.exists() shouldBe true
+				events += "authority"
+				if (bootstrapAvailable) {
+					SourcePolicyRevisionReconciliationResult.Complete(mockk())
+				} else {
+					SourcePolicyRevisionReconciliationResult.Retryable(debt)
+				}
+			}
+			val retention = mockk<RetentionAuthorityProducer>()
+			coEvery { retention.reconcileCurrentSettings() } coAnswers {
+				startupDeletionBarrier.isClosed shouldBe true
+				markerFile.exists() shouldBe true
+				events += "retention"
+				disabledRetentionResults()
+			}
+			val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
+			coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
+				AmbientStepsProviderCleanupResult(complete = true)
+			var physicalDeletionCount = 0
+			var writerRearmCount = 0
+			val service = createService(
+				postDatabaseDeletion = {
+					writerRearmCount += 1
+					events += "writer-rearm"
+				},
+				ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
+				retentionAuthorityProducer = retention,
+				sourcePolicyAuthorityBootstrapCoordinatorProvider = Provider { coordinator },
+			) { _, _, _, _ ->
+				physicalDeletionCount += 1
+				events += "database-cleared"
+			}
+
+			val first = service.deleteAll()
+
+			val retry = first.shouldBeInstanceOf<CollectedDataDeletionCompletion.Retryable>()
+			retry.failure shouldBe
+				CollectedDataDeletionReconciliationFailure.SourcePolicyAuthority(debt)
+			databaseOperations.single().value.phase shouldBe
+				CollectedDataDeletionOperationEntity.PHASE_WRITERS_REARMED
+			markerFile.exists() shouldBe true
+			startupDeletionBarrier.isClosed shouldBe true
+			events shouldBe listOf("database-cleared", "writer-rearm", "authority")
+
+			bootstrapAvailable = true
+			service.reconcilePendingDeletion() shouldBe CollectedDataDeletionCompletion.Complete
+
+			physicalDeletionCount shouldBe 1
+			writerRearmCount shouldBe 1
+			events shouldBe listOf(
+				"database-cleared",
+				"writer-rearm",
+				"authority",
+				"authority",
+				"retention",
+				"authority",
+				"retention",
+			)
+			markerFile.exists() shouldBe false
+			startupDeletionBarrier.isClosed shouldBe false
+			coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
 		}
 
 	@Test
@@ -1040,6 +1120,8 @@ class CollectedDataDeletionServiceTest {
 			this.collectedDataLifecycleStore,
 		retentionAuthorityProducer: RetentionAuthorityProducer =
 			completeRetentionAuthorityProducer(),
+		sourcePolicyAuthorityBootstrapCoordinatorProvider:
+			Provider<SourcePolicyAuthorityBootstrapCoordinator>? = null,
 		directorySync: (File) -> Unit = {},
 		markerDelete: (File) -> Boolean = File::delete,
 		appDatabaseDeletionOperation: (suspend (
@@ -1058,6 +1140,8 @@ class CollectedDataDeletionServiceTest {
 		ambientStepsProviderLifecycleProvider = ambientStepsProviderLifecycleProvider,
 		automaticControlRestorer = automaticControlRestorer,
 		retentionAuthorityProducer = retentionAuthorityProducer,
+		sourcePolicyAuthorityBootstrapCoordinatorProvider =
+			sourcePolicyAuthorityBootstrapCoordinatorProvider,
 		traceboxDataDeletion = traceboxDataDeletion,
 		trackingDiagnosticDataDeletion = trackingDiagnosticDataDeletion,
 		appDatabaseDeletion = appDatabaseDeletionOperation ?: { deletionContext, operation ->

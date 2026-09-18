@@ -12,6 +12,7 @@ import com.adsamcik.tracker.app.settings.CollectedDataWriterQuiescer
 import com.adsamcik.tracker.app.settings.DefaultCollectedDataDeletionService
 import com.adsamcik.tracker.app.settings.DefaultCollectedDataWriterQuiescer
 import com.adsamcik.tracker.app.settings.PostDeletionAutomaticControlRestorer
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityBootstrapCoordinator
 import com.adsamcik.tracker.app.receiver.BootTrackingRecoveryScheduler
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
@@ -215,6 +216,8 @@ object InfrastructureModule {
 		ambientStepsProviderLifecycle: Provider<AmbientStepsProviderLifecycle>,
 		automaticControlRestorer: PostDeletionAutomaticControlRestorer,
 		retentionAuthorityProducer: RetentionAuthorityProducer,
+		sourcePolicyAuthorityBootstrapCoordinator:
+			Provider<SourcePolicyAuthorityBootstrapCoordinator>,
 		@Suppress("UNUSED_PARAMETER")
 		purposeSettingsReconciler: TrackingPurposeSettingsReconciler,
 		stepsWriterTransitionCoordinator: Provider<StepsSessionFactWriterTransitionCoordinator>,
@@ -232,6 +235,8 @@ object InfrastructureModule {
 		ambientStepsProviderLifecycleProvider = ambientStepsProviderLifecycle,
 		automaticControlRestorer = automaticControlRestorer,
 		retentionAuthorityProducer = retentionAuthorityProducer,
+		sourcePolicyAuthorityBootstrapCoordinatorProvider =
+			sourcePolicyAuthorityBootstrapCoordinator,
 		postDatabaseDeletion = { operation ->
 			stepsWriterTransitionCoordinator.get().rearmAfterFullDeletion(
 				operationId = operation.operationId,

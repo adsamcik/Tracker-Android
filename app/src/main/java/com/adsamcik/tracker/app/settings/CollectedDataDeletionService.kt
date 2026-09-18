@@ -30,6 +30,10 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProdu
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityBootstrapCoordinator
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationDebt
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationFailure
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationResult
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.data.worker.AchievementWorker
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
@@ -90,6 +94,12 @@ sealed interface CollectedDataDeletionReconciliationFailure {
 
 	data object PurposeSettings : CollectedDataDeletionReconciliationFailure {
 		override val failureCode: String = "POST_DELETE_PURPOSE_SETTINGS"
+	}
+
+	data class SourcePolicyAuthority(
+		val debt: SourcePolicyRevisionReconciliationDebt,
+	) : CollectedDataDeletionReconciliationFailure {
+		override val failureCode: String = "POST_DELETE_SOURCE_POLICY_AUTHORITY"
 	}
 
 	data class AmbientStepsProvider(
@@ -285,6 +295,8 @@ class DefaultCollectedDataDeletionService(
 	private val ambientStepsProviderLifecycleProvider: Provider<AmbientStepsProviderLifecycle>? = null,
 	private val automaticControlRestorer: PostDeletionAutomaticControlRestorer,
 	private val retentionAuthorityProducer: RetentionAuthorityProducer,
+	private val sourcePolicyAuthorityBootstrapCoordinatorProvider:
+		Provider<SourcePolicyAuthorityBootstrapCoordinator>? = null,
 	private val traceboxDataDeletion: suspend () -> Boolean,
 	private val trackingDiagnosticDataDeletion: suspend () -> Boolean = { true },
 	private val appDatabaseDeletion: suspend (
@@ -421,11 +433,11 @@ class DefaultCollectedDataDeletionService(
 				committedOperation.phase ==
 					CollectedDataDeletionOperationEntity.PHASE_WRITERS_REARMED,
 			) { "Collected-data deletion writer re-arm remains incomplete" }
-			val initialRetention = reconcilePostDeletionRetention()
-			if (initialRetention != null) {
+			val initialReconciliation = reconcilePostDeletionAuthorityAndRetention()
+			if (initialReconciliation != null) {
 				return keepAmbientStepsClosed(
 					ambientStepsProviderLifecycle,
-					initialRetention,
+					initialReconciliation,
 				)
 			}
 			exportPlanStore.resetAllWatermarks()
@@ -433,11 +445,11 @@ class DefaultCollectedDataDeletionService(
 			// Enqueue the durable recovery owner while the deletion marker and process barrier still
 			// fence Room/providers. It will make one attempt only after this generation is Ready.
 			automaticControlRestorer.schedule(operation.targetCollectedDataEpoch)
-			val confirmedRetention = reconcilePostDeletionRetention()
-			if (confirmedRetention != null) {
+			val confirmedReconciliation = reconcilePostDeletionAuthorityAndRetention()
+			if (confirmedReconciliation != null) {
 				return keepAmbientStepsClosed(
 					ambientStepsProviderLifecycle,
-					confirmedRetention,
+					confirmedReconciliation,
 				)
 			}
 			// Provider and demand reconciliation is startup-owned. Keep every producer closed until
@@ -493,6 +505,7 @@ class DefaultCollectedDataDeletionService(
 				),
 			)
 		}
+
 		val durable = results.filter {
 			it.scope == RetentionAuthorityScope.LIVE_AMBIENT &&
 				it.source in DURABLE_AMBIENT_SOURCES
@@ -511,6 +524,42 @@ class DefaultCollectedDataDeletionService(
 			CollectedDataDeletionCompletion.Unverifiable(failure)
 		} else {
 			CollectedDataDeletionCompletion.Retryable(failure)
+		}
+	}
+
+	private suspend fun reconcilePostDeletionAuthorityAndRetention():
+		CollectedDataDeletionCompletion? {
+		reconcilePostDeletionSourcePolicyAuthority()?.let { return it }
+		return reconcilePostDeletionRetention()
+	}
+
+	private suspend fun reconcilePostDeletionSourcePolicyAuthority():
+		CollectedDataDeletionCompletion? {
+		val coordinator = sourcePolicyAuthorityBootstrapCoordinatorProvider?.get() ?: return null
+		val result = try {
+			coordinator.reconcileAuthorityForRetentionBootstrap()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			SourcePolicyRevisionReconciliationResult.Retryable(
+				SourcePolicyRevisionReconciliationDebt(
+					policyRevision = null,
+					failures = listOf(
+						SourcePolicyRevisionReconciliationFailure.SourcePolicyUnavailable,
+					),
+				),
+			)
+		}
+		val debt = when (result) {
+			is SourcePolicyRevisionReconciliationResult.Complete -> return null
+			is SourcePolicyRevisionReconciliationResult.Retryable -> result.debt
+			is SourcePolicyRevisionReconciliationResult.Unverifiable -> result.debt
+		}
+		val failure = CollectedDataDeletionReconciliationFailure.SourcePolicyAuthority(debt)
+		return if (result is SourcePolicyRevisionReconciliationResult.Retryable) {
+			CollectedDataDeletionCompletion.Retryable(failure)
+		} else {
+			CollectedDataDeletionCompletion.Unverifiable(failure)
 		}
 	}
 

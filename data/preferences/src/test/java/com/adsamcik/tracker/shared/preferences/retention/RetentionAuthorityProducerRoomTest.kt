@@ -1,12 +1,14 @@
 package com.adsamcik.tracker.shared.preferences.retention
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
@@ -138,6 +140,119 @@ class RetentionAuthorityProducerRoomTest {
 			it is RetentionAuthorityResult.Unchanged &&
 				it.state == RetentionAuthorityState.REVOKED
 		} shouldBe true
+	}
+
+	@Test
+	fun `pristine database bootstraps exact lifecycle and grants Ambient Steps retention`() =
+		runTest {
+			lifecycle = CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = 1_234L)
+			removeSourceEvidenceState()
+			bootstrap(ambientSteps = true)
+			approvedPolicy = approved("policy-1", revision = 1L)
+
+			val steps = producer().reconcileCurrentSettings().single {
+				it.source == TrackingSourceComponent.STEPS &&
+					it.scope == RetentionAuthorityScope.LIVE_AMBIENT
+			}
+
+			assertIs<RetentionAuthorityResult.Applied>(steps).state shouldBe
+				RetentionAuthorityState.ACTIVE
+			requireNotNull(database.sourceEvidenceStateDao().get()).run {
+				collectedDataEpoch shouldBe lifecycle.epoch
+				retainedFromMs shouldBe lifecycle.retainedFromMs
+			}
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			)?.collectedDataEpoch shouldBe lifecycle.epoch
+		}
+
+	@Test
+	fun `missing evidence state with collected rows fails closed as conflicting`() = runTest {
+		removeSourceEvidenceState()
+		database.stepIntervalDao().insert(
+			StepInterval(
+				startTimeMs = 10L,
+				endTimeMs = 20L,
+				stepCount = 3,
+				sensorValueStart = 100,
+				sensorValueEnd = 103,
+				sensorReset = false,
+				createdAt = 20L,
+			),
+		)
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+
+		val steps = producer().reconcileCurrentSettings().single {
+			it.source == TrackingSourceComponent.STEPS &&
+				it.scope == RetentionAuthorityScope.LIVE_AMBIENT
+		}
+
+		assertIs<RetentionAuthorityResult.Unavailable>(steps).reason shouldBe
+			RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH
+		database.sourceEvidenceStateDao().get() shouldBe null
+		database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+			AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+		) shouldBe null
+	}
+
+	@Test
+	fun `source evidence epoch mismatch cannot grant Ambient Steps retention`() = runTest {
+		check(database.sourceEvidenceStateDao().updateLifecycle(3L, null, 2L) == 1)
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+
+		val steps = producer().reconcileCurrentSettings().single {
+			it.source == TrackingSourceComponent.STEPS &&
+				it.scope == RetentionAuthorityScope.LIVE_AMBIENT
+		}
+
+		assertIs<RetentionAuthorityResult.Unavailable>(steps).reason shouldBe
+			RetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED
+		database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+			AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+		) shouldBe null
+	}
+
+	@Test
+	fun `lifecycle change during pristine bootstrap rolls back evidence initialization`() = runTest {
+		removeSourceEvidenceState()
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+		var lifecycleReads = 0
+		val original = lifecycle
+
+		val steps = producer(
+			readLifecycle = {
+				lifecycleReads += 1
+				if (lifecycleReads < 4) original else original.copy(epoch = original.epoch + 1L)
+			},
+		).reconcileCurrentSettings().single {
+			it.source == TrackingSourceComponent.STEPS &&
+				it.scope == RetentionAuthorityScope.LIVE_AMBIENT
+		}
+
+		assertIs<RetentionAuthorityResult.Unavailable>(steps).reason shouldBe
+			RetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED
+		database.sourceEvidenceStateDao().get() shouldBe null
+	}
+
+	@Test
+	fun `unreadable lifecycle cannot initialize fresh source evidence`() = runTest {
+		removeSourceEvidenceState()
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+
+		val steps = producer(
+			readLifecycle = { error("lifecycle unavailable") },
+		).reconcileCurrentSettings().single {
+			it.source == TrackingSourceComponent.STEPS &&
+				it.scope == RetentionAuthorityScope.LIVE_AMBIENT
+		}
+
+		assertIs<RetentionAuthorityResult.Unavailable>(steps).reason shouldBe
+			RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE
+		database.sourceEvidenceStateDao().get() shouldBe null
 	}
 
 	@Test
@@ -527,11 +642,20 @@ class RetentionAuthorityProducerRoomTest {
 		)
 	}
 
+	private suspend fun removeSourceEvidenceState() {
+		database.withTransaction {
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM source_evidence_state",
+			)
+		}
+	}
+
 	private fun producer(
 		beforeDecisionApply: suspend (
 			TrackingSourceComponent,
 			RetentionAuthorityScope,
 		) -> Unit = { _, _ -> },
+		readLifecycle: suspend () -> CollectedDataLifecycleSnapshot = { lifecycle },
 		readPolicyCandidate: suspend () -> RetentionPolicyCandidateRead = {
 			when (val current = approvedPolicy) {
 				is ApprovedRetentionPolicyRead.Available ->
@@ -548,7 +672,7 @@ class RetentionAuthorityProducerRoomTest {
 		database = database,
 		sourcePolicyRepository = policies,
 		readApprovedPolicy = { approvedPolicy },
-		readLifecycle = { lifecycle },
+		readLifecycle = readLifecycle,
 		effectiveTimeProvider = { nextTime() },
 		beforeDecisionApply = beforeDecisionApply,
 		readPolicyCandidate = readPolicyCandidate,
