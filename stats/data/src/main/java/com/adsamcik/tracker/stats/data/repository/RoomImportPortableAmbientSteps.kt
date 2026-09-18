@@ -165,7 +165,8 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 				retention == null ||
 				!AmbientStepsRetentionAuthorityIntegrity.isAuthentic(retention) ||
 				!retention.isActive ||
-				retention.collectedDataEpoch != request.expectedCollectedDataEpoch
+				retention.collectedDataEpoch != request.expectedCollectedDataEpoch ||
+				retention.retainedFromMs != state.retainedFromMs
 			) {
 				blocked(PortableAmbientStepsImportBlockedReason.RETENTION_POLICY_UNAVAILABLE)
 			}

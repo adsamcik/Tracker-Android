@@ -30,6 +30,7 @@ data class AmbientStepsRetentionAuthorityEntity(
 	@ColumnInfo(name = "source_policy_revision") val sourcePolicyRevision: Long?,
 	@ColumnInfo(name = "ambient_consent_epoch") val ambientConsentEpoch: Long?,
 	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "retained_from_ms") val retainedFromMs: Long?,
 	@ColumnInfo(name = "effective_boot_id") val effectiveBootId: String,
 	@ColumnInfo(name = "effective_elapsed_realtime_nanos") val effectiveElapsedRealtimeNanos: Long,
 	@ColumnInfo(name = "effective_wall_time_ms") val effectiveWallTimeMs: Long,
@@ -41,6 +42,7 @@ data class AmbientStepsRetentionAuthorityEntity(
 		require(state in STATES)
 		require(opaquePolicyId.isNotBlank() && opaquePolicyId.length <= 256)
 		require(collectedDataEpoch >= 0L)
+		require(retainedFromMs == null || retainedFromMs >= 0L)
 		require(effectiveBootId.isNotBlank())
 		require(effectiveElapsedRealtimeNanos >= 0L && effectiveWallTimeMs >= 0L)
 		if (scope == SCOPE_LIVE_AMBIENT) {
@@ -76,6 +78,7 @@ object AmbientStepsRetentionAuthorityIntegrity {
 		effectiveBootId: String,
 		effectiveElapsedRealtimeNanos: Long,
 		effectiveWallTimeMs: Long,
+		retainedFromMs: Long? = null,
 	): AmbientStepsRetentionAuthorityEntity = AmbientStepsRetentionAuthorityEntity(
 		scope = scope,
 		approvalRevision = approvalRevision,
@@ -84,6 +87,7 @@ object AmbientStepsRetentionAuthorityIntegrity {
 		sourcePolicyRevision = sourcePolicyRevision,
 		ambientConsentEpoch = ambientConsentEpoch,
 		collectedDataEpoch = collectedDataEpoch,
+		retainedFromMs = retainedFromMs,
 		effectiveBootId = effectiveBootId,
 		effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
 		effectiveWallTimeMs = effectiveWallTimeMs,
@@ -95,6 +99,7 @@ object AmbientStepsRetentionAuthorityIntegrity {
 			sourcePolicyRevision,
 			ambientConsentEpoch,
 			collectedDataEpoch,
+			retainedFromMs,
 			effectiveBootId,
 			effectiveElapsedRealtimeNanos,
 			effectiveWallTimeMs,
@@ -109,6 +114,7 @@ object AmbientStepsRetentionAuthorityIntegrity {
 		value.sourcePolicyRevision,
 		value.ambientConsentEpoch,
 		value.collectedDataEpoch,
+		value.retainedFromMs,
 		value.effectiveBootId,
 		value.effectiveElapsedRealtimeNanos,
 		value.effectiveWallTimeMs,
@@ -124,7 +130,7 @@ object AmbientStepsRetentionAuthorityIntegrity {
 		}
 		return MessageDigest.getInstance("SHA-256")
 			.digest(
-				listOf("ambient-steps-retention-authority-v1", canonical)
+				listOf("ambient-steps-retention-authority-v2", canonical)
 					.joinToString(separator = "\u001f")
 					.toByteArray(Charsets.UTF_8),
 			)

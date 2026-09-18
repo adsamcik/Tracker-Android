@@ -549,6 +549,7 @@ class AmbientStepsMaintenanceTest {
 				effectiveBootId = BOOT_ID,
 				effectiveElapsedRealtimeNanos = 0L,
 				effectiveWallTimeMs = 0L,
+				retainedFromMs = retainedFromMs,
 			),
 		)
 		val demands = (1..authorizationMemberCount).map { index ->

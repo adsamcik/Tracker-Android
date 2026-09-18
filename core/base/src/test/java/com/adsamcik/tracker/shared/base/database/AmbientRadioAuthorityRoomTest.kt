@@ -90,6 +90,7 @@ class AmbientRadioAuthorityRoomTest {
 				"boot-1",
 				10L,
 				10L,
+				1_000L,
 			),
 		)
 
@@ -508,6 +509,7 @@ class AmbientRadioAuthorityRoomTest {
 				"boot-1",
 				1L,
 				1L,
+				1_500L,
 			),
 		)
 	}

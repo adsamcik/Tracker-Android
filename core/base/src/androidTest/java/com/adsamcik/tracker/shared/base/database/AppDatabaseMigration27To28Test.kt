@@ -862,6 +862,20 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "ambient_steps_retention_authority", 0)
 		assertTableCount(database, "ambient_steps_native_replay_footprint", 0)
 		listOf(
+			"ambient_steps_retention_authority",
+			"ambient_wifi_retention_authority",
+			"ambient_cell_retention_authority",
+		).forEach { table ->
+			database.query("PRAGMA table_info($table)").use { cursor ->
+				val nameColumn = cursor.getColumnIndexOrThrow("name")
+				val columns = buildSet {
+					while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+				}
+				assertTrue("collected_data_epoch" in columns)
+				assertTrue("retained_from_ms" in columns)
+			}
+		}
+		listOf(
 			"ambient_steps_fact_revision",
 			"ambient_steps_import_cursor",
 		).forEach { table ->

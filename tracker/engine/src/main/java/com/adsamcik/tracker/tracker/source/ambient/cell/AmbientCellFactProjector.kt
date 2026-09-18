@@ -74,6 +74,15 @@ internal class AmbientCellFactProjector @Inject constructor(
 		}
 		val observedWallTimeMs = wal.wallTimeMs
 			?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.CLOCK_UNVERIFIABLE)
+		val lifecycle = database.sourceEvidenceStateDao().get()
+			?: return cellUnverifiable(
+				AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
+			)
+		if (lifecycle.collectedDataEpoch != wal.capturedCollectedDataEpoch) {
+			return cellUnverifiable(
+				AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
+			)
+		}
 		val rows = database.sourceBrokerDao().authorizationRevisionBounded(
 			SourceKind.CELL.stableCode,
 			wal.registrationGeneration,
@@ -188,7 +197,8 @@ internal class AmbientCellFactProjector @Inject constructor(
 			retention.opaquePolicyId != authority.retentionPolicyId ||
 			retention.sourcePolicyRevision != sourcePolicyRevision ||
 			retention.ambientConsentEpoch != ambientConsentEpoch ||
-			retention.collectedDataEpoch != wal.capturedCollectedDataEpoch
+			retention.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
+			retention.retainedFromMs != lifecycle.retainedFromMs
 		) {
 			return cellUnverifiable(
 				AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
@@ -200,7 +210,8 @@ internal class AmbientCellFactProjector @Inject constructor(
 		if (currentRetention == null ||
 			!AmbientCellRetentionAuthorityIntegrity.isAuthentic(currentRetention) ||
 			!currentRetention.isActive ||
-			currentRetention.collectedDataEpoch != wal.capturedCollectedDataEpoch
+			currentRetention.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
+			currentRetention.retainedFromMs != lifecycle.retainedFromMs
 		) {
 			return cellUnverifiable(
 				AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,

@@ -101,10 +101,14 @@ suspend fun AppDatabase.pruneAmbientWifi(
 		)
 	}
 	val liveRetention = liveRow?.takeIf {
-		it.isActive && it.collectedDataEpoch == command.expectedCollectedDataEpoch
+		it.isActive &&
+			it.collectedDataEpoch == command.expectedCollectedDataEpoch &&
+			it.retainedFromMs == command.beforeMs
 	}
 	val importRetention = importRow?.takeIf {
-		it.isActive && it.collectedDataEpoch == command.expectedCollectedDataEpoch
+		it.isActive &&
+			it.collectedDataEpoch == command.expectedCollectedDataEpoch &&
+			it.retainedFromMs == command.beforeMs
 	}
 	if (liveRetention == null && importRetention == null) {
 		return@withTransaction wifiRetentionUnavailable(

@@ -333,6 +333,7 @@ class AmbientStepsPortableRoomReaderTest {
 				BOOT_ID,
 				0L,
 				0L,
+				retainedFromMs,
 			),
 		)
 		val demand = SourceDemandEntity(

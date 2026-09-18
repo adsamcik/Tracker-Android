@@ -98,6 +98,7 @@ data class AmbientWifiRetentionAuthorityEntity(
 	@ColumnInfo(name = "source_policy_revision") val sourcePolicyRevision: Long?,
 	@ColumnInfo(name = "ambient_consent_epoch") val ambientConsentEpoch: Long?,
 	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "retained_from_ms") val retainedFromMs: Long?,
 	@ColumnInfo(name = "effective_boot_id") val effectiveBootId: String,
 	@ColumnInfo(name = "effective_elapsed_realtime_nanos") val effectiveElapsedRealtimeNanos: Long,
 	@ColumnInfo(name = "effective_wall_time_ms") val effectiveWallTimeMs: Long,
@@ -109,6 +110,7 @@ data class AmbientWifiRetentionAuthorityEntity(
 		require(state in STATES)
 		require(opaquePolicyId.isNotBlank() && opaquePolicyId.length <= 256)
 		require(collectedDataEpoch >= 0L)
+		require(retainedFromMs == null || retainedFromMs >= 0L)
 		require(effectiveBootId.isNotBlank())
 		require(effectiveElapsedRealtimeNanos >= 0L && effectiveWallTimeMs >= 0L)
 		if (scope == SCOPE_LIVE_AMBIENT) {
@@ -144,6 +146,7 @@ object AmbientWifiRetentionAuthorityIntegrity {
 		effectiveBootId: String,
 		effectiveElapsedRealtimeNanos: Long,
 		effectiveWallTimeMs: Long,
+		retainedFromMs: Long? = null,
 	): AmbientWifiRetentionAuthorityEntity = AmbientWifiRetentionAuthorityEntity(
 		scope,
 		approvalRevision,
@@ -152,6 +155,7 @@ object AmbientWifiRetentionAuthorityIntegrity {
 		sourcePolicyRevision,
 		ambientConsentEpoch,
 		collectedDataEpoch,
+		retainedFromMs,
 		effectiveBootId,
 		effectiveElapsedRealtimeNanos,
 		effectiveWallTimeMs,
@@ -163,6 +167,7 @@ object AmbientWifiRetentionAuthorityIntegrity {
 			sourcePolicyRevision,
 			ambientConsentEpoch,
 			collectedDataEpoch,
+			retainedFromMs,
 			effectiveBootId,
 			effectiveElapsedRealtimeNanos,
 			effectiveWallTimeMs,
@@ -177,6 +182,7 @@ object AmbientWifiRetentionAuthorityIntegrity {
 		value.sourcePolicyRevision,
 		value.ambientConsentEpoch,
 		value.collectedDataEpoch,
+		value.retainedFromMs,
 		value.effectiveBootId,
 		value.effectiveElapsedRealtimeNanos,
 		value.effectiveWallTimeMs,
@@ -193,11 +199,12 @@ object AmbientWifiRetentionAuthorityIntegrity {
 		sourcePolicyRevision: Long?,
 		ambientConsentEpoch: Long?,
 		collectedDataEpoch: Long,
+		retainedFromMs: Long?,
 		effectiveBootId: String,
 		effectiveElapsedRealtimeNanos: Long,
 		effectiveWallTimeMs: Long,
 	): String = AmbientWifiAuthorityIntegrity.digest(
-		"ambient-wifi-retention-authority-v1",
+		"ambient-wifi-retention-authority-v2",
 		scope,
 		approvalRevision,
 		state,
@@ -205,6 +212,7 @@ object AmbientWifiRetentionAuthorityIntegrity {
 		sourcePolicyRevision,
 		ambientConsentEpoch,
 		collectedDataEpoch,
+		retainedFromMs,
 		effectiveBootId,
 		effectiveElapsedRealtimeNanos,
 		effectiveWallTimeMs,

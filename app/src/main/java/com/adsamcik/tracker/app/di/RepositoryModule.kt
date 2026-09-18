@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.retention.DefaultRetentionAuthorityProducer
 import com.adsamcik.tracker.shared.preferences.retention.LocationPassiveRetentionAuthority
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityOperationLease
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.lifecycle.DefaultCollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.settings.DefaultTrackerSettingsRepository
@@ -201,6 +202,7 @@ abstract class RepositoryModule {
 			collectedDataLifecycleStore: CollectedDataLifecycleStore,
 			clock: Clock,
 			bootClockDomainProvider: BootClockDomainProvider,
+			operationLease: RetentionAuthorityOperationLease,
 		): RetentionAuthorityProducer = DefaultRetentionAuthorityProducer(
 			database = database,
 			sourcePolicyRepository = sourcePolicyRepository,
@@ -210,6 +212,7 @@ abstract class RepositoryModule {
 				bootClockDomainProvider,
 				clock,
 			),
+			operationLease = operationLease,
 		)
 
 		@Provides
@@ -219,9 +222,18 @@ abstract class RepositoryModule {
 
 		@Provides
 		@Singleton
+		fun provideRetentionAuthorityOperationLease(): RetentionAuthorityOperationLease =
+			RetentionAuthorityOperationLease()
+
+		@Provides
+		@Singleton
 		fun provideCollectedDataLifecycleStore(
 			@ApplicationContext context: Context,
-		): CollectedDataLifecycleStore = DefaultCollectedDataLifecycleStore(context)
+			operationLease: RetentionAuthorityOperationLease,
+		): CollectedDataLifecycleStore = DefaultCollectedDataLifecycleStore(
+			context,
+			operationLease,
+		)
 
 		@Provides
 		@Singleton

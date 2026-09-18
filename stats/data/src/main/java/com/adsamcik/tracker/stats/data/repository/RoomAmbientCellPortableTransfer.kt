@@ -183,7 +183,8 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 		)?.takeIf {
 			AmbientCellRetentionAuthorityIntegrity.isAuthentic(it) &&
 				it.isActive &&
-				it.collectedDataEpoch == request.expectedCollectedDataEpoch
+				it.collectedDataEpoch == request.expectedCollectedDataEpoch &&
+				it.retainedFromMs == evidence.retainedFromMs
 		} ?: return ImportPortableAmbientCellResult.RetentionAuthorityUnavailable
 		dao.importTombstone(request.archive.archiveId)?.let { tombstone ->
 			if (tombstone.effectChecksum !=

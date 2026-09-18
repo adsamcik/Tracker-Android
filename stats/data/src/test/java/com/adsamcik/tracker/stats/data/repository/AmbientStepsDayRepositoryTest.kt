@@ -525,6 +525,7 @@ class AmbientStepsDayRepositoryTest {
 				initialAuthorizationBootId,
 				initialAuthorizationEffectiveElapsedRealtimeNanos,
 				initialAuthorizationEffectiveTimeMs,
+				evidenceState.retainedFromMs,
 			),
 		)
 		database.sourceBrokerDao().insertAuthorizations(

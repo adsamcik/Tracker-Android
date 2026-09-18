@@ -51,6 +51,7 @@ class AuthoritativeTrackingParamsRepository(
 	SourcePolicyAuthorityBootstrapCoordinator {
 	private val mutationMutex = Mutex()
 	private val reconciliationMutex = Mutex()
+	@Volatile private var lastCompletedStartupGeneration = -1L
 	private val scheduledMirrorRepairs = ConcurrentHashMap.newKeySet<Long>()
 	private val mutableReconciliationState =
 		MutableStateFlow<SourcePolicyRevisionReconciliationState>(
@@ -325,6 +326,24 @@ class AuthoritativeTrackingParamsRepository(
 		return reconcilePolicyRevision(snapshot)
 	}
 
+	override suspend fun reconcileCurrentPolicyRevisionWithinReadyOperation(
+		expectedStartupGeneration: Long,
+	): SourcePolicyRevisionReconciliationResult {
+		if (!trackingStartupGate.isReadyGeneration(expectedStartupGeneration)) {
+			return startupGenerationUnavailable(
+				policyRevision = null,
+				expectedStartupGeneration = expectedStartupGeneration,
+			)
+		}
+		val authority = reconcileAuthorityForRetentionBootstrap()
+		val snapshot = when (authority) {
+			is SourcePolicyRevisionReconciliationResult.Complete -> authority.snapshot
+			is SourcePolicyRevisionReconciliationResult.Retryable -> return authority
+			is SourcePolicyRevisionReconciliationResult.Unverifiable -> return authority
+		}
+		return reconcilePolicyRevisionAtReadyGeneration(snapshot, expectedStartupGeneration)
+	}
+
 	override suspend fun reconcileAuthorityForRetentionBootstrap():
 		SourcePolicyRevisionReconciliationResult {
 		val authority = sourcePolicyRepository.currentState()
@@ -363,11 +382,30 @@ class AuthoritativeTrackingParamsRepository(
 
 	private suspend fun reconcilePolicyRevision(
 		effective: SourcePolicySnapshot,
+	): SourcePolicyRevisionReconciliationResult {
+		val startupGeneration = trackingStartupGate.currentGeneration
+		// Authority-only bootstrap may run behind the deletion marker, but retention/provider
+		// lifecycle work is admitted only by the exact current Ready generation.
+		return trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+			reconcilePolicyRevisionAtReadyGeneration(effective, startupGeneration)
+		} ?: startupGenerationUnavailable(effective.revision, startupGeneration)
+	}
+
+	private suspend fun reconcilePolicyRevisionAtReadyGeneration(
+		effective: SourcePolicySnapshot,
+		startupGeneration: Long,
 	): SourcePolicyRevisionReconciliationResult = reconciliationMutex.withLock {
+		if (!trackingStartupGate.isReadyGeneration(startupGeneration)) {
+			return@withLock startupGenerationUnavailable(
+				effective.revision,
+				startupGeneration,
+			)
+		}
 		val published = mutableReconciliationState.value
 		if (
 			published is SourcePolicyRevisionReconciliationState.Complete &&
-			published.policyRevision == effective.revision
+			published.policyRevision == effective.revision &&
+			lastCompletedStartupGeneration == startupGeneration
 		) {
 			return@withLock SourcePolicyRevisionReconciliationResult.Complete(effective)
 		}
@@ -413,6 +451,12 @@ class AuthoritativeTrackingParamsRepository(
 				)
 			else -> null
 		}
+		if (!trackingStartupGate.isReadyGeneration(startupGeneration)) {
+			return@withLock startupGenerationUnavailable(
+				effective.revision,
+				startupGeneration,
+			)
+		}
 		val ambientResult = try {
 			if (retentionFailure == null) {
 				ambientStepsPolicyRevisionReconciler.reconcileAfterRetentionReissue()
@@ -449,8 +493,26 @@ class AuthoritativeTrackingParamsRepository(
 			publishReconciliationResult(result)
 			return@withLock result
 		}
-		SourcePolicyRevisionReconciliationResult.Complete(effective).also(::publishReconciliationResult)
+		SourcePolicyRevisionReconciliationResult.Complete(effective).also { result ->
+			lastCompletedStartupGeneration = startupGeneration
+			publishReconciliationResult(result)
+		}
 	}
+
+	private fun startupGenerationUnavailable(
+		policyRevision: Long?,
+		expectedStartupGeneration: Long,
+	): SourcePolicyRevisionReconciliationResult.Retryable =
+		SourcePolicyRevisionReconciliationResult.Retryable(
+			SourcePolicyRevisionReconciliationDebt(
+				policyRevision = policyRevision,
+				failures = listOf(
+					SourcePolicyRevisionReconciliationFailure.StartupGenerationUnavailable(
+						expectedStartupGeneration,
+					),
+				),
+			),
+		).also(::publishReconciliationResult)
 
 	private fun publishReconciliationResult(result: SourcePolicyRevisionReconciliationResult) {
 		mutableReconciliationState.value = when (result) {
@@ -492,6 +554,14 @@ interface SourcePolicyRevisionReconciliationCoordinator {
 	val reconciliationState: StateFlow<SourcePolicyRevisionReconciliationState>
 
 	suspend fun reconcileCurrentPolicyRevision(): SourcePolicyRevisionReconciliationResult
+
+	/**
+	 * Reconciles provider lifecycle while the caller already owns the exact Ready-generation
+	 * operation. This avoids nested acquisition of the non-reentrant startup/deletion boundary.
+	 */
+	suspend fun reconcileCurrentPolicyRevisionWithinReadyOperation(
+		expectedStartupGeneration: Long,
+	): SourcePolicyRevisionReconciliationResult = reconcileCurrentPolicyRevision()
 }
 
 /**
@@ -592,6 +662,14 @@ sealed interface AmbientStepsPolicyRevisionReconciliation {
 }
 
 sealed interface SourcePolicyRevisionReconciliationFailure {
+	data class StartupGenerationUnavailable(
+		val expectedStartupGeneration: Long,
+	) : SourcePolicyRevisionReconciliationFailure {
+		init {
+			require(expectedStartupGeneration >= 0L)
+		}
+	}
+
 	data object SourcePolicyUnavailable : SourcePolicyRevisionReconciliationFailure
 
 	data class SourcePolicyInvalid(val reason: String) :
@@ -623,6 +701,7 @@ sealed interface SourcePolicyRevisionReconciliationFailure {
 
 private val SourcePolicyRevisionReconciliationFailure.retryable: Boolean
 	get() = when (this) {
+		is SourcePolicyRevisionReconciliationFailure.StartupGenerationUnavailable -> true
 		SourcePolicyRevisionReconciliationFailure.SourcePolicyUnavailable -> true
 		is SourcePolicyRevisionReconciliationFailure.SourcePolicyInvalid -> false
 		is SourcePolicyRevisionReconciliationFailure.RetentionAuthority ->

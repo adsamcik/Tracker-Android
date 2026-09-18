@@ -417,6 +417,7 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 			retention.sourcePolicyRevision == authority.currentPolicyRevision &&
 				retention.ambientConsentEpoch == consentEpoch &&
 				retention.collectedDataEpoch == evidence.collectedDataEpoch &&
+				retention.retainedFromMs == evidence.retainedFromMs &&
 				retention.effectiveBootId == boundary.bootId &&
 				retention.effectiveElapsedRealtimeNanos <= boundary.elapsedRealtimeNanos &&
 				retention.effectiveWallTimeMs <= boundary.wallTimeMs,

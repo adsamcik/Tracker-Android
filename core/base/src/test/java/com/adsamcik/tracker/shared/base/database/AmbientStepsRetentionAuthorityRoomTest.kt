@@ -67,6 +67,39 @@ class AmbientStepsRetentionAuthorityRoomTest {
 	}
 
 	@Test
+	fun `grant rejects an inexact retained boundary without changing Room authority`() = runTest {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(
+				collectedDataEpoch = 4L,
+				retainedFromMs = 1_000L,
+				updatedAtMs = 1L,
+			),
+		)
+
+		val result = database.applyAmbientStepsRetentionDecision(
+			AmbientStepsRetentionDecision.GrantPortableImport(
+				opaquePolicyId = "policy-1",
+				expectedCollectedDataEpoch = 4L,
+				effectiveBootId = "boot-1",
+				effectiveElapsedRealtimeNanos = 1L,
+				effectiveWallTimeMs = 1L,
+				expectedRetainedFromMs = null,
+			),
+		)
+
+		assertEquals(
+			AmbientStepsRetentionAuthorityUnavailableReason.RETAINED_FROM_CHANGED,
+			assertIs<AmbientStepsRetentionAuthorityResult.Unavailable>(result).reason,
+		)
+		assertNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+			),
+		)
+		assertEquals(0L, database.sourceEvidenceStateDao().get()?.revision)
+	}
+
+	@Test
 	fun `live grant and revoke require exact policy consent and approval revisions`() = runTest {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(collectedDataEpoch = 4L, updatedAtMs = 1L),

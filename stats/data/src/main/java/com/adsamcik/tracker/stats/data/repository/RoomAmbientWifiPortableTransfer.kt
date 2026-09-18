@@ -184,7 +184,8 @@ internal class RoomAmbientWifiPortableTransfer internal constructor(
 		)?.takeIf {
 			AmbientWifiRetentionAuthorityIntegrity.isAuthentic(it) &&
 				it.isActive &&
-				it.collectedDataEpoch == request.expectedCollectedDataEpoch
+				it.collectedDataEpoch == request.expectedCollectedDataEpoch &&
+				it.retainedFromMs == evidence.retainedFromMs
 		} ?: return ImportPortableAmbientWifiResult.RetentionAuthorityUnavailable
 		dao.importTombstone(request.archive.archiveId)?.let { tombstone ->
 			if (tombstone.effectChecksum !=

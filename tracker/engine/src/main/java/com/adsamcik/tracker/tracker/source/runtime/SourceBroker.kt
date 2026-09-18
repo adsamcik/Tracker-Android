@@ -560,6 +560,7 @@ class SourceBroker @Inject constructor(
 			retention.sourcePolicyRevision != authority.currentPolicyRevision ||
 			retention.ambientConsentEpoch != consentEpoch ||
 			retention.collectedDataEpoch != evidence.collectedDataEpoch ||
+			retention.retainedFromMs != evidence.retainedFromMs ||
 			retention.effectiveBootId != bootId ||
 			retention.effectiveElapsedRealtimeNanos > elapsedRealtimeNanos ||
 			retention.effectiveWallTimeMs > wallTimeMs
@@ -1261,7 +1262,8 @@ class SourceBroker @Inject constructor(
 		if (!approval.isActive ||
 			approval.sourcePolicyRevision != leaseIdentity.policyRevision ||
 			approval.ambientConsentEpoch != leaseIdentity.consentEpoch ||
-			approval.collectedDataEpoch != leaseIdentity.collectedDataEpoch
+			approval.collectedDataEpoch != leaseIdentity.collectedDataEpoch ||
+			approval.retainedFromMs != requireNotNull(evidence).retainedFromMs
 		) return revoke(AmbientRadioDemandInactiveReason.RETENTION_APPROVAL_MISMATCH)
 		if (!rollout.isCaptureReachable(
 				source,
@@ -1594,6 +1596,7 @@ private data class AmbientRadioRetentionAuthority(
 	val sourcePolicyRevision: Long?,
 	val ambientConsentEpoch: Long?,
 	val collectedDataEpoch: Long,
+	val retainedFromMs: Long?,
 	val opaquePolicyId: String,
 	val approvalRevision: Long,
 	val isActive: Boolean,
@@ -1602,6 +1605,7 @@ private data class AmbientRadioRetentionAuthority(
 		require(sourcePolicyRevision == null || sourcePolicyRevision > 0L)
 		require(ambientConsentEpoch == null || ambientConsentEpoch >= 0L)
 		require(collectedDataEpoch >= 0L)
+		require(retainedFromMs == null || retainedFromMs >= 0L)
 		require(opaquePolicyId.isNotBlank() && opaquePolicyId.length <= 256)
 		require(approvalRevision > 0L)
 	}
@@ -1755,6 +1759,7 @@ private fun AmbientWifiRetentionAuthorityEntity.toRadioRetentionAuthority():
 		sourcePolicyRevision,
 		ambientConsentEpoch,
 		collectedDataEpoch,
+		retainedFromMs,
 		opaquePolicyId,
 		approvalRevision,
 		state == AmbientWifiRetentionAuthorityEntity.STATE_ACTIVE,
@@ -1768,6 +1773,7 @@ private fun AmbientCellRetentionAuthorityEntity.toRadioRetentionAuthority():
 		sourcePolicyRevision,
 		ambientConsentEpoch,
 		collectedDataEpoch,
+		retainedFromMs,
 		opaquePolicyId,
 		approvalRevision,
 		state == AmbientCellRetentionAuthorityEntity.STATE_ACTIVE,

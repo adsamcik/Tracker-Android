@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
 
 sealed interface AmbientStepsRetentionDecision {
 	val expectedCollectedDataEpoch: Long
+	val expectedRetainedFromMs: Long?
 	val effectiveBootId: String
 	val effectiveElapsedRealtimeNanos: Long
 	val effectiveWallTimeMs: Long
@@ -24,6 +25,7 @@ sealed interface AmbientStepsRetentionDecision {
 		override val effectiveElapsedRealtimeNanos: Long,
 		override val effectiveWallTimeMs: Long,
 		val expectedPreviousApprovalRevision: Long? = null,
+		override val expectedRetainedFromMs: Long? = null,
 	) : AmbientStepsRetentionDecision
 
 	data class GrantPortableImport(
@@ -33,6 +35,7 @@ sealed interface AmbientStepsRetentionDecision {
 		override val effectiveElapsedRealtimeNanos: Long,
 		override val effectiveWallTimeMs: Long,
 		val expectedPreviousApprovalRevision: Long? = null,
+		override val expectedRetainedFromMs: Long? = null,
 	) : AmbientStepsRetentionDecision
 
 	data class Revoke(
@@ -42,6 +45,7 @@ sealed interface AmbientStepsRetentionDecision {
 		override val effectiveElapsedRealtimeNanos: Long,
 		override val effectiveWallTimeMs: Long,
 		val expectedPreviousApprovalRevision: Long,
+		override val expectedRetainedFromMs: Long? = null,
 	) : AmbientStepsRetentionDecision
 }
 
@@ -55,6 +59,7 @@ sealed interface AmbientStepsRetentionAuthorityResult {
 
 enum class AmbientStepsRetentionAuthorityUnavailableReason {
 	COLLECTED_DATA_EPOCH_CHANGED,
+	RETAINED_FROM_CHANGED,
 	LIVE_POLICY_AUTHORITY_MISMATCH,
 	NO_EXISTING_AUTHORITY,
 	STALE_APPROVAL_REVISION,
@@ -65,56 +70,76 @@ enum class AmbientStepsRetentionAuthorityUnavailableReason {
 
 suspend fun AppDatabase.applyAmbientStepsRetentionDecision(
 	decision: AmbientStepsRetentionDecision,
-): AmbientStepsRetentionAuthorityResult = withTransaction {
-	decision.requireValid()
-	val dao = ambientStepsFactRevisionDao()
-	val scope = decision.scope()
-	if (sourceEvidenceStateDao().get()?.collectedDataEpoch != decision.expectedCollectedDataEpoch) {
-		return@withTransaction unavailableStepsEpoch()
+): AmbientStepsRetentionAuthorityResult = try {
+	withTransaction {
+		decision.requireValid()
+		val dao = ambientStepsFactRevisionDao()
+		val scope = decision.scope()
+		val evidence = sourceEvidenceStateDao().get()
+			?: return@withTransaction unavailableStepsEpoch()
+		if (evidence.collectedDataEpoch != decision.expectedCollectedDataEpoch) {
+			return@withTransaction unavailableStepsEpoch()
+		}
+		if (evidence.retainedFromMs != decision.expectedRetainedFromMs) {
+			return@withTransaction unavailableStepsRetainedFrom()
+		}
+		val current = dao.latestRetentionAuthority(scope)
+		if (current != null && !AmbientStepsRetentionAuthorityIntegrity.isAuthentic(current)) {
+			return@withTransaction unavailableStepsIntegrity()
+		}
+		if (decision is AmbientStepsRetentionDecision.Revoke && current == null) {
+			return@withTransaction unavailableStepsMissing()
+		}
+		if (current?.approvalRevision != decision.expectedPreviousApprovalRevision()) {
+			return@withTransaction unavailableStepsStaleRevision()
+		}
+		if (!decision.hasValidEffectiveTime(current)) {
+			return@withTransaction unavailableStepsEffectiveTime()
+		}
+		if (!hasValidReferencedPolicyTime(decision)) {
+			return@withTransaction unavailableStepsEffectiveTime()
+		}
+		val binding = retentionBinding(decision)
+			?: return@withTransaction unavailableStepsLivePolicy()
+		val revision = dao.maximumRetentionApprovalRevision(scope)
+			.takeUnless { it == Long.MAX_VALUE }?.plus(1L)
+			?: return@withTransaction unavailableStepsRevision()
+		val value = AmbientStepsRetentionAuthorityIntegrity.create(
+			scope = scope,
+			approvalRevision = revision,
+			state = if (decision is AmbientStepsRetentionDecision.Revoke) {
+				AmbientStepsRetentionAuthorityEntity.STATE_REVOKED
+			} else {
+				AmbientStepsRetentionAuthorityEntity.STATE_ACTIVE
+			},
+			opaquePolicyId = when (decision) {
+				is AmbientStepsRetentionDecision.GrantLiveAmbient -> decision.opaquePolicyId
+				is AmbientStepsRetentionDecision.GrantPortableImport -> decision.opaquePolicyId
+				is AmbientStepsRetentionDecision.Revoke -> requireNotNull(current).opaquePolicyId
+			},
+			sourcePolicyRevision = binding.first,
+			ambientConsentEpoch = binding.second,
+			collectedDataEpoch = decision.expectedCollectedDataEpoch,
+			retainedFromMs = decision.expectedRetainedFromMs,
+			effectiveBootId = decision.effectiveBootId,
+			effectiveElapsedRealtimeNanos = decision.effectiveElapsedRealtimeNanos,
+			effectiveWallTimeMs = decision.effectiveWallTimeMs,
+		)
+		dao.insertRetentionAuthority(value)
+		if (
+			sourceEvidenceStateDao().incrementRevisionForExactLifecycle(
+				expectedRevision = evidence.revision,
+				expectedCollectedDataEpoch = decision.expectedCollectedDataEpoch,
+				expectedRetainedFromMs = decision.expectedRetainedFromMs,
+				updatedAtMs = decision.effectiveWallTimeMs,
+			) != 1
+		) {
+			throw AmbientStepsRetentionLifecycleChangedDuringApply
+		}
+		AmbientStepsRetentionAuthorityResult.Applied(scope, revision)
 	}
-	val current = dao.latestRetentionAuthority(scope)
-	if (current != null && !AmbientStepsRetentionAuthorityIntegrity.isAuthentic(current)) {
-		return@withTransaction unavailableStepsIntegrity()
-	}
-	if (decision is AmbientStepsRetentionDecision.Revoke && current == null) {
-		return@withTransaction unavailableStepsMissing()
-	}
-	if (current?.approvalRevision != decision.expectedPreviousApprovalRevision()) {
-		return@withTransaction unavailableStepsStaleRevision()
-	}
-	if (!decision.hasValidEffectiveTime(current)) {
-		return@withTransaction unavailableStepsEffectiveTime()
-	}
-	if (!hasValidReferencedPolicyTime(decision)) {
-		return@withTransaction unavailableStepsEffectiveTime()
-	}
-	val binding = retentionBinding(decision) ?: return@withTransaction unavailableStepsLivePolicy()
-	val revision = dao.maximumRetentionApprovalRevision(scope)
-		.takeUnless { it == Long.MAX_VALUE }?.plus(1L)
-		?: return@withTransaction unavailableStepsRevision()
-	val value = AmbientStepsRetentionAuthorityIntegrity.create(
-		scope = scope,
-		approvalRevision = revision,
-		state = if (decision is AmbientStepsRetentionDecision.Revoke) {
-			AmbientStepsRetentionAuthorityEntity.STATE_REVOKED
-		} else {
-			AmbientStepsRetentionAuthorityEntity.STATE_ACTIVE
-		},
-		opaquePolicyId = when (decision) {
-			is AmbientStepsRetentionDecision.GrantLiveAmbient -> decision.opaquePolicyId
-			is AmbientStepsRetentionDecision.GrantPortableImport -> decision.opaquePolicyId
-			is AmbientStepsRetentionDecision.Revoke -> requireNotNull(current).opaquePolicyId
-		},
-		sourcePolicyRevision = binding.first,
-		ambientConsentEpoch = binding.second,
-		collectedDataEpoch = decision.expectedCollectedDataEpoch,
-		effectiveBootId = decision.effectiveBootId,
-		effectiveElapsedRealtimeNanos = decision.effectiveElapsedRealtimeNanos,
-		effectiveWallTimeMs = decision.effectiveWallTimeMs,
-	)
-	dao.insertRetentionAuthority(value)
-	check(sourceEvidenceStateDao().incrementRevision(decision.effectiveWallTimeMs) == 1)
-	AmbientStepsRetentionAuthorityResult.Applied(scope, revision)
+} catch (_: AmbientStepsRetentionLifecycleChangedDuringApply) {
+	unavailableStepsEpoch()
 }
 
 private suspend fun AppDatabase.retentionBinding(
@@ -190,6 +215,7 @@ private fun AmbientStepsRetentionDecision.scope(): String = when (this) {
 
 private fun AmbientStepsRetentionDecision.requireValid() {
 	require(expectedCollectedDataEpoch >= 0L)
+	require(expectedRetainedFromMs == null || expectedRetainedFromMs >= 0L)
 	require(effectiveBootId.isNotBlank())
 	require(effectiveElapsedRealtimeNanos >= 0L && effectiveWallTimeMs >= 0L)
 	when (this) {
@@ -226,6 +252,10 @@ private fun unavailableStepsEpoch() = AmbientStepsRetentionAuthorityResult.Unava
 	AmbientStepsRetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED,
 )
 
+private fun unavailableStepsRetainedFrom() = AmbientStepsRetentionAuthorityResult.Unavailable(
+	AmbientStepsRetentionAuthorityUnavailableReason.RETAINED_FROM_CHANGED,
+)
+
 private fun unavailableStepsLivePolicy() = AmbientStepsRetentionAuthorityResult.Unavailable(
 	AmbientStepsRetentionAuthorityUnavailableReason.LIVE_POLICY_AUTHORITY_MISMATCH,
 )
@@ -249,3 +279,5 @@ private fun unavailableStepsIntegrity() = AmbientStepsRetentionAuthorityResult.U
 private fun unavailableStepsEffectiveTime() = AmbientStepsRetentionAuthorityResult.Unavailable(
 	AmbientStepsRetentionAuthorityUnavailableReason.EFFECTIVE_TIME_INVALID,
 )
+
+private object AmbientStepsRetentionLifecycleChangedDuringApply : IllegalStateException()

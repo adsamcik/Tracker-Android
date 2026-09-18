@@ -83,10 +83,14 @@ class TrackerModuleInitializer @Inject constructor(
 							trackingStartupGuard.releaseAutoRecoveryForReadyGeneration(context)
 						},
 						handoff = { handoffAuthorization ->
+							val readyGeneration = trackingStartupGate.currentGeneration
 							when (val authority = reconcileTrackerStartupAuthority(
-								reconcileSourcePolicy =
-									sourcePolicyRevisionReconciliationCoordinator::
-										reconcileCurrentPolicyRevision,
+								reconcileSourcePolicy = {
+									sourcePolicyRevisionReconciliationCoordinator
+										.reconcileCurrentPolicyRevisionWithinReadyOperation(
+											readyGeneration,
+										)
+								},
 								reconcileRetention =
 									retentionAuthorityProducer::reconcileCurrentSettings,
 								retireAmbientSteps =
@@ -102,23 +106,6 @@ class TrackerModuleInitializer @Inject constructor(
 							initializeTrackerAutomaticControlAfterAuthorization(
 								authorization = handoffAuthorization,
 								initialize = { BackgroundTrackingApi.initialize(context) },
-							)
-							runAmbientStepsStartupReconciliation(
-								reconcile = ambientStepsProviderLifecycleOwner::reconcile,
-								onFailure = { failure ->
-									if (failure == null) {
-										TrackerDiagnosticLog.warn(
-											TrackerDiagnosticWarningCode
-												.AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED,
-										)
-									} else {
-										TrackerDiagnosticLog.failure(
-											TrackerDiagnosticFailureCode
-												.AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED,
-											TrackingDiagnosticFailureReason.RECOVERY_FAILURE,
-										)
-									}
-								},
 							)
 						},
 					) ?: return@launch

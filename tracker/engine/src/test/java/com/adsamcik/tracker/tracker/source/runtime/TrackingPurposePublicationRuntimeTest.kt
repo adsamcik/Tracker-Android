@@ -733,12 +733,15 @@ private object AlwaysApprovedRetentionAuthorityProducer : RetentionAuthorityProd
 		expectedSourcePolicyRevision: Long,
 		expectedAmbientConsentEpoch: Long,
 		expectedCollectedDataEpoch: Long,
+		expectedRetainedFromMs: Long?,
 	): CurrentRetentionAuthority = CurrentRetentionAuthority.Approved(
 		"test-policy",
 		1L,
 		"test-boot",
 		0L,
 		0L,
+		expectedCollectedDataEpoch,
+		expectedRetainedFromMs,
 	)
 }
 
@@ -776,6 +779,7 @@ private object UnavailableRetentionAuthorityProducerForTest : RetentionAuthority
 		expectedSourcePolicyRevision: Long,
 		expectedAmbientConsentEpoch: Long,
 		expectedCollectedDataEpoch: Long,
+		expectedRetainedFromMs: Long?,
 	): CurrentRetentionAuthority = CurrentRetentionAuthority.Unavailable(
 		RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
 	)

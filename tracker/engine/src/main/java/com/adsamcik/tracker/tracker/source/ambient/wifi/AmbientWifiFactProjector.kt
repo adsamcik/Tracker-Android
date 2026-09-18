@@ -72,6 +72,15 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		}
 		val observedWallTimeMs = wal.wallTimeMs
 			?: return unverifiable(AmbientWifiProjectionUnverifiableReason.CLOCK_UNVERIFIABLE)
+		val lifecycle = database.sourceEvidenceStateDao().get()
+			?: return unverifiable(
+				AmbientWifiProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
+			)
+		if (lifecycle.collectedDataEpoch != wal.capturedCollectedDataEpoch) {
+			return unverifiable(
+				AmbientWifiProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
+			)
+		}
 		val authorizationRows = database.sourceBrokerDao().authorizationRevisionBounded(
 			SourceKind.WIFI.stableCode,
 			wal.registrationGeneration,
@@ -183,7 +192,8 @@ internal class AmbientWifiFactProjector @Inject constructor(
 			retention.opaquePolicyId != authority.retentionPolicyId ||
 			retention.sourcePolicyRevision != sourcePolicyRevision ||
 			retention.ambientConsentEpoch != ambientConsentEpoch ||
-			retention.collectedDataEpoch != wal.capturedCollectedDataEpoch
+			retention.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
+			retention.retainedFromMs != lifecycle.retainedFromMs
 		) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH)
 		}
@@ -193,7 +203,8 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		if (currentRetention == null ||
 			!AmbientWifiRetentionAuthorityIntegrity.isAuthentic(currentRetention) ||
 			!currentRetention.isActive ||
-			currentRetention.collectedDataEpoch != wal.capturedCollectedDataEpoch
+			currentRetention.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
+			currentRetention.retainedFromMs != lifecycle.retainedFromMs
 		) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH)
 		}

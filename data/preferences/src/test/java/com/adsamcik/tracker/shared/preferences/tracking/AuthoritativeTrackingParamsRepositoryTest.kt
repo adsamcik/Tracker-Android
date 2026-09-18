@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import android.app.Application
 import androidx.room.Room
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
@@ -327,6 +328,79 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		}
 
 	@Test
+	fun `provider free Active bootstrap stays closed and rearms once for the new Ready generation`() =
+		runTest {
+			val context = ApplicationProvider.getApplicationContext<Application>()
+			val isolatedDatabase = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+				.allowMainThreadQueries()
+				.build()
+			val isolatedPolicy = RoomSourcePolicyRepository(isolatedDatabase) {
+				SourcePolicyEffectiveTime("generation-boot", 10L, 20L)
+			}
+			val gate = MutableGenerationStartupGate()
+			val isolatedRetention = RecordingRetentionAuthorityProducer { true }
+			val isolatedAmbient = RecordingAmbientStepsPolicyRevisionReconciler()
+			val isolatedScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+			val isolated = AuthoritativeTrackingParamsRepository(
+				legacy = FakeTrackingParamsRepository(
+					TrackingParamsState(
+						ambientStepsEnabled = true,
+						legacySettingsMigrationCompleted = true,
+					),
+				),
+				sourcePolicyRepository = isolatedPolicy,
+				applicationScope = isolatedScope,
+				trackingStartupGate = gate,
+				retentionAuthorityProducer = isolatedRetention,
+				ambientStepsPolicyRevisionReconciler = isolatedAmbient,
+			)
+			try {
+				isolated.data.first { it.sourcePolicyRevision == 1L }
+				isolatedRetention.reset()
+				isolatedAmbient.reset()
+				gate.closeForNextGeneration()
+				isolatedDatabase.withTransaction {
+					isolatedDatabase.openHelper.writableDatabase.execSQL(
+						"DELETE FROM source_policy",
+					)
+					isolatedDatabase.openHelper.writableDatabase.execSQL(
+						"DELETE FROM source_consent_epoch",
+					)
+					isolatedDatabase.openHelper.writableDatabase.execSQL(
+						"UPDATE source_policy_authority SET " +
+							"bootstrap_state = 'UNINITIALIZED', current_policy_revision = 0, " +
+							"legacy_settings_fingerprint = NULL, updated_at_ms = 0 WHERE id = 1",
+					)
+				}
+
+				isolated.reconcileAuthorityForRetentionBootstrap()
+					.shouldBeInstanceOf<SourcePolicyRevisionReconciliationResult.Complete>()
+				runCurrent()
+				advanceTimeBy(251L)
+				runCurrent()
+
+				isolatedRetention.fullReconciliations shouldBe 0
+				isolatedAmbient.events shouldBe emptyList()
+				isolated.reconciliationState.value
+					.shouldBeInstanceOf<SourcePolicyRevisionReconciliationState.Debt>()
+					.debt.failures.single() shouldBe
+					SourcePolicyRevisionReconciliationFailure.StartupGenerationUnavailable(2L)
+
+				gate.reopen()
+				isolated.reconcileCurrentPolicyRevision()
+					.shouldBeInstanceOf<SourcePolicyRevisionReconciliationResult.Complete>()
+				isolated.reconcileCurrentPolicyRevision()
+					.shouldBeInstanceOf<SourcePolicyRevisionReconciliationResult.Complete>()
+
+				isolatedRetention.fullReconciliations shouldBe 1
+				isolatedAmbient.events shouldBe listOf("reconcile")
+			} finally {
+				isolatedScope.cancel()
+				isolatedDatabase.close()
+			}
+		}
+
+	@Test
 	fun `closed startup gate rejects policy mutation without changing durable authority`() = runTest {
 		repository.data.first { it.sourcePolicyRevision == 1L }
 		val closedGate = object : TrackingStartupGate {
@@ -505,6 +579,36 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	}
 }
 
+private class MutableGenerationStartupGate : TrackingStartupGate {
+	private var ready = true
+	private var generation = 1L
+
+	override val isReady: Boolean
+		get() = ready
+
+	override val currentGeneration: Long
+		get() = generation
+
+	override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+		if (ready) {
+			TrackingStartupResult.Ready(false, 0L)
+		} else {
+			TrackingStartupResult.RetryableFailure(
+				TrackingStartupStage.STORAGE,
+				"COLLECTED_DATA_DELETION_PENDING",
+			)
+		}
+
+	fun closeForNextGeneration() {
+		generation += 1L
+		ready = false
+	}
+
+	fun reopen() {
+		ready = true
+	}
+}
+
 private class FailingBootstrapPolicyRepository(
 	private val delegate: SourcePolicyRepository,
 ) : SourcePolicyRepository by delegate {
@@ -636,12 +740,15 @@ private class RecordingRetentionAuthorityProducer(
 		expectedSourcePolicyRevision: Long,
 		expectedAmbientConsentEpoch: Long,
 		expectedCollectedDataEpoch: Long,
+		expectedRetainedFromMs: Long?,
 	): CurrentRetentionAuthority = CurrentRetentionAuthority.Approved(
 		"test-policy",
 		1L,
 		"test-boot",
 		0L,
 		0L,
+		expectedCollectedDataEpoch,
+		expectedRetainedFromMs,
 	)
 
 	private fun active(

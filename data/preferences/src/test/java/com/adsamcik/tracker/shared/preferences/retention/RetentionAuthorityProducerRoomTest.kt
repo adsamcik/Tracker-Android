@@ -17,13 +17,14 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.booleans.shouldBeFalse
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
-import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -39,11 +40,13 @@ class RetentionAuthorityProducerRoomTest {
 		)
 	private var effectiveTime = 0L
 	private var currentBoot = "boot-1"
+	private lateinit var operationLease: RetentionAuthorityOperationLease
 
 	@BeforeTest
 	fun setUp() = runTest {
 		effectiveTime = 0L
 		currentBoot = "boot-1"
+		operationLease = RetentionAuthorityOperationLease()
 		lifecycle = CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = null)
 		approvedPolicy = ApprovedRetentionPolicyRead.Unavailable(
 			ApprovedRetentionPolicyUnavailableReason.NOT_APPROVED,
@@ -161,9 +164,14 @@ class RetentionAuthorityProducerRoomTest {
 				collectedDataEpoch shouldBe lifecycle.epoch
 				retainedFromMs shouldBe lifecycle.retainedFromMs
 			}
-			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
-				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
-			)?.collectedDataEpoch shouldBe lifecycle.epoch
+			requireNotNull(
+				database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+					AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				),
+			).run {
+				collectedDataEpoch shouldBe lifecycle.epoch
+				retainedFromMs shouldBe lifecycle.retainedFromMs
+			}
 		}
 
 	@Test
@@ -197,6 +205,115 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
+	fun `WAL sequence high water without rows rejects pristine bootstrap`() = runTest {
+		removeSourceEvidenceState()
+		database.openHelper.writableDatabase.execSQL(
+			"INSERT OR REPLACE INTO sqlite_sequence(name, seq) VALUES ('source_event_wal', 7)",
+		)
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+
+		val steps = producer().reconcileCurrentSettings().single {
+			it.source == TrackingSourceComponent.STEPS &&
+				it.scope == RetentionAuthorityScope.LIVE_AMBIENT
+		}
+
+		assertIs<RetentionAuthorityResult.Unavailable>(steps).reason shouldBe
+			RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH
+		database.sourceEvidenceStateDao().get() shouldBe null
+	}
+
+	@Test
+	fun `malformed id two evidence singleton rejects pristine bootstrap`() = runTest {
+		removeSourceEvidenceState()
+		database.openHelper.writableDatabase.execSQL(
+			"INSERT INTO source_evidence_state " +
+				"(id, revision, collected_data_epoch, retained_from_ms, " +
+				"deleted_source_event_high_water_ordinal, updated_at_ms) " +
+				"VALUES (2, 0, 4, NULL, 0, 1)",
+		)
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+
+		val steps = producer().reconcileCurrentSettings().single {
+			it.source == TrackingSourceComponent.STEPS &&
+				it.scope == RetentionAuthorityScope.LIVE_AMBIENT
+		}
+
+		assertIs<RetentionAuthorityResult.Unavailable>(steps).reason shouldBe
+			RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH
+		database.openHelper.writableDatabase.query(
+			"SELECT COUNT(*) FROM source_evidence_state WHERE id = 2",
+		).use { cursor ->
+			check(cursor.moveToFirst())
+			cursor.getLong(0) shouldBe 1L
+		}
+	}
+
+	@Test
+	fun `nondefault player profile rejects pristine bootstrap`() = runTest {
+		removeSourceEvidenceState()
+		database.openHelper.writableDatabase.execSQL("DELETE FROM player_profile")
+		database.openHelper.writableDatabase.execSQL(
+			"INSERT INTO player_profile " +
+				"(id, total_xp, level, xp_into_current_level, xp_for_next_level) " +
+				"VALUES (1, 1, 1, 0, 30)",
+		)
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+
+		val steps = producer().reconcileCurrentSettings().single {
+			it.source == TrackingSourceComponent.STEPS &&
+				it.scope == RetentionAuthorityScope.LIVE_AMBIENT
+		}
+
+		assertIs<RetentionAuthorityResult.Unavailable>(steps).reason shouldBe
+			RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH
+		database.sourceEvidenceStateDao().get() shouldBe null
+	}
+
+	@Test
+	fun `exact default player profile scaffold permits pristine bootstrap`() = runTest {
+		removeSourceEvidenceState()
+		database.openHelper.writableDatabase.execSQL("DELETE FROM player_profile")
+		database.openHelper.writableDatabase.execSQL(
+			"INSERT INTO player_profile " +
+				"(id, total_xp, level, xp_into_current_level, xp_for_next_level) " +
+				"VALUES (1, 0, 1, 0, 30)",
+		)
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+
+		val steps = producer().reconcileCurrentSettings().single {
+			it.source == TrackingSourceComponent.STEPS &&
+				it.scope == RetentionAuthorityScope.LIVE_AMBIENT
+		}
+
+		assertIs<RetentionAuthorityResult.Applied>(steps)
+		requireNotNull(database.sourceEvidenceStateDao().get())
+	}
+
+	@Test
+	fun `minigame score rejects pristine bootstrap`() = runTest {
+		removeSourceEvidenceState()
+		database.openHelper.writableDatabase.execSQL(
+			"INSERT INTO minigame_score (game_id, score, xp_awarded, played_at) " +
+				"VALUES ('test', 1.0, 0, 1)",
+		)
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+
+		val steps = producer().reconcileCurrentSettings().single {
+			it.source == TrackingSourceComponent.STEPS &&
+				it.scope == RetentionAuthorityScope.LIVE_AMBIENT
+		}
+
+		assertIs<RetentionAuthorityResult.Unavailable>(steps).reason shouldBe
+			RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH
+		database.sourceEvidenceStateDao().get() shouldBe null
+	}
+
+	@Test
 	fun `source evidence epoch mismatch cannot grant Ambient Steps retention`() = runTest {
 		check(database.sourceEvidenceStateDao().updateLifecycle(3L, null, 2L) == 1)
 		bootstrap(ambientSteps = true)
@@ -215,26 +332,124 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `lifecycle change during pristine bootstrap rolls back evidence initialization`() = runTest {
-		removeSourceEvidenceState()
+	fun `concurrent retained boundary transition prevents a stale grant`() = runTest {
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
-		var lifecycleReads = 0
-		val original = lifecycle
-
-		val steps = producer(
-			readLifecycle = {
-				lifecycleReads += 1
-				if (lifecycleReads < 4) original else original.copy(epoch = original.epoch + 1L)
-			},
-		).reconcileCurrentSettings().single {
-			it.source == TrackingSourceComponent.STEPS &&
-				it.scope == RetentionAuthorityScope.LIVE_AMBIENT
+		val transitionEntered = CompletableDeferred<Unit>()
+		val releaseTransition = CompletableDeferred<Unit>()
+		val transition = async {
+			operationLease.withOperation {
+				lifecycle = lifecycle.copy(retainedFromMs = 1_000L)
+				transitionEntered.complete(Unit)
+				releaseTransition.await()
+			}
 		}
+		transitionEntered.await()
+		val reconciliation = async {
+			producer().reconcileCurrentSettings().single {
+				it.source == TrackingSourceComponent.STEPS &&
+					it.scope == RetentionAuthorityScope.LIVE_AMBIENT
+			}
+		}
+		runCurrent()
+		reconciliation.isCompleted.shouldBeFalse()
+		releaseTransition.complete(Unit)
+		transition.await()
+
+		val steps = reconciliation.await()
 
 		assertIs<RetentionAuthorityResult.Unavailable>(steps).reason shouldBe
-			RetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED
-		database.sourceEvidenceStateDao().get() shouldBe null
+			RetentionAuthorityUnavailableReason.RETAINED_FROM_CHANGED
+		database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+			AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+		) shouldBe null
+		database.sourceEvidenceStateDao().get()?.retainedFromMs shouldBe null
+	}
+
+	@Test
+	fun `concurrent pristine lifecycle transition completes before exact bootstrap and grant`() =
+		runTest {
+			removeSourceEvidenceState()
+			bootstrap(ambientSteps = true)
+			approvedPolicy = approved("policy-1", revision = 1L)
+			val transitionEntered = CompletableDeferred<Unit>()
+			val releaseTransition = CompletableDeferred<Unit>()
+			val transition = async {
+				operationLease.withOperation {
+					lifecycle = CollectedDataLifecycleSnapshot(
+						epoch = lifecycle.epoch + 1L,
+						retainedFromMs = 1_000L,
+					)
+					transitionEntered.complete(Unit)
+					releaseTransition.await()
+				}
+			}
+			transitionEntered.await()
+			val reconciliation = async {
+				producer().reconcileCurrentSettings().single {
+					it.source == TrackingSourceComponent.STEPS &&
+						it.scope == RetentionAuthorityScope.LIVE_AMBIENT
+				}
+			}
+			runCurrent()
+			reconciliation.isCompleted.shouldBeFalse()
+			releaseTransition.complete(Unit)
+			transition.await()
+
+			assertIs<RetentionAuthorityResult.Applied>(reconciliation.await())
+			requireNotNull(database.sourceEvidenceStateDao().get()).run {
+				collectedDataEpoch shouldBe lifecycle.epoch
+				retainedFromMs shouldBe lifecycle.retainedFromMs
+			}
+			requireNotNull(
+				database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+					AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				),
+			).run {
+				collectedDataEpoch shouldBe lifecycle.epoch
+				retainedFromMs shouldBe lifecycle.retainedFromMs
+			}
+		}
+
+	@Test
+	fun `retained boundary is authenticated by current authority reads`() = runTest {
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+		val producer = producer()
+		val snapshot = (policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
+		val consentEpoch = requireNotNull(
+			snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+		)
+		producer.reconcileLiveAmbient(TrackingSourceComponent.STEPS)
+		lifecycle = lifecycle.copy(retainedFromMs = 1_000L)
+		database.sourceEvidenceStateDao().updateLifecycle(
+			lifecycle.epoch,
+			lifecycle.retainedFromMs,
+			100L,
+		)
+
+		producer.currentLiveAmbient(
+			TrackingSourceComponent.STEPS,
+			snapshot.revision,
+			consentEpoch,
+			lifecycle.epoch,
+			lifecycle.retainedFromMs,
+		) shouldBe CurrentRetentionAuthority.Unavailable(
+			RetentionAuthorityUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE,
+		)
+		assertIs<RetentionAuthorityResult.Applied>(
+			producer.reconcileLiveAmbient(TrackingSourceComponent.STEPS),
+		)
+		val current = assertIs<CurrentRetentionAuthority.Approved>(
+			producer.currentLiveAmbient(
+				TrackingSourceComponent.STEPS,
+				snapshot.revision,
+				consentEpoch,
+				lifecycle.epoch,
+				lifecycle.retainedFromMs,
+			),
+		)
+		current.retainedFromMs shouldBe lifecycle.retainedFromMs
 	}
 
 	@Test
@@ -369,32 +584,33 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `concurrent producers preserve revision CAS`() = runTest {
+	fun `shared operation lease serializes concurrent producers before Room authority apply`() =
+		runTest {
 		bootstrap()
 		approvedPolicy = approved("policy-1", revision = 1L)
-		val arrivals = Channel<Unit>(capacity = 2)
+		val arrival = CompletableDeferred<Unit>()
 		val release = CompletableDeferred<Unit>()
-		val hook: suspend (TrackingSourceComponent, RetentionAuthorityScope) -> Unit = { _, _ ->
-			arrivals.send(Unit)
+		val first = producer { _, _ ->
+			arrival.complete(Unit)
 			release.await()
 		}
-		val first = producer(hook)
-		val second = producer(hook)
+		val second = producer()
 		val firstResult = async {
 			first.approvePortableImport(TrackingSourceComponent.STEPS)
 		}
+		arrival.await()
 		val secondResult = async {
 			second.approvePortableImport(TrackingSourceComponent.STEPS)
 		}
-		arrivals.receive()
-		arrivals.receive()
+		runCurrent()
+		secondResult.isCompleted.shouldBeFalse()
 		release.complete(Unit)
 
 		val results = listOf(firstResult.await(), secondResult.await())
 		results.count { it is RetentionAuthorityResult.Applied } shouldBe 1
 		results.count {
-			it is RetentionAuthorityResult.Unavailable &&
-				it.reason == RetentionAuthorityUnavailableReason.STALE_APPROVAL_REVISION
+			it is RetentionAuthorityResult.Unchanged &&
+				it.state == RetentionAuthorityState.ACTIVE
 		} shouldBe 1
 	}
 
@@ -606,6 +822,7 @@ class RetentionAuthorityProducerRoomTest {
 			expectedSourcePolicyRevision = snapshot.revision,
 			expectedAmbientConsentEpoch = consentEpoch,
 			expectedCollectedDataEpoch = lifecycle.epoch,
+			expectedRetainedFromMs = lifecycle.retainedFromMs,
 			expectedOpaquePolicyId = stored.opaquePolicyId,
 			expectedApprovalRevision = stored.approvalRevision,
 			currentBootId = currentBoot,
@@ -617,6 +834,7 @@ class RetentionAuthorityProducerRoomTest {
 			expectedSourcePolicyRevision = snapshot.revision,
 			expectedAmbientConsentEpoch = consentEpoch,
 			expectedCollectedDataEpoch = lifecycle.epoch,
+			expectedRetainedFromMs = lifecycle.retainedFromMs,
 			expectedOpaquePolicyId = stored.opaquePolicyId,
 			expectedApprovalRevision = stored.approvalRevision + 1L,
 			currentBootId = currentBoot,
@@ -677,6 +895,7 @@ class RetentionAuthorityProducerRoomTest {
 		beforeDecisionApply = beforeDecisionApply,
 		readPolicyCandidate = readPolicyCandidate,
 		markPolicyApproved = markPolicyApproved,
+		operationLease = operationLease,
 	)
 
 	private fun nextTime(): SourcePolicyEffectiveTime {

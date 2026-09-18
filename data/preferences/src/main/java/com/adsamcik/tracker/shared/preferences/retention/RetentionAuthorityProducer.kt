@@ -41,6 +41,7 @@ enum class RetentionAuthorityUnavailableReason {
 	PURPOSE_AUTHORITY_UNAVAILABLE,
 	RETENTION_AUTHORITY_UNAVAILABLE,
 	COLLECTED_DATA_EPOCH_CHANGED,
+	RETAINED_FROM_CHANGED,
 	STALE_APPROVAL_REVISION,
 	APPROVAL_REVISION_EXHAUSTED,
 	INTEGRITY_MISMATCH,
@@ -102,6 +103,8 @@ sealed interface CurrentRetentionAuthority {
 		val effectiveBootId: String,
 		val effectiveElapsedRealtimeNanos: Long,
 		val effectiveWallTimeMs: Long,
+		val collectedDataEpoch: Long = 0L,
+		val retainedFromMs: Long? = null,
 	) : CurrentRetentionAuthority {
 		init {
 			require(opaquePolicyId.isNotBlank())
@@ -109,6 +112,8 @@ sealed interface CurrentRetentionAuthority {
 			require(effectiveBootId.isNotBlank())
 			require(effectiveElapsedRealtimeNanos >= 0L)
 			require(effectiveWallTimeMs >= 0L)
+			require(collectedDataEpoch >= 0L)
+			require(retainedFromMs == null || retainedFromMs >= 0L)
 		}
 	}
 
@@ -122,6 +127,7 @@ interface RetentionAuthorityReader {
 		expectedSourcePolicyRevision: Long,
 		expectedAmbientConsentEpoch: Long,
 		expectedCollectedDataEpoch: Long,
+		expectedRetainedFromMs: Long? = null,
 	): CurrentRetentionAuthority
 
 	/** Fail-closed broker seam for an exact persisted retention identity in the current boot. */
@@ -130,6 +136,7 @@ interface RetentionAuthorityReader {
 		expectedSourcePolicyRevision: Long,
 		expectedAmbientConsentEpoch: Long,
 		expectedCollectedDataEpoch: Long,
+		expectedRetainedFromMs: Long? = null,
 		expectedOpaquePolicyId: String,
 		expectedApprovalRevision: Long,
 		currentBootId: String,
@@ -141,10 +148,13 @@ interface RetentionAuthorityReader {
 			expectedSourcePolicyRevision,
 			expectedAmbientConsentEpoch,
 			expectedCollectedDataEpoch,
+			expectedRetainedFromMs,
 		)
 		return authority is CurrentRetentionAuthority.Approved &&
 			authority.opaquePolicyId == expectedOpaquePolicyId &&
 			authority.approvalRevision == expectedApprovalRevision &&
+			authority.collectedDataEpoch == expectedCollectedDataEpoch &&
+			authority.retainedFromMs == expectedRetainedFromMs &&
 			authority.effectiveBootId == currentBootId &&
 			authority.effectiveElapsedRealtimeNanos <= currentElapsedRealtimeNanos &&
 			authority.effectiveWallTimeMs <= currentWallTimeMs
@@ -229,6 +239,7 @@ object UnavailableRetentionAuthorityProducer : RetentionAuthorityProducer {
 		expectedSourcePolicyRevision: Long,
 		expectedAmbientConsentEpoch: Long,
 		expectedCollectedDataEpoch: Long,
+		expectedRetainedFromMs: Long?,
 	): CurrentRetentionAuthority = CurrentRetentionAuthority.Unavailable(
 		RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
 	)
@@ -268,6 +279,8 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			is RetentionPolicyCandidateRead.Unavailable -> candidate
 		}
 	},
+	private val operationLease: RetentionAuthorityOperationLease =
+		RetentionAuthorityOperationLease(),
 ) : RetentionAuthorityProducer {
 	constructor(
 		database: AppDatabase,
@@ -275,6 +288,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		retentionConfigStore: RetentionConfigStore,
 		collectedDataLifecycleStore: CollectedDataLifecycleStore,
 		effectiveTimeProvider: SourcePolicyEffectiveTimeProvider,
+		operationLease: RetentionAuthorityOperationLease = RetentionAuthorityOperationLease(),
 	) : this(
 		database = database,
 		sourcePolicyRepository = sourcePolicyRepository,
@@ -285,14 +299,21 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		readPolicyCandidate = retentionConfigStore::currentPolicyCandidate,
 		markPolicyApproved = retentionConfigStore::markPolicyApproved,
 		readPendingPolicyCandidate = retentionConfigStore::pendingPolicyCandidate,
+		operationLease = operationLease,
 	)
 
 	private val mutex = Mutex()
 
+	private suspend fun <T> withSerializedOperation(
+		operation: suspend () -> T,
+	): T = operationLease.withOperation {
+		mutex.withLock { operation() }
+	}
+
 	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> =
-		mutex.withLock {
+		withSerializedOperation {
 			exactSourceEvidenceBootstrapFailure()?.let { reason ->
-				return@withLock unavailableReconciliationResults(reason)
+				return@withSerializedOperation unavailableReconciliationResults(reason)
 			}
 			(readPendingPolicyCandidate() as? RetentionPolicyCandidateRead.Available)?.let {
 				preparePendingConfigurationLocked(it.policy.configurationGeneration)
@@ -321,12 +342,13 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				expectedCollectedDataEpoch = lifecycle.epoch,
 				expectedRetainedFromMs = lifecycle.retainedFromMs,
 				updatedAtMs = updatedAtMs,
-				isLifecycleSnapshotCurrent = { readLifecycle() == lifecycle },
 			)
 		) {
 			is SourceEvidenceRetentionBootstrapResult.Ready -> null
-			SourceEvidenceRetentionBootstrapResult.LifecycleChanged ->
+			SourceEvidenceRetentionBootstrapResult.CollectedDataEpochChanged ->
 				RetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED
+			SourceEvidenceRetentionBootstrapResult.RetainedFromChanged ->
+				RetentionAuthorityUnavailableReason.RETAINED_FROM_CHANGED
 			SourceEvidenceRetentionBootstrapResult.ConflictingEvidence,
 			SourceEvidenceRetentionBootstrapResult.InvalidState,
 			-> RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH
@@ -348,8 +370,11 @@ class DefaultRetentionAuthorityProducer internal constructor(
 
 	override suspend fun preparePendingConfiguration(
 		expectedConfigurationGeneration: Long,
-	): RetentionConfigurationApprovalResult = mutex.withLock {
+	): RetentionConfigurationApprovalResult = withSerializedOperation {
 		try {
+			exactSourceEvidenceBootstrapFailure()?.let { reason ->
+				return@withSerializedOperation RetentionConfigurationApprovalResult.Unavailable(reason)
+			}
 			preparePendingConfigurationLocked(expectedConfigurationGeneration)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -362,8 +387,11 @@ class DefaultRetentionAuthorityProducer internal constructor(
 
 	override suspend fun reconcilePendingConfiguration(
 		expectedConfigurationGeneration: Long?,
-	): RetentionConfigurationApprovalResult = mutex.withLock {
+	): RetentionConfigurationApprovalResult = withSerializedOperation {
 		try {
+			exactSourceEvidenceBootstrapFailure()?.let { reason ->
+				return@withSerializedOperation RetentionConfigurationApprovalResult.Unavailable(reason)
+			}
 			reconcilePendingConfigurationLocked(expectedConfigurationGeneration)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -376,16 +404,22 @@ class DefaultRetentionAuthorityProducer internal constructor(
 
 	override suspend fun reconcileLiveAmbient(
 		source: TrackingSourceComponent,
-	): RetentionAuthorityResult = mutex.withLock {
+	): RetentionAuthorityResult = withSerializedOperation {
 		safely(source, RetentionAuthorityScope.LIVE_AMBIENT) {
+			exactSourceEvidenceBootstrapFailure()?.let { reason ->
+				return@safely unavailable(source, RetentionAuthorityScope.LIVE_AMBIENT, reason)
+			}
 			reconcileLiveAmbientLocked(source)
 		}
 	}
 
 	override suspend fun approvePortableImport(
 		source: TrackingSourceComponent,
-	): RetentionAuthorityResult = mutex.withLock {
+	): RetentionAuthorityResult = withSerializedOperation {
 		safely(source, RetentionAuthorityScope.PORTABLE_IMPORT) {
+			exactSourceEvidenceBootstrapFailure()?.let { reason ->
+				return@safely unavailable(source, RetentionAuthorityScope.PORTABLE_IMPORT, reason)
+			}
 			if (source !in PORTABLE_IMPORT_SOURCES) {
 				return@safely unavailable(
 					source,
@@ -412,8 +446,11 @@ class DefaultRetentionAuthorityProducer internal constructor(
 
 	override suspend fun revokePortableImport(
 		source: TrackingSourceComponent,
-	): RetentionAuthorityResult = mutex.withLock {
+	): RetentionAuthorityResult = withSerializedOperation {
 		safely(source, RetentionAuthorityScope.PORTABLE_IMPORT) {
+			exactSourceEvidenceBootstrapFailure()?.let { reason ->
+				return@safely unavailable(source, RetentionAuthorityScope.PORTABLE_IMPORT, reason)
+			}
 			revoke(source, RetentionAuthorityScope.PORTABLE_IMPORT, readLifecycle())
 		}
 	}
@@ -426,34 +463,46 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		expectedSourcePolicyRevision: Long,
 		expectedAmbientConsentEpoch: Long,
 		expectedCollectedDataEpoch: Long,
-	): CurrentRetentionAuthority = mutex.withLock {
+		expectedRetainedFromMs: Long?,
+	): CurrentRetentionAuthority = withSerializedOperation {
 		try {
+			exactSourceEvidenceBootstrapFailure()?.let { reason ->
+				return@withSerializedOperation CurrentRetentionAuthority.Unavailable(reason)
+			}
 			if (source !in DURABLE_LIVE_AMBIENT_SOURCES) {
-				return@withLock CurrentRetentionAuthority.Unavailable(
+				return@withSerializedOperation CurrentRetentionAuthority.Unavailable(
 					RetentionAuthorityUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
 				)
 			}
 			val approval = approvedPolicyOrNull()
-				?: return@withLock CurrentRetentionAuthority.Unavailable(
+				?: return@withSerializedOperation CurrentRetentionAuthority.Unavailable(
 					RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
 				)
 			val lifecycle = readLifecycle()
 			if (lifecycle.epoch != expectedCollectedDataEpoch) {
-				return@withLock CurrentRetentionAuthority.Unavailable(
+				return@withSerializedOperation CurrentRetentionAuthority.Unavailable(
 					RetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED,
 				)
 			}
-			if (
-				database.sourceEvidenceStateDao().get()?.collectedDataEpoch !=
-				expectedCollectedDataEpoch
-			) {
-				return@withLock CurrentRetentionAuthority.Unavailable(
+			if (lifecycle.retainedFromMs != expectedRetainedFromMs) {
+				return@withSerializedOperation CurrentRetentionAuthority.Unavailable(
+					RetentionAuthorityUnavailableReason.RETAINED_FROM_CHANGED,
+				)
+			}
+			val evidence = database.sourceEvidenceStateDao().get()
+			if (evidence?.collectedDataEpoch != expectedCollectedDataEpoch) {
+				return@withSerializedOperation CurrentRetentionAuthority.Unavailable(
 					RetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED,
+				)
+			}
+			if (evidence.retainedFromMs != expectedRetainedFromMs) {
+				return@withSerializedOperation CurrentRetentionAuthority.Unavailable(
+					RetentionAuthorityUnavailableReason.RETAINED_FROM_CHANGED,
 				)
 			}
 			val authority = sourcePolicyRepository.currentState()
 			val snapshot = (authority as? SourcePolicyAuthorityState.Active)?.snapshot
-				?: return@withLock CurrentRetentionAuthority.Unavailable(
+				?: return@withSerializedOperation CurrentRetentionAuthority.Unavailable(
 					RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE,
 				)
 			val policy = snapshot[source]
@@ -462,16 +511,16 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				policy.ambientConsentEpoch != expectedAmbientConsentEpoch ||
 				!policy.ambientPersistenceEligible
 			) {
-				return@withLock CurrentRetentionAuthority.Unavailable(
+				return@withSerializedOperation CurrentRetentionAuthority.Unavailable(
 					RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE,
 				)
 			}
 			val stored = storedAuthority(source, RetentionAuthorityScope.LIVE_AMBIENT)
-				?: return@withLock CurrentRetentionAuthority.Unavailable(
+				?: return@withSerializedOperation CurrentRetentionAuthority.Unavailable(
 					RetentionAuthorityUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE,
 				)
 			if (!stored.authentic) {
-				return@withLock CurrentRetentionAuthority.Unavailable(
+				return@withSerializedOperation CurrentRetentionAuthority.Unavailable(
 					RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH,
 				)
 			}
@@ -480,9 +529,10 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				stored.opaquePolicyId != approval.opaquePolicyId ||
 				stored.sourcePolicyRevision != expectedSourcePolicyRevision ||
 				stored.ambientConsentEpoch != expectedAmbientConsentEpoch ||
-				stored.collectedDataEpoch != expectedCollectedDataEpoch
+				stored.collectedDataEpoch != expectedCollectedDataEpoch ||
+				stored.retainedFromMs != expectedRetainedFromMs
 			) {
-				return@withLock CurrentRetentionAuthority.Unavailable(
+				return@withSerializedOperation CurrentRetentionAuthority.Unavailable(
 					RetentionAuthorityUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE,
 				)
 			}
@@ -492,7 +542,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				stored.effectiveElapsedRealtimeNanos > now.elapsedRealtimeNanos ||
 				stored.effectiveWallTimeMs > now.wallTimeMs
 			) {
-				return@withLock CurrentRetentionAuthority.Unavailable(
+				return@withSerializedOperation CurrentRetentionAuthority.Unavailable(
 					RetentionAuthorityUnavailableReason.EFFECTIVE_TIME_INVALID,
 				)
 			}
@@ -502,6 +552,8 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				stored.effectiveBootId,
 				stored.effectiveElapsedRealtimeNanos,
 				stored.effectiveWallTimeMs,
+				stored.collectedDataEpoch,
+				stored.retainedFromMs,
 			)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -689,7 +741,8 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		if (
 			approval == null ||
 			current.opaquePolicyId != approval.opaquePolicyId ||
-			current.collectedDataEpoch != lifecycle.epoch
+			current.collectedDataEpoch != lifecycle.epoch ||
+			current.retainedFromMs != lifecycle.retainedFromMs
 		) {
 			revoke(source, scope, lifecycle)
 			return unavailable(
@@ -731,7 +784,8 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			current.opaquePolicyId == approval.opaquePolicyId &&
 			current.sourcePolicyRevision == sourcePolicyRevision &&
 			current.ambientConsentEpoch == ambientConsentEpoch &&
-			current.collectedDataEpoch == lifecycle.epoch
+			current.collectedDataEpoch == lifecycle.epoch &&
+			current.retainedFromMs == lifecycle.retainedFromMs
 		) {
 			val now = effectiveTimeProvider.now()
 			if (
@@ -758,6 +812,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			scope,
 			approval.opaquePolicyId,
 			lifecycle.epoch,
+			lifecycle.retainedFromMs,
 			sourcePolicyRevision,
 			ambientConsentEpoch,
 			current?.approvalRevision,
@@ -798,7 +853,14 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			scope,
 			RetentionAuthorityUnavailableReason.EFFECTIVE_TIME_INVALID,
 		)
-		return applyRevoke(source, scope, lifecycle.epoch, current.approvalRevision, time)
+		return applyRevoke(
+			source,
+			scope,
+			lifecycle.epoch,
+			lifecycle.retainedFromMs,
+			current.approvalRevision,
+			time,
+		)
 	}
 
 	private fun nextEffectiveTime(
@@ -828,6 +890,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		scope: RetentionAuthorityScope,
 		opaquePolicyId: String,
 		collectedDataEpoch: Long,
+		retainedFromMs: Long?,
 		sourcePolicyRevision: Long?,
 		ambientConsentEpoch: Long?,
 		expectedPreviousApprovalRevision: Long?,
@@ -844,6 +907,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 					time.elapsedRealtimeNanos,
 					time.wallTimeMs,
 					expectedPreviousApprovalRevision,
+					retainedFromMs,
 				)
 			} else {
 				AmbientStepsRetentionDecision.GrantPortableImport(
@@ -853,6 +917,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 					time.elapsedRealtimeNanos,
 					time.wallTimeMs,
 					expectedPreviousApprovalRevision,
+					retainedFromMs,
 				)
 			},
 		).toResult(source, scope, RetentionAuthorityState.ACTIVE)
@@ -867,6 +932,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 					time.elapsedRealtimeNanos,
 					time.wallTimeMs,
 					expectedPreviousApprovalRevision,
+					retainedFromMs,
 				)
 			} else {
 				AmbientRadioRetentionDecision.GrantPortableImport(
@@ -876,6 +942,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 					time.elapsedRealtimeNanos,
 					time.wallTimeMs,
 					expectedPreviousApprovalRevision,
+					retainedFromMs,
 				)
 			},
 		).toResult(source, scope, RetentionAuthorityState.ACTIVE)
@@ -890,6 +957,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 					time.elapsedRealtimeNanos,
 					time.wallTimeMs,
 					expectedPreviousApprovalRevision,
+					retainedFromMs,
 				)
 			} else {
 				AmbientRadioRetentionDecision.GrantPortableImport(
@@ -899,6 +967,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 					time.elapsedRealtimeNanos,
 					time.wallTimeMs,
 					expectedPreviousApprovalRevision,
+					retainedFromMs,
 				)
 			},
 		).toResult(source, scope, RetentionAuthorityState.ACTIVE)
@@ -913,6 +982,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		source: TrackingSourceComponent,
 		scope: RetentionAuthorityScope,
 		collectedDataEpoch: Long,
+		retainedFromMs: Long?,
 		expectedPreviousApprovalRevision: Long,
 		time: SourcePolicyEffectiveTime,
 	): RetentionAuthorityResult = when (source) {
@@ -924,6 +994,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				time.elapsedRealtimeNanos,
 				time.wallTimeMs,
 				expectedPreviousApprovalRevision,
+				retainedFromMs,
 			),
 		).toResult(source, scope, RetentionAuthorityState.REVOKED)
 		TrackingSourceComponent.WIFI -> database.applyAmbientWifiRetentionDecision(
@@ -934,6 +1005,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				time.elapsedRealtimeNanos,
 				time.wallTimeMs,
 				expectedPreviousApprovalRevision,
+				retainedFromMs,
 			),
 		).toResult(source, scope, RetentionAuthorityState.REVOKED)
 		TrackingSourceComponent.CELL -> database.applyAmbientCellRetentionDecision(
@@ -944,6 +1016,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				time.elapsedRealtimeNanos,
 				time.wallTimeMs,
 				expectedPreviousApprovalRevision,
+				retainedFromMs,
 			),
 		).toResult(source, scope, RetentionAuthorityState.REVOKED)
 		else -> unavailable(
@@ -966,6 +1039,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 					it.sourcePolicyRevision,
 					it.ambientConsentEpoch,
 					it.collectedDataEpoch,
+					it.retainedFromMs,
 					it.effectiveBootId,
 					it.effectiveElapsedRealtimeNanos,
 					it.effectiveWallTimeMs,
@@ -981,6 +1055,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 					it.sourcePolicyRevision,
 					it.ambientConsentEpoch,
 					it.collectedDataEpoch,
+					it.retainedFromMs,
 					it.effectiveBootId,
 					it.effectiveElapsedRealtimeNanos,
 					it.effectiveWallTimeMs,
@@ -996,6 +1071,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 					it.sourcePolicyRevision,
 					it.ambientConsentEpoch,
 					it.collectedDataEpoch,
+					it.retainedFromMs,
 					it.effectiveBootId,
 					it.effectiveElapsedRealtimeNanos,
 					it.effectiveWallTimeMs,
@@ -1027,6 +1103,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		val sourcePolicyRevision: Long?,
 		val ambientConsentEpoch: Long?,
 		val collectedDataEpoch: Long,
+		val retainedFromMs: Long?,
 		val effectiveBootId: String,
 		val effectiveElapsedRealtimeNanos: Long,
 		val effectiveWallTimeMs: Long,
@@ -1075,6 +1152,8 @@ private fun AmbientStepsRetentionAuthorityUnavailableReason.toPublicReason():
 	RetentionAuthorityUnavailableReason = when (this) {
 	AmbientStepsRetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED ->
 		RetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED
+	AmbientStepsRetentionAuthorityUnavailableReason.RETAINED_FROM_CHANGED ->
+		RetentionAuthorityUnavailableReason.RETAINED_FROM_CHANGED
 	AmbientStepsRetentionAuthorityUnavailableReason.LIVE_POLICY_AUTHORITY_MISMATCH ->
 		RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE
 	AmbientStepsRetentionAuthorityUnavailableReason.NO_EXISTING_AUTHORITY ->
@@ -1093,6 +1172,8 @@ private fun AmbientRadioRetentionAuthorityUnavailableReason.toPublicReason():
 	RetentionAuthorityUnavailableReason = when (this) {
 	AmbientRadioRetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED ->
 		RetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED
+	AmbientRadioRetentionAuthorityUnavailableReason.RETAINED_FROM_CHANGED ->
+		RetentionAuthorityUnavailableReason.RETAINED_FROM_CHANGED
 	AmbientRadioRetentionAuthorityUnavailableReason.LIVE_POLICY_AUTHORITY_MISMATCH ->
 		RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE
 	AmbientRadioRetentionAuthorityUnavailableReason.NO_EXISTING_AUTHORITY ->

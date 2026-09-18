@@ -2,11 +2,15 @@ package com.adsamcik.tracker.shared.preferences.lifecycle
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityOperationLease
+import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.shouldBe
 import io.kotest.assertions.throwables.shouldThrow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
@@ -78,6 +82,29 @@ class CollectedDataLifecycleStoreTest {
 			)
 		}
 	}
+
+	@Test
+	fun `lifecycle transitions wait for the shared retention authority operation lease`() =
+		runTest {
+			val lease = RetentionAuthorityOperationLease()
+			val leasedStore = DefaultCollectedDataLifecycleStore(context, lease)
+			val leaseEntered = CompletableDeferred<Unit>()
+			val releaseLease = CompletableDeferred<Unit>()
+			val authorityOperation = async {
+				lease.withOperation {
+					leaseEntered.complete(Unit)
+					releaseLease.await()
+				}
+			}
+			leaseEntered.await()
+			val transition = async { leasedStore.advanceRetainedFrom(200L) }
+			runCurrent()
+
+			transition.isCompleted.shouldBeFalse()
+			releaseLease.complete(Unit)
+			authorityOperation.await()
+			transition.await() shouldBe CollectedDataLifecycleSnapshot(0L, 200L)
+		}
 
 	@Test
 	fun `concurrent full deletion transitions do not lose epoch increments`() = runTest {

@@ -476,7 +476,8 @@ internal class AmbientStepsFactImporter internal constructor(
 				retention.isActive &&
 					retention.sourcePolicyRevision == predecessorPolicyRevision &&
 					retention.ambientConsentEpoch == predecessorConsentEpoch &&
-					retention.collectedDataEpoch == lifecycle.epoch
+					retention.collectedDataEpoch == lifecycle.epoch &&
+					retention.retainedFromMs == lifecycle.retainedFromMs
 			}
 			?: return handoffIneligible(
 				AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
@@ -1179,6 +1180,7 @@ internal class AmbientStepsFactImporter internal constructor(
 			retention.sourcePolicyRevision != policy.policyRevision ||
 			retention.ambientConsentEpoch != consent.epoch ||
 			retention.collectedDataEpoch != lifecycle.epoch ||
+			retention.retainedFromMs != lifecycle.retainedFromMs ||
 			retention.effectiveBootId != boundary.observedBootId ||
 			retention.effectiveElapsedRealtimeNanos > boundary.observedElapsedRealtimeNanos ||
 			retention.effectiveWallTimeMs > boundary.observedAtMs

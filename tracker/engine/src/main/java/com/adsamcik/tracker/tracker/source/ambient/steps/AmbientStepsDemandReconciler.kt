@@ -59,11 +59,13 @@ class AmbientStepsDemandReconciler internal constructor(
 		sourcePolicyRepository,
 		trackingRolloutStateStore,
 		{ policyRevision, consentEpoch ->
+			val lifecycle = collectedDataLifecycleStore.snapshot()
 			retentionAuthorityProducer.currentLiveAmbient(
 				source = TrackingSourceComponent.STEPS,
 				expectedSourcePolicyRevision = policyRevision,
 				expectedAmbientConsentEpoch = consentEpoch,
-				expectedCollectedDataEpoch = collectedDataLifecycleStore.snapshot().epoch,
+				expectedCollectedDataEpoch = lifecycle.epoch,
+				expectedRetainedFromMs = lifecycle.retainedFromMs,
 			)
 		},
 	)

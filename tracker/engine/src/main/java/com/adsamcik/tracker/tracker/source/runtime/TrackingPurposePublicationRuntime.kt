@@ -124,6 +124,7 @@ internal class CurrentTrackingPurposeAuthorityReader @Inject constructor(
 				expectedSourcePolicyRevision = policySnapshot.revision,
 				expectedAmbientConsentEpoch = consentEpoch,
 				expectedCollectedDataEpoch = lifecycle.epoch,
+				expectedRetainedFromMs = lifecycle.retainedFromMs,
 			) !is CurrentRetentionAuthority.Approved
 		) {
 			return null

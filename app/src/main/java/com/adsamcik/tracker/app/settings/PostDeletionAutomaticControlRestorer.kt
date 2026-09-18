@@ -14,6 +14,9 @@ import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationCoordinator
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationResult
+import com.adsamcik.tracker.shared.preferences.tracking.UnavailableSourcePolicyRevisionReconciliationCoordinator
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryResult
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import dagger.assisted.Assisted
@@ -98,11 +101,26 @@ class PostDeletionRecoveryWorker @AssistedInject constructor(
 	private val writerQuiescer: CollectedDataWriterQuiescer,
 	private val activityRegistrationArbiterProvider: Provider<ActivityRegistrationArbiter>,
 	private val automaticControlRestorer: PostDeletionAutomaticControlRestorer,
+	private val sourcePolicyRevisionReconciliationCoordinator:
+		SourcePolicyRevisionReconciliationCoordinator =
+		UnavailableSourcePolicyRevisionReconciliationCoordinator,
 ) : CoroutineWorker(appContext, params) {
 	override suspend fun doWork(): Result {
 		val expectedEpoch = inputData.getLong(COLLECTED_DATA_EPOCH_KEY, MISSING_EPOCH)
 		if (expectedEpoch < 0L) return Result.failure()
 		val startupGeneration = startupGate.currentGeneration
+		val reconcilePolicyGeneration:
+			(suspend (Long) -> SourcePolicyRevisionReconciliationResult)? =
+			if (sourcePolicyRevisionReconciliationCoordinator ===
+				UnavailableSourcePolicyRevisionReconciliationCoordinator
+			) {
+				null
+			} else {
+				{ generation ->
+					sourcePolicyRevisionReconciliationCoordinator
+						.reconcileCurrentPolicyRevisionWithinReadyOperation(generation)
+				}
+			}
 		val outcome = try {
 			runPostDeletionRecovery(
 				expectedEpoch = expectedEpoch,
@@ -115,6 +133,7 @@ class PostDeletionRecoveryWorker @AssistedInject constructor(
 				withReadyGenerationOperation = { generation, operation ->
 					startupGate.withReadyGenerationOperation(generation, operation)
 				},
+				reconcileSourcePolicyGeneration = reconcilePolicyGeneration,
 				resumeWriters = writerQuiescer::resume,
 				resumeActivityArbiter = {
 					activityRegistrationArbiterProvider.get()
@@ -194,6 +213,9 @@ internal suspend fun runPostDeletionRecovery(
 		suspend () -> AutomaticControlRecoveryResult?,
 	) -> AutomaticControlRecoveryResult? =
 		{ _, operation -> operation() },
+	reconcileSourcePolicyGeneration: (suspend (
+		Long,
+	) -> SourcePolicyRevisionReconciliationResult)? = null,
 	resumeWriters: () -> Unit,
 	resumeActivityArbiter: suspend () -> Unit,
 	reconcileAutomaticControl: suspend () -> AutomaticControlRecoveryResult,
@@ -228,6 +250,12 @@ internal suspend fun runPostDeletionRecovery(
 			) {
 				null
 			} else {
+				val policyGeneration = reconcileSourcePolicyGeneration?.invoke(startupGeneration)
+				if (policyGeneration != null &&
+					policyGeneration !is SourcePolicyRevisionReconciliationResult.Complete
+				) {
+					throw PostDeletionSourcePolicyGenerationDebt
+				}
 				resumeWriters()
 				// This reopens process-local deletion latches used by captured Activity as well as
 				// optional automatic control. Failure therefore retains durable retry ownership.
@@ -243,6 +271,8 @@ internal suspend fun runPostDeletionRecovery(
 		}
 	} catch (cancelled: CancellationException) {
 		throw cancelled
+	} catch (_: PostDeletionSourcePolicyGenerationDebt) {
+		return PostDeletionRecoveryOutcome.DURABLE_RETRY
 	} catch (_: Exception) {
 		return PostDeletionRecoveryOutcome.DURABLE_RETRY
 	} ?: return PostDeletionRecoveryOutcome.DURABLE_RETRY
@@ -265,6 +295,8 @@ internal suspend fun runPostDeletionRecovery(
 }
 
 private const val OPTIONAL_CONTROL_MAX_ATTEMPTS = 3
+
+private object PostDeletionSourcePolicyGenerationDebt : IllegalStateException()
 
 internal enum class BlockedPostDeletionRecoveryDisposition {
 	PENDING_READY,

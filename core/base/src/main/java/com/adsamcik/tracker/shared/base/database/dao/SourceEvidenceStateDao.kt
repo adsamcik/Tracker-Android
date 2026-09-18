@@ -26,6 +26,26 @@ interface SourceEvidenceStateDao {
 	@Query(
 		"""
 		UPDATE source_evidence_state
+		SET revision = revision + 1, updated_at_ms = :updatedAtMs
+		WHERE id = 1
+			AND revision = :expectedRevision
+			AND collected_data_epoch = :expectedCollectedDataEpoch
+			AND (
+				(retained_from_ms IS NULL AND :expectedRetainedFromMs IS NULL)
+				OR retained_from_ms = :expectedRetainedFromMs
+			)
+		""",
+	)
+	suspend fun incrementRevisionForExactLifecycle(
+		expectedRevision: Long,
+		expectedCollectedDataEpoch: Long,
+		expectedRetainedFromMs: Long?,
+		updatedAtMs: Long,
+	): Int
+
+	@Query(
+		"""
+		UPDATE source_evidence_state
 		SET collected_data_epoch = :epoch,
 			retained_from_ms = :retainedFromMs,
 			revision = revision + 1,
