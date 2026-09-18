@@ -170,6 +170,9 @@ interface RetentionAuthorityProducer :
 	RetentionAuthorityReader,
 	LocationPassiveRetentionAuthority {
 	suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult>
+	suspend fun reconcileCurrentSettings(
+		permit: RetentionAuthorityOperationPermit,
+	): List<RetentionAuthorityResult> = reconcileCurrentSettings()
 	suspend fun preparePendingConfiguration(
 		expectedConfigurationGeneration: Long,
 	): RetentionConfigurationApprovalResult
@@ -180,6 +183,15 @@ interface RetentionAuthorityProducer :
 	suspend fun approvePortableImport(source: TrackingSourceComponent): RetentionAuthorityResult
 	suspend fun revokePortableImport(source: TrackingSourceComponent): RetentionAuthorityResult
 }
+
+suspend fun RetentionAuthorityProducer.reconcileCurrentSettingsWithPermit(
+	permit: RetentionAuthorityOperationPermit,
+): List<RetentionAuthorityResult> =
+	if (this is DefaultRetentionAuthorityProducer) {
+		reconcileCurrentSettings(permit)
+	} else {
+		reconcileCurrentSettings()
+	}
 
 object UnavailableRetentionAuthorityProducer : RetentionAuthorityProducer {
 	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> = listOf(
@@ -312,26 +324,37 @@ class DefaultRetentionAuthorityProducer internal constructor(
 
 	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> =
 		withSerializedOperation {
-			exactSourceEvidenceBootstrapFailure()?.let { reason ->
-				return@withSerializedOperation unavailableReconciliationResults(reason)
-			}
-			(readPendingPolicyCandidate() as? RetentionPolicyCandidateRead.Available)?.let {
-				preparePendingConfigurationLocked(it.policy.configurationGeneration)
-			}
-			reconcilePendingConfigurationLocked()
-			val results = mutableListOf<RetentionAuthorityResult>()
-			for (source in LIVE_AMBIENT_SOURCES) {
-				results += safely(source, RetentionAuthorityScope.LIVE_AMBIENT) {
-					reconcileLiveAmbientLocked(source)
-				}
-			}
-			for (source in PORTABLE_IMPORT_SOURCES) {
-				results += safely(source, RetentionAuthorityScope.PORTABLE_IMPORT) {
-					reconcileExistingPortableImportLocked(source)
-				}
-			}
-			results
+			reconcileCurrentSettingsLocked()
 		}
+
+	override suspend fun reconcileCurrentSettings(
+		permit: RetentionAuthorityOperationPermit,
+	): List<RetentionAuthorityResult> {
+		operationLease.requireOwned(permit)
+		return mutex.withLock { reconcileCurrentSettingsLocked() }
+	}
+
+	private suspend fun reconcileCurrentSettingsLocked(): List<RetentionAuthorityResult> {
+		exactSourceEvidenceBootstrapFailure()?.let { reason ->
+			return unavailableReconciliationResults(reason)
+		}
+		(readPendingPolicyCandidate() as? RetentionPolicyCandidateRead.Available)?.let {
+			preparePendingConfigurationLocked(it.policy.configurationGeneration)
+		}
+		reconcilePendingConfigurationLocked()
+		val results = mutableListOf<RetentionAuthorityResult>()
+		for (source in LIVE_AMBIENT_SOURCES) {
+			results += safely(source, RetentionAuthorityScope.LIVE_AMBIENT) {
+				reconcileLiveAmbientLocked(source)
+			}
+		}
+		for (source in PORTABLE_IMPORT_SOURCES) {
+			results += safely(source, RetentionAuthorityScope.PORTABLE_IMPORT) {
+				reconcileExistingPortableImportLocked(source)
+			}
+		}
+		return results
+	}
 
 	private suspend fun exactSourceEvidenceBootstrapFailure():
 		RetentionAuthorityUnavailableReason? = try {

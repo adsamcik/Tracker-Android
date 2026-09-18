@@ -453,6 +453,67 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
+	fun `floor only reissue rotates the exact retention approval revision`() = runTest {
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+		val producer = producer()
+		assertIs<RetentionAuthorityResult.Applied>(
+			producer.reconcileLiveAmbient(TrackingSourceComponent.STEPS),
+		)
+		val initial = requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		)
+		lifecycle = lifecycle.copy(retainedFromMs = 1_000L)
+		database.sourceEvidenceStateDao().updateLifecycle(
+			lifecycle.epoch,
+			lifecycle.retainedFromMs,
+			100L,
+		)
+
+		assertIs<RetentionAuthorityResult.Applied>(
+			producer.reconcileLiveAmbient(TrackingSourceComponent.STEPS),
+		)
+		val reissued = requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		)
+
+		reissued.retainedFromMs shouldBe 1_000L
+		reissued.approvalRevision shouldBe initial.approvalRevision + 1L
+		reissued.opaquePolicyId shouldBe initial.opaquePolicyId
+	}
+
+	@Test
+	fun `held operation permit supports floor guard and exact authority reissue`() = runTest {
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+		val producer = producer()
+
+		val results = operationLease.withPermit { permit ->
+			lifecycle = lifecycle.copy(retainedFromMs = 2_000L)
+			database.sourceEvidenceStateDao().updateLifecycle(
+				lifecycle.epoch,
+				lifecycle.retainedFromMs,
+				200L,
+			)
+			producer.reconcileCurrentSettings(permit)
+		}
+
+		assertIs<RetentionAuthorityResult.Applied>(
+			results.single {
+				it.source == TrackingSourceComponent.STEPS &&
+					it.scope == RetentionAuthorityScope.LIVE_AMBIENT
+			},
+		)
+		database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+			AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+		)?.retainedFromMs shouldBe 2_000L
+	}
+
+	@Test
 	fun `unreadable lifecycle cannot initialize fresh source evidence`() = runTest {
 		removeSourceEvidenceState()
 		bootstrap(ambientSteps = true)

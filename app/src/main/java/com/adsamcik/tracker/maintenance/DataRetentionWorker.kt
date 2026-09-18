@@ -10,6 +10,8 @@ import androidx.room.withTransaction
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.app.maintenance.CellCapturedRetentionService
+import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlement
+import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementResult
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -24,7 +26,6 @@ import com.adsamcik.tracker.shared.base.database.pruneCapturedActivityFactsAffec
 import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.pruneImportedStepsSegmentsBefore
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
-import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
@@ -59,6 +60,7 @@ class DataRetentionWorker @AssistedInject constructor(
 	private val importedActivityRetentionProvider: Provider<RoomTruncateImportedActivityRetention>,
 	private val cellCapturedRetentionService: CellCapturedRetentionService,
 	private val wifiCapturedRetentionService: WifiCapturedRetentionService,
+	private val retentionFloorSettlement: RetentionFloorSettlement,
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result =
@@ -78,12 +80,12 @@ class DataRetentionWorker @AssistedInject constructor(
 		if (years == 0) {
 			return Result.success()
 		}
-		val startupGeneration = trackingStartupGate.currentGeneration
 		when (trackingStartupGate.reconcile()) {
 			is TrackingStartupResult.Ready -> Unit
 			is TrackingStartupResult.RetryableFailure -> return Result.retry()
 			is TrackingStartupResult.Blocked -> return Result.success()
 		}
+		val startupGeneration = trackingStartupGate.currentGeneration
 		val now = System.currentTimeMillis()
 		val cutoff = computeCutoffMillis(years, now)
         return try {
@@ -94,9 +96,21 @@ class DataRetentionWorker @AssistedInject constructor(
 			// migration snapshot.
 			requireReadyGeneration(startupGeneration)
 			authority.requireIdentity()
-			val lifecycle = collectedDataLifecycleStore.advanceRetainedFrom(cutoff)
-			requireReadyGeneration(startupGeneration)
-			authority.requireIdentity()
+			val lifecycle = when (val settlement = retentionFloorSettlement.settle(
+				database = appDatabase,
+				lifecycleStore = collectedDataLifecycleStore,
+				startupGate = trackingStartupGate,
+				expectedStartupGeneration = startupGeneration,
+				requestedRetainedFromMs = cutoff,
+				updatedAtMs = now,
+				verifyApprovedOperation = { authority.requireIdentity() },
+			)) {
+				is RetentionFloorSettlementResult.Settled -> settlement.lifecycle
+				RetentionFloorSettlementResult.StartupGenerationChanged ->
+					throw StartupGenerationChangedException
+				is RetentionFloorSettlementResult.Retryable ->
+					throw RetentionFloorSettlementDeferredException
+			}
 			migrationBackupRepository.deleteAll()
 			val rawRetentionResult = pruneRawData(
 				appDatabase,
@@ -168,6 +182,8 @@ class DataRetentionWorker @AssistedInject constructor(
 			Result.retry()
 		} catch (_: RadioRetentionDeferredException) {
 			Result.retry()
+		} catch (_: RetentionFloorSettlementDeferredException) {
+			Result.retry()
         } catch (error: Exception) {
             Tracebox.log.error(error, TrackerTraceboxTemplates.DATA_RETENTION_FAILED)
             Result.retry()
@@ -223,16 +239,6 @@ class DataRetentionWorker @AssistedInject constructor(
         	authority.requireIdentity()
         	try {
 				val sourceEvidenceStateDao = appDatabase.sourceEvidenceStateDao()
-				val lifecycleChanged = sourceEvidenceStateDao.synchronizeLifecycle(
-					epoch = lifecycle.epoch,
-					retainedFromMs = lifecycle.retainedFromMs,
-					updatedAtMs = updatedAtMs,
-				)
-				if (!lifecycleChanged) {
-					check(sourceEvidenceStateDao.incrementRevision(updatedAtMs) == 1) {
-						"Unable to advance source-evidence revision for raw-data retention"
-					}
-				}
 				val retainedFromMs = requireNotNull(lifecycle.retainedFromMs) {
 					"Raw retention must establish a durable retained-from floor"
 				}
@@ -417,4 +423,5 @@ class DataRetentionWorker @AssistedInject constructor(
 	private object StartupGenerationChangedException : RuntimeException()
 	private object ActivityRetentionDeferredException : RuntimeException()
 	private object RadioRetentionDeferredException : RuntimeException()
+	private object RetentionFloorSettlementDeferredException : RuntimeException()
 }

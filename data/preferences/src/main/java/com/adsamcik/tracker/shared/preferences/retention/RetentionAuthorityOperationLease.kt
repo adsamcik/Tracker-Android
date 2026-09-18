@@ -15,4 +15,20 @@ class RetentionAuthorityOperationLease {
 
 	suspend fun <T> withOperation(operation: suspend () -> T): T =
 		mutex.withLock { operation() }
+
+	suspend fun <T> withPermit(
+		operation: suspend (RetentionAuthorityOperationPermit) -> T,
+	): T = mutex.withLock {
+		operation(RetentionAuthorityOperationPermit(this))
+	}
+
+	internal fun requireOwned(permit: RetentionAuthorityOperationPermit) {
+		require(permit.owner === this) {
+			"Retention authority operation permit belongs to another lifecycle boundary"
+		}
+	}
 }
+
+class RetentionAuthorityOperationPermit internal constructor(
+	internal val owner: RetentionAuthorityOperationLease,
+)

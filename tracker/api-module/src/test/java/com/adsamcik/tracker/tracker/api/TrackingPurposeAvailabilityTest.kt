@@ -183,6 +183,19 @@ class TrackingPurposeAvailabilityTest {
 			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
 			automatic,
 		)
+
+		CurrentTrackingPurposeAvailability(
+			published,
+			mapOf(
+				automatic.sourcePurpose to automatic.toAuthorityVector().copy(
+					retainedFromMs = 123L,
+				),
+				ambient.sourcePurpose to ambient.toAuthorityVector(),
+			),
+		).automaticControl shouldBe AutomaticTrackingOperationalAvailability.Unavailable(
+			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+			automatic,
+		)
 	}
 
 	@Test
@@ -806,5 +819,6 @@ class TrackingPurposeAvailabilityTest {
 		collectedDataEpoch = collectedDataEpoch,
 		rolloutRevision = rolloutRevision,
 		executionRevision = executionRevision,
+		retainedFromMs = retainedFromMs,
 	)
 }

@@ -12,6 +12,10 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.SynchronousExecutor
 import com.adsamcik.tracker.app.maintenance.CellCapturedRetentionService
+import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementDebt
+import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementFailure
+import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlement
+import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementResult
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionBlockedReason
 import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
@@ -42,6 +46,14 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityOperationLease
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityState
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciler
+import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciliationResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -131,6 +143,7 @@ class DataRetentionWorkerTest {
 						Provider { importedActivityRetention },
 						cellCapturedRetentionService,
 						wifiCapturedRetentionService,
+						retentionFloorSettlement(),
 					)
                 }
             })
@@ -144,6 +157,34 @@ class DataRetentionWorkerTest {
 		coVerify(exactly = 0) { cellCapturedRetentionService.prune(any(), any(), any()) }
 		coVerify(exactly = 0) { wifiCapturedRetentionService.prune(any(), any(), any()) }
     }
+
+	@Test
+	fun `committed floor provider debt keeps durable worker retry ownership`() = runTest {
+		val settlement = mockk<RetentionFloorSettlement> {
+			coEvery {
+				settle(any(), any(), any(), any(), any(), any(), any())
+			} returns RetentionFloorSettlementResult.Retryable(
+				RetentionFloorSettlementDebt(
+					retainedFromMs = 3L,
+					failures = listOf(
+						RetentionFloorSettlementFailure.ResultSetInvalid(
+							TrackingSourceComponent.WIFI,
+						),
+					),
+				),
+			)
+		}
+
+		assertEquals(
+			ListenableWorker.Result.retry(),
+			worker(
+				store = enabledRetentionStore(),
+				database = mockDatabase,
+				retentionFloorSettlement = settlement,
+			).doWork(),
+		)
+		verify(exactly = 0) { migrationBackupRepository.deleteAll() }
+	}
 
 	@Test
 	fun `enabled retention preserves attributed segment through radio before segment and WAL pruning`() = runTest {
@@ -225,6 +266,7 @@ class DataRetentionWorkerTest {
 						Provider { importedActivityRetention },
 						cellRetention,
 						wifiRetention,
+						retentionFloorSettlement(),
 					)
 				})
 				.build() as DataRetentionWorker
@@ -647,6 +689,7 @@ class DataRetentionWorkerTest {
 		lane: StepsSessionFactProjectionLane = inactiveLane(),
 		cellRetention: CellCapturedRetentionService = cellCapturedRetentionService,
 		wifiRetention: WifiCapturedRetentionService = wifiCapturedRetentionService,
+		retentionFloorSettlement: RetentionFloorSettlement = retentionFloorSettlement(),
 	): DataRetentionWorker =
 		TestListenableWorkerBuilder<DataRetentionWorker>(context)
 			.setWorkerFactory(object : WorkerFactory() {
@@ -667,9 +710,37 @@ class DataRetentionWorkerTest {
 					Provider { importedActivityRetention },
 					cellRetention,
 					wifiRetention,
+					retentionFloorSettlement,
 				)
 			})
 			.build() as DataRetentionWorker
+
+	private fun retentionFloorSettlement(
+		producer: RetentionAuthorityProducer = successfulRetentionAuthorityProducer(),
+		reconciler: TrackingRetentionFloorReconciler =
+			TrackingRetentionFloorReconciler { _, floor, sources ->
+				TrackingRetentionFloorReconciliationResult.Complete(floor, sources)
+			},
+	): RetentionFloorSettlement = RetentionFloorSettlement(
+		RetentionAuthorityOperationLease(),
+		producer,
+		reconciler,
+	)
+
+	private fun successfulRetentionAuthorityProducer(): RetentionAuthorityProducer = mockk {
+		coEvery { reconcileCurrentSettings() } returns listOf(
+			TrackingSourceComponent.STEPS,
+			TrackingSourceComponent.WIFI,
+			TrackingSourceComponent.CELL,
+		).map { source ->
+			RetentionAuthorityResult.Unchanged(
+				source = source,
+				scope = RetentionAuthorityScope.LIVE_AMBIENT,
+				state = RetentionAuthorityState.ACTIVE,
+				approvalRevision = 1L,
+			)
+		}
+	}
 
 	private fun enabledRetentionStore(): RetentionConfigStore = retentionStore(
 		exactApprovedRetentionConfig(

@@ -797,6 +797,54 @@ class DefaultTrackingStartupGateTest {
 	}
 
 	@Test
+	fun `admitted provider start completes before close admission returns`() = runTest {
+		val operationAdmitted = CompletableDeferred<Unit>()
+		val allowProviderStart = CompletableDeferred<Unit>()
+		val events = mutableListOf<String>()
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(any(), any()) } just Runs
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		val generation = gate.currentGeneration
+
+		val provider = async {
+			gate.withReadyGenerationOperation(generation) {
+				operationAdmitted.complete(Unit)
+				allowProviderStart.await()
+				events += "PROVIDER_STARTED"
+			}
+		}
+		operationAdmitted.await()
+		val close = async {
+			deletionBarrier.closeAdmission()
+			events += "ADMISSION_CLOSED"
+		}
+		runCurrent()
+
+		close.isCompleted shouldBe false
+		allowProviderStart.complete(Unit)
+		provider.await() shouldBe Unit
+		close.await()
+		events shouldBe listOf("PROVIDER_STARTED", "ADMISSION_CLOSED")
+		deletionBarrier.reopen()
+	}
+
+	@Test
+	fun `nested ready generation operation reuses the held deletion boundary`() = runTest {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(any(), any()) } just Runs
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		val generation = gate.currentGeneration
+
+		gate.withReadyGenerationOperation(generation) {
+			gate.withReadyGenerationOperation(generation) { "nested" }
+		} shouldBe "nested"
+	}
+
+	@Test
 	fun `deletion barrier signals only completed deletion generations`() = runTest {
 		deletionBarrier.openGenerations.value shouldBe 0L
 

@@ -466,16 +466,48 @@ class AmbientRadioDemandGateTest {
 		)
 	}
 
+	@Test
+	fun `late ready from an older retained floor is rejected before publication`() {
+		val currentLease = lease(AmbientTrackingSource.WIFI, retainedFromMs = 200L)
+		val staleAuthority = authority(SourceKind.WIFI, retainedFromMs = 100L)
+		val evidence = AmbientRadioReconciliationEvidence.from(
+			authority = staleAuthority,
+			reconciliationAttempt = 1L,
+			demandId = "wifi-demand",
+			sourceInstanceId = SourceInstanceId("wifi-1"),
+			registrationGeneration = 8L,
+		)
+
+		assertEquals(
+			AmbientRadioReportPreparation.Rejected(
+				evidence,
+				AmbientRadioReportPreparationRejection.STALE_AUTHORITY,
+			),
+			prepareAmbientRadioReport(
+				currentLease,
+				evidence,
+				AmbientSourceOperationalAvailability(
+					source = AmbientTrackingSource.WIFI,
+					state = AmbientSourceOperationalState.READY,
+					mechanism = AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS,
+					operationalIdentity = currentLease.purposeLeaseIdentity,
+				),
+			),
+		)
+	}
+
 	private fun authority(
 		source: SourceKind,
 		authorityRevision: Long = 7L,
 		ownerCasToken: String = "owner-cas-1",
 		reconciliationAttempt: Long = 1L,
+		retainedFromMs: Long = 100L,
 	) = AmbientRadioReconciliationAuthority(
 		source = source,
 		policyRevision = 10L,
 		ambientConsentEpoch = 3L,
 		collectedDataEpoch = 2L,
+		retainedFromMs = retainedFromMs,
 		rolloutRevision = 4L,
 		executionGeneration = 1L,
 		authorityRevision = authorityRevision,
@@ -483,7 +515,10 @@ class AmbientRadioDemandGateTest {
 		reconciliationAttempt = reconciliationAttempt,
 	)
 
-	private fun lease(source: AmbientTrackingSource) = AmbientReconciliationLease(
+	private fun lease(
+		source: AmbientTrackingSource,
+		retainedFromMs: Long = 100L,
+	) = AmbientReconciliationLease(
 		AmbientReconciliationIdentity(
 			source = source,
 			policyRevision = 10L,
@@ -492,6 +527,7 @@ class AmbientRadioDemandGateTest {
 			rolloutRevision = 4L,
 			ownerCasToken = "owner-cas-1",
 			executionRevision = 1L,
+			retainedFromMs = retainedFromMs,
 		),
 	)
 

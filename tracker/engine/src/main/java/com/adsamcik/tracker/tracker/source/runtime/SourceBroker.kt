@@ -1009,6 +1009,7 @@ class SourceBroker @Inject constructor(
 			policyRevision = policyRevision,
 			ambientConsentEpoch = consentEpoch,
 			collectedDataEpoch = evidence?.collectedDataEpoch,
+			retainedFromMs = evidence?.retainedFromMs,
 			rolloutRevision = rollout.revision,
 			executionGeneration = sourceAuthority?.executionGeneration,
 			authorityRevision = sourceAuthority?.authorityRevision,
@@ -1080,6 +1081,7 @@ class SourceBroker @Inject constructor(
 			policyRevision = leaseIdentity.policyRevision,
 			ambientConsentEpoch = leaseIdentity.consentEpoch,
 			collectedDataEpoch = leaseIdentity.collectedDataEpoch,
+			retainedFromMs = leaseIdentity.retainedFromMs,
 			rolloutRevision = leaseIdentity.rolloutRevision,
 			executionGeneration = revokedAuthority.executionGeneration,
 			authorityRevision = revokedAuthority.authorityRevision,
@@ -1149,6 +1151,7 @@ class SourceBroker @Inject constructor(
 			consent.epoch != leaseIdentity.consentEpoch ||
 			consent.policyRevision != leaseIdentity.policyRevision ||
 			evidence?.collectedDataEpoch != leaseIdentity.collectedDataEpoch ||
+			evidence?.retainedFromMs != leaseIdentity.retainedFromMs ||
 			rollout.revision != leaseIdentity.rolloutRevision
 		) {
 			return AmbientRadioDemandResult.Inactive(
@@ -1196,6 +1199,7 @@ class SourceBroker @Inject constructor(
 			policyRevision = leaseIdentity.policyRevision,
 			ambientConsentEpoch = leaseIdentity.consentEpoch,
 			collectedDataEpoch = leaseIdentity.collectedDataEpoch,
+			retainedFromMs = leaseIdentity.retainedFromMs,
 			rolloutRevision = rollout.revision,
 			executionGeneration = executionAuthority?.executionGeneration,
 			authorityRevision = executionAuthority?.authorityRevision,
@@ -1263,7 +1267,8 @@ class SourceBroker @Inject constructor(
 			approval.sourcePolicyRevision != leaseIdentity.policyRevision ||
 			approval.ambientConsentEpoch != leaseIdentity.consentEpoch ||
 			approval.collectedDataEpoch != leaseIdentity.collectedDataEpoch ||
-			approval.retainedFromMs != requireNotNull(evidence).retainedFromMs
+			approval.retainedFromMs != requireNotNull(evidence).retainedFromMs ||
+			approval.retainedFromMs != leaseIdentity.retainedFromMs
 		) return revoke(AmbientRadioDemandInactiveReason.RETENTION_APPROVAL_MISMATCH)
 		if (!rollout.isCaptureReachable(
 				source,
@@ -1327,6 +1332,7 @@ class SourceBroker @Inject constructor(
 					policyRevision = policy.policyRevision,
 					ambientConsentEpoch = consentEpoch,
 					collectedDataEpoch = leaseIdentity.collectedDataEpoch,
+					retainedFromMs = leaseIdentity.retainedFromMs,
 					rolloutRevision = rollout.revision,
 					executionGeneration = effectiveAuthority.executionGeneration,
 					authorityRevision = effectiveAuthority.authorityRevision,
@@ -1417,6 +1423,7 @@ class SourceBroker @Inject constructor(
 				policyRevision = policy.policyRevision,
 				ambientConsentEpoch = consentEpoch,
 				collectedDataEpoch = leaseIdentity.collectedDataEpoch,
+				retainedFromMs = leaseIdentity.retainedFromMs,
 				rolloutRevision = rollout.revision,
 				executionGeneration = when (source) {
 					SourceKind.WIFI -> AmbientWifiAuthorityEntity.FIRST_WRITER_OWNER_GENERATION
@@ -1667,6 +1674,7 @@ data class AmbientRadioReconciliationAuthority(
 	val policyRevision: Long?,
 	val ambientConsentEpoch: Long?,
 	val collectedDataEpoch: Long?,
+	val retainedFromMs: Long? = null,
 	val rolloutRevision: Long,
 	val executionGeneration: Long?,
 	val authorityRevision: Long?,
@@ -1678,6 +1686,7 @@ data class AmbientRadioReconciliationAuthority(
 		require(policyRevision == null || policyRevision > 0L)
 		require(ambientConsentEpoch == null || ambientConsentEpoch >= 0L)
 		require(collectedDataEpoch == null || collectedDataEpoch >= 0L)
+		require(retainedFromMs == null || retainedFromMs >= 0L)
 		require(rolloutRevision >= 0L)
 		require(executionGeneration == null || executionGeneration > 0L)
 		require(authorityRevision == null || authorityRevision > 0L)

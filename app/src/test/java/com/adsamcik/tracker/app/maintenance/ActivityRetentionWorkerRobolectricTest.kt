@@ -59,6 +59,14 @@ import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionC
 import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionOperationResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityOperationLease
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityState
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciler
+import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciliationResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -350,6 +358,7 @@ class ActivityRetentionWorkerRobolectricTest {
 						coEvery { prune(any(), any(), any()) } returns
 							com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionResult.NoChange
 					},
+					retentionFloorSettlement(),
 				) else RetentionPipelineWorker(
 					appContext, parameters, store, lifecycle, Provider { db }, mockk(relaxed = true),
 					READY_GATE, Provider { lane }, Provider { imported },
@@ -361,14 +370,38 @@ class ActivityRetentionWorkerRobolectricTest {
 						coEvery { prune(any(), any(), any()) } returns
 							com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionResult.NoChange
 					},
+					retentionFloorSettlement(),
 				)
 		}
+
 		return if (path == WorkerPath.LEGACY) {
 			TestListenableWorkerBuilder<DataRetentionWorker>(context()).setWorkerFactory(factory).build() as DataRetentionWorker
 		} else {
 			TestListenableWorkerBuilder<RetentionPipelineWorker>(context()).setWorkerFactory(factory).build() as RetentionPipelineWorker
 		}
 	}
+
+	private fun retentionFloorSettlement(): RetentionFloorSettlement =
+		RetentionFloorSettlement(
+			RetentionAuthorityOperationLease(),
+			mockk<RetentionAuthorityProducer> {
+				coEvery { reconcileCurrentSettings() } returns listOf(
+					TrackingSourceComponent.STEPS,
+					TrackingSourceComponent.WIFI,
+					TrackingSourceComponent.CELL,
+				).map { source ->
+					RetentionAuthorityResult.Unchanged(
+						source = source,
+						scope = RetentionAuthorityScope.LIVE_AMBIENT,
+						state = RetentionAuthorityState.ACTIVE,
+						approvalRevision = 1L,
+					)
+				}
+			},
+			TrackingRetentionFloorReconciler { _, floor, sources ->
+				TrackingRetentionFloorReconciliationResult.Complete(floor, sources)
+			},
+		)
 
 	private fun mockStorage(canonical: Boolean): MockStorage {
 		val db = mockk<AppDatabase>(relaxed = true)

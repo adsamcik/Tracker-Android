@@ -59,6 +59,15 @@ import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionC
 import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionOperationResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityOperationLease
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityState
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciler
+import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciliationResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
@@ -1014,6 +1023,7 @@ class RetentionPipelineWorkerRobolectricTest {
 
 		cellCapturedRetentionService: CellCapturedRetentionService = cellRetentionService(),
 		wifiCapturedRetentionService: WifiCapturedRetentionService = wifiRetentionService(),
+		retentionFloorSettlement: RetentionFloorSettlement = retentionFloorSettlement(),
 	): RetentionPipelineWorker =
 		TestListenableWorkerBuilder<RetentionPipelineWorker>(context)
 			.setWorkerFactory(object : WorkerFactory() {
@@ -1034,9 +1044,37 @@ class RetentionPipelineWorkerRobolectricTest {
 
 					cellCapturedRetentionService,
 					wifiCapturedRetentionService,
+					retentionFloorSettlement,
 				)
 			})
 			.build() as RetentionPipelineWorker
+
+	private fun retentionFloorSettlement(
+		producer: RetentionAuthorityProducer = successfulRetentionAuthorityProducer(),
+		reconciler: TrackingRetentionFloorReconciler =
+			TrackingRetentionFloorReconciler { _, floor, sources ->
+				TrackingRetentionFloorReconciliationResult.Complete(floor, sources)
+			},
+	): RetentionFloorSettlement = RetentionFloorSettlement(
+		RetentionAuthorityOperationLease(),
+		producer,
+		reconciler,
+	)
+
+	private fun successfulRetentionAuthorityProducer(): RetentionAuthorityProducer = mockk {
+		coEvery { reconcileCurrentSettings() } returns listOf(
+			TrackingSourceComponent.STEPS,
+			TrackingSourceComponent.WIFI,
+			TrackingSourceComponent.CELL,
+		).map { source ->
+			RetentionAuthorityResult.Unchanged(
+				source = source,
+				scope = RetentionAuthorityScope.LIVE_AMBIENT,
+				state = RetentionAuthorityState.ACTIVE,
+				approvalRevision = 1L,
+			)
+		}
+	}
 
 	private fun retentionStore(state: RetentionConfigState): RetentionConfigStore =
 		retentionStore(

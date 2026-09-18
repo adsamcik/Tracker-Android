@@ -6,6 +6,7 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReporter
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSourceOwnerRegistrar
+import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciler
 import com.adsamcik.tracker.tracker.source.runtime.CurrentTrackingPurposeAuthorityReader
 import com.adsamcik.tracker.tracker.source.runtime.CurrentTrackingPurposeAvailabilityProjection
 import com.adsamcik.tracker.tracker.source.runtime.DefaultTrackingPurposePublicationRuntime
@@ -31,6 +32,11 @@ internal abstract class TrackingPurposePublicationModule {
 	internal abstract fun bindSettingsReconciler(
 		impl: DefaultTrackingPurposePublicationRuntime,
 	): TrackingPurposeSettingsReconciler
+
+	@Binds
+	internal abstract fun bindRetentionFloorReconciler(
+		impl: DefaultTrackingPurposePublicationRuntime,
+	): TrackingRetentionFloorReconciler
 
 	@Binds
 	internal abstract fun bindSourceOwnerRegistrar(

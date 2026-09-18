@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityOperationLease
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityOperationPermit
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -74,7 +75,27 @@ interface CollectedDataLifecycleStore {
 	 * so loosening a retention preference cannot resurrect delayed old signals.
 	 */
 	suspend fun advanceRetainedFrom(retainedFromMs: Long): CollectedDataLifecycleSnapshot
+
+	/**
+	 * Advances the retention floor while the caller holds the shared retention authority permit.
+	 * The permit lets a worker commit the matching Room guard and reissue authority before another
+	 * lifecycle transition can observe an intermediate state.
+	 */
+	suspend fun advanceRetainedFrom(
+		retainedFromMs: Long,
+		permit: RetentionAuthorityOperationPermit,
+	): CollectedDataLifecycleSnapshot = advanceRetainedFrom(retainedFromMs)
 }
+
+suspend fun CollectedDataLifecycleStore.advanceRetainedFromWithPermit(
+	retainedFromMs: Long,
+	permit: RetentionAuthorityOperationPermit,
+): CollectedDataLifecycleSnapshot =
+	if (this is DefaultCollectedDataLifecycleStore) {
+		advanceRetainedFrom(retainedFromMs, permit)
+	} else {
+		advanceRetainedFrom(retainedFromMs)
+	}
 
 private val Context.collectedDataLifecycleDataStore: DataStore<Preferences> by preferencesDataStore(
 	name = "collected_data_lifecycle",
@@ -153,14 +174,26 @@ class DefaultCollectedDataLifecycleStore(
 		retainedFromMs: Long,
 	): CollectedDataLifecycleSnapshot =
 		retentionAuthorityOperationLease.withOperation {
-			updateUnlocked { current ->
-				current.copy(
-					retainedFromMs = current.retainedFromMs
-						?.let { maxOf(it, retainedFromMs) }
-						?: retainedFromMs,
-				)
-			}
+			advanceRetainedFromUnlocked(retainedFromMs)
 		}
+
+	override suspend fun advanceRetainedFrom(
+		retainedFromMs: Long,
+		permit: RetentionAuthorityOperationPermit,
+	): CollectedDataLifecycleSnapshot {
+		retentionAuthorityOperationLease.requireOwned(permit)
+		return advanceRetainedFromUnlocked(retainedFromMs)
+	}
+
+	private suspend fun advanceRetainedFromUnlocked(
+		retainedFromMs: Long,
+	): CollectedDataLifecycleSnapshot = updateUnlocked { current ->
+		current.copy(
+			retainedFromMs = current.retainedFromMs
+				?.let { maxOf(it, retainedFromMs) }
+				?: retainedFromMs,
+		)
+	}
 
 	private suspend fun updateUnlocked(
 		transform: (CollectedDataLifecycleSnapshot) -> CollectedDataLifecycleSnapshot,
