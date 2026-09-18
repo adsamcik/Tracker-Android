@@ -53,8 +53,10 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionOperation
 import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionPolicy
 import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigRead
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionOperationResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
@@ -83,6 +85,32 @@ import kotlin.coroutines.EmptyCoroutineContext
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ActivityRetentionWorkerRobolectricTest {
+	@Test
+	fun `both workers execute through the exact approved operation callback`() = runTest {
+		for (path in WorkerPath.entries) {
+			val db = AppDatabase.testDatabase(context())
+			try {
+				var admittedOperations = 0
+				val imported = RoomTruncateImportedActivityRetention(
+					db,
+					StandardTestDispatcher(testScheduler),
+				)
+
+				assertEquals(
+					ListenableWorker.Result.success(),
+					worker(path, db, imported) { admission ->
+						admission.requireIdentity()
+						admittedOperations += 1
+					}.doWork(),
+				)
+
+				assertEquals(1, admittedOperations)
+			} finally {
+				db.close()
+			}
+		}
+	}
+
 	@Test
 	fun `zero imported candidates and an empty legacy owner do not require Activity activation`() = runTest {
 		for (path in WorkerPath.entries) {
@@ -260,30 +288,48 @@ class ActivityRetentionWorkerRobolectricTest {
 		}
 	}
 
-	private fun worker(path: WorkerPath, db: AppDatabase, imported: RoomTruncateImportedActivityRetention): CoroutineWorker {
-		val store = mockk<RetentionConfigStore> {
-			coEvery { currentExactApprovedConfig() } returns
-				ExactApprovedRetentionConfigRead.Approved(
-					configuration = if (path == WorkerPath.LEGACY) {
-						RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1)
-					} else {
-						RetentionConfigState(
-							autoPurgeEnabled = true,
-							rawDataRetentionDays = 1,
-							wifiCellRetentionDays = 0,
-							tripRetentionDays = 0,
-							dailySummaryRetentionDays = 0,
-							explorationRetentionDays = 0,
-						)
-					},
-					policy = ApprovedRetentionPolicy(
-						configurationGeneration = 1L,
-						revision = 1L,
-						opaquePolicyId = "activity-retention-worker-test",
-						configurationChecksum = "e".repeat(64),
-						integrityChecksum = "f".repeat(64),
-					),
+	private fun worker(
+		path: WorkerPath,
+		db: AppDatabase,
+		imported: RoomTruncateImportedActivityRetention,
+		onApprovedOperation: (ApprovedRetentionOperation) -> Unit = {},
+	): CoroutineWorker {
+		val authority = ExactApprovedRetentionConfigRead.Approved(
+			configuration = if (path == WorkerPath.LEGACY) {
+				RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1)
+			} else {
+				RetentionConfigState(
+					autoPurgeEnabled = true,
+					rawDataRetentionDays = 1,
+					wifiCellRetentionDays = 0,
+					tripRetentionDays = 0,
+					dailySummaryRetentionDays = 0,
+					explorationRetentionDays = 0,
 				)
+			},
+			policy = ApprovedRetentionPolicy(
+				configurationGeneration = 1L,
+				revision = 1L,
+				opaquePolicyId = "activity-retention-worker-test",
+				configurationChecksum = "e".repeat(64),
+				integrityChecksum = "f".repeat(64),
+			),
+		)
+		val store = mockk<RetentionConfigStore> {
+			coEvery {
+				withExactApprovedOperation<ListenableWorker.Result>(any())
+			} coAnswers {
+				val admission = ApprovedRetentionOperation(
+					authority.configuration,
+					authority.policy,
+				)
+				onApprovedOperation(admission)
+				ExactApprovedRetentionOperationResult.Completed(
+					admission,
+					firstArg<suspend (ApprovedRetentionOperation) -> ListenableWorker.Result>()
+						.invoke(admission),
+				)
+			}
 		}
 		val lifecycle = mockk<CollectedDataLifecycleStore> {
 			coEvery { advanceRetainedFrom(any()) } returns CollectedDataLifecycleSnapshot(EPOCH, FLOOR)

@@ -316,6 +316,33 @@ class RetentionConfigStoreTest {
 	}
 
 	@Test
+	fun `debug reset stages defaults without preserving stale live authority`() = runTest {
+		val approved = store.updateWithApproval(
+			block = { copy(autoPurgeEnabled = true, rawDataRetentionDays = 30) },
+			prepare = { RetentionConfigurationApprovalResult.Prepared(it.policy) },
+			approve = {
+				RetentionConfigurationApprovalResult.Approved(
+					requireNotNull(store.markPolicyApproved(it.policy)),
+				)
+			},
+		)
+
+		val reset = store.resetToDefaultsForDebug()
+
+		store.config.first() shouldBe RetentionConfigState()
+		reset.approvalRequired shouldBe true
+		reset.policy shouldNotBe approved.stage.policy
+		assertIs<ApprovedRetentionPolicyRead.Unavailable>(
+			store.currentApprovedPolicy(),
+		).reason shouldBe ApprovedRetentionPolicyUnavailableReason.PENDING_APPROVAL
+		val pending = assertIs<ExactApprovedRetentionConfigRead.Pending>(
+			store.currentExactApprovedConfig(),
+		)
+		pending.configuration shouldBe RetentionConfigState()
+		pending.policy shouldBe reset.policy
+	}
+
+	@Test
 	fun `legacy migration preserves keep forever data setting`()  { runTest {
 		Preferences(context).editSuspend {
 			setBoolean("autoCleanupOldData", true)

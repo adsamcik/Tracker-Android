@@ -22,6 +22,7 @@ import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionFloor
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
+import com.adsamcik.tracker.tracker.source.runtime.hasExactAmbientStepsRetentionBinding
 import com.adsamcik.tracker.tracker.source.runtime.toSourceDemandContract
 import java.util.UUID
 import javax.inject.Inject
@@ -440,6 +441,7 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 				demand.requestedElapsedRealtimeNanos <= boundary.elapsedRealtimeNanos &&
 				demand.requestedAtMs >= retention.effectiveWallTimeMs &&
 				demand.requestedAtMs <= boundary.wallTimeMs &&
+				demand.hasExactAmbientStepsRetentionBinding(retention) &&
 				demand.providerMatches(provider)
 		}) { "Ambient Steps demand does not authorize the selected provider" }
 		return demands

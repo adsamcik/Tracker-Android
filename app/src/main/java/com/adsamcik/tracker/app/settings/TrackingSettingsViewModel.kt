@@ -509,6 +509,7 @@ class TrackingSettingsViewModel @Inject constructor(
         if (_uiState.value.currentPreset != TrackingPreset.CUSTOM) {
             trackingParamsRepository.setPreset(TrackingPreset.CUSTOM)
         }
+    }
 
 	private fun launchSourcePolicyMutation(
 		markCustomPreset: Boolean = false,
@@ -527,19 +528,18 @@ class TrackingSettingsViewModel @Inject constructor(
 			} catch (failure: SourcePolicyRevisionReconciliationException) {
 				committed = true
 				postCommitDebt = true
-				_uiState.update { state ->
-					state.copy(
-						sourcePolicyReconciliationDebt =
-							SourcePolicyRevisionReconciliationDebt(
-								policyRevision = state.sourcePolicyRevision,
-								failures = failure.failures,
-							),
-					)
-				}
+				publishSourcePolicyReconciliationDebt(failure)
 			}
 			if (!committed) return@launch
 			if (markCustomPreset) {
-				markCustomPreset()
+				try {
+					markCustomPreset()
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (failure: SourcePolicyRevisionReconciliationException) {
+					postCommitDebt = true
+					publishSourcePolicyReconciliationDebt(failure)
+				}
 			}
 			if (
 				postCommitDebt ||
@@ -557,7 +557,20 @@ class TrackingSettingsViewModel @Inject constructor(
 			}
 		}
 	}
-    }
+
+	private fun publishSourcePolicyReconciliationDebt(
+		failure: SourcePolicyRevisionReconciliationException,
+	) {
+		_uiState.update { state ->
+			state.copy(
+				sourcePolicyReconciliationDebt =
+					SourcePolicyRevisionReconciliationDebt(
+						policyRevision = state.sourcePolicyRevision,
+						failures = failure.failures,
+					),
+			)
+		}
+	}
 
     private fun previewEnvironment(
         capabilities: TrackingPermissionCapabilities,

@@ -312,6 +312,76 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 	}
 
 	@Test
+	fun `retention-only rotation rejects stale demand and refreshes authorization across restart`() =
+		runTest {
+			val firstDemand = select(AmbientStepsProvider.LOCAL_RECORDING_STEPS, boundary(100L))
+			val first = subject.reserve(
+				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				firstDemand.demandId,
+				boundary(110L),
+			)
+			subject.accept(first)
+			val firstRetention = requireNotNull(
+				database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+					AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				),
+			)
+			database.applyAmbientStepsRetentionDecision(
+				AmbientStepsRetentionDecision.GrantLiveAmbient(
+					opaquePolicyId = "rotated-retention",
+					expectedCollectedDataEpoch = 3L,
+					expectedSourcePolicyRevision = first.state.appliedRevision,
+					expectedAmbientConsentEpoch = requireNotNull(
+						first.authorization.authorizedMembers.single().consentEpoch,
+					),
+					effectiveBootId = BOOT_ID,
+					effectiveElapsedRealtimeNanos = 150L,
+					effectiveWallTimeMs = 150L,
+					expectedPreviousApprovalRevision = firstRetention.approvalRevision,
+				),
+			)
+
+			shouldThrow<IllegalStateException> {
+				subject.reserve(
+					AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+					firstDemand.demandId,
+					boundary(160L),
+				)
+			}
+			val rotatedDemand = select(
+				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				boundary(200L),
+			)
+			val restarted = AmbientStepsProviderRegistrationRepository(
+				database = database,
+				lifecycleStore = lifecycleStore,
+				bootClockDomainProvider = BootClockDomainProvider { BOOT_ID },
+			)
+			val refreshed = restarted.reserve(
+				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				rotatedDemand.demandId,
+				boundary(210L),
+			)
+
+			refreshed.requiresProviderAcceptance shouldBe false
+			refreshed.state.registrationGeneration shouldBe first.state.registrationGeneration
+			(refreshed.authorization.authorizationRevision >
+				first.authorization.authorizationRevision) shouldBe true
+			(refreshed.authorization.authorizationFingerprint ==
+				first.authorization.authorizationFingerprint) shouldBe false
+			val restartedAgain = AmbientStepsProviderRegistrationRepository(
+				database = database,
+				lifecycleStore = lifecycleStore,
+				bootClockDomainProvider = BootClockDomainProvider { BOOT_ID },
+			).reserve(
+				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				rotatedDemand.demandId,
+				boundary(220L),
+			)
+			restartedAgain.authorization shouldBe refreshed.authorization
+		}
+
+	@Test
 	fun `new collected data epoch reserves a fresh identity for the same provider`() = runTest {
 		val demand = select(AmbientStepsProvider.LOCAL_RECORDING_STEPS, boundary(100L))
 		val first = subject.reserve(

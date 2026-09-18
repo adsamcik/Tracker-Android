@@ -215,6 +215,7 @@ object InfrastructureModule {
 		ambientStepsProviderLifecycle: Provider<AmbientStepsProviderLifecycle>,
 		automaticControlRestorer: PostDeletionAutomaticControlRestorer,
 		retentionAuthorityProducer: RetentionAuthorityProducer,
+		@Suppress("UNUSED_PARAMETER")
 		purposeSettingsReconciler: TrackingPurposeSettingsReconciler,
 		stepsWriterTransitionCoordinator: Provider<StepsSessionFactWriterTransitionCoordinator>,
         dispatchersProvider: DispatchersProvider,
@@ -231,7 +232,6 @@ object InfrastructureModule {
 		ambientStepsProviderLifecycleProvider = ambientStepsProviderLifecycle,
 		automaticControlRestorer = automaticControlRestorer,
 		retentionAuthorityProducer = retentionAuthorityProducer,
-		purposeSettingsReconciler = purposeSettingsReconciler,
 		postDatabaseDeletion = { operation ->
 			stepsWriterTransitionCoordinator.get().rearmAfterFullDeletion(
 				operationId = operation.operationId,

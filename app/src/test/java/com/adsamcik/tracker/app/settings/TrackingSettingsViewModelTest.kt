@@ -749,6 +749,25 @@ class TrackingSettingsViewModelTest {
 			}
 
 		@Test
+		fun `custom preset post commit debt is surfaced instead of escaping the mutation`() =
+			runTest(testDispatcher) {
+				val failure = SourcePolicyRevisionReconciliationException(
+					listOf(SourcePolicyRevisionReconciliationFailure.SourcePolicyUnavailable),
+				)
+				coEvery {
+					trackingParamsRepository.setPreset(TrackingPreset.CUSTOM)
+				} throws failure
+				val vm = createViewModel()
+				advanceUntilIdle()
+
+				vm.setWifiEnabled(false)
+				advanceUntilIdle()
+
+				vm.uiState.value.sourcePolicyReconciliationDebt?.failures shouldBe
+					failure.failures
+			}
+
+		@Test
 		fun `published source reconciliation debt exposes an explicit retry`() =
 			runTest(testDispatcher) {
 				val debt = SourcePolicyRevisionReconciliationDebt(

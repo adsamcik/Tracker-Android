@@ -32,6 +32,7 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionFloor
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.runtime.hasExactAmbientStepsRetentionBinding
 import com.adsamcik.tracker.tracker.source.runtime.toSourceDemandContract
 import java.time.ZoneId
 import java.util.concurrent.CancellationException
@@ -480,6 +481,14 @@ internal class AmbientStepsFactImporter internal constructor(
 			?: return handoffIneligible(
 				AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
 			)
+		if (predecessorDemands.any { demand ->
+				!demand.hasExactAmbientStepsRetentionBinding(predecessorRetention)
+			}
+		) {
+			return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
+			)
+		}
 		if (!predecessorPolicy.isHistoricalAmbientPolicy(
 				predecessorConsent,
 				predecessorAuthorization,
@@ -1915,6 +1924,7 @@ private fun SourceDemandEntity.isRetentionEligibleAmbientDemand(
 	requestedBootId == retention.effectiveBootId &&
 	requestedElapsedRealtimeNanos >= retention.effectiveElapsedRealtimeNanos &&
 	requestedAtMs >= retention.effectiveWallTimeMs &&
+	hasExactAmbientStepsRetentionBinding(retention) &&
 	providerMatches(provider)
 
 private fun SourceDemandEntity.providerMatches(provider: AmbientStepsProvider): Boolean {

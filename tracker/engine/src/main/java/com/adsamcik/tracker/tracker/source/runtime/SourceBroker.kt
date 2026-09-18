@@ -9,6 +9,8 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegr
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactIntegrity
@@ -544,6 +546,28 @@ class SourceBroker @Inject constructor(
 		if (!trackingRolloutStateStore.load().isCaptureReachable(source, CaptureReachabilityMode.AMBIENT)) {
 			return@withTransaction inactive(AmbientStepsDemandInactiveReason.ROLLOUT_CONTAINED)
 		}
+		val evidence = database.sourceEvidenceStateDao().get()
+			?: return@withTransaction inactive(
+				AmbientStepsDemandInactiveReason.RETENTION_APPROVAL_MISSING,
+			)
+		val retention = database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+			AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+		) ?: return@withTransaction inactive(
+			AmbientStepsDemandInactiveReason.RETENTION_APPROVAL_MISSING,
+		)
+		if (!AmbientStepsRetentionAuthorityIntegrity.isAuthentic(retention) ||
+			!retention.isActive ||
+			retention.sourcePolicyRevision != authority.currentPolicyRevision ||
+			retention.ambientConsentEpoch != consentEpoch ||
+			retention.collectedDataEpoch != evidence.collectedDataEpoch ||
+			retention.effectiveBootId != bootId ||
+			retention.effectiveElapsedRealtimeNanos > elapsedRealtimeNanos ||
+			retention.effectiveWallTimeMs > wallTimeMs
+		) {
+			return@withTransaction inactive(
+				AmbientStepsDemandInactiveReason.RETENTION_APPROVAL_MISMATCH,
+			)
+		}
 
 		val contract = SourceDemandContractFactory.forAmbientSteps(mechanism)
 		currentDemands.singleOrNull()?.takeIf { demand ->
@@ -558,20 +582,19 @@ class SourceBroker @Inject constructor(
 				demand.adaptiveReductionAllowed == contract.adaptiveReductionAllowed &&
 				demand.maximumAgeMs == contract.maximumProviderItemAgeMs &&
 				demand.desiredLatencyMs == contract.targetPlanningLatencyMs &&
-				demand.requestedDeliveryLatencyMs == contract.requestedDeliveryLatencyMs
+				demand.requestedDeliveryLatencyMs == contract.requestedDeliveryLatencyMs &&
+				demand.hasExactAmbientStepsRetentionBinding(retention)
 		}?.let { unchanged -> return@withTransaction AmbientStepsDemandResult.Active(unchanged) }
 		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
 		val demand = SourceDemandEntity(
-			demandId = demandId(
-				consumerId,
-				source.stableCode,
-				SourceBrokerPurpose.AMBIENT_PRODUCT,
-				authority.currentPolicyRevision,
-				consentEpoch,
-				null,
-				bootId,
-				elapsedRealtimeNanos,
-				contract.encodeFloor(),
+			demandId = AmbientStepsDemandIdentity.create(
+				consumerId = consumerId,
+				sourcePolicyRevision = authority.currentPolicyRevision,
+				consentEpoch = consentEpoch,
+				requestedBootId = bootId,
+				requestedElapsedRealtimeNanos = elapsedRealtimeNanos,
+				minimumAcquisitionSpec = contract.encodeFloor(),
+				retention = retention,
 			),
 			consumerId = consumerId,
 			sourceKind = source.stableCode,
@@ -1507,7 +1530,64 @@ internal enum class AmbientStepsDemandInactiveReason {
 	POLICY_MISSING,
 	CONSENT_REVOKED,
 	PERSISTENCE_INELIGIBLE,
+	RETENTION_APPROVAL_MISSING,
+	RETENTION_APPROVAL_MISMATCH,
 	ROLLOUT_CONTAINED,
+}
+
+internal fun SourceDemandEntity.hasExactAmbientStepsRetentionBinding(
+	retention: AmbientStepsRetentionAuthorityEntity,
+): Boolean = AmbientStepsDemandIdentity.matches(this, retention)
+
+private object AmbientStepsDemandIdentity {
+	fun create(
+		consumerId: String,
+		sourcePolicyRevision: Long,
+		consentEpoch: Long,
+		requestedBootId: String,
+		requestedElapsedRealtimeNanos: Long,
+		minimumAcquisitionSpec: String,
+		retention: AmbientStepsRetentionAuthorityEntity,
+	): String = digest(
+		"ambient-steps-retention-demand-v1",
+		consumerId,
+		SourceKind.STEPS.stableCode,
+		SourceBrokerPurpose.AMBIENT_PRODUCT,
+		sourcePolicyRevision,
+		consentEpoch,
+		requestedBootId,
+		requestedElapsedRealtimeNanos,
+		minimumAcquisitionSpec,
+		retention.scope,
+		retention.opaquePolicyId,
+		retention.approvalRevision,
+	)
+
+	fun matches(
+		demand: SourceDemandEntity,
+		retention: AmbientStepsRetentionAuthorityEntity,
+	): Boolean =
+		demand.sourceKind == SourceKind.STEPS.stableCode &&
+			demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
+			demand.demandId == create(
+				consumerId = demand.consumerId,
+				sourcePolicyRevision = demand.sourcePolicyRevision,
+				consentEpoch = demand.consentEpoch,
+				requestedBootId = demand.requestedBootId,
+				requestedElapsedRealtimeNanos = demand.requestedElapsedRealtimeNanos,
+				minimumAcquisitionSpec = demand.minimumAcquisitionSpec,
+				retention = retention,
+			)
+
+	private fun digest(vararg values: Any): String {
+		val canonical = values.joinToString(separator = "") { value ->
+			val text = value.toString()
+			"${text.length}:$text"
+		}
+		return MessageDigest.getInstance("SHA-256")
+			.digest(canonical.toByteArray(Charsets.UTF_8))
+			.joinToString("") { byte -> "%02x".format(byte) }
+	}
 }
 
 private data class AmbientRadioRetentionAuthority(

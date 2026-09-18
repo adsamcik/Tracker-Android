@@ -581,6 +581,73 @@ class AmbientStepsFactImporterTest {
 	}
 
 	@Test
+	fun `retention-only rotation rejects stale authority and resumes after restart`() = runTest {
+		val reader = RecordingAmbientReader { window, observedAtMs ->
+			AmbientStepsProviderAggregate(PROVIDER, window, 10L, observedAtMs)
+		}
+		val importer = subject(reader)
+		primeZone(importer)
+		clock.setTime(3_000L)
+		importer.importNext(
+			importBoundary(through = 3_000L, observedAt = 3_000L, observedElapsed = 3_000L),
+		) as AmbientStepsImportResult.Applied
+		val previousRetention = requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		)
+		database.applyAmbientStepsRetentionDecision(
+			AmbientStepsRetentionDecision.GrantLiveAmbient(
+				opaquePolicyId = "rotated-retention",
+				expectedCollectedDataEpoch = COLLECTED_DATA_EPOCH,
+				expectedSourcePolicyRevision = registration.state.appliedRevision,
+				expectedAmbientConsentEpoch = requireNotNull(
+					registration.authorization.authorizedMembers.single().consentEpoch,
+				),
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = 3_500L,
+				effectiveWallTimeMs = 3_000L,
+				expectedPreviousApprovalRevision = previousRetention.approvalRevision,
+			),
+		)
+		val readsBeforeStaleAttempt = reader.windows.size
+
+		importer.importNext(
+			importBoundary(through = 3_000L, observedAt = 3_600L, observedElapsed = 3_600L),
+		) shouldBe AmbientStepsImportResult.Ineligible(
+			AmbientStepsImportIneligibleReason.AUTHORIZATION_INELIGIBLE,
+		)
+		reader.windows.size shouldBe readsBeforeStaleAttempt
+
+		val demand = activateDemand(elapsed = 4_000L, wall = 3_000L)
+		val refreshedRegistration = AmbientStepsProviderRegistrationRepository(
+			database = database,
+			lifecycleStore = lifecycleStore,
+			bootClockDomainProvider = BootClockDomainProvider { BOOT_ID },
+		).reserve(
+			provider = PROVIDER,
+			expectedDemandId = demand.demand.demandId,
+			boundary = demandBoundary(elapsed = 4_500L, wall = 3_000L),
+		)
+		refreshedRegistration.requiresProviderAcceptance shouldBe false
+		clock.setTime(5_000L)
+		val resumed = subject(reader).importNext(
+			importBoundary(through = 4_000L, observedAt = 5_000L, observedElapsed = 5_000L),
+		) as AmbientStepsImportResult.Applied
+
+		resumed.window shouldBe AmbientStepsProviderReadWindow(3_000L, 4_000L)
+		val cursor = requireNotNull(
+			database.ambientStepsImportStateDao().cursor(registration.state.registrationGeneration),
+		)
+		cursor.authorizationRevision shouldBe
+			refreshedRegistration.authorization.authorizationRevision
+		cursor.retentionPolicyId shouldBe "rotated-retention"
+		cursor.retentionApprovalRevision shouldBe previousRetention.approvalRevision + 1L
+		cursor.authorityTransitionSequence shouldBe 1L
+		database.ambientStepsImportStateDao().countAuthorityTransitions() shouldBe 1L
+	}
+
+	@Test
 	fun `provider no evidence does not lose an exact authorization transition`() = runTest {
 		var returnEvidence = true
 		val reader = RecordingAmbientReader { window, observedAtMs ->

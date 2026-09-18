@@ -14,7 +14,6 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
 import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
-import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.impexp.importer.DataImporter
@@ -59,7 +58,7 @@ interface CollectedDataDeletionService {
 	suspend fun reconcilePendingDeletion(): CollectedDataDeletionCompletion
 }
 
-/** Completion is reported only after durable marker clear and post-clear authority reconciliation. */
+/** Completion is reported only after authority repair, durable marker clear, and barrier reopen. */
 sealed interface CollectedDataDeletionCompletion {
 	data object Complete : CollectedDataDeletionCompletion
 
@@ -286,7 +285,6 @@ class DefaultCollectedDataDeletionService(
 	private val ambientStepsProviderLifecycleProvider: Provider<AmbientStepsProviderLifecycle>? = null,
 	private val automaticControlRestorer: PostDeletionAutomaticControlRestorer,
 	private val retentionAuthorityProducer: RetentionAuthorityProducer,
-	private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler,
 	private val traceboxDataDeletion: suspend () -> Boolean,
 	private val trackingDiagnosticDataDeletion: suspend () -> Boolean = { true },
 	private val appDatabaseDeletion: suspend (
@@ -425,14 +423,9 @@ class DefaultCollectedDataDeletionService(
 			) { "Collected-data deletion writer re-arm remains incomplete" }
 			val initialRetention = reconcilePostDeletionRetention()
 			if (initialRetention != null) {
-				val purposeFailure = reconcilePostDeletionPurpose()
 				return keepAmbientStepsClosed(
 					ambientStepsProviderLifecycle,
-					if (initialRetention is CollectedDataDeletionCompletion.Unverifiable) {
-						initialRetention
-					} else {
-						purposeFailure ?: initialRetention
-					},
+					initialRetention,
 				)
 			}
 			exportPlanStore.resetAllWatermarks()
@@ -440,13 +433,6 @@ class DefaultCollectedDataDeletionService(
 			// Enqueue the durable recovery owner while the deletion marker and process barrier still
 			// fence Room/providers. It will make one attempt only after this generation is Ready.
 			automaticControlRestorer.schedule(operation.targetCollectedDataEpoch)
-			val purposeFailure = reconcilePostDeletionPurpose()
-			if (purposeFailure != null) {
-				return keepAmbientStepsClosed(
-					ambientStepsProviderLifecycle,
-					purposeFailure,
-				)
-			}
 			val confirmedRetention = reconcilePostDeletionRetention()
 			if (confirmedRetention != null) {
 				return keepAmbientStepsClosed(
@@ -454,28 +440,18 @@ class DefaultCollectedDataDeletionService(
 					confirmedRetention,
 				)
 			}
-			val ambientResult = ambientStepsProviderLifecycle?.reconcileAfterSettingsChange()
-			if (ambientResult != null && !ambientResult.complete) {
-				val failure = CollectedDataDeletionReconciliationFailure.AmbientStepsProvider(
-					requireNotNull(ambientResult.failure),
-				)
-				val classified = if (ambientResult.retryable) {
-					CollectedDataDeletionCompletion.Retryable(failure)
-				} else {
-					CollectedDataDeletionCompletion.Unverifiable(failure)
-				}
-				return keepAmbientStepsClosed(ambientStepsProviderLifecycle, classified)
-			}
+			// Provider and demand reconciliation is startup-owned. Keep every producer closed until
+			// the final marker transition is durable and the startup barrier has reopened.
+			markerClearPendingInProcess = true
 			val markerFailure = clearDeletionMarker()
 			if (markerFailure != null) {
-				markerClearPendingInProcess = true
 				return keepAmbientStepsClosed(
 					ambientStepsProviderLifecycle,
 					markerFailure,
 				)
 			}
-			markerClearPendingInProcess = false
 			startupDeletionBarrier.reopen()
+			markerClearPendingInProcess = false
 			return CollectedDataDeletionCompletion.Complete
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -484,61 +460,19 @@ class DefaultCollectedDataDeletionService(
 
 	private suspend fun reconcileMarkerClearCompletion(): CollectedDataDeletionCompletion {
 		startupDeletionBarrier.closeAdmission()
+		val activityRegistrationArbiter = activityRegistrationArbiterProvider?.get()
 		val ambientStepsProviderLifecycle = ambientStepsProviderLifecycleProvider?.get()
-		closeAmbientStepsForMarkerRecovery(ambientStepsProviderLifecycle)?.let { return it }
-		reconcilePostDeletionRetention()?.let { failure ->
-			return keepAmbientStepsClosed(ambientStepsProviderLifecycle, failure)
-		}
-		reconcilePostDeletionPurpose()?.let { failure ->
-			return keepAmbientStepsClosed(ambientStepsProviderLifecycle, failure)
-		}
-		reconcilePostDeletionRetention()?.let { failure ->
-			return keepAmbientStepsClosed(ambientStepsProviderLifecycle, failure)
-		}
-		val ambientResult = ambientStepsProviderLifecycle?.reconcileAfterSettingsChange()
-		if (ambientResult != null && !ambientResult.complete) {
-			val failure = CollectedDataDeletionReconciliationFailure.AmbientStepsProvider(
-				requireNotNull(ambientResult.failure),
-			)
-			val classified = if (ambientResult.retryable) {
-				CollectedDataDeletionCompletion.Retryable(failure)
-			} else {
-				CollectedDataDeletionCompletion.Unverifiable(failure)
-			}
-			return keepAmbientStepsClosed(ambientStepsProviderLifecycle, classified)
-		}
+		fenceCollectedDataWriters(activityRegistrationArbiter, ambientStepsProviderLifecycle)
+		startupDeletionBarrier.awaitQuiescence()
+		fenceCollectedDataWriters(activityRegistrationArbiter, ambientStepsProviderLifecycle)
+		markerClearPendingInProcess = true
 		val markerFailure = clearDeletionMarker()
 		if (markerFailure != null) {
-			markerClearPendingInProcess = true
 			return keepAmbientStepsClosed(ambientStepsProviderLifecycle, markerFailure)
 		}
-		markerClearPendingInProcess = false
 		startupDeletionBarrier.reopen()
+		markerClearPendingInProcess = false
 		return CollectedDataDeletionCompletion.Complete
-	}
-
-	private suspend fun closeAmbientStepsForMarkerRecovery(
-		lifecycle: AmbientStepsProviderLifecycle?,
-	): CollectedDataDeletionCompletion? {
-		if (lifecycle == null) return null
-		val cleanup = try {
-			lifecycle.closeForCollectedDataDeletion()
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (_: Exception) {
-			return CollectedDataDeletionCompletion.Retryable(
-				CollectedDataDeletionReconciliationFailure.AmbientStepsCleanupUnavailable,
-			)
-		}
-		if (cleanup.complete) return null
-		val failure = CollectedDataDeletionReconciliationFailure.AmbientStepsCleanup(
-			requireNotNull(cleanup.failure),
-		)
-		return if (cleanup.retryable) {
-			CollectedDataDeletionCompletion.Retryable(failure)
-		} else {
-			CollectedDataDeletionCompletion.Unverifiable(failure)
-		}
 	}
 
 	private suspend fun reconcilePostDeletionRetention(): CollectedDataDeletionCompletion? {
@@ -578,17 +512,6 @@ class DefaultCollectedDataDeletionService(
 		} else {
 			CollectedDataDeletionCompletion.Retryable(failure)
 		}
-	}
-
-	private suspend fun reconcilePostDeletionPurpose(): CollectedDataDeletionCompletion? = try {
-		purposeSettingsReconciler.reconcileCurrentSettings()
-		null
-	} catch (cancelled: CancellationException) {
-		throw cancelled
-	} catch (_: Exception) {
-		CollectedDataDeletionCompletion.Retryable(
-			CollectedDataDeletionReconciliationFailure.PurposeSettings,
-		)
 	}
 
 	private suspend fun keepAmbientStepsClosed(

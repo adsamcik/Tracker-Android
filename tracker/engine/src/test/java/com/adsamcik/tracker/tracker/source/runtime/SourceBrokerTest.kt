@@ -12,7 +12,10 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationOwner
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationSnapshot
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
+import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionDecision
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecision
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
@@ -25,6 +28,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequenc
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionSettings
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicySnapshot
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
@@ -444,6 +448,7 @@ class SourceBrokerTest {
 				legacySettingsMigrationCompleted = true,
 			),
 		)
+		grantAmbientStepsRetention(snapshot)
 
 		val result = subject.replaceAmbientStepsDemand(
 			consumerId = "app:ambient:steps",
@@ -471,7 +476,7 @@ class SourceBrokerTest {
 	@Test
 	fun `ambient provider replacement at one boundary never overlaps or aliases demand identity`() = runTest {
 		resetBroker(setOf(CaptureReachabilityMode.AMBIENT))
-		RoomSourcePolicyRepository(database) {
+		val snapshot = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
 		}.bootstrapFromLegacy(
 			TrackingParamsState(
@@ -479,6 +484,7 @@ class SourceBrokerTest {
 				legacySettingsMigrationCompleted = true,
 			),
 		)
+		grantAmbientStepsRetention(snapshot)
 		val healthConnect = (subject.replaceAmbientStepsDemand(
 			"app:ambient:steps",
 			AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
@@ -517,7 +523,7 @@ class SourceBrokerTest {
 	@Test
 	fun `ambient consent and rollout independently deny demand creation`() = runTest {
 		resetBroker(setOf(CaptureReachabilityMode.AMBIENT))
-		RoomSourcePolicyRepository(database) {
+		val snapshot = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
 		}.bootstrapFromLegacy(
 			TrackingParamsState(
@@ -525,6 +531,7 @@ class SourceBrokerTest {
 				legacySettingsMigrationCompleted = true,
 			),
 		)
+		grantAmbientStepsRetention(snapshot)
 		rolloutStore.save(TrackingRolloutState.contained(revision = 9L), updatedAtMs = 150L)
 
 		subject.replaceAmbientStepsDemand(
@@ -552,6 +559,55 @@ class SourceBrokerTest {
 			AmbientStepsDemandInactiveReason.CONSENT_REVOKED,
 		)
 		database.sourceBrokerDao().currentDemands("app:ambient:steps") shouldBe emptyList()
+	}
+
+	@Test
+	fun `retention-only identity rotation replaces Ambient Steps demand across restart`() = runTest {
+		resetBroker(setOf(CaptureReachabilityMode.AMBIENT))
+		val snapshot = RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
+		}.bootstrapFromLegacy(
+			TrackingParamsState(
+				ambientStepsEnabled = true,
+				legacySettingsMigrationCompleted = true,
+			),
+		)
+		val firstRetention = grantAmbientStepsRetention(snapshot, opaquePolicyId = "retention-one")
+		val first = (subject.replaceAmbientStepsDemand(
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			"boot-1",
+			100L,
+			100L,
+		) as AmbientStepsDemandResult.Active).demand
+		val secondRetention = grantAmbientStepsRetention(
+			snapshot = snapshot,
+			opaquePolicyId = "retention-two",
+			effectiveAt = 150L,
+			expectedPreviousApprovalRevision = firstRetention.approvalRevision,
+		)
+
+		val rotated = (subject.replaceAmbientStepsDemand(
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			"boot-1",
+			200L,
+			200L,
+		) as AmbientStepsDemandResult.Active).demand
+
+		rotated.demandId shouldBe database.sourceBrokerDao()
+			.currentDemands("app:ambient:steps").single().demandId
+		(rotated.demandId == first.demandId) shouldBe false
+		first.hasExactAmbientStepsRetentionBinding(secondRetention) shouldBe false
+		rotated.hasExactAmbientStepsRetentionBinding(secondRetention) shouldBe true
+		val restarted = SourceBroker(database, rolloutStore)
+		(restarted.replaceAmbientStepsDemand(
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			"boot-1",
+			250L,
+			250L,
+		) as AmbientStepsDemandResult.Active).demand shouldBe rotated
 	}
 
 	@Test
@@ -1013,6 +1069,34 @@ class SourceBrokerTest {
 			activateAllBrokerTestProductLanes(database, captureModes)
 		}
 		subject = SourceBroker(database, rolloutStore)
+	}
+
+	private suspend fun grantAmbientStepsRetention(
+		snapshot: SourcePolicySnapshot,
+		opaquePolicyId: String = "source-broker-test-retention",
+		effectiveAt: Long = 50L,
+		expectedPreviousApprovalRevision: Long? = null,
+	): AmbientStepsRetentionAuthorityEntity {
+		database.sourceEvidenceStateDao().ensure()
+		database.applyAmbientStepsRetentionDecision(
+			AmbientStepsRetentionDecision.GrantLiveAmbient(
+				opaquePolicyId = opaquePolicyId,
+				expectedCollectedDataEpoch = 0L,
+				expectedSourcePolicyRevision = snapshot.revision,
+				expectedAmbientConsentEpoch = requireNotNull(
+					snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+				),
+				effectiveBootId = "boot-1",
+				effectiveElapsedRealtimeNanos = effectiveAt,
+				effectiveWallTimeMs = effectiveAt,
+				expectedPreviousApprovalRevision = expectedPreviousApprovalRevision,
+			),
+		)
+		return requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		).also { it.opaquePolicyId shouldBe opaquePolicyId }
 	}
 }
 

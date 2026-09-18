@@ -38,8 +38,6 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupResult
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
-import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
-import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.Runs
@@ -259,8 +257,6 @@ class CollectedDataDeletionServiceTest {
 		val operations = mutableListOf<String>()
 		val arbiter = mockk<ActivityRegistrationArbiter>()
 		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
-		coEvery { ambientSteps.reconcileAfterSettingsChange() } returns
-			AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
 		coEvery { arbiter.closeForCollectedDataDeletion() } coAnswers {
 			operations += "activity-close"
 			appliedRegistrationResult()
@@ -322,8 +318,6 @@ class CollectedDataDeletionServiceTest {
 	@Test
 	fun `durably journalled Ambient Steps removal debt does not block local deletion`() = runTest {
 		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
-		coEvery { ambientSteps.reconcileAfterSettingsChange() } returns
-			AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
 		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
 			AmbientStepsProviderCleanupResult(
 				complete = false,
@@ -343,38 +337,30 @@ class CollectedDataDeletionServiceTest {
 	}
 
 	@Test
-	fun `post deletion authority is reissued before purpose and provider reconciliation`() = runTest {
+	fun `post deletion authority completes while provider reconciliation remains startup owned`() =
+		runTest {
 		val events = mutableListOf<String>()
 		val retention = mockk<RetentionAuthorityProducer>()
-		val purpose = mockk<TrackingPurposeSettingsReconciler>()
 		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
 		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
 			AmbientStepsProviderCleanupResult(complete = true)
 		coEvery { retention.reconcileCurrentSettings() } answers {
 			startupDeletionBarrier.isClosed shouldBe true
+			markerFile.exists() shouldBe true
 			events += "retention"
 			disabledRetentionResults()
-		}
-		coEvery { purpose.reconcileCurrentSettings() } answers {
-			startupDeletionBarrier.isClosed shouldBe true
-			markerFile.exists() shouldBe true
-			events += "purpose"
-		}
-		coEvery { ambientSteps.reconcileAfterSettingsChange() } answers {
-			startupDeletionBarrier.isClosed shouldBe true
-			markerFile.exists() shouldBe true
-			events += "ambient"
-			AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
 		}
 		val service = createService(
 			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
 			retentionAuthorityProducer = retention,
-			purposeSettingsReconciler = purpose,
 		) { _, _, _, _ -> events += "delete" }
 
 		service.deleteAll()
 
-		events shouldBe listOf("delete", "retention", "purpose", "retention", "ambient")
+		events shouldBe listOf("delete", "retention", "retention")
+		coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
+		markerFile.exists() shouldBe false
+		startupDeletionBarrier.isClosed shouldBe false
 	}
 
 	@Test
@@ -389,16 +375,13 @@ class CollectedDataDeletionServiceTest {
 				ambientStepsEnabled = true,
 				approvePolicy = true,
 			)
-			val purpose = mockk<TrackingPurposeSettingsReconciler>()
 			val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
-			coEvery { purpose.reconcileCurrentSettings() } just Runs
 			coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
 				AmbientStepsProviderCleanupResult(complete = true)
 			val service = createService(
 				collectedDataLifecycleStore = lifecycle,
 				ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
 				retentionAuthorityProducer = producer,
-				purposeSettingsReconciler = purpose,
 			) { _, epoch, retainedFromMs, updatedAtMs ->
 				publishRoomDeletionEpoch(database, epoch + 1L, retainedFromMs, updatedAtMs)
 			}
@@ -415,7 +398,6 @@ class CollectedDataDeletionServiceTest {
 			}
 			markerFile.exists() shouldBe true
 			startupDeletionBarrier.isClosed shouldBe true
-			coVerify(exactly = 1) { purpose.reconcileCurrentSettings() }
 			coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
 			coVerify(exactly = 3) { ambientSteps.closeForCollectedDataDeletion() }
 			verify(exactly = 0) { automaticControlRestorer.schedule(any()) }
@@ -426,7 +408,7 @@ class CollectedDataDeletionServiceTest {
 	}
 
 	@Test
-	fun `real Room explicitly disabled sources complete before provider reconciliation`() = runTest {
+	fun `real Room explicitly disabled sources complete without provider reconciliation`() = runTest {
 		resetRetentionTestState()
 		val database = AppDatabase.testDatabase(context)
 		try {
@@ -436,18 +418,13 @@ class CollectedDataDeletionServiceTest {
 				lifecycle,
 				ambientStepsEnabled = false,
 			)
-			val purpose = mockk<TrackingPurposeSettingsReconciler>()
 			val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
-			coEvery { purpose.reconcileCurrentSettings() } just Runs
 			coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
 				AmbientStepsProviderCleanupResult(complete = true)
-			coEvery { ambientSteps.reconcileAfterSettingsChange() } returns
-				AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
 			val service = createService(
 				collectedDataLifecycleStore = lifecycle,
 				ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
 				retentionAuthorityProducer = producer,
-				purposeSettingsReconciler = purpose,
 			) { _, epoch, retainedFromMs, updatedAtMs ->
 				publishRoomDeletionEpoch(database, epoch, retainedFromMs, updatedAtMs)
 			}
@@ -456,8 +433,7 @@ class CollectedDataDeletionServiceTest {
 
 			markerFile.exists() shouldBe false
 			startupDeletionBarrier.isClosed shouldBe false
-			coVerify(exactly = 1) { purpose.reconcileCurrentSettings() }
-			coVerify(exactly = 1) { ambientSteps.reconcileAfterSettingsChange() }
+			coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
 		} finally {
 			database.close()
 			resetRetentionTestState()
@@ -465,7 +441,7 @@ class CollectedDataDeletionServiceTest {
 	}
 
 	@Test
-	fun `real Room enabled source reissues new epoch authority before provider reconciliation`() =
+	fun `real Room enabled source reissues new epoch authority without reopening provider`() =
 		runTest {
 			resetRetentionTestState()
 			val database = AppDatabase.testDatabase(context)
@@ -477,31 +453,13 @@ class CollectedDataDeletionServiceTest {
 					ambientStepsEnabled = true,
 					approvePolicy = true,
 				)
-				val purpose = mockk<TrackingPurposeSettingsReconciler>()
 				val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
-				coEvery { purpose.reconcileCurrentSettings() } coAnswers {
-					database.ambientStepsFactRevisionDao().latestRetentionAuthority(
-						com.adsamcik.tracker.shared.base.database.data
-							.AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
-					)?.collectedDataEpoch shouldBe 1L
-				}
 				coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
 					AmbientStepsProviderCleanupResult(complete = true)
-				coEvery { ambientSteps.reconcileAfterSettingsChange() } coAnswers {
-					database.ambientStepsFactRevisionDao().latestRetentionAuthority(
-						com.adsamcik.tracker.shared.base.database.data
-							.AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
-					)?.collectedDataEpoch shouldBe 1L
-					AmbientStepsSettingsReconciliationResult(
-						complete = true,
-						operational = false,
-					)
-				}
 				val service = createService(
 					collectedDataLifecycleStore = lifecycle,
 					ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
 					retentionAuthorityProducer = producer,
-					purposeSettingsReconciler = purpose,
 				) { _, epoch, retainedFromMs, updatedAtMs ->
 					publishRoomDeletionEpoch(database, epoch, retainedFromMs, updatedAtMs)
 				}
@@ -512,8 +470,7 @@ class CollectedDataDeletionServiceTest {
 					com.adsamcik.tracker.shared.base.database.data
 						.AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
 				)?.collectedDataEpoch shouldBe 1L
-				coVerify(exactly = 1) { purpose.reconcileCurrentSettings() }
-				coVerify(exactly = 1) { ambientSteps.reconcileAfterSettingsChange() }
+				coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
 			} finally {
 				database.close()
 				resetRetentionTestState()
@@ -523,73 +480,19 @@ class CollectedDataDeletionServiceTest {
 	@Test
 	fun `integrity failure returns unverifiable debt and keeps provider off`() = runTest {
 		val retention = mockk<RetentionAuthorityProducer>()
-		val purpose = mockk<TrackingPurposeSettingsReconciler>()
 		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
 		coEvery { retention.reconcileCurrentSettings() } returns
 			retentionFailureResults(RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH)
-		coEvery { purpose.reconcileCurrentSettings() } just Runs
 		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
 			AmbientStepsProviderCleanupResult(complete = true)
 		val service = createService(
 			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
 			retentionAuthorityProducer = retention,
-			purposeSettingsReconciler = purpose,
 		) { _, _, _, _ -> }
 
 		val result = service.deleteAll()
 
 		result.shouldBeInstanceOf<CollectedDataDeletionCompletion.Unverifiable>()
-		markerFile.exists() shouldBe true
-		startupDeletionBarrier.isClosed shouldBe true
-		coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
-		coVerify(exactly = 3) { ambientSteps.closeForCollectedDataDeletion() }
-	}
-
-	@Test
-	fun `provider reconciliation failure is retryable and is closed again`() = runTest {
-		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
-		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
-			AmbientStepsProviderCleanupResult(complete = true)
-		coEvery { ambientSteps.reconcileAfterSettingsChange() } returns
-			AmbientStepsSettingsReconciliationResult(
-				complete = false,
-				operational = false,
-				failure = com.adsamcik.tracker.tracker.api
-					.AmbientStepsSettingsReconciliationFailure.PROVIDER_ACTIVATION_FAILED,
-				retryable = true,
-			)
-		val service = createService(
-			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
-		) { _, _, _, _ -> }
-
-		val result = service.deleteAll()
-
-		result.shouldBeInstanceOf<CollectedDataDeletionCompletion.Retryable>().failure shouldBe
-			CollectedDataDeletionReconciliationFailure.AmbientStepsProvider(
-				com.adsamcik.tracker.tracker.api
-					.AmbientStepsSettingsReconciliationFailure.PROVIDER_ACTIVATION_FAILED,
-			)
-		markerFile.exists() shouldBe true
-		startupDeletionBarrier.isClosed shouldBe true
-		coVerify(exactly = 1) { ambientSteps.reconcileAfterSettingsChange() }
-		coVerify(exactly = 3) { ambientSteps.closeForCollectedDataDeletion() }
-	}
-
-	@Test
-	fun `purpose reconciliation failure keeps marker gate and provider shutdown`() = runTest {
-		val purpose = mockk<TrackingPurposeSettingsReconciler>()
-		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
-		coEvery { purpose.reconcileCurrentSettings() } throws IOException("purpose unavailable")
-		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
-			AmbientStepsProviderCleanupResult(complete = true)
-		val service = createService(
-			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
-			purposeSettingsReconciler = purpose,
-		) { _, _, _, _ -> }
-
-		service.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
-			CollectedDataDeletionReconciliationFailure.PurposeSettings,
-		)
 		markerFile.exists() shouldBe true
 		startupDeletionBarrier.isClosed shouldBe true
 		coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
@@ -633,8 +536,6 @@ class CollectedDataDeletionServiceTest {
 		}
 		val arbiter = mockk<ActivityRegistrationArbiter>()
 		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
-		coEvery { ambientSteps.reconcileAfterSettingsChange() } returns
-			AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
 		val result = appliedRegistrationResult()
 		coEvery { arbiter.closeForCollectedDataDeletion() } returns result
 		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
@@ -785,12 +686,13 @@ class CollectedDataDeletionServiceTest {
 	@Test
 	fun `marker removal failure returns retryable debt with barrier and provider closed`() = runTest {
 		var appDeletionCount = 0
+		val arbiter = mockk<ActivityRegistrationArbiter>()
 		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
+		coEvery { arbiter.closeForCollectedDataDeletion() } returns appliedRegistrationResult()
 		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
 			AmbientStepsProviderCleanupResult(complete = true)
-		coEvery { ambientSteps.reconcileAfterSettingsChange() } returns
-			AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
 		val first = createService(
+			activityRegistrationArbiterProvider = Provider { arbiter },
 			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
 			markerDelete = { false },
 		) { _, _, _, _ -> appDeletionCount += 1 }
@@ -806,6 +708,7 @@ class CollectedDataDeletionServiceTest {
 		coVerify(exactly = 3) { ambientSteps.closeForCollectedDataDeletion() }
 
 		val resumed = createService(
+			activityRegistrationArbiterProvider = Provider { arbiter },
 			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
 			markerDelete = { it.delete() },
 		) { _, _, _, _ -> appDeletionCount += 1 }
@@ -815,7 +718,14 @@ class CollectedDataDeletionServiceTest {
 		appDeletionCount shouldBe 1
 		clearingMarkerFile.exists() shouldBe false
 		startupDeletionBarrier.isClosed shouldBe false
-		coVerify(exactly = 2) { ambientSteps.reconcileAfterSettingsChange() }
+		coVerify(exactly = 4) { arbiter.closeForCollectedDataDeletion() }
+		coVerify(exactly = 5) { ambientSteps.closeForCollectedDataDeletion() }
+		coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
+		coVerify(exactly = 4) { writerQuiescer.quiesce() }
+		coVerify(exactly = 1) {
+			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+		}
+		verify(exactly = 1) { automaticControlRestorer.schedule(1L) }
 	}
 
 	@Test
@@ -825,13 +735,11 @@ class CollectedDataDeletionServiceTest {
 		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
 		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
 			AmbientStepsProviderCleanupResult(complete = true)
-		coEvery { ambientSteps.reconcileAfterSettingsChange() } returns
-			AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
 		val service = createService(
 			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
 			directorySync = {
 				syncCount += 1
-				if (syncCount == 3) error("final directory fsync failed")
+				if (syncCount == 4) error("final directory fsync failed")
 			},
 		) { _, _, _, _ -> appDeletionCount += 1 }
 
@@ -849,8 +757,14 @@ class CollectedDataDeletionServiceTest {
 
 		appDeletionCount shouldBe 1
 		startupDeletionBarrier.isClosed shouldBe false
-		syncCount shouldBe 4
-		coVerify(exactly = 2) { ambientSteps.reconcileAfterSettingsChange() }
+		syncCount shouldBe 5
+		coVerify(exactly = 5) { ambientSteps.closeForCollectedDataDeletion() }
+		coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
+		coVerify(exactly = 4) { writerQuiescer.quiesce() }
+		coVerify(exactly = 1) {
+			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+		}
+		verify(exactly = 1) { automaticControlRestorer.schedule(1L) }
 	}
 
 	@Test
@@ -1126,8 +1040,6 @@ class CollectedDataDeletionServiceTest {
 			this.collectedDataLifecycleStore,
 		retentionAuthorityProducer: RetentionAuthorityProducer =
 			completeRetentionAuthorityProducer(),
-		purposeSettingsReconciler: TrackingPurposeSettingsReconciler =
-			TrackingPurposeSettingsReconciler { },
 		directorySync: (File) -> Unit = {},
 		markerDelete: (File) -> Boolean = File::delete,
 		appDatabaseDeletionOperation: (suspend (
@@ -1146,7 +1058,6 @@ class CollectedDataDeletionServiceTest {
 		ambientStepsProviderLifecycleProvider = ambientStepsProviderLifecycleProvider,
 		automaticControlRestorer = automaticControlRestorer,
 		retentionAuthorityProducer = retentionAuthorityProducer,
-		purposeSettingsReconciler = purposeSettingsReconciler,
 		traceboxDataDeletion = traceboxDataDeletion,
 		trackingDiagnosticDataDeletion = trackingDiagnosticDataDeletion,
 		appDatabaseDeletion = appDatabaseDeletionOperation ?: { deletionContext, operation ->

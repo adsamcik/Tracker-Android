@@ -89,6 +89,15 @@ class RetentionConfigStore(
         }
     }
 
+    /**
+     * Resets debug/test preferences without manufacturing an approved retention authority.
+     *
+     * A changed default configuration is published only with its normal pending approval stage;
+     * the producer-owned prepare/approve/reconciliation path remains mandatory before use.
+     */
+    suspend fun resetToDefaultsForDebug(): RetentionPolicyStage =
+        update { RetentionConfigState() }
+
     suspend fun updateWithApproval(
         block: RetentionConfigState.() -> RetentionConfigState,
         prepare: suspend (RetentionPolicyStage) -> RetentionConfigurationApprovalResult,

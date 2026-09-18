@@ -21,7 +21,6 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsState
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingStateProto
-import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
@@ -256,7 +255,7 @@ class TestDataSeeder @Inject constructor(
         mapSettingsRepository.setVisitThresholdSeconds(mapDefaults.visitThresholdSeconds)
 
         trackingParamsRepository.update { TrackingParamsState() }
-        retentionConfigStore.update { RetentionConfigState() }
+        retentionConfigStore.resetToDefaultsForDebug()
     }
 
     private suspend fun markOnboardingIncomplete() {
