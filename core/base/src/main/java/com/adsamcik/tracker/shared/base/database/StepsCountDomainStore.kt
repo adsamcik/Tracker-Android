@@ -285,6 +285,9 @@ class StepsCountDomainStore(
 			return StepsCountDomainWriteResult.NOT_APPLICABLE
 		}
 		writeSchemaFailure()?.let { return it }
+		if (!retirementEvidence.hasFinalRegistrationRemoval()) {
+			return StepsCountDomainWriteResult.AUTHORITY_PENDING
+		}
 		val scopeIdentity = StepsCountDomainReceiptIntegrity.sessionRunScopeIdentity(
 			row.logicalTrackingId,
 			row.serviceRunId,
@@ -1275,6 +1278,9 @@ private fun SourceSessionCompletenessEntity.hasExactCompleteRetirement(
 	evidence.providerFlushOutcome in
 		setOf("COMPLETE", "NOT_SUPPORTED", "NOT_REQUESTED") &&
 	evidence.registrationRemovalOutcome in setOf("REMOVED", "NOT_REGISTERED")
+
+private fun StepsCountDomainRetirementEvidence.hasFinalRegistrationRemoval(): Boolean =
+	registrationRemovalOutcome in setOf("REMOVED", "NOT_REGISTERED")
 
 private fun StepsCountDomainCompletenessMarkerEntity.asUnproven():
 	StepsCountDomainCompletenessMarkerEntity {

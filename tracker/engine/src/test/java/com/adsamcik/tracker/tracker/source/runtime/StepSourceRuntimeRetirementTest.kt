@@ -151,6 +151,47 @@ class StepSourceRuntimeRetirementTest {
 	}
 
 	@Test
+	fun `transient retirement does not publish completeness before current complete retry`() = runTest {
+		val fixture = fixture(
+			scope = this,
+			completionOutcomes = ArrayDeque<Any>(listOf(false, true)),
+		)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(fixture.plan, fixture.sink))
+
+		val pending = fixture.runtime.quiesce(sessionCutoff(Long.MAX_VALUE))
+
+		assertEquals(SourceStopStatus.PROVIDER_FAILED, pending.status)
+		assertEquals(RegistrationRemovalOutcome.FAILED, pending.registrationRemovalOutcome)
+		coVerify(exactly = 0) {
+			fixture.repository.saveRuntimeState(
+				any(), any(), any(), any(), any(), any(), any(),
+				match { it != null },
+				any(),
+			)
+		}
+
+		fixture.runtime.close()
+
+		coVerify(exactly = 1) {
+			fixture.repository.saveRuntimeState(
+				any(), any(), any(), any(), any(), any(), any(),
+				match {
+					it?.stopStatus == SourceStopStatus.COMPLETE.name &&
+						it.appDrainComplete
+				},
+				match {
+					it?.providerFlushOutcome == ProviderFlushOutcome.NOT_SUPPORTED.name &&
+						it.registrationRemovalOutcome == RegistrationRemovalOutcome.REMOVED.name
+				},
+			)
+		}
+		coVerify(exactly = 1) { fixture.repository.beginRetirement(any(), any(), any(), any()) }
+		coVerify(exactly = 2) {
+			fixture.repository.completeRetirement(fixture.retirementTokens.single())
+		}
+	}
+
+	@Test
 	fun `hung retirement begin times out before exact listener removal`() = runTest {
 		val fixture = fixture(
 			scope = this,

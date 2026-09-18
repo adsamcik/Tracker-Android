@@ -137,6 +137,53 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
+	fun `exact expected Ambient trigger set is accepted`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		val ambientTriggers = sqlite.query(
+			"SELECT name FROM sqlite_master WHERE type = 'trigger' " +
+				"AND tbl_name = 'ambient_steps_fact_revision' ORDER BY name",
+		).use { cursor ->
+			buildList {
+				while (cursor.moveToNext()) add(cursor.getString(0))
+			}
+		}
+
+		ambientTriggers shouldBe listOf(
+			StepsCountDomainSchema.AMBIENT_NO_RESURRECTION_TRIGGER,
+			StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER,
+		).sorted()
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.ValidV2
+	}
+
+	@Test
+	fun `arbitrary extra trigger attached to Ambient facts is incompatible`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"CREATE TRIGGER arbitrary_ambient_trigger AFTER INSERT ON " +
+				"ambient_steps_fact_revision BEGIN SELECT NEW.semantic_revision; END",
+		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `expected Ambient trigger name with impostor SQL is incompatible`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"DROP TRIGGER ${StepsCountDomainSchema.AMBIENT_NO_RESURRECTION_TRIGGER}",
+		)
+		sqlite.execSQL(
+			"CREATE TRIGGER ${StepsCountDomainSchema.AMBIENT_NO_RESURRECTION_TRIGGER} " +
+				"BEFORE INSERT ON ambient_steps_fact_revision BEGIN SELECT 1; END",
+		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
 	fun `unexpected ordinary index attached to an authority table is incompatible`() {
 		installSchema()
 		val sqlite = database.openHelper.writableDatabase

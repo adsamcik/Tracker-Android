@@ -36,6 +36,7 @@ object StepsCountDomainSchema {
 		"trg_steps_count_domain_ambient_retraction"
 	const val TERMINAL_OWNER_TRIGGER =
 		"trg_steps_count_domain_owner_terminal"
+	private const val AMBIENT_FACT_TABLE = "ambient_steps_fact_revision"
 
 	private val creationStatements: List<String> = listOf(
 		"""
@@ -372,12 +373,14 @@ object StepsCountDomainSchema {
 				"WHERE lower(name) LIKE 'steps_count_domain_%' " +
 				"OR lower(name) LIKE 'idx_steps_count_domain_%' " +
 				"OR lower(name) LIKE 'trg_steps_count_domain_%' " +
-				"OR tbl_name IN (?, ?, ?, ?)",
+				"OR tbl_name IN (?, ?, ?, ?) " +
+				"OR (type = 'trigger' AND tbl_name = ?)",
 			arrayOf(
 				RECEIPT_TABLE,
 				OWNER_TABLE,
 				COMPLETENESS_MARKER_TABLE,
 				SCHEMA_MARKER_TABLE,
+				AMBIENT_FACT_TABLE,
 			),
 		).use { cursor ->
 			buildSet {
@@ -499,12 +502,14 @@ object StepsCountDomainSchema {
 	private fun SupportSQLiteDatabase.authorityTriggers(): Map<String, SchemaTrigger> =
 		query(
 			"SELECT name, tbl_name, sql FROM sqlite_master WHERE type = 'trigger' AND (" +
-				"tbl_name IN (?, ?, ?, ?) OR lower(name) LIKE 'trg_steps_count_domain_%')",
+				"tbl_name IN (?, ?, ?, ?) OR tbl_name = ? " +
+				"OR lower(name) LIKE 'trg_steps_count_domain_%')",
 			arrayOf(
 				RECEIPT_TABLE,
 				OWNER_TABLE,
 				COMPLETENESS_MARKER_TABLE,
 				SCHEMA_MARKER_TABLE,
+				AMBIENT_FACT_TABLE,
 			),
 		).use { cursor ->
 			buildMap {
@@ -784,7 +789,7 @@ object StepsCountDomainSchema {
 			}
 			val table = when (name) {
 				TERMINAL_OWNER_TRIGGER -> OWNER_TABLE
-				else -> "ambient_steps_fact_revision"
+				else -> AMBIENT_FACT_TABLE
 			}
 			name to SchemaTrigger(table, statement.normalizedSql())
 		}

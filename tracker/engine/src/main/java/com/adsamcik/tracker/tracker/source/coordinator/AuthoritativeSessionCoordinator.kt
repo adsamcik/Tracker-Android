@@ -4642,12 +4642,15 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			check(acknowledgement.source == target.source)
 			check(acknowledgement.sourceInstanceId == provider.sourceInstanceId)
 			check(acknowledgement.registrationGeneration == provider.registrationGeneration)
+			val terminal = acknowledgement.hasTerminalLifecycleSettlement()
 			check(dao.updateRunRetirement(
 				current.copy(
-					state = if (acknowledgement.status == SourceStopStatus.PROCESS_RESTARTED) {
-						SourceRunRetirementEntity.STATE_INTERRUPTED
-					} else {
-						SourceRunRetirementEntity.STATE_ACKNOWLEDGED
+					state = when {
+						acknowledgement.source == SourceKind.STEPS && !terminal ->
+							SourceRunRetirementEntity.STATE_REQUESTED
+						acknowledgement.status == SourceStopStatus.PROCESS_RESTARTED ->
+							SourceRunRetirementEntity.STATE_INTERRUPTED
+						else -> SourceRunRetirementEntity.STATE_ACKNOWLEDGED
 					},
 					appliedRevision = acknowledgement.appliedRevision,
 					callbackEntryBarrierSequence = acknowledgement.callbackEntryBarrierSequence,
@@ -4702,6 +4705,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		check(ack.hasMembership(logicalTrackingId, serviceRunId)) {
 			"Completeness acknowledgement lacks exact service-run membership"
 		}
+		if (ack.source == SourceKind.STEPS && !ack.hasTerminalLifecycleSettlement()) return
 		val candidate = SourceSessionCompletenessEntity(
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,

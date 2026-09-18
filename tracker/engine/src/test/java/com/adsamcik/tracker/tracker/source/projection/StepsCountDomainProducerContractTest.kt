@@ -298,6 +298,59 @@ class StepsCountDomainProducerContractTest {
 	}
 
 	@Test
+	fun `transient retirement stays pending then reconstructed store binds current complete retry`() =
+		runTest {
+			val token = token('a')
+			val wal = insertWal(token)
+			val initialStore = StepsCountDomainStore(database)
+			initialStore.recordSessionWal(wal, token) shouldBe StepsCountDomainWriteResult.INSERTED
+			val pending = completeness(wal).copy(stopStatus = "PROVIDER_FAILED")
+			database.sourceSessionDao().saveCompleteness(pending)
+
+			initialStore.recordSessionCompleteness(
+				pending,
+				StepsCountDomainRetirementEvidence("NOT_REQUESTED", "FAILED"),
+			) shouldBe StepsCountDomainWriteResult.AUTHORITY_PENDING
+			database.openHelper.writableDatabase.query(
+				"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
+					"WHERE owner_kind = 'SESSION_COMPLETENESS'",
+			).use { cursor ->
+				cursor.moveToFirst()
+				cursor.getLong(0) shouldBe 0L
+			}
+
+			val complete = completeness(wal).copy(updatedAtMs = pending.updatedAtMs + 1L)
+			database.sourceSessionDao().saveCompleteness(complete)
+			val reconstructedStore = StepsCountDomainStore(database)
+			reconstructedStore.recordSessionCompleteness(
+				complete,
+				completeRetirementEvidence(),
+			) shouldBe StepsCountDomainWriteResult.INSERTED
+			reconstructedStore.recordSessionCompleteness(
+				complete,
+				completeRetirementEvidence(),
+			) shouldBe StepsCountDomainWriteResult.EXACT_REPLAY
+			database.openHelper.writableDatabase.query(
+				"SELECT operation FROM steps_count_domain_owner_revision " +
+					"WHERE owner_kind = 'SESSION_COMPLETENESS' ORDER BY owner_revision",
+			).use { cursor ->
+				cursor.moveToFirst()
+				cursor.getString(0) shouldBe StepsCountDomainOwnerRevisionEntity.OPERATION_BIND
+				cursor.moveToNext() shouldBe false
+			}
+			database.openHelper.writableDatabase.query(
+				"SELECT terminal_state, provider_flush_outcome, registration_removal_outcome " +
+					"FROM steps_count_domain_completeness_marker",
+			).use { cursor ->
+				cursor.moveToFirst()
+				cursor.getString(0) shouldBe "COMPLETE"
+				cursor.getString(1) shouldBe "COMPLETE"
+				cursor.getString(2) shouldBe "REMOVED"
+				cursor.moveToNext() shouldBe false
+			}
+		}
+
+	@Test
 	fun `complete retirement remains retryable until canonical WAL authority exists`() = runTest {
 		val store = StepsCountDomainStore(database)
 		val token = token('a')

@@ -1183,6 +1183,15 @@ class AuthoritativeSessionCoordinatorTest {
 		subject.stop(
 			SessionStopRequest("retry-stop-owner", "manual", 2_000L, 2_000_000L, "boot-1", perSourceTimeoutMs = 100L),
 		).shouldBeInstanceOf<SessionStopResult.DrainPending>()
+		database.sourceSessionDao()
+			.completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
+			.none { completeness -> completeness.sourceKind == SourceKind.STEPS.stableCode } shouldBe true
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single().state shouldBe
+			com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.STATE_REQUESTED
 		runtime.stopStatus = SourceStopStatus.COMPLETE
 		runtime.registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED
 		subject.stop(
