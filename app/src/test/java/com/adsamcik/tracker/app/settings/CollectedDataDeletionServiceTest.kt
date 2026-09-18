@@ -468,6 +468,68 @@ class CollectedDataDeletionServiceTest {
 	}
 
 	@Test
+	fun `completed deletion is evicted after its only caller cancels`() = runTest {
+		val firstClearStarted = CompletableDeferred<Unit>()
+		val releaseFirstClear = CompletableDeferred<Unit>()
+		var physicalClearCount = 0
+		val service = createService(
+			providerFenceScope = backgroundScope,
+		) { _, _, _, _ ->
+			physicalClearCount += 1
+			if (physicalClearCount == 1) {
+				firstClearStarted.complete(Unit)
+				releaseFirstClear.await()
+			}
+		}
+
+		val firstCaller = async { service.deleteAll() }
+		firstClearStarted.await()
+		firstCaller.cancel()
+		firstCaller.join()
+		releaseFirstClear.complete(Unit)
+		runCurrent()
+
+		markerFile.exists() shouldBe false
+		service.deleteAll() shouldBe CollectedDataDeletionCompletion.Complete
+
+		physicalClearCount shouldBe 2
+		lifecycleSnapshot.epoch shouldBe 2L
+		coVerify(exactly = 2) {
+			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+		}
+	}
+
+	@Test
+	fun `failed completed deletion flight is evicted before durable retry`() = runTest {
+		val firstClearStarted = CompletableDeferred<Unit>()
+		val releaseFailure = CompletableDeferred<Unit>()
+		var physicalClearAttempts = 0
+		val service = createService(
+			providerFenceScope = backgroundScope,
+		) { _, _, _, _ ->
+			physicalClearAttempts += 1
+			if (physicalClearAttempts == 1) {
+				firstClearStarted.complete(Unit)
+				releaseFailure.await()
+				error("first durable clear attempt failed")
+			}
+		}
+
+		val abandonedCaller = async { service.deleteAll() }
+		firstClearStarted.await()
+		abandonedCaller.cancel()
+		abandonedCaller.join()
+		releaseFailure.complete(Unit)
+		runCurrent()
+
+		markerFile.exists() shouldBe true
+		service.reconcilePendingDeletion() shouldBe CollectedDataDeletionCompletion.Complete
+
+		physicalClearAttempts shouldBe 2
+		markerFile.exists() shouldBe false
+	}
+
+	@Test
 	fun `durable deletion callers deduplicate and rejoin one physical clear`() = runTest {
 		val clearStarted = CompletableDeferred<Unit>()
 		val allowClear = CompletableDeferred<Unit>()

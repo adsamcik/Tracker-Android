@@ -96,6 +96,8 @@ class RetentionFloorSettlementTest {
 				"approved",
 				"approved",
 				"approved",
+				"approved",
+				"approved",
 				"authority",
 				"purpose",
 			)

@@ -1,15 +1,15 @@
 package com.adsamcik.tracker.shared.preferences.retention
 
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
-import kotlin.coroutines.AbstractCoroutineContextElement
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 /**
  * Serializes collected-data lifecycle transitions with retention bootstrap, reads, and writes.
@@ -18,161 +18,160 @@ import kotlinx.coroutines.withContext
  * Room. Room transactions must use only Room state and CAS; they must never call back into
  * DataStore or acquire this lease.
  */
-class RetentionAuthorityOperationLease {
+class RetentionAuthorityOperationLease(
+	internal val ownedSuspensionTimeoutMs: Long = DEFAULT_OWNED_SUSPENSION_TIMEOUT_MS,
+) {
 	private val mutex = Mutex()
 
-	suspend fun <T> withOperation(operation: suspend () -> T): T =
+	init {
+		require(ownedSuspensionTimeoutMs > 0L)
+	}
+
+	internal suspend fun <T> withOperation(operation: suspend () -> T): T =
 		mutex.withLock { operation() }
 
 	suspend fun <T> withPermit(
 		cancellationShielded: Boolean = false,
 		operation: suspend (RetentionAuthorityOperationPermit) -> T,
 	): T = mutex.withLock {
-		val capability = Any()
-		val context = RetentionAuthorityOperationContext(capability)
 		val invoke = suspend {
-			val permit = RetentionAuthorityOperationPermit(
-				owner = this@RetentionAuthorityOperationLease,
-				ownerJob = checkNotNull(currentCoroutineContext()[Job]) {
-					"Retention authority operation requires a coroutine Job"
-				},
-				operationContext = context,
-				capability = capability,
-			)
-			try {
-				operation(permit)
-			} finally {
-				permit.invalidate()
+			coroutineScope {
+				val permit = RetentionAuthorityOperationPermit(
+					owner = this@RetentionAuthorityOperationLease,
+					ownerJob = checkNotNull(currentCoroutineContext()[Job]) {
+						"Retention authority operation requires a coroutine Job"
+					},
+				)
+				try {
+					operation(permit)
+				} finally {
+					permit.close()
+				}
 			}
 		}
 		if (cancellationShielded) {
-			withContext(NonCancellable + context) { invoke() }
+			withContext(NonCancellable) { invoke() }
 		} else {
-			withContext(context) { invoke() }
+			invoke()
 		}
 	}
 
 	internal suspend fun requireOwned(permit: RetentionAuthorityOperationPermit) {
 		permit.requireActive(this)
 	}
+
+	private companion object {
+		const val DEFAULT_OWNED_SUSPENSION_TIMEOUT_MS = 30_000L
+	}
 }
 
 class RetentionAuthorityOperationPermit internal constructor(
 	internal val owner: RetentionAuthorityOperationLease,
-	// This rejects inherited operation context in child coroutines; capability identity is separate.
 	private val ownerJob: Job,
-	private val operationContext: RetentionAuthorityOperationContext,
-	private val capability: Any,
 ) {
 	private val active = AtomicBoolean(true)
-	private val awaitedOperation = AtomicReference<RetentionAuthorityAwaitContext?>(null)
+	private val operationMonitor = Any()
+	private var inFlightOperation: RetentionAuthorityInFlightOperation? = null
 
 	suspend fun validate() {
 		requireActive()
 	}
 
 	/**
-	 * Runs one awaited library operation without transferring the permit to the library coroutine.
+	 * Owns one complete Room suspension from call entry through transaction return.
 	 *
-	 * Entry and return remain bound to the exact lexical owner coroutine. While the operation is
-	 * suspended, Room/DataStore-created coroutines authenticate with the private awaited capability
-	 * instead of a Job identity. Only one such operation may be active for this permit.
+	 * The Room operation is awaited as a registered lease flight, so Room may use its own coroutine
+	 * without receiving an inheritable authorization context or the lexical permit.
 	 */
-	suspend fun <T> awaitOwned(
+	suspend fun <T> commitRoomMutation(
+		operation: suspend () -> T,
+	): T = runOwnedSuspension(RetentionAuthorityOwnedSuspensionKind.ROOM, operation)
+
+	internal suspend fun <T> commitDataStoreMutation(
+		operation: suspend () -> T,
+	): T = runOwnedSuspension(RetentionAuthorityOwnedSuspensionKind.DATA_STORE, operation)
+
+	internal suspend fun <T> commitDataStoreMutation(
+		expectedOwner: RetentionAuthorityOperationLease,
 		operation: suspend () -> T,
 	): T {
-		requireOwnerEntry()
-		val awaited = RetentionAuthorityAwaitContext(capability)
-		check(awaitedOperation.compareAndSet(null, awaited)) {
-			"Retention authority operation already owns an awaited library call"
+		require(owner === expectedOwner) {
+			"Retention authority DataStore bridge belongs to another lifecycle boundary"
 		}
-		return try {
-			val invoke = suspend {
-				requireAwaited(awaited)
-				operation().also { requireAwaited(awaited) }
-			}
-			val result = withContext(awaited) { invoke() }
-			requireOwnerEntry()
-			result
-		} finally {
-			awaited.invalidate()
-			awaitedOperation.compareAndSet(awaited, null)
-		}
+		return commitDataStoreMutation(operation)
 	}
 
 	internal suspend fun requireActive(expectedOwner: RetentionAuthorityOperationLease = owner) {
 		require(owner === expectedOwner) {
 			"Retention authority operation permit belongs to another lifecycle boundary"
 		}
-		val current = currentCoroutineContext()
-		require(
-			current[RetentionAuthorityOperationContext] === operationContext &&
-				operationContext.owns(capability),
-		) {
-			"Retention authority operation permit lost its private operation capability"
-		}
 		require(active.get()) {
 			"Retention authority operation permit escaped its active lexical scope"
 		}
-		val awaited = current[RetentionAuthorityAwaitContext]
-		if (awaited == null) {
-			require(current[Job] === ownerJob) {
-				"Retention authority operation permit transferred outside its exact owner coroutine"
+		require(currentCoroutineContext()[Job] === ownerJob) {
+			"Retention authority operation permit transferred outside its exact owner coroutine"
+		}
+	}
+
+	internal fun close() {
+		synchronized(operationMonitor) {
+			check(inFlightOperation == null) {
+				"Retention authority operation ended with a privileged suspension in flight"
 			}
-		} else {
-			requireAwaited(awaited)
+			active.set(false)
 		}
 	}
 
-	internal fun invalidate() {
-		active.set(false)
-		awaitedOperation.getAndSet(null)?.invalidate()
-	}
-
-	private suspend fun requireOwnerEntry() {
-		requireActive(owner)
-		require(currentCoroutineContext()[RetentionAuthorityAwaitContext] == null) {
-			"Retention authority awaited operations cannot be nested or transferred"
+	private suspend fun <T> runOwnedSuspension(
+		kind: RetentionAuthorityOwnedSuspensionKind,
+		operation: suspend () -> T,
+	): T {
+		requireActive()
+		val registered = RetentionAuthorityInFlightOperation(kind)
+		synchronized(operationMonitor) {
+			require(active.get()) {
+				"Retention authority operation permit escaped its active lexical scope"
+			}
+			check(inFlightOperation == null) {
+				"Retention authority operation already owns a privileged suspension"
+			}
+			inFlightOperation = registered
 		}
-	}
-
-	private suspend fun requireAwaited(expected: RetentionAuthorityAwaitContext) {
-		val current = currentCoroutineContext()
-		require(active.get()) {
-			"Retention authority operation permit escaped its active lexical scope"
-		}
-		require(
-			current[RetentionAuthorityOperationContext] === operationContext &&
-				operationContext.owns(capability) &&
-				current[RetentionAuthorityAwaitContext] === expected &&
-				expected.capability === capability &&
-				expected.isActive &&
-				awaitedOperation.get() === expected,
-		) {
-			"Retention authority awaited capability is no longer owned by this operation"
+		return try {
+			val result = try {
+				withTimeout(owner.ownedSuspensionTimeoutMs) {
+					operation()
+				}
+			} catch (_: TimeoutCancellationException) {
+				throw RetentionAuthorityOwnedSuspensionTimeoutException(kind)
+			}
+			synchronized(operationMonitor) {
+				check(active.get() && inFlightOperation === registered && registered.active.get()) {
+					"Retention authority privileged suspension lost lease ownership before commit"
+				}
+			}
+			requireActive()
+			result
+		} finally {
+			synchronized(operationMonitor) {
+				if (inFlightOperation === registered) inFlightOperation = null
+				registered.active.set(false)
+			}
 		}
 	}
 }
 
-internal class RetentionAuthorityOperationContext(
-	private val capability: Any,
-) : AbstractCoroutineContextElement(Key) {
-	fun owns(candidate: Any): Boolean = capability === candidate
-
-	companion object Key : CoroutineContext.Key<RetentionAuthorityOperationContext>
+private class RetentionAuthorityInFlightOperation(
+	val kind: RetentionAuthorityOwnedSuspensionKind,
+) {
+	val active = AtomicBoolean(true)
 }
 
-private class RetentionAuthorityAwaitContext(
-	val capability: Any,
-) : AbstractCoroutineContextElement(Key) {
-	private val active = AtomicBoolean(true)
-
-	val isActive: Boolean
-		get() = active.get()
-
-	fun invalidate() {
-		active.set(false)
-	}
-
-	companion object Key : CoroutineContext.Key<RetentionAuthorityAwaitContext>
+internal enum class RetentionAuthorityOwnedSuspensionKind {
+	ROOM,
+	DATA_STORE,
 }
+
+internal class RetentionAuthorityOwnedSuspensionTimeoutException(
+	kind: RetentionAuthorityOwnedSuspensionKind,
+) : IllegalStateException("Timed out waiting for lease-owned ${kind.name.lowercase()} commit")

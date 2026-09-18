@@ -46,51 +46,48 @@ class RetentionFloorSettlement @Inject constructor(
 			operationLease.withPermit(cancellationShielded = true) { permit ->
 				var phase = RetentionFloorSettlementPhase.LIFECYCLE_FLOOR
 				try {
-					val lifecycle = permit.awaitOwned {
-						verifyApprovedOperation()
-						lifecycleStore.advanceRetainedFromWithPermit(
-							requestedRetainedFromMs,
-							permit,
-						)
-					}
+					verifyApprovedOperation()
+					val lifecycle = lifecycleStore.advanceRetainedFromWithPermit(
+						requestedRetainedFromMs,
+						permit,
+					)
 					permit.validate()
 					verifyApprovedOperation()
 					phase = RetentionFloorSettlementPhase.ROOM_GUARD
-					permit.awaitOwned {
-						permit.validate()
+					permit.commitRoomMutation {
 						verifyApprovedOperation()
 						database.withTransaction {
-							permit.validate()
 							verifyApprovedOperation()
 							try {
 								val sourceEvidenceStateDao = database.sourceEvidenceStateDao()
-								permit.validate()
 								val lifecycleChanged = sourceEvidenceStateDao.synchronizeLifecycle(
 									epoch = lifecycle.epoch,
 									retainedFromMs = lifecycle.retainedFromMs,
 									updatedAtMs = updatedAtMs,
 								)
-								permit.validate()
 								if (!lifecycleChanged) {
-									permit.validate()
-									check(sourceEvidenceStateDao.incrementRevision(updatedAtMs) == 1) {
+									val evidence = requireNotNull(sourceEvidenceStateDao.get())
+									check(
+										sourceEvidenceStateDao.incrementRevisionForExactLifecycle(
+											expectedRevision = evidence.revision,
+											expectedCollectedDataEpoch = lifecycle.epoch,
+											expectedRetainedFromMs = lifecycle.retainedFromMs,
+											updatedAtMs = updatedAtMs,
+										) == 1,
+									) {
 										"Unable to advance source-evidence revision for retention floor"
 									}
-									permit.validate()
 								}
 							} finally {
 								verifyApprovedOperation()
-								permit.validate()
 							}
 						}
-						permit.validate()
+						verifyApprovedOperation()
 					}
 					permit.validate()
 					phase = RetentionFloorSettlementPhase.AUTHORITY_REISSUE
 					val retentionResults = try {
-						permit.awaitOwned {
-							retentionAuthorityProducer.reconcileCurrentSettingsWithPermit(permit)
-						}
+						retentionAuthorityProducer.reconcileCurrentSettingsWithPermit(permit)
 					} catch (_: Exception) {
 						RETENTION_PROVIDER_SOURCES.keys.map { source ->
 							RetentionAuthorityResult.Unavailable(

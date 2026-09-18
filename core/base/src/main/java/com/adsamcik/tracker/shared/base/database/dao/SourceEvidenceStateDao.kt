@@ -64,6 +64,31 @@ interface SourceEvidenceStateDao {
 		UPDATE source_evidence_state
 		SET collected_data_epoch = :epoch,
 			retained_from_ms = :retainedFromMs,
+			revision = revision + 1,
+			updated_at_ms = :updatedAtMs
+		WHERE id = 1
+			AND revision = :expectedRevision
+			AND collected_data_epoch = :expectedEpoch
+			AND (
+				(retained_from_ms IS NULL AND :expectedRetainedFromMs IS NULL)
+				OR retained_from_ms = :expectedRetainedFromMs
+			)
+		""",
+	)
+	suspend fun updateLifecycleForExactState(
+		expectedRevision: Long,
+		expectedEpoch: Long,
+		expectedRetainedFromMs: Long?,
+		epoch: Long,
+		retainedFromMs: Long?,
+		updatedAtMs: Long,
+	): Int
+
+	@Query(
+		"""
+		UPDATE source_evidence_state
+		SET collected_data_epoch = :epoch,
+			retained_from_ms = :retainedFromMs,
 			deleted_source_event_high_water_ordinal = :deletedSourceEventHighWaterOrdinal,
 			revision = revision + 1,
 			updated_at_ms = :updatedAtMs
@@ -116,9 +141,9 @@ suspend fun SourceEvidenceStateDao.recordFullDeletion(
  * protects. It never weakens an already stricter Room guard when an older
  * preference snapshot reaches the database after a newer transition.
  *
- * @return true when [updateLifecycle] advanced the guard and therefore already
- * incremented its revision; callers that mutate evidence when this returns
- * false must increment the revision themselves.
+ * @return true when the exact lifecycle CAS advanced the guard and therefore already incremented
+ * its revision; callers that mutate evidence when this returns false must increment the revision
+ * themselves.
  */
 suspend fun SourceEvidenceStateDao.synchronizeLifecycle(
 	epoch: Long,
@@ -135,7 +160,16 @@ suspend fun SourceEvidenceStateDao.synchronizeLifecycle(
 	) {
 		return false
 	}
-	check(updateLifecycle(desiredEpoch, desiredRetainedFrom, updatedAtMs) == 1) {
+	check(
+		updateLifecycleForExactState(
+			expectedRevision = current.revision,
+			expectedEpoch = current.collectedDataEpoch,
+			expectedRetainedFromMs = current.retainedFromMs,
+			epoch = desiredEpoch,
+			retainedFromMs = desiredRetainedFrom,
+			updatedAtMs = updatedAtMs,
+		) == 1,
+	) {
 		"Unable to synchronize source-evidence lifecycle"
 	}
 	return true

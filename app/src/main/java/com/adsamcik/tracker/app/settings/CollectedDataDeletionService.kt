@@ -444,11 +444,7 @@ class DefaultCollectedDataDeletionService(
 	private fun activeDeletionFlight(): DeletionFlight? {
 		val current = deletionFlight ?: return null
 		check(current.operationIdentity.isNotBlank())
-		return if (
-			current.task.isCompleted &&
-			current.awaiterCount == 0 &&
-			current.resultRetrieved
-		) {
+		return if (current.task.isCompleted) {
 			deletionFlight = null
 			null
 		} else {
@@ -486,13 +482,7 @@ class DefaultCollectedDataDeletionService(
 		start: DeletionStart,
 	): CollectedDataDeletionCompletion = when (start) {
 		is DeletionStart.Await -> try {
-			start.flight.task.await().also {
-				withContext(NonCancellable) {
-					deletionMutex.withLock {
-						if (deletionFlight === start.flight) start.flight.resultRetrieved = true
-					}
-				}
-			}
+			start.flight.task.await()
 		} finally {
 			withContext(NonCancellable) {
 				deletionMutex.withLock {
@@ -1351,7 +1341,6 @@ class DefaultCollectedDataDeletionService(
 		val operationIdentity: String,
 		val task: Deferred<CollectedDataDeletionCompletion>,
 		var awaiterCount: Int,
-		var resultRetrieved: Boolean = false,
 	)
 
 	private sealed interface DeletionStart {

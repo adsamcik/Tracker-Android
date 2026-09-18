@@ -26,6 +26,9 @@ import kotlin.test.assertIs
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -370,6 +373,43 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
+	fun `delayed Room commit cannot publish a stale source policy grant`() = runTest {
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+		val commitReady = CompletableDeferred<Unit>()
+		val releaseCommit = CompletableDeferred<Unit>()
+		val producer = producer { source, scope ->
+			if (
+				source == TrackingSourceComponent.STEPS &&
+				scope == RetentionAuthorityScope.LIVE_AMBIENT
+			) {
+				commitReady.complete(Unit)
+				releaseCommit.await()
+			}
+		}
+		val reconciliation = async {
+			producer.reconcileLiveAmbient(TrackingSourceComponent.STEPS)
+		}
+		commitReady.await()
+		val current = (policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
+		policies.setNonCaptureConsent(
+			current.revision,
+			TrackingSourceComponent.STEPS,
+			SourcePurpose.AMBIENT_PRODUCT,
+			eligible = false,
+			persistenceEligible = false,
+			reason = "TEST_DELAYED_COMMIT_REVOKE",
+		)
+		releaseCommit.complete(Unit)
+
+		assertIs<RetentionAuthorityResult.Unavailable>(reconciliation.await()).reason shouldBe
+			RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE
+		database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+			AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+		) shouldBe null
+	}
+
+	@Test
 	fun `concurrent pristine lifecycle transition completes before exact bootstrap and grant`() =
 		runTest {
 			removeSourceEvidenceState()
@@ -543,17 +583,13 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `lease owned Room transaction keeps the private operation capability`() = runTest {
+	fun `lease owned Room bridge supports the library transaction coroutine`() = runTest {
 		operationLease.withPermit { permit ->
-			permit.awaitOwned {
-				permit.validate()
+			permit.commitRoomMutation {
 				database.withTransaction {
-					permit.validate()
 					database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe
 						lifecycle.epoch
-					permit.validate()
 				}
-				permit.validate()
 			}
 		}
 	}
@@ -581,11 +617,88 @@ class RetentionAuthorityProducerRoomTest {
 		val producer = producer()
 
 		operationLease.withPermit { permit ->
-			val child = async {
+			supervisorScope {
+				val child = async {
+					producer.reconcileCurrentSettings(permit)
+				}
+				assertFailsWith<IllegalArgumentException> { child.await() }
+			}
+		}
+	}
+
+	@Test
+	fun `operation permit cannot transfer to a detached child during its scope`() = runTest {
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+		val producer = producer()
+
+		operationLease.withPermit { permit ->
+			val detached = backgroundScope.async {
 				producer.reconcileCurrentSettings(permit)
 			}
-			assertFailsWith<IllegalArgumentException> { child.await() }
+			runCurrent()
+			assertFailsWith<IllegalArgumentException> { detached.await() }
 		}
+	}
+
+	@Test
+	fun `captured Room bridge cannot start after lease release`() = runTest {
+		lateinit var escaped: RetentionAuthorityOperationPermit
+		var mutationStarted = false
+
+		operationLease.withPermit { permit ->
+			escaped = permit
+		}
+
+		assertFailsWith<IllegalArgumentException> {
+			escaped.commitRoomMutation {
+				mutationStarted = true
+			}
+		}
+		mutationStarted shouldBe false
+	}
+
+	@Test
+	fun `lease release waits through Room commit and bridge post check`() = runTest {
+		val commitEntered = CompletableDeferred<Unit>()
+		val releaseCommit = CompletableDeferred<Unit>()
+		var leaseReleased = false
+		val owner = async {
+			operationLease.withPermit { permit ->
+				permit.commitRoomMutation {
+					database.withTransaction {
+						commitEntered.complete(Unit)
+						releaseCommit.await()
+						database.sourceEvidenceStateDao().get()
+					}
+				}
+			}
+			leaseReleased = true
+		}
+
+		commitEntered.await()
+		runCurrent()
+		leaseReleased shouldBe false
+		releaseCommit.complete(Unit)
+		owner.await()
+		leaseReleased shouldBe true
+	}
+
+	@Test
+	fun `hung lease owned suspension fails within the bridge bound`() = runTest {
+		val boundedLease = RetentionAuthorityOperationLease(ownedSuspensionTimeoutMs = 1L)
+		val owner = async {
+			assertFailsWith<RetentionAuthorityOwnedSuspensionTimeoutException> {
+				boundedLease.withPermit { permit ->
+					permit.commitRoomMutation {
+						awaitCancellation()
+					}
+				}
+			}
+		}
+
+		advanceTimeBy(2L)
+		owner.await()
 	}
 
 	@Test
