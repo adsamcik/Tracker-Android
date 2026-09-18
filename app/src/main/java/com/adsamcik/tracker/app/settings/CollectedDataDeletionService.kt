@@ -28,6 +28,7 @@ import com.adsamcik.tracker.shared.base.database.legacy.LEGACY_DATABASE_NAME
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityDataStoreCommitUnknownException
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
@@ -162,6 +163,16 @@ sealed interface CollectedDataDeletionReconciliationFailure {
 
 	data object DeletionExecution : CollectedDataDeletionReconciliationFailure {
 		override val failureCode: String = "COLLECTED_DATA_DELETION_EXECUTION"
+	}
+
+	data class LifecycleCommitUnknown(
+		val operationId: String,
+	) : CollectedDataDeletionReconciliationFailure {
+		init {
+			require(operationId.isNotBlank())
+		}
+
+		override val failureCode: String = "COLLECTED_DATA_LIFECYCLE_COMMIT_UNKNOWN"
 	}
 }
 
@@ -444,7 +455,7 @@ class DefaultCollectedDataDeletionService(
 	private fun activeDeletionFlight(): DeletionFlight? {
 		val current = deletionFlight ?: return null
 		check(current.operationIdentity.isNotBlank())
-		return if (current.task.isCompleted) {
+		return if (current.task.isCompleted && current.awaiterCount == 0) {
 			deletionFlight = null
 			null
 		} else {
@@ -488,6 +499,13 @@ class DefaultCollectedDataDeletionService(
 				deletionMutex.withLock {
 					check(start.flight.awaiterCount > 0)
 					start.flight.awaiterCount -= 1
+					if (
+						start.flight.awaiterCount == 0 &&
+						start.flight.task.isCompleted &&
+						deletionFlight === start.flight
+					) {
+						deletionFlight = null
+					}
 				}
 			}
 		}
@@ -591,6 +609,15 @@ class DefaultCollectedDataDeletionService(
 			startupDeletionBarrier.reopen()
 			markerClearPendingInProcess = false
 			return CollectedDataDeletionCompletion.Complete
+		} catch (unknown: RetentionAuthorityDataStoreCommitUnknownException) {
+			return keepPurposeOwnersClosed(
+				purposeDeletionFencer,
+				CollectedDataDeletionCompletion.Retryable(
+					CollectedDataDeletionReconciliationFailure.LifecycleCommitUnknown(
+						unknown.operationIdentity,
+					),
+				),
+			)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		}

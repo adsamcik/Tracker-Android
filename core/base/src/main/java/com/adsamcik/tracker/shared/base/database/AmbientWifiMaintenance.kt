@@ -111,6 +111,16 @@ suspend fun AppDatabase.pruneAmbientWifi(
 			it.retainedFromMs == command.beforeMs
 	}
 	if (liveRetention == null && importRetention == null) {
+		val scope = dao.loadWholeWifiScope()
+			?: return@withTransaction wifiRetentionUnavailable(
+				AmbientWifiMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+			)
+		if (!scope.isAuthentic) {
+			return@withTransaction wifiRetentionUnavailable(
+				AmbientWifiMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+			)
+		}
+		if (scope.isEmpty) return@withTransaction AmbientWifiRetentionResult.NoChange
 		return@withTransaction wifiRetentionUnavailable(
 			AmbientWifiMaintenanceUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE,
 		)

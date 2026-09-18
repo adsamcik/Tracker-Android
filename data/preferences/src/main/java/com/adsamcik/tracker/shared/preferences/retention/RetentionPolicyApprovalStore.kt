@@ -42,6 +42,27 @@ data class ApprovedRetentionPolicy(
 	}
 }
 
+internal fun ApprovedRetentionPolicy.hasAuthenticChecksum(
+	status: RetentionPolicyApprovalStatus,
+): Boolean = integrityChecksum == RetentionPolicyApprovalIntegrity.checksum(
+	status = status,
+	configurationGeneration = configurationGeneration,
+	revision = revision,
+	opaquePolicyId = opaquePolicyId,
+	configurationChecksum = configurationChecksum,
+)
+
+internal fun ApprovedRetentionPolicy.hasSameStableIdentity(
+	other: ApprovedRetentionPolicy,
+): Boolean =
+	configurationGeneration == other.configurationGeneration &&
+		revision == other.revision &&
+		opaquePolicyId == other.opaquePolicyId &&
+		configurationChecksum == other.configurationChecksum
+
+internal fun ApprovedRetentionPolicy.approvalMutationIdentity(): String =
+	"retention-approval-v1:$configurationGeneration:$revision:$opaquePolicyId:$configurationChecksum"
+
 data class RetentionPolicyStage(
 	val policy: ApprovedRetentionPolicy,
 	val approvalRequired: Boolean,
@@ -224,7 +245,8 @@ internal class RetentionPolicyApprovalStore(
 				if (current == null ||
 					!current.isAuthentic() ||
 					current.status != RetentionPolicyApprovalStatus.PENDING ||
-					current.policy != expected
+					!expected.hasAuthenticChecksum(RetentionPolicyApprovalStatus.PENDING) ||
+					!current.policy.hasSameStableIdentity(expected)
 				) {
 					return@edit
 				}
@@ -297,14 +319,7 @@ internal data class RetentionPolicyApprovalRecord(
 	val status: RetentionPolicyApprovalStatus,
 	val policy: ApprovedRetentionPolicy,
 ) {
-	fun isAuthentic(): Boolean =
-		policy.integrityChecksum == RetentionPolicyApprovalIntegrity.checksum(
-			status = status,
-			configurationGeneration = policy.configurationGeneration,
-			revision = policy.revision,
-			opaquePolicyId = policy.opaquePolicyId,
-			configurationChecksum = policy.configurationChecksum,
-		)
+	fun isAuthentic(): Boolean = policy.hasAuthenticChecksum(status)
 
 	fun statusFor(configuration: RetentionConfigState): RetentionPolicyApprovalStatus = when {
 		!isAuthentic() -> RetentionPolicyApprovalStatus.INVALID

@@ -49,6 +49,7 @@ enum class RetentionAuthorityUnavailableReason {
 	EFFECTIVE_TIME_INVALID,
 	SOURCE_AUTHORITY_UNAVAILABLE,
 	STORAGE_UNAVAILABLE,
+	COMMIT_ACKNOWLEDGEMENT_UNKNOWN,
 }
 
 sealed interface RetentionConfigurationApprovalResult {
@@ -322,18 +323,28 @@ class DefaultRetentionAuthorityProducer internal constructor(
 	private val mutex = Mutex()
 
 	private suspend fun <T> withSerializedOperation(
+		onCommitUnknown: (RetentionAuthorityDataStoreCommitUnknownException) -> T,
 		operation: suspend (RetentionAuthorityOperationPermit) -> T,
-	): T = operationLease.withPermit { permit ->
-		mutex.withLock {
-			permit.validate()
-			operation(permit).also { permit.validate() }
+	): T = try {
+		operationLease.withPermit { permit ->
+			mutex.withLock {
+				permit.validate()
+				operation(permit).also { permit.validate() }
+			}
 		}
+	} catch (unknown: RetentionAuthorityDataStoreCommitUnknownException) {
+		onCommitUnknown(unknown)
 	}
 
 	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> =
-		withSerializedOperation { permit ->
-			reconcileCurrentSettingsLocked(permit)
-		}
+		withSerializedOperation(
+			onCommitUnknown = {
+				unavailableReconciliationResults(
+					RetentionAuthorityUnavailableReason.COMMIT_ACKNOWLEDGEMENT_UNKNOWN,
+				)
+			},
+			operation = ::reconcileCurrentSettingsLocked,
+		)
 
 	override suspend fun reconcileCurrentSettings(
 		permit: RetentionAuthorityOperationPermit,
@@ -353,10 +364,23 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
 			return unavailableReconciliationResults(reason)
 		}
-		(readPendingPolicyCandidate() as? RetentionPolicyCandidateRead.Available)?.let {
-			preparePendingConfigurationLocked(it.policy.configurationGeneration, permit)
+		val pending = readPendingPolicyCandidate() as? RetentionPolicyCandidateRead.Available
+		if (pending != null) {
+			val prepared = preparePendingConfigurationLocked(
+				pending.policy.configurationGeneration,
+				permit,
+			)
+			if (prepared is RetentionConfigurationApprovalResult.Unavailable) {
+				return unavailableReconciliationResults(prepared.reason)
+			}
+			val approved = reconcilePendingConfigurationLocked(
+				pending.policy.configurationGeneration,
+				permit,
+			)
+			if (approved is RetentionConfigurationApprovalResult.Unavailable) {
+				return unavailableReconciliationResults(approved.reason)
+			}
 		}
-		reconcilePendingConfigurationLocked(operationPermit = permit)
 		val results = mutableListOf<RetentionAuthorityResult>()
 		for (source in LIVE_AMBIENT_SOURCES) {
 			results += safely(source, RetentionAuthorityScope.LIVE_AMBIENT) {
@@ -414,96 +438,132 @@ class DefaultRetentionAuthorityProducer internal constructor(
 
 	override suspend fun preparePendingConfiguration(
 		expectedConfigurationGeneration: Long,
-	): RetentionConfigurationApprovalResult = withSerializedOperation { permit ->
-		try {
-			exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
-				return@withSerializedOperation RetentionConfigurationApprovalResult.Unavailable(reason)
-			}
-			preparePendingConfigurationLocked(expectedConfigurationGeneration, permit)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (_: Exception) {
+	): RetentionConfigurationApprovalResult = withSerializedOperation(
+		onCommitUnknown = {
 			RetentionConfigurationApprovalResult.Unavailable(
-				RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE,
+				RetentionAuthorityUnavailableReason.COMMIT_ACKNOWLEDGEMENT_UNKNOWN,
 			)
+		},
+	) { permit ->
+			try {
+				exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
+					return@withSerializedOperation RetentionConfigurationApprovalResult.Unavailable(reason)
+				}
+				preparePendingConfigurationLocked(expectedConfigurationGeneration, permit)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				RetentionConfigurationApprovalResult.Unavailable(
+					RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE,
+				)
+			}
 		}
-	}
 
 	override suspend fun reconcilePendingConfiguration(
 		expectedConfigurationGeneration: Long?,
-	): RetentionConfigurationApprovalResult = withSerializedOperation { permit ->
-		try {
-			exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
-				return@withSerializedOperation RetentionConfigurationApprovalResult.Unavailable(reason)
-			}
-			reconcilePendingConfigurationLocked(expectedConfigurationGeneration, permit)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (_: Exception) {
+	): RetentionConfigurationApprovalResult = withSerializedOperation(
+		onCommitUnknown = {
 			RetentionConfigurationApprovalResult.Unavailable(
-				RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE,
+				RetentionAuthorityUnavailableReason.COMMIT_ACKNOWLEDGEMENT_UNKNOWN,
 			)
+		},
+	) { permit ->
+			try {
+				exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
+					return@withSerializedOperation RetentionConfigurationApprovalResult.Unavailable(reason)
+				}
+				reconcilePendingConfigurationLocked(expectedConfigurationGeneration, permit)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				RetentionConfigurationApprovalResult.Unavailable(
+					RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE,
+				)
+			}
 		}
-	}
 
 	override suspend fun reconcileLiveAmbient(
 		source: TrackingSourceComponent,
-	): RetentionAuthorityResult = withSerializedOperation { permit ->
-		safely(source, RetentionAuthorityScope.LIVE_AMBIENT) {
-			exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
-				return@safely unavailable(source, RetentionAuthorityScope.LIVE_AMBIENT, reason)
+	): RetentionAuthorityResult = withSerializedOperation(
+		onCommitUnknown = {
+			unavailable(
+				source,
+				RetentionAuthorityScope.LIVE_AMBIENT,
+				RetentionAuthorityUnavailableReason.COMMIT_ACKNOWLEDGEMENT_UNKNOWN,
+			)
+		},
+	) { permit ->
+			safely(source, RetentionAuthorityScope.LIVE_AMBIENT) {
+				exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
+					return@safely unavailable(source, RetentionAuthorityScope.LIVE_AMBIENT, reason)
+				}
+				reconcileLiveAmbientLocked(source, permit)
 			}
-			reconcileLiveAmbientLocked(source, permit)
 		}
-	}
 
 	override suspend fun approvePortableImport(
 		source: TrackingSourceComponent,
-	): RetentionAuthorityResult = withSerializedOperation { permit ->
-		safely(source, RetentionAuthorityScope.PORTABLE_IMPORT) {
-			exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
-				return@safely unavailable(source, RetentionAuthorityScope.PORTABLE_IMPORT, reason)
-			}
-			if (source !in PORTABLE_IMPORT_SOURCES) {
-				return@safely unavailable(
-					source,
-					RetentionAuthorityScope.PORTABLE_IMPORT,
-					RetentionAuthorityUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
-				)
-			}
-			val approval = approvedPolicyOrNull() ?: return@safely unavailable(
+	): RetentionAuthorityResult = withSerializedOperation(
+		onCommitUnknown = {
+			unavailable(
 				source,
 				RetentionAuthorityScope.PORTABLE_IMPORT,
-				RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+				RetentionAuthorityUnavailableReason.COMMIT_ACKNOWLEDGEMENT_UNKNOWN,
 			)
-			val lifecycle = readLifecycle()
-			grant(
-				source = source,
-				scope = RetentionAuthorityScope.PORTABLE_IMPORT,
-				approval = approval,
-				lifecycle = lifecycle,
-				sourcePolicyRevision = null,
-				ambientConsentEpoch = null,
-				operationPermit = permit,
-			)
+		},
+	) { permit ->
+			safely(source, RetentionAuthorityScope.PORTABLE_IMPORT) {
+				exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
+					return@safely unavailable(source, RetentionAuthorityScope.PORTABLE_IMPORT, reason)
+				}
+				if (source !in PORTABLE_IMPORT_SOURCES) {
+					return@safely unavailable(
+						source,
+						RetentionAuthorityScope.PORTABLE_IMPORT,
+						RetentionAuthorityUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+					)
+				}
+				val approval = approvedPolicyOrNull() ?: return@safely unavailable(
+					source,
+					RetentionAuthorityScope.PORTABLE_IMPORT,
+					RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+				)
+				val lifecycle = readLifecycle()
+				grant(
+					source = source,
+					scope = RetentionAuthorityScope.PORTABLE_IMPORT,
+					approval = approval,
+					lifecycle = lifecycle,
+					sourcePolicyRevision = null,
+					ambientConsentEpoch = null,
+					operationPermit = permit,
+				)
+			}
 		}
-	}
 
 	override suspend fun revokePortableImport(
 		source: TrackingSourceComponent,
-	): RetentionAuthorityResult = withSerializedOperation { permit ->
-		safely(source, RetentionAuthorityScope.PORTABLE_IMPORT) {
-			exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
-				return@safely unavailable(source, RetentionAuthorityScope.PORTABLE_IMPORT, reason)
-			}
-			revoke(
+	): RetentionAuthorityResult = withSerializedOperation(
+		onCommitUnknown = {
+			unavailable(
 				source,
 				RetentionAuthorityScope.PORTABLE_IMPORT,
-				readLifecycle(),
-				permit,
+				RetentionAuthorityUnavailableReason.COMMIT_ACKNOWLEDGEMENT_UNKNOWN,
 			)
+		},
+	) { permit ->
+			safely(source, RetentionAuthorityScope.PORTABLE_IMPORT) {
+				exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
+					return@safely unavailable(source, RetentionAuthorityScope.PORTABLE_IMPORT, reason)
+				}
+				revoke(
+					source,
+					RetentionAuthorityScope.PORTABLE_IMPORT,
+					readLifecycle(),
+					permit,
+				)
+			}
 		}
-	}
 
 	override suspend fun reconcilePassiveLocationRetention(): RetentionAuthorityResult =
 		reconcileLiveAmbient(TrackingSourceComponent.LOCATION)
@@ -514,7 +574,13 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		expectedAmbientConsentEpoch: Long,
 		expectedCollectedDataEpoch: Long,
 		expectedRetainedFromMs: Long?,
-	): CurrentRetentionAuthority = withSerializedOperation { permit ->
+	): CurrentRetentionAuthority = withSerializedOperation(
+		onCommitUnknown = {
+			CurrentRetentionAuthority.Unavailable(
+				RetentionAuthorityUnavailableReason.COMMIT_ACKNOWLEDGEMENT_UNKNOWN,
+			)
+		},
+	) { permit ->
 		try {
 			exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
 				return@withSerializedOperation CurrentRetentionAuthority.Unavailable(reason)
@@ -634,9 +700,11 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION,
 			)
 		}
-		if (candidate.status != RetentionPolicyApprovalStatus.PENDING) {
+		if (candidate.status != RetentionPolicyApprovalStatus.PENDING ||
+			!candidate.policy.hasAuthenticChecksum(RetentionPolicyApprovalStatus.PENDING)
+		) {
 			return RetentionConfigurationApprovalResult.Unavailable(
-				RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION,
+				RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH,
 			)
 		}
 		operationPermit.validate()
@@ -688,7 +756,19 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			)
 		}
 		if (candidate.status == RetentionPolicyApprovalStatus.APPROVED) {
+			if (!candidate.policy.hasAuthenticChecksum(RetentionPolicyApprovalStatus.APPROVED)) {
+				return RetentionConfigurationApprovalResult.Unavailable(
+					RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH,
+				)
+			}
 			return RetentionConfigurationApprovalResult.AlreadyApproved(candidate.policy)
+		}
+		if (candidate.status != RetentionPolicyApprovalStatus.PENDING ||
+			!candidate.policy.hasAuthenticChecksum(RetentionPolicyApprovalStatus.PENDING)
+		) {
+			return RetentionConfigurationApprovalResult.Unavailable(
+				RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH,
+			)
 		}
 		operationPermit.validate()
 		val lifecycle = readLifecycle()
@@ -738,11 +818,23 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			}
 		}
 		operationPermit.validate()
-		val approved = operationPermit.commitDataStoreMutation {
+		val approved = operationPermit.commitDataStoreMutation(
+			candidate.policy.approvalMutationIdentity(),
+		) {
 			markPolicyApproved(candidate.policy)
 		}
 		operationPermit.validate()
 		if (approved == null) {
+			return RetentionConfigurationApprovalResult.Unavailable(
+				RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION,
+			)
+		}
+		if (!approved.hasAuthenticChecksum(RetentionPolicyApprovalStatus.APPROVED)) {
+			return RetentionConfigurationApprovalResult.Unavailable(
+				RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH,
+			)
+		}
+		if (!approved.hasSameStableIdentity(candidate.policy)) {
 			return RetentionConfigurationApprovalResult.Unavailable(
 				RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION,
 			)

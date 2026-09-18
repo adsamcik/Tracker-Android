@@ -182,6 +182,67 @@ class RetentionConfigStoreTest {
 	}
 
 	@Test
+	fun `genuine pending to approved transition preserves stable identity with a new status checksum`() =
+		runTest {
+			val applied = store.updateWithApproval(
+				block = { copy(autoPurgeEnabled = true, rawDataRetentionDays = 45) },
+				prepare = { RetentionConfigurationApprovalResult.Prepared(it.policy) },
+				approve = { stage ->
+					val approved = requireNotNull(store.markPolicyApproved(stage.policy))
+					approved.hasAuthenticChecksum(RetentionPolicyApprovalStatus.APPROVED) shouldBe true
+					(approved.integrityChecksum == stage.policy.integrityChecksum) shouldBe false
+					RetentionConfigurationApprovalResult.Approved(approved)
+				},
+			)
+
+			val approved = assertIs<RetentionConfigurationApprovalResult.Approved>(applied.approval)
+			approved.policy.hasSameStableIdentity(applied.stage.policy) shouldBe true
+			store.approvalStatus.first() shouldBe RetentionPolicyApprovalStatus.APPROVED
+		}
+
+	@Test
+	fun `approved callback with the pending status checksum fails closed`() = runTest {
+		val applied = store.updateWithApproval(
+			block = { copy(autoPurgeEnabled = true, rawDataRetentionDays = 46) },
+			prepare = { RetentionConfigurationApprovalResult.Prepared(it.policy) },
+			approve = { stage ->
+				RetentionConfigurationApprovalResult.Approved(stage.policy)
+			},
+		)
+
+		assertIs<RetentionConfigurationApprovalResult.Unavailable>(applied.approval).reason shouldBe
+			RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION
+		store.approvalStatus.first() shouldBe RetentionPolicyApprovalStatus.PENDING
+	}
+
+	@Test
+	fun `status-authentic approved callback with tampered stable policy fields fails closed`() =
+		runTest {
+			val applied = store.updateWithApproval(
+				block = { copy(autoPurgeEnabled = true, rawDataRetentionDays = 47) },
+				prepare = { RetentionConfigurationApprovalResult.Prepared(it.policy) },
+				approve = { stage ->
+					val revision = stage.policy.revision + 1L
+					val forged = stage.policy.copy(
+						revision = revision,
+						integrityChecksum = RetentionPolicyApprovalIntegrity.checksum(
+							RetentionPolicyApprovalStatus.APPROVED,
+							stage.policy.configurationGeneration,
+							revision,
+							stage.policy.opaquePolicyId,
+							stage.policy.configurationChecksum,
+						),
+					)
+					RetentionConfigurationApprovalResult.Approved(forged)
+				},
+			)
+
+			assertIs<RetentionConfigurationApprovalResult.Unavailable>(applied.approval).reason shouldBe
+				RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION
+			store.approvalStatus.first() shouldBe RetentionPolicyApprovalStatus.PENDING
+		}
+
+	@Test
 	fun `exact approved read waits across publication and approval`() = runTest {
 		val atomicStore = RetentionConfigStore(context, Dispatchers.Unconfined)
 		val approvalEntered = CompletableDeferred<Unit>()
@@ -314,6 +375,26 @@ class RetentionConfigStoreTest {
 		)
 		exact.policy.revision shouldBe staged.policy.revision
 	}
+
+	@Test
+	fun `pending approval rejects an otherwise stable policy carrying the approved status checksum`() =
+		runTest {
+			val staged = store.update {
+				copy(autoPurgeEnabled = true, rawDataRetentionDays = 22)
+			}
+			val approvedChecksum = RetentionPolicyApprovalIntegrity.checksum(
+				RetentionPolicyApprovalStatus.APPROVED,
+				staged.policy.configurationGeneration,
+				staged.policy.revision,
+				staged.policy.opaquePolicyId,
+				staged.policy.configurationChecksum,
+			)
+
+			store.markPolicyApproved(
+				staged.policy.copy(integrityChecksum = approvedChecksum),
+			) shouldBe null
+			store.approvalStatus.first() shouldBe RetentionPolicyApprovalStatus.PENDING
+		}
 
 	@Test
 	fun `debug reset stages defaults without preserving stale live authority`() = runTest {

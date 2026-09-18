@@ -137,9 +137,15 @@ class RetentionConfigStore(
             val approved = approve(stage)
             val exactApproval = when (approved) {
                 is RetentionConfigurationApprovalResult.Approved ->
-                    approved.takeIf { it.policy.sameIdentity(stage.policy) }
+                    approved.takeIf {
+                        it.policy.hasAuthenticChecksum(RetentionPolicyApprovalStatus.APPROVED) &&
+                            it.policy.hasSameStableIdentity(stage.policy)
+                    }
                 is RetentionConfigurationApprovalResult.AlreadyApproved ->
-                    approved.takeIf { it.policy.sameIdentity(stage.policy) }
+                    approved.takeIf {
+                        it.policy.hasAuthenticChecksum(RetentionPolicyApprovalStatus.APPROVED) &&
+                            it.policy.hasSameStableIdentity(stage.policy)
+                    }
                 is RetentionConfigurationApprovalResult.Prepared -> null
                 is RetentionConfigurationApprovalResult.Unavailable -> approved
             } ?: RetentionConfigurationApprovalResult.Unavailable(
@@ -359,9 +365,15 @@ data class ApprovedRetentionOperation(
     val policy: ApprovedRetentionPolicy,
 ) {
     fun requireIdentity(expected: ApprovedRetentionPolicy = policy) {
-        check(policy.sameIdentity(expected)) {
+        check(policy.hasSameStableIdentity(expected)) {
             "Destructive retention approval identity changed inside an admitted operation"
         }
+    }
+
+    fun retentionFloorOperationId(requestedRetainedFromMs: Long): String {
+        require(requestedRetainedFromMs >= 0L)
+        return "retention-floor-v1:${policy.configurationGeneration}:${policy.revision}:" +
+            "${policy.opaquePolicyId}:${policy.configurationChecksum}:$requestedRetainedFromMs"
     }
 }
 
@@ -390,13 +402,6 @@ enum class ExactApprovedRetentionConfigUnavailableReason {
     NOT_APPROVED,
     STORAGE_UNAVAILABLE,
 }
-
-private fun ApprovedRetentionPolicy.sameIdentity(other: ApprovedRetentionPolicy): Boolean =
-    configurationGeneration == other.configurationGeneration &&
-        revision == other.revision &&
-        opaquePolicyId == other.opaquePolicyId &&
-        configurationChecksum == other.configurationChecksum &&
-        integrityChecksum == other.integrityChecksum
 
 suspend fun resetRetentionConfigForTests(context: Context) {
     context.retentionConfigDataStore.updateData {

@@ -80,6 +80,7 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.firstArg
 import io.mockk.mockk
+import io.mockk.secondArg
 import io.mockk.slot
 import io.mockk.verify
 import kotlin.test.assertFailsWith
@@ -99,6 +100,7 @@ import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionBlockedReason
 import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionResult
 import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionService
+import io.kotest.matchers.shouldBe
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -244,10 +246,12 @@ class RetentionPipelineWorkerRobolectricTest {
 		assertEquals(ListenableWorker.Result.success(), worker.doWork())
 
 		coVerify(exactly = 1) { locationDao.deleteOlderThan(any()) }
-		coVerify(exactly = 1) { collectedDataLifecycleStore.advanceRetainedFrom(any()) }
+		coVerify(exactly = 1) {
+			collectedDataLifecycleStore.advanceRetainedFrom(any(), any(), any())
+		}
 		coVerify(exactly = 1) { stepsProjectionLane.drainAvailable() }
 		coVerifyOrder {
-			collectedDataLifecycleStore.advanceRetainedFrom(any())
+			collectedDataLifecycleStore.advanceRetainedFrom(any(), any(), any())
 			locationDao.deleteOlderThan(any())
 		}
 		coVerify(exactly = 1) { locationObservationDao.deleteOlderThan(any()) }
@@ -420,7 +424,9 @@ class RetentionPipelineWorkerRobolectricTest {
 				"expired-run",
 				9L,
 			))
-			coVerify(exactly = 1) { collectedDataLifecycleStore.advanceRetainedFrom(any()) }
+			coVerify(exactly = 1) {
+				collectedDataLifecycleStore.advanceRetainedFrom(any(), any(), any())
+			}
 			coVerify(exactly = 1) { cellRetentionService.prune(db, any(), any()) }
 			verify(exactly = 1) { migrationBackupRepository.deleteAll() }
 		} finally {
@@ -583,7 +589,8 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	@Test
-	fun `zero Wi-Fi Cell retention does not invoke captured Cell maintenance`() = runTest {
+	fun `loosened Wi-Fi Cell setting still applies the settled monotonic floor to captured Cell`() =
+		runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val service = cellRetentionService()
 		val db = retentionDatabase()
@@ -598,7 +605,7 @@ class RetentionPipelineWorkerRobolectricTest {
 			).doWork(),
 		)
 
-		coVerify(exactly = 0) { service.prune(any(), any(), any()) }
+		coVerify(exactly = 1) { service.prune(db, 1L, any()) }
 	}
 
 	@Test
@@ -629,7 +636,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		)
 
 		assertEquals(
-			ListenableWorker.Result.success(),
+			ListenableWorker.Result.retry(),
 			worker(
 				context,
 				retentionStore(config),
@@ -654,6 +661,77 @@ class RetentionPipelineWorkerRobolectricTest {
 		verify(exactly = 0) { db.sourceBrokerDao() }
 		verify(exactly = 0) { db.sourceRuntimeStateDao() }
 	}
+
+	@Test
+	fun `ambient maintenance debt invokes captured sources and requests durable worker retry`() =
+		runTest {
+			val context = ApplicationProvider.getApplicationContext<Context>()
+			val ambient = periodicAmbientRetentionMaintenance(
+				PeriodicAmbientRetentionResult.Retryable(
+					listOf(
+						PeriodicAmbientRetentionFailure(
+							PeriodicAmbientRetentionSource.IMPORTED_STEPS,
+							PeriodicAmbientRetentionFailureReason.INCOMPLETE,
+						),
+					),
+				),
+			)
+			val cell = cellRetentionService()
+			val wifi = wifiRetentionService()
+			val db = retentionDatabase()
+			val config = autoPurgeConfig(rawDataRetentionDays = 0).copy(
+				wifiCellRetentionDays = 3,
+			)
+
+			worker(
+				context = context,
+				store = retentionStore(config),
+				db = db,
+				cellCapturedRetentionService = cell,
+				wifiCapturedRetentionService = wifi,
+				periodicAmbientRetentionMaintenance = ambient,
+			).doWork() shouldBe ListenableWorker.Result.retry()
+
+			coVerify(exactly = 1) { ambient.run(db, any(), any(), any()) }
+			coVerify(exactly = 1) { cell.prune(db, any(), any()) }
+			coVerify(exactly = 1) { wifi.prune(db, any(), any()) }
+		}
+
+	@Test
+	fun `stricter radio setting becomes the exact captured floor when raw retention differs`() =
+		runTest {
+			val context = ApplicationProvider.getApplicationContext<Context>()
+			val cell = cellRetentionService()
+			val wifi = wifiRetentionService()
+			val db = retentionDatabase()
+			val cellFloor = slot<Long>()
+			val wifiFloor = slot<Long>()
+			val appliedAt = slot<Long>()
+			val config = autoPurgeConfig(rawDataRetentionDays = 30).copy(
+				wifiCellRetentionDays = 3,
+			)
+
+			worker(
+				context = context,
+				store = retentionStore(config),
+				db = db,
+				cellCapturedRetentionService = cell,
+				wifiCapturedRetentionService = wifi,
+			).doWork() shouldBe ListenableWorker.Result.success()
+
+			coVerify(exactly = 1) {
+				cell.prune(db, capture(cellFloor), capture(appliedAt))
+			}
+			coVerify(exactly = 1) {
+				wifi.prune(db, capture(wifiFloor), any())
+			}
+			val expected = RetentionPipelineWorker.computeWifiCellCutoffMillis(
+				3,
+				appliedAt.captured,
+			)
+			cellFloor.captured shouldBe expected
+			wifiFloor.captured shouldBe expected
+		}
 
 	@Test
 	fun `captured Cell retention cancellation propagates without legacy deletion`() = runTest {
@@ -855,7 +933,9 @@ class RetentionPipelineWorkerRobolectricTest {
 				"expired-run",
 				9L,
 			))
-			coVerify(exactly = 1) { collectedDataLifecycleStore.advanceRetainedFrom(any()) }
+			coVerify(exactly = 1) {
+				collectedDataLifecycleStore.advanceRetainedFrom(any(), any(), any())
+			}
 			coVerify(exactly = 1) { wifiRetentionService.prune(db, any(), any()) }
 			verify(exactly = 1) { migrationBackupRepository.deleteAll() }
 		} finally {
@@ -864,7 +944,7 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	@Test
-	fun `zero Wi-Fi Cell retention keeps captured Wi-Fi forever`() = runTest {
+	fun `loosened Wi-Fi Cell setting cannot bypass the settled captured Wi-Fi floor`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val service = wifiRetentionService()
 		val db = retentionDatabase()
@@ -879,7 +959,7 @@ class RetentionPipelineWorkerRobolectricTest {
 			).doWork(),
 		)
 
-		coVerify(exactly = 0) { service.prune(any(), any(), any()) }
+		coVerify(exactly = 1) { service.prune(db, 1L, any()) }
 		verify(exactly = 0) { db.sourceBrokerDao() }
 		verify(exactly = 0) { db.sourceRuntimeStateDao() }
 		verify(exactly = 0) { db.trackingRolloutStateDao() }
@@ -919,7 +999,11 @@ class RetentionPipelineWorkerRobolectricTest {
 			)
 
 			assertEquals(
-				ListenableWorker.Result.success(),
+				if (expected is WifiCapturedRetentionResult.Blocked) {
+					ListenableWorker.Result.retry()
+				} else {
+					ListenableWorker.Result.success()
+				},
 				worker(
 					context = context,
 					store = retentionStore(config),
@@ -1024,6 +1108,8 @@ class RetentionPipelineWorkerRobolectricTest {
 		cellCapturedRetentionService: CellCapturedRetentionService = cellRetentionService(),
 		wifiCapturedRetentionService: WifiCapturedRetentionService = wifiRetentionService(),
 		retentionFloorSettlement: RetentionFloorSettlement = retentionFloorSettlement(),
+		periodicAmbientRetentionMaintenance: PeriodicAmbientRetentionMaintenance =
+			periodicAmbientRetentionMaintenance(),
 	): RetentionPipelineWorker =
 		TestListenableWorkerBuilder<RetentionPipelineWorker>(context)
 			.setWorkerFactory(object : WorkerFactory() {
@@ -1045,9 +1131,16 @@ class RetentionPipelineWorkerRobolectricTest {
 					cellCapturedRetentionService,
 					wifiCapturedRetentionService,
 					retentionFloorSettlement,
+					periodicAmbientRetentionMaintenance,
 				)
 			})
 			.build() as RetentionPipelineWorker
+
+	private fun periodicAmbientRetentionMaintenance(
+		result: PeriodicAmbientRetentionResult = PeriodicAmbientRetentionResult.Complete,
+	): PeriodicAmbientRetentionMaintenance = mockk {
+		coEvery { run(any(), any(), any(), any()) } returns result
+	}
 
 	private fun retentionFloorSettlement(
 		producer: RetentionAuthorityProducer = successfulRetentionAuthorityProducer(),
@@ -1194,7 +1287,13 @@ class RetentionPipelineWorkerRobolectricTest {
 		snapshot: CollectedDataLifecycleSnapshot =
 			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 1L),
 	): CollectedDataLifecycleStore = mockk {
-		coEvery { advanceRetainedFrom(any()) } returns snapshot
+		coEvery { snapshot() } returns snapshot
+		coEvery { advanceRetainedFrom(any()) } answers {
+			snapshot.copy(retainedFromMs = maxOf(snapshot.retainedFromMs ?: 0L, firstArg()))
+		}
+		coEvery { advanceRetainedFrom(any(), any(), any()) } answers {
+			snapshot.copy(retainedFromMs = maxOf(snapshot.retainedFromMs ?: 0L, secondArg()))
+		}
 	}
 
 	private fun sourceEvidenceStateDao(): SourceEvidenceStateDao {

@@ -111,6 +111,16 @@ suspend fun AppDatabase.pruneAmbientCell(
 			it.retainedFromMs == command.beforeMs
 	}
 	if (liveRetention == null && importRetention == null) {
+		val scope = dao.loadWholeCellScope()
+			?: return@withTransaction cellRetentionUnavailable(
+				AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+			)
+		if (!scope.isAuthentic) {
+			return@withTransaction cellRetentionUnavailable(
+				AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+			)
+		}
+		if (scope.isEmpty) return@withTransaction AmbientCellRetentionResult.NoChange
 		return@withTransaction cellRetentionUnavailable(
 			AmbientCellMaintenanceUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE,
 		)

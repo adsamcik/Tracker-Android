@@ -92,6 +92,21 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
+	fun `pre-radio-receipt retention marker is classified as stale`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			markerValue = "tracker-v28-retention-final-20260917",
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28,
+		)
+	}
+
+	@Test
 	fun `marked v28 missing an indispensable final table is contained`() {
 		createFixture(
 			version = CURRENT_DATABASE_VERSION,
@@ -127,6 +142,22 @@ class DevelopmentV28DatabaseContainmentTest {
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalIndex = true,
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `marked v28 missing the retained radio receipt floor is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			includeRadioReceiptColumn = false,
 		)
 
 		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
@@ -402,6 +433,7 @@ class DevelopmentV28DatabaseContainmentTest {
 		includeRetentionTables: Boolean = includeFinalTable,
 		includeFinalColumn: Boolean = false,
 		includeFinalIndex: Boolean = false,
+		includeRadioReceiptColumn: Boolean = true,
 		markerValue: String? = null,
 	) {
 		val helper = FrameworkSQLiteOpenHelperFactory().create(
@@ -451,6 +483,15 @@ class DevelopmentV28DatabaseContainmentTest {
 							db.execSQL(
 								"CREATE TABLE collected_data_deletion_operation (" +
 									"operation_id TEXT PRIMARY KEY)",
+							)
+							val retainedFrom = if (includeRadioReceiptColumn) {
+								", retained_from_ms INTEGER"
+							} else {
+								""
+							}
+							db.execSQL(
+								"CREATE TABLE cell_captured_entry_deletion_receipt (" +
+									"logical_tracking_id TEXT PRIMARY KEY$retainedFrom)",
 							)
 							if (includeFinalIndex) {
 								db.execSQL(

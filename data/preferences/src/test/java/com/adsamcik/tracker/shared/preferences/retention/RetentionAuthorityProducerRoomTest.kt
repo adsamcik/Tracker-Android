@@ -702,6 +702,50 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
+	fun `late DataStore commit stays lease fenced until exact acknowledgement`() = runTest {
+		val commitEntered = CompletableDeferred<Unit>()
+		val releaseCommit = CompletableDeferred<Unit>()
+		var committed = false
+		val boundedLease = RetentionAuthorityOperationLease(
+			ownedSuspensionTimeoutMs = 1L,
+			completionScope = backgroundScope,
+		)
+		val first = async {
+			val unknown = assertFailsWith<RetentionAuthorityDataStoreCommitUnknownException> {
+				boundedLease.withPermit { permit ->
+					permit.commitDataStoreMutation("retention-floor:test:1500") {
+						commitEntered.complete(Unit)
+						withContext(NonCancellable) {
+							releaseCommit.await()
+						}
+						committed = true
+					}
+				}
+			}
+			unknown.operationIdentity shouldBe "retention-floor:test:1500"
+		}
+
+		commitEntered.await()
+		advanceTimeBy(2L)
+		first.await()
+		committed shouldBe false
+
+		var nextOperationEntered = false
+		val next = async {
+			boundedLease.withPermit {
+				nextOperationEntered = true
+			}
+		}
+		runCurrent()
+		nextOperationEntered shouldBe false
+
+		releaseCommit.complete(Unit)
+		next.await()
+		committed shouldBe true
+		nextOperationEntered shouldBe true
+	}
+
+	@Test
 	fun `operation permit cannot transfer through shared NonCancellable context`() = runTest {
 		operationLease.withPermit { permit ->
 			assertFailsWith<IllegalArgumentException> {
@@ -887,7 +931,12 @@ class RetentionAuthorityProducerRoomTest {
 	@Test
 	fun `pending configuration stays fail closed until exact Room grants are approved`() = runTest {
 		bootstrap(ambientWifi = true)
-		val pendingPolicy = approvedPolicy("pending-policy", revision = 1L)
+		val pendingPolicy = approvedPolicy(
+			"pending-policy",
+			revision = 1L,
+			status = RetentionPolicyApprovalStatus.PENDING,
+		)
+		val approvedPolicy = approvedPolicy("pending-policy", revision = 1L)
 		var markedApproved = false
 		val producer = producer(
 			readPolicyCandidate = {
@@ -898,7 +947,7 @@ class RetentionAuthorityProducerRoomTest {
 			},
 			markPolicyApproved = {
 				markedApproved = it == pendingPolicy
-				it
+				approvedPolicy
 			},
 		)
 
@@ -914,7 +963,7 @@ class RetentionAuthorityProducerRoomTest {
 		producer.preparePendingConfiguration(1L) shouldBe
 			RetentionConfigurationApprovalResult.Prepared(pendingPolicy)
 		producer.reconcilePendingConfiguration(1L) shouldBe
-			RetentionConfigurationApprovalResult.Approved(pendingPolicy)
+			RetentionConfigurationApprovalResult.Approved(approvedPolicy)
 		markedApproved shouldBe true
 		database.ambientWifiFactDao().latestRetentionAuthority(
 			AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
@@ -926,7 +975,11 @@ class RetentionAuthorityProducerRoomTest {
 		bootstrap(ambientWifi = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		producer().reconcileLiveAmbient(TrackingSourceComponent.WIFI)
-		val pendingPolicy = approvedPolicy("policy-2", revision = 2L)
+		val pendingPolicy = approvedPolicy(
+			"policy-2",
+			revision = 2L,
+			status = RetentionPolicyApprovalStatus.PENDING,
+		)
 		approvedPolicy = ApprovedRetentionPolicyRead.Unavailable(
 			ApprovedRetentionPolicyUnavailableReason.PENDING_APPROVAL,
 		)
@@ -1155,7 +1208,17 @@ class RetentionAuthorityProducerRoomTest {
 					RetentionPolicyCandidateRead.Unavailable(current.reason)
 			}
 		},
-		markPolicyApproved: suspend (ApprovedRetentionPolicy) -> ApprovedRetentionPolicy? = { it },
+		markPolicyApproved: suspend (ApprovedRetentionPolicy) -> ApprovedRetentionPolicy? = {
+			it.copy(
+				integrityChecksum = RetentionPolicyApprovalIntegrity.checksum(
+					RetentionPolicyApprovalStatus.APPROVED,
+					it.configurationGeneration,
+					it.revision,
+					it.opaquePolicyId,
+					it.configurationChecksum,
+				),
+			)
+		},
 	) = DefaultRetentionAuthorityProducer(
 		database = database,
 		sourcePolicyRepository = policies,
@@ -1186,6 +1249,7 @@ class RetentionAuthorityProducerRoomTest {
 	private fun approvedPolicy(
 		opaquePolicyId: String,
 		revision: Long,
+		status: RetentionPolicyApprovalStatus = RetentionPolicyApprovalStatus.APPROVED,
 	): ApprovedRetentionPolicy {
 		val configurationChecksum =
 			RetentionPolicyApprovalIntegrity.configurationChecksum(RetentionConfigState())
@@ -1195,7 +1259,7 @@ class RetentionAuthorityProducerRoomTest {
 				opaquePolicyId = opaquePolicyId,
 				configurationChecksum = configurationChecksum,
 				integrityChecksum = RetentionPolicyApprovalIntegrity.checksum(
-					RetentionPolicyApprovalStatus.APPROVED,
+					status,
 					revision,
 					revision,
 					opaquePolicyId,

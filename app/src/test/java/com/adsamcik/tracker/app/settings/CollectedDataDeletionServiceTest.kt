@@ -23,6 +23,7 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.retention.DefaultRetentionAuthorityProducer
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityDataStoreCommitUnknownException
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityState
@@ -211,6 +212,43 @@ class CollectedDataDeletionServiceTest {
 			context.getDatabasePath(it).exists() shouldBe false
 		}
 	}
+
+	@Test
+	fun `unknown lifecycle DataStore acknowledgement keeps deletion fenced for exact retry`() =
+		runTest {
+			var lifecycleAttempts = 0
+			coEvery {
+				collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+			} answers {
+				lifecycleAttempts += 1
+				if (lifecycleAttempts == 1) {
+					throw RetentionAuthorityDataStoreCommitUnknownException(
+						"full-deletion:test-operation",
+					)
+				}
+				lifecycleSnapshot = CollectedDataLifecycleSnapshot(
+					epoch = secondArg(),
+					retainedFromMs = thirdArg(),
+				)
+				lifecycleSnapshot
+			}
+			var physicalClearCount = 0
+			val service = createService { _, _, _, _ -> physicalClearCount += 1 }
+
+			service.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+				CollectedDataDeletionReconciliationFailure.LifecycleCommitUnknown(
+					"full-deletion:test-operation",
+				),
+			)
+			startupDeletionBarrier.isClosed shouldBe true
+			markerFile.exists() shouldBe true
+			physicalClearCount shouldBe 0
+
+			service.reconcilePendingDeletion() shouldBe CollectedDataDeletionCompletion.Complete
+			lifecycleAttempts shouldBe 2
+			physicalClearCount shouldBe 1
+			markerFile.exists() shouldBe false
+		}
 
 	@Test
 	fun `cancellation before journal publication leaves startup admission open`() = runTest {

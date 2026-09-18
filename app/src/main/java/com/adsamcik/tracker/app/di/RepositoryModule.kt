@@ -222,8 +222,10 @@ abstract class RepositoryModule {
 
 		@Provides
 		@Singleton
-		fun provideRetentionAuthorityOperationLease(): RetentionAuthorityOperationLease =
-			RetentionAuthorityOperationLease()
+		fun provideRetentionAuthorityOperationLease(
+			@ApplicationScope applicationScope: CoroutineScope,
+		): RetentionAuthorityOperationLease =
+			RetentionAuthorityOperationLease(completionScope = applicationScope)
 
 		@Provides
 		@Singleton

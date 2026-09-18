@@ -12,6 +12,8 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.SynchronousExecutor
 import com.adsamcik.tracker.app.maintenance.CellCapturedRetentionService
+import com.adsamcik.tracker.app.maintenance.PeriodicAmbientRetentionMaintenance
+import com.adsamcik.tracker.app.maintenance.PeriodicAmbientRetentionResult
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementDebt
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementFailure
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlement
@@ -109,6 +111,10 @@ class DataRetentionWorkerTest {
 	private val wifiCapturedRetentionService: WifiCapturedRetentionService = mockk {
 		coEvery { prune(any(), any(), any()) } returns WifiCapturedRetentionResult.NoChange
 	}
+	private val periodicAmbientRetentionMaintenance: PeriodicAmbientRetentionMaintenance = mockk {
+		coEvery { run(any(), any(), any(), any()) } returns
+			PeriodicAmbientRetentionResult.Complete
+	}
 
     @Before
     fun setUp() {
@@ -144,6 +150,7 @@ class DataRetentionWorkerTest {
 						cellCapturedRetentionService,
 						wifiCapturedRetentionService,
 						retentionFloorSettlement(),
+						periodicAmbientRetentionMaintenance,
 					)
                 }
             })
@@ -198,6 +205,8 @@ class DataRetentionWorkerTest {
 		)
 		val lifecycleStore: CollectedDataLifecycleStore = mockk()
 		coEvery { lifecycleStore.advanceRetainedFrom(any()) } returns
+			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 3L)
+		coEvery { lifecycleStore.advanceRetainedFrom(any(), any(), any()) } returns
 			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 3L)
 		val lane: StepsSessionFactProjectionLane = mockk()
 		coEvery { lane.drainAvailable() } coAnswers {
@@ -267,6 +276,7 @@ class DataRetentionWorkerTest {
 						cellRetention,
 						wifiRetention,
 						retentionFloorSettlement(),
+						periodicAmbientRetentionMaintenance,
 					)
 				})
 				.build() as DataRetentionWorker
@@ -660,7 +670,9 @@ class DataRetentionWorkerTest {
 			)
 		}
 
-		coVerify(exactly = 0) { collectedDataLifecycleStore.advanceRetainedFrom(any()) }
+		coVerify(exactly = 0) {
+			collectedDataLifecycleStore.advanceRetainedFrom(any(), any(), any())
+		}
 		verify(exactly = 0) { migrationBackupRepository.deleteAll() }
 	}
 
@@ -690,6 +702,8 @@ class DataRetentionWorkerTest {
 		cellRetention: CellCapturedRetentionService = cellCapturedRetentionService,
 		wifiRetention: WifiCapturedRetentionService = wifiCapturedRetentionService,
 		retentionFloorSettlement: RetentionFloorSettlement = retentionFloorSettlement(),
+		ambientRetention: PeriodicAmbientRetentionMaintenance =
+			periodicAmbientRetentionMaintenance,
 	): DataRetentionWorker =
 		TestListenableWorkerBuilder<DataRetentionWorker>(context)
 			.setWorkerFactory(object : WorkerFactory() {
@@ -711,6 +725,7 @@ class DataRetentionWorkerTest {
 					cellRetention,
 					wifiRetention,
 					retentionFloorSettlement,
+					ambientRetention,
 				)
 			})
 			.build() as DataRetentionWorker
@@ -750,6 +765,8 @@ class DataRetentionWorkerTest {
 
 	private fun lifecycleStore(): CollectedDataLifecycleStore = mockk {
 		coEvery { advanceRetainedFrom(any()) } returns
+			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 3L)
+		coEvery { advanceRetainedFrom(any(), any(), any()) } returns
 			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 3L)
 	}
 

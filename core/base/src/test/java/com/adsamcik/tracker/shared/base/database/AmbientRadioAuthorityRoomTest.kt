@@ -58,7 +58,8 @@ class AmbientRadioAuthorityRoomTest {
 	}
 
 	@Test
-	fun `retention is default deny until durable source approval exists`() = runTest {
+	fun `empty radio storage is a verified no change without manufacturing retention authority`() =
+		runTest {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(
 				collectedDataEpoch = 4L,
@@ -67,16 +68,23 @@ class AmbientRadioAuthorityRoomTest {
 			),
 		)
 
-		val mismatch = database.pruneAmbientWifi(
+		val empty = database.pruneAmbientWifi(
 			AmbientWifiRetentionCommand(
 				beforeMs = 1_000L,
 				expectedCollectedDataEpoch = 4L,
 				appliedAtMs = 2_000L,
 			),
 		)
+		assertEquals(AmbientWifiRetentionResult.NoChange, empty)
 		assertEquals(
-			AmbientWifiMaintenanceUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE,
-			assertIs<AmbientWifiRetentionResult.Unavailable>(mismatch).reason,
+			AmbientCellRetentionResult.NoChange,
+			database.pruneAmbientCell(
+				AmbientCellRetentionCommand(
+					beforeMs = 1_000L,
+					expectedCollectedDataEpoch = 4L,
+					appliedAtMs = 2_000L,
+				),
+			),
 		)
 		database.ambientWifiFactDao().insertRetentionAuthority(
 			AmbientWifiRetentionAuthorityIntegrity.create(

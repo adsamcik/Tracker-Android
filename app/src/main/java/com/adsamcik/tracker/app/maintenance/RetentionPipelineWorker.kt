@@ -55,6 +55,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
 	private val cellCapturedRetentionService: CellCapturedRetentionService,
 	private val wifiCapturedRetentionService: WifiCapturedRetentionService,
 	private val retentionFloorSettlement: RetentionFloorSettlement,
+	private val periodicAmbientRetentionMaintenance: PeriodicAmbientRetentionMaintenance,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result =
@@ -84,30 +85,36 @@ class RetentionPipelineWorker @AssistedInject constructor(
             val rawCutoff = config.rawDataRetentionDays.takeUnless { it == 0 }?.let { retentionDays ->
                 now - retentionDays.toLong() * Time.DAY_IN_MILLISECONDS
             }
+			val wifiCellCutoff = config.wifiCellRetentionDays.takeUnless { it == 0 }?.let {
+				computeWifiCellCutoffMillis(it, now)
+			}
+			val requestedFloor = listOfNotNull(rawCutoff, wifiCellCutoff).maxOrNull()
+				?: collectedDataLifecycleStore.snapshot().retainedFromMs
+			val settledFloor = requestedFloor?.let { floor ->
+				when (val settlement = retentionFloorSettlement.settle(
+					database = appDatabase,
+					lifecycleStore = collectedDataLifecycleStore,
+					startupGate = trackingStartupGate,
+					expectedStartupGeneration = startupGeneration,
+					requestedRetainedFromMs = floor,
+					operationId = authority.retentionFloorOperationId(floor),
+					updatedAtMs = now,
+					verifyApprovedOperation = { authority.requireIdentity() },
+				)) {
+					is RetentionFloorSettlementResult.Settled -> settlement
+					RetentionFloorSettlementResult.StartupGenerationChanged ->
+						throw StartupGenerationChangedException
+					is RetentionFloorSettlementResult.Retryable ->
+						throw RetentionFloorSettlementDeferredException
+				}
+			}
+			if (settledFloor != null) {
+				migrationBackupRepository.deleteAll()
+			}
             val rawRetentionResult = if (rawCutoff == null) {
                 RawRetentionResult.NOT_APPLICABLE
             } else {
-                // Establish the durable policy before deleting either live source rows
-                // or a migration backup. A delayed WAL entry must be rejected even if
-                // it postpones the physical delete.
-				requireReadyGeneration(startupGeneration)
-                authority.requireIdentity()
-                val lifecycle = when (val settlement = retentionFloorSettlement.settle(
-                	database = appDatabase,
-                	lifecycleStore = collectedDataLifecycleStore,
-                	startupGate = trackingStartupGate,
-                	expectedStartupGeneration = startupGeneration,
-                	requestedRetainedFromMs = rawCutoff,
-                	updatedAtMs = now,
-                	verifyApprovedOperation = { authority.requireIdentity() },
-                )) {
-                	is RetentionFloorSettlementResult.Settled -> settlement.lifecycle
-                	RetentionFloorSettlementResult.StartupGenerationChanged ->
-                		throw StartupGenerationChangedException
-                	is RetentionFloorSettlementResult.Retryable ->
-                		throw RetentionFloorSettlementDeferredException
-                }
-                migrationBackupRepository.deleteAll()
+				val lifecycle = requireNotNull(settledFloor).lifecycle
                 val result = purgeRawData(
                 	appDatabase,
                 	rawCutoff,
@@ -124,12 +131,43 @@ class RetentionPipelineWorker @AssistedInject constructor(
                 } ?: throw StartupGenerationChangedException
                 result
             }
-			// Captured Cell maintenance authenticates retained WAL, so it must precede physical
-			// source-event pruning while remaining after source-evidence/Steps settlement.
-			pruneCapturedCellData(appDatabase, config, now, startupGeneration, authority)
-			// Wi-Fi authenticates its own retained WAL before the shared physical pruning pass.
-			pruneCapturedWifiData(appDatabase, config, now, startupGeneration, authority)
-			if (rawCutoff != null) {
+			var maintenanceDeferred = false
+			settledFloor?.let { settlement ->
+				requireReadyGeneration(startupGeneration)
+				authority.requireIdentity()
+				if (periodicAmbientRetentionMaintenance.run(
+						database = appDatabase,
+						lifecycle = settlement.lifecycle,
+						activeLocalSources = settlement.reconciledSources,
+						appliedAtMs = now,
+					) is PeriodicAmbientRetentionResult.Retryable
+				) {
+					maintenanceDeferred = true
+				}
+				val exactFloor = requireNotNull(settlement.lifecycle.retainedFromMs)
+				// Captured radio maintenance authenticates retained WAL after source settlement.
+				if (!pruneCapturedCellData(
+						appDatabase,
+						exactFloor,
+						now,
+						startupGeneration,
+						authority,
+					)
+				) {
+					maintenanceDeferred = true
+				}
+				if (!pruneCapturedWifiData(
+						appDatabase,
+						exactFloor,
+						now,
+						startupGeneration,
+						authority,
+					)
+				) {
+					maintenanceDeferred = true
+				}
+			}
+			if (rawCutoff != null && !maintenanceDeferred) {
                 requireReadyGeneration(startupGeneration)
                 authority.requireIdentity()
                 appDatabase.pruneSourceEventStorageBefore(
@@ -146,7 +184,9 @@ class RetentionPipelineWorker @AssistedInject constructor(
 			purgeExplorationData(appDatabase, config, now, startupGeneration, authority)
 			purgeOperationalData(appDatabase, config, now, startupGeneration, authority)
 
-            if (rawRetentionResult == RawRetentionResult.DEFERRED_FOR_PENDING_SIGNALS) {
+            if (rawRetentionResult == RawRetentionResult.DEFERRED_FOR_PENDING_SIGNALS ||
+				maintenanceDeferred
+			) {
                 Result.retry()
             } else {
                 Result.success()
@@ -275,48 +315,54 @@ class RetentionPipelineWorker @AssistedInject constructor(
 
 	private suspend fun pruneCapturedCellData(
 		db: AppDatabase,
-		config: RetentionConfigState,
+		retainedFromMs: Long,
 		now: Long,
 		startupGeneration: Long,
 		authority: ApprovedRetentionOperation,
-	) {
-		if (config.wifiCellRetentionDays == 0) return
+	): Boolean {
 		requireReadyGeneration(startupGeneration)
 		authority.requireIdentity()
-		val cutoff = computeWifiCellCutoffMillis(config.wifiCellRetentionDays, now)
-		requireReadyGeneration(startupGeneration)
-		authority.requireIdentity()
-		trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+		val result = trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
 			authority.requireIdentity()
 			cellCapturedRetentionService.prune(
 				database = db,
-				beforeMs = cutoff,
+				beforeMs = retainedFromMs,
 				markedAtMs = now,
 			)
 		} ?: throw StartupGenerationChangedException
+		requireReadyGeneration(startupGeneration)
+		authority.requireIdentity()
+		return when (result) {
+			is com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult.Pruned,
+				com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult.NoChange -> true
+			is com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult.Blocked -> false
+		}
     }
 
 	private suspend fun pruneCapturedWifiData(
 		db: AppDatabase,
-		config: RetentionConfigState,
+		retainedFromMs: Long,
 		now: Long,
 		startupGeneration: Long,
 		authority: ApprovedRetentionOperation,
-	) {
-		if (config.wifiCellRetentionDays == 0) return
+	): Boolean {
 		requireReadyGeneration(startupGeneration)
 		authority.requireIdentity()
-		val cutoff = computeWifiCellCutoffMillis(config.wifiCellRetentionDays, now)
-		requireReadyGeneration(startupGeneration)
-		authority.requireIdentity()
-		trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+		val result = trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
 			authority.requireIdentity()
 			wifiCapturedRetentionService.prune(
 				database = db,
-				beforeMs = cutoff,
+				beforeMs = retainedFromMs,
 				markedAtMs = now,
 			)
 		} ?: throw StartupGenerationChangedException
+		requireReadyGeneration(startupGeneration)
+		authority.requireIdentity()
+		return when (result) {
+			is com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionResult.Pruned,
+				com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionResult.NoChange -> true
+			is com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionResult.Blocked -> false
+		}
 	}
 
     private suspend fun purgeWifiCellData(

@@ -24,9 +24,15 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -203,6 +209,95 @@ class RetentionFloorSettlementTest {
 			.phase shouldBe RetentionFloorSettlementPhase.ROOM_GUARD
 		coVerify(exactly = 0) { producer.reconcileCurrentSettings() }
 	}
+
+	@Test
+	fun `late DataStore floor commit remains typed debt until Room guard and authority recovery`() =
+		runTest {
+			val commitEntered = CompletableDeferred<Unit>()
+			val releaseCommit = CompletableDeferred<Unit>()
+			var lifecycle = CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = null)
+			var advances = 0
+			val lifecycleStore = object : CollectedDataLifecycleStore {
+				override val snapshots: Flow<CollectedDataLifecycleSnapshot> =
+					MutableStateFlow(lifecycle)
+
+				override suspend fun snapshot(): CollectedDataLifecycleSnapshot = lifecycle
+
+				override suspend fun beginFullDeletion(
+					deletedAtMs: Long,
+				): CollectedDataLifecycleSnapshot = error("Not used")
+
+				override suspend fun advanceRetainedFrom(
+					retainedFromMs: Long,
+				): CollectedDataLifecycleSnapshot {
+					advances += 1
+					if (advances == 1) {
+						commitEntered.complete(Unit)
+						withContext(NonCancellable) {
+							releaseCommit.await()
+						}
+					}
+					lifecycle = lifecycle.copy(retainedFromMs = retainedFromMs)
+					return lifecycle
+				}
+			}
+			val producer = mockk<RetentionAuthorityProducer> {
+				coEvery { reconcileCurrentSettings() } returns
+					retentionResults(active = setOf(TrackingSourceComponent.STEPS))
+			}
+			val lease = RetentionAuthorityOperationLease(
+				ownedSuspensionTimeoutMs = 1L,
+				completionScope = backgroundScope,
+			)
+			val settlement = RetentionFloorSettlement(
+				lease,
+				producer,
+				TrackingRetentionFloorReconciler { _, floor, sources ->
+					TrackingRetentionFloorReconciliationResult.Complete(floor, sources)
+				},
+			)
+			val operationId = "retention-floor:test-policy:$FLOOR"
+			val initialEvidence = database.sourceEvidenceStateDao().get()
+			val first = async {
+				settlement.settle(
+					database = database,
+					lifecycleStore = lifecycleStore,
+					startupGate = readyGate(),
+					expectedStartupGeneration = GENERATION,
+					requestedRetainedFromMs = FLOOR,
+					operationId = operationId,
+					updatedAtMs = FLOOR,
+					verifyApprovedOperation = { },
+				)
+			}
+
+			commitEntered.await()
+			advanceTimeBy(2L)
+			val debt = first.await().shouldBeInstanceOf<RetentionFloorSettlementResult.Retryable>()
+			debt.debt.failures.single()
+				.shouldBeInstanceOf<RetentionFloorSettlementFailure.DataStoreCommitUnknown>()
+				.operationId shouldBe operationId
+			database.sourceEvidenceStateDao().get() shouldBe initialEvidence
+			coVerify(exactly = 0) { producer.reconcileCurrentSettings() }
+
+			releaseCommit.complete(Unit)
+			runCurrent()
+			lifecycle.retainedFromMs shouldBe FLOOR
+			database.sourceEvidenceStateDao().get() shouldBe initialEvidence
+
+			settlement.settle(
+				database = database,
+				lifecycleStore = lifecycleStore,
+				startupGate = readyGate(),
+				expectedStartupGeneration = GENERATION,
+				requestedRetainedFromMs = FLOOR,
+				operationId = operationId,
+				updatedAtMs = FLOOR + 1L,
+				verifyApprovedOperation = { },
+			).shouldBeInstanceOf<RetentionFloorSettlementResult.Settled>()
+			database.sourceEvidenceStateDao().get()?.retainedFromMs shouldBe FLOOR
+			coVerify(exactly = 1) { producer.reconcileCurrentSettings() }
+		}
 
 	@Test
 	fun `authority reissue debt retries the same fenced floor`() = runTest {

@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.lifecycle.advanceRetainedFromWithPermit
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityDataStoreCommitUnknownException
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityOperationLease
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
@@ -37,12 +38,15 @@ class RetentionFloorSettlement @Inject constructor(
 		startupGate: TrackingStartupGate,
 		expectedStartupGeneration: Long,
 		requestedRetainedFromMs: Long,
+		operationId: String = "retention-floor:$requestedRetainedFromMs",
 		updatedAtMs: Long,
 		verifyApprovedOperation: () -> Unit,
 	): RetentionFloorSettlementResult {
 		require(requestedRetainedFromMs >= 0L)
+		require(operationId.isNotBlank())
 		require(updatedAtMs >= 0L)
-		val commit = startupGate.withReadyGenerationOperation(expectedStartupGeneration) {
+		val commit = try {
+			startupGate.withReadyGenerationOperation(expectedStartupGeneration) {
 			operationLease.withPermit(cancellationShielded = true) { permit ->
 				var phase = RetentionFloorSettlementPhase.LIFECYCLE_FLOOR
 				try {
@@ -50,6 +54,7 @@ class RetentionFloorSettlement @Inject constructor(
 					val lifecycle = lifecycleStore.advanceRetainedFromWithPermit(
 						requestedRetainedFromMs,
 						permit,
+						operationId,
 					)
 					permit.validate()
 					verifyApprovedOperation()
@@ -88,6 +93,8 @@ class RetentionFloorSettlement @Inject constructor(
 					phase = RetentionFloorSettlementPhase.AUTHORITY_REISSUE
 					val retentionResults = try {
 						retentionAuthorityProducer.reconcileCurrentSettingsWithPermit(permit)
+					} catch (unknown: RetentionAuthorityDataStoreCommitUnknownException) {
+						throw unknown
 					} catch (_: Exception) {
 						RETENTION_PROVIDER_SOURCES.keys.map { source ->
 							RetentionAuthorityResult.Unavailable(
@@ -98,12 +105,26 @@ class RetentionFloorSettlement @Inject constructor(
 						}
 					}
 					RetentionFloorCommitResult.Applied(lifecycle, retentionResults)
+				} catch (unknown: RetentionAuthorityDataStoreCommitUnknownException) {
+					throw unknown
 				} catch (_: Exception) {
 					RetentionFloorCommitResult.Retryable(
 						RetentionFloorSettlementFailure.CommitBoundary(phase),
 					)
 				}
 			}
+		}
+		} catch (unknown: RetentionAuthorityDataStoreCommitUnknownException) {
+			return RetentionFloorSettlementResult.Retryable(
+				RetentionFloorSettlementDebt(
+					requestedRetainedFromMs,
+					listOf(
+						RetentionFloorSettlementFailure.DataStoreCommitUnknown(
+							unknown.operationIdentity,
+						),
+					),
+				),
+			)
 		} ?: return RetentionFloorSettlementResult.StartupGenerationChanged
 
 		if (commit is RetentionFloorCommitResult.Retryable) {
@@ -258,6 +279,14 @@ sealed interface RetentionFloorSettlementFailure {
 	data class CommitBoundary(
 		val phase: RetentionFloorSettlementPhase,
 	) : RetentionFloorSettlementFailure
+
+	data class DataStoreCommitUnknown(
+		val operationId: String,
+	) : RetentionFloorSettlementFailure {
+		init {
+			require(operationId.isNotBlank())
+		}
+	}
 }
 
 enum class RetentionFloorSettlementPhase {

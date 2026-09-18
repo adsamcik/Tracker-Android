@@ -341,6 +341,8 @@ class ActivityRetentionWorkerRobolectricTest {
 		}
 		val lifecycle = mockk<CollectedDataLifecycleStore> {
 			coEvery { advanceRetainedFrom(any()) } returns CollectedDataLifecycleSnapshot(EPOCH, FLOOR)
+			coEvery { advanceRetainedFrom(any(), any(), any()) } returns
+				CollectedDataLifecycleSnapshot(EPOCH, FLOOR)
 		}
 		val lane = mockk<StepsSessionFactProjectionLane> {
 			coEvery { drainAvailable() } returns StepsSessionFactDrainResult.Inactive
@@ -359,6 +361,11 @@ class ActivityRetentionWorkerRobolectricTest {
 							com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionResult.NoChange
 					},
 					retentionFloorSettlement(),
+					mockk {
+						coEvery {
+							run(any(), any(), any(), any())
+						} returns PeriodicAmbientRetentionResult.Complete
+					},
 				) else RetentionPipelineWorker(
 					appContext, parameters, store, lifecycle, Provider { db }, mockk(relaxed = true),
 					READY_GATE, Provider { lane }, Provider { imported },
@@ -371,6 +378,11 @@ class ActivityRetentionWorkerRobolectricTest {
 							com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionResult.NoChange
 					},
 					retentionFloorSettlement(),
+					mockk {
+						coEvery {
+							run(any(), any(), any(), any())
+						} returns PeriodicAmbientRetentionResult.Complete
+					},
 				)
 		}
 

@@ -84,6 +84,27 @@ class CollectedDataLifecycleStoreTest {
 	}
 
 	@Test
+	fun `retention floor operation identity is durable and cannot be reused for another boundary`() =
+		runTest {
+			val lease = RetentionAuthorityOperationLease()
+			val operationStore = DefaultCollectedDataLifecycleStore(context, lease)
+
+			lease.withPermit { permit ->
+				operationStore.advanceRetainedFrom("floor-operation-1", 500L, permit)
+			} shouldBe CollectedDataLifecycleSnapshot(0L, 500L)
+			lease.withPermit { permit ->
+				operationStore.advanceRetainedFrom("floor-operation-1", 500L, permit)
+			} shouldBe CollectedDataLifecycleSnapshot(0L, 500L)
+
+			shouldThrow<IllegalStateException> {
+				lease.withPermit { permit ->
+					operationStore.advanceRetainedFrom("floor-operation-1", 600L, permit)
+				}
+			}
+			operationStore.snapshot() shouldBe CollectedDataLifecycleSnapshot(0L, 500L)
+		}
+
+	@Test
 	fun `lifecycle transitions wait for the shared retention authority operation lease`() =
 		runTest {
 			val lease = RetentionAuthorityOperationLease()

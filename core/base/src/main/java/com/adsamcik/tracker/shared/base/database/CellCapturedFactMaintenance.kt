@@ -439,7 +439,8 @@ suspend fun AppDatabase.authenticateDeletedCapturedCellSelectionInTransaction(
 	val receipt = cellCapturedFactDao().entryDeletionReceipt(logicalTrackingId)
 		?: return DeletedCapturedCellSelectionAuthentication.Absent
 	if (receipt.entryIdentity != entryIdentity.value ||
-		receipt.collectedDataEpoch != state.collectedDataEpoch
+		receipt.collectedDataEpoch != state.collectedDataEpoch ||
+		receipt.retainedFromMs != state.retainedFromMs
 	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
 	val deletedRuns = cellCapturedFactDao().deletedRuns(
 		logicalTrackingId,

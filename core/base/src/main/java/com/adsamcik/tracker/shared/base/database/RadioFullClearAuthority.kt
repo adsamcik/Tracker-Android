@@ -87,6 +87,7 @@ internal fun preserveCellFullClearAuthority(
 		sqlite,
 		oldCollectedDataEpoch,
 		newCollectedDataEpoch,
+		newRetainedFromMs,
 	)
 	database.fenceLiveImportedCell(
 		sqlite,
@@ -489,10 +490,12 @@ private fun reepochSelectedWifiDeletionReceipts(
 		)
 		sqlite.executeUpdateExact(
 			"UPDATE wifi_selected_deletion_receipt SET collected_data_epoch = ?, " +
+				"retained_from_ms = ?, " +
 				"protected_identity_set_checksum = ?, run_deletion_set_checksum = ?, " +
 				"source_fence_set_checksum = ?, effect_checksum = ? " +
 				"WHERE selection_identity = ? AND origin = ? AND effect_checksum = ?",
 			newEpoch,
+			newRetainedFromMs,
 			replacement.protectedIdentitySetChecksum,
 			replacement.runDeletionSetChecksum,
 			replacement.sourceFenceSetChecksum,
@@ -501,6 +504,15 @@ private fun reepochSelectedWifiDeletionReceipts(
 			current.origin,
 			current.effectChecksum,
 		)
+		check(
+			sqlite.query(
+				"SELECT * FROM wifi_selected_deletion_receipt " +
+					"WHERE selection_identity = ? AND origin = ? LIMIT 1",
+				arrayOf(current.selectionIdentity, current.origin),
+			).use { stored ->
+				stored.moveToFirst() && stored.wifiSelectedDeletionReceipt() == replacement
+			},
+		) { "Wi-Fi deletion receipt re-epoch was not authenticated before full-clear commit" }
 	}
 }
 
@@ -830,12 +842,23 @@ private fun reepochImportedCellDeletionReceipts(
 		)
 		sqlite.executeUpdateExact(
 			"UPDATE imported_cell_entry_deletion_receipt SET collected_data_epoch = ?, " +
-				"effect_checksum = ? WHERE entry_identity = ? AND effect_checksum = ?",
+				"retained_from_ms = ?, effect_checksum = ? " +
+				"WHERE entry_identity = ? AND effect_checksum = ?",
 			newEpoch,
+			newRetainedFromMs,
 			replacement.effectChecksum,
 			current.entryIdentity,
 			current.effectChecksum,
 		)
+		check(
+			sqlite.query(
+				"SELECT * FROM imported_cell_entry_deletion_receipt " +
+					"WHERE entry_identity = ? LIMIT 1",
+				arrayOf(current.entryIdentity),
+			).use { stored ->
+				stored.moveToFirst() && stored.importedCellDeletionReceipt() == replacement
+			},
+		) { "Cell deletion receipt re-epoch was not authenticated before full-clear commit" }
 	}
 }
 
@@ -843,6 +866,7 @@ private fun reepochCapturedCellDeletionReceipts(
 	sqlite: SupportSQLiteDatabase,
 	oldEpoch: Long,
 	newEpoch: Long,
+	newRetainedFromMs: Long?,
 ) {
 	sqlite.forEachBounded(
 		"SELECT * FROM cell_captured_entry_deletion_receipt ORDER BY logical_tracking_id",
@@ -889,18 +913,29 @@ private fun reepochCapturedCellDeletionReceipts(
 			entryIdentity = current.entryIdentity,
 			collectedDataEpoch = newEpoch,
 			runFootprints = runs,
+			retainedFromMs = newRetainedFromMs,
 			deletedAtMs = current.deletedAtMs,
 		)
 		sqlite.executeUpdateExact(
 			"UPDATE cell_captured_entry_deletion_receipt SET collected_data_epoch = ?, " +
-				"run_footprint_set_checksum = ?, effect_checksum = ? " +
+				"run_footprint_set_checksum = ?, retained_from_ms = ?, effect_checksum = ? " +
 				"WHERE logical_tracking_id = ? AND effect_checksum = ?",
 			newEpoch,
 			replacement.runFootprintSetChecksum,
+			newRetainedFromMs,
 			replacement.effectChecksum,
 			current.logicalTrackingId,
 			current.effectChecksum,
 		)
+		check(
+			sqlite.query(
+				"SELECT * FROM cell_captured_entry_deletion_receipt " +
+					"WHERE logical_tracking_id = ? LIMIT 1",
+				arrayOf(current.logicalTrackingId),
+			).use { stored ->
+				stored.moveToFirst() && stored.cellCapturedDeletionReceipt() == replacement
+			},
+		) { "Captured Cell deletion receipt re-epoch was not authenticated before commit" }
 	}
 }
 
@@ -1221,6 +1256,7 @@ private fun Cursor.cellCapturedDeletionReceipt() = CellCapturedEntryDeletionRece
 	startTimeMs = long("start_time_ms"),
 	endTimeMs = long("end_time_ms"),
 	runFootprintSetChecksum = string("run_footprint_set_checksum"),
+	retainedFromMs = nullableLong("retained_from_ms"),
 	deletedAtMs = long("deleted_at_ms"),
 	effectChecksum = string("effect_checksum"),
 )

@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionReceip
 import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionRunMarker
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.assertions.throwables.shouldThrow
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -61,6 +62,7 @@ class TrackingSourceFullClearAssemblyTest {
 				SourceEvidenceState(revision = 5L, collectedDataEpoch = EPOCH),
 			)
 			val wifi = seedWifiDeletionAuthority()
+			val localWifi = seedLocalWifiDeletionAuthority()
 			val importedCell = seedImportedCellDeletionAuthority()
 			val capturedCell = seedCapturedCellDeletionAuthority()
 			val ambientArchive = seedAmbientWifiPayload()
@@ -77,6 +79,7 @@ class TrackingSourceFullClearAssemblyTest {
 			reopen()
 			assertEvidenceState(EPOCH + 1L, 6L, RETAINED_FROM_MS)
 			assertWifiAuthority(wifi, EPOCH + 1L)
+			assertWifiAuthority(localWifi, EPOCH + 1L)
 			assertImportedCellAuthority(importedCell, EPOCH + 1L)
 			assertCapturedCellAuthority(capturedCell, EPOCH + 1L)
 			assertStepsFence(stepsScope, EPOCH + 1L)
@@ -101,6 +104,7 @@ class TrackingSourceFullClearAssemblyTest {
 			reopen()
 			assertEvidenceState(EPOCH + 2L, 7L, RETAINED_FROM_MS)
 			assertWifiAuthority(wifi, EPOCH + 2L)
+			assertWifiAuthority(localWifi, EPOCH + 2L)
 			assertImportedCellAuthority(importedCell, EPOCH + 2L)
 			assertCapturedCellAuthority(capturedCell, EPOCH + 2L)
 			assertStepsFence(stepsScope, EPOCH + 2L)
@@ -114,6 +118,39 @@ class TrackingSourceFullClearAssemblyTest {
 			rowCount("ambient_wifi_deletion_marker") shouldBe 2L
 			rowCount("ambient_cell_deletion_marker") shouldBe 2L
 		}
+
+	@Test
+	fun `full clear rejects a radio receipt whose retained floor is not authenticated`() = runTest {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(revision = 5L, collectedDataEpoch = EPOCH),
+		)
+		val wifi = seedWifiDeletionAuthority()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE wifi_selected_deletion_receipt SET retained_from_ms = ? " +
+				"WHERE selection_identity = ? AND origin = ?",
+			arrayOf(777L, wifi.entry, wifi.origin),
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			AppDatabase.deleteAllCollectedData(
+				database = database,
+				collectedDataEpoch = EPOCH + 1L,
+				retainedFromMs = RETAINED_FROM_MS,
+				updatedAtMs = 1_000L,
+			)
+		}
+
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe EPOCH
+		database.openHelper.writableDatabase.query(
+			"SELECT collected_data_epoch, retained_from_ms " +
+				"FROM wifi_selected_deletion_receipt WHERE selection_identity = ? AND origin = ?",
+			arrayOf(wifi.entry, wifi.origin),
+		).use { cursor ->
+			cursor.moveToFirst() shouldBe true
+			cursor.getLong(0) shouldBe EPOCH
+			cursor.getLong(1) shouldBe 777L
+		}
+	}
 
 	private suspend fun seedWifiDeletionAuthority(): WifiAuthorityFixture {
 		val entry = digest('1')
@@ -194,7 +231,88 @@ class TrackingSourceFullClearAssemblyTest {
 		database.importedWifiDao().insertEntryDeletion(entryDeletion)
 		database.importedWifiDao().insertSelectedDeletionReceipt(receipt)
 		database.importedWifiDao().insertSelectedDeletionProtectedIdentities(protected)
-		return WifiAuthorityFixture(entry, run, scope, protected.size)
+		return WifiAuthorityFixture(
+			entry,
+			run,
+			scope,
+			protected.size,
+			WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+		)
+	}
+
+	private suspend fun seedLocalWifiDeletionAuthority(): WifiAuthorityFixture {
+		val entry = digest('a')
+		val run = digest('b')
+		val observation = digest('c')
+		val scope = digest('d')
+		val deletedAtMs = 101L
+		val origin = WifiSelectedDeletionReceiptEntity.ORIGIN_LOCAL
+		val sourceFence = SourceDeletionFenceEntity.createForOriginalRunDigest(
+			SourceDestinationOwnerEntity.SOURCE_WIFI,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			scope,
+			1L,
+			EPOCH,
+			deletedAtMs,
+		)
+		val protected = listOf(
+			wifiProtected(
+				entry,
+				entry,
+				WifiSelectedDeletionProtectedIdentityEntity.KIND_ENTRY,
+				origin = origin,
+			),
+			wifiProtected(
+				entry,
+				run,
+				WifiSelectedDeletionProtectedIdentityEntity.KIND_RUN,
+				run,
+				scope,
+				origin,
+			),
+			wifiProtected(
+				entry,
+				observation,
+				WifiSelectedDeletionProtectedIdentityEntity.KIND_OBSERVATION,
+				run,
+				origin = origin,
+			),
+			wifiProtected(
+				entry,
+				scope,
+				WifiSelectedDeletionProtectedIdentityEntity.KIND_DELETION_SCOPE,
+				run,
+				scope,
+				origin,
+			),
+		)
+		val receipt = WifiSelectedDeletionReceiptEntity.create(
+			selectionIdentity = entry,
+			origin = origin,
+			collectedDataEpoch = EPOCH,
+			selectedImportRevision = null,
+			selectedContentChecksum = null,
+			startTimeMs = 11L,
+			endTimeMs = 21L,
+			protectedIdentities = protected,
+			runDeletionRows = listOf(
+				WifiSelectedDeletionRunMarker(
+					run,
+					entry,
+					scope,
+					EPOCH,
+					1L,
+					deletedAtMs,
+				),
+			),
+			sourceFences = listOf(sourceFence),
+			retainedFromMs = null,
+			deletedAtMs = deletedAtMs,
+		)
+		database.sourceDeletionFenceDao().insertIfAbsent(sourceFence) shouldNotBe -1L
+		database.importedWifiDao().insertSelectedDeletionReceipt(receipt)
+		database.importedWifiDao().insertSelectedDeletionProtectedIdentities(protected)
+		return WifiAuthorityFixture(entry, run, scope, protected.size, origin)
 	}
 
 	private fun wifiProtected(
@@ -203,9 +321,10 @@ class TrackingSourceFullClearAssemblyTest {
 		kind: String,
 		run: String? = null,
 		scope: String? = null,
+		origin: String = WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
 	) = WifiSelectedDeletionProtectedIdentityEntity.create(
 		selectionIdentity = entry,
-		receiptOrigin = WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+		receiptOrigin = origin,
 		identityKind = kind,
 		protectedIdentity = protected,
 		ownerEntryIdentity = entry,
@@ -473,20 +592,22 @@ class TrackingSourceFullClearAssemblyTest {
 		fixture: WifiAuthorityFixture,
 		epoch: Long,
 	) {
-		database.importedWifiDao().entryDeletion(fixture.entry)?.collectedDataEpoch shouldBe epoch
-		database.importedWifiDao().deletionGenerationsByRun(
-			listOf(fixture.run),
-		).single().collectedDataEpoch shouldBe epoch
+		if (fixture.origin == WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED) {
+			database.importedWifiDao().entryDeletion(fixture.entry)?.collectedDataEpoch shouldBe epoch
+			database.importedWifiDao().deletionGenerationsByRun(
+				listOf(fixture.run),
+			).single().collectedDataEpoch shouldBe epoch
+		}
 		database.importedWifiDao().selectedDeletionReceipt(
 			fixture.entry,
-			WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+			fixture.origin,
 		).also { receipt ->
 			receipt?.collectedDataEpoch shouldBe epoch
 			receipt?.retainedFromMs shouldBe RETAINED_FROM_MS
 		}
 		database.importedWifiDao().selectedDeletionProtectedIdentities(
 			fixture.entry,
-			WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+			fixture.origin,
 			fixture.protectedCount + 1,
 		).all { it.collectedDataEpoch == epoch } shouldBe true
 		database.sourceDeletionFenceDao().get(
@@ -530,7 +651,10 @@ class TrackingSourceFullClearAssemblyTest {
 	) {
 		database.cellCapturedFactDao().entryDeletionReceipt(
 			fixture.logicalTrackingId,
-		)?.collectedDataEpoch shouldBe epoch
+		).also { receipt ->
+			receipt?.collectedDataEpoch shouldBe epoch
+			receipt?.retainedFromMs shouldBe RETAINED_FROM_MS
+		}
 		database.cellCapturedFactDao().deletedRuns(
 			fixture.logicalTrackingId,
 			2,
@@ -585,6 +709,7 @@ class TrackingSourceFullClearAssemblyTest {
 		val run: String,
 		val scope: String,
 		val protectedCount: Int,
+		val origin: String,
 	)
 
 	private data class ImportedCellAuthorityFixture(

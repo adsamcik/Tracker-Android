@@ -10,6 +10,8 @@ import androidx.room.withTransaction
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.app.maintenance.CellCapturedRetentionService
+import com.adsamcik.tracker.app.maintenance.PeriodicAmbientRetentionMaintenance
+import com.adsamcik.tracker.app.maintenance.PeriodicAmbientRetentionResult
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlement
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementResult
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
@@ -61,6 +63,7 @@ class DataRetentionWorker @AssistedInject constructor(
 	private val cellCapturedRetentionService: CellCapturedRetentionService,
 	private val wifiCapturedRetentionService: WifiCapturedRetentionService,
 	private val retentionFloorSettlement: RetentionFloorSettlement,
+	private val periodicAmbientRetentionMaintenance: PeriodicAmbientRetentionMaintenance,
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result =
@@ -96,21 +99,23 @@ class DataRetentionWorker @AssistedInject constructor(
 			// migration snapshot.
 			requireReadyGeneration(startupGeneration)
 			authority.requireIdentity()
-			val lifecycle = when (val settlement = retentionFloorSettlement.settle(
+			val settlement = when (val result = retentionFloorSettlement.settle(
 				database = appDatabase,
 				lifecycleStore = collectedDataLifecycleStore,
 				startupGate = trackingStartupGate,
 				expectedStartupGeneration = startupGeneration,
 				requestedRetainedFromMs = cutoff,
+				operationId = authority.retentionFloorOperationId(cutoff),
 				updatedAtMs = now,
 				verifyApprovedOperation = { authority.requireIdentity() },
 			)) {
-				is RetentionFloorSettlementResult.Settled -> settlement.lifecycle
+				is RetentionFloorSettlementResult.Settled -> result
 				RetentionFloorSettlementResult.StartupGenerationChanged ->
 					throw StartupGenerationChangedException
 				is RetentionFloorSettlementResult.Retryable ->
 					throw RetentionFloorSettlementDeferredException
 			}
+			val lifecycle = settlement.lifecycle
 			migrationBackupRepository.deleteAll()
 			val rawRetentionResult = pruneRawData(
 				appDatabase,
@@ -131,6 +136,12 @@ class DataRetentionWorker @AssistedInject constructor(
 					stepsSessionFactProjectionLaneProvider.get().drainAvailable()
 				} ?: throw StartupGenerationChangedException
 			}
+			val ambientRetentionAccepted = periodicAmbientRetentionMaintenance.run(
+					database = appDatabase,
+					lifecycle = lifecycle,
+					activeLocalSources = settlement.reconciledSources,
+					appliedAtMs = now,
+				) is PeriodicAmbientRetentionResult.Complete
 			// Captured radio maintenance authenticates its retained source WAL after lifecycle
 			// settlement and before the shared physical WAL prune, including deferred raw runs.
 			val cellRetentionAccepted = pruneCapturedCellData(
@@ -147,6 +158,9 @@ class DataRetentionWorker @AssistedInject constructor(
 				startupGeneration,
 				authority,
 			)
+			if (!ambientRetentionAccepted) {
+				throw AmbientRetentionDeferredException
+			}
 			if (!cellRetentionAccepted || !wifiRetentionAccepted) {
 				throw RadioRetentionDeferredException
 			}
@@ -181,6 +195,8 @@ class DataRetentionWorker @AssistedInject constructor(
 		} catch (_: ActivityRetentionDeferredException) {
 			Result.retry()
 		} catch (_: RadioRetentionDeferredException) {
+			Result.retry()
+		} catch (_: AmbientRetentionDeferredException) {
 			Result.retry()
 		} catch (_: RetentionFloorSettlementDeferredException) {
 			Result.retry()
@@ -423,5 +439,6 @@ class DataRetentionWorker @AssistedInject constructor(
 	private object StartupGenerationChangedException : RuntimeException()
 	private object ActivityRetentionDeferredException : RuntimeException()
 	private object RadioRetentionDeferredException : RuntimeException()
+	private object AmbientRetentionDeferredException : RuntimeException()
 	private object RetentionFloorSettlementDeferredException : RuntimeException()
 }

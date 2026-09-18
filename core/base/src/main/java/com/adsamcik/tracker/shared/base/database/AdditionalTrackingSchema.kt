@@ -221,6 +221,7 @@ private fun createCellSelectedDeletionTables(database: SupportSQLiteDatabase) {
 			start_time_ms INTEGER NOT NULL,
 			end_time_ms INTEGER NOT NULL,
 			run_footprint_set_checksum TEXT NOT NULL,
+			retained_from_ms INTEGER,
 			deleted_at_ms INTEGER NOT NULL,
 			effect_checksum TEXT NOT NULL,
 			PRIMARY KEY(logical_tracking_id)

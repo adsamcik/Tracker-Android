@@ -84,7 +84,17 @@ interface CollectedDataLifecycleStore {
 	suspend fun advanceRetainedFrom(
 		retainedFromMs: Long,
 		permit: RetentionAuthorityOperationPermit,
-	): CollectedDataLifecycleSnapshot = permit.commitDataStoreMutation {
+	): CollectedDataLifecycleSnapshot = advanceRetainedFrom(
+		operationId = "retention-floor:$retainedFromMs",
+		retainedFromMs = retainedFromMs,
+		permit = permit,
+	)
+
+	suspend fun advanceRetainedFrom(
+		operationId: String,
+		retainedFromMs: Long,
+		permit: RetentionAuthorityOperationPermit,
+	): CollectedDataLifecycleSnapshot = permit.commitDataStoreMutation(operationId) {
 		advanceRetainedFrom(retainedFromMs)
 	}
 }
@@ -92,7 +102,8 @@ interface CollectedDataLifecycleStore {
 suspend fun CollectedDataLifecycleStore.advanceRetainedFromWithPermit(
 	retainedFromMs: Long,
 	permit: RetentionAuthorityOperationPermit,
-): CollectedDataLifecycleSnapshot = advanceRetainedFrom(retainedFromMs, permit)
+	operationId: String = "retention-floor:$retainedFromMs",
+): CollectedDataLifecycleSnapshot = advanceRetainedFrom(operationId, retainedFromMs, permit)
 
 private val Context.collectedDataLifecycleDataStore: DataStore<Preferences> by preferencesDataStore(
 	name = "collected_data_lifecycle",
@@ -114,22 +125,22 @@ class DefaultCollectedDataLifecycleStore(
 
 	override suspend fun beginFullDeletion(
 		deletedAtMs: Long,
-	): CollectedDataLifecycleSnapshot =
-		retentionAuthorityOperationLease.withPermit { permit ->
-			permit.commitDataStoreMutation(retentionAuthorityOperationLease) {
-				updateUnlocked { current ->
-					check(current.epoch < Long.MAX_VALUE) {
-						"Collected-data deletion epoch is exhausted"
-					}
-					current.copy(
-						epoch = current.epoch + 1L,
-						retainedFromMs = current.retainedFromMs
-							?.let { maxOf(it, deletedAtMs) }
-							?: deletedAtMs,
-					)
-				}
+	): CollectedDataLifecycleSnapshot {
+		require(deletedAtMs >= 0L)
+		return retentionAuthorityOperationLease.withPermit { permit ->
+			val operationId = "legacy-full-deletion:$deletedAtMs"
+			permit.commitDataStoreMutation(
+				retentionAuthorityOperationLease,
+				operationId,
+			) {
+				beginFullDeletionUnlocked(
+					operationId = operationId,
+					targetEpoch = null,
+					deletedAtMs = deletedAtMs,
+				)
 			}
 		}
+	}
 
 	override suspend fun beginFullDeletion(
 		operationId: String,
@@ -140,33 +151,11 @@ class DefaultCollectedDataLifecycleStore(
 		require(targetEpoch > 0L)
 		require(deletedAtMs >= 0L)
 		return retentionAuthorityOperationLease.withPermit { permit ->
-			permit.commitDataStoreMutation(retentionAuthorityOperationLease) {
-				var updated: CollectedDataLifecycleSnapshot? = null
-				dataStore.edit { preferences ->
-					val current = preferences.toSnapshot()
-					val lastOperationId = preferences[LAST_FULL_DELETION_OPERATION_ID_KEY]
-					val next = when {
-						current.epoch == targetEpoch && lastOperationId == operationId -> current
-						Math.addExact(current.epoch, 1L) == targetEpoch -> current.copy(
-							epoch = targetEpoch,
-							retainedFromMs = current.retainedFromMs
-								?.let { maxOf(it, deletedAtMs) }
-								?: deletedAtMs,
-						)
-						else -> error(
-							"Collected-data deletion operation does not own the target lifecycle epoch",
-						)
-					}
-					preferences[EPOCH_KEY] = next.epoch
-					if (next.retainedFromMs == null) {
-						preferences.remove(RETAINED_FROM_KEY)
-					} else {
-						preferences[RETAINED_FROM_KEY] = next.retainedFromMs
-					}
-					preferences[LAST_FULL_DELETION_OPERATION_ID_KEY] = operationId
-					updated = next
-				}
-				checkNotNull(updated)
+			permit.commitDataStoreMutation(
+				retentionAuthorityOperationLease,
+				"full-deletion:$operationId",
+			) {
+				beginFullDeletionUnlocked(operationId, targetEpoch, deletedAtMs)
 			}
 		}
 	}
@@ -175,8 +164,12 @@ class DefaultCollectedDataLifecycleStore(
 		retainedFromMs: Long,
 	): CollectedDataLifecycleSnapshot =
 		retentionAuthorityOperationLease.withPermit { permit ->
-			permit.commitDataStoreMutation(retentionAuthorityOperationLease) {
-				advanceRetainedFromUnlocked(retainedFromMs)
+			val operationId = "retention-floor:$retainedFromMs"
+			permit.commitDataStoreMutation(
+				retentionAuthorityOperationLease,
+				operationId,
+			) {
+				advanceRetainedFromUnlocked(operationId, retainedFromMs)
 			}
 		}
 
@@ -184,32 +177,85 @@ class DefaultCollectedDataLifecycleStore(
 		retainedFromMs: Long,
 		permit: RetentionAuthorityOperationPermit,
 	): CollectedDataLifecycleSnapshot =
-		permit.commitDataStoreMutation(retentionAuthorityOperationLease) {
-			advanceRetainedFromUnlocked(retainedFromMs)
+		advanceRetainedFrom("retention-floor:$retainedFromMs", retainedFromMs, permit)
+
+	override suspend fun advanceRetainedFrom(
+		operationId: String,
+		retainedFromMs: Long,
+		permit: RetentionAuthorityOperationPermit,
+	): CollectedDataLifecycleSnapshot =
+		permit.commitDataStoreMutation(retentionAuthorityOperationLease, operationId) {
+			advanceRetainedFromUnlocked(operationId, retainedFromMs)
 		}
 
-	private suspend fun advanceRetainedFromUnlocked(
-		retainedFromMs: Long,
-	): CollectedDataLifecycleSnapshot = updateUnlocked { current ->
-		current.copy(
-			retainedFromMs = current.retainedFromMs
-				?.let { maxOf(it, retainedFromMs) }
-				?: retainedFromMs,
-		)
-	}
-
-	private suspend fun updateUnlocked(
-		transform: (CollectedDataLifecycleSnapshot) -> CollectedDataLifecycleSnapshot,
+	private suspend fun beginFullDeletionUnlocked(
+		operationId: String,
+		targetEpoch: Long?,
+		deletedAtMs: Long,
 	): CollectedDataLifecycleSnapshot {
 		var updated: CollectedDataLifecycleSnapshot? = null
 		dataStore.edit { preferences ->
-			val next = transform(preferences.toSnapshot())
-			preferences[EPOCH_KEY] = next.epoch
-			if (next.retainedFromMs == null) {
-				preferences.remove(RETAINED_FROM_KEY)
+			val current = preferences.toSnapshot()
+			val lastOperationId = preferences[LAST_FULL_DELETION_OPERATION_ID_KEY]
+			val lastTargetEpoch = preferences[LAST_FULL_DELETION_TARGET_EPOCH_KEY]
+			val lastDeletedAtMs = preferences[LAST_FULL_DELETION_DELETED_AT_MS_KEY]
+			val next = if (lastOperationId == operationId) {
+				check(lastTargetEpoch == current.epoch && lastDeletedAtMs == deletedAtMs) {
+					"Collected-data deletion operation identity was reused with different inputs"
+				}
+				if (targetEpoch != null) {
+					check(current.epoch == targetEpoch) {
+						"Collected-data deletion operation acknowledgement has another target epoch"
+					}
+				}
+				current
 			} else {
-				preferences[RETAINED_FROM_KEY] = next.retainedFromMs
+				val nextEpoch = targetEpoch ?: Math.addExact(current.epoch, 1L)
+				check(Math.addExact(current.epoch, 1L) == nextEpoch) {
+					"Collected-data deletion operation does not own the target lifecycle epoch"
+				}
+				current.copy(
+					epoch = nextEpoch,
+					retainedFromMs = current.retainedFromMs
+						?.let { maxOf(it, deletedAtMs) }
+						?: deletedAtMs,
+				)
 			}
+			preferences.writeSnapshot(next)
+			preferences[LAST_FULL_DELETION_OPERATION_ID_KEY] = operationId
+			preferences[LAST_FULL_DELETION_TARGET_EPOCH_KEY] = next.epoch
+			preferences[LAST_FULL_DELETION_DELETED_AT_MS_KEY] = deletedAtMs
+			updated = next
+		}
+		return checkNotNull(updated)
+	}
+
+	private suspend fun advanceRetainedFromUnlocked(
+		operationId: String,
+		retainedFromMs: Long,
+	): CollectedDataLifecycleSnapshot {
+		require(operationId.isNotBlank())
+		require(retainedFromMs >= 0L)
+		var updated: CollectedDataLifecycleSnapshot? = null
+		dataStore.edit { preferences ->
+			val current = preferences.toSnapshot()
+			val lastOperationId = preferences[LAST_RETENTION_FLOOR_OPERATION_ID_KEY]
+			val lastRequestedFloor = preferences[LAST_RETENTION_FLOOR_VALUE_KEY]
+			val next = if (lastOperationId == operationId) {
+				check(lastRequestedFloor == retainedFromMs) {
+					"Retention-floor operation identity was reused with another boundary"
+				}
+				current
+			} else {
+				current.copy(
+					retainedFromMs = current.retainedFromMs
+						?.let { maxOf(it, retainedFromMs) }
+						?: retainedFromMs,
+				)
+			}
+			preferences.writeSnapshot(next)
+			preferences[LAST_RETENTION_FLOOR_OPERATION_ID_KEY] = operationId
+			preferences[LAST_RETENTION_FLOOR_VALUE_KEY] = retainedFromMs
 			updated = next
 		}
 		return checkNotNull(updated)
@@ -221,6 +267,14 @@ class DefaultCollectedDataLifecycleStore(
 		val RETAINED_FROM_KEY = longPreferencesKey("retained_from_ms")
 		val LAST_FULL_DELETION_OPERATION_ID_KEY =
 			stringPreferencesKey("last_full_deletion_operation_id")
+		val LAST_FULL_DELETION_TARGET_EPOCH_KEY =
+			longPreferencesKey("last_full_deletion_target_epoch")
+		val LAST_FULL_DELETION_DELETED_AT_MS_KEY =
+			longPreferencesKey("last_full_deletion_deleted_at_ms")
+		val LAST_RETENTION_FLOOR_OPERATION_ID_KEY =
+			stringPreferencesKey("last_retention_floor_operation_id")
+		val LAST_RETENTION_FLOOR_VALUE_KEY =
+			longPreferencesKey("last_retention_floor_value_ms")
 	}
 }
 
@@ -234,3 +288,14 @@ private fun Preferences.toSnapshot(): CollectedDataLifecycleSnapshot =
 		epoch = this[longPreferencesKey("epoch")] ?: 0L,
 		retainedFromMs = this[longPreferencesKey("retained_from_ms")],
 	)
+
+private fun androidx.datastore.preferences.core.MutablePreferences.writeSnapshot(
+	value: CollectedDataLifecycleSnapshot,
+) {
+	this[longPreferencesKey("epoch")] = value.epoch
+	if (value.retainedFromMs == null) {
+		remove(longPreferencesKey("retained_from_ms"))
+	} else {
+		this[longPreferencesKey("retained_from_ms")] = value.retainedFromMs
+	}
+}

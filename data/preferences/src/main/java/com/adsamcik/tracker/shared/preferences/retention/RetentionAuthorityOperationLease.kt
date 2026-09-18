@@ -1,39 +1,55 @@
 package com.adsamcik.tracker.shared.preferences.retention
 
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Serializes collected-data lifecycle transitions with retention bootstrap, reads, and writes.
  *
  * Lock order is: any already-owned startup/configuration authority, this lease, DataStore, then
  * Room. Room transactions must use only Room state and CAS; they must never call back into
- * DataStore or acquire this lease.
+ * DataStore or acquire this lease. A timed-out DataStore acknowledgement remains registered in the
+ * application-owned completion scope, and every later lease entrant fails closed behind it.
  */
 class RetentionAuthorityOperationLease(
 	internal val ownedSuspensionTimeoutMs: Long = DEFAULT_OWNED_SUSPENSION_TIMEOUT_MS,
+	private val completionScope: CoroutineScope =
+		CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) {
 	private val mutex = Mutex()
+	private val dataStoreFlightMonitor = Any()
+	private var dataStoreFlight: RetentionAuthorityDataStoreFlight? = null
 
 	init {
 		require(ownedSuspensionTimeoutMs > 0L)
 	}
 
 	internal suspend fun <T> withOperation(operation: suspend () -> T): T =
-		mutex.withLock { operation() }
+		mutex.withLock {
+			awaitOutstandingDataStoreFlight()
+			operation()
+		}
 
 	suspend fun <T> withPermit(
 		cancellationShielded: Boolean = false,
 		operation: suspend (RetentionAuthorityOperationPermit) -> T,
 	): T = mutex.withLock {
+		awaitOutstandingDataStoreFlight()
 		val invoke = suspend {
 			coroutineScope {
 				val permit = RetentionAuthorityOperationPermit(
@@ -60,8 +76,54 @@ class RetentionAuthorityOperationLease(
 		permit.requireActive(this)
 	}
 
+	internal suspend fun <T> commitDataStoreMutation(
+		permit: RetentionAuthorityOperationPermit,
+		operationIdentity: String,
+		operation: suspend () -> T,
+	): T {
+		permit.requireActive(this)
+		require(operationIdentity.isNotBlank() && operationIdentity.length <= MAX_OPERATION_ID_LENGTH)
+		val flight = synchronized(dataStoreFlightMonitor) {
+			check(dataStoreFlight == null) {
+				"Retention authority already owns an unacknowledged DataStore mutation"
+			}
+			RetentionAuthorityDataStoreFlight(
+				operationIdentity = operationIdentity,
+				task = completionScope.async(start = CoroutineStart.UNDISPATCHED) {
+					runCatching { operation() as Any? }
+				},
+			).also { dataStoreFlight = it }
+		}
+		val outcome = awaitDataStoreFlight(flight)
+		permit.requireActive(this)
+		@Suppress("UNCHECKED_CAST")
+		return outcome.getOrThrow() as T
+	}
+
+	private suspend fun awaitOutstandingDataStoreFlight() {
+		val flight = synchronized(dataStoreFlightMonitor) { dataStoreFlight } ?: return
+		awaitDataStoreFlight(flight).getOrThrow()
+	}
+
+	private suspend fun awaitDataStoreFlight(
+		flight: RetentionAuthorityDataStoreFlight,
+	): Result<Any?> {
+		val outcome = withTimeoutOrNull(ownedSuspensionTimeoutMs) {
+			flight.task.await()
+		} ?: if (flight.task.isCompleted) {
+			flight.task.await()
+		} else {
+			throw RetentionAuthorityDataStoreCommitUnknownException(flight.operationIdentity)
+		}
+		synchronized(dataStoreFlightMonitor) {
+			if (dataStoreFlight === flight) dataStoreFlight = null
+		}
+		return outcome
+	}
+
 	private companion object {
 		const val DEFAULT_OWNED_SUSPENSION_TIMEOUT_MS = 30_000L
+		const val MAX_OPERATION_ID_LENGTH = 512
 	}
 }
 
@@ -88,17 +150,19 @@ class RetentionAuthorityOperationPermit internal constructor(
 	): T = runOwnedSuspension(RetentionAuthorityOwnedSuspensionKind.ROOM, operation)
 
 	internal suspend fun <T> commitDataStoreMutation(
+		operationIdentity: String,
 		operation: suspend () -> T,
-	): T = runOwnedSuspension(RetentionAuthorityOwnedSuspensionKind.DATA_STORE, operation)
+	): T = owner.commitDataStoreMutation(this, operationIdentity, operation)
 
 	internal suspend fun <T> commitDataStoreMutation(
 		expectedOwner: RetentionAuthorityOperationLease,
+		operationIdentity: String,
 		operation: suspend () -> T,
 	): T {
 		require(owner === expectedOwner) {
 			"Retention authority DataStore bridge belongs to another lifecycle boundary"
 		}
-		return commitDataStoreMutation(operation)
+		return commitDataStoreMutation(operationIdentity, operation)
 	}
 
 	internal suspend fun requireActive(expectedOwner: RetentionAuthorityOperationLease = owner) {
@@ -167,11 +231,21 @@ private class RetentionAuthorityInFlightOperation(
 	val active = AtomicBoolean(true)
 }
 
+private data class RetentionAuthorityDataStoreFlight(
+	val operationIdentity: String,
+	val task: Deferred<Result<Any?>>,
+)
+
 internal enum class RetentionAuthorityOwnedSuspensionKind {
 	ROOM,
-	DATA_STORE,
 }
 
 internal class RetentionAuthorityOwnedSuspensionTimeoutException(
 	kind: RetentionAuthorityOwnedSuspensionKind,
 ) : IllegalStateException("Timed out waiting for lease-owned ${kind.name.lowercase()} commit")
+
+class RetentionAuthorityDataStoreCommitUnknownException(
+	val operationIdentity: String,
+) : IllegalStateException(
+	"DataStore mutation acknowledgement remains unknown for $operationIdentity",
+)

@@ -327,6 +327,7 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 			).value,
 			collectedDataEpoch = scope.collectedDataEpoch,
 			runFootprints = deletedRuns,
+			retainedFromMs = scope.retainedFromMs,
 			deletedAtMs = requestedAtMs,
 		)
 		if (database.cellCapturedFactDao().entryDeletionReceipt(scope.logicalTrackingId) != null ||
@@ -422,6 +423,7 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 					session,
 					runs,
 					state.collectedDataEpoch,
+					state.retainedFromMs,
 					state.updatedAtMs,
 				),
 				requestedAtMs,
@@ -552,6 +554,7 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 				runs,
 				segments,
 				state.collectedDataEpoch,
+				state.retainedFromMs,
 				state.updatedAtMs,
 				zones.first(),
 				affectedDays.sorted(),
@@ -647,6 +650,7 @@ private data class LocalCellDeletionScope(
 	val runs: List<SourceServiceRunEntity>,
 	val segments: List<SessionSegment>,
 	val collectedDataEpoch: Long,
+	val retainedFromMs: Long?,
 	val evidenceUpdatedAtMs: Long,
 	val lockZone: ZoneId,
 	val affectedDays: List<Long>,
@@ -658,6 +662,7 @@ private data class LocalCellDeletionScope(
 			session: LogicalTrackingSessionEntity,
 			runs: List<SourceServiceRunEntity>,
 			collectedDataEpoch: Long,
+			retainedFromMs: Long?,
 			evidenceUpdatedAtMs: Long,
 		) = LocalCellDeletionScope(
 			logicalTrackingId,
@@ -665,6 +670,7 @@ private data class LocalCellDeletionScope(
 			runs,
 			emptyList(),
 			collectedDataEpoch,
+			retainedFromMs,
 			evidenceUpdatedAtMs,
 			ZoneOffset.UTC,
 			emptyList(),
