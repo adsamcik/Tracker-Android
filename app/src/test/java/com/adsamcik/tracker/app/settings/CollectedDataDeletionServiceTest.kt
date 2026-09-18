@@ -56,6 +56,7 @@ import io.mockk.thirdArg
 import io.mockk.verify
 import java.io.File
 import javax.inject.Provider
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -152,9 +153,9 @@ class CollectedDataDeletionServiceTest {
 			collectedDataLifecycleStore.beginFullDeletion(any(), 1L, 1L)
 		}
 		coVerifyOrder {
+			writerQuiescer.quiesce()
+			writerQuiescer.quiesce()
 			collectedDataLifecycleStore.beginFullDeletion(any(), 1L, 1L)
-			writerQuiescer.quiesce()
-			writerQuiescer.quiesce()
 		}
 		verify(exactly = 0) { writerQuiescer.resume() }
 		verify(exactly = 1) { automaticControlRestorer.schedule(1L) }
@@ -204,6 +205,40 @@ class CollectedDataDeletionServiceTest {
 	}
 
 	@Test
+	fun `cancellation before journal publication leaves startup admission open`() = runTest {
+		val snapshotStarted = CompletableDeferred<Unit>()
+		coEvery { collectedDataLifecycleStore.snapshot() } coAnswers {
+			snapshotStarted.complete(Unit)
+			awaitCancellation()
+		}
+		val service = createService { _, _, _, _ ->
+			error("database deletion must not start")
+		}
+
+		val deletion = async { service.deleteAll() }
+		snapshotStarted.await()
+		deletion.cancel()
+		runCatching { deletion.await() }
+
+		markerFile.exists() shouldBe false
+		preparedMarkerFile.exists() shouldBe false
+		startupDeletionBarrier.isClosed shouldBe false
+		coVerify(exactly = 0) { writerQuiescer.quiesce() }
+	}
+
+	@Test
+	fun `recovery never reports complete with a markerless closed barrier`() = runTest {
+		startupDeletionBarrier.close()
+		val service = createService { _, _, _, _ ->
+			error("database deletion must not start")
+		}
+
+		service.reconcilePendingDeletion() shouldBe CollectedDataDeletionCompletion.Complete
+
+		startupDeletionBarrier.isClosed shouldBe false
+	}
+
+	@Test
 	fun `writer quiescence failure keeps the durable marker and startup barrier closed`() = runTest {
 		coEvery { writerQuiescer.quiesce() } throws DatabaseMigrationBackupException(
 			"writer cancellation timed out",
@@ -221,6 +256,30 @@ class CollectedDataDeletionServiceTest {
 		verify(exactly = 0) { pointsAwardedDao.deleteAll() }
 		verify(exactly = 0) { writerQuiescer.resume() }
 		verify(exactly = 0) { automaticControlRestorer.schedule(any()) }
+	}
+
+	@Test
+	fun `hung provider fence is bounded without skipping independent fences`() = runTest {
+		val arbiter = mockk<ActivityRegistrationArbiter>()
+		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
+		coEvery { arbiter.closeForCollectedDataDeletion() } coAnswers {
+			awaitCancellation()
+		}
+		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
+			AmbientStepsProviderCleanupResult(complete = true)
+		val service = createService(
+			activityRegistrationArbiterProvider = Provider { arbiter },
+			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
+			providerFenceTimeoutMs = 10L,
+		) { _, _, _, _ -> error("database deletion must not start") }
+
+		runCatching { service.deleteAll() }.exceptionOrNull()
+			.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+
+		coVerify(exactly = 1) { ambientSteps.closeForCollectedDataDeletion() }
+		coVerify(exactly = 1) { writerQuiescer.quiesce() }
+		markerFile.exists() shouldBe true
+		startupDeletionBarrier.isClosed shouldBe true
 	}
 
 	@Test
@@ -601,11 +660,11 @@ class CollectedDataDeletionServiceTest {
 		markerFile.exists() shouldBe true
 		startupDeletionBarrier.isClosed shouldBe true
 		coVerify(exactly = 1) { ambientSteps.closeForCollectedDataDeletion() }
-		coVerify(exactly = 0) { writerQuiescer.quiesce() }
+		coVerify(exactly = 1) { writerQuiescer.quiesce() }
 	}
 
 	@Test
-	fun `cold pending deletion removes retired vaults before resolving provider owners`() = runTest {
+	fun `cold pending deletion resolves provider fences before deleting retired vaults`() = runTest {
 		val interrupted = createService { _, _, _, _ ->
 			throw SQLiteException("interrupted before database commit")
 		}
@@ -623,22 +682,20 @@ class CollectedDataDeletionServiceTest {
 		var providerResolutions = 0
 		val activityProvider = Provider {
 			providerResolutions++
-			RETIRED_DATABASE_NAMES.forEach { databaseName ->
-				context.getDatabasePath(databaseName).exists() shouldBe false
-			}
 			arbiter
 		}
 		val ambientStepsProvider = Provider {
 			providerResolutions++
-			RETIRED_DATABASE_NAMES.forEach { databaseName ->
-				context.getDatabasePath(databaseName).exists() shouldBe false
-			}
 			ambientSteps
 		}
 		val service = createService(
 			activityRegistrationArbiterProvider = activityProvider,
 			ambientStepsProviderLifecycleProvider = ambientStepsProvider,
-		) { _, _, _, _ -> }
+		) { _, _, _, _ ->
+			RETIRED_DATABASE_NAMES.forEach { databaseName ->
+				context.getDatabasePath(databaseName).exists() shouldBe false
+			}
+		}
 
 		service.reconcilePendingDeletion()
 
@@ -1124,6 +1181,7 @@ class CollectedDataDeletionServiceTest {
 			Provider<SourcePolicyAuthorityBootstrapCoordinator>? = null,
 		directorySync: (File) -> Unit = {},
 		markerDelete: (File) -> Boolean = File::delete,
+		providerFenceTimeoutMs: Long = 30_000L,
 		appDatabaseDeletionOperation: (suspend (
 			android.content.Context,
 			CollectedDataDeletionOperation,
@@ -1174,6 +1232,7 @@ class CollectedDataDeletionServiceTest {
 		directorySync = directorySync,
 		markerDelete = markerDelete,
 		currentTimeMillis = { 1L },
+		providerFenceTimeoutMs = providerFenceTimeoutMs,
 	)
 
 	private suspend fun roomRetentionProducer(

@@ -42,7 +42,6 @@ import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -169,39 +168,43 @@ class TrackingStartupDeletionBarrier internal constructor(
 	val currentGeneration: Long
 		get() = generation.get()
 
-	/**
-	 * Prevents new admission immediately, then waits for an already-admitted Ready operation to
-	 * finish before publishing the closed generation. Provider starts therefore cannot cross the
-	 * returned close boundary after passing an earlier precheck.
-	 */
-	internal suspend fun closeAdmission() {
+	/** Prevents new admission immediately without waiting for an admitted operation. */
+	internal fun beginCloseAdmission() {
 		synchronized(admissionMonitor) {
-			if (closed.get()) return
+			if (closed.get() || closing) return
 			closing = true
 		}
+	}
+
+	/**
+	 * Prevents new admission immediately, then waits for an already-admitted Ready operation to
+	 * finish before publishing the closed generation.
+	 */
+	internal suspend fun closeAdmission() {
+		beginCloseAdmission()
 		try {
-			finishAdmissionClose()
+			awaitQuiescence()
 		} catch (cancelled: CancellationException) {
-			withContext(NonCancellable) {
-				finishAdmissionClose()
+			synchronized(admissionMonitor) {
+				if (!closed.get()) closing = false
 			}
 			throw cancelled
 		}
 	}
 
-	private suspend fun finishAdmissionClose() {
-		startupRecoveryMutex.withLock {
-			synchronized(admissionMonitor) {
-				if (closed.compareAndSet(false, true)) generation.incrementAndGet()
-				closing = false
-			}
+	private fun finishAdmissionClose() {
+		synchronized(admissionMonitor) {
+			if (closed.compareAndSet(false, true)) generation.incrementAndGet()
+			closing = false
 		}
 	}
 
-	/** Waits until every operation admitted before [closeAdmission] has left its protected section. */
+	/** Waits until pre-close operations exit, then atomically publishes the closed generation. */
 	internal suspend fun awaitQuiescence() {
 		val quiesced = withTimeoutOrNull(operationQuiescenceTimeoutMs) {
-			startupRecoveryMutex.withLock { Unit }
+			startupRecoveryMutex.withLock {
+				finishAdmissionClose()
+			}
 			true
 		} == true
 		check(quiesced) {
@@ -211,12 +214,7 @@ class TrackingStartupDeletionBarrier internal constructor(
 
 	/** Compatibility operation for callers that do not own runtime cancellation. */
 	suspend fun close() {
-		synchronized(admissionMonitor) {
-			if (closed.get()) return
-			closing = true
-		}
-		awaitQuiescence()
-		finishAdmissionClose()
+		closeAdmission()
 	}
 
 	suspend fun reopen() {
@@ -306,6 +304,7 @@ class DefaultTrackingStartupGate @Inject constructor(
 		if (nested?.gate === this) {
 			if (
 				nested.generation != expectedGeneration ||
+				deletionBarrier.isClosed ||
 				expectedGeneration != deletionBarrier.currentGeneration ||
 				ready == null ||
 				readyGeneration != expectedGeneration ||

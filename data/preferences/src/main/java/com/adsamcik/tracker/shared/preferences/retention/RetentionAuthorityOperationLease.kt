@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.preferences.retention
 
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -19,16 +20,34 @@ class RetentionAuthorityOperationLease {
 	suspend fun <T> withPermit(
 		operation: suspend (RetentionAuthorityOperationPermit) -> T,
 	): T = mutex.withLock {
-		operation(RetentionAuthorityOperationPermit(this))
+		val permit = RetentionAuthorityOperationPermit(this)
+		try {
+			operation(permit)
+		} finally {
+			permit.invalidate()
+		}
 	}
 
 	internal fun requireOwned(permit: RetentionAuthorityOperationPermit) {
-		require(permit.owner === this) {
-			"Retention authority operation permit belongs to another lifecycle boundary"
-		}
+		permit.requireActive(this)
 	}
 }
 
 class RetentionAuthorityOperationPermit internal constructor(
 	internal val owner: RetentionAuthorityOperationLease,
-)
+) {
+	private val active = AtomicBoolean(true)
+
+	internal fun requireActive(expectedOwner: RetentionAuthorityOperationLease = owner) {
+		require(owner === expectedOwner) {
+			"Retention authority operation permit belongs to another lifecycle boundary"
+		}
+		require(active.get()) {
+			"Retention authority operation permit escaped its active lexical scope"
+		}
+	}
+
+	internal fun invalidate() {
+		active.set(false)
+	}
+}

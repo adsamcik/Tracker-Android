@@ -845,6 +845,41 @@ class DefaultTrackingStartupGateTest {
 	}
 
 	@Test
+	fun `nested ready operation rejects once deletion begins closing admission`() = runTest {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(any(), any()) } just Runs
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		val generation = gate.currentGeneration
+		val outerEntered = CompletableDeferred<Unit>()
+		val attemptNested = CompletableDeferred<Unit>()
+		var providerStarts = 0
+
+		val outer = async {
+			gate.withReadyGenerationOperation(generation) {
+				outerEntered.complete(Unit)
+				attemptNested.await()
+				gate.withReadyGenerationOperation(generation) {
+					providerStarts += 1
+					"started"
+				}
+			}
+		}
+		outerEntered.await()
+		val close = async { deletionBarrier.closeAdmission() }
+		runCurrent()
+
+		deletionBarrier.isClosed shouldBe true
+		close.isCompleted shouldBe false
+		attemptNested.complete(Unit)
+		outer.await() shouldBe null
+		close.await()
+		providerStarts shouldBe 0
+		deletionBarrier.reopen()
+	}
+
+	@Test
 	fun `deletion barrier signals only completed deletion generations`() = runTest {
 		deletionBarrier.openGenerations.value shouldBe 0L
 

@@ -16,17 +16,12 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnava
 import com.adsamcik.tracker.shared.preferences.retention.reconcileCurrentSettingsWithPermit
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
-import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
-import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
-import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
-import com.adsamcik.tracker.tracker.api.NoOpAmbientStepsProviderLifecycle
 import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciler
 import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciliationDebt
 import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciliationFailure
 import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciliationFailureReason
 import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciliationResult
 import javax.inject.Inject
-import javax.inject.Provider
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -37,8 +32,6 @@ class RetentionFloorSettlement @Inject constructor(
 	private val operationLease: RetentionAuthorityOperationLease,
 	private val retentionAuthorityProducer: RetentionAuthorityProducer,
 	private val purposeReconciler: TrackingRetentionFloorReconciler,
-	private val ambientStepsProviderLifecycle: Provider<AmbientStepsProviderLifecycle> =
-		Provider { NoOpAmbientStepsProviderLifecycle },
 ) {
 	suspend fun settle(
 		database: AppDatabase,
@@ -120,13 +113,11 @@ class RetentionFloorSettlement @Inject constructor(
 			}
 		}
 		val purposeResult = try {
-			withContext(NonCancellable) {
-				purposeReconciler.reconcile(
-					expectedStartupGeneration,
-					retainedFromMs,
-					approvedSources,
-				)
-			}
+			purposeReconciler.reconcile(
+				expectedStartupGeneration,
+				retainedFromMs,
+				approvedSources,
+			)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
@@ -162,53 +153,29 @@ class RetentionFloorSettlement @Inject constructor(
 				),
 			)
 		}
-		if (AmbientTrackingSource.STEPS in approvedSources) {
-			val stepsResult = try {
-				withContext(NonCancellable) {
-					startupGate.withReadyGenerationOperation(expectedStartupGeneration) {
-						ambientStepsProviderLifecycle.get().reconcileAfterSettingsChange()
-					}
-				} ?: AmbientStepsSettingsReconciliationResult(
-					complete = false,
-					operational = false,
-					failure =
-						AmbientStepsSettingsReconciliationFailure
-							.AUTHORITY_CHANGED_DURING_ACTIVATION,
-					retryable = true,
-				)
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (_: Exception) {
-				AmbientStepsSettingsReconciliationResult(
-					complete = false,
-					operational = false,
-					failure =
-						AmbientStepsSettingsReconciliationFailure.PROVIDER_ACTIVATION_FAILED,
-					retryable = true,
-				)
-			}
-			val exactStepsResult = if (
-				stepsResult.complete &&
-				!startupGate.isReadyGeneration(expectedStartupGeneration)
-			) {
-				AmbientStepsSettingsReconciliationResult(
-					complete = false,
-					operational = false,
-					failure =
-						AmbientStepsSettingsReconciliationFailure
-							.AUTHORITY_CHANGED_DURING_ACTIVATION,
-					retryable = true,
-				)
-			} else {
-				stepsResult
-			}
-			if (!exactStepsResult.complete) {
-				failures +=
-					RetentionFloorSettlementFailure.AmbientStepsLifecycle(exactStepsResult)
-			}
-		}
 		return if (failures.isEmpty()) {
-			RetentionFloorSettlementResult.Settled(commit.lifecycle, approvedSources)
+			startupGate.withReadyGeneration(expectedStartupGeneration) {
+				RetentionFloorSettlementResult.Settled(commit.lifecycle, approvedSources)
+			} ?: RetentionFloorSettlementResult.Retryable(
+				RetentionFloorSettlementDebt(
+					retainedFromMs,
+					listOf(
+						RetentionFloorSettlementFailure.ProviderLifecycle(
+							TrackingRetentionFloorReconciliationDebt(
+								retainedFromMs,
+								listOf(
+									TrackingRetentionFloorReconciliationFailure(
+										source = null,
+										reason =
+											TrackingRetentionFloorReconciliationFailureReason
+												.STARTUP_GENERATION_CHANGED,
+									),
+								),
+							),
+						),
+					),
+				),
+			)
 		} else {
 			RetentionFloorSettlementResult.Retryable(
 				RetentionFloorSettlementDebt(retainedFromMs, failures),
@@ -260,14 +227,6 @@ sealed interface RetentionFloorSettlementFailure {
 	data class ProviderLifecycle(
 		val debt: TrackingRetentionFloorReconciliationDebt,
 	) : RetentionFloorSettlementFailure
-
-	data class AmbientStepsLifecycle(
-		val result: AmbientStepsSettingsReconciliationResult,
-	) : RetentionFloorSettlementFailure {
-		init {
-			require(!result.complete)
-		}
-	}
 }
 
 private data class RetentionFloorCommit(

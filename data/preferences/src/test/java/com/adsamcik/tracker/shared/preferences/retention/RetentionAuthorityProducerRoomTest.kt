@@ -21,6 +21,7 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
@@ -511,6 +512,22 @@ class RetentionAuthorityProducerRoomTest {
 		database.ambientStepsFactRevisionDao().latestRetentionAuthority(
 			AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
 		)?.retainedFromMs shouldBe 2_000L
+	}
+
+	@Test
+	fun `operation permit cannot escape its lexical lease scope`() = runTest {
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+		val producer = producer()
+		lateinit var escaped: RetentionAuthorityOperationPermit
+
+		operationLease.withPermit { permit ->
+		escaped = permit
+		}
+
+		assertFailsWith<IllegalArgumentException> {
+		producer.reconcileCurrentSettings(escaped)
+		}
 	}
 
 	@Test

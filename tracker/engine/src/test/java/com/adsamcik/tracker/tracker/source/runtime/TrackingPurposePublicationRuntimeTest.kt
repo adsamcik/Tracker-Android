@@ -47,6 +47,7 @@ import io.mockk.firstArg
 import io.mockk.mockk
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -434,7 +435,7 @@ class TrackingPurposePublicationRuntimeTest {
 	}
 
 	@Test
-	fun `retention floor reconciliation does not call a disabled source owner`() = runTest {
+	fun `retention floor reconciliation retires a previously owned Steps source`() = runTest {
 		val fixture = fixture(
 			authority(
 				source = TrackingSource.STEPS,
@@ -444,17 +445,32 @@ class TrackingPurposePublicationRuntimeTest {
 			),
 		)
 		var callbackCount = 0
+		var retirementCount = 0
 		fixture.runtime.registerAmbientSourceOwner(
 			AmbientTrackingSource.STEPS,
 			executionRevision = 7L,
-		) { lease ->
-			callbackCount += 1
-			AmbientSourceOperationalAvailability.ready(
-				AmbientTrackingSource.STEPS,
-				AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-				lease.purposeLeaseIdentity,
-			)
-		}
+			callback = object : AmbientSourceReconciliationCallback {
+				override suspend fun reconcile(
+					lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
+				): AmbientSourceOperationalAvailability {
+					callbackCount += 1
+					return AmbientSourceOperationalAvailability.ready(
+						AmbientTrackingSource.STEPS,
+						AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+						lease.purposeLeaseIdentity,
+					)
+				}
+
+				override suspend fun retireAfterRetentionAuthorityFailure(
+					previousLease:
+						com.adsamcik.tracker.tracker.api.AmbientReconciliationLease?,
+				): Boolean {
+					previousLease?.identity?.source shouldBe AmbientTrackingSource.STEPS
+					retirementCount += 1
+					return true
+				}
+			},
+		)
 		callbackCount = 0
 
 		fixture.runtime.reconcile(
@@ -464,6 +480,10 @@ class TrackingPurposePublicationRuntimeTest {
 		) shouldBe com.adsamcik.tracker.tracker.api
 			.TrackingRetentionFloorReconciliationResult.Complete(200L, emptySet())
 		callbackCount shouldBe 0
+		retirementCount shouldBe 1
+		fixture.store.availability.value.ambientSources
+			.getValue(AmbientTrackingSource.STEPS).reason shouldBe
+			AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE
 	}
 
 	@Test
@@ -511,6 +531,7 @@ class TrackingPurposePublicationRuntimeTest {
 			retainedFromMs = 200L,
 		)
 		val wifi = mockk<AmbientWifiDemandReconciler>()
+		coEvery { wifi.retireAfterRetentionAuthorityFailure(null) } returns true
 		coEvery {
 			wifi.reconcilePurposeAvailability(
 				any(),
@@ -563,9 +584,7 @@ class TrackingPurposePublicationRuntimeTest {
 		)
 
 		runtime.reconcile(0L, 200L, emptySet())
-		coVerify(exactly = 0) {
-			wifi.reconcilePurposeAvailability(any(), any())
-		}
+		coVerify(exactly = 1) { wifi.retireAfterRetentionAuthorityFailure(null) }
 
 		runtime.reconcile(
 			expectedStartupGeneration = 0L,
@@ -582,6 +601,89 @@ class TrackingPurposePublicationRuntimeTest {
 				AmbientWifiActivationRequest(enabled = true),
 			)
 		}
+	}
+
+	@Test
+	fun `retention floor fails closed when the required Steps purpose owner is missing`() = runTest {
+		val fixture = fixture(
+			authority(
+				source = TrackingSource.STEPS,
+				purpose = TrackingPurpose.AMBIENT_PRODUCT,
+				executionRevision = 1L,
+				retainedFromMs = 200L,
+			),
+		)
+
+		val result = fixtureResult(
+			fixture.runtime.reconcile(
+				expectedStartupGeneration = 0L,
+				retainedFromMs = 200L,
+				approvedSources = setOf(AmbientTrackingSource.STEPS),
+			),
+		)
+
+		result.debt.failures.single().reason shouldBe
+			com.adsamcik.tracker.tracker.api
+				.TrackingRetentionFloorReconciliationFailureReason.OWNER_MISSING
+		fixture.store.availability.value.ambientSources
+			.getValue(AmbientTrackingSource.STEPS).isOperational shouldBe false
+	}
+
+	@Test
+	fun `built in Steps owner publishes the exact retained floor lease`() = runTest {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val authority = authority(
+			source = TrackingSource.STEPS,
+			purpose = TrackingPurpose.AMBIENT_PRODUCT,
+			executionRevision = 1L,
+			retainedFromMs = 200L,
+		)
+		var received: TrackingPurposeLeaseIdentity? = null
+		val owner = object : AmbientStepsPurposeOwner {
+			override suspend fun reconcile(
+				lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
+			): AmbientSourceOperationalAvailability {
+				received = lease.purposeLeaseIdentity
+				return AmbientSourceOperationalAvailability.ready(
+					AmbientTrackingSource.STEPS,
+					AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+					lease.purposeLeaseIdentity,
+				)
+			}
+
+			override suspend fun retireAfterRetentionAuthorityFailure(
+				previousLease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease?,
+			): Boolean = true
+		}
+		val runtime = DefaultTrackingPurposePublicationRuntime(
+			leaseIssuer = SerializedTrackingPurposeLeaseIssuer(
+				authorityReader = TrackingPurposeAuthorityReader { sourcePurpose, execution ->
+					authority.takeIf { it.sourcePurpose == sourcePurpose }
+						?.copy(executionRevision = execution)
+				},
+				reporter = store,
+				tokenFactory = TrackingPurposeOwnerCasTokenFactory { "steps-owner" },
+			),
+			reporter = store,
+			executionRevisionRegistry = TrackingPurposeExecutionRevisionRegistry(),
+			retentionAuthorityProducer = AlwaysApprovedRetentionAuthorityProducer,
+			ambientStepsPurposeOwnerProvider = Provider { owner },
+		)
+
+		runtime.reconcile(
+			expectedStartupGeneration = 0L,
+			retainedFromMs = 200L,
+			approvedSources = setOf(AmbientTrackingSource.STEPS),
+		) shouldBe com.adsamcik.tracker.tracker.api
+			.TrackingRetentionFloorReconciliationResult.Complete(
+				200L,
+				setOf(AmbientTrackingSource.STEPS),
+			)
+
+		received?.retainedFromMs shouldBe 200L
+		received?.ownerCasToken shouldBe "steps-owner"
+		store.availability.value.ambientSources
+			.getValue(AmbientTrackingSource.STEPS).operationalIdentity shouldBe received
 	}
 
 	@Test
@@ -687,8 +789,8 @@ class TrackingPurposePublicationRuntimeTest {
 	}
 
 	@Test
-	fun `stale Ready completion is compensated and rejected before publication`() = runTest {
-		val gate = MutableReadyGate(currentGeneration = 7L, ready = false)
+	fun `close before tryAccept compensates and rejects stale Ready publication`() = runTest {
+		val gate = RejectNextPublicationGate(currentGeneration = 7L, ready = false)
 		val store = AtomicTrackingPurposeAvailabilityStore()
 		val authority = authority(
 			source = TrackingSource.STEPS,
@@ -718,7 +820,6 @@ class TrackingPurposePublicationRuntimeTest {
 				override suspend fun reconcile(
 					lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
 				): AmbientSourceOperationalAvailability {
-					gate.ready = false
 					return AmbientSourceOperationalAvailability.ready(
 						AmbientTrackingSource.STEPS,
 						AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
@@ -735,6 +836,7 @@ class TrackingPurposePublicationRuntimeTest {
 			},
 		)
 		gate.ready = true
+		gate.rejectNextPublication = true
 
 		val result = fixtureResult(
 			runtime.reconcile(
@@ -748,6 +850,130 @@ class TrackingPurposePublicationRuntimeTest {
 			com.adsamcik.tracker.tracker.api
 				.TrackingRetentionFloorReconciliationFailureReason.STARTUP_GENERATION_CHANGED
 		compensated shouldBe true
+		store.availability.value.ambientSources
+			.getValue(AmbientTrackingSource.STEPS).isOperational shouldBe false
+	}
+
+	@Test
+	fun `close after tryAccept retires the accepted lease before Complete publication`() = runTest {
+		val gate = CloseAfterPublicationGate(currentGeneration = 7L)
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val authority = authority(
+			source = TrackingSource.STEPS,
+			purpose = TrackingPurpose.AMBIENT_PRODUCT,
+			executionRevision = 7L,
+			retainedFromMs = 200L,
+		)
+		val runtime = DefaultTrackingPurposePublicationRuntime(
+			leaseIssuer = SerializedTrackingPurposeLeaseIssuer(
+				authorityReader = TrackingPurposeAuthorityReader { sourcePurpose, execution ->
+					authority.takeIf { it.sourcePurpose == sourcePurpose }
+						?.copy(executionRevision = execution)
+				},
+				reporter = store,
+				tokenFactory = TrackingPurposeOwnerCasTokenFactory { "accepted-before-close" },
+			),
+			reporter = store,
+			executionRevisionRegistry = TrackingPurposeExecutionRevisionRegistry(),
+			retentionAuthorityProducer = AlwaysApprovedRetentionAuthorityProducer,
+			trackingStartupGateProvider = Provider { gate },
+		)
+		var retired = false
+		runtime.registerAmbientSourceOwner(
+			AmbientTrackingSource.STEPS,
+			executionRevision = 7L,
+			callback = object : AmbientSourceReconciliationCallback {
+				override suspend fun reconcile(
+					lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
+				): AmbientSourceOperationalAvailability =
+					AmbientSourceOperationalAvailability.ready(
+						AmbientTrackingSource.STEPS,
+						AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+						lease.purposeLeaseIdentity,
+					)
+
+				override suspend fun compensate(
+					lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
+				): Boolean {
+					retired = true
+					return true
+				}
+			},
+		)
+		gate.closeAfterNextPublication = true
+
+		val result = fixtureResult(
+			runtime.reconcile(
+				expectedStartupGeneration = 7L,
+				retainedFromMs = 200L,
+				approvedSources = setOf(AmbientTrackingSource.STEPS),
+			),
+		)
+
+		result.debt.failures.single().reason shouldBe
+			com.adsamcik.tracker.tracker.api
+				.TrackingRetentionFloorReconciliationFailureReason.STARTUP_GENERATION_CHANGED
+		retired shouldBe true
+		store.availability.value.ambientSources
+			.getValue(AmbientTrackingSource.STEPS).isOperational shouldBe false
+	}
+
+	@Test
+	fun `hung compensation is bounded and surfaced as retry debt`() = runTest {
+		val gate = MutableReadyGate(currentGeneration = 7L, ready = false)
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val authority = authority(
+			source = TrackingSource.STEPS,
+			purpose = TrackingPurpose.AMBIENT_PRODUCT,
+			executionRevision = 7L,
+			retainedFromMs = 200L,
+		)
+		val runtime = DefaultTrackingPurposePublicationRuntime(
+			leaseIssuer = SerializedTrackingPurposeLeaseIssuer(
+				authorityReader = TrackingPurposeAuthorityReader { sourcePurpose, execution ->
+					authority.takeIf { it.sourcePurpose == sourcePurpose }
+						?.copy(executionRevision = execution)
+				},
+				reporter = store,
+				tokenFactory = TrackingPurposeOwnerCasTokenFactory { "bounded-compensation" },
+			),
+			reporter = store,
+			executionRevisionRegistry = TrackingPurposeExecutionRevisionRegistry(),
+			retentionAuthorityProducer = AlwaysApprovedRetentionAuthorityProducer,
+			trackingStartupGateProvider = Provider { gate },
+			ownerCallbackScope = backgroundScope,
+			ownerCallbackTimeoutMillis = 10L,
+		)
+		runtime.registerAmbientSourceOwner(
+			AmbientTrackingSource.STEPS,
+			executionRevision = 7L,
+			callback = object : AmbientSourceReconciliationCallback {
+				override suspend fun reconcile(
+					lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
+				): AmbientSourceOperationalAvailability =
+					AmbientSourceOperationalAvailability.unavailable(
+						AmbientTrackingSource.WIFI,
+						AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+					)
+
+				override suspend fun compensate(
+					lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
+				): Boolean = awaitCancellation()
+			},
+		)
+		gate.ready = true
+
+		val result = fixtureResult(
+			runtime.reconcile(
+				expectedStartupGeneration = 7L,
+				retainedFromMs = 200L,
+				approvedSources = setOf(AmbientTrackingSource.STEPS),
+			),
+		)
+
+		result.debt.failures.single().reason shouldBe
+			com.adsamcik.tracker.tracker.api
+				.TrackingRetentionFloorReconciliationFailureReason.COMPENSATION_TIMED_OUT
 		store.availability.value.ambientSources
 			.getValue(AmbientTrackingSource.STEPS).isOperational shouldBe false
 	}
@@ -815,7 +1041,7 @@ class TrackingPurposePublicationRuntimeTest {
 	}
 
 	@Test
-	fun `ambient sources stay pending when no owner is registered`() = runTest {
+	fun `ambient sources publish provider unavailable when no owner is registered`() = runTest {
 		val fixture = fixture(
 			authority(
 				source = TrackingSource.LOCATION,
@@ -827,8 +1053,8 @@ class TrackingPurposePublicationRuntimeTest {
 		fixture.runtime.reconcileCurrentSettings()
 
 		fixture.store.availability.value.ambientSources.values.forEach { availability ->
-			availability.state shouldBe AmbientSourceOperationalState.WAITING
-			availability.reason shouldBe AmbientSourceUnavailableReason.RECONCILIATION_PENDING
+			availability.state shouldBe AmbientSourceOperationalState.UNAVAILABLE
+			availability.reason shouldBe AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE
 			availability.isOperational shouldBe false
 		}
 	}
@@ -1040,6 +1266,72 @@ private class MutableReadyGate(
 				"NOT_READY",
 			)
 		}
+}
+
+private class CloseAfterPublicationGate(
+		override val currentGeneration: Long,
+) : TrackingStartupGate {
+		private var ready = true
+		var closeAfterNextPublication = false
+
+		override val isReady: Boolean
+			get() = ready
+
+		override fun <T> withReadyGeneration(
+			expectedGeneration: Long,
+			operation: () -> T,
+		): T? {
+			if (!isReadyGeneration(expectedGeneration)) return null
+			return operation().also {
+				if (closeAfterNextPublication) {
+					closeAfterNextPublication = false
+					ready = false
+				}
+			}
+		}
+
+		override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+			if (ready) {
+				TrackingStartupResult.Ready(false, 0L)
+			} else {
+				TrackingStartupResult.RetryableFailure(
+					com.adsamcik.tracker.shared.base.startup.TrackingStartupStage.STORAGE,
+					"NOT_READY",
+				)
+			}
+}
+
+private class RejectNextPublicationGate(
+			override val currentGeneration: Long,
+			var ready: Boolean,
+) : TrackingStartupGate {
+			var rejectNextPublication = false
+
+			override val isReady: Boolean
+				get() = ready
+
+			override fun <T> withReadyGeneration(
+				expectedGeneration: Long,
+				operation: () -> T,
+			): T? {
+				if (!isReadyGeneration(expectedGeneration)) return null
+				if (rejectNextPublication) {
+					rejectNextPublication = false
+					ready = false
+					return null
+				}
+				return operation()
+			}
+
+			override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+				if (ready) {
+					TrackingStartupResult.Ready(false, 0L)
+				} else {
+					TrackingStartupResult.RetryableFailure(
+						com.adsamcik.tracker.shared.base.startup.TrackingStartupStage.STORAGE,
+						"NOT_READY",
+					)
+				}
 }
 
 private fun fixtureResult(

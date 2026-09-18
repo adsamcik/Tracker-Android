@@ -33,6 +33,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceDemandContract
 import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import java.security.MessageDigest
 import javax.inject.Inject
@@ -1018,6 +1019,92 @@ class SourceBroker @Inject constructor(
 		)
 	}
 
+	internal suspend fun ambientRadioRetirementPlan(
+		source: SourceKind,
+		consumerId: String,
+	): AmbientRadioRetirementPlan = database.withTransaction {
+		require(source == SourceKind.WIFI || source == SourceKind.CELL)
+		require(consumerId.isNotBlank())
+		val demands = database.sourceBrokerDao().currentDemands(consumerId)
+		if (demands.size > 1 || demands.any {
+			it.sourceKind != source.stableCode ||
+				it.purpose != SourceBrokerPurpose.AMBIENT_PRODUCT
+		}) {
+			return@withTransaction AmbientRadioRetirementPlan.Unverifiable
+		}
+		val demand = demands.singleOrNull()
+		val authority = when (source) {
+			SourceKind.WIFI -> database.ambientWifiFactDao().latestAuthority()?.let { stored ->
+				if (!AmbientWifiAuthorityIntegrity.isAuthentic(stored)) {
+					return@withTransaction AmbientRadioRetirementPlan.Unverifiable
+				}
+				AmbientRadioRetirementAuthority(
+					active = stored.isActive,
+					policyRevision = stored.sourcePolicyRevision,
+					consentEpoch = stored.ambientConsentEpoch,
+					collectedDataEpoch = stored.collectedDataEpoch,
+					rolloutRevision = stored.rolloutRevision,
+					executionRevision = stored.writerOwnerGeneration,
+					ownerCasToken = stored.ownerCasToken,
+					reconciliationAttempt = stored.reconciliationAttempt,
+					demandId = stored.demandId,
+				)
+			}
+			SourceKind.CELL -> database.ambientCellFactDao().latestAuthority()?.let { stored ->
+				if (!AmbientCellAuthorityIntegrity.isAuthentic(stored)) {
+					return@withTransaction AmbientRadioRetirementPlan.Unverifiable
+				}
+				AmbientRadioRetirementAuthority(
+					active = stored.isActive,
+					policyRevision = stored.sourcePolicyRevision,
+					consentEpoch = stored.ambientConsentEpoch,
+					collectedDataEpoch = stored.collectedDataEpoch,
+					rolloutRevision = stored.rolloutRevision,
+					executionRevision = stored.writerOwnerGeneration,
+					ownerCasToken = stored.ownerCasToken,
+					reconciliationAttempt = stored.reconciliationAttempt,
+					demandId = stored.demandId,
+				)
+			}
+			else -> error("Unsupported ambient radio source $source")
+		}
+		if (authority == null || !authority.active) {
+			return@withTransaction if (demand == null) {
+				AmbientRadioRetirementPlan.AlreadyRetired
+			} else {
+				AmbientRadioRetirementPlan.Unverifiable
+			}
+		}
+		if (
+			demand == null ||
+			authority.demandId != demand.demandId ||
+			demand.sourcePolicyRevision != authority.policyRevision ||
+			demand.consentEpoch != authority.consentEpoch
+		) {
+			return@withTransaction AmbientRadioRetirementPlan.Unverifiable
+		}
+		val evidence = database.sourceEvidenceStateDao().get()
+			?: return@withTransaction AmbientRadioRetirementPlan.Unverifiable
+		if (evidence.collectedDataEpoch != authority.collectedDataEpoch) {
+			return@withTransaction AmbientRadioRetirementPlan.Unverifiable
+		}
+		AmbientRadioRetirementPlan.Required(
+			AmbientReconciliationLease(
+				AmbientReconciliationIdentity(
+					source = source.toAmbientTrackingSource(),
+					policyRevision = authority.policyRevision,
+					consentEpoch = authority.consentEpoch,
+					collectedDataEpoch = authority.collectedDataEpoch,
+					rolloutRevision = authority.rolloutRevision,
+					ownerCasToken = authority.ownerCasToken,
+					executionRevision = authority.executionRevision,
+					retainedFromMs = evidence.retainedFromMs,
+				),
+			),
+			authority.reconciliationAttempt,
+		)
+	}
+
 	@Suppress("LongParameterList")
 	private suspend fun compensateAmbientRadioDemandInTransaction(
 		consumerId: String,
@@ -1146,17 +1233,35 @@ class SourceBroker @Inject constructor(
 			SourceBrokerPurpose.AMBIENT_PRODUCT,
 		)
 		val evidence = database.sourceEvidenceStateDao().get()
-		if (policy == null ||
-			consent == null ||
-			consent.epoch != leaseIdentity.consentEpoch ||
-			consent.policyRevision != leaseIdentity.policyRevision ||
-			evidence?.collectedDataEpoch != leaseIdentity.collectedDataEpoch ||
-			evidence?.retainedFromMs != leaseIdentity.retainedFromMs ||
-			rollout.revision != leaseIdentity.rolloutRevision
-		) {
-			return AmbientRadioDemandResult.Inactive(
+		if (!requested) {
+			if (currentDemand == null) {
+				return if (priorAuthority?.state == AmbientWifiAuthorityEntity.STATE_ACTIVE) {
+					AmbientRadioDemandResult.Inactive(
+						AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT,
+					)
+				} else {
+					AmbientRadioDemandResult.Inactive(
+						AmbientRadioDemandInactiveReason.REQUEST_DISABLED,
+					)
+				}
+			}
+			val activeAuthority = priorAuthority?.takeIf {
+				it.state == AmbientWifiAuthorityEntity.STATE_ACTIVE
+			} ?: return AmbientRadioDemandResult.Inactive(
 				AmbientRadioDemandInactiveReason.STALE_RECONCILIATION_LEASE,
 			)
+			if (
+				activeAuthority.sourcePolicyRevision != leaseIdentity.policyRevision ||
+				activeAuthority.ambientConsentEpoch != leaseIdentity.consentEpoch ||
+				activeAuthority.collectedDataEpoch != leaseIdentity.collectedDataEpoch ||
+				activeAuthority.rolloutRevision != leaseIdentity.rolloutRevision ||
+				activeAuthority.ownerCasToken != leaseIdentity.ownerCasToken ||
+				activeAuthority.demandId != currentDemand.demandId
+			) {
+				return AmbientRadioDemandResult.Inactive(
+					AmbientRadioDemandInactiveReason.STALE_RECONCILIATION_LEASE,
+				)
+			}
 		}
 		if (priorAuthority?.ownerCasToken == leaseIdentity.ownerCasToken &&
 			priorAuthority.reconciliationAttempt > reconciliationAttempt
@@ -1200,7 +1305,7 @@ class SourceBroker @Inject constructor(
 			ambientConsentEpoch = leaseIdentity.consentEpoch,
 			collectedDataEpoch = leaseIdentity.collectedDataEpoch,
 			retainedFromMs = leaseIdentity.retainedFromMs,
-			rolloutRevision = rollout.revision,
+			rolloutRevision = leaseIdentity.rolloutRevision,
 			executionGeneration = executionAuthority?.executionGeneration,
 			authorityRevision = executionAuthority?.authorityRevision,
 			ownerCasToken = leaseIdentity.ownerCasToken,
@@ -1232,7 +1337,7 @@ class SourceBroker @Inject constructor(
 					effectiveBootId = bootId,
 					effectiveElapsedRealtimeNanos = elapsedRealtimeNanos,
 					effectiveWallTimeMs = wallTimeMs,
-					rolloutRevision = rollout.revision,
+					rolloutRevision = leaseIdentity.rolloutRevision,
 					ownerCasToken = leaseIdentity.ownerCasToken,
 					reconciliationAttempt = reconciliationAttempt,
 				).also { insertAuthority(it) }
@@ -1253,6 +1358,18 @@ class SourceBroker @Inject constructor(
 		}
 
 		if (!requested) return revoke(AmbientRadioDemandInactiveReason.REQUEST_DISABLED)
+		if (policy == null ||
+			consent == null ||
+			consent.epoch != leaseIdentity.consentEpoch ||
+			consent.policyRevision != leaseIdentity.policyRevision ||
+			evidence?.collectedDataEpoch != leaseIdentity.collectedDataEpoch ||
+			evidence?.retainedFromMs != leaseIdentity.retainedFromMs ||
+			rollout.revision != leaseIdentity.rolloutRevision
+		) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.STALE_RECONCILIATION_LEASE,
+			)
+		}
 		val consentEpoch = policy.ambientConsentEpoch
 			?: return revoke(AmbientRadioDemandInactiveReason.CONSENT_REVOKED)
 		if (consentEpoch != leaseIdentity.consentEpoch || !consent.eligible) {
@@ -1702,6 +1819,27 @@ private data class AmbientRadioExecutionAuthority(
 	val executionGeneration: Long,
 	val ownerCasToken: String,
 	val reconciliationAttempt: Long,
+)
+
+internal sealed interface AmbientRadioRetirementPlan {
+	data object AlreadyRetired : AmbientRadioRetirementPlan
+	data class Required(
+		val lease: AmbientReconciliationLease,
+		val previousReconciliationAttempt: Long,
+	) : AmbientRadioRetirementPlan
+	data object Unverifiable : AmbientRadioRetirementPlan
+}
+
+private data class AmbientRadioRetirementAuthority(
+	val active: Boolean,
+	val policyRevision: Long,
+	val consentEpoch: Long,
+	val collectedDataEpoch: Long,
+	val rolloutRevision: Long,
+	val executionRevision: Long,
+	val ownerCasToken: String,
+	val reconciliationAttempt: Long,
+	val demandId: String?,
 )
 
 private data class AmbientRadioAuthority(

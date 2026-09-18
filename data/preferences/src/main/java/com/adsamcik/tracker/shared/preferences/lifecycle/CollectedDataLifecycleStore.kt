@@ -84,18 +84,23 @@ interface CollectedDataLifecycleStore {
 	suspend fun advanceRetainedFrom(
 		retainedFromMs: Long,
 		permit: RetentionAuthorityOperationPermit,
-	): CollectedDataLifecycleSnapshot = advanceRetainedFrom(retainedFromMs)
+	): CollectedDataLifecycleSnapshot {
+		permit.requireActive()
+		return advanceRetainedFrom(retainedFromMs)
+	}
 }
 
 suspend fun CollectedDataLifecycleStore.advanceRetainedFromWithPermit(
 	retainedFromMs: Long,
 	permit: RetentionAuthorityOperationPermit,
-): CollectedDataLifecycleSnapshot =
-	if (this is DefaultCollectedDataLifecycleStore) {
+): CollectedDataLifecycleSnapshot {
+	permit.requireActive()
+	return if (this is DefaultCollectedDataLifecycleStore) {
 		advanceRetainedFrom(retainedFromMs, permit)
 	} else {
 		advanceRetainedFrom(retainedFromMs)
 	}
+}
 
 private val Context.collectedDataLifecycleDataStore: DataStore<Preferences> by preferencesDataStore(
 	name = "collected_data_lifecycle",

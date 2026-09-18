@@ -639,10 +639,20 @@ fun interface AmbientSourceReconciliationCallback {
 	suspend fun reconcile(lease: AmbientReconciliationLease): AmbientSourceOperationalAvailability
 
 	/**
-	 * Non-cancellable exact cleanup after an apply-then-fail, stale completion, or cancellation.
-	 * Implementations with no physical side effect may keep the default successful no-op.
+	 * Exact cleanup after an apply-then-fail, stale completion, or cancellation. The parent bounds
+	 * this callback and invalidates the lease even when cleanup times out. Implementations with no
+	 * physical side effect may keep the default successful no-op.
 	 */
 	suspend fun compensate(lease: AmbientReconciliationLease): Boolean = true
+
+	/**
+	 * Retires provider, demand, source authorization, and writer execution after retention is no
+	 * longer affirmative. A null lease means this process did not issue the historical owner token;
+	 * implementations must then prove an already-terminal negative state or return false.
+	 */
+	suspend fun retireAfterRetentionAuthorityFailure(
+		previousLease: AmbientReconciliationLease?,
+	): Boolean = previousLease?.let { compensate(it) } ?: true
 }
 
 fun interface AutomaticControlReconciliationCallback {
@@ -732,8 +742,11 @@ enum class TrackingRetentionFloorReconciliationFailureReason {
 	RETENTION_AUTHORITY_UNAVAILABLE,
 	AUTHORITY_FLOOR_MISMATCH,
 	OWNER_RECONCILIATION_FAILED,
+	OWNER_MISSING,
 	PUBLICATION_REJECTED,
 	COMPENSATION_FAILED,
+	COMPENSATION_TIMED_OUT,
+	RETIREMENT_FAILED,
 }
 
 /**

@@ -172,7 +172,10 @@ interface RetentionAuthorityProducer :
 	suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult>
 	suspend fun reconcileCurrentSettings(
 		permit: RetentionAuthorityOperationPermit,
-	): List<RetentionAuthorityResult> = reconcileCurrentSettings()
+	): List<RetentionAuthorityResult> {
+		permit.requireActive()
+		return reconcileCurrentSettings()
+	}
 	suspend fun preparePendingConfiguration(
 		expectedConfigurationGeneration: Long,
 	): RetentionConfigurationApprovalResult
@@ -186,12 +189,14 @@ interface RetentionAuthorityProducer :
 
 suspend fun RetentionAuthorityProducer.reconcileCurrentSettingsWithPermit(
 	permit: RetentionAuthorityOperationPermit,
-): List<RetentionAuthorityResult> =
-	if (this is DefaultRetentionAuthorityProducer) {
+): List<RetentionAuthorityResult> {
+	permit.requireActive()
+	return if (this is DefaultRetentionAuthorityProducer) {
 		reconcileCurrentSettings(permit)
 	} else {
 		reconcileCurrentSettings()
 	}
+}
 
 object UnavailableRetentionAuthorityProducer : RetentionAuthorityProducer {
 	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> = listOf(

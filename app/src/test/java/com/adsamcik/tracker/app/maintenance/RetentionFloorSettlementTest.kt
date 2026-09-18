@@ -14,9 +14,6 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
-import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupResult
-import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
-import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciler
 import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciliationDebt
 import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciliationFailure
@@ -35,7 +32,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import javax.inject.Provider
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -54,7 +50,7 @@ class RetentionFloorSettlementTest {
 	}
 
 	@Test
-	fun `worker floor advance commits Room guard before authority and approved provider reissue`() =
+	fun `exact floor purpose publication is the only provider reconciliation before settlement`() =
 		runTest {
 			val events = mutableListOf<String>()
 			val lifecycle = fixedLifecycleStore(
@@ -75,25 +71,10 @@ class RetentionFloorSettlementTest {
 				events += "purpose"
 				TrackingRetentionFloorReconciliationResult.Complete(floor, sources)
 			}
-			val stepsLifecycle = object : AmbientStepsProviderLifecycle {
-				override suspend fun reconcileAfterSettingsChange() =
-					AmbientStepsSettingsReconciliationResult(
-						complete = true,
-						operational = true,
-					).also { events += "provider" }
-
-				override suspend fun retireAfterRetentionAuthorityFailure() =
-					error("Not used")
-
-				override suspend fun closeForCollectedDataDeletion() =
-					AmbientStepsProviderCleanupResult(complete = true)
-			}
-
 			val result = RetentionFloorSettlement(
 				RetentionAuthorityOperationLease(),
 				producer,
 				reconciler,
-				Provider { stepsLifecycle },
 			).settle(
 				database = database,
 				lifecycleStore = lifecycle,
@@ -108,7 +89,15 @@ class RetentionFloorSettlementTest {
 			result.reconciledSources shouldBe setOf(AmbientTrackingSource.STEPS)
 			(events.indexOf("lifecycle") < events.indexOf("authority")) shouldBe true
 			(events.indexOf("authority") < events.indexOf("purpose")) shouldBe true
-			(events.indexOf("purpose") < events.indexOf("provider")) shouldBe true
+			events shouldBe listOf(
+				"approved",
+				"lifecycle",
+				"approved",
+				"approved",
+				"approved",
+				"authority",
+				"purpose",
+			)
 		}
 
 	@Test
@@ -180,6 +169,44 @@ class RetentionFloorSettlementTest {
 		database.sourceEvidenceStateDao().get()?.retainedFromMs shouldBe FLOOR
 		result.debt.failures.single()
 			.shouldBeInstanceOf<RetentionFloorSettlementFailure.ProviderLifecycle>()
+	}
+
+	@Test
+	fun `settlement cannot publish complete after its ready generation closes`() = runTest {
+		var ready = true
+		val gate = object : TrackingStartupGate {
+			override val isReady: Boolean
+				get() = ready
+			override val currentGeneration: Long = GENERATION
+			override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+				TrackingStartupResult.Ready(false, 0L)
+		}
+		val producer = mockk<RetentionAuthorityProducer> {
+			coEvery { reconcileCurrentSettings() } returns retentionResults(active = emptySet())
+		}
+		val result = RetentionFloorSettlement(
+			RetentionAuthorityOperationLease(),
+			producer,
+			TrackingRetentionFloorReconciler { _, floor, sources ->
+				ready = false
+				TrackingRetentionFloorReconciliationResult.Complete(floor, sources)
+			},
+		).settle(
+			database = database,
+			lifecycleStore = fixedLifecycleStore(
+				CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = FLOOR),
+			),
+			startupGate = gate,
+			expectedStartupGeneration = GENERATION,
+			requestedRetainedFromMs = FLOOR,
+			updatedAtMs = FLOOR,
+			verifyApprovedOperation = { },
+		).shouldBeInstanceOf<RetentionFloorSettlementResult.Retryable>()
+
+		result.debt.failures.single()
+			.shouldBeInstanceOf<RetentionFloorSettlementFailure.ProviderLifecycle>()
+			.debt.failures.single().reason shouldBe
+			TrackingRetentionFloorReconciliationFailureReason.STARTUP_GENERATION_CHANGED
 	}
 
 	private fun retentionResults(
