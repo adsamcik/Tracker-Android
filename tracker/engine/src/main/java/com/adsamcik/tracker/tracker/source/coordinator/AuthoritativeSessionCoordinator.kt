@@ -98,11 +98,17 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 
 internal const val SOURCE_RUNTIME_CLEANUP_PENDING = "SOURCE_RUNTIME_CLEANUP_PENDING"
 internal const val RUNTIME_CLEANUP_RETRY = "RUNTIME_CLEANUP_RETRY"
+internal const val MAX_RUN_RETIREMENT_MANIFESTS = 256
+internal const val MAX_RUN_RETIREMENT_ACTIONS = 2_048
+internal const val MAX_RUN_RETIREMENT_RECEIPTS = 512
+internal const val MAX_RUN_RETIREMENT_INTENTS_PER_MANIFEST = 256
 private val LIVE_RUNTIME_ACTION_STATUSES = setOf(
 	LifecycleActionStatus.START_ACCEPTED,
 	LifecycleActionStatus.STOP_ACCEPTED,
@@ -153,6 +159,20 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val runtimeClaim: SourceRuntimeClaim,
 		val provider: com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey?,
 	)
+	private data class RunRetirementOwnershipKey(
+		val sourceKind: Int,
+		val logicalTrackingId: String,
+		val serviceRunId: String,
+		val actionId: String,
+		val attemptCount: Int,
+		val leaseGeneration: Long,
+		val sourceInstanceId: String,
+		val registrationGeneration: Long,
+	)
+	private sealed interface RunRetirementTargetRead {
+		data class Ready(val targets: List<RunRetirementTarget>) : RunRetirementTargetRead
+		data class Blocked(val reason: String) : RunRetirementTargetRead
+	}
 	private sealed interface RunRetirementReplay {
 		data class Acknowledged(val acknowledgement: SourceStopAck) : RunRetirementReplay
 		data object AuthenticationBlocked : RunRetirementReplay
@@ -2923,20 +2943,35 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val actions = plan.plans.values.sortedBy { it.source.stableCode }.mapNotNull { sourcePlan ->
 			if (!sourcePlan.enabled && manifestRevision == 1L) return@mapNotNull null
 			val binding = captureBindings.firstOrNull { it.sourceKind == sourcePlan.source.stableCode }
+			val desiredState =
+				if (sourcePlan.enabled) ACTION_DESIRED_STARTED else ACTION_DESIRED_STOPPED
+			val actionRevision = nextActionRevision++
 			LifecycleDesiredActionEntity(
-				actionId = stableLifecycleChecksum(
-					logicalTrackingId,
+				actionId = lifecycleActionIdentity(
 					intentRevision,
+					logicalTrackingId,
+					serviceRunId,
+					manifestRevision,
+					actionRevision,
+					LifecycleActionFamily.SOURCE_RUNTIME.name,
 					sourcePlan.source.stableCode,
-					if (sourcePlan.enabled) ACTION_DESIRED_STARTED else ACTION_DESIRED_STOPPED,
+					desiredState,
+					plan.revision,
+					policyRevision,
+					binding?.consentEpoch,
+					origin.name,
+					clockDomainId,
+					lease.generation,
+					wallTimeMs,
+					elapsedRealtimeNanos,
 				),
 				logicalTrackingId = logicalTrackingId,
 				serviceRunId = serviceRunId,
 				manifestRevision = manifestRevision,
-				actionRevision = nextActionRevision++,
+				actionRevision = actionRevision,
 				actionFamily = LifecycleActionFamily.SOURCE_RUNTIME.name,
 				sourceKind = sourcePlan.source.stableCode,
-				desiredState = if (sourcePlan.enabled) ACTION_DESIRED_STARTED else ACTION_DESIRED_STOPPED,
+				desiredState = desiredState,
 				desiredPlanRevision = plan.revision,
 				sourcePolicyRevision = policyRevision,
 				consentEpoch = binding?.consentEpoch,
@@ -2963,6 +2998,48 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			emptyList(),
 			foregroundCapabilityFlags,
 		)
+	}
+
+	@Suppress("LongParameterList")
+	private fun lifecycleActionIdentity(
+		intentRevision: Long,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		manifestRevision: Long,
+		actionRevision: Long,
+		actionFamily: String,
+		sourceKind: Int,
+		desiredState: String,
+		desiredPlanRevision: Long,
+		sourcePolicyRevision: Long,
+		consentEpoch: Long?,
+		startOrigin: String,
+		bootId: String,
+		leaseGeneration: Long,
+		requestedAtMs: Long,
+		requestedElapsedRealtimeNanos: Long,
+	): String = if (sourceKind == SourceKind.STEPS.stableCode) {
+		stableLifecycleChecksum(
+			"STEPS_ACTION_V2",
+			intentRevision,
+			logicalTrackingId,
+			serviceRunId,
+			manifestRevision,
+			actionRevision,
+			actionFamily,
+			sourceKind,
+			desiredState,
+			desiredPlanRevision,
+			sourcePolicyRevision,
+			consentEpoch,
+			startOrigin,
+			bootId,
+			leaseGeneration,
+			requestedAtMs,
+			requestedElapsedRealtimeNanos,
+		)
+	} else {
+		stableLifecycleChecksum(logicalTrackingId, intentRevision, sourceKind, desiredState)
 	}
 
 	private suspend fun captureAuthorizationCurrent(
@@ -3584,17 +3661,30 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		}
 		var actionRevision = database.sourceSessionDao().maximumActionRevision(session.logicalTrackingId) + 1L
 		return bindings.map { binding ->
+			val currentActionRevision = actionRevision++
 			LifecycleDesiredActionEntity(
-				actionId = stableLifecycleChecksum(
-					session.logicalTrackingId,
+				actionId = lifecycleActionIdentity(
 					intentRevision,
+					session.logicalTrackingId,
+					serviceRunId,
+					manifest.manifestRevision,
+					currentActionRevision,
+					LifecycleActionFamily.SOURCE_RUNTIME.name,
 					binding.sourceKind,
 					ACTION_DESIRED_STOPPED,
+					session.desiredPlanRevision,
+					manifest.sourcePolicyRevision,
+					binding.consentEpoch,
+					SessionStartOrigin.POLICY_RECONCILIATION.name,
+					lease.bootId,
+					lease.generation,
+					wallTimeMs,
+					elapsedRealtimeNanos,
 				),
 				logicalTrackingId = session.logicalTrackingId,
 				serviceRunId = serviceRunId,
 				manifestRevision = manifest.manifestRevision,
-				actionRevision = actionRevision++,
+				actionRevision = currentActionRevision,
 				actionFamily = LifecycleActionFamily.SOURCE_RUNTIME.name,
 				sourceKind = binding.sourceKind,
 				desiredState = ACTION_DESIRED_STOPPED,
@@ -3746,7 +3836,13 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				wallTimeMs = requireNotNull(cutoffSession.cutoffAtMs),
 				deadlineElapsedRealtimeNanos = request.elapsedRealtimeNanos + request.gracePeriodMs * NANOS_PER_MILLISECOND,
 			)
-			val retirementTargets = runRetirementTargets(cutoffSession, bound.serviceRunId)
+			val retirementTargets = when (
+				val read = runRetirementTargets(cutoffSession, bound.serviceRunId)
+			) {
+				is RunRetirementTargetRead.Ready -> read.targets
+				is RunRetirementTargetRead.Blocked ->
+					return SessionStopResult.InvalidIntent(read.reason)
+			}
 			persistRunRetirementIntents(retirementTargets, cutoff, request.wallTimeMs)
 			val acks = retireRunSources(retirementTargets, cutoff, request.perSourceTimeoutMs)
 			database.withTransaction {
@@ -3891,7 +3987,13 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				deadlineElapsedRealtimeNanos = request.elapsedRealtimeNanos +
 					request.gracePeriodMs * NANOS_PER_MILLISECOND,
 			)
-			val retirementTargets = runRetirementTargets(durableSession, bound.serviceRunId)
+			val retirementTargets = when (
+				val read = runRetirementTargets(durableSession, bound.serviceRunId)
+			) {
+				is RunRetirementTargetRead.Ready -> read.targets
+				is RunRetirementTargetRead.Blocked ->
+					return SessionSuspendResult.InvalidIntent(read.reason)
+			}
 			persistRunRetirementIntents(retirementTargets, cutoff, request.wallTimeMs)
 			val acks = retireRunSources(retirementTargets, cutoff, request.perSourceTimeoutMs)
 			database.withTransaction {
@@ -4361,26 +4463,57 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	private suspend fun runRetirementTargets(
 		session: LogicalTrackingSessionEntity,
 		serviceRunId: String,
-	): List<RunRetirementTarget> {
+	): RunRetirementTargetRead {
 		val dao = database.sourceSessionDao()
-		val manifests = dao.manifestsForServiceRun(serviceRunId)
-		check(manifests.isNotEmpty()) { "Service run has no immutable manifest history" }
-		val envelopes = manifests.map { manifest ->
-			check(manifest.logicalTrackingId == session.logicalTrackingId) {
-				"Service-run manifest belongs to another logical session"
+		val manifests = dao.manifestsForServiceRun(
+			serviceRunId,
+			MAX_RUN_RETIREMENT_MANIFESTS + 1,
+		)
+		if (manifests.size > MAX_RUN_RETIREMENT_MANIFESTS) {
+			return RunRetirementTargetRead.Blocked("RUN_RETIREMENT_MANIFEST_HISTORY_OVERFLOW")
+		}
+		if (manifests.isEmpty()) {
+			return RunRetirementTargetRead.Blocked("RUN_RETIREMENT_MANIFEST_HISTORY_MISSING")
+		}
+		currentCoroutineContext().ensureActive()
+		val envelopes = mutableListOf<VerifiedSessionManifest>()
+		for (manifest in manifests) {
+			currentCoroutineContext().ensureActive()
+			if (manifest.logicalTrackingId != session.logicalTrackingId) {
+				return RunRetirementTargetRead.Blocked(
+					"RUN_RETIREMENT_MANIFEST_MEMBERSHIP_MISMATCH",
+				)
 			}
-			requireNotNull(
-				verifiedManifest(session.logicalTrackingId, manifest.manifestRevision, serviceRunId),
-			) { "Service-run manifest integrity failed during provider retirement" }
+			val verified = verifiedManifest(
+				session.logicalTrackingId,
+				manifest.manifestRevision,
+				serviceRunId,
+			) ?: return RunRetirementTargetRead.Blocked(
+				"RUN_RETIREMENT_MANIFEST_INTEGRITY_FAILED",
+			)
+			envelopes += verified
 		}
 		val verifiedRevisions = envelopes.mapTo(mutableSetOf()) { it.manifest.manifestRevision }
-		val currentRevision = requireNotNull(session.currentManifestRevision)
-		val current = requireNotNull(envelopes.singleOrNull { it.manifest.manifestRevision == currentRevision }) {
-			"Current service-run manifest is missing"
+		val currentRevision = session.currentManifestRevision
+			?: return RunRetirementTargetRead.Blocked(
+				"RUN_RETIREMENT_CURRENT_MANIFEST_MISSING",
+			)
+		val current = envelopes.singleOrNull { it.manifest.manifestRevision == currentRevision }
+			?: return RunRetirementTargetRead.Blocked(
+				"RUN_RETIREMENT_CURRENT_MANIFEST_MISSING",
+			)
+		val actions = dao.lifecycleActionsForServiceRunBounded(
+			session.logicalTrackingId,
+			serviceRunId,
+			MAX_RUN_RETIREMENT_ACTIONS + 1,
+		)
+		if (actions.size > MAX_RUN_RETIREMENT_ACTIONS) {
+			return RunRetirementTargetRead.Blocked("RUN_RETIREMENT_ACTION_HISTORY_OVERFLOW")
 		}
-		val actions = dao.lifecycleActions(session.logicalTrackingId).filter { action ->
-			action.serviceRunId == serviceRunId && action.manifestRevision in verifiedRevisions
+		if (actions.any { action -> action.manifestRevision !in verifiedRevisions }) {
+			return RunRetirementTargetRead.Blocked("RUN_RETIREMENT_ACTION_MANIFEST_MISMATCH")
 		}
+		currentCoroutineContext().ensureActive()
 		val currentCaptureSources = current.bindings.asSequence()
 			.filter { binding -> binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
 			.map(SessionManifestSourceEntity::sourceKind)
@@ -4402,8 +4535,12 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		latestOwnershipOutcomeBySource.forEach { (sourceKind, latest) ->
 			if (latest.status != LifecycleActionStatus.STOP_ACCEPTED.name) currentCaptureSources += sourceKind
 		}
-		return currentCaptureSources.sorted().map { sourceCode ->
-			val source = SourceKind.entries.single { candidate -> candidate.stableCode == sourceCode }
+		val targets = mutableListOf<RunRetirementTarget>()
+		for (sourceCode in currentCaptureSources.sorted()) {
+			currentCoroutineContext().ensureActive()
+			val source = SourceKind.entries.singleOrNull { candidate ->
+				candidate.stableCode == sourceCode
+			} ?: return RunRetirementTargetRead.Blocked("RUN_RETIREMENT_SOURCE_KIND_INVALID")
 			val claims = actions.asSequence()
 				.filter { action ->
 					action.sourceKind == sourceCode && action.attemptCount > 0 &&
@@ -4429,8 +4566,9 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					)
 				}
 				.toList()
-			RunRetirementTarget(source, serviceRunId, claims)
+			targets += RunRetirementTarget(source, serviceRunId, claims)
 		}
+		return RunRetirementTargetRead.Ready(targets)
 	}
 
 	private suspend fun retireRunSources(
@@ -4456,9 +4594,14 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		cutoff: SessionCutoff,
 		updatedAtMs: Long,
 	) = database.withTransaction {
-		targets.forEach { target ->
-			target.claims.forEach claimLoop@ { owned ->
-				val provider = owned.provider ?: return@claimLoop
+		var processedClaims = 0
+		for (target in targets) {
+			for (owned in target.claims) {
+				if (processedClaims % RETIREMENT_CANCELLATION_STRIDE == 0) {
+					currentCoroutineContext().ensureActive()
+				}
+				processedClaims += 1
+				val provider = owned.provider ?: continue
 				database.sourceSessionDao().insertRunRetirementIntent(
 					SourceRunRetirementEntity(
 						logicalTrackingId = cutoff.logicalTrackingId,
@@ -4516,7 +4659,10 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				SourceStopStatus.PROVIDER_FAILED,
 			)
 		}
-		for (owned in target.claims) {
+		for ((index, owned) in target.claims.withIndex()) {
+			if (index % RETIREMENT_CANCELLATION_STRIDE == 0) {
+				currentCoroutineContext().ensureActive()
+			}
 			val claim = owned.runtimeClaim
 			when (val shutdown = runtimes.shutdownIfOwned(claim, cutoff)) {
 				OwnedSourceShutdown.NotOwned -> Unit
@@ -4564,27 +4710,42 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		cutoff: SessionCutoff,
 	): RunRetirementReplay {
 		val dao = database.sourceSessionDao()
-		val authenticatedReceipts = mutableListOf<Pair<SourceRunRetirementEntity, RunRetirementClaim>>()
+		val providerClaims = target.claims.mapNotNull { claim ->
+			claim.ownershipKey()?.let { ownership -> ownership to claim }
+		}
+		val claimsByOwnership = providerClaims.toMap()
+		if (claimsByOwnership.size != providerClaims.size) {
+			return RunRetirementReplay.AuthenticationBlocked
+		}
 		val rawReceipts = dao.rawRunRetirements(
 			cutoff.logicalTrackingId,
 			target.serviceRunId,
 			target.source.stableCode,
+			MAX_RUN_RETIREMENT_RECEIPTS + 1,
 		)
-		val receipts = mutableListOf<SourceRunRetirementEntity>()
-		for (rawReceipt in rawReceipts) {
-			receipts += rawReceipt.validatedOrNull()
+		if (rawReceipts.size > MAX_RUN_RETIREMENT_RECEIPTS) {
+			return RunRetirementReplay.AuthenticationBlocked
+		}
+		val receiptsByOwnership = mutableMapOf<RunRetirementOwnershipKey, SourceRunRetirementEntity>()
+		for ((index, rawReceipt) in rawReceipts.withIndex()) {
+			if (index % RETIREMENT_CANCELLATION_STRIDE == 0) {
+				currentCoroutineContext().ensureActive()
+			}
+			val receipt = rawReceipt.validatedOrNull()
 				?: return RunRetirementReplay.AuthenticationBlocked
+			val ownership = receipt.ownershipKey()
+			if (ownership !in claimsByOwnership ||
+				receiptsByOwnership.put(ownership, receipt) != null
+			) {
+				return RunRetirementReplay.AuthenticationBlocked
+			}
 		}
-		for (receipt in receipts) {
-			val exactOwner = target.claims.singleOrNull { claim ->
-				claim.owns(receipt)
-			} ?: return RunRetirementReplay.AuthenticationBlocked
-			authenticatedReceipts += receipt to exactOwner
-		}
-		for (owned in target.claims) {
-			val receipt = authenticatedReceipts.singleOrNull { (_, owner) ->
-				owner == owned
-			}?.first ?: continue
+		for ((index, owned) in target.claims.withIndex()) {
+			if (index % RETIREMENT_CANCELLATION_STRIDE == 0) {
+				currentCoroutineContext().ensureActive()
+			}
+			val ownership = owned.ownershipKey() ?: continue
+			val receipt = receiptsByOwnership[ownership] ?: continue
 			if (receipt.state == SourceRunRetirementEntity.STATE_REQUESTED) {
 				if (target.source != SourceKind.STEPS) return RunRetirementReplay.None
 				return when (val recovery = recoverRequestedStepsRetirement(
@@ -4621,17 +4782,31 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		return RunRetirementReplay.None
 	}
 
-	private fun RunRetirementClaim.owns(receipt: SourceRunRetirementEntity): Boolean {
-		val exactProvider = provider ?: return false
-		return runtimeClaim.source.stableCode == receipt.sourceKind &&
-			runtimeClaim.actionId == receipt.actionId &&
-			runtimeClaim.attemptCount == receipt.attemptCount &&
-			runtimeClaim.leaseGeneration == receipt.leaseGeneration &&
-			runtimeClaim.logicalTrackingId == receipt.logicalTrackingId &&
-			runtimeClaim.serviceRunId == receipt.serviceRunId &&
-			exactProvider.sourceInstanceId.value == receipt.sourceInstanceId &&
-			exactProvider.registrationGeneration == receipt.registrationGeneration
+	private fun RunRetirementClaim.ownershipKey(): RunRetirementOwnershipKey? {
+		val exactProvider = provider ?: return null
+		return RunRetirementOwnershipKey(
+			sourceKind = runtimeClaim.source.stableCode,
+			logicalTrackingId = runtimeClaim.logicalTrackingId,
+			serviceRunId = runtimeClaim.serviceRunId,
+			actionId = runtimeClaim.actionId,
+			attemptCount = runtimeClaim.attemptCount,
+			leaseGeneration = runtimeClaim.leaseGeneration,
+			sourceInstanceId = exactProvider.sourceInstanceId.value,
+			registrationGeneration = exactProvider.registrationGeneration,
+		)
 	}
+
+	private fun SourceRunRetirementEntity.ownershipKey(): RunRetirementOwnershipKey =
+		RunRetirementOwnershipKey(
+			sourceKind = sourceKind,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			actionId = actionId,
+			attemptCount = attemptCount,
+			leaseGeneration = leaseGeneration,
+			sourceInstanceId = sourceInstanceId,
+			registrationGeneration = registrationGeneration,
+		)
 
 	@Suppress("ComplexCondition", "LongMethod", "ReturnCount")
 	private suspend fun recoverRequestedStepsRetirement(
@@ -4640,14 +4815,15 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		receipt: SourceRunRetirementEntity,
 	): RequestedStepsRetirementRecovery = database.withTransaction {
 		val dao = database.sourceSessionDao()
-		val rawCurrent = dao.rawRunRetirement(
+		val rawCurrentRows = dao.rawRunRetirement(
 			receipt.logicalTrackingId,
 			receipt.serviceRunId,
 			receipt.sourceKind,
 			receipt.sourceInstanceId,
 			receipt.registrationGeneration,
-		) ?: return@withTransaction RequestedStepsRetirementRecovery.Absent
-		val current = rawCurrent.validatedOrNull()
+		)
+		if (rawCurrentRows.isEmpty()) return@withTransaction RequestedStepsRetirementRecovery.Absent
+		val current = rawCurrentRows.singleOrNull()?.validatedOrNull()
 			?: return@withTransaction RequestedStepsRetirementRecovery.Blocked
 		val provider = owned.provider
 			?: return@withTransaction RequestedStepsRetirementRecovery.Blocked
@@ -4664,6 +4840,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		) {
 			return@withTransaction RequestedStepsRetirementRecovery.Blocked
 		}
+		val action = authenticateRequestedStepsRetirementAction(current)
+			?: return@withTransaction RequestedStepsRetirementRecovery.Blocked
 		val authentication = StepsCountDomainStore(database).authenticateTerminalSessionCompleteness(
 			logicalTrackingId = current.logicalTrackingId,
 			serviceRunId = current.serviceRunId,
@@ -4683,19 +4861,6 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val authenticated =
 			authentication as? StepsTerminalCompletenessAuthentication.Authenticated
 				?: return@withTransaction RequestedStepsRetirementRecovery.Blocked
-		val action = dao.lifecycleAction(current.actionId)
-			?: return@withTransaction RequestedStepsRetirementRecovery.Blocked
-		if (action.logicalTrackingId != current.logicalTrackingId ||
-			action.serviceRunId != current.serviceRunId ||
-			action.sourceKind != SourceKind.STEPS.stableCode ||
-			action.attemptCount != current.attemptCount ||
-			action.leaseGeneration != current.leaseGeneration ||
-			action.sourceInstanceId != current.sourceInstanceId ||
-			action.registrationGeneration != current.registrationGeneration ||
-			action.desiredPlanRevision <= 0L
-		) {
-			return@withTransaction RequestedStepsRetirementRecovery.Blocked
-		}
 		val registration = database.sourceBrokerDao().registration(
 			SourceKind.STEPS.stableCode,
 			current.registrationGeneration,
@@ -4805,6 +4970,151 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		}
 		RequestedStepsRetirementRecovery.Authenticated(acknowledgement)
 	}
+
+	@Suppress("ComplexCondition", "LongMethod", "ReturnCount")
+	private suspend fun authenticateRequestedStepsRetirementAction(
+		retirement: SourceRunRetirementEntity,
+	): LifecycleDesiredActionEntity? {
+		val dao = database.sourceSessionDao()
+		val action = dao.lifecycleAction(retirement.actionId) ?: return null
+		val session = dao.session(retirement.logicalTrackingId) ?: return null
+		val run = dao.serviceRun(retirement.serviceRunId) ?: return null
+		val manifestEnvelope = verifiedManifest(
+			retirement.logicalTrackingId,
+			action.manifestRevision,
+			retirement.serviceRunId,
+		) ?: return null
+		val actionSourceKind = action.sourceKind ?: return null
+		val manifest = manifestEnvelope.manifest
+		val binding = manifestEnvelope.bindings.singleOrNull { candidate ->
+			candidate.sourceKind == SourceKind.STEPS.stableCode &&
+				candidate.purpose == SessionManifestPurpose.SESSION_CAPTURE.name
+		} ?: return null
+		val manifestActions = dao.sourceStartActionsForManifestBounded(
+			retirement.logicalTrackingId,
+			retirement.serviceRunId,
+			action.manifestRevision,
+			SourceKind.STEPS.stableCode,
+			2,
+		)
+		if (manifestActions.singleOrNull()?.actionId != action.actionId) return null
+		val intents = dao.lifecycleIntentsForManifestBounded(
+			retirement.logicalTrackingId,
+			action.manifestRevision,
+			MAX_RUN_RETIREMENT_INTENTS_PER_MANIFEST + 1,
+		)
+		if (intents.size > MAX_RUN_RETIREMENT_INTENTS_PER_MANIFEST) return null
+		val intent = intents.singleOrNull { candidate ->
+			candidate.hasAuthenticStartEnvelope(manifest) &&
+				action.actionId == lifecycleActionIdentity(
+					candidate.intentRevision,
+					action.logicalTrackingId,
+					action.serviceRunId,
+					action.manifestRevision,
+					action.actionRevision,
+					action.actionFamily,
+					actionSourceKind,
+					action.desiredState,
+					action.desiredPlanRevision,
+					action.sourcePolicyRevision,
+					action.consentEpoch,
+					action.startOrigin,
+					action.bootId,
+					action.leaseGeneration,
+					action.requestedAtMs,
+					action.requestedElapsedRealtimeNanos,
+				)
+		} ?: return null
+		val plan = runCatchingNonCancellation {
+			planStore.load(manifest.acquisitionPlanRevision)
+		}.getOrNull() ?: return null
+		val stepsPlan = plan.plans[SourceKind.STEPS] as? StepsPlan ?: return null
+		if (
+			action.logicalTrackingId != retirement.logicalTrackingId ||
+			action.serviceRunId != retirement.serviceRunId ||
+			action.actionRevision <= 0L ||
+			action.actionFamily != LifecycleActionFamily.SOURCE_RUNTIME.name ||
+			action.sourceKind != SourceKind.STEPS.stableCode ||
+			action.desiredState != ACTION_DESIRED_STARTED ||
+			action.desiredPlanRevision != manifest.acquisitionPlanRevision ||
+			action.sourcePolicyRevision != manifest.sourcePolicyRevision ||
+			action.consentEpoch != binding.consentEpoch ||
+			action.startOrigin != manifest.startOrigin ||
+			action.bootId != manifest.effectiveBootId ||
+			action.requestedAtMs != manifest.effectiveWallTimeMs ||
+			action.requestedElapsedRealtimeNanos != manifest.effectiveElapsedRealtimeNanos ||
+			intent.logicalTrackingId != action.logicalTrackingId ||
+			intent.manifestRevision != action.manifestRevision ||
+			action.attemptCount != retirement.attemptCount ||
+			action.attemptCount <= 0 ||
+			action.leaseGeneration != retirement.leaseGeneration ||
+			action.leaseGeneration <= 0L ||
+			action.sourceInstanceId != retirement.sourceInstanceId ||
+			action.registrationGeneration != retirement.registrationGeneration ||
+			action.status !in setOf(
+				LifecycleActionStatus.APPLYING.name,
+				LifecycleActionStatus.START_ACCEPTED.name,
+				LifecycleActionStatus.CLEANUP_REQUIRED.name,
+			) ||
+			session.logicalTrackingId != retirement.logicalTrackingId ||
+			session.currentServiceRunId != retirement.serviceRunId ||
+			session.currentManifestRevision == null ||
+			session.currentManifestRevision < action.manifestRevision ||
+			session.state != SessionLifecycleState.STOPPING.name ||
+			session.cutoffElapsedNanos != retirement.cutoffElapsedRealtimeNanos ||
+			session.cutoffAtMs != retirement.cutoffWallTimeMs ||
+			run.logicalTrackingId != retirement.logicalTrackingId ||
+			run.serviceRunId != retirement.serviceRunId ||
+			run.state != SessionLifecycleState.STOPPING.name ||
+			run.completedAtMs != null ||
+			run.desiredPlanRevision != session.desiredPlanRevision ||
+			run.rolloutRevision != session.rolloutRevision ||
+			run.bootId != session.lifecycleBootId ||
+			manifest.logicalTrackingId != retirement.logicalTrackingId ||
+			manifest.serviceRunId != retirement.serviceRunId ||
+			manifest.manifestRevision != action.manifestRevision ||
+			manifest.rolloutRevision != run.rolloutRevision ||
+			manifest.sessionMode != session.sessionMode ||
+			manifest.effectiveBootId != run.bootId ||
+			manifest.effectiveWallTimeMs < run.startedAtMs ||
+			manifest.effectiveElapsedRealtimeNanos < run.startedElapsedNanos ||
+			plan.revision != manifest.acquisitionPlanRevision ||
+			plan.sourcePolicyRevision != manifest.sourcePolicyRevision ||
+			stepsPlan.revision != manifest.acquisitionPlanRevision ||
+			!stepsPlan.enabled ||
+			!binding.persistenceEligible
+		) {
+			return null
+		}
+		return action
+	}
+
+	private fun SessionLifecycleIntentVersionEntity.hasAuthenticStartEnvelope(
+		manifest: SessionManifestVersionEntity,
+	): Boolean = logicalTrackingId == manifest.logicalTrackingId &&
+		manifestRevision == manifest.manifestRevision &&
+		desiredState == LifecycleDesiredState.ACTIVE.name &&
+		startOrigin == manifest.startOrigin &&
+		requestBootId == manifest.effectiveBootId &&
+		requestedElapsedRealtimeNanos == manifest.effectiveElapsedRealtimeNanos &&
+		requestedWallTimeMs == manifest.effectiveWallTimeMs &&
+		automationEpoch == manifest.automationEpoch &&
+		stopReason == null &&
+		stopDeadlineBootId == null &&
+		stopDeadlineElapsedRealtimeNanos == null &&
+		intentChecksum == stableLifecycleChecksum(
+			logicalTrackingId,
+			intentRevision,
+			manifestRevision,
+			LifecycleDesiredState.ACTIVE,
+			startOrigin,
+			requestBootId,
+			requestedElapsedRealtimeNanos,
+			requestedWallTimeMs,
+			triggerId,
+			automationEpoch,
+			triggerCollectedDataEpoch,
+		)
 
 	private suspend fun hasTerminalOrMalformedStepsCheckpoint(
 		receipt: SourceRunRetirementEntity,
@@ -4949,7 +5259,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				target.source.stableCode,
 				provider.sourceInstanceId.value,
 				provider.registrationGeneration,
-			)?.validatedOrNull() ?: return@withTransaction
+			).singleOrNull()?.validatedOrNull() ?: return@withTransaction
 			check(acknowledgement.source == target.source)
 			check(acknowledgement.sourceInstanceId == provider.sourceInstanceId)
 			check(acknowledgement.registrationGeneration == provider.registrationGeneration)
@@ -5670,6 +5980,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		const val POLICY_PURPOSE_CONTROL = "CONTROL"
 		const val ACTION_DESIRED_STARTED = "STARTED"
 		const val ACTION_DESIRED_STOPPED = "STOPPED"
+		const val RETIREMENT_CANCELLATION_STRIDE = 64
 		val TERMINAL_STATES = setOf(SessionLifecycleState.FINALIZED.name, SessionLifecycleState.FAILED.name)
 		val TERMINAL_OR_STOPPING_STATES = TERMINAL_STATES + SessionLifecycleState.STOPPING.name
 	}

@@ -92,6 +92,7 @@ data class SourceRunRetirementEntity(
 	 */
 	@Suppress("LongParameterList")
 	data class RawSourceRunRetirement(
+		@ColumnInfo(name = "storage_class_signature") val storageClassSignature: String?,
 		@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
 		@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
 		@ColumnInfo(name = "source_kind") val sourceKind: Long?,
@@ -121,6 +122,69 @@ data class SourceRunRetirementEntity(
 	) {
 		@Suppress("ReturnCount")
 		fun validatedOrNull(): SourceRunRetirementEntity? {
+			val storageClasses = storageClassSignature?.split(STORAGE_CLASS_SEPARATOR)
+				?.takeIf { it.size == STORAGE_CLASS_COUNT }
+				?: return null
+			if (
+				!storageClasses.hasExactClass(LOGICAL_TRACKING_ID_INDEX, SQLITE_TEXT) ||
+				!storageClasses.hasExactClass(SERVICE_RUN_ID_INDEX, SQLITE_TEXT) ||
+				!storageClasses.hasExactClass(SOURCE_KIND_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(SOURCE_INSTANCE_ID_INDEX, SQLITE_TEXT) ||
+				!storageClasses.hasExactClass(REGISTRATION_GENERATION_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(ACTION_ID_INDEX, SQLITE_TEXT) ||
+				!storageClasses.hasExactClass(ATTEMPT_COUNT_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(LEASE_GENERATION_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(CUTOFF_ELAPSED_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(CUTOFF_WALL_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(STATE_INDEX, SQLITE_TEXT) ||
+				!storageClasses.hasNullableClass(APPLIED_REVISION_INDEX, appliedRevision, SQLITE_INTEGER) ||
+				!storageClasses.hasNullableClass(
+					CALLBACK_BARRIER_INDEX,
+					callbackEntryBarrierSequence,
+					SQLITE_INTEGER,
+				) ||
+				!storageClasses.hasNullableClass(LAST_SOURCE_SEQUENCE_INDEX, lastSourceSequence, SQLITE_INTEGER) ||
+				!storageClasses.hasNullableClass(
+					LAST_ADMISSION_ORDINAL_INDEX,
+					lastAdmissionOrdinal,
+					SQLITE_INTEGER,
+				) ||
+				!storageClasses.hasNullableClass(
+					FAILED_ADMISSION_COUNT_INDEX,
+					failedAdmissionCount,
+					SQLITE_INTEGER,
+				) ||
+				!storageClasses.hasNullableClass(
+					UNRESOLVED_SEQUENCE_START_INDEX,
+					unresolvedSequenceStart,
+					SQLITE_INTEGER,
+				) ||
+				!storageClasses.hasNullableClass(
+					UNRESOLVED_SEQUENCE_END_INDEX,
+					unresolvedSequenceEnd,
+					SQLITE_INTEGER,
+				) ||
+				!storageClasses.hasNullableClass(
+					REGISTRATION_REMOVAL_INDEX,
+					registrationRemovalOutcome,
+					SQLITE_TEXT,
+				) ||
+				!storageClasses.hasNullableClass(
+					PROVIDER_FLUSH_INDEX,
+					providerFlushOutcome,
+					SQLITE_TEXT,
+				) ||
+				!storageClasses.hasNullableClass(
+					PROVIDER_COVERAGE_INDEX,
+					providerCoverage,
+					SQLITE_TEXT,
+				) ||
+				!storageClasses.hasNullableClass(APP_DRAIN_INDEX, appDrainComplete, SQLITE_INTEGER) ||
+				!storageClasses.hasNullableClass(STOP_STATUS_INDEX, stopStatus, SQLITE_TEXT) ||
+				!storageClasses.hasExactClass(UPDATED_AT_INDEX, SQLITE_INTEGER)
+			) {
+				return null
+			}
 			val validatedSourceKind = sourceKind
 				?.takeIf { it in 1L..Int.MAX_VALUE.toLong() }
 				?.toInt()
@@ -134,6 +198,24 @@ data class SourceRunRetirementEntity(
 				0L -> false
 				1L -> true
 				else -> return null
+			}
+			if (appliedRevision?.let { it < 0L } == true ||
+				callbackEntryBarrierSequence?.let { it < 0L } == true ||
+				lastSourceSequence?.let { it < 0L } == true ||
+				lastAdmissionOrdinal?.let { it <= 0L } == true ||
+				failedAdmissionCount?.let { it < 0L } == true ||
+				unresolvedSequenceStart?.let { it <= 0L } == true ||
+				unresolvedSequenceEnd?.let { it <= 0L } == true ||
+				(unresolvedSequenceStart == null) != (unresolvedSequenceEnd == null) ||
+				unresolvedSequenceStart?.let { start ->
+					start > requireNotNull(unresolvedSequenceEnd)
+				} == true ||
+				registrationRemovalOutcome?.let { it !in REGISTRATION_REMOVAL_OUTCOMES } == true ||
+				providerFlushOutcome?.let { it !in PROVIDER_FLUSH_OUTCOMES } == true ||
+				providerCoverage?.let { it !in PROVIDER_COVERAGES } == true ||
+				stopStatus?.let { it !in STOP_STATUSES } == true
+			) {
+				return null
 			}
 			return try {
 				SourceRunRetirementEntity(
@@ -165,6 +247,61 @@ data class SourceRunRetirementEntity(
 			} catch (_: IllegalArgumentException) {
 				null
 			}
+		}
+
+		private fun List<String>.hasExactClass(index: Int, expected: String): Boolean =
+			getOrNull(index) == expected
+
+		private fun List<String>.hasNullableClass(
+			index: Int,
+			value: Any?,
+			presentClass: String,
+		): Boolean = getOrNull(index) == if (value == null) SQLITE_NULL else presentClass
+
+		private companion object {
+			const val STORAGE_CLASS_SEPARATOR = '|'
+			const val STORAGE_CLASS_COUNT = 24
+			const val LOGICAL_TRACKING_ID_INDEX = 0
+			const val SERVICE_RUN_ID_INDEX = 1
+			const val SOURCE_KIND_INDEX = 2
+			const val SOURCE_INSTANCE_ID_INDEX = 3
+			const val REGISTRATION_GENERATION_INDEX = 4
+			const val ACTION_ID_INDEX = 5
+			const val ATTEMPT_COUNT_INDEX = 6
+			const val LEASE_GENERATION_INDEX = 7
+			const val CUTOFF_ELAPSED_INDEX = 8
+			const val CUTOFF_WALL_INDEX = 9
+			const val STATE_INDEX = 10
+			const val APPLIED_REVISION_INDEX = 11
+			const val CALLBACK_BARRIER_INDEX = 12
+			const val LAST_SOURCE_SEQUENCE_INDEX = 13
+			const val LAST_ADMISSION_ORDINAL_INDEX = 14
+			const val FAILED_ADMISSION_COUNT_INDEX = 15
+			const val UNRESOLVED_SEQUENCE_START_INDEX = 16
+			const val UNRESOLVED_SEQUENCE_END_INDEX = 17
+			const val REGISTRATION_REMOVAL_INDEX = 18
+			const val PROVIDER_FLUSH_INDEX = 19
+			const val PROVIDER_COVERAGE_INDEX = 20
+			const val APP_DRAIN_INDEX = 21
+			const val STOP_STATUS_INDEX = 22
+			const val UPDATED_AT_INDEX = 23
+			const val SQLITE_INTEGER = "integer"
+			const val SQLITE_TEXT = "text"
+			const val SQLITE_NULL = "null"
+			val REGISTRATION_REMOVAL_OUTCOMES =
+				setOf("REMOVED", "NOT_REGISTERED", "FAILED", "UNOBSERVABLE")
+			val PROVIDER_FLUSH_OUTCOMES =
+				setOf("COMPLETE", "NOT_SUPPORTED", "FAILED", "TIMED_OUT", "NOT_REQUESTED")
+			val PROVIDER_COVERAGES =
+				setOf("CALLBACKS_ENTERED_BEFORE_BARRIER", "PROVIDER_COMPLETENESS_UNOBSERVABLE")
+			val STOP_STATUSES = setOf(
+				"COMPLETE",
+				"PARTIAL_UNOBSERVABLE",
+				"TIMED_OUT",
+				"PERMISSION_LOST",
+				"PROVIDER_FAILED",
+				"PROCESS_RESTARTED",
+			)
 		}
 	}
 

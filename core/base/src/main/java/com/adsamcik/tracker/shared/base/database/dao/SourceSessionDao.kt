@@ -32,14 +32,20 @@ interface SourceSessionDao {
 	): List<SourceRunRetirementEntity>
 
 	@Query(
-		"SELECT * FROM source_run_retirement WHERE logical_tracking_id = :logicalTrackingId " +
-			"AND service_run_id = :serviceRunId AND source_kind = :sourceKind " +
-			"ORDER BY registration_generation DESC",
+		"SELECT " + RAW_RUN_RETIREMENT_PROJECTION + " FROM source_run_retirement WHERE " +
+			"((typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId) " +
+			"OR typeof(logical_tracking_id) != 'text') AND " +
+			"((typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId) " +
+			"OR typeof(service_run_id) != 'text') AND " +
+			"((typeof(source_kind) = 'integer' AND source_kind = :sourceKind) " +
+			"OR typeof(source_kind) != 'integer') " +
+			"ORDER BY registration_generation DESC, source_instance_id, action_id, rowid LIMIT :limit",
 	)
 	suspend fun rawRunRetirements(
 		logicalTrackingId: String,
 		serviceRunId: String,
 		sourceKind: Int,
+		limit: Int,
 	): List<RawSourceRunRetirement>
 
 	@Query(
@@ -57,10 +63,19 @@ interface SourceSessionDao {
 	): SourceRunRetirementEntity?
 
 	@Query(
-		"SELECT * FROM source_run_retirement WHERE logical_tracking_id = :logicalTrackingId " +
-			"AND service_run_id = :serviceRunId AND source_kind = :sourceKind " +
-			"AND source_instance_id = :sourceInstanceId " +
-			"AND registration_generation = :registrationGeneration LIMIT 1",
+		"SELECT " + RAW_RUN_RETIREMENT_PROJECTION + " FROM source_run_retirement WHERE " +
+			"((typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId) " +
+			"OR typeof(logical_tracking_id) != 'text') AND " +
+			"((typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId) " +
+			"OR typeof(service_run_id) != 'text') AND " +
+			"((typeof(source_kind) = 'integer' AND source_kind = :sourceKind) " +
+			"OR typeof(source_kind) != 'integer') AND " +
+			"((typeof(source_instance_id) = 'text' AND source_instance_id = :sourceInstanceId) " +
+			"OR typeof(source_instance_id) != 'text') AND " +
+			"((typeof(registration_generation) = 'integer' " +
+			"AND registration_generation = :registrationGeneration) " +
+			"OR typeof(registration_generation) != 'integer') " +
+			"ORDER BY registration_generation DESC, source_instance_id, action_id, rowid LIMIT 2",
 	)
 	suspend fun rawRunRetirement(
 		logicalTrackingId: String,
@@ -68,7 +83,7 @@ interface SourceSessionDao {
 		sourceKind: Int,
 		sourceInstanceId: String,
 		registrationGeneration: Long,
-	): RawSourceRunRetirement?
+	): List<RawSourceRunRetirement>
 
 	@Update
 	suspend fun updateRunRetirement(entity: SourceRunRetirementEntity): Int
@@ -201,6 +216,17 @@ interface SourceSessionDao {
 	): SessionLifecycleIntentVersionEntity?
 
 	@Query(
+		"SELECT * FROM session_lifecycle_intent_version " +
+			"WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND manifest_revision = :manifestRevision ORDER BY intent_revision ASC LIMIT :limit",
+	)
+	suspend fun lifecycleIntentsForManifestBounded(
+		logicalTrackingId: String,
+		manifestRevision: Long,
+		limit: Int,
+	): List<SessionLifecycleIntentVersionEntity>
+
+	@Query(
 		"SELECT * FROM session_lifecycle_intent_version WHERE trigger_id = :triggerId " +
 			"AND desired_state = 'ACTIVE' ORDER BY requested_elapsed_realtime_nanos ASC LIMIT 1",
 	)
@@ -235,6 +261,16 @@ interface SourceSessionDao {
 			"ORDER BY action_revision ASC",
 	)
 	suspend fun lifecycleActions(logicalTrackingId: String): List<LifecycleDesiredActionEntity>
+
+	@Query(
+		"SELECT * FROM lifecycle_desired_action WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND service_run_id = :serviceRunId ORDER BY action_revision ASC LIMIT :limit",
+	)
+	suspend fun lifecycleActionsForServiceRunBounded(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		limit: Int,
+	): List<LifecycleDesiredActionEntity>
 
 	@Query(
 		"SELECT * FROM lifecycle_desired_action WHERE status IN " +
@@ -395,3 +431,58 @@ interface SourceSessionDao {
 	@Query("DELETE FROM logical_tracking_session")
 	fun deleteAllSessions()
 }
+
+private const val RAW_RUN_RETIREMENT_PROJECTION =
+	"typeof(logical_tracking_id) || '|' || typeof(service_run_id) || '|' || " +
+		"typeof(source_kind) || '|' || typeof(source_instance_id) || '|' || " +
+		"typeof(registration_generation) || '|' || typeof(action_id) || '|' || " +
+		"typeof(attempt_count) || '|' || typeof(lease_generation) || '|' || " +
+		"typeof(cutoff_elapsed_realtime_nanos) || '|' || typeof(cutoff_wall_time_ms) || '|' || " +
+		"typeof(state) || '|' || typeof(applied_revision) || '|' || " +
+		"typeof(callback_entry_barrier_sequence) || '|' || typeof(last_source_sequence) || '|' || " +
+		"typeof(last_admission_ordinal) || '|' || typeof(failed_admission_count) || '|' || " +
+		"typeof(unresolved_sequence_start) || '|' || typeof(unresolved_sequence_end) || '|' || " +
+		"typeof(registration_removal_outcome) || '|' || typeof(provider_flush_outcome) || '|' || " +
+		"typeof(provider_coverage) || '|' || typeof(app_drain_complete) || '|' || " +
+		"typeof(stop_status) || '|' || typeof(updated_at_ms) AS storage_class_signature, " +
+		"CASE WHEN typeof(logical_tracking_id) = 'text' THEN logical_tracking_id END " +
+		"AS logical_tracking_id, " +
+		"CASE WHEN typeof(service_run_id) = 'text' THEN service_run_id END AS service_run_id, " +
+		"CASE WHEN typeof(source_kind) = 'integer' THEN source_kind END AS source_kind, " +
+		"CASE WHEN typeof(source_instance_id) = 'text' THEN source_instance_id END " +
+		"AS source_instance_id, " +
+		"CASE WHEN typeof(registration_generation) = 'integer' THEN registration_generation END " +
+		"AS registration_generation, " +
+		"CASE WHEN typeof(action_id) = 'text' THEN action_id END AS action_id, " +
+		"CASE WHEN typeof(attempt_count) = 'integer' THEN attempt_count END AS attempt_count, " +
+		"CASE WHEN typeof(lease_generation) = 'integer' THEN lease_generation END " +
+		"AS lease_generation, " +
+		"CASE WHEN typeof(cutoff_elapsed_realtime_nanos) = 'integer' " +
+		"THEN cutoff_elapsed_realtime_nanos END AS cutoff_elapsed_realtime_nanos, " +
+		"CASE WHEN typeof(cutoff_wall_time_ms) = 'integer' THEN cutoff_wall_time_ms END " +
+		"AS cutoff_wall_time_ms, " +
+		"CASE WHEN typeof(state) = 'text' THEN state END AS state, " +
+		"CASE WHEN typeof(applied_revision) IN ('integer', 'null') THEN applied_revision END " +
+		"AS applied_revision, " +
+		"CASE WHEN typeof(callback_entry_barrier_sequence) IN ('integer', 'null') " +
+		"THEN callback_entry_barrier_sequence END AS callback_entry_barrier_sequence, " +
+		"CASE WHEN typeof(last_source_sequence) IN ('integer', 'null') THEN last_source_sequence END " +
+		"AS last_source_sequence, " +
+		"CASE WHEN typeof(last_admission_ordinal) IN ('integer', 'null') " +
+		"THEN last_admission_ordinal END AS last_admission_ordinal, " +
+		"CASE WHEN typeof(failed_admission_count) IN ('integer', 'null') " +
+		"THEN failed_admission_count END AS failed_admission_count, " +
+		"CASE WHEN typeof(unresolved_sequence_start) IN ('integer', 'null') " +
+		"THEN unresolved_sequence_start END AS unresolved_sequence_start, " +
+		"CASE WHEN typeof(unresolved_sequence_end) IN ('integer', 'null') " +
+		"THEN unresolved_sequence_end END AS unresolved_sequence_end, " +
+		"CASE WHEN typeof(registration_removal_outcome) IN ('text', 'null') " +
+		"THEN registration_removal_outcome END AS registration_removal_outcome, " +
+		"CASE WHEN typeof(provider_flush_outcome) IN ('text', 'null') " +
+		"THEN provider_flush_outcome END AS provider_flush_outcome, " +
+		"CASE WHEN typeof(provider_coverage) IN ('text', 'null') THEN provider_coverage END " +
+		"AS provider_coverage, " +
+		"CASE WHEN typeof(app_drain_complete) IN ('integer', 'null') THEN app_drain_complete END " +
+		"AS app_drain_complete, " +
+		"CASE WHEN typeof(stop_status) IN ('text', 'null') THEN stop_status END AS stop_status, " +
+		"CASE WHEN typeof(updated_at_ms) = 'integer' THEN updated_at_ms END AS updated_at_ms"

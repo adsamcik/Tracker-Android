@@ -209,6 +209,55 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
+	fun `unqualified temp trigger resolves an authority named temp view before main`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"CREATE TEMP VIEW steps_count_domain_receipt AS " +
+				"SELECT 1 AS shadow_value",
+		)
+		sqlite.execSQL(
+			"CREATE TEMP TRIGGER benign_temp_view_shadow INSTEAD OF INSERT ON " +
+				"steps_count_domain_receipt BEGIN SELECT NEW.shadow_value; END",
+		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.ValidV2
+	}
+
+	@Test
+	fun `qualified main trigger remains authority despite an authority named temp view`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"CREATE TEMP VIEW steps_count_domain_receipt AS " +
+				"SELECT 1 AS shadow_value",
+		)
+		sqlite.execSQL(
+			"CREATE TEMP TRIGGER explicit_main_authority_trigger AFTER INSERT ON " +
+				"main.steps_count_domain_receipt BEGIN SELECT 1; END",
+		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `unqualified temp trigger resolves an attached view through schema lookup`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("ATTACH DATABASE ':memory:' AS attached_view_catalog")
+		sqlite.execSQL(
+			"CREATE VIEW attached_view_catalog.benign_attached_view AS " +
+				"SELECT 1 AS shadow_value",
+		)
+		sqlite.execSQL(
+			"CREATE TEMP TRIGGER benign_attached_view_shadow INSTEAD OF INSERT ON " +
+				"benign_attached_view BEGIN SELECT NEW.shadow_value; END",
+		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.ValidV2
+	}
+
+	@Test
 	fun `trigger authentication requires complete WHEN BEGIN body and END structure`() {
 		installSchema()
 		val sqlite = database.openHelper.writableDatabase

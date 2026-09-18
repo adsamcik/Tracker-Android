@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
@@ -705,6 +706,170 @@ class AuthoritativeSessionCoordinatorTest {
 		) shouldBe 1
 
 		assertTerminalStepsRecoveryBlocked(started, "wrong-requested-generation-retry")
+	}
+
+	@Test
+	fun `requested replay authenticates desired plan revision against immutable manifest`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("requested-plan-revision-tamper")
+		val retirement = database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single()
+		val action = requireNotNull(database.sourceSessionDao().lifecycleAction(retirement.actionId))
+		database.sourceSessionDao().updateLifecycleAction(
+			action.copy(desiredPlanRevision = action.desiredPlanRevision + 1L),
+		) shouldBe 1
+
+		assertTerminalStepsRecoveryBlocked(started, "requested-plan-revision-tamper-retry")
+
+		database.sourceSessionDao().updateLifecycleAction(action) shouldBe 1
+		subject.stop(
+			SessionStopRequest(
+				"requested-plan-revision-restored",
+				"USER_STOP",
+				2_600L,
+				2_600_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+	}
+
+	@Test
+	fun `requested replay rejects immutable action identity field tampering`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("requested-action-envelope-tamper")
+		val retirement = database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single()
+		val action = requireNotNull(database.sourceSessionDao().lifecycleAction(retirement.actionId))
+		val mutations = listOf<Pair<String, (LifecycleDesiredActionEntity) -> LifecycleDesiredActionEntity>>(
+			"action revision" to { it.copy(actionRevision = it.actionRevision + 10_000L) },
+			"action family" to { it.copy(actionFamily = "OTHER_RUNTIME") },
+			"source policy" to { it.copy(sourcePolicyRevision = it.sourcePolicyRevision + 1L) },
+			"consent epoch" to { it.copy(consentEpoch = requireNotNull(it.consentEpoch) + 1L) },
+			"start origin" to { it.copy(startOrigin = SessionStartOrigin.RECOVERY.name) },
+			"boot" to { it.copy(bootId = "other-boot") },
+			"requested wall time" to { it.copy(requestedAtMs = it.requestedAtMs + 1L) },
+			"requested elapsed time" to {
+				it.copy(requestedElapsedRealtimeNanos = it.requestedElapsedRealtimeNanos + 1L)
+			},
+		)
+
+		for ((field, mutate) in mutations) {
+			database.sourceSessionDao().updateLifecycleAction(mutate(action)) shouldBe 1
+			assertTerminalStepsRecoveryBlocked(
+				started,
+				"requested-action-envelope-$field-retry",
+			)
+			database.sourceSessionDao().updateLifecycleAction(action) shouldBe 1
+		}
+
+		subject.stop(
+			SessionStopRequest(
+				"requested-action-envelope-restored",
+				"USER_STOP",
+				2_700L,
+				2_700_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+	}
+
+	@Test
+	fun `retirement manifest replay fails closed on bounded overflow`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("retirement-manifest-overflow")
+		val manifest = requireNotNull(
+			database.sourceSessionDao().manifest(started.logicalTrackingId, 1L),
+		)
+		repeat(MAX_RUN_RETIREMENT_MANIFESTS) { index ->
+			database.sourceSessionDao().insertManifest(
+				manifest.copy(
+					manifestRevision = index.toLong() + 2L,
+					manifestChecksum = "overflow-manifest-${index + 1}",
+				),
+			)
+		}
+
+		subject.stop(
+			SessionStopRequest(
+				"retirement-manifest-overflow-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.InvalidIntent>().code shouldBe
+			"RUN_RETIREMENT_MANIFEST_HISTORY_OVERFLOW"
+		runtime.shutdownClaims shouldBe emptyList()
+	}
+
+	@Test
+	fun `retirement action replay fails closed on bounded overflow`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("retirement-action-overflow")
+		insertSyntheticRetirementClaims(
+			started,
+			count = MAX_RUN_RETIREMENT_ACTIONS,
+			includeReceipts = false,
+		)
+
+		subject.stop(
+			SessionStopRequest(
+				"retirement-action-overflow-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.InvalidIntent>().code shouldBe
+			"RUN_RETIREMENT_ACTION_HISTORY_OVERFLOW"
+		runtime.shutdownClaims shouldBe emptyList()
+	}
+
+	@Test
+	fun `raw retirement replay fails closed on bounded overflow`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("retirement-receipt-overflow")
+		insertSyntheticRetirementClaims(
+			started,
+			count = MAX_RUN_RETIREMENT_RECEIPTS,
+			includeReceipts = true,
+			includeActions = false,
+		)
+
+		subject.stop(
+			SessionStopRequest(
+				"retirement-receipt-overflow-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+		runtime.shutdownClaims shouldBe emptyList()
+	}
+
+	@Test
+	fun `bounded retirement indexing handles a large exact ownership set once`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("retirement-indexed-batch")
+		val syntheticCount = MAX_RUN_RETIREMENT_RECEIPTS / 2
+		insertSyntheticRetirementClaims(
+			started,
+			count = syntheticCount,
+			includeReceipts = true,
+		)
+
+		subject.stop(
+			SessionStopRequest(
+				"retirement-indexed-batch-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+		runtime.shutdownAttemptCount shouldBe 0
+		runtime.shutdownClaims shouldBe emptyList()
 	}
 
 	@Test
@@ -1489,6 +1654,9 @@ class AuthoritativeSessionCoordinatorTest {
 	@Test
 	fun `terminal Steps receipt replay authenticates every settlement payload field`() = runTest {
 		val mutations = listOf<Pair<String, (SourceRunRetirementEntity) -> SourceRunRetirementEntity>>(
+			"applied revision" to { receipt ->
+				receipt.copy(appliedRevision = requireNotNull(receipt.appliedRevision) + 1L)
+			},
 			"barrier" to { receipt ->
 				receipt.copy(
 					callbackEntryBarrierSequence =
@@ -1513,6 +1681,23 @@ class AuthoritativeSessionCoordinatorTest {
 					appDrainComplete = false,
 					stopStatus = SourceStopStatus.PARTIAL_UNOBSERVABLE.name,
 					unresolvedSequenceStart = 4L,
+					unresolvedSequenceEnd = 4L,
+				)
+			},
+			"last source sequence" to { receipt ->
+				receipt.copy(lastSourceSequence = requireNotNull(receipt.lastSourceSequence) + 1L)
+			},
+			"last admission ordinal" to { receipt ->
+				receipt.copy(lastAdmissionOrdinal = requireNotNull(receipt.lastAdmissionOrdinal) + 1L)
+			},
+			"failed admission count" to { receipt ->
+				receipt.copy(failedAdmissionCount = requireNotNull(receipt.failedAdmissionCount) + 1L)
+			},
+			"unresolved range" to { receipt ->
+				receipt.copy(
+					appDrainComplete = false,
+					stopStatus = SourceStopStatus.PARTIAL_UNOBSERVABLE.name,
+					unresolvedSequenceStart = 3L,
 					unresolvedSequenceEnd = 4L,
 				)
 			},
@@ -1554,6 +1739,65 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `raw retirement storage classes reject blob real wrong type and invalid boolean`() = runTest {
+		val (started, terminalReceipt) =
+			prepareTerminalReceiptWithCleanup("raw-retirement-storage-class")
+		replaceRuntime(FakeStepsRuntime(database))
+		val mutations = listOf(
+			"blob" to "action_id = X'01'",
+			"real" to "attempt_count = 1.5",
+			"wrong storage class" to "callback_entry_barrier_sequence = 'wrong'",
+			"invalid boolean" to "app_drain_complete = 2",
+			"unknown enum" to "provider_flush_outcome = 'UNKNOWN'",
+		)
+		for ((identity, assignment) in mutations) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_run_retirement SET $assignment " +
+					"WHERE logical_tracking_id = ? AND service_run_id = ? AND source_kind = ?",
+				arrayOf(
+					started.logicalTrackingId,
+					started.serviceRunId,
+					SourceKind.STEPS.stableCode,
+				),
+			)
+
+			subject.stop(
+				SessionStopRequest(
+					"raw-retirement-storage-$identity",
+					"USER_STOP",
+					2_500L,
+					2_500_000L,
+					"boot-1",
+				),
+			).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+			database.sourceSessionDao().rawRunRetirements(
+				started.logicalTrackingId,
+				started.serviceRunId,
+				SourceKind.STEPS.stableCode,
+				2,
+			).single().validatedOrNull() shouldBe null
+			database.sourceSessionDao().updateRunRetirement(terminalReceipt) shouldBe 1
+			runtime.shutdownClaims shouldBe emptyList()
+		}
+		database.sourceSessionDao().rawRunRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+			2,
+		).single().validatedOrNull() shouldBe terminalReceipt
+
+		subject.stop(
+			SessionStopRequest(
+				"raw-retirement-storage-restored",
+				"USER_STOP",
+				2_600L,
+				2_600_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+	}
+
+	@Test
 	fun `malformed requested retirement row fails closed and resolves after repair`() = runTest {
 		val started = prepareBlockedTerminalStepsRecovery("malformed-requested-retirement")
 		val receipt = database.sourceSessionDao().runRetirements(
@@ -1584,6 +1828,7 @@ class AuthoritativeSessionCoordinatorTest {
 			started.logicalTrackingId,
 			started.serviceRunId,
 			SourceKind.STEPS.stableCode,
+			2,
 		).single().validatedOrNull() shouldBe null
 
 		database.sourceSessionDao().updateRunRetirement(receipt) shouldBe 1
@@ -1626,6 +1871,7 @@ class AuthoritativeSessionCoordinatorTest {
 			started.logicalTrackingId,
 			started.serviceRunId,
 			SourceKind.STEPS.stableCode,
+			2,
 		).single().validatedOrNull() shouldBe null
 
 		database.sourceSessionDao().updateRunRetirement(terminalReceipt) shouldBe 1
@@ -3968,6 +4214,49 @@ class AuthoritativeSessionCoordinatorTest {
 		return started
 	}
 
+	private suspend fun insertSyntheticRetirementClaims(
+		started: SessionStartResult.Started,
+		count: Int,
+		includeReceipts: Boolean,
+		includeActions: Boolean = true,
+	) {
+		require(count > 0)
+		val dao = database.sourceSessionDao()
+		val retirement = dao.runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single()
+		val action = requireNotNull(dao.lifecycleAction(retirement.actionId))
+		val firstActionRevision = dao.maximumActionRevision(started.logicalTrackingId) + 1L
+		val actions = List(count) { offset ->
+			val ordinal = offset + 1
+			action.copy(
+				actionId = "synthetic-retirement-${started.serviceRunId}-$ordinal",
+				actionRevision = firstActionRevision + offset,
+				status = LifecycleActionStatus.START_ACCEPTED.name,
+				attemptCount = retirement.attemptCount,
+				sourceInstanceId = "synthetic-steps-${started.serviceRunId}-$ordinal",
+				registrationGeneration = 10_000L + ordinal,
+			)
+		}
+		database.withTransaction {
+			if (includeActions) dao.insertLifecycleActions(actions)
+			if (includeReceipts) {
+				actions.forEach { synthetic ->
+					dao.insertRunRetirementIntent(
+						retirement.copy(
+							actionId = synthetic.actionId,
+							sourceInstanceId = requireNotNull(synthetic.sourceInstanceId),
+							registrationGeneration =
+								requireNotNull(synthetic.registrationGeneration),
+						),
+					)
+				}
+			}
+		}
+	}
+
 	private suspend fun prepareTerminalReceiptWithCleanup(
 		identity: String,
 	): Pair<SessionStartResult.Started, SourceRunRetirementEntity> {
@@ -4935,6 +5224,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 	var omitAcknowledgementMembership = false
 	var lastAdmissionOrdinal: Long? = null
 	val shutdownClaims = mutableListOf<SourceRuntimeClaim>()
+	var shutdownAttemptCount = 0
 	val startEntered = CompletableDeferred<Unit>()
 	val releaseStart = CompletableDeferred<Unit>()
 	private var active = false
@@ -5009,6 +5299,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 		claim: SourceRuntimeClaim,
 		cutoff: SessionCutoff,
 	): OwnedSourceShutdown {
+		shutdownAttemptCount += 1
 		if (ownedClaim != claim) return OwnedSourceShutdown.NotOwned
 		shutdownClaims += claim
 		val acknowledgement = stopAck()

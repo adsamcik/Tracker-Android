@@ -608,43 +608,66 @@ object StepsCountDomainSchema {
 			if (target.schema != null &&
 				!target.schema.equalsAsciiIgnoreCase(MAIN_CATALOG)
 			) return null
-			return ResolvedTriggerTarget(MAIN_CATALOG, target.table)
+			return when (schemaObjectExistsInCatalog(MAIN_CATALOG, target.table)) {
+				true -> ResolvedTriggerTarget(MAIN_CATALOG, target.table)
+				false, null -> null
+			}
 		}
 		if (triggerCatalog != TEMP_CATALOG) return null
 		val catalogs = databaseCatalogs() ?: return null
 		target.schema?.let { requested ->
-			val catalog = catalogs.singleOrNull(requested::equalsAsciiIgnoreCase) ?: return null
-			return ResolvedTriggerTarget(catalog, target.table)
+			val catalog = catalogs.singleOrNull { candidate ->
+				requested.equalsAsciiIgnoreCase(candidate.name)
+			} ?: return null
+			return when (schemaObjectExistsInCatalog(catalog.name, target.table)) {
+				true -> ResolvedTriggerTarget(catalog.name, target.table)
+				false, null -> null
+			}
 		}
-		val matchingCatalogs = catalogs.mapNotNull { catalog ->
-			when (tableExistsInCatalog(catalog, target.table)) {
-				true -> catalog
-				false -> null
+		for (catalog in catalogs.sqliteSchemaLookupOrder()) {
+			when (schemaObjectExistsInCatalog(catalog.name, target.table)) {
+				true -> return ResolvedTriggerTarget(catalog.name, target.table)
+				false -> Unit
 				null -> return null
 			}
 		}
-		return matchingCatalogs.singleOrNull()?.let { catalog ->
-			ResolvedTriggerTarget(catalog, target.table)
-		}
+		return null
 	}
 
-	private fun SupportSQLiteDatabase.databaseCatalogs(): List<String>? =
+	private fun SupportSQLiteDatabase.databaseCatalogs(): List<DatabaseCatalog>? =
 		query("PRAGMA database_list").use { cursor ->
+			val sequenceIndex = cursor.getColumnIndexOrThrow("seq")
 			val nameIndex = cursor.getColumnIndexOrThrow("name")
 			buildList {
+				val sequences = mutableSetOf<Int>()
 				while (cursor.moveToNext()) {
+					val sequence = cursor.getInt(sequenceIndex)
 					val name = cursor.getString(nameIndex)
-					if (name.isEmpty() || name.length > MAX_SQL_TOKEN_LENGTH ||
-						any(name::equalsAsciiIgnoreCase)
+					if (sequence < 0 || !sequences.add(sequence) ||
+						name.isEmpty() || name.length > MAX_SQL_TOKEN_LENGTH ||
+						any { existing -> name.equalsAsciiIgnoreCase(existing.name) }
 					) return null
-					add(name)
+					add(DatabaseCatalog(sequence, name))
 				}
 			}
+		}.takeIf { catalogs ->
+			catalogs.count { it.name.equalsAsciiIgnoreCase(MAIN_CATALOG) } == 1 &&
+				catalogs.single { it.name.equalsAsciiIgnoreCase(MAIN_CATALOG) }.sequence == 0
 		}
 
-	private fun SupportSQLiteDatabase.tableExistsInCatalog(
+	private fun List<DatabaseCatalog>.sqliteSchemaLookupOrder(): List<DatabaseCatalog> {
+		val temporary = singleOrNull { it.name.equalsAsciiIgnoreCase(TEMP_CATALOG) }
+		val main = singleOrNull { it.name.equalsAsciiIgnoreCase(MAIN_CATALOG) } ?: return emptyList()
+		val attached = filterNot { catalog ->
+			catalog.name.equalsAsciiIgnoreCase(TEMP_CATALOG) ||
+				catalog.name.equalsAsciiIgnoreCase(MAIN_CATALOG)
+		}.sortedBy(DatabaseCatalog::sequence)
+		return listOfNotNull(temporary, main) + attached
+	}
+
+	private fun SupportSQLiteDatabase.schemaObjectExistsInCatalog(
 		catalog: String,
-		table: String,
+		name: String,
 	): Boolean? {
 		val schemaTable = if (catalog.equalsAsciiIgnoreCase(TEMP_CATALOG)) {
 			"sqlite_temp_master"
@@ -652,13 +675,13 @@ object StepsCountDomainSchema {
 			"${catalog.sqlQuotedIdentifier()}.sqlite_master"
 		}
 		return query(
-			"SELECT name FROM $schemaTable WHERE type = 'table' " +
+			"SELECT name FROM $schemaTable WHERE type IN ('table', 'view') " +
 				"AND name = ? COLLATE NOCASE LIMIT 2",
-			arrayOf(table),
+			arrayOf(name),
 		).use { cursor ->
 			if (!cursor.moveToFirst()) return@use false
 			val storedName = cursor.getString(0)
-			if (cursor.moveToNext() || !storedName.equalsAsciiIgnoreCase(table)) null else true
+			if (cursor.moveToNext() || !storedName.equalsAsciiIgnoreCase(name)) null else true
 		}
 	}
 
@@ -1159,6 +1182,11 @@ object StepsCountDomainSchema {
 	private data class ResolvedTriggerTarget(
 		val catalog: String,
 		val table: String,
+	)
+
+	private data class DatabaseCatalog(
+		val sequence: Int,
+		val name: String,
 	)
 
 	private data class SchemaMarker(
