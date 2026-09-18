@@ -297,6 +297,43 @@ class StepsCountDomainProducerContractTest {
 	}
 
 	@Test
+	fun `exact complete retirement cannot be replaced by a newer unproven downgrade`() = runTest {
+		val store = StepsCountDomainStore(database)
+		val token = token('a')
+		val wal = insertWal(token)
+		store.recordSessionWal(wal, token) shouldBe StepsCountDomainWriteResult.INSERTED
+		val complete = completeness(wal)
+		database.sourceSessionDao().saveCompleteness(complete)
+		store.recordSessionCompleteness(
+			complete,
+			completeRetirementEvidence(),
+		) shouldBe StepsCountDomainWriteResult.INSERTED
+
+		val downgrade = complete.copy(
+			appDrainComplete = false,
+			providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+			stopStatus = "PARTIAL_UNOBSERVABLE",
+			unresolvedSequenceStart = 2L,
+			unresolvedSequenceEnd = 3L,
+			updatedAtMs = complete.updatedAtMs + 1L,
+		)
+		database.sourceSessionDao().saveCompleteness(downgrade)
+		store.recordSessionCompleteness(
+			downgrade,
+			StepsCountDomainRetirementEvidence("NOT_REQUESTED", "REMOVED"),
+		) shouldBe StepsCountDomainWriteResult.TERMINAL_OWNER
+
+		database.openHelper.writableDatabase.query(
+			"SELECT operation FROM steps_count_domain_owner_revision " +
+				"WHERE owner_kind = 'SESSION_COMPLETENESS' ORDER BY owner_revision",
+		).use { cursor ->
+			cursor.moveToFirst()
+			cursor.getString(0) shouldBe StepsCountDomainOwnerRevisionEntity.OPERATION_BIND
+			cursor.moveToNext() shouldBe false
+		}
+	}
+
+	@Test
 	fun `provider removal with failed flush stays pending and later complete retry binds`() = runTest {
 		val store = StepsCountDomainStore(database)
 		val token = token('a')

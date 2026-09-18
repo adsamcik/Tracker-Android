@@ -905,22 +905,23 @@ class StepsCountDomainStore(
 		}
 		val ownerCount = sqlite.longForQuery(
 			if (mode == StepsCountDomainFullClearMode.REMOVE_ALL) {
-				"SELECT COUNT(*) FROM steps_count_domain_owner_revision"
+				"SELECT COUNT(*) FROM main.steps_count_domain_owner_revision"
 			} else {
-				"SELECT COUNT(*) FROM steps_count_domain_owner_revision WHERE operation = 'BIND'"
+				"SELECT COUNT(*) FROM main.steps_count_domain_owner_revision " +
+					"WHERE operation = 'BIND'"
 			},
 		)
 		if (mode == StepsCountDomainFullClearMode.REMOVE_ALL) {
-			sqlite.execSQL("DELETE FROM steps_count_domain_completeness_marker")
-			sqlite.execSQL("DELETE FROM steps_count_domain_owner_revision")
+			sqlite.execSQL("DELETE FROM main.steps_count_domain_completeness_marker")
+			sqlite.execSQL("DELETE FROM main.steps_count_domain_owner_revision")
 		} else {
 			sqlite.execSQL(
-				"DELETE FROM steps_count_domain_owner_revision WHERE operation = 'BIND'",
+				"DELETE FROM main.steps_count_domain_owner_revision WHERE operation = 'BIND'",
 			)
 		}
 		val receiptCount =
-			sqlite.longForQuery("SELECT COUNT(*) FROM steps_count_domain_receipt")
-		sqlite.execSQL("DELETE FROM steps_count_domain_receipt")
+			sqlite.longForQuery("SELECT COUNT(*) FROM main.steps_count_domain_receipt")
+		sqlite.execSQL("DELETE FROM main.steps_count_domain_receipt")
 		return StepsCountDomainMaintenanceResult.Applied(ownerCount, receiptCount)
 	}
 
@@ -1074,6 +1075,13 @@ class StepsCountDomainStore(
 			owner.ownerRevision,
 		)
 		if (latest?.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_RETRACT &&
+			exact != latest
+		) {
+			return StepsCountDomainWriteResult.TERMINAL_OWNER
+		}
+		if (latest?.ownerKind ==
+			StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS &&
+			latest.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_BIND &&
 			exact != latest
 		) {
 			return StepsCountDomainWriteResult.TERMINAL_OWNER
@@ -1381,7 +1389,7 @@ class StepsCountDomainStore(
 			StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
 		)
 		const val INSERT_RECEIPT_SQL =
-			"INSERT OR IGNORE INTO steps_count_domain_receipt (" +
+			"INSERT OR IGNORE INTO main.steps_count_domain_receipt (" +
 					"receipt_identity, domain_identity, owner_kind, scope_identity, " +
 					"owner_identity, owner_revision, " +
 				"registration_generation, collected_data_epoch, authority_revision, " +
@@ -1389,12 +1397,12 @@ class StepsCountDomainStore(
 					"effect_checksum, completion_evidence_checksum) " +
 					"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 		const val INSERT_OWNER_SQL =
-			"INSERT OR IGNORE INTO steps_count_domain_owner_revision (" +
+			"INSERT OR IGNORE INTO main.steps_count_domain_owner_revision (" +
 				"owner_kind, scope_identity, owner_identity, owner_revision, operation, " +
 				"receipt_identity, owner_effect_checksum, linked_at_ms) " +
 				"VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
 		const val INSERT_COMPLETENESS_MARKER_SQL =
-			"INSERT OR IGNORE INTO steps_count_domain_completeness_marker (" +
+			"INSERT OR IGNORE INTO main.steps_count_domain_completeness_marker (" +
 				"owner_kind, owner_identity, owner_revision, terminal_state, " +
 				"last_admission_ordinal, last_source_sequence, provider_flush_outcome, " +
 				"registration_removal_outcome, registration_timeline_checksum, evidence_checksum) " +
@@ -1560,7 +1568,7 @@ private fun SupportSQLiteDatabase.queryOwner(
 	ownerRevision: Long,
 ): StepsCountDomainOwnerRevisionEntity? =
 	query(
-		"SELECT * FROM steps_count_domain_owner_revision WHERE owner_kind = ? " +
+		"SELECT * FROM main.steps_count_domain_owner_revision WHERE owner_kind = ? " +
 			"AND owner_identity = ? AND owner_revision = ? LIMIT 1",
 		arrayOf(ownerKind, ownerIdentity, ownerRevision),
 	).use { cursor ->
@@ -1572,7 +1580,7 @@ private fun SupportSQLiteDatabase.queryLatestOwner(
 	ownerIdentity: String,
 ): StepsCountDomainOwnerRevisionEntity? =
 	query(
-		"SELECT * FROM steps_count_domain_owner_revision WHERE owner_kind = ? " +
+		"SELECT * FROM main.steps_count_domain_owner_revision WHERE owner_kind = ? " +
 			"AND owner_identity = ? ORDER BY owner_revision DESC LIMIT 1",
 		arrayOf(ownerKind, ownerIdentity),
 	).use { cursor ->
@@ -1583,7 +1591,7 @@ private fun SupportSQLiteDatabase.queryReceipt(
 	receiptIdentity: String,
 ): StepsCountDomainReceiptEntity? =
 	query(
-		"SELECT * FROM steps_count_domain_receipt WHERE receipt_identity = ? LIMIT 1",
+		"SELECT * FROM main.steps_count_domain_receipt WHERE receipt_identity = ? LIMIT 1",
 		arrayOf(receiptIdentity),
 	).use { cursor ->
 		if (cursor.moveToFirst()) cursor.toStepsCountDomainReceipt() else null
@@ -1594,7 +1602,7 @@ private fun SupportSQLiteDatabase.queryCompletenessMarker(
 	ownerRevision: Long,
 ): StepsCountDomainCompletenessMarkerEntity? =
 	query(
-		"SELECT * FROM steps_count_domain_completeness_marker " +
+		"SELECT * FROM main.steps_count_domain_completeness_marker " +
 			"WHERE owner_identity = ? AND owner_revision = ? LIMIT 1",
 		arrayOf(ownerIdentity, ownerRevision),
 	).use { cursor ->
@@ -1610,7 +1618,7 @@ private fun SupportSQLiteDatabase.queryOwnerChunk(
 	}
 	val arguments = keys.flatMap { listOf(it.ownerKind, it.ownerIdentity, it.ownerRevision) }
 	return query(
-		"SELECT * FROM steps_count_domain_owner_revision WHERE $predicate " +
+		"SELECT * FROM main.steps_count_domain_owner_revision WHERE $predicate " +
 			"ORDER BY owner_kind, owner_identity, owner_revision LIMIT ${keys.size + 1}",
 		arguments.toTypedArray(),
 	).use { cursor ->
@@ -1626,7 +1634,7 @@ private fun SupportSQLiteDatabase.queryReceiptChunk(
 	if (identities.isEmpty()) return emptyList()
 	val placeholders = List(identities.size) { "?" }.joinToString()
 	return query(
-		"SELECT * FROM steps_count_domain_receipt WHERE receipt_identity IN ($placeholders) " +
+		"SELECT * FROM main.steps_count_domain_receipt WHERE receipt_identity IN ($placeholders) " +
 			"ORDER BY receipt_identity LIMIT ${identities.size + 1}",
 		identities.toTypedArray(),
 	).use { cursor ->
@@ -1645,7 +1653,7 @@ private fun SupportSQLiteDatabase.queryCompletenessMarkerChunk(
 		}
 		val arguments = owners.flatMap { listOf(it.ownerIdentity, it.ownerRevision) }
 		return query(
-			"SELECT * FROM steps_count_domain_completeness_marker WHERE $predicate " +
+			"SELECT * FROM main.steps_count_domain_completeness_marker WHERE $predicate " +
 				"ORDER BY owner_identity, owner_revision LIMIT ${owners.size + 1}",
 			arguments.toTypedArray(),
 		).use { cursor ->
@@ -1665,7 +1673,7 @@ private fun SupportSQLiteDatabase.queryLatestOwnerChunk(
 	val arguments = keys.flatMap { listOf(it.ownerKind, it.ownerIdentity) }
 	return query(
 		"SELECT owner_kind, owner_identity, MAX(owner_revision) AS latest_revision " +
-			"FROM steps_count_domain_owner_revision WHERE $predicate " +
+			"FROM main.steps_count_domain_owner_revision WHERE $predicate " +
 			"GROUP BY owner_kind, owner_identity LIMIT ${keys.size + 1}",
 		arguments.toTypedArray(),
 	).use { cursor ->
@@ -1691,7 +1699,7 @@ private fun SupportSQLiteDatabase.deleteOwnerChunk(
 	}
 	val arguments = keys.flatMap { listOf(it.ownerKind, it.ownerIdentity, it.ownerRevision) }
 	return compileStatement(
-		"DELETE FROM steps_count_domain_owner_revision WHERE $predicate",
+		"DELETE FROM main.steps_count_domain_owner_revision WHERE $predicate",
 	).use { statement ->
 		arguments.forEachIndexed { index, value ->
 			when (value) {
@@ -1710,14 +1718,15 @@ private fun SupportSQLiteDatabase.deleteUnreferencedReceipts(
 	if (receiptIdentities.isEmpty()) return 0L
 	val placeholders = List(receiptIdentities.size) { "?" }.joinToString()
 	val before = longForQuery(
-		"SELECT COUNT(*) FROM steps_count_domain_receipt WHERE receipt_identity IN ($placeholders) " +
-			"AND NOT EXISTS (SELECT 1 FROM steps_count_domain_owner_revision AS owner " +
-			"WHERE owner.receipt_identity = steps_count_domain_receipt.receipt_identity)",
+		"SELECT COUNT(*) FROM main.steps_count_domain_receipt AS receipt " +
+			"WHERE receipt_identity IN ($placeholders) " +
+			"AND NOT EXISTS (SELECT 1 FROM main.steps_count_domain_owner_revision AS owner " +
+			"WHERE owner.receipt_identity = receipt.receipt_identity)",
 		receiptIdentities.toTypedArray(),
 	)
 	execSQL(
-		"DELETE FROM steps_count_domain_receipt WHERE receipt_identity IN ($placeholders) " +
-			"AND NOT EXISTS (SELECT 1 FROM steps_count_domain_owner_revision AS owner " +
+		"DELETE FROM main.steps_count_domain_receipt WHERE receipt_identity IN ($placeholders) " +
+			"AND NOT EXISTS (SELECT 1 FROM main.steps_count_domain_owner_revision AS owner " +
 			"WHERE owner.receipt_identity = steps_count_domain_receipt.receipt_identity)",
 		receiptIdentities.toTypedArray(),
 	)
@@ -1730,7 +1739,7 @@ private fun SupportSQLiteDatabase.queryTerminalCompactionCandidates(
 ): List<StepsCountDomainOwnerLookupKey> =
 	query(
 		"SELECT owner_kind, owner_identity, owner_revision " +
-			"FROM steps_count_domain_owner_revision " +
+			"FROM main.steps_count_domain_owner_revision " +
 			"WHERE operation IN ('RETRACT', 'UNPROVEN') " +
 			"ORDER BY linked_at_ms DESC, owner_kind, owner_identity, owner_revision DESC " +
 			"LIMIT ? OFFSET ?",

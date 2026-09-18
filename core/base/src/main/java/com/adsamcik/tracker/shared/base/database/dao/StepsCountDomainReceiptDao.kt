@@ -132,6 +132,13 @@ interface StepsCountDomainReceiptDao {
 		) {
 			return StepsCountDomainAppendResult.TERMINAL_OWNER
 		}
+		if (latest?.ownerKind ==
+			StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS &&
+			latest.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_BIND &&
+			exact != latest
+		) {
+			return StepsCountDomainAppendResult.TERMINAL_OWNER
+		}
 		if (latest?.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN &&
 			exact != latest &&
 			owner.operation != StepsCountDomainOwnerRevisionEntity.OPERATION_RETRACT &&

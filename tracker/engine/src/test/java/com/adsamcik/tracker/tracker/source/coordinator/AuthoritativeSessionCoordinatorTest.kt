@@ -1487,6 +1487,160 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `terminal Steps receipt replay authenticates every settlement payload field`() = runTest {
+		val mutations = listOf<Pair<String, (SourceRunRetirementEntity) -> SourceRunRetirementEntity>>(
+			"barrier" to { receipt ->
+				receipt.copy(
+					callbackEntryBarrierSequence =
+						requireNotNull(receipt.callbackEntryBarrierSequence) + 1L,
+				)
+			},
+			"removal" to { receipt ->
+				receipt.copy(
+					registrationRemovalOutcome = RegistrationRemovalOutcome.NOT_REGISTERED.name,
+				)
+			},
+			"flush" to { receipt ->
+				receipt.copy(providerFlushOutcome = ProviderFlushOutcome.NOT_REQUESTED.name)
+			},
+			"coverage" to { receipt ->
+				receipt.copy(
+					providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name,
+				)
+			},
+			"drain" to { receipt ->
+				receipt.copy(
+					appDrainComplete = false,
+					stopStatus = SourceStopStatus.PARTIAL_UNOBSERVABLE.name,
+					unresolvedSequenceStart = 4L,
+					unresolvedSequenceEnd = 4L,
+				)
+			},
+			"status" to { receipt ->
+				receipt.copy(stopStatus = SourceStopStatus.PARTIAL_UNOBSERVABLE.name)
+			},
+		)
+
+		val (started, terminalReceipt) =
+			prepareTerminalReceiptWithCleanup("terminal-replay-altered")
+		replaceRuntime(FakeStepsRuntime(database))
+		for ((field, mutate) in mutations) {
+			database.sourceSessionDao().updateRunRetirement(mutate(terminalReceipt)) shouldBe 1
+
+			subject.stop(
+				SessionStopRequest(
+					"terminal-replay-altered-$field-retry",
+					"USER_STOP",
+					2_500L,
+					2_500_000L,
+					"boot-1",
+				),
+			).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+
+			database.sourceSessionDao().updateRunRetirement(terminalReceipt) shouldBe 1
+			runtime.shutdownClaims shouldBe emptyList()
+		}
+		subject.stop(
+			SessionStopRequest(
+				"terminal-replay-restored",
+				"USER_STOP",
+				2_600L,
+				2_600_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.FINALIZED.name
+	}
+
+	@Test
+	fun `malformed requested retirement row fails closed and resolves after repair`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("malformed-requested-retirement")
+		val receipt = database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_run_retirement SET callback_entry_barrier_sequence = 4 " +
+				"WHERE logical_tracking_id = ? AND service_run_id = ? AND source_kind = ?",
+			arrayOf(
+				started.logicalTrackingId,
+				started.serviceRunId,
+				SourceKind.STEPS.stableCode,
+			),
+		)
+
+		subject.stop(
+			SessionStopRequest(
+				"malformed-requested-retirement-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+		database.sourceSessionDao().rawRunRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single().validatedOrNull() shouldBe null
+
+		database.sourceSessionDao().updateRunRetirement(receipt) shouldBe 1
+		subject.stop(
+			SessionStopRequest(
+				"malformed-requested-retirement-restored",
+				"USER_STOP",
+				2_600L,
+				2_600_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+	}
+
+	@Test
+	fun `malformed terminal retirement row fails closed and resolves after repair`() = runTest {
+		val (started, terminalReceipt) =
+			prepareTerminalReceiptWithCleanup("malformed-terminal-retirement")
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_run_retirement SET provider_flush_outcome = NULL " +
+				"WHERE logical_tracking_id = ? AND service_run_id = ? AND source_kind = ?",
+			arrayOf(
+				started.logicalTrackingId,
+				started.serviceRunId,
+				SourceKind.STEPS.stableCode,
+			),
+		)
+		replaceRuntime(FakeStepsRuntime(database))
+
+		subject.stop(
+			SessionStopRequest(
+				"malformed-terminal-retirement-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+		database.sourceSessionDao().rawRunRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single().validatedOrNull() shouldBe null
+
+		database.sourceSessionDao().updateRunRetirement(terminalReceipt) shouldBe 1
+		subject.stop(
+			SessionStopRequest(
+				"malformed-terminal-retirement-restored",
+				"USER_STOP",
+				2_600L,
+				2_600_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+	}
+
+	@Test
 	fun `terminal receipt replay without one exact owner remains blocked`() = runTest {
 		val (started, terminalReceipt) =
 			prepareTerminalReceiptWithCleanup("terminal-replay-owner-missing")
@@ -3823,6 +3977,8 @@ class AuthoritativeSessionCoordinatorTest {
 				serviceRunId = "$identity-run",
 			),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val admissionOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = admissionOrdinal
 		runtime.acknowledgementServiceRunId = "$identity-foreign-run"
 		subject.stop(
 			SessionStopRequest(
@@ -3839,8 +3995,36 @@ class AuthoritativeSessionCoordinatorTest {
 			started.serviceRunId,
 			SourceKind.STEPS.stableCode,
 		).single()
+		persistTerminalStepsEvidence(receipt.toTerminalAcknowledgement())
+		insertRetiredStepsRegistration()
+		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
 		return started to receipt
 	}
+
+	private fun SourceRunRetirementEntity.toTerminalAcknowledgement(): SourceStopAck =
+		SourceStopAck(
+			source = SourceKind.STEPS,
+			sourceInstanceId = SourceInstanceId(sourceInstanceId),
+			registrationGeneration = registrationGeneration,
+			appliedRevision = appliedRevision,
+			callbackEntryBarrierSequence = requireNotNull(callbackEntryBarrierSequence),
+			lastDurablyAdmittedSequence = lastSourceSequence,
+			lastAdmissionOrdinal = lastAdmissionOrdinal,
+			failedAdmissionCount = requireNotNull(failedAdmissionCount),
+			unresolvedSequenceStart = unresolvedSequenceStart,
+			unresolvedSequenceEndInclusive = unresolvedSequenceEnd,
+			registrationRemovalOutcome = RegistrationRemovalOutcome.valueOf(
+				requireNotNull(registrationRemovalOutcome),
+			),
+			providerFlushOutcome = ProviderFlushOutcome.valueOf(
+				requireNotNull(providerFlushOutcome),
+			),
+			providerCoverage = ProviderCoverage.valueOf(requireNotNull(providerCoverage)),
+			appDrainComplete = requireNotNull(appDrainComplete),
+			status = SourceStopStatus.valueOf(requireNotNull(stopStatus)),
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+		)
 
 	private suspend fun assertTerminalStepsRecoveryBlocked(
 		started: SessionStartResult.Started,
@@ -4026,6 +4210,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	private suspend fun insertRetiredStepsRegistration() {
+		if (database.sourceBrokerDao().registration(SourceKind.STEPS.stableCode, 1L) != null) {
+			return
+		}
 		database.sourceBrokerDao().insertRegistration(
 			ProviderRegistrationGenerationEntity(
 				sourceKind = SourceKind.STEPS.stableCode,

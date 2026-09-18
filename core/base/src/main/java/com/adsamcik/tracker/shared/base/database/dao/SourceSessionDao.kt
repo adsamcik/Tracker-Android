@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVers
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.RawSourceRunRetirement
 
 @Dao
 interface SourceSessionDao {
@@ -33,6 +34,17 @@ interface SourceSessionDao {
 	@Query(
 		"SELECT * FROM source_run_retirement WHERE logical_tracking_id = :logicalTrackingId " +
 			"AND service_run_id = :serviceRunId AND source_kind = :sourceKind " +
+			"ORDER BY registration_generation DESC",
+	)
+	suspend fun rawRunRetirements(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		sourceKind: Int,
+	): List<RawSourceRunRetirement>
+
+	@Query(
+		"SELECT * FROM source_run_retirement WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND service_run_id = :serviceRunId AND source_kind = :sourceKind " +
 			"AND source_instance_id = :sourceInstanceId " +
 			"AND registration_generation = :registrationGeneration LIMIT 1",
 	)
@@ -43,6 +55,20 @@ interface SourceSessionDao {
 		sourceInstanceId: String,
 		registrationGeneration: Long,
 	): SourceRunRetirementEntity?
+
+	@Query(
+		"SELECT * FROM source_run_retirement WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND service_run_id = :serviceRunId AND source_kind = :sourceKind " +
+			"AND source_instance_id = :sourceInstanceId " +
+			"AND registration_generation = :registrationGeneration LIMIT 1",
+	)
+	suspend fun rawRunRetirement(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		sourceKind: Int,
+		sourceInstanceId: String,
+		registrationGeneration: Long,
+	): RawSourceRunRetirement?
 
 	@Update
 	suspend fun updateRunRetirement(entity: SourceRunRetirementEntity): Int

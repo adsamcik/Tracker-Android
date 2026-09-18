@@ -157,6 +157,82 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
+	fun `duplicate expected trigger metadata rows cannot collapse into the valid set`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.duplicateStoredTrigger(StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `duplicate expected trigger identity in temp catalog is incompatible`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("CREATE TEMP TABLE unrelated_temp_trigger_host (value INTEGER NOT NULL)")
+		sqlite.execSQL(
+			"CREATE TEMP TRIGGER ${StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER} " +
+				"AFTER INSERT ON temp.unrelated_temp_trigger_host BEGIN SELECT NEW.value; END",
+		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `temp and attached shadow triggers do not count as main authority triggers`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"CREATE TEMP TABLE steps_count_domain_receipt (shadow_value INTEGER NOT NULL)",
+		)
+		sqlite.execSQL(
+			"CREATE TEMP TRIGGER unrelated_temp_shadow_trigger AFTER INSERT ON " +
+				"temp.steps_count_domain_receipt BEGIN SELECT NEW.shadow_value; END",
+		)
+		sqlite.execSQL("ATTACH DATABASE ':memory:' AS shadow_catalog")
+		sqlite.execSQL(
+			"CREATE TABLE shadow_catalog.ambient_steps_fact_revision " +
+				"(shadow_value INTEGER NOT NULL)",
+		)
+		sqlite.execSQL(
+			"CREATE TEMP TRIGGER unrelated_attached_shadow_trigger AFTER INSERT ON " +
+				"shadow_catalog.ambient_steps_fact_revision BEGIN SELECT NEW.shadow_value; END",
+		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.ValidV2
+
+		sqlite.execSQL(
+			"CREATE TEMP TRIGGER arbitrary_main_receipt_trigger AFTER INSERT ON " +
+				"main.steps_count_domain_receipt BEGIN SELECT 1; END",
+		)
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `trigger authentication requires complete WHEN BEGIN body and END structure`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		val name = StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER
+		val original = sqlite.storedTriggerSql(name)
+		val malformed = listOf(
+			original.substringBefore("WHEN") + "WHEN",
+			original.substringBefore("BEGIN") + "BEGIN",
+			original.substringBefore("BEGIN") + "BEGIN SELECT 1;",
+			original.substringBeforeLast("END"),
+			"$original SELECT 1",
+			"$original;;",
+			"$original /* trailing comment */",
+		)
+
+		malformed.forEach { sql ->
+			sqlite.setStoredTriggerSql(name, sql)
+			StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+			sqlite.setStoredTriggerSql(name, original)
+			StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.ValidV2
+		}
+	}
+
+	@Test
 	fun `trigger authentication normalizes only keyword case and insignificant whitespace`() {
 		installSchema()
 		val sqlite = database.openHelper.writableDatabase
@@ -168,6 +244,17 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				.replace("INSERT OR ABORT INTO", "insert\n or\tabort into")
 				.replace("VALUES", "values")
 				.replace("END", "end")
+		}
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.ValidV2
+	}
+
+	@Test
+	fun `one trailing trigger semicolon is insignificant`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.rewriteStoredTriggerSql(StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER) { sql ->
+			"$sql;"
 		}
 
 		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.ValidV2
@@ -835,14 +922,30 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		name: String,
 		transform: (String) -> String,
 	) {
-		val sql = query(
+		setStoredTriggerSql(name, transform(storedTriggerSql(name)))
+	}
+
+	private fun SupportSQLiteDatabase.storedTriggerSql(name: String): String =
+		query(
 			"SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = ?",
 			arrayOf(name),
 		).use { cursor ->
 			check(cursor.moveToFirst())
 			cursor.getString(0)
 		}
-		setStoredTriggerSql(name, transform(sql))
+
+	private fun SupportSQLiteDatabase.duplicateStoredTrigger(name: String) {
+		execSQL("PRAGMA writable_schema = ON")
+		try {
+			execSQL(
+				"INSERT INTO sqlite_master (type, name, tbl_name, rootpage, sql) " +
+					"SELECT type, name, tbl_name, rootpage, sql FROM sqlite_master " +
+					"WHERE type = 'trigger' AND name = ?",
+				arrayOf(name),
+			)
+		} finally {
+			execSQL("PRAGMA writable_schema = OFF")
+		}
 	}
 
 	private fun SupportSQLiteDatabase.setStoredTriggerSql(

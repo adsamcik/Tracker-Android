@@ -155,9 +155,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	)
 	private sealed interface RunRetirementReplay {
 		data class Acknowledged(val acknowledgement: SourceStopAck) : RunRetirementReplay
-		data class AuthenticationBlocked(
-			val receipt: SourceRunRetirementEntity,
-		) : RunRetirementReplay
+		data object AuthenticationBlocked : RunRetirementReplay
 		data object None : RunRetirementReplay
 	}
 	private sealed interface RequestedStepsRetirementRecovery {
@@ -4499,8 +4497,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	): SourceStopAck {
 		when (val replay = replayedRetirementAcknowledgement(target, cutoff)) {
 			is RunRetirementReplay.Acknowledged -> return replay.acknowledgement
-			is RunRetirementReplay.AuthenticationBlocked ->
-				return blockedRequestedRetirementAcknowledgement(replay.receipt)
+			RunRetirementReplay.AuthenticationBlocked ->
+				return blockedRequestedRetirementAcknowledgement(target, cutoff)
 			RunRetirementReplay.None -> Unit
 		}
 		if (target.source !in runtimes.registeredSources()) {
@@ -4567,15 +4565,20 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	): RunRetirementReplay {
 		val dao = database.sourceSessionDao()
 		val authenticatedReceipts = mutableListOf<Pair<SourceRunRetirementEntity, RunRetirementClaim>>()
-		val receipts = dao.runRetirements(
+		val rawReceipts = dao.rawRunRetirements(
 			cutoff.logicalTrackingId,
 			target.serviceRunId,
 			target.source.stableCode,
 		)
+		val receipts = mutableListOf<SourceRunRetirementEntity>()
+		for (rawReceipt in rawReceipts) {
+			receipts += rawReceipt.validatedOrNull()
+				?: return RunRetirementReplay.AuthenticationBlocked
+		}
 		for (receipt in receipts) {
 			val exactOwner = target.claims.singleOrNull { claim ->
 				claim.owns(receipt)
-			} ?: return RunRetirementReplay.AuthenticationBlocked(receipt)
+			} ?: return RunRetirementReplay.AuthenticationBlocked
 			authenticatedReceipts += receipt to exactOwner
 		}
 		for (owned in target.claims) {
@@ -4593,14 +4596,27 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 						RunRetirementReplay.Acknowledged(recovery.acknowledgement)
 					RequestedStepsRetirementRecovery.Absent -> RunRetirementReplay.None
 					RequestedStepsRetirementRecovery.Blocked ->
-						RunRetirementReplay.AuthenticationBlocked(receipt)
+						RunRetirementReplay.AuthenticationBlocked
+				}
+			}
+			if (target.source == SourceKind.STEPS) {
+				return when (val authentication = recoverRequestedStepsRetirement(
+					target,
+					owned,
+					receipt,
+				)) {
+					is RequestedStepsRetirementRecovery.Authenticated ->
+						RunRetirementReplay.Acknowledged(authentication.acknowledgement)
+					RequestedStepsRetirementRecovery.Absent,
+					RequestedStepsRetirementRecovery.Blocked,
+					-> RunRetirementReplay.AuthenticationBlocked
 				}
 			}
 			val acknowledgement = runCatchingNonCancellation {
 				receipt.toStopAckOrNull()
 			}.getOrNull()
 			return acknowledgement?.let { RunRetirementReplay.Acknowledged(it) }
-				?: RunRetirementReplay.AuthenticationBlocked(receipt)
+				?: RunRetirementReplay.AuthenticationBlocked
 		}
 		return RunRetirementReplay.None
 	}
@@ -4624,16 +4640,18 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		receipt: SourceRunRetirementEntity,
 	): RequestedStepsRetirementRecovery = database.withTransaction {
 		val dao = database.sourceSessionDao()
-		val current = dao.runRetirement(
+		val rawCurrent = dao.rawRunRetirement(
 			receipt.logicalTrackingId,
 			receipt.serviceRunId,
 			receipt.sourceKind,
 			receipt.sourceInstanceId,
 			receipt.registrationGeneration,
 		) ?: return@withTransaction RequestedStepsRetirementRecovery.Absent
+		val current = rawCurrent.validatedOrNull()
+			?: return@withTransaction RequestedStepsRetirementRecovery.Blocked
 		val provider = owned.provider
 			?: return@withTransaction RequestedStepsRetirementRecovery.Blocked
-		if (current != receipt || current.state != SourceRunRetirementEntity.STATE_REQUESTED ||
+		if (current != receipt ||
 			target.source != SourceKind.STEPS ||
 			target.serviceRunId != current.serviceRunId ||
 			provider.sourceInstanceId.value != current.sourceInstanceId ||
@@ -4653,7 +4671,10 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			registrationGeneration = current.registrationGeneration,
 		)
 		if (authentication == StepsTerminalCompletenessAuthentication.Absent) {
-			return@withTransaction if (hasTerminalOrMalformedStepsCheckpoint(current)) {
+			return@withTransaction if (
+				current.state != SourceRunRetirementEntity.STATE_REQUESTED ||
+				hasTerminalOrMalformedStepsCheckpoint(current)
+			) {
 				RequestedStepsRetirementRecovery.Blocked
 			} else {
 				RequestedStepsRetirementRecovery.Absent
@@ -4730,6 +4751,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			completeness.stopStatus !in setOf(
 				SourceStopStatus.COMPLETE.name,
 				SourceStopStatus.PARTIAL_UNOBSERVABLE.name,
+				SourceStopStatus.PROCESS_RESTARTED.name,
 			)
 		) {
 			return@withTransaction RequestedStepsRetirementRecovery.Blocked
@@ -4762,11 +4784,25 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		if (!acknowledgement.hasTerminalStepsRetirement()) {
 			return@withTransaction RequestedStepsRetirementRecovery.Blocked
 		}
-		val persisted = current.withRetirementAcknowledgement(
-			acknowledgement,
-			maxOf(current.updatedAtMs, System.currentTimeMillis().coerceAtLeast(0L)),
-		)
-		check(dao.updateRunRetirement(persisted) == 1)
+		if (current.state == SourceRunRetirementEntity.STATE_REQUESTED) {
+			val persisted = current.withRetirementAcknowledgement(
+				acknowledgement,
+				maxOf(current.updatedAtMs, System.currentTimeMillis().coerceAtLeast(0L)),
+			)
+			check(dao.updateRunRetirement(persisted) == 1)
+		} else {
+			val expectedState = if (acknowledgement.status == SourceStopStatus.PROCESS_RESTARTED) {
+				SourceRunRetirementEntity.STATE_INTERRUPTED
+			} else {
+				SourceRunRetirementEntity.STATE_ACKNOWLEDGED
+			}
+			val storedAcknowledgement = runCatchingNonCancellation {
+				current.toStopAckOrNullForReplay()
+			}.getOrNull()
+			if (current.state != expectedState || storedAcknowledgement != acknowledgement) {
+				return@withTransaction RequestedStepsRetirementRecovery.Blocked
+			}
+		}
 		RequestedStepsRetirementRecovery.Authenticated(acknowledgement)
 	}
 
@@ -4800,26 +4836,31 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	}
 
 	private fun blockedRequestedRetirementAcknowledgement(
-		receipt: SourceRunRetirementEntity,
-	): SourceStopAck = SourceStopAck(
-		source = SourceKind.entries.single { it.stableCode == receipt.sourceKind },
-		sourceInstanceId = SourceInstanceId(receipt.sourceInstanceId),
-		registrationGeneration = receipt.registrationGeneration,
-		appliedRevision = null,
-		callbackEntryBarrierSequence = 0L,
-		lastDurablyAdmittedSequence = null,
-		lastAdmissionOrdinal = null,
-		failedAdmissionCount = 1L,
-		unresolvedSequenceStart = null,
-		unresolvedSequenceEndInclusive = null,
-		registrationRemovalOutcome = RegistrationRemovalOutcome.UNOBSERVABLE,
-		providerFlushOutcome = ProviderFlushOutcome.NOT_REQUESTED,
-		providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
-		appDrainComplete = false,
-		status = SourceStopStatus.PROVIDER_FAILED,
-		logicalTrackingId = receipt.logicalTrackingId,
-		serviceRunId = receipt.serviceRunId,
-	)
+		target: RunRetirementTarget,
+		cutoff: SessionCutoff,
+	): SourceStopAck {
+		val provider = target.claims.firstNotNullOfOrNull(RunRetirementClaim::provider)
+		return SourceStopAck(
+			source = target.source,
+			sourceInstanceId = provider?.sourceInstanceId
+				?: SourceInstanceId("unverifiable-${target.source.name.lowercase()}"),
+			registrationGeneration = provider?.registrationGeneration ?: 0L,
+			appliedRevision = null,
+			callbackEntryBarrierSequence = 0L,
+			lastDurablyAdmittedSequence = null,
+			lastAdmissionOrdinal = null,
+			failedAdmissionCount = 1L,
+			unresolvedSequenceStart = null,
+			unresolvedSequenceEndInclusive = null,
+			registrationRemovalOutcome = RegistrationRemovalOutcome.UNOBSERVABLE,
+			providerFlushOutcome = ProviderFlushOutcome.NOT_REQUESTED,
+			providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+			appDrainComplete = false,
+			status = SourceStopStatus.PROVIDER_FAILED,
+			logicalTrackingId = cutoff.logicalTrackingId,
+			serviceRunId = target.serviceRunId,
+		)
+	}
 
 	private suspend fun interruptedRetirementAcknowledgement(
 		target: RunRetirementTarget,
@@ -4902,13 +4943,13 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val provider = owned.provider ?: acknowledgement.providerKeyOrNull() ?: return@withContext
 		database.withTransaction {
 			val dao = database.sourceSessionDao()
-			val current = dao.runRetirement(
+			val current = dao.rawRunRetirement(
 				acknowledgement.logicalTrackingId ?: return@withTransaction,
 				target.serviceRunId,
 				target.source.stableCode,
 				provider.sourceInstanceId.value,
 				provider.registrationGeneration,
-			) ?: return@withTransaction
+			)?.validatedOrNull() ?: return@withTransaction
 			check(acknowledgement.source == target.source)
 			check(acknowledgement.sourceInstanceId == provider.sourceInstanceId)
 			check(acknowledgement.registrationGeneration == provider.registrationGeneration)
