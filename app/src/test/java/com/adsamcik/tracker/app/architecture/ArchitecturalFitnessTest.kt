@@ -40,6 +40,28 @@ class ArchitecturalFitnessTest {
 	}
 
 	@Nested
+	inner class `Ambient purpose ownership` {
+		@Test
+		fun `settings and startup callers cannot start Ambient Steps through raw lifecycle`() {
+			val forbiddenCallers = listOf(
+				"app/src/main/java/com/adsamcik/tracker/app/di/RepositoryModule.kt",
+				"app/src/main/java/com/adsamcik/tracker/app/settings/DataSettingsViewModel.kt",
+				"app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt",
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/module/" +
+					"TrackerModuleInitializer.kt",
+			)
+			forbiddenCallers.flatMap { path ->
+				val source = projectRoot.resolve(path).readText()
+				listOf(
+					"AmbientStepsProviderLifecycle",
+					"reconcileAfterSettingsChange(",
+					"AmbientStepsProviderLifecycleOwner",
+				).filter(source::contains).map { marker -> "$path -> $marker" }
+			}.shouldBeEmpty()
+		}
+	}
+
+	@Nested
 	inner class `Tracebox production integration` {
 		@Test
 		fun `release packages only the ARM64 phone ABI`() {

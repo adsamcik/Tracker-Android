@@ -10,22 +10,17 @@ import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityState
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationCoordinator
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationResult
-import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
-import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryScheduler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.resilience.TrackingAutoRecoveryAuthorization
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
-import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProviderLifecycleOwner
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProviderRegistrationResult
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
@@ -54,8 +49,7 @@ class TrackerModuleInitializer @Inject constructor(
 	private val sourcePipelineRecovery: SourcePipelineRecovery,
 	private val activityAutomationEpochAuthority: ActivityAutomationEpochAuthority,
 	private val automaticControlRecoveryScheduler: AutomaticControlRecoveryScheduler,
-	private val ambientStepsProviderLifecycleOwner: AmbientStepsProviderLifecycleOwner,
-	private val retentionAuthorityProducer: RetentionAuthorityProducer,
+	private val trackingPurposeSettingsReconciler: TrackingPurposeSettingsReconciler,
 	private val sourcePolicyRevisionReconciliationCoordinator:
 		SourcePolicyRevisionReconciliationCoordinator,
 ) : ModuleInitializer {
@@ -91,11 +85,8 @@ class TrackerModuleInitializer @Inject constructor(
 											readyGeneration,
 										)
 								},
-								reconcileRetention =
-									retentionAuthorityProducer::reconcileCurrentSettings,
-								retireAmbientSteps =
-									ambientStepsProviderLifecycleOwner::
-										retireAfterRetentionAuthorityFailure,
+								reconcilePurposes =
+									trackingPurposeSettingsReconciler::reconcileCurrentSettings,
 							)) {
 								TrackerStartupAuthorityResult.Complete -> Unit
 								else -> throw TrackerStartupAuthorityPendingException(authority)
@@ -135,94 +126,38 @@ class TrackerModuleInitializer @Inject constructor(
 
 internal suspend fun reconcileTrackerStartupAuthority(
 	reconcileSourcePolicy: suspend () -> SourcePolicyRevisionReconciliationResult,
-	reconcileRetention: suspend () -> List<RetentionAuthorityResult>,
-	retireAmbientSteps: suspend () -> AmbientStepsSettingsReconciliationResult,
+	reconcilePurposes: suspend () -> TrackingPurposeSettingsReconciliationResult,
 ): TrackerStartupAuthorityResult {
 	val sourcePolicy = reconcileSourcePolicy()
-	val snapshot = when (sourcePolicy) {
-		is SourcePolicyRevisionReconciliationResult.Complete -> sourcePolicy.snapshot
+	when (sourcePolicy) {
+		is SourcePolicyRevisionReconciliationResult.Complete -> Unit
 		is SourcePolicyRevisionReconciliationResult.Retryable,
 		is SourcePolicyRevisionReconciliationResult.Unverifiable,
 		-> return TrackerStartupAuthorityResult.SourcePolicyDebt(sourcePolicy)
 	}
-	val stepsPolicy = snapshot[TrackingSourceComponent.STEPS]
-	val expectedStepsState = if (
-		stepsPolicy.ambientConsentEpoch != null &&
-		stepsPolicy.ambientPersistenceEligible
-	) {
-		RetentionAuthorityState.ACTIVE
-	} else {
-		RetentionAuthorityState.REVOKED
-	}
-	return reconcileRetentionAuthorityAtStartup(
-		expectedAmbientStepsState = expectedStepsState,
-		reconcileRetention = reconcileRetention,
-		retireAmbientSteps = retireAmbientSteps,
-	)
-}
-
-internal suspend fun reconcileRetentionAuthorityAtStartup(
-	expectedAmbientStepsState: RetentionAuthorityState,
-	reconcileRetention: suspend () -> List<RetentionAuthorityResult>,
-	retireAmbientSteps: suspend () -> AmbientStepsSettingsReconciliationResult,
-): TrackerStartupAuthorityResult {
-	val results = try {
-		reconcileRetention()
+	return when (val purposes = try {
+		reconcilePurposes()
 	} catch (cancellation: CancellationException) {
 		throw cancellation
 	} catch (_: Exception) {
-		listOf(
-			RetentionAuthorityResult.Unavailable(
-				source = TrackingSourceComponent.STEPS,
-				scope = RetentionAuthorityScope.LIVE_AMBIENT,
-				reason = RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE,
+		TrackingPurposeSettingsReconciliationResult.Debt(
+			TrackingPurposeSettingsReconciliationDebt(
+				listOf(
+					com.adsamcik.tracker.tracker.api
+						.TrackingPurposeSettingsReconciliationFailure(
+							source = null,
+							reason = com.adsamcik.tracker.tracker.api
+								.TrackingPurposeSettingsReconciliationFailureReason
+								.OWNER_RECONCILIATION_FAILED,
+						),
+				),
 			),
 		)
-	}
-	val ambientStepsResults = results.filter { result ->
-		result.source == TrackingSourceComponent.STEPS &&
-			result.scope == RetentionAuthorityScope.LIVE_AMBIENT
-	}
-	val failure = when {
-		ambientStepsResults.size != 1 ->
-			TrackerStartupRetentionFailure.ResultSetInvalid
-		ambientStepsResults.single() is RetentionAuthorityResult.Unavailable ->
-			TrackerStartupRetentionFailure.RetentionUnavailable(
-				ambientStepsResults.single() as RetentionAuthorityResult.Unavailable,
-			)
-		ambientStepsResults.single().stateOrNull() != expectedAmbientStepsState ->
-			TrackerStartupRetentionFailure.StateMismatch(
-				result = ambientStepsResults.single(),
-				expected = expectedAmbientStepsState,
-			)
-		else -> return TrackerStartupAuthorityResult.Complete
-	}
-	val retirement = try {
-		retireAmbientSteps()
-	} catch (cancellation: CancellationException) {
-		throw cancellation
-	} catch (_: Exception) {
-		AmbientStepsSettingsReconciliationResult(
-			complete = false,
-			operational = false,
-			failure = com.adsamcik.tracker.tracker.api
-				.AmbientStepsSettingsReconciliationFailure.PROVIDER_REMOVAL_FAILED,
-			retryable = true,
-		)
-	}
-	if (!retirement.complete || retirement.operational) {
-		val debt = TrackerStartupRetentionDebt(failure, retirement)
-		return if (!retirement.complete && retirement.retryable) {
-			TrackerStartupAuthorityResult.RetryableRetentionDebt(debt)
-		} else {
-			TrackerStartupAuthorityResult.UnverifiableRetentionDebt(debt)
-		}
-	}
-	val debt = TrackerStartupRetentionDebt(failure, retirement)
-	return if (failure.retryable) {
-		TrackerStartupAuthorityResult.RetryableRetentionDebt(debt)
-	} else {
-		TrackerStartupAuthorityResult.UnverifiableRetentionDebt(debt)
+	}) {
+		is TrackingPurposeSettingsReconciliationResult.Complete ->
+			TrackerStartupAuthorityResult.Complete
+		is TrackingPurposeSettingsReconciliationResult.Debt ->
+			TrackerStartupAuthorityResult.PurposeDebt(purposes.debt)
 	}
 }
 
@@ -237,45 +172,9 @@ internal sealed interface TrackerStartupAuthorityResult {
 		}
 	}
 
-	data class RetryableRetentionDebt(
-		val debt: TrackerStartupRetentionDebt,
+	data class PurposeDebt(
+		val debt: TrackingPurposeSettingsReconciliationDebt,
 	) : TrackerStartupAuthorityResult
-
-	data class UnverifiableRetentionDebt(
-		val debt: TrackerStartupRetentionDebt,
-	) : TrackerStartupAuthorityResult
-}
-
-internal data class TrackerStartupRetentionDebt(
-	val failure: TrackerStartupRetentionFailure,
-	val retirement: AmbientStepsSettingsReconciliationResult,
-)
-
-internal sealed interface TrackerStartupRetentionFailure {
-	data class RetentionUnavailable(
-		val result: RetentionAuthorityResult.Unavailable,
-	) : TrackerStartupRetentionFailure
-
-	data object ResultSetInvalid : TrackerStartupRetentionFailure
-
-	data class StateMismatch(
-		val result: RetentionAuthorityResult,
-		val expected: RetentionAuthorityState,
-	) : TrackerStartupRetentionFailure
-}
-
-private val TrackerStartupRetentionFailure.retryable: Boolean
-	get() = when (this) {
-		is TrackerStartupRetentionFailure.RetentionUnavailable ->
-			result.reason !in NON_RETRYABLE_STARTUP_RETENTION_FAILURES
-		TrackerStartupRetentionFailure.ResultSetInvalid -> false
-		is TrackerStartupRetentionFailure.StateMismatch -> false
-	}
-
-private fun RetentionAuthorityResult.stateOrNull(): RetentionAuthorityState? = when (this) {
-	is RetentionAuthorityResult.Applied -> state
-	is RetentionAuthorityResult.Unchanged -> state
-	is RetentionAuthorityResult.Unavailable -> null
 }
 
 private class TrackerStartupAuthorityPendingException(
@@ -283,12 +182,6 @@ private class TrackerStartupAuthorityPendingException(
 ) : IllegalStateException("Tracker startup authority remains unavailable")
 
 private const val STARTUP_AUTHORITY_RETRY_DELAY_MS = 1_000L
-
-private val NON_RETRYABLE_STARTUP_RETENTION_FAILURES = setOf(
-	RetentionAuthorityUnavailableReason.APPROVAL_REVISION_EXHAUSTED,
-	RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH,
-	RetentionAuthorityUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
-)
 
 /** One opportunistic process-start reconciliation; provider failures do not block core tracking. */
 internal suspend fun runAmbientStepsStartupReconciliation(

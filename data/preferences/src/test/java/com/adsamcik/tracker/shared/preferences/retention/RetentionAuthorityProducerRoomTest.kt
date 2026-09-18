@@ -531,6 +531,20 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
+	fun `operation permit cannot transfer to a child coroutine`() = runTest {
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+		val producer = producer()
+
+		operationLease.withPermit { permit ->
+			val child = async {
+				producer.reconcileCurrentSettings(permit)
+			}
+			assertFailsWith<IllegalArgumentException> { child.await() }
+		}
+	}
+
+	@Test
 	fun `unreadable lifecycle cannot initialize fresh source evidence`() = runTest {
 		removeSourceEvidenceState()
 		bootstrap(ambientSteps = true)

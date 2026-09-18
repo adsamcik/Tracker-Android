@@ -9,11 +9,12 @@ import androidx.work.WorkManager
 import androidx.work.await
 import com.adsamcik.tracker.activity.api.ActivityRecognitionApi
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
-import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationFailureCode
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
-import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
-import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
-import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
+import com.adsamcik.tracker.tracker.api.TrackingPurposeDeletionFencer
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailure
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailureReason
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.impexp.importer.DataImporter
@@ -50,11 +51,12 @@ import java.io.RandomAccessFile
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -99,7 +101,9 @@ sealed interface CollectedDataDeletionReconciliationFailure {
 		override val failureCode: String = "POST_DELETE_RETENTION_RESULT_SET_INVALID"
 	}
 
-	data object PurposeSettings : CollectedDataDeletionReconciliationFailure {
+	data class PurposeSettings(
+		val debt: TrackingPurposeSettingsReconciliationDebt,
+	) : CollectedDataDeletionReconciliationFailure {
 		override val failureCode: String = "POST_DELETE_PURPOSE_SETTINGS"
 	}
 
@@ -109,24 +113,38 @@ sealed interface CollectedDataDeletionReconciliationFailure {
 		override val failureCode: String = "POST_DELETE_SOURCE_POLICY_AUTHORITY"
 	}
 
-	data class AmbientStepsProvider(
-		val failure: AmbientStepsSettingsReconciliationFailure,
+	data class ProviderFence(
+		val debt: CollectedDataProviderFenceDebt,
 	) : CollectedDataDeletionReconciliationFailure {
-		override val failureCode: String = "POST_DELETE_AMBIENT_STEPS_PROVIDER"
+		override val failureCode: String = "COLLECTED_DATA_PROVIDER_FENCE"
 	}
 
-	data class AmbientStepsCleanup(
-		val failure: AmbientStepsProviderCleanupFailure,
+	data class DeletionPreparationAndFence(
+		val journalFailureCode: String,
+		val fenceDebt: CollectedDataProviderFenceDebt,
 	) : CollectedDataDeletionReconciliationFailure {
-		override val failureCode: String = "POST_DELETE_AMBIENT_STEPS_CLEANUP"
-	}
-
-	data object AmbientStepsCleanupUnavailable : CollectedDataDeletionReconciliationFailure {
-		override val failureCode: String = "POST_DELETE_AMBIENT_STEPS_CLEANUP_UNAVAILABLE"
+		override val failureCode: String = "DELETE_PREPARATION_AND_PROVIDER_FENCE"
 	}
 
 	data object DeletionMarkerRemoval : CollectedDataDeletionReconciliationFailure {
 		override val failureCode: String = "POST_DELETE_MARKER_REMOVAL"
+	}
+
+	data class CollectedDataProviderFenceDebt(
+		val failures: List<CollectedDataProviderFenceFailure>,
+	) {
+		init {
+			require(failures.isNotEmpty())
+		}
+	}
+
+	sealed interface CollectedDataProviderFenceFailure {
+		data class Activity(val code: String) : CollectedDataProviderFenceFailure
+		data class PurposeOwners(val debt: TrackingPurposeSettingsReconciliationDebt) :
+			CollectedDataProviderFenceFailure
+		data object WritersUnavailable : CollectedDataProviderFenceFailure
+		data object WritersInProgress : CollectedDataProviderFenceFailure
+		data object StartupQuiescenceInProgress : CollectedDataProviderFenceFailure
 	}
 
 	data object DeletionMarkerDurability : CollectedDataDeletionReconciliationFailure {
@@ -299,7 +317,7 @@ class DefaultCollectedDataDeletionService(
 	private val startupDeletionBarrier: TrackingStartupDeletionBarrier =
 		TrackingStartupDeletionBarrier(),
 	private val activityRegistrationArbiterProvider: Provider<ActivityRegistrationArbiter>? = null,
-	private val ambientStepsProviderLifecycleProvider: Provider<AmbientStepsProviderLifecycle>? = null,
+	private val purposeDeletionFencerProvider: Provider<TrackingPurposeDeletionFencer>? = null,
 	private val automaticControlRestorer: PostDeletionAutomaticControlRestorer,
 	private val retentionAuthorityProducer: RetentionAuthorityProducer,
 	private val sourcePolicyAuthorityBootstrapCoordinatorProvider:
@@ -335,8 +353,12 @@ class DefaultCollectedDataDeletionService(
 	private val markerDelete: (File) -> Boolean = File::delete,
 	private val currentTimeMillis: () -> Long = System::currentTimeMillis,
 	private val providerFenceTimeoutMs: Long = PROVIDER_FENCE_TIMEOUT_MS,
+	private val providerFenceScope: CoroutineScope =
+		CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : CollectedDataDeletionService {
 	private val deletionMutex = Mutex()
+	private val providerFenceFlightMutex = Mutex()
+	private val providerFenceFlights = mutableMapOf<String, Deferred<Result<Any?>>>()
 	private val clearingMarkerFile = File(
 		checkNotNull(markerFile.parentFile),
 		"${markerFile.name}.clearing",
@@ -364,9 +386,10 @@ class DefaultCollectedDataDeletionService(
 				is DeletionJournalPreparation.Failed -> {
 					if (markerFile.exists() || preparedMarkerFile.exists()) {
 						startupDeletionBarrier.beginCloseAdmission()
-						fenceAfterMarkerPublicationFailure()
+						fenceAfterMarkerPublicationFailure(journal.completion)
+					} else {
+						journal.completion
 					}
-					journal.completion
 				}
 			}
 		}
@@ -380,10 +403,8 @@ class DefaultCollectedDataDeletionService(
 					startupDeletionBarrier.beginCloseAdmission()
 					when (val journal = recoverDeletionJournal()) {
 						is DeletionJournalPreparation.Ready -> runDeletion(journal.operation)
-						is DeletionJournalPreparation.Failed -> {
-							fenceAfterMarkerPublicationFailure()
-							journal.completion
-						}
+						is DeletionJournalPreparation.Failed ->
+							fenceAfterMarkerPublicationFailure(journal.completion)
 					}
 				}
 				else -> {
@@ -396,25 +417,23 @@ class DefaultCollectedDataDeletionService(
 	private suspend fun runDeletion(
 		operation: CollectedDataDeletionOperation,
 	): CollectedDataDeletionCompletion {
-		var activityRegistrationArbiter: ActivityRegistrationArbiter? = null
-		var ambientStepsProviderLifecycle: AmbientStepsProviderLifecycle? = null
+		var purposeDeletionFencer: TrackingPurposeDeletionFencer? = null
 		startupDeletionBarrier.beginCloseAdmission()
 		try {
-			activityRegistrationArbiter = activityRegistrationArbiterProvider?.get()
-			ambientStepsProviderLifecycle = ambientStepsProviderLifecycleProvider?.get()
-			fenceCollectedDataWriters(
-				activityRegistrationArbiter,
-				ambientStepsProviderLifecycle,
-			)
+			val dependencies = resolveProviderFenceDependencies()
+			purposeDeletionFencer = dependencies.purposes
 			// Admission is already closed and writers/providers have now received cancellation. Only
 			// after the admitted startup operation unwinds may destructive Room deletion begin. An
 			// operation admitted before closeAdmission may have resumed providers while unwinding, so
 			// deletion takes the final fence after the barrier reaches quiescence.
-			startupDeletionBarrier.awaitQuiescence()
-			fenceCollectedDataWriters(
-				activityRegistrationArbiter,
-				ambientStepsProviderLifecycle,
-			)
+			val fenceFailures = runProviderFenceProtocol(dependencies)
+			if (fenceFailures.isNotEmpty()) {
+				return CollectedDataDeletionCompletion.Retryable(
+					CollectedDataDeletionReconciliationFailure.ProviderFence(
+						CollectedDataProviderFenceDebt(fenceFailures),
+					),
+				)
+			}
 			// The durable journal exists before this destructive boundary. Remove legacy vaults
 			// before opening the active Room database so no import callback can race the clear.
 			deleteRetiredDatabases()
@@ -455,8 +474,8 @@ class DefaultCollectedDataDeletionService(
 			) { "Collected-data deletion writer re-arm remains incomplete" }
 			val initialReconciliation = reconcilePostDeletionAuthorityAndRetention()
 			if (initialReconciliation != null) {
-				return keepAmbientStepsClosed(
-					ambientStepsProviderLifecycle,
+				return keepPurposeOwnersClosed(
+					purposeDeletionFencer,
 					initialReconciliation,
 				)
 			}
@@ -467,8 +486,8 @@ class DefaultCollectedDataDeletionService(
 			automaticControlRestorer.schedule(operation.targetCollectedDataEpoch)
 			val confirmedReconciliation = reconcilePostDeletionAuthorityAndRetention()
 			if (confirmedReconciliation != null) {
-				return keepAmbientStepsClosed(
-					ambientStepsProviderLifecycle,
+				return keepPurposeOwnersClosed(
+					purposeDeletionFencer,
 					confirmedReconciliation,
 				)
 			}
@@ -477,8 +496,8 @@ class DefaultCollectedDataDeletionService(
 			markerClearPendingInProcess = true
 			val markerFailure = clearDeletionMarker()
 			if (markerFailure != null) {
-				return keepAmbientStepsClosed(
-					ambientStepsProviderLifecycle,
+				return keepPurposeOwnersClosed(
+					purposeDeletionFencer,
 					markerFailure,
 				)
 			}
@@ -492,15 +511,20 @@ class DefaultCollectedDataDeletionService(
 
 	private suspend fun reconcileMarkerClearCompletion(): CollectedDataDeletionCompletion {
 		startupDeletionBarrier.beginCloseAdmission()
-		val activityRegistrationArbiter = activityRegistrationArbiterProvider?.get()
-		val ambientStepsProviderLifecycle = ambientStepsProviderLifecycleProvider?.get()
-		fenceCollectedDataWriters(activityRegistrationArbiter, ambientStepsProviderLifecycle)
-		startupDeletionBarrier.awaitQuiescence()
-		fenceCollectedDataWriters(activityRegistrationArbiter, ambientStepsProviderLifecycle)
+		val dependencies = resolveProviderFenceDependencies()
+		val purposeDeletionFencer = dependencies.purposes
+		val fenceFailures = runProviderFenceProtocol(dependencies)
+		if (fenceFailures.isNotEmpty()) {
+			return CollectedDataDeletionCompletion.Retryable(
+				CollectedDataDeletionReconciliationFailure.ProviderFence(
+					CollectedDataProviderFenceDebt(fenceFailures),
+				),
+			)
+		}
 		markerClearPendingInProcess = true
 		val markerFailure = clearDeletionMarker()
 		if (markerFailure != null) {
-			return keepAmbientStepsClosed(ambientStepsProviderLifecycle, markerFailure)
+			return keepPurposeOwnersClosed(purposeDeletionFencer, markerFailure)
 		}
 		startupDeletionBarrier.reopen()
 		markerClearPendingInProcess = false
@@ -583,117 +607,133 @@ class DefaultCollectedDataDeletionService(
 		}
 	}
 
-	private suspend fun keepAmbientStepsClosed(
-		lifecycle: AmbientStepsProviderLifecycle?,
+	private suspend fun keepPurposeOwnersClosed(
+		fencer: TrackingPurposeDeletionFencer?,
 		original: CollectedDataDeletionCompletion,
 	): CollectedDataDeletionCompletion {
-		if (lifecycle == null) return original
-		val cleanup = when (
-			val attempt = runBoundedProviderFence {
-				lifecycle.closeForCollectedDataDeletion()
+		if (fencer == null) return original
+		val result = when (
+			val attempt = runBoundedProviderFence(PURPOSE_FENCE_FLIGHT) {
+				fencer.fenceForCollectedDataDeletion()
 			}
 		) {
 			is ProviderFenceAttempt.Completed -> attempt.value
-			ProviderFenceAttempt.Failed,
-			ProviderFenceAttempt.TimedOut,
-			-> return if (original is CollectedDataDeletionCompletion.Unverifiable) {
-				original
-			} else {
-				CollectedDataDeletionCompletion.Retryable(
-					CollectedDataDeletionReconciliationFailure.AmbientStepsCleanupUnavailable,
+			ProviderFenceAttempt.Failed ->
+				return providerFenceRetry(
+					CollectedDataProviderFenceFailure.PurposeOwners(
+						unavailablePurposeDebt(),
+					),
 				)
-			}
+			ProviderFenceAttempt.TimedOut ->
+				return providerFenceRetry(
+					CollectedDataProviderFenceFailure.PurposeOwners(
+						inProgressPurposeDebt(),
+					),
+				)
 		}
-		if (cleanup.complete) return original
-		val failure = CollectedDataDeletionReconciliationFailure.AmbientStepsCleanup(
-			requireNotNull(cleanup.failure),
-		)
-		return if (original is CollectedDataDeletionCompletion.Unverifiable) {
+		return if (
+			result is TrackingPurposeSettingsReconciliationResult.Complete ||
+			original is CollectedDataDeletionCompletion.Unverifiable
+		) {
 			original
-		} else if (cleanup.retryable) {
-			CollectedDataDeletionCompletion.Retryable(failure)
 		} else {
-			CollectedDataDeletionCompletion.Unverifiable(failure)
+			providerFenceRetry(
+				CollectedDataProviderFenceFailure.PurposeOwners(
+					(result as TrackingPurposeSettingsReconciliationResult.Debt).debt,
+				),
+			)
 		}
 	}
 
 	private suspend fun fenceCollectedDataWriters(
 		activityRegistrationArbiter: ActivityRegistrationArbiter?,
-		ambientStepsProviderLifecycle: AmbientStepsProviderLifecycle?,
-	) {
-		val failures = mutableListOf<String>()
+		purposeDeletionFencer: TrackingPurposeDeletionFencer?,
+	): CollectedDataDeletionCompletion? {
+		val failures = mutableListOf<CollectedDataProviderFenceFailure>()
 		if (activityRegistrationArbiter != null) {
 			when (
-				val attempt = runBoundedProviderFence {
+				val attempt = runBoundedProviderFence(ACTIVITY_FENCE_FLIGHT) {
 					activityRegistrationArbiter.closeForCollectedDataDeletion()
 				}
 			) {
 				is ProviderFenceAttempt.Completed -> {
 					val result = attempt.value
-					val cleanupIsDurablyDeferred =
-						result.status == ActivityRegistrationStatus.DEGRADED &&
-							result.failureCode ==
-							ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED &&
-							result.retryable
-					if (
-						result.status != ActivityRegistrationStatus.APPLIED &&
-						!cleanupIsDurablyDeferred
-					) {
-						failures +=
-							"activity-recognition callbacks: ${result.failureCode}"
+					if (result.status != ActivityRegistrationStatus.APPLIED) {
+						failures += CollectedDataProviderFenceFailure.Activity(
+							result.failureCode?.name ?: "UNKNOWN",
+						)
 					}
 				}
 				ProviderFenceAttempt.Failed ->
-					failures += "activity-recognition callbacks: unavailable"
+					failures += CollectedDataProviderFenceFailure.Activity("UNAVAILABLE")
 				ProviderFenceAttempt.TimedOut ->
-					failures += "activity-recognition callbacks: timed out"
+					failures += CollectedDataProviderFenceFailure.Activity("IN_PROGRESS")
 			}
 		}
-		if (ambientStepsProviderLifecycle != null) {
+		if (purposeDeletionFencer != null) {
 			when (
-				val attempt = runBoundedProviderFence {
-					ambientStepsProviderLifecycle.closeForCollectedDataDeletion()
+				val attempt = runBoundedProviderFence(PURPOSE_FENCE_FLIGHT) {
+					purposeDeletionFencer.fenceForCollectedDataDeletion()
 				}
 			) {
 				is ProviderFenceAttempt.Completed -> {
 					val result = attempt.value
-					val cleanupIsDurablyDeferred =
-						result.failure ==
-							AmbientStepsProviderCleanupFailure.PROVIDER_REMOVAL_FAILED &&
-							result.retryable
-					if (!result.complete && !cleanupIsDurablyDeferred) {
-						failures += "Ambient Steps provider: ${result.failure}"
+					if (result is TrackingPurposeSettingsReconciliationResult.Debt) {
+						failures += CollectedDataProviderFenceFailure.PurposeOwners(result.debt)
 					}
 				}
 				ProviderFenceAttempt.Failed ->
-					failures += "Ambient Steps provider: unavailable"
+					failures += CollectedDataProviderFenceFailure.PurposeOwners(
+						unavailablePurposeDebt(),
+					)
 				ProviderFenceAttempt.TimedOut ->
-					failures += "Ambient Steps provider: timed out"
+					failures += CollectedDataProviderFenceFailure.PurposeOwners(
+						inProgressPurposeDebt(),
+					)
 			}
 		}
-		when (runBoundedProviderFence { writerQuiescer.quiesce() }) {
+		when (runBoundedProviderFence(WRITER_FENCE_FLIGHT) { writerQuiescer.quiesce() }) {
 			is ProviderFenceAttempt.Completed -> Unit
-			ProviderFenceAttempt.Failed -> failures += "collected-data writers: unavailable"
-			ProviderFenceAttempt.TimedOut -> failures += "collected-data writers: timed out"
+			ProviderFenceAttempt.Failed ->
+				failures += CollectedDataProviderFenceFailure.WritersUnavailable
+			ProviderFenceAttempt.TimedOut ->
+				failures += CollectedDataProviderFenceFailure.WritersInProgress
 		}
-		if (failures.isNotEmpty()) {
-			throw DatabaseMigrationBackupException(
-				"Could not fence ${failures.joinToString()}",
+		return failures.takeIf { it.isNotEmpty() }?.let {
+			CollectedDataDeletionCompletion.Retryable(
+				CollectedDataDeletionReconciliationFailure.ProviderFence(
+					CollectedDataProviderFenceDebt(failures),
+				),
 			)
 		}
 	}
 
 	private suspend fun <T> runBoundedProviderFence(
+		key: String,
 		operation: suspend () -> T,
 	): ProviderFenceAttempt<T> = withContext(NonCancellable) {
-		val task = CoroutineScope(currentCoroutineContext().minusKey(Job)).async {
-			runCatching { operation() }
+		@Suppress("UNCHECKED_CAST")
+		val task = providerFenceFlightMutex.withLock {
+			providerFenceFlights[key] ?: providerFenceScope.async {
+				runCatching { operation() as Any? }
+			}.also { providerFenceFlights[key] = it }
+		} as Deferred<Result<T>>
+		val result = try {
+			withTimeoutOrNull(providerFenceTimeoutMs) {
+				task.await()
+			}
+		} catch (_: CancellationException) {
+			Result.failure<T>(
+				IllegalStateException("Provider fence owner scope was cancelled"),
+			)
 		}
-		val result = withTimeoutOrNull(providerFenceTimeoutMs) {
-			task.await()
+		if (result != null) {
+			providerFenceFlightMutex.withLock {
+				if (providerFenceFlights[key] === task) providerFenceFlights.remove(key)
+			}
 		}
+
 		if (result == null) {
-			task.cancel()
 			ProviderFenceAttempt.TimedOut
 		} else {
 			result.fold(
@@ -702,6 +742,49 @@ class DefaultCollectedDataDeletionService(
 			)
 		}
 	}
+
+	private suspend fun awaitStartupQuiescence(): CollectedDataDeletionCompletion? =
+		try {
+			startupDeletionBarrier.awaitQuiescence()
+			null
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			providerFenceRetry(
+				CollectedDataProviderFenceFailure.StartupQuiescenceInProgress,
+			)
+		}
+
+	private fun unavailablePurposeDebt(): TrackingPurposeSettingsReconciliationDebt =
+		TrackingPurposeSettingsReconciliationDebt(
+			listOf(
+				TrackingPurposeSettingsReconciliationFailure(
+					source = null,
+					reason = TrackingPurposeSettingsReconciliationFailureReason
+						.OWNER_RECONCILIATION_FAILED,
+				),
+			),
+		)
+
+	private fun inProgressPurposeDebt(): TrackingPurposeSettingsReconciliationDebt =
+		TrackingPurposeSettingsReconciliationDebt(
+			listOf(
+				TrackingPurposeSettingsReconciliationFailure(
+					source = null,
+					reason = TrackingPurposeSettingsReconciliationFailureReason
+						.OWNER_OPERATION_IN_PROGRESS,
+				),
+			),
+		)
+
+	private fun providerFenceRetry(
+		vararg failures: CollectedDataProviderFenceFailure,
+	): CollectedDataDeletionCompletion.Retryable =
+		CollectedDataDeletionCompletion.Retryable(
+			CollectedDataDeletionReconciliationFailure.ProviderFence(
+				CollectedDataProviderFenceDebt(failures.toList()),
+			),
+		)
 
 	/** Completes both local diagnostic stores inside the durable, retryable deletion operation. */
 	private suspend fun deleteDiagnostics() {
@@ -927,27 +1010,81 @@ class DefaultCollectedDataDeletionService(
 		}
 	}
 
-	private suspend fun fenceAfterMarkerPublicationFailure() {
-		val activityRegistrationArbiter = try {
-			activityRegistrationArbiterProvider?.get()
-		} catch (_: Exception) {
-			null
+	private suspend fun fenceAfterMarkerPublicationFailure(
+		original: CollectedDataDeletionCompletion,
+	): CollectedDataDeletionCompletion {
+		if (!markerFile.exists() && !preparedMarkerFile.exists()) {
+			if (startupDeletionBarrier.isClosed) startupDeletionBarrier.reopen()
+			return original
 		}
-		val ambientStepsProviderLifecycle = try {
-			ambientStepsProviderLifecycleProvider?.get()
-		} catch (_: Exception) {
-			null
+		startupDeletionBarrier.beginCloseAdmission()
+		val dependencies = resolveProviderFenceDependencies()
+		val fenceFailures = runProviderFenceProtocol(dependencies)
+		if (fenceFailures.isEmpty()) return original
+		val debt = CollectedDataProviderFenceDebt(fenceFailures)
+		val combined = CollectedDataDeletionReconciliationFailure.DeletionPreparationAndFence(
+			journalFailureCode = when (original) {
+				CollectedDataDeletionCompletion.Complete -> "UNKNOWN"
+				is CollectedDataDeletionCompletion.Retryable -> original.failure.failureCode
+				is CollectedDataDeletionCompletion.Unverifiable -> original.failure.failureCode
+			},
+			fenceDebt = debt,
+		)
+		return if (original is CollectedDataDeletionCompletion.Unverifiable) {
+			CollectedDataDeletionCompletion.Unverifiable(combined)
+		} else {
+			CollectedDataDeletionCompletion.Retryable(combined)
 		}
-		try {
-			fenceCollectedDataWriters(
-				activityRegistrationArbiter,
-				ambientStepsProviderLifecycle,
-			)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (_: Exception) {
-			Unit
+	}
+
+	private fun CollectedDataDeletionCompletion.providerFenceFailures():
+		List<CollectedDataProviderFenceFailure> =
+		(
+			(this as? CollectedDataDeletionCompletion.Retryable)
+				?.failure as? CollectedDataDeletionReconciliationFailure.ProviderFence
+			)?.debt?.failures ?: listOf(CollectedDataProviderFenceFailure.WritersUnavailable)
+
+	private suspend fun runProviderFenceProtocol(
+		dependencies: ProviderFenceDependencies,
+	): List<CollectedDataProviderFenceFailure> {
+		val first = fenceCollectedDataWriters(
+			dependencies.activity,
+			dependencies.purposes,
+		)?.providerFenceFailures().orEmpty()
+		val quiescence = awaitStartupQuiescence()
+			?.providerFenceFailures()
+			.orEmpty()
+		val final = fenceCollectedDataWriters(
+			dependencies.activity,
+			dependencies.purposes,
+		)?.providerFenceFailures().orEmpty()
+		if (dependencies.failures.isEmpty() && quiescence.isEmpty() && final.isEmpty()) {
+			return emptyList()
 		}
+		return dependencies.failures + first + quiescence + final
+	}
+
+	private fun resolveProviderFenceDependencies(): ProviderFenceDependencies {
+		val failures = mutableListOf<CollectedDataProviderFenceFailure>()
+		val activity = activityRegistrationArbiterProvider?.let { provider ->
+			try {
+				provider.get()
+			} catch (_: Exception) {
+				failures += CollectedDataProviderFenceFailure.Activity("RESOLUTION_FAILED")
+				null
+			}
+		}
+		val purposes = purposeDeletionFencerProvider?.let { provider ->
+			try {
+				provider.get()
+			} catch (_: Exception) {
+				failures += CollectedDataProviderFenceFailure.PurposeOwners(
+					unavailablePurposeDebt(),
+				)
+				null
+			}
+		}
+		return ProviderFenceDependencies(activity, purposes, failures)
 	}
 
 	private fun requireMatchingDatabaseOperation(
@@ -1048,8 +1185,17 @@ class DefaultCollectedDataDeletionService(
 		data object TimedOut : ProviderFenceAttempt<Nothing>
 	}
 
+	private data class ProviderFenceDependencies(
+		val activity: ActivityRegistrationArbiter?,
+		val purposes: TrackingPurposeDeletionFencer?,
+		val failures: List<CollectedDataProviderFenceFailure>,
+	)
+
 	private companion object {
 		const val PROVIDER_FENCE_TIMEOUT_MS = 30_000L
+		const val ACTIVITY_FENCE_FLIGHT = "activity"
+		const val PURPOSE_FENCE_FLIGHT = "purpose"
+		const val WRITER_FENCE_FLIGHT = "writers"
 		const val DELETION_MARKER_VERSION = "TRACKER_COLLECTED_DATA_DELETION_V2"
 		const val DELETION_MARKER_LINE_COUNT = 5
 		const val NULL_RETAINED_FROM = -1L

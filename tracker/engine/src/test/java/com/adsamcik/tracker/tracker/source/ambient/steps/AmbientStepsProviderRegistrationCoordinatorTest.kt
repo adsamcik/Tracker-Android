@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionDecision
 import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecision
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -13,6 +14,8 @@ import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyReposito
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
@@ -109,6 +112,39 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 	fun tearDown() {
 		database.close()
 		deleteCleanupFiles()
+	}
+
+	private suspend fun SourceBroker.replaceAmbientStepsDemand(
+		consumerId: String,
+		mechanism: AmbientStepsAcquisitionMechanism?,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): AmbientStepsDemandResult {
+		val retention = requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		)
+		return replaceAmbientStepsDemand(
+			consumerId = consumerId,
+			mechanism = mechanism,
+			leaseIdentity = AmbientReconciliationIdentity(
+				source = AmbientTrackingSource.STEPS,
+				policyRevision = requireNotNull(retention.sourcePolicyRevision),
+				consentEpoch = requireNotNull(retention.ambientConsentEpoch),
+				collectedDataEpoch = retention.collectedDataEpoch,
+				rolloutRevision = 1L,
+				ownerCasToken = "ambient-steps-coordinator-test",
+				executionRevision = 1L,
+				retainedFromMs = retention.retainedFromMs,
+				retentionPolicyId = retention.opaquePolicyId,
+				retentionApprovalRevision = retention.approvalRevision,
+			),
+			bootId = bootId,
+			elapsedRealtimeNanos = elapsedRealtimeNanos,
+			wallTimeMs = wallTimeMs,
+		)
 	}
 
 	@Test

@@ -16,8 +16,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityBoo
 import com.adsamcik.tracker.app.receiver.BootTrackingRecoveryScheduler
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
-import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
-import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeDeletionFencer
 import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.points.database.PointsDatabase
@@ -213,14 +212,13 @@ object InfrastructureModule {
 		collectedDataLifecycleStore: CollectedDataLifecycleStore,
 		startupDeletionBarrier: TrackingStartupDeletionBarrier,
 		activityRegistrationArbiter: Provider<ActivityRegistrationArbiter>,
-		ambientStepsProviderLifecycle: Provider<AmbientStepsProviderLifecycle>,
+		purposeDeletionFencer: Provider<TrackingPurposeDeletionFencer>,
 		automaticControlRestorer: PostDeletionAutomaticControlRestorer,
 		retentionAuthorityProducer: RetentionAuthorityProducer,
 		sourcePolicyAuthorityBootstrapCoordinator:
 			Provider<SourcePolicyAuthorityBootstrapCoordinator>,
-		@Suppress("UNUSED_PARAMETER")
-		purposeSettingsReconciler: TrackingPurposeSettingsReconciler,
 		stepsWriterTransitionCoordinator: Provider<StepsSessionFactWriterTransitionCoordinator>,
+		@ApplicationScope providerFenceScope: CoroutineScope,
         dispatchersProvider: DispatchersProvider,
         traceboxHandleProvider: TrackerTraceboxHandleProvider,
 		trackingDiagnosticDataControl: TrackingDiagnosticDataControl,
@@ -232,7 +230,7 @@ object InfrastructureModule {
 		collectedDataLifecycleStore = collectedDataLifecycleStore,
 		startupDeletionBarrier = startupDeletionBarrier,
 		activityRegistrationArbiterProvider = activityRegistrationArbiter,
-		ambientStepsProviderLifecycleProvider = ambientStepsProviderLifecycle,
+		purposeDeletionFencerProvider = purposeDeletionFencer,
 		automaticControlRestorer = automaticControlRestorer,
 		retentionAuthorityProducer = retentionAuthorityProducer,
 		sourcePolicyAuthorityBootstrapCoordinatorProvider =
@@ -244,6 +242,7 @@ object InfrastructureModule {
 				updatedAtMs = operation.deletedAtMs,
 			)
 		},
+		providerFenceScope = providerFenceScope,
         traceboxDataDeletion = {
             withContext(dispatchersProvider.io) {
                 traceboxHandleProvider.handle.delete(DeleteRequest.ALL_TRACEBOX_DATA) ==

@@ -1,8 +1,13 @@
 package com.adsamcik.tracker.shared.preferences.retention
 
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * Serializes collected-data lifecycle transitions with retention bootstrap, reads, and writes.
@@ -20,27 +25,46 @@ class RetentionAuthorityOperationLease {
 	suspend fun <T> withPermit(
 		operation: suspend (RetentionAuthorityOperationPermit) -> T,
 	): T = mutex.withLock {
-		val permit = RetentionAuthorityOperationPermit(this)
-		try {
-			operation(permit)
-		} finally {
-			permit.invalidate()
+		val context = RetentionAuthorityOperationContext(this)
+		withContext(context) {
+			val permit = RetentionAuthorityOperationPermit(
+				owner = this@RetentionAuthorityOperationLease,
+				ownerJob = checkNotNull(currentCoroutineContext()[Job]) {
+					"Retention authority operation requires a coroutine Job"
+				},
+				operationContext = context,
+			)
+			try {
+				operation(permit)
+			} finally {
+				permit.invalidate()
+			}
 		}
 	}
 
-	internal fun requireOwned(permit: RetentionAuthorityOperationPermit) {
+	internal suspend fun requireOwned(permit: RetentionAuthorityOperationPermit) {
 		permit.requireActive(this)
 	}
 }
 
 class RetentionAuthorityOperationPermit internal constructor(
 	internal val owner: RetentionAuthorityOperationLease,
+	private val ownerJob: Job,
+	private val operationContext: RetentionAuthorityOperationContext,
 ) {
 	private val active = AtomicBoolean(true)
 
-	internal fun requireActive(expectedOwner: RetentionAuthorityOperationLease = owner) {
+	suspend fun validate() {
+		requireActive()
+	}
+
+	internal suspend fun requireActive(expectedOwner: RetentionAuthorityOperationLease = owner) {
 		require(owner === expectedOwner) {
 			"Retention authority operation permit belongs to another lifecycle boundary"
+		}
+		val current = currentCoroutineContext()
+		require(current[Job] === ownerJob && current[RetentionAuthorityOperationContext] === operationContext) {
+			"Retention authority operation permit is not owned by this exact operation coroutine"
 		}
 		require(active.get()) {
 			"Retention authority operation permit escaped its active lexical scope"
@@ -50,4 +74,10 @@ class RetentionAuthorityOperationPermit internal constructor(
 	internal fun invalidate() {
 		active.set(false)
 	}
+}
+
+internal class RetentionAuthorityOperationContext(
+	val owner: RetentionAuthorityOperationLease,
+) : AbstractCoroutineContextElement(Key) {
+	companion object Key : CoroutineContext.Key<RetentionAuthorityOperationContext>
 }

@@ -39,6 +39,8 @@ class TrackingPurposeAvailabilityTest {
 		val first = automaticIdentity(policy = 8L, consent = 3L, token = "control-first")
 		val started = store.beginOrReplaceAutomaticControlLease(first)
 			.shouldBeInstanceOf<AutomaticControlLeaseStartResult.Started>()
+		store.beginOrReplaceAutomaticControlLease(first)
+			.shouldBeInstanceOf<AutomaticControlLeaseStartResult.InProgress>()
 		started.lease.identity shouldBe first
 		started.snapshot.automaticControl shouldBe
 			AutomaticTrackingOperationalAvailability.Unavailable(
@@ -81,6 +83,22 @@ class TrackingPurposeAvailabilityTest {
 		) shouldBe AutomaticControlPublicationAcceptance.Rejected(
 			TrackingPurposePublicationRejection.CANCELLED,
 		)
+	}
+
+	@Test
+	fun `same ambient identity reports in progress instead of issuing Started twice`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val identity = identity(
+			policy = 10L,
+			consent = 3L,
+			rollout = 4L,
+			token = "ambient-in-progress",
+		)
+
+		store.beginOrReplaceAmbientLease(identity)
+			.shouldBeInstanceOf<AmbientLeaseStartResult.Started>()
+		store.beginOrReplaceAmbientLease(identity)
+			.shouldBeInstanceOf<AmbientLeaseStartResult.InProgress>()
 	}
 
 	@Test

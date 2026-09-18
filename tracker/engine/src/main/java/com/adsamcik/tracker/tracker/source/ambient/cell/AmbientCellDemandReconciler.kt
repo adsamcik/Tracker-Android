@@ -265,6 +265,32 @@ class AmbientCellDemandReconciler @Inject constructor(
 			outcome.reason == AmbientCellDemandBlockReason.REQUEST_DISABLED
 	}
 
+	suspend fun closeForCollectedDataDeletion(): Boolean {
+		val plan = sourceBroker.ambientRadioRetirementPlan(SourceKind.CELL, CONSUMER_ID)
+		if (plan is AmbientRadioRetirementPlan.Unverifiable) return false
+		if (plan is AmbientRadioRetirementPlan.AlreadyRetired) {
+			return sharedController.closeAmbientForCollectedDataDeletion()
+		}
+		plan as AmbientRadioRetirementPlan.Required
+		val attempt = reconciliationAttempts.updateAndGet { current ->
+			Math.addExact(maxOf(current, plan.previousReconciliationAttempt), 1L)
+		}
+		val bootId = clockDomainProvider.current()
+		val elapsedRealtimeNanos = Time.elapsedRealtimeNanos
+		val wallTimeMs = Time.nowMillis
+		val retired = sourceBroker.replaceAmbientCellDemandUnderHeldLease(
+			consumerId = CONSUMER_ID,
+			requested = false,
+			leaseIdentity = plan.lease.identity,
+			reconciliationAttempt = attempt,
+			bootId = bootId,
+			elapsedRealtimeNanos = elapsedRealtimeNanos,
+			wallTimeMs = wallTimeMs,
+		)
+		return retired is AmbientRadioDemandResult.Inactive &&
+			sharedController.closeAmbientForCollectedDataDeletion()
+	}
+
 	private companion object {
 		const val CONSUMER_ID = "app:ambient:cell"
 	}

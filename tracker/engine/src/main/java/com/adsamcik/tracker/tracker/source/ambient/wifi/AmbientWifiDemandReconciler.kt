@@ -270,6 +270,34 @@ class AmbientWifiDemandReconciler @Inject constructor(
 			outcome.reason == AmbientWifiDemandBlockReason.REQUEST_DISABLED
 	}
 
+	suspend fun closeForCollectedDataDeletion(): Boolean {
+		val plan = sourceBroker.ambientRadioRetirementPlan(SourceKind.WIFI, CONSUMER_ID)
+		if (plan is AmbientRadioRetirementPlan.Unverifiable) return false
+		if (plan is AmbientRadioRetirementPlan.AlreadyRetired) {
+			return sharedController.closeAmbientForCollectedDataDeletion()
+		}
+		plan as AmbientRadioRetirementPlan.Required
+		val attempt = reconciliationAttempts.updateAndGet { current ->
+			Math.addExact(maxOf(current, plan.previousReconciliationAttempt), 1L)
+		}
+		val boundary = AmbientWifiDemandBoundary(
+			clockDomainProvider.current(),
+			Time.elapsedRealtimeNanos,
+			Time.nowMillis,
+		)
+		val retired = sourceBroker.replaceAmbientWifiDemandUnderHeldLease(
+			consumerId = CONSUMER_ID,
+			requested = false,
+			leaseIdentity = plan.lease.identity,
+			reconciliationAttempt = attempt,
+			bootId = boundary.bootId,
+			elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+			wallTimeMs = boundary.wallTimeMs,
+		)
+		return retired is AmbientRadioDemandResult.Inactive &&
+			sharedController.closeAmbientForCollectedDataDeletion()
+	}
+
 	private companion object {
 		const val CONSUMER_ID = "app:ambient:wifi"
 	}

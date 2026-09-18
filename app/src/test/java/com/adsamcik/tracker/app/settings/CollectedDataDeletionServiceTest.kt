@@ -42,6 +42,12 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupResult
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.TrackingPurposeDeletionFencer
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailure
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailureReason
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.Runs
@@ -246,9 +252,7 @@ class CollectedDataDeletionServiceTest {
 		var appDeletionCount = 0
 		val service = createService { _, _, _, _ -> appDeletionCount++ }
 
-		runCatching { service.deleteAll() }
-			.exceptionOrNull()
-			.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+		service.deleteAll().shouldBeInstanceOf<CollectedDataDeletionCompletion.Retryable>()
 
 		markerFile.exists() shouldBe true
 		startupDeletionBarrier.isClosed shouldBe true
@@ -273,11 +277,10 @@ class CollectedDataDeletionServiceTest {
 			providerFenceTimeoutMs = 10L,
 		) { _, _, _, _ -> error("database deletion must not start") }
 
-		runCatching { service.deleteAll() }.exceptionOrNull()
-			.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+		service.deleteAll().shouldBeInstanceOf<CollectedDataDeletionCompletion.Retryable>()
 
-		coVerify(exactly = 1) { ambientSteps.closeForCollectedDataDeletion() }
-		coVerify(exactly = 1) { writerQuiescer.quiesce() }
+		coVerify(exactly = 2) { ambientSteps.closeForCollectedDataDeletion() }
+		coVerify(exactly = 2) { writerQuiescer.quiesce() }
 		markerFile.exists() shouldBe true
 		startupDeletionBarrier.isClosed shouldBe true
 	}
@@ -379,7 +382,7 @@ class CollectedDataDeletionServiceTest {
 	}
 
 	@Test
-	fun `durably journalled Ambient Steps removal debt does not block local deletion`() = runTest {
+	fun `durably journalled Ambient Steps removal debt blocks destructive deletion`() = runTest {
 		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
 		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
 			AmbientStepsProviderCleanupResult(
@@ -392,9 +395,9 @@ class CollectedDataDeletionServiceTest {
 			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
 		) { _, _, _, _ -> appDeletionCount += 1 }
 
-		service.deleteAll()
+		service.deleteAll().shouldBeInstanceOf<CollectedDataDeletionCompletion.Retryable>()
 
-		appDeletionCount shouldBe 1
+		appDeletionCount shouldBe 0
 		coVerify(exactly = 2) { ambientSteps.closeForCollectedDataDeletion() }
 		coVerify(exactly = 2) { writerQuiescer.quiesce() }
 	}
@@ -421,7 +424,6 @@ class CollectedDataDeletionServiceTest {
 		service.deleteAll()
 
 		events shouldBe listOf("delete", "retention", "retention")
-		coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
 		markerFile.exists() shouldBe false
 		startupDeletionBarrier.isClosed shouldBe false
 	}
@@ -461,7 +463,6 @@ class CollectedDataDeletionServiceTest {
 			}
 			markerFile.exists() shouldBe true
 			startupDeletionBarrier.isClosed shouldBe true
-			coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
 			coVerify(exactly = 3) { ambientSteps.closeForCollectedDataDeletion() }
 			verify(exactly = 0) { automaticControlRestorer.schedule(any()) }
 		} finally {
@@ -496,7 +497,6 @@ class CollectedDataDeletionServiceTest {
 
 			markerFile.exists() shouldBe false
 			startupDeletionBarrier.isClosed shouldBe false
-			coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
 		} finally {
 			database.close()
 			resetRetentionTestState()
@@ -533,7 +533,6 @@ class CollectedDataDeletionServiceTest {
 					com.adsamcik.tracker.shared.base.database.data
 						.AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
 				)?.collectedDataEpoch shouldBe 1L
-				coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
 			} finally {
 				database.close()
 				resetRetentionTestState()
@@ -613,7 +612,6 @@ class CollectedDataDeletionServiceTest {
 			)
 			markerFile.exists() shouldBe false
 			startupDeletionBarrier.isClosed shouldBe false
-			coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
 		}
 
 	@Test
@@ -634,7 +632,6 @@ class CollectedDataDeletionServiceTest {
 		result.shouldBeInstanceOf<CollectedDataDeletionCompletion.Unverifiable>()
 		markerFile.exists() shouldBe true
 		startupDeletionBarrier.isClosed shouldBe true
-		coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
 		coVerify(exactly = 3) { ambientSteps.closeForCollectedDataDeletion() }
 	}
 
@@ -652,15 +649,13 @@ class CollectedDataDeletionServiceTest {
 			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
 		) { _, _, _, _ -> appDeletionCount += 1 }
 
-		runCatching { service.deleteAll() }
-			.exceptionOrNull()
-			.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+		service.deleteAll().shouldBeInstanceOf<CollectedDataDeletionCompletion.Retryable>()
 
 		appDeletionCount shouldBe 0
 		markerFile.exists() shouldBe true
 		startupDeletionBarrier.isClosed shouldBe true
-		coVerify(exactly = 1) { ambientSteps.closeForCollectedDataDeletion() }
-		coVerify(exactly = 1) { writerQuiescer.quiesce() }
+		coVerify(exactly = 2) { ambientSteps.closeForCollectedDataDeletion() }
+		coVerify(exactly = 2) { writerQuiescer.quiesce() }
 	}
 
 	@Test
@@ -766,7 +761,7 @@ class CollectedDataDeletionServiceTest {
 		coVerify(exactly = 0) {
 			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
 		}
-		coVerify(exactly = 1) { writerQuiescer.quiesce() }
+		coVerify(exactly = 2) { writerQuiescer.quiesce() }
 	}
 
 	@Test
@@ -793,8 +788,8 @@ class CollectedDataDeletionServiceTest {
 			coVerify(exactly = 0) {
 				collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
 			}
-			coVerify(exactly = 1) { ambientSteps.closeForCollectedDataDeletion() }
-			coVerify(exactly = 1) { writerQuiescer.quiesce() }
+			coVerify(exactly = 2) { ambientSteps.closeForCollectedDataDeletion() }
+			coVerify(exactly = 2) { writerQuiescer.quiesce() }
 		}
 
 	@Test
@@ -857,7 +852,6 @@ class CollectedDataDeletionServiceTest {
 		startupDeletionBarrier.isClosed shouldBe false
 		coVerify(exactly = 4) { arbiter.closeForCollectedDataDeletion() }
 		coVerify(exactly = 5) { ambientSteps.closeForCollectedDataDeletion() }
-		coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
 		coVerify(exactly = 4) { writerQuiescer.quiesce() }
 		coVerify(exactly = 1) {
 			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
@@ -896,7 +890,6 @@ class CollectedDataDeletionServiceTest {
 		startupDeletionBarrier.isClosed shouldBe false
 		syncCount shouldBe 5
 		coVerify(exactly = 5) { ambientSteps.closeForCollectedDataDeletion() }
-		coVerify(exactly = 0) { ambientSteps.reconcileAfterSettingsChange() }
 		coVerify(exactly = 4) { writerQuiescer.quiesce() }
 		coVerify(exactly = 1) {
 			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
@@ -1195,7 +1188,30 @@ class CollectedDataDeletionServiceTest {
 		collectedDataLifecycleStore = collectedDataLifecycleStore,
 		startupDeletionBarrier = startupDeletionBarrier,
 		activityRegistrationArbiterProvider = activityRegistrationArbiterProvider,
-		ambientStepsProviderLifecycleProvider = ambientStepsProviderLifecycleProvider,
+		purposeDeletionFencerProvider = ambientStepsProviderLifecycleProvider?.let { lifecycle ->
+			Provider {
+				TrackingPurposeDeletionFencer {
+					val cleanup = lifecycle.get().closeForCollectedDataDeletion()
+					if (cleanup.complete) {
+						TrackingPurposeSettingsReconciliationResult.Complete(
+							setOf(AmbientTrackingSource.STEPS),
+						)
+					} else {
+						TrackingPurposeSettingsReconciliationResult.Debt(
+							TrackingPurposeSettingsReconciliationDebt(
+								listOf(
+									TrackingPurposeSettingsReconciliationFailure(
+										AmbientTrackingSource.STEPS,
+										TrackingPurposeSettingsReconciliationFailureReason
+											.RETIREMENT_FAILED,
+									),
+								),
+							),
+						)
+					}
+				}
+			}
+		},
 		automaticControlRestorer = automaticControlRestorer,
 		retentionAuthorityProducer = retentionAuthorityProducer,
 		sourcePolicyAuthorityBootstrapCoordinatorProvider =

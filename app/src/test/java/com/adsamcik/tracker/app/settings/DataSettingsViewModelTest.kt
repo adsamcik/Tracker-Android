@@ -24,10 +24,13 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnava
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigurationApprovalResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionPolicyApprovalStatus
 import com.adsamcik.tracker.shared.preferences.retention.RetentionPolicyStage
-import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
 import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
-import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailure
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailureReason
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
@@ -73,7 +76,6 @@ class DataSettingsViewModelTest {
     private val smartGoalNotificationsFlow = MutableStateFlow(true)
     private val retentionAuthorityProducer: RetentionAuthorityProducer = mockk()
     private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler = mockk()
-    private val ambientStepsProviderLifecycle: AmbientStepsProviderLifecycle = mockk()
     private var configurationGeneration = 0L
     private lateinit var stagedPolicy: ApprovedRetentionPolicy
 
@@ -138,9 +140,8 @@ class DataSettingsViewModelTest {
             approvalStatusFlow.value = RetentionPolicyApprovalStatus.APPROVED
             RetentionConfigurationApprovalResult.Approved(stagedPolicy)
         }
-        coEvery { purposeSettingsReconciler.reconcileCurrentSettings() } just Runs
-        coEvery { ambientStepsProviderLifecycle.reconcileAfterSettingsChange() } returns
-            AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
+        coEvery { purposeSettingsReconciler.reconcileCurrentSettings() } returns
+            TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
     }
 
     @AfterEach
@@ -159,7 +160,6 @@ class DataSettingsViewModelTest {
         deletionService = deletionService,
         retentionAuthorityProducer = retentionAuthorityProducer,
         purposeSettingsReconciler = purposeSettingsReconciler,
-        ambientStepsProviderLifecycle = ambientStepsProviderLifecycle,
     )
 
     // =========================================================================
@@ -271,6 +271,33 @@ class DataSettingsViewModelTest {
         }
 
         @Test
+        fun `retention setting surfaces typed purpose reconciliation debt`() =
+            runTest(testDispatcher) {
+                val debt = TrackingPurposeSettingsReconciliationDebt(
+                    listOf(
+                        TrackingPurposeSettingsReconciliationFailure(
+                            AmbientTrackingSource.STEPS,
+                            TrackingPurposeSettingsReconciliationFailureReason
+                                .OWNER_OPERATION_IN_PROGRESS,
+                        ),
+                    ),
+                )
+                coEvery { purposeSettingsReconciler.reconcileCurrentSettings() } returns
+                    TrackingPurposeSettingsReconciliationResult.Debt(debt)
+                val vm = createViewModel()
+
+                vm.uiState.test {
+                    awaitItem()
+                    vm.setAutoCleanupEnabled(true)
+                    var state = awaitItem()
+                    while (state.purposeSettingsReconciliationDebt == null) state = awaitItem()
+                    state.purposeSettingsReconciliationDebt shouldBe debt
+                    state.ambientStepsLifecycleFailure shouldBe
+                        AmbientStepsSettingsReconciliationFailure.DURABLE_AUTHORITY_REJECTED
+                }
+            }
+
+        @Test
         fun `setAutoCleanupEnabled can disable after enabling`() = runTest(testDispatcher) {
             val vm = createViewModel()
             vm.uiState.test {
@@ -348,9 +375,6 @@ class DataSettingsViewModelTest {
                 coVerify(exactly = 2) {
                     purposeSettingsReconciler.reconcileCurrentSettings()
                 }
-                coVerify(exactly = 2) {
-                    ambientStepsProviderLifecycle.reconcileAfterSettingsChange()
-                }
             }
 
         @Test
@@ -360,14 +384,18 @@ class DataSettingsViewModelTest {
             } returns RetentionConfigurationApprovalResult.Unavailable(
                 RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION,
             )
-            coEvery {
-                ambientStepsProviderLifecycle.reconcileAfterSettingsChange()
-            } returns AmbientStepsSettingsReconciliationResult(
-                complete = false,
-                operational = false,
-                failure = AmbientStepsSettingsReconciliationFailure.DURABLE_AUTHORITY_REJECTED,
-                retryable = true,
-            )
+            coEvery { purposeSettingsReconciler.reconcileCurrentSettings() } returns
+                TrackingPurposeSettingsReconciliationResult.Debt(
+                    TrackingPurposeSettingsReconciliationDebt(
+                        listOf(
+                            TrackingPurposeSettingsReconciliationFailure(
+                                AmbientTrackingSource.STEPS,
+                                TrackingPurposeSettingsReconciliationFailureReason
+                                    .RETENTION_AUTHORITY_UNAVAILABLE,
+                            ),
+                        ),
+                    ),
+                )
             val vm = createViewModel()
 
             vm.uiState.test {

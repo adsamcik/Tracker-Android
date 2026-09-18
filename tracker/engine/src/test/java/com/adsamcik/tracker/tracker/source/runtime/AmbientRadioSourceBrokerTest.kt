@@ -482,21 +482,35 @@ class AmbientRadioSourceBrokerTest {
 			reason = "TEST_AMBIENT_RADIO_GRANT",
 		)
 
-	private fun lease(
+	private suspend fun lease(
 		source: AmbientTrackingSource,
 		policyRevision: Long,
 		consentEpoch: Long,
 		ownerCasToken: String,
 		retainedFromMs: Long? = null,
-	) = AmbientReconciliationIdentity(
-		source,
-		policyRevision,
-		consentEpoch,
-		3L,
-		1L,
-		ownerCasToken,
-		retainedFromMs,
-	)
+	): AmbientReconciliationIdentity {
+		val retention = when (source) {
+			AmbientTrackingSource.WIFI ->
+				database.ambientWifiFactDao().latestRetentionAuthority("LIVE_AMBIENT")
+					?.let { it.opaquePolicyId to it.approvalRevision }
+			AmbientTrackingSource.CELL ->
+				database.ambientCellFactDao().latestRetentionAuthority("LIVE_AMBIENT")
+					?.let { it.opaquePolicyId to it.approvalRevision }
+			else -> error("Ambient radio lease requires Wi-Fi or Cell")
+		} ?: ("missing-retention" to 1L)
+		return AmbientReconciliationIdentity(
+			source = source,
+			policyRevision = policyRevision,
+			consentEpoch = consentEpoch,
+			collectedDataEpoch = 3L,
+			rolloutRevision = 1L,
+			ownerCasToken = ownerCasToken,
+			executionRevision = 1L,
+			retainedFromMs = retainedFromMs,
+			retentionPolicyId = retention.first,
+			retentionApprovalRevision = retention.second,
+		)
+	}
 
 	private object PermissiveLeaseGuard : AmbientRadioMutationLeaseGuard {
 		override suspend fun <T> mutateIfCurrent(

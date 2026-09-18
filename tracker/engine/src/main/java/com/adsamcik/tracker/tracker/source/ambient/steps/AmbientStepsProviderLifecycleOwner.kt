@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.ambient.steps
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
 import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
@@ -23,10 +24,14 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 	private val currentBoundary: () -> AmbientStepsDemandBoundary,
 	private val reconcileDemand: suspend (
 		AmbientStepsDemandBoundary,
+		AmbientReconciliationLease,
 	) -> AmbientStepsDemandReconciliation,
 	private val retireDemandAfterAuthorityFailure: suspend (
 		AmbientStepsDemandBoundary,
-	) -> AmbientStepsDemandReconciliation = reconcileDemand,
+		AmbientReconciliationLease?,
+	) -> AmbientStepsDemandReconciliation = { boundary, lease ->
+		reconcileDemand(boundary, requireNotNull(lease))
+	},
 	private val reconcileRegistration: suspend (
 		AmbientStepsDemandReconciliation,
 		AmbientStepsDemandBoundary,
@@ -55,19 +60,19 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 
 	private val mutex = Mutex()
 
-	internal suspend fun reconcile(): AmbientStepsProviderRegistrationResult = mutex.withLock {
+	internal suspend fun reconcile(
+		lease: AmbientReconciliationLease,
+	): AmbientStepsProviderRegistrationResult = mutex.withLock {
 		val boundary = currentBoundary()
-		val demand = reconcileDemand(boundary)
+		val demand = reconcileDemand(boundary, lease)
 		reconcileRegistration(demand, boundary)
 	}
 
-	override suspend fun reconcileAfterSettingsChange(): AmbientStepsSettingsReconciliationResult =
-		reconcile().toPublicSettingsResult()
-
-	override suspend fun retireAfterRetentionAuthorityFailure():
-		AmbientStepsSettingsReconciliationResult = mutex.withLock {
+	internal suspend fun retireAfterRetentionAuthorityFailure(
+		lease: AmbientReconciliationLease?,
+	): AmbientStepsSettingsReconciliationResult = mutex.withLock {
 		val boundary = currentBoundary()
-		val retired = retireDemandAfterAuthorityFailure(boundary)
+		val retired = retireDemandAfterAuthorityFailure(boundary, lease)
 		reconcileRegistration(retired, boundary).toPublicSettingsResult()
 	}
 

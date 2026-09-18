@@ -54,6 +54,23 @@ interface AmbientStepsFactRevisionDao {
 
 	@Query(
 		"SELECT * FROM ambient_steps_retention_authority WHERE scope = :scope " +
+			"AND opaque_policy_id = :opaquePolicyId AND approval_revision = :approvalRevision " +
+			"LIMIT 1",
+	)
+	suspend fun retentionAuthority(
+		scope: String,
+		opaquePolicyId: String,
+		approvalRevision: Long,
+	): AmbientStepsRetentionAuthorityEntity?
+
+	@Query(
+		"SELECT * FROM ambient_steps_retention_authority WHERE scope = :scope " +
+			"ORDER BY approval_revision DESC",
+	)
+	suspend fun retentionAuthorities(scope: String): List<AmbientStepsRetentionAuthorityEntity>
+
+	@Query(
+		"SELECT * FROM ambient_steps_retention_authority WHERE scope = :scope " +
 			"AND effective_boot_id = :bootId " +
 			"AND effective_elapsed_realtime_nanos <= :observedElapsedRealtimeNanos " +
 			"ORDER BY effective_elapsed_realtime_nanos DESC, approval_revision DESC LIMIT 1",

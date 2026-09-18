@@ -36,8 +36,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
-import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
-import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -130,7 +130,7 @@ abstract class RepositoryModule {
 			@ApplicationScope applicationScope: CoroutineScope,
 			trackingStartupGate: TrackingStartupGate,
 			retentionAuthorityProducer: RetentionAuthorityProducer,
-			ambientStepsProviderLifecycle: Provider<AmbientStepsProviderLifecycle>,
+			purposeSettingsReconciler: Provider<TrackingPurposeSettingsReconciler>,
 		): AuthoritativeTrackingParamsRepository = AuthoritativeTrackingParamsRepository(
 			legacy = DefaultTrackingParamsRepository(
 				context = context,
@@ -143,13 +143,13 @@ abstract class RepositoryModule {
 			ambientStepsPolicyRevisionReconciler =
 				object : AmbientStepsPolicyRevisionReconciler {
 					override suspend fun reconcileAfterRetentionReissue() =
-						ambientStepsProviderLifecycle.get()
-							.reconcileAfterSettingsChange()
+						purposeSettingsReconciler.get()
+							.reconcileCurrentSettings()
 							.toPolicyRevisionReconciliation()
 
 					override suspend fun retireAfterRetentionDebt() =
-						ambientStepsProviderLifecycle.get()
-							.retireAfterRetentionAuthorityFailure()
+						purposeSettingsReconciler.get()
+							.reconcileCurrentSettings()
 							.toPolicyRevisionReconciliation()
 				},
 		)
@@ -247,13 +247,14 @@ abstract class RepositoryModule {
 	}
 }
 
-private fun AmbientStepsSettingsReconciliationResult.toPolicyRevisionReconciliation():
-	AmbientStepsPolicyRevisionReconciliation = when {
-	complete -> AmbientStepsPolicyRevisionReconciliation.Complete
-	retryable -> AmbientStepsPolicyRevisionReconciliation.Retryable(
-		requireNotNull(failure).name,
-	)
-	else -> AmbientStepsPolicyRevisionReconciliation.Unverifiable(
-		requireNotNull(failure).name,
-	)
+private fun TrackingPurposeSettingsReconciliationResult.toPolicyRevisionReconciliation():
+	AmbientStepsPolicyRevisionReconciliation = when (this) {
+	is TrackingPurposeSettingsReconciliationResult.Complete ->
+		AmbientStepsPolicyRevisionReconciliation.Complete
+	is TrackingPurposeSettingsReconciliationResult.Debt ->
+		AmbientStepsPolicyRevisionReconciliation.Retryable(
+			debt.failures.joinToString(separator = ",") { failure ->
+				"${failure.source?.name ?: "GLOBAL"}:${failure.reason.name}"
+			},
+		)
 }

@@ -34,6 +34,9 @@ import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAuthorityRevision
 import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
+import com.adsamcik.tracker.tracker.api.TrackingPurposeReconciliationRetryScheduler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
@@ -46,6 +49,7 @@ import io.mockk.coVerify
 import io.mockk.firstArg
 import io.mockk.mockk
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.async
@@ -395,7 +399,6 @@ class TrackingPurposePublicationRuntimeTest {
 			executionRevision = 7L,
 			retainedFromMs = 100L,
 		)
-		var token = 0
 		val runtime = DefaultTrackingPurposePublicationRuntime(
 			SerializedTrackingPurposeLeaseIssuer(
 				authorityReader = TrackingPurposeAuthorityReader { sourcePurpose, execution ->
@@ -725,7 +728,7 @@ class TrackingPurposePublicationRuntimeTest {
 	}
 
 	@Test
-	fun `replaced owner makes an in flight callback stale`() = runTest {
+	fun `owner replacement waits then retires the exact prior lease`() = runTest {
 		val fixture = fixture(
 			authority(
 				source = TrackingSource.STEPS,
@@ -765,19 +768,24 @@ class TrackingPurposePublicationRuntimeTest {
 		}
 		firstLeaseReceived.await()
 
-		fixture.runtime.registerAmbientSourceOwner(
-			AmbientTrackingSource.STEPS,
-			executionRevision = 4L,
-		) {
-			secondIdentity = it.purposeLeaseIdentity
-			AmbientSourceOperationalAvailability.unavailable(
+		val secondRegistration = async {
+			fixture.runtime.registerAmbientSourceOwner(
 				AmbientTrackingSource.STEPS,
-				AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
-				it.purposeLeaseIdentity,
-			)
+				executionRevision = 4L,
+			) {
+				secondIdentity = it.purposeLeaseIdentity
+				AmbientSourceOperationalAvailability.unavailable(
+					AmbientTrackingSource.STEPS,
+					AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+					it.purposeLeaseIdentity,
+				)
+			}
 		}
+		runCurrent()
+		secondIdentity shouldBe null
 		releaseFirst.complete(Unit)
 		firstRegistration.await()
+		secondRegistration.await()
 
 		val published = fixture.store.availability.value.ambientSources
 			.getValue(AmbientTrackingSource.STEPS)
@@ -786,6 +794,57 @@ class TrackingPurposePublicationRuntimeTest {
 		published.lastIdentity shouldBe secondIdentity
 		secondIdentity?.ownerCasToken shouldBe "owner-2"
 		compensatedIdentity?.ownerCasToken shouldBe "owner-1"
+	}
+
+	@Test
+	fun `overlapping reconciliation coalesces one exact lease and one owner callback`() = runTest {
+		val fixture = fixture(
+			authority(
+				source = TrackingSource.STEPS,
+				purpose = TrackingPurpose.AMBIENT_PRODUCT,
+				executionRevision = 4L,
+				retainedFromMs = 200L,
+			),
+		)
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		var calls = 0
+		fixture.runtime.registerAmbientSourceOwner(
+			AmbientTrackingSource.STEPS,
+			executionRevision = 4L,
+		) { lease ->
+			calls += 1
+			if (calls == 2) {
+				entered.complete(Unit)
+				release.await()
+			}
+			AmbientSourceOperationalAvailability.ready(
+				AmbientTrackingSource.STEPS,
+				AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+				lease.purposeLeaseIdentity,
+			)
+		}
+		val first = async {
+			fixture.runtime.reconcile(
+				expectedStartupGeneration = 7L,
+				retainedFromMs = 200L,
+				approvedSources = setOf(AmbientTrackingSource.STEPS),
+			)
+		}
+		entered.await()
+		val second = async {
+			fixture.runtime.reconcile(
+				expectedStartupGeneration = 7L,
+				retainedFromMs = 200L,
+				approvedSources = setOf(AmbientTrackingSource.STEPS),
+			)
+		}
+		runCurrent()
+
+		calls shouldBe 2
+		release.complete(Unit)
+		second.await() shouldBe first.await()
+		calls shouldBe 2
 	}
 
 	@Test
@@ -979,6 +1038,69 @@ class TrackingPurposePublicationRuntimeTest {
 	}
 
 	@Test
+	fun `timed out owner callback remains owned and retry accepts its exact late result`() = runTest {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val authority = authority(
+			source = TrackingSource.STEPS,
+			purpose = TrackingPurpose.AMBIENT_PRODUCT,
+			executionRevision = 7L,
+			retainedFromMs = 200L,
+		)
+		var token = 0
+		val runtime = DefaultTrackingPurposePublicationRuntime(
+			leaseIssuer = SerializedTrackingPurposeLeaseIssuer(
+				authorityReader = TrackingPurposeAuthorityReader { sourcePurpose, execution ->
+					authority.takeIf { it.sourcePurpose == sourcePurpose }
+						?.copy(executionRevision = execution)
+				},
+				reporter = store,
+				tokenFactory = TrackingPurposeOwnerCasTokenFactory { "late-owner-result-${++token}" },
+			),
+			reporter = store,
+			executionRevisionRegistry = TrackingPurposeExecutionRevisionRegistry(),
+			retentionAuthorityProducer = AlwaysApprovedRetentionAuthorityProducer,
+			ownerCallbackScope = backgroundScope,
+			ownerCallbackTimeoutMillis = 10L,
+		)
+		val release = CompletableDeferred<Unit>()
+		var calls = 0
+		runtime.registerAmbientSourceOwner(
+			AmbientTrackingSource.STEPS,
+			executionRevision = 7L,
+		) { lease ->
+			calls += 1
+			if (calls == 2) release.await()
+			AmbientSourceOperationalAvailability.ready(
+				AmbientTrackingSource.STEPS,
+				AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+				lease.purposeLeaseIdentity,
+			)
+		}
+
+		val timedOut = fixtureResult(
+			runtime.reconcile(
+				expectedStartupGeneration = 7L,
+				retainedFromMs = 200L,
+				approvedSources = setOf(AmbientTrackingSource.STEPS),
+			),
+		)
+		timedOut.debt.failures.single().reason shouldBe
+			com.adsamcik.tracker.tracker.api
+				.TrackingRetentionFloorReconciliationFailureReason.OWNER_OPERATION_IN_PROGRESS
+
+		release.complete(Unit)
+		runCurrent()
+		runtime.reconcile(
+			expectedStartupGeneration = 7L,
+			retainedFromMs = 200L,
+			approvedSources = setOf(AmbientTrackingSource.STEPS),
+		).shouldBeInstanceOf<
+			com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciliationResult.Complete
+		>()
+		calls shouldBe 2
+	}
+
+	@Test
 	fun `source mismatch cannot publish another ambient owners status`() = runTest {
 		val fixture = fixture(
 			authority(
@@ -1059,6 +1181,80 @@ class TrackingPurposePublicationRuntimeTest {
 		}
 	}
 
+	@Test
+	fun `settings reconciliation aggregates all owner debt before persisting retry ownership`() =
+		runTest {
+			val scheduled = mutableListOf<TrackingPurposeSettingsReconciliationDebt>()
+			val fixture = fixtureWithScheduler(
+				TrackingPurposeReconciliationRetryScheduler { debt ->
+					scheduled += debt
+					true
+				},
+				authority(
+					source = TrackingSource.LOCATION,
+					purpose = TrackingPurpose.AMBIENT_PRODUCT,
+					executionRevision = 0L,
+				),
+			)
+
+			val result = fixture.runtime.reconcileCurrentSettings()
+				.shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Debt>()
+
+			result.debt.failures.mapNotNull { it.source }.toSet() shouldBe
+				AmbientTrackingSource.entries.toSet()
+			scheduled shouldBe listOf(result.debt)
+		}
+
+	@Test
+	fun `collected data deletion fences every previously owned ambient source`() = runTest {
+		val fixture = fixture(
+			*AmbientTrackingSource.entries
+				.filterNot { it == AmbientTrackingSource.LOCATION }
+				.map { source ->
+					authority(
+						source = source.canonicalSource,
+						purpose = TrackingPurpose.AMBIENT_PRODUCT,
+						executionRevision = 1L,
+					)
+				}
+				.toTypedArray(),
+		)
+		val closed = mutableSetOf<AmbientTrackingSource>()
+		AmbientTrackingSource.entries
+			.filterNot { it == AmbientTrackingSource.LOCATION }
+			.forEach { source ->
+				fixture.runtime.registerAmbientSourceOwner(
+					source,
+					executionRevision = 1L,
+					callback = object : AmbientSourceReconciliationCallback {
+						override suspend fun reconcile(
+							lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
+						) = AmbientSourceOperationalAvailability.unavailable(
+							source,
+							AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+							lease.purposeLeaseIdentity,
+						)
+
+						override suspend fun closeForCollectedDataDeletion(
+							previousLease:
+								com.adsamcik.tracker.tracker.api.AmbientReconciliationLease?,
+						): Boolean {
+							closed += source
+							return true
+						}
+					},
+				)
+			}
+
+		fixture.runtime.fenceForCollectedDataDeletion() shouldBe
+			TrackingPurposeSettingsReconciliationResult.Complete(closed)
+		closed shouldBe setOf(
+			AmbientTrackingSource.STEPS,
+			AmbientTrackingSource.WIFI,
+			AmbientTrackingSource.CELL,
+		)
+	}
+
 	private fun fixture(
 		vararg authorities: TrackingPurposeAuthoritySnapshot,
 	): Fixture {
@@ -1082,6 +1278,32 @@ class TrackingPurposePublicationRuntimeTest {
 				store,
 				executions,
 				AlwaysApprovedRetentionAuthorityProducer,
+			),
+		)
+	}
+
+	private fun fixtureWithScheduler(
+		scheduler: TrackingPurposeReconciliationRetryScheduler,
+		vararg authorities: TrackingPurposeAuthoritySnapshot,
+	): Fixture {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val byPurpose = authorities.associateBy(TrackingPurposeAuthoritySnapshot::sourcePurpose)
+		var token = 0
+		val issuer = SerializedTrackingPurposeLeaseIssuer(
+			authorityReader = TrackingPurposeAuthorityReader { sourcePurpose, registeredExecution ->
+				byPurpose[sourcePurpose]?.copy(executionRevision = registeredExecution)
+			},
+			reporter = store,
+			tokenFactory = TrackingPurposeOwnerCasTokenFactory { "owner-${++token}" },
+		)
+		return Fixture(
+			store,
+			DefaultTrackingPurposePublicationRuntime(
+				leaseIssuer = issuer,
+				reporter = store,
+				executionRevisionRegistry = TrackingPurposeExecutionRevisionRegistry(),
+				retentionAuthorityProducer = AlwaysApprovedRetentionAuthorityProducer,
+				retryScheduler = scheduler,
 			),
 		)
 	}
@@ -1369,7 +1591,10 @@ private class MutableRolloutStateStore(
 }
 
 private object AlwaysApprovedRetentionAuthorityProducer : RetentionAuthorityProducer {
-	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> = emptyList()
+	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> =
+		listOf(TrackingSource.STEPS, TrackingSource.WIFI, TrackingSource.CELL).map { source ->
+			activeResult(source, RetentionAuthorityScope.LIVE_AMBIENT)
+		}
 
 	override suspend fun preparePendingConfiguration(
 		expectedConfigurationGeneration: Long,
@@ -1415,7 +1640,8 @@ private object AlwaysApprovedRetentionAuthorityProducer : RetentionAuthorityProd
 }
 
 private object UnavailableRetentionAuthorityProducerForTest : RetentionAuthorityProducer {
-	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> = emptyList()
+	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> =
+		listOf(TrackingSource.STEPS, TrackingSource.WIFI, TrackingSource.CELL).map(::unavailableResult)
 
 	override suspend fun preparePendingConfiguration(
 		expectedConfigurationGeneration: Long,

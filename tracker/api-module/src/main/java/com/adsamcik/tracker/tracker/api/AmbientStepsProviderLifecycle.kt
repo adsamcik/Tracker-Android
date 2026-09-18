@@ -7,8 +7,6 @@ package com.adsamcik.tracker.tracker.api
  * erasing the database. No observation, provider identity, or account data crosses this contract.
  */
 interface AmbientStepsProviderLifecycle {
-	suspend fun reconcileAfterSettingsChange(): AmbientStepsSettingsReconciliationResult
-	suspend fun retireAfterRetentionAuthorityFailure(): AmbientStepsSettingsReconciliationResult
 	suspend fun closeForCollectedDataDeletion(): AmbientStepsProviderCleanupResult
 }
 
@@ -36,12 +34,6 @@ enum class AmbientStepsSettingsReconciliationFailure {
 }
 
 object NoOpAmbientStepsProviderLifecycle : AmbientStepsProviderLifecycle {
-	override suspend fun reconcileAfterSettingsChange() =
-		AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
-
-	override suspend fun retireAfterRetentionAuthorityFailure() =
-		AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
-
 	override suspend fun closeForCollectedDataDeletion() =
 		AmbientStepsProviderCleanupResult(complete = true)
 }

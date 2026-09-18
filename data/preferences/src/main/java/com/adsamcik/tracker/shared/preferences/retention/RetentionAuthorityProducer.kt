@@ -336,7 +336,12 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		permit: RetentionAuthorityOperationPermit,
 	): List<RetentionAuthorityResult> {
 		operationLease.requireOwned(permit)
-		return mutex.withLock { reconcileCurrentSettingsLocked() }
+		return mutex.withLock {
+			operationLease.requireOwned(permit)
+			reconcileCurrentSettingsLocked().also {
+				operationLease.requireOwned(permit)
+			}
+		}
 	}
 
 	private suspend fun reconcileCurrentSettingsLocked(): List<RetentionAuthorityResult> {

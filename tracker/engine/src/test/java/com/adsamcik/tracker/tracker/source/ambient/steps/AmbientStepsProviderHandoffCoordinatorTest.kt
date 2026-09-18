@@ -8,6 +8,9 @@ import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecis
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -506,13 +509,32 @@ class AmbientStepsProviderHandoffCoordinatorTest {
 	private suspend fun replaceDemand(
 		mechanism: AmbientStepsAcquisitionMechanism,
 		atMs: Long,
-	): AmbientStepsDemandResult.Active = broker.replaceAmbientStepsDemand(
-		consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
-		mechanism = mechanism,
-		bootId = BOOT_ID,
-		elapsedRealtimeNanos = atMs,
-		wallTimeMs = atMs,
-	) as AmbientStepsDemandResult.Active
+	): AmbientStepsDemandResult.Active {
+		val retention = requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		)
+		return broker.replaceAmbientStepsDemand(
+			consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
+			mechanism = mechanism,
+			leaseIdentity = AmbientReconciliationIdentity(
+				source = AmbientTrackingSource.STEPS,
+				policyRevision = requireNotNull(retention.sourcePolicyRevision),
+				consentEpoch = requireNotNull(retention.ambientConsentEpoch),
+				collectedDataEpoch = retention.collectedDataEpoch,
+				rolloutRevision = 1L,
+				ownerCasToken = "ambient-steps-handoff-test",
+				executionRevision = 1L,
+				retainedFromMs = retention.retainedFromMs,
+				retentionPolicyId = retention.opaquePolicyId,
+				retentionApprovalRevision = retention.approvalRevision,
+			),
+			bootId = BOOT_ID,
+			elapsedRealtimeNanos = atMs,
+			wallTimeMs = atMs,
+		) as AmbientStepsDemandResult.Active
+	}
 
 	private fun handoffCommand(
 		successor: AmbientStepsProviderRegistration,

@@ -4,6 +4,8 @@ import com.adsamcik.tracker.tracker.api.AtomicTrackingPurposeAvailabilityStore
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReporter
+import com.adsamcik.tracker.tracker.api.TrackingPurposeDeletionFencer
+import com.adsamcik.tracker.tracker.api.TrackingPurposeReconciliationRetryScheduler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSourceOwnerRegistrar
 import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciler
@@ -14,6 +16,7 @@ import com.adsamcik.tracker.tracker.source.runtime.DefaultAmbientStepsPurposeOwn
 import com.adsamcik.tracker.tracker.source.runtime.DefaultTrackingPurposePublicationRuntime
 import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeAuthorityReader
 import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeOwnerCasTokenFactory
+import com.adsamcik.tracker.tracker.worker.TrackingPurposeReconciliationWorkScheduler
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -34,6 +37,16 @@ internal abstract class TrackingPurposePublicationModule {
 	internal abstract fun bindSettingsReconciler(
 		impl: DefaultTrackingPurposePublicationRuntime,
 	): TrackingPurposeSettingsReconciler
+
+	@Binds
+	internal abstract fun bindDeletionFencer(
+		impl: DefaultTrackingPurposePublicationRuntime,
+	): TrackingPurposeDeletionFencer
+
+	@Binds
+	internal abstract fun bindReconciliationRetryScheduler(
+		impl: TrackingPurposeReconciliationWorkScheduler,
+	): TrackingPurposeReconciliationRetryScheduler
 
 	@Binds
 	internal abstract fun bindRetentionFloorReconciler(

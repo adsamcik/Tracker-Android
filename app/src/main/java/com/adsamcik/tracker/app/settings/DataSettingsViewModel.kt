@@ -22,9 +22,10 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigurationA
 import com.adsamcik.tracker.shared.preferences.retention.RetentionPolicyApprovalStatus
 import com.adsamcik.tracker.shared.preferences.retention.UnavailableRetentionAuthorityProducer
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
-import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
 import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
-import com.adsamcik.tracker.tracker.api.NoOpAmbientStepsProviderLifecycle
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -91,6 +92,7 @@ data class DataSettingsUiState(
         RetentionPolicyApprovalStatus.UNAPPROVED,
     val retentionPolicyFailure: RetentionAuthorityUnavailableReason? = null,
     val ambientStepsLifecycleFailure: AmbientStepsSettingsReconciliationFailure? = null,
+    val purposeSettingsReconciliationDebt: TrackingPurposeSettingsReconciliationDebt? = null,
     val migrationBackup: MigrationBackupUiInfo? = null,
     val legacyDatabase: LegacyDatabaseUiInfo? = null,
 )
@@ -108,9 +110,9 @@ class DataSettingsViewModel @Inject constructor(
     private val retentionAuthorityProducer: RetentionAuthorityProducer =
         UnavailableRetentionAuthorityProducer,
     private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler =
-        TrackingPurposeSettingsReconciler { },
-    private val ambientStepsProviderLifecycle: AmbientStepsProviderLifecycle =
-        NoOpAmbientStepsProviderLifecycle,
+        TrackingPurposeSettingsReconciler {
+            TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
+        },
 ) : ViewModel() {
     private val smartGoalNotificationsKey: String
         get() = appContext.getString(R.string.settings_smart_goal_notifications_key)
@@ -119,6 +121,8 @@ class DataSettingsViewModel @Inject constructor(
         MutableStateFlow<RetentionAuthorityUnavailableReason?>(null)
     private val ambientStepsLifecycleFailure =
         MutableStateFlow<AmbientStepsSettingsReconciliationFailure?>(null)
+    private val purposeSettingsDebt =
+        MutableStateFlow<TrackingPurposeSettingsReconciliationDebt?>(null)
 
     private val retentionState = combine(
         retentionConfigStore.config
@@ -201,6 +205,8 @@ class DataSettingsViewModel @Inject constructor(
         state.copy(retentionPolicyFailure = failure)
     }.combine(ambientStepsLifecycleFailure) { state, failure ->
         state.copy(ambientStepsLifecycleFailure = failure)
+    }.combine(purposeSettingsDebt) { state, debt ->
+        state.copy(purposeSettingsReconciliationDebt = debt)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DataSettingsUiState())
 
     fun setAutoCleanupEnabled(enabled: Boolean) {
@@ -233,6 +239,7 @@ class DataSettingsViewModel @Inject constructor(
     ) {
         retentionFailure.value = null
         ambientStepsLifecycleFailure.value = null
+        purposeSettingsDebt.value = null
         try {
             val result = retentionConfigStore.updateWithApproval(
                 block = block,
@@ -247,9 +254,9 @@ class DataSettingsViewModel @Inject constructor(
                     )
                 },
             )
-            purposeSettingsReconciler.reconcileCurrentSettings()
-            ambientStepsLifecycleFailure.value =
-                ambientStepsProviderLifecycle.reconcileAfterSettingsChange().failure
+            publishPurposeSettingsResult(
+                purposeSettingsReconciler.reconcileCurrentSettings(),
+            )
             retentionFailure.value =
                 (result.approval as? RetentionConfigurationApprovalResult.Unavailable)?.reason
         } catch (cancelled: CancellationException) {
@@ -258,22 +265,33 @@ class DataSettingsViewModel @Inject constructor(
             currentCoroutineContext().ensureActive()
             retentionFailure.value = RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE
             try {
-                purposeSettingsReconciler.reconcileCurrentSettings()
+                publishPurposeSettingsResult(
+                    purposeSettingsReconciler.reconcileCurrentSettings(),
+                )
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
                 retentionFailure.value = RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE
-            }
-            try {
-                ambientStepsLifecycleFailure.value =
-                    ambientStepsProviderLifecycle.reconcileAfterSettingsChange().failure
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
                 ambientStepsLifecycleFailure.value =
                     AmbientStepsSettingsReconciliationFailure.DURABLE_AUTHORITY_REJECTED
             }
         }
+    }
+
+    fun retryPurposeSettingsReconciliation() {
+        viewModelScope.launch {
+            publishPurposeSettingsResult(purposeSettingsReconciler.reconcileCurrentSettings())
+        }
+    }
+
+    private fun publishPurposeSettingsResult(
+        result: TrackingPurposeSettingsReconciliationResult,
+    ) {
+        val debt = (result as? TrackingPurposeSettingsReconciliationResult.Debt)?.debt
+        purposeSettingsDebt.value = debt
+        ambientStepsLifecycleFailure.value = debt?.failures
+            ?.firstOrNull { it.source == AmbientTrackingSource.STEPS }
+            ?.let { AmbientStepsSettingsReconciliationFailure.DURABLE_AUTHORITY_REJECTED }
     }
 
     fun setIncrementalBackupsEnabled(enabled: Boolean) {

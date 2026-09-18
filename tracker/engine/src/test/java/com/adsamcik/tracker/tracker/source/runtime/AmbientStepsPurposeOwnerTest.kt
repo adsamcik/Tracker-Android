@@ -23,7 +23,7 @@ class AmbientStepsPurposeOwnerTest {
 	@Test
 	fun `production owner binds provider readiness to the exact floor lease`() = runTest {
 		val lifecycle = mockk<AmbientStepsProviderLifecycleOwner>()
-		coEvery { lifecycle.reconcile() } returns
+		coEvery { lifecycle.reconcile(any()) } returns
 			AmbientStepsProviderRegistrationResult.Active(
 				provider = AmbientStepsProvider.LOCAL_RECORDING_STEPS,
 				registrationGeneration = 4L,
@@ -31,7 +31,7 @@ class AmbientStepsPurposeOwnerTest {
 				optionalPermissions = emptySet(),
 				rearmedInThisProcess = true,
 			)
-		coEvery { lifecycle.retireAfterRetentionAuthorityFailure() } returns
+		coEvery { lifecycle.retireAfterRetentionAuthorityFailure(any()) } returns
 			AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
 		val lease = AmbientReconciliationLease(
 			AmbientReconciliationIdentity.from(
@@ -46,6 +46,8 @@ class AmbientStepsPurposeOwnerTest {
 					ownerCasToken = "steps-purpose-owner",
 					retainedFromMs = 13L,
 				),
+				retentionPolicyId = "retention-steps",
+				retentionApprovalRevision = 17L,
 			),
 		)
 		val subject = DefaultAmbientStepsPurposeOwner(lifecycle)

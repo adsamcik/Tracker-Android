@@ -187,7 +187,9 @@ class DefaultCollectedDataLifecycleStore(
 		permit: RetentionAuthorityOperationPermit,
 	): CollectedDataLifecycleSnapshot {
 		retentionAuthorityOperationLease.requireOwned(permit)
-		return advanceRetainedFromUnlocked(retainedFromMs)
+		return advanceRetainedFromUnlocked(retainedFromMs).also {
+			retentionAuthorityOperationLease.requireOwned(permit)
+		}
 	}
 
 	private suspend fun advanceRetainedFromUnlocked(

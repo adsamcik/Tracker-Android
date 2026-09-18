@@ -19,6 +19,8 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthoritySta
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
@@ -133,6 +135,39 @@ class AmbientStepsFactImporterTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	private suspend fun SourceBroker.replaceAmbientStepsDemand(
+		consumerId: String,
+		mechanism: AmbientStepsAcquisitionMechanism?,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): AmbientStepsDemandResult {
+		val retention = requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		)
+		return replaceAmbientStepsDemand(
+			consumerId = consumerId,
+			mechanism = mechanism,
+			leaseIdentity = AmbientReconciliationIdentity(
+				source = AmbientTrackingSource.STEPS,
+				policyRevision = requireNotNull(retention.sourcePolicyRevision),
+				consentEpoch = requireNotNull(retention.ambientConsentEpoch),
+				collectedDataEpoch = retention.collectedDataEpoch,
+				rolloutRevision = 1L,
+				ownerCasToken = "ambient-steps-importer-test",
+				executionRevision = 1L,
+				retainedFromMs = retention.retainedFromMs,
+				retentionPolicyId = retention.opaquePolicyId,
+				retentionApprovalRevision = retention.approvalRevision,
+			),
+			bootId = bootId,
+			elapsedRealtimeNanos = elapsedRealtimeNanos,
+			wallTimeMs = wallTimeMs,
+		)
+	}
 
 	@Test
 	fun `applies one bounded structural window from rounded privacy floor atomically`() = runTest {

@@ -466,6 +466,11 @@ sealed interface AutomaticControlLeaseStartResult {
 		val snapshot: TrackingPurposeAvailabilitySnapshot,
 	) : AutomaticControlLeaseStartResult
 
+	data class InProgress(
+		val lease: AutomaticControlReconciliationLease,
+		val snapshot: TrackingPurposeAvailabilitySnapshot,
+	) : AutomaticControlLeaseStartResult
+
 	data class Rejected(
 		val reason: TrackingPurposePublicationRejection,
 	) : AutomaticControlLeaseStartResult
@@ -480,6 +485,8 @@ data class AmbientReconciliationIdentity(
 	val ownerCasToken: String,
 	val executionRevision: Long,
 	val retainedFromMs: Long? = null,
+	val retentionPolicyId: String? = null,
+	val retentionApprovalRevision: Long? = null,
 ) {
 	constructor(
 		source: AmbientTrackingSource,
@@ -498,6 +505,8 @@ data class AmbientReconciliationIdentity(
 		ownerCasToken = ownerCasToken,
 		executionRevision = 0L,
 		retainedFromMs = retainedFromMs,
+		retentionPolicyId = null,
+		retentionApprovalRevision = null,
 	)
 
 	init {
@@ -508,6 +517,9 @@ data class AmbientReconciliationIdentity(
 		require(ownerCasToken.isNotBlank())
 		require(executionRevision >= 0L)
 		require(retainedFromMs == null || retainedFromMs >= 0L)
+		require((retentionPolicyId == null) == (retentionApprovalRevision == null))
+		require(retentionPolicyId == null || retentionPolicyId.isNotBlank())
+		require(retentionApprovalRevision == null || retentionApprovalRevision > 0L)
 	}
 
 	val sourcePurpose: CanonicalSourcePurpose
@@ -526,7 +538,11 @@ data class AmbientReconciliationIdentity(
 		)
 
 	companion object {
-		fun from(identity: TrackingPurposeLeaseIdentity): AmbientReconciliationIdentity {
+		fun from(
+			identity: TrackingPurposeLeaseIdentity,
+			retentionPolicyId: String? = null,
+			retentionApprovalRevision: Long? = null,
+		): AmbientReconciliationIdentity {
 			require(identity.purpose == TrackingPurpose.AMBIENT_PRODUCT) {
 				"Ambient reconciliation requires AMBIENT_PRODUCT purpose"
 			}
@@ -541,6 +557,8 @@ data class AmbientReconciliationIdentity(
 				ownerCasToken = identity.ownerCasToken,
 				executionRevision = identity.executionRevision,
 				retainedFromMs = identity.retainedFromMs,
+				retentionPolicyId = retentionPolicyId,
+				retentionApprovalRevision = retentionApprovalRevision,
 			)
 		}
 	}
@@ -594,6 +612,11 @@ sealed interface AmbientLeaseStartResult {
 		val snapshot: TrackingPurposeAvailabilitySnapshot,
 	) : AmbientLeaseStartResult
 
+	data class InProgress(
+		val lease: AmbientReconciliationLease,
+		val snapshot: TrackingPurposeAvailabilitySnapshot,
+	) : AmbientLeaseStartResult
+
 	data class Rejected(
 		val reason: AmbientPublicationRejection,
 	) : AmbientLeaseStartResult
@@ -639,9 +662,10 @@ fun interface AmbientSourceReconciliationCallback {
 	suspend fun reconcile(lease: AmbientReconciliationLease): AmbientSourceOperationalAvailability
 
 	/**
-	 * Exact cleanup after an apply-then-fail, stale completion, or cancellation. The parent bounds
-	 * this callback and invalidates the lease even when cleanup times out. Implementations with no
-	 * physical side effect may keep the default successful no-op.
+	 * Exact cleanup after an apply-then-fail, stale completion, or cancellation. A bounded timeout
+	 * leaves the exact lease and cleanup flight owned for retry; it never authorizes a replacement
+	 * winner while the old cleanup can still mutate. Implementations with no physical side effect
+	 * may keep the default successful no-op.
 	 */
 	suspend fun compensate(lease: AmbientReconciliationLease): Boolean = true
 
@@ -653,6 +677,14 @@ fun interface AmbientSourceReconciliationCallback {
 	suspend fun retireAfterRetentionAuthorityFailure(
 		previousLease: AmbientReconciliationLease?,
 	): Boolean = previousLease?.let { compensate(it) } ?: true
+
+	/**
+	 * Destructive cleanup boundary used only while collected-data startup admission is closed.
+	 * Implementations must physically fence their source and prove an already-terminal state.
+	 */
+	suspend fun closeForCollectedDataDeletion(
+		previousLease: AmbientReconciliationLease?,
+	): Boolean = retireAfterRetentionAuthorityFailure(previousLease)
 }
 
 fun interface AutomaticControlReconciliationCallback {
@@ -663,6 +695,8 @@ fun interface AutomaticControlReconciliationCallback {
 	suspend fun reconcile(
 		lease: AutomaticControlReconciliationLease,
 	): AutomaticTrackingOperationalAvailability
+
+	suspend fun compensate(lease: AutomaticControlReconciliationLease): Boolean = true
 }
 
 data class TrackingPurposeSourceOwnerRegistration(
@@ -693,9 +727,61 @@ interface TrackingPurposeSourceOwnerRegistrar {
 	suspend fun unregister(registration: TrackingPurposeSourceOwnerRegistration)
 }
 
-/** Existing settings and direct authority collectors use this bounded reconciliation signal. */
+sealed interface TrackingPurposeSettingsReconciliationResult {
+	data class Complete(
+		val reconciledSources: Set<AmbientTrackingSource>,
+	) : TrackingPurposeSettingsReconciliationResult
+
+	data class Debt(
+		val debt: TrackingPurposeSettingsReconciliationDebt,
+	) : TrackingPurposeSettingsReconciliationResult
+}
+
+data class TrackingPurposeSettingsReconciliationDebt(
+	val failures: List<TrackingPurposeSettingsReconciliationFailure>,
+) {
+	init {
+		require(failures.isNotEmpty())
+	}
+}
+
+data class TrackingPurposeSettingsReconciliationFailure(
+	val source: AmbientTrackingSource?,
+	val reason: TrackingPurposeSettingsReconciliationFailureReason,
+	val retentionReason: String? = null,
+)
+
+enum class TrackingPurposeSettingsReconciliationFailureReason {
+	RETENTION_RESULT_SET_INVALID,
+	RETENTION_AUTHORITY_UNAVAILABLE,
+	STARTUP_GENERATION_CHANGED,
+	AUTOMATIC_CONTROL_RECONCILIATION_FAILED,
+	OWNER_OPERATION_IN_PROGRESS,
+	OWNER_RECONCILIATION_FAILED,
+	OWNER_MISSING,
+	PUBLICATION_REJECTED,
+	COMPENSATION_FAILED,
+	COMPENSATION_TIMED_OUT,
+	RETIREMENT_FAILED,
+	RETRY_SCHEDULING_FAILED,
+}
+
+fun interface TrackingPurposeReconciliationRetryScheduler {
+	/**
+	 * Persists one typed retry owner before the caller receives [debt]. Returns false when the
+	 * retry owner could not be installed.
+	 */
+	suspend fun schedule(debt: TrackingPurposeSettingsReconciliationDebt): Boolean
+}
+
+/** Existing settings and direct authority collectors use this typed reconciliation boundary. */
 fun interface TrackingPurposeSettingsReconciler {
-	suspend fun reconcileCurrentSettings()
+	suspend fun reconcileCurrentSettings(): TrackingPurposeSettingsReconciliationResult
+}
+
+/** Negative-only destructive fence used while collected-data startup admission is closed. */
+fun interface TrackingPurposeDeletionFencer {
+	suspend fun fenceForCollectedDataDeletion(): TrackingPurposeSettingsReconciliationResult
 }
 
 fun interface TrackingRetentionFloorReconciler {
@@ -747,6 +833,7 @@ enum class TrackingRetentionFloorReconciliationFailureReason {
 	COMPENSATION_FAILED,
 	COMPENSATION_TIMED_OUT,
 	RETIREMENT_FAILED,
+	OWNER_OPERATION_IN_PROGRESS,
 }
 
 /**
@@ -776,7 +863,7 @@ class AtomicTrackingPurposeAvailabilityStore :
 		}
 		val previous = automaticControlSlot
 		if (previous?.identity == identity && previous.state == PublicationSlotState.ACTIVE) {
-			return@synchronized AutomaticControlLeaseStartResult.Started(
+			return@synchronized AutomaticControlLeaseStartResult.InProgress(
 				lease = AutomaticControlReconciliationLease(identity),
 				snapshot = mutableAvailability.value,
 			)
@@ -901,7 +988,7 @@ class AtomicTrackingPurposeAvailabilityStore :
 		}
 		val previous = ambientSlots[identity.source]
 		if (previous?.identity == identity && previous.state == PublicationSlotState.ACTIVE) {
-			return@synchronized AmbientLeaseStartResult.Started(
+			return@synchronized AmbientLeaseStartResult.InProgress(
 				lease = AmbientReconciliationLease(identity),
 				snapshot = mutableAvailability.value,
 			)

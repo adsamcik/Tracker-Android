@@ -36,6 +36,7 @@ import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import java.security.MessageDigest
+import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -506,11 +507,13 @@ class SourceBroker @Inject constructor(
 	internal suspend fun replaceAmbientStepsDemand(
 		consumerId: String,
 		mechanism: AmbientStepsAcquisitionMechanism?,
+		leaseIdentity: AmbientReconciliationIdentity,
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
 	): AmbientStepsDemandResult = database.withTransaction {
 		require(consumerId.isNotBlank())
+		require(leaseIdentity.source == AmbientTrackingSource.STEPS)
 		val source = SourceKind.STEPS
 		val dao = database.sourceBrokerDao()
 		val currentDemands = dao.currentDemands(consumerId)
@@ -518,7 +521,19 @@ class SourceBroker @Inject constructor(
 			currentDemands.map(SourceDemandEntity::sourceKind) + source.stableCode
 		).toSet()
 
-		suspend fun inactive(reason: AmbientStepsDemandInactiveReason): AmbientStepsDemandResult {
+		suspend fun inactive(
+			reason: AmbientStepsDemandInactiveReason,
+			retention: AmbientStepsRetentionAuthorityEntity? = null,
+		): AmbientStepsDemandResult {
+			val exact = currentDemands.singleOrNull()?.takeIf { demand ->
+				retention != null &&
+					AmbientStepsDemandIdentity.matches(demand, retention, leaseIdentity)
+			}
+			if (currentDemands.isNotEmpty() && exact == null) {
+				return AmbientStepsDemandResult.Inactive(
+					AmbientStepsDemandInactiveReason.STALE_RECONCILIATION_LEASE,
+				)
+			}
 			dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
 			rotateCurrentAuthorizationsInTransaction(
 				affectedSourceKinds,
@@ -530,21 +545,38 @@ class SourceBroker @Inject constructor(
 		}
 
 		if (mechanism == null) {
-			return@withTransaction inactive(AmbientStepsDemandInactiveReason.REQUEST_DISABLED)
+			return@withTransaction inactive(
+				AmbientStepsDemandInactiveReason.REQUEST_DISABLED,
+				database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+					AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				),
+			)
 		}
 		val policyDao = database.sourcePolicyDao()
 		val authority = policyDao.authority()
-		if (authority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE) {
+		if (
+			authority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
+			authority.currentPolicyRevision != leaseIdentity.policyRevision
+		) {
 			return@withTransaction inactive(AmbientStepsDemandInactiveReason.AUTHORITY_INACTIVE)
 		}
 		val policy = policyDao.policyAtRevision(authority.currentPolicyRevision, source.stableCode)
 			?: return@withTransaction inactive(AmbientStepsDemandInactiveReason.POLICY_MISSING)
 		val consentEpoch = policy.ambientConsentEpoch
 			?: return@withTransaction inactive(AmbientStepsDemandInactiveReason.CONSENT_REVOKED)
+		if (consentEpoch != leaseIdentity.consentEpoch) {
+			return@withTransaction inactive(
+				AmbientStepsDemandInactiveReason.STALE_RECONCILIATION_LEASE,
+			)
+		}
 		if (!policy.ambientPersistenceEligible) {
 			return@withTransaction inactive(AmbientStepsDemandInactiveReason.PERSISTENCE_INELIGIBLE)
 		}
-		if (!trackingRolloutStateStore.load().isCaptureReachable(source, CaptureReachabilityMode.AMBIENT)) {
+		val rollout = trackingRolloutStateStore.load()
+		if (
+			rollout.revision != leaseIdentity.rolloutRevision ||
+			!rollout.isCaptureReachable(source, CaptureReachabilityMode.AMBIENT)
+		) {
 			return@withTransaction inactive(AmbientStepsDemandInactiveReason.ROLLOUT_CONTAINED)
 		}
 		val evidence = database.sourceEvidenceStateDao().get()
@@ -561,7 +593,11 @@ class SourceBroker @Inject constructor(
 			retention.sourcePolicyRevision != authority.currentPolicyRevision ||
 			retention.ambientConsentEpoch != consentEpoch ||
 			retention.collectedDataEpoch != evidence.collectedDataEpoch ||
+			retention.collectedDataEpoch != leaseIdentity.collectedDataEpoch ||
 			retention.retainedFromMs != evidence.retainedFromMs ||
+			retention.retainedFromMs != leaseIdentity.retainedFromMs ||
+			retention.opaquePolicyId != leaseIdentity.retentionPolicyId ||
+			retention.approvalRevision != leaseIdentity.retentionApprovalRevision ||
 			retention.effectiveBootId != bootId ||
 			retention.effectiveElapsedRealtimeNanos > elapsedRealtimeNanos ||
 			retention.effectiveWallTimeMs > wallTimeMs
@@ -585,7 +621,7 @@ class SourceBroker @Inject constructor(
 				demand.maximumAgeMs == contract.maximumProviderItemAgeMs &&
 				demand.desiredLatencyMs == contract.targetPlanningLatencyMs &&
 				demand.requestedDeliveryLatencyMs == contract.requestedDeliveryLatencyMs &&
-				demand.hasExactAmbientStepsRetentionBinding(retention)
+				AmbientStepsDemandIdentity.matches(demand, retention, leaseIdentity)
 		}?.let { unchanged -> return@withTransaction AmbientStepsDemandResult.Active(unchanged) }
 		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
 		val demand = SourceDemandEntity(
@@ -597,6 +633,7 @@ class SourceBroker @Inject constructor(
 				requestedElapsedRealtimeNanos = elapsedRealtimeNanos,
 				minimumAcquisitionSpec = contract.encodeFloor(),
 				retention = retention,
+				leaseIdentity = leaseIdentity,
 			),
 			consumerId = consumerId,
 			sourceKind = source.stableCode,
@@ -630,6 +667,80 @@ class SourceBroker @Inject constructor(
 			wallTimeMs,
 		)
 		AmbientStepsDemandResult.Active(demand)
+	}
+
+	internal suspend fun retireExactAmbientStepsDemand(
+		consumerId: String,
+		leaseIdentity: AmbientReconciliationIdentity,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): Boolean = database.withTransaction {
+		require(consumerId.isNotBlank())
+		require(leaseIdentity.source == AmbientTrackingSource.STEPS)
+		val dao = database.sourceBrokerDao()
+		val demands = dao.currentDemands(consumerId)
+		if (demands.isEmpty()) return@withTransaction true
+		val retentionPolicyId = leaseIdentity.retentionPolicyId ?: return@withTransaction false
+		val retentionApprovalRevision =
+			leaseIdentity.retentionApprovalRevision ?: return@withTransaction false
+		val retention = database.ambientStepsFactRevisionDao().retentionAuthority(
+			AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			retentionPolicyId,
+			retentionApprovalRevision,
+		) ?: return@withTransaction false
+		if (
+			demands.singleOrNull()?.let { demand ->
+				AmbientStepsDemandIdentity.matches(demand, retention, leaseIdentity)
+			} != true
+		) {
+			return@withTransaction false
+		}
+		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
+		rotateCurrentAuthorizationsInTransaction(
+			setOf(SourceKind.STEPS.stableCode),
+			bootId,
+			elapsedRealtimeNanos,
+			wallTimeMs,
+		)
+		true
+	}
+
+	internal suspend fun ambientStepsRetirementPlan(
+		consumerId: String,
+	): AmbientStepsRetirementPlan = database.withTransaction {
+		require(consumerId.isNotBlank())
+		val demands = database.sourceBrokerDao().currentDemands(consumerId)
+		if (demands.isEmpty()) return@withTransaction AmbientStepsRetirementPlan.AlreadyRetired
+		val demand = demands.singleOrNull()?.takeIf {
+			it.sourceKind == SourceKind.STEPS.stableCode &&
+				it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT
+		} ?: return@withTransaction AmbientStepsRetirementPlan.Unverifiable
+		val binding = AmbientStepsDemandIdentity.parseLeaseBinding(demand.demandId)
+			?: return@withTransaction AmbientStepsRetirementPlan.Unverifiable
+		val retention = database.ambientStepsFactRevisionDao().retentionAuthorities(
+			AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+		).singleOrNull { candidate ->
+			AmbientStepsDemandIdentity.matchesRetention(demand, candidate)
+		} ?: return@withTransaction AmbientStepsRetirementPlan.Unverifiable
+		val identity = AmbientReconciliationIdentity(
+			source = AmbientTrackingSource.STEPS,
+			policyRevision = demand.sourcePolicyRevision,
+			consentEpoch = demand.consentEpoch,
+			collectedDataEpoch = retention.collectedDataEpoch,
+			rolloutRevision = binding.rolloutRevision,
+			ownerCasToken = binding.ownerCasToken,
+			executionRevision = binding.executionRevision,
+			retainedFromMs = retention.retainedFromMs,
+			retentionPolicyId = retention.opaquePolicyId,
+			retentionApprovalRevision = retention.approvalRevision,
+		)
+		if (!AmbientStepsDemandIdentity.matches(demand, retention, identity)) {
+			return@withTransaction AmbientStepsRetirementPlan.Unverifiable
+		}
+		AmbientStepsRetirementPlan.Required(
+			AmbientReconciliationLease(identity),
+		)
 	}
 
 	/**
@@ -1046,6 +1157,8 @@ class SourceBroker @Inject constructor(
 					rolloutRevision = stored.rolloutRevision,
 					executionRevision = stored.writerOwnerGeneration,
 					ownerCasToken = stored.ownerCasToken,
+					retentionPolicyId = stored.retentionPolicyId,
+					retentionApprovalRevision = stored.retentionApprovalRevision,
 					reconciliationAttempt = stored.reconciliationAttempt,
 					demandId = stored.demandId,
 				)
@@ -1062,6 +1175,8 @@ class SourceBroker @Inject constructor(
 					rolloutRevision = stored.rolloutRevision,
 					executionRevision = stored.writerOwnerGeneration,
 					ownerCasToken = stored.ownerCasToken,
+					retentionPolicyId = stored.retentionPolicyId,
+					retentionApprovalRevision = stored.retentionApprovalRevision,
 					reconciliationAttempt = stored.reconciliationAttempt,
 					demandId = stored.demandId,
 				)
@@ -1099,6 +1214,8 @@ class SourceBroker @Inject constructor(
 					ownerCasToken = authority.ownerCasToken,
 					executionRevision = authority.executionRevision,
 					retainedFromMs = evidence.retainedFromMs,
+					retentionPolicyId = authority.retentionPolicyId,
+					retentionApprovalRevision = authority.retentionApprovalRevision,
 				),
 			),
 			authority.reconciliationAttempt,
@@ -1383,6 +1500,8 @@ class SourceBroker @Inject constructor(
 		if (!approval.isActive ||
 			approval.sourcePolicyRevision != leaseIdentity.policyRevision ||
 			approval.ambientConsentEpoch != leaseIdentity.consentEpoch ||
+			approval.opaquePolicyId != leaseIdentity.retentionPolicyId ||
+			approval.approvalRevision != leaseIdentity.retentionApprovalRevision ||
 			approval.collectedDataEpoch != leaseIdentity.collectedDataEpoch ||
 			approval.retainedFromMs != requireNotNull(evidence).retainedFromMs ||
 			approval.retainedFromMs != leaseIdentity.retainedFromMs
@@ -1650,8 +1769,15 @@ internal sealed interface AmbientStepsDemandResult {
 	data class Inactive(val reason: AmbientStepsDemandInactiveReason) : AmbientStepsDemandResult
 }
 
+internal sealed interface AmbientStepsRetirementPlan {
+	data object AlreadyRetired : AmbientStepsRetirementPlan
+	data class Required(val lease: AmbientReconciliationLease) : AmbientStepsRetirementPlan
+	data object Unverifiable : AmbientStepsRetirementPlan
+}
+
 internal enum class AmbientStepsDemandInactiveReason {
 	REQUEST_DISABLED,
+	STALE_RECONCILIATION_LEASE,
 	AUTHORITY_INACTIVE,
 	POLICY_MISSING,
 	CONSENT_REVOKED,
@@ -1663,10 +1789,98 @@ internal enum class AmbientStepsDemandInactiveReason {
 
 internal fun SourceDemandEntity.hasExactAmbientStepsRetentionBinding(
 	retention: AmbientStepsRetentionAuthorityEntity,
-): Boolean = AmbientStepsDemandIdentity.matches(this, retention)
+): Boolean = AmbientStepsDemandIdentity.matchesRetention(this, retention)
 
 private object AmbientStepsDemandIdentity {
 	fun create(
+		consumerId: String,
+		sourcePolicyRevision: Long,
+		consentEpoch: Long,
+		requestedBootId: String,
+		requestedElapsedRealtimeNanos: Long,
+		minimumAcquisitionSpec: String,
+		retention: AmbientStepsRetentionAuthorityEntity,
+		leaseIdentity: AmbientReconciliationIdentity,
+	): String = buildString {
+		append(
+			retentionDigest(
+				consumerId,
+				sourcePolicyRevision,
+				consentEpoch,
+				requestedBootId,
+				requestedElapsedRealtimeNanos,
+				minimumAcquisitionSpec,
+				retention,
+			),
+		)
+		append('.')
+		append(leaseIdentity.rolloutRevision)
+		append('.')
+		append(leaseIdentity.executionRevision)
+		append('.')
+		append(
+			Base64.getUrlEncoder().withoutPadding().encodeToString(
+				leaseIdentity.ownerCasToken.toByteArray(Charsets.UTF_8),
+			),
+		)
+	}
+
+	fun matches(
+		demand: SourceDemandEntity,
+		retention: AmbientStepsRetentionAuthorityEntity,
+		leaseIdentity: AmbientReconciliationIdentity,
+	): Boolean =
+		leaseIdentity.source == AmbientTrackingSource.STEPS &&
+		leaseIdentity.policyRevision == demand.sourcePolicyRevision &&
+		leaseIdentity.consentEpoch == demand.consentEpoch &&
+		leaseIdentity.collectedDataEpoch == retention.collectedDataEpoch &&
+		leaseIdentity.retainedFromMs == retention.retainedFromMs &&
+		leaseIdentity.retentionPolicyId == retention.opaquePolicyId &&
+		leaseIdentity.retentionApprovalRevision == retention.approvalRevision &&
+		demand.sourceKind == SourceKind.STEPS.stableCode &&
+		demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
+		demand.demandId == create(
+				consumerId = demand.consumerId,
+				sourcePolicyRevision = demand.sourcePolicyRevision,
+				consentEpoch = demand.consentEpoch,
+				requestedBootId = demand.requestedBootId,
+				requestedElapsedRealtimeNanos = demand.requestedElapsedRealtimeNanos,
+				minimumAcquisitionSpec = demand.minimumAcquisitionSpec,
+				retention = retention,
+				leaseIdentity = leaseIdentity,
+			)
+
+	fun parseLeaseBinding(demandId: String): AmbientStepsLeaseBinding? = try {
+		val parts = demandId.split('.')
+		if (parts.size != 4) return null
+		val ownerCasToken = Base64.getUrlDecoder().decode(parts[3])
+			.toString(Charsets.UTF_8)
+		AmbientStepsLeaseBinding(
+			rolloutRevision = parts[1].toLong(),
+			executionRevision = parts[2].toLong(),
+			ownerCasToken = ownerCasToken,
+		)
+	} catch (_: IllegalArgumentException) {
+		null
+	}
+
+	fun matchesRetention(
+		demand: SourceDemandEntity,
+		retention: AmbientStepsRetentionAuthorityEntity,
+	): Boolean =
+		demand.sourceKind == SourceKind.STEPS.stableCode &&
+			demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
+			demand.demandId.substringBefore('.') == retentionDigest(
+				consumerId = demand.consumerId,
+				sourcePolicyRevision = demand.sourcePolicyRevision,
+				consentEpoch = demand.consentEpoch,
+				requestedBootId = demand.requestedBootId,
+				requestedElapsedRealtimeNanos = demand.requestedElapsedRealtimeNanos,
+				minimumAcquisitionSpec = demand.minimumAcquisitionSpec,
+				retention = retention,
+			)
+
+	private fun retentionDigest(
 		consumerId: String,
 		sourcePolicyRevision: Long,
 		consentEpoch: Long,
@@ -1689,22 +1903,6 @@ private object AmbientStepsDemandIdentity {
 		retention.approvalRevision,
 	)
 
-	fun matches(
-		demand: SourceDemandEntity,
-		retention: AmbientStepsRetentionAuthorityEntity,
-	): Boolean =
-		demand.sourceKind == SourceKind.STEPS.stableCode &&
-			demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
-			demand.demandId == create(
-				consumerId = demand.consumerId,
-				sourcePolicyRevision = demand.sourcePolicyRevision,
-				consentEpoch = demand.consentEpoch,
-				requestedBootId = demand.requestedBootId,
-				requestedElapsedRealtimeNanos = demand.requestedElapsedRealtimeNanos,
-				minimumAcquisitionSpec = demand.minimumAcquisitionSpec,
-				retention = retention,
-			)
-
 	private fun digest(vararg values: Any): String {
 		val canonical = values.joinToString(separator = "") { value ->
 			val text = value.toString()
@@ -1713,6 +1911,18 @@ private object AmbientStepsDemandIdentity {
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))
 			.joinToString("") { byte -> "%02x".format(byte) }
+	}
+}
+
+private data class AmbientStepsLeaseBinding(
+	val rolloutRevision: Long,
+	val executionRevision: Long,
+	val ownerCasToken: String,
+) {
+	init {
+		require(rolloutRevision >= 0L)
+		require(executionRevision >= 0L)
+		require(ownerCasToken.isNotBlank())
 	}
 }
 
@@ -1838,6 +2048,8 @@ private data class AmbientRadioRetirementAuthority(
 	val rolloutRevision: Long,
 	val executionRevision: Long,
 	val ownerCasToken: String,
+	val retentionPolicyId: String,
+	val retentionApprovalRevision: Long,
 	val reconciliationAttempt: Long,
 	val demandId: String?,
 )

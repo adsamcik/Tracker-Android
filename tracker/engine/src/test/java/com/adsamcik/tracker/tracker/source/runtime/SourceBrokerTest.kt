@@ -32,6 +32,9 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicySnapshot
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsDemandReconciler
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
@@ -59,6 +62,7 @@ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjecti
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.string.shouldNotBeBlank
 import io.mockk.mockk
 import kotlinx.coroutines.async
@@ -448,11 +452,12 @@ class SourceBrokerTest {
 				legacySettingsMigrationCompleted = true,
 			),
 		)
-		grantAmbientStepsRetention(snapshot)
+		val retention = grantAmbientStepsRetention(snapshot)
 
 		val result = subject.replaceAmbientStepsDemand(
 			consumerId = "app:ambient:steps",
 			mechanism = AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+			leaseIdentity = ambientStepsLease(snapshot, retention, "steps-owner-1"),
 			bootId = "boot-1",
 			elapsedRealtimeNanos = 100L,
 			wallTimeMs = 100L,
@@ -484,20 +489,23 @@ class SourceBrokerTest {
 				legacySettingsMigrationCompleted = true,
 			),
 		)
-		grantAmbientStepsRetention(snapshot)
+		val retention = grantAmbientStepsRetention(snapshot)
+		val lease = ambientStepsLease(snapshot, retention, "steps-owner-1")
 		val healthConnect = (subject.replaceAmbientStepsDemand(
-			"app:ambient:steps",
-			AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
-			"boot-1",
-			100L,
-			100L,
+			consumerId = "app:ambient:steps",
+			mechanism = AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+			leaseIdentity = lease,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 100L,
+			wallTimeMs = 100L,
 		) as AmbientStepsDemandResult.Active).demand
 		val localRecording = (subject.replaceAmbientStepsDemand(
-			"app:ambient:steps",
-			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			"boot-1",
-			100L,
-			100L,
+			consumerId = "app:ambient:steps",
+			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			leaseIdentity = lease,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 100L,
+			wallTimeMs = 100L,
 		) as AmbientStepsDemandResult.Active).demand
 
 		(healthConnect.demandId == localRecording.demandId) shouldBe false
@@ -510,11 +518,12 @@ class SourceBrokerTest {
 			SourceDemandEntity.STATUS_ACTIVE
 
 		val unchanged = subject.replaceAmbientStepsDemand(
-			"app:ambient:steps",
-			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			"boot-1",
-			150L,
-			150L,
+			consumerId = "app:ambient:steps",
+			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			leaseIdentity = lease,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 150L,
+			wallTimeMs = 150L,
 		) as AmbientStepsDemandResult.Active
 		unchanged.demand shouldBe localRecording
 		database.sourceBrokerDao().demandHistory("app:ambient:steps").size shouldBe 2
@@ -531,15 +540,16 @@ class SourceBrokerTest {
 				legacySettingsMigrationCompleted = true,
 			),
 		)
-		grantAmbientStepsRetention(snapshot)
+		val retention = grantAmbientStepsRetention(snapshot)
 		rolloutStore.save(TrackingRolloutState.contained(revision = 9L), updatedAtMs = 150L)
 
 		subject.replaceAmbientStepsDemand(
-			"app:ambient:steps",
-			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			"boot-1",
-			200L,
-			200L,
+			consumerId = "app:ambient:steps",
+			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			leaseIdentity = ambientStepsLease(snapshot, retention, "steps-owner-1"),
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 200L,
+			wallTimeMs = 200L,
 		) shouldBe AmbientStepsDemandResult.Inactive(
 			AmbientStepsDemandInactiveReason.ROLLOUT_CONTAINED,
 		)
@@ -550,11 +560,12 @@ class SourceBrokerTest {
 			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
 		}.bootstrapFromLegacy(TrackingParamsState(legacySettingsMigrationCompleted = true))
 		subject.replaceAmbientStepsDemand(
-			"app:ambient:steps",
-			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			"boot-1",
-			300L,
-			300L,
+			consumerId = "app:ambient:steps",
+			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			leaseIdentity = ambientStepsLease(snapshot, retention, "steps-owner-disabled"),
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 300L,
+			wallTimeMs = 300L,
 		) shouldBe AmbientStepsDemandResult.Inactive(
 			AmbientStepsDemandInactiveReason.CONSENT_REVOKED,
 		)
@@ -573,12 +584,14 @@ class SourceBrokerTest {
 			),
 		)
 		val firstRetention = grantAmbientStepsRetention(snapshot, opaquePolicyId = "retention-one")
+		val firstLease = ambientStepsLease(snapshot, firstRetention, "steps-owner-1")
 		val first = (subject.replaceAmbientStepsDemand(
-			"app:ambient:steps",
-			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			"boot-1",
-			100L,
-			100L,
+			consumerId = "app:ambient:steps",
+			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			leaseIdentity = firstLease,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 100L,
+			wallTimeMs = 100L,
 		) as AmbientStepsDemandResult.Active).demand
 		val secondRetention = grantAmbientStepsRetention(
 			snapshot = snapshot,
@@ -588,11 +601,12 @@ class SourceBrokerTest {
 		)
 
 		val rotated = (subject.replaceAmbientStepsDemand(
-			"app:ambient:steps",
-			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			"boot-1",
-			200L,
-			200L,
+			consumerId = "app:ambient:steps",
+			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			leaseIdentity = ambientStepsLease(snapshot, secondRetention, "steps-owner-2"),
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 200L,
+			wallTimeMs = 200L,
 		) as AmbientStepsDemandResult.Active).demand
 
 		rotated.demandId shouldBe database.sourceBrokerDao()
@@ -602,12 +616,52 @@ class SourceBrokerTest {
 		rotated.hasExactAmbientStepsRetentionBinding(secondRetention) shouldBe true
 		val restarted = SourceBroker(database, rolloutStore)
 		(restarted.replaceAmbientStepsDemand(
-			"app:ambient:steps",
-			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			"boot-1",
-			250L,
-			250L,
+			consumerId = "app:ambient:steps",
+			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			leaseIdentity = ambientStepsLease(snapshot, secondRetention, "steps-owner-2"),
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 250L,
+			wallTimeMs = 250L,
 		) as AmbientStepsDemandResult.Active).demand shouldBe rotated
+	}
+
+	@Test
+	fun `process recovery reconstructs exact Ambient Steps retirement lease`() = runTest {
+		resetBroker(setOf(CaptureReachabilityMode.AMBIENT))
+		val snapshot = RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
+		}.bootstrapFromLegacy(
+			TrackingParamsState(
+				ambientStepsEnabled = true,
+				legacySettingsMigrationCompleted = true,
+			),
+		)
+		val retention = grantAmbientStepsRetention(snapshot)
+		val issued = ambientStepsLease(snapshot, retention, "recovered-owner")
+		subject.replaceAmbientStepsDemand(
+			consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
+			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			leaseIdentity = issued,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 100L,
+			wallTimeMs = 100L,
+		)
+
+		val recovered = subject.ambientStepsRetirementPlan(
+			AmbientStepsDemandReconciler.CONSUMER_ID,
+		).shouldBeInstanceOf<AmbientStepsRetirementPlan.Required>()
+
+		recovered.lease.identity shouldBe issued
+		subject.retireExactAmbientStepsDemand(
+			consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
+			leaseIdentity = recovered.lease.identity,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 200L,
+			wallTimeMs = 200L,
+		) shouldBe true
+		database.sourceBrokerDao().currentDemands(
+			AmbientStepsDemandReconciler.CONSUMER_ID,
+		) shouldBe emptyList()
 	}
 
 	@Test
@@ -1070,6 +1124,25 @@ class SourceBrokerTest {
 		}
 		subject = SourceBroker(database, rolloutStore)
 	}
+
+	private suspend fun ambientStepsLease(
+		snapshot: SourcePolicySnapshot,
+		retention: AmbientStepsRetentionAuthorityEntity,
+		ownerCasToken: String,
+	): AmbientReconciliationIdentity = AmbientReconciliationIdentity(
+		source = AmbientTrackingSource.STEPS,
+		policyRevision = snapshot.revision,
+		consentEpoch = requireNotNull(
+			snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+		),
+		collectedDataEpoch = retention.collectedDataEpoch,
+		rolloutRevision = rolloutStore.load().revision,
+		ownerCasToken = ownerCasToken,
+		executionRevision = 1L,
+		retainedFromMs = retention.retainedFromMs,
+		retentionPolicyId = retention.opaquePolicyId,
+		retentionApprovalRevision = retention.approvalRevision,
+	)
 
 	private suspend fun grantAmbientStepsRetention(
 		snapshot: SourcePolicySnapshot,

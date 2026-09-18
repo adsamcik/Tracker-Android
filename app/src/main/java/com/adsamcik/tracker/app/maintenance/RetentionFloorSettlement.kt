@@ -52,8 +52,10 @@ class RetentionFloorSettlement @Inject constructor(
 						requestedRetainedFromMs,
 						permit,
 					)
+					permit.validate()
 					verifyApprovedOperation()
 					database.withTransaction {
+						permit.validate()
 						verifyApprovedOperation()
 						try {
 							val sourceEvidenceStateDao = database.sourceEvidenceStateDao()
@@ -69,8 +71,10 @@ class RetentionFloorSettlement @Inject constructor(
 							}
 						} finally {
 							verifyApprovedOperation()
+							permit.validate()
 						}
 					}
+					permit.validate()
 					val retentionResults = try {
 						retentionAuthorityProducer.reconcileCurrentSettingsWithPermit(permit)
 					} catch (cancelled: CancellationException) {
@@ -113,11 +117,12 @@ class RetentionFloorSettlement @Inject constructor(
 			}
 		}
 		val purposeResult = try {
+			verifyApprovedOperation()
 			purposeReconciler.reconcile(
 				expectedStartupGeneration,
 				retainedFromMs,
 				approvedSources,
-			)
+			).also { verifyApprovedOperation() }
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {

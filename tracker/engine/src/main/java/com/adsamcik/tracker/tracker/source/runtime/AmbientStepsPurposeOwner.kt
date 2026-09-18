@@ -20,6 +20,10 @@ internal interface AmbientStepsPurposeOwner {
 	suspend fun retireAfterRetentionAuthorityFailure(
 		previousLease: AmbientReconciliationLease?,
 	): Boolean
+
+	suspend fun closeForCollectedDataDeletion(
+		previousLease: AmbientReconciliationLease?,
+	): Boolean
 }
 
 @Singleton
@@ -30,18 +34,20 @@ internal class DefaultAmbientStepsPurposeOwner @Inject constructor(
 		lease: AmbientReconciliationLease,
 	): AmbientSourceOperationalAvailability {
 		require(lease.identity.source == AmbientTrackingSource.STEPS)
-		return lifecycleOwner.reconcile().toPurposeAvailability(lease)
+		return lifecycleOwner.reconcile(lease).toPurposeAvailability(lease)
 	}
 
 	override suspend fun retireAfterRetentionAuthorityFailure(
 		previousLease: AmbientReconciliationLease?,
 	): Boolean {
-		previousLease?.let {
-			require(it.identity.source == AmbientTrackingSource.STEPS)
-		}
-		val result = lifecycleOwner.retireAfterRetentionAuthorityFailure()
+		previousLease?.let { require(it.identity.source == AmbientTrackingSource.STEPS) }
+		val result = lifecycleOwner.retireAfterRetentionAuthorityFailure(previousLease)
 		return result.complete && !result.operational
 	}
+
+	override suspend fun closeForCollectedDataDeletion(
+		previousLease: AmbientReconciliationLease?,
+	): Boolean = lifecycleOwner.closeForCollectedDataDeletion().complete
 }
 
 private fun AmbientStepsProviderRegistrationResult.toPurposeAvailability(
@@ -66,7 +72,9 @@ private fun AmbientStepsDemandReconciliation.toPurposeAvailability(
 	is AmbientStepsDemandReconciliation.DemandReady ->
 		error("A ready demand must be reconciled to a provider registration")
 	is AmbientStepsDemandReconciliation.PermissionRequired ->
-		AmbientSourceOperationalAvailability(
+		if (!retirementComplete) {
+			error("Exact Ambient Steps demand retirement was rejected")
+		} else AmbientSourceOperationalAvailability(
 			source = AmbientTrackingSource.STEPS,
 			state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
 			mechanism = provider.toPurposeMechanism(),
@@ -74,7 +82,9 @@ private fun AmbientStepsDemandReconciliation.toPurposeAvailability(
 			lastIdentity = lease.purposeLeaseIdentity,
 		)
 	is AmbientStepsDemandReconciliation.PolicyBlocked ->
-		AmbientSourceOperationalAvailability.unavailable(
+		if (!retirementComplete) {
+			error("Exact Ambient Steps demand retirement was rejected")
+		} else AmbientSourceOperationalAvailability.unavailable(
 			AmbientTrackingSource.STEPS,
 			when (reason) {
 				AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE ->
@@ -86,7 +96,9 @@ private fun AmbientStepsDemandReconciliation.toPurposeAvailability(
 			lease.purposeLeaseIdentity,
 		)
 	is AmbientStepsDemandReconciliation.Unavailable ->
-		AmbientSourceOperationalAvailability.unavailable(
+		if (!retirementComplete) {
+			error("Exact Ambient Steps demand retirement was rejected")
+		} else AmbientSourceOperationalAvailability.unavailable(
 			AmbientTrackingSource.STEPS,
 			AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
 			lease.purposeLeaseIdentity,

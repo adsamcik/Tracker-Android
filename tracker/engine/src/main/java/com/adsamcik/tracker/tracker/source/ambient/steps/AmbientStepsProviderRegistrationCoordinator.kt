@@ -112,7 +112,15 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 		when (demandState) {
 			is AmbientStepsDemandReconciliation.DemandReady ->
 				reconcileReady(demandState, boundary)
-			else -> reconcileInactive(demandState, boundary)
+			else -> if (!demandState.retirementComplete) {
+				failureWithCurrent(
+					selectedProvider = null,
+					failure =
+						AmbientStepsProviderRegistrationFailure.DURABLE_AUTHORITY_REJECTED,
+				)
+			} else {
+				reconcileInactive(demandState, boundary)
+			}
 		}
 	}
 
@@ -571,6 +579,14 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 	private fun backend(provider: AmbientStepsProvider): AmbientStepsProviderBackend =
 		requireNotNull(backends[provider])
 }
+
+private val AmbientStepsDemandReconciliation.retirementComplete: Boolean
+	get() = when (this) {
+		is AmbientStepsDemandReconciliation.DemandReady -> true
+		is AmbientStepsDemandReconciliation.PermissionRequired -> retirementComplete
+		is AmbientStepsDemandReconciliation.PolicyBlocked -> retirementComplete
+		is AmbientStepsDemandReconciliation.Unavailable -> retirementComplete
+	}
 
 private fun AmbientStepsProviderRegistration.identityKey(): String = listOf(
 	state.sourceInstanceId,

@@ -43,10 +43,7 @@ import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
-import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
 import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
-import com.adsamcik.tracker.tracker.api.NoOpAmbientStepsProviderLifecycle
-import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailability
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
@@ -120,12 +117,8 @@ class TrackingSettingsViewModel @Inject constructor(
     private val trackingParamsRepository: TrackingParamsRepository,
     private val trackingStatusProvider: TrackingSettingsStatusProvider,
     private val activityWatcherController: ActivityWatcherController,
-	private val purposeAvailabilityReader: CurrentTrackingPurposeAvailabilityReader,
-	private val ambientStepsProviderLifecycle: AmbientStepsProviderLifecycle =
-		NoOpAmbientStepsProviderLifecycle,
-	private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler =
-		TrackingPurposeSettingsReconciler { },
-	private val sourcePolicyReconciliationCoordinator:
+    private val purposeAvailabilityReader: CurrentTrackingPurposeAvailabilityReader,
+    private val sourcePolicyReconciliationCoordinator:
 		SourcePolicyRevisionReconciliationCoordinator =
 		UnavailableSourcePolicyRevisionReconciliationCoordinator,
 ) : ViewModel() {
@@ -233,25 +226,7 @@ class TrackingSettingsViewModel @Inject constructor(
 	}
 
 	fun setAmbientStepsEnabled(enabled: Boolean) {
-		launchSourcePolicyMutation(
-			afterCommittedMutation = {
-				purposeSettingsReconciler.reconcileCurrentSettings()
-				val reconciliation =
-					ambientStepsProviderLifecycle.reconcileAfterSettingsChange()
-				_uiState.update { state ->
-					state.copy(ambientStepsSettingsFailure = reconciliation.failure)
-				}
-			},
-			onAfterCommittedMutationFailure = {
-				_uiState.update { state ->
-					state.copy(
-						ambientStepsSettingsFailure =
-							AmbientStepsSettingsReconciliationFailure
-								.DURABLE_AUTHORITY_REJECTED,
-					)
-				}
-			},
-		) {
+		launchSourcePolicyMutation {
 			trackingParamsRepository.setAmbientStepsEnabled(enabled)
 		}
 	}
