@@ -723,6 +723,211 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
+	fun `count-domain owner and receipt reads authenticate every storage class before narrowing`() =
+		runTest {
+			installSchema()
+			val store = StepsCountDomainStore(database)
+			val wal = insertWal("raw-count-domain", 41L, payloadVersion = 7)
+			store.recordSessionWal(wal, token('a')) shouldBe StepsCountDomainWriteResult.INSERTED
+			val ownerIdentity = StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
+				wal.admissionOrdinal,
+				wal.eventId,
+			)
+			val key = StepsCountDomainOwnerLookupKey(
+				StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+				ownerIdentity,
+				1L,
+			)
+			val stored = (store.readOwners(listOf(key)) as StepsCountDomainOwnerRead.Ready)
+				.owners.getValue(key)
+			val receipt = requireNotNull(stored.receipt)
+			val sqlite = database.openHelper.writableDatabase
+
+			val ownerMutations = listOf(
+				StoredFieldMutation("scope_identity", "1", stored.owner.scopeIdentity),
+				StoredFieldMutation("owner_revision", "'1x'", stored.owner.ownerRevision),
+				StoredFieldMutation("operation", "X'01'", stored.owner.operation),
+				StoredFieldMutation("receipt_identity", "1", stored.owner.receiptIdentity),
+				StoredFieldMutation(
+					"owner_effect_checksum",
+					"NULL",
+					stored.owner.ownerEffectChecksum,
+				),
+				StoredFieldMutation("linked_at_ms", "'41x'", stored.owner.linkedAtMs),
+			)
+			for (mutation in ownerMutations) {
+				database.withTransaction {
+					sqlite.execSQL(
+						"UPDATE steps_count_domain_owner_revision SET " +
+							"${mutation.column} = ${mutation.corruptSql} " +
+							"WHERE owner_effect_checksum = ? AND linked_at_ms = ?",
+						arrayOf(stored.owner.ownerEffectChecksum, stored.owner.linkedAtMs),
+					)
+					store.readOwners(listOf(key)) shouldBe StepsCountDomainOwnerRead.Unverifiable
+					sqlite.execSQL(
+						"UPDATE steps_count_domain_owner_revision SET ${mutation.column} = ? " +
+							"WHERE owner_effect_checksum IS ? OR receipt_identity IS ?",
+						arrayOf(
+							mutation.originalValue,
+							stored.owner.ownerEffectChecksum,
+							stored.owner.receiptIdentity,
+						),
+					)
+				}
+			}
+
+			val receiptMutations = listOf(
+				StoredFieldMutation("receipt_identity", "X'01'", receipt.receiptIdentity),
+				StoredFieldMutation("domain_identity", "X'01'", receipt.domainIdentity),
+				StoredFieldMutation("owner_kind", "1", receipt.ownerKind),
+				StoredFieldMutation("scope_identity", "1.5", receipt.scopeIdentity),
+				StoredFieldMutation("owner_identity", "NULL", receipt.ownerIdentity),
+				StoredFieldMutation("owner_revision", "'1x'", receipt.ownerRevision),
+				StoredFieldMutation(
+					"registration_generation",
+					"X'01'",
+					receipt.registrationGeneration,
+				),
+				StoredFieldMutation("collected_data_epoch", "1.5", receipt.collectedDataEpoch),
+				StoredFieldMutation("authority_revision", "'1x'", receipt.authorityRevision),
+				StoredFieldMutation(
+					"authority_fingerprint",
+					"NULL",
+					receipt.authorityFingerprint,
+				),
+				StoredFieldMutation("coverage_kind", "1", receipt.coverageKind),
+				StoredFieldMutation("coverage_version", "4294967297", receipt.coverageVersion),
+				StoredFieldMutation(
+					"count_domain_version",
+					"4294967297",
+					receipt.countDomainVersion,
+				),
+				StoredFieldMutation("effect_checksum", "X'01'", receipt.effectChecksum),
+				StoredFieldMutation("completion_evidence_checksum", "1", null),
+			)
+			for (mutation in receiptMutations) {
+				database.withTransaction {
+					sqlite.execSQL(
+						"UPDATE steps_count_domain_receipt SET " +
+							"${mutation.column} = ${mutation.corruptSql} " +
+							"WHERE effect_checksum = ? OR receipt_identity IS ?",
+						arrayOf(receipt.effectChecksum, receipt.receiptIdentity),
+					)
+					store.readOwners(listOf(key)) shouldBe StepsCountDomainOwnerRead.Unverifiable
+					if (mutation.column in setOf("coverage_version", "count_domain_version")) {
+						store.recordSessionWal(wal, token('a')) shouldBe
+							StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE
+					}
+					sqlite.execSQL(
+						"UPDATE steps_count_domain_receipt SET ${mutation.column} = ? " +
+							"WHERE effect_checksum IS ? OR owner_identity = ?",
+						arrayOf(
+							mutation.originalValue,
+							receipt.effectChecksum,
+							receipt.ownerIdentity,
+						),
+					)
+				}
+			}
+
+			database.withTransaction {
+				sqlite.execSQL(
+					"UPDATE steps_count_domain_receipt SET authority_revision = 9223372036854775808 " +
+						"WHERE receipt_identity = ?",
+					arrayOf(receipt.receiptIdentity),
+				)
+				store.readOwners(listOf(key)) shouldBe StepsCountDomainOwnerRead.Unverifiable
+				sqlite.execSQL(
+					"UPDATE steps_count_domain_receipt SET authority_revision = ? " +
+						"WHERE owner_identity = ?",
+					arrayOf(receipt.authorityRevision, receipt.ownerIdentity),
+				)
+			}
+		}
+
+	@Test
+	fun `count-domain completeness marker reads authenticate required and nullable shapes`() =
+		runTest {
+			installSchema()
+			val sqlite = database.openHelper.writableDatabase
+			val ownerIdentity = "sha256:${"1".repeat(64)}"
+			val scopeIdentity = "sha256:${"2".repeat(64)}"
+			val effectChecksum = "3".repeat(64)
+			val timelineChecksum = "4".repeat(64)
+			val evidenceChecksum = StepsCountDomainReceiptIntegrity.completenessMarkerChecksum(
+				ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
+				ownerIdentity = ownerIdentity,
+				ownerRevision = 1L,
+				terminalState = StepsCountDomainCompletenessMarkerEntity.STATE_UNPROVEN,
+				lastAdmissionOrdinal = null,
+				lastSourceSequence = null,
+				providerFlushOutcome = "NOT_REQUESTED",
+				registrationRemovalOutcome = "REMOVED",
+				registrationTimelineChecksum = timelineChecksum,
+			)
+			sqlite.execSQL(
+				"INSERT INTO steps_count_domain_owner_revision VALUES (?, ?, ?, 1, " +
+					"'UNPROVEN', NULL, ?, 1)",
+				arrayOf(
+					StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
+					scopeIdentity,
+					ownerIdentity,
+					effectChecksum,
+				),
+			)
+			sqlite.execSQL(
+				"INSERT INTO steps_count_domain_completeness_marker VALUES " +
+					"(?, ?, 1, 'UNPROVEN', NULL, NULL, 'NOT_REQUESTED', 'REMOVED', ?, ?)",
+				arrayOf(
+					StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
+					ownerIdentity,
+					timelineChecksum,
+					evidenceChecksum,
+				),
+			)
+			val key = StepsCountDomainOwnerLookupKey(
+				StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
+				ownerIdentity,
+				1L,
+			)
+			val mutations = listOf(
+				StoredFieldMutation("owner_kind", "1", "SESSION_COMPLETENESS"),
+				StoredFieldMutation("owner_identity", "X'01'", ownerIdentity),
+				StoredFieldMutation("owner_revision", "'1x'", 1L),
+				StoredFieldMutation("terminal_state", "NULL", "UNPROVEN"),
+				StoredFieldMutation("last_admission_ordinal", "'1x'", null),
+				StoredFieldMutation("last_source_sequence", "1.5", null),
+				StoredFieldMutation("provider_flush_outcome", "X'01'", "NOT_REQUESTED"),
+				StoredFieldMutation("registration_removal_outcome", "1", "REMOVED"),
+				StoredFieldMutation("registration_timeline_checksum", "NULL", timelineChecksum),
+				StoredFieldMutation("evidence_checksum", "1.5", evidenceChecksum),
+			)
+			for (mutation in mutations) {
+				database.withTransaction {
+					sqlite.execSQL(
+						"UPDATE steps_count_domain_completeness_marker SET " +
+							"${mutation.column} = ${mutation.corruptSql} " +
+							"WHERE evidence_checksum IS ? OR registration_timeline_checksum IS ?",
+						arrayOf(evidenceChecksum, timelineChecksum),
+					)
+					StepsCountDomainStore(database).readOwners(listOf(key)) shouldBe
+						StepsCountDomainOwnerRead.Unverifiable
+					sqlite.execSQL(
+						"UPDATE steps_count_domain_completeness_marker SET ${mutation.column} = ? " +
+							"WHERE evidence_checksum IS ? OR registration_timeline_checksum IS ? " +
+							"OR owner_revision IS ?",
+						arrayOf(
+							mutation.originalValue,
+							evidenceChecksum,
+							timelineChecksum,
+							1L,
+						),
+					)
+				}
+			}
+		}
+
+	@Test
 	fun `full clear deletes owners before receipts or preserves only terminal evidence`() = runTest {
 		installSchema()
 		val store = StepsCountDomainStore(database)
@@ -1181,6 +1386,12 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 
 	private fun token(digit: Char) =
 		StepsCounterDomainToken.opaque("sha256:${digit.toString().repeat(64)}")
+
+	private data class StoredFieldMutation(
+		val column: String,
+		val corruptSql: String,
+		val originalValue: Any?,
+	)
 }
 
 private fun SupportSQLiteDatabase.count(

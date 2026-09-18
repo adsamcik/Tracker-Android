@@ -290,7 +290,7 @@ data class SessionManifestSourceEntity(
 		@ColumnInfo(name = "writer_projection_version") val writerProjectionVersion: Long?,
 		@ColumnInfo(name = "writer_binding_generation") val writerBindingGeneration: Long?,
 	) {
-		@Suppress("ComplexCondition", "ReturnCount")
+		@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 		fun validatedOrNull(): SessionManifestSourceEntity? {
 			val storageClasses = storageClassSignature?.split(STORAGE_CLASS_SEPARATOR)
 				?.takeIf { it.size == STORAGE_CLASS_COUNT }
@@ -728,7 +728,237 @@ data class LifecycleDesiredActionEntity(
 	@ColumnInfo(name = "retry_trigger") val retryTrigger: String?,
 	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String?,
 	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long?,
-)
+) {
+	/**
+	 * Nullable pre-validation projection for retirement authority.
+	 *
+	 * Retirement runs after the session has entered STOPPING. Durable action corruption must
+	 * therefore be rejected before provider/value-class construction rather than surfacing as an
+	 * exception after the physical lifecycle boundary.
+	 */
+	@Suppress("LongParameterList")
+	data class RawLifecycleDesiredAction(
+		@ColumnInfo(name = "storage_class_signature") val storageClassSignature: String?,
+		@ColumnInfo(name = "action_id") val actionId: String?,
+		@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
+		@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
+		@ColumnInfo(name = "manifest_revision") val manifestRevision: Long?,
+		@ColumnInfo(name = "action_revision") val actionRevision: Long?,
+		@ColumnInfo(name = "action_family") val actionFamily: String?,
+		@ColumnInfo(name = "source_kind") val sourceKind: Long?,
+		@ColumnInfo(name = "desired_state") val desiredState: String?,
+		@ColumnInfo(name = "desired_plan_revision") val desiredPlanRevision: Long?,
+		@ColumnInfo(name = "source_policy_revision") val sourcePolicyRevision: Long?,
+		@ColumnInfo(name = "consent_epoch") val consentEpoch: Long?,
+		@ColumnInfo(name = "start_origin") val startOrigin: String?,
+		@ColumnInfo(name = "boot_id") val bootId: String?,
+		@ColumnInfo(name = "lease_generation") val leaseGeneration: Long?,
+		@ColumnInfo(name = "requested_at_ms") val requestedAtMs: Long?,
+		@ColumnInfo(name = "requested_elapsed_realtime_nanos")
+		val requestedElapsedRealtimeNanos: Long?,
+		@ColumnInfo(name = "status") val status: String?,
+		@ColumnInfo(name = "attempt_count") val attemptCount: Long?,
+		@ColumnInfo(name = "acknowledged_at_ms") val acknowledgedAtMs: Long?,
+		@ColumnInfo(name = "acknowledged_elapsed_realtime_nanos")
+		val acknowledgedElapsedRealtimeNanos: Long?,
+		@ColumnInfo(name = "failure_code") val failureCode: String?,
+		@ColumnInfo(name = "retry_trigger") val retryTrigger: String?,
+		@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String?,
+		@ColumnInfo(name = "registration_generation") val registrationGeneration: Long?,
+	) {
+		@Suppress("ComplexCondition", "ReturnCount")
+		fun validatedOrNull(): LifecycleDesiredActionEntity? {
+			val storageClasses = storageClassSignature?.split(STORAGE_CLASS_SEPARATOR)
+				?.takeIf { it.size == STORAGE_CLASS_COUNT }
+				?: return null
+			if (
+				!storageClasses.hasExactClass(ACTION_ID_INDEX, SQLITE_TEXT) ||
+				!storageClasses.hasExactClass(LOGICAL_TRACKING_ID_INDEX, SQLITE_TEXT) ||
+				!storageClasses.hasExactClass(SERVICE_RUN_ID_INDEX, SQLITE_TEXT) ||
+				!storageClasses.hasExactClass(MANIFEST_REVISION_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(ACTION_REVISION_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(ACTION_FAMILY_INDEX, SQLITE_TEXT) ||
+				!storageClasses.hasNullableClass(SOURCE_KIND_INDEX, sourceKind, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(DESIRED_STATE_INDEX, SQLITE_TEXT) ||
+				!storageClasses.hasExactClass(DESIRED_PLAN_REVISION_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(SOURCE_POLICY_REVISION_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasNullableClass(CONSENT_EPOCH_INDEX, consentEpoch, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(START_ORIGIN_INDEX, SQLITE_TEXT) ||
+				!storageClasses.hasExactClass(BOOT_ID_INDEX, SQLITE_TEXT) ||
+				!storageClasses.hasExactClass(LEASE_GENERATION_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(REQUESTED_AT_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(REQUESTED_ELAPSED_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(STATUS_INDEX, SQLITE_TEXT) ||
+				!storageClasses.hasExactClass(ATTEMPT_COUNT_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasNullableClass(
+					ACKNOWLEDGED_AT_INDEX,
+					acknowledgedAtMs,
+					SQLITE_INTEGER,
+				) ||
+				!storageClasses.hasNullableClass(
+					ACKNOWLEDGED_ELAPSED_INDEX,
+					acknowledgedElapsedRealtimeNanos,
+					SQLITE_INTEGER,
+				) ||
+				!storageClasses.hasNullableClass(FAILURE_CODE_INDEX, failureCode, SQLITE_TEXT) ||
+				!storageClasses.hasNullableClass(RETRY_TRIGGER_INDEX, retryTrigger, SQLITE_TEXT) ||
+				!storageClasses.hasNullableClass(
+					SOURCE_INSTANCE_ID_INDEX,
+					sourceInstanceId,
+					SQLITE_TEXT,
+				) ||
+				!storageClasses.hasNullableClass(
+					REGISTRATION_GENERATION_INDEX,
+					registrationGeneration,
+					SQLITE_INTEGER,
+				)
+			) {
+				return null
+			}
+			val validatedActionId = actionId?.takeIf(ACTION_ID::matches) ?: return null
+			val validatedLogicalTrackingId =
+				logicalTrackingId?.takeIf(String::isNotBlank) ?: return null
+			val validatedServiceRunId = serviceRunId?.takeIf(String::isNotBlank) ?: return null
+			val validatedManifestRevision = manifestRevision?.takeIf { it > 0L } ?: return null
+			val validatedActionRevision = actionRevision?.takeIf { it > 0L } ?: return null
+			val validatedActionFamily = actionFamily
+				?.takeIf { it in ACTION_FAMILIES }
+				?: return null
+			val validatedSourceKind = sourceKind
+				?.takeIf { it in SOURCE_KINDS }
+				?.toInt()
+				?: return null
+			val validatedDesiredState = desiredState
+				?.takeIf { it in DESIRED_STATES }
+				?: return null
+			val validatedDesiredPlanRevision =
+				desiredPlanRevision?.takeIf { it > 0L } ?: return null
+			val validatedSourcePolicyRevision =
+				sourcePolicyRevision?.takeIf { it > 0L } ?: return null
+			if (consentEpoch?.let { it < 0L } == true) return null
+			val validatedStartOrigin = startOrigin
+				?.takeIf { it in START_ORIGINS }
+				?: return null
+			val validatedBootId = bootId?.takeIf(String::isNotBlank) ?: return null
+			val validatedLeaseGeneration =
+				leaseGeneration?.takeIf { it > 0L } ?: return null
+			val validatedRequestedAt = requestedAtMs?.takeIf { it >= 0L } ?: return null
+			val validatedRequestedElapsed =
+				requestedElapsedRealtimeNanos?.takeIf { it >= 0L } ?: return null
+			val validatedStatus = status?.takeIf { it in STATUSES } ?: return null
+			val validatedAttemptCount = attemptCount
+				?.takeIf { it in 0L..Int.MAX_VALUE.toLong() }
+				?.toInt()
+				?: return null
+			if (
+				acknowledgedAtMs?.let { it < 0L } == true ||
+				acknowledgedElapsedRealtimeNanos?.let { it < 0L } == true ||
+				failureCode?.isBlank() == true ||
+				retryTrigger?.isBlank() == true ||
+				sourceInstanceId?.isBlank() == true ||
+				registrationGeneration?.let { it <= 0L } == true ||
+				(sourceInstanceId == null) != (registrationGeneration == null)
+			) {
+				return null
+			}
+			return LifecycleDesiredActionEntity(
+				actionId = validatedActionId,
+				logicalTrackingId = validatedLogicalTrackingId,
+				serviceRunId = validatedServiceRunId,
+				manifestRevision = validatedManifestRevision,
+				actionRevision = validatedActionRevision,
+				actionFamily = validatedActionFamily,
+				sourceKind = validatedSourceKind,
+				desiredState = validatedDesiredState,
+				desiredPlanRevision = validatedDesiredPlanRevision,
+				sourcePolicyRevision = validatedSourcePolicyRevision,
+				consentEpoch = consentEpoch,
+				startOrigin = validatedStartOrigin,
+				bootId = validatedBootId,
+				leaseGeneration = validatedLeaseGeneration,
+				requestedAtMs = validatedRequestedAt,
+				requestedElapsedRealtimeNanos = validatedRequestedElapsed,
+				status = validatedStatus,
+				attemptCount = validatedAttemptCount,
+				acknowledgedAtMs = acknowledgedAtMs,
+				acknowledgedElapsedRealtimeNanos = acknowledgedElapsedRealtimeNanos,
+				failureCode = failureCode,
+				retryTrigger = retryTrigger,
+				sourceInstanceId = sourceInstanceId,
+				registrationGeneration = registrationGeneration,
+			)
+		}
+
+		private fun List<String>.hasExactClass(index: Int, expected: String): Boolean =
+			getOrNull(index) == expected
+
+		private fun List<String>.hasNullableClass(
+			index: Int,
+			value: Any?,
+			presentClass: String,
+		): Boolean = getOrNull(index) == if (value == null) SQLITE_NULL else presentClass
+
+		private companion object {
+			const val STORAGE_CLASS_SEPARATOR = '|'
+			const val STORAGE_CLASS_COUNT = 24
+			const val ACTION_ID_INDEX = 0
+			const val LOGICAL_TRACKING_ID_INDEX = 1
+			const val SERVICE_RUN_ID_INDEX = 2
+			const val MANIFEST_REVISION_INDEX = 3
+			const val ACTION_REVISION_INDEX = 4
+			const val ACTION_FAMILY_INDEX = 5
+			const val SOURCE_KIND_INDEX = 6
+			const val DESIRED_STATE_INDEX = 7
+			const val DESIRED_PLAN_REVISION_INDEX = 8
+			const val SOURCE_POLICY_REVISION_INDEX = 9
+			const val CONSENT_EPOCH_INDEX = 10
+			const val START_ORIGIN_INDEX = 11
+			const val BOOT_ID_INDEX = 12
+			const val LEASE_GENERATION_INDEX = 13
+			const val REQUESTED_AT_INDEX = 14
+			const val REQUESTED_ELAPSED_INDEX = 15
+			const val STATUS_INDEX = 16
+			const val ATTEMPT_COUNT_INDEX = 17
+			const val ACKNOWLEDGED_AT_INDEX = 18
+			const val ACKNOWLEDGED_ELAPSED_INDEX = 19
+			const val FAILURE_CODE_INDEX = 20
+			const val RETRY_TRIGGER_INDEX = 21
+			const val SOURCE_INSTANCE_ID_INDEX = 22
+			const val REGISTRATION_GENERATION_INDEX = 23
+			const val SQLITE_INTEGER = "integer"
+			const val SQLITE_TEXT = "text"
+			const val SQLITE_NULL = "null"
+			val ACTION_FAMILIES = setOf("SOURCE_RUNTIME")
+			val ACTION_ID = Regex("[0-9a-f]{64}")
+			val DESIRED_STATES = setOf("STARTED", "STOPPED")
+			val START_ORIGINS = setOf(
+				"MANUAL_FOREGROUND_START",
+				"AUTOMATIC_BACKGROUND_START",
+				"RECOVERY",
+				"POLICY_RECONCILIATION",
+			)
+			val STATUSES = setOf(
+				"AWAITING_FOREGROUND",
+				"PENDING",
+				"APPLYING",
+				"CLEANUP_REQUIRED",
+				"START_ACCEPTED",
+				"TEMPORARILY_ILLEGAL",
+				"TERMINAL_FAILURE",
+				"STOP_ACCEPTED",
+				"SUPERSEDED",
+			)
+			val SOURCE_KINDS = setOf(
+				SourceDestinationOwnerEntity.SOURCE_LOCATION.toLong(),
+				SourceDestinationOwnerEntity.SOURCE_ACTIVITY.toLong(),
+				SourceDestinationOwnerEntity.SOURCE_STEPS.toLong(),
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE.toLong(),
+				SourceDestinationOwnerEntity.SOURCE_WIFI.toLong(),
+				SourceDestinationOwnerEntity.SOURCE_CELL.toLong(),
+			)
+		}
+	}
+}
 
 @Entity(
 	tableName = "source_session_completeness",

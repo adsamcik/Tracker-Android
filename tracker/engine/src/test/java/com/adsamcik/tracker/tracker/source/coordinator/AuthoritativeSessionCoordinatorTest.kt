@@ -721,7 +721,17 @@ class AuthoritativeSessionCoordinatorTest {
 			action.copy(desiredPlanRevision = action.desiredPlanRevision + 1L),
 		) shouldBe 1
 
-		assertTerminalStepsRecoveryBlocked(started, "requested-plan-revision-tamper-retry")
+		subject.stop(
+			SessionStopRequest(
+				"requested-plan-revision-tamper-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.InvalidIntent>().code shouldBe
+			"RUN_RETIREMENT_ACTION_MANIFEST_MISMATCH"
+		runtime.shutdownClaims shouldBe emptyList()
 
 		database.sourceSessionDao().updateLifecycleAction(action) shouldBe 1
 		subject.stop(
@@ -744,10 +754,9 @@ class AuthoritativeSessionCoordinatorTest {
 			SourceKind.STEPS.stableCode,
 		).single()
 		val action = requireNotNull(database.sourceSessionDao().lifecycleAction(retirement.actionId))
-		val mutations = listOf<Pair<String, (LifecycleDesiredActionEntity) -> LifecycleDesiredActionEntity>>(
+		val replayMutations =
+			listOf<Pair<String, (LifecycleDesiredActionEntity) -> LifecycleDesiredActionEntity>>(
 			"action revision" to { it.copy(actionRevision = it.actionRevision + 10_000L) },
-			"action family" to { it.copy(actionFamily = "OTHER_RUNTIME") },
-			"source policy" to { it.copy(sourcePolicyRevision = it.sourcePolicyRevision + 1L) },
 			"consent epoch" to { it.copy(consentEpoch = requireNotNull(it.consentEpoch) + 1L) },
 			"start origin" to { it.copy(startOrigin = SessionStartOrigin.RECOVERY.name) },
 			"boot" to { it.copy(bootId = "other-boot") },
@@ -757,7 +766,7 @@ class AuthoritativeSessionCoordinatorTest {
 			},
 		)
 
-		for ((field, mutate) in mutations) {
+		for ((field, mutate) in replayMutations) {
 			database.sourceSessionDao().updateLifecycleAction(mutate(action)) shouldBe 1
 			assertTerminalStepsRecoveryBlocked(
 				started,
@@ -765,44 +774,206 @@ class AuthoritativeSessionCoordinatorTest {
 			)
 			database.sourceSessionDao().updateLifecycleAction(action) shouldBe 1
 		}
+		val manifestLinkMutations = listOf(
+			"action family" to action.copy(actionFamily = "OTHER_RUNTIME"),
+			"source policy" to action.copy(
+				sourcePolicyRevision = action.sourcePolicyRevision + 1L,
+			),
+		)
+		for ((field, mutation) in manifestLinkMutations) {
+			database.sourceSessionDao().updateLifecycleAction(mutation) shouldBe 1
+			subject.stop(
+				SessionStopRequest(
+					"requested-action-envelope-$field-retry",
+					"USER_STOP",
+					2_600L,
+					2_600_000L,
+					"boot-1",
+				),
+			).shouldBeInstanceOf<SessionStopResult.InvalidIntent>()
+			runtime.shutdownClaims shouldBe emptyList()
+			database.sourceSessionDao().updateLifecycleAction(action) shouldBe 1
+		}
 
 		subject.stop(
 			SessionStopRequest(
 				"requested-action-envelope-restored",
 				"USER_STOP",
-				2_700L,
-				2_700_000L,
+				2_800L,
+				2_800_000L,
 				"boot-1",
 			),
 		).shouldBeInstanceOf<SessionStopResult.Stopped>()
 	}
 
 	@Test
-	fun `retirement manifest replay fails closed on bounded overflow`() = runTest {
-		val started = prepareBlockedTerminalStepsRecovery("retirement-manifest-overflow")
-		val manifest = requireNotNull(
+	fun `retirement reads referenced manifests without scanning long irrelevant history`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("retirement-long-manifest-history")
+		val originalManifest = requireNotNull(
 			database.sourceSessionDao().manifest(started.logicalTrackingId, 1L),
 		)
-		repeat(MAX_RUN_RETIREMENT_MANIFESTS) { index ->
+		val originalBindings = database.sourceSessionDao()
+			.manifestSources(started.logicalTrackingId, 1L)
+		repeat(300) { index ->
+			val revision = index.toLong() + 2L
+			val bindings = originalBindings.map { binding ->
+				binding.copy(manifestRevision = revision)
+			}
+			val unsigned = originalManifest.copy(
+				manifestRevision = revision,
+				effectiveElapsedRealtimeNanos =
+					originalManifest.effectiveElapsedRealtimeNanos + revision,
+				effectiveWallTimeMs = originalManifest.effectiveWallTimeMs + revision,
+				changeReason = "IRRELEVANT_HISTORY_$revision",
+				manifestChecksum = "",
+			)
 			database.sourceSessionDao().insertManifest(
-				manifest.copy(
-					manifestRevision = index.toLong() + 2L,
-					manifestChecksum = "overflow-manifest-${index + 1}",
+				unsigned.copy(
+					manifestChecksum = SessionManifestIntegrity.compute(unsigned, bindings),
 				),
 			)
+			database.sourceSessionDao().insertManifestSources(bindings)
 		}
 
 		subject.stop(
 			SessionStopRequest(
-				"retirement-manifest-overflow-retry",
+				"retirement-long-manifest-history-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+		runtime.shutdownClaims shouldBe emptyList()
+	}
+
+	@Test
+	fun `retirement blocks unknown and overflowed referenced manifest revisions`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("retirement-referenced-manifest")
+		val retirement = database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single()
+		val action = requireNotNull(database.sourceSessionDao().lifecycleAction(retirement.actionId))
+
+		database.sourceSessionDao().updateLifecycleAction(
+			action.copy(manifestRevision = 9_999L),
+		) shouldBe 1
+		subject.stop(
+			SessionStopRequest(
+				"retirement-unknown-manifest-retry",
 				"USER_STOP",
 				2_500L,
 				2_500_000L,
 				"boot-1",
 			),
 		).shouldBeInstanceOf<SessionStopResult.InvalidIntent>().code shouldBe
-			"RUN_RETIREMENT_MANIFEST_HISTORY_OVERFLOW"
+			"RUN_RETIREMENT_ACTION_MANIFEST_MISMATCH"
+		database.sourceSessionDao().updateLifecycleAction(action) shouldBe 1
+
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE lifecycle_desired_action SET manifest_revision = 9223372036854775808 " +
+				"WHERE action_id = ?",
+			arrayOf(action.actionId),
+		)
+		subject.stop(
+			SessionStopRequest(
+				"retirement-overflowed-manifest-retry",
+				"USER_STOP",
+				2_600L,
+				2_600_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.InvalidIntent>().code shouldBe
+			"RUN_RETIREMENT_ACTION_AUTHENTICATION_BLOCKED"
 		runtime.shutdownClaims shouldBe emptyList()
+	}
+
+	@Test
+	fun `retirement raw action projection blocks malformed ids enums types and ranges`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("retirement-raw-action")
+		val retirement = database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single()
+		val action = requireNotNull(database.sourceSessionDao().lifecycleAction(retirement.actionId))
+		val mutations = listOf(
+			RawActionMutation("action_id", "''", action.actionId),
+			RawActionMutation("action_id", "'malformed'", action.actionId),
+			RawActionMutation("logical_tracking_id", "''", action.logicalTrackingId),
+			RawActionMutation("service_run_id", "''", action.serviceRunId),
+			RawActionMutation("manifest_revision", "'1x'", action.manifestRevision),
+			RawActionMutation("action_revision", "1.5", action.actionRevision),
+			RawActionMutation("action_family", "'UNKNOWN'", action.actionFamily),
+			RawActionMutation("source_kind", "2147483648", action.sourceKind),
+			RawActionMutation("source_kind", "NULL", action.sourceKind),
+			RawActionMutation("desired_state", "'UNKNOWN'", action.desiredState),
+			RawActionMutation("desired_plan_revision", "X'01'", action.desiredPlanRevision),
+			RawActionMutation("source_policy_revision", "1.5", action.sourcePolicyRevision),
+			RawActionMutation("consent_epoch", "-1", action.consentEpoch),
+			RawActionMutation("start_origin", "'UNKNOWN'", action.startOrigin),
+			RawActionMutation("boot_id", "''", action.bootId),
+			RawActionMutation("lease_generation", "0", action.leaseGeneration),
+			RawActionMutation("requested_at_ms", "-1", action.requestedAtMs),
+			RawActionMutation(
+				"requested_elapsed_realtime_nanos",
+				"NULL",
+				action.requestedElapsedRealtimeNanos,
+			),
+			RawActionMutation("status", "'UNKNOWN'", action.status),
+			RawActionMutation("attempt_count", "2147483648", action.attemptCount),
+			RawActionMutation("acknowledged_at_ms", "'2000x'", action.acknowledgedAtMs),
+			RawActionMutation(
+				"acknowledged_elapsed_realtime_nanos",
+				"X'01'",
+				action.acknowledgedElapsedRealtimeNanos,
+			),
+			RawActionMutation("failure_code", "1", action.failureCode),
+			RawActionMutation("retry_trigger", "1", action.retryTrigger),
+			RawActionMutation("source_instance_id", "''", action.sourceInstanceId),
+			RawActionMutation("registration_generation", "0", action.registrationGeneration),
+		)
+		for ((index, mutation) in mutations.withIndex()) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE lifecycle_desired_action SET " +
+					"${mutation.column} = ${mutation.corruptSql} WHERE action_id IS ?",
+				arrayOf(action.actionId),
+			)
+			subject.stop(
+				SessionStopRequest(
+					"retirement-raw-action-$index",
+					"USER_STOP",
+					2_600L + index,
+					2_600_000L + index,
+					"boot-1",
+				),
+			).shouldBeInstanceOf<SessionStopResult.InvalidIntent>().code shouldBe
+				"RUN_RETIREMENT_ACTION_AUTHENTICATION_BLOCKED"
+			runtime.shutdownClaims shouldBe emptyList()
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE lifecycle_desired_action SET ${mutation.column} = ? " +
+					"WHERE action_id IS ? OR " +
+					"(action_revision IS ? AND service_run_id IS ?)",
+				arrayOf(
+					mutation.originalValue,
+					action.actionId,
+					action.actionRevision,
+					action.serviceRunId,
+				),
+			)
+		}
+
+		subject.stop(
+			SessionStopRequest(
+				"retirement-raw-action-restored",
+				"USER_STOP",
+				2_900L,
+				2_900_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
 	}
 
 	@Test
@@ -4373,7 +4544,11 @@ class AuthoritativeSessionCoordinatorTest {
 		val actions = List(count) { offset ->
 			val ordinal = offset + 1
 			action.copy(
-				actionId = "synthetic-retirement-${started.serviceRunId}-$ordinal",
+				actionId = stableLifecycleChecksum(
+					"synthetic-retirement",
+					started.serviceRunId,
+					ordinal,
+				),
 				actionRevision = firstActionRevision + offset,
 				status = LifecycleActionStatus.START_ACCEPTED.name,
 				attemptCount = retirement.attemptCount,
@@ -5350,8 +5525,14 @@ class AuthoritativeSessionCoordinatorTest {
 		)
 }
 
+private data class RawActionMutation(
+		val column: String,
+		val corruptSql: String,
+		val originalValue: Any?,
+)
+
 private data class UnchangedConsentEpochs(
-	val policyRevision: Long,
+		val policyRevision: Long,
 	val locationCaptureEpoch: Long,
 	val activityControlEpoch: Long,
 )

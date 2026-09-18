@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity.RawLifecycleDesiredAction
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity.RawSessionManifestSource
@@ -163,6 +164,15 @@ interface SourceSessionDao {
 	): SessionManifestVersionEntity?
 
 	@Query(
+		"SELECT * FROM session_manifest_version WHERE service_run_id = :serviceRunId " +
+			"AND manifest_revision IN (:manifestRevisions) ORDER BY manifest_revision ASC",
+	)
+	suspend fun manifestsForServiceRunRevisions(
+		serviceRunId: String,
+		manifestRevisions: List<Long>,
+	): List<SessionManifestVersionEntity>
+
+	@Query(
 		"SELECT * FROM session_manifest_version WHERE logical_tracking_id = :logicalTrackingId " +
 			"AND manifest_revision = :manifestRevision",
 	)
@@ -197,6 +207,18 @@ interface SourceSessionDao {
 	suspend fun rawManifestSources(
 		logicalTrackingId: String,
 		manifestRevision: Long,
+		limit: Int,
+	): List<RawSessionManifestSource>
+
+	@Query(
+		"SELECT " + RAW_MANIFEST_SOURCE_PROJECTION + " FROM session_manifest_source " +
+			"WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND manifest_revision IN (:manifestRevisions) " +
+			"ORDER BY manifest_revision, purpose, source_kind, rowid LIMIT :limit",
+	)
+	suspend fun rawManifestSourcesForRevisions(
+		logicalTrackingId: String,
+		manifestRevisions: List<Long>,
 		limit: Int,
 	): List<RawSessionManifestSource>
 
@@ -286,6 +308,22 @@ interface SourceSessionDao {
 		serviceRunId: String,
 		limit: Int,
 	): List<LifecycleDesiredActionEntity>
+
+	@Query(
+		"SELECT " + RAW_LIFECYCLE_ACTION_PROJECTION + " FROM lifecycle_desired_action WHERE " +
+			"((typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId) " +
+			"OR typeof(logical_tracking_id) != 'text' " +
+			"OR (typeof(logical_tracking_id) = 'text' AND trim(logical_tracking_id) = '')) AND " +
+			"((typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId) " +
+			"OR typeof(service_run_id) != 'text' " +
+			"OR (typeof(service_run_id) = 'text' AND trim(service_run_id) = '')) " +
+			"ORDER BY action_revision, action_id, rowid LIMIT :limit",
+	)
+	suspend fun rawLifecycleActionsForServiceRunBounded(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		limit: Int,
+	): List<RawLifecycleDesiredAction>
 
 	@Query(
 		"SELECT * FROM lifecycle_desired_action WHERE status IN " +
@@ -531,3 +569,56 @@ private const val RAW_MANIFEST_SOURCE_PROJECTION =
 		"THEN writer_projection_version END AS writer_projection_version, " +
 		"CASE WHEN typeof(writer_binding_generation) IN ('integer', 'null') " +
 		"THEN writer_binding_generation END AS writer_binding_generation"
+
+private const val RAW_LIFECYCLE_ACTION_PROJECTION =
+	"typeof(action_id) || '|' || typeof(logical_tracking_id) || '|' || " +
+		"typeof(service_run_id) || '|' || typeof(manifest_revision) || '|' || " +
+		"typeof(action_revision) || '|' || typeof(action_family) || '|' || " +
+		"typeof(source_kind) || '|' || typeof(desired_state) || '|' || " +
+		"typeof(desired_plan_revision) || '|' || typeof(source_policy_revision) || '|' || " +
+		"typeof(consent_epoch) || '|' || typeof(start_origin) || '|' || typeof(boot_id) || '|' || " +
+		"typeof(lease_generation) || '|' || typeof(requested_at_ms) || '|' || " +
+		"typeof(requested_elapsed_realtime_nanos) || '|' || typeof(status) || '|' || " +
+		"typeof(attempt_count) || '|' || typeof(acknowledged_at_ms) || '|' || " +
+		"typeof(acknowledged_elapsed_realtime_nanos) || '|' || typeof(failure_code) || '|' || " +
+		"typeof(retry_trigger) || '|' || typeof(source_instance_id) || '|' || " +
+		"typeof(registration_generation) AS storage_class_signature, " +
+		"CASE WHEN typeof(action_id) = 'text' THEN action_id END AS action_id, " +
+		"CASE WHEN typeof(logical_tracking_id) = 'text' THEN logical_tracking_id END " +
+		"AS logical_tracking_id, " +
+		"CASE WHEN typeof(service_run_id) = 'text' THEN service_run_id END AS service_run_id, " +
+		"CASE WHEN typeof(manifest_revision) = 'integer' THEN manifest_revision END " +
+		"AS manifest_revision, " +
+		"CASE WHEN typeof(action_revision) = 'integer' THEN action_revision END " +
+		"AS action_revision, " +
+		"CASE WHEN typeof(action_family) = 'text' THEN action_family END AS action_family, " +
+		"CASE WHEN typeof(source_kind) IN ('integer', 'null') THEN source_kind END AS source_kind, " +
+		"CASE WHEN typeof(desired_state) = 'text' THEN desired_state END AS desired_state, " +
+		"CASE WHEN typeof(desired_plan_revision) = 'integer' THEN desired_plan_revision END " +
+		"AS desired_plan_revision, " +
+		"CASE WHEN typeof(source_policy_revision) = 'integer' THEN source_policy_revision END " +
+		"AS source_policy_revision, " +
+		"CASE WHEN typeof(consent_epoch) IN ('integer', 'null') THEN consent_epoch END " +
+		"AS consent_epoch, " +
+		"CASE WHEN typeof(start_origin) = 'text' THEN start_origin END AS start_origin, " +
+		"CASE WHEN typeof(boot_id) = 'text' THEN boot_id END AS boot_id, " +
+		"CASE WHEN typeof(lease_generation) = 'integer' THEN lease_generation END " +
+		"AS lease_generation, " +
+		"CASE WHEN typeof(requested_at_ms) = 'integer' THEN requested_at_ms END " +
+		"AS requested_at_ms, " +
+		"CASE WHEN typeof(requested_elapsed_realtime_nanos) = 'integer' " +
+		"THEN requested_elapsed_realtime_nanos END AS requested_elapsed_realtime_nanos, " +
+		"CASE WHEN typeof(status) = 'text' THEN status END AS status, " +
+		"CASE WHEN typeof(attempt_count) = 'integer' THEN attempt_count END AS attempt_count, " +
+		"CASE WHEN typeof(acknowledged_at_ms) IN ('integer', 'null') " +
+		"THEN acknowledged_at_ms END AS acknowledged_at_ms, " +
+		"CASE WHEN typeof(acknowledged_elapsed_realtime_nanos) IN ('integer', 'null') " +
+		"THEN acknowledged_elapsed_realtime_nanos END AS acknowledged_elapsed_realtime_nanos, " +
+		"CASE WHEN typeof(failure_code) IN ('text', 'null') THEN failure_code END " +
+		"AS failure_code, " +
+		"CASE WHEN typeof(retry_trigger) IN ('text', 'null') THEN retry_trigger END " +
+		"AS retry_trigger, " +
+		"CASE WHEN typeof(source_instance_id) IN ('text', 'null') THEN source_instance_id END " +
+		"AS source_instance_id, " +
+		"CASE WHEN typeof(registration_generation) IN ('integer', 'null') " +
+		"THEN registration_generation END AS registration_generation"

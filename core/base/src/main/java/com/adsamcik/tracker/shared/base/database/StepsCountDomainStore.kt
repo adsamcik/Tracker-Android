@@ -157,6 +157,13 @@ class StepsCountDomainStore(
 	suspend fun recordSessionWal(
 		row: SourceEventWalEntity,
 		counterDomainToken: StepsCounterDomainToken?,
+	): StepsCountDomainWriteResult = authenticateCountDomainWrite {
+		recordSessionWalAuthenticated(row, counterDomainToken)
+	}
+
+	private suspend fun recordSessionWalAuthenticated(
+		row: SourceEventWalEntity,
+		counterDomainToken: StepsCounterDomainToken?,
 	): StepsCountDomainWriteResult {
 		if (row.sourceKind != SourceDestinationOwnerEntity.SOURCE_STEPS ||
 			row.authorizationPurposeEligibilityMask and
@@ -237,7 +244,15 @@ class StepsCountDomainStore(
 		)
 	}
 
-	suspend fun recordSessionFact(fact: StepFactRevisionEntity): StepsCountDomainWriteResult {
+	suspend fun recordSessionFact(
+		fact: StepFactRevisionEntity,
+	): StepsCountDomainWriteResult = authenticateCountDomainWrite {
+		recordSessionFactAuthenticated(fact)
+	}
+
+	private suspend fun recordSessionFactAuthenticated(
+		fact: StepFactRevisionEntity,
+	): StepsCountDomainWriteResult {
 		if (fact.originKind != StepFactRevisionEntity.ORIGIN_LIVE_WAL ||
 			fact.operation != StepFactRevisionEntity.OPERATION_UPSERT
 		) {
@@ -321,6 +336,14 @@ class StepsCountDomainStore(
 
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	suspend fun recordSessionCompleteness(
+		row: SourceSessionCompletenessEntity,
+		retirementEvidence: StepsCountDomainRetirementEvidence,
+	): StepsCountDomainWriteResult = authenticateCountDomainWrite {
+		recordSessionCompletenessAuthenticated(row, retirementEvidence)
+	}
+
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	private suspend fun recordSessionCompletenessAuthenticated(
 		row: SourceSessionCompletenessEntity,
 		retirementEvidence: StepsCountDomainRetirementEvidence,
 	): StepsCountDomainWriteResult {
@@ -609,6 +632,13 @@ class StepsCountDomainStore(
 	suspend fun recordAmbientFact(
 		fact: AmbientStepsFactRevisionEntity,
 		counterDomainToken: StepsCounterDomainToken?,
+	): StepsCountDomainWriteResult = authenticateCountDomainWrite {
+		recordAmbientFactAuthenticated(fact, counterDomainToken)
+	}
+
+	private suspend fun recordAmbientFactAuthenticated(
+		fact: AmbientStepsFactRevisionEntity,
+		counterDomainToken: StepsCounterDomainToken?,
 	): StepsCountDomainWriteResult {
 		if (fact.operation != AmbientStepsFactRevisionEntity.OPERATION_UPSERT ||
 			fact.originKind != AmbientStepsFactRevisionEntity.ORIGIN_PROVIDER_AGGREGATE
@@ -689,6 +719,18 @@ class StepsCountDomainStore(
 		retraction: StepFactRevisionEntity,
 		logicalTrackingId: String,
 		serviceRunId: String,
+	): StepsCountDomainWriteResult = authenticateCountDomainWrite {
+		recordSessionFactRetractionAuthenticated(
+			retraction,
+			logicalTrackingId,
+			serviceRunId,
+		)
+	}
+
+	private suspend fun recordSessionFactRetractionAuthenticated(
+		retraction: StepFactRevisionEntity,
+		logicalTrackingId: String,
+		serviceRunId: String,
 	): StepsCountDomainWriteResult {
 		val expectedScopeIdentity = SourceDeletionFenceEntity.logicalServiceRunIdentity(
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -728,6 +770,12 @@ class StepsCountDomainStore(
 	}
 
 	suspend fun recordAmbientFactRetraction(
+		retraction: AmbientStepsFactRevisionEntity,
+	): StepsCountDomainWriteResult = authenticateCountDomainWrite {
+		recordAmbientFactRetractionAuthenticated(retraction)
+	}
+
+	private suspend fun recordAmbientFactRetractionAuthenticated(
 		retraction: AmbientStepsFactRevisionEntity,
 	): StepsCountDomainWriteResult {
 		writeSchemaFailure()?.let { return it }
@@ -860,6 +908,12 @@ class StepsCountDomainStore(
 
 	fun removeOwners(
 		keys: List<StepsCountDomainOwnerLookupKey>,
+	): StepsCountDomainMaintenanceResult = authenticateCountDomainMaintenance {
+		removeOwnersAuthenticated(keys)
+	}
+
+	private fun removeOwnersAuthenticated(
+		keys: List<StepsCountDomainOwnerLookupKey>,
 	): StepsCountDomainMaintenanceResult {
 		val distinct = keys.distinct()
 		if (distinct.size > MAX_MAINTENANCE_OWNER_BATCH) {
@@ -891,6 +945,12 @@ class StepsCountDomainStore(
 	}
 
 	fun clear(
+		mode: StepsCountDomainFullClearMode,
+	): StepsCountDomainMaintenanceResult = authenticateCountDomainMaintenance {
+		clearAuthenticated(mode)
+	}
+
+	private fun clearAuthenticated(
 		mode: StepsCountDomainFullClearMode,
 	): StepsCountDomainMaintenanceResult {
 		val sqlite = database.openHelper.writableDatabase
@@ -929,6 +989,18 @@ class StepsCountDomainStore(
 		maximumRetainedTerminalOwners: Int,
 		batchSize: Int,
 		sourceFenceAuthenticated: Boolean,
+	): StepsCountDomainMaintenanceResult = authenticateCountDomainMaintenance {
+		compactTerminalOwnersAuthenticated(
+			maximumRetainedTerminalOwners,
+			batchSize,
+			sourceFenceAuthenticated,
+		)
+	}
+
+	private fun compactTerminalOwnersAuthenticated(
+		maximumRetainedTerminalOwners: Int,
+		batchSize: Int,
+		sourceFenceAuthenticated: Boolean,
 	): StepsCountDomainMaintenanceResult {
 		require(sourceFenceAuthenticated)
 		require(maximumRetainedTerminalOwners >= 0)
@@ -951,6 +1023,14 @@ class StepsCountDomainStore(
 	}
 
 	fun removeSessionWalOwnersForPrune(
+		safeOrdinal: Long,
+		createdBeforeMs: Long,
+		limit: Int,
+	): StepsCountDomainMaintenanceResult = authenticateCountDomainMaintenance {
+		removeSessionWalOwnersForPruneAuthenticated(safeOrdinal, createdBeforeMs, limit)
+	}
+
+	private fun removeSessionWalOwnersForPruneAuthenticated(
 		safeOrdinal: Long,
 		createdBeforeMs: Long,
 		limit: Int,
@@ -992,6 +1072,22 @@ class StepsCountDomainStore(
 			}
 		}
 		return StepsCountDomainMaintenanceResult.Applied(removedOwners, removedReceipts)
+	}
+
+	private suspend fun authenticateCountDomainWrite(
+		block: suspend () -> StepsCountDomainWriteResult,
+	): StepsCountDomainWriteResult = try {
+		block()
+	} catch (_: CountDomainStoredEvidenceException) {
+		StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE
+	}
+
+	private fun authenticateCountDomainMaintenance(
+		block: () -> StepsCountDomainMaintenanceResult,
+	): StepsCountDomainMaintenanceResult = try {
+		block()
+	} catch (_: CountDomainStoredEvidenceException) {
+		StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
 	}
 
 	private fun appendBoundOwner(
@@ -1568,11 +1664,14 @@ private fun SupportSQLiteDatabase.queryOwner(
 	ownerRevision: Long,
 ): StepsCountDomainOwnerRevisionEntity? =
 	query(
-		"SELECT * FROM main.steps_count_domain_owner_revision WHERE owner_kind = ? " +
-			"AND owner_identity = ? AND owner_revision = ? LIMIT 1",
+		"SELECT * FROM main.steps_count_domain_owner_revision WHERE " +
+			"owner_kind = ? AND owner_identity = ? AND owner_revision = ? LIMIT 2",
 		arrayOf(ownerKind, ownerIdentity, ownerRevision),
 	).use { cursor ->
-		if (cursor.moveToFirst()) cursor.toStepsCountDomainOwner() else null
+		if (!cursor.moveToFirst()) return@use null
+		val owner = cursor.toStepsCountDomainOwner()
+		if (cursor.moveToNext()) throw CountDomainStoredEvidenceException()
+		owner
 	}
 
 private fun SupportSQLiteDatabase.queryLatestOwner(
@@ -1580,21 +1679,35 @@ private fun SupportSQLiteDatabase.queryLatestOwner(
 	ownerIdentity: String,
 ): StepsCountDomainOwnerRevisionEntity? =
 	query(
-		"SELECT * FROM main.steps_count_domain_owner_revision WHERE owner_kind = ? " +
-			"AND owner_identity = ? ORDER BY owner_revision DESC LIMIT 1",
+		"SELECT * FROM main.steps_count_domain_owner_revision WHERE " +
+			"owner_kind = ? AND owner_identity = ? " +
+			"ORDER BY owner_revision DESC LIMIT 2",
 		arrayOf(ownerKind, ownerIdentity),
 	).use { cursor ->
-		if (cursor.moveToFirst()) cursor.toStepsCountDomainOwner() else null
+		if (!cursor.moveToFirst()) return@use null
+		val owner = cursor.toStepsCountDomainOwner()
+		if (cursor.moveToNext()) {
+			val olderOrMalformed = cursor.toStepsCountDomainOwner()
+			if (olderOrMalformed.ownerKind != ownerKind ||
+				olderOrMalformed.ownerIdentity != ownerIdentity
+			) {
+				throw CountDomainStoredEvidenceException()
+			}
+		}
+		owner
 	}
 
 private fun SupportSQLiteDatabase.queryReceipt(
 	receiptIdentity: String,
 ): StepsCountDomainReceiptEntity? =
 	query(
-		"SELECT * FROM main.steps_count_domain_receipt WHERE receipt_identity = ? LIMIT 1",
+		"SELECT * FROM main.steps_count_domain_receipt WHERE receipt_identity = ? LIMIT 2",
 		arrayOf(receiptIdentity),
 	).use { cursor ->
-		if (cursor.moveToFirst()) cursor.toStepsCountDomainReceipt() else null
+		if (!cursor.moveToFirst()) return@use null
+		val receipt = cursor.toStepsCountDomainReceipt()
+		if (cursor.moveToNext()) throw CountDomainStoredEvidenceException()
+		receipt
 	}
 
 private fun SupportSQLiteDatabase.queryCompletenessMarker(
@@ -1603,10 +1716,13 @@ private fun SupportSQLiteDatabase.queryCompletenessMarker(
 ): StepsCountDomainCompletenessMarkerEntity? =
 	query(
 		"SELECT * FROM main.steps_count_domain_completeness_marker " +
-			"WHERE owner_identity = ? AND owner_revision = ? LIMIT 1",
+			"WHERE owner_identity = ? AND owner_revision = ? LIMIT 2",
 		arrayOf(ownerIdentity, ownerRevision),
 	).use { cursor ->
-		if (cursor.moveToFirst()) cursor.toStepsCountDomainCompletenessMarker() else null
+		if (!cursor.moveToFirst()) return@use null
+		val marker = cursor.toStepsCountDomainCompletenessMarker()
+		if (cursor.moveToNext()) throw CountDomainStoredEvidenceException()
+		marker
 	}
 
 private fun SupportSQLiteDatabase.queryOwnerChunk(
@@ -1681,9 +1797,9 @@ private fun SupportSQLiteDatabase.queryLatestOwnerChunk(
 			while (cursor.moveToNext()) {
 				add(
 					StepsCountDomainOwnerLineageKey(
-						cursor.string("owner_kind"),
-						cursor.string("owner_identity"),
-					) to cursor.long("latest_revision"),
+						cursor.requiredText("owner_kind"),
+						cursor.requiredText("owner_identity"),
+					) to cursor.requiredLong("latest_revision"),
 				)
 			}
 		}
@@ -1749,9 +1865,9 @@ private fun SupportSQLiteDatabase.queryTerminalCompactionCandidates(
 			while (cursor.moveToNext()) {
 				add(
 					StepsCountDomainOwnerLookupKey(
-						cursor.string("owner_kind"),
-						cursor.string("owner_identity"),
-						cursor.long("owner_revision"),
+						cursor.requiredText("owner_kind"),
+						cursor.requiredText("owner_identity"),
+						cursor.requiredLong("owner_revision"),
 					),
 				)
 			}
@@ -1776,8 +1892,8 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwners(
 	).use { cursor ->
 		buildList {
 			while (cursor.moveToNext()) {
-				val admissionOrdinal = cursor.getLong(0)
-				val eventId = cursor.getString(1)
+				val admissionOrdinal = cursor.requiredLong(0)
+				val eventId = cursor.requiredText(1)
 				add(
 					StepsCountDomainOwnerLookupKey(
 						ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
@@ -1797,67 +1913,121 @@ private fun SupportSQLiteDatabase.longForQuery(
 	sql: String,
 	args: Array<out Any?> = emptyArray(),
 ): Long = query(sql, args).use { cursor ->
-	check(cursor.moveToFirst())
-	cursor.getLong(0)
+	if (!cursor.moveToFirst()) throw CountDomainStoredEvidenceException()
+	val value = cursor.requiredLong(0)
+	if (cursor.moveToNext()) throw CountDomainStoredEvidenceException()
+	value
 }
 
 private fun android.database.Cursor.toStepsCountDomainOwner() =
-	StepsCountDomainOwnerRevisionEntity(
-		ownerKind = string("owner_kind"),
-		scopeIdentity = string("scope_identity"),
-		ownerIdentity = string("owner_identity"),
-		ownerRevision = long("owner_revision"),
-		operation = string("operation"),
-		receiptIdentity = nullableString("receipt_identity"),
-		ownerEffectChecksum = string("owner_effect_checksum"),
-		linkedAtMs = long("linked_at_ms"),
-	)
+	authenticatedCountDomainRow {
+		StepsCountDomainOwnerRevisionEntity(
+			ownerKind = requiredText("owner_kind"),
+			scopeIdentity = requiredText("scope_identity"),
+			ownerIdentity = requiredText("owner_identity"),
+			ownerRevision = requiredLong("owner_revision"),
+			operation = requiredText("operation"),
+			receiptIdentity = nullableText("receipt_identity"),
+			ownerEffectChecksum = requiredText("owner_effect_checksum"),
+			linkedAtMs = requiredLong("linked_at_ms"),
+		)
+	}
 
 private fun android.database.Cursor.toStepsCountDomainReceipt() =
-	StepsCountDomainReceiptEntity(
-		receiptIdentity = string("receipt_identity"),
-		domainIdentity = string("domain_identity"),
-		ownerKind = string("owner_kind"),
-		scopeIdentity = string("scope_identity"),
-		ownerIdentity = string("owner_identity"),
-		ownerRevision = long("owner_revision"),
-		registrationGeneration = long("registration_generation"),
-		collectedDataEpoch = long("collected_data_epoch"),
-		authorityRevision = long("authority_revision"),
-		authorityFingerprint = string("authority_fingerprint"),
-		coverageKind = string("coverage_kind"),
-		coverageVersion = long("coverage_version").toInt(),
-		countDomainVersion = long("count_domain_version").toInt(),
-		effectChecksum = string("effect_checksum"),
-		completionEvidenceChecksum = nullableString("completion_evidence_checksum"),
-	)
+	authenticatedCountDomainRow {
+		StepsCountDomainReceiptEntity(
+			receiptIdentity = requiredText("receipt_identity"),
+			domainIdentity = requiredText("domain_identity"),
+			ownerKind = requiredText("owner_kind"),
+			scopeIdentity = requiredText("scope_identity"),
+			ownerIdentity = requiredText("owner_identity"),
+			ownerRevision = requiredLong("owner_revision"),
+			registrationGeneration = requiredLong("registration_generation"),
+			collectedDataEpoch = requiredLong("collected_data_epoch"),
+			authorityRevision = requiredLong("authority_revision"),
+			authorityFingerprint = requiredText("authority_fingerprint"),
+			coverageKind = requiredText("coverage_kind"),
+			coverageVersion = requiredInt("coverage_version"),
+			countDomainVersion = requiredInt("count_domain_version"),
+			effectChecksum = requiredText("effect_checksum"),
+			completionEvidenceChecksum = nullableText("completion_evidence_checksum"),
+		)
+	}
 
 private fun android.database.Cursor.toStepsCountDomainCompletenessMarker() =
-	StepsCountDomainCompletenessMarkerEntity(
-		ownerKind = string("owner_kind"),
-		ownerIdentity = string("owner_identity"),
-		ownerRevision = long("owner_revision"),
-		terminalState = string("terminal_state"),
-		lastAdmissionOrdinal = nullableLong("last_admission_ordinal"),
-		lastSourceSequence = nullableLong("last_source_sequence"),
-		providerFlushOutcome = string("provider_flush_outcome"),
-		registrationRemovalOutcome = string("registration_removal_outcome"),
-		registrationTimelineChecksum = string("registration_timeline_checksum"),
-		evidenceChecksum = string("evidence_checksum"),
-	)
+	authenticatedCountDomainRow {
+		StepsCountDomainCompletenessMarkerEntity(
+			ownerKind = requiredText("owner_kind"),
+			ownerIdentity = requiredText("owner_identity"),
+			ownerRevision = requiredLong("owner_revision"),
+			terminalState = requiredText("terminal_state"),
+			lastAdmissionOrdinal = nullableLong("last_admission_ordinal"),
+			lastSourceSequence = nullableLong("last_source_sequence"),
+			providerFlushOutcome = requiredText("provider_flush_outcome"),
+			registrationRemovalOutcome = requiredText("registration_removal_outcome"),
+			registrationTimelineChecksum = requiredText("registration_timeline_checksum"),
+			evidenceChecksum = requiredText("evidence_checksum"),
+		)
+	}
 
-private fun android.database.Cursor.string(column: String): String =
-	getString(getColumnIndexOrThrow(column))
+private inline fun <T> authenticatedCountDomainRow(block: () -> T): T =
+	try {
+		block()
+	} catch (error: CountDomainStoredEvidenceException) {
+		throw error
+	} catch (error: IllegalArgumentException) {
+		throw CountDomainStoredEvidenceException(error)
+	} catch (error: IllegalStateException) {
+		throw CountDomainStoredEvidenceException(error)
+	}
 
-private fun android.database.Cursor.nullableString(column: String): String? {
-	val index = getColumnIndexOrThrow(column)
-	return if (isNull(index)) null else getString(index)
+private fun android.database.Cursor.requiredText(column: String): String =
+	requiredText(getColumnIndexOrThrow(column))
+
+private fun android.database.Cursor.requiredText(index: Int): String {
+	if (getType(index) != android.database.Cursor.FIELD_TYPE_STRING) {
+		throw CountDomainStoredEvidenceException()
+	}
+	return getString(index) ?: throw CountDomainStoredEvidenceException()
 }
 
-private fun android.database.Cursor.long(column: String): Long =
-	getLong(getColumnIndexOrThrow(column))
+private fun android.database.Cursor.nullableText(column: String): String? {
+	val index = getColumnIndexOrThrow(column)
+	return when (getType(index)) {
+		android.database.Cursor.FIELD_TYPE_NULL -> null
+		android.database.Cursor.FIELD_TYPE_STRING ->
+			getString(index) ?: throw CountDomainStoredEvidenceException()
+		else -> throw CountDomainStoredEvidenceException()
+	}
+}
+
+private fun android.database.Cursor.requiredLong(column: String): Long =
+	requiredLong(getColumnIndexOrThrow(column))
+
+private fun android.database.Cursor.requiredLong(index: Int): Long {
+	if (getType(index) != android.database.Cursor.FIELD_TYPE_INTEGER) {
+		throw CountDomainStoredEvidenceException()
+	}
+	return getLong(index)
+}
+
+private fun android.database.Cursor.requiredInt(column: String): Int {
+	val value = requiredLong(column)
+	if (value !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
+		throw CountDomainStoredEvidenceException()
+	}
+	return value.toInt()
+}
 
 private fun android.database.Cursor.nullableLong(column: String): Long? {
 	val index = getColumnIndexOrThrow(column)
-	return if (isNull(index)) null else getLong(index)
+	return when (getType(index)) {
+		android.database.Cursor.FIELD_TYPE_NULL -> null
+		android.database.Cursor.FIELD_TYPE_INTEGER -> getLong(index)
+		else -> throw CountDomainStoredEvidenceException()
+	}
 }
+
+private class CountDomainStoredEvidenceException(
+	cause: Throwable? = null,
+) : IllegalStateException("Stored Steps count-domain evidence is unverifiable", cause)
