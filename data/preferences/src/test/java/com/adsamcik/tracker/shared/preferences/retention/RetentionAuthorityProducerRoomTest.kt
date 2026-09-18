@@ -24,9 +24,11 @@ import kotlin.test.Test
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
@@ -454,6 +456,32 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
+	fun `DataStore floor ahead of Room makes the previous grant unavailable`() = runTest {
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+		val producer = producer()
+		val snapshot = (policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
+		val consentEpoch = requireNotNull(
+			snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+		)
+		assertIs<RetentionAuthorityResult.Applied>(
+			producer.reconcileLiveAmbient(TrackingSourceComponent.STEPS),
+		)
+
+		lifecycle = lifecycle.copy(retainedFromMs = 2_000L)
+
+		producer.currentLiveAmbient(
+			TrackingSourceComponent.STEPS,
+			snapshot.revision,
+			consentEpoch,
+			lifecycle.epoch,
+			lifecycle.retainedFromMs,
+		) shouldBe CurrentRetentionAuthority.Unavailable(
+			RetentionAuthorityUnavailableReason.RETAINED_FROM_CHANGED,
+		)
+	}
+
+	@Test
 	fun `floor only reissue rotates the exact retention approval revision`() = runTest {
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
@@ -515,6 +543,22 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
+	fun `lease owned Room transaction keeps the private operation capability`() = runTest {
+		operationLease.withPermit { permit ->
+			permit.awaitOwned {
+				permit.validate()
+				database.withTransaction {
+					permit.validate()
+					database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe
+						lifecycle.epoch
+					permit.validate()
+				}
+				permit.validate()
+			}
+		}
+	}
+
+	@Test
 	fun `operation permit cannot escape its lexical lease scope`() = runTest {
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
@@ -539,6 +583,27 @@ class RetentionAuthorityProducerRoomTest {
 		operationLease.withPermit { permit ->
 			val child = async {
 				producer.reconcileCurrentSettings(permit)
+			}
+			assertFailsWith<IllegalArgumentException> { child.await() }
+		}
+	}
+
+	@Test
+	fun `operation permit cannot transfer through shared NonCancellable context`() = runTest {
+		operationLease.withPermit { permit ->
+			assertFailsWith<IllegalArgumentException> {
+				withContext(NonCancellable) {
+					permit.validate()
+				}
+			}
+		}
+	}
+
+	@Test
+	fun `shielded operation permit cannot transfer to a NonCancellable child`() = runTest {
+		operationLease.withPermit(cancellationShielded = true) { permit ->
+			val child = async(NonCancellable) {
+				permit.validate()
 			}
 			assertFailsWith<IllegalArgumentException> { child.await() }
 		}

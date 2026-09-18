@@ -64,11 +64,14 @@ import java.io.File
 import javax.inject.Provider
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -180,10 +183,9 @@ class CollectedDataDeletionServiceTest {
 			throw SQLiteException("interrupted")
 		}
 
-		val failure = runCatching {
-			firstAttempt.deleteAll()
-		}.exceptionOrNull()
-		failure.shouldBeInstanceOf<SQLiteException>()
+		firstAttempt.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+			CollectedDataDeletionReconciliationFailure.DeletionExecution,
+		)
 		markerFile.exists() shouldBe true
 		startupDeletionBarrier.isClosed shouldBe true
 		verify(exactly = 0) { writerQuiescer.resume() }
@@ -379,6 +381,122 @@ class CollectedDataDeletionServiceTest {
 		coVerify(exactly = 2) { arbiter.closeForCollectedDataDeletion() }
 		coVerify(exactly = 2) { ambientSteps.closeForCollectedDataDeletion() }
 		coVerify(exactly = 2) { writerQuiescer.quiesce() }
+	}
+
+	@Test
+	fun `late pre quiescence fence completion cannot satisfy the final fence`() = runTest {
+		val firstFenceStarted = CompletableDeferred<Unit>()
+		val releaseFirstFence = CompletableDeferred<Unit>()
+		var fenceCalls = 0
+		var activeFences = 0
+		var maximumActiveFences = 0
+		val arbiter = mockk<ActivityRegistrationArbiter>()
+		coEvery { arbiter.closeForCollectedDataDeletion() } coAnswers {
+			fenceCalls += 1
+			activeFences += 1
+			maximumActiveFences = maxOf(maximumActiveFences, activeFences)
+			try {
+				if (fenceCalls == 1) {
+					firstFenceStarted.complete(Unit)
+					releaseFirstFence.await()
+				}
+				appliedRegistrationResult()
+			} finally {
+				activeFences -= 1
+			}
+		}
+		val firstWriterFence = CompletableDeferred<Unit>()
+		var writerFenceCalls = 0
+		coEvery { writerQuiescer.quiesce() } coAnswers {
+			writerFenceCalls += 1
+			if (writerFenceCalls == 1) firstWriterFence.complete(Unit)
+		}
+		val service = createService(
+			activityRegistrationArbiterProvider = Provider { arbiter },
+			providerFenceTimeoutMs = 10L,
+			providerFenceScope = backgroundScope,
+		) { _, _, _, _ -> }
+
+		val deletion = async { service.deleteAll() }
+		firstFenceStarted.await()
+		advanceTimeBy(11L)
+		runCurrent()
+		firstWriterFence.await()
+		releaseFirstFence.complete(Unit)
+
+		deletion.await() shouldBe CollectedDataDeletionCompletion.Complete
+		fenceCalls shouldBe 2
+		writerFenceCalls shouldBe 2
+		maximumActiveFences shouldBe 1
+	}
+
+	@Test
+	fun `cancelled UI await cannot cancel deletion after the durable marker`() = runTest {
+		val fenceStarted = CompletableDeferred<Unit>()
+		val allowFence = CompletableDeferred<Unit>()
+		var writerFenceCalls = 0
+		coEvery { writerQuiescer.quiesce() } coAnswers {
+			writerFenceCalls += 1
+			if (writerFenceCalls == 1) {
+				fenceStarted.complete(Unit)
+				allowFence.await()
+			}
+		}
+		var physicalClearCount = 0
+		val service = createService(
+			providerFenceScope = backgroundScope,
+		) { _, _, _, _ ->
+			physicalClearCount += 1
+		}
+
+		val uiAwait = async { service.deleteAll() }
+		fenceStarted.await()
+		markerFile.exists() shouldBe true
+		uiAwait.cancel()
+		uiAwait.join()
+
+		val serviceRejoin = async { service.reconcilePendingDeletion() }
+		runCurrent()
+		physicalClearCount shouldBe 0
+		allowFence.complete(Unit)
+
+		serviceRejoin.await() shouldBe CollectedDataDeletionCompletion.Complete
+		physicalClearCount shouldBe 1
+		writerFenceCalls shouldBe 2
+		markerFile.exists() shouldBe false
+		startupDeletionBarrier.isClosed shouldBe false
+	}
+
+	@Test
+	fun `durable deletion callers deduplicate and rejoin one physical clear`() = runTest {
+		val clearStarted = CompletableDeferred<Unit>()
+		val allowClear = CompletableDeferred<Unit>()
+		var physicalClearCount = 0
+		val service = createService(
+			providerFenceScope = backgroundScope,
+		) { _, _, _, _ ->
+			physicalClearCount += 1
+			clearStarted.complete(Unit)
+			allowClear.await()
+		}
+
+		val first = async { service.deleteAll() }
+		clearStarted.await()
+		val operationMarker = markerFile.readText()
+		val second = async { service.deleteAll() }
+		val startupRejoin = async { service.reconcilePendingDeletion() }
+		runCurrent()
+
+		physicalClearCount shouldBe 1
+		markerFile.readText() shouldBe operationMarker
+		allowClear.complete(Unit)
+		listOf(first.await(), second.await(), startupRejoin.await()).forEach {
+			it shouldBe CollectedDataDeletionCompletion.Complete
+		}
+		physicalClearCount shouldBe 1
+		coVerify(exactly = 1) {
+			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+		}
 	}
 
 	@Test
@@ -663,8 +781,9 @@ class CollectedDataDeletionServiceTest {
 		val interrupted = createService { _, _, _, _ ->
 			throw SQLiteException("interrupted before database commit")
 		}
-		runCatching { interrupted.deleteAll() }.exceptionOrNull()
-			.shouldBeInstanceOf<SQLiteException>()
+		interrupted.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+			CollectedDataDeletionReconciliationFailure.DeletionExecution,
+		)
 		RETIRED_DATABASE_NAMES.forEach {
 			context.openOrCreateDatabase(it, Application.MODE_PRIVATE, null).close()
 		}
@@ -903,13 +1022,13 @@ class CollectedDataDeletionServiceTest {
 			throw SQLiteException("interrupted again")
 		}
 
-		runCatching { service.deleteAll() }
-			.exceptionOrNull()
-			.shouldBeInstanceOf<SQLiteException>()
+		service.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+			CollectedDataDeletionReconciliationFailure.DeletionExecution,
+		)
 		val originalMarker = markerFile.readText()
-		runCatching { service.deleteAll() }
-			.exceptionOrNull()
-			.shouldBeInstanceOf<SQLiteException>()
+		service.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+			CollectedDataDeletionReconciliationFailure.DeletionExecution,
+		)
 
 		markerFile.exists() shouldBe true
 		markerFile.readText() shouldBe originalMarker
@@ -997,8 +1116,9 @@ class CollectedDataDeletionServiceTest {
 			},
 		) { _, _, _, _ -> operations += "tracker" }
 
-		runCatching { service.deleteAll() }.exceptionOrNull()
-			.shouldBeInstanceOf<IllegalStateException>()
+		service.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+			CollectedDataDeletionReconciliationFailure.DeletionExecution,
+		)
 
 		operations shouldBe listOf("tracker", "writer-rearm")
 		markerFile.exists() shouldBe true
@@ -1039,8 +1159,9 @@ class CollectedDataDeletionServiceTest {
 				},
 			) { _, _, _, _ -> error("legacy clear callback must not run") }
 
-			runCatching { first.deleteAll() }.exceptionOrNull()
-				.shouldBeInstanceOf<IllegalStateException>()
+			first.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+				CollectedDataDeletionReconciliationFailure.DeletionExecution,
+			)
 			markerFile.exists() shouldBe true
 			lifecycleSnapshot.epoch shouldBe 1L
 
@@ -1070,9 +1191,9 @@ class CollectedDataDeletionServiceTest {
 				operations += "tracker"
 			}
 
-			runCatching { service.deleteAll() }
-				.exceptionOrNull()
-				.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+			service.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+				CollectedDataDeletionReconciliationFailure.DeletionExecution,
+			)
 			operations shouldBe listOf("tracker", "tracebox")
 			markerFile.exists() shouldBe true
 
@@ -1108,8 +1229,9 @@ class CollectedDataDeletionServiceTest {
 			},
 		) { _, _, _, _ -> operations += "tracker" }
 
-		runCatching { service.deleteAll() }.exceptionOrNull()
-			.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+		service.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+			CollectedDataDeletionReconciliationFailure.DeletionExecution,
+		)
 		markerFile.exists() shouldBe true
 		startupDeletionBarrier.isClosed shouldBe true
 
@@ -1144,9 +1266,9 @@ class CollectedDataDeletionServiceTest {
 			},
 		) { _, _, _, _ -> }
 
-		runCatching { service.deleteAll() }
-			.exceptionOrNull()
-			.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+		service.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+			CollectedDataDeletionReconciliationFailure.DeletionExecution,
+		)
 
 		deletionAttempts shouldBe 1
 		markerFile.exists() shouldBe true
@@ -1175,6 +1297,8 @@ class CollectedDataDeletionServiceTest {
 		directorySync: (File) -> Unit = {},
 		markerDelete: (File) -> Boolean = File::delete,
 		providerFenceTimeoutMs: Long = 30_000L,
+		providerFenceScope: CoroutineScope =
+			CoroutineScope(SupervisorJob() + Dispatchers.Default),
 		appDatabaseDeletionOperation: (suspend (
 			android.content.Context,
 			CollectedDataDeletionOperation,
@@ -1249,6 +1373,7 @@ class CollectedDataDeletionServiceTest {
 		markerDelete = markerDelete,
 		currentTimeMillis = { 1L },
 		providerFenceTimeoutMs = providerFenceTimeoutMs,
+		providerFenceScope = providerFenceScope,
 	)
 
 	private suspend fun roomRetentionProducer(

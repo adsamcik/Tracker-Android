@@ -24,8 +24,6 @@ import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciliationResu
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.withContext
 
 @Singleton
 class RetentionFloorSettlement @Inject constructor(
@@ -45,40 +43,54 @@ class RetentionFloorSettlement @Inject constructor(
 		require(requestedRetainedFromMs >= 0L)
 		require(updatedAtMs >= 0L)
 		val commit = startupGate.withReadyGenerationOperation(expectedStartupGeneration) {
-			withContext(NonCancellable) {
-				operationLease.withPermit { permit ->
-					verifyApprovedOperation()
-					val lifecycle = lifecycleStore.advanceRetainedFromWithPermit(
-						requestedRetainedFromMs,
-						permit,
-					)
-					permit.validate()
-					verifyApprovedOperation()
-					database.withTransaction {
-						permit.validate()
+			operationLease.withPermit(cancellationShielded = true) { permit ->
+				var phase = RetentionFloorSettlementPhase.LIFECYCLE_FLOOR
+				try {
+					val lifecycle = permit.awaitOwned {
 						verifyApprovedOperation()
-						try {
-							val sourceEvidenceStateDao = database.sourceEvidenceStateDao()
-							val lifecycleChanged = sourceEvidenceStateDao.synchronizeLifecycle(
-								epoch = lifecycle.epoch,
-								retainedFromMs = lifecycle.retainedFromMs,
-								updatedAtMs = updatedAtMs,
-							)
-							if (!lifecycleChanged) {
-								check(sourceEvidenceStateDao.incrementRevision(updatedAtMs) == 1) {
-									"Unable to advance source-evidence revision for retention floor"
-								}
-							}
-						} finally {
-							verifyApprovedOperation()
-							permit.validate()
-						}
+						lifecycleStore.advanceRetainedFromWithPermit(
+							requestedRetainedFromMs,
+							permit,
+						)
 					}
 					permit.validate()
+					verifyApprovedOperation()
+					phase = RetentionFloorSettlementPhase.ROOM_GUARD
+					permit.awaitOwned {
+						permit.validate()
+						verifyApprovedOperation()
+						database.withTransaction {
+							permit.validate()
+							verifyApprovedOperation()
+							try {
+								val sourceEvidenceStateDao = database.sourceEvidenceStateDao()
+								permit.validate()
+								val lifecycleChanged = sourceEvidenceStateDao.synchronizeLifecycle(
+									epoch = lifecycle.epoch,
+									retainedFromMs = lifecycle.retainedFromMs,
+									updatedAtMs = updatedAtMs,
+								)
+								permit.validate()
+								if (!lifecycleChanged) {
+									permit.validate()
+									check(sourceEvidenceStateDao.incrementRevision(updatedAtMs) == 1) {
+										"Unable to advance source-evidence revision for retention floor"
+									}
+									permit.validate()
+								}
+							} finally {
+								verifyApprovedOperation()
+								permit.validate()
+							}
+						}
+						permit.validate()
+					}
+					permit.validate()
+					phase = RetentionFloorSettlementPhase.AUTHORITY_REISSUE
 					val retentionResults = try {
-						retentionAuthorityProducer.reconcileCurrentSettingsWithPermit(permit)
-					} catch (cancelled: CancellationException) {
-						throw cancelled
+						permit.awaitOwned {
+							retentionAuthorityProducer.reconcileCurrentSettingsWithPermit(permit)
+						}
 					} catch (_: Exception) {
 						RETENTION_PROVIDER_SOURCES.keys.map { source ->
 							RetentionAuthorityResult.Unavailable(
@@ -88,11 +100,24 @@ class RetentionFloorSettlement @Inject constructor(
 							)
 						}
 					}
-					RetentionFloorCommit(lifecycle, retentionResults)
+					RetentionFloorCommitResult.Applied(lifecycle, retentionResults)
+				} catch (_: Exception) {
+					RetentionFloorCommitResult.Retryable(
+						RetentionFloorSettlementFailure.CommitBoundary(phase),
+					)
 				}
 			}
 		} ?: return RetentionFloorSettlementResult.StartupGenerationChanged
 
+		if (commit is RetentionFloorCommitResult.Retryable) {
+			return RetentionFloorSettlementResult.Retryable(
+				RetentionFloorSettlementDebt(
+					requestedRetainedFromMs,
+					listOf(commit.failure),
+				),
+			)
+		}
+		commit as RetentionFloorCommitResult.Applied
 		val retainedFromMs = requireNotNull(commit.lifecycle.retainedFromMs) {
 			"Retention settlement must establish a durable retained-from floor"
 		}
@@ -232,9 +257,25 @@ sealed interface RetentionFloorSettlementFailure {
 	data class ProviderLifecycle(
 		val debt: TrackingRetentionFloorReconciliationDebt,
 	) : RetentionFloorSettlementFailure
+
+	data class CommitBoundary(
+		val phase: RetentionFloorSettlementPhase,
+	) : RetentionFloorSettlementFailure
 }
 
-private data class RetentionFloorCommit(
-	val lifecycle: CollectedDataLifecycleSnapshot,
-	val retentionResults: List<RetentionAuthorityResult>,
-)
+enum class RetentionFloorSettlementPhase {
+	LIFECYCLE_FLOOR,
+	ROOM_GUARD,
+	AUTHORITY_REISSUE,
+}
+
+private sealed interface RetentionFloorCommitResult {
+	data class Applied(
+		val lifecycle: CollectedDataLifecycleSnapshot,
+		val retentionResults: List<RetentionAuthorityResult>,
+	) : RetentionFloorCommitResult
+
+	data class Retryable(
+		val failure: RetentionFloorSettlementFailure.CommitBoundary,
+	) : RetentionFloorCommitResult
+}

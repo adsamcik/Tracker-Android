@@ -338,38 +338,44 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		operationLease.requireOwned(permit)
 		return mutex.withLock {
 			operationLease.requireOwned(permit)
-			reconcileCurrentSettingsLocked().also {
+			reconcileCurrentSettingsLocked(permit).also {
 				operationLease.requireOwned(permit)
 			}
 		}
 	}
 
-	private suspend fun reconcileCurrentSettingsLocked(): List<RetentionAuthorityResult> {
-		exactSourceEvidenceBootstrapFailure()?.let { reason ->
+	private suspend fun reconcileCurrentSettingsLocked(
+		permit: RetentionAuthorityOperationPermit? = null,
+	): List<RetentionAuthorityResult> {
+		exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
 			return unavailableReconciliationResults(reason)
 		}
 		(readPendingPolicyCandidate() as? RetentionPolicyCandidateRead.Available)?.let {
-			preparePendingConfigurationLocked(it.policy.configurationGeneration)
+			preparePendingConfigurationLocked(it.policy.configurationGeneration, permit)
 		}
-		reconcilePendingConfigurationLocked()
+		reconcilePendingConfigurationLocked(operationPermit = permit)
 		val results = mutableListOf<RetentionAuthorityResult>()
 		for (source in LIVE_AMBIENT_SOURCES) {
 			results += safely(source, RetentionAuthorityScope.LIVE_AMBIENT) {
-				reconcileLiveAmbientLocked(source)
+				reconcileLiveAmbientLocked(source, permit)
 			}
 		}
 		for (source in PORTABLE_IMPORT_SOURCES) {
 			results += safely(source, RetentionAuthorityScope.PORTABLE_IMPORT) {
-				reconcileExistingPortableImportLocked(source)
+				reconcileExistingPortableImportLocked(source, permit)
 			}
 		}
 		return results
 	}
 
-	private suspend fun exactSourceEvidenceBootstrapFailure():
-		RetentionAuthorityUnavailableReason? = try {
+	private suspend fun exactSourceEvidenceBootstrapFailure(
+		operationPermit: RetentionAuthorityOperationPermit? = null,
+	): RetentionAuthorityUnavailableReason? = try {
+		operationPermit?.validate()
 		val lifecycle = readLifecycle()
+		operationPermit?.validate()
 		val updatedAtMs = effectiveTimeProvider.now().wallTimeMs
+		operationPermit?.validate()
 		when (
 			database.bootstrapSourceEvidenceForRetention(
 				expectedCollectedDataEpoch = lifecycle.epoch,
@@ -385,7 +391,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			SourceEvidenceRetentionBootstrapResult.ConflictingEvidence,
 			SourceEvidenceRetentionBootstrapResult.InvalidState,
 			-> RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH
-		}
+		}.also { operationPermit?.validate() }
 	} catch (cancelled: CancellationException) {
 		throw cancelled
 	} catch (_: Exception) {
@@ -599,6 +605,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 
 	private suspend fun preparePendingConfigurationLocked(
 		expectedConfigurationGeneration: Long,
+		operationPermit: RetentionAuthorityOperationPermit? = null,
 	): RetentionConfigurationApprovalResult {
 		val candidate = when (val read = readPendingPolicyCandidate()) {
 			is RetentionPolicyCandidateRead.Available -> read
@@ -619,13 +626,23 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		}
 		val lifecycle = readLifecycle()
 		for (source in DURABLE_LIVE_AMBIENT_SOURCES) {
-			val revoked = revoke(source, RetentionAuthorityScope.LIVE_AMBIENT, lifecycle)
+			val revoked = revoke(
+				source,
+				RetentionAuthorityScope.LIVE_AMBIENT,
+				lifecycle,
+				operationPermit,
+			)
 			if (revoked is RetentionAuthorityResult.Unavailable) {
 				return RetentionConfigurationApprovalResult.Unavailable(revoked.reason)
 			}
 		}
 		for (source in PORTABLE_IMPORT_SOURCES) {
-			val revoked = revoke(source, RetentionAuthorityScope.PORTABLE_IMPORT, lifecycle)
+			val revoked = revoke(
+				source,
+				RetentionAuthorityScope.PORTABLE_IMPORT,
+				lifecycle,
+				operationPermit,
+			)
 			if (revoked is RetentionAuthorityResult.Unavailable) {
 				return RetentionConfigurationApprovalResult.Unavailable(revoked.reason)
 			}
@@ -635,6 +652,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 
 	private suspend fun reconcilePendingConfigurationLocked(
 		expectedConfigurationGeneration: Long? = null,
+		operationPermit: RetentionAuthorityOperationPermit? = null,
 	): RetentionConfigurationApprovalResult {
 		val candidate = when (val read = readPolicyCandidate()) {
 			is RetentionPolicyCandidateRead.Available -> read
@@ -656,13 +674,23 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		}
 		val lifecycle = readLifecycle()
 		for (source in DURABLE_LIVE_AMBIENT_SOURCES) {
-			val revoked = revoke(source, RetentionAuthorityScope.LIVE_AMBIENT, lifecycle)
+			val revoked = revoke(
+				source,
+				RetentionAuthorityScope.LIVE_AMBIENT,
+				lifecycle,
+				operationPermit,
+			)
 			if (revoked is RetentionAuthorityResult.Unavailable) {
 				return RetentionConfigurationApprovalResult.Unavailable(revoked.reason)
 			}
 		}
 		for (source in PORTABLE_IMPORT_SOURCES) {
-			val revoked = revoke(source, RetentionAuthorityScope.PORTABLE_IMPORT, lifecycle)
+			val revoked = revoke(
+				source,
+				RetentionAuthorityScope.PORTABLE_IMPORT,
+				lifecycle,
+				operationPermit,
+			)
 			if (revoked is RetentionAuthorityResult.Unavailable) {
 				return RetentionConfigurationApprovalResult.Unavailable(revoked.reason)
 			}
@@ -681,6 +709,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 						lifecycle = lifecycle,
 						sourcePolicyRevision = snapshot.revision,
 						ambientConsentEpoch = consentEpoch,
+						operationPermit = operationPermit,
 					)
 					if (granted is RetentionAuthorityResult.Unavailable) {
 						return RetentionConfigurationApprovalResult.Unavailable(granted.reason)
@@ -688,7 +717,9 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				}
 			}
 		}
+		operationPermit?.validate()
 		val approved = markPolicyApproved(candidate.policy)
+		operationPermit?.validate()
 		if (approved == null) {
 			return RetentionConfigurationApprovalResult.Unavailable(
 				RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION,
@@ -699,6 +730,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 
 	private suspend fun reconcileLiveAmbientLocked(
 		source: TrackingSourceComponent,
+		operationPermit: RetentionAuthorityOperationPermit? = null,
 	): RetentionAuthorityResult {
 		if (source !in DURABLE_LIVE_AMBIENT_SOURCES) {
 			return unavailable(
@@ -711,7 +743,12 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		val authority = sourcePolicyRepository.currentState()
 		val snapshot = (authority as? SourcePolicyAuthorityState.Active)?.snapshot
 		if (snapshot == null) {
-			val revoked = revoke(source, RetentionAuthorityScope.LIVE_AMBIENT, lifecycle)
+			val revoked = revoke(
+				source,
+				RetentionAuthorityScope.LIVE_AMBIENT,
+				lifecycle,
+				operationPermit,
+			)
 			if (revoked is RetentionAuthorityResult.Unavailable) return revoked
 			return unavailable(
 				source,
@@ -721,11 +758,21 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		}
 		val policy = snapshot[source]
 		if (policy.ambientConsentEpoch == null || !policy.ambientPersistenceEligible) {
-			return revoke(source, RetentionAuthorityScope.LIVE_AMBIENT, lifecycle)
+			return revoke(
+				source,
+				RetentionAuthorityScope.LIVE_AMBIENT,
+				lifecycle,
+				operationPermit,
+			)
 		}
 		val approval = approvedPolicyOrNull()
 		if (approval == null) {
-			val revoked = revoke(source, RetentionAuthorityScope.LIVE_AMBIENT, lifecycle)
+			val revoked = revoke(
+				source,
+				RetentionAuthorityScope.LIVE_AMBIENT,
+				lifecycle,
+				operationPermit,
+			)
 			if (revoked is RetentionAuthorityResult.Unavailable) return revoked
 			return unavailable(
 				source,
@@ -740,11 +787,13 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			lifecycle = lifecycle,
 			sourcePolicyRevision = snapshot.revision,
 			ambientConsentEpoch = policy.ambientConsentEpoch,
+			operationPermit = operationPermit,
 		)
 	}
 
 	private suspend fun reconcileExistingPortableImportLocked(
 		source: TrackingSourceComponent,
+		operationPermit: RetentionAuthorityOperationPermit? = null,
 	): RetentionAuthorityResult {
 		val scope = RetentionAuthorityScope.PORTABLE_IMPORT
 		val current = storedAuthority(source, scope)
@@ -777,7 +826,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			current.collectedDataEpoch != lifecycle.epoch ||
 			current.retainedFromMs != lifecycle.retainedFromMs
 		) {
-			revoke(source, scope, lifecycle)
+			revoke(source, scope, lifecycle, operationPermit)
 			return unavailable(
 				source,
 				scope,
@@ -803,6 +852,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		lifecycle: CollectedDataLifecycleSnapshot,
 		sourcePolicyRevision: Long?,
 		ambientConsentEpoch: Long?,
+		operationPermit: RetentionAuthorityOperationPermit? = null,
 	): RetentionAuthorityResult {
 		val current = storedAuthority(source, scope)
 		if (current?.authentic == false) {
@@ -840,6 +890,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			scope,
 			RetentionAuthorityUnavailableReason.EFFECTIVE_TIME_INVALID,
 		)
+		operationPermit?.validate()
 		return applyGrant(
 			source,
 			scope,
@@ -850,13 +901,14 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			ambientConsentEpoch,
 			current?.approvalRevision,
 			time,
-		)
+		).also { operationPermit?.validate() }
 	}
 
 	private suspend fun revoke(
 		source: TrackingSourceComponent,
 		scope: RetentionAuthorityScope,
 		lifecycle: CollectedDataLifecycleSnapshot,
+		operationPermit: RetentionAuthorityOperationPermit? = null,
 	): RetentionAuthorityResult {
 		val current = storedAuthority(source, scope)
 			?: return RetentionAuthorityResult.Unchanged(
@@ -886,6 +938,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			scope,
 			RetentionAuthorityUnavailableReason.EFFECTIVE_TIME_INVALID,
 		)
+		operationPermit?.validate()
 		return applyRevoke(
 			source,
 			scope,
@@ -893,7 +946,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			lifecycle.retainedFromMs,
 			current.approvalRevision,
 			time,
-		)
+		).also { operationPermit?.validate() }
 	}
 
 	private fun nextEffectiveTime(

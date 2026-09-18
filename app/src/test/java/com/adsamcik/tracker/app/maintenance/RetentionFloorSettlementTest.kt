@@ -22,6 +22,7 @@ import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciliationResu
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -169,6 +170,79 @@ class RetentionFloorSettlementTest {
 		database.sourceEvidenceStateDao().get()?.retainedFromMs shouldBe FLOOR
 		result.debt.failures.single()
 			.shouldBeInstanceOf<RetentionFloorSettlementFailure.ProviderLifecycle>()
+	}
+
+	@Test
+	fun `Room guard failure after durable floor is retry debt without authority reissue`() = runTest {
+		val producer = mockk<RetentionAuthorityProducer>()
+		val lifecycle = fixedLifecycleStore(
+			CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = FLOOR),
+			onAdvance = database::close,
+		)
+
+		val result = RetentionFloorSettlement(
+			RetentionAuthorityOperationLease(),
+			producer,
+			TrackingRetentionFloorReconciler { _, _, _ ->
+				error("provider publication must wait for the Room guard")
+			},
+		).settle(
+			database = database,
+			lifecycleStore = lifecycle,
+			startupGate = readyGate(),
+			expectedStartupGeneration = GENERATION,
+			requestedRetainedFromMs = FLOOR,
+			updatedAtMs = FLOOR,
+			verifyApprovedOperation = { },
+		).shouldBeInstanceOf<RetentionFloorSettlementResult.Retryable>()
+
+		result.debt.failures.single()
+			.shouldBeInstanceOf<RetentionFloorSettlementFailure.CommitBoundary>()
+			.phase shouldBe RetentionFloorSettlementPhase.ROOM_GUARD
+		coVerify(exactly = 0) { producer.reconcileCurrentSettings() }
+	}
+
+	@Test
+	fun `authority reissue debt retries the same fenced floor`() = runTest {
+		var authorityAvailable = false
+		val producer = mockk<RetentionAuthorityProducer> {
+			coEvery { reconcileCurrentSettings() } coAnswers {
+				if (!authorityAvailable) error("authority storage unavailable")
+				retentionResults(active = setOf(TrackingSourceComponent.STEPS))
+			}
+		}
+		val settlement = RetentionFloorSettlement(
+			RetentionAuthorityOperationLease(),
+			producer,
+			TrackingRetentionFloorReconciler { _, floor, sources ->
+				TrackingRetentionFloorReconciliationResult.Complete(floor, sources)
+			},
+		)
+		val lifecycle = fixedLifecycleStore(
+			CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = FLOOR),
+		)
+
+		settlement.settle(
+			database = database,
+			lifecycleStore = lifecycle,
+			startupGate = readyGate(),
+			expectedStartupGeneration = GENERATION,
+			requestedRetainedFromMs = FLOOR,
+			updatedAtMs = FLOOR,
+			verifyApprovedOperation = { },
+		).shouldBeInstanceOf<RetentionFloorSettlementResult.Retryable>()
+
+		authorityAvailable = true
+		settlement.settle(
+			database = database,
+			lifecycleStore = lifecycle,
+			startupGate = readyGate(),
+			expectedStartupGeneration = GENERATION,
+			requestedRetainedFromMs = FLOOR,
+			updatedAtMs = FLOOR + 1L,
+			verifyApprovedOperation = { },
+		).shouldBeInstanceOf<RetentionFloorSettlementResult.Settled>()
+			.reconciledSources shouldBe setOf(AmbientTrackingSource.STEPS)
 	}
 
 	@Test

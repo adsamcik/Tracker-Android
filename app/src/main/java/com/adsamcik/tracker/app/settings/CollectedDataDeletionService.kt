@@ -51,6 +51,7 @@ import java.io.RandomAccessFile
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -157,6 +158,10 @@ sealed interface CollectedDataDeletionReconciliationFailure {
 
 	data object DeletionMarkerIntegrity : CollectedDataDeletionReconciliationFailure {
 		override val failureCode: String = "DELETE_MARKER_INTEGRITY"
+	}
+
+	data object DeletionExecution : CollectedDataDeletionReconciliationFailure {
+		override val failureCode: String = "COLLECTED_DATA_DELETION_EXECUTION"
 	}
 }
 
@@ -358,7 +363,8 @@ class DefaultCollectedDataDeletionService(
 ) : CollectedDataDeletionService {
 	private val deletionMutex = Mutex()
 	private val providerFenceFlightMutex = Mutex()
-	private val providerFenceFlights = mutableMapOf<String, Deferred<Result<Any?>>>()
+	private val providerFenceFlights = mutableMapOf<String, ProviderFenceFlight>()
+	private var deletionFlight: DeletionFlight? = null
 	private val clearingMarkerFile = File(
 		checkNotNull(markerFile.parentFile),
 		"${markerFile.name}.clearing",
@@ -374,45 +380,136 @@ class DefaultCollectedDataDeletionService(
 	}
 
 	override suspend fun deleteAll(): CollectedDataDeletionCompletion =
-		deletionMutex.withLock {
+		awaitDeletionStart(deletionMutex.withLock {
+			activeDeletionFlight()?.let { return@withLock DeletionStart.Await(it) }
 			if (clearingMarkerFile.exists() || markerClearPendingInProcess) {
-				return@withLock reconcileMarkerClearCompletion()
+				return@withLock startDeletionFlight(
+					pendingDeletionIdentity(clearingMarkerFile),
+					::reconcileMarkerClearCompletion,
+				)
 			}
 			when (val journal = prepareNewDeletionJournal()) {
 				is DeletionJournalPreparation.Ready -> {
-					startupDeletionBarrier.beginCloseAdmission()
-					runDeletion(journal.operation)
+					startDeletionFlight(journal.operation.operationId) {
+						runDeletion(journal.operation)
+					}
 				}
 				is DeletionJournalPreparation.Failed -> {
 					if (markerFile.exists() || preparedMarkerFile.exists()) {
-						startupDeletionBarrier.beginCloseAdmission()
-						fenceAfterMarkerPublicationFailure(journal.completion)
+						startDeletionFlight(
+							journal.operation?.operationId
+								?: pendingDeletionIdentity(markerFile, preparedMarkerFile),
+						) {
+							fenceAfterMarkerPublicationFailure(journal.completion)
+						}
 					} else {
-						journal.completion
+						DeletionStart.Immediate(journal.completion)
 					}
 				}
 			}
-		}
+		})
 
 	override suspend fun reconcilePendingDeletion(): CollectedDataDeletionCompletion =
-		deletionMutex.withLock {
+		awaitDeletionStart(deletionMutex.withLock {
+			activeDeletionFlight()?.let { return@withLock DeletionStart.Await(it) }
 			when {
-				clearingMarkerFile.exists() || markerClearPendingInProcess ->
-					reconcileMarkerClearCompletion()
+				clearingMarkerFile.exists() || markerClearPendingInProcess -> {
+					startDeletionFlight(
+						pendingDeletionIdentity(clearingMarkerFile),
+						::reconcileMarkerClearCompletion,
+					)
+				}
 				markerFile.exists() || preparedMarkerFile.exists() -> {
-					startupDeletionBarrier.beginCloseAdmission()
 					when (val journal = recoverDeletionJournal()) {
-						is DeletionJournalPreparation.Ready -> runDeletion(journal.operation)
+						is DeletionJournalPreparation.Ready ->
+							startDeletionFlight(journal.operation.operationId) {
+								runDeletion(journal.operation)
+							}
 						is DeletionJournalPreparation.Failed ->
-							fenceAfterMarkerPublicationFailure(journal.completion)
+							startDeletionFlight(
+								journal.operation?.operationId
+									?: pendingDeletionIdentity(markerFile, preparedMarkerFile),
+							) {
+								fenceAfterMarkerPublicationFailure(journal.completion)
+							}
 					}
 				}
 				else -> {
 					if (startupDeletionBarrier.isClosed) startupDeletionBarrier.reopen()
-					CollectedDataDeletionCompletion.Complete
+					DeletionStart.Immediate(CollectedDataDeletionCompletion.Complete)
+				}
+			}
+		})
+
+	private fun activeDeletionFlight(): DeletionFlight? {
+		val current = deletionFlight ?: return null
+		check(current.operationIdentity.isNotBlank())
+		return if (
+			current.task.isCompleted &&
+			current.awaiterCount == 0 &&
+			current.resultRetrieved
+		) {
+			deletionFlight = null
+			null
+		} else {
+			current.awaiterCount += 1
+			current
+		}
+	}
+
+	private fun startDeletionFlight(
+		operationIdentity: String,
+		operation: suspend () -> CollectedDataDeletionCompletion,
+	): DeletionStart.Await {
+		require(operationIdentity.isNotBlank())
+		val task = providerFenceScope.async(start = CoroutineStart.UNDISPATCHED) {
+			try {
+				operation()
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				CollectedDataDeletionCompletion.Retryable(
+					CollectedDataDeletionReconciliationFailure.DeletionExecution,
+				)
+			}
+		}
+		val flight = DeletionFlight(
+			operationIdentity = operationIdentity,
+			task = task,
+			awaiterCount = 1,
+		)
+		deletionFlight = flight
+		return DeletionStart.Await(flight)
+	}
+
+	private suspend fun awaitDeletionStart(
+		start: DeletionStart,
+	): CollectedDataDeletionCompletion = when (start) {
+		is DeletionStart.Await -> try {
+			start.flight.task.await().also {
+				withContext(NonCancellable) {
+					deletionMutex.withLock {
+						if (deletionFlight === start.flight) start.flight.resultRetrieved = true
+					}
+				}
+			}
+		} finally {
+			withContext(NonCancellable) {
+				deletionMutex.withLock {
+					check(start.flight.awaiterCount > 0)
+					start.flight.awaiterCount -= 1
 				}
 			}
 		}
+		is DeletionStart.Immediate -> start.completion
+	}
+
+	private fun pendingDeletionIdentity(vararg candidates: File): String {
+		val existing = candidates.firstOrNull(File::exists)
+			?: return "pending-deletion"
+		return decodeDeletionOperation(existing)?.operationId
+			?: "unreadable:${existing.absolutePath}"
+	}
 
 	private suspend fun runDeletion(
 		operation: CollectedDataDeletionOperation,
@@ -613,7 +710,10 @@ class DefaultCollectedDataDeletionService(
 	): CollectedDataDeletionCompletion {
 		if (fencer == null) return original
 		val result = when (
-			val attempt = runBoundedProviderFence(PURPOSE_FENCE_FLIGHT) {
+			val attempt = runBoundedProviderFence(
+				PURPOSE_FENCE_FLIGHT,
+				ProviderFencePass.HOLD_CLOSED,
+			) {
 				fencer.fenceForCollectedDataDeletion()
 			}
 		) {
@@ -648,11 +748,12 @@ class DefaultCollectedDataDeletionService(
 	private suspend fun fenceCollectedDataWriters(
 		activityRegistrationArbiter: ActivityRegistrationArbiter?,
 		purposeDeletionFencer: TrackingPurposeDeletionFencer?,
+		pass: ProviderFencePass,
 	): CollectedDataDeletionCompletion? {
 		val failures = mutableListOf<CollectedDataProviderFenceFailure>()
 		if (activityRegistrationArbiter != null) {
 			when (
-				val attempt = runBoundedProviderFence(ACTIVITY_FENCE_FLIGHT) {
+				val attempt = runBoundedProviderFence(ACTIVITY_FENCE_FLIGHT, pass) {
 					activityRegistrationArbiter.closeForCollectedDataDeletion()
 				}
 			) {
@@ -672,7 +773,7 @@ class DefaultCollectedDataDeletionService(
 		}
 		if (purposeDeletionFencer != null) {
 			when (
-				val attempt = runBoundedProviderFence(PURPOSE_FENCE_FLIGHT) {
+				val attempt = runBoundedProviderFence(PURPOSE_FENCE_FLIGHT, pass) {
 					purposeDeletionFencer.fenceForCollectedDataDeletion()
 				}
 			) {
@@ -692,7 +793,7 @@ class DefaultCollectedDataDeletionService(
 					)
 			}
 		}
-		when (runBoundedProviderFence(WRITER_FENCE_FLIGHT) { writerQuiescer.quiesce() }) {
+		when (runBoundedProviderFence(WRITER_FENCE_FLIGHT, pass) { writerQuiescer.quiesce() }) {
 			is ProviderFenceAttempt.Completed -> Unit
 			ProviderFenceAttempt.Failed ->
 				failures += CollectedDataProviderFenceFailure.WritersUnavailable
@@ -710,14 +811,42 @@ class DefaultCollectedDataDeletionService(
 
 	private suspend fun <T> runBoundedProviderFence(
 		key: String,
+		pass: ProviderFencePass,
 		operation: suspend () -> T,
 	): ProviderFenceAttempt<T> = withContext(NonCancellable) {
-		@Suppress("UNCHECKED_CAST")
-		val task = providerFenceFlightMutex.withLock {
-			providerFenceFlights[key] ?: providerFenceScope.async {
+		val previous = providerFenceFlightMutex.withLock {
+			providerFenceFlights[key]
+		}
+		if (previous != null) {
+			val observed = try {
+				withTimeoutOrNull(providerFenceTimeoutMs) {
+					previous.task.await()
+				}
+			} catch (_: CancellationException) {
+				Result.failure<Any?>(
+					IllegalStateException("Provider fence owner scope was cancelled"),
+				)
+			}
+			if (observed == null) {
+				return@withContext ProviderFenceAttempt.TimedOut
+			}
+			providerFenceFlightMutex.withLock {
+				if (providerFenceFlights[key] === previous) providerFenceFlights.remove(key)
+			}
+		}
+
+		val flight = providerFenceFlightMutex.withLock {
+			check(providerFenceFlights[key] == null) {
+				"Provider fence callback overlap detected for $key: " +
+					"${providerFenceFlights[key]?.pass} -> $pass"
+			}
+			val task = providerFenceScope.async {
 				runCatching { operation() as Any? }
-			}.also { providerFenceFlights[key] = it }
-		} as Deferred<Result<T>>
+			}
+			ProviderFenceFlight(pass, task).also { providerFenceFlights[key] = it }
+		}
+		@Suppress("UNCHECKED_CAST")
+		val task = flight.task as Deferred<Result<T>>
 		val result = try {
 			withTimeoutOrNull(providerFenceTimeoutMs) {
 				task.await()
@@ -729,7 +858,7 @@ class DefaultCollectedDataDeletionService(
 		}
 		if (result != null) {
 			providerFenceFlightMutex.withLock {
-				if (providerFenceFlights[key] === task) providerFenceFlights.remove(key)
+				if (providerFenceFlights[key] === flight) providerFenceFlights.remove(key)
 			}
 		}
 
@@ -899,6 +1028,7 @@ class DefaultCollectedDataDeletionService(
 				CollectedDataDeletionCompletion.Retryable(
 					CollectedDataDeletionReconciliationFailure.DeletionMarkerPublication,
 				),
+				operation,
 			)
 		}
 		try {
@@ -912,6 +1042,7 @@ class DefaultCollectedDataDeletionService(
 					CollectedDataDeletionCompletion.Retryable(
 						CollectedDataDeletionReconciliationFailure.DeletionMarkerPublication,
 					),
+					operation,
 				)
 			}
 			directorySync(parent)
@@ -927,6 +1058,7 @@ class DefaultCollectedDataDeletionService(
 						CollectedDataDeletionReconciliationFailure.DeletionMarkerPublication,
 					)
 				},
+				operation,
 			)
 		}
 	}
@@ -948,6 +1080,7 @@ class DefaultCollectedDataDeletionService(
 					CollectedDataDeletionCompletion.Unverifiable(
 						CollectedDataDeletionReconciliationFailure.DeletionMarkerDurability,
 					),
+					operation,
 				)
 			}
 			if (preparedMarkerFile.exists()) {
@@ -956,6 +1089,7 @@ class DefaultCollectedDataDeletionService(
 						CollectedDataDeletionCompletion.Retryable(
 							CollectedDataDeletionReconciliationFailure.DeletionMarkerRemoval,
 						),
+						operation,
 					)
 				}
 				try {
@@ -965,6 +1099,7 @@ class DefaultCollectedDataDeletionService(
 						CollectedDataDeletionCompletion.Unverifiable(
 							CollectedDataDeletionReconciliationFailure.DeletionMarkerDurability,
 						),
+						operation,
 					)
 				}
 			}
@@ -991,6 +1126,7 @@ class DefaultCollectedDataDeletionService(
 					CollectedDataDeletionCompletion.Retryable(
 						CollectedDataDeletionReconciliationFailure.DeletionMarkerPublication,
 					),
+					operation,
 				)
 			}
 			directorySync(parent)
@@ -1006,6 +1142,7 @@ class DefaultCollectedDataDeletionService(
 						CollectedDataDeletionReconciliationFailure.DeletionMarkerPublication,
 					)
 				},
+				operation,
 			)
 		}
 	}
@@ -1050,6 +1187,7 @@ class DefaultCollectedDataDeletionService(
 		val first = fenceCollectedDataWriters(
 			dependencies.activity,
 			dependencies.purposes,
+			ProviderFencePass.PRE_QUIESCENCE,
 		)?.providerFenceFailures().orEmpty()
 		val quiescence = awaitStartupQuiescence()
 			?.providerFenceFailures()
@@ -1057,11 +1195,17 @@ class DefaultCollectedDataDeletionService(
 		val final = fenceCollectedDataWriters(
 			dependencies.activity,
 			dependencies.purposes,
+			ProviderFencePass.POST_QUIESCENCE,
 		)?.providerFenceFailures().orEmpty()
 		if (dependencies.failures.isEmpty() && quiescence.isEmpty() && final.isEmpty()) {
 			return emptyList()
 		}
-		return dependencies.failures + first + quiescence + final
+		val unresolvedPreQuiescence = if (quiescence.isEmpty() && final.isEmpty()) {
+			emptyList()
+		} else {
+			first
+		}
+		return dependencies.failures + unresolvedPreQuiescence + quiescence + final
 	}
 
 	private fun resolveProviderFenceDependencies(): ProviderFenceDependencies {
@@ -1176,6 +1320,7 @@ class DefaultCollectedDataDeletionService(
 
 		data class Failed(
 			val completion: CollectedDataDeletionCompletion,
+			val operation: CollectedDataDeletionOperation? = null,
 		) : DeletionJournalPreparation
 	}
 
@@ -1190,6 +1335,34 @@ class DefaultCollectedDataDeletionService(
 		val purposes: TrackingPurposeDeletionFencer?,
 		val failures: List<CollectedDataProviderFenceFailure>,
 	)
+
+	private data class ProviderFenceFlight(
+		val pass: ProviderFencePass,
+		val task: Deferred<Result<Any?>>,
+	)
+
+	private enum class ProviderFencePass {
+		PRE_QUIESCENCE,
+		POST_QUIESCENCE,
+		HOLD_CLOSED,
+	}
+
+	private data class DeletionFlight(
+		val operationIdentity: String,
+		val task: Deferred<CollectedDataDeletionCompletion>,
+		var awaiterCount: Int,
+		var resultRetrieved: Boolean = false,
+	)
+
+	private sealed interface DeletionStart {
+		data class Await(
+			val flight: DeletionFlight,
+		) : DeletionStart
+
+		data class Immediate(
+			val completion: CollectedDataDeletionCompletion,
+		) : DeletionStart
+	}
 
 	private companion object {
 		const val PROVIDER_FENCE_TIMEOUT_MS = 30_000L
