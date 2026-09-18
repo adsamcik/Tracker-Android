@@ -250,7 +250,7 @@ class AutomaticStartTransitionMonitorTest {
 	}
 
 	@Test
-	fun `rejected retirement cannot mutate the provider owner`() = runTest {
+	fun `rejected historical authority still clears the automatic provider owner`() = runTest {
 		val dispatcher = mockk<SourceCallerDemandDispatcher>()
 		coEvery { dispatcher.retireAutomaticControl(any(), any(), any(), any(), any(), any(), any()) } returns
 			GuardedPurposeDemandResult.Rejected(
@@ -260,6 +260,14 @@ class AutomaticStartTransitionMonitorTest {
 				),
 			)
 		every { arbiter.snapshot() } returns cleared().snapshot
+		coEvery {
+			arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		} returns ActivityRegistrationResult(
+			status = ActivityRegistrationStatus.DEGRADED,
+			snapshot = cleared().snapshot,
+			failureCode = ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED,
+			retryable = true,
+		)
 		val monitor = AutomaticStartTransitionMonitor(
 			arbiter = arbiter,
 			sourceCallerDemandDispatcher = dispatcher,
@@ -272,9 +280,15 @@ class AutomaticStartTransitionMonitorTest {
 			useTransitionApi = false,
 			continuousIntervalSeconds = 30,
 			transitions = emptySet(),
-		).status shouldBe ActivityRegistrationStatus.BLOCKED
+		).let { result ->
+			result.status shouldBe ActivityRegistrationStatus.BLOCKED
+			result.failureCode shouldBe ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED
+			result.retryable shouldBe true
+		}
 
-		coVerify(exactly = 0) { arbiter.clearDemand(any()) }
+		coVerify(exactly = 1) {
+			arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		}
 		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
 	}
 

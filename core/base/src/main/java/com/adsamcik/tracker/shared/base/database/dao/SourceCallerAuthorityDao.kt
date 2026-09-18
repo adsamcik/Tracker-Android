@@ -24,6 +24,9 @@ interface SourceCallerAuthorityDao {
 	@Query("DELETE FROM source_caller_accepted_authority WHERE reference = :reference")
 	suspend fun delete(reference: String): Int
 
+	@Query("DELETE FROM source_caller_accepted_authority")
+	fun deleteAll(): Int
+
 	@Query(
 		"""
 		SELECT reference

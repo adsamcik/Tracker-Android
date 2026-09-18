@@ -63,6 +63,15 @@ internal interface SourceCallerAcceptedAuthorityRepository {
 		reason: String,
 		retiredAtMs: Long,
 	): Boolean
+	/**
+	 * Monotonic teardown path. Invalid historical rows are deleted rather than allowed to block
+	 * demand fencing or physical provider cleanup.
+	 */
+	suspend fun retireForTeardown(
+		reference: SourceCallerReplayReference,
+		reason: String,
+		retiredAtMs: Long,
+	): Boolean = retire(reference, reason, retiredAtMs)
 	suspend fun delete(reference: SourceCallerReplayReference): Boolean
 	suspend fun pruneRetired(
 		retiredBeforeOrAtMs: Long,

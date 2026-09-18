@@ -3,21 +3,14 @@ package com.adsamcik.tracker.tracker.source.ambient.steps
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionDecision
-import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecision
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
-import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
-import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
-import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
-import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
@@ -30,6 +23,7 @@ import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
 import com.adsamcik.tracker.tracker.source.runtime.TestLiveAmbientRetentionAuthorityReader
 import com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher
+import com.adsamcik.tracker.tracker.source.runtime.LiveAmbientRetentionSnapshot
 import com.adsamcik.tracker.tracker.source.runtime.toSourceDemandContract
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
@@ -58,10 +52,13 @@ class AmbientStepsDemandReconcilerTest {
 	private lateinit var broker: SourceBroker
 	private lateinit var policyRepository: RoomSourcePolicyRepository
 	private lateinit var rolloutStore: TrackingRolloutStateStore
+	private lateinit var retentionReader: TestLiveAmbientRetentionAuthorityReader
+	private var retentionSnapshot: LiveAmbientRetentionSnapshot? = null
 	private var elapsed = 10L
 
 	@Before
 	fun setUp() = runTest {
+		retentionSnapshot = null
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		database.sourceEvidenceStateDao().ensure(
@@ -79,10 +76,11 @@ class AmbientStepsDemandReconcilerTest {
 			bindings = listOf(binding),
 			rolloutRevision = 1L,
 		)
+		retentionReader = TestLiveAmbientRetentionAuthorityReader()
 		broker = SourceBroker(
 			database,
 			rolloutStore,
-			TestLiveAmbientRetentionAuthorityReader(),
+			retentionReader,
 		)
 		policyRepository = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
@@ -114,7 +112,7 @@ class AmbientStepsDemandReconcilerTest {
 			currentPurposeReader = unavailableReader,
 		)
 
-		subject.reconcileAt(boundary(100L), lease()) shouldBe
+		subject.reconcileAt(boundary(100L)) shouldBe
 			AmbientStepsDemandReconciliation.PolicyBlocked(
 				null,
 				AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
@@ -135,7 +133,7 @@ class AmbientStepsDemandReconcilerTest {
 			onResolve = { capabilityProbes++ },
 		)
 
-		val result = subject.reconcileAt(boundary(100L), lease())
+		val result = subject.reconcileAt(boundary(100L))
 
 		val ready = result as AmbientStepsDemandReconciliation.DemandReady
 		ready.provider shouldBe AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS
@@ -152,61 +150,14 @@ class AmbientStepsDemandReconcilerTest {
 	}
 
 	@Test
-	fun `active settlement authenticates Steps demand with the exact journal operation`() = runTest {
-		bootstrapPolicy(ambientEnabled = true)
-		var ordinaryReads = 0
-		var settlementReads = 0
-		val subject = reconciler(
-			capability = AmbientStepsCapability.ReadyForRegistration(
-				provider = AmbientStepsProvider.LOCAL_RECORDING_STEPS,
-				importAccess = AmbientStepsImportAccess.BACKGROUND_ALLOWED,
-			),
-			currentRetentionAuthority = { _, _ ->
-				ordinaryReads += 1
-				CurrentRetentionAuthority.Unavailable(
-					RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE,
-				)
-			},
-			currentSettlementRetentionAuthority = { _, _, operationId ->
-				operationId shouldBe "retention-settlement-steps"
-				settlementReads += 1
-				CurrentRetentionAuthority.Approved(
-					opaquePolicyId = "test-retention",
-					approvalRevision = 1L,
-					effectiveBootId = "boot-1",
-					effectiveElapsedRealtimeNanos = 1L,
-					effectiveWallTimeMs = 1L,
-				)
-			},
-		)
-
-		subject.reconcileForRetentionFloorAt(
-			boundary = boundary(100L),
-			lease = lease(),
-			settlementOperationId = "retention-settlement-steps",
-		) shouldBe AmbientStepsDemandReconciliation.DemandReady(
-			provider = AmbientStepsProvider.LOCAL_RECORDING_STEPS,
-			importAccess = AmbientStepsImportAccess.BACKGROUND_ALLOWED,
-			optionalPermissions = emptySet(),
-			demandId = database.sourceBrokerDao()
-				.currentDemands(AmbientStepsDemandReconciler.CONSUMER_ID)
-				.single()
-				.demandId,
-		)
-		ordinaryReads shouldBe 0
-		settlementReads shouldBe 1
-	}
-
-	@Test
 	fun `missing selected-provider permission retires prior ambient demand`() = runTest {
 		bootstrapPolicy(ambientEnabled = true)
-		val lease = lease()
 		reconciler(
 			AmbientStepsCapability.ReadyForRegistration(
 				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
 				AmbientStepsImportAccess.BACKGROUND_ALLOWED,
 			),
-		).reconcileAt(boundary(100L), lease)
+		).reconcileAt(boundary(100L))
 		val subject = reconciler(
 			AmbientStepsCapability.PermissionRequired(
 				provider = AmbientStepsProvider.LOCAL_RECORDING_STEPS,
@@ -214,7 +165,7 @@ class AmbientStepsDemandReconcilerTest {
 			),
 		)
 
-		val result = subject.reconcileAt(boundary(200L), lease)
+		val result = subject.reconcileAt(boundary(200L))
 
 		result shouldBe AmbientStepsDemandReconciliation.PermissionRequired(
 			provider = AmbientStepsProvider.LOCAL_RECORDING_STEPS,
@@ -228,19 +179,18 @@ class AmbientStepsDemandReconcilerTest {
 	@Test
 	fun `unavailable provider state retires prior ambient demand without direct fallback`() = runTest {
 		bootstrapPolicy(ambientEnabled = true)
-		val lease = lease()
 		reconciler(
 			AmbientStepsCapability.ReadyForRegistration(
 				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
 				AmbientStepsImportAccess.BACKGROUND_ALLOWED,
 			),
-		).reconcileAt(boundary(100L), lease)
+		).reconcileAt(boundary(100L))
 		val unavailable = AmbientStepsCapability.Unavailable(
 			healthConnect = HealthConnectAmbientStepsAvailability.PROBE_FAILED,
 			localRecording = LocalRecordingAmbientStepsAvailability.AVAILABLE,
 		)
 
-		reconciler(unavailable).reconcileAt(boundary(200L), lease) shouldBe
+		reconciler(unavailable).reconcileAt(boundary(200L)) shouldBe
 			AmbientStepsDemandReconciliation.Unavailable(
 				unavailable.healthConnect,
 				unavailable.localRecording,
@@ -260,7 +210,7 @@ class AmbientStepsDemandReconcilerTest {
 				AmbientStepsImportAccess.FOREGROUND_ONLY,
 			),
 			onResolve = { capabilityProbes++ },
-		).reconcileAt(boundary(100L), lease())
+		).reconcileAt(boundary(100L))
 
 		result shouldBe AmbientStepsDemandReconciliation.PolicyBlocked(
 			provider = null,
@@ -274,13 +224,12 @@ class AmbientStepsDemandReconcilerTest {
 	@Test
 	fun `revoked ambient policy retires stale demand without probing a provider`() = runTest {
 		bootstrapPolicy(ambientEnabled = true)
-		val lease = lease()
 		reconciler(
 			AmbientStepsCapability.ReadyForRegistration(
 				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
 				AmbientStepsImportAccess.BACKGROUND_ALLOWED,
 			),
-		).reconcileAt(boundary(50L), lease)
+		).reconcileAt(boundary(50L))
 		val activePolicy = policyRepository.currentState() as SourcePolicyAuthorityState.Active
 		policyRepository.setNonCaptureConsent(
 			expectedPolicyRevision = activePolicy.snapshot.revision,
@@ -298,11 +247,11 @@ class AmbientStepsDemandReconcilerTest {
 				AmbientStepsImportAccess.FOREGROUND_ONLY,
 			),
 			onResolve = { capabilityProbes++ },
-		).reconcileAt(boundary(100L), lease)
+		).reconcileAt(boundary(100L))
 
 		result shouldBe AmbientStepsDemandReconciliation.PolicyBlocked(
 			provider = null,
-			reason = AmbientStepsDemandBlockReason.AUTHORITY_INACTIVE,
+			reason = AmbientStepsDemandBlockReason.REQUEST_DISABLED,
 		)
 		capabilityProbes shouldBe 0
 		database.sourceBrokerDao().currentDemands(AmbientStepsDemandReconciler.CONSUMER_ID) shouldBe
@@ -312,13 +261,12 @@ class AmbientStepsDemandReconcilerTest {
 	@Test
 	fun `contained ambient rollout retires demand without probing a provider`() = runTest {
 		bootstrapPolicy(ambientEnabled = true)
-		val lease = lease()
 		reconciler(
 			AmbientStepsCapability.ReadyForRegistration(
 				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
 				AmbientStepsImportAccess.BACKGROUND_ALLOWED,
 			),
-		).reconcileAt(boundary(50L), lease)
+		).reconcileAt(boundary(50L))
 		rolloutStore.save(TrackingRolloutState.contained(revision = 2L), updatedAtMs = 2L)
 		var capabilityProbes = 0
 
@@ -328,7 +276,7 @@ class AmbientStepsDemandReconcilerTest {
 				AmbientStepsImportAccess.FOREGROUND_ONLY,
 			),
 			onResolve = { capabilityProbes++ },
-		).reconcileAt(boundary(100L), lease)
+		).reconcileAt(boundary(100L))
 
 		result shouldBe AmbientStepsDemandReconciliation.PolicyBlocked(
 			provider = null,
@@ -339,64 +287,8 @@ class AmbientStepsDemandReconcilerTest {
 			emptyList()
 	}
 
-	@Test
-	fun `missing retention approval blocks provider probe and demand`() = runTest {
-		bootstrapPolicy(ambientEnabled = true)
-		var capabilityProbes = 0
-		val subject = reconciler(
-			AmbientStepsCapability.ReadyForRegistration(
-				AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS,
-				AmbientStepsImportAccess.FOREGROUND_ONLY,
-			),
-			onResolve = { capabilityProbes++ },
-			currentRetentionAuthority = { _, _ ->
-				com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
-					.Unavailable(
-						com.adsamcik.tracker.shared.preferences.retention
-							.RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
-					)
-			},
-		)
-
-		subject.reconcileAt(boundary(100L), lease()) shouldBe
-			AmbientStepsDemandReconciliation.PolicyBlocked(
-				provider = null,
-				reason = AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE,
-			)
-		capabilityProbes shouldBe 0
-		database.sourceBrokerDao().currentDemands(AmbientStepsDemandReconciler.CONSUMER_ID) shouldBe
-			emptyList()
-	}
-
-	@Test
-	fun `prior boot retention approval blocks provider probe and demand`() = runTest {
-		bootstrapPolicy(ambientEnabled = true)
-		var capabilityProbes = 0
-		val subject = reconciler(
-			AmbientStepsCapability.ReadyForRegistration(
-				AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS,
-				AmbientStepsImportAccess.FOREGROUND_ONLY,
-			),
-			onResolve = { capabilityProbes++ },
-			currentRetentionAuthority = { _, _ ->
-				com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
-					.Approved("test-retention", 1L, "old-boot", 1L, 1L)
-			},
-		)
-
-		subject.reconcileAt(boundary(100L), lease()) shouldBe
-			AmbientStepsDemandReconciliation.PolicyBlocked(
-				provider = null,
-				reason = AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE,
-			)
-		capabilityProbes shouldBe 0
-		database.sourceBrokerDao().currentDemands(AmbientStepsDemandReconciler.CONSUMER_ID) shouldBe
-			emptyList()
-	}
-
 	private suspend fun bootstrapPolicy(ambientEnabled: Boolean) {
-		database.sourceEvidenceStateDao().ensure()
-		val snapshot = policyRepository.bootstrapFromLegacy(
+		val policy = policyRepository.bootstrapFromLegacy(
 			TrackingParamsState(
 				stepsEnabled = false,
 				ambientStepsEnabled = ambientEnabled,
@@ -404,18 +296,13 @@ class AmbientStepsDemandReconcilerTest {
 			),
 		)
 		if (ambientEnabled) {
-			database.applyAmbientStepsRetentionDecision(
-				AmbientStepsRetentionDecision.GrantLiveAmbient(
-					opaquePolicyId = "test-retention",
-					expectedCollectedDataEpoch = 0L,
-					expectedSourcePolicyRevision = snapshot.revision,
-					expectedAmbientConsentEpoch = requireNotNull(
-						snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch,
-					),
-					effectiveBootId = "boot-1",
-					effectiveElapsedRealtimeNanos = elapsed++,
-					effectiveWallTimeMs = elapsed,
-				),
+			retentionSnapshot = retentionReader.installCurrent(
+				database,
+				TrackingSourceComponent.STEPS,
+				policy.revision,
+				requireNotNull(policy[TrackingSourceComponent.STEPS].ambientConsentEpoch),
+				3L,
+				"boot-1",
 			)
 		}
 	}
@@ -423,14 +310,6 @@ class AmbientStepsDemandReconcilerTest {
 	private fun reconciler(
 		capability: AmbientStepsCapability,
 		onResolve: () -> Unit = {},
-		currentRetentionAuthority: suspend (Long, Long) ->
-			CurrentRetentionAuthority = { _, _ ->
-				CurrentRetentionAuthority.Approved("test-retention", 1L, "boot-1", 1L, 1L)
-			},
-		currentSettlementRetentionAuthority: suspend (Long, Long, String) ->
-			CurrentRetentionAuthority = { policyRevision, consentEpoch, _ ->
-				currentRetentionAuthority(policyRevision, consentEpoch)
-			},
 		currentPurposeReader: CurrentTrackingPurposeAvailabilityReader =
 			readyAmbientStepsReader(),
 	) = AmbientStepsDemandReconciler(
@@ -438,13 +317,13 @@ class AmbientStepsDemandReconcilerTest {
 			onResolve()
 			capability
 		},
-		sourceBroker = broker,
-		sourceCallerDemandDispatcher = TestPurposeSourceCallerDemandDispatcher(broker),
+		sourceCallerDemandDispatcher = TestPurposeSourceCallerDemandDispatcher(
+			broker = broker,
+			retentionSnapshot = { _, _, _, _, _ -> retentionSnapshot },
+		),
 		bootClockDomainProvider = BootClockDomainProvider { "boot-1" },
 		sourcePolicyRepository = policyRepository,
 		trackingRolloutStateStore = rolloutStore,
-		currentRetentionAuthority = currentRetentionAuthority,
-		currentSettlementRetentionAuthority = currentSettlementRetentionAuthority,
 		currentPurposeAvailabilityReader = currentPurposeReader,
 	)
 
@@ -453,7 +332,7 @@ class AmbientStepsDemandReconcilerTest {
 			sourcePurpose = TrackingSource.STEPS.forPurpose(TrackingPurpose.AMBIENT_PRODUCT),
 			policyRevision = 1L,
 			consentEpoch = 1L,
-			collectedDataEpoch = 0L,
+			collectedDataEpoch = 3L,
 			rolloutRevision = 1L,
 			executionRevision = 1L,
 			ownerCasToken = "ambient-steps-test",
@@ -496,27 +375,4 @@ class AmbientStepsDemandReconcilerTest {
 		elapsedRealtimeNanos = elapsedRealtimeNanos,
 		wallTimeMs = elapsedRealtimeNanos,
 	)
-
-	private suspend fun lease(): AmbientReconciliationLease {
-		val active = policyRepository.currentState() as SourcePolicyAuthorityState.Active
-		val retention = database.ambientStepsFactRevisionDao().latestRetentionAuthority(
-			com.adsamcik.tracker.shared.base.database.data
-				.AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
-		)
-		return AmbientReconciliationLease(
-			AmbientReconciliationIdentity(
-				source = AmbientTrackingSource.STEPS,
-				policyRevision = active.snapshot.revision,
-				consentEpoch =
-					active.snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch ?: 1L,
-				collectedDataEpoch = retention?.collectedDataEpoch ?: 0L,
-				rolloutRevision = rolloutStore.load().revision,
-				ownerCasToken = "ambient-steps-demand-test",
-				executionRevision = 1L,
-				retainedFromMs = retention?.retainedFromMs,
-				retentionPolicyId = retention?.opaquePolicyId ?: "test-retention",
-				retentionApprovalRevision = retention?.approvalRevision ?: 1L,
-			),
-		)
-	}
 }

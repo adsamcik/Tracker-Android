@@ -222,10 +222,10 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		val manifestIdentity = request.manifest.toCallerIdentity()
 		validateManifestBindings(request, manifestIdentity)?.let { return rejected(it) }
 		val snapshot = try {
-			authorityReader.readReplayManifest(manifestIdentity, replayKind)
+			authorityReader.readCurrentManifest(manifestIdentity)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (_: RuntimeException) {
+		} catch (_: Exception) {
 			return rejected(SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE)
 		}
 		if (snapshot == null) return rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
@@ -341,10 +341,10 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			)
 		}
 		val snapshot = try {
-			authorityReader.readCurrentManifest(manifestIdentity)
+			authorityReader.readReplayManifest(manifestIdentity, replayKind)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (_: RuntimeException) {
+		} catch (_: Exception) {
 			return replayRejected(SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE)
 		}
 		if (snapshot == null) {
@@ -445,13 +445,23 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 
 	override suspend fun dispatchAmbientSteps(
 		request: AmbientStepsDemandDispatchRequest,
-	): GuardedPurposeDemandResult<AmbientStepsDemandResult> = database.withTransaction {
+	): GuardedPurposeDemandResult<AmbientStepsDemandResult> {
 		val identity = request.identity
 		if (identity.source != TrackingSource.STEPS ||
 			identity.purpose != TrackingPurpose.AMBIENT_PRODUCT
-		) return@withTransaction rejectedPurpose(
+		) return rejectedPurpose(
 			SourceCallerRejectionReason.AMBIENT_SOURCE_NOT_SUPPORTED,
 		)
+		val retentionSnapshot = sourceBroker.captureLiveAmbientRetentionSnapshot(
+			source = SourceKind.STEPS,
+			sourcePolicyRevision = identity.policyRevision,
+			ambientConsentEpoch = identity.consentEpoch,
+			collectedDataEpoch = identity.collectedDataEpoch,
+			currentBootId = request.bootId,
+			currentElapsedRealtimeNanos = request.elapsedRealtimeNanos,
+			currentWallTimeMs = request.wallTimeMs,
+		)
+		return database.withTransaction {
 		val demandIdentity = SourceCallerDemandIdentity(identity, manifestIdentity = null)
 		val snapshot = readCurrentPurposeOrNull(setOf(demandIdentity))
 			?: return@withTransaction rejectedPurpose(
@@ -481,6 +491,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			elapsedRealtimeNanos = request.elapsedRealtimeNanos,
 			wallTimeMs = request.wallTimeMs,
 			sourceCallerAuthorityReference = receipt.reference.value,
+			retentionSnapshot = retentionSnapshot,
 		)
 		if (result is AmbientStepsDemandResult.Inactive) {
 			check(authorityRepository.delete(receipt.reference)) {
@@ -501,6 +512,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			return@withTransaction GuardedPurposeDemandResult.Stale
 		}
 		GuardedPurposeDemandResult.Applied(result, receipt)
+		}
 	}
 
 	override suspend fun retireAmbientSteps(
@@ -535,15 +547,47 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		) {
 			return rejectedPurpose(SourceCallerRejectionReason.AMBIENT_SOURCE_NOT_SUPPORTED)
 		}
+		val retentionSnapshot = if (request.requested) {
+			sourceBroker.captureLiveAmbientRetentionSnapshot(
+				source = SourceKind.entries.single {
+					it.stableCode == request.source.canonicalSource.stableCode
+				},
+				sourcePolicyRevision = request.leaseIdentity.policyRevision,
+				ambientConsentEpoch = request.leaseIdentity.consentEpoch,
+				collectedDataEpoch = request.leaseIdentity.collectedDataEpoch,
+				currentBootId = request.bootId,
+				currentElapsedRealtimeNanos = request.elapsedRealtimeNanos,
+				currentWallTimeMs = request.wallTimeMs,
+			)
+		} else {
+			LiveAmbientRetentionSnapshot(emptyMap())
+		}
 		val leaseMutation = sourceBroker.withAmbientRadioMutationLease(request.leaseIdentity) {
+			if (!request.requested) {
+				fenceAmbientRadioDemand(request)
+				val attempt = GuardedAmbientRadioAttempt(request, receipt = null)
+				return@withAmbientRadioMutationLease GuardedPurposeDemandResult.Applied(
+					reconcile(
+						AmbientRadioDemandResult.Inactive(
+							AmbientRadioDemandInactiveReason.REQUEST_DISABLED,
+						),
+						attempt,
+					),
+					receipt = null,
+				)
+			}
 			val mutation = database.withTransaction {
 				val identity = request.leaseIdentity.purposeLeaseIdentity
 				val demandIdentity = SourceCallerDemandIdentity(identity, manifestIdentity = null)
 				val snapshot = readCurrentPurposeOrNull(setOf(demandIdentity))
-					?: return@withTransaction rejectedPurpose<AmbientRadioDemandResult>(
-						SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE,
-					)
+					?: run {
+						fenceAmbientRadioDemand(request)
+						return@withTransaction rejectedPurpose<AmbientRadioDemandResult>(
+							SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE,
+						)
+					}
 				if (demandIdentity !in snapshot.currentDemandIdentities) {
+					fenceAmbientRadioDemand(request)
 					return@withTransaction rejectedPurpose<AmbientRadioDemandResult>(
 						SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
 					)
@@ -557,8 +601,10 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 					),
 				)) {
 					is SourceCallerGuardResult.Permitted -> accepted.receipt
-					is SourceCallerGuardResult.Rejected ->
+					is SourceCallerGuardResult.Rejected -> {
+						fenceAmbientRadioDemand(request)
 						return@withTransaction rejectedPurpose(accepted.rejection)
+					}
 				}
 				val result = when (request.source) {
 					AmbientTrackingSource.WIFI ->
@@ -571,6 +617,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 							elapsedRealtimeNanos = request.elapsedRealtimeNanos,
 							wallTimeMs = request.wallTimeMs,
 							sourceCallerAuthorityReference = receipt.reference.value,
+							retentionSnapshot = retentionSnapshot,
 						)
 					AmbientTrackingSource.CELL ->
 						sourceBroker.replaceAmbientCellDemandUnderHeldLease(
@@ -582,6 +629,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 							elapsedRealtimeNanos = request.elapsedRealtimeNanos,
 							wallTimeMs = request.wallTimeMs,
 							sourceCallerAuthorityReference = receipt.reference.value,
+							retentionSnapshot = retentionSnapshot,
 						)
 					AmbientTrackingSource.STEPS,
 					AmbientTrackingSource.LOCATION,
@@ -607,7 +655,6 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 								compensateAmbientRadio(attempt, active.demand.demandId)
 							}
 						}
-						retireMutationReceipt(attempt)
 						throw cancelled
 					} catch (failure: RuntimeException) {
 						(mutation.value as? AmbientRadioDemandResult.Active)?.let { active ->
@@ -615,24 +662,18 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 								compensateAmbientRadio(attempt, active.demand.demandId)
 							}
 						}
-						retireMutationReceipt(attempt)
 						throw failure
 					}
 					if (!current) {
 						(mutation.value as? AmbientRadioDemandResult.Active)?.let { active ->
 							compensateAmbientRadio(attempt, active.demand.demandId)
 						}
-						retireMutationReceipt(attempt)
 						return@withAmbientRadioMutationLease GuardedPurposeDemandResult.Stale
 					}
-					try {
-						GuardedPurposeDemandResult.Applied(
-							reconcile(mutation.value, attempt),
-							mutation.receipt.takeIf { request.requested },
-						)
-					} finally {
-						retireMutationReceipt(attempt)
-					}
+					GuardedPurposeDemandResult.Applied(
+						reconcile(mutation.value, attempt),
+						mutation.receipt,
+					)
 				}
 				is GuardedPurposeDemandResult.Rejected -> mutation
 				GuardedPurposeDemandResult.Stale -> GuardedPurposeDemandResult.Stale
@@ -644,19 +685,22 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		}
 	}
 
-	private suspend fun retireMutationReceipt(
-		attempt: GuardedAmbientRadioAttempt,
+	private suspend fun fenceAmbientRadioDemand(
+		request: AmbientRadioDemandDispatchRequest,
 	) {
-		if (attempt.request.requested) return
-		val receipt = attempt.receipt ?: return
-		kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-			check(authorityRepository.retire(
-				receipt.reference,
-				"PURPOSE_OWNER_RETIREMENT_COMPLETE",
-				attempt.request.wallTimeMs,
-			)) {
-				"Unable to retire purpose-owner mutation authority"
-			}
+		try {
+			sourceBroker.retirePurposeDemand(
+				consumerId = request.consumerId,
+				expectedSourceKind = request.source.canonicalSource.stableCode,
+				expectedPurpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+				bootId = request.bootId,
+				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+				wallTimeMs = request.wallTimeMs,
+			)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			// Provider reconciliation still runs and records durable physical cleanup debt.
 		}
 	}
 
@@ -723,55 +767,36 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
-	): GuardedPurposeDemandResult<Unit> = database.withTransaction {
-		val demands = sourceBroker.currentPurposeDemands(consumerId)
-		if (demands.isEmpty()) {
-			return@withTransaction GuardedPurposeDemandResult.Applied(Unit, null)
-		}
+	): GuardedPurposeDemandResult<Unit> {
 		if (!source.supports(purpose)) {
-			return@withTransaction rejectedPurpose(
+			return rejectedPurpose(
 				SourceCallerRejectionReason.UNDECLARED_DEMAND,
 			)
 		}
-		val demand = demands.singleOrNull()
-			?: return@withTransaction rejectedPurpose(
-				SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE,
+		return if (sourceBroker.retirePurposeDemand(
+				consumerId = consumerId,
+				expectedSourceKind = source.stableCode,
+				expectedPurpose = brokerPurpose,
+				bootId = bootId,
+				elapsedRealtimeNanos = elapsedRealtimeNanos,
+				wallTimeMs = wallTimeMs,
 			)
-		if (demand.sourceKind != source.stableCode || demand.purpose != brokerPurpose) {
-			return@withTransaction rejectedPurpose(
-				SourceCallerRejectionReason.REPLAY_AUTHORITY_MISMATCH,
-			)
-		}
-		val reference = demand.sourceCallerAuthorityReference
-			?.let(::SourceCallerReplayReference)
-			?: return@withTransaction rejectedPurpose(
-				SourceCallerRejectionReason.REPLAY_AUTHORITY_UNAVAILABLE,
-			)
-		when (val accepted = guard.accept(
-			SourceCallerRequest.PurposeOwnerRetirement(
-				source = source,
-				purpose = purpose,
-				reference = reference,
-			),
-		)) {
-			is SourceCallerGuardResult.Permitted ->
-				if (sourceBroker.retireAcceptedPurposeDemand(
-					expected = demand,
-					bootId = bootId,
-					elapsedRealtimeNanos = elapsedRealtimeNanos,
-					wallTimeMs = wallTimeMs,
-				)) {
-					GuardedPurposeDemandResult.Applied(Unit, accepted.receipt)
-				} else {
-					GuardedPurposeDemandResult.Stale
-				}
-			is SourceCallerGuardResult.Rejected -> rejectedPurpose(accepted.rejection)
+		) {
+			GuardedPurposeDemandResult.Applied(Unit, null)
+		} else {
+			GuardedPurposeDemandResult.Stale
 		}
 	}
 
 	private suspend fun readCurrentPurposeOrNull(
 		requested: Set<SourceCallerDemandIdentity>,
-	): SourceCallerAuthoritySnapshot? = authorityReader.readCurrentPurpose(requested)
+	): SourceCallerAuthoritySnapshot? = try {
+		authorityReader.readCurrentPurpose(requested)
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		null
+	}
 
 	private fun <T> rejectedPurpose(
 		reason: SourceCallerRejectionReason,
@@ -877,6 +902,7 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 	private val purposeAvailabilityReader: CurrentTrackingPurposeAvailabilityReader,
 	private val exactPurposeAuthorityReader: TrackingPurposeAuthorityReader,
 	private val executionRevisionRegistry: TrackingPurposeExecutionRevisionRegistry,
+	private val clockDomainProvider: BootClockDomainProvider,
 ) : SourceCallerAuthoritySnapshotReader, CurrentSourceCallerAuthorityProvider {
 	override suspend fun read(request: SourceCallerRequest): SourceCallerAuthoritySnapshot {
 		val manifests = request.requestedDemandIdentities.mapNotNull { it.manifestIdentity }.toSet()
@@ -916,6 +942,7 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 		requireLiveLease: Boolean,
 		allowSuspendedSession: Boolean,
 	): SourceCallerAuthoritySnapshot? {
+		val currentBootId = clockDomainProvider.current()
 		repeat(AUTHORITY_READ_ATTEMPTS) {
 			val availabilityBefore = purposeAvailabilityReader.availability.value
 			val current = database.withTransaction {
@@ -924,6 +951,7 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 					availabilityBefore,
 					requireLiveLease,
 					allowSuspendedSession,
+					currentBootId,
 				)
 			} ?: return null
 			if (availabilityBefore == purposeAvailabilityReader.availability.value) return current
@@ -940,11 +968,13 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 		availability: CurrentTrackingPurposeAvailability,
 		requireLiveLease: Boolean,
 		allowSuspendedSession: Boolean,
+		currentBootId: String,
 	): SourceCallerAuthoritySnapshot? {
 		val sessionDao = database.sourceSessionDao()
 		val session = sessionDao.session(identity.logicalTrackingId)
 			?.takeIf {
 				it.currentManifestRevision == identity.manifestRevision &&
+					it.lifecycleBootId == currentBootId &&
 					it.state in setOf(
 						SessionLifecycleState.STARTING.name,
 						SessionLifecycleState.ACTIVE.name,
@@ -956,6 +986,7 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 			?.takeIf {
 				it.rolloutRevision == session.rolloutRevision &&
 					it.effectiveBootId == session.lifecycleBootId &&
+					it.effectiveBootId == currentBootId &&
 					(
 						it.serviceRunId == session.currentServiceRunId ||
 							(allowSuspendedSession &&
@@ -978,6 +1009,7 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 				it.ownerToken.isNotBlank() &&
 					it.generation == session.lifecycleLeaseGeneration &&
 					it.bootId == session.lifecycleBootId &&
+					it.bootId == currentBootId &&
 					(!requireLiveLease ||
 						it.expiresElapsedRealtimeNanos > SystemClock.elapsedRealtimeNanos())
 			}
@@ -1211,6 +1243,44 @@ internal class RoomSourceCallerAcceptedAuthorityRepository @Inject constructor(
 		}
 		if (rows.any { it.status != SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE }) {
 			return@withTransaction false
+		}
+		val retired = SourceCallerAcceptedAuthorityEffectChecksum.seal(
+			rows.map { row ->
+				row.copy(
+					status = SourceCallerAcceptedAuthorityEntity.STATUS_RETIRED,
+					retiredAtMs = maxOf(retiredAtMs, row.createdAtMs),
+					retireReason = reason,
+					effectChecksum = "pending",
+				)
+			},
+		)
+		dao.update(retired) == retired.size
+	}
+
+	override suspend fun retireForTeardown(
+		reference: SourceCallerReplayReference,
+		reason: String,
+		retiredAtMs: Long,
+	): Boolean = database.withTransaction {
+		require(reason.isNotBlank())
+		require(retiredAtMs >= 0L)
+		val dao = database.sourceCallerAuthorityDao()
+		val rows = dao.rows(reference.value)
+		if (rows.isEmpty()) return@withTransaction true
+		val canRetireNormally = rows.hasValidStoredAuthorityShape() &&
+			SourceCallerAcceptedAuthorityEffectChecksum.isAuthentic(rows) &&
+			rows.all { row ->
+				row.formatVersion == SourceCallerAcceptedAuthorityEntity.FORMAT_VERSION &&
+					row.reference == reference.value
+			}
+		if (!canRetireNormally) {
+			return@withTransaction dao.delete(reference.value) == rows.size
+		}
+		if (rows.all { it.status == SourceCallerAcceptedAuthorityEntity.STATUS_RETIRED }) {
+			return@withTransaction true
+		}
+		if (rows.any { it.status != SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE }) {
+			return@withTransaction dao.delete(reference.value) == rows.size
 		}
 		val retired = SourceCallerAcceptedAuthorityEffectChecksum.seal(
 			rows.map { row ->

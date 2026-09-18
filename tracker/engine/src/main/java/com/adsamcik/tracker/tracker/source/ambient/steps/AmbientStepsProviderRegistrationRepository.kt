@@ -68,14 +68,27 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 		require(boundary.bootId == clockDomainId) {
 			"Ambient Steps reservation boundary belongs to another boot"
 		}
+		val observedDemands = requireEligibleDemands(provider, expectedDemandId, boundary)
+		val retentionSnapshot = sourceBroker.captureLiveAmbientRetentionSnapshot(
+			demands = observedDemands,
+			expectedCollectedDataEpoch = lifecycle.epoch,
+			currentBootId = boundary.bootId,
+			currentElapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+			currentWallTimeMs = boundary.wallTimeMs,
+		)
 		return database.withTransaction {
 			val demands = requireEligibleDemands(provider, expectedDemandId, boundary)
-			check(sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
+			check(demands == observedDemands) {
+				"Ambient Steps demand changed while retention authority was being acquired"
+			}
+			check(retentionSnapshot != null &&
+				sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
 				demands = demands,
 				expectedCollectedDataEpoch = lifecycle.epoch,
 				currentBootId = boundary.bootId,
 				currentElapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
 				currentWallTimeMs = boundary.wallTimeMs,
+				retentionSnapshot = retentionSnapshot,
 			)) {
 				"Ambient Steps retention authority changed before provider reservation"
 			}
@@ -216,6 +229,22 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 		check(bootClockDomainProvider.current() == registration.state.clockDomainId) {
 			"Boot changed during Ambient Steps provider activation"
 		}
+		val observedDemands = requireEligibleDemands(
+			registration.provider,
+			registration.expectedDemandId,
+			AmbientStepsDemandBoundary(
+				bootId = registration.state.clockDomainId,
+				elapsedRealtimeNanos = registration.providerRequestElapsedRealtimeNanos,
+				wallTimeMs = registration.providerRequestAtMs,
+			),
+		)
+		val retentionSnapshot = sourceBroker.captureLiveAmbientRetentionSnapshot(
+			demands = observedDemands,
+			expectedCollectedDataEpoch = lifecycle.epoch,
+			currentBootId = registration.state.clockDomainId,
+			currentElapsedRealtimeNanos = registration.providerRequestElapsedRealtimeNanos,
+			currentWallTimeMs = registration.providerRequestAtMs,
+		)
 		return database.withTransaction {
 			val boundary = AmbientStepsDemandBoundary(
 				bootId = registration.state.clockDomainId,
@@ -227,13 +256,23 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 				registration.expectedDemandId,
 				boundary,
 			)
-			check(sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
+			check(demands == observedDemands) {
+				"Ambient Steps demand changed before provider acceptance"
+			}
+			check(
+				database.sourceEvidenceStateDao().get()?.collectedDataEpoch == lifecycle.epoch,
+			) {
+				"Collected-data epoch changed before Ambient Steps provider acceptance"
+			}
+			check(retentionSnapshot != null &&
+				sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
 				demands = demands,
 				expectedCollectedDataEpoch = lifecycle.epoch,
 				currentBootId = registration.state.clockDomainId,
 				currentElapsedRealtimeNanos =
 					registration.providerRequestElapsedRealtimeNanos,
 				currentWallTimeMs = registration.providerRequestAtMs,
+				retentionSnapshot = retentionSnapshot,
 			)) {
 				"Ambient Steps retention authority changed before provider acceptance"
 			}

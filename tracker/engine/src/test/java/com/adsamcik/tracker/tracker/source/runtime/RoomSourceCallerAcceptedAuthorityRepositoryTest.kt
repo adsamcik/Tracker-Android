@@ -92,6 +92,25 @@ class RoomSourceCallerAcceptedAuthorityRepositoryTest {
 	}
 
 	@Test
+	fun `teardown deletes malformed authority instead of preserving active metadata`() = runTest {
+		repository.retireForTeardown(
+			SourceCallerReplayReference("already-missing"),
+			"DEMAND_RETIRED",
+			200L,
+		) shouldBe true
+		val reference = SourceCallerReplayReference("malformed-teardown")
+		repository.insertIfAbsent(reference, authority(), createdAtMs = 100L) shouldBe true
+		val row = database.sourceCallerAuthorityDao().rows(reference.value).single()
+		database.sourceCallerAuthorityDao().update(
+			listOf(row.copy(ownerCasToken = "", effectChecksum = row.effectChecksum)),
+		) shouldBe 1
+
+		repository.retireForTeardown(reference, "DEMAND_RETIRED", 200L) shouldBe true
+
+		repository.load(reference) shouldBe StoredSourceCallerAuthorityLoadResult.Missing
+	}
+
+	@Test
 	fun `authority insertion rolls back with its owning lifecycle transaction`() = runTest {
 		val reference = SourceCallerReplayReference("rolled-back-authority")
 		runCatching {

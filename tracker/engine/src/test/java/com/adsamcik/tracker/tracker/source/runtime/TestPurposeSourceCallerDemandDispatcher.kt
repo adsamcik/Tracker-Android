@@ -15,6 +15,13 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 	private val currentAuthority: suspend (
 		com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity,
 	) -> Boolean = { true },
+	private val retentionSnapshot: suspend (
+		SourceKind,
+		com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity,
+		String,
+		Long,
+		Long,
+	) -> LiveAmbientRetentionSnapshot? = { _, _, _, _, _ -> null },
 ) : SourceCallerDemandDispatcher {
 	override suspend fun dispatchSession(
 		request: SessionSourceDemandDispatchRequest,
@@ -87,14 +94,33 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 				),
 			)
 		}
-		return GuardedPurposeDemandResult.Applied(
+		val snapshot = retentionSnapshot(
+			SourceKind.STEPS,
+			request.identity,
+			request.bootId,
+			request.elapsedRealtimeNanos,
+			request.wallTimeMs,
+		)
+		val result = if (snapshot == null) {
 			broker.replaceAmbientStepsDemand(
 				request.consumerId,
 				request.mechanism,
 				request.bootId,
 				request.elapsedRealtimeNanos,
 				request.wallTimeMs,
-			),
+			)
+		} else {
+			broker.replaceAmbientStepsDemand(
+				request.consumerId,
+				request.mechanism,
+				request.bootId,
+				request.elapsedRealtimeNanos,
+				request.wallTimeMs,
+				retentionSnapshot = snapshot,
+			)
+		}
+		return GuardedPurposeDemandResult.Applied(
+			result,
 			receipt(request.identity),
 		)
 	}
@@ -128,27 +154,60 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 			)
 		}
 		val guarded = broker.withAmbientRadioMutationLease(request.leaseIdentity) {
+			val snapshot = retentionSnapshot(
+				SourceKind.valueOf(request.source.name),
+				request.leaseIdentity.purposeLeaseIdentity,
+				request.bootId,
+				request.elapsedRealtimeNanos,
+				request.wallTimeMs,
+			)
 			val demand = when (request.source) {
 				com.adsamcik.tracker.tracker.api.AmbientTrackingSource.WIFI ->
-					broker.replaceAmbientWifiDemandUnderHeldLease(
-						request.consumerId,
-						request.requested,
-						request.leaseIdentity,
-						request.reconciliationAttempt,
-						request.bootId,
-						request.elapsedRealtimeNanos,
-						request.wallTimeMs,
-					)
+					if (snapshot == null) {
+						broker.replaceAmbientWifiDemandUnderHeldLease(
+							request.consumerId,
+							request.requested,
+							request.leaseIdentity,
+							request.reconciliationAttempt,
+							request.bootId,
+							request.elapsedRealtimeNanos,
+							request.wallTimeMs,
+						)
+					} else {
+						broker.replaceAmbientWifiDemandUnderHeldLease(
+							request.consumerId,
+							request.requested,
+							request.leaseIdentity,
+							request.reconciliationAttempt,
+							request.bootId,
+							request.elapsedRealtimeNanos,
+							request.wallTimeMs,
+							retentionSnapshot = snapshot,
+						)
+					}
 				com.adsamcik.tracker.tracker.api.AmbientTrackingSource.CELL ->
-					broker.replaceAmbientCellDemandUnderHeldLease(
-						request.consumerId,
-						request.requested,
-						request.leaseIdentity,
-						request.reconciliationAttempt,
-						request.bootId,
-						request.elapsedRealtimeNanos,
-						request.wallTimeMs,
-					)
+					if (snapshot == null) {
+						broker.replaceAmbientCellDemandUnderHeldLease(
+							request.consumerId,
+							request.requested,
+							request.leaseIdentity,
+							request.reconciliationAttempt,
+							request.bootId,
+							request.elapsedRealtimeNanos,
+							request.wallTimeMs,
+						)
+					} else {
+						broker.replaceAmbientCellDemandUnderHeldLease(
+							request.consumerId,
+							request.requested,
+							request.leaseIdentity,
+							request.reconciliationAttempt,
+							request.bootId,
+							request.elapsedRealtimeNanos,
+							request.wallTimeMs,
+							retentionSnapshot = snapshot,
+						)
+					}
 				else -> error("Unsupported test ambient radio source")
 			}
 			reconcile(demand, GuardedAmbientRadioAttempt(request, null))

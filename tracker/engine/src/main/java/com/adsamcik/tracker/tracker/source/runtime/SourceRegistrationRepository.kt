@@ -191,6 +191,23 @@ class SourceRegistrationRepository @Inject constructor(
 		val lifecycle = lifecycleStore.snapshot()
 		val clockDomainId = clockDomainProvider.current()
 		val processIncarnationId = processIncarnationIdProvider.current()
+		val ownerScope = if (purposeEligibilityMask == SourceBrokerPurpose.ALL_MASK) {
+			SourceProviderPurposeScope.sharedOwnerScope(source.stableCode)
+		} else {
+			SourceProviderPurposeScope.exactOwnerScope(source.stableCode, purposeEligibilityMask)
+		}
+		val observedDemands = SourceProviderPurposeScope.selectDemands(
+			source.stableCode,
+			ownerScope,
+			database.sourceBrokerDao().authorizationDemands(source.stableCode),
+		)
+		val retentionSnapshot = sourceBroker.captureLiveAmbientRetentionSnapshot(
+			demands = observedDemands,
+			expectedCollectedDataEpoch = lifecycle.epoch,
+			currentBootId = clockDomainId,
+			currentElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
+			currentWallTimeMs = updatedAtMs,
+		)
 		return database.withTransaction {
 			requireSourceAcquisitionReachable(source)
 			val brokerDao = database.sourceBrokerDao()
@@ -205,11 +222,6 @@ class SourceRegistrationRepository @Inject constructor(
 					currentProcessId = processIncarnationId,
 				),
 			) { "Pending provider removal must complete before a replacement can be reserved" }
-			val ownerScope = if (purposeEligibilityMask == SourceBrokerPurpose.ALL_MASK) {
-				SourceProviderPurposeScope.sharedOwnerScope(source.stableCode)
-			} else {
-				SourceProviderPurposeScope.exactOwnerScope(source.stableCode, purposeEligibilityMask)
-			}
 			val demands = SourceProviderPurposeScope.selectDemands(
 				source.stableCode,
 				ownerScope,
@@ -217,6 +229,9 @@ class SourceRegistrationRepository @Inject constructor(
 			)
 			require(demands.isNotEmpty()) {
 				"A source registration requires a compatible durable active broker demand"
+			}
+			check(demands == observedDemands) {
+				"Broker demand changed while retention authority was being acquired"
 			}
 			require(
 				(SourceBrokerAuthorization.purposeMask(demands) and purposeEligibilityMask) != 0L,
@@ -226,12 +241,14 @@ class SourceRegistrationRepository @Inject constructor(
 			require(supportsExactDemandPurposes(source, demands)) {
 				"Pressure provider registration requires exact SESSION_CAPTURE demand only"
 			}
-			check(sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
+			check(retentionSnapshot != null &&
+				sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
 				demands = demands,
 				expectedCollectedDataEpoch = lifecycle.epoch,
 				currentBootId = clockDomainId,
 				currentElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
 				currentWallTimeMs = updatedAtMs,
+				retentionSnapshot = retentionSnapshot,
 			)) {
 				"LIVE_AMBIENT retention authority changed before provider reservation"
 			}
@@ -407,31 +424,46 @@ class SourceRegistrationRepository @Inject constructor(
 		val lifecycle = lifecycleStore.snapshot()
 		val clockDomainId = clockDomainProvider.current()
 		val processIncarnationId = processIncarnationIdProvider.current()
+		val expectedOwnerScope = if (purposeEligibilityMask == SourceBrokerPurpose.ALL_MASK) {
+			SourceProviderPurposeScope.sharedOwnerScope(source.stableCode)
+		} else {
+			SourceProviderPurposeScope.exactOwnerScope(source.stableCode, purposeEligibilityMask)
+		}
+		val observedDemands = SourceProviderPurposeScope.selectDemands(
+			source.stableCode,
+			expectedOwnerScope,
+			database.sourceBrokerDao().authorizationDemands(source.stableCode),
+		)
+		val retentionSnapshot = sourceBroker.captureLiveAmbientRetentionSnapshot(
+			demands = observedDemands,
+			expectedCollectedDataEpoch = lifecycle.epoch,
+			currentBootId = clockDomainId,
+			currentElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
+			currentWallTimeMs = updatedAtMs,
+		)
 		return database.withTransaction {
 			if (!isSourceAcquisitionReachable(source)) return@withTransaction null
 			val brokerDao = database.sourceBrokerDao()
-			val expectedOwnerScope = if (purposeEligibilityMask == SourceBrokerPurpose.ALL_MASK) {
-				SourceProviderPurposeScope.sharedOwnerScope(source.stableCode)
-			} else {
-				SourceProviderPurposeScope.exactOwnerScope(source.stableCode, purposeEligibilityMask)
-			}
 			if (expectedRegistration.ownerScope != expectedOwnerScope) return@withTransaction null
 			val demands = SourceProviderPurposeScope.selectDemands(
 				source.stableCode,
 				expectedOwnerScope,
 				brokerDao.authorizationDemands(source.stableCode),
 			)
+			if (demands != observedDemands) return@withTransaction null
 			if (demands.isEmpty()) return@withTransaction null
 			if ((SourceBrokerAuthorization.purposeMask(demands) and purposeEligibilityMask) == 0L) {
 				return@withTransaction null
 			}
 			if (!supportsExactDemandPurposes(source, demands)) return@withTransaction null
-			if (!sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
+			if (retentionSnapshot == null ||
+				!sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
 					demands = demands,
 					expectedCollectedDataEpoch = lifecycle.epoch,
 					currentBootId = clockDomainId,
 					currentElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
 					currentWallTimeMs = updatedAtMs,
+					retentionSnapshot = retentionSnapshot,
 				)
 			) return@withTransaction null
 			val ownerScope = expectedRegistration.ownerScope
@@ -487,6 +519,22 @@ class SourceRegistrationRepository @Inject constructor(
 	): ProviderRegistrationGenerationEntity? {
 		if (!registration.requiresProviderAcceptance) return null
 		val source = SourceKind.entries.single { it.stableCode == registration.state.sourceKind }
+		val lifecycle = lifecycleStore.snapshot()
+		check(lifecycle.epoch == registration.state.collectedDataEpoch) {
+			"Collected-data epoch changed before provider acceptance"
+		}
+		val observedDemands = SourceProviderPurposeScope.selectDemands(
+			source.stableCode,
+			registration.ownerScope,
+			database.sourceBrokerDao().authorizationDemands(source.stableCode),
+		)
+		val retentionSnapshot = sourceBroker.captureLiveAmbientRetentionSnapshot(
+			demands = observedDemands,
+			expectedCollectedDataEpoch = lifecycle.epoch,
+			currentBootId = registration.state.clockDomainId,
+			currentElapsedRealtimeNanos = acceptedElapsedRealtimeNanos,
+			currentWallTimeMs = acceptedAtMs,
+		)
 		return database.withTransaction {
 			requireSourceAcquisitionReachable(source)
 			val demands = SourceProviderPurposeScope.selectDemands(
@@ -494,15 +542,25 @@ class SourceRegistrationRepository @Inject constructor(
 				registration.ownerScope,
 				database.sourceBrokerDao().authorizationDemands(source.stableCode),
 			)
+			check(demands == observedDemands) {
+				"Broker demand changed before provider acceptance"
+			}
+			check(
+				database.sourceEvidenceStateDao().get()?.collectedDataEpoch == lifecycle.epoch,
+			) {
+				"Collected-data epoch changed before provider acceptance"
+			}
 			check(supportsExactDemandPurposes(source, demands)) {
 				"Pressure provider acceptance requires exact SESSION_CAPTURE demand only"
 			}
-			check(sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
+			check(retentionSnapshot != null &&
+				sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
 				demands = demands,
 				expectedCollectedDataEpoch = lifecycle.epoch,
 				currentBootId = registration.state.clockDomainId,
 				currentElapsedRealtimeNanos = acceptedElapsedRealtimeNanos,
 				currentWallTimeMs = acceptedAtMs,
+				retentionSnapshot = retentionSnapshot,
 			)) {
 				"LIVE_AMBIENT retention authority changed before provider acceptance"
 			}

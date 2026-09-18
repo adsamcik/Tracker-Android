@@ -20,6 +20,8 @@ import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEn
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityEffectChecksum
+import com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
@@ -109,6 +111,7 @@ class AppDatabaseMigration27To28Test {
 					seedMigratedAmbientStepsImportState(database)
 					seedMigratedPressureFactRevision(database)
 					seedMigratedDeletionFence(database)
+					seedSourceCallerAuthorities(database)
 					assertEquals(1L, database.stepFactRevisionDao().countAll())
 					assertEquals(1L, database.ambientStepsFactRevisionDao().countAll())
 					assertEquals(1L, database.ambientStepsImportStateDao().countCursors())
@@ -116,6 +119,8 @@ class AppDatabaseMigration27To28Test {
 					assertEquals(1L, database.ambientStepsImportStateDao().countAuthorityTransitions())
 					assertEquals(1L, database.pressureFactRevisionDao().count())
 					assertEquals(1L, database.sourceDeletionFenceDao().countAll())
+					assertEquals(1, database.sourceCallerAuthorityDao().rows("valid-active").size)
+					assertEquals(1, database.sourceCallerAuthorityDao().rows("malformed-active").size)
 				}
 			} finally {
 				database.close()
@@ -136,6 +141,8 @@ class AppDatabaseMigration27To28Test {
 						updatedAtMs = PopulatedV27Fixture.END_MS + 1,
 					)
 					assertCollectedRowsDeleted(database)
+					assertTrue(database.sourceCallerAuthorityDao().rows("valid-active").isEmpty())
+					assertTrue(database.sourceCallerAuthorityDao().rows("malformed-active").isEmpty())
 				}
 			} finally {
 				database.close()
@@ -147,13 +154,49 @@ class AppDatabaseMigration27To28Test {
 			try {
 				runBlocking {
 					assertCollectedRowsDeleted(database)
+					assertTrue(database.sourceCallerAuthorityDao().rows("valid-active").isEmpty())
+					assertTrue(database.sourceCallerAuthorityDao().rows("malformed-active").isEmpty())
 					assertNull(database.sourceSessionDao().activeSession())
 					assertNull(database.trackerRunDao().getActiveRun())
 				}
+
 			} finally {
 				database.close()
 			}
 		}
+	}
+
+	private suspend fun seedSourceCallerAuthorities(database: AppDatabase) {
+		val valid = SourceCallerAcceptedAuthorityEntity(
+			reference = "valid-active",
+			formatVersion = SourceCallerAcceptedAuthorityEntity.FORMAT_VERSION,
+			origin = "MANUAL",
+			acceptedPurpose = "SESSION_CAPTURE",
+			sourceKind = 1,
+			purpose = "SESSION_CAPTURE",
+			policyRevision = 1L,
+			consentEpoch = 1L,
+			collectedDataEpoch = 7L,
+			rolloutRevision = 1L,
+			executionRevision = 1L,
+			ownerCasToken = "owner",
+			logicalTrackingId = null,
+			manifestRevision = null,
+			status = SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE,
+			createdAtMs = 1L,
+			retiredAtMs = null,
+			retireReason = null,
+			effectChecksum = "pending",
+		)
+		val malformed = valid.copy(
+			reference = "malformed-active",
+			ownerCasToken = "",
+			effectChecksum = "pending",
+		)
+		database.sourceCallerAuthorityDao().insert(
+			SourceCallerAcceptedAuthorityEffectChecksum.seal(listOf(valid)) +
+				SourceCallerAcceptedAuthorityEffectChecksum.seal(listOf(malformed)),
+		)
 	}
 
 	private fun assertFinalV28SchemaAssemblyMarker(database: SupportSQLiteDatabase) {

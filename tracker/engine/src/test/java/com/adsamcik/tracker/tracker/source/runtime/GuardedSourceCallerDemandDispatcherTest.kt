@@ -27,6 +27,94 @@ import org.junit.jupiter.api.Test
 
 class GuardedSourceCallerDemandDispatcherTest {
 	@Test
+	fun `fresh dispatch reads strict current manifest authority`() = runTest {
+		val snapshot = SourceCallerAuthoritySnapshot(
+			setOf(capture(TrackingSource.LOCATION)),
+			TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+		)
+		var currentReads = 0
+		var replayReads = 0
+		val provider = object : CurrentSourceCallerAuthorityProvider {
+			override suspend fun readCurrentManifest(
+				identity: SourceCallerManifestIdentity,
+			): SourceCallerAuthoritySnapshot {
+				currentReads++
+				return snapshot
+			}
+
+			override suspend fun readReplayManifest(
+				identity: SourceCallerManifestIdentity,
+				replayKind: SourceCallerReplayKind,
+			): SourceCallerAuthoritySnapshot {
+				replayReads++
+				return snapshot
+			}
+		}
+		val repository = InMemorySourceCallerAuthorityRepository()
+		val dispatcher = GuardedSourceCallerDemandDispatcher(
+			database = mockk(relaxed = true),
+			authorityReader = provider,
+			guard = ExactSourceCallerGuard(
+				SourceCallerAuthoritySnapshotReader { snapshot },
+				repository,
+			),
+			sourceBroker = brokerReturning(listOf(demand(TrackingSource.LOCATION))),
+			authorityRepository = repository,
+		)
+
+		dispatcher.dispatchSession(
+			sessionRequest(bindings = listOf(binding(TrackingSource.LOCATION))),
+		).shouldBeInstanceOf<SessionSourceDemandDispatchResult.Permitted>()
+
+		currentReads shouldBe 1
+		replayReads shouldBe 0
+	}
+
+	@Test
+	fun `redelivery dispatch reads replay-specific manifest authority`() = runTest {
+		val snapshot = SourceCallerAuthoritySnapshot(
+			setOf(capture(TrackingSource.LOCATION)),
+			TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+		)
+		var replayKindRead: SourceCallerReplayKind? = null
+		val provider = object : CurrentSourceCallerAuthorityProvider {
+			override suspend fun readCurrentManifest(
+				identity: SourceCallerManifestIdentity,
+			): SourceCallerAuthoritySnapshot = snapshot
+
+			override suspend fun readReplayManifest(
+				identity: SourceCallerManifestIdentity,
+				replayKind: SourceCallerReplayKind,
+			): SourceCallerAuthoritySnapshot {
+				replayKindRead = replayKind
+				return snapshot
+			}
+		}
+		val repository = InMemorySourceCallerAuthorityRepository()
+		val dispatcher = GuardedSourceCallerDemandDispatcher(
+			database = mockk(relaxed = true),
+			authorityReader = provider,
+			guard = ExactSourceCallerGuard(
+				SourceCallerAuthoritySnapshotReader { snapshot },
+				repository,
+			),
+			sourceBroker = brokerReturning(listOf(demand(TrackingSource.LOCATION))),
+			authorityRepository = repository,
+		)
+		val accepted = dispatcher.dispatchSession(
+			sessionRequest(bindings = listOf(binding(TrackingSource.LOCATION))),
+		).shouldBeInstanceOf<SessionSourceDemandDispatchResult.Permitted>()
+
+		dispatcher.replayPreparedSession(
+			MANIFEST,
+			accepted.receipt.reference,
+			SourceCallerReplayKind.ACTIVE_REDELIVERY,
+		).shouldBeInstanceOf<SourceCallerGuardResult.Permitted>()
+
+		replayKindRead shouldBe SourceCallerReplayKind.ACTIVE_REDELIVERY
+	}
+
+	@Test
 	fun `manual multisource dispatch stages exactly the guard-permitted identities`() = runTest {
 		val location = capture(TrackingSource.LOCATION)
 		val cell = capture(TrackingSource.CELL)

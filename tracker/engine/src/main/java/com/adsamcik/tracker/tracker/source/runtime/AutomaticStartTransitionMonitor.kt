@@ -49,96 +49,89 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 		val boundaryBootId = clockDomainProvider.current()
 		val boundaryWallTimeMs = System.currentTimeMillis()
 		if (!transitionControlEnabled) {
-			val retired = sourceCallerDemandDispatcher.retireAutomaticControl(
-				consumerId = AUTOMATIC_CONTROL_CONSUMER,
-				source = SourceKind.ACTIVITY,
-				bootId = boundaryBootId,
-				elapsedRealtimeNanos = elapsedRealtimeNanos,
-				wallTimeMs = boundaryWallTimeMs,
-				maximumAgeMs = TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
-				desiredLatencyMs = desiredLatencyMs,
+			val retired = retireControl(
+				boundaryBootId,
+				elapsedRealtimeNanos,
+				boundaryWallTimeMs,
+				desiredLatencyMs,
 			)
-			if (retired !is GuardedPurposeDemandResult.Applied) {
-				return blockedWithoutMutation()
-			}
 			val cleared = arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
-			return if (enabled && cleared.status != ActivityRegistrationStatus.FAILED) {
-				cleared.copy(
-					status = ActivityRegistrationStatus.BLOCKED,
-					failureCode = cleared.failureCode
-						?: ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND,
-				)
-			} else {
-				cleared
+			return when {
+				cleared.status == ActivityRegistrationStatus.FAILED -> cleared
+				enabled || retired !is GuardedPurposeDemandResult.Applied -> cleared.blocked()
+				else -> cleared
 			}
 		}
 		val readyIdentity = requireNotNull(publishedReady).identity
-		return when (sourceCallerDemandDispatcher.dispatchAutomaticControl(
-			AutomaticControlDemandDispatchRequest(
-				identity = readyIdentity,
-				consumerId = AUTOMATIC_CONTROL_CONSUMER,
-				bootId = boundaryBootId,
-				elapsedRealtimeNanos = elapsedRealtimeNanos,
-				wallTimeMs = boundaryWallTimeMs,
-				maximumAgeMs = TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
-				desiredLatencyMs = desiredLatencyMs,
-			),
-		)) {
-			is GuardedPurposeDemandResult.Rejected,
-			GuardedPurposeDemandResult.Stale,
-			-> {
-				val retired = sourceCallerDemandDispatcher.retireAutomaticControl(
-					AUTOMATIC_CONTROL_CONSUMER,
-					SourceKind.ACTIVITY,
+		val dispatched = try {
+			sourceCallerDemandDispatcher.dispatchAutomaticControl(
+				AutomaticControlDemandDispatchRequest(
+					identity = readyIdentity,
+					consumerId = AUTOMATIC_CONTROL_CONSUMER,
+					bootId = boundaryBootId,
+					elapsedRealtimeNanos = elapsedRealtimeNanos,
+					wallTimeMs = boundaryWallTimeMs,
+					maximumAgeMs = TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
+					desiredLatencyMs = desiredLatencyMs,
+				),
+			)
+		} catch (cancelled: CancellationException) {
+			withContext(NonCancellable) {
+				retireControl(
 					boundaryBootId,
 					elapsedRealtimeNanos,
 					boundaryWallTimeMs,
-					TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
 					desiredLatencyMs,
 				)
-				if (retired is GuardedPurposeDemandResult.Applied) {
-					arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR).blocked()
-				} else {
-					blockedWithoutMutation()
-				}
+				arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+			}
+			throw cancelled
+		} catch (_: Exception) {
+			retireControl(
+				boundaryBootId,
+				elapsedRealtimeNanos,
+				boundaryWallTimeMs,
+				desiredLatencyMs,
+			)
+			return arbiter.clearDemand(
+				ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			).blocked()
+		}
+		return when (dispatched) {
+			is GuardedPurposeDemandResult.Rejected,
+			GuardedPurposeDemandResult.Stale,
+			-> {
+				retireControl(
+					boundaryBootId,
+					elapsedRealtimeNanos,
+					boundaryWallTimeMs,
+					desiredLatencyMs,
+				)
+				arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR).blocked()
 			}
 			is GuardedPurposeDemandResult.Applied -> try {
 				if (!sourceCallerDemandDispatcher.isCurrent(readyIdentity)) {
-					val retired = sourceCallerDemandDispatcher.retireAutomaticControl(
-						AUTOMATIC_CONTROL_CONSUMER,
-						SourceKind.ACTIVITY,
+					retireControl(
 						boundaryBootId,
 						elapsedRealtimeNanos,
 						boundaryWallTimeMs,
-						TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
 						desiredLatencyMs,
 					)
-					return if (retired is GuardedPurposeDemandResult.Applied) {
-						arbiter.clearDemand(
-							ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
-						).blocked()
-					} else {
-						blockedWithoutMutation()
-					}
+					return arbiter.clearDemand(
+						ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+					).blocked()
 				}
 				activityProjectionLane.ensureRegisteredAtLiveTail()
 				if (!sourceCallerDemandDispatcher.isCurrent(readyIdentity)) {
-					val retired = sourceCallerDemandDispatcher.retireAutomaticControl(
-						AUTOMATIC_CONTROL_CONSUMER,
-						SourceKind.ACTIVITY,
+					retireControl(
 						boundaryBootId,
 						elapsedRealtimeNanos,
 						boundaryWallTimeMs,
-						TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
 						desiredLatencyMs,
 					)
-					return if (retired is GuardedPurposeDemandResult.Applied) {
-						arbiter.clearDemand(
-							ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
-						).blocked()
-					} else {
-						blockedWithoutMutation()
-					}
+					return arbiter.clearDemand(
+						ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+					).blocked()
 				}
 				val registered = arbiter.setDemand(
 				ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
@@ -148,44 +141,56 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 				),
 			)
 				if (registered.status == ActivityRegistrationStatus.FAILED) {
-					sourceCallerDemandDispatcher.retireAutomaticControl(
-						AUTOMATIC_CONTROL_CONSUMER,
-						SourceKind.ACTIVITY,
+					retireControl(
 						boundaryBootId,
 						elapsedRealtimeNanos,
 						boundaryWallTimeMs,
-						TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
 						desiredLatencyMs,
 					)
 				}
 				registered
 			} catch (cancelled: CancellationException) {
 				withContext(NonCancellable) {
-					sourceCallerDemandDispatcher.retireAutomaticControl(
-						AUTOMATIC_CONTROL_CONSUMER,
-						SourceKind.ACTIVITY,
+					retireControl(
 						boundaryBootId,
 						elapsedRealtimeNanos,
 						boundaryWallTimeMs,
-						TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
 						desiredLatencyMs,
 					)
 				}
 				throw cancelled
 			} catch (failure: RuntimeException) {
 				withContext(NonCancellable) {
-					sourceCallerDemandDispatcher.retireAutomaticControl(
-						AUTOMATIC_CONTROL_CONSUMER,
-						SourceKind.ACTIVITY,
+					retireControl(
 						boundaryBootId,
 						elapsedRealtimeNanos,
 						boundaryWallTimeMs,
-						TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
 						desiredLatencyMs,
 					)
 				}
 				throw failure
 			}
+		}
+
+		private suspend fun retireControl(
+			bootId: String,
+			elapsedRealtimeNanos: Long,
+			wallTimeMs: Long,
+			desiredLatencyMs: Long,
+		): GuardedPurposeDemandResult<Unit>? = try {
+			sourceCallerDemandDispatcher.retireAutomaticControl(
+				AUTOMATIC_CONTROL_CONSUMER,
+				SourceKind.ACTIVITY,
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+				TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
+				desiredLatencyMs,
+			)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			null
 		}
 	}
 
@@ -193,13 +198,6 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 		if (status == ActivityRegistrationStatus.FAILED) this else copy(
 			status = ActivityRegistrationStatus.BLOCKED,
 			failureCode = failureCode ?: ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND,
-		)
-
-	private fun blockedWithoutMutation(): ActivityRegistrationResult =
-		ActivityRegistrationResult(
-			status = ActivityRegistrationStatus.BLOCKED,
-			snapshot = arbiter.snapshot(),
-			failureCode = ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND,
 		)
 
 	private companion object {

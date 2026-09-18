@@ -14,7 +14,7 @@ import org.junit.Test
 
 class AmbientStepsProviderLifecycleOwnerTest {
 	@Test
-	fun `caller authority rejection prevents provider reconciliation`() = runTest {
+	fun `caller authority rejection still reconciles provider teardown`() = runTest {
 		var providerReconciled = false
 		val demand = AmbientStepsDemandReconciliation.PolicyBlocked(
 			provider = null,
@@ -25,13 +25,19 @@ class AmbientStepsProviderLifecycleOwnerTest {
 			reconcileDemand = { demand },
 			reconcileRegistration = { _, _ ->
 				providerReconciled = true
-				error("Provider reconciliation must remain closed")
+				AmbientStepsProviderRegistrationResult.Degraded(
+					selectedProvider = AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+					activeRegistrationGeneration = 3L,
+					failure = AmbientStepsProviderRegistrationFailure.PROVIDER_REMOVAL_FAILED,
+					retryable = true,
+				)
 			},
 			closeRegistration = { completeCleanup() },
 		)
 
-		subject.reconcile() shouldBe AmbientStepsProviderRegistrationResult.Inactive(demand)
-		providerReconciled shouldBe false
+		subject.reconcile().shouldBeInstanceOf<AmbientStepsProviderRegistrationResult.Degraded>()
+			.retryable shouldBe true
+		providerReconciled shouldBe true
 	}
 
 	@Test

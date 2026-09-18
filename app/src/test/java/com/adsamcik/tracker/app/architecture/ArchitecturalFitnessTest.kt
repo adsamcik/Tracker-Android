@@ -1269,7 +1269,7 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
-		fun `LIVE AMBIENT broker authority consumes the retention reader seam`() {
+		fun `LIVE AMBIENT broker snapshots before Room and revalidates persisted authority`() {
 			val broker = projectRoot.resolve(
 				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
 					"SourceBroker.kt",
@@ -1294,21 +1294,35 @@ class ArchitecturalFitnessTest {
 				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/" +
 					"TrackingPurposePublicationModule.kt",
 			).readText()
+			val transactionRevalidation = broker.substring(
+				broker.indexOf("internal suspend fun areLiveAmbientDemandsCurrentInTransaction("),
+				broker.indexOf("internal fun buildSessionDemands("),
+			)
 
 			buildList {
+				if ("captureLiveAmbientRetentionSnapshot(" !in broker ||
+					"retentionAuthorityReader.currentLiveAmbient(" !in broker ||
+					"retentionAuthorityReader.isCurrentLiveAmbientAt(" !in broker
+				) {
+					add("SourceBroker must capture exact retention authority before Room mutation")
+				}
 				if ("retentionAuthorityReader.isCurrentLiveAmbientAt(" !in broker) {
 					add("SourceBroker must invoke the exact LIVE_AMBIENT retention predicate")
 				}
-				if ("latestRetentionAuthority(" in broker ||
-					"AmbientWifiRetentionAuthorityEntity" in broker ||
-					"AmbientCellRetentionAuthorityEntity" in broker
-				) add("SourceBroker must not read retention producer tables directly")
+				if ("retentionAuthorityReader." in transactionRevalidation) {
+					add("Room retention revalidation must not enter the retention producer mutex")
+				}
+				if ("readPersistedLiveAmbientRetention(" !in transactionRevalidation) {
+					add("Room mutation must exact-CAS the persisted retention identity")
+				}
 				listOf(
 					"liveAmbientRetentionPolicyId",
 					"liveAmbientRetentionApprovalRevision",
 				).filterNot(entities::contains)
 					.mapTo(this) { field -> "broker authority is missing $field" }
-				if ("areLiveAmbientDemandsCurrentInTransaction(" !in registrations ||
+				if ("captureLiveAmbientRetentionSnapshot(" !in registrations ||
+					"areLiveAmbientDemandsCurrentInTransaction(" !in registrations ||
+					"captureLiveAmbientRetentionSnapshot(" !in stepsRegistrations ||
 					"areLiveAmbientDemandsCurrentInTransaction(" !in stepsRegistrations
 				) add("provider activation must revalidate LIVE_AMBIENT retention authority")
 				if ("current.effectiveBootId == bootId" !in authorizationTransactions) {

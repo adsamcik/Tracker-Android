@@ -82,26 +82,47 @@ class AmbientWifiDemandReconciler @Inject constructor(
 			Time.elapsedRealtimeNanos,
 			Time.nowMillis,
 		)
-		return when (val guarded = sourceCallerDemandDispatcher.dispatchAmbientRadio(
-			AmbientRadioDemandDispatchRequest(
-				source = AmbientTrackingSource.WIFI,
-				leaseIdentity = lease.identity,
-				consumerId = CONSUMER_ID,
-				requested = request.enabled,
-				reconciliationAttempt = reconciliationAttempt,
-				bootId = boundary.bootId,
-				elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
-				wallTimeMs = boundary.wallTimeMs,
-			),
-		) { demand, attempt ->
-			reconcileOutcomeUnderHeldLease(demand, attempt)
-		}) {
+		var providerReconciliationEntered = false
+		val guarded = try {
+			sourceCallerDemandDispatcher.dispatchAmbientRadio(
+				AmbientRadioDemandDispatchRequest(
+					source = AmbientTrackingSource.WIFI,
+					leaseIdentity = lease.identity,
+					consumerId = CONSUMER_ID,
+					requested = request.enabled,
+					reconciliationAttempt = reconciliationAttempt,
+					bootId = boundary.bootId,
+					elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+					wallTimeMs = boundary.wallTimeMs,
+				),
+			) { demand, attempt ->
+				providerReconciliationEntered = true
+				reconcileOutcomeUnderHeldLease(demand, attempt)
+			}
+		} catch (cancelled: CancellationException) {
+			if (!providerReconciliationEntered) {
+				withContext(NonCancellable) { sharedController.reconcileAmbientJoin() }
+			}
+			throw cancelled
+		} catch (failure: Exception) {
+			if (providerReconciliationEntered) throw failure
+			return AmbientWifiDemandBlockReason.STALE_RECONCILIATION_LEASE
+				.afterAmbientJoinRetirement(
+					sharedController.reconcileAmbientJoin(),
+					reconciliationAuthority = null,
+					demandId = null,
+				)
+		}
+		return when (guarded) {
 			is GuardedPurposeDemandResult.Applied -> guarded.value
 			is GuardedPurposeDemandResult.Rejected,
 			GuardedPurposeDemandResult.Stale,
-			-> AmbientWifiDemandReconciliation.Inactive(
-				AmbientWifiDemandBlockReason.STALE_RECONCILIATION_LEASE,
-			)
+			-> AmbientWifiDemandBlockReason.STALE_RECONCILIATION_LEASE
+				.afterAmbientJoinRetirement(
+					sharedController.reconcileAmbientJoin(),
+					reconciliationAuthority = null,
+					demandId = null,
+				)
 		}
 	}
 

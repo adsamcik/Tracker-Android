@@ -74,7 +74,20 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 		lease: AmbientReconciliationLease,
 	): AmbientStepsProviderRegistrationResult = mutex.withLock {
 		val boundary = currentBoundary()
-		val demand = reconcileDemand(boundary, lease)
+		val unavailable = AmbientStepsDemandReconciliation.PolicyBlocked(
+			provider = null,
+			reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
+		)
+		val demand = try {
+			reconcileDemand(boundary, lease)
+		} catch (cancelled: kotlinx.coroutines.CancellationException) {
+			kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+				reconcileRegistration(unavailable, boundary)
+			}
+			throw cancelled
+		} catch (_: RuntimeException) {
+			unavailable
+		}
 		if (demand is AmbientStepsDemandReconciliation.PolicyBlocked &&
 			demand.reason == AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE
 		) {

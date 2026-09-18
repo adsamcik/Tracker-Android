@@ -77,26 +77,47 @@ class AmbientCellDemandReconciler @Inject constructor(
 		val bootId = clockDomainProvider.current()
 		val elapsedRealtimeNanos = Time.elapsedRealtimeNanos
 		val wallTimeMs = Time.nowMillis
-		return when (val guarded = sourceCallerDemandDispatcher.dispatchAmbientRadio(
-			AmbientRadioDemandDispatchRequest(
-				source = AmbientTrackingSource.CELL,
-				leaseIdentity = lease.identity,
-				consumerId = CONSUMER_ID,
-				requested = request.enabled,
-				reconciliationAttempt = reconciliationAttempt,
-				bootId = bootId,
-				elapsedRealtimeNanos = elapsedRealtimeNanos,
-				wallTimeMs = wallTimeMs,
-			),
-		) { demand, attempt ->
-			reconcileOutcomeUnderHeldLease(demand, attempt)
-		}) {
+		var providerReconciliationEntered = false
+		val guarded = try {
+			sourceCallerDemandDispatcher.dispatchAmbientRadio(
+				AmbientRadioDemandDispatchRequest(
+					source = AmbientTrackingSource.CELL,
+					leaseIdentity = lease.identity,
+					consumerId = CONSUMER_ID,
+					requested = request.enabled,
+					reconciliationAttempt = reconciliationAttempt,
+					bootId = bootId,
+					elapsedRealtimeNanos = elapsedRealtimeNanos,
+					wallTimeMs = wallTimeMs,
+				),
+			) { demand, attempt ->
+				providerReconciliationEntered = true
+				reconcileOutcomeUnderHeldLease(demand, attempt)
+			}
+		} catch (cancelled: CancellationException) {
+			if (!providerReconciliationEntered) {
+				withContext(NonCancellable) { sharedController.reconcileAmbientJoin() }
+			}
+			throw cancelled
+		} catch (failure: Exception) {
+			if (providerReconciliationEntered) throw failure
+			return AmbientCellDemandBlockReason.STALE_RECONCILIATION_LEASE
+				.afterAmbientJoinRetirement(
+					sharedController.reconcileAmbientJoin(),
+					reconciliationAuthority = null,
+					demandId = null,
+				)
+		}
+		return when (guarded) {
 			is GuardedPurposeDemandResult.Applied -> guarded.value
 			is GuardedPurposeDemandResult.Rejected,
 			GuardedPurposeDemandResult.Stale,
-			-> AmbientCellDemandReconciliation.Inactive(
-				AmbientCellDemandBlockReason.STALE_RECONCILIATION_LEASE,
-			)
+			-> AmbientCellDemandBlockReason.STALE_RECONCILIATION_LEASE
+				.afterAmbientJoinRetirement(
+					sharedController.reconcileAmbientJoin(),
+					reconciliationAuthority = null,
+					demandId = null,
+				)
 		}
 	}
 

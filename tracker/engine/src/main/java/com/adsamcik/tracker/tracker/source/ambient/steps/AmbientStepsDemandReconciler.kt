@@ -160,22 +160,37 @@ class AmbientStepsDemandReconciler internal constructor(
 		}
 		return when (val capability = resolveCapability()) {
 			is AmbientStepsCapability.ReadyForRegistration -> {
-				when (val guarded = sourceCallerDemandDispatcher.dispatchAmbientSteps(
-					AmbientStepsDemandDispatchRequest(
-						identity = identity,
-						consumerId = CONSUMER_ID,
-						mechanism = capability.provider.toAcquisitionMechanism(),
-						bootId = boundary.bootId,
-						elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
-						wallTimeMs = boundary.wallTimeMs,
-					),
-				)) {
-					is GuardedPurposeDemandResult.Rejected,
-					GuardedPurposeDemandResult.Stale,
-					-> AmbientStepsDemandReconciliation.PolicyBlocked(
+				val guarded = try {
+					sourceCallerDemandDispatcher.dispatchAmbientSteps(
+						AmbientStepsDemandDispatchRequest(
+							identity = identity,
+							consumerId = CONSUMER_ID,
+							mechanism = capability.provider.toAcquisitionMechanism(),
+							bootId = boundary.bootId,
+							elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+							wallTimeMs = boundary.wallTimeMs,
+						),
+					)
+				} catch (cancelled: CancellationException) {
+					withContext(NonCancellable) { retireDemand(boundary) }
+					throw cancelled
+				} catch (_: Exception) {
+					retireDemand(boundary)
+					return AmbientStepsDemandReconciliation.PolicyBlocked(
 						provider = capability.provider,
 						reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
 					)
+				}
+				when (guarded) {
+					is GuardedPurposeDemandResult.Rejected,
+					GuardedPurposeDemandResult.Stale,
+					-> {
+						retireDemand(boundary)
+						AmbientStepsDemandReconciliation.PolicyBlocked(
+							provider = capability.provider,
+							reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
+						)
+					}
 					is GuardedPurposeDemandResult.Applied -> when (val demand = guarded.value) {
 						is AmbientStepsDemandResult.Active ->
 							if (isCurrentOrRetire(identity, boundary, lease)) {
@@ -322,17 +337,23 @@ class AmbientStepsDemandReconciler internal constructor(
 			}
 		}
 
-	private suspend fun retireDemand(
+	internal suspend fun retireDemand(
 		boundary: AmbientStepsDemandBoundary,
 		lease: AmbientReconciliationLease,
 	): Boolean {
 		require(lease.identity.source == AmbientTrackingSource.STEPS)
-		return sourceCallerDemandDispatcher.retireAmbientSteps(
-			consumerId = CONSUMER_ID,
-			bootId = boundary.bootId,
-			elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
-			wallTimeMs = boundary.wallTimeMs,
-		) is GuardedPurposeDemandResult.Applied
+		return try {
+			sourceCallerDemandDispatcher.retireAmbientSteps(
+				consumerId = CONSUMER_ID,
+				bootId = boundary.bootId,
+				elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+				wallTimeMs = boundary.wallTimeMs,
+			) is GuardedPurposeDemandResult.Applied
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			false
+		}
 	}
 
 	private suspend fun isCurrentOrRetire(

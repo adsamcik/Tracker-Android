@@ -1050,6 +1050,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.sourceSessionDao().deleteAllManifests()
 			database.sourceSessionDao().deleteAllServiceRuns()
 			database.sourceSessionDao().deleteAllSessions()
+			database.sourceCallerAuthorityDao().deleteAll()
 			database.sourceEventWalDao().deleteAll()
 
 			// Sessionless architecture tables
