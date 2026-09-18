@@ -4566,23 +4566,27 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		cutoff: SessionCutoff,
 	): RunRetirementReplay {
 		val dao = database.sourceSessionDao()
+		val authenticatedReceipts = mutableListOf<Pair<SourceRunRetirementEntity, RunRetirementClaim>>()
+		val receipts = dao.runRetirements(
+			cutoff.logicalTrackingId,
+			target.serviceRunId,
+			target.source.stableCode,
+		)
+		for (receipt in receipts) {
+			val exactOwner = target.claims.singleOrNull { claim ->
+				claim.owns(receipt)
+			} ?: return RunRetirementReplay.AuthenticationBlocked(receipt)
+			authenticatedReceipts += receipt to exactOwner
+		}
 		for (owned in target.claims) {
-			val provider = owned.provider ?: continue
-			val receipt = dao.runRetirement(
-				cutoff.logicalTrackingId,
-				target.serviceRunId,
-				target.source.stableCode,
-				provider.sourceInstanceId.value,
-				provider.registrationGeneration,
-			) ?: continue
+			val receipt = authenticatedReceipts.singleOrNull { (_, owner) ->
+				owner == owned
+			}?.first ?: continue
 			if (receipt.state == SourceRunRetirementEntity.STATE_REQUESTED) {
-				val exactOwner = target.claims.singleOrNull { claim ->
-					claim.owns(receipt)
-				} ?: return RunRetirementReplay.AuthenticationBlocked(receipt)
 				if (target.source != SourceKind.STEPS) return RunRetirementReplay.None
 				return when (val recovery = recoverRequestedStepsRetirement(
 					target,
-					exactOwner,
+					owned,
 					receipt,
 				)) {
 					is RequestedStepsRetirementRecovery.Authenticated ->
@@ -4591,12 +4595,6 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					RequestedStepsRetirementRecovery.Blocked ->
 						RunRetirementReplay.AuthenticationBlocked(receipt)
 				}
-			}
-			if (receipt.actionId != owned.runtimeClaim.actionId ||
-				receipt.attemptCount != owned.runtimeClaim.attemptCount ||
-				receipt.leaseGeneration != owned.runtimeClaim.leaseGeneration
-			) {
-				return RunRetirementReplay.AuthenticationBlocked(receipt)
 			}
 			val acknowledgement = runCatchingNonCancellation {
 				receipt.toStopAckOrNull()

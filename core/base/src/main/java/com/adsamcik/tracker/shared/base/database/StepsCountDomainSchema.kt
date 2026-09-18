@@ -261,13 +261,22 @@ object StepsCountDomainSchema {
 	 * Distinguishes a truly absent schema from one that contains untrusted or stale evidence.
 	 */
 	fun inspect(database: SupportSQLiteDatabase): StepsCountDomainSchemaState = try {
-		when {
-			database.authorityNamespaceObjects().isEmpty() -> StepsCountDomainSchemaState.Absent
-			database.hasExactV2Structure(requireMarker = true) ->
-				StepsCountDomainSchemaState.ValidV2
-			database.hasExactFreshRoomScaffold() ->
-				StepsCountDomainSchemaState.FreshRoomScaffold
-			else -> StepsCountDomainSchemaState.Incompatible
+		val authorityNamespace = database.authorityNamespace()
+		if (authorityNamespace == null) {
+			StepsCountDomainSchemaState.Incompatible
+		} else {
+			when {
+				authorityNamespace.objects.isEmpty() -> StepsCountDomainSchemaState.Absent
+				database.hasExactV2Structure(
+					requireMarker = true,
+					requireTriggers = true,
+					authorityNamespace = authorityNamespace,
+				) ->
+					StepsCountDomainSchemaState.ValidV2
+				database.hasExactFreshRoomScaffold(authorityNamespace) ->
+					StepsCountDomainSchemaState.FreshRoomScaffold
+				else -> StepsCountDomainSchemaState.Incompatible
+			}
 		}
 	} catch (_: SQLiteException) {
 		StepsCountDomainSchemaState.Incompatible
@@ -303,8 +312,14 @@ object StepsCountDomainSchema {
 		return StepsCountDomainSchemaState.Incompatible
 	}
 
-	private fun SupportSQLiteDatabase.hasExactFreshRoomScaffold(): Boolean =
-		hasExactV2Structure(requireMarker = false, requireTriggers = false) &&
+	private fun SupportSQLiteDatabase.hasExactFreshRoomScaffold(
+		authorityNamespace: AuthorityNamespace,
+	): Boolean =
+		hasExactV2Structure(
+			requireMarker = false,
+			requireTriggers = false,
+			authorityNamespace = authorityNamespace,
+		) &&
 			EXPECTED_TABLES.keys.all { table -> rowCount(table) == 0L }
 
 	private fun SupportSQLiteDatabase.rowCount(table: String): Long =
@@ -314,19 +329,25 @@ object StepsCountDomainSchema {
 		}
 
 	private fun SupportSQLiteDatabase.hasExactV2Structure(requireMarker: Boolean): Boolean {
-		return hasExactV2Structure(requireMarker, requireTriggers = true)
+		val authorityNamespace = authorityNamespace() ?: return false
+		return hasExactV2Structure(
+			requireMarker,
+			requireTriggers = true,
+			authorityNamespace = authorityNamespace,
+		)
 	}
 
 	private fun SupportSQLiteDatabase.hasExactV2Structure(
 		requireMarker: Boolean,
 		requireTriggers: Boolean,
+		authorityNamespace: AuthorityNamespace,
 	): Boolean {
 		val expectedObjects = if (requireTriggers) {
 			EXPECTED_VALID_NAMED_OBJECTS
 		} else {
 			EXPECTED_SCAFFOLD_NAMED_OBJECTS
 		}
-		if (authorityNamespaceObjects() != expectedObjects) return false
+		if (authorityNamespace.objects != expectedObjects) return false
 		if (EXPECTED_TABLE_SQL.any { (table, expected) ->
 				tableSql(table).normalizedSql() != expected
 			}
@@ -336,12 +357,10 @@ object StepsCountDomainSchema {
 		if (foreignKeys(COMPLETENESS_MARKER_TABLE) != EXPECTED_COMPLETENESS_FOREIGN_KEYS) return false
 		if (!tableSql(OWNER_TABLE).hasDeferredForeignKey()) return false
 		if (!tableSql(COMPLETENESS_MARKER_TABLE).hasDeferredForeignKey()) return false
-
 		if (attachedIndexes() != EXPECTED_ALL_INDEXES) return false
-		val triggers = authorityTriggers()
 		if (requireTriggers) {
-			if (triggers != EXPECTED_TRIGGERS) return false
-		} else if (triggers.isNotEmpty()) return false
+			if (authorityNamespace.triggers != EXPECTED_TRIGGERS) return false
+		} else if (authorityNamespace.triggers.isNotEmpty()) return false
 
 		val markerRows = query(
 			"SELECT id, contract_version, token_semantics, terminal_unproven " +
@@ -367,26 +386,27 @@ object StepsCountDomainSchema {
 		}
 	}
 
-	private fun SupportSQLiteDatabase.authorityNamespaceObjects(): Set<SchemaNamedObject> =
-		query(
+	private fun SupportSQLiteDatabase.authorityNamespace(): AuthorityNamespace? {
+		val triggers = authenticatedAuthorityTriggers() ?: return null
+		val objects = query(
 			"SELECT type, name, tbl_name FROM sqlite_master " +
-				"WHERE lower(name) LIKE 'steps_count_domain_%' " +
+				"WHERE type != 'trigger' AND (" +
+				"lower(name) LIKE 'steps_count_domain_%' " +
 				"OR lower(name) LIKE 'idx_steps_count_domain_%' " +
 				"OR lower(name) LIKE 'trg_steps_count_domain_%' " +
-				"OR tbl_name COLLATE NOCASE IN (?, ?, ?, ?) " +
-				"OR (type = 'trigger' AND tbl_name COLLATE NOCASE = ?)",
+				"OR tbl_name COLLATE NOCASE IN (?, ?, ?, ?))",
 			arrayOf(
 				RECEIPT_TABLE,
 				OWNER_TABLE,
 				COMPLETENESS_MARKER_TABLE,
 				SCHEMA_MARKER_TABLE,
-				AMBIENT_FACT_TABLE,
 			),
 		).use { cursor ->
 			buildSet {
 				while (cursor.moveToNext()) {
 					add(
 						SchemaNamedObject(
+							catalog = MAIN_CATALOG,
 							type = cursor.getString(0).lowercase(),
 							name = cursor.getString(1),
 							table = cursor.getString(2).canonicalAuthorityTableName(),
@@ -394,7 +414,16 @@ object StepsCountDomainSchema {
 					)
 				}
 			}
+		} + triggers.mapTo(mutableSetOf()) { trigger ->
+			SchemaNamedObject(
+				catalog = trigger.catalog,
+				type = "trigger",
+				name = trigger.name,
+				table = trigger.table,
+			)
 		}
+		return AuthorityNamespace(objects, triggers)
+	}
 
 	private fun SupportSQLiteDatabase.tableColumns(table: String): List<SchemaColumn> =
 		query("PRAGMA table_info(`$table`)").use { cursor ->
@@ -499,36 +528,53 @@ object StepsCountDomainSchema {
 			if (!cursor.moveToFirst() || cursor.isNull(0)) null else cursor.getString(0)
 		}
 
-	private fun SupportSQLiteDatabase.authorityTriggers(): Map<String, SchemaTrigger> =
+	@Suppress("ReturnCount")
+	private fun SupportSQLiteDatabase.authenticatedAuthorityTriggers(): Set<SchemaTrigger>? {
+		val triggers = mutableSetOf<SchemaTrigger>()
+		// writable_schema can forge tbl_name, so every bounded trigger header must authenticate it.
 		query(
-			"SELECT name, tbl_name, sql FROM sqlite_master WHERE type = 'trigger' AND (" +
-				"tbl_name COLLATE NOCASE IN (?, ?, ?, ?) " +
-				"OR tbl_name COLLATE NOCASE = ? " +
-				"OR lower(name) LIKE 'trg_steps_count_domain_%')",
-			arrayOf(
-				RECEIPT_TABLE,
-				OWNER_TABLE,
-				COMPLETENESS_MARKER_TABLE,
-				SCHEMA_MARKER_TABLE,
-				AMBIENT_FACT_TABLE,
-			),
+			"SELECT catalog, name, tbl_name, sql FROM (" +
+				"SELECT '$MAIN_CATALOG' AS catalog, name, tbl_name, sql " +
+				"FROM sqlite_master WHERE type = 'trigger' " +
+				"UNION ALL " +
+				"SELECT '$TEMP_CATALOG' AS catalog, name, tbl_name, sql " +
+				"FROM sqlite_temp_master WHERE type = 'trigger') " +
+				"LIMIT ${MAX_TRIGGER_COUNT + 1}",
 		).use { cursor ->
-			buildMap {
-				while (cursor.moveToNext()) {
-					put(
-						cursor.getString(0),
-						SchemaTrigger(
-							table = cursor.getString(1).canonicalAuthorityTableName(),
-							sql = if (cursor.isNull(2)) {
-								null
-							} else {
-								cursor.getString(2).normalizedSql()
-							},
-						),
+			var triggerCount = 0
+			while (cursor.moveToNext()) {
+				triggerCount += 1
+				if (triggerCount > MAX_TRIGGER_COUNT ||
+					cursor.isNull(1) ||
+					cursor.isNull(2) ||
+					cursor.isNull(3)
+				) return null
+				val catalog = cursor.getString(0)
+				val name = cursor.getString(1)
+				val storedTable = cursor.getString(2)
+				if (name.length > MAX_SQL_TOKEN_LENGTH ||
+					storedTable.length > MAX_SQL_TOKEN_LENGTH
+				) return null
+				val sql = cursor.getString(3).normalizedSql() ?: return null
+				val header = sql.triggerHeaderOrNull() ?: return null
+				if (!name.equalsAsciiIgnoreCase(header.name.table) ||
+					!storedTable.equalsAsciiIgnoreCase(header.target.table)
+				) return null
+				val canonicalTarget = header.target.table.canonicalAuthorityTableName()
+				if (canonicalTarget in AUTHORITY_TABLE_NAMES ||
+					name.startsWithAsciiIgnoreCase(AUTHORITY_TRIGGER_PREFIX)
+				) {
+					triggers += SchemaTrigger(
+						catalog = catalog,
+						name = name,
+						table = canonicalTarget,
+						sql = sql,
 					)
 				}
 			}
 		}
+		return triggers
+	}
 
 	private fun SupportSQLiteDatabase.tableSql(name: String): String? =
 		query(
@@ -621,7 +667,7 @@ object StepsCountDomainSchema {
 				offset += 1
 				continue
 			}
-			if (offset + 1 < length && this[offset + 1] == closer) {
+			if (opener != '[' && offset + 1 < length && this[offset + 1] == closer) {
 				offset += 2
 				continue
 			}
@@ -693,13 +739,19 @@ object StepsCountDomainSchema {
 	}
 
 	private fun List<SqlToken>.withoutCreateIfNotExists(): List<SqlToken> {
-		val optionalClauseStart = indices.firstOrNull { index ->
-			index > 0 &&
-				this[index - 1].keyword in setOf("TABLE", "INDEX", "TRIGGER") &&
-				getOrNull(index).keyword == "IF" &&
-				getOrNull(index + 1).keyword == "NOT" &&
-				getOrNull(index + 2).keyword == "EXISTS"
-		} ?: return this
+		val objectKeywordIndex = when {
+			getOrNull(0).keyword != "CREATE" -> return this
+			getOrNull(1).keyword in setOf("TABLE", "INDEX", "TRIGGER") -> 1
+			getOrNull(1).keyword == "UNIQUE" && getOrNull(2).keyword == "INDEX" -> 2
+			getOrNull(1).keyword in setOf("TEMP", "TEMPORARY") &&
+				getOrNull(2).keyword == "TRIGGER" -> 2
+			else -> return this
+		}
+		val optionalClauseStart = objectKeywordIndex + 1
+		if (getOrNull(optionalClauseStart).keyword != "IF" ||
+			getOrNull(optionalClauseStart + 1).keyword != "NOT" ||
+			getOrNull(optionalClauseStart + 2).keyword != "EXISTS"
+		) return this
 		return filterIndexed { index, _ ->
 			index !in optionalClauseStart..optionalClauseStart + 2
 		}
@@ -715,6 +767,9 @@ object StepsCountDomainSchema {
 		length == other.length && indices.all { index ->
 			this[index].asciiUppercase() == other[index].asciiUppercase()
 		}
+
+	private fun String.startsWithAsciiIgnoreCase(prefix: String): Boolean =
+		length >= prefix.length && substring(0, prefix.length).equalsAsciiIgnoreCase(prefix)
 
 	private fun Char.asciiUppercase(): Char =
 		if (this in 'a'..'z') (code - 32).toChar() else this
@@ -751,6 +806,56 @@ object StepsCountDomainSchema {
 						tokens[start + offset].keyword == keywords[offset]
 					}
 			}
+
+		@Suppress("ComplexCondition", "LongMethod", "ReturnCount")
+		fun triggerHeaderOrNull(): ParsedTriggerHeader? {
+			var offset = 0
+			fun consumeKeyword(keyword: String): Boolean {
+				if (tokens.getOrNull(offset)?.keyword != keyword) return false
+				offset += 1
+				return true
+			}
+			if (!consumeKeyword("CREATE")) return null
+			if (tokens.getOrNull(offset)?.keyword in setOf("TEMP", "TEMPORARY")) offset += 1
+			if (!consumeKeyword("TRIGGER")) return null
+			val triggerName = tokens.qualifiedIdentifierAt(offset) ?: return null
+			offset = triggerName.nextOffset
+			when (tokens.getOrNull(offset)?.keyword) {
+				"BEFORE", "AFTER" -> offset += 1
+				"INSTEAD" -> {
+					offset += 1
+					if (!consumeKeyword("OF")) return null
+				}
+			}
+			when (tokens.getOrNull(offset)?.keyword) {
+				"DELETE", "INSERT" -> offset += 1
+				"UPDATE" -> {
+					offset += 1
+					if (consumeKeyword("OF")) {
+						val firstColumn = tokens.sqlIdentifierAt(offset) ?: return null
+						offset = firstColumn.nextOffset
+						while (tokens.getOrNull(offset)?.isPunctuation(",") == true) {
+							offset += 1
+							val column = tokens.sqlIdentifierAt(offset) ?: return null
+							offset = column.nextOffset
+						}
+					}
+				}
+				else -> return null
+			}
+			if (!consumeKeyword("ON")) return null
+			val target = tokens.qualifiedIdentifierAt(offset) ?: return null
+			offset = target.nextOffset
+			if (tokens.getOrNull(offset)?.keyword == "FOR") {
+				offset += 1
+				if (!consumeKeyword("EACH") || !consumeKeyword("ROW")) return null
+			}
+			if (tokens.getOrNull(offset)?.keyword !in setOf("WHEN", "BEGIN")) return null
+			return ParsedTriggerHeader(
+				name = triggerName.identifier,
+				target = target.identifier,
+			)
+		}
 	}
 
 	private data class SqlToken(
@@ -758,6 +863,44 @@ object StepsCountDomainSchema {
 		val text: String,
 	) {
 		val keyword: String? get() = text.takeIf { kind == SqlTokenKind.KEYWORD }
+
+		fun isPunctuation(expected: String): Boolean =
+			kind == SqlTokenKind.PUNCTUATION && text == expected
+
+		fun identifierOrNull(): String? = when (kind) {
+			SqlTokenKind.IDENTIFIER, SqlTokenKind.KEYWORD -> text
+			SqlTokenKind.QUOTED_IDENTIFIER -> quotedIdentifierContentOrNull()
+			else -> null
+		}
+
+		private fun quotedIdentifierContentOrNull(): String? {
+			if (text.length < 2) return null
+			val opener = text.first()
+			val closer = if (opener == '[') ']' else opener
+			if (text.last() != closer) return null
+			return text.substring(1, text.lastIndex)
+				.replace("$closer$closer", closer.toString())
+		}
+	}
+
+	private fun List<SqlToken>.sqlIdentifierAt(offset: Int): ParsedSqlIdentifier? =
+		getOrNull(offset)?.identifierOrNull()?.let { identifier ->
+			ParsedSqlIdentifier(identifier, offset + 1)
+		}
+
+	private fun List<SqlToken>.qualifiedIdentifierAt(offset: Int): ParsedQualifiedSqlIdentifier? {
+		val first = sqlIdentifierAt(offset) ?: return null
+		if (getOrNull(first.nextOffset)?.isPunctuation(".") != true) {
+			return ParsedQualifiedSqlIdentifier(
+				QualifiedSqlIdentifier(schema = null, table = first.identifier),
+				first.nextOffset,
+			)
+		}
+		val second = sqlIdentifierAt(first.nextOffset + 1) ?: return null
+		return ParsedQualifiedSqlIdentifier(
+			QualifiedSqlIdentifier(schema = first.identifier, table = second.identifier),
+			second.nextOffset,
+		)
 	}
 
 	private enum class SqlTokenKind {
@@ -800,14 +943,42 @@ object StepsCountDomainSchema {
 	)
 
 	private data class SchemaTrigger(
+		val catalog: String,
+		val name: String,
 		val table: String,
-		val sql: SqlCanonical?,
+		val sql: SqlCanonical,
 	)
 
 	private data class SchemaNamedObject(
+		val catalog: String,
 		val type: String,
 		val name: String,
 		val table: String,
+	)
+
+	private data class AuthorityNamespace(
+		val objects: Set<SchemaNamedObject>,
+		val triggers: Set<SchemaTrigger>,
+	)
+
+	private data class QualifiedSqlIdentifier(
+		val schema: String?,
+		val table: String,
+	)
+
+	private data class ParsedSqlIdentifier(
+		val identifier: String,
+		val nextOffset: Int,
+	)
+
+	private data class ParsedQualifiedSqlIdentifier(
+		val identifier: QualifiedSqlIdentifier,
+		val nextOffset: Int,
+	)
+
+	private data class ParsedTriggerHeader(
+		val name: QualifiedSqlIdentifier,
+		val target: QualifiedSqlIdentifier,
 	)
 
 	private data class SchemaMarker(
@@ -999,8 +1170,10 @@ object StepsCountDomainSchema {
 		"DEFERRABLE",
 		"DEFERRED",
 		"DELETE",
+		"EACH",
 		"END",
 		"EXISTS",
+		"FOR",
 		"FOREIGN",
 		"FROM",
 		"IF",
@@ -1008,19 +1181,24 @@ object StepsCountDomainSchema {
 		"INDEX",
 		"INITIALLY",
 		"INSERT",
+		"INSTEAD",
 		"INTO",
 		"KEY",
 		"NO",
 		"NOT",
 		"NULL",
+		"OF",
 		"ON",
 		"OR",
 		"PRIMARY",
 		"RAISE",
 		"REFERENCES",
 		"RESTRICT",
+		"ROW",
 		"SELECT",
 		"TABLE",
+		"TEMP",
+		"TEMPORARY",
 		"TRIGGER",
 		"UNIQUE",
 		"UPDATE",
@@ -1077,8 +1255,8 @@ object StepsCountDomainSchema {
 			),
 		)
 
-	private val EXPECTED_TRIGGERS: Map<String, SchemaTrigger> = triggerStatements
-		.associate { statement ->
+	private val EXPECTED_TRIGGERS: Set<SchemaTrigger> = triggerStatements
+		.mapTo(mutableSetOf()) { statement ->
 			val name = when {
 				statement.contains(TERMINAL_OWNER_TRIGGER) -> TERMINAL_OWNER_TRIGGER
 				statement.contains(AMBIENT_NO_RESURRECTION_TRIGGER) ->
@@ -1089,7 +1267,12 @@ object StepsCountDomainSchema {
 				TERMINAL_OWNER_TRIGGER -> OWNER_TABLE
 				else -> AMBIENT_FACT_TABLE
 			}
-			name to SchemaTrigger(table, requireNotNull(statement.normalizedSql()))
+			SchemaTrigger(
+				catalog = MAIN_CATALOG,
+				name = name,
+				table = table,
+				sql = requireNotNull(statement.normalizedSql()),
+			)
 		}
 
 	private val EXPECTED_MARKER = SchemaMarker(
@@ -1101,19 +1284,23 @@ object StepsCountDomainSchema {
 
 	private val EXPECTED_SCAFFOLD_NAMED_OBJECTS =
 		EXPECTED_TABLES.keys.mapTo(mutableSetOf()) { table ->
-			SchemaNamedObject("table", table, table)
+			SchemaNamedObject(MAIN_CATALOG, "table", table, table)
 		} + EXPECTED_ALL_INDEXES.map { (name, index) ->
-			SchemaNamedObject("index", name, index.table)
+			SchemaNamedObject(MAIN_CATALOG, "index", name, index.table)
 		}
 
 	private val EXPECTED_VALID_NAMED_OBJECTS =
-		EXPECTED_SCAFFOLD_NAMED_OBJECTS + EXPECTED_TRIGGERS.map { (name, trigger) ->
-			SchemaNamedObject("trigger", name, trigger.table)
+		EXPECTED_SCAFFOLD_NAMED_OBJECTS + EXPECTED_TRIGGERS.map { trigger ->
+			SchemaNamedObject(trigger.catalog, "trigger", trigger.name, trigger.table)
 		}
 
 	private const val MAX_SQL_LENGTH = 65_536
 	private const val MAX_SQL_TOKEN_COUNT = 4_096
 	private const val MAX_SQL_TOKEN_LENGTH = 16_384
+	private const val MAX_TRIGGER_COUNT = 512
+	private const val MAIN_CATALOG = "main"
+	private const val TEMP_CATALOG = "temp"
+	private const val AUTHORITY_TRIGGER_PREFIX = "trg_steps_count_domain_"
 	private val AUTHORITY_TABLE_NAMES = listOf(
 		RECEIPT_TABLE,
 		OWNER_TABLE,

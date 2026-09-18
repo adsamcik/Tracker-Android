@@ -430,6 +430,52 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
+	fun `forged unrelated tbl_name cannot hide arbitrary authority trigger`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		val trigger = "arbitrary_hidden_receipt_trigger"
+		sqlite.execSQL(
+			"CREATE TRIGGER $trigger AFTER INSERT ON " +
+				"steps_count_domain_receipt BEGIN SELECT 1; END",
+		)
+		sqlite.setStoredTriggerTable(trigger, "source_policy")
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `qualified quoted authority target is derived through comments despite forged metadata`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		val trigger = "arbitrary_qualified_hidden_trigger"
+		sqlite.execSQL("CREATE TABLE unrelated_trigger_host (value INTEGER NOT NULL)")
+		sqlite.execSQL(
+			"CREATE TRIGGER $trigger AFTER INSERT ON " +
+				"unrelated_trigger_host BEGIN SELECT 1; END",
+		)
+		sqlite.rewriteStoredTriggerSql(trigger) { sql ->
+			sql.replace(
+				"ON unrelated_trigger_host",
+				"ON /* authority target */ main . \"steps_count_domain_receipt\"",
+			)
+		}
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `temporary authority trigger participates in the exact trigger set`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"CREATE TEMP TRIGGER IF NOT EXISTS arbitrary_temp_receipt_trigger " +
+				"AFTER INSERT ON main.steps_count_domain_receipt BEGIN SELECT 1; END",
+		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
 	fun `expected trigger table metadata is canonicalized with ASCII NOCASE only`() {
 		installSchema()
 		val sqlite = database.openHelper.writableDatabase
@@ -439,6 +485,18 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		)
 
 		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.ValidV2
+	}
+
+	@Test
+	fun `Unicode table name case spoof cannot authenticate trigger metadata`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.setStoredTriggerTable(
+			StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER,
+			"ambient_\u017fteps_fact_revision",
+		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
 	}
 
 	@Test

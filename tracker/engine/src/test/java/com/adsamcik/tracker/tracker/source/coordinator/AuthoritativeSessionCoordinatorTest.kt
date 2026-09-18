@@ -23,6 +23,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -1418,6 +1419,125 @@ class AuthoritativeSessionCoordinatorTest {
 			receipt.stopStatus shouldBe SourceStopStatus.COMPLETE.name
 		}
 		runtime.shutdownClaims.last().actionId shouldBe requestedOwner.actionId
+	}
+
+	@Test
+	fun `terminal receipt replay resolves exact older owner past cleanup claim after process death`() = runTest {
+		val (started, terminalReceipt) =
+			prepareTerminalReceiptWithCleanup("terminal-replay-cleanup")
+		val startOwner = database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+			.single { action -> action.desiredState == "STARTED" }
+		terminalReceipt.state shouldBe SourceRunRetirementEntity.STATE_ACKNOWLEDGED
+		terminalReceipt.actionId shouldBe startOwner.actionId
+		val cleanupClaim = database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+			.single { action -> action.status == LifecycleActionStatus.CLEANUP_REQUIRED.name }
+		cleanupClaim.sourceInstanceId shouldBe terminalReceipt.sourceInstanceId
+		cleanupClaim.registrationGeneration shouldBe terminalReceipt.registrationGeneration
+		(cleanupClaim.actionRevision > startOwner.actionRevision) shouldBe true
+
+		replaceRuntime(FakeStepsRuntime(database))
+		subject.stop(
+			SessionStopRequest(
+				"terminal-replay-cleanup-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		runtime.shutdownClaims shouldBe emptyList()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.FINALIZED.name
+		database.sourceSessionDao().lifecycleAction(cleanupClaim.actionId)?.let { resolved ->
+			resolved.status shouldBe LifecycleActionStatus.SUPERSEDED.name
+			resolved.failureCode shouldBe "RUNTIME_CLEANUP_CONFIRMED_BY_STOP"
+			resolved.retryTrigger shouldBe null
+		}
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single() shouldBe terminalReceipt
+	}
+
+	@Test
+	fun `terminal receipt replay rejects failed settlement evidence`() = runTest {
+		val (started, terminalReceipt) =
+			prepareTerminalReceiptWithCleanup("terminal-replay-failed")
+		database.sourceSessionDao().updateRunRetirement(
+			terminalReceipt.copy(stopStatus = SourceStopStatus.PROVIDER_FAILED.name),
+		) shouldBe 1
+		replaceRuntime(FakeStepsRuntime(database))
+
+		subject.stop(
+			SessionStopRequest(
+				"terminal-replay-failed-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+
+		runtime.shutdownClaims shouldBe emptyList()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.STOPPING.name
+	}
+
+	@Test
+	fun `terminal receipt replay without one exact owner remains blocked`() = runTest {
+		val (started, terminalReceipt) =
+			prepareTerminalReceiptWithCleanup("terminal-replay-owner-missing")
+		database.sourceSessionDao().updateRunRetirement(
+			terminalReceipt.copy(actionId = "missing-terminal-replay-owner"),
+		) shouldBe 1
+		replaceRuntime(FakeStepsRuntime(database))
+
+		subject.stop(
+			SessionStopRequest(
+				"terminal-replay-owner-missing-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+
+		runtime.shutdownClaims shouldBe emptyList()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.STOPPING.name
+	}
+
+	@Test
+	fun `terminal receipt replay rejects owner moved to another provider generation`() = runTest {
+		val (started, terminalReceipt) =
+			prepareTerminalReceiptWithCleanup("terminal-replay-provider-moved")
+		val owner = requireNotNull(
+			database.sourceSessionDao().lifecycleAction(terminalReceipt.actionId),
+		)
+		database.sourceSessionDao().updateLifecycleAction(
+			owner.copy(
+				sourceInstanceId = "different-terminal-provider",
+				registrationGeneration = terminalReceipt.registrationGeneration + 1L,
+			),
+		) shouldBe 1
+		replaceRuntime(FakeStepsRuntime(database))
+
+		subject.stop(
+			SessionStopRequest(
+				"terminal-replay-provider-moved-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+
+		runtime.shutdownClaims shouldBe emptyList()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.STOPPING.name
 	}
 
 	@Test
@@ -3692,6 +3812,34 @@ class AuthoritativeSessionCoordinatorTest {
 		replaceRuntime(FakeStepsRuntime(database))
 		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
 		return started
+	}
+
+	private suspend fun prepareTerminalReceiptWithCleanup(
+		identity: String,
+	): Pair<SessionStartResult.Started, SourceRunRetirementEntity> {
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "$identity-logical",
+				serviceRunId = "$identity-run",
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.acknowledgementServiceRunId = "$identity-foreign-run"
+		subject.stop(
+			SessionStopRequest(
+				"$identity-owner",
+				"USER_STOP",
+				2_000L,
+				2_000_000L,
+				"boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+		val receipt = database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single()
+		return started to receipt
 	}
 
 	private suspend fun assertTerminalStepsRecoveryBlocked(
