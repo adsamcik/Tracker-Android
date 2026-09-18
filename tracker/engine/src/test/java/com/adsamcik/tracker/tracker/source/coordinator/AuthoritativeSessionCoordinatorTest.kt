@@ -2,9 +2,15 @@ package com.adsamcik.tracker.tracker.source.coordinator
 
 import android.app.Application
 import android.database.sqlite.SQLiteException
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -12,13 +18,17 @@ import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -77,6 +87,10 @@ import com.adsamcik.tracker.tracker.source.runtime.OwnedSourceShutdown
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.ProviderFlushOutcome
 import com.adsamcik.tracker.tracker.source.runtime.RegistrationRemovalOutcome
+import com.adsamcik.tracker.tracker.source.runtime.RuntimeAdmissionSnapshot
+import com.adsamcik.tracker.tracker.source.runtime.RuntimeCheckpointLifecycle
+import com.adsamcik.tracker.tracker.source.runtime.SensorRuntimeCheckpoint
+import com.adsamcik.tracker.tracker.source.runtime.SENSOR_RUNTIME_CHECKPOINT_VERSION
 import com.adsamcik.tracker.tracker.source.runtime.SessionCutoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceApplyResult
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
@@ -91,6 +105,7 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeRegistry
 import com.adsamcik.tracker.tracker.source.runtime.SourceStartResult
 import com.adsamcik.tracker.tracker.source.runtime.SourceStopAck
 import com.adsamcik.tracker.tracker.source.runtime.SourceStopStatus
+import com.adsamcik.tracker.tracker.source.runtime.encodeSensorRuntimeCheckpoint
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.assertions.throwables.shouldThrow
@@ -538,6 +553,106 @@ class AuthoritativeSessionCoordinatorTest {
 			SourceKind.STEPS.stableCode,
 		).single().state shouldBe
 			com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.STATE_INTERRUPTED
+	}
+
+	@Test
+	fun `requested replay promotes authenticated terminal Steps checkpoint without weakening BIND`() = runTest {
+		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "retirement-checkpoint-recovery",
+				serviceRunId = "retirement-checkpoint-recovery-run",
+				rolloutRevision = rolloutSnapshot.revision,
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val admissionOrdinal = prepareTerminalStepsCrashEvidence(started)
+
+		assertFailsWith<CancellationException> {
+			subject.stop(
+				SessionStopRequest(
+					"retirement-checkpoint-crash",
+					"USER_STOP",
+					2_000L,
+					2_000_000L,
+					"boot-1",
+				),
+			)
+		}
+		insertRetiredStepsRegistration()
+		replaceRuntime(FakeStepsRuntime(database))
+		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
+
+		val stopped = subject.stop(
+			SessionStopRequest(
+				"retirement-checkpoint-retry",
+				"USER_STOP",
+				2_100L,
+				2_100_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		stopped.acknowledgements.single().let { acknowledgement ->
+			acknowledgement.status shouldBe SourceStopStatus.COMPLETE
+			acknowledgement.registrationGeneration shouldBe 1L
+			acknowledgement.lastAdmissionOrdinal shouldBe 1L
+		}
+		runtime.shutdownClaims shouldBe emptyList()
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single().let { receipt ->
+			receipt.state shouldBe
+				com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.STATE_ACKNOWLEDGED
+			receipt.stopStatus shouldBe SourceStopStatus.COMPLETE.name
+			receipt.lastAdmissionOrdinal shouldBe 1L
+		}
+		database.openHelper.writableDatabase.query(
+			"SELECT operation FROM steps_count_domain_owner_revision " +
+				"WHERE owner_kind = 'SESSION_COMPLETENESS' ORDER BY owner_revision",
+		).use { cursor ->
+			val operations = buildList {
+				while (cursor.moveToNext()) add(cursor.getString(0))
+			}
+			operations shouldBe listOf("BIND")
+		}
+	}
+
+	@Test
+	fun `stale terminal Steps owner evidence leaves requested replay payload free`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("stale-terminal-owner")
+		val exact = database.sourceSessionDao().completenessForServiceRun(
+			started.logicalTrackingId,
+			started.serviceRunId,
+		).single { it.sourceKind == SourceKind.STEPS.stableCode }
+		database.sourceSessionDao().saveCompleteness(exact.copy(updatedAtMs = exact.updatedAtMs + 1L))
+
+		assertTerminalStepsRecoveryBlocked(started, "stale-terminal-owner-retry")
+	}
+
+	@Test
+	fun `wrong generation terminal Steps checkpoint leaves requested replay payload free`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("wrong-generation-checkpoint")
+		val state = requireNotNull(database.sourceRuntimeStateDao().get(
+			SourceKind.STEPS.stableCode,
+			"source-broker:${SourceKind.STEPS.stableCode}",
+		))
+		database.sourceRuntimeStateDao().save(state.copy(registrationGeneration = 2L))
+
+		assertTerminalStepsRecoveryBlocked(started, "wrong-generation-checkpoint-retry")
+	}
+
+	@Test
+	fun `malformed terminal Steps checkpoint leaves requested replay payload free`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("malformed-checkpoint")
+		val state = requireNotNull(database.sourceRuntimeStateDao().get(
+			SourceKind.STEPS.stableCode,
+			"source-broker:${SourceKind.STEPS.stableCode}",
+		))
+		database.sourceRuntimeStateDao().save(state.copy(payload = byteArrayOf(0)))
+
+		assertTerminalStepsRecoveryBlocked(started, "malformed-checkpoint-retry")
 	}
 
 	@Test
@@ -3484,6 +3599,242 @@ class AuthoritativeSessionCoordinatorTest {
 		)
 	}
 
+	private suspend fun prepareBlockedTerminalStepsRecovery(
+		identity: String,
+	): SessionStartResult.Started {
+		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = identity,
+				serviceRunId = "$identity-run",
+				rolloutRevision = rolloutSnapshot.revision,
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val admissionOrdinal = prepareTerminalStepsCrashEvidence(started)
+		assertFailsWith<CancellationException> {
+			subject.stop(
+				SessionStopRequest(
+					"$identity-crash",
+					"USER_STOP",
+					2_000L,
+					2_000_000L,
+					"boot-1",
+				),
+			)
+		}
+		insertRetiredStepsRegistration()
+		replaceRuntime(FakeStepsRuntime(database))
+		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
+		return started
+	}
+
+	private suspend fun assertTerminalStepsRecoveryBlocked(
+		started: SessionStartResult.Started,
+		ownerToken: String,
+	) {
+		subject.stop(
+			SessionStopRequest(
+				ownerToken,
+				"USER_STOP",
+				2_100L,
+				2_100_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single().let { receipt ->
+			receipt.state shouldBe
+				com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.STATE_REQUESTED
+			receipt.appliedRevision shouldBe null
+			receipt.callbackEntryBarrierSequence shouldBe null
+			receipt.lastSourceSequence shouldBe null
+			receipt.lastAdmissionOrdinal shouldBe null
+			receipt.failedAdmissionCount shouldBe null
+			receipt.unresolvedSequenceStart shouldBe null
+			receipt.unresolvedSequenceEnd shouldBe null
+			receipt.registrationRemovalOutcome shouldBe null
+			receipt.providerFlushOutcome shouldBe null
+			receipt.providerCoverage shouldBe null
+			receipt.appDrainComplete shouldBe null
+			receipt.stopStatus shouldBe null
+		}
+		database.openHelper.writableDatabase.query(
+			"SELECT operation FROM steps_count_domain_owner_revision " +
+				"WHERE owner_kind = 'SESSION_COMPLETENESS' ORDER BY owner_revision",
+		).use { cursor ->
+			val operations = buildList {
+				while (cursor.moveToNext()) add(cursor.getString(0))
+			}
+			operations shouldBe listOf("BIND")
+		}
+	}
+
+	private suspend fun prepareTerminalStepsCrashEvidence(
+		started: SessionStartResult.Started,
+	): Long {
+		val admissionOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = admissionOrdinal
+		runtime.beforePhysicalShutdownCancellation = { acknowledgement ->
+			persistTerminalStepsEvidence(acknowledgement)
+		}
+		runtime.cancelAfterPhysicalShutdown = true
+		return admissionOrdinal
+	}
+
+	private fun completedEventCoordinator(admissionOrdinal: Long): TrackingCoordinator =
+		mockk<TrackingCoordinator>().also { coordinator ->
+			coEvery { coordinator.drainAvailable(any(), any()) } returns
+				CoordinatorDrainResult.Complete(admissionOrdinal, 1)
+		}
+
+	private suspend fun insertTerminalStepsWal(started: SessionStartResult.Started): Long {
+		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
+			StepsCountDomainSchemaState.ValidV2
+		val token = StepsCounterDomainToken.opaque("sha256:${"a".repeat(64)}")
+		val payload = StepCounterWindowPayload(
+			bootClockDomainId = "boot-1",
+			firstCumulativeCount = 10L,
+			lastCumulativeCount = 14L,
+			deltaCount = 4L,
+			windowStartElapsedRealtimeNanos = 1_000_000_000L,
+			windowEndElapsedRealtimeNanos = 2_000_000_000L,
+			firstProviderSequence = 4L,
+			lastProviderSequence = 4L,
+			boundaryKind = StepBoundaryKind.COVERED,
+			counterDomainToken = token,
+			counterEpochGeneration = 1L,
+		)
+		val encoded = DefaultSourcePayloadCodec().encode(
+			payload,
+			StepsCounterDomainToken.COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION,
+		)
+		val unsigned = SourceEventWalEntity(
+			eventId = "terminal-steps-${started.serviceRunId}",
+			providerDedupKey = "terminal-steps-dedup-${started.serviceRunId}",
+			logicalTrackingId = started.logicalTrackingId,
+			serviceRunId = started.serviceRunId,
+			sourceKind = SourceKind.STEPS.stableCode,
+			sourceInstanceId = "steps-instance",
+			registrationGeneration = 1L,
+			physicalConfigurationFingerprint = "terminal-steps",
+			authorizationRevision = 1L,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			authorizationFingerprint = "b".repeat(64),
+			sourceSequence = 4L,
+			configRevision = 1L,
+			planAttribution = PlanAttribution.CAPTURED_REGISTRATION.ordinal,
+			clockDomainId = "boot-1",
+			observedElapsedNanos = 2_000_000_000L,
+			receivedElapsedNanos = 2_000_000_000L,
+			wallTimeMs = 2_000L,
+			wallTimeUncertaintyMs = 0L,
+			capturedCollectedDataEpoch = 0L,
+			sourcePolicyRevision = 1L,
+			captureConsentEpoch = 1L,
+			sessionManifestRevision = 1L,
+			lifecycleLeaseGeneration = 1L,
+			acquiredAtMs = 2_000L,
+			qualityFlags = 0L,
+			qualityConfidence = null,
+			payloadVersion = StepsCounterDomainToken.COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION,
+			payload = encoded.bytes,
+			payloadChecksum = encoded.checksum,
+			createdAtMs = 2_000L,
+		)
+		val signed = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
+		val admissionOrdinal =
+			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(signed)
+		StepsCountDomainStore(database).recordSessionWal(
+			signed.copy(admissionOrdinal = admissionOrdinal),
+			token,
+		) shouldBe StepsCountDomainWriteResult.INSERTED
+		return admissionOrdinal
+	}
+
+	private suspend fun persistTerminalStepsEvidence(acknowledgement: SourceStopAck) {
+		val completeness = SourceSessionCompletenessEntity(
+			logicalTrackingId = requireNotNull(acknowledgement.logicalTrackingId),
+			serviceRunId = requireNotNull(acknowledgement.serviceRunId),
+			sourceKind = SourceKind.STEPS.stableCode,
+			sourceInstanceId = acknowledgement.sourceInstanceId.value,
+			registrationGeneration = acknowledgement.registrationGeneration,
+			lastAdmissionOrdinal = acknowledgement.lastAdmissionOrdinal,
+			lastSourceSequence = acknowledgement.lastDurablyAdmittedSequence,
+			appDrainComplete = acknowledgement.appDrainComplete,
+			providerCoverage = acknowledgement.providerCoverage.name,
+			stopStatus = acknowledgement.status.name,
+			unresolvedSequenceStart = acknowledgement.unresolvedSequenceStart,
+			unresolvedSequenceEnd = acknowledgement.unresolvedSequenceEndInclusive,
+			updatedAtMs = 2_000L,
+		)
+		val checkpoint = SensorRuntimeCheckpoint(
+			lifecycle = RuntimeCheckpointLifecycle.QUIESCED,
+			metrics = RuntimeAdmissionSnapshot(
+				lastDurablyAdmittedSequence = acknowledgement.lastDurablyAdmittedSequence,
+				lastAdmissionOrdinal = acknowledgement.lastAdmissionOrdinal,
+				failedAdmissionCount = acknowledgement.failedAdmissionCount,
+				unresolvedSequenceStart = acknowledgement.unresolvedSequenceStart,
+				unresolvedSequenceEndInclusive = acknowledgement.unresolvedSequenceEndInclusive,
+				gapClassifications = emptySet(),
+			),
+			componentStateVersion = 1,
+			componentPayload = ByteArray(0),
+			causalOrderElapsedRealtimeNanos = 2_000_000L,
+		)
+		database.withTransaction {
+			database.sourceRuntimeStateDao().save(
+				SourceRuntimeStateEntity(
+					sourceKind = SourceKind.STEPS.stableCode,
+					ownerScope = "source-broker:${SourceKind.STEPS.stableCode}",
+					sourceInstanceId = acknowledgement.sourceInstanceId.value,
+					clockDomainId = "boot-1",
+					registrationGeneration = acknowledgement.registrationGeneration,
+					lastProviderSequence = acknowledgement.callbackEntryBarrierSequence,
+					lastAdmittedSourceSequence = acknowledgement.lastDurablyAdmittedSequence,
+					lastAdmissionOrdinal = acknowledgement.lastAdmissionOrdinal,
+					stateVersion = SENSOR_RUNTIME_CHECKPOINT_VERSION,
+					payload = encodeSensorRuntimeCheckpoint(checkpoint),
+					updatedAtMs = 2_000L,
+				),
+			)
+			database.sourceSessionDao().saveCompleteness(completeness)
+			StepsCountDomainStore(database).recordSessionCompleteness(
+				completeness,
+				StepsCountDomainRetirementEvidence(
+					providerFlushOutcome = acknowledgement.providerFlushOutcome.name,
+					registrationRemovalOutcome = acknowledgement.registrationRemovalOutcome.name,
+				),
+			) shouldBe StepsCountDomainWriteResult.INSERTED
+		}
+	}
+
+	private suspend fun insertRetiredStepsRegistration() {
+		database.sourceBrokerDao().insertRegistration(
+			ProviderRegistrationGenerationEntity(
+				sourceKind = SourceKind.STEPS.stableCode,
+				registrationGeneration = 1L,
+				sourceInstanceId = "steps-instance",
+				ownerScope = "source-broker:${SourceKind.STEPS.stableCode}",
+				clockDomainId = "boot-1",
+				physicalConfigurationFingerprint = "retired-steps",
+				collectedDataEpoch = 0L,
+				providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+				providerProcessIncarnationId = "prior-process",
+				status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+				reservedAtMs = 1_000L,
+				reservedElapsedRealtimeNanos = 1_000_000L,
+				acceptedAtMs = 1_000L,
+				acceptedElapsedRealtimeNanos = 1_000_000L,
+				retiredAtMs = 2_000L,
+				retiredElapsedRealtimeNanos = 2_000_000L,
+				failureCode = "PRIOR_PROCESS_ENDED",
+			),
+		)
+	}
+
 	private suspend fun advancePreparedEnvelope(prepared: PreparedSessionStart) {
 		val sessionDao = database.sourceSessionDao()
 		val oldSession = requireNotNull(sessionDao.session(prepared.logicalTrackingId))
@@ -4176,10 +4527,12 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 	var stopProviderFlushOutcome = ProviderFlushOutcome.COMPLETE
 	var retainProviderOnIncompleteShutdown = false
 	var cancelAfterPhysicalShutdown = false
+	var beforePhysicalShutdownCancellation: suspend (SourceStopAck) -> Unit = {}
 	var closeFailure: Throwable? = null
 	var acknowledgementLogicalTrackingId: String? = null
 	var acknowledgementServiceRunId: String? = null
 	var omitAcknowledgementMembership = false
+	var lastAdmissionOrdinal: Long? = null
 	val shutdownClaims = mutableListOf<SourceRuntimeClaim>()
 	val startEntered = CompletableDeferred<Unit>()
 	val releaseStart = CompletableDeferred<Unit>()
@@ -4264,6 +4617,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 			closed = true
 			ownedClaim = null
 			if (cancelAfterPhysicalShutdown) {
+				beforePhysicalShutdownCancellation(acknowledgement)
 				throw CancellationException("simulated process death after provider retirement")
 			}
 			OwnedSourceShutdown.Released(
@@ -4298,7 +4652,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 		appliedRevision = 1,
 		callbackEntryBarrierSequence = 4,
 		lastDurablyAdmittedSequence = 4,
-		lastAdmissionOrdinal = null,
+		lastAdmissionOrdinal = lastAdmissionOrdinal,
 		failedAdmissionCount = 0,
 		unresolvedSequenceStart = null,
 		unresolvedSequenceEndInclusive = null,

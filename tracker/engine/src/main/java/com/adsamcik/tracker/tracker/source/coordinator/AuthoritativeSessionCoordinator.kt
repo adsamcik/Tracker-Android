@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
+import com.adsamcik.tracker.shared.base.database.StepsTerminalCompletenessAuthentication
 import com.adsamcik.tracker.shared.base.database.withMonotonicStepsCountDomainRevision
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
@@ -83,7 +84,11 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceCallerDemandDispatcher
 import com.adsamcik.tracker.tracker.source.runtime.SourceStartResult
 import com.adsamcik.tracker.tracker.source.runtime.SourceStopAck
 import com.adsamcik.tracker.tracker.source.runtime.SourceStopStatus
+import com.adsamcik.tracker.tracker.source.runtime.RuntimeCheckpointLifecycle
+import com.adsamcik.tracker.tracker.source.runtime.SENSOR_RUNTIME_CHECKPOINT_VERSION
+import com.adsamcik.tracker.tracker.source.runtime.decodeSensorRuntimeCheckpoint
 import com.adsamcik.tracker.tracker.source.runtime.hasIncompleteTerminalRetirement
+import com.adsamcik.tracker.tracker.source.runtime.hasTerminalStepsRetirement
 import com.adsamcik.tracker.tracker.source.runtime.providerKeyOrNull
 import java.util.UUID
 import javax.inject.Inject
@@ -148,6 +153,20 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val runtimeClaim: SourceRuntimeClaim,
 		val provider: com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey?,
 	)
+	private sealed interface RunRetirementReplay {
+		data class Acknowledged(val acknowledgement: SourceStopAck) : RunRetirementReplay
+		data class AuthenticationBlocked(
+			val receipt: SourceRunRetirementEntity,
+		) : RunRetirementReplay
+		data object None : RunRetirementReplay
+	}
+	private sealed interface RequestedStepsRetirementRecovery {
+		data class Authenticated(
+			val acknowledgement: SourceStopAck,
+		) : RequestedStepsRetirementRecovery
+		data object Absent : RequestedStepsRetirementRecovery
+		data object Blocked : RequestedStepsRetirementRecovery
+	}
 	private sealed interface SettledSourceDrainBatch {
 		data class Complete(val results: List<SourceProductDrainResult>) : SettledSourceDrainBatch
 		data class Pending(
@@ -4478,7 +4497,12 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		target: RunRetirementTarget,
 		cutoff: SessionCutoff,
 	): SourceStopAck {
-		replayedRetirementAcknowledgement(target, cutoff)?.let { return it }
+		when (val replay = replayedRetirementAcknowledgement(target, cutoff)) {
+			is RunRetirementReplay.Acknowledged -> return replay.acknowledgement
+			is RunRetirementReplay.AuthenticationBlocked ->
+				return blockedRequestedRetirementAcknowledgement(replay.receipt)
+			RunRetirementReplay.None -> Unit
+		}
 		if (target.source !in runtimes.registeredSources()) {
 			target.claims.firstNotNullOfOrNull(RunRetirementClaim::provider)?.let { provider ->
 				return interruptedRetirementAcknowledgement(target, provider, cutoff).also { acknowledgement ->
@@ -4540,16 +4564,249 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	private suspend fun replayedRetirementAcknowledgement(
 		target: RunRetirementTarget,
 		cutoff: SessionCutoff,
-	): SourceStopAck? {
-		val receipts = database.sourceSessionDao().runRetirements(
-			cutoff.logicalTrackingId,
-			target.serviceRunId,
-			target.source.stableCode,
-		)
-		return receipts.firstNotNullOfOrNull { receipt ->
-			receipt.toStopAckOrNull()
+	): RunRetirementReplay {
+		val dao = database.sourceSessionDao()
+		for (owned in target.claims) {
+			val provider = owned.provider ?: continue
+			val receipt = dao.runRetirement(
+				cutoff.logicalTrackingId,
+				target.serviceRunId,
+				target.source.stableCode,
+				provider.sourceInstanceId.value,
+				provider.registrationGeneration,
+			) ?: continue
+			if (receipt.actionId != owned.runtimeClaim.actionId ||
+				receipt.attemptCount != owned.runtimeClaim.attemptCount ||
+				receipt.leaseGeneration != owned.runtimeClaim.leaseGeneration
+			) {
+				return RunRetirementReplay.AuthenticationBlocked(receipt)
+			}
+			if (receipt.state != SourceRunRetirementEntity.STATE_REQUESTED) {
+				val acknowledgement = runCatchingNonCancellation {
+					receipt.toStopAckOrNull()
+				}.getOrNull()
+				return acknowledgement?.let { RunRetirementReplay.Acknowledged(it) }
+					?: RunRetirementReplay.AuthenticationBlocked(receipt)
+			}
+			if (target.source != SourceKind.STEPS) return RunRetirementReplay.None
+			return when (val recovery = recoverRequestedStepsRetirement(
+				target,
+				owned,
+				receipt,
+			)) {
+				is RequestedStepsRetirementRecovery.Authenticated ->
+					RunRetirementReplay.Acknowledged(recovery.acknowledgement)
+				RequestedStepsRetirementRecovery.Absent -> RunRetirementReplay.None
+				RequestedStepsRetirementRecovery.Blocked ->
+					RunRetirementReplay.AuthenticationBlocked(receipt)
+			}
 		}
+		return RunRetirementReplay.None
 	}
+
+	@Suppress("ComplexCondition", "LongMethod", "ReturnCount")
+	private suspend fun recoverRequestedStepsRetirement(
+		target: RunRetirementTarget,
+		owned: RunRetirementClaim,
+		receipt: SourceRunRetirementEntity,
+	): RequestedStepsRetirementRecovery = database.withTransaction {
+		val dao = database.sourceSessionDao()
+		val current = dao.runRetirement(
+			receipt.logicalTrackingId,
+			receipt.serviceRunId,
+			receipt.sourceKind,
+			receipt.sourceInstanceId,
+			receipt.registrationGeneration,
+		) ?: return@withTransaction RequestedStepsRetirementRecovery.Absent
+		val provider = owned.provider
+			?: return@withTransaction RequestedStepsRetirementRecovery.Blocked
+		if (current != receipt || current.state != SourceRunRetirementEntity.STATE_REQUESTED ||
+			target.source != SourceKind.STEPS ||
+			target.serviceRunId != current.serviceRunId ||
+			provider.sourceInstanceId.value != current.sourceInstanceId ||
+			provider.registrationGeneration != current.registrationGeneration ||
+			owned.runtimeClaim.actionId != current.actionId ||
+			owned.runtimeClaim.attemptCount != current.attemptCount ||
+			owned.runtimeClaim.leaseGeneration != current.leaseGeneration ||
+			owned.runtimeClaim.logicalTrackingId != current.logicalTrackingId ||
+			owned.runtimeClaim.serviceRunId != current.serviceRunId
+		) {
+			return@withTransaction RequestedStepsRetirementRecovery.Blocked
+		}
+		val authentication = StepsCountDomainStore(database).authenticateTerminalSessionCompleteness(
+			logicalTrackingId = current.logicalTrackingId,
+			serviceRunId = current.serviceRunId,
+			sourceInstanceId = current.sourceInstanceId,
+			registrationGeneration = current.registrationGeneration,
+		)
+		if (authentication == StepsTerminalCompletenessAuthentication.Absent) {
+			return@withTransaction if (hasTerminalOrMalformedStepsCheckpoint(current)) {
+				RequestedStepsRetirementRecovery.Blocked
+			} else {
+				RequestedStepsRetirementRecovery.Absent
+			}
+		}
+		val authenticated =
+			authentication as? StepsTerminalCompletenessAuthentication.Authenticated
+				?: return@withTransaction RequestedStepsRetirementRecovery.Blocked
+		val action = dao.lifecycleAction(current.actionId)
+			?: return@withTransaction RequestedStepsRetirementRecovery.Blocked
+		if (action.logicalTrackingId != current.logicalTrackingId ||
+			action.serviceRunId != current.serviceRunId ||
+			action.sourceKind != SourceKind.STEPS.stableCode ||
+			action.attemptCount != current.attemptCount ||
+			action.leaseGeneration != current.leaseGeneration ||
+			action.sourceInstanceId != current.sourceInstanceId ||
+			action.registrationGeneration != current.registrationGeneration ||
+			action.desiredPlanRevision <= 0L
+		) {
+			return@withTransaction RequestedStepsRetirementRecovery.Blocked
+		}
+		val registration = database.sourceBrokerDao().registration(
+			SourceKind.STEPS.stableCode,
+			current.registrationGeneration,
+		) ?: return@withTransaction RequestedStepsRetirementRecovery.Blocked
+		if (registration.sourceInstanceId != current.sourceInstanceId ||
+			registration.status !=
+			com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity.STATUS_RETIRED ||
+			authenticated.countDomainCollectedDataEpoch?.let { epoch ->
+				epoch != registration.collectedDataEpoch
+			} == true ||
+			!com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
+				.isCanonicalOwnerScope(SourceKind.STEPS.stableCode, registration.ownerScope)
+		) {
+			return@withTransaction RequestedStepsRetirementRecovery.Blocked
+		}
+		val state = database.sourceRuntimeStateDao().get(
+			SourceKind.STEPS.stableCode,
+			registration.ownerScope,
+		) ?: return@withTransaction RequestedStepsRetirementRecovery.Blocked
+		if (state.stateVersion != SENSOR_RUNTIME_CHECKPOINT_VERSION ||
+			state.sourceInstanceId != current.sourceInstanceId ||
+			state.registrationGeneration != current.registrationGeneration ||
+			state.clockDomainId != registration.clockDomainId ||
+			state.lastProviderSequence < 0L
+		) {
+			return@withTransaction RequestedStepsRetirementRecovery.Blocked
+		}
+		val checkpoint = decodeSensorRuntimeCheckpoint(state, legacyComponentStateVersion = 1)
+			?: return@withTransaction RequestedStepsRetirementRecovery.Blocked
+		val completeness = authenticated.completeness
+		val expectedLifecycle = if (completeness.appDrainComplete) {
+			RuntimeCheckpointLifecycle.QUIESCED
+		} else {
+			RuntimeCheckpointLifecycle.TIMED_OUT
+		}
+		val metrics = checkpoint.metrics
+		val sequenceHighWater = listOfNotNull(
+			metrics.lastDurablyAdmittedSequence,
+			metrics.unresolvedSequenceEndInclusive,
+		).maxOrNull() ?: 0L
+		if (checkpoint.lifecycle != expectedLifecycle ||
+			metrics.lastDurablyAdmittedSequence != completeness.lastSourceSequence ||
+			metrics.lastAdmissionOrdinal != completeness.lastAdmissionOrdinal ||
+			metrics.unresolvedSequenceStart != completeness.unresolvedSequenceStart ||
+			metrics.unresolvedSequenceEndInclusive != completeness.unresolvedSequenceEnd ||
+			metrics.failedAdmissionCount < 0L ||
+			(metrics.unresolvedSequenceStart == null) !=
+				(metrics.unresolvedSequenceEndInclusive == null) ||
+			metrics.unresolvedSequenceStart?.let { start ->
+				start <= 0L || start > requireNotNull(metrics.unresolvedSequenceEndInclusive)
+			} == true ||
+			state.lastProviderSequence < sequenceHighWater ||
+			completeness.stopStatus !in setOf(
+				SourceStopStatus.COMPLETE.name,
+				SourceStopStatus.PARTIAL_UNOBSERVABLE.name,
+			)
+		) {
+			return@withTransaction RequestedStepsRetirementRecovery.Blocked
+		}
+		val acknowledgement = runCatchingNonCancellation {
+			SourceStopAck(
+				source = SourceKind.STEPS,
+				sourceInstanceId = SourceInstanceId(current.sourceInstanceId),
+				registrationGeneration = current.registrationGeneration,
+				appliedRevision = action.desiredPlanRevision,
+				callbackEntryBarrierSequence = state.lastProviderSequence,
+				lastDurablyAdmittedSequence = metrics.lastDurablyAdmittedSequence,
+				lastAdmissionOrdinal = metrics.lastAdmissionOrdinal,
+				failedAdmissionCount = metrics.failedAdmissionCount,
+				unresolvedSequenceStart = metrics.unresolvedSequenceStart,
+				unresolvedSequenceEndInclusive = metrics.unresolvedSequenceEndInclusive,
+				registrationRemovalOutcome = RegistrationRemovalOutcome.valueOf(
+					authenticated.retirementEvidence.registrationRemovalOutcome,
+				),
+				providerFlushOutcome = ProviderFlushOutcome.valueOf(
+					authenticated.retirementEvidence.providerFlushOutcome,
+				),
+				providerCoverage = ProviderCoverage.valueOf(completeness.providerCoverage),
+				appDrainComplete = completeness.appDrainComplete,
+				status = SourceStopStatus.valueOf(completeness.stopStatus),
+				logicalTrackingId = current.logicalTrackingId,
+				serviceRunId = current.serviceRunId,
+			)
+		}.getOrNull() ?: return@withTransaction RequestedStepsRetirementRecovery.Blocked
+		if (!acknowledgement.hasTerminalStepsRetirement()) {
+			return@withTransaction RequestedStepsRetirementRecovery.Blocked
+		}
+		val persisted = current.withRetirementAcknowledgement(
+			acknowledgement,
+			maxOf(current.updatedAtMs, System.currentTimeMillis().coerceAtLeast(0L)),
+		)
+		check(dao.updateRunRetirement(persisted) == 1)
+		RequestedStepsRetirementRecovery.Authenticated(acknowledgement)
+	}
+
+	private suspend fun hasTerminalOrMalformedStepsCheckpoint(
+		receipt: SourceRunRetirementEntity,
+	): Boolean {
+		val registration = database.sourceBrokerDao().registration(
+			SourceKind.STEPS.stableCode,
+			receipt.registrationGeneration,
+		) ?: return false
+		if (registration.sourceInstanceId != receipt.sourceInstanceId ||
+			registration.status !=
+			com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity.STATUS_RETIRED
+		) return false
+		if (!com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
+				.isCanonicalOwnerScope(SourceKind.STEPS.stableCode, registration.ownerScope)
+		) return true
+		val state = database.sourceRuntimeStateDao().get(
+			SourceKind.STEPS.stableCode,
+			registration.ownerScope,
+		) ?: return false
+		if (state.sourceInstanceId != receipt.sourceInstanceId ||
+			state.registrationGeneration != receipt.registrationGeneration
+		) {
+			return false
+		}
+		if (state.stateVersion != SENSOR_RUNTIME_CHECKPOINT_VERSION) return true
+		val checkpoint = decodeSensorRuntimeCheckpoint(state, legacyComponentStateVersion = 1)
+			?: return true
+		return checkpoint.lifecycle != RuntimeCheckpointLifecycle.ACTIVE
+	}
+
+	private fun blockedRequestedRetirementAcknowledgement(
+		receipt: SourceRunRetirementEntity,
+	): SourceStopAck = SourceStopAck(
+		source = SourceKind.entries.single { it.stableCode == receipt.sourceKind },
+		sourceInstanceId = SourceInstanceId(receipt.sourceInstanceId),
+		registrationGeneration = receipt.registrationGeneration,
+		appliedRevision = null,
+		callbackEntryBarrierSequence = 0L,
+		lastDurablyAdmittedSequence = null,
+		lastAdmissionOrdinal = null,
+		failedAdmissionCount = 1L,
+		unresolvedSequenceStart = null,
+		unresolvedSequenceEndInclusive = null,
+		registrationRemovalOutcome = RegistrationRemovalOutcome.UNOBSERVABLE,
+		providerFlushOutcome = ProviderFlushOutcome.NOT_REQUESTED,
+		providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+		appDrainComplete = false,
+		status = SourceStopStatus.PROVIDER_FAILED,
+		logicalTrackingId = receipt.logicalTrackingId,
+		serviceRunId = receipt.serviceRunId,
+	)
 
 	private suspend fun interruptedRetirementAcknowledgement(
 		target: RunRetirementTarget,
@@ -4642,80 +4899,17 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			check(acknowledgement.source == target.source)
 			check(acknowledgement.sourceInstanceId == provider.sourceInstanceId)
 			check(acknowledgement.registrationGeneration == provider.registrationGeneration)
-			val terminal = acknowledgement.hasTerminalLifecycleSettlement()
-			val updatedAtMs = System.currentTimeMillis().coerceAtLeast(0L)
-			val persisted = if (acknowledgement.source == SourceKind.STEPS && !terminal) {
-				check(current.state == SourceRunRetirementEntity.STATE_REQUESTED) {
-					"Terminal Steps retirement cannot regress to requested"
-				}
-				current.copy(
-					appliedRevision = null,
-					callbackEntryBarrierSequence = null,
-					lastSourceSequence = null,
-					lastAdmissionOrdinal = null,
-					failedAdmissionCount = null,
-					unresolvedSequenceStart = null,
-					unresolvedSequenceEnd = null,
-					registrationRemovalOutcome = null,
-					providerFlushOutcome = null,
-					providerCoverage = null,
-					appDrainComplete = null,
-					stopStatus = null,
-					updatedAtMs = updatedAtMs,
-				)
-			} else {
-				current.copy(
-					state = if (acknowledgement.status == SourceStopStatus.PROCESS_RESTARTED) {
-						SourceRunRetirementEntity.STATE_INTERRUPTED
-					} else {
-						SourceRunRetirementEntity.STATE_ACKNOWLEDGED
-					},
-					appliedRevision = acknowledgement.appliedRevision,
-					callbackEntryBarrierSequence = acknowledgement.callbackEntryBarrierSequence,
-					lastSourceSequence = acknowledgement.lastDurablyAdmittedSequence,
-					lastAdmissionOrdinal = acknowledgement.lastAdmissionOrdinal,
-					failedAdmissionCount = acknowledgement.failedAdmissionCount,
-					unresolvedSequenceStart = acknowledgement.unresolvedSequenceStart,
-					unresolvedSequenceEnd = acknowledgement.unresolvedSequenceEndInclusive,
-					registrationRemovalOutcome = acknowledgement.registrationRemovalOutcome.name,
-					providerFlushOutcome = acknowledgement.providerFlushOutcome.name,
-					providerCoverage = acknowledgement.providerCoverage.name,
-					appDrainComplete = acknowledgement.appDrainComplete,
-					stopStatus = acknowledgement.status.name,
-					updatedAtMs = updatedAtMs,
-				)
-			}
+			val updatedAtMs =
+				maxOf(current.updatedAtMs, System.currentTimeMillis().coerceAtLeast(0L))
+			val persisted = current.withRetirementAcknowledgement(acknowledgement, updatedAtMs)
 			check(dao.updateRunRetirement(
 				persisted,
 			) == 1)
 		}
 	}
 
-	private fun SourceRunRetirementEntity.toStopAckOrNull(): SourceStopAck? {
-		if (state == SourceRunRetirementEntity.STATE_REQUESTED) return null
-		val acknowledgement = SourceStopAck(
-			source = SourceKind.entries.single { it.stableCode == sourceKind },
-			sourceInstanceId = SourceInstanceId(sourceInstanceId),
-			registrationGeneration = registrationGeneration,
-			appliedRevision = appliedRevision,
-			callbackEntryBarrierSequence = requireNotNull(callbackEntryBarrierSequence),
-			lastDurablyAdmittedSequence = lastSourceSequence,
-			lastAdmissionOrdinal = lastAdmissionOrdinal,
-			failedAdmissionCount = requireNotNull(failedAdmissionCount),
-			unresolvedSequenceStart = unresolvedSequenceStart,
-			unresolvedSequenceEndInclusive = unresolvedSequenceEnd,
-			registrationRemovalOutcome = RegistrationRemovalOutcome.valueOf(
-				requireNotNull(registrationRemovalOutcome),
-			),
-			providerFlushOutcome = ProviderFlushOutcome.valueOf(requireNotNull(providerFlushOutcome)),
-			providerCoverage = ProviderCoverage.valueOf(requireNotNull(providerCoverage)),
-			appDrainComplete = requireNotNull(appDrainComplete),
-			status = SourceStopStatus.valueOf(requireNotNull(stopStatus)),
-			logicalTrackingId = logicalTrackingId,
-			serviceRunId = serviceRunId,
-		)
-		return acknowledgement.takeIf { it.hasTerminalLifecycleSettlement() }
-	}
+	private fun SourceRunRetirementEntity.toStopAckOrNull(): SourceStopAck? =
+		toStopAckOrNullForReplay()
 
 	private suspend fun saveCompleteness(
 		logicalTrackingId: String,
@@ -5463,7 +5657,10 @@ private fun SourceStopAck.hasMembership(logicalTrackingId: String, serviceRunId:
 	this.logicalTrackingId == logicalTrackingId && this.serviceRunId == serviceRunId
 
 private fun SourceStopAck.hasTerminalLifecycleSettlement(): Boolean =
-	!hasIncompleteTerminalRetirement() ||
+	if (source == SourceKind.STEPS) {
+		hasTerminalStepsRetirement()
+	} else {
+		!hasIncompleteTerminalRetirement() ||
 		(status in setOf(
 			SourceStopStatus.PROCESS_RESTARTED,
 			SourceStopStatus.PARTIAL_UNOBSERVABLE,
@@ -5474,6 +5671,82 @@ private fun SourceStopAck.hasTerminalLifecycleSettlement(): Boolean =
 			) &&
 			(status != SourceStopStatus.PARTIAL_UNOBSERVABLE ||
 				appDrainComplete && lastAdmissionOrdinal != null))
+	}
+
+private fun SourceRunRetirementEntity.withRetirementAcknowledgement(
+	acknowledgement: SourceStopAck,
+	updatedAtMs: Long,
+): SourceRunRetirementEntity {
+	val terminal = acknowledgement.hasTerminalLifecycleSettlement()
+	if (state != SourceRunRetirementEntity.STATE_REQUESTED) {
+		check(toStopAckOrNullForReplay() == acknowledgement) {
+			"Terminal source retirement receipt is immutable"
+		}
+		return this
+	}
+	if (acknowledgement.source == SourceKind.STEPS && !terminal) {
+		return copy(
+			appliedRevision = null,
+			callbackEntryBarrierSequence = null,
+			lastSourceSequence = null,
+			lastAdmissionOrdinal = null,
+			failedAdmissionCount = null,
+			unresolvedSequenceStart = null,
+			unresolvedSequenceEnd = null,
+			registrationRemovalOutcome = null,
+			providerFlushOutcome = null,
+			providerCoverage = null,
+			appDrainComplete = null,
+			stopStatus = null,
+			updatedAtMs = updatedAtMs,
+		)
+	}
+	return copy(
+		state = if (acknowledgement.status == SourceStopStatus.PROCESS_RESTARTED) {
+			SourceRunRetirementEntity.STATE_INTERRUPTED
+		} else {
+			SourceRunRetirementEntity.STATE_ACKNOWLEDGED
+		},
+		appliedRevision = acknowledgement.appliedRevision,
+		callbackEntryBarrierSequence = acknowledgement.callbackEntryBarrierSequence,
+		lastSourceSequence = acknowledgement.lastDurablyAdmittedSequence,
+		lastAdmissionOrdinal = acknowledgement.lastAdmissionOrdinal,
+		failedAdmissionCount = acknowledgement.failedAdmissionCount,
+		unresolvedSequenceStart = acknowledgement.unresolvedSequenceStart,
+		unresolvedSequenceEnd = acknowledgement.unresolvedSequenceEndInclusive,
+		registrationRemovalOutcome = acknowledgement.registrationRemovalOutcome.name,
+		providerFlushOutcome = acknowledgement.providerFlushOutcome.name,
+		providerCoverage = acknowledgement.providerCoverage.name,
+		appDrainComplete = acknowledgement.appDrainComplete,
+		stopStatus = acknowledgement.status.name,
+		updatedAtMs = updatedAtMs,
+	)
+}
+
+private fun SourceRunRetirementEntity.toStopAckOrNullForReplay(): SourceStopAck? {
+	if (state == SourceRunRetirementEntity.STATE_REQUESTED) return null
+	return SourceStopAck(
+		source = SourceKind.entries.single { it.stableCode == sourceKind },
+		sourceInstanceId = SourceInstanceId(sourceInstanceId),
+		registrationGeneration = registrationGeneration,
+		appliedRevision = appliedRevision,
+		callbackEntryBarrierSequence = requireNotNull(callbackEntryBarrierSequence),
+		lastDurablyAdmittedSequence = lastSourceSequence,
+		lastAdmissionOrdinal = lastAdmissionOrdinal,
+		failedAdmissionCount = requireNotNull(failedAdmissionCount),
+		unresolvedSequenceStart = unresolvedSequenceStart,
+		unresolvedSequenceEndInclusive = unresolvedSequenceEnd,
+		registrationRemovalOutcome = RegistrationRemovalOutcome.valueOf(
+			requireNotNull(registrationRemovalOutcome),
+		),
+		providerFlushOutcome = ProviderFlushOutcome.valueOf(requireNotNull(providerFlushOutcome)),
+		providerCoverage = ProviderCoverage.valueOf(requireNotNull(providerCoverage)),
+		appDrainComplete = requireNotNull(appDrainComplete),
+		status = SourceStopStatus.valueOf(requireNotNull(stopStatus)),
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+	).takeIf { it.hasTerminalLifecycleSettlement() }
+}
 
 /** Allows capability/power degradation while rejecting any plan stronger than policy QoS. */
 private fun SourcePolicyEntity.allows(plan: SourcePlan): Boolean {

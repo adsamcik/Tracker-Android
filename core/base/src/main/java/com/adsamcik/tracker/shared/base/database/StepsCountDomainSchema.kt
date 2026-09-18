@@ -542,7 +542,17 @@ object StepsCountDomainSchema {
 		while (offset < length) {
 			val current = this[offset]
 			when {
-				current.isWhitespace() -> offset += 1
+				current.isSqliteWhitespace() -> offset += 1
+				startsSqlLineComment(offset) -> {
+					val endExclusive = sqlLineCommentEnd(offset)
+					tokens += SqlToken(substring(offset, endExclusive), quoted = true)
+					offset = endExclusive
+				}
+				startsSqlBlockComment(offset) -> {
+					val endExclusive = sqlBlockCommentEnd(offset)
+					tokens += SqlToken(substring(offset, endExclusive), quoted = true)
+					offset = endExclusive
+				}
 				current.isSqlQuote() -> {
 					val endExclusive = quotedSqlTokenEnd(offset, current)
 					tokens += SqlToken(substring(offset, endExclusive), quoted = true)
@@ -553,7 +563,10 @@ object StepsCountDomainSchema {
 					while (offset < length && this[offset].isSqlBareTokenCharacter()) {
 						offset += 1
 					}
-					tokens += SqlToken(substring(start, offset).uppercase(), quoted = false)
+					tokens += SqlToken(
+						substring(start, offset).mapAsciiLowercaseToUppercase(),
+						quoted = false,
+					)
 				}
 				else -> {
 					tokens += SqlToken(current.toString(), quoted = false)
@@ -580,13 +593,30 @@ object StepsCountDomainSchema {
 				offset += 1
 				continue
 			}
-			if (offset + 1 < length && this[offset + 1] == closer) {
+			if (opener != '[' && offset + 1 < length && this[offset + 1] == closer) {
 				offset += 2
 				continue
 			}
 			return offset + 1
 		}
-		return length
+		throw IllegalArgumentException("Unclosed SQL quote")
+	}
+
+	private fun String.startsSqlLineComment(offset: Int): Boolean =
+		getOrNull(offset) == '-' && getOrNull(offset + 1) == '-'
+
+	private fun String.sqlLineCommentEnd(start: Int): Int {
+		val newline = indexOf('\n', startIndex = start + 2)
+		return if (newline < 0) length else newline
+	}
+
+	private fun String.startsSqlBlockComment(offset: Int): Boolean =
+		getOrNull(offset) == '/' && getOrNull(offset + 1) == '*'
+
+	private fun String.sqlBlockCommentEnd(start: Int): Int {
+		val closer = indexOf("*/", startIndex = start + 2)
+		if (closer < 0) throw IllegalArgumentException("Unclosed SQL block comment")
+		return closer + 2
 	}
 
 	private fun List<SqlToken>.withoutCreateIfNotExists(): List<SqlToken> {
@@ -604,8 +634,18 @@ object StepsCountDomainSchema {
 
 	private fun Char.isSqlQuote(): Boolean = this == '\'' || this == '"' || this == '`' || this == '['
 
+	private fun Char.isSqliteWhitespace(): Boolean =
+		this == ' ' || this == '\t' || this == '\n' || this == '\u000c' || this == '\r'
+
 	private fun Char.isSqlBareTokenCharacter(): Boolean =
-		isLetterOrDigit() || this == '_' || this == '$'
+		this in 'a'..'z' || this in 'A'..'Z' || this in '0'..'9' ||
+			this == '_' || this == '$' || code >= 0x80
+
+	private fun String.mapAsciiLowercaseToUppercase(): String = buildString(length) {
+		this@mapAsciiLowercaseToUppercase.forEach { character ->
+			append(if (character in 'a'..'z') (character.code - 32).toChar() else character)
+		}
+	}
 
 	private data class SqlToken(
 		val text: String,

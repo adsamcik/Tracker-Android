@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import com.adsamcik.tracker.shared.base.database.StepsRetirementTerminality
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
@@ -150,6 +151,26 @@ internal fun SourceStopAck.hasCompleteTerminalRetirement(): Boolean =
 		) &&
 		providerFlushOutcome !in setOf(ProviderFlushOutcome.FAILED, ProviderFlushOutcome.TIMED_OUT) &&
 		appDrainComplete
+
+internal fun SourceStopAck.hasTerminalStepsRetirement(): Boolean =
+	source == SourceKind.STEPS &&
+		StepsRetirementTerminality.isTerminal(
+			stopStatus = status.name,
+			registrationRemovalOutcome = registrationRemovalOutcome.name,
+			providerFlushOutcome = providerFlushOutcome.name,
+			providerCoverage = providerCoverage.name,
+			appDrainComplete = appDrainComplete,
+			lastAdmissionOrdinal = lastAdmissionOrdinal,
+			unresolvedSequenceStart = unresolvedSequenceStart,
+			unresolvedSequenceEnd = unresolvedSequenceEndInclusive,
+		)
+
+internal fun SourceStopAck.toStepsOwnedShutdown(): OwnedSourceShutdown =
+	if (hasTerminalStepsRetirement()) {
+		OwnedSourceShutdown.Released(providerKeyOrNull(), this)
+	} else {
+		OwnedSourceShutdown.Incomplete(providerKeyOrNull(), this)
+	}
 
 internal fun SourceStopAck.hasIncompleteTerminalRetirement(): Boolean =
 	!hasCompleteTerminalRetirement()

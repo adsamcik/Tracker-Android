@@ -222,7 +222,8 @@ class StepSourceRuntime @Inject constructor(
 			runtimeClaim = null
 			OwnedSourceShutdown.Released(provider = null, stopAck = null)
 		} else {
-			acknowledgement.toOwnedShutdown().also { shutdown ->
+			val shutdown = acknowledgement.toStepsOwnedShutdown()
+			shutdown.also {
 				if (shutdown is OwnedSourceShutdown.Released) runtimeClaim = null
 			}
 		}
@@ -251,7 +252,7 @@ class StepSourceRuntime @Inject constructor(
 	}
 
 	private fun clearClaimIfReleased(acknowledgement: SourceStopAck) {
-		if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) runtimeClaim = null
+		if (acknowledgement.hasTerminalStepsRetirement()) runtimeClaim = null
 	}
 
 	private suspend fun refreshCompatibleLocked(
@@ -665,6 +666,33 @@ class StepSourceRuntime @Inject constructor(
 		} catch (_: Exception) {
 			ProviderFlushOutcome.FAILED
 		}
+		if (flushOutcome in setOf(ProviderFlushOutcome.FAILED, ProviderFlushOutcome.TIMED_OUT)) {
+			val admission = metrics.snapshot()
+			val retryBarrier = synchronized(callbackLock) { callbackEntrySequence }
+			val retryable = SourceStopAck(
+				source = source,
+				sourceInstanceId = SourceInstanceId(activeRegistration.state.sourceInstanceId),
+				registrationGeneration = activeRegistration.state.registrationGeneration,
+				appliedRevision = currentPlan?.revision,
+				callbackEntryBarrierSequence = retryBarrier,
+				lastDurablyAdmittedSequence = admission.lastDurablyAdmittedSequence,
+				lastAdmissionOrdinal = admission.lastAdmissionOrdinal,
+				failedAdmissionCount = admission.failedAdmissionCount,
+				unresolvedSequenceStart = admission.unresolvedSequenceStart,
+				unresolvedSequenceEndInclusive = admission.unresolvedSequenceEndInclusive,
+				registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
+				providerFlushOutcome = flushOutcome,
+				providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+				appDrainComplete = false,
+				status = if (flushOutcome == ProviderFlushOutcome.TIMED_OUT) {
+					SourceStopStatus.TIMED_OUT
+				} else {
+					SourceStopStatus.PROVIDER_FAILED
+				},
+			).withSessionMembership(activeRegistration).withSessionMembership(runtimeClaim)
+			terminalFailure?.let { throw it }
+			return retryable
+		}
 		val barrier: Long
 		val overflowSequence: Long?
 		val terminalCheckpointCausalOrderElapsedNanos: Long
@@ -712,7 +740,7 @@ class StepSourceRuntime @Inject constructor(
 		}
 		val actorSettled = if (drainComplete) settleActor(drainDeadline, cancel = false) else settleActor(drainDeadline)
 		@Suppress("UNUSED_VARIABLE") val keepReferenceUntilDrain = activeQueue
-		if (!drainComplete) {
+		if (!drainComplete && actorSettled) {
 			unaccountedStepDrainRanges(processedCallbackSequence.value, barrier, overflowSequence)
 				.forEach { range -> metrics.recordFailure(range.first, range.last, RuntimeGapClassification.DRAIN_TIMED_OUT) }
 		}
@@ -733,8 +761,11 @@ class StepSourceRuntime @Inject constructor(
 			providerCoverage = sensorProviderCoverage(batchingEnabled, flushOutcome),
 			appDrainComplete = drainComplete,
 			status = when {
-				!drainComplete || !actorSettled || retirement == StepProviderRetirement.TIMED_OUT -> SourceStopStatus.TIMED_OUT
-				removal == RegistrationRemovalOutcome.FAILED -> SourceStopStatus.PROVIDER_FAILED
+				!actorSettled || retirement == StepProviderRetirement.TIMED_OUT ->
+					SourceStopStatus.TIMED_OUT
+				removal == RegistrationRemovalOutcome.FAILED ->
+					SourceStopStatus.PROVIDER_FAILED
+				!drainComplete -> SourceStopStatus.PARTIAL_UNOBSERVABLE
 				else -> SourceStopStatus.COMPLETE
 			},
 		).withSessionMembership(activeRegistration).withSessionMembership(runtimeClaim)
@@ -746,7 +777,8 @@ class StepSourceRuntime @Inject constructor(
 			causalOrderElapsedRealtimeNanos = terminalCheckpointCausalOrderElapsedNanos,
 			admission = admission,
 			ack = ack,
-			retirementFinal = retirement == StepProviderRetirement.COMPLETE && actorSettled,
+			overflowSequence = overflowSequence,
+			drainGapRecorded = !drainComplete && actorSettled,
 		).also { terminalSettlement = it }
 		try {
 			settleTerminalCheckpoint(terminal)
@@ -754,7 +786,7 @@ class StepSourceRuntime @Inject constructor(
 			retainProviderForRetirementRetry(retainActor = !actorSettled)
 			throw failure
 		}
-		if (retirement == StepProviderRetirement.COMPLETE && actorSettled) {
+		if (ack.hasTerminalStepsRetirement()) {
 			terminalStopAck = ack
 			clearActiveState()
 		} else {
@@ -773,9 +805,19 @@ class StepSourceRuntime @Inject constructor(
 		val terminal = terminalSettlement
 		val previous = terminal?.ack ?: intent.stopAck ?: retirementOnlyAck(intent)
 		val completed = retirement == StepProviderRetirement.COMPLETE
-		val admission = metrics.snapshot()
 		val drainComplete =
 			previous.callbackEntryBarrierSequence <= processedCallbackSequence.value
+		if (!drainComplete && actorSettled && terminal != null && !terminal.drainGapRecorded) {
+			unaccountedStepDrainRanges(
+				processedCallbackSequence.value,
+				terminal.barrier,
+				terminal.overflowSequence,
+			).forEach { range ->
+				metrics.recordFailure(range.first, range.last, RuntimeGapClassification.DRAIN_TIMED_OUT)
+			}
+			terminal.drainGapRecorded = true
+		}
+		val admission = metrics.snapshot()
 		val ack = previous.copy(
 			lastDurablyAdmittedSequence = admission.lastDurablyAdmittedSequence,
 			lastAdmissionOrdinal = admission.lastAdmissionOrdinal,
@@ -789,10 +831,11 @@ class StepSourceRuntime @Inject constructor(
 			},
 			appDrainComplete = drainComplete,
 			status = when {
-				!drainComplete || !actorSettled ||
-					retirement == StepProviderRetirement.TIMED_OUT -> SourceStopStatus.TIMED_OUT
-				completed -> SourceStopStatus.COMPLETE
-				else -> SourceStopStatus.PROVIDER_FAILED
+				!actorSettled || retirement == StepProviderRetirement.TIMED_OUT ->
+					SourceStopStatus.TIMED_OUT
+				!completed -> SourceStopStatus.PROVIDER_FAILED
+				!drainComplete -> SourceStopStatus.PARTIAL_UNOBSERVABLE
+				else -> SourceStopStatus.COMPLETE
 			},
 		)
 		intent.stopAck = ack
@@ -804,7 +847,6 @@ class StepSourceRuntime @Inject constructor(
 			}
 			terminal.admission = admission
 			terminal.ack = ack
-			terminal.retirementFinal = completed && actorSettled
 			try {
 				settleTerminalCheckpoint(terminal)
 			} catch (failure: Throwable) {
@@ -812,7 +854,7 @@ class StepSourceRuntime @Inject constructor(
 				throw failure
 			}
 		}
-		if (completed && actorSettled && terminal?.checkpointConfirmed != false) {
+		if (ack.hasTerminalStepsRetirement() && terminal?.checkpointConfirmed != false) {
 			terminalStopAck = ack
 			clearActiveState()
 		} else {
@@ -1603,7 +1645,7 @@ class StepSourceRuntime @Inject constructor(
 	}
 
 	private suspend fun settleTerminalCheckpoint(intent: StepTerminalSettlementIntent) {
-		if (intent.checkpointConfirmed || !intent.retirementFinal) return
+		if (intent.checkpointConfirmed || !intent.ack.hasTerminalStepsRetirement()) return
 		settleStepsTerminalProjection(
 			ack = intent.ack,
 			drainCanonicalThrough = stepsProjectionLane::drainCanonicalThrough,
@@ -1696,7 +1738,8 @@ class StepSourceRuntime @Inject constructor(
 		val causalOrderElapsedRealtimeNanos: Long,
 		var admission: RuntimeAdmissionSnapshot,
 		var ack: SourceStopAck,
-		var retirementFinal: Boolean,
+		val overflowSequence: Long?,
+		var drainGapRecorded: Boolean,
 		var checkpointConfirmed: Boolean = false,
 	)
 

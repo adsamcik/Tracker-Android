@@ -69,6 +69,49 @@ data class StepsCountDomainRetirementEvidence(
 	}
 }
 
+object StepsRetirementTerminality {
+	@Suppress("LongParameterList")
+	fun isTerminal(
+		stopStatus: String,
+		registrationRemovalOutcome: String,
+		providerFlushOutcome: String,
+		providerCoverage: String,
+		appDrainComplete: Boolean,
+		lastAdmissionOrdinal: Long?,
+		unresolvedSequenceStart: Long?,
+		unresolvedSequenceEnd: Long?,
+	): Boolean {
+		if (registrationRemovalOutcome !in setOf("REMOVED", "NOT_REGISTERED") ||
+			providerFlushOutcome !in setOf("COMPLETE", "NOT_SUPPORTED", "NOT_REQUESTED")
+		) {
+			return false
+		}
+		return when (stopStatus) {
+			"COMPLETE" -> appDrainComplete
+			"PROCESS_RESTARTED" ->
+				!appDrainComplete && providerCoverage == "PROVIDER_COMPLETENESS_UNOBSERVABLE"
+			"PARTIAL_UNOBSERVABLE" ->
+				(appDrainComplete && lastAdmissionOrdinal != null) ||
+					(!appDrainComplete &&
+						unresolvedSequenceStart != null &&
+						unresolvedSequenceEnd != null &&
+						unresolvedSequenceStart <= unresolvedSequenceEnd)
+			else -> false
+		}
+	}
+}
+
+sealed interface StepsTerminalCompletenessAuthentication {
+	data class Authenticated(
+		val completeness: SourceSessionCompletenessEntity,
+		val retirementEvidence: StepsCountDomainRetirementEvidence,
+		val countDomainCollectedDataEpoch: Long?,
+	) : StepsTerminalCompletenessAuthentication
+
+	data object Absent : StepsTerminalCompletenessAuthentication
+	data object Unverifiable : StepsTerminalCompletenessAuthentication
+}
+
 sealed interface StepsCountDomainOwnerRead {
 	data class Ready(
 		val owners: Map<StepsCountDomainOwnerLookupKey, StepsCountDomainStoredOwner>,
@@ -285,7 +328,7 @@ class StepsCountDomainStore(
 			return StepsCountDomainWriteResult.NOT_APPLICABLE
 		}
 		writeSchemaFailure()?.let { return it }
-		if (!retirementEvidence.hasFinalRegistrationRemoval()) {
+		if (!row.hasTerminalRetirement(retirementEvidence)) {
 			return StepsCountDomainWriteResult.AUTHORITY_PENDING
 		}
 		val scopeIdentity = StepsCountDomainReceiptIntegrity.sessionRunScopeIdentity(
@@ -426,6 +469,141 @@ class StepsCountDomainStore(
 			row.updatedAtMs,
 			marker,
 		)
+	}
+
+	@Suppress("ComplexCondition", "LongMethod", "ReturnCount")
+	suspend fun authenticateTerminalSessionCompleteness(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		sourceInstanceId: String,
+		registrationGeneration: Long,
+	): StepsTerminalCompletenessAuthentication {
+		if (logicalTrackingId.isBlank() || serviceRunId.isBlank() || sourceInstanceId.isBlank() ||
+			registrationGeneration <= 0L
+		) {
+			return StepsTerminalCompletenessAuthentication.Unverifiable
+		}
+		val timeline = database.trackingHistoryReadDao().sourceCompleteness(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			serviceRunIds = listOf(serviceRunId),
+			limit = MAX_COMPLETENESS_TIMELINE + 1,
+		)
+		if (timeline.size > MAX_COMPLETENESS_TIMELINE ||
+			timeline.any { it.logicalTrackingId != logicalTrackingId } ||
+			!StepsSessionCompletenessIntegrity.hasValidRegisteredTimeline(
+				timeline,
+				logicalTrackingId,
+				serviceRunId,
+			)
+		) {
+			return StepsTerminalCompletenessAuthentication.Unverifiable
+		}
+		val ownerIdentity = StepsCountDomainReceiptIntegrity.sessionCompletenessOwnerIdentity(
+			logicalTrackingId,
+			serviceRunId,
+			sourceInstanceId,
+			registrationGeneration,
+		)
+		val completeness = timeline.singleOrNull { row ->
+			row.sourceInstanceId == sourceInstanceId &&
+				row.registrationGeneration == registrationGeneration
+		} ?: return terminalCompletenessAbsence(ownerIdentity)
+		val ownerRevision = StepsCountDomainReceiptIntegrity.completenessOwnerRevision(completeness)
+		val key = StepsCountDomainOwnerLookupKey(
+			StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
+			ownerIdentity,
+			ownerRevision,
+		)
+		val ready = readOwners(listOf(key), limit = 1) as? StepsCountDomainOwnerRead.Ready
+			?: return StepsTerminalCompletenessAuthentication.Unverifiable
+		val stored = ready.owners[key]
+			?: return StepsTerminalCompletenessAuthentication.Unverifiable
+		if (ready.latestRevisions[
+				StepsCountDomainOwnerLineageKey(key.ownerKind, key.ownerIdentity)
+			] != ownerRevision
+		) {
+			return StepsTerminalCompletenessAuthentication.Unverifiable
+		}
+		val marker = stored.completenessMarker
+			?: return StepsTerminalCompletenessAuthentication.Unverifiable
+		val expectedScope = StepsCountDomainReceiptIntegrity.sessionRunScopeIdentity(
+			logicalTrackingId,
+			serviceRunId,
+		)
+		val expectedEffect = StepsCountDomainReceiptIntegrity.completenessEffectChecksum(completeness)
+		if (!marker.matches(stored.owner) ||
+			stored.owner.scopeIdentity != expectedScope ||
+			stored.owner.ownerEffectChecksum != expectedEffect ||
+			stored.owner.linkedAtMs != completeness.updatedAtMs ||
+			marker.lastAdmissionOrdinal != completeness.lastAdmissionOrdinal ||
+			marker.lastSourceSequence != completeness.lastSourceSequence ||
+			marker.registrationTimelineChecksum !=
+				StepsCountDomainReceiptIntegrity.registrationTimelineChecksum(timeline)
+		) {
+			return StepsTerminalCompletenessAuthentication.Unverifiable
+		}
+		val retirementEvidence = StepsCountDomainRetirementEvidence(
+			providerFlushOutcome = marker.providerFlushOutcome,
+			registrationRemovalOutcome = marker.registrationRemovalOutcome,
+		)
+		if (!retirementEvidence.hasFinalRegistrationRemoval()) {
+			return StepsTerminalCompletenessAuthentication.Unverifiable
+		}
+		val receipt = stored.receipt
+		val authentic = when (stored.owner.operation) {
+			StepsCountDomainOwnerRevisionEntity.OPERATION_BIND ->
+				stored.isAuthentic() &&
+					receipt != null &&
+					receipt.registrationGeneration == registrationGeneration &&
+					receipt.coverageKind ==
+					StepsCountDomainReceiptEntity.COVERAGE_COMPLETE_RUN &&
+					completeness.hasExactCompleteRetirement(retirementEvidence)
+			StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN ->
+				receipt == null && stored.owner.receiptIdentity == null &&
+					marker.terminalState ==
+					StepsCountDomainCompletenessMarkerEntity.STATE_UNPROVEN
+			else -> false
+		}
+		return if (authentic) {
+			StepsTerminalCompletenessAuthentication.Authenticated(
+				completeness,
+				retirementEvidence,
+				receipt?.collectedDataEpoch,
+			)
+		} else {
+			StepsTerminalCompletenessAuthentication.Unverifiable
+		}
+	}
+
+	private fun terminalCompletenessAbsence(
+		ownerIdentity: String,
+	): StepsTerminalCompletenessAuthentication {
+		val sqlite = database.openHelper.readableDatabase
+		return try {
+			when (StepsCountDomainSchema.inspect(sqlite)) {
+				StepsCountDomainSchemaState.Absent,
+				StepsCountDomainSchemaState.FreshRoomScaffold,
+				-> StepsTerminalCompletenessAuthentication.Absent
+				StepsCountDomainSchemaState.Incompatible ->
+					StepsTerminalCompletenessAuthentication.Unverifiable
+				StepsCountDomainSchemaState.ValidV2 ->
+					if (sqlite.queryLatestOwner(
+							StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
+							ownerIdentity,
+						) == null
+					) {
+						StepsTerminalCompletenessAuthentication.Absent
+					} else {
+						StepsTerminalCompletenessAuthentication.Unverifiable
+					}
+			}
+		} catch (_: SQLiteException) {
+			StepsTerminalCompletenessAuthentication.Unverifiable
+		} catch (_: IllegalArgumentException) {
+			StepsTerminalCompletenessAuthentication.Unverifiable
+		} catch (_: IllegalStateException) {
+			StepsTerminalCompletenessAuthentication.Unverifiable
+		}
 	}
 
 	suspend fun recordAmbientFact(
@@ -1278,6 +1456,19 @@ private fun SourceSessionCompletenessEntity.hasExactCompleteRetirement(
 	evidence.providerFlushOutcome in
 		setOf("COMPLETE", "NOT_SUPPORTED", "NOT_REQUESTED") &&
 	evidence.registrationRemovalOutcome in setOf("REMOVED", "NOT_REGISTERED")
+
+private fun SourceSessionCompletenessEntity.hasTerminalRetirement(
+	evidence: StepsCountDomainRetirementEvidence,
+): Boolean = StepsRetirementTerminality.isTerminal(
+	stopStatus = stopStatus,
+	registrationRemovalOutcome = evidence.registrationRemovalOutcome,
+	providerFlushOutcome = evidence.providerFlushOutcome,
+	providerCoverage = providerCoverage,
+	appDrainComplete = appDrainComplete,
+	lastAdmissionOrdinal = lastAdmissionOrdinal,
+	unresolvedSequenceStart = unresolvedSequenceStart,
+	unresolvedSequenceEnd = unresolvedSequenceEnd,
+)
 
 private fun StepsCountDomainRetirementEvidence.hasFinalRegistrationRemoval(): Boolean =
 	registrationRemovalOutcome in setOf("REMOVED", "NOT_REGISTERED")

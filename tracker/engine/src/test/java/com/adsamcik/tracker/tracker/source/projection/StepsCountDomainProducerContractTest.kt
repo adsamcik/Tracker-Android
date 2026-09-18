@@ -271,22 +271,21 @@ class StepsCountDomainProducerContractTest {
 	}
 
 	@Test
-	fun `partial retirement is terminal unproven and cannot upgrade to complete`() = runTest {
+	fun `irreversible partial retirement is terminal unproven and cannot upgrade to complete`() = runTest {
 		val store = StepsCountDomainStore(database)
 		val token = token('a')
 		val wal = insertWal(token)
 		store.recordSessionWal(wal, token) shouldBe StepsCountDomainWriteResult.INSERTED
 		val partial = completeness(wal).copy(
 			appDrainComplete = false,
-			providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
-			stopStatus = "TIMED_OUT",
+			stopStatus = "PARTIAL_UNOBSERVABLE",
 			unresolvedSequenceStart = 2L,
 			unresolvedSequenceEnd = 3L,
 		)
 		database.sourceSessionDao().saveCompleteness(partial)
 		store.recordSessionCompleteness(
 			partial,
-			StepsCountDomainRetirementEvidence("FAILED", "REMOVED"),
+			StepsCountDomainRetirementEvidence("COMPLETE", "REMOVED"),
 		) shouldBe StepsCountDomainWriteResult.INSERTED
 
 		val completed = completeness(wal).copy(updatedAtMs = partial.updatedAtMs + 1L)
@@ -295,6 +294,39 @@ class StepsCountDomainProducerContractTest {
 			completed,
 			completeRetirementEvidence(),
 		) shouldBe StepsCountDomainWriteResult.TERMINAL_OWNER
+	}
+
+	@Test
+	fun `provider removal with failed flush stays pending and later complete retry binds`() = runTest {
+		val store = StepsCountDomainStore(database)
+		val token = token('a')
+		val wal = insertWal(token)
+		store.recordSessionWal(wal, token) shouldBe StepsCountDomainWriteResult.INSERTED
+		val pending = completeness(wal).copy(
+			appDrainComplete = false,
+			providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+			stopStatus = "PROVIDER_FAILED",
+		)
+		database.sourceSessionDao().saveCompleteness(pending)
+
+		store.recordSessionCompleteness(
+			pending,
+			StepsCountDomainRetirementEvidence("FAILED", "REMOVED"),
+		) shouldBe StepsCountDomainWriteResult.AUTHORITY_PENDING
+		database.openHelper.writableDatabase.query(
+			"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
+				"WHERE owner_kind = 'SESSION_COMPLETENESS'",
+		).use { cursor ->
+			cursor.moveToFirst()
+			cursor.getLong(0) shouldBe 0L
+		}
+
+		val completed = completeness(wal).copy(updatedAtMs = pending.updatedAtMs + 1L)
+		database.sourceSessionDao().saveCompleteness(completed)
+		store.recordSessionCompleteness(
+			completed,
+			completeRetirementEvidence(),
+		) shouldBe StepsCountDomainWriteResult.INSERTED
 	}
 
 	@Test

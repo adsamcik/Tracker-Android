@@ -161,8 +161,8 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		installSchema()
 		val sqlite = database.openHelper.writableDatabase
 		sqlite.replaceTrigger(StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER) { sql ->
-			sql.replace("CREATE TRIGGER", "create\n\ttrigger")
-				.replace("AFTER INSERT ON", "after\tinsert\n on")
+			sql.replace("CREATE TRIGGER", "create\rtrigger")
+				.replace("AFTER INSERT ON", "after\u000cinsert\n on")
 				.replace("WHEN NEW.", "when\n NEW.")
 				.replace("BEGIN", "begin")
 				.replace("INSERT OR ABORT INTO", "insert\n or\tabort into")
@@ -171,6 +171,72 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		}
 
 		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.ValidV2
+	}
+
+	@Test
+	fun `Unicode long s cannot authenticate as ASCII S inside COALESCE`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.rewriteStoredTriggerSql(StepsCountDomainSchema.TERMINAL_OWNER_TRIGGER) { sql ->
+			sql.replace("COALESCE", "COALE\u017fCE")
+		}
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `Unicode whitespace cannot replace SQLite ASCII whitespace`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.rewriteStoredTriggerSql(StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER) { sql ->
+			sql.replaceFirst("CREATE TRIGGER", "CREATE\u2003TRIGGER")
+		}
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `vertical tab cannot replace SQLite ASCII whitespace`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.rewriteStoredTriggerSql(StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER) { sql ->
+			sql.replaceFirst("CREATE TRIGGER", "CREATE\u000bTRIGGER")
+		}
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `comments remain part of exact trigger authentication`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.replaceTrigger(StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER) { sql ->
+			sql.replace("WHEN NEW.", "WHEN /* injected */ NEW.")
+		}
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `unclosed quoting fails closed`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.rewriteStoredTriggerSql(StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER) { sql ->
+			sql.replace("'RETRACT'", "'RETRACT")
+		}
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `unclosed block comment fails closed`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.rewriteStoredTriggerSql(StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER) { sql ->
+			sql.replace("WHEN NEW.", "WHEN /* unclosed NEW.")
+		}
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
 	}
 
 	@Test
@@ -546,6 +612,28 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		}
 		execSQL("DROP TRIGGER `$name`")
 		execSQL(transform(sql))
+	}
+
+	private fun SupportSQLiteDatabase.rewriteStoredTriggerSql(
+		name: String,
+		transform: (String) -> String,
+	) {
+		val sql = query(
+			"SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = ?",
+			arrayOf(name),
+		).use { cursor ->
+			check(cursor.moveToFirst())
+			cursor.getString(0)
+		}
+		execSQL("PRAGMA writable_schema = ON")
+		try {
+			execSQL(
+				"UPDATE sqlite_master SET sql = ? WHERE type = 'trigger' AND name = ?",
+				arrayOf(transform(sql), name),
+			)
+		} finally {
+			execSQL("PRAGMA writable_schema = OFF")
+		}
 	}
 
 	private fun installE500SchemaFixture() {
