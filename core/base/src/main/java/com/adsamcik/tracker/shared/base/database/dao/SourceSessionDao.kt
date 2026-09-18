@@ -8,6 +8,7 @@ import androidx.room.Update
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity.RawSessionManifestSource
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
@@ -184,6 +185,20 @@ interface SourceSessionDao {
 		logicalTrackingId: String,
 		manifestRevision: Long,
 	): List<SessionManifestSourceEntity>
+
+	@Query(
+		"SELECT " + RAW_MANIFEST_SOURCE_PROJECTION + " FROM session_manifest_source WHERE " +
+			"((typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId) " +
+			"OR typeof(logical_tracking_id) != 'text') AND " +
+			"((typeof(manifest_revision) = 'integer' AND manifest_revision = :manifestRevision) " +
+			"OR typeof(manifest_revision) != 'integer') " +
+			"ORDER BY purpose, source_kind, rowid LIMIT :limit",
+	)
+	suspend fun rawManifestSources(
+		logicalTrackingId: String,
+		manifestRevision: Long,
+		limit: Int,
+	): List<RawSessionManifestSource>
 
 	@Query(
 		"SELECT * FROM session_manifest_source WHERE logical_tracking_id = :logicalTrackingId " +
@@ -486,3 +501,33 @@ private const val RAW_RUN_RETIREMENT_PROJECTION =
 		"AS app_drain_complete, " +
 		"CASE WHEN typeof(stop_status) IN ('text', 'null') THEN stop_status END AS stop_status, " +
 		"CASE WHEN typeof(updated_at_ms) = 'integer' THEN updated_at_ms END AS updated_at_ms"
+
+private const val RAW_MANIFEST_SOURCE_PROJECTION =
+	"typeof(logical_tracking_id) || '|' || typeof(manifest_revision) || '|' || " +
+		"typeof(source_kind) || '|' || typeof(purpose) || '|' || typeof(consent_epoch) || '|' || " +
+		"typeof(persistence_eligible) || '|' || typeof(qos_code) || '|' || " +
+		"typeof(output_destination) || '|' || typeof(writer_owner) || '|' || " +
+		"typeof(writer_owner_generation) || '|' || typeof(writer_projection_id) || '|' || " +
+		"typeof(writer_projection_version) || '|' || typeof(writer_binding_generation) " +
+		"AS storage_class_signature, " +
+		"CASE WHEN typeof(logical_tracking_id) = 'text' THEN logical_tracking_id END " +
+		"AS logical_tracking_id, " +
+		"CASE WHEN typeof(manifest_revision) = 'integer' THEN manifest_revision END " +
+		"AS manifest_revision, " +
+		"CASE WHEN typeof(source_kind) = 'integer' THEN source_kind END AS source_kind, " +
+		"CASE WHEN typeof(purpose) = 'text' THEN purpose END AS purpose, " +
+		"CASE WHEN typeof(consent_epoch) = 'integer' THEN consent_epoch END AS consent_epoch, " +
+		"CASE WHEN typeof(persistence_eligible) = 'integer' THEN persistence_eligible END " +
+		"AS persistence_eligible, " +
+		"CASE WHEN typeof(qos_code) = 'integer' THEN qos_code END AS qos_code, " +
+		"CASE WHEN typeof(output_destination) IN ('text', 'null') THEN output_destination END " +
+		"AS output_destination, " +
+		"CASE WHEN typeof(writer_owner) IN ('text', 'null') THEN writer_owner END AS writer_owner, " +
+		"CASE WHEN typeof(writer_owner_generation) IN ('integer', 'null') " +
+		"THEN writer_owner_generation END AS writer_owner_generation, " +
+		"CASE WHEN typeof(writer_projection_id) IN ('text', 'null') THEN writer_projection_id END " +
+		"AS writer_projection_id, " +
+		"CASE WHEN typeof(writer_projection_version) IN ('integer', 'null') " +
+		"THEN writer_projection_version END AS writer_projection_version, " +
+		"CASE WHEN typeof(writer_binding_generation) IN ('integer', 'null') " +
+		"THEN writer_binding_generation END AS writer_binding_generation"

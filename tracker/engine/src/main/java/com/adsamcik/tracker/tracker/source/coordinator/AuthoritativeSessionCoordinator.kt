@@ -106,6 +106,7 @@ import kotlinx.coroutines.withContext
 internal const val SOURCE_RUNTIME_CLEANUP_PENDING = "SOURCE_RUNTIME_CLEANUP_PENDING"
 internal const val RUNTIME_CLEANUP_RETRY = "RUNTIME_CLEANUP_RETRY"
 internal const val MAX_RUN_RETIREMENT_MANIFESTS = 256
+internal const val MAX_RUN_RETIREMENT_MANIFEST_SOURCES = 12
 internal const val MAX_RUN_RETIREMENT_ACTIONS = 2_048
 internal const val MAX_RUN_RETIREMENT_RECEIPTS = 512
 internal const val MAX_RUN_RETIREMENT_INTENTS_PER_MANIFEST = 256
@@ -2012,8 +2013,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					.manifestsForServiceRun(serviceRun.serviceRunId)
 					.map { prior ->
 						verifiedManifest(
-							prior.logicalTrackingId,
-							prior.manifestRevision,
+							prior,
 							serviceRun.serviceRunId,
 						)
 					}
@@ -4485,8 +4485,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				)
 			}
 			val verified = verifiedManifest(
-				session.logicalTrackingId,
-				manifest.manifestRevision,
+				manifest,
 				serviceRunId,
 			) ?: return RunRetirementTargetRead.Blocked(
 				"RUN_RETIREMENT_MANIFEST_INTEGRITY_FAILED",
@@ -5748,8 +5747,24 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	): VerifiedSessionManifest? {
 		val dao = database.sourceSessionDao()
 		val manifest = dao.manifest(logicalTrackingId, manifestRevision) ?: return null
+		return verifiedManifest(manifest, expectedServiceRunId)
+	}
+
+	private suspend fun verifiedManifest(
+		manifest: SessionManifestVersionEntity,
+		expectedServiceRunId: String,
+	): VerifiedSessionManifest? {
 		if (manifest.serviceRunId != expectedServiceRunId) return null
-		val bindings = dao.manifestSources(logicalTrackingId, manifestRevision)
+		val rawBindings = database.sourceSessionDao().rawManifestSources(
+			manifest.logicalTrackingId,
+			manifest.manifestRevision,
+			MAX_RUN_RETIREMENT_MANIFEST_SOURCES + 1,
+		)
+		if (rawBindings.size > MAX_RUN_RETIREMENT_MANIFEST_SOURCES) return null
+		val bindings = ArrayList<SessionManifestSourceEntity>(rawBindings.size)
+		for (rawBinding in rawBindings) {
+			bindings += rawBinding.validatedOrNull() ?: return null
+		}
 		if (!SessionManifestIntegrity.verify(manifest, bindings)) return null
 		return VerifiedSessionManifest(manifest, bindings)
 	}

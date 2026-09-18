@@ -20,26 +20,34 @@ class SourceRunRetirementEntityTest {
 
 		requested.acknowledgementFields().all { it == null } shouldBe true
 
-		val acknowledged = requested.copy(
-			state = SourceRunRetirementEntity.STATE_ACKNOWLEDGED,
-			appliedRevision = 3L,
-			callbackEntryBarrierSequence = 8L,
-			lastSourceSequence = 8L,
-			lastAdmissionOrdinal = 5L,
-			failedAdmissionCount = 0L,
-			registrationRemovalOutcome = "REMOVED",
-			providerFlushOutcome = "NOT_SUPPORTED",
-			providerCoverage = "CALLBACKS_ENTERED_BEFORE_BARRIER",
-			appDrainComplete = true,
-			stopStatus = "COMPLETE",
-			updatedAtMs = requested.updatedAtMs + 1L,
-		)
+		val acknowledged = acknowledged(SourceDestinationOwnerEntity.SOURCE_PRESSURE)
 
 		acknowledged.state shouldBe SourceRunRetirementEntity.STATE_ACKNOWLEDGED
 		acknowledged.registrationRemovalOutcome shouldBe "REMOVED"
 		acknowledged.providerFlushOutcome shouldBe "NOT_SUPPORTED"
 		acknowledged.appDrainComplete shouldBe true
 		acknowledged.stopStatus shouldBe "COMPLETE"
+	}
+
+	@Test
+	fun `Steps and non-Steps retirement state corresponds exactly to process restart status`() {
+		shouldThrow<IllegalArgumentException> {
+			acknowledged(SourceDestinationOwnerEntity.SOURCE_STEPS).copy(
+				stopStatus = "PROCESS_RESTARTED",
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			acknowledged(SourceDestinationOwnerEntity.SOURCE_LOCATION).copy(
+				state = SourceRunRetirementEntity.STATE_INTERRUPTED,
+			)
+		}
+
+		val interruptedLocation = acknowledged(SourceDestinationOwnerEntity.SOURCE_LOCATION).copy(
+			state = SourceRunRetirementEntity.STATE_INTERRUPTED,
+			stopStatus = "PROCESS_RESTARTED",
+		)
+		interruptedLocation.state shouldBe SourceRunRetirementEntity.STATE_INTERRUPTED
+		interruptedLocation.stopStatus shouldBe "PROCESS_RESTARTED"
 	}
 
 	private fun SourceRunRetirementEntity.acknowledgementFields(): List<Any?> = listOf(
@@ -82,5 +90,21 @@ class SourceRunRetirementEntityTest {
 		appDrainComplete = null,
 		stopStatus = null,
 		updatedAtMs = 2_000L,
+	)
+
+	private fun acknowledged(sourceKind: Int) = requested().copy(
+		sourceKind = sourceKind,
+		state = SourceRunRetirementEntity.STATE_ACKNOWLEDGED,
+		appliedRevision = 3L,
+		callbackEntryBarrierSequence = 8L,
+		lastSourceSequence = 8L,
+		lastAdmissionOrdinal = 5L,
+		failedAdmissionCount = 0L,
+		registrationRemovalOutcome = "REMOVED",
+		providerFlushOutcome = "NOT_SUPPORTED",
+		providerCoverage = "CALLBACKS_ENTERED_BEFORE_BARRIER",
+		appDrainComplete = true,
+		stopStatus = "COMPLETE",
+		updatedAtMs = 2_001L,
 	)
 }

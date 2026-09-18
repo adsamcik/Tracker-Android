@@ -806,6 +806,77 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `retirement manifest source overflow blocks before binding materialization`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("retirement-manifest-source-overflow")
+		repeat(MAX_RUN_RETIREMENT_MANIFEST_SOURCES) { index ->
+			database.openHelper.writableDatabase.execSQL(
+				"INSERT INTO session_manifest_source(" +
+					"logical_tracking_id, manifest_revision, source_kind, purpose, consent_epoch, " +
+					"persistence_eligible, qos_code) VALUES (?, ?, ?, ?, ?, ?, ?)",
+				arrayOf(
+					started.logicalTrackingId,
+					1L,
+					10_000 + index,
+					"OVERFLOW_$index",
+					1L,
+					0,
+					0,
+				),
+			)
+		}
+
+		subject.stop(
+			SessionStopRequest(
+				"retirement-manifest-source-overflow-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.InvalidIntent>().code shouldBe
+			"RUN_RETIREMENT_MANIFEST_INTEGRITY_FAILED"
+		runtime.shutdownClaims shouldBe emptyList()
+	}
+
+	@Test
+	fun `malformed raw manifest bindings block authentication before runtime shutdown`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("raw-retirement-manifest-binding")
+		val original = database.sourceSessionDao()
+			.manifestSources(started.logicalTrackingId, 1L)
+			.single()
+		val mutations = listOf(
+			"blob" to "source_kind = X'03'",
+			"real" to "consent_epoch = 1.5",
+			"nullable provenance" to "writer_owner = NULL",
+			"unknown writer" to "writer_owner = 'UNKNOWN'",
+			"unknown enum" to "purpose = 'UNKNOWN'",
+			"invalid range" to "qos_code = 4",
+			"projection overflow" to "writer_projection_version = 2147483648",
+		)
+		for ((identity, assignment) in mutations) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE session_manifest_source SET $assignment " +
+					"WHERE logical_tracking_id = ? AND manifest_revision = ?",
+				arrayOf(started.logicalTrackingId, 1L),
+			)
+
+			subject.stop(
+				SessionStopRequest(
+					"raw-retirement-manifest-$identity",
+					"USER_STOP",
+					2_500L,
+					2_500_000L,
+					"boot-1",
+				),
+			).shouldBeInstanceOf<SessionStopResult.InvalidIntent>().code shouldBe
+				"RUN_RETIREMENT_MANIFEST_INTEGRITY_FAILED"
+			runtime.shutdownClaims shouldBe emptyList()
+			database.sourceSessionDao().deleteAllManifestSources()
+			database.sourceSessionDao().insertManifestSources(listOf(original))
+		}
+	}
+
+	@Test
 	fun `retirement action replay fails closed on bounded overflow`() = runTest {
 		val started = prepareBlockedTerminalStepsRecovery("retirement-action-overflow")
 		insertSyntheticRetirementClaims(
@@ -1795,6 +1866,76 @@ class AuthoritativeSessionCoordinatorTest {
 				"boot-1",
 			),
 		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+	}
+
+	@Test
+	fun `contradictory Steps receipt state cannot authenticate terminal replay`() = runTest {
+		val (started, _) = prepareTerminalReceiptWithCleanup("contradictory-steps-receipt")
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_run_retirement SET stop_status = 'PROCESS_RESTARTED' " +
+				"WHERE logical_tracking_id = ? AND service_run_id = ? AND source_kind = ?",
+			arrayOf(
+				started.logicalTrackingId,
+				started.serviceRunId,
+				SourceKind.STEPS.stableCode,
+			),
+		)
+		replaceRuntime(FakeStepsRuntime(database))
+
+		subject.stop(
+			SessionStopRequest(
+				"contradictory-steps-receipt-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+
+		database.sourceSessionDao().rawRunRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+			2,
+		).single().validatedOrNull() shouldBe null
+		runtime.shutdownClaims shouldBe emptyList()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.STOPPING.name
+	}
+
+	@Test
+	fun `contradictory non-Steps receipt state cannot resolve runtime cleanup`() = runTest {
+		val (started, _) = prepareLocationReceiptWithCleanup("contradictory-location-receipt")
+		val quiesceCountBeforeReplay = locationRuntime.quiesceCount
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_run_retirement SET state = 'INTERRUPTED' " +
+				"WHERE logical_tracking_id = ? AND service_run_id = ? AND source_kind = ?",
+			arrayOf(
+				started.logicalTrackingId,
+				started.serviceRunId,
+				SourceKind.LOCATION.stableCode,
+			),
+		)
+
+		subject.stop(
+			SessionStopRequest(
+				"contradictory-location-receipt-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+
+		database.sourceSessionDao().rawRunRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.LOCATION.stableCode,
+			2,
+		).single().validatedOrNull() shouldBe null
+		locationRuntime.quiesceCount shouldBe quiesceCountBeforeReplay
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.STOPPING.name
 	}
 
 	@Test
@@ -4290,6 +4431,51 @@ class AuthoritativeSessionCoordinatorTest {
 		return started to receipt
 	}
 
+	private suspend fun prepareLocationReceiptWithCleanup(
+		identity: String,
+	): Pair<SessionStartResult.Started, SourceRunRetirementEntity> {
+		val locationPlan = LocationPlan(
+			revision = 1L,
+			backend = LocationBackend.FUSED,
+			mode = LocationMode.BALANCED,
+			requestedIntervalMs = 2_000L,
+			minimumUpdateIntervalMs = 2_000L,
+			minimumDisplacementMeters = 10f,
+			maximumBatchDelayMs = 10_000L,
+			preciseLocationAvailable = true,
+		)
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "$identity-logical",
+				serviceRunId = "$identity-run",
+				plan = AcquisitionPlanRevision(
+					revision = 1L,
+					planId = "$identity-plan",
+					createdAtMs = 1_000L,
+					plans = mapOf(SourceKind.LOCATION to locationPlan),
+					sourcePolicyRevision = 1L,
+				),
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		locationRuntime.acknowledgementServiceRunId = "$identity-foreign-run"
+		subject.stop(
+			SessionStopRequest(
+				"$identity-owner",
+				"USER_STOP",
+				2_000L,
+				2_000_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+		locationRuntime.acknowledgementServiceRunId = null
+		val receipt = database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.LOCATION.stableCode,
+		).single()
+		return started to receipt
+	}
+
 	private fun SourceRunRetirementEntity.toTerminalAcknowledgement(): SourceStopAck =
 		SourceStopAck(
 			source = SourceKind.STEPS,
@@ -5389,6 +5575,7 @@ private class FakeLocationRuntime : ClaimedSourceRuntime<LocationPlan> {
 	var failRetirement = false
 	var quiesceCount = 0
 	var closeCount = 0
+	var acknowledgementServiceRunId: String? = null
 	private var active = false
 	private var ownedClaim: SourceRuntimeClaim? = null
 	val isActive: Boolean get() = active
@@ -5475,7 +5662,7 @@ private class FakeLocationRuntime : ClaimedSourceRuntime<LocationPlan> {
 			appDrainComplete = !failRetirement,
 			status = if (failRetirement) SourceStopStatus.PROVIDER_FAILED else SourceStopStatus.COMPLETE,
 			logicalTrackingId = ownedClaim?.logicalTrackingId,
-			serviceRunId = ownedClaim?.serviceRunId,
+			serviceRunId = acknowledgementServiceRunId ?: ownedClaim?.serviceRunId,
 		)
 
 	override suspend fun close() {

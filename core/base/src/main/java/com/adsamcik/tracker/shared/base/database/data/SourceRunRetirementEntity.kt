@@ -80,6 +80,12 @@ data class SourceRunRetirementEntity(
 			)
 		} else {
 			require(requiredAcknowledgement.all { it != null })
+			require(
+				(state == STATE_INTERRUPTED) ==
+					(stopStatus == STOP_STATUS_PROCESS_RESTARTED),
+			) {
+				"Interrupted retirement state must correspond exactly to a process-restarted stop"
+			}
 		}
 	}
 
@@ -186,12 +192,42 @@ data class SourceRunRetirementEntity(
 				return null
 			}
 			val validatedSourceKind = sourceKind
-				?.takeIf { it in 1L..Int.MAX_VALUE.toLong() }
+				?.takeIf { it in SOURCE_KINDS }
 				?.toInt()
+				?: return null
+			val validatedLogicalTrackingId = logicalTrackingId
+				?.takeIf(String::isNotBlank)
+				?: return null
+			val validatedServiceRunId = serviceRunId
+				?.takeIf(String::isNotBlank)
+				?: return null
+			val validatedSourceInstanceId = sourceInstanceId
+				?.takeIf(String::isNotBlank)
+				?: return null
+			val validatedRegistrationGeneration = registrationGeneration
+				?.takeIf { it > 0L }
+				?: return null
+			val validatedActionId = actionId
+				?.takeIf(String::isNotBlank)
 				?: return null
 			val validatedAttemptCount = attemptCount
 				?.takeIf { it in 1L..Int.MAX_VALUE.toLong() }
 				?.toInt()
+				?: return null
+			val validatedLeaseGeneration = leaseGeneration
+				?.takeIf { it > 0L }
+				?: return null
+			val validatedCutoffElapsed = cutoffElapsedRealtimeNanos
+				?.takeIf { it >= 0L }
+				?: return null
+			val validatedCutoffWall = cutoffWallTimeMs
+				?.takeIf { it >= 0L }
+				?: return null
+			val validatedState = state
+				?.takeIf { it in STATES }
+				?: return null
+			val validatedUpdatedAt = updatedAtMs
+				?.takeIf { it >= 0L }
 				?: return null
 			val validatedDrain = when (appDrainComplete) {
 				null -> null
@@ -217,19 +253,46 @@ data class SourceRunRetirementEntity(
 			) {
 				return null
 			}
+			val requiredAcknowledgement = listOf(
+				callbackEntryBarrierSequence,
+				failedAdmissionCount,
+				registrationRemovalOutcome,
+				providerFlushOutcome,
+				providerCoverage,
+				appDrainComplete,
+				stopStatus,
+			)
+			if (validatedState == STATE_REQUESTED) {
+				val payload = listOf(
+					appliedRevision,
+					lastSourceSequence,
+					lastAdmissionOrdinal,
+					unresolvedSequenceStart,
+					unresolvedSequenceEnd,
+				) + requiredAcknowledgement
+				if (payload.any { it != null }) return null
+			} else {
+				if (requiredAcknowledgement.any { it == null }) return null
+				if (
+					(validatedState == STATE_INTERRUPTED) !=
+					(stopStatus == STOP_STATUS_PROCESS_RESTARTED)
+				) {
+					return null
+				}
+			}
 			return try {
 				SourceRunRetirementEntity(
-					logicalTrackingId = requireNotNull(logicalTrackingId),
-					serviceRunId = requireNotNull(serviceRunId),
+					logicalTrackingId = validatedLogicalTrackingId,
+					serviceRunId = validatedServiceRunId,
 					sourceKind = validatedSourceKind,
-					sourceInstanceId = requireNotNull(sourceInstanceId),
-					registrationGeneration = requireNotNull(registrationGeneration),
-					actionId = requireNotNull(actionId),
+					sourceInstanceId = validatedSourceInstanceId,
+					registrationGeneration = validatedRegistrationGeneration,
+					actionId = validatedActionId,
 					attemptCount = validatedAttemptCount,
-					leaseGeneration = requireNotNull(leaseGeneration),
-					cutoffElapsedRealtimeNanos = requireNotNull(cutoffElapsedRealtimeNanos),
-					cutoffWallTimeMs = requireNotNull(cutoffWallTimeMs),
-					state = requireNotNull(state),
+					leaseGeneration = validatedLeaseGeneration,
+					cutoffElapsedRealtimeNanos = validatedCutoffElapsed,
+					cutoffWallTimeMs = validatedCutoffWall,
+					state = validatedState,
 					appliedRevision = appliedRevision,
 					callbackEntryBarrierSequence = callbackEntryBarrierSequence,
 					lastSourceSequence = lastSourceSequence,
@@ -242,7 +305,7 @@ data class SourceRunRetirementEntity(
 					providerCoverage = providerCoverage,
 					appDrainComplete = validatedDrain,
 					stopStatus = stopStatus,
-					updatedAtMs = requireNotNull(updatedAtMs),
+					updatedAtMs = validatedUpdatedAt,
 				)
 			} catch (_: IllegalArgumentException) {
 				null
@@ -302,6 +365,14 @@ data class SourceRunRetirementEntity(
 				"PROVIDER_FAILED",
 				"PROCESS_RESTARTED",
 			)
+			val SOURCE_KINDS = setOf(
+				SourceDestinationOwnerEntity.SOURCE_LOCATION.toLong(),
+				SourceDestinationOwnerEntity.SOURCE_ACTIVITY.toLong(),
+				SourceDestinationOwnerEntity.SOURCE_STEPS.toLong(),
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE.toLong(),
+				SourceDestinationOwnerEntity.SOURCE_WIFI.toLong(),
+				SourceDestinationOwnerEntity.SOURCE_CELL.toLong(),
+			)
 		}
 	}
 
@@ -309,6 +380,7 @@ data class SourceRunRetirementEntity(
 		const val STATE_REQUESTED = "REQUESTED"
 		const val STATE_ACKNOWLEDGED = "ACKNOWLEDGED"
 		const val STATE_INTERRUPTED = "INTERRUPTED"
+		private const val STOP_STATUS_PROCESS_RESTARTED = "PROCESS_RESTARTED"
 		val STATES = setOf(STATE_REQUESTED, STATE_ACKNOWLEDGED, STATE_INTERRUPTED)
 	}
 }

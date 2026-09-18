@@ -267,6 +267,287 @@ data class SessionManifestSourceEntity(
 		}
 	}
 
+	/**
+	 * Nullable pre-validation projection for immutable manifest authentication.
+	 *
+	 * SQLite storage classes and scalar ranges are authenticated before the validated entity is
+	 * constructed, so Room never materializes malformed durable input as this validated entity.
+	 */
+	@Suppress("LongParameterList")
+	data class RawSessionManifestSource(
+		@ColumnInfo(name = "storage_class_signature") val storageClassSignature: String?,
+		@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
+		@ColumnInfo(name = "manifest_revision") val manifestRevision: Long?,
+		@ColumnInfo(name = "source_kind") val sourceKind: Long?,
+		@ColumnInfo(name = "purpose") val purpose: String?,
+		@ColumnInfo(name = "consent_epoch") val consentEpoch: Long?,
+		@ColumnInfo(name = "persistence_eligible") val persistenceEligible: Long?,
+		@ColumnInfo(name = "qos_code") val qosCode: Long?,
+		@ColumnInfo(name = "output_destination") val outputDestination: String?,
+		@ColumnInfo(name = "writer_owner") val writerOwner: String?,
+		@ColumnInfo(name = "writer_owner_generation") val writerOwnerGeneration: Long?,
+		@ColumnInfo(name = "writer_projection_id") val writerProjectionId: String?,
+		@ColumnInfo(name = "writer_projection_version") val writerProjectionVersion: Long?,
+		@ColumnInfo(name = "writer_binding_generation") val writerBindingGeneration: Long?,
+	) {
+		@Suppress("ComplexCondition", "ReturnCount")
+		fun validatedOrNull(): SessionManifestSourceEntity? {
+			val storageClasses = storageClassSignature?.split(STORAGE_CLASS_SEPARATOR)
+				?.takeIf { it.size == STORAGE_CLASS_COUNT }
+				?: return null
+			if (
+				!storageClasses.hasExactClass(LOGICAL_TRACKING_ID_INDEX, SQLITE_TEXT) ||
+				!storageClasses.hasExactClass(MANIFEST_REVISION_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(SOURCE_KIND_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(PURPOSE_INDEX, SQLITE_TEXT) ||
+				!storageClasses.hasExactClass(CONSENT_EPOCH_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(PERSISTENCE_ELIGIBLE_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasExactClass(QOS_CODE_INDEX, SQLITE_INTEGER) ||
+				!storageClasses.hasNullableClass(
+					OUTPUT_DESTINATION_INDEX,
+					outputDestination,
+					SQLITE_TEXT,
+				) ||
+				!storageClasses.hasNullableClass(WRITER_OWNER_INDEX, writerOwner, SQLITE_TEXT) ||
+				!storageClasses.hasNullableClass(
+					WRITER_OWNER_GENERATION_INDEX,
+					writerOwnerGeneration,
+					SQLITE_INTEGER,
+				) ||
+				!storageClasses.hasNullableClass(
+					WRITER_PROJECTION_ID_INDEX,
+					writerProjectionId,
+					SQLITE_TEXT,
+				) ||
+				!storageClasses.hasNullableClass(
+					WRITER_PROJECTION_VERSION_INDEX,
+					writerProjectionVersion,
+					SQLITE_INTEGER,
+				) ||
+				!storageClasses.hasNullableClass(
+					WRITER_BINDING_GENERATION_INDEX,
+					writerBindingGeneration,
+					SQLITE_INTEGER,
+				)
+			) {
+				return null
+			}
+			val validatedLogicalTrackingId = logicalTrackingId
+				?.takeIf(String::isNotBlank)
+				?: return null
+			val validatedManifestRevision = manifestRevision
+				?.takeIf { it > 0L }
+				?: return null
+			val validatedSourceKind = sourceKind
+				?.takeIf { it in SOURCE_KINDS }
+				?.toInt()
+				?: return null
+			val validatedPurpose = purpose
+				?.takeIf { it in SessionManifestPurposeCode.ALL }
+				?: return null
+			val validatedConsentEpoch = consentEpoch
+				?.takeIf { it >= 0L }
+				?: return null
+			val validatedPersistenceEligible = when (persistenceEligible) {
+				0L -> false
+				1L -> true
+				else -> return null
+			}
+			val validatedQosCode = qosCode
+				?.takeIf { it in MIN_QOS_CODE..MAX_QOS_CODE }
+				?.toInt()
+				?: return null
+			if (
+				validatedPurpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
+				(!validatedPersistenceEligible || validatedQosCode == 0)
+			) {
+				return null
+			}
+			val validatedProjectionVersion = when (val version = writerProjectionVersion) {
+				null -> null
+				in 1L..Int.MAX_VALUE.toLong() -> version.toInt()
+				else -> return null
+			}
+			if (
+				outputDestination?.isBlank() == true ||
+				writerOwner?.isBlank() == true ||
+				writerOwnerGeneration?.let { it <= 0L } == true ||
+				writerProjectionId?.isBlank() == true ||
+				writerBindingGeneration?.let { it <= 0L } == true
+			) {
+				return null
+			}
+			val writerProvenance = listOf(outputDestination, writerOwner, writerOwnerGeneration)
+			val projectionProvenance = listOf(
+				writerProjectionId,
+				writerProjectionVersion,
+				writerBindingGeneration,
+			)
+			if (
+				!(writerProvenance.all { it == null } || writerProvenance.all { it != null }) ||
+				!(projectionProvenance.all { it == null } || projectionProvenance.all { it != null }) ||
+				(writerProjectionId != null && outputDestination == null)
+			) {
+				return null
+			}
+			if (!hasValidWriterContract(
+					sourceKind = validatedSourceKind,
+					purpose = validatedPurpose,
+					persistenceEligible = validatedPersistenceEligible,
+					outputDestination = outputDestination,
+					writerOwner = writerOwner,
+					writerOwnerGeneration = writerOwnerGeneration,
+					writerProjectionId = writerProjectionId,
+					writerProjectionVersion = validatedProjectionVersion,
+					writerBindingGeneration = writerBindingGeneration,
+				)
+			) {
+				return null
+			}
+			return runCatching {
+				SessionManifestSourceEntity(
+					logicalTrackingId = validatedLogicalTrackingId,
+					manifestRevision = validatedManifestRevision,
+					sourceKind = validatedSourceKind,
+					purpose = validatedPurpose,
+					consentEpoch = validatedConsentEpoch,
+					persistenceEligible = validatedPersistenceEligible,
+					qosCode = validatedQosCode,
+					outputDestination = outputDestination,
+					writerOwner = writerOwner,
+					writerOwnerGeneration = writerOwnerGeneration,
+					writerProjectionId = writerProjectionId,
+					writerProjectionVersion = validatedProjectionVersion,
+					writerBindingGeneration = writerBindingGeneration,
+				)
+			}.getOrNull()
+		}
+
+		@Suppress("ComplexCondition", "LongParameterList")
+		private fun hasValidWriterContract(
+			sourceKind: Int,
+			purpose: String,
+			persistenceEligible: Boolean,
+			outputDestination: String?,
+			writerOwner: String?,
+			writerOwnerGeneration: Long?,
+			writerProjectionId: String?,
+			writerProjectionVersion: Int?,
+			writerBindingGeneration: Long?,
+		): Boolean {
+			if (purpose != SessionManifestPurposeCode.SESSION_CAPTURE || !persistenceEligible) {
+				return outputDestination == null && writerProjectionId == null
+			}
+			return when (sourceKind) {
+				SourceDestinationOwnerEntity.SOURCE_ACTIVITY -> outputDestination == null ||
+					(outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY &&
+						when (writerOwner) {
+							SourceDestinationOwnerEntity.OWNER_LEGACY_ACTIVITY_SNAPSHOT ->
+								writerOwnerGeneration ==
+									SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION &&
+									writerProjectionId == null
+							SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS ->
+								writerProjectionId ==
+									SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID &&
+									writerProjectionVersion ==
+									SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION &&
+									writerOwnerGeneration ==
+									canonicalOwnerGenerationOrNull(writerBindingGeneration)
+							else -> false
+						})
+				SourceDestinationOwnerEntity.SOURCE_CELL -> outputDestination == null ||
+					(outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL &&
+						writerOwner == SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS &&
+						writerProjectionId == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID &&
+						writerProjectionVersion ==
+						SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION &&
+						writerOwnerGeneration ==
+						canonicalOwnerGenerationOrNull(writerBindingGeneration))
+				SourceDestinationOwnerEntity.SOURCE_STEPS ->
+					outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS &&
+						when (writerOwner) {
+							SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL ->
+								writerProjectionId == null
+							SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS ->
+								writerProjectionId != null
+							else -> false
+						}
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE ->
+					outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE &&
+						when (writerOwner) {
+							SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE ->
+								writerOwnerGeneration ==
+									SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION &&
+									writerProjectionId == null
+							SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS ->
+								writerProjectionId ==
+									SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID &&
+									writerProjectionVersion ==
+									SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION &&
+									writerOwnerGeneration ==
+									canonicalOwnerGenerationOrNull(writerBindingGeneration)
+							else -> false
+						}
+				SourceDestinationOwnerEntity.SOURCE_WIFI -> outputDestination == null ||
+					(outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI &&
+						writerOwner == SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS &&
+						writerProjectionId == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID &&
+						writerProjectionVersion ==
+						SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION &&
+						writerOwnerGeneration ==
+						canonicalOwnerGenerationOrNull(writerBindingGeneration))
+				else -> outputDestination == null && writerProjectionId == null
+			}
+		}
+
+		private fun canonicalOwnerGenerationOrNull(bindingGeneration: Long?): Long? =
+			bindingGeneration?.let { generation ->
+				runCatching {
+					SourceWriterGenerationContract.canonicalOwnerGeneration(generation)
+				}.getOrNull()
+			}
+
+		private fun List<String>.hasExactClass(index: Int, expected: String): Boolean =
+			getOrNull(index) == expected
+
+		private fun List<String>.hasNullableClass(
+			index: Int,
+			value: Any?,
+			presentClass: String,
+		): Boolean = getOrNull(index) == if (value == null) SQLITE_NULL else presentClass
+
+		private companion object {
+			const val STORAGE_CLASS_SEPARATOR = '|'
+			const val STORAGE_CLASS_COUNT = 13
+			const val LOGICAL_TRACKING_ID_INDEX = 0
+			const val MANIFEST_REVISION_INDEX = 1
+			const val SOURCE_KIND_INDEX = 2
+			const val PURPOSE_INDEX = 3
+			const val CONSENT_EPOCH_INDEX = 4
+			const val PERSISTENCE_ELIGIBLE_INDEX = 5
+			const val QOS_CODE_INDEX = 6
+			const val OUTPUT_DESTINATION_INDEX = 7
+			const val WRITER_OWNER_INDEX = 8
+			const val WRITER_OWNER_GENERATION_INDEX = 9
+			const val WRITER_PROJECTION_ID_INDEX = 10
+			const val WRITER_PROJECTION_VERSION_INDEX = 11
+			const val WRITER_BINDING_GENERATION_INDEX = 12
+			const val MIN_QOS_CODE = 0L
+			const val MAX_QOS_CODE = 3L
+			const val SQLITE_INTEGER = "integer"
+			const val SQLITE_TEXT = "text"
+			const val SQLITE_NULL = "null"
+			val SOURCE_KINDS = setOf(
+				SourceDestinationOwnerEntity.SOURCE_LOCATION.toLong(),
+				SourceDestinationOwnerEntity.SOURCE_ACTIVITY.toLong(),
+				SourceDestinationOwnerEntity.SOURCE_STEPS.toLong(),
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE.toLong(),
+				SourceDestinationOwnerEntity.SOURCE_WIFI.toLong(),
+				SourceDestinationOwnerEntity.SOURCE_CELL.toLong(),
+			)
+		}
+	}
+
 	private fun requireActivityWriter() {
 		require(outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY) {
 			"Activity capture must target the permanent session Activity destination"

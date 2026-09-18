@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
@@ -72,6 +73,57 @@ class SourceSessionDaoTest {
 		dao.manifestByServiceRunRevision("run-a", 3L)?.serviceRunId shouldBe "run-a"
 		dao.manifestByServiceRunRevision("run-b", 3L) shouldBe null
 		dao.manifests(LOGICAL_ID).map { it.manifestRevision } shouldContainExactly listOf(1L, 2L, 3L)
+	}
+
+	@Test
+	fun `raw manifest source projection applies deterministic SQL limit before validation`() = runTest {
+		val sources = listOf(
+			validControlManifestSource(SourceDestinationOwnerEntity.SOURCE_LOCATION),
+			validControlManifestSource(SourceDestinationOwnerEntity.SOURCE_ACTIVITY),
+			validControlManifestSource(SourceDestinationOwnerEntity.SOURCE_STEPS),
+		)
+		dao.insertManifestSources(sources.reversed())
+
+		val bounded = dao.rawManifestSources(LOGICAL_ID, 1L, limit = 2)
+			.map { raw -> requireNotNull(raw.validatedOrNull()) }
+		bounded.map(SessionManifestSourceEntity::sourceKind) shouldContainExactly listOf(
+			SourceDestinationOwnerEntity.SOURCE_LOCATION,
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+		)
+
+		val all = dao.rawManifestSources(LOGICAL_ID, 1L, limit = 4)
+			.map { raw -> requireNotNull(raw.validatedOrNull()) }
+		all shouldContainExactly sources
+		val unsigned = manifest(revision = 1L, serviceRunId = "run-a")
+		SessionManifestIntegrity.compute(unsigned, all) shouldBe
+			SessionManifestIntegrity.compute(unsigned, sources.reversed())
+	}
+
+	@Test
+	fun `raw manifest source projection rejects storage enums ranges and null provenance`() = runTest {
+		val original = candidateStepsManifestSource()
+		val mutations = listOf(
+			"blob" to "source_kind = X'03'",
+			"real" to "consent_epoch = 1.5",
+			"nullable provenance" to "writer_owner = NULL",
+			"unknown writer" to "writer_owner = 'UNKNOWN'",
+			"unknown purpose" to "purpose = 'UNKNOWN'",
+			"invalid QoS" to "qos_code = 4",
+			"projection version overflow" to "writer_projection_version = 2147483648",
+			"invalid boolean" to "persistence_eligible = 2",
+		)
+		for ((_, assignment) in mutations) {
+			dao.insertManifestSources(listOf(original))
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE session_manifest_source SET $assignment " +
+					"WHERE logical_tracking_id = ? AND manifest_revision = ?",
+				arrayOf(LOGICAL_ID, 1L),
+			)
+
+			dao.rawManifestSources(LOGICAL_ID, 1L, limit = 2)
+				.single().validatedOrNull() shouldBe null
+			dao.deleteAllManifestSources()
+		}
 	}
 
 	@Test
@@ -673,6 +725,32 @@ class SourceSessionDaoTest {
 		consentEpoch = 1L,
 		persistenceEligible = false,
 		qosCode = 0,
+	)
+
+	private fun validControlManifestSource(sourceKind: Int) = SessionManifestSourceEntity(
+		logicalTrackingId = LOGICAL_ID,
+		manifestRevision = 1L,
+		sourceKind = sourceKind,
+		purpose = SessionManifestPurposeCode.CONTROL,
+		consentEpoch = 1L,
+		persistenceEligible = false,
+		qosCode = 0,
+	)
+
+	private fun candidateStepsManifestSource() = SessionManifestSourceEntity(
+		logicalTrackingId = LOGICAL_ID,
+		manifestRevision = 1L,
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+		consentEpoch = 1L,
+		persistenceEligible = true,
+		qosCode = 1,
+		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+		writerOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+		writerOwnerGeneration = 2L,
+		writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+		writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+		writerBindingGeneration = 1L,
 	)
 
 	private fun completeness(
