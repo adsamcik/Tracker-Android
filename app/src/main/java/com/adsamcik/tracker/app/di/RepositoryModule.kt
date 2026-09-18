@@ -28,6 +28,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.AndroidSourcePolicyEffec
 import com.adsamcik.tracker.shared.preferences.tracking.AuthoritativeTrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationCoordinator
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -120,7 +121,7 @@ abstract class RepositoryModule {
 
 		@Provides
 		@Singleton
-		fun provideTrackingParamsRepository(
+		fun provideAuthoritativeTrackingParamsRepository(
 			@ApplicationContext context: Context,
 			dispatchers: DispatchersProvider,
 			sourcePolicyRepository: SourcePolicyRepository,
@@ -128,7 +129,7 @@ abstract class RepositoryModule {
 			trackingStartupGate: TrackingStartupGate,
 			retentionAuthorityProducer: RetentionAuthorityProducer,
 			ambientStepsProviderLifecycle: Provider<AmbientStepsProviderLifecycle>,
-		): TrackingParamsRepository = AuthoritativeTrackingParamsRepository(
+		): AuthoritativeTrackingParamsRepository = AuthoritativeTrackingParamsRepository(
 			legacy = DefaultTrackingParamsRepository(
 				context = context,
 				io = dispatchers.io,
@@ -150,6 +151,16 @@ abstract class RepositoryModule {
 							.toPolicyRevisionReconciliation()
 				},
 		)
+
+		@Provides
+		fun provideTrackingParamsRepository(
+			repository: AuthoritativeTrackingParamsRepository,
+		): TrackingParamsRepository = repository
+
+		@Provides
+		fun provideSourcePolicyRevisionReconciliationCoordinator(
+			repository: AuthoritativeTrackingParamsRepository,
+		): SourcePolicyRevisionReconciliationCoordinator = repository
 
 		@Provides
 		@Singleton

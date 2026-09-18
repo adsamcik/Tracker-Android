@@ -12,6 +12,13 @@ import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationException
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationFailure
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationCoordinator
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationDebt
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationResult
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationState
+import com.adsamcik.tracker.shared.preferences.tracking.UnavailableSourcePolicyRevisionReconciliationCoordinator
 import com.adsamcik.tracker.tracker.source.battery.QualitativeBatteryImpactEstimator
 import com.adsamcik.tracker.tracker.source.coordinator.DefaultTrackingSettingsStatusProvider
 import com.adsamcik.tracker.tracker.source.coordinator.SemanticAcquisitionPlanFactory
@@ -189,6 +196,9 @@ class TrackingSettingsViewModelTest {
 
     private fun createViewModel(
         nearbyWifiGranted: Boolean = true,
+		sourcePolicyReconciliationCoordinator:
+			SourcePolicyRevisionReconciliationCoordinator =
+			UnavailableSourcePolicyRevisionReconciliationCoordinator,
     ): TrackingSettingsViewModel {
         paramsFlow.value = TrackingParamsState()
 		purposeAvailabilityFlow.value = CurrentTrackingPurposeAvailability.SAFE_DEFAULT
@@ -203,6 +213,7 @@ class TrackingSettingsViewModelTest {
             purposeAvailabilityReader,
 			ambientStepsProviderLifecycle,
 			purposeSettingsReconciler,
+			sourcePolicyReconciliationCoordinator,
         )
     }
 
@@ -716,6 +727,53 @@ class TrackingSettingsViewModelTest {
     @Nested
     @DisplayName("Preset management")
     inner class PresetManagement {
+
+		@Test
+		fun `post commit source reconciliation debt still marks the preset custom`() =
+			runTest(testDispatcher) {
+				val failure = SourcePolicyRevisionReconciliationException(
+					listOf(SourcePolicyRevisionReconciliationFailure.SourcePolicyUnavailable),
+				)
+				coEvery { trackingParamsRepository.setWifiEnabled(false) } throws failure
+				val vm = createViewModel()
+				advanceUntilIdle()
+
+				vm.setWifiEnabled(false)
+				advanceUntilIdle()
+
+				coVerify(exactly = 1) {
+					trackingParamsRepository.setPreset(TrackingPreset.CUSTOM)
+				}
+				vm.uiState.value.sourcePolicyReconciliationDebt?.failures shouldBe
+					failure.failures
+			}
+
+		@Test
+		fun `published source reconciliation debt exposes an explicit retry`() =
+			runTest(testDispatcher) {
+				val debt = SourcePolicyRevisionReconciliationDebt(
+					policyRevision = 4L,
+					failures = listOf(
+						SourcePolicyRevisionReconciliationFailure.SourcePolicyUnavailable,
+					),
+				)
+				val coordinator = mockk<SourcePolicyRevisionReconciliationCoordinator>()
+				every { coordinator.reconciliationState } returns MutableStateFlow(
+					SourcePolicyRevisionReconciliationState.Debt(debt),
+				)
+				coEvery { coordinator.reconcileCurrentPolicyRevision() } returns
+					SourcePolicyRevisionReconciliationResult.Retryable(debt)
+				val vm = createViewModel(
+					sourcePolicyReconciliationCoordinator = coordinator,
+				)
+				advanceUntilIdle()
+
+				vm.uiState.value.sourcePolicyReconciliationDebt shouldBe debt
+				vm.retrySourcePolicyReconciliation()
+				advanceUntilIdle()
+
+				coVerify(exactly = 1) { coordinator.reconcileCurrentPolicyRevision() }
+			}
 
         @Test
         fun `applyPreset POWER_SAVE updates all settings`() = runTest(testDispatcher) {

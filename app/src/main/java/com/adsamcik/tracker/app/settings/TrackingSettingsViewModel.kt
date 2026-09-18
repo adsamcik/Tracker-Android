@@ -20,7 +20,12 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionSettings
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationCoordinator
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationDebt
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationException
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.shared.preferences.tracking.UnavailableSourcePolicyRevisionReconciliationCoordinator
 import com.adsamcik.tracker.tracker.source.battery.BatteryImpactEstimate
 import com.adsamcik.tracker.tracker.source.battery.ImpactLevel
 import com.adsamcik.tracker.tracker.source.coordinator.EffectiveSourceStatus
@@ -105,6 +110,7 @@ data class TrackingSettingsUiState(
     val appliedPlanRevision: Long? = null,
     val runtimeFailureCode: String? = null,
     val ambientStepsSettingsFailure: AmbientStepsSettingsReconciliationFailure? = null,
+	val sourcePolicyReconciliationDebt: SourcePolicyRevisionReconciliationDebt? = null,
     val runtimeTelemetry: TrackingCoordinatorMetrics = TrackingCoordinatorMetrics.ZERO,
 )
 
@@ -119,6 +125,9 @@ class TrackingSettingsViewModel @Inject constructor(
 		NoOpAmbientStepsProviderLifecycle,
 	private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler =
 		TrackingPurposeSettingsReconciler { },
+	private val sourcePolicyReconciliationCoordinator:
+		SourcePolicyRevisionReconciliationCoordinator =
+		UnavailableSourcePolicyRevisionReconciliationCoordinator,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TrackingSettingsUiState())
@@ -152,6 +161,16 @@ class TrackingSettingsViewModel @Inject constructor(
                 _uiState.update { state -> state.copy(runtimeTelemetry = telemetry) }
             }
         }
+		viewModelScope.launch {
+			sourcePolicyReconciliationCoordinator.reconciliationState.collect { reconciliation ->
+				_uiState.update { state ->
+					state.copy(
+						sourcePolicyReconciliationDebt =
+							(reconciliation as? SourcePolicyRevisionReconciliationState.Debt)?.debt,
+					)
+				}
+			}
+		}
     }
 
     /** Re-evaluates permission- and hardware-gated state after returning to this screen. */
@@ -167,71 +186,63 @@ class TrackingSettingsViewModel @Inject constructor(
     }
 
     fun setLocationEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            trackingParamsRepository.setLocationEnabled(enabled)
-            markCustomPreset()
-        }
+		launchSourcePolicyMutation(markCustomPreset = true) {
+			trackingParamsRepository.setLocationEnabled(enabled)
+		}
     }
 
     fun setActivityEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            trackingParamsRepository.setActivityEnabled(enabled)
-            markCustomPreset()
-        }
+		launchSourcePolicyMutation(markCustomPreset = true) {
+			trackingParamsRepository.setActivityEnabled(enabled)
+		}
     }
 
     fun setStepsEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            trackingParamsRepository.setStepsEnabled(enabled)
-            markCustomPreset()
-        }
+		launchSourcePolicyMutation(markCustomPreset = true) {
+			trackingParamsRepository.setStepsEnabled(enabled)
+		}
     }
 
     fun setWifiEnabled(enabled: Boolean) {
-        viewModelScope.launch {
+		launchSourcePolicyMutation(markCustomPreset = true) {
             // Persist the user's intent. Actual scanning is guarded at runtime by the Wi-Fi
             // producer (which re-checks the permission every cycle and nudges the user to grant
             // it), and the UI's effective state still gates display on the permission. Coercing
             // to false here previously discarded the intent if the permission check raced the
             // grant callback, leaving the toggle stuck off.
             trackingParamsRepository.setWifiEnabled(enabled)
-            markCustomPreset()
-        }
+		}
     }
 
     fun setCellEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            trackingParamsRepository.setCellEnabled(enabled)
-            markCustomPreset()
-        }
+		launchSourcePolicyMutation(markCustomPreset = true) {
+			trackingParamsRepository.setCellEnabled(enabled)
+		}
     }
 
     fun setBarometerEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            trackingParamsRepository.setBarometerEnabled(enabled)
-            markCustomPreset()
-        }
+		launchSourcePolicyMutation(markCustomPreset = true) {
+			trackingParamsRepository.setBarometerEnabled(enabled)
+		}
     }
 
 	fun setAmbientLocationEnabled(enabled: Boolean) {
-		viewModelScope.launch {
+		launchSourcePolicyMutation {
 			trackingParamsRepository.setAmbientLocationEnabled(enabled)
 		}
 	}
 
 	fun setAmbientStepsEnabled(enabled: Boolean) {
-		viewModelScope.launch {
-			try {
-				trackingParamsRepository.setAmbientStepsEnabled(enabled)
+		launchSourcePolicyMutation(
+			afterCommittedMutation = {
 				purposeSettingsReconciler.reconcileCurrentSettings()
 				val reconciliation =
 					ambientStepsProviderLifecycle.reconcileAfterSettingsChange()
 				_uiState.update { state ->
 					state.copy(ambientStepsSettingsFailure = reconciliation.failure)
 				}
-			} catch (cancelled: kotlin.coroutines.cancellation.CancellationException) {
-				throw cancelled
-			} catch (_: Exception) {
+			},
+			onAfterCommittedMutationFailure = {
 				_uiState.update { state ->
 					state.copy(
 						ambientStepsSettingsFailure =
@@ -239,18 +250,20 @@ class TrackingSettingsViewModel @Inject constructor(
 								.DURABLE_AUTHORITY_REJECTED,
 					)
 				}
-			}
+			},
+		) {
+			trackingParamsRepository.setAmbientStepsEnabled(enabled)
 		}
 	}
 
 	fun setAmbientWifiEnabled(enabled: Boolean) {
-		viewModelScope.launch {
+		launchSourcePolicyMutation {
 			trackingParamsRepository.setAmbientWifiEnabled(enabled)
 		}
 	}
 
 	fun setAmbientCellEnabled(enabled: Boolean) {
-		viewModelScope.launch {
+		launchSourcePolicyMutation {
 			trackingParamsRepository.setAmbientCellEnabled(enabled)
 		}
 	}
@@ -262,10 +275,9 @@ class TrackingSettingsViewModel @Inject constructor(
     }
 
     fun setSourceFrequency(component: TrackingSourceComponent, frequency: SourceCollectionFrequency) {
-        viewModelScope.launch {
-            trackingParamsRepository.setSourceFrequency(component, frequency)
-            markCustomPreset()
-        }
+		launchSourcePolicyMutation(markCustomPreset = true) {
+			trackingParamsRepository.setSourceFrequency(component, frequency)
+		}
     }
 
     fun onActivityPermissionResult(granted: Boolean) {
@@ -293,9 +305,9 @@ class TrackingSettingsViewModel @Inject constructor(
     }
 
     fun setTransitionDetectionEnabled(enabled: Boolean) {
-        viewModelScope.launch {
+		launchSourcePolicyMutation {
             trackingParamsRepository.setTransitionDetectionEnabled(enabled)
-        }
+		}
     }
 
     /**
@@ -311,23 +323,26 @@ class TrackingSettingsViewModel @Inject constructor(
         require(mode in AUTO_TRACKING_MODE_DISABLED..AUTO_TRACKING_MODE_ALL_MOVEMENT) {
             "Unsupported automatic tracking mode: $mode"
         }
-        viewModelScope.launch {
+		launchSourcePolicyMutation(
+			afterCommittedMutation = {
+				val published =
+					purposeAvailabilityReader.availability.value.automaticControl as?
+						AutomaticTrackingOperationalAvailability.Ready
+				val current = published != null &&
+					try {
+						purposeAvailabilityReader.isCurrent(published.identity)
+					} catch (cancelled: CancellationException) {
+						throw cancelled
+					} catch (_: Exception) {
+						false
+					}
+				val effectiveMode = mode.takeIf { current && context.hasActivityPermission }
+					?: AUTO_TRACKING_MODE_DISABLED
+				activityWatcherController.applyAutoTrackingMode(effectiveMode)
+			},
+		) {
             trackingParamsRepository.update { copy(autoTrackingMode = mode) }
-			val published =
-				purposeAvailabilityReader.availability.value.automaticControl as?
-					AutomaticTrackingOperationalAvailability.Ready
-			val current = published != null &&
-				try {
-					purposeAvailabilityReader.isCurrent(published.identity)
-				} catch (cancelled: CancellationException) {
-					throw cancelled
-				} catch (_: Exception) {
-					false
-				}
-			val effectiveMode = mode.takeIf { current && context.hasActivityPermission }
-				?: AUTO_TRACKING_MODE_DISABLED
-            activityWatcherController.applyAutoTrackingMode(effectiveMode)
-        }
+		}
     }
 
     fun onAutoTrackingPermissionResult(requestedMode: Int, granted: Boolean) {
@@ -341,28 +356,25 @@ class TrackingSettingsViewModel @Inject constructor(
         }
     }
     fun setMinDistance(distance: Int) {
-        viewModelScope.launch {
-            trackingParamsRepository.setMinDistanceMeters(distance)
-            markCustomPreset()
-        }
+		launchSourcePolicyMutation(markCustomPreset = true) {
+			trackingParamsRepository.setMinDistanceMeters(distance)
+		}
     }
 
     fun setMinTime(time: Int) {
-        viewModelScope.launch {
-            trackingParamsRepository.setMinTimeSeconds(time)
-            markCustomPreset()
-        }
+		launchSourcePolicyMutation(markCustomPreset = true) {
+			trackingParamsRepository.setMinTimeSeconds(time)
+		}
     }
 
     fun setRequiredAccuracy(accuracy: Int) {
-        viewModelScope.launch {
-            trackingParamsRepository.setRequiredAccuracyMeters(accuracy)
-            markCustomPreset()
-        }
+		launchSourcePolicyMutation(markCustomPreset = true) {
+			trackingParamsRepository.setRequiredAccuracyMeters(accuracy)
+		}
     }
 
     fun applyPreset(preset: TrackingPreset) {
-        viewModelScope.launch {
+		launchSourcePolicyMutation {
             val config = preset
             trackingParamsRepository.update {
                 copy(
@@ -405,9 +417,15 @@ class TrackingSettingsViewModel @Inject constructor(
                         TrackingPreset.CUSTOM -> sourceCollectionSettings
                     },
                 )
-            }
-        }
-    }
+			}
+		}
+	}
+
+	fun retrySourcePolicyReconciliation() {
+		viewModelScope.launch {
+			sourcePolicyReconciliationCoordinator.reconcileCurrentPolicyRevision()
+		}
+	}
 
     private fun updateUiState(
         params: TrackingParamsState,
@@ -491,6 +509,54 @@ class TrackingSettingsViewModel @Inject constructor(
         if (_uiState.value.currentPreset != TrackingPreset.CUSTOM) {
             trackingParamsRepository.setPreset(TrackingPreset.CUSTOM)
         }
+
+	private fun launchSourcePolicyMutation(
+		markCustomPreset: Boolean = false,
+		afterCommittedMutation: suspend () -> Unit = { },
+		onAfterCommittedMutationFailure: (Exception) -> Unit = { },
+		mutation: suspend () -> Unit,
+	) {
+		viewModelScope.launch {
+			var committed = false
+			var postCommitDebt = false
+			try {
+				mutation()
+				committed = true
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (failure: SourcePolicyRevisionReconciliationException) {
+				committed = true
+				postCommitDebt = true
+				_uiState.update { state ->
+					state.copy(
+						sourcePolicyReconciliationDebt =
+							SourcePolicyRevisionReconciliationDebt(
+								policyRevision = state.sourcePolicyRevision,
+								failures = failure.failures,
+							),
+					)
+				}
+			}
+			if (!committed) return@launch
+			if (markCustomPreset) {
+				markCustomPreset()
+			}
+			if (
+				postCommitDebt ||
+				sourcePolicyReconciliationCoordinator.reconciliationState.value is
+					SourcePolicyRevisionReconciliationState.Debt
+			) {
+				return@launch
+			}
+			try {
+				afterCommittedMutation()
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (failure: Exception) {
+				onAfterCommittedMutationFailure(failure)
+			}
+		}
+	}
     }
 
     private fun previewEnvironment(

@@ -232,8 +232,12 @@ object InfrastructureModule {
 		automaticControlRestorer = automaticControlRestorer,
 		retentionAuthorityProducer = retentionAuthorityProducer,
 		purposeSettingsReconciler = purposeSettingsReconciler,
-		postDatabaseDeletion = { updatedAtMs ->
-			stepsWriterTransitionCoordinator.get().rearmAfterFullDeletion(updatedAtMs)
+		postDatabaseDeletion = { operation ->
+			stepsWriterTransitionCoordinator.get().rearmAfterFullDeletion(
+				operationId = operation.operationId,
+				targetCollectedDataEpoch = operation.targetCollectedDataEpoch,
+				updatedAtMs = operation.deletedAtMs,
+			)
 		},
         traceboxDataDeletion = {
             withContext(dispatchersProvider.io) {

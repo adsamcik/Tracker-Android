@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -46,6 +47,28 @@ interface CollectedDataLifecycleStore {
 	suspend fun beginFullDeletion(deletedAtMs: Long): CollectedDataLifecycleSnapshot
 
 	/**
+	 * Idempotently advances to the exact epoch reserved by a durable deletion operation.
+	 * Production implementations bind the epoch to [operationId] in the same DataStore edit.
+	 */
+	suspend fun beginFullDeletion(
+		operationId: String,
+		targetEpoch: Long,
+		deletedAtMs: Long,
+	): CollectedDataLifecycleSnapshot {
+		require(operationId.isNotBlank())
+		val current = snapshot()
+		if (current.epoch == targetEpoch) return current
+		check(Math.addExact(current.epoch, 1L) == targetEpoch) {
+			"Collected-data deletion target epoch is not the next lifecycle epoch"
+		}
+		return beginFullDeletion(deletedAtMs).also { advanced ->
+			check(advanced.epoch == targetEpoch) {
+				"Collected-data deletion advanced to an unexpected lifecycle epoch"
+			}
+		}
+	}
+
+	/**
 	 * Advances the lower retention boundary.  The boundary never moves backwards,
 	 * so loosening a retention preference cannot resurrect delayed old signals.
 	 */
@@ -80,6 +103,42 @@ class DefaultCollectedDataLifecycleStore(
 		)
 	}
 
+	override suspend fun beginFullDeletion(
+		operationId: String,
+		targetEpoch: Long,
+		deletedAtMs: Long,
+	): CollectedDataLifecycleSnapshot {
+		require(operationId.isNotBlank())
+		require(targetEpoch > 0L)
+		require(deletedAtMs >= 0L)
+		var updated: CollectedDataLifecycleSnapshot? = null
+		dataStore.edit { preferences ->
+			val current = preferences.toSnapshot()
+			val lastOperationId = preferences[LAST_FULL_DELETION_OPERATION_ID_KEY]
+			val next = when {
+				current.epoch == targetEpoch && lastOperationId == operationId -> current
+				Math.addExact(current.epoch, 1L) == targetEpoch -> current.copy(
+					epoch = targetEpoch,
+					retainedFromMs = current.retainedFromMs
+						?.let { maxOf(it, deletedAtMs) }
+						?: deletedAtMs,
+				)
+				else -> error(
+					"Collected-data deletion operation does not own the target lifecycle epoch",
+				)
+			}
+			preferences[EPOCH_KEY] = next.epoch
+			if (next.retainedFromMs == null) {
+				preferences.remove(RETAINED_FROM_KEY)
+			} else {
+				preferences[RETAINED_FROM_KEY] = next.retainedFromMs
+			}
+			preferences[LAST_FULL_DELETION_OPERATION_ID_KEY] = operationId
+			updated = next
+		}
+		return checkNotNull(updated)
+	}
+
 	override suspend fun advanceRetainedFrom(
 		retainedFromMs: Long,
 	): CollectedDataLifecycleSnapshot = update { current ->
@@ -109,6 +168,8 @@ class DefaultCollectedDataLifecycleStore(
 		const val INITIAL_EPOCH = 0L
 		val EPOCH_KEY = longPreferencesKey("epoch")
 		val RETAINED_FROM_KEY = longPreferencesKey("retained_from_ms")
+		val LAST_FULL_DELETION_OPERATION_ID_KEY =
+			stringPreferencesKey("last_full_deletion_operation_id")
 	}
 }
 

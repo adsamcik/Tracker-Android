@@ -16,6 +16,7 @@ import com.adsamcik.tracker.points.database.PointsAwardedDao
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.shared.base.database.legacy.LEGACY_DATABASE_NAME
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -48,6 +49,8 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.secondArg
+import io.mockk.thirdArg
 import io.mockk.verify
 import java.io.File
 import javax.inject.Provider
@@ -73,21 +76,29 @@ class CollectedDataDeletionServiceTest {
 	private lateinit var context: Application
 	private lateinit var markerFile: File
 	private lateinit var clearingMarkerFile: File
+	private lateinit var preparedMarkerFile: File
 	private val pointsAwardedDao: PointsAwardedDao = mockk()
 	private val exportPlanStore: ExportPlanStore = mockk()
 	private val writerQuiescer: CollectedDataWriterQuiescer = mockk()
 	private val collectedDataLifecycleStore: CollectedDataLifecycleStore = mockk()
 	private val automaticControlRestorer: PostDeletionAutomaticControlRestorer = mockk()
 	private lateinit var startupDeletionBarrier: TrackingStartupDeletionBarrier
+	private val databaseOperations =
+		mutableMapOf<String, CollectedDataDeletionOperationEntity>()
+	private var lifecycleSnapshot = CollectedDataLifecycleSnapshot(0L, null)
 
 	@Before
 	fun setUp() {
 		context = ApplicationProvider.getApplicationContext()
 		markerFile = File(context.cacheDir, "collected-data-deletion-test.pending")
 		clearingMarkerFile = File(markerFile.parentFile, "${markerFile.name}.clearing")
+		preparedMarkerFile = File(markerFile.parentFile, "${markerFile.name}.tmp")
 		startupDeletionBarrier = TrackingStartupDeletionBarrier()
 		markerFile.delete()
 		clearingMarkerFile.delete()
+		preparedMarkerFile.delete()
+		databaseOperations.clear()
+		lifecycleSnapshot = CollectedDataLifecycleSnapshot(0L, null)
 		RETIRED_DATABASE_NAMES.forEach {
 			context.deleteDatabase(it)
 			context.openOrCreateDatabase(it, Application.MODE_PRIVATE, null).close()
@@ -98,14 +109,23 @@ class CollectedDataDeletionServiceTest {
 		coEvery { writerQuiescer.quiesce() } just Runs
 		every { writerQuiescer.resume() } just Runs
 		every { automaticControlRestorer.schedule(any()) } just Runs
-		coEvery { collectedDataLifecycleStore.beginFullDeletion(any()) } returns
-			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 1L)
+		coEvery { collectedDataLifecycleStore.snapshot() } answers { lifecycleSnapshot }
+		coEvery {
+			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+		} answers {
+			lifecycleSnapshot = CollectedDataLifecycleSnapshot(
+				epoch = secondArg(),
+				retainedFromMs = thirdArg(),
+			)
+			lifecycleSnapshot
+		}
 	}
 
 	@After
 	fun tearDown() {
 		markerFile.delete()
 		clearingMarkerFile.delete()
+		preparedMarkerFile.delete()
 		RETIRED_DATABASE_NAMES.forEach(context::deleteDatabase)
 	}
 
@@ -126,9 +146,11 @@ class CollectedDataDeletionServiceTest {
 		verify(exactly = 1) { pointsAwardedDao.deleteAll() }
 		coVerify(exactly = 1) { exportPlanStore.resetAllWatermarks() }
 		coVerify(exactly = 2) { writerQuiescer.quiesce() }
-		coVerify(exactly = 1) { collectedDataLifecycleStore.beginFullDeletion(any()) }
+		coVerify(exactly = 1) {
+			collectedDataLifecycleStore.beginFullDeletion(any(), 1L, 1L)
+		}
 		coVerifyOrder {
-			collectedDataLifecycleStore.beginFullDeletion(any())
+			collectedDataLifecycleStore.beginFullDeletion(any(), 1L, 1L)
 			writerQuiescer.quiesce()
 			writerQuiescer.quiesce()
 		}
@@ -165,7 +187,9 @@ class CollectedDataDeletionServiceTest {
 
 		verify(exactly = 2) { pointsAwardedDao.deleteAll() }
 		coVerify(exactly = 4) { writerQuiescer.quiesce() }
-		coVerify(exactly = 2) { collectedDataLifecycleStore.beginFullDeletion(any()) }
+		coVerify(exactly = 2) {
+			collectedDataLifecycleStore.beginFullDeletion(any(), 1L, 1L)
+		}
 		verify(exactly = 0) { writerQuiescer.resume() }
 		verify(exactly = 1) { automaticControlRestorer.schedule(1L) }
 		coVerify(exactly = 1) { exportPlanStore.resetAllWatermarks() }
@@ -599,7 +623,14 @@ class CollectedDataDeletionServiceTest {
 
 	@Test
 	fun `cold pending deletion removes retired vaults before resolving provider owners`() = runTest {
-		markerFile.writeText("pending")
+		val interrupted = createService { _, _, _, _ ->
+			throw SQLiteException("interrupted before database commit")
+		}
+		runCatching { interrupted.deleteAll() }.exceptionOrNull()
+			.shouldBeInstanceOf<SQLiteException>()
+		RETIRED_DATABASE_NAMES.forEach {
+			context.openOrCreateDatabase(it, Application.MODE_PRIVATE, null).close()
+		}
 		val arbiter = mockk<ActivityRegistrationArbiter>()
 		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
 		coEvery { ambientSteps.reconcileAfterSettingsChange() } returns
@@ -683,16 +714,72 @@ class CollectedDataDeletionServiceTest {
 	}
 
 	@Test
-	fun `marker durability failure never closes the process gate`() = runTest {
+	fun `prepared marker durability failure keeps admission and providers closed`() = runTest {
 		val service = createService(
 			directorySync = { error("fsync failed") },
 		) { _, _, _, _ -> error("database deletion must not start") }
 
-		runCatching { service.deleteAll() }.exceptionOrNull()
-			.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+		service.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+			CollectedDataDeletionReconciliationFailure.DeletionMarkerPublication,
+		)
 
+		preparedMarkerFile.exists() shouldBe true
+		startupDeletionBarrier.isClosed shouldBe true
+		coVerify(exactly = 0) {
+			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+		}
+		coVerify(exactly = 1) { writerQuiescer.quiesce() }
+	}
+
+	@Test
+	fun `rename fsync uncertainty preserves marker and closes admission before payload work`() =
+		runTest {
+			var syncCount = 0
+			val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
+			coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
+				AmbientStepsProviderCleanupResult(complete = true)
+			val service = createService(
+				ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
+				directorySync = {
+					syncCount += 1
+					if (syncCount == 2) error("renamed entry fsync failed")
+				},
+			) { _, _, _, _ -> error("database deletion must not start") }
+
+			service.deleteAll() shouldBe CollectedDataDeletionCompletion.Unverifiable(
+				CollectedDataDeletionReconciliationFailure.DeletionMarkerDurability,
+			)
+
+			markerFile.exists() shouldBe true
+			startupDeletionBarrier.isClosed shouldBe true
+			coVerify(exactly = 0) {
+				collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+			}
+			coVerify(exactly = 1) { ambientSteps.closeForCollectedDataDeletion() }
+			coVerify(exactly = 1) { writerQuiescer.quiesce() }
+		}
+
+	@Test
+	fun `startup publishes a durable prepared marker before beginning deletion`() = runTest {
+		var syncCount = 0
+		val interrupted = createService(
+			directorySync = {
+				syncCount += 1
+				if (syncCount == 1) error("prepared entry not yet durable")
+			},
+		) { _, _, _, _ -> error("database deletion must not start") }
+		interrupted.deleteAll()
+		preparedMarkerFile.exists() shouldBe true
+		markerFile.exists() shouldBe false
+
+		var appDeletionCount = 0
+		val recovered = createService { _, _, _, _ -> appDeletionCount += 1 }
+		recovered.reconcilePendingDeletion() shouldBe CollectedDataDeletionCompletion.Complete
+
+		appDeletionCount shouldBe 1
+		preparedMarkerFile.exists() shouldBe false
+		markerFile.exists() shouldBe false
 		startupDeletionBarrier.isClosed shouldBe false
-		coVerify(exactly = 0) { collectedDataLifecycleStore.beginFullDeletion(any()) }
 	}
 
 	@Test
@@ -768,8 +855,6 @@ class CollectedDataDeletionServiceTest {
 
 	@Test
 	fun `new deletion attempt preserves an existing durable marker`() = runTest {
-		val originalMarker = "already-pending"
-		markerFile.writeText(originalMarker)
 		val service = createService { _, _, _, _ ->
 			throw SQLiteException("interrupted again")
 		}
@@ -777,10 +862,14 @@ class CollectedDataDeletionServiceTest {
 		runCatching { service.deleteAll() }
 			.exceptionOrNull()
 			.shouldBeInstanceOf<SQLiteException>()
+		val originalMarker = markerFile.readText()
+		runCatching { service.deleteAll() }
+			.exceptionOrNull()
+			.shouldBeInstanceOf<SQLiteException>()
 
 		markerFile.exists() shouldBe true
 		markerFile.readText() shouldBe originalMarker
-		File(markerFile.parentFile, "${markerFile.name}.tmp").exists() shouldBe false
+		preparedMarkerFile.exists() shouldBe false
 	}
 
 	@Test
@@ -878,13 +967,50 @@ class CollectedDataDeletionServiceTest {
 		operations shouldBe listOf(
 			"tracker",
 			"writer-rearm",
-			"tracker",
 			"writer-rearm",
 		)
 		markerFile.exists() shouldBe false
 		startupDeletionBarrier.isClosed shouldBe false
 		verify(exactly = 1) { automaticControlRestorer.schedule(1L) }
 	}
+
+	@Test
+	fun `crash after committed database clear resumes without another clear or epoch advance`() =
+		runTest {
+			var physicalClearCount = 0
+			val first = createService(
+				appDatabaseDeletionOperation = { _, operation ->
+					physicalClearCount += 1
+					databaseOperations[operation.operationId] =
+						CollectedDataDeletionOperationEntity(
+							operationId = operation.operationId,
+							targetCollectedDataEpoch = operation.targetCollectedDataEpoch,
+							retainedFromMs = operation.retainedFromMs,
+							deletedAtMs = operation.deletedAtMs,
+							phase =
+								CollectedDataDeletionOperationEntity.PHASE_DATABASE_CLEARED,
+							updatedAtMs = operation.deletedAtMs,
+						)
+					error("crash after committed clear")
+				},
+			) { _, _, _, _ -> error("legacy clear callback must not run") }
+
+			runCatching { first.deleteAll() }.exceptionOrNull()
+				.shouldBeInstanceOf<IllegalStateException>()
+			markerFile.exists() shouldBe true
+			lifecycleSnapshot.epoch shouldBe 1L
+
+			val resumed = createService { _, _, _, _ ->
+				error("physical clear must not repeat after its durable receipt")
+			}
+			resumed.reconcilePendingDeletion() shouldBe CollectedDataDeletionCompletion.Complete
+
+			physicalClearCount shouldBe 1
+			lifecycleSnapshot.epoch shouldBe 1L
+			coVerify(exactly = 1) {
+				collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+			}
+		}
 
 	@Test
 	fun `pending Tracebox deletion retains marker and retries the full transaction`() =
@@ -912,14 +1038,14 @@ class CollectedDataDeletionServiceTest {
 			operations shouldBe listOf(
 				"tracker",
 				"tracebox",
-				"tracker",
 				"tracebox",
 			)
 			markerFile.exists() shouldBe false
 		}
 
 	@Test
-	fun `failure after writer rearm repeats deletion and advances writer authority again`() = runTest {
+	fun `failure after writer rearm resumes without repeating deletion or authority generation`() =
+		runTest {
 		val operations = mutableListOf<String>()
 		var rearmGeneration = 0
 		var traceboxComplete = false
@@ -951,12 +1077,13 @@ class CollectedDataDeletionServiceTest {
 			"writer-rearm-1",
 			"watermarks",
 			"tracebox",
-			"tracker",
-			"writer-rearm-2",
 			"watermarks",
 			"tracebox",
 		)
-		rearmGeneration shouldBe 2
+		rearmGeneration shouldBe 1
+		coVerify(exactly = 1) {
+			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+		}
 		markerFile.exists() shouldBe false
 		startupDeletionBarrier.isClosed shouldBe false
 	}
@@ -1003,6 +1130,10 @@ class CollectedDataDeletionServiceTest {
 			TrackingPurposeSettingsReconciler { },
 		directorySync: (File) -> Unit = {},
 		markerDelete: (File) -> Boolean = File::delete,
+		appDatabaseDeletionOperation: (suspend (
+			android.content.Context,
+			CollectedDataDeletionOperation,
+		) -> CollectedDataDeletionOperationEntity)? = null,
 		appDatabaseDeletion: suspend (android.content.Context, Long, Long?, Long) -> Unit,
 	) = DefaultCollectedDataDeletionService(
 		context = context,
@@ -1018,11 +1149,36 @@ class CollectedDataDeletionServiceTest {
 		purposeSettingsReconciler = purposeSettingsReconciler,
 		traceboxDataDeletion = traceboxDataDeletion,
 		trackingDiagnosticDataDeletion = trackingDiagnosticDataDeletion,
-		appDatabaseDeletion = appDatabaseDeletion,
-		postDatabaseDeletion = postDatabaseDeletion,
+		appDatabaseDeletion = appDatabaseDeletionOperation ?: { deletionContext, operation ->
+				appDatabaseDeletion(
+					deletionContext,
+					operation.targetCollectedDataEpoch,
+					operation.retainedFromMs,
+					operation.deletedAtMs,
+				)
+				CollectedDataDeletionOperationEntity(
+					operationId = operation.operationId,
+					targetCollectedDataEpoch = operation.targetCollectedDataEpoch,
+					retainedFromMs = operation.retainedFromMs,
+					deletedAtMs = operation.deletedAtMs,
+					phase = CollectedDataDeletionOperationEntity.PHASE_DATABASE_CLEARED,
+					updatedAtMs = operation.deletedAtMs,
+				).also { databaseOperations[operation.operationId] = it }
+			},
+		readDatabaseDeletionOperation = { _, operationId ->
+			databaseOperations[operationId]
+		},
+		postDatabaseDeletion = { operation ->
+			postDatabaseDeletion(operation.deletedAtMs)
+			val current = requireNotNull(databaseOperations[operation.operationId])
+			databaseOperations[operation.operationId] = current.copy(
+				phase = CollectedDataDeletionOperationEntity.PHASE_WRITERS_REARMED,
+			)
+		},
 		markerFile = markerFile,
 		directorySync = directorySync,
 		markerDelete = markerDelete,
+		currentTimeMillis = { 1L },
 	)
 
 	private suspend fun roomRetentionProducer(

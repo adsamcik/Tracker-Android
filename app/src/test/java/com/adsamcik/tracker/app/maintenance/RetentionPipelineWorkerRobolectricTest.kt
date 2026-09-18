@@ -52,9 +52,11 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionPolicy
+import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionOperation
 import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigInvalidReason
 import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigRead
 import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigUnavailableReason
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionOperationResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -67,6 +69,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
+import io.mockk.firstArg
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
@@ -108,9 +111,7 @@ class RetentionPipelineWorkerRobolectricTest {
 
 		inexact.forEach { authority ->
 			var databaseResolutions = 0
-			val store: RetentionConfigStore = mockk {
-				coEvery { currentExactApprovedConfig() } returns authority
-			}
+			val store = retentionStore(authority)
 
 			assertEquals(
 				ListenableWorker.Result.retry(),
@@ -1037,9 +1038,35 @@ class RetentionPipelineWorkerRobolectricTest {
 			})
 			.build() as RetentionPipelineWorker
 
-	private fun retentionStore(state: RetentionConfigState): RetentionConfigStore = mockk {
-		coEvery { currentExactApprovedConfig() } returns
-			ExactApprovedRetentionConfigRead.Approved(state, pipelineApprovedPolicy())
+	private fun retentionStore(state: RetentionConfigState): RetentionConfigStore =
+		retentionStore(
+			ExactApprovedRetentionConfigRead.Approved(state, pipelineApprovedPolicy()),
+		)
+
+	private fun retentionStore(
+		authority: ExactApprovedRetentionConfigRead,
+	): RetentionConfigStore = mockk {
+		coEvery {
+			withExactApprovedOperation<ListenableWorker.Result>(any())
+		} coAnswers {
+			when (authority) {
+				is ExactApprovedRetentionConfigRead.Approved -> {
+					val admission = ApprovedRetentionOperation(
+						authority.configuration,
+						authority.policy,
+					)
+					ExactApprovedRetentionOperationResult.Completed(
+						admission,
+						firstArg<suspend (ApprovedRetentionOperation) -> ListenableWorker.Result>()
+							.invoke(admission),
+					)
+				}
+				is ExactApprovedRetentionConfigRead.Pending,
+				is ExactApprovedRetentionConfigRead.Invalid,
+				is ExactApprovedRetentionConfigRead.Unavailable,
+				-> ExactApprovedRetentionOperationResult.Rejected(authority)
+			}
+		}
 	}
 
 	private fun autoPurgeConfig(rawDataRetentionDays: Int): RetentionConfigState =

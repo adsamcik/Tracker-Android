@@ -386,6 +386,7 @@ private val FINAL_V28_REQUIRED_TABLES = setOf(
 	"imported_wifi_deletion_generation",
 	"ambient_steps_retention_authority",
 	"ambient_steps_native_replay_footprint",
+	"collected_data_deletion_operation",
 )
 private const val FINAL_V28_REQUIRED_COLUMN_TABLE = "pending_signal"
 private const val FINAL_V28_REQUIRED_COLUMN = "pressure_writer_owner_generation"

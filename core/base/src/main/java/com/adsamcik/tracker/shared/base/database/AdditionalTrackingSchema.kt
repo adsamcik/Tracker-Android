@@ -5,12 +5,29 @@ package com.adsamcik.tracker.shared.base.database
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 internal fun createAdditionalTrackingTables(database: SupportSQLiteDatabase) {
+	createCollectedDataDeletionOperationTable(database)
 	createWifiSelectedDeletionTables(database)
 	createCellSelectedDeletionTables(database)
 	createAmbientStepsRetentionTable(database)
 	createAmbientStepsNativeReplayFootprintTable(database)
 	createAmbientRadioTables(database)
 	createRuntimeSettlementTables(database)
+}
+
+private fun createCollectedDataDeletionOperationTable(database: SupportSQLiteDatabase) {
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS collected_data_deletion_operation (
+			operation_id TEXT NOT NULL,
+			target_collected_data_epoch INTEGER NOT NULL,
+			retained_from_ms INTEGER,
+			deleted_at_ms INTEGER NOT NULL,
+			phase TEXT NOT NULL,
+			updated_at_ms INTEGER NOT NULL,
+			PRIMARY KEY(operation_id)
+		)
+		""".trimIndent(),
+	)
 }
 
 private fun createAmbientStepsNativeReplayFootprintTable(database: SupportSQLiteDatabase) {

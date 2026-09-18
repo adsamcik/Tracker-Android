@@ -221,6 +221,50 @@ class RetentionConfigStoreTest {
 	}
 
 	@Test
+	fun `approved destructive operation serializes every boundary against policy replacement`() =
+		runTest {
+			val approved = store.updateWithApproval(
+				block = { copy(autoPurgeEnabled = true, rawDataRetentionDays = 30) },
+				prepare = { RetentionConfigurationApprovalResult.Prepared(it.policy) },
+				approve = {
+					RetentionConfigurationApprovalResult.Approved(
+						requireNotNull(store.markPolicyApproved(it.policy)),
+					)
+				},
+			)
+			val operationEntered = CompletableDeferred<ApprovedRetentionOperation>()
+			val releaseOperation = CompletableDeferred<Unit>()
+			val operation = async {
+				store.withExactApprovedOperation { admission ->
+					operationEntered.complete(admission)
+					releaseOperation.await()
+					admission.requireIdentity()
+				}
+			}
+			val admitted = operationEntered.await()
+			val replacement = async {
+				store.updateWithApproval(
+					block = { copy(rawDataRetentionDays = 7) },
+					prepare = { RetentionConfigurationApprovalResult.Prepared(it.policy) },
+					approve = {
+						RetentionConfigurationApprovalResult.Approved(
+							requireNotNull(store.markPolicyApproved(it.policy)),
+						)
+					},
+				)
+			}
+			runCurrent()
+
+			replacement.isCompleted shouldBe false
+			admitted.policy shouldBe approved.stage.policy
+			releaseOperation.complete(Unit)
+			assertIs<ExactApprovedRetentionOperationResult.Completed<*>>(operation.await())
+			val replaced = replacement.await()
+			replaced.stage.policy.configurationGeneration shouldBe
+				approved.stage.policy.configurationGeneration + 1L
+		}
+
+	@Test
 	fun `failed approval leaves exact worker configuration pending`() = runTest {
 		val failed = store.updateWithApproval(
 			block = { copy(autoPurgeEnabled = true, rawDataRetentionDays = 7) },

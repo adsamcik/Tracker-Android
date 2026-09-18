@@ -1,6 +1,15 @@
 package com.adsamcik.tracker.tracker.module
 
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityState
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationDebt
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationFailure
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationResult
+import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
 import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.resilience.TrackingAutoRecoveryAuthorization
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsDemandReconciliation
@@ -11,6 +20,7 @@ import com.adsamcik.tracker.tracker.source.ambient.steps.LocalRecordingAmbientSt
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -25,28 +35,160 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackerModuleInitializerTest {
 	@Test
-	fun `startup retention failure retires Ambient Steps before propagating for retry`() = runTest {
+	fun `startup waits for bootstrap reissue debt before retention or provider work`() = runTest {
+		var retentionCalls = 0
+		var retirementCalls = 0
+		val sourceDebt = SourcePolicyRevisionReconciliationResult.Retryable(
+			SourcePolicyRevisionReconciliationDebt(
+				policyRevision = 1L,
+				failures = listOf(
+					SourcePolicyRevisionReconciliationFailure.SourcePolicyUnavailable,
+				),
+			),
+		)
+
+		val result = reconcileTrackerStartupAuthority(
+			reconcileSourcePolicy = { sourceDebt },
+			reconcileRetention = {
+				retentionCalls += 1
+				emptyList()
+			},
+			retireAmbientSteps = {
+				retirementCalls += 1
+				AmbientStepsSettingsReconciliationResult(
+					complete = true,
+					operational = false,
+				)
+			},
+		)
+
+		result shouldBe TrackerStartupAuthorityResult.SourcePolicyDebt(sourceDebt)
+		retentionCalls shouldBe 0
+		retirementCalls shouldBe 0
+	}
+
+	@Test
+	fun `startup retention exception retires Ambient Steps and returns typed retry debt`() = runTest {
 		val events = mutableListOf<String>()
-		val failure = IllegalStateException("retention unavailable")
+		val result = reconcileRetentionAuthorityAtStartup(
+			expectedAmbientStepsState = RetentionAuthorityState.ACTIVE,
+			reconcileRetention = {
+				events += "retention"
+				error("retention unavailable")
+			},
+			retireAmbientSteps = {
+				events += "retire-ambient-steps"
+				AmbientStepsSettingsReconciliationResult(
+					complete = true,
+					operational = false,
+				)
+			},
+		)
 
-		val thrown = shouldThrow<IllegalStateException> {
-			reconcileRetentionAuthorityAtStartup(
-				reconcileRetention = {
-					events += "retention"
-					throw failure
-				},
-				retireAmbientSteps = {
-					events += "retire-ambient-steps"
-					AmbientStepsSettingsReconciliationResult(
-						complete = true,
-						operational = false,
-					)
-				},
-			)
-		}
-
-		thrown shouldBe failure
+		result.shouldBeInstanceOf<TrackerStartupAuthorityResult.RetryableRetentionDebt>()
 		events shouldBe listOf("retention", "retire-ambient-steps")
+	}
+
+	@Test
+	fun `returned unavailable retention is not treated as startup success`() = runTest {
+		var retirements = 0
+		val unavailable = RetentionAuthorityResult.Unavailable(
+			source = TrackingSourceComponent.STEPS,
+			scope = RetentionAuthorityScope.LIVE_AMBIENT,
+			reason = RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE,
+		)
+
+		val result = reconcileRetentionAuthorityAtStartup(
+			expectedAmbientStepsState = RetentionAuthorityState.ACTIVE,
+			reconcileRetention = { listOf(unavailable) },
+			retireAmbientSteps = {
+				retirements += 1
+				AmbientStepsSettingsReconciliationResult(
+					complete = true,
+					operational = false,
+				)
+			},
+		)
+
+		result.shouldBeInstanceOf<TrackerStartupAuthorityResult.RetryableRetentionDebt>()
+		retirements shouldBe 1
+	}
+
+	@Test
+	fun `wrong startup retention state retires provider and remains blocked`() = runTest {
+		var retirements = 0
+		val result = reconcileRetentionAuthorityAtStartup(
+			expectedAmbientStepsState = RetentionAuthorityState.ACTIVE,
+			reconcileRetention = {
+				listOf(
+					RetentionAuthorityResult.Unchanged(
+						source = TrackingSourceComponent.STEPS,
+						scope = RetentionAuthorityScope.LIVE_AMBIENT,
+						state = RetentionAuthorityState.REVOKED,
+						approvalRevision = 3L,
+					),
+				)
+			},
+			retireAmbientSteps = {
+				retirements += 1
+				AmbientStepsSettingsReconciliationResult(
+					complete = true,
+					operational = false,
+				)
+			},
+		)
+
+		result.shouldBeInstanceOf<TrackerStartupAuthorityResult.UnverifiableRetentionDebt>()
+		retirements shouldBe 1
+	}
+
+	@Test
+	fun `exact startup retention state permits provider startup without retirement`() = runTest {
+		var retirements = 0
+		val result = reconcileRetentionAuthorityAtStartup(
+			expectedAmbientStepsState = RetentionAuthorityState.ACTIVE,
+			reconcileRetention = {
+				listOf(
+					RetentionAuthorityResult.Unchanged(
+						source = TrackingSourceComponent.STEPS,
+						scope = RetentionAuthorityScope.LIVE_AMBIENT,
+						state = RetentionAuthorityState.ACTIVE,
+						approvalRevision = 3L,
+					),
+				)
+			},
+			retireAmbientSteps = {
+				retirements += 1
+				AmbientStepsSettingsReconciliationResult(
+					complete = true,
+					operational = false,
+				)
+			},
+		)
+
+		result shouldBe TrackerStartupAuthorityResult.Complete
+		retirements shouldBe 0
+	}
+
+	@Test
+	fun `provider removal debt remains typed and blocks startup after retirement`() = runTest {
+		val result = reconcileRetentionAuthorityAtStartup(
+			expectedAmbientStepsState = RetentionAuthorityState.ACTIVE,
+			reconcileRetention = { emptyList() },
+			retireAmbientSteps = {
+				AmbientStepsSettingsReconciliationResult(
+					complete = false,
+					operational = false,
+					failure = AmbientStepsSettingsReconciliationFailure.PROVIDER_REMOVAL_FAILED,
+					retryable = true,
+				)
+			},
+		)
+
+		val retry =
+			result.shouldBeInstanceOf<TrackerStartupAuthorityResult.RetryableRetentionDebt>()
+		retry.debt.retirement.failure shouldBe
+			AmbientStepsSettingsReconciliationFailure.PROVIDER_REMOVAL_FAILED
 	}
 
 	@Test

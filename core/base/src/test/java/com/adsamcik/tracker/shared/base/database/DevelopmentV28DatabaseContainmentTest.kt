@@ -448,6 +448,10 @@ class DevelopmentV28DatabaseContainmentTest {
 								"CREATE TABLE ambient_steps_native_replay_footprint (" +
 									"protected_identity TEXT PRIMARY KEY)",
 							)
+							db.execSQL(
+								"CREATE TABLE collected_data_deletion_operation (" +
+									"operation_id TEXT PRIMARY KEY)",
+							)
 							if (includeFinalIndex) {
 								db.execSQL(
 									"CREATE INDEX idx_ambient_steps_retention_scope " +

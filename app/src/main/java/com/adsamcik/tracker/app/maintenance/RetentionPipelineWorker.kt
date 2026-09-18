@@ -27,7 +27,8 @@ import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
-import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigRead
+import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionOperation
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionOperationResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -57,16 +58,14 @@ class RetentionPipelineWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result =
-        when (val authority = retentionConfigStore.currentExactApprovedConfig()) {
-            is ExactApprovedRetentionConfigRead.Approved ->
-                doApprovedWork(authority.configuration)
-            is ExactApprovedRetentionConfigRead.Pending,
-            is ExactApprovedRetentionConfigRead.Invalid,
-            is ExactApprovedRetentionConfigRead.Unavailable,
-            -> Result.retry()
+        when (val operation = retentionConfigStore.withExactApprovedOperation(::doApprovedWork)) {
+            is ExactApprovedRetentionOperationResult.Completed -> operation.value
+            is ExactApprovedRetentionOperationResult.Rejected -> Result.retry()
         }
 
-    private suspend fun doApprovedWork(storedConfig: RetentionConfigState): Result {
+    private suspend fun doApprovedWork(authority: ApprovedRetentionOperation): Result {
+        authority.requireIdentity()
+        val storedConfig = authority.configuration
         val config = storedConfig.forWorker()
 
         if (!storedConfig.autoPurgeEnabled && !storedConfig.autoCleanupEnabled) return Result.success()
@@ -92,39 +91,48 @@ class RetentionPipelineWorker @AssistedInject constructor(
                 // or a migration backup. A delayed WAL entry must be rejected even if
                 // it postpones the physical delete.
 				requireReadyGeneration(startupGeneration)
-				val lifecycle = collectedDataLifecycleStore.advanceRetainedFrom(rawCutoff)
-				requireReadyGeneration(startupGeneration)
+                authority.requireIdentity()
+                val lifecycle = collectedDataLifecycleStore.advanceRetainedFrom(rawCutoff)
+                requireReadyGeneration(startupGeneration)
+                authority.requireIdentity()
                 migrationBackupRepository.deleteAll()
-				val result = purgeRawData(
-					appDatabase,
-					rawCutoff,
-					lifecycle,
-					now,
-					startupGeneration,
-				)
-				requireReadyGeneration(startupGeneration)
-				trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
-					stepsSessionFactProjectionLaneProvider.get().drainAvailable()
-				} ?: throw StartupGenerationChangedException
+                val result = purgeRawData(
+                	appDatabase,
+                	rawCutoff,
+                	lifecycle,
+                	now,
+                	startupGeneration,
+                	authority,
+                )
+                requireReadyGeneration(startupGeneration)
+                authority.requireIdentity()
+                trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+                	authority.requireIdentity()
+                	stepsSessionFactProjectionLaneProvider.get().drainAvailable()
+                } ?: throw StartupGenerationChangedException
                 result
             }
 			// Captured Cell maintenance authenticates retained WAL, so it must precede physical
 			// source-event pruning while remaining after source-evidence/Steps settlement.
-			pruneCapturedCellData(appDatabase, config, now, startupGeneration)
+			pruneCapturedCellData(appDatabase, config, now, startupGeneration, authority)
 			// Wi-Fi authenticates its own retained WAL before the shared physical pruning pass.
-			pruneCapturedWifiData(appDatabase, config, now, startupGeneration)
+			pruneCapturedWifiData(appDatabase, config, now, startupGeneration, authority)
 			if (rawCutoff != null) {
-				requireReadyGeneration(startupGeneration)
-				appDatabase.pruneSourceEventStorageBefore(
-					createdBeforeMs = rawCutoff,
-					verifyCollectedDataAccess = { requireReadyGeneration(startupGeneration) },
-				)
+                requireReadyGeneration(startupGeneration)
+                authority.requireIdentity()
+                appDatabase.pruneSourceEventStorageBefore(
+                	createdBeforeMs = rawCutoff,
+                	verifyCollectedDataAccess = {
+                		requireReadyGeneration(startupGeneration)
+                		authority.requireIdentity()
+                	},
+                )
 			}
-			purgeWifiCellData(appDatabase, config, now, startupGeneration)
-			purgeTripData(appDatabase, config, now, startupGeneration)
-			purgeDailySummaries(appDatabase, config, now, startupGeneration)
-			purgeExplorationData(appDatabase, config, now, startupGeneration)
-			purgeOperationalData(appDatabase, config, now, startupGeneration)
+			purgeWifiCellData(appDatabase, config, now, startupGeneration, authority)
+			purgeTripData(appDatabase, config, now, startupGeneration, authority)
+			purgeDailySummaries(appDatabase, config, now, startupGeneration, authority)
+			purgeExplorationData(appDatabase, config, now, startupGeneration, authority)
+			purgeOperationalData(appDatabase, config, now, startupGeneration, authority)
 
             if (rawRetentionResult == RawRetentionResult.DEFERRED_FOR_PENDING_SIGNALS) {
                 Result.retry()
@@ -149,9 +157,11 @@ class RetentionPipelineWorker @AssistedInject constructor(
         lifecycle: CollectedDataLifecycleSnapshot,
         updatedAtMs: Long,
 		startupGeneration: Long,
+		authority: ApprovedRetentionOperation,
     ): RawRetentionResult {
         return db.withTransaction {
 			requireReadyGeneration(startupGeneration)
+			authority.requireIdentity()
 			try {
 				val sourceEvidenceStateDao = db.sourceEvidenceStateDao()
 				val lifecycleChanged = sourceEvidenceStateDao.synchronizeLifecycle(
@@ -233,6 +243,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
 				RawRetentionResult.PURGED
 			} finally {
 				requireReadyGeneration(startupGeneration)
+				authority.requireIdentity()
 			}
         }
     }
@@ -263,12 +274,16 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		config: RetentionConfigState,
 		now: Long,
 		startupGeneration: Long,
+		authority: ApprovedRetentionOperation,
 	) {
 		if (config.wifiCellRetentionDays == 0) return
 		requireReadyGeneration(startupGeneration)
+		authority.requireIdentity()
 		val cutoff = computeWifiCellCutoffMillis(config.wifiCellRetentionDays, now)
 		requireReadyGeneration(startupGeneration)
+		authority.requireIdentity()
 		trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+			authority.requireIdentity()
 			cellCapturedRetentionService.prune(
 				database = db,
 				beforeMs = cutoff,
@@ -282,12 +297,16 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		config: RetentionConfigState,
 		now: Long,
 		startupGeneration: Long,
+		authority: ApprovedRetentionOperation,
 	) {
 		if (config.wifiCellRetentionDays == 0) return
 		requireReadyGeneration(startupGeneration)
+		authority.requireIdentity()
 		val cutoff = computeWifiCellCutoffMillis(config.wifiCellRetentionDays, now)
 		requireReadyGeneration(startupGeneration)
+		authority.requireIdentity()
 		trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+			authority.requireIdentity()
 			wifiCapturedRetentionService.prune(
 				database = db,
 				beforeMs = cutoff,
@@ -301,19 +320,23 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		config: RetentionConfigState,
 		now: Long,
 		startupGeneration: Long,
+		authority: ApprovedRetentionOperation,
 	) {
         if (config.wifiCellRetentionDays == 0) return
 		requireReadyGeneration(startupGeneration)
+		authority.requireIdentity()
         if (db.pendingSignalDao().hasAny()) return
 		val cutoff = computeWifiCellCutoffMillis(config.wifiCellRetentionDays, now)
         db.withTransaction {
 			requireReadyGeneration(startupGeneration)
+			authority.requireIdentity()
 			try {
 				if (db.pendingSignalDao().hasAny()) return@withTransaction
 				db.cellSampleDao().deleteOlderThan(cutoff)
 				db.wifiObservationDao().deleteOlderThan(cutoff)
 			} finally {
 				requireReadyGeneration(startupGeneration)
+				authority.requireIdentity()
 			}
         }
     }
@@ -323,16 +346,19 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		config: RetentionConfigState,
 		now: Long,
 		startupGeneration: Long,
+		authority: ApprovedRetentionOperation,
 	) {
         if (config.tripRetentionDays == 0) return
         val cutoff = now - config.tripRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
 		db.withTransaction {
 			requireReadyGeneration(startupGeneration)
+			authority.requireIdentity()
 			try {
 				db.sessionSegmentDao().deleteOlderThan(cutoff)
 				db.pruneImportedStepsSegmentsBefore(cutoff, now)
 			} finally {
 				requireReadyGeneration(startupGeneration)
+				authority.requireIdentity()
 			}
 		}
     }
@@ -342,16 +368,19 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		config: RetentionConfigState,
 		now: Long,
 		startupGeneration: Long,
+		authority: ApprovedRetentionOperation,
 	) {
         if (config.dailySummaryRetentionDays == 0) return
         val cutoffMs = now - config.dailySummaryRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
         val cutoffDay = cutoffMs / Time.DAY_IN_MILLISECONDS
 		db.withTransaction {
 			requireReadyGeneration(startupGeneration)
+			authority.requireIdentity()
 			try {
 				db.dailySummaryDao().deleteOlderThan(cutoffDay)
 			} finally {
 				requireReadyGeneration(startupGeneration)
+				authority.requireIdentity()
 			}
 		}
     }
@@ -361,17 +390,20 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		config: RetentionConfigState,
 		now: Long,
 		startupGeneration: Long,
+		authority: ApprovedRetentionOperation,
 	) {
         if (config.explorationRetentionDays == 0) return
         val cutoff = now - config.explorationRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
 		db.withTransaction {
 			requireReadyGeneration(startupGeneration)
+			authority.requireIdentity()
 			try {
 				db.explorationCellDao().deleteOlderThan(cutoff)
 				db.explorationStreakDao().deleteOlderThan(cutoff)
 				db.achievementProgressDao().deleteOlderThan(cutoff)
 			} finally {
 				requireReadyGeneration(startupGeneration)
+				authority.requireIdentity()
 			}
 		}
     }
@@ -381,11 +413,13 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		config: RetentionConfigState,
 		now: Long,
 		startupGeneration: Long,
+		authority: ApprovedRetentionOperation,
 	) {
 		if (config.rawDataRetentionDays == 0) return
 		val rawCutoff = now - config.rawDataRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
 		db.withTransaction {
 			requireReadyGeneration(startupGeneration)
+			authority.requireIdentity()
 			try {
 				val domainEventDao = db.domainEventDao()
 				val cursorCutoff = domainEventDao.getMinimumCursorTimestampMs()
@@ -395,6 +429,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
 				db.exportLogDao().deleteOlderThan(rawCutoff)
 			} finally {
 				requireReadyGeneration(startupGeneration)
+				authority.requireIdentity()
 			}
 		}
 	}

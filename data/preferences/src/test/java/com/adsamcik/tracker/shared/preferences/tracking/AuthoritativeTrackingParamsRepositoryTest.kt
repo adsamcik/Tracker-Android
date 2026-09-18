@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigurationA
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.assertions.throwables.shouldThrow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -211,26 +212,68 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			unavailable,
 		)
 
-		val failure = shouldThrow<SourcePolicyRevisionReconciliationException> {
-			repository.setWifiEnabled(false)
-		}
+		repository.setWifiEnabled(false)
 
-		failure.failures.single() shouldBe
-			SourcePolicyRevisionReconciliationFailure.RetentionAuthority(
-				unavailable,
-			)
+		val debt = repository.reconciliationState.value
+			.shouldBeInstanceOf<SourcePolicyRevisionReconciliationState.Debt>()
+			.debt
+		debt.failures.single() shouldBe
+			SourcePolicyRevisionReconciliationFailure.RetentionAuthority(unavailable)
+		debt.retryable.shouldBeTrue()
 		ambientSteps.events shouldBe listOf("retire")
 		val strandedRevision = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
 		strandedRevision[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe consentEpoch
+		legacy.current.wifiEnabled.shouldBeFalse()
 
 		retention.overrideResults = null
 		ambientSteps.reset()
-		repository.setWifiEnabled(true)
+		repository.reconcileCurrentPolicyRevision()
+			.shouldBeInstanceOf<SourcePolicyRevisionReconciliationResult.Complete>()
 
 		val recovered = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
-		recovered.revision shouldBe strandedRevision.revision + 1L
+		recovered.revision shouldBe strandedRevision.revision
 		recovered[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe consentEpoch
 		ambientSteps.events shouldBe listOf("reconcile")
+	}
+
+	@Test
+	fun `legacy bootstrap reissues retention before publishing active source policy`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Application>()
+		val bootstrapDatabase = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+			.allowMainThreadQueries()
+			.build()
+		val bootstrapPolicy = RoomSourcePolicyRepository(bootstrapDatabase) {
+			SourcePolicyEffectiveTime("bootstrap-boot", 10L, 20L)
+		}
+		val bootstrapRetention = RecordingRetentionAuthorityProducer {
+			val active = bootstrapPolicy.currentState() as SourcePolicyAuthorityState.Active
+			active.snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch != null
+		}
+		val bootstrapAmbientSteps = RecordingAmbientStepsPolicyRevisionReconciler()
+		val bootstrapRepository = AuthoritativeTrackingParamsRepository(
+			legacy = FakeTrackingParamsRepository(
+				TrackingParamsState(
+					ambientStepsEnabled = true,
+					legacySettingsMigrationCompleted = true,
+				),
+			),
+			sourcePolicyRepository = bootstrapPolicy,
+			applicationScope = applicationScope,
+			trackingStartupGate = startupGate,
+			retentionAuthorityProducer = bootstrapRetention,
+			ambientStepsPolicyRevisionReconciler = bootstrapAmbientSteps,
+		)
+		try {
+			val published = bootstrapRepository.data.first { it.sourcePolicyRevision == 1L }
+
+			published.ambientStepsEnabled.shouldBeTrue()
+			bootstrapRetention.fullReconciliations shouldBe 1
+			bootstrapAmbientSteps.events shouldBe listOf("reconcile")
+			bootstrapRepository.reconciliationState.value shouldBe
+				SourcePolicyRevisionReconciliationState.Complete(1L)
+		} finally {
+			bootstrapDatabase.close()
+		}
 	}
 
 	@Test

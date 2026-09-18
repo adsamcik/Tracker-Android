@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.preferences.lifecycle
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import io.kotest.matchers.shouldBe
+import io.kotest.assertions.throwables.shouldThrow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -53,6 +54,29 @@ class CollectedDataLifecycleStoreTest {
 		store.beginFullDeletion(700L) shouldBe CollectedDataLifecycleSnapshot(2L, 700L)
 		store.snapshot().accepts(capturedEpoch = 1L, acquiredAtMs = 999L) shouldBe false
 		store.snapshot().accepts(capturedEpoch = 2L, acquiredAtMs = 699L) shouldBe false
+	}
+
+	@Test
+	fun `operation bound full deletion advances its target epoch exactly once`() = runTest {
+		store.beginFullDeletion(
+			operationId = "operation-1",
+			targetEpoch = 1L,
+			deletedAtMs = 500L,
+		) shouldBe CollectedDataLifecycleSnapshot(1L, 500L)
+
+		store.beginFullDeletion(
+			operationId = "operation-1",
+			targetEpoch = 1L,
+			deletedAtMs = 500L,
+		) shouldBe CollectedDataLifecycleSnapshot(1L, 500L)
+
+		shouldThrow<IllegalStateException> {
+			store.beginFullDeletion(
+				operationId = "operation-2",
+				targetEpoch = 1L,
+				deletedAtMs = 500L,
+			)
+		}
 	}
 
 	@Test
