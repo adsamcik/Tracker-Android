@@ -373,8 +373,8 @@ object StepsCountDomainSchema {
 				"WHERE lower(name) LIKE 'steps_count_domain_%' " +
 				"OR lower(name) LIKE 'idx_steps_count_domain_%' " +
 				"OR lower(name) LIKE 'trg_steps_count_domain_%' " +
-				"OR tbl_name IN (?, ?, ?, ?) " +
-				"OR (type = 'trigger' AND tbl_name = ?)",
+				"OR tbl_name COLLATE NOCASE IN (?, ?, ?, ?) " +
+				"OR (type = 'trigger' AND tbl_name COLLATE NOCASE = ?)",
 			arrayOf(
 				RECEIPT_TABLE,
 				OWNER_TABLE,
@@ -389,7 +389,7 @@ object StepsCountDomainSchema {
 						SchemaNamedObject(
 							type = cursor.getString(0).lowercase(),
 							name = cursor.getString(1),
-							table = cursor.getString(2),
+							table = cursor.getString(2).canonicalAuthorityTableName(),
 						),
 					)
 				}
@@ -502,7 +502,8 @@ object StepsCountDomainSchema {
 	private fun SupportSQLiteDatabase.authorityTriggers(): Map<String, SchemaTrigger> =
 		query(
 			"SELECT name, tbl_name, sql FROM sqlite_master WHERE type = 'trigger' AND (" +
-				"tbl_name IN (?, ?, ?, ?) OR tbl_name = ? " +
+				"tbl_name COLLATE NOCASE IN (?, ?, ?, ?) " +
+				"OR tbl_name COLLATE NOCASE = ? " +
 				"OR lower(name) LIKE 'trg_steps_count_domain_%')",
 			arrayOf(
 				RECEIPT_TABLE,
@@ -517,75 +518,102 @@ object StepsCountDomainSchema {
 					put(
 						cursor.getString(0),
 						SchemaTrigger(
-							table = cursor.getString(1),
-							sql = cursor.getString(2).normalizedSql(),
+							table = cursor.getString(1).canonicalAuthorityTableName(),
+							sql = if (cursor.isNull(2)) {
+								null
+							} else {
+								cursor.getString(2).normalizedSql()
+							},
 						),
 					)
 				}
 			}
 		}
 
-	private fun SupportSQLiteDatabase.tableSql(name: String): String =
+	private fun SupportSQLiteDatabase.tableSql(name: String): String? =
 		query(
 			"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
 			arrayOf(name),
 		).use { cursor ->
-			if (cursor.moveToFirst()) cursor.getString(0) else ""
+			if (!cursor.moveToFirst() || cursor.isNull(0)) null else cursor.getString(0)
 		}
 
-	private fun String.hasDeferredForeignKey(): Boolean =
-		normalizedSql().contains("DEFERRABLE INITIALLY DEFERRED")
+	private fun String?.hasDeferredForeignKey(): Boolean =
+		normalizedSql()?.containsKeywordSequence("DEFERRABLE", "INITIALLY", "DEFERRED") == true
 
-	private fun String.normalizedSql(): String {
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	private fun String?.normalizedSql(): SqlCanonical? {
+		if (this == null || length > MAX_SQL_LENGTH) return null
 		val tokens = mutableListOf<SqlToken>()
 		var offset = 0
+		fun appendToken(kind: SqlTokenKind, endExclusive: Int): Boolean {
+			if (endExclusive <= offset || tokens.size >= MAX_SQL_TOKEN_COUNT) return false
+			val text = substring(offset, endExclusive)
+			if (text.length > MAX_SQL_TOKEN_LENGTH) return false
+			tokens += SqlToken(kind, text)
+			offset = endExclusive
+			return true
+		}
 		while (offset < length) {
 			val current = this[offset]
 			when {
 				current.isSqliteWhitespace() -> offset += 1
 				startsSqlLineComment(offset) -> {
-					val endExclusive = sqlLineCommentEnd(offset)
-					tokens += SqlToken(substring(offset, endExclusive), quoted = true)
-					offset = endExclusive
+					offset = sqlLineCommentEnd(offset)
 				}
 				startsSqlBlockComment(offset) -> {
-					val endExclusive = sqlBlockCommentEnd(offset)
-					tokens += SqlToken(substring(offset, endExclusive), quoted = true)
-					offset = endExclusive
+					offset = sqlBlockCommentEnd(offset) ?: return null
 				}
-				current.isSqlQuote() -> {
-					val endExclusive = quotedSqlTokenEnd(offset, current)
-					tokens += SqlToken(substring(offset, endExclusive), quoted = true)
-					offset = endExclusive
+				(current == 'x' || current == 'X') && getOrNull(offset + 1) == '\'' -> {
+					val endExclusive = sqlBlobLiteralEnd(offset) ?: return null
+					if (!appendToken(SqlTokenKind.BLOB_LITERAL, endExclusive)) return null
 				}
-				current.isSqlBareTokenCharacter() -> {
+				current == '\'' -> {
+					val endExclusive = quotedSqlTokenEnd(offset, current) ?: return null
+					if (!appendToken(SqlTokenKind.STRING_LITERAL, endExclusive)) return null
+				}
+				current.isSqlIdentifierQuote() -> {
+					val endExclusive = quotedSqlTokenEnd(offset, current) ?: return null
+					if (!appendToken(SqlTokenKind.QUOTED_IDENTIFIER, endExclusive)) return null
+				}
+				current.isAsciiDigit() ||
+					(current == '.' && getOrNull(offset + 1)?.isAsciiDigit() == true) -> {
+					val endExclusive = sqlNumericLiteralEnd(offset) ?: return null
+					if (!appendToken(SqlTokenKind.NUMERIC_LITERAL, endExclusive)) return null
+				}
+				current.isSqlBareIdentifierStart() -> {
 					val start = offset
-					while (offset < length && this[offset].isSqlBareTokenCharacter()) {
+					while (offset < length && this[offset].isSqlBareIdentifierPart()) {
 						offset += 1
 					}
-					tokens += SqlToken(
-						substring(start, offset).mapAsciiLowercaseToUppercase(),
-						quoted = false,
-					)
+					val text = substring(start, offset)
+					if (text.length > MAX_SQL_TOKEN_LENGTH ||
+						tokens.size >= MAX_SQL_TOKEN_COUNT
+					) return null
+					val keyword = text.mapAsciiLowercaseToUppercase()
+						.takeIf(SQLITE_DDL_KEYWORDS::contains)
+					tokens += if (keyword == null) {
+						SqlToken(SqlTokenKind.IDENTIFIER, text)
+					} else {
+						SqlToken(SqlTokenKind.KEYWORD, keyword)
+					}
 				}
 				else -> {
-					tokens += SqlToken(current.toString(), quoted = false)
-					offset += 1
+					val operator = sqlOperatorAt(offset)
+					if (operator != null) {
+						if (!appendToken(SqlTokenKind.OPERATOR, offset + operator.length)) return null
+					} else if (current in SQLITE_PUNCTUATION) {
+						if (!appendToken(SqlTokenKind.PUNCTUATION, offset + 1)) return null
+					} else {
+						return null
+					}
 				}
 			}
 		}
-		val structuralTokens = tokens.withoutCreateIfNotExists()
-		return buildString {
-			var previous: SqlToken? = null
-			structuralTokens.forEach { token ->
-				if (previous?.isAtom == true && token.isAtom) append(' ')
-				append(token.text)
-				previous = token
-			}
-		}
+		return SqlCanonical(tokens.withoutCreateIfNotExists())
 	}
 
-	private fun String.quotedSqlTokenEnd(start: Int, opener: Char): Int {
+	private fun String.quotedSqlTokenEnd(start: Int, opener: Char): Int? {
 		val closer = if (opener == '[') ']' else opener
 		var offset = start + 1
 		while (offset < length) {
@@ -593,13 +621,59 @@ object StepsCountDomainSchema {
 				offset += 1
 				continue
 			}
-			if (opener != '[' && offset + 1 < length && this[offset + 1] == closer) {
+			if (offset + 1 < length && this[offset + 1] == closer) {
 				offset += 2
 				continue
 			}
 			return offset + 1
 		}
-		throw IllegalArgumentException("Unclosed SQL quote")
+		return null
+	}
+
+	private fun String.sqlBlobLiteralEnd(start: Int): Int? {
+		var offset = start + 2
+		var digitCount = 0
+		while (offset < length && this[offset] != '\'') {
+			if (!this[offset].isAsciiHexDigit()) return null
+			digitCount += 1
+			offset += 1
+		}
+		if (offset >= length || digitCount % 2 != 0) return null
+		return offset + 1
+	}
+
+	@Suppress("ReturnCount")
+	private fun String.sqlNumericLiteralEnd(start: Int): Int? {
+		var offset = start
+		if (getOrNull(offset) == '0' &&
+			(getOrNull(offset + 1) == 'x' || getOrNull(offset + 1) == 'X')
+		) {
+			offset += 2
+			val digitsStart = offset
+			while (getOrNull(offset)?.isAsciiHexDigit() == true) offset += 1
+			return offset.takeIf { it > digitsStart }
+		}
+		var digitCount = 0
+		while (getOrNull(offset)?.isAsciiDigit() == true) {
+			digitCount += 1
+			offset += 1
+		}
+		if (getOrNull(offset) == '.') {
+			offset += 1
+			while (getOrNull(offset)?.isAsciiDigit() == true) {
+				digitCount += 1
+				offset += 1
+			}
+		}
+		if (digitCount == 0) return null
+		if (getOrNull(offset) == 'e' || getOrNull(offset) == 'E') {
+			offset += 1
+			if (getOrNull(offset) == '+' || getOrNull(offset) == '-') offset += 1
+			val exponentStart = offset
+			while (getOrNull(offset)?.isAsciiDigit() == true) offset += 1
+			if (offset == exponentStart) return null
+		}
+		return offset
 	}
 
 	private fun String.startsSqlLineComment(offset: Int): Boolean =
@@ -613,46 +687,88 @@ object StepsCountDomainSchema {
 	private fun String.startsSqlBlockComment(offset: Int): Boolean =
 		getOrNull(offset) == '/' && getOrNull(offset + 1) == '*'
 
-	private fun String.sqlBlockCommentEnd(start: Int): Int {
+	private fun String.sqlBlockCommentEnd(start: Int): Int? {
 		val closer = indexOf("*/", startIndex = start + 2)
-		if (closer < 0) throw IllegalArgumentException("Unclosed SQL block comment")
-		return closer + 2
+		return if (closer < 0) null else closer + 2
 	}
 
 	private fun List<SqlToken>.withoutCreateIfNotExists(): List<SqlToken> {
 		val optionalClauseStart = indices.firstOrNull { index ->
 			index > 0 &&
-				this[index - 1].bareText in setOf("TABLE", "INDEX", "TRIGGER") &&
-				getOrNull(index).bareText == "IF" &&
-				getOrNull(index + 1).bareText == "NOT" &&
-				getOrNull(index + 2).bareText == "EXISTS"
+				this[index - 1].keyword in setOf("TABLE", "INDEX", "TRIGGER") &&
+				getOrNull(index).keyword == "IF" &&
+				getOrNull(index + 1).keyword == "NOT" &&
+				getOrNull(index + 2).keyword == "EXISTS"
 		} ?: return this
 		return filterIndexed { index, _ ->
 			index !in optionalClauseStart..optionalClauseStart + 2
 		}
 	}
 
-	private fun Char.isSqlQuote(): Boolean = this == '\'' || this == '"' || this == '`' || this == '['
+	private fun String.sqlOperatorAt(offset: Int): String? =
+		SQLITE_OPERATORS.firstOrNull { operator -> startsWith(operator, offset) }
+
+	private fun String.canonicalAuthorityTableName(): String =
+		AUTHORITY_TABLE_NAMES.singleOrNull { expected -> equalsAsciiIgnoreCase(expected) } ?: this
+
+	private fun String.equalsAsciiIgnoreCase(other: String): Boolean =
+		length == other.length && indices.all { index ->
+			this[index].asciiUppercase() == other[index].asciiUppercase()
+		}
+
+	private fun Char.asciiUppercase(): Char =
+		if (this in 'a'..'z') (code - 32).toChar() else this
+
+	private fun Char.isSqlIdentifierQuote(): Boolean = this == '"' || this == '`' || this == '['
 
 	private fun Char.isSqliteWhitespace(): Boolean =
 		this == ' ' || this == '\t' || this == '\n' || this == '\u000c' || this == '\r'
 
-	private fun Char.isSqlBareTokenCharacter(): Boolean =
-		this in 'a'..'z' || this in 'A'..'Z' || this in '0'..'9' ||
-			this == '_' || this == '$' || code >= 0x80
+	private fun Char.isSqlBareIdentifierStart(): Boolean =
+		this in 'a'..'z' || this in 'A'..'Z' || this == '_' || code >= 0x80
+
+	private fun Char.isSqlBareIdentifierPart(): Boolean =
+		isSqlBareIdentifierStart() || isAsciiDigit() || this == '$'
+
+	private fun Char.isAsciiHexDigit(): Boolean =
+		this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'
+
+	private fun Char.isAsciiDigit(): Boolean = this in '0'..'9'
 
 	private fun String.mapAsciiLowercaseToUppercase(): String = buildString(length) {
 		this@mapAsciiLowercaseToUppercase.forEach { character ->
-			append(if (character in 'a'..'z') (character.code - 32).toChar() else character)
+			append(character.asciiUppercase())
 		}
 	}
 
-	private data class SqlToken(
-		val text: String,
-		val quoted: Boolean,
+	private data class SqlCanonical(
+		val tokens: List<SqlToken>,
 	) {
-		val bareText: String? get() = text.takeUnless { quoted }
-		val isAtom: Boolean get() = quoted || text.first().isSqlBareTokenCharacter()
+		fun containsKeywordSequence(vararg keywords: String): Boolean =
+			tokens.indices.any { start ->
+				start + keywords.size <= tokens.size &&
+					keywords.indices.all { offset ->
+						tokens[start + offset].keyword == keywords[offset]
+					}
+			}
+	}
+
+	private data class SqlToken(
+		val kind: SqlTokenKind,
+		val text: String,
+	) {
+		val keyword: String? get() = text.takeIf { kind == SqlTokenKind.KEYWORD }
+	}
+
+	private enum class SqlTokenKind {
+		KEYWORD,
+		IDENTIFIER,
+		QUOTED_IDENTIFIER,
+		STRING_LITERAL,
+		BLOB_LITERAL,
+		NUMERIC_LITERAL,
+		OPERATOR,
+		PUNCTUATION,
 	}
 
 	private data class SchemaColumn(
@@ -680,12 +796,12 @@ object StepsCountDomainSchema {
 		val origin: String,
 		val partial: Boolean,
 		val columns: List<String?>,
-		val sql: String?,
+		val sql: SqlCanonical?,
 	)
 
 	private data class SchemaTrigger(
 		val table: String,
-		val sql: String,
+		val sql: SqlCanonical?,
 	)
 
 	private data class SchemaNamedObject(
@@ -846,17 +962,90 @@ object StepsCountDomainSchema {
 		),
 	)
 
-	private val EXPECTED_TABLE_SQL = EXPECTED_TABLES.keys.associateWith { table ->
-		requireNotNull(tableStatements.singleOrNull { statement ->
-			statement.trimStart().startsWith("CREATE TABLE IF NOT EXISTS `$table`")
-		}).normalizedSql()
-	}
+	private val SQLITE_PUNCTUATION = setOf('(', ')', ',', '.', ';')
+	private val SQLITE_OPERATORS = listOf(
+		"->>",
+		"||",
+		"->",
+		"<<",
+		">>",
+		"<=",
+		">=",
+		"==",
+		"!=",
+		"<>",
+		"*",
+		"/",
+		"%",
+		"+",
+		"-",
+		"~",
+		"&",
+		"|",
+		"<",
+		">",
+		"=",
+	)
+	private val SQLITE_DDL_KEYWORDS = setOf(
+		"ABORT",
+		"ACTION",
+		"AFTER",
+		"AND",
+		"AS",
+		"BEFORE",
+		"BEGIN",
+		"CASCADE",
+		"CREATE",
+		"DEFERRABLE",
+		"DEFERRED",
+		"DELETE",
+		"END",
+		"EXISTS",
+		"FOREIGN",
+		"FROM",
+		"IF",
+		"IN",
+		"INDEX",
+		"INITIALLY",
+		"INSERT",
+		"INTO",
+		"KEY",
+		"NO",
+		"NOT",
+		"NULL",
+		"ON",
+		"OR",
+		"PRIMARY",
+		"RAISE",
+		"REFERENCES",
+		"RESTRICT",
+		"SELECT",
+		"TABLE",
+		"TRIGGER",
+		"UNIQUE",
+		"UPDATE",
+		"VALUES",
+		"WHEN",
+		"WHERE",
+	)
 
-	private val EXPECTED_INDEX_SQL = EXPECTED_INDEXES.keys.associateWith { name ->
-		requireNotNull(indexStatements.singleOrNull { statement ->
-			statement.contains("`$name`")
-		}).normalizedSql()
-	}
+	private val EXPECTED_TABLE_SQL: Map<String, SqlCanonical> =
+		EXPECTED_TABLES.keys.associateWith { table ->
+			requireNotNull(
+				requireNotNull(tableStatements.singleOrNull { statement ->
+					statement.trimStart().startsWith("CREATE TABLE IF NOT EXISTS `$table`")
+				}).normalizedSql(),
+			)
+		}
+
+	private val EXPECTED_INDEX_SQL: Map<String, SqlCanonical> =
+		EXPECTED_INDEXES.keys.associateWith { name ->
+			requireNotNull(
+				requireNotNull(indexStatements.singleOrNull { statement ->
+					statement.contains("`$name`")
+				}).normalizedSql(),
+			)
+		}
 
 	private val EXPECTED_ALL_INDEXES: Map<String, SchemaIndex> =
 		EXPECTED_INDEXES.mapValues { (name, index) ->
@@ -900,7 +1089,7 @@ object StepsCountDomainSchema {
 				TERMINAL_OWNER_TRIGGER -> OWNER_TABLE
 				else -> AMBIENT_FACT_TABLE
 			}
-			name to SchemaTrigger(table, statement.normalizedSql())
+			name to SchemaTrigger(table, requireNotNull(statement.normalizedSql()))
 		}
 
 	private val EXPECTED_MARKER = SchemaMarker(
@@ -921,4 +1110,15 @@ object StepsCountDomainSchema {
 		EXPECTED_SCAFFOLD_NAMED_OBJECTS + EXPECTED_TRIGGERS.map { (name, trigger) ->
 			SchemaNamedObject("trigger", name, trigger.table)
 		}
+
+	private const val MAX_SQL_LENGTH = 65_536
+	private const val MAX_SQL_TOKEN_COUNT = 4_096
+	private const val MAX_SQL_TOKEN_LENGTH = 16_384
+	private val AUTHORITY_TABLE_NAMES = listOf(
+		RECEIPT_TABLE,
+		OWNER_TABLE,
+		COMPLETENESS_MARKER_TABLE,
+		SCHEMA_MARKER_TABLE,
+		AMBIENT_FACT_TABLE,
+	)
 }

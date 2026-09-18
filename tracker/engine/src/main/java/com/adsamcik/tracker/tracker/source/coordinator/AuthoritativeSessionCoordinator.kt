@@ -4575,33 +4575,48 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				provider.sourceInstanceId.value,
 				provider.registrationGeneration,
 			) ?: continue
+			if (receipt.state == SourceRunRetirementEntity.STATE_REQUESTED) {
+				val exactOwner = target.claims.singleOrNull { claim ->
+					claim.owns(receipt)
+				} ?: return RunRetirementReplay.AuthenticationBlocked(receipt)
+				if (target.source != SourceKind.STEPS) return RunRetirementReplay.None
+				return when (val recovery = recoverRequestedStepsRetirement(
+					target,
+					exactOwner,
+					receipt,
+				)) {
+					is RequestedStepsRetirementRecovery.Authenticated ->
+						RunRetirementReplay.Acknowledged(recovery.acknowledgement)
+					RequestedStepsRetirementRecovery.Absent -> RunRetirementReplay.None
+					RequestedStepsRetirementRecovery.Blocked ->
+						RunRetirementReplay.AuthenticationBlocked(receipt)
+				}
+			}
 			if (receipt.actionId != owned.runtimeClaim.actionId ||
 				receipt.attemptCount != owned.runtimeClaim.attemptCount ||
 				receipt.leaseGeneration != owned.runtimeClaim.leaseGeneration
 			) {
 				return RunRetirementReplay.AuthenticationBlocked(receipt)
 			}
-			if (receipt.state != SourceRunRetirementEntity.STATE_REQUESTED) {
-				val acknowledgement = runCatchingNonCancellation {
-					receipt.toStopAckOrNull()
-				}.getOrNull()
-				return acknowledgement?.let { RunRetirementReplay.Acknowledged(it) }
-					?: RunRetirementReplay.AuthenticationBlocked(receipt)
-			}
-			if (target.source != SourceKind.STEPS) return RunRetirementReplay.None
-			return when (val recovery = recoverRequestedStepsRetirement(
-				target,
-				owned,
-				receipt,
-			)) {
-				is RequestedStepsRetirementRecovery.Authenticated ->
-					RunRetirementReplay.Acknowledged(recovery.acknowledgement)
-				RequestedStepsRetirementRecovery.Absent -> RunRetirementReplay.None
-				RequestedStepsRetirementRecovery.Blocked ->
-					RunRetirementReplay.AuthenticationBlocked(receipt)
-			}
+			val acknowledgement = runCatchingNonCancellation {
+				receipt.toStopAckOrNull()
+			}.getOrNull()
+			return acknowledgement?.let { RunRetirementReplay.Acknowledged(it) }
+				?: RunRetirementReplay.AuthenticationBlocked(receipt)
 		}
 		return RunRetirementReplay.None
+	}
+
+	private fun RunRetirementClaim.owns(receipt: SourceRunRetirementEntity): Boolean {
+		val exactProvider = provider ?: return false
+		return runtimeClaim.source.stableCode == receipt.sourceKind &&
+			runtimeClaim.actionId == receipt.actionId &&
+			runtimeClaim.attemptCount == receipt.attemptCount &&
+			runtimeClaim.leaseGeneration == receipt.leaseGeneration &&
+			runtimeClaim.logicalTrackingId == receipt.logicalTrackingId &&
+			runtimeClaim.serviceRunId == receipt.serviceRunId &&
+			exactProvider.sourceInstanceId.value == receipt.sourceInstanceId &&
+			exactProvider.registrationGeneration == receipt.registrationGeneration
 	}
 
 	@Suppress("ComplexCondition", "LongMethod", "ReturnCount")

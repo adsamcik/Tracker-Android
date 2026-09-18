@@ -656,6 +656,57 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `requested replay without its exact action claim remains blocked`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("missing-requested-owner")
+		val retirement = database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single()
+		database.sourceSessionDao().updateRunRetirement(
+			retirement.copy(actionId = "missing-requested-owner-action"),
+		) shouldBe 1
+
+		assertTerminalStepsRecoveryBlocked(started, "missing-requested-owner-retry")
+	}
+
+	@Test
+	fun `requested replay cannot move its action claim to another physical provider`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("wrong-requested-provider")
+		val retirement = database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single()
+		val owner = requireNotNull(
+			database.sourceSessionDao().lifecycleAction(retirement.actionId),
+		)
+		database.sourceSessionDao().updateLifecycleAction(
+			owner.copy(sourceInstanceId = "different-steps-instance"),
+		) shouldBe 1
+
+		assertTerminalStepsRecoveryBlocked(started, "wrong-requested-provider-retry")
+	}
+
+	@Test
+	fun `requested replay cannot move its action claim to another provider generation`() = runTest {
+		val started = prepareBlockedTerminalStepsRecovery("wrong-requested-generation")
+		val retirement = database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single()
+		val owner = requireNotNull(
+			database.sourceSessionDao().lifecycleAction(retirement.actionId),
+		)
+		database.sourceSessionDao().updateLifecycleAction(
+			owner.copy(registrationGeneration = retirement.registrationGeneration + 1L),
+		) shouldBe 1
+
+		assertTerminalStepsRecoveryBlocked(started, "wrong-requested-generation-retry")
+	}
+
+	@Test
 	fun `candidate plan reports an exact incomplete membership instead of Ready empty`() = runTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 		val started = subject.start(
@@ -1267,7 +1318,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `stopping retry persists a new action generation before accepting improved completeness`() = runTest {
+	fun `stopping retry resolves requested provider row past newer cleanup claim to start owner`() = runTest {
 		val eventCoordinator = mockk<TrackingCoordinator>()
 		coEvery { eventCoordinator.drainAvailable(any(), any()) } returnsMany listOf(
 			CoordinatorDrainResult.LeaseUnavailable,
@@ -1320,6 +1371,20 @@ class AuthoritativeSessionCoordinatorTest {
 		requestedRetirement.providerCoverage shouldBe null
 		requestedRetirement.appDrainComplete shouldBe null
 		requestedRetirement.stopStatus shouldBe null
+		val requestedOwner = requireNotNull(
+			database.sourceSessionDao().lifecycleAction(requestedRetirement.actionId),
+		)
+		requestedOwner.desiredState shouldBe "STARTED"
+		val newerCleanupClaim = database.sourceSessionDao()
+			.lifecycleActions(started.logicalTrackingId)
+			.filter { action ->
+				action.sourceInstanceId == requestedRetirement.sourceInstanceId &&
+					action.registrationGeneration == requestedRetirement.registrationGeneration &&
+					action.status == LifecycleActionStatus.CLEANUP_REQUIRED.name
+			}
+			.maxBy { action -> action.actionRevision }
+		newerCleanupClaim.desiredState shouldBe "STOPPED"
+		(newerCleanupClaim.actionRevision > requestedOwner.actionRevision) shouldBe true
 		runtime.stopStatus = SourceStopStatus.COMPLETE
 		runtime.registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED
 		subject.stop(
@@ -1352,6 +1417,7 @@ class AuthoritativeSessionCoordinatorTest {
 			receipt.appDrainComplete shouldBe true
 			receipt.stopStatus shouldBe SourceStopStatus.COMPLETE.name
 		}
+		runtime.shutdownClaims.last().actionId shouldBe requestedOwner.actionId
 	}
 
 	@Test
