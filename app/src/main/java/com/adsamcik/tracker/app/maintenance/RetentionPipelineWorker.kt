@@ -19,6 +19,7 @@ import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionPlanResul
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionReceipt
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionStartResult
 import com.adsamcik.tracker.shared.base.database.RoomTruncateImportedActivityRetention
+import com.adsamcik.tracker.shared.base.database.SourceEventStoragePruneResult
 import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionRequest
 import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionResult
 import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
@@ -365,17 +366,19 @@ class RetentionPipelineWorker @AssistedInject constructor(
 					startupGeneration,
 					authority,
 				)
-                appDatabase.pruneSourceEventStorageBefore(
+				if (appDatabase.pruneSourceEventStorageBefore(
 					createdBeforeMs = exactFloor,
-                	verifyCollectedDataAccess = {
+					verifyCollectedDataAccess = {
 						requireDestructiveAuthority(
 							appDatabase,
 							execution,
 							startupGeneration,
 							authority,
 						)
-                	},
-                )
+					},
+				) is SourceEventStoragePruneResult.Deferred) {
+					maintenanceDeferred = true
+				}
 			}
 			val plannedRadioCutoff = listOfNotNull(
 				operationPlan.rawRetentionCutoffMs,

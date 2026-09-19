@@ -121,7 +121,11 @@ class LongSessionStorageInstrumentationTest {
 
 		val pruneMs: Long
 		val pruneResult = run {
-			var result = com.adsamcik.tracker.shared.base.database.SourceEventStoragePruneResult(0, 0)
+			var result: com.adsamcik.tracker.shared.base.database.SourceEventStoragePruneResult =
+				com.adsamcik.tracker.shared.base.database.SourceEventStoragePruneResult.Complete(
+					walEventsDeleted = 0,
+					deliveredEffectsDeleted = 0,
+				)
 			pruneMs = measureTimeMillis {
 				// The last effect is delivered one millisecond after its source event, and
 				// retention is intentionally strict (< cutoff), so advance past both values.

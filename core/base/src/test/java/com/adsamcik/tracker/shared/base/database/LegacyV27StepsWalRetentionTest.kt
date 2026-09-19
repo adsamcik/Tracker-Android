@@ -419,9 +419,8 @@ class LegacyV27StepsWalRetentionTest {
 			arrayOf(byteArrayOf(9), legacy.admissionOrdinal),
 		)
 
-		shouldThrow<IllegalStateException> {
-			database.pruneSourceEventStorageBefore(createdBeforeMs = 100L)
-		}
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100L)
+			.shouldHaveStoredEvidenceDebt()
 
 		database.sourceEventWalDao().getByAdmissionOrdinal(legacy.admissionOrdinal)?.eventId shouldBe
 			legacy.eventId
@@ -437,9 +436,8 @@ class LegacyV27StepsWalRetentionTest {
 			integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
 		)
 
-		shouldThrow<IllegalStateException> {
-			database.pruneSourceEventStorageBefore(createdBeforeMs = 100L)
-		}
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100L)
+			.shouldHaveStoredEvidenceDebt()
 
 		database.sourceEventWalDao().getByAdmissionOrdinal(legacy.admissionOrdinal)?.eventId shouldBe
 			legacy.eventId
@@ -490,9 +488,8 @@ class LegacyV27StepsWalRetentionTest {
 			serviceRunId = null,
 		)
 
-		shouldThrow<IllegalStateException> {
-			database.pruneSourceEventStorageBefore(createdBeforeMs = 100L)
-		}
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100L)
+			.shouldHaveStoredEvidenceDebt()
 
 		database.sourceEventWalDao().getByAdmissionOrdinal(legacy.admissionOrdinal)?.eventId shouldBe
 			legacy.eventId
@@ -502,9 +499,8 @@ class LegacyV27StepsWalRetentionTest {
 	fun `nonlegacy zero-mask Steps WAL fails closed`() = runTest {
 		val zeroMask = insertLegacyStepsWal("not-migrated", 1L)
 
-		shouldThrow<IllegalStateException> {
-			database.pruneSourceEventStorageBefore(createdBeforeMs = 100L)
-		}
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100L)
+			.shouldHaveStoredEvidenceDebt()
 
 		database.sourceEventWalDao().getByAdmissionOrdinal(zeroMask.admissionOrdinal)?.eventId shouldBe
 			zeroMask.eventId
@@ -522,9 +518,8 @@ class LegacyV27StepsWalRetentionTest {
 			arrayOf(LEGACY_RUN_ID),
 		)
 
-		shouldThrow<IllegalStateException> {
-			database.pruneSourceEventStorageBefore(createdBeforeMs = 100L)
-		}
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100L)
+			.shouldHaveStoredEvidenceDebt()
 
 		database.sourceEventWalDao().getByAdmissionOrdinal(legacy.admissionOrdinal)?.eventId shouldBe
 			legacy.eventId
@@ -570,9 +565,8 @@ class LegacyV27StepsWalRetentionTest {
 			"UPDATE legacy_v27_projection_drain SET contract_version = 2 WHERE id = 1",
 		)
 
-		shouldThrow<IllegalStateException> {
-			database.pruneSourceEventStorageBefore(createdBeforeMs = 100L)
-		}
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100L)
+			.shouldHaveStoredEvidenceDebt()
 
 		database.sourceEventWalDao().getByAdmissionOrdinal(legacy.admissionOrdinal)?.eventId shouldBe
 			legacy.eventId
@@ -588,9 +582,8 @@ class LegacyV27StepsWalRetentionTest {
 			arrayOf(SourceEventWalEntity.LEGACY_CHECKSUM_MISMATCH, legacy.admissionOrdinal),
 		)
 
-		shouldThrow<IllegalStateException> {
-			database.pruneSourceEventStorageBefore(createdBeforeMs = 100L)
-		}
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100L)
+			.shouldHaveStoredEvidenceDebt()
 
 		database.sourceEventWalDao().getByAdmissionOrdinal(legacy.admissionOrdinal)?.eventId shouldBe
 			legacy.eventId
@@ -656,6 +649,18 @@ class LegacyV27StepsWalRetentionTest {
 		AppDatabase.fileBuilder(context, REOPEN_DATABASE)
 			.allowMainThreadQueries()
 			.build()
+
+	private fun SourceEventStoragePruneResult.shouldHaveStoredEvidenceDebt() {
+		val deferred = this as SourceEventStoragePruneResult.Deferred
+		deferred.sourceDebt shouldBe listOf(
+			SourceEventStorageSourcePruneOutcome.Blocked(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				reason = SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
+				walEventsDeleted = 0,
+				deliveredEffectsDeleted = 0,
+			),
+		)
+	}
 
 	private suspend fun seedPendingLegacyDrain(cutoff: Long) {
 		database.sourceEvidenceStateDao().ensure()
