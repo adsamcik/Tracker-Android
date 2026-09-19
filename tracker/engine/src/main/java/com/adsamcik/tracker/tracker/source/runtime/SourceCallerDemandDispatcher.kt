@@ -1519,8 +1519,9 @@ private fun List<SourceDemandEntity>.match(receipt: SourceCallerAcceptanceReceip
 			identity.purposeLeaseIdentity.policyRevision == demand.sourcePolicyRevision &&
 			identity.purposeLeaseIdentity.consentEpoch == demand.consentEpoch &&
 			if (purpose == TrackingPurpose.SESSION_CAPTURE) {
-				identity.manifestIdentity?.logicalTrackingId == demand.logicalTrackingId &&
-					identity.manifestIdentity.manifestRevision == demand.manifestRevision
+				val manifestIdentity = identity.manifestIdentity ?: return@all false
+				manifestIdentity.logicalTrackingId == demand.logicalTrackingId &&
+					manifestIdentity.manifestRevision == demand.manifestRevision
 			} else {
 				identity.manifestIdentity == null
 			}
