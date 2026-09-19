@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
 import com.adsamcik.tracker.tracker.api.SourceCallerAcceptanceReceipt
 import com.adsamcik.tracker.tracker.api.SourceCallerDemandIdentity
 import com.adsamcik.tracker.tracker.api.SourceCallerGuardRejection
@@ -8,6 +9,7 @@ import com.adsamcik.tracker.tracker.api.SourceCallerManifestIdentity
 import com.adsamcik.tracker.tracker.api.SourceCallerRejectionReason
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayKind
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
+import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 
 internal class TestPurposeSourceCallerDemandDispatcher(
@@ -47,6 +49,7 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 				),
 			)
 		}
+
 		val demand = broker.replaceAutomaticControlDemand(
 			consumerId = request.consumerId,
 			source = SourceKind.ACTIVITY,
@@ -93,6 +96,24 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 					SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
 				),
 			)
+		}
+
+		internal object PermissiveTrackingPurposeMutationLeaseGuard :
+			TrackingPurposeMutationLeaseGuard {
+			override suspend fun <T> mutateIfCurrent(
+				identity: AmbientReconciliationIdentity,
+				mutation: suspend () -> T,
+			): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Applied(mutation())
+
+			override suspend fun <T> mutateAutomaticIfCurrent(
+				identity: TrackingPurposeLeaseIdentity,
+				mutation: suspend () -> T,
+			): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Applied(mutation())
+
+			override suspend fun <T> mutateAmbientIfCurrent(
+				identity: AmbientReconciliationIdentity,
+				mutation: suspend () -> T,
+			): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Applied(mutation())
 		}
 		val snapshot = retentionSnapshot(
 			SourceKind.STEPS,

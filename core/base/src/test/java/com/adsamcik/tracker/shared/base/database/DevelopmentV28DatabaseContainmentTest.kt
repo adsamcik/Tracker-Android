@@ -180,6 +180,22 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
+	fun `pre caller authority v28 is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			includeCallerAuthority = false,
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
 	fun `unknown v28 schema is not mistaken for stale Tracker development data`() {
 		createFixture(
 			version = CURRENT_DATABASE_VERSION,
@@ -434,6 +450,7 @@ class DevelopmentV28DatabaseContainmentTest {
 		includeFinalColumn: Boolean = false,
 		includeFinalIndex: Boolean = false,
 		includeRadioReceiptColumn: Boolean = true,
+		includeCallerAuthority: Boolean = includeFinalTable,
 		markerValue: String? = null,
 	) {
 		val helper = FrameworkSQLiteOpenHelperFactory().create(
@@ -500,6 +517,32 @@ class DevelopmentV28DatabaseContainmentTest {
 								db.execSQL(
 									"CREATE INDEX idx_ambient_steps_retention_scope " +
 										"ON ambient_steps_retention_authority(scope)",
+								)
+							}
+						}
+						if (includeCallerAuthority) {
+							db.execSQL(
+								"CREATE TABLE source_caller_accepted_authority (" +
+									"reference TEXT NOT NULL, format_version INTEGER NOT NULL, " +
+									"origin TEXT NOT NULL, accepted_purpose TEXT NOT NULL, " +
+									"source_kind INTEGER NOT NULL, purpose TEXT NOT NULL, " +
+									"policy_revision INTEGER NOT NULL, consent_epoch INTEGER NOT NULL, " +
+									"collected_data_epoch INTEGER NOT NULL, retained_from_ms INTEGER, " +
+									"rollout_revision INTEGER NOT NULL, execution_revision INTEGER NOT NULL, " +
+									"owner_cas_token TEXT NOT NULL, logical_tracking_id TEXT, " +
+									"manifest_revision INTEGER, status TEXT NOT NULL, " +
+									"created_at_ms INTEGER NOT NULL, retired_at_ms INTEGER, " +
+									"retire_reason TEXT, effect_checksum TEXT NOT NULL, " +
+									"PRIMARY KEY(reference, source_kind, purpose))",
+							)
+							if (includeFinalIndex) {
+								db.execSQL(
+									"CREATE INDEX idx_source_caller_authority_retired " +
+										"ON source_caller_accepted_authority(status, retired_at_ms)",
+								)
+								db.execSQL(
+									"CREATE INDEX idx_source_caller_authority_status " +
+										"ON source_caller_accepted_authority(status)",
 								)
 							}
 						}

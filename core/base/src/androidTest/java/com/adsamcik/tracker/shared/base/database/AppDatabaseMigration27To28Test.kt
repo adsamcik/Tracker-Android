@@ -848,6 +848,7 @@ class AppDatabaseMigration27To28Test {
 			}
 			assertTrue("reference" in columns)
 			assertTrue("format_version" in columns)
+			assertTrue("retained_from_ms" in columns)
 			assertTrue("effect_checksum" in columns)
 			assertTrue("retired_at_ms" in columns)
 			assertTrue("retire_reason" in columns)

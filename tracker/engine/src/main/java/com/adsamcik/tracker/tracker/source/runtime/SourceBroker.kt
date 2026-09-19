@@ -456,7 +456,7 @@ class SourceBroker @Inject internal constructor(
 			currentAuthorityReferences(consumerId) +
 				database.sourceSessionDao().lifecycleIntents(logicalTrackingId)
 					.mapNotNull { intent -> intent.sourceCallerAuthorityReference }
-					.map(::SourceCallerReplayReference)
+					.mapNotNull(String::toCallerReferenceOrNull)
 		).toSet()
 		val updated = dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
 		if (retireCallerAuthority) {
@@ -573,9 +573,9 @@ class SourceBroker @Inject internal constructor(
 		demand: SourceDemandEntity,
 		reason: String,
 		wallTimeMs: Long,
-	): Boolean = demand.sourceCallerAuthorityReference?.let { reference ->
+	): Boolean = demand.sourceCallerAuthorityReference?.toCallerReferenceOrNull()?.let { reference ->
 		retireAuthorityReferences(
-			setOf(SourceCallerReplayReference(reference)),
+			setOf(reference),
 			reason,
 			wallTimeMs,
 		)
@@ -2164,6 +2164,7 @@ class SourceBroker @Inject internal constructor(
 		} catch (_: Exception) {
 			null
 		} ?: return null
+		if (approved.collectedDataEpoch != collectedDataEpoch) return null
 		val exactCurrent = try {
 			retentionAuthorityReader.isCurrentLiveAmbientAt(
 				source = source.toTrackingSourceComponent(),
@@ -2187,6 +2188,7 @@ class SourceBroker @Inject internal constructor(
 			sourcePolicyRevision = sourcePolicyRevision,
 			ambientConsentEpoch = ambientConsentEpoch,
 			collectedDataEpoch = collectedDataEpoch,
+			retainedFromMs = approved.retainedFromMs,
 			opaquePolicyId = approved.opaquePolicyId,
 			approvalRevision = approved.approvalRevision,
 			effectiveBootId = approved.effectiveBootId,
@@ -2207,7 +2209,10 @@ class SourceBroker @Inject internal constructor(
 				currentWallTimeMs,
 			)
 		) return false
-		if (database.sourceEvidenceStateDao().get()?.collectedDataEpoch != grant.collectedDataEpoch) {
+		val evidence = database.sourceEvidenceStateDao().get()
+		if (evidence?.collectedDataEpoch != grant.collectedDataEpoch ||
+			evidence.retainedFromMs != grant.retainedFromMs
+		) {
 			return false
 		}
 		val policyDao = database.sourcePolicyDao()
@@ -2252,6 +2257,7 @@ class SourceBroker @Inject internal constructor(
 						requireNotNull(authority.sourcePolicyRevision),
 						requireNotNull(authority.ambientConsentEpoch),
 						authority.collectedDataEpoch,
+						authority.retainedFromMs,
 						authority.opaquePolicyId,
 						authority.approvalRevision,
 						authority.effectiveBootId,
@@ -2269,6 +2275,7 @@ class SourceBroker @Inject internal constructor(
 						requireNotNull(authority.sourcePolicyRevision),
 						requireNotNull(authority.ambientConsentEpoch),
 						authority.collectedDataEpoch,
+						authority.retainedFromMs,
 						authority.opaquePolicyId,
 						authority.approvalRevision,
 						authority.effectiveBootId,
@@ -2286,6 +2293,7 @@ class SourceBroker @Inject internal constructor(
 						requireNotNull(authority.sourcePolicyRevision),
 						requireNotNull(authority.ambientConsentEpoch),
 						authority.collectedDataEpoch,
+						authority.retainedFromMs,
 						authority.opaquePolicyId,
 						authority.approvalRevision,
 						authority.effectiveBootId,
@@ -2418,6 +2426,64 @@ private object AmbientStepsDemandIdentity {
 				leaseIdentity = leaseIdentity,
 			)
 
+	fun create(
+		consumerId: String,
+		sourcePolicyRevision: Long,
+		consentEpoch: Long,
+		requestedBootId: String,
+		requestedElapsedRealtimeNanos: Long,
+		minimumAcquisitionSpec: String,
+		retention: LiveAmbientRetentionGrant,
+		leaseIdentity: AmbientReconciliationIdentity,
+	): String = buildString {
+		append(
+			retentionDigest(
+				consumerId,
+				sourcePolicyRevision,
+				consentEpoch,
+				requestedBootId,
+				requestedElapsedRealtimeNanos,
+				minimumAcquisitionSpec,
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				retention.opaquePolicyId,
+				retention.approvalRevision,
+			),
+		)
+		append('.')
+		append(leaseIdentity.rolloutRevision)
+		append('.')
+		append(leaseIdentity.executionRevision)
+		append('.')
+		append(
+			Base64.getUrlEncoder().withoutPadding().encodeToString(
+				leaseIdentity.ownerCasToken.toByteArray(Charsets.UTF_8),
+			),
+		)
+	}
+
+	fun matches(
+		demand: SourceDemandEntity,
+		retention: LiveAmbientRetentionGrant,
+		leaseIdentity: AmbientReconciliationIdentity,
+	): Boolean =
+		retention.source == SourceKind.STEPS &&
+			retention.sourcePolicyRevision == demand.sourcePolicyRevision &&
+			retention.ambientConsentEpoch == demand.consentEpoch &&
+			retention.collectedDataEpoch == leaseIdentity.collectedDataEpoch &&
+			retention.retainedFromMs == leaseIdentity.retainedFromMs &&
+			retention.opaquePolicyId == leaseIdentity.retentionPolicyId &&
+			retention.approvalRevision == leaseIdentity.retentionApprovalRevision &&
+			demand.demandId == create(
+				demand.consumerId,
+				demand.sourcePolicyRevision,
+				demand.consentEpoch,
+				demand.requestedBootId,
+				demand.requestedElapsedRealtimeNanos,
+				demand.minimumAcquisitionSpec,
+				retention,
+				leaseIdentity,
+			)
+
 	fun parseLeaseBinding(demandId: String): AmbientStepsLeaseBinding? = try {
 		val parts = demandId.split('.')
 		if (parts.size != 4) return null
@@ -2456,6 +2522,28 @@ private object AmbientStepsDemandIdentity {
 		requestedElapsedRealtimeNanos: Long,
 		minimumAcquisitionSpec: String,
 		retention: AmbientStepsRetentionAuthorityEntity,
+	): String = retentionDigest(
+		consumerId,
+		sourcePolicyRevision,
+		consentEpoch,
+		requestedBootId,
+		requestedElapsedRealtimeNanos,
+		minimumAcquisitionSpec,
+		retention.scope,
+		retention.opaquePolicyId,
+		retention.approvalRevision,
+	)
+
+	private fun retentionDigest(
+		consumerId: String,
+		sourcePolicyRevision: Long,
+		consentEpoch: Long,
+		requestedBootId: String,
+		requestedElapsedRealtimeNanos: Long,
+		minimumAcquisitionSpec: String,
+		scope: String,
+		opaquePolicyId: String,
+		approvalRevision: Long,
 	): String = digest(
 		"ambient-steps-retention-demand-v1",
 		consumerId,
@@ -2466,9 +2554,9 @@ private object AmbientStepsDemandIdentity {
 		requestedBootId,
 		requestedElapsedRealtimeNanos,
 		minimumAcquisitionSpec,
-		retention.scope,
-		retention.opaquePolicyId,
-		retention.approvalRevision,
+		scope,
+		opaquePolicyId,
+		approvalRevision,
 	)
 
 	private fun digest(vararg values: Any): String {
@@ -2526,6 +2614,7 @@ internal data class LiveAmbientRetentionGrant(
 	val sourcePolicyRevision: Long,
 	val ambientConsentEpoch: Long,
 	val collectedDataEpoch: Long,
+	val retainedFromMs: Long?,
 	val opaquePolicyId: String,
 	val approvalRevision: Long,
 	val effectiveBootId: String,
@@ -2537,6 +2626,7 @@ internal data class LiveAmbientRetentionGrant(
 		require(sourcePolicyRevision > 0L)
 		require(ambientConsentEpoch > 0L)
 		require(collectedDataEpoch >= 0L)
+		require(retainedFromMs == null || retainedFromMs >= 0L)
 		require(opaquePolicyId.isNotBlank())
 		require(approvalRevision > 0L)
 		require(effectiveBootId.isNotBlank())

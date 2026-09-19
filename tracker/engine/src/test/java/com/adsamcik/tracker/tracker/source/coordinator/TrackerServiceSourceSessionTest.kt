@@ -740,6 +740,64 @@ class TrackerServiceSourceSessionTest {
 	}
 
 	@Test
+	fun `failed predecessor retirement restores durable and in-memory caller authority`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
+		val changed = settings(SourceCollectionFrequency.BATTERY_SAVER, sourcePolicyRevision = 2)
+		val oldReference = SourceCallerReplayReference("authority-old")
+		val newReference = SourceCallerReplayReference("authority-new")
+		val descriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = oldReference,
+		)
+		val replacement = descriptor.copy(sourceCallerAuthorityReference = newReference)
+		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+			"logical", "run", emptyList(), DesiredPlanStatus.EFFECTIVE, oldReference,
+		)
+		coEvery { lifecycle.reconfigure(any()) } returns SessionReconfigureResult.Applied(
+			2L, emptyList(), DesiredPlanStatus.EFFECTIVE, newReference,
+		)
+		coEvery { activeSessionStore.read() } returns
+			ActiveTrackingSessionStoreResult.Success(descriptor)
+		coEvery { activeSessionStore.replaceExact(descriptor, replacement) } returns
+			ActiveTrackingSessionStoreResult.Success(replacement)
+		coEvery { activeSessionStore.replaceExact(replacement, descriptor) } returns
+			ActiveTrackingSessionStoreResult.Success(descriptor)
+		coEvery {
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical", newReference, oldReference, any(),
+			)
+		} returns false
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, initial),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(initial),
+				ownerToken = "owner",
+			),
+		)
+
+		subject.reconfigure(inputs(changed))
+			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Rejected>()
+
+		coVerifyOrder {
+			activeSessionStore.replaceExact(descriptor, replacement)
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical", newReference, oldReference, any(),
+			)
+			activeSessionStore.replaceExact(replacement, descriptor)
+		}
+	}
+
+	@Test
 	fun `reconfiguration keeps predecessor authority live when descriptor propagation is unavailable`() =
 		runTest {
 			val rollout = allEventCanonical(revision = 5)

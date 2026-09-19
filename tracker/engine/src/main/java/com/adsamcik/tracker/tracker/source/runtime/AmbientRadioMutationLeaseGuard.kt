@@ -18,14 +18,36 @@ interface AmbientRadioMutationLeaseGuard {
 	): AmbientRadioLeaseMutation<T>
 }
 
+interface TrackingPurposeMutationLeaseGuard : AmbientRadioMutationLeaseGuard {
+	suspend fun <T> mutateAutomaticIfCurrent(
+		identity: com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T>
+
+	suspend fun <T> mutateAmbientIfCurrent(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T>
+}
+
 sealed interface AmbientRadioLeaseMutation<out T> {
 	data class Applied<T>(val value: T) : AmbientRadioLeaseMutation<T>
 	data object Stale : AmbientRadioLeaseMutation<Nothing>
 }
 
 /** Safe until the parent purpose-availability store binds its atomic lease bridge. */
-object RejectingAmbientRadioMutationLeaseGuard : AmbientRadioMutationLeaseGuard {
+object RejectingAmbientRadioMutationLeaseGuard : TrackingPurposeMutationLeaseGuard {
 	override suspend fun <T> mutateIfCurrent(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Stale
+
+	override suspend fun <T> mutateAutomaticIfCurrent(
+		identity: com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Stale
+
+	override suspend fun <T> mutateAmbientIfCurrent(
 		identity: AmbientReconciliationIdentity,
 		mutation: suspend () -> T,
 	): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Stale

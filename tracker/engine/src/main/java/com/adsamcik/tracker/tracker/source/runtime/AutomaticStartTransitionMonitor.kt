@@ -21,11 +21,12 @@ import kotlinx.coroutines.withContext
 
 /** Application-scoped automatic-start demand; it is independent of tracking-session lifetime. */
 @Singleton
-class AutomaticStartTransitionMonitor @Inject constructor(
+class AutomaticStartTransitionMonitor @Inject internal constructor(
 	private val arbiter: ActivityRegistrationArbiter,
 	private val sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,
 	private val clockDomainProvider: BootClockDomainProvider,
 	private val activityProjectionLane: ActivityAutomationProjectionLane,
+	private val mutationLeaseGuard: TrackingPurposeMutationLeaseGuard? = null,
 ) {
 	suspend fun reconcile(
 		enabled: Boolean,
@@ -63,6 +64,40 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 			}
 		}
 		val readyIdentity = requireNotNull(publishedReady).identity
+		val guard = mutationLeaseGuard
+			?: return reconcileEnabledUnderHeldLease(
+				readyIdentity,
+				boundaryBootId,
+				elapsedRealtimeNanos,
+				boundaryWallTimeMs,
+				desiredLatencyMs,
+				transitions,
+			)
+		val guardedMutation = guard.mutateAutomaticIfCurrent(readyIdentity) {
+			reconcileEnabledUnderHeldLease(
+				readyIdentity,
+				boundaryBootId,
+				elapsedRealtimeNanos,
+				boundaryWallTimeMs,
+				desiredLatencyMs,
+				transitions,
+			)
+		}
+		return when (guardedMutation) {
+			is AmbientRadioLeaseMutation.Applied -> guardedMutation.value
+			AmbientRadioLeaseMutation.Stale ->
+				arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR).blocked()
+		}
+	}
+
+	private suspend fun reconcileEnabledUnderHeldLease(
+		readyIdentity: com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity,
+		boundaryBootId: String,
+		elapsedRealtimeNanos: Long,
+		boundaryWallTimeMs: Long,
+		desiredLatencyMs: Long,
+		transitions: Set<ActivityTransitionData>,
+	): ActivityRegistrationResult {
 		val dispatched = try {
 			sourceCallerDemandDispatcher.dispatchAutomaticControl(
 				AutomaticControlDemandDispatchRequest(
@@ -141,6 +176,7 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 				),
 			)
 				if (registered.status == ActivityRegistrationStatus.FAILED) {
+				withContext(NonCancellable) {
 					retireControl(
 						boundaryBootId,
 						elapsedRealtimeNanos,
@@ -148,6 +184,7 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 						desiredLatencyMs,
 					)
 				}
+			}
 				registered
 			} catch (cancelled: CancellationException) {
 				withContext(NonCancellable) {
@@ -172,26 +209,27 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 			}
 		}
 
-		private suspend fun retireControl(
-			bootId: String,
-			elapsedRealtimeNanos: Long,
-			wallTimeMs: Long,
-			desiredLatencyMs: Long,
-		): GuardedPurposeDemandResult<Unit>? = try {
-			sourceCallerDemandDispatcher.retireAutomaticControl(
-				AUTOMATIC_CONTROL_CONSUMER,
-				SourceKind.ACTIVITY,
-				bootId,
-				elapsedRealtimeNanos,
-				wallTimeMs,
-				TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
-				desiredLatencyMs,
-			)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (_: Exception) {
-			null
-		}
+	}
+
+	private suspend fun retireControl(
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+		desiredLatencyMs: Long,
+	): GuardedPurposeDemandResult<Unit>? = try {
+		sourceCallerDemandDispatcher.retireAutomaticControl(
+			AUTOMATIC_CONTROL_CONSUMER,
+			SourceKind.ACTIVITY,
+			bootId,
+			elapsedRealtimeNanos,
+			wallTimeMs,
+			TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
+			desiredLatencyMs,
+		)
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		null
 	}
 
 	private fun ActivityRegistrationResult.blocked(): ActivityRegistrationResult =

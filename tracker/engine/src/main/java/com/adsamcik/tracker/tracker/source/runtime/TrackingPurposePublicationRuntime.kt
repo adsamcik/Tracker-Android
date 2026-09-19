@@ -252,7 +252,7 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 	private val authorityReader: TrackingPurposeAuthorityReader,
 	private val reporter: TrackingPurposeAvailabilityReporter,
 	private val tokenFactory: TrackingPurposeOwnerCasTokenFactory,
-) {
+) : TrackingPurposeMutationLeaseGuard {
 	private val mutex = Mutex()
 	private var automaticIdentity: TrackingPurposeLeaseIdentity? = null
 	private val ambientIdentities = mutableMapOf<AmbientTrackingSource, AmbientReconciliationIdentity>()
@@ -395,6 +395,35 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 			executionRevision,
 			settlementOperationId,
 		)?.let(identity::matches) == true
+	}
+
+	override suspend fun <T> mutateIfCurrent(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = mutateAmbientIfCurrent(identity, mutation)
+
+	override suspend fun <T> mutateAutomaticIfCurrent(
+		identity: TrackingPurposeLeaseIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = mutex.withLock {
+		if (automaticIdentity != identity || !automaticInFlight) {
+			AmbientRadioLeaseMutation.Stale
+		} else {
+			AmbientRadioLeaseMutation.Applied(mutation())
+		}
+	}
+
+	override suspend fun <T> mutateAmbientIfCurrent(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = mutex.withLock {
+		if (ambientIdentities[identity.source] != identity ||
+			identity.source !in ambientInFlight
+		) {
+			AmbientRadioLeaseMutation.Stale
+		} else {
+			AmbientRadioLeaseMutation.Applied(mutation())
+		}
 	}
 
 	private suspend fun readAuthority(

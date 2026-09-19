@@ -3555,6 +3555,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 					policy_revision INTEGER NOT NULL,
 					consent_epoch INTEGER NOT NULL,
 					collected_data_epoch INTEGER NOT NULL,
+					retained_from_ms INTEGER,
 					rollout_revision INTEGER NOT NULL,
 					execution_revision INTEGER NOT NULL,
 					owner_cas_token TEXT NOT NULL,
@@ -3576,6 +3577,10 @@ val MIGRATION_27_28: Migration = object : Migration(
 			execSQL(
 				"CREATE INDEX IF NOT EXISTS idx_source_caller_authority_retired " +
 					"ON source_caller_accepted_authority(status, retired_at_ms)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_source_caller_authority_status " +
+					"ON source_caller_accepted_authority(status)",
 			)
 			execSQL(
 				"""

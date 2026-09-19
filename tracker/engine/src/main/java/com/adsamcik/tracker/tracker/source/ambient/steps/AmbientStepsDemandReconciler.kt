@@ -105,6 +105,34 @@ class AmbientStepsDemandReconciler internal constructor(
 
 	internal suspend fun reconcileAt(
 		boundary: AmbientStepsDemandBoundary,
+	): AmbientStepsDemandReconciliation {
+		val identity = currentPurposeAvailabilityReader.availability.value
+			.ambientSources.getValue(AmbientTrackingSource.STEPS)
+			.operationalIdentity
+			?: return AmbientStepsDemandReconciliation.PolicyBlocked(
+				provider = null,
+				reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
+			)
+		val retention = currentRetentionAuthority(identity.policyRevision, identity.consentEpoch)
+			as? CurrentRetentionAuthority.Approved
+			?: return AmbientStepsDemandReconciliation.PolicyBlocked(
+				provider = null,
+				reason = AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE,
+			)
+		return reconcileAt(
+			boundary,
+			AmbientReconciliationLease(
+				com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity.from(
+					identity,
+					retention.opaquePolicyId,
+					retention.approvalRevision,
+				),
+			),
+		)
+	}
+
+	internal suspend fun reconcileAt(
+		boundary: AmbientStepsDemandBoundary,
 		lease: AmbientReconciliationLease,
 	): AmbientStepsDemandReconciliation = reconcileAt(
 		boundary,
@@ -245,12 +273,14 @@ class AmbientStepsDemandReconciler internal constructor(
 		) {
 			AmbientStepsRetirementPlan.AlreadyRetired -> null
 			is AmbientStepsRetirementPlan.Required -> plan.lease
-			AmbientStepsRetirementPlan.Unverifiable ->
+			AmbientStepsRetirementPlan.Unverifiable -> {
+				val retired = retireDemand(boundary, lease = null)
 				return AmbientStepsDemandReconciliation.PolicyBlocked(
 					provider = null,
 					reason = AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE,
-					retirementComplete = false,
+					retirementComplete = retired,
 				)
+			}
 		}
 		exactLease?.let { require(it.identity.source == AmbientTrackingSource.STEPS) }
 		val retired = exactLease?.let { retireDemand(boundary, it) } ?: true
@@ -339,9 +369,9 @@ class AmbientStepsDemandReconciler internal constructor(
 
 	internal suspend fun retireDemand(
 		boundary: AmbientStepsDemandBoundary,
-		lease: AmbientReconciliationLease,
+		lease: AmbientReconciliationLease?,
 	): Boolean {
-		require(lease.identity.source == AmbientTrackingSource.STEPS)
+		lease?.let { require(it.identity.source == AmbientTrackingSource.STEPS) }
 		return try {
 			sourceCallerDemandDispatcher.retireAmbientSteps(
 				consumerId = CONSUMER_ID,

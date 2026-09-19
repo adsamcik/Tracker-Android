@@ -544,7 +544,6 @@ class TrackerServiceSourceSession @Inject constructor(
 				}
 				return false
 			}
-			session.sourceCallerAuthorityReference = replacementReference
 			val retired = supersededReference == null ||
 				coordinator.retireSupersededSourceCallerAuthority(
 					session.logicalTrackingId,
@@ -553,9 +552,24 @@ class TrackerServiceSourceSession @Inject constructor(
 					Time.nowMillis,
 				)
 			if (!retired) {
-				session.sourceCallerAuthorityReference = supersededReference
+				val restored = when (val result =
+					activeTrackingSessionStore.replaceExact(replacement, stored)
+				) {
+					is ActiveTrackingSessionStoreResult.Failure -> null
+					is ActiveTrackingSessionStoreResult.Success -> result.descriptor
+				}
+				if (restored == stored) {
+					session.sourceCallerAuthorityReference = supersededReference
+				} else {
+					session.sourceCallerAuthorityReference = replacementReference
+					session.pendingRetirementSourceCallerAuthorityReference = supersededReference
+					session.runtimeCleanupRequired = true
+				}
+				return false
 			}
-			retired
+			session.sourceCallerAuthorityReference = replacementReference
+			session.pendingRetirementSourceCallerAuthorityReference = null
+			true
 		} catch (cancelled: CancellationException) {
 			if (markCleanupOnFailure) session.runtimeCleanupRequired = true
 			throw cancelled
@@ -593,6 +607,24 @@ class TrackerServiceSourceSession @Inject constructor(
 	): SourceSessionStopOutcome = mutex.withLock {
 		val session = active ?: return@withLock finishInactiveStop()
 		if (!session.coordinatorStarted) return@withLock finishUnstartedStop()
+		session.pendingRetirementSourceCallerAuthorityReference?.let { predecessor ->
+			val current = session.sourceCallerAuthorityReference
+				?: return@withLock SourceSessionStopOutcome.Retryable(
+					SourceSessionStopRetryCode.CLEANUP_PENDING,
+				)
+			if (!coordinator.retireSupersededSourceCallerAuthority(
+					session.logicalTrackingId,
+					current,
+					predecessor,
+					Time.nowMillis,
+				)
+			) {
+				return@withLock SourceSessionStopOutcome.Retryable(
+					SourceSessionStopRetryCode.CLEANUP_PENDING,
+				)
+			}
+			session.pendingRetirementSourceCallerAuthorityReference = null
+		}
 
 		val outcome = stopStartedSession(
 			session = session,
@@ -793,6 +825,7 @@ class TrackerServiceSourceSession @Inject constructor(
 		var coordinatorStarted: Boolean,
 		var sourceCallerAuthorityReference: SourceCallerReplayReference?,
 		var pendingSourceCallerAuthorityReference: SourceCallerReplayReference? = null,
+		var pendingRetirementSourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 		var coordinatorSuspended: Boolean = false,
 		var runtimeCleanupRequired: Boolean = false,
 	)

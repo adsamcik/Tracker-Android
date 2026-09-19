@@ -17,6 +17,10 @@ import java.security.MessageDigest
 			value = ["status", "retired_at_ms"],
 			name = "idx_source_caller_authority_retired",
 		),
+		Index(
+			value = ["status"],
+			name = "idx_source_caller_authority_status",
+		),
 	],
 )
 data class SourceCallerAcceptedAuthorityEntity(
@@ -29,6 +33,7 @@ data class SourceCallerAcceptedAuthorityEntity(
 	@ColumnInfo(name = "policy_revision") val policyRevision: Long,
 	@ColumnInfo(name = "consent_epoch") val consentEpoch: Long,
 	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "retained_from_ms") val retainedFromMs: Long? = null,
 	@ColumnInfo(name = "rollout_revision") val rolloutRevision: Long,
 	@ColumnInfo(name = "execution_revision") val executionRevision: Long,
 	@ColumnInfo(name = "owner_cas_token") val ownerCasToken: String,
@@ -41,7 +46,7 @@ data class SourceCallerAcceptedAuthorityEntity(
 	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
 ) {
 	companion object {
-		const val FORMAT_VERSION = 2
+		const val FORMAT_VERSION = 3
 		const val STATUS_ACTIVE = "ACTIVE"
 		const val STATUS_RETIRED = "RETIRED"
 	}
@@ -79,6 +84,7 @@ object SourceCallerAcceptedAuthorityEffectChecksum {
 				row.policyRevision,
 				row.consentEpoch,
 				row.collectedDataEpoch,
+				row.retainedFromMs ?: -1L,
 				row.rolloutRevision,
 				row.executionRevision,
 				row.ownerCasToken,

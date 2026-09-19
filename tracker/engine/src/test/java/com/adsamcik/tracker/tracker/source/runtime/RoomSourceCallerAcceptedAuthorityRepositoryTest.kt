@@ -302,6 +302,7 @@ class RoomSourceCallerAcceptedAuthorityRepositoryTest {
 			policyRevision = 3L,
 			consentEpoch = 4L,
 			collectedDataEpoch = 5L,
+			retainedFromMs = 123L,
 			rolloutRevision = 6L,
 			executionRevision = 7L,
 			ownerCasToken = "owner",

@@ -27,7 +27,6 @@ import com.adsamcik.tracker.tracker.source.runtime.LiveAmbientRetentionSnapshot
 import com.adsamcik.tracker.tracker.source.runtime.toSourceDemandContract
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
-import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailability
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurpose
@@ -317,6 +316,7 @@ class AmbientStepsDemandReconcilerTest {
 			onResolve()
 			capability
 		},
+		sourceBroker = broker,
 		sourceCallerDemandDispatcher = TestPurposeSourceCallerDemandDispatcher(
 			broker = broker,
 			retentionSnapshot = { _, _, _, _, _ -> retentionSnapshot },
@@ -324,6 +324,14 @@ class AmbientStepsDemandReconcilerTest {
 		bootClockDomainProvider = BootClockDomainProvider { "boot-1" },
 		sourcePolicyRepository = policyRepository,
 		trackingRolloutStateStore = rolloutStore,
+		currentRetentionAuthority = { policyRevision, consentEpoch ->
+			retentionReader.currentLiveAmbient(
+				TrackingSourceComponent.STEPS,
+				policyRevision,
+				consentEpoch,
+				3L,
+			)
+		},
 		currentPurposeAvailabilityReader = currentPurposeReader,
 	)
 

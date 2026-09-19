@@ -6,7 +6,10 @@ import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
 import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
+import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioLeaseMutation
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
+import com.adsamcik.tracker.tracker.source.runtime.SerializedTrackingPurposeLeaseIssuer
+import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeMutationLeaseGuard
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.sync.Mutex
@@ -44,13 +47,18 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 		AmbientStepsDemandBoundary,
 	) -> AmbientStepsProviderRegistrationResult,
 	private val closeRegistration: suspend () -> AmbientStepsProviderCleanupResult,
-	private val retireDemand: suspend (AmbientStepsDemandBoundary) -> Boolean = { true },
+	private val retireDemand: suspend (
+		AmbientStepsDemandBoundary,
+		AmbientReconciliationLease,
+	) -> Boolean = { _, _ -> true },
+	private val mutationLeaseGuard: TrackingPurposeMutationLeaseGuard? = null,
 ) : AmbientStepsProviderLifecycle {
 	@Inject
 	internal constructor(
 		demandReconciler: AmbientStepsDemandReconciler,
 		registrationCoordinator: AmbientStepsProviderRegistrationCoordinator,
 		bootClockDomainProvider: BootClockDomainProvider,
+		mutationLeaseGuard: SerializedTrackingPurposeLeaseIssuer,
 	) : this(
 		currentBoundary = {
 			AmbientStepsDemandBoundary(
@@ -66,6 +74,7 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 		reconcileRegistration = registrationCoordinator::reconcile,
 		closeRegistration = registrationCoordinator::closeForCollectedDataDeletion,
 		retireDemand = demandReconciler::retireDemand,
+		mutationLeaseGuard = mutationLeaseGuard,
 	)
 
 	private val mutex = Mutex()
@@ -74,6 +83,24 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 		lease: AmbientReconciliationLease,
 	): AmbientStepsProviderRegistrationResult = mutex.withLock {
 		val boundary = currentBoundary()
+		val guard = mutationLeaseGuard ?: return@withLock reconcileUnderHeldLease(boundary, lease)
+		when (val guarded = guard.mutateAmbientIfCurrent(lease.identity) {
+			reconcileUnderHeldLease(boundary, lease)
+		}) {
+			is AmbientRadioLeaseMutation.Applied -> guarded.value
+			AmbientRadioLeaseMutation.Stale -> AmbientStepsProviderRegistrationResult.Inactive(
+				AmbientStepsDemandReconciliation.PolicyBlocked(
+					provider = null,
+					reason = AmbientStepsDemandBlockReason.STALE_RECONCILIATION_LEASE,
+				),
+			)
+		}
+	}
+
+	private suspend fun reconcileUnderHeldLease(
+		boundary: AmbientStepsDemandBoundary,
+		lease: AmbientReconciliationLease,
+	): AmbientStepsProviderRegistrationResult {
 		val unavailable = AmbientStepsDemandReconciliation.PolicyBlocked(
 			provider = null,
 			reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
@@ -88,30 +115,25 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 		} catch (_: RuntimeException) {
 			unavailable
 		}
-		if (demand is AmbientStepsDemandReconciliation.PolicyBlocked &&
-			demand.reason == AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE
-		) {
-			return@withLock AmbientStepsProviderRegistrationResult.Inactive(demand)
-		}
 		try {
 			reconcileRegistration(demand, boundary).also { result ->
 				if (demand is AmbientStepsDemandReconciliation.DemandReady &&
 					result !is AmbientStepsProviderRegistrationResult.Active
 				) {
-					retireDemand(boundary)
+					retireDemand(boundary, lease)
 				}
 			}
 		} catch (cancelled: kotlinx.coroutines.CancellationException) {
 			if (demand is AmbientStepsDemandReconciliation.DemandReady) {
 				kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-					retireDemand(boundary)
+					retireDemand(boundary, lease)
 				}
 			}
 			throw cancelled
 		} catch (failure: RuntimeException) {
 			if (demand is AmbientStepsDemandReconciliation.DemandReady) {
 				kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-					retireDemand(boundary)
+					retireDemand(boundary, lease)
 				}
 			}
 			throw failure
@@ -124,8 +146,23 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 	): AmbientStepsProviderRegistrationResult = mutex.withLock {
 		require(settlementOperationId.isNotBlank())
 		val boundary = currentBoundary()
-		val demand = reconcileSettlementDemand(boundary, lease, settlementOperationId)
-		reconcileRegistration(demand, boundary)
+		val guard = mutationLeaseGuard ?: return@withLock
+			reconcileRegistration(
+				reconcileSettlementDemand(boundary, lease, settlementOperationId),
+				boundary,
+			)
+		when (val guarded = guard.mutateAmbientIfCurrent(lease.identity) {
+			val demand = reconcileSettlementDemand(boundary, lease, settlementOperationId)
+			reconcileRegistration(demand, boundary)
+		}) {
+			is AmbientRadioLeaseMutation.Applied -> guarded.value
+			AmbientRadioLeaseMutation.Stale -> AmbientStepsProviderRegistrationResult.Inactive(
+				AmbientStepsDemandReconciliation.PolicyBlocked(
+					provider = null,
+					reason = AmbientStepsDemandBlockReason.STALE_RECONCILIATION_LEASE,
+				),
+			)
+		}
 	}
 
 	internal suspend fun retireAfterRetentionAuthorityFailure(

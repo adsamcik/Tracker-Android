@@ -54,6 +54,7 @@ class AutomaticStartTransitionMonitorTest {
 		),
 		clockDomainProvider = BootClockDomainProvider { "boot:test" },
 		activityProjectionLane = activityProjectionLane,
+		mutationLeaseGuard = PermissiveTrackingPurposeMutationLeaseGuard,
 	)
 
 	@Test
@@ -231,6 +232,7 @@ class AutomaticStartTransitionMonitorTest {
 			sourceCallerDemandDispatcher = staleDispatcher,
 			clockDomainProvider = BootClockDomainProvider { "boot:test" },
 			activityProjectionLane = activityProjectionLane,
+			mutationLeaseGuard = PermissiveTrackingPurposeMutationLeaseGuard,
 		)
 		coEvery {
 			arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
@@ -245,6 +247,33 @@ class AutomaticStartTransitionMonitorTest {
 		)
 
 		coVerify(exactly = 1) { staleDispatcher.dispatchAutomaticControl(any()) }
+		coVerify(exactly = 0) { activityProjectionLane.ensureRegisteredAtLiveTail() }
+		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
+	}
+
+	@Test
+	fun `stale parent lease prevents control demand and provider activation`() = runTest {
+		val dispatcher = mockk<SourceCallerDemandDispatcher>()
+		coEvery {
+			arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		} returns cleared()
+		val monitor = AutomaticStartTransitionMonitor(
+			arbiter = arbiter,
+			sourceCallerDemandDispatcher = dispatcher,
+			clockDomainProvider = BootClockDomainProvider { "boot:test" },
+			activityProjectionLane = activityProjectionLane,
+			mutationLeaseGuard = RejectingAmbientRadioMutationLeaseGuard,
+		)
+
+		monitor.reconcile(
+			enabled = true,
+			useTransitionApi = true,
+			continuousIntervalSeconds = 30,
+			transitions = setOf(walkingEnter()),
+			controlAvailability = readyAutomaticControl(),
+		).status shouldBe ActivityRegistrationStatus.BLOCKED
+
+		coVerify(exactly = 0) { dispatcher.dispatchAutomaticControl(any()) }
 		coVerify(exactly = 0) { activityProjectionLane.ensureRegisteredAtLiveTail() }
 		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
 	}
@@ -273,6 +302,7 @@ class AutomaticStartTransitionMonitorTest {
 			sourceCallerDemandDispatcher = dispatcher,
 			clockDomainProvider = BootClockDomainProvider { "boot:test" },
 			activityProjectionLane = activityProjectionLane,
+			mutationLeaseGuard = PermissiveTrackingPurposeMutationLeaseGuard,
 		)
 
 		monitor.reconcile(

@@ -18,6 +18,7 @@ internal class TestLiveAmbientRetentionAuthorityReader(
 	var effectiveBootId: String = "boot-1",
 	var effectiveElapsedRealtimeNanos: Long = 0L,
 	var effectiveWallTimeMs: Long = 0L,
+	var retainedFromMs: Long? = null,
 ) : RetentionAuthorityReader {
 	private val observed = mutableMapOf<TrackingSourceComponent, Triple<Long, Long, Long>>()
 
@@ -38,6 +39,8 @@ internal class TestLiveAmbientRetentionAuthorityReader(
 			effectiveBootId = effectiveBootId,
 			effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
 			effectiveWallTimeMs = effectiveWallTimeMs,
+			collectedDataEpoch = expectedCollectedDataEpoch,
+			retainedFromMs = retainedFromMs,
 		)
 	} else {
 		CurrentRetentionAuthority.Unavailable(
@@ -92,6 +95,7 @@ internal class TestLiveAmbientRetentionAuthorityReader(
 						sourcePolicyRevision = sourcePolicyRevision,
 						ambientConsentEpoch = ambientConsentEpoch,
 						collectedDataEpoch = collectedDataEpoch,
+						retainedFromMs = retainedFromMs,
 						effectiveBootId = bootId,
 						effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
 						effectiveWallTimeMs = effectiveWallTimeMs,
@@ -107,6 +111,7 @@ internal class TestLiveAmbientRetentionAuthorityReader(
 						sourcePolicyRevision = sourcePolicyRevision,
 						ambientConsentEpoch = ambientConsentEpoch,
 						collectedDataEpoch = collectedDataEpoch,
+						retainedFromMs = retainedFromMs,
 						effectiveBootId = bootId,
 						effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
 						effectiveWallTimeMs = effectiveWallTimeMs,
@@ -122,6 +127,7 @@ internal class TestLiveAmbientRetentionAuthorityReader(
 						sourcePolicyRevision = sourcePolicyRevision,
 						ambientConsentEpoch = ambientConsentEpoch,
 						collectedDataEpoch = collectedDataEpoch,
+						retainedFromMs = retainedFromMs,
 						effectiveBootId = bootId,
 						effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
 						effectiveWallTimeMs = effectiveWallTimeMs,
@@ -137,6 +143,7 @@ internal class TestLiveAmbientRetentionAuthorityReader(
 					sourcePolicyRevision,
 					ambientConsentEpoch,
 					collectedDataEpoch,
+					retainedFromMs,
 					policyId,
 					approvalRevision,
 					bootId,

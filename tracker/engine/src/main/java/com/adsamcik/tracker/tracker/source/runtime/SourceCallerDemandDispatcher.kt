@@ -461,6 +461,16 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			currentElapsedRealtimeNanos = request.elapsedRealtimeNanos,
 			currentWallTimeMs = request.wallTimeMs,
 		)
+		val retentionGrant = retentionSnapshot?.grants?.get(SourceKind.STEPS)
+			?.takeIf { grant -> grant.retainedFromMs == identity.retainedFromMs }
+			?: return rejectedPurpose(
+				SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE,
+			)
+		val ambientIdentity = AmbientReconciliationIdentity.from(
+			identity,
+			retentionGrant.opaquePolicyId,
+			retentionGrant.approvalRevision,
+		)
 		return database.withTransaction {
 		val demandIdentity = SourceCallerDemandIdentity(identity, manifestIdentity = null)
 		val snapshot = readCurrentPurposeOrNull(setOf(demandIdentity))
@@ -487,6 +497,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		val result = sourceBroker.replaceAmbientStepsDemand(
 			consumerId = request.consumerId,
 			mechanism = request.mechanism,
+			leaseIdentity = ambientIdentity,
 			bootId = request.bootId,
 			elapsedRealtimeNanos = request.elapsedRealtimeNanos,
 			wallTimeMs = request.wallTimeMs,
@@ -707,7 +718,8 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 	override suspend fun compensateAmbientRadio(
 		attempt: GuardedAmbientRadioAttempt,
 		expectedDemandId: String,
-	): AmbientRadioReconciliationAuthority? = when (attempt.request.source) {
+	): AmbientRadioReconciliationAuthority? {
+		val compensated = when (attempt.request.source) {
 		AmbientTrackingSource.WIFI ->
 			sourceBroker.compensateAmbientWifiDemandUnderHeldLease(
 				attempt.request.consumerId,
@@ -731,6 +743,17 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		AmbientTrackingSource.STEPS,
 		AmbientTrackingSource.LOCATION,
 		-> null
+		}
+		val reference = attempt.receipt?.reference
+		if (reference != null && !authorityRepository.retireForTeardown(
+				reference,
+				"AMBIENT_RADIO_COMPENSATED",
+				attempt.request.wallTimeMs,
+			)
+		) {
+			return null
+		}
+		return compensated
 	}
 
 	override suspend fun isCurrent(identity: TrackingPurposeLeaseIdentity): Boolean =
@@ -1150,6 +1173,7 @@ internal class RoomSourceCallerAcceptedAuthorityRepository @Inject constructor(
 					policyRevision = lease.policyRevision,
 					consentEpoch = lease.consentEpoch,
 					collectedDataEpoch = lease.collectedDataEpoch,
+					retainedFromMs = lease.retainedFromMs,
 					rolloutRevision = lease.rolloutRevision,
 					executionRevision = lease.executionRevision,
 					ownerCasToken = lease.ownerCasToken,
@@ -1198,6 +1222,7 @@ internal class RoomSourceCallerAcceptedAuthorityRepository @Inject constructor(
 						policyRevision = row.policyRevision,
 						consentEpoch = row.consentEpoch,
 						collectedDataEpoch = row.collectedDataEpoch,
+						retainedFromMs = row.retainedFromMs,
 						rolloutRevision = row.rolloutRevision,
 						executionRevision = row.executionRevision,
 						ownerCasToken = row.ownerCasToken,
@@ -1337,6 +1362,7 @@ private fun List<SourceCallerAcceptedAuthorityEntity>.hasValidStoredAuthoritySha
 			row.policyRevision > 0L &&
 			row.consentEpoch > 0L &&
 			row.collectedDataEpoch >= 0L &&
+			(row.retainedFromMs == null || row.retainedFromMs >= 0L) &&
 			row.rolloutRevision >= 0L &&
 			row.executionRevision > 0L &&
 			row.ownerCasToken.isNotBlank() &&

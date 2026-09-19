@@ -4,6 +4,7 @@ import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.source.runtime.RejectingAmbientRadioMutationLeaseGuard
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CompletableDeferred
@@ -13,6 +14,34 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class AmbientStepsProviderLifecycleOwnerTest {
+	@Test
+	fun `stale parent lease prevents demand and provider mutation`() = runTest {
+		var demandReconciled = false
+		var providerReconciled = false
+		val subject = AmbientStepsProviderLifecycleOwner(
+			currentBoundary = { boundary(10L) },
+			reconcileDemand = { _, _ ->
+				demandReconciled = true
+				unavailable()
+			},
+			reconcileRegistration = { _, _ ->
+				providerReconciled = true
+				error("Provider must remain closed")
+			},
+			closeRegistration = { completeCleanup() },
+			mutationLeaseGuard = RejectingAmbientRadioMutationLeaseGuard,
+		)
+
+		subject.reconcile(lease()) shouldBe AmbientStepsProviderRegistrationResult.Inactive(
+			AmbientStepsDemandReconciliation.PolicyBlocked(
+				provider = null,
+				reason = AmbientStepsDemandBlockReason.STALE_RECONCILIATION_LEASE,
+			),
+		)
+		demandReconciled shouldBe false
+		providerReconciled shouldBe false
+	}
+
 	@Test
 	fun `caller authority rejection still reconciles provider teardown`() = runTest {
 		var providerReconciled = false
@@ -35,7 +64,8 @@ class AmbientStepsProviderLifecycleOwnerTest {
 			closeRegistration = { completeCleanup() },
 		)
 
-		subject.reconcile().shouldBeInstanceOf<AmbientStepsProviderRegistrationResult.Degraded>()
+		subject.reconcile(lease())
+			.shouldBeInstanceOf<AmbientStepsProviderRegistrationResult.Degraded>()
 			.retryable shouldBe true
 		providerReconciled shouldBe true
 	}
@@ -61,13 +91,14 @@ class AmbientStepsProviderLifecycleOwnerTest {
 				)
 			},
 			closeRegistration = { completeCleanup() },
-			retireDemand = {
+			retireDemand = { _, _ ->
 				retireCount++
 				true
 			},
 		)
 
-		subject.reconcile().shouldBeInstanceOf<AmbientStepsProviderRegistrationResult.Failed>()
+		subject.reconcile(lease())
+			.shouldBeInstanceOf<AmbientStepsProviderRegistrationResult.Failed>()
 		retireCount shouldBe 1
 	}
 

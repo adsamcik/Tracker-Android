@@ -270,7 +270,11 @@ class AmbientCellDemandReconciler @Inject constructor(
 				}
 				plan.lease
 			}
-			AmbientRadioRetirementPlan.Unverifiable -> return false
+			AmbientRadioRetirementPlan.Unverifiable -> {
+				val demandRetired = retireMalformedDemand()
+				return demandRetired && sharedController.reconcileAmbientJoin() is
+					AmbientCellRuntimeJoinResult.Inactive
+			}
 		}
 		val outcome = reconcile(
 			lease,
@@ -282,7 +286,10 @@ class AmbientCellDemandReconciler @Inject constructor(
 
 	suspend fun closeForCollectedDataDeletion(): Boolean {
 		val plan = sourceBroker.ambientRadioRetirementPlan(SourceKind.CELL, CONSUMER_ID)
-		if (plan is AmbientRadioRetirementPlan.Unverifiable) return false
+		if (plan is AmbientRadioRetirementPlan.Unverifiable) {
+			val demandRetired = retireMalformedDemand()
+			return demandRetired && sharedController.closeAmbientForCollectedDataDeletion()
+		}
 		if (plan is AmbientRadioRetirementPlan.AlreadyRetired) {
 			return sharedController.closeAmbientForCollectedDataDeletion()
 		}
@@ -305,6 +312,17 @@ class AmbientCellDemandReconciler @Inject constructor(
 		return retired is AmbientRadioDemandResult.Inactive &&
 			sharedController.closeAmbientForCollectedDataDeletion()
 	}
+
+	private suspend fun retireMalformedDemand(): Boolean =
+		sourceBroker.retirePurposeDemand(
+			consumerId = CONSUMER_ID,
+			expectedSourceKind = SourceKind.CELL.stableCode,
+			expectedPurpose =
+				com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose.AMBIENT_PRODUCT,
+			bootId = clockDomainProvider.current(),
+			elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+			wallTimeMs = Time.nowMillis,
+		)
 
 	private companion object {
 		const val CONSUMER_ID = "app:ambient:cell"
