@@ -92,6 +92,12 @@ internal sealed interface GuardedPurposeDemandResult<out T> {
 		val rejection: SourceCallerGuardRejection,
 	) : GuardedPurposeDemandResult<Nothing>
 
+	/** The caller was rejected, but exact source cleanup completed and must reach its owner. */
+	data class RejectedAfterCleanup<T>(
+		val rejection: SourceCallerGuardRejection,
+		val cleanupResult: T,
+	) : GuardedPurposeDemandResult<T>
+
 	data object Stale : GuardedPurposeDemandResult<Nothing>
 }
 
@@ -420,6 +426,8 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		)) {
 			is GuardedPurposeDemandResult.Applied -> acceptance.value
 			is GuardedPurposeDemandResult.Rejected -> return acceptance
+			is GuardedPurposeDemandResult.RejectedAfterCleanup ->
+				error("Purpose acceptance cannot complete cleanup")
 			GuardedPurposeDemandResult.Stale -> return GuardedPurposeDemandResult.Stale
 		}
 		val demand = sourceBroker.replaceAutomaticControlDemand(
@@ -496,6 +504,8 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		)) {
 			is GuardedPurposeDemandResult.Applied -> acceptance.value
 			is GuardedPurposeDemandResult.Rejected -> return acceptance
+			is GuardedPurposeDemandResult.RejectedAfterCleanup ->
+				error("Purpose acceptance cannot complete cleanup")
 			GuardedPurposeDemandResult.Stale -> return GuardedPurposeDemandResult.Stale
 		}
 		val result = sourceBroker.replaceAmbientStepsDemand(
@@ -557,6 +567,8 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 					retired.receipt,
 				)
 				is GuardedPurposeDemandResult.Rejected -> retired
+				is GuardedPurposeDemandResult.RejectedAfterCleanup ->
+					error("Purpose retirement cannot complete cleanup")
 				GuardedPurposeDemandResult.Stale -> GuardedPurposeDemandResult.Stale
 			}
 		}
@@ -594,10 +606,14 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 				createdAtMs = request.wallTimeMs,
 			)) {
 				is GuardedPurposeDemandResult.Applied -> acceptance.value
-				is GuardedPurposeDemandResult.Rejected -> {
-					reduceAmbientRadioAfterRejectedAuthority(request)
-					return acceptance
-				}
+				is GuardedPurposeDemandResult.Rejected ->
+					return reduceAmbientRadioAfterRejectedAuthority(
+						request,
+						acceptance.rejection,
+						reconcile,
+					)
+				is GuardedPurposeDemandResult.RejectedAfterCleanup ->
+					error("Purpose acceptance cannot complete cleanup")
 				GuardedPurposeDemandResult.Stale -> return GuardedPurposeDemandResult.Stale
 			}
 		} else {
@@ -708,11 +724,14 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			)
 	}
 
-	private suspend fun reduceAmbientRadioAfterRejectedAuthority(
+	private suspend fun <T> reduceAmbientRadioAfterRejectedAuthority(
 		request: AmbientRadioDemandDispatchRequest,
-	) {
-		try {
+		rejection: SourceCallerGuardRejection,
+		reconcile: suspend (AmbientRadioDemandResult, GuardedAmbientRadioAttempt) -> T,
+	): GuardedPurposeDemandResult<T> {
+		val reduction: AmbientRadioLeaseMutation<GuardedPurposeDemandResult<T>> =
 			sourceBroker.withAmbientRadioReductionLease(request.leaseIdentity) {
+			val reduced = try {
 				when (request.source) {
 					AmbientTrackingSource.WIFI ->
 						sourceBroker.reduceAmbientWifiAfterRejectedCallerUnderHeldLease(
@@ -736,11 +755,25 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 					AmbientTrackingSource.LOCATION,
 					-> error("Unsupported ambient-radio source passed validation")
 				}
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (failure: Exception) {
+				if (!failure.isTrackingOperationalFailure()) throw failure
+				return@withAmbientRadioReductionLease GuardedPurposeDemandResult.Rejected(
+					rejection,
+				)
 			}
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (failure: Exception) {
-			if (!failure.isTrackingOperationalFailure()) throw failure
+			GuardedPurposeDemandResult.RejectedAfterCleanup(
+				rejection = rejection,
+				cleanupResult = reconcile(
+					reduced,
+					GuardedAmbientRadioAttempt(request, receipt = null),
+				),
+			)
+		}
+		return when (reduction) {
+			is AmbientRadioLeaseMutation.Applied -> reduction.value
+			AmbientRadioLeaseMutation.Stale -> GuardedPurposeDemandResult.Stale
 		}
 	}
 

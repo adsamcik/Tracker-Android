@@ -110,6 +110,7 @@ class AmbientCellDemandReconciler @Inject internal constructor(
 		}
 		return when (guarded) {
 			is GuardedPurposeDemandResult.Applied -> guarded.value
+			is GuardedPurposeDemandResult.RejectedAfterCleanup -> guarded.cleanupResult
 			is GuardedPurposeDemandResult.Rejected,
 			GuardedPurposeDemandResult.Stale,
 			-> AmbientCellDemandBlockReason.STALE_RECONCILIATION_LEASE

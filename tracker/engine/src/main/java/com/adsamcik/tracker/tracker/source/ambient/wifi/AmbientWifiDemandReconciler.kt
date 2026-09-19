@@ -115,6 +115,7 @@ class AmbientWifiDemandReconciler @Inject internal constructor(
 		}
 		return when (guarded) {
 			is GuardedPurposeDemandResult.Applied -> guarded.value
+			is GuardedPurposeDemandResult.RejectedAfterCleanup -> guarded.cleanupResult
 			is GuardedPurposeDemandResult.Rejected,
 			GuardedPurposeDemandResult.Stale,
 			-> AmbientWifiDemandBlockReason.STALE_RECONCILIATION_LEASE

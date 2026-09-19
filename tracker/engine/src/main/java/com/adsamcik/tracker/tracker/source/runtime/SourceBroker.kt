@@ -2349,18 +2349,15 @@ class SourceBroker @Inject internal constructor(
 			database.sourceCallerAuthorityDao().rows(callerReference.value),
 			callerReference,
 		)
-		if (callerAuthority is StoredSourceCallerAuthorityLoadResult.Available &&
-			(
-				callerAuthority.authority.origin != StoredSourceCallerOrigin.PURPOSE_OWNER ||
-					callerAuthority.authority.purpose != TrackingPurpose.AMBIENT_PRODUCT ||
-					callerAuthority.authority.permittedDemandIdentities !=
-					setOf(expectedCallerIdentity)
-				)
-		) {
-			return AmbientRadioDemandResult.Inactive(
-				AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT,
-			)
-		}
+		val callerAuthorityOwnsDemand =
+			callerAuthority is StoredSourceCallerAuthorityLoadResult.Available &&
+				callerAuthority.authority.origin == StoredSourceCallerOrigin.PURPOSE_OWNER &&
+				callerAuthority.authority.purpose == TrackingPurpose.AMBIENT_PRODUCT &&
+				callerAuthority.authority.permittedDemandIdentities ==
+				setOf(expectedCallerIdentity)
+		val preserveUnrelatedCallerAuthority =
+			callerAuthority is StoredSourceCallerAuthorityLoadResult.Available &&
+				!callerAuthorityOwnsDemand
 
 		val authorityWasActive = authority.state == AmbientWifiAuthorityEntity.STATE_ACTIVE
 		val revokedAuthority = if (authorityWasActive) {
@@ -2388,12 +2385,14 @@ class SourceBroker @Inject internal constructor(
 				AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT,
 			)
 		}
-		check(retireDemandAuthority(
-			demand,
-			"AMBIENT_RADIO_CALLER_REJECTED",
-			wallTimeMs,
-		)) {
-			"Unable to retire rejected Ambient radio caller authority"
+		if (!preserveUnrelatedCallerAuthority) {
+			check(retireDemandAuthority(
+				demand,
+				"AMBIENT_RADIO_CALLER_REJECTED",
+				wallTimeMs,
+			)) {
+				"Unable to retire rejected Ambient radio caller authority"
+			}
 		}
 		if (authorityWasActive) {
 			insertAuthority(revokedAuthority)

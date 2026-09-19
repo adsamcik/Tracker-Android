@@ -189,6 +189,7 @@ class AmbientStepsDemandReconciler internal constructor(
 				}
 				when (guarded) {
 					is GuardedPurposeDemandResult.Rejected,
+					is GuardedPurposeDemandResult.RejectedAfterCleanup,
 					GuardedPurposeDemandResult.Stale,
 					-> {
 						retireDemand(boundary, lease)

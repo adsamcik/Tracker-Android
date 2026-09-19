@@ -138,6 +138,7 @@ class AutomaticStartTransitionMonitor @Inject internal constructor(
 		}
 		return when (dispatched) {
 			is GuardedPurposeDemandResult.Rejected,
+			is GuardedPurposeDemandResult.RejectedAfterCleanup,
 			GuardedPurposeDemandResult.Stale,
 			-> {
 				withContext(NonCancellable) {
