@@ -69,57 +69,6 @@ class PortableAmbientStepsFileImportTest {
 			)
 		}
 
-		@Test
-		fun `v2 archive routes the authenticated graph with durable receipt context`() = runTest {
-			val v1 = ambientArchive(completeAmbientDay(LocalDate.of(2026, 1, 1), 4L))
-			val archive = PortableAmbientStepsArchiveV2.create(
-				v1.days.map { it.withExplicitUnprovenCountDomain() },
-			)
-			val output = java.io.ByteArrayOutputStream()
-			PortableAmbientStepsJsonV2Codec().encode(output) { sink ->
-				sink.emit(archive)
-				ExportPortableAmbientStepsResult.Exported(1, 1, 0)
-			}
-			val requests = mutableListOf<ImportPortableAmbientStepsV2Request>()
-			val lifecycle = FakeAmbientLifecycleStore(8L)
-			val importer = PortableAmbientStepsFileImport(
-				dependenciesProvider = {
-					PortableAmbientStepsImportDependencies(
-						importer = object : ImportPortableAmbientSteps {
-							override suspend fun importArchive(
-								request: ImportPortableAmbientStepsRequest,
-							): ImportPortableAmbientStepsResult =
-								error("V1 importer must not receive v2")
-						},
-						lifecycleStore = lifecycle,
-						importerV2 = object : ImportPortableAmbientStepsV2 {
-							override suspend fun importArchive(
-								request: ImportPortableAmbientStepsV2Request,
-							): ImportPortableAmbientStepsResult {
-								requests += request
-								return ImportPortableAmbientStepsResult.Applied(
-									request.archive.identity,
-									1,
-									1,
-									1,
-									0,
-								)
-							}
-						},
-					)
-				},
-			)
-
-			importer.import(
-				context,
-				database,
-				stream(output.toByteArray(), "v2-entry", "v2-job", 900L),
-			) shouldBe ImportResult(successCount = 1)
-			requests.single().archive shouldBe archive
-			requests.single().receipt.jobId shouldBe "v2-job"
-			requests.single().expectedCollectedDataEpoch shouldBe 8L
-		}
-
 		importer.import(
 			context,
 			database,
@@ -140,6 +89,57 @@ class PortableAmbientStepsFileImportTest {
 		request.receipt.archiveKey.length shouldBe 64
 		importer.supportedExtensions shouldContainExactly listOf("trackerambientsteps")
 		importer.transactionMode shouldBe ImportTransactionMode.IMPORTER_MANAGED
+	}
+
+	@Test
+	fun `v2 archive routes the authenticated graph with durable receipt context`() = runTest {
+		val v1 = ambientArchive(completeAmbientDay(LocalDate.of(2026, 1, 1), 4L))
+		val archive = PortableAmbientStepsArchiveV2.create(
+			v1.days.map { it.withExplicitUnprovenCountDomain() },
+		)
+		val output = java.io.ByteArrayOutputStream()
+		PortableAmbientStepsJsonV2Codec().encode(output) { sink ->
+			sink.emit(archive)
+			ExportPortableAmbientStepsResult.Exported(1, 1, 0)
+		}
+		val requests = mutableListOf<ImportPortableAmbientStepsV2Request>()
+		val lifecycle = FakeAmbientLifecycleStore(8L)
+		val importer = PortableAmbientStepsFileImport(
+			dependenciesProvider = {
+				PortableAmbientStepsImportDependencies(
+					importer = object : ImportPortableAmbientSteps {
+						override suspend fun importArchive(
+							request: ImportPortableAmbientStepsRequest,
+						): ImportPortableAmbientStepsResult =
+							error("V1 importer must not receive v2")
+					},
+					lifecycleStore = lifecycle,
+					importerV2 = object : ImportPortableAmbientStepsV2 {
+						override suspend fun importArchive(
+							request: ImportPortableAmbientStepsV2Request,
+						): ImportPortableAmbientStepsResult {
+							requests += request
+							return ImportPortableAmbientStepsResult.Applied(
+								request.archive.identity,
+								1,
+								1,
+								1,
+								0,
+							)
+						}
+					},
+				)
+			},
+		)
+
+		importer.import(
+			context,
+			database,
+			stream(output.toByteArray(), "v2-entry", "v2-job", 900L),
+		) shouldBe ImportResult(successCount = 1)
+		requests.single().archive shouldBe archive
+		requests.single().receipt.jobId shouldBe "v2-job"
+		requests.single().expectedCollectedDataEpoch shouldBe 8L
 	}
 
 	@Test
