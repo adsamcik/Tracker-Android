@@ -103,6 +103,15 @@ internal fun interface TrackingPurposeAuthorityReader {
 		sourcePurpose: TrackingSourcePurposeIdentity,
 		registeredExecutionRevision: Long,
 	): TrackingPurposeAuthoritySnapshot?
+
+	suspend fun readForRetentionFloorSettlement(
+		sourcePurpose: TrackingSourcePurposeIdentity,
+		registeredExecutionRevision: Long,
+		settlementOperationId: String,
+	): TrackingPurposeAuthoritySnapshot? {
+		require(settlementOperationId.isNotBlank())
+		return read(sourcePurpose, registeredExecutionRevision)
+	}
 }
 
 internal fun interface TrackingPurposeOwnerCasTokenFactory {
@@ -136,11 +145,35 @@ internal class CurrentTrackingPurposeAuthorityReader @Inject constructor(
 	override suspend fun read(
 		sourcePurpose: TrackingSourcePurposeIdentity,
 		registeredExecutionRevision: Long,
+	): TrackingPurposeAuthoritySnapshot? =
+		readInternal(sourcePurpose, registeredExecutionRevision, settlementOperationId = null)
+
+	override suspend fun readForRetentionFloorSettlement(
+		sourcePurpose: TrackingSourcePurposeIdentity,
+		registeredExecutionRevision: Long,
+		settlementOperationId: String,
+	): TrackingPurposeAuthoritySnapshot? {
+		require(settlementOperationId.isNotBlank())
+		return readInternal(sourcePurpose, registeredExecutionRevision, settlementOperationId)
+	}
+
+	private suspend fun readInternal(
+		sourcePurpose: TrackingSourcePurposeIdentity,
+		registeredExecutionRevision: Long,
+		settlementOperationId: String?,
 	): TrackingPurposeAuthoritySnapshot? {
 		require(registeredExecutionRevision >= 0L)
 		repeat(AUTHORITY_READ_ATTEMPTS) {
-			val first = readOnce(sourcePurpose, registeredExecutionRevision) ?: return null
-			val second = readOnce(sourcePurpose, registeredExecutionRevision) ?: return null
+			val first = readOnce(
+				sourcePurpose,
+				registeredExecutionRevision,
+				settlementOperationId,
+			) ?: return null
+			val second = readOnce(
+				sourcePurpose,
+				registeredExecutionRevision,
+				settlementOperationId,
+			) ?: return null
 			if (first == second) return first
 		}
 		return null
@@ -149,6 +182,7 @@ internal class CurrentTrackingPurposeAuthorityReader @Inject constructor(
 	private suspend fun readOnce(
 		sourcePurpose: TrackingSourcePurposeIdentity,
 		registeredExecutionRevision: Long,
+		settlementOperationId: String?,
 	): TrackingPurposeAuthoritySnapshot? {
 		val policyState = sourcePolicyRepository.currentState()
 		val policySnapshot = (policyState as? SourcePolicyAuthorityState.Active)?.snapshot
@@ -157,13 +191,25 @@ internal class CurrentTrackingPurposeAuthorityReader @Inject constructor(
 		val consentEpoch = policy.consentEpoch(sourcePurpose.purpose) ?: return null
 		val lifecycle = collectedDataLifecycleStore.snapshot()
 		val retention = if (sourcePurpose.purpose == TrackingPurpose.AMBIENT_PRODUCT) {
-			retentionAuthorityReader.currentLiveAmbient(
-				source = sourcePurpose.source,
-				expectedSourcePolicyRevision = policySnapshot.revision,
-				expectedAmbientConsentEpoch = consentEpoch,
-				expectedCollectedDataEpoch = lifecycle.epoch,
-				expectedRetainedFromMs = lifecycle.retainedFromMs,
-			) as? CurrentRetentionAuthority.Approved ?: return null
+			val current = if (settlementOperationId == null) {
+				retentionAuthorityReader.currentLiveAmbient(
+					source = sourcePurpose.source,
+					expectedSourcePolicyRevision = policySnapshot.revision,
+					expectedAmbientConsentEpoch = consentEpoch,
+					expectedCollectedDataEpoch = lifecycle.epoch,
+					expectedRetainedFromMs = lifecycle.retainedFromMs,
+				)
+			} else {
+				retentionAuthorityReader.currentLiveAmbientForSettlement(
+					source = sourcePurpose.source,
+					expectedSourcePolicyRevision = policySnapshot.revision,
+					expectedAmbientConsentEpoch = consentEpoch,
+					expectedCollectedDataEpoch = lifecycle.epoch,
+					expectedRetainedFromMs = lifecycle.retainedFromMs,
+					settlementOperationId = settlementOperationId,
+				)
+			}
+			current as? CurrentRetentionAuthority.Approved ?: return null
 		} else {
 			null
 		}
@@ -239,9 +285,10 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 	suspend fun refreshAmbient(
 		source: AmbientTrackingSource,
 		executionRevision: Long,
+		settlementOperationId: String? = null,
 	): AmbientLeaseRefresh = mutex.withLock {
 		val sourcePurpose = source.canonicalSource.forPurpose(TrackingPurpose.AMBIENT_PRODUCT)
-		val authority = readAuthority(sourcePurpose, executionRevision)
+		val authority = readAuthority(sourcePurpose, executionRevision, settlementOperationId)
 		if (authority == null) {
 			reporter.invalidateAmbient(source)
 			ambientIdentities.remove(source)
@@ -330,15 +377,29 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 	suspend fun isCurrentAmbient(
 		identity: AmbientReconciliationIdentity,
 		executionRevision: Long,
+		settlementOperationId: String? = null,
 	): Boolean = mutex.withLock {
-		readAuthority(identity.sourcePurpose, executionRevision)?.let(identity::matches) == true
+		readAuthority(
+			identity.sourcePurpose,
+			executionRevision,
+			settlementOperationId,
+		)?.let(identity::matches) == true
 	}
 
 	private suspend fun readAuthority(
 		sourcePurpose: TrackingSourcePurposeIdentity,
 		executionRevision: Long,
+		settlementOperationId: String? = null,
 	): TrackingPurposeAuthoritySnapshot? = try {
-		authorityReader.read(sourcePurpose, executionRevision)
+		if (settlementOperationId == null) {
+			authorityReader.read(sourcePurpose, executionRevision)
+		} else {
+			authorityReader.readForRetentionFloorSettlement(
+				sourcePurpose,
+				executionRevision,
+				settlementOperationId,
+			)
+		}
 	} catch (cancelled: CancellationException) {
 		throw cancelled
 	} catch (_: Exception) {
@@ -578,6 +639,33 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		expectedStartupGeneration: Long,
 		retainedFromMs: Long,
 		approvedSources: Set<AmbientTrackingSource>,
+	): TrackingRetentionFloorReconciliationResult = reconcileRetentionFloor(
+		expectedStartupGeneration,
+		retainedFromMs,
+		approvedSources,
+		settlementOperationId = null,
+	)
+
+	override suspend fun reconcile(
+		expectedStartupGeneration: Long,
+		retainedFromMs: Long,
+		approvedSources: Set<AmbientTrackingSource>,
+		settlementOperationId: String,
+	): TrackingRetentionFloorReconciliationResult {
+		require(settlementOperationId.isNotBlank())
+		return reconcileRetentionFloor(
+			expectedStartupGeneration,
+			retainedFromMs,
+			approvedSources,
+			settlementOperationId,
+		)
+	}
+
+	private suspend fun reconcileRetentionFloor(
+		expectedStartupGeneration: Long,
+		retainedFromMs: Long,
+		approvedSources: Set<AmbientTrackingSource>,
+		settlementOperationId: String?,
 	): TrackingRetentionFloorReconciliationResult {
 		require(retainedFromMs >= 0L)
 		require(approvedSources.all { it in RETENTION_FLOOR_PROVIDER_SOURCES })
@@ -605,6 +693,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 							requireApproval = true,
 							requireOwner = true,
 							expectedStartupGeneration = expectedStartupGeneration,
+							settlementOperationId = settlementOperationId,
 						)
 					} else {
 						ambientOperationMutexes.getValue(source).withLock {
@@ -1050,6 +1139,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		requireApproval: Boolean,
 		requireOwner: Boolean,
 		expectedStartupGeneration: Long?,
+		settlementOperationId: String? = null,
 	): TrackingRetentionFloorReconciliationFailureReason? {
 		val request = AmbientReconciliationRequest(
 			source,
@@ -1057,6 +1147,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 			requireApproval,
 			requireOwner,
 			expectedStartupGeneration,
+			settlementOperationId,
 		)
 		val selection = reconciliationFlightMutex.withLock {
 			ambientReconciliationFlights[request]?.let {
@@ -1078,6 +1169,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 					requireApproval,
 					requireOwner,
 					expectedStartupGeneration,
+					settlementOperationId,
 				)
 			}.also { selection.flight.complete(Result.success(it)) }
 		} catch (failure: Throwable) {
@@ -1098,8 +1190,16 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		requireApproval: Boolean,
 		requireOwner: Boolean,
 		expectedStartupGeneration: Long?,
+		settlementOperationId: String?,
 	): TrackingRetentionFloorReconciliationFailureReason? {
-		val retention = retentionAuthorityProducer.reconcileLiveAmbient(source.canonicalSource)
+		val retention = if (settlementOperationId == null) {
+			retentionAuthorityProducer.reconcileLiveAmbient(source.canonicalSource)
+		} else {
+			retentionAuthorityProducer.reconcileLiveAmbientForSettlement(
+				source.canonicalSource,
+				settlementOperationId,
+			)
+		}
 		if (!retention.isActiveApproval()) {
 			val retirementFailure = retireAmbientAfterRetentionAuthorityFailureLocked(
 				source,
@@ -1135,7 +1235,11 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 			return TrackingRetentionFloorReconciliationFailureReason.OWNER_MISSING
 		}
 		val previousLease = leaseIssuer.currentAmbientLease(source)
-		val refresh = leaseIssuer.refreshAmbient(source, owner.executionRevision)
+		val refresh = leaseIssuer.refreshAmbient(
+			source,
+			owner.executionRevision,
+			settlementOperationId,
+		)
 		val lease = when (refresh) {
 			is AmbientLeaseRefresh.Issued -> refresh.lease
 			is AmbientLeaseRefresh.InProgress -> refresh.lease
@@ -1166,7 +1270,12 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 				TrackingRetentionFloorReconciliationFailureReason.OWNER_RECONCILIATION_FAILED,
 			)
 		}
-		if (!leaseIssuer.isCurrentAmbient(lease.identity, owner.executionRevision)) {
+		if (!leaseIssuer.isCurrentAmbient(
+				lease.identity,
+				owner.executionRevision,
+				settlementOperationId,
+			)
+		) {
 			return failureAfterCompensation(
 				compensateAndCancelAmbient(owner, lease),
 				TrackingRetentionFloorReconciliationFailureReason
@@ -1195,7 +1304,12 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 				return TrackingRetentionFloorReconciliationFailureReason
 					.OWNER_OPERATION_IN_PROGRESS
 		}
-		if (!leaseIssuer.isCurrentAmbient(lease.identity, owner.executionRevision)) {
+		if (!leaseIssuer.isCurrentAmbient(
+				lease.identity,
+				owner.executionRevision,
+				settlementOperationId,
+			)
+		) {
 			return failureAfterCompensation(
 				compensateAndCancelAmbient(owner, lease),
 				TrackingRetentionFloorReconciliationFailureReason
@@ -1644,6 +1758,7 @@ private data class AmbientReconciliationRequest(
 	val requireApproval: Boolean,
 	val requireOwner: Boolean,
 	val expectedStartupGeneration: Long?,
+	val settlementOperationId: String?,
 )
 
 private enum class OwnerCleanup {

@@ -24,7 +24,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * Lock order is: any already-owned startup/configuration authority, this lease, DataStore, then
  * Room. Room transactions must use only Room state and CAS; they must never call back into
  * DataStore or acquire this lease. A timed-out DataStore acknowledgement remains registered in the
- * application-owned completion scope, and every later lease entrant fails closed behind it.
+ * application-owned completion scope, and every later lease entrant fails closed behind it. Floor
+ * settlement additionally writes its durable Room journal before starting the DataStore flight so
+ * a replacement process can resume the same identity.
  */
 class RetentionAuthorityOperationLease(
 	internal val ownedSuspensionTimeoutMs: Long = DEFAULT_OWNED_SUSPENSION_TIMEOUT_MS,

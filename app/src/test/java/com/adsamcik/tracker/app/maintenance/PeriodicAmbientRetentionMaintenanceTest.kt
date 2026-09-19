@@ -10,7 +10,6 @@ import com.adsamcik.tracker.stats.api.repository.ImportedAmbientStepsMutationBlo
 import com.adsamcik.tracker.stats.api.repository.ImportedAmbientStepsMutationUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsTransferRetryableReason
 import com.adsamcik.tracker.stats.api.repository.TruncateImportedAmbientStepsRetentionResult
-import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
@@ -35,6 +34,7 @@ class PeriodicAmbientRetentionMaintenanceTest {
 					epoch shouldBe 4L
 					appliedAt shouldBe 2_000L
 					calls += "local-steps"
+					LocalAmbientStepsRetentionResult.NoChange
 				},
 				importedSteps = { request ->
 					request.retainedFromMs shouldBe 1_500L
@@ -68,7 +68,6 @@ class PeriodicAmbientRetentionMaintenanceTest {
 			val result = subject.run(
 				database,
 				lifecycle,
-				setOf(AmbientTrackingSource.STEPS),
 				2_000L,
 			)
 
@@ -106,7 +105,7 @@ class PeriodicAmbientRetentionMaintenanceTest {
 
 			outcomes.forEach { (outcome, expectedReason) ->
 				val subject = subject(importedResult = outcome)
-				val result = subject.run(database, lifecycle, emptySet(), 2_000L)
+				val result = subject.run(database, lifecycle, 2_000L)
 					as PeriodicAmbientRetentionResult.Retryable
 
 				result.failures shouldContainExactly listOf(
@@ -119,11 +118,18 @@ class PeriodicAmbientRetentionMaintenanceTest {
 		}
 
 	@Test
-	fun `inactive local Steps cannot suppress imported or radio maintenance`() = runTest {
+	fun `revoked local Steps still prunes delayed rows before imported and radio maintenance`() =
+		runTest {
 		var localStepsCalls = 0
 		val calls = mutableListOf<String>()
 		val subject = PeriodicAmbientRetentionMaintenance(
-			localSteps = { _, _, _, _ -> localStepsCalls += 1 },
+			localSteps = { _, floor, epoch, appliedAt ->
+				floor shouldBe 1_500L
+				epoch shouldBe 4L
+				appliedAt shouldBe 2_000L
+				localStepsCalls += 1
+				LocalAmbientStepsRetentionResult.Pruned(1)
+			},
 			importedSteps = {
 				calls += "imported"
 				TruncateImportedAmbientStepsRetentionResult.Complete
@@ -138,16 +144,38 @@ class PeriodicAmbientRetentionMaintenanceTest {
 			},
 		)
 
-		subject.run(database, lifecycle, emptySet(), 2_000L) shouldBe
+		subject.run(database, lifecycle, 2_000L) shouldBe
 			PeriodicAmbientRetentionResult.Complete
-		localStepsCalls shouldBe 0
+		localStepsCalls shouldBe 1
 		calls shouldContainExactly listOf("imported", "wifi", "cell")
+	}
+
+	@Test
+	fun `local Steps exposes typed retry debt`() = runTest {
+		val subject = PeriodicAmbientRetentionMaintenance(
+			localSteps = { _, _, _, _ ->
+				LocalAmbientStepsRetentionResult.Unavailable(
+					PeriodicAmbientRetentionFailureReason.UNVERIFIABLE,
+				)
+			},
+			importedSteps = { TruncateImportedAmbientStepsRetentionResult.Complete },
+			wifi = { _, _ -> AmbientWifiRetentionResult.NoChange },
+			cell = { _, _ -> AmbientCellRetentionResult.NoChange },
+		)
+
+		(subject.run(database, lifecycle, 2_000L) as PeriodicAmbientRetentionResult.Retryable)
+			.failures shouldContainExactly listOf(
+			PeriodicAmbientRetentionFailure(
+				PeriodicAmbientRetentionSource.LOCAL_STEPS,
+				PeriodicAmbientRetentionFailureReason.UNVERIFIABLE,
+			),
+		)
 	}
 
 	private fun subject(
 		importedResult: TruncateImportedAmbientStepsRetentionResult,
 	): PeriodicAmbientRetentionMaintenance = PeriodicAmbientRetentionMaintenance(
-		localSteps = { _, _, _, _ -> },
+		localSteps = { _, _, _, _ -> LocalAmbientStepsRetentionResult.NoChange },
 		importedSteps = { importedResult },
 		wifi = { _, _ -> AmbientWifiRetentionResult.NoChange },
 		cell = { _, _ -> AmbientCellRetentionResult.NoChange },

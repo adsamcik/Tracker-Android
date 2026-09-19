@@ -53,6 +53,12 @@ internal class AmbientCellFactProjector @Inject constructor(
 	private suspend fun projectInTransaction(
 		admissionOrdinal: Long,
 	): AmbientCellProjectionResult {
+		if (
+			database.collectedDataDeletionOperationDao()
+				.activeRetentionFloorSettlement() != null
+		) {
+			return AmbientCellProjectionResult.RetryableFailure
+		}
 		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(admissionOrdinal)
 			?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.WAL_MISSING)
 		if (wal.sourceKind != SourceKind.CELL.stableCode) {

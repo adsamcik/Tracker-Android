@@ -13,6 +13,7 @@ import com.adsamcik.tracker.app.maintenance.CellCapturedRetentionService
 import com.adsamcik.tracker.app.maintenance.PeriodicAmbientRetentionMaintenance
 import com.adsamcik.tracker.app.maintenance.PeriodicAmbientRetentionResult
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlement
+import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementCompletionResult
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementResult
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
@@ -75,25 +76,37 @@ class DataRetentionWorker @AssistedInject constructor(
     private suspend fun doApprovedWork(authority: ApprovedRetentionOperation): Result {
         authority.requireIdentity()
         val config = authority.configuration
-        if (!config.autoCleanupEnabled) {
-            return Result.success()
-        }
-
 		val years = config.dataRetentionYears
-		if (years == 0) {
-			return Result.success()
-		}
 		when (trackingStartupGate.reconcile()) {
 			is TrackingStartupResult.Ready -> Unit
 			is TrackingStartupResult.RetryableFailure -> return Result.retry()
 			is TrackingStartupResult.Blocked -> return Result.success()
 		}
 		val startupGeneration = trackingStartupGate.currentGeneration
+		val appDatabase = try {
+			appDatabaseProvider.get()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return Result.retry()
+		}
+		val pendingOperation = try {
+			retentionFloorSettlement.pendingOperation(appDatabase)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return Result.retry()
+		}
+		if ((!config.autoCleanupEnabled || years == 0) && pendingOperation == null) {
+			return Result.success()
+		}
 		val now = System.currentTimeMillis()
-		val cutoff = computeCutoffMillis(years, now)
+		val requestedFloor = pendingOperation?.requestedRetainedFromMs
+			?: computeCutoffMillis(years, now)
+		val requestedOperationId = pendingOperation?.operationId
+			?: authority.retentionFloorOperationId(requestedFloor, now)
         return try {
 			requireReadyGeneration(startupGeneration)
-			val appDatabase = appDatabaseProvider.get()
 			// The policy and backup cleanup precede the physical delete, so a WAL
 			// entry can defer that delete without preserving expired history in a
 			// migration snapshot.
@@ -104,8 +117,8 @@ class DataRetentionWorker @AssistedInject constructor(
 				lifecycleStore = collectedDataLifecycleStore,
 				startupGate = trackingStartupGate,
 				expectedStartupGeneration = startupGeneration,
-				requestedRetainedFromMs = cutoff,
-				operationId = authority.retentionFloorOperationId(cutoff),
+				requestedRetainedFromMs = requestedFloor,
+				operationId = requestedOperationId,
 				updatedAtMs = now,
 				verifyApprovedOperation = { authority.requireIdentity() },
 			)) {
@@ -116,18 +129,32 @@ class DataRetentionWorker @AssistedInject constructor(
 					throw RetentionFloorSettlementDeferredException
 			}
 			val lifecycle = settlement.lifecycle
-			migrationBackupRepository.deleteAll()
-			val rawRetentionResult = pruneRawData(
-				appDatabase,
-				cutoff,
-				lifecycle,
-				now,
-				startupGeneration,
-				authority,
-			)
 			val retainedFromMs = requireNotNull(lifecycle.retainedFromMs) {
 				"Captured radio retention requires a durable retained-from floor"
 			}
+			val operationTimeMs = maxOf(
+				now,
+				settlement.requestedAtMs,
+				retainedFromMs,
+			)
+			if (settlement.sourceMaintenanceCompleted) {
+				return completeSettlement(
+					appDatabase,
+					startupGeneration,
+					settlement,
+					operationTimeMs,
+					authority,
+				)
+			}
+			migrationBackupRepository.deleteAll()
+			val rawRetentionResult = pruneRawData(
+				appDatabase,
+				retainedFromMs,
+				lifecycle,
+				operationTimeMs,
+				startupGeneration,
+				authority,
+			)
 			if (rawRetentionResult == RawRetentionPruneResult.PRUNED) {
 				requireReadyGeneration(startupGeneration)
 				authority.requireIdentity()
@@ -139,22 +166,21 @@ class DataRetentionWorker @AssistedInject constructor(
 			val ambientRetentionAccepted = periodicAmbientRetentionMaintenance.run(
 					database = appDatabase,
 					lifecycle = lifecycle,
-					activeLocalSources = settlement.reconciledSources,
-					appliedAtMs = now,
+					appliedAtMs = operationTimeMs,
 				) is PeriodicAmbientRetentionResult.Complete
 			// Captured radio maintenance authenticates its retained source WAL after lifecycle
 			// settlement and before the shared physical WAL prune, including deferred raw runs.
 			val cellRetentionAccepted = pruneCapturedCellData(
 				appDatabase,
 				retainedFromMs,
-				now,
+				operationTimeMs,
 				startupGeneration,
 				authority,
 			)
 			val wifiRetentionAccepted = pruneCapturedWifiData(
 				appDatabase,
 				retainedFromMs,
-				now,
+				operationTimeMs,
 				startupGeneration,
 				authority,
 			)
@@ -169,20 +195,26 @@ class DataRetentionWorker @AssistedInject constructor(
 					// Captured radio revisions authenticate their exact attributed segment.
 					pruneExpiredSessionSegments(
 						appDatabase,
-						cutoff,
+						retainedFromMs,
 						startupGeneration,
 						authority,
 					)
 					requireReadyGeneration(startupGeneration)
 					authority.requireIdentity()
 					appDatabase.pruneSourceEventStorageBefore(
-						createdBeforeMs = cutoff,
+						createdBeforeMs = retainedFromMs,
 						verifyCollectedDataAccess = {
 							requireReadyGeneration(startupGeneration)
 							authority.requireIdentity()
 						},
 					)
-					Result.success()
+					completeSettlement(
+						appDatabase,
+						startupGeneration,
+						settlement,
+						operationTimeMs,
+						authority,
+					)
 				}
 				RawRetentionPruneResult.DEFERRED_FOR_PENDING_SIGNALS -> {
 					Result.retry()
@@ -191,7 +223,7 @@ class DataRetentionWorker @AssistedInject constructor(
         } catch (e: CancellationException) {
             throw e
 		} catch (_: StartupGenerationChangedException) {
-			Result.success()
+			Result.retry()
 		} catch (_: ActivityRetentionDeferredException) {
 			Result.retry()
 		} catch (_: RadioRetentionDeferredException) {
@@ -205,6 +237,28 @@ class DataRetentionWorker @AssistedInject constructor(
             Result.retry()
         }
     }
+
+	private suspend fun completeSettlement(
+		database: AppDatabase,
+		startupGeneration: Long,
+		settlement: RetentionFloorSettlementResult.Settled,
+		completedAtMs: Long,
+		authority: ApprovedRetentionOperation,
+	): Result = when (retentionFloorSettlement.complete(
+		database = database,
+		startupGate = trackingStartupGate,
+		expectedStartupGeneration = startupGeneration,
+		settlement = settlement,
+		completedAtMs = completedAtMs,
+		verifyApprovedOperation = { authority.requireIdentity() },
+	)) {
+		RetentionFloorSettlementCompletionResult.Completed,
+			is RetentionFloorSettlementCompletionResult.SupersededByFullDeletion,
+			-> Result.success()
+		RetentionFloorSettlementCompletionResult.StartupGenerationChanged,
+		RetentionFloorSettlementCompletionResult.Retryable,
+			-> Result.retry()
+	}
 
     companion object {
         private const val ONE_YEAR_MILLIS: Long = 365L * 24L * 60L * 60L * 1000L

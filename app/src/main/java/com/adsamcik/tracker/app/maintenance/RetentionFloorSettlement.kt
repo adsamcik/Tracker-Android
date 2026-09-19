@@ -1,8 +1,12 @@
 package com.adsamcik.tracker.app.maintenance
 
-import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
+import com.adsamcik.tracker.shared.base.database.RetentionFloorSettlementOperation
+import com.adsamcik.tracker.shared.base.database.activeRetentionFloorSettlement
+import com.adsamcik.tracker.shared.base.database.advanceRetentionFloorSettlementPhase
+import com.adsamcik.tracker.shared.base.database.commitRetentionFloorRoomGuard
+import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
+import com.adsamcik.tracker.shared.base.database.prepareOrResumeRetentionFloorSettlement
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -32,6 +36,10 @@ class RetentionFloorSettlement @Inject constructor(
 	private val retentionAuthorityProducer: RetentionAuthorityProducer,
 	private val purposeReconciler: TrackingRetentionFloorReconciler,
 ) {
+	suspend fun pendingOperation(database: AppDatabase): RetentionFloorSettlementOperation? =
+		database.activeRetentionFloorSettlement()
+
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	suspend fun settle(
 		database: AppDatabase,
 		lifecycleStore: CollectedDataLifecycleStore,
@@ -45,79 +53,253 @@ class RetentionFloorSettlement @Inject constructor(
 		require(requestedRetainedFromMs >= 0L)
 		require(operationId.isNotBlank())
 		require(updatedAtMs >= 0L)
-		val commit = try {
+		var activeOperation: RetentionFloorSettlementOperation? = null
+		var phase = RetentionFloorSettlementPhase.REQUESTED_PREPARED
+		val result = try {
 			startupGate.withReadyGenerationOperation(expectedStartupGeneration) {
-			operationLease.withPermit(cancellationShielded = true) { permit ->
-				var phase = RetentionFloorSettlementPhase.LIFECYCLE_FLOOR
-				try {
+				val authorityPreparation = operationLease.withPermit(
+					cancellationShielded = true,
+				) { permit ->
 					verifyApprovedOperation()
-					val lifecycle = lifecycleStore.advanceRetainedFromWithPermit(
-						requestedRetainedFromMs,
-						permit,
-						operationId,
-					)
+					val initialLifecycle = lifecycleStore.snapshot()
 					permit.validate()
-					verifyApprovedOperation()
-					phase = RetentionFloorSettlementPhase.ROOM_GUARD
-					permit.commitRoomMutation {
-						verifyApprovedOperation()
-						database.withTransaction {
-							verifyApprovedOperation()
-							try {
-								val sourceEvidenceStateDao = database.sourceEvidenceStateDao()
-								val lifecycleChanged = sourceEvidenceStateDao.synchronizeLifecycle(
-									epoch = lifecycle.epoch,
-									retainedFromMs = lifecycle.retainedFromMs,
-									updatedAtMs = updatedAtMs,
-								)
-								if (!lifecycleChanged) {
-									val evidence = requireNotNull(sourceEvidenceStateDao.get())
-									check(
-										sourceEvidenceStateDao.incrementRevisionForExactLifecycle(
-											expectedRevision = evidence.revision,
-											expectedCollectedDataEpoch = lifecycle.epoch,
-											expectedRetainedFromMs = lifecycle.retainedFromMs,
-											updatedAtMs = updatedAtMs,
-										) == 1,
-									) {
-										"Unable to advance source-evidence revision for retention floor"
-									}
-								}
-							} finally {
-								verifyApprovedOperation()
-							}
-						}
-						verifyApprovedOperation()
+					var operation = permit.commitRoomMutation {
+						database.prepareOrResumeRetentionFloorSettlement(
+							operationId = operationId,
+							requestedRetainedFromMs = requestedRetainedFromMs,
+							collectedDataEpoch = initialLifecycle.epoch,
+							requestedAtMs = updatedAtMs,
+						)
 					}
+					activeOperation = operation
+					val transitionAtMs = maxOf(updatedAtMs, operation.requestedAtMs)
+					var lifecycle = initialLifecycle
+					if (
+						!operation.hasReached(
+							CollectedDataDeletionOperationEntity
+								.PHASE_RETENTION_DATASTORE_ACKNOWLEDGED,
+						)
+					) {
+						phase = RetentionFloorSettlementPhase.DATASTORE_FLOOR_ACKNOWLEDGED
+						verifyApprovedOperation()
+						lifecycle = lifecycleStore.advanceRetainedFromWithPermit(
+							operation.requestedRetainedFromMs,
+							permit,
+							operation.operationId,
+						)
+						check(lifecycle.epoch == operation.collectedDataEpoch) {
+							"Retention-floor lifecycle epoch changed before acknowledgement"
+						}
+						check(
+							requireNotNull(lifecycle.retainedFromMs) >=
+								operation.requestedRetainedFromMs,
+						) { "Retention-floor DataStore acknowledgement is below its request" }
+						operation = permit.commitRoomMutation {
+							database.advanceRetentionFloorSettlementPhase(
+								operation = operation,
+								expectedPhase =
+									CollectedDataDeletionOperationEntity.PHASE_RETENTION_PREPARED,
+								newPhase = CollectedDataDeletionOperationEntity
+									.PHASE_RETENTION_DATASTORE_ACKNOWLEDGED,
+								updatedAtMs = transitionAtMs,
+							)
+						}
+						activeOperation = operation
+					} else {
+						lifecycle = lifecycleStore.snapshot()
+						check(lifecycle.epoch == operation.collectedDataEpoch)
+						check(
+							requireNotNull(lifecycle.retainedFromMs) >=
+								operation.requestedRetainedFromMs,
+						)
+					}
+					val settledRetainedFromMs = requireNotNull(lifecycle.retainedFromMs)
+					phase = RetentionFloorSettlementPhase.ROOM_GUARD_COMMITTED
+					verifyApprovedOperation()
+					operation = permit.commitRoomMutation {
+						database.commitRetentionFloorRoomGuard(
+							operation = operation,
+							settledRetainedFromMs = settledRetainedFromMs,
+							updatedAtMs = transitionAtMs,
+						)
+					}
+					activeOperation = operation
 					permit.validate()
-					phase = RetentionFloorSettlementPhase.AUTHORITY_REISSUE
+					if (
+						operation.hasReached(
+							CollectedDataDeletionOperationEntity
+								.PHASE_RETENTION_PROVIDER_RECONCILED,
+						)
+					) {
+						return@withPermit RetentionFloorLeaseResult.Prepared(
+							lifecycle = lifecycle,
+							activeLocalSources = emptySet(),
+							operation = operation,
+						)
+					}
+					phase = RetentionFloorSettlementPhase.AUTHORITY_REISSUED
 					val retentionResults = try {
-						retentionAuthorityProducer.reconcileCurrentSettingsWithPermit(permit)
+						retentionAuthorityProducer.reconcileCurrentSettingsWithPermit(
+							permit = permit,
+							settlementOperationId = operation.operationId,
+						)
 					} catch (unknown: RetentionAuthorityDataStoreCommitUnknownException) {
 						throw unknown
 					} catch (_: Exception) {
-						RETENTION_PROVIDER_SOURCES.keys.map { source ->
+						requiredAuthorityKeys().map { (source, scope) ->
 							RetentionAuthorityResult.Unavailable(
 								source = source,
-								scope = RetentionAuthorityScope.LIVE_AMBIENT,
+								scope = scope,
 								reason = RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE,
 							)
 						}
 					}
-					RetentionFloorCommitResult.Applied(lifecycle, retentionResults)
-				} catch (unknown: RetentionAuthorityDataStoreCommitUnknownException) {
-					throw unknown
-				} catch (_: Exception) {
-					RetentionFloorCommitResult.Retryable(
-						RetentionFloorSettlementFailure.CommitBoundary(phase),
+					val authority = evaluateAuthorityResults(retentionResults)
+					if (authority.failures.isNotEmpty()) {
+						return@withPermit RetentionFloorLeaseResult.Retryable(
+							RetentionFloorSettlementResult.Retryable(
+								RetentionFloorSettlementDebt(
+									operation.requestedRetainedFromMs,
+									authority.failures,
+								),
+							),
+						)
+					}
+					if (
+						!operation.hasReached(
+							CollectedDataDeletionOperationEntity
+								.PHASE_RETENTION_AUTHORITY_REISSUED,
+						)
+					) {
+						operation = permit.commitRoomMutation {
+							database.advanceRetentionFloorSettlementPhase(
+								operation = operation,
+								expectedPhase = CollectedDataDeletionOperationEntity
+									.PHASE_RETENTION_ROOM_GUARD_COMMITTED,
+								newPhase = CollectedDataDeletionOperationEntity
+									.PHASE_RETENTION_AUTHORITY_REISSUED,
+								updatedAtMs = transitionAtMs,
+							)
+						}
+						activeOperation = operation
+					}
+					RetentionFloorLeaseResult.Prepared(
+						lifecycle = lifecycle,
+						activeLocalSources = authority.activeLocalSources,
+						operation = operation,
 					)
 				}
+				if (authorityPreparation is RetentionFloorLeaseResult.Retryable) {
+					return@withReadyGenerationOperation authorityPreparation.result
+				}
+				authorityPreparation as RetentionFloorLeaseResult.Prepared
+				phase = RetentionFloorSettlementPhase.SOURCE_RECONCILIATION_COMPLETED
+				if (
+					!authorityPreparation.operation.hasReached(
+						CollectedDataDeletionOperationEntity
+							.PHASE_RETENTION_PROVIDER_RECONCILED,
+					)
+				) {
+					val purposeResult = reconcilePurpose(
+						expectedStartupGeneration,
+						requireNotNull(authorityPreparation.lifecycle.retainedFromMs),
+						authorityPreparation.activeLocalSources,
+						authorityPreparation.operation.operationId,
+						verifyApprovedOperation,
+					)
+					if (purposeResult is TrackingRetentionFloorReconciliationResult.Retryable) {
+						return@withReadyGenerationOperation RetentionFloorSettlementResult.Retryable(
+							RetentionFloorSettlementDebt(
+								authorityPreparation.operation.requestedRetainedFromMs,
+								listOf(
+									RetentionFloorSettlementFailure.ProviderLifecycle(
+										purposeResult.debt,
+									),
+								),
+							),
+						)
+					}
+					purposeResult as TrackingRetentionFloorReconciliationResult.Complete
+					if (purposeResult.reconciledSources != authorityPreparation.activeLocalSources) {
+						return@withReadyGenerationOperation RetentionFloorSettlementResult.Retryable(
+							RetentionFloorSettlementDebt(
+								authorityPreparation.operation.requestedRetainedFromMs,
+								listOf(
+									publicationRejected(
+										requireNotNull(
+											authorityPreparation.lifecycle.retainedFromMs,
+										),
+									),
+								),
+							),
+						)
+					}
+				}
+				if (!startupGate.isReadyGeneration(expectedStartupGeneration)) {
+					return@withReadyGenerationOperation RetentionFloorSettlementResult.Retryable(
+						RetentionFloorSettlementDebt(
+							authorityPreparation.operation.requestedRetainedFromMs,
+							listOf(
+								startupGenerationChanged(
+									requireNotNull(
+										authorityPreparation.lifecycle.retainedFromMs,
+									),
+								),
+							),
+						),
+					)
+				}
+				val reconciledOperation = operationLease.withPermit(
+					cancellationShielded = true,
+				) { permit ->
+					verifyApprovedOperation()
+					if (
+						authorityPreparation.operation.hasReached(
+							CollectedDataDeletionOperationEntity
+								.PHASE_RETENTION_PROVIDER_RECONCILED,
+						)
+					) {
+						authorityPreparation.operation
+					} else {
+						permit.commitRoomMutation {
+							database.advanceRetentionFloorSettlementPhase(
+								operation = authorityPreparation.operation,
+								expectedPhase = CollectedDataDeletionOperationEntity
+									.PHASE_RETENTION_AUTHORITY_REISSUED,
+								newPhase = CollectedDataDeletionOperationEntity
+									.PHASE_RETENTION_PROVIDER_RECONCILED,
+								updatedAtMs = maxOf(
+									updatedAtMs,
+									authorityPreparation.operation.requestedAtMs,
+								),
+							)
+						}
+					}
+				}
+				activeOperation = reconciledOperation
+				RetentionFloorSettlementResult.Settled(
+					lifecycle = authorityPreparation.lifecycle,
+					reconciledSources = authorityPreparation.activeLocalSources,
+					operationId = reconciledOperation.operationId,
+					requestedRetainedFromMs = reconciledOperation.requestedRetainedFromMs,
+					requestedAtMs = reconciledOperation.requestedAtMs,
+					sourceMaintenanceCompleted = reconciledOperation.hasReached(
+						CollectedDataDeletionOperationEntity
+							.PHASE_RETENTION_SOURCE_MAINTENANCE_COMPLETED,
+					),
+				)
 			}
-		}
+		} catch (cancelled: CancellationException) {
+			throw cancelled
 		} catch (unknown: RetentionAuthorityDataStoreCommitUnknownException) {
+			val persisted = try {
+				database.collectedDataDeletionOperationDao().get(unknown.operationIdentity)
+			} catch (_: Exception) {
+				null
+			}
 			return RetentionFloorSettlementResult.Retryable(
 				RetentionFloorSettlementDebt(
-					requestedRetainedFromMs,
+					persisted?.retainedFromMs ?: requestedRetainedFromMs,
 					listOf(
 						RetentionFloorSettlementFailure.DataStoreCommitUnknown(
 							unknown.operationIdentity,
@@ -125,111 +307,234 @@ class RetentionFloorSettlement @Inject constructor(
 					),
 				),
 			)
-		} ?: return RetentionFloorSettlementResult.StartupGenerationChanged
-
-		if (commit is RetentionFloorCommitResult.Retryable) {
+		} catch (_: Exception) {
 			return RetentionFloorSettlementResult.Retryable(
 				RetentionFloorSettlementDebt(
-					requestedRetainedFromMs,
-					listOf(commit.failure),
+					activeOperation?.requestedRetainedFromMs ?: requestedRetainedFromMs,
+					listOf(RetentionFloorSettlementFailure.CommitBoundary(phase)),
 				),
 			)
 		}
-		commit as RetentionFloorCommitResult.Applied
-		val retainedFromMs = requireNotNull(commit.lifecycle.retainedFromMs) {
-			"Retention settlement must establish a durable retained-from floor"
-		}
-		val failures = mutableListOf<RetentionFloorSettlementFailure>()
-		val approvedSources = buildSet {
-			RETENTION_PROVIDER_SOURCES.forEach { (component, source) ->
-				val results = commit.retentionResults.filter {
-					it.source == component && it.scope == RetentionAuthorityScope.LIVE_AMBIENT
-				}
-				if (results.size != 1) {
-					failures += RetentionFloorSettlementFailure.ResultSetInvalid(component)
-					return@forEach
-				}
-				when (val result = results.single()) {
-					is RetentionAuthorityResult.Unavailable ->
-						failures += RetentionFloorSettlementFailure.AuthorityUnavailable(result)
-					is RetentionAuthorityResult.Applied ->
-						if (result.state == RetentionAuthorityState.ACTIVE) add(source)
-					is RetentionAuthorityResult.Unchanged ->
-						if (result.state == RetentionAuthorityState.ACTIVE) add(source)
+		if (result != null) return result
+		val pending = activeOperation ?: return RetentionFloorSettlementResult.StartupGenerationChanged
+		return RetentionFloorSettlementResult.Retryable(
+			RetentionFloorSettlementDebt(
+				pending.requestedRetainedFromMs,
+				listOf(startupGenerationChanged(pending.requestedRetainedFromMs)),
+			),
+		)
+	}
+
+	suspend fun complete(
+		database: AppDatabase,
+		startupGate: TrackingStartupGate,
+		expectedStartupGeneration: Long,
+		settlement: RetentionFloorSettlementResult.Settled,
+		completedAtMs: Long,
+		verifyApprovedOperation: () -> Unit,
+	): RetentionFloorSettlementCompletionResult {
+		require(completedAtMs >= settlement.requestedAtMs)
+		val result = try {
+			startupGate.withReadyGenerationOperation(expectedStartupGeneration) {
+				operationLease.withPermit(cancellationShielded = true) { permit ->
+					verifyApprovedOperation()
+					val operation = database.collectedDataDeletionOperationDao()
+						.get(settlement.operationId)
+					if (operation == null) {
+						val deletion = database.collectedDataDeletionOperationDao()
+							.completedFullDeletionAfter(settlement.lifecycle.epoch)
+						return@withPermit if (deletion != null) {
+							RetentionFloorSettlementCompletionResult.SupersededByFullDeletion(
+								deletion.targetCollectedDataEpoch,
+							)
+						} else {
+							RetentionFloorSettlementCompletionResult.Retryable
+						}
+					}
+					check(operation.operationId == settlement.operationId)
+					check(operation.retainedFromMs == settlement.requestedRetainedFromMs)
+					check(operation.targetCollectedDataEpoch == settlement.lifecycle.epoch)
+					check(operation.deletedAtMs == settlement.requestedAtMs)
+					var durable = RetentionFloorSettlementOperation(
+						operationId = operation.operationId,
+						requestedRetainedFromMs = requireNotNull(operation.retainedFromMs),
+						collectedDataEpoch = operation.targetCollectedDataEpoch,
+						requestedAtMs = operation.deletedAtMs,
+						phase = operation.phase,
+					)
+					if (
+						!durable.hasReached(
+							CollectedDataDeletionOperationEntity
+								.PHASE_RETENTION_PROVIDER_RECONCILED,
+						)
+					) {
+						return@withPermit RetentionFloorSettlementCompletionResult.Retryable
+					}
+					if (
+						!durable.hasReached(
+							CollectedDataDeletionOperationEntity
+								.PHASE_RETENTION_SOURCE_MAINTENANCE_COMPLETED,
+						)
+					) {
+						if (!startupGate.isReadyGeneration(expectedStartupGeneration)) {
+							return@withPermit RetentionFloorSettlementCompletionResult
+								.StartupGenerationChanged
+						}
+						durable = permit.commitRoomMutation {
+							database.advanceRetentionFloorSettlementPhase(
+								operation = durable,
+								expectedPhase = CollectedDataDeletionOperationEntity
+									.PHASE_RETENTION_PROVIDER_RECONCILED,
+								newPhase = CollectedDataDeletionOperationEntity
+									.PHASE_RETENTION_SOURCE_MAINTENANCE_COMPLETED,
+								updatedAtMs = completedAtMs,
+							)
+						}
+					}
+					if (
+						!durable.hasReached(
+							CollectedDataDeletionOperationEntity.PHASE_RETENTION_FINAL,
+						)
+					) {
+						if (!startupGate.isReadyGeneration(expectedStartupGeneration)) {
+							return@withPermit RetentionFloorSettlementCompletionResult
+								.StartupGenerationChanged
+						}
+						permit.commitRoomMutation {
+							database.advanceRetentionFloorSettlementPhase(
+								operation = durable,
+								expectedPhase = CollectedDataDeletionOperationEntity
+									.PHASE_RETENTION_SOURCE_MAINTENANCE_COMPLETED,
+								newPhase =
+									CollectedDataDeletionOperationEntity.PHASE_RETENTION_FINAL,
+								updatedAtMs = completedAtMs,
+							)
+						}
+					}
+					RetentionFloorSettlementCompletionResult.Completed
 				}
 			}
-		}
-		val purposeResult = try {
-			verifyApprovedOperation()
-			purposeReconciler.reconcile(
-				expectedStartupGeneration,
-				retainedFromMs,
-				approvedSources,
-			).also { verifyApprovedOperation() }
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
-			TrackingRetentionFloorReconciliationResult.Retryable(
-				TrackingRetentionFloorReconciliationDebt(
-					retainedFromMs,
-					listOf(
-						TrackingRetentionFloorReconciliationFailure(
-							source = null,
-							reason = TrackingRetentionFloorReconciliationFailureReason
-								.OWNER_RECONCILIATION_FAILED,
-						),
-					),
-				),
-			)
+			return RetentionFloorSettlementCompletionResult.Retryable
 		}
-		if (purposeResult is TrackingRetentionFloorReconciliationResult.Retryable) {
-			failures += RetentionFloorSettlementFailure.ProviderLifecycle(purposeResult.debt)
-		} else if (
-			purposeResult is TrackingRetentionFloorReconciliationResult.Complete &&
-			purposeResult.reconciledSources != approvedSources
-		) {
-			failures += RetentionFloorSettlementFailure.ProviderLifecycle(
-				TrackingRetentionFloorReconciliationDebt(
-					retainedFromMs,
-					listOf(
-						TrackingRetentionFloorReconciliationFailure(
-							source = null,
-							reason = TrackingRetentionFloorReconciliationFailureReason
-								.PUBLICATION_REJECTED,
-						),
-					),
-				),
-			)
+		if (result != null) return result
+		val durable = try {
+			database.collectedDataDeletionOperationDao().get(settlement.operationId)
+		} catch (_: Exception) {
+			null
 		}
-		return if (failures.isEmpty()) {
-			startupGate.withReadyGeneration(expectedStartupGeneration) {
-				RetentionFloorSettlementResult.Settled(commit.lifecycle, approvedSources)
-			} ?: RetentionFloorSettlementResult.Retryable(
-				RetentionFloorSettlementDebt(
-					retainedFromMs,
-					listOf(
-						RetentionFloorSettlementFailure.ProviderLifecycle(
-							TrackingRetentionFloorReconciliationDebt(
-								retainedFromMs,
-								listOf(
-									TrackingRetentionFloorReconciliationFailure(
-										source = null,
-										reason =
-											TrackingRetentionFloorReconciliationFailureReason
-												.STARTUP_GENERATION_CHANGED,
-									),
-								),
-							),
-						),
-					),
-				),
+		if (durable?.phase == CollectedDataDeletionOperationEntity.PHASE_RETENTION_FINAL) {
+			return RetentionFloorSettlementCompletionResult.Completed
+		}
+		val deletion = try {
+			database.collectedDataDeletionOperationDao()
+				.completedFullDeletionAfter(settlement.lifecycle.epoch)
+		} catch (_: Exception) {
+			null
+		}
+		return if (deletion != null) {
+			RetentionFloorSettlementCompletionResult.SupersededByFullDeletion(
+				deletion.targetCollectedDataEpoch,
 			)
 		} else {
-			RetentionFloorSettlementResult.Retryable(
-				RetentionFloorSettlementDebt(retainedFromMs, failures),
-			)
+			RetentionFloorSettlementCompletionResult.StartupGenerationChanged
 		}
 	}
+
+	private suspend fun reconcilePurpose(
+		expectedStartupGeneration: Long,
+		retainedFromMs: Long,
+		activeSources: Set<AmbientTrackingSource>,
+		settlementOperationId: String,
+		verifyApprovedOperation: () -> Unit,
+	): TrackingRetentionFloorReconciliationResult = try {
+		verifyApprovedOperation()
+		purposeReconciler.reconcile(
+			expectedStartupGeneration,
+			retainedFromMs,
+			activeSources,
+			settlementOperationId,
+		).also { verifyApprovedOperation() }
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		TrackingRetentionFloorReconciliationResult.Retryable(
+			TrackingRetentionFloorReconciliationDebt(
+				retainedFromMs,
+				listOf(
+					TrackingRetentionFloorReconciliationFailure(
+						source = null,
+						reason = TrackingRetentionFloorReconciliationFailureReason
+							.OWNER_RECONCILIATION_FAILED,
+					),
+				),
+			),
+		)
+	}
+
+	private fun evaluateAuthorityResults(
+		results: List<RetentionAuthorityResult>,
+	): RetentionAuthorityEvaluation {
+		val failures = mutableListOf<RetentionFloorSettlementFailure>()
+		val activeSources = buildSet {
+			requiredAuthorityKeys().forEach { (component, scope) ->
+				val matching = results.filter { it.source == component && it.scope == scope }
+				if (matching.size != 1) {
+					failures += RetentionFloorSettlementFailure.ResultSetInvalid(component, scope)
+					return@forEach
+				}
+				when (val result = matching.single()) {
+					is RetentionAuthorityResult.Unavailable ->
+						failures += RetentionFloorSettlementFailure.AuthorityUnavailable(result)
+					is RetentionAuthorityResult.Applied ->
+						if (
+							scope == RetentionAuthorityScope.LIVE_AMBIENT &&
+							result.state == RetentionAuthorityState.ACTIVE
+						) {
+							add(RETENTION_PROVIDER_SOURCES.getValue(component))
+						}
+					is RetentionAuthorityResult.Unchanged ->
+						if (
+							scope == RetentionAuthorityScope.LIVE_AMBIENT &&
+							result.state == RetentionAuthorityState.ACTIVE
+						) {
+							add(RETENTION_PROVIDER_SOURCES.getValue(component))
+						}
+				}
+			}
+		}
+		return RetentionAuthorityEvaluation(activeSources, failures)
+	}
+
+	private fun publicationRejected(retainedFromMs: Long) =
+		RetentionFloorSettlementFailure.ProviderLifecycle(
+			TrackingRetentionFloorReconciliationDebt(
+				retainedFromMs,
+				listOf(
+					TrackingRetentionFloorReconciliationFailure(
+						source = null,
+						reason = TrackingRetentionFloorReconciliationFailureReason
+							.PUBLICATION_REJECTED,
+					),
+				),
+			),
+		)
+
+	private fun startupGenerationChanged(retainedFromMs: Long) =
+		RetentionFloorSettlementFailure.ProviderLifecycle(
+			TrackingRetentionFloorReconciliationDebt(
+				retainedFromMs,
+				listOf(
+					TrackingRetentionFloorReconciliationFailure(
+						source = null,
+						reason = TrackingRetentionFloorReconciliationFailureReason
+							.STARTUP_GENERATION_CHANGED,
+					),
+				),
+			),
+		)
 
 	private companion object {
 		val RETENTION_PROVIDER_SOURCES = linkedMapOf(
@@ -237,6 +542,14 @@ class RetentionFloorSettlement @Inject constructor(
 			TrackingSourceComponent.WIFI to AmbientTrackingSource.WIFI,
 			TrackingSourceComponent.CELL to AmbientTrackingSource.CELL,
 		)
+
+		fun requiredAuthorityKeys(): List<Pair<TrackingSourceComponent, RetentionAuthorityScope>> =
+			RETENTION_PROVIDER_SOURCES.keys.flatMap { source ->
+				listOf(
+					source to RetentionAuthorityScope.LIVE_AMBIENT,
+					source to RetentionAuthorityScope.PORTABLE_IMPORT,
+				)
+			}
 	}
 }
 
@@ -244,6 +557,10 @@ sealed interface RetentionFloorSettlementResult {
 	data class Settled(
 		val lifecycle: CollectedDataLifecycleSnapshot,
 		val reconciledSources: Set<AmbientTrackingSource>,
+		val operationId: String,
+		val requestedRetainedFromMs: Long,
+		val requestedAtMs: Long,
+		val sourceMaintenanceCompleted: Boolean = false,
 	) : RetentionFloorSettlementResult
 
 	data object StartupGenerationChanged : RetentionFloorSettlementResult
@@ -251,6 +568,15 @@ sealed interface RetentionFloorSettlementResult {
 	data class Retryable(
 		val debt: RetentionFloorSettlementDebt,
 	) : RetentionFloorSettlementResult
+}
+
+sealed interface RetentionFloorSettlementCompletionResult {
+	data object Completed : RetentionFloorSettlementCompletionResult
+	data class SupersededByFullDeletion(
+		val collectedDataEpoch: Long,
+	) : RetentionFloorSettlementCompletionResult
+	data object StartupGenerationChanged : RetentionFloorSettlementCompletionResult
+	data object Retryable : RetentionFloorSettlementCompletionResult
 }
 
 data class RetentionFloorSettlementDebt(
@@ -266,6 +592,7 @@ data class RetentionFloorSettlementDebt(
 sealed interface RetentionFloorSettlementFailure {
 	data class ResultSetInvalid(
 		val source: TrackingSourceComponent,
+		val scope: RetentionAuthorityScope,
 	) : RetentionFloorSettlementFailure
 
 	data class AuthorityUnavailable(
@@ -290,18 +617,27 @@ sealed interface RetentionFloorSettlementFailure {
 }
 
 enum class RetentionFloorSettlementPhase {
-	LIFECYCLE_FLOOR,
-	ROOM_GUARD,
-	AUTHORITY_REISSUE,
+	REQUESTED_PREPARED,
+	DATASTORE_FLOOR_ACKNOWLEDGED,
+	ROOM_GUARD_COMMITTED,
+	AUTHORITY_REISSUED,
+	SOURCE_RECONCILIATION_COMPLETED,
 }
 
-private sealed interface RetentionFloorCommitResult {
-	data class Applied(
+private data class RetentionAuthorityEvaluation(
+	val activeLocalSources: Set<AmbientTrackingSource>,
+	val failures: List<RetentionFloorSettlementFailure>,
+)
+
+
+private sealed interface RetentionFloorLeaseResult {
+	data class Prepared(
 		val lifecycle: CollectedDataLifecycleSnapshot,
-		val retentionResults: List<RetentionAuthorityResult>,
-	) : RetentionFloorCommitResult
+		val activeLocalSources: Set<AmbientTrackingSource>,
+		val operation: RetentionFloorSettlementOperation,
+	) : RetentionFloorLeaseResult
 
 	data class Retryable(
-		val failure: RetentionFloorSettlementFailure.CommitBoundary,
-	) : RetentionFloorCommitResult
+		val result: RetentionFloorSettlementResult.Retryable,
+	) : RetentionFloorLeaseResult
 }

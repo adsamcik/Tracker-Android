@@ -59,15 +59,7 @@ import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionC
 import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionOperationResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityOperationLease
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityState
-import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
-import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciler
-import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciliationResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
@@ -692,7 +684,7 @@ class RetentionPipelineWorkerRobolectricTest {
 				periodicAmbientRetentionMaintenance = ambient,
 			).doWork() shouldBe ListenableWorker.Result.retry()
 
-			coVerify(exactly = 1) { ambient.run(db, any(), any(), any()) }
+			coVerify(exactly = 1) { ambient.run(db, any(), any()) }
 			coVerify(exactly = 1) { cell.prune(db, any(), any()) }
 			coVerify(exactly = 1) { wifi.prune(db, any(), any()) }
 		}
@@ -1139,34 +1131,49 @@ class RetentionPipelineWorkerRobolectricTest {
 	private fun periodicAmbientRetentionMaintenance(
 		result: PeriodicAmbientRetentionResult = PeriodicAmbientRetentionResult.Complete,
 	): PeriodicAmbientRetentionMaintenance = mockk {
-		coEvery { run(any(), any(), any(), any()) } returns result
+		coEvery { run(any(), any(), any()) } returns result
 	}
 
-	private fun retentionFloorSettlement(
-		producer: RetentionAuthorityProducer = successfulRetentionAuthorityProducer(),
-		reconciler: TrackingRetentionFloorReconciler =
-			TrackingRetentionFloorReconciler { _, floor, sources ->
-				TrackingRetentionFloorReconciliationResult.Complete(floor, sources)
-			},
-	): RetentionFloorSettlement = RetentionFloorSettlement(
-		RetentionAuthorityOperationLease(),
-		producer,
-		reconciler,
-	)
-
-	private fun successfulRetentionAuthorityProducer(): RetentionAuthorityProducer = mockk {
-		coEvery { reconcileCurrentSettings() } returns listOf(
-			TrackingSourceComponent.STEPS,
-			TrackingSourceComponent.WIFI,
-			TrackingSourceComponent.CELL,
-		).map { source ->
-			RetentionAuthorityResult.Unchanged(
-				source = source,
-				scope = RetentionAuthorityScope.LIVE_AMBIENT,
-				state = RetentionAuthorityState.ACTIVE,
-				approvalRevision = 1L,
+	private fun retentionFloorSettlement(): RetentionFloorSettlement = mockk {
+		coEvery { pendingOperation(any()) } returns null
+		coEvery {
+			settle(
+				database = any(),
+				lifecycleStore = any(),
+				startupGate = any(),
+				expectedStartupGeneration = any(),
+				requestedRetainedFromMs = any(),
+				operationId = any(),
+				updatedAtMs = any(),
+				verifyApprovedOperation = any(),
+			)
+		} coAnswers {
+			val requestedFloor = arg<Long>(4)
+			val initial = arg<CollectedDataLifecycleStore>(1).snapshot()
+			RetentionFloorSettlementResult.Settled(
+				lifecycle = initial.copy(
+					retainedFromMs = maxOf(initial.retainedFromMs ?: 0L, requestedFloor),
+				),
+				reconciledSources = setOf(
+					AmbientTrackingSource.STEPS,
+					AmbientTrackingSource.WIFI,
+					AmbientTrackingSource.CELL,
+				),
+				operationId = arg(5),
+				requestedRetainedFromMs = requestedFloor,
+				requestedAtMs = arg(6),
 			)
 		}
+		coEvery {
+			complete(
+				database = any(),
+				startupGate = any(),
+				expectedStartupGeneration = any(),
+				settlement = any(),
+				completedAtMs = any(),
+				verifyApprovedOperation = any(),
+			)
+		} returns RetentionFloorSettlementCompletionResult.Completed
 	}
 
 	private fun retentionStore(state: RetentionConfigState): RetentionConfigStore =

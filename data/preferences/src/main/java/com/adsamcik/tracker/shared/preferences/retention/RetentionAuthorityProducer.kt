@@ -50,6 +50,7 @@ enum class RetentionAuthorityUnavailableReason {
 	SOURCE_AUTHORITY_UNAVAILABLE,
 	STORAGE_UNAVAILABLE,
 	COMMIT_ACKNOWLEDGEMENT_UNKNOWN,
+	RETENTION_FLOOR_SETTLEMENT_PENDING,
 }
 
 sealed interface RetentionConfigurationApprovalResult {
@@ -131,6 +132,25 @@ interface RetentionAuthorityReader {
 		expectedRetainedFromMs: Long? = null,
 	): CurrentRetentionAuthority
 
+	/** Allows only the named durable floor settlement to read authority while its journal is open. */
+	suspend fun currentLiveAmbientForSettlement(
+		source: TrackingSourceComponent,
+		expectedSourcePolicyRevision: Long,
+		expectedAmbientConsentEpoch: Long,
+		expectedCollectedDataEpoch: Long,
+		expectedRetainedFromMs: Long?,
+		settlementOperationId: String,
+	): CurrentRetentionAuthority {
+		require(settlementOperationId.isNotBlank())
+		return currentLiveAmbient(
+			source,
+			expectedSourcePolicyRevision,
+			expectedAmbientConsentEpoch,
+			expectedCollectedDataEpoch,
+			expectedRetainedFromMs,
+		)
+	}
+
 	/** Fail-closed broker seam for an exact persisted retention identity in the current boot. */
 	suspend fun isCurrentLiveAmbientAt(
 		source: TrackingSourceComponent,
@@ -184,16 +204,25 @@ interface RetentionAuthorityProducer :
 		expectedConfigurationGeneration: Long? = null,
 	): RetentionConfigurationApprovalResult
 	suspend fun reconcileLiveAmbient(source: TrackingSourceComponent): RetentionAuthorityResult
+	/** Allows only the named durable floor settlement to reissue provider authority. */
+	suspend fun reconcileLiveAmbientForSettlement(
+		source: TrackingSourceComponent,
+		settlementOperationId: String,
+	): RetentionAuthorityResult {
+		require(settlementOperationId.isNotBlank())
+		return reconcileLiveAmbient(source)
+	}
 	suspend fun approvePortableImport(source: TrackingSourceComponent): RetentionAuthorityResult
 	suspend fun revokePortableImport(source: TrackingSourceComponent): RetentionAuthorityResult
 }
 
 suspend fun RetentionAuthorityProducer.reconcileCurrentSettingsWithPermit(
 	permit: RetentionAuthorityOperationPermit,
+	settlementOperationId: String? = null,
 ): List<RetentionAuthorityResult> {
 	permit.requireActive()
 	return if (this is DefaultRetentionAuthorityProducer) {
-		reconcileCurrentSettings(permit)
+		reconcileCurrentSettingsForSettlement(permit, settlementOperationId)
 	} else {
 		reconcileCurrentSettings()
 	}
@@ -343,16 +372,22 @@ class DefaultRetentionAuthorityProducer internal constructor(
 					RetentionAuthorityUnavailableReason.COMMIT_ACKNOWLEDGEMENT_UNKNOWN,
 				)
 			},
-			operation = ::reconcileCurrentSettingsLocked,
+			operation = { permit -> reconcileCurrentSettingsLocked(permit) },
 		)
 
 	override suspend fun reconcileCurrentSettings(
 		permit: RetentionAuthorityOperationPermit,
+	): List<RetentionAuthorityResult> =
+		reconcileCurrentSettingsForSettlement(permit, settlementOperationId = null)
+
+	internal suspend fun reconcileCurrentSettingsForSettlement(
+		permit: RetentionAuthorityOperationPermit,
+		settlementOperationId: String?,
 	): List<RetentionAuthorityResult> {
 		operationLease.requireOwned(permit)
 		return mutex.withLock {
 			operationLease.requireOwned(permit)
-			reconcileCurrentSettingsLocked(permit).also {
+			reconcileCurrentSettingsLocked(permit, settlementOperationId).also {
 				operationLease.requireOwned(permit)
 			}
 		}
@@ -360,8 +395,9 @@ class DefaultRetentionAuthorityProducer internal constructor(
 
 	private suspend fun reconcileCurrentSettingsLocked(
 		permit: RetentionAuthorityOperationPermit,
+		settlementOperationId: String? = null,
 	): List<RetentionAuthorityResult> {
-		exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
+		exactSourceEvidenceBootstrapFailure(permit, settlementOperationId)?.let { reason ->
 			return unavailableReconciliationResults(reason)
 		}
 		val pending = readPendingPolicyCandidate() as? RetentionPolicyCandidateRead.Available
@@ -397,8 +433,17 @@ class DefaultRetentionAuthorityProducer internal constructor(
 
 	private suspend fun exactSourceEvidenceBootstrapFailure(
 		operationPermit: RetentionAuthorityOperationPermit,
+		settlementOperationId: String? = null,
 	): RetentionAuthorityUnavailableReason? = try {
 		operationPermit.validate()
+		val pendingSettlement = database.collectedDataDeletionOperationDao()
+			.activeRetentionFloorSettlement()
+		if (
+			pendingSettlement != null &&
+			pendingSettlement.operationId != settlementOperationId
+		) {
+			return RetentionAuthorityUnavailableReason.RETENTION_FLOOR_SETTLEMENT_PENDING
+		}
 		val lifecycle = readLifecycle()
 		operationPermit.validate()
 		val updatedAtMs = effectiveTimeProvider.now().wallTimeMs
@@ -484,6 +529,22 @@ class DefaultRetentionAuthorityProducer internal constructor(
 
 	override suspend fun reconcileLiveAmbient(
 		source: TrackingSourceComponent,
+	): RetentionAuthorityResult = reconcileLiveAmbientWithSettlement(
+		source = source,
+		settlementOperationId = null,
+	)
+
+	override suspend fun reconcileLiveAmbientForSettlement(
+		source: TrackingSourceComponent,
+		settlementOperationId: String,
+	): RetentionAuthorityResult {
+		require(settlementOperationId.isNotBlank())
+		return reconcileLiveAmbientWithSettlement(source, settlementOperationId)
+	}
+
+	private suspend fun reconcileLiveAmbientWithSettlement(
+		source: TrackingSourceComponent,
+		settlementOperationId: String?,
 	): RetentionAuthorityResult = withSerializedOperation(
 		onCommitUnknown = {
 			unavailable(
@@ -494,7 +555,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		},
 	) { permit ->
 			safely(source, RetentionAuthorityScope.LIVE_AMBIENT) {
-				exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
+				exactSourceEvidenceBootstrapFailure(permit, settlementOperationId)?.let { reason ->
 					return@safely unavailable(source, RetentionAuthorityScope.LIVE_AMBIENT, reason)
 				}
 				reconcileLiveAmbientLocked(source, permit)
@@ -574,6 +635,41 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		expectedAmbientConsentEpoch: Long,
 		expectedCollectedDataEpoch: Long,
 		expectedRetainedFromMs: Long?,
+	): CurrentRetentionAuthority = currentLiveAmbientWithSettlement(
+		source = source,
+		expectedSourcePolicyRevision = expectedSourcePolicyRevision,
+		expectedAmbientConsentEpoch = expectedAmbientConsentEpoch,
+		expectedCollectedDataEpoch = expectedCollectedDataEpoch,
+		expectedRetainedFromMs = expectedRetainedFromMs,
+		settlementOperationId = null,
+	)
+
+	override suspend fun currentLiveAmbientForSettlement(
+		source: TrackingSourceComponent,
+		expectedSourcePolicyRevision: Long,
+		expectedAmbientConsentEpoch: Long,
+		expectedCollectedDataEpoch: Long,
+		expectedRetainedFromMs: Long?,
+		settlementOperationId: String,
+	): CurrentRetentionAuthority {
+		require(settlementOperationId.isNotBlank())
+		return currentLiveAmbientWithSettlement(
+			source,
+			expectedSourcePolicyRevision,
+			expectedAmbientConsentEpoch,
+			expectedCollectedDataEpoch,
+			expectedRetainedFromMs,
+			settlementOperationId,
+		)
+	}
+
+	private suspend fun currentLiveAmbientWithSettlement(
+		source: TrackingSourceComponent,
+		expectedSourcePolicyRevision: Long,
+		expectedAmbientConsentEpoch: Long,
+		expectedCollectedDataEpoch: Long,
+		expectedRetainedFromMs: Long?,
+		settlementOperationId: String?,
 	): CurrentRetentionAuthority = withSerializedOperation(
 		onCommitUnknown = {
 			CurrentRetentionAuthority.Unavailable(
@@ -582,7 +678,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		},
 	) { permit ->
 		try {
-			exactSourceEvidenceBootstrapFailure(permit)?.let { reason ->
+			exactSourceEvidenceBootstrapFailure(permit, settlementOperationId)?.let { reason ->
 				return@withSerializedOperation CurrentRetentionAuthority.Unavailable(reason)
 			}
 			permit.validate()
@@ -940,28 +1036,23 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		operationPermit.validate()
 		val approval = approvedPolicyOrNull()
 		operationPermit.validate()
-		if (
-			approval == null ||
-			current.opaquePolicyId != approval.opaquePolicyId ||
-			current.collectedDataEpoch != lifecycle.epoch ||
-			current.retainedFromMs != lifecycle.retainedFromMs
-		) {
-			revoke(source, scope, lifecycle, operationPermit)
+		if (approval == null) {
+			val revoked = revoke(source, scope, lifecycle, operationPermit)
+			if (revoked is RetentionAuthorityResult.Unavailable) return revoked
 			return unavailable(
 				source,
 				scope,
-				if (approval == null) {
-					RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE
-				} else {
-					RetentionAuthorityUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE
-				},
+				RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
 			)
 		}
-		return RetentionAuthorityResult.Unchanged(
-			source,
-			scope,
-			RetentionAuthorityState.ACTIVE,
-			current.approvalRevision,
+		return grant(
+			source = source,
+			scope = scope,
+			approval = approval,
+			lifecycle = lifecycle,
+			sourcePolicyRevision = null,
+			ambientConsentEpoch = null,
+			operationPermit = operationPermit,
 		)
 	}
 

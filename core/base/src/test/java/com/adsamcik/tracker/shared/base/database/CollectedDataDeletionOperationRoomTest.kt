@@ -90,4 +90,98 @@ class CollectedDataDeletionOperationRoomTest {
 			database.close()
 		}
 	}
+
+	@Test
+	fun `retry resumes the first durable retention floor identity instead of recomputing it`() =
+		runTest {
+			val context = ApplicationProvider.getApplicationContext<Application>()
+			val database = AppDatabase.testDatabase(context)
+			try {
+				val first = database.prepareOrResumeRetentionFloorSettlement(
+					operationId = "retention-operation-original",
+					requestedRetainedFromMs = 1_000L,
+					collectedDataEpoch = 0L,
+					requestedAtMs = 2_000L,
+				)
+
+				database.prepareOrResumeRetentionFloorSettlement(
+					operationId = "retention-operation-recomputed",
+					requestedRetainedFromMs = 1_500L,
+					collectedDataEpoch = 0L,
+					requestedAtMs = 2_500L,
+				) shouldBe first
+			} finally {
+				database.close()
+			}
+		}
+
+	@Test
+	fun `exact Room guard replay does not increment source evidence twice`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Application>()
+		val database = AppDatabase.testDatabase(context)
+		try {
+			val prepared = database.prepareOrResumeRetentionFloorSettlement(
+				operationId = "retention-operation-room",
+				requestedRetainedFromMs = 1_000L,
+				collectedDataEpoch = 0L,
+				requestedAtMs = 2_000L,
+			)
+			val acknowledged = database.advanceRetentionFloorSettlementPhase(
+				operation = prepared,
+				expectedPhase =
+					CollectedDataDeletionOperationEntity.PHASE_RETENTION_PREPARED,
+				newPhase = CollectedDataDeletionOperationEntity
+					.PHASE_RETENTION_DATASTORE_ACKNOWLEDGED,
+				updatedAtMs = 2_001L,
+			)
+
+			val committed = database.commitRetentionFloorRoomGuard(
+				operation = acknowledged,
+				settledRetainedFromMs = 1_000L,
+				updatedAtMs = 2_002L,
+			)
+			val revision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+
+			database.commitRetentionFloorRoomGuard(
+				operation = committed,
+				settledRetainedFromMs = 1_000L,
+				updatedAtMs = 2_003L,
+			) shouldBe committed
+			requireNotNull(database.sourceEvidenceStateDao().get()).revision shouldBe revision
+		} finally {
+			database.close()
+		}
+	}
+
+	@Test
+	fun `completed full deletion supersedes an unfinished retention settlement`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Application>()
+		val database = AppDatabase.testDatabase(context)
+		try {
+			database.prepareOrResumeRetentionFloorSettlement(
+				operationId = "retention-operation-old-epoch",
+				requestedRetainedFromMs = 1_000L,
+				collectedDataEpoch = 0L,
+				requestedAtMs = 2_000L,
+			)
+
+			AppDatabase.deleteAllCollectedData(
+				database = database,
+				operationId = "full-delete-after-retention",
+				collectedDataEpoch = 1L,
+				retainedFromMs = 1_500L,
+				updatedAtMs = 3_000L,
+			)
+
+			database.activeRetentionFloorSettlement() shouldBe null
+			database.collectedDataDeletionOperationDao().completedFullDeletionAfter(0L)
+				?.operationId shouldBe "full-delete-after-retention"
+			requireNotNull(database.sourceEvidenceStateDao().get()).run {
+				collectedDataEpoch shouldBe 1L
+				retainedFromMs shouldBe 1_500L
+			}
+		} finally {
+			database.close()
+		}
+	}
 }

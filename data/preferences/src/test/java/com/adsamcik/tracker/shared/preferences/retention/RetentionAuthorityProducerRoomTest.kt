@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -129,6 +130,77 @@ class RetentionAuthorityProducerRoomTest {
 		database.ambientStepsFactRevisionDao().latestRetentionAuthority(
 			AmbientStepsRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
 		) shouldBe before
+	}
+
+	@Test
+	fun `floor settlement reissues every previously active portable import scope`() = runTest {
+		bootstrap()
+		approvedPolicy = approved("policy-1", revision = 1L)
+		val producer = producer()
+		val sources = listOf(
+			TrackingSourceComponent.STEPS,
+			TrackingSourceComponent.WIFI,
+			TrackingSourceComponent.CELL,
+		)
+		sources.forEach { source ->
+			assertIs<RetentionAuthorityResult.Applied>(producer.approvePortableImport(source))
+		}
+		lifecycle = lifecycle.copy(retainedFromMs = 1_000L)
+		database.sourceEvidenceStateDao().updateLifecycle(
+			lifecycle.epoch,
+			lifecycle.retainedFromMs,
+			100L,
+		)
+
+		val results = producer.reconcileCurrentSettings().filter {
+			it.scope == RetentionAuthorityScope.PORTABLE_IMPORT
+		}
+
+		results.size shouldBe sources.size
+		results.forEach { result ->
+			assertIs<RetentionAuthorityResult.Applied>(result).state shouldBe
+				RetentionAuthorityState.ACTIVE
+		}
+		database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+			AmbientStepsRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+		)?.retainedFromMs shouldBe 1_000L
+		database.ambientWifiFactDao().latestRetentionAuthority(
+			AmbientWifiRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+		)?.retainedFromMs shouldBe 1_000L
+		database.ambientCellFactDao().latestRetentionAuthority(
+			AmbientCellRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+		)?.retainedFromMs shouldBe 1_000L
+	}
+
+	@Test
+	fun `unavailable portable import reissue remains typed settlement debt`() = runTest {
+		bootstrap()
+		approvedPolicy = approved("policy-1", revision = 1L)
+		assertIs<RetentionAuthorityResult.Applied>(
+			producer().approvePortableImport(TrackingSourceComponent.WIFI),
+		)
+		lifecycle = lifecycle.copy(retainedFromMs = 1_000L)
+		database.sourceEvidenceStateDao().updateLifecycle(
+			lifecycle.epoch,
+			lifecycle.retainedFromMs,
+			100L,
+		)
+		val failing = producer { source, scope ->
+			if (
+				source == TrackingSourceComponent.WIFI &&
+				scope == RetentionAuthorityScope.PORTABLE_IMPORT
+			) {
+				error("portable authority storage unavailable")
+			}
+		}
+
+		val result = failing.reconcileCurrentSettings().single {
+			it.source == TrackingSourceComponent.WIFI &&
+				it.scope == RetentionAuthorityScope.PORTABLE_IMPORT
+		}
+
+		assertIs<RetentionAuthorityResult.Unavailable>(result).reason shouldBe
+			RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE
 	}
 
 	@Test
@@ -520,6 +592,50 @@ class RetentionAuthorityProducerRoomTest {
 			RetentionAuthorityUnavailableReason.RETAINED_FROM_CHANGED,
 		)
 	}
+
+	@Test
+	fun `late DataStore floor cannot admit ingress while its Room settlement journal is pending`() =
+		runTest {
+			bootstrap(ambientSteps = true)
+			approvedPolicy = approved("policy-1", revision = 1L)
+			val producer = producer()
+			val snapshot = (policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
+			val consentEpoch = requireNotNull(
+				snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+			)
+			assertIs<RetentionAuthorityResult.Applied>(
+				producer.reconcileLiveAmbient(TrackingSourceComponent.STEPS),
+			)
+			database.collectedDataDeletionOperationDao().insert(
+				CollectedDataDeletionOperationEntity(
+					operationId = "late-datastore-floor",
+					targetCollectedDataEpoch = lifecycle.epoch,
+					retainedFromMs = 2_000L,
+					deletedAtMs = 2_000L,
+					phase =
+						CollectedDataDeletionOperationEntity.PHASE_RETENTION_PREPARED,
+					updatedAtMs = 2_000L,
+				),
+			)
+			lifecycle = lifecycle.copy(retainedFromMs = 2_000L)
+
+			producer.currentLiveAmbient(
+				TrackingSourceComponent.STEPS,
+				snapshot.revision,
+				consentEpoch,
+				lifecycle.epoch,
+				lifecycle.retainedFromMs,
+			) shouldBe CurrentRetentionAuthority.Unavailable(
+				RetentionAuthorityUnavailableReason.RETENTION_FLOOR_SETTLEMENT_PENDING,
+			)
+			assertIs<RetentionAuthorityResult.Unavailable>(
+				producer.reconcileLiveAmbientForSettlement(
+					TrackingSourceComponent.STEPS,
+					"late-datastore-floor",
+				),
+			).reason shouldBe RetentionAuthorityUnavailableReason.RETAINED_FROM_CHANGED
+			database.sourceEvidenceStateDao().get()?.retainedFromMs shouldBe null
+		}
 
 	@Test
 	fun `floor only reissue rotates the exact retention approval revision`() = runTest {

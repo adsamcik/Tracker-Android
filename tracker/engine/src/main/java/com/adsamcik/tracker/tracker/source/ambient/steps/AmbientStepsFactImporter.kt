@@ -154,7 +154,18 @@ internal class AmbientStepsFactImporter internal constructor(
 		val lifecycle = lifecycleSnapshotOrNull()
 			?: return retryable(AmbientStepsImportRetryableReason.STORAGE_UNAVAILABLE)
 		val preflight = try {
-			database.withTransaction { resolvePreflight(boundary, lifecycle) }
+			database.withTransaction {
+				if (
+					database.collectedDataDeletionOperationDao()
+						.activeRetentionFloorSettlement() != null
+				) {
+					Preflight.Outcome(
+						retryable(AmbientStepsImportRetryableReason.STORAGE_UNAVAILABLE),
+					)
+				} else {
+					resolvePreflight(boundary, lifecycle)
+				}
+			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
@@ -191,7 +202,14 @@ internal class AmbientStepsFactImporter internal constructor(
 
 		return try {
 			database.withTransaction {
-				commitRead(preflight, boundary, commitLifecycle, aggregate)
+				if (
+					database.collectedDataDeletionOperationDao()
+						.activeRetentionFloorSettlement() != null
+				) {
+					retryable(AmbientStepsImportRetryableReason.STORAGE_UNAVAILABLE)
+				} else {
+					commitRead(preflight, boundary, commitLifecycle, aggregate)
+				}
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled

@@ -52,6 +52,12 @@ internal class AmbientWifiFactProjector @Inject constructor(
 	private suspend fun projectInTransaction(
 		admissionOrdinal: Long,
 	): AmbientWifiProjectionResult {
+		if (
+			database.collectedDataDeletionOperationDao()
+				.activeRetentionFloorSettlement() != null
+		) {
+			return AmbientWifiProjectionResult.RetryableFailure
+		}
 		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(admissionOrdinal)
 			?: return unverifiable(AmbientWifiProjectionUnverifiableReason.WAL_MISSING)
 		if (wal.sourceKind != SourceKind.WIFI.stableCode) {

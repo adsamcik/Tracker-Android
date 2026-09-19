@@ -790,6 +790,17 @@ fun interface TrackingRetentionFloorReconciler {
 		retainedFromMs: Long,
 		approvedSources: Set<AmbientTrackingSource>,
 	): TrackingRetentionFloorReconciliationResult
+
+	/** Recovery-only overload that carries the durable floor-settlement identity end to end. */
+	suspend fun reconcile(
+		expectedStartupGeneration: Long,
+		retainedFromMs: Long,
+		approvedSources: Set<AmbientTrackingSource>,
+		settlementOperationId: String,
+	): TrackingRetentionFloorReconciliationResult {
+		require(settlementOperationId.isNotBlank())
+		return reconcile(expectedStartupGeneration, retainedFromMs, approvedSources)
+	}
 }
 
 sealed interface TrackingRetentionFloorReconciliationResult {

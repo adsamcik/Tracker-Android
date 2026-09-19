@@ -68,18 +68,36 @@ class RetentionPipelineWorker @AssistedInject constructor(
         authority.requireIdentity()
         val storedConfig = authority.configuration
         val config = storedConfig.forWorker()
-
-        if (!storedConfig.autoPurgeEnabled && !storedConfig.autoCleanupEnabled) return Result.success()
 		when (trackingStartupGate.reconcile()) {
 			is TrackingStartupResult.Ready -> Unit
 			is TrackingStartupResult.RetryableFailure -> return Result.retry()
 			is TrackingStartupResult.Blocked -> return Result.success()
 		}
 		val startupGeneration = trackingStartupGate.currentGeneration
+		val appDatabase = try {
+			appDatabaseProvider.get()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return Result.retry()
+		}
+		val pendingOperation = try {
+			retentionFloorSettlement.pendingOperation(appDatabase)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return Result.retry()
+		}
+		if (
+			!storedConfig.autoPurgeEnabled &&
+			!storedConfig.autoCleanupEnabled &&
+			pendingOperation == null
+		) {
+			return Result.success()
+		}
 
         return try {
 			requireReadyGeneration(startupGeneration)
-			val appDatabase = appDatabaseProvider.get()
             val now = System.currentTimeMillis()
 
             val rawCutoff = config.rawDataRetentionDays.takeUnless { it == 0 }?.let { retentionDays ->
@@ -88,7 +106,8 @@ class RetentionPipelineWorker @AssistedInject constructor(
 			val wifiCellCutoff = config.wifiCellRetentionDays.takeUnless { it == 0 }?.let {
 				computeWifiCellCutoffMillis(it, now)
 			}
-			val requestedFloor = listOfNotNull(rawCutoff, wifiCellCutoff).maxOrNull()
+			val requestedFloor = pendingOperation?.requestedRetainedFromMs
+				?: listOfNotNull(rawCutoff, wifiCellCutoff).maxOrNull()
 				?: collectedDataLifecycleStore.snapshot().retainedFromMs
 			val settledFloor = requestedFloor?.let { floor ->
 				when (val settlement = retentionFloorSettlement.settle(
@@ -97,7 +116,8 @@ class RetentionPipelineWorker @AssistedInject constructor(
 					startupGate = trackingStartupGate,
 					expectedStartupGeneration = startupGeneration,
 					requestedRetainedFromMs = floor,
-					operationId = authority.retentionFloorOperationId(floor),
+					operationId = pendingOperation?.operationId
+						?: authority.retentionFloorOperationId(floor, now),
 					updatedAtMs = now,
 					verifyApprovedOperation = { authority.requireIdentity() },
 				)) {
@@ -108,18 +128,37 @@ class RetentionPipelineWorker @AssistedInject constructor(
 						throw RetentionFloorSettlementDeferredException
 				}
 			}
+			val operationNow = settledFloor?.let {
+				maxOf(
+						now,
+						it.requestedAtMs,
+						requireNotNull(it.lifecycle.retainedFromMs),
+				)
+			} ?: now
+			val operationRawCutoff = config.rawDataRetentionDays.takeUnless { it == 0 }?.let {
+				operationNow - it.toLong() * Time.DAY_IN_MILLISECONDS
+			}
 			if (settledFloor != null) {
+				if (settledFloor.sourceMaintenanceCompleted) {
+					return completeSettlement(
+						appDatabase,
+						startupGeneration,
+						settledFloor,
+						operationNow,
+						authority,
+					)
+				}
 				migrationBackupRepository.deleteAll()
 			}
-            val rawRetentionResult = if (rawCutoff == null) {
+            val rawRetentionResult = if (operationRawCutoff == null) {
                 RawRetentionResult.NOT_APPLICABLE
             } else {
 				val lifecycle = requireNotNull(settledFloor).lifecycle
                 val result = purgeRawData(
                 	appDatabase,
-                	rawCutoff,
+                	operationRawCutoff,
                 	lifecycle,
-                	now,
+                	operationNow,
                 	startupGeneration,
                 	authority,
                 )
@@ -138,8 +177,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
 				if (periodicAmbientRetentionMaintenance.run(
 						database = appDatabase,
 						lifecycle = settlement.lifecycle,
-						activeLocalSources = settlement.reconciledSources,
-						appliedAtMs = now,
+						appliedAtMs = operationNow,
 					) is PeriodicAmbientRetentionResult.Retryable
 				) {
 					maintenanceDeferred = true
@@ -149,7 +187,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
 				if (!pruneCapturedCellData(
 						appDatabase,
 						exactFloor,
-						now,
+						operationNow,
 						startupGeneration,
 						authority,
 					)
@@ -159,7 +197,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
 				if (!pruneCapturedWifiData(
 						appDatabase,
 						exactFloor,
-						now,
+						operationNow,
 						startupGeneration,
 						authority,
 					)
@@ -167,34 +205,43 @@ class RetentionPipelineWorker @AssistedInject constructor(
 					maintenanceDeferred = true
 				}
 			}
-			if (rawCutoff != null && !maintenanceDeferred) {
+			if (operationRawCutoff != null && !maintenanceDeferred) {
                 requireReadyGeneration(startupGeneration)
                 authority.requireIdentity()
                 appDatabase.pruneSourceEventStorageBefore(
-                	createdBeforeMs = rawCutoff,
+                	createdBeforeMs = operationRawCutoff,
                 	verifyCollectedDataAccess = {
                 		requireReadyGeneration(startupGeneration)
                 		authority.requireIdentity()
                 	},
                 )
 			}
-			purgeWifiCellData(appDatabase, config, now, startupGeneration, authority)
-			purgeTripData(appDatabase, config, now, startupGeneration, authority)
-			purgeDailySummaries(appDatabase, config, now, startupGeneration, authority)
-			purgeExplorationData(appDatabase, config, now, startupGeneration, authority)
-			purgeOperationalData(appDatabase, config, now, startupGeneration, authority)
+			purgeWifiCellData(appDatabase, config, operationNow, startupGeneration, authority)
+			purgeTripData(appDatabase, config, operationNow, startupGeneration, authority)
+			purgeDailySummaries(appDatabase, config, operationNow, startupGeneration, authority)
+			purgeExplorationData(appDatabase, config, operationNow, startupGeneration, authority)
+			purgeOperationalData(appDatabase, config, operationNow, startupGeneration, authority)
 
-            if (rawRetentionResult == RawRetentionResult.DEFERRED_FOR_PENDING_SIGNALS ||
+            if (
+				rawRetentionResult == RawRetentionResult.DEFERRED_FOR_PENDING_SIGNALS ||
 				maintenanceDeferred
 			) {
-                Result.retry()
-            } else {
-                Result.success()
-            }
+				Result.retry()
+			} else if (settledFloor == null) {
+				Result.success()
+			} else {
+				completeSettlement(
+					appDatabase,
+					startupGeneration,
+					settledFloor,
+					operationNow,
+					authority,
+				)
+			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: StartupGenerationChangedException) {
-			Result.success()
+			Result.retry()
 		} catch (_: ActivityRetentionDeferredException) {
 			Result.retry()
 		} catch (_: RetentionFloorSettlementDeferredException) {
@@ -203,7 +250,29 @@ class RetentionPipelineWorker @AssistedInject constructor(
             Tracebox.log.error(error, TrackerTraceboxTemplates.DATA_RETENTION_FAILED)
             Result.retry()
         }
-    }
+	}
+
+	private suspend fun completeSettlement(
+		database: AppDatabase,
+		startupGeneration: Long,
+		settlement: RetentionFloorSettlementResult.Settled,
+		completedAtMs: Long,
+		authority: ApprovedRetentionOperation,
+	): Result = when (retentionFloorSettlement.complete(
+		database = database,
+		startupGate = trackingStartupGate,
+		expectedStartupGeneration = startupGeneration,
+		settlement = settlement,
+		completedAtMs = completedAtMs,
+		verifyApprovedOperation = { authority.requireIdentity() },
+	)) {
+		RetentionFloorSettlementCompletionResult.Completed,
+			is RetentionFloorSettlementCompletionResult.SupersededByFullDeletion,
+			-> Result.success()
+		RetentionFloorSettlementCompletionResult.StartupGenerationChanged,
+		RetentionFloorSettlementCompletionResult.Retryable,
+			-> Result.retry()
+	}
 
     private suspend fun purgeRawData(
         db: AppDatabase,

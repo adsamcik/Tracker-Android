@@ -370,10 +370,15 @@ data class ApprovedRetentionOperation(
         }
     }
 
-    fun retentionFloorOperationId(requestedRetainedFromMs: Long): String {
+    fun retentionFloorOperationId(
+		requestedRetainedFromMs: Long,
+		requestedAtMs: Long,
+	): String {
         require(requestedRetainedFromMs >= 0L)
+		require(requestedAtMs >= 0L)
         return "retention-floor-v1:${policy.configurationGeneration}:${policy.revision}:" +
-            "${policy.opaquePolicyId}:${policy.configurationChecksum}:$requestedRetainedFromMs"
+            "${policy.opaquePolicyId}:${policy.configurationChecksum}:" +
+			"$requestedRetainedFromMs:$requestedAtMs"
     }
 }
 

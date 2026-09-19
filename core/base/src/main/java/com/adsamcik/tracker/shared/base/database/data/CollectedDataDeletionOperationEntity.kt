@@ -4,6 +4,12 @@ import androidx.room.Entity
 import androidx.room.ColumnInfo
 import androidx.room.PrimaryKey
 
+/**
+ * Durable journal for destructive collected-data lifecycle transitions.
+ *
+ * The table name is retained for v28 schema compatibility; full deletion and retention-floor
+ * settlement use disjoint phase families.
+ */
 @Entity(tableName = "collected_data_deletion_operation")
 data class CollectedDataDeletionOperationEntity(
 	@PrimaryKey
@@ -21,7 +27,7 @@ data class CollectedDataDeletionOperationEntity(
 ) {
 	init {
 		require(operationId.isNotBlank())
-		require(targetCollectedDataEpoch > 0L)
+		require(targetCollectedDataEpoch >= 0L)
 		require(retainedFromMs == null || retainedFromMs >= 0L)
 		require(deletedAtMs >= 0L)
 		require(phase in PHASES)
@@ -31,10 +37,47 @@ data class CollectedDataDeletionOperationEntity(
 	companion object {
 		const val PHASE_DATABASE_CLEARED = "DATABASE_CLEARED"
 		const val PHASE_WRITERS_REARMED = "WRITERS_REARMED"
+		const val PHASE_RETENTION_PREPARED = "RETENTION_PREPARED"
+		const val PHASE_RETENTION_DATASTORE_ACKNOWLEDGED =
+			"RETENTION_DATASTORE_ACKNOWLEDGED"
+		const val PHASE_RETENTION_ROOM_GUARD_COMMITTED =
+			"RETENTION_ROOM_GUARD_COMMITTED"
+		const val PHASE_RETENTION_AUTHORITY_REISSUED =
+			"RETENTION_AUTHORITY_REISSUED"
+		const val PHASE_RETENTION_PROVIDER_RECONCILED =
+			"RETENTION_PROVIDER_RECONCILED"
+		const val PHASE_RETENTION_SOURCE_MAINTENANCE_COMPLETED =
+			"RETENTION_SOURCE_MAINTENANCE_COMPLETED"
+		const val PHASE_RETENTION_FINAL = "RETENTION_FINAL"
 
 		private val PHASES = setOf(
 			PHASE_DATABASE_CLEARED,
 			PHASE_WRITERS_REARMED,
+			PHASE_RETENTION_PREPARED,
+			PHASE_RETENTION_DATASTORE_ACKNOWLEDGED,
+			PHASE_RETENTION_ROOM_GUARD_COMMITTED,
+			PHASE_RETENTION_AUTHORITY_REISSUED,
+			PHASE_RETENTION_PROVIDER_RECONCILED,
+			PHASE_RETENTION_SOURCE_MAINTENANCE_COMPLETED,
+			PHASE_RETENTION_FINAL,
+		)
+
+		val RETENTION_PHASES = listOf(
+			PHASE_RETENTION_PREPARED,
+			PHASE_RETENTION_DATASTORE_ACKNOWLEDGED,
+			PHASE_RETENTION_ROOM_GUARD_COMMITTED,
+			PHASE_RETENTION_AUTHORITY_REISSUED,
+			PHASE_RETENTION_PROVIDER_RECONCILED,
+			PHASE_RETENTION_SOURCE_MAINTENANCE_COMPLETED,
+			PHASE_RETENTION_FINAL,
 		)
 	}
+}
+
+fun CollectedDataDeletionOperationEntity.hasReachedRetentionPhase(expected: String): Boolean {
+	val currentIndex = CollectedDataDeletionOperationEntity.RETENTION_PHASES.indexOf(phase)
+	val expectedIndex = CollectedDataDeletionOperationEntity.RETENTION_PHASES.indexOf(expected)
+	require(currentIndex >= 0) { "Operation is not a retention-floor settlement" }
+	require(expectedIndex >= 0) { "Unknown retention-floor settlement phase" }
+	return currentIndex >= expectedIndex
 }

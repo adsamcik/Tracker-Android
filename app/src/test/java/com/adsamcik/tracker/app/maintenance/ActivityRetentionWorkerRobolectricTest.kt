@@ -59,14 +59,6 @@ import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionC
 import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionOperationResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityOperationLease
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
-import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityState
-import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
-import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciler
-import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciliationResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -340,6 +332,7 @@ class ActivityRetentionWorkerRobolectricTest {
 			}
 		}
 		val lifecycle = mockk<CollectedDataLifecycleStore> {
+			coEvery { snapshot() } returns CollectedDataLifecycleSnapshot(EPOCH, FLOOR)
 			coEvery { advanceRetainedFrom(any()) } returns CollectedDataLifecycleSnapshot(EPOCH, FLOOR)
 			coEvery { advanceRetainedFrom(any(), any(), any()) } returns
 				CollectedDataLifecycleSnapshot(EPOCH, FLOOR)
@@ -363,7 +356,7 @@ class ActivityRetentionWorkerRobolectricTest {
 					retentionFloorSettlement(),
 					mockk {
 						coEvery {
-							run(any(), any(), any(), any())
+							run(any(), any(), any())
 						} returns PeriodicAmbientRetentionResult.Complete
 					},
 				) else RetentionPipelineWorker(
@@ -380,7 +373,7 @@ class ActivityRetentionWorkerRobolectricTest {
 					retentionFloorSettlement(),
 					mockk {
 						coEvery {
-							run(any(), any(), any(), any())
+							run(any(), any(), any())
 						} returns PeriodicAmbientRetentionResult.Complete
 					},
 				)
@@ -393,27 +386,51 @@ class ActivityRetentionWorkerRobolectricTest {
 		}
 	}
 
-	private fun retentionFloorSettlement(): RetentionFloorSettlement =
-		RetentionFloorSettlement(
-			RetentionAuthorityOperationLease(),
-			mockk<RetentionAuthorityProducer> {
-				coEvery { reconcileCurrentSettings() } returns listOf(
-					TrackingSourceComponent.STEPS,
-					TrackingSourceComponent.WIFI,
-					TrackingSourceComponent.CELL,
-				).map { source ->
-					RetentionAuthorityResult.Unchanged(
-						source = source,
-						scope = RetentionAuthorityScope.LIVE_AMBIENT,
-						state = RetentionAuthorityState.ACTIVE,
-						approvalRevision = 1L,
-					)
-				}
-			},
-			TrackingRetentionFloorReconciler { _, floor, sources ->
-				TrackingRetentionFloorReconciliationResult.Complete(floor, sources)
-			},
-		)
+	private fun retentionFloorSettlement(): RetentionFloorSettlement = mockk {
+		coEvery { pendingOperation(any()) } returns null
+		coEvery {
+			settle(
+				database = any(),
+				lifecycleStore = any(),
+				startupGate = any(),
+				expectedStartupGeneration = any(),
+				requestedRetainedFromMs = any(),
+				operationId = any(),
+				updatedAtMs = any(),
+				verifyApprovedOperation = any(),
+			)
+		} coAnswers {
+			val database = arg<AppDatabase>(0)
+			val evidence = database.sourceEvidenceStateDao()
+			evidence.ensure()
+			val current = requireNotNull(evidence.get())
+			if (
+				current.collectedDataEpoch != EPOCH ||
+				current.retainedFromMs != FLOOR
+			) {
+				evidence.updateLifecycle(EPOCH, FLOOR, arg(6))
+			}
+			RetentionFloorSettlementResult.Settled(
+				lifecycle = CollectedDataLifecycleSnapshot(EPOCH, FLOOR),
+				reconciledSources = setOf(
+					com.adsamcik.tracker.tracker.api.AmbientTrackingSource.STEPS,
+				),
+				operationId = arg(5),
+				requestedRetainedFromMs = arg(4),
+				requestedAtMs = arg(6),
+			)
+		}
+		coEvery {
+			complete(
+				database = any(),
+				startupGate = any(),
+				expectedStartupGeneration = any(),
+				settlement = any(),
+				completedAtMs = any(),
+				verifyApprovedOperation = any(),
+			)
+		} returns RetentionFloorSettlementCompletionResult.Completed
+	}
 
 	private fun mockStorage(canonical: Boolean): MockStorage {
 		val db = mockk<AppDatabase>(relaxed = true)

@@ -12,13 +12,17 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.stats.api.repository.TruncateImportedAmbientStepsRetention
 import com.adsamcik.tracker.stats.api.repository.TruncateImportedAmbientStepsRetentionRequest
 import com.adsamcik.tracker.stats.api.repository.TruncateImportedAmbientStepsRetentionResult
-import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import javax.inject.Inject
 import javax.inject.Provider
 import kotlin.coroutines.cancellation.CancellationException
 
 class PeriodicAmbientRetentionMaintenance internal constructor(
-	private val localSteps: suspend (AppDatabase, Long, Long, Long) -> Unit,
+	private val localSteps: suspend (
+		AppDatabase,
+		Long,
+		Long,
+		Long,
+	) -> LocalAmbientStepsRetentionResult,
 	private val importedSteps: suspend (
 		TruncateImportedAmbientStepsRetentionRequest,
 	) -> TruncateImportedAmbientStepsRetentionResult,
@@ -36,11 +40,16 @@ class PeriodicAmbientRetentionMaintenance internal constructor(
 		importedStepsRetention: Provider<TruncateImportedAmbientStepsRetention>,
 	) : this(
 		localSteps = { database, floor, epoch, appliedAtMs ->
-			database.pruneAuthenticatedAmbientStepsFactsAffectedByRetentionFloor(
+			val deleted = database.pruneAuthenticatedAmbientStepsFactsAffectedByRetentionFloor(
 				beforeMs = floor,
 				collectedDataEpoch = epoch,
 				markedAtMs = appliedAtMs,
 			)
+			if (deleted == 0) {
+				LocalAmbientStepsRetentionResult.NoChange
+			} else {
+				LocalAmbientStepsRetentionResult.Pruned(deleted)
+			}
 		},
 		importedSteps = { request ->
 			importedStepsRetention.get().truncateNext(request)
@@ -52,7 +61,6 @@ class PeriodicAmbientRetentionMaintenance internal constructor(
 	suspend fun run(
 		database: AppDatabase,
 		lifecycle: CollectedDataLifecycleSnapshot,
-		activeLocalSources: Set<AmbientTrackingSource>,
 		appliedAtMs: Long,
 	): PeriodicAmbientRetentionResult {
 		val floor = requireNotNull(lifecycle.retainedFromMs) {
@@ -61,10 +69,12 @@ class PeriodicAmbientRetentionMaintenance internal constructor(
 		require(appliedAtMs >= floor)
 		val failures = mutableListOf<PeriodicAmbientRetentionFailure>()
 
-		if (AmbientTrackingSource.STEPS in activeLocalSources) {
-			captureFailure(PeriodicAmbientRetentionSource.LOCAL_STEPS, failures) {
-				localSteps(database, floor, lifecycle.epoch, appliedAtMs)
-				null
+		captureFailure(PeriodicAmbientRetentionSource.LOCAL_STEPS, failures) {
+			when (val result = localSteps(database, floor, lifecycle.epoch, appliedAtMs)) {
+				LocalAmbientStepsRetentionResult.NoChange,
+				is LocalAmbientStepsRetentionResult.Pruned,
+				-> null
+				is LocalAmbientStepsRetentionResult.Unavailable -> result.reason
 			}
 		}
 		captureFailure(PeriodicAmbientRetentionSource.IMPORTED_STEPS, failures) {
@@ -132,6 +142,20 @@ class PeriodicAmbientRetentionMaintenance internal constructor(
 			failures += PeriodicAmbientRetentionFailure(source, reason)
 		}
 	}
+}
+
+sealed interface LocalAmbientStepsRetentionResult {
+	data class Pruned(val deletedRevisionCount: Int) : LocalAmbientStepsRetentionResult {
+		init {
+			require(deletedRevisionCount > 0)
+		}
+	}
+
+	data object NoChange : LocalAmbientStepsRetentionResult
+
+	data class Unavailable(
+		val reason: PeriodicAmbientRetentionFailureReason,
+	) : LocalAmbientStepsRetentionResult
 }
 
 sealed interface PeriodicAmbientRetentionResult {
