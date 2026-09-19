@@ -1591,12 +1591,12 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 			} shouldBe 2
 			queries.count { query ->
 				query.contains("from session_manifest_source where") &&
-					query.contains("manifest_revision = ?")
+					query.contains("manifest_revision in (")
 			} shouldBe 1
 		}
 
 	@Test
-	fun `1000 ownerless candidates in one run query one manifest and source timeline`() = runTest {
+	fun `1000 ownerless revisions in one run use bounded manifest source queries`() = runTest {
 		val queries = mutableListOf<String>()
 		database.close()
 		database = AppDatabase.inMemoryBuilder(
@@ -1615,7 +1615,9 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				payloadVersion = 7,
 				sourceInstanceId = "ownerless-one-run-provider-$sequence",
 				registrationGeneration = sequence,
-				configRevision = 1L,
+				configRevision = sequence,
+				sourcePolicyRevision = sequence,
+				sessionManifestRevision = sequence,
 			)
 		}
 		installOwnerlessStepsWalAuthority(
@@ -1626,6 +1628,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 			laneCursor = wals.last().admissionOrdinal,
 			retiredAtMs = 1_001L,
 			retiredElapsedRealtimeNanos = 1_001L,
+			manifestCount = 1_000,
 			additionalWals = wals.drop(1),
 		)
 		queries.clear()
@@ -1639,15 +1642,99 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		queries.count { query ->
 			query.contains("from session_manifest_version where") &&
 				query.contains("manifest_revision > ?")
-		} shouldBe 1
+		} shouldBe 16
 		queries.count { query ->
 			query.contains("from session_manifest_source where") &&
-				query.contains("manifest_revision = ?")
-		} shouldBe 1
+				query.contains("manifest_revision in (")
+		} shouldBe 10
 		queries.count { query ->
 			query.contains("from source_service_run where service_run_id = ?")
 		} shouldBe 1
 		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `65 ownerless runs prune in two deterministic batches`() = runTest {
+		installSchema()
+		val wals = installDistinctOwnerlessStepsRuns(65)
+		val store = StepsCountDomainStore(database)
+
+		store.pruneSessionWalForStorage(
+			safeOrdinal = wals.last().admissionOrdinal,
+			createdBeforeMs = 66L,
+			limit = wals.size,
+		) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0, 64)
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		requireNotNull(
+			database.sourceEventWalDao().getByAdmissionOrdinal(wals.last().admissionOrdinal),
+		)
+
+		store.pruneSessionWalForStorage(
+			safeOrdinal = wals.last().admissionOrdinal,
+			createdBeforeMs = 66L,
+			limit = wals.size,
+		) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0, 1)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `130 ownerless runs prune in three deterministic batches`() = runTest {
+		installSchema()
+		val wals = installDistinctOwnerlessStepsRuns(130)
+		val store = StepsCountDomainStore(database)
+
+		store.pruneSessionWalForStorage(
+			safeOrdinal = wals.last().admissionOrdinal,
+			createdBeforeMs = 131L,
+			limit = wals.size,
+		) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0, 64)
+		database.sourceEventWalDao().getByAdmissionOrdinal(wals[63].admissionOrdinal) shouldBe null
+		requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(wals[64].admissionOrdinal))
+
+		store.pruneSessionWalForStorage(
+			safeOrdinal = wals.last().admissionOrdinal,
+			createdBeforeMs = 131L,
+			limit = wals.size,
+		) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0, 64)
+		database.sourceEventWalDao().getByAdmissionOrdinal(wals[127].admissionOrdinal) shouldBe null
+		requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(wals[128].admissionOrdinal))
+
+		store.pruneSessionWalForStorage(
+			safeOrdinal = wals.last().admissionOrdinal,
+			createdBeforeMs = 131L,
+			limit = wals.size,
+		) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0, 2)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `malformed 65th ownerless run is deferred then fails its selected batch closed`() = runTest {
+		installSchema()
+		val wals = installDistinctOwnerlessStepsRuns(65)
+		val malformed = wals.last()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_version SET manifest_checksum = 'malformed' " +
+				"WHERE logical_tracking_id = ? AND manifest_revision = ?",
+			arrayOf(
+				requireNotNull(malformed.logicalTrackingId),
+				requireNotNull(malformed.sessionManifestRevision),
+			),
+		)
+		val store = StepsCountDomainStore(database)
+
+		store.pruneSessionWalForStorage(
+			safeOrdinal = malformed.admissionOrdinal,
+			createdBeforeMs = 66L,
+			limit = wals.size,
+		) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0, 64)
+		database.sourceEventWalDao().countAll() shouldBe 1L
+
+		store.pruneSessionWalForStorage(
+			safeOrdinal = malformed.admissionOrdinal,
+			createdBeforeMs = 66L,
+			limit = wals.size,
+		) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+		database.sourceEventWalDao().countAll() shouldBe 1L
 	}
 
 	@Test
@@ -1723,7 +1810,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		} shouldBe 2
 		queries.count { query ->
 			query.contains("from session_manifest_source where") &&
-				query.contains("manifest_revision = ?")
+				query.contains("manifest_revision in (")
 		} shouldBe 2
 		queries.count { query ->
 			query.contains("from source_service_run where service_run_id = ?")
@@ -3330,6 +3417,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		configRevision: Long? = sourceSequence.takeIf { logicalTrackingId != null },
 		planAttribution: Int = if (logicalTrackingId != null) 0 else 2,
 		sessionManifestRevision: Long? = 1L.takeIf { logicalTrackingId != null },
+		sourcePolicyRevision: Long? = 1L.takeIf { logicalTrackingId != null },
 	): SourceEventWalEntity {
 		val unsigned = SourceEventWalEntity(
 			eventId = eventId,
@@ -3352,7 +3440,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 			wallTimeMs = sourceSequence,
 			wallTimeUncertaintyMs = 0L,
 			capturedCollectedDataEpoch = 7L,
-			sourcePolicyRevision = 1L.takeIf { logicalTrackingId != null },
+			sourcePolicyRevision = sourcePolicyRevision,
 			captureConsentEpoch = 1L.takeIf { logicalTrackingId != null },
 			sessionManifestRevision = sessionManifestRevision,
 			lifecycleLeaseGeneration = 1L.takeIf { logicalTrackingId != null },
@@ -3422,11 +3510,18 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		val wals = listOf(wal) + additionalWals
 		require(wals.size == wals.distinctBy(SourceEventWalEntity::admissionOrdinal).size)
 		require(wals.all { candidate ->
+			val revision = requireNotNull(candidate.sessionManifestRevision)
+			val initial = revision == requireNotNull(wal.sessionManifestRevision)
 			candidate.logicalTrackingId == wal.logicalTrackingId &&
 				candidate.serviceRunId == wal.serviceRunId &&
-				candidate.sessionManifestRevision == wal.sessionManifestRevision &&
-				candidate.configRevision == wal.configRevision &&
-				candidate.sourcePolicyRevision == wal.sourcePolicyRevision &&
+				revision in 1L..manifestCount.toLong() &&
+				candidate.configRevision ==
+				requireNotNull(wal.configRevision) + revision - 1L &&
+				candidate.sourcePolicyRevision == if (initial) {
+					wal.sourcePolicyRevision
+				} else {
+					revision
+				} &&
 				candidate.captureConsentEpoch == wal.captureConsentEpoch &&
 				candidate.lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration
 		})
@@ -3580,6 +3675,37 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				)
 			}
 		}
+	}
+
+	private suspend fun installDistinctOwnerlessStepsRuns(
+		count: Int,
+	): List<SourceEventWalEntity> {
+		require(count > 0)
+		val wals = (1L..count.toLong()).map { sequence ->
+			insertWal(
+				eventId = "ownerless-distinct-run-$sequence",
+				sourceSequence = sequence,
+				payloadVersion = 7,
+				sourceInstanceId = "ownerless-distinct-provider-$sequence",
+				registrationGeneration = sequence,
+				logicalTrackingId = "ownerless-distinct-tracking-$sequence",
+				serviceRunId = "ownerless-distinct-service-run-$sequence",
+				configRevision = 1L,
+			)
+		}
+		wals.forEachIndexed { index, wal ->
+			installOwnerlessStepsWalAuthority(
+				wal = wal,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+				manifestRolloutRevision = 2L,
+				laneRolloutRevision = 2L,
+				laneCursor = wals.last().admissionOrdinal,
+				retiredAtMs = count.toLong() + 1L,
+				retiredElapsedRealtimeNanos = count.toLong() + 1L,
+				installLane = index == 0,
+			)
+		}
+		return wals
 	}
 
 	private fun stepsWalProductLane(

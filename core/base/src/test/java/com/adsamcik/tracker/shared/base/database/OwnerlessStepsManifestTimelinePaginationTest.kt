@@ -1,6 +1,10 @@
 package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.data.RawSessionManifestVersion
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -166,6 +170,104 @@ class OwnerlessStepsManifestTimelinePaginationTest {
 		cache.invalidate()
 	}
 
+	@Test
+	fun `1000 referenced revisions load source bindings in ten bounded chunks`() = runTest {
+		val (timeline, rawSources) = sourceAuthenticatedTimeline(1_000)
+		val requests = mutableListOf<Pair<List<Long>, Int>>()
+
+		authenticateOwnerlessStepsManifestSourceBindings(
+			timeline = timeline,
+			manifestRevisions = (1L..1_000L).toList(),
+		) { revisions, limit ->
+			requests += revisions to limit
+			revisions.map(rawSources::getValue)
+		}
+
+		requests.size shouldBe 10
+		requests.all { (revisions, limit) ->
+			revisions.size == 100 && limit == 1_601
+		} shouldBe true
+		timeline.sourcesByRevision.size shouldBe 1_000
+		authenticateOwnerlessStepsManifestSourceBindings(
+			timeline = timeline,
+			manifestRevisions = (1L..1_000L).toList(),
+		) { _, _ ->
+			error("Cached manifest source bindings must not be reloaded")
+		}
+	}
+
+	@Test
+	fun `missing referenced source binding fails closed without caching a partial batch`() = runTest {
+		val (timeline, rawSources) = sourceAuthenticatedTimeline(2)
+
+		shouldThrow<IllegalStateException> {
+			authenticateOwnerlessStepsManifestSourceBindings(
+				timeline = timeline,
+				manifestRevisions = listOf(1L, 2L),
+			) { _, _ ->
+				listOf(rawSources.getValue(1L))
+			}
+		}
+
+		timeline.sourcesByRevision shouldBe emptyMap()
+	}
+
+	@Test
+	fun `duplicate referenced source binding fails closed`() = runTest {
+		val (timeline, rawSources) = sourceAuthenticatedTimeline(1)
+		val duplicate = rawSources.getValue(1L)
+
+		shouldThrow<IllegalStateException> {
+			authenticateOwnerlessStepsManifestSourceBindings(
+				timeline = timeline,
+				manifestRevisions = listOf(1L),
+			) { _, _ ->
+				listOf(duplicate, duplicate)
+			}
+		}
+
+		timeline.sourcesByRevision shouldBe emptyMap()
+	}
+
+	@Test
+	fun `source binding limit plus one overflow fails closed`() = runTest {
+		val (timeline, rawSources) = sourceAuthenticatedTimeline(1)
+		val binding = rawSources.getValue(1L)
+
+		shouldThrow<IllegalStateException> {
+			authenticateOwnerlessStepsManifestSourceBindings(
+				timeline = timeline,
+				manifestRevisions = listOf(1L),
+			) { _, limit ->
+				List(limit) { binding }
+			}
+		}
+
+		timeline.sourcesByRevision shouldBe emptyMap()
+	}
+
+	@Test
+	fun `later source binding chunk cancellation propagates without caching`() = runTest {
+		val (timeline, rawSources) = sourceAuthenticatedTimeline(101)
+		var requests = 0
+
+		shouldThrow<CancellationException> {
+			authenticateOwnerlessStepsManifestSourceBindings(
+				timeline = timeline,
+				manifestRevisions = (1L..101L).toList(),
+			) { revisions, _ ->
+				requests += 1
+				if (requests == 2) {
+					throw CancellationException("cancel ownerless source binding continuation")
+				}
+				revisions.map(rawSources::getValue)
+			}
+		}
+
+		requests shouldBe 2
+		timeline.sourcesByRevision shouldBe emptyMap()
+	}
+
 	private fun manifests(count: Int): List<RawSessionManifestVersion> =
 		(1L..count.toLong()).map(::manifest)
 
@@ -247,6 +349,76 @@ class OwnerlessStepsManifestTimelinePaginationTest {
 					).validatedOrNull(),
 				),
 			),
+		)
+
+	private fun sourceAuthenticatedTimeline(
+		manifestCount: Int,
+		key: OwnerlessStepsManifestRunKey =
+			OwnerlessStepsManifestRunKey(LOGICAL_TRACKING_ID, SERVICE_RUN_ID),
+	): Pair<
+		OwnerlessStepsManifestRunTimeline,
+		Map<Long, SessionManifestSourceEntity.RawSessionManifestSource>,
+	> {
+		val sources = (1L..manifestCount.toLong()).associateWith { revision ->
+			manifestSource(revision, key)
+		}
+		val manifests = sources.map { (revision, source) ->
+			val unsigned = requireNotNull(
+				manifest(
+					revision = revision,
+					logicalTrackingId = key.logicalTrackingId,
+					serviceRunId = key.serviceRunId,
+				).validatedOrNull(),
+			)
+			unsigned.copy(
+				manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source)),
+			)
+		}
+		return OwnerlessStepsManifestRunTimeline(
+			key = key,
+			run = run(
+				manifestCount = manifestCount,
+				logicalTrackingId = key.logicalTrackingId,
+				serviceRunId = key.serviceRunId,
+			),
+			manifests = manifests,
+		) to sources.mapValues { (_, source) -> source.raw() }
+	}
+
+	private fun manifestSource(
+		revision: Long,
+		key: OwnerlessStepsManifestRunKey,
+	) = SessionManifestSourceEntity(
+		logicalTrackingId = key.logicalTrackingId,
+		manifestRevision = revision,
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+		consentEpoch = 1L,
+		persistenceEligible = true,
+		qosCode = 1,
+		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+		writerOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+		writerOwnerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+	)
+
+	private fun SessionManifestSourceEntity.raw() =
+		SessionManifestSourceEntity.RawSessionManifestSource(
+			storageClassSignature =
+				"text|integer|integer|text|integer|integer|integer|" +
+					"text|text|integer|null|null|null",
+			logicalTrackingId = logicalTrackingId,
+			manifestRevision = manifestRevision,
+			sourceKind = sourceKind.toLong(),
+			purpose = purpose,
+			consentEpoch = consentEpoch,
+			persistenceEligible = if (persistenceEligible) 1L else 0L,
+			qosCode = qosCode.toLong(),
+			outputDestination = outputDestination,
+			writerOwner = writerOwner,
+			writerOwnerGeneration = writerOwnerGeneration,
+			writerProjectionId = writerProjectionId,
+			writerProjectionVersion = writerProjectionVersion?.toLong(),
+			writerBindingGeneration = writerBindingGeneration,
 		)
 
 	private companion object {

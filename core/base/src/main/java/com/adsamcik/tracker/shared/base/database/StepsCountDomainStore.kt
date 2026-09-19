@@ -114,6 +114,7 @@ private data class StepsWalPruneCandidate(
 	val eventId: String,
 	val authorizationPurposeEligibilityMask: Long,
 	val ownerKey: StepsCountDomainOwnerLookupKey?,
+	val ownerlessRunKey: OwnerlessStepsManifestRunKey?,
 ) {
 	val isLegacyV27: Boolean
 		get() = authorizationPurposeEligibilityMask == 0L
@@ -132,6 +133,14 @@ internal class OwnerlessStepsManifestRunTimeline(
 	val manifestsByRevision = manifests.associateBy(SessionManifestVersionEntity::manifestRevision)
 	val sourcesByRevision = mutableMapOf<Long, List<SessionManifestSourceEntity>>()
 }
+
+private data class OwnerlessStepsWalCandidate(
+	val candidate: StepsWalPruneCandidate,
+	val ownerKey: StepsCountDomainOwnerLookupKey,
+	val wal: SourceEventWalEntity,
+	val runKey: OwnerlessStepsManifestRunKey,
+	val manifestRevision: Long,
+)
 
 internal class OwnerlessStepsManifestTimelineCache(
 	private val maximumDistinctRuns: Int = OWNERLESS_STEPS_MAX_DISTINCT_RUNS,
@@ -1675,7 +1684,7 @@ class StepsCountDomainStore(
 			createdBeforeMs = createdBeforeMs,
 			limit = limit,
 			session = session,
-		)
+		).boundedOwnerlessRunPrefix()
 		val timelineCache = session.ownerlessStepsManifestTimelineCache
 		var removedOwners = 0L
 		var removedReceipts = 0L
@@ -1781,28 +1790,46 @@ class StepsCountDomainStore(
 		timelineCache: OwnerlessStepsManifestTimelineCache,
 	): List<StepsCountDomainOwnerLookupKey> {
 		val sqlite = database.openHelper.writableDatabase
-		return buildList {
-			candidates.forEach { candidate ->
-				currentCoroutineContext().ensureActive()
-				session.requireActiveSnapshot()
-				val ownerKey = candidate.ownerKey ?: return@forEach
-				if (sqlite.hasExactCountDomainOwner(ownerKey)) {
-					add(ownerKey)
-				} else {
-					sqlite.requireAuthenticMissingCountDomainOwnerKeys(listOf(ownerKey))
-					requireOwnerlessShadowStepsWal(candidate, ownerKey, session, timelineCache)
-				}
+		val ownerKeys = mutableListOf<StepsCountDomainOwnerLookupKey>()
+		val ownerlessCandidates = mutableListOf<OwnerlessStepsWalCandidate>()
+		candidates.forEach { candidate ->
+			currentCoroutineContext().ensureActive()
+			session.requireActiveSnapshot()
+			val ownerKey = candidate.ownerKey ?: return@forEach
+			if (sqlite.hasExactCountDomainOwner(ownerKey)) {
+				ownerKeys += ownerKey
+			} else {
+				sqlite.requireAuthenticMissingCountDomainOwnerKeys(listOf(ownerKey))
+				ownerlessCandidates += prepareOwnerlessShadowStepsWal(
+					candidate = candidate,
+					ownerKey = ownerKey,
+					session = session,
+				)
 			}
 		}
+		val timelines = loadOwnerlessStepsManifestAuthority(
+			candidates = ownerlessCandidates,
+			session = session,
+			timelineCache = timelineCache,
+		)
+		ownerlessCandidates.forEach { candidate ->
+			currentCoroutineContext().ensureActive()
+			requireOwnerlessShadowStepsWal(
+				candidate = candidate,
+				timeline = timelines[candidate.runKey]
+					?: throw CountDomainStoredEvidenceException(),
+				session = session,
+			)
+		}
+		return ownerKeys
 	}
 
 	@Suppress("ComplexCondition", "LongMethod")
-	private suspend fun requireOwnerlessShadowStepsWal(
+	private suspend fun prepareOwnerlessShadowStepsWal(
 		candidate: StepsWalPruneCandidate,
 		ownerKey: StepsCountDomainOwnerLookupKey,
 		session: OwnerMaintenanceSession,
-		timelineCache: OwnerlessStepsManifestTimelineCache,
-	) {
+	): OwnerlessStepsWalCandidate {
 		val wal = database.sourceEventWalDao()
 			.getByAdmissionOrdinal(candidate.cursor.admissionOrdinal)
 			?: throw CountDomainStoredEvidenceException()
@@ -1854,55 +1881,87 @@ class StepsCountDomainStore(
 		val logicalTrackingId = requireNotNull(wal.logicalTrackingId)
 		val serviceRunId = requireNotNull(wal.serviceRunId)
 		val manifestRevision = requireNotNull(wal.sessionManifestRevision)
-		val sessionDao = database.sourceSessionDao()
 		val runKey = OwnerlessStepsManifestRunKey(logicalTrackingId, serviceRunId)
-		val timeline = timelineCache.getOrLoad(runKey) {
-			val run = sessionDao.serviceRun(serviceRunId)
-				?.takeIf {
-					it.serviceRunId == serviceRunId &&
-						it.logicalTrackingId == logicalTrackingId
+		if (candidate.ownerlessRunKey != runKey) {
+			throw CountDomainStoredEvidenceException()
+		}
+		return OwnerlessStepsWalCandidate(
+			candidate = candidate,
+			ownerKey = ownerKey,
+			wal = wal,
+			runKey = runKey,
+			manifestRevision = manifestRevision,
+		)
+	}
+
+	private suspend fun loadOwnerlessStepsManifestAuthority(
+		candidates: List<OwnerlessStepsWalCandidate>,
+		session: OwnerMaintenanceSession,
+		timelineCache: OwnerlessStepsManifestTimelineCache,
+	): Map<OwnerlessStepsManifestRunKey, OwnerlessStepsManifestRunTimeline> {
+		val sessionDao = database.sourceSessionDao()
+		val candidatesByRun = candidates.groupBy(OwnerlessStepsWalCandidate::runKey)
+		return buildMap {
+			for ((runKey, runCandidates) in candidatesByRun) {
+				currentCoroutineContext().ensureActive()
+				session.requireActiveSnapshot()
+				val timeline = timelineCache.getOrLoad(runKey) {
+					val run = sessionDao.serviceRun(runKey.serviceRunId)
+						?.takeIf {
+							it.serviceRunId == runKey.serviceRunId &&
+								it.logicalTrackingId == runKey.logicalTrackingId
+						}
+						?: throw CountDomainStoredEvidenceException()
+					val manifests = authenticateOwnerlessStepsServiceRunManifestTimeline(
+						run,
+					) { afterRevision, pageLimit ->
+						sessionDao.rawManifestsForServiceRunAfterRevision(
+							logicalTrackingId = runKey.logicalTrackingId,
+							serviceRunId = runKey.serviceRunId,
+							afterRevision = afterRevision,
+							limit = pageLimit,
+						)
+					}
+					OwnerlessStepsManifestRunTimeline(runKey, run, manifests)
 				}
-				?: throw CountDomainStoredEvidenceException()
-			val manifests = authenticateOwnerlessStepsServiceRunManifestTimeline(
-				run,
-			) { afterRevision, pageLimit ->
-				sessionDao.rawManifestsForServiceRunAfterRevision(
-					logicalTrackingId = logicalTrackingId,
-					serviceRunId = serviceRunId,
-					afterRevision = afterRevision,
-					limit = pageLimit,
+				authenticateOwnerlessStepsManifestSourceBindings(
+					timeline = timeline,
+					manifestRevisions = runCandidates.map(
+						OwnerlessStepsWalCandidate::manifestRevision,
+					),
+				) { revisionChunk, bindingLimit ->
+					session.requireActiveSnapshot()
+					sessionDao.rawManifestSourcesForRevisions(
+						logicalTrackingId = runKey.logicalTrackingId,
+						manifestRevisions = revisionChunk,
+						limit = bindingLimit,
+					)
+				}
+				session.checkpointAndRequireUnchanged(
+					StepsCountDomainMaintenanceCheckpoint.WAL_OWNERLESS_RUN_AUTHENTICATED,
 				)
+				put(runKey, timeline)
 			}
-			session.checkpointAndRequireUnchanged(
-				StepsCountDomainMaintenanceCheckpoint.WAL_OWNERLESS_RUN_AUTHENTICATED,
-			)
-			OwnerlessStepsManifestRunTimeline(runKey, run, manifests)
 		}
+	}
+
+	@Suppress("ComplexCondition", "LongMethod")
+	private suspend fun requireOwnerlessShadowStepsWal(
+		candidate: OwnerlessStepsWalCandidate,
+		timeline: OwnerlessStepsManifestRunTimeline,
+		session: OwnerMaintenanceSession,
+	) {
 		session.requireActiveSnapshot()
+		val wal = candidate.wal
+		val ownerKey = candidate.ownerKey
+		val sqlite = database.openHelper.writableDatabase
 		val serviceRun = timeline.run
-		val manifest = timeline.manifestsByRevision[manifestRevision]
+		val manifest = timeline.manifestsByRevision[candidate.manifestRevision]
 			?: throw CountDomainStoredEvidenceException()
-		val sources = timeline.sourcesByRevision[manifestRevision] ?: run {
-			val rawSources = sessionDao.rawManifestSources(
-				logicalTrackingId = logicalTrackingId,
-				manifestRevision = manifestRevision,
-				limit = OWNERLESS_STEPS_MAX_MANIFEST_SOURCES + 1,
-			)
-			if (rawSources.isEmpty() || rawSources.size > OWNERLESS_STEPS_MAX_MANIFEST_SOURCES) {
-				throw CountDomainStoredEvidenceException()
-			}
-			val loadedSources = rawSources.map { raw ->
-				raw.validatedOrNull() ?: throw CountDomainStoredEvidenceException()
-			}
-			if (!SessionManifestIntegrity.verify(manifest, loadedSources)) {
-				throw CountDomainStoredEvidenceException()
-			}
-			session.requireActiveSnapshot()
-			timeline.sourcesByRevision[manifestRevision] = loadedSources
-			loadedSources
-		}
-		if (manifest.logicalTrackingId != logicalTrackingId ||
-			manifest.serviceRunId != serviceRunId ||
+		val sources = timeline.sourcesByRevision[candidate.manifestRevision]
+			?: throw CountDomainStoredEvidenceException()
+		if (manifest.logicalTrackingId != candidate.runKey.logicalTrackingId ||
+			manifest.serviceRunId != candidate.runKey.serviceRunId ||
 			manifest.sourcePolicyRevision != wal.sourcePolicyRevision ||
 			manifest.acquisitionPlanRevision != wal.configRevision ||
 			manifest.effectiveBootId != wal.clockDomainId ||
@@ -2978,7 +3037,8 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwnerPage(
 	}.toTypedArray()
 	return query(
 		"SELECT wal.admission_ordinal, wal.event_id, wal.created_at_ms, " +
-			"wal.authorization_purpose_eligibility_mask " +
+			"wal.authorization_purpose_eligibility_mask, wal.logical_tracking_id, " +
+			"wal.service_run_id " +
 			"FROM source_event_wal AS wal " +
 			"WHERE wal.source_kind = ? AND wal.created_at_ms < ? AND wal.admission_ordinal <= ? " +
 			cursorPredicate +
@@ -3016,6 +3076,23 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwnerPage(
 					admissionOrdinal = admissionOrdinal,
 				)
 				val eligibilityMask = cursor.requiredLong(3)
+				val logicalTrackingId = cursor.nullableText("logical_tracking_id")
+				val serviceRunId = cursor.nullableText("service_run_id")
+				val captureEligible =
+					eligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
+				val ownerlessRunKey = if (eligibilityMask != 0L && captureEligible) {
+					if (logicalTrackingId.isNullOrBlank() || serviceRunId.isNullOrBlank()) {
+						throw CountDomainStoredEvidenceException()
+					}
+					OwnerlessStepsManifestRunKey(logicalTrackingId, serviceRunId)
+				} else {
+					if (eligibilityMask != 0L &&
+						(logicalTrackingId != null || serviceRunId != null)
+					) {
+						throw CountDomainStoredEvidenceException()
+					}
+					null
+				}
 				if (admissionOrdinal <= 0L || eventId.isBlank() ||
 					(after != null && candidateCursor <= after)
 				) {
@@ -3041,11 +3118,24 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwnerPage(
 						} else {
 							null
 						},
+						ownerlessRunKey = ownerlessRunKey,
 					),
 				)
 			}
 		}
 	}
+}
+
+private fun List<StepsWalPruneCandidate>.boundedOwnerlessRunPrefix(): List<StepsWalPruneCandidate> {
+	val distinctRuns = linkedSetOf<OwnerlessStepsManifestRunKey>()
+	forEachIndexed { index, candidate ->
+		val runKey = candidate.ownerlessRunKey ?: return@forEachIndexed
+		if (runKey !in distinctRuns && distinctRuns.size >= OWNERLESS_STEPS_MAX_DISTINCT_RUNS) {
+			return take(index)
+		}
+		distinctRuns += runKey
+	}
+	return this
 }
 
 private fun SupportSQLiteDatabase.requireAuthenticMissingCountDomainOwnerKeys(
@@ -3216,6 +3306,78 @@ internal suspend fun authenticateOwnerlessStepsServiceRunManifestTimeline(
 		throw CountDomainStoredEvidenceException()
 	}
 	return manifests
+}
+
+@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod")
+internal suspend fun authenticateOwnerlessStepsManifestSourceBindings(
+	timeline: OwnerlessStepsManifestRunTimeline,
+	manifestRevisions: Collection<Long>,
+	loadChunk: suspend (
+		manifestRevisions: List<Long>,
+		limit: Int,
+	) -> List<SessionManifestSourceEntity.RawSessionManifestSource>,
+) {
+	val revisions = manifestRevisions.distinct().sorted()
+	if (revisions.isEmpty() ||
+		revisions.size > OWNERLESS_STEPS_MAX_MANIFEST_REVISIONS ||
+		revisions.any { revision -> revision !in timeline.manifestsByRevision }
+	) {
+		throw CountDomainStoredEvidenceException()
+	}
+	val uncachedRevisions = revisions.filterNot(timeline.sourcesByRevision::containsKey)
+	val loadedByRevision = linkedMapOf<Long, List<SessionManifestSourceEntity>>()
+	for (revisionChunk in uncachedRevisions.chunked(OWNERLESS_STEPS_MANIFEST_SOURCE_QUERY_CHUNK)) {
+		currentCoroutineContext().ensureActive()
+		val bindingLimit = Math.addExact(
+			Math.multiplyExact(revisionChunk.size, OWNERLESS_STEPS_MAX_MANIFEST_SOURCES),
+			1,
+		)
+		val rawBindings = loadChunk(revisionChunk, bindingLimit)
+		currentCoroutineContext().ensureActive()
+		if (rawBindings.size >= bindingLimit) throw CountDomainStoredEvidenceException()
+		val bindingsByRevision =
+			linkedMapOf<Long, LinkedHashMap<Pair<Int, String>, SessionManifestSourceEntity>>()
+		rawBindings.forEachIndexed { index, rawBinding ->
+			if (index % OWNERLESS_STEPS_CANCELLATION_STRIDE == 0) {
+				currentCoroutineContext().ensureActive()
+			}
+			val binding = rawBinding.validatedOrNull()
+				?: throw CountDomainStoredEvidenceException()
+			if (binding.logicalTrackingId != timeline.key.logicalTrackingId ||
+				binding.manifestRevision !in revisionChunk
+			) {
+				throw CountDomainStoredEvidenceException()
+			}
+			val revisionBindings = bindingsByRevision.getOrPut(binding.manifestRevision) {
+				linkedMapOf()
+			}
+			val bindingKey = binding.sourceKind to binding.purpose
+			if (revisionBindings.put(bindingKey, binding) != null ||
+				revisionBindings.size > OWNERLESS_STEPS_MAX_MANIFEST_SOURCES
+			) {
+				throw CountDomainStoredEvidenceException()
+			}
+		}
+		revisionChunk.forEachIndexed { index, revision ->
+			if (index % OWNERLESS_STEPS_CANCELLATION_STRIDE == 0) {
+				currentCoroutineContext().ensureActive()
+			}
+			val manifest = timeline.manifestsByRevision[revision]
+				?: throw CountDomainStoredEvidenceException()
+			val bindings = bindingsByRevision[revision]?.values?.toList()
+				?: throw CountDomainStoredEvidenceException()
+			if (!SessionManifestIntegrity.verify(manifest, bindings) ||
+				loadedByRevision.put(revision, bindings) != null
+			) {
+				throw CountDomainStoredEvidenceException()
+			}
+		}
+	}
+	currentCoroutineContext().ensureActive()
+	timeline.sourcesByRevision.putAll(loadedByRevision)
+	if (revisions.any { revision -> revision !in timeline.sourcesByRevision }) {
+		throw CountDomainStoredEvidenceException()
+	}
 }
 
 private fun SupportSQLiteDatabase.hasMalformedStepsWalPruneLaneAttribution(): Boolean =
@@ -4265,3 +4427,5 @@ private const val OWNERLESS_STEPS_MAX_DISTINCT_RUNS = 64
 private const val OWNERLESS_STEPS_MANIFEST_PAGE_SIZE = 64
 private const val OWNERLESS_STEPS_MAX_MANIFEST_REVISIONS = 2_048
 private const val OWNERLESS_STEPS_MAX_MANIFEST_SOURCES = 16
+private const val OWNERLESS_STEPS_MANIFEST_SOURCE_QUERY_CHUNK = 100
+private const val OWNERLESS_STEPS_CANCELLATION_STRIDE = 64
