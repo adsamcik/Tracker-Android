@@ -820,8 +820,7 @@ internal suspend fun sourceRunHighWater(
 	val dao = database.sourceEventWalDao()
 	val authenticatedManifestRevisions = runManifestRevisions.toHashSet()
 	currentCoroutineContext().ensureActive()
-	val manifestRevisionLimit = Math.addExact(runManifestRevisions.size, 1)
-	val exactManifestRevisions = dao.rawExactRunSourceCaptureManifestRevisions(
+	val exactRevisionAssociations = dao.rawExactRunSourceManifestRevisionAssociations(
 		sourceKind = source.stableCode,
 		logicalTrackingId = logicalTrackingId,
 		serviceRunId = serviceRunId,
@@ -829,19 +828,50 @@ internal suspend fun sourceRunHighWater(
 		capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 		controlPurposeMask = SourceBrokerPurpose.CONTROL_MASK,
 		allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
-		limit = manifestRevisionLimit,
+		limit = RAW_WAL_GENERATION_AUTHORITY_ENVELOPE,
 	)
-	if (exactManifestRevisions.size >= manifestRevisionLimit) {
+	if (exactRevisionAssociations.size >= RAW_WAL_GENERATION_AUTHORITY_ENVELOPE) {
 		return SourceRunHighWaterRead.Unverifiable
 	}
-	for (row in exactManifestRevisions) {
+	for (row in exactRevisionAssociations) {
 		currentCoroutineContext().ensureActive()
 		val revision = row.sessionManifestRevision
 			?: return SourceRunHighWaterRead.Unverifiable
+		val sourceInstanceId = row.sourceInstanceId
+			?: return SourceRunHighWaterRead.Unverifiable
+		val registrationGeneration = row.registrationGeneration
+			?: return SourceRunHighWaterRead.Unverifiable
 		val associatedRowCount = row.associatedRowCount
 			?: return SourceRunHighWaterRead.Unverifiable
-		if (associatedRowCount <= 0L || revision !in authenticatedManifestRevisions) {
+		val malformedRowCount = row.malformedRowCount
+			?: return SourceRunHighWaterRead.Unverifiable
+		val productEligibleRowCount = row.productEligibleRowCount
+			?: return SourceRunHighWaterRead.Unverifiable
+		val controlOnlyRowCount = row.controlOnlyRowCount
+			?: return SourceRunHighWaterRead.Unverifiable
+		if (
+			sourceInstanceId.isBlank() ||
+			registrationGeneration <= 0L ||
+			associatedRowCount <= 0L ||
+			malformedRowCount != 0L ||
+			productEligibleRowCount < 0L ||
+			productEligibleRowCount > associatedRowCount ||
+			controlOnlyRowCount < 0L ||
+			controlOnlyRowCount > associatedRowCount
+		) {
 			return SourceRunHighWaterRead.Unverifiable
+		}
+		if (revision !in authenticatedManifestRevisions) {
+			val provider = SourceDrainProviderIdentity(sourceInstanceId, registrationGeneration)
+			val providerOwnsCapture =
+				provider in productProviders || claimsByProvider[provider].orEmpty().isNotEmpty()
+			if (
+				providerOwnsCapture ||
+				productEligibleRowCount != 0L ||
+				controlOnlyRowCount != associatedRowCount
+			) {
+				return SourceRunHighWaterRead.Unverifiable
+			}
 		}
 	}
 	var highWater = 0L
@@ -879,8 +909,6 @@ internal suspend fun sourceRunHighWater(
 				?: return SourceRunHighWaterRead.Unverifiable
 			val lifecycleLeaseGeneration = row.lifecycleLeaseGeneration
 				?: return SourceRunHighWaterRead.Unverifiable
-			val admissionOrdinal = row.highWaterAdmissionOrdinal
-				?: return SourceRunHighWaterRead.Unverifiable
 			if (
 				sourceInstanceId.isBlank() ||
 				registrationGeneration <= 0L ||
@@ -890,8 +918,7 @@ internal suspend fun sourceRunHighWater(
 				productEligibleRowCount < 0L ||
 				productEligibleRowCount > associatedRowCount ||
 				controlOnlyRowCount < 0L ||
-				controlOnlyRowCount > associatedRowCount ||
-				admissionOrdinal !in 1L..throughOrdinal
+				controlOnlyRowCount > associatedRowCount
 			) {
 				return SourceRunHighWaterRead.Unverifiable
 			}
@@ -908,6 +935,11 @@ internal suspend fun sourceRunHighWater(
 				continue
 			}
 			if (productEligibleRowCount != associatedRowCount) {
+				return SourceRunHighWaterRead.Unverifiable
+			}
+			val admissionOrdinal = row.highWaterAdmissionOrdinal
+				?: return SourceRunHighWaterRead.Unverifiable
+			if (admissionOrdinal !in 1L..throughOrdinal) {
 				return SourceRunHighWaterRead.Unverifiable
 			}
 			val exactClaims = providerClaims

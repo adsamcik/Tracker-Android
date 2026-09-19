@@ -891,6 +891,235 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `product member control mask with out-of-run revision fails closed`() = runTest {
+		val logicalTrackingId = "member-control-revision-logical"
+		val serviceRunId = "member-control-revision-run"
+		val sourceInstanceId = "member-control-revision-instance"
+		val controlOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			manifestRevision = 3L,
+			sourceInstanceId = sourceInstanceId,
+			purposeMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			recordStepsFact = false,
+		)
+
+		sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = listOf(1L, 2L),
+			throughOrdinal = controlOrdinal,
+			productMemberships = listOf(
+				terminalDrainMembership(sourceInstanceId, 1L, controlOrdinal),
+			),
+			retirementClaims = listOf(
+				terminalDrainClaim(sourceInstanceId, 1L, cleanupOnly = false),
+			),
+		) shouldBe SourceRunHighWaterRead.Unverifiable
+	}
+
+	@Test
+	fun `retirement-claimed control mask with out-of-run revision fails closed`() = runTest {
+		val logicalTrackingId = "claimed-control-revision-logical"
+		val serviceRunId = "claimed-control-revision-run"
+		val sourceInstanceId = "claimed-control-revision-instance"
+		val controlOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			manifestRevision = 3L,
+			sourceInstanceId = sourceInstanceId,
+			purposeMask = SourceBrokerPurpose.MASK_CONTROL_CONTINUATION,
+			recordStepsFact = false,
+		)
+
+		sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = listOf(1L, 2L),
+			throughOrdinal = controlOrdinal,
+			productMemberships = emptyList(),
+			retirementClaims = listOf(
+				terminalDrainClaim(sourceInstanceId, 1L, cleanupOnly = true),
+			),
+		) shouldBe SourceRunHighWaterRead.Unverifiable
+	}
+
+	@Test
+	fun `non-member control-only row after cutoff does not advance product high-water`() = runTest {
+		val logicalTrackingId = "control-after-cutoff-logical"
+		val serviceRunId = "control-after-cutoff-run"
+		val captureInstanceId = "control-after-cutoff-capture"
+		val captureOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = captureInstanceId,
+			sourceSequence = 1L,
+			recordStepsFact = false,
+		)
+		val controlOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = "control-after-cutoff-non-member",
+			sourceSequence = 2L,
+			purposeMask = SourceBrokerPurpose.MASK_CONTROL_CONTINUATION,
+			recordStepsFact = false,
+		)
+		database.sourceEventWalDao().rawExactRunSourceManifestAssociations(
+			sourceKind = SourceKind.STEPS.stableCode,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = listOf(1L),
+			throughOrdinal = captureOrdinal,
+			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			controlPurposeMask = SourceBrokerPurpose.CONTROL_MASK,
+			allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
+			limit = 3,
+		).single { row ->
+			row.sourceInstanceId == "control-after-cutoff-non-member"
+		}.let { row ->
+			row.malformedRowCount shouldBe 0L
+			row.productEligibleRowCount shouldBe 0L
+			row.controlOnlyRowCount shouldBe 1L
+			row.highWaterAdmissionOrdinal shouldBe null
+		}
+		(controlOrdinal > captureOrdinal) shouldBe true
+
+		sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = listOf(1L),
+			throughOrdinal = captureOrdinal,
+			productMemberships = listOf(
+				terminalDrainMembership(captureInstanceId, 1L, captureOrdinal),
+			),
+			retirementClaims = listOf(
+				terminalDrainClaim(captureInstanceId, 1L, cleanupOnly = false),
+			),
+		) shouldBe SourceRunHighWaterRead.Ready(captureOrdinal)
+	}
+
+	@Test
+	fun `product member control-only row after cutoff fails closed`() = runTest {
+		val logicalTrackingId = "member-control-after-cutoff-logical"
+		val serviceRunId = "member-control-after-cutoff-run"
+		val sourceInstanceId = "member-control-after-cutoff-instance"
+		val captureOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = sourceInstanceId,
+			sourceSequence = 1L,
+			recordStepsFact = false,
+		)
+		val controlOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = sourceInstanceId,
+			sourceSequence = 2L,
+			purposeMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			recordStepsFact = false,
+		)
+
+		sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = listOf(1L),
+			throughOrdinal = captureOrdinal,
+			productMemberships = listOf(
+				terminalDrainMembership(sourceInstanceId, 1L, controlOrdinal),
+			),
+			retirementClaims = listOf(
+				terminalDrainClaim(sourceInstanceId, 1L, cleanupOnly = false),
+			),
+		) shouldBe SourceRunHighWaterRead.Unverifiable
+	}
+
+	@Test
+	fun `non-member product and malformed rows after cutoff fail closed`() = runTest {
+		val logicalTrackingId = "invalid-after-cutoff-logical"
+		val serviceRunId = "invalid-after-cutoff-run"
+		val captureInstanceId = "invalid-after-cutoff-capture"
+		val captureOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = captureInstanceId,
+			sourceSequence = 1L,
+			recordStepsFact = false,
+		)
+		val invalidOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = "invalid-after-cutoff-non-member",
+			sourceSequence = 2L,
+			purposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			recordStepsFact = false,
+		)
+		suspend fun read() = sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = listOf(1L),
+			throughOrdinal = captureOrdinal,
+			productMemberships = listOf(
+				terminalDrainMembership(captureInstanceId, 1L, captureOrdinal),
+			),
+			retirementClaims = listOf(
+				terminalDrainClaim(captureInstanceId, 1L, cleanupOnly = false),
+			),
+		)
+
+		read() shouldBe SourceRunHighWaterRead.Unverifiable
+		for (
+			malformedMask in listOf(
+				0L,
+				SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+				SourceBrokerPurpose.MASK_CONTROL_AUTOSTART or
+					SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+				SourceBrokerPurpose.ALL_MASK + 1L,
+			)
+		) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? " +
+					"WHERE admission_ordinal = ?",
+				arrayOf(malformedMask, invalidOrdinal),
+			)
+			read() shouldBe SourceRunHighWaterRead.Unverifiable
+		}
+	}
+
+	@Test
+	fun `control-only-only provider group has zero product high-water`() = runTest {
+		val logicalTrackingId = "control-only-group-logical"
+		val serviceRunId = "control-only-group-run"
+		val controlOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = "control-only-group-instance",
+			purposeMask = SourceBrokerPurpose.CONTROL_MASK,
+			recordStepsFact = false,
+		)
+
+		sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = listOf(1L),
+			throughOrdinal = controlOrdinal,
+			productMemberships = emptyList(),
+			retirementClaims = emptyList(),
+		) shouldBe SourceRunHighWaterRead.Ready(0L)
+	}
+
+	@Test
 	fun `exact-run non-member control rejects ASCII blank event and service run ids`() = runTest {
 		val logicalTrackingId = "exact-control-identifiers-logical"
 		val serviceRunId = "exact-control-identifiers-run"
@@ -1099,7 +1328,7 @@ class AuthoritativeSessionCoordinatorTest {
 			val walDao = mockk<SourceEventWalDao>()
 			every { mockedDatabase.sourceEventWalDao() } returns walDao
 			coEvery {
-				walDao.rawExactRunSourceCaptureManifestRevisions(
+				walDao.rawExactRunSourceManifestRevisionAssociations(
 					SourceKind.STEPS.stableCode,
 					"unavailable-malformed-logical",
 					"unavailable-malformed-run",
