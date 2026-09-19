@@ -18,6 +18,7 @@ import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryResult
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -354,7 +355,7 @@ class PostDeletionAutomaticControlRestorerTest {
 	}
 
 	@Test
-	fun `Blocked then same process Ready rearms the recovery exactly once`() {
+	fun `Blocked then same process Ready rearms the recovery exactly once`() = runTest {
 		val rearm = PostDeletionReadyRearm()
 		val enqueuedEpochs = mutableListOf<Long>()
 
@@ -370,7 +371,7 @@ class PostDeletionAutomaticControlRestorerTest {
 	}
 
 	@Test
-	fun `new deletion epoch invalidates an older pending Ready obligation`() {
+	fun `new deletion epoch invalidates an older pending Ready obligation`() = runTest {
 		val rearm = PostDeletionReadyRearm()
 		val enqueuedEpochs = mutableListOf<Long>()
 
@@ -386,7 +387,7 @@ class PostDeletionAutomaticControlRestorerTest {
 	}
 
 	@Test
-	fun `Ready winning before Blocked preservation grants only one bounded race retry`() {
+	fun `Ready winning before Blocked preservation grants only one bounded race retry`() = runTest {
 		val rearm = PostDeletionReadyRearm()
 
 		rearm.schedule(8L) {}
@@ -398,7 +399,7 @@ class PostDeletionAutomaticControlRestorerTest {
 	}
 
 	@Test
-	fun `failed Ready enqueue retains the same epoch obligation for an explicit retry`() {
+	fun `failed Ready enqueue retains the same epoch obligation for an explicit retry`() = runTest {
 		val rearm = PostDeletionReadyRearm()
 		val enqueuedEpochs = mutableListOf<Long>()
 
@@ -410,6 +411,26 @@ class PostDeletionAutomaticControlRestorerTest {
 
 		rearm.onStartupReady(2L) { enqueuedEpochs += it } shouldBe true
 		enqueuedEpochs shouldBe listOf(8L, 8L)
+	}
+
+	@Test
+	fun `schedule waits for durable enqueue before publishing the epoch`() = runTest {
+		val rearm = PostDeletionReadyRearm()
+		val enqueueEntered = CompletableDeferred<Unit>()
+		val releaseEnqueue = CompletableDeferred<Unit>()
+		val scheduled = async {
+			rearm.schedule(8L) {
+				enqueueEntered.complete(Unit)
+				releaseEnqueue.await()
+			}
+		}
+
+		enqueueEntered.await()
+		scheduled.isCompleted shouldBe false
+		releaseEnqueue.complete(Unit)
+		scheduled.await() shouldBe true
+		rearm.preserveBlockedRecovery(8L, 2L) shouldBe
+			BlockedPostDeletionRecoveryDisposition.PENDING_READY
 	}
 
 	@Test
@@ -426,7 +447,7 @@ class PostDeletionAutomaticControlRestorerTest {
 			"PERMANENT_FAILURE",
 		)
 		val restorer = mockk<PostDeletionAutomaticControlRestorer>(relaxed = true)
-		every {
+		coEvery {
 			restorer.preserveUntilStartupReady(
 				collectedDataEpoch = 8L,
 				startupGeneration = 2L,
@@ -450,13 +471,13 @@ class PostDeletionAutomaticControlRestorerTest {
 		)
 
 		worker.doWork() shouldBe ListenableWorker.Result.success()
-		verify(exactly = 1) {
+		coVerify(exactly = 1) {
 			restorer.preserveUntilStartupReady(
 				collectedDataEpoch = 8L,
 				startupGeneration = 2L,
 			)
 		}
-		verify(exactly = 0) { restorer.schedule(any()) }
+		coVerify(exactly = 0) { restorer.schedule(any()) }
 	}
 
 	@Test

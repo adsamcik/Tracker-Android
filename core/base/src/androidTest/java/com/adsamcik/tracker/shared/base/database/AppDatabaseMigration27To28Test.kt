@@ -858,6 +858,7 @@ class AppDatabaseMigration27To28Test {
 		// v27 observations remain byte-for-byte facts; migration must not invent semantics.
 		assertTableCount(database, "step_fact_revision", 0)
 		assertTableCount(database, "collected_data_deletion_operation", 0)
+		assertTableCount(database, "retention_work_execution_receipt", 0)
 		database.query("PRAGMA table_info(collected_data_deletion_operation)").use { cursor ->
 			val columns = buildSet {
 				val nameColumn = cursor.getColumnIndexOrThrow("name")
@@ -866,6 +867,22 @@ class AppDatabaseMigration27To28Test {
 			assertTrue("retention_work_execution_id" in columns)
 			assertTrue("retention_destructive_plan" in columns)
 			assertTrue("settled_retained_from_ms" in columns)
+			assertTrue("source_maintenance_at_ms" in columns)
+			assertTrue("retention_active_sources" in columns)
+		}
+		database.query("PRAGMA table_info(retention_work_execution_receipt)").use { cursor ->
+			val columns = buildSet {
+				val nameColumn = cursor.getColumnIndexOrThrow("name")
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertTrue("execution_id" in columns)
+			assertTrue("work_request_id" in columns)
+			assertTrue("execution_generation" in columns)
+			assertTrue("worker_kind" in columns)
+			assertTrue("started_at_ms" in columns)
+			assertTrue("state" in columns)
+			assertTrue("destructive_plan" in columns)
+			assertTrue("updated_at_ms" in columns)
 		}
 		assertTableCount(database, "ambient_steps_fact_revision", 0)
 		assertTableCount(database, "ambient_steps_retention_authority", 0)

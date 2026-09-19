@@ -3,13 +3,16 @@ package com.adsamcik.tracker.app.maintenance
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
 import com.adsamcik.tracker.shared.base.database.RetentionFloorSettlementOperation
+import com.adsamcik.tracker.shared.base.database.RetentionFloorOperationLookupResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionReceipt
 import com.adsamcik.tracker.shared.base.database.activeRetentionFloorSettlement
 import com.adsamcik.tracker.shared.base.database.advanceRetentionFloorSettlementPhase
+import com.adsamcik.tracker.shared.base.database.commitRetentionFloorAuthorityReissued
 import com.adsamcik.tracker.shared.base.database.commitRetentionFloorRoomGuard
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.prepareOrResumeRetentionFloorSettlement
 import com.adsamcik.tracker.shared.base.database.retentionFloorSettlement
-import com.adsamcik.tracker.shared.base.database.retentionFloorSettlementForWorkExecution
+import com.adsamcik.tracker.shared.base.database.retentionFloorSettlementForExecution
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -44,13 +47,9 @@ class RetentionFloorSettlement @Inject constructor(
 
 	suspend fun pendingOperation(
 		database: AppDatabase,
-		workExecutionId: String,
-		resumeCompletedExecution: Boolean,
-	): RetentionFloorSettlementOperation? =
-		database.retentionFloorSettlementForWorkExecution(
-			workExecutionId,
-			resumeCompletedExecution,
-		)
+		execution: RetentionWorkExecutionReceipt,
+	): RetentionFloorOperationLookupResult =
+		database.retentionFloorSettlementForExecution(execution)
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	suspend fun settle(
@@ -157,7 +156,23 @@ class RetentionFloorSettlement @Inject constructor(
 					) {
 						return@withPermit RetentionFloorLeaseResult.Prepared(
 							lifecycle = lifecycle,
-							activeLocalSources = emptySet(),
+							activeLocalSources = operation.activeSourceKeys.mapTo(
+								linkedSetOf(),
+							) { source -> AmbientTrackingSource.valueOf(source) },
+							operation = operation,
+						)
+					}
+					if (
+						operation.hasReached(
+							CollectedDataDeletionOperationEntity
+								.PHASE_RETENTION_AUTHORITY_REISSUED,
+						)
+					) {
+						return@withPermit RetentionFloorLeaseResult.Prepared(
+							lifecycle = lifecycle,
+							activeLocalSources = operation.activeSourceKeys.mapTo(
+								linkedSetOf(),
+							) { source -> AmbientTrackingSource.valueOf(source) },
 							operation = operation,
 						)
 					}
@@ -196,13 +211,9 @@ class RetentionFloorSettlement @Inject constructor(
 						)
 					) {
 						operation = permit.commitRoomMutation {
-							database.advanceRetentionFloorSettlementPhase(
-								operation = operation,
-								expectedPhase = CollectedDataDeletionOperationEntity
-									.PHASE_RETENTION_ROOM_GUARD_COMMITTED,
-								newPhase = CollectedDataDeletionOperationEntity
-									.PHASE_RETENTION_AUTHORITY_REISSUED,
-								updatedAtMs = transitionAtMs,
+							database.commitRetentionFloorAuthorityReissued(
+								operation,
+								authority.activeLocalSources.mapTo(linkedSetOf()) { it.name },
 							)
 						}
 						activeOperation = operation
@@ -295,6 +306,9 @@ class RetentionFloorSettlement @Inject constructor(
 								updatedAtMs = maxOf(
 									updatedAtMs,
 									authorityPreparation.operation.requestedAtMs,
+									requireNotNull(
+										authorityPreparation.operation.sourceMaintenanceAtMs,
+									),
 								),
 							)
 						}
@@ -309,6 +323,9 @@ class RetentionFloorSettlement @Inject constructor(
 					requestedAtMs = reconciledOperation.requestedAtMs,
 					workExecutionId = reconciledOperation.workExecutionId,
 					destructivePlan = reconciledOperation.destructivePlan,
+					sourceMaintenanceAtMs = requireNotNull(
+						reconciledOperation.sourceMaintenanceAtMs,
+					),
 					sourceMaintenanceCompleted = reconciledOperation.hasReached(
 						CollectedDataDeletionOperationEntity
 							.PHASE_RETENTION_SOURCE_MAINTENANCE_COMPLETED,
@@ -360,6 +377,7 @@ class RetentionFloorSettlement @Inject constructor(
 		verifyApprovedOperation: () -> Unit,
 	): RetentionFloorSettlementCompletionResult {
 		require(completedAtMs >= settlement.requestedAtMs)
+		require(completedAtMs >= settlement.sourceMaintenanceAtMs)
 		val result = try {
 			startupGate.withReadyGenerationOperation(expectedStartupGeneration) {
 				operationLease.withPermit(cancellationShielded = true) { permit ->
@@ -382,6 +400,7 @@ class RetentionFloorSettlement @Inject constructor(
 					check(operation.requestedAtMs == settlement.requestedAtMs)
 					check(operation.workExecutionId == settlement.workExecutionId)
 					check(operation.destructivePlan == settlement.destructivePlan)
+					check(operation.sourceMaintenanceAtMs == settlement.sourceMaintenanceAtMs)
 					check(
 						operation.settledRetainedFromMs ==
 							requireNotNull(settlement.lifecycle.retainedFromMs),
@@ -595,6 +614,7 @@ sealed interface RetentionFloorSettlementResult {
 				requestedAtMs,
 				requestedRetainedFromMs,
 			),
+		val sourceMaintenanceAtMs: Long = requestedAtMs,
 		val sourceMaintenanceCompleted: Boolean = false,
 	) : RetentionFloorSettlementResult
 

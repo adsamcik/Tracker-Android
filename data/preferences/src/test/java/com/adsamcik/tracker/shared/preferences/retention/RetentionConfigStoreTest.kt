@@ -130,10 +130,10 @@ class RetentionConfigStoreTest {
 		failed.published shouldBe false
 		store.config.first().dataRetentionYears shouldBe
 			RetentionConfigState.DEFAULT_RETENTION_YEARS
-		store.approvalStatus.first() shouldBe RetentionPolicyApprovalStatus.PENDING
+		store.approvalStatus.first() shouldBe RetentionPolicyApprovalStatus.UNAPPROVED
 		assertIs<ApprovedRetentionPolicyRead.Unavailable>(
 			store.currentApprovedPolicy(),
-		).reason shouldBe ApprovedRetentionPolicyUnavailableReason.CONFIGURATION_CHANGED
+		).reason shouldBe ApprovedRetentionPolicyUnavailableReason.NOT_APPROVED
 
 		val retried = store.updateWithApproval(
 			block = { copy(dataRetentionYears = 4, rawDataRetentionDays = 1_460) },
@@ -148,6 +148,47 @@ class RetentionConfigStoreTest {
 		store.config.first().dataRetentionYears shouldBe 4
 		store.approvalStatus.first() shouldBe RetentionPolicyApprovalStatus.APPROVED
 	}
+
+	@Test
+	fun `settings candidate rejected by active settlement preserves the approved worker policy`() =
+		runTest {
+			val approved = store.updateWithApproval(
+				block = { copy(autoPurgeEnabled = true, rawDataRetentionDays = 30) },
+				prepare = { RetentionConfigurationApprovalResult.Prepared(it.policy) },
+				approve = {
+					RetentionConfigurationApprovalResult.Approved(
+						requireNotNull(store.markPolicyApproved(it.policy)),
+					)
+				},
+			)
+			val activePolicy = assertIs<RetentionConfigurationApprovalResult.Approved>(
+				approved.approval,
+			).policy
+
+			val rejected = store.updateWithApproval(
+				block = { copy(rawDataRetentionDays = 7) },
+				prepare = {
+					RetentionConfigurationApprovalResult.Unavailable(
+						RetentionAuthorityUnavailableReason.RETENTION_FLOOR_SETTLEMENT_PENDING,
+					)
+				},
+				approve = { error("Active settlement rejection must not approve") },
+			)
+
+			rejected.published shouldBe false
+			rejected.approval shouldBe RetentionConfigurationApprovalResult.Unavailable(
+				RetentionAuthorityUnavailableReason.RETENTION_FLOOR_SETTLEMENT_PENDING,
+			)
+			store.config.first().rawDataRetentionDays shouldBe 30
+			store.approvalStatus.first() shouldBe RetentionPolicyApprovalStatus.APPROVED
+			assertIs<ApprovedRetentionPolicyRead.Available>(
+				store.currentApprovedPolicy(),
+			).policy shouldBe activePolicy
+
+			val resumed = store.withExactApprovedOperation { it.policy }
+			assertIs<ExactApprovedRetentionOperationResult.Completed<*>>(resumed)
+				.value shouldBe activePolicy
+		}
 
 	@Test
 	fun `failed Room approval leaves published config pending and retryable`() = runTest {

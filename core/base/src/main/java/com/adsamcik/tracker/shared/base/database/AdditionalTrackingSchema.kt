@@ -6,6 +6,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 internal fun createAdditionalTrackingTables(database: SupportSQLiteDatabase) {
 	createCollectedDataDeletionOperationTable(database)
+	createRetentionWorkExecutionReceiptTable(database)
 	createWifiSelectedDeletionTables(database)
 	createCellSelectedDeletionTables(database)
 	createAmbientStepsRetentionTable(database)
@@ -27,9 +28,37 @@ private fun createCollectedDataDeletionOperationTable(database: SupportSQLiteDat
 			retention_work_execution_id TEXT,
 			retention_destructive_plan TEXT,
 			settled_retained_from_ms INTEGER,
+			source_maintenance_at_ms INTEGER,
+			retention_active_sources TEXT,
 			PRIMARY KEY(operation_id)
 		)
 		""".trimIndent(),
+	)
+}
+
+private fun createRetentionWorkExecutionReceiptTable(database: SupportSQLiteDatabase) {
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS retention_work_execution_receipt (
+			execution_id TEXT NOT NULL,
+			work_request_id TEXT NOT NULL,
+			execution_generation INTEGER NOT NULL,
+			worker_kind TEXT NOT NULL,
+			started_at_ms INTEGER NOT NULL,
+			state TEXT NOT NULL,
+			destructive_plan TEXT,
+			updated_at_ms INTEGER NOT NULL,
+			PRIMARY KEY(execution_id)
+		)
+		""".trimIndent(),
+	)
+	database.execSQL(
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_retention_work_execution_generation " +
+			"ON retention_work_execution_receipt(work_request_id, execution_generation)",
+	)
+	database.execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_retention_work_execution_state " +
+			"ON retention_work_execution_receipt(work_request_id, state)",
 	)
 }
 

@@ -17,6 +17,8 @@ data class RetentionFloorSettlementOperation(
 			requestedRetainedFromMs,
 		),
 	val settledRetainedFromMs: Long? = null,
+	val sourceMaintenanceAtMs: Long? = null,
+	val activeSourceKeys: Set<String> = emptySet(),
 ) {
 	init {
 		require(operationId.isNotBlank())
@@ -28,6 +30,8 @@ data class RetentionFloorSettlementOperation(
 		require(destructivePlan.requestedAtMs == requestedAtMs)
 		require(destructivePlan.requestedRetainedFromMs == requestedRetainedFromMs)
 		require(settledRetainedFromMs == null || settledRetainedFromMs >= requestedRetainedFromMs)
+		require(sourceMaintenanceAtMs == null || sourceMaintenanceAtMs >= requestedAtMs)
+		activeSourceKeys.forEach { require(it.isNotBlank() && SOURCE_KEY.matches(it)) }
 	}
 
 	fun hasReached(expectedPhase: String): Boolean = entity().hasReachedRetentionPhase(expectedPhase)
@@ -42,13 +46,20 @@ data class RetentionFloorSettlementOperation(
 		retentionWorkExecutionId = workExecutionId,
 		retentionDestructivePlan = destructivePlan.encode(),
 		settledRetainedFromMs = settledRetainedFromMs,
+		sourceMaintenanceAtMs = sourceMaintenanceAtMs,
+		retentionActiveSources = activeSourceKeys.sorted().joinToString(",")
+			.takeIf { sourceMaintenanceAtMs != null },
 	)
+
+	private companion object {
+		val SOURCE_KEY = Regex("[A-Z_]+")
+	}
 }
 
 data class RetentionFloorDestructivePlan(
 	val workerKind: String,
 	val requestedAtMs: Long,
-	val requestedRetainedFromMs: Long,
+	val requestedRetainedFromMs: Long?,
 	val rawRetentionCutoffMs: Long?,
 	val sourceEventRetentionCutoffMs: Long?,
 	val wifiCellRetentionCutoffMs: Long?,
@@ -60,7 +71,7 @@ data class RetentionFloorDestructivePlan(
 	init {
 		require(workerKind in WORKER_KINDS)
 		require(requestedAtMs >= 0L)
-		require(requestedRetainedFromMs >= 0L)
+		require(requestedRetainedFromMs == null || requestedRetainedFromMs >= 0L)
 		listOfNotNull(
 			rawRetentionCutoffMs,
 			sourceEventRetentionCutoffMs,
@@ -70,13 +81,21 @@ data class RetentionFloorDestructivePlan(
 			explorationRetentionCutoffMs,
 			operationalRetentionCutoffMs,
 		).forEach { require(it >= 0L) }
+		if (workerKind in setOf(WORKER_DATA_RETENTION, WORKER_LEGACY)) {
+			require(requestedRetainedFromMs != null)
+		}
+		if (requestedRetainedFromMs == null) {
+			require(rawRetentionCutoffMs == null)
+			require(sourceEventRetentionCutoffMs == null)
+			require(wifiCellRetentionCutoffMs == null)
+		}
 	}
 
 	internal fun encode(): String = listOf(
 		PLAN_VERSION,
 		workerKind,
 		requestedAtMs.toString(),
-		requestedRetainedFromMs.toString(),
+		encodeNullable(requestedRetainedFromMs),
 		encodeNullable(rawRetentionCutoffMs),
 		encodeNullable(sourceEventRetentionCutoffMs),
 		encodeNullable(wifiCellRetentionCutoffMs),
@@ -91,10 +110,10 @@ data class RetentionFloorDestructivePlan(
 		const val WORKER_DATA_RETENTION = "DATA_RETENTION"
 		const val WORKER_LEGACY = "LEGACY"
 
-		private const val PLAN_VERSION = "1"
+		private const val PLAN_VERSION = "2"
 		private const val PLAN_SEPARATOR = "|"
 		private const val NULL_VALUE = "-"
-		private val WORKER_KINDS = setOf(
+		internal val WORKER_KINDS = setOf(
 			WORKER_RETENTION_PIPELINE,
 			WORKER_DATA_RETENTION,
 			WORKER_LEGACY,
@@ -102,13 +121,17 @@ data class RetentionFloorDestructivePlan(
 
 		internal fun decode(encoded: String): RetentionFloorDestructivePlan {
 			val values = encoded.split(PLAN_SEPARATOR)
-			require(values.size == 11 && values[0] == PLAN_VERSION) {
+			require(values.size == 11 && values[0] in setOf("1", PLAN_VERSION)) {
 				"Unsupported retention destructive plan"
 			}
 			return RetentionFloorDestructivePlan(
 				workerKind = values[1],
 				requestedAtMs = values[2].toLong(),
-				requestedRetainedFromMs = values[3].toLong(),
+				requestedRetainedFromMs = if (values[0] == "1") {
+					values[3].toLong()
+				} else {
+					decodeNullable(values[3])
+				},
 				rawRetentionCutoffMs = decodeNullable(values[4]),
 				sourceEventRetentionCutoffMs = decodeNullable(values[5]),
 				wifiCellRetentionCutoffMs = decodeNullable(values[6]),
@@ -139,6 +162,24 @@ data class RetentionFloorDestructivePlan(
 		private fun decodeNullable(value: String): Long? =
 			value.takeUnless { it == NULL_VALUE }?.toLong()
 	}
+
+	fun canBeExecutedBy(executorWorkerKind: String): Boolean = when (executorWorkerKind) {
+		WORKER_RETENTION_PIPELINE -> true
+		WORKER_DATA_RETENTION -> workerKind in setOf(WORKER_DATA_RETENTION, WORKER_LEGACY)
+		WORKER_LEGACY -> workerKind == WORKER_LEGACY
+		else -> false
+	}
+
+	val isDestructive: Boolean
+		get() = listOfNotNull(
+			rawRetentionCutoffMs,
+			sourceEventRetentionCutoffMs,
+			wifiCellRetentionCutoffMs,
+			tripRetentionCutoffMs,
+			dailySummaryRetentionCutoffDay,
+			explorationRetentionCutoffMs,
+			operationalRetentionCutoffMs,
+		).isNotEmpty()
 }
 
 suspend fun AppDatabase.activeRetentionFloorSettlement():
@@ -158,22 +199,51 @@ suspend fun AppDatabase.retentionFloorSettlement(
 	}
 }
 
-suspend fun AppDatabase.retentionFloorSettlementForWorkExecution(
-	workExecutionId: String,
-	resumeCompletedExecution: Boolean,
-): RetentionFloorSettlementOperation? = withTransaction {
-	require(workExecutionId.isNotBlank())
+suspend fun AppDatabase.retentionFloorSettlementForExecution(
+	execution: RetentionWorkExecutionReceipt,
+): RetentionFloorOperationLookupResult = withTransaction {
 	val dao = collectedDataDeletionOperationDao()
-	dao.activeRetentionFloorSettlement()?.let {
-		return@withTransaction it.toRetentionOperation()
+	val active = dao.activeRetentionFloorSettlement()
+	var operation = active?.toRetentionOperation()
+		?: dao.latestRetentionFloorSettlementForExecution(execution.executionId)
+			?.toRetentionOperation()
+		?: return@withTransaction RetentionFloorOperationLookupResult.Available(null)
+	if (!operation.destructivePlan.canBeExecutedBy(execution.workerKind)) {
+		return@withTransaction RetentionFloorOperationLookupResult.IncompatibleExecutor(
+			RetentionFloorExecutorDebt(
+				operationId = operation.operationId,
+				planWorkerKind = operation.destructivePlan.workerKind,
+				executorWorkerKind = execution.workerKind,
+			),
+		)
 	}
-	if (!resumeCompletedExecution) {
-		dao.acknowledgeFinalRetentionFloorSettlementsForExecution(workExecutionId)
-		return@withTransaction null
+	if (active != null && operation.workExecutionId != execution.executionId) {
+		val ownerReceipt = retentionWorkExecutionReceiptDao().get(operation.workExecutionId)
+			?: retentionWorkExecutionReceiptDao().latest(operation.workExecutionId)
+		if (
+			ownerReceipt?.state ==
+			com.adsamcik.tracker.shared.base.database.data
+				.RetentionWorkExecutionReceiptEntity.STATE_OPEN &&
+			ownerReceipt.executionId != execution.executionId
+		) {
+			return@withTransaction RetentionFloorOperationLookupResult.ExecutionOwned(
+				RetentionFloorExecutionOwnerDebt(
+					operationId = operation.operationId,
+					ownerExecutionId = ownerReceipt.executionId,
+					requestedExecutionId = execution.executionId,
+				),
+			)
+		}
+		check(
+			dao.claimActiveRetentionExecution(
+				operationId = operation.operationId,
+				expectedWorkExecutionId = active.retentionWorkExecutionId,
+				newWorkExecutionId = execution.executionId,
+			) == 1,
+		) { "Unable to claim compatible retention execution debt" }
+		operation = requireNotNull(dao.get(operation.operationId)).toRetentionOperation()
 	}
-	dao
-		.latestRetentionFloorSettlementForExecution(workExecutionId)
-		?.toRetentionOperation()
+	RetentionFloorOperationLookupResult.Available(operation)
 }
 
 suspend fun AppDatabase.prepareOrResumeRetentionFloorSettlement(
@@ -196,7 +266,16 @@ suspend fun AppDatabase.prepareOrResumeRetentionFloorSettlement(
 	require(destructivePlan.requestedAtMs == requestedAtMs)
 	require(destructivePlan.requestedRetainedFromMs == requestedRetainedFromMs)
 	val dao = collectedDataDeletionOperationDao()
-	dao.activeRetentionFloorSettlement()?.let { return@withTransaction it.toRetentionOperation() }
+	dao.activeRetentionFloorSettlement()?.let { active ->
+		val operation = active.toRetentionOperation()
+		check(operation.workExecutionId == workExecutionId) {
+			"Retention-floor operation is claimed by another execution"
+		}
+		check(operation.destructivePlan == destructivePlan) {
+			"Retention-floor operation is bound to another destructive plan"
+		}
+		return@withTransaction operation
+	}
 	dao.get(operationId)?.let { existing ->
 		check(existing.retainedFromMs == requestedRetainedFromMs) {
 			"Retention-floor operation identity was reused with another boundary"
@@ -215,7 +294,8 @@ suspend fun AppDatabase.prepareOrResumeRetentionFloorSettlement(
 		}
 		check(
 			existing.retentionDestructivePlan == null ||
-				existing.retentionDestructivePlan == destructivePlan.encode(),
+				RetentionFloorDestructivePlan.decode(existing.retentionDestructivePlan) ==
+				destructivePlan,
 		) {
 			"Retention-floor operation identity was reused with another destructive plan"
 		}
@@ -263,6 +343,49 @@ suspend fun AppDatabase.advanceRetentionFloorSettlementPhase(
 			updatedAtMs = updatedAtMs,
 		) == 1,
 	) { "Unable to advance retention-floor settlement journal" }
+	requireNotNull(dao.get(operation.operationId)).toRetentionOperation()
+}
+
+suspend fun AppDatabase.commitRetentionFloorAuthorityReissued(
+	operation: RetentionFloorSettlementOperation,
+	activeSourceKeys: Set<String>,
+): RetentionFloorSettlementOperation = withTransaction {
+	activeSourceKeys.forEach { require(it.isNotBlank() && it.matches(Regex("[A-Z_]+"))) }
+	val dao = collectedDataDeletionOperationDao()
+	val current = requireNotNull(dao.get(operation.operationId)) {
+		"Retention-floor settlement journal disappeared"
+	}
+	current.requireExact(operation)
+	if (
+		current.hasReachedRetentionPhase(
+			CollectedDataDeletionOperationEntity.PHASE_RETENTION_AUTHORITY_REISSUED,
+		)
+	) {
+		checkNotNull(current.sourceMaintenanceAtMs)
+		checkNotNull(current.retentionActiveSources)
+		return@withTransaction current.toRetentionOperation()
+	}
+	check(
+		current.phase ==
+			CollectedDataDeletionOperationEntity.PHASE_RETENTION_ROOM_GUARD_COMMITTED,
+	) { "Retention authority was reissued before the Room guard" }
+	val sourceMaintenanceAtMs = maxOf(
+		operation.requestedAtMs,
+		dao.retentionAuthorityTimestampHighWater() ?: operation.requestedAtMs,
+	)
+	check(
+		dao.compareAndSetRetentionAuthorityReissued(
+			operationId = operation.operationId,
+			targetCollectedDataEpoch = operation.collectedDataEpoch,
+			requestedRetainedFromMs = operation.requestedRetainedFromMs,
+			sourceMaintenanceAtMs = sourceMaintenanceAtMs,
+			activeSources = activeSourceKeys.sorted().joinToString(","),
+			expectedPhase =
+				CollectedDataDeletionOperationEntity.PHASE_RETENTION_ROOM_GUARD_COMMITTED,
+			newPhase =
+				CollectedDataDeletionOperationEntity.PHASE_RETENTION_AUTHORITY_REISSUED,
+		) == 1,
+	) { "Unable to persist the post-authority maintenance timestamp" }
 	requireNotNull(dao.get(operation.operationId)).toRetentionOperation()
 }
 
@@ -339,9 +462,15 @@ private fun CollectedDataDeletionOperationEntity.requireExact(
 	check(retentionWorkExecutionId == null || retentionWorkExecutionId == operation.workExecutionId)
 	check(
 		retentionDestructivePlan == null ||
-			retentionDestructivePlan == operation.destructivePlan.encode(),
+			RetentionFloorDestructivePlan.decode(retentionDestructivePlan) ==
+			operation.destructivePlan,
 	)
 	check(settledRetainedFromMs == null || settledRetainedFromMs == operation.settledRetainedFromMs)
+	check(sourceMaintenanceAtMs == null || sourceMaintenanceAtMs == operation.sourceMaintenanceAtMs)
+	check(
+		retentionActiveSources == null ||
+			decodeActiveSourceKeys(retentionActiveSources) == operation.activeSourceKeys,
+	)
 }
 
 private fun CollectedDataDeletionOperationEntity.toRetentionOperation():
@@ -351,6 +480,19 @@ private fun CollectedDataDeletionOperationEntity.toRetentionOperation():
 		deletedAtMs,
 		requestedFloor,
 	)
+	val authorityReissued = hasReachedRetentionPhase(
+		CollectedDataDeletionOperationEntity.PHASE_RETENTION_AUTHORITY_REISSUED,
+	)
+	val activeSourceKeys = if (authorityReissued) {
+		decodeActiveSourceKeys(requireNotNull(retentionActiveSources))
+	} else {
+		emptySet()
+	}
+	val maintenanceAtMs = if (authorityReissued) {
+		requireNotNull(sourceMaintenanceAtMs)
+	} else {
+		null
+	}
 	return RetentionFloorSettlementOperation(
 		operationId = operationId,
 		requestedRetainedFromMs = requestedFloor,
@@ -366,5 +508,50 @@ private fun CollectedDataDeletionOperationEntity.toRetentionOperation():
 				CollectedDataDeletionOperationEntity.PHASE_RETENTION_ROOM_GUARD_COMMITTED,
 			)
 		},
+		sourceMaintenanceAtMs = maintenanceAtMs,
+		activeSourceKeys = activeSourceKeys,
 	)
+}
+
+private fun decodeActiveSourceKeys(encoded: String): Set<String> =
+	if (encoded.isEmpty()) emptySet() else encoded.split(',').toSet()
+
+sealed interface RetentionFloorOperationLookupResult {
+	data class Available(
+		val operation: RetentionFloorSettlementOperation?,
+	) : RetentionFloorOperationLookupResult
+
+	data class IncompatibleExecutor(
+		val debt: RetentionFloorExecutorDebt,
+	) : RetentionFloorOperationLookupResult
+
+	data class ExecutionOwned(
+		val debt: RetentionFloorExecutionOwnerDebt,
+	) : RetentionFloorOperationLookupResult
+}
+
+data class RetentionFloorExecutorDebt(
+	val operationId: String,
+	val planWorkerKind: String,
+	val executorWorkerKind: String,
+) {
+	init {
+		require(operationId.isNotBlank())
+		require(planWorkerKind in RetentionFloorDestructivePlan.WORKER_KINDS)
+		require(executorWorkerKind in RetentionFloorDestructivePlan.WORKER_KINDS)
+		require(planWorkerKind != executorWorkerKind)
+	}
+
+	data class RetentionFloorExecutionOwnerDebt(
+		val operationId: String,
+		val ownerExecutionId: String,
+		val requestedExecutionId: String,
+	) {
+		init {
+			require(operationId.isNotBlank())
+			require(ownerExecutionId.isNotBlank())
+			require(requestedExecutionId.isNotBlank())
+			require(ownerExecutionId != requestedExecutionId)
+		}
+	}
 }

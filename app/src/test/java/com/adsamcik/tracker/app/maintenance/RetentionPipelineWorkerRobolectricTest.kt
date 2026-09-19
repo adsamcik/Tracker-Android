@@ -13,6 +13,12 @@ import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetenti
 
 import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionBlockedReason
 import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
+import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
+import com.adsamcik.tracker.shared.base.database.RetentionFloorOperationLookupResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionCompletionResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionPlanResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionReceipt
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionStartResult
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
@@ -74,6 +80,7 @@ import io.mockk.firstArg
 import io.mockk.mockk
 import io.mockk.secondArg
 import io.mockk.slot
+import io.mockk.thirdArg
 import io.mockk.verify
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
@@ -128,19 +135,26 @@ class RetentionPipelineWorkerRobolectricTest {
 					},
 				).doWork(),
 			)
-			assertEquals(0, databaseResolutions)
+			assertEquals(1, databaseResolutions)
 		}
 	}
 
 	@Test
-	fun `retryable startup does not resolve the collected database`() = runTest {
+	fun `retryable startup persists execution generation before preflight`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		var resolutions = 0
+		val events = mutableListOf<String>()
 		val retryableGate = object : TrackingStartupGate {
 			override val isReady: Boolean = false
 			override val currentGeneration: Long = 7L
-			override suspend fun reconcile(retryFailedStorage: Boolean) =
-				TrackingStartupResult.RetryableFailure(TrackingStartupStage.STORAGE, "DB_BUSY")
+			override suspend fun reconcile(retryFailedStorage: Boolean):
+				TrackingStartupResult {
+				events += "startup-preflight"
+				return TrackingStartupResult.RetryableFailure(
+					TrackingStartupStage.STORAGE,
+					"DB_BUSY",
+				)
+			}
 		}
 
 		val result = worker(
@@ -152,10 +166,14 @@ class RetentionPipelineWorkerRobolectricTest {
 				mockk(relaxed = true)
 			},
 			trackingStartupGate = retryableGate,
+			workExecutionCoordinator = workExecutionCoordinator {
+				events += "execution-receipt"
+			},
 		).doWork()
 
 		assertEquals(ListenableWorker.Result.retry(), result)
-		assertEquals(0, resolutions)
+		assertEquals(1, resolutions)
+		events shouldBe listOf("execution-receipt", "startup-preflight")
 	}
 
 	@Test
@@ -1165,6 +1183,8 @@ class RetentionPipelineWorkerRobolectricTest {
 		retentionFloorSettlement: RetentionFloorSettlement = retentionFloorSettlement(),
 		periodicAmbientRetentionMaintenance: PeriodicAmbientRetentionMaintenance =
 			periodicAmbientRetentionMaintenance(),
+		workExecutionCoordinator: RetentionWorkExecutionCoordinator =
+			workExecutionCoordinator(),
 	): RetentionPipelineWorker =
 		TestListenableWorkerBuilder<RetentionPipelineWorker>(context)
 			.setWorkerFactory(object : WorkerFactory() {
@@ -1187,6 +1207,7 @@ class RetentionPipelineWorkerRobolectricTest {
 					wifiCapturedRetentionService,
 					retentionFloorSettlement,
 					periodicAmbientRetentionMaintenance,
+					workExecutionCoordinator,
 				)
 			})
 			.build() as RetentionPipelineWorker
@@ -1198,7 +1219,8 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	private fun retentionFloorSettlement(): RetentionFloorSettlement = mockk {
-		coEvery { pendingOperation(any(), any(), any()) } returns null
+		coEvery { pendingOperation(any(), any()) } returns
+			RetentionFloorOperationLookupResult.Available(null)
 		coEvery {
 			settle(
 				database = any(),
@@ -1241,6 +1263,39 @@ class RetentionPipelineWorkerRobolectricTest {
 				verifyApprovedOperation = any(),
 			)
 		} returns RetentionFloorSettlementCompletionResult.Completed
+	}
+
+	private fun workExecutionCoordinator(
+		onBegin: () -> Unit = {},
+	): RetentionWorkExecutionCoordinator = mockk {
+		coEvery { begin(any(), any(), any(), any(), any()) } coAnswers {
+			onBegin()
+			val startedAtMs = invocation.args[4] as Long
+			RetentionWorkExecutionStartResult.Open(
+				RetentionWorkExecutionReceipt(
+					executionId = "pipeline-execution:g1",
+					workRequestId = invocation.args[1] as String,
+					executionGeneration = 1L,
+					workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+					startedAtMs = startedAtMs,
+					state = "OPEN",
+					destructivePlan = null,
+					updatedAtMs = startedAtMs,
+				),
+			)
+		}
+		coEvery { attachPlan(any(), any(), any()) } coAnswers {
+			val receipt = secondArg<RetentionWorkExecutionReceipt>()
+			val plan = thirdArg<RetentionFloorDestructivePlan>()
+			RetentionWorkExecutionPlanResult.Attached(
+				receipt.copy(
+					destructivePlan = plan,
+					updatedAtMs = maxOf(receipt.updatedAtMs, plan.requestedAtMs),
+				),
+			)
+		}
+		coEvery { complete(any(), any(), any()) } returns
+			RetentionWorkExecutionCompletionResult.Completed
 	}
 
 	private fun retentionStore(state: RetentionConfigState): RetentionConfigStore =

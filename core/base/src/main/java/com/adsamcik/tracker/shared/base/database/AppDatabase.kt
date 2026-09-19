@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.base.database.dao.AmbientWifiFactDao
 import com.adsamcik.tracker.shared.base.database.dao.CellCapturedFactDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.CollectedDataDeletionOperationDao
+import com.adsamcik.tracker.shared.base.database.dao.RetentionWorkExecutionReceiptDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportReceiptDao
@@ -92,6 +93,7 @@ import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEnti
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
+import com.adsamcik.tracker.shared.base.database.data.RetentionWorkExecutionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
@@ -385,6 +387,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			TrackerStateEvent::class,
 			SourceEvidenceState::class,
 			CollectedDataDeletionOperationEntity::class,
+			RetentionWorkExecutionReceiptEntity::class,
 			SourceEventWalEntity::class,
 			SourceCaptureAdmissionBarrierEntity::class,
 			SourceRunRetirementEntity::class,
@@ -570,6 +573,8 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun sourceEvidenceStateDao(): SourceEvidenceStateDao
 
 	abstract fun collectedDataDeletionOperationDao(): CollectedDataDeletionOperationDao
+
+	abstract fun retentionWorkExecutionReceiptDao(): RetentionWorkExecutionReceiptDao
 
 	abstract fun sourceEventWalDao(): SourceEventWalDao
 
@@ -950,6 +955,8 @@ abstract class AppDatabase : RoomDatabase() {
 			importedAmbientStepsDao.deleteFullClearPayloadInCurrentTransaction(
 				newCollectedDataEpoch,
 			)
+			database.retentionWorkExecutionReceiptDao()
+				.supersedeOpenExecutions(updatedAtMs)
 			deleteCollectedRows(database)
 			return CollectedDataDeletionOperationEntity(
 				operationId = operationId,

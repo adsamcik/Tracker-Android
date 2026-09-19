@@ -121,7 +121,8 @@ class CollectedDataDeletionServiceTest {
 			ExportPlansProto.getDefaultInstance()
 		coEvery { writerQuiescer.quiesce() } just Runs
 		every { writerQuiescer.resume() } just Runs
-		every { automaticControlRestorer.schedule(any()) } just Runs
+		coEvery { automaticControlRestorer.schedule(any()) } returns
+			PostDeletionRecoveryScheduleResult.Enqueued
 		coEvery { collectedDataLifecycleStore.snapshot() } answers { lifecycleSnapshot }
 		coEvery {
 			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
@@ -168,7 +169,7 @@ class CollectedDataDeletionServiceTest {
 			collectedDataLifecycleStore.beginFullDeletion(any(), 1L, 1L)
 		}
 		verify(exactly = 0) { writerQuiescer.resume() }
-		verify(exactly = 1) { automaticControlRestorer.schedule(1L) }
+		coVerify(exactly = 1) { automaticControlRestorer.schedule(1L) }
 		appDeletionCount shouldBe 1
 		capturedEpoch shouldBe 1L
 		capturedRetainedFromMs shouldBe 1L
@@ -203,7 +204,7 @@ class CollectedDataDeletionServiceTest {
 			collectedDataLifecycleStore.beginFullDeletion(any(), 1L, 1L)
 		}
 		verify(exactly = 0) { writerQuiescer.resume() }
-		verify(exactly = 1) { automaticControlRestorer.schedule(1L) }
+		coVerify(exactly = 1) { automaticControlRestorer.schedule(1L) }
 		coVerify(exactly = 1) { exportPlanStore.resetAllWatermarks() }
 		resumedAppDeletionCount shouldBe 1
 		markerFile.exists() shouldBe false
@@ -299,7 +300,7 @@ class CollectedDataDeletionServiceTest {
 		appDeletionCount shouldBe 0
 		verify(exactly = 0) { pointsAwardedDao.deleteAll() }
 		verify(exactly = 0) { writerQuiescer.resume() }
-		verify(exactly = 0) { automaticControlRestorer.schedule(any()) }
+		coVerify(exactly = 0) { automaticControlRestorer.schedule(any()) }
 	}
 
 	@Test
@@ -682,7 +683,7 @@ class CollectedDataDeletionServiceTest {
 			markerFile.exists() shouldBe true
 			startupDeletionBarrier.isClosed shouldBe true
 			coVerify(exactly = 3) { ambientSteps.closeForCollectedDataDeletion() }
-			verify(exactly = 0) { automaticControlRestorer.schedule(any()) }
+			coVerify(exactly = 0) { automaticControlRestorer.schedule(any()) }
 		} finally {
 			database.close()
 			resetRetentionTestState()
@@ -944,15 +945,16 @@ class CollectedDataDeletionServiceTest {
 		coVerify(exactly = 2) { arbiter.closeForCollectedDataDeletion() }
 		verify(exactly = 0) { writerQuiescer.resume() }
 		coVerify(exactly = 0) { arbiter.resumeAfterCollectedDataDeletion() }
-		verify(exactly = 1) { automaticControlRestorer.schedule(1L) }
+		coVerify(exactly = 1) { automaticControlRestorer.schedule(1L) }
 	}
 
 	@Test
 	fun `completed deletion schedules durable recovery by collected data epoch before reopening`() = runTest {
 		val restorer = mockk<PostDeletionAutomaticControlRestorer>(relaxed = true)
-		every { restorer.schedule(any()) } answers {
+		coEvery { restorer.schedule(any()) } coAnswers {
 			markerFile.exists() shouldBe true
 			startupDeletionBarrier.isClosed shouldBe true
+			PostDeletionRecoveryScheduleResult.Enqueued
 		}
 		val service = createService(
 			automaticControlRestorer = restorer,
@@ -962,8 +964,54 @@ class CollectedDataDeletionServiceTest {
 
 		startupDeletionBarrier.currentGeneration shouldBe 1L
 		startupDeletionBarrier.isClosed shouldBe false
-		verify(exactly = 1) { restorer.schedule(1L) }
+		coVerify(exactly = 1) { restorer.schedule(1L) }
 	}
+
+	@Test
+	fun `deletion cannot clear its marker while WorkManager enqueue remains unpersisted`() = runTest {
+		val enqueueEntered = CompletableDeferred<Unit>()
+		val persistEnqueue = CompletableDeferred<Unit>()
+		val restorer = mockk<PostDeletionAutomaticControlRestorer>(relaxed = true)
+		coEvery { restorer.schedule(any()) } coAnswers {
+			enqueueEntered.complete(Unit)
+			persistEnqueue.await()
+			PostDeletionRecoveryScheduleResult.Enqueued
+		}
+		val service = createService(
+			automaticControlRestorer = restorer,
+		) { _, _, _, _ -> }
+		val deletion = async { service.deleteAll() }
+
+		enqueueEntered.await()
+		deletion.isCompleted shouldBe false
+		markerFile.exists() shouldBe true
+		startupDeletionBarrier.isClosed shouldBe true
+
+		persistEnqueue.complete(Unit)
+		deletion.await() shouldBe CollectedDataDeletionCompletion.Complete
+		markerFile.exists() shouldBe false
+		startupDeletionBarrier.isClosed shouldBe false
+	}
+
+	@Test
+	fun `enqueue persistence failure keeps the deletion marker and barrier for process recovery`() =
+		runTest {
+			coEvery { automaticControlRestorer.schedule(any()) } returns
+				PostDeletionRecoveryScheduleResult.Retryable(
+					PostDeletionRecoveryScheduleFailure.ENQUEUE_PERSISTENCE,
+				)
+			val service = createService { _, _, _, _ -> }
+
+			service.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+				CollectedDataDeletionReconciliationFailure.PostDeletionRecoveryEnqueue(
+					PostDeletionRecoveryScheduleFailure.ENQUEUE_PERSISTENCE,
+				),
+			)
+
+			markerFile.exists() shouldBe true
+			startupDeletionBarrier.isClosed shouldBe true
+			coVerify(exactly = 1) { automaticControlRestorer.schedule(1L) }
+		}
 
 	@Test
 	fun `prepared marker durability failure keeps admission and providers closed`() = runTest {
@@ -1075,7 +1123,7 @@ class CollectedDataDeletionServiceTest {
 		coVerify(exactly = 1) {
 			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
 		}
-		verify(exactly = 1) { automaticControlRestorer.schedule(1L) }
+		coVerify(exactly = 1) { automaticControlRestorer.schedule(1L) }
 	}
 
 	@Test
@@ -1113,7 +1161,7 @@ class CollectedDataDeletionServiceTest {
 		coVerify(exactly = 1) {
 			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
 		}
-		verify(exactly = 1) { automaticControlRestorer.schedule(1L) }
+		coVerify(exactly = 1) { automaticControlRestorer.schedule(1L) }
 	}
 
 	@Test
@@ -1223,7 +1271,7 @@ class CollectedDataDeletionServiceTest {
 		operations shouldBe listOf("tracker", "writer-rearm")
 		markerFile.exists() shouldBe true
 		startupDeletionBarrier.isClosed shouldBe true
-		verify(exactly = 0) { automaticControlRestorer.schedule(any()) }
+		coVerify(exactly = 0) { automaticControlRestorer.schedule(any()) }
 
 		rearmComplete = true
 		service.reconcilePendingDeletion()
@@ -1235,7 +1283,7 @@ class CollectedDataDeletionServiceTest {
 		)
 		markerFile.exists() shouldBe false
 		startupDeletionBarrier.isClosed shouldBe false
-		verify(exactly = 1) { automaticControlRestorer.schedule(1L) }
+		coVerify(exactly = 1) { automaticControlRestorer.schedule(1L) }
 	}
 
 	@Test

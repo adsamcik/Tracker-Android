@@ -165,6 +165,12 @@ sealed interface CollectedDataDeletionReconciliationFailure {
 		override val failureCode: String = "COLLECTED_DATA_DELETION_EXECUTION"
 	}
 
+	data class PostDeletionRecoveryEnqueue(
+		val failure: PostDeletionRecoveryScheduleFailure,
+	) : CollectedDataDeletionReconciliationFailure {
+		override val failureCode: String = "POST_DELETE_RECOVERY_ENQUEUE_${failure.name}"
+	}
+
 	data class LifecycleCommitUnknown(
 		val operationId: String,
 	) : CollectedDataDeletionReconciliationFailure {
@@ -588,7 +594,23 @@ class DefaultCollectedDataDeletionService(
 			deleteDiagnostics()
 			// Enqueue the durable recovery owner while the deletion marker and process barrier still
 			// fence Room/providers. It will make one attempt only after this generation is Ready.
-			automaticControlRestorer.schedule(operation.targetCollectedDataEpoch)
+			when (
+				val schedule = automaticControlRestorer.schedule(
+					operation.targetCollectedDataEpoch,
+				)
+			) {
+				PostDeletionRecoveryScheduleResult.Enqueued,
+				PostDeletionRecoveryScheduleResult.Superseded,
+				-> Unit
+				is PostDeletionRecoveryScheduleResult.Retryable ->
+					return keepPurposeOwnersClosed(
+						purposeDeletionFencer,
+						CollectedDataDeletionCompletion.Retryable(
+							CollectedDataDeletionReconciliationFailure
+								.PostDeletionRecoveryEnqueue(schedule.failure),
+						),
+					)
+			}
 			val confirmedReconciliation = reconcilePostDeletionAuthorityAndRetention()
 			if (confirmedReconciliation != null) {
 				return keepPurposeOwnersClosed(

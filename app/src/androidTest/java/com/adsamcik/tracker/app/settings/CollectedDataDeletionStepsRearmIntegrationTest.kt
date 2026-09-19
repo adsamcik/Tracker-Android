@@ -224,7 +224,8 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 			appliedRegistrationResult()
 		coEvery { mocks.purposeDeletionFencer.fenceForCollectedDataDeletion() } returns
 			TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
-		every { mocks.automaticControlRestorer.schedule(any()) } just Runs
+		coEvery { mocks.automaticControlRestorer.schedule(any()) } returns
+			PostDeletionRecoveryScheduleResult.Enqueued
 		every { mocks.traceboxHandleProvider.handle } returns mocks.traceboxHandle
 		every { mocks.traceboxHandle.delete(DeleteRequest.ALL_TRACEBOX_DATA) } returnsMany listOf(
 			DeleteReport.PENDING_FAILURE,
@@ -248,7 +249,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		deletionBarrier.currentGeneration shouldBe scenario.initialGeneration + 1L
 		deletionBarrier.openGenerations.value shouldBe scenario.initialPublishedGeneration
 		startupGate.isReady shouldBe false
-		verify(exactly = 0) { fixture.automaticControlRestorer.schedule(any()) }
+		coVerify(exactly = 0) { fixture.automaticControlRestorer.schedule(any()) }
 	}
 
 	private suspend fun assertSuccessfulRetryReopens(
@@ -274,7 +275,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 			expectedDeletedHighWater = scenario.expectedDeletedHighWater,
 			rolloutStore = scenario.rolloutStore,
 		)
-		verify(exactly = 1) {
+		coVerify(exactly = 1) {
 			fixture.automaticControlRestorer.schedule(scenario.initialLifecycleEpoch + 1L)
 		}
 		verify(exactly = 2) {

@@ -91,12 +91,11 @@ enum class ApprovedRetentionPolicyUnavailableReason {
 	INTEGRITY_MISMATCH,
 }
 
-internal sealed interface StoredRetentionPolicyApproval {
-	data object Missing : StoredRetentionPolicyApproval
-	data object Invalid : StoredRetentionPolicyApproval
-	data class Present(val record: RetentionPolicyApprovalRecord) :
-		StoredRetentionPolicyApproval
-}
+internal data class StoredRetentionPolicyApprovals(
+	val approved: RetentionPolicyApprovalRecord?,
+	val pending: RetentionPolicyApprovalRecord?,
+	val invalid: Boolean,
+)
 
 private val Context.retentionPolicyApprovalDataStore: DataStore<Preferences> by preferencesDataStore(
 	name = "retention_policy_approval",
@@ -109,13 +108,8 @@ internal class RetentionPolicyApprovalStore(
 ) {
 	private val dataStore = context.applicationContext.retentionPolicyApprovalDataStore
 
-	val records: Flow<StoredRetentionPolicyApproval> = dataStore.data.map { preferences ->
-		val record = preferences.toRecordOrNull()
-		when {
-			record != null -> StoredRetentionPolicyApproval.Present(record)
-			preferences.hasAnyApprovalValue() -> StoredRetentionPolicyApproval.Invalid
-			else -> StoredRetentionPolicyApproval.Missing
-		}
+	val records: Flow<StoredRetentionPolicyApprovals> = dataStore.data.map { preferences ->
+		preferences.toStoredApprovals()
 	}
 
 	suspend fun stage(configuration: RetentionConfigState): RetentionPolicyStage =
@@ -125,22 +119,31 @@ internal class RetentionPolicyApprovalStore(
 			)
 			var stage: RetentionPolicyStage? = null
 			dataStore.edit { preferences ->
-				val current = preferences.toRecordOrNull()
-					?.takeIf(RetentionPolicyApprovalRecord::isAuthentic)
+				val records = preferences.toStoredApprovals()
+				check(!records.invalid) { "Retention approval storage is invalid" }
+				val current = records.approved
 					?.takeIf { it.policy.configurationChecksum == configurationChecksum }
-				if (current != null && current.status in setOf(
-						RetentionPolicyApprovalStatus.PENDING,
-						RetentionPolicyApprovalStatus.APPROVED,
-					)
-				) {
+				if (current != null) {
 					stage = RetentionPolicyStage(
 						current.policy,
-						current.status == RetentionPolicyApprovalStatus.PENDING,
+						approvalRequired = false,
 					)
 					return@edit
 				}
-				val storedGeneration = preferences[GENERATION_KEY] ?: 0L
-				val storedRevision = preferences[REVISION_KEY] ?: 0L
+				val pending = records.pending
+					?.takeIf { it.policy.configurationChecksum == configurationChecksum }
+				if (pending != null) {
+					stage = RetentionPolicyStage(pending.policy, approvalRequired = true)
+					return@edit
+				}
+				val storedGeneration = listOfNotNull(
+					records.approved?.policy?.configurationGeneration,
+					records.pending?.policy?.configurationGeneration,
+				).maxOrNull() ?: 0L
+				val storedRevision = listOfNotNull(
+					records.approved?.policy?.revision,
+					records.pending?.policy?.revision,
+				).maxOrNull() ?: 0L
 				check(storedGeneration in 0 until Long.MAX_VALUE) {
 					"Retention configuration generation is exhausted or invalid"
 				}
@@ -158,7 +161,7 @@ internal class RetentionPolicyApprovalStore(
 					opaquePolicyId = opaquePolicyId,
 					configurationChecksum = configurationChecksum,
 				)
-				preferences.write(pending)
+				preferences.writePending(pending)
 				stage = RetentionPolicyStage(pending.policy, approvalRequired = true)
 			}
 			checkNotNull(stage)
@@ -167,17 +170,29 @@ internal class RetentionPolicyApprovalStore(
 	suspend fun current(
 		configuration: RetentionConfigState,
 	): ApprovedRetentionPolicyRead = withContext(ioDispatcher) {
-		when (val candidate = candidate(configuration)) {
-			is RetentionPolicyCandidateRead.Available ->
-				if (candidate.status == RetentionPolicyApprovalStatus.APPROVED) {
-					ApprovedRetentionPolicyRead.Available(candidate.policy)
+		val preferences = dataStore.data.first()
+		val records = preferences.toStoredApprovals()
+		if (records.invalid) {
+			return@withContext ApprovedRetentionPolicyRead.Unavailable(
+				ApprovedRetentionPolicyUnavailableReason.INTEGRITY_MISMATCH,
+			)
+		}
+		val checksum = RetentionPolicyApprovalIntegrity.configurationChecksum(configuration)
+		records.approved?.takeIf { it.policy.configurationChecksum == checksum }?.let {
+			return@withContext ApprovedRetentionPolicyRead.Available(it.policy)
+		}
+		if (records.pending?.policy?.configurationChecksum == checksum) {
+			ApprovedRetentionPolicyRead.Unavailable(
+				ApprovedRetentionPolicyUnavailableReason.PENDING_APPROVAL,
+			)
+		} else {
+			ApprovedRetentionPolicyRead.Unavailable(
+				if (records.approved == null) {
+					ApprovedRetentionPolicyUnavailableReason.NOT_APPROVED
 				} else {
-					ApprovedRetentionPolicyRead.Unavailable(
-						ApprovedRetentionPolicyUnavailableReason.PENDING_APPROVAL,
-					)
-				}
-			is RetentionPolicyCandidateRead.Unavailable ->
-				ApprovedRetentionPolicyRead.Unavailable(candidate.reason)
+					ApprovedRetentionPolicyUnavailableReason.CONFIGURATION_CHANGED
+				},
+			)
 		}
 	}
 
@@ -185,51 +200,44 @@ internal class RetentionPolicyApprovalStore(
 		configuration: RetentionConfigState,
 	): RetentionPolicyCandidateRead = withContext(ioDispatcher) {
 		val preferences = dataStore.data.first()
-		val record = preferences.toRecordOrNull() ?: return@withContext run {
-			val reason = if (preferences.hasAnyApprovalValue()) {
-				ApprovedRetentionPolicyUnavailableReason.INTEGRITY_MISMATCH
-			} else {
-				ApprovedRetentionPolicyUnavailableReason.NOT_APPROVED
-			}
-			RetentionPolicyCandidateRead.Unavailable(reason)
-		}
-		if (!record.isAuthentic()) {
+		val records = preferences.toStoredApprovals()
+		if (records.invalid) {
 			return@withContext RetentionPolicyCandidateRead.Unavailable(
 				ApprovedRetentionPolicyUnavailableReason.INTEGRITY_MISMATCH,
 			)
 		}
-		if (
-			record.policy.configurationChecksum !=
-			RetentionPolicyApprovalIntegrity.configurationChecksum(configuration)
-		) {
-			return@withContext RetentionPolicyCandidateRead.Unavailable(
-				ApprovedRetentionPolicyUnavailableReason.CONFIGURATION_CHANGED,
-			)
-		}
-		if (record.status !in setOf(
-				RetentionPolicyApprovalStatus.PENDING,
+		val checksum = RetentionPolicyApprovalIntegrity.configurationChecksum(configuration)
+		records.approved?.takeIf { it.policy.configurationChecksum == checksum }?.let {
+			return@withContext RetentionPolicyCandidateRead.Available(
+				it.policy,
 				RetentionPolicyApprovalStatus.APPROVED,
 			)
-		) {
-			return@withContext RetentionPolicyCandidateRead.Unavailable(
-				ApprovedRetentionPolicyUnavailableReason.NOT_APPROVED,
+		}
+		records.pending?.takeIf { it.policy.configurationChecksum == checksum }?.let {
+			return@withContext RetentionPolicyCandidateRead.Available(
+				it.policy,
+				RetentionPolicyApprovalStatus.PENDING,
 			)
 		}
-		RetentionPolicyCandidateRead.Available(record.policy, record.status)
+		RetentionPolicyCandidateRead.Unavailable(
+			if (records.approved == null && records.pending == null) {
+				ApprovedRetentionPolicyUnavailableReason.NOT_APPROVED
+			} else {
+				ApprovedRetentionPolicyUnavailableReason.CONFIGURATION_CHANGED
+			},
+		)
 	}
 
 	suspend fun pending(): RetentionPolicyCandidateRead = withContext(ioDispatcher) {
 		val preferences = dataStore.data.first()
-		val record = preferences.toRecordOrNull()
-			?: return@withContext RetentionPolicyCandidateRead.Unavailable(
-				ApprovedRetentionPolicyUnavailableReason.NOT_APPROVED,
-			)
-		if (!record.isAuthentic()) {
+		val records = preferences.toStoredApprovals()
+		if (records.invalid) {
 			return@withContext RetentionPolicyCandidateRead.Unavailable(
 				ApprovedRetentionPolicyUnavailableReason.INTEGRITY_MISMATCH,
 			)
 		}
-		if (record.status != RetentionPolicyApprovalStatus.PENDING) {
+		val record = records.pending
+		if (record == null) {
 			return@withContext RetentionPolicyCandidateRead.Unavailable(
 				ApprovedRetentionPolicyUnavailableReason.NOT_APPROVED,
 			)
@@ -241,10 +249,10 @@ internal class RetentionPolicyApprovalStore(
 		withContext(ioDispatcher) {
 			var approved: ApprovedRetentionPolicy? = null
 			dataStore.edit { preferences ->
-				val current = preferences.toRecordOrNull()
-				if (current == null ||
-					!current.isAuthentic() ||
-					current.status != RetentionPolicyApprovalStatus.PENDING ||
+				val records = preferences.toStoredApprovals()
+				val current = records.pending
+				if (records.invalid ||
+					current == null ||
 					!expected.hasAuthenticChecksum(RetentionPolicyApprovalStatus.PENDING) ||
 					!current.policy.hasSameStableIdentity(expected)
 				) {
@@ -257,7 +265,8 @@ internal class RetentionPolicyApprovalStore(
 						opaquePolicyId = expected.opaquePolicyId,
 						configurationChecksum = expected.configurationChecksum,
 					)
-				preferences.write(value)
+				preferences.writeApproved(value)
+				preferences.clearPending()
 				approved = value.policy
 			}
 			approved
@@ -274,14 +283,82 @@ internal class RetentionPolicyApprovalStore(
 		val OPAQUE_POLICY_ID_KEY = stringPreferencesKey("opaque_policy_id")
 		val CONFIGURATION_CHECKSUM_KEY = stringPreferencesKey("configuration_checksum")
 		val INTEGRITY_CHECKSUM_KEY = stringPreferencesKey("integrity_checksum")
+		val PENDING_GENERATION_KEY = longPreferencesKey("pending_configuration_generation")
+		val PENDING_REVISION_KEY = longPreferencesKey("pending_revision")
+		val PENDING_STATE_KEY = stringPreferencesKey("pending_state")
+		val PENDING_OPAQUE_POLICY_ID_KEY = stringPreferencesKey("pending_opaque_policy_id")
+		val PENDING_CONFIGURATION_CHECKSUM_KEY =
+			stringPreferencesKey("pending_configuration_checksum")
+		val PENDING_INTEGRITY_CHECKSUM_KEY = stringPreferencesKey("pending_integrity_checksum")
 
-		fun Preferences.toRecordOrNull(): RetentionPolicyApprovalRecord? {
-			val generation = this[GENERATION_KEY] ?: return null
-			val revision = this[REVISION_KEY] ?: return null
-			val state = this[STATE_KEY] ?: return null
-			val opaquePolicyId = this[OPAQUE_POLICY_ID_KEY] ?: return null
-			val configurationChecksum = this[CONFIGURATION_CHECKSUM_KEY] ?: return null
-			val integrityChecksum = this[INTEGRITY_CHECKSUM_KEY] ?: return null
+		fun Preferences.toStoredApprovals(): StoredRetentionPolicyApprovals {
+			val primary = toRecordOrNull(
+				GENERATION_KEY,
+				REVISION_KEY,
+				STATE_KEY,
+				OPAQUE_POLICY_ID_KEY,
+				CONFIGURATION_CHECKSUM_KEY,
+				INTEGRITY_CHECKSUM_KEY,
+			)
+			val separatePending = toRecordOrNull(
+				PENDING_GENERATION_KEY,
+				PENDING_REVISION_KEY,
+				PENDING_STATE_KEY,
+				PENDING_OPAQUE_POLICY_ID_KEY,
+				PENDING_CONFIGURATION_CHECKSUM_KEY,
+				PENDING_INTEGRITY_CHECKSUM_KEY,
+			)
+			val invalid = (
+				primary == null && hasAnyApprovalValue(
+					GENERATION_KEY,
+					REVISION_KEY,
+					STATE_KEY,
+					OPAQUE_POLICY_ID_KEY,
+					CONFIGURATION_CHECKSUM_KEY,
+					INTEGRITY_CHECKSUM_KEY,
+				)
+			) || (
+				separatePending == null && hasAnyApprovalValue(
+					PENDING_GENERATION_KEY,
+					PENDING_REVISION_KEY,
+					PENDING_STATE_KEY,
+					PENDING_OPAQUE_POLICY_ID_KEY,
+					PENDING_CONFIGURATION_CHECKSUM_KEY,
+					PENDING_INTEGRITY_CHECKSUM_KEY,
+				)
+			) || primary?.isAuthentic() == false ||
+				separatePending?.isAuthentic() == false ||
+				(primary != null && primary.status !in setOf(
+					RetentionPolicyApprovalStatus.APPROVED,
+					RetentionPolicyApprovalStatus.PENDING,
+				)) ||
+				(separatePending != null &&
+					separatePending.status != RetentionPolicyApprovalStatus.PENDING)
+			return StoredRetentionPolicyApprovals(
+				approved = primary?.takeIf {
+					it.status == RetentionPolicyApprovalStatus.APPROVED
+				},
+				pending = separatePending ?: primary?.takeIf {
+					it.status == RetentionPolicyApprovalStatus.PENDING
+				},
+				invalid = invalid,
+			)
+		}
+
+		fun Preferences.toRecordOrNull(
+			generationKey: androidx.datastore.preferences.core.Preferences.Key<Long>,
+			revisionKey: androidx.datastore.preferences.core.Preferences.Key<Long>,
+			stateKey: androidx.datastore.preferences.core.Preferences.Key<String>,
+			opaquePolicyIdKey: androidx.datastore.preferences.core.Preferences.Key<String>,
+			configurationChecksumKey: androidx.datastore.preferences.core.Preferences.Key<String>,
+			integrityChecksumKey: androidx.datastore.preferences.core.Preferences.Key<String>,
+		): RetentionPolicyApprovalRecord? {
+			val generation = this[generationKey] ?: return null
+			val revision = this[revisionKey] ?: return null
+			val state = this[stateKey] ?: return null
+			val opaquePolicyId = this[opaquePolicyIdKey] ?: return null
+			val configurationChecksum = this[configurationChecksumKey] ?: return null
+			val integrityChecksum = this[integrityChecksumKey] ?: return null
 			return runCatching {
 				RetentionPolicyApprovalRecord(
 					status = RetentionPolicyApprovalStatus.valueOf(state),
@@ -296,21 +373,39 @@ internal class RetentionPolicyApprovalStore(
 			}.getOrNull()
 		}
 
-		fun Preferences.hasAnyApprovalValue(): Boolean =
-			this[GENERATION_KEY] != null ||
-				this[REVISION_KEY] != null ||
-				this[STATE_KEY] != null ||
-				this[OPAQUE_POLICY_ID_KEY] != null ||
-				this[CONFIGURATION_CHECKSUM_KEY] != null ||
-				this[INTEGRITY_CHECKSUM_KEY] != null
+		fun Preferences.hasAnyApprovalValue(
+			vararg keys: androidx.datastore.preferences.core.Preferences.Key<*>,
+		): Boolean = keys.any { key -> asMap().containsKey(key) }
 
-		fun Preferences.write(value: RetentionPolicyApprovalRecord) {
+		fun androidx.datastore.preferences.core.MutablePreferences.writeApproved(
+			value: RetentionPolicyApprovalRecord,
+		) {
 			this[GENERATION_KEY] = value.policy.configurationGeneration
 			this[REVISION_KEY] = value.policy.revision
 			this[STATE_KEY] = value.status.name
 			this[OPAQUE_POLICY_ID_KEY] = value.policy.opaquePolicyId
 			this[CONFIGURATION_CHECKSUM_KEY] = value.policy.configurationChecksum
 			this[INTEGRITY_CHECKSUM_KEY] = value.policy.integrityChecksum
+		}
+
+		fun androidx.datastore.preferences.core.MutablePreferences.writePending(
+			value: RetentionPolicyApprovalRecord,
+		) {
+			this[PENDING_GENERATION_KEY] = value.policy.configurationGeneration
+			this[PENDING_REVISION_KEY] = value.policy.revision
+			this[PENDING_STATE_KEY] = value.status.name
+			this[PENDING_OPAQUE_POLICY_ID_KEY] = value.policy.opaquePolicyId
+			this[PENDING_CONFIGURATION_CHECKSUM_KEY] = value.policy.configurationChecksum
+			this[PENDING_INTEGRITY_CHECKSUM_KEY] = value.policy.integrityChecksum
+		}
+
+		fun androidx.datastore.preferences.core.MutablePreferences.clearPending() {
+			remove(PENDING_GENERATION_KEY)
+			remove(PENDING_REVISION_KEY)
+			remove(PENDING_STATE_KEY)
+			remove(PENDING_OPAQUE_POLICY_ID_KEY)
+			remove(PENDING_CONFIGURATION_CHECKSUM_KEY)
+			remove(PENDING_INTEGRITY_CHECKSUM_KEY)
 		}
 	}
 }
@@ -323,8 +418,6 @@ internal data class RetentionPolicyApprovalRecord(
 
 	fun statusFor(configuration: RetentionConfigState): RetentionPolicyApprovalStatus = when {
 		!isAuthentic() -> RetentionPolicyApprovalStatus.INVALID
-		status == RetentionPolicyApprovalStatus.PENDING ->
-			RetentionPolicyApprovalStatus.PENDING
 		policy.configurationChecksum !=
 			RetentionPolicyApprovalIntegrity.configurationChecksum(configuration) ->
 			RetentionPolicyApprovalStatus.INVALID

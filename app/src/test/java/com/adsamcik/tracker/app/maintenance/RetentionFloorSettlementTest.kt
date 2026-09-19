@@ -405,6 +405,26 @@ class RetentionFloorSettlementTest {
 						deletedAtMs = FLOOR,
 						phase = phase,
 						updatedAtMs = FLOOR,
+						sourceMaintenanceAtMs = FLOOR.takeIf {
+							phase in setOf(
+								CollectedDataDeletionOperationEntity
+									.PHASE_RETENTION_AUTHORITY_REISSUED,
+								CollectedDataDeletionOperationEntity
+									.PHASE_RETENTION_PROVIDER_RECONCILED,
+								CollectedDataDeletionOperationEntity
+									.PHASE_RETENTION_SOURCE_MAINTENANCE_COMPLETED,
+							)
+						},
+						retentionActiveSources = "".takeIf {
+							phase in setOf(
+								CollectedDataDeletionOperationEntity
+									.PHASE_RETENTION_AUTHORITY_REISSUED,
+								CollectedDataDeletionOperationEntity
+									.PHASE_RETENTION_PROVIDER_RECONCILED,
+								CollectedDataDeletionOperationEntity
+									.PHASE_RETENTION_SOURCE_MAINTENANCE_COMPLETED,
+							)
+						},
 					),
 				)
 				if (
@@ -430,9 +450,13 @@ class RetentionFloorSettlementTest {
 					),
 					startupGate = readyGate(),
 					expectedStartupGeneration = GENERATION,
-					requestedRetainedFromMs = FLOOR + index + 1L,
+					requestedRetainedFromMs = FLOOR,
 					operationId = "recomputed-$index",
-					updatedAtMs = FLOOR + index + 1L,
+					updatedAtMs = FLOOR,
+					workExecutionId = operationId,
+					destructivePlan =
+						com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
+							.legacy(FLOOR, FLOOR),
 					verifyApprovedOperation = { },
 				).shouldBeInstanceOf<RetentionFloorSettlementResult.Settled>()
 
@@ -451,7 +475,7 @@ class RetentionFloorSettlementTest {
 			RetentionAuthorityOperationLease(),
 			mockk {
 				coEvery { reconcileCurrentSettings() } returns
-					retentionResults(active = emptySet())
+					retentionResults(active = setOf(TrackingSourceComponent.STEPS))
 			},
 			TrackingRetentionFloorReconciler { _, floor, sources ->
 				TrackingRetentionFloorReconciliationResult.Complete(floor, sources)
@@ -482,11 +506,66 @@ class RetentionFloorSettlementTest {
 		database.collectedDataDeletionOperationDao().get("retention-completion")?.phase shouldBe
 			CollectedDataDeletionOperationEntity.PHASE_RETENTION_FINAL
 		settlementCoordinator.pendingOperation(database) shouldBe null
-		settlementCoordinator.pendingOperation(
-			database,
-			workExecutionId = "retention-completion",
-			resumeCompletedExecution = true,
-		)?.phase shouldBe CollectedDataDeletionOperationEntity.PHASE_RETENTION_FINAL
+	}
+
+	@Test
+	fun `source maintenance timestamp is persisted after authority reissue and reused`() = runTest {
+		val authorityTimestamp = FLOOR + 500L
+		val producer = mockk<RetentionAuthorityProducer> {
+			coEvery { reconcileCurrentSettings() } coAnswers {
+				val evidence = requireNotNull(database.sourceEvidenceStateDao().get())
+				database.sourceEvidenceStateDao().incrementRevisionForExactLifecycle(
+					expectedRevision = evidence.revision,
+					expectedCollectedDataEpoch = 4L,
+					expectedRetainedFromMs = FLOOR,
+					updatedAtMs = authorityTimestamp,
+				) shouldBe 1
+				retentionResults(active = setOf(TrackingSourceComponent.STEPS))
+			}
+		}
+		val coordinator = RetentionFloorSettlement(
+			RetentionAuthorityOperationLease(),
+			producer,
+			TrackingRetentionFloorReconciler { _, floor, sources ->
+				TrackingRetentionFloorReconciliationResult.Complete(floor, sources)
+			},
+		)
+		val lifecycle = fixedLifecycleStore(
+			CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = FLOOR),
+		)
+		val first = coordinator.settle(
+			database = database,
+			lifecycleStore = lifecycle,
+			startupGate = readyGate(),
+			expectedStartupGeneration = GENERATION,
+			requestedRetainedFromMs = FLOOR,
+			operationId = "maintenance-clock",
+			updatedAtMs = FLOOR,
+			verifyApprovedOperation = { },
+		).shouldBeInstanceOf<RetentionFloorSettlementResult.Settled>()
+
+		first.sourceMaintenanceAtMs shouldBe authorityTimestamp
+		first.reconciledSources shouldBe setOf(AmbientTrackingSource.STEPS)
+		database.collectedDataDeletionOperationDao().get("maintenance-clock")
+			?.sourceMaintenanceAtMs shouldBe authorityTimestamp
+
+		val retried = coordinator.settle(
+			database = database,
+			lifecycleStore = lifecycle,
+			startupGate = readyGate(),
+			expectedStartupGeneration = GENERATION,
+			requestedRetainedFromMs = FLOOR,
+			operationId = "maintenance-clock-recomputed",
+			updatedAtMs = FLOOR,
+			workExecutionId = "maintenance-clock",
+			destructivePlan =
+				com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
+					.legacy(FLOOR, FLOOR),
+			verifyApprovedOperation = { },
+		).shouldBeInstanceOf<RetentionFloorSettlementResult.Settled>()
+		retried.sourceMaintenanceAtMs shouldBe authorityTimestamp
+		retried.reconciledSources shouldBe setOf(AmbientTrackingSource.STEPS)
+		coVerify(exactly = 1) { producer.reconcileCurrentSettings() }
 	}
 
 	@Test

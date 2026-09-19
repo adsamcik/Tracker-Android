@@ -69,6 +69,31 @@ interface CollectedDataDeletionOperationDao {
 
 	@Query(
 		"""
+		UPDATE collected_data_deletion_operation
+		SET retention_work_execution_id = :newWorkExecutionId
+		WHERE operation_id = :operationId
+			AND (
+				(retention_work_execution_id IS NULL AND :expectedWorkExecutionId IS NULL)
+				OR retention_work_execution_id = :expectedWorkExecutionId
+			)
+			AND phase IN (
+				'RETENTION_PREPARED',
+				'RETENTION_DATASTORE_ACKNOWLEDGED',
+				'RETENTION_ROOM_GUARD_COMMITTED',
+				'RETENTION_AUTHORITY_REISSUED',
+				'RETENTION_PROVIDER_RECONCILED',
+				'RETENTION_SOURCE_MAINTENANCE_COMPLETED'
+			)
+		""",
+	)
+	suspend fun claimActiveRetentionExecution(
+		operationId: String,
+		expectedWorkExecutionId: String?,
+		newWorkExecutionId: String,
+	): Int
+
+	@Query(
+		"""
 		SELECT * FROM collected_data_deletion_operation
 		WHERE target_collected_data_epoch > :expectedCollectedDataEpoch
 			AND phase IN ('DATABASE_CLEARED', 'WRITERS_REARMED')
@@ -101,6 +126,50 @@ interface CollectedDataDeletionOperationDao {
 		expectedPhase: String,
 		newPhase: String,
 		updatedAtMs: Long,
+	): Int
+
+	@Query(
+		"""
+		SELECT MAX(authority_time) FROM (
+			SELECT updated_at_ms AS authority_time
+			FROM source_evidence_state
+			WHERE id = 1
+			UNION ALL
+			SELECT effective_wall_time_ms AS authority_time
+			FROM ambient_steps_retention_authority
+			UNION ALL
+			SELECT effective_wall_time_ms AS authority_time
+			FROM ambient_wifi_retention_authority
+			UNION ALL
+			SELECT effective_wall_time_ms AS authority_time
+			FROM ambient_cell_retention_authority
+		)
+		""",
+	)
+	suspend fun retentionAuthorityTimestampHighWater(): Long?
+
+	@Query(
+		"""
+		UPDATE collected_data_deletion_operation
+		SET source_maintenance_at_ms = :sourceMaintenanceAtMs,
+			retention_active_sources = :activeSources,
+			phase = :newPhase,
+			updated_at_ms = :sourceMaintenanceAtMs
+		WHERE operation_id = :operationId
+			AND target_collected_data_epoch = :targetCollectedDataEpoch
+			AND retained_from_ms = :requestedRetainedFromMs
+			AND source_maintenance_at_ms IS NULL
+			AND phase = :expectedPhase
+		""",
+	)
+	suspend fun compareAndSetRetentionAuthorityReissued(
+		operationId: String,
+		targetCollectedDataEpoch: Long,
+		requestedRetainedFromMs: Long,
+		sourceMaintenanceAtMs: Long,
+		activeSources: String,
+		expectedPhase: String,
+		newPhase: String,
 	): Int
 
 	@Query(

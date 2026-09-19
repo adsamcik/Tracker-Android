@@ -62,13 +62,17 @@ class RetentionConfigStore(
         config,
         policyApprovalStore.records,
     ) { configuration, record ->
-        when (record) {
-            StoredRetentionPolicyApproval.Missing ->
+        when {
+            record.invalid -> RetentionPolicyApprovalStatus.INVALID
+            record.approved?.statusFor(configuration) ==
+                RetentionPolicyApprovalStatus.APPROVED ->
+                RetentionPolicyApprovalStatus.APPROVED
+            record.pending?.statusFor(configuration) ==
+                RetentionPolicyApprovalStatus.PENDING ->
+                RetentionPolicyApprovalStatus.PENDING
+            record.approved == null ->
                 RetentionPolicyApprovalStatus.UNAPPROVED
-            StoredRetentionPolicyApproval.Invalid ->
-                RetentionPolicyApprovalStatus.INVALID
-            is StoredRetentionPolicyApproval.Present ->
-                record.record.statusFor(configuration)
+            else -> RetentionPolicyApprovalStatus.INVALID
         }
     }
 
@@ -260,7 +264,23 @@ class RetentionConfigStore(
         }
 
     suspend fun pendingPolicyCandidate(): RetentionPolicyCandidateRead =
-        policyApprovalStore.pending()
+        withContext(ioDispatcher) {
+            val current = ensureDataSettingsMigrated().toDomain()
+            when (val pending = policyApprovalStore.pending()) {
+                is RetentionPolicyCandidateRead.Available ->
+                    if (
+                        pending.policy.configurationChecksum ==
+                        RetentionPolicyApprovalIntegrity.configurationChecksum(current)
+                    ) {
+                        pending
+                    } else {
+                        RetentionPolicyCandidateRead.Unavailable(
+                            ApprovedRetentionPolicyUnavailableReason.CONFIGURATION_CHANGED,
+                        )
+                    }
+                is RetentionPolicyCandidateRead.Unavailable -> pending
+            }
+        }
 
     suspend fun markPolicyApproved(expected: ApprovedRetentionPolicy): ApprovedRetentionPolicy? =
         policyApprovalStore.markApproved(expected)

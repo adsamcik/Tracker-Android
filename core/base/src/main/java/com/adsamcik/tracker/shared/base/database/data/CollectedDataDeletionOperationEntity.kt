@@ -30,6 +30,10 @@ data class CollectedDataDeletionOperationEntity(
 	val retentionDestructivePlan: String? = null,
 	@ColumnInfo(name = "settled_retained_from_ms")
 	val settledRetainedFromMs: Long? = null,
+	@ColumnInfo(name = "source_maintenance_at_ms")
+	val sourceMaintenanceAtMs: Long? = null,
+	@ColumnInfo(name = "retention_active_sources")
+	val retentionActiveSources: String? = null,
 ) {
 	init {
 		require(operationId.isNotBlank())
@@ -43,9 +47,15 @@ data class CollectedDataDeletionOperationEntity(
 			(retentionWorkExecutionId == null) == (retentionDestructivePlan == null),
 		)
 		require(settledRetainedFromMs == null || settledRetainedFromMs >= 0L)
+		require(sourceMaintenanceAtMs == null || sourceMaintenanceAtMs >= deletedAtMs)
+		require(retentionActiveSources == null || sourceMaintenanceAtMs != null)
 		require(
 			settledRetainedFromMs == null ||
 				phase in RETENTION_PHASES.drop(RETENTION_ROOM_GUARD_PHASE_INDEX),
+		)
+		require(
+			sourceMaintenanceAtMs == null ||
+				phase in RETENTION_PHASES.drop(RETENTION_AUTHORITY_REISSUED_PHASE_INDEX),
 		)
 	}
 
@@ -92,6 +102,8 @@ data class CollectedDataDeletionOperationEntity(
 
 		private val RETENTION_ROOM_GUARD_PHASE_INDEX =
 			RETENTION_PHASES.indexOf(PHASE_RETENTION_ROOM_GUARD_COMMITTED)
+		private val RETENTION_AUTHORITY_REISSUED_PHASE_INDEX =
+			RETENTION_PHASES.indexOf(PHASE_RETENTION_AUTHORITY_REISSUED)
 	}
 }
 

@@ -16,11 +16,17 @@ import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlement
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementCompletionResult
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementResult
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
+import com.adsamcik.tracker.app.maintenance.RetentionWorkExecutionCoordinator
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedRetentionResult
 import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
 import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
+import com.adsamcik.tracker.shared.base.database.RetentionFloorOperationLookupResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionCompletionResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionPlanResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionReceipt
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionStartResult
 import com.adsamcik.tracker.shared.base.database.RoomTruncateImportedActivityRetention
 import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionRequest
 import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionResult
@@ -66,15 +72,69 @@ class DataRetentionWorker @AssistedInject constructor(
 	private val wifiCapturedRetentionService: WifiCapturedRetentionService,
 	private val retentionFloorSettlement: RetentionFloorSettlement,
 	private val periodicAmbientRetentionMaintenance: PeriodicAmbientRetentionMaintenance,
+	private val workExecutionCoordinator: RetentionWorkExecutionCoordinator,
 ) : CoroutineWorker(context, workerParams) {
 
-    override suspend fun doWork(): Result =
-        when (val operation = retentionConfigStore.withExactApprovedOperation(::doApprovedWork)) {
-            is ExactApprovedRetentionOperationResult.Completed -> operation.value
-            is ExactApprovedRetentionOperationResult.Rejected -> Result.retry()
-        }
+    override suspend fun doWork(): Result {
+		val appDatabase = try {
+			appDatabaseProvider.get()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return Result.retry()
+		}
+		val execution = when (val started = try {
+			workExecutionCoordinator.begin(
+				database = appDatabase,
+				workRequestId = id.toString(),
+				workerKind = RetentionFloorDestructivePlan.WORKER_DATA_RETENTION,
+				runAttemptCount = runAttemptCount,
+				startedAtMs = System.currentTimeMillis(),
+			)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return Result.retry()
+		}) {
+			is RetentionWorkExecutionStartResult.Open -> started.receipt
+			is RetentionWorkExecutionStartResult.Retryable -> return Result.retry()
+			RetentionWorkExecutionStartResult.SupersededByFullDeletion ->
+				return Result.success()
+		}
+		val result = when (
+			val operation = retentionConfigStore.withExactApprovedOperation { authority ->
+				doApprovedWork(authority, appDatabase, execution)
+			}
+		) {
+			is ExactApprovedRetentionOperationResult.Completed -> operation.value
+			is ExactApprovedRetentionOperationResult.Rejected -> Result.retry()
+		}
+		if (result != Result.success()) return result
+		return try {
+			when (
+				workExecutionCoordinator.complete(
+					database = appDatabase,
+					receipt = execution,
+					completedAtMs = maxOf(System.currentTimeMillis(), execution.startedAtMs),
+				)
+			) {
+				RetentionWorkExecutionCompletionResult.Completed,
+				RetentionWorkExecutionCompletionResult.SupersededByFullDeletion,
+				-> Result.success()
+				is RetentionWorkExecutionCompletionResult.Retryable -> Result.retry()
+			}
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			Result.retry()
+		}
+	}
 
-    private suspend fun doApprovedWork(authority: ApprovedRetentionOperation): Result {
+    private suspend fun doApprovedWork(
+		authority: ApprovedRetentionOperation,
+		appDatabase: AppDatabase,
+		execution: RetentionWorkExecutionReceipt,
+	): Result {
         authority.requireIdentity()
         val config = authority.configuration
 		val years = config.dataRetentionYears
@@ -84,50 +144,60 @@ class DataRetentionWorker @AssistedInject constructor(
 			is TrackingStartupResult.Blocked -> return Result.success()
 		}
 		val startupGeneration = trackingStartupGate.currentGeneration
-		val appDatabase = try {
-			appDatabaseProvider.get()
+		val pendingOperation = when (val lookup = try {
+			retentionFloorSettlement.pendingOperation(appDatabase, execution)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
 			return Result.retry()
+		}) {
+			is RetentionFloorOperationLookupResult.Available -> lookup.operation
+			is RetentionFloorOperationLookupResult.IncompatibleExecutor -> return Result.retry()
+			is RetentionFloorOperationLookupResult.ExecutionOwned -> return Result.retry()
 		}
-		val workExecutionId = id.toString()
-		val pendingOperation = try {
-			retentionFloorSettlement.pendingOperation(
-				appDatabase,
-				workExecutionId,
-				// Retries keep the same WorkRequest id and a positive attempt count. A later
-				// periodic execution starts at zero only after WorkManager accepted success.
-				resumeCompletedExecution = runAttemptCount > 0,
-			)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (_: Exception) {
-			return Result.retry()
-		}
-		if ((!config.autoCleanupEnabled || years == 0) && pendingOperation == null) {
+		if (
+			(!config.autoCleanupEnabled || years == 0) &&
+			pendingOperation == null &&
+			execution.destructivePlan == null
+		) {
 			return Result.success()
 		}
-		val requestedAtMs = pendingOperation?.requestedAtMs ?: System.currentTimeMillis()
-		val requestedFloor = pendingOperation?.requestedRetainedFromMs
-			?: computeCutoffMillis(years, requestedAtMs).coerceAtLeast(0L)
-		val destructivePlan = pendingOperation?.destructivePlan ?: RetentionFloorDestructivePlan(
-			workerKind = RetentionFloorDestructivePlan.WORKER_DATA_RETENTION,
-			requestedAtMs = requestedAtMs,
-			requestedRetainedFromMs = requestedFloor,
-			rawRetentionCutoffMs = requestedFloor,
-			sourceEventRetentionCutoffMs = requestedFloor,
-			wifiCellRetentionCutoffMs = requestedFloor,
-			tripRetentionCutoffMs = requestedFloor,
-			dailySummaryRetentionCutoffDay = null,
-			explorationRetentionCutoffMs = null,
-			operationalRetentionCutoffMs = null,
-		)
+		val requestedAtMs = pendingOperation?.requestedAtMs
+			?: execution.destructivePlan?.requestedAtMs
+			?: execution.startedAtMs
+		val proposedPlan = pendingOperation?.destructivePlan
+			?: execution.destructivePlan
+			?: computeCutoffMillis(years, requestedAtMs).coerceAtLeast(0L).let { floor ->
+				RetentionFloorDestructivePlan(
+					workerKind = RetentionFloorDestructivePlan.WORKER_DATA_RETENTION,
+					requestedAtMs = requestedAtMs,
+					requestedRetainedFromMs = floor,
+					rawRetentionCutoffMs = floor,
+					sourceEventRetentionCutoffMs = floor,
+					wifiCellRetentionCutoffMs = floor,
+					tripRetentionCutoffMs = floor,
+					dailySummaryRetentionCutoffDay = null,
+					explorationRetentionCutoffMs = null,
+					operationalRetentionCutoffMs = null,
+				)
+			}
+		val destructivePlan = when (
+			val attached = workExecutionCoordinator.attachPlan(
+				database = appDatabase,
+				receipt = execution,
+				plan = proposedPlan,
+			)
+		) {
+			is RetentionWorkExecutionPlanResult.Attached ->
+				requireNotNull(attached.receipt.destructivePlan)
+			is RetentionWorkExecutionPlanResult.Retryable -> return Result.retry()
+		}
+		val requestedFloor = requireNotNull(destructivePlan.requestedRetainedFromMs)
 		val requestedOperationId = pendingOperation?.operationId
 			?: authority.retentionFloorOperationId(
 				requestedFloor,
 				requestedAtMs,
-				workExecutionId,
+				execution.executionId,
 			)
         return try {
 			requireReadyGeneration(startupGeneration)
@@ -144,7 +214,8 @@ class DataRetentionWorker @AssistedInject constructor(
 				requestedRetainedFromMs = requestedFloor,
 				operationId = requestedOperationId,
 				updatedAtMs = destructivePlan.requestedAtMs,
-				workExecutionId = pendingOperation?.workExecutionId ?: workExecutionId,
+				workExecutionId =
+					pendingOperation?.workExecutionId ?: execution.executionId,
 				destructivePlan = destructivePlan,
 				verifyApprovedOperation = { authority.requireIdentity() },
 			)) {
@@ -158,10 +229,7 @@ class DataRetentionWorker @AssistedInject constructor(
 			val retainedFromMs = requireNotNull(lifecycle.retainedFromMs) {
 				"Captured radio retention requires a durable retained-from floor"
 			}
-			val operationTimeMs = maxOf(
-				settlement.requestedAtMs,
-				retainedFromMs,
-			)
+			val operationTimeMs = settlement.sourceMaintenanceAtMs
 			if (settlement.sourceMaintenanceCompleted) {
 				return completeSettlement(
 					appDatabase,

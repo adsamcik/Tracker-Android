@@ -19,11 +19,18 @@ import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementFailure
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlement
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementCompletionResult
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementResult
+import com.adsamcik.tracker.app.maintenance.RetentionWorkExecutionCoordinator
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionBlockedReason
 import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
 import com.adsamcik.tracker.shared.base.database.RoomTruncateImportedActivityRetention
 import com.adsamcik.tracker.shared.base.database.RetentionFloorSettlementOperation
+import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
+import com.adsamcik.tracker.shared.base.database.RetentionFloorOperationLookupResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionCompletionResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionPlanResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionReceipt
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionStartResult
 import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionResult
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
@@ -63,6 +70,8 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.firstArg
 import io.mockk.mockk
+import io.mockk.secondArg
+import io.mockk.thirdArg
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -111,6 +120,9 @@ class DataRetentionWorkerTest {
 		coEvery { run(any(), any(), any()) } returns
 			PeriodicAmbientRetentionResult.Complete
 	}
+	private val workExecutionCoordinator = workExecutionCoordinator(
+		RetentionFloorDestructivePlan.WORKER_DATA_RETENTION,
+	)
 
     @Before
     fun setUp() {
@@ -147,6 +159,7 @@ class DataRetentionWorkerTest {
 						wifiCapturedRetentionService,
 						retentionFloorSettlement(),
 						periodicAmbientRetentionMaintenance,
+						workExecutionCoordinator,
 					)
                 }
             })
@@ -164,7 +177,8 @@ class DataRetentionWorkerTest {
 	@Test
 	fun `committed floor provider debt keeps durable worker retry ownership`() = runTest {
 		val settlement = mockk<RetentionFloorSettlement> {
-			coEvery { pendingOperation(any(), any(), any()) } returns null
+			coEvery { pendingOperation(any(), any()) } returns
+				RetentionFloorOperationLookupResult.Available(null)
 			coEvery {
 				settle(
 					database = any(),
@@ -213,7 +227,8 @@ class DataRetentionWorkerTest {
 				.CollectedDataDeletionOperationEntity.PHASE_RETENTION_PREPARED,
 		)
 		val settlement = mockk<RetentionFloorSettlement> {
-			coEvery { pendingOperation(mockDatabase, any(), any()) } returns pending
+			coEvery { pendingOperation(mockDatabase, any()) } returns
+				RetentionFloorOperationLookupResult.Available(pending)
 			coEvery {
 				settle(
 					database = mockDatabase,
@@ -286,7 +301,8 @@ class DataRetentionWorkerTest {
 				sourceMaintenanceCompleted = true,
 			)
 			val settlement = mockk<RetentionFloorSettlement> {
-				coEvery { pendingOperation(mockDatabase, any(), any()) } returns pending
+				coEvery { pendingOperation(mockDatabase, any()) } returns
+					RetentionFloorOperationLookupResult.Available(pending)
 				coEvery {
 					settle(
 						database = any(),
@@ -412,6 +428,7 @@ class DataRetentionWorkerTest {
 						wifiRetention,
 						retentionFloorSettlement(),
 						periodicAmbientRetentionMaintenance,
+						workExecutionCoordinator,
 					)
 				})
 				.build() as DataRetentionWorker
@@ -914,12 +931,14 @@ class DataRetentionWorkerTest {
 					wifiRetention,
 					retentionFloorSettlement,
 					ambientRetention,
+					workExecutionCoordinator,
 				)
 			})
 			.build() as DataRetentionWorker
 
 	private fun retentionFloorSettlement(): RetentionFloorSettlement = mockk {
-		coEvery { pendingOperation(any(), any(), any()) } returns null
+		coEvery { pendingOperation(any(), any()) } returns
+			RetentionFloorOperationLookupResult.Available(null)
 		coEvery {
 			settle(
 				database = any(),
@@ -948,6 +967,7 @@ class DataRetentionWorkerTest {
 				destructivePlan = arg(8),
 			)
 		}
+
 		coEvery {
 			complete(
 				database = any(),
@@ -958,6 +978,38 @@ class DataRetentionWorkerTest {
 				verifyApprovedOperation = any(),
 			)
 		} returns RetentionFloorSettlementCompletionResult.Completed
+	}
+
+	private fun workExecutionCoordinator(
+		workerKind: String,
+	): RetentionWorkExecutionCoordinator = mockk {
+		coEvery { begin(any(), any(), any(), any(), any()) } coAnswers {
+			val startedAtMs = invocation.args[4] as Long
+			RetentionWorkExecutionStartResult.Open(
+				RetentionWorkExecutionReceipt(
+					executionId = "test-execution:g1",
+					workRequestId = invocation.args[1] as String,
+					executionGeneration = 1L,
+					workerKind = workerKind,
+					startedAtMs = startedAtMs,
+					state = "OPEN",
+					destructivePlan = null,
+					updatedAtMs = startedAtMs,
+				),
+			)
+		}
+		coEvery { attachPlan(any(), any(), any()) } coAnswers {
+			val receipt = secondArg<RetentionWorkExecutionReceipt>()
+			val plan = thirdArg<RetentionFloorDestructivePlan>()
+			RetentionWorkExecutionPlanResult.Attached(
+				receipt.copy(
+					destructivePlan = plan,
+					updatedAtMs = maxOf(receipt.updatedAtMs, plan.requestedAtMs),
+				),
+			)
+		}
+		coEvery { complete(any(), any(), any()) } returns
+			RetentionWorkExecutionCompletionResult.Completed
 	}
 
 	private fun enabledRetentionStore(): RetentionConfigStore = retentionStore(

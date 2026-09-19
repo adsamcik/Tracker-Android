@@ -13,6 +13,12 @@ import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.maintenance.DataRetentionWorker
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableIntegrity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
+import com.adsamcik.tracker.shared.base.database.RetentionFloorOperationLookupResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionCompletionResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionPlanResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionReceipt
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionStartResult
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityRequest
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityResult
 import com.adsamcik.tracker.shared.base.database.ImportedActivityProductEvaluation
@@ -67,7 +73,9 @@ import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.secondArg
 import io.mockk.slot
+import io.mockk.thirdArg
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -340,6 +348,7 @@ class ActivityRetentionWorkerRobolectricTest {
 		val lane = mockk<StepsSessionFactProjectionLane> {
 			coEvery { drainAvailable() } returns StepsSessionFactDrainResult.Inactive
 		}
+		val workExecutionCoordinator = workExecutionCoordinator(path)
 		val factory = object : WorkerFactory() {
 			override fun createWorker(appContext: Context, workerClassName: String, parameters: WorkerParameters): ListenableWorker =
 				if (path == WorkerPath.LEGACY) DataRetentionWorker(
@@ -359,6 +368,7 @@ class ActivityRetentionWorkerRobolectricTest {
 							run(any(), any(), any())
 						} returns PeriodicAmbientRetentionResult.Complete
 					},
+					workExecutionCoordinator,
 				) else RetentionPipelineWorker(
 					appContext, parameters, store, lifecycle, Provider { db }, mockk(relaxed = true),
 					READY_GATE, Provider { lane }, Provider { imported },
@@ -376,6 +386,7 @@ class ActivityRetentionWorkerRobolectricTest {
 							run(any(), any(), any())
 						} returns PeriodicAmbientRetentionResult.Complete
 					},
+					workExecutionCoordinator,
 				)
 		}
 
@@ -387,7 +398,8 @@ class ActivityRetentionWorkerRobolectricTest {
 	}
 
 	private fun retentionFloorSettlement(): RetentionFloorSettlement = mockk {
-		coEvery { pendingOperation(any(), any(), any()) } returns null
+		coEvery { pendingOperation(any(), any()) } returns
+			RetentionFloorOperationLookupResult.Available(null)
 		coEvery {
 			settle(
 				database = any(),
@@ -434,6 +446,41 @@ class ActivityRetentionWorkerRobolectricTest {
 				verifyApprovedOperation = any(),
 			)
 		} returns RetentionFloorSettlementCompletionResult.Completed
+	}
+
+	private fun workExecutionCoordinator(path: WorkerPath): RetentionWorkExecutionCoordinator = mockk {
+		val workerKind = if (path == WorkerPath.LEGACY) {
+			RetentionFloorDestructivePlan.WORKER_DATA_RETENTION
+		} else {
+			RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE
+		}
+		coEvery { begin(any(), any(), any(), any(), any()) } coAnswers {
+			val startedAtMs = invocation.args[4] as Long
+			RetentionWorkExecutionStartResult.Open(
+				RetentionWorkExecutionReceipt(
+					executionId = "activity-retention:g1",
+					workRequestId = invocation.args[1] as String,
+					executionGeneration = 1L,
+					workerKind = workerKind,
+					startedAtMs = startedAtMs,
+					state = "OPEN",
+					destructivePlan = null,
+					updatedAtMs = startedAtMs,
+				),
+			)
+		}
+		coEvery { attachPlan(any(), any(), any()) } coAnswers {
+			val receipt = secondArg<RetentionWorkExecutionReceipt>()
+			val plan = thirdArg<RetentionFloorDestructivePlan>()
+			RetentionWorkExecutionPlanResult.Attached(
+				receipt.copy(
+					destructivePlan = plan,
+					updatedAtMs = maxOf(receipt.updatedAtMs, plan.requestedAtMs),
+				),
+			)
+		}
+		coEvery { complete(any(), any(), any()) } returns
+			RetentionWorkExecutionCompletionResult.Completed
 	}
 
 	private fun mockStorage(canonical: Boolean): MockStorage {
