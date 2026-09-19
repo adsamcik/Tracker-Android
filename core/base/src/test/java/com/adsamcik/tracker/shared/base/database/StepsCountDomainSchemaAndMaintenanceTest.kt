@@ -194,6 +194,34 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
+	fun `real Room invalidation observer for an unrelated table is ignored by Steps authority`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		val table = "source_event_wal"
+		val observer = object : InvalidationTracker.Observer(table) {
+			override fun onInvalidated(tables: Set<String>) = Unit
+		}
+		try {
+			database.invalidationTracker.addObserver(observer)
+
+			sqlite.query(
+				"SELECT name FROM sqlite_temp_master WHERE type = 'trigger' " +
+					"AND tbl_name = ? ORDER BY name",
+				arrayOf(table),
+			).use { cursor ->
+				buildList {
+					while (cursor.moveToNext()) add(cursor.getString(0))
+				}
+			} shouldBe listOf("DELETE", "INSERT", "UPDATE").map { operation ->
+				"room_table_modification_trigger_${table}_$operation"
+			}
+			StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.ValidV2
+		} finally {
+			runCatching { database.invalidationTracker.removeObserver(observer) }
+		}
+	}
+
+	@Test
 	fun `Room-looking invalidation trigger with spoofed body is incompatible`() {
 		installSchema()
 		val sqlite = database.openHelper.writableDatabase
@@ -215,7 +243,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
-	fun `Room invalidation prefix on an unrelated target is incompatible`() {
+	fun `spoofed Room invalidation prefix on an unrelated target is rejected`() {
 		installSchema()
 		val sqlite = database.openHelper.writableDatabase
 		sqlite.execSQL("CREATE TEMP TABLE unrelated_room_target (value INTEGER NOT NULL)")
@@ -226,6 +254,55 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 
 		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
 	}
+
+	@Test
+	fun `run high-water surfaces malformed null and blob service run identities without broad sweep`() =
+		runTest {
+			val wal = insertWal("raw-service-run-identity", 1L)
+			val sqlite = database.openHelper.writableDatabase
+			val corruptions = listOf(
+				"''" to ("text" to ""),
+				"NULL" to ("null" to null),
+				"X'0102'" to ("blob" to null),
+			)
+
+			for ((storedValue, expected) in corruptions) {
+				sqlite.execSQL(
+					"UPDATE source_event_wal SET service_run_id = $storedValue " +
+						"WHERE admission_ordinal = ?",
+					arrayOf(wal.admissionOrdinal),
+				)
+
+				val evidence = database.sourceEventWalDao().rawRunSourceCaptureHighWater(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					logicalTrackingId = "tracking",
+					serviceRunId = "run",
+					throughOrdinal = wal.admissionOrdinal,
+					capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+					allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
+					limit = 2,
+				).single()
+
+				evidence.storageClassSignature?.split('|')?.get(4) shouldBe expected.first
+				evidence.serviceRunId shouldBe expected.second
+				evidence.admissionOrdinal shouldBe wal.admissionOrdinal
+			}
+
+			sqlite.execSQL(
+				"UPDATE source_event_wal SET service_run_id = NULL, " +
+					"logical_tracking_id = 'unrelated-logical' WHERE admission_ordinal = ?",
+				arrayOf(wal.admissionOrdinal),
+			)
+			database.sourceEventWalDao().rawRunSourceCaptureHighWater(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				logicalTrackingId = "tracking",
+				serviceRunId = "run",
+				throughOrdinal = wal.admissionOrdinal,
+				capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+				allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
+				limit = 2,
+			) shouldBe emptyList()
+		}
 
 	@Test
 	fun `only the exact Room 2_8_4 temporary invalidation log DDL is accepted`() {

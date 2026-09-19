@@ -326,10 +326,10 @@ interface SourceEventWalDao {
 	/**
 	 * Raw bounded envelope for one run/source capture high-water.
 	 *
-	 * The globally unique service-run identity and source select the envelope. Logical-owner
-	 * mismatch, blank, or malformed storage remains visible so the caller rejects it instead of
-	 * silently filtering it away. Other invalid aggregate inputs sort before the newest eligible
-	 * row without materializing the run's complete WAL history.
+	 * Valid rows remain anchored on the exact text service-run identity and source. A malformed,
+	 * blank, or null service-run identity is also visible only when exact source, logical owner, and
+	 * capture-purpose fields associate that corrupt row with this requested domain. Other invalid
+	 * aggregate inputs sort before the newest eligible row without sweeping unrelated runs.
 	 */
 	@Query(
 		"SELECT " +
@@ -353,9 +353,16 @@ interface SourceEventWalDao {
 			"THEN authorization_purpose_eligibility_mask END " +
 			"AS authorization_purpose_eligibility_mask " +
 			"FROM source_event_wal WHERE (" +
-			"(CAST(source_kind AS INTEGER) = :sourceKind OR " +
-			"typeof(source_kind) != 'integer') AND " +
-			"CAST(service_run_id AS TEXT) = :serviceRunId) AND (" +
+			"(" +
+			"typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId AND " +
+			"(CAST(source_kind AS INTEGER) = :sourceKind OR typeof(source_kind) != 'integer')" +
+			") OR (" +
+			"(typeof(service_run_id) != 'text' OR trim(service_run_id) = '') AND " +
+			"typeof(source_kind) = 'integer' AND source_kind = :sourceKind AND " +
+			"typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId AND " +
+			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0" +
+			")) AND (" +
 			"typeof(event_id) != 'text' OR trim(event_id) = '' OR " +
 			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
 			"(typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +

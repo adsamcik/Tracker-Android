@@ -351,18 +351,22 @@ object StepsCountDomainSchema {
 		} else {
 			emptySet()
 		}
-		val roomInvalidationTriggers = authorityNamespace.triggers.mapNotNull { trigger ->
-			trigger.authenticatedRoomInvalidationTriggerOrNull()
+		if (!authorityNamespace.roomInvalidationTriggers.hasAuthenticRoomInvalidationSets(this)) {
+			return false
 		}
-		if (!roomInvalidationTriggers.hasAuthenticRoomInvalidationSets(this)) return false
+		val authorityRoomInvalidationTriggers =
+			authorityNamespace.roomInvalidationTriggers.filter { room ->
+				room.trigger.table in AUTHORITY_TABLE_NAMES
+			}
 		val expectedTriggers =
-			expectedPermanentTriggers + roomInvalidationTriggers.map(RoomInvalidationTrigger::trigger)
+			expectedPermanentTriggers +
+				authorityRoomInvalidationTriggers.map(RoomInvalidationTrigger::trigger)
 		if (!authorityNamespace.triggers.hasExactDistinctElements(expectedTriggers)) return false
 		val expectedObjects = if (requireTriggers) {
 			EXPECTED_VALID_NAMED_OBJECTS
 		} else {
 			EXPECTED_SCAFFOLD_NAMED_OBJECTS
-		} + roomInvalidationTriggers.map { room ->
+		} + authorityRoomInvalidationTriggers.map { room ->
 			SchemaNamedObject(
 				catalog = room.trigger.catalog,
 				type = "trigger",
@@ -435,7 +439,8 @@ object StepsCountDomainSchema {
 		}
 
 	private fun SupportSQLiteDatabase.authorityNamespace(): AuthorityNamespace? {
-		val triggers = authenticatedAuthorityTriggers() ?: return null
+		val triggerScan = authenticatedAuthorityTriggers() ?: return null
+		val triggers = triggerScan.authorityTriggers
 		val mainObjects = query(
 			"SELECT type, name, tbl_name FROM sqlite_master " +
 				"WHERE type != 'trigger' AND (" +
@@ -491,7 +496,11 @@ object StepsCountDomainSchema {
 				table = trigger.table,
 			)
 		}
-		return AuthorityNamespace(objects, triggers)
+		return AuthorityNamespace(
+			objects = objects,
+			triggers = triggers,
+			roomInvalidationTriggers = triggerScan.roomInvalidationTriggers,
+		)
 	}
 
 	private fun SupportSQLiteDatabase.tableColumns(table: String): List<SchemaColumn> =
@@ -598,8 +607,9 @@ object StepsCountDomainSchema {
 		}
 
 	@Suppress("ReturnCount")
-	private fun SupportSQLiteDatabase.authenticatedAuthorityTriggers(): List<SchemaTrigger>? {
-		val triggers = mutableListOf<SchemaTrigger>()
+	private fun SupportSQLiteDatabase.authenticatedAuthorityTriggers(): AuthenticatedTriggerScan? {
+		val authorityTriggers = mutableListOf<SchemaTrigger>()
+		val roomInvalidationTriggers = mutableListOf<RoomInvalidationTrigger>()
 		val catalogNames = mutableSetOf<Pair<String, String>>()
 		val expectedIdentities = mutableSetOf<String>()
 		// writable_schema can forge tbl_name, so every bounded complete definition authenticates it.
@@ -639,11 +649,25 @@ object StepsCountDomainSchema {
 				} else {
 					resolvedTarget.table
 				}
+				val trigger = SchemaTrigger(
+					catalog = catalog,
+					name = name,
+					targetCatalog = resolvedTarget.catalog,
+					table = canonicalTarget,
+					sql = sql,
+				)
+				val roomInvalidation = if (
+					name.startsWithAsciiIgnoreCase(ROOM_INVALIDATION_TRIGGER_PREFIX)
+				) {
+					trigger.authenticatedRoomInvalidationTriggerOrNull() ?: return null
+				} else {
+					null
+				}
 				if (
 					resolvedTarget.catalog == MAIN_CATALOG &&
 					canonicalTarget in AUTHORITY_TABLE_NAMES ||
 					name.startsWithAsciiIgnoreCase(AUTHORITY_TRIGGER_PREFIX) ||
-					name.startsWithAsciiIgnoreCase(ROOM_INVALIDATION_TRIGGER_PREFIX)
+					roomInvalidation != null
 				) {
 					val catalogName = catalog.mapAsciiLowercaseToUppercase() to
 						name.mapAsciiLowercaseToUppercase()
@@ -651,17 +675,14 @@ object StepsCountDomainSchema {
 					EXPECTED_TRIGGER_NAMES.singleOrNull(name::equalsAsciiIgnoreCase)?.let {
 						if (!expectedIdentities.add(it)) return null
 					}
-					triggers += SchemaTrigger(
-						catalog = catalog,
-						name = name,
-						targetCatalog = resolvedTarget.catalog,
-						table = canonicalTarget,
-						sql = sql,
-					)
+					roomInvalidation?.let(roomInvalidationTriggers::add)
+					if (roomInvalidation == null || canonicalTarget in AUTHORITY_TABLE_NAMES) {
+						authorityTriggers += trigger
+					}
 				}
 			}
 		}
-		return triggers
+		return AuthenticatedTriggerScan(authorityTriggers, roomInvalidationTriggers)
 	}
 
 	private fun SupportSQLiteDatabase.resolveTriggerTarget(
@@ -701,8 +722,7 @@ object StepsCountDomainSchema {
 	private fun SchemaTrigger.authenticatedRoomInvalidationTriggerOrNull():
 		RoomInvalidationTrigger? {
 		if (catalog != TEMP_CATALOG ||
-			targetCatalog != MAIN_CATALOG ||
-			table !in AUTHORITY_TABLE_NAMES
+			targetCatalog != MAIN_CATALOG
 		) {
 			return null
 		}
@@ -1398,6 +1418,12 @@ object StepsCountDomainSchema {
 	private data class AuthorityNamespace(
 		val objects: List<SchemaNamedObject>,
 		val triggers: List<SchemaTrigger>,
+		val roomInvalidationTriggers: List<RoomInvalidationTrigger>,
+	)
+
+	private data class AuthenticatedTriggerScan(
+		val authorityTriggers: List<SchemaTrigger>,
+		val roomInvalidationTriggers: List<RoomInvalidationTrigger>,
 	)
 
 	private data class QualifiedSqlIdentifier(

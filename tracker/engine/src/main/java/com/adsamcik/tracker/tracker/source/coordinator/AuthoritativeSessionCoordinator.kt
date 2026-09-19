@@ -201,6 +201,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	}
 	private sealed interface RunRetirementReplay {
 		data class Acknowledged(val acknowledgement: SourceStopAck) : RunRetirementReplay
+		data object CleanupOnlyCompleted : RunRetirementReplay
 		data object AuthenticationBlocked : RunRetirementReplay
 		data object None : RunRetirementReplay
 	}
@@ -214,6 +215,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		data class Authenticated(
 			val acknowledgement: SourceStopAck,
 		) : RequestedStepsRetirementRecovery
+		data object CleanupOnlyCompleted : RequestedStepsRetirementRecovery
 		data object Absent : RequestedStepsRetirementRecovery
 		data object Blocked : RequestedStepsRetirementRecovery
 	}
@@ -5029,6 +5031,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	): SourceStopAck? {
 		when (val replay = replayedRetirementAcknowledgement(target, cutoff)) {
 			is RunRetirementReplay.Acknowledged -> return replay.acknowledgement
+			RunRetirementReplay.CleanupOnlyCompleted -> return null
 			RunRetirementReplay.AuthenticationBlocked ->
 				return blockedRequestedRetirementAcknowledgement(target, cutoff)
 			RunRetirementReplay.None -> Unit
@@ -5061,8 +5064,15 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				is OwnedSourceShutdown.Released -> {
 					val acknowledgement = shutdown.stopAck
 					if (acknowledgement == null) {
+						val provider = shutdown.provider ?: owned.provider
+						if (target.source == SourceKind.STEPS) {
+							if (provider == null || provider != owned.provider) {
+								return blockedRequestedRetirementAcknowledgement(target, cutoff)
+							}
+							persistRunCleanupOnlyReceipt(target, owned, provider)
+						}
 						cleanupOnlyReleased = true
-						(shutdown.provider ?: owned.provider)?.let(cleanupReleasedProviders::add)
+						provider?.let(cleanupReleasedProviders::add)
 						continue
 					}
 					persistRunRetirementReceipt(target, owned, acknowledgement)
@@ -5140,6 +5150,16 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			}
 			val ownership = owned.ownershipKey() ?: continue
 			val receipt = receiptsByOwnership[ownership] ?: continue
+			if (receipt.state == SourceRunRetirementEntity.STATE_CLEANUP_ONLY_COMPLETED) {
+				if (target.source != SourceKind.STEPS) {
+					return RunRetirementReplay.AuthenticationBlocked
+				}
+				return if (authenticateCleanupOnlyStepsRetirement(target, owned, receipt)) {
+					RunRetirementReplay.CleanupOnlyCompleted
+				} else {
+					RunRetirementReplay.AuthenticationBlocked
+				}
+			}
 			if (receipt.state == SourceRunRetirementEntity.STATE_REQUESTED) {
 				if (target.source != SourceKind.STEPS) return RunRetirementReplay.None
 				return when (val recovery = recoverRequestedStepsRetirement(
@@ -5149,6 +5169,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				)) {
 					is RequestedStepsRetirementRecovery.Authenticated ->
 						RunRetirementReplay.Acknowledged(recovery.acknowledgement)
+					RequestedStepsRetirementRecovery.CleanupOnlyCompleted ->
+						RunRetirementReplay.CleanupOnlyCompleted
 					RequestedStepsRetirementRecovery.Absent -> RunRetirementReplay.None
 					RequestedStepsRetirementRecovery.Blocked ->
 						RunRetirementReplay.AuthenticationBlocked
@@ -5162,6 +5184,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				)) {
 					is RequestedStepsRetirementRecovery.Authenticated ->
 						RunRetirementReplay.Acknowledged(authentication.acknowledgement)
+					RequestedStepsRetirementRecovery.CleanupOnlyCompleted ->
+						RunRetirementReplay.AuthenticationBlocked
 					RequestedStepsRetirementRecovery.Absent,
 					RequestedStepsRetirementRecovery.Blocked,
 					-> RunRetirementReplay.AuthenticationBlocked
@@ -5174,6 +5198,117 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				?: RunRetirementReplay.AuthenticationBlocked
 		}
 		return RunRetirementReplay.None
+	}
+
+	private suspend fun persistRunCleanupOnlyReceipt(
+		target: RunRetirementTarget,
+		owned: RunRetirementClaim,
+		provider: com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey,
+	) = withContext(NonCancellable) {
+		check(target.source == SourceKind.STEPS)
+		check(owned.provider == provider)
+		database.withTransaction {
+			val current = database.sourceSessionDao().rawRunRetirement(
+				owned.runtimeClaim.logicalTrackingId,
+				owned.runtimeClaim.serviceRunId,
+				target.source.stableCode,
+				provider.sourceInstanceId.value,
+				provider.registrationGeneration,
+			).singleOrNull()?.validatedOrNull()
+				?: error("Cleanup-only retirement intent is missing or malformed")
+			check(current.ownershipKey() == owned.ownershipKey())
+			check(
+				current.state in setOf(
+					SourceRunRetirementEntity.STATE_REQUESTED,
+					SourceRunRetirementEntity.STATE_CLEANUP_ONLY_COMPLETED,
+				),
+			)
+			check(authenticateCleanupOnlyStepsRetirementInTransaction(target, owned, current))
+			if (current.state == SourceRunRetirementEntity.STATE_REQUESTED) {
+				check(database.sourceSessionDao().updateRunRetirement(
+					current.copy(
+						state = SourceRunRetirementEntity.STATE_CLEANUP_ONLY_COMPLETED,
+						updatedAtMs = maxOf(
+							current.updatedAtMs,
+							System.currentTimeMillis().coerceAtLeast(0L),
+						),
+					),
+				) == 1)
+			}
+		}
+	}
+
+	private suspend fun authenticateCleanupOnlyStepsRetirement(
+		target: RunRetirementTarget,
+		owned: RunRetirementClaim,
+		receipt: SourceRunRetirementEntity,
+	): Boolean = database.withTransaction {
+		val current = database.sourceSessionDao().rawRunRetirement(
+			receipt.logicalTrackingId,
+			receipt.serviceRunId,
+			receipt.sourceKind,
+			receipt.sourceInstanceId,
+			receipt.registrationGeneration,
+		).singleOrNull()?.validatedOrNull() ?: return@withTransaction false
+		current == receipt &&
+			authenticateCleanupOnlyStepsRetirementInTransaction(target, owned, current)
+	}
+
+	@Suppress("ComplexCondition")
+	private suspend fun authenticateCleanupOnlyStepsRetirementInTransaction(
+		target: RunRetirementTarget,
+		owned: RunRetirementClaim,
+		receipt: SourceRunRetirementEntity,
+	): Boolean {
+		val provider = owned.provider ?: return false
+		if (
+			target.source != SourceKind.STEPS ||
+			receipt.state !in setOf(
+				SourceRunRetirementEntity.STATE_REQUESTED,
+				SourceRunRetirementEntity.STATE_CLEANUP_ONLY_COMPLETED,
+			) ||
+			receipt.ownershipKey() != owned.ownershipKey() ||
+			target.serviceRunId != receipt.serviceRunId ||
+			provider.sourceInstanceId.value != receipt.sourceInstanceId ||
+			provider.registrationGeneration != receipt.registrationGeneration ||
+			authenticateRequestedStepsRetirementAction(target, owned, receipt)
+				?.isProvisionalCleanupOwner() != true
+		) {
+			return false
+		}
+		return hasAuthenticatedCleanupOnlyStepsResolution(receipt)
+	}
+
+	private suspend fun hasAuthenticatedCleanupOnlyStepsResolution(
+		receipt: SourceRunRetirementEntity,
+	): Boolean {
+		val registration = database.sourceBrokerDao().registration(
+			SourceKind.STEPS.stableCode,
+			receipt.registrationGeneration,
+		) ?: return false
+		if (
+			registration.sourceInstanceId != receipt.sourceInstanceId ||
+			registration.status !=
+			com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity.STATUS_RETIRED ||
+			registration.retiredAtMs == null ||
+			registration.retiredElapsedRealtimeNanos == null ||
+			registration.failureCode.isNullOrBlank() ||
+			!com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
+				.isCanonicalOwnerScope(SourceKind.STEPS.stableCode, registration.ownerScope)
+		) {
+			return false
+		}
+		if (
+			StepsCountDomainStore(database).authenticateTerminalSessionCompleteness(
+				logicalTrackingId = receipt.logicalTrackingId,
+				serviceRunId = receipt.serviceRunId,
+				sourceInstanceId = receipt.sourceInstanceId,
+				registrationGeneration = receipt.registrationGeneration,
+			) != StepsTerminalCompletenessAuthentication.Absent
+		) {
+			return false
+		}
+		return !hasTerminalOrMalformedStepsCheckpoint(receipt)
 	}
 
 	private fun RunRetirementClaim.ownershipKey(): RunRetirementOwnershipKey? {
@@ -5236,6 +5371,22 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		}
 		val action = authenticateRequestedStepsRetirementAction(target, owned, current)
 			?: return@withTransaction RequestedStepsRetirementRecovery.Blocked
+		if (
+			current.state == SourceRunRetirementEntity.STATE_REQUESTED &&
+			action.isProvisionalCleanupOwner() &&
+			hasAuthenticatedCleanupOnlyStepsResolution(current)
+		) {
+			check(dao.updateRunRetirement(
+				current.copy(
+					state = SourceRunRetirementEntity.STATE_CLEANUP_ONLY_COMPLETED,
+					updatedAtMs = maxOf(
+						current.updatedAtMs,
+						System.currentTimeMillis().coerceAtLeast(0L),
+					),
+				),
+			) == 1)
+			return@withTransaction RequestedStepsRetirementRecovery.CleanupOnlyCompleted
+		}
 		val authentication = StepsCountDomainStore(database).authenticateTerminalSessionCompleteness(
 			logicalTrackingId = current.logicalTrackingId,
 			serviceRunId = current.serviceRunId,
@@ -5364,6 +5515,15 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		}
 		RequestedStepsRetirementRecovery.Authenticated(acknowledgement)
 	}
+
+	private fun LifecycleDesiredActionEntity.isProvisionalCleanupOwner(): Boolean =
+		desiredState == ACTION_DESIRED_STARTED &&
+			(
+				status == LifecycleActionStatus.APPLYING.name ||
+					(status == LifecycleActionStatus.CLEANUP_REQUIRED.name &&
+						failureCode == SOURCE_RUNTIME_CLEANUP_PENDING &&
+						retryTrigger == RUNTIME_CLEANUP_RETRY)
+			)
 
 	@Suppress("ComplexCondition", "LongMethod", "ReturnCount")
 	private suspend fun authenticateRequestedStepsRetirementAction(
@@ -6550,7 +6710,14 @@ private fun SourceRunRetirementEntity.withRetirementAcknowledgement(
 }
 
 private fun SourceRunRetirementEntity.toStopAckOrNullForReplay(): SourceStopAck? {
-	if (state == SourceRunRetirementEntity.STATE_REQUESTED) return null
+	if (
+		state in setOf(
+			SourceRunRetirementEntity.STATE_REQUESTED,
+			SourceRunRetirementEntity.STATE_CLEANUP_ONLY_COMPLETED,
+		)
+	) {
+		return null
+	}
 	return SourceStopAck(
 		source = SourceKind.entries.single { it.stableCode == sourceKind },
 		sourceInstanceId = SourceInstanceId(sourceInstanceId),

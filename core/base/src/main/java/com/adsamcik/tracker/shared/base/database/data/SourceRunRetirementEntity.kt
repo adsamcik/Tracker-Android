@@ -9,6 +9,8 @@ import androidx.room.Entity
  * The provider operation may complete before the coordinator coroutine resumes. Persisting the
  * requested identity first and the full acknowledgement immediately after the physical boundary
  * lets a replacement process distinguish an acknowledged retirement from an interrupted partial.
+ * A cleanup-only completion is terminal for the exact provisional provider generation but carries
+ * no product-completeness acknowledgement.
  */
 @Entity(
 	tableName = "source_run_retirement",
@@ -68,7 +70,7 @@ data class SourceRunRetirementEntity(
 			appDrainComplete,
 			stopStatus,
 		)
-		if (state == STATE_REQUESTED) {
+		if (state in PAYLOAD_FREE_STATES) {
 			require(
 				(listOf(
 					appliedRevision,
@@ -78,6 +80,12 @@ data class SourceRunRetirementEntity(
 					unresolvedSequenceEnd,
 				) + requiredAcknowledgement).all { it == null },
 			)
+			require(
+				state != STATE_CLEANUP_ONLY_COMPLETED ||
+					sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS,
+			) {
+				"Cleanup-only retirement receipts are reserved for Steps provisional cleanup"
+			}
 		} else {
 			require(requiredAcknowledgement.all { it != null })
 			require(
@@ -262,7 +270,7 @@ data class SourceRunRetirementEntity(
 				appDrainComplete,
 				stopStatus,
 			)
-			if (validatedState == STATE_REQUESTED) {
+			if (validatedState in PAYLOAD_FREE_STATES) {
 				val payload = listOf(
 					appliedRevision,
 					lastSourceSequence,
@@ -271,6 +279,12 @@ data class SourceRunRetirementEntity(
 					unresolvedSequenceEnd,
 				) + requiredAcknowledgement
 				if (payload.any { it != null }) return null
+				if (
+					validatedState == STATE_CLEANUP_ONLY_COMPLETED &&
+					validatedSourceKind != SourceDestinationOwnerEntity.SOURCE_STEPS
+				) {
+					return null
+				}
 			} else {
 				if (requiredAcknowledgement.any { it == null }) return null
 				if (
@@ -378,9 +392,14 @@ data class SourceRunRetirementEntity(
 
 	companion object {
 		const val STATE_REQUESTED = "REQUESTED"
+		const val STATE_CLEANUP_ONLY_COMPLETED = "CLEANUP_ONLY_COMPLETED"
 		const val STATE_ACKNOWLEDGED = "ACKNOWLEDGED"
 		const val STATE_INTERRUPTED = "INTERRUPTED"
 		private const val STOP_STATUS_PROCESS_RESTARTED = "PROCESS_RESTARTED"
-		val STATES = setOf(STATE_REQUESTED, STATE_ACKNOWLEDGED, STATE_INTERRUPTED)
+		private val PAYLOAD_FREE_STATES = setOf(
+			STATE_REQUESTED,
+			STATE_CLEANUP_ONLY_COMPLETED,
+		)
+		val STATES = PAYLOAD_FREE_STATES + setOf(STATE_ACKNOWLEDGED, STATE_INTERRUPTED)
 	}
 }

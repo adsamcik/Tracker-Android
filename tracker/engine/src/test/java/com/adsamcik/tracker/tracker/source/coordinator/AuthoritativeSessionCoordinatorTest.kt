@@ -1932,6 +1932,168 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `cleanup-only completion is durable before a later coordinator crash`() = runTest {
+		val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash(
+			"cleanup-only-crash",
+		)
+
+		receipt.state shouldBe SourceRunRetirementEntity.STATE_CLEANUP_ONLY_COMPLETED
+		receipt.acknowledgementFieldsForTest().all { value -> value == null } shouldBe true
+		database.sourceSessionDao().completenessForServiceRun(
+			started.logicalTrackingId,
+			started.serviceRunId,
+		) shouldBe emptyList()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.STOPPING.name
+	}
+
+	@Test
+	fun `process death after physical cleanup recovers a null acknowledgement closure`() = runTest {
+		runtime.startReturnsRetryableFailure = true
+		runtime.cleanupOnlyShutdown = true
+		runtime.closeFailure = IllegalStateException("provider still resident")
+		val failed = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "cleanup-only-physical-crash-logical",
+				serviceRunId = "cleanup-only-physical-crash-run",
+			),
+		).shouldBeInstanceOf<SessionStartResult.Failed>()
+		runtime.cleanupOnlyReady = true
+		runtime.cancelAfterCleanupOnlyShutdown = true
+		runtime.closeFailure = null
+
+		shouldThrow<CancellationException> {
+			subject.stop(
+				SessionStopRequest(
+					"cleanup-only-physical-crash-stop",
+					"USER_STOP",
+					2_000L,
+					2_000_000L,
+					"boot-1",
+					perSourceTimeoutMs = 100L,
+				),
+			)
+		}
+		database.sourceSessionDao().runRetirements(
+			failed.logicalTrackingId,
+			failed.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single().state shouldBe SourceRunRetirementEntity.STATE_REQUESTED
+
+		replaceRuntime(FakeStepsRuntime(database))
+		replaceEventCoordinator(completedEventCoordinator(0L))
+		val stopped = subject.stop(
+			SessionStopRequest(
+				"cleanup-only-physical-crash-replay",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		stopped.acknowledgements shouldBe emptyList()
+		runtime.shutdownClaims shouldBe emptyList()
+		sourceProductDrainRouter.requests shouldBe emptyList()
+		database.sourceSessionDao().completenessForServiceRun(
+			failed.logicalTrackingId,
+			failed.serviceRunId,
+		) shouldBe emptyList()
+		database.sourceSessionDao().runRetirements(
+			failed.logicalTrackingId,
+			failed.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single().state shouldBe SourceRunRetirementEntity.STATE_CLEANUP_ONLY_COMPLETED
+	}
+
+	@Test
+	fun `cleanup-only terminal receipt replays a null acknowledgement without product evidence`() =
+		runTest {
+			val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash(
+				"cleanup-only-replay",
+			)
+			replaceRuntime(FakeStepsRuntime(database))
+			replaceEventCoordinator(completedEventCoordinator(0L))
+
+			val stopped = subject.stop(
+				SessionStopRequest(
+					"cleanup-only-replay-retry",
+					"USER_STOP",
+					2_500L,
+					2_500_000L,
+					"boot-1",
+					perSourceTimeoutMs = 100L,
+				),
+			).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+			stopped.acknowledgements shouldBe emptyList()
+			runtime.shutdownClaims shouldBe emptyList()
+			sourceProductDrainRouter.requests shouldBe emptyList()
+			database.sourceSessionDao().completenessForServiceRun(
+				started.logicalTrackingId,
+				started.serviceRunId,
+			) shouldBe emptyList()
+			database.sourceSessionDao().runRetirements(
+				started.logicalTrackingId,
+				started.serviceRunId,
+				SourceKind.STEPS.stableCode,
+			).single() shouldBe receipt
+			database.sourceSessionDao().session(started.logicalTrackingId)?.failureCode shouldBe null
+		}
+
+	@Test
+	fun `malformed cleanup-only receipt cannot authorize replay`() = runTest {
+		val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash(
+			"cleanup-only-malformed",
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_run_retirement SET stop_status = 'COMPLETE' " +
+				"WHERE logical_tracking_id = ? AND service_run_id = ? AND source_kind = ?",
+			arrayOf(
+				started.logicalTrackingId,
+				started.serviceRunId,
+				SourceKind.STEPS.stableCode,
+			),
+		)
+		replaceRuntime(FakeStepsRuntime(database))
+		replaceEventCoordinator(completedEventCoordinator(0L))
+
+		subject.stop(
+			SessionStopRequest(
+				"cleanup-only-malformed-retry",
+				"USER_STOP",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+
+		database.sourceSessionDao().rawRunRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+			2,
+		).single().validatedOrNull() shouldBe null
+		runtime.shutdownClaims shouldBe emptyList()
+		database.sourceSessionDao().completenessForServiceRun(
+			started.logicalTrackingId,
+			started.serviceRunId,
+		) shouldBe emptyList()
+
+		database.sourceSessionDao().updateRunRetirement(receipt) shouldBe 1
+		subject.stop(
+			SessionStopRequest(
+				"cleanup-only-malformed-restored",
+				"USER_STOP",
+				2_600L,
+				2_600_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+	}
+
+	@Test
 	fun `providerless exact claim closes as complete not registered after all runtimes reject ownership`() = runTest {
 		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
 			StepsCountDomainSchemaState.ValidV2
@@ -5125,6 +5287,45 @@ class AuthoritativeSessionCoordinatorTest {
 		return started to receipt
 	}
 
+	private suspend fun prepareCleanupOnlyReceiptAfterCoordinatorCrash(
+		identity: String,
+	): Pair<SessionStartResult.Failed, SourceRunRetirementEntity> {
+		runtime.startReturnsRetryableFailure = true
+		runtime.cleanupOnlyShutdown = true
+		runtime.closeFailure = IllegalStateException("provider still resident")
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "$identity-logical",
+				serviceRunId = "$identity-run",
+			),
+		).shouldBeInstanceOf<SessionStartResult.Failed>()
+		runtime.cleanupOnlyReady = true
+		runtime.closeFailure = null
+		val crashingCoordinator = mockk<TrackingCoordinator>()
+		coEvery { crashingCoordinator.drainAvailable(any(), any()) } throws
+			CancellationException("simulated crash after cleanup-only completion")
+		replaceEventCoordinator(crashingCoordinator)
+
+		shouldThrow<CancellationException> {
+			subject.stop(
+				SessionStopRequest(
+					"$identity-stop",
+					"USER_STOP",
+					2_000L,
+					2_000_000L,
+					"boot-1",
+					perSourceTimeoutMs = 100L,
+				),
+			)
+		}
+		val receipt = database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single()
+		return started to receipt
+	}
+
 	private suspend fun prepareLocationReceiptWithCleanup(
 		identity: String,
 	): Pair<SessionStartResult.Started, SourceRunRetirementEntity> {
@@ -5194,6 +5395,21 @@ class AuthoritativeSessionCoordinatorTest {
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
 		)
+
+	private fun SourceRunRetirementEntity.acknowledgementFieldsForTest(): List<Any?> = listOf(
+		appliedRevision,
+		callbackEntryBarrierSequence,
+		lastSourceSequence,
+		lastAdmissionOrdinal,
+		failedAdmissionCount,
+		unresolvedSequenceStart,
+		unresolvedSequenceEnd,
+		registrationRemovalOutcome,
+		providerFlushOutcome,
+		providerCoverage,
+		appDrainComplete,
+		stopStatus,
+	)
 
 	private suspend fun assertTerminalStepsRecoveryBlocked(
 		started: SessionStartResult.Started,
@@ -6104,6 +6320,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 	var retainProviderOnIncompleteShutdown = false
 	var shutdownDelayMs = 0L
 	var cancelAfterPhysicalShutdown = false
+	var cancelAfterCleanupOnlyShutdown = false
 	var beforePhysicalShutdownCancellation: suspend (SourceStopAck) -> Unit = {}
 	var closeFailure: Throwable? = null
 	var cleanupOnlyShutdown = false
@@ -6204,9 +6421,13 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 			if (!cleanupOnlyReady) {
 				return OwnedSourceShutdown.Incomplete(provider = null, stopAck = null)
 			}
+			persistCleanupOnlyProviderRetirement(cutoff)
 			active = false
 			closed = true
 			ownedClaim = null
+			if (cancelAfterCleanupOnlyShutdown) {
+				throw CancellationException("simulated process death after cleanup-only retirement")
+			}
 			return OwnedSourceShutdown.Released(provider = null, stopAck = null)
 		}
 		val acknowledgement = stopAck()
@@ -6228,6 +6449,37 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 			OwnedSourceShutdown.Incomplete(
 				provider = null,
 				stopAck = acknowledgement,
+			)
+		}
+	}
+
+	private suspend fun persistCleanupOnlyProviderRetirement(cutoff: SessionCutoff) {
+		val existing = database.sourceBrokerDao().registration(
+			SourceKind.STEPS.stableCode,
+			registrationGeneration,
+		)
+		if (existing == null) {
+			database.sourceBrokerDao().insertRegistration(
+				ProviderRegistrationGenerationEntity(
+					sourceKind = SourceKind.STEPS.stableCode,
+					registrationGeneration = registrationGeneration,
+					sourceInstanceId = "steps-instance",
+					ownerScope = "source-broker:${SourceKind.STEPS.stableCode}",
+					clockDomainId = "boot-1",
+					physicalConfigurationFingerprint = "failed-start-cleanup",
+					collectedDataEpoch = 0L,
+					providerResidency =
+						ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+					providerProcessIncarnationId = "test-process",
+					status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+					reservedAtMs = 1_000L,
+					reservedElapsedRealtimeNanos = 1_000_000L,
+					acceptedAtMs = 1_000L,
+					acceptedElapsedRealtimeNanos = 1_000_000L,
+					retiredAtMs = cutoff.wallTimeMs,
+					retiredElapsedRealtimeNanos = cutoff.elapsedRealtimeNanos,
+					failureCode = "FAILED_START_CLEANUP",
+				),
 			)
 		}
 	}

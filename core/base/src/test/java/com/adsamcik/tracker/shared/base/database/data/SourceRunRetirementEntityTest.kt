@@ -30,6 +30,22 @@ class SourceRunRetirementEntityTest {
 	}
 
 	@Test
+	fun `cleanup-only completion is terminal and cannot carry product acknowledgement fields`() {
+		val cleanupOnly = requested().copy(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			state = SourceRunRetirementEntity.STATE_CLEANUP_ONLY_COMPLETED,
+		)
+
+		cleanupOnly.acknowledgementFields().all { it == null } shouldBe true
+		shouldThrow<IllegalArgumentException> {
+			cleanupOnly.copy(stopStatus = "COMPLETE")
+		}
+		shouldThrow<IllegalArgumentException> {
+			cleanupOnly.copy(sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION)
+		}
+	}
+
+	@Test
 	fun `Steps and non-Steps retirement state corresponds exactly to process restart status`() {
 		shouldThrow<IllegalArgumentException> {
 			acknowledged(SourceDestinationOwnerEntity.SOURCE_STEPS).copy(
