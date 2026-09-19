@@ -81,6 +81,41 @@ class StepSourceRuntimeRetirementTest {
 	}
 
 	@Test
+	fun `failed start cleanup retry completes without inventing a terminal checkpoint`() = runTest {
+		val claim = runtimeClaim("failed-start-cleanup")
+		val fixture = fixture(
+			scope = this,
+			registerFailure = IllegalStateException("provider apply was ambiguous"),
+			completionOutcomes = ArrayDeque(listOf(false, true)),
+		)
+
+		assertIs<SourceStartResult.Failed>(
+			fixture.runtime.start(claim, fixture.plan, fixture.sink),
+		)
+		val released = assertIs<OwnedSourceShutdown.Released>(
+			fixture.runtime.shutdownIfOwned(claim, sessionCutoff(Long.MAX_VALUE)),
+		)
+
+		assertEquals(SourceStopStatus.COMPLETE, released.stopAck?.status)
+		assertEquals(
+			RegistrationRemovalOutcome.REMOVED,
+			released.stopAck?.registrationRemovalOutcome,
+		)
+		assertEquals(null, released.stopAck?.logicalTrackingId)
+		assertEquals(null, released.stopAck?.serviceRunId)
+		coVerify(exactly = 0) {
+			fixture.repository.saveRuntimeState(
+				any(), any(), any(), any(), any(), any(), any(), any(), any(),
+			)
+		}
+		coVerify(exactly = 1) { fixture.repository.beginRetirement(any(), any(), any(), any()) }
+		coVerify(exactly = 2) {
+			fixture.repository.completeRetirement(fixture.retirementTokens.single())
+		}
+		assertSame(fixture.listeners.single(), fixture.removedListeners.single())
+	}
+
+	@Test
 	fun `failed exact removal fences refresh and replacement`() = runTest {
 		val replacement = plan(2L)
 		val fixture = fixture(

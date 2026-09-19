@@ -21,6 +21,7 @@ import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptInt
 internal suspend fun AppDatabase.insertStepsDeletionRetractionOrVerify(
 	fact: StepFactRevisionEntity,
 	fence: SourceDeletionFenceEntity,
+	countDomainOwners: MutableCollection<StepsCountDomainOwnerLookupKey>,
 ): Boolean {
 	val nextRevision = try {
 		Math.addExact(fact.semanticRevision, 1L)
@@ -74,24 +75,18 @@ internal suspend fun AppDatabase.insertStepsDeletionRetractionOrVerify(
 		StepsCountDomainWriteResult.NOT_APPLICABLE,
 		-> {
 			if (retractionResult != StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE) {
-				val removal = store.removeOwners(
-					listOf(
-						StepsCountDomainOwnerLookupKey(
-							ownerKind =
-								StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
-							ownerIdentity =
-								StepsCountDomainReceiptIntegrity.sessionFactOwnerIdentity(
-									fact.writerProjectionId,
-									fact.writerProjectionVersion,
-									fact.logicalFactId,
-								),
-							ownerRevision = fact.semanticRevision,
-						),
-					),
-				)
-				check(
-					removal is StepsCountDomainMaintenanceResult.Applied,
-				) { "Steps deletion count-domain evidence could not be removed" }
+				countDomainOwners +=
+					StepsCountDomainOwnerLookupKey(
+						ownerKind =
+							StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+						ownerIdentity =
+							StepsCountDomainReceiptIntegrity.sessionFactOwnerIdentity(
+								fact.writerProjectionId,
+								fact.writerProjectionVersion,
+								fact.logicalFactId,
+							),
+						ownerRevision = fact.semanticRevision,
+					)
 			}
 			true
 		}
@@ -102,6 +97,22 @@ internal suspend fun AppDatabase.insertStepsDeletionRetractionOrVerify(
 		StepsCountDomainWriteResult.REVISION_GAP,
 		StepsCountDomainWriteResult.TERMINAL_OWNER,
 		-> false
+	}
+}
+
+internal suspend fun AppDatabase.removeStepsDeletionCountDomainOwners(
+	keys: Collection<StepsCountDomainOwnerLookupKey>,
+) {
+	if (keys.isEmpty()) return
+	StepsCountDomainStore(this).withOwnerMaintenance { maintenance ->
+		keys.distinct().chunked(STEPS_DELETION_COUNT_DOMAIN_BATCH_SIZE).forEach { batch ->
+			check(
+				maintenance.removeOwners(batch).let { result ->
+					result is StepsCountDomainMaintenanceResult.Applied ||
+						result == StepsCountDomainMaintenanceResult.SchemaUnavailable
+				},
+			) { "Steps deletion count-domain evidence could not be removed" }
+		}
 	}
 }
 
@@ -151,5 +162,7 @@ private fun buildStepsDeletionRetraction(
 		effectChecksum = StepFactRevisionIntegrity.localDeleteEffectChecksum(unsigned),
 	)
 }
+
+private const val STEPS_DELETION_COUNT_DOMAIN_BATCH_SIZE = 400
 
 private const val INSERT_IGNORED = -1L

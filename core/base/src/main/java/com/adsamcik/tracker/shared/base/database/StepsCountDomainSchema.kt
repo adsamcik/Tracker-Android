@@ -703,7 +703,8 @@ object StepsCountDomainSchema {
 	private fun List<RoomInvalidationTrigger>.hasAuthenticRoomInvalidationSets(
 		database: SupportSQLiteDatabase,
 	): Boolean {
-		if (isEmpty()) return true
+		val logState = database.roomInvalidationLogState()
+		if (isEmpty()) return logState != RoomInvalidationLogState.INCOMPATIBLE
 		val groups = groupBy { trigger -> trigger.trigger.table }
 		if (groups.any { (_, triggers) ->
 				triggers.map(RoomInvalidationTrigger::operation).toSet() !=
@@ -715,7 +716,7 @@ object StepsCountDomainSchema {
 		}
 		val tableIds = groups.values.map { triggers -> triggers.first().tableId }
 		if (tableIds.distinct().size != tableIds.size) return false
-		if (!database.hasExactRoomInvalidationLogTable()) return false
+		if (logState != RoomInvalidationLogState.EXACT) return false
 		val placeholders = List(tableIds.size) { "?" }.joinToString()
 		var valid = true
 		val storedRows = database.query(
@@ -748,20 +749,42 @@ object StepsCountDomainSchema {
 		return valid && storedRows.keys == tableIds.toSet()
 	}
 
-	private fun SupportSQLiteDatabase.hasExactRoomInvalidationLogTable(): Boolean {
-		val exactTable = query(
-			"SELECT type, name, tbl_name FROM sqlite_temp_master " +
-				"WHERE name = ? COLLATE BINARY LIMIT 2",
-			arrayOf(ROOM_INVALIDATION_LOG_TABLE),
+	private fun SupportSQLiteDatabase.roomInvalidationLogState(): RoomInvalidationLogState {
+		val objects = query(
+			"SELECT catalog, type, name, tbl_name, sql FROM (" +
+				"SELECT '$MAIN_CATALOG' AS catalog, type, name, tbl_name, sql FROM sqlite_master " +
+				"UNION ALL " +
+				"SELECT '$TEMP_CATALOG' AS catalog, type, name, tbl_name, sql " +
+				"FROM sqlite_temp_master) WHERE " +
+				"name = ? COLLATE NOCASE OR tbl_name = ? COLLATE NOCASE LIMIT 3",
+			arrayOf(ROOM_INVALIDATION_LOG_TABLE, ROOM_INVALIDATION_LOG_TABLE),
 		).use { cursor ->
-			if (!cursor.moveToFirst()) return@use false
-			val matches = cursor.getString(0) == "table" &&
-				cursor.getString(1) == ROOM_INVALIDATION_LOG_TABLE &&
-				cursor.getString(2) == ROOM_INVALIDATION_LOG_TABLE
-			matches && !cursor.moveToNext()
+			buildList {
+				while (cursor.moveToNext()) {
+					add(
+						RoomInvalidationLogObject(
+							catalog = cursor.getString(0),
+							type = cursor.getString(1),
+							name = cursor.getString(2),
+							table = cursor.getString(3),
+							sql = if (cursor.isNull(4)) null else cursor.getString(4).normalizedSql(),
+						),
+					)
+				}
+			}
 		}
-		if (!exactTable) return false
-		return query("PRAGMA $TEMP_CATALOG.table_info(`$ROOM_INVALIDATION_LOG_TABLE`)").use { cursor ->
+		if (objects.isEmpty()) return RoomInvalidationLogState.ABSENT
+		val exactTable = objects.singleOrNull()?.let { candidate ->
+			candidate.catalog == TEMP_CATALOG &&
+				candidate.type == "table" &&
+				candidate.name == ROOM_INVALIDATION_LOG_TABLE &&
+				candidate.table == ROOM_INVALIDATION_LOG_TABLE &&
+				candidate.sql != null &&
+				candidate.sql in ROOM_INVALIDATION_LOG_SQL
+		} == true
+		if (!exactTable) return RoomInvalidationLogState.INCOMPATIBLE
+		val exactColumns =
+			query("PRAGMA $TEMP_CATALOG.table_info(`$ROOM_INVALIDATION_LOG_TABLE`)").use { cursor ->
 			val columns = buildList {
 				while (cursor.moveToNext()) {
 					add(
@@ -780,6 +803,16 @@ object StepsCountDomainSchema {
 				}
 			}
 			columns == ROOM_INVALIDATION_LOG_COLUMNS
+		}
+		val exactRows = exactColumns && !query(
+			"SELECT 1 FROM $TEMP_CATALOG.$ROOM_INVALIDATION_LOG_TABLE WHERE " +
+				"typeof(table_id) != 'integer' OR table_id < 0 OR " +
+				"typeof(invalidated) != 'integer' OR invalidated NOT IN (0, 1) LIMIT 1",
+		).use { cursor -> cursor.moveToFirst() }
+		return if (exactRows) {
+			RoomInvalidationLogState.EXACT
+		} else {
+			RoomInvalidationLogState.INCOMPATIBLE
 		}
 	}
 
@@ -1319,6 +1352,20 @@ object StepsCountDomainSchema {
 		val tableId: Int,
 	)
 
+	private data class RoomInvalidationLogObject(
+		val catalog: String,
+		val type: String,
+		val name: String,
+		val table: String,
+		val sql: SqlCanonical?,
+	)
+
+	private enum class RoomInvalidationLogState {
+		ABSENT,
+		EXACT,
+		INCOMPATIBLE,
+	}
+
 	private data class SchemaNamedObject(
 		val catalog: String,
 		val type: String,
@@ -1693,6 +1740,15 @@ object StepsCountDomainSchema {
 	private const val ROOM_INVALIDATION_LOG_TABLE = "room_table_modification_log"
 	private const val ROOM_INVALIDATION_TABLE_ID_COLUMN = "table_id"
 	private val ROOM_INVALIDATION_OPERATIONS = setOf("INSERT", "UPDATE", "DELETE")
+	// Room 2.8.4 CREATE_TRACKING_TABLE_SQL plus SQLite's persisted temp-schema normalizations.
+	private val ROOM_INVALIDATION_LOG_SQL = listOf(
+		"CREATE TEMP TABLE IF NOT EXISTS room_table_modification_log (" +
+			"table_id INTEGER PRIMARY KEY, invalidated INTEGER NOT NULL DEFAULT 0)",
+		"CREATE TABLE IF NOT EXISTS room_table_modification_log (" +
+			"table_id INTEGER PRIMARY KEY, invalidated INTEGER NOT NULL DEFAULT 0)",
+		"CREATE TABLE room_table_modification_log (" +
+			"table_id INTEGER PRIMARY KEY, invalidated INTEGER NOT NULL DEFAULT 0)",
+	).mapNotNull { sql -> sql.normalizedSql() }
 	private val ROOM_INVALIDATION_LOG_COLUMNS = listOf(
 		SchemaColumn("table_id", "INTEGER", false, 1),
 		SchemaColumn("invalidated", "INTEGER", true, 0, "0"),

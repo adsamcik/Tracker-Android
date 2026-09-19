@@ -60,8 +60,56 @@ private data class CountDomainOwnerScopeKey(
 )
 
 private data class CountDomainMaintenanceOwnerRow(
-	val rowId: Long,
+	val cursor: CountDomainMaintenanceOwnerCursor,
 	val owner: StepsCountDomainOwnerRevisionEntity,
+)
+
+private data class CountDomainMaintenanceOwnerCursor(
+	val ownerKind: String,
+	val ownerIdentity: String,
+	val ownerRevision: Long,
+) : Comparable<CountDomainMaintenanceOwnerCursor> {
+	override fun compareTo(other: CountDomainMaintenanceOwnerCursor): Int =
+		compareValuesBy(
+			this,
+			other,
+			CountDomainMaintenanceOwnerCursor::ownerKind,
+			CountDomainMaintenanceOwnerCursor::ownerIdentity,
+			CountDomainMaintenanceOwnerCursor::ownerRevision,
+		)
+}
+
+private data class CountDomainMaintenanceReceiptRow(
+	val rowId: Long,
+	val receipt: StepsCountDomainReceiptEntity,
+)
+
+private data class CountDomainMaintenanceMarkerRow(
+	val rowId: Long,
+	val marker: StepsCountDomainCompletenessMarkerEntity,
+)
+
+private data class StepsWalPruneCursor(
+	val createdAtMs: Long,
+	val admissionOrdinal: Long,
+) : Comparable<StepsWalPruneCursor> {
+	override fun compareTo(other: StepsWalPruneCursor): Int =
+		compareValuesBy(
+			this,
+			other,
+			StepsWalPruneCursor::createdAtMs,
+			StepsWalPruneCursor::admissionOrdinal,
+		)
+}
+
+private data class StepsWalPruneCandidate(
+	val cursor: StepsWalPruneCursor,
+	val ownerKey: StepsCountDomainOwnerLookupKey,
+)
+
+private data class TerminalOwnerCandidate(
+	val linkedAtMs: Long,
+	val key: StepsCountDomainOwnerLookupKey,
 )
 
 data class StepsCountDomainStoredOwner(
@@ -152,7 +200,15 @@ sealed interface StepsCountDomainMaintenanceResult {
 }
 
 internal enum class StepsCountDomainMaintenanceCheckpoint {
+	OWNER_KEY_PAGE_AUTHENTICATED,
 	OWNER_DOMAIN_PAGE_AUTHENTICATED,
+	RECEIPT_DOMAIN_PAGE_AUTHENTICATED,
+	COMPLETENESS_DOMAIN_PAGE_AUTHENTICATED,
+	OWNER_CANDIDATE_PAGE_AUTHENTICATED,
+	WAL_DOMAIN_PAGE_AUTHENTICATED,
+	WAL_REGISTRATION_PAGE_AUTHENTICATED,
+	WAL_RUN_PAGE_AUTHENTICATED,
+	WAL_CANDIDATE_PAGE_AUTHENTICATED,
 }
 
 enum class StepsCountDomainFullClearMode {
@@ -172,9 +228,94 @@ enum class StepsCountDomainFullClearMode {
 class StepsCountDomainStore(
 	private val database: AppDatabase,
 ) {
+	private val maintenanceAuthorityIdentity = Any()
+
+	class OwnerMaintenanceSession internal constructor(
+		private val owner: StepsCountDomainStore,
+		private val authorityIdentity: Any,
+		internal val schemaAvailable: Boolean,
+		expectedTotalChanges: Long,
+		private val checkpointCallback: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
+	) {
+		private var active = true
+		private var expectedTotalChanges = expectedTotalChanges
+
+		suspend fun removeOwners(
+			keys: List<StepsCountDomainOwnerLookupKey>,
+		): StepsCountDomainMaintenanceResult = owner.removeOwnersAuthenticated(
+			session = this,
+			keys = keys,
+		)
+
+		internal fun authenticates(
+			expectedOwner: StepsCountDomainStore,
+			expectedAuthorityIdentity: Any,
+		): Boolean = active &&
+			owner === expectedOwner &&
+			authorityIdentity === expectedAuthorityIdentity
+
+		internal fun invalidate() {
+			active = false
+		}
+
+		internal suspend fun checkpoint(value: StepsCountDomainMaintenanceCheckpoint) {
+			checkpointCallback(value)
+		}
+
+		internal fun expectedTotalChanges(): Long = expectedTotalChanges
+
+		internal fun acceptOwnedChanges(totalChanges: Long) {
+			expectedTotalChanges = totalChanges
+		}
+	}
+
 	fun isInstalled(): Boolean =
 		StepsCountDomainSchema.inspect(database.openHelper.writableDatabase) ==
 			StepsCountDomainSchemaState.ValidV2
+
+	/**
+	 * Authenticates one transaction-stable count-domain snapshot for every removal in [block].
+	 *
+	 * The supplied session is bound to this store and becomes invalid when the block returns.
+	 */
+	suspend fun <T> withOwnerMaintenance(
+		block: suspend (OwnerMaintenanceSession) -> T,
+	): T = withOwnerMaintenance(
+		checkpoint = { currentCoroutineContext().ensureActive() },
+		block = block,
+	)
+
+	internal suspend fun <T> withOwnerMaintenance(
+		checkpoint: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
+		block: suspend (OwnerMaintenanceSession) -> T,
+	): T = database.withTransaction {
+		val sqlite = database.openHelper.writableDatabase
+		val schemaAvailable = when (StepsCountDomainSchema.inspect(sqlite)) {
+			StepsCountDomainSchemaState.Absent,
+			StepsCountDomainSchemaState.FreshRoomScaffold,
+			-> false
+			StepsCountDomainSchemaState.Incompatible ->
+				throw CountDomainStoredEvidenceException()
+			StepsCountDomainSchemaState.ValidV2 -> true
+		}
+		val expectedTotalChanges = if (schemaAvailable) {
+			sqlite.authenticateCountDomainMaintenanceSnapshot(checkpoint)
+		} else {
+			sqlite.totalChanges()
+		}
+		val session = OwnerMaintenanceSession(
+			owner = this@StepsCountDomainStore,
+			authorityIdentity = maintenanceAuthorityIdentity,
+			schemaAvailable = schemaAvailable,
+			expectedTotalChanges = expectedTotalChanges,
+			checkpointCallback = checkpoint,
+		)
+		try {
+			block(session)
+		} finally {
+			session.invalidate()
+		}
+	}
 
 	suspend fun recordSessionWal(
 		row: SourceEventWalEntity,
@@ -1112,34 +1253,31 @@ class StepsCountDomainStore(
 		keys: List<StepsCountDomainOwnerLookupKey>,
 		checkpoint: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
 	): StepsCountDomainMaintenanceResult = authenticateCountDomainMaintenance {
-		database.withTransaction {
-			removeOwnersAuthenticated(keys, checkpoint = checkpoint)
+		withOwnerMaintenance(checkpoint) { session ->
+			session.removeOwners(keys)
 		}
 	}
 
 	private suspend fun removeOwnersAuthenticated(
+		session: OwnerMaintenanceSession,
 		keys: List<StepsCountDomainOwnerLookupKey>,
 		requireEveryOwner: Boolean = false,
-		checkpoint: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
 	): StepsCountDomainMaintenanceResult {
+		session.requireActiveSnapshot()
 		val distinct = keys.distinct()
 		if (distinct.size > MAX_MAINTENANCE_OWNER_BATCH) {
 			return StepsCountDomainMaintenanceResult.Overflow
 		}
-		val sqlite = database.openHelper.writableDatabase
-		when (StepsCountDomainSchema.inspect(sqlite)) {
-			StepsCountDomainSchemaState.Absent,
-			StepsCountDomainSchemaState.FreshRoomScaffold,
-			->
-				return StepsCountDomainMaintenanceResult.SchemaUnavailable
-			StepsCountDomainSchemaState.Incompatible ->
-				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
-			StepsCountDomainSchemaState.ValidV2 -> Unit
-		}
+		if (!session.schemaAvailable) return StepsCountDomainMaintenanceResult.SchemaUnavailable
 		if (distinct.isEmpty()) return StepsCountDomainMaintenanceResult.Applied(0L, 0L)
-		val ownersByKey = sqlite.authenticateCountDomainMaintenanceDomains(
+		val sqlite = database.openHelper.writableDatabase
+		val ownersByKey = sqlite.queryCountDomainMaintenanceCandidates(
 			keys = distinct,
-			checkpoint = checkpoint,
+			onPage = {
+				session.checkpointAndRequireUnchanged(
+					StepsCountDomainMaintenanceCheckpoint.OWNER_CANDIDATE_PAGE_AUTHENTICATED,
+				)
+			},
 		)
 		if (requireEveryOwner && ownersByKey.size != distinct.size) {
 			return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
@@ -1157,29 +1295,23 @@ class StepsCountDomainStore(
 			"Steps count-domain owner changed during removal"
 		}
 		val removedReceipts = sqlite.deleteUnreferencedReceipts(receiptIds)
+		session.acceptOwnedChanges()
 		return StepsCountDomainMaintenanceResult.Applied(owners.size.toLong(), removedReceipts)
 	}
 
-	fun clear(
+	suspend fun clear(
 		mode: StepsCountDomainFullClearMode,
-	): StepsCountDomainMaintenanceResult = authenticateCountDomainFullClear {
-		clearAuthenticated(mode)
+	): StepsCountDomainMaintenanceResult = authenticateCountDomainMaintenance {
+		withOwnerMaintenance { session -> clearAuthenticated(mode, session) }
 	}
 
 	private fun clearAuthenticated(
 		mode: StepsCountDomainFullClearMode,
+		session: OwnerMaintenanceSession,
 	): StepsCountDomainMaintenanceResult {
+		session.requireActiveSnapshot()
+		if (!session.schemaAvailable) return StepsCountDomainMaintenanceResult.SchemaUnavailable
 		val sqlite = database.openHelper.writableDatabase
-		when (StepsCountDomainSchema.inspect(sqlite)) {
-			StepsCountDomainSchemaState.Absent,
-			StepsCountDomainSchemaState.FreshRoomScaffold,
-			->
-				return StepsCountDomainMaintenanceResult.SchemaUnavailable
-			StepsCountDomainSchemaState.Incompatible ->
-				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
-			StepsCountDomainSchemaState.ValidV2 -> Unit
-		}
-		sqlite.requireAuthenticCountDomainFullAuditRows()
 		val ownerCount = sqlite.longForQuery(
 			if (mode == StepsCountDomainFullClearMode.REMOVE_ALL) {
 				"SELECT COUNT(*) FROM main.steps_count_domain_owner_revision"
@@ -1199,6 +1331,7 @@ class StepsCountDomainStore(
 		val receiptCount =
 			sqlite.longForQuery("SELECT COUNT(*) FROM main.steps_count_domain_receipt")
 		sqlite.execSQL("DELETE FROM main.steps_count_domain_receipt")
+		session.acceptOwnedChanges()
 		return StepsCountDomainMaintenanceResult.Applied(ownerCount, receiptCount)
 	}
 
@@ -1207,11 +1340,12 @@ class StepsCountDomainStore(
 		batchSize: Int,
 		sourceFenceAuthenticated: Boolean,
 	): StepsCountDomainMaintenanceResult = authenticateCountDomainMaintenance {
-		database.withTransaction {
+		withOwnerMaintenance { session ->
 			compactTerminalOwnersAuthenticated(
 				maximumRetainedTerminalOwners,
 				batchSize,
 				sourceFenceAuthenticated,
+				session,
 			)
 		}
 	}
@@ -1220,28 +1354,26 @@ class StepsCountDomainStore(
 		maximumRetainedTerminalOwners: Int,
 		batchSize: Int,
 		sourceFenceAuthenticated: Boolean,
+		session: OwnerMaintenanceSession,
 	): StepsCountDomainMaintenanceResult {
 		require(sourceFenceAuthenticated)
 		require(maximumRetainedTerminalOwners >= 0)
 		require(batchSize in 1..MAX_MAINTENANCE_OWNER_BATCH)
-		val sqlite = database.openHelper.writableDatabase
-		when (StepsCountDomainSchema.inspect(sqlite)) {
-			StepsCountDomainSchemaState.Absent,
-			StepsCountDomainSchemaState.FreshRoomScaffold,
-			->
-				return StepsCountDomainMaintenanceResult.SchemaUnavailable
-			StepsCountDomainSchemaState.Incompatible ->
-				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
-			StepsCountDomainSchemaState.ValidV2 -> Unit
-		}
+		session.requireActiveSnapshot()
+		if (!session.schemaAvailable) return StepsCountDomainMaintenanceResult.SchemaUnavailable
 		currentCoroutineContext().ensureActive()
-		val candidates = sqlite.queryTerminalCompactionCandidates(
-			maximumRetainedTerminalOwners,
-			batchSize,
+		val candidates = database.openHelper.writableDatabase.queryTerminalCompactionCandidates(
+			maximumRetainedTerminalOwners = maximumRetainedTerminalOwners,
+			limit = batchSize,
+			onPage = {
+				session.checkpointAndRequireUnchanged(
+					StepsCountDomainMaintenanceCheckpoint.OWNER_CANDIDATE_PAGE_AUTHENTICATED,
+				)
+			},
 		)
 		return removeOwnersAuthenticated(
+			session = session,
 			keys = candidates,
-			checkpoint = { currentCoroutineContext().ensureActive() },
 		)
 	}
 
@@ -1249,9 +1381,27 @@ class StepsCountDomainStore(
 		safeOrdinal: Long,
 		createdBeforeMs: Long,
 		limit: Int,
+	): StepsCountDomainMaintenanceResult = removeSessionWalOwnersForPrune(
+		safeOrdinal,
+		createdBeforeMs,
+		limit,
+	) {
+		currentCoroutineContext().ensureActive()
+	}
+
+	internal suspend fun removeSessionWalOwnersForPrune(
+		safeOrdinal: Long,
+		createdBeforeMs: Long,
+		limit: Int,
+		checkpoint: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
 	): StepsCountDomainMaintenanceResult = authenticateCountDomainMaintenance {
-		database.withTransaction {
-			removeSessionWalOwnersForPruneAuthenticated(safeOrdinal, createdBeforeMs, limit)
+		withOwnerMaintenance(checkpoint) { session ->
+			removeSessionWalOwnersForPruneAuthenticated(
+				safeOrdinal,
+				createdBeforeMs,
+				limit,
+				session,
+			)
 		}
 	}
 
@@ -1259,53 +1409,76 @@ class StepsCountDomainStore(
 		safeOrdinal: Long,
 		createdBeforeMs: Long,
 		limit: Int,
+		session: OwnerMaintenanceSession,
 	): StepsCountDomainMaintenanceResult {
 		require(safeOrdinal >= 0L)
 		require(createdBeforeMs >= 0L)
 		if (limit !in 1..MAX_WAL_PRUNE_BATCH) {
 			return StepsCountDomainMaintenanceResult.Overflow
 		}
+		session.requireActiveSnapshot()
+		if (!session.schemaAvailable) return StepsCountDomainMaintenanceResult.SchemaUnavailable
 		val sqlite = database.openHelper.writableDatabase
-		when (StepsCountDomainSchema.inspect(sqlite)) {
-			StepsCountDomainSchemaState.Absent,
-			StepsCountDomainSchemaState.FreshRoomScaffold,
-			->
-				return StepsCountDomainMaintenanceResult.SchemaUnavailable
-			StepsCountDomainSchemaState.Incompatible ->
-				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
-			StepsCountDomainSchemaState.ValidV2 -> Unit
-		}
 		currentCoroutineContext().ensureActive()
-		sqlite.requireAuthenticStepsWalMaintenanceDomain()
-		val keys = sqlite.querySessionWalPruneOwners(
-			safeOrdinal,
-			createdBeforeMs,
-			limit,
-		)
+		sqlite.authenticateStepsWalMaintenanceSnapshot(session)
 		var removedOwners = 0L
 		var removedReceipts = 0L
-		keys.chunked(MAX_MAINTENANCE_OWNER_BATCH).forEach { chunk ->
+		var remaining = limit
+		var cursor: StepsWalPruneCursor? = null
+		while (remaining > 0) {
 			currentCoroutineContext().ensureActive()
+			session.requireActiveSnapshot()
+			val page = sqlite.querySessionWalPruneOwnerPage(
+				safeOrdinal = safeOrdinal,
+				createdBeforeMs = createdBeforeMs,
+				after = cursor,
+				limit = minOf(remaining, WAL_PRUNE_CANDIDATE_PAGE_SIZE),
+			)
+			if (page.isEmpty()) break
+			session.checkpointAndRequireUnchanged(
+				StepsCountDomainMaintenanceCheckpoint.WAL_CANDIDATE_PAGE_AUTHENTICATED,
+			)
 			when (
 				val result = removeOwnersAuthenticated(
-					keys = chunk,
+					session = session,
+					keys = page.map(StepsWalPruneCandidate::ownerKey),
 					requireEveryOwner = true,
-					checkpoint = { currentCoroutineContext().ensureActive() },
 				)
 			) {
 				is StepsCountDomainMaintenanceResult.Applied -> {
 					removedOwners += result.removedOwners
 					removedReceipts += result.removedReceipts
 				}
-				StepsCountDomainMaintenanceResult.SchemaUnavailable ->
-					return StepsCountDomainMaintenanceResult.SchemaUnavailable
-				StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable ->
-					return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
-				StepsCountDomainMaintenanceResult.Overflow ->
-					return StepsCountDomainMaintenanceResult.Overflow
+				StepsCountDomainMaintenanceResult.SchemaUnavailable,
+				StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable,
+				StepsCountDomainMaintenanceResult.Overflow,
+				-> throw CountDomainStoredEvidenceException()
 			}
+			remaining -= page.size
+			val next = page.last().cursor
+			if (cursor != null && next <= cursor) throw CountDomainStoredEvidenceException()
+			cursor = next
 		}
 		return StepsCountDomainMaintenanceResult.Applied(removedOwners, removedReceipts)
+	}
+
+	private fun OwnerMaintenanceSession.requireActiveSnapshot() {
+		check(
+			authenticates(this@StepsCountDomainStore, maintenanceAuthorityIdentity) &&
+				database.inTransaction(),
+		) { "Steps count-domain maintenance authority is no longer active" }
+	}
+
+	private suspend fun OwnerMaintenanceSession.checkpointAndRequireUnchanged(
+		value: StepsCountDomainMaintenanceCheckpoint,
+	) {
+		checkpoint(value)
+		requireActiveSnapshot()
+	}
+
+	private fun OwnerMaintenanceSession.acceptOwnedChanges() {
+		requireActiveSnapshot()
+		acceptOwnedChanges(database.openHelper.writableDatabase.totalChanges())
 	}
 
 	private suspend fun authenticateCountDomainWrite(
@@ -1322,22 +1495,6 @@ class StepsCountDomainStore(
 		block()
 	} catch (cancelled: CancellationException) {
 		throw cancelled
-	} catch (_: CountDomainStoredEvidenceException) {
-		StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
-	} catch (_: SQLiteException) {
-		StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
-	} catch (_: IllegalArgumentException) {
-		StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
-	} catch (_: IllegalStateException) {
-		StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
-	} catch (_: ArithmeticException) {
-		StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
-	}
-
-	private fun authenticateCountDomainFullClear(
-		block: () -> StepsCountDomainMaintenanceResult,
-	): StepsCountDomainMaintenanceResult = try {
-		block()
 	} catch (_: CountDomainStoredEvidenceException) {
 		StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
 	} catch (_: SQLiteException) {
@@ -1778,7 +1935,7 @@ class StepsCountDomainStore(
  * Transaction-owned serialized AppDatabase hook. The caller must already be inside the existing
  * collected-data clear transaction, after source payload fences are installed and before commit.
  */
-fun clearStepsCountDomainEvidenceInCurrentTransaction(
+suspend fun clearStepsCountDomainEvidenceInCurrentTransaction(
 	database: AppDatabase,
 	mode: StepsCountDomainFullClearMode,
 ): StepsCountDomainMaintenanceResult {
@@ -2164,39 +2321,140 @@ private fun SupportSQLiteDatabase.deleteUnreferencedReceipts(
 	return before
 }
 
-private fun SupportSQLiteDatabase.queryTerminalCompactionCandidates(
+private suspend fun SupportSQLiteDatabase.queryTerminalCompactionCandidates(
 	maximumRetainedTerminalOwners: Int,
 	limit: Int,
-): List<StepsCountDomainOwnerLookupKey> =
-	query(
+	onPage: suspend () -> Unit,
+): List<StepsCountDomainOwnerLookupKey> {
+	var skipped = 0
+	var cursor: TerminalOwnerCandidate? = null
+	val candidates = mutableListOf<StepsCountDomainOwnerLookupKey>()
+	while (candidates.size < limit) {
+		currentCoroutineContext().ensureActive()
+		val remainingToRead =
+			maximumRetainedTerminalOwners.toLong() - skipped.toLong() +
+				limit.toLong() - candidates.size.toLong()
+		val page = queryTerminalCompactionCandidatePage(
+			after = cursor,
+			limit = minOf(COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE.toLong(), remainingToRead).toInt(),
+		)
+		if (page.isEmpty()) break
+		onPage()
+		page.forEach { candidate ->
+			if (skipped < maximumRetainedTerminalOwners) {
+				skipped += 1
+			} else if (candidates.size < limit) {
+				candidates += candidate.key
+			}
+		}
+		val next = page.last()
+		if (cursor != null && !next.isAfterTerminalCursor(cursor)) {
+			throw CountDomainStoredEvidenceException()
+		}
+		cursor = next
+		if (page.size < COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE) break
+	}
+	return candidates
+}
+
+private fun SupportSQLiteDatabase.queryTerminalCompactionCandidatePage(
+	after: TerminalOwnerCandidate?,
+	limit: Int,
+): List<TerminalOwnerCandidate> {
+	if (limit <= 0) return emptyList()
+	val cursorPredicate = if (after == null) {
+		""
+	} else {
+		"AND (linked_at_ms < ? OR " +
+			"(linked_at_ms = ? AND owner_kind > ?) OR " +
+			"(linked_at_ms = ? AND owner_kind = ? AND owner_identity > ?) OR " +
+			"(linked_at_ms = ? AND owner_kind = ? AND owner_identity = ? " +
+			"AND owner_revision < ?)) "
+	}
+	val arguments = buildList<Any?> {
+		if (after != null) {
+			add(after.linkedAtMs)
+			add(after.linkedAtMs)
+			add(after.key.ownerKind)
+			add(after.linkedAtMs)
+			add(after.key.ownerKind)
+			add(after.key.ownerIdentity)
+			add(after.linkedAtMs)
+			add(after.key.ownerKind)
+			add(after.key.ownerIdentity)
+			add(after.key.ownerRevision)
+		}
+		add(limit)
+	}.toTypedArray()
+	return query(
 		"SELECT owner_kind, owner_identity, owner_revision " +
+			", linked_at_ms " +
 			"FROM main.steps_count_domain_owner_revision " +
 			"WHERE operation IN ('RETRACT', 'UNPROVEN') " +
+			cursorPredicate +
 			"ORDER BY linked_at_ms DESC, owner_kind, owner_identity, owner_revision DESC " +
-			"LIMIT ? OFFSET ?",
-		arrayOf(limit, maximumRetainedTerminalOwners),
+			"LIMIT ?",
+		arguments,
 	).use { cursor ->
 		buildList {
 			while (cursor.moveToNext()) {
 				add(
-					StepsCountDomainOwnerLookupKey(
-						cursor.requiredText("owner_kind"),
-						cursor.requiredText("owner_identity"),
-						cursor.requiredLong("owner_revision"),
+					TerminalOwnerCandidate(
+						linkedAtMs = cursor.requiredLong("linked_at_ms"),
+						key = StepsCountDomainOwnerLookupKey(
+							cursor.requiredText("owner_kind"),
+							cursor.requiredText("owner_identity"),
+							cursor.requiredLong("owner_revision"),
+						),
 					),
 				)
 			}
 		}
 	}
+}
 
-private fun SupportSQLiteDatabase.querySessionWalPruneOwners(
+private fun TerminalOwnerCandidate.isAfterTerminalCursor(
+	previous: TerminalOwnerCandidate,
+): Boolean =
+	linkedAtMs < previous.linkedAtMs ||
+		(linkedAtMs == previous.linkedAtMs && key.ownerKind > previous.key.ownerKind) ||
+		(linkedAtMs == previous.linkedAtMs &&
+			key.ownerKind == previous.key.ownerKind &&
+			key.ownerIdentity > previous.key.ownerIdentity) ||
+		(linkedAtMs == previous.linkedAtMs &&
+			key.ownerKind == previous.key.ownerKind &&
+			key.ownerIdentity == previous.key.ownerIdentity &&
+			key.ownerRevision < previous.key.ownerRevision)
+
+private fun SupportSQLiteDatabase.querySessionWalPruneOwnerPage(
 	safeOrdinal: Long,
 	createdBeforeMs: Long,
+	after: StepsWalPruneCursor?,
 	limit: Int,
-): List<StepsCountDomainOwnerLookupKey> =
-	query(
-		"SELECT wal.admission_ordinal, wal.event_id FROM source_event_wal AS wal " +
+): List<StepsWalPruneCandidate> {
+	val cursorPredicate = if (after == null) {
+		""
+	} else {
+		"AND (wal.created_at_ms > ? OR " +
+			"(wal.created_at_ms = ? AND wal.admission_ordinal > ?)) "
+	}
+	val arguments = buildList<Any?> {
+		add(SourceDestinationOwnerEntity.SOURCE_STEPS)
+		add(createdBeforeMs)
+		add(safeOrdinal)
+		if (after != null) {
+			add(after.createdAtMs)
+			add(after.createdAtMs)
+			add(after.admissionOrdinal)
+		}
+		add(SourceBrokerPurpose.MASK_SESSION_CAPTURE)
+		add(limit)
+	}.toTypedArray()
+	return query(
+		"SELECT wal.admission_ordinal, wal.event_id, wal.created_at_ms " +
+			"FROM source_event_wal AS wal " +
 			"WHERE wal.source_kind = ? AND wal.created_at_ms < ? AND wal.admission_ordinal <= ? " +
+			cursorPredicate +
 			"AND NOT (" +
 			"wal.logical_tracking_id IS NOT NULL AND wal.service_run_id IS NOT NULL AND " +
 			"wal.admission_ordinal = (" +
@@ -2218,35 +2476,39 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwners(
 			"AND run.logical_tracking_id = wal.logical_tracking_id " +
 			"AND (run.completed_at_ms IS NULL OR run.state NOT IN ('FINALIZED', 'CLOSED', 'FAILED')))" +
 			")) ORDER BY wal.created_at_ms, wal.admission_ordinal LIMIT ?",
-		arrayOf(
-			SourceDestinationOwnerEntity.SOURCE_STEPS,
-			createdBeforeMs,
-			safeOrdinal,
-			SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-			limit,
-		),
+		arguments,
 	).use { cursor ->
 		buildList {
 			while (cursor.moveToNext()) {
 				val admissionOrdinal = cursor.requiredLong(0)
 				val eventId = cursor.requiredText(1)
-				if (admissionOrdinal <= 0L || eventId.isBlank()) {
+				val candidateCursor = StepsWalPruneCursor(
+					createdAtMs = cursor.requiredLong(2),
+					admissionOrdinal = admissionOrdinal,
+				)
+				if (admissionOrdinal <= 0L || eventId.isBlank() ||
+					(after != null && candidateCursor <= after)
+				) {
 					throw CountDomainStoredEvidenceException()
 				}
 				add(
-					StepsCountDomainOwnerLookupKey(
-						ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
-						ownerIdentity =
-							StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
-								admissionOrdinal,
-								eventId,
-							),
-						ownerRevision = 1L,
+					StepsWalPruneCandidate(
+						cursor = candidateCursor,
+						ownerKey = StepsCountDomainOwnerLookupKey(
+							ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+							ownerIdentity =
+								StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
+									admissionOrdinal,
+									eventId,
+								),
+							ownerRevision = 1L,
+						),
 					),
 				)
 			}
 		}
 	}
+}
 
 private fun SupportSQLiteDatabase.requireAuthenticMissingCountDomainOwnerKeys(
 	keys: List<StepsCountDomainOwnerLookupKey>,
@@ -2375,103 +2637,314 @@ private fun SupportSQLiteDatabase.requireAuthenticCountDomainMarkerKeys(
 	}
 }
 
-private suspend fun SupportSQLiteDatabase.authenticateCountDomainMaintenanceDomains(
-	keys: List<StepsCountDomainOwnerLookupKey>,
+private suspend fun SupportSQLiteDatabase.authenticateCountDomainMaintenanceSnapshot(
 	checkpoint: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
-): Map<StepsCountDomainOwnerLookupKey, StepsCountDomainOwnerRevisionEntity> {
-	val requestedKeys = keys.toSet()
-	val requestedLineages = keys.map {
-		StepsCountDomainOwnerLineageKey(it.ownerKind, it.ownerIdentity)
-	}.distinct()
-	val exactOwners = mutableMapOf<
-		StepsCountDomainOwnerLookupKey,
-		StepsCountDomainOwnerRevisionEntity,
-	>()
-	val lineageScopes = mutableMapOf<StepsCountDomainOwnerLineageKey, String>()
-	for (lineageChunk in requestedLineages.chunked(MAINTENANCE_DOMAIN_QUERY_CHUNK)) {
-		var afterRowId: Long? = null
-		while (true) {
-			currentCoroutineContext().ensureActive()
-			val page = queryCountDomainMaintenanceOwnerPage(lineageChunk, afterRowId)
-			if (page.isEmpty()) break
-			requireAuthenticCountDomainMaintenanceDependencies(page.map { it.owner })
-			page.forEach { row ->
-				if (afterRowId != null && row.rowId <= afterRowId) {
-					throw CountDomainStoredEvidenceException()
-				}
-				val owner = row.owner
-				val lineage = StepsCountDomainOwnerLineageKey(
+): Long {
+	val expectedTotalChanges = totalChanges()
+	auditCountDomainOwnerKeyPages(checkpoint, expectedTotalChanges)
+	auditCountDomainOwnerPages(checkpoint, expectedTotalChanges)
+	auditCountDomainReceiptPages(checkpoint, expectedTotalChanges)
+	auditCountDomainMarkerPages(checkpoint, expectedTotalChanges)
+	if (totalChanges() != expectedTotalChanges) throw CountDomainStoredEvidenceException()
+	return expectedTotalChanges
+}
+
+private suspend fun SupportSQLiteDatabase.auditCountDomainOwnerKeyPages(
+	checkpoint: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
+	expectedTotalChanges: Long,
+) {
+	val (maximumRowId, expectedCount) =
+		maintenanceRowIdBoundary("steps_count_domain_owner_revision")
+	var afterRowId: Long? = null
+	var auditedCount = 0L
+	while (maximumRowId != null) {
+		currentCoroutineContext().ensureActive()
+		val page = queryMaintenanceRowIdPage(
+			table = "main.`steps_count_domain_owner_revision`",
+			columns = "typeof(owner_kind), typeof(owner_identity), typeof(owner_revision)",
+			afterRowId = afterRowId,
+			maximumRowId = maximumRowId,
+		) { cursor ->
+			val rowId = cursor.requiredLong("maintenance_rowid")
+			if (cursor.requiredText(1) != "text" ||
+				cursor.requiredText(2) != "text" ||
+				cursor.requiredText(3) != "integer"
+			) {
+				throw CountDomainStoredEvidenceException()
+			}
+			rowId
+		}
+		if (page.isEmpty()) break
+		if (afterRowId != null && page.first() <= afterRowId) {
+			throw CountDomainStoredEvidenceException()
+		}
+		auditedCount = Math.addExact(auditedCount, page.size.toLong())
+		afterRowId = page.last()
+		checkpoint(StepsCountDomainMaintenanceCheckpoint.OWNER_KEY_PAGE_AUTHENTICATED)
+		if (totalChanges() != expectedTotalChanges) throw CountDomainStoredEvidenceException()
+		if (page.size < COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE) break
+	}
+	if (auditedCount != expectedCount) throw CountDomainStoredEvidenceException()
+}
+
+private suspend fun SupportSQLiteDatabase.auditCountDomainOwnerPages(
+	checkpoint: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
+	expectedTotalChanges: Long,
+) {
+	val expectedCount =
+		longForQuery("SELECT COUNT(*) FROM main.steps_count_domain_owner_revision")
+	var after: CountDomainMaintenanceOwnerCursor? = null
+	var auditedCount = 0L
+	var priorLineage: StepsCountDomainOwnerLineageKey? = null
+	var priorScope: String? = null
+	while (true) {
+		currentCoroutineContext().ensureActive()
+		val page = queryCountDomainMaintenanceOwnerPage(after)
+		if (page.isEmpty()) break
+		requireAuthenticCountDomainMaintenanceDependencies(page.map { it.owner })
+		page.forEach { row ->
+			if (after != null && row.cursor <= after) {
+				throw CountDomainStoredEvidenceException()
+			}
+			val lineage = StepsCountDomainOwnerLineageKey(
+				row.owner.ownerKind,
+				row.owner.ownerIdentity,
+			)
+			if (lineage == priorLineage && row.owner.scopeIdentity != priorScope) {
+				throw CountDomainStoredEvidenceException()
+			}
+			priorLineage = lineage
+			priorScope = row.owner.scopeIdentity
+		}
+		auditedCount = Math.addExact(auditedCount, page.size.toLong())
+		after = page.last().cursor
+		checkpoint(StepsCountDomainMaintenanceCheckpoint.OWNER_DOMAIN_PAGE_AUTHENTICATED)
+		if (totalChanges() != expectedTotalChanges) throw CountDomainStoredEvidenceException()
+		if (page.size < COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE) break
+	}
+	if (auditedCount != expectedCount) throw CountDomainStoredEvidenceException()
+}
+
+private suspend fun SupportSQLiteDatabase.auditCountDomainReceiptPages(
+	checkpoint: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
+	expectedTotalChanges: Long,
+) {
+	val (maximumRowId, expectedCount) =
+		maintenanceRowIdBoundary("steps_count_domain_receipt")
+	var afterRowId: Long? = null
+	var auditedCount = 0L
+	while (maximumRowId != null) {
+		currentCoroutineContext().ensureActive()
+		val page = queryCountDomainMaintenanceReceiptPage(afterRowId, maximumRowId)
+		if (page.isEmpty()) break
+		page.forEach { row ->
+			if (afterRowId != null && row.rowId <= afterRowId) {
+				throw CountDomainStoredEvidenceException()
+			}
+			if (!StepsCountDomainReceiptIntegrity.hasValidReceipt(row.receipt)) {
+				throw CountDomainStoredEvidenceException()
+			}
+		}
+		auditedCount = Math.addExact(auditedCount, page.size.toLong())
+		afterRowId = page.last().rowId
+		checkpoint(StepsCountDomainMaintenanceCheckpoint.RECEIPT_DOMAIN_PAGE_AUTHENTICATED)
+		if (totalChanges() != expectedTotalChanges) throw CountDomainStoredEvidenceException()
+		if (page.size < COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE) break
+	}
+	if (auditedCount != expectedCount) throw CountDomainStoredEvidenceException()
+}
+
+private suspend fun SupportSQLiteDatabase.auditCountDomainMarkerPages(
+	checkpoint: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
+	expectedTotalChanges: Long,
+) {
+	val (maximumRowId, expectedCount) =
+		maintenanceRowIdBoundary("steps_count_domain_completeness_marker")
+	var afterRowId: Long? = null
+	var auditedCount = 0L
+	while (maximumRowId != null) {
+		currentCoroutineContext().ensureActive()
+		val page = queryCountDomainMaintenanceMarkerPage(afterRowId, maximumRowId)
+		if (page.isEmpty()) break
+		page.forEach { row ->
+			if (afterRowId != null && row.rowId <= afterRowId) {
+				throw CountDomainStoredEvidenceException()
+			}
+		}
+		auditedCount = Math.addExact(auditedCount, page.size.toLong())
+		afterRowId = page.last().rowId
+		checkpoint(StepsCountDomainMaintenanceCheckpoint.COMPLETENESS_DOMAIN_PAGE_AUTHENTICATED)
+		if (totalChanges() != expectedTotalChanges) throw CountDomainStoredEvidenceException()
+		if (page.size < COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE) break
+	}
+	if (auditedCount != expectedCount) throw CountDomainStoredEvidenceException()
+}
+
+private fun SupportSQLiteDatabase.maintenanceRowIdBoundary(
+	table: String,
+): Pair<Long?, Long> = query(
+	"SELECT MAX(rowid), COUNT(*) FROM main.`$table`",
+).use { cursor ->
+	if (!cursor.moveToFirst()) throw CountDomainStoredEvidenceException()
+	val maximumRowId = if (cursor.isNull(0)) null else cursor.requiredLong(0)
+	val count = cursor.requiredLong(1)
+	if (count < 0L || cursor.moveToNext()) throw CountDomainStoredEvidenceException()
+	maximumRowId to count
+}
+
+private fun SupportSQLiteDatabase.queryCountDomainMaintenanceOwnerPage(
+	after: CountDomainMaintenanceOwnerCursor?,
+): List<CountDomainMaintenanceOwnerRow> {
+	val predicate = if (after == null) {
+		""
+	} else {
+		"WHERE owner_kind > ? OR " +
+			"(owner_kind = ? AND owner_identity > ?) OR " +
+			"(owner_kind = ? AND owner_identity = ? AND owner_revision > ?)"
+	}
+	val arguments = buildList<Any?> {
+		if (after != null) {
+			add(after.ownerKind)
+			add(after.ownerKind)
+			add(after.ownerIdentity)
+			add(after.ownerKind)
+			add(after.ownerIdentity)
+			add(after.ownerRevision)
+		}
+		add(COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE)
+	}.toTypedArray()
+	return query(
+		"SELECT * FROM main.steps_count_domain_owner_revision $predicate " +
+			"ORDER BY owner_kind, owner_identity, owner_revision LIMIT ?",
+		arguments,
+	).use { cursor ->
+		buildList {
+			var previous = after
+			while (cursor.moveToNext()) {
+				val owner = cursor.toStepsCountDomainOwner()
+				val next = CountDomainMaintenanceOwnerCursor(
 					owner.ownerKind,
 					owner.ownerIdentity,
+					owner.ownerRevision,
 				)
-				if (lineage !in lineageChunk) throw CountDomainStoredEvidenceException()
-				val previousScope = lineageScopes[lineage]
-				if (previousScope == null) {
-					lineageScopes[lineage] = owner.scopeIdentity
-				} else if (previousScope != owner.scopeIdentity) {
+				if (previous != null && next <= previous) {
 					throw CountDomainStoredEvidenceException()
 				}
+				add(CountDomainMaintenanceOwnerRow(next, owner))
+				previous = next
+			}
+		}
+	}
+}
+
+private fun SupportSQLiteDatabase.queryCountDomainMaintenanceReceiptPage(
+	afterRowId: Long?,
+	maximumRowId: Long,
+): List<CountDomainMaintenanceReceiptRow> =
+	queryCountDomainMaintenancePage(
+		table = "steps_count_domain_receipt",
+		afterRowId = afterRowId,
+		maximumRowId = maximumRowId,
+	) { cursor ->
+		CountDomainMaintenanceReceiptRow(
+			rowId = cursor.requiredLong("maintenance_rowid"),
+			receipt = cursor.toStepsCountDomainReceipt(),
+		)
+	}
+
+private fun SupportSQLiteDatabase.queryCountDomainMaintenanceMarkerPage(
+	afterRowId: Long?,
+	maximumRowId: Long,
+): List<CountDomainMaintenanceMarkerRow> =
+	queryCountDomainMaintenancePage(
+		table = "steps_count_domain_completeness_marker",
+		afterRowId = afterRowId,
+		maximumRowId = maximumRowId,
+	) { cursor ->
+		CountDomainMaintenanceMarkerRow(
+			rowId = cursor.requiredLong("maintenance_rowid"),
+			marker = cursor.toStepsCountDomainCompletenessMarker(),
+		)
+	}
+
+private fun <T> SupportSQLiteDatabase.queryCountDomainMaintenancePage(
+	table: String,
+	afterRowId: Long?,
+	maximumRowId: Long,
+	map: (android.database.Cursor) -> T,
+): List<T> = queryMaintenanceRowIdPage(
+	table = "main.`$table`",
+	columns = "*",
+	afterRowId = afterRowId,
+	maximumRowId = maximumRowId,
+	map = map,
+)
+
+private fun <T> SupportSQLiteDatabase.queryMaintenanceRowIdPage(
+	table: String,
+	columns: String,
+	afterRowId: Long?,
+	maximumRowId: Long,
+	pageSize: Int = COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE,
+	map: (android.database.Cursor) -> T,
+): List<T> {
+	val predicate = if (afterRowId == null) {
+		"rowid <= ?"
+	} else {
+		"rowid > ? AND rowid <= ?"
+	}
+	val arguments = buildList<Any?> {
+		if (afterRowId != null) add(afterRowId)
+		add(maximumRowId)
+		add(pageSize)
+	}.toTypedArray()
+	return query(
+		"SELECT rowid AS maintenance_rowid, $columns FROM $table " +
+			"WHERE $predicate ORDER BY rowid ASC LIMIT ?",
+		arguments,
+	).use { cursor ->
+		buildList {
+			while (cursor.moveToNext()) add(map(cursor))
+		}
+	}
+}
+
+private suspend fun SupportSQLiteDatabase.queryCountDomainMaintenanceCandidates(
+	keys: List<StepsCountDomainOwnerLookupKey>,
+	onPage: suspend () -> Unit,
+): Map<StepsCountDomainOwnerLookupKey, StepsCountDomainOwnerRevisionEntity> {
+	val requested = keys.toSet()
+	val candidates = mutableMapOf<
+		StepsCountDomainOwnerLookupKey,
+		StepsCountDomainOwnerRevisionEntity
+	>()
+	for (page in keys.chunked(OWNER_QUERY_CHUNK)) {
+		currentCoroutineContext().ensureActive()
+		val predicate = page.joinToString(" OR ") {
+			"(owner_kind = ? AND owner_identity = ? AND owner_revision = ?)"
+		}
+		val arguments = page.flatMap { key ->
+			listOf(key.ownerKind, key.ownerIdentity, key.ownerRevision)
+		}.toTypedArray()
+		query(
+			"SELECT * FROM main.steps_count_domain_owner_revision WHERE $predicate",
+			arguments,
+		).use { cursor ->
+			while (cursor.moveToNext()) {
+				val owner = cursor.toStepsCountDomainOwner()
 				val key = StepsCountDomainOwnerLookupKey(
 					owner.ownerKind,
 					owner.ownerIdentity,
 					owner.ownerRevision,
 				)
-				if (key in requestedKeys && exactOwners.put(key, owner) != null) {
+				if (key !in requested || candidates.put(key, owner) != null) {
 					throw CountDomainStoredEvidenceException()
 				}
 			}
-			val nextRowId = page.last().rowId
-			if (afterRowId != null && nextRowId <= afterRowId) {
-				throw CountDomainStoredEvidenceException()
-			}
-			afterRowId = nextRowId
-			checkpoint(StepsCountDomainMaintenanceCheckpoint.OWNER_DOMAIN_PAGE_AUTHENTICATED)
-			if (page.size < COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE) break
 		}
+		onPage()
 	}
-	return exactOwners
-}
-
-private fun SupportSQLiteDatabase.queryCountDomainMaintenanceOwnerPage(
-	lineages: List<StepsCountDomainOwnerLineageKey>,
-	afterRowId: Long?,
-): List<CountDomainMaintenanceOwnerRow> {
-	if (lineages.isEmpty()) return emptyList()
-	val predicate = lineages.joinToString(" OR ") {
-		"((owner_kind = ? AND owner_identity = ?) OR " +
-			"((typeof(owner_kind) != 'text' OR typeof(owner_identity) != 'text') " +
-			"AND CAST(owner_kind AS TEXT) = ? AND CAST(owner_identity AS TEXT) = ?))"
-	}
-	val arguments = buildList<Any?> {
-		add(afterRowId)
-		add(afterRowId)
-		lineages.forEach { lineage ->
-			add(lineage.ownerKind)
-			add(lineage.ownerIdentity)
-			add(lineage.ownerKind)
-			add(lineage.ownerIdentity)
-		}
-		add(COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE)
-	}.toTypedArray()
-	return query(
-		"SELECT rowid AS maintenance_rowid, * " +
-			"FROM main.steps_count_domain_owner_revision " +
-			"WHERE (? IS NULL OR rowid > ?) AND ($predicate) " +
-			"ORDER BY rowid ASC LIMIT ?",
-		arguments,
-	).use { cursor ->
-		buildList {
-			var previousRowId = afterRowId
-			while (cursor.moveToNext()) {
-				val rowId = cursor.requiredLong("maintenance_rowid")
-				if (previousRowId != null && rowId <= previousRowId) {
-					throw CountDomainStoredEvidenceException()
-				}
-				add(CountDomainMaintenanceOwnerRow(rowId, cursor.toStepsCountDomainOwner()))
-				previousRowId = rowId
-			}
-		}
-	}
+	return candidates
 }
 
 private fun SupportSQLiteDatabase.requireAuthenticCountDomainMaintenanceDependencies(
@@ -2545,106 +3018,179 @@ private fun StepsCountDomainOwnerRevisionEntity.hasAuthenticMaintenanceDependenc
 	}
 }
 
-private fun SupportSQLiteDatabase.requireAuthenticCountDomainFullAuditRows() {
-	query("SELECT * FROM main.steps_count_domain_owner_revision").use { cursor ->
-		while (cursor.moveToNext()) cursor.toStepsCountDomainOwner()
-	}
-	query("SELECT * FROM main.steps_count_domain_receipt").use { cursor ->
-		while (cursor.moveToNext()) cursor.toStepsCountDomainReceipt()
-	}
-	query("SELECT * FROM main.steps_count_domain_completeness_marker").use { cursor ->
-		while (cursor.moveToNext()) cursor.toStepsCountDomainCompletenessMarker()
-	}
-}
-
 private const val COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE = 64
-private const val MAINTENANCE_DOMAIN_QUERY_CHUNK = 100
 private const val COUNT_DOMAIN_MAINTENANCE_RECEIPT_CHUNK = 400
 private const val COUNT_DOMAIN_MAINTENANCE_MARKER_CHUNK = 200
+private const val WAL_MAINTENANCE_PAGE_SIZE = 128
+private const val WAL_PRUNE_CANDIDATE_PAGE_SIZE = 128
 
-private fun SupportSQLiteDatabase.requireAuthenticStepsWalMaintenanceDomain() {
-	val invalidWal = query(
-		"SELECT 1 FROM source_event_wal WHERE " +
-			"(source_kind = ? OR (typeof(source_kind) != 'integer' " +
-			"AND CAST(source_kind AS INTEGER) = ?) OR " +
-			"(typeof(source_kind) = 'integer' AND source_kind NOT BETWEEN 1 AND 6)) AND (" +
-			"typeof(event_id) != 'text' OR trim(event_id) = '' OR " +
-			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
-			"typeof(created_at_ms) != 'integer' OR created_at_ms < 0 OR " +
-			"typeof(source_kind) != 'integer' OR source_kind != ? OR " +
-			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
-			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
-			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
-			"authorization_purpose_eligibility_mask < 0 OR " +
-			"(authorization_purpose_eligibility_mask & ?) != " +
-			"authorization_purpose_eligibility_mask OR " +
-			"typeof(logical_tracking_id) NOT IN ('text', 'null') OR " +
-			"typeof(service_run_id) NOT IN ('text', 'null') OR " +
-			"(logical_tracking_id IS NULL) != (service_run_id IS NULL) OR " +
-			"(logical_tracking_id IS NOT NULL AND trim(logical_tracking_id) = '') OR " +
-			"(service_run_id IS NOT NULL AND trim(service_run_id) = '') OR " +
-			"((authorization_purpose_eligibility_mask & ?) != 0 AND " +
-			"(logical_tracking_id IS NULL OR service_run_id IS NULL))) LIMIT 1",
-		arrayOf(
-			SourceDestinationOwnerEntity.SOURCE_STEPS,
-			SourceDestinationOwnerEntity.SOURCE_STEPS,
-			SourceDestinationOwnerEntity.SOURCE_STEPS,
-			SourceBrokerPurpose.ALL_MASK,
-			SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-		),
-	).use { cursor -> cursor.moveToFirst() }
-	if (invalidWal) throw CountDomainStoredEvidenceException()
-
-	val invalidRegistration = query(
-		"SELECT 1 FROM provider_registration_generation AS registration " +
-			"JOIN source_event_wal AS wal ON " +
-			"CAST(registration.source_instance_id AS TEXT) = CAST(wal.source_instance_id AS TEXT) " +
-			"AND (registration.registration_generation = wal.registration_generation OR " +
-			"typeof(registration.registration_generation) != 'integer') " +
-			"WHERE " +
-			"(wal.source_kind = ? OR (typeof(wal.source_kind) != 'integer' " +
-			"AND CAST(wal.source_kind AS INTEGER) = ?)) " +
-			"AND (" +
-			"typeof(registration.source_kind) != 'integer' OR registration.source_kind != ? OR " +
-			"typeof(registration.source_instance_id) != 'text' OR " +
-			"trim(registration.source_instance_id) = '' OR " +
-			"typeof(registration.registration_generation) != 'integer' OR " +
-			"registration.registration_generation <= 0 OR " +
-			"typeof(registration.status) != 'text' OR registration.status NOT IN " +
-			"('RESERVED', 'ACTIVE', 'RETIRING', 'RETIRED', 'FAILED')) LIMIT 1",
-		arrayOf(
-			SourceDestinationOwnerEntity.SOURCE_STEPS,
-			SourceDestinationOwnerEntity.SOURCE_STEPS,
-			SourceDestinationOwnerEntity.SOURCE_STEPS,
-		),
-	).use { cursor -> cursor.moveToFirst() }
-	if (invalidRegistration) throw CountDomainStoredEvidenceException()
-
-	val invalidRun = query(
-		"SELECT 1 FROM source_service_run AS run WHERE EXISTS (" +
-			"SELECT 1 FROM source_event_wal AS wal WHERE " +
-			"(wal.source_kind = ? OR (typeof(wal.source_kind) != 'integer' " +
-			"AND CAST(wal.source_kind AS INTEGER) = ?)) " +
-			"AND wal.logical_tracking_id IS NOT NULL AND wal.service_run_id IS NOT NULL " +
-			"AND CAST(run.logical_tracking_id AS TEXT) = CAST(wal.logical_tracking_id AS TEXT) " +
-			"AND CAST(run.service_run_id AS TEXT) = CAST(wal.service_run_id AS TEXT)) AND (" +
-			"typeof(run.logical_tracking_id) != 'text' OR trim(run.logical_tracking_id) = '' OR " +
-			"typeof(run.service_run_id) != 'text' OR trim(run.service_run_id) = '' OR " +
-			"typeof(run.state) != 'text' OR run.state NOT IN " +
-			"('IDLE', 'STARTING', 'ACTIVE', 'RECONFIGURING', 'STOPPING', " +
-			"'FINALIZED', 'CLOSED', 'FAILED') OR " +
-			"typeof(run.completed_at_ms) NOT IN ('integer', 'null') OR " +
-			"(typeof(run.completed_at_ms) = 'integer' AND run.completed_at_ms < 0) OR " +
-			"(run.state IN ('FINALIZED', 'CLOSED', 'FAILED') AND run.completed_at_ms IS NULL) OR " +
-			"(run.state NOT IN ('FINALIZED', 'CLOSED', 'FAILED') " +
-			"AND run.completed_at_ms IS NOT NULL)) LIMIT 1",
-		arrayOf(
-			SourceDestinationOwnerEntity.SOURCE_STEPS,
-			SourceDestinationOwnerEntity.SOURCE_STEPS,
-		),
-	).use { cursor -> cursor.moveToFirst() }
-	if (invalidRun) throw CountDomainStoredEvidenceException()
+private suspend fun SupportSQLiteDatabase.authenticateStepsWalMaintenanceSnapshot(
+	session: StepsCountDomainStore.OwnerMaintenanceSession,
+) {
+	auditStepsWalMaintenancePages(session)
+	auditStepsRegistrationMaintenancePages(session)
+	auditStepsRunMaintenancePages(session)
+	if (totalChanges() != session.expectedTotalChanges()) throw CountDomainStoredEvidenceException()
 }
+
+private suspend fun SupportSQLiteDatabase.auditStepsWalMaintenancePages(
+	session: StepsCountDomainStore.OwnerMaintenanceSession,
+) {
+	val (maximumRowId, expectedCount) = maintenanceRowIdBoundary("source_event_wal")
+	var afterRowId: Long? = null
+	var auditedCount = 0L
+	while (maximumRowId != null) {
+		currentCoroutineContext().ensureActive()
+		val page = queryMaintenanceRowIdPage(
+			table = "main.`source_event_wal`",
+			columns = "admission_ordinal, event_id, created_at_ms, source_kind, " +
+				"source_instance_id, registration_generation, " +
+				"authorization_purpose_eligibility_mask, logical_tracking_id, service_run_id",
+			afterRowId = afterRowId,
+			maximumRowId = maximumRowId,
+			pageSize = WAL_MAINTENANCE_PAGE_SIZE,
+		) { cursor ->
+			val rowId = cursor.requiredLong("maintenance_rowid")
+			val sourceKind = cursor.requiredLong("source_kind")
+			if (sourceKind !in 1L..6L) throw CountDomainStoredEvidenceException()
+			if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS.toLong()) {
+				val admissionOrdinal = cursor.requiredLong("admission_ordinal")
+				val eventId = cursor.requiredText("event_id")
+				val createdAtMs = cursor.requiredLong("created_at_ms")
+				val sourceInstanceId = cursor.requiredText("source_instance_id")
+				val registrationGeneration = cursor.requiredLong("registration_generation")
+				val eligibilityMask =
+					cursor.requiredLong("authorization_purpose_eligibility_mask")
+				val logicalTrackingId = cursor.nullableText("logical_tracking_id")
+				val serviceRunId = cursor.nullableText("service_run_id")
+				if (admissionOrdinal <= 0L || eventId.isBlank() || createdAtMs < 0L ||
+					sourceInstanceId.isBlank() || registrationGeneration <= 0L ||
+					eligibilityMask < 0L ||
+					(eligibilityMask and SourceBrokerPurpose.ALL_MASK) != eligibilityMask ||
+					(logicalTrackingId == null) != (serviceRunId == null) ||
+					logicalTrackingId?.isBlank() == true ||
+					serviceRunId?.isBlank() == true ||
+					(eligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE) != 0L &&
+					(logicalTrackingId == null || serviceRunId == null)
+				) {
+					throw CountDomainStoredEvidenceException()
+				}
+			}
+			rowId
+		}
+		if (page.isEmpty()) break
+		if (afterRowId != null && page.first() <= afterRowId) {
+			throw CountDomainStoredEvidenceException()
+		}
+		auditedCount = Math.addExact(auditedCount, page.size.toLong())
+		afterRowId = page.last()
+		session.checkpoint(StepsCountDomainMaintenanceCheckpoint.WAL_DOMAIN_PAGE_AUTHENTICATED)
+		if (totalChanges() != session.expectedTotalChanges()) {
+			throw CountDomainStoredEvidenceException()
+		}
+		if (page.size < WAL_MAINTENANCE_PAGE_SIZE) break
+	}
+	if (auditedCount != expectedCount) throw CountDomainStoredEvidenceException()
+}
+
+private suspend fun SupportSQLiteDatabase.auditStepsRegistrationMaintenancePages(
+	session: StepsCountDomainStore.OwnerMaintenanceSession,
+) {
+	val (maximumRowId, expectedCount) =
+		maintenanceRowIdBoundary("provider_registration_generation")
+	var afterRowId: Long? = null
+	var auditedCount = 0L
+	while (maximumRowId != null) {
+		currentCoroutineContext().ensureActive()
+		val page = queryMaintenanceRowIdPage(
+			table = "main.`provider_registration_generation`",
+			columns = "source_kind, registration_generation, source_instance_id, status",
+			afterRowId = afterRowId,
+			maximumRowId = maximumRowId,
+			pageSize = WAL_MAINTENANCE_PAGE_SIZE,
+		) { cursor ->
+			val rowId = cursor.requiredLong("maintenance_rowid")
+			val sourceKind = cursor.requiredLong("source_kind")
+			if (sourceKind !in 1L..6L) throw CountDomainStoredEvidenceException()
+			if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS.toLong()) {
+				val generation = cursor.requiredLong("registration_generation")
+				val sourceInstanceId = cursor.requiredText("source_instance_id")
+				val status = cursor.requiredText("status")
+				if (generation <= 0L || sourceInstanceId.isBlank() ||
+					status !in setOf("RESERVED", "ACTIVE", "RETIRING", "RETIRED", "FAILED")
+				) {
+					throw CountDomainStoredEvidenceException()
+				}
+			}
+			rowId
+		}
+		if (page.isEmpty()) break
+		if (afterRowId != null && page.first() <= afterRowId) {
+			throw CountDomainStoredEvidenceException()
+		}
+		auditedCount = Math.addExact(auditedCount, page.size.toLong())
+		afterRowId = page.last()
+		session.checkpoint(
+			StepsCountDomainMaintenanceCheckpoint.WAL_REGISTRATION_PAGE_AUTHENTICATED,
+		)
+		if (totalChanges() != session.expectedTotalChanges()) {
+			throw CountDomainStoredEvidenceException()
+		}
+		if (page.size < WAL_MAINTENANCE_PAGE_SIZE) break
+	}
+	if (auditedCount != expectedCount) throw CountDomainStoredEvidenceException()
+}
+
+private suspend fun SupportSQLiteDatabase.auditStepsRunMaintenancePages(
+	session: StepsCountDomainStore.OwnerMaintenanceSession,
+) {
+	val (maximumRowId, expectedCount) = maintenanceRowIdBoundary("source_service_run")
+	var afterRowId: Long? = null
+	var auditedCount = 0L
+	while (maximumRowId != null) {
+		currentCoroutineContext().ensureActive()
+		val page = queryMaintenanceRowIdPage(
+			table = "main.`source_service_run`",
+			columns = "service_run_id, logical_tracking_id, state, completed_at_ms",
+			afterRowId = afterRowId,
+			maximumRowId = maximumRowId,
+			pageSize = WAL_MAINTENANCE_PAGE_SIZE,
+		) { cursor ->
+			val rowId = cursor.requiredLong("maintenance_rowid")
+			val serviceRunId = cursor.requiredText("service_run_id")
+			val logicalTrackingId = cursor.requiredText("logical_tracking_id")
+			val state = cursor.requiredText("state")
+			val completedAtMs = cursor.nullableLong("completed_at_ms")
+			val terminal = state in setOf("FINALIZED", "CLOSED", "FAILED")
+			if (serviceRunId.isBlank() || logicalTrackingId.isBlank() ||
+				state !in setOf(
+					"IDLE", "STARTING", "ACTIVE", "RECONFIGURING", "STOPPING",
+					"FINALIZED", "CLOSED", "FAILED",
+				) ||
+				completedAtMs?.let { it < 0L } == true ||
+				terminal != (completedAtMs != null)
+			) {
+				throw CountDomainStoredEvidenceException()
+			}
+			rowId
+		}
+		if (page.isEmpty()) break
+		if (afterRowId != null && page.first() <= afterRowId) {
+			throw CountDomainStoredEvidenceException()
+		}
+		auditedCount = Math.addExact(auditedCount, page.size.toLong())
+		afterRowId = page.last()
+		session.checkpoint(StepsCountDomainMaintenanceCheckpoint.WAL_RUN_PAGE_AUTHENTICATED)
+		if (totalChanges() != session.expectedTotalChanges()) {
+			throw CountDomainStoredEvidenceException()
+		}
+		if (page.size < WAL_MAINTENANCE_PAGE_SIZE) break
+	}
+	if (auditedCount != expectedCount) throw CountDomainStoredEvidenceException()
+}
+
+private fun SupportSQLiteDatabase.totalChanges(): Long =
+	longForQuery("SELECT total_changes()")
 
 private fun SupportSQLiteDatabase.longForQuery(
 	sql: String,

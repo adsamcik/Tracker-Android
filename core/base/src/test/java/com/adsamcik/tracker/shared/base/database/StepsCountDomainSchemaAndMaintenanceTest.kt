@@ -212,6 +212,52 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
+	fun `only the exact Room 2_8_4 temporary invalidation log DDL is accepted`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		val spoofedDefinitions = listOf(
+			"CREATE TEMP TABLE room_table_modification_log (" +
+				"table_id INTEGER PRIMARY KEY CHECK(table_id >= 0), " +
+				"invalidated INTEGER NOT NULL DEFAULT 0)",
+			"CREATE TEMP TABLE room_table_modification_log (" +
+				"table_id INTEGER PRIMARY KEY, invalidated INTEGER NOT NULL DEFAULT 1)",
+			"CREATE TEMP TABLE room_table_modification_log (" +
+				"table_id INTEGER PRIMARY KEY, invalidated INTEGER NOT NULL DEFAULT 0) WITHOUT ROWID",
+		)
+
+		spoofedDefinitions.forEach { definition ->
+			sqlite.execSQL(definition)
+			StepsCountDomainSchema.inspect(sqlite) shouldBe
+				StepsCountDomainSchemaState.Incompatible
+			sqlite.execSQL("DROP TABLE room_table_modification_log")
+		}
+
+		sqlite.execSQL(
+			"CREATE TEMP TABLE IF NOT EXISTS room_table_modification_log (" +
+				"table_id INTEGER PRIMARY KEY, invalidated INTEGER NOT NULL DEFAULT 0)",
+		)
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.ValidV2
+		sqlite.execSQL("INSERT INTO room_table_modification_log VALUES (7, 2)")
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `trigger attached to the Room invalidation log is incompatible`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"CREATE TEMP TABLE IF NOT EXISTS room_table_modification_log (" +
+				"table_id INTEGER PRIMARY KEY, invalidated INTEGER NOT NULL DEFAULT 0)",
+		)
+		sqlite.execSQL(
+			"CREATE TEMP TRIGGER unexpected_room_log_trigger " +
+				"AFTER UPDATE ON room_table_modification_log BEGIN SELECT 1; END",
+		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
 	fun `unexpected trigger attached to an authority table is incompatible regardless of name`() {
 		installSchema()
 		val sqlite = database.openHelper.writableDatabase
@@ -1370,22 +1416,34 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
-	fun `corrupt later candidate-domain page fails closed without deleting the requested owner`() =
+	fun `corruption introduced between domain pages invalidates the maintenance snapshot`() =
 		runTest {
 			installSchema()
 			val key = insertAmbientUnprovenOwnerHistory('c', 130)
-			database.openHelper.writableDatabase.execSQL(
-				"UPDATE steps_count_domain_owner_revision SET operation = 1 " +
-					"WHERE owner_identity = ? AND owner_revision = 100",
-				arrayOf(key.ownerIdentity),
-			)
+			var authenticatedPages = 0
 
-			StepsCountDomainStore(database).removeOwners(listOf(key)) shouldBe
+			StepsCountDomainStore(database).removeOwners(listOf(key)) { checkpoint ->
+				if (checkpoint ==
+					StepsCountDomainMaintenanceCheckpoint.OWNER_DOMAIN_PAGE_AUTHENTICATED &&
+					++authenticatedPages == 1
+				) {
+					database.openHelper.writableDatabase.execSQL(
+						"UPDATE steps_count_domain_owner_revision SET operation = 1 " +
+							"WHERE owner_identity = ? AND owner_revision = 100",
+						arrayOf(key.ownerIdentity),
+					)
+				}
+			} shouldBe
 				StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
 			database.openHelper.writableDatabase.count(
 				"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
 					"WHERE owner_identity = ? AND owner_revision = ?",
 				arrayOf(key.ownerIdentity, key.ownerRevision),
+			) shouldBe 1L
+			database.openHelper.writableDatabase.count(
+				"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
+					"WHERE owner_identity = ? AND owner_revision = 100 AND operation = 'UNPROVEN'",
+				arrayOf(key.ownerIdentity),
 			) shouldBe 1L
 		}
 
@@ -1440,7 +1498,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		}
 
 	@Test
-	fun `maintenance scopes raw validation to the requested owner domain`() = runTest {
+	fun `maintenance full-domain audit rejects an unrelated malformed owner`() = runTest {
 		installSchema()
 		val key = insertAmbientUnprovenOwnerHistory('9', 1)
 		database.openHelper.writableDatabase.execSQL(
@@ -1450,11 +1508,11 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		)
 
 		StepsCountDomainStore(database).removeOwners(listOf(key)) shouldBe
-			StepsCountDomainMaintenanceResult.Applied(1, 0)
+			StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
 	}
 
 	@Test
-	fun `repeated bounded maintenance never rescans unrelated count-domain history`() = runTest {
+	fun `one maintenance snapshot audits once across multiple candidate batches`() = runTest {
 		val queries = mutableListOf<String>()
 		database.close()
 		database = Room.inMemoryDatabaseBuilder(
@@ -1473,22 +1531,150 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		}
 		queries.clear()
 
-		candidates.forEach { key ->
-			StepsCountDomainStore(database).removeOwners(listOf(key)) shouldBe
-				StepsCountDomainMaintenanceResult.Applied(1, 0)
+		StepsCountDomainStore(database).withOwnerMaintenance { maintenance ->
+			candidates.forEach { key ->
+				maintenance.removeOwners(listOf(key)) shouldBe
+					StepsCountDomainMaintenanceResult.Applied(1, 0)
+			}
 		}
 
 		queries.count { query ->
 			query.startsWith(
-				"select rowid as maintenance_rowid, * " +
-					"from main.steps_count_domain_owner_revision",
+				"select rowid as maintenance_rowid, typeof(owner_kind), " +
+					"typeof(owner_identity), typeof(owner_revision)",
+			)
+		} shouldBe 9
+		queries.count { query ->
+			query.startsWith("select * from main.steps_count_domain_owner_revision") &&
+				query.contains("order by owner_kind, owner_identity, owner_revision limit ?")
+		} shouldBe 9
+		queries.count { query ->
+			query.startsWith(
+				"select * from main.steps_count_domain_owner_revision where " +
+					"(owner_kind = ? and owner_identity = ? and owner_revision = ?)",
 			)
 		} shouldBe candidates.size
 		queries.any { query ->
-			query == "select * from main.steps_count_domain_owner_revision" ||
-				query == "select * from main.steps_count_domain_receipt" ||
-				query == "select * from main.steps_count_domain_completeness_marker"
+			query.contains("cast(owner_kind as text)") ||
+				query.contains("cast(owner_identity as text)")
 		} shouldBe false
+	}
+
+	@Test
+	fun `maintenance snapshot cannot be reused after its owner loop returns`() = runTest {
+		installSchema()
+		val key = insertAmbientUnprovenOwnerHistory('e', 1)
+		var escaped: StepsCountDomainStore.OwnerMaintenanceSession? = null
+		val store = StepsCountDomainStore(database)
+
+		store.withOwnerMaintenance { maintenance ->
+			escaped = maintenance
+		}
+
+		shouldThrow<IllegalStateException> {
+			requireNotNull(escaped).removeOwners(listOf(key))
+		}
+		database.openHelper.writableDatabase.count(
+			"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
+				"WHERE owner_identity = ? AND owner_revision = ?",
+			arrayOf(key.ownerIdentity, key.ownerRevision),
+		) shouldBe 1L
+	}
+
+	@Test
+	fun `WAL maintenance audits once and keyset-pages multiple candidate batches`() = runTest {
+		val queries = mutableListOf<String>()
+		database.close()
+		database = Room.inMemoryDatabaseBuilder(
+			ApplicationProvider.getApplicationContext<Application>(),
+			AppDatabase::class.java,
+		).allowMainThreadQueries()
+			.setQueryCallback(
+				{ sql, _ -> queries += sql.replace(Regex("\\s+"), " ").trim().lowercase() },
+				Executor(Runnable::run),
+			)
+			.build()
+		installSchema()
+		val store = StepsCountDomainStore(database)
+		repeat(257) { index ->
+			val wal = insertWal("wal-page-$index", index.toLong() + 1L, payloadVersion = 7)
+			store.recordSessionWal(wal, token('a')) shouldBe StepsCountDomainWriteResult.INSERTED
+		}
+		queries.clear()
+		val callbacks = mutableMapOf<StepsCountDomainMaintenanceCheckpoint, Int>()
+
+		store.removeSessionWalOwnersForPrune(
+			safeOrdinal = 257L,
+			createdBeforeMs = 258L,
+			limit = 257,
+		) { checkpoint ->
+			callbacks[checkpoint] = callbacks.getOrDefault(checkpoint, 0) + 1
+		} shouldBe StepsCountDomainMaintenanceResult.Applied(257, 257)
+
+		callbacks[StepsCountDomainMaintenanceCheckpoint.OWNER_DOMAIN_PAGE_AUTHENTICATED] shouldBe 5
+		callbacks[StepsCountDomainMaintenanceCheckpoint.WAL_DOMAIN_PAGE_AUTHENTICATED] shouldBe 3
+		callbacks[StepsCountDomainMaintenanceCheckpoint.WAL_CANDIDATE_PAGE_AUTHENTICATED] shouldBe 3
+		queries.count { query ->
+			query.startsWith(
+				"select rowid as maintenance_rowid, admission_ordinal, event_id, " +
+					"created_at_ms, source_kind, " +
+					"source_instance_id, registration_generation",
+			)
+		} shouldBe 3
+		queries.none { query -> query.contains("cast(source_kind as integer)") } shouldBe true
+	}
+
+	@Test
+	fun `WAL maintenance cancellation between audit pages preserves every WAL row`() = runTest {
+		installSchema()
+		repeat(130) { index ->
+			insertWal("wal-cancel-$index", index.toLong() + 1L, payloadVersion = 7)
+		}
+		var walPages = 0
+
+		shouldThrow<CancellationException> {
+			StepsCountDomainStore(database).removeSessionWalOwnersForPrune(
+				safeOrdinal = 130L,
+				createdBeforeMs = 131L,
+				limit = 130,
+			) { checkpoint ->
+				if (checkpoint ==
+					StepsCountDomainMaintenanceCheckpoint.WAL_DOMAIN_PAGE_AUTHENTICATED &&
+					++walPages == 2
+				) {
+					throw CancellationException("stop WAL audit")
+				}
+			}
+		}
+
+		database.sourceEventWalDao().countAll() shouldBe 130L
+	}
+
+	@Test
+	fun `WAL corruption introduced between audit pages invalidates the snapshot`() = runTest {
+		installSchema()
+		repeat(130) { index ->
+			insertWal("wal-corrupt-$index", index.toLong() + 1L, payloadVersion = 7)
+		}
+		var walPages = 0
+
+		StepsCountDomainStore(database).removeSessionWalOwnersForPrune(
+			safeOrdinal = 130L,
+			createdBeforeMs = 131L,
+			limit = 130,
+		) { checkpoint ->
+			if (checkpoint ==
+				StepsCountDomainMaintenanceCheckpoint.WAL_DOMAIN_PAGE_AUTHENTICATED &&
+				++walPages == 1
+			) {
+				database.openHelper.writableDatabase.execSQL(
+					"UPDATE source_event_wal SET event_id = '' WHERE admission_ordinal = 100",
+				)
+			}
+		} shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+
+		requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(100L)).eventId shouldBe
+			"wal-corrupt-99"
 	}
 
 	@Test

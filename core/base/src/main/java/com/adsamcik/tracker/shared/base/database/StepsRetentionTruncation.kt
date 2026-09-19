@@ -105,78 +105,80 @@ suspend fun AppDatabase.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
 	requireCurrentCollectedDataEpoch(collectedDataEpoch)
 	val factDao = stepFactRevisionDao()
 	var deleted = 0
-	visitAuthenticatedRetentionRunBatches(beforeMs, collectedDataEpoch) { runs ->
-		runs.forEach { run ->
-			if (run.requiresRetentionMarker) {
-				markStepsRetentionTruncation(
-					logicalTrackingId = run.serviceRun.logicalTrackingId,
-					serviceRunId = run.serviceRun.serviceRunId,
-					collectedDataEpoch = collectedDataEpoch,
-					markedAtMs = markedAtMs,
-				)
-			}
-			val selected = run.expiredFactIdentities.map(run.authenticatedFacts::getValue)
-			selected
-				.groupBy { fact ->
-					Triple(
-						fact.writerProjectionId,
-						fact.writerProjectionVersion,
-						fact.semanticRevision,
+	StepsCountDomainStore(this).withOwnerMaintenance { maintenance ->
+		visitAuthenticatedRetentionRunBatches(beforeMs, collectedDataEpoch) { runs ->
+			runs.forEach { run ->
+				if (run.requiresRetentionMarker) {
+					markStepsRetentionTruncation(
+						logicalTrackingId = run.serviceRun.logicalTrackingId,
+						serviceRunId = run.serviceRun.serviceRunId,
+						collectedDataEpoch = collectedDataEpoch,
+						markedAtMs = markedAtMs,
 					)
 				}
-				.forEach { (writer, facts) ->
-					facts.chunked(RETENTION_FACT_DELETE_BATCH_SIZE).forEach { batch ->
-						val countDomainOwners = batch.flatMap { fact ->
-							val factOwner = StepsCountDomainOwnerLookupKey(
-								ownerKind =
-									StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
-								ownerIdentity = StepsCountDomainReceiptIntegrity
-									.sessionFactOwnerIdentity(
-										fact.writerProjectionId,
-										fact.writerProjectionVersion,
-										fact.logicalFactId,
-									),
-								ownerRevision = fact.semanticRevision,
-							)
-							val walOwner = if (
-								fact.sourceAdmissionOrdinal != null &&
-								fact.sourceEventId != null
-							) {
-								StepsCountDomainOwnerLookupKey(
-									ownerKind =
-										StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
-									ownerIdentity = StepsCountDomainReceiptIntegrity
-										.sessionWalOwnerIdentity(
-											fact.sourceAdmissionOrdinal,
-											fact.sourceEventId,
-										),
-									ownerRevision = 1L,
-								)
-							} else {
-								null
-							}
-							listOfNotNull(factOwner, walOwner)
-						}
-						countDomainOwners.chunked(COUNT_DOMAIN_OWNER_BATCH_SIZE).forEach {
-							check(
-								StepsCountDomainStore(this).removeOwners(it).let { result ->
-									result is StepsCountDomainMaintenanceResult.Applied ||
-										result == StepsCountDomainMaintenanceResult.SchemaUnavailable
-								},
-							) { "Steps count-domain retention evidence could not be removed" }
-						}
-						val deletedBatch = factDao.deleteAuthenticatedUpsertRevisions(
-							writerProjectionId = writer.first,
-							writerProjectionVersion = writer.second,
-							semanticRevision = writer.third,
-							logicalFactIds = batch.map(StepFactRevisionEntity::logicalFactId),
+				val selected = run.expiredFactIdentities.map(run.authenticatedFacts::getValue)
+				selected
+					.groupBy { fact ->
+						Triple(
+							fact.writerProjectionId,
+							fact.writerProjectionVersion,
+							fact.semanticRevision,
 						)
-						check(deletedBatch == batch.size) {
-							"Authenticated Steps retention set changed during pruning"
-						}
-						deleted += deletedBatch
 					}
-				}
+					.forEach { (writer, facts) ->
+						facts.chunked(RETENTION_FACT_DELETE_BATCH_SIZE).forEach { batch ->
+							val countDomainOwners = batch.flatMap { fact ->
+								val factOwner = StepsCountDomainOwnerLookupKey(
+									ownerKind =
+										StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+									ownerIdentity = StepsCountDomainReceiptIntegrity
+										.sessionFactOwnerIdentity(
+											fact.writerProjectionId,
+											fact.writerProjectionVersion,
+											fact.logicalFactId,
+										),
+									ownerRevision = fact.semanticRevision,
+								)
+								val walOwner = if (
+									fact.sourceAdmissionOrdinal != null &&
+									fact.sourceEventId != null
+								) {
+									StepsCountDomainOwnerLookupKey(
+										ownerKind =
+											StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+										ownerIdentity = StepsCountDomainReceiptIntegrity
+											.sessionWalOwnerIdentity(
+												fact.sourceAdmissionOrdinal,
+												fact.sourceEventId,
+											),
+										ownerRevision = 1L,
+									)
+								} else {
+									null
+								}
+								listOfNotNull(factOwner, walOwner)
+							}
+							countDomainOwners.chunked(COUNT_DOMAIN_OWNER_BATCH_SIZE).forEach {
+								check(
+									maintenance.removeOwners(it).let { result ->
+										result is StepsCountDomainMaintenanceResult.Applied ||
+											result == StepsCountDomainMaintenanceResult.SchemaUnavailable
+									},
+								) { "Steps count-domain retention evidence could not be removed" }
+							}
+							val deletedBatch = factDao.deleteAuthenticatedUpsertRevisions(
+								writerProjectionId = writer.first,
+								writerProjectionVersion = writer.second,
+								semanticRevision = writer.third,
+								logicalFactIds = batch.map(StepFactRevisionEntity::logicalFactId),
+							)
+							check(deletedBatch == batch.size) {
+								"Authenticated Steps retention set changed during pruning"
+							}
+							deleted += deletedBatch
+						}
+					}
+			}
 		}
 	}
 	val changed = deleted + pruneImportedStepsRetentionFloor(beforeMs, markedAtMs)

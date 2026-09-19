@@ -860,14 +860,16 @@ class StepSourceRuntime @Inject constructor(
 				throw failure
 			}
 		}
-		val checkpointConfirmed = terminal?.checkpointConfirmed == true
+		// Failed-start compensation has no capture checkpoint to publish. Provider retirement and
+		// actor settlement are the complete cleanup contract for that provisional registration.
+		val checkpointConfirmed = terminal == null || terminal.checkpointConfirmed
 		val settledAck = if (!ack.hasTerminalStepsRetirement() || checkpointConfirmed) {
 			ack
 		} else {
 			ack.withTerminalCheckpointPending()
 		}
 		if (ack.hasTerminalStepsRetirement() && checkpointConfirmed) {
-			terminalStopAck = ack
+			if (terminal != null) terminalStopAck = ack
 			clearActiveState()
 		} else {
 			retainProviderForRetirementRetry(retainActor = !actorSettled)
