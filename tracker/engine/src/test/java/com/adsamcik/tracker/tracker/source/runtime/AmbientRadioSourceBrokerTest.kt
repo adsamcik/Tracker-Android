@@ -26,6 +26,7 @@ import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.SourceCallerDemandIdentity
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -569,6 +570,414 @@ class AmbientRadioSourceBrokerTest {
 	}
 
 	@Test
+	fun `rejected Wi-Fi caller preparation retires exact radio authority atomically`() = runTest {
+		val policy = grant(TrackingSourceComponent.WIFI)
+		val consent = requireNotNull(policy[TrackingSourceComponent.WIFI].ambientConsentEpoch)
+		database.applyAmbientWifiRetentionDecision(
+			AmbientRadioRetentionDecision.GrantLiveAmbient(
+				"privacy:wifi:ambient:v1",
+				3L,
+				policy.revision,
+				consent,
+				"boot-1",
+				90L,
+				90L,
+			),
+		)
+		val identity = lease(
+			AmbientTrackingSource.WIFI,
+			policy.revision,
+			consent,
+			"wifi-rejected-caller-owner",
+		)
+		val caller = insertPurposeOwnerAuthority(identity, "wifi-rejected-caller")
+		val active = assertIs<AmbientRadioDemandResult.Active>(
+			broker.replaceAmbientWifiDemand(
+				consumerId = "app:ambient:wifi",
+				requested = true,
+				leaseIdentity = identity,
+				reconciliationAttempt = 1L,
+				bootId = "boot-1",
+				elapsedRealtimeNanos = 100L,
+				wallTimeMs = 100L,
+				sourceCallerAuthorityReference = caller.value,
+				retentionSnapshot = retentionSnapshot(
+					SourceKind.WIFI,
+					policy.revision,
+					consent,
+					100L,
+				),
+			),
+		)
+
+		assertIs<GuardedPurposeDemandResult.Rejected>(
+			rejectingPurposeDispatcher().dispatchAmbientRadio(
+				AmbientRadioDemandDispatchRequest(
+					source = AmbientTrackingSource.WIFI,
+					leaseIdentity = identity,
+					consumerId = "app:ambient:wifi",
+					requested = true,
+					reconciliationAttempt = 2L,
+					bootId = "boot-1",
+					elapsedRealtimeNanos = 200L,
+					wallTimeMs = 200L,
+				),
+			) { _, _ -> error("Rejected caller preparation must not reconcile the provider") },
+		)
+
+		assertTrue(database.sourceBrokerDao().currentDemands("app:ambient:wifi").isEmpty())
+		assertEquals(
+			StoredSourceCallerAuthorityLoadResult.Retired,
+			RoomSourceCallerAcceptedAuthorityRepository(database).load(caller),
+		)
+		val revoked = requireNotNull(database.ambientWifiFactDao().latestAuthority())
+		assertEquals(AmbientWifiAuthorityEntity.STATE_REVOKED, revoked.state)
+		assertEquals(active.demand.demandId, revoked.demandId)
+		assertEquals(2L, revoked.reconciliationAttempt)
+	}
+
+	@Test
+	fun `rejected Cell caller preparation retires exact radio authority atomically`() = runTest {
+		val policy = grant(TrackingSourceComponent.CELL)
+		val consent = requireNotNull(policy[TrackingSourceComponent.CELL].ambientConsentEpoch)
+		database.applyAmbientCellRetentionDecision(
+			AmbientRadioRetentionDecision.GrantLiveAmbient(
+				"privacy:cell:ambient:v1",
+				3L,
+				policy.revision,
+				consent,
+				"boot-1",
+				90L,
+				90L,
+			),
+		)
+		val identity = lease(
+			AmbientTrackingSource.CELL,
+			policy.revision,
+			consent,
+			"cell-rejected-caller-owner",
+		)
+		val caller = insertPurposeOwnerAuthority(identity, "cell-rejected-caller")
+		val active = assertIs<AmbientRadioDemandResult.Active>(
+			broker.replaceAmbientCellDemand(
+				consumerId = "app:ambient:cell",
+				requested = true,
+				leaseIdentity = identity,
+				reconciliationAttempt = 1L,
+				bootId = "boot-1",
+				elapsedRealtimeNanos = 100L,
+				wallTimeMs = 100L,
+				sourceCallerAuthorityReference = caller.value,
+				retentionSnapshot = retentionSnapshot(
+					SourceKind.CELL,
+					policy.revision,
+					consent,
+					100L,
+				),
+			),
+		)
+
+		assertIs<GuardedPurposeDemandResult.Rejected>(
+			rejectingPurposeDispatcher().dispatchAmbientRadio(
+				AmbientRadioDemandDispatchRequest(
+					source = AmbientTrackingSource.CELL,
+					leaseIdentity = identity,
+					consumerId = "app:ambient:cell",
+					requested = true,
+					reconciliationAttempt = 2L,
+					bootId = "boot-1",
+					elapsedRealtimeNanos = 200L,
+					wallTimeMs = 200L,
+				),
+			) { _, _ -> error("Rejected caller preparation must not reconcile the provider") },
+		)
+
+		assertTrue(database.sourceBrokerDao().currentDemands("app:ambient:cell").isEmpty())
+		assertEquals(
+			StoredSourceCallerAuthorityLoadResult.Retired,
+			RoomSourceCallerAcceptedAuthorityRepository(database).load(caller),
+		)
+		val revoked = requireNotNull(database.ambientCellFactDao().latestAuthority())
+		assertEquals(AmbientCellAuthorityEntity.STATE_REVOKED, revoked.state)
+		assertEquals(active.demand.demandId, revoked.demandId)
+		assertEquals(2L, revoked.reconciliationAttempt)
+	}
+
+	@Test
+	fun `rejected stale Wi-Fi caller cannot retire a durable successor`() = runTest {
+		val policy = grant(TrackingSourceComponent.WIFI)
+		val consent = requireNotNull(policy[TrackingSourceComponent.WIFI].ambientConsentEpoch)
+		database.applyAmbientWifiRetentionDecision(
+			AmbientRadioRetentionDecision.GrantLiveAmbient(
+				"privacy:wifi:ambient:v1",
+				3L,
+				policy.revision,
+				consent,
+				"boot-1",
+				90L,
+				90L,
+			),
+		)
+		val staleIdentity = lease(
+			AmbientTrackingSource.WIFI,
+			policy.revision,
+			consent,
+			"wifi-stale-rejected-owner",
+		)
+		val staleCaller = insertPurposeOwnerAuthority(staleIdentity, "wifi-stale-rejected-caller")
+		broker.replaceAmbientWifiDemand(
+			consumerId = "app:ambient:wifi",
+			requested = true,
+			leaseIdentity = staleIdentity,
+			reconciliationAttempt = 1L,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 100L,
+			wallTimeMs = 100L,
+			sourceCallerAuthorityReference = staleCaller.value,
+			retentionSnapshot = retentionSnapshot(
+				SourceKind.WIFI,
+				policy.revision,
+				consent,
+				100L,
+			),
+		)
+		val successorIdentity = staleIdentity.copy(ownerCasToken = "wifi-successor-owner")
+		val successorCaller =
+			insertPurposeOwnerAuthority(successorIdentity, "wifi-successor-caller")
+		val successor = assertIs<AmbientRadioDemandResult.Active>(
+			broker.replaceAmbientWifiDemand(
+				consumerId = "app:ambient:wifi",
+				requested = true,
+				leaseIdentity = successorIdentity,
+				reconciliationAttempt = 2L,
+				bootId = "boot-1",
+				elapsedRealtimeNanos = 150L,
+				wallTimeMs = 150L,
+				sourceCallerAuthorityReference = successorCaller.value,
+				retentionSnapshot = retentionSnapshot(
+					SourceKind.WIFI,
+					policy.revision,
+					consent,
+					150L,
+				),
+			),
+		)
+
+		assertIs<GuardedPurposeDemandResult.Rejected>(
+			rejectingPurposeDispatcher().dispatchAmbientRadio(
+				AmbientRadioDemandDispatchRequest(
+					source = AmbientTrackingSource.WIFI,
+					leaseIdentity = staleIdentity,
+					consumerId = "app:ambient:wifi",
+					requested = true,
+					reconciliationAttempt = 3L,
+					bootId = "boot-1",
+					elapsedRealtimeNanos = 200L,
+					wallTimeMs = 200L,
+				),
+			) { _, _ -> error("Rejected stale caller must not reconcile the provider") },
+		)
+
+		assertEquals(
+			successor.demand.demandId,
+			database.sourceBrokerDao().currentDemands("app:ambient:wifi").single().demandId,
+		)
+		val activeAuthority = requireNotNull(database.ambientWifiFactDao().latestAuthority())
+		assertEquals(AmbientWifiAuthorityEntity.STATE_ACTIVE, activeAuthority.state)
+		assertEquals(successorIdentity.ownerCasToken, activeAuthority.ownerCasToken)
+		assertEquals(
+			StoredSourceCallerAuthorityLoadResult.Available(
+				StoredSourceCallerAuthority(
+					origin = StoredSourceCallerOrigin.PURPOSE_OWNER,
+					purpose = TrackingPurpose.AMBIENT_PRODUCT,
+					permittedDemandIdentities = setOf(
+						SourceCallerDemandIdentity(
+							successorIdentity.purposeLeaseIdentity,
+							null,
+						),
+					),
+				),
+			),
+			RoomSourceCallerAcceptedAuthorityRepository(database).load(successorCaller),
+		)
+	}
+
+	@Test
+	fun `rejected stale Cell attempt cannot retire its newer active attempt`() = runTest {
+		val policy = grant(TrackingSourceComponent.CELL)
+		val consent = requireNotNull(policy[TrackingSourceComponent.CELL].ambientConsentEpoch)
+		database.applyAmbientCellRetentionDecision(
+			AmbientRadioRetentionDecision.GrantLiveAmbient(
+				"privacy:cell:ambient:v1",
+				3L,
+				policy.revision,
+				consent,
+				"boot-1",
+				90L,
+				90L,
+			),
+		)
+		val identity = lease(
+			AmbientTrackingSource.CELL,
+			policy.revision,
+			consent,
+			"cell-newer-attempt-owner",
+		)
+		val caller = insertPurposeOwnerAuthority(identity, "cell-newer-attempt-caller")
+		val active = assertIs<AmbientRadioDemandResult.Active>(
+			broker.replaceAmbientCellDemand(
+				consumerId = "app:ambient:cell",
+				requested = true,
+				leaseIdentity = identity,
+				reconciliationAttempt = 3L,
+				bootId = "boot-1",
+				elapsedRealtimeNanos = 100L,
+				wallTimeMs = 100L,
+				sourceCallerAuthorityReference = caller.value,
+				retentionSnapshot = retentionSnapshot(
+					SourceKind.CELL,
+					policy.revision,
+					consent,
+					100L,
+				),
+			),
+		)
+
+		assertIs<GuardedPurposeDemandResult.Rejected>(
+			rejectingPurposeDispatcher().dispatchAmbientRadio(
+				AmbientRadioDemandDispatchRequest(
+					source = AmbientTrackingSource.CELL,
+					leaseIdentity = identity,
+					consumerId = "app:ambient:cell",
+					requested = true,
+					reconciliationAttempt = 2L,
+					bootId = "boot-1",
+					elapsedRealtimeNanos = 200L,
+					wallTimeMs = 200L,
+				),
+			) { _, _ -> error("Rejected stale attempt must not reconcile the provider") },
+		)
+
+		assertEquals(
+			active.demand.demandId,
+			database.sourceBrokerDao().currentDemands("app:ambient:cell").single().demandId,
+		)
+		assertEquals(
+			AmbientCellAuthorityEntity.STATE_ACTIVE,
+			database.ambientCellFactDao().latestAuthority()?.state,
+		)
+		assertIs<StoredSourceCallerAuthorityLoadResult.Available>(
+			RoomSourceCallerAcceptedAuthorityRepository(database).load(caller),
+		)
+	}
+
+	@Test
+	fun `rejected Cell caller retry repairs prior demand retirement idempotently`() = runTest {
+		val policy = grant(TrackingSourceComponent.CELL)
+		val consent = requireNotNull(policy[TrackingSourceComponent.CELL].ambientConsentEpoch)
+		database.applyAmbientCellRetentionDecision(
+			AmbientRadioRetentionDecision.GrantLiveAmbient(
+				"privacy:cell:ambient:v1",
+				3L,
+				policy.revision,
+				consent,
+				"boot-1",
+				90L,
+				90L,
+			),
+		)
+		val identity = lease(
+			AmbientTrackingSource.CELL,
+			policy.revision,
+			consent,
+			"cell-partial-rejected-owner",
+		)
+		val caller = insertPurposeOwnerAuthority(identity, "cell-partial-rejected-caller")
+		val active = assertIs<AmbientRadioDemandResult.Active>(
+			broker.replaceAmbientCellDemand(
+				consumerId = "app:ambient:cell",
+				requested = true,
+				leaseIdentity = identity,
+				reconciliationAttempt = 1L,
+				bootId = "boot-1",
+				elapsedRealtimeNanos = 100L,
+				wallTimeMs = 100L,
+				sourceCallerAuthorityReference = caller.value,
+				retentionSnapshot = retentionSnapshot(
+					SourceKind.CELL,
+					policy.revision,
+					consent,
+					100L,
+				),
+			),
+		)
+		assertEquals(
+			1,
+			database.ambientCellFactDao().retireExactAmbientDemand(
+				demandId = active.demand.demandId,
+				consumerId = active.demand.consumerId,
+				sourceKind = active.demand.sourceKind,
+				sourcePolicyRevision = active.demand.sourcePolicyRevision,
+				consentEpoch = active.demand.consentEpoch,
+				bootId = "boot-1",
+				elapsedRealtimeNanos = 125L,
+				wallTimeMs = 125L,
+			),
+		)
+		assertTrue(
+			RoomSourceCallerAcceptedAuthorityRepository(database).retireForTeardown(
+				caller,
+				"TEST_PARTIAL_REJECTED_CALLER_CLEANUP",
+				125L,
+			),
+		)
+		assertEquals(
+			AmbientCellAuthorityEntity.STATE_ACTIVE,
+			database.ambientCellFactDao().latestAuthority()?.state,
+		)
+
+		val request = AmbientRadioDemandDispatchRequest(
+			source = AmbientTrackingSource.CELL,
+			leaseIdentity = identity,
+			consumerId = "app:ambient:cell",
+			requested = true,
+			reconciliationAttempt = 2L,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 200L,
+			wallTimeMs = 200L,
+		)
+		val dispatcher = rejectingPurposeDispatcher()
+		assertIs<GuardedPurposeDemandResult.Rejected>(
+			dispatcher.dispatchAmbientRadio(request) { _, _ ->
+				error("Rejected caller retry must not reconcile the provider")
+			},
+		)
+		val repairedRevision = database.ambientCellFactDao().maximumAuthorityRevision()
+		assertIs<GuardedPurposeDemandResult.Rejected>(
+			dispatcher.dispatchAmbientRadio(request.copy(
+				elapsedRealtimeNanos = 201L,
+				wallTimeMs = 201L,
+			)) { _, _ ->
+				error("Idempotent rejected caller retry must not reconcile the provider")
+			},
+		)
+
+		assertEquals(
+			repairedRevision,
+			database.ambientCellFactDao().maximumAuthorityRevision(),
+		)
+		assertTrue(database.sourceBrokerDao().currentDemands("app:ambient:cell").isEmpty())
+		assertEquals(
+			StoredSourceCallerAuthorityLoadResult.Retired,
+			RoomSourceCallerAcceptedAuthorityRepository(database).load(caller),
+		)
+		val revoked = requireNotNull(database.ambientCellFactDao().latestAuthority())
+		assertEquals(AmbientCellAuthorityEntity.STATE_REVOKED, revoked.state)
+		assertEquals(active.demand.demandId, revoked.demandId)
+		assertEquals(2L, revoked.reconciliationAttempt)
+	}
+
+	@Test
 	fun `settlement journal opened after snapshot rejects caller and radio writes atomically`() =
 		runTest {
 		val policy = grant(TrackingSourceComponent.WIFI)
@@ -1002,6 +1411,23 @@ class AmbientRadioSourceBrokerTest {
 				permittedDemandIdentities = setOf(demandIdentity),
 			),
 			createdAtMs = 95L,
+		)
+	}
+
+	private fun rejectingPurposeDispatcher(): GuardedSourceCallerDemandDispatcher {
+		val snapshot = SourceCallerAuthoritySnapshot(
+			emptySet(),
+			TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+		)
+		val authorityRepository = RoomSourceCallerAcceptedAuthorityRepository(database)
+		return GuardedSourceCallerDemandDispatcher(
+			authorityReader = CurrentSourceCallerAuthorityProvider { snapshot },
+			guard = ExactSourceCallerGuard(
+				SourceCallerAuthoritySnapshotReader { snapshot },
+				authorityRepository,
+			),
+			sourceBroker = broker,
+			authorityRepository = authorityRepository,
 		)
 	}
 

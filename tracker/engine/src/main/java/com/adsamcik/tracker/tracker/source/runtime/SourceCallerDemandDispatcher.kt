@@ -713,14 +713,29 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 	) {
 		try {
 			sourceBroker.withAmbientRadioReductionLease(request.leaseIdentity) {
-				sourceBroker.retirePurposeDemand(
-					consumerId = request.consumerId,
-					expectedSourceKind = request.source.canonicalSource.stableCode,
-					expectedPurpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
-					bootId = request.bootId,
-					elapsedRealtimeNanos = request.elapsedRealtimeNanos,
-					wallTimeMs = request.wallTimeMs,
-				)
+				when (request.source) {
+					AmbientTrackingSource.WIFI ->
+						sourceBroker.reduceAmbientWifiAfterRejectedCallerUnderHeldLease(
+							consumerId = request.consumerId,
+							leaseIdentity = request.leaseIdentity,
+							reconciliationAttempt = request.reconciliationAttempt,
+							bootId = request.bootId,
+							elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+							wallTimeMs = request.wallTimeMs,
+						)
+					AmbientTrackingSource.CELL ->
+						sourceBroker.reduceAmbientCellAfterRejectedCallerUnderHeldLease(
+							consumerId = request.consumerId,
+							leaseIdentity = request.leaseIdentity,
+							reconciliationAttempt = request.reconciliationAttempt,
+							bootId = request.bootId,
+							elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+							wallTimeMs = request.wallTimeMs,
+						)
+					AmbientTrackingSource.STEPS,
+					AmbientTrackingSource.LOCATION,
+					-> error("Unsupported ambient-radio source passed validation")
+				}
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled

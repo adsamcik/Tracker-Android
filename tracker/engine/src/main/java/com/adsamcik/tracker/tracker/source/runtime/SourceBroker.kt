@@ -1657,6 +1657,126 @@ class SourceBroker @Inject internal constructor(
 	): AmbientRadioLeaseMutation<T> =
 		ambientRadioMutationLeaseGuard.mutateReductionIfRetained(identity, mutation)
 
+	internal suspend fun reduceAmbientWifiAfterRejectedCallerUnderHeldLease(
+		consumerId: String,
+		leaseIdentity: AmbientReconciliationIdentity,
+		reconciliationAttempt: Long,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): AmbientRadioDemandResult = database.withTransaction {
+		reduceAmbientRadioAfterRejectedCallerInTransaction(
+			consumerId = consumerId,
+			source = SourceKind.WIFI,
+			leaseIdentity = leaseIdentity,
+			reconciliationAttempt = reconciliationAttempt,
+			bootId = bootId,
+			elapsedRealtimeNanos = elapsedRealtimeNanos,
+			wallTimeMs = wallTimeMs,
+			latestAuthority = {
+				database.ambientWifiFactDao().latestAuthority()
+					?.takeIf(AmbientWifiAuthorityIntegrity::isAuthentic)
+					?.toRadioAuthority()
+			},
+			maximumAuthorityRevision = {
+				database.ambientWifiFactDao().maximumAuthorityRevision()
+			},
+			insertAuthority = { authority ->
+				database.ambientWifiFactDao().insertAuthority(
+					AmbientWifiAuthorityIntegrity.create(
+						authority.authorityRevision,
+						authority.state,
+						authority.sourcePolicyRevision,
+						authority.ambientConsentEpoch,
+						authority.retentionPolicyId,
+						authority.retentionApprovalRevision,
+						authority.collectedDataEpoch,
+						authority.scopeDeletionGeneration,
+						authority.effectiveBootId,
+						authority.effectiveElapsedRealtimeNanos,
+						authority.effectiveWallTimeMs,
+						authority.rolloutRevision,
+						authority.ownerCasToken,
+						authority.reconciliationAttempt,
+						authority.demandId,
+					),
+				)
+			},
+			retireExactDemand = { demand ->
+				database.ambientWifiFactDao().retireExactAmbientDemand(
+					demand.demandId,
+					demand.consumerId,
+					demand.sourceKind,
+					demand.sourcePolicyRevision,
+					demand.consentEpoch,
+					bootId,
+					elapsedRealtimeNanos,
+					wallTimeMs,
+				)
+			},
+		)
+	}
+
+	internal suspend fun reduceAmbientCellAfterRejectedCallerUnderHeldLease(
+		consumerId: String,
+		leaseIdentity: AmbientReconciliationIdentity,
+		reconciliationAttempt: Long,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): AmbientRadioDemandResult = database.withTransaction {
+		reduceAmbientRadioAfterRejectedCallerInTransaction(
+			consumerId = consumerId,
+			source = SourceKind.CELL,
+			leaseIdentity = leaseIdentity,
+			reconciliationAttempt = reconciliationAttempt,
+			bootId = bootId,
+			elapsedRealtimeNanos = elapsedRealtimeNanos,
+			wallTimeMs = wallTimeMs,
+			latestAuthority = {
+				database.ambientCellFactDao().latestAuthority()
+					?.takeIf(AmbientCellAuthorityIntegrity::isAuthentic)
+					?.toRadioAuthority()
+			},
+			maximumAuthorityRevision = {
+				database.ambientCellFactDao().maximumAuthorityRevision()
+			},
+			insertAuthority = { authority ->
+				database.ambientCellFactDao().insertAuthority(
+					AmbientCellAuthorityIntegrity.create(
+						authority.authorityRevision,
+						authority.state,
+						authority.sourcePolicyRevision,
+						authority.ambientConsentEpoch,
+						authority.retentionPolicyId,
+						authority.retentionApprovalRevision,
+						authority.collectedDataEpoch,
+						authority.scopeDeletionGeneration,
+						authority.effectiveBootId,
+						authority.effectiveElapsedRealtimeNanos,
+						authority.effectiveWallTimeMs,
+						authority.rolloutRevision,
+						authority.ownerCasToken,
+						authority.reconciliationAttempt,
+						authority.demandId,
+					),
+				)
+			},
+			retireExactDemand = { demand ->
+				database.ambientCellFactDao().retireExactAmbientDemand(
+					demand.demandId,
+					demand.consumerId,
+					demand.sourceKind,
+					demand.sourcePolicyRevision,
+					demand.consentEpoch,
+					bootId,
+					elapsedRealtimeNanos,
+					wallTimeMs,
+				)
+			},
+		)
+	}
+
 	internal suspend fun reduceAmbientWifiDemandForRecovery(
 		consumerId: String,
 		plan: AmbientRadioRetirementPlan.Required,
@@ -2115,6 +2235,190 @@ class SourceBroker @Inject internal constructor(
 			expectedDemandId = demand.demandId,
 			expectedAuthorityRevision = authority.authorityRevision,
 			sourceCallerAuthorityReference = callerReference,
+		)
+	}
+
+	@Suppress("LongMethod", "LongParameterList", "CyclomaticComplexMethod", "ReturnCount")
+	private suspend fun reduceAmbientRadioAfterRejectedCallerInTransaction(
+		consumerId: String,
+		source: SourceKind,
+		leaseIdentity: AmbientReconciliationIdentity,
+		reconciliationAttempt: Long,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+		latestAuthority: suspend () -> AmbientRadioAuthority?,
+		maximumAuthorityRevision: suspend () -> Long,
+		insertAuthority: suspend (AmbientRadioAuthority) -> Unit,
+		retireExactDemand: suspend (SourceDemandEntity) -> Int,
+	): AmbientRadioDemandResult {
+		require(source == SourceKind.WIFI || source == SourceKind.CELL)
+		require(consumerId.isNotBlank())
+		require(reconciliationAttempt > 0L)
+		require(bootId.isNotBlank())
+		require(elapsedRealtimeNanos >= 0L && wallTimeMs >= 0L)
+		if (leaseIdentity.source != source.toAmbientTrackingSource()) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.STALE_RECONCILIATION_LEASE,
+			)
+		}
+
+		val demandHistory = database.sourceBrokerDao().demandHistory(consumerId)
+		val nonterminalDemands = demandHistory.filter { demand ->
+			demand.status == SourceDemandEntity.STATUS_ACTIVE ||
+				demand.status == SourceDemandEntity.STATUS_RETIRING ||
+				demand.status == SourceDemandEntity.STATUS_BLOCKED
+		}
+		if (nonterminalDemands.size > 1 || nonterminalDemands.any { demand ->
+				demand.sourceKind != source.stableCode ||
+					demand.purpose != SourceBrokerPurpose.AMBIENT_PRODUCT
+			}
+		) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT,
+			)
+		}
+
+		val authority = latestAuthority() ?: return AmbientRadioDemandResult.Inactive(
+			if (nonterminalDemands.isEmpty()) {
+				AmbientRadioDemandInactiveReason.AUTHORITY_INACTIVE
+			} else {
+				AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT
+			},
+		)
+		if (
+			authority.sourcePolicyRevision != leaseIdentity.policyRevision ||
+			authority.ambientConsentEpoch != leaseIdentity.consentEpoch ||
+			authority.retentionPolicyId != leaseIdentity.retentionPolicyId ||
+			authority.retentionApprovalRevision != leaseIdentity.retentionApprovalRevision ||
+			authority.collectedDataEpoch != leaseIdentity.collectedDataEpoch ||
+			authority.rolloutRevision != leaseIdentity.rolloutRevision ||
+			authority.executionGeneration != leaseIdentity.executionRevision ||
+			authority.ownerCasToken != leaseIdentity.ownerCasToken
+		) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.STALE_RECONCILIATION_LEASE,
+			)
+		}
+		if (authority.reconciliationAttempt > reconciliationAttempt) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.STALE_RECONCILIATION_ATTEMPT,
+			)
+		}
+		if (authority.state != AmbientWifiAuthorityEntity.STATE_ACTIVE &&
+			authority.state != AmbientWifiAuthorityEntity.STATE_REVOKED
+		) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT,
+			)
+		}
+
+		val demandId = authority.demandId ?: return AmbientRadioDemandResult.Inactive(
+			AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT,
+		)
+		val demand = demandHistory.singleOrNull { candidate ->
+			candidate.demandId == demandId &&
+				candidate.consumerId == consumerId &&
+				candidate.sourceKind == source.stableCode &&
+				candidate.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
+				candidate.sourcePolicyRevision == leaseIdentity.policyRevision &&
+				candidate.consentEpoch == leaseIdentity.consentEpoch &&
+				candidate.liveAmbientRetentionPolicyId == leaseIdentity.retentionPolicyId &&
+				candidate.liveAmbientRetentionApprovalRevision ==
+				leaseIdentity.retentionApprovalRevision &&
+				!candidate.sourceCallerAuthorityReference.isNullOrBlank()
+		} ?: return AmbientRadioDemandResult.Inactive(
+			AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT,
+		)
+		if (nonterminalDemands.any { it.demandId != demandId }) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT,
+			)
+		}
+
+		val callerReference = requireNotNull(demand.sourceCallerAuthorityReference)
+			.toCallerReferenceOrNull()
+			?: return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT,
+			)
+		val expectedCallerIdentity = SourceCallerDemandIdentity(
+			leaseIdentity.purposeLeaseIdentity,
+			manifestIdentity = null,
+		)
+		val callerAuthority = authenticateStoredSourceCallerAuthority(
+			database.sourceCallerAuthorityDao().rows(callerReference.value),
+			callerReference,
+		)
+		if (callerAuthority is StoredSourceCallerAuthorityLoadResult.Available &&
+			(
+				callerAuthority.authority.origin != StoredSourceCallerOrigin.PURPOSE_OWNER ||
+					callerAuthority.authority.purpose != TrackingPurpose.AMBIENT_PRODUCT ||
+					callerAuthority.authority.permittedDemandIdentities !=
+					setOf(expectedCallerIdentity)
+				)
+		) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT,
+			)
+		}
+
+		val authorityWasActive = authority.state == AmbientWifiAuthorityEntity.STATE_ACTIVE
+		val revokedAuthority = if (authorityWasActive) {
+			val maximumRevision = maximumAuthorityRevision()
+			if (maximumRevision == Long.MAX_VALUE) {
+				return AmbientRadioDemandResult.Inactive(
+					AmbientRadioDemandInactiveReason.AUTHORITY_REVISION_EXHAUSTED,
+				)
+			}
+			authority.copy(
+				authorityRevision = maximumRevision + 1L,
+				state = AmbientWifiAuthorityEntity.STATE_REVOKED,
+				effectiveBootId = bootId,
+				effectiveElapsedRealtimeNanos = elapsedRealtimeNanos,
+				effectiveWallTimeMs = wallTimeMs,
+				reconciliationAttempt = reconciliationAttempt,
+			)
+		} else {
+			authority
+		}
+		if (demand.status != SourceDemandEntity.STATUS_RETIRED &&
+			retireExactDemand(demand) != 1
+		) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT,
+			)
+		}
+		check(retireDemandAuthority(
+			demand,
+			"AMBIENT_RADIO_CALLER_REJECTED",
+			wallTimeMs,
+		)) {
+			"Unable to retire rejected Ambient radio caller authority"
+		}
+		if (authorityWasActive) {
+			insertAuthority(revokedAuthority)
+		}
+		rotateCurrentAuthorizationInTransaction(
+			source.stableCode,
+			bootId,
+			elapsedRealtimeNanos,
+			wallTimeMs,
+		)
+		return AmbientRadioDemandResult.Inactive(
+			reason = AmbientRadioDemandInactiveReason.AUTHORITY_INACTIVE,
+			reconciliationAuthority = AmbientRadioReconciliationAuthority(
+				source = source,
+				policyRevision = leaseIdentity.policyRevision,
+				ambientConsentEpoch = leaseIdentity.consentEpoch,
+				collectedDataEpoch = leaseIdentity.collectedDataEpoch,
+				retainedFromMs = leaseIdentity.retainedFromMs,
+				rolloutRevision = leaseIdentity.rolloutRevision,
+				executionGeneration = revokedAuthority.executionGeneration,
+				authorityRevision = revokedAuthority.authorityRevision,
+				ownerCasToken = leaseIdentity.ownerCasToken,
+				reconciliationAttempt = revokedAuthority.reconciliationAttempt,
+			),
+			retiredDemandId = demandId,
 		)
 	}
 
