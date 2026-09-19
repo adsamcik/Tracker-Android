@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
 import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
 import com.adsamcik.tracker.shared.base.database.RetentionFloorOperationLookupResult
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionCompletionResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionContinuationResult
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionPlanResult
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionReceipt
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionStartResult
@@ -197,6 +198,47 @@ class RetentionPipelineWorkerRobolectricTest {
 		coVerify(exactly = 0) { coordinator.complete(any(), any(), any()) }
 		coVerify(exactly = 0) { settlement.pendingOperation(any(), any()) }
 	}
+
+	@Test
+	fun `owner observing cancellation stops before destructive pipeline work and cannot finalize`() =
+		runTest {
+			val context = ApplicationProvider.getApplicationContext<Context>()
+			val receipt = RetentionWorkExecutionReceipt(
+				executionId = "pipeline-cancellation:g1",
+				workRequestId = "pipeline-cancellation",
+				executionGeneration = 1L,
+				workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+				startedAtMs = 1L,
+				state = "OPEN",
+				destructivePlan = null,
+				updatedAtMs = 1L,
+			)
+			val coordinator = mockk<RetentionWorkExecutionCoordinator> {
+				coEvery { begin(any(), any(), any(), any(), any()) } returns
+					RetentionWorkExecutionStartResult.Open(receipt)
+				coEvery { continuation(any(), receipt) } returns
+					RetentionWorkExecutionContinuationResult.CancellationRequested
+				coEvery { complete(any(), receipt, any()) } returns
+					RetentionWorkExecutionCompletionResult.CancellationRequested
+			}
+			val settlement = mockk<RetentionFloorSettlement>(relaxed = true)
+			val backups = mockk<DatabaseMigrationBackupRepository>(relaxed = true)
+
+			worker(
+				context = context,
+				store = retentionStore(autoPurgeConfig(rawDataRetentionDays = 1)),
+				db = mockk(relaxed = true),
+				migrationBackupRepository = backups,
+				retentionFloorSettlement = settlement,
+				workExecutionCoordinator = coordinator,
+			).doWork() shouldBe ListenableWorker.Result.success()
+
+			coVerify(exactly = 1) { coordinator.continuation(any(), receipt) }
+			coVerify(exactly = 0) { coordinator.attachPlan(any(), any(), any()) }
+			coVerify(exactly = 1) { coordinator.complete(any(), receipt, any()) }
+			coVerify(exactly = 0) { settlement.pendingOperation(any(), any()) }
+			verify(exactly = 0) { backups.deleteAll() }
+		}
 
 	@Test
 	fun `auto cleanup purges all supported retention tables`() = runTest {
@@ -1316,6 +1358,8 @@ class RetentionPipelineWorkerRobolectricTest {
 				),
 			)
 		}
+		coEvery { continuation(any(), any()) } returns
+			RetentionWorkExecutionContinuationResult.Continue
 		coEvery { complete(any(), any(), any()) } returns
 			RetentionWorkExecutionCompletionResult.Completed
 	}

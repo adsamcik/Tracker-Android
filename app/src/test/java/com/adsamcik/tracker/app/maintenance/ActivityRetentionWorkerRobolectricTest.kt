@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
 import com.adsamcik.tracker.shared.base.database.RetentionFloorOperationLookupResult
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionCompletionResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionContinuationResult
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionPlanResult
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionReceipt
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionStartResult
@@ -479,6 +480,8 @@ class ActivityRetentionWorkerRobolectricTest {
 				),
 			)
 		}
+		coEvery { continuation(any(), any()) } returns
+			RetentionWorkExecutionContinuationResult.Continue
 		coEvery { complete(any(), any(), any()) } returns
 			RetentionWorkExecutionCompletionResult.Completed
 	}

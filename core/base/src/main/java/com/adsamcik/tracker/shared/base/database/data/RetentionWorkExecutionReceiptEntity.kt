@@ -49,6 +49,7 @@ data class RetentionWorkExecutionReceiptEntity(
 
 	companion object {
 		const val STATE_OPEN = "OPEN"
+		const val STATE_CANCELLATION_REQUESTED = "CANCELLATION_REQUESTED"
 		const val STATE_FINAL = "FINAL"
 		const val STATE_ACKNOWLEDGED = "ACKNOWLEDGED"
 		const val STATE_ABANDONED = "ABANDONED"
@@ -56,6 +57,7 @@ data class RetentionWorkExecutionReceiptEntity(
 
 		private val STATES = setOf(
 			STATE_OPEN,
+			STATE_CANCELLATION_REQUESTED,
 			STATE_FINAL,
 			STATE_ACKNOWLEDGED,
 			STATE_ABANDONED,

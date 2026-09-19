@@ -59,16 +59,15 @@ interface RetentionWorkExecutionReceiptDao {
 
 	@Query(
 		"""
-		UPDATE retention_work_execution_receipt
-		SET state = 'ABANDONED', updated_at_ms = MAX(updated_at_ms, :abandonedAtMs)
-		WHERE state = 'OPEN'
-			AND work_request_id = :workRequestId
+		SELECT * FROM retention_work_execution_receipt
+		WHERE worker_kind IN (:workerKinds)
+			AND state = 'CANCELLATION_REQUESTED'
+		ORDER BY started_at_ms, execution_id
 		""",
 	)
-	suspend fun abandonOpenExecution(
-		workRequestId: String,
-		abandonedAtMs: Long,
-	): Int
+	suspend fun pendingCancellations(
+		workerKinds: Collection<String>,
+	): List<RetentionWorkExecutionReceiptEntity>
 
 	@Query(
 		"""

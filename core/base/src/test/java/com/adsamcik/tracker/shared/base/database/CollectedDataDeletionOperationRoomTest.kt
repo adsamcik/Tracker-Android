@@ -305,7 +305,7 @@ class CollectedDataDeletionOperationRoomTest {
 			}
 
 	@Test
-	fun `explicit cancellation abandons only matching open execution and allows compatible takeover`() =
+	fun `cancellation request blocks owner and migration takeover until exact abandonment confirmation`() =
 		runTest {
 			val context = ApplicationProvider.getApplicationContext<Application>()
 			val database = AppDatabase.testDatabase(context)
@@ -318,7 +318,7 @@ class CollectedDataDeletionOperationRoomTest {
 						startedAtMs = 5_000L,
 					) as RetentionWorkExecutionStartResult.Open
 				).receipt
-				val unaffected = (
+				val currentOwner = (
 					database.beginOrResumeRetentionWorkExecution(
 						"unaffected-work",
 						RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
@@ -351,36 +351,71 @@ class CollectedDataDeletionOperationRoomTest {
 					destructivePlan = plan,
 				)
 
-				database.abandonOpenRetentionWorkExecutions(
-					workRequestIds = listOf(legacyOwner.workRequestId),
-					abandonedAtMs = 5_300L,
+				val requested = database.requestRetentionWorkExecutionCancellations(
+					targets = listOf(
+						RetentionWorkCancellationTarget(
+							legacyOwner.workRequestId,
+							legacyOwner.workerKind,
+						),
+					),
+					activeWorkRequestIds = listOf(legacyOwner.workRequestId),
+					workerKinds = listOf(legacyOwner.workerKind),
+					requestedAtMs = 5_300L,
+				).single()
+				requested.executionId shouldBe legacyOwner.executionId
+				database.retentionWorkExecutionReceiptDao().get(legacyOwner.executionId)?.state shouldBe
+					"CANCELLATION_REQUESTED"
+				database.retentionWorkExecutionReceiptDao().get(currentOwner.executionId)?.state shouldBe
+					"OPEN"
+				database.retentionWorkExecutionContinuation(legacyOwner) shouldBe
+					RetentionWorkExecutionContinuationResult.CancellationRequested
+				database.retentionWorkExecutionContinuation(currentOwner) shouldBe
+					RetentionWorkExecutionContinuationResult.Retryable(
+						RetentionWorkExecutionFailure.CancellationHandoffOwned(
+							ownerExecutionId = legacyOwner.executionId,
+							ownerWorkerKind = legacyOwner.workerKind,
+						),
+					)
+				database.beginOrResumeRetentionWorkExecution(
+					legacyOwner.workRequestId,
+					RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+					runAttemptCount = 0,
+					startedAtMs = 5_400L,
+				) shouldBe RetentionWorkExecutionStartResult.CancellationRequested
+				database.attachRetentionDestructivePlan(legacyOwner, plan) shouldBe
+					RetentionWorkExecutionPlanResult.CancellationRequested
+				database.completeRetentionWorkExecution(legacyOwner, 5_400L) shouldBe
+					RetentionWorkExecutionCompletionResult.CancellationRequested
+
+				database.beginOrResumeRetentionWorkExecution(
+					"pipeline-takeover-work",
+					RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+					runAttemptCount = 0,
+					startedAtMs = 5_500L,
+				) shouldBe RetentionWorkExecutionStartResult.Retryable(
+					RetentionWorkExecutionFailure.CancellationHandoffOwned(
+						ownerExecutionId = legacyOwner.executionId,
+						ownerWorkerKind = legacyOwner.workerKind,
+					),
+				)
+
+				database.confirmRetentionWorkExecutionCancellations(
+					executionIds = listOf(legacyOwner.executionId),
+					confirmedAtMs = 5_600L,
 				) shouldBe 1
 				database.retentionWorkExecutionReceiptDao().get(legacyOwner.executionId)?.state shouldBe
 					"ABANDONED"
-				database.retentionWorkExecutionReceiptDao().get(unaffected.executionId)?.state shouldBe
-					"OPEN"
 				database.beginOrResumeRetentionWorkExecution(
 					legacyOwner.workRequestId,
 					legacyOwner.workerKind,
 					runAttemptCount = 1,
-					startedAtMs = 5_400L,
+					startedAtMs = 5_700L,
 				) shouldBe RetentionWorkExecutionStartResult.AbandonedByCancellation
-				database.attachRetentionDestructivePlan(legacyOwner, plan) shouldBe
-					RetentionWorkExecutionPlanResult.AbandonedByCancellation
-				database.completeRetentionWorkExecution(legacyOwner, 5_400L) shouldBe
-					RetentionWorkExecutionCompletionResult.AbandonedByCancellation
-
-				val replacement = (
-					database.beginOrResumeRetentionWorkExecution(
-						"pipeline-takeover-work",
-						RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
-						runAttemptCount = 0,
-						startedAtMs = 5_500L,
-					) as RetentionWorkExecutionStartResult.Open
-				).receipt
-				database.retentionFloorSettlementForExecution(replacement) shouldBe
+				database.retentionWorkExecutionContinuation(currentOwner) shouldBe
+					RetentionWorkExecutionContinuationResult.Continue
+				database.retentionFloorSettlementForExecution(currentOwner) shouldBe
 					RetentionFloorOperationLookupResult.Available(
-						operation.copy(workExecutionId = replacement.executionId),
+						operation.copy(workExecutionId = currentOwner.executionId),
 					)
 			} finally {
 				database.close()

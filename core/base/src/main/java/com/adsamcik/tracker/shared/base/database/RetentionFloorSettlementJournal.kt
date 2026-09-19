@@ -221,9 +221,12 @@ suspend fun AppDatabase.retentionFloorSettlementForExecution(
 		val ownerReceipt = retentionWorkExecutionReceiptDao().get(operation.workExecutionId)
 			?: retentionWorkExecutionReceiptDao().latest(operation.workExecutionId)
 		if (
-			ownerReceipt?.state ==
-			com.adsamcik.tracker.shared.base.database.data
-				.RetentionWorkExecutionReceiptEntity.STATE_OPEN &&
+			ownerReceipt?.state in setOf(
+				com.adsamcik.tracker.shared.base.database.data
+					.RetentionWorkExecutionReceiptEntity.STATE_OPEN,
+				com.adsamcik.tracker.shared.base.database.data
+					.RetentionWorkExecutionReceiptEntity.STATE_CANCELLATION_REQUESTED,
+			) &&
 			ownerReceipt.executionId != execution.executionId
 		) {
 			return@withTransaction RetentionFloorOperationLookupResult.ExecutionOwned(

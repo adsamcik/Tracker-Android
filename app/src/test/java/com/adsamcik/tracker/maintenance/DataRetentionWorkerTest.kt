@@ -29,6 +29,7 @@ import com.adsamcik.tracker.shared.base.database.RetentionFloorSettlementOperati
 import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
 import com.adsamcik.tracker.shared.base.database.RetentionFloorOperationLookupResult
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionCompletionResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionContinuationResult
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionPlanResult
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionReceipt
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionStartResult
@@ -195,6 +196,43 @@ class DataRetentionWorkerTest {
 			coVerify(exactly = 0) { coordinator.attachPlan(any(), any(), any()) }
 			coVerify(exactly = 0) { coordinator.complete(any(), any(), any()) }
 			coVerify(exactly = 0) { settlement.pendingOperation(any(), any()) }
+		}
+
+	@Test
+	fun `legacy owner observing cancellation stops before destructive work and cannot finalize`() =
+		runTest(testDispatcher) {
+			val receipt = RetentionWorkExecutionReceipt(
+				executionId = "legacy-cancellation:g1",
+				workRequestId = "legacy-cancellation",
+				executionGeneration = 1L,
+				workerKind = RetentionFloorDestructivePlan.WORKER_DATA_RETENTION,
+				startedAtMs = 1L,
+				state = "OPEN",
+				destructivePlan = null,
+				updatedAtMs = 1L,
+			)
+			val coordinator = mockk<RetentionWorkExecutionCoordinator> {
+				coEvery { begin(any(), any(), any(), any(), any()) } returns
+					RetentionWorkExecutionStartResult.Open(receipt)
+				coEvery { continuation(any(), receipt) } returns
+					RetentionWorkExecutionContinuationResult.CancellationRequested
+				coEvery { complete(any(), receipt, any()) } returns
+					RetentionWorkExecutionCompletionResult.CancellationRequested
+			}
+			val settlement = mockk<RetentionFloorSettlement>(relaxed = true)
+
+			worker(
+				store = enabledRetentionStore(),
+				database = mockDatabase,
+				retentionFloorSettlement = settlement,
+				executionCoordinator = coordinator,
+			).doWork() shouldBe ListenableWorker.Result.success()
+
+			coVerify(exactly = 1) { coordinator.continuation(any(), receipt) }
+			coVerify(exactly = 0) { coordinator.attachPlan(any(), any(), any()) }
+			coVerify(exactly = 1) { coordinator.complete(any(), receipt, any()) }
+			coVerify(exactly = 0) { settlement.pendingOperation(any(), any()) }
+			verify(exactly = 0) { migrationBackupRepository.deleteAll() }
 		}
 
 	@Test
@@ -1047,6 +1085,8 @@ class DataRetentionWorkerTest {
 				),
 			)
 		}
+		coEvery { continuation(any(), any()) } returns
+			RetentionWorkExecutionContinuationResult.Continue
 		coEvery { complete(any(), any(), any()) } returns
 			RetentionWorkExecutionCompletionResult.Completed
 	}

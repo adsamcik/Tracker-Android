@@ -30,6 +30,7 @@ sealed interface RetentionWorkExecutionStartResult {
 	) : RetentionWorkExecutionStartResult
 
 	data object AlreadyCompleted : RetentionWorkExecutionStartResult
+	data object CancellationRequested : RetentionWorkExecutionStartResult
 	data object AbandonedByCancellation : RetentionWorkExecutionStartResult
 
 	data class Retryable(
@@ -54,6 +55,11 @@ sealed interface RetentionWorkExecutionFailure {
 	data class DestructivePlanMismatch(
 		val executionId: String,
 	) : RetentionWorkExecutionFailure
+
+	data class CancellationHandoffOwned(
+		val ownerExecutionId: String,
+		val ownerWorkerKind: String,
+	) : RetentionWorkExecutionFailure
 }
 
 sealed interface RetentionWorkExecutionPlanResult {
@@ -61,6 +67,7 @@ sealed interface RetentionWorkExecutionPlanResult {
 		val receipt: RetentionWorkExecutionReceipt,
 	) : RetentionWorkExecutionPlanResult
 
+	data object CancellationRequested : RetentionWorkExecutionPlanResult
 	data object AbandonedByCancellation : RetentionWorkExecutionPlanResult
 
 	data class Retryable(
@@ -70,11 +77,34 @@ sealed interface RetentionWorkExecutionPlanResult {
 
 sealed interface RetentionWorkExecutionCompletionResult {
 	data object Completed : RetentionWorkExecutionCompletionResult
+	data object CancellationRequested : RetentionWorkExecutionCompletionResult
 	data object AbandonedByCancellation : RetentionWorkExecutionCompletionResult
 	data object SupersededByFullDeletion : RetentionWorkExecutionCompletionResult
 	data class Retryable(
 		val failure: RetentionWorkExecutionFailure,
 	) : RetentionWorkExecutionCompletionResult
+}
+
+sealed interface RetentionWorkExecutionContinuationResult {
+	data object Continue : RetentionWorkExecutionContinuationResult
+	data object CancellationRequested : RetentionWorkExecutionContinuationResult
+	data object AbandonedByCancellation : RetentionWorkExecutionContinuationResult
+	data object SupersededByFullDeletion : RetentionWorkExecutionContinuationResult
+	data object AlreadyCompleted : RetentionWorkExecutionContinuationResult
+
+	data class Retryable(
+		val failure: RetentionWorkExecutionFailure,
+	) : RetentionWorkExecutionContinuationResult
+}
+
+data class RetentionWorkCancellationTarget(
+	val workRequestId: String,
+	val workerKind: String,
+) {
+	init {
+		require(workRequestId.isNotBlank())
+		require(workerKind in RetentionFloorDestructivePlan.WORKER_KINDS)
+	}
 }
 
 suspend fun AppDatabase.beginOrResumeRetentionWorkExecution(
@@ -89,6 +119,35 @@ suspend fun AppDatabase.beginOrResumeRetentionWorkExecution(
 	require(startedAtMs >= 0L)
 	val dao = retentionWorkExecutionReceiptDao()
 	val latest = dao.latest(workRequestId)
+	if (latest?.state == RetentionWorkExecutionReceiptEntity.STATE_CANCELLATION_REQUESTED) {
+		return@withTransaction RetentionWorkExecutionStartResult.CancellationRequested
+	}
+	if (latest?.state == RetentionWorkExecutionReceiptEntity.STATE_ABANDONED) {
+		return@withTransaction RetentionWorkExecutionStartResult.AbandonedByCancellation
+	}
+	if (
+		runAttemptCount > 0 &&
+		latest?.state == RetentionWorkExecutionReceiptEntity.STATE_FINAL
+	) {
+		return@withTransaction RetentionWorkExecutionStartResult.AlreadyCompleted
+	}
+	if (
+		runAttemptCount > 0 &&
+		latest?.state == RetentionWorkExecutionReceiptEntity.STATE_SUPERSEDED
+	) {
+		return@withTransaction RetentionWorkExecutionStartResult.SupersededByFullDeletion
+	}
+	val cancellationOwner = dao
+		.pendingCancellations(RetentionFloorDestructivePlan.WORKER_KINDS)
+		.firstOrNull { it.workRequestId != workRequestId }
+	if (cancellationOwner != null) {
+		return@withTransaction RetentionWorkExecutionStartResult.Retryable(
+			RetentionWorkExecutionFailure.CancellationHandoffOwned(
+				ownerExecutionId = cancellationOwner.executionId,
+				ownerWorkerKind = cancellationOwner.workerKind,
+			),
+		)
+	}
 	if (latest?.state == RetentionWorkExecutionReceiptEntity.STATE_OPEN) {
 		return@withTransaction if (latest.workerKind == workerKind) {
 			RetentionWorkExecutionStartResult.Open(latest.toReceipt())
@@ -102,21 +161,13 @@ suspend fun AppDatabase.beginOrResumeRetentionWorkExecution(
 		}
 	}
 	if (runAttemptCount > 0 && latest != null) {
-		return@withTransaction when (latest.state) {
-			RetentionWorkExecutionReceiptEntity.STATE_FINAL ->
-				RetentionWorkExecutionStartResult.AlreadyCompleted
-			RetentionWorkExecutionReceiptEntity.STATE_ABANDONED ->
-				RetentionWorkExecutionStartResult.AbandonedByCancellation
-			RetentionWorkExecutionReceiptEntity.STATE_SUPERSEDED ->
-				RetentionWorkExecutionStartResult.SupersededByFullDeletion
-			else -> RetentionWorkExecutionStartResult.Retryable(
-				RetentionWorkExecutionFailure.PreviousExecutionNotOpen(
-					workRequestId = workRequestId,
-					executionGeneration = latest.executionGeneration,
-					state = latest.state,
-				),
-			)
-		}
+		return@withTransaction RetentionWorkExecutionStartResult.Retryable(
+			RetentionWorkExecutionFailure.PreviousExecutionNotOpen(
+				workRequestId = workRequestId,
+				executionGeneration = latest.executionGeneration,
+				state = latest.state,
+			),
+		)
 	}
 	val legacyFinal = if (latest == null) {
 		collectedDataDeletionOperationDao()
@@ -199,6 +250,9 @@ suspend fun AppDatabase.attachRetentionDestructivePlan(
 	if (current.state == RetentionWorkExecutionReceiptEntity.STATE_ABANDONED) {
 		return@withTransaction RetentionWorkExecutionPlanResult.AbandonedByCancellation
 	}
+	if (current.state == RetentionWorkExecutionReceiptEntity.STATE_CANCELLATION_REQUESTED) {
+		return@withTransaction RetentionWorkExecutionPlanResult.CancellationRequested
+	}
 	if (current.state != RetentionWorkExecutionReceiptEntity.STATE_OPEN) {
 		return@withTransaction RetentionWorkExecutionPlanResult.Retryable(
 			RetentionWorkExecutionFailure.PreviousExecutionNotOpen(
@@ -244,6 +298,8 @@ suspend fun AppDatabase.completeRetentionWorkExecution(
 	when (current.state) {
 		RetentionWorkExecutionReceiptEntity.STATE_FINAL ->
 			RetentionWorkExecutionCompletionResult.Completed
+		RetentionWorkExecutionReceiptEntity.STATE_CANCELLATION_REQUESTED ->
+			RetentionWorkExecutionCompletionResult.CancellationRequested
 		RetentionWorkExecutionReceiptEntity.STATE_ABANDONED ->
 			RetentionWorkExecutionCompletionResult.AbandonedByCancellation
 		RetentionWorkExecutionReceiptEntity.STATE_SUPERSEDED ->
@@ -269,22 +325,193 @@ suspend fun AppDatabase.completeRetentionWorkExecution(
 	}
 }
 
+suspend fun AppDatabase.retentionWorkExecutionContinuation(
+	receipt: RetentionWorkExecutionReceipt,
+): RetentionWorkExecutionContinuationResult = withTransaction {
+	val current = retentionWorkExecutionReceiptDao().get(receipt.executionId)
+		?: return@withTransaction RetentionWorkExecutionContinuationResult.Retryable(
+			RetentionWorkExecutionFailure.PreviousExecutionNotOpen(
+				receipt.workRequestId,
+				receipt.executionGeneration,
+				"MISSING",
+			),
+		)
+	if (
+		current.workRequestId != receipt.workRequestId ||
+		current.executionGeneration != receipt.executionGeneration
+	) {
+		return@withTransaction RetentionWorkExecutionContinuationResult.Retryable(
+			RetentionWorkExecutionFailure.PreviousExecutionNotOpen(
+				receipt.workRequestId,
+				receipt.executionGeneration,
+				current.state,
+			),
+		)
+	}
+	if (current.workerKind != receipt.workerKind) {
+		return@withTransaction RetentionWorkExecutionContinuationResult.Retryable(
+			RetentionWorkExecutionFailure.WorkerKindMismatch(
+				expectedWorkerKind = current.workerKind,
+				actualWorkerKind = receipt.workerKind,
+			),
+		)
+	}
+	if (current.state == RetentionWorkExecutionReceiptEntity.STATE_CANCELLATION_REQUESTED) {
+		return@withTransaction RetentionWorkExecutionContinuationResult.CancellationRequested
+	}
+	if (current.state == RetentionWorkExecutionReceiptEntity.STATE_ABANDONED) {
+		return@withTransaction RetentionWorkExecutionContinuationResult.AbandonedByCancellation
+	}
+	if (current.state == RetentionWorkExecutionReceiptEntity.STATE_SUPERSEDED) {
+		return@withTransaction RetentionWorkExecutionContinuationResult.SupersededByFullDeletion
+	}
+	if (
+		current.state == RetentionWorkExecutionReceiptEntity.STATE_FINAL ||
+		current.state == RetentionWorkExecutionReceiptEntity.STATE_ACKNOWLEDGED
+	) {
+		return@withTransaction RetentionWorkExecutionContinuationResult.AlreadyCompleted
+	}
+	val cancellationOwner = retentionWorkExecutionReceiptDao()
+		.pendingCancellations(RetentionFloorDestructivePlan.WORKER_KINDS)
+		.firstOrNull { it.executionId != receipt.executionId }
+	if (cancellationOwner != null) {
+		return@withTransaction RetentionWorkExecutionContinuationResult.Retryable(
+			RetentionWorkExecutionFailure.CancellationHandoffOwned(
+				ownerExecutionId = cancellationOwner.executionId,
+				ownerWorkerKind = cancellationOwner.workerKind,
+			),
+		)
+	}
+	when (current.state) {
+		RetentionWorkExecutionReceiptEntity.STATE_OPEN ->
+			RetentionWorkExecutionContinuationResult.Continue
+		else -> RetentionWorkExecutionContinuationResult.Retryable(
+			RetentionWorkExecutionFailure.PreviousExecutionNotOpen(
+				current.workRequestId,
+				current.executionGeneration,
+				current.state,
+			),
+		)
+	}
+}
+
 /**
- * Retires only WorkManager executions explicitly selected by an app-owned cancellation path.
- * Process death and ordinary retry never call this transition and therefore keep OPEN resumable.
+ * Publishes cancellation ownership before WorkManager is asked to stop an execution. Active work
+ * without a receipt receives a cancellation generation so a concurrently starting worker cannot
+ * create OPEN ownership between the WorkManager snapshot and cancellation processing.
  */
-suspend fun AppDatabase.abandonOpenRetentionWorkExecutions(
-	workRequestIds: Collection<String>,
-	abandonedAtMs: Long,
+suspend fun AppDatabase.requestRetentionWorkExecutionCancellations(
+	targets: Collection<RetentionWorkCancellationTarget>,
+	activeWorkRequestIds: Collection<String>,
+	workerKinds: Collection<String>,
+	requestedAtMs: Long,
+): List<RetentionWorkExecutionReceipt> = withTransaction {
+	require(requestedAtMs >= 0L)
+	val exactWorkerKinds = workerKinds.onEach {
+		require(it in RetentionFloorDestructivePlan.WORKER_KINDS)
+	}.distinct()
+	val exactTargets = targets
+		.distinctBy(RetentionWorkCancellationTarget::workRequestId)
+	val exactActiveIds = activeWorkRequestIds
+		.onEach { require(it.isNotBlank()) }
+		.toSet()
+	require(exactActiveIds.all { activeId ->
+		exactTargets.any { it.workRequestId == activeId }
+	})
+	val dao = retentionWorkExecutionReceiptDao()
+	val requested = linkedMapOf<String, RetentionWorkExecutionReceiptEntity>()
+
+	fun cancellationGeneration(
+		target: RetentionWorkCancellationTarget,
+		latest: RetentionWorkExecutionReceiptEntity?,
+	): RetentionWorkExecutionReceiptEntity {
+		val generation = Math.addExact(latest?.executionGeneration ?: 0L, 1L)
+		return RetentionWorkExecutionReceiptEntity(
+			executionId = "${target.workRequestId}:g$generation",
+			workRequestId = target.workRequestId,
+			executionGeneration = generation,
+			workerKind = target.workerKind,
+			startedAtMs = requestedAtMs,
+			state = RetentionWorkExecutionReceiptEntity.STATE_CANCELLATION_REQUESTED,
+			destructivePlan = null,
+			updatedAtMs = requestedAtMs,
+		)
+	}
+
+	suspend fun request(
+		current: RetentionWorkExecutionReceiptEntity,
+	): RetentionWorkExecutionReceiptEntity = when (current.state) {
+		RetentionWorkExecutionReceiptEntity.STATE_OPEN -> {
+			check(
+				dao.compareAndSetState(
+					executionId = current.executionId,
+					expectedState = RetentionWorkExecutionReceiptEntity.STATE_OPEN,
+					newState =
+						RetentionWorkExecutionReceiptEntity.STATE_CANCELLATION_REQUESTED,
+					updatedAtMs = maxOf(requestedAtMs, current.updatedAtMs),
+				) == 1,
+			) { "Unable to request exact retention execution cancellation" }
+			requireNotNull(dao.get(current.executionId))
+		}
+		RetentionWorkExecutionReceiptEntity.STATE_CANCELLATION_REQUESTED -> current
+		else -> error("Retention execution is not cancellable: ${current.executionId}")
+	}
+
+	if (exactWorkerKinds.isNotEmpty()) {
+		dao.pendingCancellations(exactWorkerKinds).forEach { pending ->
+			requested[pending.executionId] = pending
+		}
+	}
+	exactTargets.forEach { target ->
+		val latest = dao.latest(target.workRequestId)
+		val cancellation = when {
+			latest?.state == RetentionWorkExecutionReceiptEntity.STATE_OPEN ->
+				request(requireNotNull(latest))
+			latest?.state ==
+				RetentionWorkExecutionReceiptEntity.STATE_CANCELLATION_REQUESTED ->
+				request(requireNotNull(latest))
+			target.workRequestId in exactActiveIds -> {
+				val created = cancellationGeneration(target, latest)
+				dao.insert(created)
+				created
+			}
+			else -> null
+		}
+		if (cancellation != null) {
+			requested[cancellation.executionId] = cancellation
+		}
+	}
+	requested.values.map { it.toReceipt() }
+}
+
+suspend fun AppDatabase.confirmRetentionWorkExecutionCancellations(
+	executionIds: Collection<String>,
+	confirmedAtMs: Long,
 ): Int = withTransaction {
-	require(abandonedAtMs >= 0L)
-	val exactIds = workRequestIds.onEach { require(it.isNotBlank()) }.distinct()
-	if (exactIds.isEmpty()) {
-		0
-	} else {
-		val dao = retentionWorkExecutionReceiptDao()
-		exactIds.sumOf { workRequestId ->
-			dao.abandonOpenExecution(workRequestId, abandonedAtMs)
+	require(confirmedAtMs >= 0L)
+	val dao = retentionWorkExecutionReceiptDao()
+	executionIds.onEach { require(it.isNotBlank()) }.distinct().sumOf { executionId ->
+		val current = requireNotNull(dao.get(executionId)) {
+			"Missing retention cancellation receipt: $executionId"
+		}
+		when (current.state) {
+			RetentionWorkExecutionReceiptEntity.STATE_CANCELLATION_REQUESTED -> {
+				check(
+					dao.compareAndSetState(
+						executionId = executionId,
+						expectedState =
+							RetentionWorkExecutionReceiptEntity.STATE_CANCELLATION_REQUESTED,
+						newState = RetentionWorkExecutionReceiptEntity.STATE_ABANDONED,
+						updatedAtMs = maxOf(confirmedAtMs, current.updatedAtMs),
+					) == 1,
+				) { "Unable to confirm exact retention execution cancellation" }
+				1
+			}
+			RetentionWorkExecutionReceiptEntity.STATE_ABANDONED -> 0
+			else -> error(
+				"Retention cancellation confirmation requires CANCELLATION_REQUESTED: " +
+					"$executionId=${current.state}",
+			)
 		}
 	}
 }
