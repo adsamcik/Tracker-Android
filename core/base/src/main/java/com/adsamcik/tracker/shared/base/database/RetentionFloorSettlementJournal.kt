@@ -201,13 +201,21 @@ suspend fun AppDatabase.retentionFloorSettlement(
 
 suspend fun AppDatabase.retentionFloorSettlementForExecution(
 	execution: RetentionWorkExecutionReceipt,
+	expectedOperationId: String? = null,
 ): RetentionFloorOperationLookupResult = withTransaction {
+	require(expectedOperationId == null || expectedOperationId.isNotBlank())
 	val dao = collectedDataDeletionOperationDao()
 	val active = dao.activeRetentionFloorSettlement()
+	if (expectedOperationId != null && active?.operationId != expectedOperationId) {
+		return@withTransaction RetentionFloorOperationLookupResult.Available(null)
+	}
 	var operation = active?.toRetentionOperation()
 		?: dao.latestRetentionFloorSettlementForExecution(execution.executionId)
 			?.toRetentionOperation()
 		?: return@withTransaction RetentionFloorOperationLookupResult.Available(null)
+	if (expectedOperationId != null && operation.operationId != expectedOperationId) {
+		return@withTransaction RetentionFloorOperationLookupResult.Available(null)
+	}
 	if (!operation.destructivePlan.canBeExecutedBy(execution.workerKind)) {
 		return@withTransaction RetentionFloorOperationLookupResult.IncompatibleExecutor(
 			RetentionFloorExecutorDebt(

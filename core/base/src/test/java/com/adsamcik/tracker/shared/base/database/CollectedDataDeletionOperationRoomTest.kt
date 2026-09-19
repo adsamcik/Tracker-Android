@@ -554,6 +554,12 @@ class CollectedDataDeletionOperationRoomTest {
 						4_100L,
 					) as RetentionWorkExecutionStartResult.Open
 				).receipt
+				database.retentionFloorSettlementForExecution(
+					pipelineExecution,
+					expectedOperationId = "another-operation",
+				) shouldBe RetentionFloorOperationLookupResult.Available(null)
+				database.activeRetentionFloorSettlement()?.workExecutionId shouldBe
+					legacyOwner.executionId
 				database.retentionFloorSettlementForExecution(pipelineExecution) shouldBe
 					RetentionFloorOperationLookupResult.ExecutionOwned(
 						RetentionFloorExecutionOwnerDebt(

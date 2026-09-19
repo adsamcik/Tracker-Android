@@ -6,6 +6,7 @@ import androidx.work.ListenableWorker
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
+import androidx.work.workDataOf
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.RoomTruncateImportedActivityRetention
@@ -15,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionBlockedRea
 import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
 import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
 import com.adsamcik.tracker.shared.base.database.RetentionFloorOperationLookupResult
+import com.adsamcik.tracker.shared.base.database.RetentionFloorSettlementOperation
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionCompletionResult
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionContinuationResult
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionPlanResult
@@ -41,6 +43,7 @@ import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
+import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
@@ -196,7 +199,7 @@ class RetentionPipelineWorkerRobolectricTest {
 
 		coVerify(exactly = 0) { coordinator.attachPlan(any(), any(), any()) }
 		coVerify(exactly = 0) { coordinator.complete(any(), any(), any()) }
-		coVerify(exactly = 0) { settlement.pendingOperation(any(), any()) }
+		coVerify(exactly = 0) { settlement.pendingOperation(any(), any(), any()) }
 	}
 
 	@Test
@@ -236,9 +239,189 @@ class RetentionPipelineWorkerRobolectricTest {
 			coVerify(exactly = 1) { coordinator.continuation(any(), receipt) }
 			coVerify(exactly = 0) { coordinator.attachPlan(any(), any(), any()) }
 			coVerify(exactly = 1) { coordinator.complete(any(), receipt, any()) }
-			coVerify(exactly = 0) { settlement.pendingOperation(any(), any()) }
+			coVerify(exactly = 0) { settlement.pendingOperation(any(), any(), any()) }
 			verify(exactly = 0) { backups.deleteAll() }
 		}
+
+	@Test
+	fun `stale settlement finisher cannot create work for another or completed journal`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val receipt = RetentionWorkExecutionReceipt(
+			executionId = "settlement-finisher:g1",
+			workRequestId = "settlement-finisher",
+			executionGeneration = 1L,
+			workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+			startedAtMs = 1L,
+			state = "OPEN",
+			destructivePlan = null,
+			updatedAtMs = 1L,
+		)
+		val coordinator = mockk<RetentionWorkExecutionCoordinator> {
+			coEvery { begin(any(), any(), any(), any(), any()) } returns
+				RetentionWorkExecutionStartResult.Open(receipt)
+			coEvery { continuation(any(), receipt) } returns
+				RetentionWorkExecutionContinuationResult.Continue
+			coEvery { complete(any(), receipt, any()) } returns
+				RetentionWorkExecutionCompletionResult.Completed
+		}
+		val settlement = mockk<RetentionFloorSettlement> {
+			coEvery {
+				pendingOperation(any(), receipt, "expected-settlement")
+			} returns RetentionFloorOperationLookupResult.Available(null)
+		}
+
+		worker(
+			context = context,
+			store = retentionStore(autoPurgeConfig(rawDataRetentionDays = 1)),
+			db = mockk(relaxed = true),
+			retentionFloorSettlement = settlement,
+			workExecutionCoordinator = coordinator,
+			inputData = workDataOf(
+				RetentionPipelineWorker.SETTLEMENT_OPERATION_ID_KEY to
+					"expected-settlement",
+			),
+		).doWork() shouldBe ListenableWorker.Result.success()
+
+		coVerify(exactly = 1) {
+			settlement.pendingOperation(any(), receipt, "expected-settlement")
+		}
+		coVerify(exactly = 0) { coordinator.attachPlan(any(), any(), any()) }
+		coVerify(exactly = 1) { coordinator.complete(any(), receipt, any()) }
+	}
+
+	@Test
+	fun `disabled retention finisher completes its exact active settlement`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val plan = RetentionFloorDestructivePlan(
+			workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+			requestedAtMs = 100L,
+			requestedRetainedFromMs = 50L,
+			rawRetentionCutoffMs = null,
+			sourceEventRetentionCutoffMs = null,
+			wifiCellRetentionCutoffMs = null,
+			tripRetentionCutoffMs = null,
+			dailySummaryRetentionCutoffDay = null,
+			explorationRetentionCutoffMs = null,
+			operationalRetentionCutoffMs = null,
+		)
+		val receipt = RetentionWorkExecutionReceipt(
+			executionId = "disabled-finisher:g1",
+			workRequestId = "disabled-finisher",
+			executionGeneration = 1L,
+			workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+			startedAtMs = 1L,
+			state = "OPEN",
+			destructivePlan = null,
+			updatedAtMs = 1L,
+		)
+		val operation = RetentionFloorSettlementOperation(
+			operationId = "disabled-active-settlement",
+			requestedRetainedFromMs = 50L,
+			collectedDataEpoch = 4L,
+			requestedAtMs = 100L,
+			phase = CollectedDataDeletionOperationEntity.PHASE_RETENTION_PROVIDER_RECONCILED,
+			workExecutionId = receipt.executionId,
+			destructivePlan = plan,
+			settledRetainedFromMs = 50L,
+			sourceMaintenanceAtMs = 100L,
+		)
+		val settled = RetentionFloorSettlementResult.Settled(
+			lifecycle = CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = 50L),
+			reconciledSources = emptySet(),
+			operationId = operation.operationId,
+			requestedRetainedFromMs = operation.requestedRetainedFromMs,
+			requestedAtMs = operation.requestedAtMs,
+			workExecutionId = receipt.executionId,
+			destructivePlan = plan,
+			sourceMaintenanceAtMs = 100L,
+			sourceMaintenanceCompleted = false,
+		)
+		val backups = mockk<DatabaseMigrationBackupRepository>(relaxed = true)
+		val ambientMaintenance = mockk<PeriodicAmbientRetentionMaintenance> {
+			coEvery { run(any(), any(), any(), any()) } returns
+				PeriodicAmbientRetentionResult.Complete
+		}
+		val cellRetention = mockk<CellCapturedRetentionService> {
+			coEvery { prune(any(), any(), any()) } returns
+				CellCapturedRetentionResult.NoChange
+		}
+		val wifiRetention = mockk<WifiCapturedRetentionService> {
+			coEvery { prune(any(), any(), any()) } returns
+				WifiCapturedRetentionResult.NoChange
+		}
+		val coordinator = mockk<RetentionWorkExecutionCoordinator> {
+			coEvery { begin(any(), any(), any(), any(), any()) } returns
+				RetentionWorkExecutionStartResult.Open(receipt)
+			coEvery { continuation(any(), receipt) } returns
+				RetentionWorkExecutionContinuationResult.Continue
+			coEvery { attachPlan(any(), receipt, plan) } returns
+				RetentionWorkExecutionPlanResult.Attached(
+					receipt.copy(destructivePlan = plan, updatedAtMs = 100L),
+				)
+			coEvery { complete(any(), receipt, any()) } returns
+				RetentionWorkExecutionCompletionResult.Completed
+		}
+		val settlement = mockk<RetentionFloorSettlement> {
+			coEvery {
+				pendingOperation(any(), receipt, operation.operationId)
+			} returns RetentionFloorOperationLookupResult.Available(operation)
+			coEvery {
+				settle(
+					database = any(),
+					lifecycleStore = any(),
+					startupGate = any(),
+					expectedStartupGeneration = any(),
+					requestedRetainedFromMs = operation.requestedRetainedFromMs,
+					operationId = operation.operationId,
+					updatedAtMs = operation.requestedAtMs,
+					workExecutionId = receipt.executionId,
+					destructivePlan = plan,
+					verifyApprovedOperation = any(),
+				)
+			} returns settled
+			coEvery {
+				complete(
+					database = any(),
+					startupGate = any(),
+					expectedStartupGeneration = any(),
+					settlement = settled,
+					completedAtMs = any(),
+					verifyApprovedOperation = any(),
+				)
+			} returns RetentionFloorSettlementCompletionResult.Completed
+		}
+
+		worker(
+			context = context,
+			store = retentionStore(RetentionConfigState()),
+			db = mockk(relaxed = true),
+			migrationBackupRepository = backups,
+			cellCapturedRetentionService = cellRetention,
+			wifiCapturedRetentionService = wifiRetention,
+			retentionFloorSettlement = settlement,
+			periodicAmbientRetentionMaintenance = ambientMaintenance,
+			workExecutionCoordinator = coordinator,
+			inputData = workDataOf(
+				RetentionPipelineWorker.SETTLEMENT_OPERATION_ID_KEY to operation.operationId,
+			),
+		).doWork() shouldBe ListenableWorker.Result.success()
+
+		coVerify(exactly = 1) {
+			settlement.complete(
+				database = any(),
+				startupGate = any(),
+				expectedStartupGeneration = any(),
+				settlement = settled,
+				completedAtMs = any(),
+				verifyApprovedOperation = any(),
+			)
+		}
+		verify(exactly = 1) { backups.deleteAll() }
+		coVerify(exactly = 1) { ambientMaintenance.run(any(), any(), any(), any()) }
+		coVerify(exactly = 1) { cellRetention.prune(any(), 50L, 100L) }
+		coVerify(exactly = 1) { wifiRetention.prune(any(), 50L, 100L) }
+		coVerify(exactly = 1) { coordinator.complete(any(), receipt, any()) }
+	}
 
 	@Test
 	fun `auto cleanup purges all supported retention tables`() = runTest {
@@ -1249,6 +1432,7 @@ class RetentionPipelineWorkerRobolectricTest {
 			periodicAmbientRetentionMaintenance(),
 		workExecutionCoordinator: RetentionWorkExecutionCoordinator =
 			workExecutionCoordinator(),
+		inputData: androidx.work.Data = androidx.work.Data.EMPTY,
 	): RetentionPipelineWorker =
 		TestListenableWorkerBuilder<RetentionPipelineWorker>(context)
 			.setWorkerFactory(object : WorkerFactory() {
@@ -1274,6 +1458,7 @@ class RetentionPipelineWorkerRobolectricTest {
 					workExecutionCoordinator,
 				)
 			})
+			.setInputData(inputData)
 			.build() as RetentionPipelineWorker
 
 	private fun periodicAmbientRetentionMaintenance(
@@ -1283,7 +1468,7 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	private fun retentionFloorSettlement(): RetentionFloorSettlement = mockk {
-		coEvery { pendingOperation(any(), any()) } returns
+		coEvery { pendingOperation(any(), any(), any()) } returns
 			RetentionFloorOperationLookupResult.Available(null)
 		coEvery {
 			settle(

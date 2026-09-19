@@ -143,8 +143,17 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		} catch (_: RetentionExecutionDeferredException) {
 			return Result.retry()
 		}
+		val expectedSettlementOperationId =
+			inputData.getString(SETTLEMENT_OPERATION_ID_KEY)
+		if (expectedSettlementOperationId != null && expectedSettlementOperationId.isBlank()) {
+			return Result.failure()
+		}
 		val pendingOperation = when (val lookup = try {
-			retentionFloorSettlement.pendingOperation(appDatabase, execution)
+			retentionFloorSettlement.pendingOperation(
+				appDatabase,
+				execution,
+				expectedSettlementOperationId,
+			)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
@@ -153,6 +162,9 @@ class RetentionPipelineWorker @AssistedInject constructor(
 			is RetentionFloorOperationLookupResult.Available -> lookup.operation
 			is RetentionFloorOperationLookupResult.IncompatibleExecutor -> return Result.retry()
 			is RetentionFloorOperationLookupResult.ExecutionOwned -> return Result.retry()
+		}
+		if (expectedSettlementOperationId != null && pendingOperation == null) {
+			return Result.success()
 		}
 		if (
 			!storedConfig.autoPurgeEnabled &&
@@ -778,6 +790,8 @@ class RetentionPipelineWorker @AssistedInject constructor(
     companion object {
         internal const val WORK_NAME = "APP.DATA_RETENTION_PIPELINE_WEEKLY"
         internal const val LEGACY_WORK_NAME = "APP.DATA_RETENTION_WEEKLY"
+		internal const val SETTLEMENT_OPERATION_ID_KEY =
+			"retention_settlement_operation_id"
 		private const val DAYS_PER_YEAR = 365
 
 		internal fun computeWifiCellCutoffMillis(retentionDays: Int, nowMs: Long): Long {

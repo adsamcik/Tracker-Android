@@ -44,7 +44,7 @@ suspend fun AppDatabase.liveSourceProjectionActivationOrdinal(): Long {
 suspend fun AppDatabase.pruneSourceEventStorageBefore(
 	createdBeforeMs: Long,
 	batchSize: Int = DEFAULT_SOURCE_EVENT_PRUNE_BATCH_SIZE,
-	verifyCollectedDataAccess: () -> Unit = {},
+	verifyCollectedDataAccess: suspend () -> Unit = {},
 ): SourceEventStoragePruneResult {
 	require(createdBeforeMs >= 0L)
 	require(batchSize > 0)

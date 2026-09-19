@@ -35,6 +35,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -91,7 +92,10 @@ class RetentionFloorSettlementTest {
 				expectedStartupGeneration = GENERATION,
 				requestedRetainedFromMs = FLOOR,
 				updatedAtMs = FLOOR,
-				verifyApprovedOperation = { events += "approved" },
+				verifyApprovedOperation = {
+					yield()
+					events += "approved"
+				},
 			).shouldBeInstanceOf<RetentionFloorSettlementResult.Settled>()
 
 			result.lifecycle.retainedFromMs shouldBe FLOOR

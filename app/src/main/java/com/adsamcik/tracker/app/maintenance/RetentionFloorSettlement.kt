@@ -48,8 +48,9 @@ class RetentionFloorSettlement @Inject constructor(
 	suspend fun pendingOperation(
 		database: AppDatabase,
 		execution: RetentionWorkExecutionReceipt,
+		expectedOperationId: String? = null,
 	): RetentionFloorOperationLookupResult =
-		database.retentionFloorSettlementForExecution(execution)
+		database.retentionFloorSettlementForExecution(execution, expectedOperationId)
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	suspend fun settle(
@@ -66,7 +67,7 @@ class RetentionFloorSettlement @Inject constructor(
 				updatedAtMs,
 				requestedRetainedFromMs,
 			),
-		verifyApprovedOperation: () -> Unit,
+		verifyApprovedOperation: suspend () -> Unit,
 	): RetentionFloorSettlementResult {
 		require(requestedRetainedFromMs >= 0L)
 		require(operationId.isNotBlank())
@@ -374,7 +375,7 @@ class RetentionFloorSettlement @Inject constructor(
 		expectedStartupGeneration: Long,
 		settlement: RetentionFloorSettlementResult.Settled,
 		completedAtMs: Long,
-		verifyApprovedOperation: () -> Unit,
+		verifyApprovedOperation: suspend () -> Unit,
 	): RetentionFloorSettlementCompletionResult {
 		require(completedAtMs >= settlement.requestedAtMs)
 		require(completedAtMs >= settlement.sourceMaintenanceAtMs)
@@ -496,15 +497,17 @@ class RetentionFloorSettlement @Inject constructor(
 		retainedFromMs: Long,
 		activeSources: Set<AmbientTrackingSource>,
 		settlementOperationId: String,
-		verifyApprovedOperation: () -> Unit,
+		verifyApprovedOperation: suspend () -> Unit,
 	): TrackingRetentionFloorReconciliationResult = try {
 		verifyApprovedOperation()
-		purposeReconciler.reconcile(
+		val result = purposeReconciler.reconcile(
 			expectedStartupGeneration,
 			retainedFromMs,
 			activeSources,
 			settlementOperationId,
-		).also { verifyApprovedOperation() }
+		)
+		verifyApprovedOperation()
+		result
 	} catch (cancelled: CancellationException) {
 		throw cancelled
 	} catch (_: Exception) {

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
@@ -13,15 +14,11 @@ class RetentionCancellationRecoveryWorker @AssistedInject constructor(
 	@Assisted appContext: Context,
 	@Assisted params: WorkerParameters,
 	private val retentionWorkScheduler: RetentionWorkScheduler,
+	private val retentionConfigStore: RetentionConfigStore,
 ) : CoroutineWorker(appContext, params) {
 	override suspend fun doWork(): Result {
-		val enabled = when (inputData.getString(MODE_KEY)) {
-			MODE_ENABLED -> true
-			MODE_DISABLED -> false
-			else -> return Result.failure()
-		}
 		return try {
-			retentionWorkScheduler.recoverCurrentPreference(enabled)
+			retentionWorkScheduler.recoverCurrentPreference(retentionConfigStore)
 			Result.success()
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -34,8 +31,5 @@ class RetentionCancellationRecoveryWorker @AssistedInject constructor(
 
 	companion object {
 		internal const val UNIQUE_WORK_NAME = "APP.RETENTION_CANCELLATION_RECOVERY"
-		internal const val MODE_KEY = "retention_schedule_mode"
-		internal const val MODE_ENABLED = "ENABLED"
-		internal const val MODE_DISABLED = "DISABLED"
 	}
 }

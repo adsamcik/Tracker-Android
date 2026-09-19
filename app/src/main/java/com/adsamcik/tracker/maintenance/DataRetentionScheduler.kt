@@ -3,12 +3,10 @@ package com.adsamcik.tracker.maintenance
 import com.adsamcik.tracker.app.maintenance.RetentionWorkCancellationPendingException
 import com.adsamcik.tracker.app.maintenance.RetentionWorkScheduler
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
-import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigRead
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -36,22 +34,13 @@ class DataRetentionScheduler @Inject constructor(
     fun initialize() {
         observationJob?.cancel()
         observationJob = retentionConfigStore.approvalStatus
-            .map { retentionConfigStore.currentExactApprovedConfig() }
-            .map { authority ->
-                authority is ExactApprovedRetentionConfigRead.Approved &&
-                    (
-                        authority.configuration.autoCleanupEnabled ||
-                            authority.configuration.autoPurgeEnabled
-                        )
-            }
-            .onEach { enabled -> syncScheduling(enabled) }
+            .onEach { syncScheduling() }
             .launchIn(appScope)
     }
 
-    private suspend fun syncScheduling(enabled: Boolean) {
+    private suspend fun syncScheduling() {
         try {
-            if (enabled) retentionWorkScheduler.ensureScheduled()
-            else retentionWorkScheduler.cancel()
+            retentionWorkScheduler.reconcileCurrentPreference(retentionConfigStore)
         } catch (_: RetentionWorkCancellationPendingException) {
             // RetentionWorkScheduler has already persisted one unique recovery owner.
             return

@@ -20,10 +20,17 @@ import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
 import com.adsamcik.tracker.shared.base.database.RetentionWorkCancellationTarget
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionStartResult
 import com.adsamcik.tracker.shared.base.database.beginOrResumeRetentionWorkExecution
+import com.adsamcik.tracker.shared.base.database.prepareOrResumeRetentionFloorSettlement
 import com.adsamcik.tracker.shared.base.database.requestRetentionWorkExecutionCancellations
+import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionPolicy
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigRead
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.google.common.util.concurrent.SettableFuture
 import io.kotest.matchers.shouldBe
 import io.mockk.capture
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -31,7 +38,12 @@ import java.util.concurrent.TimeUnit
 import java.util.UUID
 import javax.inject.Provider
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -118,7 +130,7 @@ class RetentionWorkSchedulerTest {
 				every {
 					enqueueUniqueWork(
 						RetentionCancellationRecoveryWorker.UNIQUE_WORK_NAME,
-						ExistingWorkPolicy.REPLACE,
+						ExistingWorkPolicy.KEEP,
 						any<OneTimeWorkRequest>(),
 					)
 				} returns recoveryEnqueue
@@ -153,7 +165,7 @@ class RetentionWorkSchedulerTest {
 			verify(exactly = 1) {
 				failingWorkManager.enqueueUniqueWork(
 					RetentionCancellationRecoveryWorker.UNIQUE_WORK_NAME,
-					ExistingWorkPolicy.REPLACE,
+					ExistingWorkPolicy.KEEP,
 					any<OneTimeWorkRequest>(),
 				)
 			}
@@ -180,7 +192,7 @@ class RetentionWorkSchedulerTest {
 				every {
 					enqueueUniqueWork(
 						RetentionCancellationRecoveryWorker.UNIQUE_WORK_NAME,
-						ExistingWorkPolicy.REPLACE,
+						ExistingWorkPolicy.KEEP,
 						any<OneTimeWorkRequest>(),
 					)
 				} returns recoveryEnqueue
@@ -208,7 +220,7 @@ class RetentionWorkSchedulerTest {
 			verify(exactly = 1) {
 				unconfirmedWorkManager.enqueueUniqueWork(
 					RetentionCancellationRecoveryWorker.UNIQUE_WORK_NAME,
-					ExistingWorkPolicy.REPLACE,
+					ExistingWorkPolicy.KEEP,
 					any<OneTimeWorkRequest>(),
 				)
 			}
@@ -375,7 +387,7 @@ class RetentionWorkSchedulerTest {
 	}
 
 	@Test
-	fun `recovery enqueue is unique latest-intent with bounded exponential backoff`() = runTest {
+	fun `recovery enqueue is unique preference neutral and bounded`() = runTest {
 		val requestId = UUID.randomUUID()
 		val info = mockk<WorkInfo> {
 			every { id } returns requestId
@@ -395,7 +407,7 @@ class RetentionWorkSchedulerTest {
 			every {
 				enqueueUniqueWork(
 					RetentionCancellationRecoveryWorker.UNIQUE_WORK_NAME,
-					ExistingWorkPolicy.REPLACE,
+					ExistingWorkPolicy.KEEP,
 					capture(recoveryRequests),
 				)
 			} returns recoveryEnqueue
@@ -414,20 +426,21 @@ class RetentionWorkSchedulerTest {
 			request.workSpec.backoffPolicy shouldBe BackoffPolicy.EXPONENTIAL
 			request.workSpec.backoffDelayDuration shouldBe
 				TimeUnit.SECONDS.toMillis(RetentionWorkScheduler.RECOVERY_BACKOFF_SECONDS)
-			request.workSpec.input.getString(RetentionCancellationRecoveryWorker.MODE_KEY) shouldBe
-				RetentionCancellationRecoveryWorker.MODE_ENABLED
+			request.workSpec.initialDelay shouldBe
+				TimeUnit.SECONDS.toMillis(RetentionWorkScheduler.RECOVERY_BACKOFF_SECONDS)
+			request.workSpec.input.getString("retention_schedule_mode") shouldBe null
 		}
 		verify(exactly = 2) {
 			failingWorkManager.enqueueUniqueWork(
 				RetentionCancellationRecoveryWorker.UNIQUE_WORK_NAME,
-				ExistingWorkPolicy.REPLACE,
+				ExistingWorkPolicy.KEEP,
 				any<OneTimeWorkRequest>(),
 			)
 		}
 	}
 
 	@Test
-	fun `failed quiescence replaces stale recovery with exact disabled intent`() = runTest {
+	fun `failed quiescence leaves a preference neutral recovery owner`() = runTest {
 		val requestId = UUID.randomUUID()
 		val info = mockk<WorkInfo> {
 			every { id } returns requestId
@@ -449,7 +462,7 @@ class RetentionWorkSchedulerTest {
 			every {
 				enqueueUniqueWork(
 					RetentionCancellationRecoveryWorker.UNIQUE_WORK_NAME,
-					ExistingWorkPolicy.REPLACE,
+					ExistingWorkPolicy.KEEP,
 					capture(recoveryRequests),
 				)
 			} returns successfulOperation()
@@ -459,10 +472,248 @@ class RetentionWorkSchedulerTest {
 			RetentionWorkScheduler(Provider { database }, failingWorkManager).cancel()
 		}
 
-		recoveryRequests.single().workSpec.input.getString(
-			RetentionCancellationRecoveryWorker.MODE_KEY,
-		) shouldBe RetentionCancellationRecoveryWorker.MODE_DISABLED
+		recoveryRequests.single().workSpec.input.getString("retention_schedule_mode") shouldBe null
 	}
+
+	@Test
+	fun `caller cancellation during WorkManager wait leaves recovery ownership established`() =
+		runTest {
+			val requestId = UUID.randomUUID()
+			val info = mockk<WorkInfo> {
+				every { id } returns requestId
+				every { state } returns WorkInfo.State.RUNNING
+			}
+			val cancellationStarted = CompletableDeferred<Unit>()
+			val cancellationFuture = SettableFuture.create<Operation.State.SUCCESS>()
+			val cancellation = mockk<Operation> {
+				every { result } returns cancellationFuture
+			}
+			val recoveryRequests = mutableListOf<OneTimeWorkRequest>()
+			val waitingWorkManager = mockk<WorkManager> {
+				every {
+					enqueueUniqueWork(
+						RetentionCancellationRecoveryWorker.UNIQUE_WORK_NAME,
+						ExistingWorkPolicy.KEEP,
+						capture(recoveryRequests),
+					)
+				} returns successfulOperation()
+				every {
+					getWorkInfosForUniqueWorkFlow(RetentionPipelineWorker.LEGACY_WORK_NAME)
+				} returns flowOf(listOf(info))
+				every { cancelWorkById(requestId) } answers {
+					cancellationStarted.complete(Unit)
+					cancellation
+				}
+			}
+			val subject = RetentionWorkScheduler(Provider { database }, waitingWorkManager)
+			val scheduling = async { subject.ensureScheduled() }
+
+			cancellationStarted.await()
+			database.retentionWorkExecutionReceiptDao().latest(requestId.toString())?.state shouldBe
+				"CANCELLATION_REQUESTED"
+			recoveryRequests.size shouldBe 1
+
+			scheduling.cancelAndJoin()
+
+			verify(exactly = 1) {
+				waitingWorkManager.enqueueUniqueWork(
+					RetentionCancellationRecoveryWorker.UNIQUE_WORK_NAME,
+					ExistingWorkPolicy.KEEP,
+					any<OneTimeWorkRequest>(),
+				)
+			}
+		}
+
+	@Test
+	fun `disable preserves an exact one shot finisher for an active floor settlement`() = runTest {
+		val requestId = UUID.randomUUID()
+		val plan = RetentionFloorDestructivePlan(
+			workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+			requestedAtMs = 10_000L,
+			requestedRetainedFromMs = 5_000L,
+			rawRetentionCutoffMs = 5_000L,
+			sourceEventRetentionCutoffMs = 5_000L,
+			wifiCellRetentionCutoffMs = 5_000L,
+			tripRetentionCutoffMs = 5_000L,
+			dailySummaryRetentionCutoffDay = 5_000L,
+			explorationRetentionCutoffMs = 5_000L,
+			operationalRetentionCutoffMs = 5_000L,
+		)
+		val execution = (
+			database.beginOrResumeRetentionWorkExecution(
+				workRequestId = requestId.toString(),
+				workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+				runAttemptCount = 0,
+				startedAtMs = 9_000L,
+			) as RetentionWorkExecutionStartResult.Open
+		).receipt
+		val operation = database.prepareOrResumeRetentionFloorSettlement(
+			operationId = "active-disable-settlement",
+			requestedRetainedFromMs = 5_000L,
+			collectedDataEpoch = 1L,
+			requestedAtMs = 10_000L,
+			workExecutionId = execution.executionId,
+			destructivePlan = plan,
+		)
+		var workState = WorkInfo.State.RUNNING
+		val info = mockk<WorkInfo> {
+			every { id } returns requestId
+			every { state } answers { workState }
+		}
+		val uniqueNames = mutableListOf<String>()
+		val uniqueRequests = mutableListOf<OneTimeWorkRequest>()
+		val disablingWorkManager = mockk<WorkManager> {
+			every {
+				enqueueUniqueWork(
+					capture(uniqueNames),
+					ExistingWorkPolicy.KEEP,
+					capture(uniqueRequests),
+				)
+			} returns successfulOperation()
+			every {
+				getWorkInfosForUniqueWorkFlow(RetentionPipelineWorker.WORK_NAME)
+			} answers { flowOf(listOf(info)) }
+			every {
+				getWorkInfosForUniqueWorkFlow(RetentionPipelineWorker.LEGACY_WORK_NAME)
+			} returns flowOf(emptyList())
+			every { cancelWorkById(requestId) } answers {
+				workState = WorkInfo.State.CANCELLED
+				successfulOperation()
+			}
+			every {
+				cancelUniqueWork(RetentionCancellationRecoveryWorker.UNIQUE_WORK_NAME)
+			} returns successfulOperation()
+		}
+
+		RetentionWorkScheduler(Provider { database }, disablingWorkManager).cancel()
+
+		database.retentionWorkExecutionReceiptDao().get(execution.executionId)?.state shouldBe
+			"ABANDONED"
+		val finisherName = RetentionWorkScheduler(Provider { database }, disablingWorkManager)
+			.settlementFinisherWorkName(operation.operationId)
+		uniqueNames shouldBe listOf(
+			RetentionCancellationRecoveryWorker.UNIQUE_WORK_NAME,
+			finisherName,
+		)
+		uniqueRequests.last().workSpec.workerClassName shouldBe
+			RetentionPipelineWorker::class.java.name
+		uniqueRequests.last().workSpec.input.getString(
+			RetentionPipelineWorker.SETTLEMENT_OPERATION_ID_KEY,
+		) shouldBe operation.operationId
+		verify(exactly = 0) {
+			disablingWorkManager.enqueueUniquePeriodicWork(
+				RetentionPipelineWorker.WORK_NAME,
+				any(),
+				any(),
+			)
+		}
+	}
+
+	@Test
+	fun `concurrent stale recovery cannot undo a newer disabled preference`() = runTest {
+		val retentionConfigStore = mockk<RetentionConfigStore>()
+		var enabled = true
+		var preferenceReads = 0
+		coEvery { retentionConfigStore.currentExactApprovedConfig() } answers {
+			preferenceReads += 1
+			approvedConfiguration(
+				enabled = enabled,
+				revision = if (enabled) 7L else 8L,
+			)
+		}
+		val firstLegacyRead = CompletableDeferred<Unit>()
+		val releaseRecovery = CompletableDeferred<Unit>()
+		var legacyReads = 0
+		var periodicState: WorkInfo.State? = null
+		val periodicId = UUID.randomUUID()
+		val periodicInfo = mockk<WorkInfo> {
+			every { id } returns periodicId
+			every { state } answers { requireNotNull(periodicState) }
+		}
+		val serialWorkManager = mockk<WorkManager> {
+			every {
+				getWorkInfosForUniqueWorkFlow(RetentionPipelineWorker.LEGACY_WORK_NAME)
+			} answers {
+				legacyReads += 1
+				if (legacyReads == 1) {
+					flow {
+						firstLegacyRead.complete(Unit)
+						releaseRecovery.await()
+						emit(emptyList<WorkInfo>())
+					}
+				} else {
+					flowOf(emptyList())
+				}
+			}
+			every {
+				getWorkInfosForUniqueWorkFlow(RetentionPipelineWorker.WORK_NAME)
+			} answers {
+				flowOf(
+					if (periodicState == null) emptyList() else listOf(periodicInfo),
+				)
+			}
+			every {
+				enqueueUniquePeriodicWork(
+					RetentionPipelineWorker.WORK_NAME,
+					any(),
+					any(),
+				)
+			} answers {
+				periodicState = WorkInfo.State.ENQUEUED
+				successfulOperation()
+			}
+			every {
+				enqueueUniqueWork(
+					RetentionCancellationRecoveryWorker.UNIQUE_WORK_NAME,
+					ExistingWorkPolicy.KEEP,
+					any<OneTimeWorkRequest>(),
+				)
+			} returns successfulOperation()
+			every { cancelWorkById(periodicId) } answers {
+				periodicState = WorkInfo.State.CANCELLED
+				successfulOperation()
+			}
+			every {
+				cancelUniqueWork(RetentionCancellationRecoveryWorker.UNIQUE_WORK_NAME)
+			} returns successfulOperation()
+		}
+		val subject = RetentionWorkScheduler(Provider { database }, serialWorkManager)
+		val staleRecovery = async {
+			subject.recoverCurrentPreference(retentionConfigStore)
+		}
+		firstLegacyRead.await()
+		enabled = false
+		val newerPreference = async {
+			subject.reconcileCurrentPreference(retentionConfigStore)
+		}
+		runCurrent()
+
+		releaseRecovery.complete(Unit)
+		staleRecovery.await()
+		newerPreference.await()
+
+		periodicState shouldBe WorkInfo.State.CANCELLED
+		preferenceReads shouldBe 5
+		coVerify(exactly = 5) { retentionConfigStore.currentExactApprovedConfig() }
+		verify(exactly = 1) { serialWorkManager.cancelWorkById(periodicId) }
+	}
+
+	private fun approvedConfiguration(
+		enabled: Boolean,
+		revision: Long,
+	): ExactApprovedRetentionConfigRead.Approved = ExactApprovedRetentionConfigRead.Approved(
+		configuration = RetentionConfigState(
+			autoCleanupEnabled = enabled,
+			autoPurgeEnabled = enabled,
+		),
+		policy = ApprovedRetentionPolicy(
+			configurationGeneration = revision,
+			revision = revision,
+			opaquePolicyId = "scheduler-policy-$revision",
+			configurationChecksum = "a".repeat(64),
+			integrityChecksum = "b".repeat(64),
+		),
+	)
 
 	private fun successfulOperation(): Operation {
 		val completed = SettableFuture.create<Operation.State.SUCCESS>()
