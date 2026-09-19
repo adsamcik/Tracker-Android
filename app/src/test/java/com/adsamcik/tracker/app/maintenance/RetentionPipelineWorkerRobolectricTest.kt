@@ -766,7 +766,7 @@ class RetentionPipelineWorkerRobolectricTest {
 				periodicAmbientRetentionMaintenance = ambient,
 			).doWork() shouldBe ListenableWorker.Result.retry()
 
-			coVerify(exactly = 1) { ambient.run(db, any(), any()) }
+			coVerify(exactly = 1) { ambient.run(db, any(), any(), any()) }
 			coVerify(exactly = 1) { cell.prune(db, any(), any()) }
 			coVerify(exactly = 1) { wifi.prune(db, any(), any()) }
 		}
@@ -1279,7 +1279,7 @@ class RetentionPipelineWorkerRobolectricTest {
 	private fun periodicAmbientRetentionMaintenance(
 		result: PeriodicAmbientRetentionResult = PeriodicAmbientRetentionResult.Complete,
 	): PeriodicAmbientRetentionMaintenance = mockk {
-		coEvery { run(any(), any(), any()) } returns result
+		coEvery { run(any(), any(), any(), any()) } returns result
 	}
 
 	private fun retentionFloorSettlement(): RetentionFloorSettlement = mockk {

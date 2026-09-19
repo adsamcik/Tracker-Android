@@ -366,7 +366,7 @@ class ActivityRetentionWorkerRobolectricTest {
 					retentionFloorSettlement(),
 					mockk {
 						coEvery {
-							run(any(), any(), any())
+							run(any(), any(), any(), any())
 						} returns PeriodicAmbientRetentionResult.Complete
 					},
 					workExecutionCoordinator,
@@ -384,7 +384,7 @@ class ActivityRetentionWorkerRobolectricTest {
 					retentionFloorSettlement(),
 					mockk {
 						coEvery {
-							run(any(), any(), any())
+							run(any(), any(), any(), any())
 						} returns PeriodicAmbientRetentionResult.Complete
 					},
 					workExecutionCoordinator,

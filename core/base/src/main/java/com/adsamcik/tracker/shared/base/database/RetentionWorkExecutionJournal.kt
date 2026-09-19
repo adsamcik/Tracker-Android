@@ -107,6 +107,21 @@ data class RetentionWorkCancellationTarget(
 	}
 }
 
+suspend fun AppDatabase.pendingRetentionWorkExecutionCancellations(
+	workerKinds: Collection<String>,
+): List<RetentionWorkExecutionReceipt> = withTransaction {
+	val exactWorkerKinds = workerKinds.onEach {
+		require(it in RetentionFloorDestructivePlan.WORKER_KINDS)
+	}.distinct()
+	if (exactWorkerKinds.isEmpty()) {
+		emptyList()
+	} else {
+		retentionWorkExecutionReceiptDao()
+			.pendingCancellations(exactWorkerKinds)
+			.map { it.toReceipt() }
+	}
+}
+
 suspend fun AppDatabase.beginOrResumeRetentionWorkExecution(
 	workRequestId: String,
 	workerKind: String,

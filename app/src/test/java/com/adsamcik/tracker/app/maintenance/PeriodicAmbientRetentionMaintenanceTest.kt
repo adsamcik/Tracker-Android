@@ -15,6 +15,7 @@ import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import kotlin.test.assertFailsWith
 
 class PeriodicAmbientRetentionMaintenanceTest {
 	private val database = mockk<AppDatabase>()
@@ -28,7 +29,7 @@ class PeriodicAmbientRetentionMaintenanceTest {
 		runTest {
 			val calls = mutableListOf<String>()
 			val subject = PeriodicAmbientRetentionMaintenance(
-				localSteps = { actualDatabase, floor, epoch, appliedAt ->
+				localSteps = { actualDatabase, floor, epoch, appliedAt, _ ->
 					actualDatabase shouldBe database
 					floor shouldBe 1_500L
 					epoch shouldBe 4L
@@ -36,14 +37,15 @@ class PeriodicAmbientRetentionMaintenanceTest {
 					calls += "local-steps"
 					LocalAmbientStepsRetentionResult.NoChange
 				},
-				importedSteps = { request ->
+				importedSteps = { actualDatabase, request, _ ->
+					actualDatabase shouldBe database
 					request.retainedFromMs shouldBe 1_500L
 					request.expectedCollectedDataEpoch shouldBe 4L
 					request.retainedAtMs shouldBe 2_000L
 					calls += "imported-steps"
 					TruncateImportedAmbientStepsRetentionResult.Retained(1)
 				},
-				wifi = { actualDatabase, command ->
+				wifi = { actualDatabase, command, _ ->
 					actualDatabase shouldBe database
 					command.beforeMs shouldBe 1_500L
 					command.expectedCollectedDataEpoch shouldBe 4L
@@ -53,7 +55,7 @@ class PeriodicAmbientRetentionMaintenanceTest {
 						AmbientWifiMaintenanceUnavailableReason.RETENTION_BOUNDARY_MISMATCH,
 					)
 				},
-				cell = { actualDatabase, command ->
+				cell = { actualDatabase, command, _ ->
 					actualDatabase shouldBe database
 					command.beforeMs shouldBe 1_500L
 					command.expectedCollectedDataEpoch shouldBe 4L
@@ -69,6 +71,7 @@ class PeriodicAmbientRetentionMaintenanceTest {
 				database,
 				lifecycle,
 				2_000L,
+				{},
 			)
 
 			calls shouldContainExactly listOf("local-steps", "imported-steps", "wifi", "cell")
@@ -105,7 +108,7 @@ class PeriodicAmbientRetentionMaintenanceTest {
 
 			outcomes.forEach { (outcome, expectedReason) ->
 				val subject = subject(importedResult = outcome)
-				val result = subject.run(database, lifecycle, 2_000L)
+				val result = subject.run(database, lifecycle, 2_000L, {})
 					as PeriodicAmbientRetentionResult.Retryable
 
 				result.failures shouldContainExactly listOf(
@@ -123,28 +126,28 @@ class PeriodicAmbientRetentionMaintenanceTest {
 		var localStepsCalls = 0
 		val calls = mutableListOf<String>()
 		val subject = PeriodicAmbientRetentionMaintenance(
-			localSteps = { _, floor, epoch, appliedAt ->
+			localSteps = { _, floor, epoch, appliedAt, _ ->
 				floor shouldBe 1_500L
 				epoch shouldBe 4L
 				appliedAt shouldBe 2_000L
 				localStepsCalls += 1
 				LocalAmbientStepsRetentionResult.Pruned(1)
 			},
-			importedSteps = {
+			importedSteps = { _, _, _ ->
 				calls += "imported"
 				TruncateImportedAmbientStepsRetentionResult.Complete
 			},
-			wifi = { _, _ ->
+			wifi = { _, _, _ ->
 				calls += "wifi"
 				AmbientWifiRetentionResult.NoChange
 			},
-			cell = { _, _ ->
+			cell = { _, _, _ ->
 				calls += "cell"
 				AmbientCellRetentionResult.NoChange
 			},
 		)
 
-		subject.run(database, lifecycle, 2_000L) shouldBe
+		subject.run(database, lifecycle, 2_000L, {}) shouldBe
 			PeriodicAmbientRetentionResult.Complete
 		localStepsCalls shouldBe 1
 		calls shouldContainExactly listOf("imported", "wifi", "cell")
@@ -153,17 +156,17 @@ class PeriodicAmbientRetentionMaintenanceTest {
 	@Test
 	fun `local Steps exposes typed retry debt`() = runTest {
 		val subject = PeriodicAmbientRetentionMaintenance(
-			localSteps = { _, _, _, _ ->
+			localSteps = { _, _, _, _, _ ->
 				LocalAmbientStepsRetentionResult.Unavailable(
 					PeriodicAmbientRetentionFailureReason.UNVERIFIABLE,
 				)
 			},
-			importedSteps = { TruncateImportedAmbientStepsRetentionResult.Complete },
-			wifi = { _, _ -> AmbientWifiRetentionResult.NoChange },
-			cell = { _, _ -> AmbientCellRetentionResult.NoChange },
+			importedSteps = { _, _, _ -> TruncateImportedAmbientStepsRetentionResult.Complete },
+			wifi = { _, _, _ -> AmbientWifiRetentionResult.NoChange },
+			cell = { _, _, _ -> AmbientCellRetentionResult.NoChange },
 		)
 
-		(subject.run(database, lifecycle, 2_000L) as PeriodicAmbientRetentionResult.Retryable)
+		(subject.run(database, lifecycle, 2_000L, {}) as PeriodicAmbientRetentionResult.Retryable)
 			.failures shouldContainExactly listOf(
 			PeriodicAmbientRetentionFailure(
 				PeriodicAmbientRetentionSource.LOCAL_STEPS,
@@ -172,12 +175,95 @@ class PeriodicAmbientRetentionMaintenanceTest {
 		)
 	}
 
+	@Test
+	fun `execution cancellation between ambient sources stops every remaining mutation`() = runTest {
+		val sourceOrder = listOf("local-steps", "imported-steps", "wifi", "cell")
+		sourceOrder.indices.forEach { cancellationIndex ->
+			val calls = mutableListOf<String>()
+			var sourceBoundary = 0
+			val subject = PeriodicAmbientRetentionMaintenance(
+				localSteps = { _, _, _, _, _ ->
+					calls += "local-steps"
+					LocalAmbientStepsRetentionResult.NoChange
+				},
+				importedSteps = { _, _, _ ->
+					calls += "imported-steps"
+					TruncateImportedAmbientStepsRetentionResult.Complete
+				},
+				wifi = { _, _, _ ->
+					calls += "wifi"
+					AmbientWifiRetentionResult.NoChange
+				},
+				cell = { _, _, _ ->
+					calls += "cell"
+					AmbientCellRetentionResult.NoChange
+				},
+			)
+
+			assertFailsWith<RetentionExecutionStoppedException> {
+				subject.run(database, lifecycle, 2_000L) {
+					if (sourceBoundary++ == cancellationIndex) {
+						throw RetentionExecutionStoppedException()
+					}
+				}
+			}
+
+			calls shouldContainExactly sourceOrder.take(cancellationIndex)
+		}
+	}
+
+	@Test
+	fun `exact continuation verifier reaches every source transaction boundary`() = runTest {
+		val boundaries = mutableListOf<String>()
+		val subject = PeriodicAmbientRetentionMaintenance(
+			localSteps = { _, _, _, _, verify ->
+				boundaries += "local-operation"
+				verify()
+				LocalAmbientStepsRetentionResult.NoChange
+			},
+			importedSteps = { _, _, verify ->
+				boundaries += "imported-operation"
+				verify()
+				TruncateImportedAmbientStepsRetentionResult.Complete
+			},
+			wifi = { _, _, verify ->
+				boundaries += "wifi-operation"
+				verify()
+				AmbientWifiRetentionResult.NoChange
+			},
+			cell = { _, _, verify ->
+				boundaries += "cell-operation"
+				verify()
+				AmbientCellRetentionResult.NoChange
+			},
+		)
+
+		subject.run(database, lifecycle, 2_000L) {
+			boundaries += "verified"
+		} shouldBe PeriodicAmbientRetentionResult.Complete
+
+		boundaries shouldContainExactly listOf(
+		"verified",
+		"local-operation",
+		"verified",
+		"verified",
+		"imported-operation",
+		"verified",
+		"verified",
+		"wifi-operation",
+		"verified",
+		"verified",
+		"cell-operation",
+		"verified",
+		)
+	}
+
 	private fun subject(
 		importedResult: TruncateImportedAmbientStepsRetentionResult,
 	): PeriodicAmbientRetentionMaintenance = PeriodicAmbientRetentionMaintenance(
-		localSteps = { _, _, _, _ -> LocalAmbientStepsRetentionResult.NoChange },
-		importedSteps = { importedResult },
-		wifi = { _, _ -> AmbientWifiRetentionResult.NoChange },
-		cell = { _, _ -> AmbientCellRetentionResult.NoChange },
+		localSteps = { _, _, _, _, _ -> LocalAmbientStepsRetentionResult.NoChange },
+		importedSteps = { _, _, _ -> importedResult },
+		wifi = { _, _, _ -> AmbientWifiRetentionResult.NoChange },
+		cell = { _, _, _ -> AmbientCellRetentionResult.NoChange },
 	)
 }

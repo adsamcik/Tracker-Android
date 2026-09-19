@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.maintenance
 
+import com.adsamcik.tracker.app.maintenance.RetentionWorkCancellationPendingException
 import com.adsamcik.tracker.app.maintenance.RetentionWorkScheduler
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigRead
@@ -51,6 +52,9 @@ class DataRetentionScheduler @Inject constructor(
         try {
             if (enabled) retentionWorkScheduler.ensureScheduled()
             else retentionWorkScheduler.cancel()
+        } catch (_: RetentionWorkCancellationPendingException) {
+            // RetentionWorkScheduler has already persisted one unique recovery owner.
+            return
         } catch (_: IllegalStateException) {
             return
         }

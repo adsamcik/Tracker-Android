@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.maintenance
 
+import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AmbientCellRetentionCommand
 import com.adsamcik.tracker.shared.base.database.AmbientCellRetentionResult
 import com.adsamcik.tracker.shared.base.database.AmbientWifiRetentionCommand
@@ -22,46 +23,75 @@ class PeriodicAmbientRetentionMaintenance internal constructor(
 		Long,
 		Long,
 		Long,
+		suspend () -> Unit,
 	) -> LocalAmbientStepsRetentionResult,
 	private val importedSteps: suspend (
+		AppDatabase,
 		TruncateImportedAmbientStepsRetentionRequest,
+		suspend () -> Unit,
 	) -> TruncateImportedAmbientStepsRetentionResult,
 	private val wifi: suspend (
 		AppDatabase,
 		AmbientWifiRetentionCommand,
+		suspend () -> Unit,
 	) -> AmbientWifiRetentionResult,
 	private val cell: suspend (
 		AppDatabase,
 		AmbientCellRetentionCommand,
+		suspend () -> Unit,
 	) -> AmbientCellRetentionResult,
 ) {
 	@Inject
 	constructor(
 		importedStepsRetention: Provider<TruncateImportedAmbientStepsRetention>,
 	) : this(
-		localSteps = { database, floor, epoch, appliedAtMs ->
-			val deleted = database.pruneAuthenticatedAmbientStepsFactsAffectedByRetentionFloor(
-				beforeMs = floor,
-				collectedDataEpoch = epoch,
-				markedAtMs = appliedAtMs,
-			)
-			if (deleted == 0) {
-				LocalAmbientStepsRetentionResult.NoChange
-			} else {
-				LocalAmbientStepsRetentionResult.Pruned(deleted)
+		localSteps = { database, floor, epoch, appliedAtMs, verifyExecutionContinuation ->
+			database.withTransaction {
+				verifyExecutionContinuation()
+				val deleted = database.pruneAuthenticatedAmbientStepsFactsAffectedByRetentionFloor(
+					beforeMs = floor,
+					collectedDataEpoch = epoch,
+					markedAtMs = appliedAtMs,
+				)
+				verifyExecutionContinuation()
+				if (deleted == 0) {
+					LocalAmbientStepsRetentionResult.NoChange
+				} else {
+					LocalAmbientStepsRetentionResult.Pruned(deleted)
+				}
 			}
 		},
-		importedSteps = { request ->
-			importedStepsRetention.get().truncateNext(request)
+		importedSteps = { database, request, verifyExecutionContinuation ->
+			database.withTransaction {
+				verifyExecutionContinuation()
+				val result = importedStepsRetention.get().truncateNext(request)
+				verifyExecutionContinuation()
+				result
+			}
 		},
-		wifi = AppDatabase::pruneAmbientWifi,
-		cell = AppDatabase::pruneAmbientCell,
+		wifi = { database, command, verifyExecutionContinuation ->
+			database.withTransaction {
+				verifyExecutionContinuation()
+				val result = database.pruneAmbientWifi(command)
+				verifyExecutionContinuation()
+				result
+			}
+		},
+		cell = { database, command, verifyExecutionContinuation ->
+			database.withTransaction {
+				verifyExecutionContinuation()
+				val result = database.pruneAmbientCell(command)
+				verifyExecutionContinuation()
+				result
+			}
+		},
 	)
 
 	suspend fun run(
 		database: AppDatabase,
 		lifecycle: CollectedDataLifecycleSnapshot,
 		appliedAtMs: Long,
+		verifyExecutionContinuation: suspend () -> Unit,
 	): PeriodicAmbientRetentionResult {
 		val floor = requireNotNull(lifecycle.retainedFromMs) {
 			"Ambient retention requires a settled retained-from floor"
@@ -70,7 +100,16 @@ class PeriodicAmbientRetentionMaintenance internal constructor(
 		val failures = mutableListOf<PeriodicAmbientRetentionFailure>()
 
 		captureFailure(PeriodicAmbientRetentionSource.LOCAL_STEPS, failures) {
-			when (val result = localSteps(database, floor, lifecycle.epoch, appliedAtMs)) {
+			verifyExecutionContinuation()
+			when (
+				val result = localSteps(
+					database,
+					floor,
+					lifecycle.epoch,
+					appliedAtMs,
+					verifyExecutionContinuation,
+				)
+			) {
 				LocalAmbientStepsRetentionResult.NoChange,
 				is LocalAmbientStepsRetentionResult.Pruned,
 				-> null
@@ -78,12 +117,15 @@ class PeriodicAmbientRetentionMaintenance internal constructor(
 			}
 		}
 		captureFailure(PeriodicAmbientRetentionSource.IMPORTED_STEPS, failures) {
+			verifyExecutionContinuation()
 			when (importedSteps(
+				database,
 				TruncateImportedAmbientStepsRetentionRequest(
 					retainedFromMs = floor,
 					expectedCollectedDataEpoch = lifecycle.epoch,
 					retainedAtMs = appliedAtMs,
 				),
+				verifyExecutionContinuation,
 			)) {
 				TruncateImportedAmbientStepsRetentionResult.Complete -> null
 				is TruncateImportedAmbientStepsRetentionResult.Retained ->
@@ -97,9 +139,11 @@ class PeriodicAmbientRetentionMaintenance internal constructor(
 			}
 		}
 		captureFailure(PeriodicAmbientRetentionSource.WIFI, failures) {
+			verifyExecutionContinuation()
 			when (wifi(
 				database,
 				AmbientWifiRetentionCommand(floor, lifecycle.epoch, appliedAtMs),
+				verifyExecutionContinuation,
 			)) {
 				AmbientWifiRetentionResult.NoChange,
 				is AmbientWifiRetentionResult.Pruned -> null
@@ -108,9 +152,11 @@ class PeriodicAmbientRetentionMaintenance internal constructor(
 			}
 		}
 		captureFailure(PeriodicAmbientRetentionSource.CELL, failures) {
+			verifyExecutionContinuation()
 			when (cell(
 				database,
 				AmbientCellRetentionCommand(floor, lifecycle.epoch, appliedAtMs),
+				verifyExecutionContinuation,
 			)) {
 				AmbientCellRetentionResult.NoChange,
 				is AmbientCellRetentionResult.Pruned -> null
@@ -135,6 +181,10 @@ class PeriodicAmbientRetentionMaintenance internal constructor(
 			operation()
 		} catch (cancelled: CancellationException) {
 			throw cancelled
+		} catch (stopped: RetentionExecutionStoppedException) {
+			throw stopped
+		} catch (deferred: RetentionExecutionDeferredException) {
+			throw deferred
 		} catch (_: Exception) {
 			PeriodicAmbientRetentionFailureReason.STORAGE_UNAVAILABLE
 		}
@@ -143,6 +193,10 @@ class PeriodicAmbientRetentionMaintenance internal constructor(
 		}
 	}
 }
+
+internal class RetentionExecutionStoppedException : RuntimeException()
+
+internal class RetentionExecutionDeferredException : RuntimeException()
 
 sealed interface LocalAmbientStepsRetentionResult {
 	data class Pruned(val deletedRevisionCount: Int) : LocalAmbientStepsRetentionResult {

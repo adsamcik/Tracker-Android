@@ -287,6 +287,12 @@ class RetentionPipelineWorker @AssistedInject constructor(
 						database = appDatabase,
 						lifecycle = settlement.lifecycle,
 						appliedAtMs = operationNow,
+						verifyExecutionContinuation = {
+							requireExecutionContinuation(
+								appDatabase,
+								execution,
+							)
+						},
 					) is PeriodicAmbientRetentionResult.Retryable
 				) {
 					maintenanceDeferred = true
@@ -735,18 +741,25 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		startupGeneration: Long,
 		authority: ApprovedRetentionOperation,
 	) {
+		requireExecutionContinuation(database, execution)
+		requireReadyGeneration(startupGeneration)
+		authority.requireIdentity()
+	}
+
+	private suspend fun requireExecutionContinuation(
+		database: AppDatabase,
+		execution: RetentionWorkExecutionReceipt,
+	) {
 		when (workExecutionCoordinator.continuation(database, execution)) {
 			RetentionWorkExecutionContinuationResult.Continue -> Unit
 			RetentionWorkExecutionContinuationResult.CancellationRequested,
 			RetentionWorkExecutionContinuationResult.AbandonedByCancellation,
 			RetentionWorkExecutionContinuationResult.SupersededByFullDeletion,
 			RetentionWorkExecutionContinuationResult.AlreadyCompleted,
-			-> throw RetentionExecutionStoppedException
+			-> throw RetentionExecutionStoppedException()
 			is RetentionWorkExecutionContinuationResult.Retryable ->
-				throw RetentionExecutionDeferredException
+				throw RetentionExecutionDeferredException()
 		}
-		requireReadyGeneration(startupGeneration)
-		authority.requireIdentity()
 	}
 
     private fun RetentionConfigState.forWorker(): RetentionConfigState {
@@ -825,8 +838,6 @@ class RetentionPipelineWorker @AssistedInject constructor(
 	private object StartupGenerationChangedException : RuntimeException()
 	private object ActivityRetentionDeferredException : RuntimeException()
 	private object RetentionFloorSettlementDeferredException : RuntimeException()
-	private object RetentionExecutionStoppedException : RuntimeException()
-	private object RetentionExecutionDeferredException : RuntimeException()
 
 	private enum class RadioRetentionResult {
 		NOT_APPLICABLE,

@@ -15,6 +15,8 @@ import com.adsamcik.tracker.app.maintenance.PeriodicAmbientRetentionResult
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlement
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementCompletionResult
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementResult
+import com.adsamcik.tracker.app.maintenance.RetentionExecutionDeferredException
+import com.adsamcik.tracker.app.maintenance.RetentionExecutionStoppedException
 import com.adsamcik.tracker.app.maintenance.RetentionWorkExecutionCoordinator
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -293,6 +295,12 @@ class DataRetentionWorker @AssistedInject constructor(
 					database = appDatabase,
 					lifecycle = lifecycle,
 					appliedAtMs = operationTimeMs,
+					verifyExecutionContinuation = {
+						requireExecutionContinuation(
+							appDatabase,
+							execution,
+						)
+					},
 				) is PeriodicAmbientRetentionResult.Complete
 			// Captured radio maintenance authenticates its retained source WAL after lifecycle
 			// settlement and before the shared physical WAL prune, including deferred raw runs.
@@ -548,18 +556,25 @@ class DataRetentionWorker @AssistedInject constructor(
 		startupGeneration: Long,
 		authority: ApprovedRetentionOperation,
 	) {
+		requireExecutionContinuation(database, execution)
+		requireReadyGeneration(startupGeneration)
+		authority.requireIdentity()
+	}
+
+	private suspend fun requireExecutionContinuation(
+		database: AppDatabase,
+		execution: RetentionWorkExecutionReceipt,
+	) {
 		when (workExecutionCoordinator.continuation(database, execution)) {
 			RetentionWorkExecutionContinuationResult.Continue -> Unit
 			RetentionWorkExecutionContinuationResult.CancellationRequested,
 			RetentionWorkExecutionContinuationResult.AbandonedByCancellation,
 			RetentionWorkExecutionContinuationResult.SupersededByFullDeletion,
 			RetentionWorkExecutionContinuationResult.AlreadyCompleted,
-			-> throw RetentionExecutionStoppedException
+			-> throw RetentionExecutionStoppedException()
 			is RetentionWorkExecutionContinuationResult.Retryable ->
-				throw RetentionExecutionDeferredException
+				throw RetentionExecutionDeferredException()
 		}
-		requireReadyGeneration(startupGeneration)
-		authority.requireIdentity()
 	}
 
 	private suspend fun pruneExpiredSessionSegments(
@@ -700,6 +715,4 @@ class DataRetentionWorker @AssistedInject constructor(
 	private object RadioRetentionDeferredException : RuntimeException()
 	private object AmbientRetentionDeferredException : RuntimeException()
 	private object RetentionFloorSettlementDeferredException : RuntimeException()
-	private object RetentionExecutionStoppedException : RuntimeException()
-	private object RetentionExecutionDeferredException : RuntimeException()
 }

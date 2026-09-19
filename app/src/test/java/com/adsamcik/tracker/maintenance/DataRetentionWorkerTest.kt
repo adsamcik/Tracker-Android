@@ -120,7 +120,7 @@ class DataRetentionWorkerTest {
 		coEvery { prune(any(), any(), any()) } returns WifiCapturedRetentionResult.NoChange
 	}
 	private val periodicAmbientRetentionMaintenance: PeriodicAmbientRetentionMaintenance = mockk {
-		coEvery { run(any(), any(), any()) } returns
+		coEvery { run(any(), any(), any(), any()) } returns
 			PeriodicAmbientRetentionResult.Complete
 	}
 	private val workExecutionCoordinator = workExecutionCoordinator(
@@ -399,7 +399,7 @@ class DataRetentionWorkerTest {
 				).doWork(),
 			)
 			coVerify(exactly = 0) {
-				periodicAmbientRetentionMaintenance.run(any(), any(), any())
+				periodicAmbientRetentionMaintenance.run(any(), any(), any(), any())
 			}
 			coVerify(exactly = 0) { cellCapturedRetentionService.prune(any(), any(), any()) }
 			coVerify(exactly = 0) { wifiCapturedRetentionService.prune(any(), any(), any()) }
@@ -846,7 +846,7 @@ class DataRetentionWorkerTest {
 			val gate = MutableStartupGate()
 			val settlement = retentionFloorSettlement()
 			val ambient = mockk<PeriodicAmbientRetentionMaintenance> {
-				coEvery { run(database, any(), any()) } returns
+				coEvery { run(database, any(), any(), any()) } returns
 					PeriodicAmbientRetentionResult.Retryable(
 						listOf(
 							com.adsamcik.tracker.app.maintenance.PeriodicAmbientRetentionFailure(
