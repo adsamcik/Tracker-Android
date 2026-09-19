@@ -428,12 +428,15 @@ interface SourceEventWalDao {
 			"THEN lifecycle_lease_generation END AS lifecycle_lease_generation, " +
 			"COUNT(*) AS associated_row_count, " +
 			"SUM(CASE WHEN (" +
-			"typeof(event_id) != 'text' OR trim(event_id) = '' OR " +
+			"typeof(event_id) != 'text' OR " +
+			"trim(event_id, char(9, 10, 11, 12, 13, 32)) = '' OR " +
 			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
 			"admission_ordinal > :throughOrdinal OR " +
 			"typeof(source_kind) != 'integer' OR source_kind != :sourceKind OR " +
 			"typeof(logical_tracking_id) != 'text' OR logical_tracking_id != :logicalTrackingId OR " +
-			"typeof(service_run_id) != 'text' OR service_run_id != :serviceRunId OR " +
+			"typeof(service_run_id) != 'text' OR " +
+			"trim(service_run_id, char(9, 10, 11, 12, 13, 32)) = '' OR " +
+			"service_run_id != :serviceRunId OR " +
 			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
 			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
 			"typeof(session_manifest_revision) != 'integer' OR session_manifest_revision <= 0 OR " +
@@ -451,6 +454,14 @@ interface SourceEventWalDao {
 			"authorization_purpose_eligibility_mask AND " +
 			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0" +
 			") THEN 1 ELSE 0 END) AS product_eligible_row_count, " +
+			"SUM(CASE WHEN (" +
+			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"authorization_purpose_eligibility_mask > 0 AND " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) = " +
+			"authorization_purpose_eligibility_mask AND " +
+			"(authorization_purpose_eligibility_mask & :controlPurposeMask) = " +
+			"authorization_purpose_eligibility_mask" +
+			") THEN 1 ELSE 0 END) AS control_only_row_count, " +
 			"MAX(CASE WHEN (" +
 			"typeof(admission_ordinal) = 'integer' AND admission_ordinal > 0 AND " +
 			"admission_ordinal <= :throughOrdinal AND " +
@@ -481,14 +492,15 @@ interface SourceEventWalDao {
 		runManifestRevisions: List<Long>,
 		throughOrdinal: Long,
 		capturePurposeMask: Long,
+		controlPurposeMask: Long,
 		allowedPurposeMask: Long,
 		limit: Int,
 	): List<RawSourceRunWalGenerationEvidence>
 
 	/**
-	 * Groups every exact-run WAL row claiming capture or carrying malformed capture metadata by raw
-	 * manifest revision. The bounded result lets callers compare each row with the complete
-	 * authenticated revision set without a SQLite `IN` bind for that full set.
+	 * Groups every exact-run WAL row that is capture-eligible or is not explicit valid control-only
+	 * evidence by raw manifest revision. The bounded result lets callers compare each row with the
+	 * complete authenticated revision set without a SQLite `IN` bind for that full set.
 	 */
 	@Query(
 		"SELECT CASE WHEN typeof(session_manifest_revision) = 'integer' " +
@@ -497,24 +509,28 @@ interface SourceEventWalDao {
 			"FROM source_event_wal WHERE " +
 			"typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId AND " +
 			"(CAST(source_kind AS INTEGER) = :sourceKind OR typeof(source_kind) != 'integer') AND (" +
-			"typeof(event_id) != 'text' OR trim(event_id) = '' OR " +
+			"typeof(event_id) != 'text' OR " +
+			"trim(event_id, char(9, 10, 11, 12, 13, 32)) = '' OR " +
 			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
 			"(typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
 			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0 AND " +
 			"admission_ordinal > :throughOrdinal) OR " +
 			"typeof(source_kind) != 'integer' OR source_kind != :sourceKind OR " +
 			"typeof(logical_tracking_id) != 'text' OR logical_tracking_id != :logicalTrackingId OR " +
-			"typeof(service_run_id) != 'text' OR service_run_id != :serviceRunId OR " +
+			"typeof(service_run_id) != 'text' OR " +
+			"trim(service_run_id, char(9, 10, 11, 12, 13, 32)) = '' OR " +
+			"service_run_id != :serviceRunId OR " +
 			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
 			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
 			"typeof(session_manifest_revision) != 'integer' OR session_manifest_revision <= 0 OR " +
 			"typeof(lifecycle_lease_generation) != 'integer' OR " +
 			"lifecycle_lease_generation <= 0 OR " +
 			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
-			"authorization_purpose_eligibility_mask < 0 OR " +
+			"authorization_purpose_eligibility_mask <= 0 OR " +
 			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) != " +
 			"authorization_purpose_eligibility_mask OR " +
-			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0) " +
+			"(authorization_purpose_eligibility_mask & :controlPurposeMask) != " +
+			"authorization_purpose_eligibility_mask) " +
 			"GROUP BY typeof(session_manifest_revision), " +
 			"CASE WHEN typeof(session_manifest_revision) = 'integer' " +
 			"THEN session_manifest_revision END " +
@@ -526,6 +542,7 @@ interface SourceEventWalDao {
 		serviceRunId: String,
 		throughOrdinal: Long,
 		capturePurposeMask: Long,
+		controlPurposeMask: Long,
 		allowedPurposeMask: Long,
 		limit: Int,
 	): List<RawSourceRunWalManifestRevisionEvidence>
@@ -533,8 +550,8 @@ interface SourceEventWalDao {
 	/**
 	 * Groups non-exact service-run rows associated with an authenticated manifest revision.
 	 *
-	 * Provider/action ownership and the projected mask decide whether the association is capture
-	 * evidence. A valid control-only provider remains outside the captured product.
+	 * Provider/action ownership and the projected mask classification decide whether the association
+	 * is capture evidence. Only explicit valid control-only rows may remain outside the product.
 	 */
 	@Query(
 		"SELECT " +
@@ -546,11 +563,13 @@ interface SourceEventWalDao {
 			"THEN lifecycle_lease_generation END AS lifecycle_lease_generation, " +
 			"COUNT(*) AS associated_row_count, " +
 			"SUM(CASE WHEN (" +
-			"typeof(event_id) != 'text' OR trim(event_id) = '' OR " +
+			"typeof(event_id) != 'text' OR " +
+			"trim(event_id, char(9, 10, 11, 12, 13, 32)) = '' OR " +
 			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
 			"typeof(source_kind) != 'integer' OR source_kind != :sourceKind OR " +
 			"typeof(logical_tracking_id) != 'text' OR logical_tracking_id != :logicalTrackingId OR " +
-			"typeof(service_run_id) != 'text' OR trim(service_run_id) = '' OR " +
+			"typeof(service_run_id) != 'text' OR " +
+			"trim(service_run_id, char(9, 10, 11, 12, 13, 32)) = '' OR " +
 			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
 			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
 			"typeof(session_manifest_revision) != 'integer' OR session_manifest_revision <= 0 OR " +
@@ -568,6 +587,14 @@ interface SourceEventWalDao {
 			"authorization_purpose_eligibility_mask AND " +
 			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0" +
 			") THEN 1 ELSE 0 END) AS product_eligible_row_count, " +
+			"SUM(CASE WHEN (" +
+			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"authorization_purpose_eligibility_mask > 0 AND " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) = " +
+			"authorization_purpose_eligibility_mask AND " +
+			"(authorization_purpose_eligibility_mask & :controlPurposeMask) = " +
+			"authorization_purpose_eligibility_mask" +
+			") THEN 1 ELSE 0 END) AS control_only_row_count, " +
 			"MAX(CASE WHEN typeof(admission_ordinal) = 'integer' " +
 			"THEN admission_ordinal END) AS high_water_admission_ordinal " +
 			"FROM source_event_wal WHERE " +
@@ -592,6 +619,7 @@ interface SourceEventWalDao {
 		serviceRunId: String,
 		runManifestRevisions: List<Long>,
 		capturePurposeMask: Long,
+		controlPurposeMask: Long,
 		allowedPurposeMask: Long,
 		limit: Int,
 	): List<RawSourceRunWalGenerationEvidence>
@@ -806,6 +834,7 @@ data class RawSourceRunWalGenerationEvidence(
 	@ColumnInfo(name = "associated_row_count") val associatedRowCount: Long?,
 	@ColumnInfo(name = "malformed_row_count") val malformedRowCount: Long?,
 	@ColumnInfo(name = "product_eligible_row_count") val productEligibleRowCount: Long?,
+	@ColumnInfo(name = "control_only_row_count") val controlOnlyRowCount: Long?,
 	@ColumnInfo(name = "high_water_admission_ordinal") val highWaterAdmissionOrdinal: Long?,
 )
 

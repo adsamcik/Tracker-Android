@@ -827,6 +827,7 @@ internal suspend fun sourceRunHighWater(
 		serviceRunId = serviceRunId,
 		throughOrdinal = throughOrdinal,
 		capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		controlPurposeMask = SourceBrokerPurpose.CONTROL_MASK,
 		allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
 		limit = manifestRevisionLimit,
 	)
@@ -855,6 +856,7 @@ internal suspend fun sourceRunHighWater(
 			runManifestRevisions = manifestRevisions,
 			throughOrdinal = throughOrdinal,
 			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			controlPurposeMask = SourceBrokerPurpose.CONTROL_MASK,
 			allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
 			limit = RAW_WAL_GENERATION_AUTHORITY_ENVELOPE,
 		)
@@ -868,6 +870,8 @@ internal suspend fun sourceRunHighWater(
 			val malformedRowCount = row.malformedRowCount
 				?: return SourceRunHighWaterRead.Unverifiable
 			val productEligibleRowCount = row.productEligibleRowCount
+				?: return SourceRunHighWaterRead.Unverifiable
+			val controlOnlyRowCount = row.controlOnlyRowCount
 				?: return SourceRunHighWaterRead.Unverifiable
 			val sourceInstanceId = row.sourceInstanceId
 				?: return SourceRunHighWaterRead.Unverifiable
@@ -885,6 +889,8 @@ internal suspend fun sourceRunHighWater(
 				malformedRowCount != 0L ||
 				productEligibleRowCount < 0L ||
 				productEligibleRowCount > associatedRowCount ||
+				controlOnlyRowCount < 0L ||
+				controlOnlyRowCount > associatedRowCount ||
 				admissionOrdinal !in 1L..throughOrdinal
 			) {
 				return SourceRunHighWaterRead.Unverifiable
@@ -893,7 +899,10 @@ internal suspend fun sourceRunHighWater(
 			val providerClaims = claimsByProvider[provider].orEmpty()
 			val providerOwnsCapture = provider in productProviders || providerClaims.isNotEmpty()
 			if (!providerOwnsCapture) {
-				if (productEligibleRowCount != 0L) {
+				if (
+					productEligibleRowCount != 0L ||
+					controlOnlyRowCount != associatedRowCount
+				) {
 					return SourceRunHighWaterRead.Unverifiable
 				}
 				continue
@@ -929,6 +938,7 @@ internal suspend fun sourceRunHighWater(
 			serviceRunId = serviceRunId,
 			runManifestRevisions = manifestRevisions,
 			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			controlPurposeMask = SourceBrokerPurpose.CONTROL_MASK,
 			allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
 			limit = RAW_WAL_GENERATION_AUTHORITY_ENVELOPE,
 		)
@@ -942,6 +952,8 @@ internal suspend fun sourceRunHighWater(
 			val malformedRowCount = row.malformedRowCount
 				?: return SourceRunHighWaterRead.Unverifiable
 			val productEligibleRowCount = row.productEligibleRowCount
+				?: return SourceRunHighWaterRead.Unverifiable
+			val controlOnlyRowCount = row.controlOnlyRowCount
 				?: return SourceRunHighWaterRead.Unverifiable
 			val sourceInstanceId = row.sourceInstanceId
 				?: return SourceRunHighWaterRead.Unverifiable
@@ -959,6 +971,8 @@ internal suspend fun sourceRunHighWater(
 				malformedRowCount != 0L ||
 				productEligibleRowCount < 0L ||
 				productEligibleRowCount > associatedRowCount ||
+				controlOnlyRowCount < 0L ||
+				controlOnlyRowCount > associatedRowCount ||
 				admissionOrdinal <= 0L
 			) {
 				return SourceRunHighWaterRead.Unverifiable
@@ -966,7 +980,11 @@ internal suspend fun sourceRunHighWater(
 			val provider = SourceDrainProviderIdentity(sourceInstanceId, registrationGeneration)
 			val expectedCapture = provider in productProviders ||
 				claimsByProvider[provider].orEmpty().isNotEmpty()
-			if (expectedCapture || productEligibleRowCount != 0L) {
+			if (
+				expectedCapture ||
+				productEligibleRowCount != 0L ||
+				controlOnlyRowCount != associatedRowCount
+			) {
 				return SourceRunHighWaterRead.Unverifiable
 			}
 		}

@@ -839,7 +839,16 @@ class AuthoritativeSessionCoordinatorTest {
 				terminalDrainClaim(captureInstanceId, 1L, cleanupOnly = false),
 			),
 		)
+		read() shouldBe SourceRunHighWaterRead.Ready(captureOrdinal)
 		val malformedMasks = listOf<Any>(
+			0L,
+			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+			SourceBrokerPurpose.MASK_CONTROL_AUTOSTART or
+				SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+			SourceBrokerPurpose.MASK_CONTROL_AUTOSTART or
+				SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			SourceBrokerPurpose.MASK_SESSION_CAPTURE or
+				SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
 			1.5,
 			byteArrayOf(1, 2),
 			"CONTROL_ONLY",
@@ -857,12 +866,20 @@ class AuthoritativeSessionCoordinatorTest {
 			read() shouldBe SourceRunHighWaterRead.Unverifiable
 		}
 
-		database.openHelper.writableDatabase.execSQL(
-			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? " +
-				"WHERE admission_ordinal = ?",
-			arrayOf(SourceBrokerPurpose.MASK_CONTROL_CONTINUATION, controlOrdinal),
-		)
-		read() shouldBe SourceRunHighWaterRead.Ready(captureOrdinal)
+		for (
+			controlMask in listOf(
+				SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+				SourceBrokerPurpose.MASK_CONTROL_CONTINUATION,
+				SourceBrokerPurpose.CONTROL_MASK,
+			)
+		) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? " +
+					"WHERE admission_ordinal = ?",
+				arrayOf(controlMask, controlOrdinal),
+			)
+			read() shouldBe SourceRunHighWaterRead.Ready(captureOrdinal)
+		}
 
 		allowNullWalPurposeMaskForCorruptionTest()
 		database.openHelper.writableDatabase.execSQL(
@@ -871,6 +888,57 @@ class AuthoritativeSessionCoordinatorTest {
 			arrayOf(controlOrdinal),
 		)
 		read() shouldBe SourceRunHighWaterRead.Unverifiable
+	}
+
+	@Test
+	fun `exact-run non-member control rejects ASCII blank event and service run ids`() = runTest {
+		val logicalTrackingId = "exact-control-identifiers-logical"
+		val serviceRunId = "exact-control-identifiers-run"
+		val controlOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = "exact-control-identifiers-instance",
+			purposeMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			recordStepsFact = false,
+		)
+		val originalEventId =
+			requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(controlOrdinal)).eventId
+		suspend fun read(runId: String = serviceRunId) = sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = runId,
+			runManifestRevisions = listOf(1L),
+			throughOrdinal = controlOrdinal,
+			productMemberships = emptyList(),
+			retirementClaims = emptyList(),
+		)
+		val asciiBlankIds = listOf("\t", "\n", "\u000B", "\u000C", "\r", " \t\n\r")
+
+		read() shouldBe SourceRunHighWaterRead.Ready(0L)
+		for (blankId in asciiBlankIds) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET event_id = ? WHERE admission_ordinal = ?",
+				arrayOf(blankId, controlOrdinal),
+			)
+			read() shouldBe SourceRunHighWaterRead.Unverifiable
+		}
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET event_id = ? WHERE admission_ordinal = ?",
+			arrayOf(originalEventId, controlOrdinal),
+		)
+		for (blankId in asciiBlankIds) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET service_run_id = ? WHERE admission_ordinal = ?",
+				arrayOf(blankId, controlOrdinal),
+			)
+			read(blankId) shouldBe SourceRunHighWaterRead.Unverifiable
+		}
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET service_run_id = ? WHERE admission_ordinal = ?",
+			arrayOf(serviceRunId, controlOrdinal),
+		)
+		read() shouldBe SourceRunHighWaterRead.Ready(0L)
 	}
 
 	@Test
@@ -908,7 +976,16 @@ class AuthoritativeSessionCoordinatorTest {
 				terminalDrainClaim(captureInstanceId, 1L, cleanupOnly = false),
 			),
 		)
+		read() shouldBe SourceRunHighWaterRead.Ready(captureOrdinal)
 		val malformedMasks = listOf<Any>(
+			0L,
+			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+			SourceBrokerPurpose.MASK_CONTROL_AUTOSTART or
+				SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+			SourceBrokerPurpose.MASK_CONTROL_AUTOSTART or
+				SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			SourceBrokerPurpose.MASK_SESSION_CAPTURE or
+				SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
 			1.5,
 			byteArrayOf(1, 2),
 			"CONTROL_ONLY",
@@ -926,12 +1003,20 @@ class AuthoritativeSessionCoordinatorTest {
 			read() shouldBe SourceRunHighWaterRead.Unverifiable
 		}
 
-		database.openHelper.writableDatabase.execSQL(
-			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? " +
-				"WHERE admission_ordinal = ?",
-			arrayOf(SourceBrokerPurpose.MASK_CONTROL_CONTINUATION, controlOrdinal),
-		)
-		read() shouldBe SourceRunHighWaterRead.Ready(captureOrdinal)
+		for (
+			controlMask in listOf(
+				SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+				SourceBrokerPurpose.MASK_CONTROL_CONTINUATION,
+				SourceBrokerPurpose.CONTROL_MASK,
+			)
+		) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? " +
+					"WHERE admission_ordinal = ?",
+				arrayOf(controlMask, controlOrdinal),
+			)
+			read() shouldBe SourceRunHighWaterRead.Ready(captureOrdinal)
+		}
 
 		allowNullWalPurposeMaskForCorruptionTest()
 		database.openHelper.writableDatabase.execSQL(
@@ -940,6 +1025,71 @@ class AuthoritativeSessionCoordinatorTest {
 			arrayOf(controlOrdinal),
 		)
 		read() shouldBe SourceRunHighWaterRead.Unverifiable
+	}
+
+	@Test
+	fun `wrong-run non-member control rejects ASCII blank event and service run ids`() = runTest {
+		val logicalTrackingId = "wrong-control-identifiers-logical"
+		val serviceRunId = "wrong-control-identifiers-current"
+		val wrongServiceRunId = "wrong-control-identifiers-other"
+		val captureInstanceId = "wrong-control-identifiers-capture"
+		val captureOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = captureInstanceId,
+			sourceSequence = 1L,
+			recordStepsFact = false,
+		)
+		val controlOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = wrongServiceRunId,
+			sourceInstanceId = "wrong-control-identifiers-control",
+			sourceSequence = 2L,
+			purposeMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			recordStepsFact = false,
+		)
+		val originalEventId =
+			requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(controlOrdinal)).eventId
+		suspend fun read() = sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = listOf(1L),
+			throughOrdinal = controlOrdinal,
+			productMemberships = listOf(
+				terminalDrainMembership(captureInstanceId, 1L, captureOrdinal),
+			),
+			retirementClaims = listOf(
+				terminalDrainClaim(captureInstanceId, 1L, cleanupOnly = false),
+			),
+		)
+		val asciiBlankIds = listOf("\t", "\n", "\u000B", "\u000C", "\r", " \t\n\r")
+
+		read() shouldBe SourceRunHighWaterRead.Ready(captureOrdinal)
+		for (blankId in asciiBlankIds) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET event_id = ? WHERE admission_ordinal = ?",
+				arrayOf(blankId, controlOrdinal),
+			)
+			read() shouldBe SourceRunHighWaterRead.Unverifiable
+		}
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET event_id = ? WHERE admission_ordinal = ?",
+			arrayOf(originalEventId, controlOrdinal),
+		)
+		for (blankId in asciiBlankIds) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET service_run_id = ? WHERE admission_ordinal = ?",
+				arrayOf(blankId, controlOrdinal),
+			)
+			read() shouldBe SourceRunHighWaterRead.Unverifiable
+		}
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET service_run_id = ? WHERE admission_ordinal = ?",
+			arrayOf(wrongServiceRunId, controlOrdinal),
+		)
+		read() shouldBe SourceRunHighWaterRead.Ready(captureOrdinal)
 	}
 
 	@Test
@@ -955,6 +1105,7 @@ class AuthoritativeSessionCoordinatorTest {
 					"unavailable-malformed-run",
 					1L,
 					SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+					SourceBrokerPurpose.CONTROL_MASK,
 					SourceBrokerPurpose.ALL_MASK,
 					any(),
 				)
@@ -966,6 +1117,7 @@ class AuthoritativeSessionCoordinatorTest {
 				associatedRowCount = 1L,
 				malformedRowCount = null,
 				productEligibleRowCount = 0L,
+				controlOnlyRowCount = 1L,
 				highWaterAdmissionOrdinal = 1L,
 			)
 			coEvery {
@@ -976,6 +1128,7 @@ class AuthoritativeSessionCoordinatorTest {
 					listOf(1L),
 					1L,
 					SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+					SourceBrokerPurpose.CONTROL_MASK,
 					SourceBrokerPurpose.ALL_MASK,
 					any(),
 				)
@@ -987,6 +1140,7 @@ class AuthoritativeSessionCoordinatorTest {
 					"unavailable-malformed-run",
 					listOf(1L),
 					SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+					SourceBrokerPurpose.CONTROL_MASK,
 					SourceBrokerPurpose.ALL_MASK,
 					any(),
 				)
