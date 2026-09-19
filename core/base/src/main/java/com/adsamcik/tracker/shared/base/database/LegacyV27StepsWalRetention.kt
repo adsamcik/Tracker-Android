@@ -13,20 +13,162 @@ import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptInt
 import java.security.MessageDigest
 
 /**
- * Immutable authority for removing released-v27 Steps WAL after its compatibility drain finished.
+ * Immutable authentication snapshot for released-v27 zero-mask Steps WAL.
  *
- * The migration deliberately leaves purpose eligibility at zero. This authority recognizes that
- * frozen legacy shape without converting it into v28 capture authority or count-domain ownership.
+ * Ordinary retention receives this only after exact drain completion. Full clear uses a separate
+ * transaction-bound fence and never exposes its snapshot to the pruning deletion function.
  */
 internal data class LegacyV27StepsWalRetentionAuthority(
 	val cutoffAdmissionOrdinal: Long,
 	val collectedDataEpoch: Long,
 	val status: String,
 	val suppressedOutboxCount: Long,
+	val authenticationMode: LegacyV27StepsWalAuthenticationMode,
+	val permitsPendingChecksum: Boolean,
 )
+
+internal enum class LegacyV27StepsWalAuthenticationMode {
+	ORDINARY_RETENTION,
+	COLLECTED_DATA_FULL_CLEAR,
+}
+
+/**
+ * Transaction-bound authority for the full collected-data clear only.
+ *
+ * The app-owned durable marker and process admission barrier are established before AppDatabase
+ * enters this transaction. This fence binds that outer authority to the exact operation and epoch
+ * transition so the legacy escape hatch cannot be reused by ordinary retention.
+ */
+internal class LegacyV27StepsWalFullClearFence private constructor(
+	val operationId: String,
+	val oldCollectedDataEpoch: Long,
+	val newCollectedDataEpoch: Long,
+	val deletedAtMs: Long,
+) {
+	companion object {
+		fun establish(
+			database: SupportSQLiteDatabase,
+			operationId: String,
+			oldCollectedDataEpoch: Long,
+			newCollectedDataEpoch: Long,
+			deletedAtMs: Long,
+		): LegacyV27StepsWalFullClearFence {
+			requireLegacy(database.inTransaction())
+			requireLegacy(operationId.isNotBlank())
+			requireLegacy(oldCollectedDataEpoch >= 0L)
+			requireLegacy(
+				oldCollectedDataEpoch < Long.MAX_VALUE &&
+					newCollectedDataEpoch == oldCollectedDataEpoch + 1L,
+			)
+			requireLegacy(deletedAtMs >= 0L)
+			requireLegacy(
+				database.scalarLegacyLong(
+					"SELECT COUNT(*) FROM source_evidence_state WHERE id = 1 " +
+						"AND collected_data_epoch = ?",
+					arrayOf(oldCollectedDataEpoch),
+				) == 1L,
+			)
+			requireLegacy(
+				database.scalarLegacyLong(
+					"SELECT COUNT(*) FROM collected_data_deletion_operation " +
+						"WHERE operation_id = ?",
+					arrayOf(operationId),
+				) == 0L,
+			)
+			return LegacyV27StepsWalFullClearFence(
+				operationId = operationId,
+				oldCollectedDataEpoch = oldCollectedDataEpoch,
+				newCollectedDataEpoch = newCollectedDataEpoch,
+				deletedAtMs = deletedAtMs,
+			)
+		}
+	}
+}
 
 internal fun SupportSQLiteDatabase.requireLegacyV27StepsWalRetentionAuthority():
 	LegacyV27StepsWalRetentionAuthority {
+	val authority = requireLegacyV27StepsWalAuthority(
+		LegacyV27StepsWalAuthenticationMode.ORDINARY_RETENTION,
+	)
+	val targets = requireLegacyProjectionDrainContract(authority)
+	val permitsPendingChecksum = requireLegacyProjectionDrainCompletion(authority, targets)
+	return authority.copy(permitsPendingChecksum = permitsPendingChecksum)
+}
+
+internal fun SupportSQLiteDatabase.authenticateLegacyV27StepsWalForCollectedDataFullClear(
+	fence: LegacyV27StepsWalFullClearFence,
+) {
+	requireLegacy(inTransaction())
+	requireLegacy(
+		scalarLegacyLong(
+			"SELECT COUNT(*) FROM source_evidence_state WHERE id = 1 " +
+				"AND collected_data_epoch = ?",
+			arrayOf(fence.oldCollectedDataEpoch),
+		) == 1L,
+	)
+	requireLegacy(
+		fence.oldCollectedDataEpoch < Long.MAX_VALUE &&
+			fence.newCollectedDataEpoch == fence.oldCollectedDataEpoch + 1L,
+	)
+	requireLegacy(fence.operationId.isNotBlank() && fence.deletedAtMs >= 0L)
+	val maximumRowId = query(
+		"SELECT MAX(rowid) FROM source_event_wal WHERE source_kind = ? " +
+			"AND (authorization_purpose_eligibility_mask = 0 OR " +
+			"typeof(authorization_purpose_eligibility_mask) != 'integer')",
+		arrayOf(SourceDestinationOwnerEntity.SOURCE_STEPS),
+	).use { cursor ->
+		requireLegacy(cursor.moveToFirst())
+		val value = cursor.nullableLegacyLong(0)
+		requireLegacy(!cursor.moveToNext())
+		value
+	} ?: return
+	val authority = requireLegacyV27StepsWalAuthority(
+		LegacyV27StepsWalAuthenticationMode.COLLECTED_DATA_FULL_CLEAR,
+	)
+	requireLegacy(authority.collectedDataEpoch == fence.oldCollectedDataEpoch)
+	val targets = requireLegacyProjectionDrainContract(authority)
+	if (
+		authority.status == LegacyV27ProjectionDrainEntity.STATUS_COMPLETE ||
+		authority.status == LegacyV27ProjectionDrainEntity.STATUS_COMPLETE_PARTIAL
+	) {
+		requireLegacyProjectionDrainCompletion(authority, targets)
+	}
+	var afterRowId = 0L
+	while (true) {
+		val page = query(
+			"SELECT rowid, admission_ordinal FROM source_event_wal " +
+				"WHERE rowid > ? AND rowid <= ? AND source_kind = ? " +
+				"AND (authorization_purpose_eligibility_mask = 0 OR " +
+				"typeof(authorization_purpose_eligibility_mask) != 'integer') " +
+				"ORDER BY rowid LIMIT $LEGACY_FULL_CLEAR_PAGE_SIZE",
+			arrayOf(
+				afterRowId,
+				maximumRowId,
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+			),
+		).use { cursor ->
+			buildList {
+				while (cursor.moveToNext()) {
+					val rowId = cursor.requiredLegacyLong(0)
+					val admissionOrdinal = cursor.requiredLegacyLong(1)
+					requireLegacy(rowId > afterRowId && rowId <= maximumRowId)
+					requireLegacy(admissionOrdinal > 0L)
+					add(rowId to admissionOrdinal)
+				}
+			}
+		}
+		if (page.isEmpty()) break
+		page.forEach { (_, admissionOrdinal) ->
+			requireAuthenticatedLegacyV27StepsWal(admissionOrdinal, authority)
+		}
+		afterRowId = page.last().first
+		if (page.size < LEGACY_FULL_CLEAR_PAGE_SIZE) break
+	}
+}
+
+private fun SupportSQLiteDatabase.requireLegacyV27StepsWalAuthority(
+	authenticationMode: LegacyV27StepsWalAuthenticationMode,
+): LegacyV27StepsWalRetentionAuthority {
 	query(
 		"SELECT identity_hash FROM room_master_table WHERE id = ? ORDER BY rowid LIMIT 2",
 		arrayOf(FINAL_V28_MARKER_ID),
@@ -65,23 +207,30 @@ internal fun SupportSQLiteDatabase.requireLegacyV27StepsWalRetentionAuthority():
 		)
 		requireLegacy(contractVersion == LegacyV27ProjectionDrainEntity.CONTRACT_VERSION.toLong())
 		requireLegacy(cutoff >= 0L && epoch >= 0L)
-		requireLegacy(
-			status == LegacyV27ProjectionDrainEntity.STATUS_COMPLETE ||
-				status == LegacyV27ProjectionDrainEntity.STATUS_COMPLETE_PARTIAL,
-		)
-		requireLegacy(ownerBootId == null && ownerToken == null && leaseExpires == null)
-		requireLegacy(leaseGeneration > 0L)
-		requireLegacy(startedAt != null && startedAt >= 0L)
-		requireLegacy(completedAt != null && completedAt >= 0L)
 		requireLegacy(suppressedOutboxCount >= 0L)
-		requireLegacy(
-			(status == LegacyV27ProjectionDrainEntity.STATUS_COMPLETE && failureCode == null) ||
-				(status == LegacyV27ProjectionDrainEntity.STATUS_COMPLETE_PARTIAL &&
-					failureCode == LEGACY_V27_PARTIAL_RECOVERY),
+		requireLegacyDrainState(
+			authenticationMode = authenticationMode,
+			status = status,
+			ownerBootId = ownerBootId,
+			ownerToken = ownerToken,
+			leaseGeneration = leaseGeneration,
+			leaseExpires = leaseExpires,
+			startedAt = startedAt,
+			completedAt = completedAt,
+			suppressedOutboxCount = suppressedOutboxCount,
+			failureCode = failureCode,
 		)
-		LegacyV27StepsWalRetentionAuthority(cutoff, epoch, status, suppressedOutboxCount)
+		LegacyV27StepsWalRetentionAuthority(
+			cutoffAdmissionOrdinal = cutoff,
+			collectedDataEpoch = epoch,
+			status = status,
+			suppressedOutboxCount = suppressedOutboxCount,
+			authenticationMode = authenticationMode,
+			permitsPendingChecksum =
+				authenticationMode ==
+					LegacyV27StepsWalAuthenticationMode.COLLECTED_DATA_FULL_CLEAR,
+		)
 	}
-	requireLegacyProjectionDrainCompletion(authority)
 	return authority
 }
 
@@ -102,8 +251,8 @@ internal fun SupportSQLiteDatabase.requireAuthenticatedLegacyV27StepsWal(
 		val eventId = cursor.requiredLegacyText("event_id")
 		val sourceInstanceId = cursor.requiredLegacyText("source_instance_id")
 		val registrationGeneration = cursor.requiredLegacyLong("registration_generation")
-		val logicalTrackingId = cursor.requiredLegacyText("logical_tracking_id")
-		val serviceRunId = cursor.requiredLegacyText("service_run_id")
+		val logicalTrackingId = cursor.nullableLegacyText("logical_tracking_id")
+		val serviceRunId = cursor.nullableLegacyText("service_run_id")
 		requireLegacy(eventId.isNotBlank() && sourceInstanceId.isNotBlank())
 		requireLegacy(registrationGeneration > 0L)
 		requireLegacy(cursor.requiredLegacyLong("source_sequence") >= 0L)
@@ -133,14 +282,18 @@ internal fun SupportSQLiteDatabase.requireAuthenticatedLegacyV27StepsWal(
 			cursor.requiredLegacyLong("authorization_purpose_eligibility_mask") == 0L,
 		)
 		requireLegacy(admissionOrdinal <= authority.cutoffAdmissionOrdinal)
-		requireLegacy(logicalTrackingId.isNotBlank() && serviceRunId.isNotBlank())
+		requireLegacy((logicalTrackingId == null) == (serviceRunId == null))
+		requireLegacy(logicalTrackingId?.isNotBlank() != false)
+		requireLegacy(serviceRunId?.isNotBlank() != false)
 		requireLegacy(cursor.nullableLegacyText("provider_dedup_key")?.isNotBlank() != false)
 		LEGACY_V28_NULL_WAL_COLUMNS.forEach { column ->
 			requireLegacy(cursor.isNull(cursor.getColumnIndexOrThrow(column)))
 		}
+		val integrityIdentity = cursor.requiredLegacyText("integrity_identity")
 		requireLegacy(
-			cursor.requiredLegacyText("integrity_identity") ==
-				SourceEventWalEntity.LEGACY_CHECKSUM_VERIFIED,
+			integrityIdentity == SourceEventWalEntity.LEGACY_CHECKSUM_VERIFIED ||
+				(integrityIdentity == SourceEventWalEntity.LEGACY_PENDING_CHECKSUM &&
+					authority.permitsPendingChecksum),
 		)
 		val payload = cursor.requiredLegacyBlob("payload")
 		val payloadChecksum = cursor.requiredLegacyText("payload_checksum")
@@ -149,13 +302,79 @@ internal fun SupportSQLiteDatabase.requireAuthenticatedLegacyV27StepsWal(
 		requireLegacy(payload.sha256() == payloadChecksum)
 		requireLegacy(!cursor.moveToNext())
 
-		requireMigratedTerminalRun(logicalTrackingId, serviceRunId)
+		if (logicalTrackingId != null && serviceRunId != null) {
+			requireLegacyTerminalRun(logicalTrackingId, serviceRunId)
+		}
 		requireNoLiveLegacyWalOwner(
 			admissionOrdinal = admissionOrdinal,
 			eventId = eventId,
 			sourceInstanceId = sourceInstanceId,
 			registrationGeneration = registrationGeneration,
+			authenticationMode = authority.authenticationMode,
 		)
+	}
+}
+
+private fun requireLegacyDrainState(
+	authenticationMode: LegacyV27StepsWalAuthenticationMode,
+	status: String,
+	ownerBootId: String?,
+	ownerToken: String?,
+	leaseGeneration: Long,
+	leaseExpires: Long?,
+	startedAt: Long?,
+	completedAt: Long?,
+	suppressedOutboxCount: Long,
+	failureCode: String?,
+) {
+	when (status) {
+		LegacyV27ProjectionDrainEntity.STATUS_PENDING -> {
+			requireLegacy(
+				authenticationMode ==
+					LegacyV27StepsWalAuthenticationMode.COLLECTED_DATA_FULL_CLEAR,
+			)
+			requireLegacy(ownerBootId == null && ownerToken == null && leaseGeneration == 0L)
+			requireLegacy(leaseExpires == null && startedAt == null && completedAt == null)
+			requireLegacy(suppressedOutboxCount == 0L && failureCode == null)
+		}
+		LegacyV27ProjectionDrainEntity.STATUS_RUNNING -> {
+			requireLegacy(
+				authenticationMode ==
+					LegacyV27StepsWalAuthenticationMode.COLLECTED_DATA_FULL_CLEAR,
+			)
+			requireLegacy(!ownerBootId.isNullOrBlank() && !ownerToken.isNullOrBlank())
+			requireLegacy(leaseGeneration > 0L)
+			requireLegacy(leaseExpires != null && leaseExpires > 0L)
+			requireLegacy(startedAt != null && startedAt >= 0L)
+			requireLegacy(completedAt == null && suppressedOutboxCount == 0L)
+			requireLegacy(failureCode == null)
+		}
+		LegacyV27ProjectionDrainEntity.STATUS_FAILED_RETRYABLE -> {
+			requireLegacy(
+				authenticationMode ==
+					LegacyV27StepsWalAuthenticationMode.COLLECTED_DATA_FULL_CLEAR,
+			)
+			requireLegacy(ownerBootId == null && ownerToken == null && leaseGeneration > 0L)
+			requireLegacy(leaseExpires == null)
+			requireLegacy(startedAt != null && startedAt >= 0L)
+			requireLegacy(completedAt == null && suppressedOutboxCount == 0L)
+			requireLegacy(!failureCode.isNullOrBlank())
+		}
+		LegacyV27ProjectionDrainEntity.STATUS_COMPLETE,
+		LegacyV27ProjectionDrainEntity.STATUS_COMPLETE_PARTIAL,
+		-> {
+			requireLegacy(ownerBootId == null && ownerToken == null && leaseExpires == null)
+			requireLegacy(leaseGeneration > 0L)
+			requireLegacy(startedAt != null && startedAt >= 0L)
+			requireLegacy(completedAt != null && completedAt >= 0L)
+			requireLegacy(
+				(status == LegacyV27ProjectionDrainEntity.STATUS_COMPLETE &&
+					failureCode == null) ||
+					(status == LegacyV27ProjectionDrainEntity.STATUS_COMPLETE_PARTIAL &&
+						failureCode == LEGACY_V27_PARTIAL_RECOVERY),
+			)
+		}
+		else -> legacyFailure()
 	}
 }
 
@@ -164,6 +383,10 @@ internal fun SupportSQLiteDatabase.deleteAuthenticatedLegacyV27StepsWal(
 	authority: LegacyV27StepsWalRetentionAuthority,
 ): Int {
 	if (admissionOrdinals.isEmpty()) return 0
+	requireLegacy(
+		authority.authenticationMode ==
+			LegacyV27StepsWalAuthenticationMode.ORDINARY_RETENTION,
+	)
 	requireLegacy(admissionOrdinals.size == admissionOrdinals.distinct().size)
 	admissionOrdinals.forEach { ordinal ->
 		requireAuthenticatedLegacyV27StepsWal(ordinal, authority)
@@ -184,9 +407,9 @@ internal fun SupportSQLiteDatabase.deleteAuthenticatedLegacyV27StepsWal(
 	}
 }
 
-private fun SupportSQLiteDatabase.requireLegacyProjectionDrainCompletion(
+private fun SupportSQLiteDatabase.requireLegacyProjectionDrainContract(
 	authority: LegacyV27StepsWalRetentionAuthority,
-) {
+): List<LegacyDrainTarget> {
 	requireLegacy(
 		scalarLegacyLong(
 			"SELECT COUNT(*) FROM source_evidence_state WHERE id = 1 " +
@@ -232,7 +455,7 @@ private fun SupportSQLiteDatabase.requireLegacyProjectionDrainCompletion(
 	)
 	targets.forEach { target ->
 		val allowedDispositions =
-			requireNotNull(LEGACY_V27_SUPPORTED_PROJECTIONS[target.projectionId])
+			requireNotNull(LEGACY_V27_ALL_SUPPORTED_PROJECTIONS[target.projectionId])
 		requireLegacy(target.projectionVersion == 1L)
 		requireLegacy(target.initialRegistrationStatus in LEGACY_V27_INITIAL_REGISTRATION_STATUSES)
 		requireLegacy(target.initialActivationOrdinal > 0L)
@@ -240,20 +463,49 @@ private fun SupportSQLiteDatabase.requireLegacyProjectionDrainCompletion(
 		requireLegacy(target.initialCheckpointOrdinal >= target.initialActivationOrdinal - 1L)
 		requireLegacy(target.initialCheckpointOrdinal <= authority.cutoffAdmissionOrdinal)
 		requireLegacy(target.requiredThroughOrdinal == authority.cutoffAdmissionOrdinal)
-		requireLegacy(target.lastCompletedOrdinal == target.requiredThroughOrdinal)
+		requireLegacy(target.lastCompletedOrdinal >= target.initialActivationOrdinal - 1L)
+		requireLegacy(target.lastCompletedOrdinal <= target.requiredThroughOrdinal)
 		requireLegacy(target.retentionRequired in 0L..1L)
 		requireLegacy(target.disposition in allowedDispositions)
-		requireLegacy(target.completedAtMs != null && target.completedAtMs >= 0L)
 		requireLegacy(target.failureCode?.isNotBlank() != false)
-		requireLegacyProjectionRegistration(target)
-		if (target.projectionId == "event-tracking-frame") {
-			requireLegacy(
-				(target.initialRegistrationStatus == "ACTIVE") ==
-					(target.disposition !=
-						LegacyV27ProjectionTargetEntity.DISPOSITION_SUPPRESSED_UNREGISTERED_OUTPUT),
-			)
+		if (target.disposition == LegacyV27ProjectionTargetEntity.DISPOSITION_PENDING) {
+			requireLegacy(target.completedAtMs == null)
+		} else {
+			requireLegacy(target.lastCompletedOrdinal == target.requiredThroughOrdinal)
+			requireLegacy(target.completedAtMs != null && target.completedAtMs >= 0L)
 		}
-		if (target.projectionId == "location-domain") {
+		if (target.initialRegistrationStatus == "NOT_REGISTERED_AT_MIGRATION") {
+			requireLegacy(target.initialActivationOrdinal == 1L)
+			requireLegacy(target.retentionRequired == 1L)
+		}
+		if (
+			authority.authenticationMode ==
+			LegacyV27StepsWalAuthenticationMode.COLLECTED_DATA_FULL_CLEAR
+		) {
+			requireLegacyProjectionRegistrationForFullClear(target)
+		}
+	}
+	return targets
+}
+
+private fun SupportSQLiteDatabase.requireLegacyProjectionDrainCompletion(
+	authority: LegacyV27StepsWalRetentionAuthority,
+	targets: List<LegacyDrainTarget>,
+): Boolean {
+	requireLegacy(
+		authority.status == LegacyV27ProjectionDrainEntity.STATUS_COMPLETE ||
+			authority.status == LegacyV27ProjectionDrainEntity.STATUS_COMPLETE_PARTIAL,
+	)
+	targets.forEach { target ->
+		val allowedDispositions =
+			requireNotNull(LEGACY_V27_SUPPORTED_PROJECTIONS[target.projectionId])
+		requireLegacy(target.lastCompletedOrdinal == target.requiredThroughOrdinal)
+		requireLegacy(target.disposition in allowedDispositions)
+		requireLegacy(target.completedAtMs != null && target.completedAtMs >= 0L)
+		requireLegacyProjectionRegistration(target)
+		if (target.projectionId == "event-tracking-frame" ||
+			target.projectionId == "location-domain"
+		) {
 			requireLegacy(
 				(target.initialRegistrationStatus == "ACTIVE") ==
 					(target.disposition !=
@@ -322,6 +574,14 @@ private fun SupportSQLiteDatabase.requireLegacyProjectionDrainCompletion(
 			),
 		) == 0L,
 	)
+	val eventFrame = targets.single { it.projectionId == "event-tracking-frame" }
+	return eventFrame.initialRegistrationStatus == "NOT_REGISTERED_AT_MIGRATION" &&
+		eventFrame.initialActivationOrdinal == 1L &&
+		eventFrame.retentionRequired == 1L &&
+		eventFrame.disposition ==
+			LegacyV27ProjectionTargetEntity.DISPOSITION_SUPPRESSED_UNREGISTERED_OUTPUT &&
+		eventFrame.completedAtMs != null &&
+		eventFrame.failureCode == null
 }
 
 private fun SupportSQLiteDatabase.requireLegacyProjectionRegistration(
@@ -345,7 +605,34 @@ private fun SupportSQLiteDatabase.requireLegacyProjectionRegistration(
 	}
 }
 
-private fun SupportSQLiteDatabase.requireMigratedTerminalRun(
+private fun SupportSQLiteDatabase.requireLegacyProjectionRegistrationForFullClear(
+	target: LegacyDrainTarget,
+) {
+	query(
+		"SELECT activation_ordinal, retention_required, status " +
+			"FROM source_projection_registration WHERE projection_id = ? " +
+			"AND projection_version = 1 ORDER BY rowid LIMIT 2",
+		arrayOf(target.projectionId),
+	).use { cursor ->
+		if (target.initialRegistrationStatus == "NOT_REGISTERED_AT_MIGRATION") {
+			requireLegacy(!cursor.moveToFirst())
+			return
+		}
+		requireLegacy(cursor.moveToFirst())
+		requireLegacy(cursor.requiredLegacyLong("activation_ordinal") == target.initialActivationOrdinal)
+		requireLegacy(cursor.requiredLegacyLong("retention_required") == target.retentionRequired)
+		val expectedStatuses =
+			if (target.disposition == LegacyV27ProjectionTargetEntity.DISPOSITION_PENDING) {
+				setOf("LEGACY_V27_PENDING")
+			} else {
+				setOf("LEGACY_V27_PENDING", "RETIRED")
+			}
+		requireLegacy(cursor.requiredLegacyText("status") in expectedStatuses)
+		requireLegacy(!cursor.moveToNext())
+	}
+}
+
+private fun SupportSQLiteDatabase.requireLegacyTerminalRun(
 	logicalTrackingId: String,
 	serviceRunId: String,
 ) {
@@ -365,31 +652,53 @@ private fun SupportSQLiteDatabase.requireMigratedTerminalRun(
 		requireLegacy(cursor.moveToFirst())
 		requireLegacy(cursor.requiredLegacyText("service_run_id") == serviceRunId)
 		requireLegacy(cursor.requiredLegacyText("logical_tracking_id") == logicalTrackingId)
-		requireLegacy(cursor.requiredLegacyText("state") == "FINALIZED")
+		val state = cursor.requiredLegacyText("state")
+		requireLegacy(state in LEGACY_V27_TERMINAL_STATES)
 		requireLegacy(cursor.requiredLegacyLong("desired_plan_revision") >= 0L)
 		requireLegacy(cursor.requiredLegacyLong("rollout_revision") >= 0L)
-		requireLegacy(cursor.requiredLegacyLong("foreground_capability_flags") >= 0L)
-		requireLegacy(cursor.requiredLegacyLong("started_at_ms") >= 0L)
+		val foregroundCapabilityFlags =
+			cursor.requiredLegacyLong("foreground_capability_flags")
+		requireLegacy(foregroundCapabilityFlags >= 0L)
+		val startedAtMs = cursor.requiredLegacyLong("started_at_ms")
+		requireLegacy(startedAtMs >= 0L)
 		requireLegacy(cursor.requiredLegacyLong("started_elapsed_nanos") >= 0L)
-		requireLegacy(cursor.nullableLegacyLong("completed_at_ms") == null)
-		requireLegacy(!cursor.nullableLegacyText("completion_reason").isNullOrBlank())
+		val completedAtMs = cursor.nullableLegacyLong("completed_at_ms")
+		val completionReason = cursor.nullableLegacyText("completion_reason")
 		requireLegacy(cursor.requiredLegacyText("boot_id") == "LEGACY_UNKNOWN")
 		requireLegacy(cursor.requiredLegacyLong("lease_generation") == 0L)
 		requireLegacy(cursor.requiredLegacyText("start_origin").isNotBlank())
 		requireLegacy(
 			cursor.requiredLegacyLong("desired_foreground_capability_flags") ==
-				cursor.requiredLegacyLong("foreground_capability_flags"),
+				foregroundCapabilityFlags,
 		)
-		requireLegacy(
+		val appliedForegroundCapabilityFlags =
 			cursor.nullableLegacyLong("applied_foreground_capability_flags")
-				?.let { it >= 0L } != false,
-		)
-		requireLegacy(cursor.requiredLegacyText("runtime_acknowledgement") == "TERMINAL_FAILURE")
-		requireLegacy(
-			cursor.requiredLegacyText("runtime_failure_code") ==
-				V28_MIGRATION_INTERRUPTION_REASON,
-		)
-		requireLegacy(cursor.requiredLegacyLong("run_revision") == 1L)
+		val runtimeAcknowledgement = cursor.requiredLegacyText("runtime_acknowledgement")
+		val runtimeFailureCode = cursor.nullableLegacyText("runtime_failure_code")
+		val runRevision = cursor.requiredLegacyLong("run_revision")
+		val expectedPreMigrationAcknowledgement = when (state) {
+			"FINALIZED" -> "PENDING"
+			"CLOSED", "FAILED" -> "LEGACY_TERMINAL"
+			else -> legacyFailure()
+		}
+		val migratedInterrupted =
+			state == "FINALIZED" &&
+				completedAtMs == null &&
+				!completionReason.isNullOrBlank() &&
+				runtimeAcknowledgement == "TERMINAL_FAILURE" &&
+				runtimeFailureCode == V28_MIGRATION_INTERRUPTION_REASON &&
+				runRevision == 1L &&
+				appliedForegroundCapabilityFlags?.let { it >= 0L } != false
+		val preMigrationTerminal =
+			state in LEGACY_V27_PREMIGRATION_TERMINAL_STATES &&
+				completedAtMs != null &&
+				completedAtMs >= startedAtMs &&
+				!completionReason.isNullOrBlank() &&
+				appliedForegroundCapabilityFlags == null &&
+				runtimeAcknowledgement == expectedPreMigrationAcknowledgement &&
+				runtimeFailureCode == null &&
+				runRevision == 0L
+		requireLegacy(migratedInterrupted || preMigrationTerminal)
 		requireLegacy(cursor.nullableLegacyText("start_delivery_token") == null)
 		requireLegacy(cursor.requiredLegacyLong("start_command_generation") == 0L)
 		requireLegacy(cursor.requiredLegacyLong("prepared_manifest_revision") == 0L)
@@ -412,6 +721,7 @@ private fun SupportSQLiteDatabase.requireNoLiveLegacyWalOwner(
 	eventId: String,
 	sourceInstanceId: String,
 	registrationGeneration: Long,
+	authenticationMode: LegacyV27StepsWalAuthenticationMode,
 ) {
 	requireLegacy(
 		scalarLegacyLong(
@@ -425,20 +735,22 @@ private fun SupportSQLiteDatabase.requireNoLiveLegacyWalOwner(
 			),
 		) == 0L,
 	)
-	requireLegacy(
-		scalarLegacyLong(
-			"SELECT COUNT(*) FROM source_projection_outbox WHERE admission_ordinal = ? " +
-				"AND delivered_at_ms IS NULL AND terminal_disposition IS NULL",
-			arrayOf(admissionOrdinal),
-		) == 0L,
-	)
-	requireLegacy(
-		scalarLegacyLong(
-			"SELECT COUNT(*) FROM source_projection_failure WHERE admission_ordinal = ? " +
-				"AND terminal = 0",
-			arrayOf(admissionOrdinal),
-		) == 0L,
-	)
+	if (authenticationMode == LegacyV27StepsWalAuthenticationMode.ORDINARY_RETENTION) {
+		requireLegacy(
+			scalarLegacyLong(
+				"SELECT COUNT(*) FROM source_projection_outbox WHERE admission_ordinal = ? " +
+					"AND delivered_at_ms IS NULL AND terminal_disposition IS NULL",
+				arrayOf(admissionOrdinal),
+			) == 0L,
+		)
+		requireLegacy(
+			scalarLegacyLong(
+				"SELECT COUNT(*) FROM source_projection_failure WHERE admission_ordinal = ? " +
+					"AND terminal = 0",
+				arrayOf(admissionOrdinal),
+			) == 0L,
+		)
+	}
 	val ownerIdentity = StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
 		admissionOrdinal,
 		eventId,
@@ -499,13 +811,15 @@ private fun Cursor.requiredLegacyBlob(column: String): ByteArray {
 }
 
 private fun Cursor.nullableLegacyLong(column: String): Long? {
-	val index = getColumnIndexOrThrow(column)
-	return when (getType(index)) {
+	return nullableLegacyLong(getColumnIndexOrThrow(column))
+}
+
+private fun Cursor.nullableLegacyLong(index: Int): Long? =
+	when (getType(index)) {
 		Cursor.FIELD_TYPE_NULL -> null
 		Cursor.FIELD_TYPE_INTEGER -> getLong(index)
 		else -> legacyFailure()
 	}
-}
 
 private fun Cursor.nullableLegacyText(column: String): String? {
 	val index = getColumnIndexOrThrow(column)
@@ -534,7 +848,7 @@ private fun requireLegacy(condition: Boolean) {
 }
 
 private fun legacyFailure(): Nothing =
-	throw IllegalStateException("Released-v27 Steps WAL retention evidence is unverifiable")
+	throw IllegalStateException("Released-v27 Steps WAL authentication evidence is unverifiable")
 
 private data class LegacyDrainTarget(
 	val projectionId: String,
@@ -554,6 +868,7 @@ private const val LEGACY_V27_PAYLOAD_VERSION = 1L
 private const val LEGACY_V27_PARTIAL_RECOVERY = "LEGACY_V27_RECOVERY_PARTIAL"
 private const val LEGACY_V27_PROJECTION_ID_SQL =
 	"'activity-automation', 'event-tracking-frame', 'explicit-tracking-joins', 'location-domain'"
+private const val LEGACY_FULL_CLEAR_PAGE_SIZE = 128
 private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
 private val LEGACY_V28_NULL_WAL_COLUMNS = listOf(
 	"delivery_identity",
@@ -572,6 +887,9 @@ private val LEGACY_V28_NULL_WAL_COLUMNS = listOf(
 )
 private val LEGACY_V27_INITIAL_REGISTRATION_STATUSES =
 	setOf("ACTIVE", "NOT_REGISTERED_AT_MIGRATION")
+private val LEGACY_V27_PREMIGRATION_TERMINAL_STATES = setOf("CLOSED", "FAILED", "FINALIZED")
+private val LEGACY_V27_TERMINAL_STATES =
+	LEGACY_V27_PREMIGRATION_TERMINAL_STATES
 private val LEGACY_V27_SUPPORTED_PROJECTIONS = mapOf(
 	"activity-automation" to setOf(
 		LegacyV27ProjectionTargetEntity.DISPOSITION_SUPPRESSED_STALE_CONTROL,
@@ -590,3 +908,7 @@ private val LEGACY_V27_SUPPORTED_PROJECTIONS = mapOf(
 		LegacyV27ProjectionTargetEntity.DISPOSITION_SUPPRESSED_UNREGISTERED_OUTPUT,
 	),
 )
+private val LEGACY_V27_ALL_SUPPORTED_PROJECTIONS =
+	LEGACY_V27_SUPPORTED_PROJECTIONS.mapValues { (_, dispositions) ->
+		dispositions + LegacyV27ProjectionTargetEntity.DISPOSITION_PENDING
+	}

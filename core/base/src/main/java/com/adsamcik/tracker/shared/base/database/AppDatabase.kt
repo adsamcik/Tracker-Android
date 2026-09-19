@@ -937,6 +937,16 @@ abstract class AppDatabase : RoomDatabase() {
 			).maxOrNull()
 			val sqlite = database.openHelper.writableDatabase
 			val importedAmbientStepsDao = database.importedAmbientStepsDao()
+			val legacyStepsFullClearFence = LegacyV27StepsWalFullClearFence.establish(
+				database = sqlite,
+				operationId = operationId,
+				oldCollectedDataEpoch = oldState.collectedDataEpoch,
+				newCollectedDataEpoch = newCollectedDataEpoch,
+				deletedAtMs = updatedAtMs,
+			)
+			sqlite.authenticateLegacyV27StepsWalForCollectedDataFullClear(
+				legacyStepsFullClearFence,
+			)
 
 			preserveImportedPressureFullClearAuthority(
 				sqlite = sqlite,

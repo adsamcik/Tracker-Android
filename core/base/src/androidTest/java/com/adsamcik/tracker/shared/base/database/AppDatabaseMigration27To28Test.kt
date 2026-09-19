@@ -236,6 +236,51 @@ class AppDatabaseMigration27To28Test {
 		}
 	}
 
+	@Test
+	fun pendingMigratedV27StepsWalCanBeDeletedByExactFullClearBeforeDrain() {
+		helper.createDatabase(TEST_DATABASE, 27).use { database ->
+			PopulatedV27Fixture.seed(database)
+			PopulatedV27Fixture.seedStepsWal(database)
+		}
+		helper.runMigrationsAndValidate(TEST_DATABASE, 28, true, MIGRATION_27_28).close()
+
+		openProductionDatabase().let { database ->
+			try {
+				runBlocking {
+					assertNotNull(
+						database.sourceEventWalDao()
+							.getByEventId(PopulatedV27Fixture.STEPS_WAL_EVENT_ID),
+					)
+					assertEquals(
+						LegacyV27ProjectionDrainEntity.STATUS_PENDING,
+						database.legacyV27ProjectionDrainDao().get()?.status,
+					)
+
+					AppDatabase.deleteAllCollectedData(
+						database = database,
+						operationId = "pending-v27-steps-full-clear",
+						collectedDataEpoch = 8L,
+						retainedFromMs = null,
+						updatedAtMs = PopulatedV27Fixture.END_MS + 1L,
+					)
+
+					assertNull(
+						database.sourceEventWalDao()
+							.getByEventId(PopulatedV27Fixture.STEPS_WAL_EVENT_ID),
+					)
+					assertNull(database.legacyV27ProjectionDrainDao().get())
+					assertTrue(database.legacyV27ProjectionDrainDao().targets().isEmpty())
+					assertEquals(
+						8L,
+						database.sourceEvidenceStateDao().get()?.collectedDataEpoch,
+					)
+				}
+			} finally {
+				database.close()
+			}
+		}
+	}
+
 	private suspend fun seedSourceCallerAuthorities(database: AppDatabase) {
 		val valid = SourceCallerAcceptedAuthorityEntity(
 			reference = "valid-active",
