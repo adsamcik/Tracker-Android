@@ -8,6 +8,7 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatc
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -1561,6 +1562,28 @@ class RoomDurableSourceIngressTest {
 			.shouldBeInstanceOf<AdmissionResult.RetryableFailure>()
 
 		result.code shouldBe AdmissionFailureCode.LIFECYCLE_BARRIER_IN_PROGRESS
+	}
+
+	@Test
+	fun `late DataStore retention floor cannot race ingress past the durable journal`() = runTest {
+		database.collectedDataDeletionOperationDao().insert(
+			CollectedDataDeletionOperationEntity(
+				operationId = "retention-ingress-race",
+				targetCollectedDataEpoch = 0L,
+				retainedFromMs = 150L,
+				deletedAtMs = 150L,
+				phase = CollectedDataDeletionOperationEntity.PHASE_RETENTION_PREPARED,
+				updatedAtMs = 150L,
+			),
+		)
+		lifecycle.update(CollectedDataLifecycleSnapshot(0L, 150L))
+
+		val result = subject.admit(candidate(sequence = 1L, epoch = 0L, acquiredAtMs = 200L))
+			.shouldBeInstanceOf<AdmissionResult.RetryableFailure>()
+
+		result.code shouldBe AdmissionFailureCode.LIFECYCLE_BARRIER_IN_PROGRESS
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.retainedFromMs shouldBe null
 	}
 
 	@Test

@@ -3,6 +3,9 @@ package com.adsamcik.tracker.tracker.source.ambient.steps
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionDecision
+import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecision
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
@@ -11,6 +14,9 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
@@ -58,13 +64,28 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 			rolloutRevision = 1L,
 		)
 		broker = SourceBroker(database, rollout)
-		RoomSourcePolicyRepository(database) {
+		val snapshot = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime(BOOT_ID, policyElapsed++, policyElapsed)
 		}.bootstrapFromLegacy(
 			TrackingParamsState(
 				stepsEnabled = false,
 				ambientStepsEnabled = true,
 				legacySettingsMigrationCompleted = true,
+			),
+		)
+		database.sourceEvidenceStateDao().ensure()
+		database.sourceEvidenceStateDao().updateLifecycle(3L, null, 3L)
+		database.applyAmbientStepsRetentionDecision(
+			AmbientStepsRetentionDecision.GrantLiveAmbient(
+				opaquePolicyId = "test-retention",
+				expectedCollectedDataEpoch = 3L,
+				expectedSourcePolicyRevision = snapshot.revision,
+				expectedAmbientConsentEpoch = requireNotNull(
+					snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+				),
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = 50L,
+				effectiveWallTimeMs = 50L,
 			),
 		)
 		lifecycleStore = MutableCollectedDataLifecycleStore(
@@ -74,6 +95,39 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 			database = database,
 			lifecycleStore = lifecycleStore,
 			bootClockDomainProvider = BootClockDomainProvider { BOOT_ID },
+		)
+	}
+
+	private suspend fun SourceBroker.replaceAmbientStepsDemand(
+		consumerId: String,
+		mechanism: AmbientStepsAcquisitionMechanism?,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): AmbientStepsDemandResult {
+		val retention = requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		)
+		return replaceAmbientStepsDemand(
+			consumerId = consumerId,
+			mechanism = mechanism,
+			leaseIdentity = AmbientReconciliationIdentity(
+				source = AmbientTrackingSource.STEPS,
+				policyRevision = requireNotNull(retention.sourcePolicyRevision),
+				consentEpoch = requireNotNull(retention.ambientConsentEpoch),
+				collectedDataEpoch = retention.collectedDataEpoch,
+				rolloutRevision = 1L,
+				ownerCasToken = "registration-repository-test",
+				executionRevision = 1L,
+				retainedFromMs = retention.retainedFromMs,
+				retentionPolicyId = retention.opaquePolicyId,
+				retentionApprovalRevision = retention.approvalRevision,
+			),
+			bootId = bootId,
+			elapsedRealtimeNanos = elapsedRealtimeNanos,
+			wallTimeMs = wallTimeMs,
 		)
 	}
 
@@ -222,6 +276,54 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 	}
 
 	@Test
+	fun `retention revoke during provider work prevents acceptance`() = runTest {
+		val demand = select(AmbientStepsProvider.LOCAL_RECORDING_STEPS, boundary(100L))
+		val reservation = subject.reserve(
+			AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+			demand.demandId,
+			boundary(110L),
+		)
+		val current = requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		)
+		database.applyAmbientStepsRetentionDecision(
+			AmbientStepsRetentionDecision.Revoke(
+				scope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				expectedCollectedDataEpoch = 3L,
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = 120L,
+				effectiveWallTimeMs = 120L,
+				expectedPreviousApprovalRevision = current.approvalRevision,
+			),
+		)
+
+		shouldThrow<IllegalStateException> { subject.accept(reservation) }
+	}
+
+	@Test
+	fun `prior boot retention cannot reserve a provider`() = runTest {
+		val demand = select(AmbientStepsProvider.LOCAL_RECORDING_STEPS, boundary(100L))
+		val restarted = AmbientStepsProviderRegistrationRepository(
+			database = database,
+			lifecycleStore = lifecycleStore,
+			bootClockDomainProvider = BootClockDomainProvider { "boot-2" },
+		)
+
+		shouldThrow<IllegalStateException> {
+			restarted.reserve(
+				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				demand.demandId,
+				AmbientStepsDemandBoundary("boot-2", 110L, 110L),
+			)
+		}
+		database.sourceBrokerDao().maximumRegistrationGeneration(
+			SourceKind.STEPS.stableCode,
+		) shouldBe 0L
+	}
+
+	@Test
 	fun `unchanged active provider reuses identity without another acceptance`() = runTest {
 		val demand = select(AmbientStepsProvider.LOCAL_RECORDING_STEPS, boundary(100L))
 		val first = subject.reserve(
@@ -243,6 +345,76 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 			SourceKind.STEPS.stableCode,
 		) shouldBe first.state.registrationGeneration
 	}
+
+	@Test
+	fun `retention-only rotation rejects stale demand and refreshes authorization across restart`() =
+		runTest {
+			val firstDemand = select(AmbientStepsProvider.LOCAL_RECORDING_STEPS, boundary(100L))
+			val first = subject.reserve(
+				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				firstDemand.demandId,
+				boundary(110L),
+			)
+			subject.accept(first)
+			val firstRetention = requireNotNull(
+				database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+					AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				),
+			)
+			database.applyAmbientStepsRetentionDecision(
+				AmbientStepsRetentionDecision.GrantLiveAmbient(
+					opaquePolicyId = "rotated-retention",
+					expectedCollectedDataEpoch = 3L,
+					expectedSourcePolicyRevision = first.state.appliedRevision,
+					expectedAmbientConsentEpoch = requireNotNull(
+						first.authorization.authorizedMembers.single().consentEpoch,
+					),
+					effectiveBootId = BOOT_ID,
+					effectiveElapsedRealtimeNanos = 150L,
+					effectiveWallTimeMs = 150L,
+					expectedPreviousApprovalRevision = firstRetention.approvalRevision,
+				),
+			)
+
+			shouldThrow<IllegalStateException> {
+				subject.reserve(
+					AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+					firstDemand.demandId,
+					boundary(160L),
+				)
+			}
+			val rotatedDemand = select(
+				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				boundary(200L),
+			)
+			val restarted = AmbientStepsProviderRegistrationRepository(
+				database = database,
+				lifecycleStore = lifecycleStore,
+				bootClockDomainProvider = BootClockDomainProvider { BOOT_ID },
+			)
+			val refreshed = restarted.reserve(
+				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				rotatedDemand.demandId,
+				boundary(210L),
+			)
+
+			refreshed.requiresProviderAcceptance shouldBe false
+			refreshed.state.registrationGeneration shouldBe first.state.registrationGeneration
+			(refreshed.authorization.authorizationRevision >
+				first.authorization.authorizationRevision) shouldBe true
+			(refreshed.authorization.authorizationFingerprint ==
+				first.authorization.authorizationFingerprint) shouldBe false
+			val restartedAgain = AmbientStepsProviderRegistrationRepository(
+				database = database,
+				lifecycleStore = lifecycleStore,
+				bootClockDomainProvider = BootClockDomainProvider { BOOT_ID },
+			).reserve(
+				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				rotatedDemand.demandId,
+				boundary(220L),
+			)
+			restartedAgain.authorization shouldBe refreshed.authorization
+		}
 
 	@Test
 	fun `new collected data epoch reserves a fresh identity for the same provider`() = runTest {

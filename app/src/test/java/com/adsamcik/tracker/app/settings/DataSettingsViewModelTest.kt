@@ -16,7 +16,21 @@ import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportReport
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportStatus
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigApplyResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionPolicy
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigurationApprovalResult
+import com.adsamcik.tracker.shared.preferences.retention.RetentionPolicyApprovalStatus
+import com.adsamcik.tracker.shared.preferences.retention.RetentionPolicyStage
+import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailure
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailureReason
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
@@ -47,6 +61,8 @@ class DataSettingsViewModelTest {
     private val testDispatcher = UnconfinedTestDispatcher()
 
     private val configFlow = MutableStateFlow(RetentionConfigState())
+    private val approvalStatusFlow =
+        MutableStateFlow(RetentionPolicyApprovalStatus.UNAPPROVED)
     private val retentionConfigStore: RetentionConfigStore = mockk()
     private val exportPlanStore: com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore = mockk()
     private val appContext: Context = mockk()
@@ -58,29 +74,74 @@ class DataSettingsViewModelTest {
     private val legacyStateFlow = MutableStateFlow(emptyLegacyState())
     private val preferences: Preferences = mockk()
     private val smartGoalNotificationsFlow = MutableStateFlow(true)
+    private val retentionAuthorityProducer: RetentionAuthorityProducer = mockk()
+    private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler = mockk()
+    private var configurationGeneration = 0L
+    private lateinit var stagedPolicy: ApprovedRetentionPolicy
 
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         configFlow.value = RetentionConfigState()
+        approvalStatusFlow.value = RetentionPolicyApprovalStatus.UNAPPROVED
         backupFlow.value = null
         legacyStateFlow.value = emptyLegacyState()
+        configurationGeneration = 0L
 
         every { retentionConfigStore.config } returns configFlow
+        every { retentionConfigStore.approvalStatus } returns approvalStatusFlow
         every { exportPlanStore.plans } returns MutableStateFlow(emptyList())
         every { appContext.contentResolver } returns contentResolver
         every { backupRepository.backups } returns backupFlow
         every { legacyDatabaseRepository.states } returns legacyStateFlow
         every { backupRepository.latestBackup() } returns null
-        coEvery { deletionService.deleteAll() } just Runs
+        coEvery { deletionService.deleteAll() } returns CollectedDataDeletionCompletion.Complete
         every { appContext.getString(R.string.settings_smart_goal_notifications_key) } returns "smartGoalNotifications"
         every { preferences.observeBoolean("smartGoalNotifications", true) } returns smartGoalNotificationsFlow
         every { preferences.edit(any()) } just Runs
-        coEvery { retentionConfigStore.update(any()) } answers {
+        coEvery {
+            retentionConfigStore.updateWithApproval(any(), any(), any())
+        } coAnswers {
             @Suppress("UNCHECKED_CAST")
-            val block = invocation.args[0] as (RetentionConfigState.() -> RetentionConfigState)
-            configFlow.value = block(configFlow.value)
+            val block = invocation.args[0] as
+                (RetentionConfigState.() -> RetentionConfigState)
+            @Suppress("UNCHECKED_CAST")
+            val prepare = invocation.args[1] as
+                suspend (RetentionPolicyStage) -> RetentionConfigurationApprovalResult
+            @Suppress("UNCHECKED_CAST")
+            val approve = invocation.args[2] as
+                suspend (RetentionPolicyStage) -> RetentionConfigurationApprovalResult
+            val proposed = block(configFlow.value)
+            configurationGeneration++
+            stagedPolicy = ApprovedRetentionPolicy(
+                configurationGeneration = configurationGeneration,
+                revision = configurationGeneration,
+                opaquePolicyId = "policy-$configurationGeneration",
+                configurationChecksum = "0".repeat(64),
+                integrityChecksum = "1".repeat(64),
+            )
+            val stage = RetentionPolicyStage(stagedPolicy, approvalRequired = true)
+            approvalStatusFlow.value = RetentionPolicyApprovalStatus.PENDING
+            val prepared = prepare(stage)
+            if (prepared is RetentionConfigurationApprovalResult.Unavailable) {
+                return@coAnswers RetentionConfigApplyResult(stage, false, prepared)
+            }
+            configFlow.value = proposed
+            val approved = approve(stage)
+            if (approved !is RetentionConfigurationApprovalResult.Unavailable) {
+                approvalStatusFlow.value = RetentionPolicyApprovalStatus.APPROVED
+            }
+            RetentionConfigApplyResult(stage, true, approved)
         }
+        coEvery { retentionAuthorityProducer.preparePendingConfiguration(any()) } answers {
+            RetentionConfigurationApprovalResult.Prepared(stagedPolicy)
+        }
+        coEvery { retentionAuthorityProducer.reconcilePendingConfiguration(any()) } answers {
+            approvalStatusFlow.value = RetentionPolicyApprovalStatus.APPROVED
+            RetentionConfigurationApprovalResult.Approved(stagedPolicy)
+        }
+        coEvery { purposeSettingsReconciler.reconcileCurrentSettings() } returns
+            TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
     }
 
     @AfterEach
@@ -97,6 +158,8 @@ class DataSettingsViewModelTest {
         legacyDatabaseRepository = legacyDatabaseRepository,
         dispatchers = TestDispatchersProvider(testDispatcher),
         deletionService = deletionService,
+        retentionAuthorityProducer = retentionAuthorityProducer,
+        purposeSettingsReconciler = purposeSettingsReconciler,
     )
 
     // =========================================================================
@@ -208,6 +271,33 @@ class DataSettingsViewModelTest {
         }
 
         @Test
+        fun `retention setting surfaces typed purpose reconciliation debt`() =
+            runTest(testDispatcher) {
+                val debt = TrackingPurposeSettingsReconciliationDebt(
+                    listOf(
+                        TrackingPurposeSettingsReconciliationFailure(
+                            AmbientTrackingSource.STEPS,
+                            TrackingPurposeSettingsReconciliationFailureReason
+                                .OWNER_OPERATION_IN_PROGRESS,
+                        ),
+                    ),
+                )
+                coEvery { purposeSettingsReconciler.reconcileCurrentSettings() } returns
+                    TrackingPurposeSettingsReconciliationResult.Debt(debt)
+                val vm = createViewModel()
+
+                vm.uiState.test {
+                    awaitItem()
+                    vm.setAutoCleanupEnabled(true)
+                    var state = awaitItem()
+                    while (state.purposeSettingsReconciliationDebt == null) state = awaitItem()
+                    state.purposeSettingsReconciliationDebt shouldBe debt
+                    state.ambientStepsLifecycleFailure shouldBe
+                        AmbientStepsSettingsReconciliationFailure.DURABLE_AUTHORITY_REJECTED
+                }
+            }
+
+        @Test
         fun `setAutoCleanupEnabled can disable after enabling`() = runTest(testDispatcher) {
             val vm = createViewModel()
             vm.uiState.test {
@@ -267,6 +357,83 @@ class DataSettingsViewModelTest {
                 configFlow.value.explorationRetentionDays shouldBe 0
             }
         }
+
+        @Test
+        fun `both retention setters approve and reconcile bounded lifecycle`() =
+            runTest(testDispatcher) {
+                val vm = createViewModel()
+
+                vm.setAutoCleanupEnabled(true)
+                vm.setDataRetentionYears(2)
+
+                coVerify(exactly = 2) {
+                    retentionAuthorityProducer.preparePendingConfiguration(any())
+                }
+                coVerify(exactly = 2) {
+                    retentionAuthorityProducer.reconcilePendingConfiguration(any())
+                }
+                coVerify(exactly = 2) {
+                    purposeSettingsReconciler.reconcileCurrentSettings()
+                }
+            }
+
+        @Test
+        fun `retention approval failure remains visible and pending`() = runTest(testDispatcher) {
+            coEvery {
+                retentionAuthorityProducer.reconcilePendingConfiguration(any())
+            } returns RetentionConfigurationApprovalResult.Unavailable(
+                RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION,
+            )
+            coEvery { purposeSettingsReconciler.reconcileCurrentSettings() } returns
+                TrackingPurposeSettingsReconciliationResult.Debt(
+                    TrackingPurposeSettingsReconciliationDebt(
+                        listOf(
+                            TrackingPurposeSettingsReconciliationFailure(
+                                AmbientTrackingSource.STEPS,
+                                TrackingPurposeSettingsReconciliationFailureReason
+                                    .RETENTION_AUTHORITY_UNAVAILABLE,
+                            ),
+                        ),
+                    ),
+                )
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                awaitItem()
+                vm.setDataRetentionYears(3)
+                var state = awaitItem()
+                while (state.retentionPolicyFailure == null) state = awaitItem()
+                state.retentionPolicyApprovalStatus shouldBe
+                    RetentionPolicyApprovalStatus.PENDING
+                state.retentionPolicyFailure shouldBe
+                    RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION
+                state.ambientStepsLifecycleFailure shouldBe
+                    AmbientStepsSettingsReconciliationFailure.DURABLE_AUTHORITY_REJECTED
+            }
+        }
+
+        @Test
+        fun `prepublication failure leaves previous cleanup setting visible`() =
+            runTest(testDispatcher) {
+                coEvery {
+                    retentionAuthorityProducer.preparePendingConfiguration(any())
+                } returns RetentionConfigurationApprovalResult.Unavailable(
+                    RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE,
+                )
+                val vm = createViewModel()
+
+                vm.uiState.test {
+                    awaitItem()
+                    vm.setAutoCleanupEnabled(true)
+                    var state = awaitItem()
+                    while (state.retentionPolicyFailure == null) state = awaitItem()
+                    state.autoCleanupEnabled shouldBe false
+                    state.retentionPolicyApprovalStatus shouldBe
+                        RetentionPolicyApprovalStatus.PENDING
+                    state.retentionPolicyFailure shouldBe
+                        RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE
+                }
+            }
     }
 
     @Nested
@@ -478,6 +645,22 @@ class DataSettingsViewModelTest {
         fun `reports failure when deletion encounters an ordinary filesystem error`() =
             runTest(testDispatcher) {
                 coEvery { deletionService.deleteAll() } throws IOException("fsync failed")
+                var result: DataDeletionResult? = null
+                val vm = createViewModel()
+
+                vm.deleteAllCollectedData { result = it }
+
+                result shouldBe DataDeletionResult.Failure
+                coVerify(exactly = 1) { deletionService.deleteAll() }
+            }
+
+        @Test
+        fun `reports failure while deletion retains typed reconciliation debt`() =
+            runTest(testDispatcher) {
+                coEvery { deletionService.deleteAll() } returns
+                    CollectedDataDeletionCompletion.Retryable(
+                        CollectedDataDeletionReconciliationFailure.PurposeSettings,
+                    )
                 var result: DataDeletionResult? = null
                 val vm = createViewModel()
 

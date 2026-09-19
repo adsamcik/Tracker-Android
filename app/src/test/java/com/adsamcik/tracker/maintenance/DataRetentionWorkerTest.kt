@@ -12,10 +12,27 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.SynchronousExecutor
 import com.adsamcik.tracker.app.maintenance.CellCapturedRetentionService
+import com.adsamcik.tracker.app.maintenance.PeriodicAmbientRetentionMaintenance
+import com.adsamcik.tracker.app.maintenance.PeriodicAmbientRetentionResult
+import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementDebt
+import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementFailure
+import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlement
+import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementCompletionResult
+import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementResult
+import com.adsamcik.tracker.app.maintenance.RetentionWorkExecutionCoordinator
+import com.adsamcik.tracker.app.maintenance.RetentionWorkScheduler
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionBlockedReason
 import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
 import com.adsamcik.tracker.shared.base.database.RoomTruncateImportedActivityRetention
+import com.adsamcik.tracker.shared.base.database.RetentionFloorSettlementOperation
+import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
+import com.adsamcik.tracker.shared.base.database.RetentionFloorOperationLookupResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionCompletionResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionContinuationResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionPlanResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionReceipt
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionStartResult
 import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionResult
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
@@ -32,10 +49,18 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionPolicy
+import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionOperation
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigInvalidReason
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigRead
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigUnavailableReason
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionOperationResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -45,9 +70,12 @@ import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionService
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.firstArg
 import io.mockk.mockk
+import io.mockk.secondArg
+import io.mockk.thirdArg
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -74,9 +102,8 @@ class DataRetentionWorkerTest {
     }
 
     private lateinit var context: Context
-    private val retentionStore: RetentionConfigStore = mockk {
-        every { config } returns flowOf(RetentionConfigState(autoCleanupEnabled = false))
-    }
+    private val retentionStore: RetentionConfigStore =
+		approvedRetentionStore(RetentionConfigState(autoCleanupEnabled = false))
     private val testDispatcher = StandardTestDispatcher()
     private val mockDatabase: AppDatabase = mockk(relaxed = true)
     private val exportPlanStore: ExportPlanStore = mockk(relaxed = true)
@@ -92,6 +119,13 @@ class DataRetentionWorkerTest {
 	private val wifiCapturedRetentionService: WifiCapturedRetentionService = mockk {
 		coEvery { prune(any(), any(), any()) } returns WifiCapturedRetentionResult.NoChange
 	}
+	private val periodicAmbientRetentionMaintenance: PeriodicAmbientRetentionMaintenance = mockk {
+		coEvery { run(any(), any(), any(), any()) } returns
+			PeriodicAmbientRetentionResult.Complete
+	}
+	private val workExecutionCoordinator = workExecutionCoordinator(
+		RetentionFloorDestructivePlan.WORKER_DATA_RETENTION,
+	)
 
     @Before
     fun setUp() {
@@ -126,6 +160,9 @@ class DataRetentionWorkerTest {
 						Provider { importedActivityRetention },
 						cellCapturedRetentionService,
 						wifiCapturedRetentionService,
+						retentionFloorSettlement(),
+						periodicAmbientRetentionMaintenance,
+						workExecutionCoordinator,
 					)
                 }
             })
@@ -141,19 +178,247 @@ class DataRetentionWorkerTest {
     }
 
 	@Test
+	fun `final execution retry succeeds without reopening legacy retention work`() =
+		runTest(testDispatcher) {
+			val coordinator = mockk<RetentionWorkExecutionCoordinator> {
+				coEvery { begin(any(), any(), any(), any(), any()) } returns
+					RetentionWorkExecutionStartResult.AlreadyCompleted
+			}
+			val settlement = mockk<RetentionFloorSettlement>(relaxed = true)
+
+			worker(
+				store = mockk(relaxed = true),
+				database = mockDatabase,
+				retentionFloorSettlement = settlement,
+				executionCoordinator = coordinator,
+			).doWork() shouldBe ListenableWorker.Result.success()
+
+			coVerify(exactly = 0) { coordinator.attachPlan(any(), any(), any()) }
+			coVerify(exactly = 0) { coordinator.complete(any(), any(), any()) }
+			coVerify(exactly = 0) { settlement.pendingOperation(any(), any()) }
+		}
+
+	@Test
+	fun `legacy owner observing cancellation stops before destructive work and cannot finalize`() =
+		runTest(testDispatcher) {
+			val receipt = RetentionWorkExecutionReceipt(
+				executionId = "legacy-cancellation:g1",
+				workRequestId = "legacy-cancellation",
+				executionGeneration = 1L,
+				workerKind = RetentionFloorDestructivePlan.WORKER_DATA_RETENTION,
+				startedAtMs = 1L,
+				state = "OPEN",
+				destructivePlan = null,
+				updatedAtMs = 1L,
+			)
+			val coordinator = mockk<RetentionWorkExecutionCoordinator> {
+				coEvery { begin(any(), any(), any(), any(), any()) } returns
+					RetentionWorkExecutionStartResult.Open(receipt)
+				coEvery { continuation(any(), receipt) } returns
+					RetentionWorkExecutionContinuationResult.CancellationRequested
+				coEvery { complete(any(), receipt, any()) } returns
+					RetentionWorkExecutionCompletionResult.CancellationRequested
+			}
+			val settlement = mockk<RetentionFloorSettlement>(relaxed = true)
+
+			worker(
+				store = enabledRetentionStore(),
+				database = mockDatabase,
+				retentionFloorSettlement = settlement,
+				executionCoordinator = coordinator,
+			).doWork() shouldBe ListenableWorker.Result.success()
+
+			coVerify(exactly = 1) { coordinator.continuation(any(), receipt) }
+			coVerify(exactly = 0) { coordinator.attachPlan(any(), any(), any()) }
+			coVerify(exactly = 1) { coordinator.complete(any(), receipt, any()) }
+			coVerify(exactly = 0) { settlement.pendingOperation(any(), any()) }
+			verify(exactly = 0) { migrationBackupRepository.deleteAll() }
+		}
+
+	@Test
+	fun `committed floor provider debt keeps durable worker retry ownership`() = runTest {
+		val settlement = mockk<RetentionFloorSettlement> {
+			coEvery { pendingOperation(any(), any()) } returns
+				RetentionFloorOperationLookupResult.Available(null)
+			coEvery {
+				settle(
+					database = any(),
+					lifecycleStore = any(),
+					startupGate = any(),
+					expectedStartupGeneration = any(),
+					requestedRetainedFromMs = any(),
+					operationId = any(),
+					updatedAtMs = any(),
+					workExecutionId = any(),
+					destructivePlan = any(),
+					verifyApprovedOperation = any(),
+				)
+			} returns RetentionFloorSettlementResult.Retryable(
+				RetentionFloorSettlementDebt(
+					retainedFromMs = 3L,
+					failures = listOf(
+						RetentionFloorSettlementFailure.ResultSetInvalid(
+							TrackingSourceComponent.WIFI,
+							RetentionAuthorityScope.LIVE_AMBIENT,
+						),
+					),
+				),
+			)
+		}
+
+		assertEquals(
+			ListenableWorker.Result.retry(),
+			worker(
+				store = enabledRetentionStore(),
+				database = mockDatabase,
+				retentionFloorSettlement = settlement,
+			).doWork(),
+		)
+		verify(exactly = 0) { migrationBackupRepository.deleteAll() }
+	}
+
+	@Test
+	fun `WorkManager retry resumes the journaled floor and operation identity`() = runTest {
+		val pending = RetentionFloorSettlementOperation(
+			operationId = "retention-floor-original",
+			requestedRetainedFromMs = 3L,
+			collectedDataEpoch = 1L,
+			requestedAtMs = 4L,
+			phase = com.adsamcik.tracker.shared.base.database.data
+				.CollectedDataDeletionOperationEntity.PHASE_RETENTION_PREPARED,
+		)
+		val settlement = mockk<RetentionFloorSettlement> {
+			coEvery { pendingOperation(mockDatabase, any()) } returns
+				RetentionFloorOperationLookupResult.Available(pending)
+			coEvery {
+				settle(
+					database = mockDatabase,
+					lifecycleStore = any(),
+					startupGate = any(),
+					expectedStartupGeneration = any(),
+					requestedRetainedFromMs = pending.requestedRetainedFromMs,
+					operationId = pending.operationId,
+					updatedAtMs = any(),
+					workExecutionId = pending.workExecutionId,
+					destructivePlan = pending.destructivePlan,
+					verifyApprovedOperation = any(),
+				)
+			} returns RetentionFloorSettlementResult.Retryable(
+				RetentionFloorSettlementDebt(
+					pending.requestedRetainedFromMs,
+					listOf(
+						RetentionFloorSettlementFailure.CommitBoundary(
+							com.adsamcik.tracker.app.maintenance
+								.RetentionFloorSettlementPhase.DATASTORE_FLOOR_ACKNOWLEDGED,
+						),
+					),
+				),
+			)
+		}
+
+		assertEquals(
+			ListenableWorker.Result.retry(),
+			worker(
+				store = enabledRetentionStore(),
+				database = mockDatabase,
+				retentionFloorSettlement = settlement,
+			).doWork(),
+		)
+
+		coVerify(exactly = 1) {
+			settlement.settle(
+				database = mockDatabase,
+				lifecycleStore = any(),
+				startupGate = any(),
+				expectedStartupGeneration = any(),
+				requestedRetainedFromMs = pending.requestedRetainedFromMs,
+				operationId = pending.operationId,
+				updatedAtMs = any(),
+				workExecutionId = pending.workExecutionId,
+				destructivePlan = pending.destructivePlan,
+				verifyApprovedOperation = any(),
+			)
+		}
+	}
+
+	@Test
+	fun `restart after durable maintenance phase finalizes without pruning sources twice`() =
+		runTest {
+			val pending = RetentionFloorSettlementOperation(
+				operationId = "retention-maintenance-complete",
+				requestedRetainedFromMs = 3L,
+				collectedDataEpoch = 1L,
+				requestedAtMs = 4L,
+				phase = com.adsamcik.tracker.shared.base.database.data
+					.CollectedDataDeletionOperationEntity
+					.PHASE_RETENTION_SOURCE_MAINTENANCE_COMPLETED,
+			)
+			val settled = RetentionFloorSettlementResult.Settled(
+				lifecycle = CollectedDataLifecycleSnapshot(1L, 3L),
+				reconciledSources = emptySet(),
+				operationId = pending.operationId,
+				requestedRetainedFromMs = pending.requestedRetainedFromMs,
+				requestedAtMs = pending.requestedAtMs,
+				sourceMaintenanceCompleted = true,
+			)
+			val settlement = mockk<RetentionFloorSettlement> {
+				coEvery { pendingOperation(mockDatabase, any()) } returns
+					RetentionFloorOperationLookupResult.Available(pending)
+				coEvery {
+					settle(
+						database = any(),
+						lifecycleStore = any(),
+						startupGate = any(),
+						expectedStartupGeneration = any(),
+						requestedRetainedFromMs = any(),
+						operationId = any(),
+						updatedAtMs = any(),
+						workExecutionId = any(),
+						destructivePlan = any(),
+						verifyApprovedOperation = any(),
+					)
+				} returns settled
+				coEvery {
+					complete(
+						database = any(),
+						startupGate = any(),
+						expectedStartupGeneration = any(),
+						settlement = any(),
+						completedAtMs = any(),
+						verifyApprovedOperation = any(),
+					)
+				} returns RetentionFloorSettlementCompletionResult.Completed
+			}
+
+			assertEquals(
+				ListenableWorker.Result.success(),
+				worker(
+					store = enabledRetentionStore(),
+					database = mockDatabase,
+					retentionFloorSettlement = settlement,
+				).doWork(),
+			)
+			coVerify(exactly = 0) {
+				periodicAmbientRetentionMaintenance.run(any(), any(), any(), any())
+			}
+			coVerify(exactly = 0) { cellCapturedRetentionService.prune(any(), any(), any()) }
+			coVerify(exactly = 0) { wifiCapturedRetentionService.prune(any(), any(), any()) }
+		}
+
+	@Test
 	fun `enabled retention preserves attributed segment through radio before segment and WAL pruning`() = runTest {
 		val database = AppDatabase.testDatabase(context)
 		val operations = mutableListOf<String>()
 		val walCountsAtRadioRetention = mutableListOf<Long>()
 		val attributedSegment = expiredAttributedSegment()
 		var attributedSegmentId = 0L
-		val enabledStore: RetentionConfigStore = mockk {
-			every { config } returns flowOf(
-				RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1),
-			)
-		}
+		val enabledStore = approvedRetentionStore(
+			RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1),
+		)
 		val lifecycleStore: CollectedDataLifecycleStore = mockk()
 		coEvery { lifecycleStore.advanceRetainedFrom(any()) } returns
+			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 3L)
+		coEvery { lifecycleStore.advanceRetainedFrom(any(), any(), any()) } returns
 			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 3L)
 		val lane: StepsSessionFactProjectionLane = mockk()
 		coEvery { lane.drainAvailable() } coAnswers {
@@ -222,6 +487,9 @@ class DataRetentionWorkerTest {
 						Provider { importedActivityRetention },
 						cellRetention,
 						wifiRetention,
+						retentionFloorSettlement(),
+						periodicAmbientRetentionMaintenance,
+						workExecutionCoordinator,
 					)
 				})
 				.build() as DataRetentionWorker
@@ -545,7 +813,7 @@ class DataRetentionWorkerTest {
 				database.sourceEventWalDao().insertIgnoringDuplicate(staleRawCellEvent())
 
 				assertEquals(
-					ListenableWorker.Result.success(),
+					ListenableWorker.Result.retry(),
 					worker(
 						store = enabledRetentionStore(),
 						database = database,
@@ -572,14 +840,65 @@ class DataRetentionWorkerTest {
 	}
 
 	@Test
+	fun `ambient maintenance debt cannot become success after a later generation change`() =
+		runTest {
+			val database = AppDatabase.testDatabase(context)
+			val gate = MutableStartupGate()
+			val settlement = retentionFloorSettlement()
+			val ambient = mockk<PeriodicAmbientRetentionMaintenance> {
+				coEvery { run(database, any(), any(), any()) } returns
+					PeriodicAmbientRetentionResult.Retryable(
+						listOf(
+							com.adsamcik.tracker.app.maintenance.PeriodicAmbientRetentionFailure(
+								com.adsamcik.tracker.app.maintenance.PeriodicAmbientRetentionSource
+									.LOCAL_STEPS,
+								com.adsamcik.tracker.app.maintenance
+									.PeriodicAmbientRetentionFailureReason.RETRYABLE,
+							),
+						),
+					)
+			}
+			val cell = mockk<CellCapturedRetentionService> {
+				coEvery { prune(database, 3L, any()) } coAnswers {
+					gate.generation += 1L
+					CellCapturedRetentionResult.NoChange
+				}
+			}
+			try {
+				assertEquals(
+					ListenableWorker.Result.retry(),
+					worker(
+						store = enabledRetentionStore(),
+						database = database,
+						lifecycleStore = lifecycleStore(),
+						trackingStartupGate = gate,
+						cellRetention = cell,
+						retentionFloorSettlement = settlement,
+						ambientRetention = ambient,
+					).doWork(),
+				)
+				coVerify(exactly = 0) {
+					settlement.complete(
+						database = any(),
+						startupGate = any(),
+						expectedStartupGeneration = any(),
+						settlement = any(),
+						completedAtMs = any(),
+						verifyApprovedOperation = any(),
+					)
+				}
+			} finally {
+				database.close()
+			}
+		}
+
+	@Test
 	fun `zero year retention creates no captured radio work`() = runTest {
 		val cellRetention = cellRetentionService()
 		val wifiRetention = wifiRetentionService()
-		val store: RetentionConfigStore = mockk {
-			every { config } returns flowOf(
-				RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 0),
-			)
-		}
+		val store = approvedRetentionStore(
+			RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 0),
+		)
 
 		assertEquals(
 			ListenableWorker.Result.success(),
@@ -595,21 +914,64 @@ class DataRetentionWorkerTest {
 		coVerify(exactly = 0) { wifiRetention.prune(any(), any(), any()) }
 	}
 
+	@Test
+	fun `stale scheduled work retries every inexact retention authority without deletion`() = runTest {
+		val enabled = RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1)
+		val inexact = listOf<ExactApprovedRetentionConfigRead>(
+			ExactApprovedRetentionConfigRead.Pending(enabled, testApprovedPolicy()),
+			ExactApprovedRetentionConfigRead.Invalid(
+				ExactApprovedRetentionConfigInvalidReason.CONFIGURATION_MISMATCH,
+			),
+			ExactApprovedRetentionConfigRead.Unavailable(
+				ExactApprovedRetentionConfigUnavailableReason.STORAGE_UNAVAILABLE,
+			),
+		)
+
+		inexact.forEach { authority ->
+			val store = retentionStore(authority)
+
+			assertEquals(
+				ListenableWorker.Result.retry(),
+				worker(store, mockDatabase).doWork(),
+			)
+		}
+
+		coVerify(exactly = 0) {
+			collectedDataLifecycleStore.advanceRetainedFrom(any(), any(), any())
+		}
+		verify(exactly = 0) { migrationBackupRepository.deleteAll() }
+	}
+
     @Test
-    fun `ensureScheduled enqueues work and cancel removes active work`() {
+    fun `ensureScheduled enqueues work and cancel removes active work`() = runTest {
         val workManager = WorkManager.getInstance(context)
+		val database = AppDatabase.testDatabase(context)
+		val scheduler = RetentionWorkScheduler(Provider { database }, workManager)
+		try {
+			scheduler.cancel()
+			var works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
+			assertTrue(
+				"expected no active work, found ${works.map { it.state }}",
+				works.none {
+					it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING
+				},
+			)
 
-        DataRetentionWorker.cancel(context)
-        var works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
-        assertTrue("expected no active work, found ${works.map { it.state }}", works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING })
+			scheduler.ensureScheduled()
+			works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
+			assertTrue("expected scheduled work, found ${works.map { it.state }}", works.isNotEmpty())
 
-        DataRetentionWorker.ensureScheduled(context)
-        works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
-        assertTrue("expected scheduled work, found ${works.map { it.state }}", works.isNotEmpty())
-
-        DataRetentionWorker.cancel(context)
-        works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
-        assertTrue("expected cancellation, found ${works.map { it.state }}", works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING })
+			scheduler.cancel()
+			works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
+			assertTrue(
+				"expected cancellation, found ${works.map { it.state }}",
+				works.none {
+					it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING
+				},
+			)
+		} finally {
+			database.close()
+		}
     }
 
 	private fun worker(
@@ -620,6 +982,10 @@ class DataRetentionWorkerTest {
 		lane: StepsSessionFactProjectionLane = inactiveLane(),
 		cellRetention: CellCapturedRetentionService = cellCapturedRetentionService,
 		wifiRetention: WifiCapturedRetentionService = wifiCapturedRetentionService,
+		retentionFloorSettlement: RetentionFloorSettlement = retentionFloorSettlement(),
+		ambientRetention: PeriodicAmbientRetentionMaintenance =
+			periodicAmbientRetentionMaintenance,
+		executionCoordinator: RetentionWorkExecutionCoordinator = workExecutionCoordinator,
 	): DataRetentionWorker =
 		TestListenableWorkerBuilder<DataRetentionWorker>(context)
 			.setWorkerFactory(object : WorkerFactory() {
@@ -640,20 +1006,147 @@ class DataRetentionWorkerTest {
 					Provider { importedActivityRetention },
 					cellRetention,
 					wifiRetention,
+					retentionFloorSettlement,
+					ambientRetention,
+					executionCoordinator,
 				)
 			})
 			.build() as DataRetentionWorker
 
-	private fun enabledRetentionStore(): RetentionConfigStore = mockk {
-		every { config } returns flowOf(
-			RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1),
-		)
+	private fun retentionFloorSettlement(): RetentionFloorSettlement = mockk {
+		coEvery { pendingOperation(any(), any()) } returns
+			RetentionFloorOperationLookupResult.Available(null)
+		coEvery {
+			settle(
+				database = any(),
+				lifecycleStore = any(),
+				startupGate = any(),
+				expectedStartupGeneration = any(),
+				requestedRetainedFromMs = any(),
+				operationId = any(),
+				updatedAtMs = any(),
+				workExecutionId = any(),
+				destructivePlan = any(),
+				verifyApprovedOperation = any(),
+			)
+		} answers {
+			RetentionFloorSettlementResult.Settled(
+				lifecycle = CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 3L),
+				reconciledSources = setOf(
+					com.adsamcik.tracker.tracker.api.AmbientTrackingSource.STEPS,
+					com.adsamcik.tracker.tracker.api.AmbientTrackingSource.WIFI,
+					com.adsamcik.tracker.tracker.api.AmbientTrackingSource.CELL,
+				),
+				operationId = arg(5),
+				requestedRetainedFromMs = arg(4),
+				requestedAtMs = arg(6),
+				workExecutionId = arg(7),
+				destructivePlan = arg(8),
+			)
+		}
+
+		coEvery {
+			complete(
+				database = any(),
+				startupGate = any(),
+				expectedStartupGeneration = any(),
+				settlement = any(),
+				completedAtMs = any(),
+				verifyApprovedOperation = any(),
+			)
+		} returns RetentionFloorSettlementCompletionResult.Completed
 	}
 
+	private fun workExecutionCoordinator(
+		workerKind: String,
+	): RetentionWorkExecutionCoordinator = mockk {
+		coEvery { begin(any(), any(), any(), any(), any()) } coAnswers {
+			val startedAtMs = invocation.args[4] as Long
+			RetentionWorkExecutionStartResult.Open(
+				RetentionWorkExecutionReceipt(
+					executionId = "test-execution:g1",
+					workRequestId = invocation.args[1] as String,
+					executionGeneration = 1L,
+					workerKind = workerKind,
+					startedAtMs = startedAtMs,
+					state = "OPEN",
+					destructivePlan = null,
+					updatedAtMs = startedAtMs,
+				),
+			)
+		}
+		coEvery { attachPlan(any(), any(), any()) } coAnswers {
+			val receipt = secondArg<RetentionWorkExecutionReceipt>()
+			val plan = thirdArg<RetentionFloorDestructivePlan>()
+			RetentionWorkExecutionPlanResult.Attached(
+				receipt.copy(
+					destructivePlan = plan,
+					updatedAtMs = maxOf(receipt.updatedAtMs, plan.requestedAtMs),
+				),
+			)
+		}
+		coEvery { continuation(any(), any()) } returns
+			RetentionWorkExecutionContinuationResult.Continue
+		coEvery { complete(any(), any(), any()) } returns
+			RetentionWorkExecutionCompletionResult.Completed
+	}
+
+	private fun enabledRetentionStore(): RetentionConfigStore = retentionStore(
+		exactApprovedRetentionConfig(
+			RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1),
+		),
+	)
+
 	private fun lifecycleStore(): CollectedDataLifecycleStore = mockk {
+		coEvery { snapshot() } returns
+			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 3L)
 		coEvery { advanceRetainedFrom(any()) } returns
 			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 3L)
+		coEvery { advanceRetainedFrom(any(), any(), any()) } returns
+			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 3L)
 	}
+
+	private fun approvedRetentionStore(state: RetentionConfigState): RetentionConfigStore =
+		retentionStore(exactApprovedRetentionConfig(state))
+
+	private fun retentionStore(
+		authority: ExactApprovedRetentionConfigRead,
+	): RetentionConfigStore = mockk {
+		coEvery {
+			withExactApprovedOperation<ListenableWorker.Result>(any())
+		} coAnswers {
+			when (authority) {
+				is ExactApprovedRetentionConfigRead.Approved -> {
+					val admission = ApprovedRetentionOperation(
+						authority.configuration,
+						authority.policy,
+					)
+					ExactApprovedRetentionOperationResult.Completed(
+						admission,
+						firstArg<suspend (ApprovedRetentionOperation) -> ListenableWorker.Result>()
+							.invoke(admission),
+					)
+				}
+				is ExactApprovedRetentionConfigRead.Pending,
+				is ExactApprovedRetentionConfigRead.Invalid,
+				is ExactApprovedRetentionConfigRead.Unavailable,
+				-> ExactApprovedRetentionOperationResult.Rejected(authority)
+			}
+		}
+	}
+
+	private fun exactApprovedRetentionConfig(
+		state: RetentionConfigState,
+	): ExactApprovedRetentionConfigRead.Approved =
+		ExactApprovedRetentionConfigRead.Approved(state, testApprovedPolicy())
+
+	private fun testApprovedPolicy(): ApprovedRetentionPolicy = ApprovedRetentionPolicy(
+		configurationGeneration = 1L,
+		revision = 1L,
+		opaquePolicyId = "retention-worker-test",
+		configurationChecksum = "a".repeat(64),
+		integrityChecksum = "b".repeat(64),
+	)
 
 	private fun inactiveLane(): StepsSessionFactProjectionLane = mockk {
 		coEvery { drainAvailable() } returns StepsSessionFactDrainResult.Inactive

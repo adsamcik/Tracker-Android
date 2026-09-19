@@ -4,6 +4,10 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactIntegrity
@@ -58,7 +62,8 @@ class AmbientRadioAuthorityRoomTest {
 	}
 
 	@Test
-	fun `retention is default deny until durable source approval exists`() = runTest {
+	fun `empty radio storage is a verified no change without manufacturing retention authority`() =
+		runTest {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(
 				collectedDataEpoch = 4L,
@@ -67,16 +72,23 @@ class AmbientRadioAuthorityRoomTest {
 			),
 		)
 
-		val mismatch = database.pruneAmbientWifi(
+		val empty = database.pruneAmbientWifi(
 			AmbientWifiRetentionCommand(
 				beforeMs = 1_000L,
 				expectedCollectedDataEpoch = 4L,
 				appliedAtMs = 2_000L,
 			),
 		)
+		assertEquals(AmbientWifiRetentionResult.NoChange, empty)
 		assertEquals(
-			AmbientWifiMaintenanceUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE,
-			assertIs<AmbientWifiRetentionResult.Unavailable>(mismatch).reason,
+			AmbientCellRetentionResult.NoChange,
+			database.pruneAmbientCell(
+				AmbientCellRetentionCommand(
+					beforeMs = 1_000L,
+					expectedCollectedDataEpoch = 4L,
+					appliedAtMs = 2_000L,
+				),
+			),
 		)
 		database.ambientWifiFactDao().insertRetentionAuthority(
 			AmbientWifiRetentionAuthorityIntegrity.create(
@@ -90,6 +102,7 @@ class AmbientRadioAuthorityRoomTest {
 				"boot-1",
 				10L,
 				10L,
+				1_000L,
 			),
 		)
 
@@ -221,6 +234,169 @@ class AmbientRadioAuthorityRoomTest {
 	}
 
 	@Test
+	fun `same boot retention revisions require strictly increasing elapsed time`() = runTest {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(collectedDataEpoch = 4L, updatedAtMs = 1L),
+		)
+		database.applyAmbientWifiRetentionDecision(
+			AmbientRadioRetentionDecision.GrantPortableImport(
+				"policy-1",
+				4L,
+				"boot-1",
+				10L,
+				10L,
+			),
+		)
+
+		assertEquals(
+			AmbientRadioRetentionAuthorityUnavailableReason.EFFECTIVE_TIME_INVALID,
+			assertIs<AmbientRadioRetentionAuthorityResult.Unavailable>(
+				database.applyAmbientWifiRetentionDecision(
+					AmbientRadioRetentionDecision.GrantPortableImport(
+						"policy-2",
+						4L,
+						"boot-1",
+						10L,
+						11L,
+						expectedPreviousApprovalRevision = 1L,
+					),
+				),
+			).reason,
+		)
+		assertEquals(
+			AmbientRadioRetentionAuthorityUnavailableReason.EFFECTIVE_TIME_INVALID,
+			assertIs<AmbientRadioRetentionAuthorityResult.Unavailable>(
+				database.applyAmbientWifiRetentionDecision(
+					AmbientRadioRetentionDecision.GrantPortableImport(
+						"policy-2",
+						4L,
+						"boot-1",
+						11L,
+						9L,
+						expectedPreviousApprovalRevision = 1L,
+					),
+				),
+			).reason,
+		)
+	}
+
+	@Test
+	fun `live radio grant cannot predate referenced policy and consent`() = runTest {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(collectedDataEpoch = 4L, updatedAtMs = 1L),
+		)
+		var elapsed = 10L
+		val policies = RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
+		}
+		val snapshot = policies.bootstrapFromLegacy(
+			TrackingParamsState(
+				ambientWifiEnabled = true,
+				legacySettingsMigrationCompleted = true,
+			),
+		)
+
+		assertEquals(
+			AmbientRadioRetentionAuthorityUnavailableReason.EFFECTIVE_TIME_INVALID,
+			assertIs<AmbientRadioRetentionAuthorityResult.Unavailable>(
+				database.applyAmbientWifiRetentionDecision(
+					AmbientRadioRetentionDecision.GrantLiveAmbient(
+						opaquePolicyId = "policy-1",
+						expectedCollectedDataEpoch = 4L,
+						expectedSourcePolicyRevision = snapshot.revision,
+						expectedAmbientConsentEpoch = requireNotNull(
+							snapshot[TrackingSourceComponent.WIFI].ambientConsentEpoch,
+						),
+						effectiveBootId = "boot-1",
+						effectiveElapsedRealtimeNanos = 0L,
+						effectiveWallTimeMs = 0L,
+					),
+				),
+			).reason,
+		)
+	}
+
+	@Test
+	fun `radio grants preserve unchanged consent across policy revision and reboot`() = runTest {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(collectedDataEpoch = 4L, updatedAtMs = 1L),
+		)
+		var bootId = "boot-1"
+		var elapsed = 10L
+		var wall = 10L
+		val policies = RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime(bootId, elapsed++, wall++)
+		}
+		val settings = TrackingParamsState(
+			ambientWifiEnabled = true,
+			ambientCellEnabled = true,
+			legacySettingsMigrationCompleted = true,
+		)
+		val original = policies.bootstrapFromLegacy(settings)
+		val wifiConsent = requireNotNull(
+			original[TrackingSourceComponent.WIFI].ambientConsentEpoch,
+		)
+		val cellConsent = requireNotNull(
+			original[TrackingSourceComponent.CELL].ambientConsentEpoch,
+		)
+		val wifiConsentRow = requireNotNull(
+			database.sourcePolicyDao().consentEpoch(
+				com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity.SOURCE_WIFI,
+				com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose.AMBIENT_PRODUCT,
+				wifiConsent,
+			),
+		)
+		val cellConsentRow = requireNotNull(
+			database.sourcePolicyDao().consentEpoch(
+				com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity.SOURCE_CELL,
+				com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose.AMBIENT_PRODUCT,
+				cellConsent,
+			),
+		)
+		bootId = "boot-2"
+		elapsed = 1L
+		wall = 100L
+		val revised = policies.replaceCaptureSettings(
+			original.revision,
+			settings.copy(minTimeSeconds = settings.minTimeSeconds + 1),
+			reason = "TEST_UNRELATED_POLICY_CHANGE",
+		)
+
+		assertEquals(wifiConsent, revised[TrackingSourceComponent.WIFI].ambientConsentEpoch)
+		assertEquals(cellConsent, revised[TrackingSourceComponent.CELL].ambientConsentEpoch)
+		assertEquals(original.revision, wifiConsentRow.policyRevision)
+		assertEquals(original.revision, cellConsentRow.policyRevision)
+		assertEquals("boot-1", wifiConsentRow.effectiveBootId)
+		assertEquals("boot-1", cellConsentRow.effectiveBootId)
+		assertIs<AmbientRadioRetentionAuthorityResult.Applied>(
+			database.applyAmbientWifiRetentionDecision(
+				AmbientRadioRetentionDecision.GrantLiveAmbient(
+					"wifi-policy",
+					4L,
+					revised.revision,
+					wifiConsent,
+					"boot-2",
+					2L,
+					110L,
+				),
+			),
+		)
+		assertIs<AmbientRadioRetentionAuthorityResult.Applied>(
+			database.applyAmbientCellRetentionDecision(
+				AmbientRadioRetentionDecision.GrantLiveAmbient(
+					"cell-policy",
+					4L,
+					revised.revision,
+					cellConsent,
+					"boot-2",
+					3L,
+					111L,
+				),
+			),
+		)
+	}
+
+	@Test
 	fun `corrupt imported portable value leaves retention transaction unchanged`() = runTest {
 		installWifiImportRetention()
 		val fact = importedWifiFact()
@@ -325,6 +501,132 @@ class AmbientRadioAuthorityRoomTest {
 		assertEquals(1L, database.ambientWifiFactDao().importedFactCount())
 	}
 
+	@Test
+	fun `new portable policy cannot hide pre floor Wi-Fi rows under a revoked policy id`() =
+		runTest {
+			database.sourceEvidenceStateDao().ensure(
+				SourceEvidenceState(
+					collectedDataEpoch = 4L,
+					retainedFromMs = 1_500L,
+					updatedAtMs = 1L,
+				),
+			)
+			database.ambientWifiFactDao().insertRetentionAuthority(
+				AmbientWifiRetentionAuthorityIntegrity.create(
+					AmbientWifiRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+					1L,
+					AmbientWifiRetentionAuthorityEntity.STATE_REVOKED,
+					"privacy:wifi:import:old",
+					null,
+					null,
+					4L,
+					"boot-1",
+					1L,
+					1L,
+					1_500L,
+				),
+			)
+			database.ambientWifiFactDao().insertRetentionAuthority(
+				AmbientWifiRetentionAuthorityIntegrity.create(
+					AmbientWifiRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+					2L,
+					AmbientWifiRetentionAuthorityEntity.STATE_ACTIVE,
+					"privacy:wifi:import:new",
+					null,
+					null,
+					4L,
+					"boot-1",
+					2L,
+					2L,
+					1_500L,
+				),
+			)
+			database.ambientWifiFactDao().insertImportedFact(
+				importedWifiFact(
+					retentionPolicyId = "privacy:wifi:import:old",
+					retentionApprovalRevision = 1L,
+					identitySuffix = "old-policy",
+				),
+			)
+
+			val result = assertIs<AmbientWifiRetentionResult.Pruned>(
+				database.pruneAmbientWifi(
+					AmbientWifiRetentionCommand(1_500L, 4L, 2_000L),
+				),
+			)
+
+			assertEquals(1, result.importedArchives)
+			assertEquals(0L, database.ambientWifiFactDao().importedFactCount())
+		}
+
+	@Test
+	fun `revoked local Cell policy rows are pruned while the scope remains revoked`() =
+		runTest {
+			database.sourceEvidenceStateDao().ensure(
+				SourceEvidenceState(
+					collectedDataEpoch = 4L,
+					retainedFromMs = 1_500L,
+					updatedAtMs = 1L,
+				),
+			)
+			database.ambientCellFactDao().insertRetentionAuthority(
+				AmbientCellRetentionAuthorityIntegrity.create(
+					AmbientCellRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+					1L,
+					AmbientCellRetentionAuthorityEntity.STATE_REVOKED,
+					"privacy:cell:ambient:old",
+					3L,
+					2L,
+					4L,
+					"boot-1",
+					1L,
+					1L,
+					1_500L,
+				),
+			)
+			database.ambientCellFactDao().insertRetentionAuthority(
+				AmbientCellRetentionAuthorityIntegrity.create(
+					AmbientCellRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+					2L,
+					AmbientCellRetentionAuthorityEntity.STATE_REVOKED,
+					"privacy:cell:ambient:new",
+					4L,
+					3L,
+					4L,
+					"boot-1",
+					2L,
+					2L,
+					1_000L,
+				),
+			)
+			database.ambientCellFactDao().insertGap(
+				AmbientCellFactIntegrity.createGap(
+					gapId = AmbientCellAuthorityIntegrity.digest("test", "revoked-local-gap"),
+					reason = AmbientCellGapEntity.REASON_STORAGE_DISCONTINUITY,
+					gapStartTimeMs = 100L,
+					gapEndTimeMs = 1_000L,
+					storedZoneId = "UTC",
+					structuralEpochDay = 0L,
+					sourcePolicyRevision = 3L,
+					ambientConsentEpoch = 2L,
+					retentionPolicyId = "privacy:cell:ambient:old",
+					retentionApprovalRevision = 1L,
+					collectedDataEpoch = 4L,
+					scopeDeletionGeneration = 0L,
+					createdAtMs = 1_000L,
+				),
+			)
+
+			val result = assertIs<AmbientCellRetentionResult.Pruned>(
+				database.pruneAmbientCell(
+					AmbientCellRetentionCommand(1_500L, 4L, 2_000L),
+				),
+			)
+
+			assertEquals(1, result.gaps)
+			assertEquals(emptyList(), database.ambientCellFactDao().allLocalGaps(10))
+		}
+
 	private suspend fun installWifiImportRetention() {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(
@@ -345,14 +647,19 @@ class AmbientRadioAuthorityRoomTest {
 				"boot-1",
 				1L,
 				1L,
+				1_500L,
 			),
 		)
 	}
 
-	private fun importedWifiFact(): ImportedAmbientWifiFactEntity {
+	private fun importedWifiFact(
+		retentionPolicyId: String = "privacy:wifi:import:v1",
+		retentionApprovalRevision: Long = 1L,
+		identitySuffix: String = "default",
+	): ImportedAmbientWifiFactEntity {
 		val draft = ImportedAmbientWifiFactEntity(
-			archiveId = digest("archive"),
-			factId = digest("fact"),
+			archiveId = digest("archive-$identitySuffix"),
+			factId = digest("fact-$identitySuffix"),
 			semanticRevision = 1L,
 			supersedesSemanticRevision = null,
 			contentChecksum = "0".repeat(64),
@@ -372,8 +679,8 @@ class AmbientRadioAuthorityRoomTest {
 			strongestSignalDbm = -50,
 			weakestSignalDbm = -50,
 			meanSignalDbm = -50.0,
-			retentionPolicyId = "privacy:wifi:import:v1",
-			retentionApprovalRevision = 1L,
+			retentionPolicyId = retentionPolicyId,
+			retentionApprovalRevision = retentionApprovalRevision,
 			collectedDataEpoch = 4L,
 			importDeletionGeneration = 0L,
 			receivedAtMs = 2_000L,

@@ -39,6 +39,8 @@ class TrackingPurposeAvailabilityTest {
 		val first = automaticIdentity(policy = 8L, consent = 3L, token = "control-first")
 		val started = store.beginOrReplaceAutomaticControlLease(first)
 			.shouldBeInstanceOf<AutomaticControlLeaseStartResult.Started>()
+		store.beginOrReplaceAutomaticControlLease(first)
+			.shouldBeInstanceOf<AutomaticControlLeaseStartResult.InProgress>()
 		started.lease.identity shouldBe first
 		started.snapshot.automaticControl shouldBe
 			AutomaticTrackingOperationalAvailability.Unavailable(
@@ -81,6 +83,22 @@ class TrackingPurposeAvailabilityTest {
 		) shouldBe AutomaticControlPublicationAcceptance.Rejected(
 			TrackingPurposePublicationRejection.CANCELLED,
 		)
+	}
+
+	@Test
+	fun `same ambient identity reports in progress instead of issuing Started twice`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val identity = identity(
+			policy = 10L,
+			consent = 3L,
+			rollout = 4L,
+			token = "ambient-in-progress",
+		)
+
+		store.beginOrReplaceAmbientLease(identity)
+			.shouldBeInstanceOf<AmbientLeaseStartResult.Started>()
+		store.beginOrReplaceAmbientLease(identity)
+			.shouldBeInstanceOf<AmbientLeaseStartResult.InProgress>()
 	}
 
 	@Test
@@ -176,6 +194,19 @@ class TrackingPurposeAvailabilityTest {
 			mapOf(
 				automatic.sourcePurpose to automatic.toAuthorityVector().copy(
 					executionRevision = automatic.executionRevision + 1L,
+				),
+				ambient.sourcePurpose to ambient.toAuthorityVector(),
+			),
+		).automaticControl shouldBe AutomaticTrackingOperationalAvailability.Unavailable(
+			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+			automatic,
+		)
+
+		CurrentTrackingPurposeAvailability(
+			published,
+			mapOf(
+				automatic.sourcePurpose to automatic.toAuthorityVector().copy(
+					retainedFromMs = 123L,
 				),
 				ambient.sourcePurpose to ambient.toAuthorityVector(),
 			),
@@ -547,6 +578,22 @@ class TrackingPurposeAvailabilityTest {
 	}
 
 	@Test
+	fun `trusted retention failure is published without operational identity`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+
+		store.publishAmbientUnavailable(
+			AmbientTrackingSource.LOCATION,
+			AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.LOCATION) shouldBe
+			AmbientSourceOperationalAvailability.unavailable(
+				AmbientTrackingSource.LOCATION,
+				AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+			)
+	}
+
+	@Test
 	fun `old completion is rejected after policy regrant rollout or owner token replacement`() {
 		val store = AtomicTrackingPurposeAvailabilityStore()
 		val old = identity(policy = 10L, consent = 3L, rollout = 4L, token = "lease-old")
@@ -790,5 +837,6 @@ class TrackingPurposeAvailabilityTest {
 		collectedDataEpoch = collectedDataEpoch,
 		rolloutRevision = rolloutRevision,
 		executionRevision = executionRevision,
+		retainedFromMs = retainedFromMs,
 	)
 }

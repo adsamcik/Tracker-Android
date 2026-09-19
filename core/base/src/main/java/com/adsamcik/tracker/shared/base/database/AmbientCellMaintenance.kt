@@ -87,51 +87,50 @@ suspend fun AppDatabase.pruneAmbientCell(
 		)
 	}
 	val dao = ambientCellFactDao()
-	val liveRow = dao.latestRetentionAuthority(
-		AmbientCellRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
-	)
-	val importRow = dao.latestRetentionAuthority(
-		AmbientCellRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
-	)
-	if (liveRow?.let(AmbientCellRetentionAuthorityIntegrity::isAuthentic) == false ||
-		importRow?.let(AmbientCellRetentionAuthorityIntegrity::isAuthentic) == false
-	) {
-		return@withTransaction cellRetentionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
-		)
-	}
-	val liveRetention = liveRow?.takeIf {
-		it.isActive && it.collectedDataEpoch == command.expectedCollectedDataEpoch
-	}
-	val importRetention = importRow?.takeIf {
-		it.isActive && it.collectedDataEpoch == command.expectedCollectedDataEpoch
-	}
-	if (liveRetention == null && importRetention == null) {
-		return@withTransaction cellRetentionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE,
-		)
-	}
 	currentCoroutineContext().ensureActive()
-	val localIds = liveRetention?.let {
-		dao.localFactIdsBefore(command.beforeMs, it.opaquePolicyId, LIMIT + 1)
-	}.orEmpty()
-	val localGaps = liveRetention?.let {
-		dao.localGapsBefore(command.beforeMs, it.opaquePolicyId, LIMIT + 1)
-	}.orEmpty()
-	val importedIds = importRetention?.let {
-		dao.importedFactIdsBefore(command.beforeMs, it.opaquePolicyId, LIMIT + 1)
-	}.orEmpty()
-	val importedGapIds = importRetention?.let {
-		dao.importedGapIdsBefore(command.beforeMs, it.opaquePolicyId, LIMIT + 1)
-	}.orEmpty()
+	val localIds = dao.localFactIdsBefore(command.beforeMs, LIMIT + 1)
+	val localGaps = dao.localGapsBefore(command.beforeMs, LIMIT + 1)
+	val importedIds = dao.importedFactIdsBefore(command.beforeMs, LIMIT + 1)
+	val importedGapIds = dao.importedGapIdsBefore(command.beforeMs, LIMIT + 1)
 	if (listOf(localIds, localGaps, importedIds, importedGapIds).any { it.size > LIMIT }) {
 		return@withTransaction cellRetentionUnavailable(
 			AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
 		)
 	}
-	if (localIds.isEmpty() && localGaps.isEmpty() &&
-		importedIds.isEmpty() && importedGapIds.isEmpty()
-	) return@withTransaction AmbientCellRetentionResult.NoChange
+	val hasLocalCandidates = localIds.isNotEmpty() || localGaps.isNotEmpty()
+	val hasImportedCandidates = importedIds.isNotEmpty() || importedGapIds.isNotEmpty()
+	val liveAuthorities = if (hasLocalCandidates) {
+		dao.retentionAuthorities(
+			AmbientCellRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			LIMIT + 1,
+		)
+	} else {
+		emptyList()
+	}
+	val importAuthorities = if (hasImportedCandidates) {
+		dao.retentionAuthorities(
+			AmbientCellRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+			LIMIT + 1,
+		)
+	} else {
+		emptyList()
+	}
+	if (liveAuthorities.size > LIMIT || importAuthorities.size > LIMIT) {
+		return@withTransaction cellRetentionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+		)
+	}
+	if (
+		(hasLocalCandidates && !liveAuthorities.hasCurrentCellSettlementAuthority(command)) ||
+		(hasImportedCandidates && !importAuthorities.hasCurrentCellSettlementAuthority(command))
+	) {
+		return@withTransaction cellRetentionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE,
+		)
+	}
+	if (!hasLocalCandidates && !hasImportedCandidates) {
+		return@withTransaction AmbientCellRetentionResult.NoChange
+	}
 	val localLineages = localIds.takeIf { it.isNotEmpty() }?.let {
 		dao.localFactLineages(it, LIMIT + 1)
 	}.orEmpty()
@@ -147,6 +146,10 @@ suspend fun AppDatabase.pruneAmbientCell(
 		localGaps.any { AmbientCellFactIntegrity.gapChecksum(it) != it.effectChecksum } ||
 		importedLineages.any { !AmbientCellFactIntegrity.isAuthentic(it) } ||
 		importedGaps.any { !AmbientCellFactIntegrity.isAuthentic(it) } ||
+		localLineages.any { !liveAuthorities.authenticatesCellLocal(it) } ||
+		localGaps.any { !liveAuthorities.authenticatesCellLocal(it) } ||
+		importedLineages.any { !importAuthorities.authenticatesCellImported(it) } ||
+		importedGaps.any { !importAuthorities.authenticatesCellImported(it) } ||
 		!localLineages.completeLocalCellLineages() ||
 		!importedLineages.completeImportedCellLineages()
 	) {
@@ -154,6 +157,7 @@ suspend fun AppDatabase.pruneAmbientCell(
 			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
 		)
 	}
+
 	val marker = dao.latestDeletionMarker(command.expectedCollectedDataEpoch)
 	if (marker != null && !AmbientCellFactIntegrity.isAuthentic(marker)) {
 		return@withTransaction cellRetentionUnavailable(
@@ -240,6 +244,59 @@ suspend fun AppDatabase.pruneAmbientCell(
 		emptiedArchives.size,
 		localGaps.size + importedGaps.size,
 	)
+}
+
+private fun List<AmbientCellRetentionAuthorityEntity>.hasCurrentCellSettlementAuthority(
+	command: AmbientCellRetentionCommand,
+): Boolean {
+	val current = maxByOrNull(AmbientCellRetentionAuthorityEntity::approvalRevision) ?: return false
+	return AmbientCellRetentionAuthorityIntegrity.isAuthentic(current) &&
+		all(AmbientCellRetentionAuthorityIntegrity::isAuthentic) &&
+		current.collectedDataEpoch == command.expectedCollectedDataEpoch &&
+		(
+			current.state == AmbientCellRetentionAuthorityEntity.STATE_REVOKED ||
+				current.retainedFromMs == command.beforeMs
+			)
+}
+
+private fun List<AmbientCellRetentionAuthorityEntity>.authenticatesCellLocal(
+	row: AmbientCellFactRevisionEntity,
+): Boolean = any {
+	it.scope == AmbientCellRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT &&
+		it.opaquePolicyId == row.retentionPolicyId &&
+		it.approvalRevision == row.retentionApprovalRevision &&
+		it.sourcePolicyRevision == row.sourcePolicyRevision &&
+		it.ambientConsentEpoch == row.ambientConsentEpoch &&
+		it.collectedDataEpoch == row.collectedDataEpoch
+}
+
+private fun List<AmbientCellRetentionAuthorityEntity>.authenticatesCellLocal(
+	row: AmbientCellGapEntity,
+): Boolean = any {
+	it.scope == AmbientCellRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT &&
+		it.opaquePolicyId == row.retentionPolicyId &&
+		it.approvalRevision == row.retentionApprovalRevision &&
+		it.sourcePolicyRevision == row.sourcePolicyRevision &&
+		it.ambientConsentEpoch == row.ambientConsentEpoch &&
+		it.collectedDataEpoch == row.collectedDataEpoch
+}
+
+private fun List<AmbientCellRetentionAuthorityEntity>.authenticatesCellImported(
+	row: ImportedAmbientCellFactEntity,
+): Boolean = any {
+	it.scope == AmbientCellRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT &&
+		it.opaquePolicyId == row.retentionPolicyId &&
+		it.approvalRevision == row.retentionApprovalRevision &&
+		it.collectedDataEpoch == row.collectedDataEpoch
+}
+
+private fun List<AmbientCellRetentionAuthorityEntity>.authenticatesCellImported(
+	row: ImportedAmbientCellGapEntity,
+): Boolean = any {
+	it.scope == AmbientCellRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT &&
+		it.opaquePolicyId == row.retentionPolicyId &&
+		it.approvalRevision == row.retentionApprovalRevision &&
+		it.collectedDataEpoch == row.collectedDataEpoch
 }
 
 /** Fences a revoked Ambient Cell consent epoch even when no payload rows exist. */

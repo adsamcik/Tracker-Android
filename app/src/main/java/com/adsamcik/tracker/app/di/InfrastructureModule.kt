@@ -2,6 +2,7 @@ package com.adsamcik.tracker.app.di
 
 import android.content.Context
 import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.work.WorkManager
 import com.adsamcik.tracker.app.tracebox.TrackerTraceboxHandleProvider
 import com.adsamcik.tracker.diagnostics.TrackingDiagnosticClearResult
 import com.adsamcik.tracker.diagnostics.TrackingDiagnosticDataControl
@@ -12,10 +13,12 @@ import com.adsamcik.tracker.app.settings.CollectedDataWriterQuiescer
 import com.adsamcik.tracker.app.settings.DefaultCollectedDataDeletionService
 import com.adsamcik.tracker.app.settings.DefaultCollectedDataWriterQuiescer
 import com.adsamcik.tracker.app.settings.PostDeletionAutomaticControlRestorer
+import com.adsamcik.tracker.app.maintenance.RetentionWorkScheduler
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityBootstrapCoordinator
 import com.adsamcik.tracker.app.receiver.BootTrackingRecoveryScheduler
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
-import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
+import com.adsamcik.tracker.tracker.api.TrackingPurposeDeletionFencer
 import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.points.database.PointsDatabase
@@ -26,6 +29,7 @@ import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBack
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupStore
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
@@ -90,7 +94,7 @@ import com.adsamcik.tracker.shared.base.assist.Assist
 /**
  * Hilt module providing core infrastructure dependencies.
  * These are application-scoped singletons used across the entire app.
- * 
+ *
  * Per copilot-instructions Section 16A:
  * - Stable abstractions for time, dispatchers, coroutine scopes
  * - Single source of truth for database instance
@@ -176,6 +180,11 @@ object InfrastructureModule {
 
     @Provides
     @Singleton
+    fun provideWorkManager(@ApplicationContext context: Context): WorkManager =
+        WorkManager.getInstance(context)
+
+    @Provides
+    @Singleton
     fun provideDatabaseMigrationBackupRepository(
         @ApplicationContext context: Context,
     ): DatabaseMigrationBackupRepository = DatabaseMigrationBackupStore(context)
@@ -193,11 +202,13 @@ object InfrastructureModule {
         trackerStateReader: TrackerStateReader,
         activityWatcherController: ActivityWatcherController,
         exportAutomationController: ExportAutomationController,
+		retentionWorkScheduler: RetentionWorkScheduler,
     ): CollectedDataWriterQuiescer = DefaultCollectedDataWriterQuiescer(
         context = context,
         trackerStateReader = trackerStateReader,
         activityWatcherController = activityWatcherController,
         exportAutomationController = exportAutomationController,
+		retentionWorkScheduler = retentionWorkScheduler,
     )
 
     @Provides
@@ -210,9 +221,13 @@ object InfrastructureModule {
 		collectedDataLifecycleStore: CollectedDataLifecycleStore,
 		startupDeletionBarrier: TrackingStartupDeletionBarrier,
 		activityRegistrationArbiter: Provider<ActivityRegistrationArbiter>,
-		ambientStepsProviderLifecycle: Provider<AmbientStepsProviderLifecycle>,
+		purposeDeletionFencer: Provider<TrackingPurposeDeletionFencer>,
 		automaticControlRestorer: PostDeletionAutomaticControlRestorer,
+		retentionAuthorityProducer: RetentionAuthorityProducer,
+		sourcePolicyAuthorityBootstrapCoordinator:
+			Provider<SourcePolicyAuthorityBootstrapCoordinator>,
 		stepsWriterTransitionCoordinator: Provider<StepsSessionFactWriterTransitionCoordinator>,
+		@ApplicationScope providerFenceScope: CoroutineScope,
         dispatchersProvider: DispatchersProvider,
         traceboxHandleProvider: TrackerTraceboxHandleProvider,
 		trackingDiagnosticDataControl: TrackingDiagnosticDataControl,
@@ -224,11 +239,19 @@ object InfrastructureModule {
 		collectedDataLifecycleStore = collectedDataLifecycleStore,
 		startupDeletionBarrier = startupDeletionBarrier,
 		activityRegistrationArbiterProvider = activityRegistrationArbiter,
-		ambientStepsProviderLifecycleProvider = ambientStepsProviderLifecycle,
+		purposeDeletionFencerProvider = purposeDeletionFencer,
 		automaticControlRestorer = automaticControlRestorer,
-		postDatabaseDeletion = { updatedAtMs ->
-			stepsWriterTransitionCoordinator.get().rearmAfterFullDeletion(updatedAtMs)
+		retentionAuthorityProducer = retentionAuthorityProducer,
+		sourcePolicyAuthorityBootstrapCoordinatorProvider =
+			sourcePolicyAuthorityBootstrapCoordinator,
+		postDatabaseDeletion = { operation ->
+			stepsWriterTransitionCoordinator.get().rearmAfterFullDeletion(
+				operationId = operation.operationId,
+				targetCollectedDataEpoch = operation.targetCollectedDataEpoch,
+				updatedAtMs = operation.deletedAtMs,
+			)
 		},
+		providerFenceScope = providerFenceScope,
         traceboxDataDeletion = {
             withContext(dispatchersProvider.io) {
                 traceboxHandleProvider.handle.delete(DeleteRequest.ALL_TRACEBOX_DATA) ==

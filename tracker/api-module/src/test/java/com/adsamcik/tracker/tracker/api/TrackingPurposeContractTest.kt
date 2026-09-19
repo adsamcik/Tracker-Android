@@ -54,6 +54,7 @@ class TrackingPurposeContractTest {
 			rolloutRevision = 3L,
 			executionRevision = 9L,
 			ownerCasToken = "wifi-owner-9",
+			retainedFromMs = 123L,
 		)
 
 		val ambient = AmbientReconciliationIdentity.from(common)
@@ -93,6 +94,7 @@ class TrackingPurposeContractTest {
 			{ valid.copy(rolloutRevision = -1L) },
 			{ valid.copy(executionRevision = -1L) },
 			{ valid.copy(ownerCasToken = " ") },
+			{ valid.copy(retainedFromMs = -1L) },
 		).forEach { create ->
 			shouldThrow<IllegalArgumentException> { create() }
 		}

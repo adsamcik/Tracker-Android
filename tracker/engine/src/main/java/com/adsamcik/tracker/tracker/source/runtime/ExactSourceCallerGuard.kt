@@ -468,6 +468,12 @@ private fun validateCurrentAuthority(
 				requested.sourcePurpose,
 			)
 		}
+		if (requestedLease.retainedFromMs != currentLease.retainedFromMs) {
+			return rejected(
+				SourceCallerRejectionReason.STALE_RETENTION_BOUNDARY,
+				requested.sourcePurpose,
+			)
+		}
 		if (requestedLease.rolloutRevision != currentLease.rolloutRevision) {
 			return rejected(SourceCallerRejectionReason.STALE_ROLLOUT_REVISION, requested.sourcePurpose)
 		}
@@ -591,6 +597,7 @@ private fun replayMismatchReason(
 		}
 		if (
 			manifestOrder == AUTHORITY_INCOMPARABLE ||
+			requestedLease.retainedFromMs != priorLease.retainedFromMs ||
 			requestedLease.ownerCasToken != priorLease.ownerCasToken
 		) {
 			mismatch = true
@@ -655,7 +662,8 @@ private fun permitted(
 )
 
 private object SourceCallerAcceptedAuthorityCodec {
-	private const val FORMAT_VERSION = 1
+	private const val FORMAT_VERSION = 2
+	private const val LEGACY_FORMAT_VERSION = 1
 
 	fun encode(authority: AcceptedSourceCallerAuthority): String {
 		val bytes = ByteArrayOutputStream()
@@ -672,6 +680,8 @@ private object SourceCallerAcceptedAuthorityCodec {
 				output.writeLong(lease.policyRevision)
 				output.writeLong(lease.consentEpoch)
 				output.writeLong(lease.collectedDataEpoch)
+				output.writeBoolean(lease.retainedFromMs != null)
+				lease.retainedFromMs?.let(output::writeLong)
 				output.writeLong(lease.rolloutRevision)
 				output.writeLong(lease.executionRevision)
 				output.writeUTF(lease.ownerCasToken)
@@ -689,7 +699,8 @@ private object SourceCallerAcceptedAuthorityCodec {
 		return try {
 			val bytes = Base64.getUrlDecoder().decode(encoded)
 			DataInputStream(ByteArrayInputStream(bytes)).use { input ->
-				if (input.readInt() != FORMAT_VERSION) return null
+				val formatVersion = input.readInt()
+				if (formatVersion !in LEGACY_FORMAT_VERSION..FORMAT_VERSION) return null
 				val origin = AcceptedSourceCallerOrigin.valueOf(input.readUTF())
 				val purpose = TrackingPurpose.fromStableName(input.readUTF())
 				val demandCount = input.readInt()
@@ -703,6 +714,14 @@ private object SourceCallerAcceptedAuthorityCodec {
 							policyRevision = input.readLong(),
 							consentEpoch = input.readLong(),
 							collectedDataEpoch = input.readLong(),
+							retainedFromMs = if (
+								formatVersion >= FORMAT_VERSION &&
+								input.readBoolean()
+							) {
+								input.readLong()
+							} else {
+								null
+							},
 							rolloutRevision = input.readLong(),
 							executionRevision = input.readLong(),
 							ownerCasToken = input.readUTF(),

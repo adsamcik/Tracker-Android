@@ -366,6 +366,8 @@ class ExactSourceCallerGuardTest {
 				SourceCallerRejectionReason.STALE_CONSENT_EPOCH,
 			withLease(requested) { it.copy(collectedDataEpoch = it.collectedDataEpoch + 1L) } to
 				SourceCallerRejectionReason.STALE_COLLECTED_DATA_EPOCH,
+			withLease(requested) { it.copy(retainedFromMs = 1_000L) } to
+				SourceCallerRejectionReason.STALE_RETENTION_BOUNDARY,
 			withLease(requested) { it.copy(rolloutRevision = it.rolloutRevision + 1L) } to
 				SourceCallerRejectionReason.STALE_ROLLOUT_REVISION,
 			withLease(requested) { it.copy(executionRevision = it.executionRevision + 1L) } to
@@ -451,6 +453,12 @@ class ExactSourceCallerGuardTest {
 			replayLeaseMutation(original, location, { it.copy(consentEpoch = 6L) }, false),
 			replayLeaseMutation(original, location, { it.copy(collectedDataEpoch = 6L) }, true),
 			replayLeaseMutation(original, location, { it.copy(collectedDataEpoch = 4L) }, false),
+			replayMutation(
+				original,
+				location,
+				withLease(location) { it.copy(retainedFromMs = 1_000L) },
+				SourceCallerRejectionReason.REPLAY_AUTHORITY_MISMATCH,
+			),
 			replayLeaseMutation(original, location, { it.copy(rolloutRevision = 14L) }, true),
 			replayLeaseMutation(original, location, { it.copy(rolloutRevision = 12L) }, false),
 			replayLeaseMutation(original, location, { it.copy(executionRevision = 18L) }, true),
@@ -511,6 +519,8 @@ class ExactSourceCallerGuardTest {
 				SourceCallerRejectionReason.STALE_CONSENT_EPOCH,
 			setOf(withLease(location) { it.copy(collectedDataEpoch = 6L) }) to
 				SourceCallerRejectionReason.STALE_COLLECTED_DATA_EPOCH,
+			setOf(withLease(location) { it.copy(retainedFromMs = 1_000L) }) to
+				SourceCallerRejectionReason.STALE_RETENTION_BOUNDARY,
 			setOf(withLease(location) { it.copy(rolloutRevision = 14L) }) to
 				SourceCallerRejectionReason.STALE_ROLLOUT_REVISION,
 			setOf(withLease(location) { it.copy(executionRevision = 18L) }) to
@@ -523,6 +533,25 @@ class ExactSourceCallerGuardTest {
 			fixture.current = current
 			fixture.guard.accept(exactReplay) shouldBe rejected(reason, location)
 		}
+	}
+
+	@Test
+	fun `persisted replay preserves the exact retained boundary`() = runTest {
+		val location = withLease(capture(TrackingSource.LOCATION)) {
+			it.copy(retainedFromMs = 1_000L)
+		}
+		val fixture = TrustedSourceCallerGuardFixtureFactory.create(current = setOf(location))
+		val receipt = fixture.permit(
+			SourceCallerRequest.ManualSessionStart(
+				requestedCapturedSources = setOf(TrackingSource.LOCATION),
+				manifestIdentity = MANIFEST,
+				requestedDemandIdentities = setOf(location),
+			),
+		)
+
+		fixture.guard.accept(
+			replay(receipt, SourceCallerReplayKind.RECOVERY, setOf(location)),
+		) shouldBe SourceCallerGuardResult.Permitted(receipt)
 	}
 
 	@Test

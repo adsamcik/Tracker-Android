@@ -206,6 +206,14 @@ class RoomDurableSourceIngress @Inject constructor(
 						AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY,
 					)
 				}
+				if (
+					database.collectedDataDeletionOperationDao()
+						.activeRetentionFloorSettlement() != null
+				) {
+					return@transaction AdmissionResult.RetryableFailure(
+						AdmissionFailureCode.LIFECYCLE_BARRIER_IN_PROGRESS,
+					)
+				}
 				val stateDao = database.sourceEvidenceStateDao()
 				val walDao = database.sourceEventWalDao()
 				var state = stateDao.get()
@@ -554,6 +562,14 @@ class RoomDurableSourceIngress @Inject constructor(
 				if (!startupGate.isReadyGeneration(startupGeneration)) {
 					return@transaction DeliveryAdmissionResult.RetryableFailure(
 						AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY,
+					)
+				}
+				if (
+					database.collectedDataDeletionOperationDao()
+						.activeRetentionFloorSettlement() != null
+				) {
+					return@transaction DeliveryAdmissionResult.RetryableFailure(
+						AdmissionFailureCode.LIFECYCLE_BARRIER_IN_PROGRESS,
 					)
 				}
 				val stateDao = database.sourceEvidenceStateDao()

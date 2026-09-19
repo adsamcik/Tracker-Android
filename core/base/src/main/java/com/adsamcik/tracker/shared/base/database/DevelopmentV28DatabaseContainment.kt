@@ -135,18 +135,37 @@ class ActiveDatabasePreflight internal constructor(
 				return ActiveDatabasePreflightResult.Blocked(
 					ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28,
 				)
+			FinalV28MarkerState.STALE ->
+				return ActiveDatabasePreflightResult.Blocked(
+					ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28,
+				)
 			FinalV28MarkerState.INVALID ->
 				return ActiveDatabasePreflightResult.Blocked(
 					ActiveDatabaseBlockReason.INVALID_FINAL_V28_MARKER,
 				)
 			FinalV28MarkerState.VALID -> Unit
 		}
-		if (!database.hasTable(FINAL_V28_REQUIRED_TABLE) ||
+		if (!FINAL_V28_REQUIRED_TABLES.all(database::hasTable) ||
 			!database.hasColumn(FINAL_V28_REQUIRED_COLUMN_TABLE, FINAL_V28_REQUIRED_COLUMN) ||
+			!database.hasColumn(
+				FINAL_V28_RADIO_RECEIPT_TABLE,
+				FINAL_V28_RADIO_RECEIPT_COLUMN,
+			) ||
+			!FINAL_V28_RETENTION_JOURNAL_COLUMNS.all { column ->
+				database.hasColumn(FINAL_V28_RETENTION_JOURNAL_TABLE, column)
+			} ||
+			!FINAL_V28_EXECUTION_RECEIPT_COLUMNS.all { column ->
+				database.hasColumn(FINAL_V28_EXECUTION_RECEIPT_TABLE, column)
+			} ||
 			!database.hasSingleColumnIndex(
-				table = FINAL_V28_REQUIRED_TABLE,
+				table = FINAL_V28_INDEX_TABLE,
 				index = FINAL_V28_REQUIRED_INDEX,
 				column = FINAL_V28_REQUIRED_INDEX_COLUMN,
+			) ||
+			!database.hasSingleColumnIndex(
+				table = FINAL_V28_RETENTION_TABLE,
+				index = FINAL_V28_RETENTION_INDEX,
+				column = FINAL_V28_RETENTION_INDEX_COLUMN,
 			)
 		) {
 			return ActiveDatabasePreflightResult.Blocked(
@@ -349,21 +368,28 @@ private fun SQLiteDatabase.finalV28MarkerState(): FinalV28MarkerState = rawQuery
 	arrayOf(FINAL_V28_MARKER_ID.toString()),
 ).use { cursor ->
 	if (!cursor.moveToFirst()) return@use FinalV28MarkerState.MISSING
-	if (cursor.getString(0) == FINAL_V28_ASSEMBLY_ID) {
-		FinalV28MarkerState.VALID
-	} else {
-		FinalV28MarkerState.INVALID
+	when (cursor.getString(0)) {
+		FINAL_V28_ASSEMBLY_ID -> FinalV28MarkerState.VALID
+		in STALE_FINAL_V28_ASSEMBLY_IDS -> FinalV28MarkerState.STALE
+		else -> FinalV28MarkerState.INVALID
 	}
 }
 
 private enum class FinalV28MarkerState {
 	MISSING,
+	STALE,
 	INVALID,
 	VALID,
 }
 
 internal const val FINAL_V28_MARKER_ID = -280_917
-internal const val FINAL_V28_ASSEMBLY_ID = "tracker-v28-final-20260917"
+internal const val FINAL_V28_ASSEMBLY_ID = "tracker-v28-retention-execution-20260919"
+private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
+	"tracker-v28-final-20260917",
+	"tracker-v28-retention-final-20260917",
+	"tracker-v28-retention-integrity-20260918",
+	"tracker-v28-retention-journal-20260919",
+)
 
 private val BASELINE_TABLES = setOf(
 	"room_master_table",
@@ -371,11 +397,42 @@ private val BASELINE_TABLES = setOf(
 	"tracker_run",
 	"pending_signal",
 )
-private const val FINAL_V28_REQUIRED_TABLE = "imported_wifi_deletion_generation"
+private val FINAL_V28_REQUIRED_TABLES = setOf(
+	"imported_wifi_deletion_generation",
+	"ambient_steps_retention_authority",
+	"ambient_steps_native_replay_footprint",
+	"collected_data_deletion_operation",
+	"retention_work_execution_receipt",
+)
 private const val FINAL_V28_REQUIRED_COLUMN_TABLE = "pending_signal"
 private const val FINAL_V28_REQUIRED_COLUMN = "pressure_writer_owner_generation"
+private const val FINAL_V28_RADIO_RECEIPT_TABLE = "cell_captured_entry_deletion_receipt"
+private const val FINAL_V28_RADIO_RECEIPT_COLUMN = "retained_from_ms"
+private const val FINAL_V28_RETENTION_JOURNAL_TABLE = "collected_data_deletion_operation"
+private val FINAL_V28_RETENTION_JOURNAL_COLUMNS = setOf(
+	"retention_work_execution_id",
+	"retention_destructive_plan",
+	"settled_retained_from_ms",
+	"source_maintenance_at_ms",
+	"retention_active_sources",
+)
+private const val FINAL_V28_EXECUTION_RECEIPT_TABLE = "retention_work_execution_receipt"
+private val FINAL_V28_EXECUTION_RECEIPT_COLUMNS = setOf(
+	"execution_id",
+	"work_request_id",
+	"execution_generation",
+	"worker_kind",
+	"started_at_ms",
+	"state",
+	"destructive_plan",
+	"updated_at_ms",
+)
+private const val FINAL_V28_INDEX_TABLE = "imported_wifi_deletion_generation"
 private const val FINAL_V28_REQUIRED_INDEX = "idx_imported_wifi_deletion_scope"
 private const val FINAL_V28_REQUIRED_INDEX_COLUMN = "deletion_scope_digest"
+private const val FINAL_V28_RETENTION_TABLE = "ambient_steps_retention_authority"
+private const val FINAL_V28_RETENTION_INDEX = "idx_ambient_steps_retention_scope"
+private const val FINAL_V28_RETENTION_INDEX_COLUMN = "scope"
 
 private val LOCK_EXCEPTION_CLASS_NAMES = setOf(
 	"android.database.sqlite.SQLiteBusyException",

@@ -8,6 +8,8 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEn
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
@@ -511,6 +513,21 @@ class AmbientStepsDayRepositoryTest {
 		)
 		database.sourcePolicyDao().insertPolicies(listOf(policy(1L)))
 		database.sourcePolicyDao().insertConsentEpochs(listOf(consent()))
+		database.ambientStepsFactRevisionDao().insertRetentionAuthority(
+			AmbientStepsRetentionAuthorityIntegrity.create(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				1L,
+				AmbientStepsRetentionAuthorityEntity.STATE_ACTIVE,
+				RETENTION_POLICY_ID,
+				1L,
+				1L,
+				7L,
+				initialAuthorizationBootId,
+				initialAuthorizationEffectiveElapsedRealtimeNanos,
+				initialAuthorizationEffectiveTimeMs,
+				evidenceState.retainedFromMs,
+			),
+		)
 		database.sourceBrokerDao().insertAuthorizations(
 			buildList {
 				add(
@@ -680,6 +697,9 @@ class AmbientStepsDayRepositoryTest {
 		cursorRevision = 1L,
 		status = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
 		updatedAtMs = DAY_END,
+		retentionScope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+		retentionPolicyId = RETENTION_POLICY_ID,
+		retentionApprovalRevision = 1L,
 	)
 
 	private fun cursorWithGap() = cursor().copy(
@@ -808,6 +828,9 @@ class AmbientStepsDayRepositoryTest {
 				scopeDeletionGeneration = 0L,
 				effectChecksum = "0".repeat(64),
 				appliedAtMs = endTimeMs,
+				retentionScope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				retentionPolicyId = RETENTION_POLICY_ID,
+				retentionApprovalRevision = 1L,
 			),
 		)
 	}
@@ -838,6 +861,9 @@ class AmbientStepsDayRepositoryTest {
 			ambientConsentEpoch = null,
 			scopeDeletionGeneration = 1L,
 			appliedAtMs = DAY_END + 2L,
+			retentionScope = null,
+			retentionPolicyId = null,
+			retentionApprovalRevision = null,
 		),
 	)
 
@@ -889,6 +915,7 @@ class AmbientStepsDayRepositoryTest {
 	)
 
 	private companion object {
+		const val RETENTION_POLICY_ID = "test-retention"
 		const val DAY_END = 86_400_000L
 		const val GAP_START = 10_000L
 		const val GAP_END = 11_000L

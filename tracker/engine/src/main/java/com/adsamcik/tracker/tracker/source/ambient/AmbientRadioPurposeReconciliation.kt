@@ -22,6 +22,7 @@ data class AmbientRadioReconciliationEvidence(
 	val policyRevision: Long?,
 	val ambientConsentEpoch: Long?,
 	val collectedDataEpoch: Long?,
+	val retainedFromMs: Long? = null,
 	val rolloutRevision: Long,
 	val executionGeneration: Long?,
 	val authorityRevision: Long?,
@@ -35,6 +36,7 @@ data class AmbientRadioReconciliationEvidence(
 		require(policyRevision == null || policyRevision > 0L)
 		require(ambientConsentEpoch == null || ambientConsentEpoch >= 0L)
 		require(collectedDataEpoch == null || collectedDataEpoch >= 0L)
+		require(retainedFromMs == null || retainedFromMs >= 0L)
 		require(rolloutRevision >= 0L)
 		require(executionGeneration == null || executionGeneration > 0L)
 		require(authorityRevision == null || authorityRevision > 0L)
@@ -59,6 +61,7 @@ data class AmbientRadioReconciliationEvidence(
 				policyRevision = authority.policyRevision,
 				ambientConsentEpoch = authority.ambientConsentEpoch,
 				collectedDataEpoch = authority.collectedDataEpoch,
+				retainedFromMs = authority.retainedFromMs,
 				rolloutRevision = authority.rolloutRevision,
 				executionGeneration = authority.executionGeneration,
 				authorityRevision = authority.authorityRevision,
@@ -108,11 +111,13 @@ internal fun prepareAmbientRadioReport(
 	val actualPolicyRevision = evidence.policyRevision
 	val actualConsentEpoch = evidence.ambientConsentEpoch
 	val actualCollectedDataEpoch = evidence.collectedDataEpoch
+	val actualRetainedFromMs = evidence.retainedFromMs
 	if (actualPolicyRevision == null || actualConsentEpoch == null ||
 		actualCollectedDataEpoch == null ||
 		lease.identity.policyRevision != actualPolicyRevision ||
 		lease.identity.consentEpoch != actualConsentEpoch ||
 		lease.identity.collectedDataEpoch != actualCollectedDataEpoch ||
+		lease.identity.retainedFromMs != actualRetainedFromMs ||
 		lease.identity.rolloutRevision != evidence.rolloutRevision ||
 		lease.identity.ownerCasToken != evidence.ownerCasToken ||
 		evidence.authorityReconciliationAttempt != evidence.reconciliationAttempt

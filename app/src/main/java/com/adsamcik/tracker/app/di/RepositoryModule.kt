@@ -14,26 +14,37 @@ import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepository
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import com.adsamcik.tracker.shared.preferences.retention.DefaultRetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.LocationPassiveRetentionAuthority
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityOperationLease
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.lifecycle.DefaultCollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.settings.DefaultTrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.DefaultTrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.AmbientStepsPolicyRevisionReconciliation
+import com.adsamcik.tracker.shared.preferences.tracking.AmbientStepsPolicyRevisionReconciler
 import com.adsamcik.tracker.shared.preferences.tracking.AndroidSourcePolicyEffectiveTimeProvider
 import com.adsamcik.tracker.shared.preferences.tracking.AuthoritativeTrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityBootstrapCoordinator
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationCoordinator
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Provider
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 
@@ -112,13 +123,15 @@ abstract class RepositoryModule {
 
 		@Provides
 		@Singleton
-		fun provideTrackingParamsRepository(
+		fun provideAuthoritativeTrackingParamsRepository(
 			@ApplicationContext context: Context,
 			dispatchers: DispatchersProvider,
 			sourcePolicyRepository: SourcePolicyRepository,
 			@ApplicationScope applicationScope: CoroutineScope,
 			trackingStartupGate: TrackingStartupGate,
-		): TrackingParamsRepository = AuthoritativeTrackingParamsRepository(
+			retentionAuthorityProducer: RetentionAuthorityProducer,
+			purposeSettingsReconciler: Provider<TrackingPurposeSettingsReconciler>,
+		): AuthoritativeTrackingParamsRepository = AuthoritativeTrackingParamsRepository(
 			legacy = DefaultTrackingParamsRepository(
 				context = context,
 				io = dispatchers.io,
@@ -126,7 +139,35 @@ abstract class RepositoryModule {
 			sourcePolicyRepository = sourcePolicyRepository,
 			applicationScope = applicationScope,
 			trackingStartupGate = trackingStartupGate,
+			retentionAuthorityProducer = retentionAuthorityProducer,
+			ambientStepsPolicyRevisionReconciler =
+				object : AmbientStepsPolicyRevisionReconciler {
+					override suspend fun reconcileAfterRetentionReissue() =
+						purposeSettingsReconciler.get()
+							.reconcileCurrentSettings()
+							.toPolicyRevisionReconciliation()
+
+					override suspend fun retireAfterRetentionDebt() =
+						purposeSettingsReconciler.get()
+							.reconcileCurrentSettings()
+							.toPolicyRevisionReconciliation()
+				},
 		)
+
+		@Provides
+		fun provideTrackingParamsRepository(
+			repository: AuthoritativeTrackingParamsRepository,
+		): TrackingParamsRepository = repository
+
+		@Provides
+		fun provideSourcePolicyRevisionReconciliationCoordinator(
+			repository: AuthoritativeTrackingParamsRepository,
+		): SourcePolicyRevisionReconciliationCoordinator = repository
+
+		@Provides
+		fun provideSourcePolicyAuthorityBootstrapCoordinator(
+			repository: AuthoritativeTrackingParamsRepository,
+		): SourcePolicyAuthorityBootstrapCoordinator = repository
 
 		@Provides
 		@Singleton
@@ -154,9 +195,47 @@ abstract class RepositoryModule {
 
 		@Provides
 		@Singleton
+		fun provideRetentionAuthorityProducer(
+			database: AppDatabase,
+			sourcePolicyRepository: SourcePolicyRepository,
+			retentionConfigStore: RetentionConfigStore,
+			collectedDataLifecycleStore: CollectedDataLifecycleStore,
+			clock: Clock,
+			bootClockDomainProvider: BootClockDomainProvider,
+			operationLease: RetentionAuthorityOperationLease,
+		): RetentionAuthorityProducer = DefaultRetentionAuthorityProducer(
+			database = database,
+			sourcePolicyRepository = sourcePolicyRepository,
+			retentionConfigStore = retentionConfigStore,
+			collectedDataLifecycleStore = collectedDataLifecycleStore,
+			effectiveTimeProvider = AndroidSourcePolicyEffectiveTimeProvider(
+				bootClockDomainProvider,
+				clock,
+			),
+			operationLease = operationLease,
+		)
+
+		@Provides
+		fun provideLocationPassiveRetentionAuthority(
+			producer: RetentionAuthorityProducer,
+		): LocationPassiveRetentionAuthority = producer
+
+		@Provides
+		@Singleton
+		fun provideRetentionAuthorityOperationLease(
+			@ApplicationScope applicationScope: CoroutineScope,
+		): RetentionAuthorityOperationLease =
+			RetentionAuthorityOperationLease(completionScope = applicationScope)
+
+		@Provides
+		@Singleton
 		fun provideCollectedDataLifecycleStore(
 			@ApplicationContext context: Context,
-		): CollectedDataLifecycleStore = DefaultCollectedDataLifecycleStore(context)
+			operationLease: RetentionAuthorityOperationLease,
+		): CollectedDataLifecycleStore = DefaultCollectedDataLifecycleStore(
+			context,
+			operationLease,
+		)
 
 		@Provides
 		@Singleton
@@ -168,4 +247,16 @@ abstract class RepositoryModule {
 			io = dispatchers.io,
 		)
 	}
+}
+
+private fun TrackingPurposeSettingsReconciliationResult.toPolicyRevisionReconciliation():
+	AmbientStepsPolicyRevisionReconciliation = when (this) {
+	is TrackingPurposeSettingsReconciliationResult.Complete ->
+		AmbientStepsPolicyRevisionReconciliation.Complete
+	is TrackingPurposeSettingsReconciliationResult.Debt ->
+		AmbientStepsPolicyRevisionReconciliation.Retryable(
+			debt.failures.joinToString(separator = ",") { failure ->
+				"${failure.source?.name ?: "GLOBAL"}:${failure.reason.name}"
+			},
+		)
 }

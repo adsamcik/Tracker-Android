@@ -38,11 +38,13 @@ Last updated: 2026-09-17
 - Premise: version 28 has not shipped. This is development-build containment, not a release
   migration and not authority to bump the database version.
 - Decision: fresh databases and successful released-v27 `MIGRATION_27_28` receive the explicit
-  Room-master marker row `-280917 / tracker-v28-final-20260917`. Before the authoritative Room
+  Room-master marker row `-280917 / tracker-v28-retention-final-20260917`. The prior
+  `tracker-v28-final-20260917` marker is now classified as stale. Before the authoritative Room
   helper opens the stable active file, a read-only preflight distinguishes absent/empty fresh,
   released v27, final v28, stale development v28, and unknown/corrupt shapes. Final v28 also
-  requires one late assembly table, one pending-writer column, and one named index; this is a
-  bounded sentinel set, not a second full Room schema hash or an extra Room-managed entity/table.
+  requires the late assembly table, Ambient Steps retention/footprint tables, the pending-writer
+  column, and named Wi-Fi/retention indexes. This is a bounded sentinel set, not a second full Room
+  schema hash.
 - Stale or unknown databases are blocked before migration backup, Room validation, legacy import
   callback, lifecycle reconciliation, provider recovery, or consumer startup. The active database
   file is preserved. There is no destructive fallback, wipe, same-version repair, silent table
@@ -53,8 +55,9 @@ Last updated: 2026-09-17
 - The existing legacy-v26 vault export/delete flow remains separate and cannot be selected for an
   active stale-v28 block. A user-initiated active-database export/rename workflow is still a
   follow-up UI dependency; this slice deliberately does not add a wipe.
+- Generated v28 Room schema JSON remains deferred to the final convergence batch; this source-only
+  marker rotation is not same-version repair or schema validation evidence.
 - Focused JVM, startup, UI-routing, and v27 migration test sources are authored but not executed.
-  Generated version-28 schema JSON remains untouched until the frozen convergence batch.
 
 ## TI-D271 - Close the finish-started scope without closing six-source assembly
 
@@ -4103,9 +4106,10 @@ Each entry records repository evidence and does not duplicate the final architec
   reserved, or retiring compatible provider registration block deletion; `QUIESCED` is not used as
   an ownership predicate.
 - Source deletion installs a checksum-authenticated payload-free terminal RETRACT before removing
-  exact UPSERT payloads and all import authority in one Room transaction. The retraction survives
-  retry and authorizes cleanup of an older or corrected UPSERT replayed after deletion; success is
-  reported only after no payload/import state remains.
+  exact UPSERT payloads and all import authority in one Room transaction. Before redaction it also
+  preserves the exact native day/fact/gap identities as value-free replay footprints. The
+  retraction and footprints survive retry and later full-clear re-epoching, so an old exact or
+  rehashed portable import cannot resurrect the source; unrelated new identities remain eligible.
 - Retention removes whole uncertainty-crossing and replayed terminal lineages behind the durable
   floor. Malformed, foreign, orphaned, partial, or configured-overflow state and cancellation fail
   closed without partial mutation.
@@ -4556,3 +4560,18 @@ Each entry records repository evidence and does not duplicate the final architec
 - Retained Activity is a typed unavailable product shell with no value or fragments. Its authority
   remains visible to collision, correction, deletion-fence, and no-resurrection checks while portable
   payload export omits it. Production invocation and source-wide erase remain separate open work.
+
+## TI-D275 — Retention follows referenced consent identity, not its creation revision
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-17; source and focused test changes only.
+- A current source-policy revision may continue to reference an unchanged eligible consent epoch
+  created under an older global policy revision or boot. Retention and Ambient fact authorities
+  validate the exact referenced epoch, eligibility, persistence flag, source, and purpose without
+  requiring the consent row's origin revision or boot to equal the current policy.
+- Effective time is compared independently for policy, consent, and retention authority. Matching
+  boot domains require elapsed-realtime and wall-time ordering; different boot domains use wall
+  ordering only.
+- Full deletion remains pending and keeps startup admission closed until durable Ambient retention
+  results, purpose publication, and bounded Ambient Steps provider reconciliation complete.
+  Retryable and unverifiable post-delete debt is returned explicitly rather than appearing as
+  successful deletion.

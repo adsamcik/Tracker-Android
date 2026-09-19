@@ -74,6 +74,9 @@ data class AmbientStepsFactRevisionEntity(
 	@ColumnInfo(name = "scope_deletion_generation") val scopeDeletionGeneration: Long,
 	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
 	@ColumnInfo(name = "applied_at_ms") val appliedAtMs: Long,
+	@ColumnInfo(name = "retention_scope") val retentionScope: String?,
+	@ColumnInfo(name = "retention_policy_id") val retentionPolicyId: String?,
+	@ColumnInfo(name = "retention_approval_revision") val retentionApprovalRevision: Long?,
 ) {
 	init {
 		require(AmbientStepsFactIntegrity.isOpaque(logicalFactId))
@@ -96,6 +99,13 @@ data class AmbientStepsFactRevisionEntity(
 		require(scopeDeletionGeneration >= 0L)
 		require(AmbientStepsFactIntegrity.isDigest(effectChecksum))
 		require(appliedAtMs >= 0L)
+		require(
+			listOf(retentionScope, retentionPolicyId, retentionApprovalRevision).all { it == null } ||
+				(retentionScope?.isNotBlank() == true &&
+					retentionPolicyId?.isNotBlank() == true &&
+					retentionApprovalRevision != null &&
+					retentionApprovalRevision > 0L),
+		)
 		when (operation) {
 			OPERATION_UPSERT -> requireProviderAggregateShape()
 			OPERATION_RETRACT -> requireRedactedRetractionShape()
@@ -126,6 +136,9 @@ data class AmbientStepsFactRevisionEntity(
 		require(stepCount != null && stepCount >= 0L)
 		require(sourcePolicyRevision != null && sourcePolicyRevision > 0L)
 		require(ambientConsentEpoch != null && ambientConsentEpoch >= 0L)
+		require(retentionScope == AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT)
+		require(!retentionPolicyId.isNullOrBlank() && retentionPolicyId.length <= 256)
+		require(retentionApprovalRevision != null && retentionApprovalRevision > 0L)
 		require(appliedAtMs >= observedAtMs)
 		require(
 			logicalFactId == AmbientStepsFactIntegrity.logicalFactId(
@@ -164,6 +177,9 @@ data class AmbientStepsFactRevisionEntity(
 		require(stepCount == null)
 		require(sourcePolicyRevision == null)
 		require(ambientConsentEpoch == null)
+		require(retentionScope == null)
+		require(retentionPolicyId == null)
+		require(retentionApprovalRevision == null)
 	}
 
 	companion object {

@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.coordinator
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.liveSourceProjectionActivationOrdinal
+import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -13,30 +14,70 @@ internal class StepsWriterDeletionRearm @Inject constructor(
 ) {
 	suspend fun apply(updatedAtMs: Long) {
 		state.database.withTransaction {
-			if (deletionRowsRemain()) {
-				blocked(StepsWriterTransitionBlocker.DELETION_ROWS_REMAIN)
-			}
-			val owner = ensureOwner(updatedAtMs)
-			val rolloutState = loadRolloutState()
-			val nextRevision = nextRolloutRevision(rolloutState.entityRevision)
-			val contained = containedRollout(rolloutState.model, nextRevision)
-			val binding = candidateRearmBinding(owner, rolloutState.decodedModel)
-			val rearmCandidate = binding != null
-			val targetOwner = if (rearmCandidate) {
-				StepsWriterDestination.CANDIDATE_OWNER
-			} else {
-				StepsWriterDestination.LEGACY_OWNER
-			}
-			val targetRollout = if (rearmCandidate) {
-				installCandidateLane(contained, requireNotNull(binding), nextRevision, updatedAtMs)
-			} else {
-				contained
-			}
-			val nextGeneration = updateOwner(owner, targetOwner, updatedAtMs)
-			state.database.trackingRolloutStateDao().save(targetRollout.toEntity(updatedAtMs))
-			hooks.checkpoint(StepsWriterTransitionCheckpoint.AFTER_DELETION_ROLLOUT_REARM)
-			verifyPostcondition(rearmCandidate, targetRollout, targetOwner, nextGeneration)
+			applyInCurrentTransaction(updatedAtMs)
 		}
+	}
+
+	suspend fun apply(
+		operationId: String,
+		targetCollectedDataEpoch: Long,
+		updatedAtMs: Long,
+	) {
+		require(operationId.isNotBlank())
+		require(targetCollectedDataEpoch > 0L)
+		state.database.withTransaction {
+			val operationDao = state.database.collectedDataDeletionOperationDao()
+			val operation = requireNotNull(operationDao.get(operationId)) {
+				"Collected-data deletion operation receipt is missing"
+			}
+			check(operation.targetCollectedDataEpoch == targetCollectedDataEpoch) {
+				"Collected-data deletion operation epoch changed before writer re-arm"
+			}
+			if (operation.phase == CollectedDataDeletionOperationEntity.PHASE_WRITERS_REARMED) {
+				return@withTransaction
+			}
+			check(operation.phase == CollectedDataDeletionOperationEntity.PHASE_DATABASE_CLEARED) {
+				"Collected-data deletion operation is not ready for writer re-arm"
+			}
+			applyInCurrentTransaction(updatedAtMs)
+			check(
+				operationDao.compareAndSetPhase(
+					operationId = operationId,
+					targetCollectedDataEpoch = targetCollectedDataEpoch,
+					expectedPhase =
+						CollectedDataDeletionOperationEntity.PHASE_DATABASE_CLEARED,
+					newPhase =
+						CollectedDataDeletionOperationEntity.PHASE_WRITERS_REARMED,
+					updatedAtMs = updatedAtMs,
+				) == 1,
+			) { "Collected-data deletion writer re-arm phase changed concurrently" }
+		}
+	}
+
+	private suspend fun applyInCurrentTransaction(updatedAtMs: Long) {
+		if (deletionRowsRemain()) {
+			blocked(StepsWriterTransitionBlocker.DELETION_ROWS_REMAIN)
+		}
+		val owner = ensureOwner(updatedAtMs)
+		val rolloutState = loadRolloutState()
+		val nextRevision = nextRolloutRevision(rolloutState.entityRevision)
+		val contained = containedRollout(rolloutState.model, nextRevision)
+		val binding = candidateRearmBinding(owner, rolloutState.decodedModel)
+		val rearmCandidate = binding != null
+		val targetOwner = if (rearmCandidate) {
+			StepsWriterDestination.CANDIDATE_OWNER
+		} else {
+			StepsWriterDestination.LEGACY_OWNER
+		}
+		val targetRollout = if (rearmCandidate) {
+			installCandidateLane(contained, requireNotNull(binding), nextRevision, updatedAtMs)
+		} else {
+			contained
+		}
+		val nextGeneration = updateOwner(owner, targetOwner, updatedAtMs)
+		state.database.trackingRolloutStateDao().save(targetRollout.toEntity(updatedAtMs))
+		hooks.checkpoint(StepsWriterTransitionCheckpoint.AFTER_DELETION_ROLLOUT_REARM)
+		verifyPostcondition(rearmCandidate, targetRollout, targetOwner, nextGeneration)
 	}
 
 	private suspend fun deletionRowsRemain(): Boolean {

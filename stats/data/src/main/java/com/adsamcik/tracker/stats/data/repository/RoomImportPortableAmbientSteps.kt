@@ -14,6 +14,9 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailure
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailureReason
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsNativeReplayFootprintIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveDayEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayFenceEntity
@@ -30,6 +33,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntit
 import com.adsamcik.tracker.shared.base.database.loadAuthenticatedAmbientStepsLineage
 import com.adsamcik.tracker.shared.base.database.authenticateAllAmbientStepsFences
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1
@@ -42,6 +46,8 @@ import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsResul
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsTransferRetryableReason
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.isActiveApproval
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -67,13 +73,45 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		List<com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwner> = {
 			AmbientStepsPortableLocalOriginReader(database).readInTransaction(it)
 		},
+	private val ensurePortableRetention: suspend () -> Boolean = { true },
+	private val requirePortableRetentionAuthority: Boolean = false,
 ) : ImportPortableAmbientSteps {
+	internal constructor(
+		database: AppDatabase,
+		dao: ImportedAmbientStepsDao,
+		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+	) : this(
+		database,
+		dao,
+		ioDispatcher,
+		{ currentCoroutineContext().ensureActive() },
+		{
+			AmbientStepsPortableLocalOriginReader(database).readInTransaction(it)
+		},
+		{ true },
+		false,
+	)
+
 	@Inject
 	constructor(
 		database: AppDatabase,
 		dao: ImportedAmbientStepsDao,
 		@IoDispatcher ioDispatcher: CoroutineDispatcher,
-	) : this(database, dao, ioDispatcher, { currentCoroutineContext().ensureActive() })
+		retentionAuthorityProducer: RetentionAuthorityProducer,
+	) : this(
+		database,
+		dao,
+		ioDispatcher,
+		{ currentCoroutineContext().ensureActive() },
+		{
+			AmbientStepsPortableLocalOriginReader(database).readInTransaction(it)
+		},
+		{
+			retentionAuthorityProducer.approvePortableImport(TrackingSource.STEPS)
+				.isActiveApproval()
+		},
+		true,
+	)
 
 	override suspend fun importArchive(
 		request: ImportPortableAmbientStepsRequest,
@@ -84,6 +122,11 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			)
 		}
 		try {
+			if (!ensurePortableRetention()) {
+				return@withContext ImportPortableAmbientStepsResult.Blocked(
+					PortableAmbientStepsImportBlockedReason.RETENTION_POLICY_UNAVAILABLE,
+				)
+			}
 			val snapshot = snapshot(request)
 			database.withTransaction { importInTransaction(snapshot) }
 		} catch (cancelled: CancellationException) {
@@ -112,6 +155,22 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch) {
 			blocked(PortableAmbientStepsImportBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
 		}
+		if (requirePortableRetentionAuthority) {
+			val retention = storedValue {
+				database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+					AmbientStepsRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+				)
+			}
+			if (
+				retention == null ||
+				!AmbientStepsRetentionAuthorityIntegrity.isAuthentic(retention) ||
+				!retention.isActive ||
+				retention.collectedDataEpoch != request.expectedCollectedDataEpoch ||
+				retention.retainedFromMs != state.retainedFromMs
+			) {
+				blocked(PortableAmbientStepsImportBlockedReason.RETENTION_POLICY_UNAVAILABLE)
+			}
+		}
 		storedValue { dao.authenticateAllAmbientStepsFences(state.collectedDataEpoch) }
 		authenticateSourceDeletionFence(state)
 
@@ -124,6 +183,23 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 				request.receipt.archiveKey,
 			),
 		)
+		val nativeFootprints = incomingOwnership.allIdentities
+			.chunked(IDENTITY_QUERY_CHUNK_SIZE)
+			.flatMap { identities ->
+				storedValue {
+					database.ambientStepsFactRevisionDao().nativeReplayFootprints(
+						identities,
+						identities.size + 1,
+					)
+				}
+			}
+		if (nativeFootprints.any {
+				!AmbientStepsNativeReplayFootprintIntegrity.isAuthentic(it) ||
+					it.collectedDataEpoch != state.collectedDataEpoch
+			}) storedCorrupt()
+		if (nativeFootprints.isNotEmpty()) {
+			blocked(PortableAmbientStepsImportBlockedReason.LOCAL_ORIGIN_OVERLAP)
+		}
 		authenticateStructuralDayOwnership(archive)
 		val fences = storedValue { dao.fences(dayIdentities) }
 		if (fences.any { it.collectedDataEpoch != state.collectedDataEpoch }) storedCorrupt()

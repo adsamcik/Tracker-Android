@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.source.ambient.steps
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -10,6 +12,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
+import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
+import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
@@ -18,6 +22,7 @@ import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionFloor
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
+import com.adsamcik.tracker.tracker.source.runtime.hasExactAmbientStepsRetentionBinding
 import com.adsamcik.tracker.tracker.source.runtime.toSourceDemandContract
 import java.util.UUID
 import javax.inject.Inject
@@ -62,7 +67,7 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 			"Ambient Steps reservation boundary belongs to another boot"
 		}
 		return database.withTransaction {
-			val demands = requireEligibleDemands(provider, expectedDemandId)
+			val demands = requireEligibleDemands(provider, expectedDemandId, boundary)
 			val brokerDao = database.sourceBrokerDao()
 			val authorizationFingerprint = SourceBrokerAuthorization.fingerprint(demands)
 			val stateDao = database.sourceRegistrationStateDao()
@@ -201,9 +206,15 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 			"Boot changed during Ambient Steps provider activation"
 		}
 		return database.withTransaction {
+			val boundary = AmbientStepsDemandBoundary(
+				bootId = registration.state.clockDomainId,
+				elapsedRealtimeNanos = registration.providerRequestElapsedRealtimeNanos,
+				wallTimeMs = registration.providerRequestAtMs,
+			)
 			val demands = requireEligibleDemands(
 				registration.provider,
 				registration.expectedDemandId,
+				boundary,
 			)
 			check(
 				SourceBrokerAuthorization.fingerprint(demands) ==
@@ -356,6 +367,7 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 	private suspend fun requireEligibleDemands(
 		provider: AmbientStepsProvider,
 		expectedDemandId: String,
+		boundary: AmbientStepsDemandBoundary,
 	): List<SourceDemandEntity> {
 		val rollout = database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull()
 		check(rollout?.isCaptureReachable(SourceKind.STEPS, CaptureReachabilityMode.AMBIENT) == true) {
@@ -372,7 +384,44 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 		val consentEpoch = requireNotNull(policy.ambientConsentEpoch) {
 			"Ambient Steps consent is revoked"
 		}
-		check(policy.ambientPersistenceEligible) { "Ambient Steps persistence is ineligible" }
+		val consent = policyDao.latestConsentEpoch(
+			SOURCE_KIND,
+			SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+		check(policy.hasExactEligibleAmbientConsentReference(consent)) {
+			"Ambient Steps consent reference is unavailable"
+		}
+		check(
+			policy.isEffectiveAtOrBefore(
+				boundary.bootId,
+				boundary.elapsedRealtimeNanos,
+				boundary.wallTimeMs,
+			) && requireNotNull(consent).isEffectiveAtOrBefore(
+				boundary.bootId,
+				boundary.elapsedRealtimeNanos,
+				boundary.wallTimeMs,
+			),
+		) { "Ambient Steps policy or consent is not yet effective" }
+		val evidence = requireNotNull(database.sourceEvidenceStateDao().get()) {
+			"Ambient Steps evidence authority is unavailable"
+		}
+		val retention = requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		) { "Ambient Steps retention authority is unavailable" }
+		check(AmbientStepsRetentionAuthorityIntegrity.isAuthentic(retention) && retention.isActive) {
+			"Ambient Steps retention authority is invalid or revoked"
+		}
+		check(
+			retention.sourcePolicyRevision == authority.currentPolicyRevision &&
+				retention.ambientConsentEpoch == consentEpoch &&
+				retention.collectedDataEpoch == evidence.collectedDataEpoch &&
+				retention.retainedFromMs == evidence.retainedFromMs &&
+				retention.effectiveBootId == boundary.bootId &&
+				retention.effectiveElapsedRealtimeNanos <= boundary.elapsedRealtimeNanos &&
+				retention.effectiveWallTimeMs <= boundary.wallTimeMs,
+		) { "Ambient Steps retention authority no longer matches policy or lifecycle" }
 
 		val demands = SourceProviderPurposeScope.selectDemands(
 			SOURCE_KIND,
@@ -387,6 +436,13 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 				demand.sourcePolicyRevision == authority.currentPolicyRevision &&
 				demand.consentEpoch == consentEpoch &&
 				demand.persistenceEligible &&
+				demand.requestedBootId == boundary.bootId &&
+				demand.requestedElapsedRealtimeNanos >=
+					retention.effectiveElapsedRealtimeNanos &&
+				demand.requestedElapsedRealtimeNanos <= boundary.elapsedRealtimeNanos &&
+				demand.requestedAtMs >= retention.effectiveWallTimeMs &&
+				demand.requestedAtMs <= boundary.wallTimeMs &&
+				demand.hasExactAmbientStepsRetentionBinding(retention) &&
 				demand.providerMatches(provider)
 		}) { "Ambient Steps demand does not authorize the selected provider" }
 		return demands

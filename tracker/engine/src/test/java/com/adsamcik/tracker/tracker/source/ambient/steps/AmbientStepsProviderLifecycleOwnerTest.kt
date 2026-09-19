@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.tracker.source.ambient.steps
 
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
@@ -17,8 +20,9 @@ class AmbientStepsProviderLifecycleOwnerTest {
 		var registrationBoundary: AmbientStepsDemandBoundary? = null
 		val subject = AmbientStepsProviderLifecycleOwner(
 			currentBoundary = { boundary },
-			reconcileDemand = {
-				demandBoundary = it
+			reconcileDemand = { actualBoundary, actualLease ->
+				demandBoundary = actualBoundary
+				actualLease shouldBe lease()
 				demand
 			},
 			reconcileRegistration = { actualDemand, actualBoundary ->
@@ -29,7 +33,7 @@ class AmbientStepsProviderLifecycleOwnerTest {
 			closeRegistration = { completeCleanup() },
 		)
 
-		subject.reconcile() shouldBe AmbientStepsProviderRegistrationResult.Inactive(demand)
+		subject.reconcile(lease()) shouldBe AmbientStepsProviderRegistrationResult.Inactive(demand)
 
 		demandBoundary shouldBe boundary
 		registrationBoundary shouldBe boundary
@@ -43,7 +47,7 @@ class AmbientStepsProviderLifecycleOwnerTest {
 		val demand = unavailable()
 		val subject = AmbientStepsProviderLifecycleOwner(
 			currentBoundary = { boundary(10L) },
-			reconcileDemand = { demand },
+			reconcileDemand = { _, _ -> demand },
 			reconcileRegistration = { _, _ ->
 				events += "provider-start"
 				providerEntered.complete(Unit)
@@ -57,7 +61,7 @@ class AmbientStepsProviderLifecycleOwnerTest {
 			},
 		)
 
-		val reconcile = async { subject.reconcile() }
+		val reconcile = async { subject.reconcile(lease()) }
 		providerEntered.await()
 		val cleanup = async { subject.closeForCollectedDataDeletion() }
 		runCurrent()
@@ -73,7 +77,7 @@ class AmbientStepsProviderLifecycleOwnerTest {
 	fun `cleanup failure is mapped without exposing provider identity`() = runTest {
 		val subject = AmbientStepsProviderLifecycleOwner(
 			currentBoundary = { boundary(10L) },
-			reconcileDemand = { unavailable() },
+			reconcileDemand = { _, _ -> unavailable() },
 			reconcileRegistration = { demand, _ ->
 				AmbientStepsProviderRegistrationResult.Inactive(demand)
 			},
@@ -94,6 +98,64 @@ class AmbientStepsProviderLifecycleOwnerTest {
 		result.retryable shouldBe true
 	}
 
+	@Test
+	fun `settings reconciliation exposes typed provider failure`() = runTest {
+		val failure = AmbientStepsProviderRegistrationFailure.DURABLE_AUTHORITY_REJECTED
+		val subject = AmbientStepsProviderLifecycleOwner(
+			currentBoundary = { boundary(10L) },
+			reconcileDemand = { _, _ -> unavailable() },
+			reconcileRegistration = { _, _ ->
+				AmbientStepsProviderRegistrationResult.Failed(
+					selectedProvider = null,
+					failure = failure,
+					retryable = true,
+				)
+			},
+			closeRegistration = { completeCleanup() },
+		)
+
+		subject.reconcile(lease()) shouldBe
+			AmbientStepsProviderRegistrationResult.Failed(
+				selectedProvider = null,
+				failure = AmbientStepsProviderRegistrationFailure.DURABLE_AUTHORITY_REJECTED,
+				retryable = true,
+			)
+	}
+
+	@Test
+	fun `retention failure explicitly retires demand before provider reconciliation`() = runTest {
+		val boundary = boundary(20L)
+		val retired = AmbientStepsDemandReconciliation.PolicyBlocked(
+			provider = null,
+			reason = AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+		val events = mutableListOf<String>()
+		val subject = AmbientStepsProviderLifecycleOwner(
+			currentBoundary = { boundary },
+			reconcileDemand = { _, _ -> error("Normal demand reconciliation must not run") },
+			retireDemandAfterAuthorityFailure = { actualBoundary, actualLease ->
+				events += "retire-demand"
+				actualBoundary shouldBe boundary
+				actualLease shouldBe lease()
+				retired
+			},
+			reconcileRegistration = { demand, actualBoundary ->
+				events += "close-provider"
+				demand shouldBe retired
+				actualBoundary shouldBe boundary
+				AmbientStepsProviderRegistrationResult.Inactive(retired)
+			},
+			closeRegistration = { completeCleanup() },
+		)
+
+		subject.retireAfterRetentionAuthorityFailure(lease()) shouldBe
+			com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult(
+				complete = true,
+				operational = false,
+			)
+		events shouldBe listOf("retire-demand", "close-provider")
+	}
+
 	private fun boundary(at: Long) = AmbientStepsDemandBoundary(
 		bootId = "ambient-steps-lifecycle-test",
 		elapsedRealtimeNanos = at,
@@ -108,5 +170,19 @@ class AmbientStepsProviderLifecycleOwnerTest {
 	private fun completeCleanup() = AmbientStepsProviderCleanupResult(
 		complete = true,
 		pendingProviders = emptySet(),
+	)
+
+	private fun lease() = AmbientReconciliationLease(
+		AmbientReconciliationIdentity(
+			source = AmbientTrackingSource.STEPS,
+			policyRevision = 1L,
+			consentEpoch = 1L,
+			collectedDataEpoch = 0L,
+			rolloutRevision = 1L,
+			ownerCasToken = "ambient-steps-lifecycle-test",
+			executionRevision = 1L,
+			retentionPolicyId = "retention",
+			retentionApprovalRevision = 1L,
+		),
 	)
 }

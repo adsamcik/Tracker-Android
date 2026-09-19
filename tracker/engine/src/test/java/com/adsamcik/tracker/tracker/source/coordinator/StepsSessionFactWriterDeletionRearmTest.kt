@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.recordFullDeletion
+import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -82,6 +83,42 @@ class StepsSessionFactWriterDeletionRearmTest {
 		database.sourceDestinationOwnerDao().get(STEPS_SOURCE, STEPS_DESTINATION)?.let { owner ->
 			owner.owner shouldBe LEGACY_OWNER
 			owner.ownerGeneration shouldBe 2L
+		}
+
+		@Test
+		fun `operation-bound rearm advances writer generation exactly once`() = runTest {
+			recordFullDeletion(highWater = 0L, epoch = 1L, updatedAtMs = 10L)
+			database.collectedDataDeletionOperationDao().insert(
+				CollectedDataDeletionOperationEntity(
+					operationId = "deletion-operation",
+					targetCollectedDataEpoch = 1L,
+					retainedFromMs = null,
+					deletedAtMs = 10L,
+					phase = CollectedDataDeletionOperationEntity.PHASE_DATABASE_CLEARED,
+					updatedAtMs = 10L,
+				),
+			)
+
+			coordinator.rearmAfterFullDeletion(
+				operationId = "deletion-operation",
+				targetCollectedDataEpoch = 1L,
+				updatedAtMs = 20L,
+			)
+			val firstOwner = requireNotNull(
+				database.sourceDestinationOwnerDao().get(STEPS_SOURCE, STEPS_DESTINATION),
+			)
+			val firstRollout = requireNotNull(database.trackingRolloutStateDao().get())
+
+			coordinator.rearmAfterFullDeletion(
+				operationId = "deletion-operation",
+				targetCollectedDataEpoch = 1L,
+				updatedAtMs = 30L,
+			)
+
+			database.sourceDestinationOwnerDao().get(STEPS_SOURCE, STEPS_DESTINATION) shouldBe firstOwner
+			database.trackingRolloutStateDao().get() shouldBe firstRollout
+			database.collectedDataDeletionOperationDao().get("deletion-operation")?.phase shouldBe
+				CollectedDataDeletionOperationEntity.PHASE_WRITERS_REARMED
 		}
 		database.sourceProjectionStateDao().activeProductLane(STEPS_SOURCE) shouldBe null
 		rolloutStore.load().stepsAreUnavailableForCapture() shouldBe true

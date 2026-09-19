@@ -14,6 +14,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
+import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
+import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
@@ -180,11 +182,7 @@ class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
 				AmbientStepsPortableReadFailure.SOURCE_AUTHORITY_UNAVAILABLE,
 			)
 		}
-		if (!currentPolicy.enabled || !currentPolicy.ambientPersistenceEligible ||
-			currentPolicy.ambientConsentEpoch != currentConsent.epoch || !currentConsent.eligible ||
-			!currentConsent.persistenceEligible ||
-			currentConsent.policyRevision != currentPolicy.policyRevision
-		) {
+		if (!currentPolicy.hasExactEligibleAmbientConsentReference(currentConsent)) {
 			return AmbientStepsPortableSnapshot.Unverifiable(
 				AmbientStepsPortableReadFailure.DELETION_PENDING,
 			)
@@ -350,7 +348,9 @@ private suspend fun AppDatabase.hasExactActiveAmbientCursorAuthority(
 	if (demands.size != demandIds.size ||
 		demands.map(SourceDemandEntity::demandId).toSet() != demandIds.toSet() ||
 		SourceBrokerAuthorization.fingerprint(demands) != cursor.authorizationFingerprint ||
-		demands.any { demand -> !demand.matchesActiveAmbientCursor(cursor) }
+		demands.any { demand ->
+			!demand.matchesActiveAmbientCursor(cursor, policy, consent)
+		}
 	) return false
 	val expectedAuthorization = SourceBrokerAuthorization.rows(
 		SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -363,20 +363,20 @@ private suspend fun AppDatabase.hasExactActiveAmbientCursorAuthority(
 	)
 	if (authorization.toSet() != expectedAuthorization.toSet()) return false
 
-	return policy.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && policy.enabled &&
-		policy.policyRevision == cursor.sourcePolicyRevision && policy.ambientPersistenceEligible &&
+	return policy.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+		policy.policyRevision == cursor.sourcePolicyRevision &&
 		policy.ambientConsentEpoch == cursor.ambientConsentEpoch &&
-		policy.effectiveBootId == cursor.authorizationEffectiveBootId &&
-		policy.effectiveElapsedRealtimeNanos <= cursor.authorizationEffectiveElapsedRealtimeNanos &&
-		policy.effectiveWallTimeMs <= cursor.authorizationEffectiveWallTimeMs &&
-		consent.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
-		consent.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
-		consent.epoch == cursor.ambientConsentEpoch && consent.eligible &&
-		consent.persistenceEligible && consent.policyRevision == cursor.sourcePolicyRevision &&
-		consent.effectiveBootId == cursor.authorizationEffectiveBootId &&
-		consent.effectiveElapsedRealtimeNanos <=
-			cursor.authorizationEffectiveElapsedRealtimeNanos &&
-		consent.effectiveWallTimeMs <= cursor.authorizationEffectiveWallTimeMs
+		policy.hasExactEligibleAmbientConsentReference(consent) &&
+		policy.isEffectiveAtOrBefore(
+			cursor.authorizationEffectiveBootId,
+			cursor.authorizationEffectiveElapsedRealtimeNanos,
+			cursor.authorizationEffectiveWallTimeMs,
+		) &&
+		consent.isEffectiveAtOrBefore(
+			cursor.authorizationEffectiveBootId,
+			cursor.authorizationEffectiveElapsedRealtimeNanos,
+			cursor.authorizationEffectiveWallTimeMs,
+		)
 }
 
 private fun SourceAuthorizationEntity.matches(
@@ -399,6 +399,8 @@ private fun SourceAuthorizationEntity.matches(
 
 private fun SourceDemandEntity.matchesActiveAmbientCursor(
 	cursor: AmbientStepsImportCursorEntity,
+	policy: SourcePolicyEntity,
+	consent: SourceConsentEpochEntity,
 ): Boolean = sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
 	purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && persistenceEligible &&
 	sourcePolicyRevision == cursor.sourcePolicyRevision && consentEpoch == cursor.ambientConsentEpoch &&
@@ -406,6 +408,16 @@ private fun SourceDemandEntity.matchesActiveAmbientCursor(
 	lifecycleLeaseGeneration == null && requestedBootId == cursor.authorizationEffectiveBootId &&
 	requestedElapsedRealtimeNanos <= cursor.authorizationEffectiveElapsedRealtimeNanos &&
 	requestedAtMs <= cursor.authorizationEffectiveWallTimeMs &&
+	policy.isEffectiveAtOrBefore(
+		requestedBootId,
+		requestedElapsedRealtimeNanos,
+		requestedAtMs,
+	) &&
+	consent.isEffectiveAtOrBefore(
+		requestedBootId,
+		requestedElapsedRealtimeNanos,
+		requestedAtMs,
+	) &&
 	minimumAcquisitionSpec == listOf(
 		"ambient-steps:v1:mechanism=${cursor.provider}",
 		"coverage=OPPORTUNISTIC",

@@ -271,6 +271,7 @@ data class TrackingPurposeAuthorityVector(
 	val collectedDataEpoch: Long,
 	val rolloutRevision: Long,
 	val executionRevision: Long,
+	val retainedFromMs: Long? = null,
 ) {
 	init {
 		require(policyRevision > 0L)
@@ -278,6 +279,7 @@ data class TrackingPurposeAuthorityVector(
 		require(collectedDataEpoch >= 0L)
 		require(rolloutRevision >= 0L)
 		require(executionRevision >= 0L)
+		require(retainedFromMs == null || retainedFromMs >= 0L)
 	}
 }
 
@@ -285,6 +287,7 @@ data class TrackingPurposeAuthorityRevision(
 	val policyRevision: Long?,
 	val collectedDataEpoch: Long?,
 	val rolloutRevision: Long?,
+	val retainedFromMs: Long? = null,
 ) {
 	val isAvailable: Boolean
 		get() = policyRevision != null &&
@@ -295,6 +298,7 @@ data class TrackingPurposeAuthorityRevision(
 		require(policyRevision == null || policyRevision > 0L)
 		require(collectedDataEpoch == null || collectedDataEpoch >= 0L)
 		require(rolloutRevision == null || rolloutRevision >= 0L)
+		require(retainedFromMs == null || retainedFromMs >= 0L)
 		require(
 			listOf(policyRevision, collectedDataEpoch, rolloutRevision)
 				.all { it == null } ||
@@ -305,13 +309,14 @@ data class TrackingPurposeAuthorityRevision(
 	}
 
 	companion object {
-		val UNAVAILABLE = TrackingPurposeAuthorityRevision(null, null, null)
+		val UNAVAILABLE = TrackingPurposeAuthorityRevision(null, null, null, null)
 	}
 }
 
 /**
  * Consumer-facing projection that accepts operational publication only while its complete
- * authority vector still matches current policy, consent, deletion, rollout, and execution state.
+ * authority vector still matches current policy, consent, deletion, retained floor, rollout, and
+ * execution state.
  */
 data class CurrentTrackingPurposeAvailability(
 	val published: TrackingPurposeAvailabilitySnapshot,
@@ -405,6 +410,11 @@ interface TrackingPurposeAvailabilityReporter {
 	): AmbientPublicationAcceptance
 	/** Trusted authority loss reset. It can only return one source to pending. */
 	fun invalidateAmbient(source: AmbientTrackingSource)
+	/** Trusted retention failure publication. It cannot carry or create operational authority. */
+	fun publishAmbientUnavailable(
+		source: AmbientTrackingSource,
+		reason: AmbientSourceUnavailableReason,
+	)
 	fun tryAccept(
 		report: AmbientSourceReconciliationReport,
 	): AmbientPublicationAcceptance
@@ -456,6 +466,11 @@ sealed interface AutomaticControlLeaseStartResult {
 		val snapshot: TrackingPurposeAvailabilitySnapshot,
 	) : AutomaticControlLeaseStartResult
 
+	data class InProgress(
+		val lease: AutomaticControlReconciliationLease,
+		val snapshot: TrackingPurposeAvailabilitySnapshot,
+	) : AutomaticControlLeaseStartResult
+
 	data class Rejected(
 		val reason: TrackingPurposePublicationRejection,
 	) : AutomaticControlLeaseStartResult
@@ -469,6 +484,9 @@ data class AmbientReconciliationIdentity(
 	val rolloutRevision: Long,
 	val ownerCasToken: String,
 	val executionRevision: Long,
+	val retainedFromMs: Long? = null,
+	val retentionPolicyId: String? = null,
+	val retentionApprovalRevision: Long? = null,
 ) {
 	constructor(
 		source: AmbientTrackingSource,
@@ -477,6 +495,7 @@ data class AmbientReconciliationIdentity(
 		collectedDataEpoch: Long,
 		rolloutRevision: Long,
 		ownerCasToken: String,
+		retainedFromMs: Long? = null,
 	) : this(
 		source = source,
 		policyRevision = policyRevision,
@@ -485,6 +504,9 @@ data class AmbientReconciliationIdentity(
 		rolloutRevision = rolloutRevision,
 		ownerCasToken = ownerCasToken,
 		executionRevision = 0L,
+		retainedFromMs = retainedFromMs,
+		retentionPolicyId = null,
+		retentionApprovalRevision = null,
 	)
 
 	init {
@@ -494,6 +516,10 @@ data class AmbientReconciliationIdentity(
 		require(rolloutRevision >= 0L)
 		require(ownerCasToken.isNotBlank())
 		require(executionRevision >= 0L)
+		require(retainedFromMs == null || retainedFromMs >= 0L)
+		require((retentionPolicyId == null) == (retentionApprovalRevision == null))
+		require(retentionPolicyId == null || retentionPolicyId.isNotBlank())
+		require(retentionApprovalRevision == null || retentionApprovalRevision > 0L)
 	}
 
 	val sourcePurpose: CanonicalSourcePurpose
@@ -508,10 +534,15 @@ data class AmbientReconciliationIdentity(
 			rolloutRevision = rolloutRevision,
 			executionRevision = executionRevision,
 			ownerCasToken = ownerCasToken,
+			retainedFromMs = retainedFromMs,
 		)
 
 	companion object {
-		fun from(identity: TrackingPurposeLeaseIdentity): AmbientReconciliationIdentity {
+		fun from(
+			identity: TrackingPurposeLeaseIdentity,
+			retentionPolicyId: String? = null,
+			retentionApprovalRevision: Long? = null,
+		): AmbientReconciliationIdentity {
 			require(identity.purpose == TrackingPurpose.AMBIENT_PRODUCT) {
 				"Ambient reconciliation requires AMBIENT_PRODUCT purpose"
 			}
@@ -525,6 +556,9 @@ data class AmbientReconciliationIdentity(
 				rolloutRevision = identity.rolloutRevision,
 				ownerCasToken = identity.ownerCasToken,
 				executionRevision = identity.executionRevision,
+				retainedFromMs = identity.retainedFromMs,
+				retentionPolicyId = retentionPolicyId,
+				retentionApprovalRevision = retentionApprovalRevision,
 			)
 		}
 	}
@@ -578,6 +612,11 @@ sealed interface AmbientLeaseStartResult {
 		val snapshot: TrackingPurposeAvailabilitySnapshot,
 	) : AmbientLeaseStartResult
 
+	data class InProgress(
+		val lease: AmbientReconciliationLease,
+		val snapshot: TrackingPurposeAvailabilitySnapshot,
+	) : AmbientLeaseStartResult
+
 	data class Rejected(
 		val reason: AmbientPublicationRejection,
 	) : AmbientLeaseStartResult
@@ -621,6 +660,44 @@ fun interface AmbientSourceReconciliationCallback {
 	 * demand, provider, consent, retention, or writer authority.
 	 */
 	suspend fun reconcile(lease: AmbientReconciliationLease): AmbientSourceOperationalAvailability
+
+	/**
+	 * Recovery-only owner call for a durable retention-floor settlement. Implementations that
+	 * perform their own authority read must authenticate that exact operation instead of falling
+	 * back to ordinary current authority.
+	 */
+	suspend fun reconcileForRetentionFloor(
+		lease: AmbientReconciliationLease,
+		settlementOperationId: String,
+	): AmbientSourceOperationalAvailability {
+		require(settlementOperationId.isNotBlank())
+		return reconcile(lease)
+	}
+
+	/**
+	 * Exact cleanup after an apply-then-fail, stale completion, or cancellation. A bounded timeout
+	 * leaves the exact lease and cleanup flight owned for retry; it never authorizes a replacement
+	 * winner while the old cleanup can still mutate. Implementations with no physical side effect
+	 * may keep the default successful no-op.
+	 */
+	suspend fun compensate(lease: AmbientReconciliationLease): Boolean = true
+
+	/**
+	 * Retires provider, demand, source authorization, and writer execution after retention is no
+	 * longer affirmative. A null lease means this process did not issue the historical owner token;
+	 * implementations must then prove an already-terminal negative state or return false.
+	 */
+	suspend fun retireAfterRetentionAuthorityFailure(
+		previousLease: AmbientReconciliationLease?,
+	): Boolean = previousLease?.let { compensate(it) } ?: true
+
+	/**
+	 * Destructive cleanup boundary used only while collected-data startup admission is closed.
+	 * Implementations must physically fence their source and prove an already-terminal state.
+	 */
+	suspend fun closeForCollectedDataDeletion(
+		previousLease: AmbientReconciliationLease?,
+	): Boolean = retireAfterRetentionAuthorityFailure(previousLease)
 }
 
 fun interface AutomaticControlReconciliationCallback {
@@ -631,6 +708,8 @@ fun interface AutomaticControlReconciliationCallback {
 	suspend fun reconcile(
 		lease: AutomaticControlReconciliationLease,
 	): AutomaticTrackingOperationalAvailability
+
+	suspend fun compensate(lease: AutomaticControlReconciliationLease): Boolean = true
 }
 
 data class TrackingPurposeSourceOwnerRegistration(
@@ -661,9 +740,124 @@ interface TrackingPurposeSourceOwnerRegistrar {
 	suspend fun unregister(registration: TrackingPurposeSourceOwnerRegistration)
 }
 
-/** Existing settings and direct authority collectors use this bounded reconciliation signal. */
+sealed interface TrackingPurposeSettingsReconciliationResult {
+	data class Complete(
+		val reconciledSources: Set<AmbientTrackingSource>,
+	) : TrackingPurposeSettingsReconciliationResult
+
+	data class Debt(
+		val debt: TrackingPurposeSettingsReconciliationDebt,
+	) : TrackingPurposeSettingsReconciliationResult
+}
+
+data class TrackingPurposeSettingsReconciliationDebt(
+	val failures: List<TrackingPurposeSettingsReconciliationFailure>,
+) {
+	init {
+		require(failures.isNotEmpty())
+	}
+}
+
+data class TrackingPurposeSettingsReconciliationFailure(
+	val source: AmbientTrackingSource?,
+	val reason: TrackingPurposeSettingsReconciliationFailureReason,
+	val retentionReason: String? = null,
+)
+
+enum class TrackingPurposeSettingsReconciliationFailureReason {
+	RETENTION_RESULT_SET_INVALID,
+	RETENTION_AUTHORITY_UNAVAILABLE,
+	STARTUP_GENERATION_CHANGED,
+	AUTOMATIC_CONTROL_RECONCILIATION_FAILED,
+	OWNER_OPERATION_IN_PROGRESS,
+	OWNER_RECONCILIATION_FAILED,
+	OWNER_MISSING,
+	PUBLICATION_REJECTED,
+	COMPENSATION_FAILED,
+	COMPENSATION_TIMED_OUT,
+	RETIREMENT_FAILED,
+	RETRY_SCHEDULING_FAILED,
+}
+
+fun interface TrackingPurposeReconciliationRetryScheduler {
+	/**
+	 * Persists one typed retry owner before the caller receives [debt]. Returns false when the
+	 * retry owner could not be installed.
+	 */
+	suspend fun schedule(debt: TrackingPurposeSettingsReconciliationDebt): Boolean
+}
+
+/** Existing settings and direct authority collectors use this typed reconciliation boundary. */
 fun interface TrackingPurposeSettingsReconciler {
-	suspend fun reconcileCurrentSettings()
+	suspend fun reconcileCurrentSettings(): TrackingPurposeSettingsReconciliationResult
+}
+
+/** Negative-only destructive fence used while collected-data startup admission is closed. */
+fun interface TrackingPurposeDeletionFencer {
+	suspend fun fenceForCollectedDataDeletion(): TrackingPurposeSettingsReconciliationResult
+}
+
+fun interface TrackingRetentionFloorReconciler {
+	suspend fun reconcile(
+		expectedStartupGeneration: Long,
+		retainedFromMs: Long,
+		approvedSources: Set<AmbientTrackingSource>,
+	): TrackingRetentionFloorReconciliationResult
+
+	/** Recovery-only overload that carries the durable floor-settlement identity end to end. */
+	suspend fun reconcile(
+		expectedStartupGeneration: Long,
+		retainedFromMs: Long,
+		approvedSources: Set<AmbientTrackingSource>,
+		settlementOperationId: String,
+	): TrackingRetentionFloorReconciliationResult {
+		require(settlementOperationId.isNotBlank())
+		return reconcile(expectedStartupGeneration, retainedFromMs, approvedSources)
+	}
+}
+
+sealed interface TrackingRetentionFloorReconciliationResult {
+	data class Complete(
+		val retainedFromMs: Long,
+		val reconciledSources: Set<AmbientTrackingSource>,
+	) : TrackingRetentionFloorReconciliationResult {
+		init {
+			require(retainedFromMs >= 0L)
+			require(reconciledSources.none { it == AmbientTrackingSource.LOCATION })
+		}
+	}
+
+	data class Retryable(
+		val debt: TrackingRetentionFloorReconciliationDebt,
+	) : TrackingRetentionFloorReconciliationResult
+}
+
+data class TrackingRetentionFloorReconciliationDebt(
+	val retainedFromMs: Long,
+	val failures: List<TrackingRetentionFloorReconciliationFailure>,
+) {
+	init {
+		require(retainedFromMs >= 0L)
+		require(failures.isNotEmpty())
+	}
+}
+
+data class TrackingRetentionFloorReconciliationFailure(
+	val source: AmbientTrackingSource?,
+	val reason: TrackingRetentionFloorReconciliationFailureReason,
+)
+
+enum class TrackingRetentionFloorReconciliationFailureReason {
+	STARTUP_GENERATION_CHANGED,
+	RETENTION_AUTHORITY_UNAVAILABLE,
+	AUTHORITY_FLOOR_MISMATCH,
+	OWNER_RECONCILIATION_FAILED,
+	OWNER_MISSING,
+	PUBLICATION_REJECTED,
+	COMPENSATION_FAILED,
+	COMPENSATION_TIMED_OUT,
+	RETIREMENT_FAILED,
+	OWNER_OPERATION_IN_PROGRESS,
 }
 
 /**
@@ -693,7 +887,7 @@ class AtomicTrackingPurposeAvailabilityStore :
 		}
 		val previous = automaticControlSlot
 		if (previous?.identity == identity && previous.state == PublicationSlotState.ACTIVE) {
-			return@synchronized AutomaticControlLeaseStartResult.Started(
+			return@synchronized AutomaticControlLeaseStartResult.InProgress(
 				lease = AutomaticControlReconciliationLease(identity),
 				snapshot = mutableAvailability.value,
 			)
@@ -818,7 +1012,7 @@ class AtomicTrackingPurposeAvailabilityStore :
 		}
 		val previous = ambientSlots[identity.source]
 		if (previous?.identity == identity && previous.state == PublicationSlotState.ACTIVE) {
-			return@synchronized AmbientLeaseStartResult.Started(
+			return@synchronized AmbientLeaseStartResult.InProgress(
 				lease = AmbientReconciliationLease(identity),
 				snapshot = mutableAvailability.value,
 			)
@@ -906,10 +1100,37 @@ class AtomicTrackingPurposeAvailabilityStore :
 					slot.state.terminalRejection()
 				}
 				slot.copy(state = terminal.toSlotState())
-			} ?: return@synchronized
+			}
 			publishPending(
 				source,
 				priorAvailability.operationalIdentity ?: priorAvailability.lastIdentity,
+			)
+		}
+	}
+
+	override fun publishAmbientUnavailable(
+		source: AmbientTrackingSource,
+		reason: AmbientSourceUnavailableReason,
+	) {
+		synchronized(lock) {
+			val priorAvailability = mutableAvailability.value.ambientSources.getValue(source)
+			ambientSlots[source] = ambientSlots[source]?.let { slot ->
+				val terminal = terminalTokens.getOrPut(
+					slot.identity.purposeLeaseIdentity.leaseToken(),
+				) {
+					slot.state.terminalRejection()
+				}
+				slot.copy(state = terminal.toSlotState())
+			}
+			mutableAvailability.value = mutableAvailability.value.copy(
+				ambientSources = mutableAvailability.value.ambientSources +
+					(
+						source to AmbientSourceOperationalAvailability.unavailable(
+							source,
+							reason,
+							priorAvailability.operationalIdentity ?: priorAvailability.lastIdentity,
+						)
+					),
 			)
 		}
 	}
@@ -1003,7 +1224,8 @@ fun TrackingPurposeLeaseIdentity.matchesAuthority(
 	consentEpoch == authority.consentEpoch &&
 	collectedDataEpoch == authority.collectedDataEpoch &&
 	rolloutRevision == authority.rolloutRevision &&
-	executionRevision == authority.executionRevision
+	executionRevision == authority.executionRevision &&
+	retainedFromMs == authority.retainedFromMs
 
 private val AutomaticTrackingOperationalAvailability.lastIdentityOrNull:
 	TrackingPurposeLeaseIdentity?

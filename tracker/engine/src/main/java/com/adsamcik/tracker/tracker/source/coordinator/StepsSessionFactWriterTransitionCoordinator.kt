@@ -67,6 +67,28 @@ class StepsSessionFactWriterTransitionCoordinator @Inject internal constructor(
 			)
 		}
 	}
+
+	suspend fun rearmAfterFullDeletion(
+		operationId: String,
+		targetCollectedDataEpoch: Long,
+		updatedAtMs: Long,
+	) {
+		require(operationId.isNotBlank())
+		require(targetCollectedDataEpoch > 0L)
+		require(updatedAtMs >= 0L)
+		try {
+			engine.rearmAfterFullDeletion(
+				operationId,
+				targetCollectedDataEpoch,
+				updatedAtMs,
+			)
+		} catch (blocked: StepsWriterTransitionBlockedException) {
+			throw IllegalStateException(
+				"Steps writer deletion re-arm blocked: ${blocked.blocker}",
+				blocked,
+			)
+		}
+	}
 }
 
 internal data class StepsWriterTransitionTestDependencies(

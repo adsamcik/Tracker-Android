@@ -258,6 +258,16 @@ class SharedWifiSourceController @Inject constructor(
 		}
 	}
 
+	internal suspend fun closeAmbientForCollectedDataDeletion(): Boolean = mutex.withLock {
+		val ambientDemand = selectedDemands().any {
+			it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT
+		}
+		if (ambientDemand) return@withLock false
+		ambientAttached = false
+		if (sessionPlan != null) return@withLock false
+		physicalRuntime.closeShared().toOwnedShutdown() is OwnedSourceShutdown.Released
+	}
+
 	override suspend fun close() = mutex.withLock {
 		sessionPlan = null
 		val demands = selectedDemands()

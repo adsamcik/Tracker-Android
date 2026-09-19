@@ -5,10 +5,112 @@ package com.adsamcik.tracker.shared.base.database
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 internal fun createAdditionalTrackingTables(database: SupportSQLiteDatabase) {
+	createCollectedDataDeletionOperationTable(database)
+	createRetentionWorkExecutionReceiptTable(database)
 	createWifiSelectedDeletionTables(database)
 	createCellSelectedDeletionTables(database)
+	createAmbientStepsRetentionTable(database)
+	createAmbientStepsNativeReplayFootprintTable(database)
 	createAmbientRadioTables(database)
 	createRuntimeSettlementTables(database)
+}
+
+private fun createCollectedDataDeletionOperationTable(database: SupportSQLiteDatabase) {
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS collected_data_deletion_operation (
+			operation_id TEXT NOT NULL,
+			target_collected_data_epoch INTEGER NOT NULL,
+			retained_from_ms INTEGER,
+			deleted_at_ms INTEGER NOT NULL,
+			phase TEXT NOT NULL,
+			updated_at_ms INTEGER NOT NULL,
+			retention_work_execution_id TEXT,
+			retention_destructive_plan TEXT,
+			settled_retained_from_ms INTEGER,
+			source_maintenance_at_ms INTEGER,
+			retention_active_sources TEXT,
+			PRIMARY KEY(operation_id)
+		)
+		""".trimIndent(),
+	)
+}
+
+private fun createRetentionWorkExecutionReceiptTable(database: SupportSQLiteDatabase) {
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS retention_work_execution_receipt (
+			execution_id TEXT NOT NULL,
+			work_request_id TEXT NOT NULL,
+			execution_generation INTEGER NOT NULL,
+			worker_kind TEXT NOT NULL,
+			started_at_ms INTEGER NOT NULL,
+			state TEXT NOT NULL,
+			destructive_plan TEXT,
+			updated_at_ms INTEGER NOT NULL,
+			PRIMARY KEY(execution_id)
+		)
+		""".trimIndent(),
+	)
+	database.execSQL(
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_retention_work_execution_generation " +
+			"ON retention_work_execution_receipt(work_request_id, execution_generation)",
+	)
+	database.execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_retention_work_execution_state " +
+			"ON retention_work_execution_receipt(work_request_id, state)",
+	)
+}
+
+private fun createAmbientStepsNativeReplayFootprintTable(database: SupportSQLiteDatabase) {
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS ambient_steps_native_replay_footprint (
+			protected_identity TEXT NOT NULL,
+			identity_kind TEXT NOT NULL,
+			owner_day_identity TEXT NOT NULL,
+			collected_data_epoch INTEGER NOT NULL,
+			protected_at_ms INTEGER NOT NULL,
+			effect_checksum TEXT NOT NULL,
+			PRIMARY KEY(protected_identity)
+		)
+		""".trimIndent(),
+	)
+	database.execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_ambient_steps_native_footprint_owner " +
+			"ON ambient_steps_native_replay_footprint(owner_day_identity)",
+	)
+}
+
+private fun createAmbientStepsRetentionTable(database: SupportSQLiteDatabase) {
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS ambient_steps_retention_authority (
+			scope TEXT NOT NULL,
+			approval_revision INTEGER NOT NULL,
+			state TEXT NOT NULL,
+			opaque_policy_id TEXT NOT NULL,
+			source_policy_revision INTEGER,
+			ambient_consent_epoch INTEGER,
+			collected_data_epoch INTEGER NOT NULL,
+			retained_from_ms INTEGER,
+			effective_boot_id TEXT NOT NULL,
+			effective_elapsed_realtime_nanos INTEGER NOT NULL,
+			effective_wall_time_ms INTEGER NOT NULL,
+			effect_checksum TEXT NOT NULL,
+			PRIMARY KEY(scope, approval_revision)
+		)
+		""".trimIndent(),
+	)
+	database.execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_ambient_steps_retention_effective " +
+			"ON ambient_steps_retention_authority(" +
+			"scope, effective_boot_id, effective_elapsed_realtime_nanos, approval_revision)",
+	)
+	database.execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_ambient_steps_retention_scope " +
+			"ON ambient_steps_retention_authority(scope)",
+	)
 }
 
 private fun createWifiSelectedDeletionTables(database: SupportSQLiteDatabase) {
@@ -151,6 +253,7 @@ private fun createCellSelectedDeletionTables(database: SupportSQLiteDatabase) {
 			start_time_ms INTEGER NOT NULL,
 			end_time_ms INTEGER NOT NULL,
 			run_footprint_set_checksum TEXT NOT NULL,
+			retained_from_ms INTEGER,
 			deleted_at_ms INTEGER NOT NULL,
 			effect_checksum TEXT NOT NULL,
 			PRIMARY KEY(logical_tracking_id)
@@ -240,6 +343,7 @@ private fun createAmbientWifiTables(database: SupportSQLiteDatabase) {
 			source_policy_revision INTEGER,
 			ambient_consent_epoch INTEGER,
 			collected_data_epoch INTEGER NOT NULL,
+			retained_from_ms INTEGER,
 			effective_boot_id TEXT NOT NULL,
 			effective_elapsed_realtime_nanos INTEGER NOT NULL,
 			effective_wall_time_ms INTEGER NOT NULL,
@@ -553,6 +657,7 @@ private fun createAmbientCellTables(database: SupportSQLiteDatabase) {
 			source_policy_revision INTEGER,
 			ambient_consent_epoch INTEGER,
 			collected_data_epoch INTEGER NOT NULL,
+			retained_from_ms INTEGER,
 			effective_boot_id TEXT NOT NULL,
 			effective_elapsed_realtime_nanos INTEGER NOT NULL,
 			effective_wall_time_ms INTEGER NOT NULL,

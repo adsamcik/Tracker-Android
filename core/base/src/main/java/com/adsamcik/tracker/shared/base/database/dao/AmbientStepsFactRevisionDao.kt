@@ -6,6 +6,8 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsNativeReplayFootprintEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 
 data class AmbientStepsStructuralDayRow(
 	@ColumnInfo(name = "structural_epoch_day") val structuralEpochDay: Long,
@@ -18,6 +20,73 @@ data class AmbientStepsStructuralDayRow(
 /** Narrow append-only storage boundary for system-provider Ambient Steps aggregates. */
 @Dao
 interface AmbientStepsFactRevisionDao {
+	@Insert(onConflict = OnConflictStrategy.REPLACE)
+	suspend fun replaceNativeReplayFootprints(
+		values: List<AmbientStepsNativeReplayFootprintEntity>,
+	)
+
+	@Query(
+		"SELECT * FROM ambient_steps_native_replay_footprint " +
+			"WHERE protected_identity IN (:identities) ORDER BY protected_identity LIMIT :limit",
+	)
+	suspend fun nativeReplayFootprints(
+		identities: List<String>,
+		limit: Int,
+	): List<AmbientStepsNativeReplayFootprintEntity>
+
+	@Query(
+		"SELECT * FROM ambient_steps_native_replay_footprint " +
+			"ORDER BY protected_identity LIMIT :limit",
+	)
+	suspend fun nativeReplayFootprintPage(limit: Int): List<AmbientStepsNativeReplayFootprintEntity>
+
+	@Query("SELECT COUNT(*) FROM ambient_steps_native_replay_footprint")
+	suspend fun nativeReplayFootprintCount(): Long
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun insertRetentionAuthority(entity: AmbientStepsRetentionAuthorityEntity)
+
+	@Query(
+		"SELECT * FROM ambient_steps_retention_authority WHERE scope = :scope " +
+			"ORDER BY approval_revision DESC LIMIT 1",
+	)
+	suspend fun latestRetentionAuthority(scope: String): AmbientStepsRetentionAuthorityEntity?
+
+	@Query(
+		"SELECT * FROM ambient_steps_retention_authority WHERE scope = :scope " +
+			"AND opaque_policy_id = :opaquePolicyId AND approval_revision = :approvalRevision " +
+			"LIMIT 1",
+	)
+	suspend fun retentionAuthority(
+		scope: String,
+		opaquePolicyId: String,
+		approvalRevision: Long,
+	): AmbientStepsRetentionAuthorityEntity?
+
+	@Query(
+		"SELECT * FROM ambient_steps_retention_authority WHERE scope = :scope " +
+			"ORDER BY approval_revision DESC",
+	)
+	suspend fun retentionAuthorities(scope: String): List<AmbientStepsRetentionAuthorityEntity>
+
+	@Query(
+		"SELECT * FROM ambient_steps_retention_authority WHERE scope = :scope " +
+			"AND effective_boot_id = :bootId " +
+			"AND effective_elapsed_realtime_nanos <= :observedElapsedRealtimeNanos " +
+			"ORDER BY effective_elapsed_realtime_nanos DESC, approval_revision DESC LIMIT 1",
+	)
+	suspend fun retentionAuthorityAt(
+		scope: String,
+		bootId: String,
+		observedElapsedRealtimeNanos: Long,
+	): AmbientStepsRetentionAuthorityEntity?
+
+	@Query(
+		"SELECT COALESCE(MAX(approval_revision), 0) FROM ambient_steps_retention_authority " +
+			"WHERE scope = :scope",
+	)
+	suspend fun maximumRetentionApprovalRevision(scope: String): Long
+
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insert(entity: AmbientStepsFactRevisionEntity): Long
 
@@ -293,4 +362,7 @@ interface AmbientStepsFactRevisionDao {
 	/** Full collected-data clear only; scoped deletion appends redacted revisions instead. */
 	@Query("DELETE FROM ambient_steps_fact_revision")
 	fun deleteAll()
+
+	@Query("DELETE FROM ambient_steps_retention_authority")
+	suspend fun deleteAllRetentionAuthorities()
 }

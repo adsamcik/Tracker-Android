@@ -10,6 +10,7 @@ import com.adsamcik.tracker.app.applicationStartupRecoveryAction
 import com.adsamcik.tracker.app.mostRecentMainProcessExit
 import com.adsamcik.tracker.app.recentMainProcessExitCount
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
+import com.adsamcik.tracker.app.settings.CollectedDataDeletionCompletion
 import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import com.adsamcik.tracker.shared.base.database.ActiveDatabaseBlockReason
 import com.adsamcik.tracker.shared.base.database.ActiveDatabaseRetryableReason
@@ -37,7 +38,10 @@ import javax.inject.Provider
 import javax.inject.Singleton
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,6 +49,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** Resolves Android process-exit evidence without opening Tracker's Room database. */
@@ -148,6 +153,7 @@ class TrackingStartupDeletionBarrier internal constructor(
 	private val mutableOpenGenerations = MutableStateFlow(0L)
 	private val startupRecoveryMutex = Mutex()
 	private val admissionMonitor = Any()
+	@Volatile private var closing = false
 
 	/**
 	 * Emits once for the initial process generation and again after each completed deletion.
@@ -157,25 +163,48 @@ class TrackingStartupDeletionBarrier internal constructor(
 	val openGenerations: StateFlow<Long> = mutableOpenGenerations.asStateFlow()
 
 	val isClosed: Boolean
-		get() = closed.get()
+		get() = closed.get() || closing
 
 	val currentGeneration: Long
 		get() = generation.get()
 
-	/**
-	 * Closes admission immediately. Collected-data deletion uses this phase before it asks runtime
-	 * owners to cancel providers, so a blocked provider cannot prevent its own stop request.
-	 */
-	internal fun closeAdmission() {
+	/** Prevents new admission immediately without waiting for an admitted operation. */
+	internal fun beginCloseAdmission() {
 		synchronized(admissionMonitor) {
-			if (closed.compareAndSet(false, true)) generation.incrementAndGet()
+			if (closed.get() || closing) return
+			closing = true
 		}
 	}
 
-	/** Waits until every operation admitted before [closeAdmission] has left its protected section. */
+	/**
+	 * Prevents new admission immediately, then waits for an already-admitted Ready operation to
+	 * finish before publishing the closed generation.
+	 */
+	internal suspend fun closeAdmission() {
+		beginCloseAdmission()
+		try {
+			awaitQuiescence()
+		} catch (cancelled: CancellationException) {
+			synchronized(admissionMonitor) {
+				if (!closed.get()) closing = false
+			}
+			throw cancelled
+		}
+	}
+
+	private fun finishAdmissionClose() {
+		synchronized(admissionMonitor) {
+			if (closed.compareAndSet(false, true)) generation.incrementAndGet()
+			closing = false
+		}
+	}
+
+	/** Waits until pre-close operations exit, then atomically publishes the closed generation. */
 	internal suspend fun awaitQuiescence() {
 		val quiesced = withTimeoutOrNull(operationQuiescenceTimeoutMs) {
-			startupRecoveryMutex.withLock { Unit }
+			startupRecoveryMutex.withLock {
+				finishAdmissionClose()
+			}
 			true
 		} == true
 		check(quiesced) {
@@ -186,12 +215,12 @@ class TrackingStartupDeletionBarrier internal constructor(
 	/** Compatibility operation for callers that do not own runtime cancellation. */
 	suspend fun close() {
 		closeAdmission()
-		awaitQuiescence()
 	}
 
 	suspend fun reopen() {
 		startupRecoveryMutex.withLock {
 			synchronized(admissionMonitor) {
+				closing = false
 				closed.set(false)
 				mutableOpenGenerations.value = generation.get()
 			}
@@ -203,7 +232,7 @@ class TrackingStartupDeletionBarrier internal constructor(
 		onClosed: () -> T,
 		operation: suspend () -> T,
 	): T = startupRecoveryMutex.withLock {
-		val open = synchronized(admissionMonitor) { !closed.get() }
+		val open = synchronized(admissionMonitor) { !closed.get() && !closing }
 		if (open) operation() else onClosed()
 	}
 
@@ -212,7 +241,7 @@ class TrackingStartupDeletionBarrier internal constructor(
 		expectedGeneration: Long,
 		operation: () -> T,
 	): T? = synchronized(admissionMonitor) {
-		if (closed.get() || generation.get() != expectedGeneration) null else operation()
+		if (closed.get() || closing || generation.get() != expectedGeneration) null else operation()
 	}
 
 	private companion object {
@@ -270,7 +299,22 @@ class DefaultTrackingStartupGate @Inject constructor(
 	override suspend fun <T> withReadyGenerationOperation(
 		expectedGeneration: Long,
 		operation: suspend () -> T,
-	): T? = deletionBarrier.withStartupRecovery(onClosed = { null }) {
+	): T? {
+		val nested = currentCoroutineContext()[ReadyGenerationOperationContext]
+		if (nested?.gate === this) {
+			if (
+				nested.generation != expectedGeneration ||
+				deletionBarrier.isClosed ||
+				expectedGeneration != deletionBarrier.currentGeneration ||
+				ready == null ||
+				readyGeneration != expectedGeneration ||
+				readyStopGeneration != currentHandledStopGenerationOrNull()
+			) {
+				return null
+			}
+			return operation()
+		}
+		return deletionBarrier.withStartupRecovery(onClosed = { null }) {
 		if (expectedGeneration != deletionBarrier.currentGeneration ||
 			ready == null || readyGeneration != expectedGeneration ||
 			readyStopGeneration != currentHandledStopGenerationOrNull()
@@ -282,10 +326,15 @@ class DefaultTrackingStartupGate @Inject constructor(
 		val stopFenceAccepted = lifecycleCommandAuthority.runWithHandledStopGeneration(
 			readyStopGeneration,
 		) {
-			value = operation()
+			value = withContext(
+				ReadyGenerationOperationContext(this@DefaultTrackingStartupGate, expectedGeneration),
+			) {
+				operation()
+			}
 			completed = true
 		}
 		if (stopFenceAccepted && completed) value else null
+		}
 	}
 
 	override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {
@@ -346,7 +395,19 @@ class DefaultTrackingStartupGate @Inject constructor(
 		try {
 			// Pending deletion owns its own mutex and may close/reopen this barrier. Running it
 			// before the startup lease avoids self-deadlock while still keeping it ahead of Room.
-			collectedDataDeletionService.reconcilePendingDeletion()
+			when (val deletion = collectedDataDeletionService.reconcilePendingDeletion()) {
+				CollectedDataDeletionCompletion.Complete -> Unit
+				is CollectedDataDeletionCompletion.Retryable ->
+					return TrackingStartupResult.RetryableFailure(
+						TrackingStartupStage.STORAGE,
+						deletion.failure.failureCode,
+					)
+				is CollectedDataDeletionCompletion.Unverifiable ->
+					return TrackingStartupResult.Blocked(
+						TrackingStartupStage.STORAGE,
+						deletion.failure.failureCode,
+					)
+			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (failure: Exception) {
@@ -700,4 +761,11 @@ class DefaultTrackingStartupGate @Inject constructor(
 		val flight: StartupFlight,
 		val owner: Boolean,
 	)
+}
+
+private class ReadyGenerationOperationContext(
+	val gate: DefaultTrackingStartupGate,
+	val generation: Long,
+) : AbstractCoroutineContextElement(ReadyGenerationOperationContext) {
+	companion object Key : CoroutineContext.Key<ReadyGenerationOperationContext>
 }

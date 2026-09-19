@@ -6,6 +6,8 @@ import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -429,6 +431,35 @@ class AmbientStepsMaintenanceTest {
 	}
 
 	@Test
+	fun `authorization cache cannot hide a mismatched fact retention identity`() = runTest {
+		val fixture = seed(revoked = false, retainedFromMs = 1_500L)
+		val facts = listOf(
+			fixture.fact(0L, 1_000L, 4L),
+			fixture.fact(1_000L, 2_000L, 5L),
+		).sortedBy(AmbientStepsFactRevisionEntity::logicalFactId)
+		val invalidDraft = facts.last().copy(
+			retentionPolicyId = "other-retention",
+			effectChecksum = "0".repeat(64),
+		)
+		val invalid = invalidDraft.copy(
+			effectChecksum = AmbientStepsFactIntegrity.effectChecksum(invalidDraft),
+		)
+		database.ambientStepsFactRevisionDao().insert(facts.first())
+		database.ambientStepsFactRevisionDao().insert(invalid)
+
+		val failure = runCatching {
+			database.pruneAuthenticatedAmbientStepsFactsAffectedByRetentionFloor(
+				beforeMs = 1_500L,
+				collectedDataEpoch = EPOCH,
+				markedAtMs = MAINTENANCE_TIME,
+			)
+		}.exceptionOrNull()
+
+		(failure is IllegalStateException) shouldBe true
+		database.ambientStepsFactRevisionDao().countPayloadBearingRows() shouldBe 2L
+	}
+
+	@Test
 	fun `cancellation after deletion fences rolls the whole source mutation back`() = runTest {
 		val fixture = seed(revoked = true)
 		val fact = fixture.fact(0L, DAY_END, 10L)
@@ -455,6 +486,7 @@ class AmbientStepsMaintenanceTest {
 			fact.logicalFactId,
 		) shouldContainExactly listOf(fact)
 		database.ambientStepsImportStateDao().cursor(REGISTRATION) shouldBe fixture.cursor
+		database.ambientStepsFactRevisionDao().nativeReplayFootprintCount() shouldBe 0L
 	}
 
 	private suspend fun seed(
@@ -503,6 +535,21 @@ class AmbientStepsMaintenanceTest {
 				currentPolicyRevision = currentPolicy.policyRevision,
 				legacySettingsFingerprint = null,
 				updatedAtMs = if (revoked) 2_000L else 0L,
+			),
+		)
+		database.ambientStepsFactRevisionDao().insertRetentionAuthority(
+			AmbientStepsRetentionAuthorityIntegrity.create(
+				scope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				approvalRevision = 1L,
+				state = AmbientStepsRetentionAuthorityEntity.STATE_ACTIVE,
+				opaquePolicyId = RETENTION_POLICY_ID,
+				sourcePolicyRevision = HISTORICAL_POLICY,
+				ambientConsentEpoch = ACTIVE_CONSENT,
+				collectedDataEpoch = EPOCH,
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = 0L,
+				effectiveWallTimeMs = 0L,
+				retainedFromMs = retainedFromMs,
 			),
 		)
 		val demands = (1..authorizationMemberCount).map { index ->
@@ -596,6 +643,9 @@ class AmbientStepsMaintenanceTest {
 			cursorRevision = 2L,
 			status = AmbientStepsImportCursorEntity.STATUS_RETIRED,
 			updatedAtMs = DAY_END,
+			retentionScope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			retentionPolicyId = RETENTION_POLICY_ID,
+			retentionApprovalRevision = 1L,
 		)
 		database.ambientStepsImportStateDao().insertCursor(cursor)
 		return Fixture(cursor, fingerprint, demands.first())
@@ -692,6 +742,9 @@ class AmbientStepsMaintenanceTest {
 				scopeDeletionGeneration = 0L,
 				effectChecksum = "0".repeat(64),
 				appliedAtMs = endTimeMs,
+				retentionScope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				retentionPolicyId = RETENTION_POLICY_ID,
+				retentionApprovalRevision = 1L,
 			)
 			return unsigned.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsigned))
 		}
@@ -775,6 +828,7 @@ class AmbientStepsMaintenanceTest {
 		const val REVOKED_CONSENT = 2L
 		const val SOURCE_INSTANCE = "ambient-maintenance-source"
 		const val BOOT_ID = "ambient-maintenance-boot"
+		const val RETENTION_POLICY_ID = "test-retention"
 		const val PROVIDER = AmbientStepsFactRevisionEntity.PROVIDER_LOCAL_RECORDING_STEPS
 		const val DAY_END = 86_400_000L
 		const val MAINTENANCE_TIME = 90_000_000L

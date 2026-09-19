@@ -17,9 +17,13 @@ import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
+import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
+import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.time.Clock
@@ -28,6 +32,7 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionFloor
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.runtime.hasExactAmbientStepsRetentionBinding
 import com.adsamcik.tracker.tracker.source.runtime.toSourceDemandContract
 import java.time.ZoneId
 import java.util.concurrent.CancellationException
@@ -57,6 +62,7 @@ internal enum class AmbientStepsImportIneligibleReason {
 	POLICY_INACTIVE,
 	AMBIENT_POLICY_INELIGIBLE,
 	AMBIENT_CONSENT_INELIGIBLE,
+	RETENTION_AUTHORITY_UNAVAILABLE,
 	AUTHORIZATION_INELIGIBLE,
 	DESTINATION_OWNER_INELIGIBLE,
 	PROVIDER_READER_UNAVAILABLE,
@@ -148,7 +154,18 @@ internal class AmbientStepsFactImporter internal constructor(
 		val lifecycle = lifecycleSnapshotOrNull()
 			?: return retryable(AmbientStepsImportRetryableReason.STORAGE_UNAVAILABLE)
 		val preflight = try {
-			database.withTransaction { resolvePreflight(boundary, lifecycle) }
+			database.withTransaction {
+				if (
+					database.collectedDataDeletionOperationDao()
+						.activeRetentionFloorSettlement() != null
+				) {
+					Preflight.Outcome(
+						retryable(AmbientStepsImportRetryableReason.STORAGE_UNAVAILABLE),
+					)
+				} else {
+					resolvePreflight(boundary, lifecycle)
+				}
+			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
@@ -185,7 +202,14 @@ internal class AmbientStepsFactImporter internal constructor(
 
 		return try {
 			database.withTransaction {
-				commitRead(preflight, boundary, commitLifecycle, aggregate)
+				if (
+					database.collectedDataDeletionOperationDao()
+						.activeRetentionFloorSettlement() != null
+				) {
+					retryable(AmbientStepsImportRetryableReason.STORAGE_UNAVAILABLE)
+				} else {
+					commitRead(preflight, boundary, commitLifecycle, aggregate)
+				}
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -461,9 +485,33 @@ internal class AmbientStepsFactImporter internal constructor(
 		) ?: return handoffIneligible(
 			AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
 		)
+		val predecessorRetention = database.ambientStepsFactRevisionDao().retentionAuthorityAt(
+			AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			predecessorAuthorization.effectiveBootId,
+			predecessorAuthorization.effectiveElapsedRealtimeNanos,
+		)?.takeIf(AmbientStepsRetentionAuthorityIntegrity::isAuthentic)
+			?.takeIf { retention ->
+				retention.isActive &&
+					retention.sourcePolicyRevision == predecessorPolicyRevision &&
+					retention.ambientConsentEpoch == predecessorConsentEpoch &&
+					retention.collectedDataEpoch == lifecycle.epoch &&
+					retention.retainedFromMs == lifecycle.retainedFromMs
+			}
+			?: return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
+			)
+		if (predecessorDemands.any { demand ->
+				!demand.hasExactAmbientStepsRetentionBinding(predecessorRetention)
+			}
+		) {
+			return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
+			)
+		}
 		if (!predecessorPolicy.isHistoricalAmbientPolicy(
 				predecessorConsent,
 				predecessorAuthorization,
+				predecessorRetention,
 				cutoverWallTimeMs,
 			)
 		) {
@@ -478,6 +526,7 @@ internal class AmbientStepsFactImporter internal constructor(
 			authorization = predecessorAuthorization,
 			policy = predecessorPolicy,
 			consent = predecessorConsent,
+			retention = predecessorRetention,
 			lifecycle = lifecycle,
 		)
 		if (storedPredecessorCursor?.status == AmbientStepsImportCursorEntity.STATUS_RETIRED) {
@@ -1140,6 +1189,24 @@ internal class AmbientStepsFactImporter internal constructor(
 				ineligible(AmbientStepsImportIneligibleReason.AMBIENT_CONSENT_INELIGIBLE),
 			)
 		}
+		val retention = database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+			AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+		)
+		if (retention == null ||
+			!AmbientStepsRetentionAuthorityIntegrity.isAuthentic(retention) ||
+			!retention.isActive ||
+			retention.sourcePolicyRevision != policy.policyRevision ||
+			retention.ambientConsentEpoch != consent.epoch ||
+			retention.collectedDataEpoch != lifecycle.epoch ||
+			retention.retainedFromMs != lifecycle.retainedFromMs ||
+			retention.effectiveBootId != boundary.observedBootId ||
+			retention.effectiveElapsedRealtimeNanos > boundary.observedElapsedRealtimeNanos ||
+			retention.effectiveWallTimeMs > boundary.observedAtMs
+		) {
+			return AuthorityResolution.Outcome(
+				ineligible(AmbientStepsImportIneligibleReason.RETENTION_AUTHORITY_UNAVAILABLE),
+			)
+		}
 
 		val demands = SourceProviderPurposeScope.selectDemands(
 			SOURCE_KIND,
@@ -1147,7 +1214,13 @@ internal class AmbientStepsFactImporter internal constructor(
 			brokerDao.authorizationDemands(SOURCE_KIND),
 		)
 		if (demands.isEmpty() || demands.any { demand ->
-			!demand.isExactAmbientDemand(policy, provider, boundary)
+			!demand.isRetentionEligibleAmbientDemand(
+				policy,
+				requireNotNull(consent),
+				retention,
+				provider,
+				boundary,
+			)
 		}) {
 			return AuthorityResolution.Outcome(
 				ineligible(AmbientStepsImportIneligibleReason.AUTHORIZATION_INELIGIBLE),
@@ -1155,20 +1228,21 @@ internal class AmbientStepsFactImporter internal constructor(
 		}
 		val authorization = brokerDao.latestAuthorization(SOURCE_KIND, state.registrationGeneration)
 			.toAuthorizationSnapshotOrNull()
-		if (!authorization.isExactAmbientAuthorization(demands, policy, registration, boundary)) {
+		if (!authorization.isRetentionEligibleAmbientAuthorization(
+				demands,
+				policy,
+				requireNotNull(consent),
+				retention,
+				registration,
+				boundary,
+			)
+		) {
 			return AuthorityResolution.Outcome(
 				ineligible(AmbientStepsImportIneligibleReason.AUTHORIZATION_INELIGIBLE),
 			)
 		}
 		val exactAuthorization = requireNotNull(authorization)
 		val authorizationEffectiveWallTimeMs = exactAuthorization.members.first().effectiveWallTimeMs
-		if (authorizationEffectiveWallTimeMs < policy.effectiveWallTimeMs ||
-			authorizationEffectiveWallTimeMs < requireNotNull(consent).effectiveWallTimeMs
-		) {
-			return AuthorityResolution.Outcome(
-				ineligible(AmbientStepsImportIneligibleReason.AUTHORIZATION_INELIGIBLE),
-			)
-		}
 
 		val owner = database.sourceDestinationOwnerDao().get(
 			SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -1198,6 +1272,7 @@ internal class AmbientStepsFactImporter internal constructor(
 				authorizationEffectiveWallTimeMs = authorizationEffectiveWallTimeMs,
 				policy = policy,
 				consent = requireNotNull(consent),
+				retention = retention,
 				demands = demands,
 				ownerGeneration = owner.ownerGeneration,
 				lifecycle = lifecycle,
@@ -1277,6 +1352,7 @@ internal class AmbientStepsFactImporter internal constructor(
 			val transition = authority.transitionFrom(advanced, boundary.observedAtMs)
 			rotateAuthority(
 				cursor = advanced,
+				authority = authority,
 				transition = transition,
 				observedAtMs = boundary.observedAtMs,
 				appliedAtMs = appliedAtMs(boundary, boundaryTimeMs),
@@ -1298,6 +1374,7 @@ internal class AmbientStepsFactImporter internal constructor(
 		return CursorResolution.Ready(
 			rotateAuthority(
 				cursor = cursor,
+				authority = authority,
 				transition = transition,
 				observedAtMs = boundary.observedAtMs,
 				appliedAtMs = appliedAtMs(boundary, boundaryTimeMs),
@@ -1462,6 +1539,7 @@ internal class AmbientStepsFactImporter internal constructor(
 
 	private suspend fun rotateAuthority(
 		cursor: AmbientStepsImportCursorEntity,
+		authority: AmbientAuthority,
 		transition: AmbientStepsImportAuthorityTransitionEntity,
 		observedAtMs: Long,
 		appliedAtMs: Long,
@@ -1492,6 +1570,9 @@ internal class AmbientStepsFactImporter internal constructor(
 				newAuthorizationEffectiveWallTimeMs = transition.toAuthorizationEffectiveWallTimeMs,
 				newSourcePolicyRevision = transition.toSourcePolicyRevision,
 				newAmbientConsentEpoch = transition.toAmbientConsentEpoch,
+				newRetentionScope = authority.retention.scope,
+				newRetentionPolicyId = authority.retention.opaquePolicyId,
+				newRetentionApprovalRevision = authority.retention.approvalRevision,
 				effectiveBoundaryTimeMs = transition.effectiveBoundaryTimeMs,
 				newObservedAtMs = observedAtMs,
 				newCursorRevision = nextRevision,
@@ -1555,6 +1636,9 @@ internal class AmbientStepsFactImporter internal constructor(
 			scopeDeletionGeneration = 0L,
 			effectChecksum = EMPTY_EFFECT_CHECKSUM,
 			appliedAtMs = appliedAtMs,
+			retentionScope = authority.retention.scope,
+			retentionPolicyId = authority.retention.opaquePolicyId,
+			retentionApprovalRevision = authority.retention.approvalRevision,
 		)
 		return unsealed.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsealed))
 	}
@@ -1593,6 +1677,7 @@ internal class AmbientStepsFactImporter internal constructor(
 		val authorization: SourceAuthorizationSnapshot,
 		val policy: SourcePolicyEntity,
 		val consent: SourceConsentEpochEntity,
+		val retention: AmbientStepsRetentionAuthorityEntity,
 		val lifecycle: CollectedDataLifecycleSnapshot,
 	) {
 		val authorizationEffectiveWallTimeMs: Long
@@ -1605,6 +1690,7 @@ internal class AmbientStepsFactImporter internal constructor(
 					authorizationEffectiveWallTimeMs,
 					policy.effectiveWallTimeMs,
 					consent.effectiveWallTimeMs,
+					retention.effectiveWallTimeMs,
 				),
 			)
 
@@ -1637,6 +1723,9 @@ internal class AmbientStepsFactImporter internal constructor(
 			cursorRevision = 1L,
 			status = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
 			updatedAtMs = privacyFloorTimeMs,
+			retentionScope = retention.scope,
+			retentionPolicyId = retention.opaquePolicyId,
+			retentionApprovalRevision = retention.approvalRevision,
 		)
 	}
 
@@ -1673,6 +1762,7 @@ internal class AmbientStepsFactImporter internal constructor(
 		val authorizationEffectiveWallTimeMs: Long,
 		val policy: SourcePolicyEntity,
 		val consent: SourceConsentEpochEntity,
+		val retention: AmbientStepsRetentionAuthorityEntity,
 		val demands: List<SourceDemandEntity>,
 		val ownerGeneration: Long,
 		val lifecycle: CollectedDataLifecycleSnapshot,
@@ -1680,7 +1770,7 @@ internal class AmbientStepsFactImporter internal constructor(
 		val privacyFloorTimeMs: Long
 			get() = AmbientStepsImportCursorEntity.privacyFloorTimeMs(
 				requireNotNull(registration.acceptedAtMs),
-				authorizationEffectiveWallTimeMs,
+				maxOf(authorizationEffectiveWallTimeMs, retention.effectiveWallTimeMs),
 			)
 
 		fun initialCursor(zoneId: String?): AmbientStepsImportCursorEntity =
@@ -1714,6 +1804,9 @@ internal class AmbientStepsFactImporter internal constructor(
 				cursorRevision = 1L,
 				status = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
 				updatedAtMs = privacyFloorTimeMs,
+				retentionScope = retention.scope,
+				retentionPolicyId = retention.opaquePolicyId,
+				retentionApprovalRevision = retention.approvalRevision,
 			)
 
 		fun transitionFrom(
@@ -1807,26 +1900,27 @@ private fun ProviderRegistrationGenerationEntity.isAcceptedAmbientState(
 private fun SourcePolicyEntity.isCurrentAmbientPolicy(
 	boundary: AmbientStepsImportBoundary,
 ): Boolean = ambientPersistenceEligible && ambientConsentEpoch != null &&
-	effectiveBootId == boundary.observedBootId &&
-	effectiveElapsedRealtimeNanos <= boundary.observedElapsedRealtimeNanos &&
-	effectiveWallTimeMs <= boundary.observedAtMs
+	isEffectiveAtOrBefore(
+		boundary.observedBootId,
+		boundary.observedElapsedRealtimeNanos,
+		boundary.observedAtMs,
+	)
 
 private fun SourceConsentEpochEntity?.isExactEligibleAmbient(
 	policy: SourcePolicyEntity,
 	boundary: AmbientStepsImportBoundary,
 ): Boolean =
-	this != null &&
-		sourceKind == policy.sourceKind &&
-		purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
-		epoch == policy.ambientConsentEpoch &&
-		eligible && persistenceEligible &&
-		policyRevision == policy.policyRevision &&
-		effectiveBootId == boundary.observedBootId &&
-		effectiveElapsedRealtimeNanos <= boundary.observedElapsedRealtimeNanos &&
-		effectiveWallTimeMs <= boundary.observedAtMs
+	policy.hasExactEligibleAmbientConsentReference(this) &&
+		requireNotNull(this).isEffectiveAtOrBefore(
+			boundary.observedBootId,
+			boundary.observedElapsedRealtimeNanos,
+			boundary.observedAtMs,
+		)
 
-private fun SourceDemandEntity.isExactAmbientDemand(
+private fun SourceDemandEntity.isRetentionEligibleAmbientDemand(
 	policy: SourcePolicyEntity,
+	consent: SourceConsentEpochEntity,
+	retention: AmbientStepsRetentionAuthorityEntity,
 	provider: AmbientStepsProvider,
 	boundary: AmbientStepsImportBoundary,
 ): Boolean = purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
@@ -1834,10 +1928,23 @@ private fun SourceDemandEntity.isExactAmbientDemand(
 	lifecycleLeaseGeneration == null &&
 	sourcePolicyRevision == policy.policyRevision &&
 	consentEpoch == policy.ambientConsentEpoch && persistenceEligible &&
-	requestedBootId == policy.effectiveBootId &&
-	requestedElapsedRealtimeNanos >= policy.effectiveElapsedRealtimeNanos &&
+	requestedBootId == boundary.observedBootId &&
+	policy.isEffectiveAtOrBefore(
+		requestedBootId,
+		requestedElapsedRealtimeNanos,
+		requestedAtMs,
+	) &&
+	consent.isEffectiveAtOrBefore(
+		requestedBootId,
+		requestedElapsedRealtimeNanos,
+		requestedAtMs,
+	) &&
 	requestedElapsedRealtimeNanos <= boundary.observedElapsedRealtimeNanos &&
 	requestedAtMs <= boundary.observedAtMs &&
+	requestedBootId == retention.effectiveBootId &&
+	requestedElapsedRealtimeNanos >= retention.effectiveElapsedRealtimeNanos &&
+	requestedAtMs >= retention.effectiveWallTimeMs &&
+	hasExactAmbientStepsRetentionBinding(retention) &&
 	providerMatches(provider)
 
 private fun SourceDemandEntity.providerMatches(provider: AmbientStepsProvider): Boolean {
@@ -1894,23 +2001,31 @@ private fun SourceAuthorizationSnapshot.isExactRetiredAmbientAuthorization(
 private fun SourcePolicyEntity.isHistoricalAmbientPolicy(
 	consent: SourceConsentEpochEntity,
 	authorization: SourceAuthorizationSnapshot,
+	retention: AmbientStepsRetentionAuthorityEntity,
 	cutoverWallTimeMs: Long,
 ): Boolean {
 	val authorizationWallTimeMs = authorization.members.firstOrNull()?.effectiveWallTimeMs
 		?: return false
-	return sourceKind == consent.sourceKind && ambientPersistenceEligible &&
-		ambientConsentEpoch == consent.epoch &&
-		policyRevision == consent.policyRevision && consent.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
-		consent.eligible && consent.persistenceEligible &&
-		effectiveBootId == authorization.effectiveBootId &&
-		consent.effectiveBootId == authorization.effectiveBootId &&
-		effectiveElapsedRealtimeNanos <= authorization.effectiveElapsedRealtimeNanos &&
-		consent.effectiveElapsedRealtimeNanos <= authorization.effectiveElapsedRealtimeNanos &&
-		effectiveWallTimeMs <= authorizationWallTimeMs &&
-		consent.effectiveWallTimeMs <= authorizationWallTimeMs &&
+	return hasExactEligibleAmbientConsentReference(consent) &&
+		isEffectiveAtOrBefore(
+			authorization.effectiveBootId,
+			authorization.effectiveElapsedRealtimeNanos,
+			authorizationWallTimeMs,
+		) &&
+		consent.isEffectiveAtOrBefore(
+			authorization.effectiveBootId,
+			authorization.effectiveElapsedRealtimeNanos,
+			authorizationWallTimeMs,
+		) &&
+		retention.isEffectiveAtOrBefore(
+			authorization.effectiveBootId,
+			authorization.effectiveElapsedRealtimeNanos,
+			authorizationWallTimeMs,
+		) &&
 		authorizationWallTimeMs <= cutoverWallTimeMs &&
 		authorization.members.all { member ->
-			member.sourcePolicyRevision == policyRevision && member.consentEpoch == consent.epoch
+			member.sourcePolicyRevision == policyRevision &&
+				member.consentEpoch == consent.epoch
 		}
 }
 
@@ -1930,13 +2045,18 @@ private fun AmbientStepsImportCursorEntity.matchesHistoricalAuthority(
 	authorizationEffectiveWallTimeMs == authority.authorizationEffectiveWallTimeMs &&
 	sourcePolicyRevision == authority.policy.policyRevision &&
 	ambientConsentEpoch == authority.consent.epoch &&
+	retentionScope == authority.retention.scope &&
+	retentionPolicyId == authority.retention.opaquePolicyId &&
+	retentionApprovalRevision == authority.retention.approvalRevision &&
 	collectedDataEpoch == authority.lifecycle.epoch &&
 	eligibleFromTimeMs == authority.privacyFloorTimeMs &&
 	status == expectedStatus
 
-private fun SourceAuthorizationSnapshot?.isExactAmbientAuthorization(
+private fun SourceAuthorizationSnapshot?.isRetentionEligibleAmbientAuthorization(
 	demands: List<SourceDemandEntity>,
 	policy: SourcePolicyEntity,
+	consent: SourceConsentEpochEntity,
+	retention: AmbientStepsRetentionAuthorityEntity,
 	registration: ProviderRegistrationGenerationEntity,
 	boundary: AmbientStepsImportBoundary,
 ): Boolean = this != null && !isDenied &&
@@ -1945,6 +2065,21 @@ private fun SourceAuthorizationSnapshot?.isExactAmbientAuthorization(
 	effectiveBootId == registration.clockDomainId &&
 	effectiveBootId == boundary.observedBootId &&
 	effectiveElapsedRealtimeNanos <= boundary.observedElapsedRealtimeNanos &&
+	policy.isEffectiveAtOrBefore(
+		effectiveBootId,
+		effectiveElapsedRealtimeNanos,
+		members.first().effectiveWallTimeMs,
+	) &&
+	consent.isEffectiveAtOrBefore(
+		effectiveBootId,
+		effectiveElapsedRealtimeNanos,
+		members.first().effectiveWallTimeMs,
+	) &&
+	retention.isEffectiveAtOrBefore(
+		effectiveBootId,
+		effectiveElapsedRealtimeNanos,
+		members.first().effectiveWallTimeMs,
+	) &&
 	members.mapNotNull { it.demandId }.toSet() == demands.map { it.demandId }.toSet() &&
 	members.all { member ->
 		!member.isDenyAll &&
@@ -1977,6 +2112,9 @@ private fun AmbientStepsImportCursorEntity.matchesCurrentAuthorization(
 	authorizationEffectiveWallTimeMs == authority.authorizationEffectiveWallTimeMs &&
 	sourcePolicyRevision == authority.policy.policyRevision &&
 	ambientConsentEpoch == authority.policy.ambientConsentEpoch &&
+	retentionScope == authority.retention.scope &&
+	retentionPolicyId == authority.retention.opaquePolicyId &&
+	retentionApprovalRevision == authority.retention.approvalRevision &&
 	eligibleFromTimeMs == authority.privacyFloorTimeMs
 
 private fun AmbientStepsFactRevisionEntity.matchesAggregate(
@@ -1999,6 +2137,9 @@ private fun AmbientStepsFactRevisionEntity.matchesAggregate(
 	stepCount == aggregate.stepCount &&
 	sourcePolicyRevision == cursor.sourcePolicyRevision &&
 	ambientConsentEpoch == cursor.ambientConsentEpoch &&
+	retentionScope == cursor.retentionScope &&
+	retentionPolicyId == cursor.retentionPolicyId &&
+	retentionApprovalRevision == cursor.retentionApprovalRevision &&
 	collectedDataEpoch == cursor.collectedDataEpoch && scopeDeletionGeneration == 0L
 
 private fun Long?.isAfter(other: Long?): Boolean = when {
@@ -2059,7 +2200,8 @@ private fun authorityDifference(
 	before.registration != after.registration || before.state != after.state ->
 		AmbientStepsImportStaleReason.REGISTRATION_CHANGED
 	before.authorization != after.authorization || before.policy != after.policy ||
-		before.consent != after.consent || before.demands != after.demands ->
+		before.consent != after.consent || before.retention != after.retention ||
+		before.demands != after.demands ->
 		AmbientStepsImportStaleReason.AUTHORIZATION_CHANGED
 	before.ownerGeneration != after.ownerGeneration ->
 		AmbientStepsImportStaleReason.DESTINATION_OWNER_CHANGED
@@ -2077,6 +2219,7 @@ private fun AmbientStepsImportResult.toStaleReason(): AmbientStepsImportStaleRea
 		AmbientStepsImportIneligibleReason.POLICY_INACTIVE,
 		AmbientStepsImportIneligibleReason.AMBIENT_POLICY_INELIGIBLE,
 		AmbientStepsImportIneligibleReason.AMBIENT_CONSENT_INELIGIBLE,
+		AmbientStepsImportIneligibleReason.RETENTION_AUTHORITY_UNAVAILABLE,
 		AmbientStepsImportIneligibleReason.AUTHORIZATION_INELIGIBLE,
 		AmbientStepsImportIneligibleReason.PROVIDER_READER_UNAVAILABLE,
 		-> AmbientStepsImportStaleReason.AUTHORIZATION_CHANGED

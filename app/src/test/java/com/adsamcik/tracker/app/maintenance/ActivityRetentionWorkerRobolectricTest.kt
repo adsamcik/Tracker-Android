@@ -13,6 +13,13 @@ import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.maintenance.DataRetentionWorker
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableIntegrity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
+import com.adsamcik.tracker.shared.base.database.RetentionFloorOperationLookupResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionCompletionResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionContinuationResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionPlanResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionReceipt
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionStartResult
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityRequest
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityResult
 import com.adsamcik.tracker.shared.base.database.ImportedActivityProductEvaluation
@@ -53,6 +60,10 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionOperation
+import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionPolicy
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigRead
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionOperationResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
@@ -63,9 +74,10 @@ import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.secondArg
 import io.mockk.slot
+import io.mockk.thirdArg
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -82,6 +94,32 @@ import kotlin.coroutines.EmptyCoroutineContext
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ActivityRetentionWorkerRobolectricTest {
+	@Test
+	fun `both workers execute through the exact approved operation callback`() = runTest {
+		for (path in WorkerPath.entries) {
+			val db = AppDatabase.testDatabase(context())
+			try {
+				var admittedOperations = 0
+				val imported = RoomTruncateImportedActivityRetention(
+					db,
+					StandardTestDispatcher(testScheduler),
+				)
+
+				assertEquals(
+					ListenableWorker.Result.success(),
+					worker(path, db, imported) { admission ->
+						admission.requireIdentity()
+						admittedOperations += 1
+					}.doWork(),
+				)
+
+				assertEquals(1, admittedOperations)
+			} finally {
+				db.close()
+			}
+		}
+	}
+
 	@Test
 	fun `zero imported candidates and an empty legacy owner do not require Activity activation`() = runTest {
 		for (path in WorkerPath.entries) {
@@ -259,21 +297,59 @@ class ActivityRetentionWorkerRobolectricTest {
 		}
 	}
 
-	private fun worker(path: WorkerPath, db: AppDatabase, imported: RoomTruncateImportedActivityRetention): CoroutineWorker {
-		val store = mockk<RetentionConfigStore> {
-			every { config } returns flowOf(if (path == WorkerPath.LEGACY) {
+	private fun worker(
+		path: WorkerPath,
+		db: AppDatabase,
+		imported: RoomTruncateImportedActivityRetention,
+		onApprovedOperation: (ApprovedRetentionOperation) -> Unit = {},
+	): CoroutineWorker {
+		val authority = ExactApprovedRetentionConfigRead.Approved(
+			configuration = if (path == WorkerPath.LEGACY) {
 				RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1)
 			} else {
-				RetentionConfigState(autoPurgeEnabled = true, rawDataRetentionDays = 1,
-					wifiCellRetentionDays = 0, tripRetentionDays = 0, dailySummaryRetentionDays = 0, explorationRetentionDays = 0)
-			})
+				RetentionConfigState(
+					autoPurgeEnabled = true,
+					rawDataRetentionDays = 1,
+					wifiCellRetentionDays = 0,
+					tripRetentionDays = 0,
+					dailySummaryRetentionDays = 0,
+					explorationRetentionDays = 0,
+				)
+			},
+			policy = ApprovedRetentionPolicy(
+				configurationGeneration = 1L,
+				revision = 1L,
+				opaquePolicyId = "activity-retention-worker-test",
+				configurationChecksum = "e".repeat(64),
+				integrityChecksum = "f".repeat(64),
+			),
+		)
+		val store = mockk<RetentionConfigStore> {
+			coEvery {
+				withExactApprovedOperation<ListenableWorker.Result>(any())
+			} coAnswers {
+				val admission = ApprovedRetentionOperation(
+					authority.configuration,
+					authority.policy,
+				)
+				onApprovedOperation(admission)
+				ExactApprovedRetentionOperationResult.Completed(
+					admission,
+					firstArg<suspend (ApprovedRetentionOperation) -> ListenableWorker.Result>()
+						.invoke(admission),
+				)
+			}
 		}
 		val lifecycle = mockk<CollectedDataLifecycleStore> {
+			coEvery { snapshot() } returns CollectedDataLifecycleSnapshot(EPOCH, FLOOR)
 			coEvery { advanceRetainedFrom(any()) } returns CollectedDataLifecycleSnapshot(EPOCH, FLOOR)
+			coEvery { advanceRetainedFrom(any(), any(), any()) } returns
+				CollectedDataLifecycleSnapshot(EPOCH, FLOOR)
 		}
 		val lane = mockk<StepsSessionFactProjectionLane> {
 			coEvery { drainAvailable() } returns StepsSessionFactDrainResult.Inactive
 		}
+		val workExecutionCoordinator = workExecutionCoordinator(path)
 		val factory = object : WorkerFactory() {
 			override fun createWorker(appContext: Context, workerClassName: String, parameters: WorkerParameters): ListenableWorker =
 				if (path == WorkerPath.LEGACY) DataRetentionWorker(
@@ -287,6 +363,13 @@ class ActivityRetentionWorkerRobolectricTest {
 						coEvery { prune(any(), any(), any()) } returns
 							com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionResult.NoChange
 					},
+					retentionFloorSettlement(),
+					mockk {
+						coEvery {
+							run(any(), any(), any(), any())
+						} returns PeriodicAmbientRetentionResult.Complete
+					},
+					workExecutionCoordinator,
 				) else RetentionPipelineWorker(
 					appContext, parameters, store, lifecycle, Provider { db }, mockk(relaxed = true),
 					READY_GATE, Provider { lane }, Provider { imported },
@@ -298,13 +381,109 @@ class ActivityRetentionWorkerRobolectricTest {
 						coEvery { prune(any(), any(), any()) } returns
 							com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionResult.NoChange
 					},
+					retentionFloorSettlement(),
+					mockk {
+						coEvery {
+							run(any(), any(), any(), any())
+						} returns PeriodicAmbientRetentionResult.Complete
+					},
+					workExecutionCoordinator,
 				)
 		}
+
 		return if (path == WorkerPath.LEGACY) {
 			TestListenableWorkerBuilder<DataRetentionWorker>(context()).setWorkerFactory(factory).build() as DataRetentionWorker
 		} else {
 			TestListenableWorkerBuilder<RetentionPipelineWorker>(context()).setWorkerFactory(factory).build() as RetentionPipelineWorker
 		}
+	}
+
+	private fun retentionFloorSettlement(): RetentionFloorSettlement = mockk {
+		coEvery { pendingOperation(any(), any()) } returns
+			RetentionFloorOperationLookupResult.Available(null)
+		coEvery {
+			settle(
+				database = any(),
+				lifecycleStore = any(),
+				startupGate = any(),
+				expectedStartupGeneration = any(),
+				requestedRetainedFromMs = any(),
+				operationId = any(),
+				updatedAtMs = any(),
+				workExecutionId = any(),
+				destructivePlan = any(),
+				verifyApprovedOperation = any(),
+			)
+		} coAnswers {
+			val database = arg<AppDatabase>(0)
+			val evidence = database.sourceEvidenceStateDao()
+			evidence.ensure()
+			val current = requireNotNull(evidence.get())
+			if (
+				current.collectedDataEpoch != EPOCH ||
+				current.retainedFromMs != FLOOR
+			) {
+				evidence.updateLifecycle(EPOCH, FLOOR, arg(6))
+			}
+			RetentionFloorSettlementResult.Settled(
+				lifecycle = CollectedDataLifecycleSnapshot(EPOCH, FLOOR),
+				reconciledSources = setOf(
+					com.adsamcik.tracker.tracker.api.AmbientTrackingSource.STEPS,
+				),
+				operationId = arg(5),
+				requestedRetainedFromMs = arg(4),
+				requestedAtMs = arg(6),
+				workExecutionId = arg(7),
+				destructivePlan = arg(8),
+			)
+		}
+		coEvery {
+			complete(
+				database = any(),
+				startupGate = any(),
+				expectedStartupGeneration = any(),
+				settlement = any(),
+				completedAtMs = any(),
+				verifyApprovedOperation = any(),
+			)
+		} returns RetentionFloorSettlementCompletionResult.Completed
+	}
+
+	private fun workExecutionCoordinator(path: WorkerPath): RetentionWorkExecutionCoordinator = mockk {
+		val workerKind = if (path == WorkerPath.LEGACY) {
+			RetentionFloorDestructivePlan.WORKER_DATA_RETENTION
+		} else {
+			RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE
+		}
+		coEvery { begin(any(), any(), any(), any(), any()) } coAnswers {
+			val startedAtMs = invocation.args[4] as Long
+			RetentionWorkExecutionStartResult.Open(
+				RetentionWorkExecutionReceipt(
+					executionId = "activity-retention:g1",
+					workRequestId = invocation.args[1] as String,
+					executionGeneration = 1L,
+					workerKind = workerKind,
+					startedAtMs = startedAtMs,
+					state = "OPEN",
+					destructivePlan = null,
+					updatedAtMs = startedAtMs,
+				),
+			)
+		}
+		coEvery { attachPlan(any(), any(), any()) } coAnswers {
+			val receipt = secondArg<RetentionWorkExecutionReceipt>()
+			val plan = thirdArg<RetentionFloorDestructivePlan>()
+			RetentionWorkExecutionPlanResult.Attached(
+				receipt.copy(
+					destructivePlan = plan,
+					updatedAtMs = maxOf(receipt.updatedAtMs, plan.requestedAtMs),
+				),
+			)
+		}
+		coEvery { continuation(any(), any()) } returns
+			RetentionWorkExecutionContinuationResult.Continue
+		coEvery { complete(any(), any(), any()) } returns
+			RetentionWorkExecutionCompletionResult.Completed
 	}
 
 	private fun mockStorage(canonical: Boolean): MockStorage {

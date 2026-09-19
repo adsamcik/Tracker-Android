@@ -1,6 +1,14 @@
 package com.adsamcik.tracker.tracker.module
 
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationDebt
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationFailure
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationResult
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailure
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailureReason
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.resilience.TrackingAutoRecoveryAuthorization
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsDemandReconciliation
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProviderRegistrationFailure
@@ -10,6 +18,8 @@ import com.adsamcik.tracker.tracker.source.ambient.steps.LocalRecordingAmbientSt
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -23,6 +33,60 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackerModuleInitializerTest {
+	@Test
+	fun `startup waits for bootstrap reissue debt before purpose ownership`() = runTest {
+		var purposeCalls = 0
+		val sourceDebt = SourcePolicyRevisionReconciliationResult.Retryable(
+			SourcePolicyRevisionReconciliationDebt(
+				policyRevision = 1L,
+				failures = listOf(
+					SourcePolicyRevisionReconciliationFailure.SourcePolicyUnavailable,
+				),
+			),
+		)
+
+		val result = reconcileTrackerStartupAuthority(
+			reconcileSourcePolicy = { sourceDebt },
+			reconcilePurposes = {
+				purposeCalls += 1
+				TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
+			},
+		)
+
+		result shouldBe TrackerStartupAuthorityResult.SourcePolicyDebt(sourceDebt)
+		purposeCalls shouldBe 0
+	}
+
+	@Test
+	fun `startup surfaces typed purpose reconciliation debt`() = runTest {
+		val source = SourcePolicyRevisionReconciliationResult.Complete(mockk())
+		val debt = TrackingPurposeSettingsReconciliationDebt(
+			listOf(
+				TrackingPurposeSettingsReconciliationFailure(
+					AmbientTrackingSource.WIFI,
+					TrackingPurposeSettingsReconciliationFailureReason.RETIREMENT_FAILED,
+				),
+			),
+		)
+		val result = reconcileTrackerStartupAuthority(
+			reconcileSourcePolicy = { source },
+			reconcilePurposes = { TrackingPurposeSettingsReconciliationResult.Debt(debt) },
+		)
+
+		result shouldBe TrackerStartupAuthorityResult.PurposeDebt(debt)
+	}
+
+	@Test
+	fun `startup purpose exception becomes typed debt`() = runTest {
+		val source = SourcePolicyRevisionReconciliationResult.Complete(mockk())
+		val result = reconcileTrackerStartupAuthority(
+			reconcileSourcePolicy = { source },
+			reconcilePurposes = { error("purpose store unavailable") },
+		)
+
+		result.shouldBeInstanceOf<TrackerStartupAuthorityResult.PurposeDebt>()
+	}
+
 	@Test
 	fun `ambient Steps startup leaves unavailable provider inactive without reporting failure`() = runTest {
 		val unavailable = AmbientStepsDemandReconciliation.Unavailable(

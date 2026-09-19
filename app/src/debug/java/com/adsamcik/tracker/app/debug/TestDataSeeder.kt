@@ -6,6 +6,7 @@ import androidx.preference.PreferenceManager
 import androidx.room.withTransaction
 import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
+import com.adsamcik.tracker.app.settings.CollectedDataDeletionCompletion
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -20,7 +21,6 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsState
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingStateProto
-import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
@@ -199,7 +199,10 @@ class TestDataSeeder @Inject constructor(
 
     private suspend fun resetCollectedTrackingData() {
         withContext(dispatchers.io) {
-            collectedDataDeletionService.deleteAll()
+            check(
+                collectedDataDeletionService.deleteAll() ==
+                    CollectedDataDeletionCompletion.Complete,
+            ) { "Collected-data deletion remains pending" }
         }
     }
 
@@ -252,7 +255,7 @@ class TestDataSeeder @Inject constructor(
         mapSettingsRepository.setVisitThresholdSeconds(mapDefaults.visitThresholdSeconds)
 
         trackingParamsRepository.update { TrackingParamsState() }
-        retentionConfigStore.update { RetentionConfigState() }
+        retentionConfigStore.resetToDefaultsForDebug()
     }
 
     private suspend fun markOnboardingIncomplete() {

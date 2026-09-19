@@ -143,6 +143,9 @@ class AmbientStepsImportStateDaoTest {
 			newAuthorizationEffectiveWallTimeMs = 5_001L,
 			newSourcePolicyRevision = 8L,
 			newAmbientConsentEpoch = 9L,
+			newRetentionScope = "LIVE_AMBIENT",
+			newRetentionPolicyId = "policy-2",
+			newRetentionApprovalRevision = 2L,
 			effectiveBoundaryTimeMs = 6_000L,
 			newObservedAtMs = 8_000L,
 			newCursorRevision = 2L,
@@ -158,6 +161,7 @@ class AmbientStepsImportStateDaoTest {
 		rotated.importedThroughTimeMs shouldBe 6_000L
 		rotated.authorizationRevision shouldBe 4L
 		rotated.sourcePolicyRevision shouldBe 8L
+		rotated.retentionPolicyId shouldBe "policy-2"
 		rotated.ambientConsentEpoch shouldBe 9L
 		dao.authorityTransitions(7L) shouldContainExactly listOf(transition)
 	}
@@ -367,6 +371,9 @@ class AmbientStepsImportStateDaoTest {
 		cursorRevision = 1L,
 		status = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
 		updatedAtMs = 5_000L,
+		retentionScope = "LIVE_AMBIENT",
+		retentionPolicyId = "test-retention",
+		retentionApprovalRevision = 1L,
 	)
 
 	private fun cursorAt(importedThroughTimeMs: Long, observedAtMs: Long) = cursor().copy(
@@ -440,6 +447,7 @@ class AmbientStepsImportStateDaoTest {
 				3L, "a".repeat(64), startTimeMs, endTimeMs, endTimeMs, 0L, "UTC",
 				0L, 86_400_000L, 10L, "AMBIENT_PRODUCT", 4L, 5L, 6L, 0L,
 				"0".repeat(64), endTimeMs,
+				"LIVE_AMBIENT", "test-retention", 1L,
 			),
 		)
 	}
@@ -456,6 +464,7 @@ class AmbientStepsImportStateDaoTest {
 			structuralEpochDay = null, storedZoneId = null, structuralDayStartTimeMs = null,
 			structuralDayEndTimeMs = null, stepCount = null, sourcePolicyRevision = null,
 			ambientConsentEpoch = null, scopeDeletionGeneration = 1L, appliedAtMs = 9_000L,
+			retentionScope = null, retentionPolicyId = null, retentionApprovalRevision = null,
 		),
 	)
 

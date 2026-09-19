@@ -11,10 +11,14 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationDebt
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationFailure
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationResult
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryResult
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -43,6 +47,9 @@ class PostDeletionAutomaticControlRestorerTest {
 					TrackingStartupStage.LEGACY_V27,
 					"NOT_TERMINAL",
 				)
+			},
+			reconcileSourcePolicyGeneration = {
+				error("provider reconciliation must wait for Ready")
 			},
 			resumeWriters = { operations += "writers" },
 			resumeActivityArbiter = { operations += "arbiter" },
@@ -118,6 +125,10 @@ class PostDeletionAutomaticControlRestorerTest {
 			isDeletionClosed = { false },
 			isStartupReady = { true },
 			reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+			reconcileSourcePolicyGeneration = { generation ->
+				operations += "policy-$generation"
+				SourcePolicyRevisionReconciliationResult.Complete(mockk(relaxed = true))
+			},
 			resumeWriters = { operations += "writers" },
 			resumeActivityArbiter = { operations += "arbiter" },
 			reconcileAutomaticControl = {
@@ -126,8 +137,42 @@ class PostDeletionAutomaticControlRestorerTest {
 			},
 		) shouldBe PostDeletionRecoveryOutcome.COMPLETE
 
-		operations shouldBe listOf("writers", "arbiter", "control")
+		operations shouldBe listOf("policy-2", "writers", "arbiter", "control")
 	}
+
+	@Test
+	fun `post deletion policy generation debt retries before any writer or provider resumes`() =
+		runTest {
+			val operations = mutableListOf<String>()
+			val debt = SourcePolicyRevisionReconciliationDebt(
+				policyRevision = 1L,
+				failures = listOf(
+					SourcePolicyRevisionReconciliationFailure.SourcePolicyUnavailable,
+				),
+			)
+
+			runPostDeletionRecovery(
+				expectedEpoch = 8L,
+				currentEpoch = { 8L },
+				startupGeneration = 2L,
+				currentStartupGeneration = { 2L },
+				isDeletionClosed = { false },
+				isStartupReady = { true },
+				reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+				reconcileSourcePolicyGeneration = {
+					operations += "policy"
+					SourcePolicyRevisionReconciliationResult.Retryable(debt)
+				},
+				resumeWriters = { operations += "writers" },
+				resumeActivityArbiter = { operations += "arbiter" },
+				reconcileAutomaticControl = {
+					operations += "control"
+					AutomaticControlRecoveryResult.ACCEPTED
+				},
+			) shouldBe PostDeletionRecoveryOutcome.DURABLE_RETRY
+
+			operations shouldBe listOf("policy")
+		}
 
 	@Test
 	fun `generation change after reconciliation leaves every writer paused`() = runTest {
@@ -310,7 +355,7 @@ class PostDeletionAutomaticControlRestorerTest {
 	}
 
 	@Test
-	fun `Blocked then same process Ready rearms the recovery exactly once`() {
+	fun `Blocked then same process Ready rearms the recovery exactly once`() = runTest {
 		val rearm = PostDeletionReadyRearm()
 		val enqueuedEpochs = mutableListOf<Long>()
 
@@ -326,7 +371,7 @@ class PostDeletionAutomaticControlRestorerTest {
 	}
 
 	@Test
-	fun `new deletion epoch invalidates an older pending Ready obligation`() {
+	fun `new deletion epoch invalidates an older pending Ready obligation`() = runTest {
 		val rearm = PostDeletionReadyRearm()
 		val enqueuedEpochs = mutableListOf<Long>()
 
@@ -342,7 +387,7 @@ class PostDeletionAutomaticControlRestorerTest {
 	}
 
 	@Test
-	fun `Ready winning before Blocked preservation grants only one bounded race retry`() {
+	fun `Ready winning before Blocked preservation grants only one bounded race retry`() = runTest {
 		val rearm = PostDeletionReadyRearm()
 
 		rearm.schedule(8L) {}
@@ -354,7 +399,7 @@ class PostDeletionAutomaticControlRestorerTest {
 	}
 
 	@Test
-	fun `failed Ready enqueue retains the same epoch obligation for an explicit retry`() {
+	fun `failed Ready enqueue retains the same epoch obligation for an explicit retry`() = runTest {
 		val rearm = PostDeletionReadyRearm()
 		val enqueuedEpochs = mutableListOf<Long>()
 
@@ -366,6 +411,26 @@ class PostDeletionAutomaticControlRestorerTest {
 
 		rearm.onStartupReady(2L) { enqueuedEpochs += it } shouldBe true
 		enqueuedEpochs shouldBe listOf(8L, 8L)
+	}
+
+	@Test
+	fun `schedule waits for durable enqueue before publishing the epoch`() = runTest {
+		val rearm = PostDeletionReadyRearm()
+		val enqueueEntered = CompletableDeferred<Unit>()
+		val releaseEnqueue = CompletableDeferred<Unit>()
+		val scheduled = async {
+			rearm.schedule(8L) {
+				enqueueEntered.complete(Unit)
+				releaseEnqueue.await()
+			}
+		}
+
+		enqueueEntered.await()
+		scheduled.isCompleted shouldBe false
+		releaseEnqueue.complete(Unit)
+		scheduled.await() shouldBe true
+		rearm.preserveBlockedRecovery(8L, 2L) shouldBe
+			BlockedPostDeletionRecoveryDisposition.PENDING_READY
 	}
 
 	@Test
@@ -382,7 +447,7 @@ class PostDeletionAutomaticControlRestorerTest {
 			"PERMANENT_FAILURE",
 		)
 		val restorer = mockk<PostDeletionAutomaticControlRestorer>(relaxed = true)
-		every {
+		coEvery {
 			restorer.preserveUntilStartupReady(
 				collectedDataEpoch = 8L,
 				startupGeneration = 2L,
@@ -406,13 +471,13 @@ class PostDeletionAutomaticControlRestorerTest {
 		)
 
 		worker.doWork() shouldBe ListenableWorker.Result.success()
-		verify(exactly = 1) {
+		coVerify(exactly = 1) {
 			restorer.preserveUntilStartupReady(
 				collectedDataEpoch = 8L,
 				startupGeneration = 2L,
 			)
 		}
-		verify(exactly = 0) { restorer.schedule(any()) }
+		coVerify(exactly = 0) { restorer.schedule(any()) }
 	}
 
 	@Test

@@ -111,6 +111,22 @@ class RoomAmbientRadioPortableTransferTest {
 	}
 
 	@Test
+	fun `portable import stops before storage when retention producer rejects`() = runTest {
+		val repository = RoomAmbientWifiRepository(database, dispatcher)
+		val transfer = RoomAmbientWifiPortableTransfer(
+			database,
+			repository,
+			dispatcher,
+			ensurePortableRetention = { false },
+		)
+
+		transfer.importArchive(
+			wifiRequest(wifiArchive(latestRevision = 1L, includeGap = false), "denied", 10_000L),
+		) shouldBe ImportPortableAmbientWifiResult.RetentionAuthorityUnavailable
+		database.ambientWifiFactDao().importedFactCount() shouldBe 0L
+	}
+
+	@Test
 	fun `fresh database accepts a complete corrected archive`() =
 		runTest {
 			val context: Application = ApplicationProvider.getApplicationContext()

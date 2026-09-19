@@ -340,6 +340,7 @@ data class CellCapturedEntryDeletionReceiptEntity(
 	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
 	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
 	@ColumnInfo(name = "run_footprint_set_checksum") val runFootprintSetChecksum: String,
+	@ColumnInfo(name = "retained_from_ms") val retainedFromMs: Long?,
 	@ColumnInfo(name = "deleted_at_ms") val deletedAtMs: Long,
 	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
 ) {
@@ -349,6 +350,7 @@ data class CellCapturedEntryDeletionReceiptEntity(
 		require(collectedDataEpoch >= 0L && expectedRunCount in 1..MAX_RUNS)
 		require(startTimeMs >= 0L && endTimeMs >= startTimeMs && deletedAtMs >= 0L)
 		require(CELL_DELETION_SHA_256.matches(runFootprintSetChecksum))
+		require(retainedFromMs == null || retainedFromMs >= 0L)
 		require(effectChecksum == checksum(
 			logicalTrackingId,
 			entryIdentity,
@@ -357,6 +359,7 @@ data class CellCapturedEntryDeletionReceiptEntity(
 			startTimeMs,
 			endTimeMs,
 			runFootprintSetChecksum,
+			retainedFromMs,
 			deletedAtMs,
 		))
 	}
@@ -369,6 +372,7 @@ data class CellCapturedEntryDeletionReceiptEntity(
 			entryIdentity: String,
 			collectedDataEpoch: Long,
 			runFootprints: List<CellCapturedDeletedRunEntity>,
+			retainedFromMs: Long? = null,
 			deletedAtMs: Long,
 		): CellCapturedEntryDeletionReceiptEntity {
 			require(runFootprints.isNotEmpty() && runFootprints.size <= MAX_RUNS)
@@ -387,6 +391,7 @@ data class CellCapturedEntryDeletionReceiptEntity(
 				start,
 				end,
 				runChecksum,
+				retainedFromMs,
 				deletedAtMs,
 				checksum(
 					logicalTrackingId,
@@ -396,6 +401,7 @@ data class CellCapturedEntryDeletionReceiptEntity(
 					start,
 					end,
 					runChecksum,
+					retainedFromMs,
 					deletedAtMs,
 				),
 			)
@@ -432,9 +438,10 @@ data class CellCapturedEntryDeletionReceiptEntity(
 			startTimeMs: Long,
 			endTimeMs: Long,
 			runFootprintSetChecksum: String,
+			retainedFromMs: Long?,
 			deletedAtMs: Long,
 		): String = cellDeletionDigest(
-			"cell-captured-entry-deletion-receipt-v1",
+			"cell-captured-entry-deletion-receipt-v2",
 			logicalTrackingId,
 			entryIdentity,
 			collectedDataEpoch,
@@ -442,6 +449,7 @@ data class CellCapturedEntryDeletionReceiptEntity(
 			startTimeMs,
 			endTimeMs,
 			runFootprintSetChecksum,
+			retainedFromMs ?: "NONE",
 			deletedAtMs,
 		)
 	}

@@ -19,6 +19,7 @@ import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioDemandInactiveRea
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioDemandResult
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioLeaseMutation
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioReconciliationAuthority
+import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioRetirementPlan
 import com.adsamcik.tracker.tracker.source.runtime.AmbientWifiRuntimeJoinResult
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SharedWifiSourceController
@@ -245,6 +246,58 @@ class AmbientWifiDemandReconciler @Inject constructor(
 		return reconcile(lease, request).prepareReport(lease)
 	}
 
+	suspend fun retireAfterRetentionAuthorityFailure(
+		previousLease: AmbientReconciliationLease?,
+	): Boolean {
+		val lease = previousLease ?: when (
+			val plan = sourceBroker.ambientRadioRetirementPlan(SourceKind.WIFI, CONSUMER_ID)
+		) {
+			AmbientRadioRetirementPlan.AlreadyRetired ->
+				return sharedController.reconcileAmbientJoin() is AmbientWifiRuntimeJoinResult.Inactive
+			is AmbientRadioRetirementPlan.Required -> {
+				reconciliationAttempts.updateAndGet { current ->
+					maxOf(current, plan.previousReconciliationAttempt)
+				}
+				plan.lease
+			}
+			AmbientRadioRetirementPlan.Unverifiable -> return false
+		}
+		val outcome = reconcile(
+			lease,
+			AmbientWifiActivationRequest(enabled = false),
+		).outcome
+		return outcome is AmbientWifiDemandReconciliation.Inactive &&
+			outcome.reason == AmbientWifiDemandBlockReason.REQUEST_DISABLED
+	}
+
+	suspend fun closeForCollectedDataDeletion(): Boolean {
+		val plan = sourceBroker.ambientRadioRetirementPlan(SourceKind.WIFI, CONSUMER_ID)
+		if (plan is AmbientRadioRetirementPlan.Unverifiable) return false
+		if (plan is AmbientRadioRetirementPlan.AlreadyRetired) {
+			return sharedController.closeAmbientForCollectedDataDeletion()
+		}
+		plan as AmbientRadioRetirementPlan.Required
+		val attempt = reconciliationAttempts.updateAndGet { current ->
+			Math.addExact(maxOf(current, plan.previousReconciliationAttempt), 1L)
+		}
+		val boundary = AmbientWifiDemandBoundary(
+			clockDomainProvider.current(),
+			Time.elapsedRealtimeNanos,
+			Time.nowMillis,
+		)
+		val retired = sourceBroker.replaceAmbientWifiDemandUnderHeldLease(
+			consumerId = CONSUMER_ID,
+			requested = false,
+			leaseIdentity = plan.lease.identity,
+			reconciliationAttempt = attempt,
+			bootId = boundary.bootId,
+			elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+			wallTimeMs = boundary.wallTimeMs,
+		)
+		return retired is AmbientRadioDemandResult.Inactive &&
+			sharedController.closeAmbientForCollectedDataDeletion()
+	}
+
 	private companion object {
 		const val CONSUMER_ID = "app:ambient:wifi"
 	}
@@ -346,6 +399,7 @@ enum class AmbientWifiDemandBlockReason {
 	OWNERSHIP_CONFLICT,
 	DELETION_AUTHORITY_MISMATCH,
 	RUNTIME_JOIN_RETIRED,
+	RUNTIME_JOIN_NOT_RETIRED,
 }
 
 private fun AmbientRadioDemandInactiveReason.toPublicReason(): AmbientWifiDemandBlockReason =
@@ -407,14 +461,14 @@ private fun AmbientWifiDemandBlockReason.afterAmbientJoinRetirement(
 		)
 	is AmbientWifiRuntimeJoinResult.Active ->
 		AmbientWifiDemandReconciliation.Inactive(
-			this,
+			AmbientWifiDemandBlockReason.RUNTIME_JOIN_NOT_RETIRED,
 			runtime.providerKeyOrNull(),
 			reconciliationAuthority,
 			demandId,
 		)
 	is AmbientWifiRuntimeJoinResult.Degraded ->
 		AmbientWifiDemandReconciliation.Inactive(
-			this,
+			AmbientWifiDemandBlockReason.RUNTIME_JOIN_NOT_RETIRED,
 			runtime.providerKeyOrNull(),
 			reconciliationAuthority,
 			demandId,
@@ -487,6 +541,8 @@ fun AmbientWifiDemandReconciliation.toOperationalAvailability(
 			identity,
 		)
 		AmbientWifiDemandBlockReason.RUNTIME_JOIN_RETIRED -> ambientWifiProviderUnavailable(identity)
+		AmbientWifiDemandBlockReason.RUNTIME_JOIN_NOT_RETIRED ->
+			ambientWifiProviderUnavailable(identity)
 	}
 	is AmbientWifiDemandReconciliation.Unavailable -> reasons.toAmbientWifiUnavailable(identity)
 }

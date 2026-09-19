@@ -32,8 +32,9 @@ import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBack
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
-import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupResult
-import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.tracker.api.TrackingPurposeDeletionFencer
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
@@ -54,6 +55,8 @@ import io.mockk.verify
 import java.io.File
 import javax.inject.Provider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -68,7 +71,8 @@ import org.junit.runner.RunWith
  *
  * The first Room transaction clears collected rows and records the retained WAL high-water. The
  * second transaction reconstructs empty, manual-capture-authorized Steps writer metadata. The
- * durable marker and process startup barrier fence the gap when post-rearm diagnostics fail.
+ * durable operation receipt, marker, and process startup barrier fence the gap when post-rearm
+ * diagnostics fail; retry resumes diagnostics without another clear, epoch, or writer generation.
  *
  * This does not prove cold-process recovery, provider capture, materialization, history/product
  * queries, export, UI, QUERYABLE status, or rollout readiness; those remain separate gates.
@@ -82,6 +86,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 	private lateinit var coordinator: StepsSessionFactWriterTransitionCoordinator
 	private lateinit var deletionBarrier: TrackingStartupDeletionBarrier
 	private lateinit var startupGate: TrackingStartupGate
+	private lateinit var retentionAuthorityProducer: RetentionAuthorityProducer
 	private lateinit var markerFile: File
 
 	@Before
@@ -96,11 +101,12 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		database = AppDatabase.database(context)
 		deletionBarrier = context.trackingStartupDeletionBarrier
 		startupGate = context.trackingStartupGate
+		retentionAuthorityProducer = entryPoint.retentionAuthorityProducer()
 		markerFile = File(context.noBackupFilesDir, "collected-data-deletion-pending")
 	}
 
 	@Test
-	fun failedPostRearmDiagnosticsRetainsFenceUntilRetryRearmsNextGeneration() = runTest {
+	fun failedPostRearmDiagnosticsRetainsFenceUntilRetryResumesSameGeneration() = runTest {
 		startupGate.reconcile(retryFailedStorage = true)
 			.shouldBeInstanceOf<TrackingStartupResult.Ready>()
 		markerFile.exists() shouldBe false
@@ -150,7 +156,6 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		coEvery { mocks.exportPlanStore.resetAllWatermarks() } coAnswers {
 			counters.postRearm += 1
 			assertAfterRearm(
-				attempt = counters.postRearm,
 				initialOwnerGeneration = scenario.canonicalState.ownerGeneration,
 				initialRolloutRevision = scenario.canonicalState.rolloutRevision,
 				initialLifecycleEpoch = scenario.initialLifecycleEpoch,
@@ -163,7 +168,6 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		val coordinatorProvider = Provider {
 			counters.preRearm += 1
 			assertBeforeRearm(
-				attempt = counters.preRearm,
 				initialOwnerGeneration = scenario.canonicalState.ownerGeneration,
 				initialRolloutRevision = scenario.canonicalState.rolloutRevision,
 				initialLifecycleEpoch = scenario.initialLifecycleEpoch,
@@ -182,9 +186,12 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 			collectedDataLifecycleStore = lifecycleStore,
 			startupDeletionBarrier = deletionBarrier,
 			activityRegistrationArbiter = Provider { mocks.activityArbiter },
-			ambientStepsProviderLifecycle = Provider { mocks.ambientStepsProviderLifecycle },
+			purposeDeletionFencer = Provider { mocks.purposeDeletionFencer },
 			automaticControlRestorer = mocks.automaticControlRestorer,
+			retentionAuthorityProducer = retentionAuthorityProducer,
 			stepsWriterTransitionCoordinator = coordinatorProvider,
+			providerFenceScope =
+				CoroutineScope(SupervisorJob() + dispatchersProvider.default),
 			dispatchersProvider = dispatchersProvider,
 			traceboxHandleProvider = mocks.traceboxHandleProvider,
 		)
@@ -204,7 +211,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 			exportPlanStore = mockk(),
 			writerQuiescer = mockk(),
 			activityArbiter = mockk(),
-			ambientStepsProviderLifecycle = mockk(),
+			purposeDeletionFencer = mockk(),
 			automaticControlRestorer = mockk(),
 			traceboxHandle = mockk(),
 			traceboxHandleProvider = mockk(),
@@ -215,9 +222,10 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		every { mocks.writerQuiescer.resume() } just Runs
 		coEvery { mocks.activityArbiter.closeForCollectedDataDeletion() } returns
 			appliedRegistrationResult()
-		coEvery { mocks.ambientStepsProviderLifecycle.closeForCollectedDataDeletion() } returns
-			AmbientStepsProviderCleanupResult(complete = true)
-		every { mocks.automaticControlRestorer.schedule(any()) } just Runs
+		coEvery { mocks.purposeDeletionFencer.fenceForCollectedDataDeletion() } returns
+			TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
+		coEvery { mocks.automaticControlRestorer.schedule(any()) } returns
+			PostDeletionRecoveryScheduleResult.Enqueued
 		every { mocks.traceboxHandleProvider.handle } returns mocks.traceboxHandle
 		every { mocks.traceboxHandle.delete(DeleteRequest.ALL_TRACEBOX_DATA) } returnsMany listOf(
 			DeleteReport.PENDING_FAILURE,
@@ -241,33 +249,34 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		deletionBarrier.currentGeneration shouldBe scenario.initialGeneration + 1L
 		deletionBarrier.openGenerations.value shouldBe scenario.initialPublishedGeneration
 		startupGate.isReady shouldBe false
-		verify(exactly = 0) { fixture.automaticControlRestorer.schedule(any()) }
+		coVerify(exactly = 0) { fixture.automaticControlRestorer.schedule(any()) }
 	}
 
 	private suspend fun assertSuccessfulRetryReopens(
 		scenario: DeletionScenario,
 		fixture: DeletionFixture,
 	) {
-		fixture.service.reconcilePendingDeletion()
+		fixture.service.reconcilePendingDeletion() shouldBe
+			CollectedDataDeletionCompletion.Complete
 
-		fixture.counters.preRearm shouldBe 2
+		fixture.counters.preRearm shouldBe 1
 		fixture.counters.postRearm shouldBe 2
 		markerFile.exists() shouldBe false
 		deletionBarrier.isClosed shouldBe false
 		deletionBarrier.currentGeneration shouldBe scenario.initialGeneration + 1L
 		deletionBarrier.openGenerations.value shouldBe scenario.initialGeneration + 1L
 		startupGate.withReadyGeneration(scenario.initialGeneration) { true } shouldBe null
-		lifecycleStore.snapshot().epoch shouldBe scenario.initialLifecycleEpoch + 2L
+		lifecycleStore.snapshot().epoch shouldBe scenario.initialLifecycleEpoch + 1L
 		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe
-			scenario.initialLifecycleEpoch + 2L
+			scenario.initialLifecycleEpoch + 1L
 		assertCandidateAuthority(
-			ownerGeneration = scenario.canonicalState.ownerGeneration + 2L,
-			rolloutRevision = scenario.canonicalState.rolloutRevision + 2L,
+			ownerGeneration = scenario.canonicalState.ownerGeneration + 1L,
+			rolloutRevision = scenario.canonicalState.rolloutRevision + 1L,
 			expectedDeletedHighWater = scenario.expectedDeletedHighWater,
 			rolloutStore = scenario.rolloutStore,
 		)
-		verify(exactly = 1) {
-			fixture.automaticControlRestorer.schedule(scenario.initialLifecycleEpoch + 2L)
+		coVerify(exactly = 1) {
+			fixture.automaticControlRestorer.schedule(scenario.initialLifecycleEpoch + 1L)
 		}
 		verify(exactly = 2) {
 			fixture.traceboxHandle.delete(DeleteRequest.ALL_TRACEBOX_DATA)
@@ -390,7 +399,6 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 	}
 
 	private fun assertBeforeRearm(
-		attempt: Int,
 		initialOwnerGeneration: Long,
 		initialRolloutRevision: Long,
 		initialLifecycleEpoch: Long,
@@ -408,24 +416,23 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		queryLong(
 			"SELECT owner_generation FROM source_destination_owner " +
 				"WHERE source_kind = $STEPS_SOURCE AND destination = '$STEPS_DESTINATION'",
-		) shouldBe initialOwnerGeneration + attempt - 1L
+		) shouldBe initialOwnerGeneration
 		queryString(
 			"SELECT owner FROM source_destination_owner " +
 				"WHERE source_kind = $STEPS_SOURCE AND destination = '$STEPS_DESTINATION'",
 		) shouldBe CANDIDATE_OWNER
 		queryLong("SELECT revision FROM tracking_rollout_state WHERE id = 1") shouldBe
-			initialRolloutRevision + attempt - 1L
+			initialRolloutRevision
 		queryString("SELECT projection_mode FROM tracking_rollout_state WHERE id = 1")
 			.contains("$STEPS_SOURCE:EVENT_CANONICAL:") shouldBe true
 		queryLong("SELECT collected_data_epoch FROM source_evidence_state WHERE id = 1") shouldBe
-			initialLifecycleEpoch + attempt
+			initialLifecycleEpoch + 1L
 		queryLong(
 			"SELECT deleted_source_event_high_water_ordinal FROM source_evidence_state WHERE id = 1",
 		) shouldBe expectedDeletedHighWater
 	}
 
 	private suspend fun assertAfterRearm(
-		attempt: Int,
 		initialOwnerGeneration: Long,
 		initialRolloutRevision: Long,
 		initialLifecycleEpoch: Long,
@@ -436,12 +443,12 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		deletionBarrier.isClosed shouldBe true
 		deletionBarrier.openGenerations.value shouldBe initialPublishedGeneration
 		startupGate.isReady shouldBe false
-		lifecycleStore.snapshot().epoch shouldBe initialLifecycleEpoch + attempt
+		lifecycleStore.snapshot().epoch shouldBe initialLifecycleEpoch + 1L
 		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe
-			initialLifecycleEpoch + attempt
+			initialLifecycleEpoch + 1L
 		assertCandidateAuthority(
-			ownerGeneration = initialOwnerGeneration + attempt,
-			rolloutRevision = initialRolloutRevision + attempt,
+			ownerGeneration = initialOwnerGeneration + 1L,
+			rolloutRevision = initialRolloutRevision + 1L,
 			expectedDeletedHighWater = expectedDeletedHighWater,
 			rolloutStore = RoomTrackingRolloutStateStore(
 				database,
@@ -645,7 +652,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		val exportPlanStore: ExportPlanStore,
 		val writerQuiescer: CollectedDataWriterQuiescer,
 		val activityArbiter: ActivityRegistrationArbiter,
-		val ambientStepsProviderLifecycle: AmbientStepsProviderLifecycle,
+		val purposeDeletionFencer: TrackingPurposeDeletionFencer,
 		val automaticControlRestorer: PostDeletionAutomaticControlRestorer,
 		val traceboxHandle: TraceboxHandle,
 		val traceboxHandleProvider: TrackerTraceboxHandleProvider,

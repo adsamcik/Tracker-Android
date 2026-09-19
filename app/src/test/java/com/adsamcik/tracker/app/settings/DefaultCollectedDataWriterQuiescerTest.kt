@@ -16,8 +16,13 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
 import com.adsamcik.tracker.impexp.importer.DataImporter
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
+import com.adsamcik.tracker.app.maintenance.RetentionWorkScheduler
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.points.event.PointsDomainEventConsumer
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionStartResult
+import com.adsamcik.tracker.shared.base.database.beginOrResumeRetentionWorkExecution
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.stats.data.worker.AchievementWorker
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
@@ -37,6 +42,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import com.google.common.util.concurrent.SettableFuture
 import java.util.concurrent.TimeUnit
+import javax.inject.Provider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -56,6 +62,8 @@ class DefaultCollectedDataWriterQuiescerTest {
 
 	private lateinit var context: Application
 	private lateinit var workManager: WorkManager
+	private lateinit var database: AppDatabase
+	private lateinit var retentionWorkScheduler: RetentionWorkScheduler
 	private val trackerRunning = MutableStateFlow(false)
 	private val trackerStateReader: TrackerStateReader = mockk()
 	private val activityWatcherController: ActivityWatcherController = mockk()
@@ -72,6 +80,8 @@ class DefaultCollectedDataWriterQuiescerTest {
 				.build(),
 		)
 		workManager = WorkManager.getInstance(context)
+		database = AppDatabase.testDatabase(context)
+		retentionWorkScheduler = RetentionWorkScheduler(Provider { database }, workManager)
 		every { trackerStateReader.isServiceRunning } answers { trackerRunning.value }
 		every { trackerStateReader.isServiceRunningFlow } returns trackerRunning
 		every { activityWatcherController.pauseForDataDeletion() } just Runs
@@ -83,6 +93,7 @@ class DefaultCollectedDataWriterQuiescerTest {
 	@After
 	fun tearDown() {
 		workManager.cancelAllWork().result.get()
+		database.close()
 	}
 
 	@Test
@@ -129,6 +140,22 @@ class DefaultCollectedDataWriterQuiescerTest {
 			ExistingWorkPolicy.REPLACE,
 			legacyRetention,
 		).result.get()
+		val retentionExecution = (
+			database.beginOrResumeRetentionWorkExecution(
+				workRequestId = retention.id.toString(),
+				workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+				runAttemptCount = 0,
+				startedAtMs = 1_000L,
+			) as RetentionWorkExecutionStartResult.Open
+		).receipt
+		val legacyRetentionExecution = (
+			database.beginOrResumeRetentionWorkExecution(
+				workRequestId = legacyRetention.id.toString(),
+				workerKind = RetentionFloorDestructivePlan.WORKER_DATA_RETENTION,
+				runAttemptCount = 0,
+				startedAtMs = 1_000L,
+			) as RetentionWorkExecutionStartResult.Open
+		).receipt
 		val databaseMaintenance = delayedWork()
 		workManager.enqueueUniqueWork(
 			DatabaseMaintenanceWorker.MAINTENANCE_UNIQUE_ID,
@@ -140,6 +167,7 @@ class DefaultCollectedDataWriterQuiescerTest {
 			trackerStateReader = trackerStateReader,
 			activityWatcherController = activityWatcherController,
 			exportAutomationController = exportAutomationController,
+			retentionWorkScheduler = retentionWorkScheduler,
 			awaitTrackerQuiescence = { TrackingStopQuiescenceResult.HANDLED },
 		)
 
@@ -149,6 +177,10 @@ class DefaultCollectedDataWriterQuiescerTest {
 			legacyRetention + databaseMaintenance).forEach { request ->
 			workManager.getWorkInfoById(request.id).get()?.state shouldBe WorkInfo.State.CANCELLED
 		}
+		database.retentionWorkExecutionReceiptDao().get(retentionExecution.executionId)?.state shouldBe
+			"ABANDONED"
+		database.retentionWorkExecutionReceiptDao()
+			.get(legacyRetentionExecution.executionId)?.state shouldBe "ABANDONED"
 		verify(exactly = 1) { activityWatcherController.pauseForDataDeletion() }
 		coVerify(exactly = 1) { exportAutomationController.pauseForDataDeletion() }
 
@@ -182,6 +214,7 @@ class DefaultCollectedDataWriterQuiescerTest {
 			trackerStateReader = trackerStateReader,
 			activityWatcherController = activityWatcherController,
 			exportAutomationController = exportAutomationController,
+			retentionWorkScheduler = mockk(relaxed = true),
 			workManager = stuckWorkManager,
 			quiescenceTimeoutMs = 1L,
 			awaitTrackerQuiescence = { TrackingStopQuiescenceResult.HANDLED },
@@ -204,6 +237,7 @@ class DefaultCollectedDataWriterQuiescerTest {
 			trackerStateReader = trackerStateReader,
 			activityWatcherController = activityWatcherController,
 			exportAutomationController = exportAutomationController,
+			retentionWorkScheduler = retentionWorkScheduler,
 			awaitTrackerQuiescence = {
 				awaited = true
 				TrackingStopQuiescenceResult.SUPERSEDED

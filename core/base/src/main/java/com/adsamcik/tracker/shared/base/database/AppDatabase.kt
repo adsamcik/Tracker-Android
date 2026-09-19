@@ -24,6 +24,8 @@ import com.adsamcik.tracker.shared.base.database.dao.AmbientCellFactDao
 import com.adsamcik.tracker.shared.base.database.dao.AmbientWifiFactDao
 import com.adsamcik.tracker.shared.base.database.dao.CellCapturedFactDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.CollectedDataDeletionOperationDao
+import com.adsamcik.tracker.shared.base.database.dao.RetentionWorkExecutionReceiptDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportReceiptDao
@@ -75,6 +77,8 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEn
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsNativeReplayFootprintEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiDeletionMarkerEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactCursorEntity
@@ -88,6 +92,8 @@ import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionR
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellSample
+import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
+import com.adsamcik.tracker.shared.base.database.data.RetentionWorkExecutionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
@@ -278,6 +284,8 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			StepInterval::class,
 			StepFactRevisionEntity::class,
 			AmbientStepsFactRevisionEntity::class,
+			AmbientStepsRetentionAuthorityEntity::class,
+			AmbientStepsNativeReplayFootprintEntity::class,
 			AmbientStepsImportAuthorityTransitionEntity::class,
 			AmbientStepsImportCursorEntity::class,
 			AmbientStepsImportGapEntity::class,
@@ -378,6 +386,8 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			TrackerRun::class,
 			TrackerStateEvent::class,
 			SourceEvidenceState::class,
+			CollectedDataDeletionOperationEntity::class,
+			RetentionWorkExecutionReceiptEntity::class,
 			SourceEventWalEntity::class,
 			SourceCaptureAdmissionBarrierEntity::class,
 			SourceRunRetirementEntity::class,
@@ -561,6 +571,10 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun trackerStateEventDao(): TrackerStateEventDao
 
 	abstract fun sourceEvidenceStateDao(): SourceEvidenceStateDao
+
+	abstract fun collectedDataDeletionOperationDao(): CollectedDataDeletionOperationDao
+
+	abstract fun retentionWorkExecutionReceiptDao(): RetentionWorkExecutionReceiptDao
 
 	abstract fun sourceEventWalDao(): SourceEventWalDao
 
@@ -763,12 +777,76 @@ abstract class AppDatabase : RoomDatabase() {
 			collectedDataEpoch: Long,
 			retainedFromMs: Long?,
 			updatedAtMs: Long,
-		) {
+		): CollectedDataDeletionOperationEntity = deleteAllCollectedData(
+			context = context,
+			operationId = "legacy-$collectedDataEpoch-$updatedAtMs",
+			collectedDataEpoch = collectedDataEpoch,
+			retainedFromMs = retainedFromMs,
+			updatedAtMs = updatedAtMs,
+		)
+
+		suspend fun deleteAllCollectedData(
+			context: Context,
+			operationId: String,
+			collectedDataEpoch: Long,
+			retainedFromMs: Long?,
+			updatedAtMs: Long,
+		): CollectedDataDeletionOperationEntity {
 			val database = database(context)
 			val backupStore = DatabaseMigrationBackupStore(context)
 			backupStore.markDeletionPending()
-			deleteAllCollectedData(database, collectedDataEpoch, retainedFromMs, updatedAtMs)
+			val operation = deleteAllCollectedData(
+				database,
+				operationId,
+				collectedDataEpoch,
+				retainedFromMs,
+				updatedAtMs,
+			)
 			backupStore.deleteAll()
+			return operation
+		}
+
+		internal suspend fun deleteAllCollectedData(
+			database: AppDatabase,
+			operationId: String,
+			collectedDataEpoch: Long,
+			retainedFromMs: Long?,
+			updatedAtMs: Long,
+		): CollectedDataDeletionOperationEntity =
+			database.withTransaction {
+				database.collectedDataDeletionOperationDao().get(operationId)?.let { existing ->
+					check(existing.targetCollectedDataEpoch == collectedDataEpoch)
+					check(existing.retainedFromMs == retainedFromMs)
+					check(existing.deletedAtMs == updatedAtMs)
+					return@withTransaction existing
+				}
+				database.sourceEvidenceStateDao().ensure()
+				val oldState = requireNotNull(database.sourceEvidenceStateDao().get())
+				database.preserveAmbientStepsNativeReplayFootprintsForFullClearInCurrentTransaction(
+					oldCollectedDataEpoch = oldState.collectedDataEpoch,
+					newCollectedDataEpoch = collectedDataEpoch,
+					protectedAtMs = updatedAtMs,
+				)
+				deleteAllCollectedDataInCurrentTransaction(
+					database = database,
+					operationId = operationId,
+					oldState = oldState,
+					newCollectedDataEpoch = collectedDataEpoch,
+					retainedFromMs = retainedFromMs,
+					updatedAtMs = updatedAtMs,
+				)
+			}
+
+		suspend fun readCollectedDataDeletionOperation(
+			context: Context,
+			operationId: String,
+		): CollectedDataDeletionOperationEntity? {
+			val database = database(context)
+			val operation = database.collectedDataDeletionOperationDao().get(operationId)
+			if (operation != null) {
+				DatabaseMigrationBackupStore(context).deleteAll()
+			}
+			return operation
 		}
 
 		internal suspend fun deleteAllCollectedData(
@@ -776,53 +854,36 @@ abstract class AppDatabase : RoomDatabase() {
 			collectedDataEpoch: Long,
 			retainedFromMs: Long?,
 			updatedAtMs: Long,
-		) {
-			database.withTransaction {
-				deleteAllCollectedDataInCurrentTransaction(
-					database = database,
-					newCollectedDataEpoch = collectedDataEpoch,
-					retainedFromMs = retainedFromMs,
-					updatedAtMs = updatedAtMs,
-				)
-			}
-		}
+		): CollectedDataDeletionOperationEntity = deleteAllCollectedData(
+			database = database,
+			operationId = "legacy-$collectedDataEpoch-$updatedAtMs",
+			collectedDataEpoch = collectedDataEpoch,
+			retainedFromMs = retainedFromMs,
+			updatedAtMs = updatedAtMs,
+		)
 
-		internal fun deleteAllCollectedData(database: AppDatabase) {
-			database.runInTransaction {
-				val updatedAtMs = System.currentTimeMillis()
-				val oldState = getOrCreateSourceEvidenceState(database)
-				deleteAllCollectedDataInCurrentTransaction(
-					database = database,
-					oldState = oldState,
-					newCollectedDataEpoch = Math.addExact(oldState.collectedDataEpoch, 1L),
-					retainedFromMs = oldState.retainedFromMs,
-					updatedAtMs = updatedAtMs,
-				)
-			}
-		}
-
-		private fun deleteAllCollectedDataInCurrentTransaction(
-			database: AppDatabase,
-			newCollectedDataEpoch: Long,
-			retainedFromMs: Long?,
-			updatedAtMs: Long,
-		) {
-			deleteAllCollectedDataInCurrentTransaction(
+		internal suspend fun deleteAllCollectedData(database: AppDatabase) {
+			database.sourceEvidenceStateDao().ensure()
+			val oldState = requireNotNull(database.sourceEvidenceStateDao().get())
+			val updatedAtMs = System.currentTimeMillis()
+			deleteAllCollectedData(
 				database = database,
-				oldState = getOrCreateSourceEvidenceState(database),
-				newCollectedDataEpoch = newCollectedDataEpoch,
-				retainedFromMs = retainedFromMs,
+				operationId = "legacy-${oldState.collectedDataEpoch + 1L}-$updatedAtMs",
+				collectedDataEpoch = Math.addExact(oldState.collectedDataEpoch, 1L),
+				retainedFromMs = oldState.retainedFromMs,
 				updatedAtMs = updatedAtMs,
 			)
 		}
 
-		private fun deleteAllCollectedDataInCurrentTransaction(
+		private suspend fun deleteAllCollectedDataInCurrentTransaction(
 			database: AppDatabase,
+			operationId: String,
 			oldState: SourceEvidenceState,
 			newCollectedDataEpoch: Long,
 			retainedFromMs: Long?,
 			updatedAtMs: Long,
-		) {
+		): CollectedDataDeletionOperationEntity {
+			require(operationId.isNotBlank())
 			require(newCollectedDataEpoch > oldState.collectedDataEpoch)
 			require(retainedFromMs == null || retainedFromMs >= 0L)
 			require(updatedAtMs >= 0L)
@@ -894,42 +955,19 @@ abstract class AppDatabase : RoomDatabase() {
 			importedAmbientStepsDao.deleteFullClearPayloadInCurrentTransaction(
 				newCollectedDataEpoch,
 			)
+			database.retentionWorkExecutionReceiptDao()
+				.supersedeOpenExecutions(updatedAtMs)
 			deleteCollectedRows(database)
-		}
-
-		private fun getOrCreateSourceEvidenceState(database: AppDatabase): SourceEvidenceState {
-			val sqlite = database.openHelper.writableDatabase
-			sqlite.execSQL(
-				"INSERT OR IGNORE INTO source_evidence_state " +
-					"(id, revision, collected_data_epoch, retained_from_ms, " +
-					"deleted_source_event_high_water_ordinal, updated_at_ms) " +
-					"VALUES (1, 0, 0, NULL, 0, 0)",
-			)
-			return sqlite.query(
-				"SELECT id, revision, collected_data_epoch, retained_from_ms, " +
-					"deleted_source_event_high_water_ordinal, updated_at_ms " +
-					"FROM source_evidence_state WHERE id = 1",
-			).use { cursor ->
-				check(cursor.moveToFirst()) {
-					"Source-evidence state disappeared inside full-clear transaction"
-				}
-				SourceEvidenceState(
-					id = cursor.getInt(0),
-					revision = cursor.getLong(1),
-					collectedDataEpoch = cursor.getLong(2),
-					retainedFromMs = if (cursor.isNull(3)) null else cursor.getLong(3),
-					deletedSourceEventHighWaterOrdinal = cursor.getLong(4),
-					updatedAtMs = cursor.getLong(5),
-				)
-			}.also { state ->
-				check(
-					state.id == SourceEvidenceState.SINGLETON_ID &&
-						state.revision >= 0L &&
-						state.collectedDataEpoch >= 0L &&
-						(state.retainedFromMs == null || state.retainedFromMs >= 0L) &&
-						state.deletedSourceEventHighWaterOrdinal >= 0L &&
-						state.updatedAtMs >= 0L,
-				) { "Stored source-evidence state is invalid" }
+			return CollectedDataDeletionOperationEntity(
+				operationId = operationId,
+				targetCollectedDataEpoch = newCollectedDataEpoch,
+				retainedFromMs = nextRetainedFromMs,
+				deletedAtMs = updatedAtMs,
+				phase = CollectedDataDeletionOperationEntity.PHASE_DATABASE_CLEARED,
+				updatedAtMs = updatedAtMs,
+			).also { operation ->
+				database.collectedDataDeletionOperationDao().deleteAllExcept(operationId)
+				database.collectedDataDeletionOperationDao().insert(operation)
 			}
 		}
 
@@ -1017,6 +1055,7 @@ abstract class AppDatabase : RoomDatabase() {
 			// Ambient Steps payload was authenticated and removed before this common cascade; its
 			// day fences, protected identities, and source fence remain as deletion authority.
 			database.stepFactRevisionDao().deleteAll()
+			database.ambientStepsFactRevisionDao().deleteAllRetentionAuthorities()
 			database.ambientStepsFactRevisionDao().deleteAll()
 			database.ambientStepsImportStateDao().deleteAllAuthorityTransitions()
 			database.ambientStepsImportStateDao().deleteAllGaps()

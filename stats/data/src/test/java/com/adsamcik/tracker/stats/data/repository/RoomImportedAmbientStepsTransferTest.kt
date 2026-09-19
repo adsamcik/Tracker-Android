@@ -11,6 +11,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.deleteFullClearPayloadInCurrentTransaction
 import com.adsamcik.tracker.shared.base.database.prepareFullClearFencesInCurrentTransaction
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveDayEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsNativeReplayFootprintEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsNativeReplayFootprintIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsIdentity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsReceiptEntity
@@ -203,6 +205,62 @@ class RoomImportedAmbientStepsTransferTest {
 		} finally {
 			secondDatabase.close()
 		}
+	}
+
+	@Test
+	fun `production retention producer rejects portable Steps before any import write`() = runTest {
+		val archive = archive(completeDay(LocalDate.of(2026, 10, 25), count = 1L))
+		val subject = RoomImportPortableAmbientSteps(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+			com.adsamcik.tracker.shared.preferences.retention
+				.UnavailableRetentionAuthorityProducer,
+		)
+
+		subject.importArchive(request(archive)) shouldBe ImportPortableAmbientStepsResult.Blocked(
+			PortableAmbientStepsImportBlockedReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+		database.importedAmbientStepsDao().dayRevisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `native clear footprints block exact and alternate receipt replay only`() = runTest {
+		val blockedArchive = archive(completeDay(LocalDate.of(2026, 10, 25), count = 1L))
+		val day = blockedArchive.days.single()
+		val fact = day.facts.single()
+		database.ambientStepsFactRevisionDao().replaceNativeReplayFootprints(
+			listOf(
+				AmbientStepsNativeReplayFootprintIntegrity.create(
+					day.identity.value,
+					AmbientStepsNativeReplayFootprintEntity.KIND_DAY,
+					day.identity.value,
+					EPOCH,
+					day.structuralDayEndTimeMs,
+				),
+				AmbientStepsNativeReplayFootprintIntegrity.create(
+					fact.identity.value,
+					AmbientStepsNativeReplayFootprintEntity.KIND_FACT,
+					day.identity.value,
+					EPOCH,
+					day.structuralDayEndTimeMs,
+				),
+			),
+		)
+
+		importer(database).importArchive(request(blockedArchive)) shouldBe
+			ImportPortableAmbientStepsResult.Blocked(
+				PortableAmbientStepsImportBlockedReason.LOCAL_ORIGIN_OVERLAP,
+			)
+		importer(database).importArchive(
+			request(blockedArchive, jobId = "alternate", archiveKey = "alternate"),
+		) shouldBe ImportPortableAmbientStepsResult.Blocked(
+			PortableAmbientStepsImportBlockedReason.LOCAL_ORIGIN_OVERLAP,
+		)
+		val unrelated = archive(completeDay(LocalDate.of(2026, 10, 26), count = 2L))
+		importer(database).importArchive(
+			request(unrelated, jobId = "unrelated", archiveKey = "unrelated"),
+		) shouldBe applied(unrelated, 1)
 	}
 
 	@Test

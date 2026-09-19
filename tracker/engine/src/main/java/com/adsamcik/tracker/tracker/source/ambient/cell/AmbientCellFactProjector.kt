@@ -14,6 +14,8 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthor
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
+import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
@@ -51,6 +53,12 @@ internal class AmbientCellFactProjector @Inject constructor(
 	private suspend fun projectInTransaction(
 		admissionOrdinal: Long,
 	): AmbientCellProjectionResult {
+		if (
+			database.collectedDataDeletionOperationDao()
+				.activeRetentionFloorSettlement() != null
+		) {
+			return AmbientCellProjectionResult.RetryableFailure
+		}
 		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(admissionOrdinal)
 			?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.WAL_MISSING)
 		if (wal.sourceKind != SourceKind.CELL.stableCode) {
@@ -69,6 +77,17 @@ internal class AmbientCellFactProjector @Inject constructor(
 			wal.physicalConfigurationFingerprint == null
 		) {
 			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.WAL_SHAPE)
+		}
+		val observedWallTimeMs = wal.wallTimeMs
+			?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.CLOCK_UNVERIFIABLE)
+		val lifecycle = database.sourceEvidenceStateDao().get()
+			?: return cellUnverifiable(
+				AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
+			)
+		if (lifecycle.collectedDataEpoch != wal.capturedCollectedDataEpoch) {
+			return cellUnverifiable(
+				AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
+			)
 		}
 		val rows = database.sourceBrokerDao().authorizationRevisionBounded(
 			SourceKind.CELL.stableCode,
@@ -124,23 +143,22 @@ internal class AmbientCellFactProjector @Inject constructor(
 		if (policyAuthority == null ||
 			policyAuthority.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
 			policy == null ||
-			policy.ambientConsentEpoch != ambientConsentEpoch ||
-			!policy.ambientPersistenceEligible ||
 			consent == null ||
-			!consent.eligible ||
-			!consent.persistenceEligible ||
-			consent.policyRevision != sourcePolicyRevision ||
-			policy.effectiveBootId != wal.clockDomainId ||
-			policy.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos ||
-			consent.effectiveBootId != wal.clockDomainId ||
-			consent.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos ||
+			!policy.hasExactEligibleAmbientConsentReference(consent) ||
+			!policy.isEffectiveAtOrBefore(
+				wal.clockDomainId,
+				wal.observedElapsedNanos,
+				observedWallTimeMs,
+			) ||
+			!consent.isEffectiveAtOrBefore(
+				wal.clockDomainId,
+				wal.observedElapsedNanos,
+				observedWallTimeMs,
+			) ||
 			currentPolicy == null ||
-			currentPolicy.ambientConsentEpoch != ambientConsentEpoch ||
-			!currentPolicy.ambientPersistenceEligible ||
 			currentConsent == null ||
-			currentConsent.epoch != ambientConsentEpoch ||
-			!currentConsent.eligible ||
-			!currentConsent.persistenceEligible
+			currentPolicy.ambientConsentEpoch != ambientConsentEpoch ||
+			!currentPolicy.hasExactEligibleAmbientConsentReference(currentConsent)
 		) {
 			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.POLICY_MISMATCH)
 		}
@@ -185,7 +203,8 @@ internal class AmbientCellFactProjector @Inject constructor(
 			retention.opaquePolicyId != authority.retentionPolicyId ||
 			retention.sourcePolicyRevision != sourcePolicyRevision ||
 			retention.ambientConsentEpoch != ambientConsentEpoch ||
-			retention.collectedDataEpoch != wal.capturedCollectedDataEpoch
+			retention.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
+			retention.retainedFromMs != lifecycle.retainedFromMs
 		) {
 			return cellUnverifiable(
 				AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
@@ -197,7 +216,8 @@ internal class AmbientCellFactProjector @Inject constructor(
 		if (currentRetention == null ||
 			!AmbientCellRetentionAuthorityIntegrity.isAuthentic(currentRetention) ||
 			!currentRetention.isActive ||
-			currentRetention.collectedDataEpoch != wal.capturedCollectedDataEpoch
+			currentRetention.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
+			currentRetention.retainedFromMs != lifecycle.retainedFromMs
 		) {
 			return cellUnverifiable(
 				AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
@@ -281,7 +301,7 @@ internal class AmbientCellFactProjector @Inject constructor(
 			wal.admissionOrdinal,
 		)
 		val unchanged = prior?.toAggregate() == aggregate
-		val wallTimeMs = wal.wallTimeMs ?: return recordUnverifiableGap(wal, authority, zone)
+		val wallTimeMs = observedWallTimeMs
 		val day = Instant.ofEpochMilli(wallTimeMs).atZone(zone).toLocalDate()
 		val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
 		val dayEnd = day.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli()

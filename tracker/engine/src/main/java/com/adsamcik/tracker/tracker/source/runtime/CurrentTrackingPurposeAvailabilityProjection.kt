@@ -135,6 +135,7 @@ private sealed interface CurrentTrackingPurposeAuthorityState {
 			policyRevision = policy.revision,
 			collectedDataEpoch = lifecycle.epoch,
 			rolloutRevision = rollout.revision,
+			retainedFromMs = lifecycle.retainedFromMs,
 		)
 	}
 
@@ -158,6 +159,7 @@ private sealed interface CurrentTrackingPurposeAuthorityState {
 				collectedDataEpoch = lifecycle.epoch,
 				rolloutRevision = rollout.revision,
 				executionRevision = executionRevision,
+				retainedFromMs = lifecycle.retainedFromMs,
 			)
 		}.toMap()
 	}
@@ -211,4 +213,5 @@ private fun TrackingPurposeAuthoritySnapshot.toAuthorityVector() =
 		collectedDataEpoch = collectedDataEpoch,
 		rolloutRevision = rolloutRevision,
 		executionRevision = executionRevision,
+		retainedFromMs = retainedFromMs,
 	)

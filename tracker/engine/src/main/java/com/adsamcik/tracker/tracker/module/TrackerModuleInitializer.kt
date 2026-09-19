@@ -10,13 +10,17 @@ import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationCoordinator
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationResult
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryScheduler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.resilience.TrackingAutoRecoveryAuthorization
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
-import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProviderLifecycleOwner
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProviderRegistrationResult
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
@@ -45,7 +49,9 @@ class TrackerModuleInitializer @Inject constructor(
 	private val sourcePipelineRecovery: SourcePipelineRecovery,
 	private val activityAutomationEpochAuthority: ActivityAutomationEpochAuthority,
 	private val automaticControlRecoveryScheduler: AutomaticControlRecoveryScheduler,
-	private val ambientStepsProviderLifecycleOwner: AmbientStepsProviderLifecycleOwner,
+	private val trackingPurposeSettingsReconciler: TrackingPurposeSettingsReconciler,
+	private val sourcePolicyRevisionReconciliationCoordinator:
+		SourcePolicyRevisionReconciliationCoordinator,
 ) : ModuleInitializer {
 	override val priority: Int = 20
 	private val initializationGate = TrackerModuleInitializationGate()
@@ -55,45 +61,56 @@ class TrackerModuleInitializer @Inject constructor(
 		if (!initializationGate.tryStart()) return
 
 		applicationScope.launch {
-			handoffTrackerInitializationAfterAuthorization(
-				reconcileStartup = { trackingStartupGate.reconcile() },
-				currentReadyGeneration = { trackingStartupGate.currentGeneration },
-				awaitAuthorizationAfterReady = {
-					trackingStartupGuard.awaitAutoRecoveryAuthorizationAfterStartupReady(context)
-				},
-				awaitNextReady = trackingStartupGate::awaitReady,
-				withReadyGenerationOperation = { generation, operation ->
-					trackingStartupGate.withReadyGenerationOperation(generation, operation)
-				},
-				releaseForReadyGeneration = {
-					trackingStartupGuard.releaseAutoRecoveryForReadyGeneration(context)
-				},
-				handoff = { handoffAuthorization ->
-					lockManager.initializeFromPersistence(context)
-					activityAutomationEpochAuthority.startRuntimeBoundaryMonitoring(applicationScope)
-					initializeTrackerAutomaticControlAfterAuthorization(
-						authorization = handoffAuthorization,
-						initialize = { BackgroundTrackingApi.initialize(context) },
-					)
-					runAmbientStepsStartupReconciliation(
-						reconcile = ambientStepsProviderLifecycleOwner::reconcile,
-						onFailure = { failure ->
-							if (failure == null) {
-								TrackerDiagnosticLog.warn(
-									TrackerDiagnosticWarningCode
-										.AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED,
-								)
-							} else {
-								TrackerDiagnosticLog.failure(
-									TrackerDiagnosticFailureCode
-										.AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED,
-									TrackingDiagnosticFailureReason.RECOVERY_FAILURE,
-								)
-							}
+			while (true) {
+				try {
+					handoffTrackerInitializationAfterAuthorization(
+						reconcileStartup = { trackingStartupGate.reconcile() },
+						currentReadyGeneration = { trackingStartupGate.currentGeneration },
+						awaitAuthorizationAfterReady = {
+							trackingStartupGuard.awaitAutoRecoveryAuthorizationAfterStartupReady(context)
 						},
+						awaitNextReady = trackingStartupGate::awaitReady,
+						withReadyGenerationOperation = { generation, operation ->
+							trackingStartupGate.withReadyGenerationOperation(generation, operation)
+						},
+						releaseForReadyGeneration = {
+							trackingStartupGuard.releaseAutoRecoveryForReadyGeneration(context)
+						},
+						handoff = { handoffAuthorization ->
+							val readyGeneration = trackingStartupGate.currentGeneration
+							when (val authority = reconcileTrackerStartupAuthority(
+								reconcileSourcePolicy = {
+									sourcePolicyRevisionReconciliationCoordinator
+										.reconcileCurrentPolicyRevisionWithinReadyOperation(
+											readyGeneration,
+										)
+								},
+								reconcilePurposes =
+									trackingPurposeSettingsReconciler::reconcileCurrentSettings,
+							)) {
+								TrackerStartupAuthorityResult.Complete -> Unit
+								else -> throw TrackerStartupAuthorityPendingException(authority)
+							}
+							lockManager.initializeFromPersistence(context)
+							activityAutomationEpochAuthority
+								.startRuntimeBoundaryMonitoring(applicationScope)
+							initializeTrackerAutomaticControlAfterAuthorization(
+								authorization = handoffAuthorization,
+								initialize = { BackgroundTrackingApi.initialize(context) },
+							)
+						},
+					) ?: return@launch
+					break
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (_: TrackerStartupAuthorityPendingException) {
+					TrackerDiagnosticLog.warn(
+						TrackerDiagnosticWarningCode
+							.AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED,
 					)
-				},
-			) ?: return@launch
+					delay(STARTUP_AUTHORITY_RETRY_DELAY_MS)
+				}
+			}
 			driveActivityAutomationEffectDrain(
 				authorityReady = BackgroundTrackingApi.activityAutomationAuthorityReady,
 				drainRequired = sourcePipelineRecovery.activityAutomationDrainRequired,
@@ -106,6 +123,65 @@ class TrackerModuleInitializer @Inject constructor(
 		}
 	}
 }
+
+internal suspend fun reconcileTrackerStartupAuthority(
+	reconcileSourcePolicy: suspend () -> SourcePolicyRevisionReconciliationResult,
+	reconcilePurposes: suspend () -> TrackingPurposeSettingsReconciliationResult,
+): TrackerStartupAuthorityResult {
+	val sourcePolicy = reconcileSourcePolicy()
+	when (sourcePolicy) {
+		is SourcePolicyRevisionReconciliationResult.Complete -> Unit
+		is SourcePolicyRevisionReconciliationResult.Retryable,
+		is SourcePolicyRevisionReconciliationResult.Unverifiable,
+		-> return TrackerStartupAuthorityResult.SourcePolicyDebt(sourcePolicy)
+	}
+	return when (val purposes = try {
+		reconcilePurposes()
+	} catch (cancellation: CancellationException) {
+		throw cancellation
+	} catch (_: Exception) {
+		TrackingPurposeSettingsReconciliationResult.Debt(
+			TrackingPurposeSettingsReconciliationDebt(
+				listOf(
+					com.adsamcik.tracker.tracker.api
+						.TrackingPurposeSettingsReconciliationFailure(
+							source = null,
+							reason = com.adsamcik.tracker.tracker.api
+								.TrackingPurposeSettingsReconciliationFailureReason
+								.OWNER_RECONCILIATION_FAILED,
+						),
+				),
+			),
+		)
+	}) {
+		is TrackingPurposeSettingsReconciliationResult.Complete ->
+			TrackerStartupAuthorityResult.Complete
+		is TrackingPurposeSettingsReconciliationResult.Debt ->
+			TrackerStartupAuthorityResult.PurposeDebt(purposes.debt)
+	}
+}
+
+internal sealed interface TrackerStartupAuthorityResult {
+	data object Complete : TrackerStartupAuthorityResult
+
+	data class SourcePolicyDebt(
+		val reconciliation: SourcePolicyRevisionReconciliationResult,
+	) : TrackerStartupAuthorityResult {
+		init {
+			require(reconciliation !is SourcePolicyRevisionReconciliationResult.Complete)
+		}
+	}
+
+	data class PurposeDebt(
+		val debt: TrackingPurposeSettingsReconciliationDebt,
+	) : TrackerStartupAuthorityResult
+}
+
+private class TrackerStartupAuthorityPendingException(
+	val result: TrackerStartupAuthorityResult,
+) : IllegalStateException("Tracker startup authority remains unavailable")
+
+private const val STARTUP_AUTHORITY_RETRY_DELAY_MS = 1_000L
 
 /** One opportunistic process-start reconciliation; provider failures do not block core tracking. */
 internal suspend fun runAmbientStepsStartupReconciliation(

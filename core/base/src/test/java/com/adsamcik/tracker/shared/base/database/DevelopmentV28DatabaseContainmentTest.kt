@@ -77,11 +77,57 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
+	fun `pre-retention final v28 marker is classified as stale`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			markerValue = "tracker-v28-final-20260917",
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28,
+		)
+	}
+
+	@Test
+	fun `pre-radio-receipt retention marker is classified as stale`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			markerValue = "tracker-v28-retention-final-20260917",
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28,
+		)
+	}
+
+	@Test
 	fun `marked v28 missing an indispensable final table is contained`() {
 		createFixture(
 			version = CURRENT_DATABASE_VERSION,
 			includeMarker = true,
 			includeFinalColumn = true,
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `pre-retention v28 missing retention sentinels is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeRetentionTables = false,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
 		)
 
 		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
@@ -96,6 +142,22 @@ class DevelopmentV28DatabaseContainmentTest {
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalIndex = true,
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `marked v28 missing the retained radio receipt floor is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			includeRadioReceiptColumn = false,
 		)
 
 		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
@@ -368,8 +430,11 @@ class DevelopmentV28DatabaseContainmentTest {
 		includeBaseline: Boolean = true,
 		includeMarker: Boolean = false,
 		includeFinalTable: Boolean = false,
+		includeRetentionTables: Boolean = includeFinalTable,
 		includeFinalColumn: Boolean = false,
 		includeFinalIndex: Boolean = false,
+		includeRadioReceiptColumn: Boolean = true,
+		markerValue: String? = null,
 	) {
 		val helper = FrameworkSQLiteOpenHelperFactory().create(
 			SupportSQLiteOpenHelper.Configuration.builder(context)
@@ -405,7 +470,45 @@ class DevelopmentV28DatabaseContainmentTest {
 								)
 							}
 						}
-						if (includeMarker) {
+						if (includeRetentionTables) {
+							db.execSQL(
+								"CREATE TABLE ambient_steps_retention_authority (" +
+									"scope TEXT NOT NULL, approval_revision INTEGER NOT NULL, " +
+									"PRIMARY KEY(scope, approval_revision))",
+							)
+							db.execSQL(
+								"CREATE TABLE ambient_steps_native_replay_footprint (" +
+									"protected_identity TEXT PRIMARY KEY)",
+							)
+							db.execSQL(
+								"CREATE TABLE collected_data_deletion_operation (" +
+									"operation_id TEXT PRIMARY KEY, " +
+									"retention_work_execution_id TEXT, " +
+									"retention_destructive_plan TEXT, " +
+									"settled_retained_from_ms INTEGER)",
+							)
+							val retainedFrom = if (includeRadioReceiptColumn) {
+								", retained_from_ms INTEGER"
+							} else {
+								""
+							}
+							db.execSQL(
+								"CREATE TABLE cell_captured_entry_deletion_receipt (" +
+									"logical_tracking_id TEXT PRIMARY KEY$retainedFrom)",
+							)
+							if (includeFinalIndex) {
+								db.execSQL(
+									"CREATE INDEX idx_ambient_steps_retention_scope " +
+										"ON ambient_steps_retention_authority(scope)",
+								)
+							}
+						}
+						if (markerValue != null) {
+							db.execSQL(
+								"INSERT INTO room_master_table(id, identity_hash) VALUES (?, ?)",
+								arrayOf(FINAL_V28_MARKER_ID, markerValue),
+							)
+						} else if (includeMarker) {
 							FinalV28SchemaAssemblyRoomCallback.onCreate(db)
 						}
 					}

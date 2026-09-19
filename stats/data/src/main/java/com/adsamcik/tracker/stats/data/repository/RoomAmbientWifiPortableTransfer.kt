@@ -11,6 +11,9 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiFactEnt
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiGapEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiReceiptEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.shared.model.tracking.TrackingSource
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.isActiveApproval
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiOrigin
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiCoverage
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiPortableFormatV1
@@ -34,11 +37,28 @@ import kotlinx.coroutines.withContext
 
 /** Source-only portable transfer. Import writes no demand, provider, authorization, session, or WAL. */
 @Singleton
-internal class RoomAmbientWifiPortableTransfer @Inject constructor(
+internal class RoomAmbientWifiPortableTransfer internal constructor(
 	private val database: AppDatabase,
 	private val repository: RoomAmbientWifiRepository,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+	private val ensurePortableRetention: suspend () -> Boolean = { true },
 ) : ExportPortableAmbientWifi, ImportPortableAmbientWifi {
+	@Inject
+	constructor(
+		database: AppDatabase,
+		repository: RoomAmbientWifiRepository,
+		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+		retentionAuthorityProducer: RetentionAuthorityProducer,
+	) : this(
+		database,
+		repository,
+		ioDispatcher,
+		{
+			retentionAuthorityProducer.approvePortableImport(TrackingSource.WIFI)
+				.isActiveApproval()
+		},
+	)
+
 	override suspend fun export(
 		request: ExportPortableAmbientWifiRequest,
 		sink: PortableAmbientWifiSink,
@@ -126,6 +146,9 @@ internal class RoomAmbientWifiPortableTransfer @Inject constructor(
 		request: ImportPortableAmbientWifiRequest,
 	): ImportPortableAmbientWifiResult = withContext(ioDispatcher) {
 		try {
+			if (!ensurePortableRetention()) {
+				return@withContext ImportPortableAmbientWifiResult.RetentionAuthorityUnavailable
+			}
 			database.withTransaction { importInTransaction(request) }
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -161,7 +184,8 @@ internal class RoomAmbientWifiPortableTransfer @Inject constructor(
 		)?.takeIf {
 			AmbientWifiRetentionAuthorityIntegrity.isAuthentic(it) &&
 				it.isActive &&
-				it.collectedDataEpoch == request.expectedCollectedDataEpoch
+				it.collectedDataEpoch == request.expectedCollectedDataEpoch &&
+				it.retainedFromMs == evidence.retainedFromMs
 		} ?: return ImportPortableAmbientWifiResult.RetentionAuthorityUnavailable
 		dao.importTombstone(request.archive.archiveId)?.let { tombstone ->
 			if (tombstone.effectChecksum !=

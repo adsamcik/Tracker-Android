@@ -930,6 +930,7 @@ class SourceEventWalDaoTest {
 			database.pruneSourceEventStorageBefore(
 				createdBeforeMs = 100,
 				verifyCollectedDataAccess = {
+					kotlinx.coroutines.yield()
 					verificationCalls++
 					check(verificationCalls < 2) { "collected-data generation changed" }
 				},

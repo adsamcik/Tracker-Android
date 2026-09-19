@@ -760,7 +760,9 @@ object BackgroundTrackingApi {
 			.launchIn(scope)
 		purposeAuthorityJob = currentPurposeReader.authorityRevision
 			.onEach {
-				entryPoint.trackingPurposeSettingsReconciler().reconcileCurrentSettings()
+				entryPoint.trackingPurposeSettingsReconciler()
+					.reconcileCurrentSettings()
+					.requireCompletePurposeReconciliation()
 			}
 			.retryingTrackingSettingsObservation(
 				onFailure = {
@@ -828,7 +830,9 @@ object BackgroundTrackingApi {
 				}
 				paramsInitialized = params.sourcePolicyRevision != null
 				publishActivityAutomationAuthority()
-				entryPoint.trackingPurposeSettingsReconciler().reconcileCurrentSettings()
+				entryPoint.trackingPurposeSettingsReconciler()
+					.reconcileCurrentSettings()
+					.requireCompletePurposeReconciliation()
 			}
 			.retryingTrackingSettingsObservation(
 				onFailure = {
@@ -1586,6 +1590,16 @@ internal suspend fun reconcileActivityRequestRemoval(
 	}
 	return false
 }
+
+private fun TrackingPurposeSettingsReconciliationResult.requireCompletePurposeReconciliation() {
+	if (this is TrackingPurposeSettingsReconciliationResult.Debt) {
+		throw TrackingPurposeReconciliationDebtException(debt)
+	}
+}
+
+private class TrackingPurposeReconciliationDebtException(
+	val debt: TrackingPurposeSettingsReconciliationDebt,
+) : IllegalStateException("Tracking purpose reconciliation remains retryable")
 
 private fun ActivityTransitionData.matches(update: TransitionUpdate): Boolean =
 	activity == update.activityType && type == update.transitionType

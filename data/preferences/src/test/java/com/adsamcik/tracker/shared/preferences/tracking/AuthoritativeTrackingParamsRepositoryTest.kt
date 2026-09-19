@@ -5,11 +5,19 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import android.app.Application
 import androidx.room.Room
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityState
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigurationApprovalResult
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.assertions.throwables.shouldThrow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,6 +55,8 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	private lateinit var legacy: FakeTrackingParamsRepository
 	private lateinit var policy: RoomSourcePolicyRepository
 	private lateinit var repository: AuthoritativeTrackingParamsRepository
+	private lateinit var retention: RecordingRetentionAuthorityProducer
+	private lateinit var ambientSteps: RecordingAmbientStepsPolicyRevisionReconciler
 	private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 
 	@Before
@@ -61,7 +71,21 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		policy = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("test-boot", 10L, 20L)
 		}
-		repository = AuthoritativeTrackingParamsRepository(legacy, policy, applicationScope, startupGate)
+		retention = RecordingRetentionAuthorityProducer {
+			val active = policy.currentState() as SourcePolicyAuthorityState.Active
+			active.snapshot[TrackingSourceComponent.STEPS].let { steps ->
+				steps.ambientConsentEpoch != null && steps.ambientPersistenceEligible
+			}
+		}
+		ambientSteps = RecordingAmbientStepsPolicyRevisionReconciler()
+		repository = AuthoritativeTrackingParamsRepository(
+			legacy,
+			policy,
+			applicationScope,
+			startupGate,
+			retention,
+			ambientSteps,
+		)
 	}
 
 	@After
@@ -138,7 +162,243 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			revoked.ambientConsentEpoch shouldBe null
 			revoked.ambientPersistenceEligible.shouldBeFalse()
 		}
+
 	}
+
+	@Test
+	fun `explicit ambient mutation reconciles all revisioned retention and Ambient Steps authority`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+
+		repository.setAmbientWifiEnabled(true)
+
+		retention.liveSources shouldBe emptyList()
+		retention.fullReconciliations shouldBe 1
+		ambientSteps.reconciliations shouldBe 1
+		ambientSteps.retirements shouldBe 0
+	}
+
+	@Test
+	fun `unrelated settings revision reissues authority before reconciling Ambient Steps`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+		repository.setAmbientStepsEnabled(true)
+		val enabled = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
+		val consentEpoch = enabled[TrackingSourceComponent.STEPS].ambientConsentEpoch
+		retention.reset()
+		ambientSteps.reset()
+
+		repository.setWifiEnabled(false)
+
+		val revised = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
+		revised.revision shouldBe enabled.revision + 1L
+		revised[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe consentEpoch
+		retention.fullReconciliations shouldBe 1
+		ambientSteps.events shouldBe listOf("reconcile")
+	}
+
+	@Test
+	fun `retention debt retires stale Ambient Steps authority and recovery reopens it`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+		repository.setAmbientStepsEnabled(true)
+		val consentEpoch = (policy.currentState() as SourcePolicyAuthorityState.Active)
+			.snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch
+		retention.reset()
+		ambientSteps.reset()
+		val unavailable = RetentionAuthorityResult.Unavailable(
+			TrackingSourceComponent.STEPS,
+			RetentionAuthorityScope.LIVE_AMBIENT,
+			com.adsamcik.tracker.shared.preferences.retention
+				.RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE,
+		)
+		retention.overrideResults = listOf(
+			unavailable,
+		)
+
+		repository.setWifiEnabled(false)
+
+		val debt = repository.reconciliationState.value
+			.shouldBeInstanceOf<SourcePolicyRevisionReconciliationState.Debt>()
+			.debt
+		debt.failures.single() shouldBe
+			SourcePolicyRevisionReconciliationFailure.RetentionAuthority(unavailable)
+		debt.retryable.shouldBeTrue()
+		ambientSteps.events shouldBe listOf("retire")
+		val strandedRevision = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
+		strandedRevision[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe consentEpoch
+		legacy.current.wifiEnabled.shouldBeFalse()
+
+		retention.overrideResults = null
+		ambientSteps.reset()
+		repository.reconcileCurrentPolicyRevision()
+			.shouldBeInstanceOf<SourcePolicyRevisionReconciliationResult.Complete>()
+
+		val recovered = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
+		recovered.revision shouldBe strandedRevision.revision
+		recovered[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe consentEpoch
+		ambientSteps.events shouldBe listOf("reconcile")
+	}
+
+	@Test
+	fun `legacy bootstrap reissues retention before publishing active source policy`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Application>()
+		val bootstrapDatabase = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+			.allowMainThreadQueries()
+			.build()
+		val bootstrapPolicy = RoomSourcePolicyRepository(bootstrapDatabase) {
+			SourcePolicyEffectiveTime("bootstrap-boot", 10L, 20L)
+		}
+		val bootstrapRetention = RecordingRetentionAuthorityProducer {
+			val active = bootstrapPolicy.currentState() as SourcePolicyAuthorityState.Active
+			active.snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch != null
+		}
+		val bootstrapAmbientSteps = RecordingAmbientStepsPolicyRevisionReconciler()
+		val bootstrapRepository = AuthoritativeTrackingParamsRepository(
+			legacy = FakeTrackingParamsRepository(
+				TrackingParamsState(
+					ambientStepsEnabled = true,
+					legacySettingsMigrationCompleted = true,
+				),
+			),
+			sourcePolicyRepository = bootstrapPolicy,
+			applicationScope = applicationScope,
+			trackingStartupGate = startupGate,
+			retentionAuthorityProducer = bootstrapRetention,
+			ambientStepsPolicyRevisionReconciler = bootstrapAmbientSteps,
+		)
+		try {
+			val published = bootstrapRepository.data.first { it.sourcePolicyRevision == 1L }
+
+			published.ambientStepsEnabled.shouldBeTrue()
+			bootstrapRetention.fullReconciliations shouldBe 1
+			bootstrapAmbientSteps.events shouldBe listOf("reconcile")
+			bootstrapRepository.reconciliationState.value shouldBe
+				SourcePolicyRevisionReconciliationState.Complete(1L)
+		} finally {
+			bootstrapDatabase.close()
+		}
+	}
+
+	@Test
+	fun `retention bootstrap initializes SourcePolicy without startup Ready or provider work`() =
+		runTest {
+			val context = ApplicationProvider.getApplicationContext<Application>()
+			val bootstrapDatabase = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+				.allowMainThreadQueries()
+				.build()
+			val bootstrapPolicy = RoomSourcePolicyRepository(bootstrapDatabase) {
+				SourcePolicyEffectiveTime("deletion-bootstrap", 10L, 20L)
+			}
+			val bootstrapRetention = RecordingRetentionAuthorityProducer { true }
+			val bootstrapAmbientSteps = RecordingAmbientStepsPolicyRevisionReconciler()
+			val closedGate = object : TrackingStartupGate {
+				override val isReady: Boolean = false
+				override suspend fun reconcile(retryFailedStorage: Boolean) =
+					TrackingStartupResult.RetryableFailure(
+						TrackingStartupStage.STORAGE,
+						"COLLECTED_DATA_DELETION_PENDING",
+					)
+			}
+			val bootstrapScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+			val bootstrapRepository = AuthoritativeTrackingParamsRepository(
+				legacy = FakeTrackingParamsRepository(
+					TrackingParamsState(
+						ambientStepsEnabled = true,
+						legacySettingsMigrationCompleted = true,
+					),
+				),
+				sourcePolicyRepository = bootstrapPolicy,
+				applicationScope = bootstrapScope,
+				trackingStartupGate = closedGate,
+				retentionAuthorityProducer = bootstrapRetention,
+				ambientStepsPolicyRevisionReconciler = bootstrapAmbientSteps,
+			)
+			try {
+				val result = bootstrapRepository.reconcileAuthorityForRetentionBootstrap()
+					.shouldBeInstanceOf<SourcePolicyRevisionReconciliationResult.Complete>()
+
+				result.snapshot[TrackingSourceComponent.STEPS].ambientPersistenceEligible
+					.shouldBeTrue()
+				bootstrapRetention.fullReconciliations shouldBe 0
+				bootstrapAmbientSteps.events shouldBe emptyList()
+				bootstrapRepository.reconciliationState.value shouldBe
+					SourcePolicyRevisionReconciliationState.Uninitialized
+			} finally {
+				bootstrapScope.cancel()
+				bootstrapDatabase.close()
+			}
+		}
+
+	@Test
+	fun `provider free Active bootstrap stays closed and rearms once for the new Ready generation`() =
+		runTest {
+			val context = ApplicationProvider.getApplicationContext<Application>()
+			val isolatedDatabase = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+				.allowMainThreadQueries()
+				.build()
+			val isolatedPolicy = RoomSourcePolicyRepository(isolatedDatabase) {
+				SourcePolicyEffectiveTime("generation-boot", 10L, 20L)
+			}
+			val gate = MutableGenerationStartupGate()
+			val isolatedRetention = RecordingRetentionAuthorityProducer { true }
+			val isolatedAmbient = RecordingAmbientStepsPolicyRevisionReconciler()
+			val isolatedScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+			val isolated = AuthoritativeTrackingParamsRepository(
+				legacy = FakeTrackingParamsRepository(
+					TrackingParamsState(
+						ambientStepsEnabled = true,
+						legacySettingsMigrationCompleted = true,
+					),
+				),
+				sourcePolicyRepository = isolatedPolicy,
+				applicationScope = isolatedScope,
+				trackingStartupGate = gate,
+				retentionAuthorityProducer = isolatedRetention,
+				ambientStepsPolicyRevisionReconciler = isolatedAmbient,
+			)
+			try {
+				isolated.data.first { it.sourcePolicyRevision == 1L }
+				isolatedRetention.reset()
+				isolatedAmbient.reset()
+				gate.closeForNextGeneration()
+				isolatedDatabase.withTransaction {
+					isolatedDatabase.openHelper.writableDatabase.execSQL(
+						"DELETE FROM source_policy",
+					)
+					isolatedDatabase.openHelper.writableDatabase.execSQL(
+						"DELETE FROM source_consent_epoch",
+					)
+					isolatedDatabase.openHelper.writableDatabase.execSQL(
+						"UPDATE source_policy_authority SET " +
+							"bootstrap_state = 'UNINITIALIZED', current_policy_revision = 0, " +
+							"legacy_settings_fingerprint = NULL, updated_at_ms = 0 WHERE id = 1",
+					)
+				}
+
+				isolated.reconcileAuthorityForRetentionBootstrap()
+					.shouldBeInstanceOf<SourcePolicyRevisionReconciliationResult.Complete>()
+				runCurrent()
+				advanceTimeBy(251L)
+				runCurrent()
+
+				isolatedRetention.fullReconciliations shouldBe 0
+				isolatedAmbient.events shouldBe emptyList()
+				isolated.reconciliationState.value
+					.shouldBeInstanceOf<SourcePolicyRevisionReconciliationState.Debt>()
+					.debt.failures.single() shouldBe
+					SourcePolicyRevisionReconciliationFailure.StartupGenerationUnavailable(2L)
+
+				gate.reopen()
+				isolated.reconcileCurrentPolicyRevision()
+					.shouldBeInstanceOf<SourcePolicyRevisionReconciliationResult.Complete>()
+				isolated.reconcileCurrentPolicyRevision()
+					.shouldBeInstanceOf<SourcePolicyRevisionReconciliationResult.Complete>()
+
+				isolatedRetention.fullReconciliations shouldBe 1
+				isolatedAmbient.events shouldBe listOf("reconcile")
+			} finally {
+				isolatedScope.cancel()
+				isolatedDatabase.close()
+			}
+		}
 
 	@Test
 	fun `closed startup gate rejects policy mutation without changing durable authority`() = runTest {
@@ -154,8 +414,10 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		val isolated = AuthoritativeTrackingParamsRepository(
 			legacy,
 			policy,
-			backgroundScope,
+			applicationScope,
 			closedGate,
+			ambientStepsPolicyRevisionReconciler =
+				TestNoOpAmbientStepsPolicyRevisionReconciler,
 		)
 		val before = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
 
@@ -187,6 +449,8 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			policy,
 			applicationScope,
 			startupGate,
+			ambientStepsPolicyRevisionReconciler =
+				TestNoOpAmbientStepsPolicyRevisionReconciler,
 		)
 		val activeProjection = async {
 			delayedRepository.data.first { it.sourcePolicyRevision != null }
@@ -212,8 +476,10 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			val failClosedRepository = AuthoritativeTrackingParamsRepository(
 				FakeTrackingParamsRepository(TrackingParamsState(legacySettingsMigrationCompleted = true)),
 				flakyPolicy,
-				backgroundScope,
+				applicationScope,
 				startupGate,
+				ambientStepsPolicyRevisionReconciler =
+					TestNoOpAmbientStepsPolicyRevisionReconciler,
 			)
 
 			val unavailable = failClosedRepository.data.first()
@@ -236,8 +502,10 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		val isolated = AuthoritativeTrackingParamsRepository(
 			blockingLegacy,
 			policy,
-			backgroundScope,
+			applicationScope,
 			startupGate,
+			ambientStepsPolicyRevisionReconciler =
+				TestNoOpAmbientStepsPolicyRevisionReconciler,
 		)
 		isolated.data.first { it.sourcePolicyRevision == 1L }
 
@@ -266,8 +534,10 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		val isolated = AuthoritativeTrackingParamsRepository(
 			failingLegacy,
 			policy,
-			backgroundScope,
+			applicationScope,
 			startupGate,
+			ambientStepsPolicyRevisionReconciler =
+				TestNoOpAmbientStepsPolicyRevisionReconciler,
 		)
 		isolated.data.first { it.sourcePolicyRevision == 1L }.locationEnabled.shouldBeTrue()
 
@@ -306,6 +576,36 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		TrackingSourceComponent.ACTIVITY,
 		TrackingSourceComponent.PRESSURE,
 		-> false
+	}
+}
+
+private class MutableGenerationStartupGate : TrackingStartupGate {
+	private var ready = true
+	private var generation = 1L
+
+	override val isReady: Boolean
+		get() = ready
+
+	override val currentGeneration: Long
+		get() = generation
+
+	override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+		if (ready) {
+			TrackingStartupResult.Ready(false, 0L)
+		} else {
+			TrackingStartupResult.RetryableFailure(
+				TrackingStartupStage.STORAGE,
+				"COLLECTED_DATA_DELETION_PENDING",
+			)
+		}
+
+	fun closeForNextGeneration() {
+		generation += 1L
+		ready = false
+	}
+
+	fun reopen() {
+		ready = true
 	}
 }
 
@@ -376,4 +676,141 @@ private class OneShotFailingTrackingParamsRepository(
 		}
 		awaitCancellation()
 	}
+}
+
+private class RecordingRetentionAuthorityProducer(
+	private val ambientStepsActive: suspend () -> Boolean,
+) : RetentionAuthorityProducer {
+	val liveSources = mutableListOf<TrackingSourceComponent>()
+	var fullReconciliations = 0
+	var overrideResults: List<RetentionAuthorityResult>? = null
+
+	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> {
+		fullReconciliations++
+		return overrideResults ?: successfulResults(ambientStepsActive())
+	}
+
+	fun reset() {
+		liveSources.clear()
+		fullReconciliations = 0
+		overrideResults = null
+	}
+
+	override suspend fun preparePendingConfiguration(
+		expectedConfigurationGeneration: Long,
+	): RetentionConfigurationApprovalResult =
+		RetentionConfigurationApprovalResult.Unavailable(
+			com.adsamcik.tracker.shared.preferences.retention
+				.RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+
+	override suspend fun reconcilePendingConfiguration(
+		expectedConfigurationGeneration: Long?,
+	): RetentionConfigurationApprovalResult =
+		RetentionConfigurationApprovalResult.Unavailable(
+			com.adsamcik.tracker.shared.preferences.retention
+				.RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+
+	override suspend fun reconcileLiveAmbient(
+		source: TrackingSourceComponent,
+	): RetentionAuthorityResult {
+		liveSources += source
+		return active(source, RetentionAuthorityScope.LIVE_AMBIENT)
+	}
+
+	override suspend fun approvePortableImport(
+		source: TrackingSourceComponent,
+	): RetentionAuthorityResult = active(source, RetentionAuthorityScope.PORTABLE_IMPORT)
+
+	override suspend fun revokePortableImport(
+		source: TrackingSourceComponent,
+	): RetentionAuthorityResult = RetentionAuthorityResult.Unchanged(
+		source,
+		RetentionAuthorityScope.PORTABLE_IMPORT,
+		RetentionAuthorityState.REVOKED,
+		null,
+	)
+
+	override suspend fun reconcilePassiveLocationRetention(): RetentionAuthorityResult =
+		active(TrackingSourceComponent.LOCATION, RetentionAuthorityScope.LIVE_AMBIENT)
+
+	override suspend fun currentLiveAmbient(
+		source: TrackingSourceComponent,
+		expectedSourcePolicyRevision: Long,
+		expectedAmbientConsentEpoch: Long,
+		expectedCollectedDataEpoch: Long,
+		expectedRetainedFromMs: Long?,
+	): CurrentRetentionAuthority = CurrentRetentionAuthority.Approved(
+		"test-policy",
+		1L,
+		"test-boot",
+		0L,
+		0L,
+		expectedCollectedDataEpoch,
+		expectedRetainedFromMs,
+	)
+
+	private fun active(
+		source: TrackingSourceComponent,
+		scope: RetentionAuthorityScope,
+	) = RetentionAuthorityResult.Unchanged(
+		source,
+		scope,
+		RetentionAuthorityState.ACTIVE,
+		1L,
+	)
+
+	companion object {
+		fun successfulResults(ambientStepsActive: Boolean): List<RetentionAuthorityResult> = listOf(
+			TrackingSourceComponent.STEPS,
+			TrackingSourceComponent.WIFI,
+			TrackingSourceComponent.CELL,
+		).map { source ->
+			RetentionAuthorityResult.Unchanged(
+				source,
+				RetentionAuthorityScope.LIVE_AMBIENT,
+				if (source == TrackingSourceComponent.STEPS && !ambientStepsActive) {
+					RetentionAuthorityState.REVOKED
+				} else {
+					RetentionAuthorityState.ACTIVE
+				},
+				1L.takeIf {
+					source != TrackingSourceComponent.STEPS || ambientStepsActive
+				},
+			)
+		}
+	}
+}
+
+private class RecordingAmbientStepsPolicyRevisionReconciler :
+	AmbientStepsPolicyRevisionReconciler {
+	val events = mutableListOf<String>()
+	val reconciliations: Int get() = events.count { it == "reconcile" }
+	val retirements: Int get() = events.count { it == "retire" }
+
+	override suspend fun reconcileAfterRetentionReissue():
+		AmbientStepsPolicyRevisionReconciliation {
+		events += "reconcile"
+		return AmbientStepsPolicyRevisionReconciliation.Complete
+	}
+
+	override suspend fun retireAfterRetentionDebt():
+		AmbientStepsPolicyRevisionReconciliation {
+		events += "retire"
+		return AmbientStepsPolicyRevisionReconciliation.Complete
+	}
+
+	fun reset() {
+		events.clear()
+	}
+}
+
+private object TestNoOpAmbientStepsPolicyRevisionReconciler :
+	AmbientStepsPolicyRevisionReconciler {
+	override suspend fun reconcileAfterRetentionReissue() =
+		AmbientStepsPolicyRevisionReconciliation.Complete
+
+	override suspend fun retireAfterRetentionDebt() =
+		AmbientStepsPolicyRevisionReconciliation.Complete
 }

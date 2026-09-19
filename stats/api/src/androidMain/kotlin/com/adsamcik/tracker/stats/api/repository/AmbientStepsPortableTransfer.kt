@@ -125,6 +125,7 @@ sealed interface ImportPortableAmbientStepsResult {
 
 enum class PortableAmbientStepsImportBlockedReason {
 	COLLECTED_DATA_EPOCH_CHANGED,
+	RETENTION_POLICY_UNAVAILABLE,
 	RETENTION_BOUNDARY,
 	DELETED_DAY,
 	RETAINED_DAY,

@@ -42,6 +42,7 @@ data class TrackingPurposeLeaseIdentity(
 	/** Zero explicitly means no writer execution has been bound to this reconciliation lease. */
 	val executionRevision: Long,
 	val ownerCasToken: String,
+	val retainedFromMs: Long? = null,
 ) {
 	constructor(
 		source: TrackingSource,
@@ -52,6 +53,7 @@ data class TrackingPurposeLeaseIdentity(
 		rolloutRevision: Long,
 		executionRevision: Long,
 		ownerCasToken: String,
+		retainedFromMs: Long? = null,
 	) : this(
 		sourcePurpose = source.forPurpose(purpose),
 		policyRevision = policyRevision,
@@ -60,6 +62,7 @@ data class TrackingPurposeLeaseIdentity(
 		rolloutRevision = rolloutRevision,
 		executionRevision = executionRevision,
 		ownerCasToken = ownerCasToken,
+		retainedFromMs = retainedFromMs,
 	)
 
 	init {
@@ -69,6 +72,7 @@ data class TrackingPurposeLeaseIdentity(
 		require(rolloutRevision >= 0L)
 		require(executionRevision >= 0L)
 		require(ownerCasToken.isNotBlank())
+		require(retainedFromMs == null || retainedFromMs >= 0L)
 	}
 
 	val source: CanonicalTrackingSource
@@ -88,6 +92,29 @@ data class TrackingPurposeLeaseIdentity(
 			rolloutRevision: Long,
 			executionRevision: Long,
 			ownerCasToken: String,
+		): TrackingPurposeLeaseIdentity = create(
+			source,
+			purpose,
+			policyRevision,
+			consentEpoch,
+			collectedDataEpoch,
+			rolloutRevision,
+			executionRevision,
+			ownerCasToken,
+			null,
+		)
+
+		@JvmStatic
+		fun create(
+			source: CanonicalTrackingSource,
+			purpose: TrackingPurpose,
+			policyRevision: Long,
+			consentEpoch: Long,
+			collectedDataEpoch: Long,
+			rolloutRevision: Long,
+			executionRevision: Long,
+			ownerCasToken: String,
+			retainedFromMs: Long?,
 		): TrackingPurposeLeaseIdentity = TrackingPurposeLeaseIdentity(
 			sourcePurpose = source.forPurpose(purpose),
 			policyRevision = policyRevision,
@@ -96,6 +123,7 @@ data class TrackingPurposeLeaseIdentity(
 			rolloutRevision = rolloutRevision,
 			executionRevision = executionRevision,
 			ownerCasToken = ownerCasToken,
+			retainedFromMs = retainedFromMs,
 		)
 
 		@JvmStatic
@@ -108,6 +136,29 @@ data class TrackingPurposeLeaseIdentity(
 			rolloutRevision: Long,
 			executionRevision: Long,
 			ownerCasToken: String,
+		): TrackingPurposeLeaseIdentity = createLegacy(
+			source,
+			purpose,
+			policyRevision,
+			consentEpoch,
+			collectedDataEpoch,
+			rolloutRevision,
+			executionRevision,
+			ownerCasToken,
+			null,
+		)
+
+		@JvmStatic
+		fun createLegacy(
+			source: TrackingSource,
+			purpose: TrackingPurpose,
+			policyRevision: Long,
+			consentEpoch: Long,
+			collectedDataEpoch: Long,
+			rolloutRevision: Long,
+			executionRevision: Long,
+			ownerCasToken: String,
+			retainedFromMs: Long?,
 		): TrackingPurposeLeaseIdentity = TrackingPurposeLeaseIdentity(
 			source,
 			purpose,
@@ -117,6 +168,7 @@ data class TrackingPurposeLeaseIdentity(
 			rolloutRevision,
 			executionRevision,
 			ownerCasToken,
+			retainedFromMs,
 		)
 	}
 }

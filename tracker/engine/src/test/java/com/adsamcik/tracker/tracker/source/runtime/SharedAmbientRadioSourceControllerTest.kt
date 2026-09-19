@@ -122,6 +122,42 @@ class SharedAmbientRadioSourceControllerTest {
 		assertIs<AmbientWifiRuntimeJoinResult.Inactive>(subject.reconcileAmbientJoin())
 
 		coVerify(exactly = 0) { wifi.refreshShared(any(), any(), any()) }
+	}
+
+	@Test
+	fun `deletion fence requires terminal Wi-Fi physical closure after ambient demand retirement`() =
+		runTest {
+			val physical = mockk<WifiSourceRuntime>()
+			val broker = mockk<SourceBroker>()
+			val sinkFactory = mockk<DurableSourceEventSinkFactory>()
+			every { sinkFactory.unbound } returns unboundSink
+			coEvery { broker.authorizationDemands(SourceKind.WIFI) } returns emptyList()
+			coEvery { physical.closeShared() } returns completeAck(
+				SourceKind.WIFI,
+				9L,
+				RegistrationRemovalOutcome.REMOVED,
+			)
+			val subject = SharedWifiSourceController(physical, broker, sinkFactory)
+
+			assertTrue(subject.closeAmbientForCollectedDataDeletion())
+			coVerify(exactly = 1) { physical.closeShared() }
+		}
+
+	@Test
+	fun `deletion fence exposes Cell physical removal failure`() = runTest {
+		val physical = mockk<CellSourceRuntime>()
+		val broker = mockk<SourceBroker>()
+		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
+		every { sinkFactory.unbound } returns unboundSink
+		coEvery { broker.authorizationDemands(SourceKind.CELL) } returns emptyList()
+		coEvery { physical.closeShared() } returns completeAck(
+			SourceKind.CELL,
+			9L,
+			RegistrationRemovalOutcome.FAILED,
+		).copy(status = SourceStopStatus.PROVIDER_FAILED, appDrainComplete = false)
+		val subject = SharedCellSourceController(physical, broker, sinkFactory)
+
+		assertTrue(!subject.closeAmbientForCollectedDataDeletion())
 		coVerify(exactly = 0) { wifi.reconfigure(any(), any()) }
 		coVerify(exactly = 0) { wifi.close() }
 	}

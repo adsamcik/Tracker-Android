@@ -4,6 +4,8 @@ import android.app.ActivityManager
 import android.content.Context
 import com.adsamcik.tracker.app.ApplicationStartupRecoveryAction
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
+import com.adsamcik.tracker.app.settings.CollectedDataDeletionCompletion
+import com.adsamcik.tracker.app.settings.CollectedDataDeletionReconciliationFailure
 import com.adsamcik.tracker.shared.base.database.ActiveDatabaseBlockReason
 import com.adsamcik.tracker.shared.base.database.ActiveDatabaseRetryableReason
 import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainment
@@ -69,7 +71,8 @@ class ApplicationStartupRecoveryResolverTest {
 class DefaultTrackingStartupGateTest {
 	private val storage = mockk<LegacyDatabaseUpgradeCoordinator>()
 	private val collectedDataDeletionService = mockk<CollectedDataDeletionService> {
-		coEvery { reconcilePendingDeletion() } just Runs
+		coEvery { reconcilePendingDeletion() } returns
+			CollectedDataDeletionCompletion.Complete
 	}
 	private val resolver = mockk<ApplicationStartupRecoveryResolver>()
 	private val lifecycleAuthority = mockk<TrackingLifecycleCommandAuthority> {
@@ -217,6 +220,36 @@ class DefaultTrackingStartupGateTest {
 		coVerify(exactly = 1) { collectedDataDeletionService.reconcilePendingDeletion() }
 		coVerify(exactly = 0) { storage.ensureReady(any()) }
 		coVerify(exactly = 0) { sourceRecovery.recoverStartupAuthority() }
+	}
+
+	@Test
+	fun `typed pending deletion retry debt blocks startup retryably`() = runTest {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { collectedDataDeletionService.reconcilePendingDeletion() } returns
+			CollectedDataDeletionCompletion.Retryable(
+				CollectedDataDeletionReconciliationFailure.PurposeSettings,
+			)
+
+		gate.reconcile() shouldBe TrackingStartupResult.RetryableFailure(
+			TrackingStartupStage.STORAGE,
+			"POST_DELETE_PURPOSE_SETTINGS",
+		)
+		coVerify(exactly = 0) { storage.ensureReady(any()) }
+	}
+
+	@Test
+	fun `typed pending deletion unverifiable debt blocks startup`() = runTest {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { collectedDataDeletionService.reconcilePendingDeletion() } returns
+			CollectedDataDeletionCompletion.Unverifiable(
+				CollectedDataDeletionReconciliationFailure.RetentionResultSetInvalid,
+			)
+
+		gate.reconcile() shouldBe TrackingStartupResult.Blocked(
+			TrackingStartupStage.STORAGE,
+			"POST_DELETE_RETENTION_RESULT_SET_INVALID",
+		)
+		coVerify(exactly = 0) { storage.ensureReady(any()) }
 	}
 
 	@Test
@@ -760,6 +793,89 @@ class DefaultTrackingStartupGateTest {
 		close.await()
 		deletionBarrier.isClosed shouldBe true
 		gate.isReady shouldBe false
+		deletionBarrier.reopen()
+	}
+
+	@Test
+	fun `admitted provider start completes before close admission returns`() = runTest {
+		val operationAdmitted = CompletableDeferred<Unit>()
+		val allowProviderStart = CompletableDeferred<Unit>()
+		val events = mutableListOf<String>()
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(any(), any()) } just Runs
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		val generation = gate.currentGeneration
+
+		val provider = async {
+			gate.withReadyGenerationOperation(generation) {
+				operationAdmitted.complete(Unit)
+				allowProviderStart.await()
+				events += "PROVIDER_STARTED"
+			}
+		}
+		operationAdmitted.await()
+		val close = async {
+			deletionBarrier.closeAdmission()
+			events += "ADMISSION_CLOSED"
+		}
+		runCurrent()
+
+		close.isCompleted shouldBe false
+		allowProviderStart.complete(Unit)
+		provider.await() shouldBe Unit
+		close.await()
+		events shouldBe listOf("PROVIDER_STARTED", "ADMISSION_CLOSED")
+		deletionBarrier.reopen()
+	}
+
+	@Test
+	fun `nested ready generation operation reuses the held deletion boundary`() = runTest {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(any(), any()) } just Runs
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		val generation = gate.currentGeneration
+
+		gate.withReadyGenerationOperation(generation) {
+			gate.withReadyGenerationOperation(generation) { "nested" }
+		} shouldBe "nested"
+	}
+
+	@Test
+	fun `nested ready operation rejects once deletion begins closing admission`() = runTest {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(any(), any()) } just Runs
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		val generation = gate.currentGeneration
+		val outerEntered = CompletableDeferred<Unit>()
+		val attemptNested = CompletableDeferred<Unit>()
+		var providerStarts = 0
+
+		val outer = async {
+			gate.withReadyGenerationOperation(generation) {
+				outerEntered.complete(Unit)
+				attemptNested.await()
+				gate.withReadyGenerationOperation(generation) {
+					providerStarts += 1
+					"started"
+				}
+			}
+		}
+		outerEntered.await()
+		val close = async { deletionBarrier.closeAdmission() }
+		runCurrent()
+
+		deletionBarrier.isClosed shouldBe true
+		close.isCompleted shouldBe false
+		attemptNested.complete(Unit)
+		outer.await() shouldBe null
+		close.await()
+		providerStarts shouldBe 0
 		deletionBarrier.reopen()
 	}
 

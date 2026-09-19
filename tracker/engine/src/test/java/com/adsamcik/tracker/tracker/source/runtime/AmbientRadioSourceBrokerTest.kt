@@ -160,7 +160,7 @@ class AmbientRadioSourceBrokerTest {
 			broker.replaceAmbientCellDemand(
 				"app:ambient:cell",
 				false,
-				lease(AmbientTrackingSource.CELL, policy.revision, consentEpoch, "cell-owner-2"),
+				lease(AmbientTrackingSource.CELL, policy.revision, consentEpoch, "cell-owner-1"),
 				2L,
 				"boot-1",
 				200L,
@@ -250,6 +250,71 @@ class AmbientRadioSourceBrokerTest {
 		)
 		assertTrue(newerPolicy.revision > firstPolicy.revision)
 	}
+
+	@Test
+	fun `exact historical Wi-Fi owner can retire after retention floor and policy revocation`() =
+		runTest {
+			val firstPolicy = grant(TrackingSourceComponent.WIFI)
+			val firstConsent = firstPolicy[TrackingSourceComponent.WIFI].ambientConsentEpoch!!
+			database.applyAmbientWifiRetentionDecision(
+				AmbientRadioRetentionDecision.GrantLiveAmbient(
+					"privacy:wifi:ambient:v1",
+					3L,
+					firstPolicy.revision,
+					firstConsent,
+					"boot-1",
+					90L,
+					90L,
+				),
+			)
+			val historicalLease = lease(
+				AmbientTrackingSource.WIFI,
+				firstPolicy.revision,
+				firstConsent,
+				"owner-1",
+			)
+			broker.replaceAmbientWifiDemand(
+				"app:ambient:wifi",
+				true,
+				historicalLease,
+				1L,
+				"boot-1",
+				100L,
+				100L,
+			)
+			policyRepository.setNonCaptureConsent(
+				firstPolicy.revision,
+				TrackingSourceComponent.WIFI,
+				SourcePurpose.AMBIENT_PRODUCT,
+				eligible = false,
+				persistenceEligible = false,
+				reason = "TEST_RETENTION_FLOOR_REVOKE",
+			)
+			database.sourceEvidenceStateDao().updateLifecycle(
+				epoch = 3L,
+				retainedFromMs = 200L,
+				updatedAtMs = 200L,
+			)
+
+			val retired = assertIs<AmbientRadioDemandResult.Inactive>(
+				broker.replaceAmbientWifiDemand(
+					"app:ambient:wifi",
+					false,
+					historicalLease,
+					2L,
+					"boot-1",
+					200L,
+					200L,
+				),
+			)
+
+			assertEquals(AmbientRadioDemandInactiveReason.REQUEST_DISABLED, retired.reason)
+			assertTrue(database.sourceBrokerDao().currentDemands("app:ambient:wifi").isEmpty())
+			assertEquals(
+				AmbientWifiAuthorityEntity.STATE_REVOKED,
+				database.ambientWifiFactDao().latestAuthority()?.state,
+			)
+		}
 
 	@Test
 	fun `replaced owner token cannot enter the Room mutation`() = runTest {
@@ -417,19 +482,35 @@ class AmbientRadioSourceBrokerTest {
 			reason = "TEST_AMBIENT_RADIO_GRANT",
 		)
 
-	private fun lease(
+	private suspend fun lease(
 		source: AmbientTrackingSource,
 		policyRevision: Long,
 		consentEpoch: Long,
 		ownerCasToken: String,
-	) = AmbientReconciliationIdentity(
-		source,
-		policyRevision,
-		consentEpoch,
-		3L,
-		1L,
-		ownerCasToken,
-	)
+		retainedFromMs: Long? = null,
+	): AmbientReconciliationIdentity {
+		val retention = when (source) {
+			AmbientTrackingSource.WIFI ->
+				database.ambientWifiFactDao().latestRetentionAuthority("LIVE_AMBIENT")
+					?.let { it.opaquePolicyId to it.approvalRevision }
+			AmbientTrackingSource.CELL ->
+				database.ambientCellFactDao().latestRetentionAuthority("LIVE_AMBIENT")
+					?.let { it.opaquePolicyId to it.approvalRevision }
+			else -> error("Ambient radio lease requires Wi-Fi or Cell")
+		} ?: ("missing-retention" to 1L)
+		return AmbientReconciliationIdentity(
+			source = source,
+			policyRevision = policyRevision,
+			consentEpoch = consentEpoch,
+			collectedDataEpoch = 3L,
+			rolloutRevision = 1L,
+			ownerCasToken = ownerCasToken,
+			executionRevision = 1L,
+			retainedFromMs = retainedFromMs,
+			retentionPolicyId = retention.first,
+			retentionApprovalRevision = retention.second,
+		)
+	}
 
 	private object PermissiveLeaseGuard : AmbientRadioMutationLeaseGuard {
 		override suspend fun <T> mutateIfCurrent(

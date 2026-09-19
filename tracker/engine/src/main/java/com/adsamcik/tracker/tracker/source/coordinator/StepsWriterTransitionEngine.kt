@@ -57,6 +57,14 @@ internal class StepsWriterTransitionEngine @Inject constructor(
 		deletionRearm.apply(updatedAtMs)
 	}
 
+	suspend fun rearmAfterFullDeletion(
+		operationId: String,
+		targetCollectedDataEpoch: Long,
+		updatedAtMs: Long,
+	) {
+		deletionRearm.apply(operationId, targetCollectedDataEpoch, updatedAtMs)
+	}
+
 	companion object {
 		fun forTest(
 			database: AppDatabase,

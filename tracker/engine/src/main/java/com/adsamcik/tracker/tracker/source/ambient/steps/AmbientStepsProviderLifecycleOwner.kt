@@ -3,6 +3,9 @@ package com.adsamcik.tracker.tracker.source.ambient.steps
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
+import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
+import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,7 +24,21 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 	private val currentBoundary: () -> AmbientStepsDemandBoundary,
 	private val reconcileDemand: suspend (
 		AmbientStepsDemandBoundary,
+		AmbientReconciliationLease,
 	) -> AmbientStepsDemandReconciliation,
+	private val reconcileSettlementDemand: suspend (
+		AmbientStepsDemandBoundary,
+		AmbientReconciliationLease,
+		String,
+	) -> AmbientStepsDemandReconciliation = { boundary, lease, _ ->
+		reconcileDemand(boundary, lease)
+	},
+	private val retireDemandAfterAuthorityFailure: suspend (
+		AmbientStepsDemandBoundary,
+		AmbientReconciliationLease?,
+	) -> AmbientStepsDemandReconciliation = { boundary, lease ->
+		reconcileDemand(boundary, requireNotNull(lease))
+	},
 	private val reconcileRegistration: suspend (
 		AmbientStepsDemandReconciliation,
 		AmbientStepsDemandBoundary,
@@ -42,16 +59,39 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 			)
 		},
 		reconcileDemand = demandReconciler::reconcileAt,
+		reconcileSettlementDemand = demandReconciler::reconcileForRetentionFloorAt,
+		retireDemandAfterAuthorityFailure =
+			demandReconciler::retireAfterRetentionAuthorityFailureAt,
 		reconcileRegistration = registrationCoordinator::reconcile,
 		closeRegistration = registrationCoordinator::closeForCollectedDataDeletion,
 	)
 
 	private val mutex = Mutex()
 
-	internal suspend fun reconcile(): AmbientStepsProviderRegistrationResult = mutex.withLock {
+	internal suspend fun reconcile(
+		lease: AmbientReconciliationLease,
+	): AmbientStepsProviderRegistrationResult = mutex.withLock {
 		val boundary = currentBoundary()
-		val demand = reconcileDemand(boundary)
+		val demand = reconcileDemand(boundary, lease)
 		reconcileRegistration(demand, boundary)
+	}
+
+	internal suspend fun reconcileForRetentionFloor(
+		lease: AmbientReconciliationLease,
+		settlementOperationId: String,
+	): AmbientStepsProviderRegistrationResult = mutex.withLock {
+		require(settlementOperationId.isNotBlank())
+		val boundary = currentBoundary()
+		val demand = reconcileSettlementDemand(boundary, lease, settlementOperationId)
+		reconcileRegistration(demand, boundary)
+	}
+
+	internal suspend fun retireAfterRetentionAuthorityFailure(
+		lease: AmbientReconciliationLease?,
+	): AmbientStepsSettingsReconciliationResult = mutex.withLock {
+		val boundary = currentBoundary()
+		val retired = retireDemandAfterAuthorityFailure(boundary, lease)
+		reconcileRegistration(retired, boundary).toPublicSettingsResult()
 	}
 
 	override suspend fun closeForCollectedDataDeletion():
@@ -67,6 +107,46 @@ private fun AmbientStepsProviderCleanupResult.toPublicResult():
 		failure = failure?.toPublicFailure(),
 		retryable = retryable,
 	)
+
+private fun AmbientStepsProviderRegistrationResult.toPublicSettingsResult():
+	AmbientStepsSettingsReconciliationResult = when (this) {
+	is AmbientStepsProviderRegistrationResult.Active ->
+		AmbientStepsSettingsReconciliationResult(complete = true, operational = true)
+	is AmbientStepsProviderRegistrationResult.Inactive ->
+		AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
+	is AmbientStepsProviderRegistrationResult.Degraded ->
+		AmbientStepsSettingsReconciliationResult(
+			complete = false,
+			operational = false,
+			failure = failure.toPublicSettingsFailure(),
+			retryable = retryable,
+		)
+	is AmbientStepsProviderRegistrationResult.Failed ->
+		AmbientStepsSettingsReconciliationResult(
+			complete = false,
+			operational = false,
+			failure = failure.toPublicSettingsFailure(),
+			retryable = retryable,
+		)
+}
+
+private fun AmbientStepsProviderRegistrationFailure.toPublicSettingsFailure():
+	AmbientStepsSettingsReconciliationFailure = when (this) {
+	AmbientStepsProviderRegistrationFailure.DURABLE_AUTHORITY_REJECTED ->
+		AmbientStepsSettingsReconciliationFailure.DURABLE_AUTHORITY_REJECTED
+	AmbientStepsProviderRegistrationFailure.PROVIDER_ACTIVATION_FAILED ->
+		AmbientStepsSettingsReconciliationFailure.PROVIDER_ACTIVATION_FAILED
+	AmbientStepsProviderRegistrationFailure.PROVIDER_REMOVAL_FAILED ->
+		AmbientStepsSettingsReconciliationFailure.PROVIDER_REMOVAL_FAILED
+	AmbientStepsProviderRegistrationFailure.PROVIDER_IDENTITY_INVALID ->
+		AmbientStepsSettingsReconciliationFailure.PROVIDER_IDENTITY_INVALID
+	AmbientStepsProviderRegistrationFailure.AUTHORITY_CHANGED_DURING_ACTIVATION ->
+		AmbientStepsSettingsReconciliationFailure.AUTHORITY_CHANGED_DURING_ACTIVATION
+	AmbientStepsProviderRegistrationFailure.CLEANUP_JOURNAL_UNAVAILABLE ->
+		AmbientStepsSettingsReconciliationFailure.CLEANUP_JOURNAL_UNAVAILABLE
+	AmbientStepsProviderRegistrationFailure.PROVIDER_CLEANUP_STATE_INVALID ->
+		AmbientStepsSettingsReconciliationFailure.PROVIDER_STATE_INVALID
+}
 
 private fun AmbientStepsProviderRegistrationFailure.toPublicFailure():
 	AmbientStepsProviderCleanupFailure = when (this) {
