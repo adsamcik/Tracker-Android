@@ -108,6 +108,26 @@ class PortableAmbientStepsExporterTest {
 	}
 
 	@Test
+	fun `source backend exposes v2 export at class scope`() = runTest {
+		val archive = ambientArchive(
+			completeAmbientDay(LocalDate.of(2026, 1, 2), 7L),
+		)
+		var emitted: PortableAmbientStepsArchiveV2? = null
+		val result = backend(
+			native = { _, sink ->
+				sink.emit(archive)
+				exported(archive)
+			},
+		).exportV2(
+			AmbientStepsPortableOrigin.NATIVE,
+			ExportPortableAmbientStepsRequest(0L, Long.MAX_VALUE),
+		) { emitted = it }
+
+		result shouldBe exported(archive)
+		emitted shouldBe archive.toV2()
+	}
+
+	@Test
 	fun `source backend resolves full range DST day and typed unsupported scopes`() {
 		val backend = backend()
 		backend.resolve(AmbientStepsPortableFileScope.AllAvailableSnapshot) shouldBe

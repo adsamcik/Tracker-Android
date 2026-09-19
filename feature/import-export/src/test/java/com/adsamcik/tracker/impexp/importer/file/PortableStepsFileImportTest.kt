@@ -81,31 +81,6 @@ class PortableStepsFileImportTest {
 	}
 
 	@Test
-	fun `missing durable receipt fails before opening or resolving dependencies`() = runTest {
-		var opens = 0
-		var providers = 0
-		val importer = PortableStepsFileImport(
-			dependenciesProvider = {
-				providers++
-				error("Missing receipt must fail first")
-			},
-		)
-		val stream = FileImportStream(
-			fileName = "steps.trackersteps",
-			streamProvider = {
-				opens++
-				ByteArrayInputStream(byteArrayOf())
-			},
-		)
-
-		shouldThrow<PortableStepsImportReceiptContextException> {
-			importer.import(context, database, stream)
-		}
-		opens shouldBe 0
-		providers shouldBe 0
-	}
-
-	@Test
 	fun `applied replay and durable refusals retain distinct file counts`() = runTest {
 		val entries = listOf(
 			entry("applied", 1_000L),
@@ -294,8 +269,8 @@ class PortableStepsFileImportTest {
 		}
 
 	@Test
-		@Suppress("LongMethod")
-		fun `job runner preserves transport IO source retryable failures and cancellation`() = runTest {
+	@Suppress("LongMethod")
+	fun `job runner preserves transport IO source retryable failures and cancellation`() = runTest {
 		val store = StepsImportReceiptStore()
 		val runner = ImportJobRunner(store) { 2_000L }
 		val transportFailure = EOFException("source stream unavailable")

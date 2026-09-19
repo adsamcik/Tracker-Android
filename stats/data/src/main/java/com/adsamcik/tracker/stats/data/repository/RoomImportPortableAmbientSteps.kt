@@ -362,66 +362,101 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 				unverifiable(PortableAmbientStepsImportUnverifiableReason.REVISION_OVERFLOW)
 			}
 			val identical = lineage.revisions.singleOrNull { it.day == day }
-			val candidateRevision = identical?.header?.importRevision ?: nextRevision
-			val candidateGraph = request.graphFor(day, candidateRevision)
-			val existingGraph = lineage.revisions.lastOrNull()?.header?.let { latest ->
-				val binding = storedValue {
-					graphDao.binding(
-						ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
-						latest.dayIdentity,
-						latest.importRevision,
-					)
-				}
-				binding?.let {
-					storedValue {
-						graphDao.authenticatedGraph(
-							it.graphIdentity,
-							ImportedPortableStepsCountDomainGraphEntity.SOURCE_AMBIENT_STEPS,
-						)
-					}
-				}
+			val productRevision = identical?.header?.importRevision ?: nextRevision
+			val appendProduct = identical == null
+			if (appendProduct &&
+				lineage.revisions.size >= ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY
+			) {
+				unverifiable(PortableAmbientStepsImportUnverifiableReason.REVISION_OVERFLOW)
 			}
-			if (lineage.revisions.isNotEmpty() && existingGraph == null) storedCorrupt()
-			val exactGraphReplay = identical != null && existingGraph == candidateGraph
-			if (exactGraphReplay) {
+			val graphLineage = storedValue {
+				database.loadAuthenticatedImportedAmbientStepsGraphLineage(lineage)
+			}
+			if (lineage.revisions.isNotEmpty() != graphLineage.isNotEmpty()) storedCorrupt()
+			val exactGraphRevision = graphLineage.singleOrNull { revision ->
+				productRevision in revision.productImportRevisions &&
+					revision.graph == request.graphFor(day, revision.graphRevision)
+			}
+			if (exactGraphRevision != null) {
 				AmbientStepsDayImportPlan(
-					day,
-					identical.header.importRevision,
-					append = false,
-					graph = candidateGraph,
+					day = day,
+					productRevision = productRevision,
+					graphRevision = exactGraphRevision.graphRevision,
+					appendProduct = appendProduct,
+					appendGraph = false,
+					graph = exactGraphRevision.graph,
 				)
 			} else {
-				if (lineage.revisions.size >= ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY) {
-					unverifiable(PortableAmbientStepsImportUnverifiableReason.REVISION_OVERFLOW)
+				val latestGraphRevision = graphLineage.lastOrNull()
+				val graphAtLatestRevision = latestGraphRevision?.let {
+					request.graphFor(day, it.graphRevision)
 				}
-				if (existingGraph != null &&
-					!isContiguousPortableCorrection(existingGraph, candidateGraph)
+				if (appendProduct &&
+					latestGraphRevision != null &&
+					latestGraphRevision.graph == graphAtLatestRevision
 				) {
-					blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
+					AmbientStepsDayImportPlan(
+						day = day,
+						productRevision = productRevision,
+						graphRevision = latestGraphRevision.graphRevision,
+						appendProduct = true,
+						appendGraph = false,
+						graph = latestGraphRevision.graph,
+					)
+				} else {
+					if (!appendProduct &&
+						productRevision != lineage.latest.header.importRevision
+					) {
+						blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
+					}
+					if (graphLineage.size >= ImportedAmbientStepsDao.MAX_ARCHIVES_PER_DAY) {
+						unverifiable(PortableAmbientStepsImportUnverifiableReason.REVISION_OVERFLOW)
+					}
+					val graphRevision = try {
+						Math.addExact(latestGraphRevision?.graphRevision ?: 0L, 1L)
+					} catch (_: ArithmeticException) {
+						unverifiable(PortableAmbientStepsImportUnverifiableReason.REVISION_OVERFLOW)
+					}
+					val candidateGraph = request.graphFor(day, graphRevision)
+					val existingGraph = latestGraphRevision?.graph
+					if (request.hasExplicitCountDomainGraphs &&
+						existingGraph != null &&
+						existingGraph != candidateGraph &&
+						!isContiguousPortableCorrection(existingGraph, candidateGraph)
+					) {
+						blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
+					}
+					AmbientStepsDayImportPlan(
+						day = day,
+						productRevision = productRevision,
+						graphRevision = graphRevision,
+						appendProduct = appendProduct,
+						appendGraph = true,
+						graph = candidateGraph,
+					)
 				}
-				AmbientStepsDayImportPlan(day, nextRevision, append = true, graph = candidateGraph)
 			}
 		}
-		val appended = plans.filter(AmbientStepsDayImportPlan::append)
+		val appendedProducts = plans.filter(AmbientStepsDayImportPlan::appendProduct)
 		authenticateCapacity(
 			NewImportedAmbientStepsRows(
 				archives = 1L,
 				receipts = 1L,
 				archiveDays = plans.size.toLong(),
-				dayRevisions = appended.size.toLong(),
-				facts = appended.sumOf { it.day.facts.size.toLong() },
-				gaps = appended.sumOf { it.day.gaps.size.toLong() },
+				dayRevisions = appendedProducts.size.toLong(),
+				facts = appendedProducts.sumOf { it.day.facts.size.toLong() },
+				gaps = appendedProducts.sumOf { it.day.gaps.size.toLong() },
 			),
 		)
 		dao.insertArchive(request.toArchiveEntity())
 		checkpoint(ImportedAmbientStepsWriteCheckpoint.ARCHIVE_INSERTED)
-		appended.forEach { plan ->
-			dao.insertDayRevision(plan.day.toEntity(request, plan.revision))
+		appendedProducts.forEach { plan ->
+			dao.insertDayRevision(plan.day.toEntity(request, plan.productRevision))
 			checkpoint(ImportedAmbientStepsWriteCheckpoint.DAY_INSERTED)
 			dao.insertFacts(plan.day.facts.map { fact ->
 				ImportedAmbientStepsFactEntity(
 					dayIdentity = plan.day.identity.value,
-					dayImportRevision = plan.revision,
+					dayImportRevision = plan.productRevision,
 					factIdentity = fact.identity.value,
 					contentChecksum = fact.contentChecksum.value,
 					intervalStartTimeMs = fact.intervalStartTimeMs,
@@ -434,7 +469,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 				dao.insertGaps(plan.day.gaps.map { gap ->
 					ImportedAmbientStepsGapEntity(
 						dayIdentity = plan.day.identity.value,
-						dayImportRevision = plan.revision,
+						dayImportRevision = plan.productRevision,
 						gapIdentity = gap.identity.value,
 						contentChecksum = gap.contentChecksum.value,
 						intervalStartTimeMs = gap.intervalStartTimeMs,
@@ -451,13 +486,14 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 				ordinal = ordinal,
 				dayIdentity = plan.day.identity.value,
 				dayContentChecksum = plan.day.contentChecksum.value,
-				boundDayImportRevision = plan.revision,
+				boundDayImportRevision = plan.productRevision,
 				factCount = plan.day.facts.size,
 				gapCount = plan.day.gaps.size,
+				boundCountDomainGraphRevision = plan.graphRevision,
 			)
 		})
 		checkpoint(ImportedAmbientStepsWriteCheckpoint.ARCHIVE_MEMBERS_INSERTED)
-		plans.filter(AmbientStepsDayImportPlan::append).forEach { plan ->
+		plans.filter(AmbientStepsDayImportPlan::appendGraph).forEach { plan ->
 			insertCountDomainGraph(plan, request.sourceSchemaVersion)
 		}
 		dao.insertReceipt(request.toReceiptEntity())
@@ -465,7 +501,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		incrementSourceEvidenceRevision(state.updatedAtMs, request.receipt.receivedAtMs)
 		return ImportPortableAmbientStepsResult.Applied(
 			archiveIdentity = request.sourceArchiveIdentity,
-			appendedDayRevisionCount = appended.size,
+			appendedDayRevisionCount = appendedProducts.size,
 			dayCount = archive.days.size,
 			factCount = archive.days.sumOf { it.facts.size },
 			gapCount = archive.days.sumOf { it.gaps.size },
@@ -606,21 +642,16 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 						it.dayIdentity == member.dayIdentity
 				} != member
 			) storedCorrupt()
-			val graphBinding = storedValue {
-				database.importedPortableStepsCountDomainDao().binding(
-					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
-					member.dayIdentity,
-					member.boundDayImportRevision,
-				)
+			val graphRevision = storedValue {
+				database.loadAuthenticatedImportedAmbientStepsGraphLineage(lineage)
+			}.singleOrNull {
+				it.graphRevision == member.boundCountDomainGraphRevision
 			} ?: storedCorrupt()
-			val storedGraph = storedValue {
-				database.importedPortableStepsCountDomainDao().authenticatedGraph(
-					graphBinding.graphIdentity,
-					ImportedPortableStepsCountDomainGraphEntity.SOURCE_AMBIENT_STEPS,
+			if (member.boundDayImportRevision !in graphRevision.productImportRevisions ||
+				graphRevision.graph != request.graphFor(
+					day,
+					member.boundCountDomainGraphRevision,
 				)
-			} ?: storedCorrupt()
-			if (graphBinding.sourceSchemaVersion != request.sourceSchemaVersion ||
-				storedGraph != request.graphFor(day, member.boundDayImportRevision)
 			) {
 				blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
 			}
@@ -752,7 +783,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			ImportedPortableStepsCountDomainBindingEntity(
 				productKind = ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
 				productIdentity = plan.day.identity.value,
-				productRevision = plan.revision,
+				productRevision = plan.graphRevision,
 				graphIdentity = plan.graph.identity.value,
 				sourceSchemaVersion = sourceSchemaVersion,
 			),
@@ -1005,8 +1036,10 @@ internal enum class ImportedAmbientStepsWriteCheckpoint {
 
 private data class AmbientStepsDayImportPlan(
 	val day: PortableAmbientStepsDayV1,
-	val revision: Long,
-	val append: Boolean,
+	val productRevision: Long,
+	val graphRevision: Long,
+	val appendProduct: Boolean,
+	val appendGraph: Boolean,
 	val graph: com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2,
 )
 
@@ -1029,10 +1062,13 @@ private data class AmbientImportEnvelope(
 ) {
 	fun graphFor(
 		day: PortableAmbientStepsDayV1,
-		importRevision: Long,
+		graphRevision: Long,
 	): com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2 =
 		graphsByDayIdentity[day.identity.value]
-			?: day.withExplicitUnprovenCountDomain(importRevision).countDomainGraph
+			?: day.withExplicitUnprovenCountDomain(graphRevision).countDomainGraph
+
+	val hasExplicitCountDomainGraphs: Boolean
+		get() = graphsByDayIdentity.isNotEmpty()
 
 	fun incomingOwnerIdentities(): List<String> {
 		val graphs = incomingGraphs()

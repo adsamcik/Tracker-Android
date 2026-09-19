@@ -75,11 +75,11 @@ internal sealed interface PortableStepsSnapshot {
 			require(result !is ExportPortableStepsResult.Exported)
 		}
 	}
+}
 
-	internal sealed interface PortableStepsV2Snapshot {
-		data class Ready(val entries: List<PortableStepsEntryV2>) : PortableStepsV2Snapshot
-		data class Outcome(val result: ExportPortableStepsResult) : PortableStepsV2Snapshot
-	}
+internal sealed interface PortableStepsV2Snapshot {
+	data class Ready(val entries: List<PortableStepsEntryV2>) : PortableStepsV2Snapshot
+	data class Outcome(val result: ExportPortableStepsResult) : PortableStepsV2Snapshot
 }
 
 /**

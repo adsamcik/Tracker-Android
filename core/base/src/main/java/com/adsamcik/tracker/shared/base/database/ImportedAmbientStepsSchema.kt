@@ -59,6 +59,7 @@ internal fun createImportedAmbientStepsTables(database: SupportSQLiteDatabase) {
 			day_identity TEXT NOT NULL,
 			day_content_checksum TEXT NOT NULL,
 			bound_day_import_revision INTEGER NOT NULL,
+			bound_count_domain_graph_revision INTEGER NOT NULL,
 			fact_count INTEGER NOT NULL,
 			gap_count INTEGER NOT NULL,
 			PRIMARY KEY(archive_identity, ordinal),

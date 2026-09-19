@@ -74,6 +74,29 @@ class PortableCountDomainGraphV2Test {
 	}
 
 	@Test
+	fun `ambient unproven lineage cannot later claim authenticated binding`() {
+		val bound = ambientGraph().ownerRevisions.single()
+		val unproven = bound.copy(
+			operation = PortableCountDomainOperation.UNPROVEN,
+			receiptIdentity = null,
+		)
+		val receipt = receipt(2L)
+		val promoted = bound.copy(
+			ownerRevision = 2L,
+			receiptIdentity = receipt.identity,
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			PortableCountDomainGraphV2.create(
+				receipts = listOf(receipt),
+				ownerRevisions = listOf(unproven, promoted),
+				completenessMarkers = emptyList(),
+				roots = listOf(ambientGraph().roots.single().copy(ownerRevision = 2L)),
+			)
+		}
+	}
+
+	@Test
 	fun `ambient day rejects a root from another day`() {
 		val day = ambientDay()
 		val graph = ambientGraph().let { value ->

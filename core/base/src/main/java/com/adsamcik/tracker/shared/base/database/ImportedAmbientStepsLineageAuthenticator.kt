@@ -64,6 +64,7 @@ data class AuthenticatedImportedAmbientStepsLineage(
 						member.dayIdentity,
 						member.dayContentChecksum,
 						member.boundDayImportRevision,
+						member.boundCountDomainGraphRevision,
 						member.factCount,
 						member.gapCount,
 					)
@@ -294,6 +295,7 @@ object ImportedAmbientStepsLineageAuthenticator {
 					it.dayIdentity == header.dayIdentity
 			} ?: corrupt()
 			if (member.boundDayImportRevision != header.importRevision ||
+				member.boundCountDomainGraphRevision <= 0L ||
 				member.dayContentChecksum != header.dayContentChecksum ||
 				member.factCount != header.factCount || member.gapCount != header.gapCount
 			) corrupt()
@@ -303,7 +305,9 @@ object ImportedAmbientStepsLineageAuthenticator {
 			val revision = revisions.singleOrNull {
 				it.header.importRevision == member.boundDayImportRevision
 			} ?: corrupt()
-			if (revision.header.dayContentChecksum != member.dayContentChecksum) corrupt()
+			if (revision.header.dayContentChecksum != member.dayContentChecksum ||
+				member.boundCountDomainGraphRevision <= 0L
+			) corrupt()
 		}
 		return AuthenticatedImportedAmbientStepsLineage(
 			revisions,

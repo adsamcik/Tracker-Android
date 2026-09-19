@@ -82,16 +82,6 @@ internal class AmbientStepsPortableSourceBackend(
 					AmbientStepsPortableUnsupportedScope.RANGE_SCOPE_NOT_REPRESENTABLE,
 				)
 			}
-
-			suspend fun exportV2(
-				origin: AmbientStepsPortableOrigin,
-				request: ExportPortableAmbientStepsRequest,
-				sink: PortableAmbientStepsArchiveV2Sink,
-			): ExportPortableAmbientStepsResult = when (origin) {
-				AmbientStepsPortableOrigin.NATIVE -> nativeExporterV2.export(request, sink)
-				AmbientStepsPortableOrigin.IMPORTED ->
-					importedReexporterV2.export(request, sink)
-			}
 			is AmbientStepsPortableFileScope.StructuralDay -> resolveDay(scope)
 			is AmbientStepsPortableFileScope.Trip ->
 				AmbientStepsPortableScopeResolution.Unsupported(
@@ -106,6 +96,15 @@ internal class AmbientStepsPortableSourceBackend(
 	): ExportPortableAmbientStepsResult = when (origin) {
 		AmbientStepsPortableOrigin.NATIVE -> nativeExporter.export(request, sink)
 		AmbientStepsPortableOrigin.IMPORTED -> importedReexporter.export(request, sink)
+	}
+
+	suspend fun exportV2(
+		origin: AmbientStepsPortableOrigin,
+		request: ExportPortableAmbientStepsRequest,
+		sink: PortableAmbientStepsArchiveV2Sink,
+	): ExportPortableAmbientStepsResult = when (origin) {
+		AmbientStepsPortableOrigin.NATIVE -> nativeExporterV2.export(request, sink)
+		AmbientStepsPortableOrigin.IMPORTED -> importedReexporterV2.export(request, sink)
 	}
 
 	private fun resolveDay(

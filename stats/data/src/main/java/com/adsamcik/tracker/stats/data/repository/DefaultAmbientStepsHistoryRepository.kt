@@ -994,10 +994,8 @@ private class ImportedAmbientStepsRangeReader(
 				revision.header.dayIdentity,
 				revision.header.importRevision,
 			)
-			val countDomainOwners = database.importedAmbientCountDomainOwners(
-				revision.header.dayIdentity,
-				revision.header.importRevision,
-			) ?: return ImportedAmbientStepsRangeRead.Unverifiable
+			val countDomainOwners = database.importedAmbientCountDomainOwners(lineage)
+				?: return ImportedAmbientStepsRangeRead.Unverifiable
 			if (countDomainOwners.keys != day.facts.mapTo(linkedSetOf()) { it.identity.value }) {
 				return ImportedAmbientStepsRangeRead.Unverifiable
 			}

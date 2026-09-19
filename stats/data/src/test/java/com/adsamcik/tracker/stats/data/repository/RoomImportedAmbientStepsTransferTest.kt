@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwnerK
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwnerState
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.deleteFullClearPayloadInCurrentTransaction
+import com.adsamcik.tracker.shared.base.database.loadAuthenticatedAmbientStepsLineage
 import com.adsamcik.tracker.shared.base.database.prepareFullClearFencesInCurrentTransaction
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveDayEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsNativeReplayFootprintEntity
@@ -38,13 +39,18 @@ import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIden
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIntegrity
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsCoverage
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsFactV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsGapReason
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsGapV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsPartialCause
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOperation
 import com.adsamcik.tracker.shared.model.steps.portable.identity
+import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsAfterConsentResetRequest
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsAfterConsentResetResult
@@ -61,9 +67,11 @@ import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsReque
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResult
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsResult
+import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsV2Request
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportMetadata
+import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportMetadataV2
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsTransferRetryableReason
@@ -298,6 +306,90 @@ class RoomImportedAmbientStepsTransferTest {
 		) shouldBe ImportPortableAmbientStepsResult.Duplicate(initial.identity, 1)
 		readReady(database, correction).archive shouldBe correction
 		database.importedAmbientStepsDao().dayRevisionCount() shouldBe 2L
+	}
+
+	@Test
+	fun `legacy v1 correction may replace fact membership while remaining unproven`() = runTest {
+		val date = LocalDate.of(2026, 1, 9)
+		val (start, end) = dayBounds(date, "UTC")
+		val initial = archive(completeDay(date, 8L))
+		importer(database).importArchive(request(initial)) shouldBe applied(initial, 1)
+		val midpoint = start + (end - start) / 2L
+		val replacementFacts = listOf(
+			PortableAmbientStepsFactV1.create(
+				identity(AmbientStepsPortableIdentityKind.FACT, "replacement-a"),
+				start,
+				midpoint,
+				3L,
+			),
+			PortableAmbientStepsFactV1.create(
+				identity(AmbientStepsPortableIdentityKind.FACT, "replacement-b"),
+				midpoint,
+				end,
+				5L,
+			),
+		)
+		val correction = archive(
+			portableDay(date, "UTC", replacementFacts, emptyList(), emptyList()),
+		)
+
+		importer(database).importArchive(
+			request(correction, jobId = "v1-membership", archiveKey = "v1-membership"),
+		) shouldBe applied(correction, 1)
+
+		database.importedAmbientStepsDao().dayRevisionCount() shouldBe 2L
+		reexport(database, correction) shouldBe correction
+		val graph = database.loadAuthenticatedImportedAmbientStepsGraphLineage(
+			database.importedAmbientStepsDao().loadAuthenticatedAmbientStepsLineage(
+				correction.days.single().identity.value,
+				EPOCH,
+			),
+		).last().graph
+		graph.ownerRevisions.all {
+			it.operation == PortableCountDomainOperation.UNPROVEN
+		} shouldBe true
+		graph.roots.map { it.productIdentity.value }.toSet() shouldBe
+			replacementFacts.map { it.identity.value }.toSet()
+	}
+
+	@Test
+	fun `graph only v2 correction remains readable reexportable and replayable`() = runTest {
+		val product = completeDay(LocalDate.of(2026, 1, 10), 6L)
+		val initialDay = product.withExplicitUnprovenCountDomain()
+		val firstOwner = initialDay.countDomainGraph.ownerRevisions.single()
+		val advancedOwner = firstOwner.copy(
+			ownerRevision = 2L,
+			ownerEffectChecksum = firstOwner.ownerEffectChecksum,
+		)
+		val advancedGraph = PortableCountDomainGraphV2.create(
+			receipts = emptyList(),
+			ownerRevisions = listOf(firstOwner, advancedOwner),
+			completenessMarkers = emptyList(),
+			roots = initialDay.countDomainGraph.roots.map { it.copy(ownerRevision = 2L) },
+		)
+		val initial = PortableAmbientStepsArchiveV2.create(listOf(initialDay))
+		val correction = PortableAmbientStepsArchiveV2.create(
+			listOf(PortableAmbientStepsDayV2(product, advancedGraph)),
+		)
+
+		importer(database).importArchive(requestV2(initial)) shouldBe applied(initial, 1)
+		importer(database).importArchive(
+			requestV2(correction, jobId = "graph-correction", archiveKey = "graph-correction"),
+		) shouldBe applied(correction, 0)
+
+		database.importedAmbientStepsDao().dayRevisionCount() shouldBe 1L
+		database.importedPortableStepsCountDomainDao().bindings(
+			com.adsamcik.tracker.shared.base.database.data
+				.ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
+			listOf(product.identity.value),
+		).map { it.productRevision } shouldBe listOf(1L, 2L)
+		reexportV2(database, correction) shouldBe correction
+		importer(database).importArchive(
+			requestV2(correction, jobId = "graph-correction", archiveKey = "graph-correction"),
+		) shouldBe ImportPortableAmbientStepsResult.Duplicate(correction.identity, 1)
+		importer(database).importArchive(requestV2(initial)) shouldBe
+			ImportPortableAmbientStepsResult.Duplicate(initial.identity, 1)
+		reexportV2(database, correction) shouldBe correction
 	}
 
 	@Test
@@ -1974,6 +2066,27 @@ class RoomImportedAmbientStepsTransferTest {
 		Dispatchers.Unconfined,
 	).export(range(archive)) { error("Unavailable export must not emit") }
 
+	private suspend fun reexportV2(
+		database: AppDatabase,
+		archive: PortableAmbientStepsArchiveV2,
+	): PortableAmbientStepsArchiveV2 {
+		var emitted: PortableAmbientStepsArchiveV2? = null
+		RoomReexportImportedAmbientStepsV2(
+			ImportedAmbientStepsRoomReader(
+				database,
+				database.importedAmbientStepsDao(),
+				Dispatchers.Unconfined,
+			),
+			Dispatchers.Unconfined,
+		).export(range(archive)) { emitted = it } shouldBe
+			ExportPortableAmbientStepsResult.Exported(
+				archive.days.size,
+				archive.days.sumOf { it.product.facts.size },
+				archive.days.sumOf { it.product.gaps.size },
+			)
+		return requireNotNull(emitted)
+	}
+
 	private fun request(
 		archive: PortableAmbientStepsArchiveV1,
 		jobId: String = "job-1",
@@ -1989,6 +2102,33 @@ class RoomImportedAmbientStepsTransferTest {
 			receivedAtMs,
 		),
 		metadata = metadata(archive),
+		expectedCollectedDataEpoch = expectedEpoch,
+	)
+
+	private fun requestV2(
+		archive: PortableAmbientStepsArchiveV2,
+		jobId: String = "v2-job-1",
+		archiveKey: String = "v2-archive-1",
+		expectedEpoch: Long = EPOCH,
+		receivedAtMs: Long = archive.days.maxOf { it.product.structuralDayEndTimeMs },
+	) = ImportPortableAmbientStepsV2Request(
+		archive = archive,
+		receipt = PortableAmbientStepsImportReceipt(
+			jobId,
+			archiveKey,
+			"backup.trackerambientsteps",
+			receivedAtMs,
+		),
+		metadata = PortableAmbientStepsImportMetadataV2(
+			encodedByteCount = 1_024L,
+			archiveContentChecksum = archive.contentChecksum,
+			dayCount = archive.days.size,
+			factCount = archive.days.sumOf { it.product.facts.size },
+			gapCount = archive.days.sumOf { it.product.gaps.size },
+			receiptCount = archive.days.sumOf { it.countDomainGraph.receipts.size },
+			ownerRevisionCount = archive.days.sumOf { it.countDomainGraph.ownerRevisions.size },
+			rootCount = archive.days.sumOf { it.countDomainGraph.roots.size },
+		),
 		expectedCollectedDataEpoch = expectedEpoch,
 	)
 
@@ -2012,10 +2152,27 @@ class RoomImportedAmbientStepsTransferTest {
 		archive.days.sumOf { it.gaps.size },
 	)
 
+	private fun applied(
+		archive: PortableAmbientStepsArchiveV2,
+		appended: Int,
+	) = ImportPortableAmbientStepsResult.Applied(
+		archive.identity,
+		appended,
+		archive.days.size,
+		archive.days.sumOf { it.product.facts.size },
+		archive.days.sumOf { it.product.gaps.size },
+	)
+
 	private fun range(archive: PortableAmbientStepsArchiveV1) =
 		ExportPortableAmbientStepsRequest(
 			archive.days.minOf { it.structuralDayStartTimeMs },
 			archive.days.maxOf { it.structuralDayEndTimeMs },
+		)
+
+	private fun range(archive: PortableAmbientStepsArchiveV2) =
+		ExportPortableAmbientStepsRequest(
+			archive.days.minOf { it.product.structuralDayStartTimeMs },
+			archive.days.maxOf { it.product.structuralDayEndTimeMs },
 		)
 
 	private fun archive(vararg days: PortableAmbientStepsDayV1) =

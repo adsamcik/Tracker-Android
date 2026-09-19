@@ -464,7 +464,7 @@ private enum class FinalV28MarkerState {
 
 internal const val FINAL_V28_MARKER_ID = -280_917
 internal const val FINAL_V28_ASSEMBLY_ID =
-	"tracker-v28-portable-steps-count-domain-20260920"
+	"tracker-v28-portable-ambient-graph-revision-20260920"
 private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
 	"tracker-v28-final-20260917",
 	"tracker-v28-retention-final-20260917",
@@ -473,6 +473,7 @@ private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
 	"tracker-v28-retention-execution-20260919",
 	"tracker-v28-retention-caller-authority-20260919",
 	"tracker-v28-retention-caller-steps-count-domain-20260919",
+	"tracker-v28-portable-steps-count-domain-20260920",
 )
 
 private val BASELINE_TABLES = setOf(

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.AuthenticatedImportedAmbientStepsLineage
 import com.adsamcik.tracker.shared.base.database.authenticatedGraph
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2
@@ -30,15 +31,13 @@ internal suspend fun AppDatabase.importedSessionCountDomainOwners(
 
 internal suspend fun AppDatabase.importedAmbientCountDomainOwner(
 	dayIdentity: String,
-	importRevision: Long,
 	factIdentity: String,
 ): StepsCountDomainOwnerReference? {
 	val dao = importedPortableStepsCountDomainDao()
-	val binding = dao.binding(
+	val binding = dao.bindings(
 		ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
-		dayIdentity,
-		importRevision,
-	) ?: return null
+		listOf(dayIdentity),
+	).lastOrNull() ?: return null
 	val graph = dao.authenticatedGraph(
 		binding.graphIdentity,
 		com.adsamcik.tracker.shared.base.database.data
@@ -52,29 +51,34 @@ internal suspend fun AppDatabase.importedAmbientCountDomainOwner(
 }
 
 internal suspend fun AppDatabase.importedAmbientCountDomainOwners(
-	dayIdentity: String,
-	importRevision: Long,
+	lineage: AuthenticatedImportedAmbientStepsLineage,
 ): Map<String, StepsCountDomainOwnerReference>? {
-	val dao = importedPortableStepsCountDomainDao()
-	val binding = dao.binding(
-		ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
-		dayIdentity,
-		importRevision,
-	) ?: return null
-	val graph = dao.authenticatedGraph(
-		binding.graphIdentity,
-		com.adsamcik.tracker.shared.base.database.data
-			.ImportedPortableStepsCountDomainGraphEntity.SOURCE_AMBIENT_STEPS,
-	) ?: return null
-	val roots = graph.roots.filter {
+	return try {
+		val latestGraph = loadAuthenticatedImportedAmbientStepsGraphLineage(lineage).lastOrNull()
+			?: return null
+		if (lineage.latest.header.importRevision !in latestGraph.productImportRevisions) return null
+		latestGraph.graph.ambientCountDomainOwners(lineage.latest.header.dayIdentity)
+	} catch (_: IllegalArgumentException) {
+		null
+	} catch (_: IllegalStateException) {
+		null
+	} catch (_: ArithmeticException) {
+		null
+	}
+}
+
+internal fun PortableCountDomainGraphV2.ambientCountDomainOwners(
+	dayIdentity: String,
+): Map<String, StepsCountDomainOwnerReference>? {
+	val selectedRoots = roots.filter {
 		it.containerIdentity.value == dayIdentity &&
 			it.ownerKind.name == StepsCountDomainOwnerKind.AMBIENT_FACT.name
 	}
-	if (roots.isEmpty()) return null
-	val result = roots.associate { root ->
-		root.productIdentity.value to (graph.referenceForRoot(root) ?: return null)
+	if (selectedRoots.isEmpty()) return null
+	val result = selectedRoots.associate { root ->
+		root.productIdentity.value to (referenceForRoot(root) ?: return null)
 	}
-	return result.takeIf { it.size == roots.size }
+	return result.takeIf { it.size == selectedRoots.size }
 }
 
 private fun PortableCountDomainGraphV2.referencesForContainer(

@@ -356,6 +356,14 @@ data class PortableCountDomainGraphV2(
 				it.ownerKind != PortableCountDomainOwnerKind.AMBIENT_FACT &&
 					it.operation == PortableCountDomainOperation.UNPROVEN
 			})
+			require(lineage.zipWithNext().all { (left, right) ->
+				left.ownerKind != PortableCountDomainOwnerKind.AMBIENT_FACT ||
+					left.operation != PortableCountDomainOperation.UNPROVEN ||
+					right.operation in setOf(
+						PortableCountDomainOperation.UNPROVEN,
+						PortableCountDomainOperation.RETRACT,
+					)
+			})
 		}
 		val referencedReceipts = ownerRevisions.mapNotNull { owner ->
 			val receiptIdentity = owner.receiptIdentity ?: return@mapNotNull null

@@ -128,6 +128,8 @@ data class ImportedAmbientStepsArchiveDayEntity(
 	@ColumnInfo(name = "bound_day_import_revision") val boundDayImportRevision: Long,
 	@ColumnInfo(name = "fact_count") val factCount: Int,
 	@ColumnInfo(name = "gap_count") val gapCount: Int,
+	@ColumnInfo(name = "bound_count_domain_graph_revision")
+	val boundCountDomainGraphRevision: Long = boundDayImportRevision,
 ) {
 	init {
 		listOf(archiveIdentity, dayIdentity, dayContentChecksum).forEach {
@@ -135,6 +137,7 @@ data class ImportedAmbientStepsArchiveDayEntity(
 		}
 		require(ordinal >= 0)
 		require(boundDayImportRevision > 0L)
+		require(boundCountDomainGraphRevision > 0L)
 		require(factCount in 1..AmbientStepsPortableFormatV1.MAX_FACTS_PER_DAY)
 		require(gapCount in 0..AmbientStepsPortableFormatV1.MAX_GAPS_PER_DAY)
 	}

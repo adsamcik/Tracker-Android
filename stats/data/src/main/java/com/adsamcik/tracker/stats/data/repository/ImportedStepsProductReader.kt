@@ -134,73 +134,6 @@ internal class ImportedStepsProductReader(
 		if (entries.size > StepsPortableFormatV1.MAX_ENTRIES) {
 			return unavailable(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
 		}
-
-		suspend fun exportV2InTransaction(request: ExportPortableStepsRequest): PortableStepsV2Snapshot {
-			val entries = database.importedStepsDao().entriesOverlapping(
-				request.fromInclusiveMs,
-				request.toExclusiveMs,
-				StepsPortableFormatV1.MAX_ENTRIES + 1,
-			)
-			if (entries.size > StepsPortableFormatV1.MAX_ENTRIES) {
-				return v2Unavailable(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
-			}
-			if (entries.isEmpty()) {
-				return PortableStepsV2Snapshot.Outcome(ExportPortableStepsResult.NoEntries)
-			}
-			val retainedEntries = mutableListOf<RetainedImportedStepsEntry>()
-			for (batch in entries.chunked(ImportedStepsRetainedReader.MAX_ENTRY_BATCH)) {
-				when (val result = retained.readEntriesInTransaction(batch.map { it.identity })) {
-					is ImportedStepsRetainedRead.Unverifiable ->
-						return v2Unavailable(result.reason.toExportReason())
-					is ImportedStepsRetainedRead.Ready -> {
-						val failure = result.unverifiableEntries.values.firstOrNull()
-						if (failure != null) return v2Unavailable(failure.toExportReason())
-						retainedEntries += result.entries
-					}
-				}
-			}
-			if (retainedEntries.size != entries.size) {
-				return v2Unavailable(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
-			}
-			val graphDao = database.importedPortableStepsCountDomainDao()
-			val result = mutableListOf<PortableStepsEntryV2>()
-			for (entry in retainedEntries) {
-				val product = entry.portable
-					?: return v2Unavailable(
-						PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
-					)
-				val binding = graphDao.binding(
-					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
-					entry.metadata.identity,
-					IMPORTED_SESSION_PRODUCT_REVISION,
-				) ?: return v2Unavailable(
-					PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
-				)
-				val graph = graphDao.authenticatedGraph(
-					binding.graphIdentity,
-					com.adsamcik.tracker.shared.base.database.data
-						.ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
-				)
-					?: return v2Unavailable(
-						PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
-					)
-				if (binding.sourceSchemaVersion !in 1..2) {
-					return v2Unavailable(
-						PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
-					)
-				}
-				result += try {
-					PortableStepsEntryV2(product, graph)
-				} catch (_: IllegalArgumentException) {
-					return v2Unavailable(
-						PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
-					)
-				}
-			}
-			return PortableStepsV2Snapshot.Ready(
-				result.sortedWith(com.adsamcik.tracker.stats.api.repository.PORTABLE_STEPS_ENTRY_V2_ORDER),
-			)
-		}
 		val portable = mutableListOf<PortableStepsEntryV1>()
 		for (batch in entries.chunked(ImportedStepsRetainedReader.MAX_ENTRY_BATCH)) {
 			when (val result = retained.readEntriesInTransaction(batch.map { it.identity })) {
@@ -219,6 +152,75 @@ internal class ImportedStepsProductReader(
 		} else {
 			PortableStepsSnapshot.Ready(portable.sortedWith(PORTABLE_STEPS_ENTRY_ORDER))
 		}
+	}
+
+	suspend fun exportV2InTransaction(
+		request: ExportPortableStepsRequest,
+	): PortableStepsV2Snapshot {
+		val entries = database.importedStepsDao().entriesOverlapping(
+			request.fromInclusiveMs,
+			request.toExclusiveMs,
+			StepsPortableFormatV1.MAX_ENTRIES + 1,
+		)
+		if (entries.size > StepsPortableFormatV1.MAX_ENTRIES) {
+			return v2Unavailable(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+		}
+		if (entries.isEmpty()) {
+			return PortableStepsV2Snapshot.Outcome(ExportPortableStepsResult.NoEntries)
+		}
+		val retainedEntries = mutableListOf<RetainedImportedStepsEntry>()
+		for (batch in entries.chunked(ImportedStepsRetainedReader.MAX_ENTRY_BATCH)) {
+			when (val result = retained.readEntriesInTransaction(batch.map { it.identity })) {
+				is ImportedStepsRetainedRead.Unverifiable ->
+					return v2Unavailable(result.reason.toExportReason())
+				is ImportedStepsRetainedRead.Ready -> {
+					val failure = result.unverifiableEntries.values.firstOrNull()
+					if (failure != null) return v2Unavailable(failure.toExportReason())
+					retainedEntries += result.entries
+				}
+			}
+		}
+		if (retainedEntries.size != entries.size) {
+			return v2Unavailable(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		}
+		val graphDao = database.importedPortableStepsCountDomainDao()
+		val result = mutableListOf<PortableStepsEntryV2>()
+		for (entry in retainedEntries) {
+			val product = entry.portable
+				?: return v2Unavailable(
+					PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+				)
+			val binding = graphDao.binding(
+				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				entry.metadata.identity,
+				IMPORTED_SESSION_PRODUCT_REVISION,
+			) ?: return v2Unavailable(
+				PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+			)
+			val graph = graphDao.authenticatedGraph(
+				binding.graphIdentity,
+				com.adsamcik.tracker.shared.base.database.data
+					.ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+			)
+				?: return v2Unavailable(
+					PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+				)
+			if (binding.sourceSchemaVersion !in 1..2) {
+				return v2Unavailable(
+					PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+				)
+			}
+			result += try {
+				PortableStepsEntryV2(product, graph)
+			} catch (_: IllegalArgumentException) {
+				return v2Unavailable(
+					PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+				)
+			}
+		}
+		return PortableStepsV2Snapshot.Ready(
+			result.sortedWith(com.adsamcik.tracker.stats.api.repository.PORTABLE_STEPS_ENTRY_V2_ORDER),
+		)
 	}
 
 	/** Stops before requesting another Room batch once this origin's export budget is exhausted. */

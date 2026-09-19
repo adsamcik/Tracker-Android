@@ -15,6 +15,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsArchiveV2Si
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsExportRetryableReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsExportUnverifiableReason
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext

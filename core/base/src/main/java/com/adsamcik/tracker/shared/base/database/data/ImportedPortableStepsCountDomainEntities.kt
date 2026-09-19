@@ -240,6 +240,11 @@ data class ImportedPortableStepsCountDomainRootEntity(
 	}
 }
 
+/**
+ * Session entries use [productRevision] as their immutable product revision. Ambient days use it
+ * as an independent graph-lineage revision; archive membership stores the bound day revision
+ * separately so a graph-only correction never fabricates another day revision.
+ */
 @Entity(
 	tableName = "imported_steps_count_domain_binding",
 	primaryKeys = ["product_kind", "product_identity", "product_revision"],
