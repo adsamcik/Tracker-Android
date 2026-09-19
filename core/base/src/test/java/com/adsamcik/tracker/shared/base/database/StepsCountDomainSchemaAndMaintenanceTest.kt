@@ -8,8 +8,10 @@ import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletenessMarkerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
@@ -1014,6 +1016,155 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		}
 
 	@Test
+	fun `WAL retention preserves the final Steps admission for a nonterminal registration`() =
+		runTest {
+			installSchema()
+			val store = StepsCountDomainStore(database)
+			val first = insertWal(
+				"wal-active-first",
+				1L,
+				payloadVersion = 7,
+				sourceInstanceId = "active-steps",
+				registrationGeneration = 7L,
+			)
+			val final = insertWal(
+				"wal-active-final",
+				2L,
+				payloadVersion = 7,
+				sourceInstanceId = "active-steps",
+				registrationGeneration = 7L,
+			)
+			store.recordSessionWal(first, token('a')) shouldBe
+				StepsCountDomainWriteResult.INSERTED
+			store.recordSessionWal(final, token('a')) shouldBe
+				StepsCountDomainWriteResult.INSERTED
+			database.sourceBrokerDao().insertRegistration(
+				ProviderRegistrationGenerationEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					registrationGeneration = 7L,
+					sourceInstanceId = "active-steps",
+					ownerScope = "source-broker:${SourceDestinationOwnerEntity.SOURCE_STEPS}",
+					clockDomainId = "boot",
+					physicalConfigurationFingerprint = "steps",
+					collectedDataEpoch = 7L,
+					providerResidency =
+						ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+					providerProcessIncarnationId = "process",
+					status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+					reservedAtMs = 1L,
+					reservedElapsedRealtimeNanos = 1L,
+					acceptedAtMs = 1L,
+					acceptedElapsedRealtimeNanos = 1L,
+					retiredAtMs = null,
+					retiredElapsedRealtimeNanos = null,
+					failureCode = null,
+				),
+			)
+
+			store.removeSessionWalOwnersForPrune(
+				safeOrdinal = final.admissionOrdinal,
+				createdBeforeMs = 3L,
+				limit = 2,
+			) shouldBe StepsCountDomainMaintenanceResult.Applied(1, 1)
+			database.sourceEventWalDao().deleteProjectedSourceBatch(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				safeOrdinal = final.admissionOrdinal,
+				createdBeforeMs = 3L,
+				limit = 2,
+			) shouldBe 1
+
+			database.sourceEventWalDao().getByAdmissionOrdinal(first.admissionOrdinal) shouldBe null
+			requireNotNull(
+				database.sourceEventWalDao().getByAdmissionOrdinal(final.admissionOrdinal),
+			).eventId shouldBe final.eventId
+			val finalKey = StepsCountDomainOwnerLookupKey(
+				StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+				StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
+					final.admissionOrdinal,
+					final.eventId,
+				),
+				1L,
+			)
+			(store.readOwners(listOf(finalKey)) as StepsCountDomainOwnerRead.Ready)
+				.owners.containsKey(finalKey) shouldBe true
+		}
+
+	@Test
+	fun `malformed owner key cannot masquerade as an absent replacement lineage`() = runTest {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"INSERT INTO steps_count_domain_owner_revision VALUES " +
+				"('SESSION_WAL', ?, X'01', 1, 'UNPROVEN', NULL, ?, 1)",
+			arrayOf("sha256:${"1".repeat(64)}", "2".repeat(64)),
+		)
+
+		StepsCountDomainStore(database).recordSessionWal(
+			insertWal("malformed-owner-key", 1L, payloadVersion = 7),
+			token('a'),
+		) shouldBe StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE
+	}
+
+	@Test
+	fun `invalid maintenance cursor row is unverifiable instead of throwing`() = runTest {
+		installSchema()
+		val wal = insertWal("maintenance-invalid-range", 1L, payloadVersion = 7)
+		StepsCountDomainStore(database).recordSessionWal(wal, token('a')) shouldBe
+			StepsCountDomainWriteResult.INSERTED
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET event_id = '' WHERE admission_ordinal = ?",
+			arrayOf(wal.admissionOrdinal),
+		)
+
+		StepsCountDomainStore(database).removeSessionWalOwnersForPrune(
+			safeOrdinal = wal.admissionOrdinal,
+			createdBeforeMs = 2L,
+			limit = 1,
+		) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+	}
+
+	@Test
+	fun `schema sentinel rejects real and blob storage classes without coercion`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"UPDATE steps_count_domain_schema_marker SET contract_version = 1.5 WHERE id = 1",
+		)
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+
+		sqlite.execSQL(
+			"UPDATE steps_count_domain_schema_marker SET contract_version = 2, " +
+				"token_semantics = X'01' WHERE id = 1",
+		)
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `Steps evidence publication uses monotonic wall clock time`() = runTest {
+		val dao = database.sourceEvidenceStateDao()
+		dao.ensure(SourceEvidenceState())
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_evidence_state SET revision = 0, updated_at_ms = 10000 WHERE id = 1",
+		)
+
+		database.withTransaction {
+			publishStepsCountDomainEvidenceRevisionAtWallTime(database, wallTimeMs = 2_000L)
+		}
+		requireNotNull(dao.get()).let { state ->
+			state.revision shouldBe 1L
+			state.updatedAtMs shouldBe 10_000L
+		}
+
+		database.withTransaction {
+			publishStepsCountDomainEvidenceRevisionAtWallTime(database, wallTimeMs = 12_000L)
+		}
+		requireNotNull(dao.get()).let { state ->
+			state.revision shouldBe 2L
+			state.updatedAtMs shouldBe 12_000L
+		}
+	}
+
+	@Test
 	fun `corrupt schema sentinel is incompatible and cannot be repaired or activate writers`() =
 		runTest {
 			installSchema()
@@ -1342,6 +1493,8 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		eventId: String,
 		sourceSequence: Long,
 		payloadVersion: Int = 1,
+		sourceInstanceId: String = "owner-$sourceSequence",
+		registrationGeneration: Long = sourceSequence,
 	): SourceEventWalEntity {
 		val unsigned = SourceEventWalEntity(
 			eventId = eventId,
@@ -1349,8 +1502,8 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 			logicalTrackingId = "tracking",
 			serviceRunId = "run",
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-			sourceInstanceId = "owner-$sourceSequence",
-			registrationGeneration = sourceSequence,
+			sourceInstanceId = sourceInstanceId,
+			registrationGeneration = registrationGeneration,
 			physicalConfigurationFingerprint = "configuration-$sourceSequence",
 			authorizationRevision = 1L,
 			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,

@@ -112,6 +112,13 @@ sealed interface StepsTerminalCompletenessAuthentication {
 	data object Unverifiable : StepsTerminalCompletenessAuthentication
 }
 
+sealed interface StepsTerminalProductAuthentication {
+	data object Materializable : StepsTerminalProductAuthentication
+	data object TerminalUnavailable : StepsTerminalProductAuthentication
+	data object SchemaUnavailable : StepsTerminalProductAuthentication
+	data object Unverifiable : StepsTerminalProductAuthentication
+}
+
 sealed interface StepsCountDomainOwnerRead {
 	data class Ready(
 		val owners: Map<StepsCountDomainOwnerLookupKey, StepsCountDomainStoredOwner>,
@@ -367,11 +374,10 @@ class StepsCountDomainStore(
 			row.registrationGeneration,
 		)
 		val ownerRevision = StepsCountDomainReceiptIntegrity.completenessOwnerRevision(row)
-		val timeline = database.trackingHistoryReadDao().sourceCompleteness(
-			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-			serviceRunIds = listOf(row.serviceRunId),
-			limit = MAX_COMPLETENESS_TIMELINE + 1,
-		).filter { it.logicalTrackingId == row.logicalTrackingId }
+		val timeline = authenticatedStepsCompletenessTimeline(
+			row.logicalTrackingId,
+			row.serviceRunId,
+		) ?: return StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE
 		val timelineChecksum =
 			StepsCountDomainReceiptIntegrity.registrationTimelineChecksum(timeline)
 		val timelineWithinBound = timeline.size <= MAX_COMPLETENESS_TIMELINE
@@ -506,13 +512,9 @@ class StepsCountDomainStore(
 		) {
 			return StepsTerminalCompletenessAuthentication.Unverifiable
 		}
-		val timeline = database.trackingHistoryReadDao().sourceCompleteness(
-			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-			serviceRunIds = listOf(serviceRunId),
-			limit = MAX_COMPLETENESS_TIMELINE + 1,
-		)
-		if (timeline.size > MAX_COMPLETENESS_TIMELINE ||
-			timeline.any { it.logicalTrackingId != logicalTrackingId } ||
+		val timeline = authenticatedStepsCompletenessTimeline(logicalTrackingId, serviceRunId)
+			?: return StepsTerminalCompletenessAuthentication.Unverifiable
+		if (
 			!StepsSessionCompletenessIntegrity.hasValidRegisteredTimeline(
 				timeline,
 				logicalTrackingId,
@@ -598,6 +600,133 @@ class StepsCountDomainStore(
 		}
 	}
 
+	@Suppress("ComplexCondition", "LongMethod", "ReturnCount")
+	suspend fun authenticateTerminalProductDisposition(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		timeline: List<SourceSessionCompletenessEntity>,
+	): StepsTerminalProductAuthentication {
+		if (
+			logicalTrackingId.isBlank() ||
+			serviceRunId.isBlank() ||
+			timeline.isEmpty() ||
+			timeline.size > MAX_COMPLETENESS_TIMELINE ||
+			!StepsSessionCompletenessIntegrity.hasValidTimeline(
+				timeline,
+				logicalTrackingId,
+				serviceRunId,
+			)
+		) {
+			return StepsTerminalProductAuthentication.Unverifiable
+		}
+		val keys = timeline.map { row ->
+			StepsCountDomainOwnerLookupKey(
+				StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
+				StepsCountDomainReceiptIntegrity.sessionCompletenessOwnerIdentity(
+					row.logicalTrackingId,
+					row.serviceRunId,
+					row.sourceInstanceId,
+					row.registrationGeneration,
+				),
+				StepsCountDomainReceiptIntegrity.completenessOwnerRevision(row),
+			)
+		}
+		val ready = when (val read = readOwners(keys, MAX_COMPLETENESS_TIMELINE)) {
+			is StepsCountDomainOwnerRead.Ready -> read
+			StepsCountDomainOwnerRead.SchemaUnavailable ->
+				return StepsTerminalProductAuthentication.SchemaUnavailable
+			StepsCountDomainOwnerRead.Overflow,
+			StepsCountDomainOwnerRead.Unverifiable,
+			-> return StepsTerminalProductAuthentication.Unverifiable
+		}
+		val timelineChecksum =
+			StepsCountDomainReceiptIntegrity.registrationTimelineChecksum(timeline)
+		var unavailable = false
+		for ((row, key) in timeline.zip(keys)) {
+			val stored = ready.owners[key]
+				?: return StepsTerminalProductAuthentication.Unverifiable
+			val marker = stored.completenessMarker
+				?: return StepsTerminalProductAuthentication.Unverifiable
+			val expectedScope = StepsCountDomainReceiptIntegrity.sessionRunScopeIdentity(
+				row.logicalTrackingId,
+				row.serviceRunId,
+			)
+			val expectedEffect = StepsCountDomainReceiptIntegrity.completenessEffectChecksum(row)
+			val retirementEvidence = StepsCountDomainRetirementEvidence(
+				providerFlushOutcome = marker.providerFlushOutcome,
+				registrationRemovalOutcome = marker.registrationRemovalOutcome,
+			)
+			if (
+				ready.latestRevisions[
+					StepsCountDomainOwnerLineageKey(key.ownerKind, key.ownerIdentity)
+				] != key.ownerRevision ||
+				!marker.matches(stored.owner) ||
+				stored.owner.scopeIdentity != expectedScope ||
+				stored.owner.ownerEffectChecksum != expectedEffect ||
+				stored.owner.linkedAtMs != row.updatedAtMs ||
+				marker.lastAdmissionOrdinal != row.lastAdmissionOrdinal ||
+				marker.lastSourceSequence != row.lastSourceSequence ||
+				marker.registrationTimelineChecksum != timelineChecksum ||
+				!retirementEvidence.hasFinalRegistrationRemoval()
+			) {
+				return StepsTerminalProductAuthentication.Unverifiable
+			}
+			when (stored.owner.operation) {
+				StepsCountDomainOwnerRevisionEntity.OPERATION_BIND -> {
+					if (
+						!stored.isAuthentic() ||
+						!row.hasExactCompleteRetirement(retirementEvidence)
+					) {
+						return StepsTerminalProductAuthentication.Unverifiable
+					}
+				}
+				StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN -> {
+					if (
+						stored.receipt != null ||
+						stored.owner.receiptIdentity != null ||
+						marker.terminalState !=
+						StepsCountDomainCompletenessMarkerEntity.STATE_UNPROVEN ||
+						!row.hasTerminalRetirement(retirementEvidence)
+					) {
+						return StepsTerminalProductAuthentication.Unverifiable
+					}
+					unavailable = true
+				}
+				else -> return StepsTerminalProductAuthentication.Unverifiable
+			}
+		}
+		return if (unavailable) {
+			StepsTerminalProductAuthentication.TerminalUnavailable
+		} else {
+			StepsTerminalProductAuthentication.Materializable
+		}
+	}
+
+	private suspend fun authenticatedStepsCompletenessTimeline(
+		logicalTrackingId: String,
+		serviceRunId: String,
+	): List<SourceSessionCompletenessEntity>? {
+		val raw = database.sourceSessionDao().rawSourceCompletenessForServiceRun(
+			serviceRunId = serviceRunId,
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			limit = MAX_COMPLETENESS_TIMELINE + 1,
+		)
+		if (raw.size > MAX_COMPLETENESS_TIMELINE) return null
+		val rows = ArrayList<SourceSessionCompletenessEntity>(raw.size)
+		for (candidate in raw) {
+			val row = candidate.validatedOrNull() ?: return null
+			if (
+				row.logicalTrackingId != logicalTrackingId ||
+				row.serviceRunId != serviceRunId ||
+				row.sourceKind != SourceDestinationOwnerEntity.SOURCE_STEPS
+			) {
+				return null
+			}
+			rows += row
+		}
+		return rows
+	}
+
 	private fun terminalCompletenessAbsence(
 		ownerIdentity: String,
 	): StepsTerminalCompletenessAuthentication {
@@ -609,7 +738,8 @@ class StepsCountDomainStore(
 				-> StepsTerminalCompletenessAuthentication.Absent
 				StepsCountDomainSchemaState.Incompatible ->
 					StepsTerminalCompletenessAuthentication.Unverifiable
-				StepsCountDomainSchemaState.ValidV2 ->
+				StepsCountDomainSchemaState.ValidV2 -> {
+					sqlite.requireAuthenticCountDomainLookupKeys()
 					if (sqlite.queryLatestOwner(
 							StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
 							ownerIdentity,
@@ -619,6 +749,7 @@ class StepsCountDomainStore(
 					} else {
 						StepsTerminalCompletenessAuthentication.Unverifiable
 					}
+				}
 			}
 		} catch (_: SQLiteException) {
 			StepsTerminalCompletenessAuthentication.Unverifiable
@@ -825,6 +956,7 @@ class StepsCountDomainStore(
 			StepsCountDomainSchemaState.ValidV2 -> Unit
 		}
 		return try {
+			sqlite.requireAuthenticCountDomainLookupKeys()
 			val owners = mutableListOf<StepsCountDomainOwnerRevisionEntity>()
 			for (chunk in distinctKeys.chunked(OWNER_QUERY_CHUNK)) {
 				currentCoroutineContext().ensureActive()
@@ -929,6 +1061,7 @@ class StepsCountDomainStore(
 				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
 			StepsCountDomainSchemaState.ValidV2 -> Unit
 		}
+		sqlite.requireAuthenticCountDomainLookupKeys()
 		if (distinct.isEmpty()) return StepsCountDomainMaintenanceResult.Applied(0L, 0L)
 		val owners = distinct.chunked(OWNER_QUERY_CHUNK).flatMap(sqlite::queryOwnerChunk)
 		val receiptIds = owners.mapNotNull(StepsCountDomainOwnerRevisionEntity::receiptIdentity)
@@ -963,6 +1096,7 @@ class StepsCountDomainStore(
 				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
 			StepsCountDomainSchemaState.ValidV2 -> Unit
 		}
+		sqlite.requireAuthenticCountDomainLookupKeys()
 		val ownerCount = sqlite.longForQuery(
 			if (mode == StepsCountDomainFullClearMode.REMOVE_ALL) {
 				"SELECT COUNT(*) FROM main.steps_count_domain_owner_revision"
@@ -1015,6 +1149,7 @@ class StepsCountDomainStore(
 				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
 			StepsCountDomainSchemaState.ValidV2 -> Unit
 		}
+		sqlite.requireAuthenticCountDomainLookupKeys()
 		val candidates = sqlite.queryTerminalCompactionCandidates(
 			maximumRetainedTerminalOwners,
 			batchSize,
@@ -1050,6 +1185,7 @@ class StepsCountDomainStore(
 				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
 			StepsCountDomainSchemaState.ValidV2 -> Unit
 		}
+		sqlite.requireAuthenticCountDomainLookupKeys()
 		val keys = sqlite.querySessionWalPruneOwners(
 			safeOrdinal,
 			createdBeforeMs,
@@ -1087,6 +1223,14 @@ class StepsCountDomainStore(
 	): StepsCountDomainMaintenanceResult = try {
 		block()
 	} catch (_: CountDomainStoredEvidenceException) {
+		StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+	} catch (_: SQLiteException) {
+		StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+	} catch (_: IllegalArgumentException) {
+		StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+	} catch (_: IllegalStateException) {
+		StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+	} catch (_: ArithmeticException) {
 		StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
 	}
 
@@ -1271,6 +1415,7 @@ class StepsCountDomainStore(
 		if (StepsCountDomainSchema.inspect(sqlite) != StepsCountDomainSchemaState.ValidV2) {
 			return null
 		}
+		sqlite.requireAuthenticCountDomainLookupKeys()
 		val owner = sqlite.queryOwner(
 			key.ownerKind,
 			key.ownerIdentity,
@@ -1294,7 +1439,10 @@ class StepsCountDomainStore(
 			StepsCountDomainSchemaState.Absent,
 			StepsCountDomainSchemaState.FreshRoomScaffold,
 			-> StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE
-			StepsCountDomainSchemaState.ValidV2 -> null
+			StepsCountDomainSchemaState.ValidV2 -> {
+				database.openHelper.writableDatabase.requireAuthenticCountDomainLookupKeys()
+				null
+			}
 			StepsCountDomainSchemaState.Incompatible ->
 				StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE
 		}
@@ -1525,6 +1673,29 @@ suspend fun AppDatabase.clearStepsCountDomainEvidenceInTransaction(
 	mode: StepsCountDomainFullClearMode,
 ): StepsCountDomainMaintenanceResult = withTransaction {
 	clearStepsCountDomainEvidenceInCurrentTransaction(this, mode)
+}
+
+/**
+ * Publishes a Steps evidence revision on the wall-clock axis while preserving monotonic storage.
+ *
+ * Runtime checkpoint causal order remains in its dedicated elapsed-realtime field.
+ */
+suspend fun publishStepsCountDomainEvidenceRevisionAtWallTime(
+	database: AppDatabase,
+	wallTimeMs: Long,
+) {
+	check(database.inTransaction()) {
+		"Steps evidence publication requires the caller's existing AppDatabase transaction"
+	}
+	require(wallTimeMs >= 0L)
+	val dao = database.sourceEvidenceStateDao()
+	dao.ensure()
+	val current = requireNotNull(dao.get()) {
+		"Source-evidence state disappeared inside the Steps transaction"
+	}
+	check(dao.incrementRevision(maxOf(current.updatedAtMs, wallTimeMs)) == 1) {
+		"Unable to publish terminal Steps count-domain completeness"
+	}
 }
 
 fun SourceSessionCompletenessEntity.withMonotonicStepsCountDomainRevision(
@@ -1880,13 +2051,34 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwners(
 	limit: Int,
 ): List<StepsCountDomainOwnerLookupKey> =
 	query(
-		"SELECT admission_ordinal, event_id FROM source_event_wal " +
-			"WHERE source_kind = ? AND created_at_ms < ? AND admission_ordinal <= ? " +
-			"ORDER BY created_at_ms, admission_ordinal LIMIT ?",
+		"SELECT wal.admission_ordinal, wal.event_id FROM source_event_wal AS wal " +
+			"WHERE wal.source_kind = ? AND wal.created_at_ms < ? AND wal.admission_ordinal <= ? " +
+			"AND NOT (" +
+			"wal.logical_tracking_id IS NOT NULL AND wal.service_run_id IS NOT NULL AND " +
+			"wal.admission_ordinal = (" +
+			"SELECT MAX(candidate.admission_ordinal) FROM source_event_wal AS candidate " +
+			"WHERE candidate.source_kind = wal.source_kind " +
+			"AND candidate.source_instance_id = wal.source_instance_id " +
+			"AND candidate.registration_generation = wal.registration_generation " +
+			"AND candidate.logical_tracking_id = wal.logical_tracking_id " +
+			"AND candidate.service_run_id = wal.service_run_id " +
+			"AND (candidate.authorization_purpose_eligibility_mask & ?) != 0" +
+			") AND (" +
+			"EXISTS (SELECT 1 FROM provider_registration_generation AS registration " +
+			"WHERE registration.source_kind = wal.source_kind " +
+			"AND registration.source_instance_id = wal.source_instance_id " +
+			"AND registration.registration_generation = wal.registration_generation " +
+			"AND registration.status IN ('RESERVED', 'ACTIVE', 'RETIRING')) " +
+			"OR EXISTS (SELECT 1 FROM source_service_run AS run " +
+			"WHERE run.service_run_id = wal.service_run_id " +
+			"AND run.logical_tracking_id = wal.logical_tracking_id " +
+			"AND (run.completed_at_ms IS NULL OR run.state NOT IN ('FINALIZED', 'CLOSED', 'FAILED')))" +
+			")) ORDER BY wal.created_at_ms, wal.admission_ordinal LIMIT ?",
 		arrayOf(
 			SourceDestinationOwnerEntity.SOURCE_STEPS,
 			createdBeforeMs,
 			safeOrdinal,
+			SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 			limit,
 		),
 	).use { cursor ->
@@ -1894,6 +2086,9 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwners(
 			while (cursor.moveToNext()) {
 				val admissionOrdinal = cursor.requiredLong(0)
 				val eventId = cursor.requiredText(1)
+				if (admissionOrdinal <= 0L || eventId.isBlank()) {
+					throw CountDomainStoredEvidenceException()
+				}
 				add(
 					StepsCountDomainOwnerLookupKey(
 						ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
@@ -1908,6 +2103,43 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwners(
 			}
 		}
 	}
+
+private fun SupportSQLiteDatabase.requireAuthenticCountDomainLookupKeys() {
+	val invalidOwner = query(
+		"SELECT 1 FROM main.steps_count_domain_owner_revision WHERE " +
+			"typeof(owner_kind) != 'text' OR trim(owner_kind) = '' OR " +
+			"owner_kind NOT IN ('SESSION_WAL', 'SESSION_FACT', 'SESSION_COMPLETENESS', 'AMBIENT_FACT') OR " +
+			"typeof(owner_identity) != 'text' OR length(owner_identity) != 71 OR " +
+			"substr(owner_identity, 1, 7) != 'sha256:' OR " +
+			"substr(owner_identity, 8) GLOB '*[^0-9a-f]*' OR " +
+			"typeof(owner_revision) != 'integer' OR owner_revision <= 0 LIMIT 1",
+	).use { cursor -> cursor.moveToFirst() }
+	if (invalidOwner) throw CountDomainStoredEvidenceException()
+
+	val invalidReceipt = query(
+		"SELECT 1 FROM main.steps_count_domain_receipt WHERE " +
+			"typeof(receipt_identity) != 'text' OR length(receipt_identity) != 71 OR " +
+			"substr(receipt_identity, 1, 7) != 'sha256:' OR " +
+			"substr(receipt_identity, 8) GLOB '*[^0-9a-f]*' OR " +
+			"typeof(owner_kind) != 'text' OR trim(owner_kind) = '' OR " +
+			"owner_kind NOT IN ('SESSION_WAL', 'SESSION_FACT', 'SESSION_COMPLETENESS', 'AMBIENT_FACT') OR " +
+			"typeof(owner_identity) != 'text' OR length(owner_identity) != 71 OR " +
+			"substr(owner_identity, 1, 7) != 'sha256:' OR " +
+			"substr(owner_identity, 8) GLOB '*[^0-9a-f]*' OR " +
+			"typeof(owner_revision) != 'integer' OR owner_revision <= 0 LIMIT 1",
+	).use { cursor -> cursor.moveToFirst() }
+	if (invalidReceipt) throw CountDomainStoredEvidenceException()
+
+	val invalidMarker = query(
+		"SELECT 1 FROM main.steps_count_domain_completeness_marker WHERE " +
+			"typeof(owner_kind) != 'text' OR owner_kind != 'SESSION_COMPLETENESS' OR " +
+			"typeof(owner_identity) != 'text' OR length(owner_identity) != 71 OR " +
+			"substr(owner_identity, 1, 7) != 'sha256:' OR " +
+			"substr(owner_identity, 8) GLOB '*[^0-9a-f]*' OR " +
+			"typeof(owner_revision) != 'integer' OR owner_revision <= 0 LIMIT 1",
+	).use { cursor -> cursor.moveToFirst() }
+	if (invalidMarker) throw CountDomainStoredEvidenceException()
+}
 
 private fun SupportSQLiteDatabase.longForQuery(
 	sql: String,

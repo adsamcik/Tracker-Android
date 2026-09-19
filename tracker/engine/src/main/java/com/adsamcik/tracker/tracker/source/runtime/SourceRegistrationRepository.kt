@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
+import com.adsamcik.tracker.shared.base.database.publishStepsCountDomainEvidenceRevisionAtWallTime
 import com.adsamcik.tracker.shared.base.database.withMonotonicStepsCountDomainRevision
 import com.adsamcik.tracker.shared.base.database.dao.PriorProcessRegistrationReconciliationResult
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -1115,12 +1116,26 @@ class SourceRegistrationRepository @Inject constructor(
 					candidate.sourceKind == SourceKind.STEPS.stableCode &&
 					countDomainStore.isInstalled()
 				) {
-					val existing = database.sourceSessionDao().completenessForServiceRun(
-						candidate.logicalTrackingId,
-						candidate.serviceRunId,
-					).singleOrNull {
-						it.sourceKind == candidate.sourceKind &&
-							it.sourceInstanceId == candidate.sourceInstanceId &&
+					val rawExisting = database.sourceSessionDao().rawSourceCompletenessForServiceRun(
+						serviceRunId = candidate.serviceRunId,
+						sourceKind = SourceKind.STEPS.stableCode,
+						limit = MAX_STEPS_COMPLETENESS_ROWS + 1,
+					)
+					check(rawExisting.size <= MAX_STEPS_COMPLETENESS_ROWS) {
+						"Steps completeness history overflow"
+					}
+					val existing = rawExisting.map { raw ->
+						checkNotNull(raw.validatedOrNull()) {
+							"Stored Steps completeness is unverifiable"
+						}.also { stored ->
+							check(
+								stored.logicalTrackingId == candidate.logicalTrackingId &&
+									stored.serviceRunId == candidate.serviceRunId &&
+									stored.sourceKind == SourceKind.STEPS.stableCode,
+							) { "Stored Steps completeness belongs to another run" }
+						}
+					}.singleOrNull {
+						it.sourceInstanceId == candidate.sourceInstanceId &&
 							it.registrationGeneration == candidate.registrationGeneration
 					}
 					candidate.withMonotonicStepsCountDomainRevision(existing)
@@ -1148,9 +1163,10 @@ class SourceRegistrationRepository @Inject constructor(
 						"Unable to publish Steps completeness before exact count-domain authority"
 					}
 					if (countDomainResult == StepsCountDomainWriteResult.INSERTED) {
-						check(
-							database.sourceEvidenceStateDao().incrementRevision(updatedAtMs) == 1,
-						) { "Unable to publish recovered Steps count-domain completeness" }
+						publishStepsCountDomainEvidenceRevisionAtWallTime(
+							database,
+							completeness.updatedAtMs,
+						)
 					}
 				}
 			}
@@ -1169,6 +1185,7 @@ private fun SourceAuthorizationSnapshot.sameAuthorizationAs(
 
 private const val MAX_CELL_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS = 64
 private const val MAX_CELL_CALLBACK_BARRIER_DEMANDS = 256
+private const val MAX_STEPS_COMPLETENESS_ROWS = 64
 
 private fun SourceAuthorizationSnapshot.sameWifiBarrierAuthorizationAs(
 	other: SourceAuthorizationSnapshot,

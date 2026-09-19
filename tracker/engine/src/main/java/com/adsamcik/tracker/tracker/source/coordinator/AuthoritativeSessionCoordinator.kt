@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.StepsTerminalCompletenessAuthentication
+import com.adsamcik.tracker.shared.base.database.publishStepsCountDomainEvidenceRevisionAtWallTime
 import com.adsamcik.tracker.shared.base.database.withMonotonicStepsCountDomainRevision
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
@@ -155,6 +156,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val serviceRunId: String,
 		val claims: List<RunRetirementClaim>,
 		val actions: List<LifecycleDesiredActionEntity>,
+		val captureBindings: List<SessionManifestSourceEntity>,
 	)
 	private data class RunRetirementClaim(
 		val action: LifecycleDesiredActionEntity,
@@ -173,7 +175,10 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val registrationGeneration: Long,
 	)
 	private sealed interface RunRetirementTargetRead {
-		data class Ready(val targets: List<RunRetirementTarget>) : RunRetirementTargetRead
+		data class Ready(
+			val targets: List<RunRetirementTarget>,
+			val drainAuthority: SourceProductDrainAuthority,
+		) : RunRetirementTargetRead
 		data class Blocked(val reason: String) : RunRetirementTargetRead
 	}
 	private sealed interface RunRetirementManifestRead {
@@ -3723,7 +3728,6 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	): Boolean {
 		val dao = database.sourceSessionDao()
 		val rawActions = dao.rawLifecycleActionsForServiceRunBounded(
-			logicalTrackingId,
 			serviceRunId,
 			MAX_RUN_RETIREMENT_ACTIONS + 1,
 		)
@@ -3825,8 +3829,9 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 						else -> "STOP_${ack.status.name}"
 					},
 					retryTrigger = if (accepted) null else RUNTIME_CLEANUP_RETRY,
-					sourceInstanceId = ack.sourceInstanceId.value,
-					registrationGeneration = ack.registrationGeneration,
+					sourceInstanceId = ack.sourceInstanceId.value
+						.takeIf { ack.registrationGeneration > 0L },
+					registrationGeneration = ack.registrationGeneration.takeIf { it > 0L },
 				),
 			) == 1,
 		)
@@ -3868,13 +3873,14 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				wallTimeMs = requireNotNull(cutoffSession.cutoffAtMs),
 				deadlineElapsedRealtimeNanos = request.elapsedRealtimeNanos + request.gracePeriodMs * NANOS_PER_MILLISECOND,
 			)
-			val retirementTargets = when (
+			val retirement = when (
 				val read = runRetirementTargets(cutoffSession, bound.serviceRunId)
 			) {
-				is RunRetirementTargetRead.Ready -> read.targets
+				is RunRetirementTargetRead.Ready -> read
 				is RunRetirementTargetRead.Blocked ->
 					return SessionStopResult.InvalidIntent(read.reason)
 			}
+			val retirementTargets = retirement.targets
 			persistRunRetirementIntents(retirementTargets, cutoff, request.wallTimeMs)
 			val acks = retireRunSources(retirementTargets, cutoff, request.perSourceTimeoutMs)
 			database.withTransaction {
@@ -3906,6 +3912,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				bound.serviceRunId,
 				cutoff,
 				finalOrdinal,
+				retirement.drainAuthority,
 			)
 			val incomplete = terminalRetirementIncomplete(
 				acks,
@@ -4024,13 +4031,14 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				deadlineElapsedRealtimeNanos = request.elapsedRealtimeNanos +
 					request.gracePeriodMs * NANOS_PER_MILLISECOND,
 			)
-			val retirementTargets = when (
+			val retirement = when (
 				val read = runRetirementTargets(durableSession, bound.serviceRunId)
 			) {
-				is RunRetirementTargetRead.Ready -> read.targets
+				is RunRetirementTargetRead.Ready -> read
 				is RunRetirementTargetRead.Blocked ->
 					return SessionSuspendResult.InvalidIntent(read.reason)
 			}
+			val retirementTargets = retirement.targets
 			persistRunRetirementIntents(retirementTargets, cutoff, request.wallTimeMs)
 			val acks = retireRunSources(retirementTargets, cutoff, request.perSourceTimeoutMs)
 			database.withTransaction {
@@ -4068,6 +4076,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				bound.serviceRunId,
 				cutoff,
 				finalOrdinal,
+				retirement.drainAuthority,
 			)
 			val incomplete = terminalRetirementIncomplete(
 				acks,
@@ -4504,7 +4513,6 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	): RunRetirementTargetRead {
 		val dao = database.sourceSessionDao()
 		val rawActions = dao.rawLifecycleActionsForServiceRunBounded(
-			session.logicalTrackingId,
 			serviceRunId,
 			MAX_RUN_RETIREMENT_ACTIONS + 1,
 		)
@@ -4572,7 +4580,10 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		}
 		currentCoroutineContext().ensureActive()
 		val currentCaptureSources = current.bindings.asSequence()
-			.filter { binding -> binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
+			.filter { binding ->
+				binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name &&
+					binding.persistenceEligible
+			}
 			.map(SessionManifestSourceEntity::sourceKind)
 			.toMutableSet()
 		val latestOwnershipOutcomeBySource = retirementAuthorityActions.asSequence()
@@ -4615,9 +4626,42 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					)
 				}
 				.toList()
-			targets += RunRetirementTarget(source, serviceRunId, claims, actions)
+			val captureBindings = buildList {
+				addAll(current.bindings)
+				claims.forEach { claim -> addAll(claim.manifestEnvelope.bindings) }
+			}.asSequence()
+				.filter { binding ->
+					binding.sourceKind == sourceCode &&
+						binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name &&
+						binding.persistenceEligible
+				}
+				.distinctBy { binding ->
+					listOf(
+						binding.manifestRevision,
+						binding.sourceKind,
+						binding.purpose,
+					)
+				}
+				.toList()
+			if (captureBindings.isEmpty()) {
+				return RunRetirementTargetRead.Blocked("RUN_RETIREMENT_MANIFEST_INTEGRITY_FAILED")
+			}
+			targets += RunRetirementTarget(
+				source,
+				serviceRunId,
+				claims,
+				actions,
+				captureBindings,
+			)
 		}
-		return RunRetirementTargetRead.Ready(targets)
+		return RunRetirementTargetRead.Ready(
+			targets = targets,
+			drainAuthority = SourceProductDrainAuthority(
+				targets.associate { target ->
+					target.source.stableCode to target.captureBindings
+				},
+			),
+		)
 	}
 
 	@Suppress("ComplexCondition", "LongMethod", "ReturnCount")
@@ -4630,8 +4674,23 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val envelopesByRevision = linkedMapOf<Long, VerifiedSessionManifest>()
 		for (revisionChunk in manifestRevisions.chunked(RETIREMENT_MANIFEST_QUERY_CHUNK)) {
 			currentCoroutineContext().ensureActive()
-			val manifests = dao.manifestsForServiceRunRevisions(serviceRunId, revisionChunk)
-			if (manifests.size > revisionChunk.size ||
+			val rawManifests = dao.rawManifestsForServiceRunRevisions(
+				serviceRunId,
+				revisionChunk,
+				revisionChunk.size + 1,
+			)
+			if (rawManifests.size > revisionChunk.size) {
+				return RunRetirementManifestRead.Blocked(
+					"RUN_RETIREMENT_MANIFEST_INTEGRITY_FAILED",
+				)
+			}
+			val manifests = rawManifests.map { raw ->
+				raw.validatedOrNull()
+					?: return RunRetirementManifestRead.Blocked(
+						"RUN_RETIREMENT_MANIFEST_INTEGRITY_FAILED",
+					)
+			}
+			if (
 				manifests.any { manifest ->
 					manifest.logicalTrackingId != logicalTrackingId ||
 						manifest.serviceRunId != serviceRunId ||
@@ -5136,12 +5195,18 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				candidate.desiredState == ACTION_DESIRED_STARTED
 		}
 		if (manifestActions.singleOrNull()?.actionId != action.actionId) return null
-		val intents = dao.lifecycleIntentsForManifestBounded(
+		val rawIntents = dao.rawLifecycleIntentsForManifestBounded(
 			retirement.logicalTrackingId,
 			action.manifestRevision,
 			MAX_RUN_RETIREMENT_INTENTS_PER_MANIFEST + 1,
 		)
-		if (intents.size > MAX_RUN_RETIREMENT_INTENTS_PER_MANIFEST) return null
+		if (rawIntents.size > MAX_RUN_RETIREMENT_INTENTS_PER_MANIFEST) return null
+		val intents = rawIntents.map { raw -> raw.validatedOrNull() ?: return null }
+		if (intents.any { intent ->
+				intent.logicalTrackingId != retirement.logicalTrackingId ||
+					intent.manifestRevision != action.manifestRevision
+			}
+		) return null
 		val intent = intents.singleOrNull { candidate ->
 			candidate.hasAuthenticStartEnvelope(manifest) &&
 				action.actionId == lifecycleActionIdentity(
@@ -5441,12 +5506,27 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		)
 		val countDomainStore = StepsCountDomainStore(database)
 		val completeness = if (ack.source == SourceKind.STEPS && countDomainStore.isInstalled()) {
-			val existing = database.sourceSessionDao().completenessForServiceRun(
-				logicalTrackingId,
-				serviceRunId,
-			).singleOrNull {
-				it.sourceKind == candidate.sourceKind &&
-					it.sourceInstanceId == candidate.sourceInstanceId &&
+			val rawExisting = database.sourceSessionDao().rawSourceCompletenessForServiceRun(
+				serviceRunId = serviceRunId,
+				sourceKind = SourceKind.STEPS.stableCode,
+				limit = MAX_STEPS_COMPLETENESS_ROWS + 1,
+			)
+			check(rawExisting.size <= MAX_STEPS_COMPLETENESS_ROWS) {
+				"Steps completeness history overflow"
+			}
+			val existingRows = rawExisting.map { raw ->
+				checkNotNull(raw.validatedOrNull()) {
+					"Stored Steps completeness is unverifiable"
+				}.also { stored ->
+					check(
+						stored.logicalTrackingId == logicalTrackingId &&
+							stored.serviceRunId == serviceRunId &&
+							stored.sourceKind == SourceKind.STEPS.stableCode,
+					) { "Stored Steps completeness belongs to another run" }
+				}
+			}
+			val existing = existingRows.singleOrNull {
+				it.sourceInstanceId == candidate.sourceInstanceId &&
 					it.registrationGeneration == candidate.registrationGeneration
 			}
 			candidate.withMonotonicStepsCountDomainRevision(existing)
@@ -5482,9 +5562,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					error("Terminal Steps completeness count-domain owner cannot be replaced")
 			}
 			if (countDomainResult == StepsCountDomainWriteResult.INSERTED) {
-				check(database.sourceEvidenceStateDao().incrementRevision(nowMs) == 1) {
-					"Unable to publish terminal Steps count-domain completeness"
-				}
+				publishStepsCountDomainEvidenceRevisionAtWallTime(database, completeness.updatedAtMs)
 			}
 		}
 	}
@@ -5529,6 +5607,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		serviceRunId: String,
 		cutoff: SessionCutoff,
 		settlementHighWaterOrdinal: Long,
+		authority: SourceProductDrainAuthority,
 	): SettledSourceDrainBatch {
 		val plan = buildSourceProductDrainPlan(
 			database = database,
@@ -5537,6 +5616,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			cutoffElapsedRealtimeNanos = cutoff.elapsedRealtimeNanos,
 			cutoffWallTimeMs = cutoff.wallTimeMs,
 			settlementHighWaterAdmissionOrdinal = settlementHighWaterOrdinal,
+			authenticatedAuthority = authority,
 		)
 		if (plan is SourceProductDrainPlan.Failed) {
 			return SettledSourceDrainBatch.Pending(
@@ -5547,10 +5627,13 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			)
 		}
 		plan as SourceProductDrainPlan.Ready
-		val results = plan.requests.map { request ->
+		val results = plan.settledResults + plan.requests.map { request ->
 			sourceProductDrainRouter.drainThrough(request)
 		}
-		val pending = results.firstOrNull { result -> result !is SourceProductDrainResult.Complete }
+		val pending = results.firstOrNull { result ->
+			result !is SourceProductDrainResult.Complete &&
+				result !is SourceProductDrainResult.Unavailable
+		}
 		return if (pending == null) {
 			SettledSourceDrainBatch.Complete(results)
 		} else {
@@ -5886,7 +5969,14 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		expectedServiceRunId: String,
 	): VerifiedSessionManifest? {
 		val dao = database.sourceSessionDao()
-		val manifest = dao.manifest(logicalTrackingId, manifestRevision) ?: return null
+		val manifest = dao.rawManifestByServiceRunRevision(
+			expectedServiceRunId,
+			manifestRevision,
+		).singleOrNull()?.validatedOrNull() ?: return null
+		if (
+			manifest.logicalTrackingId != logicalTrackingId ||
+			manifest.manifestRevision != manifestRevision
+		) return null
 		return verifiedManifest(manifest, expectedServiceRunId)
 	}
 
@@ -6137,6 +6227,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		const val ACTION_DESIRED_STOPPED = "STOPPED"
 		const val RETIREMENT_CANCELLATION_STRIDE = 64
 		const val RETIREMENT_MANIFEST_QUERY_CHUNK = 100
+		const val MAX_STEPS_COMPLETENESS_ROWS = 64
 		val TERMINAL_STATES = setOf(SessionLifecycleState.FINALIZED.name, SessionLifecycleState.FAILED.name)
 		val TERMINAL_OR_STOPPING_STATES = TERMINAL_STATES + SessionLifecycleState.STOPPING.name
 	}
@@ -6921,6 +7012,7 @@ private fun SourceProductDrainResult.pendingReason(): String = when (this) {
 	is SourceProductDrainResult.Inactive -> reason
 	is SourceProductDrainResult.Failed -> failureCode
 	is SourceProductDrainResult.AuthorityChanged -> reason
+	is SourceProductDrainResult.Unavailable -> reason
 }
 
 private fun ExecutableSourceLaneBinding.hasSameWriterSemanticsAs(

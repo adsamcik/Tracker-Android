@@ -8,6 +8,9 @@ import androidx.room.Update
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity.RawLifecycleDesiredAction
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.RawSessionLifecycleIntentVersion
+import com.adsamcik.tracker.shared.base.database.data.RawSessionManifestVersion
+import com.adsamcik.tracker.shared.base.database.data.RawSourceSessionCompleteness
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity.RawSessionManifestSource
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
@@ -173,6 +176,36 @@ interface SourceSessionDao {
 	): List<SessionManifestVersionEntity>
 
 	@Query(
+		"SELECT " + RAW_MANIFEST_VERSION_PROJECTION + " FROM session_manifest_version WHERE " +
+			"((typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId) " +
+			"OR typeof(service_run_id) != 'text' " +
+			"OR (typeof(service_run_id) = 'text' AND trim(service_run_id) = '')) AND " +
+			"((typeof(manifest_revision) = 'integer' " +
+			"AND manifest_revision IN (:manifestRevisions)) " +
+			"OR typeof(manifest_revision) != 'integer') " +
+			"ORDER BY manifest_revision, logical_tracking_id, rowid LIMIT :limit",
+	)
+	suspend fun rawManifestsForServiceRunRevisions(
+		serviceRunId: String,
+		manifestRevisions: List<Long>,
+		limit: Int,
+	): List<RawSessionManifestVersion>
+
+	@Query(
+		"SELECT " + RAW_MANIFEST_VERSION_PROJECTION + " FROM session_manifest_version WHERE " +
+			"((typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId) " +
+			"OR typeof(service_run_id) != 'text' " +
+			"OR (typeof(service_run_id) = 'text' AND trim(service_run_id) = '')) AND " +
+			"((typeof(manifest_revision) = 'integer' AND manifest_revision = :manifestRevision) " +
+			"OR typeof(manifest_revision) != 'integer') " +
+			"ORDER BY manifest_revision, logical_tracking_id, rowid LIMIT 2",
+	)
+	suspend fun rawManifestByServiceRunRevision(
+		serviceRunId: String,
+		manifestRevision: Long,
+	): List<RawSessionManifestVersion>
+
+	@Query(
 		"SELECT * FROM session_manifest_version WHERE logical_tracking_id = :logicalTrackingId " +
 			"AND manifest_revision = :manifestRevision",
 	)
@@ -212,8 +245,13 @@ interface SourceSessionDao {
 
 	@Query(
 		"SELECT " + RAW_MANIFEST_SOURCE_PROJECTION + " FROM session_manifest_source " +
-			"WHERE logical_tracking_id = :logicalTrackingId " +
-			"AND manifest_revision IN (:manifestRevisions) " +
+			"WHERE ((typeof(logical_tracking_id) = 'text' " +
+			"AND logical_tracking_id = :logicalTrackingId) " +
+			"OR typeof(logical_tracking_id) != 'text' " +
+			"OR (typeof(logical_tracking_id) = 'text' AND trim(logical_tracking_id) = '')) " +
+			"AND ((typeof(manifest_revision) = 'integer' " +
+			"AND manifest_revision IN (:manifestRevisions)) " +
+			"OR typeof(manifest_revision) != 'integer') " +
 			"ORDER BY manifest_revision, purpose, source_kind, rowid LIMIT :limit",
 	)
 	suspend fun rawManifestSourcesForRevisions(
@@ -264,6 +302,23 @@ interface SourceSessionDao {
 	): List<SessionLifecycleIntentVersionEntity>
 
 	@Query(
+		"SELECT " + RAW_LIFECYCLE_INTENT_PROJECTION +
+			" FROM session_lifecycle_intent_version WHERE " +
+			"((typeof(logical_tracking_id) = 'text' " +
+			"AND logical_tracking_id = :logicalTrackingId) " +
+			"OR typeof(logical_tracking_id) != 'text' " +
+			"OR (typeof(logical_tracking_id) = 'text' AND trim(logical_tracking_id) = '')) AND " +
+			"((typeof(manifest_revision) = 'integer' AND manifest_revision = :manifestRevision) " +
+			"OR typeof(manifest_revision) != 'integer') " +
+			"ORDER BY intent_revision, rowid LIMIT :limit",
+	)
+	suspend fun rawLifecycleIntentsForManifestBounded(
+		logicalTrackingId: String,
+		manifestRevision: Long,
+		limit: Int,
+	): List<RawSessionLifecycleIntentVersion>
+
+	@Query(
 		"SELECT * FROM session_lifecycle_intent_version WHERE trigger_id = :triggerId " +
 			"AND desired_state = 'ACTIVE' ORDER BY requested_elapsed_realtime_nanos ASC LIMIT 1",
 	)
@@ -309,18 +364,20 @@ interface SourceSessionDao {
 		limit: Int,
 	): List<LifecycleDesiredActionEntity>
 
+	/**
+	 * Raw retirement action envelope anchored by globally unique service-run identity.
+	 *
+	 * The logical id is intentionally projected rather than filtered so a mismatched row is visible
+	 * to the coordinator and fails authentication.
+	 */
 	@Query(
 		"SELECT " + RAW_LIFECYCLE_ACTION_PROJECTION + " FROM lifecycle_desired_action WHERE " +
-			"((typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId) " +
-			"OR typeof(logical_tracking_id) != 'text' " +
-			"OR (typeof(logical_tracking_id) = 'text' AND trim(logical_tracking_id) = '')) AND " +
 			"((typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId) " +
 			"OR typeof(service_run_id) != 'text' " +
 			"OR (typeof(service_run_id) = 'text' AND trim(service_run_id) = '')) " +
 			"ORDER BY action_revision, action_id, rowid LIMIT :limit",
 	)
 	suspend fun rawLifecycleActionsForServiceRunBounded(
-		logicalTrackingId: String,
 		serviceRunId: String,
 		limit: Int,
 	): List<RawLifecycleDesiredAction>
@@ -455,6 +512,33 @@ interface SourceSessionDao {
 	): List<SourceSessionCompletenessEntity>
 
 	@Query(
+		"SELECT " + RAW_COMPLETENESS_PROJECTION + " FROM source_session_completeness WHERE " +
+			"((typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId) " +
+			"OR typeof(service_run_id) != 'text' " +
+			"OR (typeof(service_run_id) = 'text' AND trim(service_run_id) = '')) AND " +
+			"((typeof(source_kind) = 'integer' AND source_kind = :sourceKind) " +
+			"OR typeof(source_kind) != 'integer') " +
+			"ORDER BY registration_generation, source_instance_id, rowid LIMIT :limit",
+	)
+	suspend fun rawSourceCompletenessForServiceRun(
+		serviceRunId: String,
+		sourceKind: Int,
+		limit: Int,
+	): List<RawSourceSessionCompleteness>
+
+	@Query(
+		"SELECT " + RAW_COMPLETENESS_PROJECTION + " FROM source_session_completeness WHERE " +
+			"((typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId) " +
+			"OR typeof(service_run_id) != 'text' " +
+			"OR (typeof(service_run_id) = 'text' AND trim(service_run_id) = '')) " +
+			"ORDER BY source_kind, registration_generation, source_instance_id, rowid LIMIT :limit",
+	)
+	suspend fun rawCompletenessForServiceRun(
+		serviceRunId: String,
+		limit: Int,
+	): List<RawSourceSessionCompleteness>
+
+	@Query(
 		"SELECT * FROM source_session_completeness WHERE logical_tracking_id = :logicalTrackingId " +
 			"AND service_run_id = '__LEGACY_V27_UNATTRIBUTED__' " +
 			"ORDER BY source_kind, source_instance_id, registration_generation",
@@ -569,6 +653,114 @@ private const val RAW_MANIFEST_SOURCE_PROJECTION =
 		"THEN writer_projection_version END AS writer_projection_version, " +
 		"CASE WHEN typeof(writer_binding_generation) IN ('integer', 'null') " +
 		"THEN writer_binding_generation END AS writer_binding_generation"
+
+private const val RAW_MANIFEST_VERSION_PROJECTION =
+	"typeof(logical_tracking_id) || '|' || typeof(manifest_revision) || '|' || " +
+		"typeof(service_run_id) || '|' || typeof(session_mode) || '|' || " +
+		"typeof(source_policy_revision) || '|' || typeof(acquisition_plan_revision) || '|' || " +
+		"typeof(rollout_revision) || '|' || typeof(start_origin) || '|' || " +
+		"typeof(effective_boot_id) || '|' || typeof(effective_elapsed_realtime_nanos) || '|' || " +
+		"typeof(effective_wall_time_ms) || '|' || typeof(zone_id) || '|' || " +
+		"typeof(automation_epoch) || '|' || typeof(change_reason) || '|' || " +
+		"typeof(manifest_checksum) AS storage_class_signature, " +
+		"CASE WHEN typeof(logical_tracking_id) = 'text' THEN logical_tracking_id END " +
+		"AS logical_tracking_id, " +
+		"CASE WHEN typeof(manifest_revision) = 'integer' THEN manifest_revision END " +
+		"AS manifest_revision, " +
+		"CASE WHEN typeof(service_run_id) = 'text' THEN service_run_id END AS service_run_id, " +
+		"CASE WHEN typeof(session_mode) = 'text' THEN session_mode END AS session_mode, " +
+		"CASE WHEN typeof(source_policy_revision) = 'integer' THEN source_policy_revision END " +
+		"AS source_policy_revision, " +
+		"CASE WHEN typeof(acquisition_plan_revision) = 'integer' " +
+		"THEN acquisition_plan_revision END AS acquisition_plan_revision, " +
+		"CASE WHEN typeof(rollout_revision) = 'integer' THEN rollout_revision END AS rollout_revision, " +
+		"CASE WHEN typeof(start_origin) = 'text' THEN start_origin END AS start_origin, " +
+		"CASE WHEN typeof(effective_boot_id) = 'text' THEN effective_boot_id END " +
+		"AS effective_boot_id, " +
+		"CASE WHEN typeof(effective_elapsed_realtime_nanos) = 'integer' " +
+		"THEN effective_elapsed_realtime_nanos END AS effective_elapsed_realtime_nanos, " +
+		"CASE WHEN typeof(effective_wall_time_ms) = 'integer' THEN effective_wall_time_ms END " +
+		"AS effective_wall_time_ms, " +
+		"CASE WHEN typeof(zone_id) = 'text' THEN zone_id END AS zone_id, " +
+		"CASE WHEN typeof(automation_epoch) IN ('integer', 'null') THEN automation_epoch END " +
+		"AS automation_epoch, " +
+		"CASE WHEN typeof(change_reason) = 'text' THEN change_reason END AS change_reason, " +
+		"CASE WHEN typeof(manifest_checksum) = 'text' THEN manifest_checksum END AS manifest_checksum"
+
+private const val RAW_LIFECYCLE_INTENT_PROJECTION =
+	"typeof(logical_tracking_id) || '|' || typeof(intent_revision) || '|' || " +
+		"typeof(manifest_revision) || '|' || typeof(desired_state) || '|' || " +
+		"typeof(start_origin) || '|' || typeof(request_boot_id) || '|' || " +
+		"typeof(requested_elapsed_realtime_nanos) || '|' || typeof(requested_wall_time_ms) || '|' || " +
+		"typeof(automation_epoch) || '|' || typeof(trigger_id) || '|' || typeof(trigger_kind) || '|' || " +
+		"typeof(trigger_boot_id) || '|' || typeof(trigger_observed_elapsed_realtime_nanos) || '|' || " +
+		"typeof(trigger_received_elapsed_realtime_nanos) || '|' || " +
+		"typeof(trigger_expires_elapsed_realtime_nanos) || '|' || typeof(stop_reason) || '|' || " +
+		"typeof(stop_deadline_boot_id) || '|' || typeof(stop_deadline_elapsed_realtime_nanos) || '|' || " +
+		"typeof(intent_checksum) || '|' || typeof(trigger_collected_data_epoch) " +
+		"AS storage_class_signature, " +
+		"CASE WHEN typeof(logical_tracking_id) = 'text' THEN logical_tracking_id END " +
+		"AS logical_tracking_id, " +
+		"CASE WHEN typeof(intent_revision) = 'integer' THEN intent_revision END AS intent_revision, " +
+		"CASE WHEN typeof(manifest_revision) = 'integer' THEN manifest_revision END " +
+		"AS manifest_revision, " +
+		"CASE WHEN typeof(desired_state) = 'text' THEN desired_state END AS desired_state, " +
+		"CASE WHEN typeof(start_origin) = 'text' THEN start_origin END AS start_origin, " +
+		"CASE WHEN typeof(request_boot_id) = 'text' THEN request_boot_id END AS request_boot_id, " +
+		"CASE WHEN typeof(requested_elapsed_realtime_nanos) = 'integer' " +
+		"THEN requested_elapsed_realtime_nanos END AS requested_elapsed_realtime_nanos, " +
+		"CASE WHEN typeof(requested_wall_time_ms) = 'integer' THEN requested_wall_time_ms END " +
+		"AS requested_wall_time_ms, " +
+		"CASE WHEN typeof(automation_epoch) IN ('integer', 'null') THEN automation_epoch END " +
+		"AS automation_epoch, " +
+		"CASE WHEN typeof(trigger_id) IN ('text', 'null') THEN trigger_id END AS trigger_id, " +
+		"CASE WHEN typeof(trigger_kind) IN ('text', 'null') THEN trigger_kind END AS trigger_kind, " +
+		"CASE WHEN typeof(trigger_boot_id) IN ('text', 'null') THEN trigger_boot_id END AS trigger_boot_id, " +
+		"CASE WHEN typeof(trigger_observed_elapsed_realtime_nanos) IN ('integer', 'null') " +
+		"THEN trigger_observed_elapsed_realtime_nanos END AS trigger_observed_elapsed_realtime_nanos, " +
+		"CASE WHEN typeof(trigger_received_elapsed_realtime_nanos) IN ('integer', 'null') " +
+		"THEN trigger_received_elapsed_realtime_nanos END AS trigger_received_elapsed_realtime_nanos, " +
+		"CASE WHEN typeof(trigger_expires_elapsed_realtime_nanos) IN ('integer', 'null') " +
+		"THEN trigger_expires_elapsed_realtime_nanos END AS trigger_expires_elapsed_realtime_nanos, " +
+		"CASE WHEN typeof(stop_reason) IN ('text', 'null') THEN stop_reason END AS stop_reason, " +
+		"CASE WHEN typeof(stop_deadline_boot_id) IN ('text', 'null') " +
+		"THEN stop_deadline_boot_id END AS stop_deadline_boot_id, " +
+		"CASE WHEN typeof(stop_deadline_elapsed_realtime_nanos) IN ('integer', 'null') " +
+		"THEN stop_deadline_elapsed_realtime_nanos END AS stop_deadline_elapsed_realtime_nanos, " +
+		"CASE WHEN typeof(intent_checksum) = 'text' THEN intent_checksum END AS intent_checksum, " +
+		"CASE WHEN typeof(trigger_collected_data_epoch) IN ('integer', 'null') " +
+		"THEN trigger_collected_data_epoch END AS trigger_collected_data_epoch"
+
+private const val RAW_COMPLETENESS_PROJECTION =
+	"typeof(logical_tracking_id) || '|' || typeof(service_run_id) || '|' || " +
+		"typeof(source_kind) || '|' || typeof(source_instance_id) || '|' || " +
+		"typeof(registration_generation) || '|' || typeof(last_admission_ordinal) || '|' || " +
+		"typeof(last_source_sequence) || '|' || typeof(app_drain_complete) || '|' || " +
+		"typeof(provider_coverage) || '|' || typeof(stop_status) || '|' || " +
+		"typeof(unresolved_sequence_start) || '|' || typeof(unresolved_sequence_end) || '|' || " +
+		"typeof(updated_at_ms) AS storage_class_signature, " +
+		"CASE WHEN typeof(logical_tracking_id) = 'text' THEN logical_tracking_id END " +
+		"AS logical_tracking_id, " +
+		"CASE WHEN typeof(service_run_id) = 'text' THEN service_run_id END AS service_run_id, " +
+		"CASE WHEN typeof(source_kind) = 'integer' THEN source_kind END AS source_kind, " +
+		"CASE WHEN typeof(source_instance_id) = 'text' THEN source_instance_id END " +
+		"AS source_instance_id, " +
+		"CASE WHEN typeof(registration_generation) = 'integer' THEN registration_generation END " +
+		"AS registration_generation, " +
+		"CASE WHEN typeof(last_admission_ordinal) IN ('integer', 'null') " +
+		"THEN last_admission_ordinal END AS last_admission_ordinal, " +
+		"CASE WHEN typeof(last_source_sequence) IN ('integer', 'null') " +
+		"THEN last_source_sequence END AS last_source_sequence, " +
+		"CASE WHEN typeof(app_drain_complete) = 'integer' THEN app_drain_complete END " +
+		"AS app_drain_complete, " +
+		"CASE WHEN typeof(provider_coverage) = 'text' THEN provider_coverage END " +
+		"AS provider_coverage, " +
+		"CASE WHEN typeof(stop_status) = 'text' THEN stop_status END AS stop_status, " +
+		"CASE WHEN typeof(unresolved_sequence_start) IN ('integer', 'null') " +
+		"THEN unresolved_sequence_start END AS unresolved_sequence_start, " +
+		"CASE WHEN typeof(unresolved_sequence_end) IN ('integer', 'null') " +
+		"THEN unresolved_sequence_end END AS unresolved_sequence_end, " +
+		"CASE WHEN typeof(updated_at_ms) = 'integer' THEN updated_at_ms END AS updated_at_ms"
 
 private const val RAW_LIFECYCLE_ACTION_PROJECTION =
 	"typeof(action_id) || '|' || typeof(logical_tracking_id) || '|' || " +

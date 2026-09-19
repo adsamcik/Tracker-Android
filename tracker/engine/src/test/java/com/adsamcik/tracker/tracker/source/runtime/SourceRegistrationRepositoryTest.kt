@@ -4,6 +4,9 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState
 import com.adsamcik.tracker.shared.base.database.fenceSourcePurposesInTransaction
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
@@ -957,6 +960,55 @@ class SourceRegistrationRepositoryTest {
 		)
 		subject.loadRuntimeState(registration).shouldNotBeNull()
 		database.sourceSessionDao().completenessForServiceRun("s1", "run-s1") shouldBe listOf(completeness)
+	}
+
+	@Test
+	fun `terminal Steps evidence revision uses wall time instead of checkpoint uptime`() = runTest {
+		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
+			StepsCountDomainSchemaState.ValidV2
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
+		)
+		val registration = subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(registration, 110L, 110L)
+		val checkpointUptimeMs = 9_000_000L
+		val wallTimeMs = 200L
+		val terminal = SensorRuntimeCheckpoint(
+			lifecycle = RuntimeCheckpointLifecycle.TIMED_OUT,
+			metrics = RuntimeAdmissionSnapshot(0L, null, 1L, null, null, emptySet()),
+			componentStateVersion = 7,
+			componentPayload = byteArrayOf(1),
+			causalOrderElapsedRealtimeNanos = checkpointUptimeMs * 1_000_000L,
+		)
+		val completeness = SourceSessionCompletenessEntity(
+			logicalTrackingId = "s1",
+			serviceRunId = "run-s1",
+			sourceKind = SourceKind.STEPS.stableCode,
+			sourceInstanceId = registration.state.sourceInstanceId,
+			registrationGeneration = registration.state.registrationGeneration,
+			lastAdmissionOrdinal = null,
+			lastSourceSequence = null,
+			appDrainComplete = false,
+			providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name,
+			stopStatus = SourceStopStatus.PROCESS_RESTARTED.name,
+			unresolvedSequenceStart = null,
+			unresolvedSequenceEnd = null,
+			updatedAtMs = wallTimeMs,
+		)
+
+		subject.saveSensorRuntimeCheckpoint(
+			registration = registration,
+			lastProviderSequence = 0L,
+			checkpoint = terminal,
+			updatedAtMs = checkpointUptimeMs,
+			terminalCompleteness = completeness,
+			terminalStepsCountDomainEvidence = StepsCountDomainRetirementEvidence(
+				providerFlushOutcome = ProviderFlushOutcome.NOT_REQUESTED.name,
+				registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED.name,
+			),
+		)
+
+		requireNotNull(database.sourceEvidenceStateDao().get()).updatedAtMs shouldBe wallTimeMs
 	}
 
 	@Test

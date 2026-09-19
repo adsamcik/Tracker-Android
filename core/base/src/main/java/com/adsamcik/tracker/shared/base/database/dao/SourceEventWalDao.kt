@@ -323,6 +323,20 @@ interface SourceEventWalDao {
 		limit: Int,
 	): List<SourceEventWalEntity>
 
+	@Query(
+		"SELECT MAX(admission_ordinal) FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId " +
+			"AND admission_ordinal <= :throughOrdinal " +
+			"AND (authorization_purpose_eligibility_mask & :capturePurposeMask) != 0",
+	)
+	suspend fun runSourceCaptureHighWater(
+		sourceKind: Int,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		throughOrdinal: Long,
+		capturePurposeMask: Long,
+	): Long?
+
 	/** Payload-free ordered preflight for a bounded source-local projection pass. */
 	@Query(
 		"SELECT event_id, admission_ordinal FROM source_event_wal " +
@@ -417,8 +431,29 @@ interface SourceEventWalDao {
 		"DELETE FROM source_event_wal WHERE admission_ordinal IN (" +
 			"SELECT wal.admission_ordinal FROM source_event_wal AS wal " +
 			"WHERE wal.source_kind = :sourceKind AND wal.created_at_ms < :createdBeforeMs " +
-			"AND wal.admission_ordinal <= :safeOrdinal " +
-			"ORDER BY wal.created_at_ms, wal.admission_ordinal LIMIT :limit)",
+			"AND wal.admission_ordinal <= :safeOrdinal AND NOT (" +
+			":sourceKind = " + STEPS_SOURCE_KIND_SQL + " AND " +
+			"wal.logical_tracking_id IS NOT NULL AND wal.service_run_id IS NOT NULL AND " +
+			"wal.admission_ordinal = (" +
+			"SELECT MAX(candidate.admission_ordinal) FROM source_event_wal AS candidate " +
+			"WHERE candidate.source_kind = wal.source_kind " +
+			"AND candidate.source_instance_id = wal.source_instance_id " +
+			"AND candidate.registration_generation = wal.registration_generation " +
+			"AND candidate.logical_tracking_id = wal.logical_tracking_id " +
+			"AND candidate.service_run_id = wal.service_run_id " +
+			"AND (candidate.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") != 0" +
+			") AND (" +
+			"EXISTS (SELECT 1 FROM provider_registration_generation AS registration " +
+			"WHERE registration.source_kind = wal.source_kind " +
+			"AND registration.source_instance_id = wal.source_instance_id " +
+			"AND registration.registration_generation = wal.registration_generation " +
+			"AND registration.status IN ('RESERVED', 'ACTIVE', 'RETIRING')) " +
+			"OR EXISTS (SELECT 1 FROM source_service_run AS run " +
+			"WHERE run.service_run_id = wal.service_run_id " +
+			"AND run.logical_tracking_id = wal.logical_tracking_id " +
+			"AND (run.completed_at_ms IS NULL OR run.state NOT IN ('FINALIZED', 'CLOSED', 'FAILED')))" +
+			")) ORDER BY wal.created_at_ms, wal.admission_ordinal LIMIT :limit)",
 	)
 	suspend fun deleteProjectedSourceBatch(
 		sourceKind: Int,
@@ -430,6 +465,9 @@ interface SourceEventWalDao {
 	@Query("DELETE FROM source_event_wal")
 	fun deleteAll()
 }
+
+private const val STEPS_SOURCE_KIND_SQL = "3"
+private const val SESSION_CAPTURE_MASK_SQL = "4"
 
 /** Covering projection used by duplicate admission checks so payload BLOBs are never read. */
 data class SourceEventIdentityRow(

@@ -368,29 +368,57 @@ object StepsCountDomainSchema {
 			}
 		} else if (authorityNamespace.triggers.isNotEmpty()) return false
 
-		val markerRows = query(
-			"SELECT id, contract_version, token_semantics, terminal_unproven " +
-				"FROM `$MAIN_CATALOG`.`$SCHEMA_MARKER_TABLE` ORDER BY id",
-		).use { cursor ->
-			buildList {
-				while (cursor.moveToNext()) {
-					add(
-						SchemaMarker(
-							id = cursor.getInt(0),
-							contractVersion = cursor.getInt(1),
-							tokenSemantics = cursor.getString(2),
-							terminalUnproven = cursor.getInt(3),
-						),
-					)
-				}
-			}
-		}
+		val markerRows = authenticatedSchemaMarkers() ?: return false
 		return if (requireMarker) {
 			markerRows == listOf(EXPECTED_MARKER)
 		} else {
 			markerRows.isEmpty()
 		}
 	}
+
+	private fun SupportSQLiteDatabase.authenticatedSchemaMarkers(): List<SchemaMarker>? =
+		query(
+			"SELECT id, contract_version, token_semantics, terminal_unproven " +
+				"FROM `$MAIN_CATALOG`.`$SCHEMA_MARKER_TABLE` ORDER BY id LIMIT 2",
+		).use { cursor ->
+			val markers = mutableListOf<SchemaMarker>()
+			var valid = true
+			while (cursor.moveToNext()) {
+				if (
+					cursor.getType(0) != android.database.Cursor.FIELD_TYPE_INTEGER ||
+					cursor.getType(1) != android.database.Cursor.FIELD_TYPE_INTEGER ||
+					cursor.getType(2) != android.database.Cursor.FIELD_TYPE_STRING ||
+					cursor.getType(3) != android.database.Cursor.FIELD_TYPE_INTEGER
+				) {
+					valid = false
+					break
+				}
+				val id = cursor.getLong(0)
+				val contractVersion = cursor.getLong(1)
+				val terminalUnproven = cursor.getLong(3)
+				if (
+					id !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() ||
+					contractVersion !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() ||
+					terminalUnproven !in 0L..1L
+				) {
+					valid = false
+					break
+				}
+				val tokenSemantics = cursor.getString(2)
+					?.takeIf(String::isNotBlank)
+				if (tokenSemantics == null) {
+					valid = false
+					break
+				}
+				markers += SchemaMarker(
+					id = id.toInt(),
+					contractVersion = contractVersion.toInt(),
+					tokenSemantics = tokenSemantics,
+					terminalUnproven = terminalUnproven.toInt(),
+				)
+			}
+			markers.takeIf { valid }
+		}
 
 	private fun SupportSQLiteDatabase.authorityNamespace(): AuthorityNamespace? {
 		val triggers = authenticatedAuthorityTriggers() ?: return null

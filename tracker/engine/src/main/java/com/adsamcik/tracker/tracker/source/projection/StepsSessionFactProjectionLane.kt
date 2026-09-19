@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
+import com.adsamcik.tracker.shared.base.database.publishStepsCountDomainEvidenceRevisionAtWallTime
 import com.adsamcik.tracker.shared.base.database.enqueueAllStepsGoalRepairs
 import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDayRange
 import com.adsamcik.tracker.shared.base.database.markStepsRetentionTruncation
@@ -492,9 +493,7 @@ class StepsSessionFactProjectionLane private constructor(
 	) {
 		if (inserted == 0) return
 		check(firstEpochDay != null && lastEpochDay != null)
-		check(database.sourceEvidenceStateDao().incrementRevision(nowMs()) == 1) {
-			"Unable to publish the Steps fact evidence revision"
-		}
+		publishStepsCountDomainEvidenceRevisionAtWallTime(database, nowMs())
 		database.enqueueStepsGoalRepairDayRange(firstEpochDay, lastEpochDay)
 	}
 
@@ -910,9 +909,7 @@ class StepsSessionFactProjectionLane private constructor(
 			)
 		}
 		if (inserted) {
-			check(database.sourceEvidenceStateDao().incrementRevision(nowMs()) == 1) {
-				"Unable to publish the Steps retention-truncation marker"
-			}
+			publishStepsCountDomainEvidenceRevisionAtWallTime(database, nowMs())
 			database.enqueueAllStepsGoalRepairs()
 		}
 	}
