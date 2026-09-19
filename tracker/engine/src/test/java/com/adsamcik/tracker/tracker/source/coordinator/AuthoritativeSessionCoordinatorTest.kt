@@ -80,6 +80,8 @@ import com.adsamcik.tracker.tracker.source.runtime.RegistrationRemovalOutcome
 import com.adsamcik.tracker.tracker.source.runtime.SessionCutoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceApplyResult
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementOutcome
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementRetryReason
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionHandoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceCapabilities
 import com.adsamcik.tracker.tracker.source.runtime.SourceEventSink
@@ -640,11 +642,31 @@ class AuthoritativeSessionCoordinatorTest {
 			currentReference,
 			oldReference,
 			2_100L,
-		) shouldBe true
+		) shouldBe SourceCallerAuthorityRetirementOutcome.Completed
 		database.sourceCallerAuthorityDao().rows(oldReference.value)
 			.map { it.status }.distinct() shouldBe listOf("RETIRED")
 		database.sourceCallerAuthorityDao().rows(currentReference.value)
 			.map { it.status }.distinct() shouldBe listOf("ACTIVE")
+		subject.retireSupersededSourceCallerAuthority(
+			started.logicalTrackingId,
+			oldReference,
+			currentReference,
+			2_200L,
+		) shouldBe SourceCallerAuthorityRetirementOutcome.Retryable(
+			SourceCallerAuthorityRetirementRetryReason.CURRENT_AUTHORITY_CHANGED,
+		)
+		subject.retireSupersededSourceCallerAuthority(
+			"missing-logical",
+			currentReference,
+			oldReference,
+			2_200L,
+		) shouldBe SourceCallerAuthorityRetirementOutcome.TerminalMissing
+		subject.retireSupersededSourceCallerAuthority(
+			started.logicalTrackingId,
+			currentReference,
+			currentReference,
+			2_200L,
+		) shouldBe SourceCallerAuthorityRetirementOutcome.TerminalInvariant
 	}
 
 	@Test
@@ -1584,7 +1606,7 @@ class AuthoritativeSessionCoordinatorTest {
 			currentReference = result.sourceCallerAuthorityReference,
 			supersededReference = requireNotNull(started.sourceCallerAuthorityReference),
 			wallTimeMs = 2_100L,
-		) shouldBe true
+		) shouldBe SourceCallerAuthorityRetirementOutcome.Completed
 		database.sourceCallerAuthorityDao().rows("test:${started.logicalTrackingId}:1")
 			.map { it.status }.distinct() shouldBe listOf("RETIRED")
 		database.sourceSessionDao().lifecycleActions(started.logicalTrackingId).map { it.actionRevision } shouldBe

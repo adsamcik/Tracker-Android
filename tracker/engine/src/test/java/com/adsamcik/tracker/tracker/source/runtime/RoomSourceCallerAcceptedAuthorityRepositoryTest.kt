@@ -239,7 +239,7 @@ class RoomSourceCallerAcceptedAuthorityRepositoryTest {
 				expectedSupersededReference = replacement.receipt.reference,
 				wallTimeMs = 500L,
 			)
-		} shouldBe true
+		} shouldBe SourceCallerAuthorityRetirementOutcome.Completed
 		repository.load(replacement.receipt.reference) shouldBe
 			StoredSourceCallerAuthorityLoadResult.Retired
 	}

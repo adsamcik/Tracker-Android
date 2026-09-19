@@ -27,6 +27,8 @@ import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementOutcome
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementRetryReason
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -399,7 +401,9 @@ class TrackerServiceSourceSessionTest {
 					predecessor,
 					any(),
 				)
-			} returns false
+			} returns SourceCallerAuthorityRetirementOutcome.Retryable(
+				SourceCallerAuthorityRetirementRetryReason.COMPARE_AND_SET_FAILED,
+			)
 			coEvery { lifecycle.stop(any()) } returns SessionStopResult.NoActiveSession
 			coEvery { lifecycle.suspendForRestart(any()) } returns SessionSuspendResult.NoActiveSession
 
@@ -447,6 +451,75 @@ class TrackerServiceSourceSessionTest {
 			}
 			coVerify(exactly = 0) { lifecycle.stop(any()) }
 		}
+
+	@Test
+	fun `terminal predecessor retirement falls through to full session cleanup`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val current = SourceCallerReplayReference("terminal-current")
+		val predecessor = SourceCallerReplayReference("terminal-predecessor")
+		val descriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = current,
+			pendingRetirementSourceCallerAuthorityReference = predecessor,
+		)
+		val intent = mockk<SessionLifecycleIntentVersionEntity>()
+		every { intent.sourceCallerAuthorityReference } returns current.value
+		coEvery {
+			lifecycle.applyPreparedAndroidStart(any(), any(), any(), any(), any())
+		} returns SessionStartResult.Started(
+			"logical",
+			"run",
+			emptyList(),
+			DesiredPlanStatus.EFFECTIVE,
+			current,
+		)
+		coEvery { activeSessionStore.read() } returns
+			ActiveTrackingSessionStoreResult.Success(descriptor)
+		coEvery {
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical",
+				current,
+				predecessor,
+				any(),
+			)
+		} returns SourceCallerAuthorityRetirementOutcome.TerminalCorrupt
+		coEvery { lifecycle.stop(any()) } returns SessionStopResult.NoActiveSession
+
+		subject.applyPreparedAndroidStart(
+			claim = ClaimedPreparedSessionStart(
+				token = PreparedTrackingStartToken("terminal-cleanup"),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				manifestRevision = 1L,
+				intentRevision = 1L,
+				planRevision = 1L,
+				sourcePolicyRevision = 1L,
+				startOrigin = SessionStartOrigin.RECOVERY,
+				sessionMode = SessionMode.MANUAL,
+				acceptedSources = setOf(SourceKind.STEPS),
+				desiredForegroundCapabilityFlags = 1L,
+				intent = intent,
+				automaticTrigger = null,
+				isUserInitiated = true,
+				isAmbient = false,
+				alreadyForegroundAccepted = true,
+			),
+			commandGeneration = 1L,
+			planInputs = inputs(
+				settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L),
+			),
+			persistedDescriptor = descriptor,
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+
+		subject.stop("TERMINAL_CALLER_CLEANUP", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Stopped
+
+		coVerify(exactly = 1) { lifecycle.stop(any()) }
+	}
 
 	@Test
 	fun `cancelled direct start retains coordinator cleanup ownership`() = runTest {
@@ -825,7 +898,7 @@ class TrackerServiceSourceSessionTest {
 				oldReference,
 				any(),
 			)
-		} returns true
+		} returns SourceCallerAuthorityRetirementOutcome.Completed
 		subject.start(
 			SourceSessionStartRequest(
 				rollout = rollout,
@@ -887,7 +960,9 @@ class TrackerServiceSourceSessionTest {
 			lifecycle.retireSupersededSourceCallerAuthority(
 				"logical", newReference, oldReference, any(),
 			)
-		} returns false
+		} returns SourceCallerAuthorityRetirementOutcome.Retryable(
+			SourceCallerAuthorityRetirementRetryReason.COMPARE_AND_SET_FAILED,
+		)
 		subject.start(
 			SourceSessionStartRequest(
 				rollout = rollout,
@@ -1078,7 +1153,7 @@ class TrackerServiceSourceSessionTest {
 				oldReference,
 				any(),
 			)
-		} returns true
+		} returns SourceCallerAuthorityRetirementOutcome.Completed
 		subject.start(
 			SourceSessionStartRequest(
 				rollout = rollout,
@@ -1157,7 +1232,7 @@ class TrackerServiceSourceSessionTest {
 				oldReference,
 				any(),
 			)
-		} returns true
+		} returns SourceCallerAuthorityRetirementOutcome.Completed
 		subject.start(
 			SourceSessionStartRequest(
 				rollout = rollout,

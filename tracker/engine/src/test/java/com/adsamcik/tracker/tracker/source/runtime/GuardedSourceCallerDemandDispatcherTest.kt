@@ -22,6 +22,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
@@ -162,6 +163,33 @@ class GuardedSourceCallerDemandDispatcherTest {
 
 		rejected.rejection.reason shouldBe SourceCallerRejectionReason.STALE_OWNER_CAS_TOKEN
 	}
+
+	@Test
+	fun `manifest authority storage failure is retryable while invariant failure propagates`() =
+		runTest {
+			suspend fun dispatchWith(failure: Exception): SessionSourceDemandDispatchResult {
+				val provider = CurrentSourceCallerAuthorityProvider {
+					throw failure
+				}
+				return GuardedSourceCallerDemandDispatcher(
+					database = mockk(relaxed = true),
+					authorityReader = provider,
+					guard = mockk(relaxed = true),
+					sourceBroker = brokerReturning(emptyList()),
+					authorityRepository = InMemorySourceCallerAuthorityRepository(),
+				).dispatchSession(
+					sessionRequest(bindings = listOf(binding(TrackingSource.LOCATION))),
+				)
+			}
+
+			dispatchWith(IOException("storage unavailable"))
+				.shouldBeInstanceOf<SessionSourceDemandDispatchResult.Rejected>()
+				.rejection.reason shouldBe SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE
+			dispatchWith(IllegalStateException("broken authority invariant"))
+				.shouldBeInstanceOf<SessionSourceDemandDispatchResult.Rejected>()
+				.rejection.reason shouldBe
+				SourceCallerRejectionReason.AUTHORITY_INVARIANT_VIOLATION
+		}
 
 	@Test
 	fun `manual multisource dispatch stages exactly the guard-permitted identities`() = runTest {

@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
@@ -209,8 +210,8 @@ class PreviousExitRecoveryCoordinatorTest {
 		coEvery { previousExitFinalizer.finalizeStaleSessions(null, stale) } returns
 			PreviousExitSourceSessionFinalization(
 				finalizedLogicalTrackingIds = setOf("stale-auto"),
-				inspectedLogicalTrackingId = "stale-auto",
-				inspectedSessionExists = true,
+				descriptorDisposition =
+					PreviousExitRecoveryDescriptorDisposition.Clear(stale),
 			)
 		val coordinator = PreviousExitRecoveryCoordinator(
 			store,
@@ -239,9 +240,8 @@ class PreviousExitRecoveryCoordinatorTest {
 			store.save(repaired)
 			PreviousExitSourceSessionFinalization(
 				finalizedLogicalTrackingIds = setOf("stale-manual"),
-				inspectedLogicalTrackingId = "stale-manual",
-				inspectedSessionExists = true,
-				inspectedRecoveryDescriptor = repaired,
+				descriptorDisposition =
+					PreviousExitRecoveryDescriptorDisposition.Clear(repaired),
 			)
 		}
 		val coordinator = PreviousExitRecoveryCoordinator(
@@ -266,8 +266,8 @@ class PreviousExitRecoveryCoordinatorTest {
 		coEvery { previousExitFinalizer.finalizeStaleSessions(null, manual) } returns
 			PreviousExitSourceSessionFinalization(
 				finalizedLogicalTrackingIds = emptySet(),
-				inspectedLogicalTrackingId = "manual",
-				inspectedSessionExists = true,
+				descriptorDisposition =
+					PreviousExitRecoveryDescriptorDisposition.Preserved(manual),
 			)
 		val coordinator = PreviousExitRecoveryCoordinator(
 			store,
@@ -291,8 +291,8 @@ class PreviousExitRecoveryCoordinatorTest {
 		coEvery { previousExitFinalizer.finalizeStaleSessions(null, orphan) } returns
 			PreviousExitSourceSessionFinalization(
 				finalizedLogicalTrackingIds = emptySet(),
-				inspectedLogicalTrackingId = "orphan",
-				inspectedSessionExists = false,
+				descriptorDisposition =
+					PreviousExitRecoveryDescriptorDisposition.Clear(orphan),
 			)
 		val coordinator = PreviousExitRecoveryCoordinator(
 			store,
@@ -306,6 +306,84 @@ class PreviousExitRecoveryCoordinatorTest {
 
 		store.clearCount shouldBe 1
 		store.currentDescriptor shouldBe null
+	}
+
+	@Test
+	fun `corrupt descriptor finalizes Room authority before confirming reset`() = runTest {
+		val events = mutableListOf<String>()
+		val store = mockk<ActiveTrackingSessionStore>()
+		coEvery { store.read() } returns ActiveTrackingSessionStoreResult.Failure(
+			ActiveTrackingSessionStoreCorruptionException(
+				IllegalStateException("corrupt proto"),
+			),
+			ActiveTrackingSessionStoreFailureKind.CORRUPT,
+		)
+		coEvery { store.resetCorruptState() } coAnswers {
+			events += "reset"
+			ActiveTrackingSessionStoreResult.Success(null)
+		}
+		val previousExitFinalizer = mockk<PreviousExitSourceSessionFinalizer>()
+		coEvery {
+			previousExitFinalizer.finalizeStaleSessions(null, null)
+		} coAnswers {
+			events += "room"
+			PreviousExitSourceSessionFinalization(emptySet())
+		}
+		val registrationRepository = registrationRepository()
+		coEvery {
+			registrationRepository.reconcilePriorProcessRegistrations(any(), any())
+		} coAnswers {
+			events += "providers"
+			PriorProcessRegistrationReconciliationResult(0, 0, 0)
+		}
+		val coordinator = PreviousExitRecoveryCoordinator(
+			store,
+			RecordingScheduler(),
+			mockk(relaxed = true),
+			previousExitFinalizer,
+			registrationRepository,
+		)
+
+		coordinator.reconcileStaleSessions()
+
+		events shouldBe listOf("room", "reset", "providers")
+	}
+
+	@Test
+	fun `corrupt descriptor reset failure keeps terminal cleanup incomplete`() = runTest {
+		val store = mockk<ActiveTrackingSessionStore>()
+		coEvery { store.read() } returns ActiveTrackingSessionStoreResult.Failure(
+			ActiveTrackingSessionStoreCorruptionException(
+				IllegalStateException("corrupt proto"),
+			),
+			ActiveTrackingSessionStoreFailureKind.CORRUPT,
+		)
+		coEvery { store.resetCorruptState() } returns ActiveTrackingSessionStoreResult.Failure(
+			IOException("reset unavailable"),
+		)
+		val previousExitFinalizer = mockk<PreviousExitSourceSessionFinalizer>()
+		coEvery {
+			previousExitFinalizer.finalizeStaleSessions(null, null)
+		} returns PreviousExitSourceSessionFinalization(emptySet())
+		val registrationRepository = registrationRepository()
+		val coordinator = PreviousExitRecoveryCoordinator(
+			store,
+			RecordingScheduler(),
+			mockk(relaxed = true),
+			previousExitFinalizer,
+			registrationRepository,
+		)
+
+		shouldThrow<IOException> {
+			coordinator.reconcileStaleSessions()
+		}
+
+		coVerify(exactly = 1) {
+			previousExitFinalizer.finalizeStaleSessions(null, null)
+		}
+		coVerify(exactly = 0) {
+			registrationRepository.reconcilePriorProcessRegistrations(any(), any())
+		}
 	}
 
 	private class RecordingScheduler(

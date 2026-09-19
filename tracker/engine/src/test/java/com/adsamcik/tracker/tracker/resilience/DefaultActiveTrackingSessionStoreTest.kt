@@ -287,6 +287,36 @@ class DefaultActiveTrackingSessionStoreTest {
 	}
 
 	@Test
+	fun `corrupt proto reset is explicit successful and durable`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val file = File(
+			context.cacheDir,
+			"active-tracking-corrupt-reset-${java.util.UUID.randomUUID()}.pb",
+		).apply {
+			writeBytes(byteArrayOf(0x0A, 0x7F))
+		}
+		val dataStore = DataStoreFactory.create(
+			serializer = ActiveTrackingSessionSerializer,
+			corruptionHandler = activeTrackingSessionCorruptionHandler,
+			scope = this,
+			produceFile = { file },
+		)
+		val store = DefaultActiveTrackingSessionStore(
+			dataStore,
+			TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+		)
+
+		store.read()
+			.shouldBeInstanceOf<ActiveTrackingSessionStoreResult.Failure>()
+			.kind shouldBe ActiveTrackingSessionStoreFailureKind.CORRUPT
+		store.clear()
+			.shouldBeInstanceOf<ActiveTrackingSessionStoreResult.Failure>()
+			.kind shouldBe ActiveTrackingSessionStoreFailureKind.CORRUPT
+		store.resetCorruptState() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+	}
+
+	@Test
 	fun `storage IOException returns typed unavailable instead of an empty descriptor`() = runTest {
 		val unavailable = object : DataStore<ActiveTrackingSessionProto> {
 			override val data: Flow<ActiveTrackingSessionProto> = flow {
@@ -305,6 +335,9 @@ class DefaultActiveTrackingSessionStoreTest {
 		val failure = store.read()
 			.shouldBeInstanceOf<ActiveTrackingSessionStoreResult.Failure>()
 		failure.kind shouldBe ActiveTrackingSessionStoreFailureKind.UNAVAILABLE
+		store.resetCorruptState()
+			.shouldBeInstanceOf<ActiveTrackingSessionStoreResult.Failure>()
+			.kind shouldBe ActiveTrackingSessionStoreFailureKind.UNAVAILABLE
 	}
 
 	@Test

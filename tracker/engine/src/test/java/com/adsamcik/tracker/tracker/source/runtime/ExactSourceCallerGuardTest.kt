@@ -23,10 +23,19 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
 import com.adsamcik.tracker.tracker.api.isRetryable
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.coEvery
+import io.mockk.mockk
+import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class ExactSourceCallerGuardTest {
+	@Test
+	fun `process recovery replay enum contract uses the current constant`() {
+		SourceCallerReplayKind.PROCESS_RECOVERY.name shouldBe "PROCESS_RECOVERY"
+		SourceCallerReplayKind.entries.any { it.name == "RECOVERY" } shouldBe false
+	}
+
 	@Test
 	fun `manual only-X is exact and unaffected by automatic CONTROL unavailability`() = runTest {
 		val location = capture(TrackingSource.LOCATION)
@@ -646,7 +655,7 @@ class ExactSourceCallerGuardTest {
 		)
 
 		fixture.guard.accept(
-			replay(receipt, SourceCallerReplayKind.RECOVERY, setOf(location)),
+			replay(receipt, SourceCallerReplayKind.PROCESS_RECOVERY, setOf(location)),
 		) shouldBe SourceCallerGuardResult.Permitted(receipt)
 	}
 
@@ -674,12 +683,12 @@ class ExactSourceCallerGuardTest {
 				reference: SourceCallerReplayReference,
 				authority: StoredSourceCallerAuthority,
 				createdAtMs: Long,
-			): Boolean = throw IllegalStateException("storage unavailable")
+			): Boolean = throw IOException("storage unavailable")
 
 			override suspend fun load(
 				reference: SourceCallerReplayReference,
 			): StoredSourceCallerAuthorityLoadResult =
-				throw IllegalStateException("storage unavailable")
+				throw IOException("storage unavailable")
 
 			override suspend fun retire(
 				reference: SourceCallerReplayReference,
@@ -725,6 +734,51 @@ class ExactSourceCallerGuardTest {
 		replay.rejection.reason shouldBe SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE
 		replay.rejection.reason.isRetryable shouldBe true
 	}
+
+	@Test
+	fun `invariant authority failures are terminal rather than retryable storage rejection`() =
+		runTest {
+			val location = capture(TrackingSource.LOCATION)
+			val guard = ExactSourceCallerGuard(
+				SourceCallerAuthoritySnapshotReader {
+					throw IllegalStateException("broken authority invariant")
+				},
+				mockk(relaxed = true),
+			)
+
+			guard.accept(
+				SourceCallerRequest.ManualSessionStart(
+					setOf(TrackingSource.LOCATION),
+					MANIFEST,
+					setOf(location),
+				),
+			).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+				.rejection.reason shouldBe
+				SourceCallerRejectionReason.AUTHORITY_INVARIANT_VIOLATION
+
+			val repository = mockk<SourceCallerAcceptedAuthorityRepository>()
+			coEvery { repository.load(any()) } throws
+				IllegalStateException("corrupt repository invariant")
+			val replayGuard = ExactSourceCallerGuard(
+				SourceCallerAuthoritySnapshotReader {
+					SourceCallerAuthoritySnapshot(
+						setOf(location),
+						TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+					)
+				},
+				repository,
+			)
+			replayGuard.accept(
+				SourceCallerRequest.Replay(
+					SourceCallerReplayKind.PROCESS_RECOVERY,
+					SourceCallerReplayReference("persisted"),
+					TrackingPurpose.SESSION_CAPTURE,
+					setOf(location),
+				),
+			).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+				.rejection.reason shouldBe
+				SourceCallerRejectionReason.AUTHORITY_INVARIANT_VIOLATION
+		}
 
 	@Test
 	fun `session replay cannot survive automatic readiness loss and excludes ambient authority`() = runTest {

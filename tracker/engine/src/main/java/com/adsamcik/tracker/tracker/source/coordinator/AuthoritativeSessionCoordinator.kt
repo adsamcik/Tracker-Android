@@ -70,6 +70,8 @@ import com.adsamcik.tracker.tracker.source.runtime.OwnedSourceShutdown
 import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeClaim
 import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeRegistry
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementOutcome
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementRetryReason
 import com.adsamcik.tracker.tracker.source.runtime.SessionDemandMutation
 import com.adsamcik.tracker.tracker.source.runtime.SessionSourceDemandDispatchRequest
 import com.adsamcik.tracker.tracker.source.runtime.SessionSourceDemandDispatchResult
@@ -2187,23 +2189,43 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		currentReference: SourceCallerReplayReference,
 		supersededReference: SourceCallerReplayReference,
 		wallTimeMs: Long,
-	): Boolean = database.withTransaction {
-		require(currentReference != supersededReference)
-		val session = database.sourceSessionDao().session(logicalTrackingId)
-			?: return@withTransaction false
-		val intentRevision = session.currentIntentRevision ?: return@withTransaction false
-		val currentIntent = database.sourceSessionDao()
-			.lifecycleIntent(logicalTrackingId, intentRevision)
-			?: return@withTransaction false
-		if (currentIntent.sourceCallerAuthorityReference != currentReference.value) {
-			return@withTransaction false
+	): SourceCallerAuthorityRetirementOutcome = try {
+		database.withTransaction {
+			if (currentReference == supersededReference || wallTimeMs < 0L) {
+				return@withTransaction SourceCallerAuthorityRetirementOutcome.TerminalInvariant
+			}
+			val session = database.sourceSessionDao().session(logicalTrackingId)
+				?: return@withTransaction SourceCallerAuthorityRetirementOutcome.TerminalMissing
+			val intentRevision = session.currentIntentRevision
+				?: return@withTransaction SourceCallerAuthorityRetirementOutcome.TerminalMissing
+			val currentIntent = database.sourceSessionDao()
+				.lifecycleIntent(logicalTrackingId, intentRevision)
+				?: return@withTransaction SourceCallerAuthorityRetirementOutcome.TerminalMissing
+			val intentReference = currentIntent.sourceCallerAuthorityReference
+				?.takeIf(String::isNotBlank)
+				?: return@withTransaction SourceCallerAuthorityRetirementOutcome.TerminalCorrupt
+			if (intentReference != currentReference.value) {
+				return@withTransaction SourceCallerAuthorityRetirementOutcome.Retryable(
+					SourceCallerAuthorityRetirementRetryReason.CURRENT_AUTHORITY_CHANGED,
+				)
+			}
+			sourceBroker.retireSupersededSessionAuthoritiesInTransaction(
+				logicalTrackingId,
+				currentReference,
+				supersededReference,
+				wallTimeMs,
+			)
 		}
-		sourceBroker.retireSupersededSessionAuthoritiesInTransaction(
-			logicalTrackingId,
-			currentReference,
-			supersededReference,
-			wallTimeMs,
-		)
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (failure: Exception) {
+		if (failure.isTrackingOperationalFailure()) {
+			SourceCallerAuthorityRetirementOutcome.Retryable(
+				SourceCallerAuthorityRetirementRetryReason.STORAGE_UNAVAILABLE,
+			)
+		} else {
+			SourceCallerAuthorityRetirementOutcome.TerminalInvariant
+		}
 	}
 
 	/**

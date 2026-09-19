@@ -8,6 +8,8 @@ import com.adsamcik.tracker.tracker.api.isRetryable
 import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
 import com.adsamcik.tracker.tracker.source.coordinator.AuthoritativeSessionCoordinator
 import com.adsamcik.tracker.tracker.source.coordinator.CurrentRecoverySourceCallerAuthorityResult
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementOutcome
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementRetryReason
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerDemandDispatcher
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -117,16 +119,27 @@ internal class ActiveTrackingSessionCallerAuthorityReconciler @Inject constructo
 			}
 			val predecessor = reconciled.pendingRetirementSourceCallerAuthorityReference
 				?: return ActiveTrackingCallerAuthorityReconciliation.Ready(reconciled)
-			if (!authoritativeSessionCoordinator.retireSupersededSourceCallerAuthority(
+			when (val retirement =
+				authoritativeSessionCoordinator.retireSupersededSourceCallerAuthority(
 					logicalTrackingId = reconciled.logicalTrackingId,
 					currentReference = authority.reference,
 					supersededReference = predecessor,
 					wallTimeMs = System.currentTimeMillis(),
-				)
-			) {
-				return ActiveTrackingCallerAuthorityReconciliation.Blocked(
-					failureCode = "RECOVERY_SOURCE_CALLER_RETIREMENT_PENDING",
-					disposition = TrackingStartFailureDisposition.RETRYABLE,
+				)) {
+				SourceCallerAuthorityRetirementOutcome.Completed -> Unit
+				is SourceCallerAuthorityRetirementOutcome.Retryable ->
+					return ActiveTrackingCallerAuthorityReconciliation.Blocked(
+						failureCode = retirement.failureCode(),
+						disposition = TrackingStartFailureDisposition.RETRYABLE,
+						descriptor = reconciled,
+					)
+				SourceCallerAuthorityRetirementOutcome.TerminalMissing,
+				SourceCallerAuthorityRetirementOutcome.TerminalCorrupt,
+				SourceCallerAuthorityRetirementOutcome.TerminalInvariant,
+				SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous,
+				-> return ActiveTrackingCallerAuthorityReconciliation.Blocked(
+					failureCode = retirement.failureCode(),
+					disposition = TrackingStartFailureDisposition.TERMINAL,
 					descriptor = reconciled,
 				)
 			}
@@ -175,6 +188,27 @@ internal class ActiveTrackingSessionCallerAuthorityReconciler @Inject constructo
 			)
 		}
 	}
+}
+
+private fun SourceCallerAuthorityRetirementOutcome.failureCode(): String = when (this) {
+	SourceCallerAuthorityRetirementOutcome.Completed ->
+		error("Completed retirement has no failure code")
+	is SourceCallerAuthorityRetirementOutcome.Retryable -> when (reason) {
+		SourceCallerAuthorityRetirementRetryReason.STORAGE_UNAVAILABLE ->
+			"RECOVERY_SOURCE_CALLER_RETIREMENT_STORAGE_UNAVAILABLE"
+		SourceCallerAuthorityRetirementRetryReason.COMPARE_AND_SET_FAILED ->
+			"RECOVERY_SOURCE_CALLER_RETIREMENT_CAS_FAILED"
+		SourceCallerAuthorityRetirementRetryReason.CURRENT_AUTHORITY_CHANGED ->
+			"RECOVERY_SOURCE_CALLER_RETIREMENT_CURRENT_CHANGED"
+	}
+	SourceCallerAuthorityRetirementOutcome.TerminalMissing ->
+		"RECOVERY_SOURCE_CALLER_RETIREMENT_MISSING"
+	SourceCallerAuthorityRetirementOutcome.TerminalCorrupt ->
+		"RECOVERY_SOURCE_CALLER_RETIREMENT_CORRUPT"
+	SourceCallerAuthorityRetirementOutcome.TerminalInvariant ->
+		"RECOVERY_SOURCE_CALLER_RETIREMENT_INVARIANT"
+	SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous ->
+		"RECOVERY_SOURCE_CALLER_RETIREMENT_AMBIGUOUS"
 }
 
 private fun ActiveTrackingSessionStoreFailureKind.toFailureDisposition(): TrackingStartFailureDisposition =

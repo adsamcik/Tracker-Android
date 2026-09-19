@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.dao.PriorProcessRegistrationReconciliationResult
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
@@ -90,7 +91,11 @@ class PreviousExitSourceSessionFinalizerTest {
 			NoOpDrainScheduler,
 			mockk(relaxed = true),
 			finalizer(),
-			mockk(relaxed = true),
+			mockk {
+				coEvery {
+					reconcilePriorProcessRegistrations(any(), any())
+				} returns PriorProcessRegistrationReconciliationResult(0, 0, 0)
+			},
 		)
 
 		val result = coordinator.reconcileStaleSessions(completedAtMs = EXIT_AT_MS)
@@ -143,6 +148,10 @@ class PreviousExitSourceSessionFinalizerTest {
 		)
 
 		result.finalizedLogicalTrackingIds shouldBe emptySet()
+		result.descriptorDisposition shouldBe
+			PreviousExitRecoveryDescriptorDisposition.Preserved(
+				manualDescriptor(CURRENT_BOOT_ID),
+			)
 		database.sourceSessionDao().session(MANUAL_ID)?.state shouldBe
 			SessionLifecycleState.ACTIVE.name
 		database.sourceSessionDao().serviceRun(runId(MANUAL_ID))?.state shouldBe
@@ -293,18 +302,55 @@ class PreviousExitSourceSessionFinalizerTest {
 		)
 
 		result.finalizedLogicalTrackingIds shouldBe emptySet()
-		result.inspectedRecoveryDescriptor shouldBe repairedDescriptor
+		result.descriptorDisposition shouldBe
+			PreviousExitRecoveryDescriptorDisposition.Preserved(repairedDescriptor)
 		database.sourceSessionDao().session(MANUAL_ID)?.let { session ->
 			session.state shouldBe SessionLifecycleState.ACTIVE.name
 			session.currentServiceRunId shouldBe null
 			session.completedAtMs shouldBe null
 		}
+
 		database.sourceSessionDao().serviceRun(runId(MANUAL_ID))?.let { run ->
 			run.state shouldBe SessionLifecycleState.FINALIZED.name
 			run.completedAtMs shouldBe SUSPENDED_AT_MS
 			run.completionReason shouldBe RESTART_REASON
 			run.runtimeAcknowledgement shouldBe LifecycleActionStatus.STOP_ACCEPTED.name
 		}
+	}
+
+	@Test
+	fun `already terminal Room session clears the exact stale descriptor`() = runTest {
+		insertSession(MANUAL_ID, SessionMode.MANUAL, CURRENT_BOOT_ID)
+		val terminal = requireNotNull(database.sourceSessionDao().session(MANUAL_ID)).copy(
+			state = SessionLifecycleState.FINALIZED.name,
+			completedAtMs = SUSPENDED_AT_MS,
+			failureCode = "ALREADY_TERMINAL",
+			currentServiceRunId = null,
+		)
+		database.sourceSessionDao().updateSession(terminal) shouldBe 1
+		val descriptor = manualDescriptor(CURRENT_BOOT_ID)
+		val store = RecordingStore(descriptor)
+		val registrationRepository =
+			mockk<com.adsamcik.tracker.tracker.source.runtime.SourceRegistrationRepository>()
+		coEvery {
+			registrationRepository.reconcilePriorProcessRegistrations(any(), any())
+		} returns PriorProcessRegistrationReconciliationResult(0, 0, 0)
+		val coordinator = PreviousExitRecoveryCoordinator(
+			store,
+			NoOpDrainScheduler,
+			mockk(relaxed = true),
+			finalizer(),
+			registrationRepository,
+		)
+
+		val result = coordinator.reconcileStaleSessions()
+
+		result.finalizedLogicalTrackingIds shouldBe emptySet()
+		result.descriptorDisposition shouldBe
+			PreviousExitRecoveryDescriptorDisposition.Clear(descriptor)
+		store.descriptor shouldBe null
+		store.clearCount shouldBe 1
+		database.sourceSessionDao().session(MANUAL_ID) shouldBe terminal
 	}
 
 	@Test
@@ -322,11 +368,12 @@ class PreviousExitSourceSessionFinalizerTest {
 			runCompletionReason = "UNRELATED_STOP",
 		)
 
-		val result = finalizer().finalizeStaleSessions(
-			recoveryDescriptor = manualDescriptor(CURRENT_BOOT_ID),
-		)
+		val descriptor = manualDescriptor(CURRENT_BOOT_ID)
+		val result = finalizer().finalizeStaleSessions(recoveryDescriptor = descriptor)
 
 		result.finalizedLogicalTrackingIds shouldContainExactly setOf(MANUAL_ID)
+		result.descriptorDisposition shouldBe
+			PreviousExitRecoveryDescriptorDisposition.Clear(descriptor)
 		database.sourceSessionDao().session(MANUAL_ID)?.let { session ->
 			session.state shouldBe SessionLifecycleState.FINALIZED.name
 			session.failureCode shouldBe PreviousExitSourceSessionFinalizer.COMPLETION_REASON
@@ -354,6 +401,46 @@ class PreviousExitSourceSessionFinalizerTest {
 			SessionLifecycleState.ACTIVE.name
 		database.sourceSessionDao().serviceRun(runId(MANUAL_ID))?.state shouldBe
 			SessionLifecycleState.ACTIVE.name
+	}
+
+	@Test
+	fun `terminal caller retirement rejection finalizes Room and clears descriptor`() = runTest {
+		insertSession(MANUAL_ID, SessionMode.MANUAL, CURRENT_BOOT_ID)
+		insertRun(MANUAL_ID, CURRENT_BOOT_ID)
+		insertPendingAction(MANUAL_ID, CURRENT_BOOT_ID)
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand(MANUAL_ID, "terminal-caller-demand", CURRENT_BOOT_ID)),
+		)
+		val descriptor = manualDescriptor(CURRENT_BOOT_ID)
+		val store = RecordingStore(descriptor)
+		val terminalFinalizer = finalizer { candidate ->
+			ActiveTrackingCallerAuthorityReconciliation.Blocked(
+				failureCode = "RECOVERY_SOURCE_CALLER_RETIREMENT_CORRUPT",
+				disposition = TrackingStartFailureDisposition.TERMINAL,
+				descriptor = candidate,
+			)
+		}
+		val registrationRepository =
+			mockk<com.adsamcik.tracker.tracker.source.runtime.SourceRegistrationRepository>()
+		coEvery {
+			registrationRepository.reconcilePriorProcessRegistrations(any(), any())
+		} returns PriorProcessRegistrationReconciliationResult(0, 0, 0)
+		val coordinator = PreviousExitRecoveryCoordinator(
+			store,
+			NoOpDrainScheduler,
+			mockk(relaxed = true),
+			terminalFinalizer,
+			registrationRepository,
+		)
+
+		val result = coordinator.reconcileStaleSessions()
+
+		result.finalizedLogicalTrackingIds shouldContainExactly setOf(MANUAL_ID)
+		result.descriptorDisposition shouldBe
+			PreviousExitRecoveryDescriptorDisposition.Clear(descriptor)
+		store.descriptor shouldBe null
+		database.sourceSessionDao().session(MANUAL_ID)?.state shouldBe
+			SessionLifecycleState.FINALIZED.name
 	}
 
 	@Test

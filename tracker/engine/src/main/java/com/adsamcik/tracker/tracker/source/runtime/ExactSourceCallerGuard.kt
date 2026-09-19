@@ -17,6 +17,7 @@ import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.SourceCallerRequest
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
+import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -127,8 +128,8 @@ internal class ExactSourceCallerGuard @Inject constructor(
 			authorityReader.read(request)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (_: Exception) {
-			return rejected(SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE)
+		} catch (failure: Exception) {
+			return rejected(failure.toAuthorityFailureReason())
 		}
 		return when (request) {
 			is SourceCallerRequest.ManualSessionStart ->
@@ -154,8 +155,8 @@ internal class ExactSourceCallerGuard @Inject constructor(
 			authorityRepository.load(request.reference)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (_: Exception) {
-			return rejected(SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE)
+		} catch (failure: Exception) {
+			return rejected(failure.toAuthorityFailureReason())
 		}
 		val accepted = when (loaded) {
 			is StoredSourceCallerAuthorityLoadResult.Available -> try {
@@ -199,8 +200,14 @@ internal class ExactSourceCallerGuard @Inject constructor(
 				}
 			} catch (cancelled: CancellationException) {
 				throw cancelled
-			} catch (_: Exception) {
-				return rejected(SourceCallerRejectionReason.AUTHORITY_PERSISTENCE_UNAVAILABLE)
+			} catch (failure: Exception) {
+				return rejected(
+					if (failure.isTrackingOperationalFailure()) {
+						SourceCallerRejectionReason.AUTHORITY_PERSISTENCE_UNAVAILABLE
+					} else {
+						SourceCallerRejectionReason.AUTHORITY_INVARIANT_VIOLATION
+					},
+				)
 			}
 			permitted(reference, evaluation.authority)
 		}
@@ -214,8 +221,8 @@ internal class ExactSourceCallerGuard @Inject constructor(
 			authorityRepository.load(request.reference)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (_: Exception) {
-			return rejected(SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE)
+		} catch (failure: Exception) {
+			return rejected(failure.toAuthorityFailureReason())
 		}
 		val accepted = when (loaded) {
 			is StoredSourceCallerAuthorityLoadResult.Available -> try {
@@ -254,6 +261,13 @@ internal class ExactSourceCallerGuard @Inject constructor(
 		return permitted(request.reference, accepted)
 	}
 }
+
+private fun Throwable.toAuthorityFailureReason(): SourceCallerRejectionReason =
+	if (isTrackingOperationalFailure()) {
+		SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE
+	} else {
+		SourceCallerRejectionReason.AUTHORITY_INVARIANT_VIOLATION
+	}
 
 private sealed interface SourceCallerEvaluation {
 	class Accepted(

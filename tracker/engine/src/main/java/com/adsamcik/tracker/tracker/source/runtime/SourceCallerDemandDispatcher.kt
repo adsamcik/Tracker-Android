@@ -33,6 +33,7 @@ import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.SourceCallerRequest
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
+import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
 import com.adsamcik.tracker.tracker.source.coordinator.SessionMode
 import com.adsamcik.tracker.tracker.source.coordinator.SessionManifestPurpose
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
@@ -236,8 +237,8 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			authorityReader.readCurrentManifest(manifestIdentity)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (_: Exception) {
-			return rejected(SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE)
+		} catch (failure: Exception) {
+			return rejected(failure.toAuthorityReadRejectionReason())
 		}
 		if (snapshot == null) return rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
 		val identities = snapshot.currentDemandIdentities
@@ -369,10 +370,10 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			authorityReader.readReplayManifest(manifestIdentity, replayKind)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (_: Exception) {
+		} catch (failure: Exception) {
 			return SourceCallerGuardResult.Rejected(
 				SourceCallerGuardRejection(
-					SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE,
+					failure.toAuthorityReadRejectionReason(),
 				),
 			)
 		}
@@ -403,10 +404,11 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			SourceCallerRejectionReason.AUTOMATIC_CONTROL_SET_MISMATCH,
 		)
 		val demandIdentity = SourceCallerDemandIdentity(identity, manifestIdentity = null)
-		val snapshot = readCurrentPurposeOrNull(setOf(demandIdentity))
-			?: return@withTransaction rejectedPurpose(
-				SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE,
-			)
+		val snapshot = when (val read = readCurrentPurpose(setOf(demandIdentity))) {
+			is CurrentPurposeAuthorityRead.Available -> read.snapshot
+			is CurrentPurposeAuthorityRead.Rejected ->
+				return@withTransaction rejectedPurpose(read.reason)
+		}
 		if (demandIdentity !in snapshot.currentDemandIdentities) {
 			return@withTransaction rejectedPurpose(
 				SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
@@ -505,10 +507,11 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			)
 		return database.withTransaction {
 		val demandIdentity = SourceCallerDemandIdentity(identity, manifestIdentity = null)
-		val snapshot = readCurrentPurposeOrNull(setOf(demandIdentity))
-			?: return@withTransaction rejectedPurpose(
-				SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE,
-			)
+			val snapshot = when (val read = readCurrentPurpose(setOf(demandIdentity))) {
+				is CurrentPurposeAuthorityRead.Available -> read.snapshot
+				is CurrentPurposeAuthorityRead.Rejected ->
+					return@withTransaction rejectedPurpose(read.reason)
+			}
 		if (demandIdentity !in snapshot.currentDemandIdentities) {
 			return@withTransaction rejectedPurpose(
 				SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
@@ -683,13 +686,15 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			val mutation = database.withTransaction {
 				val identity = request.leaseIdentity.purposeLeaseIdentity
 				val demandIdentity = SourceCallerDemandIdentity(identity, manifestIdentity = null)
-				val snapshot = readCurrentPurposeOrNull(setOf(demandIdentity))
-					?: run {
+				val snapshot = when (val read = readCurrentPurpose(setOf(demandIdentity))) {
+					is CurrentPurposeAuthorityRead.Available -> read.snapshot
+					is CurrentPurposeAuthorityRead.Rejected -> {
 						fenceAmbientRadioDemand(request)
 						return@withTransaction rejectedPurpose<AmbientRadioDemandResult>(
-							SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE,
+							read.reason,
 						)
 					}
+				}
 				if (demandIdentity !in snapshot.currentDemandIdentities) {
 					fenceAmbientRadioDemand(request)
 					return@withTransaction rejectedPurpose<AmbientRadioDemandResult>(
@@ -800,7 +805,8 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (_: Exception) {
+		} catch (failure: Exception) {
+			if (!failure.isTrackingOperationalFailure()) throw failure
 			// Provider reconciliation still runs and records durable physical cleanup debt.
 		}
 	}
@@ -838,10 +844,9 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 	}
 
 	override suspend fun isCurrent(identity: TrackingPurposeLeaseIdentity): Boolean =
-		readCurrentPurposeOrNull(
+		authorityReader.readCurrentPurpose(
 			setOf(SourceCallerDemandIdentity(identity, manifestIdentity = null)),
-		)?.currentDemandIdentities
-			?.any { it.purposeLeaseIdentity == identity } == true
+		).currentDemandIdentities.any { it.purposeLeaseIdentity == identity }
 
 	override suspend fun permitsActivation(
 		reference: SourceCallerReplayReference,
@@ -892,14 +897,16 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		}
 	}
 
-	private suspend fun readCurrentPurposeOrNull(
+	private suspend fun readCurrentPurpose(
 		requested: Set<SourceCallerDemandIdentity>,
-	): SourceCallerAuthoritySnapshot? = try {
-		authorityReader.readCurrentPurpose(requested)
+	): CurrentPurposeAuthorityRead = try {
+		CurrentPurposeAuthorityRead.Available(
+			authorityReader.readCurrentPurpose(requested),
+		)
 	} catch (cancelled: CancellationException) {
 		throw cancelled
-	} catch (_: Exception) {
-		null
+	} catch (failure: Exception) {
+		CurrentPurposeAuthorityRead.Rejected(failure.toAuthorityReadRejectionReason())
 	}
 
 	private fun <T> rejectedPurpose(
@@ -993,6 +1000,16 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		logRejected()
 		return SourceCallerGuardResult.Rejected(SourceCallerGuardRejection(reason))
 	}
+}
+
+private sealed interface CurrentPurposeAuthorityRead {
+	data class Available(
+		val snapshot: SourceCallerAuthoritySnapshot,
+	) : CurrentPurposeAuthorityRead
+
+	data class Rejected(
+		val reason: SourceCallerRejectionReason,
+	) : CurrentPurposeAuthorityRead
 }
 
 /**
@@ -1378,6 +1395,13 @@ internal class RoomSourceCallerAcceptedAuthorityRepository @Inject constructor(
 		}
 	}
 }
+
+private fun Throwable.toAuthorityReadRejectionReason(): SourceCallerRejectionReason =
+	if (isTrackingOperationalFailure()) {
+		SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE
+	} else {
+		SourceCallerRejectionReason.AUTHORITY_INVARIANT_VIOLATION
+	}
 
 internal fun authenticateStoredSourceCallerAuthority(
 	rows: List<SourceCallerAcceptedAuthorityEntity>,

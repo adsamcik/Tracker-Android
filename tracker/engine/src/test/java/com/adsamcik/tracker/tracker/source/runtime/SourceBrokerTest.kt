@@ -60,6 +60,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeBlank
 import io.mockk.mockk
 import io.mockk.coEvery
+import java.io.IOException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
@@ -282,6 +283,9 @@ class SourceBrokerTest {
 		val reference = SourceCallerReplayReference("superseded-retirement-failure")
 		val unavailableRepository = mockk<SourceCallerAcceptedAuthorityRepository>()
 		coEvery {
+			unavailableRepository.load(reference)
+		} returns StoredSourceCallerAuthorityLoadResult.Available(mockk())
+		coEvery {
 			unavailableRepository.retireForTeardown(reference, any(), any())
 		} returns false
 		val broker = SourceBroker(
@@ -311,8 +315,138 @@ class SourceBrokerTest {
 				expectedSupersededReference = reference,
 				wallTimeMs = 200L,
 			)
-		} shouldBe false
+		} shouldBe SourceCallerAuthorityRetirementOutcome.Retryable(
+			SourceCallerAuthorityRetirementRetryReason.COMPARE_AND_SET_FAILED,
+		)
 	}
+
+	@Test
+	fun `superseded retirement reports terminal authority categories and idempotent completion`() =
+		runTest {
+			val current = SourceCallerReplayReference("current-authority")
+			val expected = SourceCallerReplayReference("expected-predecessor")
+			val missingRepository = mockk<SourceCallerAcceptedAuthorityRepository>()
+			coEvery { missingRepository.load(expected) } returns
+				StoredSourceCallerAuthorityLoadResult.Missing
+			val missingBroker = SourceBroker(
+				database,
+				rolloutStore,
+				RejectingAmbientRadioMutationLeaseGuard,
+				missingRepository,
+				retentionReader,
+			)
+
+			database.withTransaction {
+				missingBroker.retireSupersededSessionAuthoritiesInTransaction(
+					"logical-missing",
+					current,
+					expected,
+					200L,
+				)
+			} shouldBe SourceCallerAuthorityRetirementOutcome.TerminalMissing
+
+			val linked = purposeDemand(
+				id = "expected-predecessor-demand",
+				consumerId = missingBroker.sessionConsumerId("logical-linked"),
+				source = SourceKind.STEPS,
+				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				status = SourceDemandEntity.STATUS_RETIRED,
+				reference = expected.value,
+			)
+			database.sourceBrokerDao().insertDemands(listOf(linked))
+			coEvery { missingRepository.load(expected) } returnsMany listOf(
+				StoredSourceCallerAuthorityLoadResult.Retired,
+				StoredSourceCallerAuthorityLoadResult.Corrupt,
+			)
+			database.withTransaction {
+				missingBroker.retireSupersededSessionAuthoritiesInTransaction(
+					"logical-linked",
+					current,
+					expected,
+					200L,
+				)
+			} shouldBe SourceCallerAuthorityRetirementOutcome.Completed
+			database.withTransaction {
+				missingBroker.retireSupersededSessionAuthoritiesInTransaction(
+					"logical-linked",
+					current,
+					expected,
+					200L,
+				)
+			} shouldBe SourceCallerAuthorityRetirementOutcome.TerminalCorrupt
+		}
+
+	@Test
+	fun `superseded retirement distinguishes storage unavailability from ambiguous active history`() =
+		runTest {
+			val current = SourceCallerReplayReference("current-authority")
+			val expected = SourceCallerReplayReference("expected-predecessor")
+			val unexpected = SourceCallerReplayReference("unexpected-predecessor")
+			val repository = mockk<SourceCallerAcceptedAuthorityRepository>()
+			val broker = SourceBroker(
+				database,
+				rolloutStore,
+				RejectingAmbientRadioMutationLeaseGuard,
+				repository,
+				retentionReader,
+			)
+			database.sourceBrokerDao().insertDemands(
+				listOf(
+					purposeDemand(
+						id = "expected-history",
+						consumerId = broker.sessionConsumerId("logical-storage"),
+						source = SourceKind.STEPS,
+						purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+						status = SourceDemandEntity.STATUS_RETIRED,
+						reference = expected.value,
+					),
+				),
+			)
+			coEvery { repository.load(expected) } throws IOException("storage unavailable")
+
+			database.withTransaction {
+				broker.retireSupersededSessionAuthoritiesInTransaction(
+					"logical-storage",
+					current,
+					expected,
+					200L,
+				)
+			} shouldBe SourceCallerAuthorityRetirementOutcome.Retryable(
+				SourceCallerAuthorityRetirementRetryReason.STORAGE_UNAVAILABLE,
+			)
+
+			database.sourceBrokerDao().insertDemands(
+				listOf(
+					purposeDemand(
+						id = "expected-ambiguous",
+						consumerId = broker.sessionConsumerId("logical-ambiguous"),
+						source = SourceKind.STEPS,
+						purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+						status = SourceDemandEntity.STATUS_RETIRED,
+						reference = expected.value,
+					),
+					purposeDemand(
+						id = "unexpected-ambiguous",
+						consumerId = broker.sessionConsumerId("logical-ambiguous"),
+						source = SourceKind.LOCATION,
+						purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+						status = SourceDemandEntity.STATUS_RETIRED,
+						reference = unexpected.value,
+					),
+				),
+			)
+			coEvery { repository.load(unexpected) } returns
+				StoredSourceCallerAuthorityLoadResult.Available(mockk())
+
+			database.withTransaction {
+				broker.retireSupersededSessionAuthoritiesInTransaction(
+					"logical-ambiguous",
+					current,
+					expected,
+					200L,
+				)
+			} shouldBe SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous
+		}
 
 	@Test
 	fun `session retirement fences active and blocked rows despite corrupt caller metadata`() = runTest {

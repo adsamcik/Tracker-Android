@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.CorruptionException
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.dataStore
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -39,9 +40,20 @@ internal object ActiveTrackingSessionSerializer : Serializer<ActiveTrackingSessi
 
 }
 
+private const val CORRUPTION_RESET_PENDING_MARKER =
+	"__TRACKER_ACTIVE_SESSION_CORRUPTION_RESET_PENDING__"
+
+internal val activeTrackingSessionCorruptionHandler =
+	ReplaceFileCorruptionHandler<ActiveTrackingSessionProto> {
+		ActiveTrackingSessionProto.newBuilder()
+			.setPolicyTier(CORRUPTION_RESET_PENDING_MARKER)
+			.build()
+	}
+
 private val Context.activeTrackingSessionDataStore: DataStore<ActiveTrackingSessionProto> by dataStore(
 	fileName = "active_tracking_session.pb",
 	serializer = ActiveTrackingSessionSerializer,
+	corruptionHandler = activeTrackingSessionCorruptionHandler,
 )
 
 @Singleton
@@ -63,9 +75,13 @@ class DefaultActiveTrackingSessionStore internal constructor(
 			val stored = dataStore.updateData { current ->
 				current.normalizedForCurrentContract()
 			}
-			ActiveTrackingSessionStoreResult.Success(
-				stored.toDescriptor(),
-			)
+			if (stored.isCorruptionResetPending()) {
+				corruptionResetRequired()
+			} else {
+				ActiveTrackingSessionStoreResult.Success(
+					stored.toDescriptor(),
+				)
+			}
 		}
 	}
 
@@ -73,10 +89,17 @@ class DefaultActiveTrackingSessionStore internal constructor(
 		descriptor: ActiveTrackingSessionDescriptor,
 	): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
 		runStoreOperation {
-			dataStore.updateData {
-				descriptor.toProto()
+			var resetRequired = false
+			dataStore.updateData { current ->
+				if (current.requiresCorruptionReset()) {
+					resetRequired = true
+					current
+				} else {
+					descriptor.toProto()
+				}
 			}
-			ActiveTrackingSessionStoreResult.Success(descriptor)
+			if (resetRequired) corruptionResetRequired()
+			else ActiveTrackingSessionStoreResult.Success(descriptor)
 		}
 	}
 
@@ -85,12 +108,19 @@ class DefaultActiveTrackingSessionStore internal constructor(
 	): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
 		runStoreOperation {
 			var persisted: ActiveTrackingSessionProto? = null
+			var resetRequired = false
 			dataStore.updateData { current ->
-				mergeServiceDescriptorForPersistence(current.toDescriptor(), descriptor)
-					.toProto()
-					.also { persisted = it }
+				if (current.requiresCorruptionReset()) {
+					resetRequired = true
+					current
+				} else {
+					mergeServiceDescriptorForPersistence(current.toDescriptor(), descriptor)
+						.toProto()
+						.also { persisted = it }
+				}
 			}
-			ActiveTrackingSessionStoreResult.Success(persisted?.toDescriptor())
+			if (resetRequired) corruptionResetRequired()
+			else ActiveTrackingSessionStoreResult.Success(persisted?.toDescriptor())
 		}
 	}
 
@@ -100,14 +130,19 @@ class DefaultActiveTrackingSessionStore internal constructor(
 	): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
 		runStoreOperation {
 			var persisted: ActiveTrackingSessionProto? = null
+			var resetRequired = false
 			dataStore.updateData { current ->
-				if (current.toDescriptor() == expected) {
+				if (current.requiresCorruptionReset()) {
+					resetRequired = true
+					current
+				} else if (current.toDescriptor() == expected) {
 					replacement.toProto().also { persisted = it }
 				} else {
 					current.also { persisted = it }
 				}
 			}
-			ActiveTrackingSessionStoreResult.Success(persisted?.toDescriptor())
+			if (resetRequired) corruptionResetRequired()
+			else ActiveTrackingSessionStoreResult.Success(persisted?.toDescriptor())
 		}
 	}
 
@@ -119,46 +154,88 @@ class DefaultActiveTrackingSessionStore internal constructor(
 		runStoreOperation {
 			val bound = expected.copy(sessionSegmentId = sessionSegmentId)
 			var persisted: ActiveTrackingSessionProto? = null
+			var resetRequired = false
 			dataStore.updateData { current ->
-				when (current.toDescriptor()) {
+				if (current.requiresCorruptionReset()) {
+					resetRequired = true
+					current
+				} else when (current.toDescriptor()) {
 					expected -> bound.toProto().also { persisted = it }
 					bound -> current.also { persisted = it }
 					else -> current.also { persisted = it }
 				}
 			}
-			ActiveTrackingSessionStoreResult.Success(persisted?.toDescriptor())
+			if (resetRequired) corruptionResetRequired()
+			else ActiveTrackingSessionStoreResult.Success(persisted?.toDescriptor())
 		}
 	}
 
 	override suspend fun clear(): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
 		runStoreOperation {
-			dataStore.updateData {
-				ActiveTrackingSessionProto.getDefaultInstance()
+			var resetRequired = false
+			dataStore.updateData { current ->
+				if (current.requiresCorruptionReset()) {
+					resetRequired = true
+					current
+				} else {
+					defaultProto()
+				}
 			}
-			ActiveTrackingSessionStoreResult.Success(null)
+			if (resetRequired) corruptionResetRequired()
+			else ActiveTrackingSessionStoreResult.Success(null)
 		}
 	}
+
+	override suspend fun resetCorruptState(): ActiveTrackingSessionStoreResult =
+		withContext(dispatchers.io) {
+			runStoreOperation {
+				var resetConfirmed = false
+				val stored = dataStore.updateData { current ->
+					if (current.isCorruptionResetPending() ||
+						current == defaultProto() ||
+						current.requiresCorruptionReset()
+					) {
+						resetConfirmed = true
+						defaultProto()
+					} else {
+						current
+					}
+				}
+				if (resetConfirmed) {
+					ActiveTrackingSessionStoreResult.Success(null)
+				} else {
+					ActiveTrackingSessionStoreResult.Success(stored.toDescriptor())
+				}
+			}
+		}
 
 	override suspend fun clearIfCurrent(
 		descriptor: ActiveTrackingSessionDescriptor,
 	): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
 		runStoreOperation {
 			var remaining: ActiveTrackingSessionProto? = null
+			var resetRequired = false
 			dataStore.updateData { current ->
-				val currentDescriptor = current.toDescriptor()
-				if (
-					currentDescriptor?.logicalTrackingId == descriptor.logicalTrackingId &&
-					currentDescriptor.serviceRunId == descriptor.serviceRunId &&
-					currentDescriptor.lifecycleState == LogicalTrackingLifecycleState.STOP_CANDIDATE &&
-					currentDescriptor.lifecycleRevision == descriptor.lifecycleRevision
-				) {
-					ActiveTrackingSessionProto.getDefaultInstance().also { remaining = it }
-				} else {
-					remaining = current
+				if (current.requiresCorruptionReset()) {
+					resetRequired = true
 					current
+				} else {
+					val currentDescriptor = current.toDescriptor()
+					if (
+						currentDescriptor?.logicalTrackingId == descriptor.logicalTrackingId &&
+						currentDescriptor.serviceRunId == descriptor.serviceRunId &&
+						currentDescriptor.lifecycleState == LogicalTrackingLifecycleState.STOP_CANDIDATE &&
+						currentDescriptor.lifecycleRevision == descriptor.lifecycleRevision
+					) {
+						defaultProto().also { remaining = it }
+					} else {
+						remaining = current
+						current
+					}
 				}
 			}
-			ActiveTrackingSessionStoreResult.Success(remaining?.toDescriptor())
+			if (resetRequired) corruptionResetRequired()
+			else ActiveTrackingSessionStoreResult.Success(remaining?.toDescriptor())
 		}
 	}
 
@@ -167,17 +244,33 @@ class DefaultActiveTrackingSessionStore internal constructor(
 	): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
 		runStoreOperation {
 			var remaining: ActiveTrackingSessionProto? = null
+			var resetRequired = false
 			dataStore.updateData { current ->
-				if (current.toDescriptor() == descriptor) {
-					ActiveTrackingSessionProto.getDefaultInstance().also { remaining = it }
+				if (current.requiresCorruptionReset()) {
+					resetRequired = true
+					current
+				} else if (current.toDescriptor() == descriptor) {
+					defaultProto().also { remaining = it }
 				} else {
 					remaining = current
 					current
 				}
 			}
-			ActiveTrackingSessionStoreResult.Success(remaining?.toDescriptor())
+			if (resetRequired) corruptionResetRequired()
+			else ActiveTrackingSessionStoreResult.Success(remaining?.toDescriptor())
 		}
 	}
+
+	private fun corruptionResetRequired(): ActiveTrackingSessionStoreResult.Failure =
+		ActiveTrackingSessionStoreResult.Failure(
+			ActiveTrackingSessionStoreCorruptionException(
+				CorruptionException(
+					"Corrupt active tracking session was replaced and awaits reset confirmation",
+					null,
+				),
+			),
+			ActiveTrackingSessionStoreFailureKind.CORRUPT,
+		)
 
 	private suspend inline fun runStoreOperation(
 		operation: suspend () -> ActiveTrackingSessionStoreResult,
@@ -202,6 +295,22 @@ class DefaultActiveTrackingSessionStore internal constructor(
 			exception,
 			ActiveTrackingSessionStoreFailureKind.UNAVAILABLE,
 		)
+	}
+}
+
+private fun defaultProto(): ActiveTrackingSessionProto =
+	ActiveTrackingSessionProto.getDefaultInstance()
+
+private fun ActiveTrackingSessionProto.isCorruptionResetPending(): Boolean =
+	!active && policyTier == CORRUPTION_RESET_PENDING_MARKER
+
+private fun ActiveTrackingSessionProto.requiresCorruptionReset(): Boolean {
+	if (isCorruptionResetPending()) return true
+	return try {
+		toDescriptor()
+		false
+	} catch (_: CorruptionException) {
+		true
 	}
 }
 

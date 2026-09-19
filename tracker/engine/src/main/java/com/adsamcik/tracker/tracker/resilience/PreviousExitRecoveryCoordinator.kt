@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.resilience
 
 import android.app.ApplicationExitInfo
 import com.adsamcik.tracker.tracker.source.runtime.SourceRegistrationRepository
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -52,29 +53,56 @@ class PreviousExitRecoveryCoordinator @Inject constructor(
 		completedAtMs: Long? = null,
 	): PreviousExitSourceSessionFinalization {
 		val storedDescriptor = when (val stored = activeSessionStore.read()) {
-			is ActiveTrackingSessionStoreResult.Failure -> throw stored.cause
+			is ActiveTrackingSessionStoreResult.Failure -> {
+				if (stored.kind == ActiveTrackingSessionStoreFailureKind.UNAVAILABLE) {
+					throw stored.cause
+				}
+				val finalization = previousExitSourceSessionFinalizer.finalizeStaleSessions(
+					factualCompletedAtMs = completedAtMs,
+					recoveryDescriptor = null,
+				)
+				confirmCorruptDescriptorReset()
+				sourceRegistrationRepository.reconcilePriorProcessRegistrations()
+				return finalization
+			}
 			is ActiveTrackingSessionStoreResult.Success -> stored.descriptor
 		}
 		val finalization = previousExitSourceSessionFinalizer.finalizeStaleSessions(
 			factualCompletedAtMs = completedAtMs,
 			recoveryDescriptor = storedDescriptor,
 		)
-		val inspectedDescriptor = finalization.inspectedRecoveryDescriptor ?: storedDescriptor
-		val descriptorWasFinalized = inspectedDescriptor != null &&
-			inspectedDescriptor.logicalTrackingId in finalization.finalizedLogicalTrackingIds
-		val descriptorHasNoRoomSession = inspectedDescriptor != null &&
-			finalization.inspectedLogicalTrackingId == inspectedDescriptor.logicalTrackingId &&
-			finalization.inspectedSessionExists == false
-		if (inspectedDescriptor != null &&
-			(descriptorWasFinalized || descriptorHasNoRoomSession)
-		) {
-			when (val cleared = activeSessionStore.clearExact(inspectedDescriptor)) {
-				is ActiveTrackingSessionStoreResult.Success -> Unit
-				is ActiveTrackingSessionStoreResult.Failure -> throw cleared.cause
+		when (val disposition = finalization.descriptorDisposition) {
+			PreviousExitRecoveryDescriptorDisposition.NoDescriptor,
+			is PreviousExitRecoveryDescriptorDisposition.Preserved,
+			-> Unit
+			is PreviousExitRecoveryDescriptorDisposition.Clear ->
+				when (val cleared = activeSessionStore.clearExact(disposition.descriptor)) {
+				is ActiveTrackingSessionStoreResult.Success -> {
+					check(cleared.descriptor != disposition.descriptor) {
+						"Exact stale active-session descriptor was not cleared"
+					}
+				}
+				is ActiveTrackingSessionStoreResult.Failure ->
+					if (cleared.kind == ActiveTrackingSessionStoreFailureKind.CORRUPT) {
+						confirmCorruptDescriptorReset()
+					} else {
+						throw cleared.cause
+					}
 			}
 		}
 		sourceRegistrationRepository.reconcilePriorProcessRegistrations()
 		return finalization
+	}
+
+	private suspend fun confirmCorruptDescriptorReset() {
+		when (val reset = activeSessionStore.resetCorruptState()) {
+			is ActiveTrackingSessionStoreResult.Success -> {
+				if (reset.descriptor != null) {
+					throw IOException("Active-session corruption reset observed a current descriptor")
+				}
+			}
+			is ActiveTrackingSessionStoreResult.Failure -> throw reset.cause
+		}
 	}
 
 	suspend fun suppressAfterForceStop(
@@ -83,7 +111,12 @@ class PreviousExitRecoveryCoordinator @Inject constructor(
 		val finalization = forceStopSourceSessionFinalizer.finalize(completedAtMs)
 		when (val result = activeSessionStore.clear()) {
 			is ActiveTrackingSessionStoreResult.Success -> Unit
-			is ActiveTrackingSessionStoreResult.Failure -> throw result.cause
+			is ActiveTrackingSessionStoreResult.Failure ->
+				if (result.kind == ActiveTrackingSessionStoreFailureKind.CORRUPT) {
+					confirmCorruptDescriptorReset()
+				} else {
+					throw result.cause
+				}
 		}
 		sourceRegistrationRepository.reconcilePriorProcessRegistrations()
 		return finalization

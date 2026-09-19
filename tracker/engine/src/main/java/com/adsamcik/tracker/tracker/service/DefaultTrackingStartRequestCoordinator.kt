@@ -468,7 +468,13 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		)
 		if (finalized) {
 			if (clearCorruptDescriptor) {
-				activeTrackingSessionStore.clear()
+				when (val reset = activeTrackingSessionStore.resetCorruptState()) {
+					is ActiveTrackingSessionStoreResult.Success ->
+						check(reset.descriptor == null) {
+							"Corrupt active descriptor reset observed a current descriptor"
+						}
+					is ActiveTrackingSessionStoreResult.Failure -> throw reset.cause
+				}
 			} else if (descriptor != null) {
 				val current = when (val stored = activeTrackingSessionStore.read()) {
 					is ActiveTrackingSessionStoreResult.Failure -> descriptor

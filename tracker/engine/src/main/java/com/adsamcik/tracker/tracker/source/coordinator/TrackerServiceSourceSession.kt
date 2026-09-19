@@ -10,6 +10,7 @@ import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStore
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreFailureKind
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreResult
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
@@ -20,6 +21,8 @@ import com.adsamcik.tracker.tracker.source.model.SourceDemand
 import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementOutcome
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementRetryReason
 import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Provider
@@ -531,12 +534,13 @@ class TrackerServiceSourceSession @Inject constructor(
 			}
 			session.sourceCallerAuthorityReference = replacementReference
 			session.pendingRetirementSourceCallerAuthorityReference = predecessor
-			predecessor == null || retireRecordedSupersededAuthority(
-				session,
-				replacementReference,
-				predecessor,
-				replacement,
-			)
+			predecessor == null ||
+				retireRecordedSupersededAuthority(
+					session,
+					replacementReference,
+					predecessor,
+					replacement,
+				) == SourceCallerAuthorityRetirementOutcome.Completed
 		} catch (cancelled: CancellationException) {
 			if (markCleanupOnFailure) session.runtimeCleanupRequired = true
 			throw cancelled
@@ -552,39 +556,46 @@ class TrackerServiceSourceSession @Inject constructor(
 		currentReference: SourceCallerReplayReference,
 		supersededReference: SourceCallerReplayReference,
 		recordedDescriptor: ActiveTrackingSessionDescriptor? = null,
-	): Boolean {
-		if (!coordinator.retireSupersededSourceCallerAuthority(
+	): SourceCallerAuthorityRetirementOutcome {
+		val retirement = coordinator.retireSupersededSourceCallerAuthority(
 			session.logicalTrackingId,
 			currentReference,
 			supersededReference,
 			Time.nowMillis,
-		)) return false
+		)
+		if (retirement != SourceCallerAuthorityRetirementOutcome.Completed) return retirement
 		val stored = recordedDescriptor ?: when (val result = activeTrackingSessionStore.read()) {
-			is ActiveTrackingSessionStoreResult.Failure -> return false
+			is ActiveTrackingSessionStoreResult.Failure -> return result.kind.toRetirementOutcome()
 			is ActiveTrackingSessionStoreResult.Success -> result.descriptor
 		}
-		if (stored == null ||
-			stored.logicalTrackingId != session.logicalTrackingId ||
+		if (stored == null) return SourceCallerAuthorityRetirementOutcome.TerminalMissing
+		if (stored.logicalTrackingId != session.logicalTrackingId ||
 			stored.serviceRunId != session.serviceRunId ||
 			stored.sourceCallerAuthorityReference != currentReference
-		) return false
+		) return SourceCallerAuthorityRetirementOutcome.Retryable(
+			SourceCallerAuthorityRetirementRetryReason.CURRENT_AUTHORITY_CHANGED,
+		)
 		if (stored.pendingRetirementSourceCallerAuthorityReference == null) {
 			session.pendingRetirementSourceCallerAuthorityReference = null
-			return true
+			return SourceCallerAuthorityRetirementOutcome.Completed
 		}
 		if (stored.pendingRetirementSourceCallerAuthorityReference != supersededReference) {
-			return false
+			return SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous
 		}
 		val cleared = stored.copy(
 			pendingRetirementSourceCallerAuthorityReference = null,
 		)
 		val persisted = when (val result = activeTrackingSessionStore.replaceExact(stored, cleared)) {
-			is ActiveTrackingSessionStoreResult.Failure -> return false
+			is ActiveTrackingSessionStoreResult.Failure -> return result.kind.toRetirementOutcome()
 			is ActiveTrackingSessionStoreResult.Success -> result.descriptor
 		}
-		if (persisted != cleared) return false
+		if (persisted != cleared) {
+			return SourceCallerAuthorityRetirementOutcome.Retryable(
+				SourceCallerAuthorityRetirementRetryReason.CURRENT_AUTHORITY_CHANGED,
+			)
+		}
 		session.pendingRetirementSourceCallerAuthorityReference = null
-		return true
+		return SourceCallerAuthorityRetirementOutcome.Completed
 	}
 
 	internal suspend fun persistedDescriptorForActiveSession(
@@ -625,10 +636,17 @@ class TrackerServiceSourceSession @Inject constructor(
 				?: return@withLock SourceSessionStopOutcome.Retryable(
 					SourceSessionStopRetryCode.CLEANUP_PENDING,
 				)
-			if (!retireRecordedSupersededAuthority(session, current, predecessor)) {
-				return@withLock SourceSessionStopOutcome.Retryable(
-					SourceSessionStopRetryCode.CLEANUP_PENDING,
-				)
+			when (retireRecordedSupersededAuthority(session, current, predecessor)) {
+				SourceCallerAuthorityRetirementOutcome.Completed -> Unit
+				is SourceCallerAuthorityRetirementOutcome.Retryable ->
+					return@withLock SourceSessionStopOutcome.Retryable(
+						SourceSessionStopRetryCode.CLEANUP_PENDING,
+					)
+				SourceCallerAuthorityRetirementOutcome.TerminalMissing,
+				SourceCallerAuthorityRetirementOutcome.TerminalCorrupt,
+				SourceCallerAuthorityRetirementOutcome.TerminalInvariant,
+				SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous,
+				-> session.runtimeCleanupRequired = true
 			}
 		}
 
@@ -835,6 +853,16 @@ class TrackerServiceSourceSession @Inject constructor(
 		var coordinatorSuspended: Boolean = false,
 		var runtimeCleanupRequired: Boolean = false,
 	)
+}
+
+private fun ActiveTrackingSessionStoreFailureKind.toRetirementOutcome(): SourceCallerAuthorityRetirementOutcome =
+	when (this) {
+	ActiveTrackingSessionStoreFailureKind.UNAVAILABLE ->
+		SourceCallerAuthorityRetirementOutcome.Retryable(
+			SourceCallerAuthorityRetirementRetryReason.STORAGE_UNAVAILABLE,
+		)
+	ActiveTrackingSessionStoreFailureKind.CORRUPT ->
+		SourceCallerAuthorityRetirementOutcome.TerminalCorrupt
 }
 
 private fun currentStopCutoff(clockDomainId: String) = SourceSessionStopCutoff(

@@ -12,6 +12,8 @@ import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
 import com.adsamcik.tracker.tracker.source.coordinator.AuthoritativeSessionCoordinator
 import com.adsamcik.tracker.tracker.source.coordinator.CurrentRecoverySourceCallerAuthority
 import com.adsamcik.tracker.tracker.source.coordinator.CurrentRecoverySourceCallerAuthorityResult
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementOutcome
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementRetryReason
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerDemandDispatcher
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContainExactly
@@ -68,7 +70,7 @@ class ActiveTrackingSessionCallerAuthorityReconcilerTest {
 				)
 			} coAnswers {
 				events += "predecessor-retired"
-				true
+				SourceCallerAuthorityRetirementOutcome.Completed
 			}
 
 			val result = reconciler(store).reconcile(initial)
@@ -115,7 +117,7 @@ class ActiveTrackingSessionCallerAuthorityReconcilerTest {
 				predecessor,
 				any(),
 			)
-		} returns true
+		} returns SourceCallerAuthorityRetirementOutcome.Completed
 
 		val result = reconciler(store).reconcile(recorded)
 			.shouldBeInstanceOf<ActiveTrackingCallerAuthorityReconciliation.Ready>()
@@ -155,15 +157,81 @@ class ActiveTrackingSessionCallerAuthorityReconcilerTest {
 				predecessor,
 				any(),
 			)
-		} returns false
+		} returns SourceCallerAuthorityRetirementOutcome.Retryable(
+			SourceCallerAuthorityRetirementRetryReason.COMPARE_AND_SET_FAILED,
+		)
 
 		val result = reconciler(store).reconcile(recorded)
 			.shouldBeInstanceOf<ActiveTrackingCallerAuthorityReconciliation.Blocked>()
 
-		result.failureCode shouldBe "RECOVERY_SOURCE_CALLER_RETIREMENT_PENDING"
+		result.failureCode shouldBe "RECOVERY_SOURCE_CALLER_RETIREMENT_CAS_FAILED"
 		result.disposition shouldBe TrackingStartFailureDisposition.RETRYABLE
 		store.current shouldBe recorded
 		store.replacements shouldBe emptyList()
+	}
+
+	@Test
+	fun `retirement outcomes preserve transient and permanent categories`() = runTest {
+		val cases = listOf(
+			SourceCallerAuthorityRetirementOutcome.Retryable(
+				SourceCallerAuthorityRetirementRetryReason.STORAGE_UNAVAILABLE,
+			) to (
+				"RECOVERY_SOURCE_CALLER_RETIREMENT_STORAGE_UNAVAILABLE" to
+					TrackingStartFailureDisposition.RETRYABLE
+				),
+			SourceCallerAuthorityRetirementOutcome.Retryable(
+				SourceCallerAuthorityRetirementRetryReason.CURRENT_AUTHORITY_CHANGED,
+			) to (
+				"RECOVERY_SOURCE_CALLER_RETIREMENT_CURRENT_CHANGED" to
+					TrackingStartFailureDisposition.RETRYABLE
+				),
+			SourceCallerAuthorityRetirementOutcome.TerminalMissing to (
+				"RECOVERY_SOURCE_CALLER_RETIREMENT_MISSING" to
+					TrackingStartFailureDisposition.TERMINAL
+				),
+			SourceCallerAuthorityRetirementOutcome.TerminalCorrupt to (
+				"RECOVERY_SOURCE_CALLER_RETIREMENT_CORRUPT" to
+					TrackingStartFailureDisposition.TERMINAL
+				),
+			SourceCallerAuthorityRetirementOutcome.TerminalInvariant to (
+				"RECOVERY_SOURCE_CALLER_RETIREMENT_INVARIANT" to
+					TrackingStartFailureDisposition.TERMINAL
+				),
+			SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous to (
+				"RECOVERY_SOURCE_CALLER_RETIREMENT_AMBIGUOUS" to
+					TrackingStartFailureDisposition.TERMINAL
+				),
+		)
+		for ((retirement, expected) in cases) {
+			val predecessor = reference("caller-predecessor-${expected.first}")
+			val successor = reference("caller-successor-${expected.first}")
+			val recorded = descriptor(successor, predecessor)
+			val authority = authority(successor)
+			coEvery {
+				coordinator.currentRecoverySourceCallerAuthority(LOGICAL_ID, SERVICE_RUN_ID)
+			} returns CurrentRecoverySourceCallerAuthorityResult.Available(authority)
+			coEvery {
+				dispatcher.replayPreparedSession(
+					any(),
+					successor,
+					SourceCallerReplayKind.PROCESS_RECOVERY,
+				)
+			} returns permitted(successor)
+			coEvery {
+				coordinator.retireSupersededSourceCallerAuthority(
+					LOGICAL_ID,
+					successor,
+					predecessor,
+					any(),
+				)
+			} returns retirement
+
+			val result = reconciler(RecordingStore(recorded)).reconcile(recorded)
+				.shouldBeInstanceOf<ActiveTrackingCallerAuthorityReconciliation.Blocked>()
+
+			result.failureCode shouldBe expected.first
+			result.disposition shouldBe expected.second
+		}
 	}
 
 	@Test
@@ -227,6 +295,8 @@ class ActiveTrackingSessionCallerAuthorityReconcilerTest {
 			SourceCallerRejectionReason.REPLAY_AUTHORITY_RETIRED to
 				TrackingStartFailureDisposition.TERMINAL,
 			SourceCallerRejectionReason.REPLAY_AUTHORITY_CORRUPT to
+				TrackingStartFailureDisposition.TERMINAL,
+			SourceCallerRejectionReason.AUTHORITY_INVARIANT_VIOLATION to
 				TrackingStartFailureDisposition.TERMINAL,
 		).forEach { (reason, expectedDisposition) ->
 			val reference = reference("caller-${reason.name.lowercase()}")

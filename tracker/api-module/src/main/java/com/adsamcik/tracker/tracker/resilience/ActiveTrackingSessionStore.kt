@@ -372,6 +372,20 @@ interface ActiveTrackingSessionStore {
 	suspend fun clear(): ActiveTrackingSessionStoreResult
 
 	/**
+	 * Replaces a descriptor that could not be decoded with an empty durable state.
+	 *
+	 * Implementations must not report success unless the unreadable state was replaced, or the
+	 * store is already empty. A current readable descriptor must be preserved and returned.
+	 */
+	suspend fun resetCorruptState(): ActiveTrackingSessionStoreResult =
+		ActiveTrackingSessionStoreResult.Failure(
+			ActiveTrackingSessionStoreCorruptionException(
+				IllegalStateException("Corrupt active tracking session reset is unsupported"),
+			),
+			ActiveTrackingSessionStoreFailureKind.CORRUPT,
+		)
+
+	/**
 	 * Clears only if the durable descriptor still belongs to [descriptor]'s service run.
 	 *
 	 * The default keeps existing lightweight/fake implementations source-compatible.  The Android

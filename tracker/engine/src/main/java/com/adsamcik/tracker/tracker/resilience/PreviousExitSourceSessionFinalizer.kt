@@ -102,6 +102,17 @@ class PreviousExitSourceSessionFinalizer @Inject internal constructor(
 						descriptor.pendingRetirementSourceCallerAuthorityReference == null
 				}
 			}
+			val descriptorDisposition = when {
+				inspectedRecoveryDescriptor == null ->
+					PreviousExitRecoveryDescriptorDisposition.NoDescriptor
+				recoveryCandidate != null && authenticatedRecoveryAuthority != null ->
+					PreviousExitRecoveryDescriptorDisposition.Preserved(
+						inspectedRecoveryDescriptor,
+					)
+				else -> PreviousExitRecoveryDescriptorDisposition.Clear(
+					inspectedRecoveryDescriptor,
+				)
+			}
 			val stale = incompleteSessions.filter { session ->
 				val isRecoverableManual = recoveryCandidate != null &&
 					session.logicalTrackingId == recoveryCandidate.logicalTrackingId &&
@@ -179,11 +190,7 @@ class PreviousExitSourceSessionFinalizer @Inject internal constructor(
 			}
 			PreviousExitSourceSessionFinalization(
 				finalizedLogicalTrackingIds = stale.mapTo(linkedSetOf()) { it.logicalTrackingId },
-				inspectedLogicalTrackingId = recoveryDescriptor?.logicalTrackingId,
-				inspectedSessionExists = recoveryDescriptor?.logicalTrackingId?.let { logicalTrackingId ->
-					dao.session(logicalTrackingId) != null
-				},
-				inspectedRecoveryDescriptor = inspectedRecoveryDescriptor,
+				descriptorDisposition = descriptorDisposition,
 			)
 		}
 	}
@@ -260,10 +267,21 @@ class PreviousExitSourceSessionFinalizer @Inject internal constructor(
 
 data class PreviousExitSourceSessionFinalization(
 	val finalizedLogicalTrackingIds: Set<String>,
-	val inspectedLogicalTrackingId: String? = null,
-	val inspectedSessionExists: Boolean? = null,
-	val inspectedRecoveryDescriptor: ActiveTrackingSessionDescriptor? = null,
+	val descriptorDisposition: PreviousExitRecoveryDescriptorDisposition =
+		PreviousExitRecoveryDescriptorDisposition.NoDescriptor,
 )
+
+sealed interface PreviousExitRecoveryDescriptorDisposition {
+	data object NoDescriptor : PreviousExitRecoveryDescriptorDisposition
+
+	data class Preserved(
+		val descriptor: ActiveTrackingSessionDescriptor,
+	) : PreviousExitRecoveryDescriptorDisposition
+
+	data class Clear(
+		val descriptor: ActiveTrackingSessionDescriptor,
+	) : PreviousExitRecoveryDescriptorDisposition
+}
 
 internal class PreviousExitCallerAuthorityUnavailableException(
 	val failureCode: String,

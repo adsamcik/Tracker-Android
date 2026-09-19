@@ -43,10 +43,31 @@ import com.adsamcik.tracker.tracker.api.SourceCallerDemandIdentity
 import com.adsamcik.tracker.tracker.api.SourceCallerManifestIdentity
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.TrackingPurpose
+import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
 import java.security.MessageDigest
 import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
+
+internal enum class SourceCallerAuthorityRetirementRetryReason {
+	STORAGE_UNAVAILABLE,
+	COMPARE_AND_SET_FAILED,
+	CURRENT_AUTHORITY_CHANGED,
+}
+
+internal sealed interface SourceCallerAuthorityRetirementOutcome {
+	data object Completed : SourceCallerAuthorityRetirementOutcome
+
+	data class Retryable(
+		val reason: SourceCallerAuthorityRetirementRetryReason,
+	) : SourceCallerAuthorityRetirementOutcome
+
+	data object TerminalMissing : SourceCallerAuthorityRetirementOutcome
+	data object TerminalCorrupt : SourceCallerAuthorityRetirementOutcome
+	data object TerminalInvariant : SourceCallerAuthorityRetirementOutcome
+	data object TerminalAmbiguous : SourceCallerAuthorityRetirementOutcome
+}
 
 /**
  * Durable authority for source consumers and physical registration eligibility.
@@ -524,26 +545,141 @@ class SourceBroker @Inject internal constructor(
 		true
 	}
 
-	/** Retires every non-current session authority after its new DataStore reference is visible. */
+	/**
+	 * Retires the recorded predecessor after proving every other historical reference is terminal.
+	 */
 	internal suspend fun retireSupersededSessionAuthoritiesInTransaction(
 		logicalTrackingId: String,
 		currentReference: SourceCallerReplayReference,
 		expectedSupersededReference: SourceCallerReplayReference,
 		wallTimeMs: Long,
-	): Boolean {
-		val references = (
-			currentAuthorityReferences(sessionConsumerId(logicalTrackingId)) +
-				database.sourceSessionDao().lifecycleIntents(logicalTrackingId)
-					.mapNotNull { intent -> intent.sourceCallerAuthorityReference }
-					.mapNotNull(String::toCallerReferenceOrNull)
-		).toSet()
+	): SourceCallerAuthorityRetirementOutcome {
+		if (currentReference == expectedSupersededReference || wallTimeMs < 0L) {
+			return SourceCallerAuthorityRetirementOutcome.TerminalInvariant
+		}
+		val persistedReferenceValues =
+			database.sourceBrokerDao().callerAuthorityReferences(
+				sessionConsumerId(logicalTrackingId),
+			) + database.sourceSessionDao().lifecycleIntents(logicalTrackingId)
+				.mapNotNull { intent -> intent.sourceCallerAuthorityReference }
+		val references = persistedReferenceValues
+			.mapNotNull(String::toCallerReferenceOrNull)
+			.toSet()
+		if (references.size != persistedReferenceValues.toSet().size) {
+			return SourceCallerAuthorityRetirementOutcome.TerminalCorrupt
+		}
 		val superseded = references
 			.filterTo(linkedSetOf()) { reference -> reference != currentReference }
-		if (expectedSupersededReference !in superseded) return false
-		return retireAuthorityReferences(
-			superseded,
+		if (expectedSupersededReference !in superseded) {
+			return when (val expected = loadCallerAuthorityForRetirement(
+				expectedSupersededReference,
+			)) {
+				CallerAuthorityRetirementLoad.Available ->
+					SourceCallerAuthorityRetirementOutcome.TerminalInvariant
+				CallerAuthorityRetirementLoad.Corrupt ->
+					SourceCallerAuthorityRetirementOutcome.TerminalCorrupt
+				CallerAuthorityRetirementLoad.Missing ->
+					SourceCallerAuthorityRetirementOutcome.TerminalMissing
+				CallerAuthorityRetirementLoad.Retired ->
+					SourceCallerAuthorityRetirementOutcome.Completed
+				is CallerAuthorityRetirementLoad.Failed -> expected.outcome
+			}
+		}
+		for (reference in superseded) {
+			if (reference == expectedSupersededReference) continue
+			when (val historical = loadCallerAuthorityForRetirement(reference)) {
+				CallerAuthorityRetirementLoad.Available ->
+					return SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous
+				CallerAuthorityRetirementLoad.Corrupt ->
+					return SourceCallerAuthorityRetirementOutcome.TerminalCorrupt
+				CallerAuthorityRetirementLoad.Missing,
+				CallerAuthorityRetirementLoad.Retired,
+				-> Unit
+				is CallerAuthorityRetirementLoad.Failed -> return historical.outcome
+			}
+		}
+		return retireExactCallerAuthority(
+			expectedSupersededReference,
 			"SESSION_AUTHORITY_SUPERSEDED",
 			wallTimeMs,
+		)
+	}
+
+	private suspend fun retireExactCallerAuthority(
+		reference: SourceCallerReplayReference,
+		reason: String,
+		wallTimeMs: Long,
+	): SourceCallerAuthorityRetirementOutcome =
+		when (val loaded = loadCallerAuthorityForRetirement(reference)) {
+			CallerAuthorityRetirementLoad.Missing,
+			CallerAuthorityRetirementLoad.Retired,
+			-> SourceCallerAuthorityRetirementOutcome.Completed
+			CallerAuthorityRetirementLoad.Corrupt ->
+				SourceCallerAuthorityRetirementOutcome.TerminalCorrupt
+			is CallerAuthorityRetirementLoad.Failed -> loaded.outcome
+			CallerAuthorityRetirementLoad.Available -> {
+				val retired = try {
+					sourceCallerAuthorityRepository.retireForTeardown(
+						reference,
+						reason,
+						wallTimeMs,
+					)
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (failure: Exception) {
+					return if (failure.isTrackingOperationalFailure()) {
+						SourceCallerAuthorityRetirementOutcome.Retryable(
+							SourceCallerAuthorityRetirementRetryReason.STORAGE_UNAVAILABLE,
+						)
+					} else {
+						SourceCallerAuthorityRetirementOutcome.TerminalInvariant
+					}
+				}
+				if (!retired) {
+					SourceCallerAuthorityRetirementOutcome.Retryable(
+						SourceCallerAuthorityRetirementRetryReason.COMPARE_AND_SET_FAILED,
+					)
+				} else {
+					when (val confirmed = loadCallerAuthorityForRetirement(reference)) {
+						CallerAuthorityRetirementLoad.Missing,
+						CallerAuthorityRetirementLoad.Retired,
+						-> SourceCallerAuthorityRetirementOutcome.Completed
+						CallerAuthorityRetirementLoad.Corrupt ->
+							SourceCallerAuthorityRetirementOutcome.TerminalCorrupt
+						CallerAuthorityRetirementLoad.Available ->
+							SourceCallerAuthorityRetirementOutcome.Retryable(
+								SourceCallerAuthorityRetirementRetryReason.COMPARE_AND_SET_FAILED,
+							)
+						is CallerAuthorityRetirementLoad.Failed -> confirmed.outcome
+					}
+				}
+			}
+		}
+
+	private suspend fun loadCallerAuthorityForRetirement(
+		reference: SourceCallerReplayReference,
+	): CallerAuthorityRetirementLoad = try {
+		when (val loaded = sourceCallerAuthorityRepository.load(reference)) {
+			is StoredSourceCallerAuthorityLoadResult.Available ->
+				CallerAuthorityRetirementLoad.Available
+			StoredSourceCallerAuthorityLoadResult.Missing ->
+				CallerAuthorityRetirementLoad.Missing
+			StoredSourceCallerAuthorityLoadResult.Corrupt ->
+				CallerAuthorityRetirementLoad.Corrupt
+			StoredSourceCallerAuthorityLoadResult.Retired ->
+				CallerAuthorityRetirementLoad.Retired
+		}
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (failure: Exception) {
+		CallerAuthorityRetirementLoad.Failed(
+			if (failure.isTrackingOperationalFailure()) {
+				SourceCallerAuthorityRetirementOutcome.Retryable(
+					SourceCallerAuthorityRetirementRetryReason.STORAGE_UNAVAILABLE,
+				)
+			} else {
+				SourceCallerAuthorityRetirementOutcome.TerminalInvariant
+			},
 		)
 	}
 
@@ -570,6 +706,17 @@ class SourceBroker @Inject internal constructor(
 			}
 		}
 		return complete
+	}
+
+	private sealed interface CallerAuthorityRetirementLoad {
+		data object Available : CallerAuthorityRetirementLoad
+		data object Missing : CallerAuthorityRetirementLoad
+		data object Corrupt : CallerAuthorityRetirementLoad
+		data object Retired : CallerAuthorityRetirementLoad
+
+		data class Failed(
+			val outcome: SourceCallerAuthorityRetirementOutcome,
+		) : CallerAuthorityRetirementLoad
 	}
 
 	private suspend fun retireDemandAuthority(
