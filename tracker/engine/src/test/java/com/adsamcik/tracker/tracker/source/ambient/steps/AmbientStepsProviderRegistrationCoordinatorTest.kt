@@ -4,18 +4,13 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionDecision
-import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecision
-import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
-import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
-import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
-import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
@@ -24,6 +19,8 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.AmbientStepsDemandResult
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import com.adsamcik.tracker.tracker.source.runtime.TestLiveAmbientRetentionAuthorityReader
+import com.adsamcik.tracker.tracker.source.runtime.LiveAmbientRetentionSnapshot
 import io.kotest.matchers.shouldBe
 import java.io.File
 import kotlinx.coroutines.flow.Flow
@@ -48,12 +45,19 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 	private lateinit var local: FakeAmbientStepsProviderBackend
 	private lateinit var health: FakeAmbientStepsProviderBackend
 	private lateinit var subject: AmbientStepsProviderRegistrationCoordinator
+	private lateinit var retentionSnapshot: LiveAmbientRetentionSnapshot
 	private var policyElapsed = 1L
 
 	@Before
 	fun setUp() = runTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
+		database.sourceEvidenceStateDao().ensure(
+			com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState(
+				collectedDataEpoch = 3L,
+				updatedAtMs = 1L,
+			),
+		)
 		cleanupFile = File(context.cacheDir, "ambient-steps-provider-coordinator-cleanup")
 		deleteCleanupFiles()
 		cleanupStore = AmbientStepsProviderCleanupStore(cleanupFile)
@@ -70,8 +74,9 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 			),
 			rolloutRevision = 1L,
 		)
-		broker = SourceBroker(database, rollout)
-		val snapshot = RoomSourcePolicyRepository(database) {
+		val retentionReader = TestLiveAmbientRetentionAuthorityReader()
+		broker = SourceBroker(database, rollout, retentionReader)
+		val policy = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime(BOOT_ID, policyElapsed++, policyElapsed)
 		}.bootstrapFromLegacy(
 			TrackingParamsState(
@@ -80,20 +85,13 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 				legacySettingsMigrationCompleted = true,
 			),
 		)
-		database.sourceEvidenceStateDao().ensure()
-		database.sourceEvidenceStateDao().updateLifecycle(3L, null, 3L)
-		database.applyAmbientStepsRetentionDecision(
-			AmbientStepsRetentionDecision.GrantLiveAmbient(
-				opaquePolicyId = "test-retention",
-				expectedCollectedDataEpoch = 3L,
-				expectedSourcePolicyRevision = snapshot.revision,
-				expectedAmbientConsentEpoch = requireNotNull(
-					snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch,
-				),
-				effectiveBootId = BOOT_ID,
-				effectiveElapsedRealtimeNanos = 50L,
-				effectiveWallTimeMs = 50L,
-			),
+		retentionSnapshot = retentionReader.installCurrent(
+			database,
+			TrackingSourceComponent.STEPS,
+			policy.revision,
+			requireNotNull(policy[TrackingSourceComponent.STEPS].ambientConsentEpoch),
+			3L,
+			BOOT_ID,
 		)
 		lifecycleStore = CoordinatorLifecycleStore(
 			CollectedDataLifecycleSnapshot(epoch = 3L, retainedFromMs = null),
@@ -102,6 +100,7 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 			database = database,
 			lifecycleStore = lifecycleStore,
 			bootClockDomainProvider = BootClockDomainProvider { BOOT_ID },
+			sourceBroker = broker,
 		)
 		local = FakeAmbientStepsProviderBackend(AmbientStepsProvider.LOCAL_RECORDING_STEPS)
 		health = FakeAmbientStepsProviderBackend(AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS)
@@ -112,39 +111,6 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 	fun tearDown() {
 		database.close()
 		deleteCleanupFiles()
-	}
-
-	private suspend fun SourceBroker.replaceAmbientStepsDemand(
-		consumerId: String,
-		mechanism: AmbientStepsAcquisitionMechanism?,
-		bootId: String,
-		elapsedRealtimeNanos: Long,
-		wallTimeMs: Long,
-	): AmbientStepsDemandResult {
-		val retention = requireNotNull(
-			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
-				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
-			),
-		)
-		return replaceAmbientStepsDemand(
-			consumerId = consumerId,
-			mechanism = mechanism,
-			leaseIdentity = AmbientReconciliationIdentity(
-				source = AmbientTrackingSource.STEPS,
-				policyRevision = requireNotNull(retention.sourcePolicyRevision),
-				consentEpoch = requireNotNull(retention.ambientConsentEpoch),
-				collectedDataEpoch = retention.collectedDataEpoch,
-				rolloutRevision = 1L,
-				ownerCasToken = "ambient-steps-coordinator-test",
-				executionRevision = 1L,
-				retainedFromMs = retention.retainedFromMs,
-				retentionPolicyId = retention.opaquePolicyId,
-				retentionApprovalRevision = retention.approvalRevision,
-			),
-			bootId = bootId,
-			elapsedRealtimeNanos = elapsedRealtimeNanos,
-			wallTimeMs = wallTimeMs,
-		)
 	}
 
 	@Test
@@ -419,6 +385,7 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 			bootId = BOOT_ID,
 			elapsedRealtimeNanos = at,
 			wallTimeMs = at,
+			retentionSnapshot = retentionSnapshot,
 		) as AmbientStepsDemandResult.Active
 		return AmbientStepsDemandReconciliation.DemandReady(
 			provider = provider,

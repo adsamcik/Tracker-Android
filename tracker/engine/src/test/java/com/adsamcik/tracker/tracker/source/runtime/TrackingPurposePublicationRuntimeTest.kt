@@ -337,16 +337,18 @@ class TrackingPurposePublicationRuntimeTest {
 				): String = "rotation-${++token}"
 			},
 		)
+		val executionRegistry = TrackingPurposeExecutionRevisionRegistry()
 		val runtime = DefaultTrackingPurposePublicationRuntime(
 			issuer,
 			store,
-			TrackingPurposeExecutionRevisionRegistry(),
+			executionRegistry,
 			UnavailableRetentionAuthorityProducerForTest,
 		)
 		val secondLease = CompletableDeferred<TrackingPurposeLeaseIdentity>()
 		val releaseSecond = CompletableDeferred<Unit>()
 		var oldIdentity: TrackingPurposeLeaseIdentity? = null
 		runtime.registerAutomaticControlOwner(executionRevision = 1L) { lease ->
+			executionRegistry.identities.value[lease.identity.sourcePurpose] shouldBe lease.identity
 			if (lease.identity.collectedDataEpoch == 3L) {
 				oldIdentity = lease.identity
 			} else {
@@ -525,7 +527,63 @@ class TrackingPurposePublicationRuntimeTest {
 	}
 
 	@Test
-	fun `built in Wi-Fi owner starts only for an approved floor source`() = runTest {
+	fun `completed ambient lease permits only exact reduction and cannot retire its successor`() =
+		runTest {
+			val store = AtomicTrackingPurposeAvailabilityStore()
+			val authority = authority(
+				source = TrackingSource.WIFI,
+				purpose = TrackingPurpose.AMBIENT_PRODUCT,
+				executionRevision = 3L,
+				retainedFromMs = 200L,
+			)
+			var token = 0
+			val issuer = SerializedTrackingPurposeLeaseIssuer(
+				authorityReader = TrackingPurposeAuthorityReader { sourcePurpose, execution ->
+					authority.takeIf { it.sourcePurpose == sourcePurpose }
+						?.copy(executionRevision = execution)
+				},
+				reporter = store,
+				tokenFactory = TrackingPurposeOwnerCasTokenFactory { "wifi-${++token}" },
+			)
+			val runtime = DefaultTrackingPurposePublicationRuntime(
+				issuer,
+				store,
+				TrackingPurposeExecutionRevisionRegistry(),
+				AlwaysApprovedRetentionAuthorityProducer,
+			)
+			val leases = mutableListOf<com.adsamcik.tracker.tracker.api.AmbientReconciliationLease>()
+			runtime.registerAmbientSourceOwner(
+				AmbientTrackingSource.WIFI,
+				executionRevision = 3L,
+			) { lease ->
+				leases += lease
+				AmbientSourceOperationalAvailability.ready(
+					AmbientTrackingSource.WIFI,
+					AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS,
+					lease.purposeLeaseIdentity,
+				)
+			}
+			val first = leases.single()
+
+			issuer.mutateAmbientIfCurrent(first.identity) { "activate" } shouldBe
+				AmbientRadioLeaseMutation.Stale
+			issuer.mutateReductionIfRetained(first.identity) { "retire" } shouldBe
+				AmbientRadioLeaseMutation.Applied("retire")
+
+			runtime.reconcileCurrentSettings()
+			leases.size shouldBe 2
+			val successor = leases.last()
+			successor.identity.ownerCasToken shouldBe "wifi-2"
+			issuer.mutateReductionIfRetained(first.identity) { "stale-retire" } shouldBe
+				AmbientRadioLeaseMutation.Stale
+			issuer.mutateAmbientIfCurrent(successor.identity) { "activate-successor" } shouldBe
+				AmbientRadioLeaseMutation.Stale
+			issuer.mutateReductionIfRetained(successor.identity) { "retire-successor" } shouldBe
+				AmbientRadioLeaseMutation.Applied("retire-successor")
+		}
+
+	@Test
+	fun `built in Wi-Fi owner starts only  for an approved floor source`() = runTest {
 		val store = AtomicTrackingPurposeAvailabilityStore()
 		val authority = authority(
 			source = TrackingSource.WIFI,

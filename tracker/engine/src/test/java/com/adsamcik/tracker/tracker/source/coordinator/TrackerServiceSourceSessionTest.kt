@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
@@ -15,20 +16,30 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.source.battery.QualitativeBatteryImpactEstimator
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStore
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreResult
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
+import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementOutcome
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementRetryReason
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import java.io.IOException
 import javax.inject.Provider
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
@@ -52,6 +63,7 @@ class TrackerServiceSourceSessionTest {
 	private lateinit var startupGate: FakeTrackingStartupGate
 	private lateinit var rolloutStore: RoomTrackingRolloutStateStore
 	private lateinit var statusProvider: DefaultTrackingSettingsStatusProvider
+	private lateinit var activeSessionStore: ActiveTrackingSessionStore
 
 	@Before
 	fun setUp() {
@@ -69,6 +81,7 @@ class TrackerServiceSourceSessionTest {
 			QualitativeBatteryImpactEstimator(),
 			TrackingCoordinatorTelemetry(),
 		)
+		activeSessionStore = mockk()
 		subject = TrackerServiceSourceSession(
 			database,
 			lifecycle,
@@ -78,6 +91,7 @@ class TrackerServiceSourceSessionTest {
 			statusProvider,
 			Provider { startupGate },
 			rolloutStore,
+			activeSessionStore,
 		)
 	}
 
@@ -330,6 +344,181 @@ class TrackerServiceSourceSessionTest {
 
 		coVerify(exactly = 1) { lifecycle.stop(any()) }
 		coVerify(exactly = 0) { lifecycle.suspendForRestart(any()) }
+	}
+
+	@Test
+	fun `restarted prepared session reloads predecessor retirement debt before graceful stop`() =
+		runTest {
+			installCanonicalProductLanesForTest(
+				database = database,
+				bindings = listOf(TEST_STEPS_BINDING),
+				rolloutRevision = 5L,
+				updatedAtMs = 1L,
+			)
+			val rollout = rolloutStore.load()
+			database.sourceSessionDao().insertServiceRun(
+				SourceServiceRunEntity(
+					serviceRunId = "run",
+					logicalTrackingId = "logical",
+					state = SessionLifecycleState.STARTING.name,
+					desiredPlanRevision = 1L,
+					rolloutRevision = rollout.revision,
+					foregroundCapabilityFlags = 1L,
+					startedAtMs = 1L,
+					startedElapsedNanos = 1L,
+					completedAtMs = null,
+					completionReason = null,
+				),
+			)
+			val predecessor = SourceCallerReplayReference("restart-predecessor")
+			val current = SourceCallerReplayReference("restart-current")
+			val descriptor = ActiveTrackingSessionDescriptor(
+				isUserInitiated = true,
+				isAmbient = false,
+				policyTier = PolicyTier.PRECISION,
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				sourceCallerAuthorityReference = current,
+				pendingRetirementSourceCallerAuthorityReference = predecessor,
+			)
+			val intent = mockk<SessionLifecycleIntentVersionEntity>()
+			every { intent.sourceCallerAuthorityReference } returns current.value
+			coEvery {
+				lifecycle.applyPreparedAndroidStart(any(), any(), any(), any(), any())
+			} returns SessionStartResult.Started(
+				"logical",
+				"run",
+				emptyList(),
+				DesiredPlanStatus.EFFECTIVE,
+				current,
+			)
+			coEvery { activeSessionStore.read() } returns
+				ActiveTrackingSessionStoreResult.Success(descriptor)
+			coEvery {
+				lifecycle.retireSupersededSourceCallerAuthority(
+					"logical",
+					current,
+					predecessor,
+					any(),
+				)
+			} returns SourceCallerAuthorityRetirementOutcome.Retryable(
+				SourceCallerAuthorityRetirementRetryReason.COMPARE_AND_SET_FAILED,
+			)
+			coEvery { lifecycle.stop(any()) } returns SessionStopResult.NoActiveSession
+			coEvery { lifecycle.suspendForRestart(any()) } returns SessionSuspendResult.NoActiveSession
+
+			subject.applyPreparedAndroidStart(
+				claim = ClaimedPreparedSessionStart(
+					token = PreparedTrackingStartToken("prepared-restart"),
+					logicalTrackingId = "logical",
+					serviceRunId = "run",
+					manifestRevision = 1L,
+					intentRevision = 1L,
+					planRevision = 1L,
+					sourcePolicyRevision = 1L,
+					startOrigin = SessionStartOrigin.RECOVERY,
+					sessionMode = SessionMode.MANUAL,
+					acceptedSources = setOf(SourceKind.STEPS),
+					desiredForegroundCapabilityFlags = 1L,
+					intent = intent,
+					automaticTrigger = null,
+					isUserInitiated = true,
+					isAmbient = false,
+					alreadyForegroundAccepted = true,
+				),
+				commandGeneration = 1L,
+				planInputs = inputs(
+					settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L),
+				),
+				persistedDescriptor = descriptor,
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+
+			subject.persistedDescriptorForActiveSession(current) shouldBe descriptor
+			subject.stop(
+				reason = "GRACEFUL_STOP_AFTER_RESTART",
+				preserveLogicalSession = false,
+			) shouldBe SourceSessionStopOutcome.Retryable(
+				SourceSessionStopRetryCode.CLEANUP_PENDING,
+			)
+
+			coVerify(exactly = 1) {
+				lifecycle.retireSupersededSourceCallerAuthority(
+					"logical",
+					current,
+					predecessor,
+					any(),
+				)
+			}
+			coVerify(exactly = 0) { lifecycle.stop(any()) }
+		}
+
+	@Test
+	fun `terminal predecessor retirement falls through to full session cleanup`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val current = SourceCallerReplayReference("terminal-current")
+		val predecessor = SourceCallerReplayReference("terminal-predecessor")
+		val descriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = current,
+			pendingRetirementSourceCallerAuthorityReference = predecessor,
+		)
+		val intent = mockk<SessionLifecycleIntentVersionEntity>()
+		every { intent.sourceCallerAuthorityReference } returns current.value
+		coEvery {
+			lifecycle.applyPreparedAndroidStart(any(), any(), any(), any(), any())
+		} returns SessionStartResult.Started(
+			"logical",
+			"run",
+			emptyList(),
+			DesiredPlanStatus.EFFECTIVE,
+			current,
+		)
+		coEvery { activeSessionStore.read() } returns
+			ActiveTrackingSessionStoreResult.Success(descriptor)
+		coEvery {
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical",
+				current,
+				predecessor,
+				any(),
+			)
+		} returns SourceCallerAuthorityRetirementOutcome.TerminalCorrupt
+		coEvery { lifecycle.stop(any()) } returns SessionStopResult.NoActiveSession
+
+		subject.applyPreparedAndroidStart(
+			claim = ClaimedPreparedSessionStart(
+				token = PreparedTrackingStartToken("terminal-cleanup"),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				manifestRevision = 1L,
+				intentRevision = 1L,
+				planRevision = 1L,
+				sourcePolicyRevision = 1L,
+				startOrigin = SessionStartOrigin.RECOVERY,
+				sessionMode = SessionMode.MANUAL,
+				acceptedSources = setOf(SourceKind.STEPS),
+				desiredForegroundCapabilityFlags = 1L,
+				intent = intent,
+				automaticTrigger = null,
+				isUserInitiated = true,
+				isAmbient = false,
+				alreadyForegroundAccepted = true,
+			),
+			commandGeneration = 1L,
+			planInputs = inputs(
+				settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L),
+			),
+			persistedDescriptor = descriptor,
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+
+		subject.stop("TERMINAL_CALLER_CLEANUP", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Stopped
+
+		coVerify(exactly = 1) { lifecycle.stop(any()) }
 	}
 
 	@Test
@@ -662,6 +851,195 @@ class TrackerServiceSourceSessionTest {
 	}
 
 	@Test
+	fun `reconfiguration persists new caller reference before retiring predecessor`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
+		val changed = settings(SourceCollectionFrequency.BATTERY_SAVER, sourcePolicyRevision = 2)
+		val oldReference = SourceCallerReplayReference("authority-old")
+		val newReference = SourceCallerReplayReference("authority-new")
+		val descriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = oldReference,
+		)
+		val recordedDebt = descriptor.copy(
+			sourceCallerAuthorityReference = newReference,
+			pendingRetirementSourceCallerAuthorityReference = oldReference,
+		)
+		val replacement = recordedDebt.copy(
+			pendingRetirementSourceCallerAuthorityReference = null,
+		)
+		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+			"logical",
+			"run",
+			emptyList(),
+			DesiredPlanStatus.EFFECTIVE,
+			oldReference,
+		)
+		coEvery { lifecycle.reconfigure(any()) } returns SessionReconfigureResult.Applied(
+			revision = 2L,
+			applied = emptyList(),
+			status = DesiredPlanStatus.EFFECTIVE,
+			sourceCallerAuthorityReference = newReference,
+		)
+		coEvery { activeSessionStore.read() } returns
+			ActiveTrackingSessionStoreResult.Success(descriptor)
+		coEvery { activeSessionStore.replaceExact(descriptor, recordedDebt) } returns
+			ActiveTrackingSessionStoreResult.Success(recordedDebt)
+		coEvery { activeSessionStore.replaceExact(recordedDebt, replacement) } returns
+			ActiveTrackingSessionStoreResult.Success(replacement)
+		coEvery {
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical",
+				newReference,
+				oldReference,
+				any(),
+			)
+		} returns SourceCallerAuthorityRetirementOutcome.Completed
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, initial),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(initial),
+				ownerToken = "owner",
+			),
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+		subject.reconfigure(inputs(changed))
+			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
+
+		coVerifyOrder {
+			activeSessionStore.replaceExact(descriptor, recordedDebt)
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical",
+				newReference,
+				oldReference,
+				any(),
+			)
+			activeSessionStore.replaceExact(recordedDebt, replacement)
+		}
+	}
+
+	@Test
+	fun `failed predecessor retirement persists exact cleanup debt with the replacement`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
+		val changed = settings(SourceCollectionFrequency.BATTERY_SAVER, sourcePolicyRevision = 2)
+		val oldReference = SourceCallerReplayReference("authority-old")
+		val newReference = SourceCallerReplayReference("authority-new")
+		val descriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = oldReference,
+		)
+		val recordedDebt = descriptor.copy(
+			sourceCallerAuthorityReference = newReference,
+			pendingRetirementSourceCallerAuthorityReference = oldReference,
+		)
+		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+			"logical", "run", emptyList(), DesiredPlanStatus.EFFECTIVE, oldReference,
+		)
+		coEvery { lifecycle.reconfigure(any()) } returns SessionReconfigureResult.Applied(
+			2L, emptyList(), DesiredPlanStatus.EFFECTIVE, newReference,
+		)
+		coEvery { activeSessionStore.read() } returns
+			ActiveTrackingSessionStoreResult.Success(descriptor)
+		coEvery { activeSessionStore.replaceExact(descriptor, recordedDebt) } returns
+			ActiveTrackingSessionStoreResult.Success(recordedDebt)
+		coEvery {
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical", newReference, oldReference, any(),
+			)
+		} returns SourceCallerAuthorityRetirementOutcome.Retryable(
+			SourceCallerAuthorityRetirementRetryReason.COMPARE_AND_SET_FAILED,
+		)
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, initial),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(initial),
+				ownerToken = "owner",
+			),
+		)
+
+		subject.reconfigure(inputs(changed))
+			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Rejected>()
+
+		coVerifyOrder {
+			activeSessionStore.replaceExact(descriptor, recordedDebt)
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical", newReference, oldReference, any(),
+			)
+		}
+		coVerify(exactly = 0) {
+			activeSessionStore.replaceExact(recordedDebt, descriptor)
+		}
+	}
+
+	@Test
+	fun `reconfiguration keeps predecessor authority live when descriptor propagation is unavailable`() =
+		runTest {
+			val rollout = allEventCanonical(revision = 5)
+			val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
+			val changed = settings(SourceCollectionFrequency.BATTERY_SAVER, sourcePolicyRevision = 2)
+			val oldReference = SourceCallerReplayReference("authority-old")
+			val newReference = SourceCallerReplayReference("authority-new")
+			coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+				"logical",
+				"run",
+				emptyList(),
+				DesiredPlanStatus.EFFECTIVE,
+				oldReference,
+			)
+			coEvery { lifecycle.reconfigure(any()) } returns SessionReconfigureResult.Applied(
+				revision = 2L,
+				applied = emptyList(),
+				status = DesiredPlanStatus.EFFECTIVE,
+				sourceCallerAuthorityReference = newReference,
+			)
+			coEvery { activeSessionStore.read() } returns ActiveTrackingSessionStoreResult.Failure(
+				IOException("temporarily unavailable"),
+			)
+			subject.start(
+				SourceSessionStartRequest(
+					rollout = rollout,
+					ownership = TrackingSessionOwnership.resolve(rollout, initial),
+					logicalTrackingId = "logical",
+					serviceRunId = "run",
+					origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+					foregroundCapabilityFlags = 1L,
+					planInputs = inputs(initial),
+					ownerToken = "owner",
+				),
+			).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+			subject.reconfigure(inputs(changed)) shouldBe
+				SourceSessionReconfigureOutcome.Rejected(
+					SessionReconfigureResult.InvalidState(
+						"SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED",
+					),
+				)
+
+			coVerify(exactly = 0) {
+				lifecycle.retireSupersededSourceCallerAuthority(any(), any(), any(), any())
+			}
+		}
+
+	@Test
 	fun `closed startup gate rejects all reconfiguration while stop remains the cleanup authority`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
 		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
@@ -725,6 +1103,155 @@ class TrackerServiceSourceSessionTest {
 
 		coVerify(exactly = 1) { lifecycle.suspendForRestart(any()) }
 		startupGate.reconcileCalls shouldBe 1
+	}
+
+	@Test
+	fun `restart suspension persists fresh lease authority before retiring predecessor`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
+		val oldReference = SourceCallerReplayReference("suspend-old")
+		val newReference = SourceCallerReplayReference("suspend-new")
+		val descriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = oldReference,
+		)
+		val recordedDebt = descriptor.copy(
+			sourceCallerAuthorityReference = newReference,
+			pendingRetirementSourceCallerAuthorityReference = oldReference,
+		)
+		val replacement = recordedDebt.copy(
+			pendingRetirementSourceCallerAuthorityReference = null,
+		)
+		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+			"logical",
+			"run",
+			emptyList(),
+			DesiredPlanStatus.EFFECTIVE,
+			oldReference,
+		)
+		coEvery { lifecycle.suspendForRestart(any()) } returns SessionSuspendResult.Suspended(
+			logicalTrackingId = "logical",
+			finalAdmissionOrdinal = 0L,
+			acknowledgements = emptyList(),
+			incomplete = false,
+			sourceCallerAuthorityReference = newReference,
+		)
+		coEvery { activeSessionStore.read() } returns
+			ActiveTrackingSessionStoreResult.Success(descriptor)
+		coEvery { activeSessionStore.replaceExact(descriptor, recordedDebt) } returns
+			ActiveTrackingSessionStoreResult.Success(recordedDebt)
+		coEvery { activeSessionStore.replaceExact(recordedDebt, replacement) } returns
+			ActiveTrackingSessionStoreResult.Success(replacement)
+		coEvery {
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical",
+				newReference,
+				oldReference,
+				any(),
+			)
+		} returns SourceCallerAuthorityRetirementOutcome.Completed
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, enabled),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(enabled),
+				ownerToken = "owner",
+			),
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+		subject.stop("ANDROID_RESTART", preserveLogicalSession = true) shouldBe
+			SourceSessionStopOutcome.Stopped
+
+		coVerifyOrder {
+			activeSessionStore.replaceExact(descriptor, recordedDebt)
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical",
+				newReference,
+				oldReference,
+				any(),
+			)
+			activeSessionStore.replaceExact(recordedDebt, replacement)
+		}
+	}
+
+	@Test
+	fun `completed suspension retries only descriptor propagation after storage recovers`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
+		val oldReference = SourceCallerReplayReference("suspend-retry-old")
+		val newReference = SourceCallerReplayReference("suspend-retry-new")
+		val descriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = oldReference,
+		)
+		val recordedDebt = descriptor.copy(
+			sourceCallerAuthorityReference = newReference,
+			pendingRetirementSourceCallerAuthorityReference = oldReference,
+		)
+		val replacement = recordedDebt.copy(
+			pendingRetirementSourceCallerAuthorityReference = null,
+		)
+		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+			"logical",
+			"run",
+			emptyList(),
+			DesiredPlanStatus.EFFECTIVE,
+			oldReference,
+		)
+		coEvery { lifecycle.suspendForRestart(any()) } returns SessionSuspendResult.Suspended(
+			logicalTrackingId = "logical",
+			finalAdmissionOrdinal = 0L,
+			acknowledgements = emptyList(),
+			incomplete = false,
+			sourceCallerAuthorityReference = newReference,
+		)
+		coEvery { activeSessionStore.read() } returnsMany listOf(
+			ActiveTrackingSessionStoreResult.Failure(IOException("temporarily unavailable")),
+			ActiveTrackingSessionStoreResult.Success(descriptor),
+		)
+		coEvery { activeSessionStore.replaceExact(descriptor, recordedDebt) } returns
+			ActiveTrackingSessionStoreResult.Success(recordedDebt)
+		coEvery { activeSessionStore.replaceExact(recordedDebt, replacement) } returns
+			ActiveTrackingSessionStoreResult.Success(replacement)
+		coEvery {
+			lifecycle.retireSupersededSourceCallerAuthority(
+				"logical",
+				newReference,
+				oldReference,
+				any(),
+			)
+		} returns SourceCallerAuthorityRetirementOutcome.Completed
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, enabled),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(enabled),
+				ownerToken = "owner",
+			),
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+		subject.stop("ANDROID_RESTART", preserveLogicalSession = true) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.STORAGE_UNAVAILABLE)
+		subject.stop("ANDROID_RESTART", preserveLogicalSession = true) shouldBe
+			SourceSessionStopOutcome.Stopped
+
+		coVerify(exactly = 1) { lifecycle.suspendForRestart(any()) }
 	}
 
 	@Test

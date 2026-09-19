@@ -24,4 +24,8 @@ message ActiveTrackingSessionProto {
   string restart_token = 13;
   // Exact derived aggregate row used only for safe process-death continuity. Zero means unknown.
   int64 session_segment_id = 14;
+  // Opaque engine-issued reference to the exact accepted source-caller authority.
+  string source_caller_authority_reference = 15;
+  // Exact predecessor retained as durable cleanup debt until Room retirement succeeds.
+  string pending_retirement_source_caller_authority_reference = 16;
 }

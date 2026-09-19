@@ -3520,6 +3520,9 @@ val MIGRATION_27_28: Migration = object : Migration(
 					retire_boot_id TEXT,
 					retire_elapsed_realtime_nanos INTEGER,
 					retired_at_ms INTEGER,
+					source_caller_authority_reference TEXT,
+					live_ambient_retention_policy_id TEXT,
+					live_ambient_retention_approval_revision INTEGER,
 					PRIMARY KEY(demand_id)
 				)
 				""".trimIndent(),
@@ -3535,6 +3538,49 @@ val MIGRATION_27_28: Migration = object : Migration(
 			execSQL(
 				"CREATE INDEX IF NOT EXISTS idx_source_demand_manifest " +
 					"ON source_demand(logical_tracking_id, manifest_revision)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_source_demand_caller_authority " +
+					"ON source_demand(source_caller_authority_reference)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS source_caller_accepted_authority (
+					reference TEXT NOT NULL,
+					format_version INTEGER NOT NULL,
+					origin TEXT NOT NULL,
+					accepted_purpose TEXT NOT NULL,
+					source_kind INTEGER NOT NULL,
+					purpose TEXT NOT NULL,
+					policy_revision INTEGER NOT NULL,
+					consent_epoch INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					retained_from_ms INTEGER,
+					rollout_revision INTEGER NOT NULL,
+					execution_revision INTEGER NOT NULL,
+					owner_cas_token TEXT NOT NULL,
+					logical_tracking_id TEXT,
+					manifest_revision INTEGER,
+					status TEXT NOT NULL,
+					created_at_ms INTEGER NOT NULL,
+					retired_at_ms INTEGER,
+					retire_reason TEXT,
+					effect_checksum TEXT NOT NULL,
+					PRIMARY KEY(reference, source_kind, purpose)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_source_caller_authority_manifest " +
+					"ON source_caller_accepted_authority(logical_tracking_id, manifest_revision)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_source_caller_authority_retired " +
+					"ON source_caller_accepted_authority(status, retired_at_ms)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_source_caller_authority_status " +
+					"ON source_caller_accepted_authority(status)",
 			)
 			execSQL(
 				"""
@@ -3591,6 +3637,8 @@ val MIGRATION_27_28: Migration = object : Migration(
 					service_run_id TEXT,
 					manifest_revision INTEGER,
 					lifecycle_lease_generation INTEGER,
+					live_ambient_retention_policy_id TEXT,
+					live_ambient_retention_approval_revision INTEGER,
 					PRIMARY KEY(source_kind, registration_generation, authorization_revision, member_id)
 				)
 				""".trimIndent(),
@@ -3685,6 +3733,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 					stop_deadline_elapsed_realtime_nanos INTEGER,
 					intent_checksum TEXT NOT NULL,
 					trigger_collected_data_epoch INTEGER,
+					source_caller_authority_reference TEXT,
 					PRIMARY KEY(logical_tracking_id, intent_revision)
 				)
 				""".trimIndent(),

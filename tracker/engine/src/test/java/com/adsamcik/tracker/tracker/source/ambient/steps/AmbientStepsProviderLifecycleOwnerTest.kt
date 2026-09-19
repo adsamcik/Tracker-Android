@@ -4,7 +4,9 @@ import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.source.runtime.RejectingAmbientRadioMutationLeaseGuard
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runCurrent
@@ -12,6 +14,94 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class AmbientStepsProviderLifecycleOwnerTest {
+	@Test
+	fun `stale parent lease prevents demand and provider mutation`() = runTest {
+		var demandReconciled = false
+		var providerReconciled = false
+		val subject = AmbientStepsProviderLifecycleOwner(
+			currentBoundary = { boundary(10L) },
+			reconcileDemand = { _, _ ->
+				demandReconciled = true
+				unavailable()
+			},
+			reconcileRegistration = { _, _ ->
+				providerReconciled = true
+				error("Provider must remain closed")
+			},
+			closeRegistration = { completeCleanup() },
+			mutationLeaseGuard = RejectingAmbientRadioMutationLeaseGuard,
+		)
+
+		subject.reconcile(lease()) shouldBe AmbientStepsProviderRegistrationResult.Inactive(
+			AmbientStepsDemandReconciliation.PolicyBlocked(
+				provider = null,
+				reason = AmbientStepsDemandBlockReason.STALE_RECONCILIATION_LEASE,
+			),
+		)
+		demandReconciled shouldBe false
+		providerReconciled shouldBe false
+	}
+
+	@Test
+	fun `caller authority rejection still reconciles provider teardown`() = runTest {
+		var providerReconciled = false
+		val demand = AmbientStepsDemandReconciliation.PolicyBlocked(
+			provider = null,
+			reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
+		)
+		val subject = AmbientStepsProviderLifecycleOwner(
+			currentBoundary = { boundary(10L) },
+			reconcileDemand = { demand },
+			reconcileRegistration = { _, _ ->
+				providerReconciled = true
+				AmbientStepsProviderRegistrationResult.Degraded(
+					selectedProvider = AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+					activeRegistrationGeneration = 3L,
+					failure = AmbientStepsProviderRegistrationFailure.PROVIDER_REMOVAL_FAILED,
+					retryable = true,
+				)
+			},
+			closeRegistration = { completeCleanup() },
+		)
+
+		subject.reconcile(lease())
+			.shouldBeInstanceOf<AmbientStepsProviderRegistrationResult.Degraded>()
+			.retryable shouldBe true
+		providerReconciled shouldBe true
+	}
+
+	@Test
+	fun `failed guarded provider reconciliation retires its ambient demand`() = runTest {
+		val boundary = boundary(10L)
+		val demand = AmbientStepsDemandReconciliation.DemandReady(
+			AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+			AmbientStepsImportAccess.FOREGROUND_ONLY,
+			emptySet(),
+			"demand-1",
+		)
+		var retireCount = 0
+		val subject = AmbientStepsProviderLifecycleOwner(
+			currentBoundary = { boundary },
+			reconcileDemand = { demand },
+			reconcileRegistration = { _, _ ->
+				AmbientStepsProviderRegistrationResult.Failed(
+					AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+					AmbientStepsProviderRegistrationFailure.PROVIDER_ACTIVATION_FAILED,
+					retryable = true,
+				)
+			},
+			closeRegistration = { completeCleanup() },
+			retireDemand = { _, _ ->
+				retireCount++
+				true
+			},
+		)
+
+		subject.reconcile(lease())
+			.shouldBeInstanceOf<AmbientStepsProviderRegistrationResult.Failed>()
+		retireCount shouldBe 1
+	}
+
 	@Test
 	fun `reconcile uses one exact boundary for demand and registration`() = runTest {
 		val boundary = boundary(10L)

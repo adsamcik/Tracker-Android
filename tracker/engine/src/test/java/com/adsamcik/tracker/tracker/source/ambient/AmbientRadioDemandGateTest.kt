@@ -11,6 +11,7 @@ import com.adsamcik.tracker.tracker.api.AmbientSourceReconciliationReport
 import com.adsamcik.tracker.tracker.api.AmbientSourceReconciliationResult
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellActivationRequest
 import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellDemandBlockReason
 import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellDemandReconciler
@@ -26,6 +27,7 @@ import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioDemandInactiveRea
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioDemandResult
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioLeaseMutation
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioReconciliationAuthority
+import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioRetirementPlan
 import com.adsamcik.tracker.tracker.source.runtime.AmbientWifiRuntimeJoinResult
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SharedCellSourceController
@@ -45,12 +47,81 @@ import kotlinx.coroutines.test.runTest
 
 class AmbientRadioDemandGateTest {
 	@Test
+	fun `caller guard rejection blocks Wi-Fi addition and still reconciles teardown`() = runTest {
+		val broker = mockk<SourceBroker>()
+		val controller = mockk<SharedWifiSourceController>()
+		val lease = lease(AmbientTrackingSource.WIFI)
+		coEvery { broker.ambientRadioReconciliationAuthority(SourceKind.WIFI) } returns
+			authority(SourceKind.WIFI)
+		coEvery { controller.reconcileAmbientJoin() } returns
+			AmbientWifiRuntimeJoinResult.Inactive(providerKey = null)
+		val subject = AmbientWifiDemandReconciler(
+			broker,
+			com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher(
+				broker,
+			) { false },
+			controller,
+			BootClockDomainProvider { "boot-1" },
+		)
+
+		assertEquals(
+			AmbientWifiDemandReconciliation.Inactive(
+				AmbientWifiDemandBlockReason.STALE_RECONCILIATION_LEASE,
+			),
+			subject.reconcile(lease, AmbientWifiActivationRequest(enabled = true)).outcome,
+		)
+
+		coVerify(exactly = 1) { controller.reconcileAmbientJoin() }
+		coVerify(exactly = 0) {
+			broker.replaceAmbientWifiDemandUnderHeldLease(
+				any(), any(), any(), any(), any(), any(), any(),
+			)
+		}
+	}
+
+	@Test
+	fun `caller guard rejection blocks Cell addition and preserves retryable teardown debt`() = runTest {
+		val broker = mockk<SourceBroker>()
+		val controller = mockk<SharedCellSourceController>()
+		val lease = lease(AmbientTrackingSource.CELL)
+		coEvery { broker.ambientRadioReconciliationAuthority(SourceKind.CELL) } returns
+			authority(SourceKind.CELL)
+		coEvery { controller.reconcileAmbientJoin() } returns
+			AmbientCellRuntimeJoinResult.Unavailable(
+				providerKey = null,
+				reasons = emptySet(),
+				retryable = true,
+			)
+		val subject = AmbientCellDemandReconciler(
+			broker,
+			com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher(
+				broker,
+			) { false },
+			controller,
+			BootClockDomainProvider { "boot-1" },
+		)
+
+		assertTrue(
+			assertIs<AmbientCellDemandReconciliation.Unavailable>(
+				subject.reconcile(lease, AmbientCellActivationRequest(enabled = true)).outcome,
+			).retryable,
+		)
+
+		coVerify(exactly = 1) { controller.reconcileAmbientJoin() }
+		coVerify(exactly = 0) {
+			broker.replaceAmbientCellDemandUnderHeldLease(
+				any(), any(), any(), any(), any(), any(), any(),
+			)
+		}
+	}
+
+	@Test
 	fun `default-off Cell retires the durable join before touching provider state`() = runTest {
 		val broker = mockk<SourceBroker>()
 		val controller = mockk<SharedCellSourceController>()
 		val lease = lease(AmbientTrackingSource.CELL)
 		coEvery {
-			broker.withAmbientRadioMutationLease(
+			broker.withAmbientRadioReductionLease(
 				lease.identity,
 				any<suspend () -> AmbientCellDemandReconciliation>(),
 			)
@@ -72,6 +143,7 @@ class AmbientRadioDemandGateTest {
 			authority(SourceKind.CELL)
 		val subject = AmbientCellDemandReconciler(
 			broker,
+			com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher(broker),
 			controller,
 			BootClockDomainProvider { "boot-1" },
 		)
@@ -88,7 +160,52 @@ class AmbientRadioDemandGateTest {
 	}
 
 	@Test
-	fun `stale Wi-Fi lease cannot enter broker or provider reconciliation`() = runTest {
+	fun `already retired Wi-Fi demand still retries accepted caller authority cleanup`() = runTest {
+		val broker = mockk<SourceBroker>()
+		val controller = mockk<SharedWifiSourceController>()
+		coEvery {
+			broker.ambientRadioRetirementPlan(
+				SourceKind.WIFI,
+				"app:ambient:wifi",
+			)
+		} returns AmbientRadioRetirementPlan.AlreadyRetired
+		coEvery {
+			broker.retirePurposeDemand(
+				consumerId = "app:ambient:wifi",
+				expectedSourceKind = SourceKind.WIFI.stableCode,
+				expectedPurpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+				bootId = any(),
+				elapsedRealtimeNanos = any(),
+				wallTimeMs = any(),
+			)
+		} returns true
+		coEvery { controller.closeAmbientForCollectedDataDeletion() } returns true
+		val subject = AmbientWifiDemandReconciler(
+			broker,
+			com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher(
+				broker,
+			),
+			controller,
+			BootClockDomainProvider { "boot-1" },
+		)
+
+		assertTrue(subject.retireAfterRetentionAuthorityFailure(previousLease = null))
+
+		coVerify(exactly = 1) {
+			broker.retirePurposeDemand(
+				consumerId = "app:ambient:wifi",
+				expectedSourceKind = SourceKind.WIFI.stableCode,
+				expectedPurpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+				bootId = "boot-1",
+				elapsedRealtimeNanos = any(),
+				wallTimeMs = any(),
+			)
+		}
+		coVerify(exactly = 1) { controller.closeAmbientForCollectedDataDeletion() }
+	}
+
+	@Test
+	fun `stale Wi-Fi lease skips broker mutation but still reconciles physical ownership`() = runTest {
 		val broker = mockk<SourceBroker>()
 		val controller = mockk<SharedWifiSourceController>()
 		val lease = lease(AmbientTrackingSource.WIFI)
@@ -100,8 +217,11 @@ class AmbientRadioDemandGateTest {
 		} returns AmbientRadioLeaseMutation.Stale
 		coEvery { broker.ambientRadioReconciliationAuthority(SourceKind.WIFI) } returns
 			authority(SourceKind.WIFI)
+		coEvery { controller.reconcileAmbientJoin() } returns
+			AmbientWifiRuntimeJoinResult.Inactive(providerKey = null)
 		val subject = AmbientWifiDemandReconciler(
 			broker,
+			com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher(broker),
 			controller,
 			BootClockDomainProvider { "boot-1" },
 		)
@@ -114,13 +234,70 @@ class AmbientRadioDemandGateTest {
 			),
 			result.outcome,
 		)
-		coVerify(exactly = 0) { controller.reconcileAmbientJoin() }
+		coVerify(exactly = 1) { controller.reconcileAmbientJoin() }
 		coVerify(exactly = 0) {
 			broker.replaceAmbientWifiDemandUnderHeldLease(
 				any(), any(), any(), any(), any(), any(), any(),
 			)
 		}
 	}
+
+	@Test
+	fun `cold-start Wi-Fi retirement uses durable exact reduction before provider teardown`() =
+		runTest {
+			val broker = mockk<SourceBroker>()
+			val controller = mockk<SharedWifiSourceController>()
+			val lease = lease(AmbientTrackingSource.WIFI)
+			val plan = AmbientRadioRetirementPlan.Required(
+				lease = lease,
+				previousReconciliationAttempt = 4L,
+				expectedDemandId = "wifi-demand",
+				expectedAuthorityRevision = 7L,
+				sourceCallerAuthorityReference = SourceCallerReplayReference("wifi-caller"),
+			)
+			coEvery {
+				broker.ambientRadioRetirementPlan(
+					SourceKind.WIFI,
+					"app:ambient:wifi",
+				)
+			} returns plan
+			coEvery {
+				broker.reduceAmbientWifiDemandForRecovery(
+					consumerId = "app:ambient:wifi",
+					plan = plan,
+					reconciliationAttempt = 5L,
+					bootId = "boot-1",
+					elapsedRealtimeNanos = any(),
+					wallTimeMs = any(),
+				)
+			} returns AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.REQUEST_DISABLED,
+				retiredDemandId = "wifi-demand",
+			)
+			coEvery { controller.closeAmbientForCollectedDataDeletion() } returns true
+			val subject = AmbientWifiDemandReconciler(
+				broker,
+				com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher(
+					broker,
+				),
+				controller,
+				BootClockDomainProvider { "boot-1" },
+			)
+
+			assertTrue(subject.retireAfterRetentionAuthorityFailure(previousLease = null))
+
+			coVerify(exactly = 1) {
+				broker.reduceAmbientWifiDemandForRecovery(
+					consumerId = "app:ambient:wifi",
+					plan = plan,
+					reconciliationAttempt = 5L,
+					bootId = "boot-1",
+					elapsedRealtimeNanos = any(),
+					wallTimeMs = any(),
+				)
+			}
+			coVerify(exactly = 1) { controller.closeAmbientForCollectedDataDeletion() }
+		}
 
 	@Test
 	fun `durably verified missing retention publishes typed Wi-Fi unavailability`() = runTest {
@@ -153,6 +330,7 @@ class AmbientRadioDemandGateTest {
 			AmbientWifiRuntimeJoinResult.Inactive(providerKey = null)
 		val subject = AmbientWifiDemandReconciler(
 			broker,
+			com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher(broker),
 			controller,
 			BootClockDomainProvider { "boot-1" },
 		)
@@ -226,6 +404,7 @@ class AmbientRadioDemandGateTest {
 			}
 			val subject = AmbientWifiDemandReconciler(
 				broker,
+				com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher(broker),
 				controller,
 				BootClockDomainProvider { "boot-1" },
 			)
@@ -274,6 +453,7 @@ class AmbientRadioDemandGateTest {
 		} throws compensationFailure
 		val subject = AmbientWifiDemandReconciler(
 			broker,
+			com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher(broker),
 			controller,
 			BootClockDomainProvider { "boot-1" },
 		)
@@ -324,6 +504,7 @@ class AmbientRadioDemandGateTest {
 			} returns activeAuthority.copy(authorityRevision = 8L)
 			val subject = AmbientCellDemandReconciler(
 				broker,
+				com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher(broker),
 				controller,
 				BootClockDomainProvider { "boot-1" },
 			)
@@ -370,6 +551,7 @@ class AmbientRadioDemandGateTest {
 		} returns revokedAuthority
 		val subject = AmbientCellDemandReconciler(
 			broker,
+			com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher(broker),
 			controller,
 			BootClockDomainProvider { "boot-1" },
 		)

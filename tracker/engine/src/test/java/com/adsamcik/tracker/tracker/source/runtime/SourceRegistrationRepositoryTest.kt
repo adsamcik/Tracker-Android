@@ -6,14 +6,21 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.fenceSourcePurposesInTransaction
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityReader
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
@@ -21,13 +28,17 @@ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatal
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.nulls.shouldNotBeNull
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -42,6 +53,8 @@ class SourceRegistrationRepositoryTest {
 	private lateinit var subject: SourceRegistrationRepository
 	private lateinit var processIncarnationIdProvider: ProcessIncarnationIdProvider
 	private lateinit var rolloutStore: RoomTrackingRolloutStateStore
+	private lateinit var retentionReader: TestLiveAmbientRetentionAuthorityReader
+	private lateinit var lifecycleStore: FakeCollectedDataLifecycleStore
 
 	@Before
 	fun setUp() {
@@ -51,14 +64,18 @@ class SourceRegistrationRepositoryTest {
 			activateAllSourceProductLanes(database)
 		}
 		processIncarnationIdProvider = ProcessIncarnationIdProvider()
+		retentionReader = TestLiveAmbientRetentionAuthorityReader()
+		runBlocking { installTestPolicyAndRetention() }
+		lifecycleStore = FakeCollectedDataLifecycleStore(CollectedDataLifecycleSnapshot(3L, null))
 		subject = SourceRegistrationRepository(
 			database,
-			FakeCollectedDataLifecycleStore(CollectedDataLifecycleSnapshot(3L, null)),
+			lifecycleStore,
 			object : BootClockDomainProvider {
 				override fun current(): String = "boot-7"
 			},
 			processIncarnationIdProvider,
 			rolloutStore,
+			retentionBroker(),
 		)
 	}
 
@@ -227,6 +244,7 @@ class SourceRegistrationRepositoryTest {
 			},
 			ProcessIncarnationIdProvider(),
 			rolloutStore,
+			retentionBroker(),
 		)
 		shouldThrow<IllegalStateException> {
 			restartedRepository.begin(
@@ -347,6 +365,10 @@ class SourceRegistrationRepositoryTest {
 		)
 		direct.authorization.authorizedMembers.map { it.demandId } shouldBe listOf("capture")
 		ambientProvider.authorization.authorizedMembers.map { it.demandId } shouldBe listOf("ambient")
+		ambientProvider.authorization.authorizedMembers.single().let { member ->
+			member.liveAmbientRetentionPolicyId shouldBe "privacy:steps:ambient:v1"
+			member.liveAmbientRetentionApprovalRevision shouldBe 1L
+		}
 		database.sourceBrokerDao().currentPhysicalRegistrations(SourceKind.STEPS.stableCode)
 			.map { it.registrationGeneration to it.status } shouldBe listOf(
 			1L to ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
@@ -376,6 +398,223 @@ class SourceRegistrationRepositoryTest {
 			"boot-7",
 			200L,
 		).toAuthorizationSnapshotOrNull()?.isDenied shouldBe true
+	}
+
+	@Test
+	fun `ambient provider acceptance revalidates exact retention identity`() = runTest {
+		val ambient = demand(
+			"ambient-retention",
+			"app:ambient:steps",
+			SourceBrokerPurpose.AMBIENT_PRODUCT,
+			null,
+			null,
+			true,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(ambient))
+		val reserved = subject.beginPurposeScoped(
+			source = SourceKind.STEPS,
+			appliedRevision = 1L,
+			physicalConfigurationFingerprint = "ambient-provider-v1",
+			updatedAtMs = 100L,
+			updatedElapsedRealtimeNanos = 100L,
+			purposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+		)
+		retentionReader.current = false
+
+		shouldThrow<IllegalStateException> {
+			subject.markAccepted(reserved, 110L, 110L)
+		}
+		database.sourceBrokerDao().registration(
+			SourceKind.STEPS.stableCode,
+			reserved.state.registrationGeneration,
+		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RESERVED
+	}
+
+	@Test
+	fun `provider acceptance authenticates the exact lifecycle epoch before Room mutation`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(
+				demand(
+					"capture-lifecycle",
+					"session:lifecycle",
+					SourceBrokerPurpose.SESSION_CAPTURE,
+					"lifecycle",
+					1L,
+					true,
+				),
+			),
+		)
+		val reservation = subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		lifecycleStore.beginFullDeletion(105L)
+
+		shouldThrow<IllegalStateException> {
+			subject.markAccepted(reservation, 110L, 110L)
+		}
+
+		database.sourceBrokerDao().registration(
+			SourceKind.STEPS.stableCode,
+			reservation.state.registrationGeneration,
+		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RESERVED
+	}
+
+	@Test
+	fun `provider reservation obtains retention serialization before entering Room`() = runTest {
+		val ambient = demand(
+			"ambient-lock-order",
+			"app:ambient:steps",
+			SourceBrokerPurpose.AMBIENT_PRODUCT,
+			null,
+			null,
+			true,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(ambient))
+		val readerEntered = CompletableDeferred<Unit>()
+		val roomProbeComplete = CompletableDeferred<Unit>()
+		val orderedReader = object : RetentionAuthorityReader {
+			override suspend fun currentLiveAmbient(
+				source: TrackingSourceComponent,
+				expectedSourcePolicyRevision: Long,
+				expectedAmbientConsentEpoch: Long,
+				expectedCollectedDataEpoch: Long,
+				expectedRetainedFromMs: Long?,
+			): CurrentRetentionAuthority {
+				readerEntered.complete(Unit)
+				roomProbeComplete.await()
+				return CurrentRetentionAuthority.Approved(
+					opaquePolicyId = "privacy:steps:ambient:v1",
+					approvalRevision = 1L,
+					effectiveBootId = "boot-7",
+					effectiveElapsedRealtimeNanos = 0L,
+					effectiveWallTimeMs = 0L,
+					collectedDataEpoch = expectedCollectedDataEpoch,
+					retainedFromMs = expectedRetainedFromMs,
+				)
+			}
+
+			override suspend fun isCurrentLiveAmbientAt(
+				source: TrackingSourceComponent,
+				expectedSourcePolicyRevision: Long,
+				expectedAmbientConsentEpoch: Long,
+				expectedCollectedDataEpoch: Long,
+				expectedRetainedFromMs: Long?,
+				expectedOpaquePolicyId: String,
+				expectedApprovalRevision: Long,
+				currentBootId: String,
+				currentElapsedRealtimeNanos: Long,
+				currentWallTimeMs: Long,
+			): Boolean = true
+		}
+		val orderedRepository = SourceRegistrationRepository(
+			database,
+			FakeCollectedDataLifecycleStore(CollectedDataLifecycleSnapshot(3L, null)),
+			BootClockDomainProvider { "boot-7" },
+			processIncarnationIdProvider,
+			rolloutStore,
+			SourceBroker(database, rolloutStore, orderedReader),
+		)
+
+		val reservation = async {
+			orderedRepository.beginPurposeScoped(
+				SourceKind.STEPS,
+				1L,
+				PHYSICAL_CONFIG,
+				100L,
+				100L,
+				SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+			)
+		}
+		readerEntered.await()
+		withTimeout(1_000L) {
+			database.withTransaction {
+				database.sourceEvidenceStateDao().get()
+			}
+		}
+		roomProbeComplete.complete(Unit)
+
+		reservation.await().requiresProviderAcceptance shouldBe true
+	}
+
+	@Test
+	fun `provider acceptance rejects a retention revision changed after snapshot capture`() = runTest {
+		val ambient = demand(
+			"ambient-retention-race",
+			"app:ambient:steps",
+			SourceBrokerPurpose.AMBIENT_PRODUCT,
+			null,
+			null,
+			true,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(ambient))
+		val reserved = subject.beginPurposeScoped(
+			SourceKind.STEPS,
+			1L,
+			PHYSICAL_CONFIG,
+			100L,
+			100L,
+			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+		)
+		val racingReader = object : RetentionAuthorityReader {
+			override suspend fun currentLiveAmbient(
+				source: TrackingSourceComponent,
+				expectedSourcePolicyRevision: Long,
+				expectedAmbientConsentEpoch: Long,
+				expectedCollectedDataEpoch: Long,
+				expectedRetainedFromMs: Long?,
+			): CurrentRetentionAuthority = CurrentRetentionAuthority.Approved(
+				"privacy:steps:ambient:v1",
+				1L,
+				"boot-7",
+				0L,
+				0L,
+				expectedCollectedDataEpoch,
+				expectedRetainedFromMs,
+			)
+
+			override suspend fun isCurrentLiveAmbientAt(
+				source: TrackingSourceComponent,
+				expectedSourcePolicyRevision: Long,
+				expectedAmbientConsentEpoch: Long,
+				expectedCollectedDataEpoch: Long,
+				expectedRetainedFromMs: Long?,
+				expectedOpaquePolicyId: String,
+				expectedApprovalRevision: Long,
+				currentBootId: String,
+				currentElapsedRealtimeNanos: Long,
+				currentWallTimeMs: Long,
+			): Boolean {
+				database.ambientStepsFactRevisionDao().insertRetentionAuthority(
+					AmbientStepsRetentionAuthorityIntegrity.create(
+						scope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+						approvalRevision = 2L,
+						state = AmbientStepsRetentionAuthorityEntity.STATE_REVOKED,
+						opaquePolicyId = expectedOpaquePolicyId,
+						sourcePolicyRevision = expectedSourcePolicyRevision,
+						ambientConsentEpoch = expectedAmbientConsentEpoch,
+						collectedDataEpoch = expectedCollectedDataEpoch,
+						effectiveBootId = currentBootId,
+						effectiveElapsedRealtimeNanos = currentElapsedRealtimeNanos,
+						effectiveWallTimeMs = currentWallTimeMs,
+					),
+				)
+				return true
+			}
+		}
+		val racingRepository = SourceRegistrationRepository(
+			database,
+			lifecycleStore,
+			BootClockDomainProvider { "boot-7" },
+			processIncarnationIdProvider,
+			rolloutStore,
+			SourceBroker(database, rolloutStore, racingReader),
+		)
+
+		shouldThrow<IllegalStateException> {
+			racingRepository.markAccepted(reserved, 110L, 110L)
+		}
+		database.sourceBrokerDao().registration(
+			SourceKind.STEPS.stableCode,
+			reserved.state.registrationGeneration,
+		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RESERVED
 	}
 
 	@Test
@@ -634,6 +873,7 @@ class SourceRegistrationRepositoryTest {
 			},
 			ProcessIncarnationIdProvider(),
 			rolloutStore,
+			retentionBroker(),
 		)
 		otherProcessRepository.completeRetirement(firstToken) shouldBe false
 		subject.completeRetirement(firstToken) shouldBe true
@@ -920,6 +1160,7 @@ class SourceRegistrationRepositoryTest {
 				bootProvider,
 				processIncarnationIdProvider,
 				rolloutStore,
+				retentionBroker(),
 			)
 			val bootId = bootProvider.current()
 			database.sourceBrokerDao().insertDemands(
@@ -1047,6 +1288,7 @@ class SourceRegistrationRepositoryTest {
 				},
 				processIncarnationIdProvider,
 				rolloutStore,
+				retentionBroker(),
 			)
 
 			staleLifecycle.publishWifiCaptureCallbackBarrier(accepted, 3L) shouldBe
@@ -1136,7 +1378,107 @@ class SourceRegistrationRepositoryTest {
 		retireBootId = null,
 		retireElapsedRealtimeNanos = null,
 		retiredAtMs = null,
+		liveAmbientRetentionPolicyId = if (purpose == SourceBrokerPurpose.AMBIENT_PRODUCT) {
+			"privacy:${source.name.lowercase()}:ambient:v1"
+		} else {
+			null
+		},
+		liveAmbientRetentionApprovalRevision =
+			1L.takeIf { purpose == SourceBrokerPurpose.AMBIENT_PRODUCT },
 	)
+
+	private fun retentionBroker(): SourceBroker = SourceBroker(
+		database,
+		rolloutStore,
+		retentionReader,
+	)
+
+	private suspend fun installTestPolicyAndRetention() {
+		database.sourceEvidenceStateDao().ensure(
+			com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState(
+				collectedDataEpoch = 3L,
+				updatedAtMs = 1L,
+			),
+		)
+		if (database.sourceEvidenceStateDao().get()?.collectedDataEpoch != 3L) {
+			database.sourceEvidenceStateDao().updateLifecycle(3L, null, 1L)
+		}
+		val policyDao = database.sourcePolicyDao()
+		val authority = SourcePolicyAuthorityEntity(
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			currentPolicyRevision = 5L,
+			legacySettingsFingerprint = null,
+			updatedAtMs = 1L,
+		)
+		val currentAuthority = policyDao.authority()
+		if (currentAuthority == null) {
+			policyDao.ensureAuthority(authority)
+		} else {
+			policyDao.compareAndSetAuthority(
+				currentAuthority.bootstrapState,
+				currentAuthority.currentPolicyRevision,
+				authority.bootstrapState,
+				authority.currentPolicyRevision,
+				authority.legacySettingsFingerprint,
+				authority.updatedAtMs,
+			)
+		}
+		policyDao.insertPolicies(
+			SourceKind.entries.map { source ->
+				SourcePolicyEntity(
+					policyRevision = 5L,
+					sourceKind = source.stableCode,
+					enabled = true,
+					qosCode = 2,
+					locationMinTimeSeconds = null,
+					locationMinDistanceMeters = null,
+					locationRequiredAccuracyMeters = null,
+					capturePersistenceEligible = true,
+					controlPersistenceEligible = source == SourceKind.ACTIVITY,
+					ambientPersistenceEligible =
+						source in setOf(SourceKind.STEPS, SourceKind.WIFI, SourceKind.CELL),
+					captureConsentEpoch = 8L,
+					controlConsentEpoch = 8L.takeIf { source == SourceKind.ACTIVITY },
+					ambientConsentEpoch =
+						8L.takeIf { source in setOf(SourceKind.STEPS, SourceKind.WIFI, SourceKind.CELL) },
+					effectiveBootId = "boot-7",
+					effectiveElapsedRealtimeNanos = 1L,
+					effectiveWallTimeMs = 1L,
+					changeReason = "TEST",
+				)
+			},
+		)
+		policyDao.insertConsentEpochs(
+			listOf(SourceKind.STEPS, SourceKind.WIFI, SourceKind.CELL).map { source ->
+				SourceConsentEpochEntity(
+					sourceKind = source.stableCode,
+					purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+					epoch = 8L,
+					eligible = true,
+					persistenceEligible = true,
+					policyRevision = 5L,
+					effectiveBootId = "boot-7",
+					effectiveElapsedRealtimeNanos = 1L,
+					effectiveWallTimeMs = 1L,
+					changeReason = "TEST",
+				)
+			},
+		)
+		listOf(
+			TrackingSourceComponent.STEPS,
+			TrackingSourceComponent.WIFI,
+			TrackingSourceComponent.CELL,
+		).forEach { source ->
+			retentionReader.installCurrent(
+				database,
+				source,
+				sourcePolicyRevision = 5L,
+				ambientConsentEpoch = 8L,
+				collectedDataEpoch = 3L,
+				bootId = "boot-7",
+			)
+		}
+	}
 
 	private suspend fun enablePressureRegistrationForTest() {
 		database.sourceProjectionStateDao().deleteAllProductLanes()
@@ -1153,6 +1495,7 @@ class SourceRegistrationRepositoryTest {
 			},
 			processIncarnationIdProvider,
 			rolloutStore,
+			retentionBroker(),
 		)
 	}
 
@@ -1180,7 +1523,8 @@ class SourceRegistrationRepositoryTest {
 		logicalTrackingId,
 		manifestRevision,
 		persistenceEligible,
-	).copy(sourceKind = SourceKind.CELL.stableCode)
+		source = SourceKind.CELL,
+	)
 
 	private fun wifiDemand(
 		id: String,
@@ -1194,7 +1538,8 @@ class SourceRegistrationRepositoryTest {
 		logicalTrackingId = logicalTrackingId,
 		manifestRevision = logicalTrackingId?.let { 1L },
 		persistenceEligible = persistenceEligible,
-	).copy(sourceKind = SourceKind.WIFI.stableCode)
+		source = SourceKind.WIFI,
+	)
 
 	private companion object {
 		const val PHYSICAL_CONFIG = "physical-config-v1"

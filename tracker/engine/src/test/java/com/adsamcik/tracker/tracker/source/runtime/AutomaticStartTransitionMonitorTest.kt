@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.runtime
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationOwner
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationSnapshot
@@ -48,10 +49,13 @@ class AutomaticStartTransitionMonitorTest {
 	}
 	private val subject = AutomaticStartTransitionMonitor(
 		arbiter = arbiter,
-		sourceBroker = broker,
+		sourceCallerDemandDispatcher = TestPurposeSourceCallerDemandDispatcher(
+			broker,
+			currentPurposeReader::isCurrent,
+		),
 		clockDomainProvider = BootClockDomainProvider { "boot:test" },
 		activityProjectionLane = activityProjectionLane,
-		currentPurposeAvailabilityReader = currentPurposeReader,
+		mutationLeaseGuard = PermissiveTrackingPurposeMutationLeaseGuard,
 	)
 
 	@Test
@@ -211,37 +215,26 @@ class AutomaticStartTransitionMonitorTest {
 			collectedDataEpoch = 3L,
 			rolloutRevision = 9L,
 		)
-		val staleProjection = object : CurrentTrackingPurposeAvailabilityReader {
-			override val availability = MutableStateFlow(currentAvailability(publishedReady))
-			override val authorityRevision = MutableStateFlow(
-				TrackingPurposeAuthorityRevision(
-					policyRevision = 1L,
-					collectedDataEpoch = 4L,
-					rolloutRevision = 9L,
+		val staleDispatcher = mockk<SourceCallerDemandDispatcher>()
+		coEvery { staleDispatcher.dispatchAutomaticControl(any()) } returns
+			GuardedPurposeDemandResult.Rejected(
+				com.adsamcik.tracker.tracker.api.SourceCallerGuardRejection(
+					com.adsamcik.tracker.tracker.api.SourceCallerRejectionReason
+						.READINESS_AUTHORITY_MISMATCH,
 				),
 			)
-
-			override suspend fun isCurrent(identity: TrackingPurposeLeaseIdentity): Boolean = false
-		}
+		coEvery {
+			staleDispatcher.retireAutomaticControl(
+				any(), any(), any(), any(), any(), any(), any(),
+			)
+		} returns GuardedPurposeDemandResult.Applied(Unit, null)
 		val monitor = AutomaticStartTransitionMonitor(
 			arbiter = arbiter,
-			sourceBroker = broker,
+			sourceCallerDemandDispatcher = staleDispatcher,
 			clockDomainProvider = BootClockDomainProvider { "boot:test" },
 			activityProjectionLane = activityProjectionLane,
-			currentPurposeAvailabilityReader = staleProjection,
+			mutationLeaseGuard = PermissiveTrackingPurposeMutationLeaseGuard,
 		)
-		coEvery {
-			broker.replaceAutomaticControlDemand(
-				any(),
-				any(),
-				false,
-				any(),
-				any(),
-				any(),
-				any(),
-				any(),
-			)
-		} returns null
 		coEvery {
 			arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
 		} returns cleared()
@@ -254,19 +247,82 @@ class AutomaticStartTransitionMonitorTest {
 			controlAvailability = publishedReady,
 		)
 
-		coVerify(exactly = 1) {
-			broker.replaceAutomaticControlDemand(
-				any(),
-				SourceKind.ACTIVITY,
-				false,
-				any(),
-				any(),
-				any(),
-				any(),
-				any(),
-			)
-		}
+		coVerify(exactly = 1) { staleDispatcher.dispatchAutomaticControl(any()) }
 		coVerify(exactly = 0) { activityProjectionLane.ensureRegisteredAtLiveTail() }
+		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
+	}
+
+	@Test
+	fun `stale parent lease prevents control demand and provider activation`() = runTest {
+		val dispatcher = mockk<SourceCallerDemandDispatcher>()
+		coEvery {
+			dispatcher.retireAutomaticControl(any(), any(), any(), any(), any(), any(), any())
+		} returns GuardedPurposeDemandResult.Applied(Unit, null)
+		coEvery {
+			arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		} returns cleared()
+		val monitor = AutomaticStartTransitionMonitor(
+			arbiter = arbiter,
+			sourceCallerDemandDispatcher = dispatcher,
+			clockDomainProvider = BootClockDomainProvider { "boot:test" },
+			activityProjectionLane = activityProjectionLane,
+			mutationLeaseGuard = RejectingAmbientRadioMutationLeaseGuard,
+		)
+
+		monitor.reconcile(
+			enabled = true,
+			useTransitionApi = true,
+			continuousIntervalSeconds = 30,
+			transitions = setOf(walkingEnter()),
+			controlAvailability = readyAutomaticControl(),
+		).status shouldBe ActivityRegistrationStatus.BLOCKED
+
+		coVerify(exactly = 0) { dispatcher.dispatchAutomaticControl(any()) }
+		coVerify(exactly = 0) { activityProjectionLane.ensureRegisteredAtLiveTail() }
+		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
+	}
+
+	@Test
+	fun `rejected historical authority still clears the automatic provider owner`() = runTest {
+		val dispatcher = mockk<SourceCallerDemandDispatcher>()
+		coEvery { dispatcher.retireAutomaticControl(any(), any(), any(), any(), any(), any(), any()) } returns
+			GuardedPurposeDemandResult.Rejected(
+				com.adsamcik.tracker.tracker.api.SourceCallerGuardRejection(
+					com.adsamcik.tracker.tracker.api.SourceCallerRejectionReason
+						.REPLAY_AUTHORITY_CORRUPT,
+				),
+			)
+		every { arbiter.snapshot() } returns cleared().snapshot
+		coEvery {
+			arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		} returns ActivityRegistrationResult(
+			status = ActivityRegistrationStatus.DEGRADED,
+			snapshot = cleared().snapshot,
+			failureCode = ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED,
+			retryable = true,
+		)
+		val monitor = AutomaticStartTransitionMonitor(
+			arbiter = arbiter,
+			sourceCallerDemandDispatcher = dispatcher,
+			clockDomainProvider = BootClockDomainProvider { "boot:test" },
+			activityProjectionLane = activityProjectionLane,
+			mutationLeaseGuard = PermissiveTrackingPurposeMutationLeaseGuard,
+		)
+
+		monitor.reconcile(
+			enabled = false,
+			useTransitionApi = false,
+			continuousIntervalSeconds = 30,
+			transitions = emptySet(),
+		).let { result ->
+			result.status shouldBe ActivityRegistrationStatus.BLOCKED
+			result.failureCode shouldBe ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED
+			result.retryable shouldBe true
+		}
+
+		coVerify(exactly = 1) {
+			arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		}
 		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
 	}
 
@@ -274,6 +330,7 @@ class AutomaticStartTransitionMonitorTest {
 	fun `rollout-contained automatic demand clears the provider owner`() = runTest {
 		coEvery { activityProjectionLane.ensureRegisteredAtLiveTail() } returns Unit
 		coEvery { broker.replaceAutomaticControlDemand(any(), any(), true, any(), any(), any(), any(), any()) } returns null
+		coEvery { broker.replaceAutomaticControlDemand(any(), any(), false, any(), any(), any(), any(), any()) } returns null
 		coEvery { arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR) } returns cleared()
 
 		val result = subject.reconcile(
@@ -295,7 +352,7 @@ class AutomaticStartTransitionMonitorTest {
 		coEvery { broker.replaceAutomaticControlDemand(any(), any(), true, any(), any(), any(), any(), any()) } returns
 			mockk<SourceDemandEntity>()
 		coEvery { activityProjectionLane.ensureRegisteredAtLiveTail() } returns Unit
-		coEvery { arbiter.setDemand(any(), any()) } returns cleared()
+		coEvery { arbiter.setDemand(any(), any()) } returns active()
 		val transition = walkingEnter()
 
 		subject.reconcile(
@@ -307,7 +364,6 @@ class AutomaticStartTransitionMonitorTest {
 		)
 
 		coVerifyOrder {
-			activityProjectionLane.ensureRegisteredAtLiveTail()
 			broker.replaceAutomaticControlDemand(
 				any(),
 				SourceKind.ACTIVITY,
@@ -318,6 +374,7 @@ class AutomaticStartTransitionMonitorTest {
 				any(),
 				any(),
 			)
+			activityProjectionLane.ensureRegisteredAtLiveTail()
 			arbiter.setDemand(
 				ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
 				match { it.continuousRecognitionIntervalSeconds == null && it.transitions == setOf(transition) },
@@ -326,11 +383,64 @@ class AutomaticStartTransitionMonitorTest {
 	}
 
 	@Test
+	fun `blocked Activity activation retires demand authority and clears arbiter ownership`() =
+		runTest {
+			val demand = mockk<SourceDemandEntity>()
+			coEvery {
+				broker.replaceAutomaticControlDemand(
+					any(), any(), true, any(), any(), any(), any(), any(),
+				)
+			} returns demand
+			coEvery {
+				broker.replaceAutomaticControlDemand(
+					any(), any(), false, any(), any(), any(), any(), any(),
+				)
+			} returns null
+			coEvery { activityProjectionLane.ensureRegisteredAtLiveTail() } returns Unit
+			coEvery { arbiter.setDemand(any(), any()) } returns ActivityRegistrationResult(
+				status = ActivityRegistrationStatus.BLOCKED,
+				snapshot = active().snapshot.copy(active = false, identity = null),
+				failureCode = ActivityRegistrationFailureCode.PERMISSION_MISSING,
+			)
+			coEvery {
+				arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+			} returns cleared()
+
+			subject.reconcile(
+				enabled = true,
+				useTransitionApi = true,
+				continuousIntervalSeconds = 30,
+				transitions = setOf(walkingEnter()),
+				controlAvailability = readyAutomaticControl(),
+			).status shouldBe ActivityRegistrationStatus.BLOCKED
+
+			coVerifyOrder {
+				arbiter.setDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR, any())
+				broker.replaceAutomaticControlDemand(
+					"app:automatic-start:activity",
+					SourceKind.ACTIVITY,
+					false,
+					any(),
+					any(),
+					any(),
+					any(),
+					any(),
+				)
+				arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+			}
+		}
+
+	@Test
 	fun `projection registration failure keeps provider unreachable for retry`() = runTest {
 		coEvery { broker.replaceAutomaticControlDemand(any(), any(), true, any(), any(), any(), any(), any()) } returns
 			mockk<SourceDemandEntity>()
 		coEvery { activityProjectionLane.ensureRegisteredAtLiveTail() } throws
 			IllegalStateException("projection storage unavailable")
+		coEvery { broker.replaceAutomaticControlDemand(any(), any(), false, any(), any(), any(), any(), any()) } returns
+			null
+		coEvery {
+			arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		} returns cleared()
 
 		shouldThrow<IllegalStateException> {
 			subject.reconcile(
@@ -343,10 +453,20 @@ class AutomaticStartTransitionMonitorTest {
 		}
 
 		coVerify(exactly = 1) { activityProjectionLane.ensureRegisteredAtLiveTail() }
-		coVerify(exactly = 0) {
-			broker.replaceAutomaticControlDemand(any(), any(), any(), any(), any(), any(), any(), any())
+		coVerify(exactly = 1) {
+			broker.replaceAutomaticControlDemand(
+				any(), SourceKind.ACTIVITY, true, any(), any(), any(), any(), any(),
+			)
+		}
+		coVerify(exactly = 1) {
+			broker.replaceAutomaticControlDemand(
+				any(), SourceKind.ACTIVITY, false, any(), any(), any(), any(), any(),
+			)
 		}
 		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
+		coVerify(exactly = 1) {
+			arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		}
 	}
 
 	private fun walkingEnter() = ActivityTransitionData(
@@ -362,6 +482,23 @@ class AutomaticStartTransitionMonitorTest {
 			owners = emptySet(),
 			continuousRecognitionIntervalSeconds = null,
 			transitions = emptySet(),
+		),
+	)
+
+	private fun active() = ActivityRegistrationResult(
+		status = ActivityRegistrationStatus.APPLIED,
+		snapshot = ActivityRegistrationSnapshot(
+			active = true,
+			identity = ActivityRegistrationIdentity(
+				sourceInstanceId = "activity-control",
+				registrationGeneration = 1L,
+				collectedDataEpoch = 0L,
+				clockDomainId = "boot:test",
+				physicalConfigurationFingerprint = "transition-control",
+			),
+			owners = setOf(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR),
+			continuousRecognitionIntervalSeconds = null,
+			transitions = setOf(walkingEnter()),
 		),
 	)
 

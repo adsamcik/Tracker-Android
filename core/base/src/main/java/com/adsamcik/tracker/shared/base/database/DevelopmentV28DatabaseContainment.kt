@@ -157,6 +157,9 @@ class ActiveDatabasePreflight internal constructor(
 			!FINAL_V28_EXECUTION_RECEIPT_COLUMNS.all { column ->
 				database.hasColumn(FINAL_V28_EXECUTION_RECEIPT_TABLE, column)
 			} ||
+			!FINAL_V28_CALLER_AUTHORITY_COLUMNS.all { column ->
+				database.hasColumn(FINAL_V28_CALLER_AUTHORITY_TABLE, column)
+			} ||
 			!database.hasSingleColumnIndex(
 				table = FINAL_V28_INDEX_TABLE,
 				index = FINAL_V28_REQUIRED_INDEX,
@@ -166,6 +169,11 @@ class ActiveDatabasePreflight internal constructor(
 				table = FINAL_V28_RETENTION_TABLE,
 				index = FINAL_V28_RETENTION_INDEX,
 				column = FINAL_V28_RETENTION_INDEX_COLUMN,
+			) ||
+			!database.hasSingleColumnIndex(
+				table = FINAL_V28_CALLER_AUTHORITY_TABLE,
+				index = FINAL_V28_CALLER_AUTHORITY_INDEX,
+				column = FINAL_V28_CALLER_AUTHORITY_INDEX_COLUMN,
 			)
 		) {
 			return ActiveDatabasePreflightResult.Blocked(
@@ -383,12 +391,13 @@ private enum class FinalV28MarkerState {
 }
 
 internal const val FINAL_V28_MARKER_ID = -280_917
-internal const val FINAL_V28_ASSEMBLY_ID = "tracker-v28-retention-execution-20260919"
+internal const val FINAL_V28_ASSEMBLY_ID = "tracker-v28-retention-caller-authority-20260919"
 private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
 	"tracker-v28-final-20260917",
 	"tracker-v28-retention-final-20260917",
 	"tracker-v28-retention-integrity-20260918",
 	"tracker-v28-retention-journal-20260919",
+	"tracker-v28-retention-execution-20260919",
 )
 
 private val BASELINE_TABLES = setOf(
@@ -403,6 +412,7 @@ private val FINAL_V28_REQUIRED_TABLES = setOf(
 	"ambient_steps_native_replay_footprint",
 	"collected_data_deletion_operation",
 	"retention_work_execution_receipt",
+	FINAL_V28_CALLER_AUTHORITY_TABLE,
 )
 private const val FINAL_V28_REQUIRED_COLUMN_TABLE = "pending_signal"
 private const val FINAL_V28_REQUIRED_COLUMN = "pressure_writer_owner_generation"
@@ -433,6 +443,31 @@ private const val FINAL_V28_REQUIRED_INDEX_COLUMN = "deletion_scope_digest"
 private const val FINAL_V28_RETENTION_TABLE = "ambient_steps_retention_authority"
 private const val FINAL_V28_RETENTION_INDEX = "idx_ambient_steps_retention_scope"
 private const val FINAL_V28_RETENTION_INDEX_COLUMN = "scope"
+private const val FINAL_V28_CALLER_AUTHORITY_TABLE = "source_caller_accepted_authority"
+private val FINAL_V28_CALLER_AUTHORITY_COLUMNS = setOf(
+	"reference",
+	"format_version",
+	"origin",
+	"accepted_purpose",
+	"source_kind",
+	"purpose",
+	"policy_revision",
+	"consent_epoch",
+	"collected_data_epoch",
+	"retained_from_ms",
+	"rollout_revision",
+	"execution_revision",
+	"owner_cas_token",
+	"logical_tracking_id",
+	"manifest_revision",
+	"status",
+	"effect_checksum",
+	"created_at_ms",
+	"retired_at_ms",
+	"retire_reason",
+)
+private const val FINAL_V28_CALLER_AUTHORITY_INDEX = "idx_source_caller_authority_status"
+private const val FINAL_V28_CALLER_AUTHORITY_INDEX_COLUMN = "status"
 
 private val LOCK_EXCEPTION_CLASS_NAMES = setOf(
 	"android.database.sqlite.SQLiteBusyException",

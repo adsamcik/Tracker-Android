@@ -23,6 +23,7 @@ import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanis
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.hasExactAmbientStepsRetentionBinding
+import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
 import com.adsamcik.tracker.tracker.source.runtime.toSourceDemandContract
 import java.util.UUID
 import javax.inject.Inject
@@ -54,6 +55,7 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 	private val database: AppDatabase,
 	private val lifecycleStore: CollectedDataLifecycleStore,
 	private val bootClockDomainProvider: BootClockDomainProvider,
+	private val sourceBroker: SourceBroker = SourceBroker(database),
 ) {
 	suspend fun reserve(
 		provider: AmbientStepsProvider,
@@ -66,8 +68,30 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 		require(boundary.bootId == clockDomainId) {
 			"Ambient Steps reservation boundary belongs to another boot"
 		}
+		val observedDemands = requireEligibleDemands(provider, expectedDemandId, boundary)
+		val retentionSnapshot = sourceBroker.captureLiveAmbientRetentionSnapshot(
+			demands = observedDemands,
+			expectedCollectedDataEpoch = lifecycle.epoch,
+			currentBootId = boundary.bootId,
+			currentElapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+			currentWallTimeMs = boundary.wallTimeMs,
+		)
 		return database.withTransaction {
 			val demands = requireEligibleDemands(provider, expectedDemandId, boundary)
+			check(demands == observedDemands) {
+				"Ambient Steps demand changed while retention authority was being acquired"
+			}
+			check(retentionSnapshot != null &&
+				sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
+				demands = demands,
+				expectedCollectedDataEpoch = lifecycle.epoch,
+				currentBootId = boundary.bootId,
+				currentElapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+				currentWallTimeMs = boundary.wallTimeMs,
+				retentionSnapshot = retentionSnapshot,
+			)) {
+				"Ambient Steps retention authority changed before provider reservation"
+			}
 			val brokerDao = database.sourceBrokerDao()
 			val authorizationFingerprint = SourceBrokerAuthorization.fingerprint(demands)
 			val stateDao = database.sourceRegistrationStateDao()
@@ -205,6 +229,22 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 		check(bootClockDomainProvider.current() == registration.state.clockDomainId) {
 			"Boot changed during Ambient Steps provider activation"
 		}
+		val observedDemands = requireEligibleDemands(
+			registration.provider,
+			registration.expectedDemandId,
+			AmbientStepsDemandBoundary(
+				bootId = registration.state.clockDomainId,
+				elapsedRealtimeNanos = registration.providerRequestElapsedRealtimeNanos,
+				wallTimeMs = registration.providerRequestAtMs,
+			),
+		)
+		val retentionSnapshot = sourceBroker.captureLiveAmbientRetentionSnapshot(
+			demands = observedDemands,
+			expectedCollectedDataEpoch = lifecycle.epoch,
+			currentBootId = registration.state.clockDomainId,
+			currentElapsedRealtimeNanos = registration.providerRequestElapsedRealtimeNanos,
+			currentWallTimeMs = registration.providerRequestAtMs,
+		)
 		return database.withTransaction {
 			val boundary = AmbientStepsDemandBoundary(
 				bootId = registration.state.clockDomainId,
@@ -216,6 +256,26 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 				registration.expectedDemandId,
 				boundary,
 			)
+			check(demands == observedDemands) {
+				"Ambient Steps demand changed before provider acceptance"
+			}
+			check(
+				database.sourceEvidenceStateDao().get()?.collectedDataEpoch == lifecycle.epoch,
+			) {
+				"Collected-data epoch changed before Ambient Steps provider acceptance"
+			}
+			check(retentionSnapshot != null &&
+				sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
+				demands = demands,
+				expectedCollectedDataEpoch = lifecycle.epoch,
+				currentBootId = registration.state.clockDomainId,
+				currentElapsedRealtimeNanos =
+					registration.providerRequestElapsedRealtimeNanos,
+				currentWallTimeMs = registration.providerRequestAtMs,
+				retentionSnapshot = retentionSnapshot,
+			)) {
+				"Ambient Steps retention authority changed before provider acceptance"
+			}
 			check(
 				SourceBrokerAuthorization.fingerprint(demands) ==
 					registration.authorization.authorizationFingerprint,
@@ -457,7 +517,10 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 		val fingerprint = SourceBrokerAuthorization.fingerprint(demands)
 		val current = dao.latestAuthorization(SOURCE_KIND, registrationGeneration)
 			.toAuthorizationSnapshotOrNull()
-		if (current?.authorizationFingerprint == fingerprint) return current
+		if (current != null &&
+			current.authorizationFingerprint == fingerprint &&
+			current.effectiveBootId == boundary.bootId
+		) return current
 		val revision = dao.maximumAuthorizationRevision(SOURCE_KIND) + 1L
 		check(revision > 0L) { "Ambient Steps authorization revision exhausted" }
 		val rows = SourceBrokerAuthorization.rows(

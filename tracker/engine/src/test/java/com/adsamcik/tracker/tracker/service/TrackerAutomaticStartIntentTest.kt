@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.service
 
+import android.content.Intent
+import com.adsamcik.tracker.tracker.api.TrackerServiceContract
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
@@ -13,6 +15,15 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class TrackerAutomaticStartIntentTest {
+	@Test
+	fun `foreground service accepts only the exact private prepared-start action`() {
+		Intent(TrackerServiceContract.ACTION_PREPARED_START)
+			.isExactPreparedTrackingStartAction() shouldBe true
+		Intent("com.example.SPOOF").isExactPreparedTrackingStartAction() shouldBe false
+		Intent().isExactPreparedTrackingStartAction() shouldBe false
+		(null as Intent?).isExactPreparedTrackingStartAction() shouldBe false
+	}
+
 	@Test
 	fun `contained configured source is absent from capture and foreground envelopes`() {
 		val configured = setOf(SourceKind.LOCATION, SourceKind.STEPS)

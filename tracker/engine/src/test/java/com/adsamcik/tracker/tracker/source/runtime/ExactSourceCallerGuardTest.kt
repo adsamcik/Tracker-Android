@@ -20,12 +20,38 @@ import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.SourceCallerRequest
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
+import com.adsamcik.tracker.tracker.api.isRetryable
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.coEvery
+import io.mockk.mockk
+import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class ExactSourceCallerGuardTest {
+	@Suppress("DEPRECATION")
+	@Test
+	fun `legacy replay enum constants resolve to canonical semantics`() {
+		mapOf(
+			SourceCallerReplayKind.FOREGROUND_SERVICE to
+				SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
+			SourceCallerReplayKind.RESTART to SourceCallerReplayKind.ACTIVE_REDELIVERY,
+			SourceCallerReplayKind.RECOVERY to SourceCallerReplayKind.PROCESS_RECOVERY,
+		).forEach { (legacy, canonical) ->
+			SourceCallerReplayKind.valueOf(legacy.name) shouldBe legacy
+			legacy.canonicalKind shouldBe canonical
+		}
+		SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY.canonicalKind shouldBe
+			SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY
+		SourceCallerReplayKind.ACTIVE_REDELIVERY.canonicalKind shouldBe
+			SourceCallerReplayKind.ACTIVE_REDELIVERY
+		SourceCallerReplayKind.PROCESS_RECOVERY.canonicalKind shouldBe
+			SourceCallerReplayKind.PROCESS_RECOVERY
+		SourceCallerReplayKind.POLICY_RECONCILIATION.canonicalKind shouldBe
+			SourceCallerReplayKind.POLICY_RECONCILIATION
+	}
+
 	@Test
 	fun `manual only-X is exact and unaffected by automatic CONTROL unavailability`() = runTest {
 		val location = capture(TrackingSource.LOCATION)
@@ -43,6 +69,20 @@ class ExactSourceCallerGuardTest {
 		)
 
 		receipt.permittedDemandIdentities shouldBe setOf(location)
+	}
+
+	@Test
+	fun `new recovery manifest receives a fresh exact capture acceptance`() = runTest {
+		val location = capture(TrackingSource.LOCATION)
+		val fixture = TrustedSourceCallerGuardFixtureFactory.create(current = setOf(location))
+
+		fixture.permit(
+			SourceCallerRequest.RecoverySessionStart(
+				requestedCapturedSources = setOf(TrackingSource.LOCATION),
+				manifestIdentity = MANIFEST,
+				requestedDemandIdentities = setOf(location),
+			),
+		).permittedDemandIdentities shouldBe setOf(location)
 	}
 
 	@Test
@@ -248,6 +288,83 @@ class ExactSourceCallerGuardTest {
 	}
 
 	@Test
+	fun `purpose owner mutation accepts exact current control lease before readiness publication`() =
+		runTest {
+			val activityControl = control()
+			val fixture = TrustedSourceCallerGuardFixtureFactory.create(
+				current = setOf(activityControl),
+				availability = unavailableAutomatic(),
+			)
+
+			fixture.permit(
+				SourceCallerRequest.PurposeOwnerMutation(
+					source = TrackingSource.ACTIVITY,
+					purpose = TrackingPurpose.CONTROL,
+					enabled = true,
+					requestedDemandIdentities = setOf(activityControl),
+				),
+			).permittedDemandIdentities shouldBe setOf(activityControl)
+		}
+
+	@Test
+	fun `purpose owner disable is current-bound and stored authority can later authorize retirement`() =
+		runTest {
+			val activityControl = control()
+			val fixture = TrustedSourceCallerGuardFixtureFactory.create(
+				current = setOf(activityControl),
+			)
+			val receipt = fixture.permit(
+				SourceCallerRequest.PurposeOwnerMutation(
+					source = TrackingSource.ACTIVITY,
+					purpose = TrackingPurpose.CONTROL,
+					enabled = false,
+					requestedDemandIdentities = setOf(activityControl),
+				),
+			)
+
+			fixture.current = emptySet()
+			fixture.permit(
+				SourceCallerRequest.PurposeOwnerRetirement(
+					source = TrackingSource.ACTIVITY,
+					purpose = TrackingPurpose.CONTROL,
+					reference = receipt.reference,
+				),
+			).permittedDemandIdentities shouldBe setOf(activityControl)
+		}
+
+	@Test
+	fun `purpose owner mutation accepts only one exact sessionless ambient lease`() = runTest {
+		val wifi = ambient(TrackingSource.WIFI)
+		val fixture = TrustedSourceCallerGuardFixtureFactory.create(
+			current = setOf(wifi),
+		)
+
+		fixture.permit(
+			SourceCallerRequest.PurposeOwnerMutation(
+				source = TrackingSource.WIFI,
+				purpose = TrackingPurpose.AMBIENT_PRODUCT,
+				enabled = true,
+				requestedDemandIdentities = setOf(wifi),
+			),
+		).permittedDemandIdentities shouldBe setOf(wifi)
+
+		fixture.guard.accept(
+			SourceCallerRequest.PurposeOwnerMutation(
+				source = TrackingSource.WIFI,
+				purpose = TrackingPurpose.AMBIENT_PRODUCT,
+				enabled = true,
+				requestedDemandIdentities = setOf(
+					wifi,
+					ambient(TrackingSource.CELL),
+				),
+			),
+		) shouldBe rejected(
+			SourceCallerRejectionReason.UNDECLARED_DEMAND,
+			ambient(TrackingSource.CELL),
+		)
+	}
+
+	@Test
 	fun `automatic request rejects unbound capture despite valid bound Activity CONTROL`() = runTest {
 		val steps = capture(TrackingSource.STEPS)
 		val unboundSteps = unbound(steps)
@@ -389,7 +506,7 @@ class ExactSourceCallerGuardTest {
 	}
 
 	@Test
-	fun `FGS restart and recovery replay only the exact persisted authority`() = runTest {
+	fun `FGS active redelivery and process recovery replay only exact persisted authority`() = runTest {
 		val location = capture(TrackingSource.LOCATION)
 		val steps = capture(TrackingSource.STEPS)
 		val original = setOf(location, steps)
@@ -402,7 +519,11 @@ class ExactSourceCallerGuardTest {
 			),
 		)
 
-		SourceCallerReplayKind.entries.forEach { kind ->
+		setOf(
+			SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
+			SourceCallerReplayKind.ACTIVE_REDELIVERY,
+			SourceCallerReplayKind.PROCESS_RECOVERY,
+		).forEach { kind ->
 			fixture.guard.accept(replay(receipt, kind, original)) shouldBe
 				SourceCallerGuardResult.Permitted(receipt)
 		}
@@ -475,12 +596,90 @@ class ExactSourceCallerGuardTest {
 			fixture.current = change.demands
 			fixture.guard.accept(
 				SourceCallerRequest.Replay(
-					replayKind = SourceCallerReplayKind.RECOVERY,
+					replayKind = SourceCallerReplayKind.PROCESS_RECOVERY,
 					reference = receipt.reference,
 					purpose = change.purpose,
 					requestedDemandIdentities = change.demands,
 				),
 			) shouldBe rejected(change.reason)
+		}
+	}
+
+	@Suppress("DEPRECATION")
+	@Test
+	fun `legacy replay aliases preserve canonical authority and retention fences`() = runTest {
+		val location = withLease(capture(TrackingSource.LOCATION)) {
+			it.copy(retainedFromMs = 1_000L)
+		}
+		val mappings = listOf(
+			SourceCallerReplayKind.FOREGROUND_SERVICE to
+				SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
+			SourceCallerReplayKind.RESTART to SourceCallerReplayKind.ACTIVE_REDELIVERY,
+			SourceCallerReplayKind.RECOVERY to SourceCallerReplayKind.PROCESS_RECOVERY,
+		)
+
+		mappings.forEach { (legacy, canonical) ->
+			val fixture = TrustedSourceCallerGuardFixtureFactory.create(current = setOf(location))
+			val receipt = fixture.permit(
+				SourceCallerRequest.ManualSessionStart(
+					requestedCapturedSources = setOf(TrackingSource.LOCATION),
+					manifestIdentity = MANIFEST,
+					requestedDemandIdentities = setOf(location),
+				),
+			)
+
+			fixture.guard.accept(replay(receipt, legacy, setOf(location))) shouldBe
+				fixture.guard.accept(replay(receipt, canonical, setOf(location)))
+
+			val sourceEscalation = setOf(location, capture(TrackingSource.STEPS))
+			fixture.current = sourceEscalation
+			val legacySourceEscalation =
+				fixture.guard.accept(replay(receipt, legacy, sourceEscalation))
+			legacySourceEscalation shouldBe
+				fixture.guard.accept(replay(receipt, canonical, sourceEscalation))
+			legacySourceEscalation.shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+				.rejection.reason shouldBe SourceCallerRejectionReason.REPLAY_AUTHORITY_ESCALATION
+
+			fixture.current = setOf(location)
+			val legacyPurposeEscalation = fixture.guard.accept(
+				replay(
+					receipt,
+					legacy,
+					setOf(location),
+					TrackingPurpose.AMBIENT_PRODUCT,
+				),
+			)
+			legacyPurposeEscalation shouldBe fixture.guard.accept(
+				replay(
+					receipt,
+					canonical,
+					setOf(location),
+					TrackingPurpose.AMBIENT_PRODUCT,
+				),
+			)
+			legacyPurposeEscalation.shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+				.rejection.reason shouldBe SourceCallerRejectionReason.REPLAY_PURPOSE_MISMATCH
+
+			val revisionEscalation = setOf(
+				withLease(location) { it.copy(policyRevision = it.policyRevision + 1L) },
+			)
+			fixture.current = revisionEscalation
+			val legacyRevisionEscalation =
+				fixture.guard.accept(replay(receipt, legacy, revisionEscalation))
+			legacyRevisionEscalation shouldBe
+				fixture.guard.accept(replay(receipt, canonical, revisionEscalation))
+			legacyRevisionEscalation.shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+				.rejection.reason shouldBe SourceCallerRejectionReason.REPLAY_AUTHORITY_ESCALATION
+
+			fixture.current = setOf(
+				withLease(location) { it.copy(retainedFromMs = it.retainedFromMs + 1L) },
+			)
+			val legacyRetentionChange =
+				fixture.guard.accept(replay(receipt, legacy, setOf(location)))
+			legacyRetentionChange shouldBe
+				fixture.guard.accept(replay(receipt, canonical, setOf(location)))
+			legacyRetentionChange.shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+				.rejection.reason shouldBe SourceCallerRejectionReason.STALE_RETENTION_BOUNDARY
 		}
 	}
 
@@ -497,7 +696,7 @@ class ExactSourceCallerGuardTest {
 		)
 		val exactReplay = replay(
 			receipt,
-			SourceCallerReplayKind.RECOVERY,
+			SourceCallerReplayKind.PROCESS_RECOVERY,
 			setOf(location),
 		)
 		val currentMutations = listOf(
@@ -550,7 +749,7 @@ class ExactSourceCallerGuardTest {
 		)
 
 		fixture.guard.accept(
-			replay(receipt, SourceCallerReplayKind.RECOVERY, setOf(location)),
+			replay(receipt, SourceCallerReplayKind.PROCESS_RECOVERY, setOf(location)),
 		) shouldBe SourceCallerGuardResult.Permitted(receipt)
 	}
 
@@ -562,7 +761,7 @@ class ExactSourceCallerGuardTest {
 
 			fixture.guard.accept(
 				SourceCallerRequest.Replay(
-					replayKind = SourceCallerReplayKind.RECOVERY,
+					replayKind = SourceCallerReplayKind.PROCESS_RECOVERY,
 					reference = SourceCallerReplayReference("caller-forged"),
 					purpose = TrackingPurpose.SESSION_CAPTURE,
 					requestedDemandIdentities = setOf(location),
@@ -571,7 +770,112 @@ class ExactSourceCallerGuardTest {
 		}
 
 	@Test
-	fun `replay cannot survive automatic or ambient readiness loss or replacement`() = runTest {
+	fun `authority storage failures remain explicitly retryable`() = runTest {
+		val location = capture(TrackingSource.LOCATION)
+		val failingStore = object : SourceCallerAcceptedAuthorityRepository {
+			override suspend fun insertIfAbsent(
+				reference: SourceCallerReplayReference,
+				authority: StoredSourceCallerAuthority,
+				createdAtMs: Long,
+			): Boolean = throw IOException("storage unavailable")
+
+			override suspend fun load(
+				reference: SourceCallerReplayReference,
+			): StoredSourceCallerAuthorityLoadResult =
+				throw IOException("storage unavailable")
+
+			override suspend fun retire(
+				reference: SourceCallerReplayReference,
+				reason: String,
+				retiredAtMs: Long,
+			): Boolean = false
+
+			override suspend fun delete(reference: SourceCallerReplayReference): Boolean = false
+
+			override suspend fun pruneRetired(
+				retiredBeforeOrAtMs: Long,
+				limit: Int,
+			): Int = 0
+		}
+		val guard = ExactSourceCallerGuard(
+			SourceCallerAuthoritySnapshotReader {
+				SourceCallerAuthoritySnapshot(
+					setOf(location),
+					TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+				)
+			},
+			failingStore,
+		)
+
+		val fresh = guard.accept(
+			SourceCallerRequest.ManualSessionStart(
+				setOf(TrackingSource.LOCATION),
+				MANIFEST,
+				setOf(location),
+			),
+		).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+		fresh.rejection.reason shouldBe SourceCallerRejectionReason.AUTHORITY_PERSISTENCE_UNAVAILABLE
+		fresh.rejection.reason.isRetryable shouldBe true
+
+		val replay = guard.accept(
+			SourceCallerRequest.Replay(
+				SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
+				SourceCallerReplayReference("persisted"),
+				TrackingPurpose.SESSION_CAPTURE,
+				setOf(location),
+			),
+		).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+		replay.rejection.reason shouldBe SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE
+		replay.rejection.reason.isRetryable shouldBe true
+	}
+
+	@Test
+	fun `invariant authority failures are terminal rather than retryable storage rejection`() =
+		runTest {
+			val location = capture(TrackingSource.LOCATION)
+			val guard = ExactSourceCallerGuard(
+				SourceCallerAuthoritySnapshotReader {
+					throw IllegalStateException("broken authority invariant")
+				},
+				mockk(relaxed = true),
+			)
+
+			guard.accept(
+				SourceCallerRequest.ManualSessionStart(
+					setOf(TrackingSource.LOCATION),
+					MANIFEST,
+					setOf(location),
+				),
+			).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+				.rejection.reason shouldBe
+				SourceCallerRejectionReason.AUTHORITY_INVARIANT_VIOLATION
+
+			val repository = mockk<SourceCallerAcceptedAuthorityRepository>()
+			coEvery { repository.load(any()) } throws
+				IllegalStateException("corrupt repository invariant")
+			val replayGuard = ExactSourceCallerGuard(
+				SourceCallerAuthoritySnapshotReader {
+					SourceCallerAuthoritySnapshot(
+						setOf(location),
+						TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+					)
+				},
+				repository,
+			)
+			replayGuard.accept(
+				SourceCallerRequest.Replay(
+					SourceCallerReplayKind.PROCESS_RECOVERY,
+					SourceCallerReplayReference("persisted"),
+					TrackingPurpose.SESSION_CAPTURE,
+					setOf(location),
+				),
+			).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+				.rejection.reason shouldBe
+				SourceCallerRejectionReason.AUTHORITY_INVARIANT_VIOLATION
+		}
+
+	@Test
+	fun `session replay cannot survive automatic readiness loss and excludes ambient authority`() = runTest {
 		val capture = capture(TrackingSource.STEPS)
 		val control = control()
 		val automaticFixture = TrustedSourceCallerGuardFixtureFactory.create(
@@ -590,7 +894,7 @@ class ExactSourceCallerGuardTest {
 		automaticFixture.guard.accept(
 			replay(
 				automaticReceipt,
-				SourceCallerReplayKind.RESTART,
+				SourceCallerReplayKind.ACTIVE_REDELIVERY,
 				setOf(capture, control),
 			),
 		).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
@@ -601,7 +905,7 @@ class ExactSourceCallerGuardTest {
 		automaticFixture.guard.accept(
 			replay(
 				automaticReceipt,
-				SourceCallerReplayKind.RECOVERY,
+				SourceCallerReplayKind.PROCESS_RECOVERY,
 				setOf(capture, control),
 			),
 		) shouldBe rejected(
@@ -625,26 +929,47 @@ class ExactSourceCallerGuardTest {
 		ambientFixture.guard.accept(
 			replay(
 				ambientReceipt,
-				SourceCallerReplayKind.RECOVERY,
+				SourceCallerReplayKind.PROCESS_RECOVERY,
 				setOf(ambient),
 				TrackingPurpose.AMBIENT_PRODUCT,
 			),
 		).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
-			.rejection.reason shouldBe SourceCallerRejectionReason.AMBIENT_SOURCE_UNAVAILABLE
+			.rejection.reason shouldBe SourceCallerRejectionReason.REPLAY_KIND_NOT_PERMITTED
 		ambientFixture.availability = ambientReady(
 			withLease(ambient) { it.copy(ownerCasToken = "replaced") },
 		)
 		ambientFixture.guard.accept(
 			replay(
 				ambientReceipt,
-				SourceCallerReplayKind.FOREGROUND_SERVICE,
+				SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
 				setOf(ambient),
 				TrackingPurpose.AMBIENT_PRODUCT,
 			),
-		) shouldBe rejected(
-			SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
-			ambient,
+		).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+			.rejection.reason shouldBe SourceCallerRejectionReason.REPLAY_KIND_NOT_PERMITTED
+	}
+
+	@Test
+	fun `policy reconciliation cannot replay an old acceptance`() = runTest {
+		val location = capture(TrackingSource.LOCATION)
+		val fixture = TrustedSourceCallerGuardFixtureFactory.create(current = setOf(location))
+		val receipt = fixture.permit(
+			SourceCallerRequest.ManualSessionStart(
+				requestedCapturedSources = setOf(TrackingSource.LOCATION),
+				manifestIdentity = MANIFEST,
+				requestedDemandIdentities = setOf(location),
+			),
 		)
+
+		fixture.guard.accept(
+			replay(
+				receipt,
+				SourceCallerReplayKind.POLICY_RECONCILIATION,
+				setOf(location),
+			),
+		).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+			.rejection.reason shouldBe
+			SourceCallerRejectionReason.REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE
 	}
 
 	private fun replay(
@@ -812,19 +1137,38 @@ internal class TrustedSourceCallerGuardFixture(
 ) {
 	var current = current
 	var availability = availability
-	private val persisted = mutableMapOf<SourceCallerReplayReference, String>()
+	private val persisted =
+		mutableMapOf<SourceCallerReplayReference, StoredSourceCallerAuthority>()
 	val guard = ExactSourceCallerGuard(
 		authorityReader = SourceCallerAuthoritySnapshotReader {
 			SourceCallerAuthoritySnapshot(current, availability)
 		},
 		authorityRepository = object : SourceCallerAcceptedAuthorityRepository {
-			override suspend fun storeIfAbsent(
+			override suspend fun insertIfAbsent(
 				reference: SourceCallerReplayReference,
-				encodedAuthority: String,
-			): Boolean = persisted.putIfAbsent(reference, encodedAuthority) == null
+				authority: StoredSourceCallerAuthority,
+				createdAtMs: Long,
+			): Boolean = persisted.putIfAbsent(reference, authority) == null
 
-			override suspend fun load(reference: SourceCallerReplayReference): String? =
-				persisted[reference]
+			override suspend fun load(
+				reference: SourceCallerReplayReference,
+			): StoredSourceCallerAuthorityLoadResult = persisted[reference]?.let {
+				StoredSourceCallerAuthorityLoadResult.Available(it)
+			} ?: StoredSourceCallerAuthorityLoadResult.Missing
+
+			override suspend fun retire(
+				reference: SourceCallerReplayReference,
+				reason: String,
+				retiredAtMs: Long,
+			): Boolean = persisted.remove(reference) != null
+
+			override suspend fun delete(reference: SourceCallerReplayReference): Boolean =
+				persisted.remove(reference) != null
+
+			override suspend fun pruneRetired(
+				retiredBeforeOrAtMs: Long,
+				limit: Int,
+			): Int = 0
 		},
 	)
 

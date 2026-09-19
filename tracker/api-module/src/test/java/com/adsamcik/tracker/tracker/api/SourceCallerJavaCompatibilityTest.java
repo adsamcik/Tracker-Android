@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.api;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose;
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource;
@@ -10,6 +11,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class SourceCallerJavaCompatibilityTest {
+	@SuppressWarnings("deprecation")
 	@Test
 	void constructsAndReadsPublicCallerAndReadinessContracts() {
 		TrackingPurposeLeaseIdentity captureLease = TrackingPurposeLeaseIdentity.create(
@@ -85,6 +87,12 @@ class SourceCallerJavaCompatibilityTest {
 						manifest,
 						Set.of(capture, control)
 				);
+		SourceCallerRequest.RecoverySessionStart recovery =
+				SourceCallerRequest.RecoverySessionStart.create(
+						Set.of(TrackingSource.LOCATION),
+						manifest,
+						Set.of(capture)
+				);
 		SourceCallerRequest.Ambient ambientRequest =
 				SourceCallerRequest.Ambient.create(
 						TrackingSource.WIFI,
@@ -96,12 +104,44 @@ class SourceCallerJavaCompatibilityTest {
 						TrackingSource.WIFI,
 						Set.of(ambient)
 				);
+		SourceCallerRequest.PurposeOwnerMutation ownerMutation =
+				SourceCallerRequest.PurposeOwnerMutation.create(
+						TrackingSource.ACTIVITY,
+						TrackingPurpose.CONTROL,
+						true,
+						Set.of(control)
+				);
 
 		SourceCallerReplayReference reference =
 				new SourceCallerReplayReference("java-replay-reference");
+		SourceCallerRequest.PurposeOwnerRetirement ownerRetirement =
+				SourceCallerRequest.PurposeOwnerRetirement.create(
+						TrackingSource.ACTIVITY,
+						TrackingPurpose.CONTROL,
+						reference
+				);
 		SourceCallerAcceptanceReceipt receipt =
 				new SourceCallerAcceptanceReceipt(reference, Set.of(capture));
 		SourceCallerRequest.Replay replay = SourceCallerRequest.Replay.create(
+				SourceCallerReplayKind.PROCESS_RECOVERY,
+				receipt.getReference(),
+				TrackingPurpose.SESSION_CAPTURE,
+				receipt.getPermittedDemandIdentities()
+		);
+		SourceCallerRequest.Replay legacyForegroundServiceReplay =
+				SourceCallerRequest.Replay.create(
+						SourceCallerReplayKind.FOREGROUND_SERVICE,
+						receipt.getReference(),
+						TrackingPurpose.SESSION_CAPTURE,
+						receipt.getPermittedDemandIdentities()
+				);
+		SourceCallerRequest.Replay legacyRestartReplay = SourceCallerRequest.Replay.create(
+				SourceCallerReplayKind.RESTART,
+				receipt.getReference(),
+				TrackingPurpose.SESSION_CAPTURE,
+				receipt.getPermittedDemandIdentities()
+		);
+		SourceCallerRequest.Replay legacyRecoveryReplay = SourceCallerRequest.Replay.create(
 				SourceCallerReplayKind.RECOVERY,
 				receipt.getReference(),
 				TrackingPurpose.SESSION_CAPTURE,
@@ -119,10 +159,37 @@ class SourceCallerJavaCompatibilityTest {
 		assertSame(ambientLease, ambientReady.getOperationalIdentity());
 		assertEquals(Set.of(TrackingSource.LOCATION), manual.getRequestedCapturedSources());
 		assertEquals(Set.of(TrackingSource.ACTIVITY), automatic.getDeclaredControlDependencies());
+		assertEquals(manifest, recovery.getManifestIdentity());
 		assertEquals(Set.of(ambient), ambientRequest.getRequestedDemandIdentities());
 		assertFalse(defaultOffAmbient.getEnabled());
+		assertTrue(ownerMutation.getEnabled());
 		assertEquals("java-replay-reference", reference.getValue());
+		assertSame(reference, ownerRetirement.getReference());
 		assertSame(reference, replay.getReference());
+		assertSame(
+				SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
+				SourceCallerReplayKind.valueOf("FOREGROUND_SERVICE").getCanonicalKind()
+		);
+		assertSame(
+				SourceCallerReplayKind.ACTIVE_REDELIVERY,
+				SourceCallerReplayKind.valueOf("RESTART").getCanonicalKind()
+		);
+		assertSame(
+				SourceCallerReplayKind.PROCESS_RECOVERY,
+				SourceCallerReplayKind.valueOf("RECOVERY").getCanonicalKind()
+		);
+		assertSame(
+				SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
+				legacyForegroundServiceReplay.getReplayKind()
+		);
+		assertSame(
+				SourceCallerReplayKind.ACTIVE_REDELIVERY,
+				legacyRestartReplay.getReplayKind()
+		);
+		assertSame(
+				SourceCallerReplayKind.PROCESS_RECOVERY,
+				legacyRecoveryReplay.getReplayKind()
+		);
 		assertEquals(Set.of(capture), receipt.getPermittedDemandIdentities());
 	}
 }

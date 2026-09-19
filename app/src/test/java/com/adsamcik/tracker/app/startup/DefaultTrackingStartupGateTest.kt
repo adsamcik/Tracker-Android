@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.tracker.resilience.InactiveTrackingSessionStopHandler
 import com.adsamcik.tracker.tracker.resilience.InactiveTrackingSessionStopOutcome
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreCorruptionException
 import com.adsamcik.tracker.tracker.resilience.PreviousExitRecoveryCoordinator
 import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
@@ -333,6 +334,22 @@ class DefaultTrackingStartupGateTest {
 			resolver.apply(action, 0L)
 			sourceRecovery.recoverStartupAuthority()
 		}
+	}
+
+	@Test
+	fun `corrupt active descriptor blocks startup instead of retrying as empty state`() = runTest {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(any(), any()) } throws
+			ActiveTrackingSessionStoreCorruptionException(
+				java.io.IOException("corrupt proto"),
+			)
+
+		gate.reconcile() shouldBe TrackingStartupResult.Blocked(
+			TrackingStartupStage.PREVIOUS_EXIT,
+			"ACTIVE_DESCRIPTOR_CORRUPT",
+		)
+		coVerify(exactly = 0) { sourceRecovery.recoverStartupAuthority() }
 	}
 
 	@Test

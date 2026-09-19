@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.resilience
 
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import java.util.UUID
 
 /**
@@ -140,6 +141,10 @@ data class ActiveTrackingSessionDescriptor(
 	val restartToken: String? = null,
 	/** Exact derived segment currently receiving this logical session's online aggregates. */
 	val sessionSegmentId: Long? = null,
+	/** Opaque guard reference mirrored from the current durable lifecycle intent. */
+	val sourceCallerAuthorityReference: SourceCallerReplayReference? = null,
+	/** Exact predecessor whose retirement is durably pending after a reference handoff. */
+	val pendingRetirementSourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 ) {
 	init {
 		require(logicalTrackingId.isNotBlank()) { "logicalTrackingId must not be blank" }
@@ -156,6 +161,12 @@ data class ActiveTrackingSessionDescriptor(
 		require(sessionSegmentId == null || sessionSegmentId > 0L) {
 			"sessionSegmentId must be positive when present"
 		}
+		require(
+			pendingRetirementSourceCallerAuthorityReference == null ||
+				pendingRetirementSourceCallerAuthorityReference != sourceCallerAuthorityReference
+		) {
+			"Pending caller authority retirement must identify a predecessor"
+		}
 		if (lifecycleState == LogicalTrackingLifecycleState.STOP_CANDIDATE) {
 			require(stopCandidate != null) {
 				"STOP_CANDIDATE descriptors require a stopCandidate"
@@ -167,10 +178,15 @@ data class ActiveTrackingSessionDescriptor(
 		}
 	}
 
-	/** Only active user sessions may be restarted after involuntary Android teardown. */
+	/**
+	 * Only active user sessions may be restarted after involuntary Android teardown.
+	 *
+	 * Recorded predecessor debt remains restart-eligible so recovery can replay the current Room
+	 * authority and finish that exact retirement instead of terminalizing the logical session.
+	 */
 	val isRestartEligible: Boolean
 		get() = isUserInitiated && lifecycleState == LogicalTrackingLifecycleState.ACTIVE &&
-			restartBootId != null && restartToken != null
+			restartBootId != null && restartToken != null && sourceCallerAuthorityReference != null
 
 	fun isRestartEligibleForBoot(currentBootId: String): Boolean =
 		isRestartEligible && restartBootId == currentBootId
@@ -265,13 +281,56 @@ sealed interface ActiveTrackingSessionStoreResult {
 
 	data class Failure(
 		val cause: Throwable,
+		val kind: ActiveTrackingSessionStoreFailureKind =
+			ActiveTrackingSessionStoreFailureKind.UNAVAILABLE,
 	) : ActiveTrackingSessionStoreResult
 }
+
+enum class ActiveTrackingSessionStoreFailureKind {
+	CORRUPT,
+	UNAVAILABLE,
+}
+
+class ActiveTrackingSessionStoreCorruptionException(
+	cause: Throwable,
+) : IllegalStateException("Active tracking session persistence is corrupt", cause)
 
 interface ActiveTrackingSessionStore {
 	suspend fun read(): ActiveTrackingSessionStoreResult
 
 	suspend fun save(descriptor: ActiveTrackingSessionDescriptor): ActiveTrackingSessionStoreResult
+
+	/**
+	 * Applies service-owned lifecycle fields without letting the service rewrite engine-owned
+	 * caller-authority references for the same run. Only the engine's exact retirement CAS may
+	 * clear [ActiveTrackingSessionDescriptor.pendingRetirementSourceCallerAuthorityReference].
+	 */
+	suspend fun mergeServiceDescriptor(
+		descriptor: ActiveTrackingSessionDescriptor,
+	): ActiveTrackingSessionStoreResult = when (val current = read()) {
+		is ActiveTrackingSessionStoreResult.Failure -> current
+		is ActiveTrackingSessionStoreResult.Success -> {
+			val stored = current.descriptor
+			val merged = when {
+				stored == null -> descriptor
+				stored.logicalTrackingId != descriptor.logicalTrackingId ||
+					stored.serviceRunId != descriptor.serviceRunId -> stored
+				stored.lifecycleRevision > descriptor.lifecycleRevision ||
+					(stored.lifecycleRevision == descriptor.lifecycleRevision &&
+						stored.lifecycleState != descriptor.lifecycleState) -> stored
+				else -> descriptor.copy(
+					sourceCallerAuthorityReference = stored.sourceCallerAuthorityReference,
+					pendingRetirementSourceCallerAuthorityReference =
+						stored.pendingRetirementSourceCallerAuthorityReference,
+				)
+			}
+			when {
+				stored == merged -> ActiveTrackingSessionStoreResult.Success(merged)
+				stored == null -> save(merged)
+				else -> replaceExact(stored, merged)
+			}
+		}
+	}
 
 	/**
 	 * Replaces [expected] only while the complete persisted descriptor is still identical.
@@ -311,6 +370,20 @@ interface ActiveTrackingSessionStore {
 	}
 
 	suspend fun clear(): ActiveTrackingSessionStoreResult
+
+	/**
+	 * Replaces a descriptor that could not be decoded with an empty durable state.
+	 *
+	 * Implementations must not report success unless the unreadable state was replaced, or the
+	 * store is already empty. A current readable descriptor must be preserved and returned.
+	 */
+	suspend fun resetCorruptState(): ActiveTrackingSessionStoreResult =
+		ActiveTrackingSessionStoreResult.Failure(
+			ActiveTrackingSessionStoreCorruptionException(
+				IllegalStateException("Corrupt active tracking session reset is unsupported"),
+			),
+			ActiveTrackingSessionStoreFailureKind.CORRUPT,
+		)
 
 	/**
 	 * Clears only if the durable descriptor still belongs to [descriptor]'s service run.

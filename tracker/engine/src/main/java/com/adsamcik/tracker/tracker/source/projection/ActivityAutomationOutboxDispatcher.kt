@@ -446,9 +446,12 @@ internal class BackgroundTrackingActivityAutomationEffectConsumer @Inject constr
 					return ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
 				is ActivityAutomaticStartAcceptance.Pending -> when (acceptance.action.status) {
 					com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
-						.STATUS_START_REQUESTED -> return ActivityAutomationDeliveryResult.START_REQUESTED
+						.STATUS_START_REQUESTED -> return ActivityAutomationDeliveryResult.RETRY
 					com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
-						.STATUS_RESERVED -> if (
+						.STATUS_RESERVED,
+					com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
+						.STATUS_RETRYABLE,
+					-> if (
 						startContext == ActivityAutomationStartContext.DURABLE_REPLAY
 					) {
 						automaticStartActions.markReservedReplayExpired(
@@ -497,7 +500,10 @@ internal class BackgroundTrackingActivityAutomationEffectConsumer @Inject constr
 				com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
 					.STATUS_START_REQUESTED -> return ActivityAutomationDeliveryResult.START_REQUESTED
 				com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
-					.STATUS_RESERVED -> Unit
+					.STATUS_RESERVED,
+				com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
+					.STATUS_RETRYABLE,
+				-> Unit
 				else -> return ActivityAutomationDeliveryResult.RETRY
 			}
 			ActivityAutomaticStartAcceptance.Missing -> Unit
@@ -507,6 +513,12 @@ internal class BackgroundTrackingActivityAutomationEffectConsumer @Inject constr
 			com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 				.ACTIVITY_TRANSITION_CALLBACK
 		) {
+			automaticStartActions.markReservedReplayExpired(
+				trigger.triggerId,
+				effectStableId,
+				evidence.collectedDataEpoch,
+				nowWall,
+			)
 			return ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
 		}
 		when (val reservation = automaticStartActions.reserve(
@@ -524,7 +536,11 @@ internal class BackgroundTrackingActivityAutomationEffectConsumer @Inject constr
 				return ActivityAutomationDeliveryResult.RETRY
 			is ActivityAutomaticStartReserveResult.Existing -> when (reservation.action.status) {
 				com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
-					.STATUS_START_REQUESTED -> return ActivityAutomationDeliveryResult.START_REQUESTED
+					.STATUS_START_REQUESTED -> if (
+						startContext == ActivityAutomationStartContext.DURABLE_REPLAY
+					) {
+						return ActivityAutomationDeliveryResult.RETRY
+					}
 				com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
 					.STATUS_LIFECYCLE_INTENT_ACCEPTED ->
 					return ActivityAutomationDeliveryResult.LIFECYCLE_INTENT_ACCEPTED
@@ -552,8 +568,9 @@ internal class BackgroundTrackingActivityAutomationEffectConsumer @Inject constr
 					)
 					return ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
 				}
-				val enqueued = try {
-					com.adsamcik.tracker.tracker.api.TrackerServiceApi.startServiceAndAwaitEnqueue(
+				val dispatch = try {
+					com.adsamcik.tracker.tracker.api.TrackerServiceApi
+						.startServiceAndAwaitEnqueueResult(
 						context,
 						isUserInitiated = false,
 						automaticTrigger = trigger,
@@ -561,21 +578,41 @@ internal class BackgroundTrackingActivityAutomationEffectConsumer @Inject constr
 				} catch (cancelled: CancellationException) {
 					throw cancelled
 				} catch (_: RuntimeException) {
-					false
-				}
-				if (enqueued) {
-					ActivityAutomationDeliveryResult.START_REQUESTED
-				} else {
-					automaticStartActions.markTerminalExact(
-						trigger,
-						System.currentTimeMillis(),
-						"ANDROID_FOREGROUND_SERVICE_START_NOT_ENQUEUED",
+					com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.Retryable(
+						"ANDROID_START_DISPATCH_FAILED",
 					)
-					ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
+				}
+				when (dispatch) {
+					com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.Enqueued,
+					com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.AlreadyActive,
+					-> dispatch.toAutomationDeliveryResult()
+					is com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.Retryable -> {
+						automaticStartActions.markExternalStartRetryable(trigger)
+						dispatch.toAutomationDeliveryResult()
+					}
+					is com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.Terminal -> {
+						automaticStartActions.markTerminalExact(
+							trigger,
+							System.currentTimeMillis(),
+							dispatch.failureCode,
+						)
+						dispatch.toAutomationDeliveryResult()
+					}
 				}
 			}
 		}
 	}
+}
+
+internal fun com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult
+	.toAutomationDeliveryResult(): ActivityAutomationDeliveryResult = when (this) {
+	com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.Enqueued,
+	com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.AlreadyActive,
+	-> ActivityAutomationDeliveryResult.START_REQUESTED
+	is com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.Retryable ->
+		ActivityAutomationDeliveryResult.RETRY
+	is com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.Terminal ->
+		ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
 }
 
 internal sealed interface ActivityAutomationEffectValidation {

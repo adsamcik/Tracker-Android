@@ -216,8 +216,15 @@ internal class AmbientCellFactProjector @Inject constructor(
 		if (currentRetention == null ||
 			!AmbientCellRetentionAuthorityIntegrity.isAuthentic(currentRetention) ||
 			!currentRetention.isActive ||
+			currentRetention.opaquePolicyId != retention.opaquePolicyId ||
+			currentRetention.approvalRevision != retention.approvalRevision ||
+			currentRetention.sourcePolicyRevision != sourcePolicyRevision ||
+			currentRetention.ambientConsentEpoch != ambientConsentEpoch ||
 			currentRetention.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
-			currentRetention.retainedFromMs != lifecycle.retainedFromMs
+			currentRetention.retainedFromMs != lifecycle.retainedFromMs ||
+			currentRetention.effectiveBootId != wal.clockDomainId ||
+			currentRetention.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos ||
+			currentRetention.effectiveWallTimeMs > observedWallTimeMs
 		) {
 			return cellUnverifiable(
 				AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,

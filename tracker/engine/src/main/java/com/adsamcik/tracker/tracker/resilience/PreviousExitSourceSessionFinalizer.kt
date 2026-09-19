@@ -7,11 +7,13 @@ import com.adsamcik.tracker.shared.base.database.dao.SourceSessionDao
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.time.Clock
+import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
 import com.adsamcik.tracker.tracker.source.coordinator.LifecycleActionStatus
 import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
-import com.adsamcik.tracker.tracker.source.coordinator.SessionMode
+import com.adsamcik.tracker.tracker.source.coordinator.currentRecoverySourceCallerAuthorityCandidate
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -19,17 +21,20 @@ import javax.inject.Singleton
 /**
  * Finalizes incomplete source authority that cannot be safely resumed by this process.
  *
- * Automatic sessions never survive a process exit. A manual session survives only when the
- * recovery descriptor still grants ACTIVE restart authority in this boot and names the same
- * logical session. In particular, elapsed-time leases and manual authority never cross boots.
+ * Automatic sessions never survive a process exit. A manual session survives only when its
+ * same-boot descriptor is reconciled to authenticated Room caller authority and names either the
+ * exact active run or the exact completed suspend-for-restart run. A committed reconfiguration may
+ * be finished by the next recovery owner instead of being mistaken for an intentional stop. In
+ * particular, elapsed-time leases and manual authority never cross boots.
  * Session, service-run, lifecycle-action, demand, and authorization changes share one Room
  * transaction; the recovery coordinator separately compare-and-clears the descriptor mirror.
  */
 @Singleton
-class PreviousExitSourceSessionFinalizer @Inject constructor(
+class PreviousExitSourceSessionFinalizer @Inject internal constructor(
 	private val databaseProvider: Provider<AppDatabase>,
 	private val clock: Clock,
 	private val bootClockDomainProvider: BootClockDomainProvider,
+	private val callerAuthorityReconciler: ActiveTrackingSessionCallerAuthorityReconciler,
 ) {
 	suspend fun finalizeStaleSessions(
 		factualCompletedAtMs: Long? = null,
@@ -42,10 +47,28 @@ class PreviousExitSourceSessionFinalizer @Inject constructor(
 		val recoveryAtMs = clock.currentTimeMillis()
 		val elapsedRealtimeNanos = clock.elapsedRealtimeNanos()
 		val bootId = bootClockDomainProvider.current()
-		val recoveryCandidate = recoveryDescriptor
+		val eligibleRecoveryDescriptor = recoveryDescriptor
 			?.takeIf { descriptor ->
 				descriptor.isUserInitiated && descriptor.isRestartEligibleForBoot(bootId)
 			}
+		val reconciliation = eligibleRecoveryDescriptor?.let { descriptor ->
+			callerAuthorityReconciler.reconcile(descriptor)
+		}
+		val recoveryCandidate = when (reconciliation) {
+			null -> null
+			is ActiveTrackingCallerAuthorityReconciliation.Ready -> reconciliation.descriptor
+			is ActiveTrackingCallerAuthorityReconciliation.Blocked -> {
+				if (reconciliation.disposition == TrackingStartFailureDisposition.RETRYABLE) {
+					throw PreviousExitCallerAuthorityUnavailableException(reconciliation.failureCode)
+				}
+				null
+			}
+		}
+		val inspectedRecoveryDescriptor = when (reconciliation) {
+			null -> recoveryDescriptor
+			is ActiveTrackingCallerAuthorityReconciliation.Ready -> reconciliation.descriptor
+			is ActiveTrackingCallerAuthorityReconciliation.Blocked -> reconciliation.descriptor
+		}
 		return database.withTransaction {
 			val dao = database.sourceSessionDao()
 			val incompleteSessions = dao.incompleteSessions()
@@ -54,25 +77,46 @@ class PreviousExitSourceSessionFinalizer @Inject constructor(
 					put(session.logicalTrackingId, dao.serviceRunAuthorityForFinalization(session))
 				}
 			}
-			val recoveryRun = recoveryCandidate?.let { descriptor ->
-				dao.serviceRun(descriptor.serviceRunId)
+			val authenticatedRecoveryAuthority = recoveryCandidate?.let { descriptor ->
+				val session = dao.session(descriptor.logicalTrackingId)
+				val manifestRevision = session?.currentManifestRevision
+				val intentRevision = session?.currentIntentRevision
+				currentRecoverySourceCallerAuthorityCandidate(
+					logicalTrackingId = descriptor.logicalTrackingId,
+					serviceRunId = descriptor.serviceRunId,
+					session = session,
+					run = dao.serviceRun(descriptor.serviceRunId),
+					manifest = manifestRevision
+						?.let { revision -> dao.manifest(descriptor.logicalTrackingId, revision) },
+					bindings = manifestRevision
+						?.let { revision ->
+							dao.manifestSources(descriptor.logicalTrackingId, revision)
+						}
+						.orEmpty(),
+					intent = intentRevision
+						?.let { revision ->
+							dao.lifecycleIntent(descriptor.logicalTrackingId, revision)
+						},
+				)?.takeIf { authority ->
+					authority.reference == descriptor.sourceCallerAuthorityReference &&
+						descriptor.pendingRetirementSourceCallerAuthorityReference == null
+				}
+			}
+			val descriptorDisposition = when {
+				inspectedRecoveryDescriptor == null ->
+					PreviousExitRecoveryDescriptorDisposition.NoDescriptor
+				recoveryCandidate != null && authenticatedRecoveryAuthority != null ->
+					PreviousExitRecoveryDescriptorDisposition.Preserved(
+						inspectedRecoveryDescriptor,
+					)
+				else -> PreviousExitRecoveryDescriptorDisposition.Clear(
+					inspectedRecoveryDescriptor,
+				)
 			}
 			val stale = incompleteSessions.filter { session ->
-				val currentRun = authorities.getValue(session.logicalTrackingId).currentRun
 				val isRecoverableManual = recoveryCandidate != null &&
-					session.sessionMode == SessionMode.MANUAL.name &&
-					session.state == SessionLifecycleState.ACTIVE.name &&
-					session.completedAtMs == null &&
-					session.clockDomainId == bootId &&
-					session.lifecycleBootId == bootId &&
 					session.logicalTrackingId == recoveryCandidate.logicalTrackingId &&
-					recoveryRun != null &&
-					recoveryRun.logicalTrackingId == session.logicalTrackingId &&
-					recoveryRun.serviceRunId == recoveryCandidate.serviceRunId &&
-					currentRun?.serviceRunId == recoveryRun.serviceRunId &&
-					recoveryRun.state == SessionLifecycleState.ACTIVE.name &&
-					recoveryRun.completedAtMs == null &&
-					recoveryRun.bootId == bootId
+					authenticatedRecoveryAuthority != null
 				!isRecoverableManual
 			}
 			val pendingAutomaticAction = database.activityAutomaticStartActionDao().current()
@@ -146,10 +190,7 @@ class PreviousExitSourceSessionFinalizer @Inject constructor(
 			}
 			PreviousExitSourceSessionFinalization(
 				finalizedLogicalTrackingIds = stale.mapTo(linkedSetOf()) { it.logicalTrackingId },
-				inspectedLogicalTrackingId = recoveryDescriptor?.logicalTrackingId,
-				inspectedSessionExists = recoveryDescriptor?.logicalTrackingId?.let { logicalTrackingId ->
-					dao.session(logicalTrackingId) != null
-				},
+				descriptorDisposition = descriptorDisposition,
 			)
 		}
 	}
@@ -218,6 +259,7 @@ class PreviousExitSourceSessionFinalizer @Inject constructor(
 		)
 		private val PENDING_AUTOMATIC_ACTION_STATES = setOf(
 			ActivityAutomaticStartActionEntity.STATUS_RESERVED,
+			ActivityAutomaticStartActionEntity.STATUS_RETRYABLE,
 			ActivityAutomaticStartActionEntity.STATUS_START_REQUESTED,
 		)
 	}
@@ -225,6 +267,22 @@ class PreviousExitSourceSessionFinalizer @Inject constructor(
 
 data class PreviousExitSourceSessionFinalization(
 	val finalizedLogicalTrackingIds: Set<String>,
-	val inspectedLogicalTrackingId: String? = null,
-	val inspectedSessionExists: Boolean? = null,
+	val descriptorDisposition: PreviousExitRecoveryDescriptorDisposition =
+		PreviousExitRecoveryDescriptorDisposition.NoDescriptor,
 )
+
+sealed interface PreviousExitRecoveryDescriptorDisposition {
+	data object NoDescriptor : PreviousExitRecoveryDescriptorDisposition
+
+	data class Preserved(
+		val descriptor: ActiveTrackingSessionDescriptor,
+	) : PreviousExitRecoveryDescriptorDisposition
+
+	data class Clear(
+		val descriptor: ActiveTrackingSessionDescriptor,
+	) : PreviousExitRecoveryDescriptorDisposition
+}
+
+internal class PreviousExitCallerAuthorityUnavailableException(
+	val failureCode: String,
+) : IOException(failureCode)

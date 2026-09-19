@@ -86,6 +86,7 @@ data class ActivityAutomaticStartActionEntity(
 	companion object {
 		const val SINGLETON_ID = 1
 		const val STATUS_RESERVED = "RESERVED"
+		const val STATUS_RETRYABLE = "RETRYABLE"
 		const val STATUS_START_REQUESTED = "START_REQUESTED"
 		const val STATUS_LIFECYCLE_INTENT_ACCEPTED = "LIFECYCLE_INTENT_ACCEPTED"
 		const val STATUS_TERMINAL = "TERMINAL"
@@ -93,6 +94,7 @@ data class ActivityAutomaticStartActionEntity(
 
 		private val VALID_STATUSES = setOf(
 			STATUS_RESERVED,
+			STATUS_RETRYABLE,
 			STATUS_START_REQUESTED,
 			STATUS_LIFECYCLE_INTENT_ACCEPTED,
 			STATUS_TERMINAL,

@@ -1114,6 +1114,613 @@ class ArchitecturalFitnessTest {
 	}
 
 	@Nested
+	inner class `Source caller authority` {
+		@Test
+		fun `every production demand mutation reaches SourceBroker only through caller guard dispatcher`() {
+			val sourceRoot = projectRoot.resolve("tracker/engine/src/main")
+			val allowedFiles = setOf(
+				"SourceBroker.kt",
+				"SourceCallerDemandDispatcher.kt",
+				"AuthoritativeSessionCoordinator.kt",
+				"PreviousExitSourceSessionFinalizer.kt",
+				"ForceStopSourceSessionFinalizer.kt",
+				"ExplicitStopSourceSessionFinalizer.kt",
+			)
+			val directBrokerCalls = Regex(
+				"""\.(?:buildSessionDemands|stageSessionDemandsInTransaction|""" +
+					"""replaceSessionDemandsInTransaction|replaceAutomaticControlDemand|""" +
+					"""replaceAmbientStepsDemand|replaceAmbientWifiDemand(?:UnderHeldLease)?|""" +
+					"""replaceAmbientCellDemand(?:UnderHeldLease)?|withAmbientRadioMutationLease|""" +
+					"""withAmbientRadioReductionLease|""" +
+					"""compensateAmbient(?:Wifi|Cell)DemandUnderHeldLease|""" +
+					"""retireAcceptedPurposeDemand|retireSupersededSessionAuthoritiesInTransaction|""" +
+					"""markSessionDemandsRetiring|retireSessionDemands(?:InTransaction)?|""" +
+					"""insertDemands)\s*\(""",
+			)
+			sourceRoot.walkTopDown()
+				.filter { file ->
+					file.isFile && file.extension == "kt" && file.name !in allowedFiles
+				}
+				.flatMap { file ->
+					file.readLines().mapIndexedNotNull { index, line ->
+						if (directBrokerCalls.containsMatchIn(line)) {
+							"${file.relativeTo(projectRoot)}:${index + 1}: $line"
+						} else {
+							null
+						}
+					}
+				}
+				.toList()
+				.shouldBeEmpty()
+
+			sourceRoot.walkTopDown()
+				.filter { file ->
+					file.isFile && file.extension == "kt" &&
+						file.name !in setOf("SourceBroker.kt", "AuthoritativeSessionCoordinator.kt")
+				}
+				.flatMap { file ->
+					file.readLines().mapIndexedNotNull { index, line ->
+						if (".activatePreparedSessionDemandsInTransaction(" in line) {
+							"${file.relativeTo(projectRoot)}:${index + 1}: $line"
+						} else {
+							null
+						}
+					}
+				}
+				.toList()
+				.shouldBeEmpty()
+		}
+
+		@Test
+		fun `manual automatic foreground and recovery starts share the guarded coordinator path`() {
+			val api = projectRoot.resolve(
+				"tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/" +
+					"TrackerServiceApi.kt",
+			).readText()
+			val coordinator = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/" +
+					"DefaultTrackingStartRequestCoordinator.kt",
+			).readText()
+			val reconciler = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/" +
+					"ActiveTrackingSessionCallerAuthorityReconciler.kt",
+			).readText()
+			val authoritativeCoordinator = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/" +
+					"AuthoritativeSessionCoordinator.kt",
+			).readText()
+			val previousExitFinalizer = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/" +
+					"PreviousExitSourceSessionFinalizer.kt",
+			).readText()
+			val automaticOutbox = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/" +
+					"ActivityAutomationOutboxDispatcher.kt",
+			).readText()
+
+			buildList {
+				if ("requestManualTrackingStart" !in api ||
+					"startServiceAndAwaitEnqueue" !in api
+				) add("manual start must use the prepared-start coordinator")
+				addAll(
+					orderedMarkerViolations(
+						coordinator,
+						"recovery descriptor caller-authority reconciliation",
+						listOf(
+							"activeTrackingSessionCallerAuthorityReconciler.reconcile(recoveryCandidate)",
+							"disposition = reconciliation.disposition",
+						),
+					),
+				)
+				addAll(
+					orderedMarkerViolations(
+						reconciler,
+						"authenticated recovery caller-authority replay",
+						listOf(
+							"currentRecoverySourceCallerAuthority(",
+							"activeTrackingSessionStore.replaceExact(",
+							"replayPreparedSession(",
+							"SourceCallerReplayKind.PROCESS_RECOVERY",
+						),
+					),
+				)
+				addAll(
+					orderedMarkerViolations(
+						authoritativeCoordinator,
+						"Room-authenticated recovery caller authority",
+						listOf(
+							"currentRecoverySourceCallerAuthorityCandidate(",
+							"authenticatePreparedSession(",
+							"if (readCandidate() == candidate)",
+						),
+					),
+				)
+				addAll(
+					orderedMarkerViolations(
+						previousExitFinalizer,
+						"previous-exit authenticated recovery preservation",
+						listOf(
+							"callerAuthorityReconciler.reconcile(descriptor)",
+							"currentRecoverySourceCallerAuthorityCandidate(",
+							"authority.reference == descriptor.sourceCallerAuthorityReference",
+						),
+					),
+				)
+				if ("authenticated.rejection.reason.isRetryable" !in authoritativeCoordinator ||
+					"replay.rejection.reason.toFailureDisposition()" !in reconciler
+				) add("recovery caller rejection disposition must derive from the guard reason")
+				if ("replayPreparedSession(" !in coordinator ||
+					"SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY" !in coordinator
+				) add("foreground-service claim must replay exact caller authority")
+				if ("startServiceAndAwaitEnqueueResult(" !in automaticOutbox) {
+					add("automatic transition start must use the guarded prepared-start coordinator")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `caller authority reader samples every current authority coordinate without providers`() {
+			val source = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"SourceCallerDemandDispatcher.kt",
+			).readText()
+			buildList {
+				listOf(
+					"sessionDao.manifest(",
+					"sourcePolicyDao().authority()",
+					"sourceEvidenceStateDao().get()",
+					"rolloutStateStore.load()",
+					"sourceProjectionStateDao().lease(",
+					"purposeAvailabilityReader.availability.value",
+					"executionRevisionRegistry.identities.value",
+					"allowSuspendedSession",
+					"session.currentServiceRunId == null",
+				).filterNot(source::contains)
+					.mapTo(this) { marker -> "CurrentSourceCallerAuthorityReader missing $marker" }
+				listOf(
+					"requestLocationUpdates(",
+					"registerActivityTransitionUpdates(",
+					"registerListener(",
+				).filter(source::contains)
+					.mapTo(this) { marker -> "caller guard layer must not register providers: $marker" }
+				if ("SharedPreferencesSourceCallerAcceptedAuthorityRepository" in source ||
+					"getSharedPreferences(" in source ||
+					"ByteArrayOutputStream" in source ||
+					"Base64" in source
+				) add("accepted caller authority must remain in normalized Room rows")
+				if ("RoomSourceCallerAcceptedAuthorityRepository" !in source ||
+					"SourceCallerAcceptedAuthorityEffectChecksum" !in source
+				) add("normalized Room caller authority repository is missing")
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `caller authority persistence is checksummed retirable and boundedly pruneable`() {
+			val entity = projectRoot.resolve(
+				"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/" +
+					"SourceCallerAuthorityEntity.kt",
+			).readText()
+			val dao = projectRoot.resolve(
+				"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/" +
+					"SourceCallerAuthorityDao.kt",
+			).readText()
+			val activeStore = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/" +
+					"DefaultActiveTrackingSessionStore.kt",
+			).readText()
+
+			buildList {
+				if ("effect_checksum" !in entity ||
+					"row.reference" !in entity ||
+					"row.formatVersion" !in entity
+				) add("caller authority effect checksum must bind reference and format")
+				if ("retiredReferencesForPrune" !in dao || "LIMIT :limit" !in dao) {
+					add("caller authority retirement pruning must remain bounded")
+				}
+				if ("throw CorruptionException(" !in activeStore ||
+					"ActiveTrackingSessionStoreFailureKind.CORRUPT" !in activeStore
+				) add("active-session proto corruption must remain typed and fail closed")
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `LIVE AMBIENT broker snapshots before Room and revalidates persisted authority`() {
+			val broker = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"SourceBroker.kt",
+			).readText()
+			val entities = projectRoot.resolve(
+				"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/" +
+					"SourceBrokerEntities.kt",
+			).readText()
+			val registrations = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"SourceRegistrationRepository.kt",
+			).readText()
+			val stepsRegistrations = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/" +
+					"AmbientStepsProviderRegistrationRepository.kt",
+			).readText()
+			val authorizationTransactions = projectRoot.resolve(
+				"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/" +
+					"SourceBrokerAuthorizationTransactions.kt",
+			).readText()
+			val publicationModule = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/" +
+					"TrackingPurposePublicationModule.kt",
+			).readText()
+			val transactionRevalidation = broker.substring(
+				broker.indexOf("internal suspend fun areLiveAmbientDemandsCurrentInTransaction("),
+				broker.indexOf("internal fun buildSessionDemands("),
+			)
+
+			buildList {
+				if ("captureLiveAmbientRetentionSnapshot(" !in broker ||
+					"retentionAuthorityReader.currentLiveAmbient(" !in broker ||
+					"retentionAuthorityReader.isCurrentLiveAmbientAt(" !in broker
+				) {
+					add("SourceBroker must capture exact retention authority before Room mutation")
+				}
+				if ("retentionAuthorityReader.isCurrentLiveAmbientAt(" !in broker) {
+					add("SourceBroker must invoke the exact LIVE_AMBIENT retention predicate")
+				}
+				if ("retentionAuthorityReader." in transactionRevalidation) {
+					add("Room retention revalidation must not enter the retention producer mutex")
+				}
+				if ("readPersistedLiveAmbientRetention(" !in transactionRevalidation) {
+					add("Room mutation must exact-CAS the persisted retention identity")
+				}
+				if ("matchesActiveSettlementInTransaction(" !in transactionRevalidation ||
+					"activeRetentionFloorSettlement()" !in broker
+				) {
+					add("Room mutation must reject a changed retention settlement journal")
+				}
+				listOf(
+					"liveAmbientRetentionPolicyId",
+					"liveAmbientRetentionApprovalRevision",
+				).filterNot(entities::contains)
+					.mapTo(this) { field -> "broker authority is missing $field" }
+				if ("captureLiveAmbientRetentionSnapshot(" !in registrations ||
+					"areLiveAmbientDemandsCurrentInTransaction(" !in registrations ||
+					"captureLiveAmbientRetentionSnapshot(" !in stepsRegistrations ||
+					"areLiveAmbientDemandsCurrentInTransaction(" !in stepsRegistrations
+				) add("provider activation must revalidate LIVE_AMBIENT retention authority")
+				if ("current.effectiveBootId == bootId" !in authorizationTransactions) {
+					add("broker authorization must rotate across boot identity")
+				}
+				if ("provideRetentionAuthorityReader(" !in publicationModule) {
+					add("retention producer must be exposed through its reader-only downstream port")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `reconfiguration rotates the durable caller reference into active session state`() {
+			val coordinator = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/" +
+					"AuthoritativeSessionCoordinator.kt",
+			).readText()
+			val service = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt",
+			).readText()
+			val sourceSession = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/" +
+					"TrackerServiceSourceSession.kt",
+			).readText()
+			val dispatcher = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"SourceCallerDemandDispatcher.kt",
+			).readText()
+
+			buildList {
+				if ("sourceCallerAuthorityReference: SourceCallerReplayReference" !in coordinator) {
+					add("reconfigure result must expose the newly accepted caller reference")
+				}
+				if ("activeSessionDescriptor = replacement" !in service) {
+					add("TrackerService must mirror the reconfigured caller reference in memory")
+				}
+				addAll(
+					orderedMarkerViolations(
+						sourceSession,
+						"reconfiguration caller authority handoff",
+						listOf(
+							"activeTrackingSessionStore.replaceExact(",
+							"session.sourceCallerAuthorityReference = replacementReference",
+							"coordinator.retireSupersededSourceCallerAuthority(",
+						),
+					),
+				)
+				if ("request.startOrigin != SessionStartOrigin.POLICY_RECONCILIATION" !in dispatcher) {
+					add("policy reconfiguration must defer predecessor authority retirement")
+				}
+				if ("SessionDemandMutation.AUTHORITY_ONLY" !in coordinator ||
+					"sourceCallerAuthorityReference = authorityReference.value" !in coordinator ||
+					"retireCallerAuthority = false" !in coordinator
+				) {
+					add("restart suspension must persist a fresh exact authority before retirement")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `caller authority correction helpers keep legal module-private signatures`() {
+			val coordinator = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/" +
+					"AuthoritativeSessionCoordinator.kt",
+			).readText()
+			val broker = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"SourceBroker.kt",
+			).readText()
+			val guard = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"ExactSourceCallerGuard.kt",
+			).readText()
+			val activeStore = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/" +
+					"DefaultActiveTrackingSessionStore.kt",
+			).readText()
+
+			fun functionSection(source: String, start: String, end: String): String =
+				source.substring(source.indexOf(start), source.indexOf(end))
+
+			val blockBodyContracts = listOf(
+				functionSection(
+					broker,
+					"private suspend fun retireExactCallerAuthority(",
+					"private suspend fun loadCallerAuthorityForRetirement(",
+				) to "): SourceCallerAuthorityRetirementOutcome {",
+				functionSection(
+					broker,
+					"fun parseLeaseBinding(",
+					"fun matchesRetention(",
+				) to "): AmbientStepsLeaseBinding? {",
+				functionSection(
+					guard,
+					"private suspend fun acceptFresh(",
+					"private suspend fun replay(",
+				) to "): SourceCallerGuardResult {",
+				functionSection(
+					activeStore,
+					"private suspend inline fun runStoreOperation(",
+					"private fun defaultProto(",
+				) to "): ActiveTrackingSessionStoreResult {",
+			)
+
+			buildList {
+				if ("internal suspend fun retireSupersededSourceCallerAuthority(" !in coordinator) {
+					add("caller authority retirement outcomes must remain tracker-engine internal")
+				}
+				blockBodyContracts.forEach { (section, declaration) ->
+					if (declaration !in section) {
+						add("$declaration must remain block-bodied while using explicit returns")
+					}
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `internal caller dispatcher is not exposed by public constructors`() {
+			val sourceRoot = projectRoot.resolve("tracker/engine/src/main")
+			val expectedInternalConstructors = listOf(
+				"source/coordinator/AuthoritativeSessionCoordinator.kt",
+				"source/ambient/wifi/AmbientWifiDemandReconciler.kt",
+				"source/ambient/cell/AmbientCellDemandReconciler.kt",
+				"source/ambient/steps/AmbientStepsDemandReconciler.kt",
+				"source/runtime/SharedStepSourceController.kt",
+				"source/runtime/AutomaticStartTransitionMonitor.kt",
+				"service/DefaultTrackingStartRequestCoordinator.kt",
+				"resilience/ActiveTrackingSessionCallerAuthorityReconciler.kt",
+			).map { relative ->
+				sourceRoot.resolve(
+					"java/com/adsamcik/tracker/tracker/$relative",
+				)
+			}
+
+			val violations = buildList {
+				expectedInternalConstructors.forEach { file ->
+					val source = file.readText()
+					if (!Regex("""@Inject\s+internal\s+constructor\s*\(""")
+							.containsMatchIn(source)
+					) {
+						add("${file.relativeTo(projectRoot)} must use an internal injection constructor")
+					}
+				}
+				sourceRoot.walkTopDown()
+					.filter { file ->
+						file.isFile &&
+							file.extension == "kt" &&
+							file.name != "SourceCallerDemandDispatcher.kt"
+					}
+					.forEach { file ->
+						val source = file.readText()
+						if ("SourceCallerDemandDispatcher" !in source) return@forEach
+						val classIsInternal = Regex("""\binternal\s+class\s+\w+""")
+							.containsMatchIn(source)
+						Regex(
+							"""(?s)@Inject\s+(?!internal\s+)constructor\s*\([^)]*""" +
+								"""SourceCallerDemandDispatcher""",
+						).findAll(source).forEach { match ->
+							if (!classIsInternal) {
+								add(
+									"${file.relativeTo(projectRoot)} exposes internal " +
+										"SourceCallerDemandDispatcher through ${match.value}",
+								)
+							}
+						}
+					}
+			}
+
+			violations.shouldBeEmpty()
+		}
+
+		@Test
+		fun `purpose caller preparation and retention reads stay outside Room mutations`() {
+			val dispatcher = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"SourceCallerDemandDispatcher.kt",
+			).readText()
+			val broker = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"SourceBroker.kt",
+			).readText()
+			val automatic = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"AutomaticStartTransitionMonitor.kt",
+			).readText()
+			val steps = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/" +
+					"AmbientStepsDemandReconciler.kt",
+			).readText()
+			val publication = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"TrackingPurposePublicationRuntime.kt",
+			).readText()
+
+			fun section(source: String, start: String, end: String): String =
+				source.substring(source.indexOf(start), source.indexOf(end))
+
+			val purposeDispatchSections = listOf(
+				section(
+					dispatcher,
+					"override suspend fun dispatchAutomaticControl(",
+					"override suspend fun retireAutomaticControl(",
+				),
+				section(
+					dispatcher,
+					"override suspend fun dispatchAmbientSteps(",
+					"override suspend fun retireAmbientSteps(",
+				),
+				section(
+					dispatcher,
+					"private suspend fun <T> dispatchAmbientRadioUnderHeldLease(",
+					"private suspend fun reduceAmbientRadioAfterRejectedAuthority(",
+				),
+			)
+			val roomOnlyBrokerSections = listOf(
+				section(
+					broker,
+					"internal suspend fun replaceAmbientStepsDemand(",
+					"internal suspend fun retireExactAmbientStepsDemand(",
+				),
+				section(
+					broker,
+					"private suspend fun compensateAmbientRadioDemandInTransaction(",
+					"private suspend fun replaceAmbientRadioDemandInTransaction(",
+				),
+				section(
+					broker,
+					"internal suspend fun reduceAmbientWifiDemandForRecovery(",
+					"internal suspend fun compensateAmbientWifiDemandUnderHeldLease(",
+				),
+				section(
+					broker,
+					"private suspend fun replaceAmbientRadioDemandInTransaction(",
+					"suspend fun registrationAuthorization(",
+				),
+			)
+
+			buildList {
+				if ("guard.accept(" in dispatcher) {
+					add("dispatcher must never invoke the persistence-owning guard inside Room")
+				}
+				purposeDispatchSections.forEach { source ->
+					if ("database.withTransaction" in source) {
+						add("purpose dispatch must acquire caller/retention authority before Room")
+					}
+					if ("guard.accept(" in source) {
+						add("purpose dispatch must prepare, not persist, caller authority before Room")
+					}
+				}
+				roomOnlyBrokerSections.forEach { source ->
+					listOf(
+						"retentionAuthorityReader.",
+						"currentLiveAmbient(",
+						"readCurrentPurpose(",
+						"guard.accept(",
+					).filter(source::contains)
+						.mapTo(this) { forbidden ->
+							"Room mutation re-enters external authority through $forbidden"
+						}
+				}
+				addAll(
+					orderedMarkerViolations(
+						section(
+							dispatcher,
+							"override suspend fun <T> dispatchAmbientRadio(",
+							"private suspend fun <T> dispatchAmbientRadioUnderHeldLease(",
+						),
+						"ambient-radio lock order",
+						listOf(
+							"captureLiveAmbientRetentionSnapshot(",
+							"preparePurposeAcceptance(",
+							"withAmbientRadioMutationLease(",
+						),
+					),
+				)
+				if ("persistPreparedCallerAuthorityInTransaction(" !in broker) {
+					add("prepared caller authority must commit with its broker mutation")
+				}
+				if ("withRetentionFloorSettlementOperation(settlementOperationId)" !in publication) {
+					add("retention-floor owner work must carry its exact journal identity")
+				}
+				if ("sourceCallerDemandDispatcher.isCurrent(" in automatic ||
+					"sourceCallerDemandDispatcher.isCurrent(" in steps
+				) {
+					add("provider activation must rely on the held operation lease, not check then act")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `provider-owning callers reconcile only after guarded demand dispatch`() {
+			val automatic = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"AutomaticStartTransitionMonitor.kt",
+			).readText()
+			val wifi = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/wifi/" +
+					"AmbientWifiDemandReconciler.kt",
+			).readText()
+			val cell = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/cell/" +
+					"AmbientCellDemandReconciler.kt",
+			).readText()
+			val steps = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/" +
+					"AmbientStepsDemandReconciler.kt",
+			).readText()
+
+			(
+				orderedMarkerViolations(
+					automatic,
+					"automatic control caller guard",
+					listOf(
+						"dispatchAutomaticControl(",
+						"ensureRegisteredAtLiveTail()",
+						"arbiter.setDemand(",
+					),
+				) +
+					orderedMarkerViolations(
+						wifi,
+						"ambient Wi-Fi caller guard",
+						listOf("dispatchAmbientRadio(", "sharedController.reconcileAmbientJoin()"),
+					) +
+					orderedMarkerViolations(
+						cell,
+						"ambient Cell caller guard",
+						listOf("dispatchAmbientRadio(", "sharedController.reconcileAmbientJoin()"),
+					) +
+					orderedMarkerViolations(
+						steps,
+						"ambient Steps caller guard",
+						listOf("dispatchAmbientSteps(", "AmbientStepsDemandReconciliation.DemandReady("),
+					)
+			).shouldBeEmpty()
+		}
+	}
+
+	@Nested
 	inner class `Module dependency direction` {
 		@Test
 		fun `core network does not depend on the database module`() {

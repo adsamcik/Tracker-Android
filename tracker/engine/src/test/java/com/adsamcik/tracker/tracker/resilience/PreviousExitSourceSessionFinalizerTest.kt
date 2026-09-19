@@ -7,20 +7,33 @@ import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEnti
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.dao.PriorProcessRegistrationReconciliationResult
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
+import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
+import com.adsamcik.tracker.tracker.source.coordinator.AndroidStartDeliveryState
 import com.adsamcik.tracker.tracker.source.coordinator.LifecycleActionStatus
+import com.adsamcik.tracker.tracker.source.coordinator.LifecycleDesiredState
 import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
 import com.adsamcik.tracker.tracker.source.coordinator.SessionMode
+import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
+import com.adsamcik.tracker.tracker.source.coordinator.stableLifecycleChecksum
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -78,7 +91,11 @@ class PreviousExitSourceSessionFinalizerTest {
 			NoOpDrainScheduler,
 			mockk(relaxed = true),
 			finalizer(),
-			mockk(relaxed = true),
+			mockk {
+				coEvery {
+					reconcilePriorProcessRegistrations(any(), any())
+				} returns PriorProcessRegistrationReconciliationResult(0, 0, 0)
+			},
 		)
 
 		val result = coordinator.reconcileStaleSessions(completedAtMs = EXIT_AT_MS)
@@ -120,6 +137,7 @@ class PreviousExitSourceSessionFinalizerTest {
 		seedAutomationEpoch()
 		insertSession(MANUAL_ID, SessionMode.MANUAL, CURRENT_BOOT_ID)
 		insertRun(MANUAL_ID, CURRENT_BOOT_ID)
+		insertRecoveryAuthorityEnvelope(MANUAL_ID)
 		insertPendingAction(MANUAL_ID, CURRENT_BOOT_ID)
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand(MANUAL_ID, "manual-demand", CURRENT_BOOT_ID)),
@@ -130,12 +148,46 @@ class PreviousExitSourceSessionFinalizerTest {
 		)
 
 		result.finalizedLogicalTrackingIds shouldBe emptySet()
+		result.descriptorDisposition shouldBe
+			PreviousExitRecoveryDescriptorDisposition.Preserved(
+				manualDescriptor(CURRENT_BOOT_ID),
+			)
 		database.sourceSessionDao().session(MANUAL_ID)?.state shouldBe
 			SessionLifecycleState.ACTIVE.name
 		database.sourceSessionDao().serviceRun(runId(MANUAL_ID))?.state shouldBe
 			SessionLifecycleState.ACTIVE.name
 		database.sourceSessionDao().lifecycleAction(actionId(MANUAL_ID))?.status shouldBe
 			LifecycleActionStatus.PENDING.name
+		database.sourceBrokerDao().demandHistory(sessionConsumerId(MANUAL_ID)).single().status shouldBe
+			SourceDemandEntity.STATUS_ACTIVE
+		database.activityAutomationEpochDao().current()?.epoch shouldBe 17L
+	}
+
+	@Test
+	fun `same boot reconfiguration crash before descriptor update remains recoverable`() = runTest {
+		seedAutomationEpoch()
+		insertSession(
+			MANUAL_ID,
+			SessionMode.MANUAL,
+			CURRENT_BOOT_ID,
+			state = SessionLifecycleState.RECONFIGURING,
+		)
+		insertRun(MANUAL_ID, CURRENT_BOOT_ID)
+		insertRecoveryAuthorityEnvelope(MANUAL_ID)
+		insertPendingAction(MANUAL_ID, CURRENT_BOOT_ID)
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand(MANUAL_ID, "reconfiguring-manual-demand", CURRENT_BOOT_ID)),
+		)
+
+		val result = finalizer().finalizeStaleSessions(
+			recoveryDescriptor = manualDescriptor(CURRENT_BOOT_ID),
+		)
+
+		result.finalizedLogicalTrackingIds shouldBe emptySet()
+		database.sourceSessionDao().session(MANUAL_ID)?.state shouldBe
+			SessionLifecycleState.RECONFIGURING.name
+		database.sourceSessionDao().serviceRun(runId(MANUAL_ID))?.state shouldBe
+			SessionLifecycleState.ACTIVE.name
 		database.sourceBrokerDao().demandHistory(sessionConsumerId(MANUAL_ID)).single().status shouldBe
 			SourceDemandEntity.STATUS_ACTIVE
 		database.activityAutomationEpochDao().current()?.epoch shouldBe 17L
@@ -185,6 +237,7 @@ class PreviousExitSourceSessionFinalizerTest {
 				serviceRunId = STALE_RUN_ID,
 			)
 			insertRun(MANUAL_ID, CURRENT_BOOT_ID)
+			insertRecoveryAuthorityEnvelope(MANUAL_ID)
 			insertAction(
 				logicalTrackingId = MANUAL_ID,
 				bootId = CURRENT_BOOT_ID,
@@ -219,6 +272,176 @@ class PreviousExitSourceSessionFinalizerTest {
 			database.sourceBrokerDao().demandHistory(sessionConsumerId(MANUAL_ID)).single().status shouldBe
 				SourceDemandEntity.STATUS_ACTIVE
 		}
+
+	@Test
+	fun `completed restart suspension survives process crash for exact recovery`() = runTest {
+		insertSession(MANUAL_ID, SessionMode.MANUAL, CURRENT_BOOT_ID)
+		insertRun(
+			logicalTrackingId = MANUAL_ID,
+			bootId = CURRENT_BOOT_ID,
+			state = SessionLifecycleState.FINALIZED,
+			completedAtMs = SUSPENDED_AT_MS,
+		)
+		insertRecoveryAuthorityEnvelope(
+			logicalTrackingId = MANUAL_ID,
+			completedSuspensionReason = RESTART_REASON,
+		)
+		val staleDescriptor = manualDescriptor(
+			CURRENT_BOOT_ID,
+			callerReference = SourceCallerReplayReference("caller-before-suspend"),
+		)
+		val repairedDescriptor = staleDescriptor.copy(
+			sourceCallerAuthorityReference = SourceCallerReplayReference(CALLER_REFERENCE),
+		)
+
+		val result = finalizer { descriptor ->
+			descriptor shouldBe staleDescriptor
+			ActiveTrackingCallerAuthorityReconciliation.Ready(repairedDescriptor)
+		}.finalizeStaleSessions(
+			recoveryDescriptor = staleDescriptor,
+		)
+
+		result.finalizedLogicalTrackingIds shouldBe emptySet()
+		result.descriptorDisposition shouldBe
+			PreviousExitRecoveryDescriptorDisposition.Preserved(repairedDescriptor)
+		database.sourceSessionDao().session(MANUAL_ID)?.let { session ->
+			session.state shouldBe SessionLifecycleState.ACTIVE.name
+			session.currentServiceRunId shouldBe null
+			session.completedAtMs shouldBe null
+		}
+
+		database.sourceSessionDao().serviceRun(runId(MANUAL_ID))?.let { run ->
+			run.state shouldBe SessionLifecycleState.FINALIZED.name
+			run.completedAtMs shouldBe SUSPENDED_AT_MS
+			run.completionReason shouldBe RESTART_REASON
+			run.runtimeAcknowledgement shouldBe LifecycleActionStatus.STOP_ACCEPTED.name
+		}
+	}
+
+	@Test
+	fun `already terminal Room session clears the exact stale descriptor`() = runTest {
+		insertSession(MANUAL_ID, SessionMode.MANUAL, CURRENT_BOOT_ID)
+		val terminal = requireNotNull(database.sourceSessionDao().session(MANUAL_ID)).copy(
+			state = SessionLifecycleState.FINALIZED.name,
+			completedAtMs = SUSPENDED_AT_MS,
+			failureCode = "ALREADY_TERMINAL",
+			currentServiceRunId = null,
+		)
+		database.sourceSessionDao().updateSession(terminal) shouldBe 1
+		val descriptor = manualDescriptor(CURRENT_BOOT_ID)
+		val store = RecordingStore(descriptor)
+		val registrationRepository =
+			mockk<com.adsamcik.tracker.tracker.source.runtime.SourceRegistrationRepository>()
+		coEvery {
+			registrationRepository.reconcilePriorProcessRegistrations(any(), any())
+		} returns PriorProcessRegistrationReconciliationResult(0, 0, 0)
+		val coordinator = PreviousExitRecoveryCoordinator(
+			store,
+			NoOpDrainScheduler,
+			mockk(relaxed = true),
+			finalizer(),
+			registrationRepository,
+		)
+
+		val result = coordinator.reconcileStaleSessions()
+
+		result.finalizedLogicalTrackingIds shouldBe emptySet()
+		result.descriptorDisposition shouldBe
+			PreviousExitRecoveryDescriptorDisposition.Clear(descriptor)
+		store.descriptor shouldBe null
+		store.clearCount shouldBe 1
+		database.sourceSessionDao().session(MANUAL_ID) shouldBe terminal
+	}
+
+	@Test
+	fun `completed suspension lookalike with mismatched authority is finalized`() = runTest {
+		insertSession(MANUAL_ID, SessionMode.MANUAL, CURRENT_BOOT_ID)
+		insertRun(
+			logicalTrackingId = MANUAL_ID,
+			bootId = CURRENT_BOOT_ID,
+			state = SessionLifecycleState.FINALIZED,
+			completedAtMs = SUSPENDED_AT_MS,
+		)
+		insertRecoveryAuthorityEnvelope(
+			logicalTrackingId = MANUAL_ID,
+			completedSuspensionReason = RESTART_REASON,
+			runCompletionReason = "UNRELATED_STOP",
+		)
+
+		val descriptor = manualDescriptor(CURRENT_BOOT_ID)
+		val result = finalizer().finalizeStaleSessions(recoveryDescriptor = descriptor)
+
+		result.finalizedLogicalTrackingIds shouldContainExactly setOf(MANUAL_ID)
+		result.descriptorDisposition shouldBe
+			PreviousExitRecoveryDescriptorDisposition.Clear(descriptor)
+		database.sourceSessionDao().session(MANUAL_ID)?.let { session ->
+			session.state shouldBe SessionLifecycleState.FINALIZED.name
+			session.failureCode shouldBe PreviousExitSourceSessionFinalizer.COMPLETION_REASON
+		}
+	}
+
+	@Test
+	fun `transient caller authority reconciliation preserves Room state for retry`() = runTest {
+		insertSession(MANUAL_ID, SessionMode.MANUAL, CURRENT_BOOT_ID)
+		insertRun(MANUAL_ID, CURRENT_BOOT_ID)
+		val descriptor = manualDescriptor(CURRENT_BOOT_ID)
+
+		val failure = shouldThrow<PreviousExitCallerAuthorityUnavailableException> {
+			finalizer { candidate ->
+				ActiveTrackingCallerAuthorityReconciliation.Blocked(
+					failureCode = "RECOVERY_SOURCE_CALLER_AUTHORITY_STORAGE_UNAVAILABLE",
+					disposition = TrackingStartFailureDisposition.RETRYABLE,
+					descriptor = candidate,
+				)
+			}.finalizeStaleSessions(recoveryDescriptor = descriptor)
+		}
+
+		failure.failureCode shouldBe "RECOVERY_SOURCE_CALLER_AUTHORITY_STORAGE_UNAVAILABLE"
+		database.sourceSessionDao().session(MANUAL_ID)?.state shouldBe
+			SessionLifecycleState.ACTIVE.name
+		database.sourceSessionDao().serviceRun(runId(MANUAL_ID))?.state shouldBe
+			SessionLifecycleState.ACTIVE.name
+	}
+
+	@Test
+	fun `terminal caller retirement rejection finalizes Room and clears descriptor`() = runTest {
+		insertSession(MANUAL_ID, SessionMode.MANUAL, CURRENT_BOOT_ID)
+		insertRun(MANUAL_ID, CURRENT_BOOT_ID)
+		insertPendingAction(MANUAL_ID, CURRENT_BOOT_ID)
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand(MANUAL_ID, "terminal-caller-demand", CURRENT_BOOT_ID)),
+		)
+		val descriptor = manualDescriptor(CURRENT_BOOT_ID)
+		val store = RecordingStore(descriptor)
+		val terminalFinalizer = finalizer { candidate ->
+			ActiveTrackingCallerAuthorityReconciliation.Blocked(
+				failureCode = "RECOVERY_SOURCE_CALLER_RETIREMENT_CORRUPT",
+				disposition = TrackingStartFailureDisposition.TERMINAL,
+				descriptor = candidate,
+			)
+		}
+		val registrationRepository =
+			mockk<com.adsamcik.tracker.tracker.source.runtime.SourceRegistrationRepository>()
+		coEvery {
+			registrationRepository.reconcilePriorProcessRegistrations(any(), any())
+		} returns PriorProcessRegistrationReconciliationResult(0, 0, 0)
+		val coordinator = PreviousExitRecoveryCoordinator(
+			store,
+			NoOpDrainScheduler,
+			mockk(relaxed = true),
+			terminalFinalizer,
+			registrationRepository,
+		)
+
+		val result = coordinator.reconcileStaleSessions()
+
+		result.finalizedLogicalTrackingIds shouldContainExactly setOf(MANUAL_ID)
+		result.descriptorDisposition shouldBe
+			PreviousExitRecoveryDescriptorDisposition.Clear(descriptor)
+		store.descriptor shouldBe null
+		database.sourceSessionDao().session(MANUAL_ID)?.state shouldBe
+			SessionLifecycleState.FINALIZED.name
+	}
 
 	@Test
 	fun `stale session terminalizes every incomplete run and prepared action`() = runTest {
@@ -325,11 +548,23 @@ class PreviousExitSourceSessionFinalizerTest {
 		session?.failureCode shouldBe PreviousExitSourceSessionFinalizer.COMPLETION_REASON
 	}
 
-	private fun finalizer() = PreviousExitSourceSessionFinalizer(
-		Provider { database },
-		FixedClock(RECOVERY_AT_MS, RECOVERY_ELAPSED_NANOS),
-		CurrentBootClockDomainProvider,
-	)
+	private fun finalizer(
+		reconcile: (ActiveTrackingSessionDescriptor) ->
+			ActiveTrackingCallerAuthorityReconciliation = { descriptor ->
+				ActiveTrackingCallerAuthorityReconciliation.Ready(descriptor)
+			},
+	): PreviousExitSourceSessionFinalizer {
+		val reconciler = mockk<ActiveTrackingSessionCallerAuthorityReconciler>()
+		coEvery { reconciler.reconcile(any()) } answers {
+			reconcile(firstArg())
+		}
+		return PreviousExitSourceSessionFinalizer(
+			Provider { database },
+			FixedClock(RECOVERY_AT_MS, RECOVERY_ELAPSED_NANOS),
+			CurrentBootClockDomainProvider,
+			reconciler,
+		)
+	}
 
 	private suspend fun seedAutomationEpoch() {
 		database.activityAutomationEpochDao().ensure(
@@ -397,6 +632,140 @@ class PreviousExitSourceSessionFinalizerTest {
 			val session = requireNotNull(database.sourceSessionDao().session(logicalTrackingId))
 			database.sourceSessionDao().updateSession(session.copy(currentServiceRunId = serviceRunId)) shouldBe 1
 		}
+	}
+
+	private suspend fun insertRecoveryAuthorityEnvelope(
+		logicalTrackingId: String,
+		serviceRunId: String = runId(logicalTrackingId),
+		completedSuspensionReason: String? = null,
+		runCompletionReason: String? = completedSuspensionReason,
+	) {
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(logicalTrackingId))
+		val run = requireNotNull(dao.serviceRun(serviceRunId))
+		val bindings = listOf(
+			SessionManifestSourceEntity(
+				logicalTrackingId = logicalTrackingId,
+				manifestRevision = MANIFEST_REVISION,
+				sourceKind = SOURCE_KIND,
+				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				consentEpoch = 1L,
+				persistenceEligible = true,
+				qosCode = 1,
+			),
+		)
+		val unsignedManifest = SessionManifestVersionEntity(
+			logicalTrackingId = logicalTrackingId,
+			manifestRevision = MANIFEST_REVISION,
+			serviceRunId = serviceRunId,
+			sessionMode = SessionMode.MANUAL.name,
+			sourcePolicyRevision = 1L,
+			acquisitionPlanRevision = 1L,
+			rolloutRevision = 1L,
+			startOrigin = SessionStartOrigin.MANUAL_FOREGROUND_START.name,
+			effectiveBootId = CURRENT_BOOT_ID,
+			effectiveElapsedRealtimeNanos = 1_000L,
+			effectiveWallTimeMs = STARTED_AT_MS,
+			zoneId = "UTC",
+			automationEpoch = null,
+			changeReason = "SESSION_START",
+			manifestChecksum = "",
+		)
+		dao.insertManifest(
+			unsignedManifest.copy(
+				manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, bindings),
+			),
+		)
+		dao.insertManifestSources(bindings)
+		val startOrigin = if (completedSuspensionReason == null) {
+			SessionStartOrigin.MANUAL_FOREGROUND_START
+		} else {
+			SessionStartOrigin.RECOVERY
+		}
+		val intentChecksum = if (completedSuspensionReason == null) {
+			stableLifecycleChecksum(
+				logicalTrackingId,
+				INTENT_REVISION,
+				MANIFEST_REVISION,
+				LifecycleDesiredState.ACTIVE,
+				startOrigin,
+				CURRENT_BOOT_ID,
+				1_000L,
+				STARTED_AT_MS,
+				null,
+				null,
+				null,
+				CALLER_REFERENCE,
+			)
+		} else {
+			stableLifecycleChecksum(
+				logicalTrackingId,
+				INTENT_REVISION,
+				MANIFEST_REVISION,
+				LifecycleDesiredState.ACTIVE,
+				completedSuspensionReason,
+				CURRENT_BOOT_ID,
+				1_000L,
+				CALLER_REFERENCE,
+			)
+		}
+		dao.insertLifecycleIntent(
+			SessionLifecycleIntentVersionEntity(
+				logicalTrackingId = logicalTrackingId,
+				intentRevision = INTENT_REVISION,
+				manifestRevision = MANIFEST_REVISION,
+				desiredState = LifecycleDesiredState.ACTIVE.name,
+				startOrigin = startOrigin.name,
+				requestBootId = CURRENT_BOOT_ID,
+				requestedElapsedRealtimeNanos = 1_000L,
+				requestedWallTimeMs = STARTED_AT_MS,
+				automationEpoch = null,
+				triggerId = null,
+				triggerKind = null,
+				triggerBootId = null,
+				triggerObservedElapsedRealtimeNanos = null,
+				triggerReceivedElapsedRealtimeNanos = null,
+				triggerExpiresElapsedRealtimeNanos = null,
+				stopReason = completedSuspensionReason,
+				stopDeadlineBootId = null,
+				stopDeadlineElapsedRealtimeNanos = null,
+				intentChecksum = intentChecksum,
+				sourceCallerAuthorityReference = CALLER_REFERENCE,
+			),
+		)
+		dao.updateSession(
+			session.copy(
+				currentManifestRevision = MANIFEST_REVISION,
+				currentIntentRevision = INTENT_REVISION,
+				currentServiceRunId = serviceRunId.takeIf { completedSuspensionReason == null },
+			),
+		) shouldBe 1
+		dao.updateServiceRun(
+			run.copy(
+				state = if (completedSuspensionReason == null) {
+					run.state
+				} else {
+					SessionLifecycleState.FINALIZED.name
+				},
+				completedAtMs = completedSuspensionReason?.let { SUSPENDED_AT_MS },
+				completionReason = runCompletionReason,
+				startOrigin = SessionStartOrigin.MANUAL_FOREGROUND_START.name,
+				desiredForegroundCapabilityFlags = 0L,
+				appliedForegroundCapabilityFlags = 0L,
+				runtimeAcknowledgement = if (completedSuspensionReason == null) {
+					LifecycleActionStatus.START_ACCEPTED.name
+				} else {
+					LifecycleActionStatus.STOP_ACCEPTED.name
+				},
+				runRevision = 2L,
+				startDeliveryToken = "delivery-token",
+				startCommandGeneration = 1L,
+				preparedManifestRevision = MANIFEST_REVISION,
+				preparedIntentRevision = INTENT_REVISION,
+				androidDeliveryState = AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name,
+				startIsUserInitiated = true,
+			),
+		) shouldBe 1
 	}
 
 	private suspend fun insertPendingAction(logicalTrackingId: String, bootId: String) =
@@ -514,6 +883,8 @@ class PreviousExitSourceSessionFinalizerTest {
 	private fun manualDescriptor(
 		bootId: String,
 		serviceRunId: String = runId(MANUAL_ID),
+		callerReference: SourceCallerReplayReference =
+			SourceCallerReplayReference(CALLER_REFERENCE),
 	) = ActiveTrackingSessionDescriptor(
 		isUserInitiated = true,
 		isAmbient = false,
@@ -522,6 +893,7 @@ class PreviousExitSourceSessionFinalizerTest {
 		serviceRunId = serviceRunId,
 		restartBootId = bootId,
 		restartToken = "restart-token",
+		sourceCallerAuthorityReference = callerReference,
 	)
 
 	private class RecordingStore(
@@ -567,5 +939,10 @@ class PreviousExitSourceSessionFinalizerTest {
 		const val EXIT_AT_MS = 2_500L
 		const val RECOVERY_AT_MS = 9_000L
 		const val RECOVERY_ELAPSED_NANOS = 9_000_000L
+		const val SUSPENDED_AT_MS = 2_000L
+		const val RESTART_REASON = "ANDROID_RESTART"
+		const val MANIFEST_REVISION = 1L
+		const val INTENT_REVISION = 1L
+		const val CALLER_REFERENCE = "caller-authority"
 	}
 }

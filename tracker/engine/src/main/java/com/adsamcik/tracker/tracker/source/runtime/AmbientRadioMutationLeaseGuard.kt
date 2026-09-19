@@ -16,6 +16,27 @@ interface AmbientRadioMutationLeaseGuard {
 		identity: AmbientReconciliationIdentity,
 		mutation: suspend () -> T,
 	): AmbientRadioLeaseMutation<T>
+
+	/**
+	 * Allows only authority-reducing work for the exact retained lease after its activation
+	 * operation has completed. Implementations must reject a replaced lease.
+	 */
+	suspend fun <T> mutateReductionIfRetained(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = mutateIfCurrent(identity, mutation)
+}
+
+interface TrackingPurposeMutationLeaseGuard : AmbientRadioMutationLeaseGuard {
+	suspend fun <T> mutateAutomaticIfCurrent(
+		identity: com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T>
+
+	suspend fun <T> mutateAmbientIfCurrent(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T>
 }
 
 sealed interface AmbientRadioLeaseMutation<out T> {
@@ -24,8 +45,23 @@ sealed interface AmbientRadioLeaseMutation<out T> {
 }
 
 /** Safe until the parent purpose-availability store binds its atomic lease bridge. */
-object RejectingAmbientRadioMutationLeaseGuard : AmbientRadioMutationLeaseGuard {
+object RejectingAmbientRadioMutationLeaseGuard : TrackingPurposeMutationLeaseGuard {
 	override suspend fun <T> mutateIfCurrent(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Stale
+
+	override suspend fun <T> mutateAutomaticIfCurrent(
+		identity: com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Stale
+
+	override suspend fun <T> mutateAmbientIfCurrent(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Stale
+
+	override suspend fun <T> mutateReductionIfRetained(
 		identity: AmbientReconciliationIdentity,
 		mutation: suspend () -> T,
 	): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Stale

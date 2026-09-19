@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.api
 
 import android.content.Context
+import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import io.kotest.matchers.shouldBe
 import org.junit.Test
@@ -28,6 +29,7 @@ class TrackerServiceRestartIntentTest {
 		)
 
 		intent.component?.className shouldBe TrackerServiceContract.SERVICE_CLASS_NAME
+		intent.action shouldBe TrackerServiceContract.ACTION_PREPARED_START
 		intent.extras?.keySet() shouldBe setOf(
 			TrackerServiceContract.ARG_PREPARED_START_TOKEN,
 			TrackerServiceContract.ARG_LIFECYCLE_COMMAND_GENERATION,
@@ -41,6 +43,7 @@ class TrackerServiceRestartIntentTest {
 			TrackerServiceContract.ARG_PREPARED_USER_INITIATED_HINT,
 			false,
 		) shouldBe true
+		Intent(intent).action shouldBe TrackerServiceContract.ACTION_PREPARED_START
 	}
 
 	@Test(expected = IllegalArgumentException::class)

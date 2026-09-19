@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.resilience
 
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
@@ -11,6 +12,7 @@ class TrackerRestartDecisionTest {
 		policyTier = PolicyTier.PRECISION,
 		restartBootId = "test-boot",
 		restartToken = "test-token",
+		sourceCallerAuthorityReference = SourceCallerReplayReference("caller-authority"),
 	)
 
 	@Test

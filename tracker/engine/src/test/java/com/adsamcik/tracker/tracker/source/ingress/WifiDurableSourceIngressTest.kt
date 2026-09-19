@@ -1900,6 +1900,7 @@ class WifiDurableSourceIngressTest {
 				"ANDROID_RESTART",
 				BOOT_CLOCK_DOMAIN_ID,
 				cutoffElapsedNanos,
+				"test-source-caller-authority",
 			)
 			val actionId = actionIdOverride ?: stableLifecycleChecksum(
 				WIFI_SESSION_ID,
@@ -1928,6 +1929,7 @@ class WifiDurableSourceIngressTest {
 					stopDeadlineBootId = null,
 					stopDeadlineElapsedRealtimeNanos = null,
 					intentChecksum = intentChecksum,
+					sourceCallerAuthorityReference = "test-source-caller-authority",
 				),
 			)
 			sessionDao.insertLifecycleActions(

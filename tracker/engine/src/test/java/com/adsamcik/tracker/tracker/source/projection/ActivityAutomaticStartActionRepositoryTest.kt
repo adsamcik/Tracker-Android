@@ -29,6 +29,7 @@ import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -78,6 +79,20 @@ class ActivityAutomaticStartActionRepositoryTest {
 		pending shouldBe ActivityAutomaticStartAcceptance.Pending(
 			requireNotNull(database.activityAutomaticStartActionDao().current()),
 		)
+	}
+
+	@Test
+	fun `retryable start failure returns exact action to requestable state`() = runTest {
+		seedAuthority()
+		val request = reservation()
+		subject.reserve(request)
+		subject.authorizeExternalStart(request.trigger, requestedAtMs = 2_000)
+
+		subject.markExternalStartRetryable(request.trigger) shouldBe true
+		database.activityAutomaticStartActionDao().current()?.status shouldBe
+			ActivityAutomaticStartActionEntity.STATUS_RETRYABLE
+		subject.authorizeExternalStart(request.trigger, requestedAtMs = 2_100)
+			.shouldBeInstanceOf<ActivityAutomaticStartRequestAuthorization.Authorized>()
 	}
 
 	@Test

@@ -12,6 +12,7 @@ import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.api.ActivityAutomationDeliveryEnvelope
 import com.adsamcik.tracker.tracker.api.ActivityAutomationDeliveryResult
 import com.adsamcik.tracker.tracker.api.ActivityAutomationStartContext
+import com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -48,6 +49,15 @@ class ActivityAutomationOutboxDispatcherTest {
 		coEvery { dao.deleteFailure(any(), any(), any()) } answers {
 			if (failures.remove(arg<Long>(2)) == null) 0 else 1
 		}
+	}
+
+	@Test
+	fun `temporary start failure remains retryable while terminal failure expires context`() {
+		TrackingStartDispatchResult.Retryable("TEMPORARY_STORAGE")
+			.toAutomationDeliveryResult() shouldBe ActivityAutomationDeliveryResult.RETRY
+		TrackingStartDispatchResult.Terminal("STALE_AUTHORITY")
+			.toAutomationDeliveryResult() shouldBe
+			ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
 	}
 
 	@Test

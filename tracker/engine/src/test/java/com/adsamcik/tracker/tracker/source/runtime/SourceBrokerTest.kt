@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.api.registration.ActivityProviderCleanupResult
@@ -12,29 +13,26 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationOwner
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationSnapshot
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
-import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionDecision
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecision
-import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityEffectChecksum
+import com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionSettings
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
-import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicySnapshot
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
-import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
-import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
-import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsDemandReconciler
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
@@ -46,9 +44,11 @@ import com.adsamcik.tracker.tracker.api.AutomaticControlContainmentAttemptResult
 import com.adsamcik.tracker.tracker.api.AutomaticControlContainmentLoopResult
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
-import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailability
-import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
-import com.adsamcik.tracker.tracker.api.TrackingPurposeAuthorityRevision
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.SourceCallerAcceptanceReceipt
+import com.adsamcik.tracker.tracker.api.SourceCallerDemandIdentity
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.reconcileUnavailableAutomaticControl
 import com.adsamcik.tracker.tracker.api.runAutomaticControlContainmentRetryLoop
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionCapability
@@ -62,11 +62,11 @@ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjecti
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.string.shouldNotBeBlank
 import io.mockk.mockk
+import io.mockk.coEvery
+import java.io.IOException
 import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -82,6 +82,7 @@ class SourceBrokerTest {
 	private lateinit var database: AppDatabase
 	private lateinit var subject: SourceBroker
 	private lateinit var rolloutStore: RoomTrackingRolloutStateStore
+	private lateinit var retentionReader: TestLiveAmbientRetentionAuthorityReader
 	private var elapsed = 10L
 
 	@Before
@@ -91,6 +92,427 @@ class SourceBrokerTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `revocation fences blocked demand before foreground activation in one transaction`() =
+		runTest {
+			val demand = SourceDemandEntity(
+				demandId = "blocked-before-revocation",
+				consumerId = "session:logical",
+				sourceKind = SourceKind.LOCATION.stableCode,
+				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				manifestRevision = 1L,
+				lifecycleLeaseGeneration = 1L,
+				sourcePolicyRevision = 1L,
+				consentEpoch = 1L,
+				persistenceEligible = true,
+				qosCode = 0,
+				maximumAgeMs = 0L,
+				desiredLatencyMs = 0L,
+				requestedBootId = "boot-1",
+				requestedElapsedRealtimeNanos = 10L,
+				requestedAtMs = 10L,
+				status = SourceDemandEntity.STATUS_BLOCKED,
+				retireBootId = null,
+				retireElapsedRealtimeNanos = null,
+				retiredAtMs = null,
+				sourceCallerAuthorityReference = "caller-ref",
+			)
+			database.sourceBrokerDao().insertDemands(listOf(demand))
+
+			val activated = database.withTransaction {
+				database.sourceBrokerDao().markSourcePurposesRetiring(
+					SourceKind.LOCATION.stableCode,
+					listOf(SourceBrokerPurpose.SESSION_CAPTURE),
+					"boot-1",
+					20L,
+					20L,
+				)
+				subject.activatePreparedSessionDemandsInTransaction(
+					logicalTrackingId = "logical",
+					serviceRunId = "run",
+					manifestRevision = 1L,
+					leaseGeneration = 1L,
+					sourceCallerAuthorityReference = "caller-ref",
+					bootId = "boot-1",
+					elapsedRealtimeNanos = 21L,
+					wallTimeMs = 21L,
+					currentAuthority = SourceCallerCurrentAuthorityPredicate { _, _, _ -> true },
+				)
+			}
+
+			activated shouldBe false
+			database.sourceBrokerDao().demandsByIds(listOf(demand.demandId))
+				.single().status shouldBe SourceDemandEntity.STATUS_RETIRED
+		}
+
+	@Test
+	fun `prepared activation leaves blocked demand closed when caller authority is stale`() =
+		runTest {
+			val demand = SourceDemandEntity(
+				demandId = "blocked-stale-authority",
+				consumerId = "session:logical",
+				sourceKind = SourceKind.LOCATION.stableCode,
+				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				manifestRevision = 1L,
+				lifecycleLeaseGeneration = 1L,
+				sourcePolicyRevision = 1L,
+				consentEpoch = 1L,
+				persistenceEligible = true,
+				qosCode = 0,
+				maximumAgeMs = 0L,
+				desiredLatencyMs = 0L,
+				requestedBootId = "boot-1",
+				requestedElapsedRealtimeNanos = 10L,
+				requestedAtMs = 10L,
+				status = SourceDemandEntity.STATUS_BLOCKED,
+				retireBootId = null,
+				retireElapsedRealtimeNanos = null,
+				retiredAtMs = null,
+				sourceCallerAuthorityReference = "caller-ref",
+			)
+			database.sourceBrokerDao().insertDemands(listOf(demand))
+
+			subject.activatePreparedSessionDemandsInTransaction(
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				manifestRevision = 1L,
+				leaseGeneration = 1L,
+				sourceCallerAuthorityReference = "caller-ref",
+				bootId = "boot-1",
+				elapsedRealtimeNanos = 20L,
+				wallTimeMs = 20L,
+				currentAuthority = SourceCallerCurrentAuthorityPredicate { _, _, _ -> false },
+			) shouldBe false
+
+			database.sourceBrokerDao().demandsByIds(listOf(demand.demandId))
+				.single().status shouldBe SourceDemandEntity.STATUS_BLOCKED
+		}
+
+	@Test
+	fun `malformed caller authority cannot roll back blocked automatic demand retirement`() = runTest {
+		val reference = "malformed-automatic"
+		database.sourceCallerAuthorityDao().insert(
+			SourceCallerAcceptedAuthorityEffectChecksum.seal(
+				listOf(
+					SourceCallerAcceptedAuthorityEntity(
+						reference = reference,
+						formatVersion = SourceCallerAcceptedAuthorityEntity.FORMAT_VERSION,
+						origin = "PURPOSE_OWNER",
+						acceptedPurpose = "CONTROL",
+						sourceKind = SourceKind.ACTIVITY.stableCode,
+						purpose = "CONTROL",
+						policyRevision = 1L,
+						consentEpoch = 1L,
+						collectedDataEpoch = 3L,
+						rolloutRevision = 1L,
+						executionRevision = 1L,
+						ownerCasToken = "",
+						logicalTrackingId = null,
+						manifestRevision = null,
+						status = SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE,
+						createdAtMs = 1L,
+						retiredAtMs = null,
+						retireReason = null,
+						effectChecksum = "pending",
+					),
+				),
+			),
+		)
+		val demand = purposeDemand(
+			id = "blocked-automatic",
+			consumerId = "app:automatic-start:activity",
+			source = SourceKind.ACTIVITY,
+			purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
+			status = SourceDemandEntity.STATUS_BLOCKED,
+			reference = reference,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(demand))
+
+		subject.retirePurposeDemand(
+			demand.consumerId,
+			demand.sourceKind,
+			demand.purpose,
+			"boot-1",
+			20L,
+			20L,
+		) shouldBe true
+
+		database.sourceBrokerDao().demandsByIds(listOf(demand.demandId))
+			.single().status shouldBe SourceDemandEntity.STATUS_RETIRED
+		database.sourceCallerAuthorityDao().rows(reference).shouldBeEmpty()
+	}
+
+	@Test
+	fun `caller authority storage failure cannot roll back exact demand fencing`() = runTest {
+		val unavailableRepository = mockk<SourceCallerAcceptedAuthorityRepository>()
+		coEvery {
+			unavailableRepository.retireForTeardown(any(), any(), any())
+		} throws IllegalStateException("caller authority unavailable")
+		val broker = SourceBroker(
+			database,
+			rolloutStore,
+			RejectingAmbientRadioMutationLeaseGuard,
+			unavailableRepository,
+			retentionReader,
+		)
+		val demand = purposeDemand(
+			id = "active-ambient",
+			consumerId = "app:ambient:steps",
+			source = SourceKind.STEPS,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+			status = SourceDemandEntity.STATUS_ACTIVE,
+			reference = "unavailable-authority",
+		)
+		database.sourceBrokerDao().insertDemands(listOf(demand))
+
+		broker.retirePurposeDemand(
+			demand.consumerId,
+			demand.sourceKind,
+			demand.purpose,
+			"boot-1",
+			30L,
+			30L,
+		) shouldBe false
+
+		database.sourceBrokerDao().demandsByIds(listOf(demand.demandId))
+			.single().status shouldBe SourceDemandEntity.STATUS_RETIRED
+	}
+
+	@Test
+	fun `superseded session authority retirement propagates caller cleanup failure`() = runTest {
+		val reference = SourceCallerReplayReference("superseded-retirement-failure")
+		val unavailableRepository = mockk<SourceCallerAcceptedAuthorityRepository>()
+		coEvery {
+			unavailableRepository.load(reference)
+		} returns StoredSourceCallerAuthorityLoadResult.Available(mockk())
+		coEvery {
+			unavailableRepository.retireForTeardown(reference, any(), any())
+		} returns false
+		val broker = SourceBroker(
+			database,
+			rolloutStore,
+			RejectingAmbientRadioMutationLeaseGuard,
+			unavailableRepository,
+			retentionReader,
+		)
+		database.sourceBrokerDao().insertDemands(
+			listOf(
+				purposeDemand(
+					id = "superseded-session-demand",
+					consumerId = broker.sessionConsumerId("logical"),
+					source = SourceKind.STEPS,
+					purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+					status = SourceDemandEntity.STATUS_ACTIVE,
+					reference = reference.value,
+				),
+			),
+		)
+
+		database.withTransaction {
+			broker.retireSupersededSessionAuthoritiesInTransaction(
+				logicalTrackingId = "logical",
+				currentReference = SourceCallerReplayReference("current-authority"),
+				expectedSupersededReference = reference,
+				wallTimeMs = 200L,
+			)
+		} shouldBe SourceCallerAuthorityRetirementOutcome.Retryable(
+			SourceCallerAuthorityRetirementRetryReason.COMPARE_AND_SET_FAILED,
+		)
+	}
+
+	@Test
+	fun `superseded retirement reports terminal authority categories and idempotent completion`() =
+		runTest {
+			val current = SourceCallerReplayReference("current-authority")
+			val expected = SourceCallerReplayReference("expected-predecessor")
+			val missingRepository = mockk<SourceCallerAcceptedAuthorityRepository>()
+			coEvery { missingRepository.load(expected) } returns
+				StoredSourceCallerAuthorityLoadResult.Missing
+			val missingBroker = SourceBroker(
+				database,
+				rolloutStore,
+				RejectingAmbientRadioMutationLeaseGuard,
+				missingRepository,
+				retentionReader,
+			)
+
+			database.withTransaction {
+				missingBroker.retireSupersededSessionAuthoritiesInTransaction(
+					"logical-missing",
+					current,
+					expected,
+					200L,
+				)
+			} shouldBe SourceCallerAuthorityRetirementOutcome.TerminalMissing
+
+			val linked = purposeDemand(
+				id = "expected-predecessor-demand",
+				consumerId = missingBroker.sessionConsumerId("logical-linked"),
+				source = SourceKind.STEPS,
+				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				status = SourceDemandEntity.STATUS_RETIRED,
+				reference = expected.value,
+			)
+			database.sourceBrokerDao().insertDemands(listOf(linked))
+			coEvery { missingRepository.load(expected) } returnsMany listOf(
+				StoredSourceCallerAuthorityLoadResult.Retired,
+				StoredSourceCallerAuthorityLoadResult.Corrupt,
+			)
+			database.withTransaction {
+				missingBroker.retireSupersededSessionAuthoritiesInTransaction(
+					"logical-linked",
+					current,
+					expected,
+					200L,
+				)
+			} shouldBe SourceCallerAuthorityRetirementOutcome.Completed
+			database.withTransaction {
+				missingBroker.retireSupersededSessionAuthoritiesInTransaction(
+					"logical-linked",
+					current,
+					expected,
+					200L,
+				)
+			} shouldBe SourceCallerAuthorityRetirementOutcome.TerminalCorrupt
+		}
+
+	@Test
+	fun `superseded retirement distinguishes storage unavailability from ambiguous active history`() =
+		runTest {
+			val current = SourceCallerReplayReference("current-authority")
+			val expected = SourceCallerReplayReference("expected-predecessor")
+			val unexpected = SourceCallerReplayReference("unexpected-predecessor")
+			val repository = mockk<SourceCallerAcceptedAuthorityRepository>()
+			val broker = SourceBroker(
+				database,
+				rolloutStore,
+				RejectingAmbientRadioMutationLeaseGuard,
+				repository,
+				retentionReader,
+			)
+			database.sourceBrokerDao().insertDemands(
+				listOf(
+					purposeDemand(
+						id = "expected-history",
+						consumerId = broker.sessionConsumerId("logical-storage"),
+						source = SourceKind.STEPS,
+						purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+						status = SourceDemandEntity.STATUS_RETIRED,
+						reference = expected.value,
+					),
+				),
+			)
+			coEvery { repository.load(expected) } throws IOException("storage unavailable")
+
+			database.withTransaction {
+				broker.retireSupersededSessionAuthoritiesInTransaction(
+					"logical-storage",
+					current,
+					expected,
+					200L,
+				)
+			} shouldBe SourceCallerAuthorityRetirementOutcome.Retryable(
+				SourceCallerAuthorityRetirementRetryReason.STORAGE_UNAVAILABLE,
+			)
+
+			database.sourceBrokerDao().insertDemands(
+				listOf(
+					purposeDemand(
+						id = "expected-ambiguous",
+						consumerId = broker.sessionConsumerId("logical-ambiguous"),
+						source = SourceKind.STEPS,
+						purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+						status = SourceDemandEntity.STATUS_RETIRED,
+						reference = expected.value,
+					),
+					purposeDemand(
+						id = "unexpected-ambiguous",
+						consumerId = broker.sessionConsumerId("logical-ambiguous"),
+						source = SourceKind.LOCATION,
+						purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+						status = SourceDemandEntity.STATUS_RETIRED,
+						reference = unexpected.value,
+					),
+				),
+			)
+			coEvery { repository.load(unexpected) } returns
+				StoredSourceCallerAuthorityLoadResult.Available(mockk())
+
+			database.withTransaction {
+				broker.retireSupersededSessionAuthoritiesInTransaction(
+					"logical-ambiguous",
+					current,
+					expected,
+					200L,
+				)
+			} shouldBe SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous
+		}
+
+	@Test
+	fun `session retirement fences active and blocked rows despite corrupt caller metadata`() = runTest {
+		val reference = "malformed-session"
+		val malformed = SourceCallerAcceptedAuthorityEntity(
+			reference = reference,
+			formatVersion = SourceCallerAcceptedAuthorityEntity.FORMAT_VERSION + 1,
+			origin = "MANUAL",
+			acceptedPurpose = "SESSION_CAPTURE",
+			sourceKind = SourceKind.LOCATION.stableCode,
+			purpose = "SESSION_CAPTURE",
+			policyRevision = 1L,
+			consentEpoch = 1L,
+			collectedDataEpoch = 3L,
+			rolloutRevision = 1L,
+			executionRevision = 1L,
+			ownerCasToken = "owner",
+			logicalTrackingId = "logical-corrupt",
+			manifestRevision = 1L,
+			status = SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE,
+			createdAtMs = 1L,
+			retiredAtMs = null,
+			retireReason = null,
+			effectChecksum = "pending",
+		)
+		database.sourceCallerAuthorityDao().insert(
+			SourceCallerAcceptedAuthorityEffectChecksum.seal(listOf(malformed)),
+		)
+		val active = purposeDemand(
+			"session-active",
+			"session:logical-corrupt",
+			SourceKind.LOCATION,
+			SourceBrokerPurpose.SESSION_CAPTURE,
+			SourceDemandEntity.STATUS_ACTIVE,
+			reference,
+		).copy(
+			logicalTrackingId = "logical-corrupt",
+			serviceRunId = "run-active",
+			manifestRevision = 1L,
+			lifecycleLeaseGeneration = 1L,
+		)
+		val blocked = active.copy(
+			demandId = "session-blocked",
+			serviceRunId = "run-blocked",
+			manifestRevision = 2L,
+			status = SourceDemandEntity.STATUS_BLOCKED,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(active, blocked))
+
+		subject.retireSessionDemands(
+			"logical-corrupt",
+			"boot-1",
+			40L,
+			40L,
+		)
+
+		database.sourceBrokerDao().demandsByIds(listOf(active.demandId, blocked.demandId))
+			.map(SourceDemandEntity::status)
+			.toSet() shouldBe setOf(SourceDemandEntity.STATUS_RETIRED)
+		database.sourceCallerAuthorityDao().rows(reference).shouldBeEmpty()
+	}
 
 	@Test
 	fun `Activity automatic control enable disable and revoke rotate an independent epoch`() = runTest {
@@ -222,11 +644,10 @@ class SourceBrokerTest {
 			)
 			val monitor = AutomaticStartTransitionMonitor(
 				arbiter = arbiter,
-				sourceBroker = subject,
+				sourceCallerDemandDispatcher =
+					TestPurposeSourceCallerDemandDispatcher(subject),
 				clockDomainProvider = BootClockDomainProvider { "boot-1" },
 				activityProjectionLane = mockk<ActivityAutomationProjectionLane>(relaxed = true),
-				currentPurposeAvailabilityReader =
-					fixedCurrentPurposeAvailabilityReader(),
 			)
 
 			var schedulerCalls = 0
@@ -452,15 +873,22 @@ class SourceBrokerTest {
 				legacySettingsMigrationCompleted = true,
 			),
 		)
-		val retention = grantAmbientStepsRetention(snapshot)
+		val retention = retentionReader.installCurrent(
+			database,
+			TrackingSourceComponent.STEPS,
+			snapshot.revision,
+			requireNotNull(snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch),
+			3L,
+			"boot-1",
+		)
 
 		val result = subject.replaceAmbientStepsDemand(
 			consumerId = "app:ambient:steps",
 			mechanism = AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
-			leaseIdentity = ambientStepsLease(snapshot, retention, "steps-owner-1"),
 			bootId = "boot-1",
 			elapsedRealtimeNanos = 100L,
 			wallTimeMs = 100L,
+			retentionSnapshot = retention,
 		)
 
 		val demand = (result as AmbientStepsDemandResult.Active).demand
@@ -472,6 +900,8 @@ class SourceBrokerTest {
 		demand.lifecycleLeaseGeneration shouldBe null
 		demand.persistenceEligible shouldBe true
 		demand.qosCode shouldBe 0
+		demand.liveAmbientRetentionPolicyId shouldBe "privacy:steps:ambient:v1"
+		demand.liveAmbientRetentionApprovalRevision shouldBe 1L
 		(demand.toSourceDemandContract().floor as AmbientStepsAcquisitionFloor).mechanism shouldBe
 			AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS
 		database.sourceBrokerDao().currentDemands("app:ambient:steps") shouldBe listOf(demand)
@@ -489,23 +919,29 @@ class SourceBrokerTest {
 				legacySettingsMigrationCompleted = true,
 			),
 		)
-		val retention = grantAmbientStepsRetention(snapshot)
-		val lease = ambientStepsLease(snapshot, retention, "steps-owner-1")
+		var retention = retentionReader.installCurrent(
+			database,
+			TrackingSourceComponent.STEPS,
+			snapshot.revision,
+			requireNotNull(snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch),
+			3L,
+			"boot-1",
+		)
 		val healthConnect = (subject.replaceAmbientStepsDemand(
-			consumerId = "app:ambient:steps",
-			mechanism = AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
-			leaseIdentity = lease,
-			bootId = "boot-1",
-			elapsedRealtimeNanos = 100L,
-			wallTimeMs = 100L,
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+			"boot-1",
+			100L,
+			100L,
+			retentionSnapshot = retention,
 		) as AmbientStepsDemandResult.Active).demand
 		val localRecording = (subject.replaceAmbientStepsDemand(
-			consumerId = "app:ambient:steps",
-			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			leaseIdentity = lease,
-			bootId = "boot-1",
-			elapsedRealtimeNanos = 100L,
-			wallTimeMs = 100L,
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			"boot-1",
+			100L,
+			100L,
+			retentionSnapshot = retention,
 		) as AmbientStepsDemandResult.Active).demand
 
 		(healthConnect.demandId == localRecording.demandId) shouldBe false
@@ -518,21 +954,44 @@ class SourceBrokerTest {
 			SourceDemandEntity.STATUS_ACTIVE
 
 		val unchanged = subject.replaceAmbientStepsDemand(
-			consumerId = "app:ambient:steps",
-			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			leaseIdentity = lease,
-			bootId = "boot-1",
-			elapsedRealtimeNanos = 150L,
-			wallTimeMs = 150L,
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			"boot-1",
+			150L,
+			150L,
+			retentionSnapshot = retention,
 		) as AmbientStepsDemandResult.Active
 		unchanged.demand shouldBe localRecording
 		database.sourceBrokerDao().demandHistory("app:ambient:steps").size shouldBe 2
+
+		retentionReader.approvalRevision = 2L
+		retention = retentionReader.installCurrent(
+			database,
+			TrackingSourceComponent.STEPS,
+			snapshot.revision,
+			requireNotNull(snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch),
+			3L,
+			"boot-1",
+		)
+		val rotated = subject.replaceAmbientStepsDemand(
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			"boot-1",
+			200L,
+			200L,
+			retentionSnapshot = retention,
+		) as AmbientStepsDemandResult.Active
+		rotated.demand.liveAmbientRetentionApprovalRevision shouldBe 2L
+		(rotated.demand.demandId == localRecording.demandId) shouldBe false
+		(SourceBrokerAuthorization.fingerprint(listOf(rotated.demand)) ==
+			SourceBrokerAuthorization.fingerprint(listOf(localRecording))) shouldBe false
+		database.sourceBrokerDao().demandHistory("app:ambient:steps").size shouldBe 3
 	}
 
 	@Test
 	fun `ambient consent and rollout independently deny demand creation`() = runTest {
 		resetBroker(setOf(CaptureReachabilityMode.AMBIENT))
-		val snapshot = RoomSourcePolicyRepository(database) {
+		RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
 		}.bootstrapFromLegacy(
 			TrackingParamsState(
@@ -540,16 +999,14 @@ class SourceBrokerTest {
 				legacySettingsMigrationCompleted = true,
 			),
 		)
-		val retention = grantAmbientStepsRetention(snapshot)
 		rolloutStore.save(TrackingRolloutState.contained(revision = 9L), updatedAtMs = 150L)
 
 		subject.replaceAmbientStepsDemand(
-			consumerId = "app:ambient:steps",
-			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			leaseIdentity = ambientStepsLease(snapshot, retention, "steps-owner-1"),
-			bootId = "boot-1",
-			elapsedRealtimeNanos = 200L,
-			wallTimeMs = 200L,
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			"boot-1",
+			200L,
+			200L,
 		) shouldBe AmbientStepsDemandResult.Inactive(
 			AmbientStepsDemandInactiveReason.ROLLOUT_CONTAINED,
 		)
@@ -560,12 +1017,11 @@ class SourceBrokerTest {
 			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
 		}.bootstrapFromLegacy(TrackingParamsState(legacySettingsMigrationCompleted = true))
 		subject.replaceAmbientStepsDemand(
-			consumerId = "app:ambient:steps",
-			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			leaseIdentity = ambientStepsLease(snapshot, retention, "steps-owner-disabled"),
-			bootId = "boot-1",
-			elapsedRealtimeNanos = 300L,
-			wallTimeMs = 300L,
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			"boot-1",
+			300L,
+			300L,
 		) shouldBe AmbientStepsDemandResult.Inactive(
 			AmbientStepsDemandInactiveReason.CONSENT_REVOKED,
 		)
@@ -573,9 +1029,8 @@ class SourceBrokerTest {
 	}
 
 	@Test
-	fun `retention-only identity rotation replaces Ambient Steps demand across restart`() = runTest {
-		resetBroker(setOf(CaptureReachabilityMode.AMBIENT))
-		val snapshot = RoomSourcePolicyRepository(database) {
+	fun `Ambient Steps mutation fails closed when retention hook is stale`() = runTest {
+		RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
 		}.bootstrapFromLegacy(
 			TrackingParamsState(
@@ -583,52 +1038,24 @@ class SourceBrokerTest {
 				legacySettingsMigrationCompleted = true,
 			),
 		)
-		val firstRetention = grantAmbientStepsRetention(snapshot, opaquePolicyId = "retention-one")
-		val firstLease = ambientStepsLease(snapshot, firstRetention, "steps-owner-1")
-		val first = (subject.replaceAmbientStepsDemand(
-			consumerId = "app:ambient:steps",
-			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			leaseIdentity = firstLease,
-			bootId = "boot-1",
-			elapsedRealtimeNanos = 100L,
-			wallTimeMs = 100L,
-		) as AmbientStepsDemandResult.Active).demand
-		val secondRetention = grantAmbientStepsRetention(
-			snapshot = snapshot,
-			opaquePolicyId = "retention-two",
-			effectiveAt = 150L,
-			expectedPreviousApprovalRevision = firstRetention.approvalRevision,
+		retentionReader.current = false
+
+		subject.replaceAmbientStepsDemand(
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			"boot-1",
+			100L,
+			100L,
+		) shouldBe AmbientStepsDemandResult.Inactive(
+			AmbientStepsDemandInactiveReason.RETENTION_AUTHORITY_UNAVAILABLE,
 		)
-
-		val rotated = (subject.replaceAmbientStepsDemand(
-			consumerId = "app:ambient:steps",
-			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			leaseIdentity = ambientStepsLease(snapshot, secondRetention, "steps-owner-2"),
-			bootId = "boot-1",
-			elapsedRealtimeNanos = 200L,
-			wallTimeMs = 200L,
-		) as AmbientStepsDemandResult.Active).demand
-
-		rotated.demandId shouldBe database.sourceBrokerDao()
-			.currentDemands("app:ambient:steps").single().demandId
-		(rotated.demandId == first.demandId) shouldBe false
-		first.hasExactAmbientStepsRetentionBinding(secondRetention) shouldBe false
-		rotated.hasExactAmbientStepsRetentionBinding(secondRetention) shouldBe true
-		val restarted = SourceBroker(database, rolloutStore)
-		(restarted.replaceAmbientStepsDemand(
-			consumerId = "app:ambient:steps",
-			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			leaseIdentity = ambientStepsLease(snapshot, secondRetention, "steps-owner-2"),
-			bootId = "boot-1",
-			elapsedRealtimeNanos = 250L,
-			wallTimeMs = 250L,
-		) as AmbientStepsDemandResult.Active).demand shouldBe rotated
+		database.sourceBrokerDao().currentDemands("app:ambient:steps") shouldBe emptyList()
 	}
 
 	@Test
-	fun `process recovery reconstructs exact Ambient Steps retirement lease`() = runTest {
+	fun `Ambient Steps mutation rejects a corrupt persisted retention row after snapshot`() = runTest {
 		resetBroker(setOf(CaptureReachabilityMode.AMBIENT))
-		val snapshot = RoomSourcePolicyRepository(database) {
+		val policy = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
 		}.bootstrapFromLegacy(
 			TrackingParamsState(
@@ -636,32 +1063,61 @@ class SourceBrokerTest {
 				legacySettingsMigrationCompleted = true,
 			),
 		)
-		val retention = grantAmbientStepsRetention(snapshot)
-		val issued = ambientStepsLease(snapshot, retention, "recovered-owner")
+		val retention = retentionReader.installCurrent(
+			database,
+			TrackingSourceComponent.STEPS,
+			policy.revision,
+			requireNotNull(policy[TrackingSourceComponent.STEPS].ambientConsentEpoch),
+			3L,
+			"boot-1",
+		)
+		val grant = retention.grants.getValue(SourceKind.STEPS)
+		val identity = AmbientReconciliationIdentity(
+			source = AmbientTrackingSource.STEPS,
+			policyRevision = policy.revision,
+			consentEpoch = requireNotNull(
+				policy[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+			),
+			collectedDataEpoch = grant.collectedDataEpoch,
+			rolloutRevision = 1L,
+			ownerCasToken = "steps-stale-snapshot-owner",
+			executionRevision = 1L,
+			retainedFromMs = grant.retainedFromMs,
+			retentionPolicyId = grant.opaquePolicyId,
+			retentionApprovalRevision = grant.approvalRevision,
+		)
+		val callerIdentity = SourceCallerDemandIdentity(identity.purposeLeaseIdentity, null)
+		val callerReference = SourceCallerReplayReference("steps-stale-snapshot-caller")
+		val prepared = PreparedSourceCallerAcceptance(
+			receipt = SourceCallerAcceptanceReceipt(callerReference, setOf(callerIdentity)),
+			authority = StoredSourceCallerAuthority(
+				StoredSourceCallerOrigin.PURPOSE_OWNER,
+				TrackingPurpose.AMBIENT_PRODUCT,
+				setOf(callerIdentity),
+			),
+			createdAtMs = 95L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE ambient_steps_retention_authority SET effect_checksum = 'corrupt' " +
+				"WHERE scope = 'LIVE_AMBIENT'",
+		)
+
 		subject.replaceAmbientStepsDemand(
-			consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
+			consumerId = "app:ambient:steps",
 			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			leaseIdentity = issued,
+			leaseIdentity = identity,
 			bootId = "boot-1",
 			elapsedRealtimeNanos = 100L,
 			wallTimeMs = 100L,
+			sourceCallerAuthorityReference = callerReference.value,
+			retentionSnapshot = retention,
+			preparedCallerAcceptance = prepared,
+		) shouldBe AmbientStepsDemandResult.Inactive(
+			AmbientStepsDemandInactiveReason.RETENTION_AUTHORITY_UNAVAILABLE,
 		)
-
-		val recovered = subject.ambientStepsRetirementPlan(
-			AmbientStepsDemandReconciler.CONSUMER_ID,
-		).shouldBeInstanceOf<AmbientStepsRetirementPlan.Required>()
-
-		recovered.lease.identity shouldBe issued
-		subject.retireExactAmbientStepsDemand(
-			consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
-			leaseIdentity = recovered.lease.identity,
-			bootId = "boot-1",
-			elapsedRealtimeNanos = 200L,
-			wallTimeMs = 200L,
-		) shouldBe true
-		database.sourceBrokerDao().currentDemands(
-			AmbientStepsDemandReconciler.CONSUMER_ID,
-		) shouldBe emptyList()
+		database.sourceBrokerDao().currentDemands("app:ambient:steps").shouldBeEmpty()
+		RoomSourceCallerAcceptedAuthorityRepository(database).load(callerReference) shouldBe
+			StoredSourceCallerAuthorityLoadResult.Missing
 	}
 
 	@Test
@@ -1115,61 +1571,54 @@ class SourceBrokerTest {
 		)
 	}
 
+	private fun purposeDemand(
+		id: String,
+		consumerId: String,
+		source: SourceKind,
+		purpose: String,
+		status: String,
+		reference: String?,
+	) = SourceDemandEntity(
+		demandId = id,
+		consumerId = consumerId,
+		sourceKind = source.stableCode,
+		purpose = purpose,
+		logicalTrackingId = null,
+		serviceRunId = null,
+		manifestRevision = null,
+		lifecycleLeaseGeneration = null,
+		sourcePolicyRevision = 1L,
+		consentEpoch = 1L,
+		persistenceEligible = purpose == SourceBrokerPurpose.AMBIENT_PRODUCT,
+		qosCode = 0,
+		maximumAgeMs = 1L,
+		desiredLatencyMs = 1L,
+		requestedBootId = "boot-1",
+		requestedElapsedRealtimeNanos = 1L,
+		requestedAtMs = 1L,
+		status = status,
+		retireBootId = null,
+		retireElapsedRealtimeNanos = null,
+		retiredAtMs = null,
+		sourceCallerAuthorityReference = reference,
+	)
+
 	private fun resetBroker(captureModes: Set<CaptureReachabilityMode>) {
 		if (::database.isInitialized) database.close()
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		rolloutStore = runBlocking {
+			database.sourceEvidenceStateDao().ensure(
+				SourceEvidenceState(collectedDataEpoch = 3L, updatedAtMs = 1L),
+			)
 			activateAllBrokerTestProductLanes(database, captureModes)
 		}
-		subject = SourceBroker(database, rolloutStore)
-	}
-
-	private suspend fun ambientStepsLease(
-		snapshot: SourcePolicySnapshot,
-		retention: AmbientStepsRetentionAuthorityEntity,
-		ownerCasToken: String,
-	): AmbientReconciliationIdentity = AmbientReconciliationIdentity(
-		source = AmbientTrackingSource.STEPS,
-		policyRevision = snapshot.revision,
-		consentEpoch = requireNotNull(
-			snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch,
-		),
-		collectedDataEpoch = retention.collectedDataEpoch,
-		rolloutRevision = rolloutStore.load().revision,
-		ownerCasToken = ownerCasToken,
-		executionRevision = 1L,
-		retainedFromMs = retention.retainedFromMs,
-		retentionPolicyId = retention.opaquePolicyId,
-		retentionApprovalRevision = retention.approvalRevision,
-	)
-
-	private suspend fun grantAmbientStepsRetention(
-		snapshot: SourcePolicySnapshot,
-		opaquePolicyId: String = "source-broker-test-retention",
-		effectiveAt: Long = 50L,
-		expectedPreviousApprovalRevision: Long? = null,
-	): AmbientStepsRetentionAuthorityEntity {
-		database.sourceEvidenceStateDao().ensure()
-		database.applyAmbientStepsRetentionDecision(
-			AmbientStepsRetentionDecision.GrantLiveAmbient(
-				opaquePolicyId = opaquePolicyId,
-				expectedCollectedDataEpoch = 0L,
-				expectedSourcePolicyRevision = snapshot.revision,
-				expectedAmbientConsentEpoch = requireNotNull(
-					snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch,
-				),
-				effectiveBootId = "boot-1",
-				effectiveElapsedRealtimeNanos = effectiveAt,
-				effectiveWallTimeMs = effectiveAt,
-				expectedPreviousApprovalRevision = expectedPreviousApprovalRevision,
-			),
+		retentionReader = TestLiveAmbientRetentionAuthorityReader()
+		subject = SourceBroker(
+			database,
+			rolloutStore,
+			retentionReader,
 		)
-		return requireNotNull(
-			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
-				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
-			),
-		).also { it.opaquePolicyId shouldBe opaquePolicyId }
 	}
 }
 
@@ -1265,14 +1714,6 @@ private val PRESSURE_TEST_WRITER = ExecutableSourceLaneCatalog.PRESSURE_SESSION_
 		bindingGeneration = binding.bindingGeneration,
 	)
 }
-
-private fun fixedCurrentPurposeAvailabilityReader() =
-	object : CurrentTrackingPurposeAvailabilityReader {
-		override val availability =
-			MutableStateFlow(CurrentTrackingPurposeAvailability.SAFE_DEFAULT)
-		override val authorityRevision =
-			MutableStateFlow(TrackingPurposeAuthorityRevision.UNAVAILABLE)
-	}
 
 private suspend fun activateAllBrokerTestProductLanes(
 	database: AppDatabase,

@@ -198,7 +198,9 @@ class ActivityAutomaticStartActionRepository @Inject constructor(
 				return@withTransaction ActivityAutomaticStartRequestAuthorization.Rejected(reason)
 			}
 			when (action.status) {
-				ActivityAutomaticStartActionEntity.STATUS_RESERVED -> {
+				ActivityAutomaticStartActionEntity.STATUS_RESERVED,
+				ActivityAutomaticStartActionEntity.STATUS_RETRYABLE,
+				-> {
 					if (database.activityAutomaticStartActionDao().markStartRequested(
 						trigger.triggerId,
 						trigger.collectedDataEpoch,
@@ -217,7 +219,7 @@ class ActivityAutomaticStartActionRepository @Inject constructor(
 					)
 				}
 				ActivityAutomaticStartActionEntity.STATUS_START_REQUESTED ->
-					ActivityAutomaticStartRequestAuthorization.AlreadyRequested(action)
+					ActivityAutomaticStartRequestAuthorization.Authorized(action)
 				else -> ActivityAutomaticStartRequestAuthorization.Rejected(
 					"AUTOMATIC_START_NOT_REQUESTABLE_${action.status}",
 				)
@@ -232,6 +234,26 @@ class ActivityAutomaticStartActionRepository @Inject constructor(
 			)
 		}
 		return result
+	}
+
+	internal suspend fun markExternalStartRetryable(
+		trigger: AutomaticTrackingStartTrigger,
+	): Boolean = database.withTransaction {
+		val action = database.activityAutomaticStartActionDao().action(trigger.triggerId)
+			?: return@withTransaction false
+		if (!action.matches(trigger)) return@withTransaction false
+		when (action.status) {
+			ActivityAutomaticStartActionEntity.STATUS_RESERVED,
+			ActivityAutomaticStartActionEntity.STATUS_RETRYABLE,
+			-> true
+			ActivityAutomaticStartActionEntity.STATUS_START_REQUESTED ->
+				database.activityAutomaticStartActionDao().markStartRetryable(
+					trigger.triggerId,
+					trigger.collectedDataEpoch,
+				) == 1
+			ActivityAutomaticStartActionEntity.STATUS_LIFECYCLE_INTENT_ACCEPTED -> true
+			else -> false
+		}
 	}
 
 	/** Exact delayed-intent/deletion fence called by TrackerService before coordinator start. */
@@ -436,7 +458,10 @@ class ActivityAutomaticStartActionRepository @Inject constructor(
 		val current = database.activityAutomaticStartActionDao().action(triggerId)
 		if (current?.effectStableId != effectStableId ||
 			current.collectedDataEpoch != collectedDataEpoch ||
-			current.status != ActivityAutomaticStartActionEntity.STATUS_RESERVED
+			current.status !in setOf(
+				ActivityAutomaticStartActionEntity.STATUS_RESERVED,
+				ActivityAutomaticStartActionEntity.STATUS_RETRYABLE,
+			)
 		) {
 			return@withTransaction false
 		}

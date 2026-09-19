@@ -180,6 +180,39 @@ interface RetentionAuthorityReader {
 			authority.effectiveElapsedRealtimeNanos <= currentElapsedRealtimeNanos &&
 			authority.effectiveWallTimeMs <= currentWallTimeMs
 	}
+
+	/** Exact-current predicate for the named durable retention-floor settlement. */
+	suspend fun isCurrentLiveAmbientForSettlementAt(
+		source: TrackingSourceComponent,
+		expectedSourcePolicyRevision: Long,
+		expectedAmbientConsentEpoch: Long,
+		expectedCollectedDataEpoch: Long,
+		expectedRetainedFromMs: Long?,
+		expectedOpaquePolicyId: String,
+		expectedApprovalRevision: Long,
+		currentBootId: String,
+		currentElapsedRealtimeNanos: Long,
+		currentWallTimeMs: Long,
+		settlementOperationId: String,
+	): Boolean {
+		require(settlementOperationId.isNotBlank())
+		val authority = currentLiveAmbientForSettlement(
+			source,
+			expectedSourcePolicyRevision,
+			expectedAmbientConsentEpoch,
+			expectedCollectedDataEpoch,
+			expectedRetainedFromMs,
+			settlementOperationId,
+		)
+		return authority is CurrentRetentionAuthority.Approved &&
+			authority.opaquePolicyId == expectedOpaquePolicyId &&
+			authority.approvalRevision == expectedApprovalRevision &&
+			authority.collectedDataEpoch == expectedCollectedDataEpoch &&
+			authority.retainedFromMs == expectedRetainedFromMs &&
+			authority.effectiveBootId == currentBootId &&
+			authority.effectiveElapsedRealtimeNanos <= currentElapsedRealtimeNanos &&
+			authority.effectiveWallTimeMs <= currentWallTimeMs
+	}
 }
 
 fun interface LocationPassiveRetentionAuthority {

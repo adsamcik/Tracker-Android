@@ -10,8 +10,9 @@ import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioMutationLeaseGuar
 import com.adsamcik.tracker.tracker.source.runtime.ClaimedSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.PressureSourceRuntime
-import com.adsamcik.tracker.tracker.source.runtime.RejectingAmbientRadioMutationLeaseGuard
 import com.adsamcik.tracker.tracker.source.runtime.LocationSourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.SerializedTrackingPurposeLeaseIssuer
+import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeMutationLeaseGuard
 import com.adsamcik.tracker.tracker.source.runtime.CellSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
 import com.adsamcik.tracker.tracker.source.runtime.WifiSourceRuntime
@@ -42,8 +43,15 @@ object SourcePipelineModule {
 
 	@Provides
 	@Singleton
-	fun provideAmbientRadioMutationLeaseGuard(): AmbientRadioMutationLeaseGuard =
-		RejectingAmbientRadioMutationLeaseGuard
+	internal fun provideAmbientRadioMutationLeaseGuard(
+		issuer: SerializedTrackingPurposeLeaseIssuer,
+	): AmbientRadioMutationLeaseGuard = issuer
+
+	@Provides
+	@Singleton
+	internal fun provideTrackingPurposeMutationLeaseGuard(
+		issuer: SerializedTrackingPurposeLeaseIssuer,
+	): TrackingPurposeMutationLeaseGuard = issuer
 
 	@Provides
 	@IntoSet

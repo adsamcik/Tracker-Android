@@ -160,6 +160,12 @@ interface SourceBrokerDao {
 	)
 	suspend fun demandHistory(consumerId: String): List<SourceDemandEntity>
 
+	@Query(
+		"SELECT DISTINCT source_caller_authority_reference FROM source_demand " +
+			"WHERE consumer_id = :consumerId AND source_caller_authority_reference IS NOT NULL",
+	)
+	suspend fun callerAuthorityReferences(consumerId: String): List<String>
+
 	/** Immutable demand terms referenced by an observed-time authorization revision. */
 	@Query("SELECT * FROM source_demand WHERE demand_id IN (:demandIds) ORDER BY demand_id")
 	suspend fun demandsByIds(demandIds: Collection<String>): List<SourceDemandEntity>
@@ -178,9 +184,10 @@ interface SourceBrokerDao {
 	): Int
 
 	@Query(
-		"UPDATE source_demand SET status = 'RETIRING', retire_boot_id = :bootId, " +
+		"UPDATE source_demand SET status = CASE WHEN status = 'BLOCKED' THEN 'RETIRED' " +
+			"ELSE 'RETIRING' END, retire_boot_id = :bootId, " +
 			"retire_elapsed_realtime_nanos = :elapsedRealtimeNanos, retired_at_ms = :wallTimeMs " +
-			"WHERE consumer_id = :consumerId AND status = 'ACTIVE'",
+			"WHERE consumer_id = :consumerId AND status IN ('ACTIVE', 'BLOCKED')",
 	)
 	suspend fun markConsumerRetiring(
 		consumerId: String,
@@ -190,9 +197,11 @@ interface SourceBrokerDao {
 	): Int
 
 	@Query(
-		"UPDATE source_demand SET status = 'RETIRING', retire_boot_id = :bootId, " +
+		"UPDATE source_demand SET status = CASE WHEN status = 'BLOCKED' THEN 'RETIRED' " +
+			"ELSE 'RETIRING' END, retire_boot_id = :bootId, " +
 			"retire_elapsed_realtime_nanos = :elapsedRealtimeNanos, retired_at_ms = :wallTimeMs " +
-			"WHERE source_kind = :sourceKind AND purpose IN (:purposes) AND status = 'ACTIVE'",
+			"WHERE source_kind = :sourceKind AND purpose IN (:purposes) " +
+			"AND status IN ('ACTIVE', 'BLOCKED')",
 	)
 	suspend fun markSourcePurposesRetiring(
 		sourceKind: Int,

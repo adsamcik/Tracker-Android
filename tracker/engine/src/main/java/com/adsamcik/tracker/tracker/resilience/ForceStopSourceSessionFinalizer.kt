@@ -129,6 +129,7 @@ class ForceStopSourceSessionFinalizer @Inject constructor(
 		)
 		private val PENDING_AUTOMATIC_ACTION_STATES = setOf(
 			ActivityAutomaticStartActionEntity.STATUS_RESERVED,
+			ActivityAutomaticStartActionEntity.STATUS_RETRYABLE,
 			ActivityAutomaticStartActionEntity.STATUS_START_REQUESTED,
 		)
 	}

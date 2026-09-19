@@ -404,6 +404,9 @@ data class SessionLifecycleIntentVersionEntity(
 	/** Data-generation fence copied from an automatic trigger; null for manual/recovery intent. */
 	@ColumnInfo(name = "trigger_collected_data_epoch")
 	val triggerCollectedDataEpoch: Long? = null,
+	/** Opaque engine-issued caller authority reference; never interpreted outside the engine. */
+	@ColumnInfo(name = "source_caller_authority_reference")
+	val sourceCallerAuthorityReference: String? = null,
 )
 
 /** Durable desired external action. Intent is inserted before the runtime side effect. */

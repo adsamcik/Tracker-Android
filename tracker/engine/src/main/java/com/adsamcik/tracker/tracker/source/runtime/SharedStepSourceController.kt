@@ -21,9 +21,10 @@ import kotlinx.coroutines.sync.withLock
  * cross-source corroboration.
  */
 @Singleton
-class SharedStepSourceController @Inject constructor(
+class SharedStepSourceController @Inject internal constructor(
 	private val physicalRuntime: StepSourceRuntime,
 	private val sourceBroker: SourceBroker,
+	private val sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,
 	sinkFactory: DurableSourceEventSinkFactory,
 	private val clockDomainProvider: BootClockDomainProvider,
 ) : ClaimedSourceRuntime<StepsPlan> {
@@ -202,10 +203,9 @@ class SharedStepSourceController @Inject constructor(
 	/** Retires any Steps CONTROL_AUTOSTART demand written by an older build. */
 	suspend fun retireLegacyAutomaticControl(): Unit = mutex.withLock {
 		val elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
-		sourceBroker.replaceAutomaticControlDemand(
+		sourceCallerDemandDispatcher.retireAutomaticControl(
 			consumerId = AUTOMATIC_CONTROL_CONSUMER,
 			source = source,
-			enabled = false,
 			bootId = clockDomainProvider.current(),
 			elapsedRealtimeNanos = elapsedRealtimeNanos,
 			wallTimeMs = System.currentTimeMillis(),

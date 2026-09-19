@@ -37,13 +37,24 @@ interface ActivityAutomaticStartActionDao {
 	@Query(
 		"UPDATE activity_automatic_start_action SET status = 'START_REQUESTED', " +
 			"start_requested_at_ms = :requestedAtMs, terminal_at_ms = NULL, terminal_reason = NULL " +
-			"WHERE trigger_id = :triggerId AND status = 'RESERVED' " +
+			"WHERE trigger_id = :triggerId AND status IN ('RESERVED', 'RETRYABLE') " +
 			"AND collected_data_epoch = :collectedDataEpoch",
 	)
 	suspend fun markStartRequested(
 		triggerId: String,
 		collectedDataEpoch: Long,
 		requestedAtMs: Long,
+	): Int
+
+	@Query(
+		"UPDATE activity_automatic_start_action SET status = 'RETRYABLE', " +
+			"start_requested_at_ms = NULL " +
+			"WHERE trigger_id = :triggerId AND status = 'START_REQUESTED' " +
+			"AND collected_data_epoch = :collectedDataEpoch",
+	)
+	suspend fun markStartRetryable(
+		triggerId: String,
+		collectedDataEpoch: Long,
 	): Int
 
 	@Query(
@@ -68,7 +79,7 @@ interface ActivityAutomaticStartActionDao {
 		"UPDATE activity_automatic_start_action SET status = 'TERMINAL', " +
 			"terminal_at_ms = :terminalAtMs, terminal_reason = :reason " +
 			"WHERE trigger_id = :triggerId AND collected_data_epoch = :collectedDataEpoch " +
-			"AND status IN ('RESERVED', 'START_REQUESTED')",
+			"AND status IN ('RESERVED', 'RETRYABLE', 'START_REQUESTED')",
 	)
 	suspend fun markTerminal(
 		triggerId: String,
@@ -97,7 +108,7 @@ interface ActivityAutomaticStartActionDao {
 	@Query(
 		"UPDATE activity_automatic_start_action SET status = 'TERMINAL', " +
 			"terminal_at_ms = :terminalAtMs, terminal_reason = :reason " +
-			"WHERE slot_id = 1 AND status IN ('RESERVED', 'START_REQUESTED')",
+			"WHERE slot_id = 1 AND status IN ('RESERVED', 'RETRYABLE', 'START_REQUESTED')",
 	)
 	suspend fun markPendingTerminalForEpochRotation(
 		terminalAtMs: Long,

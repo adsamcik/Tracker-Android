@@ -122,16 +122,27 @@ internal fun interface TrackingPurposeOwnerCasTokenFactory {
 internal class TrackingPurposeExecutionRevisionRegistry @Inject constructor() {
 	private val mutableRevisions =
 		MutableStateFlow<Map<TrackingSourcePurposeIdentity, Long>>(emptyMap())
+	private val mutableIdentities =
+		MutableStateFlow<Map<TrackingSourcePurposeIdentity, TrackingPurposeLeaseIdentity>>(emptyMap())
 	val revisions: StateFlow<Map<TrackingSourcePurposeIdentity, Long>> =
 		mutableRevisions.asStateFlow()
+	val identities: StateFlow<Map<TrackingSourcePurposeIdentity, TrackingPurposeLeaseIdentity>> =
+		mutableIdentities.asStateFlow()
 
 	fun update(sourcePurpose: TrackingSourcePurposeIdentity, executionRevision: Long) {
 		require(executionRevision >= 0L)
 		mutableRevisions.value = mutableRevisions.value + (sourcePurpose to executionRevision)
+		mutableIdentities.value = mutableIdentities.value - sourcePurpose
+	}
+
+	fun bind(identity: TrackingPurposeLeaseIdentity) {
+		require(mutableRevisions.value[identity.sourcePurpose] == identity.executionRevision)
+		mutableIdentities.value = mutableIdentities.value + (identity.sourcePurpose to identity)
 	}
 
 	fun remove(sourcePurpose: TrackingSourcePurposeIdentity) {
 		mutableRevisions.value = mutableRevisions.value - sourcePurpose
+		mutableIdentities.value = mutableIdentities.value - sourcePurpose
 	}
 }
 
@@ -241,7 +252,7 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 	private val authorityReader: TrackingPurposeAuthorityReader,
 	private val reporter: TrackingPurposeAvailabilityReporter,
 	private val tokenFactory: TrackingPurposeOwnerCasTokenFactory,
-) {
+) : TrackingPurposeMutationLeaseGuard {
 	private val mutex = Mutex()
 	private var automaticIdentity: TrackingPurposeLeaseIdentity? = null
 	private val ambientIdentities = mutableMapOf<AmbientTrackingSource, AmbientReconciliationIdentity>()
@@ -384,6 +395,46 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 			executionRevision,
 			settlementOperationId,
 		)?.let(identity::matches) == true
+	}
+
+	override suspend fun <T> mutateIfCurrent(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = mutateAmbientIfCurrent(identity, mutation)
+
+	override suspend fun <T> mutateAutomaticIfCurrent(
+		identity: TrackingPurposeLeaseIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = mutex.withLock {
+		if (automaticIdentity != identity || !automaticInFlight) {
+			AmbientRadioLeaseMutation.Stale
+		} else {
+			AmbientRadioLeaseMutation.Applied(mutation())
+		}
+	}
+
+	override suspend fun <T> mutateAmbientIfCurrent(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = mutex.withLock {
+		if (ambientIdentities[identity.source] != identity ||
+			identity.source !in ambientInFlight
+		) {
+			AmbientRadioLeaseMutation.Stale
+		} else {
+			AmbientRadioLeaseMutation.Applied(mutation())
+		}
+	}
+
+	override suspend fun <T> mutateReductionIfRetained(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = mutex.withLock {
+		if (ambientIdentities[identity.source] != identity) {
+			AmbientRadioLeaseMutation.Stale
+		} else {
+			AmbientRadioLeaseMutation.Applied(mutation())
+		}
 	}
 
 	private suspend fun readAuthority(
@@ -1084,6 +1135,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 			is AutomaticLeaseRefresh.InProgress -> refresh.lease
 			AutomaticLeaseRefresh.Rejected -> return true
 		}
+		executionRevisionRegistry.bind(lease.identity)
 		if (!isCurrentAutomaticOwner(owner)) {
 			leaseIssuer.cancelAutomaticControl(lease.identity)
 			return false
@@ -1261,6 +1313,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 				?: TrackingRetentionFloorReconciliationFailureReason
 					.RETENTION_AUTHORITY_UNAVAILABLE
 		}
+		executionRevisionRegistry.bind(lease.identity.purposeLeaseIdentity)
 		if (
 			expectedRetainedFromMs != null &&
 			lease.purposeLeaseIdentity.retainedFromMs != expectedRetainedFromMs
@@ -1298,10 +1351,12 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 			lease.identity,
 			settlementOperationId,
 		) {
-			if (settlementOperationId == null) {
-				owner.callback.reconcile(lease)
-			} else {
-				owner.callback.reconcileForRetentionFloor(lease, settlementOperationId)
+			withRetentionFloorSettlementOperation(settlementOperationId) {
+				if (settlementOperationId == null) {
+					owner.callback.reconcile(lease)
+				} else {
+					owner.callback.reconcileForRetentionFloor(lease, settlementOperationId)
+				}
 			}
 		}
 		val availability = when (ownerCall) {

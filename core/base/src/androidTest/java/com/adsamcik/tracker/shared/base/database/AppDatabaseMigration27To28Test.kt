@@ -20,6 +20,8 @@ import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEn
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityEffectChecksum
+import com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
@@ -109,6 +111,7 @@ class AppDatabaseMigration27To28Test {
 					seedMigratedAmbientStepsImportState(database)
 					seedMigratedPressureFactRevision(database)
 					seedMigratedDeletionFence(database)
+					seedSourceCallerAuthorities(database)
 					assertEquals(1L, database.stepFactRevisionDao().countAll())
 					assertEquals(1L, database.ambientStepsFactRevisionDao().countAll())
 					assertEquals(1L, database.ambientStepsImportStateDao().countCursors())
@@ -116,6 +119,8 @@ class AppDatabaseMigration27To28Test {
 					assertEquals(1L, database.ambientStepsImportStateDao().countAuthorityTransitions())
 					assertEquals(1L, database.pressureFactRevisionDao().count())
 					assertEquals(1L, database.sourceDeletionFenceDao().countAll())
+					assertEquals(1, database.sourceCallerAuthorityDao().rows("valid-active").size)
+					assertEquals(1, database.sourceCallerAuthorityDao().rows("malformed-active").size)
 				}
 			} finally {
 				database.close()
@@ -136,6 +141,8 @@ class AppDatabaseMigration27To28Test {
 						updatedAtMs = PopulatedV27Fixture.END_MS + 1,
 					)
 					assertCollectedRowsDeleted(database)
+					assertTrue(database.sourceCallerAuthorityDao().rows("valid-active").isEmpty())
+					assertTrue(database.sourceCallerAuthorityDao().rows("malformed-active").isEmpty())
 				}
 			} finally {
 				database.close()
@@ -147,13 +154,49 @@ class AppDatabaseMigration27To28Test {
 			try {
 				runBlocking {
 					assertCollectedRowsDeleted(database)
+					assertTrue(database.sourceCallerAuthorityDao().rows("valid-active").isEmpty())
+					assertTrue(database.sourceCallerAuthorityDao().rows("malformed-active").isEmpty())
 					assertNull(database.sourceSessionDao().activeSession())
 					assertNull(database.trackerRunDao().getActiveRun())
 				}
+
 			} finally {
 				database.close()
 			}
 		}
+	}
+
+	private suspend fun seedSourceCallerAuthorities(database: AppDatabase) {
+		val valid = SourceCallerAcceptedAuthorityEntity(
+			reference = "valid-active",
+			formatVersion = SourceCallerAcceptedAuthorityEntity.FORMAT_VERSION,
+			origin = "MANUAL",
+			acceptedPurpose = "SESSION_CAPTURE",
+			sourceKind = 1,
+			purpose = "SESSION_CAPTURE",
+			policyRevision = 1L,
+			consentEpoch = 1L,
+			collectedDataEpoch = 7L,
+			rolloutRevision = 1L,
+			executionRevision = 1L,
+			ownerCasToken = "owner",
+			logicalTrackingId = null,
+			manifestRevision = null,
+			status = SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE,
+			createdAtMs = 1L,
+			retiredAtMs = null,
+			retireReason = null,
+			effectChecksum = "pending",
+		)
+		val malformed = valid.copy(
+			reference = "malformed-active",
+			ownerCasToken = "",
+			effectChecksum = "pending",
+		)
+		database.sourceCallerAuthorityDao().insert(
+			SourceCallerAcceptedAuthorityEffectChecksum.seal(listOf(valid)) +
+				SourceCallerAcceptedAuthorityEffectChecksum.seal(listOf(malformed)),
+		)
 	}
 
 	private fun assertFinalV28SchemaAssemblyMarker(database: SupportSQLiteDatabase) {
@@ -783,12 +826,33 @@ class AppDatabaseMigration27To28Test {
 			"session_manifest_version",
 			"session_manifest_source",
 			"session_lifecycle_intent_version",
+			"source_caller_accepted_authority",
 			"lifecycle_desired_action",
 			"activity_automatic_start_action",
 			"source_demand",
 			"provider_registration_generation",
 			"source_authorization",
 		).forEach { table -> assertTableCount(database, table, 0) }
+		database.query("PRAGMA table_info(session_lifecycle_intent_version)").use { cursor ->
+			val nameColumn = cursor.getColumnIndexOrThrow("name")
+			val notNullColumn = cursor.getColumnIndexOrThrow("notnull")
+			val columns = buildMap {
+				while (cursor.moveToNext()) put(cursor.getString(nameColumn), cursor.getInt(notNullColumn))
+			}
+			assertEquals(0, columns["source_caller_authority_reference"])
+		}
+		database.query("PRAGMA table_info(source_caller_accepted_authority)").use { cursor ->
+			val nameColumn = cursor.getColumnIndexOrThrow("name")
+			val columns = buildSet {
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertTrue("reference" in columns)
+			assertTrue("format_version" in columns)
+			assertTrue("retained_from_ms" in columns)
+			assertTrue("effect_checksum" in columns)
+			assertTrue("retired_at_ms" in columns)
+			assertTrue("retire_reason" in columns)
+		}
 		database.query("PRAGMA table_info(source_demand)").use { cursor ->
 			val nameColumn = cursor.getColumnIndexOrThrow("name")
 			val notNullColumn = cursor.getColumnIndexOrThrow("notnull")
@@ -798,6 +862,18 @@ class AppDatabaseMigration27To28Test {
 			assertEquals(1, columns["minimum_acquisition_spec"])
 			assertEquals(1, columns["adaptive_reduction_allowed"])
 			assertEquals(0, columns["requested_delivery_latency_ms"])
+			assertEquals(0, columns["source_caller_authority_reference"])
+			assertEquals(0, columns["live_ambient_retention_policy_id"])
+			assertEquals(0, columns["live_ambient_retention_approval_revision"])
+		}
+		database.query("PRAGMA table_info(source_authorization)").use { cursor ->
+			val nameColumn = cursor.getColumnIndexOrThrow("name")
+			val notNullColumn = cursor.getColumnIndexOrThrow("notnull")
+			val columns = buildMap {
+				while (cursor.moveToNext()) put(cursor.getString(nameColumn), cursor.getInt(notNullColumn))
+			}
+			assertEquals(0, columns["live_ambient_retention_policy_id"])
+			assertEquals(0, columns["live_ambient_retention_approval_revision"])
 		}
 		database.query("PRAGMA table_info(provider_registration_generation)").use { cursor ->
 			val nameColumn = cursor.getColumnIndexOrThrow("name")

@@ -1,10 +1,18 @@
 package com.adsamcik.tracker.tracker.resilience
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.core.DataStoreFactory
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import java.io.File
+import java.io.IOException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -31,13 +39,72 @@ class DefaultActiveTrackingSessionStoreTest {
 			restartBootId = "boot:test",
 			restartToken = "restart-token",
 			sessionSegmentId = 42L,
+			sourceCallerAuthorityReference = SourceCallerReplayReference("caller-authority"),
+			pendingRetirementSourceCallerAuthorityReference =
+				SourceCallerReplayReference("caller-authority-predecessor"),
 		)
 
 		store.save(descriptor) shouldBe ActiveTrackingSessionStoreResult.Success(descriptor)
-		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(descriptor)
-		store.clear() shouldBe ActiveTrackingSessionStoreResult.Success(null)
-		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+		val recreated = DefaultActiveTrackingSessionStore(
+			context,
+			TestDispatchersProvider(dispatcher),
+		)
+		recreated.read() shouldBe ActiveTrackingSessionStoreResult.Success(descriptor)
+		recreated.clear() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+		recreated.read() shouldBe ActiveTrackingSessionStoreResult.Success(null)
 	}
+
+	@Test
+	fun `graceful stop mirror preserves retirement debt across restart until exact retirement clears it`() =
+		runTest {
+			val context = ApplicationProvider.getApplicationContext<Context>()
+			val dispatcher = StandardTestDispatcher(testScheduler)
+			val store = DefaultActiveTrackingSessionStore(
+				context,
+				TestDispatchersProvider(dispatcher),
+			)
+			store.clear() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+			val currentReference = SourceCallerReplayReference("caller-current")
+			val predecessorReference = SourceCallerReplayReference("caller-predecessor")
+			val activeWithDebt = ActiveTrackingSessionDescriptor(
+				isUserInitiated = true,
+				isAmbient = false,
+				policyTier = PolicyTier.PRECISION,
+				logicalTrackingId = "logical-debt",
+				serviceRunId = "run-debt",
+				sourceCallerAuthorityReference = currentReference,
+				pendingRetirementSourceCallerAuthorityReference = predecessorReference,
+			)
+			store.save(activeWithDebt) shouldBe
+				ActiveTrackingSessionStoreResult.Success(activeWithDebt)
+			val staleServiceCandidate = activeWithDebt.copy(
+				sourceCallerAuthorityReference = SourceCallerReplayReference("stale-service-copy"),
+				pendingRetirementSourceCallerAuthorityReference = null,
+			).proposeStop(
+				TrackingStopCandidateReason.EXPLICIT_REQUEST,
+				changedAtEpochMs = 500L,
+			)
+			val stoppingWithDebt = staleServiceCandidate.copy(
+				sourceCallerAuthorityReference = currentReference,
+				pendingRetirementSourceCallerAuthorityReference = predecessorReference,
+			)
+
+			store.mergeServiceDescriptor(staleServiceCandidate) shouldBe
+				ActiveTrackingSessionStoreResult.Success(stoppingWithDebt)
+			DefaultActiveTrackingSessionStore(
+				context,
+				TestDispatchersProvider(dispatcher),
+			).read() shouldBe ActiveTrackingSessionStoreResult.Success(stoppingWithDebt)
+
+			val retired = stoppingWithDebt.copy(
+				pendingRetirementSourceCallerAuthorityReference = null,
+			)
+			store.replaceExact(stoppingWithDebt, retired) shouldBe
+				ActiveTrackingSessionStoreResult.Success(retired)
+			store.mergeServiceDescriptor(stoppingWithDebt) shouldBe
+				ActiveTrackingSessionStoreResult.Success(retired)
+			store.read() shouldBe ActiveTrackingSessionStoreResult.Success(retired)
+		}
 
 	@Test
 	fun `conditional clear cannot erase a resumed or newer service run`() = runTest {
@@ -161,5 +228,130 @@ class DefaultActiveTrackingSessionStoreTest {
 			replacement = bound.copy(policyTier = PolicyTier.PRECISION),
 		) shouldBe ActiveTrackingSessionStoreResult.Success(stopping)
 		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(stopping)
+	}
+
+	@Test
+	fun `reconfiguration atomically replaces the persisted caller authority reference`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val dispatcher = StandardTestDispatcher(testScheduler)
+		val store = DefaultActiveTrackingSessionStore(
+			context,
+			TestDispatchersProvider(dispatcher),
+		)
+		store.clear()
+		val original = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical-reconfigure",
+			serviceRunId = "run-reconfigure",
+			restartBootId = "boot:test",
+			restartToken = "restart-token",
+			sourceCallerAuthorityReference = SourceCallerReplayReference("authority-1"),
+		)
+		val replacement = original.copy(
+			sourceCallerAuthorityReference = SourceCallerReplayReference("authority-2"),
+		)
+		store.save(original)
+
+		store.replaceExact(original, replacement) shouldBe
+			ActiveTrackingSessionStoreResult.Success(replacement)
+		DefaultActiveTrackingSessionStore(
+			context,
+			TestDispatchersProvider(dispatcher),
+		).read() shouldBe ActiveTrackingSessionStoreResult.Success(replacement)
+	}
+
+	@Test
+	fun `corrupt proto returns typed corruption instead of an empty descriptor`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val file = File(
+		context.cacheDir,
+		"active-tracking-corrupt-${java.util.UUID.randomUUID()}.pb",
+		).apply {
+		writeBytes(byteArrayOf(0x0A, 0x7F))
+		}
+		val dataStore = DataStoreFactory.create(
+		serializer = ActiveTrackingSessionSerializer,
+		scope = this,
+		produceFile = { file },
+		)
+		val store = DefaultActiveTrackingSessionStore(
+		dataStore,
+		TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+		)
+
+		val failure = store.read()
+		.shouldBeInstanceOf<ActiveTrackingSessionStoreResult.Failure>()
+		failure.kind shouldBe ActiveTrackingSessionStoreFailureKind.CORRUPT
+	}
+
+	@Test
+	fun `corrupt proto reset is explicit successful and durable`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val file = File(
+			context.cacheDir,
+			"active-tracking-corrupt-reset-${java.util.UUID.randomUUID()}.pb",
+		).apply {
+			writeBytes(byteArrayOf(0x0A, 0x7F))
+		}
+		val dataStore = DataStoreFactory.create(
+			serializer = ActiveTrackingSessionSerializer,
+			corruptionHandler = activeTrackingSessionCorruptionHandler,
+			scope = this,
+			produceFile = { file },
+		)
+		val store = DefaultActiveTrackingSessionStore(
+			dataStore,
+			TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+		)
+
+		store.read()
+			.shouldBeInstanceOf<ActiveTrackingSessionStoreResult.Failure>()
+			.kind shouldBe ActiveTrackingSessionStoreFailureKind.CORRUPT
+		store.clear()
+			.shouldBeInstanceOf<ActiveTrackingSessionStoreResult.Failure>()
+			.kind shouldBe ActiveTrackingSessionStoreFailureKind.CORRUPT
+		store.resetCorruptState() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+	}
+
+	@Test
+	fun `storage IOException returns typed unavailable instead of an empty descriptor`() = runTest {
+		val unavailable = object : DataStore<ActiveTrackingSessionProto> {
+			override val data: Flow<ActiveTrackingSessionProto> = flow {
+				throw IOException("storage unavailable")
+			}
+
+			override suspend fun updateData(
+				transform: suspend (t: ActiveTrackingSessionProto) -> ActiveTrackingSessionProto,
+			): ActiveTrackingSessionProto = throw IOException("storage unavailable")
+		}
+		val store = DefaultActiveTrackingSessionStore(
+			unavailable,
+			TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+		)
+
+		val failure = store.read()
+			.shouldBeInstanceOf<ActiveTrackingSessionStoreResult.Failure>()
+		failure.kind shouldBe ActiveTrackingSessionStoreFailureKind.UNAVAILABLE
+		store.resetCorruptState()
+			.shouldBeInstanceOf<ActiveTrackingSessionStoreResult.Failure>()
+			.kind shouldBe ActiveTrackingSessionStoreFailureKind.UNAVAILABLE
+	}
+
+	@Test
+	fun `new service run preserves current caller authority reference`() {
+		val reference = SourceCallerReplayReference("current-authority")
+		val descriptor = ActiveTrackingSessionDescriptor(
+		isUserInitiated = true,
+		isAmbient = false,
+		policyTier = PolicyTier.PRECISION,
+		restartBootId = "boot:test",
+		restartToken = "restart-token",
+		sourceCallerAuthorityReference = reference,
+		)
+
+		descriptor.forNewServiceRun(100L).sourceCallerAuthorityReference shouldBe reference
 	}
 }
