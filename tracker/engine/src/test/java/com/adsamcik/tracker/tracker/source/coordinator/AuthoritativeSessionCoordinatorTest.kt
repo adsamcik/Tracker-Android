@@ -384,6 +384,7 @@ class AuthoritativeSessionCoordinatorTest {
 				projectionVersion = StepsSessionFactProjectionLane.WRITER_VERSION,
 				bindingGeneration = 1L,
 			),
+			runManifestRevisions = listOf(1L),
 		)
 
 		val result: SourceProductDrainResult =
@@ -701,6 +702,112 @@ class AuthoritativeSessionCoordinatorTest {
 			pending.reason shouldBe "SOURCE_DRAIN_HIGH_WATER_UNVERIFIABLE"
 			sourceProductDrainRouter.requests shouldBe emptyList()
 		}
+
+	@Test
+	fun `historical other-run malformed service identity cannot poison current run high-water`() =
+		runTest {
+			installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+			val started = subject.start(
+				startRequest().copy(
+					logicalTrackingId = "raw-wal-historical-owner",
+					serviceRunId = "raw-wal-current-run",
+					rolloutRevision = rolloutSnapshot.revision,
+				),
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+			val currentOrdinal = insertTerminalStepsWal(started)
+			val current = requireNotNull(
+				database.sourceEventWalDao().getByAdmissionOrdinal(currentOrdinal),
+			)
+			val historicalUnsigned = current.copy(
+				admissionOrdinal = 0L,
+				eventId = "historical-malformed-service-run",
+				providerDedupKey = "historical-malformed-service-run-dedup",
+				serviceRunId = "historical-other-run",
+				sourceSequence = current.sourceSequence + 1L,
+				sessionManifestRevision = current.sessionManifestRevision?.plus(100L),
+				integrityIdentity = "",
+			)
+			val historicalOrdinal = database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(
+				historicalUnsigned.copy(
+					integrityIdentity = historicalUnsigned.calculatedIntegrityIdentity(),
+				),
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET service_run_id = ? WHERE admission_ordinal = ?",
+				arrayOf("\t\n", historicalOrdinal),
+			)
+			runtime.lastAdmissionOrdinal = currentOrdinal
+			replaceEventCoordinator(completedEventCoordinator(historicalOrdinal))
+
+			subject.stop(
+				SessionStopRequest(
+					"raw-wal-historical-owner-stop",
+					"USER_STOP",
+					2_000L,
+					2_000_000L,
+					"boot-1",
+				),
+			).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+			sourceProductDrainRouter.requests.single { request ->
+				request.source == SourceKind.STEPS
+			}.sourceHighWaterAdmissionOrdinal shouldBe currentOrdinal
+		}
+
+	@Test
+	fun `current-run null blob blank and whitespace service identities fail closed`() = runTest {
+		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "raw-wal-current-malformed",
+				serviceRunId = "raw-wal-current-malformed-run",
+				rolloutRevision = rolloutSnapshot.revision,
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val admissionOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = admissionOrdinal
+		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
+		val corruptions = listOf<Any?>(
+			null,
+			byteArrayOf(1, 2),
+			"",
+			" \t\n\r",
+		)
+
+		for ((index, corruption) in corruptions.withIndex()) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET service_run_id = ? WHERE admission_ordinal = ?",
+				arrayOf(corruption, admissionOrdinal),
+			)
+
+			val pending = subject.stop(
+				SessionStopRequest(
+					"raw-wal-current-malformed-stop-$index",
+					"USER_STOP",
+					2_000L + index,
+					2_000_000L + index,
+					"boot-1",
+				),
+			).shouldBeInstanceOf<SessionStopResult.DrainPending>()
+
+			pending.reason shouldBe "SOURCE_DRAIN_HIGH_WATER_UNVERIFIABLE"
+			sourceProductDrainRouter.requests shouldBe emptyList()
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET service_run_id = ? WHERE admission_ordinal = ?",
+				arrayOf(started.serviceRunId, admissionOrdinal),
+			)
+		}
+
+		subject.stop(
+			SessionStopRequest(
+				"raw-wal-current-malformed-restored",
+				"USER_STOP",
+				2_100L,
+				2_100_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+	}
 
 	@Test
 	fun `raw WAL high-water recheck rejects corruption after plan creation`() = runTest {
@@ -2040,6 +2147,246 @@ class AuthoritativeSessionCoordinatorTest {
 				SourceKind.STEPS.stableCode,
 			).single() shouldBe receipt
 			database.sourceSessionDao().session(started.logicalTrackingId)?.failureCode shouldBe null
+		}
+
+	@Test
+	fun `cleanup-only retirement cannot remove drain authority while its generation has WAL`() =
+		runTest {
+			installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+			runtime.startReturnsRetryableFailure = true
+			runtime.cleanupOnlyShutdown = true
+			runtime.cleanupOnlyReady = false
+			val failed = subject.start(
+				startRequest().copy(
+					logicalTrackingId = "cleanup-only-wal-logical",
+					serviceRunId = "cleanup-only-wal-run",
+					rolloutRevision = rolloutSnapshot.revision,
+				),
+			).shouldBeInstanceOf<SessionStartResult.Failed>()
+			val admissionOrdinal = insertTerminalStepsWal(
+				logicalTrackingId = failed.logicalTrackingId,
+				serviceRunId = failed.serviceRunId,
+			)
+			runtime.cleanupOnlyReady = true
+			replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
+
+			val pending = subject.stop(
+				SessionStopRequest(
+					"cleanup-only-wal-stop",
+					"USER_STOP",
+					2_000L,
+					2_000_000L,
+					"boot-1",
+				),
+			).shouldBeInstanceOf<SessionStopResult.DrainPending>()
+
+			pending.reason shouldBe "SOURCE_DRAIN_COMPLETENESS_MISSING"
+			sourceProductDrainRouter.requests.none { request ->
+				request.source == SourceKind.STEPS
+			} shouldBe true
+			database.sourceSessionDao().runRetirements(
+				failed.logicalTrackingId,
+				failed.serviceRunId,
+				SourceKind.STEPS.stableCode,
+			).single().state shouldBe SourceRunRetirementEntity.STATE_CLEANUP_ONLY_COMPLETED
+		}
+
+	@Test
+	fun `cleanup-only replay preserves an earlier product generation across coordinator crash`() =
+		runTest {
+			installStepsAndLocationCandidateRollout()
+			val started = subject.start(
+				startRequest().copy(
+					logicalTrackingId = "product-then-cleanup-logical",
+					serviceRunId = "product-then-cleanup-run",
+					plan = stepsAndLocationPlan(1L, stepsEnabled = true),
+					rolloutRevision = rolloutSnapshot.revision,
+				),
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+			val admissionOrdinal = insertTerminalStepsWal(started)
+			runtime.lastAdmissionOrdinal = admissionOrdinal
+			subject.reconfigure(
+				stepsAndLocationReconfigure(2L, stepsEnabled = false),
+			).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+			val productCompleteness = database.sourceSessionDao()
+				.completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
+				.single { row ->
+					row.sourceKind == SourceKind.STEPS.stableCode &&
+						row.registrationGeneration == 1L
+				}
+			insertRetiredStepsRegistration()
+			persistStepsRuntimeCheckpoint(productCompleteness)
+
+			runtime.startReturnsRetryableFailure = true
+			runtime.cleanupOnlyShutdown = true
+			runtime.cleanupOnlyReady = false
+			subject.reconfigure(
+				stepsAndLocationReconfigure(3L, stepsEnabled = true),
+			).shouldBeInstanceOf<SessionReconfigureResult.Failed>()
+			runtime.cleanupOnlyReady = true
+			val crashingCoordinator = mockk<TrackingCoordinator>()
+			coEvery { crashingCoordinator.drainAvailable(any(), any()) } throws
+				CancellationException("simulated crash after mixed-generation retirement")
+			replaceEventCoordinator(crashingCoordinator)
+
+			shouldThrow<CancellationException> {
+				subject.stop(
+					SessionStopRequest(
+						"product-then-cleanup-stop",
+						"USER_STOP",
+						4_000L,
+						4_000_000L,
+						"boot-1",
+					),
+				)
+			}
+			val persistedRetirements = database.sourceSessionDao().runRetirements(
+				started.logicalTrackingId,
+				started.serviceRunId,
+				SourceKind.STEPS.stableCode,
+			)
+			persistedRetirements.associate { receipt ->
+				receipt.registrationGeneration to receipt.state
+			} shouldBe mapOf(
+				1L to SourceRunRetirementEntity.STATE_ACKNOWLEDGED,
+				2L to SourceRunRetirementEntity.STATE_CLEANUP_ONLY_COMPLETED,
+			)
+
+			replaceRuntime(FakeStepsRuntime(database))
+			replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
+			val stopped = subject.stop(
+				SessionStopRequest(
+					"product-then-cleanup-replay",
+					"USER_STOP",
+					4_500L,
+					4_500_000L,
+					"boot-1",
+				),
+			).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+			stopped.acknowledgements
+				.filter { acknowledgement -> acknowledgement.source == SourceKind.STEPS }
+				.map(SourceStopAck::registrationGeneration) shouldBe listOf(1L)
+			runtime.shutdownClaims shouldBe emptyList()
+			sourceProductDrainRouter.requests.single { request ->
+				request.source == SourceKind.STEPS
+			}.memberships.map(SourceDrainMembership::registrationGeneration) shouldBe listOf(1L)
+			database.sourceSessionDao().runRetirements(
+				started.logicalTrackingId,
+				started.serviceRunId,
+				SourceKind.STEPS.stableCode,
+			) shouldBe persistedRetirements
+		}
+
+	@Test
+	fun `multiple cleanup-only generations replay without product evidence or repeated cleanup`() =
+		runTest {
+			installStepsAndLocationCandidateRollout()
+			val started = subject.start(
+				startRequest().copy(
+					logicalTrackingId = "multiple-cleanup-logical",
+					serviceRunId = "multiple-cleanup-run",
+					plan = stepsAndLocationPlan(1L, stepsEnabled = true),
+					rolloutRevision = rolloutSnapshot.revision,
+				),
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+			subject.reconfigure(
+				stepsAndLocationReconfigure(2L, stepsEnabled = false),
+			).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+			runtime.startReturnsRetryableFailure = true
+			runtime.cleanupOnlyShutdown = true
+			runtime.cleanupOnlyReady = false
+			subject.reconfigure(
+				stepsAndLocationReconfigure(3L, stepsEnabled = true),
+			).shouldBeInstanceOf<SessionReconfigureResult.Failed>()
+
+			database.sourceSessionDao().deleteAllCompleteness()
+			database.sourceRuntimeStateDao().deleteAll()
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM steps_count_domain_completeness_marker",
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM steps_count_domain_owner_revision",
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM steps_count_domain_receipt",
+			)
+			insertRetiredStepsRegistration()
+			val firstGenerationAction = database.sourceSessionDao()
+				.lifecycleActions(started.logicalTrackingId)
+				.single { action ->
+					action.sourceKind == SourceKind.STEPS.stableCode &&
+						action.manifestRevision == 1L &&
+						action.desiredState == "STARTED"
+				}
+			database.sourceSessionDao().updateLifecycleAction(
+				firstGenerationAction.copy(
+					status = LifecycleActionStatus.CLEANUP_REQUIRED.name,
+					failureCode = SOURCE_RUNTIME_CLEANUP_PENDING,
+					retryTrigger = RUNTIME_CLEANUP_RETRY,
+				),
+			) shouldBe 1
+			runtime.cleanupOnlyReady = true
+			val crashingCoordinator = mockk<TrackingCoordinator>()
+			coEvery { crashingCoordinator.drainAvailable(any(), any()) } throws
+				CancellationException("simulated crash after all cleanup-only generations")
+			replaceEventCoordinator(crashingCoordinator)
+
+			shouldThrow<CancellationException> {
+				subject.stop(
+					SessionStopRequest(
+						"multiple-cleanup-stop",
+						"USER_STOP",
+						4_000L,
+						4_000_000L,
+						"boot-1",
+					),
+				)
+			}
+			val cleanupReceipts = database.sourceSessionDao().runRetirements(
+				started.logicalTrackingId,
+				started.serviceRunId,
+				SourceKind.STEPS.stableCode,
+			)
+			cleanupReceipts.map(SourceRunRetirementEntity::state) shouldBe listOf(
+				SourceRunRetirementEntity.STATE_CLEANUP_ONLY_COMPLETED,
+				SourceRunRetirementEntity.STATE_CLEANUP_ONLY_COMPLETED,
+			)
+			database.sourceSessionDao().completenessForServiceRun(
+				started.logicalTrackingId,
+				started.serviceRunId,
+			).none { row -> row.sourceKind == SourceKind.STEPS.stableCode } shouldBe true
+
+			replaceRuntime(FakeStepsRuntime(database))
+			replaceEventCoordinator(completedEventCoordinator(0L))
+			val stopped = subject.stop(
+				SessionStopRequest(
+					"multiple-cleanup-replay",
+					"USER_STOP",
+					4_500L,
+					4_500_000L,
+					"boot-1",
+				),
+			).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+			stopped.acknowledgements.none { acknowledgement ->
+				acknowledgement.source == SourceKind.STEPS
+			} shouldBe true
+			runtime.shutdownClaims shouldBe emptyList()
+			sourceProductDrainRouter.requests.none { request ->
+				request.source == SourceKind.STEPS
+			} shouldBe true
+			database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+				.filter { action ->
+					action.sourceKind == SourceKind.STEPS.stableCode &&
+						action.status == LifecycleActionStatus.SUPERSEDED.name
+				}.mapNotNull(LifecycleDesiredActionEntity::registrationGeneration)
+				.toSet() shouldBe setOf(1L, 2L)
+			database.sourceSessionDao().runRetirements(
+				started.logicalTrackingId,
+				started.serviceRunId,
+				SourceKind.STEPS.stableCode,
+			) shouldBe cleanupReceipts
 		}
 
 	@Test
@@ -5474,6 +5821,18 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	private suspend fun insertTerminalStepsWal(started: SessionStartResult.Started): Long {
+		return insertTerminalStepsWal(
+			logicalTrackingId = started.logicalTrackingId,
+			serviceRunId = started.serviceRunId,
+		)
+	}
+
+	private suspend fun insertTerminalStepsWal(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		registrationGeneration: Long = 1L,
+		manifestRevision: Long = 1L,
+	): Long {
 		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
 			StepsCountDomainSchemaState.ValidV2
 		val token = StepsCounterDomainToken.opaque("sha256:${"a".repeat(64)}")
@@ -5495,13 +5854,13 @@ class AuthoritativeSessionCoordinatorTest {
 			StepsCounterDomainToken.COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION,
 		)
 		val unsigned = SourceEventWalEntity(
-			eventId = "terminal-steps-${started.serviceRunId}",
-			providerDedupKey = "terminal-steps-dedup-${started.serviceRunId}",
-			logicalTrackingId = started.logicalTrackingId,
-			serviceRunId = started.serviceRunId,
+			eventId = "terminal-steps-$serviceRunId-$registrationGeneration",
+			providerDedupKey = "terminal-steps-dedup-$serviceRunId-$registrationGeneration",
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
 			sourceKind = SourceKind.STEPS.stableCode,
 			sourceInstanceId = "steps-instance",
-			registrationGeneration = 1L,
+			registrationGeneration = registrationGeneration,
 			physicalConfigurationFingerprint = "terminal-steps",
 			authorizationRevision = 1L,
 			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
@@ -5517,7 +5876,7 @@ class AuthoritativeSessionCoordinatorTest {
 			capturedCollectedDataEpoch = 0L,
 			sourcePolicyRevision = 1L,
 			captureConsentEpoch = 1L,
-			sessionManifestRevision = 1L,
+			sessionManifestRevision = manifestRevision,
 			lifecycleLeaseGeneration = 1L,
 			acquiredAtMs = 2_000L,
 			qualityFlags = 0L,
@@ -5617,6 +5976,42 @@ class AuthoritativeSessionCoordinatorTest {
 				retiredAtMs = 2_000L,
 				retiredElapsedRealtimeNanos = 2_000_000L,
 				failureCode = "PRIOR_PROCESS_ENDED",
+			),
+		)
+	}
+
+	private suspend fun persistStepsRuntimeCheckpoint(
+		completeness: SourceSessionCompletenessEntity,
+	) {
+		val lastProviderSequence = maxOf(4L, completeness.lastSourceSequence ?: 0L)
+		database.sourceRuntimeStateDao().save(
+			SourceRuntimeStateEntity(
+				sourceKind = SourceKind.STEPS.stableCode,
+				ownerScope = "source-broker:${SourceKind.STEPS.stableCode}",
+				sourceInstanceId = completeness.sourceInstanceId,
+				clockDomainId = "boot-1",
+				registrationGeneration = completeness.registrationGeneration,
+				lastProviderSequence = lastProviderSequence,
+				lastAdmittedSourceSequence = completeness.lastSourceSequence,
+				lastAdmissionOrdinal = completeness.lastAdmissionOrdinal,
+				stateVersion = SENSOR_RUNTIME_CHECKPOINT_VERSION,
+				payload = encodeSensorRuntimeCheckpoint(
+					SensorRuntimeCheckpoint(
+						lifecycle = RuntimeCheckpointLifecycle.QUIESCED,
+						metrics = RuntimeAdmissionSnapshot(
+							lastDurablyAdmittedSequence = completeness.lastSourceSequence,
+							lastAdmissionOrdinal = completeness.lastAdmissionOrdinal,
+							failedAdmissionCount = 0L,
+							unresolvedSequenceStart = completeness.unresolvedSequenceStart,
+							unresolvedSequenceEndInclusive = completeness.unresolvedSequenceEnd,
+							gapClassifications = emptySet(),
+						),
+						componentStateVersion = 1,
+						componentPayload = ByteArray(0),
+						causalOrderElapsedRealtimeNanos = 2_000_000L,
+					),
+				),
+				updatedAtMs = 2_000L,
 			),
 		)
 	}
@@ -5725,6 +6120,49 @@ class AuthoritativeSessionCoordinatorTest {
 		wallTimeMs = 1_000,
 		elapsedRealtimeNanos = 1_000_000,
 		zoneId = "Europe/Prague",
+	)
+
+	private fun stepsAndLocationPlan(
+		revision: Long,
+		stepsEnabled: Boolean,
+	) = AcquisitionPlanRevision(
+		revision = revision,
+		planId = "steps-cleanup-aggregation-$revision",
+		createdAtMs = revision * 1_000L,
+		plans = mapOf(
+			SourceKind.STEPS to StepsPlan(
+				revision,
+				stepsEnabled,
+				60_000L,
+				15_000L,
+				false,
+			),
+			SourceKind.LOCATION to LocationPlan(
+				revision = revision,
+				backend = LocationBackend.FUSED,
+				mode = LocationMode.BALANCED,
+				requestedIntervalMs = 2_000L,
+				minimumUpdateIntervalMs = 2_000L,
+				minimumDisplacementMeters = 10f,
+				maximumBatchDelayMs = 10_000L,
+				probeDurationMs = null,
+				preciseLocationAvailable = true,
+			),
+		),
+		sourcePolicyRevision = 1L,
+	)
+
+	private fun stepsAndLocationReconfigure(
+		revision: Long,
+		stepsEnabled: Boolean,
+	) = SessionReconfigureRequest(
+		ownerToken = "steps-cleanup-aggregation-owner",
+		plan = stepsAndLocationPlan(revision, stepsEnabled),
+		wallTimeMs = revision * 1_000L,
+		elapsedRealtimeNanos = revision * 1_000_000L,
+		clockDomainId = "boot-1",
+		zoneId = "Europe/Prague",
+		foregroundCapabilityFlags = 0L,
 	)
 
 	private fun pressureStartRequest(
@@ -6068,6 +6506,20 @@ class AuthoritativeSessionCoordinatorTest {
 		)
 		database.trackingRolloutStateDao().save(rolloutSnapshot.toEntity(updatedAtMs = 1L))
 		return binding
+	}
+
+	private suspend fun installStepsAndLocationCandidateRollout() {
+		val stepsBinding =
+			installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		rolloutSnapshot = TrackingRolloutState.eventCanonical(
+			sources = setOf(SourceKind.STEPS, SourceKind.LOCATION),
+			revision = 3L,
+			captureModes = mapOf(
+				SourceKind.STEPS to stepsBinding.captureModes,
+				SourceKind.LOCATION to setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
+			),
+		)
+		database.trackingRolloutStateDao().save(rolloutSnapshot.toEntity(updatedAtMs = 2L))
 	}
 
 	private suspend fun installPressureCandidateRollout(): ExecutableSourceLaneBinding {

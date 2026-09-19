@@ -327,9 +327,10 @@ interface SourceEventWalDao {
 	 * Raw bounded envelope for one run/source capture high-water.
 	 *
 	 * Valid rows remain anchored on the exact text service-run identity and source. A malformed,
-	 * blank, or null service-run identity is also visible only when exact source, logical owner, and
-	 * capture-purpose fields associate that corrupt row with this requested domain. Other invalid
-	 * aggregate inputs sort before the newest eligible row without sweeping unrelated runs.
+	 * blank, or null service-run identity is visible only when an authenticated manifest revision
+	 * for this run, plus the exact source, logical owner, and capture purpose, associates the row
+	 * with this requested domain. Other invalid aggregate inputs sort before the newest eligible row
+	 * without sweeping unrelated runs.
 	 */
 	@Query(
 		"SELECT " +
@@ -357,9 +358,13 @@ interface SourceEventWalDao {
 			"typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId AND " +
 			"(CAST(source_kind AS INTEGER) = :sourceKind OR typeof(source_kind) != 'integer')" +
 			") OR (" +
-			"(typeof(service_run_id) != 'text' OR trim(service_run_id) = '') AND " +
+			"(typeof(service_run_id) != 'text' OR (typeof(service_run_id) = 'text' AND " +
+			"length(trim(service_run_id, ' ' || char(9) || char(10) || char(11) || " +
+			"char(12) || char(13))) = 0)) AND " +
 			"typeof(source_kind) = 'integer' AND source_kind = :sourceKind AND " +
 			"typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId AND " +
+			"typeof(session_manifest_revision) = 'integer' AND " +
+			"session_manifest_revision IN (:runManifestRevisions) AND " +
 			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
 			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0" +
 			")) AND (" +
@@ -399,6 +404,7 @@ interface SourceEventWalDao {
 		sourceKind: Int,
 		logicalTrackingId: String,
 		serviceRunId: String,
+		runManifestRevisions: List<Long>,
 		throughOrdinal: Long,
 		capturePurposeMask: Long,
 		allowedPurposeMask: Long,

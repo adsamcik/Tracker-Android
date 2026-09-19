@@ -86,6 +86,7 @@ data class SourceProductDrainRequest(
 	val sourceHighWaterAdmissionOrdinal: Long,
 	val memberships: List<SourceDrainMembership>,
 	val target: SourceProductDrainTarget,
+	val runManifestRevisions: List<Long>,
 ) {
 	init {
 		require(logicalTrackingId.isNotBlank())
@@ -98,6 +99,9 @@ data class SourceProductDrainRequest(
 		require(memberships.distinctBy {
 			it.sourceInstanceId to it.registrationGeneration
 		}.size == memberships.size)
+		require(runManifestRevisions.isNotEmpty())
+		require(runManifestRevisions.all { it > 0L })
+		require(runManifestRevisions == runManifestRevisions.distinct().sorted())
 		require(source == SourceKind.LOCATION || target is SourceProductDrainTarget.SourceLocalWriter)
 		require(source != SourceKind.LOCATION || target == SourceProductDrainTarget.ProtectedLocationWriter)
 	}
@@ -307,6 +311,7 @@ internal sealed interface SourceProductDrainPlan {
 
 internal data class SourceProductDrainAuthority(
 	val captureBindings: Map<Int, List<SessionManifestSourceEntity>>,
+	val cleanupOnlySources: Set<Int> = emptySet(),
 )
 
 internal suspend fun buildSourceProductDrainPlan(
@@ -358,6 +363,15 @@ internal suspend fun buildSourceProductDrainPlan(
 			return@withTransaction SourceDrainAuthority.Failed(
 				null,
 				"SOURCE_DRAIN_MANIFEST_INTEGRITY_MISMATCH",
+			)
+		}
+		if (authenticatedAuthority.cleanupOnlySources.any { sourceKind ->
+				sourceKind !in captured
+			}
+		) {
+			return@withTransaction SourceDrainAuthority.Failed(
+				null,
+				"SOURCE_DRAIN_CLEANUP_AUTHORITY_MISMATCH",
 			)
 		}
 		val rawCompleteness = sessionDao.rawCompletenessForServiceRun(
@@ -412,7 +426,36 @@ internal suspend fun buildSourceProductDrainPlan(
 		val memberships = authority.completeness[source.stableCode].orEmpty()
 			.map(SourceSessionCompletenessEntity::toDrainMembership)
 			.sortedWith(compareBy(SourceDrainMembership::sourceInstanceId, SourceDrainMembership::registrationGeneration))
+		val runManifestRevisions = bindings
+			.map(SessionManifestSourceEntity::manifestRevision)
+			.distinct()
+			.sorted()
 		if (memberships.isEmpty()) {
+			if (source.stableCode in authenticatedAuthority.cleanupOnlySources) {
+				when (
+					val read = sourceRunHighWater(
+						database,
+						source,
+						logicalTrackingId,
+						serviceRunId,
+						runManifestRevisions,
+						settlementHighWaterAdmissionOrdinal,
+					)
+				) {
+					is SourceRunHighWaterRead.Ready -> {
+						if (read.highWaterAdmissionOrdinal == 0L) continue
+						return SourceProductDrainPlan.Failed(
+							source,
+							"SOURCE_DRAIN_COMPLETENESS_MISSING",
+						)
+					}
+					SourceRunHighWaterRead.Unverifiable ->
+						return SourceProductDrainPlan.Failed(
+							source,
+							"SOURCE_DRAIN_HIGH_WATER_UNVERIFIABLE",
+						)
+				}
+			}
 			return SourceProductDrainPlan.Failed(source, "SOURCE_DRAIN_COMPLETENESS_MISSING")
 		}
 		val sourceWalHighWater = when (
@@ -421,6 +464,7 @@ internal suspend fun buildSourceProductDrainPlan(
 				source,
 				logicalTrackingId,
 				serviceRunId,
+				runManifestRevisions,
 				settlementHighWaterAdmissionOrdinal,
 			)
 		) {
@@ -449,6 +493,7 @@ internal suspend fun buildSourceProductDrainPlan(
 			sourceHighWaterAdmissionOrdinal = sourceHighWater,
 			memberships = memberships,
 			target = target,
+			runManifestRevisions = runManifestRevisions,
 		)
 		if (source == SourceKind.STEPS) {
 			val rows = authority.completeness.getValue(source.stableCode)
@@ -574,44 +619,49 @@ private suspend fun sourceRunHighWater(
 	source: SourceKind,
 	logicalTrackingId: String,
 	serviceRunId: String,
+	runManifestRevisions: List<Long>,
 	throughOrdinal: Long,
 ): SourceRunHighWaterRead {
-	val rows = database.sourceEventWalDao().rawRunSourceCaptureHighWater(
-		sourceKind = source.stableCode,
-		logicalTrackingId = logicalTrackingId,
-		serviceRunId = serviceRunId,
-		throughOrdinal = throughOrdinal,
-		capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-		allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
-		limit = RAW_WAL_HIGH_WATER_ENVELOPE,
-	)
+	if (runManifestRevisions.isEmpty()) return SourceRunHighWaterRead.Unverifiable
 	var highWater = 0L
-	for (row in rows) {
-		val admissionOrdinal = row.admissionOrdinal
-			?: return SourceRunHighWaterRead.Unverifiable
-		val registrationGeneration = row.registrationGeneration
-			?: return SourceRunHighWaterRead.Unverifiable
-		val purposeEligibilityMask = row.authorizationPurposeEligibilityMask
-			?: return SourceRunHighWaterRead.Unverifiable
-		if (
-			row.storageClassSignature != RAW_WAL_HIGH_WATER_STORAGE_CLASSES ||
-			row.eventId.isNullOrBlank() ||
-			admissionOrdinal !in 1L..throughOrdinal ||
-			row.sourceKind != source.stableCode.toLong() ||
-			row.logicalTrackingId != logicalTrackingId ||
-			row.serviceRunId != serviceRunId ||
-			row.sourceInstanceId.isNullOrBlank() ||
-			registrationGeneration <= 0L ||
-			purposeEligibilityMask < 0L ||
-			(purposeEligibilityMask and SourceBrokerPurpose.ALL_MASK) != purposeEligibilityMask
-		) {
-			return SourceRunHighWaterRead.Unverifiable
-		}
-		if (
-			(purposeEligibilityMask and
-				SourceBrokerPurpose.MASK_SESSION_CAPTURE) != 0L
-		) {
-			highWater = maxOf(highWater, admissionOrdinal)
+	for (manifestRevisions in runManifestRevisions.chunked(RAW_WAL_MANIFEST_QUERY_CHUNK)) {
+		val rows = database.sourceEventWalDao().rawRunSourceCaptureHighWater(
+			sourceKind = source.stableCode,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = manifestRevisions,
+			throughOrdinal = throughOrdinal,
+			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
+			limit = RAW_WAL_HIGH_WATER_ENVELOPE,
+		)
+		for (row in rows) {
+			val admissionOrdinal = row.admissionOrdinal
+				?: return SourceRunHighWaterRead.Unverifiable
+			val registrationGeneration = row.registrationGeneration
+				?: return SourceRunHighWaterRead.Unverifiable
+			val purposeEligibilityMask = row.authorizationPurposeEligibilityMask
+				?: return SourceRunHighWaterRead.Unverifiable
+			if (
+				row.storageClassSignature != RAW_WAL_HIGH_WATER_STORAGE_CLASSES ||
+				row.eventId.isNullOrBlank() ||
+				admissionOrdinal !in 1L..throughOrdinal ||
+				row.sourceKind != source.stableCode.toLong() ||
+				row.logicalTrackingId != logicalTrackingId ||
+				row.serviceRunId != serviceRunId ||
+				row.sourceInstanceId.isNullOrBlank() ||
+				registrationGeneration <= 0L ||
+				purposeEligibilityMask < 0L ||
+				(purposeEligibilityMask and SourceBrokerPurpose.ALL_MASK) != purposeEligibilityMask
+			) {
+				return SourceRunHighWaterRead.Unverifiable
+			}
+			if (
+				(purposeEligibilityMask and
+					SourceBrokerPurpose.MASK_SESSION_CAPTURE) != 0L
+			) {
+				highWater = maxOf(highWater, admissionOrdinal)
+			}
 		}
 	}
 	return SourceRunHighWaterRead.Ready(highWater)
@@ -805,6 +855,7 @@ internal suspend fun authenticateSourceProductDrainRequest(
 			request.source,
 			request.logicalTrackingId,
 			request.serviceRunId,
+			request.runManifestRevisions,
 			request.settlementHighWaterAdmissionOrdinal,
 		)
 	) {
@@ -826,5 +877,6 @@ internal suspend fun authenticateSourceProductDrainRequest(
 private const val MAX_DRAIN_COMPLETENESS_ROWS = 384
 private const val MAX_COMPLETENESS_PER_SOURCE = 64
 private const val RAW_WAL_HIGH_WATER_ENVELOPE = 2
+private const val RAW_WAL_MANIFEST_QUERY_CHUNK = 100
 private const val RAW_WAL_HIGH_WATER_STORAGE_CLASSES =
 	"text|integer|integer|text|text|text|integer|integer"

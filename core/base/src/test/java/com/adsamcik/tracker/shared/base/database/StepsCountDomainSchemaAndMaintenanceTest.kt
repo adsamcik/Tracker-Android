@@ -256,27 +256,29 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
-	fun `run high-water surfaces malformed null and blob service run identities without broad sweep`() =
+	fun `run high-water surfaces null blob blank and whitespace run identities without broad sweep`() =
 		runTest {
 			val wal = insertWal("raw-service-run-identity", 1L)
 			val sqlite = database.openHelper.writableDatabase
 			val corruptions = listOf(
-				"''" to ("text" to ""),
-				"NULL" to ("null" to null),
-				"X'0102'" to ("blob" to null),
+				"" to ("text" to ""),
+				" \t\n\r" to ("text" to " \t\n\r"),
+				null to ("null" to null),
+				byteArrayOf(1, 2) to ("blob" to null),
 			)
 
 			for ((storedValue, expected) in corruptions) {
 				sqlite.execSQL(
-					"UPDATE source_event_wal SET service_run_id = $storedValue " +
+					"UPDATE source_event_wal SET service_run_id = ? " +
 						"WHERE admission_ordinal = ?",
-					arrayOf(wal.admissionOrdinal),
+					arrayOf(storedValue, wal.admissionOrdinal),
 				)
 
 				val evidence = database.sourceEventWalDao().rawRunSourceCaptureHighWater(
 					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 					logicalTrackingId = "tracking",
 					serviceRunId = "run",
+					runManifestRevisions = listOf(1L),
 					throughOrdinal = wal.admissionOrdinal,
 					capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 					allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
@@ -297,6 +299,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 				logicalTrackingId = "tracking",
 				serviceRunId = "run",
+				runManifestRevisions = listOf(1L),
 				throughOrdinal = wal.admissionOrdinal,
 				capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 				allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
