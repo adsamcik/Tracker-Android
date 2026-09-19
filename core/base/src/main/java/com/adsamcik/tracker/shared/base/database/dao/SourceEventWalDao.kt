@@ -411,6 +411,108 @@ interface SourceEventWalDao {
 		limit: Int,
 	): List<RawSourceRunWalHighWaterEvidence>
 
+	/**
+	 * Groups product-eligible run WAL by its exact provider generation while retaining a malformed
+	 * row count. Callers can therefore reject an unauthorized generation even when an earlier
+	 * authorized generation owns the aggregate source high-water.
+	 */
+	@Query(
+		"SELECT " +
+			"CASE WHEN typeof(source_instance_id) = 'text' THEN source_instance_id END " +
+			"AS source_instance_id, " +
+			"CASE WHEN typeof(registration_generation) = 'integer' " +
+			"THEN registration_generation END AS registration_generation, " +
+			"CASE WHEN typeof(lifecycle_lease_generation) = 'integer' " +
+			"THEN lifecycle_lease_generation END AS lifecycle_lease_generation, " +
+			"SUM(CASE WHEN (" +
+			"typeof(event_id) != 'text' OR trim(event_id) = '' OR " +
+			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
+			"admission_ordinal > :throughOrdinal OR " +
+			"typeof(source_kind) != 'integer' OR source_kind != :sourceKind OR " +
+			"typeof(logical_tracking_id) != 'text' OR logical_tracking_id != :logicalTrackingId OR " +
+			"typeof(service_run_id) != 'text' OR service_run_id != :serviceRunId OR " +
+			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
+			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
+			"typeof(session_manifest_revision) != 'integer' OR " +
+			"session_manifest_revision NOT IN (:runManifestRevisions) OR " +
+			"typeof(lifecycle_lease_generation) != 'integer' OR " +
+			"lifecycle_lease_generation <= 0 OR " +
+			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
+			"authorization_purpose_eligibility_mask < 0 OR " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) != " +
+			"authorization_purpose_eligibility_mask" +
+			") THEN 1 ELSE 0 END) AS malformed_row_count, " +
+			"SUM(CASE WHEN (" +
+			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"authorization_purpose_eligibility_mask >= 0 AND " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) = " +
+			"authorization_purpose_eligibility_mask AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0" +
+			") THEN 1 ELSE 0 END) AS product_eligible_row_count, " +
+			"MAX(CASE WHEN (" +
+			"typeof(admission_ordinal) = 'integer' AND admission_ordinal > 0 AND " +
+			"admission_ordinal <= :throughOrdinal AND " +
+			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"authorization_purpose_eligibility_mask >= 0 AND " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) = " +
+			"authorization_purpose_eligibility_mask AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0" +
+			") THEN admission_ordinal END) AS high_water_admission_ordinal " +
+			"FROM source_event_wal WHERE (" +
+			"(" +
+			"typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId AND " +
+			"(CAST(source_kind AS INTEGER) = :sourceKind OR typeof(source_kind) != 'integer')" +
+			") OR (" +
+			"(typeof(service_run_id) != 'text' OR (typeof(service_run_id) = 'text' AND " +
+			"length(trim(service_run_id, ' ' || char(9) || char(10) || char(11) || " +
+			"char(12) || char(13))) = 0)) AND " +
+			"typeof(source_kind) = 'integer' AND source_kind = :sourceKind AND " +
+			"typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId AND " +
+			"typeof(session_manifest_revision) = 'integer' AND " +
+			"session_manifest_revision IN (:runManifestRevisions) AND " +
+			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0" +
+			")) AND (" +
+			"typeof(event_id) != 'text' OR trim(event_id) = '' OR " +
+			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
+			"(typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0 AND " +
+			"admission_ordinal > :throughOrdinal) OR " +
+			"typeof(source_kind) != 'integer' OR source_kind != :sourceKind OR " +
+			"typeof(logical_tracking_id) != 'text' OR logical_tracking_id != :logicalTrackingId OR " +
+			"typeof(service_run_id) != 'text' OR service_run_id != :serviceRunId OR " +
+			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
+			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
+			"typeof(session_manifest_revision) != 'integer' OR " +
+			"session_manifest_revision NOT IN (:runManifestRevisions) OR " +
+			"typeof(lifecycle_lease_generation) != 'integer' OR " +
+			"lifecycle_lease_generation <= 0 OR " +
+			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
+			"authorization_purpose_eligibility_mask < 0 OR " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) != " +
+			"authorization_purpose_eligibility_mask OR " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0) " +
+			"GROUP BY typeof(source_instance_id), " +
+			"CASE WHEN typeof(source_instance_id) = 'text' THEN source_instance_id END, " +
+			"typeof(registration_generation), " +
+			"CASE WHEN typeof(registration_generation) = 'integer' " +
+			"THEN registration_generation END, " +
+			"typeof(lifecycle_lease_generation), " +
+			"CASE WHEN typeof(lifecycle_lease_generation) = 'integer' " +
+			"THEN lifecycle_lease_generation END " +
+			"ORDER BY malformed_row_count DESC, high_water_admission_ordinal DESC LIMIT :limit",
+	)
+	suspend fun rawRunSourceCaptureGenerations(
+		sourceKind: Int,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		runManifestRevisions: List<Long>,
+		throughOrdinal: Long,
+		capturePurposeMask: Long,
+		allowedPurposeMask: Long,
+		limit: Int,
+	): List<RawSourceRunWalGenerationEvidence>
+
 	/** Payload-free ordered preflight for a bounded source-local projection pass. */
 	@Query(
 		"SELECT event_id, admission_ordinal FROM source_event_wal " +
@@ -610,6 +712,16 @@ data class RawSourceRunWalHighWaterEvidence(
 	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long?,
 	@ColumnInfo(name = "authorization_purpose_eligibility_mask")
 	val authorizationPurposeEligibilityMask: Long?,
+)
+
+/** Raw grouped provider-generation evidence for one bounded source/run WAL settlement. */
+data class RawSourceRunWalGenerationEvidence(
+	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String?,
+	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long?,
+	@ColumnInfo(name = "lifecycle_lease_generation") val lifecycleLeaseGeneration: Long?,
+	@ColumnInfo(name = "malformed_row_count") val malformedRowCount: Long?,
+	@ColumnInfo(name = "product_eligible_row_count") val productEligibleRowCount: Long?,
+	@ColumnInfo(name = "high_water_admission_ordinal") val highWaterAdmissionOrdinal: Long?,
 )
 
 /** Payload-free identity for one bounded Cell/Wi-Fi projection scheduling attempt. */

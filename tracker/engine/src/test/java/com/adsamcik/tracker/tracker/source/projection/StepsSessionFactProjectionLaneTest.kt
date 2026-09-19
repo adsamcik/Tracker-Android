@@ -24,6 +24,8 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
+import com.adsamcik.tracker.tracker.source.coordinator.SourceDrainMembership
+import com.adsamcik.tracker.tracker.source.coordinator.SourceDrainRetirementClaim
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
@@ -167,6 +169,54 @@ class StepsSessionFactProjectionLaneTest {
 		fact.writerProjectionVersion shouldBe binding.projectionVersion
 		fact.writerBindingGeneration shouldBe binding.bindingGeneration
 		StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(fact) shouldBe true
+	}
+
+	@Test
+	fun `service-run drain rejects a provider generation without product membership`() = runTest {
+		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val ingress = sourceIngress(
+			0L,
+			1L,
+			listOf(stepEvent(1L, registrationGeneration = 2L)),
+		)
+
+		StepsSessionFactProjectionLane(database, ingress).drainThrough(
+			throughAdmissionOrdinal = 1L,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = SERVICE_RUN_ID,
+			productMemberships = listOf(
+				SourceDrainMembership(
+					sourceInstanceId = "steps-provider",
+					registrationGeneration = 1L,
+					lastAdmissionOrdinal = 0L,
+					lastSourceSequence = 0L,
+					appDrainComplete = true,
+					providerCoverage = "CALLBACKS_ENTERED_BEFORE_BARRIER",
+					stopStatus = "COMPLETE",
+					unresolvedSequenceStart = null,
+					unresolvedSequenceEndInclusive = null,
+				),
+			),
+			retirementClaims = listOf(
+				SourceDrainRetirementClaim(
+					source = SourceKind.STEPS,
+					sourceInstanceId = "steps-provider",
+					registrationGeneration = 1L,
+					actionId = "product-action",
+					attemptCount = 1,
+					leaseGeneration = 6L,
+					cleanupOnly = false,
+				),
+			),
+		) shouldBe StepsSessionFactDrainResult.Failed(
+			lastCompletedOrdinal = 0L,
+			failedOrdinal = 1L,
+			failureCode = "STEPS_DRAIN_MEMBERSHIP_MISMATCH",
+			terminal = true,
+		)
+
+		database.stepFactRevisionDao().countAll() shouldBe 0L
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
 	}
 
 	@Test
@@ -1149,6 +1199,8 @@ class StepsSessionFactProjectionLaneTest {
 		counterEpochGeneration: Long? = null,
 		payloadVersion: Int? = null,
 		authorizationFingerprint: String = "steps-capture",
+		sourceInstanceId: String = "steps-provider",
+		registrationGeneration: Long = 1L,
 	): AdmittedSourceEvent<StepCounterWindowPayload> {
 		val endNanos = ordinal * 2_000_000L
 		val startNanos = if (boundary == StepBoundaryKind.BASELINE) endNanos else endNanos - 1_000_000L
@@ -1160,8 +1212,8 @@ class StepsSessionFactProjectionLaneTest {
 				logicalTrackingId = LogicalTrackingId(LOGICAL_TRACKING_ID),
 				serviceRunId = ServiceRunId("run-1"),
 				source = SourceKind.STEPS,
-				sourceInstanceId = SourceInstanceId("steps-provider"),
-				registrationGeneration = 1L,
+				sourceInstanceId = SourceInstanceId(sourceInstanceId),
+				registrationGeneration = registrationGeneration,
 				physicalConfigurationFingerprint = "steps-config",
 				authorizationRevision = 1L,
 				registrationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,

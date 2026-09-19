@@ -170,10 +170,17 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	private data class RunSourceRetirementOutcome(
 		val source: SourceKind,
 		val acknowledgements: List<SourceStopAck>,
-		val cleanupOnly: Boolean,
+		val retirementClaims: List<SourceDrainRetirementClaim>,
 	) {
 		init {
-			require(!cleanupOnly || acknowledgements.isEmpty())
+			require(retirementClaims.all { claim -> claim.source == source })
+			require(retirementClaims.distinct().size == retirementClaims.size)
+			require(retirementClaims.filter(SourceDrainRetirementClaim::cleanupOnly).none { claim ->
+				acknowledgements.any { acknowledgement ->
+					acknowledgement.sourceInstanceId.value == claim.sourceInstanceId &&
+						acknowledgement.registrationGeneration == claim.registrationGeneration
+				}
+			})
 		}
 	}
 	private data class RunRetirementOwnershipKey(
@@ -3916,12 +3923,10 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			val sourceRetirements =
 				retireRunSources(retirementTargets, cutoff, request.perSourceTimeoutMs)
 			val acks = sourceRetirements.flatMap(RunSourceRetirementOutcome::acknowledgements)
-			val cleanupOnlySources = sourceRetirements.asSequence()
-				.filter(RunSourceRetirementOutcome::cleanupOnly)
-				.map { outcome -> outcome.source.stableCode }
-				.toSet()
 			val drainAuthority = retirement.drainAuthority.copy(
-				cleanupOnlySources = cleanupOnlySources,
+				retirementClaims = sourceRetirements.flatMap(
+					RunSourceRetirementOutcome::retirementClaims,
+				),
 			)
 			val completenessAuthenticated = try {
 				database.withTransaction {
@@ -4104,12 +4109,10 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			val sourceRetirements =
 				retireRunSources(retirementTargets, cutoff, request.perSourceTimeoutMs)
 			val acks = sourceRetirements.flatMap(RunSourceRetirementOutcome::acknowledgements)
-			val cleanupOnlySources = sourceRetirements.asSequence()
-				.filter(RunSourceRetirementOutcome::cleanupOnly)
-				.map { outcome -> outcome.source.stableCode }
-				.toSet()
 			val drainAuthority = retirement.drainAuthority.copy(
-				cleanupOnlySources = cleanupOnlySources,
+				retirementClaims = sourceRetirements.flatMap(
+					RunSourceRetirementOutcome::retirementClaims,
+				),
 			)
 			val completenessAuthenticated = try {
 				database.withTransaction {
@@ -4978,7 +4981,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 							SourceStopStatus.TIMED_OUT,
 						),
 					),
-					cleanupOnly = false,
+					retirementClaims = target.drainRetirementClaims(emptySet()),
 				)
 			}
 		}.awaitAll()
@@ -5040,7 +5043,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				return RunSourceRetirementOutcome(
 					target.source,
 					listOf(blockedRequestedRetirementAcknowledgement(target, cutoff)),
-					cleanupOnly = false,
+					retirementClaims = target.drainRetirementClaims(emptySet()),
 				)
 		}
 		val acknowledgements = replay.acknowledgements.toMutableList()
@@ -5081,7 +5084,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			return RunSourceRetirementOutcome(
 				target.source,
 				acknowledgements,
-				cleanupOnly = acknowledgements.isEmpty() && cleanupOnlyProviders.isNotEmpty(),
+				retirementClaims = target.drainRetirementClaims(cleanupOnlyProviders),
 			)
 		}
 		val stillUnresolvedClaims = mutableListOf<RunRetirementClaim>()
@@ -5102,7 +5105,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 								return RunSourceRetirementOutcome(
 									target.source,
 									listOf(blockedRequestedRetirementAcknowledgement(target, cutoff)),
-									cleanupOnly = false,
+									retirementClaims = target.drainRetirementClaims(emptySet()),
 								)
 							}
 							persistRunCleanupOnlyReceipt(target, owned, provider)
@@ -5161,7 +5164,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		return RunSourceRetirementOutcome(
 			source = target.source,
 			acknowledgements = acknowledgements,
-			cleanupOnly = acknowledgements.isEmpty() && cleanupOnlyProviders.isNotEmpty(),
+			retirementClaims = target.drainRetirementClaims(cleanupOnlyProviders),
 		)
 	}
 
@@ -5391,6 +5394,36 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			return false
 		}
 		return !hasTerminalOrMalformedStepsCheckpoint(receipt)
+	}
+
+	private fun RunRetirementTarget.drainRetirementClaims(
+		cleanupOnlyProviders: Set<SourceProviderKey>,
+	): List<SourceDrainRetirementClaim> {
+		val retirementClaims = claims.mapNotNull { owned ->
+			val provider = owned.provider ?: return@mapNotNull null
+			SourceDrainRetirementClaim(
+				source = source,
+				sourceInstanceId = provider.sourceInstanceId.value,
+				registrationGeneration = provider.registrationGeneration,
+				actionId = owned.runtimeClaim.actionId,
+				attemptCount = owned.runtimeClaim.attemptCount,
+				leaseGeneration = owned.runtimeClaim.leaseGeneration,
+				cleanupOnly = provider in cleanupOnlyProviders,
+			)
+		}.sortedWith(
+			compareBy(
+				SourceDrainRetirementClaim::registrationGeneration,
+				SourceDrainRetirementClaim::sourceInstanceId,
+				SourceDrainRetirementClaim::actionId,
+			),
+		)
+		check(cleanupOnlyProviders.all { provider ->
+			retirementClaims.any { claim ->
+				claim.sourceInstanceId == provider.sourceInstanceId.value &&
+					claim.registrationGeneration == provider.registrationGeneration
+			}
+		})
+		return retirementClaims
 	}
 
 	private fun RunRetirementClaim.ownershipKey(): RunRetirementOwnershipKey? {

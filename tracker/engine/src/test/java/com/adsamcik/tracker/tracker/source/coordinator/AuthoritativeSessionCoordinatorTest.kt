@@ -30,6 +30,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
 import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -2180,7 +2182,7 @@ class AuthoritativeSessionCoordinatorTest {
 				),
 			).shouldBeInstanceOf<SessionStopResult.DrainPending>()
 
-			pending.reason shouldBe "SOURCE_DRAIN_COMPLETENESS_MISSING"
+			pending.reason shouldBe "SOURCE_DRAIN_CLEANUP_PRODUCT_EVIDENCE"
 			sourceProductDrainRouter.requests.none { request ->
 				request.source == SourceKind.STEPS
 			} shouldBe true
@@ -2190,6 +2192,143 @@ class AuthoritativeSessionCoordinatorTest {
 				SourceKind.STEPS.stableCode,
 			).single().state shouldBe SourceRunRetirementEntity.STATE_CLEANUP_ONLY_COMPLETED
 		}
+
+	@Test
+	fun `later cleanup-only WAL cannot borrow an earlier product generation completeness`() =
+		runTest {
+			installStepsAndLocationCandidateRollout()
+			val started = subject.start(
+				startRequest().copy(
+					logicalTrackingId = "mixed-generation-wal-logical",
+					serviceRunId = "mixed-generation-wal-run",
+					plan = stepsAndLocationPlan(1L, stepsEnabled = true),
+					rolloutRevision = rolloutSnapshot.revision,
+				),
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+			val productOrdinal = insertTerminalStepsWal(started)
+			runtime.lastAdmissionOrdinal = productOrdinal
+			subject.reconfigure(
+				stepsAndLocationReconfigure(2L, stepsEnabled = false),
+			).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+			val productCompleteness = database.sourceSessionDao()
+				.completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
+				.single { row ->
+					row.sourceKind == SourceKind.STEPS.stableCode &&
+						row.registrationGeneration == 1L
+				}
+			insertRetiredStepsRegistration()
+			persistStepsRuntimeCheckpoint(productCompleteness)
+
+			runtime.startReturnsRetryableFailure = true
+			runtime.cleanupOnlyShutdown = true
+			runtime.cleanupOnlyReady = false
+			subject.reconfigure(
+				stepsAndLocationReconfigure(3L, stepsEnabled = true),
+			).shouldBeInstanceOf<SessionReconfigureResult.Failed>()
+			val cleanupAction = database.sourceSessionDao()
+				.lifecycleActions(started.logicalTrackingId)
+				.single { action ->
+					action.sourceKind == SourceKind.STEPS.stableCode &&
+						action.registrationGeneration == 2L &&
+						action.status == LifecycleActionStatus.CLEANUP_REQUIRED.name
+				}
+			val cleanupOrdinal = insertTerminalStepsWal(
+				logicalTrackingId = started.logicalTrackingId,
+				serviceRunId = started.serviceRunId,
+				registrationGeneration = 2L,
+				manifestRevision = 3L,
+				sourceInstanceId = requireNotNull(cleanupAction.sourceInstanceId),
+				lifecycleLeaseGeneration = cleanupAction.leaseGeneration,
+			)
+			runtime.cleanupOnlyReady = true
+			replaceEventCoordinator(completedEventCoordinator(cleanupOrdinal))
+
+			val pending = subject.stop(
+				SessionStopRequest(
+					"mixed-generation-wal-stop",
+					"USER_STOP",
+					4_000L,
+					4_000_000L,
+					"boot-1",
+				),
+			).shouldBeInstanceOf<SessionStopResult.DrainPending>()
+
+			pending.reason shouldBe "SOURCE_DRAIN_CLEANUP_PRODUCT_EVIDENCE"
+			sourceProductDrainRouter.requests.none { request ->
+				request.source == SourceKind.STEPS
+			} shouldBe true
+			database.sourceSessionDao().completenessForServiceRun(
+				started.logicalTrackingId,
+				started.serviceRunId,
+			).filter { row -> row.sourceKind == SourceKind.STEPS.stableCode }
+				.map(SourceSessionCompletenessEntity::registrationGeneration) shouldBe listOf(1L)
+		}
+
+	@Test
+	fun `product generation drains past its high-water while later cleanup-only generation has no evidence`() =
+		runTest {
+		installStepsAndLocationCandidateRollout()
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "product-cleanup-no-wal-logical",
+				serviceRunId = "product-cleanup-no-wal-run",
+				plan = stepsAndLocationPlan(1L, stepsEnabled = true),
+				rolloutRevision = rolloutSnapshot.revision,
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val productOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = productOrdinal
+		subject.reconfigure(
+			stepsAndLocationReconfigure(2L, stepsEnabled = false),
+		).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+		val productCompleteness = database.sourceSessionDao()
+			.completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
+			.single { row ->
+				row.sourceKind == SourceKind.STEPS.stableCode &&
+					row.registrationGeneration == 1L
+			}
+		insertRetiredStepsRegistration()
+		persistStepsRuntimeCheckpoint(productCompleteness)
+
+		runtime.startReturnsRetryableFailure = true
+		runtime.cleanupOnlyShutdown = true
+		runtime.cleanupOnlyReady = false
+		subject.reconfigure(
+			stepsAndLocationReconfigure(3L, stepsEnabled = true),
+		).shouldBeInstanceOf<SessionReconfigureResult.Failed>()
+		runtime.cleanupOnlyReady = true
+		replaceEventCoordinator(completedEventCoordinator(productOrdinal))
+		sourceProductDrainRouter.onDrain = { request ->
+			SourceProductDrainResult.Complete(
+				request = request,
+				lastMaterializedAdmissionOrdinal = productOrdinal + 10L,
+				factsInserted = 0,
+				eventsValidated = 0,
+			)
+		}
+
+		subject.stop(
+			SessionStopRequest(
+				"product-cleanup-no-wal-stop",
+				"USER_STOP",
+				4_000L,
+				4_000_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		sourceProductDrainRouter.requests.single { request ->
+			request.source == SourceKind.STEPS
+		}.also { request ->
+			request.sourceHighWaterAdmissionOrdinal shouldBe productOrdinal
+			request.memberships.map(SourceDrainMembership::registrationGeneration) shouldBe
+				listOf(1L)
+			request.retirementClaims.filterNot(SourceDrainRetirementClaim::cleanupOnly)
+				.map(SourceDrainRetirementClaim::registrationGeneration).toSet() shouldBe setOf(1L)
+			request.retirementClaims.filter(SourceDrainRetirementClaim::cleanupOnly)
+				.map(SourceDrainRetirementClaim::registrationGeneration).toSet() shouldBe setOf(2L)
+		}
+	}
 
 	@Test
 	fun `cleanup-only replay preserves an earlier product generation across coordinator crash`() =
@@ -2270,12 +2409,101 @@ class AuthoritativeSessionCoordinatorTest {
 			runtime.shutdownClaims shouldBe emptyList()
 			sourceProductDrainRouter.requests.single { request ->
 				request.source == SourceKind.STEPS
-			}.memberships.map(SourceDrainMembership::registrationGeneration) shouldBe listOf(1L)
+			}.also { request ->
+				request.memberships.map(SourceDrainMembership::registrationGeneration) shouldBe
+					listOf(1L)
+				request.retirementClaims.filterNot(SourceDrainRetirementClaim::cleanupOnly)
+					.map(SourceDrainRetirementClaim::registrationGeneration).toSet() shouldBe setOf(1L)
+				val cleanupReceipt = persistedRetirements.single { receipt ->
+					receipt.registrationGeneration == 2L
+				}
+				request.retirementClaims.filter(SourceDrainRetirementClaim::cleanupOnly) shouldBe
+					listOf(
+						SourceDrainRetirementClaim(
+							source = SourceKind.STEPS,
+							sourceInstanceId = cleanupReceipt.sourceInstanceId,
+							registrationGeneration = cleanupReceipt.registrationGeneration,
+							actionId = cleanupReceipt.actionId,
+							attemptCount = cleanupReceipt.attemptCount,
+							leaseGeneration = cleanupReceipt.leaseGeneration,
+							cleanupOnly = true,
+						),
+					)
+			}
 			database.sourceSessionDao().runRetirements(
 				started.logicalTrackingId,
 				started.serviceRunId,
 				SourceKind.STEPS.stableCode,
 			) shouldBe persistedRetirements
+		}
+
+	@Test
+	fun `cleanup-only completeness corruption cannot authorize null acknowledgement removal`() =
+		runTest {
+			val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash(
+				"cleanup-only-completeness-corruption",
+			)
+			database.sourceSessionDao().saveCompleteness(
+				SourceSessionCompletenessEntity(
+					logicalTrackingId = started.logicalTrackingId,
+					serviceRunId = started.serviceRunId,
+					sourceKind = SourceKind.STEPS.stableCode,
+					sourceInstanceId = receipt.sourceInstanceId,
+					registrationGeneration = receipt.registrationGeneration,
+					lastAdmissionOrdinal = null,
+					lastSourceSequence = null,
+					appDrainComplete = true,
+					providerCoverage = ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER.name,
+					stopStatus = SourceStopStatus.COMPLETE.name,
+					unresolvedSequenceStart = null,
+					unresolvedSequenceEnd = null,
+					updatedAtMs = 2_100L,
+				),
+			)
+			replaceRuntime(FakeStepsRuntime(database))
+			replaceEventCoordinator(completedEventCoordinator(0L))
+
+			subject.stop(
+				SessionStopRequest(
+					"cleanup-only-completeness-corruption-retry",
+					"USER_STOP",
+					2_500L,
+					2_500_000L,
+					"boot-1",
+				),
+			).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+
+			sourceProductDrainRouter.requests.none { request ->
+				request.source == SourceKind.STEPS
+			} shouldBe true
+			database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+				SessionLifecycleState.STOPPING.name
+		}
+
+	@Test
+	fun `cleanup-only orphan fact corruption cannot authorize null acknowledgement removal`() =
+		runTest {
+			val (started, _) = prepareCleanupOnlyReceiptAfterCoordinatorCrash(
+				"cleanup-only-fact-corruption",
+			)
+			insertOrphanStepsFact(started.logicalTrackingId, started.serviceRunId)
+			replaceRuntime(FakeStepsRuntime(database))
+			replaceEventCoordinator(completedEventCoordinator(0L))
+
+			val pending = subject.stop(
+				SessionStopRequest(
+					"cleanup-only-fact-corruption-retry",
+					"USER_STOP",
+					2_500L,
+					2_500_000L,
+					"boot-1",
+				),
+			).shouldBeInstanceOf<SessionStopResult.DrainPending>()
+
+			pending.reason shouldBe "SOURCE_DRAIN_FACT_AUTHORITY_UNVERIFIABLE"
+			sourceProductDrainRouter.requests.none { request ->
+				request.source == SourceKind.STEPS
+			} shouldBe true
 		}
 
 	@Test
@@ -5832,6 +6060,8 @@ class AuthoritativeSessionCoordinatorTest {
 		serviceRunId: String,
 		registrationGeneration: Long = 1L,
 		manifestRevision: Long = 1L,
+		sourceInstanceId: String = "steps-instance",
+		lifecycleLeaseGeneration: Long = 1L,
 	): Long {
 		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
 			StepsCountDomainSchemaState.ValidV2
@@ -5859,7 +6089,7 @@ class AuthoritativeSessionCoordinatorTest {
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
 			sourceKind = SourceKind.STEPS.stableCode,
-			sourceInstanceId = "steps-instance",
+			sourceInstanceId = sourceInstanceId,
 			registrationGeneration = registrationGeneration,
 			physicalConfigurationFingerprint = "terminal-steps",
 			authorizationRevision = 1L,
@@ -5877,7 +6107,7 @@ class AuthoritativeSessionCoordinatorTest {
 			sourcePolicyRevision = 1L,
 			captureConsentEpoch = 1L,
 			sessionManifestRevision = manifestRevision,
-			lifecycleLeaseGeneration = 1L,
+			lifecycleLeaseGeneration = lifecycleLeaseGeneration,
 			acquiredAtMs = 2_000L,
 			qualityFlags = 0L,
 			qualityConfidence = null,
@@ -5894,6 +6124,52 @@ class AuthoritativeSessionCoordinatorTest {
 			token,
 		) shouldBe StepsCountDomainWriteResult.INSERTED
 		return admissionOrdinal
+	}
+
+	private suspend fun insertOrphanStepsFact(
+		logicalTrackingId: String,
+		serviceRunId: String,
+	) {
+		val unsigned = StepFactRevisionEntity(
+			logicalFactId = "orphan-cleanup-fact:$serviceRunId",
+			semanticRevision = 1L,
+			mutationId = "orphan-cleanup-mutation:$serviceRunId",
+			stepIntervalId = null,
+			sourceEventId = "orphan-cleanup-event:$serviceRunId",
+			sourceAdmissionOrdinal = 9_999L,
+			originKind = StepFactRevisionEntity.ORIGIN_LIVE_WAL,
+			originIdentity = "orphan-cleanup-event:$serviceRunId",
+			writerProjectionId = StepsSessionFactProjectionLane.WRITER_ID,
+			writerProjectionVersion = StepsSessionFactProjectionLane.WRITER_VERSION,
+			writerBindingGeneration = StepsSessionFactProjectionLane.BINDING_GENERATION,
+			operation = StepFactRevisionEntity.OPERATION_UPSERT,
+			intervalStartTimeMs = 1_000L,
+			intervalEndTimeMs = 2_000L,
+			intervalStartElapsedRealtimeNanos = 1_000_000L,
+			intervalEndElapsedRealtimeNanos = 2_000_000L,
+			clockDomainId = "boot-1",
+			bootClockDomainId = "boot-1",
+			cumulativeStepCountStart = 10L,
+			cumulativeStepCountEnd = 14L,
+			wallTimeUncertaintyMs = 0L,
+			coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
+			effectiveStepCount = 4L,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			manifestRevision = 1L,
+			sourcePolicyRevision = 1L,
+			captureConsentEpoch = 1L,
+			collectedDataEpoch = 0L,
+			scopeDeletionGeneration = 0L,
+			effectChecksum = "unsigned",
+			appliedAtMs = 2_000L,
+		)
+		database.stepFactRevisionDao().insert(
+			unsigned.copy(
+				effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsigned),
+			),
+		) shouldBe 1L
 	}
 
 	private suspend fun persistTerminalStepsEvidence(acknowledgement: SourceStopAck) {
