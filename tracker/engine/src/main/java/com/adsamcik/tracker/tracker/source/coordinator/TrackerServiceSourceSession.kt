@@ -198,7 +198,19 @@ class TrackerServiceSourceSession @Inject constructor(
 		claim: ClaimedPreparedSessionStart,
 		commandGeneration: Long,
 		planInputs: SourceSessionPlanInputs,
+		persistedDescriptor: ActiveTrackingSessionDescriptor? = null,
 	): SessionStartResult = mutex.withLock {
+		val claimedReference = SourceCallerReplayReference(
+			requireNotNull(claim.intent.sourceCallerAuthorityReference),
+		)
+		require(
+			persistedDescriptor == null ||
+				(
+					persistedDescriptor.logicalTrackingId == claim.logicalTrackingId &&
+						persistedDescriptor.serviceRunId == claim.serviceRunId &&
+						persistedDescriptor.sourceCallerAuthorityReference == claimedReference
+					)
+		) { "Prepared source session descriptor does not match its claimed start" }
 		val rollout = trackingRolloutStateStore.load()
 		if (rollout.revision != database.sourceSessionDao().serviceRun(claim.serviceRunId)?.rolloutRevision) {
 			return@withLock SessionStartResult.InvalidRollout("PREPARED_START_ROLLOUT_STALE")
@@ -214,9 +226,9 @@ class TrackerServiceSourceSession @Inject constructor(
 			foregroundCapabilityFlags = claim.desiredForegroundCapabilityFlags,
 			lastInputs = planInputs,
 			coordinatorStarted = true,
-			sourceCallerAuthorityReference = SourceCallerReplayReference(
-				requireNotNull(claim.intent.sourceCallerAuthorityReference),
-			),
+			sourceCallerAuthorityReference = claimedReference,
+			pendingRetirementSourceCallerAuthorityReference =
+				persistedDescriptor?.pendingRetirementSourceCallerAuthorityReference,
 		)
 		// Attach cleanup ownership before the first provider side effect. If the Android service is
 		// stopped and cancels this coroutine mid-apply, stop() must still fence a partially-started
@@ -572,6 +584,25 @@ class TrackerServiceSourceSession @Inject constructor(
 		if (persisted != cleared) return false
 		session.pendingRetirementSourceCallerAuthorityReference = null
 		return true
+	}
+
+	internal suspend fun persistedDescriptorForActiveSession(
+		expectedReference: SourceCallerReplayReference,
+	): ActiveTrackingSessionDescriptor? = mutex.withLock {
+		val session = active ?: return@withLock null
+		val stored = when (val result = activeTrackingSessionStore.read()) {
+			is ActiveTrackingSessionStoreResult.Failure -> return@withLock null
+			is ActiveTrackingSessionStoreResult.Success -> result.descriptor
+		} ?: return@withLock null
+		if (
+			stored.logicalTrackingId != session.logicalTrackingId ||
+			stored.serviceRunId != session.serviceRunId ||
+			stored.sourceCallerAuthorityReference != expectedReference
+		) return@withLock null
+		session.sourceCallerAuthorityReference = stored.sourceCallerAuthorityReference
+		session.pendingRetirementSourceCallerAuthorityReference =
+			stored.pendingRetirementSourceCallerAuthorityReference
+		stored
 	}
 
 	private fun startupRejectedReconfigure(): SourceSessionReconfigureOutcome {

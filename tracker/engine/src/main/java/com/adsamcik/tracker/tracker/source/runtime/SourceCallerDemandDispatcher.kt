@@ -96,7 +96,7 @@ internal sealed interface GuardedPurposeDemandResult<out T> {
 }
 
 internal data class AmbientStepsDemandDispatchRequest(
-	val identity: TrackingPurposeLeaseIdentity,
+	val identity: AmbientReconciliationIdentity,
 	val consumerId: String,
 	val mechanism: AmbientStepsAcquisitionMechanism,
 	val bootId: String,
@@ -159,6 +159,7 @@ internal interface SourceCallerDemandDispatcher : SourceCallerCurrentAuthorityPr
 
 	suspend fun retireAmbientSteps(
 		consumerId: String,
+		leaseIdentity: AmbientReconciliationIdentity?,
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
@@ -446,8 +447,10 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 	override suspend fun dispatchAmbientSteps(
 		request: AmbientStepsDemandDispatchRequest,
 	): GuardedPurposeDemandResult<AmbientStepsDemandResult> {
-		val identity = request.identity
-		if (identity.source != TrackingSource.STEPS ||
+		val ambientIdentity = request.identity
+		val identity = ambientIdentity.purposeLeaseIdentity
+		if (ambientIdentity.source != AmbientTrackingSource.STEPS ||
+			identity.source != TrackingSource.STEPS ||
 			identity.purpose != TrackingPurpose.AMBIENT_PRODUCT
 		) return rejectedPurpose(
 			SourceCallerRejectionReason.AMBIENT_SOURCE_NOT_SUPPORTED,
@@ -461,16 +464,15 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			currentElapsedRealtimeNanos = request.elapsedRealtimeNanos,
 			currentWallTimeMs = request.wallTimeMs,
 		)
-		val retentionGrant = retentionSnapshot?.grants?.get(SourceKind.STEPS)
-			?.takeIf { grant -> grant.retainedFromMs == identity.retainedFromMs }
-			?: return rejectedPurpose(
+		if (retentionSnapshot?.grants?.get(SourceKind.STEPS)
+			?.let { grant ->
+				grant.retainedFromMs == ambientIdentity.retainedFromMs &&
+					grant.opaquePolicyId == ambientIdentity.retentionPolicyId &&
+					grant.approvalRevision == ambientIdentity.retentionApprovalRevision
+			} != true
+		) return rejectedPurpose(
 				SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE,
 			)
-		val ambientIdentity = AmbientReconciliationIdentity.from(
-			identity,
-			retentionGrant.opaquePolicyId,
-			retentionGrant.approvalRevision,
-		)
 		return database.withTransaction {
 		val demandIdentity = SourceCallerDemandIdentity(identity, manifestIdentity = null)
 		val snapshot = readCurrentPurposeOrNull(setOf(demandIdentity))
@@ -528,25 +530,48 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 
 	override suspend fun retireAmbientSteps(
 		consumerId: String,
+		leaseIdentity: AmbientReconciliationIdentity?,
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
 	): GuardedPurposeDemandResult<AmbientStepsDemandResult> =
-		when (val retired = retireAcceptedPurposeDemand(
-			consumerId = consumerId,
-			source = TrackingSource.STEPS,
-			purpose = TrackingPurpose.AMBIENT_PRODUCT,
-			brokerPurpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
-			bootId = bootId,
-			elapsedRealtimeNanos = elapsedRealtimeNanos,
-			wallTimeMs = wallTimeMs,
-		)) {
-			is GuardedPurposeDemandResult.Applied -> GuardedPurposeDemandResult.Applied(
-				AmbientStepsDemandResult.Inactive(AmbientStepsDemandInactiveReason.REQUEST_DISABLED),
-				retired.receipt,
-			)
-			is GuardedPurposeDemandResult.Rejected -> retired
-			GuardedPurposeDemandResult.Stale -> GuardedPurposeDemandResult.Stale
+		if (leaseIdentity != null) {
+			if (sourceBroker.retireExactAmbientStepsDemand(
+					consumerId = consumerId,
+					leaseIdentity = leaseIdentity,
+					bootId = bootId,
+					elapsedRealtimeNanos = elapsedRealtimeNanos,
+					wallTimeMs = wallTimeMs,
+				)
+			) {
+				GuardedPurposeDemandResult.Applied(
+					AmbientStepsDemandResult.Inactive(
+						AmbientStepsDemandInactiveReason.REQUEST_DISABLED,
+					),
+					null,
+				)
+			} else {
+				GuardedPurposeDemandResult.Stale
+			}
+		} else {
+			when (val retired = retireAcceptedPurposeDemand(
+				consumerId = consumerId,
+				source = TrackingSource.STEPS,
+				purpose = TrackingPurpose.AMBIENT_PRODUCT,
+				brokerPurpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+				bootId = bootId,
+				elapsedRealtimeNanos = elapsedRealtimeNanos,
+				wallTimeMs = wallTimeMs,
+			)) {
+				is GuardedPurposeDemandResult.Applied -> GuardedPurposeDemandResult.Applied(
+					AmbientStepsDemandResult.Inactive(
+						AmbientStepsDemandInactiveReason.REQUEST_DISABLED,
+					),
+					retired.receipt,
+				)
+				is GuardedPurposeDemandResult.Rejected -> retired
+				GuardedPurposeDemandResult.Stale -> GuardedPurposeDemandResult.Stale
+			}
 		}
 
 	override suspend fun <T> dispatchAmbientRadio(
@@ -1219,62 +1244,10 @@ internal class RoomSourceCallerAcceptedAuthorityRepository @Inject constructor(
 	override suspend fun load(
 		reference: SourceCallerReplayReference,
 	): StoredSourceCallerAuthorityLoadResult = database.withTransaction {
-		val rows = database.sourceCallerAuthorityDao().rows(reference.value)
-		if (rows.isEmpty()) return@withTransaction StoredSourceCallerAuthorityLoadResult.Missing
-		if (!rows.hasValidStoredAuthorityShape() ||
-			!SourceCallerAcceptedAuthorityEffectChecksum.isAuthentic(rows) ||
-			rows.any { it.reference != reference.value } ||
-			rows.map { it.formatVersion }.toSet() !=
-			setOf(SourceCallerAcceptedAuthorityEntity.FORMAT_VERSION) ||
-			rows.map { it.origin }.distinct().size != 1 ||
-			rows.map { it.acceptedPurpose }.distinct().size != 1 ||
-			rows.map { it.createdAtMs }.distinct().size != 1 ||
-			rows.map { it.retiredAtMs }.distinct().size != 1 ||
-			rows.map { it.retireReason }.distinct().size != 1
-		) return@withTransaction StoredSourceCallerAuthorityLoadResult.Corrupt
-		if (rows.all { it.status == SourceCallerAcceptedAuthorityEntity.STATUS_RETIRED }) {
-			return@withTransaction StoredSourceCallerAuthorityLoadResult.Retired
-		}
-		if (rows.any { it.status != SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE }) {
-			return@withTransaction StoredSourceCallerAuthorityLoadResult.Corrupt
-		}
-		try {
-			val identities = rows.mapTo(linkedSetOf()) { row ->
-				val source = TrackingSource.fromStableCode(row.sourceKind)
-				val purpose = TrackingPurpose.fromStableName(row.purpose)
-				SourceCallerDemandIdentity(
-					purposeLeaseIdentity = TrackingPurposeLeaseIdentity(
-						sourcePurpose = source.forPurpose(purpose),
-						policyRevision = row.policyRevision,
-						consentEpoch = row.consentEpoch,
-						collectedDataEpoch = row.collectedDataEpoch,
-						retainedFromMs = row.retainedFromMs,
-						rolloutRevision = row.rolloutRevision,
-						executionRevision = row.executionRevision,
-						ownerCasToken = row.ownerCasToken,
-					),
-					manifestIdentity = row.logicalTrackingId?.let { logicalTrackingId ->
-						SourceCallerManifestIdentity(
-							logicalTrackingId,
-							requireNotNull(row.manifestRevision),
-						)
-					},
-				)
-			}
-			if (identities.size != rows.size) {
-				StoredSourceCallerAuthorityLoadResult.Corrupt
-			} else {
-				StoredSourceCallerAuthorityLoadResult.Available(
-					StoredSourceCallerAuthority(
-						origin = StoredSourceCallerOrigin.valueOf(rows.first().origin),
-						purpose = TrackingPurpose.fromStableName(rows.first().acceptedPurpose),
-						permittedDemandIdentities = identities,
-					),
-				)
-			}
-		} catch (_: IllegalArgumentException) {
-			StoredSourceCallerAuthorityLoadResult.Corrupt
-		}
+		authenticateStoredSourceCallerAuthority(
+			database.sourceCallerAuthorityDao().rows(reference.value),
+			reference,
+		)
 	}
 
 	override suspend fun retire(
@@ -1373,6 +1346,67 @@ internal class RoomSourceCallerAcceptedAuthorityRepository @Inject constructor(
 			}
 			references.size
 		}
+	}
+}
+
+internal fun authenticateStoredSourceCallerAuthority(
+	rows: List<SourceCallerAcceptedAuthorityEntity>,
+	reference: SourceCallerReplayReference,
+): StoredSourceCallerAuthorityLoadResult {
+	if (rows.isEmpty()) return StoredSourceCallerAuthorityLoadResult.Missing
+	if (!rows.hasValidStoredAuthorityShape() ||
+		!SourceCallerAcceptedAuthorityEffectChecksum.isAuthentic(rows) ||
+		rows.any { it.reference != reference.value } ||
+		rows.map { it.formatVersion }.toSet() !=
+		setOf(SourceCallerAcceptedAuthorityEntity.FORMAT_VERSION) ||
+		rows.map { it.origin }.distinct().size != 1 ||
+		rows.map { it.acceptedPurpose }.distinct().size != 1 ||
+		rows.map { it.createdAtMs }.distinct().size != 1 ||
+		rows.map { it.retiredAtMs }.distinct().size != 1 ||
+		rows.map { it.retireReason }.distinct().size != 1
+	) return StoredSourceCallerAuthorityLoadResult.Corrupt
+	if (rows.all { it.status == SourceCallerAcceptedAuthorityEntity.STATUS_RETIRED }) {
+		return StoredSourceCallerAuthorityLoadResult.Retired
+	}
+	if (rows.any { it.status != SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE }) {
+		return StoredSourceCallerAuthorityLoadResult.Corrupt
+	}
+	return try {
+		val identities = rows.mapTo(linkedSetOf()) { row ->
+			val source = TrackingSource.fromStableCode(row.sourceKind)
+			val purpose = TrackingPurpose.fromStableName(row.purpose)
+			SourceCallerDemandIdentity(
+				purposeLeaseIdentity = TrackingPurposeLeaseIdentity(
+					sourcePurpose = source.forPurpose(purpose),
+					policyRevision = row.policyRevision,
+					consentEpoch = row.consentEpoch,
+					collectedDataEpoch = row.collectedDataEpoch,
+					retainedFromMs = row.retainedFromMs,
+					rolloutRevision = row.rolloutRevision,
+					executionRevision = row.executionRevision,
+					ownerCasToken = row.ownerCasToken,
+				),
+				manifestIdentity = row.logicalTrackingId?.let { logicalTrackingId ->
+					SourceCallerManifestIdentity(
+						logicalTrackingId,
+						requireNotNull(row.manifestRevision),
+					)
+				},
+			)
+		}
+		if (identities.size != rows.size) {
+			StoredSourceCallerAuthorityLoadResult.Corrupt
+		} else {
+			StoredSourceCallerAuthorityLoadResult.Available(
+				StoredSourceCallerAuthority(
+					origin = StoredSourceCallerOrigin.valueOf(rows.first().origin),
+					purpose = TrackingPurpose.fromStableName(rows.first().acceptedPurpose),
+					permittedDemandIdentities = identities,
+				),
+			)
+		}
+	} catch (_: IllegalArgumentException) {
+		StoredSourceCallerAuthorityLoadResult.Corrupt
 	}
 }
 

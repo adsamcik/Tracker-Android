@@ -297,6 +297,38 @@ interface ActiveTrackingSessionStore {
 	suspend fun save(descriptor: ActiveTrackingSessionDescriptor): ActiveTrackingSessionStoreResult
 
 	/**
+	 * Applies service-owned lifecycle fields without letting the service rewrite engine-owned
+	 * caller-authority references for the same run. Only the engine's exact retirement CAS may
+	 * clear [ActiveTrackingSessionDescriptor.pendingRetirementSourceCallerAuthorityReference].
+	 */
+	suspend fun mergeServiceDescriptor(
+		descriptor: ActiveTrackingSessionDescriptor,
+	): ActiveTrackingSessionStoreResult = when (val current = read()) {
+		is ActiveTrackingSessionStoreResult.Failure -> current
+		is ActiveTrackingSessionStoreResult.Success -> {
+			val stored = current.descriptor
+			val merged = when {
+				stored == null -> descriptor
+				stored.logicalTrackingId != descriptor.logicalTrackingId ||
+					stored.serviceRunId != descriptor.serviceRunId -> stored
+				stored.lifecycleRevision > descriptor.lifecycleRevision ||
+					(stored.lifecycleRevision == descriptor.lifecycleRevision &&
+						stored.lifecycleState != descriptor.lifecycleState) -> stored
+				else -> descriptor.copy(
+					sourceCallerAuthorityReference = stored.sourceCallerAuthorityReference,
+					pendingRetirementSourceCallerAuthorityReference =
+						stored.pendingRetirementSourceCallerAuthorityReference,
+				)
+			}
+			when {
+				stored == merged -> ActiveTrackingSessionStoreResult.Success(merged)
+				stored == null -> save(merged)
+				else -> replaceExact(stored, merged)
+			}
+		}
+	}
+
+	/**
 	 * Replaces [expected] only while the complete persisted descriptor is still identical.
 	 *
 	 * The default is a compatibility fallback for single-threaded test stores. Production stores

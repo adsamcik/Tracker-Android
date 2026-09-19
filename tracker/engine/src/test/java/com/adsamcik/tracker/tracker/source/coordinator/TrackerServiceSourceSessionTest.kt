@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
@@ -33,6 +34,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import java.io.IOException
@@ -341,6 +343,110 @@ class TrackerServiceSourceSessionTest {
 		coVerify(exactly = 1) { lifecycle.stop(any()) }
 		coVerify(exactly = 0) { lifecycle.suspendForRestart(any()) }
 	}
+
+	@Test
+	fun `restarted prepared session reloads predecessor retirement debt before graceful stop`() =
+		runTest {
+			installCanonicalProductLanesForTest(
+				database = database,
+				bindings = listOf(TEST_STEPS_BINDING),
+				rolloutRevision = 5L,
+				updatedAtMs = 1L,
+			)
+			val rollout = rolloutStore.load()
+			database.sourceSessionDao().insertServiceRun(
+				SourceServiceRunEntity(
+					serviceRunId = "run",
+					logicalTrackingId = "logical",
+					state = SessionLifecycleState.STARTING.name,
+					desiredPlanRevision = 1L,
+					rolloutRevision = rollout.revision,
+					foregroundCapabilityFlags = 1L,
+					startedAtMs = 1L,
+					startedElapsedNanos = 1L,
+					completedAtMs = null,
+					completionReason = null,
+				),
+			)
+			val predecessor = SourceCallerReplayReference("restart-predecessor")
+			val current = SourceCallerReplayReference("restart-current")
+			val descriptor = ActiveTrackingSessionDescriptor(
+				isUserInitiated = true,
+				isAmbient = false,
+				policyTier = PolicyTier.PRECISION,
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				sourceCallerAuthorityReference = current,
+				pendingRetirementSourceCallerAuthorityReference = predecessor,
+			)
+			val intent = mockk<SessionLifecycleIntentVersionEntity>()
+			every { intent.sourceCallerAuthorityReference } returns current.value
+			coEvery {
+				lifecycle.applyPreparedAndroidStart(any(), any(), any(), any(), any())
+			} returns SessionStartResult.Started(
+				"logical",
+				"run",
+				emptyList(),
+				DesiredPlanStatus.EFFECTIVE,
+				current,
+			)
+			coEvery { activeSessionStore.read() } returns
+				ActiveTrackingSessionStoreResult.Success(descriptor)
+			coEvery {
+				lifecycle.retireSupersededSourceCallerAuthority(
+					"logical",
+					current,
+					predecessor,
+					any(),
+				)
+			} returns false
+			coEvery { lifecycle.stop(any()) } returns SessionStopResult.NoActiveSession
+			coEvery { lifecycle.suspendForRestart(any()) } returns SessionSuspendResult.NoActiveSession
+
+			subject.applyPreparedAndroidStart(
+				claim = ClaimedPreparedSessionStart(
+					token = PreparedTrackingStartToken("prepared-restart"),
+					logicalTrackingId = "logical",
+					serviceRunId = "run",
+					manifestRevision = 1L,
+					intentRevision = 1L,
+					planRevision = 1L,
+					sourcePolicyRevision = 1L,
+					startOrigin = SessionStartOrigin.RECOVERY,
+					sessionMode = SessionMode.MANUAL,
+					acceptedSources = setOf(SourceKind.STEPS),
+					desiredForegroundCapabilityFlags = 1L,
+					intent = intent,
+					automaticTrigger = null,
+					isUserInitiated = true,
+					isAmbient = false,
+					alreadyForegroundAccepted = true,
+				),
+				commandGeneration = 1L,
+				planInputs = inputs(
+					settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L),
+				),
+				persistedDescriptor = descriptor,
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+
+			subject.persistedDescriptorForActiveSession(current) shouldBe descriptor
+			subject.stop(
+				reason = "GRACEFUL_STOP_AFTER_RESTART",
+				preserveLogicalSession = false,
+			) shouldBe SourceSessionStopOutcome.Retryable(
+				SourceSessionStopRetryCode.CLEANUP_PENDING,
+			)
+
+			coVerify(exactly = 1) {
+				lifecycle.retireSupersededSourceCallerAuthority(
+					"logical",
+					current,
+					predecessor,
+					any(),
+				)
+			}
+			coVerify(exactly = 0) { lifecycle.stop(any()) }
+		}
 
 	@Test
 	fun `cancelled direct start retains coordinator cleanup ownership`() = runTest {

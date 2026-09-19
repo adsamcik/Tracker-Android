@@ -80,6 +80,20 @@ class DefaultActiveTrackingSessionStore internal constructor(
 		}
 	}
 
+	override suspend fun mergeServiceDescriptor(
+		descriptor: ActiveTrackingSessionDescriptor,
+	): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
+		runStoreOperation {
+			var persisted: ActiveTrackingSessionProto? = null
+			dataStore.updateData { current ->
+				mergeServiceDescriptorForPersistence(current.toDescriptor(), descriptor)
+					.toProto()
+					.also { persisted = it }
+			}
+			ActiveTrackingSessionStoreResult.Success(persisted?.toDescriptor())
+		}
+	}
+
 	override suspend fun replaceExact(
 		expected: ActiveTrackingSessionDescriptor,
 		replacement: ActiveTrackingSessionDescriptor,
@@ -289,3 +303,23 @@ private fun corruptActiveTrackingSession(message: String): Nothing =
 private fun String.toStopCandidateReason(): TrackingStopCandidateReason =
 	TrackingStopCandidateReason.entries.firstOrNull { it.name == this }
 		?: TrackingStopCandidateReason.UNKNOWN
+
+private fun mergeServiceDescriptorForPersistence(
+	current: ActiveTrackingSessionDescriptor?,
+	proposed: ActiveTrackingSessionDescriptor,
+): ActiveTrackingSessionDescriptor {
+	if (current == null) return proposed
+	if (
+		current.logicalTrackingId != proposed.logicalTrackingId ||
+		current.serviceRunId != proposed.serviceRunId
+	) return current
+	if (current.lifecycleRevision > proposed.lifecycleRevision ||
+		(current.lifecycleRevision == proposed.lifecycleRevision &&
+			current.lifecycleState != proposed.lifecycleState)
+	) return current
+	return proposed.copy(
+		sourceCallerAuthorityReference = current.sourceCallerAuthorityReference,
+		pendingRetirementSourceCallerAuthorityReference =
+			current.pendingRetirementSourceCallerAuthorityReference,
+	)
+}

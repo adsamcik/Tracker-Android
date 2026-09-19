@@ -259,34 +259,44 @@ class AmbientCellDemandReconciler @Inject constructor(
 	suspend fun retireAfterRetentionAuthorityFailure(
 		previousLease: AmbientReconciliationLease?,
 	): Boolean {
-		val lease = previousLease ?: when (
+		if (previousLease != null) {
+			val outcome = reconcile(
+				previousLease,
+				AmbientCellActivationRequest(enabled = false),
+			).outcome
+			return outcome is AmbientCellDemandReconciliation.Inactive &&
+				outcome.reason == AmbientCellDemandBlockReason.REQUEST_DISABLED
+		}
+		return when (
 			val plan = sourceBroker.ambientRadioRetirementPlan(SourceKind.CELL, CONSUMER_ID)
 		) {
 			AmbientRadioRetirementPlan.AlreadyRetired -> {
 				val demandRetired = retireMalformedDemand()
-				val providerRetired =
-					sharedController.reconcileAmbientJoin() is AmbientCellRuntimeJoinResult.Inactive
-				return demandRetired && providerRetired
+				val providerRetired = sharedController.closeAmbientForCollectedDataDeletion()
+				demandRetired && providerRetired
 			}
 			is AmbientRadioRetirementPlan.Required -> {
-				reconciliationAttempts.updateAndGet { current ->
-					maxOf(current, plan.previousReconciliationAttempt)
+				val attempt = reconciliationAttempts.updateAndGet { current ->
+					Math.addExact(maxOf(current, plan.previousReconciliationAttempt), 1L)
 				}
-				plan.lease
+				val bootId = clockDomainProvider.current()
+				val elapsedRealtimeNanos = Time.elapsedRealtimeNanos
+				val wallTimeMs = Time.nowMillis
+				val retired = sourceBroker.reduceAmbientCellDemandForRecovery(
+					consumerId = CONSUMER_ID,
+					plan = plan,
+					reconciliationAttempt = attempt,
+					bootId = bootId,
+					elapsedRealtimeNanos = elapsedRealtimeNanos,
+					wallTimeMs = wallTimeMs,
+				)
+				val demandRetired = retired is AmbientRadioDemandResult.Inactive &&
+					retired.reason == AmbientRadioDemandInactiveReason.REQUEST_DISABLED &&
+					retired.retiredDemandId == plan.expectedDemandId
+				demandRetired && sharedController.closeAmbientForCollectedDataDeletion()
 			}
-			AmbientRadioRetirementPlan.Unverifiable -> {
-				val demandRetired = retireMalformedDemand()
-				val providerRetired =
-					sharedController.reconcileAmbientJoin() is AmbientCellRuntimeJoinResult.Inactive
-				return demandRetired && providerRetired
-			}
+			AmbientRadioRetirementPlan.Unverifiable -> false
 		}
-		val outcome = reconcile(
-			lease,
-			AmbientCellActivationRequest(enabled = false),
-		).outcome
-		return outcome is AmbientCellDemandReconciliation.Inactive &&
-			outcome.reason == AmbientCellDemandBlockReason.REQUEST_DISABLED
 	}
 
 	suspend fun closeForCollectedDataDeletion(): Boolean {

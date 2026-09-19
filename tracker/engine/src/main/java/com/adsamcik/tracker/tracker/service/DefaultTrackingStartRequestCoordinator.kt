@@ -728,6 +728,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 			prepared.claim,
 			commandGeneration,
 			prepared.planInputs,
+			prepared.descriptor,
 		)
 	}
 

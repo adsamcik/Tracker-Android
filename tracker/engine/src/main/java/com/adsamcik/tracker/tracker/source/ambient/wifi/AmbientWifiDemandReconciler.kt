@@ -264,34 +264,46 @@ class AmbientWifiDemandReconciler @Inject constructor(
 	suspend fun retireAfterRetentionAuthorityFailure(
 		previousLease: AmbientReconciliationLease?,
 	): Boolean {
-		val lease = previousLease ?: when (
+		if (previousLease != null) {
+			val outcome = reconcile(
+				previousLease,
+				AmbientWifiActivationRequest(enabled = false),
+			).outcome
+			return outcome is AmbientWifiDemandReconciliation.Inactive &&
+				outcome.reason == AmbientWifiDemandBlockReason.REQUEST_DISABLED
+		}
+		return when (
 			val plan = sourceBroker.ambientRadioRetirementPlan(SourceKind.WIFI, CONSUMER_ID)
 		) {
 			AmbientRadioRetirementPlan.AlreadyRetired -> {
 				val demandRetired = retireMalformedDemand()
-				val providerRetired =
-					sharedController.reconcileAmbientJoin() is AmbientWifiRuntimeJoinResult.Inactive
-				return demandRetired && providerRetired
+				val providerRetired = sharedController.closeAmbientForCollectedDataDeletion()
+				demandRetired && providerRetired
 			}
 			is AmbientRadioRetirementPlan.Required -> {
-				reconciliationAttempts.updateAndGet { current ->
-					maxOf(current, plan.previousReconciliationAttempt)
+				val attempt = reconciliationAttempts.updateAndGet { current ->
+					Math.addExact(maxOf(current, plan.previousReconciliationAttempt), 1L)
 				}
-				plan.lease
+				val boundary = AmbientWifiDemandBoundary(
+					clockDomainProvider.current(),
+					Time.elapsedRealtimeNanos,
+					Time.nowMillis,
+				)
+				val retired = sourceBroker.reduceAmbientWifiDemandForRecovery(
+					consumerId = CONSUMER_ID,
+					plan = plan,
+					reconciliationAttempt = attempt,
+					bootId = boundary.bootId,
+					elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+					wallTimeMs = boundary.wallTimeMs,
+				)
+				val demandRetired = retired is AmbientRadioDemandResult.Inactive &&
+					retired.reason == AmbientRadioDemandInactiveReason.REQUEST_DISABLED &&
+					retired.retiredDemandId == plan.expectedDemandId
+				demandRetired && sharedController.closeAmbientForCollectedDataDeletion()
 			}
-			AmbientRadioRetirementPlan.Unverifiable -> {
-				val demandRetired = retireMalformedDemand()
-				val providerRetired =
-					sharedController.reconcileAmbientJoin() is AmbientWifiRuntimeJoinResult.Inactive
-				return demandRetired && providerRetired
-			}
+			AmbientRadioRetirementPlan.Unverifiable -> false
 		}
-		val outcome = reconcile(
-			lease,
-			AmbientWifiActivationRequest(enabled = false),
-		).outcome
-		return outcome is AmbientWifiDemandReconciliation.Inactive &&
-			outcome.reason == AmbientWifiDemandBlockReason.REQUEST_DISABLED
 	}
 
 	suspend fun closeForCollectedDataDeletion(): Boolean {

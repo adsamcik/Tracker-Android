@@ -164,13 +164,12 @@ class AmbientStepsDemandReconciler internal constructor(
 				retirementComplete = retired,
 			)
 		}
-		val identity = lease.identity.purposeLeaseIdentity
 		return when (val capability = resolveCapability()) {
 			is AmbientStepsCapability.ReadyForRegistration -> {
 				val guarded = try {
 					sourceCallerDemandDispatcher.dispatchAmbientSteps(
 						AmbientStepsDemandDispatchRequest(
-							identity = identity,
+							identity = lease.identity,
 							consumerId = CONSUMER_ID,
 							mechanism = capability.provider.toAcquisitionMechanism(),
 							bootId = boundary.bootId,
@@ -179,10 +178,10 @@ class AmbientStepsDemandReconciler internal constructor(
 						),
 					)
 				} catch (cancelled: CancellationException) {
-					withContext(NonCancellable) { retireDemand(boundary) }
+					withContext(NonCancellable) { retireDemand(boundary, lease) }
 					throw cancelled
 				} catch (_: Exception) {
-					retireDemand(boundary)
+					retireDemand(boundary, lease)
 					return AmbientStepsDemandReconciliation.PolicyBlocked(
 						provider = capability.provider,
 						reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
@@ -192,7 +191,7 @@ class AmbientStepsDemandReconciler internal constructor(
 					is GuardedPurposeDemandResult.Rejected,
 					GuardedPurposeDemandResult.Stale,
 					-> {
-						retireDemand(boundary)
+						retireDemand(boundary, lease)
 						AmbientStepsDemandReconciliation.PolicyBlocked(
 							provider = capability.provider,
 							reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
@@ -200,7 +199,7 @@ class AmbientStepsDemandReconciler internal constructor(
 					}
 					is GuardedPurposeDemandResult.Applied -> when (val demand = guarded.value) {
 						is AmbientStepsDemandResult.Active ->
-							if (isCurrentOrRetire(identity, boundary, lease)) {
+							if (isCurrentOrRetire(boundary, lease, settlementOperationId)) {
 								AmbientStepsDemandReconciliation.DemandReady(
 									provider = capability.provider,
 									importAccess = capability.importAccess,
@@ -326,6 +325,10 @@ class AmbientStepsDemandReconciler internal constructor(
 								retention.collectedDataEpoch ==
 									lease.identity.collectedDataEpoch &&
 								retention.retainedFromMs == lease.identity.retainedFromMs &&
+								retention.opaquePolicyId ==
+									lease.identity.retentionPolicyId &&
+								retention.approvalRevision ==
+									lease.identity.retentionApprovalRevision &&
 								retention.effectiveBootId == boundary.bootId &&
 								retention.effectiveElapsedRealtimeNanos <=
 									boundary.elapsedRealtimeNanos &&
@@ -354,6 +357,7 @@ class AmbientStepsDemandReconciler internal constructor(
 		return try {
 			sourceCallerDemandDispatcher.retireAmbientSteps(
 				consumerId = CONSUMER_ID,
+				leaseIdentity = lease?.identity,
 				bootId = boundary.bootId,
 				elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
 				wallTimeMs = boundary.wallTimeMs,
@@ -366,11 +370,13 @@ class AmbientStepsDemandReconciler internal constructor(
 	}
 
 	private suspend fun isCurrentOrRetire(
-		identity: com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity,
 		boundary: AmbientStepsDemandBoundary,
 		lease: AmbientReconciliationLease,
+		settlementOperationId: String?,
 	): Boolean = try {
-		sourceCallerDemandDispatcher.isCurrent(identity)
+		sourceCallerDemandDispatcher.isCurrent(lease.identity.purposeLeaseIdentity) &&
+			ambientPolicyAuthority(boundary, lease, settlementOperationId) ==
+				AmbientStepsPolicyAuthority.Ready
 	} catch (cancelled: CancellationException) {
 		withContext(NonCancellable) { retireDemand(boundary, lease) }
 		throw cancelled

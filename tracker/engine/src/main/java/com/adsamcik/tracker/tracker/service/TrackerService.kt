@@ -1245,10 +1245,9 @@ internal class TrackerService : CoreService() {
 			SourceSessionReconfigureOutcome.Unchanged,
 			-> null
 		} ?: return outcome
-		val expected = activeSessionDescriptor
+		val persisted = sourceSession.persistedDescriptorForActiveSession(reference)
 			?: return sourceCallerDescriptorRejection("SOURCE_CALLER_DESCRIPTOR_MISSING")
-		val replacement = expected.copy(sourceCallerAuthorityReference = reference)
-		activeSessionDescriptor = replacement
+		activeSessionDescriptor = persisted
 		return outcome
 	}
 
@@ -1654,12 +1653,26 @@ internal class TrackerService : CoreService() {
 	}
 
 	private suspend fun saveActiveSession(descriptor: ActiveTrackingSessionDescriptor) {
-		val result = activeTrackingSessionStore.save(descriptor)
-		if (result is ActiveTrackingSessionStoreResult.Failure) {
-			TrackerDiagnosticLog.failure(
+		when (val result = activeTrackingSessionStore.mergeServiceDescriptor(descriptor)) {
+			is ActiveTrackingSessionStoreResult.Failure -> TrackerDiagnosticLog.failure(
 				TrackerDiagnosticFailureCode.TRACKING_SESSION_STORE_FAILED,
 				TrackingDiagnosticFailureReason.STORAGE_UNAVAILABLE,
 			)
+			is ActiveTrackingSessionStoreResult.Success -> {
+				val persisted = result.descriptor
+				?.takeIf {
+					it.logicalTrackingId == descriptor.logicalTrackingId &&
+						it.serviceRunId == descriptor.serviceRunId
+				}
+				if (persisted == null) {
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.TRACKING_SESSION_STORE_FAILED,
+					TrackingDiagnosticFailureReason.INTERNAL_INVARIANT,
+				)
+				} else {
+				activeSessionDescriptor = persisted
+				}
+			}
 		}
 	}
 

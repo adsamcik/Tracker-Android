@@ -55,6 +55,58 @@ class DefaultActiveTrackingSessionStoreTest {
 	}
 
 	@Test
+	fun `graceful stop mirror preserves retirement debt across restart until exact retirement clears it`() =
+		runTest {
+			val context = ApplicationProvider.getApplicationContext<Context>()
+			val dispatcher = StandardTestDispatcher(testScheduler)
+			val store = DefaultActiveTrackingSessionStore(
+				context,
+				TestDispatchersProvider(dispatcher),
+			)
+			store.clear() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+			val currentReference = SourceCallerReplayReference("caller-current")
+			val predecessorReference = SourceCallerReplayReference("caller-predecessor")
+			val activeWithDebt = ActiveTrackingSessionDescriptor(
+				isUserInitiated = true,
+				isAmbient = false,
+				policyTier = PolicyTier.PRECISION,
+				logicalTrackingId = "logical-debt",
+				serviceRunId = "run-debt",
+				sourceCallerAuthorityReference = currentReference,
+				pendingRetirementSourceCallerAuthorityReference = predecessorReference,
+			)
+			store.save(activeWithDebt) shouldBe
+				ActiveTrackingSessionStoreResult.Success(activeWithDebt)
+			val staleServiceCandidate = activeWithDebt.copy(
+				sourceCallerAuthorityReference = SourceCallerReplayReference("stale-service-copy"),
+				pendingRetirementSourceCallerAuthorityReference = null,
+			).proposeStop(
+				TrackingStopCandidateReason.EXPLICIT_REQUEST,
+				changedAtEpochMs = 500L,
+			)
+			val stoppingWithDebt = staleServiceCandidate.copy(
+				sourceCallerAuthorityReference = currentReference,
+				pendingRetirementSourceCallerAuthorityReference = predecessorReference,
+			)
+
+			store.mergeServiceDescriptor(staleServiceCandidate) shouldBe
+				ActiveTrackingSessionStoreResult.Success(stoppingWithDebt)
+			DefaultActiveTrackingSessionStore(
+				context,
+				TestDispatchersProvider(dispatcher),
+			).read() shouldBe ActiveTrackingSessionStoreResult.Success(stoppingWithDebt)
+
+			val retired = stoppingWithDebt.copy(
+				pendingRetirementSourceCallerAuthorityReference = null,
+			)
+			store.replaceExact(stoppingWithDebt, retired) shouldBe
+				ActiveTrackingSessionStoreResult.Success(retired)
+			store.mergeServiceDescriptor(stoppingWithDebt) shouldBe
+				ActiveTrackingSessionStoreResult.Success(retired)
+			store.read() shouldBe ActiveTrackingSessionStoreResult.Success(retired)
+		}
+
+	@Test
 	fun `conditional clear cannot erase a resumed or newer service run`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val dispatcher = StandardTestDispatcher(testScheduler)

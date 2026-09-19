@@ -19,7 +19,7 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 	) -> Boolean = { true },
 	private val retentionSnapshot: suspend (
 		SourceKind,
-		com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity,
+		AmbientReconciliationIdentity,
 		String,
 		Long,
 		Long,
@@ -90,7 +90,7 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 	override suspend fun dispatchAmbientSteps(
 		request: AmbientStepsDemandDispatchRequest,
 	): GuardedPurposeDemandResult<AmbientStepsDemandResult> {
-		if (!currentAuthority(request.identity)) {
+		if (!currentAuthority(request.identity.purposeLeaseIdentity)) {
 			return GuardedPurposeDemandResult.Rejected(
 				SourceCallerGuardRejection(
 					SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
@@ -106,16 +106,22 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 			request.wallTimeMs,
 		)
 		val retentionGrant = snapshot?.grants?.get(SourceKind.STEPS)
-		val leaseIdentity = AmbientReconciliationIdentity.from(
-			request.identity,
-			retentionGrant?.opaquePolicyId,
-			retentionGrant?.approvalRevision,
-		)
+		if (retentionGrant != null &&
+			(retentionGrant.retainedFromMs != request.identity.retainedFromMs ||
+				retentionGrant.opaquePolicyId != request.identity.retentionPolicyId ||
+				retentionGrant.approvalRevision != request.identity.retentionApprovalRevision)
+		) {
+			return GuardedPurposeDemandResult.Rejected(
+				SourceCallerGuardRejection(
+					SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE,
+				),
+			)
+		}
 		val result = if (snapshot == null) {
 			broker.replaceAmbientStepsDemand(
 				request.consumerId,
 				request.mechanism,
-				leaseIdentity,
+				request.identity,
 				request.bootId,
 				request.elapsedRealtimeNanos,
 				request.wallTimeMs,
@@ -124,7 +130,7 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 			broker.replaceAmbientStepsDemand(
 				request.consumerId,
 				request.mechanism,
-				leaseIdentity,
+				request.identity,
 				request.bootId,
 				request.elapsedRealtimeNanos,
 				request.wallTimeMs,
@@ -133,17 +139,19 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 		}
 		return GuardedPurposeDemandResult.Applied(
 			result,
-			receipt(request.identity),
+			receipt(request.identity.purposeLeaseIdentity),
 		)
 	}
 
 	override suspend fun retireAmbientSteps(
 		consumerId: String,
+		leaseIdentity: AmbientReconciliationIdentity?,
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
-	): GuardedPurposeDemandResult<AmbientStepsDemandResult> =
-		if (broker.retirePurposeDemand(
+	): GuardedPurposeDemandResult<AmbientStepsDemandResult> {
+		val retired = if (leaseIdentity == null) {
+			broker.retirePurposeDemand(
 				consumerId = consumerId,
 				expectedSourceKind = SourceKind.STEPS.stableCode,
 				expectedPurpose =
@@ -153,7 +161,16 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 				elapsedRealtimeNanos = elapsedRealtimeNanos,
 				wallTimeMs = wallTimeMs,
 			)
-		) {
+		} else {
+			broker.retireExactAmbientStepsDemand(
+				consumerId = consumerId,
+				leaseIdentity = leaseIdentity,
+				bootId = bootId,
+				elapsedRealtimeNanos = elapsedRealtimeNanos,
+				wallTimeMs = wallTimeMs,
+			)
+		}
+		return if (retired) {
 			GuardedPurposeDemandResult.Applied(
 				AmbientStepsDemandResult.Inactive(
 					AmbientStepsDemandInactiveReason.REQUEST_DISABLED,
@@ -163,6 +180,7 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 		} else {
 			GuardedPurposeDemandResult.Stale
 		}
+	}
 
 	override suspend fun <T> dispatchAmbientRadio(
 		request: AmbientRadioDemandDispatchRequest,

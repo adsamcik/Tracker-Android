@@ -153,7 +153,7 @@ class AmbientStepsDemandReconcilerTest {
 	}
 
 	@Test
-	fun `new pending lease is accepted from its exact issuer identity before READY publication`() =
+	fun `exact pending lease including retention identity is accepted before READY publication`() =
 		runTest {
 			val policy = bootstrapPolicy(ambientEnabled = true)
 			val grant = requireNotNull(retentionSnapshot).grants.getValue(SourceKind.STEPS)
@@ -224,7 +224,72 @@ class AmbientStepsDemandReconcilerTest {
 						.single()
 						.demandId,
 				)
+			val demand = database.sourceBrokerDao()
+				.currentDemands(AmbientStepsDemandReconciler.CONSUMER_ID)
+				.single()
+			demand.liveAmbientRetentionPolicyId shouldBe grant.opaquePolicyId
+			demand.liveAmbientRetentionApprovalRevision shouldBe grant.approvalRevision
 		}
+
+	@Test
+	fun `old pending lease cannot adopt a newer retention approval`() = runTest {
+		val policy = bootstrapPolicy(ambientEnabled = true)
+		val oldGrant = requireNotNull(retentionSnapshot).grants.getValue(SourceKind.STEPS)
+		val oldIdentity = AmbientReconciliationIdentity.from(
+			TrackingPurposeLeaseIdentity(
+				sourcePurpose =
+					TrackingSource.STEPS.forPurpose(TrackingPurpose.AMBIENT_PRODUCT),
+				policyRevision = policy.revision,
+				consentEpoch =
+					requireNotNull(policy[TrackingSourceComponent.STEPS].ambientConsentEpoch),
+				collectedDataEpoch = 3L,
+				retainedFromMs = oldGrant.retainedFromMs,
+				rolloutRevision = 1L,
+				executionRevision = 1L,
+				ownerCasToken = "old-pending-steps-owner",
+			),
+			oldGrant.opaquePolicyId,
+			oldGrant.approvalRevision,
+		)
+		retentionReader.approvalRevision = oldGrant.approvalRevision + 1L
+		retentionSnapshot = retentionReader.installCurrent(
+			database = database,
+			source = TrackingSourceComponent.STEPS,
+			sourcePolicyRevision = policy.revision,
+			ambientConsentEpoch =
+				requireNotNull(policy[TrackingSourceComponent.STEPS].ambientConsentEpoch),
+			collectedDataEpoch = 3L,
+			bootId = "boot-1",
+		)
+		val newGrant = requireNotNull(retentionSnapshot).grants.getValue(SourceKind.STEPS)
+		val newIdentity = AmbientReconciliationIdentity.from(
+			oldIdentity.purposeLeaseIdentity.copy(ownerCasToken = "new-pending-steps-owner"),
+			newGrant.opaquePolicyId,
+			newGrant.approvalRevision,
+		)
+		val subject = reconciler(
+			AmbientStepsCapability.ReadyForRegistration(
+				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				AmbientStepsImportAccess.BACKGROUND_ALLOWED,
+			),
+		)
+		val successor = subject.reconcileAt(
+			boundary(90L),
+			AmbientReconciliationLease(newIdentity),
+		) as AmbientStepsDemandReconciliation.DemandReady
+
+		subject.reconcileAt(boundary(100L), AmbientReconciliationLease(oldIdentity)) shouldBe
+			AmbientStepsDemandReconciliation.PolicyBlocked(
+				provider = null,
+				reason = AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE,
+				retirementComplete = false,
+			)
+		val currentDemand = database.sourceBrokerDao()
+			.currentDemands(AmbientStepsDemandReconciler.CONSUMER_ID)
+			.single()
+		currentDemand.demandId shouldBe successor.demandId
+		currentDemand.liveAmbientRetentionApprovalRevision shouldBe newGrant.approvalRevision
+	}
 
 	@Test
 	fun `missing selected-provider permission retires prior ambient demand`() = runTest {
