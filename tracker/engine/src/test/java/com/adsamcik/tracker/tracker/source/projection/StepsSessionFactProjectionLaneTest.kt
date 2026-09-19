@@ -85,7 +85,7 @@ class StepsSessionFactProjectionLaneTest {
 	@Test
 	fun `canonical lane maps every Steps boundary and mutates evidence once per batch`() = runTest {
 		StepsCountDomainSchema.inspect(database.openHelper.writableDatabase) shouldBe
-			StepsCountDomainSchemaState.Absent
+			StepsCountDomainSchemaState.FreshRoomScaffold
 		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 		database.stepsGoalEffectDao().recordDecision(goalEffect(epochDay = 0L))
 		val events = listOf(
@@ -148,7 +148,7 @@ class StepsSessionFactProjectionLaneTest {
 		activeLane()?.contiguousAdmissionOrdinal shouldBe 4L
 		database.stepIntervalDao().getAllBetween(0L, Long.MAX_VALUE).shouldBeEmpty()
 		StepsCountDomainSchema.inspect(database.openHelper.writableDatabase) shouldBe
-			StepsCountDomainSchemaState.Absent
+			StepsCountDomainSchemaState.FreshRoomScaffold
 	}
 
 	@Test

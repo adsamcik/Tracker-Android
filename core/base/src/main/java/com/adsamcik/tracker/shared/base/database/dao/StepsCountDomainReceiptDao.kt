@@ -17,7 +17,7 @@ enum class StepsCountDomainAppendResult {
 	TERMINAL_OWNER,
 }
 
-/** Source-specific Room contract; AppDatabase registration belongs to serialized schema assembly. */
+/** Source-specific Room contract registered by the serialized AppDatabase schema assembly. */
 @Dao
 interface StepsCountDomainReceiptDao {
 	@Insert(onConflict = OnConflictStrategy.IGNORE)

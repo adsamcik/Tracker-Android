@@ -1712,6 +1712,10 @@ val MIGRATION_27_28: Migration = object : Migration(
 					"provider, registration_generation, continuity_segment_generation, " +
 					"window_start_time_ms)",
 			)
+			check(
+				StepsCountDomainSchema.installIfAbsent(db) ==
+					StepsCountDomainSchemaState.ValidV2,
+			) { "Unable to install the exact Steps count-domain schema" }
 			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS ambient_steps_import_cursor (

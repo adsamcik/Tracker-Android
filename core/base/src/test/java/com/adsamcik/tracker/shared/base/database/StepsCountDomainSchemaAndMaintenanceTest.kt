@@ -54,7 +54,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	@Test
 	fun `DDL is idempotent and installs exact sentinel indexes foreign keys and triggers`() {
 		StepsCountDomainSchema.inspect(database.openHelper.writableDatabase) shouldBe
-			StepsCountDomainSchemaState.Absent
+			StepsCountDomainSchemaState.FreshRoomScaffold
 		installSchema()
 		StepsCountDomainSchema.inspect(database.openHelper.writableDatabase) shouldBe
 			StepsCountDomainSchemaState.ValidV2
@@ -2263,6 +2263,13 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 
 	private fun installE500SchemaFixture() {
 		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("DROP TRIGGER IF EXISTS trg_steps_count_domain_ambient_no_resurrection")
+		sqlite.execSQL("DROP TRIGGER IF EXISTS trg_steps_count_domain_ambient_retraction")
+		sqlite.execSQL("DROP TRIGGER IF EXISTS trg_steps_count_domain_owner_terminal")
+		sqlite.execSQL("DROP TABLE steps_count_domain_completeness_marker")
+		sqlite.execSQL("DROP TABLE steps_count_domain_owner_revision")
+		sqlite.execSQL("DROP TABLE steps_count_domain_receipt")
+		sqlite.execSQL("DROP TABLE steps_count_domain_schema_marker")
 		sqlite.execSQL(
 			"""
 			CREATE TABLE steps_count_domain_receipt (

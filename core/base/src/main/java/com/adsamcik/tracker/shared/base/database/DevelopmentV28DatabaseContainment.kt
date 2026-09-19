@@ -160,6 +160,12 @@ class ActiveDatabasePreflight internal constructor(
 			!FINAL_V28_CALLER_AUTHORITY_COLUMNS.all { column ->
 				database.hasColumn(FINAL_V28_CALLER_AUTHORITY_TABLE, column)
 			} ||
+			!FINAL_V28_STEPS_TABLE_COLUMNS.all { (table, columns) ->
+				database.hasExactColumns(table, columns)
+			} ||
+			!FINAL_V28_STEPS_INDEXES.all(database::hasExactIndex) ||
+			!FINAL_V28_STEPS_TRIGGERS.all(database::hasTrigger) ||
+			!database.hasExactStepsCountDomainMarker() ||
 			!database.hasSingleColumnIndex(
 				table = FINAL_V28_INDEX_TABLE,
 				index = FINAL_V28_REQUIRED_INDEX,
@@ -308,7 +314,21 @@ private fun Throwable.isDatabaseCorruption(): Boolean {
 
 internal object FinalV28SchemaAssemblyRoomCallback : RoomDatabase.Callback() {
 	override fun onCreate(db: SupportSQLiteDatabase) {
+		check(
+			StepsCountDomainSchema.inspect(db) ==
+				StepsCountDomainSchemaState.FreshRoomScaffold,
+		) { "Fresh v28 database did not create the exact Steps count-domain scaffold" }
+		check(
+			StepsCountDomainSchema.installIfAbsent(db) ==
+				StepsCountDomainSchemaState.ValidV2,
+		) { "Fresh v28 database could not authenticate the Steps count-domain schema" }
 		createFinalV28SchemaAssemblyMarker(db)
+	}
+
+	override fun onOpen(db: SupportSQLiteDatabase) {
+		check(
+			StepsCountDomainSchema.inspect(db) == StepsCountDomainSchemaState.ValidV2,
+		) { "AppDatabase opened without the exact Steps count-domain schema" }
 	}
 }
 
@@ -353,6 +373,17 @@ private fun SQLiteDatabase.hasColumn(table: String, column: String): Boolean =
 		false
 	}
 
+private fun SQLiteDatabase.hasExactColumns(
+	table: String,
+	expectedColumns: List<String>,
+): Boolean = rawQuery("PRAGMA table_info(`$table`)", null).use { cursor ->
+	val nameColumn = cursor.getColumnIndexOrThrow("name")
+	val actualColumns = buildList {
+		while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+	}
+	actualColumns == expectedColumns
+}
+
 private fun SQLiteDatabase.hasSingleColumnIndex(
 	table: String,
 	index: String,
@@ -369,6 +400,47 @@ private fun SQLiteDatabase.hasSingleColumnIndex(
 			cursor.getString(nameColumn) == column &&
 			!cursor.moveToNext()
 	}
+}
+
+private fun SQLiteDatabase.hasExactIndex(index: FinalV28IndexSentinel): Boolean {
+	val exactDefinition = rawQuery("PRAGMA index_list(`${index.table}`)", null).use { cursor ->
+		val nameColumn = cursor.getColumnIndexOrThrow("name")
+		val uniqueColumn = cursor.getColumnIndexOrThrow("unique")
+		var found = false
+		while (cursor.moveToNext()) {
+			if (cursor.getString(nameColumn) == index.name) {
+				if (found || (cursor.getInt(uniqueColumn) != 0) != index.unique) return@use false
+				found = true
+			}
+		}
+		found
+	}
+	if (!exactDefinition) return false
+	val actualColumns = rawQuery("PRAGMA index_info(`${index.name}`)", null).use { cursor ->
+		val nameColumn = cursor.getColumnIndexOrThrow("name")
+		buildList {
+			while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+		}
+	}
+	return actualColumns == index.columns
+}
+
+private fun SQLiteDatabase.hasTrigger(trigger: FinalV28TriggerSentinel): Boolean = rawQuery(
+	"SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ? AND tbl_name = ? LIMIT 1",
+	arrayOf(trigger.name, trigger.table),
+).use { it.moveToFirst() }
+
+private fun SQLiteDatabase.hasExactStepsCountDomainMarker(): Boolean = rawQuery(
+	"SELECT id, contract_version, token_semantics, terminal_unproven " +
+		"FROM `${StepsCountDomainSchema.SCHEMA_MARKER_TABLE}` ORDER BY id LIMIT 2",
+	null,
+).use { cursor ->
+	cursor.moveToFirst() &&
+		cursor.getLong(0) == 1L &&
+		cursor.getLong(1) == 2L &&
+		cursor.getString(2) == "PROVIDER_COUNTER_EPOCH_V1" &&
+		cursor.getLong(3) == 1L &&
+		!cursor.moveToNext()
 }
 
 private fun SQLiteDatabase.finalV28MarkerState(): FinalV28MarkerState = rawQuery(
@@ -391,13 +463,15 @@ private enum class FinalV28MarkerState {
 }
 
 internal const val FINAL_V28_MARKER_ID = -280_917
-internal const val FINAL_V28_ASSEMBLY_ID = "tracker-v28-retention-caller-authority-20260919"
+internal const val FINAL_V28_ASSEMBLY_ID =
+	"tracker-v28-retention-caller-steps-count-domain-20260919"
 private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
 	"tracker-v28-final-20260917",
 	"tracker-v28-retention-final-20260917",
 	"tracker-v28-retention-integrity-20260918",
 	"tracker-v28-retention-journal-20260919",
 	"tracker-v28-retention-execution-20260919",
+	"tracker-v28-retention-caller-authority-20260919",
 )
 
 private val BASELINE_TABLES = setOf(
@@ -413,6 +487,10 @@ private val FINAL_V28_REQUIRED_TABLES = setOf(
 	"collected_data_deletion_operation",
 	"retention_work_execution_receipt",
 	FINAL_V28_CALLER_AUTHORITY_TABLE,
+	StepsCountDomainSchema.RECEIPT_TABLE,
+	StepsCountDomainSchema.OWNER_TABLE,
+	StepsCountDomainSchema.COMPLETENESS_MARKER_TABLE,
+	StepsCountDomainSchema.SCHEMA_MARKER_TABLE,
 )
 private const val FINAL_V28_REQUIRED_COLUMN_TABLE = "pending_signal"
 private const val FINAL_V28_REQUIRED_COLUMN = "pressure_writer_owner_generation"
@@ -468,6 +546,117 @@ private val FINAL_V28_CALLER_AUTHORITY_COLUMNS = setOf(
 )
 private const val FINAL_V28_CALLER_AUTHORITY_INDEX = "idx_source_caller_authority_status"
 private const val FINAL_V28_CALLER_AUTHORITY_INDEX_COLUMN = "status"
+private val FINAL_V28_STEPS_TABLE_COLUMNS = mapOf(
+	StepsCountDomainSchema.RECEIPT_TABLE to listOf(
+		"receipt_identity",
+		"domain_identity",
+		"owner_kind",
+		"scope_identity",
+		"owner_identity",
+		"owner_revision",
+		"registration_generation",
+		"collected_data_epoch",
+		"authority_revision",
+		"authority_fingerprint",
+		"coverage_kind",
+		"coverage_version",
+		"count_domain_version",
+		"effect_checksum",
+		"completion_evidence_checksum",
+	),
+	StepsCountDomainSchema.OWNER_TABLE to listOf(
+		"owner_kind",
+		"scope_identity",
+		"owner_identity",
+		"owner_revision",
+		"operation",
+		"receipt_identity",
+		"owner_effect_checksum",
+		"linked_at_ms",
+	),
+	StepsCountDomainSchema.COMPLETENESS_MARKER_TABLE to listOf(
+		"owner_kind",
+		"owner_identity",
+		"owner_revision",
+		"terminal_state",
+		"last_admission_ordinal",
+		"last_source_sequence",
+		"provider_flush_outcome",
+		"registration_removal_outcome",
+		"registration_timeline_checksum",
+		"evidence_checksum",
+	),
+	StepsCountDomainSchema.SCHEMA_MARKER_TABLE to listOf(
+		"id",
+		"contract_version",
+		"token_semantics",
+		"terminal_unproven",
+	),
+)
+private val FINAL_V28_STEPS_INDEXES = listOf(
+	FinalV28IndexSentinel(
+		StepsCountDomainSchema.RECEIPT_TABLE,
+		"idx_steps_count_domain_receipt_owner",
+		listOf("owner_kind", "owner_identity", "owner_revision"),
+		unique = true,
+	),
+	FinalV28IndexSentinel(
+		StepsCountDomainSchema.RECEIPT_TABLE,
+		"idx_steps_count_domain_receipt_compatibility",
+		listOf("domain_identity", "collected_data_epoch", "count_domain_version"),
+		unique = false,
+	),
+	FinalV28IndexSentinel(
+		StepsCountDomainSchema.OWNER_TABLE,
+		"idx_steps_count_domain_owner_scope",
+		listOf("owner_kind", "scope_identity", "owner_identity", "owner_revision"),
+		unique = false,
+	),
+	FinalV28IndexSentinel(
+		StepsCountDomainSchema.OWNER_TABLE,
+		"idx_steps_count_domain_owner_receipt",
+		listOf("receipt_identity"),
+		unique = false,
+	),
+	FinalV28IndexSentinel(
+		StepsCountDomainSchema.OWNER_TABLE,
+		"idx_steps_count_domain_owner_terminal_age",
+		listOf("operation", "linked_at_ms", "owner_kind", "owner_identity"),
+		unique = false,
+	),
+	FinalV28IndexSentinel(
+		StepsCountDomainSchema.COMPLETENESS_MARKER_TABLE,
+		"idx_steps_count_domain_completeness_owner",
+		listOf("owner_kind", "owner_identity", "owner_revision"),
+		unique = true,
+	),
+)
+private val FINAL_V28_STEPS_TRIGGERS = listOf(
+	FinalV28TriggerSentinel(
+		StepsCountDomainSchema.TERMINAL_OWNER_TRIGGER,
+		StepsCountDomainSchema.OWNER_TABLE,
+	),
+	FinalV28TriggerSentinel(
+		StepsCountDomainSchema.AMBIENT_NO_RESURRECTION_TRIGGER,
+		"ambient_steps_fact_revision",
+	),
+	FinalV28TriggerSentinel(
+		StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER,
+		"ambient_steps_fact_revision",
+	),
+)
+
+private data class FinalV28IndexSentinel(
+	val table: String,
+	val name: String,
+	val columns: List<String>,
+	val unique: Boolean,
+)
+
+private data class FinalV28TriggerSentinel(
+	val name: String,
+	val table: String,
+)
 
 private val LOCK_EXCEPTION_CLASS_NAMES = setOf(
 	"android.database.sqlite.SQLiteBusyException",

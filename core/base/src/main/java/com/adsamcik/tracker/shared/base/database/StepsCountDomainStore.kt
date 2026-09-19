@@ -223,12 +223,12 @@ enum class StepsCountDomainFullClearMode {
 }
 
 /**
- * Source-owned bridge used until the serialized AppDatabase owner registers the additive entities.
+ * Source-owned bridge over the serialized AppDatabase count-domain entities.
  *
  * Calls must occur inside the producer's existing Room transaction. A completely absent namespace
- * or exact empty Room scaffold preserves pre-P5 behavior with SCHEMA_UNAVAILABLE until the schema
- * callback installs its triggers and sentinel. Any other partial, markerless, legacy, or corrupt
- * namespace is STORED_EVIDENCE_UNVERIFIABLE and never activates.
+ * or exact empty Room scaffold preserves pre-P5 behavior with SCHEMA_UNAVAILABLE in isolated
+ * source tests before the production schema callback runs. Any other partial, markerless, legacy,
+ * or corrupt namespace is STORED_EVIDENCE_UNVERIFIABLE and never activates.
  */
 @Suppress("TooManyFunctions")
 class StepsCountDomainStore(

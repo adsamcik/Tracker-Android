@@ -961,6 +961,34 @@ class AppDatabaseMigration27To28Test {
 			assertTrue("updated_at_ms" in columns)
 		}
 		assertTableCount(database, "ambient_steps_fact_revision", 0)
+		assertEquals(
+			StepsCountDomainSchemaState.ValidV2,
+			StepsCountDomainSchema.inspect(database),
+		)
+		assertTableCount(database, StepsCountDomainSchema.RECEIPT_TABLE, 0)
+		assertTableCount(database, StepsCountDomainSchema.OWNER_TABLE, 0)
+		assertTableCount(database, StepsCountDomainSchema.COMPLETENESS_MARKER_TABLE, 0)
+		assertTableCount(database, StepsCountDomainSchema.SCHEMA_MARKER_TABLE, 1)
+		assertIndexColumns(
+			database,
+			"idx_steps_count_domain_receipt_owner",
+			listOf("owner_kind", "owner_identity", "owner_revision"),
+		)
+		assertIndexColumns(
+			database,
+			"idx_steps_count_domain_owner_terminal_age",
+			listOf("operation", "linked_at_ms", "owner_kind", "owner_identity"),
+		)
+		listOf(
+			StepsCountDomainSchema.TERMINAL_OWNER_TRIGGER,
+			StepsCountDomainSchema.AMBIENT_NO_RESURRECTION_TRIGGER,
+			StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER,
+		).forEach { trigger ->
+			database.query(
+				"SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?",
+				arrayOf(trigger),
+			).use { cursor -> assertTrue(trigger, cursor.moveToFirst()) }
+		}
 		assertTableCount(database, "ambient_steps_retention_authority", 0)
 		assertTableCount(database, "ambient_steps_native_replay_footprint", 0)
 		listOf(

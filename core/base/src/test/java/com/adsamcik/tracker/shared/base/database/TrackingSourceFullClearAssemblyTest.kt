@@ -20,6 +20,9 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
 import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionProtectedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionRunMarker
@@ -55,6 +58,14 @@ class TrackingSourceFullClearAssemblyTest {
 	}
 
 	@Test
+	fun `fresh AppDatabase installs exact Steps count-domain schema and DAO`() = runTest {
+		StepsCountDomainSchema.inspect(database.openHelper.writableDatabase) shouldBe
+			StepsCountDomainSchemaState.ValidV2
+		database.stepsCountDomainReceiptDao().receipt(opaque('f')) shouldBe null
+		rowCount(StepsCountDomainSchema.SCHEMA_MARKER_TABLE) shouldBe 1L
+	}
+
+	@Test
 	@Suppress("LongMethod")
 	fun `file backed full clear publishes once and preserves source authority across repeated reopen`() =
 		runTest {
@@ -67,6 +78,7 @@ class TrackingSourceFullClearAssemblyTest {
 			val capturedCell = seedCapturedCellDeletionAuthority()
 			val ambientArchive = seedAmbientWifiPayload()
 			val stepsScope = seedStepsFence()
+			val countDomain = seedStepsCountDomainEvidence()
 			seedRuntimeSettlementRows()
 
 			AppDatabase.deleteAllCollectedData(
@@ -83,6 +95,7 @@ class TrackingSourceFullClearAssemblyTest {
 			assertImportedCellAuthority(importedCell, EPOCH + 1L)
 			assertCapturedCellAuthority(capturedCell, EPOCH + 1L)
 			assertStepsFence(stepsScope, EPOCH + 1L)
+			assertStepsCountDomainEvidence(countDomain)
 			database.ambientWifiFactDao().importedFactCount() shouldBe 0L
 			database.ambientWifiFactDao().importTombstone(ambientArchive) shouldNotBe null
 			database.ambientWifiFactDao().replayFootprint(
@@ -108,6 +121,7 @@ class TrackingSourceFullClearAssemblyTest {
 			assertImportedCellAuthority(importedCell, EPOCH + 2L)
 			assertCapturedCellAuthority(capturedCell, EPOCH + 2L)
 			assertStepsFence(stepsScope, EPOCH + 2L)
+			assertStepsCountDomainEvidence(countDomain)
 			database.ambientWifiFactDao().importedFactCount() shouldBe 0L
 			database.ambientWifiFactDao().importTombstone(ambientArchive) shouldNotBe null
 			database.ambientWifiFactDao().replayFootprint(
@@ -118,6 +132,86 @@ class TrackingSourceFullClearAssemblyTest {
 			rowCount("ambient_wifi_deletion_marker") shouldBe 2L
 			rowCount("ambient_cell_deletion_marker") shouldBe 2L
 		}
+
+	private suspend fun seedStepsCountDomainEvidence(): StepsCountDomainFixture {
+		val boundScope = opaque('8')
+		val boundOwnerIdentity = opaque('9')
+		val boundEffect = digest('a')
+		val receiptIdentity = StepsCountDomainReceiptIntegrity.receiptIdentity(
+			domainIdentity = opaque('b'),
+			ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+			scopeIdentity = boundScope,
+			ownerIdentity = boundOwnerIdentity,
+			ownerRevision = 1L,
+			registrationGeneration = 1L,
+			collectedDataEpoch = EPOCH,
+			authorityRevision = 1L,
+			authorityFingerprint = digest('c'),
+			coverageKind = StepsCountDomainReceiptEntity.COVERAGE_ADMITTED_WINDOW,
+			coverageVersion = 1,
+			countDomainVersion = StepsCountDomainReceiptEntity.CURRENT_COUNT_DOMAIN_VERSION,
+			effectChecksum = boundEffect,
+			completionEvidenceChecksum = null,
+		)
+		val receipt = StepsCountDomainReceiptEntity(
+			receiptIdentity = receiptIdentity,
+			domainIdentity = opaque('b'),
+			ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+			scopeIdentity = boundScope,
+			ownerIdentity = boundOwnerIdentity,
+			ownerRevision = 1L,
+			registrationGeneration = 1L,
+			collectedDataEpoch = EPOCH,
+			authorityRevision = 1L,
+			authorityFingerprint = digest('c'),
+			coverageKind = StepsCountDomainReceiptEntity.COVERAGE_ADMITTED_WINDOW,
+			coverageVersion = 1,
+			countDomainVersion = StepsCountDomainReceiptEntity.CURRENT_COUNT_DOMAIN_VERSION,
+			effectChecksum = boundEffect,
+			completionEvidenceChecksum = null,
+		)
+		val boundOwner = StepsCountDomainOwnerRevisionEntity(
+			ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+			scopeIdentity = boundScope,
+			ownerIdentity = boundOwnerIdentity,
+			ownerRevision = 1L,
+			operation = StepsCountDomainOwnerRevisionEntity.OPERATION_BIND,
+			receiptIdentity = receiptIdentity,
+			ownerEffectChecksum = boundEffect,
+			linkedAtMs = 100L,
+		)
+		val terminalOwner = StepsCountDomainOwnerRevisionEntity(
+			ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+			scopeIdentity = opaque('d'),
+			ownerIdentity = opaque('e'),
+			ownerRevision = 1L,
+			operation = StepsCountDomainOwnerRevisionEntity.OPERATION_RETRACT,
+			receiptIdentity = null,
+			ownerEffectChecksum = digest('f'),
+			linkedAtMs = 101L,
+		)
+		database.stepsCountDomainReceiptDao().append(receipt, boundOwner) shouldBe
+			StepsCountDomainAppendResult.INSERTED
+		database.stepsCountDomainReceiptDao().append(null, terminalOwner) shouldBe
+			StepsCountDomainAppendResult.INSERTED
+		return StepsCountDomainFixture(receipt, boundOwner, terminalOwner)
+	}
+
+	private suspend fun assertStepsCountDomainEvidence(fixture: StepsCountDomainFixture) {
+		val dao = database.stepsCountDomainReceiptDao()
+		dao.receipt(fixture.receipt.receiptIdentity) shouldBe null
+		dao.owner(
+			fixture.boundOwner.ownerKind,
+			fixture.boundOwner.ownerIdentity,
+			fixture.boundOwner.ownerRevision,
+		) shouldBe null
+		dao.owner(
+			fixture.terminalOwner.ownerKind,
+			fixture.terminalOwner.ownerIdentity,
+			fixture.terminalOwner.ownerRevision,
+		) shouldBe fixture.terminalOwner
+		rowCount(StepsCountDomainSchema.SCHEMA_MARKER_TABLE) shouldBe 1L
+	}
 
 	@Test
 	fun `full clear rejects a radio receipt whose retained floor is not authenticated`() = runTest {
@@ -694,6 +788,8 @@ class TrackingSourceFullClearAssemblyTest {
 		AppDatabase::class.java,
 		DATABASE_NAME,
 	)
+		.addCallback(TrackingOwnerValidationRoomCallback)
+		.addCallback(FinalV28SchemaAssemblyRoomCallback)
 		.allowMainThreadQueries()
 		.build()
 
@@ -703,6 +799,8 @@ class TrackingSourceFullClearAssemblyTest {
 	}
 
 	private fun digest(character: Char): String = character.toString().repeat(64)
+
+	private fun opaque(character: Char): String = "sha256:${digest(character)}"
 
 	private data class WifiAuthorityFixture(
 		val entry: String,
@@ -723,6 +821,12 @@ class TrackingSourceFullClearAssemblyTest {
 		val logicalTrackingId: String,
 		val serviceRunId: String,
 		val scope: String,
+	)
+
+	private data class StepsCountDomainFixture(
+		val receipt: StepsCountDomainReceiptEntity,
+		val boundOwner: StepsCountDomainOwnerRevisionEntity,
+		val terminalOwner: StepsCountDomainOwnerRevisionEntity,
 	)
 
 	private companion object {

@@ -12,12 +12,10 @@ sealed interface StepsCountDomainSchemaState {
 }
 
 /**
- * Exact additive DDL handed to the serialized AppDatabase/schema owner.
+ * Exact additive DDL owned by the serialized AppDatabase/schema assembly.
  *
- * This source slice deliberately does not mutate AppDatabase or MIGRATION_27_28. Tests may install
- * the schema in an isolated database to exercise the producer and query contracts. The serialized
- * owner must register all four entities and the DAO, call [installIfAbsent] after
- * ambient_steps_fact_revision exists for both fresh and migrated v28 databases, and call
+ * AppDatabase registers all four entities and the DAO, installs this schema after
+ * ambient_steps_fact_revision exists for both fresh and migrated v28 databases, and invokes
  * clearStepsCountDomainEvidenceInCurrentTransaction from the existing collected-data clear
  * transaction. Only the exact empty Room-created scaffold is accepted without a marker; partial or
  * markerless e500-era objects are incompatible and are never repaired or activated in place.
