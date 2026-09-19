@@ -1293,6 +1293,7 @@ class AuthoritativeSessionCoordinatorTest {
 			object : BootClockDomainProvider {
 				override fun current(): String = "boot-2"
 			},
+			mockk(relaxed = true),
 		).finalizeStaleSessions()
 		currentBootId = "boot-2"
 

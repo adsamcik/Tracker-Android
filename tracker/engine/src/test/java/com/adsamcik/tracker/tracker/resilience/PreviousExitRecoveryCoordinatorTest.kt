@@ -227,6 +227,38 @@ class PreviousExitRecoveryCoordinatorTest {
 	}
 
 	@Test
+	fun `stale finalization clears the descriptor repaired before Room finalization`() = runTest {
+		val stale = descriptor(isUserInitiated = true, logicalTrackingId = "stale-manual")
+		val repaired = stale.copy(
+			sourceCallerAuthorityReference =
+				com.adsamcik.tracker.tracker.api.SourceCallerReplayReference("repaired-authority"),
+		)
+		val store = RecordingStore(stale)
+		val previousExitFinalizer = mockk<PreviousExitSourceSessionFinalizer>()
+		coEvery { previousExitFinalizer.finalizeStaleSessions(null, stale) } coAnswers {
+			store.save(repaired)
+			PreviousExitSourceSessionFinalization(
+				finalizedLogicalTrackingIds = setOf("stale-manual"),
+				inspectedLogicalTrackingId = "stale-manual",
+				inspectedSessionExists = true,
+				inspectedRecoveryDescriptor = repaired,
+			)
+		}
+		val coordinator = PreviousExitRecoveryCoordinator(
+			store,
+			RecordingScheduler(),
+			mockk(relaxed = true),
+			previousExitFinalizer,
+			registrationRepository(),
+		)
+
+		coordinator.reconcileStaleSessions()
+
+		store.clearCount shouldBe 1
+		store.currentDescriptor shouldBe null
+	}
+
+	@Test
 	fun `stale finalization preserves same boot restart eligible manual descriptor`() = runTest {
 		val manual = descriptor(isUserInitiated = true, logicalTrackingId = "manual")
 		val store = RecordingStore(manual)

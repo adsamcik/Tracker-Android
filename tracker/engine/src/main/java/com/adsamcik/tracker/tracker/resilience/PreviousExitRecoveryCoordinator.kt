@@ -59,15 +59,16 @@ class PreviousExitRecoveryCoordinator @Inject constructor(
 			factualCompletedAtMs = completedAtMs,
 			recoveryDescriptor = storedDescriptor,
 		)
-		val descriptorWasFinalized = storedDescriptor != null &&
-			storedDescriptor.logicalTrackingId in finalization.finalizedLogicalTrackingIds
-		val descriptorHasNoRoomSession = storedDescriptor != null &&
-			finalization.inspectedLogicalTrackingId == storedDescriptor.logicalTrackingId &&
+		val inspectedDescriptor = finalization.inspectedRecoveryDescriptor ?: storedDescriptor
+		val descriptorWasFinalized = inspectedDescriptor != null &&
+			inspectedDescriptor.logicalTrackingId in finalization.finalizedLogicalTrackingIds
+		val descriptorHasNoRoomSession = inspectedDescriptor != null &&
+			finalization.inspectedLogicalTrackingId == inspectedDescriptor.logicalTrackingId &&
 			finalization.inspectedSessionExists == false
-		if (storedDescriptor != null &&
+		if (inspectedDescriptor != null &&
 			(descriptorWasFinalized || descriptorHasNoRoomSession)
 		) {
-			when (val cleared = activeSessionStore.clearExact(storedDescriptor)) {
+			when (val cleared = activeSessionStore.clearExact(inspectedDescriptor)) {
 				is ActiveTrackingSessionStoreResult.Success -> Unit
 				is ActiveTrackingSessionStoreResult.Failure -> throw cleared.cause
 			}

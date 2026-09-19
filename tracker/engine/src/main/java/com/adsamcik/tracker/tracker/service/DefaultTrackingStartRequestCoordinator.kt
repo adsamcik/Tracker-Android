@@ -357,8 +357,17 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		)
 		val storedDescriptor = when (val stored = activeTrackingSessionStore.read()) {
 			is ActiveTrackingSessionStoreResult.Failure -> return when (stored.kind) {
-				ActiveTrackingSessionStoreFailureKind.CORRUPT ->
+				ActiveTrackingSessionStoreFailureKind.CORRUPT -> {
+					finalizeRejectedRedelivery(
+						logicalTrackingId = run.logicalTrackingId,
+						authority = exactAuthority,
+						descriptor = null,
+						bootId = bootId,
+						failureCode = "ACTIVE_DESCRIPTOR_CORRUPT",
+						clearCorruptDescriptor = true,
+					)
 					AndroidRedeliveryStartResolution.Rejected("ACTIVE_DESCRIPTOR_CORRUPT")
+				}
 				ActiveTrackingSessionStoreFailureKind.UNAVAILABLE ->
 					AndroidRedeliveryStartResolution.Deferred
 			}
@@ -428,18 +437,15 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 				AndroidRedeliveryStartResolution.Rejected("REDELIVERY_RECOVERY_NOT_PREPARED")
 			}
 			is TrackingStartPreparationResult.Rejected -> {
-				if (preparation.disposition == TrackingStartFailureDisposition.RETRYABLE) {
-					return AndroidRedeliveryStartResolution.Deferred
+				resolveAndroidRedeliveryRecoveryRejection(preparation) { failureCode ->
+					finalizeRejectedRedelivery(
+						run.logicalTrackingId,
+						exactAuthority,
+						storedDescriptor,
+						bootId,
+						failureCode,
+					)
 				}
-				val failureCode = "REDELIVERY_RECOVERY_${preparation.failureCode}"
-				finalizeRejectedRedelivery(
-					run.logicalTrackingId,
-					exactAuthority,
-					storedDescriptor,
-					bootId,
-					failureCode,
-				)
-				AndroidRedeliveryStartResolution.Rejected(failureCode)
 			}
 		}
 	}
@@ -450,6 +456,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		descriptor: ActiveTrackingSessionDescriptor?,
 		bootId: String,
 		failureCode: String,
+		clearCorruptDescriptor: Boolean = false,
 	) {
 		val finalized = authoritativeSessionCoordinator.finalizeUnrecoverableContinuation(
 			logicalTrackingId = logicalTrackingId,
@@ -459,17 +466,21 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 			wallTimeMs = System.currentTimeMillis(),
 			failureCode = failureCode,
 		)
-		if (finalized && descriptor != null) {
-			val current = when (val stored = activeTrackingSessionStore.read()) {
-				is ActiveTrackingSessionStoreResult.Failure -> descriptor
-				is ActiveTrackingSessionStoreResult.Success -> stored.descriptor
-					?.takeIf {
-						it.logicalTrackingId == descriptor.logicalTrackingId &&
-							it.serviceRunId == descriptor.serviceRunId
-					}
-					?: descriptor
+		if (finalized) {
+			if (clearCorruptDescriptor) {
+				activeTrackingSessionStore.clear()
+			} else if (descriptor != null) {
+				val current = when (val stored = activeTrackingSessionStore.read()) {
+					is ActiveTrackingSessionStoreResult.Failure -> descriptor
+					is ActiveTrackingSessionStoreResult.Success -> stored.descriptor
+						?.takeIf {
+							it.logicalTrackingId == descriptor.logicalTrackingId &&
+								it.serviceRunId == descriptor.serviceRunId
+						}
+						?: descriptor
+				}
+				activeTrackingSessionStore.clearExact(current)
 			}
-			activeTrackingSessionStore.clearExact(current)
 		}
 	}
 
@@ -739,7 +750,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 				is ActiveTrackingCallerAuthorityReconciliation.Blocked ->
 					return TrackingStartDescriptorResolution.Failure(
 						code = reconciliation.failureCode,
-						disposition = TrackingStartFailureDisposition.RETRYABLE,
+						disposition = reconciliation.disposition,
 					)
 			}
 		}
@@ -960,6 +971,18 @@ private fun retryableStartRejection(failureCode: String) =
 		failureCode,
 		TrackingStartFailureDisposition.RETRYABLE,
 	)
+
+internal suspend fun resolveAndroidRedeliveryRecoveryRejection(
+	rejection: TrackingStartPreparationResult.Rejected,
+	finalizeTerminalRejection: suspend (failureCode: String) -> Unit,
+): AndroidRedeliveryStartResolution {
+	if (rejection.disposition == TrackingStartFailureDisposition.RETRYABLE) {
+		return AndroidRedeliveryStartResolution.Deferred
+	}
+	val failureCode = "REDELIVERY_RECOVERY_${rejection.failureCode}"
+	finalizeTerminalRejection(failureCode)
+	return AndroidRedeliveryStartResolution.Rejected(failureCode)
+}
 
 internal sealed interface AndroidRedeliveryStartResolution {
 	/** Startup/deletion authority is not stable yet; the exact token must remain untouched. */

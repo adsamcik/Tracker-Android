@@ -5,6 +5,8 @@ import android.os.Build
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
+import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
+import com.adsamcik.tracker.tracker.api.TrackingStartPreparationResult
 import com.adsamcik.tracker.tracker.api.TrackingStartRequest
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
 import com.adsamcik.tracker.tracker.resilience.LockedTrackingStartResult
@@ -208,6 +210,40 @@ class TrackerServiceRedeliveryRecoveryTest {
 
 		enqueueAttempts shouldBe 0
 		acknowledgements shouldBe 0
+	}
+
+	@Test
+	fun `transient caller authority failure defers redelivery without cleanup`() = runTest {
+		val finalized = mutableListOf<String>()
+
+		resolveAndroidRedeliveryRecoveryRejection(
+			TrackingStartPreparationResult.Rejected(
+				"RECOVERY_SOURCE_CALLER_AUTHORITY_STORAGE_UNAVAILABLE",
+				TrackingStartFailureDisposition.RETRYABLE,
+			),
+			{ failureCode -> finalized += failureCode },
+		) shouldBe AndroidRedeliveryStartResolution.Deferred
+
+		finalized shouldBe emptyList()
+	}
+
+	@Test
+	fun `permanent caller authority failure rejects redelivery and finalizes cleanup`() = runTest {
+		val finalized = mutableListOf<String>()
+
+		resolveAndroidRedeliveryRecoveryRejection(
+			TrackingStartPreparationResult.Rejected(
+				"RECOVERY_SOURCE_CALLER_REPLAY_AUTHORITY_RETIRED",
+				TrackingStartFailureDisposition.TERMINAL,
+			),
+			{ failureCode -> finalized += failureCode },
+		) shouldBe AndroidRedeliveryStartResolution.Rejected(
+			"REDELIVERY_RECOVERY_RECOVERY_SOURCE_CALLER_REPLAY_AUTHORITY_RETIRED",
+		)
+
+		finalized shouldBe listOf(
+			"REDELIVERY_RECOVERY_RECOVERY_SOURCE_CALLER_REPLAY_AUTHORITY_RETIRED",
+		)
 	}
 
 	@Test

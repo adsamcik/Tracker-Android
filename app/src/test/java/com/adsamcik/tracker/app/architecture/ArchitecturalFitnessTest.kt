@@ -1181,6 +1181,18 @@ class ArchitecturalFitnessTest {
 				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/" +
 					"DefaultTrackingStartRequestCoordinator.kt",
 			).readText()
+			val reconciler = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/" +
+					"ActiveTrackingSessionCallerAuthorityReconciler.kt",
+			).readText()
+			val authoritativeCoordinator = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/" +
+					"AuthoritativeSessionCoordinator.kt",
+			).readText()
+			val previousExitFinalizer = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/" +
+					"PreviousExitSourceSessionFinalizer.kt",
+			).readText()
 			val automaticOutbox = projectRoot.resolve(
 				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/" +
 					"ActivityAutomationOutboxDispatcher.kt",
@@ -1190,11 +1202,53 @@ class ArchitecturalFitnessTest {
 				if ("requestManualTrackingStart" !in api ||
 					"startServiceAndAwaitEnqueue" !in api
 				) add("manual start must use the prepared-start coordinator")
-				if ("validateRecoveryCallerAuthority(" !in coordinator ||
-					"previous.sourceCallerAuthorityReference" !in coordinator
-				) {
-					add("recovery must replay the previously accepted caller authority")
-				}
+				addAll(
+					orderedMarkerViolations(
+						coordinator,
+						"recovery descriptor caller-authority reconciliation",
+						listOf(
+							"activeTrackingSessionCallerAuthorityReconciler.reconcile(recoveryCandidate)",
+							"disposition = reconciliation.disposition",
+						),
+					),
+				)
+				addAll(
+					orderedMarkerViolations(
+						reconciler,
+						"authenticated recovery caller-authority replay",
+						listOf(
+							"currentRecoverySourceCallerAuthority(",
+							"activeTrackingSessionStore.replaceExact(",
+							"replayPreparedSession(",
+							"SourceCallerReplayKind.PROCESS_RECOVERY",
+						),
+					),
+				)
+				addAll(
+					orderedMarkerViolations(
+						authoritativeCoordinator,
+						"Room-authenticated recovery caller authority",
+						listOf(
+							"currentRecoverySourceCallerAuthorityCandidate(",
+							"authenticatePreparedSession(",
+							"if (readCandidate() == candidate)",
+						),
+					),
+				)
+				addAll(
+					orderedMarkerViolations(
+						previousExitFinalizer,
+						"previous-exit authenticated recovery preservation",
+						listOf(
+							"callerAuthorityReconciler.reconcile(descriptor)",
+							"currentRecoverySourceCallerAuthorityCandidate(",
+							"authority.reference == descriptor.sourceCallerAuthorityReference",
+						),
+					),
+				)
+				if ("authenticated.rejection.reason.isRetryable" !in authoritativeCoordinator ||
+					"replay.rejection.reason.toFailureDisposition()" !in reconciler
+				) add("recovery caller rejection disposition must derive from the guard reason")
 				if ("replayPreparedSession(" !in coordinator ||
 					"SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY" !in coordinator
 				) add("foreground-service claim must replay exact caller authority")

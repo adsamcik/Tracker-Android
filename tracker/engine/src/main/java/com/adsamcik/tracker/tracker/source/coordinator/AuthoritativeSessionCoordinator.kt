@@ -28,6 +28,7 @@ import com.adsamcik.tracker.tracker.api.SourceCallerReplayKind
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
 import com.adsamcik.tracker.tracker.api.isRetryable
+import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
@@ -2239,12 +2240,23 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			readCandidate()
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (_: Exception) {
+		} catch (failure: Exception) {
+			val operational = failure.isTrackingOperationalFailure()
 			return CurrentRecoverySourceCallerAuthorityResult.Rejected(
-				failureCode = "RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_INVALID",
+				failureCode = if (operational) {
+					"RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_UNAVAILABLE"
+				} else {
+					"RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_INVALID"
+				},
+				disposition = if (operational) {
+					TrackingStartFailureDisposition.RETRYABLE
+				} else {
+					TrackingStartFailureDisposition.TERMINAL
+				},
 			)
 		} ?: return CurrentRecoverySourceCallerAuthorityResult.Rejected(
 			failureCode = "RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_INVALID",
+			disposition = TrackingStartFailureDisposition.TERMINAL,
 		)
 		return when (val authenticated = sourceCallerDemandDispatcher.authenticatePreparedSession(
 			manifestIdentity = candidate.manifestIdentity,
@@ -2257,20 +2269,36 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 						CurrentRecoverySourceCallerAuthorityResult.Available(candidate)
 					} else {
 						CurrentRecoverySourceCallerAuthorityResult.Rejected(
-							"RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_CHANGED",
+							failureCode = "RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_CHANGED",
+							disposition = TrackingStartFailureDisposition.RETRYABLE,
 						)
 					}
 				} catch (cancelled: CancellationException) {
 					throw cancelled
-				} catch (_: Exception) {
+				} catch (failure: Exception) {
+					val operational = failure.isTrackingOperationalFailure()
 					CurrentRecoverySourceCallerAuthorityResult.Rejected(
-						failureCode = "RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_INVALID",
+						failureCode = if (operational) {
+							"RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_UNAVAILABLE"
+						} else {
+							"RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_INVALID"
+						},
+						disposition = if (operational) {
+							TrackingStartFailureDisposition.RETRYABLE
+						} else {
+							TrackingStartFailureDisposition.TERMINAL
+						},
 					)
 				}
 			is SourceCallerGuardResult.Rejected ->
 				CurrentRecoverySourceCallerAuthorityResult.Rejected(
 					failureCode =
 						"RECOVERY_SOURCE_CALLER_${authenticated.rejection.reason.name}",
+					disposition = if (authenticated.rejection.reason.isRetryable) {
+						TrackingStartFailureDisposition.RETRYABLE
+					} else {
+						TrackingStartFailureDisposition.TERMINAL
+					},
 				)
 		}
 	}
@@ -5454,6 +5482,7 @@ internal sealed interface CurrentRecoverySourceCallerAuthorityResult {
 
 	data class Rejected(
 		val failureCode: String,
+		val disposition: TrackingStartFailureDisposition,
 	) : CurrentRecoverySourceCallerAuthorityResult
 }
 
@@ -5483,6 +5512,9 @@ internal fun currentRecoverySourceCallerAuthorityCandidate(
 	val completedSuspension =
 		session.currentServiceRunId == null &&
 			session.state == SessionLifecycleState.ACTIVE.name &&
+			session.cutoffAtMs == null &&
+			session.cutoffElapsedNanos == null &&
+			session.finalAdmissionOrdinal == null &&
 			run.state == SessionLifecycleState.FINALIZED.name &&
 			run.completedAtMs != null &&
 			run.runtimeAcknowledgement == LifecycleActionStatus.STOP_ACCEPTED.name
@@ -5530,6 +5562,7 @@ internal fun currentRecoverySourceCallerAuthorityCandidate(
 		intent.requestedWallTimeMs < 0L ||
 		(intent.stopReason == null && intent.startOrigin != manifest.startOrigin) ||
 		(completedSuspension && intent.stopReason.isNullOrBlank()) ||
+		(completedSuspension && run.completionReason != intent.stopReason) ||
 		(activeOrReconfiguringRun && intent.stopReason != null) ||
 		!intent.hasAuthenticRecoveryCallerIntent()
 	) return null

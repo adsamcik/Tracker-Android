@@ -2,10 +2,13 @@ package com.adsamcik.tracker.tracker.resilience
 
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.SourceCallerAcceptanceReceipt
+import com.adsamcik.tracker.tracker.api.SourceCallerGuardRejection
 import com.adsamcik.tracker.tracker.api.SourceCallerGuardResult
 import com.adsamcik.tracker.tracker.api.SourceCallerManifestIdentity
+import com.adsamcik.tracker.tracker.api.SourceCallerRejectionReason
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayKind
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
+import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
 import com.adsamcik.tracker.tracker.source.coordinator.AuthoritativeSessionCoordinator
 import com.adsamcik.tracker.tracker.source.coordinator.CurrentRecoverySourceCallerAuthority
 import com.adsamcik.tracker.tracker.source.coordinator.CurrentRecoverySourceCallerAuthorityResult
@@ -17,6 +20,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
@@ -157,6 +161,7 @@ class ActiveTrackingSessionCallerAuthorityReconcilerTest {
 			.shouldBeInstanceOf<ActiveTrackingCallerAuthorityReconciliation.Blocked>()
 
 		result.failureCode shouldBe "RECOVERY_SOURCE_CALLER_RETIREMENT_PENDING"
+		result.disposition shouldBe TrackingStartFailureDisposition.RETRYABLE
 		store.current shouldBe recorded
 		store.replacements shouldBe emptyList()
 	}
@@ -164,19 +169,25 @@ class ActiveTrackingSessionCallerAuthorityReconcilerTest {
 	@Test
 	fun `unrelated or malformed Room authority is rejected before descriptor adoption`() = runTest {
 		listOf(
-			"RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_INVALID",
-			"RECOVERY_SOURCE_CALLER_REPLAY_AUTHORITY_CORRUPT",
-		).forEach { failureCode ->
+			"RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_INVALID" to
+				TrackingStartFailureDisposition.TERMINAL,
+			"RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_UNAVAILABLE" to
+				TrackingStartFailureDisposition.RETRYABLE,
+		).forEach { (failureCode, disposition) ->
 			val initial = descriptor(reference("caller-current"))
 			val store = RecordingStore(initial)
 			coEvery {
 				coordinator.currentRecoverySourceCallerAuthority(LOGICAL_ID, SERVICE_RUN_ID)
-			} returns CurrentRecoverySourceCallerAuthorityResult.Rejected(failureCode)
+			} returns CurrentRecoverySourceCallerAuthorityResult.Rejected(
+				failureCode,
+				disposition,
+			)
 
 			val result = reconciler(store).reconcile(initial)
 				.shouldBeInstanceOf<ActiveTrackingCallerAuthorityReconciliation.Blocked>()
 
 			result.failureCode shouldBe failureCode
+			result.disposition shouldBe disposition
 			store.current shouldBe initial
 			store.replacements shouldBe emptyList()
 			coVerify(exactly = 0) {
@@ -200,10 +211,113 @@ class ActiveTrackingSessionCallerAuthorityReconcilerTest {
 			.shouldBeInstanceOf<ActiveTrackingCallerAuthorityReconciliation.Blocked>()
 
 		result.failureCode shouldBe "RECOVERY_SOURCE_CALLER_RETIREMENT_AMBIGUOUS"
+		result.disposition shouldBe TrackingStartFailureDisposition.TERMINAL
 		store.current shouldBe initial
 		store.replacements shouldBe emptyList()
 		coVerify(exactly = 0) {
 			dispatcher.replayPreparedSession(any(), any(), any())
+		}
+	}
+
+	@Test
+	fun `guard replay preserves transient versus permanent rejection disposition`() = runTest {
+		listOf(
+			SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE to
+				TrackingStartFailureDisposition.RETRYABLE,
+			SourceCallerRejectionReason.REPLAY_AUTHORITY_RETIRED to
+				TrackingStartFailureDisposition.TERMINAL,
+			SourceCallerRejectionReason.REPLAY_AUTHORITY_CORRUPT to
+				TrackingStartFailureDisposition.TERMINAL,
+		).forEach { (reason, expectedDisposition) ->
+			val reference = reference("caller-${reason.name.lowercase()}")
+			val initial = descriptor(reference)
+			val authority = authority(reference)
+			coEvery {
+				coordinator.currentRecoverySourceCallerAuthority(LOGICAL_ID, SERVICE_RUN_ID)
+			} returns CurrentRecoverySourceCallerAuthorityResult.Available(authority)
+			coEvery {
+				dispatcher.replayPreparedSession(
+					authority.manifestIdentity,
+					reference,
+					SourceCallerReplayKind.PROCESS_RECOVERY,
+				)
+			} returns SourceCallerGuardResult.Rejected(SourceCallerGuardRejection(reason))
+
+			val result = reconciler(RecordingStore(initial)).reconcile(initial)
+				.shouldBeInstanceOf<ActiveTrackingCallerAuthorityReconciliation.Blocked>()
+
+			result.failureCode shouldBe "RECOVERY_SOURCE_CALLER_${reason.name}"
+			result.disposition shouldBe expectedDisposition
+		}
+	}
+
+	@Test
+	fun `descriptor persistence corruption is terminal while unavailability is retryable`() = runTest {
+		listOf(
+			ActiveTrackingSessionStoreFailureKind.CORRUPT to
+				TrackingStartFailureDisposition.TERMINAL,
+			ActiveTrackingSessionStoreFailureKind.UNAVAILABLE to
+				TrackingStartFailureDisposition.RETRYABLE,
+		).forEach { (kind, expectedDisposition) ->
+			val predecessor = reference("caller-predecessor")
+			val successor = reference("caller-successor")
+			val initial = descriptor(predecessor)
+			coEvery {
+				coordinator.currentRecoverySourceCallerAuthority(LOGICAL_ID, SERVICE_RUN_ID)
+			} returns CurrentRecoverySourceCallerAuthorityResult.Available(authority(successor))
+
+			val result = reconciler(RecordingStore(initial, replaceFailureKind = kind))
+				.reconcile(initial)
+				.shouldBeInstanceOf<ActiveTrackingCallerAuthorityReconciliation.Blocked>()
+
+			result.failureCode shouldBe "RECOVERY_SOURCE_CALLER_DESCRIPTOR_UPDATE_FAILED"
+			result.disposition shouldBe expectedDisposition
+			result.descriptor shouldBe initial
+		}
+	}
+
+	@Test
+	fun `descriptor compare and set change is transient`() = runTest {
+		val predecessor = reference("caller-predecessor")
+		val successor = reference("caller-successor")
+		val initial = descriptor(predecessor)
+		val concurrentlyChanged = initial.copy(lifecycleRevision = initial.lifecycleRevision + 1L)
+		coEvery {
+			coordinator.currentRecoverySourceCallerAuthority(LOGICAL_ID, SERVICE_RUN_ID)
+		} returns CurrentRecoverySourceCallerAuthorityResult.Available(authority(successor))
+
+		val result = reconciler(
+			RecordingStore(initial, replaceObservedDescriptor = concurrentlyChanged),
+		).reconcile(initial)
+			.shouldBeInstanceOf<ActiveTrackingCallerAuthorityReconciliation.Blocked>()
+
+		result.failureCode shouldBe "RECOVERY_SOURCE_CALLER_DESCRIPTOR_CHANGED"
+		result.disposition shouldBe TrackingStartFailureDisposition.RETRYABLE
+		result.descriptor shouldBe concurrentlyChanged
+	}
+
+	@Test
+	fun `operational exceptions retry while invariant failures are terminal`() = runTest {
+		listOf(
+			IOException("storage unavailable") to TrackingStartFailureDisposition.RETRYABLE,
+			IllegalStateException("broken invariant") to TrackingStartFailureDisposition.TERMINAL,
+		).forEach { (failure, expectedDisposition) ->
+			val initial = descriptor(reference("caller-current"))
+			coEvery {
+				coordinator.currentRecoverySourceCallerAuthority(LOGICAL_ID, SERVICE_RUN_ID)
+			} throws failure
+
+			val result = reconciler(RecordingStore(initial)).reconcile(initial)
+				.shouldBeInstanceOf<ActiveTrackingCallerAuthorityReconciliation.Blocked>()
+
+			result.disposition shouldBe expectedDisposition
+			result.failureCode shouldBe if (
+				expectedDisposition == TrackingStartFailureDisposition.RETRYABLE
+			) {
+				"RECOVERY_SOURCE_CALLER_RECONCILIATION_UNAVAILABLE"
+			} else {
+				"RECOVERY_SOURCE_CALLER_RECONCILIATION_INVARIANT"
+			}
 		}
 	}
 
@@ -240,6 +354,8 @@ class ActiveTrackingSessionCallerAuthorityReconcilerTest {
 			ActiveTrackingSessionDescriptor,
 			ActiveTrackingSessionDescriptor,
 		) -> Unit = { _, _ -> },
+		private val replaceFailureKind: ActiveTrackingSessionStoreFailureKind? = null,
+		private val replaceObservedDescriptor: ActiveTrackingSessionDescriptor? = null,
 	) : ActiveTrackingSessionStore {
 		var current: ActiveTrackingSessionDescriptor? = initial
 			private set
@@ -261,6 +377,16 @@ class ActiveTrackingSessionCallerAuthorityReconcilerTest {
 			replacement: ActiveTrackingSessionDescriptor,
 		): ActiveTrackingSessionStoreResult {
 			onReplace(expected, replacement)
+			replaceFailureKind?.let { kind ->
+				return ActiveTrackingSessionStoreResult.Failure(
+					IllegalStateException("test persistence failure"),
+					kind,
+				)
+			}
+			replaceObservedDescriptor?.let { descriptor ->
+				current = descriptor
+				return ActiveTrackingSessionStoreResult.Success(descriptor)
+			}
 			if (current == expected) {
 				replacements += expected to replacement
 				current = replacement

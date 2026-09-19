@@ -113,6 +113,59 @@ class RecoverySourceCallerAuthorityCandidateTest {
 			fixture.bindings,
 			suspendedIntent,
 		)?.reference?.value shouldBe CALLER_REFERENCE
+
+		listOf(
+			SuspendedLookalike(
+				session = fixture.session.copy(currentServiceRunId = SERVICE_RUN_ID),
+				run = fixture.run.copy(
+					state = SessionLifecycleState.FINALIZED.name,
+					completedAtMs = 30L,
+					completionReason = reason,
+					runtimeAcknowledgement = LifecycleActionStatus.STOP_ACCEPTED.name,
+				),
+				intent = suspendedIntent,
+			),
+			SuspendedLookalike(
+				session = fixture.session.copy(currentServiceRunId = null),
+				run = fixture.run.copy(
+					state = SessionLifecycleState.FINALIZED.name,
+					completedAtMs = 30L,
+					completionReason = "UNRELATED_STOP",
+					runtimeAcknowledgement = LifecycleActionStatus.STOP_ACCEPTED.name,
+				),
+				intent = suspendedIntent,
+			),
+			SuspendedLookalike(
+				session = fixture.session.copy(currentServiceRunId = null),
+				run = fixture.run.copy(
+					state = SessionLifecycleState.FINALIZED.name,
+					completedAtMs = 30L,
+					completionReason = reason,
+					runtimeAcknowledgement = LifecycleActionStatus.START_ACCEPTED.name,
+				),
+				intent = suspendedIntent,
+			),
+			SuspendedLookalike(
+				session = fixture.session.copy(currentServiceRunId = null),
+				run = fixture.run.copy(
+					state = SessionLifecycleState.FINALIZED.name,
+					completedAtMs = 30L,
+					completionReason = reason,
+					runtimeAcknowledgement = LifecycleActionStatus.STOP_ACCEPTED.name,
+				),
+				intent = suspendedIntent.copy(intentChecksum = "malformed"),
+			),
+		).forEach { lookalike ->
+			currentRecoverySourceCallerAuthorityCandidate(
+				LOGICAL_ID,
+				SERVICE_RUN_ID,
+				lookalike.session,
+				lookalike.run,
+				fixture.manifest,
+				fixture.bindings,
+				lookalike.intent,
+			).shouldBeNull()
+		}
 	}
 
 	private fun fixture(): Fixture {
@@ -241,6 +294,12 @@ class RecoverySourceCallerAuthorityCandidateTest {
 		val run: SourceServiceRunEntity,
 		val manifest: SessionManifestVersionEntity,
 		val bindings: List<SessionManifestSourceEntity>,
+		val intent: SessionLifecycleIntentVersionEntity,
+	)
+
+	private data class SuspendedLookalike(
+		val session: LogicalTrackingSessionEntity,
+		val run: SourceServiceRunEntity,
 		val intent: SessionLifecycleIntentVersionEntity,
 	)
 
