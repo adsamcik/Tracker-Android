@@ -545,14 +545,12 @@ interface SourceEventWalDao {
 	): List<RawSourceRunWalManifestRevisionEvidence>
 
 	/**
-	 * Finds malformed service-run identities only through an exact source, logical owner,
+	 * Finds non-exact service-run identities only through an exact source, logical owner,
 	 * authenticated revision chunk, and capture-purpose association.
 	 */
 	@Query(
 		"SELECT rowid FROM source_event_wal WHERE " +
-			"(typeof(service_run_id) != 'text' OR (typeof(service_run_id) = 'text' AND " +
-			"length(trim(service_run_id, ' ' || char(9) || char(10) || char(11) || " +
-			"char(12) || char(13))) = 0)) AND " +
+			"(typeof(service_run_id) != 'text' OR service_run_id != :serviceRunId) AND " +
 			"typeof(source_kind) = 'integer' AND source_kind = :sourceKind AND " +
 			"typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId AND " +
 			"typeof(session_manifest_revision) = 'integer' AND " +
@@ -564,6 +562,7 @@ interface SourceEventWalDao {
 	suspend fun rawMalformedServiceRunSourceCaptureAssociations(
 		sourceKind: Int,
 		logicalTrackingId: String,
+		serviceRunId: String,
 		runManifestRevisions: List<Long>,
 		capturePurposeMask: Long,
 		limit: Int,

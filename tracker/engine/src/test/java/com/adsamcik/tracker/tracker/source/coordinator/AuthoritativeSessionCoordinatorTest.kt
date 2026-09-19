@@ -706,7 +706,7 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `historical other-run malformed service identity cannot poison current run high-water`() =
+	fun `historical other-run nonblank identity on another revision cannot poison high-water`() =
 		runTest {
 			installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 			val started = subject.start(
@@ -734,10 +734,6 @@ class AuthoritativeSessionCoordinatorTest {
 					integrityIdentity = historicalUnsigned.calculatedIntegrityIdentity(),
 				),
 			)
-			database.openHelper.writableDatabase.execSQL(
-				"UPDATE source_event_wal SET service_run_id = ? WHERE admission_ordinal = ?",
-				arrayOf("\t\n", historicalOrdinal),
-			)
 			runtime.lastAdmissionOrdinal = currentOrdinal
 			replaceEventCoordinator(completedEventCoordinator(historicalOrdinal))
 
@@ -757,7 +753,7 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `current-run null blob blank and whitespace service identities fail closed`() = runTest {
+	fun `current-run wrong null blob blank and whitespace service identities fail closed`() = runTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 		val started = subject.start(
 			startRequest().copy(
@@ -770,6 +766,7 @@ class AuthoritativeSessionCoordinatorTest {
 		runtime.lastAdmissionOrdinal = admissionOrdinal
 		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
 		val corruptions = listOf<Any?>(
+			"wrong-current-run",
 			null,
 			byteArrayOf(1, 2),
 			"",
@@ -812,8 +809,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `exact run WAL accepts 101 300 and 2048 authenticated revisions across chunks`() = runTest {
-		for (revisionCount in listOf(101, 300, MAX_RUN_DRAIN_MANIFEST_REVISIONS)) {
+	fun `exact run WAL accepts 101 301 and 2048 authenticated revisions across chunks`() = runTest {
+		for (revisionCount in listOf(101, 301, MAX_RUN_DRAIN_MANIFEST_REVISIONS)) {
 			val logicalTrackingId = "chunked-wal-logical-$revisionCount"
 			val serviceRunId = "chunked-wal-run-$revisionCount"
 			val sourceInstanceId = "chunked-wal-instance-$revisionCount"
@@ -890,10 +887,10 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `malformed service run fallback remains exact across manifest chunks`() = runTest {
-		val logicalTrackingId = "malformed-service-fallback-logical"
-		val serviceRunId = "malformed-service-fallback-run"
-		val sourceInstanceId = "malformed-service-fallback-instance"
+	fun `wrong nonblank service run is rejected across 301 authenticated revisions`() = runTest {
+		val logicalTrackingId = "wrong-service-run-logical"
+		val serviceRunId = "expected-service-run"
+		val sourceInstanceId = "wrong-service-run-instance"
 		insertTerminalStepsWal(
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
@@ -904,8 +901,8 @@ class AuthoritativeSessionCoordinatorTest {
 		)
 		val highWater = insertTerminalStepsWal(
 			logicalTrackingId = logicalTrackingId,
-			serviceRunId = " \t\n",
-			manifestRevision = 101L,
+			serviceRunId = "wrong-service-run",
+			manifestRevision = 301L,
 			sourceInstanceId = sourceInstanceId,
 			sourceSequence = 2L,
 			recordStepsFact = false,
@@ -916,7 +913,7 @@ class AuthoritativeSessionCoordinatorTest {
 			source = SourceKind.STEPS,
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
-			runManifestRevisions = (1L..101L).toList(),
+			runManifestRevisions = (1L..301L).toList(),
 			throughOrdinal = highWater,
 			productMemberships = listOf(
 				terminalDrainMembership(sourceInstanceId, 1L, highWater),

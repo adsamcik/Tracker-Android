@@ -854,6 +854,7 @@ internal suspend fun sourceRunHighWater(
 		val malformedAssociations = dao.rawMalformedServiceRunSourceCaptureAssociations(
 			sourceKind = source.stableCode,
 			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
 			runManifestRevisions = manifestRevisions,
 			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 			limit = RAW_WAL_MALFORMED_SERVICE_RUN_ASSOCIATION_ENVELOPE,
