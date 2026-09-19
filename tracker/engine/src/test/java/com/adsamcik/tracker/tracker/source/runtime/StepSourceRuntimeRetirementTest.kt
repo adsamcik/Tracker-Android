@@ -453,6 +453,54 @@ class StepSourceRuntimeRetirementTest {
 	}
 
 	@Test
+	fun `unverifiable terminal checkpoint remains retry debt without terminal acknowledgement`() =
+		runTest {
+			val claim = runtimeClaim("terminal-checkpoint-retry")
+			val fixture = fixture(
+				scope = this,
+				checkpointOutcomes = ArrayDeque(
+					listOf(
+						SourceRuntimeStateSaveResult.Saved,
+						SourceRuntimeStateSaveResult.Unverifiable,
+						SourceRuntimeStateSaveResult.Saved,
+					),
+				),
+			)
+			assertIs<SourceStartResult.Started>(
+				fixture.runtime.start(claim, fixture.plan, fixture.sink),
+			)
+
+			val pending = assertIs<OwnedSourceShutdown.Incomplete>(
+				fixture.runtime.shutdownIfOwned(claim, sessionCutoff(Long.MAX_VALUE)),
+			)
+
+			assertEquals(SourceStopStatus.PROVIDER_FAILED, pending.stopAck?.status)
+			assertEquals(
+				RegistrationRemovalOutcome.REMOVED,
+				pending.stopAck?.registrationRemovalOutcome,
+			)
+			assertEquals(1L, pending.provider?.registrationGeneration)
+			assertEquals(1, fixture.removedListeners.size)
+
+			val released = assertIs<OwnedSourceShutdown.Released>(
+				fixture.runtime.shutdownIfOwned(claim, sessionCutoff(Long.MAX_VALUE)),
+			)
+
+			assertEquals(SourceStopStatus.COMPLETE, released.stopAck?.status)
+			assertEquals(1L, released.provider?.registrationGeneration)
+			coVerify(exactly = 2) {
+				fixture.repository.saveRuntimeState(
+					any(), any(), any(), any(), any(), any(), any(),
+					match { it != null },
+					any(),
+				)
+			}
+			coVerify(exactly = 1) { fixture.repository.beginRetirement(any(), any(), any(), any()) }
+			coVerify(exactly = 1) { fixture.repository.completeRetirement(any()) }
+			assertEquals(1, fixture.removedListeners.size)
+		}
+
+	@Test
 	fun `noncooperative actor times out while ownership remains retryable`() = runTest {
 		val applicationScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
 		val admissionStarted = CompletableDeferred<Unit>()
@@ -840,11 +888,23 @@ class StepSourceRuntimeRetirementTest {
 			registrations[beginIndex++.coerceAtMost(registrations.lastIndex)]
 		}
 		coEvery { repository.loadRuntimeState(any()) } returns null
-		coEvery { repository.saveRuntimeState(any(), any(), any(), any(), any(), any(), any(), any()) } answers {
+		fun nextCheckpointOutcome(): SourceRuntimeStateSaveResult =
 			when (val outcome = checkpointOutcomes.removeFirstOrNull()) {
 				is Throwable -> throw outcome
+				is SourceRuntimeStateSaveResult -> outcome
 				else -> SourceRuntimeStateSaveResult.Saved
 			}
+		coEvery {
+			repository.saveRuntimeState(any(), any(), any(), any(), any(), any(), any(), any())
+		} answers {
+			nextCheckpointOutcome()
+		}
+		coEvery {
+			repository.saveRuntimeState(
+				any(), any(), any(), any(), any(), any(), any(), any(), any(),
+			)
+		} answers {
+			nextCheckpointOutcome()
 		}
 		coEvery { repository.markAccepted(any(), any(), any()) } answers {
 			acceptanceFailure?.let { throw it }

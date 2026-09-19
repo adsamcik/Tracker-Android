@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
 import androidx.room.Database
+import androidx.room.InvalidationTracker
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
@@ -22,6 +23,8 @@ import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainSchemaMark
 import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import java.util.concurrent.Executor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -125,6 +128,87 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		} finally {
 			scaffold.close()
 		}
+	}
+
+	@Test
+	fun `Room 2_8_4 invalidation trigger lifecycle is accepted for every authority table`() {
+		val context: Application = ApplicationProvider.getApplicationContext()
+		val scaffold = Room.inMemoryDatabaseBuilder(
+			context,
+			StepsCountDomainScaffoldTestDatabase::class.java,
+		).allowMainThreadQueries()
+			.addCallback(object : RoomDatabase.Callback() {
+				override fun onCreate(db: SupportSQLiteDatabase) {
+					check(
+						StepsCountDomainSchema.installIfAbsent(db) ==
+							StepsCountDomainSchemaState.ValidV2,
+					)
+				}
+			})
+			.build()
+		val observedTables = arrayOf(
+			StepsCountDomainSchema.RECEIPT_TABLE,
+			StepsCountDomainSchema.OWNER_TABLE,
+			StepsCountDomainSchema.COMPLETENESS_MARKER_TABLE,
+			StepsCountDomainSchema.SCHEMA_MARKER_TABLE,
+			"ambient_steps_fact_revision",
+		)
+		val observer = object : InvalidationTracker.Observer(
+			observedTables.first(),
+			*observedTables.drop(1).toTypedArray(),
+		) {
+			override fun onInvalidated(tables: Set<String>) = Unit
+		}
+		try {
+			val sqlite = scaffold.openHelper.writableDatabase
+			scaffold.invalidationTracker.addObserver(observer)
+
+			val triggers = sqlite.query(
+				"SELECT name FROM sqlite_temp_master WHERE type = 'trigger' " +
+					"AND name LIKE 'room_table_modification_trigger_%' ORDER BY name",
+			).use { cursor ->
+				buildList {
+					while (cursor.moveToNext()) add(cursor.getString(0))
+				}
+			}
+			triggers shouldBe observedTables.flatMap { table ->
+				listOf("DELETE", "INSERT", "UPDATE").map { operation ->
+					"room_table_modification_trigger_${table}_$operation"
+				}
+			}.sorted()
+			StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.ValidV2
+
+			scaffold.invalidationTracker.removeObserver(observer)
+			sqlite.count(
+				"SELECT COUNT(*) FROM sqlite_temp_master WHERE type = 'trigger' " +
+					"AND name LIKE 'room_table_modification_trigger_%'",
+			) shouldBe 0L
+			StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.ValidV2
+		} finally {
+			runCatching { scaffold.invalidationTracker.removeObserver(observer) }
+			scaffold.close()
+		}
+	}
+
+	@Test
+	fun `Room-looking invalidation trigger with spoofed body is incompatible`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		val name =
+			"room_table_modification_trigger_${StepsCountDomainSchema.RECEIPT_TABLE}_INSERT"
+		sqlite.execSQL(
+			"CREATE TEMP TABLE IF NOT EXISTS room_table_modification_log (" +
+				"table_id INTEGER PRIMARY KEY, invalidated INTEGER NOT NULL DEFAULT 0)",
+		)
+		sqlite.execSQL("INSERT OR REPLACE INTO room_table_modification_log VALUES (7, 0)")
+		sqlite.execSQL(
+			"CREATE TEMP TRIGGER `$name` AFTER INSERT ON " +
+				"`${StepsCountDomainSchema.RECEIPT_TABLE}` BEGIN " +
+				"UPDATE room_table_modification_log SET invalidated = 2 " +
+				"WHERE table_id = 7 AND invalidated = 0; END",
+		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
 	}
 
 	@Test
@@ -1239,6 +1323,175 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
+	fun `maintenance authenticates a candidate lineage through exact multi-page continuation`() =
+		runTest {
+			installSchema()
+			val key = insertAmbientUnprovenOwnerHistory('a', 130)
+			var authenticatedPages = 0
+
+			StepsCountDomainStore(database).removeOwners(listOf(key)) { checkpoint ->
+				if (checkpoint ==
+					StepsCountDomainMaintenanceCheckpoint.OWNER_DOMAIN_PAGE_AUTHENTICATED
+				) {
+					authenticatedPages += 1
+				}
+			} shouldBe StepsCountDomainMaintenanceResult.Applied(1, 0)
+
+			authenticatedPages shouldBe 3
+			database.openHelper.writableDatabase.count(
+				"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
+					"WHERE owner_identity = ?",
+				arrayOf(key.ownerIdentity),
+			) shouldBe 129L
+		}
+
+	@Test
+	fun `maintenance cancellation between owner pages preserves the exact candidate`() = runTest {
+		installSchema()
+		val key = insertAmbientUnprovenOwnerHistory('b', 130)
+		var authenticatedPages = 0
+
+		shouldThrow<CancellationException> {
+			StepsCountDomainStore(database).removeOwners(listOf(key)) { checkpoint ->
+				if (checkpoint ==
+					StepsCountDomainMaintenanceCheckpoint.OWNER_DOMAIN_PAGE_AUTHENTICATED &&
+					++authenticatedPages == 2
+				) {
+					throw CancellationException("stop maintenance")
+				}
+			}
+		}
+
+		database.openHelper.writableDatabase.count(
+			"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
+				"WHERE owner_identity = ? AND owner_revision = ?",
+			arrayOf(key.ownerIdentity, key.ownerRevision),
+		) shouldBe 1L
+	}
+
+	@Test
+	fun `corrupt later candidate-domain page fails closed without deleting the requested owner`() =
+		runTest {
+			installSchema()
+			val key = insertAmbientUnprovenOwnerHistory('c', 130)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE steps_count_domain_owner_revision SET operation = 1 " +
+					"WHERE owner_identity = ? AND owner_revision = 100",
+				arrayOf(key.ownerIdentity),
+			)
+
+			StepsCountDomainStore(database).removeOwners(listOf(key)) shouldBe
+				StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+			database.openHelper.writableDatabase.count(
+				"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
+					"WHERE owner_identity = ? AND owner_revision = ?",
+				arrayOf(key.ownerIdentity, key.ownerRevision),
+			) shouldBe 1L
+		}
+
+	@Test
+	fun `maintenance authenticates candidate completeness marker before owner deletion`() =
+		runTest {
+			installSchema()
+			val ownerIdentity = "sha256:${"5".repeat(64)}"
+			val scopeIdentity = "sha256:${"6".repeat(64)}"
+			val timelineChecksum = "7".repeat(64)
+			val evidenceChecksum = StepsCountDomainReceiptIntegrity.completenessMarkerChecksum(
+				ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
+				ownerIdentity = ownerIdentity,
+				ownerRevision = 1L,
+				terminalState = StepsCountDomainCompletenessMarkerEntity.STATE_UNPROVEN,
+				lastAdmissionOrdinal = null,
+				lastSourceSequence = null,
+				providerFlushOutcome = "NOT_REQUESTED",
+				registrationRemovalOutcome = "REMOVED",
+				registrationTimelineChecksum = timelineChecksum,
+			)
+			val sqlite = database.openHelper.writableDatabase
+			sqlite.execSQL(
+				"INSERT INTO steps_count_domain_owner_revision VALUES " +
+					"('SESSION_COMPLETENESS', ?, ?, 1, 'UNPROVEN', NULL, ?, 1)",
+				arrayOf(scopeIdentity, ownerIdentity, "8".repeat(64)),
+			)
+			sqlite.execSQL(
+				"INSERT INTO steps_count_domain_completeness_marker VALUES " +
+					"('SESSION_COMPLETENESS', ?, 1, 'UNPROVEN', NULL, NULL, " +
+					"'NOT_REQUESTED', 'REMOVED', ?, ?)",
+				arrayOf(ownerIdentity, timelineChecksum, evidenceChecksum),
+			)
+			sqlite.execSQL(
+				"UPDATE steps_count_domain_completeness_marker " +
+					"SET provider_flush_outcome = 1 WHERE owner_identity = ?",
+				arrayOf(ownerIdentity),
+			)
+			val key = StepsCountDomainOwnerLookupKey(
+				StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
+				ownerIdentity,
+				1L,
+			)
+
+			StepsCountDomainStore(database).removeOwners(listOf(key)) shouldBe
+				StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+			sqlite.count(
+				"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
+					"WHERE owner_identity = ?",
+				arrayOf(ownerIdentity),
+			) shouldBe 1L
+		}
+
+	@Test
+	fun `maintenance scopes raw validation to the requested owner domain`() = runTest {
+		installSchema()
+		val key = insertAmbientUnprovenOwnerHistory('9', 1)
+		database.openHelper.writableDatabase.execSQL(
+			"INSERT INTO steps_count_domain_owner_revision VALUES " +
+				"('AMBIENT_FACT', ?, X'01', 1, 'UNPROVEN', NULL, ?, 1)",
+			arrayOf("sha256:${"a".repeat(64)}", "b".repeat(64)),
+		)
+
+		StepsCountDomainStore(database).removeOwners(listOf(key)) shouldBe
+			StepsCountDomainMaintenanceResult.Applied(1, 0)
+	}
+
+	@Test
+	fun `repeated bounded maintenance never rescans unrelated count-domain history`() = runTest {
+		val queries = mutableListOf<String>()
+		database.close()
+		database = Room.inMemoryDatabaseBuilder(
+			ApplicationProvider.getApplicationContext<Application>(),
+			AppDatabase::class.java,
+		).allowMainThreadQueries()
+			.setQueryCallback(
+				{ sql, _ -> queries += sql.replace(Regex("\\s+"), " ").trim().lowercase() },
+				Executor(Runnable::run),
+			)
+			.build()
+		installSchema()
+		insertAmbientUnprovenOwnerHistory('d', 512)
+		val candidates = listOf('1', '2', '3', '4').map { digit ->
+			insertAmbientUnprovenOwnerHistory(digit, 1)
+		}
+		queries.clear()
+
+		candidates.forEach { key ->
+			StepsCountDomainStore(database).removeOwners(listOf(key)) shouldBe
+				StepsCountDomainMaintenanceResult.Applied(1, 0)
+		}
+
+		queries.count { query ->
+			query.startsWith(
+				"select rowid as maintenance_rowid, * " +
+					"from main.steps_count_domain_owner_revision",
+			)
+		} shouldBe candidates.size
+		queries.any { query ->
+			query == "select * from main.steps_count_domain_owner_revision" ||
+				query == "select * from main.steps_count_domain_receipt" ||
+				query == "select * from main.steps_count_domain_completeness_marker"
+		} shouldBe false
+	}
+
+	@Test
 	fun `invalid maintenance cursor row is unverifiable instead of throwing`() = runTest {
 		installSchema()
 		val wal = insertWal("maintenance-invalid-range", 1L, payloadVersion = 7)
@@ -1271,6 +1524,8 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 					"UPDATE steps_count_domain_owner_revision SET operation = 'BIND'",
 				"UPDATE steps_count_domain_owner_revision SET linked_at_ms = 'bad'" to
 					"UPDATE steps_count_domain_owner_revision SET linked_at_ms = 1",
+				"UPDATE steps_count_domain_receipt SET coverage_version = 4294967297" to
+					"UPDATE steps_count_domain_receipt SET coverage_version = 7",
 				"UPDATE source_event_wal SET created_at_ms = 'bad'" to
 					"UPDATE source_event_wal SET created_at_ms = 1",
 				"UPDATE source_event_wal SET source_kind = '3x'" to
@@ -1735,6 +1990,38 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		)
 		val ordinal = database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(signed)
 		return signed.copy(admissionOrdinal = ordinal)
+	}
+
+	private fun insertAmbientUnprovenOwnerHistory(
+		digit: Char,
+		revisionCount: Int,
+	): StepsCountDomainOwnerLookupKey {
+		require(digit in '0'..'9' || digit in 'a'..'f')
+		require(revisionCount > 0)
+		val identity = "sha256:${digit.toString().repeat(64)}"
+		val scopeDigit = if (digit == 'f') 'e' else 'f'
+		val scope = "sha256:${scopeDigit.toString().repeat(64)}"
+		val sqlite = database.openHelper.writableDatabase
+		repeat(revisionCount) { index ->
+			val revision = index.toLong() + 1L
+			val checksumDigit = (index % 16).toString(16)
+			sqlite.execSQL(
+				"INSERT INTO steps_count_domain_owner_revision VALUES " +
+					"('AMBIENT_FACT', ?, ?, ?, 'UNPROVEN', NULL, ?, ?)",
+				arrayOf(
+					scope,
+					identity,
+					revision,
+					checksumDigit.repeat(64),
+					revision,
+				),
+			)
+		}
+		return StepsCountDomainOwnerLookupKey(
+			ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
+			ownerIdentity = identity,
+			ownerRevision = revisionCount.toLong(),
+		)
 	}
 
 	private fun token(digit: Char) =

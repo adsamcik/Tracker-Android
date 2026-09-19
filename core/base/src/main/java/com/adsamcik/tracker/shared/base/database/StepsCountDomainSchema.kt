@@ -346,10 +346,29 @@ object StepsCountDomainSchema {
 		requireTriggers: Boolean,
 		authorityNamespace: AuthorityNamespace,
 	): Boolean {
+		val expectedPermanentTriggers = if (requireTriggers) {
+			EXPECTED_TRIGGERS
+		} else {
+			emptySet()
+		}
+		val roomInvalidationTriggers = authorityNamespace.triggers.mapNotNull { trigger ->
+			trigger.authenticatedRoomInvalidationTriggerOrNull()
+		}
+		if (!roomInvalidationTriggers.hasAuthenticRoomInvalidationSets(this)) return false
+		val expectedTriggers =
+			expectedPermanentTriggers + roomInvalidationTriggers.map(RoomInvalidationTrigger::trigger)
+		if (!authorityNamespace.triggers.hasExactDistinctElements(expectedTriggers)) return false
 		val expectedObjects = if (requireTriggers) {
 			EXPECTED_VALID_NAMED_OBJECTS
 		} else {
 			EXPECTED_SCAFFOLD_NAMED_OBJECTS
+		} + roomInvalidationTriggers.map { room ->
+			SchemaNamedObject(
+				catalog = room.trigger.catalog,
+				type = "trigger",
+				name = room.trigger.name,
+				table = room.trigger.table,
+			)
 		}
 		if (!authorityNamespace.objects.hasExactDistinctElements(expectedObjects)) return false
 		if (EXPECTED_TABLE_SQL.any { (table, expected) ->
@@ -362,11 +381,6 @@ object StepsCountDomainSchema {
 		if (!tableSql(OWNER_TABLE).hasDeferredForeignKey()) return false
 		if (!tableSql(COMPLETENESS_MARKER_TABLE).hasDeferredForeignKey()) return false
 		if (attachedIndexes() != EXPECTED_ALL_INDEXES) return false
-		if (requireTriggers) {
-			if (!authorityNamespace.triggers.hasExactDistinctElements(EXPECTED_TRIGGERS)) {
-				return false
-			}
-		} else if (authorityNamespace.triggers.isNotEmpty()) return false
 
 		val markerRows = authenticatedSchemaMarkers() ?: return false
 		return if (requireMarker) {
@@ -660,6 +674,113 @@ object StepsCountDomainSchema {
 			}
 		}
 		return null
+	}
+
+	private fun SchemaTrigger.authenticatedRoomInvalidationTriggerOrNull():
+		RoomInvalidationTrigger? {
+		if (catalog != TEMP_CATALOG ||
+			targetCatalog != MAIN_CATALOG ||
+			table !in AUTHORITY_TABLE_NAMES
+		) {
+			return null
+		}
+		val operation = ROOM_INVALIDATION_OPERATIONS.singleOrNull { candidate ->
+			name == "$ROOM_INVALIDATION_TRIGGER_PREFIX${table}_$candidate"
+		} ?: return null
+		val tableId = sql.roomInvalidationTableIdOrNull() ?: return null
+		val expectedBody =
+			"TRIGGER IF NOT EXISTS `$name` AFTER $operation ON `$table` BEGIN UPDATE " +
+				"$ROOM_INVALIDATION_LOG_TABLE SET invalidated = 1 WHERE table_id = $tableId " +
+				"AND invalidated = 0; END"
+		val expectedSql = listOf(
+			"CREATE TEMP $expectedBody",
+			"CREATE $expectedBody",
+		).mapNotNull { candidate -> candidate.normalizedSql() }
+		if (sql !in expectedSql) return null
+		return RoomInvalidationTrigger(this, operation, tableId)
+	}
+
+	private fun List<RoomInvalidationTrigger>.hasAuthenticRoomInvalidationSets(
+		database: SupportSQLiteDatabase,
+	): Boolean {
+		if (isEmpty()) return true
+		val groups = groupBy { trigger -> trigger.trigger.table }
+		if (groups.any { (_, triggers) ->
+				triggers.map(RoomInvalidationTrigger::operation).toSet() !=
+					ROOM_INVALIDATION_OPERATIONS ||
+					triggers.map(RoomInvalidationTrigger::tableId).distinct().size != 1
+			}
+		) {
+			return false
+		}
+		val tableIds = groups.values.map { triggers -> triggers.first().tableId }
+		if (tableIds.distinct().size != tableIds.size) return false
+		if (!database.hasExactRoomInvalidationLogTable()) return false
+		val placeholders = List(tableIds.size) { "?" }.joinToString()
+		var valid = true
+		val storedRows = database.query(
+			"SELECT table_id, invalidated FROM $TEMP_CATALOG.$ROOM_INVALIDATION_LOG_TABLE " +
+				"WHERE table_id IN ($placeholders) ORDER BY table_id LIMIT ${tableIds.size + 1}",
+			tableIds.toTypedArray(),
+		).use { cursor ->
+			mutableMapOf<Int, Int>().apply {
+				while (cursor.moveToNext()) {
+					if (
+						cursor.getType(0) != android.database.Cursor.FIELD_TYPE_INTEGER ||
+						cursor.getType(1) != android.database.Cursor.FIELD_TYPE_INTEGER
+					) {
+						valid = false
+						break
+					}
+					val tableId = cursor.getLong(0)
+					val invalidated = cursor.getLong(1)
+					if (
+						tableId !in 0L..Int.MAX_VALUE.toLong() ||
+						invalidated !in 0L..1L ||
+						put(tableId.toInt(), invalidated.toInt()) != null
+					) {
+						valid = false
+						break
+					}
+				}
+			}
+		}
+		return valid && storedRows.keys == tableIds.toSet()
+	}
+
+	private fun SupportSQLiteDatabase.hasExactRoomInvalidationLogTable(): Boolean {
+		val exactTable = query(
+			"SELECT type, name, tbl_name FROM sqlite_temp_master " +
+				"WHERE name = ? COLLATE BINARY LIMIT 2",
+			arrayOf(ROOM_INVALIDATION_LOG_TABLE),
+		).use { cursor ->
+			if (!cursor.moveToFirst()) return@use false
+			val matches = cursor.getString(0) == "table" &&
+				cursor.getString(1) == ROOM_INVALIDATION_LOG_TABLE &&
+				cursor.getString(2) == ROOM_INVALIDATION_LOG_TABLE
+			matches && !cursor.moveToNext()
+		}
+		if (!exactTable) return false
+		return query("PRAGMA $TEMP_CATALOG.table_info(`$ROOM_INVALIDATION_LOG_TABLE`)").use { cursor ->
+			val columns = buildList {
+				while (cursor.moveToNext()) {
+					add(
+						SchemaColumn(
+							name = cursor.getString(cursor.getColumnIndexOrThrow("name")),
+							type = cursor.getString(cursor.getColumnIndexOrThrow("type")).uppercase(),
+							notNull =
+								cursor.getInt(cursor.getColumnIndexOrThrow("notnull")) == 1,
+							primaryKeyPosition =
+								cursor.getInt(cursor.getColumnIndexOrThrow("pk")),
+							defaultValue = cursor.getColumnIndexOrThrow("dflt_value").let { index ->
+								if (cursor.isNull(index)) null else cursor.getString(index)
+							},
+						),
+					)
+				}
+			}
+			columns == ROOM_INVALIDATION_LOG_COLUMNS
+		}
 	}
 
 	private fun SupportSQLiteDatabase.databaseCatalogs(): List<DatabaseCatalog>? =
@@ -967,6 +1088,23 @@ object StepsCountDomainSchema {
 					}
 			}
 
+		fun roomInvalidationTableIdOrNull(): Int? {
+			val tableIdOffsets = tokens.indices.filter { offset ->
+				tokens[offset].identifierOrNull() == ROOM_INVALIDATION_TABLE_ID_COLUMN &&
+					tokens.getOrNull(offset + 1)?.text == "="
+			}
+			if (tableIdOffsets.size != 1) return null
+			val token = tokens.getOrNull(tableIdOffsets.single() + 2) ?: return null
+			if (token.kind != SqlTokenKind.NUMERIC_LITERAL ||
+				token.text.isEmpty() ||
+				token.text.any { character -> !character.isAsciiDigit() } ||
+				(token.text.length > 1 && token.text.startsWith('0'))
+			) {
+				return null
+			}
+			return token.text.toIntOrNull()?.takeIf { it >= 0 }
+		}
+
 		@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 		fun completeTriggerOrNull(): ParsedTriggerDefinition? {
 			if (hasTrailingComment) return null
@@ -1173,6 +1311,12 @@ object StepsCountDomainSchema {
 		val targetCatalog: String,
 		val table: String,
 		val sql: SqlCanonical,
+	)
+
+	private data class RoomInvalidationTrigger(
+		val trigger: SchemaTrigger,
+		val operation: String,
+		val tableId: Int,
 	)
 
 	private data class SchemaNamedObject(
@@ -1544,6 +1688,15 @@ object StepsCountDomainSchema {
 	private const val MAIN_CATALOG = "main"
 	private const val TEMP_CATALOG = "temp"
 	private const val AUTHORITY_TRIGGER_PREFIX = "trg_steps_count_domain_"
+	// Exact connection-local trigger contract emitted by Room 2.8.4 TriggerBasedInvalidationTracker.
+	private const val ROOM_INVALIDATION_TRIGGER_PREFIX = "room_table_modification_trigger_"
+	private const val ROOM_INVALIDATION_LOG_TABLE = "room_table_modification_log"
+	private const val ROOM_INVALIDATION_TABLE_ID_COLUMN = "table_id"
+	private val ROOM_INVALIDATION_OPERATIONS = setOf("INSERT", "UPDATE", "DELETE")
+	private val ROOM_INVALIDATION_LOG_COLUMNS = listOf(
+		SchemaColumn("table_id", "INTEGER", false, 1),
+		SchemaColumn("invalidated", "INTEGER", true, 0, "0"),
+	)
 	private val AUTHORITY_TABLE_NAMES = listOf(
 		RECEIPT_TABLE,
 		OWNER_TABLE,

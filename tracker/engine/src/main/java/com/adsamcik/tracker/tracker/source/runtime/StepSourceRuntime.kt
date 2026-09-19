@@ -169,7 +169,8 @@ class StepSourceRuntime @Inject constructor(
 			val previous = shutdownLocked(null)
 			stopAck = previous
 			if (!previous.appDrainComplete ||
-				previous.registrationRemovalOutcome != RegistrationRemovalOutcome.REMOVED
+				previous.registrationRemovalOutcome != RegistrationRemovalOutcome.REMOVED ||
+				!previous.hasTerminalStepsRetirement()
 			) {
 				return SourceApplyResult.Failed(
 					appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()),
@@ -786,14 +787,19 @@ class StepSourceRuntime @Inject constructor(
 			retainProviderForRetirementRetry(retainActor = !actorSettled)
 			throw failure
 		}
-		if (ack.hasTerminalStepsRetirement()) {
+		val settledAck = if (ack.hasTerminalStepsRetirement() && !terminal.checkpointConfirmed) {
+			ack.withTerminalCheckpointPending()
+		} else {
+			ack
+		}
+		if (terminal.checkpointConfirmed && ack.hasTerminalStepsRetirement()) {
 			terminalStopAck = ack
 			clearActiveState()
 		} else {
 			retainProviderForRetirementRetry(retainActor = !actorSettled)
 		}
 		terminalFailure?.let { throw it }
-		return ack
+		return settledAck
 	}
 
 	private suspend fun retryPendingRetirementLocked(
@@ -854,13 +860,19 @@ class StepSourceRuntime @Inject constructor(
 				throw failure
 			}
 		}
-		if (ack.hasTerminalStepsRetirement() && terminal?.checkpointConfirmed != false) {
+		val checkpointConfirmed = terminal?.checkpointConfirmed == true
+		val settledAck = if (!ack.hasTerminalStepsRetirement() || checkpointConfirmed) {
+			ack
+		} else {
+			ack.withTerminalCheckpointPending()
+		}
+		if (ack.hasTerminalStepsRetirement() && checkpointConfirmed) {
 			terminalStopAck = ack
 			clearActiveState()
 		} else {
 			retainProviderForRetirementRetry(retainActor = !actorSettled)
 		}
-		return ack
+		return settledAck
 	}
 
 	private suspend fun retireProviderRegistration(
@@ -1610,7 +1622,7 @@ class StepSourceRuntime @Inject constructor(
 		causalOrderElapsedRealtimeNanos: Long,
 		admission: RuntimeAdmissionSnapshot,
 		ack: SourceStopAck,
-	) {
+	): SourceRuntimeStateSaveResult {
 		val saved = registrations.loadRuntimeState(activeRegistration)
 		val boundary = StepBaselineBoundary(
 			activeRegistration.state.registrationGeneration,
@@ -1622,7 +1634,7 @@ class StepSourceRuntime @Inject constructor(
 			?.takeIf {
 				decodeStepBaseline(it.componentPayload, it.componentStateVersion, boundary) != null
 			}
-		registrations.saveSensorRuntimeCheckpoint(
+		return registrations.saveSensorRuntimeCheckpoint(
 			activeRegistration,
 			lastProviderSequence,
 			SensorRuntimeCheckpoint(
@@ -1646,11 +1658,12 @@ class StepSourceRuntime @Inject constructor(
 
 	private suspend fun settleTerminalCheckpoint(intent: StepTerminalSettlementIntent) {
 		if (intent.checkpointConfirmed || !intent.ack.hasTerminalStepsRetirement()) return
+		var saveResult: SourceRuntimeStateSaveResult? = null
 		settleStepsTerminalProjection(
 			ack = intent.ack,
 			drainCanonicalThrough = stepsProjectionLane::drainCanonicalThrough,
 		) {
-			persistTerminalCheckpoint(
+			saveResult = persistTerminalCheckpoint(
 				activeRegistration = intent.registration,
 				lastProviderSequence = intent.barrier,
 				lifecycle = intent.lifecycle,
@@ -1659,7 +1672,7 @@ class StepSourceRuntime @Inject constructor(
 				ack = intent.ack,
 			)
 		}
-		intent.checkpointConfirmed = true
+		intent.checkpointConfirmed = saveResult == SourceRuntimeStateSaveResult.Saved
 	}
 
 	private fun onFlushCompleted(callbackToken: StepCallbackToken, sensor: Sensor?) {
@@ -2352,6 +2365,9 @@ internal suspend fun settleStepsTerminalProjection(
 
 internal class StepsCanonicalCompletionPendingException :
 	IllegalStateException("Canonical Steps projection has not reached terminal admission")
+
+private fun SourceStopAck.withTerminalCheckpointPending(): SourceStopAck =
+	copy(status = SourceStopStatus.PROVIDER_FAILED)
 
 private fun SourceApplyResult.withStopAckIfAbsent(replay: SourceStopAck?): SourceApplyResult = when (this) {
 	is SourceApplyResult.Applied -> copy(stopAck = stopAck ?: replay)
