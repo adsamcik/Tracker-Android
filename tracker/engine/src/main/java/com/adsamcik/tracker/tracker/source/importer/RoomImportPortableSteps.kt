@@ -430,16 +430,26 @@ internal class RoomImportPortableSteps internal constructor(
 			return ImportPortableStepsResult.OutsideRetention
 		}
 		val graphDao = database.importedPortableStepsCountDomainDao()
-		val graphFences = graphDao.ownerFences(
-			graph.roots.map { it.ownerIdentity.value }.distinct(),
-			graph.roots.size + 1,
-		)
+		val graphOwnerIdentities = graph.roots.map { it.ownerIdentity.value }.distinct()
+		val graphFences = graphOwnerIdentities.chunked(GRAPH_QUERY_BATCH_SIZE).flatMap { identities ->
+			graphDao.ownerFences(identities, identities.size + 1)
+		}
 		if (graphFences.isNotEmpty()) return ImportPortableStepsResult.DeletedScope
 		val existing = database.importedStepsDao().entry(entry.identity.value)
-		val existingRoots = graphDao.rootsForOwners(
-			graph.roots.map { it.ownerIdentity.value }.distinct(),
-			MAX_IMPORTED_ROOT_LOOKUP + 1,
-		)
+		val existingRoots = mutableListOf<
+			com.adsamcik.tracker.shared.base.database.data
+				.ImportedPortableStepsCountDomainRootEntity>()
+		graphOwnerIdentities.chunked(GRAPH_QUERY_BATCH_SIZE).forEach { identities ->
+			existingRoots += graphDao.rootsForOwners(
+				identities,
+				MAX_IMPORTED_ROOT_LOOKUP - existingRoots.size + 1,
+			)
+			if (existingRoots.size > MAX_IMPORTED_ROOT_LOOKUP) {
+				return ImportPortableStepsResult.Unverifiable(
+					PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
+				)
+			}
+		}
 		if (existingRoots.size > MAX_IMPORTED_ROOT_LOOKUP) {
 			return ImportPortableStepsResult.Unverifiable(
 				PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
@@ -640,6 +650,7 @@ internal class RoomImportPortableSteps internal constructor(
 		)
 		const val IMPORTED_PRODUCT_REVISION = 1L
 		const val MAX_IMPORTED_ROOT_LOOKUP = 131_072
+		const val GRAPH_QUERY_BATCH_SIZE = 256
 	}
 }
 

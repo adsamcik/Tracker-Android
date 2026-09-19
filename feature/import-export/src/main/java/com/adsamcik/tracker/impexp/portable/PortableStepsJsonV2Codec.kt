@@ -20,6 +20,7 @@ import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStream
 import java.io.OutputStreamWriter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
@@ -43,7 +44,7 @@ internal class PortableStepsJsonV2Codec {
 					candidate.format,
 					candidate.schemaVersion,
 					candidate.contentChecksum,
-					candidate.entries.toList(),
+					candidate.entries.map(PortableStepsEntryV2::snapshot),
 				)
 			},
 		)
@@ -108,6 +109,8 @@ internal class PortableStepsJsonV2Codec {
 				entries = entries ?: fail("Missing Portable Steps v2 entries"),
 			)
 			PortableStepsDecodedArchiveV2(archive, archive.metadata(bytes.size.toLong()))
+		} catch (cancelled: CancellationException) {
+			throw cancelled
 		} catch (failure: PortableStepsJsonException) {
 			throw failure
 		} catch (failure: IOException) {
@@ -192,6 +195,23 @@ internal class PortableStepsJsonV2Codec {
 		) { entry -> entries += entry }
 		return entries.singleOrNull() ?: fail("Portable Steps v2 product must contain one v1 entry")
 	}
+
+	private fun PortableStepsEntryV2.snapshot(): PortableStepsEntryV2 = PortableStepsEntryV2(
+		product = product.copy(
+			runs = product.runs.map { run ->
+				run.copy(
+					manifests = run.manifests.map { it.copy() },
+					facts = run.facts.map { it.copy() },
+				)
+			},
+		),
+		countDomainGraph = countDomainGraph.copy(
+			receipts = countDomainGraph.receipts.map { it.copy() },
+			ownerRevisions = countDomainGraph.ownerRevisions.map { it.copy() },
+			completenessMarkers = countDomainGraph.completenessMarkers.map { it.copy() },
+			roots = countDomainGraph.roots.map { it.copy() },
+		),
+	)
 
 	private fun PortableStepsArchiveV2.metadata(byteCount: Long): PortableStepsImportMetadataV2 =
 		PortableStepsImportMetadataV2(

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
@@ -59,7 +60,9 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			),
 		)
 
-		database.preserveImportedPortableCountDomainFullClearFences(8L, 9L)
+		database.withTransaction {
+			database.preserveImportedPortableCountDomainFullClearFences(8L, 9L)
+		}
 
 		dao.graph(graph.identity.value) shouldBe null
 		dao.ownerFences(

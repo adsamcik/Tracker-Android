@@ -254,11 +254,10 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		val ownerFences = if (incomingOwnerIdentities.isEmpty()) {
 			emptyList()
 		} else {
-			storedValue {
-				graphDao.ownerFences(
-					incomingOwnerIdentities,
-					incomingOwnerIdentities.size + 1,
-				)
+			incomingOwnerIdentities.chunked(IDENTITY_QUERY_CHUNK_SIZE).flatMap { identities ->
+				storedValue {
+					graphDao.ownerFences(identities, identities.size + 1)
+				}
 			}
 		}
 		if (ownerFences.isNotEmpty()) {
@@ -267,13 +266,23 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		val existingPortableRoots = if (incomingOwnerIdentities.isEmpty()) {
 			emptyList()
 		} else {
-			storedValue {
-				graphDao.rootsForOwners(
-					incomingOwnerIdentities,
+			val result = mutableListOf<
+				com.adsamcik.tracker.shared.base.database.data
+					.ImportedPortableStepsCountDomainRootEntity>()
+			incomingOwnerIdentities.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { identities ->
+				result += storedValue {
+					graphDao.rootsForOwners(
+						identities,
+						com.adsamcik.tracker.shared.model.steps.portable
+							.PortableCountDomainFormatV2.MAX_ROOTS - result.size + 1,
+					)
+				}
+				if (result.size >
 					com.adsamcik.tracker.shared.model.steps.portable
-						.PortableCountDomainFormatV2.MAX_ROOTS + 1,
-				)
+						.PortableCountDomainFormatV2.MAX_ROOTS
+				) dependencyOverflow()
 			}
+			result
 		}
 		if (existingPortableRoots.size >
 			com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainFormatV2.MAX_ROOTS

@@ -58,6 +58,17 @@ data class PortableStepsArchiveV2(
 		require(entries.size <= StepsPortableFormatV2.MAX_ENTRIES)
 		require(entries == entries.sortedWith(PORTABLE_STEPS_ENTRY_V2_ORDER))
 		require(entries.map { it.product.identity }.distinct().size == entries.size)
+		val runs = entries.flatMap { it.product.runs }
+		val facts = runs.flatMap(PortableStepsRunV1::facts)
+		require(runs.map(PortableStepsRunV1::identity).distinct().size == runs.size)
+		require(
+			runs.map(PortableStepsRunV1::deletionScopeDigest).distinct().size == runs.size,
+		)
+		require(facts.map(PortableStepsFactV1::identity).distinct().size == facts.size)
+		val ownerLineages = entries.flatMap { it.countDomainGraph.roots }.map {
+			it.ownerKind to it.ownerIdentity
+		}
+		require(ownerLineages.distinct().size == ownerLineages.size)
 		require(contentChecksum == PortableStepsV2Integrity.archiveChecksum(entries))
 	}
 

@@ -177,8 +177,8 @@ internal class RoomStepsCountDomainCompatibilityQuery @Inject constructor(
 	}
 
 	private companion object {
-		const val MAX_IMPORTED_ROOT_LOOKUP = 4_096
-		const val MAX_IMPORTED_GRAPH_LOOKUP = 1_024
+		const val MAX_IMPORTED_ROOT_LOOKUP = 8_192
+		const val MAX_IMPORTED_GRAPH_LOOKUP = 4_096
 	}
 }
 

@@ -54,7 +54,10 @@ object ImportedPortableStepsCountDomainAuthenticator {
 						::PortableCountDomainDigest,
 					),
 				)
-			},
+			}.sortedWith(
+				com.adsamcik.tracker.shared.model.steps.portable
+					.PORTABLE_COUNT_DOMAIN_RECEIPT_ORDER,
+			),
 			ownerRevisions = owners.map { row ->
 				PortableCountDomainOwnerRevisionV2(
 					ownerKind = PortableCountDomainOwnerKind.valueOf(row.ownerKind),
@@ -66,7 +69,9 @@ object ImportedPortableStepsCountDomainAuthenticator {
 					ownerEffectChecksum = PortableCountDomainDigest(row.ownerEffectChecksum),
 					linkedAtMs = row.sourceLinkedAtMs,
 				)
-			},
+			}.sortedWith(
+				com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_COUNT_DOMAIN_OWNER_ORDER,
+			),
 			completenessMarkers = markers.map { row ->
 				PortableCountDomainCompletenessMarkerV2(
 					ownerIdentity = PortableCountDomainOpaqueIdentity(row.ownerIdentity),
@@ -80,7 +85,9 @@ object ImportedPortableStepsCountDomainAuthenticator {
 						PortableCountDomainDigest(row.registrationTimelineChecksum),
 					evidenceChecksum = PortableCountDomainDigest(row.evidenceChecksum),
 				)
-			},
+			}.sortedWith(
+				com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_COUNT_DOMAIN_MARKER_ORDER,
+			),
 			roots = roots.map { row ->
 				PortableCountDomainRootV2(
 					containerIdentity = PortableCountDomainOpaqueIdentity(row.containerIdentity),
@@ -89,7 +96,9 @@ object ImportedPortableStepsCountDomainAuthenticator {
 					ownerIdentity = PortableCountDomainOpaqueIdentity(row.ownerIdentity),
 					ownerRevision = row.ownerRevision,
 				)
-			},
+			}.sortedWith(
+				com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_COUNT_DOMAIN_ROOT_ORDER,
+			),
 		)
 		require(portable.receipts == portable.receipts.sortedWith(
 			com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_COUNT_DOMAIN_RECEIPT_ORDER,

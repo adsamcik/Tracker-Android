@@ -44,7 +44,6 @@ internal data class PortableStepsImportDependencies(
 
 /** Strict `.trackersteps` adapter; the codec and source-local command retain their own authority. */
 internal class PortableStepsFileImport(
-	private val importerProvider: ((Context) -> ImportPortableSteps)? = null,
 	private val dependenciesProvider: (Context) -> PortableStepsImportDependencies = { context ->
 		val entryPoint = EntryPointAccessors.fromApplication(
 			context.applicationContext,
@@ -56,6 +55,7 @@ internal class PortableStepsFileImport(
 			v2Importer = entryPoint.importPortableStepsV2(),
 		)
 	},
+	private val importerProvider: ((Context) -> ImportPortableSteps)? = null,
 ) : FileImport {
 	override val supportedExtensions: Collection<String> = listOf(EXTENSION)
 

@@ -348,6 +348,14 @@ data class PortableCountDomainGraphV2(
 			require(lineage.dropLast(1).none {
 				it.operation == PortableCountDomainOperation.RETRACT
 			})
+			require(lineage.dropLast(1).none {
+				it.ownerKind == PortableCountDomainOwnerKind.SESSION_COMPLETENESS &&
+					it.operation == PortableCountDomainOperation.BIND
+			})
+			require(lineage.dropLast(1).none {
+				it.ownerKind != PortableCountDomainOwnerKind.AMBIENT_FACT &&
+					it.operation == PortableCountDomainOperation.UNPROVEN
+			})
 		}
 		val referencedReceipts = ownerRevisions.mapNotNull { owner ->
 			val receiptIdentity = owner.receiptIdentity ?: return@mapNotNull null

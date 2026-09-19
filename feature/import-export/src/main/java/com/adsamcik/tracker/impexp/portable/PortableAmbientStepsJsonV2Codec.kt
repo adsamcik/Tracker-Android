@@ -16,6 +16,7 @@ import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStream
 import java.io.OutputStreamWriter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
@@ -39,7 +40,7 @@ internal class PortableAmbientStepsJsonV2Codec {
 					candidate.format,
 					candidate.schemaVersion,
 					candidate.contentChecksum,
-					candidate.days.toList(),
+					candidate.days.map(PortableAmbientStepsDayV2::snapshot),
 				)
 			},
 		)
@@ -112,6 +113,8 @@ internal class PortableAmbientStepsJsonV2Codec {
 				days = days ?: ambientFail("Missing Ambient Steps v2 days"),
 			)
 			PortableAmbientStepsDecodedArchiveV2(archive, archive.metadata(bytes.size.toLong()))
+		} catch (cancelled: CancellationException) {
+			throw cancelled
 		} catch (failure: PortableAmbientStepsFormatException) {
 			throw failure
 		} catch (failure: Exception) {
@@ -206,6 +209,21 @@ internal class PortableAmbientStepsJsonV2Codec {
 			.decode(ByteArrayInputStream(value.toByteArray(Charsets.UTF_8)))
 			.archive.days.singleOrNull()
 			?: ambientFail("Ambient Steps v2 product must contain one v1 day")
+
+	private fun PortableAmbientStepsDayV2.snapshot(): PortableAmbientStepsDayV2 =
+		PortableAmbientStepsDayV2(
+			product = product.copy(
+				partialCauses = product.partialCauses.toList(),
+				facts = product.facts.map { it.copy() },
+				gaps = product.gaps.map { it.copy() },
+			),
+			countDomainGraph = countDomainGraph.copy(
+				receipts = countDomainGraph.receipts.map { it.copy() },
+				ownerRevisions = countDomainGraph.ownerRevisions.map { it.copy() },
+				completenessMarkers = countDomainGraph.completenessMarkers.map { it.copy() },
+				roots = countDomainGraph.roots.map { it.copy() },
+			),
+		)
 
 	private fun PortableAmbientStepsArchiveV2.metadata(
 		byteCount: Long,

@@ -45,6 +45,14 @@ data class PortableAmbientStepsArchiveV2(
 		require(days.size <= AmbientStepsPortableFormatV2.MAX_DAYS)
 		require(days == days.sortedWith(PORTABLE_AMBIENT_STEPS_DAY_V2_ORDER))
 		require(days.map { it.product.identity }.distinct().size == days.size)
+		val facts = days.flatMap { it.product.facts }
+		val gaps = days.flatMap { it.product.gaps }
+		require(facts.map(PortableAmbientStepsFactV1::identity).distinct().size == facts.size)
+		require(gaps.map(PortableAmbientStepsGapV1::identity).distinct().size == gaps.size)
+		val ownerLineages = days.flatMap { it.countDomainGraph.roots }.map {
+			it.ownerKind to it.ownerIdentity
+		}
+		require(ownerLineages.distinct().size == ownerLineages.size)
 		require(contentChecksum == AmbientStepsPortableV2Integrity.archiveChecksum(days))
 	}
 
