@@ -1,6 +1,37 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-09-17
+Last updated: 2026-09-20
+
+## Authority and Steps P5 integration checkpoint
+
+Local `dev/v10` source head is
+`75fd24b934bec9aedd71e694ae0a6d2a976b4f02`. Three reviewed implementation chains are locally
+integrated as **IMPLEMENTED_UNVALIDATED**:
+
+| Area | Preserved reviewed evidence | Final local integration |
+| --- | --- | --- |
+| Retention authority | `ad234dd27c5dddd19b3fc1e5bd7a1ad66646e38c` at `handover/reviewed/ti-retention-authority-20260919`; local composed counterpart `352dc074bc7a45f536acd4bf7aa5ef87895bbdc0` | merge `9b81db5b00ec12c3a9c5bb507696fa0ab2d88db8` |
+| Caller authority | final accepted `484839083510d3ce8a828e171dc6575b02d92855` at `handover/reviewed/ti-caller-authority-20260919` | merge `79fa624417118fcaa67ad21915aca497451e05d4` |
+| Steps P5 count domain | source-reviewed `4ad78ef8086cade4aedd6963e0af7432fba0fe36` at `handover/reviewed/ti-steps-p5-source-20260919`; accepted assembled `bc43dd972ac8f1a63a37827cf7c2eaad90db5600` at `handover/reviewed/ti-steps-p5-assembled-20260919` | merge `75fd24b934bec9aedd71e694ae0a6d2a976b4f02` |
+
+The retention slice now supplies durable trusted-retention production, execution serialization,
+floor settlement/recovery, deletion-phase recovery, and exact Ambient retention identity. The
+caller slice now supplies engine-owned accepted authority, guarded fresh/replay dispatch,
+current-authority reads, lifecycle propagation, mutation leases, transactional compensation and
+fail-closed recovery. The Steps P5 slice now supplies native count-domain token, owner, receipt,
+compatibility, completeness, maintenance, pruning, retirement, legacy-WAL and full-clear
+authority. The exact caller and P5 work items are closed, and the P5 dependency on qualified Steps
+numeric/effect accounting is closed.
+
+This is not broad mission completion. Purpose publication, broker/provider ownership, portable
+Steps P5 adoption, Ambient execution/settings/export/product composition, remaining source
+verticals, shared product surfaces, scenarios and final convergence remain open. The next ready
+wave is dormant broker/provider bindings followed by separately authenticated portable Steps P5
+composition. Providers and writers remain off.
+
+No Gradle, compilation, tests, lint, Detekt, generated-schema, Room-drift, diff-check, device,
+battery, CI, release, or rollout validation ran for this checkpoint. Generated v28 JSON remains
+deferred, and no provider/writer activation is authorized.
 
 ## Development-v28 containment checkpoint
 

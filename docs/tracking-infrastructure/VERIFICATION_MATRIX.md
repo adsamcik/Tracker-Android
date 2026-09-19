@@ -1,6 +1,36 @@
 # Tracking Infrastructure Verification Matrix
 
-Last updated: 2026-09-17
+Last updated: 2026-09-20
+
+## TI-B344 - Retention, caller and Steps P5 static integration receipt
+
+- Retention review evidence is
+  `ad234dd27c5dddd19b3fc1e5bd7a1ad66646e38c` at
+  `refs/heads/handover/reviewed/ti-retention-authority-20260919`. The local composed counterpart is
+  merge parent `352dc074bc7a45f536acd4bf7aa5ef87895bbdc0`; merge
+  `9b81db5b00ec12c3a9c5bb507696fa0ab2d88db8` records the integration.
+- Caller review evidence is the final accepted tip
+  `484839083510d3ce8a828e171dc6575b02d92855` at
+  `refs/heads/handover/reviewed/ti-caller-authority-20260919`. It is the second parent of merge
+  `79fa624417118fcaa67ad21915aca497451e05d4`.
+- Steps source review evidence is `4ad78ef8086cade4aedd6963e0af7432fba0fe36` at
+  `refs/heads/handover/reviewed/ti-steps-p5-source-20260919`. Its composed source counterpart is
+  `1b33697104`; subsequent accepted storage/maintenance corrections end at
+  `bc43dd972ac8f1a63a37827cf7c2eaad90db5600`, preserved at
+  `refs/heads/handover/reviewed/ti-steps-p5-assembled-20260919`.
+  `bc43dd972ac8f1a63a37827cf7c2eaad90db5600` is the second parent of merge
+  `75fd24b934bec9aedd71e694ae0a6d2a976b4f02`.
+- Static accounting closes the exact trusted-retention producer/recovery slice,
+  `WI-SOURCE-CALLER-GUARD-001`, `WI-STEPS-AMBIENT-P5-RECEIPT-001`, and the P5 dependency of
+  `WI-STEPS-NUMERIC-001`. Broad authority, privacy, Ambient Steps, provider, product and assembly
+  gates remain open.
+- Status: **IMPLEMENTED_UNVALIDATED / STATIC REVIEW CLOSED / LOCALLY INTEGRATED** for only the
+  named slices.
+- No Gradle, compilation, tests, lint, Detekt, generated-schema, Room-drift, diff-check,
+  emulator/device, battery, CI, release, or rollout validation was run. Generated v28 JSON remains
+  deferred. Provider/writer activation remains unauthorized.
+- Next implementation evidence expected, not yet authored by this receipt: dormant broker/provider
+  bindings and portable-domain Steps P5 adoption without imported/native authority crossover.
 
 ## TI-B343 - Definitive review00a correction sources, execution deferred
 
