@@ -541,17 +541,17 @@ data class RetentionFloorExecutorDebt(
 		require(executorWorkerKind in RetentionFloorDestructivePlan.WORKER_KINDS)
 		require(planWorkerKind != executorWorkerKind)
 	}
+}
 
-	data class RetentionFloorExecutionOwnerDebt(
-		val operationId: String,
-		val ownerExecutionId: String,
-		val requestedExecutionId: String,
-	) {
-		init {
-			require(operationId.isNotBlank())
-			require(ownerExecutionId.isNotBlank())
-			require(requestedExecutionId.isNotBlank())
-			require(ownerExecutionId != requestedExecutionId)
-		}
+data class RetentionFloorExecutionOwnerDebt(
+	val operationId: String,
+	val ownerExecutionId: String,
+	val requestedExecutionId: String,
+) {
+	init {
+		require(operationId.isNotBlank())
+		require(ownerExecutionId.isNotBlank())
+		require(requestedExecutionId.isNotBlank())
+		require(ownerExecutionId != requestedExecutionId)
 	}
 }

@@ -15,7 +15,6 @@ import com.adsamcik.tracker.app.maintenance.PeriodicAmbientRetentionResult
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlement
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementCompletionResult
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementResult
-import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.app.maintenance.RetentionWorkExecutionCoordinator
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -98,6 +97,8 @@ class DataRetentionWorker @AssistedInject constructor(
 		}) {
 			is RetentionWorkExecutionStartResult.Open -> started.receipt
 			is RetentionWorkExecutionStartResult.Retryable -> return Result.retry()
+			RetentionWorkExecutionStartResult.AlreadyCompleted,
+			RetentionWorkExecutionStartResult.AbandonedByCancellation,
 			RetentionWorkExecutionStartResult.SupersededByFullDeletion ->
 				return Result.success()
 		}
@@ -119,6 +120,7 @@ class DataRetentionWorker @AssistedInject constructor(
 				)
 			) {
 				RetentionWorkExecutionCompletionResult.Completed,
+				RetentionWorkExecutionCompletionResult.AbandonedByCancellation,
 				RetentionWorkExecutionCompletionResult.SupersededByFullDeletion,
 				-> Result.success()
 				is RetentionWorkExecutionCompletionResult.Retryable -> Result.retry()
@@ -190,6 +192,8 @@ class DataRetentionWorker @AssistedInject constructor(
 		) {
 			is RetentionWorkExecutionPlanResult.Attached ->
 				requireNotNull(attached.receipt.destructivePlan)
+			RetentionWorkExecutionPlanResult.AbandonedByCancellation ->
+				return Result.success()
 			is RetentionWorkExecutionPlanResult.Retryable -> return Result.retry()
 		}
 		val requestedFloor = requireNotNull(destructivePlan.requestedRetainedFromMs)
@@ -355,25 +359,6 @@ class DataRetentionWorker @AssistedInject constructor(
 
     companion object {
         private const val ONE_YEAR_MILLIS: Long = 365L * 24L * 60L * 60L * 1000L
-
-        /** Schedule weekly cleanup with unique work policy. */
-        fun ensureScheduled(context: Context) {
-            RetentionPipelineWorker.ensureScheduled(context)
-        }
-
-        /** Cancel scheduled cleanup. */
-        fun cancel(context: Context) {
-            RetentionPipelineWorker.cancel(context)
-        }
-
-        internal fun syncScheduling(context: Context, enabled: Boolean) {
-            try {
-                if (enabled) ensureScheduled(context) else cancel(context)
-            } catch (_: IllegalStateException) {
-                // WorkManager may not be initialized in tests; ignore the exception as before.
-                return
-            }
-        }
 
         @WorkerThread
         private fun yearsToMillis(years: Int): Long = years.coerceAtLeast(0) * ONE_YEAR_MILLIS

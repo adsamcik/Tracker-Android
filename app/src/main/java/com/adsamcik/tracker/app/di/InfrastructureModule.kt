@@ -2,6 +2,7 @@ package com.adsamcik.tracker.app.di
 
 import android.content.Context
 import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.work.WorkManager
 import com.adsamcik.tracker.app.tracebox.TrackerTraceboxHandleProvider
 import com.adsamcik.tracker.diagnostics.TrackingDiagnosticClearResult
 import com.adsamcik.tracker.diagnostics.TrackingDiagnosticDataControl
@@ -12,6 +13,7 @@ import com.adsamcik.tracker.app.settings.CollectedDataWriterQuiescer
 import com.adsamcik.tracker.app.settings.DefaultCollectedDataDeletionService
 import com.adsamcik.tracker.app.settings.DefaultCollectedDataWriterQuiescer
 import com.adsamcik.tracker.app.settings.PostDeletionAutomaticControlRestorer
+import com.adsamcik.tracker.app.maintenance.RetentionWorkScheduler
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityBootstrapCoordinator
 import com.adsamcik.tracker.app.receiver.BootTrackingRecoveryScheduler
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
@@ -178,6 +180,11 @@ object InfrastructureModule {
 
     @Provides
     @Singleton
+    fun provideWorkManager(@ApplicationContext context: Context): WorkManager =
+        WorkManager.getInstance(context)
+
+    @Provides
+    @Singleton
     fun provideDatabaseMigrationBackupRepository(
         @ApplicationContext context: Context,
     ): DatabaseMigrationBackupRepository = DatabaseMigrationBackupStore(context)
@@ -195,11 +202,13 @@ object InfrastructureModule {
         trackerStateReader: TrackerStateReader,
         activityWatcherController: ActivityWatcherController,
         exportAutomationController: ExportAutomationController,
+		retentionWorkScheduler: RetentionWorkScheduler,
     ): CollectedDataWriterQuiescer = DefaultCollectedDataWriterQuiescer(
         context = context,
         trackerStateReader = trackerStateReader,
         activityWatcherController = activityWatcherController,
         exportAutomationController = exportAutomationController,
+		retentionWorkScheduler = retentionWorkScheduler,
     )
 
     @Provides

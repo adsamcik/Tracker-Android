@@ -29,6 +29,9 @@ sealed interface RetentionWorkExecutionStartResult {
 		val receipt: RetentionWorkExecutionReceipt,
 	) : RetentionWorkExecutionStartResult
 
+	data object AlreadyCompleted : RetentionWorkExecutionStartResult
+	data object AbandonedByCancellation : RetentionWorkExecutionStartResult
+
 	data class Retryable(
 		val failure: RetentionWorkExecutionFailure,
 	) : RetentionWorkExecutionStartResult
@@ -58,6 +61,8 @@ sealed interface RetentionWorkExecutionPlanResult {
 		val receipt: RetentionWorkExecutionReceipt,
 	) : RetentionWorkExecutionPlanResult
 
+	data object AbandonedByCancellation : RetentionWorkExecutionPlanResult
+
 	data class Retryable(
 		val failure: RetentionWorkExecutionFailure,
 	) : RetentionWorkExecutionPlanResult
@@ -65,6 +70,7 @@ sealed interface RetentionWorkExecutionPlanResult {
 
 sealed interface RetentionWorkExecutionCompletionResult {
 	data object Completed : RetentionWorkExecutionCompletionResult
+	data object AbandonedByCancellation : RetentionWorkExecutionCompletionResult
 	data object SupersededByFullDeletion : RetentionWorkExecutionCompletionResult
 	data class Retryable(
 		val failure: RetentionWorkExecutionFailure,
@@ -96,12 +102,14 @@ suspend fun AppDatabase.beginOrResumeRetentionWorkExecution(
 		}
 	}
 	if (runAttemptCount > 0 && latest != null) {
-		return@withTransaction if (
-			latest.state == RetentionWorkExecutionReceiptEntity.STATE_SUPERSEDED
-		) {
-			RetentionWorkExecutionStartResult.SupersededByFullDeletion
-		} else {
-			RetentionWorkExecutionStartResult.Retryable(
+		return@withTransaction when (latest.state) {
+			RetentionWorkExecutionReceiptEntity.STATE_FINAL ->
+				RetentionWorkExecutionStartResult.AlreadyCompleted
+			RetentionWorkExecutionReceiptEntity.STATE_ABANDONED ->
+				RetentionWorkExecutionStartResult.AbandonedByCancellation
+			RetentionWorkExecutionReceiptEntity.STATE_SUPERSEDED ->
+				RetentionWorkExecutionStartResult.SupersededByFullDeletion
+			else -> RetentionWorkExecutionStartResult.Retryable(
 				RetentionWorkExecutionFailure.PreviousExecutionNotOpen(
 					workRequestId = workRequestId,
 					executionGeneration = latest.executionGeneration,
@@ -122,13 +130,7 @@ suspend fun AppDatabase.beginOrResumeRetentionWorkExecution(
 		null
 	}
 	if (legacyFinal != null && runAttemptCount > 0) {
-		return@withTransaction RetentionWorkExecutionStartResult.Retryable(
-			RetentionWorkExecutionFailure.PreviousExecutionNotOpen(
-				workRequestId = workRequestId,
-				executionGeneration = 0L,
-				state = legacyFinal.phase,
-			),
-		)
+		return@withTransaction RetentionWorkExecutionStartResult.AlreadyCompleted
 	}
 	val generation = try {
 		Math.addExact(latest?.executionGeneration ?: 0L, 1L)
@@ -194,6 +196,9 @@ suspend fun AppDatabase.attachRetentionDestructivePlan(
 				"MISSING",
 			),
 		)
+	if (current.state == RetentionWorkExecutionReceiptEntity.STATE_ABANDONED) {
+		return@withTransaction RetentionWorkExecutionPlanResult.AbandonedByCancellation
+	}
 	if (current.state != RetentionWorkExecutionReceiptEntity.STATE_OPEN) {
 		return@withTransaction RetentionWorkExecutionPlanResult.Retryable(
 			RetentionWorkExecutionFailure.PreviousExecutionNotOpen(
@@ -239,6 +244,8 @@ suspend fun AppDatabase.completeRetentionWorkExecution(
 	when (current.state) {
 		RetentionWorkExecutionReceiptEntity.STATE_FINAL ->
 			RetentionWorkExecutionCompletionResult.Completed
+		RetentionWorkExecutionReceiptEntity.STATE_ABANDONED ->
+			RetentionWorkExecutionCompletionResult.AbandonedByCancellation
 		RetentionWorkExecutionReceiptEntity.STATE_SUPERSEDED ->
 			RetentionWorkExecutionCompletionResult.SupersededByFullDeletion
 		RetentionWorkExecutionReceiptEntity.STATE_OPEN -> {
@@ -259,6 +266,26 @@ suspend fun AppDatabase.completeRetentionWorkExecution(
 				current.state,
 			),
 		)
+	}
+}
+
+/**
+ * Retires only WorkManager executions explicitly selected by an app-owned cancellation path.
+ * Process death and ordinary retry never call this transition and therefore keep OPEN resumable.
+ */
+suspend fun AppDatabase.abandonOpenRetentionWorkExecutions(
+	workRequestIds: Collection<String>,
+	abandonedAtMs: Long,
+): Int = withTransaction {
+	require(abandonedAtMs >= 0L)
+	val exactIds = workRequestIds.onEach { require(it.isNotBlank()) }.distinct()
+	if (exactIds.isEmpty()) {
+		0
+	} else {
+		val dao = retentionWorkExecutionReceiptDao()
+		exactIds.sumOf { workRequestId ->
+			dao.abandonOpenExecution(workRequestId, abandonedAtMs)
+		}
 	}
 }
 

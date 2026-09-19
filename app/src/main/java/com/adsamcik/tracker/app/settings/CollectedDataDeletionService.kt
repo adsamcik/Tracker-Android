@@ -16,6 +16,7 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFai
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailureReason
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
+import com.adsamcik.tracker.app.maintenance.RetentionWorkScheduler
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.impexp.importer.DataImporter
 import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
@@ -207,6 +208,7 @@ class DefaultCollectedDataWriterQuiescer(
 	private val trackerStateReader: TrackerStateReader,
 	private val activityWatcherController: ActivityWatcherController,
 	private val exportAutomationController: ExportAutomationController,
+	private val retentionWorkScheduler: RetentionWorkScheduler,
 	private val workManager: WorkManager = WorkManager.getInstance(context),
 	private val quiescenceTimeoutMs: Long = WRITER_QUIESCENCE_TIMEOUT_MS,
 	private val awaitTrackerQuiescence: suspend (Context) -> TrackingStopQuiescenceResult =
@@ -262,14 +264,7 @@ class DefaultCollectedDataWriterQuiescer(
 					PendingSignalDrainWork.cancel(context),
 					"pending-signal recovery",
 				)
-				awaitCancellation(
-					workManager.cancelUniqueWork(RetentionPipelineWorker.WORK_NAME),
-					"data retention",
-				)
-				awaitCancellation(
-					workManager.cancelUniqueWork(RetentionPipelineWorker.LEGACY_WORK_NAME),
-					"legacy data retention",
-				)
+				awaitRetentionCancellation()
 				awaitCancellation(
 					DatabaseMaintenanceWorker.cancel(context),
 					"database maintenance",
@@ -286,7 +281,7 @@ class DefaultCollectedDataWriterQuiescer(
 
 	override fun resume() {
 		if (restoreRetentionSchedule) {
-			RetentionPipelineWorker.ensureScheduled(context)
+			retentionWorkScheduler.resumeAfterQuiescence()
 		}
 		restoreRetentionSchedule = false
 		DailySummaryMaterializationWorker.schedule(context)
@@ -302,6 +297,19 @@ class DefaultCollectedDataWriterQuiescer(
 		} catch (error: Exception) {
 			throw DatabaseMigrationBackupException(
 				"Could not stop $writerName work",
+				error,
+			)
+		}
+	}
+
+	private suspend fun awaitRetentionCancellation() {
+		try {
+			retentionWorkScheduler.cancel()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (error: Exception) {
+			throw DatabaseMigrationBackupException(
+				"Could not stop data retention work",
 				error,
 			)
 		}

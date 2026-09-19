@@ -20,6 +20,7 @@ import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlement
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementCompletionResult
 import com.adsamcik.tracker.app.maintenance.RetentionFloorSettlementResult
 import com.adsamcik.tracker.app.maintenance.RetentionWorkExecutionCoordinator
+import com.adsamcik.tracker.app.maintenance.RetentionWorkScheduler
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionBlockedReason
 import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
@@ -72,6 +73,7 @@ import io.mockk.firstArg
 import io.mockk.mockk
 import io.mockk.secondArg
 import io.mockk.thirdArg
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -173,6 +175,27 @@ class DataRetentionWorkerTest {
 		coVerify(exactly = 0) { cellCapturedRetentionService.prune(any(), any(), any()) }
 		coVerify(exactly = 0) { wifiCapturedRetentionService.prune(any(), any(), any()) }
     }
+
+	@Test
+	fun `final execution retry succeeds without reopening legacy retention work`() =
+		runTest(testDispatcher) {
+			val coordinator = mockk<RetentionWorkExecutionCoordinator> {
+				coEvery { begin(any(), any(), any(), any(), any()) } returns
+					RetentionWorkExecutionStartResult.AlreadyCompleted
+			}
+			val settlement = mockk<RetentionFloorSettlement>(relaxed = true)
+
+			worker(
+				store = mockk(relaxed = true),
+				database = mockDatabase,
+				retentionFloorSettlement = settlement,
+				executionCoordinator = coordinator,
+			).doWork() shouldBe ListenableWorker.Result.success()
+
+			coVerify(exactly = 0) { coordinator.attachPlan(any(), any(), any()) }
+			coVerify(exactly = 0) { coordinator.complete(any(), any(), any()) }
+			coVerify(exactly = 0) { settlement.pendingOperation(any(), any()) }
+		}
 
 	@Test
 	fun `committed floor provider debt keeps durable worker retry ownership`() = runTest {
@@ -882,20 +905,35 @@ class DataRetentionWorkerTest {
 	}
 
     @Test
-    fun `ensureScheduled enqueues work and cancel removes active work`() {
+    fun `ensureScheduled enqueues work and cancel removes active work`() = runTest {
         val workManager = WorkManager.getInstance(context)
+		val database = AppDatabase.testDatabase(context)
+		val scheduler = RetentionWorkScheduler(Provider { database }, workManager)
+		try {
+			scheduler.cancel()
+			var works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
+			assertTrue(
+				"expected no active work, found ${works.map { it.state }}",
+				works.none {
+					it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING
+				},
+			)
 
-        DataRetentionWorker.cancel(context)
-        var works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
-        assertTrue("expected no active work, found ${works.map { it.state }}", works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING })
+			scheduler.ensureScheduled()
+			works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
+			assertTrue("expected scheduled work, found ${works.map { it.state }}", works.isNotEmpty())
 
-        DataRetentionWorker.ensureScheduled(context)
-        works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
-        assertTrue("expected scheduled work, found ${works.map { it.state }}", works.isNotEmpty())
-
-        DataRetentionWorker.cancel(context)
-        works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
-        assertTrue("expected cancellation, found ${works.map { it.state }}", works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING })
+			scheduler.cancel()
+			works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
+			assertTrue(
+				"expected cancellation, found ${works.map { it.state }}",
+				works.none {
+					it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING
+				},
+			)
+		} finally {
+			database.close()
+		}
     }
 
 	private fun worker(
@@ -909,6 +947,7 @@ class DataRetentionWorkerTest {
 		retentionFloorSettlement: RetentionFloorSettlement = retentionFloorSettlement(),
 		ambientRetention: PeriodicAmbientRetentionMaintenance =
 			periodicAmbientRetentionMaintenance,
+		executionCoordinator: RetentionWorkExecutionCoordinator = workExecutionCoordinator,
 	): DataRetentionWorker =
 		TestListenableWorkerBuilder<DataRetentionWorker>(context)
 			.setWorkerFactory(object : WorkerFactory() {
@@ -931,7 +970,7 @@ class DataRetentionWorkerTest {
 					wifiRetention,
 					retentionFloorSettlement,
 					ambientRetention,
-					workExecutionCoordinator,
+					executionCoordinator,
 				)
 			})
 			.build() as DataRetentionWorker

@@ -60,6 +60,19 @@ interface RetentionWorkExecutionReceiptDao {
 	@Query(
 		"""
 		UPDATE retention_work_execution_receipt
+		SET state = 'ABANDONED', updated_at_ms = MAX(updated_at_ms, :abandonedAtMs)
+		WHERE state = 'OPEN'
+			AND work_request_id = :workRequestId
+		""",
+	)
+	suspend fun abandonOpenExecution(
+		workRequestId: String,
+		abandonedAtMs: Long,
+	): Int
+
+	@Query(
+		"""
+		UPDATE retention_work_execution_receipt
 		SET state = 'SUPERSEDED', updated_at_ms = MAX(updated_at_ms, :updatedAtMs)
 		WHERE state = 'OPEN'
 		""",

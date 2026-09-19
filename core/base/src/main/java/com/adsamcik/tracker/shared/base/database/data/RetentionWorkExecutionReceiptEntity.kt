@@ -51,12 +51,14 @@ data class RetentionWorkExecutionReceiptEntity(
 		const val STATE_OPEN = "OPEN"
 		const val STATE_FINAL = "FINAL"
 		const val STATE_ACKNOWLEDGED = "ACKNOWLEDGED"
+		const val STATE_ABANDONED = "ABANDONED"
 		const val STATE_SUPERSEDED = "SUPERSEDED"
 
 		private val STATES = setOf(
 			STATE_OPEN,
 			STATE_FINAL,
 			STATE_ACKNOWLEDGED,
+			STATE_ABANDONED,
 			STATE_SUPERSEDED,
 		)
 	}

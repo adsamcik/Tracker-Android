@@ -5,9 +5,6 @@ import dev.tracebox.Tracebox
 import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.Time
@@ -43,7 +40,6 @@ import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionService
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
-import java.util.concurrent.TimeUnit
 import javax.inject.Provider
 
 @HiltWorker
@@ -88,6 +84,8 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		}) {
 			is RetentionWorkExecutionStartResult.Open -> started.receipt
 			is RetentionWorkExecutionStartResult.Retryable -> return Result.retry()
+			RetentionWorkExecutionStartResult.AlreadyCompleted,
+			RetentionWorkExecutionStartResult.AbandonedByCancellation,
 			RetentionWorkExecutionStartResult.SupersededByFullDeletion ->
 				return Result.success()
 		}
@@ -109,6 +107,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
 				)
 			) {
 				RetentionWorkExecutionCompletionResult.Completed,
+				RetentionWorkExecutionCompletionResult.AbandonedByCancellation,
 				RetentionWorkExecutionCompletionResult.SupersededByFullDeletion,
 				-> Result.success()
 				is RetentionWorkExecutionCompletionResult.Retryable -> Result.retry()
@@ -178,6 +177,8 @@ class RetentionPipelineWorker @AssistedInject constructor(
 			) {
 				is RetentionWorkExecutionPlanResult.Attached ->
 					requireNotNull(attached.receipt.destructivePlan)
+				RetentionWorkExecutionPlanResult.AbandonedByCancellation ->
+					return Result.success()
 				is RetentionWorkExecutionPlanResult.Retryable -> return Result.retry()
 			}
 			val requestedFloor = destructivePlan.requestedRetainedFromMs
@@ -746,27 +747,6 @@ class RetentionPipelineWorker @AssistedInject constructor(
 			)
 		}
 
-        fun ensureScheduled(context: Context) {
-            val workManager = WorkManager.getInstance(context)
-            workManager.cancelUniqueWork(LEGACY_WORK_NAME)
-            val request = PeriodicWorkRequestBuilder<RetentionPipelineWorker>(
-                7, TimeUnit.DAYS,
-            ).build()
-            workManager.enqueueUniquePeriodicWork(
-                WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
-                request,
-            )
-        }
-
-        fun cancel(context: Context) {
-            WorkManager.getInstance(context).run {
-                cancelUniqueWork(WORK_NAME)
-                cancelUniqueWork(LEGACY_WORK_NAME)
-            }
-        }
-
-        fun schedule(context: Context) = ensureScheduled(context)
     }
 
 	private object StartupGenerationChangedException : RuntimeException()

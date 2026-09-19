@@ -196,6 +196,34 @@ class CollectedDataDeletionOperationRoomTest {
 					runAttemptCount = 1,
 					startedAtMs = 1_200L,
 				) shouldBe RetentionWorkExecutionStartResult.Open(first)
+				database.retentionWorkExecutionReceiptDao().get(first.executionId)?.state shouldBe
+					"OPEN"
+				val firstPlan = RetentionFloorDestructivePlan(
+					workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+					requestedAtMs = 1_000L,
+					requestedRetainedFromMs = 500L,
+					rawRetentionCutoffMs = 500L,
+					sourceEventRetentionCutoffMs = 500L,
+					wifiCellRetentionCutoffMs = 500L,
+					tripRetentionCutoffMs = 500L,
+					dailySummaryRetentionCutoffDay = 0L,
+					explorationRetentionCutoffMs = 500L,
+					operationalRetentionCutoffMs = 500L,
+				)
+				database.collectedDataDeletionOperationDao().insert(
+					CollectedDataDeletionOperationEntity(
+						operationId = "periodic-operation-1",
+						targetCollectedDataEpoch = 0L,
+						retainedFromMs = 500L,
+						deletedAtMs = 1_000L,
+						phase = CollectedDataDeletionOperationEntity.PHASE_RETENTION_FINAL,
+						updatedAtMs = 1_300L,
+						retentionWorkExecutionId = first.executionId,
+						retentionDestructivePlan = firstPlan.encode(),
+						settledRetainedFromMs = 500L,
+						sourceMaintenanceAtMs = 1_000L,
+					),
+				)
 
 				database.completeRetentionWorkExecution(first, 1_300L) shouldBe
 					RetentionWorkExecutionCompletionResult.Completed
@@ -204,13 +232,14 @@ class CollectedDataDeletionOperationRoomTest {
 					RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
 					runAttemptCount = 1,
 					startedAtMs = 1_400L,
-				) shouldBe RetentionWorkExecutionStartResult.Retryable(
-					RetentionWorkExecutionFailure.PreviousExecutionNotOpen(
-						"periodic-work-1",
-						1L,
-						"FINAL",
-					),
-				)
+				) shouldBe RetentionWorkExecutionStartResult.AlreadyCompleted
+				database.retentionWorkExecutionReceiptDao().latest("periodic-work-1") shouldBe
+					database.retentionWorkExecutionReceiptDao().get(first.executionId)
+				database.retentionWorkExecutionReceiptDao().get(first.executionId)?.state shouldBe
+					"FINAL"
+				database.collectedDataDeletionOperationDao()
+					.get("periodic-operation-1")?.phase shouldBe
+					CollectedDataDeletionOperationEntity.PHASE_RETENTION_FINAL
 
 				val second = (
 					database.beginOrResumeRetentionWorkExecution(
@@ -223,6 +252,9 @@ class CollectedDataDeletionOperationRoomTest {
 				second.executionGeneration shouldBe 2L
 				database.retentionWorkExecutionReceiptDao().get(first.executionId)?.state shouldBe
 					"ACKNOWLEDGED"
+				database.collectedDataDeletionOperationDao()
+					.get("periodic-operation-1")?.phase shouldBe
+					CollectedDataDeletionOperationEntity.PHASE_RETENTION_ACKNOWLEDGED
 			} finally {
 				database.close()
 			}
@@ -255,7 +287,7 @@ class CollectedDataDeletionOperationRoomTest {
 						RetentionFloorDestructivePlan.WORKER_DATA_RETENTION,
 						runAttemptCount = 1,
 						startedAtMs = 2_200L,
-					).shouldBeInstanceOf<RetentionWorkExecutionStartResult.Retryable>()
+					) shouldBe RetentionWorkExecutionStartResult.AlreadyCompleted
 					database.collectedDataDeletionOperationDao().get("legacy-final")?.phase shouldBe
 						CollectedDataDeletionOperationEntity.PHASE_RETENTION_FINAL
 
@@ -271,6 +303,89 @@ class CollectedDataDeletionOperationRoomTest {
 					database.close()
 				}
 			}
+
+	@Test
+	fun `explicit cancellation abandons only matching open execution and allows compatible takeover`() =
+		runTest {
+			val context = ApplicationProvider.getApplicationContext<Application>()
+			val database = AppDatabase.testDatabase(context)
+			try {
+				val legacyOwner = (
+					database.beginOrResumeRetentionWorkExecution(
+						"legacy-cancelled-work",
+						RetentionFloorDestructivePlan.WORKER_DATA_RETENTION,
+						runAttemptCount = 0,
+						startedAtMs = 5_000L,
+					) as RetentionWorkExecutionStartResult.Open
+				).receipt
+				val unaffected = (
+					database.beginOrResumeRetentionWorkExecution(
+						"unaffected-work",
+						RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+						runAttemptCount = 0,
+						startedAtMs = 5_100L,
+					) as RetentionWorkExecutionStartResult.Open
+				).receipt
+				val plan = RetentionFloorDestructivePlan(
+					workerKind = RetentionFloorDestructivePlan.WORKER_DATA_RETENTION,
+					requestedAtMs = 5_200L,
+					requestedRetainedFromMs = 4_000L,
+					rawRetentionCutoffMs = 4_000L,
+					sourceEventRetentionCutoffMs = 4_000L,
+					wifiCellRetentionCutoffMs = 4_000L,
+					tripRetentionCutoffMs = 4_000L,
+					dailySummaryRetentionCutoffDay = null,
+					explorationRetentionCutoffMs = null,
+					operationalRetentionCutoffMs = null,
+				)
+				val attached = (
+					database.attachRetentionDestructivePlan(legacyOwner, plan) as
+						RetentionWorkExecutionPlanResult.Attached
+				).receipt
+				val operation = database.prepareOrResumeRetentionFloorSettlement(
+					operationId = "cancelled-owner-operation",
+					requestedRetainedFromMs = requireNotNull(plan.requestedRetainedFromMs),
+					collectedDataEpoch = 0L,
+					requestedAtMs = plan.requestedAtMs,
+					workExecutionId = attached.executionId,
+					destructivePlan = plan,
+				)
+
+				database.abandonOpenRetentionWorkExecutions(
+					workRequestIds = listOf(legacyOwner.workRequestId),
+					abandonedAtMs = 5_300L,
+				) shouldBe 1
+				database.retentionWorkExecutionReceiptDao().get(legacyOwner.executionId)?.state shouldBe
+					"ABANDONED"
+				database.retentionWorkExecutionReceiptDao().get(unaffected.executionId)?.state shouldBe
+					"OPEN"
+				database.beginOrResumeRetentionWorkExecution(
+					legacyOwner.workRequestId,
+					legacyOwner.workerKind,
+					runAttemptCount = 1,
+					startedAtMs = 5_400L,
+				) shouldBe RetentionWorkExecutionStartResult.AbandonedByCancellation
+				database.attachRetentionDestructivePlan(legacyOwner, plan) shouldBe
+					RetentionWorkExecutionPlanResult.AbandonedByCancellation
+				database.completeRetentionWorkExecution(legacyOwner, 5_400L) shouldBe
+					RetentionWorkExecutionCompletionResult.AbandonedByCancellation
+
+				val replacement = (
+					database.beginOrResumeRetentionWorkExecution(
+						"pipeline-takeover-work",
+						RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+						runAttemptCount = 0,
+						startedAtMs = 5_500L,
+					) as RetentionWorkExecutionStartResult.Open
+				).receipt
+				database.retentionFloorSettlementForExecution(replacement) shouldBe
+					RetentionFloorOperationLookupResult.Available(
+						operation.copy(workExecutionId = replacement.executionId),
+					)
+			} finally {
+				database.close()
+			}
+		}
 
 	@Test
 	fun `category only retry keeps the first immutable plan without manufacturing a lifecycle floor`() =

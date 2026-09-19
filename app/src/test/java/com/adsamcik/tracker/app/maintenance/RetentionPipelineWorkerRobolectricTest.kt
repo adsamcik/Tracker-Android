@@ -177,6 +177,28 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	@Test
+	fun `final execution retry succeeds without reopening retention work`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val coordinator = mockk<RetentionWorkExecutionCoordinator> {
+			coEvery { begin(any(), any(), any(), any(), any()) } returns
+				RetentionWorkExecutionStartResult.AlreadyCompleted
+		}
+		val settlement = mockk<RetentionFloorSettlement>(relaxed = true)
+
+		worker(
+			context = context,
+			store = mockk(relaxed = true),
+			db = mockk(relaxed = true),
+			retentionFloorSettlement = settlement,
+			workExecutionCoordinator = coordinator,
+		).doWork() shouldBe ListenableWorker.Result.success()
+
+		coVerify(exactly = 0) { coordinator.attachPlan(any(), any(), any()) }
+		coVerify(exactly = 0) { coordinator.complete(any(), any(), any()) }
+		coVerify(exactly = 0) { settlement.pendingOperation(any(), any()) }
+	}
+
+	@Test
 	fun `auto cleanup purges all supported retention tables`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val store = retentionStore(

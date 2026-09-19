@@ -1,11 +1,9 @@
 package com.adsamcik.tracker.maintenance
 
-import android.content.Context
-import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
+import com.adsamcik.tracker.app.maintenance.RetentionWorkScheduler
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigRead
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
@@ -16,16 +14,16 @@ import javax.inject.Singleton
 
 /**
  * Hilt singleton that observes the data-retention preference and keeps the
- * [RetentionPipelineWorker] WorkManager schedule in sync.
+ * retention WorkManager schedule in sync.
  *
  * Replaces the mutable companion-object approach that used static [Job] and
- * [CoroutineScope] fields.  Call [initialize] once from [Application.onCreate].
+ * [CoroutineScope] fields. Call [initialize] once during application startup.
  */
 @Singleton
 class DataRetentionScheduler @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val retentionConfigStore: RetentionConfigStore,
     @ApplicationScope private val appScope: CoroutineScope,
+	private val retentionWorkScheduler: RetentionWorkScheduler,
 ) {
     private var observationJob: Job? = null
 
@@ -49,10 +47,10 @@ class DataRetentionScheduler @Inject constructor(
             .launchIn(appScope)
     }
 
-    private fun syncScheduling(enabled: Boolean) {
+    private suspend fun syncScheduling(enabled: Boolean) {
         try {
-            if (enabled) RetentionPipelineWorker.ensureScheduled(context)
-            else RetentionPipelineWorker.cancel(context)
+            if (enabled) retentionWorkScheduler.ensureScheduled()
+            else retentionWorkScheduler.cancel()
         } catch (_: IllegalStateException) {
             return
         }
