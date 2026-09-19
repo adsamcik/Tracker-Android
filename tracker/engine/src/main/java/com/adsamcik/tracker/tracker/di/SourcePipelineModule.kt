@@ -13,9 +13,9 @@ import com.adsamcik.tracker.tracker.source.runtime.PressureSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.LocationSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.SerializedTrackingPurposeLeaseIssuer
 import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeMutationLeaseGuard
-import com.adsamcik.tracker.tracker.source.runtime.CellSourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.SharedCellSourceController
 import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
-import com.adsamcik.tracker.tracker.source.runtime.WifiSourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.SharedWifiSourceController
 import com.adsamcik.tracker.tracker.source.coordinator.ProtectedLocationSourceDrain
 import com.adsamcik.tracker.tracker.source.coordinator.RequiredProtectedLocationSourceDrain
 import com.adsamcik.tracker.tracker.source.coordinator.RoomSourceProductDrainRouter
@@ -75,11 +75,15 @@ object SourcePipelineModule {
 
 	@Provides
 	@IntoSet
-	fun provideWifiSourceRuntime(runtime: WifiSourceRuntime): ClaimedSourceRuntime<out SourcePlan> = runtime
+	fun provideWifiSourceRuntime(
+		runtime: SharedWifiSourceController,
+	): ClaimedSourceRuntime<out SourcePlan> = runtime
 
 	@Provides
 	@IntoSet
-	fun provideCellSourceRuntime(runtime: CellSourceRuntime): ClaimedSourceRuntime<out SourcePlan> = runtime
+	fun provideCellSourceRuntime(
+		runtime: SharedCellSourceController,
+	): ClaimedSourceRuntime<out SourcePlan> = runtime
 
 	@Provides
 	@Singleton
