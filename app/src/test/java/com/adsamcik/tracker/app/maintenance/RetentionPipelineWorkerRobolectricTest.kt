@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionBlockedRea
 import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
 import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
 import com.adsamcik.tracker.shared.base.database.RetentionFloorOperationLookupResult
+import com.adsamcik.tracker.shared.base.database.RetentionFloorSettlementDisposition
 import com.adsamcik.tracker.shared.base.database.RetentionFloorSettlementOperation
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionCompletionResult
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionContinuationResult
@@ -268,6 +269,9 @@ class RetentionPipelineWorkerRobolectricTest {
 			coEvery {
 				pendingOperation(any(), receipt, "expected-settlement")
 			} returns RetentionFloorOperationLookupResult.Available(null)
+			coEvery {
+				disposition(any(), "expected-settlement", 4L)
+			} returns RetentionFloorSettlementDisposition.Completed
 		}
 
 		worker(
@@ -279,6 +283,7 @@ class RetentionPipelineWorkerRobolectricTest {
 			inputData = workDataOf(
 				RetentionPipelineWorker.SETTLEMENT_OPERATION_ID_KEY to
 					"expected-settlement",
+				RetentionPipelineWorker.SETTLEMENT_COLLECTED_DATA_EPOCH_KEY to 4L,
 			),
 		).doWork() shouldBe ListenableWorker.Result.success()
 
@@ -287,6 +292,119 @@ class RetentionPipelineWorkerRobolectricTest {
 		}
 		coVerify(exactly = 0) { coordinator.attachPlan(any(), any(), any()) }
 		coVerify(exactly = 1) { coordinator.complete(any(), receipt, any()) }
+	}
+
+	@Test
+	fun `blocked startup retries an active exact settlement without consuming its finisher`() =
+		runTest {
+			val context = ApplicationProvider.getApplicationContext<Context>()
+			val receipt = RetentionWorkExecutionReceipt(
+				executionId = "blocked-finisher:g1",
+				workRequestId = "blocked-finisher",
+				executionGeneration = 1L,
+				workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+				startedAtMs = 1L,
+				state = "OPEN",
+				destructivePlan = null,
+				updatedAtMs = 1L,
+			)
+			val coordinator = mockk<RetentionWorkExecutionCoordinator> {
+				coEvery { begin(any(), any(), any(), any(), any()) } returns
+					RetentionWorkExecutionStartResult.Open(receipt)
+				coEvery { complete(any(), any(), any()) } returns
+					RetentionWorkExecutionCompletionResult.Completed
+			}
+			val settlement = mockk<RetentionFloorSettlement> {
+				coEvery {
+					disposition(any(), "blocked-active-settlement", 4L)
+				} returns RetentionFloorSettlementDisposition.Active
+			}
+			val blockedGate = mockk<TrackingStartupGate> {
+				every { isReady } returns false
+				every { currentGeneration } returns 7L
+				coEvery { reconcile(any()) } returns TrackingStartupResult.Blocked(
+					TrackingStartupStage.STORAGE,
+					"CONTAINED",
+				)
+			}
+
+			worker(
+				context = context,
+				store = retentionStore(RetentionConfigState()),
+				db = mockk(relaxed = true),
+				trackingStartupGate = blockedGate,
+				retentionFloorSettlement = settlement,
+				workExecutionCoordinator = coordinator,
+				inputData = workDataOf(
+					RetentionPipelineWorker.SETTLEMENT_OPERATION_ID_KEY to
+						"blocked-active-settlement",
+					RetentionPipelineWorker.SETTLEMENT_COLLECTED_DATA_EPOCH_KEY to 4L,
+				),
+			).doWork() shouldBe ListenableWorker.Result.retry()
+
+			coVerify(exactly = 1) {
+				settlement.disposition(any(), "blocked-active-settlement", 4L)
+			}
+			coVerify(exactly = 0) { settlement.pendingOperation(any(), any(), any()) }
+			coVerify(exactly = 0) { coordinator.complete(any(), any(), any()) }
+		}
+
+	@Test
+	fun `blocked startup exits only for the exact completed or superseded settlement`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val terminalCases: List<
+			Pair<RetentionFloorSettlementDisposition, RetentionWorkExecutionCompletionResult>
+		> = listOf(
+			RetentionFloorSettlementDisposition.Completed to
+				RetentionWorkExecutionCompletionResult.Completed,
+			RetentionFloorSettlementDisposition.SupersededByFullDeletion(5L) to
+				RetentionWorkExecutionCompletionResult.SupersededByFullDeletion,
+		)
+		terminalCases.forEachIndexed { index, (disposition, completion) ->
+			val receipt = RetentionWorkExecutionReceipt(
+				executionId = "terminal-finisher-$index:g1",
+				workRequestId = "terminal-finisher-$index",
+				executionGeneration = 1L,
+				workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+				startedAtMs = 1L,
+				state = "OPEN",
+				destructivePlan = null,
+				updatedAtMs = 1L,
+			)
+			val coordinator = mockk<RetentionWorkExecutionCoordinator> {
+				coEvery { begin(any(), any(), any(), any(), any()) } returns
+					RetentionWorkExecutionStartResult.Open(receipt)
+				coEvery { complete(any(), receipt, any()) } returns completion
+			}
+			val operationId = "terminal-settlement-$index"
+			val settlement = mockk<RetentionFloorSettlement> {
+				coEvery { disposition(any(), operationId, 4L) } returns disposition
+			}
+			val blockedGate = mockk<TrackingStartupGate> {
+				every { isReady } returns false
+				every { currentGeneration } returns 7L
+				coEvery { reconcile(any()) } returns TrackingStartupResult.Blocked(
+					TrackingStartupStage.STORAGE,
+					"CONTAINED",
+				)
+			}
+
+			worker(
+				context = context,
+				store = retentionStore(RetentionConfigState()),
+				db = mockk(relaxed = true),
+				trackingStartupGate = blockedGate,
+				retentionFloorSettlement = settlement,
+				workExecutionCoordinator = coordinator,
+				inputData = workDataOf(
+					RetentionPipelineWorker.SETTLEMENT_OPERATION_ID_KEY to operationId,
+					RetentionPipelineWorker.SETTLEMENT_COLLECTED_DATA_EPOCH_KEY to 4L,
+				),
+			).doWork() shouldBe ListenableWorker.Result.success()
+
+			coVerify(exactly = 1) { settlement.disposition(any(), operationId, 4L) }
+			coVerify(exactly = 1) { coordinator.complete(any(), receipt, any()) }
+		}
 	}
 
 	@Test
@@ -403,6 +521,8 @@ class RetentionPipelineWorkerRobolectricTest {
 			workExecutionCoordinator = coordinator,
 			inputData = workDataOf(
 				RetentionPipelineWorker.SETTLEMENT_OPERATION_ID_KEY to operation.operationId,
+				RetentionPipelineWorker.SETTLEMENT_COLLECTED_DATA_EPOCH_KEY to
+					operation.collectedDataEpoch,
 			),
 		).doWork() shouldBe ListenableWorker.Result.success()
 

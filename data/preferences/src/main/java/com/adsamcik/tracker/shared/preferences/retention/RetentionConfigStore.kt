@@ -180,6 +180,27 @@ class RetentionConfigStore(
         }
 
     /**
+     * Holds publication serialization while a consumer reconciles the exact configuration.
+     *
+     * This prevents a scheduler from applying an enabled/disabled decision after its approval
+     * generation or revision has already been replaced.
+     */
+    suspend fun <T> withExactApprovedConfigReconciliation(
+        reconciliation: suspend (ExactApprovedRetentionConfigRead) -> T,
+    ): T = updateMutex.withLock {
+        val authority = try {
+            readExactApprovedConfigLocked()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            ExactApprovedRetentionConfigRead.Unavailable(
+                ExactApprovedRetentionConfigUnavailableReason.STORAGE_UNAVAILABLE,
+            )
+        }
+        reconciliation(authority)
+    }
+
+    /**
      * Serializes one complete destructive operation with retention publication.
      *
      * The immutable [ApprovedRetentionOperation] is the identity carried through every destructive

@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.base.database
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
+import com.adsamcik.tracker.shared.base.database.data.RetentionWorkExecutionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.hasReachedRetentionPhase
 
 data class RetentionFloorSettlementOperation(
@@ -199,6 +200,36 @@ suspend fun AppDatabase.retentionFloorSettlement(
 	}
 }
 
+suspend fun AppDatabase.retentionFloorSettlementDisposition(
+	operationId: String,
+	expectedCollectedDataEpoch: Long,
+): RetentionFloorSettlementDisposition = withTransaction {
+	require(operationId.isNotBlank())
+	require(expectedCollectedDataEpoch >= 0L)
+	val operation = collectedDataDeletionOperationDao().get(operationId)
+	if (
+		operation != null &&
+		operation.targetCollectedDataEpoch == expectedCollectedDataEpoch &&
+		operation.phase in CollectedDataDeletionOperationEntity.RETENTION_PHASES
+	) {
+		return@withTransaction when (operation.phase) {
+			CollectedDataDeletionOperationEntity.PHASE_RETENTION_FINAL,
+			CollectedDataDeletionOperationEntity.PHASE_RETENTION_ACKNOWLEDGED,
+			-> RetentionFloorSettlementDisposition.Completed
+			else -> RetentionFloorSettlementDisposition.Active
+		}
+	}
+	val deletion = collectedDataDeletionOperationDao()
+		.completedFullDeletionAfter(expectedCollectedDataEpoch)
+	return@withTransaction if (deletion == null) {
+		RetentionFloorSettlementDisposition.Missing
+	} else {
+		RetentionFloorSettlementDisposition.SupersededByFullDeletion(
+			deletion.targetCollectedDataEpoch,
+		)
+	}
+}
+
 suspend fun AppDatabase.retentionFloorSettlementForExecution(
 	execution: RetentionWorkExecutionReceipt,
 	expectedOperationId: String? = null,
@@ -277,6 +308,23 @@ suspend fun AppDatabase.prepareOrResumeRetentionFloorSettlement(
 	require(destructivePlan.requestedAtMs == requestedAtMs)
 	require(destructivePlan.requestedRetainedFromMs == requestedRetainedFromMs)
 	val dao = collectedDataDeletionOperationDao()
+	val execution = retentionWorkExecutionReceiptDao().get(workExecutionId)
+	if (execution == null) {
+		check(
+			destructivePlan.workerKind == RetentionFloorDestructivePlan.WORKER_LEGACY &&
+				workExecutionId == operationId,
+		) { "Retention-floor preparation requires its durable work execution" }
+	} else {
+		check(execution.state == RetentionWorkExecutionReceiptEntity.STATE_OPEN) {
+			"Retention-floor preparation requires an OPEN work execution"
+		}
+		check(destructivePlan.canBeExecutedBy(execution.workerKind)) {
+			"Retention-floor preparation worker kind changed"
+		}
+		check(execution.destructivePlan == destructivePlan.encode()) {
+			"Retention-floor preparation requires the attached destructive plan"
+		}
+	}
 	dao.activeRetentionFloorSettlement()?.let { active ->
 		val operation = active.toRetentionOperation()
 		check(operation.workExecutionId == workExecutionId) {
@@ -526,6 +574,19 @@ private fun CollectedDataDeletionOperationEntity.toRetentionOperation():
 
 private fun decodeActiveSourceKeys(encoded: String): Set<String> =
 	if (encoded.isEmpty()) emptySet() else encoded.split(',').toSet()
+
+sealed interface RetentionFloorSettlementDisposition {
+	data object Active : RetentionFloorSettlementDisposition
+	data object Completed : RetentionFloorSettlementDisposition
+	data class SupersededByFullDeletion(
+		val collectedDataEpoch: Long,
+	) : RetentionFloorSettlementDisposition {
+		init {
+			require(collectedDataEpoch >= 0L)
+		}
+	}
+	data object Missing : RetentionFloorSettlementDisposition
+}
 
 sealed interface RetentionFloorOperationLookupResult {
 	data class Available(

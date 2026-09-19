@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedRetentionResult
 import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
 import com.adsamcik.tracker.shared.base.database.RetentionFloorOperationLookupResult
+import com.adsamcik.tracker.shared.base.database.RetentionFloorSettlementDisposition
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionCompletionResult
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionContinuationResult
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionPlanResult
@@ -130,10 +131,31 @@ class RetentionPipelineWorker @AssistedInject constructor(
         authority.requireIdentity()
         val storedConfig = authority.configuration
         val config = storedConfig.forWorker()
+		val expectedSettlementOperationId =
+			inputData.getString(SETTLEMENT_OPERATION_ID_KEY)
+		if (expectedSettlementOperationId != null && expectedSettlementOperationId.isBlank()) {
+			return Result.failure()
+		}
+		val expectedSettlementEpoch = expectedSettlementOperationId?.let {
+			inputData.getLong(SETTLEMENT_COLLECTED_DATA_EPOCH_KEY, MISSING_SETTLEMENT_EPOCH)
+		}
+		if (expectedSettlementEpoch != null && expectedSettlementEpoch < 0L) {
+			return Result.failure()
+		}
 		when (trackingStartupGate.reconcile()) {
 			is TrackingStartupResult.Ready -> Unit
 			is TrackingStartupResult.RetryableFailure -> return Result.retry()
-			is TrackingStartupResult.Blocked -> return Result.success()
+			is TrackingStartupResult.Blocked -> return if (
+				expectedSettlementOperationId == null
+			) {
+				Result.success()
+			} else {
+				exactSettlementTerminalResult(
+					appDatabase,
+					expectedSettlementOperationId,
+					requireNotNull(expectedSettlementEpoch),
+				)
+			}
 		}
 		val startupGeneration = trackingStartupGate.currentGeneration
 		try {
@@ -142,11 +164,6 @@ class RetentionPipelineWorker @AssistedInject constructor(
 			return Result.success()
 		} catch (_: RetentionExecutionDeferredException) {
 			return Result.retry()
-		}
-		val expectedSettlementOperationId =
-			inputData.getString(SETTLEMENT_OPERATION_ID_KEY)
-		if (expectedSettlementOperationId != null && expectedSettlementOperationId.isBlank()) {
-			return Result.failure()
 		}
 		val pendingOperation = when (val lookup = try {
 			retentionFloorSettlement.pendingOperation(
@@ -164,7 +181,11 @@ class RetentionPipelineWorker @AssistedInject constructor(
 			is RetentionFloorOperationLookupResult.ExecutionOwned -> return Result.retry()
 		}
 		if (expectedSettlementOperationId != null && pendingOperation == null) {
-			return Result.success()
+			return exactSettlementTerminalResult(
+				appDatabase,
+				expectedSettlementOperationId,
+				requireNotNull(expectedSettlementEpoch),
+			)
 		}
 		if (
 			!storedConfig.autoPurgeEnabled &&
@@ -774,6 +795,31 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		}
 	}
 
+	private suspend fun exactSettlementTerminalResult(
+		database: AppDatabase,
+		operationId: String,
+		expectedCollectedDataEpoch: Long,
+	): Result = try {
+		when (
+			retentionFloorSettlement.disposition(
+				database,
+				operationId,
+				expectedCollectedDataEpoch,
+			)
+		) {
+			RetentionFloorSettlementDisposition.Completed,
+			is RetentionFloorSettlementDisposition.SupersededByFullDeletion,
+			-> Result.success()
+			RetentionFloorSettlementDisposition.Active,
+			RetentionFloorSettlementDisposition.Missing,
+			-> Result.retry()
+		}
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		Result.retry()
+	}
+
     private fun RetentionConfigState.forWorker(): RetentionConfigState {
         if (!autoCleanupEnabled) return this
         val days = if (dataRetentionYears == 0) 0 else dataRetentionYears.coerceAtLeast(1) * DAYS_PER_YEAR
@@ -792,6 +838,9 @@ class RetentionPipelineWorker @AssistedInject constructor(
         internal const val LEGACY_WORK_NAME = "APP.DATA_RETENTION_WEEKLY"
 		internal const val SETTLEMENT_OPERATION_ID_KEY =
 			"retention_settlement_operation_id"
+		internal const val SETTLEMENT_COLLECTED_DATA_EPOCH_KEY =
+			"retention_settlement_collected_data_epoch"
+		private const val MISSING_SETTLEMENT_EPOCH = -1L
 		private const val DAYS_PER_YEAR = 365
 
 		internal fun computeWifiCellCutoffMillis(retentionDays: Int, nowMs: Long): Long {

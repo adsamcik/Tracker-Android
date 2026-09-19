@@ -3,7 +3,16 @@ package com.adsamcik.tracker.app.maintenance
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
+import com.adsamcik.tracker.shared.base.database.RetentionWorkCancellationTarget
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionPlanResult
+import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionStartResult
+import com.adsamcik.tracker.shared.base.database.activeRetentionFloorSettlement
+import com.adsamcik.tracker.shared.base.database.attachRetentionDestructivePlan
+import com.adsamcik.tracker.shared.base.database.beginOrResumeRetentionWorkExecution
+import com.adsamcik.tracker.shared.base.database.confirmRetentionWorkExecutionCancellations
 import com.adsamcik.tracker.shared.base.database.prepareOrResumeRetentionFloorSettlement
+import com.adsamcik.tracker.shared.base.database.requestRetentionWorkExecutionCancellations
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
@@ -220,6 +229,103 @@ class RetentionFloorSettlementTest {
 			.shouldBeInstanceOf<RetentionFloorSettlementFailure.AuthorityUnavailable>()
 			.result.scope shouldBe RetentionAuthorityScope.PORTABLE_IMPORT
 	}
+
+	@Test
+	fun `confirmed cancellation between authority check and prepare cannot create settlement`() =
+		runTest {
+			val plan = RetentionFloorDestructivePlan(
+				workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+				requestedAtMs = FLOOR,
+				requestedRetainedFromMs = FLOOR,
+				rawRetentionCutoffMs = FLOOR,
+				sourceEventRetentionCutoffMs = FLOOR,
+				wifiCellRetentionCutoffMs = null,
+				tripRetentionCutoffMs = null,
+				dailySummaryRetentionCutoffDay = null,
+				explorationRetentionCutoffMs = null,
+				operationalRetentionCutoffMs = FLOOR,
+			)
+			val execution = (
+				database.beginOrResumeRetentionWorkExecution(
+					workRequestId = "cancel-before-prepare",
+					workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+					runAttemptCount = 0,
+					startedAtMs = FLOOR,
+				) as RetentionWorkExecutionStartResult.Open
+			).receipt
+			val attached = (
+				database.attachRetentionDestructivePlan(execution, plan) as
+					RetentionWorkExecutionPlanResult.Attached
+			).receipt
+			var cancellationPublished = false
+			var authorityChecks = 0
+			val lifecycleStore = object : CollectedDataLifecycleStore {
+				private val state = CollectedDataLifecycleSnapshot(
+					epoch = 4L,
+					retainedFromMs = FLOOR,
+				)
+				override val snapshots: Flow<CollectedDataLifecycleSnapshot> =
+					MutableStateFlow(state)
+
+				override suspend fun snapshot(): CollectedDataLifecycleSnapshot {
+					if (!cancellationPublished) {
+						authorityChecks shouldBe 1
+						cancellationPublished = true
+						database.requestRetentionWorkExecutionCancellations(
+							targets = listOf(
+								RetentionWorkCancellationTarget(
+									attached.workRequestId,
+									attached.workerKind,
+								),
+							),
+							activeWorkRequestIds = listOf(attached.workRequestId),
+							workerKinds = listOf(attached.workerKind),
+							requestedAtMs = FLOOR + 1L,
+						)
+						database.confirmRetentionWorkExecutionCancellations(
+							executionIds = listOf(attached.executionId),
+							confirmedAtMs = FLOOR + 2L,
+						)
+					}
+					return state
+				}
+
+				override suspend fun beginFullDeletion(
+					deletedAtMs: Long,
+				): CollectedDataLifecycleSnapshot = error("Not used")
+
+				override suspend fun advanceRetainedFrom(
+					retainedFromMs: Long,
+				): CollectedDataLifecycleSnapshot = error("Not used")
+			}
+			val producer = mockk<RetentionAuthorityProducer>(relaxed = true)
+
+			val result = RetentionFloorSettlement(
+				RetentionAuthorityOperationLease(),
+				producer,
+				TrackingRetentionFloorReconciler { _, floor, sources ->
+					TrackingRetentionFloorReconciliationResult.Complete(floor, sources)
+				},
+			).settle(
+				database = database,
+				lifecycleStore = lifecycleStore,
+				startupGate = readyGate(),
+				expectedStartupGeneration = GENERATION,
+				requestedRetainedFromMs = FLOOR,
+				operationId = "cancelled-before-settlement-prepare",
+				updatedAtMs = FLOOR,
+				workExecutionId = attached.executionId,
+				destructivePlan = plan,
+				verifyApprovedOperation = { authorityChecks += 1 },
+			)
+
+			result.shouldBeInstanceOf<RetentionFloorSettlementResult.Retryable>()
+			authorityChecks shouldBe 1
+			database.activeRetentionFloorSettlement() shouldBe null
+			database.retentionWorkExecutionReceiptDao().get(attached.executionId)?.state shouldBe
+				"ABANDONED"
+			coVerify(exactly = 0) { producer.reconcileCurrentSettings() }
+		}
 
 	@Test
 	fun `Room guard failure after durable floor is retry debt without authority reissue`() = runTest {

@@ -24,6 +24,8 @@ class RetentionCancellationRecoveryWorker @AssistedInject constructor(
 			throw cancelled
 		} catch (_: RetentionWorkCancellationPendingException) {
 			Result.retry()
+		} catch (_: RetentionScheduleAuthorityUnavailableException) {
+			Result.retry()
 		} catch (_: Exception) {
 			Result.retry()
 		}

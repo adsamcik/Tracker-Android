@@ -3,6 +3,7 @@ package com.adsamcik.tracker.app.maintenance
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
 import com.adsamcik.tracker.shared.base.database.RetentionFloorSettlementOperation
+import com.adsamcik.tracker.shared.base.database.RetentionFloorSettlementDisposition
 import com.adsamcik.tracker.shared.base.database.RetentionFloorOperationLookupResult
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionReceipt
 import com.adsamcik.tracker.shared.base.database.activeRetentionFloorSettlement
@@ -12,6 +13,7 @@ import com.adsamcik.tracker.shared.base.database.commitRetentionFloorRoomGuard
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.prepareOrResumeRetentionFloorSettlement
 import com.adsamcik.tracker.shared.base.database.retentionFloorSettlement
+import com.adsamcik.tracker.shared.base.database.retentionFloorSettlementDisposition
 import com.adsamcik.tracker.shared.base.database.retentionFloorSettlementForExecution
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -51,6 +53,13 @@ class RetentionFloorSettlement @Inject constructor(
 		expectedOperationId: String? = null,
 	): RetentionFloorOperationLookupResult =
 		database.retentionFloorSettlementForExecution(execution, expectedOperationId)
+
+	suspend fun disposition(
+		database: AppDatabase,
+		operationId: String,
+		expectedCollectedDataEpoch: Long,
+	): RetentionFloorSettlementDisposition =
+		database.retentionFloorSettlementDisposition(operationId, expectedCollectedDataEpoch)
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	suspend fun settle(

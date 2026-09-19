@@ -487,12 +487,24 @@ class CollectedDataDeletionOperationRoomTest {
 					explorationRetentionCutoffMs = null,
 					operationalRetentionCutoffMs = 1_000L,
 				)
+				val pipelineOwner = (
+					database.beginOrResumeRetentionWorkExecution(
+						"old-pipeline-work",
+						RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+						0,
+						1_900L,
+					) as RetentionWorkExecutionStartResult.Open
+				).receipt
+				val attachedPipelineOwner = (
+					database.attachRetentionDestructivePlan(pipelineOwner, pipelinePlan) as
+						RetentionWorkExecutionPlanResult.Attached
+				).receipt
 				database.prepareOrResumeRetentionFloorSettlement(
 					operationId = "pipeline-operation",
 					requestedRetainedFromMs = 1_000L,
 					collectedDataEpoch = 0L,
 					requestedAtMs = 2_000L,
-					workExecutionId = "old-pipeline-execution",
+					workExecutionId = attachedPipelineOwner.executionId,
 					destructivePlan = pipelinePlan,
 				)
 				val dataExecution = (
@@ -538,12 +550,16 @@ class CollectedDataDeletionOperationRoomTest {
 						3_500L,
 					) as RetentionWorkExecutionStartResult.Open
 				).receipt
+				val attachedLegacyOwner = (
+					database.attachRetentionDestructivePlan(legacyOwner, dataPlan) as
+						RetentionWorkExecutionPlanResult.Attached
+				).receipt
 				val legacyOperation = database.prepareOrResumeRetentionFloorSettlement(
 					operationId = "legacy-data-operation",
 					requestedRetainedFromMs = 2_000L,
 					collectedDataEpoch = 1L,
 					requestedAtMs = 4_000L,
-					workExecutionId = legacyOwner.executionId,
+					workExecutionId = attachedLegacyOwner.executionId,
 					destructivePlan = dataPlan,
 				)
 				val pipelineExecution = (
@@ -669,6 +685,10 @@ class CollectedDataDeletionOperationRoomTest {
 				collectedDataEpoch = 0L,
 				requestedAtMs = 2_000L,
 			)
+			database.retentionFloorSettlementDisposition(
+				"retention-operation-old-epoch",
+				0L,
+			) shouldBe RetentionFloorSettlementDisposition.Active
 
 			AppDatabase.deleteAllCollectedData(
 				database = database,
@@ -681,10 +701,43 @@ class CollectedDataDeletionOperationRoomTest {
 			database.activeRetentionFloorSettlement() shouldBe null
 			database.collectedDataDeletionOperationDao().completedFullDeletionAfter(0L)
 				?.operationId shouldBe "full-delete-after-retention"
+			database.retentionFloorSettlementDisposition(
+				"retention-operation-old-epoch",
+				0L,
+			) shouldBe RetentionFloorSettlementDisposition.SupersededByFullDeletion(1L)
 			requireNotNull(database.sourceEvidenceStateDao().get()).run {
 				collectedDataEpoch shouldBe 1L
 				retainedFromMs shouldBe 1_500L
 			}
+		} finally {
+			database.close()
+		}
+	}
+
+	@Test
+	fun `exact final retention settlement is reported complete`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Application>()
+		val database = AppDatabase.testDatabase(context)
+		try {
+			database.collectedDataDeletionOperationDao().insert(
+				CollectedDataDeletionOperationEntity(
+					operationId = "completed-retention-operation",
+					targetCollectedDataEpoch = 4L,
+					retainedFromMs = 1_000L,
+					deletedAtMs = 2_000L,
+					phase = CollectedDataDeletionOperationEntity.PHASE_RETENTION_FINAL,
+					updatedAtMs = 2_100L,
+				),
+			)
+
+			database.retentionFloorSettlementDisposition(
+				"completed-retention-operation",
+				4L,
+			) shouldBe RetentionFloorSettlementDisposition.Completed
+			database.retentionFloorSettlementDisposition(
+				"another-retention-operation",
+				4L,
+			) shouldBe RetentionFloorSettlementDisposition.Missing
 		} finally {
 			database.close()
 		}

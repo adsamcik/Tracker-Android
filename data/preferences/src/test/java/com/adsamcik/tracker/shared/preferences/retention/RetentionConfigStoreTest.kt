@@ -323,6 +323,47 @@ class RetentionConfigStoreTest {
 	}
 
 	@Test
+	fun `schedule reconciliation holds its exact preference revision until it returns`() = runTest {
+		val approved = store.updateWithApproval(
+			block = { copy(autoPurgeEnabled = true, rawDataRetentionDays = 30) },
+			prepare = { RetentionConfigurationApprovalResult.Prepared(it.policy) },
+			approve = {
+				RetentionConfigurationApprovalResult.Approved(
+					requireNotNull(store.markPolicyApproved(it.policy)),
+				)
+			},
+		)
+		val reconciliationEntered = CompletableDeferred<ApprovedRetentionPolicy>()
+		val releaseReconciliation = CompletableDeferred<Unit>()
+		val reconciliation = async {
+			store.withExactApprovedConfigReconciliation { authority ->
+				val exact = assertIs<ExactApprovedRetentionConfigRead.Approved>(authority)
+				reconciliationEntered.complete(exact.policy)
+				releaseReconciliation.await()
+			}
+		}
+		reconciliationEntered.await() shouldBe approved.stage.policy
+		val replacement = async {
+			store.updateWithApproval(
+				block = { copy(autoPurgeEnabled = false, rawDataRetentionDays = 7) },
+				prepare = { RetentionConfigurationApprovalResult.Prepared(it.policy) },
+				approve = {
+					RetentionConfigurationApprovalResult.Approved(
+						requireNotNull(store.markPolicyApproved(it.policy)),
+					)
+				},
+			)
+		}
+		runCurrent()
+
+		replacement.isCompleted shouldBe false
+		releaseReconciliation.complete(Unit)
+		reconciliation.await()
+		replacement.await().stage.policy.configurationGeneration shouldBe
+			approved.stage.policy.configurationGeneration + 1L
+	}
+
+	@Test
 	fun `approved destructive operation serializes every boundary against policy replacement`() =
 		runTest {
 			val approved = store.updateWithApproval(

@@ -42,7 +42,7 @@ class DataRetentionScheduler @Inject constructor(
         try {
             retentionWorkScheduler.reconcileCurrentPreference(retentionConfigStore)
         } catch (_: RetentionWorkCancellationPendingException) {
-            // RetentionWorkScheduler has already persisted one unique recovery owner.
+            // RetentionWorkScheduler has already persisted its unique recovery chain.
             return
         } catch (_: IllegalStateException) {
             return

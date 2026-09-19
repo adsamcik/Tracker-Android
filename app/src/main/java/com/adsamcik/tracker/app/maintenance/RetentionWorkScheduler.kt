@@ -12,6 +12,7 @@ import androidx.work.await
 import androidx.work.workDataOf
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
+import com.adsamcik.tracker.shared.base.database.RetentionFloorSettlementOperation
 import com.adsamcik.tracker.shared.base.database.activeRetentionFloorSettlement
 import com.adsamcik.tracker.shared.base.database.RetentionWorkCancellationTarget
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionReceipt
@@ -68,6 +69,14 @@ class RetentionWorkCancellationPendingException(
 	val debt: RetentionWorkCancellationDebt,
 ) : IllegalStateException("Retention WorkManager cancellation remains pending")
 
+class RetentionScheduleAuthorityUnavailableException(
+	val authority: ExactApprovedRetentionConfigRead,
+) : IllegalStateException("Exact approved retention schedule authority is unavailable") {
+	init {
+		require(authority !is ExactApprovedRetentionConfigRead.Approved)
+	}
+}
+
 @Singleton
 class RetentionWorkScheduler @Inject constructor(
 	private val appDatabaseProvider: Provider<AppDatabase>,
@@ -85,9 +94,9 @@ class RetentionWorkScheduler @Inject constructor(
 
 	suspend fun reconcileCurrentPreference(retentionConfigStore: RetentionConfigStore) {
 		schedulingMutex.withLock {
-			establishCancellationRecoveryOwner()
+			val recoveryOwnerId = establishCancellationRecoveryOwner()
 			reconcileAuthoritativePreference(retentionConfigStore)
-			cancelCancellationRecoveryOwner()
+			cancelCancellationRecoveryOwner(recoveryOwnerId)
 		}
 	}
 
@@ -112,16 +121,14 @@ class RetentionWorkScheduler @Inject constructor(
 
 	private suspend fun executeWithRecovery(enabled: Boolean) {
 		schedulingMutex.withLock {
-			establishCancellationRecoveryOwner()
+			val recoveryOwnerId = establishCancellationRecoveryOwner()
 			reconcileSchedule(enabled)
-			cancelCancellationRecoveryOwner()
+			cancelCancellationRecoveryOwner(recoveryOwnerId)
 		}
 	}
 
-	private suspend fun cancelCancellationRecoveryOwner() {
-		workManager.cancelUniqueWork(
-			RetentionCancellationRecoveryWorker.UNIQUE_WORK_NAME,
-		).await()
+	private suspend fun cancelCancellationRecoveryOwner(recoveryOwnerId: UUID) {
+		workManager.cancelWorkById(recoveryOwnerId).await()
 	}
 
 	private suspend fun reconcileSchedule(enabled: Boolean) {
@@ -148,8 +155,11 @@ class RetentionWorkScheduler @Inject constructor(
 						RetentionFloorDestructivePlan.WORKER_DATA_RETENTION,
 				),
 			)
-			val activeAfterCancellation = activeSettlementOperationId()
-			if (activeAfterCancellation != null && activeAfterCancellation != protectedSettlement) {
+			val activeAfterCancellation = activeSettlement()
+			if (
+				activeAfterCancellation != null &&
+				activeAfterCancellation.operationId != protectedSettlement?.operationId
+			) {
 				enqueueSettlementFinisher(activeAfterCancellation)
 			}
 		}
@@ -158,36 +168,32 @@ class RetentionWorkScheduler @Inject constructor(
 	private suspend fun reconcileAuthoritativePreference(
 		retentionConfigStore: RetentionConfigStore,
 	) {
-		var observed = retentionConfigStore.currentExactApprovedConfig()
-		while (true) {
-			reconcileSchedule(observed.isRetentionScheduleEnabled())
-			val current = retentionConfigStore.currentExactApprovedConfig()
-			// Configuration and approval identity are data classes, so this also fences revision
-			// changes that preserve the enabled/disabled Boolean.
-			if (current == observed) return
-			observed = current
+		retentionConfigStore.withExactApprovedConfigReconciliation { authority ->
+			when (authority) {
+				is ExactApprovedRetentionConfigRead.Approved -> reconcileSchedule(
+					authority.configuration.autoCleanupEnabled ||
+						authority.configuration.autoPurgeEnabled,
+				)
+				is ExactApprovedRetentionConfigRead.Pending,
+				is ExactApprovedRetentionConfigRead.Invalid,
+				is ExactApprovedRetentionConfigRead.Unavailable,
+				-> throw RetentionScheduleAuthorityUnavailableException(authority)
+			}
 		}
 	}
 
-	private fun ExactApprovedRetentionConfigRead.isRetentionScheduleEnabled(): Boolean = when (this) {
-		is ExactApprovedRetentionConfigRead.Approved ->
-			configuration.autoCleanupEnabled || configuration.autoPurgeEnabled
-		is ExactApprovedRetentionConfigRead.Pending,
-		is ExactApprovedRetentionConfigRead.Invalid,
-		is ExactApprovedRetentionConfigRead.Unavailable,
-		-> false
-	}
-
-	private suspend fun establishCancellationRecoveryOwner() {
+	private suspend fun establishCancellationRecoveryOwner(): UUID {
 		// Establish durable ownership before any cancellation receipt can be written or any
-		// cancellable WorkManager wait can begin.
+		// cancellable WorkManager wait can begin. APPEND_OR_REPLACE installs a successor behind a
+		// still-running recovery worker instead of silently accepting KEEP's no-op.
+		val request = cancellationRecoveryRequest()
 		val failure = withContext(NonCancellable) {
 			try {
 				withTimeout(RECOVERY_ENQUEUE_TIMEOUT_MS) {
 					workManager.enqueueUniqueWork(
 						RetentionCancellationRecoveryWorker.UNIQUE_WORK_NAME,
-						ExistingWorkPolicy.KEEP,
-						cancellationRecoveryRequest(),
+						ExistingWorkPolicy.APPEND_OR_REPLACE,
+						request,
 					).await()
 				}
 				null
@@ -201,22 +207,23 @@ class RetentionWorkScheduler @Inject constructor(
 				failure,
 			)
 		}
+		return request.id
 	}
 
-	private suspend fun ensureSettlementFinisher(): String? {
-		val operationId = activeSettlementOperationId() ?: return null
-		enqueueSettlementFinisher(operationId)
-		return operationId
+	private suspend fun ensureSettlementFinisher(): RetentionFloorSettlementOperation? {
+		val operation = activeSettlement() ?: return null
+		enqueueSettlementFinisher(operation)
+		return operation
 	}
 
-	private suspend fun activeSettlementOperationId(): String? =
-		appDatabaseProvider.get().activeRetentionFloorSettlement()?.operationId
+	private suspend fun activeSettlement(): RetentionFloorSettlementOperation? =
+		appDatabaseProvider.get().activeRetentionFloorSettlement()
 
-	private suspend fun enqueueSettlementFinisher(operationId: String) {
+	private suspend fun enqueueSettlementFinisher(operation: RetentionFloorSettlementOperation) {
 		workManager.enqueueUniqueWork(
-			settlementFinisherWorkName(operationId),
+			settlementFinisherWorkName(operation.operationId),
 			ExistingWorkPolicy.KEEP,
-			settlementFinisherRequest(operationId),
+			settlementFinisherRequest(operation),
 		).await()
 	}
 
@@ -571,12 +578,15 @@ class RetentionWorkScheduler @Inject constructor(
 			)
 			.build()
 
-	internal fun settlementFinisherRequest(operationId: String): OneTimeWorkRequest {
-		require(operationId.isNotBlank())
+	internal fun settlementFinisherRequest(
+		operation: RetentionFloorSettlementOperation,
+	): OneTimeWorkRequest {
 		return OneTimeWorkRequestBuilder<RetentionPipelineWorker>()
 			.setInputData(
 				workDataOf(
-					RetentionPipelineWorker.SETTLEMENT_OPERATION_ID_KEY to operationId,
+					RetentionPipelineWorker.SETTLEMENT_OPERATION_ID_KEY to operation.operationId,
+					RetentionPipelineWorker.SETTLEMENT_COLLECTED_DATA_EPOCH_KEY to
+						operation.collectedDataEpoch,
 				),
 			)
 			.setBackoffCriteria(
