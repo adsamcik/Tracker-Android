@@ -585,13 +585,17 @@ class StepsSessionFactProjectionLane private constructor(
 		) {
 			return false
 		}
-		if (raw.isDeletedScope()) return true
-		if (raw.authorizationPurposeEligibilityMask and
-			SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
-			raw.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch
-		) {
+		if (raw.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch) {
 			return true
 		}
+		val purposeMask = raw.authorizationPurposeEligibilityMask
+		val hasValidPurposeMask =
+			purposeMask >= 0L && purposeMask and SourceBrokerPurpose.ALL_MASK == purposeMask
+		if (!hasValidPurposeMask) return false
+		if (purposeMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L) {
+			return raw.logicalTrackingId == null && raw.serviceRunId == null
+		}
+		if (raw.isDeletedScope()) return true
 		// A poison caused by the event's own wall/acquisition shape cannot be released by
 		// consulting those same disputed timestamps. Exact scope deletion above remains valid;
 		// otherwise only the independent global deletion high-water may make it disappear.
@@ -793,18 +797,18 @@ class StepsSessionFactProjectionLane private constructor(
 	): StepFactRevisionEntity? {
 		val evidence = evidence
 		if (evidence.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch ||
-			admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal ||
-			evidence.registrationPurposeEligibilityMask and
-			SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
-			evidence.logicalTrackingId == null ||
-			evidence.serviceRunId == null
+			admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
 		) return null
-		val logicalTrackingId = evidence.logicalTrackingId.value
-		val serviceRunId = evidence.serviceRunId.value
 		fun poison(code: String): Nothing = throw StepsSessionFactPoisonException(
 			admissionOrdinal,
 			code,
 		)
+		val logicalTrackingId = evidence.logicalTrackingId?.value
+		val serviceRunId = evidence.serviceRunId?.value
+		if (logicalTrackingId == null && serviceRunId == null) return null
+		if (logicalTrackingId == null || serviceRunId == null) {
+			poison("STEPS_CAPTURE_ASSOCIATION_INCOMPLETE")
+		}
 		if (
 			productAuthority != null &&
 			serviceRunId == productAuthority.serviceRunId &&
@@ -825,6 +829,29 @@ class StepsSessionFactProjectionLane private constructor(
 				)
 		) {
 			poison("STEPS_DRAIN_MEMBERSHIP_MISMATCH")
+		}
+		val manifestRevision = evidence.sessionManifestRevision
+			?: poison("STEPS_MANIFEST_REVISION_MISSING")
+		val policyRevision = evidence.sourcePolicyRevision
+			?: poison("STEPS_POLICY_REVISION_MISSING")
+		val consentEpoch = evidence.captureConsentEpoch
+			?: poison("STEPS_CAPTURE_CONSENT_EPOCH_MISSING")
+		if (evidence.lifecycleLeaseGeneration == null) {
+			poison("STEPS_LIFECYCLE_LEASE_MISSING")
+		}
+		val manifestKey = StepsManifestKey(logicalTrackingId, serviceRunId, manifestRevision)
+		val manifestBinding = manifestBindings[manifestKey] ?: resolveManifestBinding(
+			key = manifestKey,
+			admissionOrdinal = admissionOrdinal,
+			policyRevision = policyRevision,
+			consentEpoch = consentEpoch,
+		).also { resolved -> manifestBindings[manifestKey] = resolved }
+		val purposeMask = evidence.registrationPurposeEligibilityMask
+		if (purposeMask < 0L ||
+			purposeMask and SourceBrokerPurpose.ALL_MASK != purposeMask ||
+			purposeMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
+		) {
+			poison("STEPS_PURPOSE_ELIGIBILITY_MISMATCH")
 		}
 		val endTimeMs = evidence.wallTimeMs ?: poison("STEPS_WALL_TIME_MISSING")
 		if (endTimeMs < 0L) poison("STEPS_WALL_TIME_NEGATIVE")
@@ -893,22 +920,6 @@ class StepsSessionFactProjectionLane private constructor(
 			}
 		}
 
-		val manifestRevision = evidence.sessionManifestRevision
-			?: poison("STEPS_MANIFEST_REVISION_MISSING")
-		val policyRevision = evidence.sourcePolicyRevision
-			?: poison("STEPS_POLICY_REVISION_MISSING")
-		val consentEpoch = evidence.captureConsentEpoch
-			?: poison("STEPS_CAPTURE_CONSENT_EPOCH_MISSING")
-		if (evidence.lifecycleLeaseGeneration == null) {
-			poison("STEPS_LIFECYCLE_LEASE_MISSING")
-		}
-		val manifestKey = StepsManifestKey(logicalTrackingId, serviceRunId, manifestRevision)
-		val manifestBinding = manifestBindings[manifestKey] ?: resolveManifestBinding(
-			key = manifestKey,
-			admissionOrdinal = admissionOrdinal,
-			policyRevision = policyRevision,
-			consentEpoch = consentEpoch,
-		).also { resolved -> manifestBindings[manifestKey] = resolved }
 		if (lane.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) {
 			val owner = database.sourceDestinationOwnerDao().get(
 				SourceDestinationOwnerEntity.SOURCE_STEPS,

@@ -672,6 +672,177 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `exact run cannot hide a cleared middle capture row behind later completeness`() = runTest {
+		val logicalTrackingId = "cleared-middle-purpose-logical"
+		val serviceRunId = "cleared-middle-purpose-run"
+		val sourceInstanceId = "cleared-middle-purpose-instance"
+		insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = sourceInstanceId,
+			sourceSequence = 1L,
+			recordStepsFact = false,
+		)
+		val clearedOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = sourceInstanceId,
+			sourceSequence = 2L,
+			recordStepsFact = false,
+		)
+		val terminalOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = sourceInstanceId,
+			sourceSequence = 3L,
+			recordStepsFact = false,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? " +
+				"WHERE admission_ordinal = ?",
+			arrayOf(SourceBrokerPurpose.MASK_CONTROL_AUTOSTART, clearedOrdinal),
+		)
+
+		sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = listOf(1L),
+			throughOrdinal = terminalOrdinal,
+			productMemberships = listOf(
+				terminalDrainMembership(sourceInstanceId, 1L, terminalOrdinal),
+			),
+			retirementClaims = listOf(
+				terminalDrainClaim(sourceInstanceId, 1L, cleanupOnly = false),
+			),
+		) shouldBe SourceRunHighWaterRead.Unverifiable
+	}
+
+	@Test
+	fun `exact run cannot hide a cleared terminal capture row`() = runTest {
+		val logicalTrackingId = "cleared-terminal-purpose-logical"
+		val serviceRunId = "cleared-terminal-purpose-run"
+		val sourceInstanceId = "cleared-terminal-purpose-instance"
+		insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = sourceInstanceId,
+			sourceSequence = 1L,
+			recordStepsFact = false,
+		)
+		val terminalOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = sourceInstanceId,
+			sourceSequence = 2L,
+			recordStepsFact = false,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = 0 " +
+				"WHERE admission_ordinal = ?",
+			arrayOf(terminalOrdinal),
+		)
+
+		sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = listOf(1L),
+			throughOrdinal = terminalOrdinal,
+			productMemberships = listOf(
+				terminalDrainMembership(sourceInstanceId, 1L, terminalOrdinal),
+			),
+			retirementClaims = listOf(
+				terminalDrainClaim(sourceInstanceId, 1L, cleanupOnly = false),
+			),
+		) shouldBe SourceRunHighWaterRead.Unverifiable
+	}
+
+	@Test
+	fun `capture-owned WAL rejects malformed purpose mask storage and values`() = runTest {
+		val logicalTrackingId = "malformed-purpose-logical"
+		val serviceRunId = "malformed-purpose-run"
+		val sourceInstanceId = "malformed-purpose-instance"
+		val terminalOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = sourceInstanceId,
+			recordStepsFact = false,
+		)
+		val corruptions = listOf<Any>(
+			"SESSION_CAPTURE",
+			byteArrayOf(1, 2),
+			-1L,
+			SourceBrokerPurpose.ALL_MASK + 1L,
+		)
+
+		for (corruption in corruptions) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? " +
+					"WHERE admission_ordinal = ?",
+				arrayOf(corruption, terminalOrdinal),
+			)
+
+			sourceRunHighWater(
+				database = database,
+				source = SourceKind.STEPS,
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				runManifestRevisions = listOf(1L),
+				throughOrdinal = terminalOrdinal,
+				productMemberships = listOf(
+					terminalDrainMembership(sourceInstanceId, 1L, terminalOrdinal),
+				),
+				retirementClaims = listOf(
+					terminalDrainClaim(sourceInstanceId, 1L, cleanupOnly = false),
+				),
+			) shouldBe SourceRunHighWaterRead.Unverifiable
+		}
+	}
+
+	@Test
+	fun `mixed capture and control WAL keeps control-only evidence outside product high-water`() =
+		runTest {
+			val logicalTrackingId = "mixed-purpose-logical"
+			val serviceRunId = "mixed-purpose-run"
+			val captureInstanceId = "mixed-purpose-capture-instance"
+			val captureOrdinal = insertTerminalStepsWal(
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				sourceInstanceId = captureInstanceId,
+				sourceSequence = 1L,
+				purposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE or
+					SourceBrokerPurpose.MASK_CONTROL_CONTINUATION,
+				recordStepsFact = false,
+			)
+			val controlOrdinal = insertTerminalStepsWal(
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				sourceInstanceId = "mixed-purpose-control-instance",
+				sourceSequence = 2L,
+				purposeMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+				recordStepsFact = false,
+			)
+
+			sourceRunHighWater(
+				database = database,
+				source = SourceKind.STEPS,
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				runManifestRevisions = listOf(1L),
+				throughOrdinal = controlOrdinal,
+				productMemberships = listOf(
+					terminalDrainMembership(captureInstanceId, 1L, captureOrdinal),
+				),
+				retirementClaims = listOf(
+					terminalDrainClaim(captureInstanceId, 1L, cleanupOnly = false),
+				),
+			) shouldBe SourceRunHighWaterRead.Ready(captureOrdinal)
+		}
+
+	@Test
 	fun `raw WAL high-water exposes a logical owner mismatch on the globally unique service run`() =
 		runTest {
 			installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
@@ -887,7 +1058,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `wrong nonblank service run is rejected across 301 authenticated revisions`() = runTest {
+	fun `wrong nonblank service run with cleared capture bit is rejected across 301 revisions`() =
+		runTest {
 		val logicalTrackingId = "wrong-service-run-logical"
 		val serviceRunId = "expected-service-run"
 		val sourceInstanceId = "wrong-service-run-instance"
@@ -906,6 +1078,11 @@ class AuthoritativeSessionCoordinatorTest {
 			sourceInstanceId = sourceInstanceId,
 			sourceSequence = 2L,
 			recordStepsFact = false,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? " +
+				"WHERE admission_ordinal = ?",
+			arrayOf(SourceBrokerPurpose.MASK_CONTROL_CONTINUATION, highWater),
 		)
 
 		sourceRunHighWater(
@@ -6311,6 +6488,7 @@ class AuthoritativeSessionCoordinatorTest {
 		sourceInstanceId: String = "steps-instance",
 		lifecycleLeaseGeneration: Long = 1L,
 		sourceSequence: Long = 4L,
+		purposeMask: Long = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 		recordStepsFact: Boolean = true,
 	): Long {
 		if (recordStepsFact) {
@@ -6347,7 +6525,7 @@ class AuthoritativeSessionCoordinatorTest {
 			registrationGeneration = registrationGeneration,
 			physicalConfigurationFingerprint = "terminal-steps",
 			authorizationRevision = 1L,
-			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			authorizationPurposeEligibilityMask = purposeMask,
 			authorizationFingerprint = "b".repeat(64),
 			sourceSequence = sourceSequence,
 			configRevision = 1L,

@@ -521,6 +521,134 @@ class StepsSessionFactProjectionLaneTest {
 	}
 
 	@Test
+	fun `cleared capture bit in the middle blocks projection before a later captured suffix`() =
+		runTest {
+			installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+			val events = listOf(
+				stepEvent(1L),
+				stepEvent(2L, purposeMask = SourceBrokerPurpose.MASK_CONTROL_CONTINUATION),
+				stepEvent(3L),
+			)
+
+			StepsSessionFactProjectionLane(
+				database,
+				sourceIngress(0L, 3L, events),
+			).drainThrough(3L) shouldBe StepsSessionFactDrainResult.Failed(
+				lastCompletedOrdinal = 1L,
+				failedOrdinal = 2L,
+				failureCode = "STEPS_PURPOSE_ELIGIBILITY_MISMATCH",
+				terminal = true,
+			)
+
+			requireNotNull(fact(1L)).effectiveStepCount shouldBe 2L
+			fact(2L) shouldBe null
+			fact(3L) shouldBe null
+			activeLane()?.contiguousAdmissionOrdinal shouldBe 1L
+		}
+
+	@Test
+	fun `cleared capture bit on the terminal row cannot satisfy canonical completeness`() = runTest {
+		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val events = listOf(
+			stepEvent(1L),
+			stepEvent(2L, purposeMask = 0L),
+		)
+
+		StepsSessionFactProjectionLane(
+			database,
+			sourceIngress(0L, 2L, events),
+		).drainCanonicalThrough(2L) shouldBe StepsSessionFactDrainResult.Failed(
+			lastCompletedOrdinal = 1L,
+			failedOrdinal = 2L,
+			failureCode = "STEPS_PURPOSE_ELIGIBILITY_MISMATCH",
+			terminal = true,
+		)
+
+		requireNotNull(fact(1L)).effectiveStepCount shouldBe 2L
+		fact(2L) shouldBe null
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 1L
+	}
+
+	@Test
+	fun `mixed capture and control mask remains capture eligible`() = runTest {
+		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val mixed = stepEvent(
+			ordinal = 1L,
+			purposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE or
+				SourceBrokerPurpose.MASK_CONTROL_CONTINUATION,
+		)
+
+		StepsSessionFactProjectionLane(
+			database,
+			sourceIngress(0L, 1L, listOf(mixed)),
+		).drainThrough(1L) shouldBe
+			StepsSessionFactDrainResult.Complete(1L, factsInserted = 1, eventsValidated = 1)
+
+		requireNotNull(fact(1L)).effectiveStepCount shouldBe 2L
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 1L
+	}
+
+	@Test
+	fun `unknown purpose bits on capture-associated Steps are terminal poison`() = runTest {
+		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val unknownPurpose = stepEvent(
+			ordinal = 1L,
+			purposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE or
+				(SourceBrokerPurpose.ALL_MASK + 1L),
+		)
+
+		StepsSessionFactProjectionLane(
+			database,
+			sourceIngress(0L, 1L, listOf(unknownPurpose)),
+		).drainThrough(1L) shouldBe StepsSessionFactDrainResult.Failed(
+			lastCompletedOrdinal = 0L,
+			failedOrdinal = 1L,
+			failureCode = "STEPS_PURPOSE_ELIGIBILITY_MISMATCH",
+			terminal = true,
+		)
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
+		database.stepFactRevisionDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `malformed stored purpose mask cannot release a terminal projection failure`() = runTest {
+		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		insertRawStepsRow(
+			ordinal = 1L,
+			wallTimeMs = 10_001L,
+			acquiredAtMs = 10_001L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = 'capture' " +
+				"WHERE admission_ordinal = 1",
+		)
+		val ingress = mockk<DurableSourceIngress>()
+		coEvery {
+			ingress.committedSourceBatch(SourceKind.STEPS, 0L, 1L, 64)
+		} throws CorruptSourceEventException(
+			admissionOrdinal = 1L,
+			sourceKind = SourceKind.STEPS.stableCode,
+			failureCode = "RAW_PAYLOAD_DECODE",
+		)
+		val subject = StepsSessionFactProjectionLane(database, ingress)
+		val expected = StepsSessionFactDrainResult.Failed(
+			lastCompletedOrdinal = 0L,
+			failedOrdinal = 1L,
+			failureCode = "RAW_PAYLOAD_DECODE",
+			terminal = true,
+		)
+
+		subject.drainThrough(1L) shouldBe expected
+		subject.drainThrough(1L) shouldBe expected
+
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
+		database.stepFactRevisionDao().countAll() shouldBe 0L
+		coVerify(exactly = 1) {
+			ingress.committedSourceBatch(SourceKind.STEPS, 0L, 1L, 64)
+		}
+	}
+
+	@Test
 	fun `deleted session scope advances as a validated no effect before first projection`() = runTest {
 		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 		insertSessionDeletionFence()
@@ -1199,6 +1327,7 @@ class StepsSessionFactProjectionLaneTest {
 		counterEpochGeneration: Long? = null,
 		payloadVersion: Int? = null,
 		authorizationFingerprint: String = "steps-capture",
+		purposeMask: Long = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 		sourceInstanceId: String = "steps-provider",
 		registrationGeneration: Long = 1L,
 	): AdmittedSourceEvent<StepCounterWindowPayload> {
@@ -1216,8 +1345,10 @@ class StepsSessionFactProjectionLaneTest {
 				registrationGeneration = registrationGeneration,
 				physicalConfigurationFingerprint = "steps-config",
 				authorizationRevision = 1L,
-				registrationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-				registrationEligibilityFingerprint = authorizationFingerprint,
+				registrationPurposeEligibilityMask = purposeMask,
+				registrationEligibilityFingerprint = authorizationFingerprint.takeIf {
+					purposeMask != 0L
+				},
 				sourceSequence = ordinal,
 				configRevision = 1L,
 				planAttribution = PlanAttribution.CAPTURED_REGISTRATION,

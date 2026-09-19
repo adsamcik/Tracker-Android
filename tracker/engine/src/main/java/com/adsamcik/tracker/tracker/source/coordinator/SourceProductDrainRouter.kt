@@ -773,12 +773,6 @@ private data class SourceDrainActionIdentity(
 	val leaseGeneration: Long,
 )
 
-private data class SourceRunGenerationEvidence(
-	val provider: SourceDrainProviderIdentity,
-	val lifecycleLeaseGeneration: Long,
-	val admissionOrdinal: Long,
-)
-
 internal suspend fun sourceRunHighWater(
 	database: AppDatabase,
 	source: SourceKind,
@@ -849,82 +843,114 @@ internal suspend fun sourceRunHighWater(
 			return SourceRunHighWaterRead.Unverifiable
 		}
 	}
+	var highWater = 0L
+	var cleanupOnlyProductEvidence = false
+	val auditedGenerations = mutableSetOf<Pair<SourceDrainProviderIdentity, Long>>()
 	for (manifestRevisions in runManifestRevisions.chunked(RAW_WAL_MANIFEST_QUERY_CHUNK)) {
 		currentCoroutineContext().ensureActive()
-		val malformedAssociations = dao.rawMalformedServiceRunSourceCaptureAssociations(
+		val exactAssociations = dao.rawExactRunSourceManifestAssociations(
+			sourceKind = source.stableCode,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = manifestRevisions,
+			throughOrdinal = throughOrdinal,
+			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
+			limit = RAW_WAL_GENERATION_AUTHORITY_ENVELOPE,
+		)
+		if (exactAssociations.size >= RAW_WAL_GENERATION_AUTHORITY_ENVELOPE) {
+			return SourceRunHighWaterRead.Unverifiable
+		}
+		for (row in exactAssociations) {
+			currentCoroutineContext().ensureActive()
+			val associatedRowCount = row.associatedRowCount
+				?: return SourceRunHighWaterRead.Unverifiable
+			val productEligibleRowCount = row.productEligibleRowCount
+				?: return SourceRunHighWaterRead.Unverifiable
+			val sourceInstanceId = row.sourceInstanceId
+				?: return SourceRunHighWaterRead.Unverifiable
+			val registrationGeneration = row.registrationGeneration
+				?: return SourceRunHighWaterRead.Unverifiable
+			val lifecycleLeaseGeneration = row.lifecycleLeaseGeneration
+				?: return SourceRunHighWaterRead.Unverifiable
+			val provider = SourceDrainProviderIdentity(sourceInstanceId, registrationGeneration)
+			val providerClaims = claimsByProvider[provider].orEmpty()
+			val providerOwnsCapture = provider in productProviders || providerClaims.isNotEmpty()
+			if (!providerOwnsCapture) {
+				if (productEligibleRowCount > 0L) {
+					return SourceRunHighWaterRead.Unverifiable
+				}
+				continue
+			}
+			val malformedRowCount = row.malformedRowCount
+				?: return SourceRunHighWaterRead.Unverifiable
+			val admissionOrdinal = row.highWaterAdmissionOrdinal
+				?: return SourceRunHighWaterRead.Unverifiable
+			if (
+				sourceInstanceId.isBlank() ||
+				registrationGeneration <= 0L ||
+				lifecycleLeaseGeneration <= 0L ||
+				associatedRowCount <= 0L ||
+				malformedRowCount != 0L ||
+				productEligibleRowCount != associatedRowCount ||
+				admissionOrdinal !in 1L..throughOrdinal
+			) {
+				return SourceRunHighWaterRead.Unverifiable
+			}
+			val exactClaims = providerClaims
+				.filter { claim -> claim.leaseGeneration == lifecycleLeaseGeneration }
+			if (retirementClaims.isNotEmpty() && exactClaims.isEmpty()) {
+				return SourceRunHighWaterRead.Unverifiable
+			}
+			if (exactClaims.map(SourceDrainRetirementClaim::cleanupOnly).distinct().size > 1) {
+				return SourceRunHighWaterRead.Unverifiable
+			}
+			auditedGenerations += provider to lifecycleLeaseGeneration
+			if (auditedGenerations.size >= RAW_WAL_GENERATION_AUTHORITY_ENVELOPE) {
+				return SourceRunHighWaterRead.Unverifiable
+			}
+			if (exactClaims.any(SourceDrainRetirementClaim::cleanupOnly)) {
+				cleanupOnlyProductEvidence = true
+			} else if (provider !in productProviders) {
+				return SourceRunHighWaterRead.Unverifiable
+			} else {
+				highWater = maxOf(highWater, admissionOrdinal)
+			}
+		}
+
+		currentCoroutineContext().ensureActive()
+		val wrongRunAssociations = dao.rawWrongRunSourceManifestAssociations(
 			sourceKind = source.stableCode,
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
 			runManifestRevisions = manifestRevisions,
 			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-			limit = RAW_WAL_MALFORMED_SERVICE_RUN_ASSOCIATION_ENVELOPE,
+			allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
+			limit = RAW_WAL_GENERATION_AUTHORITY_ENVELOPE,
 		)
-		if (malformedAssociations.isNotEmpty()) {
+		if (wrongRunAssociations.size >= RAW_WAL_GENERATION_AUTHORITY_ENVELOPE) {
 			return SourceRunHighWaterRead.Unverifiable
 		}
-	}
-	currentCoroutineContext().ensureActive()
-	val rows = dao.rawExactRunSourceCaptureGenerations(
-		sourceKind = source.stableCode,
-		logicalTrackingId = logicalTrackingId,
-		serviceRunId = serviceRunId,
-		throughOrdinal = throughOrdinal,
-		capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-		allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
-		limit = RAW_WAL_GENERATION_AUTHORITY_ENVELOPE,
-	)
-	if (rows.size >= RAW_WAL_GENERATION_AUTHORITY_ENVELOPE) {
-		return SourceRunHighWaterRead.Unverifiable
-	}
-	val generations = ArrayList<SourceRunGenerationEvidence>(rows.size)
-	for (row in rows) {
-		currentCoroutineContext().ensureActive()
-		val sourceInstanceId = row.sourceInstanceId
-			?: return SourceRunHighWaterRead.Unverifiable
-		val registrationGeneration = row.registrationGeneration
-			?: return SourceRunHighWaterRead.Unverifiable
-		val lifecycleLeaseGeneration = row.lifecycleLeaseGeneration
-			?: return SourceRunHighWaterRead.Unverifiable
-		val malformedRowCount = row.malformedRowCount
-			?: return SourceRunHighWaterRead.Unverifiable
-		val productEligibleRowCount = row.productEligibleRowCount
-			?: return SourceRunHighWaterRead.Unverifiable
-		val admissionOrdinal = row.highWaterAdmissionOrdinal
-			?: return SourceRunHighWaterRead.Unverifiable
-		if (
-			sourceInstanceId.isBlank() ||
-			registrationGeneration <= 0L ||
-			lifecycleLeaseGeneration <= 0L ||
-			malformedRowCount != 0L ||
-			productEligibleRowCount <= 0L ||
-			admissionOrdinal !in 1L..throughOrdinal
-		) {
-			return SourceRunHighWaterRead.Unverifiable
-		}
-		generations += SourceRunGenerationEvidence(
-			provider = SourceDrainProviderIdentity(sourceInstanceId, registrationGeneration),
-			lifecycleLeaseGeneration = lifecycleLeaseGeneration,
-			admissionOrdinal = admissionOrdinal,
-		)
-	}
-	var highWater = 0L
-	var cleanupOnlyProductEvidence = false
-	for (generation in generations) {
-		currentCoroutineContext().ensureActive()
-		val exactClaims = claimsByProvider[generation.provider].orEmpty()
-			.filter { claim -> claim.leaseGeneration == generation.lifecycleLeaseGeneration }
-		if (retirementClaims.isNotEmpty() && exactClaims.isEmpty()) {
-			return SourceRunHighWaterRead.Unverifiable
-		}
-		if (exactClaims.map(SourceDrainRetirementClaim::cleanupOnly).distinct().size > 1) {
-			return SourceRunHighWaterRead.Unverifiable
-		}
-		if (exactClaims.any(SourceDrainRetirementClaim::cleanupOnly)) {
-			cleanupOnlyProductEvidence = true
-		} else if (generation.provider !in productProviders) {
-			return SourceRunHighWaterRead.Unverifiable
-		} else {
-			highWater = maxOf(highWater, generation.admissionOrdinal)
+		for (row in wrongRunAssociations) {
+			currentCoroutineContext().ensureActive()
+			val provider = row.sourceInstanceId
+				?.takeIf(String::isNotBlank)
+				?.let { sourceInstanceId ->
+					row.registrationGeneration
+						?.takeIf { it > 0L }
+						?.let { generation ->
+							SourceDrainProviderIdentity(sourceInstanceId, generation)
+						}
+				}
+			val expectedCapture = provider != null && (
+				provider in productProviders ||
+					claimsByProvider[provider].orEmpty().isNotEmpty()
+				)
+			val captureClaimed = row.productEligibleRowCount?.let { it > 0L }
+				?: return SourceRunHighWaterRead.Unverifiable
+			if (expectedCapture || captureClaimed) {
+				return SourceRunHighWaterRead.Unverifiable
+			}
 		}
 	}
 	return if (cleanupOnlyProductEvidence) {
@@ -1348,5 +1374,4 @@ private const val MAX_DRAIN_COMPLETENESS_ROWS = 384
 private const val MAX_COMPLETENESS_PER_SOURCE = 64
 private const val RAW_WAL_MANIFEST_QUERY_CHUNK = 100
 private const val RAW_WAL_GENERATION_AUTHORITY_ENVELOPE = MAX_RUN_RETIREMENT_ACTIONS + 1
-private const val RAW_WAL_MALFORMED_SERVICE_RUN_ASSOCIATION_ENVELOPE = 1
 private const val STEPS_DRAIN_FACT_AUDIT_PAGE_SIZE = 128
