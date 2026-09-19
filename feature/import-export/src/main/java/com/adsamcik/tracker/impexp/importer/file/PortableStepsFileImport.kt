@@ -153,18 +153,18 @@ internal class PortableStepsFileImport(
 		is ImportPortableStepsResult.RetryableFailure -> throw PortableStepsRetryableImportException(reason)
 	}
 
-	internal class PortableStepsImportReceiptContextException :
-		IOException("Portable Steps import requires durable file-job receipt context.") {
-		private companion object {
-			const val serialVersionUID: Long = 1L
-		}
-	}
-
 	internal companion object {
 		const val EXTENSION = StepsPortableFormatV1.FILE_EXTENSION
 		const val MAX_FILE_BYTES = StepsPortableFormatV1.MAX_FILE_BYTES
 		const val PERMANENT_FORMAT_ERROR =
 			"Portable Steps file is malformed, unsupported, or exceeds its limits."
+	}
+}
+
+internal class PortableStepsImportReceiptContextException :
+	IOException("Portable Steps import requires durable file-job receipt context.") {
+	private companion object {
+		const val serialVersionUID: Long = 1L
 	}
 }
 
@@ -175,24 +175,24 @@ internal class PortableStepsRetryableImportException(
 	private companion object {
 		const val serialVersionUID: Long = 1L
 	}
+}
 
-	private fun FileImportReceiptContext.forEntry(
-		entry: PortableStepsEntryV1,
-	): PortableStepsImportReceipt = PortableStepsImportReceipt(
+private fun FileImportReceiptContext.forEntry(
+	entry: PortableStepsEntryV1,
+): PortableStepsImportReceipt = PortableStepsImportReceipt(
 		jobId = jobId,
 		entryKey = subordinateEntryKey(entryKey, entry.identity.value),
 		sourceName = sourceName,
 		receivedAtMs = receivedAtMs,
 	)
 
-	private fun subordinateEntryKey(fileEntryKey: String, entryIdentity: String): String {
-		val canonical = listOf(
-			"tracker-portable-steps-subordinate-entry-receipt-v2",
-			fileEntryKey,
-			entryIdentity,
-		).joinToString(separator = "") { "${it.length}:$it" }
-		return "sha256:" + MessageDigest.getInstance("SHA-256")
-			.digest(canonical.toByteArray(Charsets.UTF_8))
-			.joinToString("") { byte -> "%02x".format(byte) }
-	}
+private fun subordinateEntryKey(fileEntryKey: String, entryIdentity: String): String {
+	val canonical = listOf(
+		"tracker-portable-steps-subordinate-entry-receipt-v2",
+		fileEntryKey,
+		entryIdentity,
+	).joinToString(separator = "") { "${it.length}:$it" }
+	return "sha256:" + MessageDigest.getInstance("SHA-256")
+		.digest(canonical.toByteArray(Charsets.UTF_8))
+		.joinToString("") { byte -> "%02x".format(byte) }
 }
