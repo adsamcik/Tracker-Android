@@ -787,7 +787,9 @@ internal suspend fun sourceRunHighWater(
 		runManifestRevisions.isEmpty() ||
 		runManifestRevisions.size > MAX_RUN_DRAIN_MANIFEST_REVISIONS ||
 		runManifestRevisions.any { revision -> revision <= 0L } ||
-		runManifestRevisions != runManifestRevisions.distinct().sorted()
+		runManifestRevisions != runManifestRevisions.distinct().sorted() ||
+		productMemberships.size > RAW_WAL_PROVIDER_GENERATION_ENVELOPE ||
+		retirementClaims.size > RAW_WAL_PROVIDER_GENERATION_ENVELOPE
 	) {
 		return SourceRunHighWaterRead.Unverifiable
 	}
@@ -813,66 +815,84 @@ internal suspend fun sourceRunHighWater(
 		}.toSet()
 	if (
 		productProviders.size != productMemberships.size ||
-		productProviders.any { provider -> provider in cleanupOnlyProviders }
+		productProviders.any { provider -> provider in cleanupOnlyProviders } ||
+		(productProviders + claimsByProvider.keys).size > RAW_WAL_PROVIDER_GENERATION_ENVELOPE
 	) {
 		return SourceRunHighWaterRead.Unverifiable
 	}
 	val dao = database.sourceEventWalDao()
 	val authenticatedManifestRevisions = runManifestRevisions.toHashSet()
-	currentCoroutineContext().ensureActive()
-	val exactRevisionAssociations = dao.rawExactRunSourceManifestRevisionAssociations(
-		sourceKind = source.stableCode,
-		logicalTrackingId = logicalTrackingId,
-		serviceRunId = serviceRunId,
-		throughOrdinal = throughOrdinal,
-		capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-		controlPurposeMask = SourceBrokerPurpose.CONTROL_MASK,
-		allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
-		limit = RAW_WAL_GENERATION_AUTHORITY_ENVELOPE,
-	)
-	if (exactRevisionAssociations.size >= RAW_WAL_GENERATION_AUTHORITY_ENVELOPE) {
-		return SourceRunHighWaterRead.Unverifiable
-	}
-	for (row in exactRevisionAssociations) {
+	val associatedProviders = HashSet<SourceDrainProviderIdentity>()
+	var afterAssociationRowId: Long? = null
+	while (true) {
 		currentCoroutineContext().ensureActive()
-		val revision = row.sessionManifestRevision
-			?: return SourceRunHighWaterRead.Unverifiable
-		val sourceInstanceId = row.sourceInstanceId
-			?: return SourceRunHighWaterRead.Unverifiable
-		val registrationGeneration = row.registrationGeneration
-			?: return SourceRunHighWaterRead.Unverifiable
-		val associatedRowCount = row.associatedRowCount
-			?: return SourceRunHighWaterRead.Unverifiable
-		val malformedRowCount = row.malformedRowCount
-			?: return SourceRunHighWaterRead.Unverifiable
-		val productEligibleRowCount = row.productEligibleRowCount
-			?: return SourceRunHighWaterRead.Unverifiable
-		val controlOnlyRowCount = row.controlOnlyRowCount
-			?: return SourceRunHighWaterRead.Unverifiable
-		if (
-			sourceInstanceId.isBlank() ||
-			registrationGeneration <= 0L ||
-			associatedRowCount <= 0L ||
-			malformedRowCount != 0L ||
-			productEligibleRowCount < 0L ||
-			productEligibleRowCount > associatedRowCount ||
-			controlOnlyRowCount < 0L ||
-			controlOnlyRowCount > associatedRowCount
-		) {
+		val page = dao.rawExactRunSourceManifestRevisionAssociations(
+			sourceKind = source.stableCode,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			throughOrdinal = throughOrdinal,
+			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			controlPurposeMask = SourceBrokerPurpose.CONTROL_MASK,
+			allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
+			afterAssociationRowId = afterAssociationRowId,
+			limit = RAW_WAL_ASSOCIATION_PAGE_SIZE,
+		)
+		currentCoroutineContext().ensureActive()
+		if (page.size > RAW_WAL_ASSOCIATION_PAGE_SIZE) {
 			return SourceRunHighWaterRead.Unverifiable
 		}
-		if (revision !in authenticatedManifestRevisions) {
-			val provider = SourceDrainProviderIdentity(sourceInstanceId, registrationGeneration)
-			val providerOwnsCapture =
-				provider in productProviders || claimsByProvider[provider].orEmpty().isNotEmpty()
+		for (row in page) {
+			currentCoroutineContext().ensureActive()
+			val pageRowId = row.associationPageRowId
+				?: return SourceRunHighWaterRead.Unverifiable
+			if (afterAssociationRowId?.let { prior -> pageRowId <= prior } == true) {
+				return SourceRunHighWaterRead.Unverifiable
+			}
+			afterAssociationRowId = pageRowId
+			val revision = row.sessionManifestRevision
+				?: return SourceRunHighWaterRead.Unverifiable
+			val sourceInstanceId = row.sourceInstanceId
+				?: return SourceRunHighWaterRead.Unverifiable
+			val registrationGeneration = row.registrationGeneration
+				?: return SourceRunHighWaterRead.Unverifiable
+			val associatedRowCount = row.associatedRowCount
+				?: return SourceRunHighWaterRead.Unverifiable
+			val malformedRowCount = row.malformedRowCount
+				?: return SourceRunHighWaterRead.Unverifiable
+			val productEligibleRowCount = row.productEligibleRowCount
+				?: return SourceRunHighWaterRead.Unverifiable
+			val controlOnlyRowCount = row.controlOnlyRowCount
+				?: return SourceRunHighWaterRead.Unverifiable
 			if (
-				providerOwnsCapture ||
-				productEligibleRowCount != 0L ||
-				controlOnlyRowCount != associatedRowCount
+				sourceInstanceId.isBlank() ||
+				registrationGeneration <= 0L ||
+				associatedRowCount <= 0L ||
+				malformedRowCount != 0L ||
+				productEligibleRowCount < 0L ||
+				productEligibleRowCount > associatedRowCount ||
+				controlOnlyRowCount < 0L ||
+				controlOnlyRowCount > associatedRowCount
 			) {
 				return SourceRunHighWaterRead.Unverifiable
 			}
+			val provider = SourceDrainProviderIdentity(sourceInstanceId, registrationGeneration)
+			associatedProviders += provider
+			if (associatedProviders.size > RAW_WAL_PROVIDER_GENERATION_ENVELOPE) {
+				return SourceRunHighWaterRead.Unverifiable
+			}
+			if (revision !in authenticatedManifestRevisions) {
+				val providerOwnsCapture =
+					provider in productProviders || claimsByProvider[provider].orEmpty().isNotEmpty()
+				if (
+					providerOwnsCapture ||
+					productEligibleRowCount != 0L ||
+					controlOnlyRowCount != associatedRowCount
+				) {
+					return SourceRunHighWaterRead.Unverifiable
+				}
+			}
 		}
+		if (page.size < RAW_WAL_ASSOCIATION_PAGE_SIZE) break
 	}
 	var highWater = 0L
 	var cleanupOnlyProductEvidence = false
@@ -888,9 +908,9 @@ internal suspend fun sourceRunHighWater(
 			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 			controlPurposeMask = SourceBrokerPurpose.CONTROL_MASK,
 			allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
-			limit = RAW_WAL_GENERATION_AUTHORITY_ENVELOPE,
+			limit = RAW_WAL_PROVIDER_GENERATION_QUERY_LIMIT,
 		)
-		if (exactAssociations.size >= RAW_WAL_GENERATION_AUTHORITY_ENVELOPE) {
+		if (exactAssociations.size >= RAW_WAL_PROVIDER_GENERATION_QUERY_LIMIT) {
 			return SourceRunHighWaterRead.Unverifiable
 		}
 		for (row in exactAssociations) {
@@ -951,7 +971,7 @@ internal suspend fun sourceRunHighWater(
 				return SourceRunHighWaterRead.Unverifiable
 			}
 			auditedGenerations += provider to lifecycleLeaseGeneration
-			if (auditedGenerations.size >= RAW_WAL_GENERATION_AUTHORITY_ENVELOPE) {
+			if (auditedGenerations.size > RAW_WAL_PROVIDER_GENERATION_ENVELOPE) {
 				return SourceRunHighWaterRead.Unverifiable
 			}
 			if (exactClaims.any(SourceDrainRetirementClaim::cleanupOnly)) {
@@ -972,9 +992,9 @@ internal suspend fun sourceRunHighWater(
 			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 			controlPurposeMask = SourceBrokerPurpose.CONTROL_MASK,
 			allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
-			limit = RAW_WAL_GENERATION_AUTHORITY_ENVELOPE,
+			limit = RAW_WAL_PROVIDER_GENERATION_QUERY_LIMIT,
 		)
-		if (wrongRunAssociations.size >= RAW_WAL_GENERATION_AUTHORITY_ENVELOPE) {
+		if (wrongRunAssociations.size >= RAW_WAL_PROVIDER_GENERATION_QUERY_LIMIT) {
 			return SourceRunHighWaterRead.Unverifiable
 		}
 		for (row in wrongRunAssociations) {
@@ -1441,5 +1461,9 @@ internal suspend fun authenticateSourceProductDrainRequest(
 private const val MAX_DRAIN_COMPLETENESS_ROWS = 384
 private const val MAX_COMPLETENESS_PER_SOURCE = 64
 private const val RAW_WAL_MANIFEST_QUERY_CHUNK = 100
-private const val RAW_WAL_GENERATION_AUTHORITY_ENVELOPE = MAX_RUN_RETIREMENT_ACTIONS + 1
+private const val RAW_WAL_ASSOCIATION_PAGE_SIZE = 128
+// The bounded run-action history defines the supported distinct provider-generation envelope.
+private const val RAW_WAL_PROVIDER_GENERATION_ENVELOPE = MAX_RUN_RETIREMENT_ACTIONS
+private const val RAW_WAL_PROVIDER_GENERATION_QUERY_LIMIT =
+	RAW_WAL_PROVIDER_GENERATION_ENVELOPE + 1
 private const val STEPS_DRAIN_FACT_AUDIT_PAGE_SIZE = 128

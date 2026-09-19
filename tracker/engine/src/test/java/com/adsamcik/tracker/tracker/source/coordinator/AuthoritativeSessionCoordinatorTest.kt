@@ -1336,6 +1336,7 @@ class AuthoritativeSessionCoordinatorTest {
 					SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 					SourceBrokerPurpose.CONTROL_MASK,
 					SourceBrokerPurpose.ALL_MASK,
+					null,
 					any(),
 				)
 			} returns emptyList()

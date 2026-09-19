@@ -509,9 +509,14 @@ interface SourceEventWalDao {
 	 *
 	 * The projected mask classification lets callers exclude valid control-only evidence only after
 	 * proving that its provider is absent from both product membership and retirement authority.
+	 * The minimum row ID is a unique, compact keyset cursor because one WAL row belongs to exactly
+	 * one grouped association.
 	 */
 	@Query(
-		"SELECT " +
+		"SELECT association_page_row_id, session_manifest_revision, source_instance_id, " +
+			"registration_generation, associated_row_count, malformed_row_count, " +
+			"product_eligible_row_count, control_only_row_count FROM (" +
+			"SELECT MIN(rowid) AS association_page_row_id, " +
 			"CASE WHEN typeof(session_manifest_revision) = 'integer' " +
 			"THEN session_manifest_revision END AS session_manifest_revision, " +
 			"CASE WHEN typeof(source_instance_id) = 'text' THEN source_instance_id END " +
@@ -570,9 +575,10 @@ interface SourceEventWalDao {
 			"CASE WHEN typeof(source_instance_id) = 'text' THEN source_instance_id END, " +
 			"typeof(registration_generation), " +
 			"CASE WHEN typeof(registration_generation) = 'integer' " +
-			"THEN registration_generation END " +
-			"ORDER BY malformed_row_count DESC, associated_row_count DESC, " +
-			"session_manifest_revision ASC LIMIT :limit",
+			"THEN registration_generation END" +
+			") WHERE (:afterAssociationRowId IS NULL OR " +
+			"association_page_row_id > :afterAssociationRowId) " +
+			"ORDER BY association_page_row_id ASC LIMIT :limit",
 	)
 	suspend fun rawExactRunSourceManifestRevisionAssociations(
 		sourceKind: Int,
@@ -582,6 +588,7 @@ interface SourceEventWalDao {
 		capturePurposeMask: Long,
 		controlPurposeMask: Long,
 		allowedPurposeMask: Long,
+		afterAssociationRowId: Long?,
 		limit: Int,
 	): List<RawSourceRunWalManifestRevisionEvidence>
 
@@ -878,6 +885,7 @@ data class RawSourceRunWalGenerationEvidence(
 
 /** Raw manifest-revision/provider grouping for an exact service-run WAL audit. */
 data class RawSourceRunWalManifestRevisionEvidence(
+	@ColumnInfo(name = "association_page_row_id") val associationPageRowId: Long?,
 	@ColumnInfo(name = "session_manifest_revision") val sessionManifestRevision: Long?,
 	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String?,
 	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long?,
