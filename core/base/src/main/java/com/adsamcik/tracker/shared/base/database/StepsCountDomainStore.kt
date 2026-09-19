@@ -104,8 +104,13 @@ private data class StepsWalPruneCursor(
 
 private data class StepsWalPruneCandidate(
 	val cursor: StepsWalPruneCursor,
+	val eventId: String,
+	val authorizationPurposeEligibilityMask: Long,
 	val ownerKey: StepsCountDomainOwnerLookupKey?,
-)
+) {
+	val isLegacyV27: Boolean
+		get() = authorizationPurposeEligibilityMask == 0L
+}
 
 private data class TerminalOwnerCandidate(
 	val linkedAtMs: Long,
@@ -196,6 +201,7 @@ sealed interface StepsCountDomainMaintenanceResult {
 	data class Applied(
 		val removedOwners: Long,
 		val removedReceipts: Long,
+		val walEventsDeleted: Int = 0,
 	) : StepsCountDomainMaintenanceResult
 }
 
@@ -1514,6 +1520,21 @@ class StepsCountDomainStore(
 		}
 	}
 
+	internal suspend fun pruneSessionWalForStorage(
+		safeOrdinal: Long,
+		createdBeforeMs: Long,
+		limit: Int,
+	): StepsCountDomainMaintenanceResult = authenticateCountDomainMaintenance {
+		withOwnerMaintenance { session ->
+			pruneSessionWalForStorageAuthenticated(
+				safeOrdinal = safeOrdinal,
+				createdBeforeMs = createdBeforeMs,
+				limit = limit,
+				session = session,
+			)
+		}
+	}
+
 	private suspend fun removeSessionWalOwnersForPruneAuthenticated(
 		safeOrdinal: Long,
 		createdBeforeMs: Long,
@@ -1572,6 +1593,95 @@ class StepsCountDomainStore(
 			cursor = next
 		}
 		return StepsCountDomainMaintenanceResult.Applied(removedOwners, removedReceipts)
+	}
+
+	private suspend fun pruneSessionWalForStorageAuthenticated(
+		safeOrdinal: Long,
+		createdBeforeMs: Long,
+		limit: Int,
+		session: OwnerMaintenanceSession,
+	): StepsCountDomainMaintenanceResult {
+		require(safeOrdinal >= 0L)
+		require(createdBeforeMs >= 0L)
+		if (limit !in 1..MAX_WAL_PRUNE_BATCH) {
+			return StepsCountDomainMaintenanceResult.Overflow
+		}
+		session.requireActiveSnapshot()
+		if (!session.schemaAvailable) return StepsCountDomainMaintenanceResult.SchemaUnavailable
+		val sqlite = database.openHelper.writableDatabase
+		currentCoroutineContext().ensureActive()
+		sqlite.authenticateStepsWalMaintenanceSnapshot(session)
+		var removedOwners = 0L
+		var removedReceipts = 0L
+		var removedWalRows = 0
+		var remaining = limit
+		var cursor: StepsWalPruneCursor? = null
+		while (remaining > 0) {
+			currentCoroutineContext().ensureActive()
+			session.requireActiveSnapshot()
+			val page = sqlite.querySessionWalPruneOwnerPage(
+				safeOrdinal = safeOrdinal,
+				createdBeforeMs = createdBeforeMs,
+				after = cursor,
+				limit = minOf(remaining, WAL_PRUNE_CANDIDATE_PAGE_SIZE),
+			)
+			if (page.isEmpty()) break
+			session.checkpointAndRequireUnchanged(
+				StepsCountDomainMaintenanceCheckpoint.WAL_CANDIDATE_PAGE_AUTHENTICATED,
+			)
+			val ownerKeys = page.mapNotNull(StepsWalPruneCandidate::ownerKey)
+			if (ownerKeys.isNotEmpty()) {
+				when (
+					val result = removeOwnersAuthenticated(
+						session = session,
+						keys = ownerKeys,
+						requireEveryOwner = true,
+					)
+				) {
+					is StepsCountDomainMaintenanceResult.Applied -> {
+						removedOwners += result.removedOwners
+						removedReceipts += result.removedReceipts
+					}
+					StepsCountDomainMaintenanceResult.SchemaUnavailable,
+					StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable,
+					StepsCountDomainMaintenanceResult.Overflow,
+					-> throw CountDomainStoredEvidenceException()
+				}
+			}
+			val legacy = page.filter(StepsWalPruneCandidate::isLegacyV27)
+			if (legacy.isNotEmpty()) {
+				val authority = sqlite.requireLegacyV27StepsWalRetentionAuthority()
+				val invalidationEffect = sqlite.roomDeleteInvalidationEffect(
+					"source_event_wal",
+					legacy.size.toLong(),
+				)
+				val deleted = sqlite.deleteAuthenticatedLegacyV27StepsWal(
+					legacy.map { it.cursor.admissionOrdinal },
+					authority,
+				)
+				session.acceptOwnedChanges(Math.addExact(deleted.toLong(), invalidationEffect))
+				removedWalRows += deleted
+			}
+			val current = page.filterNot(StepsWalPruneCandidate::isLegacyV27)
+			if (current.isNotEmpty()) {
+				val invalidationEffect = sqlite.roomDeleteInvalidationEffect(
+					"source_event_wal",
+					current.size.toLong(),
+				)
+				val deleted = sqlite.deleteCurrentStepsWalCandidates(current)
+				session.acceptOwnedChanges(Math.addExact(deleted.toLong(), invalidationEffect))
+				removedWalRows += deleted
+			}
+			remaining -= page.size
+			val next = page.last().cursor
+			if (cursor != null && next <= cursor) throw CountDomainStoredEvidenceException()
+			cursor = next
+		}
+		return StepsCountDomainMaintenanceResult.Applied(
+			removedOwners = removedOwners,
+			removedReceipts = removedReceipts,
+			walEventsDeleted = removedWalRows,
+		)
 	}
 
 	private fun OwnerMaintenanceSession.requireActiveSnapshot() {
@@ -2614,6 +2724,8 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwnerPage(
 				add(
 					StepsWalPruneCandidate(
 						cursor = candidateCursor,
+						eventId = eventId,
+						authorizationPurposeEligibilityMask = eligibilityMask,
 						ownerKey = if (
 							eligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
 						) {
@@ -3165,6 +3277,7 @@ private suspend fun SupportSQLiteDatabase.auditStepsWalMaintenancePages(
 	val (maximumRowId, expectedCount) = maintenanceRowIdBoundary("source_event_wal")
 	var afterRowId: Long? = null
 	var auditedCount = 0L
+	var legacyAuthority: LegacyV27StepsWalRetentionAuthority? = null
 	while (maximumRowId != null) {
 		currentCoroutineContext().ensureActive()
 		val page = queryMaintenanceRowIdPage(
@@ -3191,12 +3304,23 @@ private suspend fun SupportSQLiteDatabase.auditStepsWalMaintenancePages(
 				val serviceRunId = cursor.nullableText("service_run_id")
 				val captureEligible =
 					eligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
-				if (admissionOrdinal <= 0L || eventId.isBlank() || createdAtMs < 0L ||
+				val commonInvalid =
+					admissionOrdinal <= 0L || eventId.isBlank() || createdAtMs < 0L ||
 					sourceInstanceId.isBlank() || registrationGeneration <= 0L ||
-					eligibilityMask !in 1L..STEPS_WAL_ALLOWED_PURPOSE_MASK ||
 					(logicalTrackingId == null) != (serviceRunId == null) ||
 					logicalTrackingId?.isBlank() == true ||
-					serviceRunId?.isBlank() == true ||
+					serviceRunId?.isBlank() == true
+				if (commonInvalid) {
+					throw CountDomainStoredEvidenceException()
+				}
+				if (eligibilityMask == 0L) {
+					val authority = legacyAuthority
+						?: requireLegacyV27StepsWalRetentionAuthority().also {
+							legacyAuthority = it
+						}
+					requireAuthenticatedLegacyV27StepsWal(admissionOrdinal, authority)
+				} else if (
+					eligibilityMask !in 1L..STEPS_WAL_ALLOWED_PURPOSE_MASK ||
 					captureEligible != (logicalTrackingId != null)
 				) {
 					throw CountDomainStoredEvidenceException()
@@ -3343,6 +3467,30 @@ private fun SupportSQLiteDatabase.requireMaintenanceMutationVersion(
 
 private fun SupportSQLiteDatabase.executeDelete(sql: String): Int =
 	compileStatement(sql).use { statement -> statement.executeUpdateDelete() }
+
+private fun SupportSQLiteDatabase.deleteCurrentStepsWalCandidates(
+	candidates: List<StepsWalPruneCandidate>,
+): Int {
+	check(candidates.isNotEmpty() && candidates.none(StepsWalPruneCandidate::isLegacyV27))
+	val predicate = candidates.joinToString(" OR ") {
+		"(admission_ordinal = ? AND event_id = ? AND " +
+			"authorization_purpose_eligibility_mask = ?)"
+	}
+	return compileStatement(
+		"DELETE FROM source_event_wal WHERE source_kind = ? AND ($predicate)",
+	).use { statement ->
+		var index = 1
+		statement.bindLong(index++, SourceDestinationOwnerEntity.SOURCE_STEPS.toLong())
+		candidates.forEach { candidate ->
+			statement.bindLong(index++, candidate.cursor.admissionOrdinal)
+			statement.bindString(index++, candidate.eventId)
+			statement.bindLong(index++, candidate.authorizationPurposeEligibilityMask)
+		}
+		statement.executeUpdateDelete()
+	}.also { deleted ->
+		if (deleted != candidates.size) throw CountDomainStoredEvidenceException()
+	}
+}
 
 private fun SupportSQLiteDatabase.roomDeleteInvalidationEffect(
 	table: String,

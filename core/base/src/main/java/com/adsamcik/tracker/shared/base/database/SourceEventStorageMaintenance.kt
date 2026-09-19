@@ -98,24 +98,35 @@ suspend fun AppDatabase.pruneSourceEventStorageBefore(
 						remainingEffectLimit -= sourceEffects
 					}
 					if (remainingWalLimit > 0) {
-						if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS) {
-							check(
-								StepsCountDomainStore(this).removeSessionWalOwnersForPrune(
+						val sourceWal = if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS) {
+							when (
+								val result = StepsCountDomainStore(this).pruneSessionWalForStorage(
 									safeOrdinal = sourceSafeOrdinal,
 									createdBeforeMs = createdBeforeMs,
 									limit = remainingWalLimit,
-								).let { result ->
-									result is StepsCountDomainMaintenanceResult.Applied ||
-										result == StepsCountDomainMaintenanceResult.SchemaUnavailable
-								},
-							) { "Steps WAL count-domain evidence could not be pruned" }
+								)
+							) {
+								is StepsCountDomainMaintenanceResult.Applied ->
+									result.walEventsDeleted
+								StepsCountDomainMaintenanceResult.SchemaUnavailable ->
+									walDao.deleteProjectedSourceBatch(
+										sourceKind = sourceKind,
+										safeOrdinal = sourceSafeOrdinal,
+										createdBeforeMs = createdBeforeMs,
+										limit = remainingWalLimit,
+									)
+								StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable,
+								StepsCountDomainMaintenanceResult.Overflow,
+								-> error("Steps WAL count-domain evidence could not be pruned")
+							}
+						} else {
+							walDao.deleteProjectedSourceBatch(
+								sourceKind = sourceKind,
+								safeOrdinal = sourceSafeOrdinal,
+								createdBeforeMs = createdBeforeMs,
+								limit = remainingWalLimit,
+							)
 						}
-						val sourceWal = walDao.deleteProjectedSourceBatch(
-							sourceKind = sourceKind,
-							safeOrdinal = sourceSafeOrdinal,
-							createdBeforeMs = createdBeforeMs,
-							limit = remainingWalLimit,
-						)
 						deletedWal += sourceWal
 						remainingWalLimit -= sourceWal
 					}

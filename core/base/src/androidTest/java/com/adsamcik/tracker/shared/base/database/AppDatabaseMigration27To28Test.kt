@@ -165,6 +165,77 @@ class AppDatabaseMigration27To28Test {
 		}
 	}
 
+	@Test
+	fun migratedV27StepsWalRetainsZeroMaskWithoutFabricatedV28Authority() {
+		helper.createDatabase(TEST_DATABASE, 27).use { database ->
+			PopulatedV27Fixture.seed(database)
+			PopulatedV27Fixture.seedStepsWal(database)
+		}
+
+		helper.runMigrationsAndValidate(TEST_DATABASE, 28, true, MIGRATION_27_28).use { database ->
+			assertFinalV28SchemaAssemblyMarker(database)
+			database.query(
+				"SELECT authorization_purpose_eligibility_mask, authorization_revision, " +
+					"authorization_fingerprint, physical_configuration_fingerprint, " +
+					"source_policy_revision, capture_consent_epoch, session_manifest_revision, " +
+					"lifecycle_lease_generation, payload_version, integrity_identity " +
+					"FROM source_event_wal WHERE event_id = ?",
+				arrayOf(PopulatedV27Fixture.STEPS_WAL_EVENT_ID),
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(0L, cursor.getLong(0))
+				assertTrue(cursor.isNull(1))
+				assertTrue(cursor.isNull(2))
+				assertTrue(cursor.isNull(3))
+				assertTrue(cursor.isNull(4))
+				assertTrue(cursor.isNull(5))
+				assertTrue(cursor.isNull(6))
+				assertTrue(cursor.isNull(7))
+				assertEquals(1L, cursor.getLong(8))
+				assertEquals(SourceEventWalEntity.LEGACY_PENDING_CHECKSUM, cursor.getString(9))
+				assertFalse(cursor.moveToNext())
+			}
+			database.query(
+				"SELECT source_schema_version, contract_version, cutoff_admission_ordinal, " +
+					"status FROM legacy_v27_projection_drain WHERE id = 1",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(27L, cursor.getLong(0))
+				assertEquals(1L, cursor.getLong(1))
+				assertEquals(2L, cursor.getLong(2))
+				assertEquals(LegacyV27ProjectionDrainEntity.STATUS_PENDING, cursor.getString(3))
+				assertFalse(cursor.moveToNext())
+			}
+			database.query(
+				"SELECT state, completed_at_ms, completion_reason, runtime_acknowledgement, " +
+					"runtime_failure_code, run_revision, boot_id, lease_generation, " +
+					"presentation_acknowledgement FROM source_service_run WHERE service_run_id = ?",
+				arrayOf(PopulatedV27Fixture.SERVICE_RUN_ID),
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals("FINALIZED", cursor.getString(0))
+				assertTrue(cursor.isNull(1))
+				assertEquals(V28_MIGRATION_INTERRUPTION_REASON, cursor.getString(2))
+				assertEquals("TERMINAL_FAILURE", cursor.getString(3))
+				assertEquals(V28_MIGRATION_INTERRUPTION_REASON, cursor.getString(4))
+				assertEquals(1L, cursor.getLong(5))
+				assertEquals("LEGACY_UNKNOWN", cursor.getString(6))
+				assertEquals(0L, cursor.getLong(7))
+				assertEquals(
+					SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE,
+					cursor.getString(8),
+				)
+				assertFalse(cursor.moveToNext())
+			}
+			database.query(
+				"SELECT COUNT(*) FROM steps_count_domain_owner_revision",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(0L, cursor.getLong(0))
+			}
+		}
+	}
+
 	private suspend fun seedSourceCallerAuthorities(database: AppDatabase) {
 		val valid = SourceCallerAcceptedAuthorityEntity(
 			reference = "valid-active",
