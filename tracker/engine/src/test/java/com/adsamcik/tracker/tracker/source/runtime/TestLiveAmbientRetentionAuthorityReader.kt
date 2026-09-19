@@ -27,6 +27,7 @@ internal class TestLiveAmbientRetentionAuthorityReader(
 		expectedSourcePolicyRevision: Long,
 		expectedAmbientConsentEpoch: Long,
 		expectedCollectedDataEpoch: Long,
+		expectedRetainedFromMs: Long?,
 	): CurrentRetentionAuthority = if (current) {
 		observed[source] = Triple(
 			expectedSourcePolicyRevision,
@@ -53,6 +54,7 @@ internal class TestLiveAmbientRetentionAuthorityReader(
 		expectedSourcePolicyRevision: Long,
 		expectedAmbientConsentEpoch: Long,
 		expectedCollectedDataEpoch: Long,
+		expectedRetainedFromMs: Long?,
 		expectedOpaquePolicyId: String,
 		expectedApprovalRevision: Long,
 		currentBootId: String,
@@ -66,6 +68,7 @@ internal class TestLiveAmbientRetentionAuthorityReader(
 				expectedAmbientConsentEpoch,
 				expectedCollectedDataEpoch,
 			)) &&
+			expectedRetainedFromMs == retainedFromMs &&
 			expectedOpaquePolicyId == source.liveAmbientPolicyId() &&
 			expectedApprovalRevision == approvalRevision
 	}

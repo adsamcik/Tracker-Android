@@ -38,7 +38,7 @@ data class AmbientCellActivationRequest(val enabled: Boolean)
 
 /** Default-off Cell gate. No subscription or Telephony API is read until every policy check wins. */
 @Singleton
-class AmbientCellDemandReconciler @Inject constructor(
+class AmbientCellDemandReconciler @Inject internal constructor(
 	private val sourceBroker: SourceBroker,
 	private val sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,
 	private val sharedController: SharedCellSourceController,

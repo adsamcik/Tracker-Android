@@ -301,10 +301,6 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 		else -> null
 	}
 
-	override suspend fun isCurrent(
-		identity: com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity,
-	): Boolean = currentAuthority(identity)
-
 	override suspend fun permitsActivation(
 		reference: SourceCallerReplayReference,
 		manifestIdentity: SourceCallerManifestIdentity,

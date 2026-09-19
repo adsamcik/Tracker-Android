@@ -41,7 +41,7 @@ data class AmbientWifiActivationRequest(val enabled: Boolean)
  * can read platform capability or touch the provider.
  */
 @Singleton
-class AmbientWifiDemandReconciler @Inject constructor(
+class AmbientWifiDemandReconciler @Inject internal constructor(
 	private val sourceBroker: SourceBroker,
 	private val sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,
 	private val sharedController: SharedWifiSourceController,

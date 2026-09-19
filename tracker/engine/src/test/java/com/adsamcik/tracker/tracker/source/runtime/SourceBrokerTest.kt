@@ -24,6 +24,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionSettings
@@ -43,6 +44,10 @@ import com.adsamcik.tracker.tracker.api.AutomaticControlContainmentAttemptResult
 import com.adsamcik.tracker.tracker.api.AutomaticControlContainmentLoopResult
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.SourceCallerAcceptanceReceipt
+import com.adsamcik.tracker.tracker.api.SourceCallerDemandIdentity
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.reconcileUnavailableAutomaticControl
 import com.adsamcik.tracker.tracker.api.runAutomaticControlContainmentRetryLoop
@@ -1066,22 +1071,53 @@ class SourceBrokerTest {
 			3L,
 			"boot-1",
 		)
+		val grant = retention.grants.getValue(SourceKind.STEPS)
+		val identity = AmbientReconciliationIdentity(
+			source = AmbientTrackingSource.STEPS,
+			policyRevision = policy.revision,
+			consentEpoch = requireNotNull(
+				policy[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+			),
+			collectedDataEpoch = grant.collectedDataEpoch,
+			rolloutRevision = 1L,
+			ownerCasToken = "steps-stale-snapshot-owner",
+			executionRevision = 1L,
+			retainedFromMs = grant.retainedFromMs,
+			retentionPolicyId = grant.opaquePolicyId,
+			retentionApprovalRevision = grant.approvalRevision,
+		)
+		val callerIdentity = SourceCallerDemandIdentity(identity.purposeLeaseIdentity, null)
+		val callerReference = SourceCallerReplayReference("steps-stale-snapshot-caller")
+		val prepared = PreparedSourceCallerAcceptance(
+			receipt = SourceCallerAcceptanceReceipt(callerReference, setOf(callerIdentity)),
+			authority = StoredSourceCallerAuthority(
+				StoredSourceCallerOrigin.PURPOSE_OWNER,
+				TrackingPurpose.AMBIENT_PRODUCT,
+				setOf(callerIdentity),
+			),
+			createdAtMs = 95L,
+		)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE ambient_steps_retention_authority SET effect_checksum = 'corrupt' " +
 				"WHERE scope = 'LIVE_AMBIENT'",
 		)
 
 		subject.replaceAmbientStepsDemand(
-			"app:ambient:steps",
-			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-			"boot-1",
-			100L,
-			100L,
+			consumerId = "app:ambient:steps",
+			mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			leaseIdentity = identity,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 100L,
+			wallTimeMs = 100L,
+			sourceCallerAuthorityReference = callerReference.value,
 			retentionSnapshot = retention,
+			preparedCallerAcceptance = prepared,
 		) shouldBe AmbientStepsDemandResult.Inactive(
 			AmbientStepsDemandInactiveReason.RETENTION_AUTHORITY_UNAVAILABLE,
 		)
 		database.sourceBrokerDao().currentDemands("app:ambient:steps").shouldBeEmpty()
+		RoomSourceCallerAcceptedAuthorityRepository(database).load(callerReference) shouldBe
+			StoredSourceCallerAuthorityLoadResult.Missing
 	}
 
 	@Test

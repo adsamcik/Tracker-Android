@@ -53,7 +53,6 @@ class GuardedSourceCallerDemandDispatcherTest {
 		}
 		val repository = InMemorySourceCallerAuthorityRepository()
 		val dispatcher = GuardedSourceCallerDemandDispatcher(
-			database = mockk(relaxed = true),
 			authorityReader = provider,
 			guard = ExactSourceCallerGuard(
 				SourceCallerAuthoritySnapshotReader { snapshot },
@@ -93,7 +92,6 @@ class GuardedSourceCallerDemandDispatcherTest {
 		}
 		val repository = InMemorySourceCallerAuthorityRepository()
 		val dispatcher = GuardedSourceCallerDemandDispatcher(
-			database = mockk(relaxed = true),
 			authorityReader = provider,
 			guard = ExactSourceCallerGuard(
 				SourceCallerAuthoritySnapshotReader { snapshot },
@@ -133,7 +131,6 @@ class GuardedSourceCallerDemandDispatcherTest {
 		}
 		val repository = InMemorySourceCallerAuthorityRepository()
 		val dispatcher = GuardedSourceCallerDemandDispatcher(
-			database = mockk(relaxed = true),
 			authorityReader = provider,
 			guard = ExactSourceCallerGuard(
 				SourceCallerAuthoritySnapshotReader { snapshot },
@@ -172,7 +169,6 @@ class GuardedSourceCallerDemandDispatcherTest {
 					throw failure
 				}
 				return GuardedSourceCallerDemandDispatcher(
-					database = mockk(relaxed = true),
 					authorityReader = provider,
 					guard = mockk(relaxed = true),
 					sourceBroker = brokerReturning(emptyList()),
@@ -331,7 +327,6 @@ class GuardedSourceCallerDemandDispatcherTest {
 		)
 		val broker = brokerReturning(listOf(demand(TrackingSource.LOCATION)))
 		val dispatcher = GuardedSourceCallerDemandDispatcher(
-			database = mockk(relaxed = true),
 			authorityReader = CurrentSourceCallerAuthorityProvider { snapshot },
 			guard = guard,
 			sourceBroker = broker,
@@ -369,7 +364,6 @@ class GuardedSourceCallerDemandDispatcherTest {
 		val repository = InMemorySourceCallerAuthorityRepository()
 		val broker = brokerReturning(listOf(demand(TrackingSource.LOCATION)))
 		val dispatcher = GuardedSourceCallerDemandDispatcher(
-			database = mockk(relaxed = true),
 			authorityReader = CurrentSourceCallerAuthorityProvider { snapshot },
 			guard = ExactSourceCallerGuard(
 				SourceCallerAuthoritySnapshotReader { snapshot },
@@ -420,7 +414,6 @@ class GuardedSourceCallerDemandDispatcherTest {
 		)
 		val broker = brokerReturning(listOf(demand(TrackingSource.LOCATION)))
 		val dispatcher = GuardedSourceCallerDemandDispatcher(
-			database = mockk(relaxed = true),
 			authorityReader = CurrentSourceCallerAuthorityProvider { snapshot },
 			guard = guard,
 			sourceBroker = broker,
@@ -483,7 +476,6 @@ class GuardedSourceCallerDemandDispatcherTest {
 		)
 		val broker = brokerReturning(listOf(demand(TrackingSource.LOCATION)))
 		val dispatcher = GuardedSourceCallerDemandDispatcher(
-			database = mockk(relaxed = true),
 			authorityReader = CurrentSourceCallerAuthorityProvider { snapshot },
 			guard = guard,
 			sourceBroker = broker,
@@ -535,7 +527,6 @@ class GuardedSourceCallerDemandDispatcherTest {
 	): GuardedSourceCallerDemandDispatcher {
 		val repository = InMemorySourceCallerAuthorityRepository()
 		return GuardedSourceCallerDemandDispatcher(
-			database = mockk(relaxed = true),
 			authorityReader = CurrentSourceCallerAuthorityProvider { snapshot },
 			guard = ExactSourceCallerGuard(
 				authorityReader = SourceCallerAuthoritySnapshotReader { snapshot },

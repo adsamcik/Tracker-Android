@@ -21,7 +21,7 @@ import kotlinx.coroutines.sync.withLock
  * cross-source corroboration.
  */
 @Singleton
-class SharedStepSourceController @Inject constructor(
+class SharedStepSourceController @Inject internal constructor(
 	private val physicalRuntime: StepSourceRuntime,
 	private val sourceBroker: SourceBroker,
 	private val sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,

@@ -150,27 +150,7 @@ class AutomaticStartTransitionMonitor @Inject internal constructor(
 				}
 			}
 			is GuardedPurposeDemandResult.Applied -> try {
-				if (!sourceCallerDemandDispatcher.isCurrent(readyIdentity)) {
-					return withContext(NonCancellable) {
-						compensateRejectedActivation(
-							boundaryBootId,
-							elapsedRealtimeNanos,
-							boundaryWallTimeMs,
-							desiredLatencyMs,
-						)
-					}
-				}
 				activityProjectionLane.ensureRegisteredAtLiveTail()
-				if (!sourceCallerDemandDispatcher.isCurrent(readyIdentity)) {
-					return withContext(NonCancellable) {
-						compensateRejectedActivation(
-							boundaryBootId,
-							elapsedRealtimeNanos,
-							boundaryWallTimeMs,
-							desiredLatencyMs,
-						)
-					}
-				}
 				val registered = arbiter.setDemand(
 					ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
 					ActivityRegistrationDemand(

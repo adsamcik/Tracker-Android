@@ -25,6 +25,7 @@ import com.adsamcik.tracker.tracker.source.runtime.RoomSourceCallerAcceptedAutho
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAcceptedAuthorityRepository
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthoritySnapshotReader
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerDemandDispatcher
+import com.adsamcik.tracker.tracker.source.runtime.TransactionalSourceCallerGuard
 import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeAuthorityReader
 import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeOwnerCasTokenFactory
 import com.adsamcik.tracker.tracker.worker.TrackingPurposeReconciliationWorkScheduler
@@ -98,6 +99,11 @@ internal abstract class TrackingPurposePublicationModule {
 	internal abstract fun bindSourceCallerGuard(
 		impl: ExactSourceCallerGuard,
 	): SourceCallerGuard
+
+	@Binds
+	internal abstract fun bindTransactionalSourceCallerGuard(
+		impl: ExactSourceCallerGuard,
+	): TransactionalSourceCallerGuard
 
 	@Binds
 	internal abstract fun bindSourceCallerDemandDispatcher(

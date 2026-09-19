@@ -104,6 +104,44 @@ internal sealed interface StoredSourceCallerAuthorityLoadResult {
 	data object Retired : StoredSourceCallerAuthorityLoadResult
 }
 
+internal data class PreparedSourceCallerAcceptance(
+	val receipt: SourceCallerAcceptanceReceipt,
+	val authority: StoredSourceCallerAuthority,
+	val createdAtMs: Long,
+) {
+	init {
+		require(createdAtMs >= 0L)
+		require(receipt.permittedDemandIdentities == authority.permittedDemandIdentities)
+	}
+}
+
+internal sealed interface SourceCallerFreshAcceptanceResult {
+	data class Prepared(
+		val acceptance: PreparedSourceCallerAcceptance,
+	) : SourceCallerFreshAcceptanceResult
+
+	data class Rejected(
+		val rejection: SourceCallerGuardRejection,
+	) : SourceCallerFreshAcceptanceResult
+}
+
+internal interface TransactionalSourceCallerGuard : SourceCallerGuard {
+	/**
+	 * Evaluates an immutable authority snapshot without entering persistence. The caller must
+	 * persist the returned acceptance in the same Room transaction as its authorized effects.
+	 */
+	fun prepareFreshAcceptance(
+		request: SourceCallerRequest,
+		currentAuthority: SourceCallerAuthoritySnapshot,
+		createdAtMs: Long,
+	): SourceCallerFreshAcceptanceResult
+
+	suspend fun authenticateReplayAgainstSnapshot(
+		request: SourceCallerRequest.Replay,
+		currentAuthority: SourceCallerAuthoritySnapshot,
+	): SourceCallerGuardResult
+}
+
 /**
  * Engine-owned acceptance boundary. The accepted capability is private to this module; public
  * callers receive an informational receipt only, and replay can recover authority only through the
@@ -113,7 +151,7 @@ internal sealed interface StoredSourceCallerAuthorityLoadResult {
 internal class ExactSourceCallerGuard @Inject constructor(
 	private val authorityReader: SourceCallerAuthoritySnapshotReader,
 	private val authorityRepository: SourceCallerAcceptedAuthorityRepository,
-) : SourceCallerGuard {
+) : TransactionalSourceCallerGuard {
 	override suspend fun accept(request: SourceCallerRequest): SourceCallerGuardResult {
 		if (request is SourceCallerRequest.PurposeOwnerRetirement) {
 			return acceptPurposeOwnerRetirement(request)
@@ -133,20 +171,65 @@ internal class ExactSourceCallerGuard @Inject constructor(
 		}
 		return when (request) {
 			is SourceCallerRequest.ManualSessionStart ->
-				acceptFresh(evaluateManual(request, currentAuthority))
+				acceptFresh(prepareFreshAcceptance(request, currentAuthority, System.currentTimeMillis()))
 			is SourceCallerRequest.AutomaticSessionStart ->
-				acceptFresh(evaluateAutomatic(request, currentAuthority))
+				acceptFresh(prepareFreshAcceptance(request, currentAuthority, System.currentTimeMillis()))
 			is SourceCallerRequest.RecoverySessionStart ->
-				acceptFresh(evaluateRecovery(request, currentAuthority))
+				acceptFresh(prepareFreshAcceptance(request, currentAuthority, System.currentTimeMillis()))
 			is SourceCallerRequest.PurposeOwnerMutation ->
-				acceptFresh(evaluatePurposeOwnerMutation(request, currentAuthority))
+				acceptFresh(prepareFreshAcceptance(request, currentAuthority, System.currentTimeMillis()))
 			is SourceCallerRequest.PurposeOwnerRetirement ->
 				error("Purpose-owner retirement is handled before current-authority acquisition")
 			is SourceCallerRequest.Ambient ->
-				acceptFresh(evaluateAmbient(request, currentAuthority))
-			is SourceCallerRequest.Replay -> replay(request, currentAuthority)
+				acceptFresh(prepareFreshAcceptance(request, currentAuthority, System.currentTimeMillis()))
+			is SourceCallerRequest.Replay ->
+				authenticateReplayAgainstSnapshot(request, currentAuthority)
 		}
 	}
+
+	override fun prepareFreshAcceptance(
+		request: SourceCallerRequest,
+		currentAuthority: SourceCallerAuthoritySnapshot,
+		createdAtMs: Long,
+	): SourceCallerFreshAcceptanceResult {
+		require(request !is SourceCallerRequest.Replay)
+		require(request !is SourceCallerRequest.PurposeOwnerRetirement)
+		require(createdAtMs >= 0L)
+		val evaluation = when (request) {
+			is SourceCallerRequest.ManualSessionStart -> evaluateManual(request, currentAuthority)
+			is SourceCallerRequest.AutomaticSessionStart -> evaluateAutomatic(request, currentAuthority)
+			is SourceCallerRequest.RecoverySessionStart -> evaluateRecovery(request, currentAuthority)
+			is SourceCallerRequest.PurposeOwnerMutation ->
+				evaluatePurposeOwnerMutation(request, currentAuthority)
+			is SourceCallerRequest.Ambient -> evaluateAmbient(request, currentAuthority)
+			is SourceCallerRequest.PurposeOwnerRetirement,
+			is SourceCallerRequest.Replay,
+			-> error("Only fresh source-caller requests can be prepared")
+		}
+		return when (evaluation) {
+			is SourceCallerEvaluation.Rejected ->
+				SourceCallerFreshAcceptanceResult.Rejected(evaluation.rejection)
+			is SourceCallerEvaluation.Accepted -> {
+				val reference = SourceCallerReplayReference(UUID.randomUUID().toString())
+				SourceCallerFreshAcceptanceResult.Prepared(
+					PreparedSourceCallerAcceptance(
+						receipt = SourceCallerAcceptanceReceipt(
+							reference = reference,
+							permittedDemandIdentities =
+								evaluation.authority.permittedDemandIdentities,
+						),
+						authority = evaluation.authority.toStored(),
+						createdAtMs = createdAtMs,
+					),
+				)
+			}
+		}
+	}
+
+	override suspend fun authenticateReplayAgainstSnapshot(
+		request: SourceCallerRequest.Replay,
+		currentAuthority: SourceCallerAuthoritySnapshot,
+	): SourceCallerGuardResult = replay(request, currentAuthority)
 
 	private suspend fun acceptPurposeOwnerRetirement(
 		request: SourceCallerRequest.PurposeOwnerRetirement,
@@ -185,32 +268,33 @@ internal class ExactSourceCallerGuard @Inject constructor(
 	}
 
 	private suspend fun acceptFresh(
-		evaluation: SourceCallerEvaluation,
+		prepared: SourceCallerFreshAcceptanceResult,
 	): SourceCallerGuardResult {
-		return when (evaluation) {
-			is SourceCallerEvaluation.Rejected -> SourceCallerGuardResult.Rejected(evaluation.rejection)
-			is SourceCallerEvaluation.Accepted -> {
-				val reference = SourceCallerReplayReference(UUID.randomUUID().toString())
-				try {
-					if (!authorityRepository.insertIfAbsent(
-						reference,
-						evaluation.authority.toStored(),
-						System.currentTimeMillis(),
-					)) {
-						return rejected(SourceCallerRejectionReason.AUTHORITY_PERSISTENCE_UNAVAILABLE)
-					}
-				} catch (cancelled: CancellationException) {
-					throw cancelled
-				} catch (failure: Exception) {
-					return rejected(
-						if (failure.isTrackingOperationalFailure()) {
-							SourceCallerRejectionReason.AUTHORITY_PERSISTENCE_UNAVAILABLE
-						} else {
-							SourceCallerRejectionReason.AUTHORITY_INVARIANT_VIOLATION
-						},
+		return when (prepared) {
+			is SourceCallerFreshAcceptanceResult.Rejected ->
+				SourceCallerGuardResult.Rejected(prepared.rejection)
+			is SourceCallerFreshAcceptanceResult.Prepared -> try {
+				val acceptance = prepared.acceptance
+				if (!authorityRepository.insertIfAbsent(
+						acceptance.receipt.reference,
+						acceptance.authority,
+						acceptance.createdAtMs,
 					)
+				) {
+					rejected(SourceCallerRejectionReason.AUTHORITY_PERSISTENCE_UNAVAILABLE)
+				} else {
+					SourceCallerGuardResult.Permitted(acceptance.receipt)
 				}
-				permitted(reference, evaluation.authority)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (failure: Exception) {
+				rejected(
+					if (failure.isTrackingOperationalFailure()) {
+						SourceCallerRejectionReason.AUTHORITY_PERSISTENCE_UNAVAILABLE
+					} else {
+						SourceCallerRejectionReason.AUTHORITY_INVARIANT_VIOLATION
+					},
+				)
 			}
 		}
 	}

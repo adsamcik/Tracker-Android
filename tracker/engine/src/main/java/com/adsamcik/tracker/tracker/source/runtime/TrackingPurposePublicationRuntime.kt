@@ -1351,10 +1351,12 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 			lease.identity,
 			settlementOperationId,
 		) {
-			if (settlementOperationId == null) {
-				owner.callback.reconcile(lease)
-			} else {
-				owner.callback.reconcileForRetentionFloor(lease, settlementOperationId)
+			withRetentionFloorSettlementOperation(settlementOperationId) {
+				if (settlementOperationId == null) {
+					owner.callback.reconcile(lease)
+				} else {
+					owner.callback.reconcileForRetentionFloor(lease, settlementOperationId)
+				}
 			}
 		}
 		val availability = when (ownerCall) {

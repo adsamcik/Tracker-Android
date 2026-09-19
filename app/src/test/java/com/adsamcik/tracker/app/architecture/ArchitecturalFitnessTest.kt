@@ -1370,6 +1370,11 @@ class ArchitecturalFitnessTest {
 				if ("readPersistedLiveAmbientRetention(" !in transactionRevalidation) {
 					add("Room mutation must exact-CAS the persisted retention identity")
 				}
+				if ("matchesActiveSettlementInTransaction(" !in transactionRevalidation ||
+					"activeRetentionFloorSettlement()" !in broker
+				) {
+					add("Room mutation must reject a changed retention settlement journal")
+				}
 				listOf(
 					"liveAmbientRetentionPolicyId",
 					"liveAmbientRetentionApprovalRevision",
@@ -1490,6 +1495,179 @@ class ArchitecturalFitnessTest {
 					if (declaration !in section) {
 						add("$declaration must remain block-bodied while using explicit returns")
 					}
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `internal caller dispatcher is not exposed by public constructors`() {
+			val sourceRoot = projectRoot.resolve("tracker/engine/src/main")
+			val expectedInternalConstructors = listOf(
+				"source/coordinator/AuthoritativeSessionCoordinator.kt",
+				"source/ambient/wifi/AmbientWifiDemandReconciler.kt",
+				"source/ambient/cell/AmbientCellDemandReconciler.kt",
+				"source/ambient/steps/AmbientStepsDemandReconciler.kt",
+				"source/runtime/SharedStepSourceController.kt",
+				"source/runtime/AutomaticStartTransitionMonitor.kt",
+				"service/DefaultTrackingStartRequestCoordinator.kt",
+				"resilience/ActiveTrackingSessionCallerAuthorityReconciler.kt",
+			).map { relative ->
+				sourceRoot.resolve(
+					"java/com/adsamcik/tracker/tracker/$relative",
+				)
+			}
+
+			val violations = buildList {
+				expectedInternalConstructors.forEach { file ->
+					val source = file.readText()
+					if (!Regex("""@Inject\s+internal\s+constructor\s*\(""")
+							.containsMatchIn(source)
+					) {
+						add("${file.relativeTo(projectRoot)} must use an internal injection constructor")
+					}
+				}
+				sourceRoot.walkTopDown()
+					.filter { file ->
+						file.isFile &&
+							file.extension == "kt" &&
+							file.name != "SourceCallerDemandDispatcher.kt"
+					}
+					.forEach { file ->
+						val source = file.readText()
+						if ("SourceCallerDemandDispatcher" !in source) return@forEach
+						val classIsInternal = Regex("""\binternal\s+class\s+\w+""")
+							.containsMatchIn(source)
+						Regex(
+							"""(?s)@Inject\s+(?!internal\s+)constructor\s*\([^)]*""" +
+								"""SourceCallerDemandDispatcher""",
+						).findAll(source).forEach { match ->
+							if (!classIsInternal) {
+								add(
+									"${file.relativeTo(projectRoot)} exposes internal " +
+										"SourceCallerDemandDispatcher through ${match.value}",
+								)
+							}
+						}
+					}
+			}
+
+			violations.shouldBeEmpty()
+		}
+
+		@Test
+		fun `purpose caller preparation and retention reads stay outside Room mutations`() {
+			val dispatcher = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"SourceCallerDemandDispatcher.kt",
+			).readText()
+			val broker = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"SourceBroker.kt",
+			).readText()
+			val automatic = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"AutomaticStartTransitionMonitor.kt",
+			).readText()
+			val steps = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/" +
+					"AmbientStepsDemandReconciler.kt",
+			).readText()
+			val publication = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"TrackingPurposePublicationRuntime.kt",
+			).readText()
+
+			fun section(source: String, start: String, end: String): String =
+				source.substring(source.indexOf(start), source.indexOf(end))
+
+			val purposeDispatchSections = listOf(
+				section(
+					dispatcher,
+					"override suspend fun dispatchAutomaticControl(",
+					"override suspend fun retireAutomaticControl(",
+				),
+				section(
+					dispatcher,
+					"override suspend fun dispatchAmbientSteps(",
+					"override suspend fun retireAmbientSteps(",
+				),
+				section(
+					dispatcher,
+					"private suspend fun <T> dispatchAmbientRadioUnderHeldLease(",
+					"private suspend fun reduceAmbientRadioAfterRejectedAuthority(",
+				),
+			)
+			val roomOnlyBrokerSections = listOf(
+				section(
+					broker,
+					"internal suspend fun replaceAmbientStepsDemand(",
+					"internal suspend fun retireExactAmbientStepsDemand(",
+				),
+				section(
+					broker,
+					"private suspend fun compensateAmbientRadioDemandInTransaction(",
+					"private suspend fun replaceAmbientRadioDemandInTransaction(",
+				),
+				section(
+					broker,
+					"internal suspend fun reduceAmbientWifiDemandForRecovery(",
+					"internal suspend fun compensateAmbientWifiDemandUnderHeldLease(",
+				),
+				section(
+					broker,
+					"private suspend fun replaceAmbientRadioDemandInTransaction(",
+					"suspend fun registrationAuthorization(",
+				),
+			)
+
+			buildList {
+				if ("guard.accept(" in dispatcher) {
+					add("dispatcher must never invoke the persistence-owning guard inside Room")
+				}
+				purposeDispatchSections.forEach { source ->
+					if ("database.withTransaction" in source) {
+						add("purpose dispatch must acquire caller/retention authority before Room")
+					}
+					if ("guard.accept(" in source) {
+						add("purpose dispatch must prepare, not persist, caller authority before Room")
+					}
+				}
+				roomOnlyBrokerSections.forEach { source ->
+					listOf(
+						"retentionAuthorityReader.",
+						"currentLiveAmbient(",
+						"readCurrentPurpose(",
+						"guard.accept(",
+					).filter(source::contains)
+						.mapTo(this) { forbidden ->
+							"Room mutation re-enters external authority through $forbidden"
+						}
+				}
+				addAll(
+					orderedMarkerViolations(
+						section(
+							dispatcher,
+							"override suspend fun <T> dispatchAmbientRadio(",
+							"private suspend fun <T> dispatchAmbientRadioUnderHeldLease(",
+						),
+						"ambient-radio lock order",
+						listOf(
+							"captureLiveAmbientRetentionSnapshot(",
+							"preparePurposeAcceptance(",
+							"withAmbientRadioMutationLease(",
+						),
+					),
+				)
+				if ("persistPreparedCallerAuthorityInTransaction(" !in broker) {
+					add("prepared caller authority must commit with its broker mutation")
+				}
+				if ("withRetentionFloorSettlementOperation(settlementOperationId)" !in publication) {
+					add("retention-floor owner work must carry its exact journal identity")
+				}
+				if ("sourceCallerDemandDispatcher.isCurrent(" in automatic ||
+					"sourceCallerDemandDispatcher.isCurrent(" in steps
+				) {
+					add("provider activation must rely on the held operation lease, not check then act")
 				}
 			}.shouldBeEmpty()
 		}

@@ -35,7 +35,7 @@ internal sealed interface ActiveTrackingCallerAuthorityReconciliation {
  * idempotently.
  */
 @Singleton
-internal class ActiveTrackingSessionCallerAuthorityReconciler @Inject constructor(
+internal class ActiveTrackingSessionCallerAuthorityReconciler @Inject internal constructor(
 	private val activeTrackingSessionStore: ActiveTrackingSessionStore,
 	private val authoritativeSessionCoordinator: AuthoritativeSessionCoordinator,
 	private val sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,

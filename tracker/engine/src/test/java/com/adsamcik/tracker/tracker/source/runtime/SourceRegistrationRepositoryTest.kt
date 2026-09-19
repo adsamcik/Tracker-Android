@@ -476,6 +476,7 @@ class SourceRegistrationRepositoryTest {
 				expectedSourcePolicyRevision: Long,
 				expectedAmbientConsentEpoch: Long,
 				expectedCollectedDataEpoch: Long,
+				expectedRetainedFromMs: Long?,
 			): CurrentRetentionAuthority {
 				readerEntered.complete(Unit)
 				roomProbeComplete.await()
@@ -485,6 +486,8 @@ class SourceRegistrationRepositoryTest {
 					effectiveBootId = "boot-7",
 					effectiveElapsedRealtimeNanos = 0L,
 					effectiveWallTimeMs = 0L,
+					collectedDataEpoch = expectedCollectedDataEpoch,
+					retainedFromMs = expectedRetainedFromMs,
 				)
 			}
 
@@ -493,6 +496,7 @@ class SourceRegistrationRepositoryTest {
 				expectedSourcePolicyRevision: Long,
 				expectedAmbientConsentEpoch: Long,
 				expectedCollectedDataEpoch: Long,
+				expectedRetainedFromMs: Long?,
 				expectedOpaquePolicyId: String,
 				expectedApprovalRevision: Long,
 				currentBootId: String,
@@ -555,12 +559,15 @@ class SourceRegistrationRepositoryTest {
 				expectedSourcePolicyRevision: Long,
 				expectedAmbientConsentEpoch: Long,
 				expectedCollectedDataEpoch: Long,
+				expectedRetainedFromMs: Long?,
 			): CurrentRetentionAuthority = CurrentRetentionAuthority.Approved(
 				"privacy:steps:ambient:v1",
 				1L,
 				"boot-7",
 				0L,
 				0L,
+				expectedCollectedDataEpoch,
+				expectedRetainedFromMs,
 			)
 
 			override suspend fun isCurrentLiveAmbientAt(
@@ -568,6 +575,7 @@ class SourceRegistrationRepositoryTest {
 				expectedSourcePolicyRevision: Long,
 				expectedAmbientConsentEpoch: Long,
 				expectedCollectedDataEpoch: Long,
+				expectedRetainedFromMs: Long?,
 				expectedOpaquePolicyId: String,
 				expectedApprovalRevision: Long,
 				currentBootId: String,

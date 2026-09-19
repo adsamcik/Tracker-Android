@@ -13,6 +13,9 @@ import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.tracker.api.SourceCallerDemandIdentity
 import com.adsamcik.tracker.tracker.api.SourceCallerGuardResult
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.SourceCallerAcceptanceReceipt
 import com.adsamcik.tracker.tracker.api.SourceCallerManifestIdentity
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.SourceCallerRejectionReason
@@ -22,9 +25,17 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
 import com.adsamcik.tracker.tracker.source.coordinator.SessionMode
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
+import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -124,6 +135,144 @@ class RoomSourceCallerAcceptedAuthorityRepositoryTest {
 	}
 
 	@Test
+	fun `concurrent retention Room reconciliation is not blocked by Ambient Steps caller sampling`() =
+		runTest {
+			val identity = AmbientReconciliationIdentity(
+				source = AmbientTrackingSource.STEPS,
+				policyRevision = 11L,
+				consentEpoch = 7L,
+				collectedDataEpoch = 3L,
+				rolloutRevision = 13L,
+				ownerCasToken = "steps-owner",
+				executionRevision = 17L,
+				retainedFromMs = 25L,
+				retentionPolicyId = "privacy:steps:ambient:v1",
+				retentionApprovalRevision = 5L,
+			)
+			val demandIdentity = SourceCallerDemandIdentity(
+				identity.purposeLeaseIdentity,
+				manifestIdentity = null,
+			)
+			val snapshot = SourceCallerAuthoritySnapshot(
+				setOf(demandIdentity),
+				TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+			)
+			val retentionSnapshot = LiveAmbientRetentionSnapshot(
+				mapOf(
+					SourceKind.STEPS to LiveAmbientRetentionGrant(
+						source = SourceKind.STEPS,
+						sourcePolicyRevision = identity.policyRevision,
+						ambientConsentEpoch = identity.consentEpoch,
+						collectedDataEpoch = identity.collectedDataEpoch,
+						retainedFromMs = identity.retainedFromMs,
+						opaquePolicyId = requireNotNull(identity.retentionPolicyId),
+						approvalRevision = requireNotNull(identity.retentionApprovalRevision),
+						effectiveBootId = "boot-1",
+						effectiveElapsedRealtimeNanos = 90L,
+						effectiveWallTimeMs = 90L,
+					),
+				),
+			)
+			val authorityReadStarted = CompletableDeferred<Unit>()
+			val allowAuthorityRead = CompletableDeferred<Unit>()
+			val authorityProvider = object : CurrentSourceCallerAuthorityProvider {
+				override suspend fun readCurrentManifest(
+					identity: SourceCallerManifestIdentity,
+				): SourceCallerAuthoritySnapshot? = null
+
+				override suspend fun readCurrentPurpose(
+					requested: Set<SourceCallerDemandIdentity>,
+				): SourceCallerAuthoritySnapshot {
+					check(!database.inTransaction()) {
+						"Ambient Steps caller authority was sampled while Room was held"
+					}
+					authorityReadStarted.complete(Unit)
+					allowAuthorityRead.await()
+					return snapshot
+				}
+			}
+			val prepared = PreparedSourceCallerAcceptance(
+				receipt = SourceCallerAcceptanceReceipt(
+					SourceCallerReplayReference("prepared-steps-caller"),
+					setOf(demandIdentity),
+				),
+				authority = StoredSourceCallerAuthority(
+					StoredSourceCallerOrigin.PURPOSE_OWNER,
+					TrackingPurpose.AMBIENT_PRODUCT,
+					setOf(demandIdentity),
+				),
+				createdAtMs = 100L,
+			)
+			val guard = mockk<TransactionalSourceCallerGuard>()
+			every { guard.prepareFreshAcceptance(any(), snapshot, 100L) } answers {
+				check(!database.inTransaction()) {
+					"Caller guard preparation was invoked while Room was held"
+				}
+				SourceCallerFreshAcceptanceResult.Prepared(prepared)
+			}
+			val broker = mockk<SourceBroker>()
+			coEvery {
+				broker.captureLiveAmbientRetentionSnapshot(
+					SourceKind.STEPS,
+					11L,
+					7L,
+					3L,
+					"boot-1",
+					100L,
+					100L,
+					25L,
+				)
+			} returns retentionSnapshot
+			coEvery {
+				broker.replaceAmbientStepsDemand(
+					consumerId = "app:ambient:steps",
+					mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+					leaseIdentity = identity,
+					bootId = "boot-1",
+					elapsedRealtimeNanos = 100L,
+					wallTimeMs = 100L,
+					sourceCallerAuthorityReference = prepared.receipt.reference.value,
+					retentionSnapshot = retentionSnapshot,
+					preparedCallerAcceptance = prepared,
+				)
+			} returns AmbientStepsDemandResult.Inactive(
+				AmbientStepsDemandInactiveReason.RETENTION_AUTHORITY_UNAVAILABLE,
+			)
+			val dispatcher = GuardedSourceCallerDemandDispatcher(
+				authorityReader = authorityProvider,
+				guard = guard,
+				sourceBroker = broker,
+				authorityRepository = repository,
+			)
+
+			val dispatch = async {
+				dispatcher.dispatchAmbientSteps(
+					AmbientStepsDemandDispatchRequest(
+						identity = identity,
+						consumerId = "app:ambient:steps",
+						mechanism =
+							AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+						bootId = "boot-1",
+						elapsedRealtimeNanos = 100L,
+						wallTimeMs = 100L,
+					),
+				)
+			}
+			authorityReadStarted.await()
+			withTimeout(1_000L) {
+				database.withTransaction { database.sourceEvidenceStateDao().get() }
+			}
+			allowAuthorityRead.complete(Unit)
+
+			dispatch.await() shouldBe GuardedPurposeDemandResult.Applied(
+				AmbientStepsDemandResult.Inactive(
+					AmbientStepsDemandInactiveReason.RETENTION_AUTHORITY_UNAVAILABLE,
+				),
+				receipt = null,
+			)
+		}
+
+	@Test
 	fun `retired authority cannot be replayed by reference`() = runTest {
 		val identity = authority().permittedDemandIdentities.single()
 		val guard = ExactSourceCallerGuard(
@@ -186,7 +335,6 @@ class RoomSourceCallerAcceptedAuthorityRepositoryTest {
 			repository,
 		)
 		val dispatcher = GuardedSourceCallerDemandDispatcher(
-			database = database,
 			authorityReader = CurrentSourceCallerAuthorityProvider { snapshot },
 			guard = guard,
 			sourceBroker = SourceBroker(database),

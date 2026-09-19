@@ -101,7 +101,7 @@ private val LIVE_RUNTIME_ACTION_STATUSES = setOf(
 
 /** Room-first lifecycle actor for logical tracking sessions and their service runs. */
 @Singleton
-class AuthoritativeSessionCoordinator @Inject constructor(
+class AuthoritativeSessionCoordinator @Inject internal constructor(
 	private val database: AppDatabase,
 	private val planStore: RoomSourcePlanStore,
 	private val runtimes: SourceRuntimeRegistry,

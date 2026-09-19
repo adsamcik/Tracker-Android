@@ -81,7 +81,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /** Room-first implementation shared by manual, automatic, and exact recovery start origins. */
 @Singleton
-internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
+internal class DefaultTrackingStartRequestCoordinator @Inject internal constructor(
 	@ApplicationContext private val context: Context,
 	private val database: AppDatabase,
 	private val trackingStartupGate: TrackingStartupGate,

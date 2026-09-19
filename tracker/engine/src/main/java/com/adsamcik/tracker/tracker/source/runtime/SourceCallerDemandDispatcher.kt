@@ -23,7 +23,6 @@ import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailability
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.SourceCallerAcceptanceReceipt
 import com.adsamcik.tracker.tracker.api.SourceCallerDemandIdentity
-import com.adsamcik.tracker.tracker.api.SourceCallerGuard
 import com.adsamcik.tracker.tracker.api.SourceCallerGuardRejection
 import com.adsamcik.tracker.tracker.api.SourceCallerGuardResult
 import com.adsamcik.tracker.tracker.api.SourceCallerManifestIdentity
@@ -186,8 +185,6 @@ internal interface SourceCallerDemandDispatcher : SourceCallerCurrentAuthorityPr
 		expectedDemandId: String,
 	): AmbientRadioReconciliationAuthority?
 
-	suspend fun isCurrent(identity: TrackingPurposeLeaseIdentity): Boolean
-
 	override suspend fun permitsActivation(
 		reference: SourceCallerReplayReference,
 		manifestIdentity: SourceCallerManifestIdentity,
@@ -216,15 +213,14 @@ internal fun interface CurrentSourceCallerAuthorityProvider {
 /**
  * The only production bridge allowed to turn caller authority into broker session demand.
  *
- * This layer does not register providers. It reconstructs current identities from engine-owned
- * state, asks the opaque guard to accept them, and hands only the exact permitted set to the
- * broker's durable demand mutation.
+ * This layer does not register providers. It reconstructs current identities before Room,
+ * prepares opaque caller acceptance, and persists that acceptance in the owning Room transaction
+ * with the exact permitted demand mutation.
  */
 @Singleton
 internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
-	private val database: AppDatabase,
 	private val authorityReader: CurrentSourceCallerAuthorityProvider,
-	private val guard: SourceCallerGuard,
+	private val guard: TransactionalSourceCallerGuard,
 	private val sourceBroker: SourceBroker,
 	private val authorityRepository: SourceCallerAcceptedAuthorityRepository,
 ) : SourceCallerDemandDispatcher {
@@ -271,13 +267,17 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			else ->
 				return rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
 		}
-		val permitted = when (val result = guard.accept(callerRequest)) {
-			is SourceCallerGuardResult.Permitted -> result.receipt
-			is SourceCallerGuardResult.Rejected -> return rejected(result.rejection)
+		val prepared = when (val result = guard.prepareFreshAcceptance(
+			callerRequest,
+			snapshot,
+			request.wallTimeMs,
+		)) {
+			is SourceCallerFreshAcceptanceResult.Prepared -> result.acceptance
+			is SourceCallerFreshAcceptanceResult.Rejected -> return rejected(result.rejection)
 		}
+		val permitted = prepared.receipt
 		if (permitted.permittedDemandIdentities != identities) {
-			return rejectAccepted(
-				permitted,
+			return rejected(
 				SourceCallerRejectionReason.REPLAY_AUTHORITY_MISMATCH,
 			)
 		}
@@ -286,8 +286,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 					identity.purposeLeaseIdentity.executionRevision !=
 					request.lifecycleLeaseGeneration
 			}
-		) return rejectAccepted(
-			permitted,
+		) return rejected(
 			SourceCallerRejectionReason.STALE_EXECUTION_REVISION,
 		)
 		val demands = sourceBroker.buildSessionDemands(
@@ -303,10 +302,29 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			sourceCallerAuthorityReference = permitted.reference.value,
 		)
 		if (!demands.match(permitted)) {
-			return rejectAccepted(
-				permitted,
+			return rejected(
 				SourceCallerRejectionReason.REPLAY_AUTHORITY_MISMATCH,
 			)
+		}
+		val callerAuthorityPersisted = try {
+			authorityRepository.insertIfAbsent(
+				prepared.receipt.reference,
+				prepared.authority,
+				prepared.createdAtMs,
+			)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (failure: Exception) {
+			return rejected(
+				if (failure.isTrackingOperationalFailure()) {
+					SourceCallerRejectionReason.AUTHORITY_PERSISTENCE_UNAVAILABLE
+				} else {
+					SourceCallerRejectionReason.AUTHORITY_INVARIANT_VIOLATION
+				},
+			)
+		}
+		if (!callerAuthorityPersisted) {
+			return rejected(SourceCallerRejectionReason.AUTHORITY_PERSISTENCE_UNAVAILABLE)
 		}
 		when (request.mutation) {
 			SessionDemandMutation.STAGE_UNTIL_FOREGROUND ->
@@ -330,16 +348,6 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			SessionDemandMutation.AUTHORITY_ONLY -> Unit
 		}
 		return SessionSourceDemandDispatchResult.Permitted(permitted)
-	}
-
-	private suspend fun rejectAccepted(
-		receipt: SourceCallerAcceptanceReceipt,
-		reason: SourceCallerRejectionReason,
-	): SessionSourceDemandDispatchResult.Rejected {
-		check(authorityRepository.delete(receipt.reference)) {
-			"Unable to roll back rejected source-caller authority"
-		}
-		return rejected(reason)
 	}
 
 	override suspend fun replayPreparedSession(
@@ -384,47 +392,35 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 				),
 			)
 		}
-		return guard.accept(
+		return guard.authenticateReplayAgainstSnapshot(
 			SourceCallerRequest.Replay(
 				replayKind = replayKind,
 				reference = reference,
 				purpose = TrackingPurpose.SESSION_CAPTURE,
 				requestedDemandIdentities = snapshot.currentDemandIdentities,
 			),
+			snapshot,
 		)
 	}
 
 	override suspend fun dispatchAutomaticControl(
 		request: AutomaticControlDemandDispatchRequest,
-	): GuardedPurposeDemandResult<SourceDemandEntity> = database.withTransaction {
+	): GuardedPurposeDemandResult<SourceDemandEntity> {
 		val identity = request.identity
 		if (identity.source != TrackingSource.ACTIVITY ||
 			identity.purpose != TrackingPurpose.CONTROL
-		) return@withTransaction rejectedPurpose(
+		) return rejectedPurpose(
 			SourceCallerRejectionReason.AUTOMATIC_CONTROL_SET_MISMATCH,
 		)
-		val demandIdentity = SourceCallerDemandIdentity(identity, manifestIdentity = null)
-		val snapshot = when (val read = readCurrentPurpose(setOf(demandIdentity))) {
-			is CurrentPurposeAuthorityRead.Available -> read.snapshot
-			is CurrentPurposeAuthorityRead.Rejected ->
-				return@withTransaction rejectedPurpose(read.reason)
-		}
-		if (demandIdentity !in snapshot.currentDemandIdentities) {
-			return@withTransaction rejectedPurpose(
-				SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
-			)
-		}
-		val receipt = when (val accepted = guard.accept(
-			SourceCallerRequest.PurposeOwnerMutation(
-				source = TrackingSource.ACTIVITY,
-				purpose = TrackingPurpose.CONTROL,
-				enabled = true,
-				requestedDemandIdentities = setOf(demandIdentity),
-			),
+		val prepared = when (val acceptance = preparePurposeAcceptance(
+			identity = identity,
+			source = TrackingSource.ACTIVITY,
+			purpose = TrackingPurpose.CONTROL,
+			createdAtMs = request.wallTimeMs,
 		)) {
-			is SourceCallerGuardResult.Permitted -> accepted.receipt
-			is SourceCallerGuardResult.Rejected ->
-				return@withTransaction rejectedPurpose(accepted.rejection)
+			is GuardedPurposeDemandResult.Applied -> acceptance.value
+			is GuardedPurposeDemandResult.Rejected -> return acceptance
+			GuardedPurposeDemandResult.Stale -> return GuardedPurposeDemandResult.Stale
 		}
 		val demand = sourceBroker.replaceAutomaticControlDemand(
 			consumerId = request.consumerId,
@@ -435,27 +431,13 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			wallTimeMs = request.wallTimeMs,
 			maximumAgeMs = request.maximumAgeMs,
 			desiredLatencyMs = request.desiredLatencyMs,
-			sourceCallerAuthorityReference = receipt.reference.value,
-		) ?: run {
-			check(authorityRepository.delete(receipt.reference)) {
-				"Unable to roll back automatic-control caller authority"
-			}
-			return@withTransaction rejectedPurpose(
+			sourceCallerAuthorityReference = prepared.receipt.reference.value,
+			preparedCallerAcceptance = prepared,
+			purposeLeaseIdentity = identity,
+		) ?: return rejectedPurpose(
 				SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE,
 			)
-		}
-		if (!isCurrent(identity)) {
-			check(sourceBroker.retireAcceptedPurposeDemand(
-				expected = demand,
-				bootId = request.bootId,
-				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
-				wallTimeMs = request.wallTimeMs,
-			)) {
-				"Unable to contain stale automatic-control demand"
-			}
-			return@withTransaction GuardedPurposeDemandResult.Stale
-		}
-		GuardedPurposeDemandResult.Applied(demand, receipt)
+		return GuardedPurposeDemandResult.Applied(demand, prepared.receipt)
 	}
 
 	override suspend fun retireAutomaticControl(
@@ -495,6 +477,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			currentBootId = request.bootId,
 			currentElapsedRealtimeNanos = request.elapsedRealtimeNanos,
 			currentWallTimeMs = request.wallTimeMs,
+			expectedRetainedFromMs = ambientIdentity.retainedFromMs,
 		)
 		if (retentionSnapshot?.grants?.get(SourceKind.STEPS)
 			?.let { grant ->
@@ -505,29 +488,15 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		) return rejectedPurpose(
 				SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE,
 			)
-		return database.withTransaction {
-		val demandIdentity = SourceCallerDemandIdentity(identity, manifestIdentity = null)
-			val snapshot = when (val read = readCurrentPurpose(setOf(demandIdentity))) {
-				is CurrentPurposeAuthorityRead.Available -> read.snapshot
-				is CurrentPurposeAuthorityRead.Rejected ->
-					return@withTransaction rejectedPurpose(read.reason)
-			}
-		if (demandIdentity !in snapshot.currentDemandIdentities) {
-			return@withTransaction rejectedPurpose(
-				SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
-			)
-		}
-		val receipt = when (val accepted = guard.accept(
-			SourceCallerRequest.PurposeOwnerMutation(
-				source = TrackingSource.STEPS,
-				purpose = TrackingPurpose.AMBIENT_PRODUCT,
-				enabled = true,
-				requestedDemandIdentities = setOf(demandIdentity),
-			),
+		val prepared = when (val acceptance = preparePurposeAcceptance(
+			identity = identity,
+			source = TrackingSource.STEPS,
+			purpose = TrackingPurpose.AMBIENT_PRODUCT,
+			createdAtMs = request.wallTimeMs,
 		)) {
-			is SourceCallerGuardResult.Permitted -> accepted.receipt
-			is SourceCallerGuardResult.Rejected ->
-				return@withTransaction rejectedPurpose(accepted.rejection)
+			is GuardedPurposeDemandResult.Applied -> acceptance.value
+			is GuardedPurposeDemandResult.Rejected -> return acceptance
+			GuardedPurposeDemandResult.Stale -> return GuardedPurposeDemandResult.Stale
 		}
 		val result = sourceBroker.replaceAmbientStepsDemand(
 			consumerId = request.consumerId,
@@ -536,29 +505,14 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			bootId = request.bootId,
 			elapsedRealtimeNanos = request.elapsedRealtimeNanos,
 			wallTimeMs = request.wallTimeMs,
-			sourceCallerAuthorityReference = receipt.reference.value,
+			sourceCallerAuthorityReference = prepared.receipt.reference.value,
 			retentionSnapshot = retentionSnapshot,
+			preparedCallerAcceptance = prepared,
 		)
 		if (result is AmbientStepsDemandResult.Inactive) {
-			check(authorityRepository.delete(receipt.reference)) {
-				"Unable to roll back Ambient Steps caller authority"
-			}
-			return@withTransaction GuardedPurposeDemandResult.Applied(result, null)
+			return GuardedPurposeDemandResult.Applied(result, null)
 		}
-		val active = result as AmbientStepsDemandResult.Active
-		if (!isCurrent(identity)) {
-			check(sourceBroker.retireAcceptedPurposeDemand(
-				expected = active.demand,
-				bootId = request.bootId,
-				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
-				wallTimeMs = request.wallTimeMs,
-			)) {
-				"Unable to contain stale Ambient Steps demand"
-			}
-			return@withTransaction GuardedPurposeDemandResult.Stale
-		}
-		GuardedPurposeDemandResult.Applied(result, receipt)
-		}
+		return GuardedPurposeDemandResult.Applied(result, prepared.receipt)
 	}
 
 	override suspend fun retireAmbientSteps(
@@ -627,17 +581,45 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 				currentBootId = request.bootId,
 				currentElapsedRealtimeNanos = request.elapsedRealtimeNanos,
 				currentWallTimeMs = request.wallTimeMs,
+				expectedRetainedFromMs = request.leaseIdentity.retainedFromMs,
 			)
 		} else {
 			LiveAmbientRetentionSnapshot(emptyMap())
 		}
+		val preparedCallerAcceptance = if (request.requested) {
+			when (val acceptance = preparePurposeAcceptance(
+				identity = request.leaseIdentity.purposeLeaseIdentity,
+				source = request.source.canonicalSource,
+				purpose = TrackingPurpose.AMBIENT_PRODUCT,
+				createdAtMs = request.wallTimeMs,
+			)) {
+				is GuardedPurposeDemandResult.Applied -> acceptance.value
+				is GuardedPurposeDemandResult.Rejected -> {
+					reduceAmbientRadioAfterRejectedAuthority(request)
+					return acceptance
+				}
+				GuardedPurposeDemandResult.Stale -> return GuardedPurposeDemandResult.Stale
+			}
+		} else {
+			null
+		}
 		val leaseMutation = if (request.requested) {
 			sourceBroker.withAmbientRadioMutationLease(request.leaseIdentity) {
-				dispatchAmbientRadioUnderHeldLease(request, retentionSnapshot, reconcile)
+				dispatchAmbientRadioUnderHeldLease(
+					request,
+					retentionSnapshot,
+					preparedCallerAcceptance,
+					reconcile,
+				)
 			}
 		} else {
 			sourceBroker.withAmbientRadioReductionLease(request.leaseIdentity) {
-				dispatchAmbientRadioUnderHeldLease(request, retentionSnapshot, reconcile)
+				dispatchAmbientRadioUnderHeldLease(
+					request,
+					retentionSnapshot,
+					preparedCallerAcceptance = null,
+					reconcile,
+				)
 			}
 		}
 		return when (leaseMutation) {
@@ -649,6 +631,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 	private suspend fun <T> dispatchAmbientRadioUnderHeldLease(
 		request: AmbientRadioDemandDispatchRequest,
 		retentionSnapshot: LiveAmbientRetentionSnapshot?,
+		preparedCallerAcceptance: PreparedSourceCallerAcceptance?,
 		reconcile: suspend (AmbientRadioDemandResult, GuardedAmbientRadioAttempt) -> T,
 	): GuardedPurposeDemandResult<T> {
 			if (!request.requested) {
@@ -683,131 +666,66 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 					receipt = null,
 				)
 			}
-			val mutation = database.withTransaction {
-				val identity = request.leaseIdentity.purposeLeaseIdentity
-				val demandIdentity = SourceCallerDemandIdentity(identity, manifestIdentity = null)
-				val snapshot = when (val read = readCurrentPurpose(setOf(demandIdentity))) {
-					is CurrentPurposeAuthorityRead.Available -> read.snapshot
-					is CurrentPurposeAuthorityRead.Rejected -> {
-						fenceAmbientRadioDemand(request)
-						return@withTransaction rejectedPurpose<AmbientRadioDemandResult>(
-							read.reason,
-						)
-					}
-				}
-				if (demandIdentity !in snapshot.currentDemandIdentities) {
-					fenceAmbientRadioDemand(request)
-					return@withTransaction rejectedPurpose<AmbientRadioDemandResult>(
-						SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
-					)
-				}
-				val receipt = when (val accepted = guard.accept(
-					SourceCallerRequest.PurposeOwnerMutation(
-						source = request.source.canonicalSource,
-						purpose = TrackingPurpose.AMBIENT_PRODUCT,
-						enabled = request.requested,
-						requestedDemandIdentities = setOf(demandIdentity),
-					),
-				)) {
-					is SourceCallerGuardResult.Permitted -> accepted.receipt
-					is SourceCallerGuardResult.Rejected -> {
-						fenceAmbientRadioDemand(request)
-						return@withTransaction rejectedPurpose(accepted.rejection)
-					}
-				}
-				val result = when (request.source) {
-					AmbientTrackingSource.WIFI ->
-						sourceBroker.replaceAmbientWifiDemandUnderHeldLease(
-							consumerId = request.consumerId,
-							requested = request.requested,
-							leaseIdentity = request.leaseIdentity,
-							reconciliationAttempt = request.reconciliationAttempt,
-							bootId = request.bootId,
-							elapsedRealtimeNanos = request.elapsedRealtimeNanos,
-							wallTimeMs = request.wallTimeMs,
-							sourceCallerAuthorityReference = receipt.reference.value,
-							retentionSnapshot = retentionSnapshot,
-						)
-					AmbientTrackingSource.CELL ->
-						sourceBroker.replaceAmbientCellDemandUnderHeldLease(
-							consumerId = request.consumerId,
-							requested = request.requested,
-							leaseIdentity = request.leaseIdentity,
-							reconciliationAttempt = request.reconciliationAttempt,
-							bootId = request.bootId,
-							elapsedRealtimeNanos = request.elapsedRealtimeNanos,
-							wallTimeMs = request.wallTimeMs,
-							sourceCallerAuthorityReference = receipt.reference.value,
-							retentionSnapshot = retentionSnapshot,
-						)
-					AmbientTrackingSource.STEPS,
-					AmbientTrackingSource.LOCATION,
-					-> error("Unsupported ambient-radio source passed validation")
-				}
-				if (request.requested && result is AmbientRadioDemandResult.Inactive) {
-					check(authorityRepository.delete(receipt.reference)) {
-						"Unable to roll back ambient-radio caller authority"
-					}
-					GuardedPurposeDemandResult.Applied(result, null)
-				} else {
-					GuardedPurposeDemandResult.Applied(result, receipt)
-				}
+			val prepared = requireNotNull(preparedCallerAcceptance) {
+				"Requested Ambient radio dispatch requires prepared caller authority"
 			}
-			when (mutation) {
-				is GuardedPurposeDemandResult.Applied -> {
-					val attempt = GuardedAmbientRadioAttempt(request, mutation.receipt)
-					val current = try {
-						isCurrent(request.leaseIdentity.purposeLeaseIdentity)
-					} catch (cancelled: CancellationException) {
-						(mutation.value as? AmbientRadioDemandResult.Active)?.let { active ->
-							kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-								compensateAmbientRadio(attempt, active.demand.demandId)
-							}
-						}
-						throw cancelled
-					} catch (failure: RuntimeException) {
-						(mutation.value as? AmbientRadioDemandResult.Active)?.let { active ->
-							kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-								compensateAmbientRadio(attempt, active.demand.demandId)
-							}
-						}
-						throw failure
-					}
-					if (!current) {
-						(mutation.value as? AmbientRadioDemandResult.Active)?.let { active ->
-							kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-								compensateAmbientRadio(attempt, active.demand.demandId)
-							}
-						}
-						return GuardedPurposeDemandResult.Stale
-					}
-					GuardedPurposeDemandResult.Applied(
-						reconcile(mutation.value, attempt),
-						mutation.receipt,
+			val result = when (request.source) {
+				AmbientTrackingSource.WIFI ->
+					sourceBroker.replaceAmbientWifiDemandUnderHeldLease(
+						consumerId = request.consumerId,
+						requested = true,
+						leaseIdentity = request.leaseIdentity,
+						reconciliationAttempt = request.reconciliationAttempt,
+						bootId = request.bootId,
+						elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+						wallTimeMs = request.wallTimeMs,
+						sourceCallerAuthorityReference = prepared.receipt.reference.value,
+						retentionSnapshot = retentionSnapshot,
+						preparedCallerAcceptance = prepared,
 					)
-				}
-				is GuardedPurposeDemandResult.Rejected -> mutation
-				GuardedPurposeDemandResult.Stale -> GuardedPurposeDemandResult.Stale
+				AmbientTrackingSource.CELL ->
+					sourceBroker.replaceAmbientCellDemandUnderHeldLease(
+						consumerId = request.consumerId,
+						requested = true,
+						leaseIdentity = request.leaseIdentity,
+						reconciliationAttempt = request.reconciliationAttempt,
+						bootId = request.bootId,
+						elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+						wallTimeMs = request.wallTimeMs,
+						sourceCallerAuthorityReference = prepared.receipt.reference.value,
+						retentionSnapshot = retentionSnapshot,
+						preparedCallerAcceptance = prepared,
+					)
+				AmbientTrackingSource.STEPS,
+				AmbientTrackingSource.LOCATION,
+				-> error("Unsupported ambient-radio source passed validation")
 			}
+			val receipt = prepared.receipt.takeIf { result is AmbientRadioDemandResult.Active }
+			val attempt = GuardedAmbientRadioAttempt(request, receipt)
+			return GuardedPurposeDemandResult.Applied(
+				reconcile(result, attempt),
+				receipt,
+			)
 	}
 
-	private suspend fun fenceAmbientRadioDemand(
+	private suspend fun reduceAmbientRadioAfterRejectedAuthority(
 		request: AmbientRadioDemandDispatchRequest,
 	) {
 		try {
-			sourceBroker.retirePurposeDemand(
-				consumerId = request.consumerId,
-				expectedSourceKind = request.source.canonicalSource.stableCode,
-				expectedPurpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
-				bootId = request.bootId,
-				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
-				wallTimeMs = request.wallTimeMs,
-			)
+			sourceBroker.withAmbientRadioReductionLease(request.leaseIdentity) {
+				sourceBroker.retirePurposeDemand(
+					consumerId = request.consumerId,
+					expectedSourceKind = request.source.canonicalSource.stableCode,
+					expectedPurpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+					bootId = request.bootId,
+					elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+					wallTimeMs = request.wallTimeMs,
+				)
+			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (failure: Exception) {
 			if (!failure.isTrackingOperationalFailure()) throw failure
-			// Provider reconciliation still runs and records durable physical cleanup debt.
 		}
 	}
 
@@ -815,6 +733,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		attempt: GuardedAmbientRadioAttempt,
 		expectedDemandId: String,
 	): AmbientRadioReconciliationAuthority? {
+		val expectedCallerAuthorityReference = attempt.receipt?.reference ?: return null
 		val compensated = when (attempt.request.source) {
 		AmbientTrackingSource.WIFI ->
 			sourceBroker.compensateAmbientWifiDemandUnderHeldLease(
@@ -825,6 +744,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 				attempt.request.bootId,
 				attempt.request.elapsedRealtimeNanos,
 				attempt.request.wallTimeMs,
+				expectedCallerAuthorityReference,
 			)
 		AmbientTrackingSource.CELL ->
 			sourceBroker.compensateAmbientCellDemandUnderHeldLease(
@@ -835,6 +755,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 				attempt.request.bootId,
 				attempt.request.elapsedRealtimeNanos,
 				attempt.request.wallTimeMs,
+				expectedCallerAuthorityReference,
 			)
 		AmbientTrackingSource.STEPS,
 		AmbientTrackingSource.LOCATION,
@@ -842,11 +763,6 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		}
 		return compensated
 	}
-
-	override suspend fun isCurrent(identity: TrackingPurposeLeaseIdentity): Boolean =
-		authorityReader.readCurrentPurpose(
-			setOf(SourceCallerDemandIdentity(identity, manifestIdentity = null)),
-		).currentDemandIdentities.any { it.purposeLeaseIdentity == identity }
 
 	override suspend fun permitsActivation(
 		reference: SourceCallerReplayReference,
@@ -907,6 +823,37 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		throw cancelled
 	} catch (failure: Exception) {
 		CurrentPurposeAuthorityRead.Rejected(failure.toAuthorityReadRejectionReason())
+	}
+
+	private suspend fun preparePurposeAcceptance(
+		identity: TrackingPurposeLeaseIdentity,
+		source: TrackingSource,
+		purpose: TrackingPurpose,
+		createdAtMs: Long,
+	): GuardedPurposeDemandResult<PreparedSourceCallerAcceptance> {
+		val demandIdentity = SourceCallerDemandIdentity(identity, manifestIdentity = null)
+		val snapshot = when (val read = readCurrentPurpose(setOf(demandIdentity))) {
+			is CurrentPurposeAuthorityRead.Available -> read.snapshot
+			is CurrentPurposeAuthorityRead.Rejected -> return rejectedPurpose(read.reason)
+		}
+		if (demandIdentity !in snapshot.currentDemandIdentities) {
+			return rejectedPurpose(SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH)
+		}
+		return when (val prepared = guard.prepareFreshAcceptance(
+			SourceCallerRequest.PurposeOwnerMutation(
+				source = source,
+				purpose = purpose,
+				enabled = true,
+				requestedDemandIdentities = setOf(demandIdentity),
+			),
+			snapshot,
+			createdAtMs,
+		)) {
+			is SourceCallerFreshAcceptanceResult.Prepared ->
+				GuardedPurposeDemandResult.Applied(prepared.acceptance, receipt = null)
+			is SourceCallerFreshAcceptanceResult.Rejected ->
+				rejectedPurpose(prepared.rejection)
+		}
 	}
 
 	private fun <T> rejectedPurpose(

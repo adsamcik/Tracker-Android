@@ -62,7 +62,7 @@ class AmbientStepsDemandReconciler internal constructor(
 	private val currentPurposeAvailabilityReader: CurrentTrackingPurposeAvailabilityReader,
 ) {
 	@Inject
-	constructor(
+	internal constructor(
 		capabilityResolver: AndroidAmbientStepsCapabilityResolver,
 		sourceBroker: SourceBroker,
 		sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,
@@ -199,21 +199,12 @@ class AmbientStepsDemandReconciler internal constructor(
 					}
 					is GuardedPurposeDemandResult.Applied -> when (val demand = guarded.value) {
 						is AmbientStepsDemandResult.Active ->
-							if (isCurrentOrRetire(boundary, lease, settlementOperationId)) {
-								AmbientStepsDemandReconciliation.DemandReady(
-									provider = capability.provider,
-									importAccess = capability.importAccess,
-									optionalPermissions = capability.optionalPermissions,
-									demandId = demand.demand.demandId,
-								)
-							} else {
-								retireDemand(boundary, lease)
-								AmbientStepsDemandReconciliation.PolicyBlocked(
-									provider = capability.provider,
-									reason =
-										AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
-								)
-							}
+							AmbientStepsDemandReconciliation.DemandReady(
+								provider = capability.provider,
+								importAccess = capability.importAccess,
+								optionalPermissions = capability.optionalPermissions,
+								demandId = demand.demand.demandId,
+							)
 						is AmbientStepsDemandResult.Inactive ->
 							AmbientStepsDemandReconciliation.PolicyBlocked(
 								provider = capability.provider,
@@ -367,22 +358,6 @@ class AmbientStepsDemandReconciler internal constructor(
 		} catch (_: Exception) {
 			false
 		}
-	}
-
-	private suspend fun isCurrentOrRetire(
-		boundary: AmbientStepsDemandBoundary,
-		lease: AmbientReconciliationLease,
-		settlementOperationId: String?,
-	): Boolean = try {
-		sourceCallerDemandDispatcher.isCurrent(lease.identity.purposeLeaseIdentity) &&
-			ambientPolicyAuthority(boundary, lease, settlementOperationId) ==
-				AmbientStepsPolicyAuthority.Ready
-	} catch (cancelled: CancellationException) {
-		withContext(NonCancellable) { retireDemand(boundary, lease) }
-		throw cancelled
-	} catch (failure: RuntimeException) {
-		withContext(NonCancellable) { retireDemand(boundary, lease) }
-		throw failure
 	}
 
 	companion object {
