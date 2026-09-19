@@ -40,6 +40,8 @@ class DefaultActiveTrackingSessionStoreTest {
 			restartToken = "restart-token",
 			sessionSegmentId = 42L,
 			sourceCallerAuthorityReference = SourceCallerReplayReference("caller-authority"),
+			pendingRetirementSourceCallerAuthorityReference =
+				SourceCallerReplayReference("caller-authority-predecessor"),
 		)
 
 		store.save(descriptor) shouldBe ActiveTrackingSessionStoreResult.Success(descriptor)

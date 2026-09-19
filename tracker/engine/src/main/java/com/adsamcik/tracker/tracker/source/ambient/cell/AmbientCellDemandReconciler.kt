@@ -232,7 +232,7 @@ class AmbientCellDemandReconciler @Inject constructor(
 	private suspend fun compensateRejectedRuntime(
 		active: AmbientRadioDemandResult.Active,
 		attempt: GuardedAmbientRadioAttempt,
-	): AmbientRadioReconciliationAuthority {
+	): AmbientRadioReconciliationAuthority = withContext(NonCancellable) {
 		val compensated = requireNotNull(
 			sourceCallerDemandDispatcher.compensateAmbientRadio(
 				attempt,
@@ -240,7 +240,7 @@ class AmbientCellDemandReconciler @Inject constructor(
 			),
 		) { "Unable to compensate rejected Ambient Cell runtime reconciliation" }
 		sharedController.reconcileAmbientJoin()
-		return compensated
+		compensated
 	}
 
 	suspend fun reconcilePurposeAvailability(
@@ -262,8 +262,12 @@ class AmbientCellDemandReconciler @Inject constructor(
 		val lease = previousLease ?: when (
 			val plan = sourceBroker.ambientRadioRetirementPlan(SourceKind.CELL, CONSUMER_ID)
 		) {
-			AmbientRadioRetirementPlan.AlreadyRetired ->
-				return sharedController.reconcileAmbientJoin() is AmbientCellRuntimeJoinResult.Inactive
+			AmbientRadioRetirementPlan.AlreadyRetired -> {
+				val demandRetired = retireMalformedDemand()
+				val providerRetired =
+					sharedController.reconcileAmbientJoin() is AmbientCellRuntimeJoinResult.Inactive
+				return demandRetired && providerRetired
+			}
 			is AmbientRadioRetirementPlan.Required -> {
 				reconciliationAttempts.updateAndGet { current ->
 					maxOf(current, plan.previousReconciliationAttempt)
@@ -272,8 +276,9 @@ class AmbientCellDemandReconciler @Inject constructor(
 			}
 			AmbientRadioRetirementPlan.Unverifiable -> {
 				val demandRetired = retireMalformedDemand()
-				return demandRetired && sharedController.reconcileAmbientJoin() is
-					AmbientCellRuntimeJoinResult.Inactive
+				val providerRetired =
+					sharedController.reconcileAmbientJoin() is AmbientCellRuntimeJoinResult.Inactive
+				return demandRetired && providerRetired
 			}
 		}
 		val outcome = reconcile(
@@ -288,10 +293,13 @@ class AmbientCellDemandReconciler @Inject constructor(
 		val plan = sourceBroker.ambientRadioRetirementPlan(SourceKind.CELL, CONSUMER_ID)
 		if (plan is AmbientRadioRetirementPlan.Unverifiable) {
 			val demandRetired = retireMalformedDemand()
-			return demandRetired && sharedController.closeAmbientForCollectedDataDeletion()
+			val providerRetired = sharedController.closeAmbientForCollectedDataDeletion()
+			return demandRetired && providerRetired
 		}
 		if (plan is AmbientRadioRetirementPlan.AlreadyRetired) {
-			return sharedController.closeAmbientForCollectedDataDeletion()
+			val demandRetired = retireMalformedDemand()
+			val providerRetired = sharedController.closeAmbientForCollectedDataDeletion()
+			return demandRetired && providerRetired
 		}
 		plan as AmbientRadioRetirementPlan.Required
 		val attempt = reconciliationAttempts.updateAndGet { current ->

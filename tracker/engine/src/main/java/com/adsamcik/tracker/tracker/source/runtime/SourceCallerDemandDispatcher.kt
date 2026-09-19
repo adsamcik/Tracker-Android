@@ -573,17 +573,55 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		} else {
 			LiveAmbientRetentionSnapshot(emptyMap())
 		}
-		val leaseMutation = sourceBroker.withAmbientRadioMutationLease(request.leaseIdentity) {
+		val leaseMutation = if (request.requested) {
+			sourceBroker.withAmbientRadioMutationLease(request.leaseIdentity) {
+				dispatchAmbientRadioUnderHeldLease(request, retentionSnapshot, reconcile)
+			}
+		} else {
+			sourceBroker.withAmbientRadioReductionLease(request.leaseIdentity) {
+				dispatchAmbientRadioUnderHeldLease(request, retentionSnapshot, reconcile)
+			}
+		}
+		return when (leaseMutation) {
+			is AmbientRadioLeaseMutation.Applied -> leaseMutation.value
+			AmbientRadioLeaseMutation.Stale -> GuardedPurposeDemandResult.Stale
+		}
+	}
+
+	private suspend fun <T> dispatchAmbientRadioUnderHeldLease(
+		request: AmbientRadioDemandDispatchRequest,
+		retentionSnapshot: LiveAmbientRetentionSnapshot?,
+		reconcile: suspend (AmbientRadioDemandResult, GuardedAmbientRadioAttempt) -> T,
+	): GuardedPurposeDemandResult<T> {
 			if (!request.requested) {
-				fenceAmbientRadioDemand(request)
+				val result = when (request.source) {
+					AmbientTrackingSource.WIFI ->
+						sourceBroker.replaceAmbientWifiDemandUnderHeldLease(
+							consumerId = request.consumerId,
+							requested = false,
+							leaseIdentity = request.leaseIdentity,
+							reconciliationAttempt = request.reconciliationAttempt,
+							bootId = request.bootId,
+							elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+							wallTimeMs = request.wallTimeMs,
+						)
+					AmbientTrackingSource.CELL ->
+						sourceBroker.replaceAmbientCellDemandUnderHeldLease(
+							consumerId = request.consumerId,
+							requested = false,
+							leaseIdentity = request.leaseIdentity,
+							reconciliationAttempt = request.reconciliationAttempt,
+							bootId = request.bootId,
+							elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+							wallTimeMs = request.wallTimeMs,
+						)
+					AmbientTrackingSource.STEPS,
+					AmbientTrackingSource.LOCATION,
+					-> error("Unsupported ambient-radio source passed validation")
+				}
 				val attempt = GuardedAmbientRadioAttempt(request, receipt = null)
-				return@withAmbientRadioMutationLease GuardedPurposeDemandResult.Applied(
-					reconcile(
-						AmbientRadioDemandResult.Inactive(
-							AmbientRadioDemandInactiveReason.REQUEST_DISABLED,
-						),
-						attempt,
-					),
+				return GuardedPurposeDemandResult.Applied(
+					reconcile(result, attempt),
 					receipt = null,
 				)
 			}
@@ -677,9 +715,11 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 					}
 					if (!current) {
 						(mutation.value as? AmbientRadioDemandResult.Active)?.let { active ->
-							compensateAmbientRadio(attempt, active.demand.demandId)
+							kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+								compensateAmbientRadio(attempt, active.demand.demandId)
+							}
 						}
-						return@withAmbientRadioMutationLease GuardedPurposeDemandResult.Stale
+						return GuardedPurposeDemandResult.Stale
 					}
 					GuardedPurposeDemandResult.Applied(
 						reconcile(mutation.value, attempt),
@@ -689,11 +729,6 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 				is GuardedPurposeDemandResult.Rejected -> mutation
 				GuardedPurposeDemandResult.Stale -> GuardedPurposeDemandResult.Stale
 			}
-		}
-		return when (leaseMutation) {
-			is AmbientRadioLeaseMutation.Applied -> leaseMutation.value
-			AmbientRadioLeaseMutation.Stale -> GuardedPurposeDemandResult.Stale
-		}
 	}
 
 	private suspend fun fenceAmbientRadioDemand(
@@ -743,15 +778,6 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		AmbientTrackingSource.STEPS,
 		AmbientTrackingSource.LOCATION,
 		-> null
-		}
-		val reference = attempt.receipt?.reference
-		if (reference != null && !authorityRepository.retireForTeardown(
-				reference,
-				"AMBIENT_RADIO_COMPENSATED",
-				attempt.request.wallTimeMs,
-			)
-		) {
-			return null
 		}
 		return compensated
 	}

@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyReposito
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicySnapshot
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
@@ -27,10 +28,13 @@ import com.adsamcik.tracker.tracker.source.runtime.LiveAmbientRetentionSnapshot
 import com.adsamcik.tracker.tracker.source.runtime.toSourceDemandContract
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailability
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurpose
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAuthorityRevision
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAuthorityVector
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
 import com.adsamcik.tracker.tracker.api.TrackingSource
@@ -147,6 +151,80 @@ class AmbientStepsDemandReconcilerTest {
 		(demand.toSourceDemandContract().floor as AmbientStepsAcquisitionFloor).mechanism shouldBe
 			AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS
 	}
+
+	@Test
+	fun `new pending lease is accepted from its exact issuer identity before READY publication`() =
+		runTest {
+			val policy = bootstrapPolicy(ambientEnabled = true)
+			val grant = requireNotNull(retentionSnapshot).grants.getValue(SourceKind.STEPS)
+			val identity = AmbientReconciliationIdentity.from(
+				TrackingPurposeLeaseIdentity(
+					sourcePurpose =
+						TrackingSource.STEPS.forPurpose(TrackingPurpose.AMBIENT_PRODUCT),
+					policyRevision = policy.revision,
+					consentEpoch =
+						requireNotNull(policy[TrackingSourceComponent.STEPS].ambientConsentEpoch),
+					collectedDataEpoch = 3L,
+					retainedFromMs = grant.retainedFromMs,
+					rolloutRevision = 1L,
+					executionRevision = 1L,
+					ownerCasToken = "pending-steps-owner",
+				),
+				grant.opaquePolicyId,
+				grant.approvalRevision,
+			)
+			val pending = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.copy(
+				ambientSources = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.ambientSources +
+					(
+						AmbientTrackingSource.STEPS to
+							AmbientSourceOperationalAvailability.reconciliationPending(
+								AmbientTrackingSource.STEPS,
+								identity.purposeLeaseIdentity,
+							)
+					),
+			)
+			val reader = object : CurrentTrackingPurposeAvailabilityReader {
+				override val availability = MutableStateFlow(
+					CurrentTrackingPurposeAvailability(
+						published = pending,
+						currentAuthorities = mapOf(
+							identity.sourcePurpose to TrackingPurposeAuthorityVector(
+								identity.sourcePurpose,
+								identity.policyRevision,
+								identity.consentEpoch,
+								identity.collectedDataEpoch,
+								identity.rolloutRevision,
+								identity.executionRevision,
+							),
+						),
+					),
+				)
+				override val authorityRevision = MutableStateFlow(
+					TrackingPurposeAuthorityRevision(
+						policyRevision = identity.policyRevision,
+						collectedDataEpoch = identity.collectedDataEpoch,
+						rolloutRevision = identity.rolloutRevision,
+					),
+				)
+			}
+
+			reconciler(
+				AmbientStepsCapability.ReadyForRegistration(
+					AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+					AmbientStepsImportAccess.BACKGROUND_ALLOWED,
+				),
+				currentPurposeReader = reader,
+			).reconcileAt(boundary(100L), AmbientReconciliationLease(identity)) shouldBe
+				AmbientStepsDemandReconciliation.DemandReady(
+					AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+					AmbientStepsImportAccess.BACKGROUND_ALLOWED,
+					emptySet(),
+					database.sourceBrokerDao()
+						.currentDemands(AmbientStepsDemandReconciler.CONSUMER_ID)
+						.single()
+						.demandId,
+				)
+		}
 
 	@Test
 	fun `missing selected-provider permission retires prior ambient demand`() = runTest {
@@ -286,7 +364,7 @@ class AmbientStepsDemandReconcilerTest {
 			emptyList()
 	}
 
-	private suspend fun bootstrapPolicy(ambientEnabled: Boolean) {
+	private suspend fun bootstrapPolicy(ambientEnabled: Boolean): SourcePolicySnapshot {
 		val policy = policyRepository.bootstrapFromLegacy(
 			TrackingParamsState(
 				stepsEnabled = false,
@@ -304,6 +382,7 @@ class AmbientStepsDemandReconcilerTest {
 				"boot-1",
 			)
 		}
+		return policy
 	}
 
 	private fun reconciler(

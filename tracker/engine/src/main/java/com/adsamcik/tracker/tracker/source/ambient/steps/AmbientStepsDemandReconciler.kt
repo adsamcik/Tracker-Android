@@ -164,28 +164,7 @@ class AmbientStepsDemandReconciler internal constructor(
 				retirementComplete = retired,
 			)
 		}
-		val identity = currentPurposeAvailabilityReader.availability.value
-			.ambientSources.getValue(AmbientTrackingSource.STEPS)
-			.operationalIdentity
-			?: run {
-				val retired = retireDemand(boundary, lease)
-				return AmbientStepsDemandReconciliation.PolicyBlocked(
-					provider = null,
-					reason = if (retired) {
-						AmbientStepsDemandBlockReason.REQUEST_DISABLED
-					} else {
-						AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE
-					},
-				)
-			}
-		if (identity != lease.identity.purposeLeaseIdentity) {
-			val retired = retireDemand(boundary, lease)
-			return AmbientStepsDemandReconciliation.PolicyBlocked(
-				provider = null,
-				reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
-				retirementComplete = retired,
-			)
-		}
+		val identity = lease.identity.purposeLeaseIdentity
 		return when (val capability = resolveCapability()) {
 			is AmbientStepsCapability.ReadyForRegistration -> {
 				val guarded = try {

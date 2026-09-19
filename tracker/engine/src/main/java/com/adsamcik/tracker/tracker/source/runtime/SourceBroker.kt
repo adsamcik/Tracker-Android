@@ -510,7 +510,9 @@ class SourceBroker @Inject internal constructor(
 		) == 1) {
 			"Exact purpose-owner demand retirement lost ownership"
 		}
-		retireDemandAuthority(current, "PURPOSE_OWNER_DEMAND_RETIRED", wallTimeMs)
+		check(retireDemandAuthority(current, "PURPOSE_OWNER_DEMAND_RETIRED", wallTimeMs)) {
+			"Unable to retire exact purpose-owner caller authority"
+		}
 		rotateCurrentAuthorizationInTransaction(
 			current.sourceKind,
 			bootId,
@@ -536,12 +538,11 @@ class SourceBroker @Inject internal constructor(
 		val superseded = references
 			.filterTo(linkedSetOf()) { reference -> reference != currentReference }
 		if (expectedSupersededReference !in superseded) return false
-		retireAuthorityReferences(
+		return retireAuthorityReferences(
 			superseded,
 			"SESSION_AUTHORITY_SUPERSEDED",
 			wallTimeMs,
 		)
-		return true
 	}
 
 	private suspend fun retireAuthorityReferences(
@@ -772,7 +773,8 @@ class SourceBroker @Inject internal constructor(
 		require(elapsedRealtimeNanos >= 0L)
 		require(wallTimeMs >= 0L)
 		val dao = database.sourceBrokerDao()
-		val current = dao.demandHistory(consumerId).filter { demand ->
+		val history = dao.demandHistory(consumerId)
+		val current = history.filter { demand ->
 			demand.status in setOf(
 				SourceDemandEntity.STATUS_ACTIVE,
 				SourceDemandEntity.STATUS_RETIRING,
@@ -780,6 +782,14 @@ class SourceBroker @Inject internal constructor(
 			)
 		}
 		if (current.isEmpty()) {
+			val historicalReferences = history.asSequence()
+				.filter { demand ->
+					demand.sourceKind == expectedSourceKind &&
+						demand.purpose == expectedPurpose
+				}
+				.mapNotNull(SourceDemandEntity::sourceCallerAuthorityReference)
+				.mapNotNull(String::toCallerReferenceOrNull)
+				.toSet()
 			rotateCurrentAuthorizationInTransaction(
 				expectedSourceKind,
 				bootId,
@@ -798,7 +808,11 @@ class SourceBroker @Inject internal constructor(
 					wallTimeMs,
 				)
 			}
-			return@withTransaction true
+			return@withTransaction retireAuthorityReferences(
+				historicalReferences,
+				"PURPOSE_OWNER_DEMAND_RETIRED",
+				wallTimeMs,
+			)
 		}
 		val exactOwner = current.all { demand ->
 			demand.sourceKind == expectedSourceKind && demand.purpose == expectedPurpose
@@ -807,7 +821,11 @@ class SourceBroker @Inject internal constructor(
 			.mapNotNullTo(linkedSetOf(), String::toCallerReferenceOrNull)
 		val affectedSources = current.mapTo(linkedSetOf(), SourceDemandEntity::sourceKind)
 		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
-		retireAuthorityReferences(references, "PURPOSE_OWNER_DEMAND_RETIRED", wallTimeMs)
+		val callerAuthorityRetired = retireAuthorityReferences(
+			references,
+			"PURPOSE_OWNER_DEMAND_RETIRED",
+			wallTimeMs,
+		)
 		rotateCurrentAuthorizationsInTransaction(
 			affectedSources,
 			bootId,
@@ -826,7 +844,7 @@ class SourceBroker @Inject internal constructor(
 				wallTimeMs,
 			)
 		}
-		exactOwner
+		exactOwner && callerAuthorityRetired
 	}
 
 	/**
@@ -1139,20 +1157,38 @@ class SourceBroker @Inject internal constructor(
 		wallTimeMs: Long,
 		sourceCallerAuthorityReference: String? = null,
 		retentionSnapshot: LiveAmbientRetentionSnapshot? = null,
-	): AmbientRadioDemandResult =
-		withAmbientRadioMutationLease(leaseIdentity) {
-			replaceAmbientWifiDemandUnderHeldLease(
-				consumerId,
-				requested,
-				leaseIdentity,
-				reconciliationAttempt,
-				bootId,
-				elapsedRealtimeNanos,
-				wallTimeMs,
-				sourceCallerAuthorityReference,
-				retentionSnapshot,
-			)
-		}.toDemandResult()
+	): AmbientRadioDemandResult {
+		val guarded = if (requested) {
+			withAmbientRadioMutationLease(leaseIdentity) {
+				replaceAmbientWifiDemandUnderHeldLease(
+					consumerId,
+					requested,
+					leaseIdentity,
+					reconciliationAttempt,
+					bootId,
+					elapsedRealtimeNanos,
+					wallTimeMs,
+					sourceCallerAuthorityReference,
+					retentionSnapshot,
+				)
+			}
+		} else {
+			withAmbientRadioReductionLease(leaseIdentity) {
+				replaceAmbientWifiDemandUnderHeldLease(
+					consumerId,
+					requested,
+					leaseIdentity,
+					reconciliationAttempt,
+					bootId,
+					elapsedRealtimeNanos,
+					wallTimeMs,
+					sourceCallerAuthorityReference,
+					retentionSnapshot,
+				)
+			}
+		}
+		return guarded.toDemandResult()
+	}
 
 	internal suspend fun replaceAmbientWifiDemandUnderHeldLease(
 		consumerId: String,
@@ -1241,20 +1277,38 @@ class SourceBroker @Inject internal constructor(
 		wallTimeMs: Long,
 		sourceCallerAuthorityReference: String? = null,
 		retentionSnapshot: LiveAmbientRetentionSnapshot? = null,
-	): AmbientRadioDemandResult =
-		withAmbientRadioMutationLease(leaseIdentity) {
-			replaceAmbientCellDemandUnderHeldLease(
-				consumerId,
-				requested,
-				leaseIdentity,
-				reconciliationAttempt,
-				bootId,
-				elapsedRealtimeNanos,
-				wallTimeMs,
-				sourceCallerAuthorityReference,
-				retentionSnapshot,
-			)
-		}.toDemandResult()
+	): AmbientRadioDemandResult {
+		val guarded = if (requested) {
+			withAmbientRadioMutationLease(leaseIdentity) {
+				replaceAmbientCellDemandUnderHeldLease(
+					consumerId,
+					requested,
+					leaseIdentity,
+					reconciliationAttempt,
+					bootId,
+					elapsedRealtimeNanos,
+					wallTimeMs,
+					sourceCallerAuthorityReference,
+					retentionSnapshot,
+				)
+			}
+		} else {
+			withAmbientRadioReductionLease(leaseIdentity) {
+				replaceAmbientCellDemandUnderHeldLease(
+					consumerId,
+					requested,
+					leaseIdentity,
+					reconciliationAttempt,
+					bootId,
+					elapsedRealtimeNanos,
+					wallTimeMs,
+					sourceCallerAuthorityReference,
+					retentionSnapshot,
+				)
+			}
+		}
+		return guarded.toDemandResult()
+	}
 
 	internal suspend fun replaceAmbientCellDemandUnderHeldLease(
 		consumerId: String,
@@ -1334,6 +1388,12 @@ class SourceBroker @Inject internal constructor(
 		mutation: suspend () -> T,
 	): AmbientRadioLeaseMutation<T> =
 		ambientRadioMutationLeaseGuard.mutateIfCurrent(identity, mutation)
+
+	internal suspend fun <T> withAmbientRadioReductionLease(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> =
+		ambientRadioMutationLeaseGuard.mutateReductionIfRetained(identity, mutation)
 
 	internal suspend fun compensateAmbientWifiDemandUnderHeldLease(
 		consumerId: String,
@@ -1630,38 +1690,75 @@ class SourceBroker @Inject internal constructor(
 		require(reconciliationAttempt > 0L)
 		require(expectedDemandId.isNotBlank() && consumerId.isNotBlank() && bootId.isNotBlank())
 		require(elapsedRealtimeNanos >= 0L && wallTimeMs >= 0L)
-		if (trackingRolloutStateStore.load().revision != leaseIdentity.rolloutRevision) return null
-		val demand = database.sourceBrokerDao().currentDemands(consumerId).singleOrNull()
-			?.takeIf {
-				it.demandId == expectedDemandId &&
-					it.sourceKind == source.stableCode &&
-					it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
-					it.sourcePolicyRevision == leaseIdentity.policyRevision &&
-					it.consentEpoch == leaseIdentity.consentEpoch
-			} ?: return null
+		val demandHistory = database.sourceBrokerDao().demandHistory(consumerId)
+		val demand = demandHistory.singleOrNull {
+			it.demandId == expectedDemandId &&
+				it.sourceKind == source.stableCode &&
+				it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
+				it.sourcePolicyRevision == leaseIdentity.policyRevision &&
+				it.consentEpoch == leaseIdentity.consentEpoch &&
+				it.liveAmbientRetentionPolicyId == leaseIdentity.retentionPolicyId &&
+				it.liveAmbientRetentionApprovalRevision ==
+				leaseIdentity.retentionApprovalRevision
+		} ?: return null
+		val nonterminalDemands = demandHistory.filter { candidate ->
+			candidate.status == SourceDemandEntity.STATUS_ACTIVE ||
+				candidate.status == SourceDemandEntity.STATUS_RETIRING ||
+				candidate.status == SourceDemandEntity.STATUS_BLOCKED
+		}
+		if (nonterminalDemands.any { it.demandId != expectedDemandId }) {
+			if (demand.status != SourceDemandEntity.STATUS_RETIRED) return null
+			check(retireDemandAuthority(demand, "AMBIENT_RADIO_COMPENSATED", wallTimeMs)) {
+				"Unable to retire exact historical Ambient radio caller authority"
+			}
+			return AmbientRadioReconciliationAuthority(
+				source = source,
+				policyRevision = leaseIdentity.policyRevision,
+				ambientConsentEpoch = leaseIdentity.consentEpoch,
+				collectedDataEpoch = leaseIdentity.collectedDataEpoch,
+				retainedFromMs = leaseIdentity.retainedFromMs,
+				rolloutRevision = leaseIdentity.rolloutRevision,
+				executionGeneration = leaseIdentity.executionRevision.takeIf { it > 0L },
+				authorityRevision = null,
+				ownerCasToken = leaseIdentity.ownerCasToken,
+				reconciliationAttempt = reconciliationAttempt,
+			)
+		}
 		val authority = latestAuthority()?.takeIf {
-			it.state == AmbientWifiAuthorityEntity.STATE_ACTIVE &&
+			(it.state == AmbientWifiAuthorityEntity.STATE_ACTIVE ||
+				it.state == AmbientWifiAuthorityEntity.STATE_REVOKED) &&
 				it.sourcePolicyRevision == leaseIdentity.policyRevision &&
 				it.ambientConsentEpoch == leaseIdentity.consentEpoch &&
+				it.retentionPolicyId == leaseIdentity.retentionPolicyId &&
+				it.retentionApprovalRevision == leaseIdentity.retentionApprovalRevision &&
 				it.collectedDataEpoch == leaseIdentity.collectedDataEpoch &&
 				it.rolloutRevision == leaseIdentity.rolloutRevision &&
+				it.executionGeneration == leaseIdentity.executionRevision &&
 				it.ownerCasToken == leaseIdentity.ownerCasToken &&
 				it.reconciliationAttempt == reconciliationAttempt &&
 				it.demandId == expectedDemandId
-		} ?: return null
-		val maximumRevision = maximumAuthorityRevision()
-		if (maximumRevision == Long.MAX_VALUE) return null
-		if (retireExactDemand(demand) != 1) return null
-		val revokedAuthority = authority.copy(
-			authorityRevision = maximumRevision + 1L,
-			state = AmbientWifiAuthorityEntity.STATE_REVOKED,
-			effectiveBootId = bootId,
-			effectiveElapsedRealtimeNanos = elapsedRealtimeNanos,
-			effectiveWallTimeMs = wallTimeMs,
-		)
-		insertAuthority(
-			revokedAuthority,
-		)
+		}
+		if (authority == null && demand.status != SourceDemandEntity.STATUS_RETIRED) return null
+		val retiredDemand = demand.status != SourceDemandEntity.STATUS_RETIRED
+		if (retiredDemand && retireExactDemand(demand) != 1) return null
+		val revokedAuthority = when (authority?.state) {
+			AmbientWifiAuthorityEntity.STATE_ACTIVE -> {
+				val maximumRevision = maximumAuthorityRevision()
+				.takeUnless { it == Long.MAX_VALUE } ?: return null
+				authority.copy(
+					authorityRevision = maximumRevision + 1L,
+					state = AmbientWifiAuthorityEntity.STATE_REVOKED,
+					effectiveBootId = bootId,
+					effectiveElapsedRealtimeNanos = elapsedRealtimeNanos,
+					effectiveWallTimeMs = wallTimeMs,
+				).also { insertAuthority(it) }
+			}
+			AmbientWifiAuthorityEntity.STATE_REVOKED -> authority
+			else -> null
+		}
+		check(retireDemandAuthority(demand, "AMBIENT_RADIO_COMPENSATED", wallTimeMs)) {
+			"Unable to retire exact Ambient radio caller authority"
+		}
 		rotateCurrentAuthorizationInTransaction(
 			source.stableCode,
 			bootId,
@@ -1675,8 +1772,9 @@ class SourceBroker @Inject internal constructor(
 			collectedDataEpoch = leaseIdentity.collectedDataEpoch,
 			retainedFromMs = leaseIdentity.retainedFromMs,
 			rolloutRevision = leaseIdentity.rolloutRevision,
-			executionGeneration = revokedAuthority.executionGeneration,
-			authorityRevision = revokedAuthority.authorityRevision,
+			executionGeneration = revokedAuthority?.executionGeneration
+				?: leaseIdentity.executionRevision.takeIf { it > 0L },
+			authorityRevision = revokedAuthority?.authorityRevision,
 			ownerCasToken = leaseIdentity.ownerCasToken,
 			reconciliationAttempt = reconciliationAttempt,
 		)
@@ -1761,8 +1859,16 @@ class SourceBroker @Inject internal constructor(
 				activeAuthority.ambientConsentEpoch != leaseIdentity.consentEpoch ||
 				activeAuthority.collectedDataEpoch != leaseIdentity.collectedDataEpoch ||
 				activeAuthority.rolloutRevision != leaseIdentity.rolloutRevision ||
+				activeAuthority.executionGeneration != leaseIdentity.executionRevision ||
+				activeAuthority.retentionPolicyId != leaseIdentity.retentionPolicyId ||
+				activeAuthority.retentionApprovalRevision !=
+				leaseIdentity.retentionApprovalRevision ||
 				activeAuthority.ownerCasToken != leaseIdentity.ownerCasToken ||
-				activeAuthority.demandId != currentDemand.demandId
+				activeAuthority.demandId != currentDemand.demandId ||
+				currentDemand.liveAmbientRetentionPolicyId !=
+				leaseIdentity.retentionPolicyId ||
+				currentDemand.liveAmbientRetentionApprovalRevision !=
+				leaseIdentity.retentionApprovalRevision
 			) {
 				return AmbientRadioDemandResult.Inactive(
 					AmbientRadioDemandInactiveReason.STALE_RECONCILIATION_LEASE,
@@ -1801,7 +1907,11 @@ class SourceBroker @Inject internal constructor(
 		suspend fun retireCurrentDemand(): Boolean {
 			val demand = currentDemand ?: return true
 			val retired = retireExactDemand(demand) == 1
-			if (retired) retireDemandAuthority(demand, "AMBIENT_RADIO_RETIRED", wallTimeMs)
+			if (retired) {
+				check(retireDemandAuthority(demand, "AMBIENT_RADIO_RETIRED", wallTimeMs)) {
+					"Unable to retire exact Ambient radio caller authority"
+				}
+			}
 			return retired
 		}
 

@@ -486,90 +486,44 @@ class TrackerServiceSourceSession @Inject constructor(
 		return try {
 			val replacementReference = currentReference ?: return false
 			val supersededReference = session.sourceCallerAuthorityReference
-			if (supersededReference == replacementReference) return true
 			val stored = when (val result = activeTrackingSessionStore.read()) {
 				is ActiveTrackingSessionStoreResult.Failure -> return false
 				is ActiveTrackingSessionStoreResult.Success -> result.descriptor
 			}
 			if (stored == null ||
 				stored.logicalTrackingId != session.logicalTrackingId ||
-				stored.serviceRunId != session.serviceRunId ||
-				stored.sourceCallerAuthorityReference != supersededReference
+				stored.serviceRunId != session.serviceRunId
 			) {
-				if (stored?.logicalTrackingId == session.logicalTrackingId &&
-					stored.serviceRunId == session.serviceRunId &&
-					stored.sourceCallerAuthorityReference == replacementReference
-				) {
-					val retired = supersededReference == null ||
-						coordinator.retireSupersededSourceCallerAuthority(
-							session.logicalTrackingId,
-							replacementReference,
-							supersededReference,
-							Time.nowMillis,
-						)
-					if (retired) {
-						session.sourceCallerAuthorityReference = replacementReference
-					}
-					return retired
-				}
-				if (supersededReference != null &&
-					stored?.sourceCallerAuthorityReference != supersededReference
-				) {
-					retireUnreferencedSupersededAuthority(
-						session,
-						replacementReference,
-						supersededReference,
-					)
-				}
 				return false
 			}
+			if (stored.sourceCallerAuthorityReference != supersededReference &&
+				stored.sourceCallerAuthorityReference != replacementReference
+			) {
+				return false
+			}
+			val predecessor = stored.pendingRetirementSourceCallerAuthorityReference
+				?: supersededReference?.takeIf { it != replacementReference }
 			val replacement = stored.copy(
 				sourceCallerAuthorityReference = replacementReference,
+				pendingRetirementSourceCallerAuthorityReference = predecessor,
 			)
-			val persisted = when (val result =
-				activeTrackingSessionStore.replaceExact(stored, replacement)
-			) {
+			val persisted = if (stored == replacement) {
+				stored
+			} else when (val result = activeTrackingSessionStore.replaceExact(stored, replacement)) {
 				is ActiveTrackingSessionStoreResult.Failure -> return false
 				is ActiveTrackingSessionStoreResult.Success -> result.descriptor
 			}
 			if (persisted != replacement) {
-				if (supersededReference != null &&
-					persisted?.sourceCallerAuthorityReference != supersededReference
-				) {
-					retireUnreferencedSupersededAuthority(
-						session,
-						replacementReference,
-						supersededReference,
-					)
-				}
-				return false
-			}
-			val retired = supersededReference == null ||
-				coordinator.retireSupersededSourceCallerAuthority(
-					session.logicalTrackingId,
-					replacementReference,
-					supersededReference,
-					Time.nowMillis,
-				)
-			if (!retired) {
-				val restored = when (val result =
-					activeTrackingSessionStore.replaceExact(replacement, stored)
-				) {
-					is ActiveTrackingSessionStoreResult.Failure -> null
-					is ActiveTrackingSessionStoreResult.Success -> result.descriptor
-				}
-				if (restored == stored) {
-					session.sourceCallerAuthorityReference = supersededReference
-				} else {
-					session.sourceCallerAuthorityReference = replacementReference
-					session.pendingRetirementSourceCallerAuthorityReference = supersededReference
-					session.runtimeCleanupRequired = true
-				}
 				return false
 			}
 			session.sourceCallerAuthorityReference = replacementReference
-			session.pendingRetirementSourceCallerAuthorityReference = null
-			true
+			session.pendingRetirementSourceCallerAuthorityReference = predecessor
+			predecessor == null || retireRecordedSupersededAuthority(
+				session,
+				replacementReference,
+				predecessor,
+				replacement,
+			)
 		} catch (cancelled: CancellationException) {
 			if (markCleanupOnFailure) session.runtimeCleanupRequired = true
 			throw cancelled
@@ -580,17 +534,44 @@ class TrackerServiceSourceSession @Inject constructor(
 		}
 	}
 
-	private suspend fun retireUnreferencedSupersededAuthority(
+	private suspend fun retireRecordedSupersededAuthority(
 		session: ActiveSession,
 		currentReference: SourceCallerReplayReference,
 		supersededReference: SourceCallerReplayReference,
-	) {
-		coordinator.retireSupersededSourceCallerAuthority(
+		recordedDescriptor: ActiveTrackingSessionDescriptor? = null,
+	): Boolean {
+		if (!coordinator.retireSupersededSourceCallerAuthority(
 			session.logicalTrackingId,
 			currentReference,
 			supersededReference,
 			Time.nowMillis,
+		)) return false
+		val stored = recordedDescriptor ?: when (val result = activeTrackingSessionStore.read()) {
+			is ActiveTrackingSessionStoreResult.Failure -> return false
+			is ActiveTrackingSessionStoreResult.Success -> result.descriptor
+		}
+		if (stored == null ||
+			stored.logicalTrackingId != session.logicalTrackingId ||
+			stored.serviceRunId != session.serviceRunId ||
+			stored.sourceCallerAuthorityReference != currentReference
+		) return false
+		if (stored.pendingRetirementSourceCallerAuthorityReference == null) {
+			session.pendingRetirementSourceCallerAuthorityReference = null
+			return true
+		}
+		if (stored.pendingRetirementSourceCallerAuthorityReference != supersededReference) {
+			return false
+		}
+		val cleared = stored.copy(
+			pendingRetirementSourceCallerAuthorityReference = null,
 		)
+		val persisted = when (val result = activeTrackingSessionStore.replaceExact(stored, cleared)) {
+			is ActiveTrackingSessionStoreResult.Failure -> return false
+			is ActiveTrackingSessionStoreResult.Success -> result.descriptor
+		}
+		if (persisted != cleared) return false
+		session.pendingRetirementSourceCallerAuthorityReference = null
+		return true
 	}
 
 	private fun startupRejectedReconfigure(): SourceSessionReconfigureOutcome {
@@ -612,18 +593,11 @@ class TrackerServiceSourceSession @Inject constructor(
 				?: return@withLock SourceSessionStopOutcome.Retryable(
 					SourceSessionStopRetryCode.CLEANUP_PENDING,
 				)
-			if (!coordinator.retireSupersededSourceCallerAuthority(
-					session.logicalTrackingId,
-					current,
-					predecessor,
-					Time.nowMillis,
-				)
-			) {
+			if (!retireRecordedSupersededAuthority(session, current, predecessor)) {
 				return@withLock SourceSessionStopOutcome.Retryable(
 					SourceSessionStopRetryCode.CLEANUP_PENDING,
 				)
 			}
-			session.pendingRetirementSourceCallerAuthorityReference = null
 		}
 
 		val outcome = stopStartedSession(

@@ -98,23 +98,6 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 			)
 		}
 
-		internal object PermissiveTrackingPurposeMutationLeaseGuard :
-			TrackingPurposeMutationLeaseGuard {
-			override suspend fun <T> mutateIfCurrent(
-				identity: AmbientReconciliationIdentity,
-				mutation: suspend () -> T,
-			): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Applied(mutation())
-
-			override suspend fun <T> mutateAutomaticIfCurrent(
-				identity: TrackingPurposeLeaseIdentity,
-				mutation: suspend () -> T,
-			): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Applied(mutation())
-
-			override suspend fun <T> mutateAmbientIfCurrent(
-				identity: AmbientReconciliationIdentity,
-				mutation: suspend () -> T,
-			): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Applied(mutation())
-		}
 		val snapshot = retentionSnapshot(
 			SourceKind.STEPS,
 			request.identity,
@@ -122,10 +105,17 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 			request.elapsedRealtimeNanos,
 			request.wallTimeMs,
 		)
+		val retentionGrant = snapshot?.grants?.get(SourceKind.STEPS)
+		val leaseIdentity = AmbientReconciliationIdentity.from(
+			request.identity,
+			retentionGrant?.opaquePolicyId,
+			retentionGrant?.approvalRevision,
+		)
 		val result = if (snapshot == null) {
 			broker.replaceAmbientStepsDemand(
 				request.consumerId,
 				request.mechanism,
+				leaseIdentity,
 				request.bootId,
 				request.elapsedRealtimeNanos,
 				request.wallTimeMs,
@@ -134,6 +124,7 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 			broker.replaceAmbientStepsDemand(
 				request.consumerId,
 				request.mechanism,
+				leaseIdentity,
 				request.bootId,
 				request.elapsedRealtimeNanos,
 				request.wallTimeMs,
@@ -152,29 +143,46 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
 	): GuardedPurposeDemandResult<AmbientStepsDemandResult> =
-		GuardedPurposeDemandResult.Applied(
-			broker.replaceAmbientStepsDemand(
-				consumerId,
+		if (broker.retirePurposeDemand(
+				consumerId = consumerId,
+				expectedSourceKind = SourceKind.STEPS.stableCode,
+				expectedPurpose =
+					com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+						.AMBIENT_PRODUCT,
+				bootId = bootId,
+				elapsedRealtimeNanos = elapsedRealtimeNanos,
+				wallTimeMs = wallTimeMs,
+			)
+		) {
+			GuardedPurposeDemandResult.Applied(
+				AmbientStepsDemandResult.Inactive(
+					AmbientStepsDemandInactiveReason.REQUEST_DISABLED,
+				),
 				null,
-				bootId,
-				elapsedRealtimeNanos,
-				wallTimeMs,
-			),
-			null,
-		)
+			)
+		} else {
+			GuardedPurposeDemandResult.Stale
+		}
 
 	override suspend fun <T> dispatchAmbientRadio(
 		request: AmbientRadioDemandDispatchRequest,
 		reconcile: suspend (AmbientRadioDemandResult, GuardedAmbientRadioAttempt) -> T,
 	): GuardedPurposeDemandResult<T> {
-		if (!currentAuthority(request.leaseIdentity.purposeLeaseIdentity)) {
+		if (request.requested && !currentAuthority(request.leaseIdentity.purposeLeaseIdentity)) {
 			return GuardedPurposeDemandResult.Rejected(
 				SourceCallerGuardRejection(
 					SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
 				),
 			)
 		}
-		val guarded = broker.withAmbientRadioMutationLease(request.leaseIdentity) {
+		val mutate: suspend (suspend () -> T) -> AmbientRadioLeaseMutation<T> = { operation ->
+			if (request.requested) {
+				broker.withAmbientRadioMutationLease(request.leaseIdentity, operation)
+			} else {
+				broker.withAmbientRadioReductionLease(request.leaseIdentity, operation)
+			}
+		}
+		val guarded = mutate {
 			val snapshot = retentionSnapshot(
 				SourceKind.valueOf(request.source.name),
 				request.leaseIdentity.purposeLeaseIdentity,
@@ -206,6 +214,7 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 							retentionSnapshot = snapshot,
 						)
 					}
+
 				com.adsamcik.tracker.tracker.api.AmbientTrackingSource.CELL ->
 					if (snapshot == null) {
 						broker.replaceAmbientCellDemandUnderHeldLease(
@@ -229,6 +238,7 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 							retentionSnapshot = snapshot,
 						)
 					}
+
 				else -> error("Unsupported test ambient radio source")
 			}
 			reconcile(demand, GuardedAmbientRadioAttempt(request, null))
@@ -285,4 +295,22 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 		),
 		setOf(SourceCallerDemandIdentity(identity, manifestIdentity = null)),
 	)
+}
+
+internal object PermissiveTrackingPurposeMutationLeaseGuard :
+	TrackingPurposeMutationLeaseGuard {
+	override suspend fun <T> mutateIfCurrent(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Applied(mutation())
+
+	override suspend fun <T> mutateAutomaticIfCurrent(
+		identity: TrackingPurposeLeaseIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Applied(mutation())
+
+	override suspend fun <T> mutateAmbientIfCurrent(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Applied(mutation())
 }

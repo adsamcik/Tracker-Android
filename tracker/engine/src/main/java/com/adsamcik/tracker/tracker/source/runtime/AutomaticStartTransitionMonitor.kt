@@ -18,6 +18,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Application-scoped automatic-start demand; it is independent of tracking-session lifetime. */
 @Singleton
@@ -85,8 +86,14 @@ class AutomaticStartTransitionMonitor @Inject internal constructor(
 		}
 		return when (guardedMutation) {
 			is AmbientRadioLeaseMutation.Applied -> guardedMutation.value
-			AmbientRadioLeaseMutation.Stale ->
-				arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR).blocked()
+			AmbientRadioLeaseMutation.Stale -> withContext(NonCancellable) {
+				compensateRejectedActivation(
+					boundaryBootId,
+					elapsedRealtimeNanos,
+					boundaryWallTimeMs,
+					desiredLatencyMs,
+				)
+			}
 		}
 	}
 
@@ -111,104 +118,151 @@ class AutomaticStartTransitionMonitor @Inject internal constructor(
 				),
 			)
 		} catch (cancelled: CancellationException) {
-			withContext(NonCancellable) {
-				retireControl(
-					boundaryBootId,
-					elapsedRealtimeNanos,
-					boundaryWallTimeMs,
-					desiredLatencyMs,
-				)
-				arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
-			}
-			throw cancelled
-		} catch (_: Exception) {
-			retireControl(
+			compensateAfterFailure(
+				cancelled,
 				boundaryBootId,
 				elapsedRealtimeNanos,
 				boundaryWallTimeMs,
 				desiredLatencyMs,
 			)
-			return arbiter.clearDemand(
-				ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
-			).blocked()
-		}
-		return when (dispatched) {
-			is GuardedPurposeDemandResult.Rejected,
-			GuardedPurposeDemandResult.Stale,
-			-> {
-				retireControl(
+			throw cancelled
+		} catch (_: Exception) {
+			return withContext(NonCancellable) {
+				compensateRejectedActivation(
 					boundaryBootId,
 					elapsedRealtimeNanos,
 					boundaryWallTimeMs,
 					desiredLatencyMs,
 				)
-				arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR).blocked()
 			}
-			is GuardedPurposeDemandResult.Applied -> try {
-				if (!sourceCallerDemandDispatcher.isCurrent(readyIdentity)) {
-					retireControl(
+		}
+		return when (dispatched) {
+			is GuardedPurposeDemandResult.Rejected,
+			GuardedPurposeDemandResult.Stale,
+			-> {
+				withContext(NonCancellable) {
+					compensateRejectedActivation(
 						boundaryBootId,
 						elapsedRealtimeNanos,
 						boundaryWallTimeMs,
 						desiredLatencyMs,
 					)
-					return arbiter.clearDemand(
-						ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
-					).blocked()
+				}
+			}
+			is GuardedPurposeDemandResult.Applied -> try {
+				if (!sourceCallerDemandDispatcher.isCurrent(readyIdentity)) {
+					return withContext(NonCancellable) {
+						compensateRejectedActivation(
+							boundaryBootId,
+							elapsedRealtimeNanos,
+							boundaryWallTimeMs,
+							desiredLatencyMs,
+						)
+					}
 				}
 				activityProjectionLane.ensureRegisteredAtLiveTail()
 				if (!sourceCallerDemandDispatcher.isCurrent(readyIdentity)) {
-					retireControl(
-						boundaryBootId,
-						elapsedRealtimeNanos,
-						boundaryWallTimeMs,
-						desiredLatencyMs,
-					)
-					return arbiter.clearDemand(
-						ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
-					).blocked()
+					return withContext(NonCancellable) {
+						compensateRejectedActivation(
+							boundaryBootId,
+							elapsedRealtimeNanos,
+							boundaryWallTimeMs,
+							desiredLatencyMs,
+						)
+					}
 				}
 				val registered = arbiter.setDemand(
-				ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
-				ActivityRegistrationDemand(
-					continuousRecognitionIntervalSeconds = null,
-					transitions = transitions,
-				),
-			)
-				if (registered.status == ActivityRegistrationStatus.FAILED) {
-				withContext(NonCancellable) {
-					retireControl(
-						boundaryBootId,
-						elapsedRealtimeNanos,
-						boundaryWallTimeMs,
-						desiredLatencyMs,
-					)
+					ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+					ActivityRegistrationDemand(
+						continuousRecognitionIntervalSeconds = null,
+						transitions = transitions,
+					),
+				)
+				if (!registered.isAcceptedAutomaticControl()) {
+					return withContext(NonCancellable) {
+						compensateRejectedActivation(
+							boundaryBootId,
+							elapsedRealtimeNanos,
+							boundaryWallTimeMs,
+							desiredLatencyMs,
+							registered,
+						)
+					}
 				}
-			}
 				registered
 			} catch (cancelled: CancellationException) {
-				withContext(NonCancellable) {
-					retireControl(
-						boundaryBootId,
-						elapsedRealtimeNanos,
-						boundaryWallTimeMs,
-						desiredLatencyMs,
-					)
-				}
+				compensateAfterFailure(
+					cancelled,
+					boundaryBootId,
+					elapsedRealtimeNanos,
+					boundaryWallTimeMs,
+					desiredLatencyMs,
+				)
 				throw cancelled
 			} catch (failure: RuntimeException) {
-				withContext(NonCancellable) {
-					retireControl(
-						boundaryBootId,
-						elapsedRealtimeNanos,
-						boundaryWallTimeMs,
-						desiredLatencyMs,
-					)
-				}
+				compensateAfterFailure(
+					failure,
+					boundaryBootId,
+					elapsedRealtimeNanos,
+					boundaryWallTimeMs,
+					desiredLatencyMs,
+				)
 				throw failure
 			}
 		}
 
+	}
+
+	private suspend fun compensateAfterFailure(
+		failure: Throwable,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+		desiredLatencyMs: Long,
+	) {
+		withContext(NonCancellable) {
+			try {
+			compensateRejectedActivation(
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+				desiredLatencyMs,
+			)
+			} catch (@Suppress("TooGenericExceptionCaught") compensationFailure: Throwable) {
+			if (compensationFailure !== failure) failure.addSuppressed(compensationFailure)
+			}
+		}
+	}
+
+	private suspend fun compensateRejectedActivation(
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+		desiredLatencyMs: Long,
+		rejected: ActivityRegistrationResult? = null,
+	): ActivityRegistrationResult = withContext(NonCancellable) {
+		withTimeoutOrNull(AUTOMATIC_CONTROL_COMPENSATION_TIMEOUT_MS) {
+			val retired = retireControl(
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+				desiredLatencyMs,
+			)
+			val cleared = arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+			when {
+				cleared.status == ActivityRegistrationStatus.FAILED ||
+					cleared.status == ActivityRegistrationStatus.DEGRADED -> cleared
+				retired !is GuardedPurposeDemandResult.Applied -> cleared.blocked()
+				else -> rejected?.let {
+					if (it.isAcceptedAutomaticControl()) it else it.blocked()
+				} ?: cleared.blocked()
+			}
+		} ?: ActivityRegistrationResult(
+			status = ActivityRegistrationStatus.FAILED,
+			snapshot = arbiter.snapshot(),
+			failureCode = ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE,
+			retryable = true,
+		)
 	}
 
 	private suspend fun retireControl(
@@ -238,7 +292,13 @@ class AutomaticStartTransitionMonitor @Inject internal constructor(
 			failureCode = failureCode ?: ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND,
 		)
 
+	private fun ActivityRegistrationResult.isAcceptedAutomaticControl(): Boolean =
+		status in setOf(ActivityRegistrationStatus.APPLIED, ActivityRegistrationStatus.DEGRADED) &&
+			snapshot.active &&
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR in snapshot.owners
+
 	private companion object {
 		const val AUTOMATIC_CONTROL_CONSUMER = "app:automatic-start:activity"
+		const val AUTOMATIC_CONTROL_COMPENSATION_TIMEOUT_MS = 2_000L
 	}
 }

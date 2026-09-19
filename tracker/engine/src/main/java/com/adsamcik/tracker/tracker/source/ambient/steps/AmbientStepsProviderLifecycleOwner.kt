@@ -120,7 +120,9 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 				if (demand is AmbientStepsDemandReconciliation.DemandReady &&
 					result !is AmbientStepsProviderRegistrationResult.Active
 				) {
-					retireDemand(boundary, lease)
+					kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+						retireDemand(boundary, lease)
+					}
 				}
 			}
 		} catch (cancelled: kotlinx.coroutines.CancellationException) {

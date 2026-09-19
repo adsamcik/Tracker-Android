@@ -143,6 +143,8 @@ data class ActiveTrackingSessionDescriptor(
 	val sessionSegmentId: Long? = null,
 	/** Opaque guard reference mirrored from the current durable lifecycle intent. */
 	val sourceCallerAuthorityReference: SourceCallerReplayReference? = null,
+	/** Exact predecessor whose retirement is durably pending after a reference handoff. */
+	val pendingRetirementSourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 ) {
 	init {
 		require(logicalTrackingId.isNotBlank()) { "logicalTrackingId must not be blank" }
@@ -159,6 +161,12 @@ data class ActiveTrackingSessionDescriptor(
 		require(sessionSegmentId == null || sessionSegmentId > 0L) {
 			"sessionSegmentId must be positive when present"
 		}
+		require(
+			pendingRetirementSourceCallerAuthorityReference == null ||
+				pendingRetirementSourceCallerAuthorityReference != sourceCallerAuthorityReference
+		) {
+			"Pending caller authority retirement must identify a predecessor"
+		}
 		if (lifecycleState == LogicalTrackingLifecycleState.STOP_CANDIDATE) {
 			require(stopCandidate != null) {
 				"STOP_CANDIDATE descriptors require a stopCandidate"
@@ -173,7 +181,8 @@ data class ActiveTrackingSessionDescriptor(
 	/** Only active user sessions may be restarted after involuntary Android teardown. */
 	val isRestartEligible: Boolean
 		get() = isUserInitiated && lifecycleState == LogicalTrackingLifecycleState.ACTIVE &&
-			restartBootId != null && restartToken != null && sourceCallerAuthorityReference != null
+			restartBootId != null && restartToken != null && sourceCallerAuthorityReference != null &&
+			pendingRetirementSourceCallerAuthorityReference == null
 
 	fun isRestartEligibleForBoot(currentBootId: String): Boolean =
 		isRestartEligible && restartBootId == currentBootId

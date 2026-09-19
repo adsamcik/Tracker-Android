@@ -686,7 +686,13 @@ class TrackerServiceSourceSessionTest {
 			serviceRunId = "run",
 			sourceCallerAuthorityReference = oldReference,
 		)
-		val replacement = descriptor.copy(sourceCallerAuthorityReference = newReference)
+		val recordedDebt = descriptor.copy(
+			sourceCallerAuthorityReference = newReference,
+			pendingRetirementSourceCallerAuthorityReference = oldReference,
+		)
+		val replacement = recordedDebt.copy(
+			pendingRetirementSourceCallerAuthorityReference = null,
+		)
 		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
 			"logical",
 			"run",
@@ -702,7 +708,9 @@ class TrackerServiceSourceSessionTest {
 		)
 		coEvery { activeSessionStore.read() } returns
 			ActiveTrackingSessionStoreResult.Success(descriptor)
-		coEvery { activeSessionStore.replaceExact(descriptor, replacement) } returns
+		coEvery { activeSessionStore.replaceExact(descriptor, recordedDebt) } returns
+			ActiveTrackingSessionStoreResult.Success(recordedDebt)
+		coEvery { activeSessionStore.replaceExact(recordedDebt, replacement) } returns
 			ActiveTrackingSessionStoreResult.Success(replacement)
 		coEvery {
 			lifecycle.retireSupersededSourceCallerAuthority(
@@ -729,18 +737,19 @@ class TrackerServiceSourceSessionTest {
 			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
 
 		coVerifyOrder {
-			activeSessionStore.replaceExact(descriptor, replacement)
+			activeSessionStore.replaceExact(descriptor, recordedDebt)
 			lifecycle.retireSupersededSourceCallerAuthority(
 				"logical",
 				newReference,
 				oldReference,
 				any(),
 			)
+			activeSessionStore.replaceExact(recordedDebt, replacement)
 		}
 	}
 
 	@Test
-	fun `failed predecessor retirement restores durable and in-memory caller authority`() = runTest {
+	fun `failed predecessor retirement persists exact cleanup debt with the replacement`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
 		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
 		val changed = settings(SourceCollectionFrequency.BATTERY_SAVER, sourcePolicyRevision = 2)
@@ -754,7 +763,10 @@ class TrackerServiceSourceSessionTest {
 			serviceRunId = "run",
 			sourceCallerAuthorityReference = oldReference,
 		)
-		val replacement = descriptor.copy(sourceCallerAuthorityReference = newReference)
+		val recordedDebt = descriptor.copy(
+			sourceCallerAuthorityReference = newReference,
+			pendingRetirementSourceCallerAuthorityReference = oldReference,
+		)
 		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
 			"logical", "run", emptyList(), DesiredPlanStatus.EFFECTIVE, oldReference,
 		)
@@ -763,10 +775,8 @@ class TrackerServiceSourceSessionTest {
 		)
 		coEvery { activeSessionStore.read() } returns
 			ActiveTrackingSessionStoreResult.Success(descriptor)
-		coEvery { activeSessionStore.replaceExact(descriptor, replacement) } returns
-			ActiveTrackingSessionStoreResult.Success(replacement)
-		coEvery { activeSessionStore.replaceExact(replacement, descriptor) } returns
-			ActiveTrackingSessionStoreResult.Success(descriptor)
+		coEvery { activeSessionStore.replaceExact(descriptor, recordedDebt) } returns
+			ActiveTrackingSessionStoreResult.Success(recordedDebt)
 		coEvery {
 			lifecycle.retireSupersededSourceCallerAuthority(
 				"logical", newReference, oldReference, any(),
@@ -789,11 +799,13 @@ class TrackerServiceSourceSessionTest {
 			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Rejected>()
 
 		coVerifyOrder {
-			activeSessionStore.replaceExact(descriptor, replacement)
+			activeSessionStore.replaceExact(descriptor, recordedDebt)
 			lifecycle.retireSupersededSourceCallerAuthority(
 				"logical", newReference, oldReference, any(),
 			)
-			activeSessionStore.replaceExact(replacement, descriptor)
+		}
+		coVerify(exactly = 0) {
+			activeSessionStore.replaceExact(recordedDebt, descriptor)
 		}
 	}
 
@@ -926,7 +938,13 @@ class TrackerServiceSourceSessionTest {
 			serviceRunId = "run",
 			sourceCallerAuthorityReference = oldReference,
 		)
-		val replacement = descriptor.copy(sourceCallerAuthorityReference = newReference)
+		val recordedDebt = descriptor.copy(
+			sourceCallerAuthorityReference = newReference,
+			pendingRetirementSourceCallerAuthorityReference = oldReference,
+		)
+		val replacement = recordedDebt.copy(
+			pendingRetirementSourceCallerAuthorityReference = null,
+		)
 		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
 			"logical",
 			"run",
@@ -943,7 +961,9 @@ class TrackerServiceSourceSessionTest {
 		)
 		coEvery { activeSessionStore.read() } returns
 			ActiveTrackingSessionStoreResult.Success(descriptor)
-		coEvery { activeSessionStore.replaceExact(descriptor, replacement) } returns
+		coEvery { activeSessionStore.replaceExact(descriptor, recordedDebt) } returns
+			ActiveTrackingSessionStoreResult.Success(recordedDebt)
+		coEvery { activeSessionStore.replaceExact(recordedDebt, replacement) } returns
 			ActiveTrackingSessionStoreResult.Success(replacement)
 		coEvery {
 			lifecycle.retireSupersededSourceCallerAuthority(
@@ -970,13 +990,14 @@ class TrackerServiceSourceSessionTest {
 			SourceSessionStopOutcome.Stopped
 
 		coVerifyOrder {
-			activeSessionStore.replaceExact(descriptor, replacement)
+			activeSessionStore.replaceExact(descriptor, recordedDebt)
 			lifecycle.retireSupersededSourceCallerAuthority(
 				"logical",
 				newReference,
 				oldReference,
 				any(),
 			)
+			activeSessionStore.replaceExact(recordedDebt, replacement)
 		}
 	}
 
@@ -994,7 +1015,13 @@ class TrackerServiceSourceSessionTest {
 			serviceRunId = "run",
 			sourceCallerAuthorityReference = oldReference,
 		)
-		val replacement = descriptor.copy(sourceCallerAuthorityReference = newReference)
+		val recordedDebt = descriptor.copy(
+			sourceCallerAuthorityReference = newReference,
+			pendingRetirementSourceCallerAuthorityReference = oldReference,
+		)
+		val replacement = recordedDebt.copy(
+			pendingRetirementSourceCallerAuthorityReference = null,
+		)
 		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
 			"logical",
 			"run",
@@ -1013,7 +1040,9 @@ class TrackerServiceSourceSessionTest {
 			ActiveTrackingSessionStoreResult.Failure(IOException("temporarily unavailable")),
 			ActiveTrackingSessionStoreResult.Success(descriptor),
 		)
-		coEvery { activeSessionStore.replaceExact(descriptor, replacement) } returns
+		coEvery { activeSessionStore.replaceExact(descriptor, recordedDebt) } returns
+			ActiveTrackingSessionStoreResult.Success(recordedDebt)
+		coEvery { activeSessionStore.replaceExact(recordedDebt, replacement) } returns
 			ActiveTrackingSessionStoreResult.Success(replacement)
 		coEvery {
 			lifecycle.retireSupersededSourceCallerAuthority(

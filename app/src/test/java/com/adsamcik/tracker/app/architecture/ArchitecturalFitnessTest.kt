@@ -1131,6 +1131,7 @@ class ArchitecturalFitnessTest {
 					"""replaceSessionDemandsInTransaction|replaceAutomaticControlDemand|""" +
 					"""replaceAmbientStepsDemand|replaceAmbientWifiDemand(?:UnderHeldLease)?|""" +
 					"""replaceAmbientCellDemand(?:UnderHeldLease)?|withAmbientRadioMutationLease|""" +
+					"""withAmbientRadioReductionLease|""" +
 					"""compensateAmbient(?:Wifi|Cell)DemandUnderHeldLease|""" +
 					"""retireAcceptedPurposeDemand|retireSupersededSessionAuthoritiesInTransaction|""" +
 					"""markSessionDemandsRetiring|retireSessionDemands(?:InTransaction)?|""" +

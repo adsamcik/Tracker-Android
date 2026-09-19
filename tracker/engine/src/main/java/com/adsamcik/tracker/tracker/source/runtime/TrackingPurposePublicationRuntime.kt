@@ -426,6 +426,17 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 		}
 	}
 
+	override suspend fun <T> mutateReductionIfRetained(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = mutex.withLock {
+		if (ambientIdentities[identity.source] != identity) {
+			AmbientRadioLeaseMutation.Stale
+		} else {
+			AmbientRadioLeaseMutation.Applied(mutation())
+		}
+	}
+
 	private suspend fun readAuthority(
 		sourcePurpose: TrackingSourcePurposeIdentity,
 		executionRevision: Long,

@@ -43,6 +43,7 @@ import com.adsamcik.tracker.tracker.api.AutomaticControlContainmentAttemptResult
 import com.adsamcik.tracker.tracker.api.AutomaticControlContainmentLoopResult
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.reconcileUnavailableAutomaticControl
 import com.adsamcik.tracker.tracker.api.runAutomaticControlContainmentRetryLoop
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionCapability
@@ -270,10 +271,47 @@ class SourceBrokerTest {
 			"boot-1",
 			30L,
 			30L,
-		) shouldBe true
+		) shouldBe false
 
 		database.sourceBrokerDao().demandsByIds(listOf(demand.demandId))
 			.single().status shouldBe SourceDemandEntity.STATUS_RETIRED
+	}
+
+	@Test
+	fun `superseded session authority retirement propagates caller cleanup failure`() = runTest {
+		val reference = SourceCallerReplayReference("superseded-retirement-failure")
+		val unavailableRepository = mockk<SourceCallerAcceptedAuthorityRepository>()
+		coEvery {
+			unavailableRepository.retireForTeardown(reference, any(), any())
+		} returns false
+		val broker = SourceBroker(
+			database,
+			rolloutStore,
+			RejectingAmbientRadioMutationLeaseGuard,
+			unavailableRepository,
+			retentionReader,
+		)
+		database.sourceBrokerDao().insertDemands(
+			listOf(
+				purposeDemand(
+					id = "superseded-session-demand",
+					consumerId = broker.sessionConsumerId("logical"),
+					source = SourceKind.STEPS,
+					purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+					status = SourceDemandEntity.STATUS_ACTIVE,
+					reference = reference.value,
+				),
+			),
+		)
+
+		database.withTransaction {
+			broker.retireSupersededSessionAuthoritiesInTransaction(
+				logicalTrackingId = "logical",
+				currentReference = SourceCallerReplayReference("current-authority"),
+				expectedSupersededReference = reference,
+				wallTimeMs = 200L,
+			)
+		} shouldBe false
 	}
 
 	@Test

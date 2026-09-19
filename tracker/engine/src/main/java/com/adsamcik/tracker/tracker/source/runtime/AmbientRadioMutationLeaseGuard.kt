@@ -16,6 +16,15 @@ interface AmbientRadioMutationLeaseGuard {
 		identity: AmbientReconciliationIdentity,
 		mutation: suspend () -> T,
 	): AmbientRadioLeaseMutation<T>
+
+	/**
+	 * Allows only authority-reducing work for the exact retained lease after its activation
+	 * operation has completed. Implementations must reject a replaced lease.
+	 */
+	suspend fun <T> mutateReductionIfRetained(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = mutateIfCurrent(identity, mutation)
 }
 
 interface TrackingPurposeMutationLeaseGuard : AmbientRadioMutationLeaseGuard {
@@ -48,6 +57,11 @@ object RejectingAmbientRadioMutationLeaseGuard : TrackingPurposeMutationLeaseGua
 	): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Stale
 
 	override suspend fun <T> mutateAmbientIfCurrent(
+		identity: AmbientReconciliationIdentity,
+		mutation: suspend () -> T,
+	): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Stale
+
+	override suspend fun <T> mutateReductionIfRetained(
 		identity: AmbientReconciliationIdentity,
 		mutation: suspend () -> T,
 	): AmbientRadioLeaseMutation<T> = AmbientRadioLeaseMutation.Stale

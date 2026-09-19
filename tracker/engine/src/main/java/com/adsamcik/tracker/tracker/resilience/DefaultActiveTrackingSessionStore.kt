@@ -235,6 +235,10 @@ private fun ActiveTrackingSessionProto.toDescriptor(): ActiveTrackingSessionDesc
 			sourceCallerAuthorityReference = sourceCallerAuthorityReference
 				.takeIf(String::isNotBlank)
 				?.let(::SourceCallerReplayReference),
+			pendingRetirementSourceCallerAuthorityReference =
+				pendingRetirementSourceCallerAuthorityReference
+					.takeIf(String::isNotBlank)
+					?.let(::SourceCallerReplayReference),
 		)
 	} catch (exception: IllegalArgumentException) {
 		throw CorruptionException("Active tracking session descriptor is invalid", exception)
@@ -263,6 +267,9 @@ private fun ActiveTrackingSessionDescriptor.toProto(): ActiveTrackingSessionProt
 		.setRestartToken(restartToken.orEmpty())
 		.setSessionSegmentId(sessionSegmentId ?: 0L)
 		.setSourceCallerAuthorityReference(sourceCallerAuthorityReference?.value.orEmpty())
+		.setPendingRetirementSourceCallerAuthorityReference(
+			pendingRetirementSourceCallerAuthorityReference?.value.orEmpty(),
+		)
 		.build()
 
 /**

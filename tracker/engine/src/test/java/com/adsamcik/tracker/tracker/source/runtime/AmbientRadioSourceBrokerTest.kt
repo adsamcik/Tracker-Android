@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.applyAmbientCellRetentionDecisi
 import com.adsamcik.tracker.shared.base.database.applyAmbientWifiRetentionDecision
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityEntity
+import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
@@ -22,6 +23,8 @@ import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateS
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.SourceCallerDemandIdentity
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -181,7 +184,7 @@ class AmbientRadioSourceBrokerTest {
 			broker.replaceAmbientCellDemand(
 				"app:ambient:cell",
 				false,
-				lease(AmbientTrackingSource.CELL, policy.revision, consentEpoch, "cell-owner-2"),
+				lease(AmbientTrackingSource.CELL, policy.revision, consentEpoch, "cell-owner-1"),
 				2L,
 				"boot-1",
 				200L,
@@ -453,6 +456,103 @@ class AmbientRadioSourceBrokerTest {
 		)
 	}
 
+	@Test
+	fun `partial radio compensation retry retires exact caller authority idempotently`() = runTest {
+		val policy = grant(TrackingSourceComponent.WIFI)
+		val consent = requireNotNull(policy[TrackingSourceComponent.WIFI].ambientConsentEpoch)
+		database.applyAmbientWifiRetentionDecision(
+			AmbientRadioRetentionDecision.GrantLiveAmbient(
+				"privacy:wifi:ambient:v1",
+				3L,
+				policy.revision,
+				consent,
+				"boot-1",
+				90L,
+				90L,
+			),
+		)
+		val identity = lease(
+			AmbientTrackingSource.WIFI,
+			policy.revision,
+			consent,
+			"wifi-partial-owner",
+		)
+		val reference = SourceCallerReplayReference("wifi-partial-caller")
+		val authorityRepository = RoomSourceCallerAcceptedAuthorityRepository(database)
+		assertTrue(authorityRepository.insertIfAbsent(
+			reference,
+			StoredSourceCallerAuthority(
+				origin = StoredSourceCallerOrigin.PURPOSE_OWNER,
+				purpose = TrackingPurpose.AMBIENT_PRODUCT,
+				permittedDemandIdentities = setOf(
+					SourceCallerDemandIdentity(identity.purposeLeaseIdentity, null),
+				),
+			),
+			createdAtMs = 95L,
+		))
+		val active = assertIs<AmbientRadioDemandResult.Active>(
+			broker.replaceAmbientWifiDemand(
+				consumerId = "app:ambient:wifi",
+				requested = true,
+				leaseIdentity = identity,
+				reconciliationAttempt = 1L,
+				bootId = "boot-1",
+				elapsedRealtimeNanos = 100L,
+				wallTimeMs = 100L,
+				sourceCallerAuthorityReference = reference.value,
+				retentionSnapshot = retentionSnapshot(
+					SourceKind.WIFI,
+					policy.revision,
+					consent,
+					100L,
+				),
+			),
+		)
+		assertEquals(
+			1,
+			database.ambientWifiFactDao().retireExactAmbientDemand(
+				demandId = active.demand.demandId,
+				consumerId = active.demand.consumerId,
+				sourceKind = active.demand.sourceKind,
+				sourcePolicyRevision = active.demand.sourcePolicyRevision,
+				consentEpoch = active.demand.consentEpoch,
+				bootId = "boot-1",
+				elapsedRealtimeNanos = 150L,
+				wallTimeMs = 150L,
+			),
+		)
+
+		val firstRetry = broker.compensateAmbientWifiDemandUnderHeldLease(
+			consumerId = "app:ambient:wifi",
+			leaseIdentity = identity,
+			reconciliationAttempt = 1L,
+			expectedDemandId = active.demand.demandId,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 200L,
+			wallTimeMs = 200L,
+		)
+		val secondRetry = broker.compensateAmbientWifiDemandUnderHeldLease(
+			consumerId = "app:ambient:wifi",
+			leaseIdentity = identity,
+			reconciliationAttempt = 1L,
+			expectedDemandId = active.demand.demandId,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 201L,
+			wallTimeMs = 201L,
+		)
+
+		assertTrue(firstRetry != null)
+		assertEquals(firstRetry, secondRetry)
+		assertEquals(
+			StoredSourceCallerAuthorityLoadResult.Retired,
+			authorityRepository.load(reference),
+		)
+		assertEquals(
+			AmbientWifiAuthorityEntity.STATE_REVOKED,
+			database.ambientWifiFactDao().latestAuthority()?.state,
+		)
+	}
+
 	private suspend fun grant(source: TrackingSourceComponent) =
 		policyRepository.setNonCaptureConsent(
 			expectedPolicyRevision =
@@ -490,12 +590,16 @@ class AmbientRadioSourceBrokerTest {
 		consentEpoch: Long,
 		ownerCasToken: String,
 	) = AmbientReconciliationIdentity(
-		source,
-		policyRevision,
-		consentEpoch,
-		3L,
-		1L,
-		ownerCasToken,
+		source = source,
+		policyRevision = policyRevision,
+		consentEpoch = consentEpoch,
+		collectedDataEpoch = 3L,
+		rolloutRevision = 1L,
+		ownerCasToken = ownerCasToken,
+		executionRevision = 1L,
+		retainedFromMs = null,
+		retentionPolicyId = "privacy:${source.name.lowercase()}:ambient:v1",
+		retentionApprovalRevision = 1L,
 	)
 
 	private object PermissiveLeaseGuard : AmbientRadioMutationLeaseGuard {
