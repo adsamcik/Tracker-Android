@@ -609,8 +609,8 @@ class SourceBroker @Inject internal constructor(
 		reference: SourceCallerReplayReference,
 		reason: String,
 		wallTimeMs: Long,
-	): SourceCallerAuthorityRetirementOutcome =
-		when (val loaded = loadCallerAuthorityForRetirement(reference)) {
+	): SourceCallerAuthorityRetirementOutcome {
+		return when (val loaded = loadCallerAuthorityForRetirement(reference)) {
 			CallerAuthorityRetirementLoad.Missing,
 			CallerAuthorityRetirementLoad.Retired,
 			-> SourceCallerAuthorityRetirementOutcome.Completed
@@ -655,6 +655,7 @@ class SourceBroker @Inject internal constructor(
 				}
 			}
 		}
+	}
 
 	private suspend fun loadCallerAuthorityForRetirement(
 		reference: SourceCallerReplayReference,
@@ -2932,18 +2933,20 @@ private object AmbientStepsDemandIdentity {
 				leaseIdentity,
 			)
 
-	fun parseLeaseBinding(demandId: String): AmbientStepsLeaseBinding? = try {
-		val parts = demandId.split('.')
-		if (parts.size != 4) return null
-		val ownerCasToken = Base64.getUrlDecoder().decode(parts[3])
-			.toString(Charsets.UTF_8)
-		AmbientStepsLeaseBinding(
-			rolloutRevision = parts[1].toLong(),
-			executionRevision = parts[2].toLong(),
-			ownerCasToken = ownerCasToken,
-		)
-	} catch (_: IllegalArgumentException) {
-		null
+	fun parseLeaseBinding(demandId: String): AmbientStepsLeaseBinding? {
+		return try {
+			val parts = demandId.split('.')
+			if (parts.size != 4) return null
+			val ownerCasToken = Base64.getUrlDecoder().decode(parts[3])
+				.toString(Charsets.UTF_8)
+			AmbientStepsLeaseBinding(
+				rolloutRevision = parts[1].toLong(),
+				executionRevision = parts[2].toLong(),
+				ownerCasToken = ownerCasToken,
+			)
+		} catch (_: IllegalArgumentException) {
+			null
+		}
 	}
 
 	fun matchesRetention(

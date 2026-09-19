@@ -274,27 +274,29 @@ class DefaultActiveTrackingSessionStore internal constructor(
 
 	private suspend inline fun runStoreOperation(
 		operation: suspend () -> ActiveTrackingSessionStoreResult,
-	): ActiveTrackingSessionStoreResult = try {
-		operation()
-	} catch (exception: CancellationException) {
-		throw exception
-	} catch (exception: CorruptionException) {
-		ActiveTrackingSessionStoreResult.Failure(
-			ActiveTrackingSessionStoreCorruptionException(exception),
-			ActiveTrackingSessionStoreFailureKind.CORRUPT,
-		)
-	} catch (exception: Exception) {
-		exception.corruptionCause()?.let { corruption ->
-			return ActiveTrackingSessionStoreResult.Failure(
-				ActiveTrackingSessionStoreCorruptionException(corruption),
+	): ActiveTrackingSessionStoreResult {
+		return try {
+			operation()
+		} catch (exception: CancellationException) {
+			throw exception
+		} catch (exception: CorruptionException) {
+			ActiveTrackingSessionStoreResult.Failure(
+				ActiveTrackingSessionStoreCorruptionException(exception),
 				ActiveTrackingSessionStoreFailureKind.CORRUPT,
 			)
+		} catch (exception: Exception) {
+			exception.corruptionCause()?.let { corruption ->
+				return ActiveTrackingSessionStoreResult.Failure(
+					ActiveTrackingSessionStoreCorruptionException(corruption),
+					ActiveTrackingSessionStoreFailureKind.CORRUPT,
+				)
+			}
+			if (!exception.isTrackingOperationalFailure()) throw exception
+			ActiveTrackingSessionStoreResult.Failure(
+				exception,
+				ActiveTrackingSessionStoreFailureKind.UNAVAILABLE,
+			)
 		}
-		if (!exception.isTrackingOperationalFailure()) throw exception
-		ActiveTrackingSessionStoreResult.Failure(
-			exception,
-			ActiveTrackingSessionStoreFailureKind.UNAVAILABLE,
-		)
 	}
 }
 

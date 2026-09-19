@@ -1438,6 +1438,63 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
+		fun `caller authority correction helpers keep legal module-private signatures`() {
+			val coordinator = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/" +
+					"AuthoritativeSessionCoordinator.kt",
+			).readText()
+			val broker = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"SourceBroker.kt",
+			).readText()
+			val guard = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"ExactSourceCallerGuard.kt",
+			).readText()
+			val activeStore = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/" +
+					"DefaultActiveTrackingSessionStore.kt",
+			).readText()
+
+			fun functionSection(source: String, start: String, end: String): String =
+				source.substring(source.indexOf(start), source.indexOf(end))
+
+			val blockBodyContracts = listOf(
+				functionSection(
+					broker,
+					"private suspend fun retireExactCallerAuthority(",
+					"private suspend fun loadCallerAuthorityForRetirement(",
+				) to "): SourceCallerAuthorityRetirementOutcome {",
+				functionSection(
+					broker,
+					"fun parseLeaseBinding(",
+					"fun matchesRetention(",
+				) to "): AmbientStepsLeaseBinding? {",
+				functionSection(
+					guard,
+					"private suspend fun acceptFresh(",
+					"private suspend fun replay(",
+				) to "): SourceCallerGuardResult {",
+				functionSection(
+					activeStore,
+					"private suspend inline fun runStoreOperation(",
+					"private fun defaultProto(",
+				) to "): ActiveTrackingSessionStoreResult {",
+			)
+
+			buildList {
+				if ("internal suspend fun retireSupersededSourceCallerAuthority(" !in coordinator) {
+					add("caller authority retirement outcomes must remain tracker-engine internal")
+				}
+				blockBodyContracts.forEach { (section, declaration) ->
+					if (declaration !in section) {
+						add("$declaration must remain block-bodied while using explicit returns")
+					}
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
 		fun `provider-owning callers reconcile only after guarded demand dispatch`() {
 			val automatic = projectRoot.resolve(
 				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +

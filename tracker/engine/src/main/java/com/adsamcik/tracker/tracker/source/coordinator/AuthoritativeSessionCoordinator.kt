@@ -2184,7 +2184,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		}
 	}
 
-	suspend fun retireSupersededSourceCallerAuthority(
+	internal suspend fun retireSupersededSourceCallerAuthority(
 		logicalTrackingId: String,
 		currentReference: SourceCallerReplayReference,
 		supersededReference: SourceCallerReplayReference,

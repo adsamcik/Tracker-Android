@@ -186,30 +186,32 @@ internal class ExactSourceCallerGuard @Inject constructor(
 
 	private suspend fun acceptFresh(
 		evaluation: SourceCallerEvaluation,
-	): SourceCallerGuardResult = when (evaluation) {
-		is SourceCallerEvaluation.Rejected -> SourceCallerGuardResult.Rejected(evaluation.rejection)
-		is SourceCallerEvaluation.Accepted -> {
-			val reference = SourceCallerReplayReference(UUID.randomUUID().toString())
-			try {
-				if (!authorityRepository.insertIfAbsent(
-					reference,
-					evaluation.authority.toStored(),
-					System.currentTimeMillis(),
-				)) {
-					return rejected(SourceCallerRejectionReason.AUTHORITY_PERSISTENCE_UNAVAILABLE)
+	): SourceCallerGuardResult {
+		return when (evaluation) {
+			is SourceCallerEvaluation.Rejected -> SourceCallerGuardResult.Rejected(evaluation.rejection)
+			is SourceCallerEvaluation.Accepted -> {
+				val reference = SourceCallerReplayReference(UUID.randomUUID().toString())
+				try {
+					if (!authorityRepository.insertIfAbsent(
+						reference,
+						evaluation.authority.toStored(),
+						System.currentTimeMillis(),
+					)) {
+						return rejected(SourceCallerRejectionReason.AUTHORITY_PERSISTENCE_UNAVAILABLE)
+					}
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (failure: Exception) {
+					return rejected(
+						if (failure.isTrackingOperationalFailure()) {
+							SourceCallerRejectionReason.AUTHORITY_PERSISTENCE_UNAVAILABLE
+						} else {
+							SourceCallerRejectionReason.AUTHORITY_INVARIANT_VIOLATION
+						},
+					)
 				}
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (failure: Exception) {
-				return rejected(
-					if (failure.isTrackingOperationalFailure()) {
-						SourceCallerRejectionReason.AUTHORITY_PERSISTENCE_UNAVAILABLE
-					} else {
-						SourceCallerRejectionReason.AUTHORITY_INVARIANT_VIOLATION
-					},
-				)
+				permitted(reference, evaluation.authority)
 			}
-			permitted(reference, evaluation.authority)
 		}
 	}
 
