@@ -812,6 +812,226 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `exact run WAL accepts 101 300 and 2048 authenticated revisions across chunks`() = runTest {
+		for (revisionCount in listOf(101, 300, MAX_RUN_DRAIN_MANIFEST_REVISIONS)) {
+			val logicalTrackingId = "chunked-wal-logical-$revisionCount"
+			val serviceRunId = "chunked-wal-run-$revisionCount"
+			val sourceInstanceId = "chunked-wal-instance-$revisionCount"
+			val runManifestRevisions = (1L..revisionCount.toLong()).toList()
+			val walRevisions = listOf(
+				1L,
+				100L,
+				101L,
+				200L,
+				201L,
+				revisionCount.toLong(),
+			).filter { revision -> revision <= revisionCount }.distinct()
+			var highWater = 0L
+			for ((index, revision) in walRevisions.withIndex()) {
+				highWater = insertTerminalStepsWal(
+					logicalTrackingId = logicalTrackingId,
+					serviceRunId = serviceRunId,
+					manifestRevision = revision,
+					sourceInstanceId = sourceInstanceId,
+					sourceSequence = index.toLong() + 1L,
+					recordStepsFact = false,
+				)
+			}
+
+			sourceRunHighWater(
+				database = database,
+				source = SourceKind.STEPS,
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				runManifestRevisions = runManifestRevisions,
+				throughOrdinal = highWater,
+				productMemberships = listOf(
+					terminalDrainMembership(sourceInstanceId, 1L, highWater),
+				),
+				retirementClaims = listOf(
+					terminalDrainClaim(sourceInstanceId, 1L, cleanupOnly = false),
+				),
+			) shouldBe SourceRunHighWaterRead.Ready(highWater)
+		}
+	}
+
+	@Test
+	fun `exact run WAL rejects missing and out-of-run manifest revisions`() = runTest {
+		for ((identity, manifestRevision) in listOf(
+			"missing" to null,
+			"out-of-run" to 3L,
+		)) {
+			val logicalTrackingId = "$identity-revision-logical"
+			val serviceRunId = "$identity-revision-run"
+			val sourceInstanceId = "$identity-revision-instance"
+			val highWater = insertTerminalStepsWal(
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				manifestRevision = manifestRevision,
+				sourceInstanceId = sourceInstanceId,
+				recordStepsFact = false,
+			)
+
+			sourceRunHighWater(
+				database = database,
+				source = SourceKind.STEPS,
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				runManifestRevisions = listOf(1L, 2L),
+				throughOrdinal = highWater,
+				productMemberships = listOf(
+					terminalDrainMembership(sourceInstanceId, 1L, highWater),
+				),
+				retirementClaims = listOf(
+					terminalDrainClaim(sourceInstanceId, 1L, cleanupOnly = false),
+				),
+			) shouldBe SourceRunHighWaterRead.Unverifiable
+		}
+	}
+
+	@Test
+	fun `malformed service run fallback remains exact across manifest chunks`() = runTest {
+		val logicalTrackingId = "malformed-service-fallback-logical"
+		val serviceRunId = "malformed-service-fallback-run"
+		val sourceInstanceId = "malformed-service-fallback-instance"
+		insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			manifestRevision = 1L,
+			sourceInstanceId = sourceInstanceId,
+			sourceSequence = 1L,
+			recordStepsFact = false,
+		)
+		val highWater = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = " \t\n",
+			manifestRevision = 101L,
+			sourceInstanceId = sourceInstanceId,
+			sourceSequence = 2L,
+			recordStepsFact = false,
+		)
+
+		sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = (1L..101L).toList(),
+			throughOrdinal = highWater,
+			productMemberships = listOf(
+				terminalDrainMembership(sourceInstanceId, 1L, highWater),
+			),
+			retirementClaims = listOf(
+				terminalDrainClaim(sourceInstanceId, 1L, cleanupOnly = false),
+			),
+		) shouldBe SourceRunHighWaterRead.Unverifiable
+	}
+
+	@Test
+	fun `duplicate authenticated manifest revisions fail before WAL attribution`() = runTest {
+		sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = "duplicate-revision-logical",
+			serviceRunId = "duplicate-revision-run",
+			runManifestRevisions = listOf(1L, 1L),
+			throughOrdinal = 1L,
+			productMemberships = listOf(
+				terminalDrainMembership("duplicate-revision-instance", 1L, 1L),
+			),
+			retirementClaims = listOf(
+				terminalDrainClaim("duplicate-revision-instance", 1L, cleanupOnly = false),
+			),
+		) shouldBe SourceRunHighWaterRead.Unverifiable
+	}
+
+	@Test
+	fun `duplicate WAL manifest revisions are each retained in the exact run high-water`() = runTest {
+		val logicalTrackingId = "duplicate-wal-revision-logical"
+		val serviceRunId = "duplicate-wal-revision-run"
+		val sourceInstanceId = "duplicate-wal-revision-instance"
+		insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			manifestRevision = 1L,
+			sourceInstanceId = sourceInstanceId,
+			sourceSequence = 1L,
+			recordStepsFact = false,
+		)
+		val highWater = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			manifestRevision = 1L,
+			sourceInstanceId = sourceInstanceId,
+			sourceSequence = 2L,
+			recordStepsFact = false,
+		)
+
+		sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = listOf(1L),
+			throughOrdinal = highWater,
+			productMemberships = listOf(
+				terminalDrainMembership(sourceInstanceId, 1L, highWater),
+			),
+			retirementClaims = listOf(
+				terminalDrainClaim(sourceInstanceId, 1L, cleanupOnly = false),
+			),
+		) shouldBe SourceRunHighWaterRead.Ready(highWater)
+	}
+
+	@Test
+	fun `cleanup-only generation WAL remains visible across manifest chunks`() = runTest {
+		val logicalTrackingId = "chunked-cleanup-generation-logical"
+		val serviceRunId = "chunked-cleanup-generation-run"
+		val productInstanceId = "chunked-product-instance"
+		val cleanupInstanceId = "chunked-cleanup-instance"
+		val productHighWater = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			registrationGeneration = 1L,
+			manifestRevision = 1L,
+			sourceInstanceId = productInstanceId,
+			sourceSequence = 1L,
+			recordStepsFact = false,
+		)
+		val highWater = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			registrationGeneration = 2L,
+			manifestRevision = 101L,
+			sourceInstanceId = cleanupInstanceId,
+			lifecycleLeaseGeneration = 2L,
+			sourceSequence = 1L,
+			recordStepsFact = false,
+		)
+
+		sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = (1L..101L).toList(),
+			throughOrdinal = highWater,
+			productMemberships = listOf(
+				terminalDrainMembership(productInstanceId, 1L, productHighWater),
+			),
+			retirementClaims = listOf(
+				terminalDrainClaim(productInstanceId, 1L, cleanupOnly = false),
+				terminalDrainClaim(
+					cleanupInstanceId,
+					2L,
+					cleanupOnly = true,
+					lifecycleLeaseGeneration = 2L,
+				),
+			),
+		) shouldBe SourceRunHighWaterRead.CleanupOnlyProductEvidence
+	}
+
+	@Test
 	fun `raw WAL high-water recheck rejects corruption after plan creation`() = runTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 		val started = subject.start(
@@ -6048,6 +6268,37 @@ class AuthoritativeSessionCoordinatorTest {
 				CoordinatorDrainResult.Complete(admissionOrdinal, 1)
 		}
 
+	private fun terminalDrainMembership(
+		sourceInstanceId: String,
+		registrationGeneration: Long,
+		lastAdmissionOrdinal: Long,
+	) = SourceDrainMembership(
+		sourceInstanceId = sourceInstanceId,
+		registrationGeneration = registrationGeneration,
+		lastAdmissionOrdinal = lastAdmissionOrdinal,
+		lastSourceSequence = null,
+		appDrainComplete = true,
+		providerCoverage = ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER.name,
+		stopStatus = SourceStopStatus.COMPLETE.name,
+		unresolvedSequenceStart = null,
+		unresolvedSequenceEndInclusive = null,
+	)
+
+	private fun terminalDrainClaim(
+		sourceInstanceId: String,
+		registrationGeneration: Long,
+		cleanupOnly: Boolean,
+		lifecycleLeaseGeneration: Long = 1L,
+	) = SourceDrainRetirementClaim(
+		source = SourceKind.STEPS,
+		sourceInstanceId = sourceInstanceId,
+		registrationGeneration = registrationGeneration,
+		actionId = "terminal-drain-$sourceInstanceId-$registrationGeneration",
+		attemptCount = 1,
+		leaseGeneration = lifecycleLeaseGeneration,
+		cleanupOnly = cleanupOnly,
+	)
+
 	private suspend fun insertTerminalStepsWal(started: SessionStartResult.Started): Long {
 		return insertTerminalStepsWal(
 			logicalTrackingId = started.logicalTrackingId,
@@ -6059,12 +6310,16 @@ class AuthoritativeSessionCoordinatorTest {
 		logicalTrackingId: String,
 		serviceRunId: String,
 		registrationGeneration: Long = 1L,
-		manifestRevision: Long = 1L,
+		manifestRevision: Long? = 1L,
 		sourceInstanceId: String = "steps-instance",
 		lifecycleLeaseGeneration: Long = 1L,
+		sourceSequence: Long = 4L,
+		recordStepsFact: Boolean = true,
 	): Long {
-		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
-			StepsCountDomainSchemaState.ValidV2
+		if (recordStepsFact) {
+			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
+				StepsCountDomainSchemaState.ValidV2
+		}
 		val token = StepsCounterDomainToken.opaque("sha256:${"a".repeat(64)}")
 		val payload = StepCounterWindowPayload(
 			bootClockDomainId = "boot-1",
@@ -6073,8 +6328,8 @@ class AuthoritativeSessionCoordinatorTest {
 			deltaCount = 4L,
 			windowStartElapsedRealtimeNanos = 1_000_000_000L,
 			windowEndElapsedRealtimeNanos = 2_000_000_000L,
-			firstProviderSequence = 4L,
-			lastProviderSequence = 4L,
+			firstProviderSequence = sourceSequence,
+			lastProviderSequence = sourceSequence,
 			boundaryKind = StepBoundaryKind.COVERED,
 			counterDomainToken = token,
 			counterEpochGeneration = 1L,
@@ -6083,9 +6338,11 @@ class AuthoritativeSessionCoordinatorTest {
 			payload,
 			StepsCounterDomainToken.COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION,
 		)
+		val walIdentity =
+			"$serviceRunId-$registrationGeneration-$manifestRevision-$sourceSequence"
 		val unsigned = SourceEventWalEntity(
-			eventId = "terminal-steps-$serviceRunId-$registrationGeneration",
-			providerDedupKey = "terminal-steps-dedup-$serviceRunId-$registrationGeneration",
+			eventId = "terminal-steps-$walIdentity",
+			providerDedupKey = "terminal-steps-dedup-$walIdentity",
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
 			sourceKind = SourceKind.STEPS.stableCode,
@@ -6095,7 +6352,7 @@ class AuthoritativeSessionCoordinatorTest {
 			authorizationRevision = 1L,
 			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 			authorizationFingerprint = "b".repeat(64),
-			sourceSequence = 4L,
+			sourceSequence = sourceSequence,
 			configRevision = 1L,
 			planAttribution = PlanAttribution.CAPTURED_REGISTRATION.ordinal,
 			clockDomainId = "boot-1",
@@ -6119,10 +6376,12 @@ class AuthoritativeSessionCoordinatorTest {
 		val signed = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
 		val admissionOrdinal =
 			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(signed)
-		StepsCountDomainStore(database).recordSessionWal(
-			signed.copy(admissionOrdinal = admissionOrdinal),
-			token,
-		) shouldBe StepsCountDomainWriteResult.INSERTED
+		if (recordStepsFact) {
+			StepsCountDomainStore(database).recordSessionWal(
+				signed.copy(admissionOrdinal = admissionOrdinal),
+				token,
+			) shouldBe StepsCountDomainWriteResult.INSERTED
+		}
 		return admissionOrdinal
 	}
 

@@ -26,6 +26,8 @@ import com.adsamcik.tracker.tracker.source.wifi.WifiSessionFactDrainResult
 import com.adsamcik.tracker.tracker.source.wifi.WifiSessionFactProjectionLane
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /**
  * Exact durable membership carried from provider retirement into one source-product settlement.
@@ -754,7 +756,7 @@ private fun List<SessionManifestSourceEntity>.sourceLocalTarget(): SourceLocalTa
 		?: SourceLocalTargetResolution.Invalid
 }
 
-private sealed interface SourceRunHighWaterRead {
+internal sealed interface SourceRunHighWaterRead {
 	data class Ready(val highWaterAdmissionOrdinal: Long) : SourceRunHighWaterRead
 	data object CleanupOnlyProductEvidence : SourceRunHighWaterRead
 	data object Unverifiable : SourceRunHighWaterRead
@@ -771,7 +773,13 @@ private data class SourceDrainActionIdentity(
 	val leaseGeneration: Long,
 )
 
-private suspend fun sourceRunHighWater(
+private data class SourceRunGenerationEvidence(
+	val provider: SourceDrainProviderIdentity,
+	val lifecycleLeaseGeneration: Long,
+	val admissionOrdinal: Long,
+)
+
+internal suspend fun sourceRunHighWater(
 	database: AppDatabase,
 	source: SourceKind,
 	logicalTrackingId: String,
@@ -781,7 +789,14 @@ private suspend fun sourceRunHighWater(
 	productMemberships: List<SourceDrainMembership>,
 	retirementClaims: List<SourceDrainRetirementClaim>,
 ): SourceRunHighWaterRead {
-	if (runManifestRevisions.isEmpty()) return SourceRunHighWaterRead.Unverifiable
+	if (
+		runManifestRevisions.isEmpty() ||
+		runManifestRevisions.size > MAX_RUN_DRAIN_MANIFEST_REVISIONS ||
+		runManifestRevisions.any { revision -> revision <= 0L } ||
+		runManifestRevisions != runManifestRevisions.distinct().sorted()
+	) {
+		return SourceRunHighWaterRead.Unverifiable
+	}
 	val productProviders = productMemberships.map { membership ->
 		SourceDrainProviderIdentity(
 			membership.sourceInstanceId,
@@ -808,62 +823,114 @@ private suspend fun sourceRunHighWater(
 	) {
 		return SourceRunHighWaterRead.Unverifiable
 	}
-	var highWater = 0L
-	for (manifestRevisions in runManifestRevisions.chunked(RAW_WAL_MANIFEST_QUERY_CHUNK)) {
-		val rows = database.sourceEventWalDao().rawRunSourceCaptureGenerations(
-			sourceKind = source.stableCode,
-			logicalTrackingId = logicalTrackingId,
-			serviceRunId = serviceRunId,
-			runManifestRevisions = manifestRevisions,
-			throughOrdinal = throughOrdinal,
-			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-			allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
-			limit = RAW_WAL_GENERATION_AUTHORITY_ENVELOPE,
-		)
-		if (rows.size >= RAW_WAL_GENERATION_AUTHORITY_ENVELOPE) {
+	val dao = database.sourceEventWalDao()
+	val authenticatedManifestRevisions = runManifestRevisions.toHashSet()
+	currentCoroutineContext().ensureActive()
+	val manifestRevisionLimit = Math.addExact(runManifestRevisions.size, 1)
+	val exactManifestRevisions = dao.rawExactRunSourceCaptureManifestRevisions(
+		sourceKind = source.stableCode,
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+		throughOrdinal = throughOrdinal,
+		capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
+		limit = manifestRevisionLimit,
+	)
+	if (exactManifestRevisions.size >= manifestRevisionLimit) {
+		return SourceRunHighWaterRead.Unverifiable
+	}
+	for (row in exactManifestRevisions) {
+		currentCoroutineContext().ensureActive()
+		val revision = row.sessionManifestRevision
+			?: return SourceRunHighWaterRead.Unverifiable
+		val associatedRowCount = row.associatedRowCount
+			?: return SourceRunHighWaterRead.Unverifiable
+		if (associatedRowCount <= 0L || revision !in authenticatedManifestRevisions) {
 			return SourceRunHighWaterRead.Unverifiable
 		}
-		for (row in rows) {
-			val sourceInstanceId = row.sourceInstanceId
-				?: return SourceRunHighWaterRead.Unverifiable
-			val registrationGeneration = row.registrationGeneration
-				?: return SourceRunHighWaterRead.Unverifiable
-			val lifecycleLeaseGeneration = row.lifecycleLeaseGeneration
-				?: return SourceRunHighWaterRead.Unverifiable
-			val malformedRowCount = row.malformedRowCount
-				?: return SourceRunHighWaterRead.Unverifiable
-			val productEligibleRowCount = row.productEligibleRowCount
-				?: return SourceRunHighWaterRead.Unverifiable
-			val admissionOrdinal = row.highWaterAdmissionOrdinal
-				?: return SourceRunHighWaterRead.Unverifiable
-			if (
-				sourceInstanceId.isBlank() ||
-				registrationGeneration <= 0L ||
-				lifecycleLeaseGeneration <= 0L ||
-				malformedRowCount != 0L ||
-				productEligibleRowCount <= 0L ||
-				admissionOrdinal !in 1L..throughOrdinal
-			) {
-				return SourceRunHighWaterRead.Unverifiable
-			}
-			val provider = SourceDrainProviderIdentity(sourceInstanceId, registrationGeneration)
-			val exactClaims = claimsByProvider[provider].orEmpty()
-				.filter { claim -> claim.leaseGeneration == lifecycleLeaseGeneration }
-			if (retirementClaims.isNotEmpty() && exactClaims.isEmpty()) {
-				return SourceRunHighWaterRead.Unverifiable
-			}
-			if (exactClaims.map(SourceDrainRetirementClaim::cleanupOnly).distinct().size > 1) {
-				return SourceRunHighWaterRead.Unverifiable
-			}
-			when {
-				exactClaims.any(SourceDrainRetirementClaim::cleanupOnly) ->
-					return SourceRunHighWaterRead.CleanupOnlyProductEvidence
-				provider !in productProviders -> return SourceRunHighWaterRead.Unverifiable
-				else -> highWater = maxOf(highWater, admissionOrdinal)
-			}
+	}
+	for (manifestRevisions in runManifestRevisions.chunked(RAW_WAL_MANIFEST_QUERY_CHUNK)) {
+		currentCoroutineContext().ensureActive()
+		val malformedAssociations = dao.rawMalformedServiceRunSourceCaptureAssociations(
+			sourceKind = source.stableCode,
+			logicalTrackingId = logicalTrackingId,
+			runManifestRevisions = manifestRevisions,
+			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			limit = RAW_WAL_MALFORMED_SERVICE_RUN_ASSOCIATION_ENVELOPE,
+		)
+		if (malformedAssociations.isNotEmpty()) {
+			return SourceRunHighWaterRead.Unverifiable
 		}
 	}
-	return SourceRunHighWaterRead.Ready(highWater)
+	currentCoroutineContext().ensureActive()
+	val rows = dao.rawExactRunSourceCaptureGenerations(
+		sourceKind = source.stableCode,
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+		throughOrdinal = throughOrdinal,
+		capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
+		limit = RAW_WAL_GENERATION_AUTHORITY_ENVELOPE,
+	)
+	if (rows.size >= RAW_WAL_GENERATION_AUTHORITY_ENVELOPE) {
+		return SourceRunHighWaterRead.Unverifiable
+	}
+	val generations = ArrayList<SourceRunGenerationEvidence>(rows.size)
+	for (row in rows) {
+		currentCoroutineContext().ensureActive()
+		val sourceInstanceId = row.sourceInstanceId
+			?: return SourceRunHighWaterRead.Unverifiable
+		val registrationGeneration = row.registrationGeneration
+			?: return SourceRunHighWaterRead.Unverifiable
+		val lifecycleLeaseGeneration = row.lifecycleLeaseGeneration
+			?: return SourceRunHighWaterRead.Unverifiable
+		val malformedRowCount = row.malformedRowCount
+			?: return SourceRunHighWaterRead.Unverifiable
+		val productEligibleRowCount = row.productEligibleRowCount
+			?: return SourceRunHighWaterRead.Unverifiable
+		val admissionOrdinal = row.highWaterAdmissionOrdinal
+			?: return SourceRunHighWaterRead.Unverifiable
+		if (
+			sourceInstanceId.isBlank() ||
+			registrationGeneration <= 0L ||
+			lifecycleLeaseGeneration <= 0L ||
+			malformedRowCount != 0L ||
+			productEligibleRowCount <= 0L ||
+			admissionOrdinal !in 1L..throughOrdinal
+		) {
+			return SourceRunHighWaterRead.Unverifiable
+		}
+		generations += SourceRunGenerationEvidence(
+			provider = SourceDrainProviderIdentity(sourceInstanceId, registrationGeneration),
+			lifecycleLeaseGeneration = lifecycleLeaseGeneration,
+			admissionOrdinal = admissionOrdinal,
+		)
+	}
+	var highWater = 0L
+	var cleanupOnlyProductEvidence = false
+	for (generation in generations) {
+		currentCoroutineContext().ensureActive()
+		val exactClaims = claimsByProvider[generation.provider].orEmpty()
+			.filter { claim -> claim.leaseGeneration == generation.lifecycleLeaseGeneration }
+		if (retirementClaims.isNotEmpty() && exactClaims.isEmpty()) {
+			return SourceRunHighWaterRead.Unverifiable
+		}
+		if (exactClaims.map(SourceDrainRetirementClaim::cleanupOnly).distinct().size > 1) {
+			return SourceRunHighWaterRead.Unverifiable
+		}
+		if (exactClaims.any(SourceDrainRetirementClaim::cleanupOnly)) {
+			cleanupOnlyProductEvidence = true
+		} else if (generation.provider !in productProviders) {
+			return SourceRunHighWaterRead.Unverifiable
+		} else {
+			highWater = maxOf(highWater, generation.admissionOrdinal)
+		}
+	}
+	return if (cleanupOnlyProductEvidence) {
+		SourceRunHighWaterRead.CleanupOnlyProductEvidence
+	} else {
+		SourceRunHighWaterRead.Ready(highWater)
+	}
 }
 
 private suspend fun cleanupOnlyStepsEvidenceFailure(
@@ -1280,4 +1347,5 @@ private const val MAX_DRAIN_COMPLETENESS_ROWS = 384
 private const val MAX_COMPLETENESS_PER_SOURCE = 64
 private const val RAW_WAL_MANIFEST_QUERY_CHUNK = 100
 private const val RAW_WAL_GENERATION_AUTHORITY_ENVELOPE = MAX_RUN_RETIREMENT_ACTIONS + 1
+private const val RAW_WAL_MALFORMED_SERVICE_RUN_ASSOCIATION_ENVELOPE = 1
 private const val STEPS_DRAIN_FACT_AUDIT_PAGE_SIZE = 128

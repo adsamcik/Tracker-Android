@@ -412,9 +412,10 @@ interface SourceEventWalDao {
 	): List<RawSourceRunWalHighWaterEvidence>
 
 	/**
-	 * Groups product-eligible run WAL by its exact provider generation while retaining a malformed
-	 * row count. Callers can therefore reject an unauthorized generation even when an earlier
-	 * authorized generation owns the aggregate source high-water.
+	 * Groups exact service-run WAL by provider generation without binding the manifest history.
+	 *
+	 * Manifest membership is audited separately so a valid row is never compared with only one
+	 * chunk of the authenticated run revisions.
 	 */
 	@Query(
 		"SELECT " +
@@ -433,8 +434,7 @@ interface SourceEventWalDao {
 			"typeof(service_run_id) != 'text' OR service_run_id != :serviceRunId OR " +
 			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
 			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
-			"typeof(session_manifest_revision) != 'integer' OR " +
-			"session_manifest_revision NOT IN (:runManifestRevisions) OR " +
+			"typeof(session_manifest_revision) != 'integer' OR session_manifest_revision <= 0 OR " +
 			"typeof(lifecycle_lease_generation) != 'integer' OR " +
 			"lifecycle_lease_generation <= 0 OR " +
 			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
@@ -458,21 +458,9 @@ interface SourceEventWalDao {
 			"authorization_purpose_eligibility_mask AND " +
 			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0" +
 			") THEN admission_ordinal END) AS high_water_admission_ordinal " +
-			"FROM source_event_wal WHERE (" +
-			"(" +
+			"FROM source_event_wal WHERE " +
 			"typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId AND " +
-			"(CAST(source_kind AS INTEGER) = :sourceKind OR typeof(source_kind) != 'integer')" +
-			") OR (" +
-			"(typeof(service_run_id) != 'text' OR (typeof(service_run_id) = 'text' AND " +
-			"length(trim(service_run_id, ' ' || char(9) || char(10) || char(11) || " +
-			"char(12) || char(13))) = 0)) AND " +
-			"typeof(source_kind) = 'integer' AND source_kind = :sourceKind AND " +
-			"typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId AND " +
-			"typeof(session_manifest_revision) = 'integer' AND " +
-			"session_manifest_revision IN (:runManifestRevisions) AND " +
-			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
-			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0" +
-			")) AND (" +
+			"(CAST(source_kind AS INTEGER) = :sourceKind OR typeof(source_kind) != 'integer') AND (" +
 			"typeof(event_id) != 'text' OR trim(event_id) = '' OR " +
 			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
 			"(typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
@@ -483,8 +471,7 @@ interface SourceEventWalDao {
 			"typeof(service_run_id) != 'text' OR service_run_id != :serviceRunId OR " +
 			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
 			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
-			"typeof(session_manifest_revision) != 'integer' OR " +
-			"session_manifest_revision NOT IN (:runManifestRevisions) OR " +
+			"typeof(session_manifest_revision) != 'integer' OR session_manifest_revision <= 0 OR " +
 			"typeof(lifecycle_lease_generation) != 'integer' OR " +
 			"lifecycle_lease_generation <= 0 OR " +
 			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
@@ -502,16 +489,85 @@ interface SourceEventWalDao {
 			"THEN lifecycle_lease_generation END " +
 			"ORDER BY malformed_row_count DESC, high_water_admission_ordinal DESC LIMIT :limit",
 	)
-	suspend fun rawRunSourceCaptureGenerations(
+	suspend fun rawExactRunSourceCaptureGenerations(
 		sourceKind: Int,
 		logicalTrackingId: String,
 		serviceRunId: String,
-		runManifestRevisions: List<Long>,
 		throughOrdinal: Long,
 		capturePurposeMask: Long,
 		allowedPurposeMask: Long,
 		limit: Int,
 	): List<RawSourceRunWalGenerationEvidence>
+
+	/**
+	 * Groups every exact-run WAL row considered by [rawExactRunSourceCaptureGenerations] by its raw
+	 * manifest revision. The bounded result lets callers compare each row with the complete
+	 * authenticated revision set without a SQLite `IN` bind for that full set.
+	 */
+	@Query(
+		"SELECT CASE WHEN typeof(session_manifest_revision) = 'integer' " +
+			"THEN session_manifest_revision END AS session_manifest_revision, " +
+			"COUNT(*) AS associated_row_count " +
+			"FROM source_event_wal WHERE " +
+			"typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId AND " +
+			"(CAST(source_kind AS INTEGER) = :sourceKind OR typeof(source_kind) != 'integer') AND (" +
+			"typeof(event_id) != 'text' OR trim(event_id) = '' OR " +
+			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
+			"(typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0 AND " +
+			"admission_ordinal > :throughOrdinal) OR " +
+			"typeof(source_kind) != 'integer' OR source_kind != :sourceKind OR " +
+			"typeof(logical_tracking_id) != 'text' OR logical_tracking_id != :logicalTrackingId OR " +
+			"typeof(service_run_id) != 'text' OR service_run_id != :serviceRunId OR " +
+			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
+			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
+			"typeof(session_manifest_revision) != 'integer' OR session_manifest_revision <= 0 OR " +
+			"typeof(lifecycle_lease_generation) != 'integer' OR " +
+			"lifecycle_lease_generation <= 0 OR " +
+			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
+			"authorization_purpose_eligibility_mask < 0 OR " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) != " +
+			"authorization_purpose_eligibility_mask OR " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0) " +
+			"GROUP BY typeof(session_manifest_revision), " +
+			"CASE WHEN typeof(session_manifest_revision) = 'integer' " +
+			"THEN session_manifest_revision END " +
+			"ORDER BY associated_row_count DESC, session_manifest_revision ASC LIMIT :limit",
+	)
+	suspend fun rawExactRunSourceCaptureManifestRevisions(
+		sourceKind: Int,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		throughOrdinal: Long,
+		capturePurposeMask: Long,
+		allowedPurposeMask: Long,
+		limit: Int,
+	): List<RawSourceRunWalManifestRevisionEvidence>
+
+	/**
+	 * Finds malformed service-run identities only through an exact source, logical owner,
+	 * authenticated revision chunk, and capture-purpose association.
+	 */
+	@Query(
+		"SELECT rowid FROM source_event_wal WHERE " +
+			"(typeof(service_run_id) != 'text' OR (typeof(service_run_id) = 'text' AND " +
+			"length(trim(service_run_id, ' ' || char(9) || char(10) || char(11) || " +
+			"char(12) || char(13))) = 0)) AND " +
+			"typeof(source_kind) = 'integer' AND source_kind = :sourceKind AND " +
+			"typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId AND " +
+			"typeof(session_manifest_revision) = 'integer' AND " +
+			"session_manifest_revision IN (:runManifestRevisions) AND " +
+			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0 " +
+			"ORDER BY rowid ASC LIMIT :limit",
+	)
+	suspend fun rawMalformedServiceRunSourceCaptureAssociations(
+		sourceKind: Int,
+		logicalTrackingId: String,
+		runManifestRevisions: List<Long>,
+		capturePurposeMask: Long,
+		limit: Int,
+	): List<Long>
 
 	/** Payload-free ordered preflight for a bounded source-local projection pass. */
 	@Query(
@@ -722,6 +778,12 @@ data class RawSourceRunWalGenerationEvidence(
 	@ColumnInfo(name = "malformed_row_count") val malformedRowCount: Long?,
 	@ColumnInfo(name = "product_eligible_row_count") val productEligibleRowCount: Long?,
 	@ColumnInfo(name = "high_water_admission_ordinal") val highWaterAdmissionOrdinal: Long?,
+)
+
+/** Raw manifest-revision grouping for an exact service-run WAL audit. */
+data class RawSourceRunWalManifestRevisionEvidence(
+	@ColumnInfo(name = "session_manifest_revision") val sessionManifestRevision: Long?,
+	@ColumnInfo(name = "associated_row_count") val associatedRowCount: Long?,
 )
 
 /** Payload-free identity for one bounded Cell/Wi-Fi projection scheduling attempt. */
