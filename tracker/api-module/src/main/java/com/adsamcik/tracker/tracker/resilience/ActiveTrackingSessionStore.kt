@@ -178,11 +178,15 @@ data class ActiveTrackingSessionDescriptor(
 		}
 	}
 
-	/** Only active user sessions may be restarted after involuntary Android teardown. */
+	/**
+	 * Only active user sessions may be restarted after involuntary Android teardown.
+	 *
+	 * Recorded predecessor debt remains restart-eligible so recovery can replay the current Room
+	 * authority and finish that exact retirement instead of terminalizing the logical session.
+	 */
 	val isRestartEligible: Boolean
 		get() = isUserInitiated && lifecycleState == LogicalTrackingLifecycleState.ACTIVE &&
-			restartBootId != null && restartToken != null && sourceCallerAuthorityReference != null &&
-			pendingRetirementSourceCallerAuthorityReference == null
+			restartBootId != null && restartToken != null && sourceCallerAuthorityReference != null
 
 	fun isRestartEligibleForBoot(currentBootId: String): Boolean =
 		isRestartEligible && restartBootId == currentBootId

@@ -53,4 +53,15 @@ class ActiveTrackingSessionDescriptorTest {
 		descriptor.isRestartEligibleForBoot("boot-2") shouldBe false
 		descriptor.isRestartEligibleForBoot("boot-1") shouldBe true
 	}
+
+	@Test
+	fun `pending predecessor retirement remains recoverable in the same boot`() {
+		val withDebt = descriptor.copy(
+			sourceCallerAuthorityReference = SourceCallerReplayReference("caller-authority-2"),
+			pendingRetirementSourceCallerAuthorityReference =
+				SourceCallerReplayReference("caller-authority-1"),
+		)
+
+		withDebt.isRestartEligibleForBoot("boot-1") shouldBe true
+	}
 }

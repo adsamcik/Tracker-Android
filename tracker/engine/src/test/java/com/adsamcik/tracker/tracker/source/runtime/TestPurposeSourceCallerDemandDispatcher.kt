@@ -39,6 +39,12 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 		SourceCallerGuardRejection(SourceCallerRejectionReason.REPLAY_AUTHORITY_UNAVAILABLE),
 	)
 
+	override suspend fun authenticatePreparedSession(
+		manifestIdentity: SourceCallerManifestIdentity,
+		reference: SourceCallerReplayReference,
+		replayKind: SourceCallerReplayKind,
+	): SourceCallerGuardResult = replayPreparedSession(manifestIdentity, reference, replayKind)
+
 	override suspend fun dispatchAutomaticControl(
 		request: AutomaticControlDemandDispatchRequest,
 	): GuardedPurposeDemandResult<com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity> {

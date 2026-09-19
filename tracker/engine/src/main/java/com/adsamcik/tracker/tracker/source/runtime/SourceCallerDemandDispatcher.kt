@@ -139,6 +139,16 @@ internal interface SourceCallerDemandDispatcher : SourceCallerCurrentAuthorityPr
 		replayKind: SourceCallerReplayKind,
 	): SourceCallerGuardResult
 
+	/**
+	 * Authenticates one persisted reference against current engine authority without treating the
+	 * check as the recovery replay boundary.
+	 */
+	suspend fun authenticatePreparedSession(
+		manifestIdentity: SourceCallerManifestIdentity,
+		reference: SourceCallerReplayReference,
+		replayKind: SourceCallerReplayKind,
+	): SourceCallerGuardResult
+
 	suspend fun dispatchAutomaticControl(
 		request: AutomaticControlDemandDispatchRequest,
 	): GuardedPurposeDemandResult<SourceDemandEntity>
@@ -335,10 +345,24 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		manifestIdentity: SourceCallerManifestIdentity,
 		reference: SourceCallerReplayReference,
 		replayKind: SourceCallerReplayKind,
+	): SourceCallerGuardResult = authenticatePreparedSession(
+		manifestIdentity,
+		reference,
+		replayKind,
+	).also { result ->
+		if (result is SourceCallerGuardResult.Rejected) logRejected()
+	}
+
+	override suspend fun authenticatePreparedSession(
+		manifestIdentity: SourceCallerManifestIdentity,
+		reference: SourceCallerReplayReference,
+		replayKind: SourceCallerReplayKind,
 	): SourceCallerGuardResult {
 		if (replayKind == SourceCallerReplayKind.POLICY_RECONCILIATION) {
-			return replayRejected(
-				SourceCallerRejectionReason.REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE,
+			return SourceCallerGuardResult.Rejected(
+				SourceCallerGuardRejection(
+					SourceCallerRejectionReason.REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE,
+				),
 			)
 		}
 		val snapshot = try {
@@ -346,10 +370,18 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
-			return replayRejected(SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE)
+			return SourceCallerGuardResult.Rejected(
+				SourceCallerGuardRejection(
+					SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE,
+				),
+			)
 		}
 		if (snapshot == null) {
-			return replayRejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
+			return SourceCallerGuardResult.Rejected(
+				SourceCallerGuardRejection(
+					SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE,
+				),
+			)
 		}
 		return guard.accept(
 			SourceCallerRequest.Replay(
@@ -358,9 +390,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 				purpose = TrackingPurpose.SESSION_CAPTURE,
 				requestedDemandIdentities = snapshot.currentDemandIdentities,
 			),
-		).also { result ->
-			if (result is SourceCallerGuardResult.Rejected) logRejected()
-		}
+		)
 	}
 
 	override suspend fun dispatchAutomaticControl(

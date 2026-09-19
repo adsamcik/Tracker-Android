@@ -142,6 +142,35 @@ class PreviousExitSourceSessionFinalizerTest {
 	}
 
 	@Test
+	fun `same boot reconfiguration crash before descriptor update remains recoverable`() = runTest {
+		seedAutomationEpoch()
+		insertSession(
+			MANUAL_ID,
+			SessionMode.MANUAL,
+			CURRENT_BOOT_ID,
+			state = SessionLifecycleState.RECONFIGURING,
+		)
+		insertRun(MANUAL_ID, CURRENT_BOOT_ID)
+		insertPendingAction(MANUAL_ID, CURRENT_BOOT_ID)
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand(MANUAL_ID, "reconfiguring-manual-demand", CURRENT_BOOT_ID)),
+		)
+
+		val result = finalizer().finalizeStaleSessions(
+			recoveryDescriptor = manualDescriptor(CURRENT_BOOT_ID),
+		)
+
+		result.finalizedLogicalTrackingIds shouldBe emptySet()
+		database.sourceSessionDao().session(MANUAL_ID)?.state shouldBe
+			SessionLifecycleState.RECONFIGURING.name
+		database.sourceSessionDao().serviceRun(runId(MANUAL_ID))?.state shouldBe
+			SessionLifecycleState.ACTIVE.name
+		database.sourceBrokerDao().demandHistory(sessionConsumerId(MANUAL_ID)).single().status shouldBe
+			SourceDemandEntity.STATUS_ACTIVE
+		database.activityAutomationEpochDao().current()?.epoch shouldBe 17L
+	}
+
+	@Test
 	fun `same boot automatic descriptor cannot revive an interrupted session`() = runTest {
 		seedAutomationEpoch()
 		insertSession(AUTOMATIC_ID, SessionMode.AUTOMATIC, CURRENT_BOOT_ID)

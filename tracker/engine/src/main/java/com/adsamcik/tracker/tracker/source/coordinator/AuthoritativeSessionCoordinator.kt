@@ -21,7 +21,10 @@ import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
 import com.adsamcik.tracker.tracker.api.SourceCallerAcceptanceReceipt
+import com.adsamcik.tracker.tracker.api.SourceCallerGuardResult
+import com.adsamcik.tracker.tracker.api.SourceCallerManifestIdentity
 import com.adsamcik.tracker.tracker.api.SourceCallerRejectionReason
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayKind
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
 import com.adsamcik.tracker.tracker.api.isRetryable
@@ -385,7 +388,10 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		lease: LifecycleLeaseToken,
 	): SessionStartPreparationResult {
 		if (session.sessionMode != SessionMode.MANUAL.name ||
-			session.state != SessionLifecycleState.ACTIVE.name ||
+			session.state !in setOf(
+				SessionLifecycleState.ACTIVE.name,
+				SessionLifecycleState.RECONFIGURING.name,
+			) ||
 			session.currentManifestRevision == null || session.currentIntentRevision == null
 		) {
 			finalizeInterruptedSession(session, lease, request.wallTimeMs, "UNRECOVERABLE_SESSION")
@@ -415,7 +421,10 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			val previousRun = dao.serviceRun(continuation.previousServiceRunId)
 			val incompleteRuns = dao.incompleteServiceRuns(session.logicalTrackingId)
 			val previousRunIsActive = previousRun?.let { run ->
-				run.state == SessionLifecycleState.ACTIVE.name && run.completedAtMs == null &&
+				run.state in setOf(
+					SessionLifecycleState.ACTIVE.name,
+					SessionLifecycleState.RECONFIGURING.name,
+				) && run.completedAtMs == null &&
 					current.currentServiceRunId == run.serviceRunId &&
 					incompleteRuns.map { it.serviceRunId } == listOf(run.serviceRunId)
 			} == true
@@ -2194,6 +2203,76 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			supersededReference,
 			wallTimeMs,
 		)
+	}
+
+	/**
+	 * Resolves the exact current Room-owned caller authority for a recoverable physical run.
+	 *
+	 * The accepted authority is authenticated against the current manifest, policy, execution
+	 * generation, and owner token before the caller may mirror it outside Room.
+	 */
+	internal suspend fun currentRecoverySourceCallerAuthority(
+		logicalTrackingId: String,
+		serviceRunId: String,
+	): CurrentRecoverySourceCallerAuthorityResult {
+		suspend fun readCandidate(): CurrentRecoverySourceCallerAuthority? =
+			database.withTransaction {
+				val dao = database.sourceSessionDao()
+				val session = dao.session(logicalTrackingId)
+				val manifestRevision = session?.currentManifestRevision
+				val intentRevision = session?.currentIntentRevision
+				currentRecoverySourceCallerAuthorityCandidate(
+					logicalTrackingId = logicalTrackingId,
+					serviceRunId = serviceRunId,
+					session = session,
+					run = dao.serviceRun(serviceRunId),
+					manifest = manifestRevision
+						?.let { revision -> dao.manifest(logicalTrackingId, revision) },
+					bindings = manifestRevision
+						?.let { revision -> dao.manifestSources(logicalTrackingId, revision) }
+						.orEmpty(),
+					intent = intentRevision
+						?.let { revision -> dao.lifecycleIntent(logicalTrackingId, revision) },
+				)
+			}
+		val candidate = try {
+			readCandidate()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return CurrentRecoverySourceCallerAuthorityResult.Rejected(
+				failureCode = "RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_INVALID",
+			)
+		} ?: return CurrentRecoverySourceCallerAuthorityResult.Rejected(
+			failureCode = "RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_INVALID",
+		)
+		return when (val authenticated = sourceCallerDemandDispatcher.authenticatePreparedSession(
+			manifestIdentity = candidate.manifestIdentity,
+			reference = candidate.reference,
+			replayKind = SourceCallerReplayKind.PROCESS_RECOVERY,
+		)) {
+			is SourceCallerGuardResult.Permitted ->
+				try {
+					if (readCandidate() == candidate) {
+						CurrentRecoverySourceCallerAuthorityResult.Available(candidate)
+					} else {
+						CurrentRecoverySourceCallerAuthorityResult.Rejected(
+							"RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_CHANGED",
+						)
+					}
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (_: Exception) {
+					CurrentRecoverySourceCallerAuthorityResult.Rejected(
+						failureCode = "RECOVERY_SOURCE_CALLER_ROOM_AUTHORITY_INVALID",
+					)
+				}
+			is SourceCallerGuardResult.Rejected ->
+				CurrentRecoverySourceCallerAuthorityResult.Rejected(
+					failureCode =
+						"RECOVERY_SOURCE_CALLER_${authenticated.rejection.reason.name}",
+				)
+		}
 	}
 
 	/** New runtime work must always be bound to one immutable, current policy revision. */
@@ -5361,6 +5440,163 @@ private fun SourcePolicyEntity.allows(plan: SourcePlan): Boolean {
 		}
 		else -> false
 	}
+}
+
+internal data class CurrentRecoverySourceCallerAuthority(
+	val manifestIdentity: SourceCallerManifestIdentity,
+	val reference: SourceCallerReplayReference,
+)
+
+internal sealed interface CurrentRecoverySourceCallerAuthorityResult {
+	data class Available(
+		val authority: CurrentRecoverySourceCallerAuthority,
+	) : CurrentRecoverySourceCallerAuthorityResult
+
+	data class Rejected(
+		val failureCode: String,
+	) : CurrentRecoverySourceCallerAuthorityResult
+}
+
+@Suppress("ComplexCondition", "ReturnCount")
+internal fun currentRecoverySourceCallerAuthorityCandidate(
+	logicalTrackingId: String,
+	serviceRunId: String,
+	session: LogicalTrackingSessionEntity?,
+	run: SourceServiceRunEntity?,
+	manifest: SessionManifestVersionEntity?,
+	bindings: List<SessionManifestSourceEntity>,
+	intent: SessionLifecycleIntentVersionEntity?,
+): CurrentRecoverySourceCallerAuthority? {
+	if (session == null || run == null || manifest == null || intent == null) return null
+	val activeOrReconfiguringRun =
+		session.currentServiceRunId == serviceRunId &&
+			session.state in setOf(
+				SessionLifecycleState.ACTIVE.name,
+				SessionLifecycleState.RECONFIGURING.name,
+			) &&
+			run.state in setOf(
+				SessionLifecycleState.ACTIVE.name,
+				SessionLifecycleState.RECONFIGURING.name,
+			) &&
+			run.completedAtMs == null &&
+			run.runtimeAcknowledgement == LifecycleActionStatus.START_ACCEPTED.name
+	val completedSuspension =
+		session.currentServiceRunId == null &&
+			session.state == SessionLifecycleState.ACTIVE.name &&
+			run.state == SessionLifecycleState.FINALIZED.name &&
+			run.completedAtMs != null &&
+			run.runtimeAcknowledgement == LifecycleActionStatus.STOP_ACCEPTED.name
+	if (
+		session.logicalTrackingId != logicalTrackingId ||
+		session.sessionMode != SessionMode.MANUAL.name ||
+		session.state !in setOf(
+			SessionLifecycleState.ACTIVE.name,
+			SessionLifecycleState.RECONFIGURING.name,
+		) ||
+		session.completedAtMs != null ||
+		session.currentManifestRevision != manifest.manifestRevision ||
+		session.currentIntentRevision != intent.intentRevision ||
+		session.lifecycleLeaseGeneration <= 0L ||
+		session.lifecycleBootId.isNullOrBlank() ||
+		(!activeOrReconfiguringRun && !completedSuspension)
+	) return null
+	if (
+		run.logicalTrackingId != logicalTrackingId ||
+		run.serviceRunId != serviceRunId ||
+		!run.startIsUserInitiated ||
+		run.bootId != session.lifecycleBootId ||
+		run.leaseGeneration != session.lifecycleLeaseGeneration ||
+		run.rolloutRevision != session.rolloutRevision ||
+		run.desiredPlanRevision != session.desiredPlanRevision ||
+		run.androidDeliveryState != AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name
+	) return null
+	if (
+		manifest.logicalTrackingId != logicalTrackingId ||
+		manifest.serviceRunId != serviceRunId ||
+		manifest.manifestRevision != session.currentManifestRevision ||
+		manifest.sessionMode != SessionMode.MANUAL.name ||
+		manifest.acquisitionPlanRevision != session.desiredPlanRevision ||
+		manifest.rolloutRevision != session.rolloutRevision ||
+		manifest.effectiveBootId != session.lifecycleBootId ||
+		!SessionManifestIntegrity.verify(manifest, bindings)
+	) return null
+	if (
+		intent.logicalTrackingId != logicalTrackingId ||
+		intent.intentRevision != session.currentIntentRevision ||
+		intent.manifestRevision != manifest.manifestRevision ||
+		intent.desiredState != LifecycleDesiredState.ACTIVE.name ||
+		intent.requestBootId != session.lifecycleBootId ||
+		intent.requestedElapsedRealtimeNanos < 0L ||
+		intent.requestedWallTimeMs < 0L ||
+		(intent.stopReason == null && intent.startOrigin != manifest.startOrigin) ||
+		(completedSuspension && intent.stopReason.isNullOrBlank()) ||
+		(activeOrReconfiguringRun && intent.stopReason != null) ||
+		!intent.hasAuthenticRecoveryCallerIntent()
+	) return null
+	return CurrentRecoverySourceCallerAuthority(
+		manifestIdentity = SourceCallerManifestIdentity(logicalTrackingId, manifest.manifestRevision),
+		reference = SourceCallerReplayReference(
+			intent.sourceCallerAuthorityReference ?: return null,
+		),
+	)
+}
+
+private fun SessionLifecycleIntentVersionEntity.hasAuthenticRecoveryCallerIntent(): Boolean {
+	val reference = sourceCallerAuthorityReference?.takeIf(String::isNotBlank) ?: return false
+	if (
+		automationEpoch != null ||
+		triggerId != null ||
+		triggerKind != null ||
+		triggerBootId != null ||
+		triggerObservedElapsedRealtimeNanos != null ||
+		triggerReceivedElapsedRealtimeNanos != null ||
+		triggerExpiresElapsedRealtimeNanos != null ||
+		triggerCollectedDataEpoch != null
+	) return false
+	val hasNoStopDeadline = stopDeadlineBootId == null && stopDeadlineElapsedRealtimeNanos == null
+	val ordinaryActiveChecksum =
+		startOrigin in setOf(
+			SessionStartOrigin.MANUAL_FOREGROUND_START.name,
+			SessionStartOrigin.RECOVERY.name,
+			SessionStartOrigin.POLICY_RECONCILIATION.name,
+		) &&
+		stopReason == null &&
+		hasNoStopDeadline &&
+		intentChecksum == stableLifecycleChecksum(
+			logicalTrackingId,
+			intentRevision,
+			manifestRevision,
+			desiredState,
+			startOrigin,
+			requestBootId,
+			requestedElapsedRealtimeNanos,
+			requestedWallTimeMs,
+			triggerId,
+			automationEpoch,
+			triggerCollectedDataEpoch,
+			reference,
+		)
+	val suspendedRecoveryChecksum =
+		startOrigin == SessionStartOrigin.RECOVERY.name &&
+			!stopReason.isNullOrBlank() &&
+			hasNoStopDeadline &&
+			triggerId == null &&
+			triggerKind == null &&
+			triggerBootId == null &&
+			triggerObservedElapsedRealtimeNanos == null &&
+			triggerReceivedElapsedRealtimeNanos == null &&
+			triggerExpiresElapsedRealtimeNanos == null &&
+			intentChecksum == stableLifecycleChecksum(
+				logicalTrackingId,
+				intentRevision,
+				manifestRevision,
+				desiredState,
+				stopReason,
+				requestBootId,
+				requestedElapsedRealtimeNanos,
+				reference,
+			)
+	return ordinaryActiveChecksum || suspendedRecoveryChecksum
 }
 
 private val SourceStartResult.applied: AppliedSourcePlan

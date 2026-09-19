@@ -2160,6 +2160,52 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `interrupted manual reconfiguration prepares a replacement recovery run`() = runTest {
+		val old = activatePreparedAndroidRun(
+			tokenValue = "reconfiguring-old-token",
+			commandGeneration = 51L,
+			logicalTrackingId = "reconfiguring-logical",
+			serviceRunId = "reconfiguring-old-run",
+		)
+		val session = requireNotNull(database.sourceSessionDao().session(old.logicalTrackingId))
+		database.sourceSessionDao().updateSession(
+			session.copy(state = SessionLifecycleState.RECONFIGURING.name),
+		) shouldBe 1
+		val recoveryToken = PreparedTrackingStartToken("reconfiguring-recovery-token")
+
+		val recovery = subject.prepareAndroidStart(
+			startRequest().copy(
+				origin = SessionStartOrigin.RECOVERY,
+				plan = startRequest().plan.copy(
+					revision = 2L,
+					planId = "reconfiguring-recovery-plan",
+					createdAtMs = 2_000L,
+					plans = mapOf(
+						SourceKind.STEPS to StepsPlan(2L, true, 60_000L, 15_000L, false),
+					),
+				),
+				wallTimeMs = 2_000L,
+				elapsedRealtimeNanos = expiredPreparedLeaseElapsedNanos(),
+				logicalTrackingId = old.logicalTrackingId,
+				serviceRunId = "reconfiguring-recovery-run",
+				continuationAuthority = ServiceRunContinuationAuthority(
+					previousServiceRunId = old.serviceRunId,
+					previousDeliveryToken = old.token,
+					previousCommandGeneration = 51L,
+				),
+			),
+			AndroidStartDeliveryMetadata(recoveryToken, 52L, true, false),
+		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+
+		recovery.logicalTrackingId shouldBe old.logicalTrackingId
+		recovery.serviceRunId shouldBe "reconfiguring-recovery-run"
+		database.sourceSessionDao().serviceRun(old.serviceRunId)?.state shouldBe
+			SessionLifecycleState.FINALIZED.name
+		database.sourceSessionDao().session(old.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.STARTING.name
+	}
+
+	@Test
 	fun `different boot terminalizes exact active redelivery without creating a run`() = runTest {
 		val old = activatePreparedAndroidRun(
 			tokenValue = "old-boot-redelivery-token",

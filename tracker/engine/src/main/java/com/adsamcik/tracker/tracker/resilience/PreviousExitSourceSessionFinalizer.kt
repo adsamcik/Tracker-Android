@@ -21,7 +21,9 @@ import javax.inject.Singleton
  *
  * Automatic sessions never survive a process exit. A manual session survives only when the
  * recovery descriptor still grants ACTIVE restart authority in this boot and names the same
- * logical session. In particular, elapsed-time leases and manual authority never cross boots.
+ * logical session/run. A committed reconfiguration may be finished by the next recovery owner
+ * instead of being mistaken for an intentional stop. In particular, elapsed-time leases and
+ * manual authority never cross boots.
  * Session, service-run, lifecycle-action, demand, and authorization changes share one Room
  * transaction; the recovery coordinator separately compare-and-clears the descriptor mirror.
  */
@@ -61,7 +63,10 @@ class PreviousExitSourceSessionFinalizer @Inject constructor(
 				val currentRun = authorities.getValue(session.logicalTrackingId).currentRun
 				val isRecoverableManual = recoveryCandidate != null &&
 					session.sessionMode == SessionMode.MANUAL.name &&
-					session.state == SessionLifecycleState.ACTIVE.name &&
+					session.state in setOf(
+						SessionLifecycleState.ACTIVE.name,
+						SessionLifecycleState.RECONFIGURING.name,
+					) &&
 					session.completedAtMs == null &&
 					session.clockDomainId == bootId &&
 					session.lifecycleBootId == bootId &&
@@ -70,7 +75,10 @@ class PreviousExitSourceSessionFinalizer @Inject constructor(
 					recoveryRun.logicalTrackingId == session.logicalTrackingId &&
 					recoveryRun.serviceRunId == recoveryCandidate.serviceRunId &&
 					currentRun?.serviceRunId == recoveryRun.serviceRunId &&
-					recoveryRun.state == SessionLifecycleState.ACTIVE.name &&
+					recoveryRun.state in setOf(
+						SessionLifecycleState.ACTIVE.name,
+						SessionLifecycleState.RECONFIGURING.name,
+					) &&
 					recoveryRun.completedAtMs == null &&
 					recoveryRun.bootId == bootId
 				!isRecoverableManual

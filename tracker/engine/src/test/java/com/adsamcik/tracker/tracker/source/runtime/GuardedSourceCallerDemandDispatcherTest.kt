@@ -115,6 +115,55 @@ class GuardedSourceCallerDemandDispatcherTest {
 	}
 
 	@Test
+	fun `recovery authentication rejects a stale exact owner before descriptor adoption`() = runTest {
+		var snapshot = SourceCallerAuthoritySnapshot(
+			setOf(capture(TrackingSource.LOCATION)),
+			TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+		)
+		val provider = object : CurrentSourceCallerAuthorityProvider {
+			override suspend fun readCurrentManifest(
+				identity: SourceCallerManifestIdentity,
+			): SourceCallerAuthoritySnapshot = snapshot
+
+			override suspend fun readReplayManifest(
+				identity: SourceCallerManifestIdentity,
+				replayKind: SourceCallerReplayKind,
+			): SourceCallerAuthoritySnapshot = snapshot
+		}
+		val repository = InMemorySourceCallerAuthorityRepository()
+		val dispatcher = GuardedSourceCallerDemandDispatcher(
+			database = mockk(relaxed = true),
+			authorityReader = provider,
+			guard = ExactSourceCallerGuard(
+				SourceCallerAuthoritySnapshotReader { snapshot },
+				repository,
+			),
+			sourceBroker = brokerReturning(listOf(demand(TrackingSource.LOCATION))),
+			authorityRepository = repository,
+		)
+		val accepted = dispatcher.dispatchSession(
+			sessionRequest(bindings = listOf(binding(TrackingSource.LOCATION))),
+		).shouldBeInstanceOf<SessionSourceDemandDispatchResult.Permitted>()
+		snapshot = snapshot.copy(
+			currentDemandIdentities = setOf(
+				capture(TrackingSource.LOCATION).copy(
+					purposeLeaseIdentity = capture(TrackingSource.LOCATION)
+						.purposeLeaseIdentity
+						.copy(ownerCasToken = "replacement-owner"),
+				),
+			),
+		)
+
+		val rejected = dispatcher.authenticatePreparedSession(
+			MANIFEST,
+			accepted.receipt.reference,
+			SourceCallerReplayKind.PROCESS_RECOVERY,
+		).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+
+		rejected.rejection.reason shouldBe SourceCallerRejectionReason.STALE_OWNER_CAS_TOKEN
+	}
+
+	@Test
 	fun `manual multisource dispatch stages exactly the guard-permitted identities`() = runTest {
 		val location = capture(TrackingSource.LOCATION)
 		val cell = capture(TrackingSource.CELL)

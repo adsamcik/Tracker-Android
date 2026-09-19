@@ -146,6 +146,12 @@ internal class FakeSourceCallerDemandDispatcher(
 		)
 	}
 
+	override suspend fun authenticatePreparedSession(
+		manifestIdentity: SourceCallerManifestIdentity,
+		reference: SourceCallerReplayReference,
+		replayKind: SourceCallerReplayKind,
+	): SourceCallerGuardResult = replayPreparedSession(manifestIdentity, reference, replayKind)
+
 	override suspend fun permitsActivation(
 		reference: SourceCallerReplayReference,
 		manifestIdentity: SourceCallerManifestIdentity,

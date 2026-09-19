@@ -35,6 +35,8 @@ import com.adsamcik.tracker.tracker.api.isRetryable
 import com.adsamcik.tracker.tracker.api.activityTransitionCallbackCleanupDeadlineElapsedRealtimeNanos
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingCallerAuthorityReconciliation
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionCallerAuthorityReconciler
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStore
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreFailureKind
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreResult
@@ -93,6 +95,8 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 	private val activityAutomationEpochAuthority: ActivityAutomationEpochAuthority,
 	private val trackingLifecycleCommandAuthority: TrackingLifecycleCommandAuthority,
 	private val sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,
+	private val activeTrackingSessionCallerAuthorityReconciler:
+		ActiveTrackingSessionCallerAuthorityReconciler,
 ) : TrackingStartRequestCoordinator {
 	private val powerManager: PowerManager = context.getSystemServiceTyped(Context.POWER_SERVICE)
 
@@ -130,7 +134,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		val descriptorResolution = resolveDescriptor(request, bootId)
 		val resolved = when (descriptorResolution) {
 			is TrackingStartDescriptorResolution.Failure ->
-				return if (descriptorResolution.code == "ACTIVE_DESCRIPTOR_READ_FAILED") {
+				return if (descriptorResolution.disposition == TrackingStartFailureDisposition.RETRYABLE) {
 					retryableStartRejection(descriptorResolution.code)
 				} else {
 					TrackingStartPreparationResult.Rejected(descriptorResolution.code)
@@ -138,9 +142,6 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 			TrackingStartDescriptorResolution.AlreadyActive ->
 				return TrackingStartPreparationResult.AlreadyActive
 			is TrackingStartDescriptorResolution.Resolved -> descriptorResolution
-		}
-		if (resolved.origin == SessionStartOrigin.RECOVERY) {
-			validateRecoveryCallerAuthority(resolved)?.let { return it }
 		}
 		val continuationAuthority = exactContinuationAuthority ?: resolved.continuationAuthority
 		if (exactContinuationAuthority != null &&
@@ -383,54 +384,6 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 			)
 			return AndroidRedeliveryStartResolution.Rejected("REDELIVERY_ACTIVE_ENVELOPE_INVALID")
 		}
-		val priorIntent = try {
-			database.sourceSessionDao().lifecycleIntent(
-				run.logicalTrackingId,
-				run.preparedIntentRevision,
-			)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (_: RuntimeException) {
-			return AndroidRedeliveryStartResolution.Deferred
-		}
-		val priorReference = priorIntent?.sourceCallerAuthorityReference
-			?.takeIf(String::isNotBlank)
-			?.let(::SourceCallerReplayReference)
-		if (priorReference == null ||
-			requireNotNull(storedDescriptor).sourceCallerAuthorityReference != priorReference
-		) {
-			finalizeRejectedRedelivery(
-				run.logicalTrackingId,
-				exactAuthority,
-				storedDescriptor,
-				bootId,
-				"REDELIVERY_SOURCE_CALLER_REFERENCE_MISSING",
-			)
-			return AndroidRedeliveryStartResolution.Rejected(
-				"REDELIVERY_SOURCE_CALLER_REFERENCE_MISSING",
-			)
-		}
-		when (val replay = sourceCallerDemandDispatcher.replayPreparedSession(
-			SourceCallerManifestIdentity(run.logicalTrackingId, run.preparedManifestRevision),
-			priorReference,
-			SourceCallerReplayKind.ACTIVE_REDELIVERY,
-		)) {
-			is SourceCallerGuardResult.Permitted -> Unit
-			is SourceCallerGuardResult.Rejected -> {
-				if (replay.rejection.reason.isRetryable) {
-					return AndroidRedeliveryStartResolution.Deferred
-				}
-				val failureCode = "REDELIVERY_SOURCE_CALLER_${replay.rejection.reason.name}"
-				finalizeRejectedRedelivery(
-					run.logicalTrackingId,
-					exactAuthority,
-					storedDescriptor,
-					bootId,
-					failureCode,
-				)
-				return AndroidRedeliveryStartResolution.Rejected(failureCode)
-			}
-		}
 		val recoveryCommand = when (
 			val reservation = trackingLifecycleCommandAuthority
 				.reserveRedeliveryRecoveryStart(redeliveredCommand)
@@ -506,7 +459,18 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 			wallTimeMs = System.currentTimeMillis(),
 			failureCode = failureCode,
 		)
-		if (finalized && descriptor != null) activeTrackingSessionStore.clearExact(descriptor)
+		if (finalized && descriptor != null) {
+			val current = when (val stored = activeTrackingSessionStore.read()) {
+				is ActiveTrackingSessionStoreResult.Failure -> descriptor
+				is ActiveTrackingSessionStoreResult.Success -> stored.descriptor
+					?.takeIf {
+						it.logicalTrackingId == descriptor.logicalTrackingId &&
+							it.serviceRunId == descriptor.serviceRunId
+					}
+					?: descriptor
+			}
+			activeTrackingSessionStore.clearExact(current)
+		}
 	}
 
 	override suspend fun markAndroidStartEnqueued(
@@ -739,58 +703,57 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		val stored = when (val result = activeTrackingSessionStore.read()) {
 			is ActiveTrackingSessionStoreResult.Failure ->
 				return TrackingStartDescriptorResolution.Failure(
-					when (result.kind) {
-						ActiveTrackingSessionStoreFailureKind.CORRUPT ->
-							"ACTIVE_DESCRIPTOR_CORRUPT"
-						ActiveTrackingSessionStoreFailureKind.UNAVAILABLE ->
-							"ACTIVE_DESCRIPTOR_READ_FAILED"
+					code = when (result.kind) {
+						ActiveTrackingSessionStoreFailureKind.CORRUPT -> "ACTIVE_DESCRIPTOR_CORRUPT"
+						ActiveTrackingSessionStoreFailureKind.UNAVAILABLE -> "ACTIVE_DESCRIPTOR_READ_FAILED"
+					},
+					disposition = if (
+						result.kind == ActiveTrackingSessionStoreFailureKind.UNAVAILABLE
+					) {
+						TrackingStartFailureDisposition.RETRYABLE
+					} else {
+						TrackingStartFailureDisposition.TERMINAL
 					},
 				)
 			is ActiveTrackingSessionStoreResult.Success -> result.descriptor
 		}
-
+		val recoveryCandidate = when {
+			request.recoveryDescriptor != null -> {
+				if (stored != request.recoveryDescriptor) {
+					return TrackingStartDescriptorResolution.Failure("RECOVERY_DESCRIPTOR_STALE")
+				}
+				stored
+			}
+			request.isUserInitiated && stored?.isRestartEligibleForBoot(bootId) == true -> stored
+			else -> null
+		}
+		val reconciledStored = if (recoveryCandidate == null) {
+			stored
+		} else {
+			when (
+				val reconciliation =
+					activeTrackingSessionCallerAuthorityReconciler.reconcile(recoveryCandidate)
+			) {
+				is ActiveTrackingCallerAuthorityReconciliation.Ready ->
+					reconciliation.descriptor
+				is ActiveTrackingCallerAuthorityReconciliation.Blocked ->
+					return TrackingStartDescriptorResolution.Failure(
+						code = reconciliation.failureCode,
+						disposition = TrackingStartFailureDisposition.RETRYABLE,
+					)
+			}
+		}
+		val reconciledRequest = if (request.recoveryDescriptor == null) {
+			request
+		} else {
+			request.copy(recoveryDescriptor = reconciledStored)
+		}
 		return resolveTrackingStartDescriptor(
-			request = request,
-			stored = stored,
+			request = reconciledRequest,
+			stored = reconciledStored,
 			bootId = bootId,
 			changedAtEpochMs = System.currentTimeMillis(),
 		)
-	}
-
-	private suspend fun validateRecoveryCallerAuthority(
-		resolved: TrackingStartDescriptorResolution.Resolved,
-	): TrackingStartPreparationResult.Rejected? {
-		val previous = resolved.previousDescriptor
-			?: return TrackingStartPreparationResult.Rejected(
-				"RECOVERY_SOURCE_CALLER_DESCRIPTOR_MISSING",
-			)
-		val reference = previous.sourceCallerAuthorityReference
-			?: return TrackingStartPreparationResult.Rejected(
-				"RECOVERY_SOURCE_CALLER_REFERENCE_MISSING",
-			)
-		val session = database.sourceSessionDao().session(previous.logicalTrackingId)
-			?: return TrackingStartPreparationResult.Rejected(
-				"RECOVERY_SOURCE_CALLER_SESSION_MISSING",
-			)
-		val manifestRevision = session.currentManifestRevision
-			?: return TrackingStartPreparationResult.Rejected(
-				"RECOVERY_SOURCE_CALLER_MANIFEST_MISSING",
-			)
-		return when (val replay = sourceCallerDemandDispatcher.replayPreparedSession(
-			SourceCallerManifestIdentity(previous.logicalTrackingId, manifestRevision),
-			reference,
-			SourceCallerReplayKind.PROCESS_RECOVERY,
-		)) {
-			is SourceCallerGuardResult.Permitted -> null
-			is SourceCallerGuardResult.Rejected -> TrackingStartPreparationResult.Rejected(
-				"RECOVERY_SOURCE_CALLER_${replay.rejection.reason.name}",
-				if (replay.rejection.reason.isRetryable) {
-					TrackingStartFailureDisposition.RETRYABLE
-				} else {
-					TrackingStartFailureDisposition.TERMINAL
-				},
-			)
-		}
 	}
 
 	private suspend fun compensatePrepared(
@@ -912,7 +875,10 @@ internal sealed interface TrackingStartDescriptorResolution {
 		val continuationAuthority: ServiceRunContinuationAuthority? = null,
 	) : TrackingStartDescriptorResolution
 
-	data class Failure(val code: String) : TrackingStartDescriptorResolution
+	data class Failure(
+		val code: String,
+		val disposition: TrackingStartFailureDisposition = TrackingStartFailureDisposition.TERMINAL,
+	) : TrackingStartDescriptorResolution
 	data object AlreadyActive : TrackingStartDescriptorResolution
 }
 
