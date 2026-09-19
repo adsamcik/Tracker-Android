@@ -157,20 +157,20 @@ sealed interface SourceProductDrainResult {
 		init {
 			require(lastMaterializedAdmissionOrdinal >= 0L)
 		}
+	}
 
-		/**
-		 * Terminal acquisition evidence proves that this source can never become exactly materializable.
-		 *
-		 * The durable completeness/count-domain rows remain the authority; this result only carries
-		 * their authenticated disposition through lifecycle finalization without claiming queryability.
-		 */
-		data class Unavailable(
-			override val request: SourceProductDrainRequest,
-			val reason: String,
-		) : SourceProductDrainResult {
-			init {
-				require(reason.isNotBlank())
-			}
+	/**
+	 * Terminal acquisition evidence proves that this source can never become exactly materializable.
+	 *
+	 * The durable completeness/count-domain rows remain the authority; this result only carries
+	 * their authenticated disposition through lifecycle finalization without claiming queryability.
+	 */
+	data class Unavailable(
+		override val request: SourceProductDrainRequest,
+		val reason: String,
+	) : SourceProductDrainResult {
+		init {
+			require(reason.isNotBlank())
 		}
 	}
 }
@@ -415,13 +415,22 @@ internal suspend fun buildSourceProductDrainPlan(
 		if (memberships.isEmpty()) {
 			return SourceProductDrainPlan.Failed(source, "SOURCE_DRAIN_COMPLETENESS_MISSING")
 		}
-		val sourceWalHighWater = sourceRunHighWater(
-			database,
-			source,
-			logicalTrackingId,
-			serviceRunId,
-			settlementHighWaterAdmissionOrdinal,
-		)
+		val sourceWalHighWater = when (
+			val read = sourceRunHighWater(
+				database,
+				source,
+				logicalTrackingId,
+				serviceRunId,
+				settlementHighWaterAdmissionOrdinal,
+			)
+		) {
+			is SourceRunHighWaterRead.Ready -> read.highWaterAdmissionOrdinal
+			SourceRunHighWaterRead.Unverifiable ->
+				return SourceProductDrainPlan.Failed(
+					source,
+					"SOURCE_DRAIN_HIGH_WATER_UNVERIFIABLE",
+				)
+		}
 		val sourceHighWater = maxOf(
 			sourceWalHighWater,
 			memberships.mapNotNull(SourceDrainMembership::lastAdmissionOrdinal).maxOrNull() ?: 0L,
@@ -459,7 +468,13 @@ internal suspend fun buildSourceProductDrainPlan(
 				StepsTerminalProductAuthentication.SchemaUnavailable -> {
 					if (memberships.all(SourceDrainMembership::isExactCompleteSettlement)) {
 						requests += request
-					} else if (memberships.all(SourceDrainMembership::isTerminalUnavailableSettlement)) {
+					} else if (
+						memberships.all { membership ->
+							membership.isExactCompleteSettlement() ||
+								membership.isTerminalUnavailableSettlement()
+						} &&
+						memberships.any(SourceDrainMembership::isTerminalUnavailableSettlement)
+					) {
 						settledResults += SourceProductDrainResult.Unavailable(
 							request,
 							"STEPS_PRODUCT_TERMINALLY_UNAVAILABLE",
@@ -549,19 +564,58 @@ private fun List<SessionManifestSourceEntity>.sourceLocalTarget(): SourceLocalTa
 		?: SourceLocalTargetResolution.Invalid
 }
 
+private sealed interface SourceRunHighWaterRead {
+	data class Ready(val highWaterAdmissionOrdinal: Long) : SourceRunHighWaterRead
+	data object Unverifiable : SourceRunHighWaterRead
+}
+
 private suspend fun sourceRunHighWater(
 	database: AppDatabase,
 	source: SourceKind,
 	logicalTrackingId: String,
 	serviceRunId: String,
 	throughOrdinal: Long,
-): Long = database.sourceEventWalDao().runSourceCaptureHighWater(
-	sourceKind = source.stableCode,
-	logicalTrackingId = logicalTrackingId,
-	serviceRunId = serviceRunId,
-	throughOrdinal = throughOrdinal,
-	capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-) ?: 0L
+): SourceRunHighWaterRead {
+	val rows = database.sourceEventWalDao().rawRunSourceCaptureHighWater(
+		sourceKind = source.stableCode,
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+		throughOrdinal = throughOrdinal,
+		capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		allowedPurposeMask = SourceBrokerPurpose.ALL_MASK,
+		limit = RAW_WAL_HIGH_WATER_ENVELOPE,
+	)
+	var highWater = 0L
+	for (row in rows) {
+		val admissionOrdinal = row.admissionOrdinal
+			?: return SourceRunHighWaterRead.Unverifiable
+		val registrationGeneration = row.registrationGeneration
+			?: return SourceRunHighWaterRead.Unverifiable
+		val purposeEligibilityMask = row.authorizationPurposeEligibilityMask
+			?: return SourceRunHighWaterRead.Unverifiable
+		if (
+			row.storageClassSignature != RAW_WAL_HIGH_WATER_STORAGE_CLASSES ||
+			row.eventId.isNullOrBlank() ||
+			admissionOrdinal !in 1L..throughOrdinal ||
+			row.sourceKind != source.stableCode.toLong() ||
+			row.logicalTrackingId != logicalTrackingId ||
+			row.serviceRunId != serviceRunId ||
+			row.sourceInstanceId.isNullOrBlank() ||
+			registrationGeneration <= 0L ||
+			purposeEligibilityMask < 0L ||
+			(purposeEligibilityMask and SourceBrokerPurpose.ALL_MASK) != purposeEligibilityMask
+		) {
+			return SourceRunHighWaterRead.Unverifiable
+		}
+		if (
+			(purposeEligibilityMask and
+				SourceBrokerPurpose.MASK_SESSION_CAPTURE) != 0L
+		) {
+			highWater = maxOf(highWater, admissionOrdinal)
+		}
+	}
+	return SourceRunHighWaterRead.Ready(highWater)
+}
 
 private fun SourceSessionCompletenessEntity.toDrainMembership() = SourceDrainMembership(
 	sourceInstanceId = sourceInstanceId,
@@ -694,7 +748,7 @@ private fun failureResult(
 	)
 }
 
-private suspend fun authenticateSourceProductDrainRequest(
+internal suspend fun authenticateSourceProductDrainRequest(
 	database: AppDatabase,
 	request: SourceProductDrainRequest,
 ): String? = database.withTransaction {
@@ -745,13 +799,19 @@ private suspend fun authenticateSourceProductDrainRequest(
 	if (memberships != request.memberships) {
 		return@withTransaction "SOURCE_DRAIN_COMPLETENESS_CHANGED"
 	}
-	val sourceHighWater = sourceRunHighWater(
-		database,
-		request.source,
-		request.logicalTrackingId,
-		request.serviceRunId,
-		request.settlementHighWaterAdmissionOrdinal,
-	)
+	val sourceHighWater = when (
+		val read = sourceRunHighWater(
+			database,
+			request.source,
+			request.logicalTrackingId,
+			request.serviceRunId,
+			request.settlementHighWaterAdmissionOrdinal,
+		)
+	) {
+		is SourceRunHighWaterRead.Ready -> read.highWaterAdmissionOrdinal
+		SourceRunHighWaterRead.Unverifiable ->
+			return@withTransaction "SOURCE_DRAIN_HIGH_WATER_UNVERIFIABLE"
+	}
 	if (
 		maxOf(
 			sourceHighWater,
@@ -765,3 +825,6 @@ private suspend fun authenticateSourceProductDrainRequest(
 
 private const val MAX_DRAIN_COMPLETENESS_ROWS = 384
 private const val MAX_COMPLETENESS_PER_SOURCE = 64
+private const val RAW_WAL_HIGH_WATER_ENVELOPE = 2
+private const val RAW_WAL_HIGH_WATER_STORAGE_CLASSES =
+	"text|integer|integer|text|text|text|integer|integer"

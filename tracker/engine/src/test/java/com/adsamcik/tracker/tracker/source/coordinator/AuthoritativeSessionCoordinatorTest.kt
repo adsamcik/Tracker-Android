@@ -6,6 +6,7 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainMaintenanceResult
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState
@@ -353,6 +354,46 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `terminal unavailable is a sibling drain result contract`() {
+		val request = SourceProductDrainRequest(
+			source = SourceKind.STEPS,
+			logicalTrackingId = "unavailable-contract",
+			serviceRunId = "unavailable-contract-run",
+			cutoffElapsedRealtimeNanos = 1L,
+			cutoffWallTimeMs = 1L,
+			settlementHighWaterAdmissionOrdinal = 0L,
+			sourceHighWaterAdmissionOrdinal = 0L,
+			memberships = listOf(
+				SourceDrainMembership(
+					sourceInstanceId = "unavailable-steps",
+					registrationGeneration = 0L,
+					lastAdmissionOrdinal = null,
+					lastSourceSequence = null,
+					appDrainComplete = true,
+					providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name,
+					stopStatus = SourceStopStatus.PROVIDER_FAILED.name,
+					unresolvedSequenceStart = null,
+					unresolvedSequenceEndInclusive = null,
+				),
+			),
+			target = SourceProductDrainTarget.SourceLocalWriter(
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+				writerOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+				writerOwnerGeneration = 1L,
+				projectionId = StepsSessionFactProjectionLane.WRITER_ID,
+				projectionVersion = StepsSessionFactProjectionLane.WRITER_VERSION,
+				bindingGeneration = 1L,
+			),
+		)
+
+		val result: SourceProductDrainResult =
+			SourceProductDrainResult.Unavailable(request, "TERMINAL_UNAVAILABLE")
+
+		result.shouldBeInstanceOf<SourceProductDrainResult.Unavailable>().reason shouldBe
+			"TERMINAL_UNAVAILABLE"
+	}
+
+	@Test
 	fun `recorded source poison defers finalization without suppressing settlement evidence`() = runTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 		sourceProductDrainRouter.onDrain = { request ->
@@ -592,6 +633,147 @@ class AuthoritativeSessionCoordinatorTest {
 				cursor.moveToFirst() shouldBe true
 				cursor.getString(0) shouldBe "UNPROVEN"
 			}
+		}
+
+	@Test
+	fun `raw WAL high-water rejects malformed aggregate inputs during drain planning`() = runTest {
+		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "raw-wal-plan",
+				serviceRunId = "raw-wal-plan-run",
+				rolloutRevision = rolloutSnapshot.revision,
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val admissionOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = admissionOrdinal
+		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = 'capture' " +
+				"WHERE admission_ordinal = ?",
+			arrayOf(admissionOrdinal),
+		)
+
+		val pending = subject.stop(
+			SessionStopRequest(
+				"raw-wal-plan-owner",
+				"USER_STOP",
+				2_000L,
+				2_000_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.DrainPending>()
+
+		pending.reason shouldBe "SOURCE_DRAIN_HIGH_WATER_UNVERIFIABLE"
+		sourceProductDrainRouter.requests shouldBe emptyList()
+	}
+
+	@Test
+	fun `raw WAL high-water recheck rejects corruption after plan creation`() = runTest {
+		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "raw-wal-recheck",
+				serviceRunId = "raw-wal-recheck-run",
+				rolloutRevision = rolloutSnapshot.revision,
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val admissionOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = admissionOrdinal
+		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
+		sourceProductDrainRouter.onDrain = { request ->
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET registration_generation = 'broken' " +
+					"WHERE admission_ordinal = ?",
+				arrayOf(admissionOrdinal),
+			)
+			authenticateSourceProductDrainRequest(database, request) shouldBe
+				"SOURCE_DRAIN_HIGH_WATER_UNVERIFIABLE"
+			SourceProductDrainResult.AuthorityChanged(
+				request,
+				"SOURCE_DRAIN_HIGH_WATER_UNVERIFIABLE",
+			)
+		}
+
+		val pending = subject.stop(
+			SessionStopRequest(
+				"raw-wal-recheck-owner",
+				"USER_STOP",
+				2_000L,
+				2_000_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.DrainPending>()
+
+		pending.reason shouldBe "SOURCE_DRAIN_HIGH_WATER_UNVERIFIABLE"
+	}
+
+	@Test
+	fun `Steps WAL maintenance rejects corrupt active-run lifecycle protection`() = runTest {
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "maintenance-run-state",
+				serviceRunId = "maintenance-run-state-run",
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val wal = insertTerminalStepsWal(started)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_service_run SET state = 1 WHERE service_run_id = ?",
+			arrayOf(started.serviceRunId),
+		)
+
+		StepsCountDomainStore(database).removeSessionWalOwnersForPrune(
+			safeOrdinal = wal,
+			createdBeforeMs = 3_000L,
+			limit = 1,
+		) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+		requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(wal))
+	}
+
+	@Test
+	fun `raw Steps completeness overflow returns authentication blocked instead of throwing`() =
+		runTest {
+			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
+				StepsCountDomainSchemaState.ValidV2
+			installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+			val started = subject.start(
+				startRequest().copy(
+					logicalTrackingId = "raw-completeness-overflow",
+					serviceRunId = "raw-completeness-overflow-run",
+					rolloutRevision = rolloutSnapshot.revision,
+				),
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+			repeat(65) { index ->
+				database.sourceSessionDao().saveCompleteness(
+					SourceSessionCompletenessEntity(
+						logicalTrackingId = started.logicalTrackingId,
+						serviceRunId = started.serviceRunId,
+						sourceKind = SourceKind.STEPS.stableCode,
+						sourceInstanceId = "historical-steps-$index",
+						registrationGeneration = index.toLong() + 2L,
+						lastAdmissionOrdinal = null,
+						lastSourceSequence = null,
+						appDrainComplete = false,
+						providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name,
+						stopStatus = SourceStopStatus.PROCESS_RESTARTED.name,
+						unresolvedSequenceStart = null,
+						unresolvedSequenceEnd = null,
+						updatedAtMs = index.toLong() + 1L,
+					),
+				)
+			}
+
+			subject.stop(
+				SessionStopRequest(
+					"raw-completeness-overflow-owner",
+					"USER_STOP",
+					2_000L,
+					2_000_000L,
+					"boot-1",
+				),
+			) shouldBe SessionStopResult.InvalidIntent(
+				"SOURCE_COMPLETENESS_AUTHENTICATION_BLOCKED",
+			)
 		}
 
 	@Test
@@ -3025,6 +3207,17 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `Steps disable and reenable receipts each physical generation under the same run`() = runTest {
+		val stepsBinding =
+			installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		rolloutSnapshot = TrackingRolloutState.eventCanonical(
+			sources = setOf(SourceKind.STEPS, SourceKind.LOCATION),
+			revision = 3L,
+			captureModes = mapOf(
+				SourceKind.STEPS to stepsBinding.captureModes,
+				SourceKind.LOCATION to setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
+			),
+		)
+		database.trackingRolloutStateDao().save(rolloutSnapshot.toEntity(updatedAtMs = 2L))
 		fun plan(revision: Long, stepsEnabled: Boolean) = AcquisitionPlanRevision(
 			revision = revision,
 			planId = "steps-cycle-$revision",
@@ -3045,7 +3238,12 @@ class AuthoritativeSessionCoordinatorTest {
 			),
 			sourcePolicyRevision = 1L,
 		)
-		val started = subject.start(startRequest().copy(plan = plan(1L, true)))
+		val started = subject.start(
+			startRequest().copy(
+				plan = plan(1L, true),
+				rolloutRevision = rolloutSnapshot.revision,
+			),
+		)
 			.shouldBeInstanceOf<SessionStartResult.Started>()
 		fun request(revision: Long, enabled: Boolean) = SessionReconfigureRequest(
 			ownerToken = "test-owner",
@@ -3066,6 +3264,20 @@ class AuthoritativeSessionCoordinatorTest {
 		subject.reconfigure(request(4L, false)).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
 		database.sourceSessionDao().completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
 			.map { it.registrationGeneration }.sorted() shouldBe listOf(1L, 2L)
+
+		sourceProductDrainRouter.requests.clear()
+		subject.stop(
+			SessionStopRequest(
+				"steps-cycle-final-stop",
+				"USER_STOP",
+				5_000L,
+				5_000_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+		sourceProductDrainRouter.requests.single { request ->
+			request.source == SourceKind.STEPS
+		}.memberships.map(SourceDrainMembership::registrationGeneration) shouldBe listOf(1L, 2L)
 	}
 
 	@Test

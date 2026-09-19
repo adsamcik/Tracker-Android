@@ -91,6 +91,11 @@ internal sealed interface WifiCaptureCallbackBarrierPublication {
 	) : WifiCaptureCallbackBarrierPublication
 }
 
+sealed interface SourceRuntimeStateSaveResult {
+	data object Saved : SourceRuntimeStateSaveResult
+	data object Unverifiable : SourceRuntimeStateSaveResult
+}
+
 /**
  * Allocates durable source identities and monotonically increasing source sequences.
  *
@@ -1068,7 +1073,7 @@ class SourceRegistrationRepository @Inject constructor(
 		updatedAtMs: Long,
 		terminalCompleteness: SourceSessionCompletenessEntity? = null,
 		terminalStepsCountDomainEvidence: StepsCountDomainRetirementEvidence? = null,
-	) {
+	): SourceRuntimeStateSaveResult = try {
 		database.withTransaction {
 			val currentRegistration = database.sourceRegistrationStateDao().get(
 				registration.state.sourceKind,
@@ -1111,6 +1116,9 @@ class SourceRegistrationRepository @Inject constructor(
 				check(candidate.sourceKind == registration.state.sourceKind)
 				check(candidate.sourceInstanceId == registration.state.sourceInstanceId)
 				check(candidate.registrationGeneration == registration.state.registrationGeneration)
+				if (candidate.updatedAtMs !in 0L until Long.MAX_VALUE) {
+					throw StoredCompletenessUnverifiableException()
+				}
 				val countDomainStore = StepsCountDomainStore(database)
 				val completeness = if (
 					candidate.sourceKind == SourceKind.STEPS.stableCode &&
@@ -1121,24 +1129,31 @@ class SourceRegistrationRepository @Inject constructor(
 						sourceKind = SourceKind.STEPS.stableCode,
 						limit = MAX_STEPS_COMPLETENESS_ROWS + 1,
 					)
-					check(rawExisting.size <= MAX_STEPS_COMPLETENESS_ROWS) {
-						"Steps completeness history overflow"
+					if (rawExisting.size > MAX_STEPS_COMPLETENESS_ROWS) {
+						throw StoredCompletenessUnverifiableException()
 					}
-					val existing = rawExisting.map { raw ->
-						checkNotNull(raw.validatedOrNull()) {
-							"Stored Steps completeness is unverifiable"
-						}.also { stored ->
-							check(
-								stored.logicalTrackingId == candidate.logicalTrackingId &&
-									stored.serviceRunId == candidate.serviceRunId &&
-									stored.sourceKind == SourceKind.STEPS.stableCode,
-							) { "Stored Steps completeness belongs to another run" }
+					val existingRows = rawExisting.map { raw ->
+						val existing = raw.validatedOrNull()
+							?: throw StoredCompletenessUnverifiableException()
+						if (
+							existing.logicalTrackingId != candidate.logicalTrackingId ||
+							existing.serviceRunId != candidate.serviceRunId ||
+							existing.sourceKind != SourceKind.STEPS.stableCode
+						) {
+							throw StoredCompletenessUnverifiableException()
 						}
-					}.singleOrNull {
+						existing
+					}
+					val exactRows = existingRows.filter {
 						it.sourceInstanceId == candidate.sourceInstanceId &&
 							it.registrationGeneration == candidate.registrationGeneration
 					}
-					candidate.withMonotonicStepsCountDomainRevision(existing)
+					if (exactRows.size > 1) throw StoredCompletenessUnverifiableException()
+					try {
+						candidate.withMonotonicStepsCountDomainRevision(exactRows.singleOrNull())
+					} catch (_: IllegalArgumentException) {
+						throw StoredCompletenessUnverifiableException()
+					}
 				} else {
 					candidate
 				}
@@ -1153,14 +1168,13 @@ class SourceRegistrationRepository @Inject constructor(
 									registrationRemovalOutcome = "UNOBSERVABLE",
 								),
 						)
-					check(
-						countDomainResult in setOf(
+					if (countDomainResult !in setOf(
 							StepsCountDomainWriteResult.INSERTED,
 							StepsCountDomainWriteResult.EXACT_REPLAY,
 							StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
-						),
+						)
 					) {
-						"Unable to publish Steps completeness before exact count-domain authority"
+						throw StoredCompletenessUnverifiableException()
 					}
 					if (countDomainResult == StepsCountDomainWriteResult.INSERTED) {
 						publishStepsCountDomainEvidenceRevisionAtWallTime(
@@ -1170,7 +1184,10 @@ class SourceRegistrationRepository @Inject constructor(
 					}
 				}
 			}
+			SourceRuntimeStateSaveResult.Saved
 		}
+	} catch (_: StoredCompletenessUnverifiableException) {
+		SourceRuntimeStateSaveResult.Unverifiable
 	}
 }
 
@@ -1186,6 +1203,9 @@ private fun SourceAuthorizationSnapshot.sameAuthorizationAs(
 private const val MAX_CELL_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS = 64
 private const val MAX_CELL_CALLBACK_BARRIER_DEMANDS = 256
 private const val MAX_STEPS_COMPLETENESS_ROWS = 64
+
+private class StoredCompletenessUnverifiableException :
+	IllegalStateException("Stored Steps completeness is unverifiable")
 
 private fun SourceAuthorizationSnapshot.sameWifiBarrierAuthorizationAs(
 	other: SourceAuthorizationSnapshot,

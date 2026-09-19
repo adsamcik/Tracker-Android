@@ -191,6 +191,31 @@ interface SourceSessionDao {
 		limit: Int,
 	): List<RawSessionManifestVersion>
 
+	/**
+	 * Bounded raw page of every immutable manifest used by one physical service run.
+	 *
+	 * Malformed storage for the run identity or revision sorts first so keyset paging cannot hide it.
+	 */
+	@Query(
+		"SELECT " + RAW_MANIFEST_VERSION_PROJECTION + " FROM session_manifest_version WHERE " +
+			"((typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId) OR " +
+			"(typeof(service_run_id) != 'text' " +
+			"AND CAST(service_run_id AS TEXT) = :serviceRunId) OR " +
+			"((typeof(service_run_id) != 'text' OR trim(service_run_id) = '') " +
+			"AND CAST(logical_tracking_id AS TEXT) = :logicalTrackingId)) AND " +
+			"(typeof(manifest_revision) != 'integer' OR manifest_revision <= 0 OR " +
+			"manifest_revision > :afterRevision) " +
+			"ORDER BY CASE WHEN typeof(service_run_id) != 'text' OR trim(service_run_id) = '' OR " +
+			"typeof(manifest_revision) != 'integer' OR manifest_revision <= 0 THEN 0 ELSE 1 END, " +
+			"manifest_revision, logical_tracking_id, rowid LIMIT :limit",
+	)
+	suspend fun rawManifestsForServiceRunAfterRevision(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		afterRevision: Long,
+		limit: Int,
+	): List<RawSessionManifestVersion>
+
 	@Query(
 		"SELECT " + RAW_MANIFEST_VERSION_PROJECTION + " FROM session_manifest_version WHERE " +
 			"((typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId) " +

@@ -323,19 +323,87 @@ interface SourceEventWalDao {
 		limit: Int,
 	): List<SourceEventWalEntity>
 
+	/**
+	 * Raw bounded envelope for one run/source capture high-water.
+	 *
+	 * Invalid predicate/aggregate inputs sort before the newest eligible row, so a caller can
+	 * reject malformed SQLite storage without materializing the run's complete WAL history.
+	 */
 	@Query(
-		"SELECT MAX(admission_ordinal) FROM source_event_wal WHERE source_kind = :sourceKind " +
-			"AND logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId " +
-			"AND admission_ordinal <= :throughOrdinal " +
-			"AND (authorization_purpose_eligibility_mask & :capturePurposeMask) != 0",
+		"SELECT " +
+			"typeof(event_id) || '|' || typeof(admission_ordinal) || '|' || " +
+			"typeof(source_kind) || '|' || typeof(logical_tracking_id) || '|' || " +
+			"typeof(service_run_id) || '|' || typeof(source_instance_id) || '|' || " +
+			"typeof(registration_generation) || '|' || " +
+			"typeof(authorization_purpose_eligibility_mask) AS storage_class_signature, " +
+			"CASE WHEN typeof(event_id) = 'text' THEN event_id END AS event_id, " +
+			"CASE WHEN typeof(admission_ordinal) = 'integer' THEN admission_ordinal END " +
+			"AS admission_ordinal, " +
+			"CASE WHEN typeof(source_kind) = 'integer' THEN source_kind END AS source_kind, " +
+			"CASE WHEN typeof(logical_tracking_id) = 'text' THEN logical_tracking_id END " +
+			"AS logical_tracking_id, " +
+			"CASE WHEN typeof(service_run_id) = 'text' THEN service_run_id END AS service_run_id, " +
+			"CASE WHEN typeof(source_instance_id) = 'text' THEN source_instance_id END " +
+			"AS source_instance_id, " +
+			"CASE WHEN typeof(registration_generation) = 'integer' " +
+			"THEN registration_generation END AS registration_generation, " +
+			"CASE WHEN typeof(authorization_purpose_eligibility_mask) = 'integer' " +
+			"THEN authorization_purpose_eligibility_mask END " +
+			"AS authorization_purpose_eligibility_mask " +
+			"FROM source_event_wal WHERE (" +
+			"(CAST(source_kind AS INTEGER) = :sourceKind " +
+			"AND CAST(logical_tracking_id AS TEXT) = :logicalTrackingId " +
+			"AND CAST(service_run_id AS TEXT) = :serviceRunId) OR " +
+			"(typeof(source_kind) != 'integer' " +
+			"AND CAST(logical_tracking_id AS TEXT) = :logicalTrackingId " +
+			"AND CAST(service_run_id AS TEXT) = :serviceRunId) OR " +
+			"(typeof(logical_tracking_id) != 'text' " +
+			"AND CAST(source_kind AS INTEGER) = :sourceKind " +
+			"AND CAST(service_run_id AS TEXT) = :serviceRunId) OR " +
+			"(typeof(service_run_id) != 'text' " +
+			"AND CAST(source_kind AS INTEGER) = :sourceKind " +
+			"AND CAST(logical_tracking_id AS TEXT) = :logicalTrackingId)) AND (" +
+			"typeof(event_id) != 'text' OR trim(event_id) = '' OR " +
+			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
+			"(typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0 AND " +
+			"admission_ordinal > :throughOrdinal) OR " +
+			"typeof(source_kind) != 'integer' OR source_kind != :sourceKind OR " +
+			"typeof(logical_tracking_id) != 'text' OR logical_tracking_id != :logicalTrackingId OR " +
+			"typeof(service_run_id) != 'text' OR service_run_id != :serviceRunId OR " +
+			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
+			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
+			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
+			"authorization_purpose_eligibility_mask < 0 OR " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) != " +
+			"authorization_purpose_eligibility_mask OR " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0) " +
+			"ORDER BY CASE WHEN (" +
+			"typeof(event_id) != 'text' OR trim(event_id) = '' OR " +
+			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
+			"(typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0 AND " +
+			"admission_ordinal > :throughOrdinal) OR " +
+			"typeof(source_kind) != 'integer' OR source_kind != :sourceKind OR " +
+			"typeof(logical_tracking_id) != 'text' OR logical_tracking_id != :logicalTrackingId OR " +
+			"typeof(service_run_id) != 'text' OR service_run_id != :serviceRunId OR " +
+			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
+			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
+			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
+			"authorization_purpose_eligibility_mask < 0 OR " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) != " +
+			"authorization_purpose_eligibility_mask) THEN 0 ELSE 1 END, " +
+			"admission_ordinal DESC, rowid DESC LIMIT :limit",
 	)
-	suspend fun runSourceCaptureHighWater(
+	suspend fun rawRunSourceCaptureHighWater(
 		sourceKind: Int,
 		logicalTrackingId: String,
 		serviceRunId: String,
 		throughOrdinal: Long,
 		capturePurposeMask: Long,
-	): Long?
+		allowedPurposeMask: Long,
+		limit: Int,
+	): List<RawSourceRunWalHighWaterEvidence>
 
 	/** Payload-free ordered preflight for a bounded source-local projection pass. */
 	@Query(
@@ -522,6 +590,20 @@ data class SourceEventContinuityRow(
 	@ColumnInfo(name = "source_sequence") val sourceSequence: Long,
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
+)
+
+/** Raw payload-free evidence used before accepting a source/run WAL high-water. */
+data class RawSourceRunWalHighWaterEvidence(
+	@ColumnInfo(name = "storage_class_signature") val storageClassSignature: String?,
+	@ColumnInfo(name = "event_id") val eventId: String?,
+	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long?,
+	@ColumnInfo(name = "source_kind") val sourceKind: Long?,
+	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
+	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
+	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String?,
+	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long?,
+	@ColumnInfo(name = "authorization_purpose_eligibility_mask")
+	val authorizationPurposeEligibilityMask: Long?,
 )
 
 /** Payload-free identity for one bounded Cell/Wi-Fi projection scheduling attempt. */

@@ -362,7 +362,7 @@ data class RawSourceSessionCompleteness(
 		}
 		val coverage = providerCoverage?.takeIf { it in PROVIDER_COVERAGES } ?: return null
 		val status = stopStatus?.takeIf { it in STOP_STATUSES } ?: return null
-		val updatedAt = updatedAtMs?.takeIf { it >= 0L } ?: return null
+		val updatedAt = updatedAtMs?.takeIf { it in 0L until Long.MAX_VALUE } ?: return null
 		if (
 			lastAdmissionOrdinal?.let { it <= 0L } == true ||
 			lastSourceSequence?.let { it < 0L } == true ||

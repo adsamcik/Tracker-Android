@@ -363,8 +363,10 @@ object StepsCountDomainReceiptIntegrity {
 		)
 	}
 
-	fun completenessOwnerRevision(row: SourceSessionCompletenessEntity): Long =
-		Math.addExact(row.updatedAtMs, 1L)
+	fun completenessOwnerRevision(row: SourceSessionCompletenessEntity): Long {
+		require(row.updatedAtMs in 0L until Long.MAX_VALUE)
+		return row.updatedAtMs + 1L
+	}
 
 	fun ambientFactScopeIdentity(logicalFactId: String): String {
 		require(isOpaque(logicalFactId))

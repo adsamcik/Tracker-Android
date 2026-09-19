@@ -843,7 +843,7 @@ class StepSourceRuntimeRetirementTest {
 		coEvery { repository.saveRuntimeState(any(), any(), any(), any(), any(), any(), any(), any()) } answers {
 			when (val outcome = checkpointOutcomes.removeFirstOrNull()) {
 				is Throwable -> throw outcome
-				else -> Unit
+				else -> SourceRuntimeStateSaveResult.Saved
 			}
 		}
 		coEvery { repository.markAccepted(any(), any(), any()) } answers {

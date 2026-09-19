@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletenessMarkerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptEntity
@@ -725,7 +726,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
-	fun `count-domain owner and receipt reads authenticate every storage class before narrowing`() =
+	fun `count-domain owner and receipt reads authenticate every field in the requested scope`() =
 		runTest {
 			installSchema()
 			val store = StepsCountDomainStore(database)
@@ -971,6 +972,88 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
+	fun `multi-generation completeness markers authenticate their ordered registration prefixes`() =
+		runTest {
+			installSchema()
+			val store = StepsCountDomainStore(database)
+			val retirement = StepsCountDomainRetirementEvidence(
+				providerFlushOutcome = "COMPLETE",
+				registrationRemovalOutcome = "REMOVED",
+			)
+			val firstWal = insertWal(
+				eventId = "prefix-generation-one",
+				sourceSequence = 4L,
+				payloadVersion = 7,
+				sourceInstanceId = "steps-generation-one",
+				registrationGeneration = 1L,
+			)
+			store.recordSessionWal(firstWal, token('a')) shouldBe
+				StepsCountDomainWriteResult.INSERTED
+			val first = SourceSessionCompletenessEntity(
+				logicalTrackingId = "tracking",
+				serviceRunId = "run",
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				sourceInstanceId = firstWal.sourceInstanceId,
+				registrationGeneration = firstWal.registrationGeneration,
+				lastAdmissionOrdinal = firstWal.admissionOrdinal,
+				lastSourceSequence = firstWal.sourceSequence,
+				appDrainComplete = true,
+				providerCoverage = "CALLBACKS_ENTERED_BEFORE_BARRIER",
+				stopStatus = "COMPLETE",
+				unresolvedSequenceStart = null,
+				unresolvedSequenceEnd = null,
+				updatedAtMs = 100L,
+			)
+			database.sourceSessionDao().saveCompleteness(first)
+			store.recordSessionCompleteness(first, retirement) shouldBe
+				StepsCountDomainWriteResult.INSERTED
+
+			val secondWal = insertWal(
+				eventId = "prefix-generation-two",
+				sourceSequence = 3L,
+				payloadVersion = 7,
+				sourceInstanceId = "steps-generation-two",
+				registrationGeneration = 2L,
+			)
+			store.recordSessionWal(secondWal, token('a')) shouldBe
+				StepsCountDomainWriteResult.INSERTED
+			val second = first.copy(
+				sourceInstanceId = secondWal.sourceInstanceId,
+				registrationGeneration = secondWal.registrationGeneration,
+				lastAdmissionOrdinal = secondWal.admissionOrdinal,
+				lastSourceSequence = secondWal.sourceSequence,
+				updatedAtMs = 200L,
+			)
+			database.sourceSessionDao().saveCompleteness(second)
+			store.recordSessionCompleteness(second, retirement) shouldBe
+				StepsCountDomainWriteResult.INSERTED
+
+			val timeline = listOf(first, second)
+			store.authenticateTerminalProductDisposition(
+				"tracking",
+				"run",
+				timeline,
+			) shouldBe StepsTerminalProductAuthentication.Materializable
+			val keys = timeline.map { row ->
+				StepsCountDomainOwnerLookupKey(
+					StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
+					StepsCountDomainReceiptIntegrity.sessionCompletenessOwnerIdentity(
+						row.logicalTrackingId,
+						row.serviceRunId,
+						row.sourceInstanceId,
+						row.registrationGeneration,
+					),
+					StepsCountDomainReceiptIntegrity.completenessOwnerRevision(row),
+				)
+			}
+			val stored = (store.readOwners(keys) as StepsCountDomainOwnerRead.Ready).owners
+			stored.getValue(keys[0]).completenessMarker?.registrationTimelineChecksum shouldBe
+				StepsCountDomainReceiptIntegrity.registrationTimelineChecksum(listOf(first))
+			stored.getValue(keys[1]).completenessMarker?.registrationTimelineChecksum shouldBe
+				StepsCountDomainReceiptIntegrity.registrationTimelineChecksum(timeline)
+		}
+
+	@Test
 	fun `terminal compaction is bounded and removes oldest opaque owners`() = runTest {
 		installSchema()
 		val store = StepsCountDomainStore(database)
@@ -1090,8 +1173,11 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		}
 
 	@Test
-	fun `malformed owner key cannot masquerade as an absent replacement lineage`() = runTest {
+	fun `unrelated malformed owner key does not force a full-table hot-path scan`() = runTest {
 		installSchema()
+		val store = StepsCountDomainStore(database)
+		val wal = insertWal("scoped-owner-key", 1L, payloadVersion = 7)
+		store.recordSessionWal(wal, token('a')) shouldBe StepsCountDomainWriteResult.INSERTED
 		val sqlite = database.openHelper.writableDatabase
 		sqlite.execSQL(
 			"INSERT INTO steps_count_domain_owner_revision VALUES " +
@@ -1099,10 +1185,57 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 			arrayOf("sha256:${"1".repeat(64)}", "2".repeat(64)),
 		)
 
-		StepsCountDomainStore(database).recordSessionWal(
-			insertWal("malformed-owner-key", 1L, payloadVersion = 7),
-			token('a'),
-		) shouldBe StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE
+		store.recordSessionWal(wal, token('a')) shouldBe StepsCountDomainWriteResult.EXACT_REPLAY
+	}
+
+	@Test
+	fun `scoped malformed owner key cannot hide behind typed equality`() = runTest {
+		installSchema()
+		val store = StepsCountDomainStore(database)
+		val wal = insertWal("malformed-owner-key", 1L, payloadVersion = 7)
+		store.recordSessionWal(wal, token('a')) shouldBe StepsCountDomainWriteResult.INSERTED
+		val ownerIdentity = StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
+			wal.admissionOrdinal,
+			wal.eventId,
+		)
+		val scopeIdentity =
+			StepsCountDomainReceiptIntegrity.sessionRunScopeIdentity("tracking", "run")
+		database.openHelper.writableDatabase.execSQL(
+			"INSERT INTO steps_count_domain_owner_revision VALUES " +
+				"('SESSION_WAL', ?, CAST(? AS BLOB), 2, 'UNPROVEN', NULL, ?, 2)",
+			arrayOf(scopeIdentity, ownerIdentity, "2".repeat(64)),
+		)
+
+		store.recordSessionWal(wal, token('a')) shouldBe
+			StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE
+	}
+
+	@Test
+	fun `exact owner lookup remains bounded by scope with long unrelated history`() = runTest {
+		installSchema()
+		val store = StepsCountDomainStore(database)
+		val wal = insertWal("bounded-owner-history", 1L, payloadVersion = 7)
+		store.recordSessionWal(wal, token('a')) shouldBe StepsCountDomainWriteResult.INSERTED
+		val sqlite = database.openHelper.writableDatabase
+		repeat(512) { index ->
+			val identity = "sha256:${index.toString(16).padStart(64, '0')}"
+			sqlite.execSQL(
+				"INSERT INTO steps_count_domain_owner_revision VALUES " +
+					"('AMBIENT_FACT', ?, ?, 1, 'UNPROVEN', NULL, ?, ?)",
+				arrayOf(identity, identity, "3".repeat(64), index.toLong()),
+			)
+		}
+		val key = StepsCountDomainOwnerLookupKey(
+			StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+			StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
+				wal.admissionOrdinal,
+				wal.eventId,
+			),
+			1L,
+		)
+
+		(store.readOwners(listOf(key)) as StepsCountDomainOwnerRead.Ready)
+			.owners.containsKey(key) shouldBe true
 	}
 
 	@Test
@@ -1122,6 +1255,73 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 			limit = 1,
 		) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
 	}
+
+	@Test
+	fun `maintenance authenticates owner predicates and WAL protection evidence before deletion`() =
+		runTest {
+			installSchema()
+			val store = StepsCountDomainStore(database)
+			val wal = insertWal("maintenance-predicate-corruption", 1L, payloadVersion = 7)
+			store.recordSessionWal(wal, token('a')) shouldBe
+				StepsCountDomainWriteResult.INSERTED
+			val sqlite = database.openHelper.writableDatabase
+
+			val mutations = listOf(
+				"UPDATE steps_count_domain_owner_revision SET operation = 1" to
+					"UPDATE steps_count_domain_owner_revision SET operation = 'BIND'",
+				"UPDATE steps_count_domain_owner_revision SET linked_at_ms = 'bad'" to
+					"UPDATE steps_count_domain_owner_revision SET linked_at_ms = 1",
+				"UPDATE source_event_wal SET created_at_ms = 'bad'" to
+					"UPDATE source_event_wal SET created_at_ms = 1",
+				"UPDATE source_event_wal SET source_kind = '3x'" to
+					"UPDATE source_event_wal SET source_kind = 3",
+				"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = X'10'" to
+					"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = 4",
+			)
+			for ((mutation, restore) in mutations) {
+				database.withTransaction {
+					sqlite.execSQL(mutation)
+					store.removeSessionWalOwnersForPrune(
+						safeOrdinal = wal.admissionOrdinal,
+						createdBeforeMs = 2L,
+						limit = 1,
+					) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+					sqlite.execSQL(restore)
+				}
+			}
+			database.sourceBrokerDao().insertRegistration(
+				ProviderRegistrationGenerationEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					registrationGeneration = wal.registrationGeneration,
+					sourceInstanceId = wal.sourceInstanceId,
+					ownerScope = "source-broker:${SourceDestinationOwnerEntity.SOURCE_STEPS}",
+					clockDomainId = "boot",
+					physicalConfigurationFingerprint = "steps",
+					collectedDataEpoch = 7L,
+					providerResidency =
+						ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+					providerProcessIncarnationId = "process",
+					status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+					reservedAtMs = 1L,
+					reservedElapsedRealtimeNanos = 1L,
+					acceptedAtMs = 1L,
+					acceptedElapsedRealtimeNanos = 1L,
+					retiredAtMs = null,
+					retiredElapsedRealtimeNanos = null,
+					failureCode = null,
+				),
+			)
+			sqlite.execSQL(
+				"UPDATE provider_registration_generation SET status = 1 " +
+					"WHERE source_kind = 3 AND registration_generation = 1",
+			)
+			store.removeSessionWalOwnersForPrune(
+				safeOrdinal = wal.admissionOrdinal,
+				createdBeforeMs = 2L,
+				limit = 1,
+			) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+			sqlite.count("SELECT COUNT(*) FROM steps_count_domain_owner_revision") shouldBe 1L
+		}
 
 	@Test
 	fun `schema sentinel rejects real and blob storage classes without coercion`() {
