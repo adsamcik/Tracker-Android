@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.source.wifi
 
 import android.app.Application
-import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -56,9 +55,8 @@ class RoomImportedWifiProductRecentScanTest {
 
 	@Before
 	fun setUp() = runTest {
-		database = Room.inMemoryDatabaseBuilder(
+		database = AppDatabase.inMemoryBuilder(
 			ApplicationProvider.getApplicationContext<Application>(),
-			AppDatabase::class.java,
 		).allowMainThreadQueries().setQueryCallback({ sql, _ ->
 			executedQueries += sql
 			if ("FROM logical_tracking_session" in sql) ownerQueries += sql

@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
-import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -1879,7 +1878,7 @@ class RoomExportPortableStepsTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		val parent = requireNotNull(context.getDatabasePath(name).parentFile)
 		check(parent.isDirectory || parent.mkdirs()) { "Unable to create test database directory" }
-		val builder = Room.databaseBuilder(context, AppDatabase::class.java, name)
+		val builder = AppDatabase.fileBuilder(context, name)
 			.allowMainThreadQueries()
 			.setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
 		if (pause != null) {
@@ -1894,7 +1893,7 @@ class RoomExportPortableStepsTest {
 	private suspend fun replaceWithCountingDatabase(queryCount: AtomicInteger) {
 		database.close()
 		val context: Application = ApplicationProvider.getApplicationContext()
-		database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+		database = AppDatabase.inMemoryBuilder(context)
 			.allowMainThreadQueries()
 			.setQueryCallback(
 				{ sql, _ ->

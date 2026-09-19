@@ -2,7 +2,6 @@ package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
 import android.database.sqlite.SQLiteException
-import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -633,9 +632,8 @@ class RoomErasePressureSourceTest {
 		context.deleteDatabase(REOPEN_DATABASE)
 		var reopened: AppDatabase? = null
 		try {
-			var fileDatabase = Room.databaseBuilder(
+			var fileDatabase = AppDatabase.fileBuilder(
 				context,
-				AppDatabase::class.java,
 				REOPEN_DATABASE,
 			).allowMainThreadQueries().build()
 			fileDatabase.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
@@ -660,9 +658,8 @@ class RoomErasePressureSourceTest {
 			)
 			fileDatabase.close()
 
-			fileDatabase = Room.databaseBuilder(
+			fileDatabase = AppDatabase.fileBuilder(
 				context,
-				AppDatabase::class.java,
 				REOPEN_DATABASE,
 			).allowMainThreadQueries().build()
 			reopened = fileDatabase

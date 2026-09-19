@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import com.adsamcik.tracker.shared.base.database.V28_MIGRATION_TERMINAL_RUN_SQL
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 
 @Dao
@@ -763,8 +764,34 @@ interface SourceEventWalDao {
 		"DELETE FROM source_event_wal WHERE admission_ordinal IN (" +
 			"SELECT wal.admission_ordinal FROM source_event_wal AS wal " +
 			"WHERE wal.source_kind = :sourceKind AND wal.created_at_ms < :createdBeforeMs " +
-			"AND wal.admission_ordinal <= :safeOrdinal AND NOT (" +
+			"AND wal.admission_ordinal <= :safeOrdinal AND (" +
+			":sourceKind != " + STEPS_SOURCE_KIND_SQL + " OR NOT EXISTS (" +
+			"SELECT 1 FROM source_event_wal AS invalid_steps " +
+			"WHERE invalid_steps.source_kind = " + STEPS_SOURCE_KIND_SQL + " AND (" +
+			"typeof(invalid_steps.authorization_purpose_eligibility_mask) != 'integer' OR " +
+			"invalid_steps.authorization_purpose_eligibility_mask NOT BETWEEN 1 AND " +
+			STEPS_WAL_ALLOWED_PURPOSE_MASK_SQL + " OR (" +
+			"(invalid_steps.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") != 0 AND " +
+			"(invalid_steps.logical_tracking_id IS NULL OR " +
+			"invalid_steps.service_run_id IS NULL)) OR (" +
+			"(invalid_steps.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") = 0 AND " +
+			"(invalid_steps.logical_tracking_id IS NOT NULL OR " +
+			"invalid_steps.service_run_id IS NOT NULL))))) AND (" +
+			":sourceKind != " + STEPS_SOURCE_KIND_SQL + " OR (" +
+			"typeof(wal.authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"wal.authorization_purpose_eligibility_mask BETWEEN 1 AND " +
+			STEPS_WAL_ALLOWED_PURPOSE_MASK_SQL + " AND ((" +
+			"(wal.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") != 0 AND " +
+			"wal.logical_tracking_id IS NOT NULL AND wal.service_run_id IS NOT NULL) OR (" +
+			"(wal.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") = 0 AND " +
+			"wal.logical_tracking_id IS NULL AND wal.service_run_id IS NULL)))) AND NOT (" +
 			":sourceKind = " + STEPS_SOURCE_KIND_SQL + " AND " +
+			"(wal.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") != 0 AND " +
 			"wal.logical_tracking_id IS NOT NULL AND wal.service_run_id IS NOT NULL AND " +
 			"wal.admission_ordinal = (" +
 			"SELECT MAX(candidate.admission_ordinal) FROM source_event_wal AS candidate " +
@@ -784,7 +811,9 @@ interface SourceEventWalDao {
 			"OR EXISTS (SELECT 1 FROM source_service_run AS run " +
 			"WHERE run.service_run_id = wal.service_run_id " +
 			"AND run.logical_tracking_id = wal.logical_tracking_id " +
-			"AND (run.completed_at_ms IS NULL OR run.state NOT IN ('FINALIZED', 'CLOSED', 'FAILED')))" +
+			"AND (run.state NOT IN ('FINALIZED', 'CLOSED', 'FAILED') OR " +
+			"(run.completed_at_ms IS NULL AND NOT (" +
+			V28_MIGRATION_TERMINAL_RUN_SQL + "))))" +
 			")) ORDER BY wal.created_at_ms, wal.admission_ordinal LIMIT :limit)",
 	)
 	suspend fun deleteProjectedSourceBatch(
@@ -800,6 +829,7 @@ interface SourceEventWalDao {
 
 private const val STEPS_SOURCE_KIND_SQL = "3"
 private const val SESSION_CAPTURE_MASK_SQL = "4"
+private const val STEPS_WAL_ALLOWED_PURPOSE_MASK_SQL = "7"
 
 /** Covering projection used by duplicate admission checks so payload BLOBs are never read. */
 data class SourceEventIdentityRow(

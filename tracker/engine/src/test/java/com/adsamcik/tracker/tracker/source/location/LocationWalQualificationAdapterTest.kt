@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.source.location
 
 import android.app.Application
-import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.data.LocationAcquisitionMode
@@ -105,7 +104,7 @@ class LocationWalQualificationAdapterTest {
 	@Before
 	fun setUp() {
 		context = ApplicationProvider.getApplicationContext()
-		database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+		database = AppDatabase.inMemoryBuilder(context)
 			.allowMainThreadQueries()
 			.setQueryCallback({ sql, _ ->
 				if (sql.startsWith("SELECT ") && "FROM source_event_wal" in sql) {

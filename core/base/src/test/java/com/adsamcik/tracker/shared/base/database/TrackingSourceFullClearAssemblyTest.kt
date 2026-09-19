@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactIntegrity
@@ -63,6 +62,43 @@ class TrackingSourceFullClearAssemblyTest {
 			StepsCountDomainSchemaState.ValidV2
 		database.stepsCountDomainReceiptDao().receipt(opaque('f')) shouldBe null
 		rowCount(StepsCountDomainSchema.SCHEMA_MARKER_TABLE) shouldBe 1L
+	}
+
+	@Test
+	fun `shared test builder authenticates Steps schema before full clear`() = runTest {
+		val testDatabase = AppDatabase.testDatabase(context)
+		try {
+			StepsCountDomainSchema.inspect(testDatabase.openHelper.writableDatabase) shouldBe
+				StepsCountDomainSchemaState.ValidV2
+			testDatabase.sourceEvidenceStateDao().ensure(
+				SourceEvidenceState(collectedDataEpoch = EPOCH),
+			)
+
+			AppDatabase.deleteAllCollectedData(
+				database = testDatabase,
+				collectedDataEpoch = EPOCH + 1L,
+				retainedFromMs = null,
+				updatedAtMs = 1L,
+			)
+
+			StepsCountDomainSchema.inspect(testDatabase.openHelper.writableDatabase) shouldBe
+				StepsCountDomainSchemaState.ValidV2
+		} finally {
+			testDatabase.close()
+		}
+	}
+
+	@Test
+	fun `repository direct builder convention installs final Steps callback`() {
+		val direct = AppDatabase.inMemoryBuilder(context)
+			.allowMainThreadQueries()
+			.build()
+		try {
+			StepsCountDomainSchema.inspect(direct.openHelper.writableDatabase) shouldBe
+				StepsCountDomainSchemaState.ValidV2
+		} finally {
+			direct.close()
+		}
 	}
 
 	@Test
@@ -783,13 +819,10 @@ class TrackingSourceFullClearAssemblyTest {
 			cursor.getLong(0)
 		}
 
-	private fun openDatabase(): AppDatabase = Room.databaseBuilder(
+	private fun openDatabase(): AppDatabase = AppDatabase.fileBuilder(
 		context,
-		AppDatabase::class.java,
 		DATABASE_NAME,
 	)
-		.addCallback(TrackingOwnerValidationRoomCallback)
-		.addCallback(FinalV28SchemaAssemblyRoomCallback)
 		.allowMainThreadQueries()
 		.build()
 

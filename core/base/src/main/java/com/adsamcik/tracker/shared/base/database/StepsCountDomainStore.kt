@@ -104,7 +104,7 @@ private data class StepsWalPruneCursor(
 
 private data class StepsWalPruneCandidate(
 	val cursor: StepsWalPruneCursor,
-	val ownerKey: StepsCountDomainOwnerLookupKey,
+	val ownerKey: StepsCountDomainOwnerLookupKey?,
 )
 
 private data class TerminalOwnerCandidate(
@@ -1547,21 +1547,24 @@ class StepsCountDomainStore(
 			session.checkpointAndRequireUnchanged(
 				StepsCountDomainMaintenanceCheckpoint.WAL_CANDIDATE_PAGE_AUTHENTICATED,
 			)
-			when (
-				val result = removeOwnersAuthenticated(
-					session = session,
-					keys = page.map(StepsWalPruneCandidate::ownerKey),
-					requireEveryOwner = true,
-				)
-			) {
-				is StepsCountDomainMaintenanceResult.Applied -> {
-					removedOwners += result.removedOwners
-					removedReceipts += result.removedReceipts
+			val ownerKeys = page.mapNotNull(StepsWalPruneCandidate::ownerKey)
+			if (ownerKeys.isNotEmpty()) {
+				when (
+					val result = removeOwnersAuthenticated(
+						session = session,
+						keys = ownerKeys,
+						requireEveryOwner = true,
+					)
+				) {
+					is StepsCountDomainMaintenanceResult.Applied -> {
+						removedOwners += result.removedOwners
+						removedReceipts += result.removedReceipts
+					}
+					StepsCountDomainMaintenanceResult.SchemaUnavailable,
+					StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable,
+					StepsCountDomainMaintenanceResult.Overflow,
+					-> throw CountDomainStoredEvidenceException()
 				}
-				StepsCountDomainMaintenanceResult.SchemaUnavailable,
-				StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable,
-				StepsCountDomainMaintenanceResult.Overflow,
-				-> throw CountDomainStoredEvidenceException()
 			}
 			remaining -= page.size
 			val next = page.last().cursor
@@ -2564,7 +2567,8 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwnerPage(
 		add(limit)
 	}.toTypedArray()
 	return query(
-		"SELECT wal.admission_ordinal, wal.event_id, wal.created_at_ms " +
+		"SELECT wal.admission_ordinal, wal.event_id, wal.created_at_ms, " +
+			"wal.authorization_purpose_eligibility_mask " +
 			"FROM source_event_wal AS wal " +
 			"WHERE wal.source_kind = ? AND wal.created_at_ms < ? AND wal.admission_ordinal <= ? " +
 			cursorPredicate +
@@ -2587,7 +2591,9 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwnerPage(
 			"OR EXISTS (SELECT 1 FROM source_service_run AS run " +
 			"WHERE run.service_run_id = wal.service_run_id " +
 			"AND run.logical_tracking_id = wal.logical_tracking_id " +
-			"AND (run.completed_at_ms IS NULL OR run.state NOT IN ('FINALIZED', 'CLOSED', 'FAILED')))" +
+			"AND (run.state NOT IN ('FINALIZED', 'CLOSED', 'FAILED') OR " +
+			"(run.completed_at_ms IS NULL AND NOT (" +
+			V28_MIGRATION_TERMINAL_RUN_SQL + "))))" +
 			")) ORDER BY wal.created_at_ms, wal.admission_ordinal LIMIT ?",
 		arguments,
 	).use { cursor ->
@@ -2599,6 +2605,7 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwnerPage(
 					createdAtMs = cursor.requiredLong(2),
 					admissionOrdinal = admissionOrdinal,
 				)
+				val eligibilityMask = cursor.requiredLong(3)
 				if (admissionOrdinal <= 0L || eventId.isBlank() ||
 					(after != null && candidateCursor <= after)
 				) {
@@ -2607,15 +2614,21 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwnerPage(
 				add(
 					StepsWalPruneCandidate(
 						cursor = candidateCursor,
-						ownerKey = StepsCountDomainOwnerLookupKey(
-							ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
-							ownerIdentity =
-								StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
-									admissionOrdinal,
-									eventId,
-								),
-							ownerRevision = 1L,
-						),
+						ownerKey = if (
+							eligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
+						) {
+							StepsCountDomainOwnerLookupKey(
+								ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+								ownerIdentity =
+									StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
+										admissionOrdinal,
+										eventId,
+									),
+								ownerRevision = 1L,
+							)
+						} else {
+							null
+						},
 					),
 				)
 			}
@@ -3176,15 +3189,15 @@ private suspend fun SupportSQLiteDatabase.auditStepsWalMaintenancePages(
 					cursor.requiredLong("authorization_purpose_eligibility_mask")
 				val logicalTrackingId = cursor.nullableText("logical_tracking_id")
 				val serviceRunId = cursor.nullableText("service_run_id")
+				val captureEligible =
+					eligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
 				if (admissionOrdinal <= 0L || eventId.isBlank() || createdAtMs < 0L ||
 					sourceInstanceId.isBlank() || registrationGeneration <= 0L ||
-					eligibilityMask < 0L ||
-					(eligibilityMask and SourceBrokerPurpose.ALL_MASK) != eligibilityMask ||
+					eligibilityMask !in 1L..STEPS_WAL_ALLOWED_PURPOSE_MASK ||
 					(logicalTrackingId == null) != (serviceRunId == null) ||
 					logicalTrackingId?.isBlank() == true ||
 					serviceRunId?.isBlank() == true ||
-					(eligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE) != 0L &&
-					(logicalTrackingId == null || serviceRunId == null)
+					captureEligible != (logicalTrackingId != null)
 				) {
 					throw CountDomainStoredEvidenceException()
 				}
@@ -3264,7 +3277,8 @@ private suspend fun SupportSQLiteDatabase.auditStepsRunMaintenancePages(
 		currentCoroutineContext().ensureActive()
 		val page = queryMaintenanceRowIdPage(
 			table = "main.`source_service_run`",
-			columns = "service_run_id, logical_tracking_id, state, completed_at_ms",
+			columns = "service_run_id, logical_tracking_id, state, completed_at_ms, " +
+				"completion_reason, runtime_acknowledgement, runtime_failure_code",
 			afterRowId = afterRowId,
 			maximumRowId = maximumRowId,
 			pageSize = WAL_MAINTENANCE_PAGE_SIZE,
@@ -3274,14 +3288,23 @@ private suspend fun SupportSQLiteDatabase.auditStepsRunMaintenancePages(
 			val logicalTrackingId = cursor.requiredText("logical_tracking_id")
 			val state = cursor.requiredText("state")
 			val completedAtMs = cursor.nullableLong("completed_at_ms")
+			val completionReason = cursor.nullableText("completion_reason")
+			val runtimeAcknowledgement = cursor.requiredText("runtime_acknowledgement")
+			val runtimeFailureCode = cursor.nullableText("runtime_failure_code")
 			val terminal = state in setOf("FINALIZED", "CLOSED", "FAILED")
+			val migratedTerminal =
+				state == "FINALIZED" &&
+					completedAtMs == null &&
+					!completionReason.isNullOrBlank() &&
+					runtimeAcknowledgement == "TERMINAL_FAILURE" &&
+					runtimeFailureCode == V28_MIGRATION_INTERRUPTION_REASON
 			if (serviceRunId.isBlank() || logicalTrackingId.isBlank() ||
 				state !in setOf(
 					"IDLE", "STARTING", "ACTIVE", "RECONFIGURING", "STOPPING",
 					"FINALIZED", "CLOSED", "FAILED",
 				) ||
 				completedAtMs?.let { it < 0L } == true ||
-				terminal != (completedAtMs != null)
+				terminal != (completedAtMs != null || migratedTerminal)
 			) {
 				throw CountDomainStoredEvidenceException()
 			}
@@ -3475,3 +3498,6 @@ private class CountDomainStoredEvidenceException(
 
 private val ROOM_INVALIDATION_TABLE_ID =
 	Regex("""(?i)\btable_id\s*=\s*([0-9]+)\b""")
+
+private const val STEPS_WAL_ALLOWED_PURPOSE_MASK =
+	SourceBrokerPurpose.CONTROL_MASK or SourceBrokerPurpose.MASK_SESSION_CAPTURE

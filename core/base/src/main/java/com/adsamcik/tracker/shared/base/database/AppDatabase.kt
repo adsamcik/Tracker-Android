@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.base.database
 
 import android.content.Context
 import androidx.room.Database
+import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
@@ -756,10 +757,31 @@ abstract class AppDatabase : RoomDatabase() {
 				preserveDatabaseFilesOnCorruption = true,
 			)
 
+		/**
+		 * Applies the common AppDatabase migrations and creation/open callbacks.
+		 *
+		 * Repository code that needs a directly configurable Room builder must start from
+		 * [fileBuilder] or [inMemoryBuilder] rather than constructing AppDatabase through Room
+		 * directly. That keeps the final-v28 schema authentication on every supported path.
+		 */
+		fun configureBuilder(database: Builder<AppDatabase>): Builder<AppDatabase> = database.apply {
+			addMigrations(*activeMigrations)
+			addCallback(TrackingOwnerValidationRoomCallback)
+			addCallback(FinalV28SchemaAssemblyRoomCallback)
+		}
+
+		fun fileBuilder(context: Context, name: String): Builder<AppDatabase> =
+			configureBuilder(
+				Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, name),
+			)
+
+		fun inMemoryBuilder(context: Context): Builder<AppDatabase> =
+			configureBuilder(
+				Room.inMemoryDatabaseBuilder(context.applicationContext, AppDatabase::class.java),
+			)
+
 		override fun setupDatabase(database: Builder<AppDatabase>) {
-			database.addMigrations(*activeMigrations)
-			database.addCallback(TrackingOwnerValidationRoomCallback)
-			database.addCallback(FinalV28SchemaAssemblyRoomCallback)
+			configureBuilder(database)
 		}
 
 		override fun setupDatabase(context: Context, database: Builder<AppDatabase>) {

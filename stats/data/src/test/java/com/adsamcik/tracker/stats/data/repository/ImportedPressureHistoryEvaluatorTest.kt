@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
-import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -495,9 +494,8 @@ class ImportedPressureHistoryEvaluatorTest {
 		context.deleteDatabase(REOPEN_DATABASE)
 		var openedDatabase: AppDatabase? = null
 		try {
-			val initialDatabase = Room.databaseBuilder(
+			val initialDatabase = AppDatabase.fileBuilder(
 				context,
-				AppDatabase::class.java,
 				REOPEN_DATABASE,
 			).allowMainThreadQueries().build()
 			openedDatabase = initialDatabase
@@ -546,9 +544,8 @@ class ImportedPressureHistoryEvaluatorTest {
 			initialDatabase.close()
 			openedDatabase = null
 
-			val reopenedDatabase = Room.databaseBuilder(
+			val reopenedDatabase = AppDatabase.fileBuilder(
 				context,
-				AppDatabase::class.java,
 				REOPEN_DATABASE,
 			).allowMainThreadQueries().build()
 			openedDatabase = reopenedDatabase
@@ -1059,9 +1056,8 @@ class ImportedPressureHistoryEvaluatorTest {
 	private suspend fun replaceWithObservedDatabase(): CopyOnWriteArrayList<String> {
 		database.close()
 		val queries = CopyOnWriteArrayList<String>()
-		database = Room.inMemoryDatabaseBuilder(
+		database = AppDatabase.inMemoryBuilder(
 			ApplicationProvider.getApplicationContext<Application>(),
-			AppDatabase::class.java,
 		).allowMainThreadQueries().setQueryCallback(
 			{ sql, _ -> queries.add(sql) },
 			Executor { command -> command.run() },

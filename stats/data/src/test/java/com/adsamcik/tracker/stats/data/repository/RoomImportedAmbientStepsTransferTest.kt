@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
-import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwner
@@ -2658,9 +2657,8 @@ class RoomImportedAmbientStepsTransferTest {
 		ApplicationProvider.getApplicationContext<Application>(),
 	)
 
-	private fun openNamed(context: Application): AppDatabase = Room.databaseBuilder(
+	private fun openNamed(context: Application): AppDatabase = AppDatabase.fileBuilder(
 		context,
-		AppDatabase::class.java,
 		REOPEN_DATABASE,
 	).openHelperFactory(SQLiteXSupportSQLiteOpenHelperFactory())
 		.allowMainThreadQueries()

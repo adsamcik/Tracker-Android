@@ -2,7 +2,6 @@ package com.adsamcik.tracker.shared.base.database
 
 import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
-import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
@@ -46,9 +45,8 @@ class TrackingOwnerValidationSchemaParityTest {
 
 	@Test
 	fun freshRoomSchemaRejectsInvalidWriterOwnersThroughTriggers() {
-		freshDatabase = Room.databaseBuilder(context, AppDatabase::class.java, FRESH_DATABASE)
+		freshDatabase = AppDatabase.fileBuilder(context, FRESH_DATABASE)
 			.openHelperFactory(FrameworkSQLiteOpenHelperFactory())
-			.addCallback(TrackingOwnerValidationRoomCallback)
 			.allowMainThreadQueries()
 			.build()
 

@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.source.wifi
 
 import android.app.Application
-import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -77,9 +76,8 @@ class RoomImportPortableCapturedWifiTest {
 
 	@Before
 	fun setUp() = runTest {
-		database = Room.inMemoryDatabaseBuilder(
+		database = AppDatabase.inMemoryBuilder(
 			ApplicationProvider.getApplicationContext<Application>(),
-			AppDatabase::class.java,
 		).allowMainThreadQueries().setQueryCallback({ sql, _ ->
 			if ("SELECT DISTINCT 'ENTRY' AS owner_kind" in sql ||
 				"FROM logical_tracking_session" in sql ||
@@ -1522,7 +1520,7 @@ class RoomImportPortableCapturedWifiTest {
 				)
 				database.openHelper.writableDatabase.execSQL("VACUUM INTO ?", arrayOf(file.path))
 				originalDatabase.close()
-				reopened = Room.databaseBuilder(context, AppDatabase::class.java, file.path)
+				reopened = AppDatabase.fileBuilder(context, file.path)
 					.allowMainThreadQueries()
 					.build()
 				database = reopened

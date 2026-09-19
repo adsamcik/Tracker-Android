@@ -54,7 +54,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	@Test
 	fun `DDL is idempotent and installs exact sentinel indexes foreign keys and triggers`() {
 		StepsCountDomainSchema.inspect(database.openHelper.writableDatabase) shouldBe
-			StepsCountDomainSchemaState.FreshRoomScaffold
+			StepsCountDomainSchemaState.ValidV2
 		installSchema()
 		StepsCountDomainSchema.inspect(database.openHelper.writableDatabase) shouldBe
 			StepsCountDomainSchemaState.ValidV2
@@ -1401,6 +1401,236 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		}
 
 	@Test
+	fun `WAL retention prunes a migrated terminal run with authenticated interruption evidence`() =
+		runTest {
+			installSchema()
+			insertServiceRun(
+				completedAtMs = null,
+				completionReason = "V27_RUNTIME_STOP_REQUESTED",
+				runtimeAcknowledgement = "TERMINAL_FAILURE",
+				runtimeFailureCode = V28_MIGRATION_INTERRUPTION_REASON,
+			)
+			val store = StepsCountDomainStore(database)
+			val wal = insertWal("migrated-terminal", 1L, payloadVersion = 7)
+			store.recordSessionWal(wal, token('a')) shouldBe
+				StepsCountDomainWriteResult.INSERTED
+
+			database.withTransaction {
+				store.removeSessionWalOwnersForPrune(
+					safeOrdinal = wal.admissionOrdinal,
+					createdBeforeMs = 2L,
+					limit = 1,
+				) shouldBe StepsCountDomainMaintenanceResult.Applied(1, 1)
+				database.sourceEventWalDao().deleteProjectedSourceBatch(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					safeOrdinal = wal.admissionOrdinal,
+					createdBeforeMs = 2L,
+					limit = 1,
+				) shouldBe 1
+			}
+
+			database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal) shouldBe null
+		}
+
+	@Test
+	fun `WAL retention preserves the final Steps admission for a nonterminal service run`() =
+		runTest {
+			installSchema()
+			insertServiceRun(
+				state = "ACTIVE",
+				completedAtMs = null,
+				completionReason = null,
+			)
+			val store = StepsCountDomainStore(database)
+			val wal = insertWal("active-run-final", 1L, payloadVersion = 7)
+			store.recordSessionWal(wal, token('a')) shouldBe
+				StepsCountDomainWriteResult.INSERTED
+			val walKey = StepsCountDomainOwnerLookupKey(
+				StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+				StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
+					wal.admissionOrdinal,
+					wal.eventId,
+				),
+				1L,
+			)
+
+			database.withTransaction {
+				store.removeSessionWalOwnersForPrune(
+					safeOrdinal = wal.admissionOrdinal,
+					createdBeforeMs = 2L,
+					limit = 1,
+				) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0)
+				database.sourceEventWalDao().deleteProjectedSourceBatch(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					safeOrdinal = wal.admissionOrdinal,
+					createdBeforeMs = 2L,
+					limit = 1,
+				) shouldBe 0
+			}
+
+			requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal))
+			(store.readOwners(listOf(walKey)) as StepsCountDomainOwnerRead.Ready)
+				.owners.containsKey(walKey) shouldBe true
+		}
+
+	@Test
+	fun `WAL retention rejects a terminal null completion without migration evidence`() = runTest {
+		installSchema()
+		insertServiceRun(
+			completedAtMs = null,
+			completionReason = "UNRELATED_FAILURE",
+			runtimeAcknowledgement = "TERMINAL_FAILURE",
+			runtimeFailureCode = "UNRELATED_FAILURE",
+		)
+		val store = StepsCountDomainStore(database)
+		val wal = insertWal("invalid-terminal-null", 1L, payloadVersion = 7)
+		store.recordSessionWal(wal, token('a')) shouldBe StepsCountDomainWriteResult.INSERTED
+
+		store.removeSessionWalOwnersForPrune(
+			safeOrdinal = wal.admissionOrdinal,
+			createdBeforeMs = 2L,
+			limit = 1,
+		) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+		database.sourceEventWalDao().deleteProjectedSourceBatch(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			safeOrdinal = wal.admissionOrdinal,
+			createdBeforeMs = 2L,
+			limit = 1,
+		) shouldBe 0
+		requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal))
+	}
+
+	@Test
+	fun `control-only Steps WAL is ownerless and deletable`() = runTest {
+		installSchema()
+		val wal = insertWal(
+			eventId = "control-only",
+			sourceSequence = 1L,
+			purposeMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			logicalTrackingId = null,
+			serviceRunId = null,
+		)
+
+		database.withTransaction {
+			StepsCountDomainStore(database).removeSessionWalOwnersForPrune(
+				safeOrdinal = wal.admissionOrdinal,
+				createdBeforeMs = 2L,
+				limit = 1,
+			) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0)
+			database.sourceEventWalDao().deleteProjectedSourceBatch(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				safeOrdinal = wal.admissionOrdinal,
+				createdBeforeMs = 2L,
+				limit = 1,
+			) shouldBe 1
+		}
+
+		database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal) shouldBe null
+	}
+
+	@Test
+	fun `control then mixed capture WAL prunes only the owner in its physical batch`() = runTest {
+		installSchema()
+		insertServiceRun(completedAtMs = 2L)
+		val control = insertWal(
+			eventId = "control-prefix",
+			sourceSequence = 1L,
+			purposeMask = SourceBrokerPurpose.MASK_CONTROL_CONTINUATION,
+			logicalTrackingId = null,
+			serviceRunId = null,
+		)
+		val mixed = insertWal(
+			eventId = "mixed-capture-control",
+			sourceSequence = 2L,
+			purposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE or
+				SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+		)
+		val store = StepsCountDomainStore(database)
+		store.recordSessionWal(mixed, token('a')) shouldBe StepsCountDomainWriteResult.INSERTED
+		val mixedKey = StepsCountDomainOwnerLookupKey(
+			StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+			StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
+				mixed.admissionOrdinal,
+				mixed.eventId,
+			),
+			1L,
+		)
+
+		database.withTransaction {
+			store.removeSessionWalOwnersForPrune(
+				safeOrdinal = mixed.admissionOrdinal,
+				createdBeforeMs = 3L,
+				limit = 1,
+			) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0)
+			database.sourceEventWalDao().deleteProjectedSourceBatch(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				safeOrdinal = mixed.admissionOrdinal,
+				createdBeforeMs = 3L,
+				limit = 1,
+			) shouldBe 1
+		}
+		database.sourceEventWalDao().getByAdmissionOrdinal(control.admissionOrdinal) shouldBe null
+		(store.readOwners(listOf(mixedKey)) as StepsCountDomainOwnerRead.Ready)
+			.owners.containsKey(mixedKey) shouldBe true
+
+		database.withTransaction {
+			store.removeSessionWalOwnersForPrune(
+				safeOrdinal = mixed.admissionOrdinal,
+				createdBeforeMs = 3L,
+				limit = 1,
+			) shouldBe StepsCountDomainMaintenanceResult.Applied(1, 1)
+			database.sourceEventWalDao().deleteProjectedSourceBatch(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				safeOrdinal = mixed.admissionOrdinal,
+				createdBeforeMs = 3L,
+				limit = 1,
+			) shouldBe 1
+		}
+		database.sourceEventWalDao().getByAdmissionOrdinal(mixed.admissionOrdinal) shouldBe null
+	}
+
+	@Test
+	fun `product and unknown Steps WAL masks fail closed`() = runTest {
+		installSchema()
+		val control = insertWal(
+			eventId = "valid-control",
+			sourceSequence = 1L,
+			purposeMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			logicalTrackingId = null,
+			serviceRunId = null,
+		)
+		val product = insertWal(
+			eventId = "product-mask",
+			sourceSequence = 2L,
+			purposeMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+			logicalTrackingId = null,
+			serviceRunId = null,
+		)
+		val unknown = insertWal(
+			eventId = "unknown-mask",
+			sourceSequence = 3L,
+			purposeMask = SourceBrokerPurpose.ALL_MASK + 1L,
+			logicalTrackingId = null,
+			serviceRunId = null,
+		)
+
+		StepsCountDomainStore(database).removeSessionWalOwnersForPrune(
+			safeOrdinal = unknown.admissionOrdinal,
+			createdBeforeMs = 4L,
+			limit = 3,
+		) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+		database.sourceEventWalDao().deleteProjectedSourceBatch(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			safeOrdinal = unknown.admissionOrdinal,
+			createdBeforeMs = 4L,
+			limit = 3,
+		) shouldBe 0
+		requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(control.admissionOrdinal))
+		requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(product.admissionOrdinal))
+		requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(unknown.admissionOrdinal))
+	}
+
+	@Test
 	fun `fact retention preserves its WAL owner until atomic WAL pruning`() = runTest {
 		installSchema()
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 7L))
@@ -1752,9 +1982,8 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	fun `one maintenance snapshot audits once across multiple candidate batches`() = runTest {
 		val queries = mutableListOf<String>()
 		database.close()
-		database = Room.inMemoryDatabaseBuilder(
+		database = AppDatabase.inMemoryBuilder(
 			ApplicationProvider.getApplicationContext<Application>(),
-			AppDatabase::class.java,
 		).allowMainThreadQueries()
 			.setQueryCallback(
 				{ sql, _ -> queries += sql.replace(Regex("\\s+"), " ").trim().lowercase() },
@@ -1822,9 +2051,8 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	fun `WAL maintenance audits once and keyset-pages multiple candidate batches`() = runTest {
 		val queries = mutableListOf<String>()
 		database.close()
-		database = Room.inMemoryDatabaseBuilder(
+		database = AppDatabase.inMemoryBuilder(
 			ApplicationProvider.getApplicationContext<Application>(),
-			AppDatabase::class.java,
 		).allowMainThreadQueries()
 			.setQueryCallback(
 				{ sql, _ -> queries += sql.replace(Regex("\\s+"), " ").trim().lowercase() },
@@ -2380,32 +2608,35 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		payloadVersion: Int = 1,
 		sourceInstanceId: String = "owner-$sourceSequence",
 		registrationGeneration: Long = sourceSequence,
+		purposeMask: Long = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		logicalTrackingId: String? = "tracking",
+		serviceRunId: String? = "run",
 	): SourceEventWalEntity {
 		val unsigned = SourceEventWalEntity(
 			eventId = eventId,
 			providerDedupKey = "dedup-$eventId",
-			logicalTrackingId = "tracking",
-			serviceRunId = "run",
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 			sourceInstanceId = sourceInstanceId,
 			registrationGeneration = registrationGeneration,
 			physicalConfigurationFingerprint = "configuration-$sourceSequence",
 			authorizationRevision = 1L,
-			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			authorizationPurposeEligibilityMask = purposeMask,
 			authorizationFingerprint = "a".repeat(64),
 			sourceSequence = sourceSequence,
-			configRevision = sourceSequence,
-			planAttribution = 0,
+			configRevision = sourceSequence.takeIf { logicalTrackingId != null },
+			planAttribution = if (logicalTrackingId != null) 0 else 2,
 			clockDomainId = "boot",
 			observedElapsedNanos = sourceSequence,
 			receivedElapsedNanos = sourceSequence,
 			wallTimeMs = sourceSequence,
 			wallTimeUncertaintyMs = 0L,
 			capturedCollectedDataEpoch = 7L,
-			sourcePolicyRevision = 1L,
-			captureConsentEpoch = 1L,
-			sessionManifestRevision = 1L,
-			lifecycleLeaseGeneration = 1L,
+			sourcePolicyRevision = 1L.takeIf { logicalTrackingId != null },
+			captureConsentEpoch = 1L.takeIf { logicalTrackingId != null },
+			sessionManifestRevision = 1L.takeIf { logicalTrackingId != null },
+			lifecycleLeaseGeneration = 1L.takeIf { logicalTrackingId != null },
 			acquiredAtMs = sourceSequence,
 			qualityFlags = 0L,
 			qualityConfidence = null,
@@ -2420,6 +2651,39 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		)
 		val ordinal = database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(signed)
 		return signed.copy(admissionOrdinal = ordinal)
+	}
+
+	private suspend fun insertServiceRun(
+		state: String = "FINALIZED",
+		completedAtMs: Long?,
+		completionReason: String? = "TEST",
+		runtimeAcknowledgement: String = "PENDING",
+		runtimeFailureCode: String? = null,
+	) {
+		database.sourceSessionDao().insertServiceRun(
+			SourceServiceRunEntity(
+				serviceRunId = "run",
+				logicalTrackingId = "tracking",
+				state = state,
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				foregroundCapabilityFlags = 0L,
+				startedAtMs = 1L,
+				startedElapsedNanos = 1L,
+				completedAtMs = completedAtMs,
+				completionReason = completionReason,
+				bootId = "LEGACY_UNKNOWN",
+				runtimeAcknowledgement = runtimeAcknowledgement,
+				runtimeFailureCode = runtimeFailureCode,
+				runRevision = if (completedAtMs == null) 1L else 0L,
+				presentationAcknowledgement =
+					if (runtimeFailureCode == V28_MIGRATION_INTERRUPTION_REASON) {
+						SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE
+					} else {
+						SourceServiceRunEntity.PRESENTATION_PENDING
+					},
+			),
+		)
 	}
 
 	private fun insertAmbientUnprovenOwnerHistory(

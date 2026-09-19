@@ -2,7 +2,6 @@ package com.adsamcik.tracker.shared.base.database
 
 import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
-import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
@@ -2043,13 +2042,11 @@ class AppDatabaseMigration27To28Test {
 		assertEquals(indexName, expected, actual)
 	}
 
-	private fun openProductionDatabase(): AppDatabase = Room.databaseBuilder(
+	private fun openProductionDatabase(): AppDatabase = AppDatabase.fileBuilder(
 		context,
-		AppDatabase::class.java,
 		TEST_DATABASE,
 	)
 		.openHelperFactory(SQLiteXSupportSQLiteOpenHelperFactory())
-		.addMigrations(MIGRATION_27_28)
 		.allowMainThreadQueries()
 		.build()
 

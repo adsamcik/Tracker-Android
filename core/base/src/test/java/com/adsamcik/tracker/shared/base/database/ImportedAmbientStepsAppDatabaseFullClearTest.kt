@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveDayEntity
@@ -290,9 +289,8 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 		dao.archiveCount() shouldBe 1L
 	}
 
-	private fun openFileDatabase(): AppDatabase = Room.databaseBuilder(
+	private fun openFileDatabase(): AppDatabase = AppDatabase.fileBuilder(
 		context,
-		AppDatabase::class.java,
 		FILE_DATABASE_NAME,
 	)
 		.allowMainThreadQueries()

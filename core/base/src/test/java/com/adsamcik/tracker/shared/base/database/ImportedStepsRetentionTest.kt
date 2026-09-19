@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
-import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
@@ -47,8 +46,8 @@ class ImportedStepsRetentionTest {
 
 	@Before
 	fun setUp() {
-		database = Room.inMemoryDatabaseBuilder(
-			ApplicationProvider.getApplicationContext<Application>(), AppDatabase::class.java,
+		database = AppDatabase.inMemoryBuilder(
+			ApplicationProvider.getApplicationContext<Application>(),
 		).allowMainThreadQueries().setQueryCallback({ sql, _ ->
 			if (sql.startsWith("SELECT * FROM step_fact_revision WHERE service_run_id IN")) {
 				completeFactReads.incrementAndGet()
