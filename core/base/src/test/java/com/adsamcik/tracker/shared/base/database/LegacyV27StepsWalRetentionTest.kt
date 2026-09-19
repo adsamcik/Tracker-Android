@@ -83,6 +83,46 @@ class LegacyV27StepsWalRetentionTest {
 	}
 
 	@Test
+	fun `nonlegacy full clear permits an epoch skip`() = runTest {
+		insertCurrentControlStepsWal("current-epoch-skip", 1L)
+		insertLocationWal("location-epoch-skip", 2L)
+
+		AppDatabase.deleteAllCollectedData(
+			database = database,
+			operationId = "nonlegacy-epoch-skip",
+			collectedDataEpoch = 5L,
+			retainedFromMs = null,
+			updatedAtMs = 100L,
+		)
+
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 5L
+	}
+
+	@Test
+	fun `legacy full clear requires the next epoch`() = runTest {
+		seedPendingLegacyDrain(cutoff = 1L)
+		insertMigratedTerminalRun()
+		val legacy = insertLegacyStepsWal("legacy-epoch-skip", 1L)
+
+		shouldThrow<IllegalStateException> {
+			AppDatabase.deleteAllCollectedData(
+				database = database,
+				operationId = "legacy-epoch-skip",
+				collectedDataEpoch = 2L,
+				retainedFromMs = null,
+				updatedAtMs = 100L,
+			)
+		}
+
+		database.sourceEventWalDao().getByAdmissionOrdinal(legacy.admissionOrdinal)?.eventId shouldBe
+			legacy.eventId
+		database.legacyV27ProjectionDrainDao().get()?.status shouldBe
+			LegacyV27ProjectionDrainEntity.STATUS_PENDING
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 0L
+	}
+
+	@Test
 	fun `full clear deletes pending legacy Steps WAL and drain state`() = runTest {
 		seedPendingLegacyDrain(cutoff = 1L)
 		insertMigratedTerminalRun()
@@ -143,6 +183,103 @@ class LegacyV27StepsWalRetentionTest {
 		database.legacyV27ProjectionDrainDao().get() shouldBe null
 		database.legacyV27ProjectionDrainDao().targets() shouldBe emptyList()
 		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 1L
+	}
+
+	@Test
+	fun `full clear deletes blocked unsupported legacy drain`() = runTest {
+		seedBlockedUnsupportedLegacyDrain(cutoff = 1L)
+		insertMigratedTerminalRun()
+		val legacy = insertLegacyStepsWal(
+			eventId = "legacy-blocked-full-clear",
+			admissionOrdinal = 1L,
+			integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
+		)
+
+		AppDatabase.deleteAllCollectedData(
+			database = database,
+			operationId = "blocked-unsupported-full-clear",
+			collectedDataEpoch = 1L,
+			retainedFromMs = null,
+			updatedAtMs = 100L,
+		)
+
+		database.sourceEventWalDao().getByAdmissionOrdinal(legacy.admissionOrdinal) shouldBe null
+		database.legacyV27ProjectionDrainDao().get() shouldBe null
+		database.legacyV27ProjectionDrainDao().targets() shouldBe emptyList()
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 1L
+	}
+
+	@Test
+	fun `ordinary retention cannot delete blocked unsupported legacy WAL`() = runTest {
+		seedBlockedUnsupportedLegacyDrain(cutoff = 1L)
+		insertMigratedTerminalRun()
+		val legacy = insertLegacyStepsWal("legacy-blocked-retention", 1L)
+
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100L).walEventsDeleted shouldBe 0
+
+		database.sourceEventWalDao().getByAdmissionOrdinal(legacy.admissionOrdinal)?.eventId shouldBe
+			legacy.eventId
+		database.legacyV27ProjectionDrainDao().get()?.status shouldBe
+			LegacyV27ProjectionDrainEntity.STATUS_BLOCKED_UNSUPPORTED_TARGET
+	}
+
+	@Test
+	fun `malformed blocked unsupported metadata rolls back full clear`() = runTest {
+		seedBlockedUnsupportedLegacyDrain(cutoff = 1L)
+		insertMigratedTerminalRun()
+		val legacy = insertLegacyStepsWal("legacy-blocked-malformed-target", 1L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE legacy_v27_projection_target SET required_through_ordinal = 2 " +
+				"WHERE projection_id = ? AND projection_version = ?",
+			arrayOf(UNSUPPORTED_PROJECTION_ID, UNSUPPORTED_PROJECTION_VERSION),
+		)
+
+		shouldThrow<IllegalStateException> {
+			AppDatabase.deleteAllCollectedData(
+				database = database,
+				operationId = "blocked-malformed-target-full-clear",
+				collectedDataEpoch = 1L,
+				retainedFromMs = null,
+				updatedAtMs = 100L,
+			)
+		}
+
+		database.sourceEventWalDao().getByAdmissionOrdinal(legacy.admissionOrdinal)?.eventId shouldBe
+			legacy.eventId
+		database.legacyV27ProjectionDrainDao().targets().size shouldBe 5
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 0L
+	}
+
+	@Test
+	fun `blocked legacy authentication failure rolls back mixed-source full clear`() = runTest {
+		seedBlockedUnsupportedLegacyDrain(cutoff = 1L)
+		insertMigratedTerminalRun()
+		val legacy = insertLegacyStepsWal("legacy-blocked-mixed", 1L)
+		val current = insertCurrentControlStepsWal("current-blocked-mixed", 2L)
+		val location = insertLocationWal("location-blocked-mixed", 3L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET payload_checksum = ? WHERE admission_ordinal = ?",
+			arrayOf("0".repeat(64), legacy.admissionOrdinal),
+		)
+
+		shouldThrow<IllegalStateException> {
+			AppDatabase.deleteAllCollectedData(
+				database = database,
+				operationId = "blocked-mixed-source-full-clear",
+				collectedDataEpoch = 1L,
+				retainedFromMs = null,
+				updatedAtMs = 100L,
+			)
+		}
+
+		database.sourceEventWalDao().getByAdmissionOrdinal(legacy.admissionOrdinal)?.eventId shouldBe
+			legacy.eventId
+		database.sourceEventWalDao().getByAdmissionOrdinal(current.admissionOrdinal)?.eventId shouldBe
+			current.eventId
+		database.sourceEventWalDao().getByAdmissionOrdinal(location.admissionOrdinal)?.eventId shouldBe
+			location.eventId
+		database.legacyV27ProjectionDrainDao().targets().size shouldBe 5
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 0L
 	}
 
 	@Test
@@ -485,6 +622,55 @@ class LegacyV27StepsWalRetentionTest {
 		registerPendingEventFrame()
 	}
 
+	private suspend fun seedBlockedUnsupportedLegacyDrain(cutoff: Long) {
+		database.sourceEvidenceStateDao().ensure()
+		database.legacyV27ProjectionDrainDao().saveDrain(
+			LegacyV27ProjectionDrainEntity(
+				cutoffAdmissionOrdinal = cutoff,
+				collectedDataEpoch = 0L,
+				status = LegacyV27ProjectionDrainEntity.STATUS_BLOCKED_UNSUPPORTED_TARGET,
+				ownerBootId = null,
+				ownerToken = null,
+				leaseGeneration = 0L,
+				leaseExpiresElapsedNanos = null,
+				startedAtMs = null,
+				completedAtMs = null,
+				suppressedOutboxCount = 0L,
+				failureCode = "UNSUPPORTED_LEGACY_PROJECTION",
+			),
+		)
+		legacyTargets(cutoff, pending = true).forEach(
+			database.legacyV27ProjectionDrainDao()::saveTarget,
+		)
+		database.legacyV27ProjectionDrainDao().saveTarget(
+			LegacyV27ProjectionTargetEntity(
+				projectionId = UNSUPPORTED_PROJECTION_ID,
+				projectionVersion = UNSUPPORTED_PROJECTION_VERSION,
+				initialActivationOrdinal = 1L,
+				initialCheckpointOrdinal = 0L,
+				requiredThroughOrdinal = cutoff,
+				lastCompletedOrdinal = 0L,
+				retentionRequired = true,
+				initialRegistrationStatus = "ACTIVE",
+				disposition =
+					LegacyV27ProjectionTargetEntity.DISPOSITION_BLOCKED_UNSUPPORTED,
+				completedAtMs = null,
+				failureCode = "UNSUPPORTED_LEGACY_PROJECTION",
+			),
+		)
+		registerPendingEventFrame()
+		database.sourceProjectionStateDao().register(
+			SourceProjectionRegistrationEntity(
+				projectionId = UNSUPPORTED_PROJECTION_ID,
+				projectionVersion = UNSUPPORTED_PROJECTION_VERSION,
+				activationOrdinal = 1L,
+				retentionRequired = true,
+				status = "LEGACY_V27_PENDING",
+				createdAtMs = 0L,
+			),
+		)
+	}
+
 	private suspend fun registerPendingEventFrame() {
 		database.sourceProjectionStateDao().register(
 			SourceProjectionRegistrationEntity(
@@ -814,5 +1000,7 @@ class LegacyV27StepsWalRetentionTest {
 		const val REOPEN_DATABASE = "legacy-v27-steps-wal-retention.db"
 		const val LEGACY_TRACKING_ID = "legacy-tracking"
 		const val LEGACY_RUN_ID = "legacy-run"
+		const val UNSUPPORTED_PROJECTION_ID = "unknown-release-projection"
+		const val UNSUPPORTED_PROJECTION_VERSION = 9
 	}
 }

@@ -85,6 +85,16 @@ internal class LegacyV27StepsWalFullClearFence private constructor(
 	}
 }
 
+internal fun SupportSQLiteDatabase.hasLegacyV27StepsWalForCollectedDataFullClear(): Boolean {
+	requireLegacy(inTransaction())
+	return scalarLegacyLong(
+		"SELECT EXISTS(SELECT 1 FROM source_event_wal WHERE source_kind = ? " +
+			"AND (authorization_purpose_eligibility_mask = 0 OR " +
+			"typeof(authorization_purpose_eligibility_mask) != 'integer') LIMIT 1)",
+		arrayOf(SourceDestinationOwnerEntity.SOURCE_STEPS),
+	) == 1L
+}
+
 internal fun SupportSQLiteDatabase.requireLegacyV27StepsWalRetentionAuthority():
 	LegacyV27StepsWalRetentionAuthority {
 	val authority = requireLegacyV27StepsWalAuthority(
@@ -360,6 +370,19 @@ private fun requireLegacyDrainState(
 			requireLegacy(completedAt == null && suppressedOutboxCount == 0L)
 			requireLegacy(!failureCode.isNullOrBlank())
 		}
+		LegacyV27ProjectionDrainEntity.STATUS_BLOCKED_UNSUPPORTED_TARGET -> {
+			requireLegacy(
+				authenticationMode ==
+					LegacyV27StepsWalAuthenticationMode.COLLECTED_DATA_FULL_CLEAR,
+			)
+			requireLegacy(ownerBootId == null && ownerToken == null && leaseExpires == null)
+			requireLegacy(completedAt == null && suppressedOutboxCount == 0L)
+			requireLegacy(
+				(leaseGeneration == 0L && startedAt == null) ||
+					(leaseGeneration > 0L && startedAt != null && startedAt >= 0L),
+			)
+			requireLegacy(failureCode == LEGACY_V27_UNSUPPORTED_PROJECTION)
+		}
 		LegacyV27ProjectionDrainEntity.STATUS_COMPLETE,
 		LegacyV27ProjectionDrainEntity.STATUS_COMPLETE_PARTIAL,
 		-> {
@@ -449,6 +472,10 @@ private fun SupportSQLiteDatabase.requireLegacyProjectionDrainContract(
 			}
 		}
 	}
+	if (authority.status == LegacyV27ProjectionDrainEntity.STATUS_BLOCKED_UNSUPPORTED_TARGET) {
+		requireLegacyBlockedUnsupportedProjectionDrainContract(authority, targets)
+		return targets
+	}
 	requireLegacy(targets.size == LEGACY_V27_SUPPORTED_PROJECTIONS.size)
 	requireLegacy(
 		targets.map { it.projectionId }.toSet() == LEGACY_V27_SUPPORTED_PROJECTIONS.keys,
@@ -486,6 +513,139 @@ private fun SupportSQLiteDatabase.requireLegacyProjectionDrainContract(
 		}
 	}
 	return targets
+}
+
+private fun SupportSQLiteDatabase.requireLegacyBlockedUnsupportedProjectionDrainContract(
+	authority: LegacyV27StepsWalRetentionAuthority,
+	targets: List<LegacyDrainTarget>,
+) {
+	requireLegacy(
+		authority.authenticationMode ==
+			LegacyV27StepsWalAuthenticationMode.COLLECTED_DATA_FULL_CLEAR,
+	)
+	val supportedIdentities =
+		LEGACY_V27_SUPPORTED_PROJECTIONS.keys.map { it to LEGACY_V27_PROJECTION_VERSION }.toSet()
+	val targetIdentities = targets.map { it.projectionId to it.projectionVersion }
+	requireLegacy(targetIdentities.size == targetIdentities.toSet().size)
+	requireLegacy(targetIdentities.toSet().containsAll(supportedIdentities))
+	val minimumFrozenWalOrdinal = query(
+		"SELECT MIN(admission_ordinal) FROM source_event_wal " +
+			"WHERE admission_ordinal <= ?",
+		arrayOf(authority.cutoffAdmissionOrdinal),
+	).use { cursor ->
+		requireLegacy(cursor.moveToFirst())
+		val value = cursor.nullableLegacyLong(0)
+		requireLegacy(!cursor.moveToNext())
+		value
+	}
+	requireLegacy(
+		minimumFrozenWalOrdinal != null &&
+			minimumFrozenWalOrdinal > 0L &&
+			minimumFrozenWalOrdinal <= authority.cutoffAdmissionOrdinal,
+	)
+	val frozenWalPredecessor = (minimumFrozenWalOrdinal ?: legacyFailure()) - 1L
+	var unsupportedTargetCount = 0
+	targets.forEach { target ->
+		val identity = target.projectionId to target.projectionVersion
+		val isSupportedIdentity = identity in supportedIdentities
+		requireLegacy(target.projectionId.isNotBlank() && target.projectionVersion > 0L)
+		requireLegacy(target.initialActivationOrdinal > 0L)
+		requireLegacy(target.initialActivationOrdinal - 1L <= authority.cutoffAdmissionOrdinal)
+		requireLegacy(target.initialCheckpointOrdinal >= target.initialActivationOrdinal - 1L)
+		requireLegacy(target.initialCheckpointOrdinal <= authority.cutoffAdmissionOrdinal)
+		requireLegacy(target.requiredThroughOrdinal == authority.cutoffAdmissionOrdinal)
+		requireLegacy(target.retentionRequired in 0L..1L)
+		requireLegacy(target.completedAtMs == null)
+		val expectedLastCompletedOrdinal = maxOf(
+			if (identity == LEGACY_V27_EVENT_FRAME_IDENTITY) {
+				target.initialActivationOrdinal - 1L
+			} else {
+				target.initialCheckpointOrdinal
+			},
+			frozenWalPredecessor,
+		)
+		requireLegacy(target.lastCompletedOrdinal == expectedLastCompletedOrdinal)
+		if (isSupportedIdentity) {
+			requireLegacy(
+				target.initialRegistrationStatus in
+					LEGACY_V27_BLOCKED_INITIAL_REGISTRATION_STATUSES,
+			)
+			requireLegacy(target.disposition == LegacyV27ProjectionTargetEntity.DISPOSITION_PENDING)
+			requireLegacy(target.failureCode == null)
+		} else {
+			unsupportedTargetCount += 1
+			requireLegacy(
+				target.initialRegistrationStatus in
+					LEGACY_V27_REGISTERED_INITIAL_STATUSES,
+			)
+			requireLegacy(
+				target.disposition ==
+					LegacyV27ProjectionTargetEntity.DISPOSITION_BLOCKED_UNSUPPORTED,
+			)
+			requireLegacy(target.failureCode == LEGACY_V27_UNSUPPORTED_PROJECTION)
+		}
+		requireLegacyBlockedProjectionRegistration(target, isSupportedIdentity)
+		requireLegacyBlockedProjectionCheckpoint(target)
+	}
+	requireLegacy(unsupportedTargetCount > 0)
+}
+
+private fun SupportSQLiteDatabase.requireLegacyBlockedProjectionRegistration(
+	target: LegacyDrainTarget,
+	isSupportedIdentity: Boolean,
+) {
+	query(
+		"SELECT activation_ordinal, retention_required, status, created_at_ms " +
+			"FROM source_projection_registration WHERE projection_id = ? " +
+			"AND projection_version = ? ORDER BY rowid LIMIT 2",
+		arrayOf(target.projectionId, target.projectionVersion),
+	).use { cursor ->
+		if (target.initialRegistrationStatus == LEGACY_V27_NOT_REGISTERED_AT_MIGRATION) {
+			requireLegacy(isSupportedIdentity)
+			requireLegacy(target.initialActivationOrdinal == 1L)
+			requireLegacy(target.initialCheckpointOrdinal == 0L)
+			requireLegacy(target.retentionRequired == 1L)
+			requireLegacy(!cursor.moveToFirst())
+			return
+		}
+		requireLegacy(cursor.moveToFirst())
+		requireLegacy(cursor.requiredLegacyLong("activation_ordinal") == target.initialActivationOrdinal)
+		requireLegacy(cursor.requiredLegacyLong("retention_required") == target.retentionRequired)
+		val expectedStatus =
+			if (target.initialRegistrationStatus == LEGACY_V27_ACTIVE_REGISTRATION) {
+				LEGACY_V27_PENDING_REGISTRATION
+			} else {
+				target.initialRegistrationStatus
+			}
+		requireLegacy(cursor.requiredLegacyText("status") == expectedStatus)
+		requireLegacy(cursor.requiredLegacyLong("created_at_ms") >= 0L)
+		requireLegacy(!cursor.moveToNext())
+	}
+}
+
+private fun SupportSQLiteDatabase.requireLegacyBlockedProjectionCheckpoint(
+	target: LegacyDrainTarget,
+) {
+	query(
+		"SELECT contiguous_admission_ordinal, state_version, updated_at_ms " +
+			"FROM source_projection_checkpoint WHERE projection_id = ? " +
+			"AND projection_version = ? ORDER BY rowid LIMIT 2",
+		arrayOf(target.projectionId, target.projectionVersion),
+	).use { cursor ->
+		if (!cursor.moveToFirst()) {
+			requireLegacy(
+				target.initialCheckpointOrdinal == target.initialActivationOrdinal - 1L,
+			)
+			return
+		}
+		requireLegacy(
+			cursor.requiredLegacyLong("contiguous_admission_ordinal") ==
+				target.initialCheckpointOrdinal,
+		)
+		requireLegacy(cursor.requiredLegacyLong("state_version") >= 0L)
+		requireLegacy(cursor.requiredLegacyLong("updated_at_ms") >= 0L)
+		requireLegacy(!cursor.moveToNext())
+	}
 }
 
 private fun SupportSQLiteDatabase.requireLegacyProjectionDrainCompletion(
@@ -866,6 +1026,12 @@ private data class LegacyDrainTarget(
 
 private const val LEGACY_V27_PAYLOAD_VERSION = 1L
 private const val LEGACY_V27_PARTIAL_RECOVERY = "LEGACY_V27_RECOVERY_PARTIAL"
+private const val LEGACY_V27_UNSUPPORTED_PROJECTION = "UNSUPPORTED_LEGACY_PROJECTION"
+private const val LEGACY_V27_PROJECTION_VERSION = 1L
+private const val LEGACY_V27_ACTIVE_REGISTRATION = "ACTIVE"
+private const val LEGACY_V27_RETIRED_REGISTRATION = "RETIRED"
+private const val LEGACY_V27_PENDING_REGISTRATION = "LEGACY_V27_PENDING"
+private const val LEGACY_V27_NOT_REGISTERED_AT_MIGRATION = "NOT_REGISTERED_AT_MIGRATION"
 private const val LEGACY_V27_PROJECTION_ID_SQL =
 	"'activity-automation', 'event-tracking-frame', 'explicit-tracking-joins', 'location-domain'"
 private const val LEGACY_FULL_CLEAR_PAGE_SIZE = 128
@@ -886,10 +1052,16 @@ private val LEGACY_V28_NULL_WAL_COLUMNS = listOf(
 	"lifecycle_lease_generation",
 )
 private val LEGACY_V27_INITIAL_REGISTRATION_STATUSES =
-	setOf("ACTIVE", "NOT_REGISTERED_AT_MIGRATION")
+	setOf(LEGACY_V27_ACTIVE_REGISTRATION, LEGACY_V27_NOT_REGISTERED_AT_MIGRATION)
+private val LEGACY_V27_REGISTERED_INITIAL_STATUSES =
+	setOf(LEGACY_V27_ACTIVE_REGISTRATION, LEGACY_V27_RETIRED_REGISTRATION)
+private val LEGACY_V27_BLOCKED_INITIAL_REGISTRATION_STATUSES =
+	LEGACY_V27_REGISTERED_INITIAL_STATUSES + LEGACY_V27_NOT_REGISTERED_AT_MIGRATION
 private val LEGACY_V27_PREMIGRATION_TERMINAL_STATES = setOf("CLOSED", "FAILED", "FINALIZED")
 private val LEGACY_V27_TERMINAL_STATES =
 	LEGACY_V27_PREMIGRATION_TERMINAL_STATES
+private val LEGACY_V27_EVENT_FRAME_IDENTITY =
+	"event-tracking-frame" to LEGACY_V27_PROJECTION_VERSION
 private val LEGACY_V27_SUPPORTED_PROJECTIONS = mapOf(
 	"activity-automation" to setOf(
 		LegacyV27ProjectionTargetEntity.DISPOSITION_SUPPRESSED_STALE_CONTROL,
