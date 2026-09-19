@@ -165,6 +165,23 @@ class SharedStepSourceControllerTest {
 	}
 
 	@Test
+	fun `irreversible partial retirement releases the exact logical Steps claim`() = runTest {
+		val capture = demand(SourceBrokerPurpose.SESSION_CAPTURE, "session:logical-1")
+		coEvery { broker.authorizationDemands(SourceKind.STEPS) } returns listOf(capture)
+		val plan = StepsPlan(9L, true, 5_000L, 15_000L, false)
+		val claim = runtimeClaim("shared-steps-partial")
+		val cutoff = SessionCutoff("logical-1", 900L, 10L, Long.MAX_VALUE)
+		coEvery { physical.reconfigure(claim, any(), unboundSink) } answers {
+			SourceApplyResult.Applied(applied(secondArg()))
+		}
+		coEvery { physical.quiesce(cutoff) } returns partialAck()
+
+		assertIs<SourceStartResult.Started>(subject.start(claim, plan, mockk()))
+		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(claim, cutoff))
+		coVerify(exactly = 1) { physical.quiesce(cutoff) }
+	}
+
+	@Test
 	fun `failed successor before publication preserves predecessor logical claim`() = runTest {
 		val capture = demand(SourceBrokerPurpose.SESSION_CAPTURE, "session:logical-1")
 		coEvery { broker.authorizationDemands(SourceKind.STEPS) } returns listOf(capture)
@@ -304,6 +321,18 @@ class SharedStepSourceControllerTest {
 	private fun providerFailedAck() = completeAck().copy(
 		registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
 		status = SourceStopStatus.PROVIDER_FAILED,
+	)
+
+	private fun partialAck() = completeAck().copy(
+		callbackEntryBarrierSequence = 4L,
+		lastDurablyAdmittedSequence = 2L,
+		lastAdmissionOrdinal = 2L,
+		failedAdmissionCount = 2L,
+		unresolvedSequenceStart = 3L,
+		unresolvedSequenceEndInclusive = 4L,
+		registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED,
+		appDrainComplete = false,
+		status = SourceStopStatus.PARTIAL_UNOBSERVABLE,
 	)
 
 	private fun runtimeClaim(actionId: String) = SourceRuntimeClaim(

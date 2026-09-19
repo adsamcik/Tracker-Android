@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.base.database
 
 import android.content.Context
 import androidx.room.Database
+import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
@@ -39,6 +40,7 @@ import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepFactRevisionDao
+import com.adsamcik.tracker.shared.base.database.dao.StepsCountDomainReceiptDao
 import com.adsamcik.tracker.shared.base.database.dao.StepsGoalEffectDao
 import com.adsamcik.tracker.shared.base.database.dao.StepsGoalRepairDayDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedStepsDao
@@ -117,6 +119,10 @@ import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletenessMarkerEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainSchemaMarkerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsGoalEffectEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsGoalRepairDayEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
@@ -286,6 +292,10 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			StepInterval::class,
 			StepFactRevisionEntity::class,
 			AmbientStepsFactRevisionEntity::class,
+			StepsCountDomainReceiptEntity::class,
+			StepsCountDomainOwnerRevisionEntity::class,
+			StepsCountDomainCompletenessMarkerEntity::class,
+			StepsCountDomainSchemaMarkerEntity::class,
 			AmbientStepsRetentionAuthorityEntity::class,
 			AmbientStepsNativeReplayFootprintEntity::class,
 			AmbientStepsImportAuthorityTransitionEntity::class,
@@ -502,6 +512,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Provides append-only sessionless system-provider Steps aggregates. */
 	abstract fun ambientStepsFactRevisionDao(): AmbientStepsFactRevisionDao
+
+	/** Provides authenticated ownership of native Steps counter domains. */
+	abstract fun stepsCountDomainReceiptDao(): StepsCountDomainReceiptDao
 
 	/** Provides exact source-local Ambient Steps import progress and discontinuities. */
 	abstract fun ambientStepsImportStateDao(): AmbientStepsImportStateDao
@@ -744,10 +757,31 @@ abstract class AppDatabase : RoomDatabase() {
 				preserveDatabaseFilesOnCorruption = true,
 			)
 
+		/**
+		 * Applies the common AppDatabase migrations and creation/open callbacks.
+		 *
+		 * Repository code that needs a directly configurable Room builder must start from
+		 * [fileBuilder] or [inMemoryBuilder] rather than constructing AppDatabase through Room
+		 * directly. That keeps the final-v28 schema authentication on every supported path.
+		 */
+		fun configureBuilder(database: Builder<AppDatabase>): Builder<AppDatabase> = database.apply {
+			addMigrations(*activeMigrations)
+			addCallback(TrackingOwnerValidationRoomCallback)
+			addCallback(FinalV28SchemaAssemblyRoomCallback)
+		}
+
+		fun fileBuilder(context: Context, name: String): Builder<AppDatabase> =
+			configureBuilder(
+				Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, name),
+			)
+
+		fun inMemoryBuilder(context: Context): Builder<AppDatabase> =
+			configureBuilder(
+				Room.inMemoryDatabaseBuilder(context.applicationContext, AppDatabase::class.java),
+			)
+
 		override fun setupDatabase(database: Builder<AppDatabase>) {
-			database.addMigrations(*activeMigrations)
-			database.addCallback(TrackingOwnerValidationRoomCallback)
-			database.addCallback(FinalV28SchemaAssemblyRoomCallback)
+			configureBuilder(database)
 		}
 
 		override fun setupDatabase(context: Context, database: Builder<AppDatabase>) {
@@ -903,6 +937,18 @@ abstract class AppDatabase : RoomDatabase() {
 			).maxOrNull()
 			val sqlite = database.openHelper.writableDatabase
 			val importedAmbientStepsDao = database.importedAmbientStepsDao()
+			if (sqlite.hasLegacyV27StepsWalForCollectedDataFullClear()) {
+				val legacyStepsFullClearFence = LegacyV27StepsWalFullClearFence.establish(
+					database = sqlite,
+					operationId = operationId,
+					oldCollectedDataEpoch = oldState.collectedDataEpoch,
+					newCollectedDataEpoch = newCollectedDataEpoch,
+					deletedAtMs = updatedAtMs,
+				)
+				sqlite.authenticateLegacyV27StepsWalForCollectedDataFullClear(
+					legacyStepsFullClearFence,
+				)
+			}
 
 			preserveImportedPressureFullClearAuthority(
 				sqlite = sqlite,
@@ -948,6 +994,12 @@ abstract class AppDatabase : RoomDatabase() {
 				sourceEvidenceRevision = nextRevision,
 				clearedAtMs = updatedAtMs,
 			)
+			check(
+				clearStepsCountDomainEvidenceInCurrentTransaction(
+					database,
+					StepsCountDomainFullClearMode.PRESERVE_TERMINAL,
+				) is StepsCountDomainMaintenanceResult.Applied,
+			) { "Steps count-domain full clear could not preserve terminal authority" }
 			publishFullDeletionState(
 				database = database,
 				oldState = oldState,

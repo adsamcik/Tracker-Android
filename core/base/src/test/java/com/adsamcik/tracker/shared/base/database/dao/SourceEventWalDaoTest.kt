@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.LocationProjectionObservat
 import com.adsamcik.tracker.shared.base.database.data.LocationProjectionPointEntity
 import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
 import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionTargetEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionCheckpointEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionJoinStateEntity
@@ -634,7 +635,12 @@ class SourceEventWalDaoTest {
 		).forEachIndexed { index, (eventId, sourceKind, projectionId) ->
 			val ordinal = index + 1L
 			wal.insertIgnoringDuplicate(
-				event(eventId, ordinal).copy(sourceKind = sourceKind, createdAtMs = 10),
+				event(eventId, ordinal).copy(
+					sourceKind = sourceKind,
+					authorizationPurposeEligibilityMask =
+						if (sourceKind == 3) SourceBrokerPurpose.MASK_CONTROL_AUTOSTART else 0L,
+					createdAtMs = 10,
+				),
 			) shouldBe ordinal
 			projection.insertOutbox(
 				SourceProjectionOutboxEntity(

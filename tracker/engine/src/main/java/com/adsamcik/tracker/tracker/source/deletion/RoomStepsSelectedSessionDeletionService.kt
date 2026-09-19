@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.deletion
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerLookupKey
 import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDay
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryLockedDays
@@ -238,13 +239,20 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 			scopeIdentityDigest = proposedFence.scopeIdentityDigest,
 		) ?: throw ConcurrentDeletionStateException()
 
+		val countDomainOwners = mutableListOf<StepsCountDomainOwnerLookupKey>()
 		scope.factStates.asSequence()
 			.filter { fact -> fact.operation == StepFactRevisionEntity.OPERATION_UPSERT }
 			.forEach { fact ->
-				if (!database.insertStepsDeletionRetractionOrVerify(fact, fence)) {
+				if (!database.insertStepsDeletionRetractionOrVerify(
+						fact,
+						fence,
+						countDomainOwners,
+					)
+				) {
 					throw ConcurrentDeletionStateException()
 				}
 			}
+		database.removeStepsDeletionCountDomainOwners(countDomainOwners)
 		factDao.deleteUpsertsForServiceRun(
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,

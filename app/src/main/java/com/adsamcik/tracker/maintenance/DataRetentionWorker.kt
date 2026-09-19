@@ -30,6 +30,7 @@ import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionPlanResul
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionReceipt
 import com.adsamcik.tracker.shared.base.database.RetentionWorkExecutionStartResult
 import com.adsamcik.tracker.shared.base.database.RoomTruncateImportedActivityRetention
+import com.adsamcik.tracker.shared.base.database.SourceEventStoragePruneResult
 import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionRequest
 import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionResult
 import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
@@ -342,7 +343,7 @@ class DataRetentionWorker @AssistedInject constructor(
 						startupGeneration,
 						authority,
 					)
-					appDatabase.pruneSourceEventStorageBefore(
+					when (appDatabase.pruneSourceEventStorageBefore(
 						createdBeforeMs = retainedFromMs,
 						verifyCollectedDataAccess = {
 							requireDestructiveAuthority(
@@ -352,15 +353,18 @@ class DataRetentionWorker @AssistedInject constructor(
 								authority,
 							)
 						},
-					)
-					completeSettlement(
-						appDatabase,
-						startupGeneration,
-						settlement,
-						operationTimeMs,
-						authority,
-						execution,
-					)
+					)) {
+						is SourceEventStoragePruneResult.Complete ->
+							completeSettlement(
+								appDatabase,
+								startupGeneration,
+								settlement,
+								operationTimeMs,
+								authority,
+								execution,
+							)
+						is SourceEventStoragePruneResult.Deferred -> Result.retry()
+					}
 				}
 				RawRetentionPruneResult.DEFERRED_FOR_PENDING_SIGNALS -> {
 					Result.retry()

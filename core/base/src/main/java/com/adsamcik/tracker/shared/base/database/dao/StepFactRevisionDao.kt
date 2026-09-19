@@ -17,6 +17,35 @@ interface StepFactRevisionDao {
 	@Query("SELECT * FROM step_fact_revision WHERE logical_fact_id IN (:identities) " +
 		"ORDER BY logical_fact_id, semantic_revision LIMIT :limit")
 	suspend fun revisionsForFactIdentities(identities: List<String>, limit: Int): List<UnvalidatedStepFactRevision>
+
+	/** Bounded exact-run audit used before cleanup-only provider authority can suppress a drain. */
+	@Query(
+		"SELECT * FROM step_fact_revision " +
+			"WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId " +
+			"AND (:afterWriterProjectionId IS NULL OR " +
+			"writer_projection_id > :afterWriterProjectionId OR " +
+			"(writer_projection_id = :afterWriterProjectionId AND " +
+			"writer_projection_version > :afterWriterProjectionVersion) OR " +
+			"(writer_projection_id = :afterWriterProjectionId AND " +
+			"writer_projection_version = :afterWriterProjectionVersion AND " +
+			"logical_fact_id > :afterLogicalFactId) OR " +
+			"(writer_projection_id = :afterWriterProjectionId AND " +
+			"writer_projection_version = :afterWriterProjectionVersion AND " +
+			"logical_fact_id = :afterLogicalFactId AND " +
+			"semantic_revision > :afterSemanticRevision)) " +
+			"ORDER BY writer_projection_id, writer_projection_version, logical_fact_id, " +
+			"semantic_revision LIMIT :limit",
+	)
+	suspend fun rawRunRevisionsAfter(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		afterWriterProjectionId: String?,
+		afterWriterProjectionVersion: Long?,
+		afterLogicalFactId: String?,
+		afterSemanticRevision: Long?,
+		limit: Int,
+	): List<UnvalidatedStepFactRevision>
+
 	/** Returns -1 when this fact revision, mutation, or live writer ordinal already exists. */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insert(entity: StepFactRevisionEntity): Long

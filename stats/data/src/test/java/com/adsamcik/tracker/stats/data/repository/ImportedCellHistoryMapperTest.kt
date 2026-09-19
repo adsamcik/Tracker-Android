@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
-import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -612,9 +611,8 @@ class ImportedCellHistoryMapperTest {
 		runTest {
 			database.close()
 			val statements = CopyOnWriteArrayList<String>()
-			database = Room.inMemoryDatabaseBuilder(
+			database = AppDatabase.inMemoryBuilder(
 				ApplicationProvider.getApplicationContext<Application>(),
-				AppDatabase::class.java,
 			).allowMainThreadQueries()
 				.setQueryCallback(
 					{ sql, _ ->
@@ -667,9 +665,8 @@ class ImportedCellHistoryMapperTest {
 		runTest {
 			database.close()
 			val statements = CopyOnWriteArrayList<String>()
-			database = Room.inMemoryDatabaseBuilder(
+			database = AppDatabase.inMemoryBuilder(
 				ApplicationProvider.getApplicationContext<Application>(),
-				AppDatabase::class.java,
 			).allowMainThreadQueries()
 				.setQueryCallback(
 					{ sql, _ ->
@@ -790,9 +787,8 @@ class ImportedCellHistoryMapperTest {
 		runTest {
 			database.close()
 			val statements = CopyOnWriteArrayList<String>()
-			database = Room.inMemoryDatabaseBuilder(
+			database = AppDatabase.inMemoryBuilder(
 				ApplicationProvider.getApplicationContext<Application>(),
-				AppDatabase::class.java,
 			).allowMainThreadQueries()
 				.setQueryCallback(
 					{ sql, _ ->

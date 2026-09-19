@@ -7,6 +7,10 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerLookupKey
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerRead
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -24,6 +28,9 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
@@ -373,6 +380,44 @@ class RoomDurableSourceIngressTest {
 		checkpoint.componentPayload.toList() shouldBe listOf<Byte>(2)
 		database.sourceEventWalDao().countAll() shouldBe 1L
 	}
+
+	@Test
+	fun `Steps admission retains evidence but publishes no authority before canonical projection`() =
+		runTest {
+			check(
+				StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) ==
+					com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState.ValidV2,
+			)
+			installStepRegistrationGeneration()
+			val token = StepsCounterDomainToken.opaque("sha256:${"a".repeat(64)}")
+			val evidence = stepCandidate(
+				startNanos = 100L,
+				endNanos = 100L,
+				sourceSequence = 1L,
+				providerDedupKey = "step-domain-token",
+				counterDomainToken = token,
+			)
+
+			val admitted = subject.admit(evidence).shouldBeInstanceOf<AdmissionResult.Admitted>()
+			val row = requireNotNull(
+				database.sourceEventWalDao().getByAdmissionOrdinal(admitted.admissionOrdinal),
+			)
+			val read = StepsCountDomainStore(database).readOwners(
+				listOf(
+					StepsCountDomainOwnerLookupKey(
+						StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+						StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
+							row.admissionOrdinal,
+							row.eventId,
+						),
+						1L,
+					),
+				),
+			) as StepsCountDomainOwnerRead.Ready
+
+			read.owners shouldBe emptyMap()
+			read.latestRevisions shouldBe emptyMap()
+		}
 
 	@Test
 	fun `sensor checkpoint write failure rolls back a newly admitted WAL fact`() = runTest {
@@ -1858,6 +1903,7 @@ class RoomDurableSourceIngressTest {
 		lastProviderSequence: Long = 2L,
 		wallTimeMs: Long = 100L,
 		acquiredAtMs: Long = 100L,
+		counterDomainToken: StepsCounterDomainToken? = null,
 	) = SourceEvidenceCandidate(
 		providerDedupKey = providerDedupKey,
 		logicalTrackingId = null,
@@ -1879,7 +1925,11 @@ class RoomDurableSourceIngressTest {
 		capturedCollectedDataEpoch = 0L,
 		acquiredAtMs = acquiredAtMs,
 		quality = SourceQuality(),
-		payloadVersion = 1,
+		payloadVersion = if (counterDomainToken == null) {
+			1
+		} else {
+			STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION
+		},
 		payload = StepCounterWindowPayload(
 			bootClockDomainId = payloadClockDomainId,
 			firstCumulativeCount = 10L,
@@ -1890,6 +1940,7 @@ class RoomDurableSourceIngressTest {
 			firstProviderSequence = 1L,
 			lastProviderSequence = lastProviderSequence,
 			baselineReset = false,
+			counterDomainToken = counterDomainToken,
 		),
 	)
 
@@ -2512,7 +2563,8 @@ class RoomDurableSourceIngressTest {
 		const val TEST_RUN_ID = "run"
 		const val TEST_ELIGIBILITY_FINGERPRINT = "test-ambient-and-session"
 		const val CONTROL_ONLY_FINGERPRINT = "test-control-only"
-		const val STEP_ELIGIBILITY_FINGERPRINT = "test-step-ambient"
+		const val STEP_ELIGIBILITY_FINGERPRINT =
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 		const val TEST_PHYSICAL_CONFIG = "physical-config"
 		const val CONTROL_PHYSICAL_CONFIG = "control-physical-config"
 		val SOURCE_OWNER_SCOPE = "source-broker:${SourceKind.ACTIVITY.stableCode}"

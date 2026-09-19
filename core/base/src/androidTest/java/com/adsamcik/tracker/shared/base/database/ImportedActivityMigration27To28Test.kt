@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.content.Context
-import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -293,12 +292,10 @@ class ImportedActivityMigration27To28Test {
 		)
 	}
 
-	private fun openDatabase(name: String = DATABASE): AppDatabase = Room.databaseBuilder(
+	private fun openDatabase(name: String = DATABASE): AppDatabase = AppDatabase.fileBuilder(
 		context,
-		AppDatabase::class.java,
 		name,
 	).openHelperFactory(SQLiteXSupportSQLiteOpenHelperFactory())
-		.addMigrations(MIGRATION_27_28)
 		.allowMainThreadQueries()
 		.build()
 

@@ -2,7 +2,6 @@ package com.adsamcik.tracker.tracker.source.importer
 
 import android.app.Application
 import android.database.sqlite.SQLiteException
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
@@ -406,9 +405,8 @@ class RoomImportPortableStepsTest {
 			)
 			inMemoryDatabase.close()
 
-			reopenedDatabase = Room.databaseBuilder(
+			reopenedDatabase = AppDatabase.fileBuilder(
 				context,
-				AppDatabase::class.java,
 				databaseFile.path,
 			)
 				.allowMainThreadQueries()
@@ -580,9 +578,8 @@ class RoomImportPortableStepsTest {
 				)
 				inMemoryDatabase.close()
 
-				reopenedDatabase = Room.databaseBuilder(
+				reopenedDatabase = AppDatabase.fileBuilder(
 					context,
-					AppDatabase::class.java,
 					databaseFile.path,
 				)
 					.allowMainThreadQueries()

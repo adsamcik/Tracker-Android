@@ -88,6 +88,7 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 				database,
 				SourceProductLaneExecutionAuthority { false },
 			),
+			RoomStepsCountDomainCompatibilityQuery(database),
 			Dispatchers.Unconfined,
 		)
 		val numeric = RoomStepsNumericSummaryRepository(
@@ -140,6 +141,7 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 				database,
 				SourceProductLaneExecutionAuthority { false },
 			),
+			RoomStepsCountDomainCompatibilityQuery(database),
 			Dispatchers.Unconfined,
 		)
 

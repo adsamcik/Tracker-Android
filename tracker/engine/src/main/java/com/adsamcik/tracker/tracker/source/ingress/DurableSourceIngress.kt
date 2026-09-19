@@ -390,14 +390,15 @@ class RoomDurableSourceIngress @Inject constructor(
 				}
 
 				val eventId = SourceEventId(UUID.randomUUID().toString())
+				val entity = candidate.toEntity(
+					eventId,
+					encoded,
+					System.currentTimeMillis(),
+					authorization,
+					captureAuthorization,
+				)
 				val rowId = walDao.insertIgnoringDuplicate(
-					candidate.toEntity(
-						eventId,
-						encoded,
-						System.currentTimeMillis(),
-						authorization,
-						captureAuthorization,
-					),
+					entity,
 				)
 				val admitted = if (rowId < 0L) {
 					candidate.providerDedupKey?.let { key ->

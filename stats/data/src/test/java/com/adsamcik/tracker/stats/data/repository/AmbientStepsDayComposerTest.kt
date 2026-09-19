@@ -1,6 +1,14 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityResult
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityQuery
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityRequest
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerEffect
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerIdentity
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerKind
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerReference
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.Test
 
@@ -38,13 +46,79 @@ class AmbientStepsDayComposerTest {
 			day,
 			listOf(fact(0L, DAY_END, 25L)),
 			emptyList(),
-			listOf(session(20L, 40L, 25L, SessionAmbientCompatibility.Unproven)),
+			listOf(
+				session(
+					20L,
+					40L,
+					25L,
+					StepsCountDomainCompatibilityResult.Unproven,
+				),
+			),
 		)
 
 		result.total shouldBe AmbientStepsNumericValue.Exact(25L)
 		result.betweenSession shouldBe AmbientStepsNumericValue.Unavailable(
 			setOf(AmbientStepsDayCause.SESSION_PROVIDER_COMPATIBILITY_UNPROVEN),
 		)
+	}
+
+	@Test
+	fun `count domain conflict deletion and corruption stay typed`() {
+		val expected = listOf(
+			StepsCountDomainCompatibilityResult.Conflict to
+				AmbientStepsDayCause.SESSION_COUNT_DOMAIN_CONFLICT,
+			StepsCountDomainCompatibilityResult.Deleted to
+				AmbientStepsDayCause.SESSION_COUNT_DOMAIN_DELETED,
+			StepsCountDomainCompatibilityResult.Unverifiable to
+				AmbientStepsDayCause.SESSION_COUNT_DOMAIN_UNVERIFIABLE,
+		)
+
+		expected.forEach { (compatibility, cause) ->
+			val result = composeAmbientStepsDay(
+				day,
+				listOf(fact(0L, DAY_END, 25L)),
+				emptyList(),
+				listOf(session(20L, 40L, 5L, compatibility)),
+			)
+
+			result.total shouldBe AmbientStepsNumericValue.Exact(25L)
+			result.betweenSession shouldBe
+				AmbientStepsNumericValue.Unavailable(setOf(cause))
+		}
+	}
+
+	@Test
+	fun `composer requests opaque compatibility without widening numeric or wall scope`() = runTest {
+		val sessionOwner = owner(StepsCountDomainOwnerKind.SESSION_FACT, '1')
+		val completenessOwner = owner(StepsCountDomainOwnerKind.SESSION_COMPLETENESS, '2')
+		val ambientOwner = owner(StepsCountDomainOwnerKind.AMBIENT_FACT, '3')
+		val original = session(
+			20L,
+			40L,
+			5L,
+			StepsCountDomainCompatibilityResult.Unproven,
+		).copy(countDomainOwners = listOf(sessionOwner, completenessOwner))
+		val facts = listOf(
+			fact(0L, DAY_END, 25L).copy(countDomainOwner = ambientOwner),
+		)
+		val resolved = listOf(original).withCountDomainCompatibility(
+			facts,
+			object : StepsCountDomainCompatibilityQuery {
+				override suspend fun compare(
+					requests: List<StepsCountDomainCompatibilityRequest>,
+				): List<StepsCountDomainCompatibilityResult> {
+					requests.single().sessionOwners shouldBe listOf(sessionOwner, completenessOwner)
+					requests.single().ambientOwners shouldBe listOf(ambientOwner)
+					return listOf(StepsCountDomainCompatibilityResult.ExactCompatible)
+				}
+			},
+		).single()
+
+		resolved.compatibility shouldBe StepsCountDomainCompatibilityResult.ExactCompatible
+		resolved.startTimeMs shouldBe original.startTimeMs
+		resolved.endTimeMs shouldBe original.endTimeMs
+		resolved.stepCount shouldBe original.stepCount
+		resolved.storedZoneId shouldBe original.storedZoneId
 	}
 
 	@Test
@@ -350,11 +424,19 @@ class AmbientStepsDayComposerTest {
 		start: Long,
 		end: Long,
 		count: Long?,
-		compatibility: SessionAmbientCompatibility = SessionAmbientCompatibility.ExactProviderDomain(
-			"provider",
-			"instance",
-		),
+		compatibility: StepsCountDomainCompatibilityResult =
+			StepsCountDomainCompatibilityResult.ExactCompatible,
 	) = QualifiedSessionStepsWindow("tracking", "run-$start", start, end, count, "UTC", compatibility)
+
+	private fun owner(
+		kind: StepsCountDomainOwnerKind,
+		digit: Char,
+	) = StepsCountDomainOwnerReference(
+		kind,
+		StepsCountDomainOwnerIdentity.opaque("sha256:${digit.toString().repeat(64)}"),
+		1L,
+		StepsCountDomainOwnerEffect.opaque(digit.toString().repeat(64)),
+	)
 
 	private companion object {
 		const val DAY_END = 86_400_000L

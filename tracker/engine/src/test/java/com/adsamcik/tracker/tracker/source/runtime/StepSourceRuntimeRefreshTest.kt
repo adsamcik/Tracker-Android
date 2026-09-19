@@ -15,6 +15,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -49,6 +50,7 @@ class StepSourceRuntimeRefreshTest {
 		every { context.packageManager } returns packageManager
 		every { packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER) } returns true
 		every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns sensor
+		stubCounterIdentity(sensor)
 		every { sensor.fifoMaxEventCount } returns 0
 		every { sensor.minDelay } returns 0
 		every {
@@ -66,7 +68,12 @@ class StepSourceRuntimeRefreshTest {
 			retirementToken(firstArg())
 		}
 		coEvery { registrations.completeRetirement(any()) } returns true
-		val runtime = StepSourceRuntime(context, backgroundScope, registrations)
+		val runtime = StepSourceRuntime(
+			context,
+			backgroundScope,
+			registrations,
+			mockk<StepsSessionFactProjectionLane>(relaxed = true),
+		)
 		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
 
 		assertIs<SourceStartResult.Started>(runtime.start(initialPlan, sink))
@@ -105,6 +112,7 @@ class StepSourceRuntimeRefreshTest {
 		every { context.packageManager } returns packageManager
 		every { packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER) } returns true
 		every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns sensor
+		stubCounterIdentity(sensor)
 		every { sensor.fifoMaxEventCount } returns 0
 		every { sensor.minDelay } returns 0
 		every {
@@ -123,7 +131,12 @@ class StepSourceRuntimeRefreshTest {
 			retirementToken(firstArg())
 		}
 		coEvery { registrations.completeRetirement(any()) } returns true
-		val runtime = StepSourceRuntime(context, backgroundScope, registrations)
+		val runtime = StepSourceRuntime(
+			context,
+			backgroundScope,
+			registrations,
+			mockk<StepsSessionFactProjectionLane>(relaxed = true),
+		)
 		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
 
 		assertIs<SourceStartResult.Started>(runtime.start(initialPlan, sink))
@@ -155,6 +168,15 @@ class StepSourceRuntimeRefreshTest {
 		projectionCheckpointIntervalMs = 5_000L,
 		movementPolicyNeedsLowLatency = false,
 	)
+
+	private fun stubCounterIdentity(sensor: Sensor) {
+		every { sensor.type } returns Sensor.TYPE_STEP_COUNTER
+		every { sensor.stringType } returns "android.sensor.step_counter"
+		every { sensor.vendor } returns "vendor"
+		every { sensor.name } returns "counter"
+		every { sensor.version } returns 1
+		every { sensor.id } returns 7
+	}
 
 	private fun registration(
 		plan: StepsPlan,

@@ -2,7 +2,6 @@ package com.adsamcik.tracker.shared.preferences.tracking
 
 import android.app.Application
 import android.database.sqlite.SQLiteException
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -35,7 +34,7 @@ class RoomSourcePolicyRepositoryTest {
 	@Before
 	fun setUp() {
 		val context = ApplicationProvider.getApplicationContext<Application>()
-		database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+		database = AppDatabase.inMemoryBuilder(context)
 			.allowMainThreadQueries()
 			.build()
 		repository = RoomSourcePolicyRepository(database) {

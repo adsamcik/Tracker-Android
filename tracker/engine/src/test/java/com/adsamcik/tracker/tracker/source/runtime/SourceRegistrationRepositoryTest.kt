@@ -4,6 +4,9 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState
 import com.adsamcik.tracker.shared.base.database.fenceSourcePurposesInTransaction
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
@@ -954,9 +957,222 @@ class SourceRegistrationRepositoryTest {
 			terminal,
 			200L,
 			terminalCompleteness = completeness,
-		)
+		) shouldBe SourceRuntimeStateSaveResult.Saved
 		subject.loadRuntimeState(registration).shouldNotBeNull()
 		database.sourceSessionDao().completenessForServiceRun("s1", "run-s1") shouldBe listOf(completeness)
+	}
+
+	@Test
+	fun `raw Steps completeness overflow returns typed unverifiable and rolls back checkpoint`() =
+		runTest {
+			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
+				StepsCountDomainSchemaState.ValidV2
+			database.sourceBrokerDao().insertDemands(
+				listOf(
+					demand(
+						"capture",
+						"session:s1",
+						SourceBrokerPurpose.SESSION_CAPTURE,
+						"s1",
+						1L,
+						true,
+					),
+				),
+			)
+			val registration = subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+			subject.markAccepted(registration, 110L, 110L)
+			repeat(65) { index ->
+				database.sourceSessionDao().saveCompleteness(
+					SourceSessionCompletenessEntity(
+						logicalTrackingId = "s1",
+						serviceRunId = "run-s1",
+						sourceKind = SourceKind.STEPS.stableCode,
+						sourceInstanceId = "historical-$index",
+						registrationGeneration = index.toLong() + 2L,
+						lastAdmissionOrdinal = null,
+						lastSourceSequence = null,
+						appDrainComplete = false,
+						providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name,
+						stopStatus = SourceStopStatus.PROCESS_RESTARTED.name,
+						unresolvedSequenceStart = null,
+						unresolvedSequenceEnd = null,
+						updatedAtMs = index.toLong() + 1L,
+					),
+				)
+			}
+			val terminal = SensorRuntimeCheckpoint(
+				lifecycle = RuntimeCheckpointLifecycle.TIMED_OUT,
+				metrics = RuntimeAdmissionSnapshot(0L, null, 0L, null, null, emptySet()),
+				componentStateVersion = 7,
+				componentPayload = byteArrayOf(1),
+				causalOrderElapsedRealtimeNanos = 200L,
+			)
+			val candidate = SourceSessionCompletenessEntity(
+				logicalTrackingId = "s1",
+				serviceRunId = "run-s1",
+				sourceKind = SourceKind.STEPS.stableCode,
+				sourceInstanceId = registration.state.sourceInstanceId,
+				registrationGeneration = registration.state.registrationGeneration,
+				lastAdmissionOrdinal = null,
+				lastSourceSequence = null,
+				appDrainComplete = false,
+				providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name,
+				stopStatus = SourceStopStatus.PROCESS_RESTARTED.name,
+				unresolvedSequenceStart = null,
+				unresolvedSequenceEnd = null,
+				updatedAtMs = 200L,
+			)
+
+			subject.saveSensorRuntimeCheckpoint(
+				registration = registration,
+				lastProviderSequence = 0L,
+				checkpoint = terminal,
+				updatedAtMs = 200L,
+				terminalCompleteness = candidate,
+				terminalStepsCountDomainEvidence = StepsCountDomainRetirementEvidence(
+					providerFlushOutcome = ProviderFlushOutcome.NOT_REQUESTED.name,
+					registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED.name,
+				),
+			) shouldBe SourceRuntimeStateSaveResult.Unverifiable
+			subject.loadRuntimeState(registration) shouldBe null
+		}
+
+	@Test
+	fun `maximum completeness wall time and revision headroom return typed unverifiable`() =
+		runTest {
+			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
+				StepsCountDomainSchemaState.ValidV2
+			database.sourceBrokerDao().insertDemands(
+				listOf(
+					demand(
+						"capture",
+						"session:s1",
+						SourceBrokerPurpose.SESSION_CAPTURE,
+						"s1",
+						1L,
+						true,
+					),
+				),
+			)
+			val registration = subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+			subject.markAccepted(registration, 110L, 110L)
+			val terminal = SensorRuntimeCheckpoint(
+				lifecycle = RuntimeCheckpointLifecycle.TIMED_OUT,
+				metrics = RuntimeAdmissionSnapshot(0L, null, 0L, null, null, emptySet()),
+				componentStateVersion = 7,
+				componentPayload = byteArrayOf(1),
+				causalOrderElapsedRealtimeNanos = 200L,
+			)
+
+			subject.saveSensorRuntimeCheckpoint(
+				registration = registration,
+				lastProviderSequence = 0L,
+				checkpoint = terminal,
+				updatedAtMs = 200L,
+				terminalCompleteness = SourceSessionCompletenessEntity(
+					logicalTrackingId = "s1",
+					serviceRunId = "run-s1",
+					sourceKind = SourceKind.STEPS.stableCode,
+					sourceInstanceId = registration.state.sourceInstanceId,
+					registrationGeneration = registration.state.registrationGeneration,
+					lastAdmissionOrdinal = null,
+					lastSourceSequence = null,
+					appDrainComplete = false,
+					providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name,
+					stopStatus = SourceStopStatus.PROCESS_RESTARTED.name,
+					unresolvedSequenceStart = null,
+					unresolvedSequenceEnd = null,
+					updatedAtMs = Long.MAX_VALUE,
+				),
+				terminalStepsCountDomainEvidence = StepsCountDomainRetirementEvidence(
+					providerFlushOutcome = ProviderFlushOutcome.NOT_REQUESTED.name,
+					registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED.name,
+				),
+			) shouldBe SourceRuntimeStateSaveResult.Unverifiable
+			subject.loadRuntimeState(registration) shouldBe null
+
+			val existing = SourceSessionCompletenessEntity(
+				logicalTrackingId = "s1",
+				serviceRunId = "run-s1",
+				sourceKind = SourceKind.STEPS.stableCode,
+				sourceInstanceId = registration.state.sourceInstanceId,
+				registrationGeneration = registration.state.registrationGeneration,
+				lastAdmissionOrdinal = null,
+				lastSourceSequence = null,
+				appDrainComplete = false,
+				providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name,
+				stopStatus = SourceStopStatus.PROCESS_RESTARTED.name,
+				unresolvedSequenceStart = null,
+				unresolvedSequenceEnd = null,
+				updatedAtMs = Long.MAX_VALUE - 1L,
+			)
+			database.sourceSessionDao().saveCompleteness(existing)
+			subject.saveSensorRuntimeCheckpoint(
+				registration = registration,
+				lastProviderSequence = 0L,
+				checkpoint = terminal,
+				updatedAtMs = 200L,
+				terminalCompleteness = existing.copy(
+					appDrainComplete = true,
+					providerCoverage = ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER.name,
+					stopStatus = SourceStopStatus.COMPLETE.name,
+					updatedAtMs = 200L,
+				),
+				terminalStepsCountDomainEvidence = StepsCountDomainRetirementEvidence(
+					providerFlushOutcome = ProviderFlushOutcome.NOT_REQUESTED.name,
+					registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED.name,
+				),
+			) shouldBe SourceRuntimeStateSaveResult.Unverifiable
+			subject.loadRuntimeState(registration) shouldBe null
+		}
+
+	@Test
+	fun `terminal Steps evidence revision uses wall time instead of checkpoint uptime`() = runTest {
+		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
+			StepsCountDomainSchemaState.ValidV2
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
+		)
+		val registration = subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(registration, 110L, 110L)
+		val checkpointUptimeMs = 9_000_000L
+		val wallTimeMs = 200L
+		val terminal = SensorRuntimeCheckpoint(
+			lifecycle = RuntimeCheckpointLifecycle.TIMED_OUT,
+			metrics = RuntimeAdmissionSnapshot(0L, null, 1L, null, null, emptySet()),
+			componentStateVersion = 7,
+			componentPayload = byteArrayOf(1),
+			causalOrderElapsedRealtimeNanos = checkpointUptimeMs * 1_000_000L,
+		)
+		val completeness = SourceSessionCompletenessEntity(
+			logicalTrackingId = "s1",
+			serviceRunId = "run-s1",
+			sourceKind = SourceKind.STEPS.stableCode,
+			sourceInstanceId = registration.state.sourceInstanceId,
+			registrationGeneration = registration.state.registrationGeneration,
+			lastAdmissionOrdinal = null,
+			lastSourceSequence = null,
+			appDrainComplete = false,
+			providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name,
+			stopStatus = SourceStopStatus.PROCESS_RESTARTED.name,
+			unresolvedSequenceStart = null,
+			unresolvedSequenceEnd = null,
+			updatedAtMs = wallTimeMs,
+		)
+
+		subject.saveSensorRuntimeCheckpoint(
+			registration = registration,
+			lastProviderSequence = 0L,
+			checkpoint = terminal,
+			updatedAtMs = checkpointUptimeMs,
+			terminalCompleteness = completeness,
+			terminalStepsCountDomainEvidence = StepsCountDomainRetirementEvidence(
+				providerFlushOutcome = ProviderFlushOutcome.NOT_REQUESTED.name,
+				registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED.name,
+			),
+		)
+
+		requireNotNull(database.sourceEvidenceStateDao().get()).updatedAtMs shouldBe wallTimeMs
 	}
 
 	@Test

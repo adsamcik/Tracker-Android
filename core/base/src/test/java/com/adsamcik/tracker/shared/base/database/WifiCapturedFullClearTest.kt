@@ -2,7 +2,6 @@ package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
 import android.database.sqlite.SQLiteConstraintException
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -141,9 +140,8 @@ class WifiCapturedFullClearTest {
 		assertEvidenceState(EPOCH, revision = 0L, deletedHighWater = 0L)
 	}
 
-	private fun openDatabase(): AppDatabase = Room.databaseBuilder(
+	private fun openDatabase(): AppDatabase = AppDatabase.fileBuilder(
 		context,
-		AppDatabase::class.java,
 		DATABASE_NAME,
 	)
 		.allowMainThreadQueries()

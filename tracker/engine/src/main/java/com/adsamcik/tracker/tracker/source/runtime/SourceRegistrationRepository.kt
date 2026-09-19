@@ -3,6 +3,11 @@ package com.adsamcik.tracker.tracker.source.runtime
 import android.os.SystemClock
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
+import com.adsamcik.tracker.shared.base.database.publishStepsCountDomainEvidenceRevisionAtWallTime
+import com.adsamcik.tracker.shared.base.database.withMonotonicStepsCountDomainRevision
 import com.adsamcik.tracker.shared.base.database.dao.PriorProcessRegistrationReconciliationResult
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
@@ -84,6 +89,11 @@ internal sealed interface WifiCaptureCallbackBarrierPublication {
 	data class Blocked(
 		val reason: WifiCaptureCallbackBarrierBlockedReason,
 	) : WifiCaptureCallbackBarrierPublication
+}
+
+sealed interface SourceRuntimeStateSaveResult {
+	data object Saved : SourceRuntimeStateSaveResult
+	data object Unverifiable : SourceRuntimeStateSaveResult
 }
 
 /**
@@ -1062,7 +1072,8 @@ class SourceRegistrationRepository @Inject constructor(
 		payload: ByteArray,
 		updatedAtMs: Long,
 		terminalCompleteness: SourceSessionCompletenessEntity? = null,
-	) {
+		terminalStepsCountDomainEvidence: StepsCountDomainRetirementEvidence? = null,
+	): SourceRuntimeStateSaveResult = try {
 		database.withTransaction {
 			val currentRegistration = database.sourceRegistrationStateDao().get(
 				registration.state.sourceKind,
@@ -1101,13 +1112,82 @@ class SourceRegistrationRepository @Inject constructor(
 				stored.registrationGeneration == registration.state.registrationGeneration
 			) { "Runtime checkpoint was superseded by an incompatible registration" }
 			dao.save(stored)
-			terminalCompleteness?.let { completeness ->
-				check(completeness.sourceKind == registration.state.sourceKind)
-				check(completeness.sourceInstanceId == registration.state.sourceInstanceId)
-				check(completeness.registrationGeneration == registration.state.registrationGeneration)
+			terminalCompleteness?.let { candidate ->
+				check(candidate.sourceKind == registration.state.sourceKind)
+				check(candidate.sourceInstanceId == registration.state.sourceInstanceId)
+				check(candidate.registrationGeneration == registration.state.registrationGeneration)
+				if (candidate.updatedAtMs !in 0L until Long.MAX_VALUE) {
+					throw StoredCompletenessUnverifiableException()
+				}
+				val countDomainStore = StepsCountDomainStore(database)
+				val completeness = if (
+					candidate.sourceKind == SourceKind.STEPS.stableCode &&
+					countDomainStore.isInstalled()
+				) {
+					val rawExisting = database.sourceSessionDao().rawSourceCompletenessForServiceRun(
+						serviceRunId = candidate.serviceRunId,
+						sourceKind = SourceKind.STEPS.stableCode,
+						limit = MAX_STEPS_COMPLETENESS_ROWS + 1,
+					)
+					if (rawExisting.size > MAX_STEPS_COMPLETENESS_ROWS) {
+						throw StoredCompletenessUnverifiableException()
+					}
+					val existingRows = rawExisting.map { raw ->
+						val existing = raw.validatedOrNull()
+							?: throw StoredCompletenessUnverifiableException()
+						if (
+							existing.logicalTrackingId != candidate.logicalTrackingId ||
+							existing.serviceRunId != candidate.serviceRunId ||
+							existing.sourceKind != SourceKind.STEPS.stableCode
+						) {
+							throw StoredCompletenessUnverifiableException()
+						}
+						existing
+					}
+					val exactRows = existingRows.filter {
+						it.sourceInstanceId == candidate.sourceInstanceId &&
+							it.registrationGeneration == candidate.registrationGeneration
+					}
+					if (exactRows.size > 1) throw StoredCompletenessUnverifiableException()
+					try {
+						candidate.withMonotonicStepsCountDomainRevision(exactRows.singleOrNull())
+					} catch (_: IllegalArgumentException) {
+						throw StoredCompletenessUnverifiableException()
+					}
+				} else {
+					candidate
+				}
 				database.sourceSessionDao().saveCompleteness(completeness)
+				if (completeness.sourceKind == SourceKind.STEPS.stableCode) {
+					val countDomainResult =
+						countDomainStore.recordSessionCompleteness(
+							completeness,
+							terminalStepsCountDomainEvidence
+								?: StepsCountDomainRetirementEvidence(
+									providerFlushOutcome = "UNOBSERVABLE",
+									registrationRemovalOutcome = "UNOBSERVABLE",
+								),
+						)
+					if (countDomainResult !in setOf(
+							StepsCountDomainWriteResult.INSERTED,
+							StepsCountDomainWriteResult.EXACT_REPLAY,
+							StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
+						)
+					) {
+						throw StoredCompletenessUnverifiableException()
+					}
+					if (countDomainResult == StepsCountDomainWriteResult.INSERTED) {
+						publishStepsCountDomainEvidenceRevisionAtWallTime(
+							database,
+							completeness.updatedAtMs,
+						)
+					}
+				}
 			}
+			SourceRuntimeStateSaveResult.Saved
 		}
+	} catch (_: StoredCompletenessUnverifiableException) {
+		SourceRuntimeStateSaveResult.Unverifiable
 	}
 }
 
@@ -1122,6 +1202,10 @@ private fun SourceAuthorizationSnapshot.sameAuthorizationAs(
 
 private const val MAX_CELL_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS = 64
 private const val MAX_CELL_CALLBACK_BARRIER_DEMANDS = 256
+private const val MAX_STEPS_COMPLETENESS_ROWS = 64
+
+private class StoredCompletenessUnverifiableException :
+	IllegalStateException("Stored Steps completeness is unverifiable")
 
 private fun SourceAuthorizationSnapshot.sameWifiBarrierAuthorizationAs(
 	other: SourceAuthorizationSnapshot,

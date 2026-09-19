@@ -107,6 +107,21 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
+	fun `pre Steps count-domain caller authority marker is classified as stale`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			markerValue = "tracker-v28-retention-caller-authority-20260919",
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28,
+		)
+	}
+
+	@Test
 	fun `marked v28 missing an indispensable final table is contained`() {
 		createFixture(
 			version = CURRENT_DATABASE_VERSION,
@@ -188,6 +203,81 @@ class DevelopmentV28DatabaseContainmentTest {
 			includeFinalColumn = true,
 			includeFinalIndex = true,
 			includeCallerAuthority = false,
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `marked v28 missing a Steps count-domain table is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			stepsSchemaMutation = { database ->
+				database.execSQL("DROP TABLE steps_count_domain_schema_marker")
+			},
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `marked v28 missing an exact Steps count-domain column is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			stepsSchemaMutation = { database ->
+				database.execSQL(
+					"ALTER TABLE steps_count_domain_schema_marker " +
+						"RENAME COLUMN terminal_unproven TO terminal_unknown",
+				)
+			},
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `marked v28 missing an exact Steps count-domain index is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			stepsSchemaMutation = { database ->
+				database.execSQL("DROP INDEX idx_steps_count_domain_owner_terminal_age")
+			},
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `marked v28 missing an exact Steps count-domain trigger is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			stepsSchemaMutation = { database ->
+				database.execSQL("DROP TRIGGER trg_steps_count_domain_owner_terminal")
+			},
 		)
 
 		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
@@ -451,6 +541,8 @@ class DevelopmentV28DatabaseContainmentTest {
 		includeFinalIndex: Boolean = false,
 		includeRadioReceiptColumn: Boolean = true,
 		includeCallerAuthority: Boolean = includeFinalTable,
+		includeStepsCountDomain: Boolean = includeFinalTable,
+		stepsSchemaMutation: ((SupportSQLiteDatabase) -> Unit)? = null,
 		markerValue: String? = null,
 	) {
 		val helper = FrameworkSQLiteOpenHelperFactory().create(
@@ -546,13 +638,29 @@ class DevelopmentV28DatabaseContainmentTest {
 								)
 							}
 						}
+						if (includeStepsCountDomain) {
+							db.execSQL(
+								"CREATE TABLE ambient_steps_fact_revision (" +
+									"logical_fact_id TEXT NOT NULL, " +
+									"semantic_revision INTEGER NOT NULL, " +
+									"operation TEXT NOT NULL, " +
+									"effect_checksum TEXT NOT NULL, " +
+									"applied_at_ms INTEGER NOT NULL, " +
+									"PRIMARY KEY(logical_fact_id, semantic_revision))",
+							)
+							check(
+								StepsCountDomainSchema.installIfAbsent(db) ==
+									StepsCountDomainSchemaState.ValidV2,
+							)
+							stepsSchemaMutation?.invoke(db)
+						}
 						if (markerValue != null) {
 							db.execSQL(
 								"INSERT INTO room_master_table(id, identity_hash) VALUES (?, ?)",
 								arrayOf(FINAL_V28_MARKER_ID, markerValue),
 							)
 						} else if (includeMarker) {
-							FinalV28SchemaAssemblyRoomCallback.onCreate(db)
+							createFinalV28SchemaAssemblyMarker(db)
 						}
 					}
 

@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
-import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityProductBatchPreflight
@@ -33,9 +32,8 @@ class ImportedActivityProductReaderBudgetTest {
 
 	@Before
 	fun setUp() {
-		database = Room.inMemoryDatabaseBuilder(
+		database = AppDatabase.inMemoryBuilder(
 			ApplicationProvider.getApplicationContext<Application>(),
-			AppDatabase::class.java,
 		).allowMainThreadQueries()
 			.setQueryCallback({ sql, _ -> queries += sql.normalizedSql() }, Executor(Runnable::run))
 			.build()

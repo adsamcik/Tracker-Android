@@ -1,5 +1,9 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityResult
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityRequest
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityQuery
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerReference
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -47,6 +51,7 @@ internal data class QualifiedAmbientStepsFact(
 	val importedProvenance: ImportedAmbientStepsFactProvenance? = null,
 	val correctionRevision: Long = 1L,
 	val contentChecksum: String,
+	val countDomainOwner: StepsCountDomainOwnerReference? = null,
 ) {
 	init {
 		require(logicalFactId.isNotBlank())
@@ -92,21 +97,6 @@ internal data class EffectiveAmbientStepsGap(
 	}
 }
 
-/** Only an exact durable provider-domain link can authorize subtraction. */
-internal sealed interface SessionAmbientCompatibility {
-	data class ExactProviderDomain(
-		val provider: String,
-		val sourceInstanceId: String,
-	) : SessionAmbientCompatibility {
-		init {
-			require(provider.isNotBlank())
-			require(sourceInstanceId.isNotBlank())
-		}
-	}
-
-	data object Unproven : SessionAmbientCompatibility
-}
-
 internal enum class QualifiedSessionStepsOrigin { LOCAL_CAPTURE, PORTABLE_IMPORT }
 
 internal data class QualifiedSessionStepsWindow(
@@ -116,8 +106,10 @@ internal data class QualifiedSessionStepsWindow(
 	val endTimeMs: Long,
 	val stepCount: Long?,
 	val storedZoneId: String?,
-	val compatibility: SessionAmbientCompatibility,
+	val compatibility: StepsCountDomainCompatibilityResult =
+		StepsCountDomainCompatibilityResult.Unproven,
 	val origin: QualifiedSessionStepsOrigin = QualifiedSessionStepsOrigin.LOCAL_CAPTURE,
+	val countDomainOwners: List<StepsCountDomainOwnerReference> = emptyList(),
 ) {
 	init {
 		require(logicalTrackingId.isNotBlank())
@@ -130,6 +122,7 @@ internal data class QualifiedSessionStepsWindow(
 		}
 		require(storedZoneId == null || storedZoneId.isNotBlank())
 		storedZoneId?.let(ZoneId::of)
+		require(countDomainOwners.distinct().size == countDomainOwners.size)
 	}
 }
 
@@ -149,6 +142,9 @@ internal enum class AmbientStepsDayCause {
 	SESSION_VALUE_UNAVAILABLE,
 	SESSION_OVERLAP,
 	SESSION_PROVIDER_COMPATIBILITY_UNPROVEN,
+	SESSION_COUNT_DOMAIN_CONFLICT,
+	SESSION_COUNT_DOMAIN_DELETED,
+	SESSION_COUNT_DOMAIN_UNVERIFIABLE,
 	SESSION_NOT_COVERED_BY_COMPATIBLE_AMBIENT_FACT,
 	SESSION_COUNT_EXCEEDS_AMBIENT_TOTAL,
 }
@@ -185,6 +181,31 @@ internal data class AmbientStepsDayProduct(
 	val betweenSession: AmbientStepsNumericValue,
 	val origins: Set<QualifiedAmbientStepsFactOrigin> = emptySet(),
 )
+
+/** Narrow P5 request seam; no wall, count, zone, or display-source value enters compatibility. */
+internal fun QualifiedSessionStepsWindow.countDomainCompatibilityRequest(
+	facts: List<QualifiedAmbientStepsFact>,
+): StepsCountDomainCompatibilityRequest = StepsCountDomainCompatibilityRequest(
+	sessionOwners = countDomainOwners,
+	ambientOwners = facts.mapNotNull(QualifiedAmbientStepsFact::countDomainOwner).distinct(),
+)
+
+/** Applies one bounded query result per session without changing any count or wall membership. */
+internal suspend fun List<QualifiedSessionStepsWindow>.withCountDomainCompatibility(
+	facts: List<QualifiedAmbientStepsFact>,
+	query: StepsCountDomainCompatibilityQuery,
+): List<QualifiedSessionStepsWindow> {
+	if (isEmpty()) return emptyList()
+	val results = query.compare(map { it.countDomainCompatibilityRequest(facts) })
+	if (results.size != size) {
+		return map {
+			it.copy(compatibility = StepsCountDomainCompatibilityResult.Unverifiable)
+		}
+	}
+	return zip(results) { session, compatibility ->
+		session.copy(compatibility = compatibility)
+	}
+}
 
 /** Pure composition over integrity-qualified, latest-effective source facts and session evidence. */
 internal fun composeAmbientStepsDay(
@@ -246,11 +267,14 @@ internal fun composeAmbientStepsDay(
 		when (fact.origin) {
 			QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER -> {
 				val provenance = requireNotNull(fact.provenance)
-				AmbientStepsCountDomain.Native(provenance.provider, provenance.sourceInstanceId)
+				AmbientStepsAuthorityDomain.Native(
+					provenance.provider,
+					provenance.sourceInstanceId,
+				)
 			}
 			QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT ->
 				requireNotNull(fact.importedProvenance).let { provenance ->
-					AmbientStepsCountDomain.Portable(
+					AmbientStepsAuthorityDomain.Portable(
 						provenance.archiveIdentity,
 						provenance.dayIdentity,
 						provenance.dayImportRevision,
@@ -300,21 +324,33 @@ internal fun composeAmbientStepsDay(
 	}
 	var inSessionTotal = 0L
 	for (session in containedSessions) {
+		val compatible = when (session.compatibility) {
+			StepsCountDomainCompatibilityResult.ExactCompatible ->
+				orderedFacts.filter {
+					it.origin == QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER
+				}
+			StepsCountDomainCompatibilityResult.Conflict -> {
+				betweenCauses += AmbientStepsDayCause.SESSION_COUNT_DOMAIN_CONFLICT
+				continue
+			}
+			StepsCountDomainCompatibilityResult.Unproven -> {
+				betweenCauses +=
+					AmbientStepsDayCause.SESSION_PROVIDER_COMPATIBILITY_UNPROVEN
+				continue
+			}
+			StepsCountDomainCompatibilityResult.Deleted -> {
+				betweenCauses += AmbientStepsDayCause.SESSION_COUNT_DOMAIN_DELETED
+				continue
+			}
+			StepsCountDomainCompatibilityResult.Unverifiable -> {
+				betweenCauses += AmbientStepsDayCause.SESSION_COUNT_DOMAIN_UNVERIFIABLE
+				continue
+			}
+		}
 		val sessionCount = session.stepCount
 		if (sessionCount == null) {
 			betweenCauses += AmbientStepsDayCause.SESSION_VALUE_UNAVAILABLE
 			continue
-		}
-		val proof = session.compatibility as? SessionAmbientCompatibility.ExactProviderDomain
-		if (proof == null) {
-			betweenCauses += AmbientStepsDayCause.SESSION_PROVIDER_COMPATIBILITY_UNPROVEN
-			continue
-		}
-		val compatible = orderedFacts.filter { fact ->
-			val provider = fact.provenance
-			fact.origin == QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER &&
-				provider != null && provider.provider == proof.provider &&
-				provider.sourceInstanceId == proof.sourceInstanceId
 		}
 		if (!compatible.covers(session.startTimeMs, session.endTimeMs)) {
 			betweenCauses += AmbientStepsDayCause.SESSION_NOT_COVERED_BY_COMPATIBLE_AMBIENT_FACT
@@ -335,17 +371,17 @@ internal fun composeAmbientStepsDay(
 	return AmbientStepsDayProduct(day, total, containedSessions, between, origins)
 }
 
-private sealed interface AmbientStepsCountDomain {
+private sealed interface AmbientStepsAuthorityDomain {
 	data class Native(
 		val provider: String,
 		val sourceInstanceId: String,
-	) : AmbientStepsCountDomain
+	) : AmbientStepsAuthorityDomain
 
 	data class Portable(
 		val archiveIdentity: String,
 		val dayIdentity: String,
 		val dayImportRevision: Long,
-	) : AmbientStepsCountDomain
+	) : AmbientStepsAuthorityDomain
 }
 
 private fun List<QualifiedAmbientStepsFact>.covers(startTimeMs: Long, endTimeMs: Long): Boolean {

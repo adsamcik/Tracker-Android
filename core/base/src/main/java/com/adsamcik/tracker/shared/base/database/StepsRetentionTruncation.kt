@@ -9,6 +9,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
 
 /**
  * Installs one immutable, payload-free marker for an exact Steps run crossed by raw retention.
@@ -102,6 +104,7 @@ suspend fun AppDatabase.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
 	require(markedAtMs >= 0L)
 	requireCurrentCollectedDataEpoch(collectedDataEpoch)
 	val factDao = stepFactRevisionDao()
+	val countDomainStore = StepsCountDomainStore(this)
 	var deleted = 0
 	visitAuthenticatedRetentionRunBatches(beforeMs, collectedDataEpoch) { runs ->
 		runs.forEach { run ->
@@ -124,6 +127,29 @@ suspend fun AppDatabase.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
 				}
 				.forEach { (writer, facts) ->
 					facts.chunked(RETENTION_FACT_DELETE_BATCH_SIZE).forEach { batch ->
+						val countDomainOwners = batch.map { fact ->
+							StepsCountDomainOwnerLookupKey(
+								ownerKind =
+									StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+								ownerIdentity = StepsCountDomainReceiptIntegrity
+									.sessionFactOwnerIdentity(
+										fact.writerProjectionId,
+										fact.writerProjectionVersion,
+										fact.logicalFactId,
+									),
+								ownerRevision = fact.semanticRevision,
+							)
+						}
+						countDomainOwners.chunked(COUNT_DOMAIN_OWNER_BATCH_SIZE).forEach { owners ->
+							countDomainStore.withOwnerMaintenance { maintenance ->
+								check(
+									maintenance.removeOwners(owners).let { result ->
+										result is StepsCountDomainMaintenanceResult.Applied ||
+											result == StepsCountDomainMaintenanceResult.SchemaUnavailable
+									},
+								) { "Steps count-domain retention evidence could not be removed" }
+							}
+						}
 						val deletedBatch = factDao.deleteAuthenticatedUpsertRevisions(
 							writerProjectionId = writer.first,
 							writerProjectionVersion = writer.second,
@@ -332,4 +358,5 @@ private class AuthenticatedRetentionRunBuilder(val serviceRun: SourceServiceRunE
 private const val INSERT_IGNORED = -1L
 private const val RETENTION_RUN_PAGE_SIZE = 64
 private const val RETENTION_FACT_DELETE_BATCH_SIZE = 256
+private const val COUNT_DOMAIN_OWNER_BATCH_SIZE = 400
 private const val RETENTION_FACT_AUDIT_PAGE_SIZE = 256

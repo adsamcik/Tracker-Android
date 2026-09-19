@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
+import android.hardware.SensorEventListener2
 import android.hardware.SensorManager
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
@@ -17,6 +18,8 @@ import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -74,6 +77,46 @@ class StepSourceRuntimeRetirementTest {
 		assertIs<SourceStartResult.Failed>(fixture.runtime.start(fixture.plan, fixture.sink))
 
 		assertEquals(listOf("provider-start", "retiring", "provider-stop", "retired"), fixture.events)
+		assertSame(fixture.listeners.single(), fixture.removedListeners.single())
+	}
+
+	@Test
+	fun `failed start cleanup discards provisional callbacks without product settlement`() = runTest {
+		val claim = runtimeClaim("failed-start-cleanup")
+		var admitted = 0
+		val sink = SourceEventSink {
+			admitted += 1
+			SourceAdmissionHandoff.Durable(admitted.toLong())
+		}
+		val fixture = fixture(
+			scope = this,
+			registerFailure = IllegalStateException("provider apply was ambiguous"),
+			completionOutcomes = ArrayDeque(listOf(false, true)),
+			sink = sink,
+			onRegister = { _, listener, sensor ->
+				listener.onSensorChanged(stepEvent(sensor, 1f))
+			},
+		)
+
+		assertIs<SourceStartResult.Failed>(
+			fixture.runtime.start(claim, fixture.plan, sink),
+		)
+		val released = assertIs<OwnedSourceShutdown.Released>(
+			fixture.runtime.shutdownIfOwned(claim, sessionCutoff(Long.MAX_VALUE)),
+		)
+
+		assertEquals(null, released.stopAck)
+		assertEquals(1L, released.provider?.registrationGeneration)
+		assertEquals(0, admitted)
+		coVerify(exactly = 0) {
+			fixture.repository.saveRuntimeState(
+				any(), any(), any(), any(), any(), any(), any(), any(), any(),
+			)
+		}
+		coVerify(exactly = 1) { fixture.repository.beginRetirement(any(), any(), any(), any()) }
+		coVerify(exactly = 2) {
+			fixture.repository.completeRetirement(fixture.retirementTokens.single())
+		}
 		assertSame(fixture.listeners.single(), fixture.removedListeners.single())
 	}
 
@@ -146,6 +189,125 @@ class StepSourceRuntimeRetirementTest {
 			fixture.sensorManager.registerListener(any<SensorEventListener>(), any<Sensor>(), any<Int>(), any<Int>())
 		}
 		fixture.runtime.close()
+	}
+
+	@Test
+	fun `transient retirement does not publish completeness before current complete retry`() = runTest {
+		val fixture = fixture(
+			scope = this,
+			completionOutcomes = ArrayDeque<Any>(listOf(false, true)),
+		)
+		val claim = runtimeClaim("transient-retirement")
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(claim, fixture.plan, fixture.sink))
+
+		val pending = assertIs<OwnedSourceShutdown.Incomplete>(
+			fixture.runtime.shutdownIfOwned(claim, sessionCutoff(Long.MAX_VALUE)),
+		)
+
+		assertEquals(SourceStopStatus.PROVIDER_FAILED, pending.stopAck?.status)
+		assertEquals(RegistrationRemovalOutcome.FAILED, pending.stopAck?.registrationRemovalOutcome)
+		coVerify(exactly = 0) {
+			fixture.repository.saveRuntimeState(
+				any(), any(), any(), any(), any(), any(), any(),
+				match { it != null },
+				any(),
+			)
+		}
+
+		val released = assertIs<OwnedSourceShutdown.Released>(
+			fixture.runtime.shutdownIfOwned(claim, sessionCutoff(Long.MAX_VALUE)),
+		)
+
+		assertEquals(SourceStopStatus.COMPLETE, released.stopAck?.status)
+		assertEquals(RegistrationRemovalOutcome.REMOVED, released.stopAck?.registrationRemovalOutcome)
+		coVerify(exactly = 1) {
+			fixture.repository.saveRuntimeState(
+				any(), any(), any(), any(), any(), any(), any(),
+				match {
+					it?.stopStatus == SourceStopStatus.COMPLETE.name &&
+						it.appDrainComplete
+				},
+				match {
+					it?.providerFlushOutcome == ProviderFlushOutcome.NOT_SUPPORTED.name &&
+						it.registrationRemovalOutcome == RegistrationRemovalOutcome.REMOVED.name
+				},
+			)
+		}
+		coVerify(exactly = 1) { fixture.repository.beginRetirement(any(), any(), any(), any()) }
+		coVerify(exactly = 2) {
+			fixture.repository.completeRetirement(fixture.retirementTokens.single())
+		}
+	}
+
+	@Test
+	fun `failed flush remains active and retries before provider removal or terminal publication`() = runTest {
+		val batchingPlan = plan(1L).copy(maximumReportLatencyMs = 60_000L)
+		val fixture = fixture(
+			scope = this,
+			registrations = listOf(registration(batchingPlan, 1L)),
+			runtimePlan = batchingPlan,
+			fifoMaxEventCount = 16,
+			flushOutcomes = ArrayDeque(listOf(false, true)),
+		)
+		val claim = runtimeClaim("flush-retry")
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(claim, batchingPlan, fixture.sink))
+
+		val pending = assertIs<OwnedSourceShutdown.Incomplete>(
+			fixture.runtime.shutdownIfOwned(claim, sessionCutoff(Long.MAX_VALUE)),
+		)
+
+		assertEquals(ProviderFlushOutcome.FAILED, pending.stopAck?.providerFlushOutcome)
+		assertEquals(RegistrationRemovalOutcome.FAILED, pending.stopAck?.registrationRemovalOutcome)
+		verify(exactly = 0) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+		coVerify(exactly = 0) { fixture.repository.beginRetirement(any(), any(), any(), any()) }
+		coVerify(exactly = 0) {
+			fixture.repository.saveRuntimeState(
+				any(), any(), any(), any(), any(), any(), any(),
+				match { it != null },
+				any(),
+			)
+		}
+
+		val released = assertIs<OwnedSourceShutdown.Released>(
+			fixture.runtime.shutdownIfOwned(claim, sessionCutoff(Long.MAX_VALUE)),
+		)
+
+		assertEquals(SourceStopStatus.COMPLETE, released.stopAck?.status)
+		assertEquals(ProviderFlushOutcome.COMPLETE, released.stopAck?.providerFlushOutcome)
+		verify(exactly = 1) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+		coVerify(exactly = 1) { fixture.repository.beginRetirement(any(), any(), any(), any()) }
+		coVerify(exactly = 1) {
+			fixture.repository.saveRuntimeState(
+				any(), any(), any(), any(), any(), any(), any(),
+				match { it?.stopStatus == SourceStopStatus.COMPLETE.name },
+				any(),
+			)
+		}
+	}
+
+	@Test
+	fun `irreversible drained partial is one terminal Steps retirement outcome`() {
+		val acknowledgement = SourceStopAck(
+			source = SourceKind.STEPS,
+			sourceInstanceId = SourceInstanceId("steps-instance"),
+			registrationGeneration = 1L,
+			appliedRevision = 1L,
+			callbackEntryBarrierSequence = 4L,
+			lastDurablyAdmittedSequence = 2L,
+			lastAdmissionOrdinal = 2L,
+			failedAdmissionCount = 2L,
+			unresolvedSequenceStart = 3L,
+			unresolvedSequenceEndInclusive = 4L,
+			registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED,
+			providerFlushOutcome = ProviderFlushOutcome.COMPLETE,
+			providerCoverage = ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER,
+			appDrainComplete = false,
+			status = SourceStopStatus.PARTIAL_UNOBSERVABLE,
+			logicalTrackingId = "steps",
+			serviceRunId = "run-1",
+		)
+
+		assertTrue(acknowledgement.hasTerminalStepsRetirement())
 	}
 
 	@Test
@@ -331,6 +493,54 @@ class StepSourceRuntimeRetirementTest {
 	}
 
 	@Test
+	fun `unverifiable terminal checkpoint remains retry debt without terminal acknowledgement`() =
+		runTest {
+			val claim = runtimeClaim("terminal-checkpoint-retry")
+			val fixture = fixture(
+				scope = this,
+				checkpointOutcomes = ArrayDeque(
+					listOf(
+						SourceRuntimeStateSaveResult.Saved,
+						SourceRuntimeStateSaveResult.Unverifiable,
+						SourceRuntimeStateSaveResult.Saved,
+					),
+				),
+			)
+			assertIs<SourceStartResult.Started>(
+				fixture.runtime.start(claim, fixture.plan, fixture.sink),
+			)
+
+			val pending = assertIs<OwnedSourceShutdown.Incomplete>(
+				fixture.runtime.shutdownIfOwned(claim, sessionCutoff(Long.MAX_VALUE)),
+			)
+
+			assertEquals(SourceStopStatus.PROVIDER_FAILED, pending.stopAck?.status)
+			assertEquals(
+				RegistrationRemovalOutcome.REMOVED,
+				pending.stopAck?.registrationRemovalOutcome,
+			)
+			assertEquals(1L, pending.provider?.registrationGeneration)
+			assertEquals(1, fixture.removedListeners.size)
+
+			val released = assertIs<OwnedSourceShutdown.Released>(
+				fixture.runtime.shutdownIfOwned(claim, sessionCutoff(Long.MAX_VALUE)),
+			)
+
+			assertEquals(SourceStopStatus.COMPLETE, released.stopAck?.status)
+			assertEquals(1L, released.provider?.registrationGeneration)
+			coVerify(exactly = 2) {
+				fixture.repository.saveRuntimeState(
+					any(), any(), any(), any(), any(), any(), any(),
+					match { it != null },
+					any(),
+				)
+			}
+			coVerify(exactly = 1) { fixture.repository.beginRetirement(any(), any(), any(), any()) }
+			coVerify(exactly = 1) { fixture.repository.completeRetirement(any()) }
+			assertEquals(1, fixture.removedListeners.size)
+		}
+
+	@Test
 	fun `noncooperative actor times out while ownership remains retryable`() = runTest {
 		val applicationScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
 		val admissionStarted = CompletableDeferred<Unit>()
@@ -348,18 +558,42 @@ class StepSourceRuntimeRetirementTest {
 			}
 		}
 		val fixture = fixture(applicationScope, sink = sink)
-		assertIs<SourceStartResult.Started>(fixture.runtime.start(fixture.plan, sink))
+		val claim = runtimeClaim("noncooperative-drain")
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(claim, fixture.plan, sink))
 		fixture.listeners.single().onSensorChanged(stepEvent(fixture.sensor, 1f))
 		runCurrent()
 		admissionStarted.await()
 		val now = SystemClock.elapsedRealtimeNanos()
 
-		val stopped = fixture.runtime.quiesce(SessionCutoff("steps", now, now, now + 1_000_000L))
-		assertEquals(SourceStopStatus.TIMED_OUT, stopped.status)
-		assertTrue(!stopped.appDrainComplete)
+		val pending = assertIs<OwnedSourceShutdown.Incomplete>(
+			fixture.runtime.shutdownIfOwned(
+				claim,
+				SessionCutoff("steps", now, now, now + 1_000_000L),
+			),
+		)
+		assertEquals(SourceStopStatus.TIMED_OUT, pending.stopAck?.status)
+		assertTrue(pending.stopAck?.appDrainComplete == false)
+		coVerify(exactly = 0) {
+			fixture.repository.saveRuntimeState(
+				any(), any(), any(), any(), any(), any(), any(),
+				match { it != null },
+				any(),
+			)
+		}
 		releaseAdmission.complete(Unit)
 		advanceUntilIdle()
-		fixture.runtime.close()
+		val released = assertIs<OwnedSourceShutdown.Released>(
+			fixture.runtime.shutdownIfOwned(claim, sessionCutoff(Long.MAX_VALUE)),
+		)
+		assertEquals(SourceStopStatus.COMPLETE, released.stopAck?.status)
+		assertTrue(released.stopAck?.appDrainComplete == true)
+		coVerify(exactly = 1) {
+			fixture.repository.saveRuntimeState(
+				any(), any(), any(), any(), any(), any(), any(),
+				match { it?.stopStatus == SourceStopStatus.COMPLETE.name },
+				any(),
+			)
+		}
 		applicationScope.cancel()
 	}
 
@@ -628,6 +862,9 @@ class StepSourceRuntimeRetirementTest {
 	private fun fixture(
 		scope: kotlinx.coroutines.CoroutineScope,
 		registrations: List<SourceRegistration> = listOf(registration(plan(1L), 1L)),
+		runtimePlan: StepsPlan? = null,
+		fifoMaxEventCount: Int = 0,
+		flushOutcomes: ArrayDeque<Boolean> = ArrayDeque(),
 		unregisterFailures: ArrayDeque<Throwable> = ArrayDeque(),
 		unregisterOutcomes: ArrayDeque<Any> = ArrayDeque(),
 		beginOutcomes: ArrayDeque<Any> = ArrayDeque(),
@@ -654,8 +891,22 @@ class StepSourceRuntimeRetirementTest {
 		every { packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER) } returns true
 		every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns sensor
 		every { sensor.type } returns Sensor.TYPE_STEP_COUNTER
-		every { sensor.fifoMaxEventCount } returns 0
+		every { sensor.stringType } returns "android.sensor.step_counter"
+		every { sensor.vendor } returns "vendor"
+		every { sensor.name } returns "counter"
+		every { sensor.version } returns 1
+		every { sensor.id } returns 7
+		every { sensor.fifoMaxEventCount } returns fifoMaxEventCount
 		every { sensor.minDelay } returns 0
+		every { sensorManager.flush(any()) } answers {
+			when (flushOutcomes.removeFirstOrNull()) {
+				false -> false
+				else -> {
+					(firstArg<SensorEventListener>() as SensorEventListener2).onFlushCompleted(sensor)
+					true
+				}
+			}
+		}
 		var registrationIndex = 0
 		every { sensorManager.registerListener(any<SensorEventListener>(), sensor, any<Int>(), any<Int>()) } answers {
 			listeners += firstArg<SensorEventListener>()
@@ -677,11 +928,23 @@ class StepSourceRuntimeRetirementTest {
 			registrations[beginIndex++.coerceAtMost(registrations.lastIndex)]
 		}
 		coEvery { repository.loadRuntimeState(any()) } returns null
-		coEvery { repository.saveRuntimeState(any(), any(), any(), any(), any(), any(), any(), any()) } answers {
+		fun nextCheckpointOutcome(): SourceRuntimeStateSaveResult =
 			when (val outcome = checkpointOutcomes.removeFirstOrNull()) {
 				is Throwable -> throw outcome
-				else -> Unit
+				is SourceRuntimeStateSaveResult -> outcome
+				else -> SourceRuntimeStateSaveResult.Saved
 			}
+		coEvery {
+			repository.saveRuntimeState(any(), any(), any(), any(), any(), any(), any(), any())
+		} answers {
+			nextCheckpointOutcome()
+		}
+		coEvery {
+			repository.saveRuntimeState(
+				any(), any(), any(), any(), any(), any(), any(), any(), any(),
+			)
+		} answers {
+			nextCheckpointOutcome()
 		}
 		coEvery { repository.markAccepted(any(), any(), any()) } answers {
 			acceptanceFailure?.let { throw it }
@@ -711,12 +974,22 @@ class StepSourceRuntimeRetirementTest {
 				else -> true
 			}
 		}
+		val projectionLane = mockk<StepsSessionFactProjectionLane>()
+		coEvery { projectionLane.drainCanonicalThrough(any()) } answers {
+			StepsSessionFactDrainResult.Complete(firstArg(), 0, 0)
+		}
 		return Fixture(
-			runtime = StepSourceRuntime(context, scope, repository),
+			runtime = StepSourceRuntime(
+				context,
+				scope,
+				repository,
+				projectionLane,
+			),
 			repository = repository,
 			sensorManager = sensorManager,
 			sensor = sensor,
-			plan = registrations.first().let { plan(requireNotNull(it.state.appliedRevision)) },
+			plan = runtimePlan
+				?: registrations.first().let { plan(requireNotNull(it.state.appliedRevision)) },
 			sink = sink,
 			events = events,
 			listeners = listeners,

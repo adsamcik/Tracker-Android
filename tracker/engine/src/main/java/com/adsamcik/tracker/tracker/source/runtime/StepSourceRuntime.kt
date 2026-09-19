@@ -11,8 +11,10 @@ import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
-import com.adsamcik.tracker.tracker.source.ingress.STEP_BOUNDARY_KIND_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
+import com.adsamcik.tracker.tracker.source.ingress.STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
@@ -23,6 +25,8 @@ import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -51,6 +55,7 @@ class StepSourceRuntime @Inject constructor(
 	@ApplicationContext private val context: Context,
 	@ApplicationScope private val applicationScope: CoroutineScope,
 	private val registrations: SourceRegistrationRepository,
+	private val stepsProjectionLane: StepsSessionFactProjectionLane,
 ) : ClaimedSourceRuntime<StepsPlan> {
 	override val source: SourceKind = SourceKind.STEPS
 	private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -86,6 +91,12 @@ class StepSourceRuntime @Inject constructor(
 	private var batchingEnabled = false
 	private var metrics = RuntimeAdmissionMetrics()
 	private val processedCallbackSequence = MutableStateFlow(0L)
+	private var cachedCounterDomainTokenBootId: String? = null
+	private var cachedCounterDomainTokenSourceInstanceId: String? = null
+	private var cachedCounterDomainTokenGeneration: Long? = null
+	private var cachedCounterDomainToken: StepsCounterDomainToken? = null
+	private var counterEpochAuthorityProven = false
+	private var cleanupOnlyReleasePending = false
 
 	override suspend fun start(plan: StepsPlan, sink: SourceEventSink): SourceStartResult = lifecycleMutex.withLock {
 		startForClaimLocked(claim = null, plan, sink)
@@ -106,7 +117,11 @@ class StepSourceRuntime @Inject constructor(
 		sink: SourceEventSink,
 	): SourceStartResult {
 		if (providerRetirement != null) {
-			retryPendingRetirementLocked()
+			if (providerRetirement?.cleanupOnly == true) {
+				retryPendingProvisionalCleanupLocked()
+			} else {
+				retryPendingRetirementLocked()
+			}
 			if (providerRetirement != null) {
 				return SourceStartResult.Failed(
 					appliedState(source, plan.revision, null, SourceApplyStatus.FAILED,
@@ -115,6 +130,10 @@ class StepSourceRuntime @Inject constructor(
 				)
 			}
 		}
+		if (cleanupOnlyReleasePending) {
+			cleanupOnlyReleasePending = false
+			runtimeClaim = null
+		}
 		require(currentPlan == null) { "Step source is already started" }
 		// A completed predecessor acknowledgement is useful only to its reconfigure caller. Once a
 		// successor can publish provider state it must never short-circuit that successor's cleanup.
@@ -122,12 +141,16 @@ class StepSourceRuntime @Inject constructor(
 		runtimeClaim = claim.takeIf { plan.enabled }
 		return try {
 			startLocked(plan, sink).also {
-				if (registration == null && providerRetirement == null) {
+				if (registration == null && providerRetirement == null &&
+					!cleanupOnlyReleasePending
+				) {
 					runtimeClaim = null
 				}
 			}
 		} catch (error: Throwable) {
-			if (registration == null && providerRetirement == null) runtimeClaim = null
+			if (registration == null && providerRetirement == null &&
+				!cleanupOnlyReleasePending
+			) runtimeClaim = null
 			throw error
 		}
 	}
@@ -150,6 +173,22 @@ class StepSourceRuntime @Inject constructor(
 		plan: StepsPlan,
 		sink: SourceEventSink,
 	): SourceApplyResult {
+		if (providerRetirement?.cleanupOnly == true) {
+			if (!retryPendingProvisionalCleanupLocked()) {
+				return SourceApplyResult.Failed(
+					appliedState(
+						source,
+						plan.revision,
+						null,
+						SourceApplyStatus.FAILED,
+						SystemClock.elapsedRealtimeNanos(),
+					),
+					retryable = true,
+				)
+			}
+			cleanupOnlyReleasePending = false
+			runtimeClaim = null
+		}
 		val replayableStopAck = terminalStopAck
 		refreshCompatibleLocked(plan, sink) { runtimeClaim = claim }?.let { refreshed ->
 			return refreshed.withStopAckIfAbsent(replayableStopAck)
@@ -159,7 +198,8 @@ class StepSourceRuntime @Inject constructor(
 			val previous = shutdownLocked(null)
 			stopAck = previous
 			if (!previous.appDrainComplete ||
-				previous.registrationRemovalOutcome != RegistrationRemovalOutcome.REMOVED
+				previous.registrationRemovalOutcome != RegistrationRemovalOutcome.REMOVED ||
+				!previous.hasTerminalStepsRetirement()
 			) {
 				return SourceApplyResult.Failed(
 					appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()),
@@ -185,10 +225,14 @@ class StepSourceRuntime @Inject constructor(
 			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied, stopAck)
 			is SourceStartResult.Degraded -> SourceApplyResult.Degraded(result.applied, stopAck)
 			is SourceStartResult.Blocked -> SourceApplyResult.Failed(result.applied, false, stopAck).also {
-				if (registration == null && providerRetirement == null) runtimeClaim = null
+				if (registration == null && providerRetirement == null &&
+					!cleanupOnlyReleasePending
+				) runtimeClaim = null
 			}
 			is SourceStartResult.Failed -> SourceApplyResult.Failed(result.applied, result.retryable, stopAck).also {
-				if (registration == null && providerRetirement == null) runtimeClaim = null
+				if (registration == null && providerRetirement == null &&
+					!cleanupOnlyReleasePending
+				) runtimeClaim = null
 			}
 		}
 	}
@@ -203,6 +247,21 @@ class StepSourceRuntime @Inject constructor(
 	): OwnedSourceShutdown = lifecycleMutex.withLock {
 		require(claim.source == source)
 		if (runtimeClaim != claim) return@withLock OwnedSourceShutdown.NotOwned
+		if (cleanupOnlyReleasePending) {
+			cleanupOnlyReleasePending = false
+			runtimeClaim = null
+			return@withLock OwnedSourceShutdown.Released(provider = null, stopAck = null)
+		}
+		providerRetirement?.takeIf { retirement -> retirement.cleanupOnly }?.let { cleanup ->
+			val provider = cleanup.registration.providerKey()
+			return@withLock if (retryPendingProvisionalCleanupLocked(cutoff.deadlineElapsedRealtimeNanos)) {
+				cleanupOnlyReleasePending = false
+				runtimeClaim = null
+				OwnedSourceShutdown.Released(provider = provider, stopAck = null)
+			} else {
+				OwnedSourceShutdown.Incomplete(provider = provider, stopAck = null)
+			}
+		}
 		val acknowledgement = when {
 			currentPlan != null || providerRetirement != null -> shutdownLocked(cutoff)
 			terminalStopAck != null -> terminalStopAck
@@ -212,7 +271,8 @@ class StepSourceRuntime @Inject constructor(
 			runtimeClaim = null
 			OwnedSourceShutdown.Released(provider = null, stopAck = null)
 		} else {
-			acknowledgement.toOwnedShutdown().also { shutdown ->
+			val shutdown = acknowledgement.toStepsOwnedShutdown()
+			shutdown.also {
 				if (shutdown is OwnedSourceShutdown.Released) runtimeClaim = null
 			}
 		}
@@ -233,15 +293,21 @@ class StepSourceRuntime @Inject constructor(
 	}
 
 	override suspend fun close() = lifecycleMutex.withLock {
-		if (currentPlan != null || providerRetirement != null) {
+		if (providerRetirement?.cleanupOnly == true) {
+			if (retryPendingProvisionalCleanupLocked()) {
+				runtimeClaim = null
+				cleanupOnlyReleasePending = false
+			}
+		} else if (currentPlan != null || providerRetirement != null) {
 			clearClaimIfReleased(shutdownLocked(null))
 		} else {
 			runtimeClaim = null
+			cleanupOnlyReleasePending = false
 		}
 	}
 
 	private fun clearClaimIfReleased(acknowledgement: SourceStopAck) {
-		if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) runtimeClaim = null
+		if (acknowledgement.hasTerminalStepsRetirement()) runtimeClaim = null
 	}
 
 	private suspend fun refreshCompatibleLocked(
@@ -387,10 +453,27 @@ class StepSourceRuntime @Inject constructor(
 			currentRegistrationGeneration = nextRegistration.state.registrationGeneration,
 			reusedPhysicalRegistration = nextRegistration.predecessorState
 				?.registrationGeneration == nextRegistration.state.registrationGeneration,
+			freshCounterIdentity = nextRegistration.predecessorState?.let { predecessor ->
+				predecessor.sourceInstanceId != nextRegistration.state.sourceInstanceId ||
+					predecessor.clockDomainId != nextRegistration.state.clockDomainId
+			} ?: true,
+			counterDomainTokenForGeneration = { generation ->
+				StepsCounterDomainTokenIssuer.directSensor(
+					sensor = stepSensor,
+					bootClockDomainId = nextRegistration.state.clockDomainId,
+					sourceInstanceId = nextRegistration.state.sourceInstanceId,
+					counterEpochGeneration = generation,
+				)
+			},
 		)
+		counterEpochAuthorityProven = recovery.counterEpochAuthorityProven
 		// A process boundary can miss cumulative callbacks even when Android retained the same
 		// physical generation. Never stitch the persisted count across that unverifiable interval.
-		val accumulator = StepWindowAccumulator(initialBaseline = null, boundary = baselineBoundary)
+		val accumulator = StepWindowAccumulator(
+			initialBaseline = null,
+			boundary = baselineBoundary,
+			initialCounterEpochGeneration = recovery.counterEpochGeneration,
+		)
 		val restoredMetrics = recovery.metrics
 		metrics = RuntimeAdmissionMetrics(
 			lastDurablyAdmittedSequence = restoredMetrics?.lastDurablyAdmittedSequence,
@@ -508,7 +591,11 @@ class StepSourceRuntime @Inject constructor(
 					lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
 					metrics = metrics.snapshot(),
 					componentStateVersion = STEP_BASELINE_VERSION,
-					componentPayload = ByteArray(0),
+					componentPayload = stepCounterEpochCheckpointBaseline(
+						boundary = baselineBoundary,
+						counterEpochGeneration = recovery.counterEpochGeneration,
+						counterDomainToken = recovery.counterDomainToken,
+					).encode(),
 					causalOrderElapsedRealtimeNanos = startupCheckpointCausalOrderElapsedNanos,
 				),
 				updatedAtMs = stepCheckpointOrderMillis(startupCheckpointCausalOrderElapsedNanos),
@@ -568,10 +655,12 @@ class StepSourceRuntime @Inject constructor(
 			retiredElapsedRealtimeNanos = retirementBoundary,
 			providerAlreadyRemoved = false,
 			deadlineElapsedRealtimeNanos = providerSettlementDeadline(),
+			cleanupOnly = true,
 		)
 		val actorSettled = settleActor(providerSettlementDeadline())
 		if (retirement == StepProviderRetirement.COMPLETE && actorSettled) {
 			clearActiveState()
+			cleanupOnlyReleasePending = runtimeClaim != null
 		} else {
 			retainProviderForRetirementRetry(retainActor = !actorSettled)
 		}
@@ -634,6 +723,33 @@ class StepSourceRuntime @Inject constructor(
 		} catch (_: Exception) {
 			ProviderFlushOutcome.FAILED
 		}
+		if (flushOutcome in setOf(ProviderFlushOutcome.FAILED, ProviderFlushOutcome.TIMED_OUT)) {
+			val admission = metrics.snapshot()
+			val retryBarrier = synchronized(callbackLock) { callbackEntrySequence }
+			val retryable = SourceStopAck(
+				source = source,
+				sourceInstanceId = SourceInstanceId(activeRegistration.state.sourceInstanceId),
+				registrationGeneration = activeRegistration.state.registrationGeneration,
+				appliedRevision = currentPlan?.revision,
+				callbackEntryBarrierSequence = retryBarrier,
+				lastDurablyAdmittedSequence = admission.lastDurablyAdmittedSequence,
+				lastAdmissionOrdinal = admission.lastAdmissionOrdinal,
+				failedAdmissionCount = admission.failedAdmissionCount,
+				unresolvedSequenceStart = admission.unresolvedSequenceStart,
+				unresolvedSequenceEndInclusive = admission.unresolvedSequenceEndInclusive,
+				registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
+				providerFlushOutcome = flushOutcome,
+				providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+				appDrainComplete = false,
+				status = if (flushOutcome == ProviderFlushOutcome.TIMED_OUT) {
+					SourceStopStatus.TIMED_OUT
+				} else {
+					SourceStopStatus.PROVIDER_FAILED
+				},
+			).withSessionMembership(activeRegistration).withSessionMembership(runtimeClaim)
+			terminalFailure?.let { throw it }
+			return retryable
+		}
 		val barrier: Long
 		val overflowSequence: Long?
 		val terminalCheckpointCausalOrderElapsedNanos: Long
@@ -655,6 +771,7 @@ class StepSourceRuntime @Inject constructor(
 					overflowPaused && overflowPauseRemovalComplete
 				},
 				deadlineElapsedRealtimeNanos = drainDeadline,
+				cleanupOnly = false,
 			)
 		} catch (cancelled: CancellationException) {
 			retainTerminalFailure(cancelled)
@@ -681,7 +798,7 @@ class StepSourceRuntime @Inject constructor(
 		}
 		val actorSettled = if (drainComplete) settleActor(drainDeadline, cancel = false) else settleActor(drainDeadline)
 		@Suppress("UNUSED_VARIABLE") val keepReferenceUntilDrain = activeQueue
-		if (!drainComplete) {
+		if (!drainComplete && actorSettled) {
 			unaccountedStepDrainRanges(processedCallbackSequence.value, barrier, overflowSequence)
 				.forEach { range -> metrics.recordFailure(range.first, range.last, RuntimeGapClassification.DRAIN_TIMED_OUT) }
 		}
@@ -702,8 +819,11 @@ class StepSourceRuntime @Inject constructor(
 			providerCoverage = sensorProviderCoverage(batchingEnabled, flushOutcome),
 			appDrainComplete = drainComplete,
 			status = when {
-				!drainComplete || !actorSettled || retirement == StepProviderRetirement.TIMED_OUT -> SourceStopStatus.TIMED_OUT
-				removal == RegistrationRemovalOutcome.FAILED -> SourceStopStatus.PROVIDER_FAILED
+				!actorSettled || retirement == StepProviderRetirement.TIMED_OUT ->
+					SourceStopStatus.TIMED_OUT
+				removal == RegistrationRemovalOutcome.FAILED ->
+					SourceStopStatus.PROVIDER_FAILED
+				!drainComplete -> SourceStopStatus.PARTIAL_UNOBSERVABLE
 				else -> SourceStopStatus.COMPLETE
 			},
 		).withSessionMembership(activeRegistration).withSessionMembership(runtimeClaim)
@@ -715,6 +835,8 @@ class StepSourceRuntime @Inject constructor(
 			causalOrderElapsedRealtimeNanos = terminalCheckpointCausalOrderElapsedNanos,
 			admission = admission,
 			ack = ack,
+			overflowSequence = overflowSequence,
+			drainGapRecorded = !drainComplete && actorSettled,
 		).also { terminalSettlement = it }
 		try {
 			settleTerminalCheckpoint(terminal)
@@ -722,14 +844,19 @@ class StepSourceRuntime @Inject constructor(
 			retainProviderForRetirementRetry(retainActor = !actorSettled)
 			throw failure
 		}
-		if (retirement == StepProviderRetirement.COMPLETE && actorSettled) {
+		val settledAck = if (ack.hasTerminalStepsRetirement() && !terminal.checkpointConfirmed) {
+			ack.withTerminalCheckpointPending()
+		} else {
+			ack
+		}
+		if (terminal.checkpointConfirmed && ack.hasTerminalStepsRetirement()) {
 			terminalStopAck = ack
 			clearActiveState()
 		} else {
 			retainProviderForRetirementRetry(retainActor = !actorSettled)
 		}
 		terminalFailure?.let { throw it }
-		return ack
+		return settledAck
 	}
 
 	private suspend fun retryPendingRetirementLocked(
@@ -739,7 +866,50 @@ class StepSourceRuntime @Inject constructor(
 		val retirement = settleProviderRetirement(intent, deadlineElapsedRealtimeNanos)
 		val actorSettled = settleActor(deadlineElapsedRealtimeNanos)
 		val terminal = terminalSettlement
-		if (terminal != null && !terminal.checkpointConfirmed) {
+		val previous = terminal?.ack ?: intent.stopAck ?: retirementOnlyAck(intent)
+		val completed = retirement == StepProviderRetirement.COMPLETE
+		val drainComplete =
+			previous.callbackEntryBarrierSequence <= processedCallbackSequence.value
+		if (!drainComplete && actorSettled && terminal != null && !terminal.drainGapRecorded) {
+			unaccountedStepDrainRanges(
+				processedCallbackSequence.value,
+				terminal.barrier,
+				terminal.overflowSequence,
+			).forEach { range ->
+				metrics.recordFailure(range.first, range.last, RuntimeGapClassification.DRAIN_TIMED_OUT)
+			}
+			terminal.drainGapRecorded = true
+		}
+		val admission = metrics.snapshot()
+		val ack = previous.copy(
+			lastDurablyAdmittedSequence = admission.lastDurablyAdmittedSequence,
+			lastAdmissionOrdinal = admission.lastAdmissionOrdinal,
+			failedAdmissionCount = admission.failedAdmissionCount,
+			unresolvedSequenceStart = admission.unresolvedSequenceStart,
+			unresolvedSequenceEndInclusive = admission.unresolvedSequenceEndInclusive,
+			registrationRemovalOutcome = if (completed) {
+				RegistrationRemovalOutcome.REMOVED
+			} else {
+				RegistrationRemovalOutcome.FAILED
+			},
+			appDrainComplete = drainComplete,
+			status = when {
+				!actorSettled || retirement == StepProviderRetirement.TIMED_OUT ->
+					SourceStopStatus.TIMED_OUT
+				!completed -> SourceStopStatus.PROVIDER_FAILED
+				!drainComplete -> SourceStopStatus.PARTIAL_UNOBSERVABLE
+				else -> SourceStopStatus.COMPLETE
+			},
+		)
+		intent.stopAck = ack
+		if (terminal != null) {
+			terminal.lifecycle = if (drainComplete) {
+				RuntimeCheckpointLifecycle.QUIESCED
+			} else {
+				RuntimeCheckpointLifecycle.TIMED_OUT
+			}
+			terminal.admission = admission
+			terminal.ack = ack
 			try {
 				settleTerminalCheckpoint(terminal)
 			} catch (failure: Throwable) {
@@ -747,28 +917,35 @@ class StepSourceRuntime @Inject constructor(
 				throw failure
 			}
 		}
-		val previous = terminal?.ack ?: intent.stopAck ?: retirementOnlyAck(intent)
-		val completed = retirement == StepProviderRetirement.COMPLETE
-		val ack = previous.copy(
-			registrationRemovalOutcome = if (completed) {
-				RegistrationRemovalOutcome.REMOVED
-			} else {
-				RegistrationRemovalOutcome.FAILED
-			},
-			status = when {
-				!previous.appDrainComplete || !actorSettled || retirement == StepProviderRetirement.TIMED_OUT -> SourceStopStatus.TIMED_OUT
-				completed && terminal?.checkpointConfirmed != false -> SourceStopStatus.COMPLETE
-				else -> SourceStopStatus.PROVIDER_FAILED
-			},
-		)
-		intent.stopAck = ack
-		if (completed && actorSettled && terminal?.checkpointConfirmed != false) {
-			terminalStopAck = ack
+		val checkpointConfirmed = terminal == null || terminal.checkpointConfirmed
+		val settledAck = if (!ack.hasTerminalStepsRetirement() || checkpointConfirmed) {
+			ack
+		} else {
+			ack.withTerminalCheckpointPending()
+		}
+		if (ack.hasTerminalStepsRetirement() && checkpointConfirmed) {
+			if (terminal != null) terminalStopAck = ack
 			clearActiveState()
 		} else {
 			retainProviderForRetirementRetry(retainActor = !actorSettled)
 		}
-		return ack
+		return settledAck
+	}
+
+	private suspend fun retryPendingProvisionalCleanupLocked(
+		deadlineElapsedRealtimeNanos: Long = providerSettlementDeadline(),
+	): Boolean {
+		val intent = requireNotNull(providerRetirement)
+		check(intent.cleanupOnly) { "Product retirement cannot use provisional cleanup" }
+		val retirement = settleProviderRetirement(intent, deadlineElapsedRealtimeNanos)
+		val actorSettled = settleActor(deadlineElapsedRealtimeNanos)
+		if (retirement == StepProviderRetirement.COMPLETE && actorSettled) {
+			clearActiveState()
+			cleanupOnlyReleasePending = runtimeClaim != null
+			return true
+		}
+		retainProviderForRetirementRetry(retainActor = !actorSettled)
+		return false
 	}
 
 	private suspend fun retireProviderRegistration(
@@ -777,10 +954,14 @@ class StepSourceRuntime @Inject constructor(
 		retiredElapsedRealtimeNanos: Long,
 		providerAlreadyRemoved: Boolean,
 		deadlineElapsedRealtimeNanos: Long,
+		cleanupOnly: Boolean,
 	): StepProviderRetirement {
 		val intent = providerRetirement?.also { pending ->
 			check(pending.registration.samePhysicalRegistrationAs(activeRegistration)) {
 				"A retained step listener cannot be retired under a replacement registration"
+			}
+			check(pending.cleanupOnly == cleanupOnly) {
+				"A retained step listener cannot change retirement settlement kind"
 			}
 		} ?: StepProviderRetirementIntent(
 			registration = activeRegistration,
@@ -789,6 +970,7 @@ class StepSourceRuntime @Inject constructor(
 			retiredAtMs = System.currentTimeMillis(),
 			retiredElapsedRealtimeNanos = retiredElapsedRealtimeNanos,
 			removalConfirmed = providerAlreadyRemoved,
+			cleanupOnly = cleanupOnly,
 		).also { providerRetirement = it }
 		return settleProviderRetirement(intent, deadlineElapsedRealtimeNanos)
 	}
@@ -1018,6 +1200,7 @@ class StepSourceRuntime @Inject constructor(
 		recoveryOwner: Job,
 	) {
 		var retryIndex = 0
+		var counterEpochGeneration = INITIAL_COUNTER_EPOCH_GENERATION
 		while (true) {
 			val outcome = lifecycleMutex.withLock {
 				val activeRegistration = registration
@@ -1034,14 +1217,45 @@ class StepSourceRuntime @Inject constructor(
 					},
 					persistGapAndReset = {
 						runCatchingNonCancellation {
+							val registration = requireNotNull(activeRegistration)
+							val boundary = StepBaselineBoundary(
+								registration.state.registrationGeneration,
+							)
+							counterEpochGeneration = registrations
+								.loadRuntimeState(registration)
+								?.let { decodeSensorRuntimeCheckpoint(it, STEP_BASELINE_VERSION) }
+								?.let { checkpoint ->
+									checkpoint.componentPayload
+										.takeIf { it.isNotEmpty() }
+										?.let {
+											decodeStepBaseline(
+												it,
+												checkpoint.componentStateVersion,
+												boundary,
+											)
+										}
+								}
+								?.counterEpochGeneration
+								?: INITIAL_COUNTER_EPOCH_GENERATION
 							registrations.saveSensorRuntimeCheckpoint(
-								registration = requireNotNull(activeRegistration),
+								registration = registration,
 								lastProviderSequence = requireNotNull(overflowSequence),
 								checkpoint = SensorRuntimeCheckpoint(
 									lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
 									metrics = metrics.snapshot(),
 									componentStateVersion = STEP_BASELINE_VERSION,
-									componentPayload = ByteArray(0),
+									componentPayload = StepBaseline(
+										cumulativeCount = 0L,
+										elapsedRealtimeNanos = 0L,
+										providerSequence = 0L,
+										boundary = boundary,
+										counterDomainToken = resolveCounterDomainToken(
+											registration.state.clockDomainId,
+											registration.state.sourceInstanceId,
+											counterEpochGeneration,
+										),
+										counterEpochGeneration = counterEpochGeneration,
+									).encode(),
 									causalOrderElapsedRealtimeNanos =
 										requireNotNull(overflowCausalOrderElapsedNanos),
 								),
@@ -1057,6 +1271,7 @@ class StepSourceRuntime @Inject constructor(
 							requireNotNull(activeRegistration),
 							requireNotNull(activePlan),
 							recoveryOwner,
+							counterEpochGeneration,
 						)
 					},
 				)
@@ -1084,6 +1299,7 @@ class StepSourceRuntime @Inject constructor(
 		activeRegistration: SourceRegistration,
 		activePlan: StepsPlan,
 		recoveryOwner: Job,
+		counterEpochGeneration: Long,
 	): Boolean {
 		val activeSensor = sensor ?: return false
 		if (queue !== overflowedLane || admissionDeadlineElapsedNanos != null ||
@@ -1211,6 +1427,7 @@ class StepSourceRuntime @Inject constructor(
 			StepWindowAccumulator(
 				initialBaseline = null,
 				boundary = StepBaselineBoundary(activeRegistration.state.registrationGeneration),
+				initialCounterEpochGeneration = counterEpochGeneration,
 			),
 		)
 		batchingEnabled = maximumLatencyUs > 0 && activeSensor.fifoMaxEventCount > 0
@@ -1225,6 +1442,12 @@ class StepSourceRuntime @Inject constructor(
 		if (cutoffElapsedNanos?.let { event.observedElapsedNanos > it } == true) return true
 		val attribution = event.attribution.resolve()
 		val activeRegistration = attribution.registration
+		val counterEpochGeneration = accumulator.counterEpochGeneration()
+		val counterDomainToken = resolveCounterDomainToken(
+			activeRegistration.state.clockDomainId,
+			activeRegistration.state.sourceInstanceId,
+			counterEpochGeneration,
+		)
 		val preview = accumulator.preview(
 			activeRegistration.state.clockDomainId,
 			event.cumulativeCount,
@@ -1232,10 +1455,19 @@ class StepSourceRuntime @Inject constructor(
 			event.providerSequence,
 			event.receivedElapsedNanos,
 			activeRegistration.stepAuthorizationBoundary(),
+			counterDomainToken,
+			successorCounterDomainToken = {
+				resolveCounterDomainToken(
+					activeRegistration.state.clockDomainId,
+					activeRegistration.state.sourceInstanceId,
+					counterEpochGeneration + 1L,
+				)
+			},
 		) ?: run {
 			metrics.recordFailure(event.providerSequence)
 			return persistStepHeadCheckpointUntilResolved(event, activeRegistration, accumulator)
 		}
+
 		val payload = preview.payload
 		val delayNanos = (event.receivedElapsedNanos - event.observedElapsedNanos).coerceAtLeast(0L)
 		val acquiredAtMs = (event.receivedWallTimeMs - delayNanos / NANOS_PER_MILLISECOND).coerceAtLeast(0L)
@@ -1278,7 +1510,7 @@ class StepSourceRuntime @Inject constructor(
 								emptySet()
 							},
 						),
-						payloadVersion = STEP_BOUNDARY_KIND_PAYLOAD_VERSION,
+						payloadVersion = STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION,
 						payload = payload,
 					)
 					PreparedStepAdmission(
@@ -1329,6 +1561,34 @@ class StepSourceRuntime @Inject constructor(
 				"Step atomic admission retry loop returned an unresolved retryable handoff",
 			)
 		}
+	}
+
+	private fun resolveCounterDomainToken(
+		bootClockDomainId: String,
+		sourceInstanceId: String,
+		counterEpochGeneration: Long,
+	): StepsCounterDomainToken? {
+		require(counterEpochGeneration > 0L)
+		if (!counterEpochAuthorityProven) return null
+		if (cachedCounterDomainTokenBootId == bootClockDomainId &&
+			cachedCounterDomainTokenSourceInstanceId == sourceInstanceId &&
+			cachedCounterDomainTokenGeneration == counterEpochGeneration
+		) {
+			return cachedCounterDomainToken
+		}
+		val resolved = sensor?.let { activeSensor ->
+			StepsCounterDomainTokenIssuer.directSensor(
+				activeSensor,
+				bootClockDomainId,
+				sourceInstanceId,
+				counterEpochGeneration,
+			)
+		}
+		cachedCounterDomainTokenBootId = bootClockDomainId
+		cachedCounterDomainTokenSourceInstanceId = sourceInstanceId
+		cachedCounterDomainTokenGeneration = counterEpochGeneration
+		cachedCounterDomainToken = resolved
+		return resolved
 	}
 
 	private suspend fun persistStepHeadCheckpointUntilResolved(
@@ -1440,7 +1700,7 @@ class StepSourceRuntime @Inject constructor(
 		causalOrderElapsedRealtimeNanos: Long,
 		admission: RuntimeAdmissionSnapshot,
 		ack: SourceStopAck,
-	) {
+	): SourceRuntimeStateSaveResult {
 		val saved = registrations.loadRuntimeState(activeRegistration)
 		val boundary = StepBaselineBoundary(
 			activeRegistration.state.registrationGeneration,
@@ -1452,7 +1712,7 @@ class StepSourceRuntime @Inject constructor(
 			?.takeIf {
 				decodeStepBaseline(it.componentPayload, it.componentStateVersion, boundary) != null
 			}
-		registrations.saveSensorRuntimeCheckpoint(
+		return registrations.saveSensorRuntimeCheckpoint(
 			activeRegistration,
 			lastProviderSequence,
 			SensorRuntimeCheckpoint(
@@ -1466,20 +1726,31 @@ class StepSourceRuntime @Inject constructor(
 			terminalCompleteness = ack.toTerminalCompleteness(
 				updatedAtMs = System.currentTimeMillis(),
 			),
+			terminalStepsCountDomainEvidence =
+				StepsCountDomainRetirementEvidence(
+					providerFlushOutcome = ack.providerFlushOutcome.name,
+					registrationRemovalOutcome = ack.registrationRemovalOutcome.name,
+				),
 		)
 	}
 
 	private suspend fun settleTerminalCheckpoint(intent: StepTerminalSettlementIntent) {
-		if (intent.checkpointConfirmed) return
-		persistTerminalCheckpoint(
-			activeRegistration = intent.registration,
-			lastProviderSequence = intent.barrier,
-			lifecycle = intent.lifecycle,
-			causalOrderElapsedRealtimeNanos = intent.causalOrderElapsedRealtimeNanos,
-			admission = intent.admission,
+		if (intent.checkpointConfirmed || !intent.ack.hasTerminalStepsRetirement()) return
+		var saveResult: SourceRuntimeStateSaveResult? = null
+		settleStepsTerminalProjection(
 			ack = intent.ack,
-		)
-		intent.checkpointConfirmed = true
+			drainCanonicalThrough = stepsProjectionLane::drainCanonicalThrough,
+		) {
+			saveResult = persistTerminalCheckpoint(
+				activeRegistration = intent.registration,
+				lastProviderSequence = intent.barrier,
+				lifecycle = intent.lifecycle,
+				causalOrderElapsedRealtimeNanos = intent.causalOrderElapsedRealtimeNanos,
+				admission = intent.admission,
+				ack = intent.ack,
+			)
+		}
+		intent.checkpointConfirmed = saveResult == SourceRuntimeStateSaveResult.Saved
 	}
 
 	private fun onFlushCompleted(callbackToken: StepCallbackToken, sensor: Sensor?) {
@@ -1522,6 +1793,12 @@ class StepSourceRuntime @Inject constructor(
 		cutoffElapsedNanos = null
 		admissionDeadlineElapsedNanos = null
 		currentPlan = null
+		counterEpochAuthorityProven = false
+		cachedCounterDomainTokenBootId = null
+		cachedCounterDomainTokenSourceInstanceId = null
+		cachedCounterDomainTokenGeneration = null
+		cachedCounterDomainToken = null
+		cleanupOnlyReleasePending = false
 	}
 
 	private inner class StepRegistrationListener(
@@ -1541,6 +1818,7 @@ class StepSourceRuntime @Inject constructor(
 		val retiredAtMs: Long,
 		val retiredElapsedRealtimeNanos: Long,
 		var removalConfirmed: Boolean,
+		val cleanupOnly: Boolean,
 		var token: SourceRegistrationRetirementToken? = null,
 		var completionConfirmed: Boolean = false,
 		var stopAck: SourceStopAck? = null,
@@ -1549,10 +1827,12 @@ class StepSourceRuntime @Inject constructor(
 	private class StepTerminalSettlementIntent(
 		val registration: SourceRegistration,
 		val barrier: Long,
-		val lifecycle: RuntimeCheckpointLifecycle,
+		var lifecycle: RuntimeCheckpointLifecycle,
 		val causalOrderElapsedRealtimeNanos: Long,
-		val admission: RuntimeAdmissionSnapshot,
-		val ack: SourceStopAck,
+		var admission: RuntimeAdmissionSnapshot,
+		var ack: SourceStopAck,
+		val overflowSequence: Long?,
+		var drainGapRecorded: Boolean,
 		var checkpointConfirmed: Boolean = false,
 	)
 
@@ -1850,22 +2130,59 @@ internal data class StepRuntimeRecovery(
 	val metrics: RuntimeAdmissionSnapshot?,
 	val callbackEntrySequence: Long,
 	val baseline: StepBaseline?,
+	val counterEpochGeneration: Long,
+	val counterDomainToken: StepsCounterDomainToken?,
+	val counterEpochAuthorityProven: Boolean,
 )
 
-/** A process boundary always invalidates the cumulative baseline and reserves one explicit gap. */
+/**
+ * A process boundary invalidates the cumulative value and reserves one explicit gap, while
+ * preserving a checked counter-epoch generation independently of registration-scoped metrics.
+ * Continuity is accepted only when the retained token is reproduced by the current boot, sensor,
+ * and source-instance identity; otherwise the new registration remains tokenless and UNPROVEN.
+ */
 internal fun recoverStepRuntimeState(
 	saved: SourceRuntimeStateEntity?,
 	currentRegistrationGeneration: Long,
 	reusedPhysicalRegistration: Boolean,
+	freshCounterIdentity: Boolean,
+	counterDomainTokenForGeneration: (Long) -> StepsCounterDomainToken?,
 ): StepRuntimeRecovery {
 	require(currentRegistrationGeneration > 0L)
-	if (!reusedPhysicalRegistration) return StepRuntimeRecovery(null, 0L, null)
-
 	val sameGeneration = saved?.registrationGeneration == currentRegistrationGeneration
-	val lastProviderSequence = if (sameGeneration) requireNotNull(saved).lastProviderSequence else 0L
 	val checkpoint = saved
-		?.takeIf { sameGeneration }
 		?.let { decodeSensorRuntimeCheckpoint(it, STEP_BASELINE_VERSION) }
+	val retainedBaseline = checkpoint
+		?.componentPayload
+		?.takeIf { it.isNotEmpty() }
+		?.let { decodeStepBaseline(it, checkpoint.componentStateVersion) }
+	val retainedGeneration = if (freshCounterIdentity) {
+		INITIAL_COUNTER_EPOCH_GENERATION
+	} else {
+		retainedBaseline?.counterEpochGeneration ?: INITIAL_COUNTER_EPOCH_GENERATION
+	}
+	val currentToken = counterDomainTokenForGeneration(retainedGeneration)
+	val continuityAuthenticated = !freshCounterIdentity &&
+		checkpoint?.componentStateVersion == STEP_BASELINE_VERSION &&
+		retainedBaseline?.counterDomainToken != null &&
+		retainedBaseline.counterDomainToken == currentToken
+	val counterEpochAuthorityProven = when {
+		freshCounterIdentity -> currentToken != null
+		else -> continuityAuthenticated
+	}
+	val recoveredCounterDomainToken = currentToken.takeIf { counterEpochAuthorityProven }
+	if (!sameGeneration || !reusedPhysicalRegistration) {
+		return StepRuntimeRecovery(
+			metrics = null,
+			callbackEntrySequence = 0L,
+			baseline = null,
+			counterEpochGeneration = retainedGeneration,
+			counterDomainToken = recoveredCounterDomainToken,
+			counterEpochAuthorityProven = counterEpochAuthorityProven,
+		)
+	}
+
+	val lastProviderSequence = requireNotNull(saved).lastProviderSequence
 	val prior = checkpoint?.metrics
 	val priorHighWater = maxOf(lastProviderSequence, prior?.unresolvedSequenceEndInclusive ?: 0L)
 	require(priorHighWater < Long.MAX_VALUE) { "Steps callback sequence exhausted" }
@@ -1884,8 +2201,24 @@ internal fun recoverStepRuntimeState(
 		metrics = recoveredMetrics.snapshot(),
 		callbackEntrySequence = gapSequence,
 		baseline = null,
+		counterEpochGeneration = retainedGeneration,
+		counterDomainToken = recoveredCounterDomainToken,
+		counterEpochAuthorityProven = counterEpochAuthorityProven,
 	)
 }
+
+internal fun stepCounterEpochCheckpointBaseline(
+	boundary: StepBaselineBoundary,
+	counterEpochGeneration: Long,
+	counterDomainToken: StepsCounterDomainToken?,
+): StepBaseline = StepBaseline(
+	cumulativeCount = 0L,
+	elapsedRealtimeNanos = 0L,
+	providerSequence = 0L,
+	boundary = boundary,
+	counterDomainToken = counterDomainToken,
+	counterEpochGeneration = counterEpochGeneration,
+)
 
 private fun SourceRegistration.stepAuthorizationBoundary() = StepAuthorizationBoundary(
 	authorizationRevision = authorization.authorizationRevision,
@@ -2068,6 +2401,53 @@ private fun SourceStopAck.toTerminalCompleteness(updatedAtMs: Long): SourceSessi
 		updatedAtMs = updatedAtMs,
 	)
 }
+
+private fun SourceStopAck.canonicalCompletionOrdinalOrNull(): Long? {
+	if (logicalTrackingId == null || serviceRunId == null ||
+		registrationGeneration <= 0L ||
+		!appDrainComplete ||
+		providerCoverage != ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER ||
+		status != SourceStopStatus.COMPLETE ||
+		unresolvedSequenceStart != null ||
+		unresolvedSequenceEndInclusive != null ||
+		lastAdmissionOrdinal == null ||
+		lastDurablyAdmittedSequence == null ||
+		providerFlushOutcome !in setOf(
+			ProviderFlushOutcome.COMPLETE,
+			ProviderFlushOutcome.NOT_SUPPORTED,
+			ProviderFlushOutcome.NOT_REQUESTED,
+		) ||
+		registrationRemovalOutcome !in setOf(
+			RegistrationRemovalOutcome.REMOVED,
+			RegistrationRemovalOutcome.NOT_REGISTERED,
+		)
+	) {
+		return null
+	}
+	return lastAdmissionOrdinal
+}
+
+internal suspend fun settleStepsTerminalProjection(
+	ack: SourceStopAck,
+	drainCanonicalThrough: suspend (Long) -> StepsSessionFactDrainResult,
+	publishTerminalCheckpoint: suspend () -> Unit,
+) {
+	ack.canonicalCompletionOrdinalOrNull()?.let { terminalOrdinal ->
+		val completion = drainCanonicalThrough(terminalOrdinal)
+		if (completion !is StepsSessionFactDrainResult.Complete ||
+			completion.lastCompletedOrdinal < terminalOrdinal
+		) {
+			throw StepsCanonicalCompletionPendingException()
+		}
+	}
+	publishTerminalCheckpoint()
+}
+
+internal class StepsCanonicalCompletionPendingException :
+	IllegalStateException("Canonical Steps projection has not reached terminal admission")
+
+private fun SourceStopAck.withTerminalCheckpointPending(): SourceStopAck =
+	copy(status = SourceStopStatus.PROVIDER_FAILED)
 
 private fun SourceApplyResult.withStopAckIfAbsent(replay: SourceStopAck?): SourceApplyResult = when (this) {
 	is SourceApplyResult.Applied -> copy(stopAck = stopAck ?: replay)

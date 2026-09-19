@@ -27,6 +27,8 @@ import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIden
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsFactV1
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityResult
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityQuery
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage as ApiStepsHistoryCoverage
 import java.time.ZoneId
 import javax.inject.Inject
@@ -125,6 +127,7 @@ internal sealed interface AmbientStepsDayPageResult {
 internal class AmbientStepsDayRepository @Inject constructor(
 	private val database: AppDatabase,
 	private val stepsSelector: StepsSegmentHistorySelector,
+	private val countDomainQuery: StepsCountDomainCompatibilityQuery,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) {
 	private val importedStepsReader = ImportedStepsRetainedReader(database)
@@ -387,7 +390,15 @@ internal class AmbientStepsDayRepository @Inject constructor(
 					.map { it.zoneId }
 					.distinct()
 					.singleOrNull(),
-				compatibility = SessionAmbientCompatibility.Unproven,
+				countDomainOwners = buildList {
+					stepsSnapshot?.factStatesByRun?.get(serviceRunId).orEmpty()
+						.mapNotNullTo(this) { it.state?.countDomainOwnerReferenceOrNull() }
+					stepsSnapshot?.completenessByRun?.get(serviceRunId).orEmpty()
+						.filter {
+							it.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS
+						}
+						.mapNotNullTo(this) { it.countDomainOwnerReferenceOrNull() }
+				}.distinct(),
 			)
 		}
 		val importedSessions = when (val imported = importedStepsReader.readEntriesInTransaction(
@@ -410,7 +421,6 @@ internal class AmbientStepsDayRepository @Inject constructor(
 									history.coverage == ApiStepsHistoryCoverage.COMPLETE
 							},
 							storedZoneId = run.storedZoneId,
-							compatibility = SessionAmbientCompatibility.Unproven,
 							origin = QualifiedSessionStepsOrigin.PORTABLE_IMPORT,
 						)
 					}
@@ -448,7 +458,7 @@ internal class AmbientStepsDayRepository @Inject constructor(
 			gap.qualifyForRead(evidenceState, cursorsByGeneration)
 		}
 		val factsByDay = selectedFacts.groupBy { fact -> fact.dayKeyOrNull() }
-		val productDays = dayIdentities.map { day ->
+		val preparedDays = dayIdentities.map { day ->
 			val dayFacts = factsByDay[day.key].orEmpty()
 			val daySessions = sessions.filter { session ->
 				session.endTimeMs > day.startTimeMs && session.startTimeMs < day.endTimeMs
@@ -465,8 +475,10 @@ internal class AmbientStepsDayRepository @Inject constructor(
 					)
 				}
 			) {
-				return@map unavailableDay(
+				return@map PreparedAmbientStepsDay(
 					day,
+					emptyList(),
+					emptyList(),
 					daySessions,
 					AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE,
 				)
@@ -476,8 +488,10 @@ internal class AmbientStepsDayRepository @Inject constructor(
 				gap.row.gapEndTimeMs > day.startTimeMs && gap.row.gapStartTimeMs < day.endTimeMs
 			}
 			if (dayGaps.any { !it.valid }) {
-				return@map unavailableDay(
+				return@map PreparedAmbientStepsDay(
 					day,
+					qualifiedFacts,
+					emptyList(),
 					daySessions,
 					AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE,
 				)
@@ -485,12 +499,57 @@ internal class AmbientStepsDayRepository @Inject constructor(
 			val effectiveGaps = dayGaps.asSequence()
 				.mapNotNull(AmbientStepsGapReadQualification::effect)
 				.toList()
-			composeAmbientStepsDay(day, qualifiedFacts, effectiveGaps, daySessions)
+			PreparedAmbientStepsDay(
+				day,
+				qualifiedFacts,
+				effectiveGaps,
+				daySessions,
+				null,
+			)
+		}
+		val requestOwners = mutableListOf<Pair<Int, Int>>()
+		val compatibilityRequests = buildList {
+			preparedDays.forEachIndexed { dayIndex, prepared ->
+				if (prepared.unavailableCause == null) {
+					prepared.sessions.forEachIndexed { sessionIndex, session ->
+						requestOwners += dayIndex to sessionIndex
+						add(session.countDomainCompatibilityRequest(prepared.facts))
+					}
+				}
+			}
+		}
+		val compatibilityResults =
+			countDomainQuery.compareInProductionChunks(compatibilityRequests)
+		val resultsByOwner = requestOwners.zip(compatibilityResults).toMap()
+		val productDays = preparedDays.mapIndexed { dayIndex, prepared ->
+			prepared.unavailableCause?.let { cause ->
+				return@mapIndexed unavailableDay(prepared.day, prepared.sessions, cause)
+			}
+			val compatibleSessions = prepared.sessions.mapIndexed { sessionIndex, session ->
+				session.copy(
+					compatibility = resultsByOwner[dayIndex to sessionIndex]
+						?: StepsCountDomainCompatibilityResult.Unverifiable,
+				)
+			}
+			composeAmbientStepsDay(
+				prepared.day,
+				prepared.facts,
+				prepared.gaps,
+				compatibleSessions,
+			)
 		}
 		return AmbientStepsDayPageResult.Snapshot(
 			AmbientStepsDayPage(productDays, next, currentState.first, currentState.second),
 		)
 	}
+
+	private data class PreparedAmbientStepsDay(
+		val day: AmbientStepsDayIdentity,
+		val facts: List<QualifiedAmbientStepsFact>,
+		val gaps: List<EffectiveAmbientStepsGap>,
+		val sessions: List<QualifiedSessionStepsWindow>,
+		val unavailableCause: AmbientStepsDayCause?,
+	)
 
 	private fun currentProductState(
 		policyAuthority: SourcePolicyAuthorityEntity?,
@@ -1033,6 +1092,7 @@ private fun AmbientStepsFactRevisionEntity.toQualifiedFact(
 		requireNotNull(windowEndTimeMs),
 		requireNotNull(stepCount),
 	).contentChecksum.value,
+	countDomainOwner = countDomainOwnerReferenceOrNull(),
 )
 
 private fun unavailableDay(
@@ -1052,7 +1112,6 @@ private fun com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEnt
 	endTimeMs = endTimeMs,
 	stepCount = null,
 	storedZoneId = null,
-	compatibility = SessionAmbientCompatibility.Unproven,
 	origin = QualifiedSessionStepsOrigin.PORTABLE_IMPORT,
 )
 

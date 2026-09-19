@@ -3,11 +3,17 @@ package com.adsamcik.tracker.tracker.source.ambient.steps
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerLookupKey
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerRead
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -128,8 +134,20 @@ class AmbientStepsFactImporterTest {
 
 	@Test
 	fun `applies one bounded structural window from rounded privacy floor atomically`() = runTest {
+		check(
+			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) ==
+				com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState.ValidV2,
+		)
+		val counterDomainToken =
+			StepsCounterDomainToken.opaque("sha256:${"a".repeat(64)}")
 		val reader = RecordingAmbientReader { window, observedAtMs ->
-			AmbientStepsProviderAggregate(PROVIDER, window, stepCount = 42L, observedAtMs)
+			AmbientStepsProviderAggregate(
+				provider = PROVIDER,
+				window = window,
+				stepCount = 42L,
+				observedAtMs = observedAtMs,
+				counterDomainToken = counterDomainToken,
+			)
 		}
 		val importer = subject(reader)
 		primeZone(importer)
@@ -153,6 +171,22 @@ class AmbientStepsFactImporterTest {
 		fact.stepCount shouldBe 42L
 		fact.authorizationRevision shouldBe registration.authorization.authorizationRevision
 		fact.authorizationFingerprint shouldBe registration.authorization.authorizationFingerprint
+		val ownerIdentity = StepsCountDomainReceiptIntegrity.ambientFactOwnerIdentity(
+			fact.writerId,
+			fact.writerVersion,
+			fact.logicalFactId,
+		)
+		val receiptRead = StepsCountDomainStore(database).readOwners(
+			listOf(
+				StepsCountDomainOwnerLookupKey(
+					StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
+					ownerIdentity,
+					fact.semanticRevision,
+				),
+			),
+		) as StepsCountDomainOwnerRead.Ready
+		receiptRead.owners.values.single().receipt?.domainIdentity shouldBe
+			counterDomainToken.encoded
 		fact.sourcePolicyRevision shouldBe registration.state.appliedRevision
 		fact.ambientConsentEpoch shouldBe 1L
 		fact.collectedDataEpoch shouldBe COLLECTED_DATA_EPOCH
@@ -165,6 +199,49 @@ class AmbientStepsFactImporterTest {
 		cursor.cursorRevision shouldBe result.cursorRevision
 		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe COLLECTED_DATA_EPOCH
 	}
+
+	@Test
+	fun `provider aggregate without authenticated counter epoch remains unproven`() =
+		runTest {
+			check(
+				StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) ==
+					com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState.ValidV2,
+			)
+			val reader = RecordingAmbientReader { window, observedAtMs ->
+				AmbientStepsProviderAggregate(PROVIDER, window, 42L, observedAtMs)
+			}
+			val importer = subject(reader)
+			primeZone(importer)
+			clock.setTime(90_000_000L)
+			val result = importer.importNext(
+				importBoundary(through = 90_000_000L, observedAt = 90_000_000L),
+			) as AmbientStepsImportResult.Applied
+			val fact = requireNotNull(
+				database.ambientStepsFactRevisionDao().latest(
+					AmbientStepsFactRevisionEntity.WRITER_ID,
+					AmbientStepsFactRevisionEntity.WRITER_VERSION,
+					result.logicalFactId,
+				),
+			)
+			val ownerIdentity = StepsCountDomainReceiptIntegrity.ambientFactOwnerIdentity(
+				fact.writerId,
+				fact.writerVersion,
+				fact.logicalFactId,
+			)
+			val read = StepsCountDomainStore(database).readOwners(
+				listOf(
+					StepsCountDomainOwnerLookupKey(
+						StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
+						ownerIdentity,
+						fact.semanticRevision,
+					),
+				),
+			) as StepsCountDomainOwnerRead.Ready
+
+			read.owners.values.single().owner.operation shouldBe
+				StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN
+			read.owners.values.single().receipt shouldBe null
+		}
 
 	@Test
 	fun `provider absence creates no covered zero and later evidence remains importable`() = runTest {
@@ -385,7 +462,11 @@ class AmbientStepsFactImporterTest {
 	}
 
 	@Test
-	fun `progressive read revises one stable structural fact instead of fragmenting windows`() = runTest {
+	fun `tokenless progressive corrections append effect-authenticated unproven owners`() = runTest {
+		check(
+			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) ==
+				com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState.ValidV2,
+		)
 		val reader = RecordingAmbientReader { window, observedAtMs ->
 			val count = if (window.endTimeMs == 5_000L) 10L else 15L
 			AmbientStepsProviderAggregate(PROVIDER, window, count, observedAtMs)
@@ -405,14 +486,37 @@ class AmbientStepsFactImporterTest {
 		)
 		second.logicalFactId shouldBe first.logicalFactId
 		second.semanticRevision shouldBe 2L
-		database.ambientStepsFactRevisionDao().revisions(
+		val revisions = database.ambientStepsFactRevisionDao().revisions(
 			AmbientStepsFactRevisionEntity.WRITER_ID,
 			AmbientStepsFactRevisionEntity.WRITER_VERSION,
 			first.logicalFactId,
-		).map { it.windowEndTimeMs to it.stepCount } shouldBe listOf(
+		)
+		revisions.map { it.windowEndTimeMs to it.stepCount } shouldBe listOf(
 			5_000L to 10L,
 			7_000L to 15L,
 		)
+		val ownerIdentity = StepsCountDomainReceiptIntegrity.ambientFactOwnerIdentity(
+			AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			first.logicalFactId,
+		)
+		val read = StepsCountDomainStore(database).readOwners(
+			revisions.map { fact ->
+				StepsCountDomainOwnerLookupKey(
+					StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
+					ownerIdentity,
+					fact.semanticRevision,
+				)
+			},
+		) as StepsCountDomainOwnerRead.Ready
+
+		read.owners.values.map { it.owner.operation } shouldBe listOf(
+			StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN,
+			StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN,
+		)
+		read.owners.values.map { it.owner.ownerEffectChecksum } shouldBe
+			revisions.map { it.effectChecksum }
+		read.latestRevisions.values.single() shouldBe 2L
 	}
 
 	@Test

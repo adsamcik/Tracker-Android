@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.coordinator
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.SourceEventStoragePruneResult
 import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
 import com.adsamcik.tracker.shared.base.database.liveSourceProjectionActivationOrdinal
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
@@ -86,10 +87,10 @@ class TrackingCoordinator @Inject constructor(
 		}
 	}
 
-	/** Deletes only old events no active projection or durable join can still require. */
-	suspend fun pruneProjectedEvents(createdBeforeMs: Long): Int {
+	/** Returns exact per-source progress and debt for old events no active consumer still requires. */
+	suspend fun pruneProjectedEvents(createdBeforeMs: Long): SourceEventStoragePruneResult {
 		require(createdBeforeMs >= 0L)
-		return database.pruneSourceEventStorageBefore(createdBeforeMs).walEventsDeleted
+		return database.pruneSourceEventStorageBefore(createdBeforeMs)
 	}
 
 	private suspend fun acquireLease(ownerToken: String): LifecycleLeaseToken? = database.withTransaction {

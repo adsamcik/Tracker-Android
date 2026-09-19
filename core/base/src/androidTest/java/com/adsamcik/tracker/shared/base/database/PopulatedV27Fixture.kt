@@ -12,6 +12,7 @@ internal object PopulatedV27Fixture {
 	const val LOCATION_EVENT_ID = "v27-location-event"
 	const val LOCATION_SIGNAL_ID = "v27-location-signal"
 	const val WAL_EVENT_ID = "v27-wal-location-event"
+	const val STEPS_WAL_EVENT_ID = "v27-wal-steps-event"
 	const val COMPLETENESS_SOURCE_INSTANCE_ID = "v27-location-instance"
 	const val COMPLETENESS_REGISTRATION_GENERATION = 4L
 	const val COMPLETENESS_LAST_ADMISSION_ORDINAL = 1L
@@ -305,6 +306,42 @@ internal object PopulatedV27Fixture {
 			output.writeBoolean(false) // speed
 			output.writeBoolean(false) // bearing
 			output.writeUTF("gps")
+		}
+		buffer.toByteArray()
+	}
+
+	fun seedStepsWal(database: SupportSQLiteDatabase) {
+		val payload = expectedStepsWalPayload()
+		database.execSQL(
+			"INSERT INTO source_event_wal " +
+				"(admission_ordinal, event_id, provider_dedup_key, logical_tracking_id, " +
+				"service_run_id, source_kind, source_instance_id, registration_generation, " +
+				"source_sequence, config_revision, plan_attribution, clock_domain_id, " +
+				"observed_elapsed_nanos, received_elapsed_nanos, wall_time_ms, " +
+				"wall_time_uncertainty_ms, captured_collected_data_epoch, acquired_at_ms, " +
+				"quality_flags, quality_confidence, payload_version, payload, payload_checksum, " +
+				"created_at_ms) VALUES " +
+				"(2, '$STEPS_WAL_EVENT_ID', 'v27-steps-provider-dedup', '$LOGICAL_TRACKING_ID', " +
+				"'$SERVICE_RUN_ID', 3, 'v27-steps-instance', 1, 2, 7, 0, 'boot-v27', " +
+				"${START_ELAPSED_NANOS + 45_000_000_000}, " +
+				"${START_ELAPSED_NANOS + 45_010_000_000}, ${START_MS + 45_000}, 10, 7, " +
+				"${START_MS + 45_000}, 1, 0.9, 1, ?, ?, ${START_MS + 45_010})",
+			arrayOf(payload, payload.sha256()),
+		)
+	}
+
+	fun expectedStepsWalPayload(): ByteArray = ByteArrayOutputStream().use { buffer ->
+		DataOutputStream(buffer).use { output ->
+			output.writeInt(4) // DefaultSourcePayloadCodec.TYPE_STEP_WINDOW
+			output.writeUTF("boot-v27")
+			output.writeLong(100L)
+			output.writeLong(104L)
+			output.writeLong(4L)
+			output.writeLong(START_ELAPSED_NANOS + 41_000_000_000)
+			output.writeLong(START_ELAPSED_NANOS + 45_000_000_000)
+			output.writeLong(1L)
+			output.writeLong(2L)
+			output.writeBoolean(false)
 		}
 		buffer.toByteArray()
 	}

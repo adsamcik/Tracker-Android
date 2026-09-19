@@ -2,7 +2,6 @@ package com.adsamcik.tracker.maintenance
 
 import android.content.Context
 import android.util.Log
-import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
@@ -33,7 +32,7 @@ class LongSessionStorageInstrumentationTest {
 	fun setUp() {
 		context = ApplicationProvider.getApplicationContext()
 		context.deleteDatabase(DATABASE_NAME)
-		database = Room.databaseBuilder(context, AppDatabase::class.java, DATABASE_NAME)
+		database = AppDatabase.fileBuilder(context, DATABASE_NAME)
 			.openHelperFactory(SQLiteXSupportSQLiteOpenHelperFactory())
 			.setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
 			.build()
@@ -122,7 +121,11 @@ class LongSessionStorageInstrumentationTest {
 
 		val pruneMs: Long
 		val pruneResult = run {
-			var result = com.adsamcik.tracker.shared.base.database.SourceEventStoragePruneResult(0, 0)
+			var result: com.adsamcik.tracker.shared.base.database.SourceEventStoragePruneResult =
+				com.adsamcik.tracker.shared.base.database.SourceEventStoragePruneResult.Complete(
+					walEventsDeleted = 0,
+					deliveredEffectsDeleted = 0,
+				)
 			pruneMs = measureTimeMillis {
 				// The last effect is delivered one millisecond after its source event, and
 				// retention is intentionally strict (< cutoff), so advance past both values.

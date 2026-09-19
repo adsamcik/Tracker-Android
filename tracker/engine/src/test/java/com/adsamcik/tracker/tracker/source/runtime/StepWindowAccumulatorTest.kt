@@ -1,8 +1,10 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -23,8 +25,10 @@ class StepWindowAccumulatorTest {
 	@Test
 	fun `counter reset establishes a zero baseline and next callback counts only the new domain`() {
 		val boundary = StepBaselineBoundary(1L)
+		val firstToken = token('a')
+		val secondToken = token('b')
 		val original = StepWindowAccumulator(null, boundary)
-		original.accept("boot:1", 100L, 1_000L, 5L)
+		original.accept("boot:1", 100L, 1_000L, 5L, counterDomainToken = firstToken)
 		val restored = decodeStepBaseline(
 			requireNotNull(original.snapshot()).encode(),
 			STEP_BASELINE_VERSION,
@@ -32,9 +36,34 @@ class StepWindowAccumulatorTest {
 		)
 		val accumulator = StepWindowAccumulator(restored, boundary)
 
-		val normal = requireNotNull(accumulator.accept("boot:1", 108L, 2_000L, 6L))
-		val reset = requireNotNull(accumulator.accept("boot:1", 3L, 3_000L, 7L))
-		val afterReset = requireNotNull(accumulator.accept("boot:1", 5L, 4_000L, 8L))
+		val normal = requireNotNull(
+			accumulator.accept(
+				"boot:1",
+				108L,
+				2_000L,
+				6L,
+				counterDomainToken = firstToken,
+			),
+		)
+		val reset = requireNotNull(
+			accumulator.accept(
+				"boot:1",
+				3L,
+				3_000L,
+				7L,
+				counterDomainToken = firstToken,
+				successorCounterDomainToken = { secondToken },
+			),
+		)
+		val afterReset = requireNotNull(
+			accumulator.accept(
+				"boot:1",
+				5L,
+				4_000L,
+				8L,
+				counterDomainToken = secondToken,
+			),
+		)
 
 		assertEquals(8L, normal.deltaCount)
 		assertFalse(normal.baselineReset)
@@ -48,11 +77,15 @@ class StepWindowAccumulatorTest {
 		assertEquals(3_000L, reset.windowEndElapsedRealtimeNanos)
 		assertEquals(6L, reset.firstProviderSequence)
 		assertEquals(7L, reset.lastProviderSequence)
+		assertNull(reset.counterDomainToken)
+		assertEquals(2L, reset.counterEpochGeneration)
 		assertEquals(2L, afterReset.deltaCount)
 		assertFalse(afterReset.baselineReset)
 		assertEquals(StepBoundaryKind.COVERED, afterReset.boundaryKind)
 		assertEquals(3L, afterReset.firstCumulativeCount)
 		assertEquals(5L, afterReset.lastCumulativeCount)
+		assertEquals(secondToken, afterReset.counterDomainToken)
+		assertEquals(2L, afterReset.counterEpochGeneration)
 	}
 
 	@Test
@@ -87,6 +120,131 @@ class StepWindowAccumulatorTest {
 		assertEquals(8L, first.deltaCount)
 		assertEquals(100L, first.firstCumulativeCount)
 		assertFalse(first.baselineReset)
+	}
+
+	@Test
+	fun `counter domain token survives checkpoint and token rotation forces a new baseline`() {
+		val boundary = StepBaselineBoundary(7L)
+		val tokenA = token('a')
+		val tokenB = token('b')
+		val accumulator = StepWindowAccumulator(null, boundary)
+		accumulator.accept(
+			"boot:1",
+			100L,
+			1_000L,
+			1L,
+			counterDomainToken = tokenA,
+		)
+		val restored = requireNotNull(
+			decodeStepBaseline(
+				requireNotNull(accumulator.snapshot()).encode(),
+				STEP_BASELINE_VERSION,
+				boundary,
+			),
+		)
+
+		assertEquals(tokenA, restored.counterDomainToken)
+		assertEquals(INITIAL_COUNTER_EPOCH_GENERATION, restored.counterEpochGeneration)
+		val same = requireNotNull(
+			StepWindowAccumulator(restored, boundary).accept(
+				"boot:1",
+				105L,
+				2_000L,
+				2L,
+				counterDomainToken = tokenA,
+			),
+		)
+		val changed = requireNotNull(
+			StepWindowAccumulator(restored, boundary).accept(
+				"boot:1",
+				105L,
+				2_000L,
+				2L,
+				counterDomainToken = tokenB,
+			),
+		)
+
+		assertEquals(StepBoundaryKind.COVERED, same.boundaryKind)
+		assertEquals(StepBoundaryKind.BASELINE, changed.boundaryKind)
+	}
+
+	@Test
+	fun `multiple resets rotate persisted generations without bridging reset boundaries`() {
+		val token1 = token('1')
+		val token2 = token('2')
+		val token3 = token('3')
+		val accumulator = StepWindowAccumulator(null, StepBaselineBoundary(4L))
+		requireNotNull(accumulator.accept(
+			"boot",
+			100L,
+			1_000L,
+			1L,
+			counterDomainToken = token1,
+		))
+		val firstReset = requireNotNull(accumulator.accept(
+			"boot",
+			5L,
+			2_000L,
+			2L,
+			counterDomainToken = token1,
+			successorCounterDomainToken = { token2 },
+		))
+		val firstSuccessor = requireNotNull(accumulator.accept(
+			"boot",
+			8L,
+			3_000L,
+			3L,
+			counterDomainToken = token2,
+		))
+		val secondReset = requireNotNull(accumulator.accept(
+			"boot",
+			1L,
+			4_000L,
+			4L,
+			counterDomainToken = token2,
+			successorCounterDomainToken = { token3 },
+		))
+		val recovered = requireNotNull(
+			decodeStepBaseline(
+				requireNotNull(accumulator.snapshot()).encode(),
+				STEP_BASELINE_VERSION,
+				StepBaselineBoundary(4L),
+			),
+		)
+
+		assertEquals(2L, firstReset.counterEpochGeneration)
+		assertNull(firstReset.counterDomainToken)
+		assertEquals(token2, firstSuccessor.counterDomainToken)
+		assertEquals(2L, firstSuccessor.counterEpochGeneration)
+		assertEquals(3L, secondReset.counterEpochGeneration)
+		assertNull(secondReset.counterDomainToken)
+		assertEquals(3L, recovered.counterEpochGeneration)
+		assertEquals(token3, recovered.counterDomainToken)
+	}
+
+	@Test
+	fun `counter epoch generation overflow is a typed failure`() {
+		val baseline = StepBaseline(
+			cumulativeCount = 100L,
+			elapsedRealtimeNanos = 1_000L,
+			providerSequence = 1L,
+			boundary = StepBaselineBoundary(1L),
+			counterDomainToken = token('a'),
+			counterEpochGeneration = Long.MAX_VALUE,
+		)
+		val accumulator = StepWindowAccumulator(baseline, baseline.boundary)
+
+		assertFailsWith<StepCounterEpochGenerationOverflowException> {
+			accumulator.accept(
+				"boot",
+				1L,
+				2_000L,
+				2L,
+				counterDomainToken = token('a'),
+				successorCounterDomainToken = { token('b') },
+			)
+		}
+		assertEquals(baseline, accumulator.snapshot())
 	}
 
 	@Test
@@ -237,4 +395,7 @@ class StepWindowAccumulatorTest {
 		purposeMask,
 		effectiveElapsedRealtimeNanos,
 	)
+
+	private fun token(digit: Char) =
+		StepsCounterDomainToken.opaque("sha256:${digit.toString().repeat(64)}")
 }

@@ -2,6 +2,8 @@ package com.adsamcik.tracker.tracker.source.ambient.steps
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
@@ -29,6 +31,7 @@ import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionFloor
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -884,12 +887,22 @@ internal class AmbientStepsFactImporter internal constructor(
 			)
 			val roomLifecycle = requireNotNull(evidenceDao.get())
 			if (roomLifecycle.collectedDataEpoch != lifecycle.epoch ||
-				roomLifecycle.retainedFromMs != lifecycle.retainedFromMs ||
-				factDao.insert(fact) == INSERT_IGNORED ||
-				(!lifecycleChanged && evidenceDao.incrementRevision(fact.appliedAtMs) != 1)
+				roomLifecycle.retainedFromMs != lifecycle.retainedFromMs
 			) {
 				throw ConcurrentAmbientStepsImportException()
 			}
+			if (factDao.insert(fact) == INSERT_IGNORED) {
+				throw ConcurrentAmbientStepsImportException()
+			}
+			recordCountDomainOrThrow(fact, aggregate.counterDomainToken)
+			if (!lifecycleChanged && evidenceDao.incrementRevision(fact.appliedAtMs) != 1) {
+				throw ConcurrentAmbientStepsImportException()
+			}
+		} else {
+			recordCountDomainOrThrow(
+				requireNotNull(latest),
+				aggregate.counterDomainToken,
+			)
 		}
 		val appliedAtMs = maxOf(clock.currentTimeMillis(), aggregate.observedAtMs)
 		val nextCursorRevision = Math.addExact(cursor.cursorRevision, 1L)
@@ -1073,6 +1086,10 @@ internal class AmbientStepsFactImporter internal constructor(
 		if (unchanged && preflight.window.endTimeMs == cursor.importedThroughTimeMs &&
 			aggregate.observedAtMs == cursor.lastObservedAtMs
 		) {
+			recordCountDomainOrThrow(
+				requireNotNull(latest),
+				aggregate.counterDomainToken,
+			)
 			return AmbientStepsImportResult.Unchanged(
 				window = preflight.window.providerWindow,
 				cursorRevision = cursor.cursorRevision,
@@ -1105,10 +1122,20 @@ internal class AmbientStepsFactImporter internal constructor(
 			if (factDao.insert(fact) == INSERT_IGNORED) {
 				throw ConcurrentAmbientStepsImportException()
 			}
+			recordCountDomainOrThrow(
+				fact,
+				aggregate.counterDomainToken,
+			)
 			if (!lifecycleChanged && evidenceDao.incrementRevision(appliedAtMs) != 1) {
 				throw ConcurrentAmbientStepsImportException()
 			}
 			nextRevision
+		}
+		if (unchanged) {
+			recordCountDomainOrThrow(
+				requireNotNull(latest),
+				aggregate.counterDomainToken,
+			)
 		}
 
 		val nextCursorRevision = Math.addExact(cursor.cursorRevision, 1L)
@@ -1641,6 +1668,26 @@ internal class AmbientStepsFactImporter internal constructor(
 			retentionApprovalRevision = authority.retention.approvalRevision,
 		)
 		return unsealed.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsealed))
+	}
+
+	private suspend fun recordCountDomainOrThrow(
+		fact: AmbientStepsFactRevisionEntity,
+		counterDomainToken: StepsCounterDomainToken?,
+	) {
+		when (StepsCountDomainStore(database).recordAmbientFact(fact, counterDomainToken)) {
+			StepsCountDomainWriteResult.INSERTED,
+			StepsCountDomainWriteResult.EXACT_REPLAY,
+			StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
+			StepsCountDomainWriteResult.UNPROVEN,
+			-> Unit
+			StepsCountDomainWriteResult.NOT_APPLICABLE,
+			StepsCountDomainWriteResult.AUTHORITY_PENDING,
+			StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE,
+			StepsCountDomainWriteResult.IDENTITY_CONFLICT,
+			StepsCountDomainWriteResult.REVISION_GAP,
+			StepsCountDomainWriteResult.TERMINAL_OWNER,
+			-> throw ConcurrentAmbientStepsImportException()
+		}
 	}
 
 	private suspend fun lifecycleSnapshotOrNull(): CollectedDataLifecycleSnapshot? = try {

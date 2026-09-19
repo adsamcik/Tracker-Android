@@ -4,7 +4,6 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import android.app.Application
-import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -62,7 +61,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	@Before
 	fun setUp() {
 		val context = ApplicationProvider.getApplicationContext<Application>()
-		database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+		database = AppDatabase.inMemoryBuilder(context)
 			.allowMainThreadQueries()
 			.build()
 		legacy = FakeTrackingParamsRepository(
@@ -240,7 +239,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	@Test
 	fun `legacy bootstrap reissues retention before publishing active source policy`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Application>()
-		val bootstrapDatabase = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+		val bootstrapDatabase = AppDatabase.inMemoryBuilder(context)
 			.allowMainThreadQueries()
 			.build()
 		val bootstrapPolicy = RoomSourcePolicyRepository(bootstrapDatabase) {
@@ -281,7 +280,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	fun `retention bootstrap initializes SourcePolicy without startup Ready or provider work`() =
 		runTest {
 			val context = ApplicationProvider.getApplicationContext<Application>()
-			val bootstrapDatabase = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+			val bootstrapDatabase = AppDatabase.inMemoryBuilder(context)
 				.allowMainThreadQueries()
 				.build()
 			val bootstrapPolicy = RoomSourcePolicyRepository(bootstrapDatabase) {
@@ -331,7 +330,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	fun `provider free Active bootstrap stays closed and rearms once for the new Ready generation`() =
 		runTest {
 			val context = ApplicationProvider.getApplicationContext<Application>()
-			val isolatedDatabase = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+			val isolatedDatabase = AppDatabase.inMemoryBuilder(context)
 				.allowMainThreadQueries()
 				.build()
 			val isolatedPolicy = RoomSourcePolicyRepository(isolatedDatabase) {
@@ -465,7 +464,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	@Test
 	fun `bootstrap storage failure emits fail closed and retries in application scope`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Application>()
-		val secondaryDatabase = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+		val secondaryDatabase = AppDatabase.inMemoryBuilder(context)
 			.allowMainThreadQueries()
 			.build()
 		try {

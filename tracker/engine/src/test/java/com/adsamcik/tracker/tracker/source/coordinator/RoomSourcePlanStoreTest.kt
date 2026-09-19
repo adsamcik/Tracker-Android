@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.source.coordinator
 
 import android.app.Application
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -25,7 +24,7 @@ class RoomSourcePlanStoreTest {
 	@Before
 	fun setUp() {
 		val context = ApplicationProvider.getApplicationContext<Application>()
-		database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+		database = AppDatabase.inMemoryBuilder(context)
 			.allowMainThreadQueries()
 			.build()
 		store = RoomSourcePlanStore(database, SourcePlanCodec())

@@ -19,6 +19,7 @@ import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
 import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.WifiScanAttemptOutcome
 import com.adsamcik.tracker.tracker.source.model.WifiScanAttemptPayload
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.Test
@@ -220,6 +221,95 @@ class SourcePayloadCodecTest {
 
 		shouldThrow<IllegalArgumentException> {
 			codec.encode(ambiguous, STEP_BOUNDARY_KIND_PAYLOAD_VERSION)
+		}
+	}
+
+	@Test
+	fun `version six remains decodeable including its unsafe reused reset token`() {
+		val token = StepsCounterDomainToken.opaque("sha256:${"a".repeat(64)}")
+		val payload = StepCounterWindowPayload(
+			bootClockDomainId = "boot-v6",
+			firstCumulativeCount = 100L,
+			lastCumulativeCount = 120L,
+			deltaCount = 20L,
+			windowStartElapsedRealtimeNanos = 10L,
+			windowEndElapsedRealtimeNanos = 20L,
+			firstProviderSequence = 1L,
+			lastProviderSequence = 2L,
+			boundaryKind = StepBoundaryKind.COVERED,
+			counterDomainToken = token,
+		)
+		val reset = payload.copy(
+			firstCumulativeCount = 120L,
+			lastCumulativeCount = 2L,
+			deltaCount = 0L,
+			boundaryKind = StepBoundaryKind.COUNTER_RESET,
+		)
+
+		codec.decode(
+			payload.source,
+			STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION,
+			codec.encode(payload, STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION).bytes,
+		) shouldBe payload
+		codec.decode(
+			reset.source,
+			STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION,
+			codec.encode(reset, STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION).bytes,
+		) shouldBe reset
+		shouldThrow<IllegalArgumentException> {
+			codec.encode(
+				payload.copy(counterDomainToken = null),
+				STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			codec.encode(payload, RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION)
+		}
+	}
+
+	@Test
+	fun `version seven persists checked generation and allows only tokenless reset boundaries`() {
+		val token = StepsCounterDomainToken.opaque("sha256:${"b".repeat(64)}")
+		val covered = StepCounterWindowPayload(
+			bootClockDomainId = "boot-v7",
+			firstCumulativeCount = 3L,
+			lastCumulativeCount = 8L,
+			deltaCount = 5L,
+			windowStartElapsedRealtimeNanos = 20L,
+			windowEndElapsedRealtimeNanos = 30L,
+			firstProviderSequence = 2L,
+			lastProviderSequence = 3L,
+			boundaryKind = StepBoundaryKind.COVERED,
+			counterDomainToken = token,
+			counterEpochGeneration = 2L,
+		)
+		val reset = covered.copy(
+			firstCumulativeCount = 8L,
+			lastCumulativeCount = 1L,
+			deltaCount = 0L,
+			boundaryKind = StepBoundaryKind.COUNTER_RESET,
+			counterDomainToken = null,
+			counterEpochGeneration = 3L,
+		)
+
+		codec.decode(
+			covered.source,
+			STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION,
+			codec.encode(covered, STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION).bytes,
+		) shouldBe covered
+		codec.decode(
+			reset.source,
+			STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION,
+			codec.encode(reset, STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION).bytes,
+		) shouldBe reset
+		shouldThrow<IllegalArgumentException> {
+			codec.encode(
+				covered.copy(counterEpochGeneration = null),
+				STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			reset.copy(counterDomainToken = token)
 		}
 	}
 

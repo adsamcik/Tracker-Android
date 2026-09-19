@@ -1377,6 +1377,11 @@ val MIGRATION_25_26: Migration = object : Migration(25, 26) {
  * is activated only after the application has transactionally imported the legacy source settings.
  */
 internal const val V28_MIGRATION_INTERRUPTION_REASON = "V28_MIGRATION_INTERRUPTED"
+internal const val V28_MIGRATION_TERMINAL_RUN_SQL =
+	"run.state = 'FINALIZED' AND run.completed_at_ms IS NULL AND " +
+		"typeof(run.completion_reason) = 'text' AND length(trim(run.completion_reason)) > 0 AND " +
+		"run.runtime_acknowledgement = 'TERMINAL_FAILURE' AND " +
+		"run.runtime_failure_code = '$V28_MIGRATION_INTERRUPTION_REASON'"
 
 val MIGRATION_27_28: Migration = object : Migration(
 	LAST_RELEASED_ACTIVE_DATABASE_VERSION,
@@ -1712,6 +1717,10 @@ val MIGRATION_27_28: Migration = object : Migration(
 					"provider, registration_generation, continuity_segment_generation, " +
 					"window_start_time_ms)",
 			)
+			check(
+				StepsCountDomainSchema.installIfAbsent(db) ==
+					StepsCountDomainSchemaState.ValidV2,
+			) { "Unable to install the exact Steps count-domain schema" }
 			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS ambient_steps_import_cursor (

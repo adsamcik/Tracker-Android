@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.os.SystemClock
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
@@ -486,6 +487,7 @@ internal suspend fun SourceRegistrationRepository.saveSensorRuntimeCheckpoint(
 	checkpoint: SensorRuntimeCheckpoint,
 	updatedAtMs: Long,
 	terminalCompleteness: com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity? = null,
+	terminalStepsCountDomainEvidence: StepsCountDomainRetirementEvidence? = null,
 ) = saveRuntimeState(
 	registration = registration,
 	lastProviderSequence = lastProviderSequence,
@@ -497,6 +499,7 @@ internal suspend fun SourceRegistrationRepository.saveSensorRuntimeCheckpoint(
 	),
 	updatedAtMs = updatedAtMs,
 	terminalCompleteness = terminalCompleteness,
+	terminalStepsCountDomainEvidence = terminalStepsCountDomainEvidence,
 )
 
 internal fun sensorProviderCoverage(

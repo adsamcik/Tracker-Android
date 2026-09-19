@@ -174,5 +174,6 @@ class SourceProductDrainContractTest {
 			),
 		),
 		target = target,
+		runManifestRevisions = listOf(1L),
 	)
 }

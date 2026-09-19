@@ -2,6 +2,11 @@ package com.adsamcik.tracker.tracker.source.projection
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
+import com.adsamcik.tracker.shared.base.database.publishStepsCountDomainEvidenceRevisionAtWallTime
 import com.adsamcik.tracker.shared.base.database.enqueueAllStepsGoalRepairs
 import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDayRange
 import com.adsamcik.tracker.shared.base.database.markStepsRetentionTruncation
@@ -17,10 +22,15 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
+import com.adsamcik.tracker.tracker.source.coordinator.SourceDrainMembership
+import com.adsamcik.tracker.tracker.source.coordinator.SourceDrainRetirementClaim
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
+import com.adsamcik.tracker.tracker.source.ingress.STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.ingress.STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
@@ -146,9 +156,90 @@ class StepsSessionFactProjectionLane private constructor(
 		drainThroughLocked(initialLane, target)
 	}
 
+	/** Exact service-run drain that cannot materialize a generation lacking product membership. */
+	internal suspend fun drainThrough(
+		throughAdmissionOrdinal: Long,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		productMemberships: List<SourceDrainMembership>,
+		retirementClaims: List<SourceDrainRetirementClaim>,
+	): StepsSessionFactDrainResult = mutex.withLock {
+		require(throughAdmissionOrdinal >= 0L)
+		require(logicalTrackingId.isNotBlank())
+		require(serviceRunId.isNotBlank())
+		require(productMemberships.isNotEmpty())
+		val authority = StepsProductDrainAuthority(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			productProviders = productMemberships.map { membership ->
+				StepsProviderIdentity(
+					membership.sourceInstanceId,
+					membership.registrationGeneration,
+				)
+			}.toSet(),
+			productActions = retirementClaims
+				.filterNot(SourceDrainRetirementClaim::cleanupOnly)
+				.map { claim ->
+					StepsProviderActionIdentity(
+						claim.sourceInstanceId,
+						claim.registrationGeneration,
+						claim.leaseGeneration,
+					)
+				}.toSet(),
+		)
+		val initialLane = database.withTransaction { executableLaneOrNull() }
+			?: return@withLock StepsSessionFactDrainResult.Inactive
+		val target = minOf(
+			throughAdmissionOrdinal,
+			initialLane.captureAdmissionCutoffOrdinal ?: Long.MAX_VALUE,
+		)
+		if (target <= initialLane.contiguousAdmissionOrdinal) {
+			return@withLock StepsSessionFactDrainResult.Complete(
+				lastCompletedOrdinal = initialLane.contiguousAdmissionOrdinal,
+				factsInserted = 0,
+				eventsValidated = 0,
+			)
+		}
+		drainThroughLocked(initialLane, target, authority)
+	}
+
+	/**
+	 * Commits the canonical Steps lane through an exact terminal admission before completeness can
+	 * be published. Shadow validation and a capture cutoff below the requested ordinal are not
+	 * completion authority.
+	 */
+	internal suspend fun drainCanonicalThrough(
+		throughAdmissionOrdinal: Long,
+	): StepsSessionFactDrainResult = mutex.withLock {
+		require(throughAdmissionOrdinal > 0L)
+		val initialLane = database.withTransaction { executableLaneOrNull() }
+			?: return@withLock StepsSessionFactDrainResult.Inactive
+		if (initialLane.productStage != SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) {
+			return@withLock StepsSessionFactDrainResult.AuthorityChanged(
+				"STEPS_CANONICAL_LANE_NOT_ACTIVE",
+			)
+		}
+		if (initialLane.captureAdmissionCutoffOrdinal?.let {
+				it < throughAdmissionOrdinal
+			} == true) {
+			return@withLock StepsSessionFactDrainResult.AuthorityChanged(
+				"STEPS_CANONICAL_CUTOFF_BEFORE_COMPLETENESS",
+			)
+		}
+		if (throughAdmissionOrdinal <= initialLane.contiguousAdmissionOrdinal) {
+			return@withLock StepsSessionFactDrainResult.Complete(
+				lastCompletedOrdinal = initialLane.contiguousAdmissionOrdinal,
+				factsInserted = 0,
+				eventsValidated = 0,
+			)
+		}
+		drainThroughLocked(initialLane, throughAdmissionOrdinal)
+	}
+
 	private suspend fun drainThroughLocked(
 		initialLane: SourceProductProjectionLaneEntity,
 		targetAdmissionOrdinal: Long,
+		productAuthority: StepsProductDrainAuthority? = null,
 	): StepsSessionFactDrainResult {
 		var cursor = initialLane.contiguousAdmissionOrdinal
 		var factsInserted = 0
@@ -168,10 +259,12 @@ class StepsSessionFactProjectionLane private constructor(
 							throughOrdinal = targetAdmissionOrdinal,
 						)
 					val terminal = storedTerminal?.takeUnless { failure ->
-						if (failureIsLifecycleRejected(
+						if (
+							failureIsLifecycleRejected(
 								admissionOrdinal = failure.admissionOrdinal,
 								failureCode = failure.failureCode,
 								evidenceState = evidenceState,
+								productAuthority = productAuthority,
 							)
 						) {
 							database.sourceProjectionStateDao().deleteFailure(
@@ -224,10 +317,16 @@ class StepsSessionFactProjectionLane private constructor(
 								evidenceState = evidenceState,
 								lane = lane,
 								manifestBindings = manifestBindings,
+								productAuthority = productAuthority,
 							)
 							if (lane.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL &&
 								candidate != null
 							) {
+								recordWalCountDomainOrThrow(
+									event.admissionOrdinal,
+									(event.evidence.payload as StepCounterWindowPayload)
+										.counterDomainToken,
+								)
 								when (insertOrVerifyExactReplay(candidate)) {
 									FactAdmission.INSERTED -> {
 										inserted++
@@ -298,7 +397,7 @@ class StepsSessionFactProjectionLane private constructor(
 			} catch (changed: StepsLaneAuthorityChangedException) {
 				return StepsSessionFactDrainResult.AuthorityChanged(changed.reason)
 			} catch (corrupt: CorruptSourceEventException) {
-				resolveCorruptFailure(initialLane, cursor, corrupt)
+				resolveCorruptFailure(initialLane, cursor, corrupt, productAuthority)
 			} catch (poison: StepsSessionFactPoisonException) {
 				return persistFailure(
 					cursor = cursor,
@@ -379,6 +478,7 @@ class StepsSessionFactProjectionLane private constructor(
 		expectedLane: SourceProductProjectionLaneEntity,
 		cursor: Long,
 		corrupt: CorruptSourceEventException,
+		productAuthority: StepsProductDrainAuthority?,
 	): StepsProjectionPass = database.withTransaction {
 		val lane = requireExactLane(expectedLane, expectedCursor = cursor)
 		val evidenceState = evidenceState()
@@ -392,6 +492,7 @@ class StepsSessionFactProjectionLane private constructor(
 				admissionOrdinal = corrupt.admissionOrdinal,
 				failureCode = corrupt.failureCode,
 				evidenceState = evidenceState,
+				productAuthority = productAuthority,
 			)
 		) {
 			database.sourceProjectionStateDao().deleteFailure(
@@ -447,9 +548,7 @@ class StepsSessionFactProjectionLane private constructor(
 	) {
 		if (inserted == 0) return
 		check(firstEpochDay != null && lastEpochDay != null)
-		check(database.sourceEvidenceStateDao().incrementRevision(nowMs()) == 1) {
-			"Unable to publish the Steps fact evidence revision"
-		}
+		publishStepsCountDomainEvidenceRevisionAtWallTime(database, nowMs())
 		database.enqueueStepsGoalRepairDayRange(firstEpochDay, lastEpochDay)
 	}
 
@@ -458,6 +557,7 @@ class StepsSessionFactProjectionLane private constructor(
 		admissionOrdinal: Long,
 		failureCode: String,
 		evidenceState: SourceEvidenceState,
+		productAuthority: StepsProductDrainAuthority?,
 	): Boolean {
 		if (admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal) return true
 		// A failed WAL integrity identity authenticates none of the row's scope, purpose, epoch,
@@ -466,13 +566,36 @@ class StepsSessionFactProjectionLane private constructor(
 		val raw = database.sourceEventWalDao()
 			.projectionEligibilityByAdmissionOrdinal(admissionOrdinal) ?: return true
 		if (raw.sourceKind != SourceKind.STEPS.stableCode) return true
-		if (raw.isDeletedScope()) return true
-		if (raw.authorizationPurposeEligibilityMask and
-			SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
-			raw.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch
+		if (
+			productAuthority != null &&
+			raw.serviceRunId == productAuthority.serviceRunId &&
+			(
+				raw.logicalTrackingId != productAuthority.logicalTrackingId ||
+					StepsProviderIdentity(
+						raw.sourceInstanceId,
+						raw.registrationGeneration,
+					) !in productAuthority.productProviders ||
+					(productAuthority.productActions.isNotEmpty() &&
+						StepsProviderActionIdentity(
+							raw.sourceInstanceId,
+							raw.registrationGeneration,
+							raw.lifecycleLeaseGeneration ?: return false,
+						) !in productAuthority.productActions)
+				)
 		) {
+			return false
+		}
+		if (raw.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch) {
 			return true
 		}
+		val purposeMask = raw.authorizationPurposeEligibilityMask
+		val hasValidPurposeMask =
+			purposeMask >= 0L && purposeMask and SourceBrokerPurpose.ALL_MASK == purposeMask
+		if (!hasValidPurposeMask) return false
+		if (purposeMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L) {
+			return raw.logicalTrackingId == null && raw.serviceRunId == null
+		}
+		if (raw.isDeletedScope()) return true
 		// A poison caused by the event's own wall/acquisition shape cannot be released by
 		// consulting those same disputed timestamps. Exact scope deletion above remains valid;
 		// otherwise only the independent global deletion high-water may make it disappear.
@@ -581,7 +704,10 @@ class StepsSessionFactProjectionLane private constructor(
 		candidate: StepFactRevisionEntity,
 	): FactAdmission {
 		val dao = database.stepFactRevisionDao()
-		if (dao.insert(candidate) != INSERT_IGNORED) return FactAdmission.INSERTED
+		if (dao.insert(candidate) != INSERT_IGNORED) {
+			recordCountDomainOrThrow(candidate)
+			return FactAdmission.INSERTED
+		}
 
 		val byRevision = dao.revision(
 			candidate.writerProjectionId,
@@ -600,6 +726,7 @@ class StepsSessionFactProjectionLane private constructor(
 			requireNotNull(candidate.sourceAdmissionOrdinal),
 		)
 		if (byRevision == candidate && byMutation == candidate && byAdmission == candidate) {
+			recordCountDomainOrThrow(candidate)
 			return FactAdmission.EXACT_REPLAY
 		}
 		val collisions = buildList {
@@ -613,26 +740,119 @@ class StepsSessionFactProjectionLane private constructor(
 		)
 	}
 
+	private suspend fun recordCountDomainOrThrow(candidate: StepFactRevisionEntity) {
+		val admissionOrdinal = requireNotNull(candidate.sourceAdmissionOrdinal)
+		val store = StepsCountDomainStore(database)
+		when (store.recordSessionFact(candidate)) {
+			StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
+			StepsCountDomainWriteResult.INSERTED,
+			StepsCountDomainWriteResult.EXACT_REPLAY,
+			-> Unit
+			else -> throw StepsSessionFactIdentityCollisionException(
+				admissionOrdinal,
+				"STEPS_COUNT_DOMAIN_FACT_CONFLICT",
+			)
+		}
+	}
+
+	private suspend fun recordWalCountDomainOrThrow(
+		admissionOrdinal: Long,
+		counterDomainToken: StepsCounterDomainToken?,
+	) {
+		when (StepsCountDomainSchema.inspect(database.openHelper.writableDatabase)) {
+			StepsCountDomainSchemaState.Absent,
+			StepsCountDomainSchemaState.FreshRoomScaffold,
+			-> return
+			StepsCountDomainSchemaState.Incompatible ->
+				throw StepsSessionFactIdentityCollisionException(
+					admissionOrdinal,
+					"STEPS_COUNT_DOMAIN_STORED_EVIDENCE_UNVERIFIABLE",
+				)
+			StepsCountDomainSchemaState.ValidV2 -> Unit
+		}
+		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(admissionOrdinal)
+			?: throw StepsSessionFactIdentityCollisionException(
+				admissionOrdinal,
+				"STEPS_COUNT_DOMAIN_WAL_MISSING",
+			)
+		when (StepsCountDomainStore(database).recordSessionWal(wal, counterDomainToken)) {
+			StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
+			StepsCountDomainWriteResult.INSERTED,
+			StepsCountDomainWriteResult.EXACT_REPLAY,
+			StepsCountDomainWriteResult.UNPROVEN,
+			-> Unit
+			else -> throw StepsSessionFactIdentityCollisionException(
+				admissionOrdinal,
+				"STEPS_COUNT_DOMAIN_WAL_CONFLICT",
+			)
+		}
+	}
+
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private suspend fun AdmittedSourceEvent<out SourcePayload>.toFactOrNull(
 		evidenceState: SourceEvidenceState,
 		lane: SourceProductProjectionLaneEntity,
 		manifestBindings: MutableMap<StepsManifestKey, SessionManifestSourceEntity>,
+		productAuthority: StepsProductDrainAuthority?,
 	): StepFactRevisionEntity? {
 		val evidence = evidence
 		if (evidence.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch ||
-			admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal ||
-			evidence.registrationPurposeEligibilityMask and
-			SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
-			evidence.logicalTrackingId == null ||
-			evidence.serviceRunId == null
+			admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
 		) return null
-		val logicalTrackingId = evidence.logicalTrackingId.value
-		val serviceRunId = evidence.serviceRunId.value
 		fun poison(code: String): Nothing = throw StepsSessionFactPoisonException(
 			admissionOrdinal,
 			code,
 		)
+		val logicalTrackingId = evidence.logicalTrackingId?.value
+		val serviceRunId = evidence.serviceRunId?.value
+		if (logicalTrackingId == null && serviceRunId == null) return null
+		if (logicalTrackingId == null || serviceRunId == null) {
+			poison("STEPS_CAPTURE_ASSOCIATION_INCOMPLETE")
+		}
+		if (
+			productAuthority != null &&
+			serviceRunId == productAuthority.serviceRunId &&
+			(
+				logicalTrackingId != productAuthority.logicalTrackingId ||
+					StepsProviderIdentity(
+						evidence.sourceInstanceId.value,
+						evidence.registrationGeneration,
+					) !in productAuthority.productProviders ||
+					(productAuthority.productActions.isNotEmpty() &&
+						StepsProviderActionIdentity(
+							evidence.sourceInstanceId.value,
+							evidence.registrationGeneration,
+							evidence.lifecycleLeaseGeneration ?: poison(
+								"STEPS_DRAIN_ACTION_MEMBERSHIP_MISSING",
+							),
+						) !in productAuthority.productActions)
+				)
+		) {
+			poison("STEPS_DRAIN_MEMBERSHIP_MISMATCH")
+		}
+		val manifestRevision = evidence.sessionManifestRevision
+			?: poison("STEPS_MANIFEST_REVISION_MISSING")
+		val policyRevision = evidence.sourcePolicyRevision
+			?: poison("STEPS_POLICY_REVISION_MISSING")
+		val consentEpoch = evidence.captureConsentEpoch
+			?: poison("STEPS_CAPTURE_CONSENT_EPOCH_MISSING")
+		if (evidence.lifecycleLeaseGeneration == null) {
+			poison("STEPS_LIFECYCLE_LEASE_MISSING")
+		}
+		val manifestKey = StepsManifestKey(logicalTrackingId, serviceRunId, manifestRevision)
+		val manifestBinding = manifestBindings[manifestKey] ?: resolveManifestBinding(
+			key = manifestKey,
+			admissionOrdinal = admissionOrdinal,
+			policyRevision = policyRevision,
+			consentEpoch = consentEpoch,
+		).also { resolved -> manifestBindings[manifestKey] = resolved }
+		val purposeMask = evidence.registrationPurposeEligibilityMask
+		if (purposeMask < 0L ||
+			purposeMask and SourceBrokerPurpose.ALL_MASK != purposeMask ||
+			purposeMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
+		) {
+			poison("STEPS_PURPOSE_ELIGIBILITY_MISMATCH")
+		}
 		val endTimeMs = evidence.wallTimeMs ?: poison("STEPS_WALL_TIME_MISSING")
 		if (endTimeMs < 0L) poison("STEPS_WALL_TIME_NEGATIVE")
 		if (endTimeMs != evidence.acquiredAtMs) {
@@ -665,6 +885,15 @@ class StepsSessionFactProjectionLane private constructor(
 			payload.deltaCount < 0L || payload.firstProviderSequence < 0L ||
 			payload.lastProviderSequence < payload.firstProviderSequence
 		) poison("STEPS_COUNTER_INVALID")
+		if ((evidence.payloadVersion >= STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION &&
+				payload.counterEpochGeneration == null) ||
+			(evidence.payloadVersion < STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION &&
+				payload.counterEpochGeneration != null) ||
+			(evidence.payloadVersion == STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION &&
+				payload.counterDomainToken == null) ||
+			(evidence.payloadVersion < STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION &&
+				payload.counterDomainToken != null)
+		) poison("STEPS_COUNT_DOMAIN_PAYLOAD_INVALID")
 
 		val coverage = when (payload.boundaryKind) {
 			StepBoundaryKind.BASELINE -> {
@@ -691,22 +920,6 @@ class StepsSessionFactProjectionLane private constructor(
 			}
 		}
 
-		val manifestRevision = evidence.sessionManifestRevision
-			?: poison("STEPS_MANIFEST_REVISION_MISSING")
-		val policyRevision = evidence.sourcePolicyRevision
-			?: poison("STEPS_POLICY_REVISION_MISSING")
-		val consentEpoch = evidence.captureConsentEpoch
-			?: poison("STEPS_CAPTURE_CONSENT_EPOCH_MISSING")
-		if (evidence.lifecycleLeaseGeneration == null) {
-			poison("STEPS_LIFECYCLE_LEASE_MISSING")
-		}
-		val manifestKey = StepsManifestKey(logicalTrackingId, serviceRunId, manifestRevision)
-		val manifestBinding = manifestBindings[manifestKey] ?: resolveManifestBinding(
-			key = manifestKey,
-			admissionOrdinal = admissionOrdinal,
-			policyRevision = policyRevision,
-			consentEpoch = consentEpoch,
-		).also { resolved -> manifestBindings[manifestKey] = resolved }
 		if (lane.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) {
 			val owner = database.sourceDestinationOwnerDao().get(
 				SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -804,9 +1017,7 @@ class StepsSessionFactProjectionLane private constructor(
 			)
 		}
 		if (inserted) {
-			check(database.sourceEvidenceStateDao().incrementRevision(nowMs()) == 1) {
-				"Unable to publish the Steps retention-truncation marker"
-			}
+			publishStepsCountDomainEvidenceRevisionAtWallTime(database, nowMs())
 			database.enqueueAllStepsGoalRepairs()
 		}
 	}
@@ -918,6 +1129,24 @@ private data class StepsManifestKey(
 	val logicalTrackingId: String,
 	val serviceRunId: String,
 	val manifestRevision: Long,
+)
+
+private data class StepsProviderIdentity(
+	val sourceInstanceId: String,
+	val registrationGeneration: Long,
+)
+
+private data class StepsProviderActionIdentity(
+	val sourceInstanceId: String,
+	val registrationGeneration: Long,
+	val leaseGeneration: Long,
+)
+
+private data class StepsProductDrainAuthority(
+	val logicalTrackingId: String,
+	val serviceRunId: String,
+	val productProviders: Set<StepsProviderIdentity>,
+	val productActions: Set<StepsProviderActionIdentity>,
 )
 
 private fun StepFactRevisionEntity.possibleCalendarDayRange(): LongRange {

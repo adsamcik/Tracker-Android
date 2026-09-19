@@ -146,7 +146,7 @@ class SharedStepSourceController @Inject internal constructor(
 		val controlPlan = effectivePlan(selectedDemands())
 		if (controlPlan == null) {
 			return physicalRuntime.quiesce(cutoff).withSessionMembership(retiringClaim).also { acknowledgement ->
-				if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) {
+				if (acknowledgement.toStepsOwnedShutdown() is OwnedSourceShutdown.Incomplete) {
 					sessionPlan = predecessorPlan
 				}
 			}
@@ -168,7 +168,7 @@ class SharedStepSourceController @Inject internal constructor(
 			}
 		}
 		val attributedAcknowledgement = acknowledgement.withSessionMembership(retiringClaim)
-		if (attributedAcknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) {
+		if (attributedAcknowledgement.toStepsOwnedShutdown() is OwnedSourceShutdown.Incomplete) {
 			sessionPlan = predecessorPlan
 		}
 		return attributedAcknowledgement
@@ -184,7 +184,7 @@ class SharedStepSourceController @Inject internal constructor(
 			// session join. Its exact claim remains cleanable without touching the predecessor join.
 			return@withLock physicalRuntime.shutdownIfOwned(claim, cutoff)
 		}
-		quiesceLocked(cutoff).toOwnedShutdown().also { shutdown ->
+		quiesceLocked(cutoff).toStepsOwnedShutdown().also { shutdown ->
 			if (shutdown is OwnedSourceShutdown.Released) sessionClaim = null
 		}
 	}
@@ -197,7 +197,7 @@ class SharedStepSourceController @Inject internal constructor(
 	}
 
 	private fun clearClaimIfReleased(acknowledgement: SourceStopAck) {
-		if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) sessionClaim = null
+		if (acknowledgement.toStepsOwnedShutdown() is OwnedSourceShutdown.Released) sessionClaim = null
 	}
 
 	/** Retires any Steps CONTROL_AUTOSTART demand written by an older build. */

@@ -11,6 +11,8 @@ object SourceCompaction {
 		second: StepCounterWindowPayload,
 	): StepCounterWindowPayload {
 		require(first.bootClockDomainId == second.bootClockDomainId)
+		require(first.counterDomainToken == second.counterDomainToken)
+		require(first.counterEpochGeneration == second.counterEpochGeneration)
 		require(!first.baselineReset && !second.baselineReset)
 		require(first.lastProviderSequence + 1L == second.firstProviderSequence)
 		require(first.windowEndElapsedRealtimeNanos <= second.windowStartElapsedRealtimeNanos)
@@ -25,6 +27,8 @@ object SourceCompaction {
 			firstProviderSequence = first.firstProviderSequence,
 			lastProviderSequence = second.lastProviderSequence,
 			baselineReset = false,
+			counterDomainToken = first.counterDomainToken,
+			counterEpochGeneration = first.counterEpochGeneration,
 		)
 	}
 

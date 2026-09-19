@@ -3,7 +3,6 @@ package com.adsamcik.tracker.shared.base.database
 import android.app.Application
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
-import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -644,8 +643,7 @@ class LegacyV26ImportTest {
 	}
 
 	private fun buildActive(): AppDatabase =
-		Room.databaseBuilder(context, AppDatabase::class.java, ACTIVE_DATABASE_NAME)
-			.addMigrations(*AppDatabase.activeMigrations)
+		AppDatabase.fileBuilder(context, ACTIVE_DATABASE_NAME)
 			.addCallback(
 				LegacyImportRoomCallback(
 					context,

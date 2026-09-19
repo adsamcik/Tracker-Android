@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import com.adsamcik.tracker.shared.base.database.V28_MIGRATION_TERMINAL_RUN_SQL
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 
 @Dao
@@ -101,7 +102,8 @@ interface SourceEventWalDao {
 		"SELECT admission_ordinal, source_kind, captured_collected_data_epoch, " +
 			"acquired_at_ms, wall_time_ms, wall_time_uncertainty_ms, " +
 			"authorization_purpose_eligibility_mask, " +
-			"logical_tracking_id, service_run_id, source_instance_id, registration_generation " +
+			"logical_tracking_id, service_run_id, source_instance_id, registration_generation, " +
+			"lifecycle_lease_generation " +
 			"FROM source_event_wal " +
 			"WHERE admission_ordinal = :admissionOrdinal LIMIT 1",
 	)
@@ -323,6 +325,351 @@ interface SourceEventWalDao {
 		limit: Int,
 	): List<SourceEventWalEntity>
 
+	/**
+	 * Raw bounded envelope for one run/source capture high-water.
+	 *
+	 * Valid rows remain anchored on the exact text service-run identity and source. A malformed,
+	 * blank, or null service-run identity is visible only when an authenticated manifest revision
+	 * for this run, plus the exact source, logical owner, and capture purpose, associates the row
+	 * with this requested domain. Other invalid aggregate inputs sort before the newest eligible row
+	 * without sweeping unrelated runs.
+	 */
+	@Query(
+		"SELECT " +
+			"typeof(event_id) || '|' || typeof(admission_ordinal) || '|' || " +
+			"typeof(source_kind) || '|' || typeof(logical_tracking_id) || '|' || " +
+			"typeof(service_run_id) || '|' || typeof(source_instance_id) || '|' || " +
+			"typeof(registration_generation) || '|' || " +
+			"typeof(authorization_purpose_eligibility_mask) AS storage_class_signature, " +
+			"CASE WHEN typeof(event_id) = 'text' THEN event_id END AS event_id, " +
+			"CASE WHEN typeof(admission_ordinal) = 'integer' THEN admission_ordinal END " +
+			"AS admission_ordinal, " +
+			"CASE WHEN typeof(source_kind) = 'integer' THEN source_kind END AS source_kind, " +
+			"CASE WHEN typeof(logical_tracking_id) = 'text' THEN logical_tracking_id END " +
+			"AS logical_tracking_id, " +
+			"CASE WHEN typeof(service_run_id) = 'text' THEN service_run_id END AS service_run_id, " +
+			"CASE WHEN typeof(source_instance_id) = 'text' THEN source_instance_id END " +
+			"AS source_instance_id, " +
+			"CASE WHEN typeof(registration_generation) = 'integer' " +
+			"THEN registration_generation END AS registration_generation, " +
+			"CASE WHEN typeof(authorization_purpose_eligibility_mask) = 'integer' " +
+			"THEN authorization_purpose_eligibility_mask END " +
+			"AS authorization_purpose_eligibility_mask " +
+			"FROM source_event_wal WHERE (" +
+			"(" +
+			"typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId AND " +
+			"(CAST(source_kind AS INTEGER) = :sourceKind OR typeof(source_kind) != 'integer')" +
+			") OR (" +
+			"(typeof(service_run_id) != 'text' OR (typeof(service_run_id) = 'text' AND " +
+			"length(trim(service_run_id, ' ' || char(9) || char(10) || char(11) || " +
+			"char(12) || char(13))) = 0)) AND " +
+			"typeof(source_kind) = 'integer' AND source_kind = :sourceKind AND " +
+			"typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId AND " +
+			"typeof(session_manifest_revision) = 'integer' AND " +
+			"session_manifest_revision IN (:runManifestRevisions) AND " +
+			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0" +
+			")) AND (" +
+			"typeof(event_id) != 'text' OR trim(event_id) = '' OR " +
+			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
+			"(typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0 AND " +
+			"admission_ordinal > :throughOrdinal) OR " +
+			"typeof(source_kind) != 'integer' OR source_kind != :sourceKind OR " +
+			"typeof(logical_tracking_id) != 'text' OR logical_tracking_id != :logicalTrackingId OR " +
+			"typeof(service_run_id) != 'text' OR service_run_id != :serviceRunId OR " +
+			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
+			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
+			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
+			"authorization_purpose_eligibility_mask < 0 OR " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) != " +
+			"authorization_purpose_eligibility_mask OR " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0) " +
+			"ORDER BY CASE WHEN (" +
+			"typeof(event_id) != 'text' OR trim(event_id) = '' OR " +
+			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
+			"(typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0 AND " +
+			"admission_ordinal > :throughOrdinal) OR " +
+			"typeof(source_kind) != 'integer' OR source_kind != :sourceKind OR " +
+			"typeof(logical_tracking_id) != 'text' OR logical_tracking_id != :logicalTrackingId OR " +
+			"typeof(service_run_id) != 'text' OR service_run_id != :serviceRunId OR " +
+			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
+			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
+			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
+			"authorization_purpose_eligibility_mask < 0 OR " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) != " +
+			"authorization_purpose_eligibility_mask) THEN 0 ELSE 1 END, " +
+			"admission_ordinal DESC, rowid DESC LIMIT :limit",
+	)
+	suspend fun rawRunSourceCaptureHighWater(
+		sourceKind: Int,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		runManifestRevisions: List<Long>,
+		throughOrdinal: Long,
+		capturePurposeMask: Long,
+		allowedPurposeMask: Long,
+		limit: Int,
+	): List<RawSourceRunWalHighWaterEvidence>
+
+	/**
+	 * Groups exact-run rows associated with an authenticated capture-manifest revision.
+	 *
+	 * The mutable purpose mask is projected and counted rather than used as a row-selection
+	 * predicate. Callers can therefore reject a capture-owned row whose bit was cleared.
+	 */
+	@Query(
+		"SELECT " +
+			"CASE WHEN typeof(source_instance_id) = 'text' THEN source_instance_id END " +
+			"AS source_instance_id, " +
+			"CASE WHEN typeof(registration_generation) = 'integer' " +
+			"THEN registration_generation END AS registration_generation, " +
+			"CASE WHEN typeof(lifecycle_lease_generation) = 'integer' " +
+			"THEN lifecycle_lease_generation END AS lifecycle_lease_generation, " +
+			"COUNT(*) AS associated_row_count, " +
+			"SUM(CASE WHEN (" +
+			"typeof(event_id) != 'text' OR " +
+			"trim(event_id, char(9, 10, 11, 12, 13, 32)) = '' OR " +
+			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
+			"(admission_ordinal > :throughOrdinal AND (" +
+			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
+			"authorization_purpose_eligibility_mask <= 0 OR " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) != " +
+			"authorization_purpose_eligibility_mask OR " +
+			"(authorization_purpose_eligibility_mask & :controlPurposeMask) != " +
+			"authorization_purpose_eligibility_mask)) OR " +
+			"typeof(source_kind) != 'integer' OR source_kind != :sourceKind OR " +
+			"typeof(logical_tracking_id) != 'text' OR logical_tracking_id != :logicalTrackingId OR " +
+			"typeof(service_run_id) != 'text' OR " +
+			"trim(service_run_id, char(9, 10, 11, 12, 13, 32)) = '' OR " +
+			"service_run_id != :serviceRunId OR " +
+			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
+			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
+			"typeof(session_manifest_revision) != 'integer' OR session_manifest_revision <= 0 OR " +
+			"typeof(lifecycle_lease_generation) != 'integer' OR " +
+			"lifecycle_lease_generation <= 0 OR " +
+			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
+			"authorization_purpose_eligibility_mask < 0 OR " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) != " +
+			"authorization_purpose_eligibility_mask" +
+			") THEN 1 ELSE 0 END) AS malformed_row_count, " +
+			"SUM(CASE WHEN (" +
+			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"authorization_purpose_eligibility_mask >= 0 AND " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) = " +
+			"authorization_purpose_eligibility_mask AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0" +
+			") THEN 1 ELSE 0 END) AS product_eligible_row_count, " +
+			"SUM(CASE WHEN (" +
+			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"authorization_purpose_eligibility_mask > 0 AND " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) = " +
+			"authorization_purpose_eligibility_mask AND " +
+			"(authorization_purpose_eligibility_mask & :controlPurposeMask) = " +
+			"authorization_purpose_eligibility_mask" +
+			") THEN 1 ELSE 0 END) AS control_only_row_count, " +
+			"MAX(CASE WHEN (" +
+			"typeof(admission_ordinal) = 'integer' AND admission_ordinal > 0 AND " +
+			"admission_ordinal <= :throughOrdinal AND " +
+			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"authorization_purpose_eligibility_mask >= 0 AND " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) = " +
+			"authorization_purpose_eligibility_mask AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0" +
+			") THEN admission_ordinal END) AS high_water_admission_ordinal " +
+			"FROM source_event_wal WHERE " +
+			"typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId AND " +
+			"(CAST(source_kind AS INTEGER) = :sourceKind OR typeof(source_kind) != 'integer') AND " +
+			"typeof(session_manifest_revision) = 'integer' AND " +
+			"session_manifest_revision IN (:runManifestRevisions) " +
+			"GROUP BY typeof(source_instance_id), " +
+			"CASE WHEN typeof(source_instance_id) = 'text' THEN source_instance_id END, " +
+			"typeof(registration_generation), " +
+			"CASE WHEN typeof(registration_generation) = 'integer' " +
+			"THEN registration_generation END, " +
+			"typeof(lifecycle_lease_generation), " +
+			"CASE WHEN typeof(lifecycle_lease_generation) = 'integer' " +
+			"THEN lifecycle_lease_generation END " +
+			"ORDER BY malformed_row_count DESC, high_water_admission_ordinal DESC LIMIT :limit",
+	)
+	suspend fun rawExactRunSourceManifestAssociations(
+		sourceKind: Int,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		runManifestRevisions: List<Long>,
+		throughOrdinal: Long,
+		capturePurposeMask: Long,
+		controlPurposeMask: Long,
+		allowedPurposeMask: Long,
+		limit: Int,
+	): List<RawSourceRunWalGenerationEvidence>
+
+	/**
+	 * Groups every exact-run WAL row by raw manifest revision and provider identity.
+	 *
+	 * The projected mask classification lets callers exclude valid control-only evidence only after
+	 * proving that its provider is absent from both product membership and retirement authority.
+	 * The minimum row ID is a unique, compact keyset cursor because one WAL row belongs to exactly
+	 * one grouped association.
+	 */
+	@Query(
+		"SELECT association_page_row_id, session_manifest_revision, source_instance_id, " +
+			"registration_generation, associated_row_count, malformed_row_count, " +
+			"product_eligible_row_count, control_only_row_count FROM (" +
+			"SELECT MIN(rowid) AS association_page_row_id, " +
+			"CASE WHEN typeof(session_manifest_revision) = 'integer' " +
+			"THEN session_manifest_revision END AS session_manifest_revision, " +
+			"CASE WHEN typeof(source_instance_id) = 'text' THEN source_instance_id END " +
+			"AS source_instance_id, " +
+			"CASE WHEN typeof(registration_generation) = 'integer' " +
+			"THEN registration_generation END AS registration_generation, " +
+			"COUNT(*) AS associated_row_count, " +
+			"SUM(CASE WHEN (" +
+			"typeof(event_id) != 'text' OR " +
+			"trim(event_id, char(9, 10, 11, 12, 13, 32)) = '' OR " +
+			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
+			"(admission_ordinal > :throughOrdinal AND (" +
+			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
+			"authorization_purpose_eligibility_mask <= 0 OR " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) != " +
+			"authorization_purpose_eligibility_mask OR " +
+			"(authorization_purpose_eligibility_mask & :controlPurposeMask) != " +
+			"authorization_purpose_eligibility_mask)) OR " +
+			"typeof(source_kind) != 'integer' OR source_kind != :sourceKind OR " +
+			"typeof(logical_tracking_id) != 'text' OR logical_tracking_id != :logicalTrackingId OR " +
+			"typeof(service_run_id) != 'text' OR " +
+			"trim(service_run_id, char(9, 10, 11, 12, 13, 32)) = '' OR " +
+			"service_run_id != :serviceRunId OR " +
+			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
+			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
+			"typeof(session_manifest_revision) != 'integer' OR session_manifest_revision <= 0 OR " +
+			"typeof(lifecycle_lease_generation) != 'integer' OR " +
+			"lifecycle_lease_generation <= 0 OR " +
+			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
+			"authorization_purpose_eligibility_mask <= 0 OR " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) != " +
+			"authorization_purpose_eligibility_mask" +
+			") THEN 1 ELSE 0 END) AS malformed_row_count, " +
+			"SUM(CASE WHEN (" +
+			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"authorization_purpose_eligibility_mask > 0 AND " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) = " +
+			"authorization_purpose_eligibility_mask AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0" +
+			") THEN 1 ELSE 0 END) AS product_eligible_row_count, " +
+			"SUM(CASE WHEN (" +
+			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"authorization_purpose_eligibility_mask > 0 AND " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) = " +
+			"authorization_purpose_eligibility_mask AND " +
+			"(authorization_purpose_eligibility_mask & :controlPurposeMask) = " +
+			"authorization_purpose_eligibility_mask" +
+			") THEN 1 ELSE 0 END) AS control_only_row_count " +
+			"FROM source_event_wal WHERE " +
+			"typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId AND " +
+			"(CAST(source_kind AS INTEGER) = :sourceKind OR typeof(source_kind) != 'integer') " +
+			"GROUP BY typeof(session_manifest_revision), " +
+			"CASE WHEN typeof(session_manifest_revision) = 'integer' " +
+			"THEN session_manifest_revision END, " +
+			"typeof(source_instance_id), " +
+			"CASE WHEN typeof(source_instance_id) = 'text' THEN source_instance_id END, " +
+			"typeof(registration_generation), " +
+			"CASE WHEN typeof(registration_generation) = 'integer' " +
+			"THEN registration_generation END" +
+			") WHERE (:afterAssociationRowId IS NULL OR " +
+			"association_page_row_id > :afterAssociationRowId) " +
+			"ORDER BY association_page_row_id ASC LIMIT :limit",
+	)
+	suspend fun rawExactRunSourceManifestRevisionAssociations(
+		sourceKind: Int,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		throughOrdinal: Long,
+		capturePurposeMask: Long,
+		controlPurposeMask: Long,
+		allowedPurposeMask: Long,
+		afterAssociationRowId: Long?,
+		limit: Int,
+	): List<RawSourceRunWalManifestRevisionEvidence>
+
+	/**
+	 * Groups non-exact service-run rows associated with an authenticated manifest revision.
+	 *
+	 * Provider/action ownership and the projected mask classification decide whether the association
+	 * is capture evidence. Only explicit valid control-only rows may remain outside the product.
+	 */
+	@Query(
+		"SELECT " +
+			"CASE WHEN typeof(source_instance_id) = 'text' THEN source_instance_id END " +
+			"AS source_instance_id, " +
+			"CASE WHEN typeof(registration_generation) = 'integer' " +
+			"THEN registration_generation END AS registration_generation, " +
+			"CASE WHEN typeof(lifecycle_lease_generation) = 'integer' " +
+			"THEN lifecycle_lease_generation END AS lifecycle_lease_generation, " +
+			"COUNT(*) AS associated_row_count, " +
+			"SUM(CASE WHEN (" +
+			"typeof(event_id) != 'text' OR " +
+			"trim(event_id, char(9, 10, 11, 12, 13, 32)) = '' OR " +
+			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
+			"typeof(source_kind) != 'integer' OR source_kind != :sourceKind OR " +
+			"typeof(logical_tracking_id) != 'text' OR logical_tracking_id != :logicalTrackingId OR " +
+			"typeof(service_run_id) != 'text' OR " +
+			"trim(service_run_id, char(9, 10, 11, 12, 13, 32)) = '' OR " +
+			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
+			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
+			"typeof(session_manifest_revision) != 'integer' OR session_manifest_revision <= 0 OR " +
+			"typeof(lifecycle_lease_generation) != 'integer' OR " +
+			"lifecycle_lease_generation <= 0 OR " +
+			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
+			"authorization_purpose_eligibility_mask < 0 OR " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) != " +
+			"authorization_purpose_eligibility_mask" +
+			") THEN 1 ELSE 0 END) AS malformed_row_count, " +
+			"SUM(CASE WHEN (" +
+			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"authorization_purpose_eligibility_mask >= 0 AND " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) = " +
+			"authorization_purpose_eligibility_mask AND " +
+			"(authorization_purpose_eligibility_mask & :capturePurposeMask) != 0" +
+			") THEN 1 ELSE 0 END) AS product_eligible_row_count, " +
+			"SUM(CASE WHEN (" +
+			"typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"authorization_purpose_eligibility_mask > 0 AND " +
+			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) = " +
+			"authorization_purpose_eligibility_mask AND " +
+			"(authorization_purpose_eligibility_mask & :controlPurposeMask) = " +
+			"authorization_purpose_eligibility_mask" +
+			") THEN 1 ELSE 0 END) AS control_only_row_count, " +
+			"MAX(CASE WHEN typeof(admission_ordinal) = 'integer' " +
+			"THEN admission_ordinal END) AS high_water_admission_ordinal " +
+			"FROM source_event_wal WHERE " +
+			"(typeof(service_run_id) != 'text' OR service_run_id != :serviceRunId) AND " +
+			"typeof(source_kind) = 'integer' AND source_kind = :sourceKind AND " +
+			"typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId AND " +
+			"typeof(session_manifest_revision) = 'integer' AND " +
+			"session_manifest_revision IN (:runManifestRevisions) " +
+			"GROUP BY typeof(source_instance_id), " +
+			"CASE WHEN typeof(source_instance_id) = 'text' THEN source_instance_id END, " +
+			"typeof(registration_generation), " +
+			"CASE WHEN typeof(registration_generation) = 'integer' " +
+			"THEN registration_generation END, " +
+			"typeof(lifecycle_lease_generation), " +
+			"CASE WHEN typeof(lifecycle_lease_generation) = 'integer' " +
+			"THEN lifecycle_lease_generation END " +
+			"ORDER BY malformed_row_count DESC, high_water_admission_ordinal DESC LIMIT :limit",
+	)
+	suspend fun rawWrongRunSourceManifestAssociations(
+		sourceKind: Int,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		runManifestRevisions: List<Long>,
+		capturePurposeMask: Long,
+		controlPurposeMask: Long,
+		allowedPurposeMask: Long,
+		limit: Int,
+	): List<RawSourceRunWalGenerationEvidence>
+
 	/** Payload-free ordered preflight for a bounded source-local projection pass. */
 	@Query(
 		"SELECT event_id, admission_ordinal FROM source_event_wal " +
@@ -417,8 +764,57 @@ interface SourceEventWalDao {
 		"DELETE FROM source_event_wal WHERE admission_ordinal IN (" +
 			"SELECT wal.admission_ordinal FROM source_event_wal AS wal " +
 			"WHERE wal.source_kind = :sourceKind AND wal.created_at_ms < :createdBeforeMs " +
-			"AND wal.admission_ordinal <= :safeOrdinal " +
-			"ORDER BY wal.created_at_ms, wal.admission_ordinal LIMIT :limit)",
+			"AND wal.admission_ordinal <= :safeOrdinal AND (" +
+			":sourceKind != " + STEPS_SOURCE_KIND_SQL + " OR NOT EXISTS (" +
+			"SELECT 1 FROM source_event_wal AS invalid_steps " +
+			"WHERE invalid_steps.source_kind = " + STEPS_SOURCE_KIND_SQL + " AND (" +
+			"typeof(invalid_steps.authorization_purpose_eligibility_mask) != 'integer' OR " +
+			"invalid_steps.authorization_purpose_eligibility_mask NOT BETWEEN 1 AND " +
+			STEPS_WAL_ALLOWED_PURPOSE_MASK_SQL + " OR (" +
+			"(invalid_steps.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") != 0 AND " +
+			"(invalid_steps.logical_tracking_id IS NULL OR " +
+			"invalid_steps.service_run_id IS NULL)) OR (" +
+			"(invalid_steps.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") = 0 AND " +
+			"(invalid_steps.logical_tracking_id IS NOT NULL OR " +
+			"invalid_steps.service_run_id IS NOT NULL))))) AND (" +
+			":sourceKind != " + STEPS_SOURCE_KIND_SQL + " OR (" +
+			"typeof(wal.authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"wal.authorization_purpose_eligibility_mask BETWEEN 1 AND " +
+			STEPS_WAL_ALLOWED_PURPOSE_MASK_SQL + " AND ((" +
+			"(wal.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") != 0 AND " +
+			"wal.logical_tracking_id IS NOT NULL AND wal.service_run_id IS NOT NULL) OR (" +
+			"(wal.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") = 0 AND " +
+			"wal.logical_tracking_id IS NULL AND wal.service_run_id IS NULL)))) AND NOT (" +
+			":sourceKind = " + STEPS_SOURCE_KIND_SQL + " AND " +
+			"(wal.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") != 0 AND " +
+			"wal.logical_tracking_id IS NOT NULL AND wal.service_run_id IS NOT NULL AND " +
+			"wal.admission_ordinal = (" +
+			"SELECT MAX(candidate.admission_ordinal) FROM source_event_wal AS candidate " +
+			"WHERE candidate.source_kind = wal.source_kind " +
+			"AND candidate.source_instance_id = wal.source_instance_id " +
+			"AND candidate.registration_generation = wal.registration_generation " +
+			"AND candidate.logical_tracking_id = wal.logical_tracking_id " +
+			"AND candidate.service_run_id = wal.service_run_id " +
+			"AND (candidate.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") != 0" +
+			") AND (" +
+			"EXISTS (SELECT 1 FROM provider_registration_generation AS registration " +
+			"WHERE registration.source_kind = wal.source_kind " +
+			"AND registration.source_instance_id = wal.source_instance_id " +
+			"AND registration.registration_generation = wal.registration_generation " +
+			"AND registration.status IN ('RESERVED', 'ACTIVE', 'RETIRING')) " +
+			"OR EXISTS (SELECT 1 FROM source_service_run AS run " +
+			"WHERE run.service_run_id = wal.service_run_id " +
+			"AND run.logical_tracking_id = wal.logical_tracking_id " +
+			"AND (run.state NOT IN ('FINALIZED', 'CLOSED', 'FAILED') OR " +
+			"(run.completed_at_ms IS NULL AND NOT (" +
+			V28_MIGRATION_TERMINAL_RUN_SQL + "))))" +
+			")) ORDER BY wal.created_at_ms, wal.admission_ordinal LIMIT :limit)",
 	)
 	suspend fun deleteProjectedSourceBatch(
 		sourceKind: Int,
@@ -430,6 +826,10 @@ interface SourceEventWalDao {
 	@Query("DELETE FROM source_event_wal")
 	fun deleteAll()
 }
+
+private const val STEPS_SOURCE_KIND_SQL = "3"
+private const val SESSION_CAPTURE_MASK_SQL = "4"
+private const val STEPS_WAL_ALLOWED_PURPOSE_MASK_SQL = "7"
 
 /** Covering projection used by duplicate admission checks so payload BLOBs are never read. */
 data class SourceEventIdentityRow(
@@ -467,6 +867,7 @@ data class SourceEventProjectionEligibilityRow(
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
 	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String,
 	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
+	@ColumnInfo(name = "lifecycle_lease_generation") val lifecycleLeaseGeneration: Long?,
 )
 
 /** Payload-free identity used to prove a decoded source projection page is complete. */
@@ -484,6 +885,44 @@ data class SourceEventContinuityRow(
 	@ColumnInfo(name = "source_sequence") val sourceSequence: Long,
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
+)
+
+/** Raw payload-free evidence used before accepting a source/run WAL high-water. */
+data class RawSourceRunWalHighWaterEvidence(
+	@ColumnInfo(name = "storage_class_signature") val storageClassSignature: String?,
+	@ColumnInfo(name = "event_id") val eventId: String?,
+	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long?,
+	@ColumnInfo(name = "source_kind") val sourceKind: Long?,
+	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
+	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
+	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String?,
+	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long?,
+	@ColumnInfo(name = "authorization_purpose_eligibility_mask")
+	val authorizationPurposeEligibilityMask: Long?,
+)
+
+/** Raw grouped provider-generation evidence for one bounded source/run WAL settlement. */
+data class RawSourceRunWalGenerationEvidence(
+	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String?,
+	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long?,
+	@ColumnInfo(name = "lifecycle_lease_generation") val lifecycleLeaseGeneration: Long?,
+	@ColumnInfo(name = "associated_row_count") val associatedRowCount: Long?,
+	@ColumnInfo(name = "malformed_row_count") val malformedRowCount: Long?,
+	@ColumnInfo(name = "product_eligible_row_count") val productEligibleRowCount: Long?,
+	@ColumnInfo(name = "control_only_row_count") val controlOnlyRowCount: Long?,
+	@ColumnInfo(name = "high_water_admission_ordinal") val highWaterAdmissionOrdinal: Long?,
+)
+
+/** Raw manifest-revision/provider grouping for an exact service-run WAL audit. */
+data class RawSourceRunWalManifestRevisionEvidence(
+	@ColumnInfo(name = "association_page_row_id") val associationPageRowId: Long?,
+	@ColumnInfo(name = "session_manifest_revision") val sessionManifestRevision: Long?,
+	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String?,
+	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long?,
+	@ColumnInfo(name = "associated_row_count") val associatedRowCount: Long?,
+	@ColumnInfo(name = "malformed_row_count") val malformedRowCount: Long?,
+	@ColumnInfo(name = "product_eligible_row_count") val productEligibleRowCount: Long?,
+	@ColumnInfo(name = "control_only_row_count") val controlOnlyRowCount: Long?,
 )
 
 /** Payload-free identity for one bounded Cell/Wi-Fi projection scheduling attempt. */

@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
@@ -28,7 +27,7 @@ class SourcePolicyDeletionSurvivalTest {
 	@Before
 	fun setUp() {
 		val context = ApplicationProvider.getApplicationContext<Application>()
-		database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+		database = AppDatabase.inMemoryBuilder(context)
 			.allowMainThreadQueries()
 			.build()
 	}
