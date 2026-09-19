@@ -662,6 +662,19 @@ fun interface AmbientSourceReconciliationCallback {
 	suspend fun reconcile(lease: AmbientReconciliationLease): AmbientSourceOperationalAvailability
 
 	/**
+	 * Recovery-only owner call for a durable retention-floor settlement. Implementations that
+	 * perform their own authority read must authenticate that exact operation instead of falling
+	 * back to ordinary current authority.
+	 */
+	suspend fun reconcileForRetentionFloor(
+		lease: AmbientReconciliationLease,
+		settlementOperationId: String,
+	): AmbientSourceOperationalAvailability {
+		require(settlementOperationId.isNotBlank())
+		return reconcile(lease)
+	}
+
+	/**
 	 * Exact cleanup after an apply-then-fail, stale completion, or cancellation. A bounded timeout
 	 * leaves the exact lease and cleanup flight owned for retry; it never authorizes a replacement
 	 * winner while the old cleanup can still mutate. Implementations with no physical side effect

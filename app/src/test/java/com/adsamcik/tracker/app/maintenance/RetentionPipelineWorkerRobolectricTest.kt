@@ -936,6 +936,69 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	@Test
+	fun `pending signal creates explicit radio-only debt and prevents final acknowledgement`() =
+		runTest {
+			val context = ApplicationProvider.getApplicationContext<Context>()
+			val db = AppDatabase.testDatabase(context)
+			val settlement = retentionFloorSettlement()
+			try {
+				db.pendingSignalDao().insertAll(
+					listOf(
+						PendingSignalEntity(
+							signalId = "radio-only-retention-pending",
+							sessionId = 7L,
+							envelopeVersion = 1,
+							payloadChecksum =
+								"1280fde14031e7b67bce77ff73860e29dbb51d1f3698679d28f2f93ed1beb128",
+							signalJson =
+								"""{"type":"tracking_signal","payload":{"ts":1,"ern":0}}""",
+							createdAt = 1L,
+						),
+					),
+				)
+				db.wifiObservationDao().insert(
+					WifiObservation(
+						timeMs = 1L,
+						bssid = "radio-only-retention",
+						ssid = "",
+						capabilities = "",
+						frequency = 2_412,
+						level = -50,
+						latE7 = null,
+						lonE7 = null,
+						provenance = CoordinateProvenance.UNKNOWN,
+						createdAt = 1L,
+					),
+				)
+
+				worker(
+					context = context,
+					store = retentionStore(
+						autoPurgeConfig(rawDataRetentionDays = 0).copy(
+							wifiCellRetentionDays = 1,
+						),
+					),
+					db = db,
+					retentionFloorSettlement = settlement,
+				).doWork() shouldBe ListenableWorker.Result.retry()
+
+				db.wifiObservationDao().getScanSummary().totalObservations shouldBe 1L
+				coVerify(exactly = 0) {
+					settlement.complete(
+						database = any(),
+						startupGate = any(),
+						expectedStartupGeneration = any(),
+						settlement = any(),
+						completedAtMs = any(),
+						verifyApprovedOperation = any(),
+					)
+				}
+			} finally {
+				db.close()
+			}
+		}
+
+	@Test
 	fun `loosened Wi-Fi Cell setting cannot bypass the settled captured Wi-Fi floor`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val service = wifiRetentionService()
@@ -1135,7 +1198,7 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	private fun retentionFloorSettlement(): RetentionFloorSettlement = mockk {
-		coEvery { pendingOperation(any()) } returns null
+		coEvery { pendingOperation(any(), any(), any()) } returns null
 		coEvery {
 			settle(
 				database = any(),
@@ -1145,6 +1208,8 @@ class RetentionPipelineWorkerRobolectricTest {
 				requestedRetainedFromMs = any(),
 				operationId = any(),
 				updatedAtMs = any(),
+				workExecutionId = any(),
+				destructivePlan = any(),
 				verifyApprovedOperation = any(),
 			)
 		} coAnswers {
@@ -1162,6 +1227,8 @@ class RetentionPipelineWorkerRobolectricTest {
 				operationId = arg(5),
 				requestedRetainedFromMs = requestedFloor,
 				requestedAtMs = arg(6),
+				workExecutionId = arg(7),
+				destructivePlan = arg(8),
 			)
 		}
 		coEvery {

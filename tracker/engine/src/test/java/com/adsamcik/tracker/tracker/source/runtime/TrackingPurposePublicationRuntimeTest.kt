@@ -690,6 +690,70 @@ class TrackingPurposePublicationRuntimeTest {
 	}
 
 	@Test
+	fun `approved Steps settlement treats a non operational owner result as debt`() = runTest {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val authority = authority(
+			source = TrackingSource.STEPS,
+			purpose = TrackingPurpose.AMBIENT_PRODUCT,
+			executionRevision = 1L,
+			retainedFromMs = 200L,
+		)
+		var settlementIdentity: String? = null
+		val owner = object : AmbientStepsPurposeOwner {
+			override suspend fun reconcile(
+				lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
+			): AmbientSourceOperationalAvailability =
+				error("Settlement must not use ordinary Steps owner reconciliation")
+
+			override suspend fun reconcileForRetentionFloor(
+				lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
+				settlementOperationId: String,
+			): AmbientSourceOperationalAvailability {
+				settlementIdentity = settlementOperationId
+				return AmbientSourceOperationalAvailability.unavailable(
+					AmbientTrackingSource.STEPS,
+					AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+					lease.purposeLeaseIdentity,
+				)
+			}
+
+			override suspend fun retireAfterRetentionAuthorityFailure(
+				previousLease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease?,
+			): Boolean = true
+		}
+		val runtime = DefaultTrackingPurposePublicationRuntime(
+			leaseIssuer = SerializedTrackingPurposeLeaseIssuer(
+				authorityReader = TrackingPurposeAuthorityReader { sourcePurpose, execution ->
+					authority.takeIf { it.sourcePurpose == sourcePurpose }
+						?.copy(executionRevision = execution)
+				},
+				reporter = store,
+				tokenFactory = TrackingPurposeOwnerCasTokenFactory { "steps-settlement-owner" },
+			),
+			reporter = store,
+			executionRevisionRegistry = TrackingPurposeExecutionRevisionRegistry(),
+			retentionAuthorityProducer = AlwaysApprovedRetentionAuthorityProducer,
+			ambientStepsPurposeOwnerProvider = Provider { owner },
+		)
+
+		val result = fixtureResult(
+			runtime.reconcile(
+				expectedStartupGeneration = 0L,
+				retainedFromMs = 200L,
+				approvedSources = setOf(AmbientTrackingSource.STEPS),
+				settlementOperationId = "retention-settlement-steps",
+			),
+		)
+
+		settlementIdentity shouldBe "retention-settlement-steps"
+		result.debt.failures.single().reason shouldBe
+			com.adsamcik.tracker.tracker.api
+				.TrackingRetentionFloorReconciliationFailureReason.OWNER_RECONCILIATION_FAILED
+		store.availability.value.ambientSources
+			.getValue(AmbientTrackingSource.STEPS).isOperational shouldBe false
+	}
+
+	@Test
 	fun `ambient owner receives exact lease and publishes status only`() = runTest {
 		val fixture = fixture(
 			authority(

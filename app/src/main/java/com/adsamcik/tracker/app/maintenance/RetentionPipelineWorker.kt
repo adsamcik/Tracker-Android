@@ -13,6 +13,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedRetentionResult
+import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
 import com.adsamcik.tracker.shared.base.database.RoomTruncateImportedActivityRetention
 import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionRequest
 import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionResult
@@ -81,8 +82,15 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		} catch (_: Exception) {
 			return Result.retry()
 		}
+		val workExecutionId = id.toString()
 		val pendingOperation = try {
-			retentionFloorSettlement.pendingOperation(appDatabase)
+			retentionFloorSettlement.pendingOperation(
+				appDatabase,
+				workExecutionId,
+				// Periodic WorkManager retries increment this count; the next acknowledged
+				// periodic execution restarts at zero and may acknowledge the prior FINAL receipt.
+				resumeCompletedExecution = runAttemptCount > 0,
+			)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
@@ -98,18 +106,29 @@ class RetentionPipelineWorker @AssistedInject constructor(
 
         return try {
 			requireReadyGeneration(startupGeneration)
-            val now = System.currentTimeMillis()
-
-            val rawCutoff = config.rawDataRetentionDays.takeUnless { it == 0 }?.let { retentionDays ->
-                now - retentionDays.toLong() * Time.DAY_IN_MILLISECONDS
-            }
-			val wifiCellCutoff = config.wifiCellRetentionDays.takeUnless { it == 0 }?.let {
-				computeWifiCellCutoffMillis(it, now)
+			val requestedAtMs = pendingOperation?.requestedAtMs ?: System.currentTimeMillis()
+			val rawCutoff = if (pendingOperation != null) {
+				pendingOperation.destructivePlan.rawRetentionCutoffMs
+			} else {
+				config.rawDataRetentionDays.takeUnless { it == 0 }?.let {
+					computeRetentionCutoffMillis(it, requestedAtMs)
+				}
+			}
+			val wifiCellCutoff = if (pendingOperation != null) {
+				pendingOperation.destructivePlan.wifiCellRetentionCutoffMs
+			} else {
+				config.wifiCellRetentionDays.takeUnless { it == 0 }?.let {
+					computeRetentionCutoffMillis(it, requestedAtMs)
+				}
 			}
 			val requestedFloor = pendingOperation?.requestedRetainedFromMs
 				?: listOfNotNull(rawCutoff, wifiCellCutoff).maxOrNull()
 				?: collectedDataLifecycleStore.snapshot().retainedFromMs
+			val destructivePlan = pendingOperation?.destructivePlan ?: requestedFloor?.let { floor ->
+				destructivePlan(config, requestedAtMs, floor)
+			}
 			val settledFloor = requestedFloor?.let { floor ->
+				val plan = requireNotNull(destructivePlan)
 				when (val settlement = retentionFloorSettlement.settle(
 					database = appDatabase,
 					lifecycleStore = collectedDataLifecycleStore,
@@ -117,8 +136,14 @@ class RetentionPipelineWorker @AssistedInject constructor(
 					expectedStartupGeneration = startupGeneration,
 					requestedRetainedFromMs = floor,
 					operationId = pendingOperation?.operationId
-						?: authority.retentionFloorOperationId(floor, now),
-					updatedAtMs = now,
+						?: authority.retentionFloorOperationId(
+							floor,
+							requestedAtMs,
+							workExecutionId,
+						),
+					updatedAtMs = plan.requestedAtMs,
+					workExecutionId = pendingOperation?.workExecutionId ?: workExecutionId,
+					destructivePlan = plan,
 					verifyApprovedOperation = { authority.requireIdentity() },
 				)) {
 					is RetentionFloorSettlementResult.Settled -> settlement
@@ -130,14 +155,12 @@ class RetentionPipelineWorker @AssistedInject constructor(
 			}
 			val operationNow = settledFloor?.let {
 				maxOf(
-						now,
 						it.requestedAtMs,
 						requireNotNull(it.lifecycle.retainedFromMs),
 				)
-			} ?: now
-			val operationRawCutoff = config.rawDataRetentionDays.takeUnless { it == 0 }?.let {
-				operationNow - it.toLong() * Time.DAY_IN_MILLISECONDS
-			}
+			} ?: requestedAtMs
+			val operationPlan = settledFloor?.destructivePlan
+			val operationRawCutoff = operationPlan?.rawRetentionCutoffMs ?: rawCutoff
 			if (settledFloor != null) {
 				if (settledFloor.sourceMaintenanceCompleted) {
 					return completeSettlement(
@@ -154,9 +177,11 @@ class RetentionPipelineWorker @AssistedInject constructor(
                 RawRetentionResult.NOT_APPLICABLE
             } else {
 				val lifecycle = requireNotNull(settledFloor).lifecycle
+				val exactFloor = requireNotNull(lifecycle.retainedFromMs)
+				check(exactFloor >= operationRawCutoff)
                 val result = purgeRawData(
                 	appDatabase,
-                	operationRawCutoff,
+					exactFloor,
                 	lifecycle,
                 	operationNow,
                 	startupGeneration,
@@ -205,25 +230,90 @@ class RetentionPipelineWorker @AssistedInject constructor(
 					maintenanceDeferred = true
 				}
 			}
-			if (operationRawCutoff != null && !maintenanceDeferred) {
+			val sourceEventCutoff = operationPlan?.sourceEventRetentionCutoffMs ?: rawCutoff
+			if (sourceEventCutoff != null && !maintenanceDeferred) {
+				val exactFloor = requireNotNull(settledFloor?.lifecycle?.retainedFromMs)
+				check(exactFloor >= sourceEventCutoff)
                 requireReadyGeneration(startupGeneration)
                 authority.requireIdentity()
                 appDatabase.pruneSourceEventStorageBefore(
-                	createdBeforeMs = operationRawCutoff,
+					createdBeforeMs = exactFloor,
                 	verifyCollectedDataAccess = {
                 		requireReadyGeneration(startupGeneration)
                 		authority.requireIdentity()
                 	},
                 )
 			}
-			purgeWifiCellData(appDatabase, config, operationNow, startupGeneration, authority)
-			purgeTripData(appDatabase, config, operationNow, startupGeneration, authority)
-			purgeDailySummaries(appDatabase, config, operationNow, startupGeneration, authority)
-			purgeExplorationData(appDatabase, config, operationNow, startupGeneration, authority)
-			purgeOperationalData(appDatabase, config, operationNow, startupGeneration, authority)
+			val plannedRadioCutoff = listOfNotNull(
+				operationPlan?.rawRetentionCutoffMs ?: rawCutoff,
+				operationPlan?.wifiCellRetentionCutoffMs ?: wifiCellCutoff,
+			).maxOrNull()?.let {
+				val settled = settledFloor?.lifecycle?.retainedFromMs
+				if (settled != null) {
+					check(settled >= it)
+					settled
+				} else {
+					it
+				}
+			}
+			val radioRetentionResult = purgeWifiCellData(
+				appDatabase,
+				plannedRadioCutoff,
+				startupGeneration,
+				authority,
+			)
+			purgeTripData(
+				appDatabase,
+				if (operationPlan != null) {
+					operationPlan.tripRetentionCutoffMs
+				} else {
+					config.tripRetentionDays.takeUnless { it == 0 }?.let {
+						computeRetentionCutoffMillis(it, requestedAtMs)
+					}
+				},
+				operationNow,
+				startupGeneration,
+				authority,
+			)
+			purgeDailySummaries(
+				appDatabase,
+				if (operationPlan != null) {
+					operationPlan.dailySummaryRetentionCutoffDay
+				} else {
+					config.dailySummaryRetentionDays.takeUnless { it == 0 }?.let {
+						computeRetentionCutoffMillis(it, requestedAtMs) /
+							Time.DAY_IN_MILLISECONDS
+					}
+				},
+				startupGeneration,
+				authority,
+			)
+			purgeExplorationData(
+				appDatabase,
+				if (operationPlan != null) {
+					operationPlan.explorationRetentionCutoffMs
+				} else {
+					config.explorationRetentionDays.takeUnless { it == 0 }?.let {
+						computeRetentionCutoffMillis(it, requestedAtMs)
+					}
+				},
+				startupGeneration,
+				authority,
+			)
+			purgeOperationalData(
+				appDatabase,
+				if (operationPlan != null) {
+					operationPlan.operationalRetentionCutoffMs
+				} else {
+					rawCutoff
+				},
+				startupGeneration,
+				authority,
+			)
 
             if (
 				rawRetentionResult == RawRetentionResult.DEFERRED_FOR_PENDING_SIGNALS ||
+				radioRetentionResult == RadioRetentionResult.DEFERRED_FOR_PENDING_SIGNALS ||
 				maintenanceDeferred
 			) {
 				Result.retry()
@@ -436,39 +526,44 @@ class RetentionPipelineWorker @AssistedInject constructor(
 
     private suspend fun purgeWifiCellData(
 		db: AppDatabase,
-		config: RetentionConfigState,
-		now: Long,
+		cutoff: Long?,
 		startupGeneration: Long,
 		authority: ApprovedRetentionOperation,
-	) {
-        if (config.wifiCellRetentionDays == 0) return
+	): RadioRetentionResult {
+		if (cutoff == null) return RadioRetentionResult.NOT_APPLICABLE
 		requireReadyGeneration(startupGeneration)
 		authority.requireIdentity()
-        if (db.pendingSignalDao().hasAny()) return
-		val cutoff = computeWifiCellCutoffMillis(config.wifiCellRetentionDays, now)
-        db.withTransaction {
+		if (db.pendingSignalDao().hasAny()) {
+			return RadioRetentionResult.DEFERRED_FOR_PENDING_SIGNALS
+		}
+		val pruned = db.withTransaction {
 			requireReadyGeneration(startupGeneration)
 			authority.requireIdentity()
 			try {
-				if (db.pendingSignalDao().hasAny()) return@withTransaction
+				if (db.pendingSignalDao().hasAny()) return@withTransaction false
 				db.cellSampleDao().deleteOlderThan(cutoff)
 				db.wifiObservationDao().deleteOlderThan(cutoff)
+				true
 			} finally {
 				requireReadyGeneration(startupGeneration)
 				authority.requireIdentity()
 			}
         }
+		return if (pruned) {
+			RadioRetentionResult.PURGED
+		} else {
+			RadioRetentionResult.DEFERRED_FOR_PENDING_SIGNALS
+		}
     }
 
     private suspend fun purgeTripData(
 		db: AppDatabase,
-		config: RetentionConfigState,
+		cutoff: Long?,
 		now: Long,
 		startupGeneration: Long,
 		authority: ApprovedRetentionOperation,
 	) {
-        if (config.tripRetentionDays == 0) return
-        val cutoff = now - config.tripRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
+		if (cutoff == null) return
 		db.withTransaction {
 			requireReadyGeneration(startupGeneration)
 			authority.requireIdentity()
@@ -484,14 +579,11 @@ class RetentionPipelineWorker @AssistedInject constructor(
 
     private suspend fun purgeDailySummaries(
 		db: AppDatabase,
-		config: RetentionConfigState,
-		now: Long,
+		cutoffDay: Long?,
 		startupGeneration: Long,
 		authority: ApprovedRetentionOperation,
 	) {
-        if (config.dailySummaryRetentionDays == 0) return
-        val cutoffMs = now - config.dailySummaryRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
-        val cutoffDay = cutoffMs / Time.DAY_IN_MILLISECONDS
+		if (cutoffDay == null) return
 		db.withTransaction {
 			requireReadyGeneration(startupGeneration)
 			authority.requireIdentity()
@@ -506,13 +598,11 @@ class RetentionPipelineWorker @AssistedInject constructor(
 
     private suspend fun purgeExplorationData(
 		db: AppDatabase,
-		config: RetentionConfigState,
-		now: Long,
+		cutoff: Long?,
 		startupGeneration: Long,
 		authority: ApprovedRetentionOperation,
 	) {
-        if (config.explorationRetentionDays == 0) return
-        val cutoff = now - config.explorationRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
+		if (cutoff == null) return
 		db.withTransaction {
 			requireReadyGeneration(startupGeneration)
 			authority.requireIdentity()
@@ -529,13 +619,11 @@ class RetentionPipelineWorker @AssistedInject constructor(
 
 	private suspend fun purgeOperationalData(
 		db: AppDatabase,
-		config: RetentionConfigState,
-		now: Long,
+		rawCutoff: Long?,
 		startupGeneration: Long,
 		authority: ApprovedRetentionOperation,
 	) {
-		if (config.rawDataRetentionDays == 0) return
-		val rawCutoff = now - config.rawDataRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
+		if (rawCutoff == null) return
 		db.withTransaction {
 			requireReadyGeneration(startupGeneration)
 			authority.requireIdentity()
@@ -580,6 +668,10 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		private const val DAYS_PER_YEAR = 365
 
 		internal fun computeWifiCellCutoffMillis(retentionDays: Int, nowMs: Long): Long {
+			return computeRetentionCutoffMillis(retentionDays, nowMs)
+		}
+
+		internal fun computeRetentionCutoffMillis(retentionDays: Int, nowMs: Long): Long {
 			require(retentionDays > 0)
 			return try {
 				val retentionMs = Math.multiplyExact(
@@ -591,6 +683,43 @@ class RetentionPipelineWorker @AssistedInject constructor(
 				0L
 			}
 		}
+
+		private fun destructivePlan(
+			config: RetentionConfigState,
+			requestedAtMs: Long,
+			requestedFloor: Long,
+		): RetentionFloorDestructivePlan = RetentionFloorDestructivePlan(
+			workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+			requestedAtMs = requestedAtMs,
+			requestedRetainedFromMs = requestedFloor,
+			rawRetentionCutoffMs = config.rawDataRetentionDays.takeUnless { it == 0 }?.let {
+				computeRetentionCutoffMillis(it, requestedAtMs)
+			},
+			sourceEventRetentionCutoffMs =
+				config.rawDataRetentionDays.takeUnless { it == 0 }?.let {
+					computeRetentionCutoffMillis(it, requestedAtMs)
+				},
+			wifiCellRetentionCutoffMs =
+				config.wifiCellRetentionDays.takeUnless { it == 0 }?.let {
+					computeRetentionCutoffMillis(it, requestedAtMs)
+				},
+			tripRetentionCutoffMs = config.tripRetentionDays.takeUnless { it == 0 }?.let {
+				computeRetentionCutoffMillis(it, requestedAtMs)
+			},
+			dailySummaryRetentionCutoffDay =
+				config.dailySummaryRetentionDays.takeUnless { it == 0 }?.let {
+					computeRetentionCutoffMillis(it, requestedAtMs) /
+						Time.DAY_IN_MILLISECONDS
+				},
+			explorationRetentionCutoffMs =
+				config.explorationRetentionDays.takeUnless { it == 0 }?.let {
+					computeRetentionCutoffMillis(it, requestedAtMs)
+				},
+			operationalRetentionCutoffMs =
+				config.rawDataRetentionDays.takeUnless { it == 0 }?.let {
+					computeRetentionCutoffMillis(it, requestedAtMs)
+				},
+		)
 
         fun ensureScheduled(context: Context) {
             val workManager = WorkManager.getInstance(context)
@@ -618,4 +747,10 @@ class RetentionPipelineWorker @AssistedInject constructor(
 	private object StartupGenerationChangedException : RuntimeException()
 	private object ActivityRetentionDeferredException : RuntimeException()
 	private object RetentionFloorSettlementDeferredException : RuntimeException()
+
+	private enum class RadioRetentionResult {
+		NOT_APPLICABLE,
+		PURGED,
+		DEFERRED_FOR_PENDING_SIGNALS,
+	}
 }

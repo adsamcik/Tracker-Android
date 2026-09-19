@@ -164,7 +164,7 @@ class DataRetentionWorkerTest {
 	@Test
 	fun `committed floor provider debt keeps durable worker retry ownership`() = runTest {
 		val settlement = mockk<RetentionFloorSettlement> {
-			coEvery { pendingOperation(any()) } returns null
+			coEvery { pendingOperation(any(), any(), any()) } returns null
 			coEvery {
 				settle(
 					database = any(),
@@ -174,6 +174,8 @@ class DataRetentionWorkerTest {
 					requestedRetainedFromMs = any(),
 					operationId = any(),
 					updatedAtMs = any(),
+					workExecutionId = any(),
+					destructivePlan = any(),
 					verifyApprovedOperation = any(),
 				)
 			} returns RetentionFloorSettlementResult.Retryable(
@@ -211,7 +213,7 @@ class DataRetentionWorkerTest {
 				.CollectedDataDeletionOperationEntity.PHASE_RETENTION_PREPARED,
 		)
 		val settlement = mockk<RetentionFloorSettlement> {
-			coEvery { pendingOperation(mockDatabase) } returns pending
+			coEvery { pendingOperation(mockDatabase, any(), any()) } returns pending
 			coEvery {
 				settle(
 					database = mockDatabase,
@@ -221,6 +223,8 @@ class DataRetentionWorkerTest {
 					requestedRetainedFromMs = pending.requestedRetainedFromMs,
 					operationId = pending.operationId,
 					updatedAtMs = any(),
+					workExecutionId = pending.workExecutionId,
+					destructivePlan = pending.destructivePlan,
 					verifyApprovedOperation = any(),
 				)
 			} returns RetentionFloorSettlementResult.Retryable(
@@ -254,6 +258,8 @@ class DataRetentionWorkerTest {
 				requestedRetainedFromMs = pending.requestedRetainedFromMs,
 				operationId = pending.operationId,
 				updatedAtMs = any(),
+				workExecutionId = pending.workExecutionId,
+				destructivePlan = pending.destructivePlan,
 				verifyApprovedOperation = any(),
 			)
 		}
@@ -280,7 +286,7 @@ class DataRetentionWorkerTest {
 				sourceMaintenanceCompleted = true,
 			)
 			val settlement = mockk<RetentionFloorSettlement> {
-				coEvery { pendingOperation(mockDatabase) } returns pending
+				coEvery { pendingOperation(mockDatabase, any(), any()) } returns pending
 				coEvery {
 					settle(
 						database = any(),
@@ -290,6 +296,8 @@ class DataRetentionWorkerTest {
 						requestedRetainedFromMs = any(),
 						operationId = any(),
 						updatedAtMs = any(),
+						workExecutionId = any(),
+						destructivePlan = any(),
 						verifyApprovedOperation = any(),
 					)
 				} returns settled
@@ -911,7 +919,7 @@ class DataRetentionWorkerTest {
 			.build() as DataRetentionWorker
 
 	private fun retentionFloorSettlement(): RetentionFloorSettlement = mockk {
-		coEvery { pendingOperation(any()) } returns null
+		coEvery { pendingOperation(any(), any(), any()) } returns null
 		coEvery {
 			settle(
 				database = any(),
@@ -921,6 +929,8 @@ class DataRetentionWorkerTest {
 				requestedRetainedFromMs = any(),
 				operationId = any(),
 				updatedAtMs = any(),
+				workExecutionId = any(),
+				destructivePlan = any(),
 				verifyApprovedOperation = any(),
 			)
 		} answers {
@@ -934,6 +944,8 @@ class DataRetentionWorkerTest {
 				operationId = arg(5),
 				requestedRetainedFromMs = arg(4),
 				requestedAtMs = arg(6),
+				workExecutionId = arg(7),
+				destructivePlan = arg(8),
 			)
 		}
 		coEvery {

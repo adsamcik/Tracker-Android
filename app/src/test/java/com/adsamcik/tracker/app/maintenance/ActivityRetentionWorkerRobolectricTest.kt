@@ -387,7 +387,7 @@ class ActivityRetentionWorkerRobolectricTest {
 	}
 
 	private fun retentionFloorSettlement(): RetentionFloorSettlement = mockk {
-		coEvery { pendingOperation(any()) } returns null
+		coEvery { pendingOperation(any(), any(), any()) } returns null
 		coEvery {
 			settle(
 				database = any(),
@@ -397,6 +397,8 @@ class ActivityRetentionWorkerRobolectricTest {
 				requestedRetainedFromMs = any(),
 				operationId = any(),
 				updatedAtMs = any(),
+				workExecutionId = any(),
+				destructivePlan = any(),
 				verifyApprovedOperation = any(),
 			)
 		} coAnswers {
@@ -418,6 +420,8 @@ class ActivityRetentionWorkerRobolectricTest {
 				operationId = arg(5),
 				requestedRetainedFromMs = arg(4),
 				requestedAtMs = arg(6),
+				workExecutionId = arg(7),
+				destructivePlan = arg(8),
 			)
 		}
 		coEvery {

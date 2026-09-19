@@ -482,6 +482,11 @@ class RetentionFloorSettlementTest {
 		database.collectedDataDeletionOperationDao().get("retention-completion")?.phase shouldBe
 			CollectedDataDeletionOperationEntity.PHASE_RETENTION_FINAL
 		settlementCoordinator.pendingOperation(database) shouldBe null
+		settlementCoordinator.pendingOperation(
+			database,
+			workExecutionId = "retention-completion",
+			resumeCompletedExecution = true,
+		)?.phase shouldBe CollectedDataDeletionOperationEntity.PHASE_RETENTION_FINAL
 	}
 
 	@Test

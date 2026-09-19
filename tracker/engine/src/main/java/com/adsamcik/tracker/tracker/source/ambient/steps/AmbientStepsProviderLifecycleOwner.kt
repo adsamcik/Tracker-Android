@@ -26,6 +26,13 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 		AmbientStepsDemandBoundary,
 		AmbientReconciliationLease,
 	) -> AmbientStepsDemandReconciliation,
+	private val reconcileSettlementDemand: suspend (
+		AmbientStepsDemandBoundary,
+		AmbientReconciliationLease,
+		String,
+	) -> AmbientStepsDemandReconciliation = { boundary, lease, _ ->
+		reconcileDemand(boundary, lease)
+	},
 	private val retireDemandAfterAuthorityFailure: suspend (
 		AmbientStepsDemandBoundary,
 		AmbientReconciliationLease?,
@@ -52,6 +59,7 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 			)
 		},
 		reconcileDemand = demandReconciler::reconcileAt,
+		reconcileSettlementDemand = demandReconciler::reconcileForRetentionFloorAt,
 		retireDemandAfterAuthorityFailure =
 			demandReconciler::retireAfterRetentionAuthorityFailureAt,
 		reconcileRegistration = registrationCoordinator::reconcile,
@@ -65,6 +73,16 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 	): AmbientStepsProviderRegistrationResult = mutex.withLock {
 		val boundary = currentBoundary()
 		val demand = reconcileDemand(boundary, lease)
+		reconcileRegistration(demand, boundary)
+	}
+
+	internal suspend fun reconcileForRetentionFloor(
+		lease: AmbientReconciliationLease,
+		settlementOperationId: String,
+	): AmbientStepsProviderRegistrationResult = mutex.withLock {
+		require(settlementOperationId.isNotBlank())
+		val boundary = currentBoundary()
+		val demand = reconcileSettlementDemand(boundary, lease, settlementOperationId)
 		reconcileRegistration(demand, boundary)
 	}
 

@@ -151,6 +151,9 @@ class ActiveDatabasePreflight internal constructor(
 				FINAL_V28_RADIO_RECEIPT_TABLE,
 				FINAL_V28_RADIO_RECEIPT_COLUMN,
 			) ||
+			!FINAL_V28_RETENTION_JOURNAL_COLUMNS.all { column ->
+				database.hasColumn(FINAL_V28_RETENTION_JOURNAL_TABLE, column)
+			} ||
 			!database.hasSingleColumnIndex(
 				table = FINAL_V28_INDEX_TABLE,
 				index = FINAL_V28_REQUIRED_INDEX,
@@ -377,10 +380,11 @@ private enum class FinalV28MarkerState {
 }
 
 internal const val FINAL_V28_MARKER_ID = -280_917
-internal const val FINAL_V28_ASSEMBLY_ID = "tracker-v28-retention-integrity-20260918"
+internal const val FINAL_V28_ASSEMBLY_ID = "tracker-v28-retention-journal-20260919"
 private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
 	"tracker-v28-final-20260917",
 	"tracker-v28-retention-final-20260917",
+	"tracker-v28-retention-integrity-20260918",
 )
 
 private val BASELINE_TABLES = setOf(
@@ -399,6 +403,12 @@ private const val FINAL_V28_REQUIRED_COLUMN_TABLE = "pending_signal"
 private const val FINAL_V28_REQUIRED_COLUMN = "pressure_writer_owner_generation"
 private const val FINAL_V28_RADIO_RECEIPT_TABLE = "cell_captured_entry_deletion_receipt"
 private const val FINAL_V28_RADIO_RECEIPT_COLUMN = "retained_from_ms"
+private const val FINAL_V28_RETENTION_JOURNAL_TABLE = "collected_data_deletion_operation"
+private val FINAL_V28_RETENTION_JOURNAL_COLUMNS = setOf(
+	"retention_work_execution_id",
+	"retention_destructive_plan",
+	"settled_retained_from_ms",
+)
 private const val FINAL_V28_INDEX_TABLE = "imported_wifi_deletion_generation"
 private const val FINAL_V28_REQUIRED_INDEX = "idx_imported_wifi_deletion_scope"
 private const val FINAL_V28_REQUIRED_INDEX_COLUMN = "deletion_scope_digest"

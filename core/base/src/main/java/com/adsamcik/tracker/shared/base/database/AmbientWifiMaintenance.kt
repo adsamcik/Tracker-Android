@@ -87,65 +87,50 @@ suspend fun AppDatabase.pruneAmbientWifi(
 		)
 	}
 	val dao = ambientWifiFactDao()
-	val liveRow = dao.latestRetentionAuthority(
-		AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
-	)
-	val importRow = dao.latestRetentionAuthority(
-		AmbientWifiRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
-	)
-	if (liveRow?.let(AmbientWifiRetentionAuthorityIntegrity::isAuthentic) == false ||
-		importRow?.let(AmbientWifiRetentionAuthorityIntegrity::isAuthentic) == false
-	) {
-		return@withTransaction wifiRetentionUnavailable(
-			AmbientWifiMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
-		)
-	}
-	val liveRetention = liveRow?.takeIf {
-		it.isActive &&
-			it.collectedDataEpoch == command.expectedCollectedDataEpoch &&
-			it.retainedFromMs == command.beforeMs
-	}
-	val importRetention = importRow?.takeIf {
-		it.isActive &&
-			it.collectedDataEpoch == command.expectedCollectedDataEpoch &&
-			it.retainedFromMs == command.beforeMs
-	}
-	if (liveRetention == null && importRetention == null) {
-		val scope = dao.loadWholeWifiScope()
-			?: return@withTransaction wifiRetentionUnavailable(
-				AmbientWifiMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
-			)
-		if (!scope.isAuthentic) {
-			return@withTransaction wifiRetentionUnavailable(
-				AmbientWifiMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
-			)
-		}
-		if (scope.isEmpty) return@withTransaction AmbientWifiRetentionResult.NoChange
-		return@withTransaction wifiRetentionUnavailable(
-			AmbientWifiMaintenanceUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE,
-		)
-	}
 	currentCoroutineContext().ensureActive()
-	val localIds = liveRetention?.let {
-		dao.localFactIdsBefore(command.beforeMs, it.opaquePolicyId, LIMIT + 1)
-	}.orEmpty()
-	val localGaps = liveRetention?.let {
-		dao.localGapsBefore(command.beforeMs, it.opaquePolicyId, LIMIT + 1)
-	}.orEmpty()
-	val importedIds = importRetention?.let {
-		dao.importedFactIdsBefore(command.beforeMs, it.opaquePolicyId, LIMIT + 1)
-	}.orEmpty()
-	val importedGapIds = importRetention?.let {
-		dao.importedGapIdsBefore(command.beforeMs, it.opaquePolicyId, LIMIT + 1)
-	}.orEmpty()
+	val localIds = dao.localFactIdsBefore(command.beforeMs, LIMIT + 1)
+	val localGaps = dao.localGapsBefore(command.beforeMs, LIMIT + 1)
+	val importedIds = dao.importedFactIdsBefore(command.beforeMs, LIMIT + 1)
+	val importedGapIds = dao.importedGapIdsBefore(command.beforeMs, LIMIT + 1)
 	if (listOf(localIds, localGaps, importedIds, importedGapIds).any { it.size > LIMIT }) {
 		return@withTransaction wifiRetentionUnavailable(
 			AmbientWifiMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
 		)
 	}
-	if (localIds.isEmpty() && localGaps.isEmpty() &&
-		importedIds.isEmpty() && importedGapIds.isEmpty()
-	) return@withTransaction AmbientWifiRetentionResult.NoChange
+	val hasLocalCandidates = localIds.isNotEmpty() || localGaps.isNotEmpty()
+	val hasImportedCandidates = importedIds.isNotEmpty() || importedGapIds.isNotEmpty()
+	val liveAuthorities = if (hasLocalCandidates) {
+		dao.retentionAuthorities(
+			AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			LIMIT + 1,
+		)
+	} else {
+		emptyList()
+	}
+	val importAuthorities = if (hasImportedCandidates) {
+		dao.retentionAuthorities(
+			AmbientWifiRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+			LIMIT + 1,
+		)
+	} else {
+		emptyList()
+	}
+	if (liveAuthorities.size > LIMIT || importAuthorities.size > LIMIT) {
+		return@withTransaction wifiRetentionUnavailable(
+			AmbientWifiMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+		)
+	}
+	if (
+		(hasLocalCandidates && !liveAuthorities.hasCurrentWifiSettlementAuthority(command)) ||
+		(hasImportedCandidates && !importAuthorities.hasCurrentWifiSettlementAuthority(command))
+	) {
+		return@withTransaction wifiRetentionUnavailable(
+			AmbientWifiMaintenanceUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE,
+		)
+	}
+	if (!hasLocalCandidates && !hasImportedCandidates) {
+		return@withTransaction AmbientWifiRetentionResult.NoChange
+	}
 	val localLineages = localIds.takeIf { it.isNotEmpty() }?.let {
 		dao.localFactLineages(it, LIMIT + 1)
 	}.orEmpty()
@@ -161,6 +146,10 @@ suspend fun AppDatabase.pruneAmbientWifi(
 		localGaps.any { AmbientWifiFactIntegrity.gapChecksum(it) != it.effectChecksum } ||
 		importedLineages.any { !AmbientWifiFactIntegrity.isAuthentic(it) } ||
 		importedGaps.any { !AmbientWifiFactIntegrity.isAuthentic(it) } ||
+		localLineages.any { !liveAuthorities.authenticatesWifiLocal(it) } ||
+		localGaps.any { !liveAuthorities.authenticatesWifiLocal(it) } ||
+		importedLineages.any { !importAuthorities.authenticatesWifiImported(it) } ||
+		importedGaps.any { !importAuthorities.authenticatesWifiImported(it) } ||
 		!localLineages.completeLocalWifiLineages() ||
 		!importedLineages.completeImportedWifiLineages()
 	) {
@@ -168,6 +157,7 @@ suspend fun AppDatabase.pruneAmbientWifi(
 			AmbientWifiMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
 		)
 	}
+
 	val marker = dao.latestDeletionMarker(command.expectedCollectedDataEpoch)
 	if (marker != null && !AmbientWifiFactIntegrity.isAuthentic(marker)) {
 		return@withTransaction wifiRetentionUnavailable(
@@ -254,6 +244,59 @@ suspend fun AppDatabase.pruneAmbientWifi(
 		emptiedArchives.size,
 		localGaps.size + importedGaps.size,
 	)
+}
+
+private fun List<AmbientWifiRetentionAuthorityEntity>.hasCurrentWifiSettlementAuthority(
+	command: AmbientWifiRetentionCommand,
+): Boolean {
+	val current = maxByOrNull(AmbientWifiRetentionAuthorityEntity::approvalRevision) ?: return false
+	return AmbientWifiRetentionAuthorityIntegrity.isAuthentic(current) &&
+		all(AmbientWifiRetentionAuthorityIntegrity::isAuthentic) &&
+		current.collectedDataEpoch == command.expectedCollectedDataEpoch &&
+		(
+			current.state == AmbientWifiRetentionAuthorityEntity.STATE_REVOKED ||
+				current.retainedFromMs == command.beforeMs
+			)
+}
+
+private fun List<AmbientWifiRetentionAuthorityEntity>.authenticatesWifiLocal(
+	row: AmbientWifiFactRevisionEntity,
+): Boolean = any {
+	it.scope == AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT &&
+		it.opaquePolicyId == row.retentionPolicyId &&
+		it.approvalRevision == row.retentionApprovalRevision &&
+		it.sourcePolicyRevision == row.sourcePolicyRevision &&
+		it.ambientConsentEpoch == row.ambientConsentEpoch &&
+		it.collectedDataEpoch == row.collectedDataEpoch
+}
+
+private fun List<AmbientWifiRetentionAuthorityEntity>.authenticatesWifiLocal(
+	row: AmbientWifiGapEntity,
+): Boolean = any {
+	it.scope == AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT &&
+		it.opaquePolicyId == row.retentionPolicyId &&
+		it.approvalRevision == row.retentionApprovalRevision &&
+		it.sourcePolicyRevision == row.sourcePolicyRevision &&
+		it.ambientConsentEpoch == row.ambientConsentEpoch &&
+		it.collectedDataEpoch == row.collectedDataEpoch
+}
+
+private fun List<AmbientWifiRetentionAuthorityEntity>.authenticatesWifiImported(
+	row: ImportedAmbientWifiFactEntity,
+): Boolean = any {
+	it.scope == AmbientWifiRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT &&
+		it.opaquePolicyId == row.retentionPolicyId &&
+		it.approvalRevision == row.retentionApprovalRevision &&
+		it.collectedDataEpoch == row.collectedDataEpoch
+}
+
+private fun List<AmbientWifiRetentionAuthorityEntity>.authenticatesWifiImported(
+	row: ImportedAmbientWifiGapEntity,
+): Boolean = any {
+	it.scope == AmbientWifiRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT &&
+		it.opaquePolicyId == row.retentionPolicyId &&
+		it.approvalRevision == row.retentionApprovalRevision &&
+		it.collectedDataEpoch == row.collectedDataEpoch
 }
 
 /** Fences a revoked Ambient Wi-Fi consent epoch even when no payload rows exist. */

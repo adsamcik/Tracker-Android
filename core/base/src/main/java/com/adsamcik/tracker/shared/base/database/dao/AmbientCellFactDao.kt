@@ -70,6 +70,15 @@ interface AmbientCellFactDao {
 
 	@Query(
 		"SELECT * FROM ambient_cell_retention_authority WHERE scope = :scope " +
+			"ORDER BY approval_revision ASC LIMIT :limit",
+	)
+	suspend fun retentionAuthorities(
+		scope: String,
+		limit: Int,
+	): List<AmbientCellRetentionAuthorityEntity>
+
+	@Query(
+		"SELECT * FROM ambient_cell_retention_authority WHERE scope = :scope " +
 			"AND effective_boot_id = :bootId " +
 			"AND effective_elapsed_realtime_nanos <= :observedElapsedRealtimeNanos " +
 			"ORDER BY effective_elapsed_realtime_nanos DESC, approval_revision DESC LIMIT 1",
@@ -411,7 +420,6 @@ interface AmbientCellFactDao {
 			"SELECT MAX(history.semantic_revision) FROM ambient_cell_fact_revision AS history " +
 			"WHERE history.logical_fact_id = latest.logical_fact_id) " +
 			"AND latest.observed_wall_time_ms < :beforeMs " +
-			"AND latest.retention_policy_id = :retentionPolicyId " +
 			"UNION SELECT aggregate_owner_logical_fact_id FROM ambient_cell_fact_revision AS child " +
 			"JOIN selected ON selected.logical_fact_id = child.logical_fact_id " +
 			"WHERE child.aggregate_owner_logical_fact_id IS NOT NULL " +
@@ -421,7 +429,6 @@ interface AmbientCellFactDao {
 	)
 	suspend fun localFactIdsBefore(
 		beforeMs: Long,
-		retentionPolicyId: String,
 		limit: Int,
 	): List<String>
 
@@ -478,11 +485,10 @@ interface AmbientCellFactDao {
 
 	@Query(
 		"SELECT * FROM ambient_cell_gap WHERE gap_end_time_ms < :beforeMs " +
-			"AND retention_policy_id = :retentionPolicyId ORDER BY gap_id LIMIT :limit",
+			"ORDER BY gap_id LIMIT :limit",
 	)
 	suspend fun localGapsBefore(
 		beforeMs: Long,
-		retentionPolicyId: String,
 		limit: Int,
 	): List<AmbientCellGapEntity>
 
@@ -495,22 +501,19 @@ interface AmbientCellFactDao {
 			"SELECT MAX(history.semantic_revision) FROM imported_ambient_cell_fact AS history " +
 			"WHERE history.fact_id = latest.fact_id) " +
 			"AND latest.observed_time_ms < :beforeMs " +
-			"AND latest.retention_policy_id = :retentionPolicyId " +
 			"ORDER BY latest.fact_id LIMIT :limit",
 	)
 	suspend fun importedFactIdsBefore(
 		beforeMs: Long,
-		retentionPolicyId: String,
 		limit: Int,
 	): List<String>
 
 	@Query(
 		"SELECT DISTINCT gap_id FROM imported_ambient_cell_gap WHERE end_time_ms < :beforeMs " +
-			"AND retention_policy_id = :retentionPolicyId ORDER BY gap_id LIMIT :limit",
+			"ORDER BY gap_id LIMIT :limit",
 	)
 	suspend fun importedGapIdsBefore(
 		beforeMs: Long,
-		retentionPolicyId: String,
 		limit: Int,
 	): List<String>
 

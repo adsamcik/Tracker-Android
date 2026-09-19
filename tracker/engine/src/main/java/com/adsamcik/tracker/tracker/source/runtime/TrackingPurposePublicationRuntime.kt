@@ -492,7 +492,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		Pair<TrackingPurposeLeaseIdentity, Deferred<Result<AutomaticTrackingOperationalAvailability>>>? =
 		null
 	private val ambientOwnerFlights =
-		mutableMapOf<AmbientReconciliationIdentity, Deferred<Result<AmbientSourceOperationalAvailability>>>()
+		mutableMapOf<AmbientOwnerFlightKey, Deferred<Result<AmbientSourceOperationalAvailability>>>()
 	private val cleanupFlights =
 		mutableMapOf<OwnerCleanupKey, Deferred<Boolean>>()
 	private var automaticOwner: AutomaticControlOwnerRegistration? = null
@@ -838,6 +838,12 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		override suspend fun reconcile(
 			lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
 		): AmbientSourceOperationalAvailability = owner.get().reconcile(lease)
+
+		override suspend fun reconcileForRetentionFloor(
+			lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
+			settlementOperationId: String,
+		): AmbientSourceOperationalAvailability =
+			owner.get().reconcileForRetentionFloor(lease, settlementOperationId)
 
 		override suspend fun compensate(
 			lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
@@ -1288,8 +1294,15 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 				TrackingRetentionFloorReconciliationFailureReason.STARTUP_GENERATION_CHANGED,
 			)
 		}
-		val ownerCall = runBoundedAmbientOwnerCall(lease.identity) {
-			owner.callback.reconcile(lease)
+		val ownerCall = runBoundedAmbientOwnerCall(
+			lease.identity,
+			settlementOperationId,
+		) {
+			if (settlementOperationId == null) {
+				owner.callback.reconcile(lease)
+			} else {
+				owner.callback.reconcileForRetentionFloor(lease, settlementOperationId)
+			}
 		}
 		val availability = when (ownerCall) {
 			is BoundedOwnerCall.Completed -> ownerCall.value
@@ -1303,6 +1316,12 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 			BoundedOwnerCall.TimedOut ->
 				return TrackingRetentionFloorReconciliationFailureReason
 					.OWNER_OPERATION_IN_PROGRESS
+		}
+		if (requireApproval && !availability.isOperational) {
+			return failureAfterCompensation(
+				compensateAndCancelAmbient(owner, lease),
+				TrackingRetentionFloorReconciliationFailureReason.OWNER_RECONCILIATION_FAILED,
+			)
 		}
 		if (!leaseIssuer.isCurrentAmbient(
 				lease.identity,
@@ -1542,13 +1561,23 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 
 	private suspend fun runBoundedAmbientOwnerCall(
 		identity: AmbientReconciliationIdentity,
+		settlementOperationId: String?,
 		operation: suspend () -> AmbientSourceOperationalAvailability,
 	): BoundedOwnerCall<AmbientSourceOperationalAvailability> {
+		val key = AmbientOwnerFlightKey(identity, settlementOperationId)
 		val task = ownerFlightMutex.withLock {
-			ambientOwnerFlights[identity] ?: ownerCallbackScope.async {
+			ambientOwnerFlights[key]?.let { return@withLock it }
+			val conflicting = ambientOwnerFlights.entries.firstOrNull {
+				it.key.identity == identity
+			}
+			if (conflicting != null) {
+				if (!conflicting.value.isCompleted) return@withLock null
+				ambientOwnerFlights.remove(conflicting.key)
+			}
+			ownerCallbackScope.async {
 				runCatching { operation() }
-			}.also { ambientOwnerFlights[identity] = it }
-		}
+			}.also { ambientOwnerFlights[key] = it }
+		} ?: return BoundedOwnerCall.TimedOut
 		return awaitOwnerCall(task)
 	}
 
@@ -1556,7 +1585,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		identity: AmbientReconciliationIdentity,
 	): ExistingOwnerFlight {
 		val task = ownerFlightMutex.withLock {
-			ambientOwnerFlights[identity]
+			ambientOwnerFlights.entries.firstOrNull { it.key.identity == identity }?.value
 		} ?: return ExistingOwnerFlight.NONE
 		return if (withTimeoutOrNull(ownerCallbackTimeoutMillis) {
 			task.join()
@@ -1641,7 +1670,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 
 	private suspend fun clearAmbientOwnerFlight(identity: AmbientReconciliationIdentity) {
 		ownerFlightMutex.withLock {
-			ambientOwnerFlights.remove(identity)
+			ambientOwnerFlights.keys.removeAll { it.identity == identity }
 		}
 	}
 
@@ -1758,6 +1787,11 @@ private data class AmbientReconciliationRequest(
 	val requireApproval: Boolean,
 	val requireOwner: Boolean,
 	val expectedStartupGeneration: Long?,
+	val settlementOperationId: String?,
+)
+
+private data class AmbientOwnerFlightKey(
+	val identity: AmbientReconciliationIdentity,
 	val settlementOperationId: String?,
 )
 

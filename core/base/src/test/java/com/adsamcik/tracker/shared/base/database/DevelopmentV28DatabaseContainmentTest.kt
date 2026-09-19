@@ -482,7 +482,10 @@ class DevelopmentV28DatabaseContainmentTest {
 							)
 							db.execSQL(
 								"CREATE TABLE collected_data_deletion_operation (" +
-									"operation_id TEXT PRIMARY KEY)",
+									"operation_id TEXT PRIMARY KEY, " +
+									"retention_work_execution_id TEXT, " +
+									"retention_destructive_plan TEXT, " +
+									"settled_retained_from_ms INTEGER)",
 							)
 							val retainedFrom = if (includeRadioReceiptColumn) {
 								", retained_from_ms INTEGER"

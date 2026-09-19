@@ -24,6 +24,9 @@ private fun createCollectedDataDeletionOperationTable(database: SupportSQLiteDat
 			deleted_at_ms INTEGER NOT NULL,
 			phase TEXT NOT NULL,
 			updated_at_ms INTEGER NOT NULL,
+			retention_work_execution_id TEXT,
+			retention_destructive_plan TEXT,
+			settled_retained_from_ms INTEGER,
 			PRIMARY KEY(operation_id)
 		)
 		""".trimIndent(),

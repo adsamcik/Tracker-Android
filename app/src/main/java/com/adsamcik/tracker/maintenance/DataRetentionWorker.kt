@@ -20,6 +20,7 @@ import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedRetentionResult
 import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
+import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
 import com.adsamcik.tracker.shared.base.database.RoomTruncateImportedActivityRetention
 import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionRequest
 import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionResult
@@ -90,8 +91,15 @@ class DataRetentionWorker @AssistedInject constructor(
 		} catch (_: Exception) {
 			return Result.retry()
 		}
+		val workExecutionId = id.toString()
 		val pendingOperation = try {
-			retentionFloorSettlement.pendingOperation(appDatabase)
+			retentionFloorSettlement.pendingOperation(
+				appDatabase,
+				workExecutionId,
+				// Retries keep the same WorkRequest id and a positive attempt count. A later
+				// periodic execution starts at zero only after WorkManager accepted success.
+				resumeCompletedExecution = runAttemptCount > 0,
+			)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
@@ -100,11 +108,27 @@ class DataRetentionWorker @AssistedInject constructor(
 		if ((!config.autoCleanupEnabled || years == 0) && pendingOperation == null) {
 			return Result.success()
 		}
-		val now = System.currentTimeMillis()
+		val requestedAtMs = pendingOperation?.requestedAtMs ?: System.currentTimeMillis()
 		val requestedFloor = pendingOperation?.requestedRetainedFromMs
-			?: computeCutoffMillis(years, now)
+			?: computeCutoffMillis(years, requestedAtMs).coerceAtLeast(0L)
+		val destructivePlan = pendingOperation?.destructivePlan ?: RetentionFloorDestructivePlan(
+			workerKind = RetentionFloorDestructivePlan.WORKER_DATA_RETENTION,
+			requestedAtMs = requestedAtMs,
+			requestedRetainedFromMs = requestedFloor,
+			rawRetentionCutoffMs = requestedFloor,
+			sourceEventRetentionCutoffMs = requestedFloor,
+			wifiCellRetentionCutoffMs = requestedFloor,
+			tripRetentionCutoffMs = requestedFloor,
+			dailySummaryRetentionCutoffDay = null,
+			explorationRetentionCutoffMs = null,
+			operationalRetentionCutoffMs = null,
+		)
 		val requestedOperationId = pendingOperation?.operationId
-			?: authority.retentionFloorOperationId(requestedFloor, now)
+			?: authority.retentionFloorOperationId(
+				requestedFloor,
+				requestedAtMs,
+				workExecutionId,
+			)
         return try {
 			requireReadyGeneration(startupGeneration)
 			// The policy and backup cleanup precede the physical delete, so a WAL
@@ -119,7 +143,9 @@ class DataRetentionWorker @AssistedInject constructor(
 				expectedStartupGeneration = startupGeneration,
 				requestedRetainedFromMs = requestedFloor,
 				operationId = requestedOperationId,
-				updatedAtMs = now,
+				updatedAtMs = destructivePlan.requestedAtMs,
+				workExecutionId = pendingOperation?.workExecutionId ?: workExecutionId,
+				destructivePlan = destructivePlan,
 				verifyApprovedOperation = { authority.requireIdentity() },
 			)) {
 				is RetentionFloorSettlementResult.Settled -> result
@@ -133,7 +159,6 @@ class DataRetentionWorker @AssistedInject constructor(
 				"Captured radio retention requires a durable retained-from floor"
 			}
 			val operationTimeMs = maxOf(
-				now,
 				settlement.requestedAtMs,
 				retainedFromMs,
 			)

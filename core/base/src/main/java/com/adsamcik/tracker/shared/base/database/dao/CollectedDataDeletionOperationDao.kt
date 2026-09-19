@@ -37,6 +37,39 @@ interface CollectedDataDeletionOperationDao {
 	@Query(
 		"""
 		SELECT * FROM collected_data_deletion_operation
+		WHERE retention_work_execution_id = :workExecutionId
+			AND phase IN (
+				'RETENTION_PREPARED',
+				'RETENTION_DATASTORE_ACKNOWLEDGED',
+				'RETENTION_ROOM_GUARD_COMMITTED',
+				'RETENTION_AUTHORITY_REISSUED',
+				'RETENTION_PROVIDER_RECONCILED',
+				'RETENTION_SOURCE_MAINTENANCE_COMPLETED',
+				'RETENTION_FINAL'
+			)
+		ORDER BY deleted_at_ms DESC, operation_id DESC
+		LIMIT 1
+		""",
+	)
+	suspend fun latestRetentionFloorSettlementForExecution(
+		workExecutionId: String,
+	): CollectedDataDeletionOperationEntity?
+
+	@Query(
+		"""
+		UPDATE collected_data_deletion_operation
+		SET phase = 'RETENTION_ACKNOWLEDGED'
+		WHERE retention_work_execution_id = :workExecutionId
+			AND phase = 'RETENTION_FINAL'
+		""",
+	)
+	suspend fun acknowledgeFinalRetentionFloorSettlementsForExecution(
+		workExecutionId: String,
+	): Int
+
+	@Query(
+		"""
+		SELECT * FROM collected_data_deletion_operation
 		WHERE target_collected_data_epoch > :expectedCollectedDataEpoch
 			AND phase IN ('DATABASE_CLEARED', 'WRITERS_REARMED')
 		ORDER BY target_collected_data_epoch DESC
@@ -48,9 +81,27 @@ interface CollectedDataDeletionOperationDao {
 	): CollectedDataDeletionOperationEntity?
 
 	@Query(
-		"DELETE FROM collected_data_deletion_operation WHERE phase = 'RETENTION_FINAL'",
+		"""
+		UPDATE collected_data_deletion_operation
+		SET settled_retained_from_ms = :settledRetainedFromMs,
+			phase = :newPhase,
+			updated_at_ms = :updatedAtMs
+		WHERE operation_id = :operationId
+			AND target_collected_data_epoch = :targetCollectedDataEpoch
+			AND retained_from_ms = :requestedRetainedFromMs
+			AND settled_retained_from_ms IS NULL
+			AND phase = :expectedPhase
+		""",
 	)
-	suspend fun deleteFinalizedRetentionFloorSettlements()
+	suspend fun compareAndSetRetentionRoomGuard(
+		operationId: String,
+		targetCollectedDataEpoch: Long,
+		requestedRetainedFromMs: Long,
+		settledRetainedFromMs: Long,
+		expectedPhase: String,
+		newPhase: String,
+		updatedAtMs: Long,
+	): Int
 
 	@Query(
 		"DELETE FROM collected_data_deletion_operation WHERE operation_id != :operationId",

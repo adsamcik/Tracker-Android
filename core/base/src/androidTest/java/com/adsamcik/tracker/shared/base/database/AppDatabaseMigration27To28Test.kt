@@ -858,6 +858,15 @@ class AppDatabaseMigration27To28Test {
 		// v27 observations remain byte-for-byte facts; migration must not invent semantics.
 		assertTableCount(database, "step_fact_revision", 0)
 		assertTableCount(database, "collected_data_deletion_operation", 0)
+		database.query("PRAGMA table_info(collected_data_deletion_operation)").use { cursor ->
+			val columns = buildSet {
+				val nameColumn = cursor.getColumnIndexOrThrow("name")
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertTrue("retention_work_execution_id" in columns)
+			assertTrue("retention_destructive_plan" in columns)
+			assertTrue("settled_retained_from_ms" in columns)
+		}
 		assertTableCount(database, "ambient_steps_fact_revision", 0)
 		assertTableCount(database, "ambient_steps_retention_authority", 0)
 		assertTableCount(database, "ambient_steps_native_replay_footprint", 0)

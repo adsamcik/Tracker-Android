@@ -4,6 +4,10 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactIntegrity
@@ -497,6 +501,132 @@ class AmbientRadioAuthorityRoomTest {
 		assertEquals(1L, database.ambientWifiFactDao().importedFactCount())
 	}
 
+	@Test
+	fun `new portable policy cannot hide pre floor Wi-Fi rows under a revoked policy id`() =
+		runTest {
+			database.sourceEvidenceStateDao().ensure(
+				SourceEvidenceState(
+					collectedDataEpoch = 4L,
+					retainedFromMs = 1_500L,
+					updatedAtMs = 1L,
+				),
+			)
+			database.ambientWifiFactDao().insertRetentionAuthority(
+				AmbientWifiRetentionAuthorityIntegrity.create(
+					AmbientWifiRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+					1L,
+					AmbientWifiRetentionAuthorityEntity.STATE_REVOKED,
+					"privacy:wifi:import:old",
+					null,
+					null,
+					4L,
+					"boot-1",
+					1L,
+					1L,
+					1_500L,
+				),
+			)
+			database.ambientWifiFactDao().insertRetentionAuthority(
+				AmbientWifiRetentionAuthorityIntegrity.create(
+					AmbientWifiRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+					2L,
+					AmbientWifiRetentionAuthorityEntity.STATE_ACTIVE,
+					"privacy:wifi:import:new",
+					null,
+					null,
+					4L,
+					"boot-1",
+					2L,
+					2L,
+					1_500L,
+				),
+			)
+			database.ambientWifiFactDao().insertImportedFact(
+				importedWifiFact(
+					retentionPolicyId = "privacy:wifi:import:old",
+					retentionApprovalRevision = 1L,
+					identitySuffix = "old-policy",
+				),
+			)
+
+			val result = assertIs<AmbientWifiRetentionResult.Pruned>(
+				database.pruneAmbientWifi(
+					AmbientWifiRetentionCommand(1_500L, 4L, 2_000L),
+				),
+			)
+
+			assertEquals(1, result.importedArchives)
+			assertEquals(0L, database.ambientWifiFactDao().importedFactCount())
+		}
+
+	@Test
+	fun `revoked local Cell policy rows are pruned while the scope remains revoked`() =
+		runTest {
+			database.sourceEvidenceStateDao().ensure(
+				SourceEvidenceState(
+					collectedDataEpoch = 4L,
+					retainedFromMs = 1_500L,
+					updatedAtMs = 1L,
+				),
+			)
+			database.ambientCellFactDao().insertRetentionAuthority(
+				AmbientCellRetentionAuthorityIntegrity.create(
+					AmbientCellRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+					1L,
+					AmbientCellRetentionAuthorityEntity.STATE_REVOKED,
+					"privacy:cell:ambient:old",
+					3L,
+					2L,
+					4L,
+					"boot-1",
+					1L,
+					1L,
+					1_500L,
+				),
+			)
+			database.ambientCellFactDao().insertRetentionAuthority(
+				AmbientCellRetentionAuthorityIntegrity.create(
+					AmbientCellRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+					2L,
+					AmbientCellRetentionAuthorityEntity.STATE_REVOKED,
+					"privacy:cell:ambient:new",
+					4L,
+					3L,
+					4L,
+					"boot-1",
+					2L,
+					2L,
+					1_000L,
+				),
+			)
+			database.ambientCellFactDao().insertGap(
+				AmbientCellFactIntegrity.createGap(
+					gapId = AmbientCellAuthorityIntegrity.digest("test", "revoked-local-gap"),
+					reason = AmbientCellGapEntity.REASON_STORAGE_DISCONTINUITY,
+					gapStartTimeMs = 100L,
+					gapEndTimeMs = 1_000L,
+					storedZoneId = "UTC",
+					structuralEpochDay = 0L,
+					sourcePolicyRevision = 3L,
+					ambientConsentEpoch = 2L,
+					retentionPolicyId = "privacy:cell:ambient:old",
+					retentionApprovalRevision = 1L,
+					collectedDataEpoch = 4L,
+					scopeDeletionGeneration = 0L,
+					createdAtMs = 1_000L,
+				),
+			)
+
+			val result = assertIs<AmbientCellRetentionResult.Pruned>(
+				database.pruneAmbientCell(
+					AmbientCellRetentionCommand(1_500L, 4L, 2_000L),
+				),
+			)
+
+			assertEquals(1, result.gaps)
+			assertEquals(emptyList(), database.ambientCellFactDao().allLocalGaps(10))
+		}
+
 	private suspend fun installWifiImportRetention() {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(
@@ -522,10 +652,14 @@ class AmbientRadioAuthorityRoomTest {
 		)
 	}
 
-	private fun importedWifiFact(): ImportedAmbientWifiFactEntity {
+	private fun importedWifiFact(
+		retentionPolicyId: String = "privacy:wifi:import:v1",
+		retentionApprovalRevision: Long = 1L,
+		identitySuffix: String = "default",
+	): ImportedAmbientWifiFactEntity {
 		val draft = ImportedAmbientWifiFactEntity(
-			archiveId = digest("archive"),
-			factId = digest("fact"),
+			archiveId = digest("archive-$identitySuffix"),
+			factId = digest("fact-$identitySuffix"),
 			semanticRevision = 1L,
 			supersedesSemanticRevision = null,
 			contentChecksum = "0".repeat(64),
@@ -545,8 +679,8 @@ class AmbientRadioAuthorityRoomTest {
 			strongestSignalDbm = -50,
 			weakestSignalDbm = -50,
 			meanSignalDbm = -50.0,
-			retentionPolicyId = "privacy:wifi:import:v1",
-			retentionApprovalRevision = 1L,
+			retentionPolicyId = retentionPolicyId,
+			retentionApprovalRevision = retentionApprovalRevision,
 			collectedDataEpoch = 4L,
 			importDeletionGeneration = 0L,
 			receivedAtMs = 2_000L,

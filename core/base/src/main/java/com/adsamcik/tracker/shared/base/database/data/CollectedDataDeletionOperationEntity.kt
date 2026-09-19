@@ -24,6 +24,12 @@ data class CollectedDataDeletionOperationEntity(
 	val phase: String,
 	@ColumnInfo(name = "updated_at_ms")
 	val updatedAtMs: Long,
+	@ColumnInfo(name = "retention_work_execution_id")
+	val retentionWorkExecutionId: String? = null,
+	@ColumnInfo(name = "retention_destructive_plan")
+	val retentionDestructivePlan: String? = null,
+	@ColumnInfo(name = "settled_retained_from_ms")
+	val settledRetainedFromMs: Long? = null,
 ) {
 	init {
 		require(operationId.isNotBlank())
@@ -32,6 +38,15 @@ data class CollectedDataDeletionOperationEntity(
 		require(deletedAtMs >= 0L)
 		require(phase in PHASES)
 		require(updatedAtMs >= deletedAtMs)
+		require(retentionWorkExecutionId == null || retentionWorkExecutionId.isNotBlank())
+		require(
+			(retentionWorkExecutionId == null) == (retentionDestructivePlan == null),
+		)
+		require(settledRetainedFromMs == null || settledRetainedFromMs >= 0L)
+		require(
+			settledRetainedFromMs == null ||
+				phase in RETENTION_PHASES.drop(RETENTION_ROOM_GUARD_PHASE_INDEX),
+		)
 	}
 
 	companion object {
@@ -49,6 +64,7 @@ data class CollectedDataDeletionOperationEntity(
 		const val PHASE_RETENTION_SOURCE_MAINTENANCE_COMPLETED =
 			"RETENTION_SOURCE_MAINTENANCE_COMPLETED"
 		const val PHASE_RETENTION_FINAL = "RETENTION_FINAL"
+		const val PHASE_RETENTION_ACKNOWLEDGED = "RETENTION_ACKNOWLEDGED"
 
 		private val PHASES = setOf(
 			PHASE_DATABASE_CLEARED,
@@ -60,6 +76,7 @@ data class CollectedDataDeletionOperationEntity(
 			PHASE_RETENTION_PROVIDER_RECONCILED,
 			PHASE_RETENTION_SOURCE_MAINTENANCE_COMPLETED,
 			PHASE_RETENTION_FINAL,
+			PHASE_RETENTION_ACKNOWLEDGED,
 		)
 
 		val RETENTION_PHASES = listOf(
@@ -70,7 +87,11 @@ data class CollectedDataDeletionOperationEntity(
 			PHASE_RETENTION_PROVIDER_RECONCILED,
 			PHASE_RETENTION_SOURCE_MAINTENANCE_COMPLETED,
 			PHASE_RETENTION_FINAL,
+			PHASE_RETENTION_ACKNOWLEDGED,
 		)
+
+		private val RETENTION_ROOM_GUARD_PHASE_INDEX =
+			RETENTION_PHASES.indexOf(PHASE_RETENTION_ROOM_GUARD_COMMITTED)
 	}
 }
 

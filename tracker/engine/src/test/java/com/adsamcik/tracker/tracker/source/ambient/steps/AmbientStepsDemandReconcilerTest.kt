@@ -6,6 +6,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionDecision
 import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecision
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
@@ -96,6 +98,52 @@ class AmbientStepsDemandReconcilerTest {
 		demand.status shouldBe SourceDemandEntity.STATUS_ACTIVE
 		(demand.toSourceDemandContract().floor as AmbientStepsAcquisitionFloor).mechanism shouldBe
 			AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS
+	}
+
+	@Test
+	fun `active settlement authenticates Steps demand with the exact journal operation`() = runTest {
+		bootstrapPolicy(ambientEnabled = true)
+		var ordinaryReads = 0
+		var settlementReads = 0
+		val subject = reconciler(
+			capability = AmbientStepsCapability.ReadyForRegistration(
+				provider = AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				importAccess = AmbientStepsImportAccess.BACKGROUND_ALLOWED,
+			),
+			currentRetentionAuthority = { _, _ ->
+				ordinaryReads += 1
+				CurrentRetentionAuthority.Unavailable(
+					RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE,
+				)
+			},
+			currentSettlementRetentionAuthority = { _, _, operationId ->
+				operationId shouldBe "retention-settlement-steps"
+				settlementReads += 1
+				CurrentRetentionAuthority.Approved(
+					opaquePolicyId = "test-retention",
+					approvalRevision = 1L,
+					effectiveBootId = "boot-1",
+					effectiveElapsedRealtimeNanos = 1L,
+					effectiveWallTimeMs = 1L,
+				)
+			},
+		)
+
+		subject.reconcileForRetentionFloorAt(
+			boundary = boundary(100L),
+			lease = lease(),
+			settlementOperationId = "retention-settlement-steps",
+		) shouldBe AmbientStepsDemandReconciliation.DemandReady(
+			provider = AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+			importAccess = AmbientStepsImportAccess.BACKGROUND_ALLOWED,
+			optionalPermissions = emptySet(),
+			demandId = database.sourceBrokerDao()
+				.currentDemands(AmbientStepsDemandReconciler.CONSUMER_ID)
+				.single()
+				.demandId,
+		)
+		ordinaryReads shouldBe 0
+		settlementReads shouldBe 1
 	}
 
 	@Test
@@ -325,9 +373,12 @@ class AmbientStepsDemandReconcilerTest {
 		capability: AmbientStepsCapability,
 		onResolve: () -> Unit = {},
 		currentRetentionAuthority: suspend (Long, Long) ->
-			com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority = { _, _ ->
-				com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
-					.Approved("test-retention", 1L, "boot-1", 1L, 1L)
+			CurrentRetentionAuthority = { _, _ ->
+				CurrentRetentionAuthority.Approved("test-retention", 1L, "boot-1", 1L, 1L)
+			},
+		currentSettlementRetentionAuthority: suspend (Long, Long, String) ->
+			CurrentRetentionAuthority = { policyRevision, consentEpoch, _ ->
+				currentRetentionAuthority(policyRevision, consentEpoch)
 			},
 	) = AmbientStepsDemandReconciler(
 		resolveCapability = {
@@ -339,6 +390,7 @@ class AmbientStepsDemandReconcilerTest {
 		sourcePolicyRepository = policyRepository,
 		trackingRolloutStateStore = rolloutStore,
 		currentRetentionAuthority = currentRetentionAuthority,
+		currentSettlementRetentionAuthority = currentSettlementRetentionAuthority,
 	)
 
 	private fun boundary(elapsedRealtimeNanos: Long) = AmbientStepsDemandBoundary(

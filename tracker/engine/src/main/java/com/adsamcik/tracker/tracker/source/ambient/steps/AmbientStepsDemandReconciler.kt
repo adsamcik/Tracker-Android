@@ -45,6 +45,13 @@ class AmbientStepsDemandReconciler internal constructor(
 	private val sourcePolicyRepository: SourcePolicyRepository,
 	private val trackingRolloutStateStore: TrackingRolloutStateStore,
 	private val currentRetentionAuthority: suspend (Long, Long) -> CurrentRetentionAuthority,
+	private val currentSettlementRetentionAuthority: suspend (
+		Long,
+		Long,
+		String,
+	) -> CurrentRetentionAuthority = { policyRevision, consentEpoch, _ ->
+		currentRetentionAuthority(policyRevision, consentEpoch)
+	},
 ) {
 	@Inject
 	constructor(
@@ -71,14 +78,44 @@ class AmbientStepsDemandReconciler internal constructor(
 				expectedRetainedFromMs = lifecycle.retainedFromMs,
 			)
 		},
+		{ policyRevision, consentEpoch, settlementOperationId ->
+			val lifecycle = collectedDataLifecycleStore.snapshot()
+			retentionAuthorityProducer.currentLiveAmbientForSettlement(
+				source = TrackingSourceComponent.STEPS,
+				expectedSourcePolicyRevision = policyRevision,
+				expectedAmbientConsentEpoch = consentEpoch,
+				expectedCollectedDataEpoch = lifecycle.epoch,
+				expectedRetainedFromMs = lifecycle.retainedFromMs,
+				settlementOperationId = settlementOperationId,
+			)
+		},
 	)
 
 	internal suspend fun reconcileAt(
 		boundary: AmbientStepsDemandBoundary,
 		lease: AmbientReconciliationLease,
+	): AmbientStepsDemandReconciliation = reconcileAt(
+		boundary,
+		lease,
+		settlementOperationId = null,
+	)
+
+	internal suspend fun reconcileForRetentionFloorAt(
+		boundary: AmbientStepsDemandBoundary,
+		lease: AmbientReconciliationLease,
+		settlementOperationId: String,
+	): AmbientStepsDemandReconciliation {
+		require(settlementOperationId.isNotBlank())
+		return reconcileAt(boundary, lease, settlementOperationId)
+	}
+
+	private suspend fun reconcileAt(
+		boundary: AmbientStepsDemandBoundary,
+		lease: AmbientReconciliationLease,
+		settlementOperationId: String?,
 	): AmbientStepsDemandReconciliation {
 		require(lease.identity.source == AmbientTrackingSource.STEPS)
-		val policyAuthority = ambientPolicyAuthority(boundary, lease)
+		val policyAuthority = ambientPolicyAuthority(boundary, lease, settlementOperationId)
 		if (policyAuthority is AmbientStepsPolicyAuthority.Blocked) {
 			val retired = retireDemand(boundary, lease)
 			return AmbientStepsDemandReconciliation.PolicyBlocked(
@@ -158,6 +195,7 @@ class AmbientStepsDemandReconciler internal constructor(
 	private suspend fun ambientPolicyAuthority(
 		boundary: AmbientStepsDemandBoundary,
 		lease: AmbientReconciliationLease,
+		settlementOperationId: String?,
 	): AmbientStepsPolicyAuthority =
 		when (val authority = sourcePolicyRepository.currentState()) {
 			SourcePolicyAuthorityState.Uninitialized,
@@ -192,10 +230,18 @@ class AmbientStepsDemandReconciler internal constructor(
 					) -> AmbientStepsPolicyAuthority.Blocked(
 						AmbientStepsDemandBlockReason.ROLLOUT_CONTAINED,
 					)
-					else -> when (val retention = currentRetentionAuthority(
-						authority.snapshot.revision,
-						requireNotNull(policy.ambientConsentEpoch),
-					)) {
+					else -> when (val retention = if (settlementOperationId == null) {
+						currentRetentionAuthority(
+							authority.snapshot.revision,
+							requireNotNull(policy.ambientConsentEpoch),
+						)
+					} else {
+						currentSettlementRetentionAuthority(
+							authority.snapshot.revision,
+							requireNotNull(policy.ambientConsentEpoch),
+							settlementOperationId,
+						)
+					}) {
 						is CurrentRetentionAuthority.Approved ->
 							if (
 								retention.collectedDataEpoch ==

@@ -1,12 +1,15 @@
 package com.adsamcik.tracker.app.maintenance
 
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
 import com.adsamcik.tracker.shared.base.database.RetentionFloorSettlementOperation
 import com.adsamcik.tracker.shared.base.database.activeRetentionFloorSettlement
 import com.adsamcik.tracker.shared.base.database.advanceRetentionFloorSettlementPhase
 import com.adsamcik.tracker.shared.base.database.commitRetentionFloorRoomGuard
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.prepareOrResumeRetentionFloorSettlement
+import com.adsamcik.tracker.shared.base.database.retentionFloorSettlement
+import com.adsamcik.tracker.shared.base.database.retentionFloorSettlementForWorkExecution
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -39,6 +42,16 @@ class RetentionFloorSettlement @Inject constructor(
 	suspend fun pendingOperation(database: AppDatabase): RetentionFloorSettlementOperation? =
 		database.activeRetentionFloorSettlement()
 
+	suspend fun pendingOperation(
+		database: AppDatabase,
+		workExecutionId: String,
+		resumeCompletedExecution: Boolean,
+	): RetentionFloorSettlementOperation? =
+		database.retentionFloorSettlementForWorkExecution(
+			workExecutionId,
+			resumeCompletedExecution,
+		)
+
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	suspend fun settle(
 		database: AppDatabase,
@@ -48,11 +61,20 @@ class RetentionFloorSettlement @Inject constructor(
 		requestedRetainedFromMs: Long,
 		operationId: String = "retention-floor:$requestedRetainedFromMs",
 		updatedAtMs: Long,
+		workExecutionId: String = operationId,
+		destructivePlan: RetentionFloorDestructivePlan =
+			RetentionFloorDestructivePlan.legacy(
+				updatedAtMs,
+				requestedRetainedFromMs,
+			),
 		verifyApprovedOperation: () -> Unit,
 	): RetentionFloorSettlementResult {
 		require(requestedRetainedFromMs >= 0L)
 		require(operationId.isNotBlank())
 		require(updatedAtMs >= 0L)
+		require(workExecutionId.isNotBlank())
+		require(destructivePlan.requestedAtMs == updatedAtMs)
+		require(destructivePlan.requestedRetainedFromMs == requestedRetainedFromMs)
 		var activeOperation: RetentionFloorSettlementOperation? = null
 		var phase = RetentionFloorSettlementPhase.REQUESTED_PREPARED
 		val result = try {
@@ -69,6 +91,8 @@ class RetentionFloorSettlement @Inject constructor(
 							requestedRetainedFromMs = requestedRetainedFromMs,
 							collectedDataEpoch = initialLifecycle.epoch,
 							requestedAtMs = updatedAtMs,
+							workExecutionId = workExecutionId,
+							destructivePlan = destructivePlan,
 						)
 					}
 					activeOperation = operation
@@ -283,6 +307,8 @@ class RetentionFloorSettlement @Inject constructor(
 					operationId = reconciledOperation.operationId,
 					requestedRetainedFromMs = reconciledOperation.requestedRetainedFromMs,
 					requestedAtMs = reconciledOperation.requestedAtMs,
+					workExecutionId = reconciledOperation.workExecutionId,
+					destructivePlan = reconciledOperation.destructivePlan,
 					sourceMaintenanceCompleted = reconciledOperation.hasReached(
 						CollectedDataDeletionOperationEntity
 							.PHASE_RETENTION_SOURCE_MAINTENANCE_COMPLETED,
@@ -338,8 +364,7 @@ class RetentionFloorSettlement @Inject constructor(
 			startupGate.withReadyGenerationOperation(expectedStartupGeneration) {
 				operationLease.withPermit(cancellationShielded = true) { permit ->
 					verifyApprovedOperation()
-					val operation = database.collectedDataDeletionOperationDao()
-						.get(settlement.operationId)
+					val operation = database.retentionFloorSettlement(settlement.operationId)
 					if (operation == null) {
 						val deletion = database.collectedDataDeletionOperationDao()
 							.completedFullDeletionAfter(settlement.lifecycle.epoch)
@@ -352,16 +377,16 @@ class RetentionFloorSettlement @Inject constructor(
 						}
 					}
 					check(operation.operationId == settlement.operationId)
-					check(operation.retainedFromMs == settlement.requestedRetainedFromMs)
-					check(operation.targetCollectedDataEpoch == settlement.lifecycle.epoch)
-					check(operation.deletedAtMs == settlement.requestedAtMs)
-					var durable = RetentionFloorSettlementOperation(
-						operationId = operation.operationId,
-						requestedRetainedFromMs = requireNotNull(operation.retainedFromMs),
-						collectedDataEpoch = operation.targetCollectedDataEpoch,
-						requestedAtMs = operation.deletedAtMs,
-						phase = operation.phase,
+					check(operation.requestedRetainedFromMs == settlement.requestedRetainedFromMs)
+					check(operation.collectedDataEpoch == settlement.lifecycle.epoch)
+					check(operation.requestedAtMs == settlement.requestedAtMs)
+					check(operation.workExecutionId == settlement.workExecutionId)
+					check(operation.destructivePlan == settlement.destructivePlan)
+					check(
+						operation.settledRetainedFromMs ==
+							requireNotNull(settlement.lifecycle.retainedFromMs),
 					)
+					var durable = operation
 					if (
 						!durable.hasReached(
 							CollectedDataDeletionOperationEntity
@@ -421,11 +446,15 @@ class RetentionFloorSettlement @Inject constructor(
 		}
 		if (result != null) return result
 		val durable = try {
-			database.collectedDataDeletionOperationDao().get(settlement.operationId)
+			database.retentionFloorSettlement(settlement.operationId)
 		} catch (_: Exception) {
 			null
 		}
-		if (durable?.phase == CollectedDataDeletionOperationEntity.PHASE_RETENTION_FINAL) {
+		if (
+			durable?.hasReached(
+				CollectedDataDeletionOperationEntity.PHASE_RETENTION_FINAL,
+			) == true
+		) {
 			return RetentionFloorSettlementCompletionResult.Completed
 		}
 		val deletion = try {
@@ -560,6 +589,12 @@ sealed interface RetentionFloorSettlementResult {
 		val operationId: String,
 		val requestedRetainedFromMs: Long,
 		val requestedAtMs: Long,
+		val workExecutionId: String = operationId,
+		val destructivePlan: RetentionFloorDestructivePlan =
+			RetentionFloorDestructivePlan.legacy(
+				requestedAtMs,
+				requestedRetainedFromMs,
+			),
 		val sourceMaintenanceCompleted: Boolean = false,
 	) : RetentionFloorSettlementResult
 

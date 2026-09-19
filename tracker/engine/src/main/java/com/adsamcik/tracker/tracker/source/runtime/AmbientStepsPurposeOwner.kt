@@ -17,6 +17,14 @@ import javax.inject.Singleton
 internal interface AmbientStepsPurposeOwner {
 	suspend fun reconcile(lease: AmbientReconciliationLease): AmbientSourceOperationalAvailability
 
+	suspend fun reconcileForRetentionFloor(
+		lease: AmbientReconciliationLease,
+		settlementOperationId: String,
+	): AmbientSourceOperationalAvailability {
+		require(settlementOperationId.isNotBlank())
+		return reconcile(lease)
+	}
+
 	suspend fun retireAfterRetentionAuthorityFailure(
 		previousLease: AmbientReconciliationLease?,
 	): Boolean
@@ -35,6 +43,18 @@ internal class DefaultAmbientStepsPurposeOwner @Inject constructor(
 	): AmbientSourceOperationalAvailability {
 		require(lease.identity.source == AmbientTrackingSource.STEPS)
 		return lifecycleOwner.reconcile(lease).toPurposeAvailability(lease)
+	}
+
+	override suspend fun reconcileForRetentionFloor(
+		lease: AmbientReconciliationLease,
+		settlementOperationId: String,
+	): AmbientSourceOperationalAvailability {
+		require(lease.identity.source == AmbientTrackingSource.STEPS)
+		require(settlementOperationId.isNotBlank())
+		return lifecycleOwner.reconcileForRetentionFloor(
+			lease,
+			settlementOperationId,
+		).toPurposeAvailability(lease)
 	}
 
 	override suspend fun retireAfterRetentionAuthorityFailure(

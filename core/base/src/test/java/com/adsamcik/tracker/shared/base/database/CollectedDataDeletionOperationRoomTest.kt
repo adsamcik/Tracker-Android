@@ -116,6 +116,110 @@ class CollectedDataDeletionOperationRoomTest {
 		}
 
 	@Test
+	fun `retry delay cannot move any journaled destructive cutoff`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Application>()
+		val database = AppDatabase.testDatabase(context)
+		try {
+			val originalPlan = RetentionFloorDestructivePlan(
+				workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+				requestedAtMs = 10_000L,
+				requestedRetainedFromMs = 7_000L,
+				rawRetentionCutoffMs = 7_000L,
+				sourceEventRetentionCutoffMs = 7_000L,
+				wifiCellRetentionCutoffMs = 6_000L,
+				tripRetentionCutoffMs = 5_000L,
+				dailySummaryRetentionCutoffDay = 4L,
+				explorationRetentionCutoffMs = 3_000L,
+				operationalRetentionCutoffMs = 7_000L,
+			)
+			val first = database.prepareOrResumeRetentionFloorSettlement(
+				operationId = "retention-plan-original",
+				requestedRetainedFromMs = originalPlan.requestedRetainedFromMs,
+				collectedDataEpoch = 0L,
+				requestedAtMs = originalPlan.requestedAtMs,
+				workExecutionId = "work-request-1",
+				destructivePlan = originalPlan,
+			)
+
+			val delayedRetry = database.retentionFloorSettlementForWorkExecution(
+				workExecutionId = "work-request-1",
+				resumeCompletedExecution = true,
+			)
+
+			delayedRetry shouldBe first
+			requireNotNull(delayedRetry).destructivePlan shouldBe originalPlan
+			delayedRetry.requestedAtMs shouldBe 10_000L
+		} finally {
+			database.close()
+		}
+	}
+
+	@Test
+	fun `final receipt survives crash before WorkManager acknowledgement and a new execution`() =
+		runTest {
+			val context = ApplicationProvider.getApplicationContext<Application>()
+			val database = AppDatabase.testDatabase(context)
+			try {
+				val plan = RetentionFloorDestructivePlan(
+					workerKind = RetentionFloorDestructivePlan.WORKER_DATA_RETENTION,
+					requestedAtMs = 2_000L,
+					requestedRetainedFromMs = 1_000L,
+					rawRetentionCutoffMs = 1_000L,
+					sourceEventRetentionCutoffMs = 1_000L,
+					wifiCellRetentionCutoffMs = 1_000L,
+					tripRetentionCutoffMs = 1_000L,
+					dailySummaryRetentionCutoffDay = null,
+					explorationRetentionCutoffMs = null,
+					operationalRetentionCutoffMs = 1_000L,
+				)
+				database.collectedDataDeletionOperationDao().insert(
+					CollectedDataDeletionOperationEntity(
+						operationId = "retention-final-original",
+						targetCollectedDataEpoch = 0L,
+						retainedFromMs = 1_000L,
+						deletedAtMs = 2_000L,
+						phase = CollectedDataDeletionOperationEntity.PHASE_RETENTION_FINAL,
+						updatedAtMs = 2_100L,
+						retentionWorkExecutionId = "periodic-work-1",
+						retentionDestructivePlan = plan.encode(),
+						settledRetainedFromMs = 1_000L,
+					),
+				)
+
+				database.retentionFloorSettlementForWorkExecution(
+					workExecutionId = "periodic-work-1",
+					resumeCompletedExecution = true,
+				)?.operationId shouldBe "retention-final-original"
+				database.retentionFloorSettlementForWorkExecution(
+					workExecutionId = "periodic-work-1",
+					resumeCompletedExecution = false,
+				) shouldBe null
+
+				database.prepareOrResumeRetentionFloorSettlement(
+					operationId = "retention-next-period",
+					requestedRetainedFromMs = 1_500L,
+					collectedDataEpoch = 0L,
+					requestedAtMs = 3_000L,
+					workExecutionId = "periodic-work-1",
+					destructivePlan = plan.copy(
+						requestedAtMs = 3_000L,
+						requestedRetainedFromMs = 1_500L,
+						rawRetentionCutoffMs = 1_500L,
+						wifiCellRetentionCutoffMs = 1_500L,
+						tripRetentionCutoffMs = 1_500L,
+						operationalRetentionCutoffMs = 1_500L,
+					),
+				)
+
+				database.collectedDataDeletionOperationDao()
+					.get("retention-final-original")?.phase shouldBe
+					CollectedDataDeletionOperationEntity.PHASE_RETENTION_ACKNOWLEDGED
+			} finally {
+				database.close()
+			}
+		}
+
+	@Test
 	fun `exact Room guard replay does not increment source evidence twice`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Application>()
 		val database = AppDatabase.testDatabase(context)
