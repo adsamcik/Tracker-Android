@@ -153,37 +153,38 @@ internal class ExactSourceCallerGuard @Inject constructor(
 	private val authorityRepository: SourceCallerAcceptedAuthorityRepository,
 ) : TransactionalSourceCallerGuard {
 	override suspend fun accept(request: SourceCallerRequest): SourceCallerGuardResult {
-		if (request is SourceCallerRequest.PurposeOwnerRetirement) {
-			return acceptPurposeOwnerRetirement(request)
+		val canonicalRequest = request.canonicalizeReplayKind()
+		if (canonicalRequest is SourceCallerRequest.PurposeOwnerRetirement) {
+			return acceptPurposeOwnerRetirement(canonicalRequest)
 		}
-		if (request is SourceCallerRequest.Replay &&
-			request.replayKind == SourceCallerReplayKind.POLICY_RECONCILIATION
+		if (canonicalRequest is SourceCallerRequest.Replay &&
+			canonicalRequest.replayKind == SourceCallerReplayKind.POLICY_RECONCILIATION
 		) {
 			return rejected(SourceCallerRejectionReason.REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE)
 		}
-		validateBoundExecution(request.requestedDemandIdentities.toSet())?.let { return it }
+		validateBoundExecution(canonicalRequest.requestedDemandIdentities.toSet())?.let { return it }
 		val currentAuthority = try {
-			authorityReader.read(request)
+			authorityReader.read(canonicalRequest)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (failure: Exception) {
 			return rejected(failure.toAuthorityFailureReason())
 		}
-		return when (request) {
+		return when (canonicalRequest) {
 			is SourceCallerRequest.ManualSessionStart ->
-				acceptFresh(prepareFreshAcceptance(request, currentAuthority, System.currentTimeMillis()))
+				acceptFresh(prepareFreshAcceptance(canonicalRequest, currentAuthority, System.currentTimeMillis()))
 			is SourceCallerRequest.AutomaticSessionStart ->
-				acceptFresh(prepareFreshAcceptance(request, currentAuthority, System.currentTimeMillis()))
+				acceptFresh(prepareFreshAcceptance(canonicalRequest, currentAuthority, System.currentTimeMillis()))
 			is SourceCallerRequest.RecoverySessionStart ->
-				acceptFresh(prepareFreshAcceptance(request, currentAuthority, System.currentTimeMillis()))
+				acceptFresh(prepareFreshAcceptance(canonicalRequest, currentAuthority, System.currentTimeMillis()))
 			is SourceCallerRequest.PurposeOwnerMutation ->
-				acceptFresh(prepareFreshAcceptance(request, currentAuthority, System.currentTimeMillis()))
+				acceptFresh(prepareFreshAcceptance(canonicalRequest, currentAuthority, System.currentTimeMillis()))
 			is SourceCallerRequest.PurposeOwnerRetirement ->
 				error("Purpose-owner retirement is handled before current-authority acquisition")
 			is SourceCallerRequest.Ambient ->
-				acceptFresh(prepareFreshAcceptance(request, currentAuthority, System.currentTimeMillis()))
+				acceptFresh(prepareFreshAcceptance(canonicalRequest, currentAuthority, System.currentTimeMillis()))
 			is SourceCallerRequest.Replay ->
-				authenticateReplayAgainstSnapshot(request, currentAuthority)
+				authenticateReplayAgainstSnapshot(canonicalRequest, currentAuthority)
 		}
 	}
 
@@ -229,7 +230,13 @@ internal class ExactSourceCallerGuard @Inject constructor(
 	override suspend fun authenticateReplayAgainstSnapshot(
 		request: SourceCallerRequest.Replay,
 		currentAuthority: SourceCallerAuthoritySnapshot,
-	): SourceCallerGuardResult = replay(request, currentAuthority)
+	): SourceCallerGuardResult {
+		val canonicalRequest = request.withCanonicalReplayKind()
+		if (canonicalRequest.replayKind == SourceCallerReplayKind.POLICY_RECONCILIATION) {
+			return rejected(SourceCallerRejectionReason.REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE)
+		}
+		return replay(canonicalRequest, currentAuthority)
+	}
 
 	private suspend fun acceptPurposeOwnerRetirement(
 		request: SourceCallerRequest.PurposeOwnerRetirement,
@@ -345,6 +352,22 @@ internal class ExactSourceCallerGuard @Inject constructor(
 			currentAuthority.currentDemandIdentities,
 		)?.let { return it }
 		return permitted(request.reference, accepted)
+	}
+}
+
+private fun SourceCallerRequest.canonicalizeReplayKind(): SourceCallerRequest =
+	if (this is SourceCallerRequest.Replay) {
+		withCanonicalReplayKind()
+	} else {
+		this
+	}
+
+private fun SourceCallerRequest.Replay.withCanonicalReplayKind(): SourceCallerRequest.Replay {
+	val canonicalReplayKind = replayKind.canonicalKind
+	return if (canonicalReplayKind == replayKind) {
+		this
+	} else {
+		copy(replayKind = canonicalReplayKind)
 	}
 }
 

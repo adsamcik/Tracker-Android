@@ -30,10 +30,26 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class ExactSourceCallerGuardTest {
+	@Suppress("DEPRECATION")
 	@Test
-	fun `process recovery replay enum contract uses the current constant`() {
-		SourceCallerReplayKind.PROCESS_RECOVERY.name shouldBe "PROCESS_RECOVERY"
-		SourceCallerReplayKind.entries.any { it.name == "RECOVERY" } shouldBe false
+	fun `legacy replay enum constants resolve to canonical semantics`() {
+		mapOf(
+			SourceCallerReplayKind.FOREGROUND_SERVICE to
+				SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
+			SourceCallerReplayKind.RESTART to SourceCallerReplayKind.ACTIVE_REDELIVERY,
+			SourceCallerReplayKind.RECOVERY to SourceCallerReplayKind.PROCESS_RECOVERY,
+		).forEach { (legacy, canonical) ->
+			SourceCallerReplayKind.valueOf(legacy.name) shouldBe legacy
+			legacy.canonicalKind shouldBe canonical
+		}
+		SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY.canonicalKind shouldBe
+			SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY
+		SourceCallerReplayKind.ACTIVE_REDELIVERY.canonicalKind shouldBe
+			SourceCallerReplayKind.ACTIVE_REDELIVERY
+		SourceCallerReplayKind.PROCESS_RECOVERY.canonicalKind shouldBe
+			SourceCallerReplayKind.PROCESS_RECOVERY
+		SourceCallerReplayKind.POLICY_RECONCILIATION.canonicalKind shouldBe
+			SourceCallerReplayKind.POLICY_RECONCILIATION
 	}
 
 	@Test
@@ -586,6 +602,84 @@ class ExactSourceCallerGuardTest {
 					requestedDemandIdentities = change.demands,
 				),
 			) shouldBe rejected(change.reason)
+		}
+	}
+
+	@Suppress("DEPRECATION")
+	@Test
+	fun `legacy replay aliases preserve canonical authority and retention fences`() = runTest {
+		val location = withLease(capture(TrackingSource.LOCATION)) {
+			it.copy(retainedFromMs = 1_000L)
+		}
+		val mappings = listOf(
+			SourceCallerReplayKind.FOREGROUND_SERVICE to
+				SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
+			SourceCallerReplayKind.RESTART to SourceCallerReplayKind.ACTIVE_REDELIVERY,
+			SourceCallerReplayKind.RECOVERY to SourceCallerReplayKind.PROCESS_RECOVERY,
+		)
+
+		mappings.forEach { (legacy, canonical) ->
+			val fixture = TrustedSourceCallerGuardFixtureFactory.create(current = setOf(location))
+			val receipt = fixture.permit(
+				SourceCallerRequest.ManualSessionStart(
+					requestedCapturedSources = setOf(TrackingSource.LOCATION),
+					manifestIdentity = MANIFEST,
+					requestedDemandIdentities = setOf(location),
+				),
+			)
+
+			fixture.guard.accept(replay(receipt, legacy, setOf(location))) shouldBe
+				fixture.guard.accept(replay(receipt, canonical, setOf(location)))
+
+			val sourceEscalation = setOf(location, capture(TrackingSource.STEPS))
+			fixture.current = sourceEscalation
+			val legacySourceEscalation =
+				fixture.guard.accept(replay(receipt, legacy, sourceEscalation))
+			legacySourceEscalation shouldBe
+				fixture.guard.accept(replay(receipt, canonical, sourceEscalation))
+			legacySourceEscalation.shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+				.rejection.reason shouldBe SourceCallerRejectionReason.REPLAY_AUTHORITY_ESCALATION
+
+			fixture.current = setOf(location)
+			val legacyPurposeEscalation = fixture.guard.accept(
+				replay(
+					receipt,
+					legacy,
+					setOf(location),
+					TrackingPurpose.AMBIENT_PRODUCT,
+				),
+			)
+			legacyPurposeEscalation shouldBe fixture.guard.accept(
+				replay(
+					receipt,
+					canonical,
+					setOf(location),
+					TrackingPurpose.AMBIENT_PRODUCT,
+				),
+			)
+			legacyPurposeEscalation.shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+				.rejection.reason shouldBe SourceCallerRejectionReason.REPLAY_PURPOSE_MISMATCH
+
+			val revisionEscalation = setOf(
+				withLease(location) { it.copy(policyRevision = it.policyRevision + 1L) },
+			)
+			fixture.current = revisionEscalation
+			val legacyRevisionEscalation =
+				fixture.guard.accept(replay(receipt, legacy, revisionEscalation))
+			legacyRevisionEscalation shouldBe
+				fixture.guard.accept(replay(receipt, canonical, revisionEscalation))
+			legacyRevisionEscalation.shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+				.rejection.reason shouldBe SourceCallerRejectionReason.REPLAY_AUTHORITY_ESCALATION
+
+			fixture.current = setOf(
+				withLease(location) { it.copy(retainedFromMs = it.retainedFromMs + 1L) },
+			)
+			val legacyRetentionChange =
+				fixture.guard.accept(replay(receipt, legacy, setOf(location)))
+			legacyRetentionChange shouldBe
+				fixture.guard.accept(replay(receipt, canonical, setOf(location)))
+			legacyRetentionChange.shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+				.rejection.reason shouldBe SourceCallerRejectionReason.STALE_RETENTION_BOUNDARY
 		}
 	}
 

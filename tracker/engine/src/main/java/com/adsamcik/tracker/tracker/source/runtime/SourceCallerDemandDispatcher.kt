@@ -363,7 +363,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 	): SourceCallerGuardResult = authenticatePreparedSession(
 		manifestIdentity,
 		reference,
-		replayKind,
+		replayKind.canonicalKind,
 	).also { result ->
 		if (result is SourceCallerGuardResult.Rejected) logRejected()
 	}
@@ -373,7 +373,8 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		reference: SourceCallerReplayReference,
 		replayKind: SourceCallerReplayKind,
 	): SourceCallerGuardResult {
-		if (replayKind == SourceCallerReplayKind.POLICY_RECONCILIATION) {
+		val canonicalReplayKind = replayKind.canonicalKind
+		if (canonicalReplayKind == SourceCallerReplayKind.POLICY_RECONCILIATION) {
 			return SourceCallerGuardResult.Rejected(
 				SourceCallerGuardRejection(
 					SourceCallerRejectionReason.REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE,
@@ -381,7 +382,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			)
 		}
 		val snapshot = try {
-			authorityReader.readReplayManifest(manifestIdentity, replayKind)
+			authorityReader.readReplayManifest(manifestIdentity, canonicalReplayKind)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (failure: Exception) {
@@ -400,7 +401,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 		}
 		return guard.authenticateReplayAgainstSnapshot(
 			SourceCallerRequest.Replay(
-				replayKind = replayKind,
+				replayKind = canonicalReplayKind,
 				reference = reference,
 				purpose = TrackingPurpose.SESSION_CAPTURE,
 				requestedDemandIdentities = snapshot.currentDemandIdentities,
@@ -1027,7 +1028,7 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 		return if (manifest == null) {
 			readSessionless(request.requestedDemandIdentities)
 		} else if (request is SourceCallerRequest.Replay) {
-			readReplayManifest(manifest, request.replayKind) ?: unavailableSnapshot()
+			readReplayManifest(manifest, request.replayKind.canonicalKind) ?: unavailableSnapshot()
 		} else {
 			readCurrentManifest(manifest) ?: unavailableSnapshot()
 		}
@@ -1044,14 +1045,17 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 	override suspend fun readReplayManifest(
 		identity: SourceCallerManifestIdentity,
 		replayKind: SourceCallerReplayKind,
-	): SourceCallerAuthoritySnapshot? = readCurrentManifest(
-		identity = identity,
-		requireLiveLease =
-			replayKind == SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
-		allowSuspendedSession =
-			replayKind == SourceCallerReplayKind.ACTIVE_REDELIVERY ||
-				replayKind == SourceCallerReplayKind.PROCESS_RECOVERY,
-	)
+	): SourceCallerAuthoritySnapshot? {
+		val canonicalReplayKind = replayKind.canonicalKind
+		return readCurrentManifest(
+			identity = identity,
+			requireLiveLease =
+				canonicalReplayKind == SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
+			allowSuspendedSession =
+				canonicalReplayKind == SourceCallerReplayKind.ACTIVE_REDELIVERY ||
+					canonicalReplayKind == SourceCallerReplayKind.PROCESS_RECOVERY,
+		)
+	}
 
 	private suspend fun readCurrentManifest(
 		identity: SourceCallerManifestIdentity,

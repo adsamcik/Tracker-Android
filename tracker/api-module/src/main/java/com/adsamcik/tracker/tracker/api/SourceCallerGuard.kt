@@ -13,6 +13,35 @@ enum class SourceCallerReplayKind {
 	PROCESS_RECOVERY,
 	/** Never replayable: policy changes require a fresh acceptance and reference. */
 	POLICY_RECONCILIATION,
+	@Deprecated(
+		message = "Use FOREGROUND_SERVICE_DELIVERY",
+		replaceWith = ReplaceWith("SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY"),
+	)
+	FOREGROUND_SERVICE,
+	@Deprecated(
+		message = "Use ACTIVE_REDELIVERY",
+		replaceWith = ReplaceWith("SourceCallerReplayKind.ACTIVE_REDELIVERY"),
+	)
+	RESTART,
+	@Deprecated(
+		message = "Use PROCESS_RECOVERY",
+		replaceWith = ReplaceWith("SourceCallerReplayKind.PROCESS_RECOVERY"),
+	)
+	RECOVERY,
+	;
+
+	@Suppress("DEPRECATION")
+	val canonicalKind: SourceCallerReplayKind
+		get() = when (this) {
+			FOREGROUND_SERVICE_DELIVERY,
+			ACTIVE_REDELIVERY,
+			PROCESS_RECOVERY,
+			POLICY_RECONCILIATION,
+			-> this
+			FOREGROUND_SERVICE -> FOREGROUND_SERVICE_DELIVERY
+			RESTART -> ACTIVE_REDELIVERY
+			RECOVERY -> PROCESS_RECOVERY
+		}
 }
 
 data class SourceCallerManifestIdentity(
@@ -193,7 +222,12 @@ sealed interface SourceCallerRequest {
 				reference: SourceCallerReplayReference,
 				purpose: CanonicalTrackingPurpose,
 				requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
-			): Replay = Replay(replayKind, reference, purpose, requestedDemandIdentities)
+			): Replay = Replay(
+				replayKind.canonicalKind,
+				reference,
+				purpose,
+				requestedDemandIdentities,
+			)
 		}
 	}
 }

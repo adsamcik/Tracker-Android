@@ -113,6 +113,56 @@ class GuardedSourceCallerDemandDispatcherTest {
 		replayKindRead shouldBe SourceCallerReplayKind.ACTIVE_REDELIVERY
 	}
 
+	@Suppress("DEPRECATION")
+	@Test
+	fun `legacy replay kinds are canonicalized before authority reads`() = runTest {
+		val snapshot = SourceCallerAuthoritySnapshot(
+			setOf(capture(TrackingSource.LOCATION)),
+			TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+		)
+		val replayKindsRead = mutableListOf<SourceCallerReplayKind>()
+		val provider = object : CurrentSourceCallerAuthorityProvider {
+			override suspend fun readCurrentManifest(
+				identity: SourceCallerManifestIdentity,
+			): SourceCallerAuthoritySnapshot = snapshot
+
+			override suspend fun readReplayManifest(
+				identity: SourceCallerManifestIdentity,
+				replayKind: SourceCallerReplayKind,
+			): SourceCallerAuthoritySnapshot {
+				replayKindsRead += replayKind
+				return snapshot
+			}
+		}
+		val repository = InMemorySourceCallerAuthorityRepository()
+		val dispatcher = GuardedSourceCallerDemandDispatcher(
+			authorityReader = provider,
+			guard = ExactSourceCallerGuard(
+				SourceCallerAuthoritySnapshotReader { snapshot },
+				repository,
+			),
+			sourceBroker = brokerReturning(listOf(demand(TrackingSource.LOCATION))),
+			authorityRepository = repository,
+		)
+		val accepted = dispatcher.dispatchSession(
+			sessionRequest(bindings = listOf(binding(TrackingSource.LOCATION))),
+		).shouldBeInstanceOf<SessionSourceDemandDispatchResult.Permitted>()
+
+		listOf(
+			SourceCallerReplayKind.FOREGROUND_SERVICE to
+				SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
+			SourceCallerReplayKind.RESTART to SourceCallerReplayKind.ACTIVE_REDELIVERY,
+			SourceCallerReplayKind.RECOVERY to SourceCallerReplayKind.PROCESS_RECOVERY,
+		).forEach { (legacy, canonical) ->
+			dispatcher.replayPreparedSession(
+				MANIFEST,
+				accepted.receipt.reference,
+				legacy,
+			).shouldBeInstanceOf<SourceCallerGuardResult.Permitted>()
+			replayKindsRead.last() shouldBe canonical
+		}
+	}
+
 	@Test
 	fun `recovery authentication rejects a stale exact owner before descriptor adoption`() = runTest {
 		var snapshot = SourceCallerAuthoritySnapshot(

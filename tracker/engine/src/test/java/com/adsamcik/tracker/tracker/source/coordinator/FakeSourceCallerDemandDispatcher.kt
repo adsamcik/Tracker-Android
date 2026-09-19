@@ -126,7 +126,7 @@ internal class FakeSourceCallerDemandDispatcher(
 		reference: SourceCallerReplayReference,
 		replayKind: SourceCallerReplayKind,
 	): SourceCallerGuardResult = if (
-		replayKind == SourceCallerReplayKind.POLICY_RECONCILIATION
+		replayKind.canonicalKind == SourceCallerReplayKind.POLICY_RECONCILIATION
 	) {
 		SourceCallerGuardResult.Rejected(
 			SourceCallerGuardRejection(
