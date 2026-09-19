@@ -14,7 +14,10 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletenessMarkerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptEntity
@@ -212,6 +215,19 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
+	fun `Room invalidation prefix on an unrelated target is incompatible`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("CREATE TEMP TABLE unrelated_room_target (value INTEGER NOT NULL)")
+		sqlite.execSQL(
+			"CREATE TEMP TRIGGER room_table_modification_trigger_unrelated_room_target_INSERT " +
+				"AFTER INSERT ON unrelated_room_target BEGIN SELECT NEW.value; END",
+		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
 	fun `only the exact Room 2_8_4 temporary invalidation log DDL is accepted`() {
 		installSchema()
 		val sqlite = database.openHelper.writableDatabase
@@ -312,17 +328,23 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
-	fun `temp and attached shadow triggers do not count as main authority triggers`() {
+	fun `temporary authority table shadow is incompatible before Room trigger installation`() {
 		installSchema()
 		val sqlite = database.openHelper.writableDatabase
 		sqlite.execSQL(
 			"CREATE TEMP TABLE steps_count_domain_receipt (shadow_value INTEGER NOT NULL)",
 		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `attached shadow trigger does not count as a main authority trigger`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
 		sqlite.execSQL(
-			"CREATE TEMP TRIGGER unrelated_temp_shadow_trigger AFTER INSERT ON " +
-				"temp.steps_count_domain_receipt BEGIN SELECT NEW.shadow_value; END",
+			"ATTACH DATABASE ':memory:' AS shadow_catalog",
 		)
-		sqlite.execSQL("ATTACH DATABASE ':memory:' AS shadow_catalog")
 		sqlite.execSQL(
 			"CREATE TABLE shadow_catalog.ambient_steps_fact_revision " +
 				"(shadow_value INTEGER NOT NULL)",
@@ -342,19 +364,15 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
-	fun `unqualified temp trigger resolves an authority named temp view before main`() {
+	fun `temporary authority view shadow is incompatible before Room trigger installation`() {
 		installSchema()
 		val sqlite = database.openHelper.writableDatabase
 		sqlite.execSQL(
 			"CREATE TEMP VIEW steps_count_domain_receipt AS " +
 				"SELECT 1 AS shadow_value",
 		)
-		sqlite.execSQL(
-			"CREATE TEMP TRIGGER benign_temp_view_shadow INSTEAD OF INSERT ON " +
-				"steps_count_domain_receipt BEGIN SELECT NEW.shadow_value; END",
-		)
 
-		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.ValidV2
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
 	}
 
 	@Test
@@ -1303,6 +1321,112 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		}
 
 	@Test
+	fun `fact retention preserves its WAL owner until atomic WAL pruning`() = runTest {
+		installSchema()
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 7L))
+		database.sourceSessionDao().insertServiceRun(
+			SourceServiceRunEntity(
+				serviceRunId = "run",
+				logicalTrackingId = "tracking",
+				state = "FINALIZED",
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				foregroundCapabilityFlags = 0L,
+				startedAtMs = 1L,
+				startedElapsedNanos = 1L,
+				completedAtMs = 2L,
+				completionReason = "TEST",
+				bootId = "boot",
+			),
+		)
+		val store = StepsCountDomainStore(database)
+		val wal = insertWal("retained-fact-wal", 1L, payloadVersion = 7)
+		store.recordSessionWal(wal, token('a')) shouldBe StepsCountDomainWriteResult.INSERTED
+		val unsignedFact = StepFactRevisionEntity(
+			logicalFactId = "${SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID}:${wal.eventId}",
+			semanticRevision = 1L,
+			mutationId =
+				"${SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID}:${wal.eventId}:1:UPSERT",
+			stepIntervalId = null,
+			sourceEventId = wal.eventId,
+			sourceAdmissionOrdinal = wal.admissionOrdinal,
+			originKind = StepFactRevisionEntity.ORIGIN_LIVE_WAL,
+			originIdentity = wal.eventId,
+			writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			writerBindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+			operation = StepFactRevisionEntity.OPERATION_UPSERT,
+			intervalStartTimeMs = 1L,
+			intervalEndTimeMs = 2L,
+			intervalStartElapsedRealtimeNanos = 1_000_000L,
+			intervalEndElapsedRealtimeNanos = 2_000_000L,
+			clockDomainId = "boot",
+			bootClockDomainId = "boot",
+			cumulativeStepCountStart = 10L,
+			cumulativeStepCountEnd = 12L,
+			wallTimeUncertaintyMs = 0L,
+			coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
+			effectiveStepCount = 2L,
+			logicalTrackingId = "tracking",
+			serviceRunId = "run",
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			manifestRevision = 1L,
+			sourcePolicyRevision = 1L,
+			captureConsentEpoch = 1L,
+			collectedDataEpoch = 7L,
+			scopeDeletionGeneration = 0L,
+			effectChecksum = "unsigned",
+			appliedAtMs = 2L,
+		)
+		val fact = unsignedFact.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsignedFact),
+		)
+		database.stepFactRevisionDao().insert(fact)
+		store.recordSessionFact(fact) shouldBe StepsCountDomainWriteResult.INSERTED
+		val walKey = StepsCountDomainOwnerLookupKey(
+			StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+			StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
+				wal.admissionOrdinal,
+				wal.eventId,
+			),
+			1L,
+		)
+		val factKey = StepsCountDomainOwnerLookupKey(
+			StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+			StepsCountDomainReceiptIntegrity.sessionFactOwnerIdentity(
+				fact.writerProjectionId,
+				fact.writerProjectionVersion,
+				fact.logicalFactId,
+			),
+			fact.semanticRevision,
+		)
+
+		database.sourceEvidenceStateDao().updateLifecycle(7L, 3L, 3L)
+		database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(3L, 7L, 3L) shouldBe 1
+		(store.readOwners(listOf(walKey, factKey)) as StepsCountDomainOwnerRead.Ready)
+			.owners.keys shouldBe setOf(walKey)
+		requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal))
+
+		database.withTransaction {
+			store.removeSessionWalOwnersForPrune(
+				safeOrdinal = wal.admissionOrdinal,
+				createdBeforeMs = 2L,
+				limit = 1,
+			) shouldBe StepsCountDomainMaintenanceResult.Applied(1, 1)
+			database.sourceEventWalDao().deleteProjectedSourceBatch(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				safeOrdinal = wal.admissionOrdinal,
+				createdBeforeMs = 2L,
+				limit = 1,
+			) shouldBe 1
+		}
+
+		(store.readOwners(listOf(walKey)) as StepsCountDomainOwnerRead.Ready)
+			.owners shouldBe emptyMap()
+		database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal) shouldBe null
+	}
+
+	@Test
 	fun `unrelated malformed owner key does not force a full-table hot-path scan`() = runTest {
 		installSchema()
 		val store = StepsCountDomainStore(database)
@@ -1444,6 +1568,39 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
 					"WHERE owner_identity = ? AND owner_revision = 100 AND operation = 'UNPROVEN'",
 				arrayOf(key.ownerIdentity),
+			) shouldBe 1L
+		}
+
+	@Test
+	fun `unowned mutation after one removal invalidates the snapshot before the next deletion`() =
+		runTest {
+			installSchema()
+			val first = insertAmbientUnprovenOwnerHistory('4', 1)
+			val second = insertAmbientUnprovenOwnerHistory('5', 1)
+			val sqlite = database.openHelper.writableDatabase
+
+			shouldThrow<IllegalStateException> {
+				StepsCountDomainStore(database).withOwnerMaintenance { maintenance ->
+					maintenance.removeOwners(listOf(first)) shouldBe
+						StepsCountDomainMaintenanceResult.Applied(1, 0)
+					sqlite.execSQL(
+						"UPDATE steps_count_domain_owner_revision SET linked_at_ms = 2 " +
+							"WHERE owner_identity = ? AND owner_revision = ?",
+						arrayOf(second.ownerIdentity, second.ownerRevision),
+					)
+					maintenance.removeOwners(listOf(second))
+				}
+			}
+
+			sqlite.count(
+				"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
+					"WHERE owner_identity IN (?, ?)",
+				arrayOf(first.ownerIdentity, second.ownerIdentity),
+			) shouldBe 2L
+			sqlite.count(
+				"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
+					"WHERE owner_identity = ? AND linked_at_ms = 1",
+				arrayOf(second.ownerIdentity),
 			) shouldBe 1L
 		}
 

@@ -81,28 +81,33 @@ class StepSourceRuntimeRetirementTest {
 	}
 
 	@Test
-	fun `failed start cleanup retry completes without inventing a terminal checkpoint`() = runTest {
+	fun `failed start cleanup discards provisional callbacks without product settlement`() = runTest {
 		val claim = runtimeClaim("failed-start-cleanup")
+		var admitted = 0
+		val sink = SourceEventSink {
+			admitted += 1
+			SourceAdmissionHandoff.Durable(admitted.toLong())
+		}
 		val fixture = fixture(
 			scope = this,
 			registerFailure = IllegalStateException("provider apply was ambiguous"),
 			completionOutcomes = ArrayDeque(listOf(false, true)),
+			sink = sink,
+			onRegister = { _, listener, sensor ->
+				listener.onSensorChanged(stepEvent(sensor, 1f))
+			},
 		)
 
 		assertIs<SourceStartResult.Failed>(
-			fixture.runtime.start(claim, fixture.plan, fixture.sink),
+			fixture.runtime.start(claim, fixture.plan, sink),
 		)
 		val released = assertIs<OwnedSourceShutdown.Released>(
 			fixture.runtime.shutdownIfOwned(claim, sessionCutoff(Long.MAX_VALUE)),
 		)
 
-		assertEquals(SourceStopStatus.COMPLETE, released.stopAck?.status)
-		assertEquals(
-			RegistrationRemovalOutcome.REMOVED,
-			released.stopAck?.registrationRemovalOutcome,
-		)
-		assertEquals(null, released.stopAck?.logicalTrackingId)
-		assertEquals(null, released.stopAck?.serviceRunId)
+		assertEquals(null, released.stopAck)
+		assertEquals(1L, released.provider?.registrationGeneration)
+		assertEquals(0, admitted)
 		coVerify(exactly = 0) {
 			fixture.repository.saveRuntimeState(
 				any(), any(), any(), any(), any(), any(), any(), any(), any(),

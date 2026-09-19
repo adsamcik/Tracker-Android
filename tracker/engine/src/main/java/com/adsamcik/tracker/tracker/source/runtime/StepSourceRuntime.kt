@@ -96,6 +96,7 @@ class StepSourceRuntime @Inject constructor(
 	private var cachedCounterDomainTokenGeneration: Long? = null
 	private var cachedCounterDomainToken: StepsCounterDomainToken? = null
 	private var counterEpochAuthorityProven = false
+	private var cleanupOnlyReleasePending = false
 
 	override suspend fun start(plan: StepsPlan, sink: SourceEventSink): SourceStartResult = lifecycleMutex.withLock {
 		startForClaimLocked(claim = null, plan, sink)
@@ -116,7 +117,11 @@ class StepSourceRuntime @Inject constructor(
 		sink: SourceEventSink,
 	): SourceStartResult {
 		if (providerRetirement != null) {
-			retryPendingRetirementLocked()
+			if (providerRetirement?.cleanupOnly == true) {
+				retryPendingProvisionalCleanupLocked()
+			} else {
+				retryPendingRetirementLocked()
+			}
 			if (providerRetirement != null) {
 				return SourceStartResult.Failed(
 					appliedState(source, plan.revision, null, SourceApplyStatus.FAILED,
@@ -125,6 +130,10 @@ class StepSourceRuntime @Inject constructor(
 				)
 			}
 		}
+		if (cleanupOnlyReleasePending) {
+			cleanupOnlyReleasePending = false
+			runtimeClaim = null
+		}
 		require(currentPlan == null) { "Step source is already started" }
 		// A completed predecessor acknowledgement is useful only to its reconfigure caller. Once a
 		// successor can publish provider state it must never short-circuit that successor's cleanup.
@@ -132,12 +141,16 @@ class StepSourceRuntime @Inject constructor(
 		runtimeClaim = claim.takeIf { plan.enabled }
 		return try {
 			startLocked(plan, sink).also {
-				if (registration == null && providerRetirement == null) {
+				if (registration == null && providerRetirement == null &&
+					!cleanupOnlyReleasePending
+				) {
 					runtimeClaim = null
 				}
 			}
 		} catch (error: Throwable) {
-			if (registration == null && providerRetirement == null) runtimeClaim = null
+			if (registration == null && providerRetirement == null &&
+				!cleanupOnlyReleasePending
+			) runtimeClaim = null
 			throw error
 		}
 	}
@@ -160,6 +173,22 @@ class StepSourceRuntime @Inject constructor(
 		plan: StepsPlan,
 		sink: SourceEventSink,
 	): SourceApplyResult {
+		if (providerRetirement?.cleanupOnly == true) {
+			if (!retryPendingProvisionalCleanupLocked()) {
+				return SourceApplyResult.Failed(
+					appliedState(
+						source,
+						plan.revision,
+						null,
+						SourceApplyStatus.FAILED,
+						SystemClock.elapsedRealtimeNanos(),
+					),
+					retryable = true,
+				)
+			}
+			cleanupOnlyReleasePending = false
+			runtimeClaim = null
+		}
 		val replayableStopAck = terminalStopAck
 		refreshCompatibleLocked(plan, sink) { runtimeClaim = claim }?.let { refreshed ->
 			return refreshed.withStopAckIfAbsent(replayableStopAck)
@@ -196,10 +225,14 @@ class StepSourceRuntime @Inject constructor(
 			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied, stopAck)
 			is SourceStartResult.Degraded -> SourceApplyResult.Degraded(result.applied, stopAck)
 			is SourceStartResult.Blocked -> SourceApplyResult.Failed(result.applied, false, stopAck).also {
-				if (registration == null && providerRetirement == null) runtimeClaim = null
+				if (registration == null && providerRetirement == null &&
+					!cleanupOnlyReleasePending
+				) runtimeClaim = null
 			}
 			is SourceStartResult.Failed -> SourceApplyResult.Failed(result.applied, result.retryable, stopAck).also {
-				if (registration == null && providerRetirement == null) runtimeClaim = null
+				if (registration == null && providerRetirement == null &&
+					!cleanupOnlyReleasePending
+				) runtimeClaim = null
 			}
 		}
 	}
@@ -214,6 +247,21 @@ class StepSourceRuntime @Inject constructor(
 	): OwnedSourceShutdown = lifecycleMutex.withLock {
 		require(claim.source == source)
 		if (runtimeClaim != claim) return@withLock OwnedSourceShutdown.NotOwned
+		if (cleanupOnlyReleasePending) {
+			cleanupOnlyReleasePending = false
+			runtimeClaim = null
+			return@withLock OwnedSourceShutdown.Released(provider = null, stopAck = null)
+		}
+		providerRetirement?.takeIf { retirement -> retirement.cleanupOnly }?.let { cleanup ->
+			val provider = cleanup.registration.providerKey()
+			return@withLock if (retryPendingProvisionalCleanupLocked(cutoff.deadlineElapsedRealtimeNanos)) {
+				cleanupOnlyReleasePending = false
+				runtimeClaim = null
+				OwnedSourceShutdown.Released(provider = provider, stopAck = null)
+			} else {
+				OwnedSourceShutdown.Incomplete(provider = provider, stopAck = null)
+			}
+		}
 		val acknowledgement = when {
 			currentPlan != null || providerRetirement != null -> shutdownLocked(cutoff)
 			terminalStopAck != null -> terminalStopAck
@@ -245,10 +293,16 @@ class StepSourceRuntime @Inject constructor(
 	}
 
 	override suspend fun close() = lifecycleMutex.withLock {
-		if (currentPlan != null || providerRetirement != null) {
+		if (providerRetirement?.cleanupOnly == true) {
+			if (retryPendingProvisionalCleanupLocked()) {
+				runtimeClaim = null
+				cleanupOnlyReleasePending = false
+			}
+		} else if (currentPlan != null || providerRetirement != null) {
 			clearClaimIfReleased(shutdownLocked(null))
 		} else {
 			runtimeClaim = null
+			cleanupOnlyReleasePending = false
 		}
 	}
 
@@ -601,10 +655,12 @@ class StepSourceRuntime @Inject constructor(
 			retiredElapsedRealtimeNanos = retirementBoundary,
 			providerAlreadyRemoved = false,
 			deadlineElapsedRealtimeNanos = providerSettlementDeadline(),
+			cleanupOnly = true,
 		)
 		val actorSettled = settleActor(providerSettlementDeadline())
 		if (retirement == StepProviderRetirement.COMPLETE && actorSettled) {
 			clearActiveState()
+			cleanupOnlyReleasePending = runtimeClaim != null
 		} else {
 			retainProviderForRetirementRetry(retainActor = !actorSettled)
 		}
@@ -715,6 +771,7 @@ class StepSourceRuntime @Inject constructor(
 					overflowPaused && overflowPauseRemovalComplete
 				},
 				deadlineElapsedRealtimeNanos = drainDeadline,
+				cleanupOnly = false,
 			)
 		} catch (cancelled: CancellationException) {
 			retainTerminalFailure(cancelled)
@@ -860,8 +917,6 @@ class StepSourceRuntime @Inject constructor(
 				throw failure
 			}
 		}
-		// Failed-start compensation has no capture checkpoint to publish. Provider retirement and
-		// actor settlement are the complete cleanup contract for that provisional registration.
 		val checkpointConfirmed = terminal == null || terminal.checkpointConfirmed
 		val settledAck = if (!ack.hasTerminalStepsRetirement() || checkpointConfirmed) {
 			ack
@@ -877,16 +932,36 @@ class StepSourceRuntime @Inject constructor(
 		return settledAck
 	}
 
+	private suspend fun retryPendingProvisionalCleanupLocked(
+		deadlineElapsedRealtimeNanos: Long = providerSettlementDeadline(),
+	): Boolean {
+		val intent = requireNotNull(providerRetirement)
+		check(intent.cleanupOnly) { "Product retirement cannot use provisional cleanup" }
+		val retirement = settleProviderRetirement(intent, deadlineElapsedRealtimeNanos)
+		val actorSettled = settleActor(deadlineElapsedRealtimeNanos)
+		if (retirement == StepProviderRetirement.COMPLETE && actorSettled) {
+			clearActiveState()
+			cleanupOnlyReleasePending = runtimeClaim != null
+			return true
+		}
+		retainProviderForRetirementRetry(retainActor = !actorSettled)
+		return false
+	}
+
 	private suspend fun retireProviderRegistration(
 		activeRegistration: SourceRegistration,
 		reason: String,
 		retiredElapsedRealtimeNanos: Long,
 		providerAlreadyRemoved: Boolean,
 		deadlineElapsedRealtimeNanos: Long,
+		cleanupOnly: Boolean,
 	): StepProviderRetirement {
 		val intent = providerRetirement?.also { pending ->
 			check(pending.registration.samePhysicalRegistrationAs(activeRegistration)) {
 				"A retained step listener cannot be retired under a replacement registration"
+			}
+			check(pending.cleanupOnly == cleanupOnly) {
+				"A retained step listener cannot change retirement settlement kind"
 			}
 		} ?: StepProviderRetirementIntent(
 			registration = activeRegistration,
@@ -895,6 +970,7 @@ class StepSourceRuntime @Inject constructor(
 			retiredAtMs = System.currentTimeMillis(),
 			retiredElapsedRealtimeNanos = retiredElapsedRealtimeNanos,
 			removalConfirmed = providerAlreadyRemoved,
+			cleanupOnly = cleanupOnly,
 		).also { providerRetirement = it }
 		return settleProviderRetirement(intent, deadlineElapsedRealtimeNanos)
 	}
@@ -1722,6 +1798,7 @@ class StepSourceRuntime @Inject constructor(
 		cachedCounterDomainTokenSourceInstanceId = null
 		cachedCounterDomainTokenGeneration = null
 		cachedCounterDomainToken = null
+		cleanupOnlyReleasePending = false
 	}
 
 	private inner class StepRegistrationListener(
@@ -1741,6 +1818,7 @@ class StepSourceRuntime @Inject constructor(
 		val retiredAtMs: Long,
 		val retiredElapsedRealtimeNanos: Long,
 		var removalConfirmed: Boolean,
+		val cleanupOnly: Boolean,
 		var token: SourceRegistrationRetirementToken? = null,
 		var completionConfirmed: Boolean = false,
 		var stopAck: SourceStopAck? = null,

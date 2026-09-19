@@ -166,6 +166,12 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val provider: com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey?,
 		val manifestEnvelope: VerifiedSessionManifest,
 	)
+	private data class RunSourceRetirementOutcome(
+		val source: SourceKind,
+		val acknowledgement: SourceStopAck?,
+	) {
+		val cleanupOnly: Boolean get() = acknowledgement == null
+	}
 	private data class RunRetirementOwnershipKey(
 		val sourceKind: Int,
 		val logicalTrackingId: String,
@@ -3899,7 +3905,17 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			}
 			val retirementTargets = retirement.targets
 			persistRunRetirementIntents(retirementTargets, cutoff, request.wallTimeMs)
-			val acks = retireRunSources(retirementTargets, cutoff, request.perSourceTimeoutMs)
+			val sourceRetirements =
+				retireRunSources(retirementTargets, cutoff, request.perSourceTimeoutMs)
+			val acks = sourceRetirements.mapNotNull(RunSourceRetirementOutcome::acknowledgement)
+			val cleanupOnlySources = sourceRetirements.asSequence()
+				.filter(RunSourceRetirementOutcome::cleanupOnly)
+				.map { outcome -> outcome.source.stableCode }
+				.toSet()
+			val drainAuthority = retirement.drainAuthority.copy(
+				captureBindings = retirement.drainAuthority.captureBindings
+					.filterKeys { sourceKind -> sourceKind !in cleanupOnlySources },
+			)
 			val completenessAuthenticated = try {
 				database.withTransaction {
 					requireLeaseInTransaction(lease)
@@ -3950,7 +3966,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				bound.serviceRunId,
 				cutoff,
 				finalOrdinal,
-				retirement.drainAuthority,
+				drainAuthority,
 			)
 			val incomplete = terminalRetirementIncomplete(
 				acks,
@@ -4078,7 +4094,17 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			}
 			val retirementTargets = retirement.targets
 			persistRunRetirementIntents(retirementTargets, cutoff, request.wallTimeMs)
-			val acks = retireRunSources(retirementTargets, cutoff, request.perSourceTimeoutMs)
+			val sourceRetirements =
+				retireRunSources(retirementTargets, cutoff, request.perSourceTimeoutMs)
+			val acks = sourceRetirements.mapNotNull(RunSourceRetirementOutcome::acknowledgement)
+			val cleanupOnlySources = sourceRetirements.asSequence()
+				.filter(RunSourceRetirementOutcome::cleanupOnly)
+				.map { outcome -> outcome.source.stableCode }
+				.toSet()
+			val drainAuthority = retirement.drainAuthority.copy(
+				captureBindings = retirement.drainAuthority.captureBindings
+					.filterKeys { sourceKind -> sourceKind !in cleanupOnlySources },
+			)
 			val completenessAuthenticated = try {
 				database.withTransaction {
 					requireLeaseInTransaction(lease)
@@ -4135,7 +4161,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				bound.serviceRunId,
 				cutoff,
 				finalOrdinal,
-				retirement.drainAuthority,
+				drainAuthority,
 			)
 			val incomplete = terminalRetirementIncomplete(
 				acks,
@@ -4931,16 +4957,23 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		targets: List<RunRetirementTarget>,
 		cutoff: SessionCutoff,
 		perSourceTimeoutMs: Long,
-	): List<SourceStopAck> = coroutineScope {
+	): List<RunSourceRetirementOutcome> = coroutineScope {
 		targets.map { target ->
 			async {
-				withTimeoutOrNull(perSourceTimeoutMs) { retireRunSource(target, cutoff) }
-					?: runRetirementAck(
+				withTimeoutOrNull(perSourceTimeoutMs) {
+					RunSourceRetirementOutcome(
+						target.source,
+						retireRunSource(target, cutoff),
+					)
+				} ?: RunSourceRetirementOutcome(
+					target.source,
+					runRetirementAck(
 						target.source,
 						cutoff.logicalTrackingId,
 						target.serviceRunId,
 						SourceStopStatus.TIMED_OUT,
-					)
+					),
+				)
 			}
 		}.awaitAll()
 	}
@@ -4993,7 +5026,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	private suspend fun retireRunSource(
 		target: RunRetirementTarget,
 		cutoff: SessionCutoff,
-	): SourceStopAck {
+	): SourceStopAck? {
 		when (val replay = replayedRetirementAcknowledgement(target, cutoff)) {
 			is RunRetirementReplay.Acknowledged -> return replay.acknowledgement
 			RunRetirementReplay.AuthenticationBlocked ->
@@ -5012,9 +5045,12 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				target.source,
 				cutoff.logicalTrackingId,
 				target.serviceRunId,
-				SourceStopStatus.PROVIDER_FAILED,
+				SourceStopStatus.COMPLETE,
 			)
 		}
+		var cleanupOnlyReleased = false
+		val cleanupReleasedProviders =
+			mutableSetOf<com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey>()
 		for ((index, owned) in target.claims.withIndex()) {
 			if (index % RETIREMENT_CANCELLATION_STRIDE == 0) {
 				currentCoroutineContext().ensureActive()
@@ -5023,14 +5059,12 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			when (val shutdown = runtimes.shutdownIfOwned(claim, cutoff)) {
 				OwnedSourceShutdown.NotOwned -> Unit
 				is OwnedSourceShutdown.Released -> {
-					val acknowledgement = shutdown.stopAck ?: owned.provider?.let { provider ->
-						interruptedRetirementAcknowledgement(target, provider, cutoff)
-					} ?: runRetirementAck(
-						target.source,
-						cutoff.logicalTrackingId,
-						claim.serviceRunId,
-						SourceStopStatus.PROCESS_RESTARTED,
-					)
+					val acknowledgement = shutdown.stopAck
+					if (acknowledgement == null) {
+						cleanupOnlyReleased = true
+						(shutdown.provider ?: owned.provider)?.let(cleanupReleasedProviders::add)
+						continue
+					}
 					persistRunRetirementReceipt(target, owned, acknowledgement)
 					return acknowledgement
 				}
@@ -5046,18 +5080,22 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				}
 			}
 		}
-		target.claims.firstNotNullOfOrNull(RunRetirementClaim::provider)?.let { provider ->
+		target.claims.asSequence()
+			.mapNotNull(RunRetirementClaim::provider)
+			.firstOrNull { provider -> provider !in cleanupReleasedProviders }
+			?.let { provider ->
 			return interruptedRetirementAcknowledgement(target, provider, cutoff).also { acknowledgement ->
 				target.claims.firstOrNull { it.provider == provider }?.let { owned ->
 					persistRunRetirementReceipt(target, owned, acknowledgement)
 				}
 			}
 		}
+		if (cleanupOnlyReleased) return null
 		return runRetirementAck(
 			target.source,
 			cutoff.logicalTrackingId,
 			target.serviceRunId,
-			SourceStopStatus.PROCESS_RESTARTED,
+			SourceStopStatus.COMPLETE,
 		)
 	}
 

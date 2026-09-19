@@ -326,8 +326,10 @@ interface SourceEventWalDao {
 	/**
 	 * Raw bounded envelope for one run/source capture high-water.
 	 *
-	 * Invalid predicate/aggregate inputs sort before the newest eligible row, so a caller can
-	 * reject malformed SQLite storage without materializing the run's complete WAL history.
+	 * The globally unique service-run identity and source select the envelope. Logical-owner
+	 * mismatch, blank, or malformed storage remains visible so the caller rejects it instead of
+	 * silently filtering it away. Other invalid aggregate inputs sort before the newest eligible
+	 * row without materializing the run's complete WAL history.
 	 */
 	@Query(
 		"SELECT " +
@@ -351,18 +353,9 @@ interface SourceEventWalDao {
 			"THEN authorization_purpose_eligibility_mask END " +
 			"AS authorization_purpose_eligibility_mask " +
 			"FROM source_event_wal WHERE (" +
-			"(CAST(source_kind AS INTEGER) = :sourceKind " +
-			"AND CAST(logical_tracking_id AS TEXT) = :logicalTrackingId " +
-			"AND CAST(service_run_id AS TEXT) = :serviceRunId) OR " +
-			"(typeof(source_kind) != 'integer' " +
-			"AND CAST(logical_tracking_id AS TEXT) = :logicalTrackingId " +
-			"AND CAST(service_run_id AS TEXT) = :serviceRunId) OR " +
-			"(typeof(logical_tracking_id) != 'text' " +
-			"AND CAST(source_kind AS INTEGER) = :sourceKind " +
-			"AND CAST(service_run_id AS TEXT) = :serviceRunId) OR " +
-			"(typeof(service_run_id) != 'text' " +
-			"AND CAST(source_kind AS INTEGER) = :sourceKind " +
-			"AND CAST(logical_tracking_id AS TEXT) = :logicalTrackingId)) AND (" +
+			"(CAST(source_kind AS INTEGER) = :sourceKind OR " +
+			"typeof(source_kind) != 'integer') AND " +
+			"CAST(service_run_id AS TEXT) = :serviceRunId) AND (" +
 			"typeof(event_id) != 'text' OR trim(event_id) = '' OR " +
 			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
 			"(typeof(authorization_purpose_eligibility_mask) = 'integer' AND " +

@@ -436,7 +436,7 @@ object StepsCountDomainSchema {
 
 	private fun SupportSQLiteDatabase.authorityNamespace(): AuthorityNamespace? {
 		val triggers = authenticatedAuthorityTriggers() ?: return null
-		val objects = query(
+		val mainObjects = query(
 			"SELECT type, name, tbl_name FROM sqlite_master " +
 				"WHERE type != 'trigger' AND (" +
 				"lower(name) LIKE 'steps_count_domain_%' " +
@@ -462,7 +462,28 @@ object StepsCountDomainSchema {
 					)
 				}
 			}
-		} + triggers.map { trigger ->
+		}
+		val tempShadows = query(
+			"SELECT type, name, tbl_name FROM sqlite_temp_master " +
+				"WHERE type != 'trigger' AND (" +
+				"name COLLATE NOCASE IN (?, ?, ?, ?, ?) " +
+				"OR tbl_name COLLATE NOCASE IN (?, ?, ?, ?, ?))",
+			(AUTHORITY_TABLE_NAMES + AUTHORITY_TABLE_NAMES).toTypedArray(),
+		).use { cursor ->
+			buildList {
+				while (cursor.moveToNext()) {
+					add(
+						SchemaNamedObject(
+							catalog = TEMP_CATALOG,
+							type = cursor.getString(0).lowercase(),
+							name = cursor.getString(1),
+							table = cursor.getString(2).canonicalAuthorityTableName(),
+						),
+					)
+				}
+			}
+		}
+		val objects = mainObjects + tempShadows + triggers.map { trigger ->
 			SchemaNamedObject(
 				catalog = trigger.catalog,
 				type = "trigger",
@@ -621,7 +642,8 @@ object StepsCountDomainSchema {
 				if (
 					resolvedTarget.catalog == MAIN_CATALOG &&
 					canonicalTarget in AUTHORITY_TABLE_NAMES ||
-					name.startsWithAsciiIgnoreCase(AUTHORITY_TRIGGER_PREFIX)
+					name.startsWithAsciiIgnoreCase(AUTHORITY_TRIGGER_PREFIX) ||
+					name.startsWithAsciiIgnoreCase(ROOM_INVALIDATION_TRIGGER_PREFIX)
 				) {
 					val catalogName = catalog.mapAsciiLowercaseToUppercase() to
 						name.mapAsciiLowercaseToUppercase()

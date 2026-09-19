@@ -156,26 +156,27 @@ internal suspend fun AppDatabase.pruneAuthenticatedAmbientStepsFactsAffectedByRe
 			else -> error("Unsupported Ambient Steps fact operation")
 		}
 	}
+	val countDomainStore = StepsCountDomainStore(this)
 	var deleted = 0
-	if (selected.isNotEmpty()) StepsCountDomainStore(this).withOwnerMaintenance { maintenance ->
-		selected.chunked(DELETE_BATCH_SIZE).forEach { batch ->
-			val expected = batch.sumOf(AmbientStepsFactLineage::revisionCount)
-			val countDomainKeys = batch.flatMap { lineage ->
-				(lineage.upserts + lineage.latest)
-					.distinctBy(AmbientStepsFactRevisionEntity::semanticRevision)
-					.map { revision ->
-						StepsCountDomainOwnerLookupKey(
-							ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
-							ownerIdentity = StepsCountDomainReceiptIntegrity.ambientFactOwnerIdentity(
-								revision.writerId,
-								revision.writerVersion,
-								revision.logicalFactId,
-							),
-							ownerRevision = revision.semanticRevision,
-						)
-					}
-			}
-			countDomainKeys.chunked(COUNT_DOMAIN_OWNER_BATCH_SIZE).forEach { ownerBatch ->
+	selected.chunked(DELETE_BATCH_SIZE).forEach { batch ->
+		val expected = batch.sumOf(AmbientStepsFactLineage::revisionCount)
+		val countDomainKeys = batch.flatMap { lineage ->
+			(lineage.upserts + lineage.latest)
+				.distinctBy(AmbientStepsFactRevisionEntity::semanticRevision)
+				.map { revision ->
+					StepsCountDomainOwnerLookupKey(
+						ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
+						ownerIdentity = StepsCountDomainReceiptIntegrity.ambientFactOwnerIdentity(
+							revision.writerId,
+							revision.writerVersion,
+							revision.logicalFactId,
+						),
+						ownerRevision = revision.semanticRevision,
+					)
+				}
+		}
+		countDomainKeys.chunked(COUNT_DOMAIN_OWNER_BATCH_SIZE).forEach { ownerBatch ->
+			countDomainStore.withOwnerMaintenance { maintenance ->
 				check(
 					maintenance.removeOwners(ownerBatch).let { result ->
 						result is StepsCountDomainMaintenanceResult.Applied ||
@@ -183,15 +184,15 @@ internal suspend fun AppDatabase.pruneAuthenticatedAmbientStepsFactsAffectedByRe
 					},
 				) { "Ambient Steps count-domain retention evidence could not be removed" }
 			}
-			val actual = ambientStepsFactRevisionDao().deleteExactLineages(
-				AmbientStepsFactRevisionEntity.WRITER_ID,
-				AmbientStepsFactRevisionEntity.WRITER_VERSION,
-				batch.map { it.logicalFactId },
-			)
-			check(actual == expected) { "Ambient Steps retention lineage changed during pruning" }
-			deleted = Math.addExact(deleted, actual)
-			checkpoint(AmbientStepsMaintenanceCheckpoint.PAYLOAD_REMOVED)
 		}
+		val actual = ambientStepsFactRevisionDao().deleteExactLineages(
+			AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			batch.map { it.logicalFactId },
+		)
+		check(actual == expected) { "Ambient Steps retention lineage changed during pruning" }
+		deleted = Math.addExact(deleted, actual)
+		checkpoint(AmbientStepsMaintenanceCheckpoint.PAYLOAD_REMOVED)
 	}
 	deleted
 }
@@ -392,24 +393,25 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 		}
 	}
 	checkpoint(AmbientStepsMaintenanceCheckpoint.RETRACTIONS_INSTALLED)
+	val countDomainStore = StepsCountDomainStore(this)
 	var removedPayloads = 0
-	if (payloadLineages.isNotEmpty()) StepsCountDomainStore(this).withOwnerMaintenance { maintenance ->
-		payloadLineages.chunked(DELETE_BATCH_SIZE).forEach { batch ->
-			val expected = batch.sumOf { lineage -> lineage.upsertRevisionCount }
-			val countDomainKeys = batch.flatMap { lineage ->
-				lineage.upserts.map { revision ->
-					StepsCountDomainOwnerLookupKey(
-						ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
-						ownerIdentity = StepsCountDomainReceiptIntegrity.ambientFactOwnerIdentity(
-							revision.writerId,
-							revision.writerVersion,
-							revision.logicalFactId,
-						),
-						ownerRevision = revision.semanticRevision,
-					)
-				}
+	payloadLineages.chunked(DELETE_BATCH_SIZE).forEach { batch ->
+		val expected = batch.sumOf { lineage -> lineage.upsertRevisionCount }
+		val countDomainKeys = batch.flatMap { lineage ->
+			lineage.upserts.map { revision ->
+				StepsCountDomainOwnerLookupKey(
+					ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
+					ownerIdentity = StepsCountDomainReceiptIntegrity.ambientFactOwnerIdentity(
+						revision.writerId,
+						revision.writerVersion,
+						revision.logicalFactId,
+					),
+					ownerRevision = revision.semanticRevision,
+				)
 			}
-			countDomainKeys.chunked(COUNT_DOMAIN_OWNER_BATCH_SIZE).forEach { ownerBatch ->
+		}
+		countDomainKeys.chunked(COUNT_DOMAIN_OWNER_BATCH_SIZE).forEach { ownerBatch ->
+			countDomainStore.withOwnerMaintenance { maintenance ->
 				check(
 					maintenance.removeOwners(ownerBatch).let { result ->
 						result is StepsCountDomainMaintenanceResult.Applied ||
@@ -417,14 +419,14 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 					},
 				) { "Ambient Steps deletion count-domain evidence could not be removed" }
 			}
-			val actual = factDao.deleteUpsertsForLogicalFacts(
-				AmbientStepsFactRevisionEntity.WRITER_ID,
-				AmbientStepsFactRevisionEntity.WRITER_VERSION,
-				batch.map(AmbientStepsFactLineage::logicalFactId),
-			)
-			check(actual == expected) { "Ambient Steps payload changed after deletion fencing" }
-			removedPayloads = Math.addExact(removedPayloads, actual)
 		}
+		val actual = factDao.deleteUpsertsForLogicalFacts(
+			AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			batch.map(AmbientStepsFactLineage::logicalFactId),
+		)
+		check(actual == expected) { "Ambient Steps payload changed after deletion fencing" }
+		removedPayloads = Math.addExact(removedPayloads, actual)
 	}
 	val stateDao = ambientStepsImportStateDao()
 	stateDao.deleteAllAuthorityTransitions()

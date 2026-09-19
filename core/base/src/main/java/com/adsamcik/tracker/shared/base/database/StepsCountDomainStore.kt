@@ -211,6 +211,12 @@ internal enum class StepsCountDomainMaintenanceCheckpoint {
 	WAL_CANDIDATE_PAGE_AUTHENTICATED,
 }
 
+internal data class StepsCountDomainMaintenanceMutationVersion(
+	val totalChanges: Long,
+	val schemaVersion: Long,
+	val tempSchemaVersion: Long,
+)
+
 enum class StepsCountDomainFullClearMode {
 	REMOVE_ALL,
 	PRESERVE_TERMINAL,
@@ -234,11 +240,11 @@ class StepsCountDomainStore(
 		private val owner: StepsCountDomainStore,
 		private val authorityIdentity: Any,
 		internal val schemaAvailable: Boolean,
-		expectedTotalChanges: Long,
+		expectedMutationVersion: StepsCountDomainMaintenanceMutationVersion,
 		private val checkpointCallback: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
 	) {
 		private var active = true
-		private var expectedTotalChanges = expectedTotalChanges
+		private var expectedMutationVersion = expectedMutationVersion
 
 		suspend fun removeOwners(
 			keys: List<StepsCountDomainOwnerLookupKey>,
@@ -260,12 +266,30 @@ class StepsCountDomainStore(
 
 		internal suspend fun checkpoint(value: StepsCountDomainMaintenanceCheckpoint) {
 			checkpointCallback(value)
+			requireUnchangedMutationVersion()
 		}
 
-		internal fun expectedTotalChanges(): Long = expectedTotalChanges
+		internal fun expectedTotalChanges(): Long = expectedMutationVersion.totalChanges
 
-		internal fun acceptOwnedChanges(totalChanges: Long) {
-			expectedTotalChanges = totalChanges
+		internal fun requireUnchangedMutationVersion() {
+			val current = owner.database.openHelper.writableDatabase.maintenanceMutationVersion()
+			if (current != expectedMutationVersion) throw CountDomainStoredEvidenceException()
+		}
+
+		internal fun acceptOwnedChanges(knownRowEffects: Long) {
+			require(knownRowEffects >= 0L)
+			val current = owner.database.openHelper.writableDatabase.maintenanceMutationVersion()
+			val expectedTotalChanges = Math.addExact(
+				expectedMutationVersion.totalChanges,
+				knownRowEffects,
+			)
+			if (current.schemaVersion != expectedMutationVersion.schemaVersion ||
+				current.tempSchemaVersion != expectedMutationVersion.tempSchemaVersion ||
+				current.totalChanges != expectedTotalChanges
+			) {
+				throw CountDomainStoredEvidenceException()
+			}
+			expectedMutationVersion = current
 		}
 	}
 
@@ -298,20 +322,20 @@ class StepsCountDomainStore(
 				throw CountDomainStoredEvidenceException()
 			StepsCountDomainSchemaState.ValidV2 -> true
 		}
-		val expectedTotalChanges = if (schemaAvailable) {
+		val expectedMutationVersion = if (schemaAvailable) {
 			sqlite.authenticateCountDomainMaintenanceSnapshot(checkpoint)
 		} else {
-			sqlite.totalChanges()
+			sqlite.maintenanceMutationVersion()
 		}
 		val session = OwnerMaintenanceSession(
 			owner = this@StepsCountDomainStore,
 			authorityIdentity = maintenanceAuthorityIdentity,
 			schemaAvailable = schemaAvailable,
-			expectedTotalChanges = expectedTotalChanges,
+			expectedMutationVersion = expectedMutationVersion,
 			checkpointCallback = checkpoint,
 		)
 		try {
-			block(session)
+			block(session).also { session.requireActiveSnapshot() }
 		} finally {
 			session.invalidate()
 		}
@@ -1289,13 +1313,49 @@ class StepsCountDomainStore(
 		var removedOwnerRows = 0
 		distinct.chunked(OWNER_QUERY_CHUNK).forEach { chunk ->
 			currentCoroutineContext().ensureActive()
-			removedOwnerRows += sqlite.deleteOwnerChunk(chunk)
+			session.requireActiveSnapshot()
+			val chunkOwners = chunk.mapNotNull(ownersByKey::get)
+			val removedMarkers = chunkOwners.count { owner ->
+				owner.ownerKind ==
+					StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS
+			}
+			val expectedOwnerRows = chunkOwners.size.toLong()
+			val expectedEffects = Math.addExact(
+				Math.addExact(expectedOwnerRows, removedMarkers.toLong()),
+				Math.addExact(
+					sqlite.roomDeleteInvalidationEffect(
+						StepsCountDomainSchema.OWNER_TABLE,
+						expectedOwnerRows,
+					),
+					sqlite.roomDeleteInvalidationEffect(
+						StepsCountDomainSchema.COMPLETENESS_MARKER_TABLE,
+						removedMarkers.toLong(),
+					),
+				),
+			)
+			val removedChunk = sqlite.deleteOwnerChunk(chunk)
+			check(removedChunk == chunkOwners.size) {
+				"Steps count-domain owner changed during removal"
+			}
+			session.acceptOwnedChanges(
+				expectedEffects,
+			)
+			removedOwnerRows += removedChunk
 		}
 		check(removedOwnerRows == owners.size) {
 			"Steps count-domain owner changed during removal"
 		}
+		session.requireActiveSnapshot()
+		val expectedRemovedReceipts = sqlite.countUnreferencedReceipts(receiptIds)
+		val receiptInvalidationEffect = sqlite.roomDeleteInvalidationEffect(
+			StepsCountDomainSchema.RECEIPT_TABLE,
+			expectedRemovedReceipts,
+		)
 		val removedReceipts = sqlite.deleteUnreferencedReceipts(receiptIds)
-		session.acceptOwnedChanges()
+		check(removedReceipts == expectedRemovedReceipts) {
+			"Steps count-domain receipt changed during removal"
+		}
+		session.acceptOwnedChanges(Math.addExact(removedReceipts, receiptInvalidationEffect))
 		return StepsCountDomainMaintenanceResult.Applied(owners.size.toLong(), removedReceipts)
 	}
 
@@ -1321,17 +1381,66 @@ class StepsCountDomainStore(
 			},
 		)
 		if (mode == StepsCountDomainFullClearMode.REMOVE_ALL) {
-			sqlite.execSQL("DELETE FROM main.steps_count_domain_completeness_marker")
-			sqlite.execSQL("DELETE FROM main.steps_count_domain_owner_revision")
+			val markerCount =
+				sqlite.longForQuery("SELECT COUNT(*) FROM main.steps_count_domain_completeness_marker")
+			session.requireActiveSnapshot()
+			val markerInvalidationEffect = sqlite.roomDeleteInvalidationEffect(
+				StepsCountDomainSchema.COMPLETENESS_MARKER_TABLE,
+				markerCount,
+			)
+			val removedMarkers = sqlite.executeDelete(
+				"DELETE FROM main.steps_count_domain_completeness_marker",
+			)
+			check(removedMarkers.toLong() == markerCount)
+			session.acceptOwnedChanges(Math.addExact(markerCount, markerInvalidationEffect))
+			session.requireActiveSnapshot()
+			val ownerInvalidationEffect = sqlite.roomDeleteInvalidationEffect(
+				StepsCountDomainSchema.OWNER_TABLE,
+				ownerCount,
+			)
+			val removedOwners =
+				sqlite.executeDelete("DELETE FROM main.steps_count_domain_owner_revision")
+			check(removedOwners.toLong() == ownerCount)
+			session.acceptOwnedChanges(Math.addExact(ownerCount, ownerInvalidationEffect))
 		} else {
-			sqlite.execSQL(
+			val markerCount = sqlite.longForQuery(
+				"SELECT COUNT(*) FROM main.steps_count_domain_completeness_marker AS marker " +
+					"JOIN main.steps_count_domain_owner_revision AS owner " +
+					"ON owner.owner_kind = marker.owner_kind " +
+					"AND owner.owner_identity = marker.owner_identity " +
+					"AND owner.owner_revision = marker.owner_revision " +
+					"WHERE owner.operation = 'BIND'",
+			)
+			session.requireActiveSnapshot()
+			val ownerInvalidationEffect = sqlite.roomDeleteInvalidationEffect(
+				StepsCountDomainSchema.OWNER_TABLE,
+				ownerCount,
+			)
+			val markerInvalidationEffect = sqlite.roomDeleteInvalidationEffect(
+				StepsCountDomainSchema.COMPLETENESS_MARKER_TABLE,
+				markerCount,
+			)
+			val removedOwners = sqlite.executeDelete(
 				"DELETE FROM main.steps_count_domain_owner_revision WHERE operation = 'BIND'",
+			)
+			check(removedOwners.toLong() == ownerCount)
+			session.acceptOwnedChanges(
+				Math.addExact(
+					Math.addExact(ownerCount, markerCount),
+					Math.addExact(ownerInvalidationEffect, markerInvalidationEffect),
+				),
 			)
 		}
 		val receiptCount =
 			sqlite.longForQuery("SELECT COUNT(*) FROM main.steps_count_domain_receipt")
-		sqlite.execSQL("DELETE FROM main.steps_count_domain_receipt")
-		session.acceptOwnedChanges()
+		session.requireActiveSnapshot()
+		val receiptInvalidationEffect = sqlite.roomDeleteInvalidationEffect(
+			StepsCountDomainSchema.RECEIPT_TABLE,
+			receiptCount,
+		)
+		val removedReceipts = sqlite.executeDelete("DELETE FROM main.steps_count_domain_receipt")
+		check(removedReceipts.toLong() == receiptCount)
+		session.acceptOwnedChanges(Math.addExact(receiptCount, receiptInvalidationEffect))
 		return StepsCountDomainMaintenanceResult.Applied(ownerCount, receiptCount)
 	}
 
@@ -1467,6 +1576,7 @@ class StepsCountDomainStore(
 			authenticates(this@StepsCountDomainStore, maintenanceAuthorityIdentity) &&
 				database.inTransaction(),
 		) { "Steps count-domain maintenance authority is no longer active" }
+		requireUnchangedMutationVersion()
 	}
 
 	private suspend fun OwnerMaintenanceSession.checkpointAndRequireUnchanged(
@@ -1474,11 +1584,6 @@ class StepsCountDomainStore(
 	) {
 		checkpoint(value)
 		requireActiveSnapshot()
-	}
-
-	private fun OwnerMaintenanceSession.acceptOwnedChanges() {
-		requireActiveSnapshot()
-		acceptOwnedChanges(database.openHelper.writableDatabase.totalChanges())
 	}
 
 	private suspend fun authenticateCountDomainWrite(
@@ -2305,13 +2410,7 @@ private fun SupportSQLiteDatabase.deleteUnreferencedReceipts(
 ): Long {
 	if (receiptIdentities.isEmpty()) return 0L
 	val placeholders = List(receiptIdentities.size) { "?" }.joinToString()
-	val before = longForQuery(
-		"SELECT COUNT(*) FROM main.steps_count_domain_receipt AS receipt " +
-			"WHERE receipt_identity IN ($placeholders) " +
-			"AND NOT EXISTS (SELECT 1 FROM main.steps_count_domain_owner_revision AS owner " +
-			"WHERE owner.receipt_identity = receipt.receipt_identity)",
-		receiptIdentities.toTypedArray(),
-	)
+	val before = countUnreferencedReceipts(receiptIdentities)
 	execSQL(
 		"DELETE FROM main.steps_count_domain_receipt WHERE receipt_identity IN ($placeholders) " +
 			"AND NOT EXISTS (SELECT 1 FROM main.steps_count_domain_owner_revision AS owner " +
@@ -2319,6 +2418,20 @@ private fun SupportSQLiteDatabase.deleteUnreferencedReceipts(
 		receiptIdentities.toTypedArray(),
 	)
 	return before
+}
+
+private fun SupportSQLiteDatabase.countUnreferencedReceipts(
+	receiptIdentities: List<String>,
+): Long {
+	if (receiptIdentities.isEmpty()) return 0L
+	val placeholders = List(receiptIdentities.size) { "?" }.joinToString()
+	return longForQuery(
+		"SELECT COUNT(*) FROM main.steps_count_domain_receipt AS receipt " +
+			"WHERE receipt_identity IN ($placeholders) " +
+			"AND NOT EXISTS (SELECT 1 FROM main.steps_count_domain_owner_revision AS owner " +
+			"WHERE owner.receipt_identity = receipt.receipt_identity)",
+		receiptIdentities.toTypedArray(),
+	)
 }
 
 private suspend fun SupportSQLiteDatabase.queryTerminalCompactionCandidates(
@@ -2639,19 +2752,19 @@ private fun SupportSQLiteDatabase.requireAuthenticCountDomainMarkerKeys(
 
 private suspend fun SupportSQLiteDatabase.authenticateCountDomainMaintenanceSnapshot(
 	checkpoint: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
-): Long {
-	val expectedTotalChanges = totalChanges()
-	auditCountDomainOwnerKeyPages(checkpoint, expectedTotalChanges)
-	auditCountDomainOwnerPages(checkpoint, expectedTotalChanges)
-	auditCountDomainReceiptPages(checkpoint, expectedTotalChanges)
-	auditCountDomainMarkerPages(checkpoint, expectedTotalChanges)
-	if (totalChanges() != expectedTotalChanges) throw CountDomainStoredEvidenceException()
-	return expectedTotalChanges
+): StepsCountDomainMaintenanceMutationVersion {
+	val expectedMutationVersion = maintenanceMutationVersion()
+	auditCountDomainOwnerKeyPages(checkpoint, expectedMutationVersion)
+	auditCountDomainOwnerPages(checkpoint, expectedMutationVersion)
+	auditCountDomainReceiptPages(checkpoint, expectedMutationVersion)
+	auditCountDomainMarkerPages(checkpoint, expectedMutationVersion)
+	requireMaintenanceMutationVersion(expectedMutationVersion)
+	return expectedMutationVersion
 }
 
 private suspend fun SupportSQLiteDatabase.auditCountDomainOwnerKeyPages(
 	checkpoint: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
-	expectedTotalChanges: Long,
+	expectedMutationVersion: StepsCountDomainMaintenanceMutationVersion,
 ) {
 	val (maximumRowId, expectedCount) =
 		maintenanceRowIdBoundary("steps_count_domain_owner_revision")
@@ -2681,7 +2794,7 @@ private suspend fun SupportSQLiteDatabase.auditCountDomainOwnerKeyPages(
 		auditedCount = Math.addExact(auditedCount, page.size.toLong())
 		afterRowId = page.last()
 		checkpoint(StepsCountDomainMaintenanceCheckpoint.OWNER_KEY_PAGE_AUTHENTICATED)
-		if (totalChanges() != expectedTotalChanges) throw CountDomainStoredEvidenceException()
+		requireMaintenanceMutationVersion(expectedMutationVersion)
 		if (page.size < COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE) break
 	}
 	if (auditedCount != expectedCount) throw CountDomainStoredEvidenceException()
@@ -2689,7 +2802,7 @@ private suspend fun SupportSQLiteDatabase.auditCountDomainOwnerKeyPages(
 
 private suspend fun SupportSQLiteDatabase.auditCountDomainOwnerPages(
 	checkpoint: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
-	expectedTotalChanges: Long,
+	expectedMutationVersion: StepsCountDomainMaintenanceMutationVersion,
 ) {
 	val expectedCount =
 		longForQuery("SELECT COUNT(*) FROM main.steps_count_domain_owner_revision")
@@ -2719,7 +2832,7 @@ private suspend fun SupportSQLiteDatabase.auditCountDomainOwnerPages(
 		auditedCount = Math.addExact(auditedCount, page.size.toLong())
 		after = page.last().cursor
 		checkpoint(StepsCountDomainMaintenanceCheckpoint.OWNER_DOMAIN_PAGE_AUTHENTICATED)
-		if (totalChanges() != expectedTotalChanges) throw CountDomainStoredEvidenceException()
+		requireMaintenanceMutationVersion(expectedMutationVersion)
 		if (page.size < COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE) break
 	}
 	if (auditedCount != expectedCount) throw CountDomainStoredEvidenceException()
@@ -2727,7 +2840,7 @@ private suspend fun SupportSQLiteDatabase.auditCountDomainOwnerPages(
 
 private suspend fun SupportSQLiteDatabase.auditCountDomainReceiptPages(
 	checkpoint: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
-	expectedTotalChanges: Long,
+	expectedMutationVersion: StepsCountDomainMaintenanceMutationVersion,
 ) {
 	val (maximumRowId, expectedCount) =
 		maintenanceRowIdBoundary("steps_count_domain_receipt")
@@ -2748,7 +2861,7 @@ private suspend fun SupportSQLiteDatabase.auditCountDomainReceiptPages(
 		auditedCount = Math.addExact(auditedCount, page.size.toLong())
 		afterRowId = page.last().rowId
 		checkpoint(StepsCountDomainMaintenanceCheckpoint.RECEIPT_DOMAIN_PAGE_AUTHENTICATED)
-		if (totalChanges() != expectedTotalChanges) throw CountDomainStoredEvidenceException()
+		requireMaintenanceMutationVersion(expectedMutationVersion)
 		if (page.size < COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE) break
 	}
 	if (auditedCount != expectedCount) throw CountDomainStoredEvidenceException()
@@ -2756,7 +2869,7 @@ private suspend fun SupportSQLiteDatabase.auditCountDomainReceiptPages(
 
 private suspend fun SupportSQLiteDatabase.auditCountDomainMarkerPages(
 	checkpoint: suspend (StepsCountDomainMaintenanceCheckpoint) -> Unit,
-	expectedTotalChanges: Long,
+	expectedMutationVersion: StepsCountDomainMaintenanceMutationVersion,
 ) {
 	val (maximumRowId, expectedCount) =
 		maintenanceRowIdBoundary("steps_count_domain_completeness_marker")
@@ -2774,7 +2887,7 @@ private suspend fun SupportSQLiteDatabase.auditCountDomainMarkerPages(
 		auditedCount = Math.addExact(auditedCount, page.size.toLong())
 		afterRowId = page.last().rowId
 		checkpoint(StepsCountDomainMaintenanceCheckpoint.COMPLETENESS_DOMAIN_PAGE_AUTHENTICATED)
-		if (totalChanges() != expectedTotalChanges) throw CountDomainStoredEvidenceException()
+		requireMaintenanceMutationVersion(expectedMutationVersion)
 		if (page.size < COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE) break
 	}
 	if (auditedCount != expectedCount) throw CountDomainStoredEvidenceException()
@@ -3030,7 +3143,7 @@ private suspend fun SupportSQLiteDatabase.authenticateStepsWalMaintenanceSnapsho
 	auditStepsWalMaintenancePages(session)
 	auditStepsRegistrationMaintenancePages(session)
 	auditStepsRunMaintenancePages(session)
-	if (totalChanges() != session.expectedTotalChanges()) throw CountDomainStoredEvidenceException()
+	session.requireUnchangedMutationVersion()
 }
 
 private suspend fun SupportSQLiteDatabase.auditStepsWalMaintenancePages(
@@ -3192,6 +3305,51 @@ private suspend fun SupportSQLiteDatabase.auditStepsRunMaintenancePages(
 private fun SupportSQLiteDatabase.totalChanges(): Long =
 	longForQuery("SELECT total_changes()")
 
+private fun SupportSQLiteDatabase.maintenanceMutationVersion() =
+	StepsCountDomainMaintenanceMutationVersion(
+		totalChanges = totalChanges(),
+		schemaVersion = longForQuery("PRAGMA main.schema_version"),
+		tempSchemaVersion = longForQuery("PRAGMA temp.schema_version"),
+	)
+
+private fun SupportSQLiteDatabase.requireMaintenanceMutationVersion(
+	expected: StepsCountDomainMaintenanceMutationVersion,
+) {
+	if (maintenanceMutationVersion() != expected) throw CountDomainStoredEvidenceException()
+}
+
+private fun SupportSQLiteDatabase.executeDelete(sql: String): Int =
+	compileStatement(sql).use { statement -> statement.executeUpdateDelete() }
+
+private fun SupportSQLiteDatabase.roomDeleteInvalidationEffect(
+	table: String,
+	affectedRows: Long,
+): Long {
+	if (affectedRows == 0L) return 0L
+	val triggerName = "room_table_modification_trigger_${table}_DELETE"
+	val triggerSql = query(
+		"SELECT sql FROM sqlite_temp_master WHERE type = 'trigger' AND name = ? LIMIT 2",
+		arrayOf(triggerName),
+	).use { cursor ->
+		if (!cursor.moveToFirst() || cursor.isNull(0)) return 0L
+		val sql = cursor.getString(0)
+		if (cursor.moveToNext()) throw CountDomainStoredEvidenceException()
+		sql
+	}
+	val tableIds = ROOM_INVALIDATION_TABLE_ID.findAll(triggerSql)
+		.mapNotNull { match -> match.groupValues[1].toLongOrNull() }
+		.toList()
+	if (tableIds.size != 1 || tableIds.single() !in 0L..Int.MAX_VALUE.toLong()) {
+		throw CountDomainStoredEvidenceException()
+	}
+	val invalidated = longForQuery(
+		"SELECT invalidated FROM temp.room_table_modification_log WHERE table_id = ?",
+		arrayOf(tableIds.single()),
+	)
+	if (invalidated !in 0L..1L) throw CountDomainStoredEvidenceException()
+	return if (invalidated == 0L) 1L else 0L
+}
+
 private fun SupportSQLiteDatabase.longForQuery(
 	sql: String,
 	args: Array<out Any?> = emptyArray(),
@@ -3314,3 +3472,6 @@ private fun android.database.Cursor.nullableLong(column: String): Long? {
 private class CountDomainStoredEvidenceException(
 	cause: Throwable? = null,
 ) : IllegalStateException("Stored Steps count-domain evidence is unverifiable", cause)
+
+private val ROOM_INVALIDATION_TABLE_ID =
+	Regex("""(?i)\btable_id\s*=\s*([0-9]+)\b""")

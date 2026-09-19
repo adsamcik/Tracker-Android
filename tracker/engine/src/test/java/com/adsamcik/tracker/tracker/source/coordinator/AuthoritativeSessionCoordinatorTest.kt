@@ -669,6 +669,40 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `raw WAL high-water exposes a logical owner mismatch on the globally unique service run`() =
+		runTest {
+			installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+			val started = subject.start(
+				startRequest().copy(
+					logicalTrackingId = "raw-wal-logical-owner",
+					serviceRunId = "raw-wal-logical-owner-run",
+					rolloutRevision = rolloutSnapshot.revision,
+				),
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+			val admissionOrdinal = insertTerminalStepsWal(started)
+			runtime.lastAdmissionOrdinal = admissionOrdinal
+			replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET logical_tracking_id = 'foreign-logical-owner' " +
+					"WHERE admission_ordinal = ?",
+				arrayOf(admissionOrdinal),
+			)
+
+			val pending = subject.stop(
+				SessionStopRequest(
+					"raw-wal-logical-owner-stop",
+					"USER_STOP",
+					2_000L,
+					2_000_000L,
+					"boot-1",
+				),
+			).shouldBeInstanceOf<SessionStopResult.DrainPending>()
+
+			pending.reason shouldBe "SOURCE_DRAIN_HIGH_WATER_UNVERIFIABLE"
+			sourceProductDrainRouter.requests shouldBe emptyList()
+		}
+
+	@Test
 	fun `raw WAL high-water recheck rejects corruption after plan creation`() = runTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 		val started = subject.start(
@@ -1832,10 +1866,7 @@ class AuthoritativeSessionCoordinatorTest {
 	@Test
 	fun `failed automatic provider attempt remains nonterminal until its exact cleanup obligation is retired`() = runTest {
 		runtime.startReturnsRetryableFailure = true
-		runtime.stopStatus = SourceStopStatus.PROVIDER_FAILED
-		runtime.registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED
-		runtime.stopProviderFlushOutcome = ProviderFlushOutcome.FAILED
-		runtime.retainProviderOnIncompleteShutdown = true
+		runtime.cleanupOnlyShutdown = true
 		runtime.closeFailure = IllegalStateException("provider still resident")
 		val trigger = automaticTrigger()
 		seedAutomaticStartAction(trigger)
@@ -1874,11 +1905,9 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceSessionDao().serviceRun(failed.serviceRunId)?.completedAtMs shouldBe null
 		database.sourceSessionDao().serviceRun("replacement-run") shouldBe null
 
-		runtime.stopStatus = SourceStopStatus.COMPLETE
-		runtime.registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED
-		runtime.stopProviderFlushOutcome = ProviderFlushOutcome.COMPLETE
+		runtime.cleanupOnlyReady = true
 		runtime.closeFailure = null
-		subject.stop(
+		val stopped = subject.stop(
 			SessionStopRequest(
 				ownerToken = "cleanup-stop-owner",
 				reason = "failed-start-cleanup",
@@ -1889,11 +1918,72 @@ class AuthoritativeSessionCoordinatorTest {
 			),
 		).shouldBeInstanceOf<SessionStopResult.Stopped>()
 
+		stopped.acknowledgements shouldBe emptyList()
 		runtime.isActive shouldBe false
+		sourceProductDrainRouter.requests shouldBe emptyList()
+		database.sourceSessionDao().completenessForServiceRun(
+			failed.logicalTrackingId,
+			failed.serviceRunId,
+		) shouldBe emptyList()
 		database.sourceSessionDao().session(failed.logicalTrackingId)?.state shouldBe
 			SessionLifecycleState.FINALIZED.name
 		database.sourceSessionDao().lifecycleAction(startAction.actionId)?.status shouldBe
 			LifecycleActionStatus.SUPERSEDED.name
+	}
+
+	@Test
+	fun `providerless exact claim closes as complete not registered after all runtimes reject ownership`() = runTest {
+		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
+			StepsCountDomainSchemaState.ValidV2
+		runtime.startReturnsRetryableFailure = true
+		runtime.failedStartWithoutProviderEvidence = true
+		runtime.abandonProviderlessClaimAfterIncompleteShutdown = true
+		val request = startRequest().copy(
+			logicalTrackingId = "providerless-logical",
+			serviceRunId = "providerless-run",
+		)
+
+		val failed = subject.start(request).shouldBeInstanceOf<SessionStartResult.Failed>()
+		val startAction = database.sourceSessionDao().lifecycleActions(failed.logicalTrackingId)
+			.single { action -> action.desiredState == "STARTED" }
+		startAction.status shouldBe LifecycleActionStatus.CLEANUP_REQUIRED.name
+		startAction.sourceInstanceId shouldBe null
+		startAction.registrationGeneration shouldBe null
+
+		val stopped = subject.stop(
+			SessionStopRequest(
+				ownerToken = "providerless-stop-owner",
+				reason = "providerless-cleanup",
+				wallTimeMs = 2_000L,
+				elapsedRealtimeNanos = 2_000_000L,
+				clockDomainId = "boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		stopped.acknowledgements.single().let { acknowledgement ->
+			acknowledgement.status shouldBe SourceStopStatus.COMPLETE
+			acknowledgement.registrationRemovalOutcome shouldBe
+				RegistrationRemovalOutcome.NOT_REGISTERED
+			acknowledgement.providerCoverage shouldBe
+				ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE
+		}
+		database.sourceSessionDao().completenessForServiceRun(
+			failed.logicalTrackingId,
+			failed.serviceRunId,
+		).single().let { completeness ->
+			completeness.stopStatus shouldBe SourceStopStatus.COMPLETE.name
+			completeness.sourceInstanceId shouldBe "not-owned-steps"
+			completeness.registrationGeneration shouldBe 0L
+		}
+		database.openHelper.writableDatabase.query(
+			"SELECT terminal_state, registration_removal_outcome " +
+				"FROM steps_count_domain_completeness_marker",
+		).use { cursor ->
+			cursor.moveToFirst() shouldBe true
+			cursor.getString(0) shouldBe "UNPROVEN"
+			cursor.getString(1) shouldBe RegistrationRemovalOutcome.NOT_REGISTERED.name
+		}
 	}
 
 	@Test
@@ -6016,6 +6106,10 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 	var cancelAfterPhysicalShutdown = false
 	var beforePhysicalShutdownCancellation: suspend (SourceStopAck) -> Unit = {}
 	var closeFailure: Throwable? = null
+	var cleanupOnlyShutdown = false
+	var cleanupOnlyReady = false
+	var failedStartWithoutProviderEvidence = false
+	var abandonProviderlessClaimAfterIncompleteShutdown = false
 	var acknowledgementLogicalTrackingId: String? = null
 	var acknowledgementServiceRunId: String? = null
 	var omitAcknowledgementMembership = false
@@ -6055,8 +6149,8 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 			startEntered.complete(Unit)
 			releaseStart.await()
 		}
-		if (plan.enabled && !active) registrationGeneration += 1L
-		active = plan.enabled
+		if (plan.enabled && !active && !failedStartWithoutProviderEvidence) registrationGeneration += 1L
+		active = plan.enabled && !failedStartWithoutProviderEvidence
 		startFailureAfterSideEffect?.let { throw it }
 		val applied = applied(plan)
 		return if (startReturnsRetryableFailure) {
@@ -6100,6 +6194,21 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 		if (ownedClaim != claim) return OwnedSourceShutdown.NotOwned
 		if (shutdownDelayMs > 0L) delay(shutdownDelayMs)
 		shutdownClaims += claim
+		if (abandonProviderlessClaimAfterIncompleteShutdown) {
+			abandonProviderlessClaimAfterIncompleteShutdown = false
+			active = false
+			ownedClaim = null
+			return OwnedSourceShutdown.Incomplete(provider = null, stopAck = null)
+		}
+		if (cleanupOnlyShutdown) {
+			if (!cleanupOnlyReady) {
+				return OwnedSourceShutdown.Incomplete(provider = null, stopAck = null)
+			}
+			active = false
+			closed = true
+			ownedClaim = null
+			return OwnedSourceShutdown.Released(provider = null, stopAck = null)
+		}
 		val acknowledgement = stopAck()
 		val complete = isComplete(acknowledgement)
 		return if (complete) {
@@ -6174,8 +6283,10 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 		desiredRevision = plan.revision,
 		appliedRevision = plan.revision,
 		source = source,
-		sourceInstanceId = SourceInstanceId("steps-instance").takeIf { plan.enabled },
-		registrationGeneration = registrationGeneration.takeIf { plan.enabled },
+		sourceInstanceId = SourceInstanceId("steps-instance")
+			.takeIf { plan.enabled && !failedStartWithoutProviderEvidence },
+		registrationGeneration = registrationGeneration
+			.takeIf { plan.enabled && !failedStartWithoutProviderEvidence },
 		appliedAtElapsedRealtimeNanos = 1_000_000,
 		status = SourceApplyStatus.APPLIED,
 	)
