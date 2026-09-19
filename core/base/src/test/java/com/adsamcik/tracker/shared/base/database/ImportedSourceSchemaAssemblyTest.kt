@@ -33,6 +33,7 @@ class ImportedSourceSchemaAssemblyTest {
 						db.execSQL("INSERT INTO retained_fixture VALUES (1, 'retained')")
 						createImportedPressureMaintenanceTables(db)
 						createImportedAmbientStepsTables(db)
+						createImportedPortableStepsCountDomainTables(db)
 						createAdditionalTrackingTables(db)
 					}
 
@@ -65,6 +66,7 @@ class ImportedSourceSchemaAssemblyTest {
 		val migrated = migrationSchema.writableDatabase
 		createImportedPressureMaintenanceTables(migrated)
 		createImportedAmbientStepsTables(migrated)
+		createImportedPortableStepsCountDomainTables(migrated)
 		createAdditionalTrackingTables(migrated)
 
 		migrated.query("SELECT value FROM retained_fixture WHERE id = 1").use { cursor ->
@@ -90,6 +92,14 @@ class ImportedSourceSchemaAssemblyTest {
 			"imported_ambient_steps_day_fence",
 			"imported_ambient_steps_protected_identity",
 			"imported_ambient_steps_source_fence",
+			"imported_steps_count_domain_graph",
+			"imported_steps_count_domain_receipt",
+			"imported_steps_count_domain_owner_revision",
+			"imported_steps_count_domain_completeness",
+			"imported_steps_count_domain_root",
+			"imported_steps_count_domain_binding",
+			"imported_steps_file_receipt",
+			"imported_steps_count_domain_owner_fence",
 			"wifi_selected_deletion_receipt",
 			"wifi_selected_deletion_protected_identity",
 			"imported_cell_entry_deletion_receipt",

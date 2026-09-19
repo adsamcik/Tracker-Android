@@ -405,13 +405,18 @@ internal class AmbientStepsDayRepository @Inject constructor(
 			importedEntries.map { it.identity },
 		)) {
 			is ImportedStepsRetainedRead.Ready -> {
-				val verified = imported.entries.flatMap { entry ->
-					entry.runs.map { run ->
+				val verified = mutableListOf<QualifiedSessionStepsWindow>()
+				imported.entries.forEach { entry ->
+					entry.runs.forEach { run ->
 						val wire = entry.portableRunsById.getValue(run.identity)
 						val history = wire.toImportedStepsHistory(
 							run.identity in entry.retentionTruncatedRunIds,
 						)
-						QualifiedSessionStepsWindow(
+						val owners = database.importedSessionCountDomainOwners(
+							entry.metadata.identity,
+							run.identity,
+						) ?: return historicalEvidenceMissing()
+						verified += QualifiedSessionStepsWindow(
 							logicalTrackingId = entry.metadata.identity,
 							serviceRunId = run.identity,
 							startTimeMs = run.startTimeMs,
@@ -422,6 +427,7 @@ internal class AmbientStepsDayRepository @Inject constructor(
 							},
 							storedZoneId = run.storedZoneId,
 							origin = QualifiedSessionStepsOrigin.PORTABLE_IMPORT,
+							countDomainOwners = owners,
 						)
 					}
 				}

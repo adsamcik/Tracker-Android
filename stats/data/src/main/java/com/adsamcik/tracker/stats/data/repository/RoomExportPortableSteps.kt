@@ -4,6 +4,9 @@ import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.ExportPortableSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
+import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsV2
+import com.adsamcik.tracker.stats.api.repository.PortableStepsArchiveV2
+import com.adsamcik.tracker.stats.api.repository.PortableStepsArchiveV2Sink
 import com.adsamcik.tracker.stats.api.repository.PortableStepsEntrySink
 import com.adsamcik.tracker.stats.api.repository.PortableStepsTransferRetryableReason
 import javax.inject.Inject
@@ -47,6 +50,47 @@ internal class RoomExportPortableSteps @Inject constructor(
 					sink.emit(entry)
 				}
 				ExportPortableStepsResult.Exported(snapshot.entries.size)
+			}
+		}
+	}
+}
+
+/** V2 archive adapter kept separate so existing v1 call sites remain overload-free. */
+@Singleton
+internal class RoomExportPortableStepsV2 @Inject constructor(
+	private val reader: PortableStepsRoomReader,
+	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+) : ExportPortableStepsV2 {
+	override suspend fun export(
+		request: ExportPortableStepsRequest,
+		sink: PortableStepsArchiveV2Sink,
+	): ExportPortableStepsResult = withContext(ioDispatcher) {
+		val snapshot = try {
+			reader.readV2(request)
+		} catch (cancelled: CancellationException) {
+			if (!currentCoroutineContext().isActive) throw cancelled
+			return@withContext ExportPortableStepsResult.RetryableFailure(
+				PortableStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		} catch (_: Exception) {
+			return@withContext ExportPortableStepsResult.RetryableFailure(
+				PortableStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		}
+		when (snapshot) {
+			is PortableStepsV2Snapshot.Outcome -> snapshot.result
+			is PortableStepsV2Snapshot.Ready -> {
+				val archive = try {
+					PortableStepsArchiveV2.create(snapshot.entries)
+				} catch (_: IllegalArgumentException) {
+					return@withContext ExportPortableStepsResult.Unverifiable(
+						com.adsamcik.tracker.stats.api.repository
+							.PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+					)
+				}
+				currentCoroutineContext().ensureActive()
+				sink.emit(archive)
+				ExportPortableStepsResult.Exported(archive.entries.size)
 			}
 		}
 	}

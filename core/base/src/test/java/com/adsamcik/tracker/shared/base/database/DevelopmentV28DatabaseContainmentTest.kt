@@ -652,6 +652,7 @@ class DevelopmentV28DatabaseContainmentTest {
 								StepsCountDomainSchema.installIfAbsent(db) ==
 									StepsCountDomainSchemaState.ValidV2,
 							)
+							createImportedPortableStepsCountDomainTables(db)
 							stepsSchemaMutation?.invoke(db)
 						}
 						if (markerValue != null) {

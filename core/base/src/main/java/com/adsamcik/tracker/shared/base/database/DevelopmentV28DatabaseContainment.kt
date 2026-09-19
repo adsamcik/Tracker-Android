@@ -464,7 +464,7 @@ private enum class FinalV28MarkerState {
 
 internal const val FINAL_V28_MARKER_ID = -280_917
 internal const val FINAL_V28_ASSEMBLY_ID =
-	"tracker-v28-retention-caller-steps-count-domain-20260919"
+	"tracker-v28-portable-steps-count-domain-20260920"
 private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
 	"tracker-v28-final-20260917",
 	"tracker-v28-retention-final-20260917",
@@ -472,6 +472,7 @@ private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
 	"tracker-v28-retention-journal-20260919",
 	"tracker-v28-retention-execution-20260919",
 	"tracker-v28-retention-caller-authority-20260919",
+	"tracker-v28-retention-caller-steps-count-domain-20260919",
 )
 
 private val BASELINE_TABLES = setOf(
@@ -491,6 +492,14 @@ private val FINAL_V28_REQUIRED_TABLES = setOf(
 	StepsCountDomainSchema.OWNER_TABLE,
 	StepsCountDomainSchema.COMPLETENESS_MARKER_TABLE,
 	StepsCountDomainSchema.SCHEMA_MARKER_TABLE,
+	"imported_steps_count_domain_graph",
+	"imported_steps_count_domain_receipt",
+	"imported_steps_count_domain_owner_revision",
+	"imported_steps_count_domain_completeness",
+	"imported_steps_count_domain_root",
+	"imported_steps_count_domain_binding",
+	"imported_steps_file_receipt",
+	"imported_steps_count_domain_owner_fence",
 )
 private const val FINAL_V28_REQUIRED_COLUMN_TABLE = "pending_signal"
 private const val FINAL_V28_REQUIRED_COLUMN = "pressure_writer_owner_generation"

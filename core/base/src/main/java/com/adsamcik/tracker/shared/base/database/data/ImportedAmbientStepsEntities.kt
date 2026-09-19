@@ -47,7 +47,7 @@ data class ImportedAmbientStepsArchiveEntity(
 				),
 		)
 		require(sourceFormat == AmbientStepsPortableFormatV1.FORMAT)
-		require(sourceSchemaVersion == AmbientStepsPortableFormatV1.SCHEMA_VERSION)
+		require(sourceSchemaVersion in AmbientStepsPortableFormatV1.SCHEMA_VERSION..2)
 		require(encodedByteCount in 1L..AmbientStepsPortableFormatV1.MAX_FILE_BYTES)
 		require(dayCount in 1..AmbientStepsPortableFormatV1.MAX_DAYS)
 		require(factCount in 1..AmbientStepsPortableFormatV1.MAX_FACTS)

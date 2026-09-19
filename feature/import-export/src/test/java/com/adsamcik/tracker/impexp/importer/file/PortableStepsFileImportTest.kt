@@ -56,6 +56,56 @@ class PortableStepsFileImportTest {
 	}
 
 	@Test
+	fun `missing durable receipt fails before opening or resolving dependencies`() = runTest {
+		var opens = 0
+		var providers = 0
+		val importer = PortableStepsFileImport(
+			dependenciesProvider = {
+				providers++
+				error("Missing receipt must fail first")
+			},
+		)
+		val stream = FileImportStream(
+			fileName = "steps.trackersteps",
+			streamProvider = {
+				opens++
+				ByteArrayInputStream(byteArrayOf())
+			},
+		)
+
+		shouldThrow<PortableStepsImportReceiptContextException> {
+			importer.import(context, database, stream)
+		}
+		opens shouldBe 0
+		providers shouldBe 0
+	}
+
+	@Test
+	fun `missing durable receipt fails before opening or resolving dependencies`() = runTest {
+		var opens = 0
+		var providers = 0
+		val importer = PortableStepsFileImport(
+			dependenciesProvider = {
+				providers++
+				error("Missing receipt must fail first")
+			},
+		)
+		val stream = FileImportStream(
+			fileName = "steps.trackersteps",
+			streamProvider = {
+				opens++
+				ByteArrayInputStream(byteArrayOf())
+			},
+		)
+
+		shouldThrow<PortableStepsImportReceiptContextException> {
+			importer.import(context, database, stream)
+		}
+		opens shouldBe 0
+		providers shouldBe 0
+	}
+
+	@Test
 	fun `applied replay and durable refusals retain distinct file counts`() = runTest {
 		val entries = listOf(
 			entry("applied", 1_000L),
@@ -163,7 +213,7 @@ class PortableStepsFileImportTest {
 
 	@Test
 	@Suppress("LongMethod")
-	fun `job runner records malformed prefix and suffix while retaining replayable prefix counts`() =
+	fun `job runner rejects malformed prefix and suffix before source admission`() =
 		runTest {
 			val store = StepsImportReceiptStore()
 			val runner = ImportJobRunner(store) { 1_000L }
@@ -217,7 +267,6 @@ class PortableStepsFileImportTest {
 			}
 
 			firstResult shouldBe ImportResult(
-				successCount = 1,
 				failedCount = 1,
 				errors = listOf(PortableStepsFileImport.PERMANENT_FORMAT_ERROR),
 			)
@@ -238,11 +287,10 @@ class PortableStepsFileImportTest {
 			}
 
 			replayResult shouldBe ImportResult(
-				skippedCount = 1,
 				failedCount = 1,
 				errors = listOf(PortableStepsFileImport.PERMANENT_FORMAT_ERROR),
 			)
-			calls shouldBe 2
+			calls shouldBe 0
 		}
 
 	@Test
@@ -329,7 +377,7 @@ class PortableStepsFileImportTest {
 	private fun stream(bytes: ByteArray) = FileImportStream(
 		ByteArrayInputStream(bytes),
 		"steps.trackersteps",
-	)
+	).withImportReceipt("direct-test-job", 1_000L)
 
 	private fun stream(bytes: ByteArray, fileName: String) = FileImportStream(
 		ByteArrayInputStream(bytes),

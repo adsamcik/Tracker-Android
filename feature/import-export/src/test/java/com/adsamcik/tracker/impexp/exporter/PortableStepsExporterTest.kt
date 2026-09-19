@@ -2,14 +2,15 @@ package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
 import com.adsamcik.tracker.impexp.R
-import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV1Codec
-import com.adsamcik.tracker.stats.api.repository.ExportPortableSteps
+import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV2Codec
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
+import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsCaptureCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsCompletenessV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsDeletionScopeDigest
-import com.adsamcik.tracker.stats.api.repository.PortableStepsEntrySink
+import com.adsamcik.tracker.stats.api.repository.PortableStepsArchiveV2
+import com.adsamcik.tracker.stats.api.repository.PortableStepsArchiveV2Sink
 import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableStepsFactCoverage
@@ -22,6 +23,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsRunV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsSessionMode
 import com.adsamcik.tracker.stats.api.repository.PortableStepsTransferRetryableReason
 import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV1
+import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
@@ -33,12 +35,12 @@ import org.junit.Test
 class PortableStepsExporterTest {
 	@Test
 	fun `range export writes canonical portable entry without reading Location`() = runTest {
-		val entry = entry()
+		val entry = entry().withExplicitUnprovenCountDomain()
 		var receivedRequest: ExportPortableStepsRequest? = null
 		val exporter = PortableStepsExporter {
 			fakeExporter { request, sink ->
 				receivedRequest = request
-				sink.emit(entry)
+				sink.emit(PortableStepsArchiveV2.create(listOf(entry)))
 				ExportPortableStepsResult.Exported(1)
 			}
 		}
@@ -56,9 +58,9 @@ class PortableStepsExporterTest {
 
 		result shouldBe ExportResult.Success(recordCount = 1)
 		receivedRequest shouldBe ExportPortableStepsRequest(1_000L, 2_000L)
-		val decoded = mutableListOf<PortableStepsEntryV1>()
-		PortableStepsJsonV1Codec().decode(ByteArrayInputStream(output.toByteArray())) { decoded += it }
-		decoded shouldContainExactly listOf(entry)
+		val decoded = PortableStepsJsonV2Codec()
+			.decode(ByteArrayInputStream(output.toByteArray())).archive
+		decoded.entries shouldContainExactly listOf(entry)
 	}
 
 	@Test
@@ -88,33 +90,37 @@ class PortableStepsExporterTest {
 
 	@Test
 	fun `typed source refusal remains distinct from retryable export failure`() = runTest {
+		val unavailableOutput = ByteArrayOutputStream()
 		val unavailable = PortableStepsExporter {
 			fakeExporter { _, _ ->
 				ExportPortableStepsResult.Unverifiable(
 					PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
 				)
 			}
-		}.export(mockk(relaxed = true), emptySequence(), ByteArrayOutputStream(), null)
+		}.export(mockk(relaxed = true), emptySequence(), unavailableOutput, null)
+		val retryableOutput = ByteArrayOutputStream()
 		val retryable = PortableStepsExporter {
 			fakeExporter { _, _ ->
 				ExportPortableStepsResult.RetryableFailure(
 					PortableStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
 				)
 			}
-		}.export(mockk(relaxed = true), emptySequence(), ByteArrayOutputStream(), null)
+		}.export(mockk(relaxed = true), emptySequence(), retryableOutput, null)
 
 		(unavailable as ExportResult.Error).message?.stringRes shouldBe
 			R.string.export_error_portable_steps_unverifiable
 		(retryable as ExportResult.Error).message?.stringRes shouldBe
 			R.string.export_error_portable_steps_retryable
+		unavailableOutput.size() shouldBe 0
+		retryableOutput.size() shouldBe 0
 	}
 
 	private fun fakeExporter(
-		block: suspend (ExportPortableStepsRequest, PortableStepsEntrySink) -> ExportPortableStepsResult,
-	): ExportPortableSteps = object : ExportPortableSteps {
+		block: suspend (ExportPortableStepsRequest, PortableStepsArchiveV2Sink) -> ExportPortableStepsResult,
+	): ExportPortableStepsV2 = object : ExportPortableStepsV2 {
 		override suspend fun export(
 			request: ExportPortableStepsRequest,
-			sink: PortableStepsEntrySink,
+			sink: PortableStepsArchiveV2Sink,
 		): ExportPortableStepsResult = block(request, sink)
 	}
 

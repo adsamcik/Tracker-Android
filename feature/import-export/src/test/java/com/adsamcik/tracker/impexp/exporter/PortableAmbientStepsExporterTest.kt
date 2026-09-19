@@ -1,19 +1,24 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import com.adsamcik.tracker.impexp.R
-import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV1Codec
+import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV2Codec
 import com.adsamcik.tracker.impexp.portable.ambientArchive
 import com.adsamcik.tracker.impexp.portable.ambientDayBounds
 import com.adsamcik.tracker.impexp.portable.completeAmbientDay
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV2
+import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResult
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsArchiveSink
+import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsArchiveV2Sink
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsExportRetryableReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientSteps
+import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsV2
+import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientStepsV2
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
@@ -54,9 +59,9 @@ class PortableAmbientStepsExporterTest {
 		) shouldBe ExportResult.Success(recordCount = 1)
 
 		request shouldBe ExportPortableAmbientStepsRequest(1_000L, 2_000L)
-		PortableAmbientStepsJsonV1Codec().decode(
+		PortableAmbientStepsJsonV2Codec().decode(
 			ByteArrayInputStream(output.toByteArray()),
-		).archive shouldBe archive
+		).archive.days.map { it.product } shouldBe archive.days
 		exporter.requiresLocationData shouldBe false
 		exporter.containsSensitiveLocationData shouldBe true
 		exporter.sensitivityTitleRes shouldBe R.string.export_ambient_steps_sensitivity_title
@@ -207,6 +212,18 @@ class PortableAmbientStepsExporterTest {
 				sink: PortableAmbientStepsArchiveSink,
 			): ExportPortableAmbientStepsResult = imported(request, sink)
 		},
+		nativeExporterV2 = producerV2(native),
+		importedReexporterV2 = object : ReexportImportedAmbientStepsV2 {
+			override suspend fun export(
+				request: ExportPortableAmbientStepsRequest,
+				sink: PortableAmbientStepsArchiveV2Sink,
+			): ExportPortableAmbientStepsResult = imported(
+				request,
+				PortableAmbientStepsArchiveSink { archive ->
+					sink.emit(archive.toV2())
+				},
+			)
+		},
 	)
 
 	private fun producer(
@@ -221,6 +238,23 @@ class PortableAmbientStepsExporterTest {
 		): ExportPortableAmbientStepsResult = block(request, sink)
 	}
 
+	private fun producerV2(
+		block: suspend (
+			ExportPortableAmbientStepsRequest,
+			PortableAmbientStepsArchiveSink,
+		) -> ExportPortableAmbientStepsResult,
+	): ExportPortableAmbientStepsV2 = object : ExportPortableAmbientStepsV2 {
+		override suspend fun export(
+			request: ExportPortableAmbientStepsRequest,
+			sink: PortableAmbientStepsArchiveV2Sink,
+		): ExportPortableAmbientStepsResult = block(
+			request,
+			PortableAmbientStepsArchiveSink { archive ->
+				sink.emit(archive.toV2())
+			},
+		)
+	}
+
 	private fun exported(
 		archive: PortableAmbientStepsArchiveV1,
 	) = ExportPortableAmbientStepsResult.Exported(
@@ -229,6 +263,11 @@ class PortableAmbientStepsExporterTest {
 		archive.days.sumOf { it.gaps.size },
 	)
 }
+
+private fun PortableAmbientStepsArchiveV1.toV2(): PortableAmbientStepsArchiveV2 =
+	PortableAmbientStepsArchiveV2.create(
+		days.map { it.withExplicitUnprovenCountDomain() },
+	)
 
 private class FailingAmbientOutputStream : java.io.OutputStream() {
 	override fun write(value: Int) = throw IOException("write failed")

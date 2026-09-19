@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerRead
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStoredOwner
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.authenticatedGraph
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletenessMarkerEntity
@@ -21,6 +22,7 @@ import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityRe
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerEffect
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerIdentity
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerKind
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerOrigin
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -36,7 +38,7 @@ import kotlinx.coroutines.ensureActive
  */
 @Singleton
 internal class RoomStepsCountDomainCompatibilityQuery @Inject constructor(
-	database: AppDatabase,
+	private val database: AppDatabase,
 ) : StepsCountDomainCompatibilityQuery {
 	private val store = StepsCountDomainStore(database)
 
@@ -56,13 +58,30 @@ internal class RoomStepsCountDomainCompatibilityQuery @Inject constructor(
 				IndexedRequest(index, request)
 			}
 		}
-		bounded.toOwnerBoundedChunks().forEach { chunk ->
+		for (chunk in bounded.toOwnerBoundedChunks()) {
 			currentCoroutineContext().ensureActive()
-			val keys = chunk.flatMap { indexed ->
-				indexed.request.sessionOwners.map { it.toLookupKey() } +
-					indexed.request.ambientOwners.map { it.toLookupKey() }
-			}.distinct()
-			when (val read = store.readOwners(keys)) {
+			val references = chunk.flatMap { indexed ->
+				indexed.request.sessionOwners + indexed.request.ambientOwners
+			}
+			val nativeKeys = references
+				.filter { it.origin == StepsCountDomainOwnerOrigin.NATIVE }
+				.map { it.toLookupKey() }
+				.distinct()
+			val importedReferences = references
+				.filter { it.origin == StepsCountDomainOwnerOrigin.IMPORTED_PORTABLE }
+				.distinct()
+			val importedRead = readImportedOwners(importedReferences)
+			if (importedRead == null) {
+				chunk.forEach {
+					results[it.index] = StepsCountDomainCompatibilityResult.Unverifiable
+				}
+				continue
+			}
+			when (val read = if (nativeKeys.isEmpty()) {
+				StepsCountDomainOwnerRead.Ready(emptyMap(), emptyMap())
+			} else {
+				store.readOwners(nativeKeys)
+			}) {
 				StepsCountDomainOwnerRead.SchemaUnavailable ->
 					chunk.forEach {
 						results[it.index] = StepsCountDomainCompatibilityResult.Unproven
@@ -74,14 +93,92 @@ internal class RoomStepsCountDomainCompatibilityQuery @Inject constructor(
 				}
 				is StepsCountDomainOwnerRead.Ready ->
 					chunk.forEach {
-						results[it.index] = resolveStepsCountDomainCompatibility(
-							it.request,
-							read,
-						)
+						results[it.index] = if (
+							(it.request.sessionOwners + it.request.ambientOwners)
+								.all { owner ->
+									owner.origin == StepsCountDomainOwnerOrigin.NATIVE
+								}
+						) {
+							resolveStepsCountDomainCompatibility(it.request, read)
+						} else {
+							resolveStepsCountDomainCompatibility(
+								it.request,
+								read,
+								importedRead,
+							)
+						}
 					}
 			}
 		}
 		return results.map { it ?: StepsCountDomainCompatibilityResult.Unverifiable }
+	}
+
+	private suspend fun readImportedOwners(
+		references: List<StepsCountDomainOwnerReference>,
+	): ImportedPortableOwnerRead? {
+		if (references.isEmpty()) return ImportedPortableOwnerRead(emptyMap(), emptyMap())
+		val dao = database.importedPortableStepsCountDomainDao()
+		val identities = references.map { it.identity.encoded }.distinct()
+		val roots = dao.rootsForOwners(identities, MAX_IMPORTED_ROOT_LOOKUP + 1)
+		if (roots.size > MAX_IMPORTED_ROOT_LOOKUP) return null
+		val graphIds = roots.map { it.graphIdentity }.distinct()
+		if (graphIds.size > MAX_IMPORTED_GRAPH_LOOKUP) return null
+		val owners = linkedMapOf<ImportedPortableOwnerKey, ImportedPortableStoredOwner>()
+		val latest = mutableMapOf<ImportedPortableLineageKey, Long>()
+		for (graphId in graphIds) {
+			currentCoroutineContext().ensureActive()
+			val storedGraph = dao.graph(graphId) ?: return null
+			val expectedFormat = if (
+				roots.filter { it.graphIdentity == graphId }
+					.all { it.ownerKind == StepsCountDomainOwnerKind.AMBIENT_FACT.storedCode }
+			) {
+				com.adsamcik.tracker.shared.base.database.data
+					.ImportedPortableStepsCountDomainGraphEntity.SOURCE_AMBIENT_STEPS
+			} else {
+				com.adsamcik.tracker.shared.base.database.data
+					.ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS
+			}
+			if (storedGraph.sourceFormat != expectedFormat) return null
+			val graph = dao.authenticatedGraph(graphId, expectedFormat) ?: return null
+			graph.roots.filter { it.ownerIdentity.value in identities }.forEach { root ->
+				val owner = graph.ownerRevisions.singleOrNull {
+					it.ownerKind == root.ownerKind &&
+						it.ownerIdentity == root.ownerIdentity &&
+						it.ownerRevision == root.ownerRevision
+				} ?: return null
+				val receipt = owner.receiptIdentity?.let { identity ->
+					graph.receipts.singleOrNull { it.identity == identity }
+				}
+				val marker = graph.completenessMarkers.singleOrNull {
+					it.ownerIdentity == owner.ownerIdentity &&
+						it.ownerRevision == owner.ownerRevision
+				}
+				val key = ImportedPortableOwnerKey(
+					root.ownerKind.name,
+					root.ownerIdentity.value,
+					root.ownerRevision,
+				)
+				val value = ImportedPortableStoredOwner(
+					owner.operation.name,
+					owner.scopeIdentity.value,
+					owner.ownerEffectChecksum.value,
+					receipt?.domainIdentity?.value,
+					receipt?.collectedDataEpoch,
+					receipt?.countDomainVersion,
+					marker?.terminalState?.name,
+				)
+				val prior = owners.putIfAbsent(key, value)
+				if (prior != null && prior != value) return null
+				val lineage = ImportedPortableLineageKey(key.ownerKind, key.ownerIdentity)
+				latest[lineage] = maxOf(latest[lineage] ?: 0L, key.ownerRevision)
+			}
+		}
+		return ImportedPortableOwnerRead(owners, latest)
+	}
+
+	private companion object {
+		const val MAX_IMPORTED_ROOT_LOOKUP = 4_096
+		const val MAX_IMPORTED_GRAPH_LOOKUP = 1_024
 	}
 }
 
@@ -197,6 +294,132 @@ internal fun resolveStepsCountDomainCompatibility(
 		StepsCountDomainCompatibilityResult.Conflict
 	}
 }
+
+private fun resolveStepsCountDomainCompatibility(
+	request: StepsCountDomainCompatibilityRequest,
+	nativeRead: StepsCountDomainOwnerRead.Ready,
+	importedRead: ImportedPortableOwnerRead,
+): StepsCountDomainCompatibilityResult {
+	if (request.exceedsOwnerBounds) return StepsCountDomainCompatibilityResult.Unverifiable
+	if (request.sessionOwners.isEmpty() || request.ambientOwners.isEmpty() ||
+		request.sessionOwners.none { it.kind == StepsCountDomainOwnerKind.SESSION_FACT } ||
+		request.sessionOwners.none { it.kind == StepsCountDomainOwnerKind.SESSION_COMPLETENESS }
+	) return StepsCountDomainCompatibilityResult.Unproven
+	val references = request.sessionOwners + request.ambientOwners
+	if (references.any { reference ->
+			when (reference.origin) {
+				StepsCountDomainOwnerOrigin.NATIVE -> nativeRead.isStale(reference)
+				StepsCountDomainOwnerOrigin.IMPORTED_PORTABLE ->
+					importedRead.latestRevisions[
+						ImportedPortableLineageKey(
+							reference.kind.storedCode,
+							reference.identity.encoded,
+						)
+					]?.let { it != reference.revision } == true
+			}
+		}
+	) return StepsCountDomainCompatibilityResult.Unverifiable
+	val selected = references.map { reference ->
+		when (reference.origin) {
+			StepsCountDomainOwnerOrigin.NATIVE -> {
+				val stored = nativeRead.ownerFor(reference)
+					?: return StepsCountDomainCompatibilityResult.Unproven
+				if (!stored.second.hasAuthenticSelectedOwner(reference)) {
+					return StepsCountDomainCompatibilityResult.Unverifiable
+				}
+				UnifiedPortableOwner(
+					reference,
+					stored.second.owner.operation,
+					stored.second.owner.scopeIdentity,
+					stored.second.receipt?.compatibilityKey(),
+				)
+			}
+			StepsCountDomainOwnerOrigin.IMPORTED_PORTABLE -> {
+				val stored = importedRead.owners[
+					ImportedPortableOwnerKey(
+						reference.kind.storedCode,
+						reference.identity.encoded,
+						reference.revision,
+					)
+				] ?: return StepsCountDomainCompatibilityResult.Unproven
+				if (stored.ownerEffectChecksum != reference.effect.encoded) {
+					return StepsCountDomainCompatibilityResult.Unverifiable
+				}
+				val key = if (stored.domainIdentity == null) {
+					null
+				} else {
+					StepsCountDomainCompatibilityKey(
+						stored.domainIdentity,
+						stored.collectedDataEpoch
+							?: return StepsCountDomainCompatibilityResult.Unverifiable,
+						stored.countDomainVersion
+							?: return StepsCountDomainCompatibilityResult.Unverifiable,
+					)
+				}
+				UnifiedPortableOwner(reference, stored.operation, stored.scopeIdentity, key)
+			}
+		}
+	}
+	if (selected.any { it.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_RETRACT }) {
+		return StepsCountDomainCompatibilityResult.Deleted
+	}
+	if (selected.any { it.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN }) {
+		return StepsCountDomainCompatibilityResult.Unproven
+	}
+	if (selected.any {
+			it.operation != StepsCountDomainOwnerRevisionEntity.OPERATION_BIND ||
+				it.compatibilityKey == null
+		}
+	) return StepsCountDomainCompatibilityResult.Unverifiable
+	val sessionScopes = selected.filter { it.reference in request.sessionOwners }
+		.mapTo(linkedSetOf(), UnifiedPortableOwner::scopeIdentity)
+	if (sessionScopes.size != 1) return StepsCountDomainCompatibilityResult.Unverifiable
+	val sessionDomains = selected.filter { it.reference in request.sessionOwners }
+		.mapTo(linkedSetOf()) { requireNotNull(it.compatibilityKey) }
+	val ambientDomains = selected.filter { it.reference in request.ambientOwners }
+		.mapTo(linkedSetOf()) { requireNotNull(it.compatibilityKey) }
+	if (sessionDomains.size != 1 || ambientDomains.size != 1) {
+		return StepsCountDomainCompatibilityResult.Conflict
+	}
+	return if (sessionDomains.single() == ambientDomains.single()) {
+		StepsCountDomainCompatibilityResult.ExactCompatible
+	} else {
+		StepsCountDomainCompatibilityResult.Conflict
+	}
+}
+
+private data class ImportedPortableOwnerKey(
+	val ownerKind: String,
+	val ownerIdentity: String,
+	val ownerRevision: Long,
+)
+
+private data class ImportedPortableLineageKey(
+	val ownerKind: String,
+	val ownerIdentity: String,
+)
+
+private data class ImportedPortableStoredOwner(
+	val operation: String,
+	val scopeIdentity: String,
+	val ownerEffectChecksum: String,
+	val domainIdentity: String?,
+	val collectedDataEpoch: Long?,
+	val countDomainVersion: Int?,
+	val completenessState: String?,
+)
+
+private data class ImportedPortableOwnerRead(
+	val owners: Map<ImportedPortableOwnerKey, ImportedPortableStoredOwner>,
+	val latestRevisions: Map<ImportedPortableLineageKey, Long>,
+)
+
+private data class UnifiedPortableOwner(
+	val reference: StepsCountDomainOwnerReference,
+	val operation: String,
+	val scopeIdentity: String,
+	val compatibilityKey: StepsCountDomainCompatibilityKey?,
+)
 
 private fun StepsCountDomainOwnerRead.Ready.isStale(
 	reference: StepsCountDomainOwnerReference,

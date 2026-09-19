@@ -2,11 +2,14 @@ package com.adsamcik.tracker.app.tracking
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import androidx.room.withTransaction
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableReadRequest
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableRoomReader
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableSnapshot
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionDecision
 import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecision
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
@@ -23,6 +26,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntit
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsDayRequest
@@ -66,8 +70,18 @@ class PortableAmbientStepsFileProductionRoundTripTest {
 	@Test
 	fun `native partial outside-authority zero and nonzero facts survive file import and reexport`() =
 		runTest {
-			source.ambientStepsFactRevisionDao().insert(nativeFact(0L, 1_000L, 0L))
-			source.ambientStepsFactRevisionDao().insert(nativeFact(2_000L, DAY_END, 12L))
+			source.withTransaction {
+				listOf(
+					nativeFact(0L, 1_000L, 0L),
+					nativeFact(2_000L, DAY_END, 12L),
+				).forEach { fact ->
+					source.ambientStepsFactRevisionDao().insert(fact)
+					StepsCountDomainStore(source).recordAmbientFact(
+						fact,
+						StepsCounterDomainToken.opaque("sha256:" + "a".repeat(64)),
+					) shouldBe StepsCountDomainWriteResult.INSERTED
+				}
+			}
 			val sourceArchive = (
 				AmbientStepsPortableRoomReader(source).read(
 					AmbientStepsPortableReadRequest(0L, DAY_END),
@@ -87,10 +101,11 @@ class PortableAmbientStepsFileProductionRoundTripTest {
 			) shouldBe ExportResult.Success(recordCount = 1)
 
 			val fileText = exported.toString(Charsets.UTF_8.name())
-			fileText.contains("\"coverage\":\"PARTIAL\"") shouldBe true
-			fileText.contains("\"partialCauses\":[\"OUTSIDE_AUTHORITY\"]") shouldBe true
-			fileText.contains("\"stepCount\":0") shouldBe true
-			fileText.contains("\"stepCount\":12") shouldBe true
+			fileText.contains("\"schemaVersion\":2") shouldBe true
+			fileText.contains("\\\"coverage\\\":\\\"PARTIAL\\\"") shouldBe true
+			fileText.contains("\\\"partialCauses\\\":[\\\"OUTSIDE_AUTHORITY\\\"]") shouldBe true
+			fileText.contains("\\\"stepCount\\\":0") shouldBe true
+			fileText.contains("\\\"stepCount\\\":12") shouldBe true
 
 			val fileImporter = PortableAmbientStepsFileInternals.fileImporter(
 				destination,

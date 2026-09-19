@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsIdenti
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsProtectedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsReceiptEntity
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableDigest
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIntegrity
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsCoverage
@@ -215,13 +216,17 @@ object ImportedAmbientStepsLineageAuthenticator {
 				members.sumOf { it.factCount.toLong() } != archive.factCount.toLong() ||
 				members.sumOf { it.gapCount.toLong() } != archive.gapCount.toLong()
 			) corrupt()
-			val checksum = AmbientStepsPortableIntegrity.archiveChecksumForMembers(
-				members.map { member ->
-					AmbientStepsPortableOpaqueIdentity(member.dayIdentity) to
-						AmbientStepsPortableDigest(member.dayContentChecksum)
-				},
-			)
-			if (checksum.value != archive.contentChecksum) corrupt()
+			if (archive.sourceSchemaVersion == AmbientStepsPortableFormatV1.SCHEMA_VERSION) {
+				val checksum = AmbientStepsPortableIntegrity.archiveChecksumForMembers(
+					members.map { member ->
+						AmbientStepsPortableOpaqueIdentity(member.dayIdentity) to
+							AmbientStepsPortableDigest(member.dayContentChecksum)
+					},
+				)
+				if (checksum.value != archive.contentChecksum) corrupt()
+			} else if (archive.sourceSchemaVersion != 2) {
+				corrupt()
+			}
 		}
 		val receiptArchiveIds = receipts.map(ImportedAmbientStepsReceiptEntity::archiveIdentity).toSet()
 		val receiptsByArchive = receipts.groupBy(ImportedAmbientStepsReceiptEntity::archiveIdentity)

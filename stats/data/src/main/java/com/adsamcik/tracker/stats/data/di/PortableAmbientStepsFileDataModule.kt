@@ -1,7 +1,9 @@
 package com.adsamcik.tracker.stats.data.di
 
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientSteps
+import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsV2
 import com.adsamcik.tracker.stats.data.repository.RoomExportPortableAmbientSteps
+import com.adsamcik.tracker.stats.data.repository.RoomExportPortableAmbientStepsV2
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -17,4 +19,10 @@ internal abstract class PortableAmbientStepsFileDataModule {
 	abstract fun bindExportPortableAmbientSteps(
 		implementation: RoomExportPortableAmbientSteps,
 	): ExportPortableAmbientSteps
+
+	@Binds
+	@Singleton
+	abstract fun bindExportPortableAmbientStepsV2(
+		implementation: RoomExportPortableAmbientStepsV2,
+	): ExportPortableAmbientStepsV2
 }

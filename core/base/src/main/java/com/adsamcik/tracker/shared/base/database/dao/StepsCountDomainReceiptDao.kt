@@ -82,6 +82,16 @@ interface StepsCountDomainReceiptDao {
 		ownerRevision: Long,
 	): StepsCountDomainCompletenessMarkerEntity?
 
+	@Query(
+		"SELECT * FROM steps_count_domain_completeness_marker " +
+			"WHERE owner_identity IN (:ownerIdentities) " +
+			"ORDER BY owner_identity, owner_revision LIMIT :limit",
+	)
+	suspend fun completenessMarkers(
+		ownerIdentities: List<String>,
+		limit: Int,
+	): List<StepsCountDomainCompletenessMarkerEntity>
+
 	@Transaction
 	suspend fun append(
 		storedReceipt: StepsCountDomainReceiptEntity?,

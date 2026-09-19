@@ -994,6 +994,13 @@ private class ImportedAmbientStepsRangeReader(
 				revision.header.dayIdentity,
 				revision.header.importRevision,
 			)
+			val countDomainOwners = database.importedAmbientCountDomainOwners(
+				revision.header.dayIdentity,
+				revision.header.importRevision,
+			) ?: return ImportedAmbientStepsRangeRead.Unverifiable
+			if (countDomainOwners.keys != day.facts.mapTo(linkedSetOf()) { it.identity.value }) {
+				return ImportedAmbientStepsRangeRead.Unverifiable
+			}
 			resultFacts[key] = day.facts.map { fact ->
 				QualifiedAmbientStepsFact(
 					logicalFactId = fact.identity.value,
@@ -1007,6 +1014,7 @@ private class ImportedAmbientStepsRangeReader(
 					importedProvenance = provenance,
 					correctionRevision = revision.header.importRevision,
 					contentChecksum = fact.contentChecksum.value,
+					countDomainOwner = countDomainOwners[fact.identity.value],
 				)
 			}
 			resultGaps[key] = day.gaps.map {
@@ -1169,13 +1177,17 @@ private class AmbientStepsSessionRangeReader(
 			currentCoroutineContext().ensureActive()
 			when (val read = reader.readEntriesInTransaction(batch.map { it.identity })) {
 				is com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedRead.Ready -> {
-					imported += read.entries.flatMap { entry ->
-						entry.runs.map { run ->
+					read.entries.forEach { entry ->
+						entry.runs.forEach { run ->
 							val history = entry.portableRunsById.getValue(run.identity)
 								.toImportedStepsHistory(
 									run.identity in entry.retentionTruncatedRunIds,
 								)
-							QualifiedSessionStepsWindow(
+							val owners = database.importedSessionCountDomainOwners(
+								entry.metadata.identity,
+								run.identity,
+							) ?: return AmbientStepsSessionRangeRead.Unverifiable
+							imported += QualifiedSessionStepsWindow(
 								logicalTrackingId = entry.metadata.identity,
 								serviceRunId = run.identity,
 								startTimeMs = run.startTimeMs,
@@ -1186,6 +1198,7 @@ private class AmbientStepsSessionRangeReader(
 								},
 								storedZoneId = run.storedZoneId,
 								origin = QualifiedSessionStepsOrigin.PORTABLE_IMPORT,
+								countDomainOwners = owners,
 							)
 						}
 					}

@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
+import com.adsamcik.tracker.shared.base.database.insertAuthenticatedGraph
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletenessMarkerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptEntity
@@ -15,7 +17,17 @@ import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityRe
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerEffect
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerIdentity
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerKind
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerOrigin
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerReference
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainCoverage
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainDigest
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainGraphV2
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainOpaqueIdentity
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainOperation
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainOwnerKind as PortableOwnerKind
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainOwnerRevisionV2
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainReceiptV2
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainRootV2
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
@@ -84,6 +96,31 @@ class RoomStepsCountDomainCompatibilityQueryRoomTest {
 		query.compare(listOf(request)) shouldContainExactly
 			listOf(StepsCountDomainCompatibilityResult.Unverifiable)
 	}
+
+	@Test
+	fun `native session and imported Ambient evidence compare in separate origin namespaces`() =
+		runTest {
+			val sessionFact = insertEvidence(
+				StepsCountDomainOwnerKind.SESSION_FACT,
+				'1',
+				tokenDigit = 'a',
+			)
+			val completeness = insertEvidence(
+				StepsCountDomainOwnerKind.SESSION_COMPLETENESS,
+				'2',
+				tokenDigit = 'a',
+			)
+			val ambient = insertImportedAmbientEvidence('3', tokenDigit = 'a')
+
+			query.compare(
+				listOf(
+					StepsCountDomainCompatibilityRequest(
+						listOf(sessionFact, completeness),
+						listOf(ambient),
+					),
+				),
+			) shouldContainExactly listOf(StepsCountDomainCompatibilityResult.ExactCompatible)
+		}
 
 	@Test
 	fun `malformed persisted owner effect is unverifiable`() = runTest {
@@ -238,6 +275,67 @@ class RoomStepsCountDomainCompatibilityQueryRoomTest {
 			ownerIdentity
 		} else {
 			opaque('e')
+		}
+
+		private suspend fun insertImportedAmbientEvidence(
+			identityDigit: Char,
+			tokenDigit: Char,
+		): StepsCountDomainOwnerReference {
+			val ownerIdentity = PortableCountDomainOpaqueIdentity(opaque(identityDigit))
+			val scopeIdentity = PortableCountDomainOpaqueIdentity(opaque('8'))
+			val effect = PortableCountDomainDigest(identityDigit.toString().repeat(64))
+			val receipt = PortableCountDomainReceiptV2.create(
+				domainIdentity = PortableCountDomainOpaqueIdentity(opaque(tokenDigit)),
+				ownerKind = PortableOwnerKind.AMBIENT_FACT,
+				scopeIdentity = scopeIdentity,
+				ownerIdentity = ownerIdentity,
+				ownerRevision = 1L,
+				registrationGeneration = 9L,
+				collectedDataEpoch = 7L,
+				authorityRevision = 4L,
+				authorityFingerprint = PortableCountDomainDigest("a".repeat(64)),
+				coverage = PortableCountDomainCoverage.AMBIENT_AGGREGATE,
+				coverageVersion = 1,
+				countDomainVersion = 1,
+				effectChecksum = effect,
+				completenessEvidenceChecksum = null,
+			)
+			val graph = PortableCountDomainGraphV2.create(
+				receipts = listOf(receipt),
+				ownerRevisions = listOf(
+					PortableCountDomainOwnerRevisionV2(
+						ownerKind = PortableOwnerKind.AMBIENT_FACT,
+						scopeIdentity = scopeIdentity,
+						ownerIdentity = ownerIdentity,
+						ownerRevision = 1L,
+						operation = PortableCountDomainOperation.BIND,
+						receiptIdentity = receipt.identity,
+						ownerEffectChecksum = effect,
+						linkedAtMs = 1L,
+					),
+				),
+				completenessMarkers = emptyList(),
+				roots = listOf(
+					PortableCountDomainRootV2(
+						containerIdentity = PortableCountDomainOpaqueIdentity(opaque('9')),
+						productIdentity = PortableCountDomainOpaqueIdentity(opaque('7')),
+						ownerKind = PortableOwnerKind.AMBIENT_FACT,
+						ownerIdentity = ownerIdentity,
+						ownerRevision = 1L,
+					),
+				),
+			)
+			database.importedPortableStepsCountDomainDao().insertAuthenticatedGraph(
+				graph,
+				ImportedPortableStepsCountDomainGraphEntity.SOURCE_AMBIENT_STEPS,
+			)
+			return StepsCountDomainOwnerReference(
+				kind = StepsCountDomainOwnerKind.AMBIENT_FACT,
+				identity = StepsCountDomainOwnerIdentity.opaque(ownerIdentity.value),
+				revision = 1L,
+				effect = StepsCountDomainOwnerEffect.opaque(effect.value),
+				origin = StepsCountDomainOwnerOrigin.IMPORTED_PORTABLE,
+			)
 		}
 		val effect = identityDigit.toString().repeat(64)
 		val marker = if (kind == StepsCountDomainOwnerKind.SESSION_COMPLETENESS) {

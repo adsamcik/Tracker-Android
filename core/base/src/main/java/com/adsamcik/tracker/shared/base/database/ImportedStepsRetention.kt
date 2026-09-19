@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
@@ -90,6 +91,13 @@ suspend fun AppDatabase.pruneImportedStepsSegmentsBefore(beforeMs: Long, markedA
 	visitImportedRetentionEntries { entry ->
 		for (run in entry.runs.filter { it.endTimeMs < beforeMs }) {
 			installImportedRetentionFence(entry, run, markedAtMs, StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE)
+			fenceImportedPortableSessionRun(
+				entryIdentity = entry.metadata.identity,
+				runIdentity = run.identity,
+				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION,
+				collectedDataEpoch = entry.metadata.collectedDataEpoch,
+				fencedAtMs = markedAtMs,
+			)
 			deleteImportedRetentionFacts(entry.factsByRun.getValue(run.identity))
 			val segmentId = requireNotNull(run.sessionSegmentId)
 			check(importedStepsDao().deleteRunExact(
@@ -100,7 +108,9 @@ suspend fun AppDatabase.pruneImportedStepsSegmentsBefore(beforeMs: Long, markedA
 			}
 			deleted++
 		}
-		importedStepsDao().deleteEntryIfEmpty(entry.metadata.identity)
+		if (importedStepsDao().deleteEntryIfEmpty(entry.metadata.identity) == 1) {
+			removeImportedPortableSessionGraph(entry.metadata.identity)
+		}
 	}
 	if (deleted > 0) {
 		check(sourceEvidenceStateDao().incrementRevision(markedAtMs) == 1) {

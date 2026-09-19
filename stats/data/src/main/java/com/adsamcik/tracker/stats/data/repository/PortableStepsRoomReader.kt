@@ -3,6 +3,9 @@ package com.adsamcik.tracker.stats.data.repository
 import androidx.room.deferredTransaction
 import androidx.room.useReaderConnection
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.PortableCountDomainGraphRead
+import com.adsamcik.tracker.shared.base.database.PortableCountDomainGraphReader
+import com.adsamcik.tracker.shared.base.database.PortableCountDomainRootSeed
 import com.adsamcik.tracker.shared.base.database.dao.ScopedStepFactState
 import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateState
 import com.adsamcik.tracker.shared.base.database.dao.hasValidStepsFactCandidateState
@@ -26,6 +29,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessE
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.StepsSessionCompletenessIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
@@ -44,6 +49,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsManifestV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.PortableStepsProviderCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsRunV1
+import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsSessionMode
 import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV1
 import javax.inject.Inject
@@ -53,10 +59,14 @@ import kotlinx.coroutines.ensureActive
 
 /** Complete immutable result of one bounded Room export preflight. */
 internal sealed interface PortableStepsSnapshot {
-	data class Ready(val entries: List<PortableStepsEntryV1>) : PortableStepsSnapshot {
+	data class Ready(
+		val entries: List<PortableStepsEntryV1>,
+		val authenticatedEntries: List<PortableStepsEntryV2>? = null,
+	) : PortableStepsSnapshot {
 		init {
 			require(entries.isNotEmpty())
 			require(entries == entries.sortedWith(PORTABLE_STEPS_ENTRY_ORDER))
+			require(authenticatedEntries == null || authenticatedEntries.size == entries.size)
 		}
 	}
 
@@ -64,6 +74,11 @@ internal sealed interface PortableStepsSnapshot {
 		init {
 			require(result !is ExportPortableStepsResult.Exported)
 		}
+	}
+
+	internal sealed interface PortableStepsV2Snapshot {
+		data class Ready(val entries: List<PortableStepsEntryV2>) : PortableStepsV2Snapshot
+		data class Outcome(val result: ExportPortableStepsResult) : PortableStepsV2Snapshot
 	}
 }
 
@@ -104,9 +119,31 @@ internal class PortableStepsRoomReader @Inject constructor(
 			}
 		}
 
+	suspend fun readV2(request: ExportPortableStepsRequest): PortableStepsV2Snapshot =
+		database.useReaderConnection { connection ->
+			connection.deferredTransaction {
+				try {
+					val native = readInTransaction(request, includeCountDomainGraph = true)
+					val imported = ImportedStepsProductReader(database).exportV2InTransaction(request)
+					mergeV2Snapshots(native.toV2Snapshot(), imported)
+				} catch (abort: PortableSnapshotAbort) {
+					PortableStepsV2Snapshot.Outcome(
+						ExportPortableStepsResult.Unverifiable(abort.reason),
+					)
+				} catch (_: IllegalArgumentException) {
+					PortableStepsV2Snapshot.Outcome(
+						ExportPortableStepsResult.Unverifiable(
+							PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+						),
+					)
+				}
+			}
+		}
+
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private suspend fun readInTransaction(
 		request: ExportPortableStepsRequest,
+		includeCountDomainGraph: Boolean = false,
 	): PortableStepsSnapshot {
 		val budget = SnapshotBudget()
 		val discovery = discoverLogicalEntries(request, budget)
@@ -152,9 +189,11 @@ internal class PortableStepsRoomReader @Inject constructor(
 			return noEntries()
 		}
 
-		val entries = candidateLogicalIds.mapNotNull { logicalTrackingId ->
+		val entries = mutableListOf<PortableStepsEntryV1>()
+		val entriesV2 = mutableListOf<PortableStepsEntryV2>()
+		candidateLogicalIds.forEach { logicalTrackingId ->
 			currentCoroutineContext().ensureActive()
-			buildEntry(
+			val built = buildEntry(
 				logicalTrackingId = logicalTrackingId,
 				request = request,
 				logicalSession = logicalSessions[logicalTrackingId],
@@ -162,15 +201,58 @@ internal class PortableStepsRoomReader @Inject constructor(
 				segmentsById = segmentsById,
 				evidenceBySegmentId = evidenceBySegmentId,
 				dependencies = dependencies,
+				includeCountDomainGraph = includeCountDomainGraph,
 			)
-		}.sortedWith(PORTABLE_STEPS_ENTRY_ORDER)
+			if (built != null) {
+				entries += built.product
+				built.authenticated?.let(entriesV2::add)
+			}
+		}
+		entries.sortWith(PORTABLE_STEPS_ENTRY_ORDER)
+		entriesV2.sortWith(
+			com.adsamcik.tracker.stats.api.repository.PORTABLE_STEPS_ENTRY_V2_ORDER,
+		)
 		if (entries.isEmpty()) {
 			return noEntries()
 		}
 		if (entries.size > StepsPortableFormatV1.MAX_ENTRIES) {
 			abort(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
 		}
-		return PortableStepsSnapshot.Ready(entries)
+		return PortableStepsSnapshot.Ready(entries, entriesV2.takeIf { includeCountDomainGraph })
+	}
+
+	private fun PortableStepsSnapshot.toV2Snapshot(): PortableStepsV2Snapshot = when (this) {
+		is PortableStepsSnapshot.Outcome -> PortableStepsV2Snapshot.Outcome(result)
+		is PortableStepsSnapshot.Ready -> {
+			val authenticated = authenticatedEntries
+				?: abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+			if (authenticated.size != entries.size) {
+				abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+			}
+			PortableStepsV2Snapshot.Ready(authenticated)
+		}
+	}
+
+	private fun mergeV2Snapshots(
+		native: PortableStepsV2Snapshot,
+		imported: PortableStepsV2Snapshot,
+	): PortableStepsV2Snapshot {
+		val snapshots = listOf(native, imported)
+		snapshots.filterIsInstance<PortableStepsV2Snapshot.Outcome>().firstOrNull {
+			it.result != ExportPortableStepsResult.NoEntries
+		}?.let { return it }
+		val entries = snapshots.filterIsInstance<PortableStepsV2Snapshot.Ready>()
+			.flatMap { it.entries }
+			.sortedWith(com.adsamcik.tracker.stats.api.repository.PORTABLE_STEPS_ENTRY_V2_ORDER)
+		if (entries.isEmpty()) {
+			return PortableStepsV2Snapshot.Outcome(ExportPortableStepsResult.NoEntries)
+		}
+		if (entries.size > StepsPortableFormatV1.MAX_ENTRIES ||
+			entries.map { it.product.identity }.distinct().size != entries.size
+		) {
+			abort(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+		}
+		return PortableStepsV2Snapshot.Ready(entries)
 	}
 
 	/** Both origins were preflighted in this same snapshot; external I/O remains outside it. */
@@ -666,7 +748,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 	}
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
-	private fun buildEntry(
+	private suspend fun buildEntry(
 		logicalTrackingId: String,
 		request: ExportPortableStepsRequest,
 		logicalSession: LogicalTrackingSessionEntity?,
@@ -674,7 +756,8 @@ internal class PortableStepsRoomReader @Inject constructor(
 		segmentsById: Map<Long, SessionSegment>,
 		evidenceBySegmentId: Map<Long, HistoricalSegmentEvidence>,
 		dependencies: PortableRoomDependencies,
-	): PortableStepsEntryV1? {
+		includeCountDomainGraph: Boolean,
+	): BuiltPortableEntry? {
 		if (serviceRuns.size > StepsPortableFormatV1.MAX_RUNS_PER_ENTRY) {
 			abort(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
 		}
@@ -760,7 +843,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 			abort(PortableStepsExportUnverifiableReason.RETENTION_CROSSES_ENTRY)
 		}
 		var materializing = missingRunMaterializing || logicalSessionMaterializing(session)
-		val portableRuns = surviving.map { bound ->
+		val builtRuns = surviving.map { bound ->
 			when (runSettlement(bound.run)) {
 				RunSettlement.SETTLED -> Unit
 				RunSettlement.MATERIALIZING -> materializing = true
@@ -785,7 +868,12 @@ internal class PortableStepsRoomReader @Inject constructor(
 				else -> abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 			}
 			portableRun
-		}.sortedWith(PORTABLE_STEPS_RUN_ORDER)
+		}.sortedWith(
+			compareBy<BuiltPortableRun> { it.product.startTimeMs }
+				.thenBy { it.product.identity.value },
+		)
+		val portableRuns = builtRuns.map(BuiltPortableRun::product)
+			.sortedWith(PORTABLE_STEPS_RUN_ORDER)
 		if (materializing) {
 			abort(PortableStepsExportUnverifiableReason.ENTRY_MATERIALIZING)
 		}
@@ -795,7 +883,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 		) {
 			return null
 		}
-		return portableValue {
+		val product = portableValue {
 			PortableStepsEntryV1.create(
 				identity = PortableStepsOpaqueIdentity.derive(
 					PortableStepsIdentityKind.LOGICAL_ENTRY,
@@ -807,6 +895,20 @@ internal class PortableStepsRoomReader @Inject constructor(
 				runs = portableRuns,
 			)
 		}
+		if (!includeCountDomainGraph) return BuiltPortableEntry(product, null)
+		val graph = when (
+			val read = PortableCountDomainGraphReader(database).read(
+				builtRuns.flatMap(BuiltPortableRun::roots),
+			)
+		) {
+			is PortableCountDomainGraphRead.Ready -> read.graph
+			PortableCountDomainGraphRead.Overflow ->
+				abort(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+			PortableCountDomainGraphRead.Unproven,
+				PortableCountDomainGraphRead.Unverifiable,
+				-> abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		}
+		return BuiltPortableEntry(product, PortableStepsEntryV2(product, graph))
 	}
 
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod") // Exact bidirectional binding is one gate.
@@ -912,7 +1014,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 		bound: BoundPortableRun,
 		sessionMode: PortableStepsSessionMode,
 		dependencies: PortableRoomDependencies,
-	): PortableStepsRunV1 {
+	): BuiltPortableRun {
 		val run = bound.run
 		val segment = bound.segment
 		val envelope = bound.portableEnvelope()
@@ -1052,7 +1154,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 			rows = authority.completeness,
 			captureCoveredWholeRun = stepsBindings.size == manifests.size,
 		)
-		return portableValue {
+		val product = portableValue {
 			PortableStepsRunV1(
 				identity = PortableStepsOpaqueIdentity.derive(
 					PortableStepsIdentityKind.PHYSICAL_RUN,
@@ -1070,6 +1172,51 @@ internal class PortableStepsRoomReader @Inject constructor(
 				facts = portableFacts,
 			)
 		}
+		val roots = buildList {
+			factStates.forEach { scoped ->
+				val fact = scoped.state
+				val productIdentity = PortableStepsOpaqueIdentity.derive(
+					PortableStepsIdentityKind.FACT,
+					fact.logicalFactId,
+				).value
+				add(
+					PortableCountDomainRootSeed(
+						containerIdentity = product.identity.value,
+						productIdentity = productIdentity,
+						ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+						ownerIdentity = StepsCountDomainReceiptIntegrity.sessionFactOwnerIdentity(
+							fact.writerProjectionId,
+							fact.writerProjectionVersion,
+							fact.logicalFactId,
+						),
+						ownerRevision = fact.semanticRevision,
+						ownerEffectChecksum = fact.effectChecksum,
+					),
+				)
+			}
+			authority.completeness.forEach { completeness ->
+				add(
+					PortableCountDomainRootSeed(
+						containerIdentity = product.identity.value,
+						productIdentity = product.identity.value,
+						ownerKind =
+							StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
+						ownerIdentity =
+							StepsCountDomainReceiptIntegrity.sessionCompletenessOwnerIdentity(
+								completeness.logicalTrackingId,
+								completeness.serviceRunId,
+								completeness.sourceInstanceId,
+								completeness.registrationGeneration,
+							),
+						ownerRevision =
+							StepsCountDomainReceiptIntegrity.completenessOwnerRevision(completeness),
+						ownerEffectChecksum =
+							StepsCountDomainReceiptIntegrity.completenessEffectChecksum(completeness),
+					),
+				)
+			}
+		}
+		return BuiltPortableRun(product, roots)
 	}
 
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
@@ -1599,6 +1746,16 @@ internal class PortableStepsRoomReader @Inject constructor(
 		val lane: SourceProductProjectionLaneEntity,
 		val targetOrdinal: Long?,
 		val completeness: List<SourceSessionCompletenessEntity>,
+	)
+
+	private data class BuiltPortableRun(
+		val product: PortableStepsRunV1,
+		val roots: List<PortableCountDomainRootSeed>,
+	)
+
+	private data class BuiltPortableEntry(
+		val product: PortableStepsEntryV1,
+		val authenticated: PortableStepsEntryV2?,
 	)
 
 	private enum class RunSettlement { SETTLED, MATERIALIZING, INVALID }

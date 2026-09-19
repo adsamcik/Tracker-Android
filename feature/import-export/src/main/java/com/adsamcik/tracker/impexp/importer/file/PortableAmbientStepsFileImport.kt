@@ -6,14 +6,21 @@ import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsFormatException
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV1Codec
+import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV2Codec
+import com.adsamcik.tracker.impexp.portable.PortableStepsJsonException
+import com.adsamcik.tracker.impexp.portable.portableAmbientStepsSchemaVersion
+import com.adsamcik.tracker.impexp.portable.readPortableBytes
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV2
 import com.adsamcik.tracker.shared.model.steps.portable.identity
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientSteps
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsResult
+import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsV2
+import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsV2Request
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsTransferRetryableReason
@@ -22,6 +29,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.io.IOException
+import java.io.ByteArrayInputStream
 import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
 
@@ -29,12 +37,21 @@ import kotlinx.coroutines.CancellationException
 @InstallIn(SingletonComponent::class)
 internal interface PortableAmbientStepsImportEntryPoint {
 	fun importPortableAmbientSteps(): ImportPortableAmbientSteps
+	fun importPortableAmbientStepsV2(): ImportPortableAmbientStepsV2
 	fun collectedDataLifecycleStore(): CollectedDataLifecycleStore
 }
 
 internal data class PortableAmbientStepsImportDependencies(
 	val importer: ImportPortableAmbientSteps,
 	val lifecycleStore: CollectedDataLifecycleStore,
+	val importerV2: ImportPortableAmbientStepsV2 = object : ImportPortableAmbientStepsV2 {
+		override suspend fun importArchive(
+			request: ImportPortableAmbientStepsV2Request,
+		): ImportPortableAmbientStepsResult = ImportPortableAmbientStepsResult.Unverifiable(
+			com.adsamcik.tracker.stats.api.repository
+				.PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID,
+		)
+	},
 )
 
 /** Strict one-archive `.trackerambientsteps` importer with source-owned Room admission. */
@@ -47,9 +64,9 @@ internal class PortableAmbientStepsFileImport(
 		PortableAmbientStepsImportDependencies(
 			importer = entryPoint.importPortableAmbientSteps(),
 			lifecycleStore = entryPoint.collectedDataLifecycleStore(),
+			importerV2 = entryPoint.importPortableAmbientStepsV2(),
 		)
 	},
-	private val codec: PortableAmbientStepsJsonV1Codec = PortableAmbientStepsJsonV1Codec(),
 ) : FileImport {
 	override val supportedExtensions: Collection<String> = listOf(EXTENSION)
 	override val transactionMode: ImportTransactionMode = ImportTransactionMode.IMPORTER_MANAGED
@@ -61,24 +78,49 @@ internal class PortableAmbientStepsFileImport(
 	): ImportResult {
 		val fileReceipt = stream.importReceipt
 			?: throw PortableAmbientStepsImportReceiptContextException()
-		val decoded = try {
-			codec.decode(stream)
+		val bytes = try {
+			readPortableBytes(stream, MAX_FILE_BYTES)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (_: PortableAmbientStepsFormatException) {
+		} catch (_: PortableStepsJsonException) {
 			return ImportResult(
 				failedCount = 1,
 				errors = listOf(PERMANENT_FORMAT_ERROR),
 			)
 		}
 		val dependencies = dependenciesProvider(context)
-		val request = ImportPortableAmbientStepsRequest(
-			archive = decoded.archive,
-			receipt = decoded.archive.toReceipt(fileReceipt),
-			metadata = decoded.metadata,
-			expectedCollectedDataEpoch = dependencies.lifecycleStore.snapshot().epoch,
-		)
-		return dependencies.importer.importArchive(request).toFileResult(decoded.archive.days.size)
+		return try {
+			when (portableAmbientStepsSchemaVersion(bytes)) {
+				AmbientStepsPortableFormatV1.SCHEMA_VERSION -> {
+					val decoded = PortableAmbientStepsJsonV1Codec()
+						.decode(ByteArrayInputStream(bytes))
+					val request = ImportPortableAmbientStepsRequest(
+						archive = decoded.archive,
+						receipt = decoded.archive.toReceipt(fileReceipt),
+						metadata = decoded.metadata,
+						expectedCollectedDataEpoch = dependencies.lifecycleStore.snapshot().epoch,
+					)
+					dependencies.importer.importArchive(request)
+						.toFileResult(decoded.archive.days.size)
+				}
+				else -> {
+					val decoded = PortableAmbientStepsJsonV2Codec()
+						.decode(ByteArrayInputStream(bytes))
+					val request = ImportPortableAmbientStepsV2Request(
+						archive = decoded.archive,
+						receipt = decoded.archive.toReceipt(fileReceipt),
+						metadata = decoded.metadata,
+						expectedCollectedDataEpoch = dependencies.lifecycleStore.snapshot().epoch,
+					)
+					dependencies.importerV2.importArchive(request)
+						.toFileResult(decoded.archive.days.size)
+				}
+			}
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: PortableAmbientStepsFormatException) {
+			ImportResult(failedCount = 1, errors = listOf(PERMANENT_FORMAT_ERROR))
+		}
 	}
 
 	private fun ImportPortableAmbientStepsResult.toFileResult(dayCount: Int): ImportResult =
@@ -141,6 +183,15 @@ internal class PortableAmbientStepsRetryableImportException(
 }
 
 private fun PortableAmbientStepsArchiveV1.toReceipt(
+	fileReceipt: FileImportReceiptContext,
+): PortableAmbientStepsImportReceipt = PortableAmbientStepsImportReceipt(
+	jobId = fileReceipt.jobId,
+	archiveKey = subordinateArchiveKey(fileReceipt.entryKey, identity.value),
+	sourceName = fileReceipt.sourceName,
+	receivedAtMs = fileReceipt.receivedAtMs,
+)
+
+private fun PortableAmbientStepsArchiveV2.toReceipt(
 	fileReceipt: FileImportReceiptContext,
 ): PortableAmbientStepsImportReceipt = PortableAmbientStepsImportReceipt(
 	jobId = fileReceipt.jobId,

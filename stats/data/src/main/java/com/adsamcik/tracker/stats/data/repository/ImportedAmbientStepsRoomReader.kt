@@ -12,16 +12,22 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.loadAuthenticatedAmbientStepsLineage
 import com.adsamcik.tracker.shared.base.database.authenticateAllAmbientStepsFences
+import com.adsamcik.tracker.shared.base.database.authenticatedGraph
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_AMBIENT_STEPS_DAY_ORDER
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV2
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV2
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResult
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsArchiveSink
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsExportRetryableReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientSteps
+import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientStepsV2
+import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsArchiveV2Sink
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -33,6 +39,7 @@ internal sealed interface ImportedAmbientStepsSnapshot {
 	data class Ready(
 		val archive: PortableAmbientStepsArchiveV1,
 		val products: List<AmbientStepsDayProduct>,
+		val authenticatedArchive: PortableAmbientStepsArchiveV2? = null,
 	) : ImportedAmbientStepsSnapshot
 
 	data object NoData : ImportedAmbientStepsSnapshot
@@ -59,9 +66,10 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 ) {
 	suspend fun read(
 		request: ExportPortableAmbientStepsRequest,
+		includeCountDomainGraph: Boolean = false,
 	): ImportedAmbientStepsSnapshot = withContext(ioDispatcher) {
 		try {
-			database.withTransaction { readInTransaction(request) }
+			database.withTransaction { readInTransaction(request, includeCountDomainGraph) }
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (failure: ImportedAmbientStepsLineageFailure) {
@@ -97,6 +105,7 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 
 	private suspend fun readInTransaction(
 		request: ExportPortableAmbientStepsRequest,
+		includeCountDomainGraph: Boolean,
 	): ImportedAmbientStepsSnapshot {
 		val state = database.sourceEvidenceStateDao().get()
 			?: return ImportedAmbientStepsSnapshot.Unverifiable(
@@ -185,6 +194,7 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 		}
 		val days = mutableListOf<com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1>()
 		val products = mutableListOf<AmbientStepsDayProduct>()
+		val authenticatedDays = mutableListOf<PortableAmbientStepsDayV2>()
 		var factCount = 0
 		var gapCount = 0
 		candidates.forEach { candidate ->
@@ -196,6 +206,30 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 			check(lineage.latest.header == candidate)
 			val revision = lineage.latest
 			val portableDay = revision.day
+			if (includeCountDomainGraph) {
+				val binding = database.importedPortableStepsCountDomainDao().binding(
+					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
+					revision.header.dayIdentity,
+					revision.header.importRevision,
+				) ?: return ImportedAmbientStepsSnapshot.Unverifiable(
+					ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
+				)
+				val graph = database.importedPortableStepsCountDomainDao().authenticatedGraph(
+					binding.graphIdentity,
+					com.adsamcik.tracker.shared.base.database.data
+						.ImportedPortableStepsCountDomainGraphEntity.SOURCE_AMBIENT_STEPS,
+				)
+					?: return ImportedAmbientStepsSnapshot.Unverifiable(
+						ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
+					)
+				authenticatedDays += try {
+					PortableAmbientStepsDayV2(portableDay, graph)
+				} catch (_: IllegalArgumentException) {
+					return ImportedAmbientStepsSnapshot.Unverifiable(
+						ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
+					)
+				}
+			}
 			factCount = Math.addExact(factCount, portableDay.facts.size)
 			gapCount = Math.addExact(gapCount, portableDay.gaps.size)
 			if (factCount > AmbientStepsPortableFormatV1.MAX_FACTS ||
@@ -217,6 +251,20 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 				dayIdentity = revision.header.dayIdentity,
 				dayImportRevision = revision.header.importRevision,
 			)
+			val countDomainOwners = database.importedAmbientCountDomainOwners(
+				revision.header.dayIdentity,
+				revision.header.importRevision,
+			) ?: return ImportedAmbientStepsSnapshot.Unverifiable(
+				ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
+			)
+			if (countDomainOwners.keys != portableDay.facts.mapTo(linkedSetOf()) {
+					it.identity.value
+				}
+			) {
+				return ImportedAmbientStepsSnapshot.Unverifiable(
+					ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
+				)
+			}
 			products += composeAmbientStepsDay(
 				day = day,
 				facts = portableDay.facts.map { fact ->
@@ -232,6 +280,7 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 						importedProvenance = provenance,
 						correctionRevision = revision.header.importRevision,
 						contentChecksum = fact.contentChecksum.value,
+						countDomainOwner = countDomainOwners[fact.identity.value],
 					)
 				},
 				gaps = portableDay.gaps.map { gap ->
@@ -247,6 +296,11 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 		return ImportedAmbientStepsSnapshot.Ready(
 			archive,
 			products.sortedBy { it.day.startTimeMs },
+			if (includeCountDomainGraph) {
+				PortableAmbientStepsArchiveV2.create(authenticatedDays)
+			} else {
+				null
+			},
 		)
 	}
 
@@ -290,6 +344,54 @@ internal class RoomReexportImportedAmbientSteps @Inject constructor(
 					dayCount = snapshot.archive.days.size,
 					factCount = snapshot.archive.days.sumOf { it.facts.size },
 					gapCount = snapshot.archive.days.sumOf { it.gaps.size },
+				)
+			}
+		}
+	}
+}
+
+internal class RoomReexportImportedAmbientStepsV2 @Inject constructor(
+	private val reader: ImportedAmbientStepsRoomReader,
+	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+) : ReexportImportedAmbientStepsV2 {
+	override suspend fun export(
+		request: ExportPortableAmbientStepsRequest,
+		sink: PortableAmbientStepsArchiveV2Sink,
+	): ExportPortableAmbientStepsResult = withContext(ioDispatcher) {
+		when (val snapshot = reader.read(request, includeCountDomainGraph = true)) {
+			ImportedAmbientStepsSnapshot.NoData -> ExportPortableAmbientStepsResult.NoData
+			ImportedAmbientStepsSnapshot.Deleted -> ExportPortableAmbientStepsResult.Unverifiable(
+				PortableAmbientStepsExportUnverifiableReason.IMPORTED_DAY_DELETED,
+			)
+			ImportedAmbientStepsSnapshot.Retained -> ExportPortableAmbientStepsResult.Unverifiable(
+				PortableAmbientStepsExportUnverifiableReason.IMPORTED_DAY_RETAINED,
+			)
+			ImportedAmbientStepsSnapshot.RetryableFailure ->
+				ExportPortableAmbientStepsResult.RetryableFailure(
+					PortableAmbientStepsExportRetryableReason.STORAGE_UNAVAILABLE,
+				)
+			is ImportedAmbientStepsSnapshot.Unverifiable ->
+				ExportPortableAmbientStepsResult.Unverifiable(
+					when (snapshot.reason) {
+						ImportedAmbientStepsReadFailure.DEPENDENCY_OVERFLOW ->
+							PortableAmbientStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW
+						ImportedAmbientStepsReadFailure.SOURCE_EVIDENCE_UNAVAILABLE ->
+							PortableAmbientStepsExportUnverifiableReason.SOURCE_AUTHORITY_UNAVAILABLE
+						ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE ->
+							PortableAmbientStepsExportUnverifiableReason.CORRUPT_RETAINED_STATE
+					},
+				)
+			is ImportedAmbientStepsSnapshot.Ready -> {
+				val archive = snapshot.authenticatedArchive
+					?: return@withContext ExportPortableAmbientStepsResult.Unverifiable(
+						PortableAmbientStepsExportUnverifiableReason.CORRUPT_RETAINED_STATE,
+					)
+				currentCoroutineContext().ensureActive()
+				sink.emit(archive)
+				ExportPortableAmbientStepsResult.Exported(
+					dayCount = archive.days.size,
+					factCount = archive.days.sumOf { it.product.facts.size },
+					gapCount = archive.days.sumOf { it.product.gaps.size },
 				)
 			}
 		}

@@ -2,12 +2,13 @@ package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
 import com.adsamcik.tracker.impexp.R
-import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV1Codec
+import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV2Codec
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.stats.api.repository.ExportPortableSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
+import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsV2
 import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV1
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -20,15 +21,16 @@ import java.io.OutputStream
 @InstallIn(SingletonComponent::class)
 internal interface PortableStepsExportEntryPoint {
 	fun exportPortableSteps(): ExportPortableSteps
+	fun exportPortableStepsV2(): ExportPortableStepsV2
 }
 
 /** User-facing `.trackersteps` exporter over the exact source-local portable contract. */
 internal class PortableStepsExporter(
-	private val exporterProvider: (Context) -> ExportPortableSteps = { context ->
+	private val exporterProvider: (Context) -> ExportPortableStepsV2 = { context ->
 		EntryPointAccessors.fromApplication(
 			context.applicationContext,
 			PortableStepsExportEntryPoint::class.java,
-		).exportPortableSteps()
+		).exportPortableStepsV2()
 	},
 ) : Exporter {
 	override val requiresLocationData: Boolean = false
@@ -45,7 +47,7 @@ internal class PortableStepsExporter(
 	): ExportResult {
 		val exporter = exporterProvider(context)
 		val request = dateRange?.toPortableRequest() ?: FULL_HISTORY
-		val result = PortableStepsJsonV1Codec().encode(outputStream) { sink ->
+		val result = PortableStepsJsonV2Codec().encode(outputStream) { sink ->
 			exporter.export(request, sink)
 		}
 		return when (result) {

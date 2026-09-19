@@ -7,7 +7,9 @@ import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericRangeReader
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsAfterConsentReset
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsDay
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientSteps
+import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsV2
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientSteps
+import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientStepsV2
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityQuery
 import com.adsamcik.tracker.stats.api.repository.TruncateImportedAmbientStepsRetention
 import com.adsamcik.tracker.stats.data.repository.DefaultAmbientStepsHistoryRepository
@@ -15,6 +17,7 @@ import com.adsamcik.tracker.stats.data.repository.RoomDeleteImportedAmbientSteps
 import com.adsamcik.tracker.stats.data.repository.RoomDeleteImportedAmbientStepsDay
 import com.adsamcik.tracker.stats.data.repository.RoomImportPortableAmbientSteps
 import com.adsamcik.tracker.stats.data.repository.RoomReexportImportedAmbientSteps
+import com.adsamcik.tracker.stats.data.repository.RoomReexportImportedAmbientStepsV2
 import com.adsamcik.tracker.stats.data.repository.RoomStepsCountDomainCompatibilityQuery
 import com.adsamcik.tracker.stats.data.repository.RoomTruncateImportedAmbientStepsRetention
 import dagger.Binds
@@ -54,9 +57,21 @@ internal abstract class AmbientStepsDataModule {
 
 	@Binds
 	@Singleton
+	abstract fun bindImportPortableAmbientStepsV2(
+		impl: RoomImportPortableAmbientSteps,
+	): ImportPortableAmbientStepsV2
+
+	@Binds
+	@Singleton
 	abstract fun bindReexportImportedAmbientSteps(
 		impl: RoomReexportImportedAmbientSteps,
 	): ReexportImportedAmbientSteps
+
+	@Binds
+	@Singleton
+	abstract fun bindReexportImportedAmbientStepsV2(
+		impl: RoomReexportImportedAmbientStepsV2,
+	): ReexportImportedAmbientStepsV2
 
 	@Binds
 	@Singleton

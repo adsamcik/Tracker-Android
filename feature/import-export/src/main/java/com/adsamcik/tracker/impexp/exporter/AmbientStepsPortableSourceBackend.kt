@@ -4,8 +4,11 @@ import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableForm
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResult
+import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsV2
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsArchiveSink
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientSteps
+import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientStepsV2
+import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsArchiveV2Sink
 import java.time.DateTimeException
 import java.time.LocalDate
 import java.time.ZoneId
@@ -57,6 +60,8 @@ internal sealed interface AmbientStepsPortableScopeResolution {
 internal class AmbientStepsPortableSourceBackend(
 	private val nativeExporter: ExportPortableAmbientSteps,
 	private val importedReexporter: ReexportImportedAmbientSteps,
+	private val nativeExporterV2: ExportPortableAmbientStepsV2,
+	private val importedReexporterV2: ReexportImportedAmbientStepsV2,
 ) {
 	fun resolve(scope: AmbientStepsPortableFileScope): AmbientStepsPortableScopeResolution =
 		when (scope) {
@@ -76,6 +81,16 @@ internal class AmbientStepsPortableSourceBackend(
 				AmbientStepsPortableScopeResolution.Unsupported(
 					AmbientStepsPortableUnsupportedScope.RANGE_SCOPE_NOT_REPRESENTABLE,
 				)
+			}
+
+			suspend fun exportV2(
+				origin: AmbientStepsPortableOrigin,
+				request: ExportPortableAmbientStepsRequest,
+				sink: PortableAmbientStepsArchiveV2Sink,
+			): ExportPortableAmbientStepsResult = when (origin) {
+				AmbientStepsPortableOrigin.NATIVE -> nativeExporterV2.export(request, sink)
+				AmbientStepsPortableOrigin.IMPORTED ->
+					importedReexporterV2.export(request, sink)
 			}
 			is AmbientStepsPortableFileScope.StructuralDay -> resolveDay(scope)
 			is AmbientStepsPortableFileScope.Trip ->

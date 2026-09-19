@@ -3,6 +3,9 @@ package com.adsamcik.tracker.tracker.source.deletion
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.fenceImportedPortableSessionRun
+import com.adsamcik.tracker.shared.base.database.removeImportedPortableSessionGraph
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerLookupKey
 import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDay
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
@@ -215,6 +218,14 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 		val entry = scope.entry
 		val localFences = linkedMapOf<String, SourceDeletionFenceEntity>()
 		for (run in entry.runs) {
+			database.fenceImportedPortableSessionRun(
+				entryIdentity = entry.metadata.identity,
+				runIdentity = run.identity,
+				fenceKind =
+					ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_SELECTED_DELETE,
+				collectedDataEpoch = entry.metadata.collectedDataEpoch,
+				fencedAtMs = deletedAtMs,
+			)
 			val originalFence = SourceDeletionFenceEntity.createForOriginalRunDigest(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 				purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
@@ -288,6 +299,7 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 		if (database.importedStepsDao().deleteEntryIfEmpty(entry.metadata.identity) != 1) {
 			throw ImportedStepsConcurrentDeletionException()
 		}
+		database.removeImportedPortableSessionGraph(entry.metadata.identity)
 
 		val plans = when (
 			val repair = StepsDailySummaryRepairComposer(database)

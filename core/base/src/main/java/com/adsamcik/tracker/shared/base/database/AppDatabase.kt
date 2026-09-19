@@ -47,6 +47,7 @@ import com.adsamcik.tracker.shared.base.database.dao.ImportedStepsDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
@@ -156,6 +157,14 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsGapEnt
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsProtectedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsSourceFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainCompletenessEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainRootEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFileReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionReceiptEntity
@@ -315,6 +324,14 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedAmbientStepsDayFenceEntity::class,
 			ImportedAmbientStepsProtectedIdentityEntity::class,
 			ImportedAmbientStepsSourceFenceEntity::class,
+			ImportedPortableStepsCountDomainGraphEntity::class,
+			ImportedPortableStepsCountDomainReceiptEntity::class,
+			ImportedPortableStepsCountDomainOwnerRevisionEntity::class,
+			ImportedPortableStepsCountDomainCompletenessEntity::class,
+			ImportedPortableStepsCountDomainRootEntity::class,
+			ImportedPortableStepsCountDomainBindingEntity::class,
+			ImportedPortableStepsFileReceiptEntity::class,
+			ImportedPortableStepsCountDomainOwnerFenceEntity::class,
 			ImportedPressureEntryRevisionEntity::class,
 			ImportedPressureReceiptEntity::class,
 			ImportedPressureRunEntity::class,
@@ -536,6 +553,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Portable ambient origin only; no provider, capture, or consent authority is created. */
 	abstract fun importedAmbientStepsDao(): ImportedAmbientStepsDao
+
+	/** Authenticated imported-only count-domain evidence; never native collection authority. */
+	abstract fun importedPortableStepsCountDomainDao(): ImportedPortableStepsCountDomainDao
 
 	/** Dormant Pressure portable-origin storage; this accessor grants no import authority. */
 	abstract fun importedPressureDao(): ImportedPressureDao
@@ -993,6 +1013,10 @@ abstract class AppDatabase : RoomDatabase() {
 				newCollectedDataEpoch = newCollectedDataEpoch,
 				sourceEvidenceRevision = nextRevision,
 				clearedAtMs = updatedAtMs,
+			)
+			database.preserveImportedPortableCountDomainFullClearFences(
+				newCollectedDataEpoch = newCollectedDataEpoch,
+				fencedAtMs = updatedAtMs,
 			)
 			check(
 				clearStepsCountDomainEvidenceInCurrentTransaction(
