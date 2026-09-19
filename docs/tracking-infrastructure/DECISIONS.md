@@ -1,6 +1,33 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-09-17
+Last updated: 2026-09-20
+
+## TI-D276 - Accept the reviewed authority and Steps P5 chains without activating them
+
+- Status: accepted local integration accounting, **IMPLEMENTED_UNVALIDATED**, 2026-09-20.
+- Preserve retention review tip `ad234dd27c5dddd19b3fc1e5bd7a1ad66646e38c` at
+  `handover/reviewed/ti-retention-authority-20260919`. Its local composed counterpart
+  `352dc074bc7a45f536acd4bf7aa5ef87895bbdc0` is integrated by
+  `9b81db5b00ec12c3a9c5bb507696fa0ab2d88db8`.
+- Preserve final caller review tip `484839083510d3ce8a828e171dc6575b02d92855` at
+  `handover/reviewed/ti-caller-authority-20260919`. Accept merge
+  `79fa624417118fcaa67ad21915aca497451e05d4` as the exact local caller-authority integration.
+- Preserve Steps source review tip `4ad78ef8086cade4aedd6963e0af7432fba0fe36` at
+  `handover/reviewed/ti-steps-p5-source-20260919`. Preserve the final accepted composed tip
+  `bc43dd972ac8f1a63a37827cf7c2eaad90db5600` at
+  `handover/reviewed/ti-steps-p5-assembled-20260919` and accept merge
+  `75fd24b934bec9aedd71e694ae0a6d2a976b4f02`.
+- Close only the trusted-retention producer/recovery interface slice, the exact source-caller guard
+  work item, the native Steps count-domain receipt work item, and the count-domain dependency of
+  qualified Steps numeric/effect accounting.
+- Select the next ready wave as dormant broker/provider bindings and portable Steps P5 adoption.
+  Portable facts must authenticate their own domains and must not borrow native-provider
+  authority. No provider or writer may be activated by this decision.
+- Keep the broad mission incomplete: purpose publication, provider ownership, the wider Ambient
+  Steps vertical, cross-source privacy, source products, shared UI/scenarios and final convergence
+  remain open.
+- No Gradle, compilation, tests, lint, Detekt, generated-schema, Room-drift, diff-check, device,
+  battery, CI, release, or rollout validation ran. Generated v28 JSON remains deferred.
 
 ## TI-D274 - Preserve active SQLiteX corruption and publish evolving startup state
 

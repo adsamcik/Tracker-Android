@@ -1,6 +1,47 @@
 # Tracking Infrastructure Work-Item Tracking
 
-Last updated: 2026-09-16
+Last updated: 2026-09-20
+
+## 2026-09-20 authority and Steps P5 integration ledger
+
+Local `dev/v10` reached exact source-integration head
+`75fd24b934bec9aedd71e694ae0a6d2a976b4f02`. The following bounded integrations are
+**IMPLEMENTED_UNVALIDATED**:
+
+- Retention authority: reviewed tip
+  `ad234dd27c5dddd19b3fc1e5bd7a1ad66646e38c` remains preserved at
+  `refs/heads/handover/reviewed/ti-retention-authority-20260919`; its local composed counterpart
+  is `352dc074bc7a45f536acd4bf7aa5ef87895bbdc0`, merged by
+  `9b81db5b00ec12c3a9c5bb507696fa0ab2d88db8`.
+- Caller authority: final accepted reviewed tip
+  `484839083510d3ce8a828e171dc6575b02d92855` remains preserved at
+  `refs/heads/handover/reviewed/ti-caller-authority-20260919`, merged by
+  `79fa624417118fcaa67ad21915aca497451e05d4`.
+- Steps P5: source-reviewed tip `4ad78ef8086cade4aedd6963e0af7432fba0fe36` remains at
+  `refs/heads/handover/reviewed/ti-steps-p5-source-20260919`; its composed source counterpart is
+  `1b33697104`. The accepted assembled tip
+  `bc43dd972ac8f1a63a37827cf7c2eaad90db5600` remains at
+  `refs/heads/handover/reviewed/ti-steps-p5-assembled-20260919` and was merged by
+  `75fd24b934bec9aedd71e694ae0a6d2a976b4f02`.
+
+This closes the exact trusted-retention producer/recovery slice,
+`WI-SOURCE-CALLER-GUARD-001`, `WI-STEPS-AMBIENT-P5-RECEIPT-001`, and the P5 dependency that kept
+`WI-STEPS-NUMERIC-001` partial. It does not close broad purpose publication, cross-source privacy,
+the Ambient Steps vertical, provider ownership, lifecycle product proof, or the six-source
+assembly mission.
+
+The next ready implementation wave is:
+
+1. `impl-broker-provider-bindings`: dormant per-source physical owner bindings using the integrated
+   caller and retention authority; no provider activation.
+2. Portable Steps P5 adoption: separately authenticate portable count domains and compose truthful
+   session, between-session, and total Steps states without borrowing native-provider authority.
+
+No Gradle, compilation, test, lint, Detekt, generated-schema, Room-drift, diff-check, device,
+battery, CI, release, or rollout validation ran for these integrations. Generated v28 JSON remains
+deferred. Provider/writer activation remains unauthorized. `WORK_ITEMS.json` remains the frozen
+pre-integration registry snapshot; this section and the adjusted rows below are authoritative only
+for this exact post-`75fd24b9` delta until a separately authorized registry regeneration.
 
 ## Finish-started scope closure
 
@@ -38,9 +79,10 @@ unless the user later publishes it. No agent push or provider/writer activation 
 ## Sources of truth
 
 - `IMPLEMENTATION_TODO.md` is the exhaustive stable requirement-ID checklist.
-- `WORK_ITEMS.json` is the authoritative execution registry for current state, dependencies,
-  ownership, evidence, blockers and next actions.
-- This document is an overview/index and update protocol. It does not own independent status.
+- `WORK_ITEMS.json` is the exhaustive frozen execution registry; the 2026-09-20 ledger above
+  supersedes only its stale retention/caller/P5 classifications.
+- This document is an overview/index and update protocol. It owns no independent status except the
+  explicit post-registry delta recorded above.
 - `IMPLEMENTATION_STATUS.md`, `DECISIONS.md`, `VERIFICATION_MATRIX.md` and the dated handover
   provide narrative and chronological evidence.
 
@@ -92,18 +134,18 @@ State counts:
 | --- | ---: |
 | `active_governance` | 1 |
 | `approval_required` | 1 |
-| `completed_accepted_slice` | 26 |
+| `completed_accepted_slice` | 29 |
 | `completed_foundation` | 1 |
 | `decision_required` | 8 |
 | `gate_deferred` | 4 |
-| `partial_implemented` | 18 |
-| `planned` | 13 |
+| `partial_implemented` | 17 |
+| `planned` | 11 |
 
-Review states: `closed_except_decision` 1, `closed_static` 27, `continuous` 1,
-`historical_accepted` 1, `mixed` 16, `not_applicable` 9, `not_started` 17.
+Review states: `closed_except_decision` 1, `closed_static` 29, `continuous` 1,
+`historical_accepted` 1, `mixed` 16, `not_applicable` 9, `not_started` 15.
 
-Integration states: `local_dev` 29, `local_only` 1, `mixed_source_refs` 16,
-`not_applicable` 9, `not_started` 17.
+Integration states: `local_dev` 31, `local_only` 1, `mixed_source_refs` 16,
+`not_applicable` 9, `not_started` 15.
 
 Validation states: `deferred_implementation_only` 63, `not_applicable` 9.
 
@@ -118,22 +160,22 @@ Validation states: `deferred_implementation_only` 63, `not_applicable` 9.
 | `WI-FOUNDATION-BASE-001` | `completed_foundation` | `historical_accepted` | `local_dev` | Preserve the accepted tracking safety foundation | Use as immutable architectural constraints for remaining items. |
 | `WI-SCHEMA-MIGRATION-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Close the bounded shared v28 schema assembly | Preserve this bounded schema slice inside the locally integrated final source/schema assembly at 527c022e97; do not claim migration or generated-schema proof. |
 | `WI-SCHEMA-CONVERGENCE-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Complete all-source v28 schema convergence | Preserve reviewed original 7142543ba9, rebased a4ae2dd57b and local integration 527c022e97. Defer generated schema and development-v28 repair strategy to the frozen final batch. |
-| `WI-AUTHORITY-PURPOSE-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete source and purpose authority semantics | Do not start a new authority wave; consume only closed current-purpose artifacts when a bounded integration is assigned. |
-| `WI-BROKER-PROVIDER-OWNERSHIP-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete one physical owner per source | Remain planned outside already-started runtime and purpose corrections. |
+| `WI-AUTHORITY-PURPOSE-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete source and purpose authority semantics | Preserve reviewed retention `ad234dd2` through local merge `9b81db5b`; actual purpose publication and broader authority convergence remain open. |
+| `WI-BROKER-PROVIDER-OWNERSHIP-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete one physical owner per source | Next ready wave: bind dormant per-source physical owners through the integrated caller/retention authority. Keep providers off. |
 | `WI-LIFECYCLE-RUNTIME-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Close lifecycle, action and settlement semantics | Preserve locally integrated runtime/lifecycle settlement and exact owner/pending DDL. Executable multi-generation rearm and source propagation remain ordered backlog. |
-| `WI-SOURCE-CALLER-GUARD-001` | `planned` | `not_started` | `not_started` | Guard every source runtime caller | Handover backlog. Implement only after broker/publication/producer propagation close; providers remain off. |
+| `WI-SOURCE-CALLER-GUARD-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Guard every source runtime caller | Preserve final reviewed `48483908` at `handover/reviewed/ti-caller-authority-20260919` through merge `79fa6244`; broker/provider binding and activation remain separate. |
 | `WI-LIFECYCLE-PRODUCT-PROOF-001` | `planned` | `not_started` | `not_started` | Prove RECORDING, MATERIALIZED and QUERYABLE transitions | Handover backlog. Implement only after provider/source product dependencies close; do not infer proof from current branches. |
 | `WI-DATA-MAINTENANCE-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete durable admission, projection and maintenance | Preserve the locally integrated started artifacts. Resume remaining data-plane work only through the dependency-ordered backlog. |
 | `WI-QOS-BATTERY-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete honest acquisition and battery semantics | Preserve existing plan/callback primitives. Hand over remaining implementation hooks; actual measurement stays solely in WI-VALIDATION-MEASUREMENT-001. |
 | `WI-STEPS-PORTABLE-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Preserve completed imported Steps and portable round trip | Preserve; no new work in this scope. |
 | `WI-STEPS-MANUAL-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Preserve completed manual Steps vertical | Preserve until final convergence validation. |
-| `WI-STEPS-NUMERIC-001` | `partial_implemented` | `closed_static` | `local_dev` | Preserve qualified Steps consumer infrastructure | Preserve the accepted numeric infrastructure. Do not duplicate engine numeric implementation; complete only the separate P5 producer receipt when assigned. |
+| `WI-STEPS-NUMERIC-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Preserve qualified Steps consumer infrastructure | Preserve accepted consumers plus the integrated P5 count-domain proof at `75fd24b9`; portable-domain adoption remains a separate next-wave composition. |
 | `WI-STEPS-AUTOMATIC-001` | `partial_implemented` | `closed_except_decision` | `local_dev` | Complete automatic Steps with bounded control evidence | Keep control behavior contained and inactive; do not invent a duration. |
-| `WI-STEPS-AMBIENT-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete the Ambient Steps vertical | Preserve locally integrated product 0c and file 220 inputs. Hand over execution authority, P5 count-domain receipt, settings, export union and shared day/UI work. |
-| `WI-STEPS-AMBIENT-PRODUCT-CORRECTION-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Close Ambient Steps base and product review findings | Preserve locally integrated input 0c4728c2 with typed Unproven P5 behavior. P5, execution authority, settings and shared day/UI remain separate backlog. |
+| `WI-STEPS-AMBIENT-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete the Ambient Steps vertical | Preserve product/file inputs and integrated P5 count-domain authority. Hand over execution, portable-domain adoption, settings, export union and shared day/UI work. |
+| `WI-STEPS-AMBIENT-PRODUCT-CORRECTION-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Close Ambient Steps base and product review findings | Preserve locally integrated input 0c4728c2. Native P5 authority is now integrated; portable/product adoption, execution, settings and shared day/UI remain separate backlog. |
 | `WI-STEPS-AMBIENT-FILES-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Review the committed Ambient Steps file artifact | Preserve reviewed 220a2721 through Ambient file integration f67ca6b16e. Do not infer export-union or execution-lane completion. |
 | `WI-STEPS-AMBIENT-EXECUTION-001` | `planned` | `not_started` | `not_started` | Implement Ambient Steps execution authority | Handover backlog. Implement under a new bounded assignment; never fake AMBIENT support on the session lane. |
-| `WI-STEPS-AMBIENT-P5-RECEIPT-001` | `planned` | `not_started` | `not_started` | Implement the P5 Ambient/session count-domain receipt | Handover backlog. Implement the receipt only under a new bounded assignment and reuse existing numeric consumers. |
+| `WI-STEPS-AMBIENT-P5-RECEIPT-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Implement the P5 Ambient/session count-domain receipt | Preserve source-reviewed `4ad78ef8`, accepted assembled `bc43dd97`, and local merge `75fd24b9`; no portable or provider authority is implied. |
 | `WI-PRESSURE-VERTICAL-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete the Pressure source-to-product vertical | Preserve locally integrated Pressure maintenance, recency/qualification bridges and file scope. Hand over day/range product and executable rearm propagation. |
 | `WI-PRESSURE-MAINTENANCE-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Close Pressure maintenance privacy corrections | Preserve the definitive Pressure review and locally integrated 7ce26646/57d23d30 successors inside 527c022e97. Do not claim execution proof. |
 | `WI-PRESSURE-FILES-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Close Pressure portable file review | Preserve reviewed source 8ba72248 and exact helper 76739a35. No new Pressure file feature; final consumers are locally integrated separately. |
@@ -164,7 +206,7 @@ Validation states: `deferred_implementation_only` 63, `not_applicable` 9.
 | `WI-SHARED-HISTORY-DAY-RANGE-001` | `planned` | `not_started` | `not_started` | Complete all-six structural day, range and Today history | Handover backlog; do not start. |
 | `WI-UI-SURFACES-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Wire truthful shared product surfaces | Preserve the final source-history consumer and recreation correction at 2956f962. Hand over structural day/Today/Timeline/Calendar/Trips/maps and remaining truthful variants. |
 | `WI-SOURCE-ACTIONS-EXPLANATION-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete start, settings, source actions and recording explanation | Preserve existing manual start and source-action primitives. Hand over shared dispatcher, explanation and remaining settings/UI. |
-| `WI-CROSS-SOURCE-PRIVACY-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete cross-source retention, transfer, deletion and no-resurrection | Preserve closed started artifacts and hand over remaining source retention, transfer, erase and no-resurrection work in dependency order. |
+| `WI-CROSS-SOURCE-PRIVACY-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete cross-source retention, transfer, deletion and no-resurrection | Preserve the trusted retention-authority slice merged at `9b81db5b`; remaining per-source transfer, erase, no-resurrection and policy-duration work stays open. |
 | `WI-NONSTEPS-EFFECTS-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Qualify non-Steps widgets, achievements and effects | Preserve current effect collectors and Steps identity/retraction patterns. Hand over remaining non-Steps qualification conversions. |
 | `WI-RUNTIME-SETTLEMENT-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Close active shared runtime settlement correction | Preserve definitive runtime review e71c739e, lifecycle final ffdef045 and exact pending/owner DDL in local 527c022e97. Do not advertise executable source support. |
 | `WI-RUNTIME-PRODUCER-PROPAGATION-001` | `planned` | `not_started` | `not_started` | Propagate runtime generation and lifecycle contracts | Handover backlog. Implement executable multi-generation rearm and source propagation only under a new bounded assignment; providers remain off. |

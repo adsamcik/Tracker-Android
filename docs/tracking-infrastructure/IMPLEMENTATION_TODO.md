@@ -1,5 +1,50 @@
 # Tracking Infrastructure Completion TODO
 
+Last updated: 2026-09-20
+
+## 2026-09-20 exact authority and Steps P5 completions
+
+- [x] `integration-retention-authority-20260919` —
+  **IMPLEMENTED_UNVALIDATED**: preserve reviewed
+  `ad234dd27c5dddd19b3fc1e5bd7a1ad66646e38c` at
+  `handover/reviewed/ti-retention-authority-20260919`; retain its local composed counterpart
+  `352dc074bc7a45f536acd4bf7aa5ef87895bbdc0` through merge
+  `9b81db5b00ec12c3a9c5bb507696fa0ab2d88db8`.
+- [x] `WI-SOURCE-CALLER-GUARD-001` —
+  **IMPLEMENTED_UNVALIDATED**: preserve final accepted reviewed
+  `484839083510d3ce8a828e171dc6575b02d92855` at
+  `handover/reviewed/ti-caller-authority-20260919` through merge
+  `79fa624417118fcaa67ad21915aca497451e05d4`. The completed interface slice includes
+  engine-owned accepted-authority storage, opaque checksum-bound references, fresh/replay
+  dispatch, current-authority reads, mutation leases, transactional retirement/compensation, and
+  fail-closed recovery.
+- [x] `WI-STEPS-AMBIENT-P5-RECEIPT-001` / `TODO-STEPS-NUM-006` —
+  **IMPLEMENTED_UNVALIDATED**: preserve source-reviewed
+  `4ad78ef8086cade4aedd6963e0af7432fba0fe36` at
+  `handover/reviewed/ti-steps-p5-source-20260919`, accepted assembled
+  `bc43dd972ac8f1a63a37827cf7c2eaad90db5600` at
+  `handover/reviewed/ti-steps-p5-assembled-20260919`, and merge
+  `75fd24b934bec9aedd71e694ae0a6d2a976b4f02`. The completed interface slice includes opaque
+  count-domain token/owner/receipt contracts, Room storage and compatibility query, terminal
+  completeness authentication, bounded maintenance/pruning, retirement, legacy-v27 WAL fencing,
+  and full-clear handling.
+- [x] `WI-STEPS-NUMERIC-001` exact P5 dependency — the qualified numeric/effect infrastructure no
+  longer lacks the native session/Ambient count-domain receipt. This does not complete portable
+  count-domain adoption or the wider Ambient Steps product.
+- [ ] `impl-broker-provider-bindings` — next ready wave: bind dormant per-source physical owners to
+  the integrated caller and retention authority; do not activate providers or writers.
+- [ ] `impl-ambient-steps-p5-portable` — next ready wave: authenticate portable domains separately,
+  prohibit imported facts from borrowing native-provider authority, and compose truthful session,
+  between-session, and total Steps states.
+
+The broader authority, privacy, Ambient Steps, source-product, UI, scenario, schema-convergence,
+and assembly TODOs remain incomplete. Existing broad unchecked checkboxes stay unchecked where
+their requirements exceed these exact accepted slices.
+
+No Gradle, compilation, tests, lint, Detekt, generated-schema, Room-drift, diff-check, device,
+battery, CI, release, or rollout validation ran. Generated v28 JSON remains deferred.
+Provider/writer activation remains unauthorized.
+
 ## 2026-09-17 development-v28 containment leaf
 
 - [x] `impl-dev-v28-containment` — **IMPLEMENTED_UNVALIDATED**: add the read-only active-database
@@ -99,7 +144,7 @@ Preserve six protected root paths and two frozen unaccepted importer/awards draf
 quarantines their exact patches/files rather than merging them. The canonical stable-ID TODO
 remains open: transport assembly is not final convergence/readiness. Original refs are retained.
 
-Last updated: 2026-09-16
+Historical handover ledger date: 2026-09-16
 
 ## Current integration and graph receipt
 
