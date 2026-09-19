@@ -5,11 +5,15 @@ import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
@@ -1568,7 +1572,7 @@ class StepsCountDomainStore(
 			session.checkpointAndRequireUnchanged(
 				StepsCountDomainMaintenanceCheckpoint.WAL_CANDIDATE_PAGE_AUTHENTICATED,
 			)
-			val ownerKeys = page.mapNotNull(StepsWalPruneCandidate::ownerKey)
+			val ownerKeys = authenticateWalPruneOwnerKeys(page)
 			if (ownerKeys.isNotEmpty()) {
 				when (
 					val result = removeOwnersAuthenticated(
@@ -1629,7 +1633,7 @@ class StepsCountDomainStore(
 			session.checkpointAndRequireUnchanged(
 				StepsCountDomainMaintenanceCheckpoint.WAL_CANDIDATE_PAGE_AUTHENTICATED,
 			)
-			val ownerKeys = page.mapNotNull(StepsWalPruneCandidate::ownerKey)
+			val ownerKeys = authenticateWalPruneOwnerKeys(page)
 			if (ownerKeys.isNotEmpty()) {
 				when (
 					val result = removeOwnersAuthenticated(
@@ -1682,6 +1686,191 @@ class StepsCountDomainStore(
 			removedReceipts = removedReceipts,
 			walEventsDeleted = removedWalRows,
 		)
+	}
+
+	private suspend fun authenticateWalPruneOwnerKeys(
+		page: List<StepsWalPruneCandidate>,
+	): List<StepsCountDomainOwnerLookupKey> {
+		val sqlite = database.openHelper.writableDatabase
+		return buildList {
+			page.forEach { candidate ->
+				val ownerKey = candidate.ownerKey ?: return@forEach
+				if (sqlite.hasExactCountDomainOwner(ownerKey)) {
+					add(ownerKey)
+				} else {
+					sqlite.requireAuthenticMissingCountDomainOwnerKeys(listOf(ownerKey))
+					requireOwnerlessShadowStepsWal(candidate, ownerKey)
+				}
+			}
+		}
+	}
+
+	@Suppress("ComplexCondition", "LongMethod")
+	private suspend fun requireOwnerlessShadowStepsWal(
+		candidate: StepsWalPruneCandidate,
+		ownerKey: StepsCountDomainOwnerLookupKey,
+	) {
+		val wal = database.sourceEventWalDao()
+			.getByAdmissionOrdinal(candidate.cursor.admissionOrdinal)
+			?: throw CountDomainStoredEvidenceException()
+		val sqlite = database.openHelper.writableDatabase
+		if (
+			wal.admissionOrdinal != candidate.cursor.admissionOrdinal ||
+			wal.eventId != candidate.eventId ||
+			wal.createdAtMs != candidate.cursor.createdAtMs ||
+			wal.authorizationPurposeEligibilityMask !=
+			candidate.authorizationPurposeEligibilityMask ||
+			wal.sourceKind != SourceDestinationOwnerEntity.SOURCE_STEPS ||
+			!wal.hasQualifiedIntegrity() ||
+			wal.sourceSequence <= 0L ||
+			wal.registrationGeneration <= 0L ||
+			wal.sourceInstanceId.isBlank() ||
+			wal.physicalConfigurationFingerprint.isNullOrBlank() ||
+			wal.authorizationRevision?.let { it > 0L } != true ||
+			wal.authorizationFingerprint.isNullOrBlank() ||
+			wal.authorizationPurposeEligibilityMask !in 1L..STEPS_WAL_ALLOWED_PURPOSE_MASK ||
+			wal.authorizationPurposeEligibilityMask and
+			SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
+			wal.logicalTrackingId.isNullOrBlank() ||
+			wal.serviceRunId.isNullOrBlank() ||
+			wal.configRevision?.let { it > 0L } != true ||
+			wal.sourcePolicyRevision?.let { it > 0L } != true ||
+			wal.captureConsentEpoch?.let { it >= 0L } != true ||
+			wal.sessionManifestRevision?.let { it > 0L } != true ||
+			wal.lifecycleLeaseGeneration?.let { it > 0L } != true ||
+			wal.wallTimeMs?.let { it == wal.acquiredAtMs } != true ||
+			!sqlite.hasExactOwnerlessStepsWalAttributionStorage(wal)
+		) {
+			throw CountDomainStoredEvidenceException()
+		}
+		val evidenceState = database.sourceEvidenceStateDao().get()
+			?: throw CountDomainStoredEvidenceException()
+		if (evidenceState.collectedDataEpoch != wal.capturedCollectedDataEpoch) {
+			throw CountDomainStoredEvidenceException()
+		}
+		val registration = database.sourceBrokerDao().registration(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			wal.registrationGeneration,
+		) ?: throw CountDomainStoredEvidenceException()
+		if (!sqlite.hasExactOwnerlessStepsProviderRegistrationStorage(registration) ||
+			!registration.authenticatesOwnerlessStepsWal(wal)
+		) {
+			throw CountDomainStoredEvidenceException()
+		}
+
+		val logicalTrackingId = requireNotNull(wal.logicalTrackingId)
+		val serviceRunId = requireNotNull(wal.serviceRunId)
+		val manifestRevision = requireNotNull(wal.sessionManifestRevision)
+		val run = database.sourceSessionDao().serviceRun(serviceRunId)
+			?: throw CountDomainStoredEvidenceException()
+		val rawManifests = database.sourceSessionDao().rawManifestsForServiceRunAfterRevision(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			afterRevision = 0L,
+			limit = OWNERLESS_STEPS_MAX_MANIFESTS + 1,
+		)
+		if (rawManifests.isEmpty() || rawManifests.size > OWNERLESS_STEPS_MAX_MANIFESTS) {
+			throw CountDomainStoredEvidenceException()
+		}
+		val manifests = rawManifests.map { raw ->
+			raw.validatedOrNull() ?: throw CountDomainStoredEvidenceException()
+		}
+		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)) {
+			throw CountDomainStoredEvidenceException()
+		}
+		val manifest = manifests.singleOrNull { it.manifestRevision == manifestRevision }
+			?: throw CountDomainStoredEvidenceException()
+		val rawSources = database.sourceSessionDao().rawManifestSources(
+			logicalTrackingId = logicalTrackingId,
+			manifestRevision = manifestRevision,
+			limit = OWNERLESS_STEPS_MAX_MANIFEST_SOURCES + 1,
+		)
+		if (rawSources.isEmpty() || rawSources.size > OWNERLESS_STEPS_MAX_MANIFEST_SOURCES) {
+			throw CountDomainStoredEvidenceException()
+		}
+		val sources = rawSources.map { raw ->
+			raw.validatedOrNull() ?: throw CountDomainStoredEvidenceException()
+		}
+		if (!SessionManifestIntegrity.verify(manifest, sources) ||
+			manifest.logicalTrackingId != logicalTrackingId ||
+			manifest.serviceRunId != serviceRunId ||
+			manifest.sourcePolicyRevision != wal.sourcePolicyRevision ||
+			manifest.acquisitionPlanRevision != wal.configRevision ||
+			manifest.effectiveBootId != wal.clockDomainId ||
+			manifest.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos ||
+			run.leaseGeneration != wal.lifecycleLeaseGeneration
+		) {
+			throw CountDomainStoredEvidenceException()
+		}
+		val binding = sources.singleOrNull { source ->
+			source.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+				source.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+		} ?: throw CountDomainStoredEvidenceException()
+		val legacyWriter = binding.isExactLegacyStepsWriterBinding(wal)
+		val canonicalWriter = binding.isExactCanonicalStepsWriterBinding(wal)
+		if (!legacyWriter && !canonicalWriter) {
+			throw CountDomainStoredEvidenceException()
+		}
+		val captureMode = manifest.sessionMode.stepsCaptureModeMaskOrNull()
+			?: throw CountDomainStoredEvidenceException()
+		if (database.sourceProjectionStateDao().registration(
+				SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			) != null
+		) {
+			throw CountDomainStoredEvidenceException()
+		}
+		val lanes = database.sourceProjectionStateDao().productLanesByProjection(
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+		)
+		if (sqlite.hasMalformedStepsWalPruneLaneAttribution() ||
+			lanes.any {
+				!sqlite.hasExactStepsWalPruneLaneStorage(it) ||
+					!it.hasAuthenticStepsWalPruneShape()
+			}
+		) {
+			throw CountDomainStoredEvidenceException()
+		}
+		val lane = lanes.singleOrNull { lane ->
+			(binding.writerBindingGeneration == null ||
+				lane.bindingGeneration == binding.writerBindingGeneration) &&
+				lane.captureModeMask and captureMode != 0L &&
+				lane.activationOrdinal <= wal.admissionOrdinal &&
+				lane.contiguousAdmissionOrdinal >= wal.admissionOrdinal &&
+				lane.captureAdmissionCutoffOrdinal?.let {
+					it >= wal.admissionOrdinal
+				} != false
+		} ?: throw CountDomainStoredEvidenceException()
+		val shadowAttributed = when (lane.productStage) {
+			SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW ->
+				manifest.rolloutRevision >= lane.activatedRolloutRevision
+			SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL ->
+				manifest.rolloutRevision < lane.activatedRolloutRevision
+			else -> false
+		}
+		if (!legacyWriter || canonicalWriter || !shadowAttributed) {
+			throw CountDomainStoredEvidenceException()
+		}
+
+		if (sqlite.longForQuery(
+				"SELECT COUNT(*) FROM main.steps_count_domain_receipt " +
+					"WHERE owner_kind = ? AND owner_identity = ?",
+				arrayOf(ownerKey.ownerKind, ownerKey.ownerIdentity),
+			) != 0L ||
+			sqlite.longForQuery(
+				"SELECT COUNT(*) FROM main.steps_count_domain_completeness_marker " +
+					"WHERE owner_kind = ? AND owner_identity = ?",
+				arrayOf(ownerKey.ownerKind, ownerKey.ownerIdentity),
+			) != 0L ||
+			sqlite.longForQuery(
+				"SELECT COUNT(*) FROM main.step_fact_revision " +
+					"WHERE source_admission_ordinal = ? OR source_event_id = ?",
+				arrayOf(wal.admissionOrdinal, wal.eventId),
+			) != 0L
+		) {
+			throw CountDomainStoredEvidenceException()
+		}
 	}
 
 	private fun OwnerMaintenanceSession.requireActiveSnapshot() {
@@ -2781,6 +2970,249 @@ private fun SupportSQLiteDatabase.requireAuthenticMissingCountDomainOwnerKeys(
 	}
 }
 
+private fun SupportSQLiteDatabase.hasExactCountDomainOwner(
+	key: StepsCountDomainOwnerLookupKey,
+): Boolean = longForQuery(
+	"SELECT COUNT(*) FROM main.steps_count_domain_owner_revision " +
+		"WHERE typeof(owner_kind) = 'text' AND owner_kind = ? " +
+		"AND typeof(owner_identity) = 'text' AND owner_identity = ? " +
+		"AND typeof(owner_revision) = 'integer' AND owner_revision = ?",
+	arrayOf(key.ownerKind, key.ownerIdentity, key.ownerRevision),
+).let { count ->
+	if (count !in 0L..1L) throw CountDomainStoredEvidenceException()
+	count == 1L
+}
+
+private fun SupportSQLiteDatabase.hasExactOwnerlessStepsWalAttributionStorage(
+	wal: SourceEventWalEntity,
+): Boolean = longForQuery(
+	"SELECT COUNT(*) FROM main.source_event_wal WHERE admission_ordinal = ? " +
+		"AND typeof(admission_ordinal) = 'integer' " +
+		"AND typeof(event_id) = 'text' " +
+		"AND typeof(provider_dedup_key) IN ('null', 'text') " +
+		"AND typeof(delivery_identity) IN ('null', 'text') " +
+		"AND typeof(delivery_unit_index) IN ('null', 'integer') " +
+		"AND typeof(delivery_unit_count) IN ('null', 'integer') " +
+		"AND typeof(logical_tracking_id) = 'text' " +
+		"AND typeof(service_run_id) = 'text' " +
+		"AND typeof(source_kind) = 'integer' " +
+		"AND typeof(source_instance_id) = 'text' " +
+		"AND typeof(registration_generation) = 'integer' " +
+		"AND typeof(physical_configuration_fingerprint) = 'text' " +
+		"AND typeof(authorization_revision) = 'integer' " +
+		"AND typeof(authorization_purpose_eligibility_mask) = 'integer' " +
+		"AND typeof(authorization_fingerprint) = 'text' " +
+		"AND typeof(source_sequence) = 'integer' " +
+		"AND typeof(config_revision) = 'integer' " +
+		"AND typeof(plan_attribution) = 'integer' " +
+		"AND typeof(clock_domain_id) = 'text' " +
+		"AND typeof(observed_elapsed_nanos) = 'integer' " +
+		"AND typeof(observed_interval_start_nanos) IN ('null', 'integer') " +
+		"AND typeof(received_elapsed_nanos) = 'integer' " +
+		"AND typeof(received_wall_time_ms) IN ('null', 'integer') " +
+		"AND typeof(wall_time_ms) = 'integer' " +
+		"AND typeof(wall_time_uncertainty_ms) = 'integer' " +
+		"AND typeof(captured_collected_data_epoch) = 'integer' " +
+		"AND typeof(activity_automation_epoch) IN ('null', 'integer') " +
+		"AND typeof(source_policy_revision) = 'integer' " +
+		"AND typeof(capture_consent_epoch) = 'integer' " +
+		"AND typeof(session_manifest_revision) = 'integer' " +
+		"AND typeof(lifecycle_lease_generation) = 'integer' " +
+		"AND typeof(acquired_at_ms) = 'integer' " +
+		"AND typeof(quality_flags) = 'integer' " +
+		"AND typeof(quality_confidence) IN ('null', 'real') " +
+		"AND typeof(payload_version) = 'integer' " +
+		"AND typeof(payload) = 'blob' " +
+		"AND typeof(payload_checksum) = 'text' " +
+		"AND typeof(integrity_identity) = 'text' " +
+		"AND typeof(created_at_ms) = 'integer'",
+	arrayOf(wal.admissionOrdinal),
+) == 1L
+
+private fun SupportSQLiteDatabase.hasExactOwnerlessStepsProviderRegistrationStorage(
+	registration: ProviderRegistrationGenerationEntity,
+): Boolean = longForQuery(
+	"SELECT COUNT(*) FROM main.provider_registration_generation " +
+		"WHERE source_kind = ? AND registration_generation = ? " +
+		"AND typeof(source_kind) = 'integer' " +
+		"AND typeof(registration_generation) = 'integer' " +
+		"AND typeof(source_instance_id) = 'text' " +
+		"AND typeof(owner_scope) = 'text' " +
+		"AND typeof(clock_domain_id) = 'text' " +
+		"AND typeof(physical_configuration_fingerprint) = 'text' " +
+		"AND typeof(collected_data_epoch) = 'integer' " +
+		"AND typeof(provider_residency) = 'text' " +
+		"AND typeof(provider_process_incarnation_id) IN ('null', 'text') " +
+		"AND typeof(status) = 'text' " +
+		"AND typeof(reserved_at_ms) = 'integer' " +
+		"AND typeof(reserved_elapsed_realtime_nanos) = 'integer' " +
+		"AND typeof(accepted_at_ms) IN ('null', 'integer') " +
+		"AND typeof(accepted_elapsed_realtime_nanos) IN ('null', 'integer') " +
+		"AND typeof(retired_at_ms) IN ('null', 'integer') " +
+		"AND typeof(retired_elapsed_realtime_nanos) IN ('null', 'integer') " +
+		"AND typeof(failure_code) IN ('null', 'text') " +
+		"AND typeof(capture_callback_barrier_authorization_revision) = 'integer'",
+	arrayOf(registration.sourceKind, registration.registrationGeneration),
+) == 1L
+
+private fun SupportSQLiteDatabase.hasMalformedStepsWalPruneLaneAttribution(): Boolean =
+	longForQuery(
+		"SELECT EXISTS(SELECT 1 FROM main.source_product_projection_lane WHERE " +
+			"(CAST(source_kind AS INTEGER) = ? OR " +
+			"CAST(projection_id AS TEXT) = ?) AND (" +
+			"typeof(source_kind) != 'integer' OR source_kind != ? OR " +
+			"typeof(projection_id) != 'text' OR projection_id != ? OR " +
+			"typeof(projection_version) != 'integer' OR projection_version != ?) LIMIT 1)",
+		arrayOf(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+		),
+	) == 1L
+
+private fun SupportSQLiteDatabase.hasExactStepsWalPruneLaneStorage(
+	lane: SourceProductProjectionLaneEntity,
+): Boolean = longForQuery(
+	"SELECT COUNT(*) FROM main.source_product_projection_lane " +
+		"WHERE source_kind = ? AND binding_generation = ? " +
+		"AND typeof(source_kind) = 'integer' " +
+		"AND typeof(binding_generation) = 'integer' " +
+		"AND typeof(projection_id) = 'text' " +
+		"AND typeof(projection_version) = 'integer' " +
+		"AND typeof(capture_mode_mask) = 'integer' " +
+		"AND typeof(product_stage) = 'text' " +
+		"AND typeof(activated_rollout_revision) = 'integer' " +
+		"AND typeof(activation_ordinal) = 'integer' " +
+		"AND typeof(contiguous_admission_ordinal) = 'integer' " +
+		"AND typeof(capture_admission_cutoff_ordinal) IN ('null', 'integer') " +
+		"AND typeof(retention_required) = 'integer' " +
+		"AND typeof(status) = 'text' " +
+		"AND typeof(terminal_disposition) IN ('null', 'text') " +
+		"AND typeof(terminal_at_ms) IN ('null', 'integer') " +
+		"AND typeof(installed_at_ms) = 'integer' " +
+		"AND typeof(updated_at_ms) = 'integer'",
+	arrayOf(lane.sourceKind, lane.bindingGeneration),
+) == 1L
+
+@Suppress("ComplexCondition")
+private fun ProviderRegistrationGenerationEntity.authenticatesOwnerlessStepsWal(
+	wal: SourceEventWalEntity,
+): Boolean {
+	val acceptedAt = acceptedAtMs ?: return false
+	val acceptedElapsed = acceptedElapsedRealtimeNanos ?: return false
+	val retiredAt = retiredAtMs
+	val retiredElapsed = retiredElapsedRealtimeNanos
+	return sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+		registrationGeneration == wal.registrationGeneration &&
+		sourceInstanceId == wal.sourceInstanceId &&
+		SourceProviderPurposeScope.supportsPurpose(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			ownerScope,
+			SourceBrokerPurpose.SESSION_CAPTURE,
+		) &&
+		clockDomainId == wal.clockDomainId &&
+		physicalConfigurationFingerprint == wal.physicalConfigurationFingerprint &&
+		collectedDataEpoch == wal.capturedCollectedDataEpoch &&
+		status in setOf(
+			ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+			ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+			ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+		) &&
+		reservedAtMs in 0L..acceptedAt &&
+		reservedElapsedRealtimeNanos in 0L..acceptedElapsed &&
+		acceptedElapsed <= wal.observedElapsedNanos &&
+		(retiredAt == null) == (retiredElapsed == null) &&
+		retiredElapsed?.let { it >= acceptedElapsed } != false
+}
+
+@Suppress("ComplexCondition")
+private fun SessionManifestSourceEntity.isExactLegacyStepsWriterBinding(
+	wal: SourceEventWalEntity,
+): Boolean =
+	logicalTrackingId == wal.logicalTrackingId &&
+		manifestRevision == wal.sessionManifestRevision &&
+		sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+		purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+		persistenceEligible &&
+		consentEpoch == wal.captureConsentEpoch &&
+		outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS &&
+		writerOwner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL &&
+		writerOwnerGeneration?.let { it > 0L } == true &&
+		writerProjectionId == null &&
+		writerProjectionVersion == null &&
+		writerBindingGeneration == null
+
+@Suppress("ComplexCondition")
+private fun SessionManifestSourceEntity.isExactCanonicalStepsWriterBinding(
+	wal: SourceEventWalEntity,
+): Boolean =
+	logicalTrackingId == wal.logicalTrackingId &&
+		manifestRevision == wal.sessionManifestRevision &&
+		sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+		purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+		persistenceEligible &&
+		consentEpoch == wal.captureConsentEpoch &&
+		outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS &&
+		writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS &&
+		writerOwnerGeneration?.let {
+			it >= SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+		} == true &&
+		writerProjectionId == SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID &&
+		writerProjectionVersion == SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION &&
+		writerBindingGeneration in setOf(
+			SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+			SourceDestinationOwnerEntity.STEPS_FACT_AUTOMATIC_BINDING_GENERATION,
+		)
+
+private fun String.stepsCaptureModeMaskOrNull(): Long? = when (this) {
+	"MANUAL" -> STEPS_MANUAL_CAPTURE_MODE_MASK
+	"AUTOMATIC" -> STEPS_AUTOMATIC_CAPTURE_MODE_MASK
+	else -> null
+}
+
+@Suppress("ComplexCondition")
+private fun SourceProductProjectionLaneEntity.hasAuthenticStepsWalPruneShape(): Boolean {
+	val expectedCaptureModeMask = when (bindingGeneration) {
+		SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION ->
+			STEPS_MANUAL_CAPTURE_MODE_MASK
+		SourceDestinationOwnerEntity.STEPS_FACT_AUTOMATIC_BINDING_GENERATION ->
+			STEPS_MANUAL_CAPTURE_MODE_MASK or STEPS_AUTOMATIC_CAPTURE_MODE_MASK
+		else -> return false
+	}
+	return sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+		projectionId == SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID &&
+		projectionVersion == SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION &&
+		captureModeMask == expectedCaptureModeMask &&
+		productStage in setOf(
+			SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+		) &&
+		activatedRolloutRevision > 0L &&
+		activationOrdinal > 0L &&
+		contiguousAdmissionOrdinal >= activationOrdinal - 1L &&
+		captureAdmissionCutoffOrdinal?.let { cutoff ->
+			cutoff >= activationOrdinal - 1L && contiguousAdmissionOrdinal <= cutoff
+		} != false &&
+		status in setOf(
+			SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+			SourceProductProjectionLaneEntity.STATUS_RETIRED,
+		) &&
+		(status == SourceProductProjectionLaneEntity.STATUS_ACTIVE) == retentionRequired &&
+		(status == SourceProductProjectionLaneEntity.STATUS_ACTIVE).let { active ->
+			if (active) {
+				terminalDisposition == null && terminalAtMs == null
+			} else {
+				(terminalDisposition == null) == (terminalAtMs == null) &&
+					terminalDisposition?.isNotBlank() != false &&
+					terminalAtMs?.let { it >= 0L } != false
+			}
+		} &&
+		installedAtMs >= 0L &&
+		updatedAtMs >= installedAtMs
+}
+
 private fun SupportSQLiteDatabase.requireAuthenticCountDomainOwnerScopes(
 	keys: List<CountDomainOwnerScopeKey>,
 ) {
@@ -3649,3 +4081,7 @@ private val ROOM_INVALIDATION_TABLE_ID =
 
 private const val STEPS_WAL_ALLOWED_PURPOSE_MASK =
 	SourceBrokerPurpose.CONTROL_MASK or SourceBrokerPurpose.MASK_SESSION_CAPTURE
+private const val STEPS_MANUAL_CAPTURE_MODE_MASK = 1L
+private const val STEPS_AUTOMATIC_CAPTURE_MODE_MASK = 1L shl 1
+private const val OWNERLESS_STEPS_MAX_MANIFESTS = 64
+private const val OWNERLESS_STEPS_MAX_MANIFEST_SOURCES = 16

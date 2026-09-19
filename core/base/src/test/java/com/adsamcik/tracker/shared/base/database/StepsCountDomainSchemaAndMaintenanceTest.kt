@@ -10,10 +10,14 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
@@ -1529,6 +1533,149 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
+	fun `processed shadow Steps WAL with legacy writer attribution prunes without an owner`() =
+		runTest {
+			installSchema()
+			val wal = insertWal("ownerless-shadow", 1L, payloadVersion = 7)
+			installOwnerlessStepsWalAuthority(
+				wal = wal,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+				manifestRolloutRevision = 2L,
+				laneRolloutRevision = 2L,
+				laneCursor = wal.admissionOrdinal,
+			)
+
+			StepsCountDomainStore(database).pruneSessionWalForStorage(
+				safeOrdinal = wal.admissionOrdinal,
+				createdBeforeMs = 2L,
+				limit = 1,
+			) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0, 1)
+
+			database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal) shouldBe null
+		}
+
+	@Test
+	fun `canonical Steps WAL without its count-domain owner fails closed`() = runTest {
+		installSchema()
+		val wal = insertWal("ownerless-canonical", 1L, payloadVersion = 7)
+		installOwnerlessStepsWalAuthority(
+			wal = wal,
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			manifestRolloutRevision = 3L,
+			laneRolloutRevision = 3L,
+			laneCursor = wal.admissionOrdinal,
+			writerOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+		)
+
+		StepsCountDomainStore(database).pruneSessionWalForStorage(
+			safeOrdinal = wal.admissionOrdinal,
+			createdBeforeMs = 2L,
+			limit = 1,
+		) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+
+		requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal))
+	}
+
+	@Test
+	fun `canonical promotion does not reclassify processed shadow Steps history`() = runTest {
+		installSchema()
+		val wal = insertWal("promoted-shadow-history", 1L, payloadVersion = 7)
+		installOwnerlessStepsWalAuthority(
+			wal = wal,
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			manifestRolloutRevision = 2L,
+			laneRolloutRevision = 3L,
+			laneCursor = wal.admissionOrdinal,
+		)
+
+		StepsCountDomainStore(database).pruneSessionWalForStorage(
+			safeOrdinal = wal.admissionOrdinal,
+			createdBeforeMs = 2L,
+			limit = 1,
+		) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0, 1)
+
+		database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal) shouldBe null
+	}
+
+	@Test
+	fun `unprocessed shadow Steps WAL cannot use the ownerless prune path`() = runTest {
+		installSchema()
+		val wal = insertWal("unprocessed-shadow", 1L, payloadVersion = 7)
+		installOwnerlessStepsWalAuthority(
+			wal = wal,
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			manifestRolloutRevision = 2L,
+			laneRolloutRevision = 2L,
+			laneCursor = wal.admissionOrdinal - 1L,
+		)
+
+		StepsCountDomainStore(database).pruneSessionWalForStorage(
+			safeOrdinal = wal.admissionOrdinal,
+			createdBeforeMs = 2L,
+			limit = 1,
+		) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+
+		requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal))
+	}
+
+	@Test
+	fun `ambiguous shadow lane attribution cannot authorize ownerless Steps WAL pruning`() =
+		runTest {
+			installSchema()
+			val wal = insertWal("ambiguous-shadow", 1L, payloadVersion = 7)
+			installOwnerlessStepsWalAuthority(
+				wal = wal,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+				manifestRolloutRevision = 2L,
+				laneRolloutRevision = 2L,
+				laneCursor = wal.admissionOrdinal,
+				addAmbiguousLane = true,
+			)
+
+			StepsCountDomainStore(database).pruneSessionWalForStorage(
+				safeOrdinal = wal.admissionOrdinal,
+				createdBeforeMs = 2L,
+				limit = 1,
+			) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+
+			requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal))
+		}
+
+	@Test
+	fun `malformed shadow manifest attribution cannot authorize ownerless Steps WAL pruning`() =
+		runTest {
+			installSchema()
+			val wal = insertWal("malformed-shadow", 1L, payloadVersion = 7)
+			installOwnerlessStepsWalAuthority(
+				wal = wal,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+				manifestRolloutRevision = 2L,
+				laneRolloutRevision = 2L,
+				laneCursor = wal.admissionOrdinal,
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE session_manifest_source SET writer_projection_id = ? " +
+					"WHERE logical_tracking_id = ? AND manifest_revision = ? " +
+					"AND source_kind = ? AND purpose = ?",
+				arrayOf(
+					SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+					requireNotNull(wal.logicalTrackingId),
+					requireNotNull(wal.sessionManifestRevision),
+					SourceDestinationOwnerEntity.SOURCE_STEPS,
+					SourceBrokerPurpose.SESSION_CAPTURE,
+				),
+			)
+
+			StepsCountDomainStore(database).pruneSessionWalForStorage(
+				safeOrdinal = wal.admissionOrdinal,
+				createdBeforeMs = 2L,
+				limit = 1,
+			) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+
+			requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal))
+		}
+
+	@Test
 	fun `control then mixed capture WAL prunes only the owner in its physical batch`() = runTest {
 		installSchema()
 		insertServiceRun(completedAtMs = 2L)
@@ -2652,6 +2799,170 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		val ordinal = database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(signed)
 		return signed.copy(admissionOrdinal = ordinal)
 	}
+
+	@Suppress("LongMethod")
+	private suspend fun installOwnerlessStepsWalAuthority(
+		wal: SourceEventWalEntity,
+		productStage: String,
+		manifestRolloutRevision: Long,
+		laneRolloutRevision: Long,
+		laneCursor: Long,
+		writerOwner: String = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+		addAmbiguousLane: Boolean = false,
+	) {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(collectedDataEpoch = wal.capturedCollectedDataEpoch),
+		)
+		database.sourceSessionDao().insertServiceRun(
+			SourceServiceRunEntity(
+				serviceRunId = requireNotNull(wal.serviceRunId),
+				logicalTrackingId = requireNotNull(wal.logicalTrackingId),
+				state = "FINALIZED",
+				desiredPlanRevision = requireNotNull(wal.configRevision),
+				rolloutRevision = manifestRolloutRevision,
+				foregroundCapabilityFlags = 0L,
+				startedAtMs = 0L,
+				startedElapsedNanos = 0L,
+				completedAtMs = 2L,
+				completionReason = "TEST",
+				bootId = wal.clockDomainId,
+				leaseGeneration = requireNotNull(wal.lifecycleLeaseGeneration),
+				startOrigin = "MANUAL_FOREGROUND_START",
+				desiredForegroundCapabilityFlags = 0L,
+				appliedForegroundCapabilityFlags = 0L,
+				runtimeAcknowledgement = "TERMINAL",
+				runtimeFailureCode = null,
+				runRevision = 1L,
+				startDeliveryToken = "delivery-${wal.eventId}",
+				startCommandGeneration = 1L,
+				preparedManifestRevision = requireNotNull(wal.sessionManifestRevision),
+				preparedIntentRevision = 1L,
+				androidDeliveryState = "TERMINAL",
+				androidDeliveryUpdatedAtMs = 2L,
+				startIsUserInitiated = true,
+			),
+		)
+		val bindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION
+		val source = SessionManifestSourceEntity(
+			logicalTrackingId = requireNotNull(wal.logicalTrackingId),
+			manifestRevision = requireNotNull(wal.sessionManifestRevision),
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+			consentEpoch = requireNotNull(wal.captureConsentEpoch),
+			persistenceEligible = true,
+			qosCode = 1,
+			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			writerOwner = writerOwner,
+			writerOwnerGeneration = if (
+				writerOwner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
+			) {
+				SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+			} else {
+				SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+			},
+			writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID
+				.takeIf { writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS },
+			writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION
+				.takeIf { writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS },
+			writerBindingGeneration = bindingGeneration
+				.takeIf { writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS },
+		)
+		val unsignedManifest = SessionManifestVersionEntity(
+			logicalTrackingId = requireNotNull(wal.logicalTrackingId),
+			manifestRevision = requireNotNull(wal.sessionManifestRevision),
+			serviceRunId = requireNotNull(wal.serviceRunId),
+			sessionMode = "MANUAL",
+			sourcePolicyRevision = requireNotNull(wal.sourcePolicyRevision),
+			acquisitionPlanRevision = requireNotNull(wal.configRevision),
+			rolloutRevision = manifestRolloutRevision,
+			startOrigin = "MANUAL_FOREGROUND_START",
+			effectiveBootId = wal.clockDomainId,
+			effectiveElapsedRealtimeNanos = 0L,
+			effectiveWallTimeMs = 0L,
+			zoneId = "UTC",
+			automationEpoch = null,
+			changeReason = "TEST",
+			manifestChecksum = "",
+		)
+		database.sourceSessionDao().insertManifest(
+			unsignedManifest.copy(
+				manifestChecksum = SessionManifestIntegrity.compute(
+					unsignedManifest,
+					listOf(source),
+				),
+			),
+		)
+		database.sourceSessionDao().insertManifestSources(listOf(source))
+		database.sourceBrokerDao().insertRegistration(
+			ProviderRegistrationGenerationEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				registrationGeneration = wal.registrationGeneration,
+				sourceInstanceId = wal.sourceInstanceId,
+				ownerScope = "source-broker:${SourceDestinationOwnerEntity.SOURCE_STEPS}",
+				clockDomainId = wal.clockDomainId,
+				physicalConfigurationFingerprint =
+					requireNotNull(wal.physicalConfigurationFingerprint),
+				collectedDataEpoch = wal.capturedCollectedDataEpoch,
+				providerResidency =
+					ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+				providerProcessIncarnationId = "process-${wal.eventId}",
+				status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+				reservedAtMs = 0L,
+				reservedElapsedRealtimeNanos = 0L,
+				acceptedAtMs = 0L,
+				acceptedElapsedRealtimeNanos = 0L,
+				retiredAtMs = 2L,
+				retiredElapsedRealtimeNanos = 2L,
+				failureCode = null,
+			),
+		)
+		database.sourceProjectionStateDao().installProductLane(
+			stepsWalProductLane(
+				bindingGeneration = bindingGeneration,
+				productStage = productStage,
+				rolloutRevision = laneRolloutRevision,
+				cursor = laneCursor,
+			),
+		)
+		if (addAmbiguousLane) {
+			database.sourceProjectionStateDao().installProductLane(
+				stepsWalProductLane(
+					bindingGeneration =
+						SourceDestinationOwnerEntity.STEPS_FACT_AUTOMATIC_BINDING_GENERATION,
+					productStage = productStage,
+					rolloutRevision = laneRolloutRevision,
+					cursor = laneCursor,
+				),
+			)
+		}
+	}
+
+	private fun stepsWalProductLane(
+		bindingGeneration: Long,
+		productStage: String,
+		rolloutRevision: Long,
+		cursor: Long,
+	) = SourceProductProjectionLaneEntity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		bindingGeneration = bindingGeneration,
+		projectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+		projectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+		captureModeMask = if (
+			bindingGeneration == SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION
+		) {
+			1L
+		} else {
+			3L
+		},
+		productStage = productStage,
+		activatedRolloutRevision = rolloutRevision,
+		activationOrdinal = 1L,
+		contiguousAdmissionOrdinal = cursor,
+		retentionRequired = true,
+		status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+		installedAtMs = 0L,
+		updatedAtMs = 2L,
+	)
 
 	private suspend fun insertServiceRun(
 		state: String = "FINALIZED",

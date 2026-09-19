@@ -143,16 +143,18 @@ internal fun SupportSQLiteDatabase.authenticateLegacyV27StepsWalForCollectedData
 	) {
 		requireLegacyProjectionDrainCompletion(authority, targets)
 	}
-	var afterRowId = 0L
+	var afterRowId: Long? = null
 	while (true) {
+		val lowerBoundRowId = afterRowId
 		val page = query(
 			"SELECT rowid, admission_ordinal FROM source_event_wal " +
-				"WHERE rowid > ? AND rowid <= ? AND source_kind = ? " +
+				"WHERE (? IS NULL OR rowid > ?) AND rowid <= ? AND source_kind = ? " +
 				"AND (authorization_purpose_eligibility_mask = 0 OR " +
 				"typeof(authorization_purpose_eligibility_mask) != 'integer') " +
 				"ORDER BY rowid LIMIT $LEGACY_FULL_CLEAR_PAGE_SIZE",
 			arrayOf(
-				afterRowId,
+				lowerBoundRowId,
+				lowerBoundRowId,
 				maximumRowId,
 				SourceDestinationOwnerEntity.SOURCE_STEPS,
 			),
@@ -161,7 +163,10 @@ internal fun SupportSQLiteDatabase.authenticateLegacyV27StepsWalForCollectedData
 				while (cursor.moveToNext()) {
 					val rowId = cursor.requiredLegacyLong(0)
 					val admissionOrdinal = cursor.requiredLegacyLong(1)
-					requireLegacy(rowId > afterRowId && rowId <= maximumRowId)
+					requireLegacy(
+						(lowerBoundRowId == null || rowId > lowerBoundRowId) &&
+							rowId <= maximumRowId,
+					)
 					requireLegacy(admissionOrdinal > 0L)
 					add(rowId to admissionOrdinal)
 				}

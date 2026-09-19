@@ -310,6 +310,87 @@ class LegacyV27StepsWalRetentionTest {
 	}
 
 	@Test
+	fun `full clear rejects a negative legacy admission ordinal and rolls back`() = runTest {
+		seedPendingLegacyDrain(cutoff = 1L)
+		insertMigratedTerminalRun()
+		insertLegacyStepsWal("legacy-negative-ordinal", 1L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET admission_ordinal = -1 WHERE admission_ordinal = 1",
+		)
+
+		shouldThrow<IllegalStateException> {
+			AppDatabase.deleteAllCollectedData(
+				database = database,
+				operationId = "negative-legacy-ordinal-full-clear",
+				collectedDataEpoch = 1L,
+				retainedFromMs = null,
+				updatedAtMs = 100L,
+			)
+		}
+
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		database.collectedDataDeletionOperationDao()
+			.get("negative-legacy-ordinal-full-clear") shouldBe null
+		database.legacyV27ProjectionDrainDao().get()?.status shouldBe
+			LegacyV27ProjectionDrainEntity.STATUS_PENDING
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 0L
+	}
+
+	@Test
+	fun `full clear rejects a zero legacy admission ordinal and rolls back`() = runTest {
+		seedPendingLegacyDrain(cutoff = 1L)
+		insertMigratedTerminalRun()
+		insertLegacyStepsWal("legacy-zero-ordinal", 1L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET admission_ordinal = 0 WHERE admission_ordinal = 1",
+		)
+
+		shouldThrow<IllegalStateException> {
+			AppDatabase.deleteAllCollectedData(
+				database = database,
+				operationId = "zero-legacy-ordinal-full-clear",
+				collectedDataEpoch = 1L,
+				retainedFromMs = null,
+				updatedAtMs = 100L,
+			)
+		}
+
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		database.collectedDataDeletionOperationDao()
+			.get("zero-legacy-ordinal-full-clear") shouldBe null
+		database.legacyV27ProjectionDrainDao().get()?.status shouldBe
+			LegacyV27ProjectionDrainEntity.STATUS_PENDING
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 0L
+	}
+
+	@Test
+	fun `full clear authenticates every positive legacy ordinal across pages`() = runTest {
+		val rowCount = 129
+		seedPendingLegacyDrain(cutoff = rowCount.toLong())
+		insertMigratedTerminalRun()
+		repeat(rowCount) { index ->
+			val ordinal = index + 1L
+			insertLegacyStepsWal(
+				eventId = "legacy-positive-page-$ordinal",
+				admissionOrdinal = ordinal,
+				integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
+			)
+		}
+
+		AppDatabase.deleteAllCollectedData(
+			database = database,
+			operationId = "positive-legacy-pagination-full-clear",
+			collectedDataEpoch = 1L,
+			retainedFromMs = null,
+			updatedAtMs = 100L,
+		)
+
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.legacyV27ProjectionDrainDao().get() shouldBe null
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 1L
+	}
+
+	@Test
 	fun `completed unregistered event frame authenticates pending legacy checksum inline`() = runTest {
 		seedCompletedLegacyDrain(cutoff = 1L, eventFrameRegistered = false)
 		insertMigratedTerminalRun()
