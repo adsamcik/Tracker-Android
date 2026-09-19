@@ -12,6 +12,8 @@ import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
+import com.adsamcik.tracker.shared.base.database.dao.RawSourceRunWalGenerationEvidence
+import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalDao
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
@@ -798,6 +800,207 @@ class AuthoritativeSessionCoordinatorTest {
 				retirementClaims = listOf(
 					terminalDrainClaim(sourceInstanceId, 1L, cleanupOnly = false),
 				),
+			) shouldBe SourceRunHighWaterRead.Unverifiable
+		}
+	}
+
+	@Test
+	fun `exact-run non-member WAL must prove valid control-only masks before exclusion`() = runTest {
+		val logicalTrackingId = "non-member-purpose-logical"
+		val serviceRunId = "non-member-purpose-run"
+		val captureInstanceId = "non-member-purpose-capture"
+		val controlInstanceId = "non-member-purpose-control"
+		val captureOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = captureInstanceId,
+			sourceSequence = 1L,
+			recordStepsFact = false,
+		)
+		val controlOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = controlInstanceId,
+			sourceSequence = 2L,
+			purposeMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			recordStepsFact = false,
+		)
+		suspend fun read() = sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = listOf(1L),
+			throughOrdinal = controlOrdinal,
+			productMemberships = listOf(
+				terminalDrainMembership(captureInstanceId, 1L, captureOrdinal),
+			),
+			retirementClaims = listOf(
+				terminalDrainClaim(captureInstanceId, 1L, cleanupOnly = false),
+			),
+		)
+		val malformedMasks = listOf<Any>(
+			1.5,
+			byteArrayOf(1, 2),
+			"CONTROL_ONLY",
+			-1L,
+			SourceBrokerPurpose.ALL_MASK + 1L,
+		)
+
+		for (malformedMask in malformedMasks) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? " +
+					"WHERE admission_ordinal = ?",
+				arrayOf(malformedMask, controlOrdinal),
+			)
+
+			read() shouldBe SourceRunHighWaterRead.Unverifiable
+		}
+
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? " +
+				"WHERE admission_ordinal = ?",
+			arrayOf(SourceBrokerPurpose.MASK_CONTROL_CONTINUATION, controlOrdinal),
+		)
+		read() shouldBe SourceRunHighWaterRead.Ready(captureOrdinal)
+
+		allowNullWalPurposeMaskForCorruptionTest()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = NULL " +
+				"WHERE admission_ordinal = ?",
+			arrayOf(controlOrdinal),
+		)
+		read() shouldBe SourceRunHighWaterRead.Unverifiable
+	}
+
+	@Test
+	fun `wrong-run non-member WAL must prove valid control-only masks before exclusion`() = runTest {
+		val logicalTrackingId = "wrong-run-non-member-logical"
+		val serviceRunId = "wrong-run-non-member-current"
+		val captureInstanceId = "wrong-run-non-member-capture"
+		val controlInstanceId = "wrong-run-non-member-control"
+		val captureOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceInstanceId = captureInstanceId,
+			sourceSequence = 1L,
+			recordStepsFact = false,
+		)
+		val controlOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = "wrong-run-non-member-other",
+			sourceInstanceId = controlInstanceId,
+			sourceSequence = 2L,
+			purposeMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			recordStepsFact = false,
+		)
+		suspend fun read() = sourceRunHighWater(
+			database = database,
+			source = SourceKind.STEPS,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			runManifestRevisions = listOf(1L),
+			throughOrdinal = controlOrdinal,
+			productMemberships = listOf(
+				terminalDrainMembership(captureInstanceId, 1L, captureOrdinal),
+			),
+			retirementClaims = listOf(
+				terminalDrainClaim(captureInstanceId, 1L, cleanupOnly = false),
+			),
+		)
+		val malformedMasks = listOf<Any>(
+			1.5,
+			byteArrayOf(1, 2),
+			"CONTROL_ONLY",
+			-1L,
+			SourceBrokerPurpose.ALL_MASK + 1L,
+		)
+
+		for (malformedMask in malformedMasks) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? " +
+					"WHERE admission_ordinal = ?",
+				arrayOf(malformedMask, controlOrdinal),
+			)
+
+			read() shouldBe SourceRunHighWaterRead.Unverifiable
+		}
+
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? " +
+				"WHERE admission_ordinal = ?",
+			arrayOf(SourceBrokerPurpose.MASK_CONTROL_CONTINUATION, controlOrdinal),
+		)
+		read() shouldBe SourceRunHighWaterRead.Ready(captureOrdinal)
+
+		allowNullWalPurposeMaskForCorruptionTest()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = NULL " +
+				"WHERE admission_ordinal = ?",
+			arrayOf(controlOrdinal),
+		)
+		read() shouldBe SourceRunHighWaterRead.Unverifiable
+	}
+
+	@Test
+	fun `non-member association rejects unavailable malformed count before exclusion`() = runTest {
+		for (wrongRun in listOf(false, true)) {
+			val mockedDatabase = mockk<AppDatabase>()
+			val walDao = mockk<SourceEventWalDao>()
+			every { mockedDatabase.sourceEventWalDao() } returns walDao
+			coEvery {
+				walDao.rawExactRunSourceCaptureManifestRevisions(
+					SourceKind.STEPS.stableCode,
+					"unavailable-malformed-logical",
+					"unavailable-malformed-run",
+					1L,
+					SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+					SourceBrokerPurpose.ALL_MASK,
+					any(),
+				)
+			} returns emptyList()
+			val association = RawSourceRunWalGenerationEvidence(
+				sourceInstanceId = "unavailable-malformed-control",
+				registrationGeneration = 2L,
+				lifecycleLeaseGeneration = 2L,
+				associatedRowCount = 1L,
+				malformedRowCount = null,
+				productEligibleRowCount = 0L,
+				highWaterAdmissionOrdinal = 1L,
+			)
+			coEvery {
+				walDao.rawExactRunSourceManifestAssociations(
+					SourceKind.STEPS.stableCode,
+					"unavailable-malformed-logical",
+					"unavailable-malformed-run",
+					listOf(1L),
+					1L,
+					SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+					SourceBrokerPurpose.ALL_MASK,
+					any(),
+				)
+			} returns if (wrongRun) emptyList() else listOf(association)
+			coEvery {
+				walDao.rawWrongRunSourceManifestAssociations(
+					SourceKind.STEPS.stableCode,
+					"unavailable-malformed-logical",
+					"unavailable-malformed-run",
+					listOf(1L),
+					SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+					SourceBrokerPurpose.ALL_MASK,
+					any(),
+				)
+			} returns if (wrongRun) listOf(association) else emptyList()
+
+			sourceRunHighWater(
+				database = mockedDatabase,
+				source = SourceKind.STEPS,
+				logicalTrackingId = "unavailable-malformed-logical",
+				serviceRunId = "unavailable-malformed-run",
+				runManifestRevisions = listOf(1L),
+				throughOrdinal = 1L,
+				productMemberships = emptyList(),
+				retirementClaims = emptyList(),
 			) shouldBe SourceRunHighWaterRead.Unverifiable
 		}
 	}
@@ -6478,6 +6681,35 @@ class AuthoritativeSessionCoordinatorTest {
 			logicalTrackingId = started.logicalTrackingId,
 			serviceRunId = started.serviceRunId,
 		)
+	}
+
+	private fun allowNullWalPurposeMaskForCorruptionTest() {
+		val writableDatabase = database.openHelper.writableDatabase
+		val tableSql = writableDatabase.query(
+			"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'source_event_wal'",
+		).use { cursor ->
+			check(cursor.moveToFirst())
+			requireNotNull(cursor.getString(0))
+		}
+		val nullableTableSql = tableSql.replace(
+			"`authorization_purpose_eligibility_mask` INTEGER NOT NULL DEFAULT 0",
+			"`authorization_purpose_eligibility_mask` INTEGER DEFAULT 0",
+		)
+		check(nullableTableSql != tableSql)
+		writableDatabase.execSQL("PRAGMA writable_schema = ON")
+		try {
+			writableDatabase.execSQL(
+				"UPDATE sqlite_master SET sql = ? WHERE type = 'table' AND name = 'source_event_wal'",
+				arrayOf(nullableTableSql),
+			)
+		} finally {
+			writableDatabase.execSQL("PRAGMA writable_schema = OFF")
+		}
+		val schemaVersion = writableDatabase.query("PRAGMA schema_version").use { cursor ->
+			check(cursor.moveToFirst())
+			cursor.getInt(0)
+		}
+		writableDatabase.execSQL("PRAGMA schema_version = ${Math.addExact(schemaVersion, 1)}")
 	}
 
 	private suspend fun insertTerminalStepsWal(

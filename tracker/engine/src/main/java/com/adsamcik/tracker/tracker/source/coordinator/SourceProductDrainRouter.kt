@@ -865,6 +865,8 @@ internal suspend fun sourceRunHighWater(
 			currentCoroutineContext().ensureActive()
 			val associatedRowCount = row.associatedRowCount
 				?: return SourceRunHighWaterRead.Unverifiable
+			val malformedRowCount = row.malformedRowCount
+				?: return SourceRunHighWaterRead.Unverifiable
 			val productEligibleRowCount = row.productEligibleRowCount
 				?: return SourceRunHighWaterRead.Unverifiable
 			val sourceInstanceId = row.sourceInstanceId
@@ -872,17 +874,6 @@ internal suspend fun sourceRunHighWater(
 			val registrationGeneration = row.registrationGeneration
 				?: return SourceRunHighWaterRead.Unverifiable
 			val lifecycleLeaseGeneration = row.lifecycleLeaseGeneration
-				?: return SourceRunHighWaterRead.Unverifiable
-			val provider = SourceDrainProviderIdentity(sourceInstanceId, registrationGeneration)
-			val providerClaims = claimsByProvider[provider].orEmpty()
-			val providerOwnsCapture = provider in productProviders || providerClaims.isNotEmpty()
-			if (!providerOwnsCapture) {
-				if (productEligibleRowCount > 0L) {
-					return SourceRunHighWaterRead.Unverifiable
-				}
-				continue
-			}
-			val malformedRowCount = row.malformedRowCount
 				?: return SourceRunHighWaterRead.Unverifiable
 			val admissionOrdinal = row.highWaterAdmissionOrdinal
 				?: return SourceRunHighWaterRead.Unverifiable
@@ -892,9 +883,22 @@ internal suspend fun sourceRunHighWater(
 				lifecycleLeaseGeneration <= 0L ||
 				associatedRowCount <= 0L ||
 				malformedRowCount != 0L ||
-				productEligibleRowCount != associatedRowCount ||
+				productEligibleRowCount < 0L ||
+				productEligibleRowCount > associatedRowCount ||
 				admissionOrdinal !in 1L..throughOrdinal
 			) {
+				return SourceRunHighWaterRead.Unverifiable
+			}
+			val provider = SourceDrainProviderIdentity(sourceInstanceId, registrationGeneration)
+			val providerClaims = claimsByProvider[provider].orEmpty()
+			val providerOwnsCapture = provider in productProviders || providerClaims.isNotEmpty()
+			if (!providerOwnsCapture) {
+				if (productEligibleRowCount != 0L) {
+					return SourceRunHighWaterRead.Unverifiable
+				}
+				continue
+			}
+			if (productEligibleRowCount != associatedRowCount) {
 				return SourceRunHighWaterRead.Unverifiable
 			}
 			val exactClaims = providerClaims
@@ -933,22 +937,36 @@ internal suspend fun sourceRunHighWater(
 		}
 		for (row in wrongRunAssociations) {
 			currentCoroutineContext().ensureActive()
-			val provider = row.sourceInstanceId
-				?.takeIf(String::isNotBlank)
-				?.let { sourceInstanceId ->
-					row.registrationGeneration
-						?.takeIf { it > 0L }
-						?.let { generation ->
-							SourceDrainProviderIdentity(sourceInstanceId, generation)
-						}
-				}
-			val expectedCapture = provider != null && (
-				provider in productProviders ||
-					claimsByProvider[provider].orEmpty().isNotEmpty()
-				)
-			val captureClaimed = row.productEligibleRowCount?.let { it > 0L }
+			val associatedRowCount = row.associatedRowCount
 				?: return SourceRunHighWaterRead.Unverifiable
-			if (expectedCapture || captureClaimed) {
+			val malformedRowCount = row.malformedRowCount
+				?: return SourceRunHighWaterRead.Unverifiable
+			val productEligibleRowCount = row.productEligibleRowCount
+				?: return SourceRunHighWaterRead.Unverifiable
+			val sourceInstanceId = row.sourceInstanceId
+				?: return SourceRunHighWaterRead.Unverifiable
+			val registrationGeneration = row.registrationGeneration
+				?: return SourceRunHighWaterRead.Unverifiable
+			val lifecycleLeaseGeneration = row.lifecycleLeaseGeneration
+				?: return SourceRunHighWaterRead.Unverifiable
+			val admissionOrdinal = row.highWaterAdmissionOrdinal
+				?: return SourceRunHighWaterRead.Unverifiable
+			if (
+				sourceInstanceId.isBlank() ||
+				registrationGeneration <= 0L ||
+				lifecycleLeaseGeneration <= 0L ||
+				associatedRowCount <= 0L ||
+				malformedRowCount != 0L ||
+				productEligibleRowCount < 0L ||
+				productEligibleRowCount > associatedRowCount ||
+				admissionOrdinal <= 0L
+			) {
+				return SourceRunHighWaterRead.Unverifiable
+			}
+			val provider = SourceDrainProviderIdentity(sourceInstanceId, registrationGeneration)
+			val expectedCapture = provider in productProviders ||
+				claimsByProvider[provider].orEmpty().isNotEmpty()
+			if (expectedCapture || productEligibleRowCount != 0L) {
 				return SourceRunHighWaterRead.Unverifiable
 			}
 		}

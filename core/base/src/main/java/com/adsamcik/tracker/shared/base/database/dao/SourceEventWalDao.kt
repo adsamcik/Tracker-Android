@@ -546,6 +546,16 @@ interface SourceEventWalDao {
 			"THEN lifecycle_lease_generation END AS lifecycle_lease_generation, " +
 			"COUNT(*) AS associated_row_count, " +
 			"SUM(CASE WHEN (" +
+			"typeof(event_id) != 'text' OR trim(event_id) = '' OR " +
+			"typeof(admission_ordinal) != 'integer' OR admission_ordinal <= 0 OR " +
+			"typeof(source_kind) != 'integer' OR source_kind != :sourceKind OR " +
+			"typeof(logical_tracking_id) != 'text' OR logical_tracking_id != :logicalTrackingId OR " +
+			"typeof(service_run_id) != 'text' OR trim(service_run_id) = '' OR " +
+			"typeof(source_instance_id) != 'text' OR trim(source_instance_id) = '' OR " +
+			"typeof(registration_generation) != 'integer' OR registration_generation <= 0 OR " +
+			"typeof(session_manifest_revision) != 'integer' OR session_manifest_revision <= 0 OR " +
+			"typeof(lifecycle_lease_generation) != 'integer' OR " +
+			"lifecycle_lease_generation <= 0 OR " +
 			"typeof(authorization_purpose_eligibility_mask) != 'integer' OR " +
 			"authorization_purpose_eligibility_mask < 0 OR " +
 			"(authorization_purpose_eligibility_mask & :allowedPurposeMask) != " +
