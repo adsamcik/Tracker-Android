@@ -1596,6 +1596,274 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		}
 
 	@Test
+	fun `1000 ownerless candidates in one run query one manifest and source timeline`() = runTest {
+		val queries = mutableListOf<String>()
+		database.close()
+		database = AppDatabase.inMemoryBuilder(
+			ApplicationProvider.getApplicationContext<Application>(),
+		).allowMainThreadQueries()
+			.setQueryCallback(
+				{ sql, _ -> queries += sql.replace(Regex("\\s+"), " ").trim().lowercase() },
+				Executor(Runnable::run),
+			)
+			.build()
+		installSchema()
+		val wals = (1L..1_000L).map { sequence ->
+			insertWal(
+				eventId = "ownerless-one-run-$sequence",
+				sourceSequence = sequence,
+				payloadVersion = 7,
+				sourceInstanceId = "ownerless-one-run-provider-$sequence",
+				registrationGeneration = sequence,
+				configRevision = 1L,
+			)
+		}
+		installOwnerlessStepsWalAuthority(
+			wal = wals.first(),
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			manifestRolloutRevision = 2L,
+			laneRolloutRevision = 2L,
+			laneCursor = wals.last().admissionOrdinal,
+			retiredAtMs = 1_001L,
+			retiredElapsedRealtimeNanos = 1_001L,
+			additionalWals = wals.drop(1),
+		)
+		queries.clear()
+
+		StepsCountDomainStore(database).pruneSessionWalForStorage(
+			safeOrdinal = wals.last().admissionOrdinal,
+			createdBeforeMs = 1_001L,
+			limit = wals.size,
+		) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0, 1_000)
+
+		queries.count { query ->
+			query.contains("from session_manifest_version where") &&
+				query.contains("manifest_revision > ?")
+		} shouldBe 1
+		queries.count { query ->
+			query.contains("from session_manifest_source where") &&
+				query.contains("manifest_revision = ?")
+		} shouldBe 1
+		queries.count { query ->
+			query.contains("from source_service_run where service_run_id = ?")
+		} shouldBe 1
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `ownerless candidates cache one authenticated timeline per distinct run`() = runTest {
+		val queries = mutableListOf<String>()
+		database.close()
+		database = AppDatabase.inMemoryBuilder(
+			ApplicationProvider.getApplicationContext<Application>(),
+		).allowMainThreadQueries()
+			.setQueryCallback(
+				{ sql, _ -> queries += sql.replace(Regex("\\s+"), " ").trim().lowercase() },
+				Executor(Runnable::run),
+			)
+			.build()
+		installSchema()
+		val firstRun = (1L..4L).map { sequence ->
+			insertWal(
+				eventId = "ownerless-run-a-$sequence",
+				sourceSequence = sequence,
+				payloadVersion = 7,
+				sourceInstanceId = "ownerless-run-a-provider-$sequence",
+				registrationGeneration = sequence,
+				logicalTrackingId = "tracking-a",
+				serviceRunId = "run-a",
+				configRevision = 1L,
+			)
+		}
+		val secondRun = (5L..8L).map { sequence ->
+			insertWal(
+				eventId = "ownerless-run-b-$sequence",
+				sourceSequence = sequence,
+				payloadVersion = 7,
+				sourceInstanceId = "ownerless-run-b-provider-$sequence",
+				registrationGeneration = sequence,
+				logicalTrackingId = "tracking-b",
+				serviceRunId = "run-b",
+				configRevision = 1L,
+			)
+		}
+		val allWals = firstRun + secondRun
+		installOwnerlessStepsWalAuthority(
+			wal = firstRun.first(),
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			manifestRolloutRevision = 2L,
+			laneRolloutRevision = 2L,
+			laneCursor = allWals.last().admissionOrdinal,
+			retiredAtMs = 9L,
+			retiredElapsedRealtimeNanos = 9L,
+			additionalWals = firstRun.drop(1),
+		)
+		installOwnerlessStepsWalAuthority(
+			wal = secondRun.first(),
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			manifestRolloutRevision = 2L,
+			laneRolloutRevision = 2L,
+			laneCursor = allWals.last().admissionOrdinal,
+			retiredAtMs = 9L,
+			retiredElapsedRealtimeNanos = 9L,
+			additionalWals = secondRun.drop(1),
+			installLane = false,
+		)
+		queries.clear()
+
+		StepsCountDomainStore(database).pruneSessionWalForStorage(
+			safeOrdinal = allWals.last().admissionOrdinal,
+			createdBeforeMs = 9L,
+			limit = allWals.size,
+		) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0, allWals.size)
+
+		queries.count { query ->
+			query.contains("from session_manifest_version where") &&
+				query.contains("manifest_revision > ?")
+		} shouldBe 2
+		queries.count { query ->
+			query.contains("from session_manifest_source where") &&
+				query.contains("manifest_revision = ?")
+		} shouldBe 2
+		queries.count { query ->
+			query.contains("from source_service_run where service_run_id = ?")
+		} shouldBe 2
+	}
+
+	@Test
+	fun `ownerless manifest cache cannot hide timeline corruption`() = runTest {
+		installSchema()
+		val wals = (1L..2L).map { sequence ->
+			insertWal(
+				eventId = "ownerless-corrupt-run-$sequence",
+				sourceSequence = sequence,
+				payloadVersion = 7,
+				configRevision = 1L,
+			)
+		}
+		installOwnerlessStepsWalAuthority(
+			wal = wals.first(),
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			manifestRolloutRevision = 2L,
+			laneRolloutRevision = 2L,
+			laneCursor = wals.last().admissionOrdinal,
+			retiredAtMs = 3L,
+			retiredElapsedRealtimeNanos = 3L,
+			additionalWals = wals.drop(1),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_version SET manifest_checksum = 'corrupt' " +
+				"WHERE logical_tracking_id = ? AND manifest_revision = 1",
+			arrayOf(requireNotNull(wals.first().logicalTrackingId)),
+		)
+
+		StepsCountDomainStore(database).pruneSessionWalForStorage(
+			safeOrdinal = wals.last().admissionOrdinal,
+			createdBeforeMs = 3L,
+			limit = wals.size,
+		) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+
+		database.sourceEventWalDao().countAll() shouldBe 2L
+	}
+
+	@Test
+	fun `ownerless manifest cache rejects mutation after authenticating a run`() = runTest {
+		installSchema()
+		val wals = (1L..2L).map { sequence ->
+			insertWal(
+				eventId = "ownerless-stale-run-$sequence",
+				sourceSequence = sequence,
+				payloadVersion = 7,
+				configRevision = 1L,
+			)
+		}
+		installOwnerlessStepsWalAuthority(
+			wal = wals.first(),
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			manifestRolloutRevision = 2L,
+			laneRolloutRevision = 2L,
+			laneCursor = wals.last().admissionOrdinal,
+			retiredAtMs = 3L,
+			retiredElapsedRealtimeNanos = 3L,
+			additionalWals = wals.drop(1),
+		)
+		val originalChecksum = database.sourceSessionDao().manifest(
+			requireNotNull(wals.first().logicalTrackingId),
+			1L,
+		)?.manifestChecksum
+
+		StepsCountDomainStore(database).removeSessionWalOwnersForPrune(
+			safeOrdinal = wals.last().admissionOrdinal,
+			createdBeforeMs = 3L,
+			limit = wals.size,
+		) { checkpoint ->
+			if (checkpoint == StepsCountDomainMaintenanceCheckpoint.WAL_OWNERLESS_RUN_AUTHENTICATED) {
+				database.openHelper.writableDatabase.execSQL(
+					"UPDATE session_manifest_version SET manifest_checksum = 'stale' " +
+						"WHERE logical_tracking_id = ? AND manifest_revision = 1",
+					arrayOf(requireNotNull(wals.first().logicalTrackingId)),
+				)
+			}
+		} shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+
+		database.sourceSessionDao().manifest(
+			requireNotNull(wals.first().logicalTrackingId),
+			1L,
+		)?.manifestChecksum shouldBe originalChecksum
+		database.sourceEventWalDao().countAll() shouldBe 2L
+	}
+
+	@Test
+	fun `ownerless manifest batching propagates cancellation without deletion`() = runTest {
+		installSchema()
+		val wals = (1L..2L).map { sequence ->
+			insertWal(
+				eventId = "ownerless-cancel-run-$sequence",
+				sourceSequence = sequence,
+				payloadVersion = 7,
+				configRevision = 1L,
+			)
+		}
+		installOwnerlessStepsWalAuthority(
+			wal = wals.first(),
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			manifestRolloutRevision = 2L,
+			laneRolloutRevision = 2L,
+			laneCursor = wals.last().admissionOrdinal,
+			retiredAtMs = 3L,
+			retiredElapsedRealtimeNanos = 3L,
+			additionalWals = wals.drop(1),
+		)
+
+		shouldThrow<CancellationException> {
+			StepsCountDomainStore(database).removeSessionWalOwnersForPrune(
+				safeOrdinal = wals.last().admissionOrdinal,
+				createdBeforeMs = 3L,
+				limit = wals.size,
+			) { checkpoint ->
+				if (checkpoint ==
+					StepsCountDomainMaintenanceCheckpoint.WAL_OWNERLESS_RUN_AUTHENTICATED
+				) {
+					throw CancellationException("cancel grouped ownerless authentication")
+				}
+			}
+		}
+
+		database.sourceEventWalDao().countAll() shouldBe 2L
+	}
+
+	@Test
+	fun `ownerless WAL candidate batch remains bounded`() = runTest {
+		installSchema()
+
+		StepsCountDomainStore(database).pruneSessionWalForStorage(
+			safeOrdinal = Long.MAX_VALUE,
+			createdBeforeMs = Long.MAX_VALUE,
+			limit = 2_049,
+		) shouldBe StepsCountDomainMaintenanceResult.Overflow
+	}
+
+	@Test
 	fun `ownerless shadow Steps WAL observed at retirement fails closed`() = runTest {
 		installSchema()
 		val wal = insertWal("ownerless-at-retirement", 2L, payloadVersion = 7)
@@ -1642,24 +1910,216 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	@Test
 	fun `ownerless shadow Steps WAL from an active registration remains eligible`() = runTest {
 		installSchema()
-		val wal = insertWal("ownerless-active-registration", 1L, payloadVersion = 7)
+		val wal = insertWal(
+			eventId = "ownerless-active-registration",
+			sourceSequence = 1L,
+			payloadVersion = 7,
+			sourceInstanceId = "active-ownerless-provider",
+			registrationGeneration = 1L,
+			physicalConfigurationFingerprint = "active-ownerless-configuration",
+			configRevision = 1L,
+		)
+		val latestWal = insertWal(
+			eventId = "ownerless-active-registration-latest",
+			sourceSequence = 2L,
+			payloadVersion = 7,
+			sourceInstanceId = wal.sourceInstanceId,
+			registrationGeneration = wal.registrationGeneration,
+			physicalConfigurationFingerprint =
+				requireNotNull(wal.physicalConfigurationFingerprint),
+			configRevision = 1L,
+		)
+		installOwnerlessStepsWalAuthority(
+			wal = wal,
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			manifestRolloutRevision = 2L,
+			laneRolloutRevision = 2L,
+			laneCursor = latestWal.admissionOrdinal,
+			registrationStatus = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+			retiredElapsedRealtimeNanos = null,
+			additionalWals = listOf(latestWal),
+		)
+
+		StepsCountDomainStore(database).pruneSessionWalForStorage(
+			safeOrdinal = latestWal.admissionOrdinal,
+			createdBeforeMs = latestWal.createdAtMs + 1L,
+			limit = 2,
+		) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0, 1)
+
+		database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal) shouldBe null
+		requireNotNull(
+			database.sourceEventWalDao().getByAdmissionOrdinal(latestWal.admissionOrdinal),
+		)
+	}
+
+	@Test
+	fun `ownerless registration status and retirement boundaries are exact`() = runTest {
+		val wal = insertWal(
+			eventId = "ownerless-registration-boundaries",
+			sourceSequence = 10L,
+			payloadVersion = 7,
+			configRevision = 1L,
+		)
+
+		ownerlessRegistration(
+			wal = wal,
+			status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+			retiredAtMs = null,
+			retiredElapsedRealtimeNanos = null,
+		).authenticatesOwnerlessStepsWal(wal) shouldBe true
+		ownerlessRegistration(
+			wal = wal,
+			status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+			retiredAtMs = 11L,
+			retiredElapsedRealtimeNanos = 11L,
+		).authenticatesOwnerlessStepsWal(wal) shouldBe false
+		ownerlessRegistration(
+			wal = wal,
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+			retiredAtMs = null,
+			retiredElapsedRealtimeNanos = null,
+		).authenticatesOwnerlessStepsWal(wal) shouldBe false
+		ownerlessRegistration(
+			wal = wal,
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+			retiredAtMs = 11L,
+			retiredElapsedRealtimeNanos = 11L,
+		).authenticatesOwnerlessStepsWal(wal) shouldBe true
+		ownerlessRegistration(
+			wal = wal,
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			retiredAtMs = 11L,
+			retiredElapsedRealtimeNanos = 11L,
+		).authenticatesOwnerlessStepsWal(wal) shouldBe true
+		ownerlessRegistration(
+			wal = wal,
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			retiredAtMs = null,
+			retiredElapsedRealtimeNanos = null,
+		).authenticatesOwnerlessStepsWal(wal) shouldBe false
+		ownerlessRegistration(
+			wal = wal,
+			status = ProviderRegistrationGenerationEntity.STATUS_FAILED,
+			retiredAtMs = 11L,
+			retiredElapsedRealtimeNanos = 11L,
+		).authenticatesOwnerlessStepsWal(wal) shouldBe false
+	}
+
+	@Test
+	fun `ownerless registration accepts only the half open wall and elapsed interval`() = runTest {
+		val wal = insertWal(
+			eventId = "ownerless-half-open-registration",
+			sourceSequence = 10L,
+			payloadVersion = 7,
+			configRevision = 1L,
+		)
+		val registration = ownerlessRegistration(
+			wal = wal,
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			acceptedAtMs = 5L,
+			acceptedElapsedRealtimeNanos = 5L,
+			retiredAtMs = 11L,
+			retiredElapsedRealtimeNanos = 11L,
+		)
+
+		registration.authenticatesOwnerlessStepsWal(wal) shouldBe true
+		registration.authenticatesOwnerlessStepsWal(
+			wal.copy(wallTimeMs = 4L, acquiredAtMs = 4L),
+		) shouldBe false
+		registration.authenticatesOwnerlessStepsWal(
+			wal.copy(observedElapsedNanos = 4L),
+		) shouldBe false
+		registration.authenticatesOwnerlessStepsWal(
+			wal.copy(wallTimeMs = 11L, acquiredAtMs = 11L),
+		) shouldBe false
+		registration.authenticatesOwnerlessStepsWal(
+			wal.copy(observedElapsedNanos = 11L),
+		) shouldBe false
+		ownerlessRegistration(
+			wal = wal,
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			acceptedAtMs = 5L,
+			acceptedElapsedRealtimeNanos = 5L,
+			retiredAtMs = 4L,
+			retiredElapsedRealtimeNanos = 4L,
+		).authenticatesOwnerlessStepsWal(wal) shouldBe false
+	}
+
+	@Test
+	fun `only captured registration plan attribution can authorize ownerless pruning`() = runTest {
+		val wal = insertWal(
+			eventId = "ownerless-plan-attribution",
+			sourceSequence = 1L,
+			payloadVersion = 7,
+			configRevision = 1L,
+		)
+		val registration = ownerlessRegistration(
+			wal = wal,
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			retiredAtMs = 2L,
+			retiredElapsedRealtimeNanos = 2L,
+		)
+
+		registration.authenticatesOwnerlessStepsWal(wal) shouldBe true
+		listOf(1, 2, Int.MAX_VALUE).forEach { planAttribution ->
+			registration.authenticatesOwnerlessStepsWal(
+				wal.copy(planAttribution = planAttribution),
+			) shouldBe false
+		}
+	}
+
+	@Test
+	fun `receive time attribution with capture identifiers cannot authorize ownerless deletion`() =
+		runTest {
+			installSchema()
+			val wal = insertWal(
+				eventId = "ownerless-receive-time-contradiction",
+				sourceSequence = 1L,
+				payloadVersion = 7,
+				configRevision = 1L,
+				planAttribution = 2,
+			)
+			installOwnerlessStepsWalAuthority(
+				wal = wal,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+				manifestRolloutRevision = 2L,
+				laneRolloutRevision = 2L,
+				laneCursor = wal.admissionOrdinal,
+			)
+
+			StepsCountDomainStore(database).pruneSessionWalForStorage(
+				safeOrdinal = wal.admissionOrdinal,
+				createdBeforeMs = 2L,
+				limit = 1,
+			) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+
+			requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal))
+		}
+
+	@Test
+	fun `malformed retired registration boundary storage fails closed`() = runTest {
+		installSchema()
+		val wal = insertWal("ownerless-malformed-retirement-pair", 1L, payloadVersion = 7)
 		installOwnerlessStepsWalAuthority(
 			wal = wal,
 			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
 			manifestRolloutRevision = 2L,
 			laneRolloutRevision = 2L,
 			laneCursor = wal.admissionOrdinal,
-			registrationStatus = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
-			retiredElapsedRealtimeNanos = null,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET retired_at_ms = NULL " +
+				"WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf(SourceDestinationOwnerEntity.SOURCE_STEPS, wal.registrationGeneration),
 		)
 
 		StepsCountDomainStore(database).pruneSessionWalForStorage(
 			safeOrdinal = wal.admissionOrdinal,
-			createdBeforeMs = wal.createdAtMs + 1L,
+			createdBeforeMs = 2L,
 			limit = 1,
-		) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0, 1)
+		) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
 
-		database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal) shouldBe null
+		requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal))
 	}
 
 	@Test
@@ -2863,9 +3323,13 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		payloadVersion: Int = 1,
 		sourceInstanceId: String = "owner-$sourceSequence",
 		registrationGeneration: Long = sourceSequence,
+		physicalConfigurationFingerprint: String = "configuration-$sourceSequence",
 		purposeMask: Long = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 		logicalTrackingId: String? = "tracking",
 		serviceRunId: String? = "run",
+		configRevision: Long? = sourceSequence.takeIf { logicalTrackingId != null },
+		planAttribution: Int = if (logicalTrackingId != null) 0 else 2,
+		sessionManifestRevision: Long? = 1L.takeIf { logicalTrackingId != null },
 	): SourceEventWalEntity {
 		val unsigned = SourceEventWalEntity(
 			eventId = eventId,
@@ -2875,13 +3339,13 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 			sourceInstanceId = sourceInstanceId,
 			registrationGeneration = registrationGeneration,
-			physicalConfigurationFingerprint = "configuration-$sourceSequence",
+			physicalConfigurationFingerprint = physicalConfigurationFingerprint,
 			authorizationRevision = 1L,
 			authorizationPurposeEligibilityMask = purposeMask,
 			authorizationFingerprint = "a".repeat(64),
 			sourceSequence = sourceSequence,
-			configRevision = sourceSequence.takeIf { logicalTrackingId != null },
-			planAttribution = if (logicalTrackingId != null) 0 else 2,
+			configRevision = configRevision,
+			planAttribution = planAttribution,
 			clockDomainId = "boot",
 			observedElapsedNanos = sourceSequence,
 			receivedElapsedNanos = sourceSequence,
@@ -2890,7 +3354,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 			capturedCollectedDataEpoch = 7L,
 			sourcePolicyRevision = 1L.takeIf { logicalTrackingId != null },
 			captureConsentEpoch = 1L.takeIf { logicalTrackingId != null },
-			sessionManifestRevision = 1L.takeIf { logicalTrackingId != null },
+			sessionManifestRevision = sessionManifestRevision,
 			lifecycleLeaseGeneration = 1L.takeIf { logicalTrackingId != null },
 			acquiredAtMs = sourceSequence,
 			qualityFlags = 0L,
@@ -2908,6 +3372,33 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		return signed.copy(admissionOrdinal = ordinal)
 	}
 
+	private fun ownerlessRegistration(
+		wal: SourceEventWalEntity,
+		status: String,
+		acceptedAtMs: Long = 0L,
+		acceptedElapsedRealtimeNanos: Long = 0L,
+		retiredAtMs: Long?,
+		retiredElapsedRealtimeNanos: Long?,
+	) = ProviderRegistrationGenerationEntity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		registrationGeneration = wal.registrationGeneration,
+		sourceInstanceId = wal.sourceInstanceId,
+		ownerScope = "source-broker:${SourceDestinationOwnerEntity.SOURCE_STEPS}",
+		clockDomainId = wal.clockDomainId,
+		physicalConfigurationFingerprint = requireNotNull(wal.physicalConfigurationFingerprint),
+		collectedDataEpoch = wal.capturedCollectedDataEpoch,
+		providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+		providerProcessIncarnationId = "process-${wal.eventId}",
+		status = status,
+		reservedAtMs = 0L,
+		reservedElapsedRealtimeNanos = 0L,
+		acceptedAtMs = acceptedAtMs,
+		acceptedElapsedRealtimeNanos = acceptedElapsedRealtimeNanos,
+		retiredAtMs = retiredAtMs,
+		retiredElapsedRealtimeNanos = retiredElapsedRealtimeNanos,
+		failureCode = null,
+	)
+
 	@Suppress("LongMethod")
 	private suspend fun installOwnerlessStepsWalAuthority(
 		wal: SourceEventWalEntity,
@@ -2919,10 +3410,26 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		addAmbiguousLane: Boolean = false,
 		registrationStatus: String = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
 		retiredElapsedRealtimeNanos: Long? = 2L,
+		retiredAtMs: Long? = retiredElapsedRealtimeNanos,
+		acceptedElapsedRealtimeNanos: Long = 0L,
+		acceptedAtMs: Long = 0L,
 		manifestCount: Int = 1,
+		additionalWals: List<SourceEventWalEntity> = emptyList(),
+		installLane: Boolean = true,
 	) {
 		require(manifestCount in 1..2_048)
 		require(wal.sessionManifestRevision == 1L)
+		val wals = listOf(wal) + additionalWals
+		require(wals.size == wals.distinctBy(SourceEventWalEntity::admissionOrdinal).size)
+		require(wals.all { candidate ->
+			candidate.logicalTrackingId == wal.logicalTrackingId &&
+				candidate.serviceRunId == wal.serviceRunId &&
+				candidate.sessionManifestRevision == wal.sessionManifestRevision &&
+				candidate.configRevision == wal.configRevision &&
+				candidate.sourcePolicyRevision == wal.sourcePolicyRevision &&
+				candidate.captureConsentEpoch == wal.captureConsentEpoch &&
+				candidate.lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration
+		})
 		val initialPlanRevision = requireNotNull(wal.configRevision)
 		val finalPlanRevision = initialPlanRevision + manifestCount.toLong() - 1L
 		database.sourceEvidenceStateDao().ensure(
@@ -3025,47 +3532,53 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 			)
 		}
 		database.sourceSessionDao().insertManifestSources(sources)
-		database.sourceBrokerDao().insertRegistration(
-			ProviderRegistrationGenerationEntity(
-				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-				registrationGeneration = wal.registrationGeneration,
-				sourceInstanceId = wal.sourceInstanceId,
-				ownerScope = "source-broker:${SourceDestinationOwnerEntity.SOURCE_STEPS}",
-				clockDomainId = wal.clockDomainId,
-				physicalConfigurationFingerprint =
-					requireNotNull(wal.physicalConfigurationFingerprint),
-				collectedDataEpoch = wal.capturedCollectedDataEpoch,
-				providerResidency =
-					ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
-				providerProcessIncarnationId = "process-${wal.eventId}",
-				status = registrationStatus,
-				reservedAtMs = 0L,
-				reservedElapsedRealtimeNanos = 0L,
-				acceptedAtMs = 0L,
-				acceptedElapsedRealtimeNanos = 0L,
-				retiredAtMs = retiredElapsedRealtimeNanos?.let { 2L },
-				retiredElapsedRealtimeNanos = retiredElapsedRealtimeNanos,
-				failureCode = null,
-			),
-		)
-		database.sourceProjectionStateDao().installProductLane(
-			stepsWalProductLane(
-				bindingGeneration = bindingGeneration,
-				productStage = productStage,
-				rolloutRevision = laneRolloutRevision,
-				cursor = laneCursor,
-			),
-		)
-		if (addAmbiguousLane) {
+		wals.distinctBy { candidate ->
+			candidate.sourceKind to candidate.registrationGeneration
+		}.forEach { candidate ->
+			database.sourceBrokerDao().insertRegistration(
+				ProviderRegistrationGenerationEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					registrationGeneration = candidate.registrationGeneration,
+					sourceInstanceId = candidate.sourceInstanceId,
+					ownerScope = "source-broker:${SourceDestinationOwnerEntity.SOURCE_STEPS}",
+					clockDomainId = candidate.clockDomainId,
+					physicalConfigurationFingerprint =
+						requireNotNull(candidate.physicalConfigurationFingerprint),
+					collectedDataEpoch = candidate.capturedCollectedDataEpoch,
+					providerResidency =
+						ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+					providerProcessIncarnationId = "process-${candidate.eventId}",
+					status = registrationStatus,
+					reservedAtMs = 0L,
+					reservedElapsedRealtimeNanos = 0L,
+					acceptedAtMs = acceptedAtMs,
+					acceptedElapsedRealtimeNanos = acceptedElapsedRealtimeNanos,
+					retiredAtMs = retiredAtMs,
+					retiredElapsedRealtimeNanos = retiredElapsedRealtimeNanos,
+					failureCode = null,
+				),
+			)
+		}
+		if (installLane) {
 			database.sourceProjectionStateDao().installProductLane(
 				stepsWalProductLane(
-					bindingGeneration =
-						SourceDestinationOwnerEntity.STEPS_FACT_AUTOMATIC_BINDING_GENERATION,
+					bindingGeneration = bindingGeneration,
 					productStage = productStage,
 					rolloutRevision = laneRolloutRevision,
 					cursor = laneCursor,
 				),
 			)
+			if (addAmbiguousLane) {
+				database.sourceProjectionStateDao().installProductLane(
+					stepsWalProductLane(
+						bindingGeneration =
+							SourceDestinationOwnerEntity.STEPS_FACT_AUTOMATIC_BINDING_GENERATION,
+						productStage = productStage,
+						rolloutRevision = laneRolloutRevision,
+						cursor = laneCursor,
+					),
+				)
+			}
 		}
 	}
 

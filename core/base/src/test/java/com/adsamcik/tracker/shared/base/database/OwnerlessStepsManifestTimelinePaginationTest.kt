@@ -85,16 +85,101 @@ class OwnerlessStepsManifestTimelinePaginationTest {
 		requests shouldBe 2
 	}
 
+	@Test
+	fun `transaction cache reuses one run timeline for 1000 candidates`() = runTest {
+		val cache = OwnerlessStepsManifestTimelineCache()
+		val key = OwnerlessStepsManifestRunKey(LOGICAL_TRACKING_ID, SERVICE_RUN_ID)
+		var loads = 0
+
+		repeat(1_000) {
+			cache.getOrLoad(key) {
+				loads += 1
+				timeline(key)
+			}
+		}
+
+		loads shouldBe 1
+		cache.invalidate()
+	}
+
+	@Test
+	fun `transaction cache keeps distinct run timelines separate`() = runTest {
+		val cache = OwnerlessStepsManifestTimelineCache()
+		val keys = listOf(
+			OwnerlessStepsManifestRunKey("logical-a", "run-a"),
+			OwnerlessStepsManifestRunKey("logical-b", "run-b"),
+		)
+		var loads = 0
+
+		keys.forEach { key ->
+			repeat(2) {
+				cache.getOrLoad(key) {
+					loads += 1
+					timeline(key)
+				}
+			}
+		}
+
+		loads shouldBe 2
+		cache.invalidate()
+	}
+
+	@Test
+	fun `transaction cache cannot transfer authenticated timelines after invalidation`() = runTest {
+		val cache = OwnerlessStepsManifestTimelineCache()
+		val key = OwnerlessStepsManifestRunKey(LOGICAL_TRACKING_ID, SERVICE_RUN_ID)
+		cache.getOrLoad(key) { timeline(key) }
+		cache.invalidate()
+
+		shouldThrow<IllegalStateException> {
+			cache.getOrLoad(key) { timeline(key) }
+		}
+	}
+
+	@Test
+	fun `transaction cache reloads a run after mutation invalidation`() = runTest {
+		val cache = OwnerlessStepsManifestTimelineCache()
+		val key = OwnerlessStepsManifestRunKey(LOGICAL_TRACKING_ID, SERVICE_RUN_ID)
+		var loads = 0
+		repeat(2) {
+			cache.getOrLoad(key) {
+				loads += 1
+				timeline(key)
+			}
+			cache.clearForMutation()
+		}
+
+		loads shouldBe 2
+		cache.invalidate()
+	}
+
+	@Test
+	fun `transaction cache bounds distinct service runs`() = runTest {
+		val cache = OwnerlessStepsManifestTimelineCache(maximumDistinctRuns = 1)
+		val first = OwnerlessStepsManifestRunKey("logical-a", "run-a")
+		val second = OwnerlessStepsManifestRunKey("logical-b", "run-b")
+		cache.getOrLoad(first) { timeline(first) }
+
+		shouldThrow<IllegalStateException> {
+			cache.getOrLoad(second) { timeline(second) }
+		}
+		cache.invalidate()
+	}
+
 	private fun manifests(count: Int): List<RawSessionManifestVersion> =
 		(1L..count.toLong()).map(::manifest)
 
-	private fun manifest(revision: Long) = RawSessionManifestVersion(
+	private fun manifest(
+		revision: Long,
+		logicalTrackingId: String = LOGICAL_TRACKING_ID,
+		serviceRunId: String = SERVICE_RUN_ID,
+	) = RawSessionManifestVersion(
 		storageClassSignature =
 			"text|integer|text|text|integer|integer|integer|text|text|" +
 				"integer|integer|text|null|text|text",
-		logicalTrackingId = LOGICAL_TRACKING_ID,
+		logicalTrackingId = logicalTrackingId,
 		manifestRevision = revision,
-		serviceRunId = SERVICE_RUN_ID,
+		serviceRunId = serviceRunId,
 		sessionMode = "MANUAL",
 		sourcePolicyRevision = revision,
 		acquisitionPlanRevision = revision,
@@ -113,9 +198,13 @@ class OwnerlessStepsManifestTimelinePaginationTest {
 		manifestChecksum = "a".repeat(64),
 	)
 
-	private fun run(manifestCount: Int) = SourceServiceRunEntity(
-		serviceRunId = SERVICE_RUN_ID,
-		logicalTrackingId = LOGICAL_TRACKING_ID,
+	private fun run(
+		manifestCount: Int,
+		logicalTrackingId: String = LOGICAL_TRACKING_ID,
+		serviceRunId: String = SERVICE_RUN_ID,
+	) = SourceServiceRunEntity(
+		serviceRunId = serviceRunId,
+		logicalTrackingId = logicalTrackingId,
 		state = "FINALIZED",
 		desiredPlanRevision = manifestCount.toLong(),
 		rolloutRevision = 2L,
@@ -140,6 +229,25 @@ class OwnerlessStepsManifestTimelinePaginationTest {
 		androidDeliveryUpdatedAtMs = manifestCount.toLong(),
 		startIsUserInitiated = true,
 	)
+
+	private fun timeline(key: OwnerlessStepsManifestRunKey): OwnerlessStepsManifestRunTimeline =
+		OwnerlessStepsManifestRunTimeline(
+			key = key,
+			run = run(
+				manifestCount = 1,
+				logicalTrackingId = key.logicalTrackingId,
+				serviceRunId = key.serviceRunId,
+			),
+			manifests = listOf(
+				requireNotNull(
+					manifest(
+						revision = 1L,
+						logicalTrackingId = key.logicalTrackingId,
+						serviceRunId = key.serviceRunId,
+					).validatedOrNull(),
+				),
+			),
+		)
 
 	private companion object {
 		const val LOGICAL_TRACKING_ID = "ownerless-steps-logical"
