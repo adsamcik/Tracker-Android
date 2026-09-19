@@ -1533,7 +1533,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
-	fun `processed shadow Steps WAL with legacy writer attribution prunes without an owner`() =
+	fun `processed shadow Steps WAL observed before retirement prunes without an owner`() =
 		runTest {
 			installSchema()
 			val wal = insertWal("ownerless-shadow", 1L, payloadVersion = 7)
@@ -1553,6 +1553,114 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 
 			database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal) shouldBe null
 		}
+
+	@Test
+	fun `ownerless shadow Steps WAL pages 65 manifests without per-manifest source reads`() =
+		runTest {
+			val queries = mutableListOf<String>()
+			database.close()
+			database = AppDatabase.inMemoryBuilder(
+				ApplicationProvider.getApplicationContext<Application>(),
+			).allowMainThreadQueries()
+				.setQueryCallback(
+					{ sql, _ -> queries += sql.replace(Regex("\\s+"), " ").trim().lowercase() },
+					Executor(Runnable::run),
+				)
+				.build()
+			installSchema()
+			val wal = insertWal("ownerless-shadow-paged", 1L, payloadVersion = 7)
+			installOwnerlessStepsWalAuthority(
+				wal = wal,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+				manifestRolloutRevision = 2L,
+				laneRolloutRevision = 2L,
+				laneCursor = wal.admissionOrdinal,
+				manifestCount = 65,
+			)
+			queries.clear()
+
+			StepsCountDomainStore(database).pruneSessionWalForStorage(
+				safeOrdinal = wal.admissionOrdinal,
+				createdBeforeMs = 2L,
+				limit = 1,
+			) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0, 1)
+
+			queries.count { query ->
+				query.contains("from session_manifest_version where") &&
+					query.contains("manifest_revision > ?")
+			} shouldBe 2
+			queries.count { query ->
+				query.contains("from session_manifest_source where") &&
+					query.contains("manifest_revision = ?")
+			} shouldBe 1
+		}
+
+	@Test
+	fun `ownerless shadow Steps WAL observed at retirement fails closed`() = runTest {
+		installSchema()
+		val wal = insertWal("ownerless-at-retirement", 2L, payloadVersion = 7)
+		installOwnerlessStepsWalAuthority(
+			wal = wal,
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			manifestRolloutRevision = 2L,
+			laneRolloutRevision = 2L,
+			laneCursor = wal.admissionOrdinal,
+			retiredElapsedRealtimeNanos = wal.observedElapsedNanos,
+		)
+
+		StepsCountDomainStore(database).pruneSessionWalForStorage(
+			safeOrdinal = wal.admissionOrdinal,
+			createdBeforeMs = wal.createdAtMs + 1L,
+			limit = 1,
+		) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+
+		requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal))
+	}
+
+	@Test
+	fun `ownerless shadow Steps WAL observed after retirement fails closed`() = runTest {
+		installSchema()
+		val wal = insertWal("ownerless-after-retirement", 3L, payloadVersion = 7)
+		installOwnerlessStepsWalAuthority(
+			wal = wal,
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			manifestRolloutRevision = 2L,
+			laneRolloutRevision = 2L,
+			laneCursor = wal.admissionOrdinal,
+			retiredElapsedRealtimeNanos = wal.observedElapsedNanos - 1L,
+		)
+
+		StepsCountDomainStore(database).pruneSessionWalForStorage(
+			safeOrdinal = wal.admissionOrdinal,
+			createdBeforeMs = wal.createdAtMs + 1L,
+			limit = 1,
+		) shouldBe StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+
+		requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal))
+	}
+
+	@Test
+	fun `ownerless shadow Steps WAL from an active registration remains eligible`() = runTest {
+		installSchema()
+		val wal = insertWal("ownerless-active-registration", 1L, payloadVersion = 7)
+		installOwnerlessStepsWalAuthority(
+			wal = wal,
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			manifestRolloutRevision = 2L,
+			laneRolloutRevision = 2L,
+			laneCursor = wal.admissionOrdinal,
+			registrationStatus = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+			retiredElapsedRealtimeNanos = null,
+		)
+
+		StepsCountDomainStore(database).pruneSessionWalForStorage(
+			safeOrdinal = wal.admissionOrdinal,
+			createdBeforeMs = wal.createdAtMs + 1L,
+			limit = 1,
+		) shouldBe StepsCountDomainMaintenanceResult.Applied(0, 0, 1)
+
+		database.sourceEventWalDao().getByAdmissionOrdinal(wal.admissionOrdinal) shouldBe null
+	}
 
 	@Test
 	fun `canonical Steps WAL without its count-domain owner fails closed`() = runTest {
@@ -2809,7 +2917,14 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		laneCursor: Long,
 		writerOwner: String = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
 		addAmbiguousLane: Boolean = false,
+		registrationStatus: String = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+		retiredElapsedRealtimeNanos: Long? = 2L,
+		manifestCount: Int = 1,
 	) {
+		require(manifestCount in 1..2_048)
+		require(wal.sessionManifestRevision == 1L)
+		val initialPlanRevision = requireNotNull(wal.configRevision)
+		val finalPlanRevision = initialPlanRevision + manifestCount.toLong() - 1L
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(collectedDataEpoch = wal.capturedCollectedDataEpoch),
 		)
@@ -2818,12 +2933,12 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				serviceRunId = requireNotNull(wal.serviceRunId),
 				logicalTrackingId = requireNotNull(wal.logicalTrackingId),
 				state = "FINALIZED",
-				desiredPlanRevision = requireNotNull(wal.configRevision),
+				desiredPlanRevision = finalPlanRevision,
 				rolloutRevision = manifestRolloutRevision,
 				foregroundCapabilityFlags = 0L,
 				startedAtMs = 0L,
 				startedElapsedNanos = 0L,
-				completedAtMs = 2L,
+				completedAtMs = maxOf(2L, manifestCount.toLong()),
 				completionReason = "TEST",
 				bootId = wal.clockDomainId,
 				leaseGeneration = requireNotNull(wal.lifecycleLeaseGeneration),
@@ -2838,61 +2953,78 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				preparedManifestRevision = requireNotNull(wal.sessionManifestRevision),
 				preparedIntentRevision = 1L,
 				androidDeliveryState = "TERMINAL",
-				androidDeliveryUpdatedAtMs = 2L,
+				androidDeliveryUpdatedAtMs = maxOf(2L, manifestCount.toLong()),
 				startIsUserInitiated = true,
 			),
 		)
 		val bindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION
-		val source = SessionManifestSourceEntity(
-			logicalTrackingId = requireNotNull(wal.logicalTrackingId),
-			manifestRevision = requireNotNull(wal.sessionManifestRevision),
-			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
-			consentEpoch = requireNotNull(wal.captureConsentEpoch),
-			persistenceEligible = true,
-			qosCode = 1,
-			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
-			writerOwner = writerOwner,
-			writerOwnerGeneration = if (
-				writerOwner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
-			) {
-				SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
-			} else {
-				SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
-			},
-			writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID
-				.takeIf { writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS },
-			writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION
-				.takeIf { writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS },
-			writerBindingGeneration = bindingGeneration
-				.takeIf { writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS },
-		)
-		val unsignedManifest = SessionManifestVersionEntity(
-			logicalTrackingId = requireNotNull(wal.logicalTrackingId),
-			manifestRevision = requireNotNull(wal.sessionManifestRevision),
-			serviceRunId = requireNotNull(wal.serviceRunId),
-			sessionMode = "MANUAL",
-			sourcePolicyRevision = requireNotNull(wal.sourcePolicyRevision),
-			acquisitionPlanRevision = requireNotNull(wal.configRevision),
-			rolloutRevision = manifestRolloutRevision,
-			startOrigin = "MANUAL_FOREGROUND_START",
-			effectiveBootId = wal.clockDomainId,
-			effectiveElapsedRealtimeNanos = 0L,
-			effectiveWallTimeMs = 0L,
-			zoneId = "UTC",
-			automationEpoch = null,
-			changeReason = "TEST",
-			manifestChecksum = "",
-		)
-		database.sourceSessionDao().insertManifest(
-			unsignedManifest.copy(
-				manifestChecksum = SessionManifestIntegrity.compute(
-					unsignedManifest,
-					listOf(source),
+		val sources = (1L..manifestCount.toLong()).map { revision ->
+			SessionManifestSourceEntity(
+				logicalTrackingId = requireNotNull(wal.logicalTrackingId),
+				manifestRevision = revision,
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				consentEpoch = requireNotNull(wal.captureConsentEpoch),
+				persistenceEligible = true,
+				qosCode = 1,
+				outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+				writerOwner = writerOwner,
+				writerOwnerGeneration = if (
+					writerOwner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
+				) {
+					SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+				} else {
+					SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+				},
+				writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID
+					.takeIf { writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS },
+				writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION
+					.takeIf { writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS },
+				writerBindingGeneration = bindingGeneration
+					.takeIf { writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS },
+			)
+		}
+		sources.forEach { source ->
+			val initial = source.manifestRevision == requireNotNull(wal.sessionManifestRevision)
+			val unsignedManifest = SessionManifestVersionEntity(
+				logicalTrackingId = requireNotNull(wal.logicalTrackingId),
+				manifestRevision = source.manifestRevision,
+				serviceRunId = requireNotNull(wal.serviceRunId),
+				sessionMode = "MANUAL",
+				sourcePolicyRevision = if (initial) {
+					requireNotNull(wal.sourcePolicyRevision)
+				} else {
+					source.manifestRevision
+				},
+				acquisitionPlanRevision = if (initial) {
+					initialPlanRevision
+				} else {
+					initialPlanRevision + source.manifestRevision - 1L
+				},
+				rolloutRevision = manifestRolloutRevision,
+				startOrigin = if (initial) {
+					"MANUAL_FOREGROUND_START"
+				} else {
+					"POLICY_RECONCILIATION"
+				},
+				effectiveBootId = wal.clockDomainId,
+				effectiveElapsedRealtimeNanos = source.manifestRevision - 1L,
+				effectiveWallTimeMs = source.manifestRevision - 1L,
+				zoneId = "UTC",
+				automationEpoch = null,
+				changeReason = if (initial) "TEST" else "POLICY_RECONCILIATION",
+				manifestChecksum = "",
+			)
+			database.sourceSessionDao().insertManifest(
+				unsignedManifest.copy(
+					manifestChecksum = SessionManifestIntegrity.compute(
+						unsignedManifest,
+						listOf(source),
+					),
 				),
-			),
-		)
-		database.sourceSessionDao().insertManifestSources(listOf(source))
+			)
+		}
+		database.sourceSessionDao().insertManifestSources(sources)
 		database.sourceBrokerDao().insertRegistration(
 			ProviderRegistrationGenerationEntity(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -2906,13 +3038,13 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				providerResidency =
 					ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
 				providerProcessIncarnationId = "process-${wal.eventId}",
-				status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+				status = registrationStatus,
 				reservedAtMs = 0L,
 				reservedElapsedRealtimeNanos = 0L,
 				acceptedAtMs = 0L,
 				acceptedElapsedRealtimeNanos = 0L,
-				retiredAtMs = 2L,
-				retiredElapsedRealtimeNanos = 2L,
+				retiredAtMs = retiredElapsedRealtimeNanos?.let { 2L },
+				retiredElapsedRealtimeNanos = retiredElapsedRealtimeNanos,
 				failureCode = null,
 			),
 		)

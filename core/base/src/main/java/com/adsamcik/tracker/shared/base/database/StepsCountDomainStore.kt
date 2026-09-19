@@ -6,14 +6,17 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.RawSessionManifestVersion
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
@@ -1761,26 +1764,20 @@ class StepsCountDomainStore(
 		val logicalTrackingId = requireNotNull(wal.logicalTrackingId)
 		val serviceRunId = requireNotNull(wal.serviceRunId)
 		val manifestRevision = requireNotNull(wal.sessionManifestRevision)
-		val run = database.sourceSessionDao().serviceRun(serviceRunId)
+		val sessionDao = database.sourceSessionDao()
+		val run = sessionDao.serviceRun(serviceRunId)
 			?: throw CountDomainStoredEvidenceException()
-		val rawManifests = database.sourceSessionDao().rawManifestsForServiceRunAfterRevision(
-			logicalTrackingId = logicalTrackingId,
-			serviceRunId = serviceRunId,
-			afterRevision = 0L,
-			limit = OWNERLESS_STEPS_MAX_MANIFESTS + 1,
-		)
-		if (rawManifests.isEmpty() || rawManifests.size > OWNERLESS_STEPS_MAX_MANIFESTS) {
-			throw CountDomainStoredEvidenceException()
-		}
-		val manifests = rawManifests.map { raw ->
-			raw.validatedOrNull() ?: throw CountDomainStoredEvidenceException()
-		}
-		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)) {
-			throw CountDomainStoredEvidenceException()
+		val manifests = authenticateOwnerlessStepsServiceRunManifestTimeline(run) { afterRevision, limit ->
+			sessionDao.rawManifestsForServiceRunAfterRevision(
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				afterRevision = afterRevision,
+				limit = limit,
+			)
 		}
 		val manifest = manifests.singleOrNull { it.manifestRevision == manifestRevision }
 			?: throw CountDomainStoredEvidenceException()
-		val rawSources = database.sourceSessionDao().rawManifestSources(
+		val rawSources = sessionDao.rawManifestSources(
 			logicalTrackingId = logicalTrackingId,
 			manifestRevision = manifestRevision,
 			limit = OWNERLESS_STEPS_MAX_MANIFEST_SOURCES + 1,
@@ -3055,6 +3052,58 @@ private fun SupportSQLiteDatabase.hasExactOwnerlessStepsProviderRegistrationStor
 	arrayOf(registration.sourceKind, registration.registrationGeneration),
 ) == 1L
 
+@Suppress("ComplexCondition")
+internal suspend fun authenticateOwnerlessStepsServiceRunManifestTimeline(
+	run: SourceServiceRunEntity,
+	loadPage: suspend (afterRevision: Long, limit: Int) -> List<RawSessionManifestVersion>,
+): List<SessionManifestVersionEntity> {
+	val manifests = ArrayList<SessionManifestVersionEntity>()
+	var afterRevision = 0L
+	var expectedContinuation: SessionManifestVersionEntity? = null
+	while (true) {
+		currentCoroutineContext().ensureActive()
+		val remaining = OWNERLESS_STEPS_MAX_MANIFEST_REVISIONS - manifests.size
+		if (remaining <= 0) throw CountDomainStoredEvidenceException()
+		val pageCapacity = minOf(OWNERLESS_STEPS_MANIFEST_PAGE_SIZE, remaining)
+		val queryLimit = Math.addExact(pageCapacity, 1)
+		val rawPage = loadPage(afterRevision, queryLimit)
+		if (rawPage.size > queryLimit) throw CountDomainStoredEvidenceException()
+		if (rawPage.isEmpty()) {
+			if (expectedContinuation != null) throw CountDomainStoredEvidenceException()
+			break
+		}
+		val page = rawPage.map { raw ->
+			raw.validatedOrNull() ?: throw CountDomainStoredEvidenceException()
+		}
+		if (
+			page.first().manifestRevision <= afterRevision ||
+			page.any { manifest ->
+				manifest.logicalTrackingId != run.logicalTrackingId ||
+					manifest.serviceRunId != run.serviceRunId
+			} ||
+			page.zipWithNext().any { (prior, next) ->
+				next.manifestRevision <= prior.manifestRevision
+			} ||
+			expectedContinuation?.let { expected -> page.first() != expected } == true
+		) {
+			throw CountDomainStoredEvidenceException()
+		}
+		val accepted = page.take(pageCapacity)
+		manifests += accepted
+		val hasLookahead = page.size > pageCapacity
+		if (!hasLookahead) break
+		if (manifests.size >= OWNERLESS_STEPS_MAX_MANIFEST_REVISIONS) {
+			throw CountDomainStoredEvidenceException()
+		}
+		expectedContinuation = page[pageCapacity]
+		afterRevision = accepted.last().manifestRevision
+	}
+	if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)) {
+		throw CountDomainStoredEvidenceException()
+	}
+	return manifests
+}
+
 private fun SupportSQLiteDatabase.hasMalformedStepsWalPruneLaneAttribution(): Boolean =
 	longForQuery(
 		"SELECT EXISTS(SELECT 1 FROM main.source_product_projection_lane WHERE " +
@@ -3124,7 +3173,9 @@ private fun ProviderRegistrationGenerationEntity.authenticatesOwnerlessStepsWal(
 		reservedElapsedRealtimeNanos in 0L..acceptedElapsed &&
 		acceptedElapsed <= wal.observedElapsedNanos &&
 		(retiredAt == null) == (retiredElapsed == null) &&
-		retiredElapsed?.let { it >= acceptedElapsed } != false
+		retiredElapsed?.let {
+			it >= acceptedElapsed && wal.observedElapsedNanos < it
+		} != false
 }
 
 @Suppress("ComplexCondition")
@@ -4083,5 +4134,6 @@ private const val STEPS_WAL_ALLOWED_PURPOSE_MASK =
 	SourceBrokerPurpose.CONTROL_MASK or SourceBrokerPurpose.MASK_SESSION_CAPTURE
 private const val STEPS_MANUAL_CAPTURE_MODE_MASK = 1L
 private const val STEPS_AUTOMATIC_CAPTURE_MODE_MASK = 1L shl 1
-private const val OWNERLESS_STEPS_MAX_MANIFESTS = 64
+private const val OWNERLESS_STEPS_MANIFEST_PAGE_SIZE = 64
+private const val OWNERLESS_STEPS_MAX_MANIFEST_REVISIONS = 2_048
 private const val OWNERLESS_STEPS_MAX_MANIFEST_SOURCES = 16
