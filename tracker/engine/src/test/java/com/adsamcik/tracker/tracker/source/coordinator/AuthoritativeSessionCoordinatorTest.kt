@@ -22,6 +22,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityEffectChecksum
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
@@ -6955,11 +6956,15 @@ class AuthoritativeSessionCoordinatorTest {
 			logicalTrackingId = prepared.logicalTrackingId,
 			serviceRunId = prepared.serviceRunId,
 			manifestRevision = prepared.manifestRevision,
-			previousIntentRevision = before.preparedIntentRevision,
+			authenticatedAncestorPath = listOf(
+				PreparedCallerAuthorityAncestor(
+					intentRevision = before.preparedIntentRevision,
+					leaseGeneration = before.leaseGeneration,
+					reference = prepared.sourceCallerAuthorityReference,
+				),
+			),
 			currentIntentRevision = rebound.preparedIntentRevision,
-			previousLeaseGeneration = before.leaseGeneration,
 			currentLeaseGeneration = rebound.leaseGeneration,
-			previousReference = prepared.sourceCallerAuthorityReference,
 			currentReference = SourceCallerReplayReference(reboundReference),
 		)
 		database.sourceSessionDao().lifecycleActions(prepared.logicalTrackingId)
@@ -7013,6 +7018,206 @@ class AuthoritativeSessionCoordinatorTest {
 		restartedClaim.callerAuthorityRebind shouldBe claim.callerAuthorityRebind
 		database.sourceBrokerDao().demandHistory("session:${prepared.logicalTrackingId}").size shouldBe 2
 		database.sourceSessionDao().lifecycleIntents(prepared.logicalTrackingId).size shouldBe 2
+	}
+
+	@Test
+	fun `two process deaths return the full authenticated caller authority ancestor path`() = runTest {
+		val prepared = prepareAndroidStart(
+			tokenValue = "two-rebind-token",
+			commandGeneration = 211L,
+			logicalTrackingId = "two-rebind-logical",
+			serviceRunId = "two-rebind-run",
+		)
+		val initialDemand = database.sourceBrokerDao()
+			.demandHistory("session:${prepared.logicalTrackingId}")
+			.single()
+
+		val firstClaim = rebindPreparedStart(prepared, 211L)
+		val firstRebind = requireNotNull(firstClaim.callerAuthorityRebind)
+		val secondClaim = rebindPreparedStart(prepared, 211L)
+		val secondRebind = requireNotNull(secondClaim.callerAuthorityRebind)
+
+		secondRebind.authenticatedAncestorPath shouldBe listOf(
+			PreparedCallerAuthorityAncestor(
+				intentRevision = prepared.intentRevision,
+				leaseGeneration = 1L,
+				reference = prepared.sourceCallerAuthorityReference,
+			),
+			PreparedCallerAuthorityAncestor(
+				intentRevision = firstRebind.currentIntentRevision,
+				leaseGeneration = firstRebind.currentLeaseGeneration,
+				reference = firstRebind.currentReference,
+			),
+		)
+		secondRebind.currentIntentRevision shouldBe firstRebind.currentIntentRevision + 1L
+		secondRebind.currentLeaseGeneration shouldBe firstRebind.currentLeaseGeneration + 1L
+		val demandHistory = database.sourceBrokerDao()
+			.demandHistory("session:${prepared.logicalTrackingId}")
+		demandHistory.size shouldBe 3
+		demandHistory.first { demand -> demand.demandId == initialDemand.demandId }.let { original ->
+			original.sourceCallerAuthorityReference shouldBe prepared.sourceCallerAuthorityReference.value
+			original.lifecycleLeaseGeneration shouldBe 1L
+			original.status shouldBe SourceDemandEntity.STATUS_RETIRED
+		}
+		demandHistory.groupBy(SourceDemandEntity::lifecycleLeaseGeneration).keys shouldBe
+			setOf(1L, firstRebind.currentLeaseGeneration, secondRebind.currentLeaseGeneration)
+	}
+
+	@Test
+	fun `maximum prepared rebind chain is returned and overflow leaves demand history untouched`() =
+		runTest {
+			val prepared = prepareAndroidStart(
+				tokenValue = "maximum-rebind-token",
+				commandGeneration = 212L,
+				logicalTrackingId = "maximum-rebind-logical",
+				serviceRunId = "maximum-rebind-run",
+			)
+			var claim: ClaimedPreparedSessionStart? = null
+			repeat(MAX_PREPARED_CALLER_AUTHORITY_REBIND_ANCESTORS) {
+				claim = rebindPreparedStart(prepared, 212L)
+			}
+			val maximum = requireNotNull(requireNotNull(claim).callerAuthorityRebind)
+			maximum.authenticatedAncestorPath.size shouldBe
+				MAX_PREPARED_CALLER_AUTHORITY_REBIND_ANCESTORS
+			maximum.authenticatedAncestorPath.first().reference shouldBe
+				prepared.sourceCallerAuthorityReference
+
+			val sessionDao = database.sourceSessionDao()
+			val brokerDao = database.sourceBrokerDao()
+			val beforeRun = requireNotNull(sessionDao.serviceRun(prepared.serviceRunId))
+			val beforeIntents = sessionDao.lifecycleIntents(prepared.logicalTrackingId)
+			val beforeDemands = brokerDao.demandHistory("session:${prepared.logicalTrackingId}")
+
+			subject.claimAndroidStart(
+				prepared.token,
+				212L,
+				"boot-1",
+				expiredPreparedLeaseElapsedNanos(),
+				leaseClock.currentTimeMillis(),
+			) shouldBe PreparedSessionClaimResult.Rejected("PREPARED_START_REBIND_STALE")
+
+			sessionDao.serviceRun(prepared.serviceRunId) shouldBe beforeRun
+			sessionDao.lifecycleIntents(prepared.logicalTrackingId) shouldBe beforeIntents
+			brokerDao.demandHistory("session:${prepared.logicalTrackingId}") shouldBe beforeDemands
+		}
+
+	@Test
+	fun `prepared caller authority chain rejects an intent revision gap`() = runTest {
+		val prepared = prepareAndroidStart(
+			tokenValue = "rebind-gap-token",
+			commandGeneration = 213L,
+			logicalTrackingId = "rebind-gap-logical",
+			serviceRunId = "rebind-gap-run",
+		)
+		rebindPreparedStart(prepared, 213L)
+		rebindPreparedStart(prepared, 213L)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM session_lifecycle_intent_version " +
+				"WHERE logical_tracking_id = ? AND intent_revision = ?",
+			arrayOf(prepared.logicalTrackingId, prepared.intentRevision + 1L),
+		)
+
+		subject.claimAndroidStart(
+			prepared.token,
+			213L,
+			"boot-1",
+			leaseClock.elapsedRealtimeNanos(),
+			leaseClock.currentTimeMillis(),
+		) shouldBe PreparedSessionClaimResult.Rejected(
+			"PREPARED_START_CALLER_REBIND_INVALID",
+			compensatePreparedState = false,
+		)
+	}
+
+	@Test
+	fun `prepared caller authority chain rejects an unreferenced branch demand`() = runTest {
+		val prepared = prepareAndroidStart(
+			tokenValue = "rebind-branch-token",
+			commandGeneration = 214L,
+			logicalTrackingId = "rebind-branch-logical",
+			serviceRunId = "rebind-branch-run",
+		)
+		rebindPreparedStart(prepared, 214L)
+		val brokerDao = database.sourceBrokerDao()
+		val current = brokerDao.demandHistory("session:${prepared.logicalTrackingId}")
+			.maxBy { demand -> requireNotNull(demand.lifecycleLeaseGeneration) }
+		brokerDao.insertDemands(
+			listOf(
+				current.copy(
+					demandId = "branch-demand",
+					sourceCallerAuthorityReference = "branch-reference",
+				),
+			),
+		).single() shouldBeGreaterThan 0L
+
+		subject.claimAndroidStart(
+			prepared.token,
+			214L,
+			"boot-1",
+			leaseClock.elapsedRealtimeNanos(),
+			leaseClock.currentTimeMillis(),
+		) shouldBe PreparedSessionClaimResult.Rejected(
+			"PREPARED_START_CALLER_REBIND_INVALID",
+			compensatePreparedState = false,
+		)
+	}
+
+	@Test
+	fun `prepared caller authority chain rejects authentic wrong owner and manifest rows`() = runTest {
+		val prepared = prepareAndroidStart(
+			tokenValue = "rebind-authority-token",
+			commandGeneration = 215L,
+			logicalTrackingId = "rebind-authority-logical",
+			serviceRunId = "rebind-authority-run",
+		)
+		val claim = rebindPreparedStart(prepared, 215L)
+		val rebind = requireNotNull(claim.callerAuthorityRebind)
+		val authorityDao = database.sourceCallerAuthorityDao()
+		val ancestorOriginal = authorityDao.rows(
+			rebind.authenticatedAncestorPath.first().reference.value,
+		)
+
+		val wrongOwner = SourceCallerAcceptedAuthorityEffectChecksum.seal(
+			ancestorOriginal.map { row -> row.copy(ownerCasToken = "wrong-owner") },
+		)
+		authorityDao.update(wrongOwner) shouldBe wrongOwner.size
+		subject.claimAndroidStart(
+			prepared.token,
+			215L,
+			"boot-1",
+			leaseClock.elapsedRealtimeNanos(),
+			leaseClock.currentTimeMillis(),
+		) shouldBe PreparedSessionClaimResult.Rejected(
+			"PREPARED_START_CALLER_REBIND_INVALID",
+			compensatePreparedState = false,
+		)
+
+		authorityDao.update(ancestorOriginal) shouldBe ancestorOriginal.size
+		subject.claimAndroidStart(
+			prepared.token,
+			215L,
+			"boot-1",
+			leaseClock.elapsedRealtimeNanos(),
+			leaseClock.currentTimeMillis(),
+		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+
+		val currentOriginal = authorityDao.rows(rebind.currentReference.value)
+		val wrongManifest = SourceCallerAcceptedAuthorityEffectChecksum.seal(
+			currentOriginal.map { row ->
+				row.copy(manifestRevision = requireNotNull(row.manifestRevision) + 1L)
+			},
+		)
+		authorityDao.update(wrongManifest) shouldBe wrongManifest.size
+		subject.claimAndroidStart(
+			prepared.token,
+			215L,
+			"boot-1",
+			leaseClock.elapsedRealtimeNanos(),
+			leaseClock.currentTimeMillis(),
+		) shouldBe PreparedSessionClaimResult.Rejected(
+			"PREPARED_START_CALLER_REBIND_INVALID",
+			compensatePreparedState = false,
+		)
 	}
 
 	@Test
@@ -8420,6 +8625,17 @@ class AuthoritativeSessionCoordinatorTest {
 			),
 		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
 	}
+
+	private suspend fun rebindPreparedStart(
+		prepared: PreparedSessionStart,
+		commandGeneration: Long,
+	): ClaimedPreparedSessionStart = subject.claimAndroidStart(
+		prepared.token,
+		commandGeneration,
+		"boot-1",
+		expiredPreparedLeaseElapsedNanos(),
+		leaseClock.currentTimeMillis(),
+	).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>().start
 
 	private suspend fun activatePreparedAndroidRun(
 		tokenValue: String,

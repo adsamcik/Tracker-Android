@@ -9,6 +9,8 @@ import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreResult
 import com.adsamcik.tracker.tracker.resilience.CatalogReconfigurationDebt
 import com.adsamcik.tracker.tracker.resilience.CatalogReconfigurationSourcePlan
 import com.adsamcik.tracker.tracker.resilience.SourcePlanIdentity
+import com.adsamcik.tracker.tracker.source.coordinator.MAX_PREPARED_CALLER_AUTHORITY_REBIND_ANCESTORS
+import com.adsamcik.tracker.tracker.source.coordinator.PreparedCallerAuthorityAncestor
 import com.adsamcik.tracker.tracker.source.coordinator.PreparedCallerAuthorityRebind
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -31,21 +33,61 @@ class PreparedCallerAuthorityDescriptorRebindTest {
 	}
 
 	@Test
-	fun `transient descriptor failure defers and retries the exact prepared rebind`() = runTest {
-		val original = descriptor(OLD_REFERENCE)
-		val store = RecordingStore(
-			current = original,
-			failNextReplace = ActiveTrackingSessionStoreFailureKind.UNAVAILABLE,
-		)
+	fun `oldest authenticated ancestor is rebound after two lease rebinds`() = runTest {
+		val original = descriptor(INITIAL_REFERENCE)
+		val store = RecordingStore(original)
 
-		rebindPreparedCallerAuthorityDescriptor(store, original, REBIND) shouldBe
-			PreparedCallerAuthorityDescriptorRebindResult.Deferred
-		store.current shouldBe original
-
-		val retried = rebindPreparedCallerAuthorityDescriptor(store, original, REBIND)
+		val result = rebindPreparedCallerAuthorityDescriptor(store, original, REBIND)
 			.shouldBeInstanceOf<PreparedCallerAuthorityDescriptorRebindResult.Rebound>()
-		retried.descriptor shouldBe original.copy(sourceCallerAuthorityReference = NEW_REFERENCE)
-		store.replaceCount shouldBe 2
+
+		result.descriptor shouldBe original.copy(sourceCallerAuthorityReference = NEW_REFERENCE)
+		store.current shouldBe result.descriptor
+		store.replaceCount shouldBe 1
+	}
+
+	@Test
+	fun `transient descriptor failure defers while a restart advances the authenticated chain`() =
+		runTest {
+			val original = descriptor(INITIAL_REFERENCE)
+			val store = RecordingStore(
+				current = original,
+				failNextReplace = ActiveTrackingSessionStoreFailureKind.UNAVAILABLE,
+			)
+
+			rebindPreparedCallerAuthorityDescriptor(store, original, REBIND) shouldBe
+				PreparedCallerAuthorityDescriptorRebindResult.Deferred
+			store.current shouldBe original
+
+			val retried = rebindPreparedCallerAuthorityDescriptor(store, original, LATEST_REBIND)
+				.shouldBeInstanceOf<PreparedCallerAuthorityDescriptorRebindResult.Rebound>()
+			retried.descriptor shouldBe original.copy(sourceCallerAuthorityReference = LATEST_REFERENCE)
+			store.replaceCount shouldBe 2
+		}
+
+	@Test
+	fun `maximum authenticated ancestor path accepts its oldest descriptor`() = runTest {
+		val path = (1..MAX_PREPARED_CALLER_AUTHORITY_REBIND_ANCESTORS).map { offset ->
+			PreparedCallerAuthorityAncestor(
+				intentRevision = offset.toLong(),
+				leaseGeneration = offset.toLong(),
+				reference = SourceCallerReplayReference("ancestor-$offset"),
+			)
+		}
+		val rebind = PreparedCallerAuthorityRebind(
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			manifestRevision = 3L,
+			authenticatedAncestorPath = path,
+			currentIntentRevision = path.last().intentRevision + 1L,
+			currentLeaseGeneration = path.last().leaseGeneration + 1L,
+			currentReference = NEW_REFERENCE,
+		)
+		val original = descriptor(path.first().reference)
+		val store = RecordingStore(original)
+
+		rebindPreparedCallerAuthorityDescriptor(store, original, rebind)
+			.shouldBeInstanceOf<PreparedCallerAuthorityDescriptorRebindResult.Rebound>()
+			.descriptor shouldBe original.copy(sourceCallerAuthorityReference = NEW_REFERENCE)
 	}
 
 	@Test
@@ -57,6 +99,26 @@ class PreparedCallerAuthorityDescriptorRebindTest {
 			PreparedCallerAuthorityDescriptorRebindResult.Stale
 		store.current shouldBe stale
 		store.replaceCount shouldBe 0
+	}
+
+	@Test
+	fun `CAS race accepts only the exact current-reference replacement`() = runTest {
+		val original = descriptor(OLD_REFERENCE)
+		val expected = original.copy(sourceCallerAuthorityReference = NEW_REFERENCE)
+		val winningStore = RecordingStore(original, raceCurrent = expected)
+
+		rebindPreparedCallerAuthorityDescriptor(winningStore, original, REBIND)
+			.shouldBeInstanceOf<PreparedCallerAuthorityDescriptorRebindResult.Rebound>()
+			.descriptor shouldBe expected
+
+		val changedDebt = requireNotNull(original.catalogReconfigurationDebt).copy(
+			deferredSourceMask = 2L,
+		)
+		val conflicting = expected.copy(catalogReconfigurationDebt = changedDebt)
+		val losingStore = RecordingStore(original, raceCurrent = conflicting)
+		rebindPreparedCallerAuthorityDescriptor(losingStore, original, REBIND) shouldBe
+			PreparedCallerAuthorityDescriptorRebindResult.Stale
+		losingStore.current shouldBe conflicting
 	}
 
 	@Test
@@ -123,6 +185,7 @@ class PreparedCallerAuthorityDescriptorRebindTest {
 	private class RecordingStore(
 		var current: ActiveTrackingSessionDescriptor?,
 		var failNextReplace: ActiveTrackingSessionStoreFailureKind? = null,
+		var raceCurrent: ActiveTrackingSessionDescriptor? = null,
 	) : ActiveTrackingSessionStore {
 		var replaceCount = 0
 
@@ -145,6 +208,10 @@ class PreparedCallerAuthorityDescriptorRebindTest {
 				failNextReplace = null
 				return ActiveTrackingSessionStoreResult.Failure(IOException("unavailable"), kind)
 			}
+			raceCurrent?.let { raced ->
+				current = raced
+				raceCurrent = null
+			}
 			if (current == expected) current = replacement
 			return ActiveTrackingSessionStoreResult.Success(current)
 		}
@@ -156,18 +223,43 @@ class PreparedCallerAuthorityDescriptorRebindTest {
 	}
 
 	private companion object {
+		val INITIAL_REFERENCE = SourceCallerReplayReference("initial-authority")
 		val OLD_REFERENCE = SourceCallerReplayReference("old-authority")
 		val NEW_REFERENCE = SourceCallerReplayReference("new-authority")
+		val LATEST_REFERENCE = SourceCallerReplayReference("latest-authority")
 		val REBIND = PreparedCallerAuthorityRebind(
 			logicalTrackingId = "logical",
 			serviceRunId = "run",
 			manifestRevision = 3L,
-			previousIntentRevision = 4L,
+			authenticatedAncestorPath = listOf(
+				PreparedCallerAuthorityAncestor(
+					intentRevision = 3L,
+					leaseGeneration = 5L,
+					reference = INITIAL_REFERENCE,
+				),
+				PreparedCallerAuthorityAncestor(
+					intentRevision = 4L,
+					leaseGeneration = 6L,
+					reference = OLD_REFERENCE,
+				),
+			),
 			currentIntentRevision = 5L,
-			previousLeaseGeneration = 6L,
 			currentLeaseGeneration = 7L,
-			previousReference = OLD_REFERENCE,
 			currentReference = NEW_REFERENCE,
+		)
+		val LATEST_REBIND = PreparedCallerAuthorityRebind(
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			manifestRevision = 3L,
+			authenticatedAncestorPath = REBIND.authenticatedAncestorPath +
+				PreparedCallerAuthorityAncestor(
+					intentRevision = REBIND.currentIntentRevision,
+					leaseGeneration = REBIND.currentLeaseGeneration,
+					reference = REBIND.currentReference,
+				),
+			currentIntentRevision = 6L,
+			currentLeaseGeneration = 8L,
+			currentReference = LATEST_REFERENCE,
 		)
 		const val FINGERPRINT =
 			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"

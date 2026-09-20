@@ -124,7 +124,11 @@ internal const val MAX_RUN_RETIREMENT_ACTIONS = 2_048
 internal const val MAX_RUN_RETIREMENT_RECEIPTS = 512
 internal const val MAX_RUN_RETIREMENT_INTENTS_PER_MANIFEST = 256
 internal const val MAX_RUN_DRAIN_MANIFEST_REVISIONS = 2_048
+internal const val MAX_PREPARED_CALLER_AUTHORITY_REBIND_ANCESTORS = 8
 private const val RUN_MANIFEST_REVISION_PAGE_SIZE = 64
+private const val MAX_PREPARED_CALLER_AUTHORITY_CHAIN_ROWS =
+	(MAX_PREPARED_CALLER_AUTHORITY_REBIND_ANCESTORS + 1) *
+		MAX_RUN_RETIREMENT_MANIFEST_SOURCES
 private val LIVE_RUNTIME_ACTION_STATUSES = setOf(
 	LifecycleActionStatus.START_ACCEPTED,
 	LifecycleActionStatus.STOP_ACCEPTED,
@@ -268,6 +272,12 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		) : PreparedCallerAuthorityRebindRead
 		data object Invalid : PreparedCallerAuthorityRebindRead
 	}
+	private data class PreparedCallerAuthorityChainNode(
+		val intent: SessionLifecycleIntentVersionEntity,
+		val reference: String,
+		val leaseGeneration: Long,
+		val demands: List<SourceDemandEntity>,
+	)
 
 	/**
 	 * Persists the exact provider-eligible source manifest while retaining every requested source in
@@ -6895,8 +6905,22 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				reference,
 			)
 		) return false
-		val intentHistory = sessionDao.lifecycleIntents(run.logicalTrackingId)
-		if (intentHistory.lastOrNull() != intent || intent.intentRevision == Long.MAX_VALUE) return false
+		val intentHistory = sessionDao.lifecycleIntentsForManifestBounded(
+			run.logicalTrackingId,
+			run.preparedManifestRevision,
+			MAX_PREPARED_CALLER_AUTHORITY_REBIND_ANCESTORS + 2,
+		)
+		if (intentHistory.lastOrNull() != intent ||
+			intentHistory.size > MAX_PREPARED_CALLER_AUTHORITY_REBIND_ANCESTORS ||
+			intent.intentRevision == Long.MAX_VALUE
+		) return false
+		if (when (preparedCallerAuthorityRebind(run, manifestEnvelope, intent)) {
+				PreparedCallerAuthorityRebindRead.Invalid -> true
+				PreparedCallerAuthorityRebindRead.None,
+				is PreparedCallerAuthorityRebindRead.Available,
+				-> false
+			}
+		) return false
 		val reboundIntentRevision = intent.intentRevision + 1L
 		val reboundReference = preparedLeaseRebindAuthorityReference(
 			previousReference = reference,
@@ -6947,12 +6971,21 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			}
 		) return false
 		val consumerId = "session:${run.logicalTrackingId}"
-		val exactDemands = database.sourceBrokerDao().demandHistory(consumerId).filter { demand ->
+		val preparedDemandHistory = database.sourceBrokerDao().preparedSessionDemandHistoryBounded(
+			consumerId = consumerId,
+			serviceRunId = run.serviceRunId,
+			manifestRevision = run.preparedManifestRevision,
+			limit = MAX_PREPARED_CALLER_AUTHORITY_CHAIN_ROWS + 1,
+		)
+		if (preparedDemandHistory.size > MAX_PREPARED_CALLER_AUTHORITY_CHAIN_ROWS) return false
+		val exactDemands = preparedDemandHistory.filter { demand ->
 			demand.serviceRunId == run.serviceRunId &&
 				demand.manifestRevision == run.preparedManifestRevision &&
 				demand.lifecycleLeaseGeneration == run.leaseGeneration
 		}
-		if (exactDemands.isEmpty() || exactDemands.any { demand ->
+		if (exactDemands.isEmpty() ||
+			(intentHistory.size == 1 && preparedDemandHistory.size != exactDemands.size) ||
+			exactDemands.any { demand ->
 				demand.sourceCallerAuthorityReference != reference ||
 					demand.status !in setOf(
 						SourceDemandEntity.STATUS_ACTIVE,
@@ -6962,7 +6995,10 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			}
 		) return false
 		val authorityDao = database.sourceCallerAuthorityDao()
-		val authorityRows = authorityDao.rows(reference)
+		val authorityRows = authorityDao.rowsBounded(
+			reference,
+			MAX_RUN_RETIREMENT_MANIFEST_SOURCES + 1,
+		)
 		val captureBindings = manifestEnvelope.bindings.filter { binding ->
 			binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name
 		}
@@ -6978,7 +7014,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			}
 			demandAuthorityKeys += demand.sourceKind to purpose
 		}
-		if (!SourceCallerAcceptedAuthorityEffectChecksum.isAuthentic(authorityRows) ||
+		if (authorityRows.size > MAX_RUN_RETIREMENT_MANIFEST_SOURCES ||
+			!SourceCallerAcceptedAuthorityEffectChecksum.isAuthentic(authorityRows) ||
 			authorityRows.any { row ->
 				row.reference != reference ||
 					row.status != SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE
@@ -7009,7 +7046,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					row.ownerCasToken != lease.ownerToken
 			}
 		) return false
-		if (authorityDao.rows(reboundReference).isNotEmpty()) return false
+		if (authorityDao.rowsBounded(reboundReference, 1).isNotEmpty()) return false
 		val triggerId = intent.triggerId
 		if (triggerId != null) {
 			val triggerEpoch = intent.triggerCollectedDataEpoch ?: return false
@@ -7148,132 +7185,290 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		return true
 	}
 
-	@Suppress("ComplexCondition", "LongMethod", "ReturnCount")
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private suspend fun preparedCallerAuthorityRebind(
 		run: SourceServiceRunEntity,
 		manifestEnvelope: VerifiedSessionManifest,
 		intent: SessionLifecycleIntentVersionEntity,
 	): PreparedCallerAuthorityRebindRead {
-		val intentHistory = database.sourceSessionDao().lifecycleIntents(run.logicalTrackingId)
-		if (intentHistory.lastOrNull() != intent) return PreparedCallerAuthorityRebindRead.Invalid
-		val predecessor = intentHistory.getOrNull(intentHistory.lastIndex - 1)
-			?: return PreparedCallerAuthorityRebindRead.None
-		if (predecessor.manifestRevision != intent.manifestRevision) {
-			return PreparedCallerAuthorityRebindRead.None
-		}
+		currentCoroutineContext().ensureActive()
 		val manifest = manifestEnvelope.manifest
-		val previousReference = predecessor.sourceCallerAuthorityReference
-			?.takeIf(String::isNotBlank)
-			?: return PreparedCallerAuthorityRebindRead.Invalid
-		val currentReference = intent.sourceCallerAuthorityReference
-			?.takeIf(String::isNotBlank)
-			?: return PreparedCallerAuthorityRebindRead.Invalid
-		if (!predecessor.hasAuthenticStartEnvelope(manifest) ||
-			!intent.hasAuthenticStartEnvelope(manifest) ||
-			intent.intentRevision != predecessor.intentRevision + 1L ||
-			intent.copy(
-				intentRevision = predecessor.intentRevision,
-				sourceCallerAuthorityReference = previousReference,
-				intentChecksum = predecessor.intentChecksum,
-			) != predecessor ||
-			previousReference == currentReference
+		val intentHistory = database.sourceSessionDao().lifecycleIntentsForManifestBounded(
+			run.logicalTrackingId,
+			run.preparedManifestRevision,
+			MAX_PREPARED_CALLER_AUTHORITY_REBIND_ANCESTORS + 2,
+		)
+		currentCoroutineContext().ensureActive()
+		if (intentHistory.lastOrNull() != intent ||
+			intentHistory.size > MAX_PREPARED_CALLER_AUTHORITY_REBIND_ANCESTORS + 1
 		) return PreparedCallerAuthorityRebindRead.Invalid
+		if (intentHistory.size == 1) return PreparedCallerAuthorityRebindRead.None
 
-		val demandHistory = database.sourceBrokerDao()
-			.demandHistory("session:${run.logicalTrackingId}")
-			.filter { demand ->
-				demand.serviceRunId == run.serviceRunId &&
-					demand.manifestRevision == run.preparedManifestRevision
+		val references = ArrayList<String>(intentHistory.size)
+		for ((index, candidate) in intentHistory.withIndex()) {
+			currentCoroutineContext().ensureActive()
+			val reference = candidate.sourceCallerAuthorityReference
+				?.takeIf(String::isNotBlank)
+				?: return PreparedCallerAuthorityRebindRead.Invalid
+			if (!candidate.hasAuthenticStartEnvelope(manifest)) {
+				return PreparedCallerAuthorityRebindRead.Invalid
 			}
-		val previousDemands = demandHistory.filter { demand ->
-			demand.sourceCallerAuthorityReference == previousReference
+			val predecessor = intentHistory.getOrNull(index - 1)
+			if (predecessor != null) {
+				val previousReference = references.last()
+				if (candidate.intentRevision != predecessor.intentRevision + 1L ||
+					candidate.copy(
+						intentRevision = predecessor.intentRevision,
+						sourceCallerAuthorityReference = previousReference,
+						intentChecksum = predecessor.intentChecksum,
+					) != predecessor ||
+					reference == previousReference
+				) return PreparedCallerAuthorityRebindRead.Invalid
+			}
+			references += reference
 		}
-		val previousLeaseGeneration = previousDemands
-			.mapNotNull(SourceDemandEntity::lifecycleLeaseGeneration)
-			.distinct()
-			.singleOrNull()
-			?: return PreparedCallerAuthorityRebindRead.Invalid
-		val currentDemands = demandHistory.filter { demand ->
-			demand.sourceCallerAuthorityReference == currentReference &&
-				demand.lifecycleLeaseGeneration == run.leaseGeneration
+		if (references.toSet().size != references.size) {
+			return PreparedCallerAuthorityRebindRead.Invalid
 		}
-		if (previousDemands.isEmpty() || currentDemands.isEmpty() ||
-			previousDemands.any { demand -> demand.status != SourceDemandEntity.STATUS_RETIRED } ||
-			currentDemands.any { demand ->
-				demand.status !in setOf(
-					SourceDemandEntity.STATUS_ACTIVE,
-					SourceDemandEntity.STATUS_BLOCKED,
-					SourceDemandEntity.STATUS_RETIRED,
-				)
-			} ||
-			preparedLeaseRebindAuthorityReference(
-				previousReference = previousReference,
-				logicalTrackingId = run.logicalTrackingId,
-				serviceRunId = run.serviceRunId,
-				manifestRevision = run.preparedManifestRevision,
-				previousIntentRevision = predecessor.intentRevision,
-				previousLeaseGeneration = previousLeaseGeneration,
-				newLeaseGeneration = run.leaseGeneration,
-			) != currentReference
-		) return PreparedCallerAuthorityRebindRead.Invalid
 
+		val expectedDemandKeys = manifestEnvelope.bindings.mapTo(linkedSetOf()) { binding ->
+			binding.sourceKind to when (binding.purpose) {
+				SessionManifestPurpose.SESSION_CAPTURE.name -> SourceBrokerPurpose.SESSION_CAPTURE
+				SessionManifestPurpose.CONTROL.name -> SourceBrokerPurpose.CONTROL_CONTINUATION
+				else -> return PreparedCallerAuthorityRebindRead.Invalid
+			}
+		}
+		if (expectedDemandKeys.isEmpty() ||
+			expectedDemandKeys.size != manifestEnvelope.bindings.size
+		) return PreparedCallerAuthorityRebindRead.Invalid
+		val consumerId = "session:${run.logicalTrackingId}"
+		val demandHistory = database.sourceBrokerDao().preparedSessionDemandHistoryBounded(
+			consumerId = consumerId,
+			serviceRunId = run.serviceRunId,
+			manifestRevision = run.preparedManifestRevision,
+			limit = MAX_PREPARED_CALLER_AUTHORITY_CHAIN_ROWS + 1,
+		)
+		currentCoroutineContext().ensureActive()
+		if (demandHistory.size > MAX_PREPARED_CALLER_AUTHORITY_CHAIN_ROWS ||
+			demandHistory.size != intentHistory.size * expectedDemandKeys.size ||
+			demandHistory.any { demand ->
+				val demandReference = demand.sourceCallerAuthorityReference
+				demand.consumerId != consumerId ||
+					demand.logicalTrackingId != run.logicalTrackingId ||
+					demand.serviceRunId != run.serviceRunId ||
+					demand.manifestRevision != run.preparedManifestRevision ||
+					demandReference == null ||
+					demandReference !in references
+			}
+		) return PreparedCallerAuthorityRebindRead.Invalid
+		val demandsByReference = demandHistory.groupBy(SourceDemandEntity::sourceCallerAuthorityReference)
+		if (demandsByReference.keys != references.toSet()) {
+			return PreparedCallerAuthorityRebindRead.Invalid
+		}
+
+		val nodes = ArrayList<PreparedCallerAuthorityChainNode>(intentHistory.size)
+		for ((index, chainIntent) in intentHistory.withIndex()) {
+			currentCoroutineContext().ensureActive()
+			val reference = references[index]
+			val demands = demandsByReference[reference].orEmpty()
+			val leaseGeneration = demands.mapNotNull(SourceDemandEntity::lifecycleLeaseGeneration)
+				.distinct().singleOrNull()
+				?: return PreparedCallerAuthorityRebindRead.Invalid
+			if (demands.size != expectedDemandKeys.size ||
+				demands.mapTo(linkedSetOf()) { demand -> demand.sourceKind to demand.purpose } !=
+				expectedDemandKeys ||
+				demands.any { demand ->
+					!demand.hasCoherentPreparedRebindState(isCurrent = index == intentHistory.lastIndex)
+				}
+			) return PreparedCallerAuthorityRebindRead.Invalid
+			nodes += PreparedCallerAuthorityChainNode(
+				intent = chainIntent,
+				reference = reference,
+				leaseGeneration = leaseGeneration,
+				demands = demands,
+			)
+		}
+		val firstDemands = nodes.first().demands.associateBy { demand ->
+			demand.sourceKind to demand.purpose
+		}
+		for ((index, node) in nodes.withIndex()) {
+			currentCoroutineContext().ensureActive()
+			if (node.demands.any { demand ->
+					val first = firstDemands[demand.sourceKind to demand.purpose]
+						?: return PreparedCallerAuthorityRebindRead.Invalid
+					!first.hasSamePreparedRebindTerms(demand)
+				}
+			) return PreparedCallerAuthorityRebindRead.Invalid
+			val predecessor = nodes.getOrNull(index - 1) ?: continue
+			if (node.leaseGeneration <= predecessor.leaseGeneration ||
+				preparedLeaseRebindAuthorityReference(
+					previousReference = predecessor.reference,
+					logicalTrackingId = run.logicalTrackingId,
+					serviceRunId = run.serviceRunId,
+					manifestRevision = run.preparedManifestRevision,
+					previousIntentRevision = predecessor.intent.intentRevision,
+					previousLeaseGeneration = predecessor.leaseGeneration,
+					newLeaseGeneration = node.leaseGeneration,
+				) != node.reference
+			) return PreparedCallerAuthorityRebindRead.Invalid
+		}
+		if (nodes.last().leaseGeneration != run.leaseGeneration) {
+			return PreparedCallerAuthorityRebindRead.Invalid
+		}
+
+		val expectedAuthorityKeys = manifestEnvelope.bindings.mapTo(linkedSetOf()) { binding ->
+			binding.sourceKind to when (binding.purpose) {
+				SessionManifestPurpose.SESSION_CAPTURE.name ->
+					TrackingPurpose.SESSION_CAPTURE.stableName
+				SessionManifestPurpose.CONTROL.name -> TrackingPurpose.CONTROL.stableName
+				else -> return PreparedCallerAuthorityRebindRead.Invalid
+			}
+		}
 		val deliveryToken = run.startDeliveryToken?.takeIf(String::isNotBlank)
 			?: return PreparedCallerAuthorityRebindRead.Invalid
 		val preparedOwner = preparedStartOwner(PreparedTrackingStartToken(deliveryToken))
-		val previousAuthority = database.sourceCallerAuthorityDao().rows(previousReference)
-		val currentAuthority = database.sourceCallerAuthorityDao().rows(currentReference)
-		val captureSourceKinds = manifestEnvelope.bindings
-			.filter { binding -> binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
-			.mapTo(linkedSetOf()) { binding -> binding.sourceKind }
-		val previousCaptureAuthority = previousAuthority.filter { row ->
-			row.purpose == TrackingPurpose.SESSION_CAPTURE.stableName
-		}
-		val currentCaptureAuthority = currentAuthority.filter { row ->
-			row.purpose == TrackingPurpose.SESSION_CAPTURE.stableName
-		}
-		if (previousAuthority.isEmpty() || currentAuthority.isEmpty() ||
-			!SourceCallerAcceptedAuthorityEffectChecksum.isAuthentic(previousAuthority) ||
-			!SourceCallerAcceptedAuthorityEffectChecksum.isAuthentic(currentAuthority) ||
-			previousAuthority.any { row ->
-				row.reference != previousReference ||
-					row.status != SourceCallerAcceptedAuthorityEntity.STATUS_RETIRED ||
-					row.retireReason != "PREPARED_LEASE_REBOUND"
-			} ||
-			currentAuthority.any { row ->
-				row.reference != currentReference ||
-					row.status != SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE
-			} ||
-			previousCaptureAuthority.mapTo(linkedSetOf()) { row -> row.sourceKind } !=
-			captureSourceKinds ||
-			currentCaptureAuthority.mapTo(linkedSetOf()) { row -> row.sourceKind } !=
-			captureSourceKinds ||
-			previousCaptureAuthority.any { row ->
-				row.logicalTrackingId != run.logicalTrackingId ||
-					row.manifestRevision != run.preparedManifestRevision ||
-					row.executionRevision != previousLeaseGeneration ||
-					row.ownerCasToken != preparedOwner
-			} ||
-			currentCaptureAuthority.any { row ->
-				row.logicalTrackingId != run.logicalTrackingId ||
-					row.manifestRevision != run.preparedManifestRevision ||
-					row.executionRevision != run.leaseGeneration ||
-					row.ownerCasToken != preparedOwner
+		val authorityDao = database.sourceCallerAuthorityDao()
+		var firstAuthorityByKey: Map<Pair<Int, String>, SourceCallerAcceptedAuthorityEntity>? = null
+		for ((index, node) in nodes.withIndex()) {
+			currentCoroutineContext().ensureActive()
+			val authorityRows = authorityDao.rowsBounded(
+				node.reference,
+				MAX_RUN_RETIREMENT_MANIFEST_SOURCES + 1,
+			)
+			currentCoroutineContext().ensureActive()
+			if (authorityRows.size != expectedAuthorityKeys.size ||
+				!SourceCallerAcceptedAuthorityEffectChecksum.isAuthentic(authorityRows) ||
+				authorityRows.mapTo(linkedSetOf()) { row -> row.sourceKind to row.purpose } !=
+				expectedAuthorityKeys ||
+				authorityRows.any { row ->
+					row.reference != node.reference ||
+						row.formatVersion != SourceCallerAcceptedAuthorityEntity.FORMAT_VERSION ||
+						row.ownerCasToken.isBlank() ||
+						row.createdAtMs < 0L ||
+						!row.hasCoherentPreparedRebindState(isCurrent = index == nodes.lastIndex)
+				}
+			) return PreparedCallerAuthorityRebindRead.Invalid
+			val authorityByKey = authorityRows.associateBy { row -> row.sourceKind to row.purpose }
+			val demandByAuthorityKey = node.demands.associateBy { demand ->
+				demand.preparedAuthorityKey()
+					?: return PreparedCallerAuthorityRebindRead.Invalid
 			}
-		) return PreparedCallerAuthorityRebindRead.Invalid
+			if (authorityRows.any { row ->
+					val demand = demandByAuthorityKey[row.sourceKind to row.purpose]
+						?: return PreparedCallerAuthorityRebindRead.Invalid
+					row.policyRevision != demand.sourcePolicyRevision ||
+						row.consentEpoch != demand.consentEpoch ||
+						row.rolloutRevision != manifest.rolloutRevision ||
+						if (row.purpose == TrackingPurpose.SESSION_CAPTURE.stableName) {
+							row.logicalTrackingId != run.logicalTrackingId ||
+								row.manifestRevision != run.preparedManifestRevision ||
+								row.executionRevision != node.leaseGeneration ||
+								row.ownerCasToken != preparedOwner
+						} else {
+							row.logicalTrackingId != null || row.manifestRevision != null
+						}
+				}
+			) return PreparedCallerAuthorityRebindRead.Invalid
+			val baseline = firstAuthorityByKey
+			if (baseline == null) {
+				firstAuthorityByKey = authorityByKey
+			} else if (authorityRows.any { row ->
+					val first = baseline[row.sourceKind to row.purpose]
+						?: return PreparedCallerAuthorityRebindRead.Invalid
+					!first.hasSamePreparedRebindTerms(
+						row,
+						allowExecutionRevisionChange =
+							row.purpose == TrackingPurpose.SESSION_CAPTURE.stableName,
+					)
+				}
+			) return PreparedCallerAuthorityRebindRead.Invalid
+		}
+
+		val current = nodes.last()
 		return PreparedCallerAuthorityRebindRead.Available(
 			PreparedCallerAuthorityRebind(
 				logicalTrackingId = run.logicalTrackingId,
 				serviceRunId = run.serviceRunId,
 				manifestRevision = run.preparedManifestRevision,
-				previousIntentRevision = predecessor.intentRevision,
-				currentIntentRevision = intent.intentRevision,
-				previousLeaseGeneration = previousLeaseGeneration,
-				currentLeaseGeneration = run.leaseGeneration,
-				previousReference = SourceCallerReplayReference(previousReference),
-				currentReference = SourceCallerReplayReference(currentReference),
+				authenticatedAncestorPath = nodes.dropLast(1).map { node ->
+					PreparedCallerAuthorityAncestor(
+						intentRevision = node.intent.intentRevision,
+						leaseGeneration = node.leaseGeneration,
+						reference = SourceCallerReplayReference(node.reference),
+					)
+				},
+				currentIntentRevision = current.intent.intentRevision,
+				currentLeaseGeneration = current.leaseGeneration,
+				currentReference = SourceCallerReplayReference(current.reference),
 			),
 		)
 	}
+
+	private fun SourceDemandEntity.preparedAuthorityKey(): Pair<Int, String>? =
+		sourceKind to when (purpose) {
+			SourceBrokerPurpose.SESSION_CAPTURE -> TrackingPurpose.SESSION_CAPTURE.stableName
+			SourceBrokerPurpose.CONTROL_CONTINUATION -> TrackingPurpose.CONTROL.stableName
+			else -> return null
+		}
+
+	private fun SourceDemandEntity.hasCoherentPreparedRebindState(isCurrent: Boolean): Boolean =
+		when (status) {
+			SourceDemandEntity.STATUS_RETIRED ->
+				retireBootId?.isNotBlank() == true &&
+					retireElapsedRealtimeNanos?.let { it >= 0L } == true &&
+					retiredAtMs?.let { it >= 0L } == true
+			SourceDemandEntity.STATUS_ACTIVE,
+			SourceDemandEntity.STATUS_BLOCKED,
+			-> isCurrent &&
+				retireBootId == null &&
+				retireElapsedRealtimeNanos == null &&
+				retiredAtMs == null
+			else -> false
+		} && (isCurrent || status == SourceDemandEntity.STATUS_RETIRED)
+
+	private fun SourceDemandEntity.hasSamePreparedRebindTerms(
+		other: SourceDemandEntity,
+	): Boolean = copy(
+		demandId = other.demandId,
+		lifecycleLeaseGeneration = other.lifecycleLeaseGeneration,
+		requestedBootId = other.requestedBootId,
+		requestedElapsedRealtimeNanos = other.requestedElapsedRealtimeNanos,
+		requestedAtMs = other.requestedAtMs,
+		status = other.status,
+		retireBootId = other.retireBootId,
+		retireElapsedRealtimeNanos = other.retireElapsedRealtimeNanos,
+		retiredAtMs = other.retiredAtMs,
+		sourceCallerAuthorityReference = other.sourceCallerAuthorityReference,
+	) == other
+
+	private fun SourceCallerAcceptedAuthorityEntity.hasCoherentPreparedRebindState(
+		isCurrent: Boolean,
+	): Boolean = if (isCurrent) {
+		status == SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE &&
+			retiredAtMs == null &&
+			retireReason == null
+	} else {
+		status == SourceCallerAcceptedAuthorityEntity.STATUS_RETIRED &&
+		retiredAtMs?.let { it >= 0L } == true &&
+			retireReason == "PREPARED_LEASE_REBOUND"
+	}
+
+	private fun SourceCallerAcceptedAuthorityEntity.hasSamePreparedRebindTerms(
+		other: SourceCallerAcceptedAuthorityEntity,
+		allowExecutionRevisionChange: Boolean,
+	): Boolean = copy(
+		reference = other.reference,
+		executionRevision = if (allowExecutionRevisionChange) {
+			other.executionRevision
+		} else {
+			executionRevision
+		},
+		status = other.status,
+		createdAtMs = other.createdAtMs,
+		retiredAtMs = other.retiredAtMs,
+		retireReason = other.retireReason,
+		effectChecksum = other.effectChecksum,
+	) == other
 
 	private fun preparedLeaseRebindAuthorityReference(
 		previousReference: String,
@@ -8684,26 +8879,49 @@ data class ClaimedPreparedSessionStart(
 	val callerAuthorityRebind: PreparedCallerAuthorityRebind? = null,
 )
 
+data class PreparedCallerAuthorityAncestor(
+	val intentRevision: Long,
+	val leaseGeneration: Long,
+	val reference: SourceCallerReplayReference,
+) {
+	init {
+		require(intentRevision > 0L)
+		require(leaseGeneration > 0L)
+	}
+}
+
 data class PreparedCallerAuthorityRebind(
 	val logicalTrackingId: String,
 	val serviceRunId: String,
 	val manifestRevision: Long,
-	val previousIntentRevision: Long,
+	val authenticatedAncestorPath: List<PreparedCallerAuthorityAncestor>,
 	val currentIntentRevision: Long,
-	val previousLeaseGeneration: Long,
 	val currentLeaseGeneration: Long,
-	val previousReference: SourceCallerReplayReference,
 	val currentReference: SourceCallerReplayReference,
 ) {
+	val previousIntentRevision: Long
+		get() = authenticatedAncestorPath.last().intentRevision
+	val previousLeaseGeneration: Long
+		get() = authenticatedAncestorPath.last().leaseGeneration
+	val previousReference: SourceCallerReplayReference
+		get() = authenticatedAncestorPath.last().reference
+	val authenticatedAncestorReferences: Set<SourceCallerReplayReference>
+		get() = authenticatedAncestorPath.mapTo(linkedSetOf()) { ancestor -> ancestor.reference }
+
 	init {
 		require(logicalTrackingId.isNotBlank())
 		require(serviceRunId.isNotBlank())
 		require(manifestRevision > 0L)
-		require(previousIntentRevision > 0L)
-		require(currentIntentRevision == previousIntentRevision + 1L)
-		require(previousLeaseGeneration > 0L)
-		require(currentLeaseGeneration > previousLeaseGeneration)
-		require(previousReference != currentReference)
+		require(authenticatedAncestorPath.isNotEmpty())
+		require(authenticatedAncestorPath.size <= MAX_PREPARED_CALLER_AUTHORITY_REBIND_ANCESTORS)
+		require(currentIntentRevision == authenticatedAncestorPath.last().intentRevision + 1L)
+		require(currentLeaseGeneration > authenticatedAncestorPath.last().leaseGeneration)
+		require(currentReference !in authenticatedAncestorReferences)
+		authenticatedAncestorPath.zipWithNext().forEach { (previous, next) ->
+			require(next.intentRevision == previous.intentRevision + 1L)
+			require(next.leaseGeneration > previous.leaseGeneration)
+		}
+		require(authenticatedAncestorReferences.size == authenticatedAncestorPath.size)
 	}
 }
 

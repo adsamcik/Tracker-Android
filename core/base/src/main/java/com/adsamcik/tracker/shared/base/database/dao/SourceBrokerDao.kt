@@ -161,6 +161,18 @@ interface SourceBrokerDao {
 	suspend fun demandHistory(consumerId: String): List<SourceDemandEntity>
 
 	@Query(
+		"SELECT * FROM source_demand WHERE consumer_id = :consumerId " +
+			"AND service_run_id = :serviceRunId AND manifest_revision = :manifestRevision " +
+			"ORDER BY lifecycle_lease_generation, source_kind, purpose, demand_id LIMIT :limit",
+	)
+	suspend fun preparedSessionDemandHistoryBounded(
+		consumerId: String,
+		serviceRunId: String,
+		manifestRevision: Long,
+		limit: Int,
+	): List<SourceDemandEntity>
+
+	@Query(
 		"SELECT DISTINCT source_caller_authority_reference FROM source_demand " +
 			"WHERE consumer_id = :consumerId AND source_caller_authority_reference IS NOT NULL",
 	)

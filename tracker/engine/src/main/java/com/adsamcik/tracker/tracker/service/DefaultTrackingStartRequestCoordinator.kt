@@ -1105,7 +1105,7 @@ internal suspend fun rebindPreparedCallerAuthorityDescriptor(
 	}
 	if (descriptor.logicalTrackingId != rebind.logicalTrackingId ||
 		descriptor.serviceRunId != rebind.serviceRunId ||
-		descriptor.sourceCallerAuthorityReference != rebind.previousReference ||
+		descriptor.sourceCallerAuthorityReference !in rebind.authenticatedAncestorReferences ||
 		descriptor.pendingRetirementSourceCallerAuthorityReference == rebind.currentReference
 	) return PreparedCallerAuthorityDescriptorRebindResult.Stale
 	val replacement = descriptor.copy(
