@@ -31,15 +31,26 @@ import com.adsamcik.tracker.stats.api.repository.ExportPortableSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsResult
+import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV2Request
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainCoverage
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainDigest
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainGraphV2
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainOperation
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainOwnerKind
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainOwnerRevisionV2
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainReceiptV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsCaptureCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsCompletenessV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsConflictScope
 import com.adsamcik.tracker.stats.api.repository.PortableStepsDeletionScopeDigest
+import com.adsamcik.tracker.stats.api.repository.PortableStepsDigest
 import com.adsamcik.tracker.stats.api.repository.PortableStepsEntrySink
 import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV1
+import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsFactCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsFactV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsIdentityKind
+import com.adsamcik.tracker.stats.api.repository.PortableStepsImportMetadataV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortableStepsImportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableStepsManifestV1
@@ -902,6 +913,85 @@ class RoomImportPortableStepsTest {
 	}
 
 	@Test
+	fun `session graph snapshot classifies a caller removed receipt as attribution unverifiable`() =
+		runTest {
+			val fixture = mutableAuthenticatedV2Request()
+			fixture.receipts.clear()
+
+			subject().importEntry(fixture.request) shouldBe ImportPortableStepsResult.Unverifiable(
+				PortableStepsImportUnverifiableReason.ATTRIBUTION_UNVERIFIABLE,
+			)
+
+			assertNoImportedPayload()
+		}
+
+	@Test
+	fun `session graph snapshot classifies caller removed owners as attribution unverifiable`() =
+		runTest {
+			val fixture = mutableAuthenticatedV2Request()
+			fixture.owners.clear()
+
+			subject().importEntry(fixture.request) shouldBe ImportPortableStepsResult.Unverifiable(
+				PortableStepsImportUnverifiableReason.ATTRIBUTION_UNVERIFIABLE,
+			)
+
+			assertNoImportedPayload()
+		}
+
+	@Test
+	fun `session graph snapshot classifies caller arithmetic overflow as attribution unverifiable`() =
+		runTest {
+			val entry = authenticatedV2Entry()
+			val graph = entry.countDomainGraph
+			val receipts = SnapshotFailureList(graph.receipts)
+			val callerGraph = PortableCountDomainGraphV2(
+				identity = graph.identity,
+				contentChecksum = graph.contentChecksum,
+				receipts = receipts,
+				ownerRevisions = graph.ownerRevisions.toList(),
+				completenessMarkers = graph.completenessMarkers.toList(),
+				roots = graph.roots.toList(),
+			)
+			val request = v2Request(PortableStepsEntryV2(entry.product, callerGraph))
+			receipts.failure = ArithmeticException("caller snapshot overflow")
+
+			subject().importEntry(request) shouldBe ImportPortableStepsResult.Unverifiable(
+				PortableStepsImportUnverifiableReason.ATTRIBUTION_UNVERIFIABLE,
+			)
+
+			assertNoImportedPayload()
+		}
+
+	@Test
+	fun `session graph snapshot preserves cancellation memory and storage failures`() = runTest {
+		listOf(
+			CancellationException("caller cancelled"),
+			OutOfMemoryError("caller exhausted memory"),
+			SQLiteException("caller storage failure"),
+		).forEach { failure ->
+			val entry = authenticatedV2Entry()
+			val graph = entry.countDomainGraph
+			val receipts = SnapshotFailureList(graph.receipts)
+			val callerGraph = PortableCountDomainGraphV2(
+				identity = graph.identity,
+				contentChecksum = graph.contentChecksum,
+				receipts = receipts,
+				ownerRevisions = graph.ownerRevisions.toList(),
+				completenessMarkers = graph.completenessMarkers.toList(),
+				roots = graph.roots.toList(),
+			)
+			val request = v2Request(PortableStepsEntryV2(entry.product, callerGraph))
+			receipts.failure = failure
+
+			(shouldThrow<Throwable> {
+				subject().importEntry(request)
+			} === failure) shouldBe true
+		}
+
+		assertNoImportedPayload()
+	}
+
+	@Test
 	fun `caller graph mutation during authority preflight is retryable and cannot partially import`() =
 		runTest {
 			val original = entry()
@@ -999,6 +1089,90 @@ class RoomImportPortableStepsTest {
 		sourceName = "steps-$index.trackersteps",
 		receivedAtMs = index.toLong(),
 	)
+
+	private fun authenticatedV2Entry(
+		product: PortableStepsEntryV1 = entry(),
+	): PortableStepsEntryV2 {
+		val unproven = product.withExplicitUnprovenCountDomain()
+		val graph = unproven.countDomainGraph
+		val factOwner = graph.ownerRevisions.single {
+			it.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT
+		}
+		val receipt = PortableCountDomainReceiptV2.create(
+			domainIdentity = countDomainOpaque('d'),
+			ownerKind = factOwner.ownerKind,
+			scopeIdentity = factOwner.scopeIdentity,
+			ownerIdentity = factOwner.ownerIdentity,
+			ownerRevision = factOwner.ownerRevision,
+			registrationGeneration = 1L,
+			collectedDataEpoch = 3L,
+			authorityRevision = 1L,
+			authorityFingerprint = PortableCountDomainDigest("a".repeat(64)),
+			coverage = PortableCountDomainCoverage.COVERED,
+			coverageVersion = 1,
+			countDomainVersion = 1,
+			effectChecksum = factOwner.ownerEffectChecksum,
+			completenessEvidenceChecksum = null,
+		)
+		val owners = graph.ownerRevisions.map { owner ->
+			if (owner == factOwner) {
+				owner.copy(
+					operation = PortableCountDomainOperation.BIND,
+					receiptIdentity = receipt.identity,
+				)
+			} else {
+				owner
+			}
+		}
+		return PortableStepsEntryV2(
+			product,
+			PortableCountDomainGraphV2.create(
+				receipts = listOf(receipt),
+				ownerRevisions = owners,
+				completenessMarkers = graph.completenessMarkers,
+				roots = graph.roots,
+			),
+		)
+	}
+
+	private fun mutableAuthenticatedV2Request(): MutableV2RequestFixture {
+		val entry = authenticatedV2Entry()
+		val graph = entry.countDomainGraph
+		val receipts = graph.receipts.toMutableList()
+		val owners = graph.ownerRevisions.toMutableList()
+		val callerEntry = PortableStepsEntryV2(
+			entry.product,
+			PortableCountDomainGraphV2(
+				identity = graph.identity,
+				contentChecksum = graph.contentChecksum,
+				receipts = receipts,
+				ownerRevisions = owners,
+				completenessMarkers = graph.completenessMarkers.toMutableList(),
+				roots = graph.roots.toMutableList(),
+			),
+		)
+		return MutableV2RequestFixture(v2Request(callerEntry), receipts, owners)
+	}
+
+	private fun v2Request(entry: PortableStepsEntryV2): ImportPortableStepsV2Request {
+		val archiveChecksum = PortableStepsDigest("b".repeat(64))
+		val graph = entry.countDomainGraph
+		return ImportPortableStepsV2Request(
+			archiveContentChecksum = archiveChecksum,
+			entryOrdinal = 0,
+			entry = entry,
+			receipt = receipt(0),
+			metadata = PortableStepsImportMetadataV2(
+				encodedByteCount = 1L,
+				archiveContentChecksum = archiveChecksum,
+				entryCount = 1,
+				receiptCount = graph.receipts.size,
+				ownerRevisionCount = graph.ownerRevisions.size,
+				completenessMarkerCount = graph.completenessMarkers.size,
+				rootCount = graph.roots.size,
+			),
+		)
+	}
 
 	private fun receiptEntity(
 		entry: PortableStepsEntryV1,
@@ -1270,6 +1444,31 @@ class RoomImportPortableStepsTest {
 
 	private fun deletionScope(logicalId: String, runId: String) =
 		PortableStepsDeletionScopeDigest.derive(logicalId, runId)
+
+	private fun countDomainOpaque(value: Char) =
+		com.adsamcik.tracker.stats.api.repository.PortableCountDomainOpaqueIdentity(
+			"sha256:" + value.toString().repeat(64),
+		)
+
+	private data class MutableV2RequestFixture(
+		val request: ImportPortableStepsV2Request,
+		val receipts: MutableList<PortableCountDomainReceiptV2>,
+		val owners: MutableList<PortableCountDomainOwnerRevisionV2>,
+	)
+
+	private class SnapshotFailureList<T>(
+		private val values: List<T>,
+	) : AbstractList<T>() {
+		var failure: Throwable? = null
+
+		override val size: Int
+			get() = values.size
+
+		override fun get(index: Int): T {
+			failure?.let { throw it }
+			return values[index]
+		}
+	}
 
 	private class FixedLifecycleStore(
 		initial: CollectedDataLifecycleSnapshot,

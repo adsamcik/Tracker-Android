@@ -231,7 +231,13 @@ internal class RoomImportPortableSteps internal constructor(
 					roots = source.roots.map { it.copy() },
 				)
 			}.also { PortableStepsEntryV2(entry, it) }
+		} catch (cancelled: CancellationException) {
+			throw cancelled
 		} catch (_: IllegalArgumentException) {
+			return attributionUnverifiable()
+		} catch (_: IllegalStateException) {
+			return attributionUnverifiable()
+		} catch (_: ArithmeticException) {
 			return attributionUnverifiable()
 		}
 		entry.identityConflictWithinEntry()?.let { scope ->

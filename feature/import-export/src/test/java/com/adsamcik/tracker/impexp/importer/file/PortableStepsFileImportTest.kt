@@ -18,6 +18,10 @@ import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV1WithReceipt
 import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV2
 import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV2Request
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainCoverage
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainDigest
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainOwnerKind
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainReceiptV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsArchiveV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsCaptureCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsCompletenessV1
@@ -210,6 +214,37 @@ class PortableStepsFileImportTest {
 		)
 		calls shouldBe 0
 	}
+
+	@Test
+	fun `exact and conflicting duplicate v2 receipts are permanent before source admission`() =
+		runTest {
+			var calls = 0
+			val importer = PortableStepsFileImport {
+				sourceImporter {
+					calls++
+					ImportPortableStepsResult.Applied(1, 1)
+				}
+			}
+			val entry = entry("duplicate-receipt", 1_000L)
+			val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+			val owner = graph.ownerRevisions.single {
+				it.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT
+			}
+			val first = countDomainReceipt(owner, authorityRevision = 1L)
+			val conflicting = countDomainReceipt(owner, authorityRevision = 2L)
+			val invalidDocuments = listOf(
+				encodedV2WithReceipts(entry, listOf(first, first)),
+				encodedV2WithReceipts(entry, listOf(first, conflicting)),
+			)
+
+			invalidDocuments.forEach { document ->
+				importer.import(context, database, stream(document)) shouldBe ImportResult(
+					failedCount = 1,
+					errors = listOf(PortableStepsFileImport.PERMANENT_FORMAT_ERROR),
+				)
+			}
+			calls shouldBe 0
+		}
 
 	@Test
 	fun `independent permanent failures do not hide a later healthy entry`() = runTest {
@@ -491,6 +526,56 @@ class PortableStepsFileImportTest {
 		}
 		return output.toByteArray()
 	}
+
+	private suspend fun encodedV2WithReceipts(
+		entry: PortableStepsEntryV1,
+		receipts: List<PortableCountDomainReceiptV2>,
+	): ByteArray {
+		val output = ByteArrayOutputStream()
+		PortableStepsJsonV2Codec().encode(output) { sink ->
+			sink.emit(PortableStepsArchiveV2.create(listOf(entry.withExplicitUnprovenCountDomain())))
+			ExportPortableStepsResult.Exported(1)
+		}
+		return output.toString(Charsets.UTF_8.name())
+			.replace(
+				"\"receipts\":[]",
+				"\"receipts\":[${receipts.joinToString(",") { it.toJson() }}]",
+			)
+			.encodeToByteArray()
+	}
+
+	private fun countDomainReceipt(
+		owner: com.adsamcik.tracker.stats.api.repository.PortableCountDomainOwnerRevisionV2,
+		authorityRevision: Long,
+	): PortableCountDomainReceiptV2 = PortableCountDomainReceiptV2.create(
+		domainIdentity = com.adsamcik.tracker.stats.api.repository.PortableCountDomainOpaqueIdentity(
+			"sha256:" + "d".repeat(64),
+		),
+		ownerKind = owner.ownerKind,
+		scopeIdentity = owner.scopeIdentity,
+		ownerIdentity = owner.ownerIdentity,
+		ownerRevision = owner.ownerRevision,
+		registrationGeneration = 1L,
+		collectedDataEpoch = 1L,
+		authorityRevision = authorityRevision,
+		authorityFingerprint = PortableCountDomainDigest("a".repeat(64)),
+		coverage = PortableCountDomainCoverage.COVERED,
+		coverageVersion = 1,
+		countDomainVersion = 1,
+		effectChecksum = owner.ownerEffectChecksum,
+		completenessEvidenceChecksum = null,
+	)
+
+	private fun PortableCountDomainReceiptV2.toJson(): String = """
+		{"identity":"${identity.value}","domainIdentity":"${domainIdentity.value}",
+		"ownerKind":"${ownerKind.name}","scopeIdentity":"${scopeIdentity.value}",
+		"ownerIdentity":"${ownerIdentity.value}","ownerRevision":$ownerRevision,
+		"registrationGeneration":$registrationGeneration,"collectedDataEpoch":$collectedDataEpoch,
+		"authorityRevision":$authorityRevision,"authorityFingerprint":"${authorityFingerprint.value}",
+		"coverage":"${coverage.name}","coverageVersion":$coverageVersion,
+		"countDomainVersion":$countDomainVersion,"effectChecksum":"${effectChecksum.value}",
+		"completenessEvidenceChecksum":null}
+	""".trimIndent().replace("\n", "")
 
 	private fun entry(seed: String, startTimeMs: Long): PortableStepsEntryV1 {
 		val runId = "$seed-run"

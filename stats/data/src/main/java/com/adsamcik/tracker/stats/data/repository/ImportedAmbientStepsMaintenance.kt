@@ -9,8 +9,6 @@ import com.adsamcik.tracker.shared.base.database.AuthenticatedImportedPortableGr
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailure
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailureReason
 import com.adsamcik.tracker.shared.base.database.authenticateOrInstallGraphlessLegacyAmbientLineage
-import com.adsamcik.tracker.shared.base.database.authenticatedImportedPortableOwnerFences
-import com.adsamcik.tracker.shared.base.database.insertOrAuthenticateImportedPortableOwnerFences
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
@@ -19,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.fenceAuthenticatedImportedPortableGraphs
 import com.adsamcik.tracker.shared.base.database.loadAuthenticatedAmbientStepsLineage
 import com.adsamcik.tracker.shared.base.database.authenticateAllAmbientStepsFences
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
@@ -625,7 +624,7 @@ private suspend fun fencePortableCountDomainGraphs(
 			ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
 		)
 	}
-	val unique = authenticatedImportedPortableOwnerFences(
+	database.fenceAuthenticatedImportedPortableGraphs(
 		graphs = graphLineage.map {
 			AuthenticatedImportedPortableGraphBinding(it.binding, it.graph)
 		},
@@ -634,7 +633,6 @@ private suspend fun fencePortableCountDomainGraphs(
 		fencedAtMs = fencedAtMs,
 		maximumFenceCount = MAX_PORTABLE_OWNER_FENCES_PER_DAY,
 	)
-	database.insertOrAuthenticateImportedPortableOwnerFences(unique)
 	graphLineage.forEach { revision ->
 		val binding = revision.binding
 		if (graphDao.deleteBindingExact(

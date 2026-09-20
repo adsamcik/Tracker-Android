@@ -47,6 +47,38 @@ class PortableStepsSourceStructureTest {
 	}
 
 	@Test
+	fun `Ambient maintenance uses the public core owner fence boundary`() {
+		val coreBoundary = source(
+			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/" +
+				"ImportedPortableStepsCountDomainFences.kt",
+		)
+		val maintenance = source(
+			"stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/" +
+				"ImportedAmbientStepsMaintenance.kt",
+		)
+
+		assertTrue(
+			Regex("""(?m)^suspend fun AppDatabase\.fenceAuthenticatedImportedPortableGraphs\(""")
+				.containsMatchIn(coreBoundary),
+		)
+		assertTrue("check(inTransaction())" in coreBoundary)
+		assertTrue(
+			Regex(
+				"""(?m)^internal suspend fun AppDatabase\.""" +
+					"""insertOrAuthenticateImportedPortableOwnerFences\(""",
+			).containsMatchIn(coreBoundary),
+		)
+		assertTrue(
+			Regex("""(?m)^internal fun authenticatedImportedPortableOwnerFences\(""")
+				.containsMatchIn(coreBoundary),
+		)
+		assertTrue("database.fenceAuthenticatedImportedPortableGraphs(" in maintenance)
+		assertFalse("insertOrAuthenticateImportedPortableOwnerFences" in maintenance)
+		assertFalse("authenticatedImportedPortableOwnerFences" in maintenance)
+		assertFalse("graphDao.insertOwnerFences(" in maintenance)
+	}
+
+	@Test
 	fun `portable test classes do not declare duplicate test method signatures`() {
 		val testFiles = listOf(
 			"core/model/src/androidHostTest/kotlin/com/adsamcik/tracker/shared/model/steps/" +

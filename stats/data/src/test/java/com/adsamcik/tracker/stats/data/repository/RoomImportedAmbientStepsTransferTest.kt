@@ -7,9 +7,7 @@ import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwner
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwnerKind
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwnerState
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.AuthenticatedImportedPortableGraphBinding
 import com.adsamcik.tracker.shared.base.database.authenticateOrInstallGraphlessLegacyAmbientLineage
-import com.adsamcik.tracker.shared.base.database.authenticatedImportedPortableOwnerFences
 import com.adsamcik.tracker.shared.base.database.deleteFullClearPayloadInCurrentTransaction
 import com.adsamcik.tracker.shared.base.database.insertAuthenticatedGraph
 import com.adsamcik.tracker.shared.base.database.loadAuthenticatedAmbientStepsLineage
@@ -3476,15 +3474,41 @@ class RoomImportedAmbientStepsTransferTest {
 				),
 			)
 		}
-		return authenticatedImportedPortableOwnerFences(
-			graphs = repaired.map {
-				AuthenticatedImportedPortableGraphBinding(it.binding, it.graph)
-			},
-			fenceKind = fenceKind,
-			collectedDataEpoch = EPOCH,
-			fencedAtMs = fencedAtMs,
-			maximumFenceCount = 16,
-		)
+		return repaired.flatMap { revision ->
+			revision.graph.roots.map { root ->
+				val owner = revision.graph.ownerRevisions.single {
+					it.ownerKind == root.ownerKind &&
+						it.ownerIdentity == root.ownerIdentity &&
+						it.ownerRevision == root.ownerRevision
+				}
+				Triple(
+					revision.binding.productRevision,
+					owner.ownerRevision,
+					ImportedPortableStepsCountDomainOwnerFenceEntity.create(
+						ownerKind = owner.ownerKind.name,
+						ownerIdentity = owner.ownerIdentity.value,
+						scopeIdentity = owner.scopeIdentity.value,
+						latestSourceRevision = owner.ownerRevision,
+						latestOwnerEffectChecksum = owner.ownerEffectChecksum.value,
+						productKind = revision.binding.productKind,
+						productIdentity = revision.binding.productIdentity,
+						graphIdentity = revision.binding.graphIdentity,
+						fenceKind = fenceKind,
+						collectedDataEpoch = EPOCH,
+						fencedAtMs = fencedAtMs,
+					),
+				)
+			}
+		}.groupBy { it.third.ownerKind to it.third.ownerIdentity }
+			.values
+			.map { lineage ->
+				lineage.maxWith(
+					compareBy<Triple<Long, Long, ImportedPortableStepsCountDomainOwnerFenceEntity>> {
+						it.second
+					}.thenBy { it.first },
+				).third
+			}
+			.also { require(it.size <= 16) }
 	}
 
 	private suspend fun simulatePreRebindingAmbientTruncation(

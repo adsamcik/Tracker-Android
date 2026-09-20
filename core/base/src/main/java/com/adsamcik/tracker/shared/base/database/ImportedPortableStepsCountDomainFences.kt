@@ -390,6 +390,32 @@ internal suspend fun AppDatabase.insertOrAuthenticateImportedPortableOwnerFences
 	if (missing.isNotEmpty()) dao.insertOwnerFences(missing)
 }
 
+/**
+ * Authenticates and persists terminal fences for every owner in the supplied imported graphs.
+ *
+ * Callers retain the surrounding transaction so graph fencing and product deletion stay atomic.
+ */
+suspend fun AppDatabase.fenceAuthenticatedImportedPortableGraphs(
+	graphs: List<AuthenticatedImportedPortableGraphBinding>,
+	fenceKind: String,
+	collectedDataEpoch: Long,
+	fencedAtMs: Long,
+	maximumFenceCount: Int,
+) {
+	check(inTransaction()) {
+		"Imported portable owner fencing requires the caller's existing AppDatabase transaction"
+	}
+	insertOrAuthenticateImportedPortableOwnerFences(
+		authenticatedImportedPortableOwnerFences(
+			graphs = graphs,
+			fenceKind = fenceKind,
+			collectedDataEpoch = collectedDataEpoch,
+			fencedAtMs = fencedAtMs,
+			maximumFenceCount = maximumFenceCount,
+		),
+	)
+}
+
 /** Removes an entry graph only after every product member has been deleted and fenced. */
 suspend fun AppDatabase.removeImportedPortableSessionGraph(entryIdentity: String) {
 	val dao = importedPortableStepsCountDomainDao()
@@ -409,7 +435,7 @@ suspend fun AppDatabase.removeImportedPortableSessionGraph(entryIdentity: String
 	dao.deleteGraphIfUnbound(binding.graphIdentity)
 }
 
-fun authenticatedImportedPortableOwnerFences(
+internal fun authenticatedImportedPortableOwnerFences(
 	graphs: List<AuthenticatedImportedPortableGraphBinding>,
 	fenceKind: String,
 	collectedDataEpoch: Long,

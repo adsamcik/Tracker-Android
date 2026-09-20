@@ -273,29 +273,11 @@ data class PortableCountDomainGraphV2(
 				completenessMarkers.sortedWith(PORTABLE_COUNT_DOMAIN_MARKER_ORDER),
 		)
 		require(roots == roots.sortedWith(PORTABLE_COUNT_DOMAIN_ROOT_ORDER))
+		requirePersistedKeyUniqueness(receipts, ownerRevisions, completenessMarkers, roots)
 		val rootKinds = roots.mapTo(linkedSetOf(), PortableCountDomainRootV2::ownerKind)
 		require(
 			rootKinds == setOf(PortableCountDomainOwnerKind.AMBIENT_FACT) ||
 				PortableCountDomainOwnerKind.AMBIENT_FACT !in rootKinds,
-		)
-		require(receipts.map { it.identity }.distinct().size == receipts.size)
-		require(
-			ownerRevisions.map { Triple(it.ownerKind, it.ownerIdentity, it.ownerRevision) }
-				.distinct().size == ownerRevisions.size,
-		)
-		require(
-			completenessMarkers.map { it.ownerIdentity to it.ownerRevision }.distinct().size ==
-				completenessMarkers.size,
-		)
-		require(
-			roots.map {
-				listOf(
-					it.containerIdentity.value,
-					it.productIdentity.value,
-					it.ownerKind.name,
-					it.ownerIdentity.value,
-				)
-			}.distinct().size == roots.size,
 		)
 		validateGraph()
 		require(contentChecksum == PortableCountDomainIntegrity.graphChecksum(
@@ -319,6 +301,12 @@ data class PortableCountDomainGraphV2(
 			completenessMarkers: List<PortableCountDomainCompletenessMarkerV2>,
 			roots: List<PortableCountDomainRootV2>,
 		): PortableCountDomainGraphV2 {
+			requirePersistedKeyUniqueness(
+				receipts,
+				ownerRevisions,
+				completenessMarkers,
+				roots,
+			)
 			val orderedReceipts = receipts.sortedWith(PORTABLE_COUNT_DOMAIN_RECEIPT_ORDER)
 			val orderedOwners = ownerRevisions.sortedWith(PORTABLE_COUNT_DOMAIN_OWNER_ORDER)
 			val orderedMarkers = completenessMarkers.sortedWith(PORTABLE_COUNT_DOMAIN_MARKER_ORDER)
@@ -441,6 +429,36 @@ data class PortableCountDomainGraphV2(
 		}
 	}
 
+}
+
+private fun requirePersistedKeyUniqueness(
+	receipts: List<PortableCountDomainReceiptV2>,
+	owners: List<PortableCountDomainOwnerRevisionV2>,
+	markers: List<PortableCountDomainCompletenessMarkerV2>,
+	roots: List<PortableCountDomainRootV2>,
+) {
+	require(receipts.map { it.identity }.distinct().size == receipts.size)
+	require(
+		receipts.map { Triple(it.ownerKind, it.ownerIdentity, it.ownerRevision) }
+			.distinct().size == receipts.size,
+	)
+	require(
+		owners.map { Triple(it.ownerKind, it.ownerIdentity, it.ownerRevision) }
+			.distinct().size == owners.size,
+	)
+	require(
+		markers.map { it.ownerIdentity to it.ownerRevision }.distinct().size == markers.size,
+	)
+	require(
+		roots.map {
+			listOf(
+				it.containerIdentity.value,
+				it.productIdentity.value,
+				it.ownerKind.name,
+				it.ownerIdentity.value,
+			)
+		}.distinct().size == roots.size,
+	)
 }
 
 val PORTABLE_COUNT_DOMAIN_RECEIPT_ORDER: Comparator<PortableCountDomainReceiptV2> =

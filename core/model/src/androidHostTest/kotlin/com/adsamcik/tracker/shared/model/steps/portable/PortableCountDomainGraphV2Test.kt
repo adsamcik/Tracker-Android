@@ -23,6 +23,40 @@ class PortableCountDomainGraphV2Test {
 	}
 
 	@Test
+	fun `exact duplicate receipt identity is invalid before graph construction`() {
+		val graph = ambientGraph()
+		val receipt = graph.receipts.single()
+
+		shouldThrow<IllegalArgumentException> {
+			PortableCountDomainGraphV2.create(
+				receipts = listOf(receipt, receipt),
+				ownerRevisions = graph.ownerRevisions,
+				completenessMarkers = graph.completenessMarkers,
+				roots = graph.roots,
+			)
+		}
+	}
+
+	@Test
+	fun `conflicting duplicate receipt owner key is invalid before graph construction`() {
+		val graph = ambientGraph()
+		val first = graph.receipts.single()
+		val conflicting = receipt(
+			revision = first.ownerRevision,
+			collectedDataEpoch = first.collectedDataEpoch + 1L,
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			PortableCountDomainGraphV2.create(
+				receipts = listOf(first, conflicting),
+				ownerRevisions = graph.ownerRevisions,
+				completenessMarkers = graph.completenessMarkers,
+				roots = graph.roots,
+			)
+		}
+	}
+
+	@Test
 	fun `orphan receipt revision gap and post retraction resurrection fail closed`() {
 		val graph = ambientGraph()
 		shouldThrow<IllegalArgumentException> {
