@@ -3,9 +3,16 @@ package com.adsamcik.tracker.shared.base.database
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedRead
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedReader
 import com.adsamcik.tracker.shared.base.database.steps.imported.RetainedImportedStepsEntry
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainCompletenessState
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainIntegrity
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOperation
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOwnerKind
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOwnerRevisionV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainRootV2
 
@@ -69,17 +76,7 @@ suspend fun AppDatabase.authenticateOrInstallImportedSessionCountDomainBinding(
 	loadAuthenticatedImportedSessionCountDomainBinding(entry)?.let { return it }
 	val graph = entry.legacyUnprovenCountDomainGraph()
 	val dao = importedPortableStepsCountDomainDao()
-	require(dao.graph(graph.identity.value) == null) {
-		"Graphless legacy Steps product collides with an unbound stored graph"
-	}
-	graph.roots.map { it.ownerIdentity.value }.distinct().chunked(OWNER_QUERY_BATCH).forEach {
-		require(dao.rootsForOwners(it, 1).isEmpty()) {
-			"Graphless legacy Steps product collides with stored roots"
-		}
-		require(dao.ownerFences(it, 1).isEmpty()) {
-			"Graphless legacy Steps product collides with terminal owner fences"
-		}
-	}
+	requireGraphlessLegacySessionProvenance(entry, graph)
 	dao.insertAuthenticatedGraph(
 		graph,
 		ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
@@ -125,6 +122,187 @@ suspend fun AppDatabase.refreshImportedLegacySessionCountDomainBinding(
 	}
 	val replacement = retained.legacyUnprovenCountDomainGraph()
 	if (replacement == previous.graph) return
+	replaceImportedLegacySessionGraph(
+		entryIdentity = entryIdentity,
+		previous = previous,
+		replacement = replacement,
+		expectedFileReceiptCount = dao.fileReceiptCountForEntry(entryIdentity),
+	)
+}
+
+@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount", "ComplexCondition")
+internal suspend fun AppDatabase.reconcilePreviouslyTruncatedLegacySessionBinding(
+	entry: RetainedImportedStepsEntry,
+	loaded: LoadedImportedSessionCountDomainBinding,
+	expected: com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2,
+): Boolean {
+	val binding = loaded.binding
+	val graph = loaded.graph
+	if (binding.sourceSchemaVersion != 1 || graph == expected) return false
+	require(binding.productKind ==
+		ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY)
+	require(binding.productIdentity == entry.metadata.identity)
+	require(binding.productRevision == IMPORTED_SESSION_PRODUCT_REVISION)
+	require(binding.graphIdentity == graph.identity.value)
+	require(graph.receipts.isEmpty())
+	if (binding.sourceReceiptIdentity == null) {
+		require(binding.sourceArchiveContentChecksum == null)
+		require(loaded.bindingReceipt == null)
+	} else {
+		val receipt = requireNotNull(loaded.bindingReceipt)
+		require(receipt.receiptIdentity == binding.sourceReceiptIdentity)
+		require(receipt.entryIdentity == entry.metadata.identity)
+		require(receipt.graphIdentity == graph.identity.value)
+		require(receipt.archiveContentChecksum == binding.sourceArchiveContentChecksum)
+	}
+	loaded.fileReceipts.forEach { receipt ->
+		require(receipt.entryIdentity == entry.metadata.identity)
+		require(receipt.graphIdentity == graph.identity.value)
+		require(receipt.archiveContentChecksum == entry.metadata.contentChecksum)
+	}
+	loaded.bindingReceipt?.let { require(it in loaded.fileReceipts) }
+	val expectedRoots = expected.roots.associateBy { it.stableSessionRootKey() }
+	require(expectedRoots.size == expected.roots.size)
+	val storedRoots = graph.roots.associateBy { it.stableSessionRootKey() }
+	require(storedRoots.size == graph.roots.size)
+	if (!storedRoots.keys.containsAll(expectedRoots.keys) ||
+		storedRoots.keys == expectedRoots.keys
+	) {
+		return false
+	}
+	val storedOwners = graph.ownerRevisions.associateBy {
+		Triple(it.ownerKind, it.ownerIdentity.value, it.ownerRevision)
+	}
+	require(storedOwners.size == graph.ownerRevisions.size)
+	require(storedOwners.size == graph.roots.size)
+	val expectedOwners = expected.ownerRevisions.associateBy {
+		Triple(it.ownerKind, it.ownerIdentity.value, it.ownerRevision)
+	}
+	val storedMarkers = graph.completenessMarkers.associateBy {
+		it.ownerIdentity.value to it.ownerRevision
+	}
+	require(storedMarkers.size == graph.completenessMarkers.size)
+	val expectedMarkers = expected.completenessMarkers.associateBy {
+		it.ownerIdentity.value to it.ownerRevision
+	}
+	val liveRuns = entry.runs.associateBy { it.identity }
+	val removedRoots = graph.roots.filter {
+		it.stableSessionRootKey() !in expectedRoots
+	}
+	val retainedOwnerIdentities = expected.roots.map { it.ownerIdentity.value }.distinct()
+	val retainedOwnerFences = retainedOwnerIdentities.chunked(OWNER_QUERY_BATCH).flatMap { identities ->
+		importedPortableStepsCountDomainDao().ownerFences(identities, identities.size + 1)
+	}
+	require(retainedOwnerFences.isEmpty()) {
+		"Retained legacy Steps owner has terminal authority"
+	}
+	val fenceByRun = linkedMapOf<String, SourceDeletionFenceEntity>()
+	graph.roots.forEach { root ->
+		require(root.ownerRevision == LEGACY_UNPROVEN_REVISION)
+		require(root.ownerKind in SESSION_OWNER_KINDS)
+		require(
+			root.ownerIdentity == PortableCountDomainIntegrity.unprovenOwnerIdentity(
+				root.ownerKind,
+				root.productIdentity.value,
+			),
+		)
+		val owner = requireNotNull(
+			storedOwners[Triple(root.ownerKind, root.ownerIdentity.value, root.ownerRevision)],
+		)
+		require(owner.operation == PortableCountDomainOperation.UNPROVEN)
+		require(owner.receiptIdentity == null)
+		require(owner.scopeIdentity == PortableCountDomainIntegrity.unprovenScopeIdentity(
+			root.containerIdentity.value,
+		))
+		require(owner.linkedAtMs == LEGACY_UNPROVEN_LINK_TIME_MS)
+		if (root.stableSessionRootKey() in expectedRoots) {
+			require(owner == expectedOwners.getValue(
+				Triple(root.ownerKind, root.ownerIdentity.value, root.ownerRevision),
+			))
+			if (root.ownerKind == PortableCountDomainOwnerKind.SESSION_COMPLETENESS) {
+				require(storedMarkers[root.ownerIdentity.value to root.ownerRevision] ==
+					expectedMarkers[root.ownerIdentity.value to root.ownerRevision])
+			}
+		} else {
+			require(root.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT)
+			val run = liveRuns[root.containerIdentity.value] ?: return false
+			val fence = databaseRetentionFence(entry, run.identity, run.deletionScopeDigest)
+				?: return false
+			fenceByRun[run.identity] = fence
+		}
+	}
+	require(
+		graph.completenessMarkers.size ==
+			graph.roots.count { it.ownerKind == PortableCountDomainOwnerKind.SESSION_COMPLETENESS },
+	)
+	graph.completenessMarkers.forEach { marker ->
+		require(marker.ownerRevision == LEGACY_UNPROVEN_REVISION)
+		require(marker.terminalState == PortableCountDomainCompletenessState.UNPROVEN)
+		require(marker.lastAdmissionOrdinal == null && marker.lastSourceSequence == null)
+		require(marker.providerFlushOutcome == LEGACY_UNPROVEN_OUTCOME)
+		require(marker.registrationRemovalOutcome == LEGACY_UNPROVEN_OUTCOME)
+		require(graph.roots.any {
+			it.ownerKind == PortableCountDomainOwnerKind.SESSION_COMPLETENESS &&
+				it.ownerIdentity == marker.ownerIdentity &&
+				it.ownerRevision == marker.ownerRevision
+		})
+	}
+	val removedByFenceTime = removedRoots.groupBy {
+		fenceByRun.getValue(it.containerIdentity.value).deletedAtMs
+	}
+	removedByFenceTime.forEach { (fencedAtMs, roots) ->
+		insertOrAuthenticateImportedPortableOwnerFences(
+			authenticatedImportedPortableOwnerFences(
+				graphs = listOf(
+					AuthenticatedImportedPortableGraphBinding(
+						binding,
+						graph.copy(roots = roots),
+					),
+				),
+				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION,
+				collectedDataEpoch = entry.metadata.collectedDataEpoch,
+				fencedAtMs = fencedAtMs,
+				maximumFenceCount = roots.size,
+			),
+		)
+	}
+	replaceImportedLegacySessionGraph(
+		entryIdentity = entry.metadata.identity,
+		previous = AuthenticatedImportedPortableGraphBinding(binding, graph),
+		replacement = expected,
+		expectedFileReceiptCount = loaded.fileReceipts.size,
+	)
+	return true
+}
+
+private suspend fun AppDatabase.databaseRetentionFence(
+	entry: RetainedImportedStepsEntry,
+	runIdentity: String,
+	deletionScopeDigest: String,
+): SourceDeletionFenceEntity? {
+	val fence = sourceDeletionFenceDao().get(
+		SourceDestinationOwnerEntity.SOURCE_STEPS,
+		StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+		SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+		deletionScopeDigest,
+	) ?: return null
+	return fence.takeIf {
+		StepFactRevisionIntegrity.isRetentionTruncationFence(
+			it,
+			entry.metadata.identity,
+			runIdentity,
+			entry.metadata.collectedDataEpoch,
+		)
+	}
+}
+
+private suspend fun AppDatabase.replaceImportedLegacySessionGraph(
+	entryIdentity: String,
+	previous: AuthenticatedImportedPortableGraphBinding,
+	replacement: com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2,
+	expectedFileReceiptCount: Int,
+) {
+	val dao = importedPortableStepsCountDomainDao()
 	require(dao.graph(replacement.identity.value) == null) {
 		"Retained legacy Steps graph collides with an existing graph"
 	}
@@ -132,15 +310,13 @@ suspend fun AppDatabase.refreshImportedLegacySessionCountDomainBinding(
 		replacement,
 		ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
 	)
-	previous.binding.sourceReceiptIdentity?.let {
-		val receiptCount = dao.fileReceiptCountForEntry(entryIdentity)
-		require(receiptCount > 0)
+	if (expectedFileReceiptCount > 0) {
 		require(
 			dao.updateFileReceiptGraphIdentity(
 				entryIdentity,
 				previous.binding.graphIdentity,
 				replacement.identity.value,
-			) == receiptCount,
+			) == expectedFileReceiptCount,
 		)
 	}
 	require(
@@ -182,6 +358,13 @@ private suspend fun AppDatabase.fenceImportedPortableSessionRoots(
 			fencedAtMs = fencedAtMs,
 		)
 	}.distinctBy { it.ownerKind to it.ownerIdentity }
+	insertOrAuthenticateImportedPortableOwnerFences(fences)
+}
+
+internal suspend fun AppDatabase.insertOrAuthenticateImportedPortableOwnerFences(
+	fences: List<ImportedPortableStepsCountDomainOwnerFenceEntity>,
+) {
+	if (fences.isEmpty()) return
 	val dao = importedPortableStepsCountDomainDao()
 	val existing = fences.chunked(OWNER_QUERY_BATCH).flatMap { batch ->
 		dao.ownerFences(batch.map { it.ownerIdentity }, batch.size + 1)
@@ -309,5 +492,19 @@ private fun ImportedPortableStepsCountDomainOwnerFenceEntity.hasSameTerminalAuth
 		fenceKind == other.fenceKind &&
 		collectedDataEpoch == other.collectedDataEpoch
 
+private fun PortableCountDomainRootV2.stableSessionRootKey(): List<String> = listOf(
+		containerIdentity.value,
+		productIdentity.value,
+		ownerKind.name,
+		ownerIdentity.value,
+)
+
 private const val IMPORTED_SESSION_PRODUCT_REVISION = 1L
 private const val OWNER_QUERY_BATCH = 400
+private const val LEGACY_UNPROVEN_REVISION = 1L
+private const val LEGACY_UNPROVEN_LINK_TIME_MS = 0L
+private const val LEGACY_UNPROVEN_OUTCOME = "LEGACY_V1_UNPROVEN"
+private val SESSION_OWNER_KINDS = setOf(
+	PortableCountDomainOwnerKind.SESSION_FACT,
+	PortableCountDomainOwnerKind.SESSION_COMPLETENESS,
+)

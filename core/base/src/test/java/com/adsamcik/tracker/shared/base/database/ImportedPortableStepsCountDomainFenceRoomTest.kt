@@ -167,6 +167,114 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 	}
 
 	@Test
+	fun `graphless v1 session rejects orphan durable file receipt provenance`() = runTest {
+		val entry = entry()
+		seedSessionPayload(entry)
+		val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+		database.importedPortableStepsCountDomainDao().insertFileReceipt(
+			ImportedPortableStepsFileReceiptEntity(
+				importJobId = "orphan-job",
+				entryKey = "orphan-entry",
+				receiptIdentity = ImportedPortableCountDomainIdentity.fileReceipt(
+					"orphan-job",
+					"orphan-entry",
+				),
+				sourceName = "orphan.trackersteps",
+				receivedAtMs = 1L,
+				archiveContentChecksum = entry.contentChecksum.value,
+				entryOrdinal = 0,
+				entryIdentity = entry.identity.value,
+				graphIdentity = graph.identity.value,
+			),
+		)
+
+		assertFailsWith<IllegalArgumentException> {
+			database.withTransaction {
+				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+			}
+		}
+
+		database.importedStepsDao().entry(entry.identity.value)?.identity shouldBe
+			entry.identity.value
+		database.importedPortableStepsCountDomainDao().ownerFences(
+			graph.roots.map { it.ownerIdentity.value },
+			graph.roots.size + 1,
+		) shouldBe emptyList()
+	}
+
+	@Test
+	fun `graphless v1 session rejects orphan v2 graph and binding evidence`() = runTest {
+		val entry = entry()
+		seedSessionPayload(entry)
+		val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+		val dao = database.importedPortableStepsCountDomainDao()
+		dao.insertAuthenticatedGraph(
+			graph,
+			ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+		)
+		dao.insertBinding(
+			ImportedPortableStepsCountDomainBindingEntity(
+				productKind =
+					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				productIdentity = identity(
+					PortableStepsIdentityKind.LOGICAL_ENTRY,
+					"orphan-binding",
+				).value,
+				productRevision = 1L,
+				graphIdentity = graph.identity.value,
+				sourceSchemaVersion = 2,
+				sourceReceiptIdentity = "sha256:" + "e".repeat(64),
+				sourceArchiveContentChecksum = entry.contentChecksum.value,
+			),
+		)
+
+		assertFailsWith<IllegalArgumentException> {
+			database.withTransaction {
+				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+			}
+		}
+
+		database.importedStepsDao().entry(entry.identity.value)?.identity shouldBe
+			entry.identity.value
+		dao.graph(graph.identity.value)?.graphIdentity shouldBe graph.identity.value
+	}
+
+	@Test
+	fun `missing v2 session binding never downgrades to synthetic v1`() = runTest {
+		val entry = entry()
+		seedSessionPayload(entry)
+		val graph = installV2SessionBinding(entry)
+		val dao = database.importedPortableStepsCountDomainDao()
+		val binding = requireNotNull(
+			dao.binding(
+				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				entry.identity.value,
+				1L,
+			),
+		)
+		dao.deleteBindingExact(
+			binding.productKind,
+			binding.productIdentity,
+			binding.productRevision,
+			binding.graphIdentity,
+		) shouldBe 1
+
+		assertFailsWith<IllegalArgumentException> {
+			database.withTransaction {
+				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+			}
+		}
+
+		database.importedStepsDao().entry(entry.identity.value)?.identity shouldBe
+			entry.identity.value
+		dao.graph(graph.identity.value)?.graphIdentity shouldBe graph.identity.value
+		dao.ownerFences(
+			graph.roots.map { it.ownerIdentity.value },
+			graph.roots.size + 1,
+		) shouldBe emptyList()
+	}
+
+	@Test
 	fun `missing graphless session evidence rolls back full clear fences`() = runTest {
 		val entry = entry()
 		seedSessionPayload(entry)

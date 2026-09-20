@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.AuthenticatedImportedAmbientSte
 import com.adsamcik.tracker.shared.base.database.AuthenticatedImportedPortableGraphBinding
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailure
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailureReason
+import com.adsamcik.tracker.shared.base.database.authenticateOrInstallGraphlessLegacyAmbientLineage
 import com.adsamcik.tracker.shared.base.database.authenticatedImportedPortableOwnerFences
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayFenceEntity
@@ -19,7 +20,6 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.loadAuthenticatedAmbientStepsLineage
 import com.adsamcik.tracker.shared.base.database.authenticateAllAmbientStepsFences
-import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedAmbientStepsGraphLineage
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsAfterConsentReset
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsAfterConsentResetRequest
@@ -609,7 +609,7 @@ private suspend fun fencePortableCountDomainGraphs(
 	fencedAtMs: Long,
 ) {
 	val graphDao = database.importedPortableStepsCountDomainDao()
-	val graphLineage = database.loadAuthenticatedImportedAmbientStepsGraphLineage(lineage)
+	val graphLineage = database.authenticateOrInstallGraphlessLegacyAmbientLineage(lineage)
 	if (graphLineage.isEmpty()) {
 		unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 	}

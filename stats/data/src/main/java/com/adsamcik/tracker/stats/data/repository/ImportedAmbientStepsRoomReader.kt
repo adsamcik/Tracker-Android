@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailure
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailureReason
+import com.adsamcik.tracker.shared.base.database.loadProvenGraphlessLegacyAmbientLineage
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
@@ -21,7 +22,6 @@ import com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_AMBIENT_STEPS_D
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV2
-import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResult
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsArchiveSink
@@ -209,17 +209,25 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 			check(lineage.latest.header == candidate)
 			val revision = lineage.latest
 			val portableDay = revision.day
-			val graphBindings = database.importedPortableStepsCountDomainDao().bindings(
+			val graphBindings = database.importedPortableStepsCountDomainDao().bindingsForProduct(
 				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
-				listOf(revision.header.dayIdentity),
+				revision.header.dayIdentity,
+				ImportedAmbientStepsDao.MAX_ARCHIVES_PER_DAY + 1,
 			)
+			if (graphBindings.size > ImportedAmbientStepsDao.MAX_ARCHIVES_PER_DAY) {
+				return ImportedAmbientStepsSnapshot.Unverifiable(
+					ImportedAmbientStepsReadFailure.DEPENDENCY_OVERFLOW,
+				)
+			}
 			val graphRevision = if (graphBindings.isEmpty()) {
+				val graphless = database.loadProvenGraphlessLegacyAmbientLineage(lineage)
+					.lastOrNull()
 				if (includeCountDomainGraph) {
 					return ImportedAmbientStepsSnapshot.Unverifiable(
 						ImportedAmbientStepsReadFailure.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
 					)
 				}
-				null
+				graphless
 			} else {
 				try {
 					database.loadAuthenticatedImportedAmbientStepsGraphLineage(lineage).lastOrNull()
@@ -276,8 +284,7 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 				dayIdentity = revision.header.dayIdentity,
 				dayImportRevision = revision.header.importRevision,
 			)
-			val countDomainGraph = graphRevision?.graph
-				?: portableDay.withExplicitUnprovenCountDomain().countDomainGraph
+			val countDomainGraph = checkNotNull(graphRevision).graph
 			val countDomainOwners = countDomainGraph.ambientCountDomainOwners(
 				revision.header.dayIdentity,
 			) ?: return ImportedAmbientStepsSnapshot.Unverifiable(

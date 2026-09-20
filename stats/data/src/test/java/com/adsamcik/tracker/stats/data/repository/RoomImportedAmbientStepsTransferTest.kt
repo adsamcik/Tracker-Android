@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsIdenti
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -72,6 +73,7 @@ import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResul
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsResult
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsV2Request
+import com.adsamcik.tracker.stats.api.repository.ImportedAmbientStepsMutationUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportMetadata
@@ -383,6 +385,261 @@ class RoomImportedAmbientStepsTransferTest {
 		) shouldBe ExportPortableAmbientStepsResult.Unverifiable(
 			PortableAmbientStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
 		)
+	}
+
+	@Test
+	fun `graphless legacy v1 day remains selected deletion eligible`() = runTest {
+		val day = completeDay(LocalDate.of(2026, 1, 18), 4L)
+		val archive = archive(day)
+		importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+		removeAmbientGraphLineage(day.identity.value, deleteGraph = true)
+		val expectedGraph = day.withExplicitUnprovenCountDomain().countDomainGraph
+
+		RoomDeleteImportedAmbientStepsDay(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+		).deleteDay(
+			DeleteImportedAmbientStepsDayRequest(
+				day.identity,
+				EPOCH,
+				day.structuralDayEndTimeMs,
+			),
+		) shouldBe DeleteImportedAmbientStepsDayResult.Deleted(1)
+
+		database.importedPortableStepsCountDomainDao().ownerFences(
+			expectedGraph.roots.map { it.ownerIdentity.value },
+			expectedGraph.roots.size + 1,
+		).also { fences ->
+			fences.map { it.ownerIdentity }.toSet() shouldBe
+				expectedGraph.roots.map { it.ownerIdentity.value }.toSet()
+			fences.all {
+				it.fenceKind ==
+					ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_SELECTED_DELETE
+			} shouldBe true
+		}
+	}
+
+	@Test
+	fun `graphless legacy v1 day remains retention eligible`() = runTest {
+		val day = completeDay(LocalDate.of(2026, 1, 19), 4L)
+		val archive = archive(day)
+		importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+		removeAmbientGraphLineage(day.identity.value, deleteGraph = true)
+		database.sourceEvidenceStateDao().updateLifecycle(
+			EPOCH,
+			day.structuralDayEndTimeMs,
+			day.structuralDayEndTimeMs,
+		) shouldBe 1
+
+		RoomTruncateImportedAmbientStepsRetention(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+		).truncateNext(
+			TruncateImportedAmbientStepsRetentionRequest(
+				day.structuralDayEndTimeMs,
+				EPOCH,
+				day.structuralDayEndTimeMs + 1L,
+			),
+		) shouldBe TruncateImportedAmbientStepsRetentionResult.Retained(1)
+		val expectedGraph = day.withExplicitUnprovenCountDomain().countDomainGraph
+		database.importedPortableStepsCountDomainDao().ownerFences(
+			expectedGraph.roots.map { it.ownerIdentity.value },
+			expectedGraph.roots.size + 1,
+		).also { fences ->
+			fences.map { it.ownerIdentity }.toSet() shouldBe
+				expectedGraph.roots.map { it.ownerIdentity.value }.toSet()
+			fences.all {
+				it.fenceKind == ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION
+			} shouldBe true
+		}
+	}
+
+	@Test
+	fun `orphan ambient graph prevents graphless legacy deletion fallback`() = runTest {
+		val day = completeDay(LocalDate.of(2026, 1, 20), 4L)
+		val archive = archive(day)
+		importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+		removeAmbientGraphLineage(day.identity.value, deleteGraph = false)
+
+		RoomDeleteImportedAmbientStepsDay(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+		).deleteDay(
+			DeleteImportedAmbientStepsDayRequest(
+				day.identity,
+				EPOCH,
+				day.structuralDayEndTimeMs,
+			),
+		) shouldBe DeleteImportedAmbientStepsDayResult.Unverifiable(
+			ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		reexportResult(database, archive) shouldBe ExportPortableAmbientStepsResult.Unverifiable(
+			PortableAmbientStepsExportUnverifiableReason.CORRUPT_RETAINED_STATE,
+		)
+		database.importedAmbientStepsDao().dayRevisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `missing v2 ambient binding never downgrades to synthetic v1`() = runTest {
+		val day = completeDay(LocalDate.of(2026, 1, 21), 4L)
+		val archive = PortableAmbientStepsArchiveV2.create(
+			listOf(day.withExplicitUnprovenCountDomain()),
+		)
+		importer(database).importArchive(requestV2(archive)) shouldBe applied(archive, 1)
+		removeAmbientGraphLineage(day.identity.value, deleteGraph = true)
+
+		RoomDeleteImportedAmbientStepsDay(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+		).deleteDay(
+			DeleteImportedAmbientStepsDayRequest(
+				day.identity,
+				EPOCH,
+				day.structuralDayEndTimeMs,
+			),
+		) shouldBe DeleteImportedAmbientStepsDayResult.Unverifiable(
+			ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		reexportResult(
+			database,
+			PortableAmbientStepsArchiveV1.create(archive.days.map { it.product }),
+		) shouldBe ExportPortableAmbientStepsResult.Unverifiable(
+			PortableAmbientStepsExportUnverifiableReason.CORRUPT_RETAINED_STATE,
+		)
+		database.importedAmbientStepsDao().dayRevisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `previously truncated v1 ambient graph is fenced rebound and idempotent on read`() =
+		runTest {
+			val original = twoFactDay(LocalDate.of(2026, 1, 22))
+			val retained = retainedSuffix(original)
+			val originalArchive = archive(original)
+			val retainedArchive = archive(retained)
+			importer(database).importArchive(request(originalArchive)) shouldBe
+				applied(originalArchive, 1)
+			importer(database).importArchive(
+				request(
+					retainedArchive,
+					jobId = "legacy-retained",
+					archiveKey = "legacy-retained",
+				),
+			) shouldBe applied(retainedArchive, 1)
+			simulatePreRebindingAmbientTruncation(retained)
+			val lineage = database.importedAmbientStepsDao()
+				.loadAuthenticatedAmbientStepsLineage(retained.identity.value, EPOCH)
+
+			val first = database.loadAuthenticatedImportedAmbientStepsGraphLineage(lineage)
+			val expectedGraph = retained.withExplicitUnprovenCountDomain(2L).countDomainGraph
+			first.last().graph shouldBe expectedGraph
+			val removedOwner = original.withExplicitUnprovenCountDomain().countDomainGraph.roots
+				.single { it.productIdentity.value == original.facts.first().identity.value }
+				.ownerIdentity.value
+			database.importedPortableStepsCountDomainDao().ownerFences(
+				listOf(removedOwner),
+				2,
+			).single().fenceKind shouldBe
+				ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION
+
+			database.loadAuthenticatedImportedAmbientStepsGraphLineage(
+				database.importedAmbientStepsDao().loadAuthenticatedAmbientStepsLineage(
+					retained.identity.value,
+					EPOCH,
+				),
+			) shouldBe first
+			database.importedPortableStepsCountDomainDao().bindings(
+				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
+				listOf(retained.identity.value),
+			).map { it.productRevision } shouldBe listOf(1L, 2L)
+		}
+
+	@Test
+	fun `ambiguous truncated v1 ambient graph rolls back without fences or rebinding`() =
+		runTest {
+			val original = twoFactDay(LocalDate.of(2026, 1, 23))
+			val ambiguous = retainedSuffix(original, replaceRetainedIdentity = true)
+			val originalArchive = archive(original)
+			val ambiguousArchive = archive(ambiguous)
+			importer(database).importArchive(request(originalArchive)) shouldBe
+				applied(originalArchive, 1)
+			importer(database).importArchive(
+				request(
+					ambiguousArchive,
+					jobId = "legacy-ambiguous",
+					archiveKey = "legacy-ambiguous",
+				),
+			) shouldBe applied(ambiguousArchive, 1)
+			simulatePreRebindingAmbientTruncation(ambiguous)
+			val lineage = database.importedAmbientStepsDao()
+				.loadAuthenticatedAmbientStepsLineage(ambiguous.identity.value, EPOCH)
+
+			assertFailsWith<IllegalStateException> {
+				database.loadAuthenticatedImportedAmbientStepsGraphLineage(lineage)
+			}
+
+			database.importedPortableStepsCountDomainDao().bindings(
+				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
+				listOf(ambiguous.identity.value),
+			).map { it.productRevision } shouldBe listOf(1L)
+			database.importedPortableStepsCountDomainDao().ownerFences(
+				original.withExplicitUnprovenCountDomain().countDomainGraph.roots.map {
+					it.ownerIdentity.value
+				},
+				3,
+			) shouldBe emptyList()
+		}
+
+	@Test
+	fun `full clear upgrades a previously truncated v1 ambient graph before deletion`() = runTest {
+		val original = twoFactDay(LocalDate.of(2026, 1, 24))
+		val retained = retainedSuffix(original)
+		val originalArchive = archive(original)
+		val retainedArchive = archive(retained)
+		importer(database).importArchive(request(originalArchive)) shouldBe
+			applied(originalArchive, 1)
+		importer(database).importArchive(
+			request(
+				retainedArchive,
+				jobId = "legacy-clear",
+				archiveKey = "legacy-clear",
+			),
+		) shouldBe applied(retainedArchive, 1)
+		simulatePreRebindingAmbientTruncation(retained)
+		val originalGraph = original.withExplicitUnprovenCountDomain().countDomainGraph
+		val retainedGraph = retained.withExplicitUnprovenCountDomain(2L).countDomainGraph
+
+		AppDatabase.deleteAllCollectedData(
+			database,
+			operationId = "legacy-ambient-upgrade-clear",
+			collectedDataEpoch = EPOCH + 1L,
+			retainedFromMs = null,
+			updatedAtMs = retained.structuralDayEndTimeMs + 1L,
+		)
+
+		database.importedAmbientStepsDao().dayRevisionCount() shouldBe 0L
+		val removedOwner = originalGraph.roots.single {
+			it.productIdentity.value == original.facts.first().identity.value
+		}.ownerIdentity.value
+		database.importedPortableStepsCountDomainDao().ownerFences(
+			listOf(removedOwner),
+			2,
+		).single().fenceKind shouldBe
+			ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION
+		database.importedPortableStepsCountDomainDao().ownerFences(
+			retainedGraph.roots.map { it.ownerIdentity.value },
+			retainedGraph.roots.size + 1,
+		).also { fences ->
+			fences.map { it.ownerIdentity }.toSet() shouldBe
+				retainedGraph.roots.map { it.ownerIdentity.value }.toSet()
+			fences.all {
+				it.fenceKind ==
+					ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR
+			} shouldBe true
+		}
 	}
 
 	@Test
@@ -2760,6 +3017,86 @@ class RoomImportedAmbientStepsTransferTest {
 			retainedStepCount = count,
 			facts = listOf(fact),
 			gaps = emptyList(),
+		)
+	}
+
+	private fun retainedSuffix(
+		original: PortableAmbientStepsDayV1,
+		replaceRetainedIdentity: Boolean = false,
+	): PortableAmbientStepsDayV1 {
+		val retainedFrom = original.facts.last().intervalStartTimeMs
+		val retainedFact = if (replaceRetainedIdentity) {
+			PortableAmbientStepsFactV1.create(
+				identity(
+					AmbientStepsPortableIdentityKind.FACT,
+					"ambiguous-${original.structuralEpochDay}",
+				),
+				retainedFrom,
+				original.structuralDayEndTimeMs,
+				original.facts.last().stepCount,
+			)
+		} else {
+			original.facts.last()
+		}
+		return PortableAmbientStepsDayV1.create(
+			identity = original.identity,
+			structuralEpochDay = original.structuralEpochDay,
+			storedZoneId = original.storedZoneId,
+			structuralDayStartTimeMs = original.structuralDayStartTimeMs,
+			structuralDayEndTimeMs = original.structuralDayEndTimeMs,
+			retainedFromTimeMs = retainedFrom,
+			coverage = PortableAmbientStepsCoverage.PARTIAL,
+			partialCauses = listOf(PortableAmbientStepsPartialCause.RETENTION),
+			retainedStepCount = retainedFact.stepCount,
+			facts = listOf(retainedFact),
+			gaps = emptyList(),
+		)
+	}
+
+	private suspend fun removeAmbientGraphLineage(
+		dayIdentity: String,
+		deleteGraph: Boolean,
+	) {
+		val graphDao = database.importedPortableStepsCountDomainDao()
+		val bindings = graphDao.bindings(
+			ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
+			listOf(dayIdentity),
+		)
+		bindings.forEach { binding ->
+			graphDao.deleteBindingExact(
+				binding.productKind,
+				binding.productIdentity,
+				binding.productRevision,
+				binding.graphIdentity,
+			) shouldBe 1
+			if (deleteGraph) {
+				graphDao.deleteGraphIfUnbound(binding.graphIdentity) shouldBe 1
+			}
+		}
+	}
+
+	private suspend fun simulatePreRebindingAmbientTruncation(
+		retained: PortableAmbientStepsDayV1,
+	) {
+		val graphDao = database.importedPortableStepsCountDomainDao()
+		val bindings = graphDao.bindings(
+			ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
+			listOf(retained.identity.value),
+		)
+		bindings.map { it.productRevision } shouldBe listOf(1L, 2L)
+		val latest = bindings.last()
+		graphDao.deleteBindingExact(
+			latest.productKind,
+			latest.productIdentity,
+			latest.productRevision,
+			latest.graphIdentity,
+		) shouldBe 1
+		graphDao.deleteGraphIfUnbound(latest.graphIdentity) shouldBe 1
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_ambient_steps_archive_day " +
+				"SET bound_count_domain_graph_revision = 1 " +
+				"WHERE day_identity = ? AND bound_day_import_revision = 2",
+			arrayOf(retained.identity.value),
 		)
 	}
 

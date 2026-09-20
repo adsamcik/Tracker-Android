@@ -65,6 +65,25 @@ interface ImportedPortableStepsCountDomainDao {
 	): List<ImportedPortableStepsCountDomainBindingEntity>
 
 	@Query(
+		"SELECT * FROM imported_steps_count_domain_binding WHERE product_kind = :productKind " +
+			"AND product_identity = :productIdentity ORDER BY product_revision LIMIT :limit",
+	)
+	suspend fun bindingsForProduct(
+		productKind: String,
+		productIdentity: String,
+		limit: Int,
+	): List<ImportedPortableStepsCountDomainBindingEntity>
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_steps_count_domain_binding " +
+			"WHERE product_kind = :productKind AND product_identity = :productIdentity",
+	)
+	suspend fun bindingEvidenceCountForProduct(
+		productKind: String,
+		productIdentity: String,
+	): Int
+
+	@Query(
 		"SELECT * FROM imported_steps_count_domain_binding " +
 			"WHERE graph_identity IN (:graphIdentities) " +
 			"ORDER BY product_kind, product_identity, product_revision LIMIT :limit",
@@ -148,6 +167,15 @@ interface ImportedPortableStepsCountDomainDao {
 	): ImportedPortableStepsFileReceiptEntity?
 
 	@Query(
+		"SELECT * FROM imported_steps_file_receipt WHERE entry_identity = :entryIdentity " +
+			"ORDER BY import_job_id, entry_key LIMIT :limit",
+	)
+	suspend fun fileReceiptsForEntry(
+		entryIdentity: String,
+		limit: Int,
+	): List<ImportedPortableStepsFileReceiptEntity>
+
+	@Query(
 		"UPDATE imported_steps_file_receipt SET graph_identity = :newGraphIdentity " +
 			"WHERE entry_identity = :entryIdentity AND graph_identity = :expectedGraphIdentity",
 	)
@@ -161,6 +189,59 @@ interface ImportedPortableStepsCountDomainDao {
 		"SELECT COUNT(*) FROM imported_steps_file_receipt WHERE entry_identity = :entryIdentity",
 	)
 	suspend fun fileReceiptCountForEntry(entryIdentity: String): Int
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_steps_count_domain_graph WHERE graph_identity IN (:graphIdentities)",
+	)
+	suspend fun graphEvidenceCount(graphIdentities: List<String>): Int
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_steps_count_domain_binding " +
+			"WHERE graph_identity IN (:graphIdentities)",
+	)
+	suspend fun bindingEvidenceCountForGraphs(graphIdentities: List<String>): Int
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_steps_count_domain_receipt " +
+			"WHERE owner_identity IN (:ownerIdentities)",
+	)
+	suspend fun receiptEvidenceCountForOwners(ownerIdentities: List<String>): Int
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_steps_count_domain_owner_revision " +
+			"WHERE owner_identity IN (:ownerIdentities)",
+	)
+	suspend fun ownerEvidenceCount(ownerIdentities: List<String>): Int
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_steps_count_domain_completeness " +
+			"WHERE owner_identity IN (:ownerIdentities)",
+	)
+	suspend fun completenessEvidenceCount(ownerIdentities: List<String>): Int
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_steps_count_domain_root " +
+			"WHERE container_identity IN (:containerIdentities)",
+	)
+	suspend fun rootEvidenceCountForContainers(containerIdentities: List<String>): Int
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_steps_count_domain_root " +
+			"WHERE product_identity IN (:productIdentities)",
+	)
+	suspend fun rootEvidenceCountForProducts(productIdentities: List<String>): Int
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_steps_count_domain_root " +
+			"WHERE owner_identity IN (:ownerIdentities)",
+	)
+	suspend fun rootEvidenceCountForOwners(ownerIdentities: List<String>): Int
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_steps_count_domain_owner_fence " +
+			"WHERE owner_identity IN (:ownerIdentities)",
+	)
+	suspend fun ownerFenceEvidenceCount(ownerIdentities: List<String>): Int
 
 	@Query(
 		"DELETE FROM imported_steps_count_domain_binding WHERE product_kind = :productKind " +

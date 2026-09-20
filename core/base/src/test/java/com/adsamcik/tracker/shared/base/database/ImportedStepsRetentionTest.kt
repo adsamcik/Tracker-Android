@@ -4,7 +4,11 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableCountDomainIdentity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFileReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -15,6 +19,7 @@ import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsAdm
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsReadFailure
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedRead
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedReader
+import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedIntegrity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsCaptureCoverage
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsCompletenessV1
@@ -31,6 +36,7 @@ import com.adsamcik.tracker.shared.model.steps.portable.legacyUnprovenStepsCount
 import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.nulls.shouldNotBeNull
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -94,6 +100,130 @@ class ImportedStepsRetentionTest {
 		database.markAuthenticatedStepsRunsAffectedByRetentionFloor(25L, 1L, 101L) shouldBe 0
 		database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(25L, 1L, 101L) shouldBe 0
 	}
+
+	@Test
+	fun `previously truncated v1 session graph is fenced rebound and idempotent on read`() =
+		runTest {
+			val entry = seed()
+			val originalGraph = installLegacyGraph(entry)
+			val removedFact = simulatePreGraphFenceFactTruncation(entry)
+			val retained = ready(entry)
+			val expectedGraph = retained.legacyUnprovenCountDomainGraph()
+
+			val first = database.loadAuthenticatedImportedSessionCountDomainBinding(retained)
+				.shouldNotBeNull()
+			first.graph shouldBe expectedGraph
+			val removedOwner = originalGraph.roots.single {
+				it.productIdentity.value == removedFact.logicalFactId
+			}.ownerIdentity.value
+			database.importedPortableStepsCountDomainDao().ownerFences(
+				listOf(removedOwner),
+				2,
+			).single().also { fence ->
+				fence.fenceKind shouldBe
+					ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION
+				fence.graphIdentity shouldBe originalGraph.identity.value
+			}
+
+			val second = database.loadAuthenticatedImportedSessionCountDomainBinding(retained)
+				.shouldNotBeNull()
+			second shouldBe first
+			database.importedPortableStepsCountDomainDao().binding(
+				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				entry.identity.value,
+				1L,
+			)?.graphIdentity shouldBe expectedGraph.identity.value
+			database.importedPortableStepsCountDomainDao().fileReceipt(
+				"legacy-v1-job",
+				"legacy-v1-entry",
+			)?.graphIdentity shouldBe expectedGraph.identity.value
+		}
+
+	@Test
+	fun `ambiguous previously truncated v1 session rolls back without rebinding`() = runTest {
+		val entry = seed()
+		val originalGraph = installLegacyGraph(entry)
+		val removedFact = simulatePreGraphFenceFactTruncation(entry)
+		val removedOwner = originalGraph.roots.single {
+			it.productIdentity.value == removedFact.logicalFactId
+		}.let { root ->
+			originalGraph.ownerRevisions.single {
+				it.ownerKind == root.ownerKind &&
+					it.ownerIdentity == root.ownerIdentity &&
+					it.ownerRevision == root.ownerRevision
+			}
+		}
+		database.importedPortableStepsCountDomainDao().insertOwnerFences(
+			listOf(
+				ImportedPortableStepsCountDomainOwnerFenceEntity.create(
+					ownerKind = removedOwner.ownerKind.name,
+					ownerIdentity = removedOwner.ownerIdentity.value,
+					scopeIdentity = removedOwner.scopeIdentity.value,
+					latestSourceRevision = removedOwner.ownerRevision,
+					latestOwnerEffectChecksum = removedOwner.ownerEffectChecksum.value,
+					productKind =
+						ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+					productIdentity = entry.identity.value,
+					graphIdentity = originalGraph.identity.value,
+					fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_SELECTED_DELETE,
+					collectedDataEpoch = 1L,
+					fencedAtMs = 99L,
+				),
+			),
+		)
+		val retained = ready(entry)
+
+		assertFailsWith<IllegalArgumentException> {
+			database.loadAuthenticatedImportedSessionCountDomainBinding(retained)
+		}
+
+		database.importedPortableStepsCountDomainDao().binding(
+			ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+			entry.identity.value,
+			1L,
+		)?.graphIdentity shouldBe originalGraph.identity.value
+		database.importedPortableStepsCountDomainDao()
+			.graph(retained.legacyUnprovenCountDomainGraph().identity.value) shouldBe null
+	}
+
+	@Test
+	fun `full clear reconciles a previously truncated v1 session before deleting payload`() =
+		runTest {
+			val entry = seed()
+			val originalGraph = installLegacyGraph(entry)
+			val removedFact = simulatePreGraphFenceFactTruncation(entry)
+			val retained = ready(entry)
+			val retainedGraph = retained.legacyUnprovenCountDomainGraph()
+
+			AppDatabase.deleteAllCollectedData(
+				database,
+				operationId = "legacy-session-upgrade-clear",
+				collectedDataEpoch = 2L,
+				retainedFromMs = null,
+				updatedAtMs = 200L,
+			)
+
+			database.importedStepsDao().entry(entry.identity.value) shouldBe null
+			val removedOwner = originalGraph.roots.single {
+				it.productIdentity.value == removedFact.logicalFactId
+			}.ownerIdentity.value
+			database.importedPortableStepsCountDomainDao().ownerFences(
+				listOf(removedOwner),
+				2,
+			).single().fenceKind shouldBe
+				ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION
+			database.importedPortableStepsCountDomainDao().ownerFences(
+				retainedGraph.roots.map { it.ownerIdentity.value },
+				retainedGraph.roots.size + 1,
+			).also { fences ->
+				fences.map { it.ownerIdentity }.toSet() shouldBe
+					retainedGraph.roots.map { it.ownerIdentity.value }.toSet()
+				fences.all {
+					it.fenceKind ==
+						ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR
+				} shouldBe true
+			}
+		}
 
 	@Test
 	fun `last payload can expire without turning a missing run into numeric zero`() = runTest {
@@ -266,6 +396,83 @@ class ImportedStepsRetentionTest {
 			}
 		}
 		return portable
+	}
+
+	private suspend fun installLegacyGraph(
+		entry: PortableStepsEntryV1,
+	): com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2 {
+		val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+		val receiptIdentity = ImportedPortableCountDomainIdentity.fileReceipt(
+			"legacy-v1-job",
+			"legacy-v1-entry",
+		)
+		database.importedPortableStepsCountDomainDao().insertAuthenticatedGraph(
+			graph,
+			ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+		)
+		database.importedPortableStepsCountDomainDao().insertBinding(
+			ImportedPortableStepsCountDomainBindingEntity(
+				productKind =
+					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				productIdentity = entry.identity.value,
+				productRevision = 1L,
+				graphIdentity = graph.identity.value,
+				sourceSchemaVersion = 1,
+				sourceReceiptIdentity = receiptIdentity,
+				sourceArchiveContentChecksum = entry.contentChecksum.value,
+			),
+		)
+		database.importedPortableStepsCountDomainDao().insertFileReceipt(
+			ImportedPortableStepsFileReceiptEntity(
+				importJobId = "legacy-v1-job",
+				entryKey = "legacy-v1-entry",
+				receiptIdentity = receiptIdentity,
+				sourceName = "legacy-v1.trackersteps",
+				receivedAtMs = 99L,
+				archiveContentChecksum = entry.contentChecksum.value,
+				entryOrdinal = 0,
+				entryIdentity = entry.identity.value,
+				graphIdentity = graph.identity.value,
+			),
+		)
+		return graph
+	}
+
+	private suspend fun simulatePreGraphFenceFactTruncation(
+		entry: PortableStepsEntryV1,
+	): StepFactRevisionEntity {
+		val retained = ready(entry)
+		val run = retained.runs.single()
+		val removed = retained.factsByRun.getValue(run.identity).first()
+		val marker = SourceDeletionFenceEntity.createForOriginalRunDigest(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+			scopeIdentityDigest = run.deletionScopeDigest,
+			fenceGeneration = 1L,
+			collectedDataEpoch = retained.metadata.collectedDataEpoch,
+			deletedAtMs = 100L,
+		)
+		database.sourceDeletionFenceDao().insertIfAbsent(marker)
+		database.stepFactRevisionDao().deleteAuthenticatedUpsertRevisions(
+			removed.writerProjectionId,
+			removed.writerProjectionVersion,
+			removed.semanticRevision,
+			listOf(removed.logicalFactId),
+		) shouldBe 1
+		val retainedPortable = retained.portableRunsById.getValue(run.identity).copy(
+			facts = retained.portableRunsById.getValue(run.identity).facts.drop(1),
+		)
+		database.importedStepsDao().updateRetainedChecksum(
+			run.identity,
+			requireNotNull(run.retainedChecksum),
+			requireNotNull(run.sessionSegmentId),
+			ImportedStepsRetainedIntegrity.runChecksum(
+				retained.metadata,
+				run,
+				retainedPortable,
+			),
+		) shouldBe 1
+		return removed
 	}
 
 	private fun run(index: Int, start: Long) = PortableStepsRunV1(

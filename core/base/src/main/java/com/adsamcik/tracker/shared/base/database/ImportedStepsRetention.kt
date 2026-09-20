@@ -44,6 +44,7 @@ internal suspend fun AppDatabase.authenticateImportedStepsRetentionEntries() {
 internal suspend fun AppDatabase.markImportedStepsRetentionFloor(beforeMs: Long, markedAtMs: Long): Int {
 	var inserted = 0
 	visitImportedRetentionEntries { entry ->
+		requireAuthenticatedOrGraphlessLegacySession(entry)
 		entry.runs.filter { run -> entry.crossesFloor(run, beforeMs) }.forEach { run ->
 			if (installImportedRetentionFence(entry, run, markedAtMs, StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE)) {
 				inserted++
@@ -57,6 +58,7 @@ internal suspend fun AppDatabase.markImportedStepsRetentionFloor(beforeMs: Long,
 internal suspend fun AppDatabase.pruneImportedStepsRetentionFloor(beforeMs: Long, markedAtMs: Long): Int {
 	var deleted = 0
 	visitImportedRetentionEntries { entry ->
+		requireAuthenticatedOrGraphlessLegacySession(entry)
 		var prunedEntry = false
 		var authenticatedGraph: AuthenticatedImportedPortableGraphBinding? = null
 		for (run in entry.runs) {
@@ -106,6 +108,7 @@ suspend fun AppDatabase.pruneImportedStepsSegmentsBefore(beforeMs: Long, markedA
 	require(markedAtMs >= 0L)
 	var deleted = 0
 	visitImportedRetentionEntries { entry ->
+		requireAuthenticatedOrGraphlessLegacySession(entry)
 		val expiredRuns = entry.runs.filter { it.endTimeMs < beforeMs }
 		var authenticatedGraph: AuthenticatedImportedPortableGraphBinding? = null
 		for (run in expiredRuns) {
@@ -145,6 +148,14 @@ suspend fun AppDatabase.pruneImportedStepsSegmentsBefore(beforeMs: Long, markedA
 		enqueueAllStepsGoalRepairs()
 	}
 	deleted
+}
+
+private suspend fun AppDatabase.requireAuthenticatedOrGraphlessLegacySession(
+	entry: RetainedImportedStepsEntry,
+) {
+	if (loadAuthenticatedImportedSessionCountDomainBinding(entry) == null) {
+		requireGraphlessLegacySessionProvenance(entry)
+	}
 }
 
 private fun RetainedImportedStepsEntry.crossesFloor(run: ImportedStepsRunEntity, beforeMs: Long): Boolean =
