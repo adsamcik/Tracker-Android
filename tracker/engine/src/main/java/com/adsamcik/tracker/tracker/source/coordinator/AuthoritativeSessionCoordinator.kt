@@ -17,7 +17,9 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityEffectChecksum
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
@@ -1328,6 +1330,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					session.currentServiceRunId != run.serviceRunId ||
 					session.currentManifestRevision != run.preparedManifestRevision ||
 					session.currentIntentRevision != run.preparedIntentRevision ||
+					session.lifecycleRevision != intent.intentRevision ||
 					session.lifecycleLeaseGeneration != run.leaseGeneration ||
 					session.lifecycleBootId != run.bootId
 				) return@withTransaction false
@@ -6015,6 +6018,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			triggerId,
 			automationEpoch,
 			triggerCollectedDataEpoch,
+			sourceCallerAuthorityReference,
 		)
 
 	private suspend fun hasTerminalOrMalformedStepsCheckpoint(
@@ -6727,6 +6731,29 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val reference = intent.sourceCallerAuthorityReference
 			?.takeIf(String::isNotBlank)
 			?: return false
+		if (intent.intentChecksum != stableLifecycleChecksum(
+				intent.logicalTrackingId,
+				intent.intentRevision,
+				intent.manifestRevision,
+				intent.desiredState,
+				intent.startOrigin,
+				intent.requestBootId,
+				intent.requestedElapsedRealtimeNanos,
+				intent.requestedWallTimeMs,
+				intent.triggerId,
+				intent.automationEpoch,
+				intent.triggerCollectedDataEpoch,
+				reference,
+			)
+		) return false
+		val intentHistory = sessionDao.lifecycleIntents(run.logicalTrackingId)
+		if (intentHistory.lastOrNull() != intent || intent.intentRevision == Long.MAX_VALUE) return false
+		val reboundIntentRevision = intent.intentRevision + 1L
+		val reboundReference = preparedLeaseRebindAuthorityReference(
+			reference,
+			run,
+			lease.generation,
+		)
 		val exactActions = sessionDao.lifecycleActions(run.logicalTrackingId).filter { action ->
 			action.serviceRunId == run.serviceRunId &&
 				action.manifestRevision == run.preparedManifestRevision
@@ -6769,15 +6796,15 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val consumerId = "session:${run.logicalTrackingId}"
 		val exactDemands = database.sourceBrokerDao().demandHistory(consumerId).filter { demand ->
 			demand.serviceRunId == run.serviceRunId &&
-				demand.manifestRevision == run.preparedManifestRevision
+				demand.manifestRevision == run.preparedManifestRevision &&
+				demand.lifecycleLeaseGeneration == run.leaseGeneration
 		}
 		if (exactDemands.isEmpty() || exactDemands.any { demand ->
-				demand.lifecycleLeaseGeneration != run.leaseGeneration ||
-					demand.sourceCallerAuthorityReference != reference ||
+				demand.sourceCallerAuthorityReference != reference ||
 					demand.status !in setOf(
-						com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity.STATUS_ACTIVE,
-						com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity.STATUS_BLOCKED,
-						com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity.STATUS_RETIRED,
+						SourceDemandEntity.STATUS_ACTIVE,
+						SourceDemandEntity.STATUS_BLOCKED,
+						SourceDemandEntity.STATUS_RETIRED,
 					)
 			}
 		) return false
@@ -6801,8 +6828,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		if (!SourceCallerAcceptedAuthorityEffectChecksum.isAuthentic(authorityRows) ||
 			authorityRows.any { row ->
 				row.reference != reference ||
-					row.status !=
-					com.adsamcik.tracker.shared.base.database.data.SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE
+					row.status != SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE
 			} ||
 			authorityRows.mapTo(linkedSetOf()) { row -> row.sourceKind to row.purpose } !=
 			demandAuthorityKeys ||
@@ -6830,10 +6856,24 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					row.ownerCasToken != lease.ownerToken
 			}
 		) return false
+		if (authorityDao.rows(reboundReference).isNotEmpty()) return false
+		val triggerId = intent.triggerId
+		if (triggerId != null) {
+			val triggerEpoch = intent.triggerCollectedDataEpoch ?: return false
+			val automaticAction = database.activityAutomaticStartActionDao().action(triggerId)
+				?: return false
+			if (automaticAction.status !=
+				com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
+					.STATUS_LIFECYCLE_INTENT_ACCEPTED ||
+				automaticAction.collectedDataEpoch != triggerEpoch ||
+				automaticAction.acceptedLogicalTrackingId != run.logicalTrackingId ||
+				automaticAction.acceptedIntentRevision != intent.intentRevision
+			) return false
+		}
 		val reboundActions = exactActions.map { action ->
 			action.copy(
 				actionId = lifecycleActionIdentity(
-					intent.intentRevision,
+					reboundIntentRevision,
 					action.logicalTrackingId,
 					action.serviceRunId,
 					action.manifestRevision,
@@ -6853,34 +6893,100 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				leaseGeneration = lease.generation,
 			)
 		}
+		val reboundIntent = intent.copy(
+			intentRevision = reboundIntentRevision,
+			sourceCallerAuthorityReference = reboundReference,
+			intentChecksum = stableLifecycleChecksum(
+				intent.logicalTrackingId,
+				reboundIntentRevision,
+				intent.manifestRevision,
+				intent.desiredState,
+				intent.startOrigin,
+				intent.requestBootId,
+				intent.requestedElapsedRealtimeNanos,
+				intent.requestedWallTimeMs,
+				intent.triggerId,
+				intent.automationEpoch,
+				intent.triggerCollectedDataEpoch,
+				reboundReference,
+			),
+		)
+		val reboundAtMs = clock.currentTimeMillis()
+		val reboundElapsedRealtimeNanos = clock.elapsedRealtimeNanos()
+		if (reboundAtMs < 0L || reboundElapsedRealtimeNanos < 0L) return false
 		val reboundAuthorityRows = SourceCallerAcceptedAuthorityEffectChecksum.seal(
 			authorityRows.map { row ->
 				if (row.purpose == TrackingPurpose.SESSION_CAPTURE.stableName) {
-					row.copy(executionRevision = lease.generation, effectChecksum = "pending")
+					row.copy(
+						reference = reboundReference,
+						executionRevision = lease.generation,
+						ownerCasToken = lease.ownerToken,
+						status = SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE,
+						createdAtMs = reboundAtMs,
+						retiredAtMs = null,
+						retireReason = null,
+						effectChecksum = "pending",
+					)
 				} else {
-					row.copy(effectChecksum = "pending")
+					row.copy(
+						reference = reboundReference,
+						status = SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE,
+						createdAtMs = reboundAtMs,
+						retiredAtMs = null,
+						retireReason = null,
+						effectChecksum = "pending",
+					)
 				}
 			},
 		)
+		val retiredAuthorityRows = SourceCallerAcceptedAuthorityEffectChecksum.seal(
+			authorityRows.map { row ->
+				row.copy(
+					status = SourceCallerAcceptedAuthorityEntity.STATUS_RETIRED,
+					retiredAtMs = reboundAtMs,
+					retireReason = "PREPARED_LEASE_REBOUND",
+					effectChecksum = "pending",
+				)
+			},
+		)
+		val reboundDemands = sourceBroker.rebindPreparedSessionDemandsInTransaction(
+			expectedDemands = exactDemands,
+			expectedCallerAuthorityReference = reference,
+			newCallerAuthorityReference = reboundReference,
+			newLeaseGeneration = lease.generation,
+			foregroundAccepted =
+				run.androidDeliveryState == AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name,
+			bootId = lease.bootId,
+			elapsedRealtimeNanos = reboundElapsedRealtimeNanos,
+			wallTimeMs = reboundAtMs,
+		) ?: return false
+		check(reboundDemands.size == exactDemands.size)
+		check(authorityDao.insert(reboundAuthorityRows).size == reboundAuthorityRows.size)
+		check(authorityDao.update(retiredAuthorityRows) == retiredAuthorityRows.size)
+		sessionDao.insertLifecycleIntent(reboundIntent)
+		if (triggerId != null) {
+			check(database.activityAutomaticStartActionDao().rebindAcceptedLifecycleIntent(
+				triggerId = triggerId,
+				collectedDataEpoch = requireNotNull(intent.triggerCollectedDataEpoch),
+				logicalTrackingId = run.logicalTrackingId,
+				expectedIntentRevision = intent.intentRevision,
+				newIntentRevision = reboundIntentRevision,
+			) == 1)
+		}
 		check(sessionDao.deleteLifecycleActions(exactActions.map(LifecycleDesiredActionEntity::actionId)) ==
 			exactActions.size)
 		sessionDao.insertLifecycleActions(reboundActions)
-		check(database.sourceBrokerDao().rebindPreparedSessionDemands(
-			consumerId = consumerId,
-			serviceRunId = run.serviceRunId,
-			manifestRevision = run.preparedManifestRevision,
-			expectedLeaseGeneration = run.leaseGeneration,
-			newLeaseGeneration = lease.generation,
-		) == exactDemands.size)
-		check(authorityDao.update(reboundAuthorityRows) == reboundAuthorityRows.size)
 		check(sessionDao.updateSession(
 			session.copy(
+				lifecycleRevision = session.lifecycleRevision + 1L,
+				currentIntentRevision = reboundIntentRevision,
 				lifecycleLeaseGeneration = lease.generation,
 				lifecycleBootId = lease.bootId,
 			),
 		) == 1)
 		check(sessionDao.updateServiceRun(
 			run.copy(
+				preparedIntentRevision = reboundIntentRevision,
 				leaseGeneration = lease.generation,
 				bootId = lease.bootId,
 				runRevision = run.runRevision + 1L,
@@ -6888,6 +6994,20 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		) == 1)
 		return true
 	}
+
+	private fun preparedLeaseRebindAuthorityReference(
+		previousReference: String,
+		run: SourceServiceRunEntity,
+		newLeaseGeneration: Long,
+	): String = "prepared-rebind:" + stableLifecycleChecksum(
+		previousReference,
+		run.logicalTrackingId,
+		run.serviceRunId,
+		run.preparedManifestRevision,
+		run.preparedIntentRevision,
+		run.leaseGeneration,
+		newLeaseGeneration,
+	)
 
 	private suspend fun renewLease(lease: LifecycleLeaseToken) {
 		val bootId = bootClockDomainProvider.current()

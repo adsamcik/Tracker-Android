@@ -19,6 +19,7 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEnt
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -35,6 +36,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
+import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -6774,6 +6776,17 @@ class AuthoritativeSessionCoordinatorTest {
 			serviceRunId = "expired-prepared-run",
 		)
 		val before = requireNotNull(database.sourceSessionDao().serviceRun(prepared.serviceRunId))
+		val beforeIntent = requireNotNull(
+			database.sourceSessionDao().lifecycleIntent(
+				prepared.logicalTrackingId,
+				before.preparedIntentRevision,
+			),
+		)
+		val beforeDemand = database.sourceBrokerDao()
+			.demandHistory("session:${prepared.logicalTrackingId}")
+			.single()
+		val beforeAuthority = database.sourceCallerAuthorityDao()
+			.rows(prepared.sourceCallerAuthorityReference.value)
 		val beforeActionIds = database.sourceSessionDao().lifecycleActions(prepared.logicalTrackingId)
 			.filter { action -> action.serviceRunId == prepared.serviceRunId }
 			.map { action -> action.actionId }
@@ -6800,8 +6813,18 @@ class AuthoritativeSessionCoordinatorTest {
 		val rebound = requireNotNull(database.sourceSessionDao().serviceRun(prepared.serviceRunId))
 		rebound.leaseGeneration shouldBe before.leaseGeneration + 1L
 		rebound.androidDeliveryState shouldBe AndroidStartDeliveryState.DELIVERED.name
+		rebound.preparedIntentRevision shouldBe before.preparedIntentRevision + 1L
 		database.sourceSessionDao().session(prepared.logicalTrackingId)
-			?.lifecycleLeaseGeneration shouldBe rebound.leaseGeneration
+			?.let { session ->
+				session.lifecycleLeaseGeneration shouldBe rebound.leaseGeneration
+				session.currentIntentRevision shouldBe rebound.preparedIntentRevision
+			}
+		val intentHistory = database.sourceSessionDao().lifecycleIntents(prepared.logicalTrackingId)
+		intentHistory.map { intent -> intent.intentRevision } shouldBe
+			listOf(beforeIntent.intentRevision, rebound.preparedIntentRevision)
+		intentHistory.first() shouldBe beforeIntent
+		val reboundReference = requireNotNull(intentHistory.last().sourceCallerAuthorityReference)
+		(reboundReference == prepared.sourceCallerAuthorityReference.value) shouldBe false
 		database.sourceSessionDao().lifecycleActions(prepared.logicalTrackingId)
 			.filter { action -> action.serviceRunId == prepared.serviceRunId }
 			.let { actions ->
@@ -6809,14 +6832,49 @@ class AuthoritativeSessionCoordinatorTest {
 					listOf(rebound.leaseGeneration)
 				(actions.map { action -> action.actionId } == beforeActionIds) shouldBe false
 			}
-		database.sourceBrokerDao().demandHistory("session:${prepared.logicalTrackingId}")
+		val demandHistory = database.sourceBrokerDao()
+			.demandHistory("session:${prepared.logicalTrackingId}")
 			.filter { demand -> demand.serviceRunId == prepared.serviceRunId }
-			.map { demand -> demand.lifecycleLeaseGeneration }
-			.distinct() shouldBe listOf(rebound.leaseGeneration)
+		demandHistory.size shouldBe 2
+		val historicalDemand = demandHistory.single { demand ->
+			demand.lifecycleLeaseGeneration == before.leaseGeneration
+		}
+		historicalDemand.demandId shouldBe beforeDemand.demandId
+		historicalDemand.sourceCallerAuthorityReference shouldBe
+			prepared.sourceCallerAuthorityReference.value
+		historicalDemand.status shouldBe SourceDemandEntity.STATUS_RETIRED
+		val currentDemand = demandHistory.single { demand ->
+			demand.lifecycleLeaseGeneration == rebound.leaseGeneration
+		}
+		(currentDemand.demandId == historicalDemand.demandId) shouldBe false
+		currentDemand.sourceCallerAuthorityReference shouldBe reboundReference
+		currentDemand.status shouldBe SourceDemandEntity.STATUS_BLOCKED
 		database.sourceCallerAuthorityDao().rows(prepared.sourceCallerAuthorityReference.value)
 			.filter { row -> row.purpose == TrackingPurpose.SESSION_CAPTURE.stableName }
-			.map { row -> row.executionRevision }
-			.distinct() shouldBe listOf(rebound.leaseGeneration)
+			.let { rows ->
+				rows.map { row -> row.executionRevision }.distinct() shouldBe
+					listOf(before.leaseGeneration)
+				rows.map { row -> row.status }.distinct() shouldBe listOf("RETIRED")
+			}
+		database.sourceCallerAuthorityDao().rows(reboundReference)
+			.filter { row -> row.purpose == TrackingPurpose.SESSION_CAPTURE.stableName }
+			.let { rows ->
+				rows.map { row -> row.executionRevision }.distinct() shouldBe
+					listOf(rebound.leaseGeneration)
+				rows.map { row -> row.status }.distinct() shouldBe listOf("ACTIVE")
+			}
+		beforeAuthority.map { row -> row.executionRevision }.distinct() shouldBe
+			listOf(before.leaseGeneration)
+
+		subject.claimAndroidStart(
+			prepared.token,
+			21L,
+			"boot-1",
+			leaseClock.elapsedRealtimeNanos(),
+			leaseClock.currentTimeMillis(),
+		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		database.sourceBrokerDao().demandHistory("session:${prepared.logicalTrackingId}").size shouldBe 2
+		database.sourceSessionDao().lifecycleIntents(prepared.logicalTrackingId).size shouldBe 2
 	}
 
 	@Test
@@ -6853,7 +6911,21 @@ class AuthoritativeSessionCoordinatorTest {
 		action.status shouldBe ActivityAutomaticStartActionEntity.STATUS_LIFECYCLE_INTENT_ACCEPTED
 		action.terminalReason shouldBe null
 		action.acceptedLogicalTrackingId shouldBe prepared.logicalTrackingId
-		action.acceptedIntentRevision shouldBe prepared.intentRevision
+		action.acceptedIntentRevision shouldBe
+			database.sourceSessionDao().serviceRun(prepared.serviceRunId)?.preparedIntentRevision
+		val reboundRun = requireNotNull(
+			database.sourceSessionDao().serviceRun(prepared.serviceRunId),
+		)
+		val demandHistory = database.sourceBrokerDao()
+			.demandHistory("session:${prepared.logicalTrackingId}")
+			.filter { demand -> demand.serviceRunId == prepared.serviceRunId }
+		demandHistory.groupBy { demand -> demand.sourceKind to demand.purpose }
+			.values.forEach { generations ->
+				generations.size shouldBe 2
+				generations.map { demand -> demand.lifecycleLeaseGeneration }.toSet() shouldBe
+					setOf(1L, reboundRun.leaseGeneration)
+				generations.map { demand -> demand.demandId }.toSet().size shouldBe 2
+			}
 	}
 
 	@Test
@@ -6893,6 +6965,263 @@ class AuthoritativeSessionCoordinatorTest {
 			leaseClock.elapsedRealtimeNanos(),
 			leaseClock.currentTimeMillis(),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
+	}
+
+	@Test
+	fun `foreground accepted lease rebind rotates authorization and preserves callback audit`() = runTest {
+		seedActiveStepsRegistration()
+		val prepared = prepareAndroidStart(
+			tokenValue = "foreground-rebind-token",
+			commandGeneration = 231L,
+			logicalTrackingId = "foreground-rebind-logical",
+			serviceRunId = "foreground-rebind-run",
+		)
+		subject.markAndroidStartEnqueued(prepared.token, 231L, 1_050L) shouldBe true
+		subject.claimAndroidStart(
+			prepared.token,
+			231L,
+			"boot-1",
+			1_100_000L,
+			1_100L,
+		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		subject.markPreparedForegroundAccepted(
+			prepared.token,
+			231L,
+			"boot-1",
+			1_200_000L,
+			1_200L,
+		) shouldBe true
+		val brokerDao = database.sourceBrokerDao()
+		val consumerId = "session:${prepared.logicalTrackingId}"
+		val beforeRun = requireNotNull(
+			database.sourceSessionDao().serviceRun(prepared.serviceRunId),
+		)
+		val oldDemand = brokerDao.demandHistory(consumerId).single()
+		val oldAuthorization = requireNotNull(
+			brokerDao.latestAuthorization(SourceKind.STEPS.stableCode, 1L)
+				.toAuthorizationSnapshotOrNull(),
+		)
+		oldAuthorization.authorizedMembers.single().demandId shouldBe oldDemand.demandId
+		val reboundBoundary = expiredPreparedLeaseElapsedNanos()
+
+		subject.applyPreparedAndroidStart(
+			prepared.token,
+			231L,
+			"boot-1",
+			reboundBoundary,
+			leaseClock.currentTimeMillis(),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+
+		val afterRun = requireNotNull(
+			database.sourceSessionDao().serviceRun(prepared.serviceRunId),
+		)
+		afterRun.leaseGeneration shouldBe beforeRun.leaseGeneration + 1L
+		val history = brokerDao.demandHistory(consumerId)
+		history.size shouldBe 2
+		val historicalDemand = history.single { demand ->
+			demand.lifecycleLeaseGeneration == beforeRun.leaseGeneration
+		}
+		historicalDemand.demandId shouldBe oldDemand.demandId
+		historicalDemand.status shouldBe SourceDemandEntity.STATUS_RETIRED
+		val currentDemand = history.single { demand ->
+			demand.lifecycleLeaseGeneration == afterRun.leaseGeneration
+		}
+		(currentDemand.demandId == oldDemand.demandId) shouldBe false
+		currentDemand.status shouldBe SourceDemandEntity.STATUS_ACTIVE
+		val currentAuthorization = requireNotNull(
+			brokerDao.latestAuthorization(SourceKind.STEPS.stableCode, 1L)
+				.toAuthorizationSnapshotOrNull(),
+		)
+		brokerDao.currentPhysicalRegistration(SourceKind.STEPS.stableCode)
+			?.registrationGeneration shouldBe 1L
+		(currentAuthorization.authorizationRevision > oldAuthorization.authorizationRevision) shouldBe true
+		(currentAuthorization.authorizationFingerprint ==
+			oldAuthorization.authorizationFingerprint) shouldBe false
+		currentAuthorization.authorizedMembers.single().let { member ->
+			member.demandId shouldBe currentDemand.demandId
+			member.lifecycleLeaseGeneration shouldBe afterRun.leaseGeneration
+		}
+		val historicalAuthorization = requireNotNull(
+			brokerDao.authorizationRevision(
+				SourceKind.STEPS.stableCode,
+				1L,
+				oldAuthorization.authorizationRevision,
+			).toAuthorizationSnapshotOrNull(),
+		)
+		historicalAuthorization shouldBe oldAuthorization
+		brokerDao.demandsByIds(
+			historicalAuthorization.authorizedMembers.mapNotNull { member -> member.demandId },
+		).single().lifecycleLeaseGeneration shouldBe beforeRun.leaseGeneration
+		brokerDao.authorizationAt(
+			SourceKind.STEPS.stableCode,
+			1L,
+			"boot-1",
+			reboundBoundary - 1L,
+		).toAuthorizationSnapshotOrNull()?.authorizationRevision shouldBe
+			oldAuthorization.authorizationRevision
+		val currentAtBoundary = requireNotNull(
+			brokerDao.authorizationAt(
+				SourceKind.STEPS.stableCode,
+				1L,
+				"boot-1",
+				reboundBoundary,
+			).toAuthorizationSnapshotOrNull(),
+		)
+		currentAtBoundary.authorizationRevision shouldBe currentAuthorization.authorizationRevision
+		(currentAtBoundary.authorizationFingerprint ==
+			oldAuthorization.authorizationFingerprint) shouldBe false
+	}
+
+	@Test
+	fun `foreground rebind rejects inexact registration authorization without rewriting history`() =
+		runTest {
+			seedActiveStepsRegistration()
+			val prepared = prepareAndroidStart(
+				tokenValue = "foreground-inexact-token",
+				commandGeneration = 233L,
+				logicalTrackingId = "foreground-inexact-logical",
+				serviceRunId = "foreground-inexact-run",
+			)
+			subject.markAndroidStartEnqueued(prepared.token, 233L, 1_050L) shouldBe true
+			subject.claimAndroidStart(
+				prepared.token,
+				233L,
+				"boot-1",
+				1_100_000L,
+				1_100L,
+			).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+			subject.markPreparedForegroundAccepted(
+				prepared.token,
+				233L,
+				"boot-1",
+				1_200_000L,
+				1_200L,
+			) shouldBe true
+			val brokerDao = database.sourceBrokerDao()
+			val consumerId = "session:${prepared.logicalTrackingId}"
+			val beforeRun = requireNotNull(
+				database.sourceSessionDao().serviceRun(prepared.serviceRunId),
+			)
+			val beforeDemand = brokerDao.demandHistory(consumerId).single()
+			val beforeIntents = database.sourceSessionDao().lifecycleIntents(prepared.logicalTrackingId)
+			val currentRevision = brokerDao.maximumAuthorizationRevision(SourceKind.STEPS.stableCode)
+			brokerDao.insertAuthorizations(
+				SourceBrokerAuthorization.rows(
+					sourceKind = SourceKind.STEPS.stableCode,
+					registrationGeneration = 1L,
+					authorizationRevision = currentRevision + 1L,
+					demands = emptyList(),
+					effectiveBootId = "boot-1",
+					effectiveElapsedRealtimeNanos = 1_300_000L,
+					effectiveWallTimeMs = 1_300L,
+				),
+			)
+			val latestBeforeRebind = brokerDao.latestAuthorization(
+				SourceKind.STEPS.stableCode,
+				1L,
+			)
+			val reboundBoundary = expiredPreparedLeaseElapsedNanos()
+
+			subject.applyPreparedAndroidStart(
+				prepared.token,
+				233L,
+				"boot-1",
+				reboundBoundary,
+				leaseClock.currentTimeMillis(),
+			) shouldBe SessionStartResult.InvalidIntent(
+				"PREPARED_START_REBIND_STALE",
+				TrackingStartFailureDisposition.RETRYABLE,
+			)
+
+			database.sourceSessionDao().serviceRun(prepared.serviceRunId) shouldBe beforeRun
+			database.sourceSessionDao().lifecycleIntents(prepared.logicalTrackingId) shouldBe
+				beforeIntents
+			brokerDao.demandHistory(consumerId) shouldBe listOf(beforeDemand)
+			brokerDao.latestAuthorization(SourceKind.STEPS.stableCode, 1L) shouldBe
+				latestBeforeRebind
+		}
+
+	@Test
+	fun `foreground rebind crash rolls back and retry creates one successor`() = runTest {
+		seedActiveStepsRegistration()
+		val prepared = prepareAndroidStart(
+			tokenValue = "foreground-rebind-crash-token",
+			commandGeneration = 232L,
+			logicalTrackingId = "foreground-rebind-crash-logical",
+			serviceRunId = "foreground-rebind-crash-run",
+		)
+		subject.markAndroidStartEnqueued(prepared.token, 232L, 1_050L) shouldBe true
+		subject.claimAndroidStart(
+			prepared.token,
+			232L,
+			"boot-1",
+			1_100_000L,
+			1_100L,
+		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		subject.markPreparedForegroundAccepted(
+			prepared.token,
+			232L,
+			"boot-1",
+			1_200_000L,
+			1_200L,
+		) shouldBe true
+		val brokerDao = database.sourceBrokerDao()
+		val consumerId = "session:${prepared.logicalTrackingId}"
+		val beforeRun = requireNotNull(
+			database.sourceSessionDao().serviceRun(prepared.serviceRunId),
+		)
+		val beforeDemand = brokerDao.demandHistory(consumerId).single()
+		val beforeIntentCount = database.sourceSessionDao()
+			.lifecycleIntents(prepared.logicalTrackingId).size
+		val beforeAuthorization = requireNotNull(
+			brokerDao.latestAuthorization(SourceKind.STEPS.stableCode, 1L)
+				.toAuthorizationSnapshotOrNull(),
+		)
+		val reboundBoundary = expiredPreparedLeaseElapsedNanos()
+		database.openHelper.writableDatabase.execSQL(
+			"CREATE TRIGGER reject_prepared_rebind_authorization " +
+				"BEFORE INSERT ON source_authorization " +
+				"BEGIN SELECT RAISE(ABORT, 'prepared rebind crash'); END",
+		)
+		try {
+			shouldThrow<SQLiteException> {
+				subject.applyPreparedAndroidStart(
+					prepared.token,
+					232L,
+					"boot-1",
+					reboundBoundary,
+					leaseClock.currentTimeMillis(),
+				)
+			}
+		} finally {
+			database.openHelper.writableDatabase.execSQL(
+				"DROP TRIGGER reject_prepared_rebind_authorization",
+			)
+		}
+
+		database.sourceSessionDao().serviceRun(prepared.serviceRunId) shouldBe beforeRun
+		database.sourceSessionDao().lifecycleIntents(prepared.logicalTrackingId).size shouldBe
+			beforeIntentCount
+		brokerDao.demandHistory(consumerId) shouldBe listOf(beforeDemand)
+		brokerDao.latestAuthorization(SourceKind.STEPS.stableCode, 1L)
+			.toAuthorizationSnapshotOrNull() shouldBe beforeAuthorization
+
+		subject.applyPreparedAndroidStart(
+			prepared.token,
+			232L,
+			"boot-1",
+			reboundBoundary,
+			leaseClock.currentTimeMillis(),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		brokerDao.demandHistory(consumerId).size shouldBe 2
+		database.sourceSessionDao().lifecycleIntents(prepared.logicalTrackingId).size shouldBe
+			beforeIntentCount + 1
+		val authorizationAfterRetry = requireNotNull(
+			brokerDao.latestAuthorization(SourceKind.STEPS.stableCode, 1L)
+				.toAuthorizationSnapshotOrNull(),
+		)
+		authorizationAfterRetry.authorizationRevision shouldBe
+			beforeAuthorization.authorizationRevision + 1L
 	}
 
 	@Test

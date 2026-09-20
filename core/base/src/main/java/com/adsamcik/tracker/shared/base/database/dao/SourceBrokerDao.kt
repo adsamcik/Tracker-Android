@@ -161,20 +161,6 @@ interface SourceBrokerDao {
 	suspend fun demandHistory(consumerId: String): List<SourceDemandEntity>
 
 	@Query(
-		"UPDATE source_demand SET lifecycle_lease_generation = :newLeaseGeneration " +
-			"WHERE consumer_id = :consumerId AND service_run_id = :serviceRunId " +
-			"AND manifest_revision = :manifestRevision " +
-			"AND lifecycle_lease_generation = :expectedLeaseGeneration",
-	)
-	suspend fun rebindPreparedSessionDemands(
-		consumerId: String,
-		serviceRunId: String,
-		manifestRevision: Long,
-		expectedLeaseGeneration: Long,
-		newLeaseGeneration: Long,
-	): Int
-
-	@Query(
 		"SELECT DISTINCT source_caller_authority_reference FROM source_demand " +
 			"WHERE consumer_id = :consumerId AND source_caller_authority_reference IS NOT NULL",
 	)
@@ -220,7 +206,7 @@ interface SourceBrokerDao {
 			"AND lifecycle_lease_generation = :leaseGeneration " +
 			"AND demand_id IN (:demandIds) AND status IN ('ACTIVE', 'BLOCKED')",
 	)
-	suspend fun retireExcludedPreparedSessionDemandsByIds(
+	suspend fun retirePreparedSessionDemandsByIds(
 		consumerId: String,
 		serviceRunId: String,
 		manifestRevision: Long,
