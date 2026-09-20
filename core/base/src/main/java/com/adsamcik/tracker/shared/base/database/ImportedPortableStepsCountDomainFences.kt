@@ -377,7 +377,13 @@ internal suspend fun AppDatabase.insertOrAuthenticateImportedPortableOwnerFences
 	require(existingByOwner.size == existing.size)
 	val missing = fences.filter { candidate ->
 		existingByOwner[candidate.ownerKind to candidate.ownerIdentity]?.let { stored ->
-			require(stored.hasSameTerminalAuthority(candidate))
+			require(
+				stored.effectChecksum ==
+					ImportedPortableCountDomainIdentity.ownerFenceChecksum(stored),
+			)
+			require(stored.hasCompatibleTerminalAuthority(candidate))
+			require(stored.collectedDataEpoch <= candidate.collectedDataEpoch)
+			require(stored.fencedAtMs <= candidate.fencedAtMs)
 			false
 		} ?: true
 	}
@@ -526,7 +532,7 @@ private data class PortableOwnerAppearance(
 			binding.productIdentity == other.binding.productIdentity
 }
 
-private fun ImportedPortableStepsCountDomainOwnerFenceEntity.hasSameTerminalAuthority(
+internal fun ImportedPortableStepsCountDomainOwnerFenceEntity.hasCompatibleTerminalAuthority(
 	other: ImportedPortableStepsCountDomainOwnerFenceEntity,
 ): Boolean =
 	ownerKind == other.ownerKind &&
@@ -536,9 +542,7 @@ private fun ImportedPortableStepsCountDomainOwnerFenceEntity.hasSameTerminalAuth
 		latestOwnerEffectChecksum == other.latestOwnerEffectChecksum &&
 		productKind == other.productKind &&
 		productIdentity == other.productIdentity &&
-		graphIdentity == other.graphIdentity &&
-		fenceKind == other.fenceKind &&
-		collectedDataEpoch == other.collectedDataEpoch
+		graphIdentity == other.graphIdentity
 
 private fun PortableCountDomainRootV2.stableSessionRootKey(): List<String> = listOf(
 		containerIdentity.value,

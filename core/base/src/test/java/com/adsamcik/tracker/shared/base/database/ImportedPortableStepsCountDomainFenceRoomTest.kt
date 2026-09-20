@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database
 import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
@@ -13,6 +14,12 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsAdmissionRows
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsCoverage
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsFactV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsCaptureCoverage
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsCompletenessV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainCoverage
@@ -176,6 +183,102 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 		}
 
 	@Test
+	fun `full clear folds maximum v1 Ambient corrections and repeated graph appearances`() {
+		val day = ambientDay("bounded")
+		val appearances = (1L..ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY.toLong()).flatMap {
+				revision ->
+			List(4) { ambientAppearance(day, revision) }
+		}
+
+		val fences = authenticatedPortableOwnerFencesForFullClear(
+			graphs = appearances,
+			fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
+			collectedDataEpoch = 8L,
+			fencedAtMs = 9L,
+			maximumOwnerCount = 1,
+			maximumOwnerRevisionCount = ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY,
+		)
+
+		fences.single().fence.latestSourceRevision shouldBe
+			ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY.toLong()
+
+		assertFailsWith<IllegalArgumentException> {
+			authenticatedPortableOwnerFencesForFullClear(
+				graphs = listOf(
+					ambientAppearance(day, 1L),
+					ambientAppearance(day, 3L),
+				),
+				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
+				collectedDataEpoch = 8L,
+				fencedAtMs = 9L,
+				maximumOwnerCount = 1,
+				maximumOwnerRevisionCount = 2,
+			)
+		}
+	}
+
+	@Test
+	fun `full clear bounds distinct owners and owner revisions rather than appearances`() {
+		val first = ambientAppearance(ambientDay("first"), 1L)
+		val second = ambientAppearance(ambientDay("second"), 1L)
+		assertFailsWith<IllegalArgumentException> {
+			authenticatedPortableOwnerFencesForFullClear(
+				graphs = listOf(first, second),
+				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
+				collectedDataEpoch = 8L,
+				fencedAtMs = 9L,
+				maximumOwnerCount = 1,
+				maximumOwnerRevisionCount = 2,
+			)
+		}
+		assertFailsWith<IllegalArgumentException> {
+			authenticatedPortableOwnerFencesForFullClear(
+				graphs = listOf(first, ambientAppearance(ambientDay("first"), 2L)),
+				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
+				collectedDataEpoch = 8L,
+				fencedAtMs = 9L,
+				maximumOwnerCount = 1,
+				maximumOwnerRevisionCount = 1,
+			)
+		}
+	}
+
+	@Test
+	fun `full clear keeps explicit v2 owner lineages prefix compatible`() {
+		val entry = entry()
+		val (older, latest) = sessionGraphProgression(entry)
+		val conflicting = conflictingPrefixGraph(latest)
+		authenticatedPortableOwnerFencesForFullClear(
+			graphs = listOf(
+				sessionAppearance(entry, older, 1L),
+				sessionAppearance(entry, latest, 2L),
+			),
+			fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
+			collectedDataEpoch = 8L,
+			fencedAtMs = 9L,
+			maximumOwnerCount = latest.roots.size,
+			maximumOwnerRevisionCount = latest.ownerRevisions.size,
+		).single {
+			it.latestOwner.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT &&
+				it.latestOwner.ownerRevision == 2L
+		}.fence.latestSourceRevision shouldBe 2L
+
+		assertFailsWith<IllegalArgumentException> {
+			authenticatedPortableOwnerFencesForFullClear(
+				graphs = listOf(
+					sessionAppearance(entry, older, 1L),
+					sessionAppearance(entry, conflicting, 2L),
+				),
+				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
+				collectedDataEpoch = 8L,
+				fencedAtMs = 9L,
+				maximumOwnerCount = latest.roots.size,
+				maximumOwnerRevisionCount = latest.ownerRevisions.size,
+			)
+		}
+	}
+
+	@Test
 	fun `full clear rejects conflicting owner semantics across bound and orphan graphs`() = runTest {
 		val entry = entry()
 		seedSessionPayload(entry)
@@ -250,6 +353,68 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			graph.roots.map { it.ownerIdentity.value },
 			graph.roots.size + 1,
 		) shouldBe emptyList()
+	}
+
+	@Test
+	fun `compatible terminal fence is preserved across later destructive requests`() = runTest {
+		val entry = entry()
+		val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+		val root = graph.roots.first()
+		val owner = graph.ownerRevisions.single {
+			it.ownerKind == root.ownerKind &&
+				it.ownerIdentity == root.ownerIdentity &&
+				it.ownerRevision == root.ownerRevision
+		}
+		val retained = ImportedPortableStepsCountDomainOwnerFenceEntity.create(
+			ownerKind = owner.ownerKind.name,
+			ownerIdentity = owner.ownerIdentity.value,
+			scopeIdentity = owner.scopeIdentity.value,
+			latestSourceRevision = owner.ownerRevision,
+			latestOwnerEffectChecksum = owner.ownerEffectChecksum.value,
+			productKind = ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+			productIdentity = entry.identity.value,
+			graphIdentity = graph.identity.value,
+			fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION,
+			collectedDataEpoch = 7L,
+			fencedAtMs = 8L,
+		)
+		val laterDeletion = ImportedPortableStepsCountDomainOwnerFenceEntity.create(
+			ownerKind = owner.ownerKind.name,
+			ownerIdentity = owner.ownerIdentity.value,
+			scopeIdentity = owner.scopeIdentity.value,
+			latestSourceRevision = owner.ownerRevision,
+			latestOwnerEffectChecksum = owner.ownerEffectChecksum.value,
+			productKind = ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+			productIdentity = entry.identity.value,
+			graphIdentity = graph.identity.value,
+			fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
+			collectedDataEpoch = 8L,
+			fencedAtMs = 9L,
+		)
+		val dao = database.importedPortableStepsCountDomainDao()
+		dao.insertOwnerFences(listOf(retained))
+
+		database.insertOrAuthenticateImportedPortableOwnerFences(listOf(laterDeletion))
+		database.insertOrAuthenticateImportedPortableOwnerFences(listOf(laterDeletion))
+
+		dao.ownerFences(listOf(owner.ownerIdentity.value), 2) shouldBe listOf(retained)
+		val conflicting = ImportedPortableStepsCountDomainOwnerFenceEntity.create(
+			ownerKind = owner.ownerKind.name,
+			ownerIdentity = owner.ownerIdentity.value,
+			scopeIdentity = owner.scopeIdentity.value,
+			latestSourceRevision = owner.ownerRevision,
+			latestOwnerEffectChecksum = owner.ownerEffectChecksum.value,
+			productKind = ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+			productIdentity = identity(PortableStepsIdentityKind.LOGICAL_ENTRY, "conflict").value,
+			graphIdentity = graph.identity.value,
+			fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
+			collectedDataEpoch = 8L,
+			fencedAtMs = 9L,
+		)
+		assertFailsWith<IllegalArgumentException> {
+			database.insertOrAuthenticateImportedPortableOwnerFences(listOf(conflicting))
+		}
+		dao.ownerFences(listOf(owner.ownerIdentity.value), 2) shouldBe listOf(retained)
 	}
 
 	@Test
@@ -847,6 +1012,95 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 					root
 				}
 			},
+		)
+	}
+
+	private fun conflictingPrefixGraph(
+		latest: PortableCountDomainGraphV2,
+	): PortableCountDomainGraphV2 {
+		val firstOwner = latest.ownerRevisions.first {
+			it.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT &&
+				it.ownerRevision == 1L
+		}
+		val conflictingEffect = PortableCountDomainDigest("sha256:" + "e".repeat(64))
+		val conflictingReceipt = sessionFactReceipt(firstOwner, 1L, conflictingEffect)
+		return PortableCountDomainGraphV2.create(
+			receipts = latest.receipts.filterNot {
+				it.ownerKind == firstOwner.ownerKind &&
+					it.ownerIdentity == firstOwner.ownerIdentity &&
+					it.ownerRevision == firstOwner.ownerRevision
+			} + conflictingReceipt,
+			ownerRevisions = latest.ownerRevisions.map {
+				if (it == firstOwner) {
+					it.copy(
+						receiptIdentity = conflictingReceipt.identity,
+						ownerEffectChecksum = conflictingEffect,
+					)
+				} else {
+					it
+				}
+			},
+			completenessMarkers = latest.completenessMarkers,
+			roots = latest.roots,
+		)
+	}
+
+	private fun ambientAppearance(
+		day: PortableAmbientStepsDayV1,
+		revision: Long,
+	): AuthenticatedFullClearGraphAppearance {
+		val graph = day.withExplicitUnprovenCountDomain(revision).countDomainGraph
+		return AuthenticatedFullClearGraphAppearance(
+			graph = graph,
+			graphIdentity = graph.identity.value,
+			productKind = ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
+			productIdentity = day.identity.value,
+			graphRevision = revision,
+			sourceSchemaVersion = AmbientStepsPortableFormatV1.SCHEMA_VERSION,
+			isBound = true,
+		)
+	}
+
+	private fun sessionAppearance(
+		entry: PortableStepsEntryV1,
+		graph: PortableCountDomainGraphV2,
+		revision: Long,
+	): AuthenticatedFullClearGraphAppearance =
+		AuthenticatedFullClearGraphAppearance(
+			graph = graph,
+			graphIdentity = graph.identity.value,
+			productKind = ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+			productIdentity = entry.identity.value,
+			graphRevision = revision,
+			sourceSchemaVersion = 2,
+			isBound = true,
+		)
+
+	private fun ambientDay(tag: String): PortableAmbientStepsDayV1 {
+		val fact = PortableAmbientStepsFactV1.create(
+			AmbientStepsPortableOpaqueIdentity.derive(
+				AmbientStepsPortableIdentityKind.FACT,
+				"fact-$tag",
+			),
+			0L,
+			86_400_000L,
+			1L,
+		)
+		return PortableAmbientStepsDayV1.create(
+			identity = AmbientStepsPortableOpaqueIdentity.derive(
+				AmbientStepsPortableIdentityKind.DAY,
+				"day-$tag",
+			),
+			structuralEpochDay = 0L,
+			storedZoneId = "UTC",
+			structuralDayStartTimeMs = 0L,
+			structuralDayEndTimeMs = 86_400_000L,
+			retainedFromTimeMs = null,
+			coverage = PortableAmbientStepsCoverage.COMPLETE,
+			partialCauses = emptyList(),
+			retainedStepCount = 1L,
+			facts = listOf(fact),
+			gaps = emptyList(),
 		)
 	}
 

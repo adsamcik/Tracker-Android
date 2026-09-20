@@ -4,10 +4,13 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCount
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableCountDomainIdentity
+import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedRead
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedReader
 import com.adsamcik.tracker.shared.base.database.steps.imported.RetainedImportedStepsEntry
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOperation
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOwnerKind
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOwnerRevisionV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainRootV2
@@ -29,8 +32,30 @@ internal suspend fun AppDatabase.preserveImportedPortableCountDomainFullClearFen
 	val bindings = dao.allBindingsForFullClear(MAX_FULL_CLEAR_BINDINGS + 1)
 	require(bindings.size <= MAX_FULL_CLEAR_BINDINGS)
 	require(bindings.distinct().size == bindings.size)
-	val authenticated = mutableListOf<AuthenticatedImportedPortableGraphBinding>()
 	val consumedBindings = linkedSetOf<ImportedPortableStepsCountDomainBindingEntity>()
+	val authenticatedGraphIdentities = linkedSetOf<String>()
+	val fenceAccumulator = AuthenticatedFullClearOwnerFenceAccumulator(
+		fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
+		collectedDataEpoch = newCollectedDataEpoch,
+		fencedAtMs = fencedAtMs,
+		maximumOwnerCount = MAX_FULL_CLEAR_OWNER_FENCES,
+		maximumOwnerRevisionCount = MAX_FULL_CLEAR_OWNER_REVISIONS,
+	)
+	val consumeAuthenticatedGraph:
+		(AuthenticatedImportedPortableGraphBinding, Boolean) -> Unit = { current, isStored ->
+		if (isStored) authenticatedGraphIdentities += current.binding.graphIdentity
+		fenceAccumulator.add(
+			AuthenticatedFullClearGraphAppearance(
+				graph = current.graph,
+				graphIdentity = current.binding.graphIdentity,
+				productKind = current.binding.productKind,
+				productIdentity = current.binding.productIdentity,
+				graphRevision = current.binding.productRevision,
+				sourceSchemaVersion = current.binding.sourceSchemaVersion,
+				isBound = true,
+			),
+		)
+	}
 	val sessionBindings = bindings.filter {
 		it.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY
 	}.associateBy { it.productIdentity }
@@ -40,66 +65,41 @@ internal suspend fun AppDatabase.preserveImportedPortableCountDomainFullClearFen
 	val sessionAuthentication = authenticatedImportedSessionBindingsForFullClear(
 		sessionBindings,
 		consumedBindings,
+		consumeAuthenticatedGraph,
 	)
-	authenticated += sessionAuthentication.graphs
 	val ambientBindings = bindings.filter {
 		it.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY
 	}.groupBy { it.productIdentity }
-	authenticated += authenticatedImportedAmbientBindingsForFullClear(
+	authenticatedImportedAmbientBindingsForFullClear(
 		oldCollectedDataEpoch,
 		ambientBindings,
 		consumedBindings,
+		consumeAuthenticatedGraph,
 	)
 	require(consumedBindings == bindings.toSet())
-	val authenticatedByGraph = authenticated
-		.filter { it.binding in consumedBindings }
-		.groupBy { it.binding.graphIdentity }
-		.mapValues { (_, appearances) ->
-			require(appearances.map { it.graph }.distinct().size == 1)
-			appearances.first().graph
-		}
-	require(authenticatedByGraph.keys == bindings.mapTo(linkedSetOf()) { it.graphIdentity })
-	val graphAppearances = authenticated.map { current ->
-		AuthenticatedFullClearGraphAppearance(
-			graph = current.graph,
-			graphIdentity = current.binding.graphIdentity,
-			productKind = current.binding.productKind,
-			productIdentity = current.binding.productIdentity,
-			graphRevision = current.binding.productRevision,
-			isBound = true,
-		)
-	} + authenticateAndCollectOrphanPortableGraphsForFullClear(
-		authenticatedByGraph = authenticatedByGraph,
+	require(authenticatedGraphIdentities == bindings.mapTo(linkedSetOf()) { it.graphIdentity })
+	authenticateAndFoldOrphanPortableGraphsForFullClear(
+		authenticatedGraphIdentities = authenticatedGraphIdentities,
 		bindings = bindings,
-	)
-	val fullClearFences = authenticatedPortableOwnerFencesForFullClear(
-		graphs = graphAppearances,
-		fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
-		collectedDataEpoch = newCollectedDataEpoch,
-		fencedAtMs = fencedAtMs,
-		maximumFenceCount = MAX_FULL_CLEAR_OWNER_FENCES,
-	)
-	installAuthenticatedFullClearOwnerFences(fullClearFences)
+	) { orphan ->
+		fenceAccumulator.add(orphan)
+	}
+	installAuthenticatedFullClearOwnerFences(fenceAccumulator.fences())
 	authenticateAllPortableSessionFileReceiptsForFullClear(
 		sessionBindings = sessionBindings,
-		sessionProducts = sessionAuthentication.products,
-		authenticatedGraphIdentities = authenticatedByGraph.keys,
+		sessionProducts = sessionAuthentication,
+		authenticatedGraphIdentities = authenticatedGraphIdentities,
 	)
 	dao.deleteAllBindingsForFullClear()
 	dao.deleteAllGraphsForFullClear()
 	dao.deleteAllFileReceiptsForFullClear()
 }
 
-private data class AuthenticatedFullClearSessionProducts(
-	val graphs: List<AuthenticatedImportedPortableGraphBinding>,
-	val products: Map<String, RetainedImportedStepsEntry>,
-)
-
 private suspend fun AppDatabase.authenticatedImportedSessionBindingsForFullClear(
 	bindingsByEntry: Map<String, ImportedPortableStepsCountDomainBindingEntity>,
 	consumedBindings: MutableSet<ImportedPortableStepsCountDomainBindingEntity>,
-): AuthenticatedFullClearSessionProducts {
-	val result = mutableListOf<AuthenticatedImportedPortableGraphBinding>()
+	consume: (AuthenticatedImportedPortableGraphBinding, Boolean) -> Unit,
+): Map<String, RetainedImportedStepsEntry> {
 	val products = linkedMapOf<String, RetainedImportedStepsEntry>()
 	val reader = ImportedStepsRetainedReader(this)
 	var beforeStartTimeMs: Long? = null
@@ -151,21 +151,21 @@ private suspend fun AppDatabase.authenticatedImportedSessionBindingsForFullClear
 				loadAuthenticatedImportedSessionCountDomainBindingForFullClear(binding, product)
 			}
 			requireSessionGraphCoversRetainedProduct(authenticated, product)
-			result += authenticated
+			consume(authenticated, binding != null)
 		}
 		beforeStartTimeMs = page.last().startTimeMs
 		beforeIdentity = page.last().identity
 		if (page.size < SESSION_FULL_CLEAR_PAGE_SIZE) break
 	}
-	return AuthenticatedFullClearSessionProducts(result, products)
+	return products
 }
 
 private suspend fun AppDatabase.authenticatedImportedAmbientBindingsForFullClear(
 	oldCollectedDataEpoch: Long,
 	bindingsByDay: Map<String, List<ImportedPortableStepsCountDomainBindingEntity>>,
 	consumedBindings: MutableSet<ImportedPortableStepsCountDomainBindingEntity>,
-): List<AuthenticatedImportedPortableGraphBinding> {
-	val result = mutableListOf<AuthenticatedImportedPortableGraphBinding>()
+	consume: (AuthenticatedImportedPortableGraphBinding, Boolean) -> Unit,
+) {
 	val ambientDao = importedAmbientStepsDao()
 	var afterDayId: String? = null
 	var dayCount = 0
@@ -192,25 +192,26 @@ private suspend fun AppDatabase.authenticatedImportedAmbientBindingsForFullClear
 					consumedBindings += storedBindings
 				}
 			}
-			result += graphLineage.map {
-				AuthenticatedImportedPortableGraphBinding(it.binding, it.graph)
+			graphLineage.forEach {
+				consume(
+					AuthenticatedImportedPortableGraphBinding(it.binding, it.graph),
+					storedBindings.isNotEmpty(),
+				)
 			}
 		}
 		afterDayId = page.last().dayIdentity
 		if (page.size < AMBIENT_FULL_CLEAR_PAGE_SIZE) break
 	}
-	return result
 }
 
-private fun AppDatabase.authenticateAndCollectOrphanPortableGraphsForFullClear(
-	authenticatedByGraph: Map<String, PortableCountDomainGraphV2>,
+private fun AppDatabase.authenticateAndFoldOrphanPortableGraphsForFullClear(
+	authenticatedGraphIdentities: Set<String>,
 	bindings: List<ImportedPortableStepsCountDomainBindingEntity>,
-): List<AuthenticatedFullClearGraphAppearance> {
+	consume: (AuthenticatedFullClearGraphAppearance) -> Unit,
+) {
 	val dao = importedPortableStepsCountDomainDao()
 	val bindingsByGraph = bindings.groupBy { it.graphIdentity }
-	val remainingBoundGraphs = authenticatedByGraph.keys.toMutableSet()
-	val orphanGraphs = mutableListOf<AuthenticatedFullClearGraphAppearance>()
-	var orphanRootCount = 0
+	val remainingBoundGraphs = authenticatedGraphIdentities.toMutableSet()
 	var afterGraphIdentity: String? = null
 	while (true) {
 		val page = dao.graphPageForFullClear(afterGraphIdentity, GRAPH_FULL_CLEAR_PAGE_SIZE)
@@ -226,24 +227,23 @@ private fun AppDatabase.authenticateAndCollectOrphanPortableGraphsForFullClear(
 			) {
 				"Imported portable graph is not independently authentic"
 			}
-			val consumed = authenticatedByGraph[graphRow.graphIdentity]
-			if (consumed != null) {
-				require(consumed == graph)
+			if (graphRow.graphIdentity in authenticatedGraphIdentities) {
 				require(bindingsByGraph[graphRow.graphIdentity].orEmpty().isNotEmpty())
 				remainingBoundGraphs -= graphRow.graphIdentity
 			} else {
 				require(bindingsByGraph[graphRow.graphIdentity].orEmpty().isEmpty()) {
 					"Imported portable graph binding was not consumed by a product"
 				}
-				orphanRootCount = Math.addExact(orphanRootCount, graph.roots.size)
-				require(orphanRootCount <= MAX_FULL_CLEAR_OWNER_APPEARANCES)
-				orphanGraphs += AuthenticatedFullClearGraphAppearance(
+				consume(
+					AuthenticatedFullClearGraphAppearance(
 					graph = graph,
 					graphIdentity = graphRow.graphIdentity,
 					productKind = graphRow.sourceFormat.toPortableProductKind(),
 					productIdentity = null,
 					graphRevision = null,
+					sourceSchemaVersion = null,
 					isBound = false,
+					),
 				)
 			}
 		}
@@ -253,107 +253,256 @@ private fun AppDatabase.authenticateAndCollectOrphanPortableGraphsForFullClear(
 	require(remainingBoundGraphs.isEmpty()) {
 		"Authenticated imported portable binding references a missing graph"
 	}
-	return orphanGraphs
 }
 
-private data class AuthenticatedFullClearGraphAppearance(
+internal data class AuthenticatedFullClearGraphAppearance(
 	val graph: PortableCountDomainGraphV2,
 	val graphIdentity: String,
 	val productKind: String,
 	val productIdentity: String?,
 	val graphRevision: Long?,
+	val sourceSchemaVersion: Int?,
 	val isBound: Boolean,
 )
 
-private data class AuthenticatedFullClearOwnerAppearance(
-	val graph: AuthenticatedFullClearGraphAppearance,
-	val lineage: List<PortableCountDomainOwnerRevisionV2>,
-	val root: PortableCountDomainRootV2,
+private data class FullClearRootAuthority(
+	val containerIdentity: String,
+	val productIdentity: String,
+	val ownerKind: PortableCountDomainOwnerKind,
+	val ownerIdentity: String,
 )
 
-private data class AuthenticatedFullClearOwnerFence(
+internal data class AuthenticatedFullClearOwnerFence(
 	val fence: ImportedPortableStepsCountDomainOwnerFenceEntity,
-	val lineage: List<PortableCountDomainOwnerRevisionV2>,
+	val latestOwner: PortableCountDomainOwnerRevisionV2,
 )
 
-private fun authenticatedPortableOwnerFencesForFullClear(
+internal fun authenticatedPortableOwnerFencesForFullClear(
 	graphs: List<AuthenticatedFullClearGraphAppearance>,
 	fenceKind: String,
 	collectedDataEpoch: Long,
 	fencedAtMs: Long,
-	maximumFenceCount: Int,
-): List<AuthenticatedFullClearOwnerFence> {
-	val byOwner = linkedMapOf<
+	maximumOwnerCount: Int,
+	maximumOwnerRevisionCount: Int,
+): List<AuthenticatedFullClearOwnerFence> =
+	AuthenticatedFullClearOwnerFenceAccumulator(
+		fenceKind,
+		collectedDataEpoch,
+		fencedAtMs,
+		maximumOwnerCount,
+		maximumOwnerRevisionCount,
+	).also { accumulator ->
+		graphs.forEach(accumulator::add)
+	}.fences()
+
+private class AuthenticatedFullClearOwnerFenceAccumulator(
+	private val fenceKind: String,
+	private val collectedDataEpoch: Long,
+	private val fencedAtMs: Long,
+	private val maximumOwnerCount: Int,
+	private val maximumOwnerRevisionCount: Int,
+) {
+	private val byOwner = linkedMapOf<
 		Pair<PortableCountDomainOwnerKind, String>,
-		MutableList<AuthenticatedFullClearOwnerAppearance>
+		FullClearOwnerAuthority
 	>()
-	var appearanceCount = 0
-	graphs.forEach { graph ->
+	private var distinctOwnerRevisionCount = 0
+
+	fun add(graph: AuthenticatedFullClearGraphAppearance) {
 		check(graph.graph.identity.value == graph.graphIdentity)
 		graph.graph.roots.forEach { root ->
 			val lineage = graph.graph.ownerRevisions.filter {
 				it.ownerKind == root.ownerKind && it.ownerIdentity == root.ownerIdentity
 			}
 			check(lineage.isNotEmpty() && lineage.last().ownerRevision == root.ownerRevision)
-			byOwner.getOrPut(root.ownerKind to root.ownerIdentity.value, ::mutableListOf) +=
-				AuthenticatedFullClearOwnerAppearance(graph, lineage, root)
-			appearanceCount = Math.addExact(appearanceCount, 1)
-			require(appearanceCount <= MAX_FULL_CLEAR_OWNER_APPEARANCES)
+			val key = root.ownerKind to root.ownerIdentity.value
+			val authority = byOwner.getOrPut(key) {
+				require(byOwner.size < maximumOwnerCount) {
+					"Imported portable distinct owner count exceeds its full-clear bound"
+				}
+				FullClearOwnerAuthority()
+			}
+			distinctOwnerRevisionCount = Math.addExact(
+				distinctOwnerRevisionCount,
+				authority.add(graph, lineage, root),
+			)
+			require(distinctOwnerRevisionCount <= maximumOwnerRevisionCount) {
+				"Imported portable distinct owner revision count exceeds its full-clear bound"
+			}
 		}
 	}
 
-	require(byOwner.size <= maximumFenceCount)
-	return byOwner.values.map { appearances ->
-		val canonicalLineage = appearances.maxWith(
-			compareBy<AuthenticatedFullClearOwnerAppearance> { it.lineage.size }
-				.thenBy { it.lineage.last().ownerRevision },
-		).lineage
-		require(appearances.all { appearance ->
-			appearance.lineage == canonicalLineage.take(appearance.lineage.size)
-		}) {
-			"Imported portable owner has conflicting graph lineage"
+	fun fences(): List<AuthenticatedFullClearOwnerFence> =
+		byOwner.values.map { authority ->
+			authority.fence(fenceKind, collectedDataEpoch, fencedAtMs)
+		}.also {
+			require(it.size <= maximumOwnerCount)
 		}
-		require(appearances.map { it.graph.productKind }.distinct().size == 1) {
+}
+
+private class FullClearOwnerAuthority {
+	private val revisions = sortedMapOf<Long, PortableCountDomainOwnerRevisionV2>()
+	private val legacyAmbientRevisions = sortedSetOf<Long>()
+	private var explicitLineage: List<PortableCountDomainOwnerRevisionV2>? = null
+	private var rootAuthority: FullClearRootAuthority? = null
+	private var scopeIdentity: String? = null
+	private var productKind: String? = null
+	private var boundProductIdentity: String? = null
+	private var latestAppearance: Pair<AuthenticatedFullClearGraphAppearance, PortableCountDomainRootV2>? =
+		null
+
+	fun add(
+		graph: AuthenticatedFullClearGraphAppearance,
+		lineage: List<PortableCountDomainOwnerRevisionV2>,
+		root: PortableCountDomainRootV2,
+	): Int {
+		val first = lineage.first()
+		require(lineage.all {
+			it.ownerKind == first.ownerKind && it.ownerIdentity == first.ownerIdentity
+		})
+		require(
+			scopeIdentity == null || scopeIdentity == first.scopeIdentity.value,
+		) {
+			"Imported portable owner appears in conflicting scopes"
+		}
+		scopeIdentity = first.scopeIdentity.value
+		require(lineage.all { it.scopeIdentity.value == scopeIdentity }) {
+			"Imported portable owner lineage changes scope"
+		}
+		val currentRootAuthority = FullClearRootAuthority(
+			root.containerIdentity.value,
+			root.productIdentity.value,
+			root.ownerKind,
+			root.ownerIdentity.value,
+		)
+		require(rootAuthority == null || rootAuthority == currentRootAuthority) {
+			"Imported portable owner appears in conflicting product roots"
+		}
+		rootAuthority = currentRootAuthority
+		require(productKind == null || productKind == graph.productKind) {
 			"Imported portable owner appears in conflicting product kinds"
 		}
-		require(
-			appearances.mapNotNull { appearance ->
-				appearance.graph.productIdentity.takeIf { appearance.graph.isBound }
-			}.distinct().size <= 1,
-		) {
-			"Imported portable owner appears in conflicting bound products"
+		productKind = graph.productKind
+		if (graph.isBound) {
+			val currentProductIdentity = requireNotNull(graph.productIdentity)
+			require(
+				boundProductIdentity == null || boundProductIdentity == currentProductIdentity,
+			) {
+				"Imported portable owner appears in conflicting bound products"
+			}
+			boundProductIdentity = currentProductIdentity
 		}
-		val latestOwner = canonicalLineage.last()
-		val latestAppearance = appearances
-			.filter { it.root.ownerRevision == latestOwner.ownerRevision }
-			.maxWith(
-				compareBy<AuthenticatedFullClearOwnerAppearance> {
-					it.graph.graphRevision ?: 0L
-				}.thenBy {
-					if (it.graph.isBound) 1 else 0
-				}.thenBy {
-					it.graph.productIdentity ?: it.root.productIdentity.value
-				}.thenBy { it.graph.graphIdentity },
-			)
-		AuthenticatedFullClearOwnerFence(
+
+		val isLegacyAmbient = graph.isLegacyAmbientAppearance(lineage)
+		if (isLegacyAmbient) {
+			require(lineage.size == 1)
+			legacyAmbientRevisions += lineage.single().ownerRevision
+		} else {
+			val canonical = explicitLineage
+			if (canonical == null || lineage.size > canonical.size) {
+				require(canonical == null || lineage.take(canonical.size) == canonical) {
+					"Imported portable owner has conflicting explicit graph lineage"
+				}
+				explicitLineage = lineage
+			} else {
+				require(canonical.take(lineage.size) == lineage) {
+					"Imported portable owner has conflicting explicit graph lineage"
+				}
+			}
+		}
+
+		var addedRevisionCount = 0
+		lineage.forEach { owner ->
+			val prior = revisions.putIfAbsent(owner.ownerRevision, owner)
+			require(prior == null || prior == owner) {
+				"Imported portable owner revision has conflicting graph appearances"
+			}
+			if (prior == null) addedRevisionCount = Math.addExact(addedRevisionCount, 1)
+		}
+		val priorLatest = latestAppearance
+		if (priorLatest == null ||
+			compareFullClearAppearances(graph, root, priorLatest.first, priorLatest.second) > 0
+		) {
+			latestAppearance = graph to root
+		}
+		return addedRevisionCount
+	}
+
+	fun fence(
+		fenceKind: String,
+		collectedDataEpoch: Long,
+		fencedAtMs: Long,
+	): AuthenticatedFullClearOwnerFence {
+		legacyAmbientRevisions.zipWithNext().forEach { (previous, next) ->
+			require(next == Math.addExact(previous, 1L)) {
+				"Legacy Ambient portable owner revisions are not contiguous"
+			}
+		}
+		explicitLineage?.let { explicit ->
+			legacyAmbientRevisions.forEach { revision ->
+				require(explicit.singleOrNull { it.ownerRevision == revision } == revisions[revision]) {
+					"Explicit portable lineage does not preserve legacy Ambient authority"
+				}
+			}
+		}
+		val latestOwner = revisions.values.last()
+		val appearance = requireNotNull(latestAppearance)
+		val latestGraph = appearance.first
+		val latestRoot = appearance.second
+		require(latestRoot.ownerRevision == latestOwner.ownerRevision)
+		return AuthenticatedFullClearOwnerFence(
 			fence = ImportedPortableStepsCountDomainOwnerFenceEntity.create(
 				ownerKind = latestOwner.ownerKind.name,
 				ownerIdentity = latestOwner.ownerIdentity.value,
 				scopeIdentity = latestOwner.scopeIdentity.value,
 				latestSourceRevision = latestOwner.ownerRevision,
 				latestOwnerEffectChecksum = latestOwner.ownerEffectChecksum.value,
-				productKind = latestAppearance.graph.productKind,
-				productIdentity = latestAppearance.graph.productIdentity
-					?: latestAppearance.root.productIdentity.value,
-				graphIdentity = latestAppearance.graph.graphIdentity,
+				productKind = requireNotNull(productKind),
+				productIdentity = boundProductIdentity ?: latestRoot.productIdentity.value,
+				graphIdentity = latestGraph.graphIdentity,
 				fenceKind = fenceKind,
 				collectedDataEpoch = collectedDataEpoch,
 				fencedAtMs = fencedAtMs,
 			),
-			lineage = canonicalLineage,
+			latestOwner = latestOwner,
 		)
 	}
 }
+
+private fun AuthenticatedFullClearGraphAppearance.isLegacyAmbientAppearance(
+	lineage: List<PortableCountDomainOwnerRevisionV2>,
+): Boolean {
+	if (productKind != ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY) {
+		return false
+	}
+	if (sourceSchemaVersion != null) {
+		return sourceSchemaVersion == AmbientStepsPortableFormatV1.SCHEMA_VERSION
+	}
+	return graph.receipts.isEmpty() &&
+		graph.completenessMarkers.isEmpty() &&
+		graph.ownerRevisions.groupBy { it.ownerKind to it.ownerIdentity }.values.all {
+			it.size == 1 &&
+				it.single().operation == PortableCountDomainOperation.UNPROVEN &&
+				it.single().receiptIdentity == null &&
+				it.single().linkedAtMs == 0L
+		} &&
+		lineage.size == 1
+}
+
+private fun compareFullClearAppearances(
+	leftGraph: AuthenticatedFullClearGraphAppearance,
+	leftRoot: PortableCountDomainRootV2,
+	rightGraph: AuthenticatedFullClearGraphAppearance,
+	rightRoot: PortableCountDomainRootV2,
+): Int = compareValuesBy(
+	leftGraph to leftRoot,
+	rightGraph to rightRoot,
+	{ it.second.ownerRevision },
+	{ it.first.graphRevision ?: 0L },
+	{ if (it.first.isBound) 1 else 0 },
+	{ it.first.productIdentity ?: it.second.productIdentity.value },
+	{ it.first.graphIdentity },
+)
 
 private fun AppDatabase.installAuthenticatedFullClearOwnerFences(
 	candidates: List<AuthenticatedFullClearOwnerFence>,
@@ -371,31 +520,28 @@ private fun AppDatabase.installAuthenticatedFullClearOwnerFences(
 	val existingByOwner = existing.associateBy { it.ownerKind to it.ownerIdentity }
 	require(existingByOwner.size == existing.size)
 	require(existingByOwner.keys.all { it in candidatesByOwner })
-	candidates.forEach { candidate ->
+	val missing = candidates.filter { candidate ->
 		existingByOwner[candidate.fence.ownerKind to candidate.fence.ownerIdentity]?.let { stored ->
 			require(
 				stored.effectChecksum ==
 					ImportedPortableCountDomainIdentity.ownerFenceChecksum(stored),
 			)
-			require(stored.scopeIdentity == candidate.fence.scopeIdentity)
-			require(stored.productKind == candidate.fence.productKind)
-			require(stored.productIdentity == candidate.fence.productIdentity)
-			val authenticatedStoredRevision = candidate.lineage.singleOrNull {
-				it.ownerRevision == stored.latestSourceRevision
-			}
+			require(stored.hasCompatibleTerminalAuthority(candidate.fence))
+			require(stored.latestSourceRevision == candidate.latestOwner.ownerRevision)
 			require(
-				authenticatedStoredRevision?.ownerEffectChecksum?.value ==
-					stored.latestOwnerEffectChecksum,
+				stored.latestOwnerEffectChecksum ==
+					candidate.latestOwner.ownerEffectChecksum.value,
 			) {
 				"Stored imported portable fence conflicts with authenticated owner lineage"
 			}
-			require(stored.latestSourceRevision <= candidate.fence.latestSourceRevision)
 			require(stored.collectedDataEpoch <= candidate.fence.collectedDataEpoch)
-		}
+			require(stored.fencedAtMs <= candidate.fence.fencedAtMs)
+			false
+		} ?: true
 	}
-	candidates.map(AuthenticatedFullClearOwnerFence::fence)
+	missing.map(AuthenticatedFullClearOwnerFence::fence)
 		.chunked(INSERT_BATCH)
-		.forEach(dao::upsertOwnerFencesForFullClear)
+		.forEach(dao::insertOwnerFencesForFullClear)
 }
 
 private fun String.toPortableProductKind(): String = when (this) {
@@ -642,7 +788,8 @@ private data class SessionRootKey(
 
 private const val MAX_FULL_CLEAR_BINDINGS = 131_072
 private const val MAX_FULL_CLEAR_OWNER_FENCES = 262_144
-private const val MAX_FULL_CLEAR_OWNER_APPEARANCES = 262_144
+private const val MAX_FULL_CLEAR_OWNER_REVISIONS =
+	MAX_FULL_CLEAR_OWNER_FENCES * ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY
 private const val INSERT_BATCH = 256
 private const val SESSION_FULL_CLEAR_PAGE_SIZE = 32
 private const val AMBIENT_FULL_CLEAR_PAGE_SIZE = 256
