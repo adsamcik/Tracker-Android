@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import java.io.File
@@ -36,12 +37,18 @@ class DefaultActiveTrackingSessionStoreTest {
 			isUserInitiated = true,
 			isAmbient = false,
 			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "catalog-logical",
+			serviceRunId = "catalog-run",
 			restartBootId = "boot:test",
 			restartToken = "restart-token",
 			sessionSegmentId = 42L,
 			sourceCallerAuthorityReference = SourceCallerReplayReference("caller-authority"),
 			pendingRetirementSourceCallerAuthorityReference =
 				SourceCallerReplayReference("caller-authority-predecessor"),
+			catalogReconfigurationDebt = catalogDebt(
+				logicalTrackingId = "catalog-logical",
+				serviceRunId = "catalog-run",
+			),
 		)
 
 		store.save(descriptor) shouldBe ActiveTrackingSessionStoreResult.Success(descriptor)
@@ -352,6 +359,38 @@ class DefaultActiveTrackingSessionStoreTest {
 		sourceCallerAuthorityReference = reference,
 		)
 
-		descriptor.forNewServiceRun(100L).sourceCallerAuthorityReference shouldBe reference
+		val debt = catalogDebt(descriptor.logicalTrackingId, descriptor.serviceRunId)
+		val descriptorWithDebt = descriptor.copy(catalogReconfigurationDebt = debt)
+		val replacement = descriptorWithDebt.forNewServiceRun(100L)
+
+		replacement.sourceCallerAuthorityReference shouldBe reference
+		replacement.catalogReconfigurationDebt shouldBe
+			debt.copy(serviceRunId = replacement.serviceRunId)
 	}
+
+	private fun catalogDebt(
+		logicalTrackingId: String,
+		serviceRunId: String,
+	) = CatalogReconfigurationDebt(
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+		sourcePolicyRevision = 7L,
+		requestedPlanRevision = 2L,
+		requestedPlanId = "catalog-plan",
+		requestedPlanCreatedAtMs = 100L,
+		requestedPlans = listOf(
+			CatalogReconfigurationSourcePlan(
+				sourceStableCode = SourceKind.STEPS.stableCode,
+				payloadVersion = 1,
+				payloadBase64 = "AQID",
+				payloadChecksum =
+					"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			),
+		),
+		deferredSourceMask = 1L shl (SourceKind.STEPS.stableCode - 1),
+		clockDomainId = "boot:test",
+		zoneId = "Europe/Prague",
+		foregroundCapabilityFlags = 1L,
+		controlDependencyMask = 0L,
+	)
 }

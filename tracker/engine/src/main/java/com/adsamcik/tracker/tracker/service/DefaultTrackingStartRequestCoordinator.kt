@@ -75,6 +75,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -702,15 +703,23 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 	suspend fun apply(
 		prepared: TrackingServicePreparedStartClaim.Claimed,
 		commandGeneration: Long,
-	): SessionStartResult? = trackingStartupGate.withReadyGenerationOperation(
-		prepared.startupGeneration,
-	) {
-		sourceSession.applyPreparedAndroidStart(
-			prepared.claim,
-			commandGeneration,
-			prepared.planInputs,
-			prepared.descriptor,
-		)
+	): SessionStartResult? {
+		while (true) {
+			val result = trackingStartupGate.withReadyGenerationOperation(
+				prepared.startupGeneration,
+			) {
+				sourceSession.applyPreparedAndroidStart(
+					prepared.claim,
+					commandGeneration,
+					prepared.planInputs,
+					prepared.descriptor,
+				)
+			} ?: return null
+			if (result !is SessionStartResult.InvalidIntent ||
+				result.disposition != TrackingStartFailureDisposition.RETRYABLE
+			) return result
+			delay(CATALOG_START_RETRY_DELAY_MILLIS)
+		}
 	}
 
 	private suspend fun resolveDescriptor(
@@ -971,6 +980,7 @@ internal suspend fun runBoundedStartPreparationCancellationCleanup(
 
 private const val START_CLEANUP_NANOS_PER_MILLISECOND = 1_000_000L
 private const val DEFAULT_START_PREPARATION_CLEANUP_TIMEOUT_MS = 250L
+private const val CATALOG_START_RETRY_DELAY_MILLIS = 250L
 
 private fun retryableStartRejection(failureCode: String) =
 	TrackingStartPreparationResult.Rejected(

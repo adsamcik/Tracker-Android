@@ -13,6 +13,8 @@ import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStore
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreFailureKind
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreResult
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
+import com.adsamcik.tracker.tracker.resilience.CatalogReconfigurationDebt
+import com.adsamcik.tracker.tracker.resilience.CatalogReconfigurationSourcePlan
 import com.adsamcik.tracker.tracker.source.catalog.SourceAcquisitionPlanFactory
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.DemandReason
@@ -25,6 +27,7 @@ import com.adsamcik.tracker.tracker.source.model.SourcePlan
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementOutcome
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementRetryReason
 import java.time.ZoneId
+import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Provider
 import kotlinx.coroutines.CancellationException
@@ -149,10 +152,11 @@ class TrackerServiceSourceSession @Inject constructor(
 	private val trackingStartupGateProvider: Provider<TrackingStartupGate>,
 	private val trackingRolloutStateStore: RoomTrackingRolloutStateStore,
 	private val activeTrackingSessionStore: ActiveTrackingSessionStore,
+	private val sourcePlanCodec: SourcePlanCodec = SourcePlanCodec(),
 ) {
 	private val mutex = Mutex()
 	private var active: ActiveSession? = null
-	private var pendingInputs: SourceSessionPlanInputs? = null
+	private var preStartInputs: SourceSessionPlanInputs? = null
 
 	/** Builds and durably persists the exact plan without touching a provider runtime. */
 	suspend fun prepareAndroidStartUnderReadyGeneration(
@@ -165,7 +169,7 @@ class TrackerServiceSourceSession @Inject constructor(
 		}
 		require(request.logicalTrackingId.isNotBlank())
 		require(request.serviceRunId.isNotBlank())
-		val planInputs = pendingInputs
+		val planInputs = preStartInputs
 			?.takeIf { pending -> pending.isAtLeastAsCurrentAs(request.planInputs) }
 			?: request.planInputs
 		val ownership = TrackingSessionOwnership.resolve(
@@ -236,6 +240,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			sourceCallerAuthorityReference = claimedReference,
 			pendingRetirementSourceCallerAuthorityReference =
 				persistedDescriptor?.pendingRetirementSourceCallerAuthorityReference,
+			catalogReconfigurationDebt = persistedDescriptor?.catalogReconfigurationDebt,
 		)
 		// Attach cleanup ownership before the first provider side effect. If the Android service is
 		// stopped and cancels this coroutine mid-apply, stop() must still fence a partially-started
@@ -265,7 +270,7 @@ class TrackerServiceSourceSession @Inject constructor(
 					SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED,
 				)
 			}
-			pendingInputs = null
+			preStartInputs = null
 			settingsStatusProvider.publishApplied(result.applied)
 		} else if (result.requiresRuntimeCleanup) {
 			applyingSession.runtimeCleanupRequired = true
@@ -294,7 +299,7 @@ class TrackerServiceSourceSession @Inject constructor(
 		require(request.rollout == request.ownership.rollout) { "Ownership must use the supplied rollout snapshot" }
 		require(request.logicalTrackingId.isNotBlank())
 		require(request.serviceRunId.isNotBlank())
-		val planInputs = pendingInputs
+		val planInputs = preStartInputs
 			?.takeIf { pending -> pending.isAtLeastAsCurrentAs(request.planInputs) }
 			?: request.planInputs
 		val ownership = TrackingSessionOwnership.resolve(
@@ -302,7 +307,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			planInputs.settings,
 			request.captureMode,
 		)
-		pendingInputs = null
+		preStartInputs = null
 		val session = ActiveSession(
 			rollout = request.rollout,
 			ownerToken = request.ownerToken,
@@ -363,7 +368,7 @@ class TrackerServiceSourceSession @Inject constructor(
 	suspend fun reconfigure(inputs: SourceSessionPlanInputs): SourceSessionReconfigureOutcome {
 		val inactive = mutex.withLock {
 			if (active == null) {
-				pendingInputs = pendingInputs
+				preStartInputs = preStartInputs
 					?.takeIf { current -> current.isNewerThan(inputs) }
 					?: inputs
 				SourceSessionReconfigureOutcome.NotActive
@@ -384,33 +389,25 @@ class TrackerServiceSourceSession @Inject constructor(
 	}
 
 	suspend fun retryPendingReconfiguration(): SourceSessionReconfigureOutcome? {
-		val retryInputs = mutex.withLock { pendingInputs } ?: return null
 		val startupGate = trackingStartupGateProvider.get()
 		if (startupGate.reconcile() !is TrackingStartupResult.Ready) return null
 		val startupGeneration = startupGate.currentGeneration
 		return startupGate.withReadyGenerationOperation(startupGeneration) {
-			reconfigureUnderReadyGeneration(retryInputs, requirePendingMatch = true)
+			retryDurableCatalogReconfiguration()
 		}
 	}
 
 	private suspend fun reconfigureUnderReadyGeneration(
 		inputs: SourceSessionPlanInputs,
-		requirePendingMatch: Boolean = false,
 	): SourceSessionReconfigureOutcome = mutex.withLock {
 		val session = active ?: run {
-			pendingInputs = pendingInputs
+			preStartInputs = preStartInputs
 				?.takeIf { current -> current.isNewerThan(inputs) }
 				?: inputs
 			return@withLock SourceSessionReconfigureOutcome.NotActive
 		}
-		if (requirePendingMatch && pendingInputs != inputs) {
-			return@withLock SourceSessionReconfigureOutcome.Unchanged
-		}
-		val requestedInputs = pendingInputs
-			?.takeIf { pending -> pending == inputs || pending.isNewerThan(inputs) }
-			?: inputs
+		val requestedInputs = inputs
 		if (session.lastInputs == requestedInputs) {
-			pendingInputs = null
 			return@withLock SourceSessionReconfigureOutcome.Unchanged
 		}
 		if (!session.coordinatorStarted) {
@@ -421,7 +418,6 @@ class TrackerServiceSourceSession @Inject constructor(
 			)
 			if (!ownership.eventCoordinatorRequired) {
 				session.lastInputs = requestedInputs
-				pendingInputs = null
 				settingsStatusProvider.publishActivePreview(
 					requestedInputs.settings,
 					session.rollout,
@@ -431,7 +427,6 @@ class TrackerServiceSourceSession @Inject constructor(
 				return@withLock SourceSessionReconfigureOutcome.Unchanged
 			}
 			session.lastInputs = requestedInputs
-			pendingInputs = null
 			val started = startCoordinator(session, requestedInputs)
 			return@withLock if (started is SessionStartResult.Started) {
 				session.coordinatorStarted = true
@@ -462,19 +457,33 @@ class TrackerServiceSourceSession @Inject constructor(
 			requestedInputs,
 			requireEnabled = false,
 		)
+		val request = SessionReconfigureRequest(
+			ownerToken = session.ownerToken,
+			plan = plan,
+			wallTimeMs = Time.nowMillis,
+			elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+			clockDomainId = requestedInputs.clockDomainId,
+			zoneId = requestedInputs.zoneId,
+			foregroundCapabilityFlags = session.foregroundCapabilityFlags,
+			controlDependencies = controlDependencies(session.origin),
+		)
 		val result = try {
-			coordinator.reconfigure(
-				SessionReconfigureRequest(
-					ownerToken = session.ownerToken,
-					plan = plan,
-					wallTimeMs = Time.nowMillis,
-					elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
-					clockDomainId = requestedInputs.clockDomainId,
-					zoneId = requestedInputs.zoneId,
-					foregroundCapabilityFlags = session.foregroundCapabilityFlags,
-					controlDependencies = controlDependencies(session.origin),
-				),
-			)
+			val firstAttempt = coordinator.reconfigure(request)
+			if (firstAttempt is SessionReconfigureResult.Retryable) {
+				if (!persistCatalogReconfigurationDebt(session, request, firstAttempt.sources)) {
+					SessionReconfigureResult.Retryable(
+						revision = plan.revision,
+						failureCode = CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+						sources = firstAttempt.sources,
+					)
+				} else {
+					coordinator.reconfigure(
+						request.copy(catalogDebtPersistedSources = firstAttempt.sources),
+					)
+				}
+			} else {
+				firstAttempt
+			}
 		} catch (error: CancellationException) {
 			session.runtimeCleanupRequired = true
 			throw error
@@ -512,23 +521,243 @@ class TrackerServiceSourceSession @Inject constructor(
 			)
 		}
 		if (result is SessionReconfigureResult.Applied) {
+			val debtUpdated = if (result.deferredCatalogSources.isEmpty()) {
+				clearCatalogReconfigurationDebt(session)
+			} else {
+				updateCatalogReconfigurationDebtSources(
+					session,
+					result.deferredCatalogSources,
+				)
+			}
+			if (!debtUpdated) {
+				settingsStatusProvider.publishFailure(
+					CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+				)
+				return@withLock SourceSessionReconfigureOutcome.Rejected(
+					SessionReconfigureResult.InvalidState(
+						CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+					),
+				)
+			}
 			session.lastInputs = requestedInputs
-			pendingInputs = null
 			settingsStatusProvider.publishApplied(result.applied)
 			SourceSessionReconfigureOutcome.Applied(result)
 		} else if (result is SessionReconfigureResult.Retryable) {
-			pendingInputs = pendingInputs
-				?.takeIf { pending -> pending.isNewerThan(requestedInputs) }
-				?: requestedInputs
+			if (result.failureCode != CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE &&
+				!persistCatalogReconfigurationDebt(session, request, result.sources)
+			) {
+				settingsStatusProvider.publishFailure(
+					CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+				)
+				return@withLock SourceSessionReconfigureOutcome.Retryable(
+					SessionReconfigureResult.Retryable(
+						revision = result.revision,
+						failureCode = CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+						sources = result.sources,
+					),
+				)
+			}
 			settingsStatusProvider.publishFailure(result.failureCode)
 			SourceSessionReconfigureOutcome.Retryable(result)
 		} else {
-			pendingInputs = null
+			if (!clearCatalogReconfigurationDebt(session)) {
+				settingsStatusProvider.publishFailure(
+					CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+				)
+				return@withLock SourceSessionReconfigureOutcome.Rejected(
+					SessionReconfigureResult.InvalidState(
+						CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+					),
+				)
+			}
 			if (result.requiresRuntimeCleanup) {
 				session.runtimeCleanupRequired = true
 			}
 			settingsStatusProvider.publishFailure("PLAN_RECONFIGURE_REJECTED")
 			SourceSessionReconfigureOutcome.Rejected(result)
+		}
+	}
+
+	private suspend fun retryDurableCatalogReconfiguration(): SourceSessionReconfigureOutcome? =
+		mutex.withLock {
+			val session = active ?: return@withLock null
+			val stored = when (val result = activeTrackingSessionStore.read()) {
+				is ActiveTrackingSessionStoreResult.Failure -> {
+					settingsStatusProvider.publishFailure(
+						CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+					)
+					return@withLock null
+				}
+				is ActiveTrackingSessionStoreResult.Success -> result.descriptor
+			} ?: return@withLock null
+			if (stored.logicalTrackingId != session.logicalTrackingId ||
+				stored.serviceRunId != session.serviceRunId
+			) return@withLock null
+			val debt = stored.catalogReconfigurationDebt ?: return@withLock null
+			session.catalogReconfigurationDebt = debt
+			val currentPolicyRevision = session.lastInputs.settings.sourcePolicyRevision
+			if (debt.sourcePolicyRevision != currentPolicyRevision ||
+				debt.clockDomainId != session.lastInputs.clockDomainId
+			) {
+				if (!replaceCatalogDebt(stored, null)) {
+					settingsStatusProvider.publishFailure(
+						CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+					)
+					return@withLock null
+				}
+				session.catalogReconfigurationDebt = null
+				return@withLock SourceSessionReconfigureOutcome.Unchanged
+			}
+			val revision = (database.sourcePlanStateDao().latestRevision()?.revision ?: 0L) + 1L
+			val plan = debt.toPlan(revision) ?: run {
+				if (replaceCatalogDebt(stored, null)) {
+					session.catalogReconfigurationDebt = null
+				}
+				settingsStatusProvider.publishFailure(CATALOG_RECONFIGURATION_DEBT_INVALID)
+				return@withLock SourceSessionReconfigureOutcome.Rejected(
+					SessionReconfigureResult.InvalidState(CATALOG_RECONFIGURATION_DEBT_INVALID),
+				)
+			}
+			val request = SessionReconfigureRequest(
+				ownerToken = session.ownerToken,
+				plan = plan,
+				wallTimeMs = Time.nowMillis,
+				elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+				clockDomainId = debt.clockDomainId,
+				zoneId = debt.zoneId,
+				foregroundCapabilityFlags = debt.foregroundCapabilityFlags,
+				controlDependencies = sourceKindsFromMask(debt.controlDependencyMask),
+				catalogDebtPersistedSources = sourceKindsFromMask(debt.deferredSourceMask),
+			)
+			val result = try {
+				coordinator.reconfigure(request)
+			} catch (error: CancellationException) {
+				session.runtimeCleanupRequired = true
+				throw error
+			}
+			val committedReference = when (result) {
+				is SessionReconfigureResult.Applied -> result.sourceCallerAuthorityReference
+				is SessionReconfigureResult.Failed -> result.sourceCallerAuthorityReference
+				else -> null
+			}
+			if (committedReference != null &&
+				!propagateSourceCallerAuthority(session, committedReference)
+			) {
+				session.runtimeCleanupRequired = true
+				return@withLock SourceSessionReconfigureOutcome.Rejected(
+					SessionReconfigureResult.InvalidState(
+						SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED,
+					),
+				)
+			}
+			when (result) {
+				is SessionReconfigureResult.Applied -> {
+					val debtUpdated = if (result.deferredCatalogSources.isEmpty()) {
+						clearCatalogReconfigurationDebt(session)
+					} else {
+						updateCatalogReconfigurationDebtSources(
+							session,
+							result.deferredCatalogSources,
+						)
+					}
+					if (!debtUpdated) {
+						return@withLock SourceSessionReconfigureOutcome.Rejected(
+							SessionReconfigureResult.InvalidState(
+								CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+							),
+						)
+					}
+					settingsStatusProvider.publishApplied(result.applied)
+					SourceSessionReconfigureOutcome.Applied(result)
+				}
+				is SessionReconfigureResult.Retryable -> {
+					if (!persistCatalogReconfigurationDebt(session, request, result.sources)) {
+						return@withLock SourceSessionReconfigureOutcome.Retryable(
+							result.copy(
+								failureCode = CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+							),
+						)
+					}
+					settingsStatusProvider.publishFailure(result.failureCode)
+					SourceSessionReconfigureOutcome.Retryable(result)
+				}
+				else -> {
+					if (!clearCatalogReconfigurationDebt(session)) {
+						return@withLock SourceSessionReconfigureOutcome.Rejected(
+							SessionReconfigureResult.InvalidState(
+								CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+							),
+						)
+					}
+					settingsStatusProvider.publishFailure("PLAN_RECONFIGURE_REJECTED")
+					SourceSessionReconfigureOutcome.Rejected(result)
+				}
+			}
+		}
+
+	private suspend fun persistCatalogReconfigurationDebt(
+		session: ActiveSession,
+		request: SessionReconfigureRequest,
+		deferredSources: Set<SourceKind>,
+	): Boolean {
+		val stored = currentStoredDescriptor(session) ?: return false
+		val debt = request.toCatalogReconfigurationDebt(session, deferredSources)
+		return replaceCatalogDebt(stored, debt).also { replaced ->
+			if (replaced) session.catalogReconfigurationDebt = debt
+		}
+	}
+
+	private suspend fun updateCatalogReconfigurationDebtSources(
+		session: ActiveSession,
+		deferredSources: Set<SourceKind>,
+	): Boolean {
+		val activeDebt = session.catalogReconfigurationDebt ?: return false
+		val stored = currentStoredDescriptor(session) ?: return false
+		val currentDebt = stored.catalogReconfigurationDebt
+			?.takeIf { debt -> debt == activeDebt }
+			?: return false
+		val replacementDebt = currentDebt.copy(
+			deferredSourceMask = deferredSources.toSourceMask(),
+		)
+		return replaceCatalogDebt(
+			stored,
+			replacementDebt,
+		).also { replaced ->
+			if (replaced) session.catalogReconfigurationDebt = replacementDebt
+		}
+	}
+
+	private suspend fun clearCatalogReconfigurationDebt(session: ActiveSession): Boolean {
+		if (session.catalogReconfigurationDebt == null) return true
+		val stored = currentStoredDescriptor(session) ?: return false
+		if (stored.catalogReconfigurationDebt == null) {
+			session.catalogReconfigurationDebt = null
+			return true
+		}
+		return replaceCatalogDebt(stored, null).also { replaced ->
+			if (replaced) session.catalogReconfigurationDebt = null
+		}
+	}
+
+	private suspend fun currentStoredDescriptor(
+		session: ActiveSession,
+	): ActiveTrackingSessionDescriptor? = when (val result = activeTrackingSessionStore.read()) {
+		is ActiveTrackingSessionStoreResult.Failure -> null
+		is ActiveTrackingSessionStoreResult.Success -> result.descriptor?.takeIf { stored ->
+			stored.logicalTrackingId == session.logicalTrackingId &&
+				stored.serviceRunId == session.serviceRunId
+		}
+	}
+
+	private suspend fun replaceCatalogDebt(
+		stored: ActiveTrackingSessionDescriptor,
+		debt: CatalogReconfigurationDebt?,
+	): Boolean {
+		val replacement = stored.copy(catalogReconfigurationDebt = debt)
+		if (replacement == stored) return true
+		return when (val result = activeTrackingSessionStore.replaceExact(stored, replacement)) {
+			is ActiveTrackingSessionStoreResult.Failure -> false
+			is ActiveTrackingSessionStoreResult.Success -> result.descriptor == replacement
 		}
 	}
 
@@ -701,12 +930,19 @@ class TrackerServiceSourceSession @Inject constructor(
 	}
 
 	private fun finishInactiveStop(): SourceSessionStopOutcome {
-		pendingInputs = null
+		preStartInputs = null
 		settingsStatusProvider.publishInactive()
 		return SourceSessionStopOutcome.NotActive
 	}
 
-	private fun finishUnstartedStop(): SourceSessionStopOutcome {
+	private suspend fun finishUnstartedStop(): SourceSessionStopOutcome {
+		active?.let { session ->
+			if (!clearCatalogReconfigurationDebt(session)) {
+				return SourceSessionStopOutcome.Retryable(
+					SourceSessionStopRetryCode.STORAGE_UNAVAILABLE,
+				)
+			}
+		}
 		active = null
 		settingsStatusProvider.publishInactive()
 		return SourceSessionStopOutcome.Stopped
@@ -802,6 +1038,11 @@ class TrackerServiceSourceSession @Inject constructor(
 			),
 		).toSourceSessionStopOutcome()
 		if (outcome == SourceSessionStopOutcome.Stopped) {
+			if (!clearCatalogReconfigurationDebt(session)) {
+				return SourceSessionStopOutcome.Retryable(
+					SourceSessionStopRetryCode.STORAGE_UNAVAILABLE,
+				)
+			}
 			active = null
 		}
 		return outcome
@@ -874,6 +1115,37 @@ class TrackerServiceSourceSession @Inject constructor(
 		)
 	}
 
+	private fun SessionReconfigureRequest.toCatalogReconfigurationDebt(
+		session: ActiveSession,
+		deferredSources: Set<SourceKind>,
+	): CatalogReconfigurationDebt {
+		val policyRevision = requireNotNull(plan.sourcePolicyRevision)
+		return CatalogReconfigurationDebt(
+			logicalTrackingId = session.logicalTrackingId,
+			serviceRunId = session.serviceRunId,
+			sourcePolicyRevision = policyRevision,
+			requestedPlanRevision = plan.revision,
+			requestedPlanId = plan.planId,
+			requestedPlanCreatedAtMs = plan.createdAtMs,
+			requestedPlans = plan.plans.values
+				.sortedBy { sourcePlan -> sourcePlan.source.stableCode }
+				.map { sourcePlan ->
+					val encoded = sourcePlanCodec.encode(sourcePlan)
+					CatalogReconfigurationSourcePlan(
+						sourceStableCode = sourcePlan.source.stableCode,
+						payloadVersion = SourcePlanCodec.FORMAT_VERSION,
+						payloadBase64 = Base64.getEncoder().encodeToString(encoded.bytes),
+						payloadChecksum = encoded.checksum,
+					)
+				},
+			deferredSourceMask = deferredSources.toSourceMask(),
+			clockDomainId = clockDomainId,
+			zoneId = zoneId,
+			foregroundCapabilityFlags = foregroundCapabilityFlags,
+			controlDependencyMask = controlDependencies.toSourceMask(),
+		)
+	}
+
 	private data class ActiveSession(
 		val rollout: TrackingRolloutState,
 		val ownerToken: String,
@@ -888,6 +1160,7 @@ class TrackerServiceSourceSession @Inject constructor(
 		var sourceCallerAuthorityReference: SourceCallerReplayReference?,
 		var pendingSourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 		var pendingRetirementSourceCallerAuthorityReference: SourceCallerReplayReference? = null,
+		var catalogReconfigurationDebt: CatalogReconfigurationDebt? = null,
 		var coordinatorSuspended: Boolean = false,
 		var runtimeCleanupRequired: Boolean = false,
 	)
@@ -991,10 +1264,67 @@ private fun SessionStartOrigin.defaultCaptureMode(): CaptureReachabilityMode = w
 	-> CaptureReachabilityMode.MANUAL_SESSION_CAPTURE
 }
 
+private fun CatalogReconfigurationDebt.toPlan(revision: Long): AcquisitionPlanRevision? {
+	return try {
+		val codec = SourcePlanCodec()
+		val decoded = requestedPlans.associate { stored ->
+			if (stored.payloadVersion != SourcePlanCodec.FORMAT_VERSION) return null
+			val payload = Base64.getDecoder().decode(stored.payloadBase64)
+			val sourcePlan = codec.decode(payload)
+			val reencoded = codec.encode(sourcePlan)
+			if (sourcePlan.source.stableCode != stored.sourceStableCode ||
+				sourcePlan.revision != requestedPlanRevision ||
+				reencoded.checksum != stored.payloadChecksum ||
+				!reencoded.bytes.contentEquals(payload)
+			) return null
+			sourcePlan.source to sourcePlan.withRevision(revision)
+		}
+		val deferredSources = sourceKindsFromMask(deferredSourceMask)
+		val controlDependencies = sourceKindsFromMask(controlDependencyMask)
+		if (deferredSources.toSourceMask() != deferredSourceMask ||
+			controlDependencies.toSourceMask() != controlDependencyMask ||
+			deferredSources.any { source -> decoded[source]?.enabled != true }
+		) return null
+		AcquisitionPlanRevision(
+			revision = revision,
+			planId = "catalog-retry-$sourcePolicyRevision-$revision",
+			createdAtMs = Time.nowMillis,
+			plans = decoded,
+			sourcePolicyRevision = sourcePolicyRevision,
+		)
+	} catch (_: Exception) {
+		null
+	}
+}
+
+private fun SourcePlan.withRevision(revision: Long): SourcePlan = when (this) {
+	is com.adsamcik.tracker.tracker.source.model.LocationPlan -> copy(revision = revision)
+	is com.adsamcik.tracker.tracker.source.model.ActivityPlan -> copy(revision = revision)
+	is com.adsamcik.tracker.tracker.source.model.StepsPlan -> copy(revision = revision)
+	is com.adsamcik.tracker.tracker.source.model.PressurePlan -> copy(revision = revision)
+	is com.adsamcik.tracker.tracker.source.model.WifiPlan -> copy(revision = revision)
+	is com.adsamcik.tracker.tracker.source.model.CellPlan -> copy(revision = revision)
+}
+
+private fun Set<SourceKind>.toSourceMask(): Long = fold(0L) { mask, source ->
+	require(source.stableCode in 1..Long.SIZE_BITS)
+	mask or (1L shl (source.stableCode - 1))
+}
+
+private fun sourceKindsFromMask(mask: Long): Set<SourceKind> =
+	SourceKind.entries.filterTo(linkedSetOf()) { source ->
+		source.stableCode in 1..Long.SIZE_BITS &&
+			mask and (1L shl (source.stableCode - 1)) != 0L
+	}
+
 private const val STARTUP_RECOVERY_NOT_READY = "STARTUP_RECOVERY_NOT_READY"
 private const val ZERO_REACHABLE_CAPTURE_SOURCES = "ZERO_REACHABLE_CAPTURE_SOURCES"
 private const val SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED =
 	"SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED"
+private const val CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE =
+	"CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE"
+private const val CATALOG_RECONFIGURATION_DEBT_INVALID =
+	"CATALOG_RECONFIGURATION_DEBT_INVALID"
 
 private fun controlDependencies(
 	origin: SessionStartOrigin,

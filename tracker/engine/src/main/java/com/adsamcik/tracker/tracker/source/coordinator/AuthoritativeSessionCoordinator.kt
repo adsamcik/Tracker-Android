@@ -108,6 +108,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
@@ -282,6 +283,12 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			request.plan,
 			request.origin.toSourceAvailabilityTier(),
 		)
+		catalogDecisions.retryableFailure()?.let { failure ->
+			return SessionStartPreparationResult.Rejected(
+				failure.failure.code,
+				failure.failure.disposition,
+			)
+		}
 		catalogDecisions.failureIfNoAcceptedSource()?.let { failure ->
 			return SessionStartPreparationResult.Rejected(failure.code, failure.disposition)
 		}
@@ -978,10 +985,18 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			.mapNotNullTo(linkedSetOf()) { binding ->
 				SourceKind.entries.firstOrNull { source -> source.stableCode == binding.sourceKind }
 			}
-		val acceptedAtForeground = runtimes.catalogPlanDecisions(
-			plan,
-			SourceAvailabilityTier.SESSION_ALREADY_FOREGROUND,
-		).constrainedToAcceptedSources(acceptedAtPrepare).acceptedSources
+		var acceptedAtForeground = emptySet<SourceKind>()
+		while (true) {
+			val decisions = runtimes.catalogPlanDecisions(
+				plan,
+				SourceAvailabilityTier.SESSION_ALREADY_FOREGROUND,
+			).constrainedToAcceptedSources(acceptedAtPrepare)
+			if (decisions.retryableFailure() == null) {
+				acceptedAtForeground = decisions.acceptedSources
+				break
+			}
+			delay(CATALOG_RECONCILIATION_RETRY_DELAY_MS)
+		}
 		val lease = acquireLease(preparedStartOwner(token)) ?: return false
 		if (lease.generation != run.leaseGeneration) {
 			terminalizeExpiredPreparedStart(
@@ -1129,6 +1144,12 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				plan,
 				SourceAvailabilityTier.SESSION_ALREADY_FOREGROUND,
 			).constrainedToAcceptedSources(persisted.activeCaptureSources())
+			catalogDecisions.retryableFailure()?.let { failure ->
+				return SessionStartResult.InvalidIntent(
+					failure.failure.code,
+					failure.failure.disposition,
+				)
+			}
 			val blockedSources = catalogDecisions.bySource
 				.filterValues { decision -> decision is CatalogSourcePlanDecision.Blocked }
 				.keys
@@ -1488,6 +1509,9 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			request.plan,
 			request.origin.toSourceAvailabilityTier(),
 		)
+		catalogDecisions.retryableFailure()?.let {
+			return SessionStartResult.InvalidIntent(it.failure.code, it.failure.disposition)
+		}
 		catalogDecisions.failureIfNoAcceptedSource()?.let {
 			return SessionStartResult.InvalidIntent(it.code, it.disposition)
 		}
@@ -2075,13 +2099,6 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			request.plan,
 			SourceAvailabilityTier.SESSION_ALREADY_FOREGROUND,
 		)
-		catalogDecisions.retryableFailure()?.let { debt ->
-			return SessionReconfigureResult.Retryable(
-				revision = request.plan.revision,
-				failureCode = debt.failure.code,
-				sources = debt.sources,
-			)
-		}
 		val lease = acquireLease(request.ownerToken)
 			?: return SessionReconfigureResult.Busy
 		return try {
@@ -2091,6 +2108,39 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			if (session.state != SessionLifecycleState.ACTIVE.name) {
 				return SessionReconfigureResult.InvalidState(session.state)
 			}
+			val currentServiceRunId = session.currentServiceRunId
+				?: return SessionReconfigureResult.InvalidState("ACTIVE_SERVICE_RUN_MISSING")
+			val currentManifest = session.currentManifestRevision?.let { revision ->
+				verifiedManifest(session.logicalTrackingId, revision, currentServiceRunId)
+			} ?: return SessionReconfigureResult.InvalidIntent("CURRENT_MANIFEST_INTEGRITY_FAILED")
+			val currentPlan = planStore.load(currentManifest.manifest.acquisitionPlanRevision)
+				?: return SessionReconfigureResult.InvalidIntent("CURRENT_PLAN_MISSING")
+			val activeSources = currentManifest.bindings.asSequence()
+				.filter { binding ->
+					binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name
+				}
+				.mapNotNullTo(linkedSetOf()) { binding ->
+					SourceKind.entries.firstOrNull { source ->
+						source.stableCode == binding.sourceKind
+					}
+				}
+			val catalogTransition = catalogDecisions.forReconfiguration(
+				requestedPlan = request.plan,
+				currentPlan = currentPlan,
+				activeSources = activeSources,
+			)
+			if (!request.catalogDebtPersistedSources.containsAll(catalogTransition.deferredSources)) {
+				val debt = requireNotNull(catalogTransition.retryableDebt)
+					.copy(sources = catalogTransition.deferredSources)
+				return SessionReconfigureResult.Retryable(
+					revision = request.plan.revision,
+					failureCode = debt.failure.code,
+					sources = debt.sources,
+				)
+			}
+			val plan = catalogTransition.plan
+			val effectiveCatalogDecisions = catalogTransition.decisions
+			validateSourcePolicy(plan)?.let { return SessionReconfigureResult.InvalidPolicy(it) }
 			var intentPolicyFailure: String? = null
 			var intentValidationFailure: String? = null
 			var persisted: PersistedLifecycleIntent? = null
@@ -2098,7 +2148,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			try {
 				database.withTransaction {
 				requireLeaseInTransaction(lease)
-				intentPolicyFailure = validateSourcePolicyInTransaction(request.plan)
+				intentPolicyFailure = validateSourcePolicyInTransaction(plan)
 				if (intentPolicyFailure != null) return@withTransaction
 				val current = requireNotNull(database.sourceSessionDao().session(session.logicalTrackingId))
 				check(current.lifecycleRevision == session.lifecycleRevision &&
@@ -2133,7 +2183,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					logicalTrackingId = session.logicalTrackingId,
 					manifestRevision = manifestRevision,
 					intentRevision = intentRevision,
-					plan = request.plan,
+					plan = plan,
 					rolloutRevision = current.rolloutRevision,
 					origin = SessionStartOrigin.POLICY_RECONCILIATION,
 					clockDomainId = request.clockDomainId,
@@ -2147,7 +2197,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					changeReason = "POLICY_RECONCILIATION",
 					lease = lease,
 					serviceRunId = serviceRun.serviceRunId,
-					acceptedCaptureSources = catalogDecisions.acceptedSources,
+					acceptedCaptureSources = effectiveCatalogDecisions.acceptedSources,
 				)
 				val priorManifestEnvelopes = database.sourceSessionDao()
 					.manifestsForServiceRun(serviceRun.serviceRunId)
@@ -2186,14 +2236,14 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					intentValidationFailure = "WRITER_PROVENANCE_CHANGED_WITHIN_SERVICE_RUN"
 					return@withTransaction
 				}
-				planStore.persistDesired(request.plan, DesiredPlanStatus.APPLYING)
+				planStore.persistDesired(plan, DesiredPlanStatus.APPLYING)
 				database.sourceSessionDao().insertManifest(draft.manifest)
 				database.sourceSessionDao().insertManifestSources(draft.bindings)
 				database.sourceSessionDao().updateSession(
 					current.copy(
 						state = SessionLifecycleState.RECONFIGURING.name,
 						lifecycleRevision = current.lifecycleRevision + 1,
-						desiredPlanRevision = request.plan.revision,
+						desiredPlanRevision = plan.revision,
 						currentManifestRevision = manifestRevision,
 						currentIntentRevision = intentRevision,
 						lifecycleLeaseGeneration = lease.generation,
@@ -2202,7 +2252,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				)
 				database.sourceSessionDao().updateServiceRun(
 					serviceRun.copy(
-						desiredPlanRevision = request.plan.revision,
+						desiredPlanRevision = plan.revision,
 						desiredForegroundCapabilityFlags = request.foregroundCapabilityFlags,
 						leaseGeneration = lease.generation,
 						bootId = lease.bootId,
@@ -2226,7 +2276,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					session = current.copy(
 						state = SessionLifecycleState.RECONFIGURING.name,
 						lifecycleRevision = current.lifecycleRevision + 1,
-						desiredPlanRevision = request.plan.revision,
+						desiredPlanRevision = plan.revision,
 						currentManifestRevision = manifestRevision,
 						currentIntentRevision = intentRevision,
 						lifecycleLeaseGeneration = lease.generation,
@@ -2245,44 +2295,44 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			val existing = database.sourcePlanStateDao().appliedStates().associateBy { it.sourceKind }
 			val sink = sinkFactory.forSession(session.logicalTrackingId, bound.serviceRunId)
 			val executions = reconcileReconfigureActions(
-				plan = request.plan,
+				plan = plan,
 				intent = requireNotNull(persisted),
 				existing = existing,
 				sink = sink,
 				lease = lease,
 				wallTimeMs = request.wallTimeMs,
 				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
-				catalogDecisions = catalogDecisions,
+				catalogDecisions = effectiveCatalogDecisions,
 			)
 			var applied = executions.map(SourceActionExecution::applied)
 			if (executions.any { execution -> execution.status == LifecycleActionStatus.CLEANUP_REQUIRED }) {
-				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
+				planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
 				return SessionReconfigureResult.Failed(
-					request.plan.revision,
+					plan.revision,
 					applied,
 					SOURCE_RUNTIME_CLEANUP_PENDING,
 					requireNotNull(persisted).sourceCallerAuthorityReference(),
 				)
 			}
-			val finalPolicyFailure = validateSourcePolicy(request.plan)
+			val finalPolicyFailure = validateSourcePolicy(plan)
 			if (finalPolicyFailure != null) {
 				val rollback = rollbackStalePolicySources(
-					request.plan,
+					plan,
 					executions,
 					request.elapsedRealtimeNanos,
 					request.wallTimeMs,
 				)
 				applied = rollback.applied
 				if (rollback.cleanupRequired) {
-					planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
+					planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
 					return SessionReconfigureResult.Failed(
-						request.plan.revision,
+						plan.revision,
 						applied,
 						SOURCE_RUNTIME_CLEANUP_PENDING,
 						requireNotNull(persisted).sourceCallerAuthorityReference(),
 					)
 				}
-				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
+				planStore.updateStatus(plan.revision, DesiredPlanStatus.FAILED)
 				markStartFailed(
 					session.logicalTrackingId,
 					bound.serviceRunId,
@@ -2292,15 +2342,19 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				)
 				return SessionReconfigureResult.InvalidPolicy(finalPolicyFailure)
 			}
-			val status = applied.desiredStatus()
-			planStore.updateStatus(request.plan.revision, status)
+			val status = if (catalogTransition.deferredSources.isEmpty()) {
+				applied.desiredStatus()
+			} else {
+				DesiredPlanStatus.DEGRADED
+			}
+			planStore.updateStatus(plan.revision, status)
 			val hasRunningSource = applied.any { state ->
-				request.plan.plans[state.source]?.enabled == true &&
+				plan.plans[state.source]?.enabled == true &&
 					state.status in setOf(SourceApplyStatus.APPLIED, SourceApplyStatus.DEGRADED)
 			}
-			if (!hasRunningSource) {
-				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
-				val failureCode = catalogDecisions.failureIfNoAcceptedSource()?.code
+			if (!hasRunningSource && catalogTransition.deferredSources.isEmpty()) {
+				planStore.updateStatus(plan.revision, DesiredPlanStatus.FAILED)
+				val failureCode = effectiveCatalogDecisions.failureIfNoAcceptedSource()?.code
 					?: "NO_SOURCE_ACTIVE_AFTER_RECONFIGURE"
 				markStartFailed(
 					session.logicalTrackingId,
@@ -2310,7 +2364,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					lease,
 				)
 				return SessionReconfigureResult.Failed(
-					request.plan.revision,
+					plan.revision,
 					applied,
 					failureCode,
 					requireNotNull(persisted).sourceCallerAuthorityReference(),
@@ -2318,29 +2372,29 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			}
 			val acceptanceFailure = markReconfiguredIfPolicyCurrent(
 				bound = bound,
-				plan = request.plan,
+				plan = plan,
 				manifestRevision = requireNotNull(persisted).manifest.manifestRevision,
 				lease = lease,
 				foregroundCapabilityFlags = request.foregroundCapabilityFlags,
 			)
 			if (acceptanceFailure != null) {
 				val rollback = rollbackStalePolicySources(
-					request.plan,
+					plan,
 					executions,
 					request.elapsedRealtimeNanos,
 					request.wallTimeMs,
 				)
 				applied = rollback.applied
 				if (rollback.cleanupRequired) {
-					planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
+					planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
 					return SessionReconfigureResult.Failed(
-						request.plan.revision,
+						plan.revision,
 						applied,
 						SOURCE_RUNTIME_CLEANUP_PENDING,
 						requireNotNull(persisted).sourceCallerAuthorityReference(),
 					)
 				}
-				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
+				planStore.updateStatus(plan.revision, DesiredPlanStatus.FAILED)
 				markStartFailed(
 					session.logicalTrackingId,
 					bound.serviceRunId,
@@ -2349,19 +2403,20 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					lease,
 				)
 				return SessionReconfigureResult.Failed(
-					request.plan.revision,
+					plan.revision,
 					applied,
 					acceptanceFailure,
 					requireNotNull(persisted).sourceCallerAuthorityReference(),
 				)
 			}
 			SessionReconfigureResult.Applied(
-				request.plan.revision,
+				plan.revision,
 				applied,
 				status,
 				SourceCallerReplayReference(
 					requireNotNull(persisted.intent.sourceCallerAuthorityReference),
 				),
+				catalogTransition.deferredSources,
 			)
 		} finally {
 			releaseLease(lease)
@@ -6916,6 +6971,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		const val LEASE_DURATION_MILLIS = 30_000L
 		const val NANOS_PER_MILLISECOND = 1_000_000L
 		const val ROLLBACK_QUIESCE_TIMEOUT_MS = 5_000L
+		const val CATALOG_RECONCILIATION_RETRY_DELAY_MS = 250L
 		const val POLICY_PURPOSE_CAPTURE = "SESSION_CAPTURE"
 		const val POLICY_PURPOSE_CONTROL = "CONTROL"
 		const val ACTION_DESIRED_STARTED = "STARTED"
@@ -7608,6 +7664,135 @@ internal data class CatalogReconfigurationRetryDebt(
 	}
 }
 
+private data class CatalogReconfigurationTransition(
+	val plan: AcquisitionPlanRevision,
+	val decisions: CatalogPlanDecisions,
+	val deferredSources: Set<SourceKind>,
+	val retryableDebt: CatalogReconfigurationRetryDebt?,
+)
+
+private fun CatalogPlanDecisions.forReconfiguration(
+	requestedPlan: AcquisitionPlanRevision,
+	currentPlan: AcquisitionPlanRevision,
+	activeSources: Set<SourceKind>,
+): CatalogReconfigurationTransition {
+	val deferredSources = linkedSetOf<SourceKind>()
+	val resolvedDecisions = requestedPlan.plans.values
+		.sortedBy { plan -> plan.source.stableCode }
+		.associate { requested ->
+			val catalogDecision = getValue(requested.source)
+			val resolved = if (
+				catalogDecision is CatalogSourcePlanDecision.Blocked &&
+				catalogDecision.failure.disposition == TrackingStartFailureDisposition.RETRYABLE
+			) {
+				val current = currentPlan.plans[requested.source]
+				?.takeIf { plan -> plan.enabled && requested.source in activeSources }
+				?.withRevision(requestedPlan.revision)
+				when {
+					current == null -> {
+						deferredSources += requested.source
+						CatalogSourcePlanDecision.Disabled(requested.disabledForCatalog())
+					}
+					requested.isNoStrongerThan(current) ->
+						CatalogSourcePlanDecision.Accepted(
+							requestedPlan = requested,
+							effectivePlan = requested,
+							degradedReasons = catalogDecision.reasons,
+						)
+					else -> {
+						deferredSources += requested.source
+						CatalogSourcePlanDecision.Accepted(
+							requestedPlan = requested,
+							effectivePlan = current,
+							degradedReasons = catalogDecision.reasons,
+						)
+					}
+				}
+			} else {
+				catalogDecision
+			}
+			requested.source to resolved
+		}
+	val effectivePlan = requestedPlan.copy(
+		plans = resolvedDecisions.mapValues { (_, decision) ->
+			when (decision) {
+				is CatalogSourcePlanDecision.Accepted -> decision.effectivePlan
+				is CatalogSourcePlanDecision.Blocked -> decision.requestedPlan
+				is CatalogSourcePlanDecision.Disabled -> decision.requestedPlan
+			}
+		},
+	)
+	val retryableDebt = deferredSources
+		.map { source -> getValue(source) as CatalogSourcePlanDecision.Blocked }
+		.minByOrNull { decision -> decision.requestedPlan.source.stableCode }
+		?.let { decision ->
+			CatalogReconfigurationRetryDebt(
+				failure = decision.failure,
+				sources = deferredSources,
+			)
+		}
+	return CatalogReconfigurationTransition(
+		plan = effectivePlan,
+		decisions = CatalogPlanDecisions(resolvedDecisions),
+		deferredSources = deferredSources,
+		retryableDebt = retryableDebt,
+	)
+}
+
+private fun SourcePlan.withRevision(revision: Long): SourcePlan = when (this) {
+	is LocationPlan -> copy(revision = revision)
+	is ActivityPlan -> copy(revision = revision)
+	is StepsPlan -> copy(revision = revision)
+	is PressurePlan -> copy(revision = revision)
+	is WifiPlan -> copy(revision = revision)
+	is CellPlan -> copy(revision = revision)
+}
+
+private fun SourcePlan.isNoStrongerThan(current: SourcePlan): Boolean {
+	if (source != current.source || !enabled || !current.enabled) return false
+	return when {
+		this is LocationPlan && current is LocationPlan ->
+			backend == current.backend &&
+				mode.ordinal <= current.mode.ordinal &&
+				requestedIntervalMs >= current.requestedIntervalMs &&
+				minimumUpdateIntervalMs >= current.minimumUpdateIntervalMs &&
+				minimumDisplacementMeters >= current.minimumDisplacementMeters &&
+				maximumBatchDelayMs >= current.maximumBatchDelayMs &&
+				probeDurationMs == current.probeDurationMs &&
+				(!preciseLocationAvailable || current.preciseLocationAvailable)
+		this is ActivityPlan && current is ActivityPlan ->
+			mode.ordinal <= current.mode.ordinal &&
+				desiredDetectionLatencyMs >= current.desiredDetectionLatencyMs &&
+				confidenceThresholdPercent >= current.confidenceThresholdPercent &&
+				transitionTypes.all { it in current.transitionTypes }
+		this is StepsPlan && current is StepsPlan ->
+			maximumReportLatencyMs >= current.maximumReportLatencyMs &&
+				projectionCheckpointIntervalMs >= current.projectionCheckpointIntervalMs &&
+				(!movementPolicyNeedsLowLatency || current.movementPolicyNeedsLowLatency)
+		this is PressurePlan && current is PressurePlan ->
+			hardwareSamplePeriodMicros >= current.hardwareSamplePeriodMicros &&
+				maximumReportLatencyMicros >= current.maximumReportLatencyMicros &&
+				aggregationWindowMs >= current.aggregationWindowMs
+		this is WifiPlan && current is WifiPlan ->
+			mode.ordinal <= current.mode.ordinal &&
+				minimumAttemptIntervalMs >= current.minimumAttemptIntervalMs &&
+				maximumAcceptableResultAgeMs >= current.maximumAcceptableResultAgeMs &&
+				unchangedResultDedupeWindowMs >= current.unchangedResultDedupeWindowMs &&
+				backoff.initialDelayMs >= current.backoff.initialDelayMs &&
+				backoff.maximumDelayMs >= current.backoff.maximumDelayMs &&
+				backoff.multiplier >= current.backoff.multiplier
+		this is CellPlan && current is CellPlan ->
+			mode.ordinal <= current.mode.ordinal &&
+				minimumRefreshAttemptIntervalMs >= current.minimumRefreshAttemptIntervalMs &&
+				maximumAcceptableCachedAgeMs >= current.maximumAcceptableCachedAgeMs &&
+				subscriptionIds.all { it in current.subscriptionIds } &&
+				backoff.initialDelayMs >= current.backoff.initialDelayMs &&
+				backoff.maximumDelayMs >= current.backoff.maximumDelayMs &&
+				backoff.multiplier >= current.backoff.multiplier
+		else -> false
+	}
+}
+
 internal suspend fun SourceRuntimeRegistry.catalogPlanDecisions(
 	plan: AcquisitionPlanRevision,
 	tier: SourceAvailabilityTier,
@@ -7879,6 +8064,8 @@ data class SessionReconfigureRequest(
 	val zoneId: String,
 	val foregroundCapabilityFlags: Long,
 	val controlDependencies: Set<SourceKind> = emptySet(),
+	/** Sources whose exact requested configuration is already durable before any Room transition. */
+	val catalogDebtPersistedSources: Set<SourceKind> = emptySet(),
 )
 
 sealed interface SessionReconfigureResult {
@@ -7887,6 +8074,7 @@ sealed interface SessionReconfigureResult {
 		val applied: List<AppliedSourcePlan>,
 		val status: DesiredPlanStatus,
 		val sourceCallerAuthorityReference: SourceCallerReplayReference,
+		val deferredCatalogSources: Set<SourceKind> = emptySet(),
 	) : SessionReconfigureResult
 	data class Failed(
 		val revision: Long,

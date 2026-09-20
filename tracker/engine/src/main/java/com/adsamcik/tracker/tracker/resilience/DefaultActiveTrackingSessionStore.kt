@@ -364,6 +364,11 @@ private fun ActiveTrackingSessionProto.toDescriptor(): ActiveTrackingSessionDesc
 				pendingRetirementSourceCallerAuthorityReference
 					.takeIf(String::isNotBlank)
 					?.let(::SourceCallerReplayReference),
+			catalogReconfigurationDebt = if (hasCatalogReconfigurationDebt()) {
+				catalogReconfigurationDebt.toDebt()
+			} else {
+				null
+			},
 		)
 	} catch (exception: IllegalArgumentException) {
 		throw CorruptionException("Active tracking session descriptor is invalid", exception)
@@ -395,6 +400,57 @@ private fun ActiveTrackingSessionDescriptor.toProto(): ActiveTrackingSessionProt
 		.setPendingRetirementSourceCallerAuthorityReference(
 			pendingRetirementSourceCallerAuthorityReference?.value.orEmpty(),
 		)
+		.apply {
+			catalogReconfigurationDebt?.let { debt ->
+				setCatalogReconfigurationDebt(debt.toProto())
+			}
+		}
+		.build()
+
+private fun CatalogReconfigurationDebtProto.toDebt(): CatalogReconfigurationDebt =
+	CatalogReconfigurationDebt(
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+		sourcePolicyRevision = sourcePolicyRevision,
+		requestedPlanRevision = requestedPlanRevision,
+		requestedPlanId = requestedPlanId,
+		requestedPlanCreatedAtMs = requestedPlanCreatedAtMs,
+		requestedPlans = requestedPlansList.map { plan ->
+			CatalogReconfigurationSourcePlan(
+				sourceStableCode = plan.sourceStableCode,
+				payloadVersion = plan.payloadVersion,
+				payloadBase64 = plan.payloadBase64,
+				payloadChecksum = plan.payloadChecksum,
+			)
+		},
+		deferredSourceMask = deferredSourceMask,
+		clockDomainId = clockDomainId,
+		zoneId = zoneId,
+		foregroundCapabilityFlags = foregroundCapabilityFlags,
+		controlDependencyMask = controlDependencyMask,
+	)
+
+private fun CatalogReconfigurationDebt.toProto(): CatalogReconfigurationDebtProto =
+	CatalogReconfigurationDebtProto.newBuilder()
+		.setLogicalTrackingId(logicalTrackingId)
+		.setServiceRunId(serviceRunId)
+		.setSourcePolicyRevision(sourcePolicyRevision)
+		.setRequestedPlanRevision(requestedPlanRevision)
+		.setRequestedPlanId(requestedPlanId)
+		.setRequestedPlanCreatedAtMs(requestedPlanCreatedAtMs)
+		.addAllRequestedPlans(requestedPlans.map { plan ->
+			CatalogReconfigurationSourcePlanProto.newBuilder()
+				.setSourceStableCode(plan.sourceStableCode)
+				.setPayloadVersion(plan.payloadVersion)
+				.setPayloadBase64(plan.payloadBase64)
+				.setPayloadChecksum(plan.payloadChecksum)
+				.build()
+		})
+		.setDeferredSourceMask(deferredSourceMask)
+		.setClockDomainId(clockDomainId)
+		.setZoneId(zoneId)
+		.setForegroundCapabilityFlags(foregroundCapabilityFlags)
+		.setControlDependencyMask(controlDependencyMask)
 		.build()
 
 /**
@@ -432,5 +488,6 @@ private fun mergeServiceDescriptorForPersistence(
 		sourceCallerAuthorityReference = current.sourceCallerAuthorityReference,
 		pendingRetirementSourceCallerAuthorityReference =
 			current.pendingRetirementSourceCallerAuthorityReference,
+		catalogReconfigurationDebt = current.catalogReconfigurationDebt,
 	)
 }

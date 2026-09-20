@@ -5,6 +5,28 @@ package com.adsamcik.tracker.tracker.resilience;
 option java_package = "com.adsamcik.tracker.tracker.resilience";
 option java_multiple_files = true;
 
+message CatalogReconfigurationSourcePlanProto {
+  uint32 source_stable_code = 1;
+  uint32 payload_version = 2;
+  string payload_base64 = 3;
+  string payload_checksum = 4;
+}
+
+message CatalogReconfigurationDebtProto {
+  string logical_tracking_id = 1;
+  string service_run_id = 2;
+  uint64 source_policy_revision = 3;
+  string requested_plan_id = 4;
+  int64 requested_plan_created_at_ms = 5;
+  repeated CatalogReconfigurationSourcePlanProto requested_plans = 6;
+  uint64 deferred_source_mask = 7;
+  string clock_domain_id = 8;
+  string zone_id = 9;
+  uint64 foreground_capability_flags = 10;
+  uint64 control_dependency_mask = 11;
+  uint64 requested_plan_revision = 12;
+}
+
 message ActiveTrackingSessionProto {
   bool active = 1;
   bool user_initiated = 2;
@@ -28,4 +50,6 @@ message ActiveTrackingSessionProto {
   string source_caller_authority_reference = 15;
   // Exact predecessor retained as durable cleanup debt until Room retirement succeeds.
   string pending_retirement_source_caller_authority_reference = 16;
+  // Bounded exact catalog transition debt, scoped to this logical session and service run.
+  CatalogReconfigurationDebtProto catalog_reconfiguration_debt = 17;
 }
