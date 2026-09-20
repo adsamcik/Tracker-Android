@@ -221,6 +221,56 @@ class PortableCountDomainJsonV2CodecTest {
 	}
 
 	@Test
+	fun `version dispatch lexically skips large escaped nested payloads without materializing them`() {
+		val escapedPayload = buildString {
+			repeat(100_000) {
+				append("""payload\\\"\u0061""")
+			}
+		}
+		val nestedValue = "[".repeat(31) + "\"$escapedPayload\"" + "]".repeat(31)
+
+		portableStepsSchemaVersion(
+			"""{"payload":$nestedValue,"schema\u0056ersion":2,"f\u006frmat":"tracker-portable-steps"}"""
+				.encodeToByteArray(),
+		) shouldBe 2
+	}
+
+	@Test
+	fun `version dispatch rejects duplicate escaped headers and malformed skipped values`() {
+		listOf(
+			"""{"format":"tracker-portable-steps","f\u006frmat":"tracker-portable-steps","schemaVersion":2}""",
+			"""{"format":"tracker-portable-steps","schemaVersion":2,"schema\u0056ersion":2}""",
+			"""{"format":"tracker-portable-steps","schemaVersion":2,"payload":"bad\q"}""",
+			"""{"format":"tracker-portable-steps","schemaVersion":2,"payload":[1,]}""",
+			"""{"format":"tracker-portable-steps","schemaVersion":2,"payload":{"x":1]}""",
+			"""{"format":"tracker-portable-steps","schemaVersion":2} trailing""",
+			"""{"format":"tracker-portable-steps","schemaVersion":02}""",
+			"""{"format":"tracker-portable-steps","schemaVersion":2.0}""",
+		).forEach { document ->
+			shouldThrow<PortableStepsJsonException> {
+				portableStepsSchemaVersion(document.encodeToByteArray())
+			}
+		}
+	}
+
+	@Test
+	fun `version dispatch accepts maximum nesting and rejects the next level`() {
+		val maximum = "[".repeat(31) + "0" + "]".repeat(31)
+		val excessive = "[".repeat(32) + "0" + "]".repeat(32)
+
+		portableStepsSchemaVersion(
+			"""{"payload":$maximum,"format":"tracker-portable-steps","schemaVersion":2}"""
+				.encodeToByteArray(),
+		) shouldBe 2
+		shouldThrow<PortableStepsJsonException> {
+			portableStepsSchemaVersion(
+				"""{"payload":$excessive,"format":"tracker-portable-steps","schemaVersion":2}"""
+					.encodeToByteArray(),
+			)
+		}
+	}
+
+	@Test
 	fun `v2 lexical and parser failures are permanent while source IO remains retryable`() =
 		runTest {
 			val longName = "n".repeat(385)

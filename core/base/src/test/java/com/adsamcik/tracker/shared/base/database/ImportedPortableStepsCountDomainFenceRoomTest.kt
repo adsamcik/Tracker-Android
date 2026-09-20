@@ -146,7 +146,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 	}
 
 	@Test
-	fun `full clear pages compact session products and rolls back a late receipt conflict`() =
+	fun `full clear authenticates one session product at a time and rolls back a late receipt conflict`() =
 		runTest {
 			val queries = mutableListOf<String>()
 			database.close()
@@ -176,13 +176,15 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 				}
 			}
 
-			queries.count {
-				it.startsWith("select * from imported_steps_entry where") &&
-					it.contains("order by start_time_ms desc, identity desc limit ?")
-			} shouldBe 4
-			queries.count {
+			val entryLoads = queries.filter {
 				it.startsWith("select * from imported_steps_entry where identity in")
-			} shouldBe 4
+			}
+			entryLoads.size shouldBe entries.size * 2
+			entryLoads.all { sql -> sql.count { it == '?' } == 2 } shouldBe true
+			queries.none {
+				it.startsWith("select * from imported_steps_entry where identity in") &&
+					it.contains(",")
+			} shouldBe true
 			queries.count {
 				it.contains("from imported_steps_full_clear_session_product_stage") &&
 					it.contains("where product_identity in (")
@@ -370,6 +372,44 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			)
 		}
 		stagingTableCount() shouldBe 0L
+	}
+
+	@Test
+	fun `full clear staging crosses the admitted Ambient owner ceiling without a deletion cap`() {
+		val cardinality = FullClearStagingCardinality(
+			ownerCount = ImportedAmbientStepsDao.MAX_GLOBAL_FACTS - 1L,
+			ownerRevisionCount = ImportedAmbientStepsDao.MAX_GLOBAL_FACTS - 1L,
+		)
+
+		cardinality.recordOwner() shouldBe ImportedAmbientStepsDao.MAX_GLOBAL_FACTS
+		cardinality.recordOwner() shouldBe ImportedAmbientStepsDao.MAX_GLOBAL_FACTS + 1L
+		cardinality.recordOwnerRevision() shouldBe ImportedAmbientStepsDao.MAX_GLOBAL_FACTS
+		cardinality.recordOwnerRevision() shouldBe
+			ImportedAmbientStepsDao.MAX_GLOBAL_FACTS + 1L
+	}
+
+	@Test
+	fun `full clear staging rejects true arithmetic overflow and injected corruption bounds`() {
+		assertFailsWith<ArithmeticException> {
+			FullClearStagingCardinality(ownerCount = Long.MAX_VALUE).recordOwner()
+		}
+		assertFailsWith<ArithmeticException> {
+			FullClearStagingCardinality(
+				ownerRevisionCount = Long.MAX_VALUE,
+			).recordOwnerRevision()
+		}
+		assertFailsWith<IllegalArgumentException> {
+			FullClearStagingCardinality(maximumOwnerCount = 1L).apply {
+				recordOwner()
+				recordOwner()
+			}
+		}
+		assertFailsWith<IllegalArgumentException> {
+			FullClearStagingCardinality(maximumOwnerRevisionCount = 1L).apply {
+				recordOwnerRevision()
+				recordOwnerRevision()
+			}
+		}
 	}
 
 	@Test

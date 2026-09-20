@@ -270,10 +270,19 @@ interface ImportedPortableStepsCountDomainDao {
 	suspend fun deleteGraphIfUnbound(graphIdentity: String): Int
 
 	@Query(
-		"SELECT * FROM imported_steps_count_domain_binding " +
+		"SELECT * FROM imported_steps_count_domain_binding WHERE " +
+			":afterProductKind IS NULL OR product_kind > :afterProductKind OR " +
+			"(product_kind = :afterProductKind AND product_identity > :afterProductIdentity) OR " +
+			"(product_kind = :afterProductKind AND product_identity = :afterProductIdentity " +
+			"AND product_revision > :afterProductRevision) " +
 			"ORDER BY product_kind, product_identity, product_revision LIMIT :limit",
 	)
-	fun allBindingsForFullClear(limit: Int): List<ImportedPortableStepsCountDomainBindingEntity>
+	fun bindingPageForFullClear(
+		afterProductKind: String?,
+		afterProductIdentity: String?,
+		afterProductRevision: Long?,
+		limit: Int,
+	): List<ImportedPortableStepsCountDomainBindingEntity>
 
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_graph " +

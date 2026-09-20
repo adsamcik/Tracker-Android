@@ -42,6 +42,34 @@ sealed interface ImportedStepsRetainedRead {
 	data class Unverifiable(val reason: ImportedStepsReadFailure) : ImportedStepsRetainedRead
 }
 
+/** Result of a keyset traversal that never retains more than one complete imported entry. */
+sealed interface ImportedStepsRetainedTraversal {
+	data class Complete(val entryCount: Long) : ImportedStepsRetainedTraversal {
+		init {
+			require(entryCount >= 0L)
+		}
+	}
+
+	data class Unverifiable(
+		val entryIdentity: String,
+		val reason: ImportedStepsReadFailure,
+	) : ImportedStepsRetainedTraversal
+}
+
+private sealed interface ImportedStepsRetainedTraversalStep {
+	data object End : ImportedStepsRetainedTraversalStep
+
+	data class Consumed(
+		val startTimeMs: Long,
+		val identity: String,
+	) : ImportedStepsRetainedTraversalStep
+
+	data class Unverifiable(
+		val entryIdentity: String,
+		val reason: ImportedStepsReadFailure,
+	) : ImportedStepsRetainedTraversalStep
+}
+
 /**
  * Independently authenticated surviving members. [portable] is non-null only if the complete
  * original entry checksum still matches; deleting one sibling does not disqualify another.
@@ -70,49 +98,148 @@ class ImportedStepsRetainedReader(private val database: AppDatabase) {
 	suspend fun readEntriesForRetentionInTransaction(entryIds: List<String>): ImportedStepsRetainedRead =
 		read(entryIds, enforceFloor = false)
 
+	/**
+	 * Authenticates newest-first keyset members one at a time. The callback completes before the
+	 * next product is assembled, so destructive callers can stage compact global authority on disk
+	 * without retaining a page of maximum-shaped entries.
+	 */
+	suspend fun forEachEntryForRetentionInTransaction(
+		maximumEntries: Long = Long.MAX_VALUE,
+		consume: suspend (RetainedImportedStepsEntry) -> Unit,
+	): ImportedStepsRetainedTraversal {
+		require(maximumEntries > 0L)
+		var beforeStartTimeMs: Long? = null
+		var beforeIdentity: String? = null
+		var entryCount = 0L
+		while (true) {
+			when (
+				val next = authenticateAndConsumeNext(
+					beforeStartTimeMs = beforeStartTimeMs,
+					beforeIdentity = beforeIdentity,
+					canConsume = entryCount < maximumEntries,
+					consume = consume,
+				)
+			) {
+				ImportedStepsRetainedTraversalStep.End ->
+					return ImportedStepsRetainedTraversal.Complete(entryCount)
+				is ImportedStepsRetainedTraversalStep.Unverifiable ->
+					return ImportedStepsRetainedTraversal.Unverifiable(
+						entryIdentity = next.entryIdentity,
+						reason = next.reason,
+					)
+				is ImportedStepsRetainedTraversalStep.Consumed -> {
+					entryCount = Math.addExact(entryCount, 1L)
+					beforeStartTimeMs = next.startTimeMs
+					beforeIdentity = next.identity
+				}
+			}
+		}
+	}
+
+	private suspend fun authenticateAndConsumeNext(
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+		canConsume: Boolean,
+		consume: suspend (RetainedImportedStepsEntry) -> Unit,
+	): ImportedStepsRetainedTraversalStep {
+		val page = database.importedStepsDao().entryPage(
+			beforeStartTimeMs,
+			beforeIdentity,
+			SINGLE_ENTRY_PAGE_SIZE,
+		)
+		if (page.isEmpty()) return ImportedStepsRetainedTraversalStep.End
+		check(page.size == SINGLE_ENTRY_PAGE_SIZE)
+		val metadata = page.single()
+		check(
+			beforeStartTimeMs == null ||
+				metadata.startTimeMs < beforeStartTimeMs ||
+				(metadata.startTimeMs == beforeStartTimeMs &&
+					metadata.identity < requireNotNull(beforeIdentity)),
+		) {
+			"Imported Steps traversal keyset did not advance"
+		}
+		if (!canConsume) {
+			return ImportedStepsRetainedTraversalStep.Unverifiable(
+				entryIdentity = metadata.identity,
+				reason = ImportedStepsReadFailure.DEPENDENCY_OVERFLOW,
+			)
+		}
+		val retained = when (
+			val read = readWithoutAdaptiveSplit(
+				listOf(metadata.identity),
+				enforceFloor = false,
+			)
+		) {
+			is ImportedStepsRetainedRead.Unverifiable ->
+				return ImportedStepsRetainedTraversalStep.Unverifiable(
+					entryIdentity = metadata.identity,
+					reason = read.reason,
+				)
+			is ImportedStepsRetainedRead.Ready -> {
+				val entry = read.entries.singleOrNull()
+					?: return ImportedStepsRetainedTraversalStep.Unverifiable(
+						entryIdentity = metadata.identity,
+						reason = read.unverifiableEntries[metadata.identity]
+							?: ImportedStepsReadFailure.MISSING,
+					)
+				if (read.unverifiableEntries.isNotEmpty() || entry.metadata != metadata) {
+					return ImportedStepsRetainedTraversalStep.Unverifiable(
+						entryIdentity = metadata.identity,
+						reason = read.unverifiableEntries[metadata.identity]
+							?: ImportedStepsReadFailure.INTEGRITY,
+					)
+				}
+				entry
+			}
+		}
+		consume(retained)
+		return ImportedStepsRetainedTraversalStep.Consumed(
+			startTimeMs = metadata.startTimeMs,
+			identity = metadata.identity,
+		)
+	}
+
 	private suspend fun read(entryIds: List<String>, enforceFloor: Boolean): ImportedStepsRetainedRead {
 		if (entryIds.isEmpty()) { return ImportedStepsRetainedRead.Ready(emptyList()) }
 		if (entryIds.size > MAX_ENTRY_BATCH || entryIds.distinct().size != entryIds.size) {
 			return failure(ImportedStepsReadFailure.DEPENDENCY_OVERFLOW)
 		}
-		return try {
-			database.useReaderConnection { connection ->
-				check(connection.inTransaction()) { "Imported Steps authentication requires one transaction" }
-				readBoundedSnapshot(entryIds, enforceFloor)
-			}
-		} catch (_: IllegalArgumentException) {
-			failure(ImportedStepsReadFailure.INTEGRITY)
-		} catch (_: DateTimeException) {
-			failure(ImportedStepsReadFailure.INTEGRITY)
-		}
-	}
-
-	private suspend fun readBoundedSnapshot(entryIds: List<String>, enforceFloor: Boolean): ImportedStepsRetainedRead {
-		val result = try {
-			readSnapshot(entryIds, enforceFloor)
-		} catch (_: IllegalArgumentException) {
-			failure(ImportedStepsReadFailure.INTEGRITY)
-		} catch (_: DateTimeException) {
-			failure(ImportedStepsReadFailure.INTEGRITY)
-		}
+		val result = readWithoutAdaptiveSplit(entryIds, enforceFloor)
 		val splittable = result is ImportedStepsRetainedRead.Unverifiable && result.reason in setOf(
 			ImportedStepsReadFailure.DEPENDENCY_OVERFLOW, ImportedStepsReadFailure.INTEGRITY,
 			ImportedStepsReadFailure.MISSING,
 		)
 		if (!splittable || entryIds.size == 1) { return result }
-		// Only a failed aggregate splits. Each child still authenticates fact-global lineage.
 		val entries = mutableListOf<RetainedImportedStepsEntry>()
 		val failures = linkedMapOf<String, ImportedStepsReadFailure>()
 		for (batch in entryIds.chunked((entryIds.size + 1) / 2)) {
-			when (val smaller = readBoundedSnapshot(batch, enforceFloor)) {
+			when (val smaller = read(batch, enforceFloor)) {
 				is ImportedStepsRetainedRead.Ready -> {
 					entries += smaller.entries
 					failures += smaller.unverifiableEntries
 				}
-				is ImportedStepsRetainedRead.Unverifiable -> batch.forEach { failures[it] = smaller.reason }
+				is ImportedStepsRetainedRead.Unverifiable -> batch.forEach {
+					failures[it] = smaller.reason
+				}
 			}
 		}
 		return ImportedStepsRetainedRead.Ready(entries, failures)
+	}
+
+	private suspend fun readWithoutAdaptiveSplit(
+		entryIds: List<String>,
+		enforceFloor: Boolean,
+	): ImportedStepsRetainedRead {
+		return try {
+			database.useReaderConnection { connection ->
+				check(connection.inTransaction()) { "Imported Steps authentication requires one transaction" }
+				readSnapshot(entryIds, enforceFloor)
+			}
+		} catch (_: IllegalArgumentException) {
+			failure(ImportedStepsReadFailure.INTEGRITY)
+		} catch (_: DateTimeException) {
+			failure(ImportedStepsReadFailure.INTEGRITY)
+		}
 	}
 
 	// Explicit fail-closed guards share one fixed dependency snapshot; no generic validation framework.
@@ -220,6 +347,7 @@ class ImportedStepsRetainedReader(private val database: AppDatabase) {
 		private const val MAX_MANIFEST_BATCH = MAX_RUN_BATCH * StepsPortableFormatV1.MAX_MANIFESTS_PER_RUN
 		private const val MAX_FACT_BATCH = MAX_RUN_BATCH * StepsPortableFormatV1.MAX_FACTS_PER_RUN
 		private const val SQLITE_ID_BATCH = 400
+		private const val SINGLE_ENTRY_PAGE_SIZE = 1
 	}
 }
 

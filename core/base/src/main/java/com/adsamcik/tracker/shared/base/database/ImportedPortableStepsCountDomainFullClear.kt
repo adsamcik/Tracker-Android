@@ -1,13 +1,14 @@
 package com.adsamcik.tracker.shared.base.database
 
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteProgram
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableCountDomainIdentity
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
-import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedRead
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedReader
+import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedTraversal
 import com.adsamcik.tracker.shared.base.database.steps.imported.RetainedImportedStepsEntry
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2
@@ -35,18 +36,14 @@ internal suspend fun AppDatabase.preserveImportedPortableCountDomainFullClearFen
 		fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
 		collectedDataEpoch = newCollectedDataEpoch,
 		fencedAtMs = fencedAtMs,
-		maximumOwnerCount = MAX_FULL_CLEAR_OWNER_FENCES,
-		maximumOwnerRevisionCount = MAX_FULL_CLEAR_OWNER_REVISIONS,
+		maximumOwnerCount = null,
+		maximumOwnerRevisionCount = null,
 	)
 	try {
-		val bindings = dao.allBindingsForFullClear(MAX_FULL_CLEAR_BINDINGS + 1)
-		require(bindings.size <= MAX_FULL_CLEAR_BINDINGS)
-		require(bindings.distinct().size == bindings.size)
-		val consumedBindings = linkedSetOf<ImportedPortableStepsCountDomainBindingEntity>()
-		val authenticatedGraphIdentities = linkedSetOf<String>()
+		stageImportedPortableBindingsForFullClear(dao, staging)
 		val consumeAuthenticatedGraph:
 			(AuthenticatedImportedPortableGraphBinding, Boolean) -> Unit = { current, isStored ->
-			if (isStored) authenticatedGraphIdentities += current.binding.graphIdentity
+			if (isStored) staging.consumeBinding(current.binding)
 			staging.add(
 				AuthenticatedFullClearGraphAppearance(
 					graph = current.graph,
@@ -59,39 +56,23 @@ internal suspend fun AppDatabase.preserveImportedPortableCountDomainFullClearFen
 				),
 			)
 		}
-		val sessionBindings = bindings.filter {
-			it.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY
-		}.associateBy { it.productIdentity }
-		require(sessionBindings.size == bindings.count {
-			it.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY
-		})
 		authenticatedImportedSessionBindingsForFullClear(
-			sessionBindings,
-			consumedBindings,
 			consumeAuthenticatedGraph,
 			staging,
 		)
-		val ambientBindings = bindings.filter {
-			it.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY
-		}.groupBy { it.productIdentity }
 		authenticatedImportedAmbientBindingsForFullClear(
 			oldCollectedDataEpoch,
-			ambientBindings,
-			consumedBindings,
 			consumeAuthenticatedGraph,
+			staging,
 		)
-		require(consumedBindings == bindings.toSet())
-		require(authenticatedGraphIdentities == bindings.mapTo(linkedSetOf()) { it.graphIdentity })
+		staging.requireEveryBindingConsumed()
 		authenticateAndFoldOrphanPortableGraphsForFullClear(
-			authenticatedGraphIdentities = authenticatedGraphIdentities,
-			bindings = bindings,
+			staging = staging,
 		) { orphan ->
 			staging.add(orphan)
 		}
 		authenticateAllPortableSessionFileReceiptsForFullClear(
-			sessionBindings = sessionBindings,
 			sessionProducts = staging,
-			authenticatedGraphIdentities = authenticatedGraphIdentities,
 		)
 		staging.install(dao)
 		dao.deleteAllBindingsForFullClear()
@@ -102,42 +83,55 @@ internal suspend fun AppDatabase.preserveImportedPortableCountDomainFullClearFen
 	}
 }
 
+private fun stageImportedPortableBindingsForFullClear(
+	dao: com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao,
+	staging: AuthenticatedFullClearOwnerFenceStaging,
+) {
+	var afterProductKind: String? = null
+	var afterProductIdentity: String? = null
+	var afterProductRevision: Long? = null
+	while (true) {
+		val page = dao.bindingPageForFullClear(
+			afterProductKind,
+			afterProductIdentity,
+			afterProductRevision,
+			BINDING_FULL_CLEAR_PAGE_SIZE,
+		)
+		if (page.isEmpty()) break
+		require(page.size <= BINDING_FULL_CLEAR_PAGE_SIZE)
+		page.forEach { binding ->
+			require(
+				afterProductKind == null ||
+					binding.productKind > afterProductKind!! ||
+					(binding.productKind == afterProductKind &&
+						binding.productIdentity > afterProductIdentity!!) ||
+					(binding.productKind == afterProductKind &&
+						binding.productIdentity == afterProductIdentity &&
+						binding.productRevision > afterProductRevision!!),
+			) {
+				"Imported portable binding keyset did not advance"
+			}
+			staging.addBinding(binding)
+		}
+		val last = page.last()
+		afterProductKind = last.productKind
+		afterProductIdentity = last.productIdentity
+		afterProductRevision = last.productRevision
+		if (page.size < BINDING_FULL_CLEAR_PAGE_SIZE) break
+	}
+}
+
 private suspend fun AppDatabase.authenticatedImportedSessionBindingsForFullClear(
-	bindingsByEntry: Map<String, ImportedPortableStepsCountDomainBindingEntity>,
-	consumedBindings: MutableSet<ImportedPortableStepsCountDomainBindingEntity>,
 	consume: (AuthenticatedImportedPortableGraphBinding, Boolean) -> Unit,
 	staging: AuthenticatedFullClearOwnerFenceStaging,
 ) {
 	val reader = ImportedStepsRetainedReader(this)
-	var beforeStartTimeMs: Long? = null
-	var beforeIdentity: String? = null
-	var entryCount = 0
-	while (true) {
-		val page = importedStepsDao().entryPage(
-			beforeStartTimeMs,
-			beforeIdentity,
-			SESSION_FULL_CLEAR_PAGE_SIZE,
-		)
-		if (page.isEmpty()) break
-		require(page.size <= SESSION_FULL_CLEAR_PAGE_SIZE)
-		entryCount = Math.addExact(entryCount, page.size)
-		require(entryCount <= MAX_FULL_CLEAR_BINDINGS)
-		val retained = when (
-			val read = reader.readEntriesForRetentionInTransaction(page.map { it.identity })
-		) {
-			is ImportedStepsRetainedRead.Ready -> {
-				require(read.unverifiableEntries.isEmpty())
-				require(read.entries.map { it.metadata.identity }.toSet() ==
-					page.map { it.identity }.toSet())
-				read.entries.associateBy { it.metadata.identity }
-			}
-			is ImportedStepsRetainedRead.Unverifiable -> {
-				error("Imported Steps product is unverifiable during full clear: ${read.reason}")
-			}
-		}
-		page.forEach { entry ->
-			val product = requireNotNull(retained[entry.identity])
-			val binding = bindingsByEntry[entry.identity]
+	when (
+		val traversal = reader.forEachEntryForRetentionInTransaction { product ->
+			val binding = staging.singleBinding(
+				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				product.metadata.identity,
+			)
 			val authenticated = if (binding == null) {
 				val graph = product.legacyUnprovenCountDomainGraph()
 				requireGraphlessLegacySessionProvenance(product, graph)
@@ -153,40 +147,43 @@ private suspend fun AppDatabase.authenticatedImportedSessionBindingsForFullClear
 					graph,
 				)
 			} else {
-				consumedBindings += binding
 				loadAuthenticatedImportedSessionCountDomainBindingForFullClear(binding, product)
 			}
 			requireSessionGraphCoversRetainedProduct(authenticated, product)
 			staging.addSessionProduct(product, authenticated, binding != null)
 			consume(authenticated, binding != null)
 		}
-		beforeStartTimeMs = page.last().startTimeMs
-		beforeIdentity = page.last().identity
-		if (page.size < SESSION_FULL_CLEAR_PAGE_SIZE) break
+	) {
+		is ImportedStepsRetainedTraversal.Complete -> Unit
+		is ImportedStepsRetainedTraversal.Unverifiable -> error(
+			"Imported Steps product is unverifiable during full clear: " +
+				"${traversal.entryIdentity}:${traversal.reason}",
+		)
 	}
 }
 
 private suspend fun AppDatabase.authenticatedImportedAmbientBindingsForFullClear(
 	oldCollectedDataEpoch: Long,
-	bindingsByDay: Map<String, List<ImportedPortableStepsCountDomainBindingEntity>>,
-	consumedBindings: MutableSet<ImportedPortableStepsCountDomainBindingEntity>,
 	consume: (AuthenticatedImportedPortableGraphBinding, Boolean) -> Unit,
+	staging: AuthenticatedFullClearOwnerFenceStaging,
 ) {
 	val ambientDao = importedAmbientStepsDao()
 	var afterDayId: String? = null
-	var dayCount = 0
 	while (true) {
 		val page = ambientDao.fullClearDayCandidatePage(afterDayId, AMBIENT_FULL_CLEAR_PAGE_SIZE)
 		if (page.isEmpty()) break
 		require(page.size <= AMBIENT_FULL_CLEAR_PAGE_SIZE)
-		dayCount = Math.addExact(dayCount, page.size)
-		require(dayCount <= MAX_FULL_CLEAR_BINDINGS)
 		page.forEach { candidate ->
 			val lineage = ambientDao.loadAuthenticatedAmbientStepsLineageForFullClear(
 				candidate,
 				oldCollectedDataEpoch,
 			)
-			val storedBindings = bindingsByDay[candidate.dayIdentity].orEmpty()
+			val storedBindings = staging.bindings(
+				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
+				candidate.dayIdentity,
+				ImportedAmbientStepsDao.MAX_ARCHIVES_PER_DAY + 1,
+			)
+			require(storedBindings.size <= ImportedAmbientStepsDao.MAX_ARCHIVES_PER_DAY)
 			val graphLineage = if (storedBindings.isEmpty()) {
 				reconstructGraphlessLegacyAmbientLineage(lineage).also {
 					requireGraphlessLegacyAmbientProvenance(lineage, it)
@@ -195,7 +192,6 @@ private suspend fun AppDatabase.authenticatedImportedAmbientBindingsForFullClear
 				loadAuthenticatedImportedAmbientStepsGraphLineageForFullClear(lineage).also {
 					require(it.map(AuthenticatedImportedAmbientStepsGraphRevision::binding) ==
 						storedBindings)
-					consumedBindings += storedBindings
 				}
 			}
 			graphLineage.forEach {
@@ -211,13 +207,10 @@ private suspend fun AppDatabase.authenticatedImportedAmbientBindingsForFullClear
 }
 
 private fun AppDatabase.authenticateAndFoldOrphanPortableGraphsForFullClear(
-	authenticatedGraphIdentities: Set<String>,
-	bindings: List<ImportedPortableStepsCountDomainBindingEntity>,
+	staging: AuthenticatedFullClearOwnerFenceStaging,
 	consume: (AuthenticatedFullClearGraphAppearance) -> Unit,
 ) {
 	val dao = importedPortableStepsCountDomainDao()
-	val bindingsByGraph = bindings.groupBy { it.graphIdentity }
-	val remainingBoundGraphs = authenticatedGraphIdentities.toMutableSet()
 	var afterGraphIdentity: String? = null
 	while (true) {
 		val page = dao.graphPageForFullClear(afterGraphIdentity, GRAPH_FULL_CLEAR_PAGE_SIZE)
@@ -233,13 +226,11 @@ private fun AppDatabase.authenticateAndFoldOrphanPortableGraphsForFullClear(
 			) {
 				"Imported portable graph is not independently authentic"
 			}
-			if (graphRow.graphIdentity in authenticatedGraphIdentities) {
-				require(bindingsByGraph[graphRow.graphIdentity].orEmpty().isNotEmpty())
-				remainingBoundGraphs -= graphRow.graphIdentity
-			} else {
-				require(bindingsByGraph[graphRow.graphIdentity].orEmpty().isEmpty()) {
-					"Imported portable graph binding was not consumed by a product"
+			if (staging.bindingCountForGraph(graphRow.graphIdentity) > 0L) {
+				require(staging.isGraphAuthenticated(graphRow.graphIdentity)) {
+					"Imported portable graph binding was not authenticated by its product"
 				}
+			} else {
 				consume(
 					AuthenticatedFullClearGraphAppearance(
 					graph = graph,
@@ -255,9 +246,6 @@ private fun AppDatabase.authenticateAndFoldOrphanPortableGraphsForFullClear(
 		}
 		afterGraphIdentity = page.last().graphIdentity
 		if (page.size < GRAPH_FULL_CLEAR_PAGE_SIZE) break
-	}
-	require(remainingBoundGraphs.isEmpty()) {
-		"Authenticated imported portable binding references a missing graph"
 	}
 }
 
@@ -288,8 +276,8 @@ internal fun AppDatabase.stageAuthenticatedPortableOwnerFencesForFullClear(
 		fenceKind,
 		collectedDataEpoch,
 		fencedAtMs,
-		maximumOwnerCount,
-		maximumOwnerRevisionCount,
+		maximumOwnerCount.toLong(),
+		maximumOwnerRevisionCount.toLong(),
 	)
 	try {
 		graphs.forEach(staging::add)
@@ -304,15 +292,36 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 	private val fenceKind: String,
 	private val collectedDataEpoch: Long,
 	private val fencedAtMs: Long,
-	private val maximumOwnerCount: Int,
-	private val maximumOwnerRevisionCount: Int,
+	maximumOwnerCount: Long?,
+	maximumOwnerRevisionCount: Long?,
 ) {
-	private var ownerCount = 0
-	private var ownerRevisionCount = 0
+	private val cardinality = FullClearStagingCardinality(
+		maximumOwnerCount = maximumOwnerCount,
+		maximumOwnerRevisionCount = maximumOwnerRevisionCount,
+	)
 
 	init {
 		dropTables()
 		try {
+			sqlite.execSQL(
+				"""
+				CREATE TEMP TABLE $BINDING_TABLE (
+					product_kind TEXT NOT NULL,
+					product_identity TEXT NOT NULL,
+					product_revision INTEGER NOT NULL,
+					graph_identity TEXT NOT NULL,
+					source_schema_version INTEGER NOT NULL,
+					source_receipt_identity TEXT,
+					source_archive_identity TEXT,
+					source_archive_content_checksum TEXT,
+					consumed INTEGER NOT NULL DEFAULT 0,
+					PRIMARY KEY(product_kind, product_identity, product_revision)
+				)
+				""".trimIndent(),
+			)
+			sqlite.execSQL(
+				"CREATE INDEX $BINDING_GRAPH_INDEX ON $BINDING_TABLE(graph_identity, consumed)",
+			)
 			sqlite.execSQL(
 				"""
 				CREATE TEMP TABLE $SESSION_PRODUCT_TABLE (
@@ -323,7 +332,8 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 					graph_identity TEXT NOT NULL,
 					source_receipt_identity TEXT,
 					source_archive_content_checksum TEXT,
-					has_stored_binding INTEGER NOT NULL
+					has_stored_binding INTEGER NOT NULL,
+					source_receipt_observed INTEGER NOT NULL DEFAULT 0
 				)
 				""".trimIndent(),
 			)
@@ -381,6 +391,119 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		}
 	}
 
+	fun addBinding(binding: ImportedPortableStepsCountDomainBindingEntity) {
+		sqlite.execSQL(
+			"INSERT INTO $BINDING_TABLE (" +
+				"product_kind, product_identity, product_revision, graph_identity, " +
+				"source_schema_version, source_receipt_identity, source_archive_identity, " +
+				"source_archive_content_checksum) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+			arrayOf(
+				binding.productKind,
+				binding.productIdentity,
+				binding.productRevision,
+				binding.graphIdentity,
+				binding.sourceSchemaVersion,
+				binding.sourceReceiptIdentity,
+				binding.sourceArchiveIdentity,
+				binding.sourceArchiveContentChecksum,
+			),
+		)
+	}
+
+	fun singleBinding(
+		productKind: String,
+		productIdentity: String,
+	): ImportedPortableStepsCountDomainBindingEntity? {
+		val matches = bindings(productKind, productIdentity, 2)
+		require(matches.size <= 1) {
+			"Imported portable session product has multiple graph bindings"
+		}
+		return matches.singleOrNull()
+	}
+
+	fun bindings(
+		productKind: String,
+		productIdentity: String,
+		limit: Int,
+	): List<ImportedPortableStepsCountDomainBindingEntity> {
+		require(limit > 0)
+		return sqlite.query(
+			"SELECT product_revision, graph_identity, source_schema_version, " +
+				"source_receipt_identity, source_archive_identity, " +
+				"source_archive_content_checksum FROM $BINDING_TABLE " +
+				"WHERE product_kind = ? AND product_identity = ? " +
+				"ORDER BY product_revision LIMIT ?",
+			arrayOf(productKind, productIdentity, limit),
+		).use { cursor ->
+			buildList {
+				while (cursor.moveToNext()) {
+					add(
+						ImportedPortableStepsCountDomainBindingEntity(
+							productKind = productKind,
+							productIdentity = productIdentity,
+							productRevision = cursor.getLong(0),
+							graphIdentity = cursor.getString(1),
+							sourceSchemaVersion = cursor.getInt(2),
+							sourceReceiptIdentity =
+								if (cursor.isNull(3)) null else cursor.getString(3),
+							sourceArchiveIdentity =
+								if (cursor.isNull(4)) null else cursor.getString(4),
+							sourceArchiveContentChecksum =
+								if (cursor.isNull(5)) null else cursor.getString(5),
+						),
+					)
+				}
+			}
+		}
+	}
+
+	fun consumeBinding(binding: ImportedPortableStepsCountDomainBindingEntity) {
+		sqlite.compileStatement(
+			"UPDATE $BINDING_TABLE SET consumed = 1 WHERE product_kind = ? " +
+				"AND product_identity = ? AND product_revision = ? AND graph_identity = ? " +
+				"AND source_schema_version = ? AND " +
+				"source_receipt_identity IS ? AND source_archive_identity IS ? AND " +
+				"source_archive_content_checksum IS ? AND consumed = 0",
+		).use { statement ->
+			statement.bindString(1, binding.productKind)
+			statement.bindString(2, binding.productIdentity)
+			statement.bindLong(3, binding.productRevision)
+			statement.bindString(4, binding.graphIdentity)
+			statement.bindLong(5, binding.sourceSchemaVersion.toLong())
+			statement.bindNullableString(6, binding.sourceReceiptIdentity)
+			statement.bindNullableString(7, binding.sourceArchiveIdentity)
+			statement.bindNullableString(8, binding.sourceArchiveContentChecksum)
+			require(statement.executeUpdateDelete() == 1) {
+				"Imported portable graph binding was missing, duplicated, or changed"
+			}
+		}
+	}
+
+	fun requireEveryBindingConsumed() {
+		val remaining = sqlite.query(
+			"SELECT COUNT(*) FROM $BINDING_TABLE WHERE consumed = 0",
+		).use { cursor ->
+			check(cursor.moveToFirst())
+			cursor.getLong(0)
+		}
+		require(remaining == 0L) {
+			"Imported portable graph binding was not consumed by a product"
+		}
+	}
+
+	fun bindingCountForGraph(graphIdentity: String): Long = sqlite.query(
+		"SELECT COUNT(*) FROM $BINDING_TABLE WHERE graph_identity = ?",
+		arrayOf(graphIdentity),
+	).use { cursor ->
+		check(cursor.moveToFirst())
+		cursor.getLong(0)
+	}
+
+	fun isGraphAuthenticated(graphIdentity: String): Boolean = sqlite.query(
+		"SELECT 1 FROM $BINDING_TABLE WHERE graph_identity = ? AND consumed = 1 LIMIT 1",
+		arrayOf(graphIdentity),
+	).use { cursor -> cursor.moveToFirst() }
+
 	fun addSessionProduct(
 		product: RetainedImportedStepsEntry,
 		authenticated: AuthenticatedImportedPortableGraphBinding,
@@ -404,7 +527,8 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 			"INSERT INTO $SESSION_PRODUCT_TABLE (" +
 				"product_identity, content_checksum, source_format, source_schema_version, " +
 				"graph_identity, source_receipt_identity, source_archive_content_checksum, " +
-				"has_stored_binding) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+				"has_stored_binding, source_receipt_observed) " +
+				"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			arrayOf(
 				product.metadata.identity,
 				product.metadata.contentChecksum,
@@ -414,6 +538,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 				binding.sourceReceiptIdentity,
 				binding.sourceArchiveContentChecksum,
 				if (hasStoredBinding) 1 else 0,
+				0,
 			),
 		)
 	}
@@ -452,6 +577,38 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		}
 	}
 
+	fun markSourceReceiptObserved(
+		productIdentity: String,
+		receiptIdentity: String,
+		archiveContentChecksum: String,
+	) {
+		sqlite.compileStatement(
+			"UPDATE $SESSION_PRODUCT_TABLE SET source_receipt_observed = 1 " +
+				"WHERE product_identity = ? AND source_receipt_identity = ? " +
+				"AND source_archive_content_checksum = ?",
+		).use { statement ->
+			statement.bindString(1, productIdentity)
+			statement.bindString(2, receiptIdentity)
+			statement.bindString(3, archiveContentChecksum)
+			require(statement.executeUpdateDelete() == 1) {
+				"Imported Steps source receipt conflicts with staged product provenance"
+			}
+		}
+	}
+
+	fun requireEverySourceReceiptObserved() {
+		val missing = sqlite.query(
+			"SELECT COUNT(*) FROM $SESSION_PRODUCT_TABLE " +
+				"WHERE source_receipt_identity IS NOT NULL AND source_receipt_observed = 0",
+		).use { cursor ->
+			check(cursor.moveToFirst())
+			cursor.getLong(0)
+		}
+		require(missing == 0L) {
+			"Imported Steps binding source receipt was not independently enumerated"
+		}
+	}
+
 	fun add(graph: AuthenticatedFullClearGraphAppearance) {
 		check(graph.graph.identity.value == graph.graphIdentity)
 		graph.graph.roots.forEach { root ->
@@ -466,7 +623,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 	fun install(dao: com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao) {
 		var afterKind: String? = null
 		var afterIdentity: String? = null
-		var installedOwnerCount = 0
+		var installedOwnerCount = 0L
 		while (true) {
 			val page = ownerPage(afterKind, afterIdentity)
 			if (page.isEmpty()) break
@@ -503,12 +660,15 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 					require(stored.collectedDataEpoch <= candidate.collectedDataEpoch)
 					require(stored.fencedAtMs <= candidate.fencedAtMs)
 				}
-				installedOwnerCount = Math.addExact(installedOwnerCount, 1)
+				installedOwnerCount = Math.addExact(installedOwnerCount, 1L)
 			}
 			afterKind = page.last().ownerKind
 			afterIdentity = page.last().ownerIdentity
 		}
-		require(installedOwnerCount == ownerCount)
+		require(installedOwnerCount == cardinality.ownerCount)
+		require(tableRowCount(REVISION_TABLE) == cardinality.ownerRevisionCount) {
+			"Imported portable staged owner revision cardinality changed"
+		}
 	}
 
 	fun close() {
@@ -539,9 +699,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		)
 		val stored = owner(ownerKind, ownerIdentity)
 		if (stored == null) {
-			require(ownerCount < maximumOwnerCount) {
-				"Imported portable distinct owner count exceeds its full-clear bound"
-			}
+			cardinality.recordOwner()
 			sqlite.execSQL(
 				"INSERT INTO $OWNER_TABLE (" +
 					"owner_kind, owner_identity, scope_identity, container_identity, " +
@@ -564,7 +722,6 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 					rank.compareProductIdentity,
 				),
 			)
-			ownerCount = Math.addExact(ownerCount, 1)
 		} else {
 			require(stored.scopeIdentity == first.scopeIdentity.value) {
 				"Imported portable owner appears in conflicting scopes"
@@ -642,9 +799,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 			revision.ownerRevision,
 		)
 		if (stored == null) {
-			require(ownerRevisionCount < maximumOwnerRevisionCount) {
-				"Imported portable distinct owner revision count exceeds its full-clear bound"
-			}
+			cardinality.recordOwnerRevision()
 			sqlite.execSQL(
 				"INSERT INTO $REVISION_TABLE (" +
 					"owner_kind, owner_identity, owner_revision, scope_identity, operation, " +
@@ -662,7 +817,6 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 					if (isLegacyAmbient) 1 else 0,
 				),
 			)
-			ownerRevisionCount = Math.addExact(ownerRevisionCount, 1)
 		} else {
 			require(stored.matches(revision)) {
 				"Imported portable owner revision has conflicting graph appearances"
@@ -891,19 +1045,76 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		arrayOf(ownerKind, ownerIdentity, ownerRevision),
 	).use { it.moveToFirst() }
 
+	private fun tableRowCount(table: String): Long = sqlite.query(
+		"SELECT COUNT(*) FROM $table",
+	).use { cursor ->
+		check(cursor.moveToFirst())
+		cursor.getLong(0)
+	}
+
 	private fun dropTables() {
 		sqlite.execSQL("DROP TABLE IF EXISTS $EXPLICIT_TABLE")
 		sqlite.execSQL("DROP TABLE IF EXISTS $REVISION_TABLE")
 		sqlite.execSQL("DROP TABLE IF EXISTS $OWNER_TABLE")
 		sqlite.execSQL("DROP TABLE IF EXISTS $SESSION_PRODUCT_TABLE")
+		sqlite.execSQL("DROP TABLE IF EXISTS $BINDING_TABLE")
 	}
 
 	private companion object {
+		const val BINDING_TABLE = "imported_steps_full_clear_binding_stage"
+		const val BINDING_GRAPH_INDEX = "imported_steps_full_clear_binding_graph_stage"
 		const val SESSION_PRODUCT_TABLE = "imported_steps_full_clear_session_product_stage"
 		const val OWNER_TABLE = "imported_steps_full_clear_owner_stage"
 		const val REVISION_TABLE = "imported_steps_full_clear_owner_revision_stage"
 		const val EXPLICIT_TABLE = "imported_steps_full_clear_explicit_lineage_stage"
 		const val OWNER_INSTALL_PAGE_SIZE = 256
+	}
+}
+
+private fun SupportSQLiteProgram.bindNullableString(index: Int, value: String?) {
+	if (value == null) bindNull(index) else bindString(index, value)
+}
+
+internal class FullClearStagingCardinality(
+	private val maximumOwnerCount: Long? = null,
+	private val maximumOwnerRevisionCount: Long? = null,
+	ownerCount: Long = 0L,
+	ownerRevisionCount: Long = 0L,
+) {
+	var ownerCount: Long = ownerCount
+		private set
+	var ownerRevisionCount: Long = ownerRevisionCount
+		private set
+
+	init {
+		require(ownerCount >= 0L)
+		require(ownerRevisionCount >= 0L)
+		require(maximumOwnerCount == null || ownerCount <= maximumOwnerCount)
+		require(
+			maximumOwnerRevisionCount == null ||
+				ownerRevisionCount <= maximumOwnerRevisionCount,
+		)
+	}
+
+	fun recordOwner(): Long {
+		val next = Math.addExact(ownerCount, 1L)
+		require(maximumOwnerCount == null || next <= maximumOwnerCount) {
+			"Imported portable distinct owner count exceeds its full-clear bound"
+		}
+		ownerCount = next
+		return next
+	}
+
+	fun recordOwnerRevision(): Long {
+		val next = Math.addExact(ownerRevisionCount, 1L)
+		require(
+			maximumOwnerRevisionCount == null ||
+				next <= maximumOwnerRevisionCount,
+		) {
+			"Imported portable distinct owner revision count exceeds its full-clear bound"
+		}
+		ownerRevisionCount = next
+		return next
 	}
 }
 
@@ -1001,12 +1212,9 @@ private fun String.toPortableProductKind(): String = when (this) {
 }
 
 private fun AppDatabase.authenticateAllPortableSessionFileReceiptsForFullClear(
-	sessionBindings: Map<String, ImportedPortableStepsCountDomainBindingEntity>,
 	sessionProducts: AuthenticatedFullClearOwnerFenceStaging,
-	authenticatedGraphIdentities: Set<String>,
 ) {
 	val dao = importedPortableStepsCountDomainDao()
-	val observedSourceReceipts = linkedSetOf<String>()
 	var afterJobId: String? = null
 	var afterEntryKey: String? = null
 	while (true) {
@@ -1034,7 +1242,7 @@ private fun AppDatabase.authenticateAllPortableSessionFileReceiptsForFullClear(
 			require(product.productIdentity == receipt.entryIdentity)
 			require(product.sourceFormat == StepsPortableFormatV1.FORMAT)
 			require(product.graphIdentity == receipt.graphIdentity)
-			require(product.graphIdentity in authenticatedGraphIdentities)
+			require(sessionProducts.isGraphAuthenticated(product.graphIdentity))
 			require(receipt.entryOrdinal in 0 until StepsPortableFormatV1.MAX_ENTRIES)
 			if (product.sourceSchemaVersion == StepsPortableFormatV1.SCHEMA_VERSION) {
 				require(receipt.archiveContentChecksum == product.contentChecksum)
@@ -1043,7 +1251,11 @@ private fun AppDatabase.authenticateAllPortableSessionFileReceiptsForFullClear(
 				require(
 					product.sourceArchiveContentChecksum == receipt.archiveContentChecksum,
 				)
-				observedSourceReceipts += receipt.receiptIdentity
+				sessionProducts.markSourceReceiptObserved(
+					productIdentity = product.productIdentity,
+					receiptIdentity = receipt.receiptIdentity,
+					archiveContentChecksum = receipt.archiveContentChecksum,
+				)
 			}
 		}
 		val last = page.last()
@@ -1051,51 +1263,23 @@ private fun AppDatabase.authenticateAllPortableSessionFileReceiptsForFullClear(
 		afterEntryKey = last.entryKey
 		if (page.size < FILE_RECEIPT_FULL_CLEAR_PAGE_SIZE) break
 	}
-	sessionBindings.values.mapNotNull { it.sourceReceiptIdentity }.forEach { sourceReceipt ->
-		require(sourceReceipt in observedSourceReceipts) {
-			"Imported Steps binding source receipt was not independently enumerated"
-		}
-	}
+	sessionProducts.requireEverySourceReceiptObserved()
 }
 
 private suspend fun AppDatabase.reconcileImportedPortableLegacyGraphsBeforeFullClear(
 	oldCollectedDataEpoch: Long,
 ) {
 	val sessionReader = ImportedStepsRetainedReader(this)
-	var beforeStartTimeMs: Long? = null
-	var beforeIdentity: String? = null
-	var sessionCount = 0
-	while (true) {
-		val page = importedStepsDao().entryPage(
-			beforeStartTimeMs,
-			beforeIdentity,
-			SESSION_FULL_CLEAR_PAGE_SIZE,
-		)
-		if (page.isEmpty()) break
-		sessionCount = Math.addExact(sessionCount, page.size)
-		require(sessionCount <= MAX_FULL_CLEAR_BINDINGS)
-		val retained = when (
-			val read = sessionReader.readEntriesForRetentionInTransaction(
-				page.map { it.identity },
-			)
-		) {
-			is ImportedStepsRetainedRead.Ready -> {
-				require(read.unverifiableEntries.isEmpty())
-				read.entries.associateBy { it.metadata.identity }
-			}
-			is ImportedStepsRetainedRead.Unverifiable ->
-				error("Imported Steps product is unverifiable during graph reconciliation")
-		}
-		page.forEach { entry ->
-			val product = requireNotNull(retained[entry.identity])
+	when (
+		val traversal = sessionReader.forEachEntryForRetentionInTransaction { product ->
 			if (importedPortableStepsCountDomainDao().bindingEvidenceCountForProduct(
 					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
-					entry.identity,
+					product.metadata.identity,
 				) > 0
 			) {
 				val expected = product.legacyUnprovenCountDomainGraph()
 				val loaded = requireNotNull(
-					loadImportedSessionCountDomainBindingForFullClear(entry.identity),
+					loadImportedSessionCountDomainBindingForFullClear(product.metadata.identity),
 				)
 				try {
 					loadAuthenticatedImportedSessionCountDomainBindingForFullClear(
@@ -1123,19 +1307,19 @@ private suspend fun AppDatabase.reconcileImportedPortableLegacyGraphsBeforeFullC
 				}
 			}
 		}
-		beforeStartTimeMs = page.last().startTimeMs
-		beforeIdentity = page.last().identity
-		if (page.size < SESSION_FULL_CLEAR_PAGE_SIZE) break
+	) {
+		is ImportedStepsRetainedTraversal.Complete -> Unit
+		is ImportedStepsRetainedTraversal.Unverifiable -> error(
+			"Imported Steps product is unverifiable during graph reconciliation: " +
+				"${traversal.entryIdentity}:${traversal.reason}",
+		)
 	}
 
 	val ambientDao = importedAmbientStepsDao()
 	var afterDayId: String? = null
-	var ambientCount = 0
 	while (true) {
 		val page = ambientDao.fullClearDayCandidatePage(afterDayId, AMBIENT_FULL_CLEAR_PAGE_SIZE)
 		if (page.isEmpty()) break
-		ambientCount = Math.addExact(ambientCount, page.size)
-		require(ambientCount <= MAX_FULL_CLEAR_BINDINGS)
 		page.forEach { candidate ->
 			val lineage = ambientDao.loadAuthenticatedAmbientStepsLineageForFullClear(
 				candidate,
@@ -1240,11 +1424,7 @@ private data class SessionRootKey(
 	val ownerKind: PortableCountDomainOwnerKind,
 )
 
-private const val MAX_FULL_CLEAR_BINDINGS = 131_072
-private const val MAX_FULL_CLEAR_OWNER_FENCES = 262_144
-private const val MAX_FULL_CLEAR_OWNER_REVISIONS =
-	MAX_FULL_CLEAR_OWNER_FENCES * ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY
-private const val SESSION_FULL_CLEAR_PAGE_SIZE = 32
+private const val BINDING_FULL_CLEAR_PAGE_SIZE = 256
 private const val AMBIENT_FULL_CLEAR_PAGE_SIZE = 256
 private const val GRAPH_FULL_CLEAR_PAGE_SIZE = 64
 private const val FILE_RECEIPT_FULL_CLEAR_PAGE_SIZE = 256

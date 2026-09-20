@@ -90,16 +90,32 @@ class PortableStepsSourceStructureTest {
 				"private suspend fun AppDatabase.authenticatedImportedSessionBindingsForFullClear",
 			),
 		)
+		val captureFences = source(
+			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/steps/" +
+				"imported/StepsFullClearFences.kt",
+		)
+		val graphDao = source(
+			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/" +
+				"ImportedPortableStepsCountDomainDao.kt",
+		)
 
 		assertTrue("AuthenticatedFullClearOwnerFenceStaging(" in production)
 		assertFalse("AuthenticatedFullClearOwnerFenceAccumulator" in fullClear)
 		assertFalse("sortedMapOf<Long, PortableCountDomainOwnerRevisionV2>" in fullClear)
 		assertFalse(".fences()" in production)
+		assertTrue("CREATE TEMP TABLE \$BINDING_TABLE" in fullClear)
+		assertTrue("bindingPageForFullClear" in fullClear)
+		assertTrue("fun bindingPageForFullClear" in graphDao)
+		assertFalse("allBindingsForFullClear" in graphDao)
 		assertTrue("CREATE TEMP TABLE \$OWNER_TABLE" in fullClear)
 		assertTrue("CREATE TEMP TABLE \$REVISION_TABLE" in fullClear)
 		assertTrue("ORDER BY owner_kind, owner_identity LIMIT ?" in fullClear)
-		assertTrue("MAX_FULL_CLEAR_OWNER_FENCES = 262_144" in fullClear)
-		assertTrue("MAX_FULL_CLEAR_OWNER_REVISIONS =" in fullClear)
+		assertTrue("maximumOwnerCount = null" in production)
+		assertTrue("maximumOwnerRevisionCount = null" in production)
+		assertFalse("MAX_FULL_CLEAR_OWNER_FENCES" in fullClear)
+		assertFalse("MAX_FULL_CLEAR_OWNER_REVISIONS" in fullClear)
+		assertFalse("MAX_STEPS_FULL_CLEAR_FENCES" in captureFences)
+		assertTrue("readStepsFenceOrNull(sqlite, digest)" in captureFences)
 		assertTrue("staging.close()" in production)
 	}
 
@@ -131,28 +147,34 @@ class PortableStepsSourceStructureTest {
 		assertTrue("source_receipt_identity TEXT" in fullClear)
 		assertTrue("require(identities.size <= FILE_RECEIPT_FULL_CLEAR_PAGE_SIZE)" in fullClear)
 		assertTrue("WHERE product_identity IN (\$placeholders)" in fullClear)
+		assertTrue("forEachEntryForRetentionInTransaction" in sessionPaging)
+		assertFalse("readEntriesForRetentionInTransaction(page.map" in fullClear)
+		assertFalse("SESSION_FULL_CLEAR_PAGE_SIZE" in fullClear)
 		assertFalse("RetainedImportedStepsEntry" in stagedType)
 		assertFalse("PortableStepsRun" in stagedType)
 		assertFalse("StepFactRevision" in stagedType)
 	}
 
 	@Test
-	fun `portable header scanner bounds known fields while streaming unknown payloads`() {
+	fun `portable byte header scanner bounds known fields while streaming unknown payloads`() {
 		val dispatch = source(
 			"feature/import-export/src/main/java/com/adsamcik/tracker/impexp/portable/" +
 				"PortableStepsJsonVersionDispatch.kt",
 		)
-		val tokenGuard = source(
-			"feature/import-export/src/main/java/com/adsamcik/tracker/impexp/portable/" +
-				"PortableJsonTokenLimitInputStream.kt",
+		val fileImport = source(
+			"feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/" +
+				"PortableStepsFileImport.kt",
 		)
 
-		assertTrue("portableJsonHeaderTokenLimits(bytes.size, expectedFormat)" in dispatch)
-		assertTrue("else -> reader.skipValue()" in dispatch)
-		assertTrue("\"format\" to expectedFormat.length * JSON_ESCAPE_BYTES_PER_CHARACTER" in tokenGuard)
-		assertTrue("\"schemaVersion\" to MAX_SCHEMA_VERSION_TOKEN_BYTES" in tokenGuard)
-		assertTrue("rootStringValueMaxBytes[rootFieldName]" in tokenGuard)
-		assertTrue("rootNumberValueMaxBytes[rootFieldName]" in tokenGuard)
+		assertTrue("PortableRootHeaderScanner" in dispatch)
+		assertTrue("else -> skipValue(ROOT_DEPTH)" in dispatch)
+		assertTrue("readString(maximumEncodedBytes = null, capture = false)" in dispatch)
+		assertTrue("MAX_NESTING_DEPTH = 32" in dispatch)
+		assertTrue("MAX_NAME_BYTES = 384" in dispatch)
+		assertFalse("JsonReader" in dispatch)
+		assertTrue("when (portableStepsSchemaVersion(bytes))" in fileImport)
+		assertTrue("codec.decode(bytes)" in fileImport)
+		assertTrue("PortableStepsJsonV2Codec().decode(bytes)" in fileImport)
 	}
 
 	private fun source(relativePath: String): String = projectRoot.resolve(relativePath).readText()
