@@ -9,6 +9,7 @@ import com.adsamcik.tracker.tracker.source.catalog.toCanonicalTrackingSource
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 @Singleton
@@ -16,12 +17,29 @@ class SourceRuntimeRegistry private constructor(
 	private val directory: SourceRuntimeDirectory,
 ) {
 	@Inject
-	internal constructor(catalog: SourceImplementationCatalog) : this(CatalogSourceRuntimeDirectory(catalog))
+	internal constructor(
+		runtimeProviders: Map<
+			SourceKind,
+			@JvmSuppressWildcards Provider<ClaimedSourceRuntime<out SourcePlan>>,
+		>,
+		catalog: SourceImplementationCatalog,
+	) : this(ProviderSourceRuntimeDirectory(runtimeProviders, catalog, requireAllSources = true))
 
 	/** Compatibility constructor for isolated runtime tests; production injection is catalog-backed. */
 	internal constructor(
 		runtimes: Set<@JvmSuppressWildcards ClaimedSourceRuntime<out SourcePlan>>,
 	) : this(SetSourceRuntimeDirectory(runtimes))
+
+	internal constructor(
+		runtimeProviders: Map<
+			SourceKind,
+			@JvmSuppressWildcards Provider<ClaimedSourceRuntime<out SourcePlan>>,
+		>,
+		availabilityCatalog: SourceImplementationCatalog,
+		requireAllSources: Boolean,
+	) : this(
+		ProviderSourceRuntimeDirectory(runtimeProviders, availabilityCatalog, requireAllSources),
+	)
 
 	fun runtime(source: SourceKind): ClaimedSourceRuntime<out SourcePlan>? = directory.runtime(source)
 
@@ -78,17 +96,33 @@ private interface SourceRuntimeDirectory {
 	suspend fun availability(request: SourceAvailabilityRequest): SourceCatalogAvailability
 }
 
-private class CatalogSourceRuntimeDirectory(
-	private val catalog: SourceImplementationCatalog,
+private class ProviderSourceRuntimeDirectory(
+	private val runtimeProviders: Map<
+		SourceKind,
+		Provider<ClaimedSourceRuntime<out SourcePlan>>,
+	>,
+	private val availabilityCatalog: SourceImplementationCatalog,
+	requireAllSources: Boolean,
 ) : SourceRuntimeDirectory {
-	override fun runtime(source: SourceKind): ClaimedSourceRuntime<out SourcePlan> =
-		catalog.implementation(source).runtime
+	init {
+		if (requireAllSources) {
+			require(runtimeProviders.keys == SourceKind.entries.toSet()) {
+				"Runtime registry requires exactly one lazy owner for every source"
+			}
+		}
+	}
 
-	override fun registeredSources(): Set<SourceKind> =
-		catalog.implementations.mapTo(linkedSetOf()) { implementation -> implementation.runtimeSource }
+	override fun runtime(source: SourceKind): ClaimedSourceRuntime<out SourcePlan>? =
+		runtimeProviders[source]?.get()?.also { runtime ->
+			require(runtime.source == source) {
+				"Runtime provider for $source returned ${runtime.source}"
+			}
+		}
+
+	override fun registeredSources(): Set<SourceKind> = runtimeProviders.keys
 
 	override suspend fun availability(request: SourceAvailabilityRequest): SourceCatalogAvailability =
-		catalog.availability(request)
+		availabilityCatalog.availability(request)
 }
 
 private class SetSourceRuntimeDirectory(

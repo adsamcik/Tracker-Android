@@ -184,6 +184,40 @@ interface SourceBrokerDao {
 	): Int
 
 	@Query(
+		"UPDATE source_demand SET status = 'ACTIVE' " +
+			"WHERE consumer_id = :consumerId AND service_run_id = :serviceRunId " +
+			"AND manifest_revision = :manifestRevision " +
+			"AND lifecycle_lease_generation = :leaseGeneration " +
+			"AND demand_id IN (:demandIds) AND status = 'BLOCKED'",
+	)
+	suspend fun activatePreparedSessionDemandsByIds(
+		consumerId: String,
+		serviceRunId: String,
+		manifestRevision: Long,
+		leaseGeneration: Long,
+		demandIds: Collection<String>,
+	): Int
+
+	@Query(
+		"UPDATE source_demand SET status = 'RETIRED', retire_boot_id = :bootId, " +
+			"retire_elapsed_realtime_nanos = :elapsedRealtimeNanos, retired_at_ms = :wallTimeMs " +
+			"WHERE consumer_id = :consumerId AND service_run_id = :serviceRunId " +
+			"AND manifest_revision = :manifestRevision " +
+			"AND lifecycle_lease_generation = :leaseGeneration " +
+			"AND demand_id IN (:demandIds) AND status IN ('ACTIVE', 'BLOCKED')",
+	)
+	suspend fun retireExcludedPreparedSessionDemandsByIds(
+		consumerId: String,
+		serviceRunId: String,
+		manifestRevision: Long,
+		leaseGeneration: Long,
+		demandIds: Collection<String>,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): Int
+
+	@Query(
 		"UPDATE source_demand SET status = CASE WHEN status = 'BLOCKED' THEN 'RETIRED' " +
 			"ELSE 'RETIRING' END, retire_boot_id = :bootId, " +
 			"retire_elapsed_realtime_nanos = :elapsedRealtimeNanos, retired_at_ms = :wallTimeMs " +

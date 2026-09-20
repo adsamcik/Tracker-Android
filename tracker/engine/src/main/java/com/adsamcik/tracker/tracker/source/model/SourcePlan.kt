@@ -146,6 +146,10 @@ enum class SourceDegradedReason {
 	DOZE,
 	PLATFORM_THROTTLED,
 	DEMAND_FLOOR_UNSATISFIED,
+	CATALOG_UNSUPPORTED,
+	CATALOG_CONTAINED,
+	CATALOG_NOT_ACCEPTED,
+	AVAILABILITY_READ_FAILED,
 }
 
 /** Maximum provider-item age admitted by the plan, independent of acquisition cadence. */

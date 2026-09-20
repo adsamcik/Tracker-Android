@@ -410,7 +410,10 @@ class SourceBroker @Inject internal constructor(
 		}
 	}
 
-	/** Opens only the exact foreground-accepted prepared demand vector. */
+	/**
+	 * Opens the foreground-accepted capture subset and its control vector, retiring excluded
+	 * capture demands in the same transaction before any observer can see them as active.
+	 */
 	internal suspend fun activatePreparedSessionDemandsInTransaction(
 		logicalTrackingId: String,
 		serviceRunId: String,
@@ -421,6 +424,7 @@ class SourceBroker @Inject internal constructor(
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
 		currentAuthority: SourceCallerCurrentAuthorityPredicate,
+		acceptedSourceKinds: Set<Int>? = null,
 	): Boolean {
 		val consumerId = sessionConsumerId(logicalTrackingId)
 		val dao = database.sourceBrokerDao()
@@ -444,13 +448,103 @@ class SourceBroker @Inject internal constructor(
 		) return false
 		val blocked = exact.filter { it.status == SourceDemandEntity.STATUS_BLOCKED }
 		if (blocked.isEmpty()) return true
-		if (dao.activatePreparedSessionDemands(
-			consumerId,
-			serviceRunId,
-			manifestRevision,
-			leaseGeneration,
-		) != blocked.size) return false
+		if (acceptedSourceKinds == null) {
+			if (dao.activatePreparedSessionDemands(
+				consumerId,
+				serviceRunId,
+				manifestRevision,
+				leaseGeneration,
+			) != blocked.size) return false
+			blocked.map(SourceDemandEntity::sourceKind).toSet().forEach { sourceKind ->
+				rotateCurrentAuthorizationInTransaction(
+					sourceKind,
+					bootId,
+					elapsedRealtimeNanos,
+					wallTimeMs,
+				)
+			}
+			return true
+		}
+		val captureDemands = exact.filter { demand ->
+			demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+		}
+		if (acceptedSourceKinds.any { sourceKind ->
+				captureDemands.none { demand -> demand.sourceKind == sourceKind }
+			}
+		) return false
+		val toActivate = blocked.filter { demand ->
+			acceptedSourceKinds.isNotEmpty() &&
+				(demand.purpose != SourceBrokerPurpose.SESSION_CAPTURE ||
+					demand.sourceKind in acceptedSourceKinds)
+		}
+		val toRetire = blocked - toActivate.toSet()
+		if (toActivate.isNotEmpty() && dao.activatePreparedSessionDemandsByIds(
+				consumerId,
+				serviceRunId,
+				manifestRevision,
+				leaseGeneration,
+				toActivate.map(SourceDemandEntity::demandId),
+			) != toActivate.size
+		) return false
+		if (toRetire.isNotEmpty() && dao.retireExcludedPreparedSessionDemandsByIds(
+				consumerId,
+				serviceRunId,
+				manifestRevision,
+				leaseGeneration,
+				toRetire.map(SourceDemandEntity::demandId),
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			) != toRetire.size
+		) return false
 		blocked.map(SourceDemandEntity::sourceKind).toSet().forEach { sourceKind ->
+			rotateCurrentAuthorizationInTransaction(
+				sourceKind,
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			)
+		}
+		return true
+	}
+
+	internal suspend fun retirePreparedSessionCaptureDemandsInTransaction(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		manifestRevision: Long,
+		leaseGeneration: Long,
+		sourceKinds: Set<Int>,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): Boolean {
+		if (sourceKinds.isEmpty()) return true
+		val consumerId = sessionConsumerId(logicalTrackingId)
+		val dao = database.sourceBrokerDao()
+		val retiring = dao.demandHistory(consumerId).filter { demand ->
+			demand.serviceRunId == serviceRunId &&
+				demand.manifestRevision == manifestRevision &&
+				demand.lifecycleLeaseGeneration == leaseGeneration &&
+				demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+				demand.sourceKind in sourceKinds &&
+				demand.status in setOf(
+					SourceDemandEntity.STATUS_ACTIVE,
+					SourceDemandEntity.STATUS_BLOCKED,
+				)
+		}
+		if (retiring.isEmpty()) return true
+		if (dao.retireExcludedPreparedSessionDemandsByIds(
+				consumerId,
+				serviceRunId,
+				manifestRevision,
+				leaseGeneration,
+				retiring.map(SourceDemandEntity::demandId),
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			) != retiring.size
+		) return false
+		retiring.map(SourceDemandEntity::sourceKind).toSet().forEach { sourceKind ->
 			rotateCurrentAuthorizationInTransaction(
 				sourceKind,
 				bootId,

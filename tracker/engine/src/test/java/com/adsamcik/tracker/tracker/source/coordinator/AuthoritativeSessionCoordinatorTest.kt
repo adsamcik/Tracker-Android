@@ -55,9 +55,11 @@ import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.ingress.RoomDurableSourceIngress
 import com.adsamcik.tracker.tracker.source.catalog.SourceAvailabilityTier
+import com.adsamcik.tracker.tracker.source.catalog.SourceAvailabilityRequest
 import com.adsamcik.tracker.tracker.source.catalog.SourceCatalogAvailability
 import com.adsamcik.tracker.tracker.source.catalog.SourceImplementationCatalog
 import com.adsamcik.tracker.tracker.source.catalog.SourceProviderAvailability
+import com.adsamcik.tracker.tracker.source.catalog.SourceProviderAvailabilityEvidence
 import com.adsamcik.tracker.tracker.source.catalog.SourceProviderPermission
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
@@ -74,6 +76,7 @@ import com.adsamcik.tracker.tracker.source.model.RetryBackoff
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
+import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
@@ -125,6 +128,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.firstArg
 import io.mockk.mockk
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
@@ -314,10 +318,21 @@ class AuthoritativeSessionCoordinatorTest {
 				setOf(SourceProviderPermission.RuntimePermission(SourceKind.STEPS)),
 			),
 		)
-		replaceRuntimeRegistry(SourceRuntimeRegistry(catalog))
+		var providerCalls = 0
+		val providers: Map<
+			SourceKind,
+			Provider<ClaimedSourceRuntime<out SourcePlan>>,
+		> = mapOf(
+			SourceKind.STEPS to Provider {
+				providerCalls++
+				runtime
+			},
+		)
+		replaceRuntimeRegistry(SourceRuntimeRegistry(providers, catalog, requireAllSources = false))
 
 		subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.InvalidIntent>().code shouldBe
 			"SOURCE_CATALOG_STEPS_SESSION_CAPTURE_PERMISSION_REQUIRED"
+		providerCalls shouldBe 0
 		runtime.startCount shouldBe 0
 		database.sourceSessionDao().activeSession() shouldBe null
 		coVerify(exactly = 1) {
@@ -331,6 +346,225 @@ class AuthoritativeSessionCoordinatorTest {
 			)
 		}
 	}
+
+	@Test
+	fun `missing optional sensors are typed blocked while location starts without resolving them`() =
+		runTest {
+			val catalog = mockk<SourceImplementationCatalog>()
+			coEvery { catalog.availability(any()) } answers {
+				val request = firstArg<SourceAvailabilityRequest>()
+				when (request.source) {
+					SourceKind.LOCATION -> SourceCatalogAvailability.Executable(
+						SourceProviderAvailability.Available(),
+					)
+					SourceKind.STEPS,
+					SourceKind.PRESSURE,
+					-> SourceCatalogAvailability.Executable(
+						SourceProviderAvailability.HardwareUnavailable(
+							SourceProviderAvailabilityEvidence.Runtime(
+								request.source,
+								setOf(
+									SourceDegradedReason.HARDWARE_UNAVAILABLE,
+								),
+							),
+						),
+					)
+					else -> error("Unexpected source")
+				}
+			}
+			var locationProviderCalls = 0
+			var stepsProviderCalls = 0
+			var pressureProviderCalls = 0
+			val providers: Map<
+				SourceKind,
+				Provider<ClaimedSourceRuntime<out SourcePlan>>,
+			> = mapOf(
+				SourceKind.LOCATION to Provider {
+					locationProviderCalls++
+					locationRuntime
+				},
+				SourceKind.STEPS to Provider {
+					stepsProviderCalls++
+					runtime
+				},
+				SourceKind.PRESSURE to Provider {
+					pressureProviderCalls++
+					error("Unavailable Pressure runtime must stay unresolved")
+				},
+			)
+			replaceRuntimeRegistry(SourceRuntimeRegistry(providers, catalog, requireAllSources = false))
+			val base = stepsAndLocationPlan(1L, stepsEnabled = true)
+			val plan = base.copy(
+				planId = "location-with-missing-sensors",
+				plans = base.plans + (
+					SourceKind.PRESSURE to PressurePlan(
+						1L,
+						enabled = true,
+						hardwareSamplePeriodMicros = 200_000,
+						maximumReportLatencyMicros = 10_000_000,
+						aggregationWindowMs = 10_000L,
+					)
+				),
+			)
+
+			val started = subject.start(
+				startRequest().copy(
+					logicalTrackingId = "partial-availability-logical",
+					serviceRunId = "partial-availability-run",
+					plan = plan,
+				),
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+
+			started.status shouldBe DesiredPlanStatus.DEGRADED
+			started.applied.associateBy(AppliedSourcePlan::source).let { outcomes ->
+				outcomes.getValue(SourceKind.LOCATION).status shouldBe SourceApplyStatus.APPLIED
+				outcomes.getValue(SourceKind.STEPS).let { blocked ->
+					blocked.status shouldBe SourceApplyStatus.BLOCKED
+					blocked.degradedReasons shouldBe
+						setOf(SourceDegradedReason.HARDWARE_UNAVAILABLE)
+				}
+				outcomes.getValue(SourceKind.PRESSURE).let { blocked ->
+					blocked.status shouldBe SourceApplyStatus.BLOCKED
+					blocked.degradedReasons shouldBe
+						setOf(SourceDegradedReason.HARDWARE_UNAVAILABLE)
+				}
+			}
+			database.sourceSessionDao()
+				.manifestSources(started.logicalTrackingId, 1L)
+				.filter { binding ->
+					binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name
+				}
+				.map(SessionManifestSourceEntity::sourceKind)
+				.toSet() shouldBe setOf(SourceKind.LOCATION.stableCode)
+			database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+				.mapNotNull(LifecycleDesiredActionEntity::sourceKind)
+				.toSet() shouldBe setOf(SourceKind.LOCATION.stableCode)
+			database.sourceBrokerDao()
+				.currentDemands("session:${started.logicalTrackingId}")
+				.map(SourceDemandEntity::sourceKind)
+				.toSet() shouldBe setOf(SourceKind.LOCATION.stableCode)
+			locationProviderCalls shouldBe 1
+			stepsProviderCalls shouldBe 0
+			pressureProviderCalls shouldBe 0
+			runtime.startCount shouldBe 0
+			locationRuntime.isActive shouldBe true
+		}
+
+	@Test
+	fun `prepared apply blocks newly unavailable accepted source without resolving its provider`() =
+		runTest {
+			val catalog = mockk<SourceImplementationCatalog>()
+			var stepsAvailable = true
+			coEvery { catalog.availability(any()) } answers {
+				when (firstArg<SourceAvailabilityRequest>().source) {
+					SourceKind.LOCATION -> SourceCatalogAvailability.Executable(
+						SourceProviderAvailability.Available(),
+					)
+					SourceKind.STEPS -> SourceCatalogAvailability.Executable(if (stepsAvailable) {
+						SourceProviderAvailability.Available()
+					} else {
+						SourceProviderAvailability.HardwareUnavailable(
+							SourceProviderAvailabilityEvidence.Runtime(
+								SourceKind.STEPS,
+								setOf(SourceDegradedReason.HARDWARE_UNAVAILABLE),
+							),
+						)
+					})
+					else -> error("Unexpected source")
+				}
+			}
+			var locationProviderCalls = 0
+			var stepsProviderCalls = 0
+			val providers: Map<
+				SourceKind,
+				Provider<ClaimedSourceRuntime<out SourcePlan>>,
+			> = mapOf(
+				SourceKind.LOCATION to Provider {
+					locationProviderCalls++
+					locationRuntime
+				},
+				SourceKind.STEPS to Provider {
+					stepsProviderCalls++
+					runtime
+				},
+			)
+			replaceRuntimeRegistry(SourceRuntimeRegistry(providers, catalog, requireAllSources = false))
+			val token = PreparedTrackingStartToken("partial-prepared-token")
+			val request = startRequest().copy(
+				logicalTrackingId = "partial-prepared-logical",
+				serviceRunId = "partial-prepared-run",
+				plan = stepsAndLocationPlan(1L, stepsEnabled = true),
+			)
+
+			val prepared = subject.prepareAndroidStart(
+				request,
+				AndroidStartDeliveryMetadata(token, 1L, true, false),
+			).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+
+			locationProviderCalls shouldBe 0
+			stepsProviderCalls shouldBe 0
+			database.sourceSessionDao()
+				.manifestSources(prepared.logicalTrackingId, prepared.manifestRevision)
+				.filter { binding ->
+					binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name
+				}
+				.map(SessionManifestSourceEntity::sourceKind)
+				.toSet() shouldBe setOf(
+					SourceKind.LOCATION.stableCode,
+					SourceKind.STEPS.stableCode,
+				)
+			database.sourceSessionDao().lifecycleActions(prepared.logicalTrackingId)
+				.mapNotNull(LifecycleDesiredActionEntity::sourceKind)
+				.toSet() shouldBe setOf(
+					SourceKind.LOCATION.stableCode,
+					SourceKind.STEPS.stableCode,
+				)
+
+			subject.markAndroidStartEnqueued(token, 1L, 1_050L) shouldBe true
+			subject.claimAndroidStart(
+				token,
+				1L,
+				"boot-1",
+				1_100_000L,
+				1_100L,
+			).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+				.start.acceptedSources shouldBe setOf(SourceKind.LOCATION, SourceKind.STEPS)
+			stepsAvailable = false
+			subject.markPreparedForegroundAccepted(
+				token,
+				1L,
+				"boot-1",
+				1_200_000L,
+				1_200L,
+			) shouldBe true
+			database.sourceBrokerDao()
+				.currentDemands("session:${prepared.logicalTrackingId}")
+				.map(SourceDemandEntity::sourceKind)
+				.toSet() shouldBe setOf(SourceKind.LOCATION.stableCode)
+			locationProviderCalls shouldBe 0
+			stepsProviderCalls shouldBe 0
+
+			val started = subject.applyPreparedAndroidStart(
+				token,
+				1L,
+				"boot-1",
+				1_300_000L,
+				1_300L,
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+
+			started.status shouldBe DesiredPlanStatus.DEGRADED
+			started.applied.associateBy(AppliedSourcePlan::source).let { outcomes ->
+				outcomes.getValue(SourceKind.LOCATION).status shouldBe SourceApplyStatus.APPLIED
+				outcomes.getValue(SourceKind.STEPS).let { blocked ->
+					blocked.status shouldBe SourceApplyStatus.BLOCKED
+					blocked.degradedReasons shouldBe
+						setOf(SourceDegradedReason.HARDWARE_UNAVAILABLE)
+				}
+			}
+			locationProviderCalls shouldBe 1
+			stepsProviderCalls shouldBe 0
+			runtime.startCount shouldBe 0
+		}
 
 	@Test
 	fun `candidate source settlement observes frozen STOPPING state before finalization`() = runTest {

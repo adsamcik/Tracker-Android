@@ -45,6 +45,7 @@ import com.adsamcik.tracker.tracker.source.catalog.SourceAvailabilityRequest
 import com.adsamcik.tracker.tracker.source.catalog.SourceAvailabilityTier
 import com.adsamcik.tracker.tracker.source.catalog.SourceCatalogAvailability
 import com.adsamcik.tracker.tracker.source.catalog.SourceProviderAvailability
+import com.adsamcik.tracker.tracker.source.catalog.SourceProviderAvailabilityEvidence
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
@@ -55,6 +56,7 @@ import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
+import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
@@ -252,9 +254,9 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	)
 
 	/**
-	 * Persists the complete source/session intent while deliberately leaving provider actions gated
-	 * behind [LifecycleActionStatus.AWAITING_FOREGROUND]. The coordinator lease stays owned by the
-	 * opaque delivery token until APPLY or compensation.
+	 * Persists the exact provider-eligible source manifest while retaining every requested source in
+	 * the desired plan for a typed applied outcome. Provider actions remain gated behind
+	 * [LifecycleActionStatus.AWAITING_FOREGROUND] until APPLY or compensation.
 	 */
 	suspend fun prepareAndroidStart(
 		request: SessionStartRequest,
@@ -276,10 +278,11 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		)?.let {
 			return SessionStartPreparationResult.Rejected(it)
 		}
-		runtimes.validateCatalogStartPrerequisites(
+		val catalogDecisions = runtimes.catalogPlanDecisions(
 			request.plan,
 			request.origin.toSourceAvailabilityTier(),
-		)?.let { failure ->
+		)
+		catalogDecisions.failureIfNoAcceptedSource()?.let { failure ->
 			return SessionStartPreparationResult.Rejected(failure.code, failure.disposition)
 		}
 		val ownerToken = preparedStartOwner(delivery.token)
@@ -291,7 +294,13 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			if (active != null && request.continuationAuthority != null &&
 				request.logicalTrackingId == active.logicalTrackingId
 			) {
-				val result = prepareRecoveryAndroidStart(active, request, delivery, lease)
+				val result = prepareRecoveryAndroidStart(
+					active,
+					request,
+					delivery,
+					lease,
+					catalogDecisions,
+				)
 				keepLease = result is SessionStartPreparationResult.Prepared
 				return result
 			}
@@ -303,7 +312,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			if (request.origin == SessionStartOrigin.RECOVERY || request.continuationAuthority != null) {
 				return SessionStartPreparationResult.Rejected("RECOVERY_SESSION_MISSING")
 			}
-			val result = prepareFreshAndroidStart(request, delivery, lease)
+			val result = prepareFreshAndroidStart(request, delivery, lease, catalogDecisions)
 			keepLease = result is SessionStartPreparationResult.Prepared
 			result
 		} finally {
@@ -315,6 +324,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		request: SessionStartRequest,
 		delivery: AndroidStartDeliveryMetadata,
 		lease: LifecycleLeaseToken,
+		catalogDecisions: CatalogPlanDecisions,
 	): SessionStartPreparationResult {
 		val logicalTrackingId = request.logicalTrackingId ?: UUID.randomUUID().toString()
 		if (request.automaticTrigger == null &&
@@ -368,6 +378,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				changeReason = "SESSION_START",
 				lease = lease,
 				serviceRunId = serviceRunId,
+				acceptedCaptureSources = catalogDecisions.acceptedSources,
 			)
 			val draft = rawDraft.copy(
 				actions = rawDraft.actions.map { action ->
@@ -375,7 +386,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				},
 			)
 			if (automaticAction != null) {
-				val captureMask = draft.bindings.captureSourceMask()
+				val captureMask = request.plan.captureSourceMask()
 				val controlConsentEpoch = draft.bindings.singleOrNull { binding ->
 					binding.sourceKind == SourceKind.ACTIVITY.stableCode &&
 						binding.purpose == SessionManifestPurpose.CONTROL.name
@@ -488,6 +499,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		request: SessionStartRequest,
 		delivery: AndroidStartDeliveryMetadata,
 		lease: LifecycleLeaseToken,
+		catalogDecisions: CatalogPlanDecisions,
 	): SessionStartPreparationResult {
 		if (session.sessionMode != SessionMode.MANUAL.name ||
 			session.state !in setOf(
@@ -568,6 +580,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				},
 				lease = lease,
 				serviceRunId = serviceRunId,
+				acceptedCaptureSources = catalogDecisions.acceptedSources,
 			)
 			val draft = rawDraft.copy(
 				actions = rawDraft.actions.map { action ->
@@ -954,6 +967,21 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		if (validateCanonicalBootId(currentBootId) != null) return false
 		val run = database.sourceSessionDao().serviceRunByDeliveryToken(token.value) ?: return false
 		if (run.startCommandGeneration != commandGeneration || run.bootId != currentBootId) return false
+		val plan = planStore.load(run.desiredPlanRevision) ?: return false
+		val acceptedAtPrepare = verifiedManifest(
+			run.logicalTrackingId,
+			run.preparedManifestRevision,
+			run.serviceRunId,
+		)?.bindings.orEmpty()
+			.asSequence()
+			.filter { binding -> binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
+			.mapNotNullTo(linkedSetOf()) { binding ->
+				SourceKind.entries.firstOrNull { source -> source.stableCode == binding.sourceKind }
+			}
+		val acceptedAtForeground = runtimes.catalogPlanDecisions(
+			plan,
+			SourceAvailabilityTier.SESSION_ALREADY_FOREGROUND,
+		).constrainedToAcceptedSources(acceptedAtPrepare).acceptedSources
 		val lease = acquireLease(preparedStartOwner(token)) ?: return false
 		if (lease.generation != run.leaseGeneration) {
 			terminalizeExpiredPreparedStart(
@@ -1014,6 +1042,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					elapsedRealtimeNanos = elapsedRealtimeNanos,
 					wallTimeMs = wallTimeMs,
 					currentAuthority = sourceCallerDemandDispatcher,
+					acceptedSourceKinds = acceptedAtForeground
+						.mapTo(linkedSetOf(), SourceKind::stableCode),
 				)) return@withTransaction false
 				check(dao.updateServiceRun(
 					current.copy(
@@ -1095,10 +1125,32 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				)
 			} ?: return SessionStartResult.InvalidIntent("PREPARED_START_MANIFEST_INTEGRITY_FAILED")
 			validateSourcePolicy(plan)?.let { return SessionStartResult.InvalidPolicy(it) }
-			runtimes.validateCatalogStartPrerequisites(
+			val catalogDecisions = runtimes.catalogPlanDecisions(
 				plan,
 				SourceAvailabilityTier.SESSION_ALREADY_FOREGROUND,
-			)?.let { return SessionStartResult.InvalidIntent(it.code) }
+			).constrainedToAcceptedSources(persisted.activeCaptureSources())
+			val blockedSources = catalogDecisions.bySource
+				.filterValues { decision -> decision is CatalogSourcePlanDecision.Blocked }
+				.keys
+				.mapTo(linkedSetOf(), SourceKind::stableCode)
+			val demandsReconciled = database.withTransaction {
+				requireLeaseInTransaction(lease)
+				sourceBroker.retirePreparedSessionCaptureDemandsInTransaction(
+					logicalTrackingId = run.logicalTrackingId,
+					serviceRunId = run.serviceRunId,
+					manifestRevision = run.preparedManifestRevision,
+					leaseGeneration = run.leaseGeneration,
+					sourceKinds = blockedSources,
+					bootId = currentBootId,
+					elapsedRealtimeNanos = elapsedRealtimeNanos,
+					wallTimeMs = wallTimeMs,
+				)
+			}
+			if (!demandsReconciled) {
+				return SessionStartResult.InvalidIntent(
+					"PREPARED_START_DEMAND_RECONCILIATION_FAILED",
+				)
+			}
 			planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
 			val sink = sinkFactory.forSession(run.logicalTrackingId, run.serviceRunId)
 			val executions = reconcileStartActions(
@@ -1108,6 +1160,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				lease,
 				wallTimeMs,
 				elapsedRealtimeNanos,
+				catalogDecisions,
 			)
 			var applied = executions.map(SourceActionExecution::applied)
 			if (executions.any { execution -> execution.status == LifecycleActionStatus.CLEANUP_REQUIRED }) {
@@ -1140,8 +1193,10 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					state.status in setOf(SourceApplyStatus.APPLIED, SourceApplyStatus.DEGRADED)
 			}
 			if (!hasRunningSource) {
-				markStartFailed(run.logicalTrackingId, run.serviceRunId, wallTimeMs, "NO_SOURCE_STARTED", lease)
-				SessionStartResult.Failed(run.logicalTrackingId, run.serviceRunId, applied, "NO_SOURCE_STARTED")
+				val failureCode = catalogDecisions.failureIfNoAcceptedSource()?.code
+					?: "NO_SOURCE_STARTED"
+				markStartFailed(run.logicalTrackingId, run.serviceRunId, wallTimeMs, failureCode, lease)
+				SessionStartResult.Failed(run.logicalTrackingId, run.serviceRunId, applied, failureCode)
 			} else {
 				val failure = markRunningIfPolicyCurrent(
 					run.logicalTrackingId,
@@ -1429,10 +1484,11 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			request.origin.toSessionMode().captureReachabilityModeOrNull(),
 		)
 		if (rolloutFailure != null) return SessionStartResult.InvalidRollout(rolloutFailure)
-		runtimes.validateCatalogStartPrerequisites(
+		val catalogDecisions = runtimes.catalogPlanDecisions(
 			request.plan,
 			request.origin.toSourceAvailabilityTier(),
-		)?.let {
+		)
+		catalogDecisions.failureIfNoAcceptedSource()?.let {
 			return SessionStartResult.InvalidIntent(it.code)
 		}
 		val lease = acquireLease(request.ownerToken)
@@ -1444,7 +1500,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				if (request.origin == SessionStartOrigin.RECOVERY &&
 					request.logicalTrackingId == active.logicalTrackingId
 				) {
-					return resume(active, request, lease)
+					return resume(active, request, lease, catalogDecisions)
 				}
 				if (isStalePriorSession(active, request)) {
 					finalizeInterruptedSession(active, lease, request.wallTimeMs, "STALE_PRIOR_SESSION")
@@ -1524,9 +1580,10 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					changeReason = "SESSION_START",
 					lease = lease,
 					serviceRunId = serviceRunId,
+					acceptedCaptureSources = catalogDecisions.acceptedSources,
 				)
 				if (automaticAction != null) {
-					val captureMask = draft.bindings.captureSourceMask()
+					val captureMask = request.plan.captureSourceMask()
 					val activityControlConsentEpoch = draft.bindings.singleOrNull { binding ->
 						binding.sourceKind == SourceKind.ACTIVITY.stableCode &&
 							binding.purpose == SessionManifestPurpose.CONTROL.name
@@ -1650,6 +1707,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				lease = lease,
 				wallTimeMs = request.wallTimeMs,
 				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+				catalogDecisions = catalogDecisions,
 			)
 			var applied = executions.map(SourceActionExecution::applied)
 			if (executions.any { execution -> execution.status == LifecycleActionStatus.CLEANUP_REQUIRED }) {
@@ -1739,6 +1797,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		session: LogicalTrackingSessionEntity,
 		request: SessionStartRequest,
 		lease: LifecycleLeaseToken,
+		catalogDecisions: CatalogPlanDecisions,
 	): SessionStartResult {
 		if (session.sessionMode != SessionMode.MANUAL.name ||
 			session.state in TERMINAL_OR_STOPPING_STATES ||
@@ -1780,6 +1839,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				changeReason = "PROCESS_RECOVERY",
 				lease = lease,
 				serviceRunId = serviceRunId,
+				acceptedCaptureSources = catalogDecisions.acceptedSources,
 			)
 			planStore.persistDesired(request.plan, DesiredPlanStatus.APPLYING)
 			val continuation = requireNotNull(request.continuationAuthority)
@@ -1890,6 +1950,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			lease,
 			request.wallTimeMs,
 			request.elapsedRealtimeNanos,
+			catalogDecisions,
 		)
 		var applied = executions.map(SourceActionExecution::applied)
 		if (executions.any { execution -> execution.status == LifecycleActionStatus.CLEANUP_REQUIRED }) {
@@ -2010,6 +2071,10 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			SessionMode.valueOf(sessionForRollout.sessionMode).captureReachabilityModeOrNull(),
 		)
 		if (rolloutFailure != null) return SessionReconfigureResult.InvalidRollout(rolloutFailure)
+		val catalogDecisions = runtimes.catalogPlanDecisions(
+			request.plan,
+			SourceAvailabilityTier.SESSION_ALREADY_FOREGROUND,
+		)
 		val lease = acquireLease(request.ownerToken)
 			?: return SessionReconfigureResult.Busy
 		return try {
@@ -2075,6 +2140,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					changeReason = "POLICY_RECONCILIATION",
 					lease = lease,
 					serviceRunId = serviceRun.serviceRunId,
+					acceptedCaptureSources = catalogDecisions.acceptedSources,
 				)
 				val priorManifestEnvelopes = database.sourceSessionDao()
 					.manifestsForServiceRun(serviceRun.serviceRunId)
@@ -2179,6 +2245,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				lease = lease,
 				wallTimeMs = request.wallTimeMs,
 				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+				catalogDecisions = catalogDecisions,
 			)
 			var applied = executions.map(SourceActionExecution::applied)
 			if (executions.any { execution -> execution.status == LifecycleActionStatus.CLEANUP_REQUIRED }) {
@@ -2226,17 +2293,19 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			}
 			if (!hasRunningSource) {
 				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
+				val failureCode = catalogDecisions.failureIfNoAcceptedSource()?.code
+					?: "NO_SOURCE_ACTIVE_AFTER_RECONFIGURE"
 				markStartFailed(
 					session.logicalTrackingId,
 					bound.serviceRunId,
 					request.wallTimeMs,
-					"NO_SOURCE_ACTIVE_AFTER_RECONFIGURE",
+					failureCode,
 					lease,
 				)
 				return SessionReconfigureResult.Failed(
 					request.plan.revision,
 					applied,
-					"NO_SOURCE_ACTIVE_AFTER_RECONFIGURE",
+					failureCode,
 					requireNotNull(persisted).sourceCallerAuthorityReference(),
 				)
 			}
@@ -2712,6 +2781,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		changeReason: String,
 		lease: LifecycleLeaseToken,
 		serviceRunId: String,
+		acceptedCaptureSources: Set<SourceKind>,
 	): PersistedLifecycleIntent = buildManifestDraft(
 		logicalTrackingId = logicalTrackingId,
 		manifestRevision = manifestRevision,
@@ -2730,6 +2800,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		changeReason = changeReason,
 		lease = lease,
 		serviceRunId = serviceRunId,
+		acceptedCaptureSources = acceptedCaptureSources,
 	)
 
 	private suspend fun dispatchSourceCallerDemands(
@@ -2781,12 +2852,16 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		changeReason: String,
 		lease: LifecycleLeaseToken,
 		serviceRunId: String,
+		acceptedCaptureSources: Set<SourceKind>,
 	): PersistedLifecycleIntent {
+		require(acceptedCaptureSources.all { source -> plan.plans[source]?.enabled == true }) {
+			"Accepted capture sources must be enabled in the desired plan"
+		}
 		val policyRevision = requireNotNull(plan.sourcePolicyRevision)
 		val policyDao = database.sourcePolicyDao()
 		val policies = policyDao.policiesAtRevision(policyRevision).associateBy(SourcePolicyEntity::sourceKind)
 		val stepsOwner = plan.plans[SourceKind.STEPS]
-			?.takeIf(SourcePlan::enabled)
+			?.takeIf { it.enabled && SourceKind.STEPS in acceptedCaptureSources }
 			?.let {
 				requireNotNull(
 					database.sourceDestinationOwnerDao().get(
@@ -2800,7 +2875,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			stepsOwner.owner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
 		) { "Unsupported Steps destination owner ${stepsOwner?.owner}" }
 		val pressureOwner = plan.plans[SourceKind.PRESSURE]
-			?.takeIf(SourcePlan::enabled)
+			?.takeIf { it.enabled && SourceKind.PRESSURE in acceptedCaptureSources }
 			?.let {
 				requireNotNull(
 					database.sourceDestinationOwnerDao().get(
@@ -2818,7 +2893,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			else -> false
 		}) { "Unsupported Pressure destination owner ${pressureOwner?.owner}" }
 		val activityOwner = plan.plans[SourceKind.ACTIVITY]
-			?.takeIf(SourcePlan::enabled)
+			?.takeIf { it.enabled && SourceKind.ACTIVITY in acceptedCaptureSources }
 			?.let {
 				requireNotNull(
 					database.sourceDestinationOwnerDao().get(
@@ -2836,7 +2911,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			else -> false
 		}) { "Unsupported Activity destination owner ${activityOwner?.owner}" }
 		val wifiOwner = plan.plans[SourceKind.WIFI]
-			?.takeIf(SourcePlan::enabled)
+			?.takeIf { it.enabled && SourceKind.WIFI in acceptedCaptureSources }
 			?.let {
 				requireNotNull(
 					database.sourceDestinationOwnerDao().get(
@@ -2851,7 +2926,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				.bindingGenerationForCanonicalOwner(wifiOwner.ownerGeneration) != null
 		) { "Unsupported Wi-Fi destination owner ${wifiOwner?.owner}" }
 		val cellOwner = plan.plans[SourceKind.CELL]
-			?.takeIf(SourcePlan::enabled)
+			?.takeIf { it.enabled && SourceKind.CELL in acceptedCaptureSources }
 			?.let {
 				requireNotNull(
 					database.sourceDestinationOwnerDao().get(
@@ -2884,7 +2959,11 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			?.let { exactCandidateWifiBinding(rolloutRevision, sessionMode) }
 		val candidateCellBinding = cellOwner
 			?.let { exactCandidateCellBinding(rolloutRevision, sessionMode) }
-		val captureBindings = plan.plans.values.filter(SourcePlan::enabled).map { sourcePlan ->
+		val captureBindings = plan.plans.values
+			.filter { sourcePlan ->
+				sourcePlan.enabled && sourcePlan.source in acceptedCaptureSources
+			}
+			.map { sourcePlan ->
 			val policy = requireNotNull(policies[sourcePlan.source.stableCode])
 			val consentEpoch = requireNotNull(policy.captureConsentEpoch)
 			check(
@@ -3009,9 +3088,11 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		var nextActionRevision = database.sourceSessionDao().maximumActionRevision(logicalTrackingId) + 1L
 		val actions = plan.plans.values.sortedBy { it.source.stableCode }.mapNotNull { sourcePlan ->
 			if (!sourcePlan.enabled && manifestRevision == 1L) return@mapNotNull null
+			val accepted = sourcePlan.source in acceptedCaptureSources
+			if (sourcePlan.enabled && !accepted && manifestRevision == 1L) return@mapNotNull null
 			val binding = captureBindings.firstOrNull { it.sourceKind == sourcePlan.source.stableCode }
 			val desiredState =
-				if (sourcePlan.enabled) ACTION_DESIRED_STARTED else ACTION_DESIRED_STOPPED
+				if (sourcePlan.enabled && accepted) ACTION_DESIRED_STARTED else ACTION_DESIRED_STOPPED
 			val actionRevision = nextActionRevision++
 			LifecycleDesiredActionEntity(
 				actionId = lifecycleActionIdentity(
@@ -3163,17 +3244,50 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		lease: LifecycleLeaseToken,
 		wallTimeMs: Long,
 		elapsedRealtimeNanos: Long,
+		catalogDecisions: CatalogPlanDecisions,
 	): List<SourceActionExecution> {
 		val actionBySource = intent.actions.associateBy { it.sourceKind }
 		val bindingBySource = intent.bindings
 			.filter { it.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
 			.associateBy { it.sourceKind }
 		return plan.plans.values.sortedBy { it.source.stableCode }.map { sourcePlan ->
+			val catalogDecision = catalogDecisions.getValue(sourcePlan.source)
 			if (!sourcePlan.enabled) {
 				val state = disabledApplied(sourcePlan, elapsedRealtimeNanos)
 				planStore.saveApplied(state, wallTimeMs)
 				return@map SourceActionExecution(state, LifecycleActionStatus.STOP_ACCEPTED)
 			}
+			if (catalogDecision is CatalogSourcePlanDecision.Blocked) {
+				val execution = catalogDecision.toBlockedExecution(elapsedRealtimeNanos)
+				val action = actionBySource[sourcePlan.source.stableCode]
+				if (action == null) {
+					planStore.saveApplied(execution.applied, wallTimeMs)
+					return@map execution
+				}
+				val nowElapsed = monotonicNowAtLeast(elapsedRealtimeNanos)
+				renewLease(lease)
+				val claimed = claimLifecycleAction(action.actionId, lease, nowElapsed)
+				if (claimed == null) {
+					val failed = execution.copy(failureCode = "SOURCE_ACTION_CLAIM_FAILED")
+					planStore.saveApplied(failed.applied, wallTimeMs)
+					return@map failed
+				}
+				val acknowledged = acknowledgeLifecycleAction(
+					claimed,
+					execution,
+					lease,
+					wallTimeMs,
+					monotonicNowAtLeast(nowElapsed),
+				)
+				val settled = if (acknowledged) {
+					execution
+				} else {
+					execution.copy(failureCode = "SOURCE_ACTION_ACK_STALE")
+				}
+				planStore.saveApplied(settled.applied, wallTimeMs)
+				return@map settled
+			}
+			val acceptedDecision = catalogDecision as CatalogSourcePlanDecision.Accepted
 			val action = requireNotNull(actionBySource[sourcePlan.source.stableCode])
 			val binding = requireNotNull(bindingBySource[sourcePlan.source.stableCode])
 			val nowElapsed = monotonicNowAtLeast(elapsedRealtimeNanos)
@@ -3196,13 +3310,13 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				leaseGeneration = lease.generation,
 			)
 			val execution = startSource(
-				sourcePlan,
+				acceptedDecision.effectivePlan,
 				sink,
 				authorization,
 				runtimeClaim,
 				nowElapsed,
 				wallTimeMs,
-			)
+			).withCatalogDecision(acceptedDecision)
 			planStore.saveApplied(execution.applied, wallTimeMs)
 			val acknowledged = acknowledgeLifecycleAction(
 				claimed,
@@ -3213,7 +3327,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			)
 			if (!acknowledged) {
 				val staleExecution = settleRejectedRuntimeExecution(
-					sourcePlan,
+					acceptedDecision.effectivePlan,
 					authorization,
 					runtimeClaim,
 					nowElapsed,
@@ -3242,12 +3356,14 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		lease: LifecycleLeaseToken,
 		wallTimeMs: Long,
 		elapsedRealtimeNanos: Long,
+		catalogDecisions: CatalogPlanDecisions,
 	): List<SourceActionExecution> {
 		val actionBySource = intent.actions.associateBy { it.sourceKind }
 		val bindingBySource = intent.bindings
 			.filter { it.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
 			.associateBy { it.sourceKind }
 		return plan.plans.values.sortedBy { it.source.stableCode }.map { sourcePlan ->
+			val catalogDecision = catalogDecisions.getValue(sourcePlan.source)
 			val action = requireNotNull(actionBySource[sourcePlan.source.stableCode])
 			val nowElapsed = monotonicNowAtLeast(elapsedRealtimeNanos)
 			renewLease(lease)
@@ -3269,10 +3385,65 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				manifestRevision = intent.manifest.manifestRevision,
 				leaseGeneration = lease.generation,
 			)
-			val execution = if (existing[sourcePlan.source.stableCode]?.sourceInstanceId == null) {
-				startSource(sourcePlan, sink, authorization, runtimeClaim, nowElapsed, wallTimeMs)
-			} else {
-				reconfigureSource(sourcePlan, sink, authorization, runtimeClaim, nowElapsed, wallTimeMs)
+			val existingRuntime = existing[sourcePlan.source.stableCode]?.sourceInstanceId != null
+			val execution = when (catalogDecision) {
+				is CatalogSourcePlanDecision.Disabled -> {
+					if (!existingRuntime) {
+						startSource(sourcePlan, sink, authorization, runtimeClaim, nowElapsed, wallTimeMs)
+					} else {
+						reconfigureSource(
+							sourcePlan,
+							sink,
+							authorization,
+							runtimeClaim,
+							nowElapsed,
+							wallTimeMs,
+						)
+					}
+				}
+				is CatalogSourcePlanDecision.Accepted -> {
+					val runtimePlan = catalogDecision.effectivePlan
+					val applied = if (!existingRuntime) {
+						startSource(runtimePlan, sink, authorization, runtimeClaim, nowElapsed, wallTimeMs)
+					} else {
+						reconfigureSource(
+							runtimePlan,
+							sink,
+							authorization,
+							runtimeClaim,
+							nowElapsed,
+							wallTimeMs,
+						)
+					}
+					applied.withCatalogDecision(catalogDecision)
+				}
+				is CatalogSourcePlanDecision.Blocked -> {
+					if (!existingRuntime) {
+						catalogDecision.toBlockedExecution(nowElapsed)
+					} else {
+						val stopped = reconfigureSource(
+							sourcePlan.disabledForCatalog(),
+							sink,
+							authorization,
+							runtimeClaim,
+							nowElapsed,
+							wallTimeMs,
+						)
+						if (stopped.status == LifecycleActionStatus.STOP_ACCEPTED) {
+							stopped.copy(
+								applied = catalogDecision.blockedApplied(nowElapsed),
+								failureCode = catalogDecision.failure.code,
+							)
+						} else {
+							stopped.copy(
+								applied = stopped.applied.copy(
+									degradedReasons = stopped.applied.degradedReasons +
+										catalogDecision.reasons,
+								),
+							)
+						}
+					}
+				}
 			}
 			planStore.saveApplied(execution.applied, wallTimeMs)
 			val acknowledged = acknowledgeLifecycleAction(
@@ -3283,20 +3454,27 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				monotonicNowAtLeast(nowElapsed),
 			)
 			if (!acknowledged) {
-				val staleExecution = settleRejectedRuntimeExecution(
-					sourcePlan,
-					authorization,
-					runtimeClaim,
-					nowElapsed,
-					wallTimeMs,
-					SourceActionExecution(
-						failedApplied(sourcePlan, nowElapsed, SourceApplyStatus.FAILED),
-						LifecycleActionStatus.TERMINAL_FAILURE,
-						"SOURCE_ACTION_ACK_STALE",
-						runtimeClaim = runtimeClaim,
-						captureAuthorization = authorization,
-					),
-				)
+				val staleExecution = if (execution.runtimeClaim == null) {
+					execution.copy(
+						status = LifecycleActionStatus.TERMINAL_FAILURE,
+						failureCode = "SOURCE_ACTION_ACK_STALE",
+					)
+				} else {
+					settleRejectedRuntimeExecution(
+						sourcePlan,
+						authorization,
+						runtimeClaim,
+						nowElapsed,
+						wallTimeMs,
+						SourceActionExecution(
+							failedApplied(sourcePlan, nowElapsed, SourceApplyStatus.FAILED),
+							LifecycleActionStatus.TERMINAL_FAILURE,
+							"SOURCE_ACTION_ACK_STALE",
+							runtimeClaim = runtimeClaim,
+							captureAuthorization = authorization,
+						),
+					)
+				}
 				preserveCleanupRequiredAction(claimed, staleExecution, wallTimeMs, nowElapsed)
 				staleExecution
 			} else {
@@ -7167,6 +7345,57 @@ private fun disabledApplied(plan: SourcePlan, elapsedNanos: Long) = AppliedSourc
 	status = SourceApplyStatus.APPLIED,
 )
 
+private fun CatalogSourcePlanDecision.Blocked.blockedApplied(
+	elapsedNanos: Long,
+): AppliedSourcePlan = failedApplied(
+	requestedPlan,
+	elapsedNanos,
+	SourceApplyStatus.BLOCKED,
+).copy(degradedReasons = reasons)
+
+private fun CatalogSourcePlanDecision.Blocked.toBlockedExecution(
+	elapsedNanos: Long,
+): SourceActionExecution = SourceActionExecution(
+	applied = blockedApplied(elapsedNanos),
+	status = LifecycleActionStatus.TERMINAL_FAILURE,
+	failureCode = failure.code,
+)
+
+private fun SourceActionExecution.withCatalogDecision(
+	decision: CatalogSourcePlanDecision.Accepted,
+): SourceActionExecution {
+	if (decision.degradedReasons.isEmpty()) return this
+	return copy(
+		applied = applied.copy(
+			status = if (applied.status == SourceApplyStatus.APPLIED) {
+				SourceApplyStatus.DEGRADED
+			} else {
+				applied.status
+			},
+			degradedReasons = applied.degradedReasons + decision.degradedReasons,
+		),
+	)
+}
+
+private fun PersistedLifecycleIntent.activeCaptureSources(): Set<SourceKind> =
+	demands.asSequence()
+		.filter { demand ->
+			demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+				demand.status == SourceDemandEntity.STATUS_ACTIVE
+		}
+		.mapNotNullTo(linkedSetOf()) { demand ->
+			SourceKind.entries.firstOrNull { source -> source.stableCode == demand.sourceKind }
+		}
+
+private fun SourcePlan.disabledForCatalog(): SourcePlan = when (this) {
+	is LocationPlan -> copy(mode = LocationMode.DISABLED)
+	is ActivityPlan -> copy(mode = ActivityMode.OFF)
+	is StepsPlan -> copy(enabled = false)
+	is PressurePlan -> copy(enabled = false)
+	is WifiPlan -> copy(mode = WifiMode.OFF)
+	is CellPlan -> copy(mode = CellMode.OFF)
+}
+
 private fun List<AppliedSourcePlan>.desiredStatus(): DesiredPlanStatus = when {
 	all { it.status == SourceApplyStatus.APPLIED } -> DesiredPlanStatus.EFFECTIVE
 	any { it.status in setOf(SourceApplyStatus.FAILED, SourceApplyStatus.BLOCKED) } -> DesiredPlanStatus.DEGRADED
@@ -7274,34 +7503,172 @@ internal data class CatalogStartPrerequisiteFailure(
 	val disposition: TrackingStartFailureDisposition,
 )
 
-internal suspend fun SourceRuntimeRegistry.validateCatalogStartPrerequisites(
-	plan: AcquisitionPlanRevision,
-	tier: SourceAvailabilityTier,
-): CatalogStartPrerequisiteFailure? {
-	val failures = plan.plans.values
-		.filter(SourcePlan::enabled)
-		.sortedBy { sourcePlan -> sourcePlan.source.stableCode }
-		.mapNotNull { sourcePlan ->
-			val availability = try {
-				availability(
-					SourceAvailabilityRequest(
-						source = sourcePlan.source,
-						purpose = TrackingPurpose.SESSION_CAPTURE,
-						plan = sourcePlan,
-						tier = tier,
+internal sealed interface CatalogSourcePlanDecision {
+	val requestedPlan: SourcePlan
+
+	data class Disabled(
+		override val requestedPlan: SourcePlan,
+	) : CatalogSourcePlanDecision
+
+	data class Accepted(
+		override val requestedPlan: SourcePlan,
+		val effectivePlan: SourcePlan,
+		val degradedReasons: Set<SourceDegradedReason>,
+	) : CatalogSourcePlanDecision {
+		init {
+			require(requestedPlan.enabled)
+			require(effectivePlan.enabled)
+			require(requestedPlan.source == effectivePlan.source)
+			require(requestedPlan.revision == effectivePlan.revision)
+		}
+	}
+
+	data class Blocked(
+		override val requestedPlan: SourcePlan,
+		val availability: SourceCatalogAvailability?,
+		val reasons: Set<SourceDegradedReason>,
+		val failure: CatalogStartPrerequisiteFailure,
+	) : CatalogSourcePlanDecision {
+		init {
+			require(requestedPlan.enabled)
+			require(reasons.isNotEmpty())
+		}
+	}
+}
+
+internal data class CatalogPlanDecisions(
+	val bySource: Map<SourceKind, CatalogSourcePlanDecision>,
+) {
+	val acceptedSources: Set<SourceKind> = bySource.values
+		.filterIsInstance<CatalogSourcePlanDecision.Accepted>()
+		.mapTo(linkedSetOf()) { decision -> decision.requestedPlan.source }
+
+	fun getValue(source: SourceKind): CatalogSourcePlanDecision = bySource.getValue(source)
+
+	fun failureIfNoAcceptedSource(): CatalogStartPrerequisiteFailure? {
+		val enabled = bySource.values.filterNot { it is CatalogSourcePlanDecision.Disabled }
+		if (enabled.any { it is CatalogSourcePlanDecision.Accepted }) return null
+		return enabled.filterIsInstance<CatalogSourcePlanDecision.Blocked>()
+			.minByOrNull { decision -> decision.requestedPlan.source.stableCode }
+			?.failure
+	}
+
+	fun constrainedToAcceptedSources(
+		acceptedSources: Set<SourceKind>,
+	): CatalogPlanDecisions = CatalogPlanDecisions(
+		bySource.mapValues { (source, decision) ->
+			if (decision !is CatalogSourcePlanDecision.Accepted || source in acceptedSources) {
+				decision
+			} else {
+				CatalogSourcePlanDecision.Blocked(
+					requestedPlan = decision.requestedPlan,
+					availability = null,
+					reasons = setOf(SourceDegradedReason.CATALOG_NOT_ACCEPTED),
+					failure = CatalogStartPrerequisiteFailure(
+						"SOURCE_CATALOG_${source.name}_SESSION_CAPTURE_NOT_ACCEPTED",
+						TrackingStartFailureDisposition.TERMINAL,
 					),
 				)
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (_: Exception) {
-				return@mapNotNull CatalogStartPrerequisiteFailure(
-					"SOURCE_CATALOG_${sourcePlan.source.name}_AVAILABILITY_READ_FAILED",
-					TrackingStartFailureDisposition.RETRYABLE,
-				)
 			}
-			availability.toStartPrerequisiteFailure(sourcePlan.source)
+		},
+	)
+}
+
+internal suspend fun SourceRuntimeRegistry.catalogPlanDecisions(
+	plan: AcquisitionPlanRevision,
+	tier: SourceAvailabilityTier,
+): CatalogPlanDecisions = CatalogPlanDecisions(
+	plan.plans.values
+		.sortedBy { sourcePlan -> sourcePlan.source.stableCode }
+		.associate { sourcePlan ->
+			sourcePlan.source to if (!sourcePlan.enabled) {
+				CatalogSourcePlanDecision.Disabled(sourcePlan)
+			} else {
+				try {
+					availability(
+						SourceAvailabilityRequest(
+							source = sourcePlan.source,
+							purpose = TrackingPurpose.SESSION_CAPTURE,
+							plan = sourcePlan,
+							tier = tier,
+						),
+					).toCatalogPlanDecision(sourcePlan)
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (_: Exception) {
+					CatalogSourcePlanDecision.Blocked(
+						requestedPlan = sourcePlan,
+						availability = null,
+						reasons = setOf(SourceDegradedReason.AVAILABILITY_READ_FAILED),
+						failure = CatalogStartPrerequisiteFailure(
+							"SOURCE_CATALOG_${sourcePlan.source.name}_AVAILABILITY_READ_FAILED",
+							TrackingStartFailureDisposition.RETRYABLE,
+						),
+					)
+				}
+			}
+		},
+)
+
+private fun SourceCatalogAvailability.toCatalogPlanDecision(
+	requestedPlan: SourcePlan,
+): CatalogSourcePlanDecision = when (this) {
+	is SourceCatalogAvailability.Unsupported -> CatalogSourcePlanDecision.Blocked(
+		requestedPlan = requestedPlan,
+		availability = this,
+		reasons = setOf(SourceDegradedReason.CATALOG_UNSUPPORTED),
+		failure = requireNotNull(toStartPrerequisiteFailure(requestedPlan.source)),
+	)
+	is SourceCatalogAvailability.Executable -> when (val result = availability) {
+		is SourceProviderAvailability.Available -> CatalogSourcePlanDecision.Accepted(
+			requestedPlan = requestedPlan,
+			effectivePlan = requestedPlan,
+			degradedReasons = result.degradedReasons,
+		)
+		is SourceProviderAvailability.Degraded -> CatalogSourcePlanDecision.Accepted(
+			requestedPlan = requestedPlan,
+			effectivePlan = result.effectivePlan,
+			degradedReasons = result.evidence.reasons(),
+		)
+		else -> CatalogSourcePlanDecision.Blocked(
+			requestedPlan = requestedPlan,
+			availability = this,
+			reasons = result.blockingReasons(),
+			failure = requireNotNull(toStartPrerequisiteFailure(requestedPlan.source)),
+		)
+	}
+}
+
+private fun SourceProviderAvailability.blockingReasons():
+	Set<SourceDegradedReason> = when (this) {
+	is SourceProviderAvailability.PermissionRequired -> setOf(
+		SourceDegradedReason.PERMISSION_MISSING,
+	)
+	is SourceProviderAvailability.ProviderUnavailable ->
+		evidence.reasons().ifEmpty {
+			setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE)
 		}
-	return failures.firstOrNull()
+	is SourceProviderAvailability.OsLimited ->
+		evidence.reasons().ifEmpty {
+			setOf(SourceDegradedReason.PLATFORM_THROTTLED)
+		}
+	is SourceProviderAvailability.HardwareUnavailable ->
+		evidence.reasons().ifEmpty {
+			setOf(SourceDegradedReason.HARDWARE_UNAVAILABLE)
+		}
+	is SourceProviderAvailability.Contained -> setOf(
+		SourceDegradedReason.CATALOG_CONTAINED,
+	)
+	is SourceProviderAvailability.Available,
+	is SourceProviderAvailability.Degraded,
+	-> error("Available source has no blocking reasons")
+}
+
+private fun SourceProviderAvailabilityEvidence.reasons():
+	Set<SourceDegradedReason> = when (this) {
+	is SourceProviderAvailabilityEvidence.Runtime -> reasons
+	is SourceProviderAvailabilityEvidence.Location -> reasons
+	is SourceProviderAvailabilityEvidence.AmbientSteps -> emptySet()
 }
 
 private fun SessionStartOrigin.toSourceAvailabilityTier(): SourceAvailabilityTier = when (this) {
@@ -7594,13 +7961,13 @@ sealed interface SessionSuspendResult {
 	data object Busy : SessionSuspendResult
 }
 
-private fun List<SessionManifestSourceEntity>.captureSourceMask(): Long = asSequence()
-	.filter { binding -> binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
-	.fold(0L) { mask, binding ->
-		require(binding.sourceKind in 1..Long.SIZE_BITS) {
-			"Invalid source kind ${binding.sourceKind}"
+private fun AcquisitionPlanRevision.captureSourceMask(): Long = plans.values.asSequence()
+	.filter(SourcePlan::enabled)
+	.fold(0L) { mask, plan ->
+		require(plan.source.stableCode in 1..Long.SIZE_BITS) {
+			"Invalid source kind ${plan.source.stableCode}"
 		}
-		mask or (1L shl (binding.sourceKind - 1))
+		mask or (1L shl (plan.source.stableCode - 1))
 	}
 
 private fun SourceProductDrainResult.pendingReason(): String = when (this) {

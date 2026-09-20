@@ -7,7 +7,6 @@ import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanEnvironment
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
-import com.adsamcik.tracker.tracker.source.runtime.ClaimedSourceRuntime
 
 internal fun interface SourceAcquisitionRevisionFactory {
 	fun create(
@@ -47,13 +46,11 @@ class SourceAcquisitionPlanProvider internal constructor(
 data class SourceImplementation(
 	val source: TrackingSource,
 	val runtimeSource: SourceKind,
-	val runtime: ClaimedSourceRuntime<out SourcePlan>,
 	val acquisitionPlans: SourceAcquisitionPlanProvider,
 	val purposeBindings: Map<TrackingPurpose, SourcePurposeBinding>,
 ) {
 	init {
 		require(runtimeSource == source.toRuntimeSourceKind())
-		require(runtime.source == runtimeSource)
 		require(purposeBindings.keys == TrackingPurpose.entries.toSet())
 		require(purposeBindings.all { (purpose, binding) ->
 			binding.source == source && binding.purpose == purpose

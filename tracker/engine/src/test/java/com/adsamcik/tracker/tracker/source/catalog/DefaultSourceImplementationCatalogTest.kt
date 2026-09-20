@@ -22,8 +22,9 @@ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBindi
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.SemanticAcquisitionPlanFactory
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanEnvironment
+import com.adsamcik.tracker.tracker.source.coordinator.CatalogSourcePlanDecision
+import com.adsamcik.tracker.tracker.source.coordinator.catalogPlanDecisions
 import com.adsamcik.tracker.tracker.source.coordinator.toStartPrerequisiteFailure
-import com.adsamcik.tracker.tracker.source.coordinator.validateCatalogStartPrerequisites
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
@@ -50,6 +51,7 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceStopAck
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import javax.inject.Provider
 
 class DefaultSourceImplementationCatalogTest {
 	@Test
@@ -77,14 +79,21 @@ class DefaultSourceImplementationCatalogTest {
 	}
 
 	@Test
-	fun `catalog runtime set is exactly the registered six source owners`() {
+	fun `registry exposes six lazy owners and resolves only the selected runtime`() {
 		val fixture = fixture()
 
 		fixture.catalog.implementations.map(SourceImplementation::runtimeSource).toSet() shouldBe
 			fixture.registry.registeredSources()
+		fixture.providerCreations() shouldBe SourceKind.entries.associateWith { 0 }
+
 		fixture.catalog.implementations.forEach { implementation ->
-			implementation.runtime shouldBe fixture.registry.runtime(implementation.runtimeSource)
 			fixture.catalog.implementation(implementation.runtimeSource) shouldBe implementation
+		}
+		fixture.providerCreations() shouldBe SourceKind.entries.associateWith { 0 }
+
+		fixture.registry.runtime(SourceKind.LOCATION)?.source shouldBe SourceKind.LOCATION
+		fixture.providerCreations() shouldBe SourceKind.entries.associateWith { source ->
+			if (source == SourceKind.LOCATION) 1 else 0
 		}
 	}
 
@@ -125,6 +134,7 @@ class DefaultSourceImplementationCatalogTest {
 
 		fixture.acquisitionCalls() shouldBe
 			SourceCollectionFrequency.entries.size * (SourceKind.entries.size + 1)
+		fixture.providerCreations().values.sum() shouldBe 0
 	}
 
 	@Test
@@ -198,8 +208,7 @@ class DefaultSourceImplementationCatalogTest {
 			TrackingDecisionContainmentReason.EXPANDED_AMBIENT_LOCATION_UNAVAILABLE,
 		)
 
-		val runtime = FakeRuntime(SourceKind.PRESSURE)
-		runtime.capabilities.value = SourceCapabilities(
+		val capabilities = SourceCapabilities(
 			available = false,
 			batchingSupported = false,
 			flushSupported = false,
@@ -207,10 +216,9 @@ class DefaultSourceImplementationCatalogTest {
 			minimumDelayMs = null,
 			degradedReasons = emptySet(),
 		)
-		RuntimeSourceProviderAvailabilityReader(
-			TrackingSource.PRESSURE,
-			TrackingPurpose.SESSION_CAPTURE,
-			runtime,
+		SensorSourceProviderAvailabilityReader(
+			SourceKind.PRESSURE,
+			SensorSourceStateProvider { capabilities },
 		).read(
 			availabilityRequest(SourceKind.PRESSURE),
 		) shouldBe
@@ -220,17 +228,25 @@ class DefaultSourceImplementationCatalogTest {
 					setOf(SourceDegradedReason.HARDWARE_UNAVAILABLE),
 				),
 			)
-		runtime.lifecycleCalls shouldBe 0
 	}
 
 	@Test
 	fun `activity and steps session availability reads current permission and activity provider`() = runTest {
 		var state = ActivityRecognitionSourceState(permissionGranted = false, providerAvailable = true)
 		val stateProvider = ActivityRecognitionSourceStateProvider { state }
-		val activityRuntime = FakeRuntime(SourceKind.ACTIVITY)
-		val stepsRuntime = FakeRuntime(SourceKind.STEPS)
-		val activityReader = ActivitySessionSourceProviderAvailabilityReader(activityRuntime, stateProvider)
-		val stepsReader = StepsSessionSourceProviderAvailabilityReader(stepsRuntime, stateProvider)
+		val activityReader = ActivitySessionSourceProviderAvailabilityReader(stateProvider)
+		val stepsReader = StepsSessionSourceProviderAvailabilityReader(
+			stateProvider,
+			SensorSourceStateProvider {
+				SourceCapabilities(
+					available = true,
+					batchingSupported = false,
+					flushSupported = false,
+					maximumBatchSize = null,
+					minimumDelayMs = null,
+				)
+			},
+		)
 
 		activityReader.read(availabilityRequest(SourceKind.ACTIVITY)) shouldBe
 			SourceProviderAvailability.PermissionRequired(
@@ -251,8 +267,6 @@ class DefaultSourceImplementationCatalogTest {
 			)
 		stepsReader.read(availabilityRequest(SourceKind.STEPS)) shouldBe
 			SourceProviderAvailability.Available()
-		activityRuntime.lifecycleCalls shouldBe 0
-		stepsRuntime.lifecycleCalls shouldBe 0
 	}
 
 	@Test
@@ -311,7 +325,7 @@ class DefaultSourceImplementationCatalogTest {
 	}
 
 	@Test
-	fun `session start prerequisite reads every catalog binding before rejecting without starts`() = runTest {
+	fun `session decisions read every catalog binding and reject only when none can run`() = runTest {
 		val fixture = fixture { request ->
 			when (request.source) {
 				SourceKind.ACTIVITY -> SourceProviderAvailability.PermissionRequired(
@@ -342,15 +356,19 @@ class DefaultSourceImplementationCatalogTest {
 			),
 		)
 
-		fixture.registry.validateCatalogStartPrerequisites(
+		val decisions = fixture.registry.catalogPlanDecisions(
 			plan,
 			SourceAvailabilityTier.MANUAL_FOREGROUND_START,
-		) shouldBe com.adsamcik.tracker.tracker.source.coordinator.CatalogStartPrerequisiteFailure(
+		)
+		decisions.failureIfNoAcceptedSource() shouldBe
+			com.adsamcik.tracker.tracker.source.coordinator.CatalogStartPrerequisiteFailure(
 			"SOURCE_CATALOG_ACTIVITY_SESSION_CAPTURE_PERMISSION_REQUIRED",
 			TrackingStartFailureDisposition.TERMINAL,
 		)
+		(decisions.getValue(SourceKind.ACTIVITY) is CatalogSourcePlanDecision.Blocked) shouldBe true
+		(decisions.getValue(SourceKind.STEPS) is CatalogSourcePlanDecision.Blocked) shouldBe true
 		fixture.availabilityReads() shouldBe 2
-		fixture.runtimes.sumOf(FakeRuntime::lifecycleCalls) shouldBe 0
+		fixture.providerCreations().values.sum() shouldBe 0
 	}
 
 	@Test
@@ -425,7 +443,7 @@ class DefaultSourceImplementationCatalogTest {
 	}
 
 	@Test
-	fun `construction and lookup do not acquire register activate or grant retention`() {
+	fun `construction metadata planning and availability never resolve a runtime provider`() = runTest {
 		val fixture = fixture()
 
 		TrackingSource.entries.forEach { source ->
@@ -434,10 +452,20 @@ class DefaultSourceImplementationCatalogTest {
 				fixture.catalog.binding(source, purpose)
 			}
 		}
+		fixture.catalog.create(
+			TrackingParamsState(),
+			revision = 0L,
+			createdAtMs = 0L,
+			environment = SourcePlanEnvironment(LocationBackend.FRAMEWORK, true, emptySet()),
+		)
+		SourceKind.entries.forEach { source ->
+			fixture.registry.availability(availabilityRequest(source))
+		}
+		fixture.registry.registeredSources() shouldBe SourceKind.entries.toSet()
 
-		fixture.acquisitionCalls() shouldBe 0
-		fixture.availabilityReads() shouldBe 0
-		fixture.runtimes.sumOf(FakeRuntime::lifecycleCalls) shouldBe 0
+		fixture.acquisitionCalls() shouldBe 1
+		fixture.availabilityReads() shouldBe SourceKind.entries.size
+		fixture.providerCreations().values.sum() shouldBe 0
 	}
 
 	@Test
@@ -681,18 +709,17 @@ class DefaultSourceImplementationCatalogTest {
 			SourceProviderAvailability.Available()
 		},
 	): CatalogFixture {
-		val runtimes = SourceKind.entries.map(::FakeRuntime)
+		val runtimeProviders = SourceKind.entries.associateWith(::CountingRuntimeProvider)
 		val semanticFactory = SemanticAcquisitionPlanFactory()
 		var acquisitionCalls = 0
 		var availabilityReads = 0
 		val catalog = DefaultSourceImplementationCatalog(
-			runtimes = runtimes.toSet(),
 			acquisitionRevisionFactory = SourceAcquisitionRevisionFactory {
 					settings, revision, createdAtMs, environment ->
 				acquisitionCalls++
 				semanticFactory.create(settings, revision, createdAtMs, environment)
 			},
-			availabilityReaders = SourceProviderAvailabilityReaderFactory { _, _, _ ->
+			availabilityReaders = SourceProviderAvailabilityReaderFactory { _, _ ->
 				SourceProviderAvailabilityReader { request ->
 					availabilityReads++
 					availability(request)
@@ -700,13 +727,17 @@ class DefaultSourceImplementationCatalogTest {
 			},
 			productFactories = SourceProductFactories(),
 		)
-		val registry = SourceRuntimeRegistry(catalog)
+		val registry = SourceRuntimeRegistry(
+			runtimeProviders,
+			catalog,
+			requireAllSources = true,
+		)
 		return CatalogFixture(
 			catalog,
 			registry,
-			runtimes,
 			{ acquisitionCalls },
 			{ availabilityReads },
+			{ runtimeProviders.mapValues { (_, provider) -> provider.creations } },
 		)
 	}
 
@@ -812,10 +843,24 @@ class DefaultSourceImplementationCatalogTest {
 	private data class CatalogFixture(
 		val catalog: DefaultSourceImplementationCatalog,
 		val registry: SourceRuntimeRegistry,
-		val runtimes: List<FakeRuntime>,
 		val acquisitionCalls: () -> Int,
 		val availabilityReads: () -> Int,
+		val providerCreations: () -> Map<SourceKind, Int>,
 	)
+
+	private class CountingRuntimeProvider(
+		private val source: SourceKind,
+	) : Provider<ClaimedSourceRuntime<out SourcePlan>> {
+		var creations: Int = 0
+			private set
+		private var runtime: FakeRuntime? = null
+
+		override fun get(): ClaimedSourceRuntime<out SourcePlan> =
+			runtime ?: FakeRuntime(source).also {
+				creations++
+				runtime = it
+			}
+	}
 
 	private class FakeRuntime(
 		override val source: SourceKind,

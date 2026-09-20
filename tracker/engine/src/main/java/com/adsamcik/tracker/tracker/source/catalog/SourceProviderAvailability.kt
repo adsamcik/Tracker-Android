@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.tracker.source.catalog
 
 import android.content.Context
+import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorManager
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
@@ -15,14 +18,17 @@ import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
+import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
-import com.adsamcik.tracker.tracker.source.runtime.ClaimedSourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.AndroidConnectivityDeviceStateProvider
+import com.adsamcik.tracker.tracker.source.runtime.CellPrerequisiteEvaluator
 import com.adsamcik.tracker.tracker.source.runtime.LocationDeviceStateProvider
 import com.adsamcik.tracker.tracker.source.runtime.LocationPlanApplication
 import com.adsamcik.tracker.tracker.source.runtime.LocationPlanApplicationStatus
 import com.adsamcik.tracker.tracker.source.runtime.LocationPrerequisiteEvaluator
 import com.adsamcik.tracker.tracker.source.runtime.LocationStartContext
 import com.adsamcik.tracker.tracker.source.runtime.SourceCapabilities
+import com.adsamcik.tracker.tracker.source.runtime.WifiPrerequisiteEvaluator
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -144,7 +150,6 @@ internal fun interface SourceProviderAvailabilityReaderFactory {
 	fun create(
 		source: TrackingSource,
 		purpose: TrackingPurpose,
-		runtime: ClaimedSourceRuntime<out SourcePlan>,
 	): SourceProviderAvailabilityReader
 }
 
@@ -153,13 +158,13 @@ internal class DefaultSourceProviderAvailabilityReaderFactory(
 	private val locationDeviceStateProvider: LocationDeviceStateProvider,
 	private val locationPrerequisiteEvaluator: LocationPrerequisiteEvaluator,
 	private val activityRecognitionSourceStateProvider: ActivityRecognitionSourceStateProvider,
+	private val sensorSourceStateProvider: SensorSourceStateProvider,
+	private val connectivityDeviceStateProvider: AndroidConnectivityDeviceStateProvider,
 ) : SourceProviderAvailabilityReaderFactory {
 	override fun create(
 		source: TrackingSource,
 		purpose: TrackingPurpose,
-		runtime: ClaimedSourceRuntime<out SourcePlan>,
 	): SourceProviderAvailabilityReader {
-		require(runtime.source == source.toRuntimeSourceKind())
 		return when {
 			source == TrackingSource.ACTIVITY && purpose == TrackingPurpose.CONTROL ->
 				containedAvailability(
@@ -179,35 +184,27 @@ internal class DefaultSourceProviderAvailabilityReaderFactory(
 					locationPrerequisiteEvaluator,
 				)
 			source == TrackingSource.ACTIVITY && purpose == TrackingPurpose.SESSION_CAPTURE ->
-				ActivitySessionSourceProviderAvailabilityReader(
-					runtime,
-					activityRecognitionSourceStateProvider,
-				)
+				ActivitySessionSourceProviderAvailabilityReader(activityRecognitionSourceStateProvider)
 			source == TrackingSource.STEPS && purpose == TrackingPurpose.SESSION_CAPTURE ->
 				StepsSessionSourceProviderAvailabilityReader(
-					runtime,
 					activityRecognitionSourceStateProvider,
+					sensorSourceStateProvider,
 				)
-			else -> RuntimeSourceProviderAvailabilityReader(source, purpose, runtime)
+			source == TrackingSource.PRESSURE ->
+				SensorSourceProviderAvailabilityReader(
+					SourceKind.PRESSURE,
+					sensorSourceStateProvider,
+				)
+			source == TrackingSource.WIFI ->
+				WifiSourceProviderAvailabilityReader(connectivityDeviceStateProvider)
+			source == TrackingSource.CELL ->
+				CellSourceProviderAvailabilityReader(connectivityDeviceStateProvider)
+			else -> error("No availability reader for $source ${purpose.stableName}")
 		}
 	}
 }
 
-internal class RuntimeSourceProviderAvailabilityReader(
-	private val source: TrackingSource,
-	private val purpose: TrackingPurpose,
-	private val runtime: ClaimedSourceRuntime<out SourcePlan>,
-) : SourceProviderAvailabilityReader {
-	override suspend fun read(request: SourceAvailabilityRequest): SourceProviderAvailability {
-		require(request.source == runtime.source)
-		require(request.source == source.toRuntimeSourceKind())
-		require(request.purpose == purpose)
-		return runtime.capabilities.value.toSourceProviderAvailability(runtime.source)
-	}
-}
-
 internal class ActivitySessionSourceProviderAvailabilityReader(
-	private val runtime: ClaimedSourceRuntime<out SourcePlan>,
 	private val stateProvider: ActivityRecognitionSourceStateProvider,
 ) : SourceProviderAvailabilityReader {
 	override suspend fun read(request: SourceAvailabilityRequest): SourceProviderAvailability {
@@ -224,14 +221,14 @@ internal class ActivitySessionSourceProviderAvailabilityReader(
 					setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
 				),
 			)
-			else -> runtime.capabilities.value.toSourceProviderAvailability(SourceKind.ACTIVITY)
+			else -> SourceProviderAvailability.Available()
 		}
 	}
 }
 
 internal class StepsSessionSourceProviderAvailabilityReader(
-	private val runtime: ClaimedSourceRuntime<out SourcePlan>,
 	private val stateProvider: ActivityRecognitionSourceStateProvider,
+	private val sensorStateProvider: SensorSourceStateProvider,
 ) : SourceProviderAvailabilityReader {
 	override suspend fun read(request: SourceAvailabilityRequest): SourceProviderAvailability {
 		require(request.source == SourceKind.STEPS)
@@ -241,7 +238,103 @@ internal class StepsSessionSourceProviderAvailabilityReader(
 				setOf(SourceProviderPermission.RuntimePermission(SourceKind.STEPS)),
 			)
 		}
-		return runtime.capabilities.value.toSourceProviderAvailability(SourceKind.STEPS)
+		return sensorStateProvider.capabilities(SourceKind.STEPS)
+			.toSourceProviderAvailability(SourceKind.STEPS)
+	}
+}
+
+internal class SensorSourceProviderAvailabilityReader(
+	private val source: SourceKind,
+	private val stateProvider: SensorSourceStateProvider,
+) : SourceProviderAvailabilityReader {
+	override suspend fun read(request: SourceAvailabilityRequest): SourceProviderAvailability {
+		require(request.source == source)
+		require(request.purpose == TrackingPurpose.SESSION_CAPTURE)
+		return stateProvider.capabilities(source).toSourceProviderAvailability(source)
+	}
+}
+
+internal class WifiSourceProviderAvailabilityReader(
+	private val stateProvider: AndroidConnectivityDeviceStateProvider,
+) : SourceProviderAvailabilityReader {
+	override suspend fun read(request: SourceAvailabilityRequest): SourceProviderAvailability {
+		require(request.source == SourceKind.WIFI)
+		val application = WifiPrerequisiteEvaluator.evaluate(
+			request.plan as com.adsamcik.tracker.tracker.source.model.WifiPlan,
+			stateProvider.wifi(),
+		)
+		val evidence = SourceProviderAvailabilityEvidence.Runtime(SourceKind.WIFI, application.reasons)
+		return when (application.status) {
+			SourceApplyStatus.APPLIED -> SourceProviderAvailability.Available()
+			SourceApplyStatus.DEGRADED ->
+				SourceProviderAvailability.Degraded(application.plan, evidence)
+			SourceApplyStatus.BLOCKED -> application.reasons.toBlockedAvailability(
+				evidence,
+				SourceKind.WIFI,
+			)
+			SourceApplyStatus.ROLLED_BACK,
+			SourceApplyStatus.FAILED,
+			-> error("Prerequisite evaluation cannot return ${application.status}")
+		}
+	}
+}
+
+internal class CellSourceProviderAvailabilityReader(
+	private val stateProvider: AndroidConnectivityDeviceStateProvider,
+) : SourceProviderAvailabilityReader {
+	override suspend fun read(request: SourceAvailabilityRequest): SourceProviderAvailability {
+		require(request.source == SourceKind.CELL)
+		val application = CellPrerequisiteEvaluator.evaluate(
+			request.plan as com.adsamcik.tracker.tracker.source.model.CellPlan,
+			stateProvider.cell(),
+		)
+		val evidence = SourceProviderAvailabilityEvidence.Runtime(SourceKind.CELL, application.reasons)
+		return when (application.status) {
+			SourceApplyStatus.APPLIED -> SourceProviderAvailability.Available()
+			SourceApplyStatus.DEGRADED ->
+				SourceProviderAvailability.Degraded(application.plan, evidence)
+			SourceApplyStatus.BLOCKED -> application.reasons.toBlockedAvailability(
+				evidence,
+				SourceKind.CELL,
+			)
+			SourceApplyStatus.ROLLED_BACK,
+			SourceApplyStatus.FAILED,
+			-> error("Prerequisite evaluation cannot return ${application.status}")
+		}
+	}
+}
+
+internal fun interface SensorSourceStateProvider {
+	fun capabilities(source: SourceKind): SourceCapabilities
+}
+
+@Singleton
+internal class AndroidSensorSourceStateProvider @Inject constructor(
+	@ApplicationContext private val context: Context,
+) : SensorSourceStateProvider {
+	override fun capabilities(source: SourceKind): SourceCapabilities {
+		val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+		val sensor = when (source) {
+			SourceKind.STEPS -> sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+			SourceKind.PRESSURE -> sensorManager?.getDefaultSensor(Sensor.TYPE_PRESSURE)
+			else -> error("$source is not a SensorManager source")
+		}
+		val featureAvailable = source != SourceKind.STEPS ||
+			context.packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)
+		return SourceCapabilities(
+			available = sensor != null && featureAvailable,
+			batchingSupported = sensor?.fifoMaxEventCount?.let { it > 0 } == true,
+			flushSupported = sensor?.fifoMaxEventCount?.let { it > 0 } == true,
+			maximumBatchSize = sensor?.fifoMaxEventCount,
+			minimumDelayMs = sensor?.minDelay
+				?.takeIf { it >= 0 }
+				?.div(MICROS_PER_MILLISECOND)
+				?.toLong(),
+		)
+	}
+
+	private companion object {
+		const val MICROS_PER_MILLISECOND = 1_000
 	}
 }
 
@@ -302,7 +395,10 @@ internal fun LocationPlanApplication.toSourceProviderAvailability(
 	return when (status) {
 		LocationPlanApplicationStatus.APPLIED -> SourceProviderAvailability.Available()
 		LocationPlanApplicationStatus.DEGRADED -> SourceProviderAvailability.Degraded(plan, evidence)
-		LocationPlanApplicationStatus.BLOCKED -> reasons.toBlockedAvailability(evidence)
+		LocationPlanApplicationStatus.BLOCKED -> reasons.toBlockedAvailability(
+			evidence,
+			SourceKind.LOCATION,
+		)
 	}
 }
 
@@ -354,12 +450,13 @@ private fun SourceAvailabilityTier.toLocationStartContext(): LocationStartContex
 
 private fun Set<SourceDegradedReason>.toBlockedAvailability(
 	evidence: SourceProviderAvailabilityEvidence,
+	source: SourceKind,
 ): SourceProviderAvailability = when {
 	SourceDegradedReason.HARDWARE_UNAVAILABLE in this ->
 		SourceProviderAvailability.HardwareUnavailable(evidence)
 	SourceDegradedReason.PERMISSION_MISSING in this ->
 		SourceProviderAvailability.PermissionRequired(
-			setOf(SourceProviderPermission.RuntimePermission(SourceKind.LOCATION)),
+			setOf(SourceProviderPermission.RuntimePermission(source)),
 		)
 	any(OS_LIMITED_REASONS::contains) -> SourceProviderAvailability.OsLimited(evidence)
 	else -> SourceProviderAvailability.ProviderUnavailable(evidence)
