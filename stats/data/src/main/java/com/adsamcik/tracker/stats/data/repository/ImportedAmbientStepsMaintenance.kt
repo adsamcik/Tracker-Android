@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFail
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailureReason
 import com.adsamcik.tracker.shared.base.database.authenticateOrInstallGraphlessLegacyAmbientLineage
 import com.adsamcik.tracker.shared.base.database.authenticatedImportedPortableOwnerFences
+import com.adsamcik.tracker.shared.base.database.insertOrAuthenticateImportedPortableOwnerFences
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
@@ -633,7 +634,7 @@ private suspend fun fencePortableCountDomainGraphs(
 		fencedAtMs = fencedAtMs,
 		maximumFenceCount = MAX_PORTABLE_OWNER_FENCES_PER_DAY,
 	)
-	graphDao.insertOwnerFences(unique)
+	database.insertOrAuthenticateImportedPortableOwnerFences(unique)
 	graphLineage.forEach { revision ->
 		val binding = revision.binding
 		if (graphDao.deleteBindingExact(

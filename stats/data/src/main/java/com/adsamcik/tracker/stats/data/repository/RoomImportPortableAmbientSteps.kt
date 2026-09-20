@@ -132,16 +132,23 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 
 	override suspend fun importArchive(
 		request: ImportPortableAmbientStepsV2Request,
-	): ImportPortableAmbientStepsResult = try {
-		importPrepared(AmbientImportEnvelope.fromV2(request))
-	} catch (_: IllegalArgumentException) {
-		ImportPortableAmbientStepsResult.Unverifiable(
-			PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID,
-		)
-	} catch (_: ArithmeticException) {
-		ImportPortableAmbientStepsResult.Unverifiable(
-			PortableAmbientStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
-		)
+	): ImportPortableAmbientStepsResult {
+		val prepared = try {
+			AmbientImportEnvelope.fromV2(request)
+		} catch (_: IllegalArgumentException) {
+			return ImportPortableAmbientStepsResult.Unverifiable(
+				PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID,
+			)
+		} catch (_: IllegalStateException) {
+			return ImportPortableAmbientStepsResult.Unverifiable(
+				PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID,
+			)
+		} catch (_: ArithmeticException) {
+			return ImportPortableAmbientStepsResult.Unverifiable(
+				PortableAmbientStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
+			)
+		}
+		return importPrepared(prepared)
 	}
 
 	private suspend fun importPrepared(
