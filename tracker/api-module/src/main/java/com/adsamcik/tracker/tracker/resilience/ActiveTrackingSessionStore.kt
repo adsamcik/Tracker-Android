@@ -86,13 +86,17 @@ data class CatalogReconfigurationSourcePlan(
 /**
  * Bounded durable debt for one exact catalog-blocked configuration transition.
  *
- * The payload is engine-owned and opaque to the descriptor store. Session/run/policy keys prevent
- * a later service run or unrelated logical session from consuming stale requested configuration.
+ * The payload is engine-owned and opaque to the descriptor store. Session/run identity plus the
+ * desired generation and fingerprint prevent stale configuration from being retried.
  */
 data class CatalogReconfigurationDebt(
 	val logicalTrackingId: String,
 	val serviceRunId: String,
 	val sourcePolicyRevision: Long,
+	/** Stable generation of the desired configuration; independent of retry Room revisions. */
+	val desiredPlanGeneration: Long,
+	/** SHA-256 over exact plan inputs, resolved plans, and source-purpose authority. */
+	val desiredPlanFingerprint: String,
 	val requestedPlanRevision: Long,
 	val requestedPlanId: String,
 	val requestedPlanCreatedAtMs: Long,
@@ -107,6 +111,10 @@ data class CatalogReconfigurationDebt(
 		require(logicalTrackingId.isNotBlank()) { "logicalTrackingId must not be blank" }
 		require(serviceRunId.isNotBlank()) { "serviceRunId must not be blank" }
 		require(sourcePolicyRevision > 0L) { "sourcePolicyRevision must be positive" }
+		require(desiredPlanGeneration > 0L) { "desiredPlanGeneration must be positive" }
+		require(desiredPlanFingerprint.matches(LOWERCASE_SHA_256)) {
+			"desiredPlanFingerprint must be a lowercase SHA-256 value"
+		}
 		require(requestedPlanRevision >= 0L) { "requestedPlanRevision must not be negative" }
 		require(requestedPlanId.isNotBlank()) { "requestedPlanId must not be blank" }
 		require(requestedPlanId.length <= MAX_CATALOG_RECONFIGURATION_PLAN_ID_CHARS) {
@@ -145,6 +153,7 @@ data class CatalogReconfigurationDebt(
 private const val MAX_CATALOG_RECONFIGURATION_SOURCE_PLANS = 6
 private const val MAX_CATALOG_RECONFIGURATION_PLAN_PAYLOAD_CHARS = 32 * 1024
 private const val MAX_CATALOG_RECONFIGURATION_PLAN_ID_CHARS = 512
+private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
 
 /**
  * Durable source evidence offered for one automatic service start.

@@ -270,6 +270,26 @@ class TrackerServiceSourceSession @Inject constructor(
 					SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED,
 				)
 			}
+			RoomSourcePlanStore(database, sourcePlanCodec).load(claim.planRevision)?.let { appliedPlan ->
+				applyingSession.markAppliedPlan(
+					inputs = planInputs,
+					fingerprint = planInputs.desiredPlanFingerprint(
+						plan = appliedPlan,
+						rolloutRevision = applyingSession.rollout.revision,
+						captureMode = applyingSession.captureMode,
+						startOrigin = applyingSession.origin,
+						foregroundCapabilityFlags = applyingSession.foregroundCapabilityFlags,
+						controlDependencies = controlDependencies(applyingSession.origin),
+						codec = sourcePlanCodec,
+					),
+					generation = appliedPlan.revision,
+				)
+			}
+			if (!clearCatalogDebtSatisfiedBySuccessfulStart(applyingSession)) {
+				settingsStatusProvider.publishFailure(
+					CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+				)
+			}
 			preStartInputs = null
 			settingsStatusProvider.publishApplied(result.applied)
 		} else if (result.requiresRuntimeCleanup) {
@@ -407,7 +427,11 @@ class TrackerServiceSourceSession @Inject constructor(
 			return@withLock SourceSessionReconfigureOutcome.NotActive
 		}
 		val requestedInputs = inputs
-		if (session.lastInputs == requestedInputs) {
+		if (session.lastInputs == requestedInputs &&
+			session.catalogReconfigurationDebt == null &&
+			session.appliedPlanFingerprint != null &&
+			session.appliedPlanFingerprint == session.desiredPlanFingerprint
+		) {
 			return@withLock SourceSessionReconfigureOutcome.Unchanged
 		}
 		if (!session.coordinatorStarted) {
@@ -426,7 +450,6 @@ class TrackerServiceSourceSession @Inject constructor(
 				)
 				return@withLock SourceSessionReconfigureOutcome.Unchanged
 			}
-			session.lastInputs = requestedInputs
 			val started = startCoordinator(session, requestedInputs)
 			return@withLock if (started is SessionStartResult.Started) {
 				session.coordinatorStarted = true
@@ -457,6 +480,13 @@ class TrackerServiceSourceSession @Inject constructor(
 			requestedInputs,
 			requireEnabled = false,
 		)
+		val desiredFingerprint = session.fingerprint(requestedInputs, plan)
+		val desiredGeneration = session.desiredPlanGeneration
+			?.takeIf { session.desiredPlanFingerprint == desiredFingerprint }
+			?: maxOf(plan.revision, (session.desiredPlanGeneration ?: 0L) + 1L)
+		session.desiredInputs = requestedInputs
+		session.desiredPlanFingerprint = desiredFingerprint
+		session.desiredPlanGeneration = desiredGeneration
 		val request = SessionReconfigureRequest(
 			ownerToken = session.ownerToken,
 			plan = plan,
@@ -466,6 +496,8 @@ class TrackerServiceSourceSession @Inject constructor(
 			zoneId = requestedInputs.zoneId,
 			foregroundCapabilityFlags = session.foregroundCapabilityFlags,
 			controlDependencies = controlDependencies(session.origin),
+			desiredPlanFingerprint = desiredFingerprint,
+			desiredPlanGeneration = desiredGeneration,
 		)
 		val result = try {
 			val firstAttempt = coordinator.reconfigure(request)
@@ -478,7 +510,11 @@ class TrackerServiceSourceSession @Inject constructor(
 					)
 				} else {
 					coordinator.reconfigure(
-						request.copy(catalogDebtPersistedSources = firstAttempt.sources),
+						request.copy(
+							catalogDebtPersistedSources = firstAttempt.sources,
+							catalogDebtPersistedFingerprint = desiredFingerprint,
+							catalogDebtPersistedGeneration = desiredGeneration,
+						),
 					)
 				}
 			} else {
@@ -539,7 +575,12 @@ class TrackerServiceSourceSession @Inject constructor(
 					),
 				)
 			}
-			session.lastInputs = requestedInputs
+			session.markAppliedReconfiguration(
+				inputs = requestedInputs,
+				desiredFingerprint = desiredFingerprint,
+				desiredGeneration = desiredGeneration,
+				result = result,
+			)
 			settingsStatusProvider.publishApplied(result.applied)
 			SourceSessionReconfigureOutcome.Applied(result)
 		} else if (result is SessionReconfigureResult.Retryable) {
@@ -595,9 +636,27 @@ class TrackerServiceSourceSession @Inject constructor(
 			) return@withLock null
 			val debt = stored.catalogReconfigurationDebt ?: return@withLock null
 			session.catalogReconfigurationDebt = debt
-			val currentPolicyRevision = session.lastInputs.settings.sourcePolicyRevision
+			if (debt.desiredPlanFingerprint == session.appliedPlanFingerprint &&
+				debt.desiredPlanGeneration == session.appliedPlanGeneration
+			) {
+				if (!replaceCatalogDebt(stored, null)) {
+					settingsStatusProvider.publishFailure(
+						CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+					)
+					return@withLock null
+				}
+				session.catalogReconfigurationDebt = null
+				return@withLock SourceSessionReconfigureOutcome.Unchanged
+			}
+			val currentInputs = session.desiredInputs
+			val currentPolicyRevision = currentInputs.settings.sourcePolicyRevision
 			if (debt.sourcePolicyRevision != currentPolicyRevision ||
-				debt.clockDomainId != session.lastInputs.clockDomainId
+				debt.clockDomainId != currentInputs.clockDomainId ||
+				debt.zoneId != currentInputs.zoneId ||
+				debt.foregroundCapabilityFlags != session.foregroundCapabilityFlags ||
+				debt.controlDependencyMask != controlDependencies(session.origin).toSourceMask() ||
+				debt.desiredPlanFingerprint != session.desiredPlanFingerprint ||
+				debt.desiredPlanGeneration != session.desiredPlanGeneration
 			) {
 				if (!replaceCatalogDebt(stored, null)) {
 					settingsStatusProvider.publishFailure(
@@ -618,6 +677,16 @@ class TrackerServiceSourceSession @Inject constructor(
 					SessionReconfigureResult.InvalidState(CATALOG_RECONFIGURATION_DEBT_INVALID),
 				)
 			}
+			val reconstructedFingerprint = session.fingerprint(currentInputs, plan)
+			if (reconstructedFingerprint != debt.desiredPlanFingerprint) {
+				if (replaceCatalogDebt(stored, null)) {
+					session.catalogReconfigurationDebt = null
+				}
+				settingsStatusProvider.publishFailure(CATALOG_RECONFIGURATION_DEBT_INVALID)
+				return@withLock SourceSessionReconfigureOutcome.Rejected(
+					SessionReconfigureResult.InvalidState(CATALOG_RECONFIGURATION_DEBT_INVALID),
+				)
+			}
 			val request = SessionReconfigureRequest(
 				ownerToken = session.ownerToken,
 				plan = plan,
@@ -627,7 +696,11 @@ class TrackerServiceSourceSession @Inject constructor(
 				zoneId = debt.zoneId,
 				foregroundCapabilityFlags = debt.foregroundCapabilityFlags,
 				controlDependencies = sourceKindsFromMask(debt.controlDependencyMask),
+				desiredPlanFingerprint = debt.desiredPlanFingerprint,
+				desiredPlanGeneration = debt.desiredPlanGeneration,
 				catalogDebtPersistedSources = sourceKindsFromMask(debt.deferredSourceMask),
+				catalogDebtPersistedFingerprint = debt.desiredPlanFingerprint,
+				catalogDebtPersistedGeneration = debt.desiredPlanGeneration,
 			)
 			val result = try {
 				coordinator.reconfigure(request)
@@ -667,6 +740,12 @@ class TrackerServiceSourceSession @Inject constructor(
 							),
 						)
 					}
+					session.markAppliedReconfiguration(
+						inputs = currentInputs,
+						desiredFingerprint = debt.desiredPlanFingerprint,
+						desiredGeneration = debt.desiredPlanGeneration,
+						result = result,
+					)
 					settingsStatusProvider.publishApplied(result.applied)
 					SourceSessionReconfigureOutcome.Applied(result)
 				}
@@ -734,6 +813,24 @@ class TrackerServiceSourceSession @Inject constructor(
 			session.catalogReconfigurationDebt = null
 			return true
 		}
+		return replaceCatalogDebt(stored, null).also { replaced ->
+			if (replaced) session.catalogReconfigurationDebt = null
+		}
+	}
+
+	private suspend fun clearCatalogDebtSatisfiedBySuccessfulStart(
+		session: ActiveSession,
+	): Boolean {
+		if (session.catalogReconfigurationDebt == null &&
+			session.origin != SessionStartOrigin.RECOVERY
+		) return true
+		val stored = currentStoredDescriptor(session) ?: return false
+		val inheritedDebt = stored.catalogReconfigurationDebt
+		if (inheritedDebt == null) {
+			session.catalogReconfigurationDebt = null
+			return true
+		}
+		session.catalogReconfigurationDebt = inheritedDebt
 		return replaceCatalogDebt(stored, null).also { replaced ->
 			if (replaced) session.catalogReconfigurationDebt = null
 		}
@@ -1053,7 +1150,11 @@ class TrackerServiceSourceSession @Inject constructor(
 		inputs: SourceSessionPlanInputs,
 	): SessionStartResult {
 		val plan = buildPlan(session.rollout, session.captureMode, inputs, requireEnabled = true)
-		return coordinator.start(
+		val fingerprint = session.fingerprint(inputs, plan)
+		session.desiredInputs = inputs
+		session.desiredPlanFingerprint = fingerprint
+		session.desiredPlanGeneration = plan.revision
+		val result = coordinator.start(
 			SessionStartRequest(
 				ownerToken = session.ownerToken,
 				origin = session.origin,
@@ -1070,6 +1171,15 @@ class TrackerServiceSourceSession @Inject constructor(
 				serviceRunId = session.serviceRunId,
 			),
 		)
+		if (result is SessionStartResult.Started) {
+			session.markAppliedPlan(inputs, fingerprint, plan.revision)
+			if (!clearCatalogDebtSatisfiedBySuccessfulStart(session)) {
+				settingsStatusProvider.publishFailure(
+					CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+				)
+			}
+		}
+		return result
 	}
 
 	private suspend fun buildPlan(
@@ -1124,6 +1234,8 @@ class TrackerServiceSourceSession @Inject constructor(
 			logicalTrackingId = session.logicalTrackingId,
 			serviceRunId = session.serviceRunId,
 			sourcePolicyRevision = policyRevision,
+			desiredPlanGeneration = desiredPlanGeneration,
+			desiredPlanFingerprint = requireNotNull(desiredPlanFingerprint),
 			requestedPlanRevision = plan.revision,
 			requestedPlanId = plan.planId,
 			requestedPlanCreatedAtMs = plan.createdAtMs,
@@ -1146,6 +1258,48 @@ class TrackerServiceSourceSession @Inject constructor(
 		)
 	}
 
+	private fun ActiveSession.fingerprint(
+		inputs: SourceSessionPlanInputs,
+		plan: AcquisitionPlanRevision,
+	): String = inputs.desiredPlanFingerprint(
+		plan = plan,
+		rolloutRevision = rollout.revision,
+		captureMode = captureMode,
+		startOrigin = origin,
+		foregroundCapabilityFlags = foregroundCapabilityFlags,
+		controlDependencies = controlDependencies(origin),
+		codec = sourcePlanCodec,
+	)
+
+	private fun ActiveSession.markAppliedPlan(
+		inputs: SourceSessionPlanInputs,
+		fingerprint: String,
+		generation: Long,
+	) {
+		lastInputs = inputs
+		desiredInputs = inputs
+		appliedPlanFingerprint = fingerprint
+		appliedPlanGeneration = generation
+		desiredPlanFingerprint = fingerprint
+		desiredPlanGeneration = generation
+	}
+
+	private suspend fun ActiveSession.markAppliedReconfiguration(
+		inputs: SourceSessionPlanInputs,
+		desiredFingerprint: String,
+		desiredGeneration: Long,
+		result: SessionReconfigureResult.Applied,
+	) {
+		if (result.deferredCatalogSources.isEmpty()) {
+			markAppliedPlan(inputs, desiredFingerprint, desiredGeneration)
+			return
+		}
+		lastInputs = inputs
+		val effectivePlan = RoomSourcePlanStore(database, sourcePlanCodec).load(result.revision)
+		appliedPlanFingerprint = effectivePlan?.let { plan -> fingerprint(inputs, plan) }
+		appliedPlanGeneration = effectivePlan?.revision
+	}
+
 	private data class ActiveSession(
 		val rollout: TrackingRolloutState,
 		val ownerToken: String,
@@ -1158,6 +1312,11 @@ class TrackerServiceSourceSession @Inject constructor(
 		var lastInputs: SourceSessionPlanInputs,
 		var coordinatorStarted: Boolean,
 		var sourceCallerAuthorityReference: SourceCallerReplayReference?,
+		var desiredInputs: SourceSessionPlanInputs = lastInputs,
+		var appliedPlanFingerprint: String? = null,
+		var appliedPlanGeneration: Long? = null,
+		var desiredPlanFingerprint: String? = appliedPlanFingerprint,
+		var desiredPlanGeneration: Long? = appliedPlanGeneration,
 		var pendingSourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 		var pendingRetirementSourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 		var catalogReconfigurationDebt: CatalogReconfigurationDebt? = null,

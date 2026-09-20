@@ -375,6 +375,9 @@ class DefaultActiveTrackingSessionStoreTest {
 		logicalTrackingId = logicalTrackingId,
 		serviceRunId = serviceRunId,
 		sourcePolicyRevision = 7L,
+		desiredPlanGeneration = 2L,
+		desiredPlanFingerprint =
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		requestedPlanRevision = 2L,
 		requestedPlanId = "catalog-plan",
 		requestedPlanCreatedAtMs = 100L,

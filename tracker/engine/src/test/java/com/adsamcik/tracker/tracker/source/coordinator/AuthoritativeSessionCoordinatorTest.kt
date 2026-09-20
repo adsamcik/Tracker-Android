@@ -585,7 +585,11 @@ class AuthoritativeSessionCoordinatorTest {
 				sources = setOf(SourceKind.STEPS),
 			)
 			val applied = subject.reconfigure(
-				requested.copy(catalogDebtPersistedSources = setOf(SourceKind.STEPS)),
+				requested.copy(
+					catalogDebtPersistedSources = setOf(SourceKind.STEPS),
+					catalogDebtPersistedFingerprint = requested.desiredPlanFingerprint,
+					catalogDebtPersistedGeneration = requested.desiredPlanGeneration,
+				),
 			).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
 
 			applied.deferredCatalogSources shouldBe setOf(SourceKind.STEPS)
@@ -607,6 +611,8 @@ class AuthoritativeSessionCoordinatorTest {
 				wallTimeMs = 3_000L,
 				elapsedRealtimeNanos = 3_000_000L,
 				catalogDebtPersistedSources = setOf(SourceKind.STEPS),
+				catalogDebtPersistedFingerprint = requested.desiredPlanFingerprint,
+				catalogDebtPersistedGeneration = requested.desiredPlanGeneration,
 			)
 			subject.reconfigure(retry)
 				.shouldBeInstanceOf<SessionReconfigureResult.Applied>()
@@ -658,7 +664,11 @@ class AuthoritativeSessionCoordinatorTest {
 			subject.reconfigure(requested)
 				.shouldBeInstanceOf<SessionReconfigureResult.Retryable>()
 			val intermediate = subject.reconfigure(
-				requested.copy(catalogDebtPersistedSources = setOf(SourceKind.STEPS)),
+				requested.copy(
+					catalogDebtPersistedSources = setOf(SourceKind.STEPS),
+					catalogDebtPersistedFingerprint = requested.desiredPlanFingerprint,
+					catalogDebtPersistedGeneration = requested.desiredPlanGeneration,
+				),
 			).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
 
 			intermediate.deferredCatalogSources shouldBe setOf(SourceKind.STEPS)
@@ -666,6 +676,82 @@ class AuthoritativeSessionCoordinatorTest {
 			(stored?.plans?.get(SourceKind.STEPS) as StepsPlan).maximumReportLatencyMs shouldBe
 				300_000L
 			runtime.isActive shouldBe true
+		}
+
+	@Test
+	fun `transient catalog failure does not revive manifest source without live applied identity`() =
+		runTest {
+			val catalog = mockk<SourceImplementationCatalog>()
+			var stepsReadFails = false
+			coEvery { catalog.availability(any()) } answers {
+				if (firstArg<SourceAvailabilityRequest>().source == SourceKind.STEPS &&
+					stepsReadFails
+				) {
+					throw SQLiteException("storage unavailable")
+				}
+				SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
+			}
+			var stepsProviderCalls = 0
+			runtime.failedStartWithoutProviderEvidence = true
+			replaceRuntimeRegistry(
+				SourceRuntimeRegistry(
+					mapOf(
+						SourceKind.LOCATION to Provider { locationRuntime },
+						SourceKind.STEPS to Provider {
+							stepsProviderCalls++
+							runtime
+						},
+					),
+					catalog,
+					requireAllSources = false,
+				),
+			)
+			val started = subject.start(
+				startRequest().copy(
+					logicalTrackingId = "catalog-manifest-only-logical",
+					serviceRunId = "catalog-manifest-only-run",
+					plan = stepsAndLocationPlan(
+						1L,
+						stepsEnabled = true,
+						stepsMaximumReportLatencyMs = 300_000L,
+					),
+				),
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+			stepsProviderCalls shouldBe 1
+			runtime.startCount shouldBe 1
+			runtime.isActive shouldBe false
+			database.sourceSessionDao()
+				.manifestSources(started.logicalTrackingId, 1L)
+				.any { binding -> binding.sourceKind == SourceKind.STEPS.stableCode } shouldBe true
+			database.sourcePlanStateDao().appliedStates()
+				.single { state -> state.sourceKind == SourceKind.STEPS.stableCode }
+				.let { state ->
+					state.sourceInstanceId shouldBe null
+					state.registrationGeneration shouldBe null
+				}
+
+			stepsReadFails = true
+			val requested = stepsAndLocationReconfigure(
+				revision = 2L,
+				stepsEnabled = true,
+				stepsMaximumReportLatencyMs = 60_000L,
+			)
+			subject.reconfigure(requested)
+				.shouldBeInstanceOf<SessionReconfigureResult.Retryable>()
+			val intermediate = subject.reconfigure(
+				requested.copy(
+					catalogDebtPersistedSources = setOf(SourceKind.STEPS),
+					catalogDebtPersistedFingerprint = requested.desiredPlanFingerprint,
+					catalogDebtPersistedGeneration = requested.desiredPlanGeneration,
+				),
+			).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+
+			intermediate.deferredCatalogSources shouldBe setOf(SourceKind.STEPS)
+			stepsProviderCalls shouldBe 1
+			runtime.startCount shouldBe 1
+			runtime.reconfigureCount shouldBe 0
+			runtime.isActive shouldBe false
+			locationRuntime.isActive shouldBe true
 		}
 
 	@Test
@@ -8298,6 +8384,8 @@ class AuthoritativeSessionCoordinatorTest {
 		clockDomainId = "boot-1",
 		zoneId = "Europe/Prague",
 		foregroundCapabilityFlags = 0L,
+		desiredPlanFingerprint = TEST_DESIRED_PLAN_FINGERPRINT,
+		desiredPlanGeneration = revision,
 	)
 
 	private fun pressureStartRequest(
@@ -9267,3 +9355,6 @@ private fun SourceStopAck.hasIncompleteTerminalRetirementForTest(): Boolean =
 		registrationRemovalOutcome == RegistrationRemovalOutcome.FAILED ||
 		providerFlushOutcome in setOf(ProviderFlushOutcome.FAILED, ProviderFlushOutcome.TIMED_OUT) ||
 		!appDrainComplete
+
+private const val TEST_DESIRED_PLAN_FINGERPRINT =
+	"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"

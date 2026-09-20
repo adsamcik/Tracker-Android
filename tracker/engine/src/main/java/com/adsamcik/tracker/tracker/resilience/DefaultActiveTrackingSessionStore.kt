@@ -364,7 +364,10 @@ private fun ActiveTrackingSessionProto.toDescriptor(): ActiveTrackingSessionDesc
 				pendingRetirementSourceCallerAuthorityReference
 					.takeIf(String::isNotBlank)
 					?.let(::SourceCallerReplayReference),
-			catalogReconfigurationDebt = if (hasCatalogReconfigurationDebt()) {
+			catalogReconfigurationDebt = if (
+				hasCatalogReconfigurationDebt() &&
+				catalogReconfigurationDebt.hasExactDesiredPlanIdentity()
+			) {
 				catalogReconfigurationDebt.toDebt()
 			} else {
 				null
@@ -412,6 +415,8 @@ private fun CatalogReconfigurationDebtProto.toDebt(): CatalogReconfigurationDebt
 		logicalTrackingId = logicalTrackingId,
 		serviceRunId = serviceRunId,
 		sourcePolicyRevision = sourcePolicyRevision,
+		desiredPlanGeneration = desiredPlanGeneration,
+		desiredPlanFingerprint = desiredPlanFingerprint,
 		requestedPlanRevision = requestedPlanRevision,
 		requestedPlanId = requestedPlanId,
 		requestedPlanCreatedAtMs = requestedPlanCreatedAtMs,
@@ -435,6 +440,8 @@ private fun CatalogReconfigurationDebt.toProto(): CatalogReconfigurationDebtProt
 		.setLogicalTrackingId(logicalTrackingId)
 		.setServiceRunId(serviceRunId)
 		.setSourcePolicyRevision(sourcePolicyRevision)
+		.setDesiredPlanGeneration(desiredPlanGeneration)
+		.setDesiredPlanFingerprint(desiredPlanFingerprint)
 		.setRequestedPlanRevision(requestedPlanRevision)
 		.setRequestedPlanId(requestedPlanId)
 		.setRequestedPlanCreatedAtMs(requestedPlanCreatedAtMs)
@@ -452,6 +459,9 @@ private fun CatalogReconfigurationDebt.toProto(): CatalogReconfigurationDebtProt
 		.setForegroundCapabilityFlags(foregroundCapabilityFlags)
 		.setControlDependencyMask(controlDependencyMask)
 		.build()
+
+private fun CatalogReconfigurationDebtProto.hasExactDesiredPlanIdentity(): Boolean =
+	desiredPlanGeneration > 0L && desiredPlanFingerprint.matches(Regex("[0-9a-f]{64}"))
 
 /**
  * Old proto records did not carry correlation IDs.  Keep generation here (rather than deriving

@@ -24,16 +24,25 @@ import com.adsamcik.tracker.tracker.resilience.CatalogReconfigurationSourcePlan
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
+import com.adsamcik.tracker.tracker.source.control.CollectionAcquisitionProfile
+import com.adsamcik.tracker.tracker.source.control.LocationCollectionStrategy
+import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
+import com.adsamcik.tracker.tracker.source.model.DemandReason
+import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
+import com.adsamcik.tracker.tracker.source.model.EvidenceQuality
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
+import com.adsamcik.tracker.tracker.source.model.SourceDemand
+import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementOutcome
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementRetryReason
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
@@ -921,10 +930,11 @@ class TrackerServiceSourceSessionTest {
 		}
 
 	@Test
-	fun `restart restores durable catalog debt and later success clears it`() = runTest {
+	fun `exact catalog debt retry success advances applied input identity`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
-		val current = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
-		val reference = SourceCallerReplayReference("restored-debt-authority")
+		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+		val changed = settings(SourceCollectionFrequency.BATTERY_SAVER, sourcePolicyRevision = 2L)
+		val reference = SourceCallerReplayReference("catalog-retry-success-authority")
 		var storedDescriptor = ActiveTrackingSessionDescriptor(
 			isUserInitiated = true,
 			isAmbient = false,
@@ -932,7 +942,6 @@ class TrackerServiceSourceSessionTest {
 			logicalTrackingId = "logical",
 			serviceRunId = "run",
 			sourceCallerAuthorityReference = reference,
-			catalogReconfigurationDebt = catalogDebt("logical", "run", 1L),
 		)
 		coEvery { activeSessionStore.read() } answers
 			{ ActiveTrackingSessionStoreResult.Success(storedDescriptor) }
@@ -949,33 +958,253 @@ class TrackerServiceSourceSessionTest {
 			DesiredPlanStatus.EFFECTIVE,
 			reference,
 		)
-		val captured = slot<SessionReconfigureRequest>()
-		coEvery { lifecycle.reconfigure(capture(captured)) } returns
-			SessionReconfigureResult.Applied(
-				revision = 2L,
-				applied = emptyList(),
-				status = DesiredPlanStatus.EFFECTIVE,
-				sourceCallerAuthorityReference = reference,
+		val requests = mutableListOf<SessionReconfigureRequest>()
+		var reconfigureCalls = 0
+		coEvery { lifecycle.reconfigure(capture(requests)) } answers {
+			reconfigureCalls += 1
+			val request = firstArg<SessionReconfigureRequest>()
+			if (reconfigureCalls <= 2) {
+				SessionReconfigureResult.Retryable(
+					revision = request.plan.revision,
+					failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+					sources = setOf(SourceKind.STEPS),
+				)
+			} else {
+				SessionReconfigureResult.Applied(
+					revision = request.plan.revision,
+					applied = emptyList(),
+					status = DesiredPlanStatus.EFFECTIVE,
+					sourceCallerAuthorityReference = reference,
+				)
+			}
+		}
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, initial),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(initial),
+				ownerToken = "owner",
+			),
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+		subject.reconfigure(inputs(changed))
+			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Retryable>()
+		val persistedDebt = requireNotNull(storedDescriptor.catalogReconfigurationDebt)
+		persistedDebt.desiredPlanFingerprint shouldBe requests.first().desiredPlanFingerprint
+		persistedDebt.desiredPlanGeneration shouldBe requests.first().desiredPlanGeneration
+
+		subject.retryPendingReconfiguration()
+			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
+		storedDescriptor.catalogReconfigurationDebt shouldBe null
+		subject.reconfigure(inputs(changed)) shouldBe SourceSessionReconfigureOutcome.Unchanged
+		coVerify(exactly = 3) { lifecycle.reconfigure(any()) }
+	}
+
+	@Test
+	fun `recovery supersedes same policy debt when environment zone demand or motion changed`() =
+		runTest {
+			val rollout = allEventCanonical(revision = 5)
+			val currentSettings = settings(
+				SourceCollectionFrequency.BALANCED,
+				sourcePolicyRevision = 7L,
 			)
+			val baseline = inputs(currentSettings)
+			val baselinePlan = resolvedPlanForFingerprint(baseline, rollout, revision = 1L)
+			val baselineFingerprint = baseline.desiredPlanFingerprint(
+				plan = baselinePlan,
+				rolloutRevision = rollout.revision,
+				captureMode = CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+				startOrigin = SessionStartOrigin.RECOVERY,
+				foregroundCapabilityFlags = 1L,
+				controlDependencies = emptySet(),
+				codec = SourcePlanCodec(),
+			)
+			val variants = listOf(
+				baseline.copy(
+					environment = baseline.environment.copy(
+						locationBackend = LocationBackend.FUSED,
+					),
+				),
+				baseline.copy(
+					zoneId = if (baseline.zoneId == "UTC") "Europe/Prague" else "UTC",
+				),
+				baseline.copy(
+					demands = listOf(
+						SourceDemand(
+							source = SourceKind.STEPS,
+							maximumAgeMs = 90_000L,
+							desiredLatencyMs = 30_000L,
+							quality = EvidenceQuality.BALANCED,
+							reason = DemandReason.POLICY,
+						),
+					),
+				),
+				baseline.copy(
+					resolutionContext = baseline.resolutionContext.copy(
+						motionProfile = CollectionAcquisitionProfile(
+							stationary = true,
+							locationStrategy = LocationCollectionStrategy.PASSIVE_WHILE_STATIONARY,
+							expensiveNetworkScansAllowed = false,
+							continuousPressureAllowed = false,
+							lowLatencyStepReporting = false,
+						),
+					),
+				),
+			)
+
+			variants.forEachIndexed { index, currentInputs ->
+				val logicalId = "recovery-fingerprint-logical-$index"
+				val runId = "recovery-fingerprint-run-$index"
+				val reference = SourceCallerReplayReference("recovery-fingerprint-authority-$index")
+				var descriptor = ActiveTrackingSessionDescriptor(
+					isUserInitiated = true,
+					isAmbient = false,
+					policyTier = PolicyTier.PRECISION,
+					logicalTrackingId = logicalId,
+					serviceRunId = runId,
+					sourceCallerAuthorityReference = reference,
+					catalogReconfigurationDebt = catalogDebt(
+						logicalTrackingId = logicalId,
+						serviceRunId = runId,
+						sourcePolicyRevision = 7L,
+						desiredPlanFingerprint = baselineFingerprint,
+						desiredPlanGeneration = 1L,
+						requestedPlan = baselinePlan,
+					),
+				)
+				val store = mockk<ActiveTrackingSessionStore>()
+				coEvery { store.read() } answers {
+					ActiveTrackingSessionStoreResult.Success(descriptor)
+				}
+				coEvery { store.replaceExact(any(), any()) } answers {
+					val expected = firstArg<ActiveTrackingSessionDescriptor>()
+					val replacement = secondArg<ActiveTrackingSessionDescriptor>()
+					if (expected == descriptor) descriptor = replacement
+					ActiveTrackingSessionStoreResult.Success(descriptor)
+				}
+				val localLifecycle = mockk<AuthoritativeSessionCoordinator>()
+				val capturedStart = slot<SessionStartRequest>()
+				coEvery { localLifecycle.start(capture(capturedStart)) } returns
+					SessionStartResult.Started(
+						logicalId,
+						runId,
+						emptyList(),
+						DesiredPlanStatus.EFFECTIVE,
+						reference,
+					)
+				val localSubject = TrackerServiceSourceSession(
+					database,
+					localLifecycle,
+					SemanticAcquisitionPlanFactory(),
+					SourcePlanResolver(),
+					TrackingCoordinatorTelemetry(),
+					statusProvider,
+					Provider { startupGate },
+					rolloutStore,
+					store,
+				)
+
+				localSubject.start(
+					SourceSessionStartRequest(
+						rollout = rollout,
+						ownership = TrackingSessionOwnership.resolve(rollout, currentSettings),
+						logicalTrackingId = logicalId,
+						serviceRunId = runId,
+						origin = SessionStartOrigin.RECOVERY,
+						foregroundCapabilityFlags = 1L,
+						planInputs = currentInputs,
+						ownerToken = "owner-$index",
+					),
+				).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+				val currentFingerprint = currentInputs.desiredPlanFingerprint(
+					plan = capturedStart.captured.plan,
+					rolloutRevision = rollout.revision,
+					captureMode = CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+					startOrigin = SessionStartOrigin.RECOVERY,
+					foregroundCapabilityFlags = 1L,
+					controlDependencies = emptySet(),
+					codec = SourcePlanCodec(),
+				)
+
+				currentFingerprint shouldNotBe baselineFingerprint
+				descriptor.catalogReconfigurationDebt shouldBe null
+				localSubject.retryPendingReconfiguration() shouldBe null
+				coVerify(exactly = 0) { localLifecycle.reconfigure(any()) }
+			}
+		}
+
+	@Test
+	fun `successful recovery start clears inherited catalog debt before retry`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val current = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+		val currentInputs = inputs(current)
+		val reference = SourceCallerReplayReference("restored-debt-authority")
+		var storedDescriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = reference,
+		)
+		coEvery { activeSessionStore.read() } answers
+			{ ActiveTrackingSessionStoreResult.Success(storedDescriptor) }
+		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
+			val expected = firstArg<ActiveTrackingSessionDescriptor>()
+			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
+			if (expected == storedDescriptor) storedDescriptor = replacement
+			ActiveTrackingSessionStoreResult.Success(storedDescriptor)
+		}
+		coEvery { lifecycle.start(any()) } answers {
+			val request = firstArg<SessionStartRequest>()
+			val fingerprint = currentInputs.desiredPlanFingerprint(
+				plan = request.plan,
+				rolloutRevision = rollout.revision,
+				captureMode = CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+				startOrigin = SessionStartOrigin.RECOVERY,
+				foregroundCapabilityFlags = 1L,
+				controlDependencies = emptySet(),
+				codec = SourcePlanCodec(),
+			)
+			storedDescriptor = storedDescriptor.copy(
+				catalogReconfigurationDebt = catalogDebt(
+					logicalTrackingId = "logical",
+					serviceRunId = "run",
+					sourcePolicyRevision = 1L,
+					desiredPlanFingerprint = fingerprint,
+					desiredPlanGeneration = request.plan.revision,
+					requestedPlan = request.plan,
+				),
+			)
+			SessionStartResult.Started(
+				"logical",
+				"run",
+				emptyList(),
+				DesiredPlanStatus.EFFECTIVE,
+				reference,
+			)
+		}
 		subject.start(
 			SourceSessionStartRequest(
 				rollout = rollout,
 				ownership = TrackingSessionOwnership.resolve(rollout, current),
 				logicalTrackingId = "logical",
 				serviceRunId = "run",
-				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				origin = SessionStartOrigin.RECOVERY,
 				foregroundCapabilityFlags = 1L,
-				planInputs = inputs(current),
+				planInputs = currentInputs,
 				ownerToken = "owner",
 			),
 		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
 
-		subject.retryPendingReconfiguration()
-			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
+		subject.retryPendingReconfiguration() shouldBe null
 
-		captured.captured.catalogDebtPersistedSources shouldBe setOf(SourceKind.STEPS)
-		captured.captured.plan.plans.getValue(SourceKind.STEPS).enabled shouldBe true
 		storedDescriptor.catalogReconfigurationDebt shouldBe null
+		coVerify(exactly = 0) { lifecycle.reconfigure(any()) }
 	}
 
 	@Test
@@ -1027,7 +1256,7 @@ class TrackerServiceSourceSessionTest {
 	}
 
 	@Test
-	fun `final stop clears restored catalog debt`() = runTest {
+	fun `stale restored catalog debt is superseded before final stop`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
 		val current = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
 		val reference = SourceCallerReplayReference("stop-debt-authority")
@@ -1073,8 +1302,7 @@ class TrackerServiceSourceSessionTest {
 				ownerToken = "owner",
 			),
 		)
-		subject.retryPendingReconfiguration()
-			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Retryable>()
+		subject.retryPendingReconfiguration() shouldBe SourceSessionReconfigureOutcome.Unchanged
 
 		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe
 			SourceSessionStopOutcome.Stopped
@@ -1128,8 +1356,7 @@ class TrackerServiceSourceSessionTest {
 				ownerToken = "owner",
 			),
 		)
-		subject.retryPendingReconfiguration()
-			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Retryable>()
+		subject.retryPendingReconfiguration() shouldBe SourceSessionReconfigureOutcome.Unchanged
 		coEvery { lifecycle.reconfigure(any()) } returns SessionReconfigureResult.Applied(
 			revision = 3L,
 			applied = emptyList(),
@@ -1816,6 +2043,68 @@ class TrackerServiceSourceSessionTest {
 		clockDomainId = "boot-1",
 	)
 
+	private fun resolvedPlanForFingerprint(
+		inputs: SourceSessionPlanInputs,
+		rollout: TrackingRolloutState,
+		revision: Long,
+	): com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision {
+		val desired = SemanticAcquisitionPlanFactory().create(
+			inputs.settings,
+			revision,
+			1_000L,
+			inputs.environment,
+		)
+		val captureDemands = desired.plans
+			.filter { (source, plan) ->
+				plan.enabled &&
+					rollout.isCaptureReachable(
+						source,
+						CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+					)
+			}
+			.map { (source, _) ->
+				val contract = SourceDemandContractFactory.forQos(
+					source,
+					inputs.settings.sourceCollectionSettings.frequencyFor(source).stableCode,
+					DirectSourceDemandPurpose.SESSION_CAPTURE,
+				)
+				SourceDemand(
+					source = source,
+					maximumAgeMs = contract.maximumProviderItemAgeMs,
+					desiredLatencyMs = contract.targetPlanningLatencyMs,
+					quality = EvidenceQuality.ANY,
+					reason = DemandReason.SESSION,
+					acquisitionFloor = contract.floor,
+					requestedDeliveryLatencyMs = contract.requestedDeliveryLatencyMs,
+					adaptiveReductionAllowed = contract.adaptiveReductionAllowed,
+				)
+			}
+		val resolved = SourcePlanResolver().resolve(
+			desired,
+			inputs.demands + captureDemands,
+			inputs.resolutionContext,
+		)
+		return desired.copy(
+			planId = "${desired.planId}-event-rollout-${rollout.revision}",
+			plans = resolved.applicablePlans.filterKeys { source ->
+				rollout.isCaptureReachable(
+					source,
+					CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+				)
+			},
+		)
+	}
+
+	private fun SourceCollectionSettings.frequencyFor(source: SourceKind): SourceCollectionFrequency =
+		when (source) {
+			SourceKind.LOCATION -> location
+			SourceKind.ACTIVITY -> activity
+			SourceKind.STEPS -> steps
+			SourceKind.PRESSURE -> pressure
+			SourceKind.WIFI -> wifi
+			SourceKind.CELL -> cell
+		}
+
 	private fun allEventCanonical(
 		revision: Long,
 		automaticCapture: Boolean = false,
@@ -1880,31 +2169,47 @@ class TrackerServiceSourceSessionTest {
 			logicalTrackingId: String,
 			serviceRunId: String,
 			sourcePolicyRevision: Long,
+			desiredPlanFingerprint: String =
+				"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			desiredPlanGeneration: Long = 2L,
+			requestedPlan: AcquisitionPlanRevision? = null,
 		): CatalogReconfigurationDebt {
-			val encoded = SourcePlanCodec().encode(
-				StepsPlan(
-					revision = 2L,
-					enabled = true,
-					maximumReportLatencyMs = 60_000L,
-					projectionCheckpointIntervalMs = 15_000L,
-					movementPolicyNeedsLowLatency = false,
+			val plan = requestedPlan ?: AcquisitionPlanRevision(
+				revision = 2L,
+				planId = "restored-catalog-plan",
+				createdAtMs = 2_000L,
+				plans = mapOf(
+					SourceKind.STEPS to StepsPlan(
+						revision = 2L,
+						enabled = true,
+						maximumReportLatencyMs = 60_000L,
+						projectionCheckpointIntervalMs = 15_000L,
+						movementPolicyNeedsLowLatency = false,
+					),
 				),
+				sourcePolicyRevision = sourcePolicyRevision,
 			)
+			val encodedPlans = plan.plans.values
+				.sortedBy { sourcePlan -> sourcePlan.source.stableCode }
+				.map { sourcePlan ->
+					val encoded = SourcePlanCodec().encode(sourcePlan)
+					CatalogReconfigurationSourcePlan(
+						sourceStableCode = sourcePlan.source.stableCode,
+						payloadVersion = SourcePlanCodec.FORMAT_VERSION,
+						payloadBase64 = Base64.getEncoder().encodeToString(encoded.bytes),
+						payloadChecksum = encoded.checksum,
+					)
+				}
 			return CatalogReconfigurationDebt(
 				logicalTrackingId = logicalTrackingId,
 				serviceRunId = serviceRunId,
 				sourcePolicyRevision = sourcePolicyRevision,
-				requestedPlanRevision = 2L,
-				requestedPlanId = "restored-catalog-plan",
-				requestedPlanCreatedAtMs = 2_000L,
-				requestedPlans = listOf(
-					CatalogReconfigurationSourcePlan(
-						sourceStableCode = SourceKind.STEPS.stableCode,
-						payloadVersion = SourcePlanCodec.FORMAT_VERSION,
-						payloadBase64 = Base64.getEncoder().encodeToString(encoded.bytes),
-						payloadChecksum = encoded.checksum,
-					),
-				),
+				desiredPlanGeneration = desiredPlanGeneration,
+				desiredPlanFingerprint = desiredPlanFingerprint,
+				requestedPlanRevision = plan.revision,
+				requestedPlanId = plan.planId,
+				requestedPlanCreatedAtMs = plan.createdAtMs,
+				requestedPlans = encodedPlans,
 				deferredSourceMask = 1L shl (SourceKind.STEPS.stableCode - 1),
 				clockDomainId = "boot-1",
 				zoneId = ZoneId.systemDefault().id,

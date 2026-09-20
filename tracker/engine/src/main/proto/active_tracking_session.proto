@@ -25,6 +25,8 @@ message CatalogReconfigurationDebtProto {
   uint64 foreground_capability_flags = 10;
   uint64 control_dependency_mask = 11;
   uint64 requested_plan_revision = 12;
+  string desired_plan_fingerprint = 13;
+  uint64 desired_plan_generation = 14;
 }
 
 message ActiveTrackingSessionProto {

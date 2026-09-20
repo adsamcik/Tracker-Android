@@ -2115,21 +2115,40 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			} ?: return SessionReconfigureResult.InvalidIntent("CURRENT_MANIFEST_INTEGRITY_FAILED")
 			val currentPlan = planStore.load(currentManifest.manifest.acquisitionPlanRevision)
 				?: return SessionReconfigureResult.InvalidIntent("CURRENT_PLAN_MISSING")
+			val appliedStates = database.sourcePlanStateDao().appliedStates()
+				.associateBy { state -> state.sourceKind }
 			val activeSources = currentManifest.bindings.asSequence()
 				.filter { binding ->
 					binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name
 				}
 				.mapNotNullTo(linkedSetOf()) { binding ->
-					SourceKind.entries.firstOrNull { source ->
-						source.stableCode == binding.sourceKind
-					}
+					val state = appliedStates[binding.sourceKind]
+					SourceKind.entries.firstOrNull { source -> source.stableCode == binding.sourceKind }
+						?.takeIf {
+							state?.desiredRevision == currentPlan.revision &&
+								state.appliedRevision == currentPlan.revision &&
+								state.status in setOf(
+									SourceApplyStatus.APPLIED.name,
+									SourceApplyStatus.DEGRADED.name,
+								) &&
+								state.sourceInstanceId?.isNotBlank() == true &&
+								state.registrationGeneration?.let { generation -> generation > 0L } == true
+						}
 				}
 			val catalogTransition = catalogDecisions.forReconfiguration(
 				requestedPlan = request.plan,
 				currentPlan = currentPlan,
 				activeSources = activeSources,
 			)
-			if (!request.catalogDebtPersistedSources.containsAll(catalogTransition.deferredSources)) {
+			val exactDebtPersisted = request.desiredPlanFingerprint != null &&
+				request.catalogDebtPersistedFingerprint == request.desiredPlanFingerprint &&
+				request.catalogDebtPersistedGeneration == request.desiredPlanGeneration
+			if (catalogTransition.deferredSources.isNotEmpty() &&
+				(
+					!request.catalogDebtPersistedSources.containsAll(catalogTransition.deferredSources) ||
+						!exactDebtPersisted
+					)
+			) {
 				val debt = requireNotNull(catalogTransition.retryableDebt)
 					.copy(sources = catalogTransition.deferredSources)
 				return SessionReconfigureResult.Retryable(
@@ -8064,8 +8083,12 @@ data class SessionReconfigureRequest(
 	val zoneId: String,
 	val foregroundCapabilityFlags: Long,
 	val controlDependencies: Set<SourceKind> = emptySet(),
+	val desiredPlanFingerprint: String? = null,
+	val desiredPlanGeneration: Long = plan.revision,
 	/** Sources whose exact requested configuration is already durable before any Room transition. */
 	val catalogDebtPersistedSources: Set<SourceKind> = emptySet(),
+	val catalogDebtPersistedFingerprint: String? = null,
+	val catalogDebtPersistedGeneration: Long? = null,
 )
 
 sealed interface SessionReconfigureResult {
