@@ -252,11 +252,11 @@ internal suspend fun AppDatabase.reconcilePreviouslyTruncatedLegacySessionBindin
 	}
 	removedByFenceTime.forEach { (fencedAtMs, roots) ->
 		insertOrAuthenticateImportedPortableOwnerFences(
-			authenticatedImportedPortableOwnerFences(
-				graphs = listOf(
-					AuthenticatedImportedPortableGraphBinding(
-						binding,
-						graph.copy(roots = roots),
+			authenticatedImportedPortableSelectedOwnerFences(
+				selections = listOf(
+					AuthenticatedImportedPortableRootSelection(
+						authenticated = AuthenticatedImportedPortableGraphBinding(binding, graph),
+						selectedRoots = roots,
 					),
 				),
 				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION,
@@ -266,11 +266,15 @@ internal suspend fun AppDatabase.reconcilePreviouslyTruncatedLegacySessionBindin
 			),
 		)
 	}
+	val replacement = entry.legacyUnprovenCountDomainGraph()
+	require(replacement == expected) {
+		"Retained legacy Steps graph changed during terminal fencing"
+	}
 	replaceImportedLegacySessionGraph(
 		entryIdentity = entry.metadata.identity,
 		previous = AuthenticatedImportedPortableGraphBinding(binding, graph),
-		replacement = expected,
-		expectedFileReceiptCount = loaded.fileReceipts.size,
+		replacement = replacement,
+		expectedFileReceiptCount = loaded.fileReceiptCount,
 	)
 	return true
 }
@@ -405,11 +409,46 @@ fun authenticatedImportedPortableOwnerFences(
 	collectedDataEpoch: Long,
 	fencedAtMs: Long,
 	maximumFenceCount: Int,
+): List<ImportedPortableStepsCountDomainOwnerFenceEntity> =
+	authenticatedImportedPortableSelectedOwnerFences(
+		selections = graphs.map { authenticated ->
+			AuthenticatedImportedPortableRootSelection(
+				authenticated = authenticated,
+				selectedRoots = authenticated.graph.roots,
+			)
+		},
+		fenceKind = fenceKind,
+		collectedDataEpoch = collectedDataEpoch,
+		fencedAtMs = fencedAtMs,
+		maximumFenceCount = maximumFenceCount,
+	)
+
+internal data class AuthenticatedImportedPortableRootSelection(
+	val authenticated: AuthenticatedImportedPortableGraphBinding,
+	val selectedRoots: List<PortableCountDomainRootV2>,
+)
+
+internal fun authenticatedImportedPortableSelectedOwnerFences(
+	selections: List<AuthenticatedImportedPortableRootSelection>,
+	fenceKind: String,
+	collectedDataEpoch: Long,
+	fencedAtMs: Long,
+	maximumFenceCount: Int,
 ): List<ImportedPortableStepsCountDomainOwnerFenceEntity> {
 	val appearances = linkedMapOf<PortableOwnerRevisionKey, PortableOwnerAppearance>()
-	graphs.sortedBy { it.binding.productRevision }.forEach { authenticated ->
+	selections.sortedBy { it.authenticated.binding.productRevision }.forEach { selection ->
+		val authenticated = selection.authenticated
 		val binding = authenticated.binding
-		authenticated.graph.roots.forEach { root ->
+		val rootsByKey = authenticated.graph.roots.associateBy { it.portableRootSelectionKey() }
+		require(rootsByKey.size == authenticated.graph.roots.size)
+		val selectedKeys = selection.selectedRoots.map { it.portableRootSelectionKey() }
+		require(selectedKeys.distinct().size == selectedKeys.size)
+		require(selection.selectedRoots.all { root ->
+			rootsByKey[root.portableRootSelectionKey()] == root
+		}) {
+			"Selected imported portable root is not part of the authenticated graph"
+		}
+		selection.selectedRoots.forEach { root ->
 			val owner = authenticated.graph.ownerRevisions.singleOrNull {
 				it.ownerKind == root.ownerKind &&
 					it.ownerIdentity == root.ownerIdentity &&
@@ -433,6 +472,7 @@ fun authenticatedImportedPortableOwnerFences(
 			require(appearances.size <= maximumFenceCount)
 		}
 	}
+
 	return appearances.values
 		.groupBy { it.owner.ownerKind to it.owner.ownerIdentity }
 		.map { (_, lineage) ->
@@ -459,6 +499,14 @@ fun authenticatedImportedPortableOwnerFences(
 		}
 		.also { require(it.size <= maximumFenceCount) }
 }
+
+private fun PortableCountDomainRootV2.portableRootSelectionKey(): List<Any> = listOf(
+	containerIdentity.value,
+	productIdentity.value,
+	ownerKind,
+	ownerIdentity.value,
+	ownerRevision,
+)
 
 private data class PortableOwnerRevisionKey(
 	val ownerKind: String,

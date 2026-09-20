@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.base.database
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveDayEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsReceiptEntity
@@ -18,6 +19,7 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraph
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOperation
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOwnerKind
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsEntryV1
+import com.adsamcik.tracker.shared.model.steps.portable.StepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.deletionScopeIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.legacyUnprovenStepsCountDomainGraph
 import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
@@ -118,8 +120,12 @@ suspend fun AppDatabase.loadAuthenticatedImportedSessionCountDomainBinding(
 	entry: RetainedImportedStepsEntry,
 ): AuthenticatedImportedPortableGraphBinding? = withTransaction {
 	val expected = entry.legacyUnprovenCountDomainGraph()
-	val loaded = loadImportedSessionCountDomainBinding(entry.metadata.identity)
+	val loaded = loadImportedSessionCountDomainBinding(
+		entry.metadata.identity,
+		entry.metadata.contentChecksum,
+	)
 	if (loaded == null) {
+		requireGraphlessLegacySessionProvenance(entry, expected)
 		return@withTransaction null
 	}
 	try {
@@ -143,7 +149,10 @@ suspend fun AppDatabase.loadAuthenticatedImportedSessionCountDomainBinding(
 		}
 	}
 	val repaired = requireNotNull(
-		loadImportedSessionCountDomainBinding(entry.metadata.identity),
+		loadImportedSessionCountDomainBinding(
+			entry.metadata.identity,
+			entry.metadata.contentChecksum,
+		),
 	)
 	authenticateImportedSessionBinding(
 		repaired.binding,
@@ -158,8 +167,14 @@ suspend fun AppDatabase.loadAuthenticatedImportedSessionCountDomainBinding(
 	entry: PortableStepsEntryV1,
 ): AuthenticatedImportedPortableGraphBinding? = withTransaction {
 	val expected = legacyUnprovenStepsCountDomainGraph(entry.contentChecksum, entry.runs)
-	val loaded = loadImportedSessionCountDomainBinding(entry.identity.value)
-		?: return@withTransaction null
+	val loaded = loadImportedSessionCountDomainBinding(
+		entry.identity.value,
+		entry.contentChecksum.value,
+	)
+	if (loaded == null) {
+		requireGraphlessLegacySessionProvenance(entry)
+		return@withTransaction null
+	}
 	authenticateImportedSessionBinding(
 		loaded.binding,
 		loaded.graph,
@@ -171,6 +186,7 @@ suspend fun AppDatabase.loadAuthenticatedImportedSessionCountDomainBinding(
 
 private suspend fun AppDatabase.loadImportedSessionCountDomainBinding(
 	entryIdentity: String,
+	expectedProductChecksum: String,
 ): LoadedImportedSessionCountDomainBinding? {
 	val dao = importedPortableStepsCountDomainDao()
 	val bindings = dao.bindingsForProduct(
@@ -191,13 +207,92 @@ private suspend fun AppDatabase.loadImportedSessionCountDomainBinding(
 	val fileReceipt = binding.sourceReceiptIdentity?.let { receiptIdentity ->
 		checkNotNull(dao.fileReceiptByIdentity(receiptIdentity))
 	}
+	val fileReceipts = loadBoundedSessionFileReceipts(entryIdentity)
+	authenticateImportedSessionFileReceipts(
+		binding,
+		fileReceipts,
+		expectedProductChecksum,
+	)
 	return LoadedImportedSessionCountDomainBinding(
 		binding = binding,
 		graph = graph,
 		bindingReceipt = fileReceipt,
-		fileReceipts = dao.fileReceiptsForEntry(entryIdentity, MAX_SESSION_FILE_RECEIPTS + 1)
-			.also { check(it.size <= MAX_SESSION_FILE_RECEIPTS) },
+		fileReceipts = fileReceipts,
+		fileReceiptCount = fileReceipts.size,
 	)
+}
+
+private suspend fun AppDatabase.loadBoundedSessionFileReceipts(
+	entryIdentity: String,
+): List<ImportedPortableStepsFileReceiptEntity> {
+	val dao = importedPortableStepsCountDomainDao()
+	val result = mutableListOf<ImportedPortableStepsFileReceiptEntity>()
+	var afterJobId: String? = null
+	var afterEntryKey: String? = null
+	while (true) {
+		val remaining = ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY -
+			result.size + 1
+		val page = dao.fileReceiptPageForEntry(
+			entryIdentity = entryIdentity,
+			afterJobId = afterJobId,
+			afterEntryKey = afterEntryKey,
+			limit = minOf(
+				ImportedPortableStepsCountDomainDao.FILE_RECEIPT_PAGE_SIZE,
+				remaining,
+			),
+		)
+		result += page
+		check(
+			result.size <= ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY,
+		) {
+			"Imported Steps file provenance exceeds its per-entry bound"
+		}
+		if (page.size < ImportedPortableStepsCountDomainDao.FILE_RECEIPT_PAGE_SIZE ||
+			result.size == ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY
+		) {
+			if (result.size == ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY) {
+				val last = result.last()
+				check(
+					dao.fileReceiptPageForEntry(
+						entryIdentity,
+						last.importJobId,
+						last.entryKey,
+						1,
+					).isEmpty(),
+				) {
+					"Imported Steps file provenance exceeds its per-entry bound"
+				}
+			}
+			break
+		}
+		val last = page.last()
+		afterJobId = last.importJobId
+		afterEntryKey = last.entryKey
+	}
+	return result
+}
+
+private fun authenticateImportedSessionFileReceipts(
+	binding: ImportedPortableStepsCountDomainBindingEntity,
+	receipts: List<ImportedPortableStepsFileReceiptEntity>,
+	expectedProductChecksum: String,
+) {
+	check(receipts.map { it.importJobId to it.entryKey }.distinct().size == receipts.size)
+	check(receipts.map { it.receiptIdentity }.distinct().size == receipts.size)
+	receipts.forEach { receipt ->
+		check(receipt.entryIdentity == binding.productIdentity)
+		check(receipt.graphIdentity == binding.graphIdentity)
+		check(receipt.entryOrdinal in 0 until StepsPortableFormatV1.MAX_ENTRIES)
+		if (binding.sourceSchemaVersion == StepsPortableFormatV1.SCHEMA_VERSION) {
+			check(receipt.archiveContentChecksum == expectedProductChecksum)
+		}
+	}
+	val sourceReceiptIdentity = binding.sourceReceiptIdentity ?: return
+	val sourceReceipt = receipts.singleOrNull {
+		it.receiptIdentity == sourceReceiptIdentity
+	}
+	checkNotNull(sourceReceipt)
+	check(sourceReceipt.archiveContentChecksum == binding.sourceArchiveContentChecksum)
 }
 
 private suspend fun AppDatabase.loadAuthenticatedImportedAmbientGraphs(
@@ -221,6 +316,7 @@ internal data class LoadedImportedSessionCountDomainBinding(
 	val graph: PortableCountDomainGraphV2,
 	val bindingReceipt: ImportedPortableStepsFileReceiptEntity?,
 	val fileReceipts: List<ImportedPortableStepsFileReceiptEntity>,
+	val fileReceiptCount: Int,
 )
 
 @Suppress("LongParameterList")
@@ -288,6 +384,27 @@ internal suspend fun AppDatabase.requireGraphlessLegacySessionProvenance(
 		containerIdentities = graph.roots.map { it.containerIdentity.value },
 		productIdentities = buildList {
 			add(entry.metadata.identity)
+			addAll(graph.roots.map { it.productIdentity.value })
+		},
+		ownerIdentities = graph.roots.map { it.ownerIdentity.value },
+	)
+}
+
+internal suspend fun AppDatabase.requireGraphlessLegacySessionProvenance(
+	entry: PortableStepsEntryV1,
+) {
+	val graph = legacyUnprovenStepsCountDomainGraph(entry.contentChecksum, entry.runs)
+	val dao = importedPortableStepsCountDomainDao()
+	require(dao.fileReceiptCountForEntry(entry.identity.value) == 0) {
+		"Graphless legacy Steps product has durable file provenance"
+	}
+	requireNoImportedPortableGraphEraEvidence(
+		productKind = ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+		productIdentity = entry.identity.value,
+		graphIdentities = listOf(graph.identity.value),
+		containerIdentities = graph.roots.map { it.containerIdentity.value },
+		productIdentities = buildList {
+			add(entry.identity.value)
 			addAll(graph.roots.map { it.productIdentity.value })
 		},
 		ownerIdentities = graph.roots.map { it.ownerIdentity.value },
@@ -434,6 +551,37 @@ fun AppDatabase.loadAuthenticatedImportedSessionCountDomainBindingForFullClear(
 	val expectedLegacyGraph = entry.legacyUnprovenCountDomainGraph()
 	authenticateImportedSessionBinding(binding, graph, fileReceipt, expectedLegacyGraph)
 	return AuthenticatedImportedPortableGraphBinding(binding, graph)
+}
+
+internal fun AppDatabase.loadImportedSessionCountDomainBindingForFullClear(
+	entryIdentity: String,
+): LoadedImportedSessionCountDomainBinding? {
+	val dao = importedPortableStepsCountDomainDao()
+	val bindings = dao.bindingsForFullClear(
+		ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+		entryIdentity,
+		2,
+	)
+	if (bindings.isEmpty()) return null
+	check(bindings.size == 1)
+	val binding = bindings.single()
+	check(binding.productRevision == IMPORTED_SESSION_PRODUCT_REVISION)
+	val graph = checkNotNull(
+		dao.authenticatedGraphForFullClear(
+			binding.graphIdentity,
+			ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+		),
+	)
+	val bindingReceipt = binding.sourceReceiptIdentity?.let { receiptIdentity ->
+		checkNotNull(dao.fileReceiptByIdentityForFullClear(receiptIdentity))
+	}
+	return LoadedImportedSessionCountDomainBinding(
+		binding = binding,
+		graph = graph,
+		bindingReceipt = bindingReceipt,
+		fileReceipts = listOfNotNull(bindingReceipt),
+		fileReceiptCount = dao.fileReceiptCountForEntryForFullClear(entryIdentity),
+	)
 }
 
 internal fun RetainedImportedStepsEntry.legacyUnprovenCountDomainGraph(): PortableCountDomainGraphV2 =
@@ -600,10 +748,27 @@ private suspend fun AppDatabase.reconcilePreviouslyTruncatedLegacyAmbientGraph(
 		}
 	if (retainedOwnerFences.isNotEmpty()) return false
 	val replacementRevision = Math.addExact(bindings.last().productRevision, 1L)
+	val graphDao = importedPortableStepsCountDomainDao()
+	insertOrAuthenticateImportedPortableOwnerFences(
+		authenticatedImportedPortableSelectedOwnerFences(
+			selections = listOf(
+				AuthenticatedImportedPortableRootSelection(
+					authenticated = AuthenticatedImportedPortableGraphBinding(
+						previousBinding,
+						previousGraph,
+					),
+					selectedRoots = removedRoots,
+				),
+			),
+			fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION,
+			collectedDataEpoch = lineage.latest.header.collectedDataEpoch,
+			fencedAtMs = lineage.latest.header.receivedAtMs,
+			maximumFenceCount = ImportedAmbientStepsDao.MAX_TOTAL_FACT_ROWS_PER_LINEAGE,
+		),
+	)
 	val replacementGraph = retainedDay
 		.withExplicitUnprovenCountDomain(replacementRevision)
 		.countDomainGraph
-	val graphDao = importedPortableStepsCountDomainDao()
 	if (graphDao.graph(replacementGraph.identity.value) != null ||
 		graphDao.bindingEvidenceCountForGraphs(listOf(replacementGraph.identity.value)) != 0
 	) {
@@ -627,18 +792,6 @@ private suspend fun AppDatabase.reconcilePreviouslyTruncatedLegacyAmbientGraph(
 		sourceReceiptIdentity = currentReceipt.receiptIdentity,
 		sourceArchiveIdentity = currentArchive.archiveIdentity,
 		sourceArchiveContentChecksum = currentArchive.contentChecksum,
-	)
-	val removedGraph = previousGraph.copy(roots = removedRoots)
-	insertOrAuthenticateImportedPortableOwnerFences(
-		authenticatedImportedPortableOwnerFences(
-			graphs = listOf(
-				AuthenticatedImportedPortableGraphBinding(previousBinding, removedGraph),
-			),
-			fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION,
-			collectedDataEpoch = lineage.latest.header.collectedDataEpoch,
-			fencedAtMs = lineage.latest.header.receivedAtMs,
-			maximumFenceCount = ImportedAmbientStepsDao.MAX_TOTAL_FACT_ROWS_PER_LINEAGE,
-		),
 	)
 	graphDao.insertAuthenticatedGraph(
 		replacementGraph,
@@ -819,7 +972,7 @@ private fun com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomain
 	ownerIdentity.value,
 )
 
-private fun com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao
+internal fun com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao
 	.authenticatedGraphForFullClear(
 		graphIdentity: String,
 		expectedSourceFormat: String,
@@ -836,5 +989,4 @@ private fun com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsC
 }
 
 private const val IMPORTED_SESSION_PRODUCT_REVISION = 1L
-private const val MAX_SESSION_FILE_RECEIPTS = 4_096
 private const val PORTABLE_EVIDENCE_QUERY_BATCH = 400

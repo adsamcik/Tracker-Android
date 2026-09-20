@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.hasCompletePortableOwnerLineage
 import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDay
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryLockedDays
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
@@ -509,11 +510,18 @@ internal class RoomImportPortableSteps internal constructor(
 				entryOrdinal,
 				sourcePayloadChecksum,
 			)
-			val stored = graphDao.fileReceipt(fileReceipt.jobId, fileReceipt.entryKey)
-			if (stored == null) {
-				graphDao.insertFileReceipt(row)
-			} else if (stored != row) {
-				return ImportPortableStepsResult.Conflict(PortableStepsConflictScope.LOGICAL_ENTRY)
+			when (admitFileReceipt(row)) {
+				FileReceiptAdmission.INSERTED,
+				FileReceiptAdmission.EXACT_REPLAY,
+				-> Unit
+				FileReceiptAdmission.LIMIT_REACHED ->
+					return ImportPortableStepsResult.Unverifiable(
+						PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
+					)
+				FileReceiptAdmission.CONFLICT ->
+					return ImportPortableStepsResult.Conflict(
+						PortableStepsConflictScope.LOGICAL_ENTRY,
+					)
 			}
 		}
 		return ImportPortableStepsResult.Duplicate
@@ -557,10 +565,37 @@ internal class RoomImportPortableSteps internal constructor(
 			),
 		)
 		fileReceipt?.let { receipt ->
-			dao.insertFileReceipt(
-				receipt.toEntity(entry, graph, entryOrdinal, sourcePayloadChecksum),
-			)
+			check(
+				admitFileReceipt(
+					receipt.toEntity(entry, graph, entryOrdinal, sourcePayloadChecksum),
+				) == FileReceiptAdmission.INSERTED,
+			) {
+				"New imported Steps product did not receive one bounded file receipt"
+			}
 		}
+	}
+
+	private suspend fun admitFileReceipt(
+		candidate: ImportedPortableStepsFileReceiptEntity,
+	): FileReceiptAdmission {
+		check(database.inTransaction()) {
+			"Imported Steps file receipt admission must be atomic with its product"
+		}
+		val dao = database.importedPortableStepsCountDomainDao()
+		val stored = dao.fileReceipt(candidate.importJobId, candidate.entryKey)
+		if (stored != null) {
+			return if (stored == candidate) {
+				FileReceiptAdmission.EXACT_REPLAY
+			} else {
+				FileReceiptAdmission.CONFLICT
+			}
+		}
+		val count = dao.fileReceiptCountForEntry(candidate.entryIdentity)
+		if (count >= ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY) {
+			return FileReceiptAdmission.LIMIT_REACHED
+		}
+		dao.insertFileReceipt(candidate)
+		return FileReceiptAdmission.INSERTED
 	}
 
 	private suspend fun preflightNativeAuthority(
@@ -666,6 +701,13 @@ internal class RoomImportPortableSteps internal constructor(
 		const val MAX_IMPORTED_ROOT_LOOKUP = 131_072
 		const val GRAPH_QUERY_BATCH_SIZE = 256
 	}
+}
+
+private enum class FileReceiptAdmission {
+	INSERTED,
+	EXACT_REPLAY,
+	LIMIT_REACHED,
+	CONFLICT,
 }
 
 private fun PortableStepsImportReceipt.toEntity(

@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database
 import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableCountDomainIdentity
@@ -84,6 +85,61 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			graph.roots.size + 1,
 		).map { it.fenceKind }.toSet() shouldBe
 			setOf(ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR)
+	}
+
+	@Test
+	fun `selected root fencing derives owners from the complete authenticated graph`() {
+		val entry = entry()
+		val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+		val binding = ImportedPortableStepsCountDomainBindingEntity(
+			ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+			entry.identity.value,
+			1L,
+			graph.identity.value,
+			1,
+		)
+		val selected = graph.roots.single {
+			it.productIdentity.value == entry.runs.single().facts.first().identity.value
+		}
+
+		val fences = authenticatedImportedPortableSelectedOwnerFences(
+			selections = listOf(
+				AuthenticatedImportedPortableRootSelection(
+					AuthenticatedImportedPortableGraphBinding(binding, graph),
+					listOf(selected),
+				),
+			),
+			fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION,
+			collectedDataEpoch = 7L,
+			fencedAtMs = 9L,
+			maximumFenceCount = 1,
+		)
+
+		fences.map { it.ownerIdentity } shouldBe listOf(selected.ownerIdentity.value)
+		graph.roots.size shouldBe 3
+		graph.identity.value shouldBe entry.withExplicitUnprovenCountDomain()
+			.countDomainGraph.identity.value
+	}
+
+	@Test
+	fun `full clear independently fences and deletes an authenticated orphan graph`() = runTest {
+		val graph = entry().withExplicitUnprovenCountDomain().countDomainGraph
+		val dao = database.importedPortableStepsCountDomainDao()
+		dao.insertAuthenticatedGraph(
+			graph,
+			ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+		)
+
+		database.withTransaction {
+			database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+		}
+
+		dao.graph(graph.identity.value) shouldBe null
+		dao.ownerFences(
+			graph.roots.map { it.ownerIdentity.value },
+			graph.roots.size + 1,
+		).map { it.ownerIdentity }.toSet() shouldBe
+			graph.roots.map { it.ownerIdentity.value }.toSet()
 	}
 
 	@Test
@@ -273,6 +329,111 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			graph.roots.size + 1,
 		) shouldBe emptyList()
 	}
+
+	@Test
+	fun `orphan file receipt rolls back orphan graph fences and deletion`() = runTest {
+		val entry = entry()
+		seedSessionPayload(entry)
+		val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+		val dao = database.importedPortableStepsCountDomainDao()
+		dao.insertAuthenticatedGraph(
+			graph,
+			ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+		)
+		dao.insertFileReceipt(fileReceipt(entry, graph, 0))
+
+		assertFailsWith<IllegalArgumentException> {
+			database.withTransaction {
+				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+			}
+		}
+
+		dao.graph(graph.identity.value)?.graphIdentity shouldBe graph.identity.value
+		dao.fileReceipt("job-0", "entry-0") shouldBe fileReceipt(entry, graph, 0)
+		dao.ownerFences(
+			graph.roots.map { it.ownerIdentity.value },
+			graph.roots.size + 1,
+		) shouldBe emptyList()
+	}
+
+	@Test
+	fun `bounded file receipt pages authenticate through the final partial page`() = runTest {
+		val entry = entry()
+		seedSessionPayload(entry)
+		val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+		val dao = database.importedPortableStepsCountDomainDao()
+		val sourceReceipt = fileReceipt(entry, graph, 0)
+		dao.insertAuthenticatedGraph(
+			graph,
+			ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+		)
+		dao.insertBinding(
+			ImportedPortableStepsCountDomainBindingEntity(
+				productKind =
+					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				productIdentity = entry.identity.value,
+				productRevision = 1L,
+				graphIdentity = graph.identity.value,
+				sourceSchemaVersion = 1,
+				sourceReceiptIdentity = sourceReceipt.receiptIdentity,
+				sourceArchiveContentChecksum = entry.contentChecksum.value,
+			),
+		)
+		repeat(ImportedPortableStepsCountDomainDao.FILE_RECEIPT_PAGE_SIZE + 1) { index ->
+			dao.insertFileReceipt(fileReceipt(entry, graph, index))
+		}
+
+		database.loadAuthenticatedImportedSessionCountDomainBinding(entry)
+			?.graph shouldBe graph
+	}
+
+	@Test
+	fun `full clear fences authenticated products before deleting overbound file receipts`() =
+		runTest {
+			val entry = entry()
+			seedSessionPayload(entry)
+			val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+			val dao = database.importedPortableStepsCountDomainDao()
+			val sourceReceipt = fileReceipt(entry, graph, 0)
+			dao.insertAuthenticatedGraph(
+				graph,
+				ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+			)
+			dao.insertBinding(
+				ImportedPortableStepsCountDomainBindingEntity(
+					productKind =
+						ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+					productIdentity = entry.identity.value,
+					productRevision = 1L,
+					graphIdentity = graph.identity.value,
+					sourceSchemaVersion = 1,
+					sourceReceiptIdentity = sourceReceipt.receiptIdentity,
+					sourceArchiveContentChecksum = entry.contentChecksum.value,
+				),
+			)
+			(0..ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY)
+				.chunked(256)
+				.forEach { indices ->
+					dao.insertFileReceipts(
+						indices.map { index -> fileReceipt(entry, graph, index) },
+					)
+				}
+			assertFailsWith<IllegalStateException> {
+				database.loadAuthenticatedImportedSessionCountDomainBinding(entry)
+			}
+
+			database.withTransaction {
+				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+			}
+
+			dao.graph(graph.identity.value) shouldBe null
+			dao.fileReceiptCountForEntry(entry.identity.value) shouldBe 0
+			dao.ownerFences(
+				graph.roots.map { it.ownerIdentity.value },
+				graph.roots.size + 1,
+			).map { it.ownerIdentity }.toSet() shouldBe
+				graph.roots.map { it.ownerIdentity.value }.toSet()
+		}
 
 	@Test
 	fun `missing graphless session evidence rolls back full clear fences`() = runTest {
@@ -538,6 +699,25 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 		)
 		return graph
 	}
+
+	private fun fileReceipt(
+		entry: PortableStepsEntryV1,
+		graph: PortableCountDomainGraphV2,
+		index: Int,
+	): ImportedPortableStepsFileReceiptEntity = ImportedPortableStepsFileReceiptEntity(
+		importJobId = "job-$index",
+		entryKey = "entry-$index",
+		receiptIdentity = ImportedPortableCountDomainIdentity.fileReceipt(
+			"job-$index",
+			"entry-$index",
+		),
+		sourceName = "steps-$index.trackersteps",
+		receivedAtMs = index.toLong(),
+		archiveContentChecksum = entry.contentChecksum.value,
+		entryOrdinal = 0,
+		entryIdentity = entry.identity.value,
+		graphIdentity = graph.identity.value,
+	)
 
 	private fun entry(): PortableStepsEntryV1 {
 		val run = PortableStepsRunV1(

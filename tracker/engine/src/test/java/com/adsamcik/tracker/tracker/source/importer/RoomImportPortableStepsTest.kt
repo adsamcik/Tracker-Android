@@ -4,9 +4,14 @@ import android.app.Application
 import android.database.sqlite.SQLiteException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.insertAuthenticatedGraph
 import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableCountDomainIdentity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFileReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -35,6 +40,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsFactCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsFactV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsIdentityKind
+import com.adsamcik.tracker.stats.api.repository.PortableStepsImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortableStepsImportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableStepsManifestV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsOpaqueIdentity
@@ -557,6 +563,81 @@ class RoomImportPortableStepsTest {
 	}
 
 	@Test
+	fun `file receipt bound is atomic while exact replay remains idempotent across pages`() =
+		runTest {
+			val candidate = entry()
+			val importer = subject()
+			val first = receipt(0)
+			importer.importEntry(candidate, first, 0) shouldBe
+				ImportPortableStepsResult.Applied(1, 1)
+			importer.importEntry(candidate, first, 0) shouldBe ImportPortableStepsResult.Duplicate
+			val graph = candidate.withExplicitUnprovenCountDomain().countDomainGraph
+			(1 until ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY)
+				.chunked(256)
+				.forEach { indices ->
+					database.importedPortableStepsCountDomainDao().insertFileReceipts(
+						indices.map { index -> receiptEntity(candidate, graph.identity.value, index) },
+					)
+			}
+			database.importedPortableStepsCountDomainDao()
+				.fileReceiptCountForEntry(candidate.identity.value) shouldBe
+				ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY
+
+			importer.importEntry(
+				candidate,
+				receipt(ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY),
+				0,
+			) shouldBe ImportPortableStepsResult.Unverifiable(
+				PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
+			)
+			importer.importEntry(candidate, first, 0) shouldBe ImportPortableStepsResult.Duplicate
+			database.importedPortableStepsCountDomainDao()
+				.fileReceiptCountForEntry(candidate.identity.value) shouldBe
+				ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY
+		}
+
+	@Test
+	fun `terminal fences left by orphan graph full clear block exact reimport`() = runTest {
+		val candidate = entry()
+		val graph = candidate.withExplicitUnprovenCountDomain().countDomainGraph
+		val dao = database.importedPortableStepsCountDomainDao()
+		dao.insertAuthenticatedGraph(
+			graph,
+			ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+		)
+		dao.insertOwnerFences(graph.roots.map { root ->
+			val owner = graph.ownerRevisions.single {
+				it.ownerKind == root.ownerKind &&
+					it.ownerIdentity == root.ownerIdentity &&
+					it.ownerRevision == root.ownerRevision
+			}
+			ImportedPortableStepsCountDomainOwnerFenceEntity.create(
+				ownerKind = owner.ownerKind.name,
+				ownerIdentity = owner.ownerIdentity.value,
+				scopeIdentity = owner.scopeIdentity.value,
+				latestSourceRevision = owner.ownerRevision,
+				latestOwnerEffectChecksum = owner.ownerEffectChecksum.value,
+				productKind =
+					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				productIdentity = root.productIdentity.value,
+				graphIdentity = graph.identity.value,
+				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
+				collectedDataEpoch = 4L,
+				fencedAtMs = 50_000L,
+			)
+		})
+		dao.deleteGraphIfUnbound(graph.identity.value) shouldBe 1
+
+		subject().importEntry(candidate) shouldBe ImportPortableStepsResult.DeletedScope
+		dao.graph(graph.identity.value) shouldBe null
+		dao.ownerFences(
+			graph.roots.map { it.ownerIdentity.value },
+			graph.roots.size + 1,
+		).map { it.ownerIdentity }.toSet() shouldBe
+			graph.roots.map { it.ownerIdentity.value }.toSet()
+	}
+
+	@Test
 	fun `malformed retained imported state cannot be accepted as an exact replay`() = runTest {
 		val candidate = entry()
 		val importer = subject()
@@ -911,6 +992,32 @@ class RoomImportPortableStepsTest {
 			}
 		}
 	}
+
+	private fun receipt(index: Int) = PortableStepsImportReceipt(
+		jobId = "job-$index",
+		entryKey = "entry-$index",
+		sourceName = "steps-$index.trackersteps",
+		receivedAtMs = index.toLong(),
+	)
+
+	private fun receiptEntity(
+		entry: PortableStepsEntryV1,
+		graphIdentity: String,
+		index: Int,
+	) = ImportedPortableStepsFileReceiptEntity(
+		importJobId = "job-$index",
+		entryKey = "entry-$index",
+		receiptIdentity = ImportedPortableCountDomainIdentity.fileReceipt(
+			"job-$index",
+			"entry-$index",
+		),
+		sourceName = "steps-$index.trackersteps",
+		receivedAtMs = index.toLong(),
+		archiveContentChecksum = entry.contentChecksum.value,
+		entryOrdinal = 0,
+		entryIdentity = entry.identity.value,
+		graphIdentity = graphIdentity,
+	)
 
 	private suspend fun assertNoImportedPayload() {
 		tableCount("imported_steps_entry") shouldBe 0L

@@ -37,6 +37,9 @@ interface ImportedPortableStepsCountDomainDao {
 	suspend fun insertFileReceipt(value: ImportedPortableStepsFileReceiptEntity)
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun insertFileReceipts(values: List<ImportedPortableStepsFileReceiptEntity>)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertOwnerFences(values: List<ImportedPortableStepsCountDomainOwnerFenceEntity>)
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
@@ -168,10 +171,14 @@ interface ImportedPortableStepsCountDomainDao {
 
 	@Query(
 		"SELECT * FROM imported_steps_file_receipt WHERE entry_identity = :entryIdentity " +
+			"AND (:afterJobId IS NULL OR import_job_id > :afterJobId OR " +
+			"(import_job_id = :afterJobId AND entry_key > :afterEntryKey)) " +
 			"ORDER BY import_job_id, entry_key LIMIT :limit",
 	)
-	suspend fun fileReceiptsForEntry(
+	suspend fun fileReceiptPageForEntry(
 		entryIdentity: String,
+		afterJobId: String?,
+		afterEntryKey: String?,
 		limit: Int,
 	): List<ImportedPortableStepsFileReceiptEntity>
 
@@ -269,6 +276,16 @@ interface ImportedPortableStepsCountDomainDao {
 	fun allBindingsForFullClear(limit: Int): List<ImportedPortableStepsCountDomainBindingEntity>
 
 	@Query(
+		"SELECT * FROM imported_steps_count_domain_graph " +
+			"WHERE (:afterGraphIdentity IS NULL OR graph_identity > :afterGraphIdentity) " +
+			"ORDER BY graph_identity LIMIT :limit",
+	)
+	fun graphPageForFullClear(
+		afterGraphIdentity: String?,
+		limit: Int,
+	): List<ImportedPortableStepsCountDomainGraphEntity>
+
+	@Query(
 		"SELECT * FROM imported_steps_count_domain_binding WHERE product_kind = :productKind " +
 			"AND product_identity = :productIdentity ORDER BY product_revision LIMIT :limit",
 	)
@@ -328,6 +345,23 @@ interface ImportedPortableStepsCountDomainDao {
 	): ImportedPortableStepsFileReceiptEntity?
 
 	@Query(
+		"SELECT * FROM imported_steps_file_receipt " +
+			"WHERE (:afterJobId IS NULL OR import_job_id > :afterJobId OR " +
+			"(import_job_id = :afterJobId AND entry_key > :afterEntryKey)) " +
+			"ORDER BY import_job_id, entry_key LIMIT :limit",
+	)
+	fun fileReceiptPageForFullClear(
+		afterJobId: String?,
+		afterEntryKey: String?,
+		limit: Int,
+	): List<ImportedPortableStepsFileReceiptEntity>
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_steps_file_receipt WHERE entry_identity = :entryIdentity",
+	)
+	fun fileReceiptCountForEntryForFullClear(entryIdentity: String): Int
+
+	@Query(
 		"SELECT owner.* FROM imported_steps_count_domain_owner_revision AS owner " +
 			"INNER JOIN imported_steps_count_domain_root AS root " +
 			"ON root.graph_identity = owner.graph_identity " +
@@ -358,4 +392,9 @@ interface ImportedPortableStepsCountDomainDao {
 
 	@Query("DELETE FROM imported_steps_file_receipt")
 	fun deleteAllFileReceiptsForFullClear()
+
+	companion object {
+		const val MAX_FILE_RECEIPTS_PER_ENTRY = 4_096
+		const val FILE_RECEIPT_PAGE_SIZE = 128
+	}
 }
