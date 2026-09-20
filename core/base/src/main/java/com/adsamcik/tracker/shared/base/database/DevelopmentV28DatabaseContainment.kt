@@ -151,6 +151,7 @@ class ActiveDatabasePreflight internal constructor(
 				FINAL_V28_RADIO_RECEIPT_TABLE,
 				FINAL_V28_RADIO_RECEIPT_COLUMN,
 			) ||
+			!FINAL_V28_APPLIED_PLAN_COLUMNS.all(database::hasExactColumn) ||
 			!FINAL_V28_RETENTION_JOURNAL_COLUMNS.all { column ->
 				database.hasColumn(FINAL_V28_RETENTION_JOURNAL_TABLE, column)
 			} ||
@@ -384,6 +385,26 @@ private fun SQLiteDatabase.hasColumn(table: String, column: String): Boolean =
 		false
 	}
 
+private fun SQLiteDatabase.hasExactColumn(column: FinalV28ColumnSentinel): Boolean =
+	rawQuery("PRAGMA table_info(`${column.table}`)", null).use { cursor ->
+		val nameColumn = cursor.getColumnIndexOrThrow("name")
+		val typeColumn = cursor.getColumnIndexOrThrow("type")
+		val notNullColumn = cursor.getColumnIndexOrThrow("notnull")
+		val primaryKeyColumn = cursor.getColumnIndexOrThrow("pk")
+		var found = false
+		while (cursor.moveToNext()) {
+			if (cursor.getString(nameColumn) == column.name) {
+				if (found ||
+					!cursor.getString(typeColumn).equals(column.type, ignoreCase = true) ||
+					(cursor.getInt(notNullColumn) != 0) != column.notNull ||
+					cursor.getInt(primaryKeyColumn) != column.primaryKeyPosition
+				) return@use false
+				found = true
+			}
+		}
+		found
+	}
+
 private fun SQLiteDatabase.hasExactColumns(
 	table: String,
 	expectedColumns: List<String>,
@@ -488,7 +509,7 @@ private enum class FinalV28MarkerState {
 
 internal const val FINAL_V28_MARKER_ID = -280_917
 internal const val FINAL_V28_ASSEMBLY_ID =
-	"tracker-v28-portable-steps-disk-staging-20260920"
+	"tracker-v28-applied-source-plan-state-20260920"
 private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
 	"tracker-v28-final-20260917",
 	"tracker-v28-retention-final-20260917",
@@ -500,6 +521,7 @@ private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
 	"tracker-v28-portable-steps-count-domain-20260920",
 	"tracker-v28-portable-ambient-graph-revision-20260920",
 	"tracker-v28-portable-ambient-graph-provenance-20260920",
+	"tracker-v28-portable-steps-disk-staging-20260920",
 )
 
 private val BASELINE_TABLES = setOf(
@@ -532,11 +554,32 @@ private val FINAL_V28_REQUIRED_TABLES = setOf(
 	"imported_steps_full_clear_owner_stage",
 	"imported_steps_full_clear_owner_revision_stage",
 	"imported_steps_full_clear_explicit_lineage_stage",
+	"source_applied_plan_state",
 )
 private const val FINAL_V28_REQUIRED_COLUMN_TABLE = "pending_signal"
 private const val FINAL_V28_REQUIRED_COLUMN = "pressure_writer_owner_generation"
 private const val FINAL_V28_RADIO_RECEIPT_TABLE = "cell_captured_entry_deletion_receipt"
 private const val FINAL_V28_RADIO_RECEIPT_COLUMN = "retained_from_ms"
+private val FINAL_V28_APPLIED_PLAN_COLUMNS = listOf(
+	FinalV28ColumnSentinel(
+		table = "source_applied_plan_state",
+		name = "applied_payload_version",
+		type = "INTEGER",
+		notNull = false,
+	),
+	FinalV28ColumnSentinel(
+		table = "source_applied_plan_state",
+		name = "applied_payload",
+		type = "BLOB",
+		notNull = false,
+	),
+	FinalV28ColumnSentinel(
+		table = "source_applied_plan_state",
+		name = "applied_payload_checksum",
+		type = "TEXT",
+		notNull = false,
+	),
+)
 private const val FINAL_V28_RETENTION_JOURNAL_TABLE = "collected_data_deletion_operation"
 private val FINAL_V28_RETENTION_JOURNAL_COLUMNS = setOf(
 	"retention_work_execution_id",
@@ -792,6 +835,14 @@ private data class FinalV28IndexSentinel(
 	val columns: List<String>,
 	val unique: Boolean,
 	val descendingColumns: Set<Int> = emptySet(),
+)
+
+private data class FinalV28ColumnSentinel(
+	val table: String,
+	val name: String,
+	val type: String,
+	val notNull: Boolean,
+	val primaryKeyPosition: Int = 0,
 )
 
 private data class FinalV28IndexedColumn(

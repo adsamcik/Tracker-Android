@@ -2118,6 +2118,19 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				?: return SessionReconfigureResult.InvalidIntent("CURRENT_PLAN_MISSING")
 			val appliedStates = database.sourcePlanStateDao().appliedStates()
 				.associateBy { state -> state.sourceKind }
+			val allActiveStates = appliedStates.values.filter { state ->
+				state.status in setOf(
+					SourceApplyStatus.APPLIED.name,
+					SourceApplyStatus.DEGRADED.name,
+				)
+			}
+			when (val read = planStore.loadApplied(allActiveStates)) {
+				is AppliedPlanRead.Available,
+				AppliedPlanRead.Missing,
+				-> Unit
+				is AppliedPlanRead.Invalid ->
+					return SessionReconfigureResult.InvalidState(read.code)
+			}
 			val activeStates = currentManifest.bindings.asSequence()
 				.filter { binding ->
 					binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name
@@ -2130,9 +2143,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 							state.status in setOf(
 								SourceApplyStatus.APPLIED.name,
 								SourceApplyStatus.DEGRADED.name,
-							) &&
-							state.sourceInstanceId?.isNotBlank() == true &&
-							state.registrationGeneration?.let { generation -> generation > 0L } == true
+							)
 					}
 				}
 				.toList()

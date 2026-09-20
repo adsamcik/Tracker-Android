@@ -573,6 +573,8 @@ class TrackerServiceSourceSessionTest {
 
 		descriptor.appliedSourcePlanIdentity shouldBe desiredIdentity
 		descriptor.desiredSourcePlanIdentity shouldBe desiredIdentity
+		localSubject.reconfigure(baselineInputs) shouldBe
+			SourceSessionReconfigureOutcome.Unchanged
 		coVerify(exactly = 0) { localLifecycle.reconfigure(any()) }
 	}
 
@@ -689,7 +691,18 @@ class TrackerServiceSourceSessionTest {
 				requests.size shouldBe 2
 				val requestedFingerprint = requireNotNull(requests.last().desiredPlanFingerprint)
 				requestedFingerprint shouldNotBe desiredIdentity.planFingerprint
+				val currentInputsFingerprint = currentInputs.planInputsFingerprint(
+					rolloutRevision = rollout.revision,
+					captureMode = CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+					startOrigin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+					foregroundCapabilityFlags = 1L,
+					controlDependencies = emptySet(),
+				)
 				descriptor.appliedSourcePlanIdentity shouldBe desiredIdentity
+				descriptor.appliedSourcePlanIdentity?.inputsFingerprint shouldBe
+					desiredIdentity.inputsFingerprint
+				descriptor.desiredSourcePlanIdentity?.inputsFingerprint shouldBe
+					currentInputsFingerprint
 				descriptor.desiredSourcePlanIdentity?.planFingerprint shouldBe requestedFingerprint
 				descriptor.catalogReconfigurationDebt?.desiredPlanFingerprint shouldBe
 					requestedFingerprint

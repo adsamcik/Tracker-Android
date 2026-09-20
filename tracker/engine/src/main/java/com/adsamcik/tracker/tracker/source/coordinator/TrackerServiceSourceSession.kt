@@ -257,11 +257,13 @@ class TrackerServiceSourceSession @Inject constructor(
 				captureMode = captureModeFor(claim.isUserInitiated, claim.isAmbient),
 				automaticTrigger = null,
 				foregroundCapabilityFlags = claim.desiredForegroundCapabilityFlags,
-				lastInputs = planInputs,
+				desiredInputs = planInputs,
 				coordinatorStarted = true,
 				sourceCallerAuthorityReference = claimedReference,
 				appliedSourcePlanIdentity = persistedDescriptor?.appliedSourcePlanIdentity,
 				desiredSourcePlanIdentity = persistedDescriptor?.desiredSourcePlanIdentity,
+				lastAppliedInputsFingerprint =
+					persistedDescriptor?.appliedSourcePlanIdentity?.inputsFingerprint,
 				pendingRetirementSourceCallerAuthorityReference =
 					persistedDescriptor?.pendingRetirementSourceCallerAuthorityReference,
 				catalogReconfigurationDebt = persistedDescriptor?.catalogReconfigurationDebt,
@@ -442,7 +444,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			captureMode = request.captureMode,
 			automaticTrigger = request.automaticTrigger,
 			foregroundCapabilityFlags = request.foregroundCapabilityFlags,
-			lastInputs = planInputs,
+			desiredInputs = planInputs,
 			coordinatorStarted = false,
 			sourceCallerAuthorityReference = null,
 		)
@@ -532,10 +534,16 @@ class TrackerServiceSourceSession @Inject constructor(
 			return@withLock SourceSessionReconfigureOutcome.NotActive
 		}
 		val requestedInputs = inputs
-		if (session.lastInputs == requestedInputs &&
+		val requestedInputsFingerprint = session.inputsFingerprint(requestedInputs)
+		val appliedIdentity = session.appliedSourcePlanIdentity
+		val desiredIdentity = session.desiredSourcePlanIdentity
+		if (session.lastAppliedInputsFingerprint == requestedInputsFingerprint &&
 			session.catalogReconfigurationDebt == null &&
-			session.appliedSourcePlanIdentity != null &&
-			session.appliedSourcePlanIdentity == session.desiredSourcePlanIdentity
+			appliedIdentity != null &&
+			desiredIdentity != null &&
+			appliedIdentity == desiredIdentity &&
+			appliedIdentity.inputsFingerprint == requestedInputsFingerprint &&
+			desiredIdentity.inputsFingerprint == requestedInputsFingerprint
 		) {
 			return@withLock SourceSessionReconfigureOutcome.Unchanged
 		}
@@ -546,7 +554,7 @@ class TrackerServiceSourceSession @Inject constructor(
 				session.captureMode,
 			)
 			if (!ownership.eventCoordinatorRequired) {
-				session.lastInputs = requestedInputs
+				session.desiredInputs = requestedInputs
 				settingsStatusProvider.publishActivePreview(
 					requestedInputs.settings,
 					session.rollout,
@@ -1253,7 +1261,7 @@ class TrackerServiceSourceSession @Inject constructor(
 				return SourceSessionStopOutcome.Stopped
 			}
 		}
-		val cutoff = currentStopCutoff(session.lastInputs.clockDomainId)
+		val cutoff = currentStopCutoff(session.desiredInputs.clockDomainId)
 		val result = coordinator.suspendForRestart(
 			SessionSuspendRequest(
 				ownerToken = session.ownerToken,
@@ -1291,7 +1299,7 @@ class TrackerServiceSourceSession @Inject constructor(
 		reason: String,
 		factualCutoff: SourceSessionStopCutoff?,
 	): SourceSessionStopOutcome {
-		val cutoff = selectStopCutoff(session.lastInputs.clockDomainId, factualCutoff)
+		val cutoff = selectStopCutoff(session.desiredInputs.clockDomainId, factualCutoff)
 		val outcome = coordinator.stop(
 			SessionStopRequest(
 				ownerToken = session.ownerToken,
@@ -1506,7 +1514,7 @@ class TrackerServiceSourceSession @Inject constructor(
 				sourcePlanCodec,
 			),
 		)
-		lastInputs = inputs
+		lastAppliedInputsFingerprint = desiredIdentity.inputsFingerprint
 		desiredInputs = inputs
 		appliedSourcePlanIdentity = appliedIdentity
 		desiredSourcePlanIdentity = desiredIdentity
@@ -1518,29 +1526,28 @@ class TrackerServiceSourceSession @Inject constructor(
 		desiredIdentity: SourcePlanIdentity,
 		result: SessionReconfigureResult.Applied,
 	): Boolean {
-		lastInputs = inputs
-		desiredInputs = inputs
-		desiredSourcePlanIdentity = desiredIdentity
-		val effectivePlan = when (
+		val appliedIdentity = when (
 			val read = RoomSourcePlanStore(database, sourcePlanCodec).loadApplied(result.revision)
 		) {
-			is AppliedPlanRead.Available -> read.plan
+			is AppliedPlanRead.Available -> SourcePlanIdentity(
+				generation = desiredIdentity.generation,
+				inputsFingerprint = desiredIdentity.inputsFingerprint,
+				planFingerprint = sourcePlanFingerprint(
+					desiredIdentity.inputsFingerprint,
+					read.plan,
+					sourcePlanCodec,
+				),
+			)
 			AppliedPlanRead.Missing -> {
 				if (result.applied.isNotEmpty()) return false
-				appliedSourcePlanIdentity = desiredIdentity
-				return true
+				desiredIdentity
 			}
 			is AppliedPlanRead.Invalid -> return false
 		}
-		appliedSourcePlanIdentity = SourcePlanIdentity(
-			generation = desiredIdentity.generation,
-			inputsFingerprint = desiredIdentity.inputsFingerprint,
-			planFingerprint = sourcePlanFingerprint(
-				desiredIdentity.inputsFingerprint,
-				effectivePlan,
-				sourcePlanCodec,
-			),
-		)
+		lastAppliedInputsFingerprint = desiredIdentity.inputsFingerprint
+		desiredInputs = inputs
+		desiredSourcePlanIdentity = desiredIdentity
+		appliedSourcePlanIdentity = appliedIdentity
 		return persistSourcePlanIdentities(this)
 	}
 
@@ -1553,12 +1560,14 @@ class TrackerServiceSourceSession @Inject constructor(
 		val captureMode: CaptureReachabilityMode,
 		val automaticTrigger: AutomaticTrackingStartTrigger?,
 		val foregroundCapabilityFlags: Long,
-		var lastInputs: SourceSessionPlanInputs,
+		var desiredInputs: SourceSessionPlanInputs,
 		var coordinatorStarted: Boolean,
 		var sourceCallerAuthorityReference: SourceCallerReplayReference?,
-		var desiredInputs: SourceSessionPlanInputs = lastInputs,
 		var appliedSourcePlanIdentity: SourcePlanIdentity? = null,
 		var desiredSourcePlanIdentity: SourcePlanIdentity? = appliedSourcePlanIdentity,
+		/** Preparation/reconfiguration input identity that produced the live applied plan. */
+		var lastAppliedInputsFingerprint: String? =
+			appliedSourcePlanIdentity?.inputsFingerprint,
 		var pendingSourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 		var pendingRetirementSourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 		var catalogReconfigurationDebt: CatalogReconfigurationDebt? = null,

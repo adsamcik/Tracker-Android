@@ -136,13 +136,45 @@ class RoomSourcePlanStoreTest {
 			.shouldBeInstanceOf<AppliedPlanRead.Invalid>()
 	}
 
-	private fun locationPlan(backend: LocationBackend) = AcquisitionPlanRevision(
-		revision = 1L,
-		planId = "location-$backend",
+	@Test
+	fun `invalid active runtime identity fails before desired revision filtering`() = runTest {
+		val active = locationPlan(LocationBackend.FRAMEWORK, revision = 1L)
+		val requested = locationPlan(LocationBackend.FUSED, revision = 2L)
+		store.persistDesired(active, DesiredPlanStatus.EFFECTIVE)
+		store.persistDesired(requested, DesiredPlanStatus.APPLYING)
+		store.saveApplied(
+			state = AppliedSourcePlan(
+				desiredRevision = active.revision,
+				appliedRevision = active.revision,
+				source = SourceKind.LOCATION,
+				sourceInstanceId = SourceInstanceId("location-active"),
+				registrationGeneration = 1L,
+				appliedAtElapsedRealtimeNanos = 500L,
+				status = SourceApplyStatus.APPLIED,
+			),
+			effectivePlan = active.plans.getValue(SourceKind.LOCATION),
+			updatedAtMs = 1_000L,
+		)
+		val stored = database.sourcePlanStateDao().appliedStates().single()
+		database.sourcePlanStateDao().saveAppliedState(
+			stored.copy(sourceInstanceId = null),
+		)
+
+		store.loadApplied(requested.revision) shouldBe AppliedPlanRead.Invalid(
+			"APPLIED_SOURCE_PLAN_RUNTIME_IDENTITY_INVALID",
+		)
+	}
+
+	private fun locationPlan(
+		backend: LocationBackend,
+		revision: Long = 1L,
+	) = AcquisitionPlanRevision(
+		revision = revision,
+		planId = "location-$backend-$revision",
 		createdAtMs = 100L,
 		plans = mapOf(
 			SourceKind.LOCATION to LocationPlan(
-				revision = 1L,
+				revision = revision,
 				backend = backend,
 				mode = LocationMode.BALANCED,
 				requestedIntervalMs = 10_000L,

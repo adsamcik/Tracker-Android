@@ -162,59 +162,52 @@ class RoomSourcePlanStore @Inject constructor(
 	 */
 	suspend fun loadApplied(desiredRevision: Long): AppliedPlanRead = database.withTransaction {
 		val dao = database.sourcePlanStateDao()
+		val activeStates = dao.appliedStates().filter(SourceAppliedPlanStateEntity::isActive)
+		when (val activeRead = decodeAppliedStates(activeStates)) {
+			is AppliedPlanRead.Invalid -> return@withTransaction activeRead
+			is AppliedPlanRead.Available,
+			AppliedPlanRead.Missing,
+			-> Unit
+		}
 		val header = dao.revision(desiredRevision) ?: return@withTransaction AppliedPlanRead.Missing
-		val states = dao.appliedStates(desiredRevision)
-		if (states.isEmpty()) return@withTransaction AppliedPlanRead.Missing
-		if (states.size > SourceKind.entries.size) {
-			return@withTransaction AppliedPlanRead.Invalid(
-				"APPLIED_SOURCE_PLAN_COUNT_INVALID",
-			)
-		}
-		val decoded = linkedMapOf<SourceKind, SourcePlan>()
-		for (state in states) {
-			val appliedRevision = state.appliedRevision ?: continue
-			if (state.status !in setOf(
-					SourceApplyStatus.APPLIED.name,
-					SourceApplyStatus.DEGRADED.name,
-				)
-			) continue
-			val plan = state.decodeAppliedPlanOrNull(codec)
-				?: return@withTransaction AppliedPlanRead.Invalid(
-					"APPLIED_SOURCE_PLAN_PAYLOAD_INVALID",
-				)
-			if (plan.revision != appliedRevision || appliedRevision != desiredRevision) {
-				return@withTransaction AppliedPlanRead.Invalid(
-					"APPLIED_SOURCE_PLAN_REVISION_MISMATCH",
-				)
+		val states = activeStates.filter { state -> state.desiredRevision == desiredRevision }
+		when (val read = decodeAppliedStates(states)) {
+			is AppliedPlanRead.Available -> {
+				if (read.plan.revision != desiredRevision) {
+					AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_REVISION_MISMATCH")
+				} else {
+					AppliedPlanRead.Available(
+						read.plan.copy(
+							planId = "applied-runtime-$desiredRevision",
+							createdAtMs = header.createdAtMs,
+							sourcePolicyRevision = header.sourcePolicyRevision,
+						),
+					)
+				}
 			}
-			if (!state.hasRuntimeIdentityFor(plan)) {
-				return@withTransaction AppliedPlanRead.Invalid(
-					"APPLIED_SOURCE_PLAN_RUNTIME_IDENTITY_INVALID",
-				)
-			}
-			decoded[plan.source] = plan
+			is AppliedPlanRead.Invalid -> read
+			AppliedPlanRead.Missing -> AppliedPlanRead.Missing
 		}
-		if (decoded.isEmpty()) return@withTransaction AppliedPlanRead.Missing
-		AppliedPlanRead.Available(
-			AcquisitionPlanRevision(
-				revision = desiredRevision,
-				planId = "applied-runtime-$desiredRevision",
-				createdAtMs = header.createdAtMs,
-				plans = decoded,
-				sourcePolicyRevision = header.sourcePolicyRevision,
-			),
-		)
 	}
 
 	suspend fun loadApplied(
 		states: Collection<SourceAppliedPlanStateEntity>,
+	): AppliedPlanRead = decodeAppliedStates(states)
+
+	private fun decodeAppliedStates(
+		states: Collection<SourceAppliedPlanStateEntity>,
 	): AppliedPlanRead {
 		if (states.isEmpty()) return AppliedPlanRead.Missing
-		if (states.size > SourceKind.entries.size) {
+		if (states.size > SourceKind.entries.size ||
+			states.map(SourceAppliedPlanStateEntity::sourceKind).toSet().size != states.size
+		) {
 			return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_COUNT_INVALID")
 		}
 		val decoded = linkedMapOf<SourceKind, SourcePlan>()
 		for (state in states.sortedBy(SourceAppliedPlanStateEntity::sourceKind)) {
+			if (!state.isActive()) {
+				return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_STATUS_INVALID")
+			}
 			val plan = state.decodeAppliedPlanOrNull(codec)
 				?: return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_PAYLOAD_INVALID")
 			val appliedRevision = state.appliedRevision
@@ -248,6 +241,9 @@ class RoomSourcePlanStore @Inject constructor(
 		check(database.sourcePlanStateDao().updateRevisionStatus(revision, status.name) == 1)
 	}
 }
+
+private fun SourceAppliedPlanStateEntity.isActive(): Boolean =
+	status == SourceApplyStatus.APPLIED.name || status == SourceApplyStatus.DEGRADED.name
 
 private fun SourceAppliedPlanStateEntity.hasCompleteAppliedPayload(): Boolean =
 	appliedPayloadVersion != null && appliedPayload != null && appliedPayloadChecksum != null

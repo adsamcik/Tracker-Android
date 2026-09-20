@@ -773,6 +773,35 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `reconfiguration fails closed before provider lookup when active runtime identity is corrupt`() =
+		runTest {
+			subject.start(
+				startRequest().copy(
+					logicalTrackingId = "catalog-runtime-identity-logical",
+					serviceRunId = "catalog-runtime-identity-run",
+					plan = stepsAndLocationPlan(1L, stepsEnabled = false),
+				),
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+			val applied = database.sourcePlanStateDao().appliedStates()
+				.single { state -> state.sourceKind == SourceKind.LOCATION.stableCode }
+			database.sourcePlanStateDao().saveAppliedState(
+				applied.copy(sourceInstanceId = null),
+			)
+
+			subject.reconfigure(
+				stepsAndLocationReconfigure(
+					revision = 2L,
+					stepsEnabled = true,
+					locationEnabled = false,
+				),
+			) shouldBe SessionReconfigureResult.InvalidState(
+				"APPLIED_SOURCE_PLAN_RUNTIME_IDENTITY_INVALID",
+			)
+			runtime.startCount shouldBe 0
+			locationRuntime.reconfigureCount shouldBe 0
+		}
+
+	@Test
 	fun `transient catalog failure does not revive manifest source without live applied identity`() =
 		runTest {
 			val catalog = mockk<SourceImplementationCatalog>()
