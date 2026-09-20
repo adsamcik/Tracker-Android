@@ -64,11 +64,17 @@ class StepsCountDomainOwnerEffect private constructor(
 	}
 }
 
-/** Native owner types accepted by the P5 compatibility proof. */
+/** Source owner types accepted by the P5 compatibility proof. */
 enum class StepsCountDomainOwnerKind {
 	SESSION_FACT,
 	SESSION_COMPLETENESS,
 	AMBIENT_FACT,
+}
+
+/** Native and imported portable evidence remain separate authority namespaces. */
+enum class StepsCountDomainOwnerOrigin {
+	NATIVE,
+	IMPORTED_PORTABLE,
 }
 
 /** Exact owner revision; interval, count, zone, and source display names are intentionally absent. */
@@ -77,6 +83,7 @@ data class StepsCountDomainOwnerReference(
 	val identity: StepsCountDomainOwnerIdentity,
 	val revision: Long,
 	val effect: StepsCountDomainOwnerEffect,
+	val origin: StepsCountDomainOwnerOrigin = StepsCountDomainOwnerOrigin.NATIVE,
 ) {
 	init {
 		require(revision > 0L)
@@ -86,9 +93,9 @@ data class StepsCountDomainOwnerReference(
 /**
  * One native session-to-Ambient comparison.
  *
- * Session facts and terminal completeness must both be present. Portable session owners are
- * deliberately not representable yet; a future portable producer must add a separately
- * authenticated owner kind rather than borrowing native authority.
+ * Session facts and terminal completeness must both be present. [StepsCountDomainOwnerOrigin]
+ * keeps imported evidence separate from native authority while allowing their authenticated
+ * source-domain keys to be compared.
  */
 class StepsCountDomainCompatibilityRequest(
 	sessionOwners: List<StepsCountDomainOwnerReference>,

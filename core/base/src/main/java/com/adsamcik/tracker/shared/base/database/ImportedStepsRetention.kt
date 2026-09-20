@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
@@ -43,6 +44,7 @@ internal suspend fun AppDatabase.authenticateImportedStepsRetentionEntries() {
 internal suspend fun AppDatabase.markImportedStepsRetentionFloor(beforeMs: Long, markedAtMs: Long): Int {
 	var inserted = 0
 	visitImportedRetentionEntries { entry ->
+		requireAuthenticatedOrGraphlessLegacySession(entry)
 		entry.runs.filter { run -> entry.crossesFloor(run, beforeMs) }.forEach { run ->
 			if (installImportedRetentionFence(entry, run, markedAtMs, StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE)) {
 				inserted++
@@ -56,6 +58,9 @@ internal suspend fun AppDatabase.markImportedStepsRetentionFloor(beforeMs: Long,
 internal suspend fun AppDatabase.pruneImportedStepsRetentionFloor(beforeMs: Long, markedAtMs: Long): Int {
 	var deleted = 0
 	visitImportedRetentionEntries { entry ->
+		requireAuthenticatedOrGraphlessLegacySession(entry)
+		var prunedEntry = false
+		var authenticatedGraph: AuthenticatedImportedPortableGraphBinding? = null
 		for (run in entry.runs) {
 			if (entry.crossesFloor(run, beforeMs)) {
 				installImportedRetentionFence(entry, run, markedAtMs, StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE)
@@ -64,6 +69,14 @@ internal suspend fun AppDatabase.pruneImportedStepsRetentionFloor(beforeMs: Long
 			if (expired.isEmpty()) {
 				continue
 			}
+			authenticatedGraph = fenceImportedPortableSessionFacts(
+				entry = entry,
+				runIdentity = run.identity,
+				factIdentities = expired.mapTo(linkedSetOf()) { it.logicalFactId },
+				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION,
+				collectedDataEpoch = entry.metadata.collectedDataEpoch,
+				fencedAtMs = markedAtMs,
+			)
 			deleted += deleteImportedRetentionFacts(expired)
 			val removedIds = expired.mapTo(hashSetOf()) { it.logicalFactId }
 			val portable = entry.portableRunsById.getValue(run.identity)
@@ -72,6 +85,13 @@ internal suspend fun AppDatabase.pruneImportedStepsRetentionFloor(beforeMs: Long
 			check(importedStepsDao().updateRetainedChecksum(
 				run.identity, requireNotNull(run.retainedChecksum), requireNotNull(run.sessionSegmentId), checksum,
 			) == 1) { "Imported retention receipt changed during pruning" }
+			prunedEntry = true
+		}
+		if (prunedEntry) {
+			refreshImportedLegacySessionCountDomainBinding(
+				entry.metadata.identity,
+				requireNotNull(authenticatedGraph),
+			)
 		}
 	}
 	return deleted
@@ -88,8 +108,18 @@ suspend fun AppDatabase.pruneImportedStepsSegmentsBefore(beforeMs: Long, markedA
 	require(markedAtMs >= 0L)
 	var deleted = 0
 	visitImportedRetentionEntries { entry ->
-		for (run in entry.runs.filter { it.endTimeMs < beforeMs }) {
+		requireAuthenticatedOrGraphlessLegacySession(entry)
+		val expiredRuns = entry.runs.filter { it.endTimeMs < beforeMs }
+		var authenticatedGraph: AuthenticatedImportedPortableGraphBinding? = null
+		for (run in expiredRuns) {
 			installImportedRetentionFence(entry, run, markedAtMs, StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE)
+			authenticatedGraph = fenceImportedPortableSessionRun(
+				entry = entry,
+				runIdentity = run.identity,
+				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION,
+				collectedDataEpoch = entry.metadata.collectedDataEpoch,
+				fencedAtMs = markedAtMs,
+			)
 			deleteImportedRetentionFacts(entry.factsByRun.getValue(run.identity))
 			val segmentId = requireNotNull(run.sessionSegmentId)
 			check(importedStepsDao().deleteRunExact(
@@ -100,7 +130,16 @@ suspend fun AppDatabase.pruneImportedStepsSegmentsBefore(beforeMs: Long, markedA
 			}
 			deleted++
 		}
-		importedStepsDao().deleteEntryIfEmpty(entry.metadata.identity)
+		if (expiredRuns.isNotEmpty()) {
+			if (importedStepsDao().deleteEntryIfEmpty(entry.metadata.identity) == 1) {
+				removeImportedPortableSessionGraph(entry.metadata.identity)
+			} else {
+				refreshImportedLegacySessionCountDomainBinding(
+					entry.metadata.identity,
+					requireNotNull(authenticatedGraph),
+				)
+			}
+		}
 	}
 	if (deleted > 0) {
 		check(sourceEvidenceStateDao().incrementRevision(markedAtMs) == 1) {
@@ -109,6 +148,14 @@ suspend fun AppDatabase.pruneImportedStepsSegmentsBefore(beforeMs: Long, markedA
 		enqueueAllStepsGoalRepairs()
 	}
 	deleted
+}
+
+private suspend fun AppDatabase.requireAuthenticatedOrGraphlessLegacySession(
+	entry: RetainedImportedStepsEntry,
+) {
+	if (loadAuthenticatedImportedSessionCountDomainBinding(entry) == null) {
+		requireGraphlessLegacySessionProvenance(entry)
+	}
 }
 
 private fun RetainedImportedStepsEntry.crossesFloor(run: ImportedStepsRunEntity, beforeMs: Long): Boolean =
@@ -161,9 +208,13 @@ private suspend fun AppDatabase.deleteImportedRetentionFacts(facts: List<StepFac
 private suspend fun AppDatabase.visitImportedRetentionEntries(visit: suspend (RetainedImportedStepsEntry) -> Unit) {
 	var before: ImportedStepsEntryEntity? = null
 	while (true) {
-		val page = importedStepsDao().entryPage(
-			before?.startTimeMs, before?.identity, ImportedStepsRetainedReader.MAX_ENTRY_BATCH,
-		)
+		val page = before?.let {
+			importedStepsDao().entryPageAfter(
+				it.startTimeMs,
+				it.identity,
+				ImportedStepsRetainedReader.MAX_ENTRY_BATCH,
+			)
+		} ?: importedStepsDao().firstEntryPage(ImportedStepsRetainedReader.MAX_ENTRY_BATCH)
 		if (page.isEmpty()) {
 			break
 		}

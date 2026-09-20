@@ -12,7 +12,6 @@ internal fun createImportedAmbientStepsTables(database: SupportSQLiteDatabase) {
 			content_checksum TEXT NOT NULL,
 			source_format TEXT NOT NULL,
 			source_schema_version INTEGER NOT NULL,
-			encoded_byte_count INTEGER NOT NULL,
 			day_count INTEGER NOT NULL,
 			fact_count INTEGER NOT NULL,
 			gap_count INTEGER NOT NULL,
@@ -36,6 +35,7 @@ internal fun createImportedAmbientStepsTables(database: SupportSQLiteDatabase) {
 			received_at_ms INTEGER NOT NULL,
 			archive_identity TEXT NOT NULL,
 			archive_content_checksum TEXT NOT NULL,
+			encoded_byte_count INTEGER NOT NULL,
 			collected_data_epoch INTEGER NOT NULL,
 			PRIMARY KEY(import_job_id, archive_key),
 			FOREIGN KEY(archive_identity) REFERENCES imported_ambient_steps_archive(archive_identity)
@@ -59,6 +59,7 @@ internal fun createImportedAmbientStepsTables(database: SupportSQLiteDatabase) {
 			day_identity TEXT NOT NULL,
 			day_content_checksum TEXT NOT NULL,
 			bound_day_import_revision INTEGER NOT NULL,
+			bound_count_domain_graph_revision INTEGER NOT NULL,
 			fact_count INTEGER NOT NULL,
 			gap_count INTEGER NOT NULL,
 			PRIMARY KEY(archive_identity, ordinal),

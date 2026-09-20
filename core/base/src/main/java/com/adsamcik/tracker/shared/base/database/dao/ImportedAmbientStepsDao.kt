@@ -183,6 +183,20 @@ abstract class ImportedAmbientStepsDao {
 		limit: Int,
 	): List<ImportedAmbientStepsArchiveDayEntity>
 
+	@Query(
+		"UPDATE imported_ambient_steps_archive_day " +
+			"SET bound_count_domain_graph_revision = :newGraphRevision " +
+			"WHERE day_identity = :dayIdentity " +
+			"AND bound_day_import_revision = :dayImportRevision " +
+			"AND bound_count_domain_graph_revision = :expectedGraphRevision",
+	)
+	abstract suspend fun rebindDayRevisionCountDomainGraph(
+		dayIdentity: String,
+		dayImportRevision: Long,
+		expectedGraphRevision: Long,
+		newGraphRevision: Long,
+	): Int
+
 	suspend fun dayRevisionsForAdmission(
 		dayIdentity: String,
 	): List<ImportedAmbientStepsDayRevisionEntity> =
@@ -307,6 +321,13 @@ abstract class ImportedAmbientStepsDao {
 		archiveIdentities: List<String>,
 		limit: Int,
 	): List<ImportedAmbientStepsReceiptEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_steps_receipt WHERE receipt_identity = :receiptIdentity",
+	)
+	abstract fun receiptByIdentityForFullClear(
+		receiptIdentity: String,
+	): ImportedAmbientStepsReceiptEntity?
 
 	@Query(
 		"""

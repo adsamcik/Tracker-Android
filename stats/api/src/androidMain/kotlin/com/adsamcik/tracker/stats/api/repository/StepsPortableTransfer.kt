@@ -62,6 +62,7 @@ sealed interface ExportPortableStepsResult {
 
 /** Stable categories explaining why an export cannot be verified. */
 enum class PortableStepsExportUnverifiableReason {
+	COUNT_DOMAIN_GRAPH_UNAVAILABLE,
 	SOURCE_EVIDENCE_UNAVAILABLE,
 	CAPTURE_ATTRIBUTION_UNVERIFIABLE,
 	ENTRY_MATERIALIZING,

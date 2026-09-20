@@ -276,14 +276,15 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		}
 		val requestOwners = mutableListOf<Pair<Int, Int>>()
 		val sessionsByDay = days.map { day -> sessions.mapNotNull { it.forDay(day) } }
+		val factsByDay = days.map { day ->
+			val key = day.historyKey
+			native.factsByDay[key].orEmpty() + imported.factsByDay[key].orEmpty()
+		}
 		val compatibilityRequests = buildList {
-			days.forEachIndexed { dayIndex, day ->
-				val key = day.historyKey
-				val facts = native.factsByDay[key].orEmpty() +
-					imported.factsByDay[key].orEmpty()
+			days.forEachIndexed { dayIndex, _ ->
 				sessionsByDay[dayIndex].forEachIndexed { sessionIndex, session ->
 					requestOwners += dayIndex to sessionIndex
-					add(session.countDomainCompatibilityRequest(facts))
+					add(session.countDomainCompatibilityRequest(factsByDay[dayIndex]))
 				}
 			}
 		}
@@ -292,8 +293,9 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		).toMap()
 		val products = days.mapIndexed { dayIndex, day ->
 			val compatibleSessions = sessionsByDay[dayIndex].mapIndexed { sessionIndex, session ->
-				session.copy(
-					compatibility = compatibilityByOwner[dayIndex to sessionIndex]
+				session.withCountDomainCompatibility(
+					facts = factsByDay[dayIndex],
+					result = compatibilityByOwner[dayIndex to sessionIndex]
 						?: StepsCountDomainCompatibilityResult.Unverifiable,
 				)
 			}
@@ -994,6 +996,11 @@ private class ImportedAmbientStepsRangeReader(
 				revision.header.dayIdentity,
 				revision.header.importRevision,
 			)
+			val countDomainOwners = database.importedAmbientCountDomainOwners(lineage)
+				?: return ImportedAmbientStepsRangeRead.Unverifiable
+			if (countDomainOwners.keys != day.facts.mapTo(linkedSetOf()) { it.identity.value }) {
+				return ImportedAmbientStepsRangeRead.Unverifiable
+			}
 			resultFacts[key] = day.facts.map { fact ->
 				QualifiedAmbientStepsFact(
 					logicalFactId = fact.identity.value,
@@ -1007,6 +1014,7 @@ private class ImportedAmbientStepsRangeReader(
 					importedProvenance = provenance,
 					correctionRevision = revision.header.importRevision,
 					contentChecksum = fact.contentChecksum.value,
+					countDomainOwner = countDomainOwners[fact.identity.value],
 				)
 			}
 			resultGaps[key] = day.gaps.map {
@@ -1169,13 +1177,17 @@ private class AmbientStepsSessionRangeReader(
 			currentCoroutineContext().ensureActive()
 			when (val read = reader.readEntriesInTransaction(batch.map { it.identity })) {
 				is com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedRead.Ready -> {
-					imported += read.entries.flatMap { entry ->
-						entry.runs.map { run ->
+					read.entries.forEach { entry ->
+						entry.runs.forEach { run ->
 							val history = entry.portableRunsById.getValue(run.identity)
 								.toImportedStepsHistory(
 									run.identity in entry.retentionTruncatedRunIds,
 								)
-							QualifiedSessionStepsWindow(
+							val owners = database.importedSessionCountDomainOwners(
+								entry,
+								run.identity,
+							) ?: return AmbientStepsSessionRangeRead.Unverifiable
+							imported += QualifiedSessionStepsWindow(
 								logicalTrackingId = entry.metadata.identity,
 								serviceRunId = run.identity,
 								startTimeMs = run.startTimeMs,
@@ -1186,6 +1198,7 @@ private class AmbientStepsSessionRangeReader(
 								},
 								storedZoneId = run.storedZoneId,
 								origin = QualifiedSessionStepsOrigin.PORTABLE_IMPORT,
+								countDomainOwners = owners,
 							)
 						}
 					}

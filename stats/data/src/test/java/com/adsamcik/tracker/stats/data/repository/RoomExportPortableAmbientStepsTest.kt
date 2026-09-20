@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsFactV1
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResult
+import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientSteps
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsArchiveSink
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsExportUnverifiableReason
 import io.kotest.matchers.shouldBe
@@ -30,7 +31,7 @@ class RoomExportPortableAmbientStepsTest {
 			StandardTestDispatcher(testScheduler),
 		)
 
-		val result = exporter.export(REQUEST) { emitted = true }
+		val result = (exporter as ExportPortableAmbientSteps).export(REQUEST) { emitted = true }
 
 		result shouldBe ExportPortableAmbientStepsResult.Unverifiable(
 			PortableAmbientStepsExportUnverifiableReason.CORRUPT_RETAINED_STATE,
@@ -50,7 +51,7 @@ class RoomExportPortableAmbientStepsTest {
 			StandardTestDispatcher(testScheduler),
 		)
 
-		val result = exporter.export(REQUEST) { emitted = true }
+		val result = (exporter as ExportPortableAmbientSteps).export(REQUEST) { emitted = true }
 
 		result shouldBe ExportPortableAmbientStepsResult.Unverifiable(
 			PortableAmbientStepsExportUnverifiableReason.MATERIALIZING,

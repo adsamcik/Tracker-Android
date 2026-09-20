@@ -4,12 +4,17 @@ import android.content.Context
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsFormatException
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV1Codec
+import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV2Codec
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV2
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientSteps
+import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsV2
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResult
+import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientSteps
+import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientStepsV2
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -22,9 +27,11 @@ import kotlinx.coroutines.CancellationException
 internal interface PortableAmbientStepsExportEntryPoint {
 	fun exportPortableAmbientSteps(): ExportPortableAmbientSteps
 	fun reexportImportedAmbientSteps(): ReexportImportedAmbientSteps
+	fun exportPortableAmbientStepsV2(): ExportPortableAmbientStepsV2
+	fun reexportImportedAmbientStepsV2(): ReexportImportedAmbientStepsV2
 }
 
-/** User-selected native export or explicit imported-origin re-export. */
+/** User-selected export that prefers authenticated v2 and falls back atomically to canonical v1. */
 internal class PortableAmbientStepsExporter(
 	private val origin: AmbientStepsPortableOrigin = AmbientStepsPortableOrigin.NATIVE,
 	private val backendProvider: (Context) -> AmbientStepsPortableSourceBackend = { context ->
@@ -35,10 +42,20 @@ internal class PortableAmbientStepsExporter(
 		AmbientStepsPortableSourceBackend(
 			nativeExporter = entryPoint.exportPortableAmbientSteps(),
 			importedReexporter = entryPoint.reexportImportedAmbientSteps(),
+			nativeExporterV2 = entryPoint.exportPortableAmbientStepsV2(),
+			importedReexporterV2 = entryPoint.reexportImportedAmbientStepsV2(),
 		)
 	},
-	private val codec: PortableAmbientStepsJsonV1Codec = PortableAmbientStepsJsonV1Codec(),
+	private val codec: PortableAmbientStepsJsonV2Codec = PortableAmbientStepsJsonV2Codec(),
+	private val legacyCodec: PortableAmbientStepsJsonV1Codec = PortableAmbientStepsJsonV1Codec(),
+	private val v2MaximumBytes: Long = AmbientStepsPortableFormatV2.MAX_FILE_BYTES,
+	private val v1MaximumBytes: Long = AmbientStepsPortableFormatV1.MAX_FILE_BYTES,
 ) : Exporter {
+	init {
+		require(v2MaximumBytes in 1..AmbientStepsPortableFormatV2.MAX_FILE_BYTES)
+		require(v1MaximumBytes in 1..AmbientStepsPortableFormatV1.MAX_FILE_BYTES)
+	}
+
 	override val requiresLocationData: Boolean = false
 	override val containsSensitiveLocationData: Boolean = true
 	override val sensitivityTitleRes: Int = R.string.export_ambient_steps_sensitivity_title
@@ -62,9 +79,63 @@ internal class PortableAmbientStepsExporter(
 				LocalizedString(R.string.export_error_portable_ambient_steps_scope),
 			)
 		}
-		val sourceResult = try {
-			codec.encode(outputStream) { sink ->
-				backend.export(origin, request, sink)
+		val sourceResult: ExportPortableAmbientStepsResult = try {
+			val v2Result = FileBackedExportSpool(
+				context,
+				"portable-ambient-steps-v2-",
+				v2MaximumBytes,
+			).use { spool ->
+				when (val staged = spool.stage { spoolOutput ->
+					codec.encode(spoolOutput) { sink ->
+						backend.exportV2(origin, request, sink)
+					}
+				}) {
+					is FileBackedExportStage.Complete -> {
+						if (staged.value is ExportPortableAmbientStepsResult.Exported) {
+							if (spool.byteCount == 0L) {
+								throw PortableAmbientStepsFormatException(
+									"Successful Ambient Steps v2 export wrote no bytes",
+								)
+							}
+							spool.copyTo(outputStream)
+						}
+						staged.value
+					}
+					FileBackedExportStage.EncodedSizeExceeded -> null
+				}
+			}
+			if (
+				v2Result == null ||
+				v2Result is ExportPortableAmbientStepsResult.Unverifiable &&
+					v2Result.reason ==
+					PortableAmbientStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE
+			) {
+				FileBackedExportSpool(
+					context,
+					"portable-ambient-steps-v1-",
+					v1MaximumBytes,
+				).use { spool ->
+					when (val staged = spool.stage { spoolOutput ->
+						legacyCodec.encode(spoolOutput) { sink ->
+							backend.export(origin, request, sink)
+						}
+					}) {
+						is FileBackedExportStage.Complete -> {
+							if (staged.value is ExportPortableAmbientStepsResult.Exported) {
+								spool.copyTo(outputStream)
+							}
+							staged.value
+						}
+						FileBackedExportStage.EncodedSizeExceeded ->
+							return ExportResult.Error(
+								LocalizedString(
+									R.string.export_error_portable_ambient_steps_write,
+								),
+							)
+					}
+				}
+			} else {
+				requireNotNull(v2Result)
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled

@@ -308,6 +308,7 @@ sealed interface ExportPortableAmbientStepsResult {
 }
 
 enum class PortableAmbientStepsExportUnverifiableReason {
+	COUNT_DOMAIN_GRAPH_UNAVAILABLE,
 	SOURCE_AUTHORITY_UNAVAILABLE,
 	DELETION_PENDING,
 	CORRUPT_RETAINED_STATE,

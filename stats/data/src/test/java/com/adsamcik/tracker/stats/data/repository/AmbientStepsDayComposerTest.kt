@@ -6,6 +6,7 @@ import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityRe
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerEffect
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerIdentity
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerKind
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerOrigin
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerReference
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
@@ -119,6 +120,7 @@ class AmbientStepsDayComposerTest {
 		resolved.endTimeMs shouldBe original.endTimeMs
 		resolved.stepCount shouldBe original.stepCount
 		resolved.storedZoneId shouldBe original.storedZoneId
+		resolved.exactCompatibleAmbientOwners shouldBe listOf(ambientOwner)
 	}
 
 	@Test
@@ -307,6 +309,102 @@ class AmbientStepsDayComposerTest {
 	}
 
 	@Test
+	fun `imported-only exact-compatible facts cover the authenticated session window`() = runTest {
+		val sessionOwner = owner(StepsCountDomainOwnerKind.SESSION_FACT, '4')
+		val completenessOwner = owner(StepsCountDomainOwnerKind.SESSION_COMPLETENESS, '5')
+		val imported = importedFact(0L, DAY_END, 10L, "portable")
+		val compatibleSession = listOf(
+			session(
+				20L,
+				40L,
+				5L,
+				StepsCountDomainCompatibilityResult.Unproven,
+			).copy(countDomainOwners = listOf(sessionOwner, completenessOwner)),
+		).withCountDomainCompatibility(
+			listOf(imported),
+			object : StepsCountDomainCompatibilityQuery {
+				override suspend fun compare(
+					requests: List<StepsCountDomainCompatibilityRequest>,
+				): List<StepsCountDomainCompatibilityResult> {
+					requests.single().ambientOwners shouldBe listOf(importedAmbientOwner)
+					return listOf(StepsCountDomainCompatibilityResult.ExactCompatible)
+				}
+			},
+		)
+
+		val result = composeAmbientStepsDay(
+			day,
+			listOf(imported),
+			emptyList(),
+			compatibleSession,
+		)
+
+		result.total shouldBe AmbientStepsNumericValue.Exact(10L)
+		result.betweenSession shouldBe AmbientStepsNumericValue.Exact(5L)
+	}
+
+	@Test
+	fun `mixed local and imported duplicate uses only the exact authenticated origin subset`() {
+		val imported = importedFact(0L, DAY_END, 10L, "portable")
+		val local = fact(0L, DAY_END, 10L, id = "local").copy(
+			portableIdentity = imported.portableIdentity,
+			contentChecksum = imported.contentChecksum,
+		)
+		val importedCompatible = session(20L, 40L, 5L).copy(
+			exactCompatibleAmbientOwners = listOf(importedAmbientOwner),
+		)
+
+		val result = composeAmbientStepsDay(
+			day,
+			listOf(local, imported),
+			emptyList(),
+			listOf(importedCompatible),
+		)
+
+		result.total shouldBe AmbientStepsNumericValue.Exact(10L)
+		result.betweenSession shouldBe AmbientStepsNumericValue.Exact(5L)
+	}
+
+	@Test
+	fun `unproven and unauthenticated imported facts remain excluded from session coverage`() {
+		val imported = importedFact(0L, DAY_END, 10L, "portable")
+		val unproven = composeAmbientStepsDay(
+			day,
+			listOf(imported),
+			emptyList(),
+			listOf(
+				session(
+					20L,
+					40L,
+					5L,
+					StepsCountDomainCompatibilityResult.Unproven,
+				),
+			),
+		)
+		val wrongOriginOwner = importedAmbientOwner.copy(
+			origin = StepsCountDomainOwnerOrigin.NATIVE,
+		)
+		val wrongOriginImported = imported.copy(countDomainOwner = wrongOriginOwner)
+		val unauthenticated = composeAmbientStepsDay(
+			day,
+			listOf(wrongOriginImported),
+			emptyList(),
+			listOf(
+				session(20L, 40L, 5L).copy(
+					exactCompatibleAmbientOwners = listOf(wrongOriginOwner),
+				),
+			),
+		)
+
+		unproven.betweenSession shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.SESSION_PROVIDER_COMPATIBILITY_UNPROVEN),
+		)
+		unauthenticated.betweenSession shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.SESSION_NOT_COVERED_BY_COMPATIBLE_AMBIENT_FACT),
+		)
+	}
+
+	@Test
 	fun `zero-width gaps are rejected before product composition`() {
 		assertThrows<IllegalArgumentException> { EffectiveAmbientStepsGap(40L, 40L) }
 	}
@@ -391,6 +489,12 @@ class AmbientStepsDayComposerTest {
 
 	private val day = AmbientStepsDayIdentity(0L, "UTC", 0L, DAY_END)
 	private val provenance = AmbientStepsProviderProvenance("provider", "instance", 1L, 1L)
+	private val localAmbientOwner = owner(StepsCountDomainOwnerKind.AMBIENT_FACT, 'a')
+	private val importedAmbientOwner = owner(
+		StepsCountDomainOwnerKind.AMBIENT_FACT,
+		'b',
+		StepsCountDomainOwnerOrigin.IMPORTED_PORTABLE,
+	)
 
 	private fun fact(start: Long, end: Long, count: Long, id: String = "a") = QualifiedAmbientStepsFact(
 		id,
@@ -400,6 +504,7 @@ class AmbientStepsDayComposerTest {
 		count,
 		provenance,
 		contentChecksum = "native-$id-$start-$end-$count",
+		countDomainOwner = localAmbientOwner,
 	)
 
 	private fun importedFact(
@@ -418,6 +523,7 @@ class AmbientStepsDayComposerTest {
 		origin = QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT,
 		importedProvenance = ImportedAmbientStepsFactProvenance("archive", "day", 1L),
 		contentChecksum = "portable-$identity-$start-$end-$count",
+		countDomainOwner = importedAmbientOwner,
 	)
 
 	private fun session(
@@ -426,16 +532,33 @@ class AmbientStepsDayComposerTest {
 		count: Long?,
 		compatibility: StepsCountDomainCompatibilityResult =
 			StepsCountDomainCompatibilityResult.ExactCompatible,
-	) = QualifiedSessionStepsWindow("tracking", "run-$start", start, end, count, "UTC", compatibility)
+	) = QualifiedSessionStepsWindow(
+		logicalTrackingId = "tracking",
+		serviceRunId = "run-$start",
+		startTimeMs = start,
+		endTimeMs = end,
+		stepCount = count,
+		storedZoneId = "UTC",
+		compatibility = compatibility,
+		exactCompatibleAmbientOwners = if (
+			compatibility == StepsCountDomainCompatibilityResult.ExactCompatible
+		) {
+			listOf(localAmbientOwner)
+		} else {
+			emptyList()
+		},
+	)
 
 	private fun owner(
 		kind: StepsCountDomainOwnerKind,
 		digit: Char,
+		origin: StepsCountDomainOwnerOrigin = StepsCountDomainOwnerOrigin.NATIVE,
 	) = StepsCountDomainOwnerReference(
 		kind,
 		StepsCountDomainOwnerIdentity.opaque("sha256:${digit.toString().repeat(64)}"),
 		1L,
 		StepsCountDomainOwnerEffect.opaque(digit.toString().repeat(64)),
+		origin,
 	)
 
 	private companion object {

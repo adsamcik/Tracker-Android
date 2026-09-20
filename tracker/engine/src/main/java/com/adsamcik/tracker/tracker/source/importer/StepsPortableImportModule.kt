@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.source.importer
 
 import com.adsamcik.tracker.stats.api.repository.ImportPortableSteps
+import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV1WithReceipt
+import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV2
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -14,4 +16,14 @@ internal interface StepsPortableImportModule {
 	@Binds
 	@Singleton
 	fun bindImportPortableSteps(implementation: RoomImportPortableSteps): ImportPortableSteps
+
+	@Binds
+	@Singleton
+	fun bindImportPortableStepsV1WithReceipt(
+		implementation: RoomImportPortableSteps,
+	): ImportPortableStepsV1WithReceipt
+
+	@Binds
+	@Singleton
+	fun bindImportPortableStepsV2(implementation: RoomImportPortableSteps): ImportPortableStepsV2
 }

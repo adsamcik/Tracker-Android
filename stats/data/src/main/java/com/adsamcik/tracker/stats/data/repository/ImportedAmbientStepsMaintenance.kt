@@ -5,15 +5,19 @@ import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.AuthenticatedImportedAmbientStepsLineage
+import com.adsamcik.tracker.shared.base.database.AuthenticatedImportedPortableGraphBinding
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailure
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailureReason
+import com.adsamcik.tracker.shared.base.database.authenticateOrInstallGraphlessLegacyAmbientLineage
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsSourceFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.fenceAuthenticatedImportedPortableGraphs
 import com.adsamcik.tracker.shared.base.database.loadAuthenticatedAmbientStepsLineage
 import com.adsamcik.tracker.shared.base.database.authenticateAllAmbientStepsFences
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
@@ -137,7 +141,16 @@ internal class RoomDeleteImportedAmbientStepsDay internal constructor(
 		kind: String,
 		fencedAtMs: Long,
 		retainedFromMs: Long?,
-	): Int = fenceAndDeleteLineage(dao, lineage, state, kind, fencedAtMs, retainedFromMs, checkpoint)
+	): Int = fenceAndDeleteLineage(
+		database,
+		dao,
+		lineage,
+		state,
+		kind,
+		fencedAtMs,
+		retainedFromMs,
+		checkpoint,
+	)
 }
 
 internal class RoomTruncateImportedAmbientStepsRetention internal constructor(
@@ -183,6 +196,7 @@ internal class RoomTruncateImportedAmbientStepsRetention internal constructor(
 					candidate.structuralDayStartTimeMs >= request.retainedFromMs
 				) unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 				val removed = fenceAndDeleteLineage(
+					database,
 					dao,
 					lineage,
 					state,
@@ -274,6 +288,7 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 					)
 				}
 				val removed = fenceAndDeleteLineage(
+					database,
 					dao,
 					lineage,
 					state,
@@ -498,6 +513,7 @@ internal suspend fun ImportedAmbientStepsDao.replaceSourceFence(
 ) == 1
 
 private suspend fun fenceAndDeleteLineage(
+	database: AppDatabase,
 	dao: ImportedAmbientStepsDao,
 	lineage: AuthenticatedImportedAmbientStepsLineage,
 	state: SourceEvidenceState,
@@ -569,6 +585,13 @@ private suspend fun fenceAndDeleteLineage(
 	checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.FENCE_INSERTED)
 	dao.insertProtectedIdentities(markers)
 	checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.PROTECTED_IDENTITIES_INSERTED)
+	fencePortableCountDomainGraphs(
+		database = database,
+		lineage = lineage,
+		kind = kind,
+		state = state,
+		fencedAtMs = fencedAtMs,
+	)
 	val removed = dao.deleteDayLineage(latest.header.dayIdentity)
 	if (removed != lineage.revisions.size) {
 		unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
@@ -577,6 +600,53 @@ private suspend fun fenceAndDeleteLineage(
 	checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.PAYLOAD_REMOVED)
 	return removed
 }
+
+private suspend fun fencePortableCountDomainGraphs(
+	database: AppDatabase,
+	lineage: AuthenticatedImportedAmbientStepsLineage,
+	kind: String,
+	state: SourceEvidenceState,
+	fencedAtMs: Long,
+) {
+	val graphDao = database.importedPortableStepsCountDomainDao()
+	val graphLineage = database.authenticateOrInstallGraphlessLegacyAmbientLineage(lineage)
+	if (graphLineage.isEmpty()) {
+		unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+	}
+	val fenceKind = when (kind) {
+		ImportedAmbientStepsDayFenceEntity.FENCE_SELECTED_DELETE ->
+			ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_SELECTED_DELETE
+		ImportedAmbientStepsDayFenceEntity.FENCE_RETENTION ->
+			ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION
+		ImportedAmbientStepsDayFenceEntity.FENCE_CONSENT_REVOKED ->
+			ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_SOURCE_ERASE
+		else -> unavailable(
+			ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
+	database.fenceAuthenticatedImportedPortableGraphs(
+		graphs = graphLineage.map {
+			AuthenticatedImportedPortableGraphBinding(it.binding, it.graph)
+		},
+		fenceKind = fenceKind,
+		collectedDataEpoch = state.collectedDataEpoch,
+		fencedAtMs = fencedAtMs,
+		maximumFenceCount = MAX_PORTABLE_OWNER_FENCES_PER_DAY,
+	)
+	graphLineage.forEach { revision ->
+		val binding = revision.binding
+		if (graphDao.deleteBindingExact(
+				binding.productKind,
+				binding.productIdentity,
+				binding.productRevision,
+				binding.graphIdentity,
+			) != 1
+		) unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		graphDao.deleteGraphIfUnbound(binding.graphIdentity)
+	}
+}
+
+private const val MAX_PORTABLE_OWNER_FENCES_PER_DAY = 131_072
 
 private fun checkCapacity(current: Long, added: Long, maximum: Long) {
 	try {

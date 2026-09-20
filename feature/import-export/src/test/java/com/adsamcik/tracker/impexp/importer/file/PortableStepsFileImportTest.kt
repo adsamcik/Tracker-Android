@@ -7,12 +7,22 @@ import com.adsamcik.tracker.impexp.importer.ImportReceiptStore
 import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.impexp.importer.worker.importSourceReadLimit
 import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV1Codec
+import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV2Codec
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
+import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.ImportPortableSteps
 import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsResult
+import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV1WithReceipt
+import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV2
+import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV2Request
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainCoverage
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainDigest
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainOwnerKind
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainReceiptV2
+import com.adsamcik.tracker.stats.api.repository.PortableStepsArchiveV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsCaptureCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsCompletenessV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsConflictScope
@@ -21,6 +31,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsFactCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsFactV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsIdentityKind
+import com.adsamcik.tracker.stats.api.repository.PortableStepsImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortableStepsImportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableStepsManifestV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsOpaqueIdentity
@@ -53,6 +64,31 @@ class PortableStepsFileImportTest {
 		importer.supportedExtensions shouldContainExactly listOf("trackersteps")
 		importer.transactionMode shouldBe ImportTransactionMode.IMPORTER_MANAGED
 		importSourceReadLimit("TRACKERSTEPS") shouldBe PortableStepsFileImport.MAX_FILE_BYTES
+	}
+
+	@Test
+	fun `missing durable receipt fails before opening or resolving dependencies`() = runTest {
+		var opens = 0
+		var providers = 0
+		val importer = PortableStepsFileImport(
+			dependenciesProvider = {
+				providers++
+				error("Missing receipt must fail first")
+			},
+		)
+		val stream = FileImportStream(
+			fileName = "steps.trackersteps",
+			streamProvider = {
+				opens++
+				ByteArrayInputStream(byteArrayOf())
+			},
+		)
+
+		shouldThrow<PortableStepsImportReceiptContextException> {
+			importer.import(context, database, stream)
+		}
+		opens shouldBe 0
+		providers shouldBe 0
 	}
 
 	@Test
@@ -89,6 +125,126 @@ class PortableStepsFileImportTest {
 			),
 		)
 	}
+
+	@Test
+	fun `v1 and v2 archives dispatch only to their version owned importers`() = runTest {
+		val entry = entry("dispatch", 1_000L)
+		val v1Requests = mutableListOf<PortableStepsEntryV1>()
+		val v2Requests = mutableListOf<ImportPortableStepsV2Request>()
+		val importer = PortableStepsFileImport(
+			dependenciesProvider = {
+				PortableStepsImportDependencies(
+					legacyImporter = sourceImporter {
+						error("Version dispatch must not use the compatibility importer")
+					},
+					receiptImporter = object : ImportPortableStepsV1WithReceipt {
+						override suspend fun importEntry(
+							entry: PortableStepsEntryV1,
+							receipt: PortableStepsImportReceipt,
+							entryOrdinal: Int,
+						): ImportPortableStepsResult {
+							v1Requests += entry
+							return ImportPortableStepsResult.Applied(1, 1)
+						}
+					},
+					v2Importer = object : ImportPortableStepsV2 {
+						override suspend fun importEntry(
+							request: ImportPortableStepsV2Request,
+						): ImportPortableStepsResult {
+							v2Requests += request
+							return ImportPortableStepsResult.Applied(1, 1)
+						}
+					},
+				)
+			},
+		)
+		val v2Bytes = ByteArrayOutputStream().also { output ->
+			PortableStepsJsonV2Codec().encode(output) { sink ->
+				sink.emit(
+					PortableStepsArchiveV2.create(
+						listOf(entry.withExplicitUnprovenCountDomain()),
+					),
+				)
+				ExportPortableStepsResult.Exported(1)
+			}
+		}.toByteArray()
+
+		importer.import(context, database, stream(encode(listOf(entry)))) shouldBe
+			ImportResult(successCount = 1)
+		importer.import(context, database, stream(v2Bytes)) shouldBe
+			ImportResult(successCount = 1)
+
+		v1Requests shouldContainExactly listOf(entry)
+		v2Requests.map { it.entry.product } shouldContainExactly listOf(entry)
+	}
+
+	@Test
+	fun `malformed v2 JSON is terminal before version owned source admission`() = runTest {
+		var calls = 0
+		val importer = PortableStepsFileImport(
+			dependenciesProvider = {
+				PortableStepsImportDependencies(
+					legacyImporter = sourceImporter { error("V1 must not run") },
+					receiptImporter = object : ImportPortableStepsV1WithReceipt {
+						override suspend fun importEntry(
+							entry: PortableStepsEntryV1,
+							receipt: PortableStepsImportReceipt,
+							entryOrdinal: Int,
+						): ImportPortableStepsResult = error("V1 must not run")
+					},
+					v2Importer = object : ImportPortableStepsV2 {
+						override suspend fun importEntry(
+							request: ImportPortableStepsV2Request,
+						): ImportPortableStepsResult {
+							calls++
+							return ImportPortableStepsResult.Applied(1, 1)
+						}
+					},
+				)
+			},
+		)
+		val malformed = """
+			{"format":"tracker-portable-steps","schemaVersion":2,
+			"contentChecksum":"sha256:${"a".repeat(64)}","entries":[}
+		""".trimIndent().encodeToByteArray()
+
+		importer.import(context, database, stream(malformed)) shouldBe ImportResult(
+			failedCount = 1,
+			errors = listOf(PortableStepsFileImport.PERMANENT_FORMAT_ERROR),
+		)
+		calls shouldBe 0
+	}
+
+	@Test
+	fun `exact and conflicting duplicate v2 receipts are permanent before source admission`() =
+		runTest {
+			var calls = 0
+			val importer = PortableStepsFileImport {
+				sourceImporter {
+					calls++
+					ImportPortableStepsResult.Applied(1, 1)
+				}
+			}
+			val entry = entry("duplicate-receipt", 1_000L)
+			val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+			val owner = graph.ownerRevisions.single {
+				it.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT
+			}
+			val first = countDomainReceipt(owner, authorityRevision = 1L)
+			val conflicting = countDomainReceipt(owner, authorityRevision = 2L)
+			val invalidDocuments = listOf(
+				encodedV2WithReceipts(entry, listOf(first, first)),
+				encodedV2WithReceipts(entry, listOf(first, conflicting)),
+			)
+
+			invalidDocuments.forEach { document ->
+				importer.import(context, database, stream(document)) shouldBe ImportResult(
+					failedCount = 1,
+					errors = listOf(PortableStepsFileImport.PERMANENT_FORMAT_ERROR),
+				)
+			}
+			calls shouldBe 0
+		}
 
 	@Test
 	fun `independent permanent failures do not hide a later healthy entry`() = runTest {
@@ -162,8 +318,30 @@ class PortableStepsFileImportTest {
 	}
 
 	@Test
+	fun `unknown trailing v1 fields fail before any source mutation`() = runTest {
+		val entries = listOf(entry("first", 1_000L), entry("second", 3_000L))
+		val invalid = encode(entries).decodeToString()
+			.dropLast(1)
+			.plus(",\"unexpected\":true}")
+			.encodeToByteArray()
+		var calls = 0
+		val importer = PortableStepsFileImport {
+			sourceImporter {
+				calls++
+				ImportPortableStepsResult.Applied(1, 1)
+			}
+		}
+
+		importer.import(context, database, stream(invalid)) shouldBe ImportResult(
+			failedCount = 1,
+			errors = listOf(PortableStepsFileImport.PERMANENT_FORMAT_ERROR),
+		)
+		calls shouldBe 0
+	}
+
+	@Test
 	@Suppress("LongMethod")
-	fun `job runner records malformed prefix and suffix while retaining replayable prefix counts`() =
+	fun `job runner rejects malformed prefix and suffix before source admission`() =
 		runTest {
 			val store = StepsImportReceiptStore()
 			val runner = ImportJobRunner(store) { 1_000L }
@@ -217,7 +395,6 @@ class PortableStepsFileImportTest {
 			}
 
 			firstResult shouldBe ImportResult(
-				successCount = 1,
 				failedCount = 1,
 				errors = listOf(PortableStepsFileImport.PERMANENT_FORMAT_ERROR),
 			)
@@ -238,16 +415,15 @@ class PortableStepsFileImportTest {
 			}
 
 			replayResult shouldBe ImportResult(
-				skippedCount = 1,
 				failedCount = 1,
 				errors = listOf(PortableStepsFileImport.PERMANENT_FORMAT_ERROR),
 			)
-			calls shouldBe 2
+			calls shouldBe 0
 		}
 
 	@Test
-		@Suppress("LongMethod")
-		fun `job runner preserves transport IO source retryable failures and cancellation`() = runTest {
+	@Suppress("LongMethod")
+	fun `job runner preserves transport IO source retryable failures and cancellation`() = runTest {
 		val store = StepsImportReceiptStore()
 		val runner = ImportJobRunner(store) { 2_000L }
 		val transportFailure = EOFException("source stream unavailable")
@@ -329,7 +505,7 @@ class PortableStepsFileImportTest {
 	private fun stream(bytes: ByteArray) = FileImportStream(
 		ByteArrayInputStream(bytes),
 		"steps.trackersteps",
-	)
+	).withImportReceipt("direct-test-job", 1_000L)
 
 	private fun stream(bytes: ByteArray, fileName: String) = FileImportStream(
 		ByteArrayInputStream(bytes),
@@ -350,6 +526,56 @@ class PortableStepsFileImportTest {
 		}
 		return output.toByteArray()
 	}
+
+	private suspend fun encodedV2WithReceipts(
+		entry: PortableStepsEntryV1,
+		receipts: List<PortableCountDomainReceiptV2>,
+	): ByteArray {
+		val output = ByteArrayOutputStream()
+		PortableStepsJsonV2Codec().encode(output) { sink ->
+			sink.emit(PortableStepsArchiveV2.create(listOf(entry.withExplicitUnprovenCountDomain())))
+			ExportPortableStepsResult.Exported(1)
+		}
+		return output.toString(Charsets.UTF_8.name())
+			.replace(
+				"\"receipts\":[]",
+				"\"receipts\":[${receipts.joinToString(",") { it.toJson() }}]",
+			)
+			.encodeToByteArray()
+	}
+
+	private fun countDomainReceipt(
+		owner: com.adsamcik.tracker.stats.api.repository.PortableCountDomainOwnerRevisionV2,
+		authorityRevision: Long,
+	): PortableCountDomainReceiptV2 = PortableCountDomainReceiptV2.create(
+		domainIdentity = com.adsamcik.tracker.stats.api.repository.PortableCountDomainOpaqueIdentity(
+			"sha256:" + "d".repeat(64),
+		),
+		ownerKind = owner.ownerKind,
+		scopeIdentity = owner.scopeIdentity,
+		ownerIdentity = owner.ownerIdentity,
+		ownerRevision = owner.ownerRevision,
+		registrationGeneration = 1L,
+		collectedDataEpoch = 1L,
+		authorityRevision = authorityRevision,
+		authorityFingerprint = PortableCountDomainDigest("a".repeat(64)),
+		coverage = PortableCountDomainCoverage.COVERED,
+		coverageVersion = 1,
+		countDomainVersion = 1,
+		effectChecksum = owner.ownerEffectChecksum,
+		completenessEvidenceChecksum = null,
+	)
+
+	private fun PortableCountDomainReceiptV2.toJson(): String = """
+		{"identity":"${identity.value}","domainIdentity":"${domainIdentity.value}",
+		"ownerKind":"${ownerKind.name}","scopeIdentity":"${scopeIdentity.value}",
+		"ownerIdentity":"${ownerIdentity.value}","ownerRevision":$ownerRevision,
+		"registrationGeneration":$registrationGeneration,"collectedDataEpoch":$collectedDataEpoch,
+		"authorityRevision":$authorityRevision,"authorityFingerprint":"${authorityFingerprint.value}",
+		"coverage":"${coverage.name}","coverageVersion":$coverageVersion,
+		"countDomainVersion":$countDomainVersion,"effectChecksum":"${effectChecksum.value}",
+		"completenessEvidenceChecksum":null}
+	""".trimIndent().replace("\n", "")
 
 	private fun entry(seed: String, startTimeMs: Long): PortableStepsEntryV1 {
 		val runId = "$seed-run"

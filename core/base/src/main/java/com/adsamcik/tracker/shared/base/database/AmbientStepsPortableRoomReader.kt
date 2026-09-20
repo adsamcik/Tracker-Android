@@ -14,6 +14,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
 import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
 import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
@@ -23,12 +25,14 @@ import com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_AMBIENT_STEPS_D
 import com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_AMBIENT_STEPS_FACT_ORDER
 import com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_AMBIENT_STEPS_GAP_ORDER
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsCoverage
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsFactV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsGapReason
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsGapV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsPartialCause
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV2
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -44,12 +48,16 @@ data class AmbientStepsPortableReadRequest(
 }
 
 sealed interface AmbientStepsPortableSnapshot {
-	data class Ready(val archive: PortableAmbientStepsArchiveV1) : AmbientStepsPortableSnapshot
+	data class Ready(
+		val archive: PortableAmbientStepsArchiveV1,
+		val authenticatedArchive: PortableAmbientStepsArchiveV2? = null,
+	) : AmbientStepsPortableSnapshot
 	data object NoData : AmbientStepsPortableSnapshot
 	data class Unverifiable(val reason: AmbientStepsPortableReadFailure) : AmbientStepsPortableSnapshot
 }
 
 enum class AmbientStepsPortableReadFailure {
+	COUNT_DOMAIN_GRAPH_UNAVAILABLE,
 	SOURCE_AUTHORITY_UNAVAILABLE,
 	DELETION_PENDING,
 	CORRUPT_RETAINED_STATE,
@@ -87,16 +95,25 @@ class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
 		request,
 		AmbientStepsPortableReadLimits(),
 		{ currentCoroutineContext().ensureActive() },
+		includeCountDomainGraph = false,
+	)
+
+	suspend fun readV2(request: AmbientStepsPortableReadRequest): AmbientStepsPortableSnapshot = read(
+		request,
+		AmbientStepsPortableReadLimits(),
+		{ currentCoroutineContext().ensureActive() },
+		includeCountDomainGraph = true,
 	)
 
 	internal suspend fun read(
 		request: AmbientStepsPortableReadRequest,
 		limits: AmbientStepsPortableReadLimits,
 		checkpoint: suspend (AmbientStepsPortableReadCheckpoint) -> Unit,
+		includeCountDomainGraph: Boolean = false,
 	): AmbientStepsPortableSnapshot = try {
 		database.withTransaction {
 			checkpoint(AmbientStepsPortableReadCheckpoint.TRANSACTION_STARTED)
-			readInTransaction(request, limits, checkpoint)
+			readInTransaction(request, limits, checkpoint, includeCountDomainGraph)
 		}
 	} catch (cancelled: CancellationException) {
 		throw cancelled
@@ -127,6 +144,7 @@ class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
 		request: AmbientStepsPortableReadRequest,
 		limits: AmbientStepsPortableReadLimits,
 		checkpoint: suspend (AmbientStepsPortableReadCheckpoint) -> Unit,
+		includeCountDomainGraph: Boolean,
 	): AmbientStepsPortableSnapshot {
 		val owner = database.sourceDestinationOwnerDao().get(
 			SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -237,6 +255,7 @@ class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
 		}
 		val factsByDay = selectedFacts.groupBy(AmbientStepsFactRevisionEntity::dayKey)
 		var portableGapCount = 0
+		val authenticatedDays = mutableListOf<PortableAmbientStepsDayV2>()
 		val days = selectedKeys.map { day ->
 			val gaps = mutableListOf<PortableAmbientStepsGapV1>()
 			effectiveGaps.forEach { gap ->
@@ -248,11 +267,54 @@ class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
 				}
 			}
 			val facts = factsByDay[day].orEmpty()
-			day.toPortableDay(facts, gaps, retainedFromMs, limits)
+			val portableDay = day.toPortableDay(facts, gaps, retainedFromMs, limits)
+			if (includeCountDomainGraph) {
+				val roots = facts.map { fact ->
+					PortableCountDomainRootSeed(
+						containerIdentity = portableDay.identity.value,
+						productIdentity = AmbientStepsPortableOpaqueIdentity.derive(
+							AmbientStepsPortableIdentityKind.FACT,
+							fact.logicalFactId,
+						).value,
+						ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
+						ownerIdentity = StepsCountDomainReceiptIntegrity.ambientFactOwnerIdentity(
+							fact.writerId,
+							fact.writerVersion,
+							fact.logicalFactId,
+						),
+						ownerRevision = fact.semanticRevision,
+						ownerEffectChecksum = fact.effectChecksum,
+					)
+				}
+				val graph = when (val graphRead = PortableCountDomainGraphReader(database).read(roots)) {
+					is PortableCountDomainGraphRead.Ready -> graphRead.graph
+					PortableCountDomainGraphRead.Overflow -> throw AmbientStepsPortableLimitExceeded()
+					PortableCountDomainGraphRead.Unproven ->
+						return AmbientStepsPortableSnapshot.Unverifiable(
+							AmbientStepsPortableReadFailure.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
+						)
+					PortableCountDomainGraphRead.Unverifiable ->
+						return AmbientStepsPortableSnapshot.Unverifiable(
+							AmbientStepsPortableReadFailure.CORRUPT_RETAINED_STATE,
+						)
+				}
+				if (!graph.hasCompletePortableOwnerLineages()) {
+					return AmbientStepsPortableSnapshot.Unverifiable(
+						AmbientStepsPortableReadFailure.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
+					)
+				}
+				authenticatedDays += PortableAmbientStepsDayV2(portableDay, graph)
+			}
+			portableDay
 		}.sortedWith(PORTABLE_AMBIENT_STEPS_DAY_ORDER)
 		val archive = PortableAmbientStepsArchiveV1.create(days)
+		val authenticatedArchive = if (includeCountDomainGraph) {
+			PortableAmbientStepsArchiveV2.create(authenticatedDays)
+		} else {
+			null
+		}
 		checkpoint(AmbientStepsPortableReadCheckpoint.SNAPSHOT_ASSEMBLED)
-		return AmbientStepsPortableSnapshot.Ready(archive)
+		return AmbientStepsPortableSnapshot.Ready(archive, authenticatedArchive)
 	}
 }
 

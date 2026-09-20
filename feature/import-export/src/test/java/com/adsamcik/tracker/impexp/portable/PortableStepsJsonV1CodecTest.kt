@@ -49,7 +49,7 @@ class PortableStepsJsonV1CodecTest {
 
 		firstBytes.contentEquals(secondBytes) shouldBe true
 		PortableStepsJsonV1Codec().decode(
-			ByteArrayInputStream(firstBytes),
+			firstBytes,
 			PortableStepsEntrySink { entry -> decoded += entry },
 		) shouldBe entries.size
 		decoded shouldContainExactly entries

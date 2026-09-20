@@ -3,12 +3,21 @@ package com.adsamcik.tracker.tracker.source.importer
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.authenticatedGraph
+import com.adsamcik.tracker.shared.base.database.insertAuthenticatedGraph
+import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedSessionCountDomainBinding
+import com.adsamcik.tracker.shared.base.database.hasCompletePortableOwnerLineages
 import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDay
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryLockedDays
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableCountDomainIdentity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFileReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -32,10 +41,15 @@ import com.adsamcik.tracker.stats.api.repository.ExportPortableSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.ImportPortableSteps
+import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV1WithReceipt
+import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV2
+import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV2Request
 import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.PORTABLE_STEPS_ENTRY_ORDER
 import com.adsamcik.tracker.stats.api.repository.PortableStepsConflictScope
 import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV1
+import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV2
+import com.adsamcik.tracker.stats.api.repository.PortableStepsImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortableStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableStepsImportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableStepsTransferRetryableReason
@@ -55,6 +69,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 
 /**
  * Authoritative, source-local admission for one already-decoded portable Steps logical entry.
@@ -80,7 +95,7 @@ internal class RoomImportPortableSteps internal constructor(
 	private val afterDayLocksAcquired: suspend () -> Unit,
 	private val beforeMutation: suspend () -> Unit,
 	private val afterPayloadInserted: suspend () -> Unit,
-) : ImportPortableSteps {
+) : ImportPortableSteps, ImportPortableStepsV1WithReceipt, ImportPortableStepsV2 {
 	@Inject
 	constructor(
 		database: AppDatabase,
@@ -104,6 +119,58 @@ internal class RoomImportPortableSteps internal constructor(
 	)
 
 	override suspend fun importEntry(entry: PortableStepsEntryV1): ImportPortableStepsResult =
+		importPrepared(
+			entry.withExplicitUnprovenCountDomain(),
+			sourceSchemaVersion = 1,
+			fileReceipt = null,
+			entryOrdinal = 0,
+			sourcePayloadChecksum = entry.contentChecksum.value,
+		)
+
+	override suspend fun importEntry(
+		entry: PortableStepsEntryV1,
+		receipt: PortableStepsImportReceipt,
+		entryOrdinal: Int,
+	): ImportPortableStepsResult = importPrepared(
+		entry.withExplicitUnprovenCountDomain(),
+		sourceSchemaVersion = 1,
+		fileReceipt = receipt,
+		entryOrdinal = entryOrdinal,
+		sourcePayloadChecksum = entry.contentChecksum.value,
+	)
+
+	override suspend fun importEntry(
+		request: ImportPortableStepsV2Request,
+	): ImportPortableStepsResult {
+		val expected = request.metadata
+		val graph = request.entry.countDomainGraph
+		if (request.metadata.entryCount <= request.entryOrdinal ||
+			request.metadata.receiptCount < graph.receipts.size ||
+			request.metadata.ownerRevisionCount < graph.ownerRevisions.size ||
+			request.metadata.completenessMarkerCount < graph.completenessMarkers.size ||
+			request.metadata.rootCount < graph.roots.size ||
+			!graph.hasCompletePortableOwnerLineages()
+		) {
+			return ImportPortableStepsResult.Unverifiable(
+				PortableStepsImportUnverifiableReason.ATTRIBUTION_UNVERIFIABLE,
+			)
+		}
+		return importPrepared(
+			request.entry,
+			sourceSchemaVersion = 2,
+			fileReceipt = request.receipt,
+			entryOrdinal = request.entryOrdinal,
+			sourcePayloadChecksum = expected.archiveContentChecksum.value,
+		)
+	}
+
+	private suspend fun importPrepared(
+		entry: PortableStepsEntryV2,
+		sourceSchemaVersion: Int,
+		fileReceipt: PortableStepsImportReceipt?,
+		entryOrdinal: Int,
+		sourcePayloadChecksum: String,
+	): ImportPortableStepsResult =
 		withContext(ioDispatcher) {
 			val startup = try {
 				startupGate.reconcile()
@@ -120,7 +187,13 @@ internal class RoomImportPortableSteps internal constructor(
 			}
 			val generation = startupGate.currentGeneration
 			val result = startupGate.withReadyGenerationOperation(generation) {
-				importWhenReady(entry)
+				importWhenReady(
+					entry,
+					sourceSchemaVersion,
+					fileReceipt,
+					entryOrdinal,
+					sourcePayloadChecksum,
+				)
 			} ?: concurrentState()
 			if (result is ImportPortableStepsResult.Applied) {
 				dirtyTracker.markDirty(
@@ -131,8 +204,13 @@ internal class RoomImportPortableSteps internal constructor(
 		}
 
 	private suspend fun importWhenReady(
-		callerEntry: PortableStepsEntryV1,
+		callerEntryV2: PortableStepsEntryV2,
+		sourceSchemaVersion: Int,
+		fileReceipt: PortableStepsImportReceipt?,
+		entryOrdinal: Int,
+		sourcePayloadChecksum: String,
 	): ImportPortableStepsResult {
+		val callerEntry = callerEntryV2.product
 		val prepared = try {
 			callerEntry.prepareForImport()
 		} catch (_: PortableStepsSnapshotException) {
@@ -141,6 +219,27 @@ internal class RoomImportPortableSteps internal constructor(
 			return ImportPortableStepsResult.Unverifiable(unverifiable.reason)
 		}
 		val entry = prepared.entry
+		if (entry != callerEntryV2.product) {
+			return concurrentState()
+		}
+		val graph = try {
+			callerEntryV2.countDomainGraph.let { source ->
+				source.copy(
+					receipts = source.receipts.map { it.copy() },
+					ownerRevisions = source.ownerRevisions.map { it.copy() },
+					completenessMarkers = source.completenessMarkers.map { it.copy() },
+					roots = source.roots.map { it.copy() },
+				)
+			}.also { PortableStepsEntryV2(entry, it) }
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: IllegalArgumentException) {
+			return attributionUnverifiable()
+		} catch (_: IllegalStateException) {
+			return attributionUnverifiable()
+		} catch (_: ArithmeticException) {
+			return attributionUnverifiable()
+		}
 		entry.identityConflictWithinEntry()?.let { scope ->
 			return ImportPortableStepsResult.Conflict(scope)
 		}
@@ -155,7 +254,17 @@ internal class RoomImportPortableSteps internal constructor(
 			return ImportPortableStepsResult.OutsideRetention
 		}
 		val storedRefusal = try {
-			database.withTransaction { admissionRefusal(entry, lifecycle) }
+			database.withTransaction {
+				admissionRefusal(
+					entry,
+					graph,
+					sourceSchemaVersion,
+					fileReceipt,
+					entryOrdinal,
+					sourcePayloadChecksum,
+					lifecycle,
+				)
+			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: SQLiteException) {
@@ -208,7 +317,15 @@ internal class RoomImportPortableSteps internal constructor(
 						return@withTransaction concurrentState()
 					}
 
-					admissionRefusal(entry, lifecycle)?.let { return@withTransaction it }
+					admissionRefusal(
+						entry,
+						graph,
+						sourceSchemaVersion,
+						fileReceipt,
+						entryOrdinal,
+						sourcePayloadChecksum,
+						lifecycle,
+					)?.let { return@withTransaction it }
 					when (val resolution = nativePreflight.resolution) {
 						NativeAuthorityResolution.NoCollision -> Unit
 						NativeAuthorityResolution.Duplicate ->
@@ -241,6 +358,14 @@ internal class RoomImportPortableSteps internal constructor(
 					val repairZones = database.resolvePortableStepsRepairZones(prepared)
 					beforeMutation()
 					insertEntryPayload(entry, lifecycle, owner.ownerGeneration, appliedAtMs)
+					insertCountDomainGraph(
+						entry = entry,
+						graph = graph,
+						sourceSchemaVersion = sourceSchemaVersion,
+						fileReceipt = fileReceipt,
+						entryOrdinal = entryOrdinal,
+						sourcePayloadChecksum = sourcePayloadChecksum,
+					)
 					afterPayloadInserted()
 					repairImportedDays(
 						prepared = prepared,
@@ -281,8 +406,16 @@ internal class RoomImportPortableSteps internal constructor(
 
 	private suspend fun admissionRefusal(
 		entry: PortableStepsEntryV1,
+		graph: com.adsamcik.tracker.stats.api.repository.PortableCountDomainGraphV2,
+		sourceSchemaVersion: Int,
+		fileReceipt: PortableStepsImportReceipt?,
+		entryOrdinal: Int,
+		sourcePayloadChecksum: String,
 		lifecycle: CollectedDataLifecycleSnapshot,
 	): ImportPortableStepsResult? {
+		require(sourceSchemaVersion in 1..2)
+		require(entryOrdinal >= 0)
+		require(ImportedPortableCountDomainIdentity.isOpaque(sourcePayloadChecksum))
 		if (entry.isOutsideRetention(lifecycle.retainedFromMs)) {
 			return ImportPortableStepsResult.OutsideRetention
 		}
@@ -306,11 +439,42 @@ internal class RoomImportPortableSteps internal constructor(
 		) {
 			return ImportPortableStepsResult.OutsideRetention
 		}
-		val existing = database.importedStepsDao().entry(entry.identity.value) ?: return null
+		val graphDao = database.importedPortableStepsCountDomainDao()
+		val graphOwnerIdentities = graph.roots.map { it.ownerIdentity.value }.distinct()
+		val graphFences = graphOwnerIdentities.chunked(GRAPH_QUERY_BATCH_SIZE).flatMap { identities ->
+			graphDao.ownerFences(identities, identities.size + 1)
+		}
+		if (graphFences.isNotEmpty()) return ImportPortableStepsResult.DeletedScope
+		val existing = database.importedStepsDao().entry(entry.identity.value)
+		val existingRoots = mutableListOf<
+			com.adsamcik.tracker.shared.base.database.data
+				.ImportedPortableStepsCountDomainRootEntity>()
+		graphOwnerIdentities.chunked(GRAPH_QUERY_BATCH_SIZE).forEach { identities ->
+			existingRoots += graphDao.rootsForOwners(
+				identities,
+				MAX_IMPORTED_ROOT_LOOKUP - existingRoots.size + 1,
+			)
+			if (existingRoots.size > MAX_IMPORTED_ROOT_LOOKUP) {
+				return ImportPortableStepsResult.Unverifiable(
+					PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
+				)
+			}
+		}
+		if (existingRoots.size > MAX_IMPORTED_ROOT_LOOKUP) {
+			return ImportPortableStepsResult.Unverifiable(
+				PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
+			)
+		}
+		if (existing == null) {
+			if (existingRoots.isNotEmpty()) {
+				return ImportPortableStepsResult.Conflict(PortableStepsConflictScope.FACT)
+			}
+			return null
+		}
 		if (existing.contentChecksum != entry.contentChecksum.value) {
 			return ImportPortableStepsResult.Conflict(PortableStepsConflictScope.LOGICAL_ENTRY)
 		}
-		return when (
+		val productResult = when (
 			val retained = ImportedStepsRetainedReader(database)
 				.readEntriesInTransaction(listOf(existing.identity))
 		) {
@@ -324,6 +488,120 @@ internal class RoomImportPortableSteps internal constructor(
 			}
 			is ImportedStepsRetainedRead.Unverifiable -> retained.reason.toImportResult()
 		}
+		if (productResult != ImportPortableStepsResult.Duplicate) return productResult
+		val binding = graphDao.binding(
+			ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+			entry.identity.value,
+			IMPORTED_PRODUCT_REVISION,
+		) ?: return attributionUnverifiable()
+		val authenticated = try {
+			database.loadAuthenticatedImportedSessionCountDomainBinding(entry)
+		} catch (_: IllegalArgumentException) {
+			return attributionUnverifiable()
+		} catch (_: IllegalStateException) {
+			return attributionUnverifiable()
+		}
+		if (authenticated == null ||
+			binding.sourceSchemaVersion != sourceSchemaVersion ||
+			binding.graphIdentity != graph.identity.value ||
+			authenticated.binding != binding ||
+			authenticated.graph != graph
+		) {
+			return ImportPortableStepsResult.Conflict(PortableStepsConflictScope.LOGICAL_ENTRY)
+		}
+		if (fileReceipt != null) {
+			val row = fileReceipt.toEntity(
+				entry,
+				graph,
+				entryOrdinal,
+				sourcePayloadChecksum,
+			)
+			when (admitFileReceipt(row)) {
+				FileReceiptAdmission.INSERTED,
+				FileReceiptAdmission.EXACT_REPLAY,
+				-> Unit
+				FileReceiptAdmission.LIMIT_REACHED ->
+					return ImportPortableStepsResult.Unverifiable(
+						PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
+					)
+				FileReceiptAdmission.CONFLICT ->
+					return ImportPortableStepsResult.Conflict(
+						PortableStepsConflictScope.LOGICAL_ENTRY,
+					)
+			}
+		}
+		return ImportPortableStepsResult.Duplicate
+	}
+
+	private suspend fun insertCountDomainGraph(
+		entry: PortableStepsEntryV1,
+		graph: com.adsamcik.tracker.stats.api.repository.PortableCountDomainGraphV2,
+		sourceSchemaVersion: Int,
+		fileReceipt: PortableStepsImportReceipt?,
+		entryOrdinal: Int,
+		sourcePayloadChecksum: String,
+	) {
+		val dao = database.importedPortableStepsCountDomainDao()
+		val stored = dao.graph(graph.identity.value)
+		if (stored == null) {
+			dao.insertAuthenticatedGraph(
+				graph,
+				ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+			)
+		} else if (dao.authenticatedGraph(
+				graph.identity.value,
+				ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+			) != graph
+		) {
+			throw IllegalStateException("Imported portable count-domain graph conflict")
+		}
+		dao.insertBinding(
+			ImportedPortableStepsCountDomainBindingEntity(
+				productKind =
+					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				productIdentity = entry.identity.value,
+				productRevision = IMPORTED_PRODUCT_REVISION,
+				graphIdentity = graph.identity.value,
+				sourceSchemaVersion = sourceSchemaVersion,
+				sourceReceiptIdentity = fileReceipt?.let {
+					ImportedPortableCountDomainIdentity.fileReceipt(it.jobId, it.entryKey)
+				},
+				sourceArchiveIdentity = null,
+				sourceArchiveContentChecksum = fileReceipt?.let { sourcePayloadChecksum },
+			),
+		)
+		fileReceipt?.let { receipt ->
+			check(
+				admitFileReceipt(
+					receipt.toEntity(entry, graph, entryOrdinal, sourcePayloadChecksum),
+				) == FileReceiptAdmission.INSERTED,
+			) {
+				"New imported Steps product did not receive one bounded file receipt"
+			}
+		}
+	}
+
+	private suspend fun admitFileReceipt(
+		candidate: ImportedPortableStepsFileReceiptEntity,
+	): FileReceiptAdmission {
+		check(database.inTransaction()) {
+			"Imported Steps file receipt admission must be atomic with its product"
+		}
+		val dao = database.importedPortableStepsCountDomainDao()
+		val stored = dao.fileReceipt(candidate.importJobId, candidate.entryKey)
+		if (stored != null) {
+			return if (stored == candidate) {
+				FileReceiptAdmission.EXACT_REPLAY
+			} else {
+				FileReceiptAdmission.CONFLICT
+			}
+		}
+		val count = dao.fileReceiptCountForEntry(candidate.entryIdentity)
+		if (count >= ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY) {
+			return FileReceiptAdmission.LIMIT_REACHED
+		}
+		dao.insertFileReceipt(candidate)
+		return FileReceiptAdmission.INSERTED
 	}
 
 	private suspend fun preflightNativeAuthority(
@@ -425,7 +703,38 @@ internal class RoomImportPortableSteps internal constructor(
 			SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
 			SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
 		)
+		const val IMPORTED_PRODUCT_REVISION = 1L
+		const val MAX_IMPORTED_ROOT_LOOKUP = 131_072
+		const val GRAPH_QUERY_BATCH_SIZE = 256
 	}
+}
+
+private enum class FileReceiptAdmission {
+	INSERTED,
+	EXACT_REPLAY,
+	LIMIT_REACHED,
+	CONFLICT,
+}
+
+private fun PortableStepsImportReceipt.toEntity(
+	entry: PortableStepsEntryV1,
+	graph: com.adsamcik.tracker.stats.api.repository.PortableCountDomainGraphV2,
+	entryOrdinal: Int,
+	sourcePayloadChecksum: String,
+): ImportedPortableStepsFileReceiptEntity {
+	require(entryOrdinal >= 0)
+	require(ImportedPortableCountDomainIdentity.isOpaque(sourcePayloadChecksum))
+	return ImportedPortableStepsFileReceiptEntity(
+		importJobId = jobId,
+		entryKey = entryKey,
+		receiptIdentity = ImportedPortableCountDomainIdentity.fileReceipt(jobId, entryKey),
+		sourceName = sourceName,
+		receivedAtMs = receivedAtMs,
+		archiveContentChecksum = sourcePayloadChecksum,
+		entryOrdinal = entryOrdinal,
+		entryIdentity = entry.identity.value,
+		graphIdentity = graph.identity.value,
+	)
 }
 
 /**
@@ -843,6 +1152,7 @@ private fun ExportPortableStepsResult.Unverifiable.toImportResult(): ImportPorta
 	PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW,
 	PortableStepsExportUnverifiableReason.RANGE_UNSUPPORTED,
 	-> ImportPortableStepsResult.Unverifiable(PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+	PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
 	PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
 	PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
 	-> attributionUnverifiable()

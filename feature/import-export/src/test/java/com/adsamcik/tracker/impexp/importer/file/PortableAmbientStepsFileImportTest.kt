@@ -11,6 +11,7 @@ import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
 import com.adsamcik.tracker.impexp.portable.ambientArchive
 import com.adsamcik.tracker.impexp.portable.completeAmbientDay
 import com.adsamcik.tracker.impexp.portable.encodeAmbientStepsArchive
+import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV2Codec
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
@@ -19,10 +20,16 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientSteps
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsResult
+import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsV2
+import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsV2Request
+import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResult
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsTransferRetryableReason
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV2
+import com.adsamcik.tracker.shared.model.steps.portable.identity
+import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -83,6 +90,124 @@ class PortableAmbientStepsFileImportTest {
 		importer.supportedExtensions shouldContainExactly listOf("trackerambientsteps")
 		importer.transactionMode shouldBe ImportTransactionMode.IMPORTER_MANAGED
 	}
+
+	@Test
+	fun `v2 archive routes the authenticated graph with durable receipt context`() = runTest {
+		val v1 = ambientArchive(completeAmbientDay(LocalDate.of(2026, 1, 1), 4L))
+		val archive = PortableAmbientStepsArchiveV2.create(
+			v1.days.map { it.withExplicitUnprovenCountDomain() },
+		)
+		val output = java.io.ByteArrayOutputStream()
+		PortableAmbientStepsJsonV2Codec().encode(output) { sink ->
+			sink.emit(archive)
+			ExportPortableAmbientStepsResult.Exported(1, 1, 0)
+		}
+		val requests = mutableListOf<ImportPortableAmbientStepsV2Request>()
+		val lifecycle = FakeAmbientLifecycleStore(8L)
+		val importer = PortableAmbientStepsFileImport(
+			dependenciesProvider = {
+				PortableAmbientStepsImportDependencies(
+					importer = object : ImportPortableAmbientSteps {
+						override suspend fun importArchive(
+							request: ImportPortableAmbientStepsRequest,
+						): ImportPortableAmbientStepsResult =
+							error("V1 importer must not receive v2")
+					},
+					lifecycleStore = lifecycle,
+					importerV2 = object : ImportPortableAmbientStepsV2 {
+						override suspend fun importArchive(
+							request: ImportPortableAmbientStepsV2Request,
+						): ImportPortableAmbientStepsResult {
+							requests += request
+							return ImportPortableAmbientStepsResult.Applied(
+								request.archive.identity,
+								1,
+								1,
+								1,
+								0,
+							)
+						}
+					},
+				)
+			},
+		)
+
+		importer.import(
+			context,
+			database,
+			stream(output.toByteArray(), "v2-entry", "v2-job", 900L),
+		) shouldBe ImportResult(successCount = 1)
+		requests.single().archive shouldBe archive
+		requests.single().receipt.jobId shouldBe "v2-job"
+		requests.single().expectedCollectedDataEpoch shouldBe 8L
+	}
+
+	@Test
+	fun `malformed v2 JSON is a terminal immutable file failure`() = runTest {
+		var calls = 0
+		val importer = PortableAmbientStepsFileImport(
+			dependenciesProvider = {
+				PortableAmbientStepsImportDependencies(
+					importer = object : ImportPortableAmbientSteps {
+						override suspend fun importArchive(
+							request: ImportPortableAmbientStepsRequest,
+						): ImportPortableAmbientStepsResult = error("V1 must not run")
+					},
+					lifecycleStore = FakeAmbientLifecycleStore(8L),
+					importerV2 = object : ImportPortableAmbientStepsV2 {
+						override suspend fun importArchive(
+							request: ImportPortableAmbientStepsV2Request,
+						): ImportPortableAmbientStepsResult {
+							calls++
+							return ImportPortableAmbientStepsResult.Duplicate(
+								request.archive.identity,
+								request.archive.days.size,
+							)
+						}
+					},
+				)
+			},
+		)
+		val malformed = """
+			{"format":"tracker-portable-ambient-steps","schemaVersion":2,
+			"contentChecksum":"sha256:${"a".repeat(64)}","days":[}
+		""".trimIndent().encodeToByteArray()
+
+		importer.import(context, database, stream(malformed, "malformed-v2")) shouldBe
+			ImportResult(
+				failedCount = 1,
+				errors = listOf(PortableAmbientStepsFileImport.PERMANENT_FORMAT_ERROR),
+			)
+		calls shouldBe 0
+	}
+
+	@Test
+	fun `whitespace equivalent archives retain semantic identity and exact byte provenance`() =
+		runTest {
+			val archive = ambientArchive(
+				completeAmbientDay(LocalDate.of(2026, 1, 1), 1L),
+			)
+			val compact = encodeAmbientStepsArchive(archive)
+			val spaced = ("\n  " + compact.decodeToString().replaceFirst("{", "{\n  "))
+				.encodeToByteArray()
+			val requests = mutableListOf<ImportPortableAmbientStepsRequest>()
+			val importer = adapter(FakeAmbientLifecycleStore(8L)) { request ->
+				requests += request
+				ImportPortableAmbientStepsResult.Duplicate(
+					request.archive.identity,
+					request.archive.days.size,
+				)
+			}
+
+			importer.import(context, database, stream(compact, "compact")) shouldBe
+				ImportResult(skippedCount = 1)
+			importer.import(context, database, stream(spaced, "spaced")) shouldBe
+				ImportResult(skippedCount = 1)
+
+			requests.map { it.archive.identity }.distinct() shouldBe listOf(archive.identity)
+			requests.map { it.metadata.encodedByteCount } shouldBe
+				listOf(compact.size.toLong(), spaced.size.toLong())
+		}
 
 	@Test
 	fun `duplicate correction deletion fence and unverifiable outcomes remain distinct`() = runTest {

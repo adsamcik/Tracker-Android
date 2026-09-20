@@ -329,6 +329,17 @@ internal object FinalV28SchemaAssemblyRoomCallback : RoomDatabase.Callback() {
 		check(
 			StepsCountDomainSchema.inspect(db) == StepsCountDomainSchemaState.ValidV2,
 		) { "AppDatabase opened without the exact Steps count-domain schema" }
+		if (db.inTransaction()) {
+			db.cleanupImportedPortableStepsFullClearStagingInCurrentTransaction()
+		} else {
+			db.beginTransaction()
+			try {
+				db.cleanupImportedPortableStepsFullClearStagingInCurrentTransaction()
+				db.setTransactionSuccessful()
+			} finally {
+				db.endTransaction()
+			}
+		}
 	}
 }
 
@@ -416,13 +427,26 @@ private fun SQLiteDatabase.hasExactIndex(index: FinalV28IndexSentinel): Boolean 
 		found
 	}
 	if (!exactDefinition) return false
-	val actualColumns = rawQuery("PRAGMA index_info(`${index.name}`)", null).use { cursor ->
+	val actualColumns = rawQuery("PRAGMA index_xinfo(`${index.name}`)", null).use { cursor ->
 		val nameColumn = cursor.getColumnIndexOrThrow("name")
+		val descendingColumn = cursor.getColumnIndexOrThrow("desc")
+		val keyColumn = cursor.getColumnIndexOrThrow("key")
 		buildList {
-			while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			while (cursor.moveToNext()) {
+				if (cursor.getInt(keyColumn) != 0) {
+					add(
+						FinalV28IndexedColumn(
+							name = cursor.getString(nameColumn),
+							descending = cursor.getInt(descendingColumn) != 0,
+						),
+					)
+				}
+			}
 		}
 	}
-	return actualColumns == index.columns
+	return actualColumns == index.columns.mapIndexed { position, name ->
+		FinalV28IndexedColumn(name, position in index.descendingColumns)
+	}
 }
 
 private fun SQLiteDatabase.hasTrigger(trigger: FinalV28TriggerSentinel): Boolean = rawQuery(
@@ -464,7 +488,7 @@ private enum class FinalV28MarkerState {
 
 internal const val FINAL_V28_MARKER_ID = -280_917
 internal const val FINAL_V28_ASSEMBLY_ID =
-	"tracker-v28-retention-caller-steps-count-domain-20260919"
+	"tracker-v28-portable-steps-disk-staging-20260920"
 private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
 	"tracker-v28-final-20260917",
 	"tracker-v28-retention-final-20260917",
@@ -472,6 +496,10 @@ private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
 	"tracker-v28-retention-journal-20260919",
 	"tracker-v28-retention-execution-20260919",
 	"tracker-v28-retention-caller-authority-20260919",
+	"tracker-v28-retention-caller-steps-count-domain-20260919",
+	"tracker-v28-portable-steps-count-domain-20260920",
+	"tracker-v28-portable-ambient-graph-revision-20260920",
+	"tracker-v28-portable-ambient-graph-provenance-20260920",
 )
 
 private val BASELINE_TABLES = setOf(
@@ -491,6 +519,19 @@ private val FINAL_V28_REQUIRED_TABLES = setOf(
 	StepsCountDomainSchema.OWNER_TABLE,
 	StepsCountDomainSchema.COMPLETENESS_MARKER_TABLE,
 	StepsCountDomainSchema.SCHEMA_MARKER_TABLE,
+	"imported_steps_count_domain_graph",
+	"imported_steps_count_domain_receipt",
+	"imported_steps_count_domain_owner_revision",
+	"imported_steps_count_domain_completeness",
+	"imported_steps_count_domain_root",
+	"imported_steps_count_domain_binding",
+	"imported_steps_file_receipt",
+	"imported_steps_count_domain_owner_fence",
+	"imported_steps_full_clear_binding_stage",
+	"imported_steps_full_clear_session_product_stage",
+	"imported_steps_full_clear_owner_stage",
+	"imported_steps_full_clear_owner_revision_stage",
+	"imported_steps_full_clear_explicit_lineage_stage",
 )
 private const val FINAL_V28_REQUIRED_COLUMN_TABLE = "pending_signal"
 private const val FINAL_V28_REQUIRED_COLUMN = "pressure_writer_owner_generation"
@@ -592,8 +633,107 @@ private val FINAL_V28_STEPS_TABLE_COLUMNS = mapOf(
 		"token_semantics",
 		"terminal_unproven",
 	),
+	"imported_steps_count_domain_binding" to listOf(
+		"product_kind",
+		"product_identity",
+		"product_revision",
+		"graph_identity",
+		"source_schema_version",
+		"source_receipt_identity",
+		"source_archive_identity",
+		"source_archive_content_checksum",
+	),
+	"imported_steps_file_receipt" to listOf(
+		"import_job_id",
+		"entry_key",
+		"receipt_identity",
+		"source_name",
+		"received_at_ms",
+		"archive_content_checksum",
+		"entry_ordinal",
+		"entry_identity",
+		"graph_identity",
+	),
+	"imported_steps_full_clear_binding_stage" to listOf(
+		"operation_id",
+		"product_kind",
+		"product_identity",
+		"product_revision",
+		"graph_identity",
+		"source_schema_version",
+		"source_receipt_identity",
+		"source_archive_identity",
+		"source_archive_content_checksum",
+		"consumed",
+	),
+	"imported_steps_full_clear_session_product_stage" to listOf(
+		"operation_id",
+		"product_identity",
+		"content_checksum",
+		"source_format",
+		"source_schema_version",
+		"graph_identity",
+		"source_receipt_identity",
+		"source_archive_content_checksum",
+		"has_stored_binding",
+		"source_receipt_observed",
+	),
+	"imported_steps_full_clear_owner_stage" to listOf(
+		"operation_id",
+		"owner_kind",
+		"owner_identity",
+		"scope_identity",
+		"container_identity",
+		"root_product_identity",
+		"product_kind",
+		"bound_product_identity",
+		"latest_graph_identity",
+		"latest_owner_revision",
+		"latest_graph_revision",
+		"latest_is_bound",
+		"latest_compare_product_identity",
+		"explicit_lineage_length",
+	),
+	"imported_steps_full_clear_owner_revision_stage" to listOf(
+		"operation_id",
+		"owner_kind",
+		"owner_identity",
+		"owner_revision",
+		"scope_identity",
+		"operation",
+		"receipt_identity",
+		"owner_effect_checksum",
+		"source_linked_at_ms",
+		"legacy_ambient",
+	),
+	"imported_steps_full_clear_explicit_lineage_stage" to listOf(
+		"operation_id",
+		"owner_kind",
+		"owner_identity",
+		"lineage_ordinal",
+		"owner_revision",
+	),
 )
 private val FINAL_V28_STEPS_INDEXES = listOf(
+	FinalV28IndexSentinel(
+		"imported_steps_entry",
+		"idx_imported_steps_entry_cursor",
+		listOf("start_time_ms", "identity"),
+		unique = false,
+		descendingColumns = setOf(0, 1),
+	),
+	FinalV28IndexSentinel(
+		"imported_steps_full_clear_binding_stage",
+		"idx_imported_steps_full_clear_binding_graph",
+		listOf("operation_id", "graph_identity", "consumed"),
+		unique = false,
+	),
+	FinalV28IndexSentinel(
+		"imported_steps_full_clear_explicit_lineage_stage",
+		"idx_imported_steps_full_clear_explicit_revision",
+		listOf("operation_id", "owner_kind", "owner_identity", "owner_revision"),
+		unique = true,
+	),
 	FinalV28IndexSentinel(
 		StepsCountDomainSchema.RECEIPT_TABLE,
 		"idx_steps_count_domain_receipt_owner",
@@ -651,6 +791,12 @@ private data class FinalV28IndexSentinel(
 	val name: String,
 	val columns: List<String>,
 	val unique: Boolean,
+	val descendingColumns: Set<Int> = emptySet(),
+)
+
+private data class FinalV28IndexedColumn(
+	val name: String,
+	val descending: Boolean,
 )
 
 private data class FinalV28TriggerSentinel(

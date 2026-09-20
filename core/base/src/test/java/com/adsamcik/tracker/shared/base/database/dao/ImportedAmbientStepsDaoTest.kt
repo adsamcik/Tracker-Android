@@ -74,7 +74,6 @@ class ImportedAmbientStepsDaoTest {
 				archive.contentChecksum.value,
 				AmbientStepsPortableFormatV1.FORMAT,
 				1,
-				512L,
 				1,
 				1,
 				0,
@@ -138,6 +137,7 @@ class ImportedAmbientStepsDaoTest {
 				DAY_END,
 				archive.identity.value,
 				archive.contentChecksum.value,
+				512L,
 				EPOCH,
 			),
 		)

@@ -11,8 +11,13 @@ import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOrigin
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwnerKind
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwnerState
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.authenticatedGraph
+import com.adsamcik.tracker.shared.base.database.insertAuthenticatedGraph
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailure
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailureReason
+import com.adsamcik.tracker.shared.base.database.isAuthenticatedAmbientGraphSuccessor
+import com.adsamcik.tracker.shared.base.database.hasCompletePortableOwnerLineages
+import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedAmbientStepsGraphLineage
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
@@ -26,6 +31,8 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsGapEnt
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsIdentity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsSourceFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -35,14 +42,20 @@ import com.adsamcik.tracker.shared.base.database.authenticateAllAmbientStepsFenc
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableV2Integrity
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsPartialCause
 import com.adsamcik.tracker.shared.model.steps.portable.deletionScopeIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.identity
+import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientSteps
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsResult
+import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsV2
+import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsV2Request
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsTransferRetryableReason
@@ -75,7 +88,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		},
 	private val ensurePortableRetention: suspend () -> Boolean = { true },
 	private val requirePortableRetentionAuthority: Boolean = false,
-) : ImportPortableAmbientSteps {
+) : ImportPortableAmbientSteps, ImportPortableAmbientStepsV2 {
 	internal constructor(
 		database: AppDatabase,
 		dao: ImportedAmbientStepsDao,
@@ -115,6 +128,31 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 
 	override suspend fun importArchive(
 		request: ImportPortableAmbientStepsRequest,
+	): ImportPortableAmbientStepsResult = importPrepared(AmbientImportEnvelope.fromV1(request))
+
+	override suspend fun importArchive(
+		request: ImportPortableAmbientStepsV2Request,
+	): ImportPortableAmbientStepsResult {
+		val prepared = try {
+			AmbientImportEnvelope.fromV2(request)
+		} catch (_: IllegalArgumentException) {
+			return ImportPortableAmbientStepsResult.Unverifiable(
+				PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID,
+			)
+		} catch (_: IllegalStateException) {
+			return ImportPortableAmbientStepsResult.Unverifiable(
+				PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID,
+			)
+		} catch (_: ArithmeticException) {
+			return ImportPortableAmbientStepsResult.Unverifiable(
+				PortableAmbientStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
+			)
+		}
+		return importPrepared(prepared)
+	}
+
+	private suspend fun importPrepared(
+		request: AmbientImportEnvelope,
 	): ImportPortableAmbientStepsResult = withContext(ioDispatcher) {
 		if (!database.isOpen) {
 			return@withContext ImportPortableAmbientStepsResult.RetryableFailure(
@@ -146,7 +184,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 
 	@Suppress("LongMethod", "CyclomaticComplexMethod")
 	private suspend fun importInTransaction(
-		request: ImportPortableAmbientStepsRequest,
+		request: AmbientImportEnvelope,
 	): ImportPortableAmbientStepsResult {
 		checkpoint(ImportedAmbientStepsWriteCheckpoint.TRANSACTION_STARTED)
 		val state = storedValue { database.sourceEvidenceStateDao().get() }
@@ -178,6 +216,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		val dayIdentities = archive.days.map { it.identity.value }
 		val incomingOwnership = IncomingAmbientStepsOwnership(
 			archive,
+			request.sourceArchiveIdentity.value,
 			ImportedAmbientStepsIdentity.receipt(
 				request.receipt.jobId,
 				request.receipt.archiveKey,
@@ -221,15 +260,67 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		}
 		authenticateNativeOverlap(archive, incomingOwnership)
 		authenticateImportedIdentityOwnership(incomingOwnership)
+		val graphDao = database.importedPortableStepsCountDomainDao()
+		val incomingOwnerIdentities = request.incomingOwnerIdentities()
+		val ownerFences = if (incomingOwnerIdentities.isEmpty()) {
+			emptyList()
+		} else {
+			incomingOwnerIdentities.chunked(IDENTITY_QUERY_CHUNK_SIZE).flatMap { identities ->
+				storedValue {
+					graphDao.ownerFences(identities, identities.size + 1)
+				}
+			}
+		}
+		if (ownerFences.isNotEmpty()) {
+			blocked(PortableAmbientStepsImportBlockedReason.DELETED_DAY)
+		}
+		val existingPortableRoots = if (incomingOwnerIdentities.isEmpty()) {
+			emptyList()
+		} else {
+			val result = mutableListOf<
+				com.adsamcik.tracker.shared.base.database.data
+					.ImportedPortableStepsCountDomainRootEntity>()
+			incomingOwnerIdentities.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { identities ->
+				result += storedValue {
+					graphDao.rootsForOwners(
+						identities,
+						com.adsamcik.tracker.shared.model.steps.portable
+							.PortableCountDomainFormatV2.MAX_ROOTS - result.size + 1,
+					)
+				}
+				if (result.size >
+					com.adsamcik.tracker.shared.model.steps.portable
+						.PortableCountDomainFormatV2.MAX_ROOTS
+				) dependencyOverflow()
+			}
+			result
+		}
+		if (existingPortableRoots.size >
+			com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainFormatV2.MAX_ROOTS
+		) dependencyOverflow()
+		if (existingPortableRoots.any { root ->
+				!request.ownsRoot(
+					containerIdentity = root.containerIdentity,
+					productIdentity = root.productIdentity,
+					ownerKind = root.ownerKind,
+					ownerIdentity = root.ownerIdentity,
+				)
+			}
+		) {
+			blocked(PortableAmbientStepsImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
+		}
 
 		val storedReceipt = storedValue {
 			dao.receipt(request.receipt.jobId, request.receipt.archiveKey)
 		}
 		if (storedReceipt != null) {
 			authenticateReceiptReplay(request, storedReceipt)
-			return ImportPortableAmbientStepsResult.Duplicate(archive.identity, archive.days.size)
+			return ImportPortableAmbientStepsResult.Duplicate(
+				request.sourceArchiveIdentity,
+				archive.days.size,
+			)
 		}
-		val storedArchive = storedValue { dao.archive(archive.identity.value) }
+		val storedArchive = storedValue { dao.archive(request.sourceArchiveIdentity.value) }
 		if (storedArchive != null) {
 			authenticateStoredArchive(request, storedArchive, addedReceiptCount = 1)
 			authenticatePostInsertReceipt(request, storedArchive)
@@ -237,7 +328,10 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			dao.insertReceipt(request.toReceiptEntity())
 			checkpoint(ImportedAmbientStepsWriteCheckpoint.RECEIPT_INSERTED)
 			incrementSourceEvidenceRevision(state.updatedAtMs, request.receipt.receivedAtMs)
-			return ImportPortableAmbientStepsResult.Duplicate(archive.identity, archive.days.size)
+			return ImportPortableAmbientStepsResult.Duplicate(
+				request.sourceArchiveIdentity,
+				archive.days.size,
+			)
 		}
 
 		val plans = archive.days.map { day ->
@@ -273,44 +367,112 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			if (request.receipt.receivedAtMs < latestDurableTime) {
 				blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
 			}
+			val nextRevision = try {
+				Math.addExact(lineage.revisions.lastOrNull()?.header?.importRevision ?: 0L, 1L)
+			} catch (_: ArithmeticException) {
+				unverifiable(PortableAmbientStepsImportUnverifiableReason.REVISION_OVERFLOW)
+			}
 			val identical = lineage.revisions.singleOrNull { it.day == day }
-			if (identical != null) {
-				AmbientStepsDayImportPlan(day, identical.header.importRevision, append = false)
-			} else {
-				if (lineage.revisions.size >= ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY) {
-					unverifiable(PortableAmbientStepsImportUnverifiableReason.REVISION_OVERFLOW)
-				}
+			val productRevision = identical?.header?.importRevision ?: nextRevision
+			val appendProduct = identical == null
+			if (appendProduct &&
+				lineage.revisions.size >= ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY
+			) {
+				unverifiable(PortableAmbientStepsImportUnverifiableReason.REVISION_OVERFLOW)
+			}
+			val graphLineage = storedValue {
+				database.loadAuthenticatedImportedAmbientStepsGraphLineage(lineage)
+			}
+			if (lineage.revisions.isNotEmpty() != graphLineage.isNotEmpty()) storedCorrupt()
+			val exactGraphRevision = graphLineage.singleOrNull { revision ->
+				productRevision in revision.productImportRevisions &&
+					revision.graph == request.graphFor(day, revision.graphRevision)
+			}
+			if (exactGraphRevision != null) {
 				AmbientStepsDayImportPlan(
-					day,
-					try {
-						Math.addExact(lineage.revisions.lastOrNull()?.header?.importRevision ?: 0L, 1L)
+					day = day,
+					productRevision = productRevision,
+					graphRevision = exactGraphRevision.graphRevision,
+					appendProduct = appendProduct,
+					appendGraph = false,
+					graph = exactGraphRevision.graph,
+				)
+			} else {
+				val latestGraphRevision = graphLineage.lastOrNull()
+				val graphAtLatestRevision = latestGraphRevision?.let {
+					request.graphFor(day, it.graphRevision)
+				}
+				if (appendProduct &&
+					latestGraphRevision != null &&
+					latestGraphRevision.graph == graphAtLatestRevision
+				) {
+					AmbientStepsDayImportPlan(
+						day = day,
+						productRevision = productRevision,
+						graphRevision = latestGraphRevision.graphRevision,
+						appendProduct = true,
+						appendGraph = false,
+						graph = latestGraphRevision.graph,
+					)
+				} else {
+					if (!appendProduct &&
+						productRevision != lineage.latest.header.importRevision
+					) {
+						blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
+					}
+					if (graphLineage.size >= ImportedAmbientStepsDao.MAX_ARCHIVES_PER_DAY) {
+						unverifiable(PortableAmbientStepsImportUnverifiableReason.REVISION_OVERFLOW)
+					}
+					val graphRevision = try {
+						Math.addExact(latestGraphRevision?.graphRevision ?: 0L, 1L)
 					} catch (_: ArithmeticException) {
 						unverifiable(PortableAmbientStepsImportUnverifiableReason.REVISION_OVERFLOW)
-					},
-					append = true,
-				)
+					}
+					val candidateGraph = request.graphFor(day, graphRevision)
+					val existingGraph = latestGraphRevision?.graph
+					if (request.hasExplicitCountDomainGraphs &&
+						!candidateGraph.hasCompletePortableOwnerLineages()
+					) {
+						blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
+					}
+					if (request.hasExplicitCountDomainGraphs &&
+						existingGraph != null &&
+						existingGraph != candidateGraph &&
+						!isAuthenticatedAmbientGraphSuccessor(existingGraph, candidateGraph)
+					) {
+						blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
+					}
+					AmbientStepsDayImportPlan(
+						day = day,
+						productRevision = productRevision,
+						graphRevision = graphRevision,
+						appendProduct = appendProduct,
+						appendGraph = true,
+						graph = candidateGraph,
+					)
+				}
 			}
 		}
-		val appended = plans.filter(AmbientStepsDayImportPlan::append)
+		val appendedProducts = plans.filter(AmbientStepsDayImportPlan::appendProduct)
 		authenticateCapacity(
 			NewImportedAmbientStepsRows(
 				archives = 1L,
 				receipts = 1L,
 				archiveDays = plans.size.toLong(),
-				dayRevisions = appended.size.toLong(),
-				facts = appended.sumOf { it.day.facts.size.toLong() },
-				gaps = appended.sumOf { it.day.gaps.size.toLong() },
+				dayRevisions = appendedProducts.size.toLong(),
+				facts = appendedProducts.sumOf { it.day.facts.size.toLong() },
+				gaps = appendedProducts.sumOf { it.day.gaps.size.toLong() },
 			),
 		)
 		dao.insertArchive(request.toArchiveEntity())
 		checkpoint(ImportedAmbientStepsWriteCheckpoint.ARCHIVE_INSERTED)
-		appended.forEach { plan ->
-			dao.insertDayRevision(plan.day.toEntity(request, plan.revision))
+		appendedProducts.forEach { plan ->
+			dao.insertDayRevision(plan.day.toEntity(request, plan.productRevision))
 			checkpoint(ImportedAmbientStepsWriteCheckpoint.DAY_INSERTED)
 			dao.insertFacts(plan.day.facts.map { fact ->
 				ImportedAmbientStepsFactEntity(
 					dayIdentity = plan.day.identity.value,
-					dayImportRevision = plan.revision,
+					dayImportRevision = plan.productRevision,
 					factIdentity = fact.identity.value,
 					contentChecksum = fact.contentChecksum.value,
 					intervalStartTimeMs = fact.intervalStartTimeMs,
@@ -323,7 +485,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 				dao.insertGaps(plan.day.gaps.map { gap ->
 					ImportedAmbientStepsGapEntity(
 						dayIdentity = plan.day.identity.value,
-						dayImportRevision = plan.revision,
+						dayImportRevision = plan.productRevision,
 						gapIdentity = gap.identity.value,
 						contentChecksum = gap.contentChecksum.value,
 						intervalStartTimeMs = gap.intervalStartTimeMs,
@@ -336,22 +498,26 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		}
 		dao.insertArchiveDays(plans.mapIndexed { ordinal, plan ->
 			ImportedAmbientStepsArchiveDayEntity(
-				archiveIdentity = archive.identity.value,
+				archiveIdentity = request.sourceArchiveIdentity.value,
 				ordinal = ordinal,
 				dayIdentity = plan.day.identity.value,
 				dayContentChecksum = plan.day.contentChecksum.value,
-				boundDayImportRevision = plan.revision,
+				boundDayImportRevision = plan.productRevision,
 				factCount = plan.day.facts.size,
 				gapCount = plan.day.gaps.size,
+				boundCountDomainGraphRevision = plan.graphRevision,
 			)
 		})
 		checkpoint(ImportedAmbientStepsWriteCheckpoint.ARCHIVE_MEMBERS_INSERTED)
+		plans.filter(AmbientStepsDayImportPlan::appendGraph).forEach { plan ->
+			insertCountDomainGraph(plan, request)
+		}
 		dao.insertReceipt(request.toReceiptEntity())
 		checkpoint(ImportedAmbientStepsWriteCheckpoint.RECEIPT_INSERTED)
 		incrementSourceEvidenceRevision(state.updatedAtMs, request.receipt.receivedAtMs)
 		return ImportPortableAmbientStepsResult.Applied(
-			archiveIdentity = archive.identity,
-			appendedDayRevisionCount = appended.size,
+			archiveIdentity = request.sourceArchiveIdentity,
+			appendedDayRevisionCount = appendedProducts.size,
 			dayCount = archive.days.size,
 			factCount = archive.days.sumOf { it.facts.size },
 			gapCount = archive.days.sumOf { it.gaps.size },
@@ -359,7 +525,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 	}
 
 	private suspend fun authenticateReceiptReplay(
-		request: ImportPortableAmbientStepsRequest,
+		request: AmbientImportEnvelope,
 		stored: ImportedAmbientStepsReceiptEntity,
 	) {
 		if (stored.importJobId != request.receipt.jobId ||
@@ -370,8 +536,8 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			) ||
 			stored.sourceName != request.receipt.sourceName ||
 			stored.receivedAtMs != request.receipt.receivedAtMs ||
-			stored.archiveIdentity != request.archive.identity.value ||
-			stored.archiveContentChecksum != request.archive.contentChecksum.value ||
+			stored.archiveIdentity != request.sourceArchiveIdentity.value ||
+			stored.archiveContentChecksum != request.sourceArchiveContentChecksum.value ||
 			stored.collectedDataEpoch != request.expectedCollectedDataEpoch
 		) blocked(PortableAmbientStepsImportBlockedReason.RECEIPT_CONFLICT)
 		val archive = storedValue { dao.archive(stored.archiveIdentity) } ?: storedCorrupt()
@@ -383,7 +549,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 	}
 
 	private suspend fun authenticateReceiptIdentityOwnership(
-		request: ImportPortableAmbientStepsRequest,
+		request: AmbientImportEnvelope,
 	) {
 		val identity = ImportedAmbientStepsIdentity.receipt(
 			request.receipt.jobId,
@@ -448,17 +614,16 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 	}
 
 	private suspend fun authenticateStoredArchive(
-		request: ImportPortableAmbientStepsRequest,
+		request: AmbientImportEnvelope,
 		stored: ImportedAmbientStepsArchiveEntity,
 		addedReceiptCount: Int,
 	) {
 		require(addedReceiptCount in 0..1)
 		val archive = request.archive
-		if (stored.archiveIdentity != archive.identity.value ||
-			stored.contentChecksum != archive.contentChecksum.value ||
-			stored.sourceFormat != archive.format ||
-			stored.sourceSchemaVersion != archive.schemaVersion ||
-			stored.encodedByteCount != request.metadata.encodedByteCount ||
+		if (stored.archiveIdentity != request.sourceArchiveIdentity.value ||
+			stored.contentChecksum != request.sourceArchiveContentChecksum.value ||
+			stored.sourceFormat != request.sourceFormat ||
+			stored.sourceSchemaVersion != request.sourceSchemaVersion ||
 			stored.dayCount != archive.days.size ||
 			stored.factCount != archive.days.sumOf { it.facts.size } ||
 			stored.gapCount != archive.days.sumOf { it.gaps.size } ||
@@ -469,7 +634,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			members.withIndex().any { (index, member) -> member.ordinal != index }
 		) storedCorrupt()
 		members.zip(archive.days).forEach { (member, day) ->
-			if (member.archiveIdentity != archive.identity.value ||
+			if (member.archiveIdentity != request.sourceArchiveIdentity.value ||
 				member.dayIdentity != day.identity.value ||
 				member.dayContentChecksum != day.contentChecksum.value ||
 				member.factCount != day.facts.size || member.gapCount != day.gaps.size
@@ -492,6 +657,19 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 						it.dayIdentity == member.dayIdentity
 				} != member
 			) storedCorrupt()
+			val graphRevision = storedValue {
+				database.loadAuthenticatedImportedAmbientStepsGraphLineage(lineage)
+			}.singleOrNull {
+				it.graphRevision == member.boundCountDomainGraphRevision
+			} ?: storedCorrupt()
+			if (member.boundDayImportRevision !in graphRevision.productImportRevisions ||
+				graphRevision.graph != request.graphFor(
+					day,
+					member.boundCountDomainGraphRevision,
+				)
+			) {
+				blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
+			}
 			if (!importedAmbientStepsLineageAdditionFits(
 					existingArchiveMemberCount = lineage.archiveDays.size,
 					existingReceiptCount = lineage.receipts.size,
@@ -503,7 +681,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 	}
 
 	private suspend fun authenticatePostInsertReceipt(
-		request: ImportPortableAmbientStepsRequest,
+		request: AmbientImportEnvelope,
 		stored: ImportedAmbientStepsArchiveEntity,
 	) {
 		val stats = storedValue { dao.receiptStats(stored.archiveIdentity) }
@@ -596,6 +774,41 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 				}
 			) blocked(PortableAmbientStepsImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 		}
+	}
+
+	private suspend fun insertCountDomainGraph(
+		plan: AmbientStepsDayImportPlan,
+		request: AmbientImportEnvelope,
+	) {
+		val graphDao = database.importedPortableStepsCountDomainDao()
+		val stored = graphDao.graph(plan.graph.identity.value)
+		if (stored == null) {
+			graphDao.insertAuthenticatedGraph(
+				plan.graph,
+				ImportedPortableStepsCountDomainGraphEntity.SOURCE_AMBIENT_STEPS,
+			)
+		} else if (graphDao.authenticatedGraph(
+				plan.graph.identity.value,
+				ImportedPortableStepsCountDomainGraphEntity.SOURCE_AMBIENT_STEPS,
+			) != plan.graph
+		) {
+			storedCorrupt()
+		}
+		graphDao.insertBinding(
+			ImportedPortableStepsCountDomainBindingEntity(
+				productKind = ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
+				productIdentity = plan.day.identity.value,
+				productRevision = plan.graphRevision,
+				graphIdentity = plan.graph.identity.value,
+				sourceSchemaVersion = request.sourceSchemaVersion,
+				sourceReceiptIdentity = ImportedAmbientStepsIdentity.receipt(
+					request.receipt.jobId,
+					request.receipt.archiveKey,
+				),
+				sourceArchiveIdentity = request.sourceArchiveIdentity.value,
+				sourceArchiveContentChecksum = request.sourceArchiveContentChecksum.value,
+			),
+		)
 	}
 
 	private suspend fun authenticateCapacity(added: NewImportedAmbientStepsRows) {
@@ -701,8 +914,8 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 	}
 
 	private fun snapshot(
-		request: ImportPortableAmbientStepsRequest,
-	): ImportPortableAmbientStepsRequest = incomingValue {
+		request: AmbientImportEnvelope,
+	): AmbientImportEnvelope = incomingValue {
 		val rawDays = request.archive.days
 		if (rawDays.size !in 1..AmbientStepsPortableFormatV1.MAX_DAYS ||
 			rawDays.any {
@@ -719,10 +932,9 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		}
 		if (rawFactCount > AmbientStepsPortableFormatV1.MAX_FACTS ||
 			rawGapCount > AmbientStepsPortableFormatV1.MAX_GAPS ||
-			request.metadata.dayCount != rawDays.size ||
-			request.metadata.factCount.toLong() != rawFactCount ||
-			request.metadata.gapCount.toLong() != rawGapCount ||
-			request.metadata.archiveContentChecksum != request.archive.contentChecksum
+			request.dayCount != rawDays.size ||
+			request.factCount.toLong() != rawFactCount ||
+			request.gapCount.toLong() != rawGapCount
 		) {
 			if (rawFactCount > AmbientStepsPortableFormatV1.MAX_FACTS ||
 				rawGapCount > AmbientStepsPortableFormatV1.MAX_GAPS
@@ -739,22 +951,38 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		val archive = request.archive.copy(days = days)
 		val factCount = days.sumOf { it.facts.size }
 		val gapCount = days.sumOf { it.gaps.size }
-		if (request.metadata.archiveContentChecksum != archive.contentChecksum ||
-			request.metadata.dayCount != days.size ||
-			request.metadata.factCount != factCount ||
-			request.metadata.gapCount != gapCount
+		if (request.dayCount != days.size ||
+			request.factCount != factCount ||
+			request.gapCount != gapCount
 		) unverifiable(PortableAmbientStepsImportUnverifiableReason.METADATA_MISMATCH)
 		if (days.map { StructuralAmbientStepsDayKey(it) }.distinct().size != days.size) {
 			unverifiable(PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID)
 		}
 		IncomingAmbientStepsOwnership(
 			archive,
+			request.sourceArchiveIdentity.value,
 			ImportedAmbientStepsIdentity.receipt(
 				request.receipt.jobId,
 				request.receipt.archiveKey,
 			),
 		)
-		request.copy(archive = archive)
+		val copiedGraphs = request.graphsByDayIdentity.mapValues { (_, graph) ->
+			graph.copy(
+				receipts = graph.receipts.map { it.copy() },
+				ownerRevisions = graph.ownerRevisions.map { it.copy() },
+				completenessMarkers = graph.completenessMarkers.map { it.copy() },
+				roots = graph.roots.map { it.copy() },
+			)
+		}
+		days.forEach { day ->
+			copiedGraphs[day.identity.value]?.let { graph ->
+				PortableAmbientStepsDayV2(day, graph)
+			}
+		}
+		request.copy(
+			archive = archive,
+			graphsByDayIdentity = copiedGraphs,
+		)
 	}
 
 	private suspend inline fun <T> storedValue(crossinline block: suspend () -> T): T = try {
@@ -830,9 +1058,145 @@ internal enum class ImportedAmbientStepsWriteCheckpoint {
 
 private data class AmbientStepsDayImportPlan(
 	val day: PortableAmbientStepsDayV1,
-	val revision: Long,
-	val append: Boolean,
+	val productRevision: Long,
+	val graphRevision: Long,
+	val appendProduct: Boolean,
+	val appendGraph: Boolean,
+	val graph: com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2,
 )
+
+private data class AmbientImportEnvelope(
+	val archive: PortableAmbientStepsArchiveV1,
+	val sourceArchiveIdentity:
+		com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity,
+	val sourceArchiveContentChecksum:
+		com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableDigest,
+	val sourceFormat: String,
+	val sourceSchemaVersion: Int,
+	val receipt: com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportReceipt,
+	val encodedByteCount: Long,
+	val dayCount: Int,
+	val factCount: Int,
+	val gapCount: Int,
+	val expectedCollectedDataEpoch: Long,
+	val graphsByDayIdentity:
+		Map<String, com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2>,
+) {
+	fun graphFor(
+		day: PortableAmbientStepsDayV1,
+		graphRevision: Long,
+	): com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2 =
+		graphsByDayIdentity[day.identity.value]
+			?: day.withExplicitUnprovenCountDomain(graphRevision).countDomainGraph
+
+	val hasExplicitCountDomainGraphs: Boolean
+		get() = graphsByDayIdentity.isNotEmpty()
+
+	fun incomingOwnerIdentities(): List<String> {
+		val graphs = incomingGraphs()
+		return graphs.flatMap { graph -> graph.roots.map { it.ownerIdentity.value } }.distinct()
+	}
+
+	fun ownsRoot(
+		containerIdentity: String,
+		productIdentity: String,
+		ownerKind: String,
+		ownerIdentity: String,
+	): Boolean = incomingGraphs().any { graph ->
+		graph.roots.any { root ->
+			root.containerIdentity.value == containerIdentity &&
+				root.productIdentity.value == productIdentity &&
+				root.ownerKind.name == ownerKind &&
+				root.ownerIdentity.value == ownerIdentity
+		}
+	}
+
+	private fun incomingGraphs() = if (graphsByDayIdentity.isNotEmpty()) {
+		graphsByDayIdentity.values
+	} else {
+		archive.days.map {
+			it.withExplicitUnprovenCountDomain().countDomainGraph
+		}
+	}
+
+	companion object {
+		fun fromV1(request: ImportPortableAmbientStepsRequest) = AmbientImportEnvelope(
+			archive = request.archive,
+			sourceArchiveIdentity = request.archive.identity,
+			sourceArchiveContentChecksum = request.archive.contentChecksum,
+			sourceFormat = request.archive.format,
+			sourceSchemaVersion = request.archive.schemaVersion,
+			receipt = request.receipt,
+			encodedByteCount = request.metadata.encodedByteCount,
+			dayCount = request.metadata.dayCount,
+			factCount = request.metadata.factCount,
+			gapCount = request.metadata.gapCount,
+			expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
+			graphsByDayIdentity = emptyMap(),
+		)
+
+		fun fromV2(request: ImportPortableAmbientStepsV2Request): AmbientImportEnvelope {
+			val sourceArchiveIdentity = request.archive.identity
+			val sourceArchiveContentChecksum = request.archive.contentChecksum
+			val sourceFormat = request.archive.format
+			val sourceSchemaVersion = request.archive.schemaVersion
+			val days = request.archive.days.map { day ->
+				PortableAmbientStepsDayV2(
+					product = day.product.copy(
+						partialCauses = day.product.partialCauses.toList(),
+						facts = day.product.facts.map { it.copy() },
+						gaps = day.product.gaps.map { it.copy() },
+					),
+					countDomainGraph = day.countDomainGraph.copy(
+						receipts = day.countDomainGraph.receipts.map { it.copy() },
+						ownerRevisions = day.countDomainGraph.ownerRevisions.map { it.copy() },
+						completenessMarkers =
+							day.countDomainGraph.completenessMarkers.map { it.copy() },
+						roots = day.countDomainGraph.roots.map { it.copy() },
+					),
+				)
+			}
+			val snapshot = PortableAmbientStepsArchiveV2(
+				format = sourceFormat,
+				schemaVersion = sourceSchemaVersion,
+				contentChecksum = AmbientStepsPortableV2Integrity.archiveChecksum(days),
+				days = days,
+			)
+			require(snapshot.identity == sourceArchiveIdentity)
+			require(snapshot.contentChecksum == sourceArchiveContentChecksum)
+			require(snapshot.contentChecksum == request.metadata.archiveContentChecksum)
+			val products = snapshot.days.map(PortableAmbientStepsDayV2::product)
+			val graphMap = snapshot.days.associate {
+				it.product.identity.value to it.countDomainGraph
+			}
+			require(graphMap.size == products.size)
+			require(
+				request.metadata.receiptCount ==
+					graphMap.values.sumOf { it.receipts.size },
+			)
+			require(
+				request.metadata.ownerRevisionCount ==
+					graphMap.values.sumOf { it.ownerRevisions.size },
+			)
+			require(request.metadata.rootCount == graphMap.values.sumOf { it.roots.size })
+			require(graphMap.values.all { it.hasCompletePortableOwnerLineages() })
+			return AmbientImportEnvelope(
+				archive = PortableAmbientStepsArchiveV1.create(products),
+				sourceArchiveIdentity = sourceArchiveIdentity,
+				sourceArchiveContentChecksum = sourceArchiveContentChecksum,
+				sourceFormat = sourceFormat,
+				sourceSchemaVersion = sourceSchemaVersion,
+				receipt = request.receipt,
+				encodedByteCount = request.metadata.encodedByteCount,
+				dayCount = request.metadata.dayCount,
+				factCount = request.metadata.factCount,
+				gapCount = request.metadata.gapCount,
+				expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
+				graphsByDayIdentity = graphMap,
+			)
+		}
+	}
+}
 
 private data class NewImportedAmbientStepsRows(
 	val archives: Long = 0L,
@@ -884,6 +1248,7 @@ private enum class IncomingAmbientStepsIdentityKind {
 
 private class IncomingAmbientStepsOwnership(
 	archive: PortableAmbientStepsArchiveV1,
+	archiveIdentity: String,
 	receiptIdentity: String,
 ) {
 	val kinds = linkedMapOf<String, IncomingAmbientStepsIdentityKind>()
@@ -893,7 +1258,7 @@ private class IncomingAmbientStepsOwnership(
 	val gapOwners = mutableMapOf<String, String>()
 
 	init {
-		add(archive.identity.value, IncomingAmbientStepsIdentityKind.ARCHIVE)
+		add(archiveIdentity, IncomingAmbientStepsIdentityKind.ARCHIVE)
 		add(receiptIdentity, IncomingAmbientStepsIdentityKind.RECEIPT)
 		archive.days.forEach { day ->
 			add(day.identity.value, IncomingAmbientStepsIdentityKind.DAY)
@@ -946,13 +1311,12 @@ private fun PortableAmbientStepsDayV1.hasSameStructuralAuthorityAs(
 	structuralDayEndTimeMs == other.structuralDayEndTimeMs &&
 	deletionScopeIdentity == other.deletionScopeIdentity
 
-private fun ImportPortableAmbientStepsRequest.toArchiveEntity() =
+private fun AmbientImportEnvelope.toArchiveEntity() =
 	ImportedAmbientStepsArchiveEntity(
-		archiveIdentity = archive.identity.value,
-		contentChecksum = archive.contentChecksum.value,
-		sourceFormat = archive.format,
-		sourceSchemaVersion = archive.schemaVersion,
-		encodedByteCount = metadata.encodedByteCount,
+		archiveIdentity = sourceArchiveIdentity.value,
+		contentChecksum = sourceArchiveContentChecksum.value,
+		sourceFormat = sourceFormat,
+		sourceSchemaVersion = sourceSchemaVersion,
 		dayCount = archive.days.size,
 		factCount = archive.days.sumOf { it.facts.size },
 		gapCount = archive.days.sumOf { it.gaps.size },
@@ -960,26 +1324,27 @@ private fun ImportPortableAmbientStepsRequest.toArchiveEntity() =
 		firstReceivedAtMs = receipt.receivedAtMs,
 	)
 
-private fun ImportPortableAmbientStepsRequest.toReceiptEntity() =
+private fun AmbientImportEnvelope.toReceiptEntity() =
 	ImportedAmbientStepsReceiptEntity(
 		importJobId = receipt.jobId,
 		archiveKey = receipt.archiveKey,
 		receiptIdentity = ImportedAmbientStepsIdentity.receipt(receipt.jobId, receipt.archiveKey),
 		sourceName = receipt.sourceName,
 		receivedAtMs = receipt.receivedAtMs,
-		archiveIdentity = archive.identity.value,
-		archiveContentChecksum = archive.contentChecksum.value,
+		archiveIdentity = sourceArchiveIdentity.value,
+		archiveContentChecksum = sourceArchiveContentChecksum.value,
+		encodedByteCount = encodedByteCount,
 		collectedDataEpoch = expectedCollectedDataEpoch,
 	)
 
 private fun PortableAmbientStepsDayV1.toEntity(
-	request: ImportPortableAmbientStepsRequest,
+	request: AmbientImportEnvelope,
 	revision: Long,
 ) = ImportedAmbientStepsDayRevisionEntity(
 	dayIdentity = identity.value,
 	importRevision = revision,
 	supersedesImportRevision = if (revision == 1L) null else revision - 1L,
-	archiveIdentity = request.archive.identity.value,
+	archiveIdentity = request.sourceArchiveIdentity.value,
 	dayContentChecksum = contentChecksum.value,
 	deletionScopeIdentity = deletionScopeIdentity.value,
 	structuralEpochDay = structuralEpochDay,

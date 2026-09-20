@@ -1205,6 +1205,11 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "imported_steps_entry", 0)
 		assertTableCount(database, "imported_steps_run", 0)
 		assertTableCount(database, "imported_steps_manifest", 0)
+		assertIndexColumns(
+			database,
+			"idx_imported_steps_entry_cursor",
+			listOf("start_time_ms", "identity"),
+		)
 		assertIndexColumns(database, "idx_imported_steps_run_segment", listOf("session_segment_id"))
 		database.query("PRAGMA table_info(imported_steps_run)").use { cursor ->
 			val nullable = buildMap {

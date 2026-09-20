@@ -4,6 +4,11 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.insertAuthenticatedGraph
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableCountDomainIdentity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFileReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -12,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecution
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsAdmissionRows
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
@@ -112,6 +118,68 @@ class ImportedStepsProductRoomTest {
 		exported shouldBe listOf(original)
 		exported.single().contentChecksum shouldBe original.contentChecksum
 	}
+
+	@Test
+	fun `missing v2 binding is integrity failure while true graphless v1 is graph unavailable`() =
+		runTest {
+			val original = entry(listOf(run('2', 10L, 20L, 9L)))
+			seed(original)
+			database.withTransaction {
+				ImportedStepsProductReader(database).exportV2InTransaction(request())
+			} shouldBe PortableStepsV2Snapshot.Outcome(
+				ExportPortableStepsResult.Unverifiable(
+					PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
+				),
+			)
+			val graph = original.withExplicitUnprovenCountDomain().countDomainGraph
+			val dao = database.importedPortableStepsCountDomainDao()
+			val receiptIdentity = ImportedPortableCountDomainIdentity.fileReceipt(
+				"v2-job",
+				"v2-entry",
+			)
+			dao.insertAuthenticatedGraph(
+				graph,
+				ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+			)
+			val binding = ImportedPortableStepsCountDomainBindingEntity(
+				productKind =
+					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				productIdentity = original.identity.value,
+				productRevision = 1L,
+				graphIdentity = graph.identity.value,
+				sourceSchemaVersion = 2,
+				sourceReceiptIdentity = receiptIdentity,
+				sourceArchiveContentChecksum = original.contentChecksum.value,
+			)
+			dao.insertBinding(binding)
+			dao.insertFileReceipt(
+				ImportedPortableStepsFileReceiptEntity(
+					importJobId = "v2-job",
+					entryKey = "v2-entry",
+					receiptIdentity = receiptIdentity,
+					sourceName = "v2.trackersteps",
+					receivedAtMs = 1L,
+					archiveContentChecksum = original.contentChecksum.value,
+					entryOrdinal = 0,
+					entryIdentity = original.identity.value,
+					graphIdentity = graph.identity.value,
+				),
+			)
+			dao.deleteBindingExact(
+				binding.productKind,
+				binding.productIdentity,
+				binding.productRevision,
+				binding.graphIdentity,
+			) shouldBe 1
+
+			database.withTransaction {
+				ImportedStepsProductReader(database).exportV2InTransaction(request())
+			} shouldBe PortableStepsV2Snapshot.Outcome(
+				ExportPortableStepsResult.Unverifiable(
+					PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+		}
 
 	@Test
 	fun `replacement runs group exact positive physical members and recency uses newest survivor`() = runTest {

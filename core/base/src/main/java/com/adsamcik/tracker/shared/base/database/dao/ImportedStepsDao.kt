@@ -98,11 +98,22 @@ interface ImportedStepsDao {
 		"ORDER BY run_identity, revision LIMIT :limit")
 	suspend fun manifestsForRuns(runIdentities: List<String>, limit: Int): List<ImportedStepsManifestEntity>
 
-	/** Newest-first stable keyset page; callers request limit plus one to detect truncation. */
-	@Query("SELECT * FROM imported_steps_entry WHERE :beforeStartTimeMs IS NULL OR " +
-		"start_time_ms < :beforeStartTimeMs OR (start_time_ms = :beforeStartTimeMs AND identity < :beforeIdentity) " +
+	/** First newest-first page on the exact descending traversal index. */
+	@Query(
+		"SELECT * FROM imported_steps_entry " +
+			"ORDER BY start_time_ms DESC, identity DESC LIMIT :limit",
+	)
+	suspend fun firstEntryPage(limit: Int): List<ImportedStepsEntryEntity>
+
+	/** Subsequent stable keyset page; callers request limit plus one to detect truncation. */
+	@Query("SELECT * FROM imported_steps_entry " +
+		"WHERE (start_time_ms, identity) < (:beforeStartTimeMs, :beforeIdentity) " +
 		"ORDER BY start_time_ms DESC, identity DESC LIMIT :limit")
-	suspend fun entryPage(beforeStartTimeMs: Long?, beforeIdentity: String?, limit: Int): List<ImportedStepsEntryEntity>
+	suspend fun entryPageAfter(
+		beforeStartTimeMs: Long,
+		beforeIdentity: String,
+		limit: Int,
+	): List<ImportedStepsEntryEntity>
 
 	/** Complete bounded export selection, in canonical oldest-first order. */
 	@Query("SELECT * FROM imported_steps_entry WHERE start_time_ms < :toExclusiveMs AND end_time_ms > :fromInclusiveMs " +

@@ -22,6 +22,7 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsDeletionSco
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsEntryV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsFactCoverage
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsFactV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsIdentityKind
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsManifestV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsOpaqueIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsProviderCoverage
@@ -30,6 +31,7 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsSessionMode
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.assertions.throwables.shouldThrow
+import java.util.concurrent.Executor
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -101,6 +103,77 @@ class ImportedStepsRetainedReaderTest {
 		ready.unverifiableEntries shouldBe emptyMap()
 		ready.entries.map { it.portable }.toSet() shouldBe entries.toSet()
 	}
+
+	@Test
+	fun `retention keyset traversal releases each maximum run entry before loading the next`() =
+		runTest {
+			val events = mutableListOf<String>()
+			database.close()
+			database = AppDatabase.inMemoryBuilder(
+				ApplicationProvider.getApplicationContext<Application>(),
+			).allowMainThreadQueries()
+				.setQueryCallback(
+					{ sql, _ ->
+						val normalized = sql.replace(Regex("\\s+"), " ").trim().lowercase()
+						if (normalized.startsWith(
+								"select * from imported_steps_entry where identity in",
+							)
+						) {
+							events += "load:${normalized.count { it == '?' }}"
+						} else if (
+							normalized.startsWith(
+								"select * from imported_steps_entry order by " +
+									"start_time_ms desc, identity desc limit",
+							)
+						) {
+							events += "page:first"
+						} else if (
+							normalized.startsWith(
+								"select * from imported_steps_entry where " +
+									"(start_time_ms, identity) <",
+							) &&
+							normalized.contains(
+								"order by start_time_ms desc, identity desc limit",
+							)
+						) {
+							events += "page:after"
+						}
+					},
+					Executor(Runnable::run),
+				)
+				.build()
+			reader = ImportedStepsRetainedReader(database)
+			val entries = listOf(
+				maximumRunEntry(0, baseTime = 1_000L),
+				maximumRunEntry(1, baseTime = 1_000L),
+			)
+			entries.forEach { seed(portableEntry = it) }
+			events.clear()
+
+			val traversal = database.withTransaction {
+				reader.forEachEntryForRetentionInTransaction { retained ->
+					retained.runs.size shouldBe
+						com.adsamcik.tracker.shared.model.steps.portable
+							.StepsPortableFormatV1.MAX_RUNS_PER_ENTRY
+					events += "consume:${retained.metadata.identity}"
+				}
+			}
+
+			traversal shouldBe ImportedStepsRetainedTraversal.Complete(2L)
+			val ordered = entries.sortedWith(
+				compareByDescending<PortableStepsEntryV1> { it.startTimeMs }
+					.thenByDescending { it.identity.value },
+			)
+			events shouldBe listOf(
+				"page:first",
+				"load:2",
+				"consume:${ordered[0].identity.value}",
+				"page:after",
+				"load:2",
+				"consume:${ordered[1].identity.value}",
+				"page:after",
+			)
+		}
 
 	@Test
 	fun `member checksum permits surviving sibling but refuses original whole export`() = runTest {
@@ -396,6 +469,72 @@ class ImportedStepsRetainedReaderTest {
 			PortableStepsFactV1.create(identity(fact + 2), 1L, start + 10L, start + 20L, 0L, PortableStepsFactCoverage.PARTIAL, null),
 		),
 	)
+
+	private fun maximumRunEntry(
+		index: Int,
+		baseTime: Long = 1_000L + index * 10_000L,
+	): PortableStepsEntryV1 {
+		val maximumFactsPerRun =
+			com.adsamcik.tracker.shared.model.steps.portable
+				.StepsPortableFormatV1.MAX_FACTS_PER_RUN
+		val runs = List(
+			com.adsamcik.tracker.shared.model.steps.portable
+				.StepsPortableFormatV1.MAX_RUNS_PER_ENTRY,
+		) { ordinal ->
+			val startTimeMs = baseTime + ordinal * (maximumFactsPerRun + 2L)
+			val runIdentity = PortableStepsOpaqueIdentity.derive(
+				PortableStepsIdentityKind.PHYSICAL_RUN,
+				"peak-run-$index-$ordinal",
+			)
+			val facts = if (ordinal == 0) {
+				List(maximumFactsPerRun) { factOrdinal ->
+					PortableStepsFactV1.create(
+						PortableStepsOpaqueIdentity.derive(
+							PortableStepsIdentityKind.FACT,
+							"peak-fact-$index-$factOrdinal",
+						),
+						manifestRevision = 1L,
+						intervalStartTimeMs = startTimeMs + factOrdinal,
+						intervalEndTimeMs = startTimeMs + factOrdinal + 1L,
+						wallTimeUncertaintyMs = 0L,
+						coverage = PortableStepsFactCoverage.COVERED,
+						stepCount = 1L,
+					)
+				}
+			} else {
+				emptyList()
+			}
+			PortableStepsRunV1(
+				identity = runIdentity,
+				deletionScopeDigest = PortableStepsDeletionScopeDigest.derive(
+					"peak-entry-$index",
+					runIdentity.value,
+				),
+				startTimeMs = startTimeMs,
+				endTimeMs = startTimeMs + maxOf(1, facts.size).toLong(),
+				storedZoneId = "UTC",
+				manifests = listOf(PortableStepsManifestV1(1L, startTimeMs, 1L, 1L)),
+				completeness = PortableStepsCompletenessV1(
+					PortableStepsCaptureCoverage.WHOLE_RUN,
+					PortableStepsProviderCoverage.COMPLETE,
+					appDrainComplete = true,
+					stopComplete = true,
+					hasUnresolvedProviderRange = false,
+				),
+				facts = facts,
+			)
+		}
+		return PortableStepsEntryV1.create(
+			identity = PortableStepsOpaqueIdentity.derive(
+				PortableStepsIdentityKind.LOGICAL_ENTRY,
+				"peak-entry-$index",
+			),
+			sessionMode = PortableStepsSessionMode.MANUAL,
+			startTimeMs = runs.first().startTimeMs,
+			endTimeMs = runs.last().endTimeMs,
+			runs = runs,
+		)
+	}
 
 	private fun identity(character: Char) = PortableStepsOpaqueIdentity("sha256:${character.toString().repeat(64)}")
 }

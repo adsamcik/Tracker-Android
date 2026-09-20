@@ -52,7 +52,7 @@ class PortableAmbientStepsJsonV1CodecTest {
 			val second = encodeAmbientStepsArchive(archive)
 
 			first.contentEquals(second) shouldBe true
-			val decoded = PortableAmbientStepsJsonV1Codec().decode(ByteArrayInputStream(first))
+			val decoded = PortableAmbientStepsJsonV1Codec().decode(first)
 			decoded.archive shouldBe archive
 			decoded.metadata.encodedByteCount shouldBe first.size.toLong()
 			decoded.metadata.dayCount shouldBe 4

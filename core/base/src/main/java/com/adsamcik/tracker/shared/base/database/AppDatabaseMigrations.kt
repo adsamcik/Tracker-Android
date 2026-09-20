@@ -1390,6 +1390,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 	override fun migrate(db: SupportSQLiteDatabase) {
 		createImportedPressureMaintenanceTables(db)
 		createImportedAmbientStepsTables(db)
+		createImportedPortableStepsCountDomainTables(db)
 		createAdditionalTrackingTables(db)
 		with(db) {
 			execSQL("ALTER TABLE session_segment ADD COLUMN logical_tracking_id TEXT")
@@ -1893,6 +1894,10 @@ val MIGRATION_27_28: Migration = object : Migration(
 					writer_owner_generation INTEGER
 				)
 				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_steps_entry_cursor " +
+					"ON imported_steps_entry(start_time_ms DESC, identity DESC)",
 			)
 			execSQL(
 				"""

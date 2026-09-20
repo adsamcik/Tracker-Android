@@ -10,18 +10,26 @@ import com.adsamcik.tracker.impexp.importer.file.FileImport;
 import com.adsamcik.tracker.impexp.importer.file.PortableAmbientStepsFileImport;
 import com.adsamcik.tracker.impexp.importer.file.PortableAmbientStepsImportDependencies;
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV1Codec;
+import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV2Codec;
 import com.adsamcik.tracker.shared.base.database.AppDatabase;
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao;
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1;
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV2;
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore;
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientSteps;
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsDay;
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientSteps;
+import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsV2;
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientSteps;
+import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientStepsV2;
+import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsV2;
 import com.adsamcik.tracker.stats.data.repository.ImportedAmbientStepsRoomReader;
 import com.adsamcik.tracker.stats.data.repository.RoomExportPortableAmbientSteps;
+import com.adsamcik.tracker.stats.data.repository.RoomExportPortableAmbientStepsV2;
 import com.adsamcik.tracker.stats.data.repository.RoomImportPortableAmbientSteps;
 import com.adsamcik.tracker.stats.data.repository.RoomDeleteImportedAmbientStepsDay;
 import com.adsamcik.tracker.stats.data.repository.RoomReexportImportedAmbientSteps;
+import com.adsamcik.tracker.stats.data.repository.RoomReexportImportedAmbientStepsV2;
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.Method;
 import kotlin.Unit;
@@ -56,10 +64,13 @@ final class PortableAmbientStepsFileInternals {
                 dispatcher
         );
         PortableAmbientStepsImportDependencies dependencies =
-                new PortableAmbientStepsImportDependencies(importer, lifecycleStore);
+                new PortableAmbientStepsImportDependencies(
+                        importer,
+                        lifecycleStore,
+                        (ImportPortableAmbientStepsV2) importer
+                );
         return new PortableAmbientStepsFileImport(
-                ignored -> dependencies,
-                new PortableAmbientStepsJsonV1Codec()
+                ignored -> dependencies
         );
     }
 
@@ -121,12 +132,31 @@ final class PortableAmbientStepsFileInternals {
                         ),
                         dispatcher
                 );
+        ExportPortableAmbientStepsV2 nativeExporterV2 =
+                new RoomExportPortableAmbientStepsV2(database, dispatcher);
+        ReexportImportedAmbientStepsV2 importedExporterV2 =
+                new RoomReexportImportedAmbientStepsV2(
+                        new ImportedAmbientStepsRoomReader(
+                                database,
+                                importedDao(database),
+                                dispatcher
+                        ),
+                        dispatcher
+                );
         AmbientStepsPortableSourceBackend backend =
-                new AmbientStepsPortableSourceBackend(nativeExporter, importedExporter);
+                new AmbientStepsPortableSourceBackend(
+                        nativeExporter,
+                        importedExporter,
+                        nativeExporterV2,
+                        importedExporterV2
+                );
         return new PortableAmbientStepsExporter(
                 origin,
                 (Context ignored) -> backend,
-                new PortableAmbientStepsJsonV1Codec()
+                new PortableAmbientStepsJsonV2Codec(),
+                new PortableAmbientStepsJsonV1Codec(),
+                AmbientStepsPortableFormatV2.MAX_FILE_BYTES,
+                AmbientStepsPortableFormatV1.MAX_FILE_BYTES
         );
     }
 

@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRea
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedRead
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedReader
 import com.adsamcik.tracker.shared.base.database.steps.imported.RetainedImportedStepsEntry
+import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedSessionCountDomainBinding
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
@@ -18,6 +19,7 @@ import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryMember
 import com.adsamcik.tracker.stats.api.repository.PORTABLE_STEPS_ENTRY_ORDER
 import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV1
+import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.SessionHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
@@ -151,6 +153,70 @@ internal class ImportedStepsProductReader(
 		}
 	}
 
+	suspend fun exportV2InTransaction(
+		request: ExportPortableStepsRequest,
+	): PortableStepsV2Snapshot {
+		val entries = database.importedStepsDao().entriesOverlapping(
+			request.fromInclusiveMs,
+			request.toExclusiveMs,
+			StepsPortableFormatV1.MAX_ENTRIES + 1,
+		)
+		if (entries.size > StepsPortableFormatV1.MAX_ENTRIES) {
+			return v2Unavailable(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+		}
+		if (entries.isEmpty()) {
+			return PortableStepsV2Snapshot.Outcome(ExportPortableStepsResult.NoEntries)
+		}
+		val retainedEntries = mutableListOf<RetainedImportedStepsEntry>()
+		for (batch in entries.chunked(ImportedStepsRetainedReader.MAX_ENTRY_BATCH)) {
+			when (val result = retained.readEntriesInTransaction(batch.map { it.identity })) {
+				is ImportedStepsRetainedRead.Unverifiable ->
+					return v2Unavailable(result.reason.toExportReason())
+				is ImportedStepsRetainedRead.Ready -> {
+					val failure = result.unverifiableEntries.values.firstOrNull()
+					if (failure != null) return v2Unavailable(failure.toExportReason())
+					retainedEntries += result.entries
+				}
+			}
+		}
+		if (retainedEntries.size != entries.size) {
+			return v2Unavailable(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		}
+		val result = mutableListOf<PortableStepsEntryV2>()
+		for (entry in retainedEntries) {
+			val product = entry.portable
+				?: return v2Unavailable(
+					PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+				)
+			val authenticated = try {
+				database.loadAuthenticatedImportedSessionCountDomainBinding(
+					entry,
+				)
+			} catch (_: IllegalArgumentException) {
+				return v2Unavailable(
+					PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				)
+			} catch (_: IllegalStateException) {
+				return v2Unavailable(
+					PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				)
+			}
+			val graph = authenticated?.graph ?: return v2Unavailable(
+				PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
+			)
+			result += try {
+				PortableStepsEntryV2(product, graph)
+			} catch (_: IllegalArgumentException) {
+				return v2Unavailable(
+					PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+				)
+			}
+		}
+		return PortableStepsV2Snapshot.Ready(
+			result.sortedWith(com.adsamcik.tracker.stats.api.repository.PORTABLE_STEPS_ENTRY_V2_ORDER),
+		)
+	}
+
 	/** Stops before requesting another Room batch once this origin's export budget is exhausted. */
 	private fun appendExportEntries(
 		entries: List<RetainedImportedStepsEntry>,
@@ -220,5 +286,10 @@ internal class ImportedStepsProductReader(
 	private fun unavailable(reason: PortableStepsExportUnverifiableReason) =
 		PortableStepsSnapshot.Outcome(ExportPortableStepsResult.Unverifiable(reason))
 
-	private companion object { const val MAX_EXPORT_DEPENDENCIES = 16_384 }
+	private fun v2Unavailable(reason: PortableStepsExportUnverifiableReason) =
+		PortableStepsV2Snapshot.Outcome(ExportPortableStepsResult.Unverifiable(reason))
+
+	private companion object {
+		const val MAX_EXPORT_DEPENDENCIES = 16_384
+	}
 }
