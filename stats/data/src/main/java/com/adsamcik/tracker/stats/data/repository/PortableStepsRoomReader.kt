@@ -225,9 +225,9 @@ internal class PortableStepsRoomReader @Inject constructor(
 		is PortableStepsSnapshot.Outcome -> PortableStepsV2Snapshot.Outcome(result)
 		is PortableStepsSnapshot.Ready -> {
 			val authenticated = authenticatedEntries
-				?: abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+				?: abort(PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE)
 			if (authenticated.size != entries.size) {
-				abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+				abort(PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE)
 			}
 			PortableStepsV2Snapshot.Ready(authenticated)
 		}
@@ -904,9 +904,10 @@ internal class PortableStepsRoomReader @Inject constructor(
 			is PortableCountDomainGraphRead.Ready -> read.graph
 			PortableCountDomainGraphRead.Overflow ->
 				abort(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
-			PortableCountDomainGraphRead.Unproven,
-				PortableCountDomainGraphRead.Unverifiable,
-				-> abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+			PortableCountDomainGraphRead.Unproven ->
+				abort(PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE)
+			PortableCountDomainGraphRead.Unverifiable ->
+				abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 		}
 		return BuiltPortableEntry(product, PortableStepsEntryV2(product, graph))
 	}

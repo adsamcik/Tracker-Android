@@ -243,7 +243,8 @@ data class ImportedPortableStepsCountDomainRootEntity(
 /**
  * Session entries use [productRevision] as their immutable product revision. Ambient days use it
  * as an independent graph-lineage revision; archive membership stores the bound day revision
- * separately so a graph-only correction never fabricates another day revision.
+ * separately so a graph-only correction never fabricates another day revision. Source provenance
+ * pins each binding to the exact receipt and archive checksum that introduced it.
  */
 @Entity(
 	tableName = "imported_steps_count_domain_binding",
@@ -264,6 +265,10 @@ data class ImportedPortableStepsCountDomainBindingEntity(
 	@ColumnInfo(name = "product_revision") val productRevision: Long,
 	@ColumnInfo(name = "graph_identity") val graphIdentity: String,
 	@ColumnInfo(name = "source_schema_version") val sourceSchemaVersion: Int,
+	@ColumnInfo(name = "source_receipt_identity") val sourceReceiptIdentity: String? = null,
+	@ColumnInfo(name = "source_archive_identity") val sourceArchiveIdentity: String? = null,
+	@ColumnInfo(name = "source_archive_content_checksum")
+	val sourceArchiveContentChecksum: String? = null,
 ) {
 	init {
 		require(productKind in PRODUCT_KINDS)
@@ -271,6 +276,27 @@ data class ImportedPortableStepsCountDomainBindingEntity(
 		require(productRevision > 0L)
 		require(ImportedPortableCountDomainIdentity.isOpaque(graphIdentity))
 		require(sourceSchemaVersion in 1..2)
+		listOfNotNull(
+			sourceReceiptIdentity,
+			sourceArchiveIdentity,
+			sourceArchiveContentChecksum,
+		).forEach { require(ImportedPortableCountDomainIdentity.isOpaque(it)) }
+		when (productKind) {
+			PRODUCT_AMBIENT_DAY -> require(
+				sourceReceiptIdentity != null &&
+					sourceArchiveIdentity != null &&
+					sourceArchiveContentChecksum != null,
+			)
+			PRODUCT_SESSION_ENTRY -> {
+				require(sourceArchiveIdentity == null)
+				if (sourceSchemaVersion == 2) {
+					require(
+						sourceReceiptIdentity != null &&
+							sourceArchiveContentChecksum != null,
+					)
+				}
+			}
+		}
 	}
 
 	companion object {

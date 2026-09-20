@@ -1,58 +1,56 @@
 package com.adsamcik.tracker.shared.base.database
 
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
 
 /**
  * Converts every live imported portable owner into a value-free terminal fence before full clear.
  */
 internal fun AppDatabase.preserveImportedPortableCountDomainFullClearFences(
+	oldCollectedDataEpoch: Long,
 	newCollectedDataEpoch: Long,
 	fencedAtMs: Long,
 ) {
-	require(newCollectedDataEpoch >= 0L)
+	require(oldCollectedDataEpoch >= 0L)
+	require(newCollectedDataEpoch > oldCollectedDataEpoch)
 	require(fencedAtMs >= 0L)
 	val dao = importedPortableStepsCountDomainDao()
 	val bindings = dao.allBindingsForFullClear(MAX_FULL_CLEAR_BINDINGS + 1)
 	require(bindings.size <= MAX_FULL_CLEAR_BINDINGS)
-	val fences = mutableListOf<ImportedPortableStepsCountDomainOwnerFenceEntity>()
-	for (binding in bindings) {
-		val roots = dao.rootsForFullClear(
-			binding.graphIdentity,
-			MAX_FULL_CLEAR_ROOTS_PER_GRAPH + 1,
+	val authenticated = mutableListOf<AuthenticatedImportedPortableGraphBinding>()
+	bindings.filter {
+		it.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY
+	}.forEach { binding ->
+		authenticated += loadAuthenticatedImportedSessionCountDomainBindingForFullClear(binding)
+	}
+	bindings.filter {
+		it.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY
+	}.groupBy { it.productIdentity }.forEach { (dayIdentity, dayBindings) ->
+		val ambientDao = importedAmbientStepsDao()
+		val headers = ambientDao.dayRevisionsForFullClear(
+			dayIdentity,
+			com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
+				.MAX_REVISIONS_PER_DAY + 1,
 		)
-		val owners = dao.latestOwnersForFullClear(
-			binding.graphIdentity,
-			MAX_FULL_CLEAR_ROOTS_PER_GRAPH + 1,
+		require(headers.isNotEmpty())
+		val lineage = ambientDao.loadAuthenticatedAmbientStepsLineageForFullClear(
+			headers.last(),
+			oldCollectedDataEpoch,
 		)
-		require(roots.isNotEmpty())
-		require(roots.size <= MAX_FULL_CLEAR_ROOTS_PER_GRAPH)
-		require(owners.size <= MAX_FULL_CLEAR_ROOTS_PER_GRAPH)
-		require(fences.size.toLong() + roots.size <= MAX_FULL_CLEAR_OWNER_FENCES)
-		val ownersByKey = owners.associateBy { it.ownerKind to it.ownerIdentity }
-		require(ownersByKey.size == owners.size)
-		roots.forEach { root ->
-			val owner = requireNotNull(ownersByKey[root.ownerKind to root.ownerIdentity])
-			require(owner.ownerRevision == root.ownerRevision)
-			fences += ImportedPortableStepsCountDomainOwnerFenceEntity.create(
-				ownerKind = owner.ownerKind,
-				ownerIdentity = owner.ownerIdentity,
-				scopeIdentity = owner.scopeIdentity,
-				latestSourceRevision = owner.ownerRevision,
-				latestOwnerEffectChecksum = owner.ownerEffectChecksum,
-				productKind = binding.productKind,
-				productIdentity = binding.productIdentity,
-				graphIdentity = binding.graphIdentity,
-				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
-				collectedDataEpoch = newCollectedDataEpoch,
-				fencedAtMs = fencedAtMs,
-			)
+		val graphLineage = loadAuthenticatedImportedAmbientStepsGraphLineageForFullClear(lineage)
+		require(graphLineage.map { it.binding } == dayBindings)
+		authenticated += graphLineage.map {
+			AuthenticatedImportedPortableGraphBinding(it.binding, it.graph)
 		}
 	}
-	val unique = fences.groupBy { it.ownerKind to it.ownerIdentity }.map { (_, lineage) ->
-		require(lineage.map { it.scopeIdentity }.distinct().size == 1)
-		require(lineage.map { it.productIdentity }.distinct().size == 1)
-		lineage.maxBy { it.latestSourceRevision }
-	}
+	require(authenticated.map { it.binding }.toSet() == bindings.toSet())
+	val unique = authenticatedImportedPortableOwnerFences(
+		graphs = authenticated,
+		fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
+		collectedDataEpoch = newCollectedDataEpoch,
+		fencedAtMs = fencedAtMs,
+		maximumFenceCount = MAX_FULL_CLEAR_OWNER_FENCES,
+	)
 	val existing = unique.chunked(INSERT_BATCH).flatMap { batch ->
 		dao.ownerFencesForFullClear(batch.map { it.ownerIdentity })
 	}.associateBy { it.ownerKind to it.ownerIdentity }
@@ -71,6 +69,5 @@ internal fun AppDatabase.preserveImportedPortableCountDomainFullClearFences(
 }
 
 private const val MAX_FULL_CLEAR_BINDINGS = 131_072
-private const val MAX_FULL_CLEAR_ROOTS_PER_GRAPH = 131_072
-private const val MAX_FULL_CLEAR_OWNER_FENCES = 262_144L
+private const val MAX_FULL_CLEAR_OWNER_FENCES = 262_144
 private const val INSERT_BATCH = 256

@@ -57,6 +57,7 @@ sealed interface AmbientStepsPortableSnapshot {
 }
 
 enum class AmbientStepsPortableReadFailure {
+	COUNT_DOMAIN_GRAPH_UNAVAILABLE,
 	SOURCE_AUTHORITY_UNAVAILABLE,
 	DELETION_PENDING,
 	CORRUPT_RETAINED_STATE,
@@ -288,9 +289,14 @@ class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
 				val graph = when (val graphRead = PortableCountDomainGraphReader(database).read(roots)) {
 					is PortableCountDomainGraphRead.Ready -> graphRead.graph
 					PortableCountDomainGraphRead.Overflow -> throw AmbientStepsPortableLimitExceeded()
-					PortableCountDomainGraphRead.Unproven,
-						PortableCountDomainGraphRead.Unverifiable,
-						-> error("Ambient Steps count-domain evidence is unavailable")
+					PortableCountDomainGraphRead.Unproven ->
+						return AmbientStepsPortableSnapshot.Unverifiable(
+							AmbientStepsPortableReadFailure.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
+						)
+					PortableCountDomainGraphRead.Unverifiable ->
+						return AmbientStepsPortableSnapshot.Unverifiable(
+							AmbientStepsPortableReadFailure.CORRUPT_RETAINED_STATE,
+						)
 				}
 				authenticatedDays += PortableAmbientStepsDayV2(portableDay, graph)
 			}

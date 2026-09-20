@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import com.adsamcik.tracker.impexp.R
+import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV1Codec
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV2Codec
 import com.adsamcik.tracker.impexp.portable.ambientArchive
 import com.adsamcik.tracker.impexp.portable.ambientDayBounds
@@ -125,6 +126,62 @@ class PortableAmbientStepsExporterTest {
 
 		result shouldBe exported(archive)
 		emitted shouldBe archive.toV2()
+	}
+
+	@Test
+	fun `missing v2 graph falls back to canonical v1 for native and imported origins`() = runTest {
+		val archive = ambientArchive(
+			completeAmbientDay(LocalDate.of(2026, 1, 3), 9L),
+		)
+		listOf(
+			AmbientStepsPortableOrigin.NATIVE,
+			AmbientStepsPortableOrigin.IMPORTED,
+		).forEach { origin ->
+			val v1 = producer { _, sink ->
+				sink.emit(archive)
+				exported(archive)
+			}
+			val v2 = object : ExportPortableAmbientStepsV2 {
+				override suspend fun export(
+					request: ExportPortableAmbientStepsRequest,
+					sink: PortableAmbientStepsArchiveV2Sink,
+				) = ExportPortableAmbientStepsResult.Unverifiable(
+					PortableAmbientStepsExportUnverifiableReason
+						.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
+				)
+			}
+			val backend = AmbientStepsPortableSourceBackend(
+				nativeExporter = v1,
+				importedReexporter = object : ReexportImportedAmbientSteps {
+					override suspend fun export(
+						request: ExportPortableAmbientStepsRequest,
+						sink: PortableAmbientStepsArchiveSink,
+					) = v1.export(request, sink)
+				},
+				nativeExporterV2 = v2,
+				importedReexporterV2 = object : ReexportImportedAmbientStepsV2 {
+					override suspend fun export(
+						request: ExportPortableAmbientStepsRequest,
+						sink: PortableAmbientStepsArchiveV2Sink,
+					) = v2.export(request, sink)
+				},
+			)
+			val output = ByteArrayOutputStream()
+
+			PortableAmbientStepsExporter(
+				origin = origin,
+				backendProvider = { backend },
+			).export(
+				mockk(relaxed = true),
+				emptySequence(),
+				output,
+				null,
+			) shouldBe ExportResult.Success(1)
+
+			PortableAmbientStepsJsonV1Codec().decode(
+				ByteArrayInputStream(output.toByteArray()),
+			).archive shouldBe archive
+		}
 	}
 
 	@Test

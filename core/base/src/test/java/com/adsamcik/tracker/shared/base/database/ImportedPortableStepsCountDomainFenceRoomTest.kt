@@ -5,7 +5,10 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableCountDomainIdentity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFileReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsCaptureCoverage
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsCompletenessV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsDeletionScopeDigest
@@ -20,6 +23,7 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsRunV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsSessionMode
 import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import io.kotest.matchers.shouldBe
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -61,7 +65,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 		)
 
 		database.withTransaction {
-			database.preserveImportedPortableCountDomainFullClearFences(8L, 9L)
+			database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
 		}
 
 		dao.graph(graph.identity.value) shouldBe null
@@ -70,6 +74,65 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			graph.roots.size + 1,
 		).map { it.fenceKind }.toSet() shouldBe
 			setOf(ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR)
+	}
+
+	@Test
+	fun `full clear rejects a graph whose bound file receipt names another graph`() = runTest {
+		val entry = entry()
+		val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+		val dao = database.importedPortableStepsCountDomainDao()
+		val receiptIdentity = ImportedPortableCountDomainIdentity.fileReceipt("job", "entry")
+		val archiveChecksum = "sha256:" + "a".repeat(64)
+		database.importedStepsDao().insertEntry(
+			ImportedStepsEntryEntity(
+				identity = entry.identity.value,
+				contentChecksum = entry.contentChecksum.value,
+				sessionMode = entry.sessionMode.name,
+				startTimeMs = entry.startTimeMs,
+				endTimeMs = entry.endTimeMs,
+				collectedDataEpoch = 7L,
+			),
+		)
+		dao.insertAuthenticatedGraph(
+			graph,
+			ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+		)
+		dao.insertBinding(
+			ImportedPortableStepsCountDomainBindingEntity(
+				productKind =
+					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				productIdentity = entry.identity.value,
+				productRevision = 1L,
+				graphIdentity = graph.identity.value,
+				sourceSchemaVersion = 2,
+				sourceReceiptIdentity = receiptIdentity,
+				sourceArchiveContentChecksum = archiveChecksum,
+			),
+		)
+		dao.insertFileReceipt(
+			ImportedPortableStepsFileReceiptEntity(
+				importJobId = "job",
+				entryKey = "entry",
+				receiptIdentity = receiptIdentity,
+				sourceName = "steps.trackersteps",
+				receivedAtMs = 1L,
+				archiveContentChecksum = archiveChecksum,
+				entryOrdinal = 0,
+				entryIdentity = entry.identity.value,
+				graphIdentity = "sha256:" + "f".repeat(64),
+			),
+		)
+
+		assertFailsWith<IllegalStateException> {
+			database.withTransaction {
+				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+			}
+		}
+		dao.graph(graph.identity.value)?.graphIdentity shouldBe graph.identity.value
+		dao.ownerFences(
+			graph.roots.map { it.ownerIdentity.value },
+			graph.roots.size + 1,
+		) shouldBe emptyList()
 	}
 
 	private fun entry(): PortableStepsEntryV1 {

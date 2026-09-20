@@ -140,6 +140,9 @@ internal fun createImportedPortableStepsCountDomainTables(database: SupportSQLit
 			product_revision INTEGER NOT NULL,
 			graph_identity TEXT NOT NULL,
 			source_schema_version INTEGER NOT NULL,
+			source_receipt_identity TEXT,
+			source_archive_identity TEXT,
+			source_archive_content_checksum TEXT,
 			PRIMARY KEY(product_kind, product_identity, product_revision),
 			FOREIGN KEY(graph_identity) REFERENCES imported_steps_count_domain_graph(graph_identity)
 				ON UPDATE NO ACTION ON DELETE RESTRICT

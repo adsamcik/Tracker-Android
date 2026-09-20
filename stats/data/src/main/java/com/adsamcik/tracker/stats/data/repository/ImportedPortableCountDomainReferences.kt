@@ -2,8 +2,9 @@ package com.adsamcik.tracker.stats.data.repository
 
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.AuthenticatedImportedAmbientStepsLineage
-import com.adsamcik.tracker.shared.base.database.authenticatedGraph
-import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
+import com.adsamcik.tracker.shared.base.database.loadAuthenticatedAmbientStepsLineage
+import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedAmbientStepsGraphLineage
+import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedSessionCountDomainBinding
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerEffect
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerIdentity
@@ -15,39 +16,43 @@ internal suspend fun AppDatabase.importedSessionCountDomainOwners(
 	entryIdentity: String,
 	runIdentity: String,
 ): List<StepsCountDomainOwnerReference>? {
-	val dao = importedPortableStepsCountDomainDao()
-	val binding = dao.binding(
-		ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
-		entryIdentity,
-		IMPORTED_SESSION_PRODUCT_REVISION,
-	) ?: return null
-	val graph = dao.authenticatedGraph(
-		binding.graphIdentity,
-		com.adsamcik.tracker.shared.base.database.data
-			.ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
-	) ?: return null
-	return graph.referencesForContainer(runIdentity)
+	return try {
+		loadAuthenticatedImportedSessionCountDomainBinding(entryIdentity)
+			?.graph
+			?.referencesForContainer(runIdentity)
+	} catch (_: IllegalArgumentException) {
+		null
+	} catch (_: IllegalStateException) {
+		null
+	} catch (_: ArithmeticException) {
+		null
+	}
 }
 
 internal suspend fun AppDatabase.importedAmbientCountDomainOwner(
 	dayIdentity: String,
 	factIdentity: String,
 ): StepsCountDomainOwnerReference? {
-	val dao = importedPortableStepsCountDomainDao()
-	val binding = dao.bindings(
-		ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
-		listOf(dayIdentity),
-	).lastOrNull() ?: return null
-	val graph = dao.authenticatedGraph(
-		binding.graphIdentity,
-		com.adsamcik.tracker.shared.base.database.data
-			.ImportedPortableStepsCountDomainGraphEntity.SOURCE_AMBIENT_STEPS,
-	) ?: return null
-	return graph.referenceForProduct(
-		containerIdentity = dayIdentity,
-		productIdentity = factIdentity,
-		expectedKind = StepsCountDomainOwnerKind.AMBIENT_FACT,
-	)
+	return try {
+		val state = sourceEvidenceStateDao().get() ?: return null
+		val lineage = importedAmbientStepsDao().loadAuthenticatedAmbientStepsLineage(
+			dayIdentity,
+			state.collectedDataEpoch,
+		)
+		val graph = loadAuthenticatedImportedAmbientStepsGraphLineage(lineage).lastOrNull()?.graph
+			?: return null
+		graph.referenceForProduct(
+			containerIdentity = dayIdentity,
+			productIdentity = factIdentity,
+			expectedKind = StepsCountDomainOwnerKind.AMBIENT_FACT,
+		)
+	} catch (_: IllegalArgumentException) {
+		null
+	} catch (_: IllegalStateException) {
+		null
+	} catch (_: ArithmeticException) {
+		null
+	}
 }
 
 internal suspend fun AppDatabase.importedAmbientCountDomainOwners(
@@ -120,5 +125,3 @@ private fun PortableCountDomainGraphV2.referenceForRoot(
 		origin = StepsCountDomainOwnerOrigin.IMPORTED_PORTABLE,
 	)
 }
-
-private const val IMPORTED_SESSION_PRODUCT_REVISION = 1L

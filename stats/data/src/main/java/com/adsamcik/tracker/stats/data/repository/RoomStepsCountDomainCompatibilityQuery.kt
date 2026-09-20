@@ -7,7 +7,10 @@ import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerRead
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStoredOwner
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
-import com.adsamcik.tracker.shared.base.database.authenticatedGraph
+import com.adsamcik.tracker.shared.base.database.loadAuthenticatedAmbientStepsLineage
+import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedAmbientStepsGraphLineage
+import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedSessionCountDomainBinding
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletenessMarkerEntity
@@ -115,6 +118,18 @@ internal class RoomStepsCountDomainCompatibilityQuery @Inject constructor(
 
 	private suspend fun readImportedOwners(
 		references: List<StepsCountDomainOwnerReference>,
+	): ImportedPortableOwnerRead? = try {
+		readImportedOwnersUnchecked(references)
+	} catch (_: IllegalArgumentException) {
+		null
+	} catch (_: IllegalStateException) {
+		null
+	} catch (_: ArithmeticException) {
+		null
+	}
+
+	private suspend fun readImportedOwnersUnchecked(
+		references: List<StepsCountDomainOwnerReference>,
 	): ImportedPortableOwnerRead? {
 		if (references.isEmpty()) return ImportedPortableOwnerRead(emptyMap(), emptyMap())
 		val dao = database.importedPortableStepsCountDomainDao()
@@ -123,23 +138,62 @@ internal class RoomStepsCountDomainCompatibilityQuery @Inject constructor(
 		if (roots.size > MAX_IMPORTED_ROOT_LOOKUP) return null
 		val graphIds = roots.map { it.graphIdentity }.distinct()
 		if (graphIds.size > MAX_IMPORTED_GRAPH_LOOKUP) return null
+		if (graphIds.isEmpty()) return ImportedPortableOwnerRead(emptyMap(), emptyMap())
+		val bindings = dao.bindingsForGraphs(graphIds, MAX_IMPORTED_GRAPH_LOOKUP + 1)
+		if (bindings.size > MAX_IMPORTED_GRAPH_LOOKUP ||
+			bindings.groupBy { it.graphIdentity }.values.any { it.size != 1 } ||
+			bindings.mapTo(linkedSetOf()) { it.graphIdentity } != graphIds.toSet()
+		) return null
+		val authenticatedGraphs = linkedMapOf<
+			String,
+			com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2>()
+		try {
+			for (binding in bindings.filter {
+				it.productKind ==
+					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY
+			}) {
+				val authenticated = database
+					.loadAuthenticatedImportedSessionCountDomainBinding(binding.productIdentity)
+					?: return null
+				if (authenticated.binding != binding) return null
+				authenticatedGraphs[binding.graphIdentity] = authenticated.graph
+			}
+			val ambientBindings = bindings.filter {
+				it.productKind ==
+					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY
+			}.groupBy { it.productIdentity }
+			if (ambientBindings.isNotEmpty()) {
+				val state = database.sourceEvidenceStateDao().get() ?: return null
+				for ((dayIdentity, expectedBindings) in ambientBindings) {
+					val lineage = database.importedAmbientStepsDao()
+						.loadAuthenticatedAmbientStepsLineage(
+							dayIdentity,
+							state.collectedDataEpoch,
+						)
+					val graphLineage =
+						database.loadAuthenticatedImportedAmbientStepsGraphLineage(lineage)
+					if (graphLineage.map { it.binding }.filter {
+							it.graphIdentity in graphIds
+						} != expectedBindings
+					) return null
+					graphLineage.forEach { revision ->
+						authenticatedGraphs[revision.binding.graphIdentity] = revision.graph
+					}
+				}
+			}
+		} catch (_: IllegalArgumentException) {
+			return null
+		} catch (_: IllegalStateException) {
+			return null
+		} catch (_: ArithmeticException) {
+			return null
+		}
+		if (!authenticatedGraphs.keys.containsAll(graphIds)) return null
 		val owners = linkedMapOf<ImportedPortableOwnerKey, ImportedPortableStoredOwner>()
 		val latest = mutableMapOf<ImportedPortableLineageKey, Long>()
 		for (graphId in graphIds) {
 			currentCoroutineContext().ensureActive()
-			val storedGraph = dao.graph(graphId) ?: return null
-			val expectedFormat = if (
-				roots.filter { it.graphIdentity == graphId }
-					.all { it.ownerKind == StepsCountDomainOwnerKind.AMBIENT_FACT.storedCode }
-			) {
-				com.adsamcik.tracker.shared.base.database.data
-					.ImportedPortableStepsCountDomainGraphEntity.SOURCE_AMBIENT_STEPS
-			} else {
-				com.adsamcik.tracker.shared.base.database.data
-					.ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS
-			}
-			if (storedGraph.sourceFormat != expectedFormat) return null
-			val graph = dao.authenticatedGraph(graphId, expectedFormat) ?: return null
+			val graph = authenticatedGraphs[graphId] ?: return null
 			graph.roots.filter { it.ownerIdentity.value in identities }.forEach { root ->
 				val owner = graph.ownerRevisions.singleOrNull {
 					it.ownerKind == root.ownerKind &&

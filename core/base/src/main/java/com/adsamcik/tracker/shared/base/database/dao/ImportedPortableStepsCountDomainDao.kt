@@ -65,6 +65,16 @@ interface ImportedPortableStepsCountDomainDao {
 	): List<ImportedPortableStepsCountDomainBindingEntity>
 
 	@Query(
+		"SELECT * FROM imported_steps_count_domain_binding " +
+			"WHERE graph_identity IN (:graphIdentities) " +
+			"ORDER BY product_kind, product_identity, product_revision LIMIT :limit",
+	)
+	suspend fun bindingsForGraphs(
+		graphIdentities: List<String>,
+		limit: Int,
+	): List<ImportedPortableStepsCountDomainBindingEntity>
+
+	@Query(
 		"SELECT * FROM imported_steps_count_domain_receipt WHERE graph_identity = :graphIdentity " +
 			"ORDER BY owner_kind, owner_identity, owner_revision LIMIT :limit",
 	)
@@ -131,6 +141,13 @@ interface ImportedPortableStepsCountDomainDao {
 	): ImportedPortableStepsFileReceiptEntity?
 
 	@Query(
+		"SELECT * FROM imported_steps_file_receipt WHERE receipt_identity = :receiptIdentity",
+	)
+	suspend fun fileReceiptByIdentity(
+		receiptIdentity: String,
+	): ImportedPortableStepsFileReceiptEntity?
+
+	@Query(
 		"DELETE FROM imported_steps_count_domain_binding WHERE product_kind = :productKind " +
 			"AND product_identity = :productIdentity AND product_revision = :productRevision " +
 			"AND graph_identity = :graphIdentity",
@@ -156,6 +173,48 @@ interface ImportedPortableStepsCountDomainDao {
 	fun allBindingsForFullClear(limit: Int): List<ImportedPortableStepsCountDomainBindingEntity>
 
 	@Query(
+		"SELECT * FROM imported_steps_count_domain_binding WHERE product_kind = :productKind " +
+			"AND product_identity = :productIdentity ORDER BY product_revision LIMIT :limit",
+	)
+	fun bindingsForFullClear(
+		productKind: String,
+		productIdentity: String,
+		limit: Int,
+	): List<ImportedPortableStepsCountDomainBindingEntity>
+
+	@Query("SELECT * FROM imported_steps_count_domain_graph WHERE graph_identity = :identity")
+	fun graphForFullClear(identity: String): ImportedPortableStepsCountDomainGraphEntity?
+
+	@Query(
+		"SELECT * FROM imported_steps_count_domain_receipt WHERE graph_identity = :graphIdentity " +
+			"ORDER BY owner_kind, owner_identity, owner_revision LIMIT :limit",
+	)
+	fun receiptsForFullClear(
+		graphIdentity: String,
+		limit: Int,
+	): List<ImportedPortableStepsCountDomainReceiptEntity>
+
+	@Query(
+		"SELECT * FROM imported_steps_count_domain_owner_revision " +
+			"WHERE graph_identity = :graphIdentity " +
+			"ORDER BY owner_kind, owner_identity, owner_revision LIMIT :limit",
+	)
+	fun ownersForFullClear(
+		graphIdentity: String,
+		limit: Int,
+	): List<ImportedPortableStepsCountDomainOwnerRevisionEntity>
+
+	@Query(
+		"SELECT * FROM imported_steps_count_domain_completeness " +
+			"WHERE graph_identity = :graphIdentity " +
+			"ORDER BY owner_identity, owner_revision LIMIT :limit",
+	)
+	fun markersForFullClear(
+		graphIdentity: String,
+		limit: Int,
+	): List<ImportedPortableStepsCountDomainCompletenessEntity>
+
+	@Query(
 		"SELECT root.* FROM imported_steps_count_domain_root AS root " +
 			"WHERE root.graph_identity = :graphIdentity " +
 			"ORDER BY root.container_identity, product_identity, owner_kind, owner_identity LIMIT :limit",
@@ -164,6 +223,13 @@ interface ImportedPortableStepsCountDomainDao {
 		graphIdentity: String,
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainRootEntity>
+
+	@Query(
+		"SELECT * FROM imported_steps_file_receipt WHERE receipt_identity = :receiptIdentity",
+	)
+	fun fileReceiptByIdentityForFullClear(
+		receiptIdentity: String,
+	): ImportedPortableStepsFileReceiptEntity?
 
 	@Query(
 		"SELECT owner.* FROM imported_steps_count_domain_owner_revision AS owner " +

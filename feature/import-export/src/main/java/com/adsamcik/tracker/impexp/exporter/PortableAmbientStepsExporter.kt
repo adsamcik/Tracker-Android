@@ -3,6 +3,7 @@ package com.adsamcik.tracker.impexp.exporter
 import android.content.Context
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsFormatException
+import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV1Codec
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV2Codec
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.model.LocationSample
@@ -10,6 +11,7 @@ import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableForm
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsV2
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResult
+import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientSteps
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientStepsV2
 import dagger.hilt.EntryPoint
@@ -17,6 +19,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.io.OutputStream
+import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.CancellationException
 
 @EntryPoint
@@ -28,7 +31,7 @@ internal interface PortableAmbientStepsExportEntryPoint {
 	fun reexportImportedAmbientStepsV2(): ReexportImportedAmbientStepsV2
 }
 
-/** User-selected native export or explicit imported-origin re-export. */
+/** User-selected export that prefers authenticated v2 and falls back atomically to canonical v1. */
 internal class PortableAmbientStepsExporter(
 	private val origin: AmbientStepsPortableOrigin = AmbientStepsPortableOrigin.NATIVE,
 	private val backendProvider: (Context) -> AmbientStepsPortableSourceBackend = { context ->
@@ -44,6 +47,7 @@ internal class PortableAmbientStepsExporter(
 		)
 	},
 	private val codec: PortableAmbientStepsJsonV2Codec = PortableAmbientStepsJsonV2Codec(),
+	private val legacyCodec: PortableAmbientStepsJsonV1Codec = PortableAmbientStepsJsonV1Codec(),
 ) : Exporter {
 	override val requiresLocationData: Boolean = false
 	override val containsSensitiveLocationData: Boolean = true
@@ -69,8 +73,28 @@ internal class PortableAmbientStepsExporter(
 			)
 		}
 		val sourceResult = try {
-			codec.encode(outputStream) { sink ->
+			val v2Bytes = ByteArrayOutputStream()
+			val v2Result = codec.encode(v2Bytes) { sink ->
 				backend.exportV2(origin, request, sink)
+			}
+			if (
+				v2Result is ExportPortableAmbientStepsResult.Unverifiable &&
+				v2Result.reason ==
+				PortableAmbientStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE
+			) {
+				val v1Bytes = ByteArrayOutputStream()
+				val fallback = legacyCodec.encode(v1Bytes) { sink ->
+					backend.export(origin, request, sink)
+				}
+				if (fallback is ExportPortableAmbientStepsResult.Exported) {
+					outputStream.write(v1Bytes.toByteArray())
+				}
+				fallback
+			} else {
+				if (v2Result is ExportPortableAmbientStepsResult.Exported) {
+					outputStream.write(v2Bytes.toByteArray())
+				}
+				v2Result
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled

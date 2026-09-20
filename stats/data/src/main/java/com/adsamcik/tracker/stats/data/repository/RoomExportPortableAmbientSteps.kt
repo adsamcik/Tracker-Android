@@ -115,6 +115,8 @@ internal class RoomExportPortableAmbientStepsV2 @Inject constructor(
 }
 
 private fun AmbientStepsPortableReadFailure.toApiReason() = when (this) {
+	AmbientStepsPortableReadFailure.COUNT_DOMAIN_GRAPH_UNAVAILABLE ->
+		PortableAmbientStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE
 	AmbientStepsPortableReadFailure.SOURCE_AUTHORITY_UNAVAILABLE ->
 		PortableAmbientStepsExportUnverifiableReason.SOURCE_AUTHORITY_UNAVAILABLE
 	AmbientStepsPortableReadFailure.DELETION_PENDING ->

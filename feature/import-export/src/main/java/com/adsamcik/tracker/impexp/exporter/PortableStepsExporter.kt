@@ -2,6 +2,7 @@ package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
 import com.adsamcik.tracker.impexp.R
+import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV1Codec
 import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV2Codec
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.model.LocationSample
@@ -9,11 +10,13 @@ import com.adsamcik.tracker.stats.api.repository.ExportPortableSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsV2
+import com.adsamcik.tracker.stats.api.repository.PortableStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV1
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 
 /** Resolves the read-only Steps exporter used by the application singleton graph. */
@@ -24,8 +27,14 @@ internal interface PortableStepsExportEntryPoint {
 	fun exportPortableStepsV2(): ExportPortableStepsV2
 }
 
-/** User-facing `.trackersteps` exporter over the exact source-local portable contract. */
+/** Prefers authenticated v2 and falls back to canonical v1 before writing any destination bytes. */
 internal class PortableStepsExporter(
+	private val legacyExporterProvider: (Context) -> ExportPortableSteps = { context ->
+		EntryPointAccessors.fromApplication(
+			context.applicationContext,
+			PortableStepsExportEntryPoint::class.java,
+		).exportPortableSteps()
+	},
 	private val exporterProvider: (Context) -> ExportPortableStepsV2 = { context ->
 		EntryPointAccessors.fromApplication(
 			context.applicationContext,
@@ -45,14 +54,32 @@ internal class PortableStepsExporter(
 		outputStream: OutputStream,
 		dateRange: LongRange?,
 	): ExportResult {
-		val exporter = exporterProvider(context)
 		val request = dateRange?.toPortableRequest() ?: FULL_HISTORY
-		val result = PortableStepsJsonV2Codec().encode(outputStream) { sink ->
-			exporter.export(request, sink)
+		val v2Bytes = ByteArrayOutputStream()
+		val result = PortableStepsJsonV2Codec().encode(v2Bytes) { sink ->
+			exporterProvider(context).export(request, sink)
 		}
-		return when (result) {
+		val finalResult = if (
+			result is ExportPortableStepsResult.Unverifiable &&
+			result.reason == PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE
+		) {
+			val v1Bytes = ByteArrayOutputStream()
+			val fallback = PortableStepsJsonV1Codec().encode(v1Bytes) { sink ->
+				legacyExporterProvider(context).export(request, sink)
+			}
+			if (fallback is ExportPortableStepsResult.Exported) {
+				outputStream.write(v1Bytes.toByteArray())
+			}
+			fallback
+		} else {
+			if (result is ExportPortableStepsResult.Exported) {
+				outputStream.write(v2Bytes.toByteArray())
+			}
+			result
+		}
+		return when (finalResult) {
 			is ExportPortableStepsResult.Exported -> ExportResult.Success(
-				recordCount = result.entryCount,
+				recordCount = finalResult.entryCount,
 			)
 			ExportPortableStepsResult.NoEntries -> ExportResult.Error(
 				LocalizedString(R.string.export_error_no_portable_steps),

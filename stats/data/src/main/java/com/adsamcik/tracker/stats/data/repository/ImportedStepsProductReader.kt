@@ -5,8 +5,7 @@ import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRea
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedRead
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedReader
 import com.adsamcik.tracker.shared.base.database.steps.imported.RetainedImportedStepsEntry
-import com.adsamcik.tracker.shared.base.database.authenticatedGraph
-import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
+import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedSessionCountDomainBinding
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
@@ -183,33 +182,28 @@ internal class ImportedStepsProductReader(
 		if (retainedEntries.size != entries.size) {
 			return v2Unavailable(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 		}
-		val graphDao = database.importedPortableStepsCountDomainDao()
 		val result = mutableListOf<PortableStepsEntryV2>()
 		for (entry in retainedEntries) {
 			val product = entry.portable
 				?: return v2Unavailable(
 					PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
 				)
-			val binding = graphDao.binding(
-				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
-				entry.metadata.identity,
-				IMPORTED_SESSION_PRODUCT_REVISION,
-			) ?: return v2Unavailable(
-				PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
-			)
-			val graph = graphDao.authenticatedGraph(
-				binding.graphIdentity,
-				com.adsamcik.tracker.shared.base.database.data
-					.ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
-			)
-				?: return v2Unavailable(
-					PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+			val authenticated = try {
+				database.loadAuthenticatedImportedSessionCountDomainBinding(
+					entry.metadata.identity,
 				)
-			if (binding.sourceSchemaVersion !in 1..2) {
+			} catch (_: IllegalArgumentException) {
 				return v2Unavailable(
-					PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+					PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				)
+			} catch (_: IllegalStateException) {
+				return v2Unavailable(
+					PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
 				)
 			}
+			val graph = authenticated?.graph ?: return v2Unavailable(
+				PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
+			)
 			result += try {
 				PortableStepsEntryV2(product, graph)
 			} catch (_: IllegalArgumentException) {
@@ -297,6 +291,5 @@ internal class ImportedStepsProductReader(
 
 	private companion object {
 		const val MAX_EXPORT_DEPENDENCIES = 16_384
-		const val IMPORTED_SESSION_PRODUCT_REVISION = 1L
 	}
 }

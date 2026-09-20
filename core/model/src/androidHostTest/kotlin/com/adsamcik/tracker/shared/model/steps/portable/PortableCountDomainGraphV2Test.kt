@@ -97,6 +97,38 @@ class PortableCountDomainGraphV2Test {
 	}
 
 	@Test
+	fun `fact bind corrections cannot mutate immutable native domain fields`() {
+		listOf(
+			PortableCountDomainOwnerKind.SESSION_FACT,
+			PortableCountDomainOwnerKind.AMBIENT_FACT,
+		).forEach { ownerKind ->
+			val firstGraph = factGraph(ownerKind)
+			val firstOwner = firstGraph.ownerRevisions.single()
+			val firstReceipt = firstGraph.receipts.single()
+			listOf(
+				receipt(2L, ownerKind = ownerKind, domainIdentity = opaque('x')),
+				receipt(2L, ownerKind = ownerKind, collectedDataEpoch = 99L),
+				receipt(2L, ownerKind = ownerKind, countDomainVersion = 2),
+			).forEach { changed ->
+				shouldThrow<IllegalArgumentException> {
+					PortableCountDomainGraphV2.create(
+						receipts = listOf(firstReceipt, changed),
+						ownerRevisions = listOf(
+							firstOwner,
+							firstOwner.copy(
+								ownerRevision = 2L,
+								receiptIdentity = changed.identity,
+							),
+						),
+						completenessMarkers = emptyList(),
+						roots = listOf(firstGraph.roots.single().copy(ownerRevision = 2L)),
+					)
+				}
+			}
+		}
+	}
+
+	@Test
 	fun `ambient day rejects a root from another day`() {
 		val day = ambientDay()
 		val graph = ambientGraph().let { value ->
@@ -113,10 +145,13 @@ class PortableCountDomainGraphV2Test {
 		}
 	}
 
-	private fun ambientGraph(): PortableCountDomainGraphV2 {
-		val receipt = receipt(1L)
+	private fun ambientGraph(): PortableCountDomainGraphV2 =
+		factGraph(PortableCountDomainOwnerKind.AMBIENT_FACT)
+
+	private fun factGraph(ownerKind: PortableCountDomainOwnerKind): PortableCountDomainGraphV2 {
+		val receipt = receipt(1L, ownerKind)
 		val owner = PortableCountDomainOwnerRevisionV2(
-			ownerKind = PortableCountDomainOwnerKind.AMBIENT_FACT,
+			ownerKind = ownerKind,
 			scopeIdentity = opaque('s'),
 			ownerIdentity = opaque('o'),
 			ownerRevision = 1L,
@@ -133,7 +168,7 @@ class PortableCountDomainGraphV2Test {
 				PortableCountDomainRootV2(
 					containerIdentity = ambientDay().identity.asCountIdentity(),
 					productIdentity = ambientDay().facts.single().identity.asCountIdentity(),
-					ownerKind = PortableCountDomainOwnerKind.AMBIENT_FACT,
+					ownerKind = ownerKind,
 					ownerIdentity = owner.ownerIdentity,
 					ownerRevision = owner.ownerRevision,
 				),
@@ -141,20 +176,30 @@ class PortableCountDomainGraphV2Test {
 		)
 	}
 
-	private fun receipt(revision: Long): PortableCountDomainReceiptV2 =
+	private fun receipt(
+		revision: Long,
+		ownerKind: PortableCountDomainOwnerKind = PortableCountDomainOwnerKind.AMBIENT_FACT,
+		domainIdentity: PortableCountDomainOpaqueIdentity = opaque('d'),
+		collectedDataEpoch: Long = 4L,
+		countDomainVersion: Int = 1,
+	): PortableCountDomainReceiptV2 =
 		PortableCountDomainReceiptV2.create(
-			domainIdentity = opaque('d'),
-			ownerKind = PortableCountDomainOwnerKind.AMBIENT_FACT,
+			domainIdentity = domainIdentity,
+			ownerKind = ownerKind,
 			scopeIdentity = opaque('s'),
 			ownerIdentity = opaque('o'),
 			ownerRevision = revision,
 			registrationGeneration = 3L,
-			collectedDataEpoch = 4L,
+			collectedDataEpoch = collectedDataEpoch,
 			authorityRevision = 5L,
 			authorityFingerprint = digest('a'),
-			coverage = PortableCountDomainCoverage.AMBIENT_AGGREGATE,
+			coverage = if (ownerKind == PortableCountDomainOwnerKind.AMBIENT_FACT) {
+				PortableCountDomainCoverage.AMBIENT_AGGREGATE
+			} else {
+				PortableCountDomainCoverage.COVERED
+			},
 			coverageVersion = 1,
-			countDomainVersion = 1,
+			countDomainVersion = countDomainVersion,
 			effectChecksum = digest('e'),
 			completenessEvidenceChecksum = null,
 		)

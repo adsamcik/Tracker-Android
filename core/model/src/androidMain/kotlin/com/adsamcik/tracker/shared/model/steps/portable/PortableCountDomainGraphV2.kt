@@ -308,6 +308,11 @@ data class PortableCountDomainGraphV2(
 	}
 
 	companion object {
+		private val FACT_OWNER_KINDS = setOf(
+			PortableCountDomainOwnerKind.SESSION_FACT,
+			PortableCountDomainOwnerKind.AMBIENT_FACT,
+		)
+
 		fun create(
 			receipts: List<PortableCountDomainReceiptV2>,
 			ownerRevisions: List<PortableCountDomainOwnerRevisionV2>,
@@ -378,6 +383,24 @@ data class PortableCountDomainGraphV2(
 		}
 		require(referencedReceipts.distinct().size == referencedReceipts.size)
 		require(referencedReceipts.toSet() == receiptsByIdentity.keys)
+		ownersByLineage.values.forEach { lineage ->
+			if (lineage.first().ownerKind in FACT_OWNER_KINDS) {
+				val boundReceipts = lineage.mapNotNull { owner ->
+					owner.receiptIdentity?.let(receiptsByIdentity::get)
+				}
+				if (boundReceipts.isNotEmpty()) {
+					val immutable = boundReceipts.first()
+					.let { Triple(it.domainIdentity, it.collectedDataEpoch, it.countDomainVersion) }
+					require(boundReceipts.all { receipt ->
+						Triple(
+							receipt.domainIdentity,
+							receipt.collectedDataEpoch,
+							receipt.countDomainVersion,
+						) == immutable
+					})
+				}
+			}
+		}
 
 		val markersByOwner = completenessMarkers.associateBy {
 			it.ownerIdentity to it.ownerRevision
@@ -417,6 +440,7 @@ data class PortableCountDomainGraphV2(
 			require(root.ownerRevision == latest.ownerRevision)
 		}
 	}
+
 }
 
 val PORTABLE_COUNT_DOMAIN_RECEIPT_ORDER: Comparator<PortableCountDomainReceiptV2> =

@@ -5,6 +5,8 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.authenticatedGraph
 import com.adsamcik.tracker.shared.base.database.insertAuthenticatedGraph
+import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedSessionCountDomainBinding
+import com.adsamcik.tracker.shared.base.database.hasCompletePortableOwnerLineages
 import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDay
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryLockedDays
@@ -145,7 +147,8 @@ internal class RoomImportPortableSteps internal constructor(
 			request.metadata.receiptCount < graph.receipts.size ||
 			request.metadata.ownerRevisionCount < graph.ownerRevisions.size ||
 			request.metadata.completenessMarkerCount < graph.completenessMarkers.size ||
-			request.metadata.rootCount < graph.roots.size
+			request.metadata.rootCount < graph.roots.size ||
+			!graph.hasCompletePortableOwnerLineages()
 		) {
 			return ImportPortableStepsResult.Unverifiable(
 				PortableStepsImportUnverifiableReason.ATTRIBUTION_UNVERIFIABLE,
@@ -484,12 +487,18 @@ internal class RoomImportPortableSteps internal constructor(
 			entry.identity.value,
 			IMPORTED_PRODUCT_REVISION,
 		) ?: return attributionUnverifiable()
-		if (binding.sourceSchemaVersion != sourceSchemaVersion ||
+		val authenticated = try {
+			database.loadAuthenticatedImportedSessionCountDomainBinding(entry.identity.value)
+		} catch (_: IllegalArgumentException) {
+			return attributionUnverifiable()
+		} catch (_: IllegalStateException) {
+			return attributionUnverifiable()
+		}
+		if (authenticated == null ||
+			binding.sourceSchemaVersion != sourceSchemaVersion ||
 			binding.graphIdentity != graph.identity.value ||
-			graphDao.authenticatedGraph(
-				binding.graphIdentity,
-				ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
-			) != graph
+			authenticated.binding != binding ||
+			authenticated.graph != graph
 		) {
 			return ImportPortableStepsResult.Conflict(PortableStepsConflictScope.LOGICAL_ENTRY)
 		}
@@ -540,6 +549,11 @@ internal class RoomImportPortableSteps internal constructor(
 				productRevision = IMPORTED_PRODUCT_REVISION,
 				graphIdentity = graph.identity.value,
 				sourceSchemaVersion = sourceSchemaVersion,
+				sourceReceiptIdentity = fileReceipt?.let {
+					ImportedPortableCountDomainIdentity.fileReceipt(it.jobId, it.entryKey)
+				},
+				sourceArchiveIdentity = null,
+				sourceArchiveContentChecksum = fileReceipt?.let { sourcePayloadChecksum },
 			),
 		)
 		fileReceipt?.let { receipt ->
@@ -1090,6 +1104,7 @@ private fun ExportPortableStepsResult.Unverifiable.toImportResult(): ImportPorta
 	PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW,
 	PortableStepsExportUnverifiableReason.RANGE_UNSUPPORTED,
 	-> ImportPortableStepsResult.Unverifiable(PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+	PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
 	PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
 	PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
 	-> attributionUnverifiable()

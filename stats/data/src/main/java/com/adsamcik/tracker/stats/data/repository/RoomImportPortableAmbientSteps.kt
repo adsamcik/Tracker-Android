@@ -15,6 +15,9 @@ import com.adsamcik.tracker.shared.base.database.authenticatedGraph
 import com.adsamcik.tracker.shared.base.database.insertAuthenticatedGraph
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailure
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailureReason
+import com.adsamcik.tracker.shared.base.database.isAuthenticatedAmbientGraphSuccessor
+import com.adsamcik.tracker.shared.base.database.hasCompletePortableOwnerLineages
+import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedAmbientStepsGraphLineage
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
@@ -420,9 +423,15 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 					val candidateGraph = request.graphFor(day, graphRevision)
 					val existingGraph = latestGraphRevision?.graph
 					if (request.hasExplicitCountDomainGraphs &&
+						existingGraph == null &&
+						!candidateGraph.hasCompletePortableOwnerLineages()
+					) {
+						blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
+					}
+					if (request.hasExplicitCountDomainGraphs &&
 						existingGraph != null &&
 						existingGraph != candidateGraph &&
-						!isContiguousPortableCorrection(existingGraph, candidateGraph)
+						!isAuthenticatedAmbientGraphSuccessor(existingGraph, candidateGraph)
 					) {
 						blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
 					}
@@ -494,7 +503,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		})
 		checkpoint(ImportedAmbientStepsWriteCheckpoint.ARCHIVE_MEMBERS_INSERTED)
 		plans.filter(AmbientStepsDayImportPlan::appendGraph).forEach { plan ->
-			insertCountDomainGraph(plan, request.sourceSchemaVersion)
+			insertCountDomainGraph(plan, request)
 		}
 		dao.insertReceipt(request.toReceiptEntity())
 		checkpoint(ImportedAmbientStepsWriteCheckpoint.RECEIPT_INSERTED)
@@ -763,7 +772,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 
 	private suspend fun insertCountDomainGraph(
 		plan: AmbientStepsDayImportPlan,
-		sourceSchemaVersion: Int,
+		request: AmbientImportEnvelope,
 	) {
 		val graphDao = database.importedPortableStepsCountDomainDao()
 		val stored = graphDao.graph(plan.graph.identity.value)
@@ -785,7 +794,13 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 				productIdentity = plan.day.identity.value,
 				productRevision = plan.graphRevision,
 				graphIdentity = plan.graph.identity.value,
-				sourceSchemaVersion = sourceSchemaVersion,
+				sourceSchemaVersion = request.sourceSchemaVersion,
+				sourceReceiptIdentity = ImportedAmbientStepsIdentity.receipt(
+					request.receipt.jobId,
+					request.receipt.archiveKey,
+				),
+				sourceArchiveIdentity = request.sourceArchiveIdentity.value,
+				sourceArchiveContentChecksum = request.sourceArchiveContentChecksum.value,
 			),
 		)
 	}
@@ -1144,39 +1159,6 @@ private data class AmbientImportEnvelope(
 			)
 		}
 	}
-}
-
-private fun isContiguousPortableCorrection(
-	previous: com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2,
-	incoming: com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2,
-): Boolean {
-	val previousByLineage = previous.ownerRevisions.groupBy { it.ownerKind to it.ownerIdentity }
-	val incomingByLineage = incoming.ownerRevisions.groupBy { it.ownerKind to it.ownerIdentity }
-	if (previousByLineage.keys != incomingByLineage.keys) return false
-	if (previous.roots.map { Triple(it.productIdentity, it.ownerKind, it.ownerIdentity) }.toSet() !=
-		incoming.roots.map { Triple(it.productIdentity, it.ownerKind, it.ownerIdentity) }.toSet()
-	) return false
-	var advanced = false
-	for ((lineage, priorOwners) in previousByLineage) {
-		val nextOwners = incomingByLineage.getValue(lineage)
-		val legacyUnproven = priorOwners.size == 1 && nextOwners.size == 1 &&
-			priorOwners.single().operation ==
-			com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOperation.UNPROVEN &&
-			nextOwners.single().operation ==
-			com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOperation.UNPROVEN
-		if (legacyUnproven) {
-			if (nextOwners.single().ownerRevision != priorOwners.single().ownerRevision + 1L) {
-				return false
-			}
-			advanced = true
-		} else {
-			if (nextOwners.size < priorOwners.size ||
-				nextOwners.take(priorOwners.size) != priorOwners
-			) return false
-			if (nextOwners.size > priorOwners.size) advanced = true
-		}
-	}
-	return advanced
 }
 
 private data class NewImportedAmbientStepsRows(

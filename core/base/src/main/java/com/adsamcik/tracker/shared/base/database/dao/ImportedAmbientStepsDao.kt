@@ -309,6 +309,13 @@ abstract class ImportedAmbientStepsDao {
 	): List<ImportedAmbientStepsReceiptEntity>
 
 	@Query(
+		"SELECT * FROM imported_ambient_steps_receipt WHERE receipt_identity = :receiptIdentity",
+	)
+	abstract fun receiptByIdentityForFullClear(
+		receiptIdentity: String,
+	): ImportedAmbientStepsReceiptEntity?
+
+	@Query(
 		"""
 		WITH latest_revision AS (
 		  SELECT day_identity, MAX(import_revision) AS import_revision

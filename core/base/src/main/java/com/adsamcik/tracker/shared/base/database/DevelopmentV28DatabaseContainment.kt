@@ -464,7 +464,7 @@ private enum class FinalV28MarkerState {
 
 internal const val FINAL_V28_MARKER_ID = -280_917
 internal const val FINAL_V28_ASSEMBLY_ID =
-	"tracker-v28-portable-ambient-graph-revision-20260920"
+	"tracker-v28-portable-ambient-graph-provenance-20260920"
 private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
 	"tracker-v28-final-20260917",
 	"tracker-v28-retention-final-20260917",
@@ -474,6 +474,7 @@ private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
 	"tracker-v28-retention-caller-authority-20260919",
 	"tracker-v28-retention-caller-steps-count-domain-20260919",
 	"tracker-v28-portable-steps-count-domain-20260920",
+	"tracker-v28-portable-ambient-graph-revision-20260920",
 )
 
 private val BASELINE_TABLES = setOf(
@@ -601,6 +602,27 @@ private val FINAL_V28_STEPS_TABLE_COLUMNS = mapOf(
 		"contract_version",
 		"token_semantics",
 		"terminal_unproven",
+	),
+	"imported_steps_count_domain_binding" to listOf(
+		"product_kind",
+		"product_identity",
+		"product_revision",
+		"graph_identity",
+		"source_schema_version",
+		"source_receipt_identity",
+		"source_archive_identity",
+		"source_archive_content_checksum",
+	),
+	"imported_steps_file_receipt" to listOf(
+		"import_job_id",
+		"entry_key",
+		"receipt_identity",
+		"source_name",
+		"received_at_ms",
+		"archive_content_checksum",
+		"entry_ordinal",
+		"entry_identity",
+		"graph_identity",
 	),
 )
 private val FINAL_V28_STEPS_INDEXES = listOf(

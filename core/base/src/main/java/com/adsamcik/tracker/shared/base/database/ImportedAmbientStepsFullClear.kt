@@ -167,7 +167,10 @@ private fun ImportedAmbientStepsDao.prepareFullClearFencesUnchecked(
 		if (page.isEmpty()) break
 		val candidate = page.single()
 		if (candidate.dayIdentity in fencedDayIds) corruptFullClear()
-		val lineage = authenticateFullClearLineage(candidate, oldCollectedDataEpoch)
+		val lineage = loadAuthenticatedAmbientStepsLineageForFullClear(
+			candidate,
+			oldCollectedDataEpoch,
+		)
 		val latest = lineage.latest
 		if (latest.header != candidate ||
 			lineage.receipts.maxOfOrNull { it.receivedAtMs }?.let { it > clearedAtMs } == true
@@ -286,7 +289,7 @@ private fun ImportedAmbientStepsDao.deleteFullClearPayloadUnchecked(
 	deleteAllArchives()
 }
 
-private fun ImportedAmbientStepsDao.authenticateFullClearLineage(
+internal fun ImportedAmbientStepsDao.loadAuthenticatedAmbientStepsLineageForFullClear(
 	candidate: ImportedAmbientStepsDayRevisionEntity,
 	oldCollectedDataEpoch: Long,
 ): AuthenticatedImportedAmbientStepsLineage {

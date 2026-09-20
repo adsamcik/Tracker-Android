@@ -2,7 +2,9 @@ package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
 import com.adsamcik.tracker.impexp.R
+import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV1Codec
 import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV2Codec
+import com.adsamcik.tracker.stats.api.repository.ExportPortableSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsV2
@@ -11,6 +13,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsCompletenessV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsDeletionScopeDigest
 import com.adsamcik.tracker.stats.api.repository.PortableStepsArchiveV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsArchiveV2Sink
+import com.adsamcik.tracker.stats.api.repository.PortableStepsEntrySink
 import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableStepsFactCoverage
@@ -115,12 +118,64 @@ class PortableStepsExporterTest {
 		retryableOutput.size() shouldBe 0
 	}
 
+	@Test
+	fun `missing v2 graph falls back to canonical v1 before writing destination bytes`() = runTest {
+		val legacyEntry = entry()
+		var v2Calls = 0
+		var v1Calls = 0
+		val exporter = PortableStepsExporter(
+			legacyExporterProvider = {
+				fakeLegacyExporter { _, sink ->
+					v1Calls++
+					sink.emit(legacyEntry)
+					ExportPortableStepsResult.Exported(1)
+				}
+			},
+			exporterProvider = {
+				fakeExporter { _, _ ->
+					v2Calls++
+					ExportPortableStepsResult.Unverifiable(
+						PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
+					)
+				}
+			},
+		)
+		val output = ByteArrayOutputStream()
+
+		exporter.export(
+			mockk(relaxed = true),
+			emptySequence(),
+			output,
+			null,
+		) shouldBe ExportResult.Success(recordCount = 1)
+
+		v2Calls shouldBe 1
+		v1Calls shouldBe 1
+		val decoded = mutableListOf<PortableStepsEntryV1>()
+		PortableStepsJsonV1Codec().decode(ByteArrayInputStream(output.toByteArray())) {
+			decoded += it
+		}
+		decoded shouldContainExactly listOf(legacyEntry)
+	}
+
 	private fun fakeExporter(
 		block: suspend (ExportPortableStepsRequest, PortableStepsArchiveV2Sink) -> ExportPortableStepsResult,
 	): ExportPortableStepsV2 = object : ExportPortableStepsV2 {
 		override suspend fun export(
 			request: ExportPortableStepsRequest,
 			sink: PortableStepsArchiveV2Sink,
+		): ExportPortableStepsResult = block(request, sink)
+	}
+
+	private fun fakeLegacyExporter(
+		block: suspend (
+			ExportPortableStepsRequest,
+			PortableStepsEntrySink,
+		) -> ExportPortableStepsResult,
+	): ExportPortableSteps = object : ExportPortableSteps {
+		override suspend fun export(
+			request: ExportPortableStepsRequest,
+			sink: PortableStepsEntrySink,
 		): ExportPortableStepsResult = block(request, sink)
 	}
 

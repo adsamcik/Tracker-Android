@@ -1015,6 +1015,7 @@ abstract class AppDatabase : RoomDatabase() {
 				clearedAtMs = updatedAtMs,
 			)
 			database.preserveImportedPortableCountDomainFullClearFences(
+				oldCollectedDataEpoch = oldState.collectedDataEpoch,
 				newCollectedDataEpoch = newCollectedDataEpoch,
 				fencedAtMs = updatedAtMs,
 			)
