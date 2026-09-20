@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.coordinator
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -12,6 +13,7 @@ import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -137,7 +139,7 @@ class RoomSourcePlanStoreTest {
 	}
 
 	@Test
-	fun `invalid active runtime identity fails before desired revision filtering`() = runTest {
+	fun `unexpected current revision is corruption rather than historical state`() = runTest {
 		val active = locationPlan(LocationBackend.FRAMEWORK, revision = 1L)
 		val requested = locationPlan(LocationBackend.FUSED, revision = 2L)
 		store.persistDesired(active, DesiredPlanStatus.EFFECTIVE)
@@ -160,9 +162,55 @@ class RoomSourcePlanStoreTest {
 			stored.copy(sourceInstanceId = null),
 		)
 
-		store.loadApplied(requested.revision) shouldBe AppliedPlanRead.Invalid(
-			"APPLIED_SOURCE_PLAN_RUNTIME_IDENTITY_INVALID",
+		store.loadApplied(requested.revision) shouldBe
+			AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_CURRENT_REVISION_MISMATCH")
+	}
+
+	@Test
+	fun `committing a narrower current set atomically removes obsolete source rows`() = runTest {
+		val broad = locationAndStepsPlan(revision = 1L)
+		store.persistDesired(broad, DesiredPlanStatus.APPLYING)
+		broad.plans.values.forEach { plan ->
+			store.saveApplied(
+				state = AppliedSourcePlan(
+					desiredRevision = broad.revision,
+					appliedRevision = broad.revision,
+					source = plan.source,
+					sourceInstanceId = SourceInstanceId("${plan.source.name.lowercase()}-one"),
+					registrationGeneration = plan.source.stableCode.toLong(),
+					appliedAtElapsedRealtimeNanos = 500L,
+					status = SourceApplyStatus.APPLIED,
+				),
+				effectivePlan = plan,
+				updatedAtMs = 1_000L,
+			)
+		}
+		database.withTransaction {
+			store.commitAppliedInTransaction(broad, DesiredPlanStatus.EFFECTIVE)
+		}.shouldBeInstanceOf<AppliedPlanRead.Available>()
+
+		val narrow = locationPlan(LocationBackend.FRAMEWORK, revision = 2L)
+		store.persistDesired(narrow, DesiredPlanStatus.APPLYING)
+		store.saveApplied(
+			state = AppliedSourcePlan(
+				desiredRevision = narrow.revision,
+				appliedRevision = narrow.revision,
+				source = SourceKind.LOCATION,
+				sourceInstanceId = SourceInstanceId("location-two"),
+				registrationGeneration = 2L,
+				appliedAtElapsedRealtimeNanos = 1_500L,
+				status = SourceApplyStatus.APPLIED,
+			),
+			effectivePlan = narrow.plans.getValue(SourceKind.LOCATION),
+			updatedAtMs = 2_000L,
 		)
+
+		database.withTransaction {
+			store.commitAppliedInTransaction(narrow, DesiredPlanStatus.EFFECTIVE)
+		}.shouldBeInstanceOf<AppliedPlanRead.Available>()
+			.plan.plans.keys shouldBe setOf(SourceKind.LOCATION)
+		database.sourcePlanStateDao().appliedStates()
+			.map { state -> state.sourceKind } shouldBe listOf(SourceKind.LOCATION.stableCode)
 	}
 
 	private fun locationPlan(
@@ -182,6 +230,32 @@ class RoomSourcePlanStoreTest {
 				minimumDisplacementMeters = 5f,
 				maximumBatchDelayMs = 20_000L,
 				preciseLocationAvailable = true,
+			),
+		),
+		sourcePolicyRevision = 7L,
+	)
+
+	private fun locationAndStepsPlan(revision: Long) = AcquisitionPlanRevision(
+		revision = revision,
+		planId = "location-steps-$revision",
+		createdAtMs = revision * 100L,
+		plans = mapOf(
+			SourceKind.LOCATION to LocationPlan(
+				revision = revision,
+				backend = LocationBackend.FRAMEWORK,
+				mode = LocationMode.BALANCED,
+				requestedIntervalMs = 10_000L,
+				minimumUpdateIntervalMs = 5_000L,
+				minimumDisplacementMeters = 5f,
+				maximumBatchDelayMs = 20_000L,
+				preciseLocationAvailable = true,
+			),
+			SourceKind.STEPS to StepsPlan(
+				revision = revision,
+				enabled = true,
+				maximumReportLatencyMs = 60_000L,
+				projectionCheckpointIntervalMs = 15_000L,
+				movementPolicyNeedsLowLatency = false,
 			),
 		),
 		sourcePolicyRevision = 7L,

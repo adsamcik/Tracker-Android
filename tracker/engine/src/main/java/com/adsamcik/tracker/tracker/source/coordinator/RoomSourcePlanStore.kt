@@ -162,16 +162,76 @@ class RoomSourcePlanStore @Inject constructor(
 	 */
 	suspend fun loadApplied(desiredRevision: Long): AppliedPlanRead = database.withTransaction {
 		val dao = database.sourcePlanStateDao()
-		val activeStates = dao.appliedStates().filter(SourceAppliedPlanStateEntity::isActive)
-		when (val activeRead = decodeAppliedStates(activeStates)) {
-			is AppliedPlanRead.Invalid -> return@withTransaction activeRead
-			is AppliedPlanRead.Available,
-			AppliedPlanRead.Missing,
-			-> Unit
-		}
 		val header = dao.revision(desiredRevision) ?: return@withTransaction AppliedPlanRead.Missing
-		val states = activeStates.filter { state -> state.desiredRevision == desiredRevision }
-		when (val read = decodeAppliedStates(states)) {
+		loadCurrentAppliedInTransaction(
+			desiredRevision = desiredRevision,
+			header = header,
+			expectedSourceKinds = dao.desiredPlans(desiredRevision)
+				.mapTo(linkedSetOf(), SourceDesiredPlanEntity::sourceKind),
+			states = dao.appliedStates(),
+		)
+	}
+
+	/**
+	 * Atomically retires obsolete current rows, authenticates the exact replacement set, and only
+	 * then publishes [status] for [plan].
+	 */
+	internal suspend fun commitAppliedInTransaction(
+		plan: AcquisitionPlanRevision,
+		status: DesiredPlanStatus,
+	): AppliedPlanRead {
+		val dao = database.sourcePlanStateDao()
+		val header = dao.revision(plan.revision) ?: return AppliedPlanRead.Missing
+		if (header.planId != plan.planId ||
+			header.createdAtMs != plan.createdAtMs ||
+			header.sourcePolicyRevision != plan.sourcePolicyRevision
+		) return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_DESIRED_IDENTITY_MISMATCH")
+		val desiredSourceKinds = dao.desiredPlans(plan.revision)
+			.mapTo(linkedSetOf(), SourceDesiredPlanEntity::sourceKind)
+		if (desiredSourceKinds != plan.plans.keys.mapTo(linkedSetOf(), SourceKind::stableCode)) {
+			return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_DESIRED_SOURCE_SET_MISMATCH")
+		}
+		val before = dao.appliedStates()
+		val obsolete = before.filter { state -> state.sourceKind !in desiredSourceKinds }
+		if (desiredSourceKinds.isEmpty()) {
+			dao.deleteAllAppliedStates()
+		} else {
+			dao.deleteAppliedStatesOutside(desiredSourceKinds)
+		}
+		val read = loadCurrentAppliedInTransaction(
+			desiredRevision = plan.revision,
+			header = header,
+			expectedSourceKinds = desiredSourceKinds,
+			states = dao.appliedStates(),
+		)
+		if (read is AppliedPlanRead.Available) {
+			check(dao.updateRevisionStatus(plan.revision, status.name) == 1)
+		} else {
+			obsolete.forEach { state -> dao.saveAppliedState(state) }
+		}
+		return read
+	}
+
+	internal fun clearAppliedInTransaction() {
+		database.sourcePlanStateDao().deleteAllAppliedStates()
+	}
+
+	private fun loadCurrentAppliedInTransaction(
+		desiredRevision: Long,
+		header: AcquisitionPlanRevisionEntity,
+		expectedSourceKinds: Set<Int>,
+		states: List<SourceAppliedPlanStateEntity>,
+	): AppliedPlanRead {
+		if (states.mapTo(linkedSetOf(), SourceAppliedPlanStateEntity::sourceKind) !=
+			expectedSourceKinds || states.size != expectedSourceKinds.size
+		) return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_CURRENT_SOURCE_SET_MISMATCH")
+		if (states.any { state -> state.desiredRevision != desiredRevision }) {
+			return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_CURRENT_REVISION_MISMATCH")
+		}
+		if (states.any { state -> state.status !in SOURCE_APPLY_STATUS_NAMES }) {
+			return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_STATUS_INVALID")
+		}
+		return when (val read = decodeAppliedStates(states.filter(SourceAppliedPlanStateEntity::isActive))) {
 			is AppliedPlanRead.Available -> {
 				if (read.plan.revision != desiredRevision) {
 					AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_REVISION_MISMATCH")
@@ -244,6 +304,8 @@ class RoomSourcePlanStore @Inject constructor(
 
 private fun SourceAppliedPlanStateEntity.isActive(): Boolean =
 	status == SourceApplyStatus.APPLIED.name || status == SourceApplyStatus.DEGRADED.name
+
+private val SOURCE_APPLY_STATUS_NAMES = SourceApplyStatus.entries.mapTo(hashSetOf(), SourceApplyStatus::name)
 
 private fun SourceAppliedPlanStateEntity.hasCompleteAppliedPayload(): Boolean =
 	appliedPayloadVersion != null && appliedPayload != null && appliedPayloadChecksum != null

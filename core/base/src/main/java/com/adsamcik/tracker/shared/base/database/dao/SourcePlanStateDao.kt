@@ -35,6 +35,7 @@ interface SourcePlanStateDao {
 	)
 	suspend fun desiredPlan(revision: Long, sourceKind: Int): SourceDesiredPlanEntity?
 
+	/** Current physical-session snapshot only; this table is not per-revision history. */
 	@Query("SELECT * FROM source_applied_plan_state ORDER BY source_kind")
 	suspend fun appliedStates(): List<SourceAppliedPlanStateEntity>
 
@@ -46,6 +47,9 @@ interface SourcePlanStateDao {
 
 	@Query("UPDATE acquisition_plan_revision SET status = :status WHERE revision = :revision")
 	suspend fun updateRevisionStatus(revision: Long, status: String): Int
+
+	@Query("DELETE FROM source_applied_plan_state WHERE source_kind NOT IN (:sourceKinds)")
+	suspend fun deleteAppliedStatesOutside(sourceKinds: Collection<Int>): Int
 
 	@Query("DELETE FROM source_applied_plan_state")
 	fun deleteAllAppliedStates()

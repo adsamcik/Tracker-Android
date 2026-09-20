@@ -124,6 +124,7 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceStopAck
 import com.adsamcik.tracker.tracker.source.runtime.SourceStopStatus
 import com.adsamcik.tracker.tracker.source.runtime.encodeSensorRuntimeCheckpoint
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.longs.shouldBeGreaterThan
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
@@ -307,6 +308,7 @@ class AuthoritativeSessionCoordinatorTest {
 			.single().status shouldBe SourceDemandEntity.STATUS_RETIRED
 		database.sourceCallerAuthorityDao().rows("test:${started.logicalTrackingId}:1")
 			.map { it.status }.distinct() shouldBe listOf("RETIRED")
+		database.sourcePlanStateDao().appliedStates() shouldBe emptyList()
 		runtime.closed shouldBe true
 		sourceProductDrainRouter.requests shouldBe emptyList()
 	}
@@ -618,6 +620,98 @@ class AuthoritativeSessionCoordinatorTest {
 				.shouldBeInstanceOf<SessionReconfigureResult.Applied>()
 				.deferredCatalogSources shouldBe emptySet()
 			runtime.isActive shouldBe true
+		}
+
+	@Test
+	fun `reconfiguration retires and removes an obsolete source absent from the new plan`() = runTest {
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "narrow-reconfigure-logical",
+				serviceRunId = "narrow-reconfigure-run",
+				plan = stepsAndLocationPlan(1L, stepsEnabled = true),
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val requested = stepsAndLocationPlan(2L, stepsEnabled = true)
+		val narrowPlan = requested.copy(
+			planId = "location-only-reconfiguration",
+			plans = mapOf(
+				SourceKind.LOCATION to requested.plans.getValue(SourceKind.LOCATION),
+			),
+		)
+
+		subject.reconfigure(
+			SessionReconfigureRequest(
+				ownerToken = "narrow-reconfigure-owner",
+				plan = narrowPlan,
+				wallTimeMs = 2_000L,
+				elapsedRealtimeNanos = 2_000_000L,
+				clockDomainId = "boot-1",
+				zoneId = "Europe/Prague",
+				foregroundCapabilityFlags = 0L,
+			),
+		).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+
+		runtime.isActive shouldBe false
+		locationRuntime.isActive shouldBe true
+		database.sourcePlanStateDao().appliedStates().single().let { applied ->
+			applied.sourceKind shouldBe SourceKind.LOCATION.stableCode
+			applied.desiredRevision shouldBe narrowPlan.revision
+		}
+		RoomSourcePlanStore(database, SourcePlanCodec())
+			.loadApplied(narrowPlan.revision)
+			.shouldBeInstanceOf<AppliedPlanRead.Available>()
+			.plan.plans.keys shouldBe setOf(SourceKind.LOCATION)
+		database.sourceSessionDao()
+			.manifestSources(started.logicalTrackingId, 2L)
+			.filter { binding -> binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
+			.map { binding -> binding.sourceKind }
+			.toSet() shouldBe setOf(SourceKind.LOCATION.stableCode)
+	}
+
+	@Test
+	fun `a narrower successor session cannot inherit applied rows from a broader session`() =
+		runTest {
+			subject.start(
+				startRequest().copy(
+					logicalTrackingId = "broad-session-logical",
+					serviceRunId = "broad-session-run",
+					plan = stepsAndLocationPlan(1L, stepsEnabled = true),
+				),
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+			subject.stop(
+				SessionStopRequest(
+					ownerToken = "broad-session-stop",
+					reason = "USER_STOP",
+					wallTimeMs = 2_000L,
+					elapsedRealtimeNanos = 2_000_000L,
+					clockDomainId = "boot-1",
+					perSourceTimeoutMs = 100L,
+				),
+			).shouldBeInstanceOf<SessionStopResult.Stopped>()
+			database.sourcePlanStateDao().appliedStates() shouldBe emptyList()
+
+			val requested = stepsAndLocationPlan(2L, stepsEnabled = true)
+			val narrow = requested.copy(
+				planId = "narrow-successor-plan",
+				plans = mapOf(
+					SourceKind.LOCATION to requested.plans.getValue(SourceKind.LOCATION),
+				),
+			)
+			subject.start(
+				startRequest().copy(
+					ownerToken = "narrow-session-owner",
+					logicalTrackingId = "narrow-session-logical",
+					serviceRunId = "narrow-session-run",
+					plan = narrow,
+					wallTimeMs = 3_000L,
+					elapsedRealtimeNanos = 3_000_000L,
+				),
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+
+			database.sourcePlanStateDao().appliedStates().single().let { applied ->
+				applied.sourceKind shouldBe SourceKind.LOCATION.stableCode
+				applied.desiredRevision shouldBe narrow.revision
+			}
 		}
 
 	@Test
@@ -1243,6 +1337,148 @@ class AuthoritativeSessionCoordinatorTest {
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 		locationProviderCalls shouldBe 1
 		stepsProviderCalls shouldBe 1
+	}
+
+	@Test
+	fun `retryable prepared foreground wait renews one generation beyond thirty seconds`() = runTest {
+		val catalog = mockk<SourceImplementationCatalog>()
+		var retryableReadsRemaining = 0
+		coEvery { catalog.availability(any()) } answers {
+			if (retryableReadsRemaining > 0) {
+				retryableReadsRemaining--
+				leaseClock.setTime(
+					leaseClock.currentTimeMillis() + 10_000L,
+					leaseClock.elapsedRealtimeNanos() + 10_000_000_000L,
+				)
+				throw SQLiteException("catalog temporarily unavailable")
+			}
+			SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
+		}
+		replaceRuntimeRegistry(
+			SourceRuntimeRegistry(
+				mapOf(SourceKind.STEPS to Provider { runtime }),
+				catalog,
+				requireAllSources = false,
+			),
+		)
+		val token = PreparedTrackingStartToken("long-prepared-wait-token")
+		val request = startRequest().copy(
+			logicalTrackingId = "long-prepared-wait-logical",
+			serviceRunId = "long-prepared-wait-run",
+		)
+		subject.prepareAndroidStart(
+			request,
+			AndroidStartDeliveryMetadata(token, 71L, true, false),
+		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>()
+		subject.markAndroidStartEnqueued(token, 71L, 1_050L) shouldBe true
+		subject.claimAndroidStart(
+			token,
+			71L,
+			"boot-1",
+			1_100_000L,
+			1_100L,
+		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		val originalGeneration = requireNotNull(
+			database.sourceSessionDao().serviceRun(request.serviceRunId),
+		).leaseGeneration
+		retryableReadsRemaining = 4
+
+		val accepting = async {
+			subject.markPreparedForegroundAccepted(
+				token,
+				71L,
+				"boot-1",
+				leaseClock.elapsedRealtimeNanos(),
+				leaseClock.currentTimeMillis(),
+			)
+		}
+		testScheduler.advanceTimeBy(1_500L)
+		testScheduler.runCurrent()
+
+		accepting.await() shouldBe true
+		database.sourceProjectionStateDao().lease("tracking-session-coordinator")
+			?.generation shouldBe originalGeneration
+		database.sourceSessionDao().serviceRun(request.serviceRunId)
+			?.leaseGeneration shouldBe originalGeneration
+		subject.applyPreparedAndroidStart(
+			token,
+			71L,
+			"boot-1",
+			leaseClock.elapsedRealtimeNanos(),
+			leaseClock.currentTimeMillis(),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+	}
+
+	@Test
+	fun `retryable prepared apply retains its exact lease until the next attempt`() = runTest {
+		val catalog = mockk<SourceImplementationCatalog>()
+		var unavailable = false
+		coEvery { catalog.availability(any()) } answers {
+			if (unavailable) throw SQLiteException("catalog temporarily unavailable")
+			SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
+		}
+		replaceRuntimeRegistry(
+			SourceRuntimeRegistry(
+				mapOf(SourceKind.STEPS to Provider { runtime }),
+				catalog,
+				requireAllSources = false,
+			),
+		)
+		val token = PreparedTrackingStartToken("retained-apply-lease-token")
+		val request = startRequest().copy(
+			logicalTrackingId = "retained-apply-lease-logical",
+			serviceRunId = "retained-apply-lease-run",
+		)
+		subject.prepareAndroidStart(
+			request,
+			AndroidStartDeliveryMetadata(token, 72L, true, false),
+		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>()
+		subject.markAndroidStartEnqueued(token, 72L, 1_050L) shouldBe true
+		subject.claimAndroidStart(
+			token,
+			72L,
+			"boot-1",
+			1_100_000L,
+			1_100L,
+		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		subject.markPreparedForegroundAccepted(
+			token,
+			72L,
+			"boot-1",
+			1_200_000L,
+			1_200L,
+		) shouldBe true
+		val generation = requireNotNull(
+			database.sourceSessionDao().serviceRun(request.serviceRunId),
+		).leaseGeneration
+		unavailable = true
+
+		subject.applyPreparedAndroidStart(
+			token,
+			72L,
+			"boot-1",
+			1_300_000L,
+			1_300L,
+		) shouldBe SessionStartResult.InvalidIntent(
+			"SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+			TrackingStartFailureDisposition.RETRYABLE,
+		)
+
+		val retained = requireNotNull(
+			database.sourceProjectionStateDao().lease("tracking-session-coordinator"),
+		)
+		retained.generation shouldBe generation
+		retained.expiresElapsedRealtimeNanos shouldBeGreaterThan leaseClock.elapsedRealtimeNanos()
+		unavailable = false
+		subject.applyPreparedAndroidStart(
+			token,
+			72L,
+			"boot-1",
+			1_400_000L,
+			1_400L,
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		database.sourceSessionDao().serviceRun(request.serviceRunId)
+			?.leaseGeneration shouldBe generation
 	}
 
 	@Test
@@ -3583,6 +3819,10 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 		database.sourceSessionDao().serviceRun(started.serviceRunId)?.state shouldBe
 			SessionLifecycleState.FINALIZED.name
+		database.sourcePlanStateDao().appliedStates().single().let { applied ->
+			applied.desiredRevision shouldBe 1L
+			applied.sourceKind shouldBe SourceKind.STEPS.stableCode
+		}
 		val suspendIntent = database.sourceSessionDao()
 			.lifecycleIntents(started.logicalTrackingId)
 			.last()
@@ -4699,6 +4939,8 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
 			.last { action -> action.desiredState == "STOPPED" }
 			.status shouldBe LifecycleActionStatus.CLEANUP_REQUIRED.name
+		database.sourcePlanStateDao().appliedStates().single()
+			.desiredRevision shouldBe 1L
 	}
 
 	@Test
@@ -6423,6 +6665,8 @@ class AuthoritativeSessionCoordinatorTest {
 			AndroidStartDeliveryMetadata(recoveryToken, 32L, true, false),
 		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
 
+		database.sourcePlanStateDao().appliedStates().single()
+			.desiredRevision shouldBe 1L
 		recovery.logicalTrackingId shouldBe old.logicalTrackingId
 		recovery.serviceRunId shouldBe "active-redelivery-recovery-run"
 		recovery.token shouldBe recoveryToken
@@ -6522,31 +6766,62 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `expired prepared delivery terminalizes only the untouched envelope`() = runTest {
+	fun `process restart rebinds a released prepared delivery to a new lease generation`() = runTest {
 		val prepared = prepareAndroidStart(
 			tokenValue = "expired-prepared-token",
 			commandGeneration = 21L,
 			logicalTrackingId = "expired-prepared-logical",
 			serviceRunId = "expired-prepared-run",
 		)
+		val before = requireNotNull(database.sourceSessionDao().serviceRun(prepared.serviceRunId))
+		val beforeActionIds = database.sourceSessionDao().lifecycleActions(prepared.logicalTrackingId)
+			.filter { action -> action.serviceRunId == prepared.serviceRunId }
+			.map { action -> action.actionId }
+		val originalLease = requireNotNull(
+			database.sourceProjectionStateDao().lease("tracking-session-coordinator"),
+		)
+		database.sourceProjectionStateDao().releaseLease(
+			originalLease.leaseName,
+			originalLease.ownerToken,
+			originalLease.bootId,
+			originalLease.generation,
+			leaseClock.currentTimeMillis(),
+			leaseClock.elapsedRealtimeNanos(),
+		) shouldBe 1
 
-		val result = subject.claimAndroidStart(
+		subject.claimAndroidStart(
 			prepared.token,
 			21L,
 			"boot-1",
-			expiredPreparedLeaseElapsedNanos(),
-			2_000L,
-		).shouldBeInstanceOf<PreparedSessionClaimResult.Rejected>()
+			leaseClock.elapsedRealtimeNanos(),
+			leaseClock.currentTimeMillis(),
+		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
 
-		result.failureCode shouldBe "PREPARED_START_LEASE_EXPIRED"
-		assertPreparedStartTerminalized(prepared, "PREPARED_START_LEASE_EXPIRED")
-		database.sourceSessionDao().hasLifecycleBoundaryBlocker() shouldBe false
-		database.sourceSessionDao().hasIncompleteServiceRun() shouldBe false
-		database.sourceSessionDao().hasNonterminalLatestLifecycleAction() shouldBe false
+		val rebound = requireNotNull(database.sourceSessionDao().serviceRun(prepared.serviceRunId))
+		rebound.leaseGeneration shouldBe before.leaseGeneration + 1L
+		rebound.androidDeliveryState shouldBe AndroidStartDeliveryState.DELIVERED.name
+		database.sourceSessionDao().session(prepared.logicalTrackingId)
+			?.lifecycleLeaseGeneration shouldBe rebound.leaseGeneration
+		database.sourceSessionDao().lifecycleActions(prepared.logicalTrackingId)
+			.filter { action -> action.serviceRunId == prepared.serviceRunId }
+			.let { actions ->
+				actions.map { action -> action.leaseGeneration }.distinct() shouldBe
+					listOf(rebound.leaseGeneration)
+				(actions.map { action -> action.actionId } == beforeActionIds) shouldBe false
+			}
+		database.sourceBrokerDao().demandHistory("session:${prepared.logicalTrackingId}")
+			.filter { demand -> demand.serviceRunId == prepared.serviceRunId }
+			.map { demand -> demand.lifecycleLeaseGeneration }
+			.distinct() shouldBe listOf(rebound.leaseGeneration)
+		database.sourceCallerAuthorityDao().rows(prepared.sourceCallerAuthorityReference.value)
+			.filter { row -> row.purpose == TrackingPurpose.SESSION_CAPTURE.stableName }
+			.map { row -> row.executionRevision }
+			.distinct() shouldBe listOf(rebound.leaseGeneration)
 	}
 
 	@Test
-	fun `expired enqueued automatic delivery terminalizes its accepted action`() = runTest {
+	fun `expired enqueued automatic delivery rebinds without terminalizing its accepted action`() =
+		runTest {
 		val trigger = automaticTrigger()
 		seedAutomaticStartAction(trigger)
 		val prepared = prepareAndroidStart(
@@ -6566,25 +6841,23 @@ class AuthoritativeSessionCoordinatorTest {
 		database.activityAutomaticStartActionDao().action(trigger.triggerId)?.status shouldBe
 			ActivityAutomaticStartActionEntity.STATUS_LIFECYCLE_INTENT_ACCEPTED
 
-		val result = subject.claimAndroidStart(
+		subject.claimAndroidStart(
 			prepared.token,
 			22L,
 			"boot-1",
 			expiredPreparedLeaseElapsedNanos(),
 			2_000L,
-		).shouldBeInstanceOf<PreparedSessionClaimResult.Rejected>()
+		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
 
-		result.failureCode shouldBe "PREPARED_START_LEASE_EXPIRED"
-		assertPreparedStartTerminalized(prepared, "PREPARED_START_LEASE_EXPIRED")
 		val action = requireNotNull(database.activityAutomaticStartActionDao().action(trigger.triggerId))
-		action.status shouldBe ActivityAutomaticStartActionEntity.STATUS_TERMINAL
-		action.terminalReason shouldBe "PREPARED_START_LEASE_EXPIRED"
+		action.status shouldBe ActivityAutomaticStartActionEntity.STATUS_LIFECYCLE_INTENT_ACCEPTED
+		action.terminalReason shouldBe null
 		action.acceptedLogicalTrackingId shouldBe prepared.logicalTrackingId
 		action.acceptedIntentRevision shouldBe prepared.intentRevision
 	}
 
 	@Test
-	fun `lease expiry after claim but before foreground terminalizes delivered envelope`() = runTest {
+	fun `lease expiry after claim rebinds before foreground activation`() = runTest {
 		val prepared = prepareAndroidStart(
 			tokenValue = "expired-delivered-token",
 			commandGeneration = 23L,
@@ -6608,9 +6881,88 @@ class AuthoritativeSessionCoordinatorTest {
 			"boot-1",
 			expiredPreparedLeaseElapsedNanos(),
 			2_000L,
-		) shouldBe false
+		) shouldBe true
 
-		assertPreparedStartTerminalized(prepared, "PREPARED_START_LEASE_EXPIRED")
+		val rebound = requireNotNull(database.sourceSessionDao().serviceRun(prepared.serviceRunId))
+		rebound.androidDeliveryState shouldBe AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name
+		rebound.leaseGeneration shouldBe 2L
+		subject.applyPreparedAndroidStart(
+			prepared.token,
+			23L,
+			"boot-1",
+			leaseClock.elapsedRealtimeNanos(),
+			leaseClock.currentTimeMillis(),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+	}
+
+	@Test
+	fun `live stale owner rejects prepared claim without rebinding`() = runTest {
+		val prepared = prepareAndroidStart(
+			tokenValue = "stale-owner-token",
+			commandGeneration = 24L,
+			logicalTrackingId = "stale-owner-logical",
+			serviceRunId = "stale-owner-run",
+		)
+		val leaseDao = database.sourceProjectionStateDao()
+		val original = requireNotNull(leaseDao.lease("tracking-session-coordinator"))
+		leaseDao.releaseLease(
+			original.leaseName,
+			original.ownerToken,
+			original.bootId,
+			original.generation,
+			leaseClock.currentTimeMillis(),
+			leaseClock.elapsedRealtimeNanos(),
+		) shouldBe 1
+		leaseDao.acquireOrRenewLease(
+			original.leaseName,
+			"intruder-owner",
+			original.bootId,
+			leaseClock.currentTimeMillis(),
+			leaseClock.currentTimeMillis() + 30_000L,
+			leaseClock.elapsedRealtimeNanos(),
+			leaseClock.elapsedRealtimeNanos() + 30_000_000_000L,
+		) shouldBe 1
+
+		subject.claimAndroidStart(
+			prepared.token,
+			24L,
+			"boot-1",
+			leaseClock.elapsedRealtimeNanos(),
+			leaseClock.currentTimeMillis(),
+		) shouldBe PreparedSessionClaimResult.Rejected("PREPARED_START_LEASE_UNAVAILABLE")
+
+		database.sourceSessionDao().serviceRun(prepared.serviceRunId)
+			?.leaseGeneration shouldBe original.generation
+		leaseDao.lease(original.leaseName)?.ownerToken shouldBe "intruder-owner"
+	}
+
+	@Test
+	fun `terminal prepared cancellation releases the rebound lease`() = runTest {
+		val prepared = prepareAndroidStart(
+			tokenValue = "terminal-release-token",
+			commandGeneration = 25L,
+			logicalTrackingId = "terminal-release-logical",
+			serviceRunId = "terminal-release-run",
+		)
+		expiredPreparedLeaseElapsedNanos()
+
+		subject.compensatePreparedAndroidStart(
+			prepared.token,
+			25L,
+			"USER_CANCELLED",
+			"boot-1",
+			leaseClock.elapsedRealtimeNanos(),
+			leaseClock.currentTimeMillis(),
+		) shouldBe true
+
+		val lease = requireNotNull(
+			database.sourceProjectionStateDao().lease("tracking-session-coordinator"),
+		)
+		lease.generation shouldBe 2L
+		lease.expiresElapsedRealtimeNanos shouldBe leaseClock.elapsedRealtimeNanos()
+		database.sourceSessionDao().serviceRun(prepared.serviceRunId)?.state shouldBe
+			SessionLifecycleState.FAILED.name
+		database.sourcePlanStateDao().appliedStates() shouldBe emptyList()
 	}
 
 	@Test
@@ -7658,34 +8010,6 @@ class AuthoritativeSessionCoordinatorTest {
 		acquiredElapsedRealtimeNanos = 900_000L,
 		expiresElapsedRealtimeNanos = 2_000_000L,
 	)
-
-	private suspend fun assertPreparedStartTerminalized(
-		prepared: PreparedSessionStart,
-		failureCode: String,
-	) {
-		val sessionDao = database.sourceSessionDao()
-		val session = requireNotNull(sessionDao.session(prepared.logicalTrackingId))
-		val run = requireNotNull(sessionDao.serviceRun(prepared.serviceRunId))
-		val exactActions = sessionDao.lifecycleActions(prepared.logicalTrackingId).filter { action ->
-			action.serviceRunId == prepared.serviceRunId &&
-				action.manifestRevision == prepared.manifestRevision
-		}
-		val demandHistory = database.sourceBrokerDao()
-			.demandHistory("session:${prepared.logicalTrackingId}")
-		session.state shouldBe SessionLifecycleState.FAILED.name
-		session.failureCode shouldBe failureCode
-		run.state shouldBe SessionLifecycleState.FAILED.name
-		run.androidDeliveryState shouldBe AndroidStartDeliveryState.TERMINAL_FAILURE.name
-		run.runtimeFailureCode shouldBe failureCode
-		run.completionReason shouldBe failureCode
-		exactActions.isNotEmpty() shouldBe true
-		exactActions.all { action ->
-			action.status == LifecycleActionStatus.SUPERSEDED.name &&
-				action.failureCode == failureCode
-		} shouldBe true
-		demandHistory.isNotEmpty() shouldBe true
-		demandHistory.all { demand -> demand.status == SourceDemandEntity.STATUS_RETIRED } shouldBe true
-	}
 
 	private suspend fun seedActiveStepsRegistration() {
 		database.sourceBrokerDao().insertRegistration(
