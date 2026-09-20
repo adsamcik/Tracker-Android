@@ -952,6 +952,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		}
 		IncomingAmbientStepsOwnership(
 			archive,
+			request.sourceArchiveIdentity.value,
 			ImportedAmbientStepsIdentity.receipt(
 				request.receipt.jobId,
 				request.receipt.archiveKey,
