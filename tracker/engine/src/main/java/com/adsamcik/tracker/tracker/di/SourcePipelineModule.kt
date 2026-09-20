@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.di
 
 import android.content.Context
+import com.adsamcik.tracker.tracker.source.catalog.DefaultSourceImplementationCatalog
+import com.adsamcik.tracker.tracker.source.catalog.SourceImplementationCatalog
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
 import com.adsamcik.tracker.tracker.source.projection.Projection
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
@@ -96,6 +98,12 @@ object SourcePipelineModule {
 	fun provideSourceProductDrainRouter(
 		router: RoomSourceProductDrainRouter,
 	): SourceProductDrainRouter = router
+
+	@Provides
+	@Singleton
+	fun provideSourceImplementationCatalog(
+		catalog: DefaultSourceImplementationCatalog,
+	): SourceImplementationCatalog = catalog
 
 	@Provides
 	@Singleton
