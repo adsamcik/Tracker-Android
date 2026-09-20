@@ -12,7 +12,17 @@ import java.time.ZoneId
  * Dormant storage: presence is not admission or product qualification. The authoritative importer
  * must verify the complete hierarchy against [contentChecksum] and local fences in one transaction.
  */
-@Entity(tableName = "imported_steps_entry", primaryKeys = ["identity"])
+@Entity(
+	tableName = "imported_steps_entry",
+	primaryKeys = ["identity"],
+	indices = [
+		Index(
+			value = ["start_time_ms", "identity"],
+			orders = [Index.Order.DESC, Index.Order.DESC],
+			name = "idx_imported_steps_entry_cursor",
+		),
+	],
+)
 data class ImportedStepsEntryEntity(
 	@ColumnInfo(name = "identity") val identity: String,
 	@ColumnInfo(name = "content_checksum") val contentChecksum: String,

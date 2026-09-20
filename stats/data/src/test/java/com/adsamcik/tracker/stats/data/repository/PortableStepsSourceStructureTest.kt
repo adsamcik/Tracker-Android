@@ -98,17 +98,25 @@ class PortableStepsSourceStructureTest {
 			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/" +
 				"ImportedPortableStepsCountDomainDao.kt",
 		)
+		val appDatabase = source(
+			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/" +
+				"AppDatabase.kt",
+		)
 
 		assertTrue("AuthenticatedFullClearOwnerFenceStaging(" in production)
 		assertFalse("AuthenticatedFullClearOwnerFenceAccumulator" in fullClear)
 		assertFalse("sortedMapOf<Long, PortableCountDomainOwnerRevisionV2>" in fullClear)
 		assertFalse(".fences()" in production)
-		assertTrue("CREATE TEMP TABLE \$BINDING_TABLE" in fullClear)
+		assertFalse("CREATE TEMP TABLE" in fullClear)
+		assertFalse("DROP TABLE IF EXISTS" in fullClear)
+		assertTrue("ImportedPortableStepsFullClearStagingSchema" in fullClear)
+		assertTrue("operation_id = ?" in fullClear)
+		assertTrue("DELETE FROM main.\$table WHERE operation_id = ?" in fullClear)
 		assertTrue("bindingPageForFullClear" in fullClear)
 		assertTrue("fun bindingPageForFullClear" in graphDao)
 		assertFalse("allBindingsForFullClear" in graphDao)
-		assertTrue("CREATE TEMP TABLE \$OWNER_TABLE" in fullClear)
-		assertTrue("CREATE TEMP TABLE \$REVISION_TABLE" in fullClear)
+		assertTrue("main.\${ImportedPortableStepsFullClearStagingSchema.OWNER_TABLE}" in fullClear)
+		assertTrue("main.\${ImportedPortableStepsFullClearStagingSchema.REVISION_TABLE}" in fullClear)
 		assertTrue("ORDER BY owner_kind, owner_identity LIMIT ?" in fullClear)
 		assertTrue("maximumOwnerCount = null" in production)
 		assertTrue("maximumOwnerRevisionCount = null" in production)
@@ -117,6 +125,14 @@ class PortableStepsSourceStructureTest {
 		assertFalse("MAX_STEPS_FULL_CLEAR_FENCES" in captureFences)
 		assertTrue("readStepsFenceOrNull(sqlite, digest)" in captureFences)
 		assertTrue("staging.close()" in production)
+		assertTrue("forEachCanonicalOwnerLineageForFullClear(checkpoint)" in fullClear)
+		assertFalse("graph.graph.ownerRevisions.filter" in fullClear)
+		assertTrue("operationId = operationId" in appDatabase)
+		assertEquals(
+			2,
+			"cleanupImportedPortableStepsFullClearStagingInCurrentTransaction\\(\\)"
+				.toRegex().findAll(appDatabase).count(),
+		)
 	}
 
 	@Test
@@ -137,22 +153,62 @@ class PortableStepsSourceStructureTest {
 			fullClear.indexOf("private data class StagedFullClearSessionProduct"),
 			fullClear.indexOf("private data class StagedFullClearOwner"),
 		)
+		val stagingSchema = source(
+			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/" +
+				"ImportedPortableStepsCountDomainSchema.kt",
+		)
 
 		assertTrue("staging.addSessionProduct(product, authenticated, binding != null)" in sessionPaging)
 		assertFalse("Map<String, RetainedImportedStepsEntry>" in fullClear)
 		assertFalse("linkedMapOf<String, RetainedImportedStepsEntry>" in fullClear)
-		assertTrue("CREATE TEMP TABLE \$SESSION_PRODUCT_TABLE" in fullClear)
-		assertTrue("content_checksum TEXT NOT NULL" in fullClear)
-		assertTrue("source_format TEXT NOT NULL" in fullClear)
-		assertTrue("source_receipt_identity TEXT" in fullClear)
+		assertTrue(
+			"main.\${ImportedPortableStepsFullClearStagingSchema.SESSION_PRODUCT_TABLE}" in fullClear,
+		)
+		assertTrue("content_checksum TEXT NOT NULL" in stagingSchema)
+		assertTrue("source_format TEXT NOT NULL" in stagingSchema)
+		assertTrue("source_receipt_identity TEXT" in stagingSchema)
 		assertTrue("require(identities.size <= FILE_RECEIPT_FULL_CLEAR_PAGE_SIZE)" in fullClear)
-		assertTrue("WHERE product_identity IN (\$placeholders)" in fullClear)
+		assertTrue(
+			"WHERE operation_id = ? AND product_identity IN (\$placeholders)" in fullClear,
+		)
 		assertTrue("forEachEntryForRetentionInTransaction" in sessionPaging)
 		assertFalse("readEntriesForRetentionInTransaction(page.map" in fullClear)
 		assertFalse("SESSION_FULL_CLEAR_PAGE_SIZE" in fullClear)
 		assertFalse("RetainedImportedStepsEntry" in stagedType)
 		assertFalse("PortableStepsRun" in stagedType)
 		assertFalse("StepFactRevision" in stagedType)
+	}
+
+	@Test
+	fun `portable session traversal has an exact descending composite index`() {
+		val entity = source(
+			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/" +
+				"ImportedStepsEntities.kt",
+		)
+		val migration = source(
+			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/" +
+				"AppDatabaseMigrations.kt",
+		)
+		val dao = source(
+			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/" +
+				"ImportedStepsDao.kt",
+		)
+		val reader = source(
+			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/steps/imported/" +
+				"ImportedStepsRetainedReader.kt",
+		)
+
+		assertTrue("""value = ["start_time_ms", "identity"]""" in entity)
+		assertTrue("""orders = [Index.Order.DESC, Index.Order.DESC]""" in entity)
+		assertTrue(
+			"ON imported_steps_entry(start_time_ms DESC, identity DESC)" in migration,
+		)
+		assertTrue(
+			"WHERE (start_time_ms, identity) < (:beforeStartTimeMs, :beforeIdentity)" in dao,
+		)
+		assertTrue("ORDER BY start_time_ms DESC, identity DESC LIMIT :limit" in dao)
+		assertTrue("private const val SINGLE_ENTRY_PAGE_SIZE = 1" in reader)
+		assertTrue("currentCoroutineContext().ensureActive()" in reader)
 	}
 
 	@Test

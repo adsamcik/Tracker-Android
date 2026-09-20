@@ -1896,6 +1896,10 @@ val MIGRATION_27_28: Migration = object : Migration(
 				""".trimIndent(),
 			)
 			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_steps_entry_cursor " +
+					"ON imported_steps_entry(start_time_ms DESC, identity DESC)",
+			)
+			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS imported_steps_run (
 					identity TEXT NOT NULL PRIMARY KEY,

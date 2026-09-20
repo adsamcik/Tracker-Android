@@ -165,6 +165,11 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCount
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainRootEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFileReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFullClearBindingStageEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFullClearExplicitLineageStageEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFullClearOwnerRevisionStageEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFullClearOwnerStageEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFullClearSessionProductStageEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionReceiptEntity
@@ -332,6 +337,11 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedPortableStepsCountDomainBindingEntity::class,
 			ImportedPortableStepsFileReceiptEntity::class,
 			ImportedPortableStepsCountDomainOwnerFenceEntity::class,
+			ImportedPortableStepsFullClearBindingStageEntity::class,
+			ImportedPortableStepsFullClearSessionProductStageEntity::class,
+			ImportedPortableStepsFullClearOwnerStageEntity::class,
+			ImportedPortableStepsFullClearOwnerRevisionStageEntity::class,
+			ImportedPortableStepsFullClearExplicitLineageStageEntity::class,
 			ImportedPressureEntryRevisionEntity::class,
 			ImportedPressureReceiptEntity::class,
 			ImportedPressureRunEntity::class,
@@ -871,8 +881,11 @@ abstract class AppDatabase : RoomDatabase() {
 			collectedDataEpoch: Long,
 			retainedFromMs: Long?,
 			updatedAtMs: Long,
-		): CollectedDataDeletionOperationEntity =
+		): CollectedDataDeletionOperationEntity {
 			database.withTransaction {
+				database.cleanupImportedPortableStepsFullClearStagingInCurrentTransaction()
+			}
+			return database.withTransaction {
 				database.collectedDataDeletionOperationDao().get(operationId)?.let { existing ->
 					check(existing.targetCollectedDataEpoch == collectedDataEpoch)
 					check(existing.retainedFromMs == retainedFromMs)
@@ -895,6 +908,7 @@ abstract class AppDatabase : RoomDatabase() {
 					updatedAtMs = updatedAtMs,
 				)
 			}
+		}
 
 		suspend fun readCollectedDataDeletionOperation(
 			context: Context,
@@ -1015,6 +1029,7 @@ abstract class AppDatabase : RoomDatabase() {
 				clearedAtMs = updatedAtMs,
 			)
 			database.preserveImportedPortableCountDomainFullClearFences(
+				operationId = operationId,
 				oldCollectedDataEpoch = oldState.collectedDataEpoch,
 				newCollectedDataEpoch = newCollectedDataEpoch,
 				fencedAtMs = updatedAtMs,
@@ -1146,6 +1161,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.stepsGoalEffectDao().deleteAll()
 			database.stepsGoalRepairDayDao().deleteAll()
 			database.importedStepsDao().deleteAll()
+			database.cleanupImportedPortableStepsFullClearStagingInCurrentTransaction()
 			database.importedPressureDao().deleteAllReceipts()
 			database.importedPressureDao().deleteAllEntries()
 			database.importedPressureDao().deleteAllRetainedIdentities()

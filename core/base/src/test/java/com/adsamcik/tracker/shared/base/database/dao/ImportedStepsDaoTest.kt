@@ -71,6 +71,49 @@ class ImportedStepsDaoTest {
 		dao.manifests(RUN) shouldBe emptyList()
 	}
 
+	@Test
+	fun `newest first and keyset traversal use the exact composite cursor index`() {
+		val sqlite = database.openHelper.writableDatabase
+		val firstPlan = queryPlan(
+			"SELECT * FROM imported_steps_entry " +
+				"ORDER BY start_time_ms DESC, identity DESC LIMIT 1",
+		)
+		val afterPlan = queryPlan(
+			"SELECT * FROM imported_steps_entry " +
+				"WHERE (start_time_ms, identity) < (?, ?) " +
+				"ORDER BY start_time_ms DESC, identity DESC LIMIT 1",
+			arrayOf(100L, ENTRY),
+		)
+
+		firstPlan.any {
+			it.contains("idx_imported_steps_entry_cursor", ignoreCase = true)
+		} shouldBe true
+		afterPlan.any {
+			it.contains("idx_imported_steps_entry_cursor", ignoreCase = true)
+		} shouldBe true
+		sqlite.query("PRAGMA index_xinfo('idx_imported_steps_entry_cursor')").use { cursor ->
+			val name = cursor.getColumnIndexOrThrow("name")
+			val descending = cursor.getColumnIndexOrThrow("desc")
+			val key = cursor.getColumnIndexOrThrow("key")
+			val columns = buildList {
+				while (cursor.moveToNext()) {
+					if (cursor.getInt(key) != 0) {
+						add(cursor.getString(name) to cursor.getInt(descending))
+					}
+				}
+			}
+			columns shouldBe listOf("start_time_ms" to 1, "identity" to 1)
+		}
+	}
+
+	private fun queryPlan(sql: String, arguments: Array<out Any?> = emptyArray()): List<String> =
+		database.openHelper.writableDatabase.query("EXPLAIN QUERY PLAN $sql", arguments).use { cursor ->
+			val detail = cursor.getColumnIndexOrThrow("detail")
+			buildList {
+				while (cursor.moveToNext()) add(cursor.getString(detail))
+			}
+		}
+
 	private fun entry() = ImportedStepsEntryEntity(ENTRY, OTHER, "MANUAL", 10L, 20L, 1L)
 	private fun run() = ImportedStepsRunEntity(
 		RUN, ENTRY, "4".repeat(64), 10L, 20L, "Europe/Prague", "WHOLE_RUN", "PARTIAL",

@@ -1,8 +1,9 @@
 package com.adsamcik.tracker.shared.base.database
 
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFullClearStagingSchema
 
-/** Manual v27->v28 DDL for imported-only portable count-domain evidence. */
+/** Manual v27->v28 DDL for imported-only portable count-domain evidence and full-clear staging. */
 internal fun createImportedPortableStepsCountDomainTables(database: SupportSQLiteDatabase) {
 	database.execSQL(
 		"""
@@ -205,5 +206,101 @@ internal fun createImportedPortableStepsCountDomainTables(database: SupportSQLit
 	database.execSQL(
 		"CREATE INDEX IF NOT EXISTS idx_imported_steps_count_fence_graph " +
 			"ON imported_steps_count_domain_owner_fence(graph_identity)",
+	)
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS ${ImportedPortableStepsFullClearStagingSchema.BINDING_TABLE} (
+			operation_id TEXT NOT NULL,
+			product_kind TEXT NOT NULL,
+			product_identity TEXT NOT NULL,
+			product_revision INTEGER NOT NULL,
+			graph_identity TEXT NOT NULL,
+			source_schema_version INTEGER NOT NULL,
+			source_receipt_identity TEXT,
+			source_archive_identity TEXT,
+			source_archive_content_checksum TEXT,
+			consumed INTEGER NOT NULL DEFAULT 0,
+			PRIMARY KEY(operation_id, product_kind, product_identity, product_revision)
+		)
+		""".trimIndent(),
+	)
+	database.execSQL(
+		"CREATE INDEX IF NOT EXISTS " +
+			"${ImportedPortableStepsFullClearStagingSchema.BINDING_GRAPH_INDEX} ON " +
+			"${ImportedPortableStepsFullClearStagingSchema.BINDING_TABLE}" +
+			"(operation_id, graph_identity, consumed)",
+	)
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS ${ImportedPortableStepsFullClearStagingSchema.SESSION_PRODUCT_TABLE} (
+			operation_id TEXT NOT NULL,
+			product_identity TEXT NOT NULL,
+			content_checksum TEXT NOT NULL,
+			source_format TEXT NOT NULL,
+			source_schema_version INTEGER NOT NULL,
+			graph_identity TEXT NOT NULL,
+			source_receipt_identity TEXT,
+			source_archive_content_checksum TEXT,
+			has_stored_binding INTEGER NOT NULL,
+			source_receipt_observed INTEGER NOT NULL DEFAULT 0,
+			PRIMARY KEY(operation_id, product_identity)
+		)
+		""".trimIndent(),
+	)
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS ${ImportedPortableStepsFullClearStagingSchema.OWNER_TABLE} (
+			operation_id TEXT NOT NULL,
+			owner_kind TEXT NOT NULL,
+			owner_identity TEXT NOT NULL,
+			scope_identity TEXT NOT NULL,
+			container_identity TEXT NOT NULL,
+			root_product_identity TEXT NOT NULL,
+			product_kind TEXT NOT NULL,
+			bound_product_identity TEXT,
+			latest_graph_identity TEXT NOT NULL,
+			latest_owner_revision INTEGER NOT NULL,
+			latest_graph_revision INTEGER NOT NULL,
+			latest_is_bound INTEGER NOT NULL,
+			latest_compare_product_identity TEXT NOT NULL,
+			explicit_lineage_length INTEGER NOT NULL,
+			PRIMARY KEY(operation_id, owner_kind, owner_identity)
+		)
+		""".trimIndent(),
+	)
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS ${ImportedPortableStepsFullClearStagingSchema.REVISION_TABLE} (
+			operation_id TEXT NOT NULL,
+			owner_kind TEXT NOT NULL,
+			owner_identity TEXT NOT NULL,
+			owner_revision INTEGER NOT NULL,
+			scope_identity TEXT NOT NULL,
+			operation TEXT NOT NULL,
+			receipt_identity TEXT,
+			owner_effect_checksum TEXT NOT NULL,
+			source_linked_at_ms INTEGER NOT NULL,
+			legacy_ambient INTEGER NOT NULL,
+			PRIMARY KEY(operation_id, owner_kind, owner_identity, owner_revision)
+		)
+		""".trimIndent(),
+	)
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS ${ImportedPortableStepsFullClearStagingSchema.EXPLICIT_TABLE} (
+			operation_id TEXT NOT NULL,
+			owner_kind TEXT NOT NULL,
+			owner_identity TEXT NOT NULL,
+			lineage_ordinal INTEGER NOT NULL,
+			owner_revision INTEGER NOT NULL,
+			PRIMARY KEY(operation_id, owner_kind, owner_identity, lineage_ordinal)
+		)
+		""".trimIndent(),
+	)
+	database.execSQL(
+		"CREATE UNIQUE INDEX IF NOT EXISTS " +
+			"${ImportedPortableStepsFullClearStagingSchema.EXPLICIT_REVISION_INDEX} ON " +
+			"${ImportedPortableStepsFullClearStagingSchema.EXPLICIT_TABLE}" +
+			"(operation_id, owner_kind, owner_identity, owner_revision)",
 	)
 }

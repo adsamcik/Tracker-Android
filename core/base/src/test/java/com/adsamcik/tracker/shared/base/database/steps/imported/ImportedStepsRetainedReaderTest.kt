@@ -120,13 +120,33 @@ class ImportedStepsRetainedReaderTest {
 							)
 						) {
 							events += "load:${normalized.count { it == '?' }}"
+						} else if (
+							normalized.startsWith(
+								"select * from imported_steps_entry order by " +
+									"start_time_ms desc, identity desc limit",
+							)
+						) {
+							events += "page:first"
+						} else if (
+							normalized.startsWith(
+								"select * from imported_steps_entry where " +
+									"(start_time_ms, identity) <",
+							) &&
+							normalized.contains(
+								"order by start_time_ms desc, identity desc limit",
+							)
+						) {
+							events += "page:after"
 						}
 					},
 					Executor(Runnable::run),
 				)
 				.build()
 			reader = ImportedStepsRetainedReader(database)
-			val entries = listOf(maximumRunEntry(0), maximumRunEntry(1))
+			val entries = listOf(
+				maximumRunEntry(0, baseTime = 1_000L),
+				maximumRunEntry(1, baseTime = 1_000L),
+			)
 			entries.forEach { seed(portableEntry = it) }
 			events.clear()
 
@@ -140,9 +160,19 @@ class ImportedStepsRetainedReaderTest {
 			}
 
 			traversal shouldBe ImportedStepsRetainedTraversal.Complete(2L)
-			events shouldBe entries.sortedByDescending { it.startTimeMs }.flatMap {
-				listOf("load:2", "consume:${it.identity.value}")
-			}
+			val ordered = entries.sortedWith(
+				compareByDescending<PortableStepsEntryV1> { it.startTimeMs }
+					.thenByDescending { it.identity.value },
+			)
+			events shouldBe listOf(
+				"page:first",
+				"load:2",
+				"consume:${ordered[0].identity.value}",
+				"page:after",
+				"load:2",
+				"consume:${ordered[1].identity.value}",
+				"page:after",
+			)
 		}
 
 	@Test
@@ -440,8 +470,10 @@ class ImportedStepsRetainedReaderTest {
 		),
 	)
 
-	private fun maximumRunEntry(index: Int): PortableStepsEntryV1 {
-		val baseTime = 1_000L + index * 10_000L
+	private fun maximumRunEntry(
+		index: Int,
+		baseTime: Long = 1_000L + index * 10_000L,
+	): PortableStepsEntryV1 {
 		val maximumFactsPerRun =
 			com.adsamcik.tracker.shared.model.steps.portable
 				.StepsPortableFormatV1.MAX_FACTS_PER_RUN

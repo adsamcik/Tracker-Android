@@ -208,9 +208,13 @@ private suspend fun AppDatabase.deleteImportedRetentionFacts(facts: List<StepFac
 private suspend fun AppDatabase.visitImportedRetentionEntries(visit: suspend (RetainedImportedStepsEntry) -> Unit) {
 	var before: ImportedStepsEntryEntity? = null
 	while (true) {
-		val page = importedStepsDao().entryPage(
-			before?.startTimeMs, before?.identity, ImportedStepsRetainedReader.MAX_ENTRY_BATCH,
-		)
+		val page = before?.let {
+			importedStepsDao().entryPageAfter(
+				it.startTimeMs,
+				it.identity,
+				ImportedStepsRetainedReader.MAX_ENTRY_BATCH,
+			)
+		} ?: importedStepsDao().firstEntryPage(ImportedStepsRetainedReader.MAX_ENTRY_BATCH)
 		if (page.isEmpty()) {
 			break
 		}

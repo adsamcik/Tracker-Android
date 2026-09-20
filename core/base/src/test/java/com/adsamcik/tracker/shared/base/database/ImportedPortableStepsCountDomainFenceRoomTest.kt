@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCount
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableCountDomainIdentity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFullClearStagingSchema
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFileReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -25,11 +26,13 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsCaptureCove
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsCompletenessV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainCoverage
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainDigest
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainFormatV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOperation
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOwnerKind
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOwnerRevisionV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainReceiptV2
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainRootV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsDeletionScopeDigest
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsEntryV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsFactCoverage
@@ -44,6 +47,7 @@ import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCoun
 import io.kotest.matchers.shouldBe
 import java.util.concurrent.Executor
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -56,14 +60,19 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class ImportedPortableStepsCountDomainFenceRoomTest {
 	private lateinit var database: AppDatabase
+	private val context: Application
+		get() = ApplicationProvider.getApplicationContext()
 
 	@Before
 	fun setUp() {
-		database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>())
+		database = AppDatabase.testDatabase(context)
 	}
 
 	@After
-	fun tearDown() = database.close()
+	fun tearDown() {
+		database.close()
+		context.deleteDatabase(RECOVERY_DATABASE)
+	}
 
 	@Test
 	fun `full clear removes graph payload and retains terminal owner fences`() = runTest {
@@ -86,7 +95,12 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 		)
 
 		database.withTransaction {
-			database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+			database.preserveImportedPortableCountDomainFullClearFences(
+				TEST_OPERATION_ID,
+				7L,
+				8L,
+				9L,
+			)
 		}
 
 		dao.graph(graph.identity.value) shouldBe null
@@ -96,6 +110,68 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 		).map { it.fenceKind }.toSet() shouldBe
 			setOf(ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR)
 		stagingTableCount() shouldBe 0L
+		temporaryStagingTableCount() shouldBe 0L
+	}
+
+	@Test
+	fun `disk staging isolates operations and recovery removes stale rows`() = runTest {
+		val staleOperation = "stale-full-clear"
+		database.withTransaction {
+			insertStagedBinding(staleOperation)
+			database.stageAuthenticatedPortableOwnerFencesForFullClear(
+				graphs = sequenceOf(ambientAppearance(ambientDay("isolated"), 1L)),
+				operationId = TEST_OPERATION_ID,
+				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
+				collectedDataEpoch = 8L,
+				fencedAtMs = 9L,
+				maximumOwnerCount = 1,
+				maximumOwnerRevisionCount = 1,
+			)
+		}
+
+		stagingRowCount(staleOperation) shouldBe 1L
+		stagingRowCount(TEST_OPERATION_ID) shouldBe 0L
+		temporaryStagingTableCount() shouldBe 0L
+
+		database.withTransaction {
+			database.cleanupImportedPortableStepsFullClearStagingInCurrentTransaction()
+		}
+
+		stagingTableCount() shouldBe 0L
+	}
+
+	@Test
+	fun `disk staging rows roll back with their owning transaction`() = runTest {
+		assertFailsWith<IllegalStateException> {
+			database.withTransaction {
+				insertStagedBinding(TEST_OPERATION_ID)
+				error("rollback")
+			}
+		}
+
+		stagingRowCount(TEST_OPERATION_ID) shouldBe 0L
+		temporaryStagingTableCount() shouldBe 0L
+	}
+
+	@Test
+	fun `database reopen transactionally removes stale disk staging`() = runTest {
+		database.close()
+		context.deleteDatabase(RECOVERY_DATABASE)
+		database = AppDatabase.fileBuilder(context, RECOVERY_DATABASE)
+			.allowMainThreadQueries()
+			.build()
+		database.withTransaction {
+			insertStagedBinding("interrupted-full-clear")
+		}
+		stagingRowCount("interrupted-full-clear") shouldBe 1L
+		database.close()
+
+		database = AppDatabase.fileBuilder(context, RECOVERY_DATABASE)
+			.allowMainThreadQueries()
+			.build()
+
+		stagingTableCount() shouldBe 0L
+		temporaryStagingTableCount() shouldBe 0L
 	}
 
 	@Test
@@ -131,11 +207,16 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			queries.clear()
 
 			database.withTransaction {
-				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+				database.preserveImportedPortableCountDomainFullClearFences(
+					TEST_OPERATION_ID,
+					7L,
+					8L,
+					9L,
+				)
 			}
 
 			queries.any {
-				it.contains("from imported_steps_full_clear_owner_stage") &&
+				it.contains("from main.imported_steps_full_clear_owner_stage") &&
 					it.contains("order by owner_kind, owner_identity limit ?")
 			} shouldBe true
 			queries.none {
@@ -172,7 +253,12 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 
 			assertFailsWith<IllegalArgumentException> {
 				database.withTransaction {
-					database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+					database.preserveImportedPortableCountDomainFullClearFences(
+						TEST_OPERATION_ID,
+						7L,
+						8L,
+						9L,
+					)
 				}
 			}
 
@@ -185,9 +271,14 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 				it.startsWith("select * from imported_steps_entry where identity in") &&
 					it.contains(",")
 			} shouldBe true
+			val keysetLoads = queries.filter {
+				it.contains("from imported_steps_entry") &&
+					it.contains("order by start_time_ms desc, identity desc limit ?")
+			}
+			keysetLoads.size shouldBe (entries.size + 1) * 2
 			queries.count {
-				it.contains("from imported_steps_full_clear_session_product_stage") &&
-					it.contains("where product_identity in (")
+				it.contains("from main.imported_steps_full_clear_session_product_stage") &&
+					it.contains("where operation_id = ? and product_identity in (")
 			} shouldBe 1
 			entries.all {
 				database.importedStepsDao().entry(it.identity.value) != null
@@ -250,7 +341,12 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 		)
 
 		database.withTransaction {
-			database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+			database.preserveImportedPortableCountDomainFullClearFences(
+				TEST_OPERATION_ID,
+				7L,
+				8L,
+				9L,
+			)
 		}
 
 		dao.graph(graph.identity.value) shouldBe null
@@ -278,7 +374,12 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			installV2SessionBinding(entry, latest)
 
 			database.withTransaction {
-				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+				database.preserveImportedPortableCountDomainFullClearFences(
+					TEST_OPERATION_ID,
+					7L,
+					8L,
+					9L,
+				)
 			}
 
 			val fence = dao.ownerFences(listOf(advancedRoot.ownerIdentity.value), 2).single()
@@ -413,6 +514,118 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 	}
 
 	@Test
+	fun `full clear visits each maximum lineage graph root and owner revision once`() {
+		val graph = entry().withExplicitUnprovenCountDomain().countDomainGraph
+		val ownerRevisions = graph.ownerRevisions.flatMap { owner ->
+			(1..PortableCountDomainFormatV2.MAX_OWNER_LINEAGE_REVISIONS).map { revision ->
+				owner.copy(ownerRevision = revision.toLong())
+			}
+		}
+		val roots = graph.roots.map {
+			it.copy(
+				ownerRevision =
+					PortableCountDomainFormatV2.MAX_OWNER_LINEAGE_REVISIONS.toLong(),
+			)
+		}
+		var visits = 0
+		var lineages = 0
+
+		forEachCanonicalPortableOwnerLineageForFullClear(
+			roots = roots,
+			ownerRevisions = ownerRevisions,
+			checkpoint = { visits++ },
+		) { _, lineage ->
+			lineages++
+			lineage.size shouldBe PortableCountDomainFormatV2.MAX_OWNER_LINEAGE_REVISIONS
+		}
+
+		visits shouldBe roots.size + ownerRevisions.size
+		lineages shouldBe roots.size
+	}
+
+	@Test
+	fun `full clear linear lineage fold rejects duplicates and out of order input`() {
+		val graph = entry().withExplicitUnprovenCountDomain().countDomainGraph
+		val consume: (
+			PortableCountDomainRootV2,
+			List<PortableCountDomainOwnerRevisionV2>,
+		) -> Unit = { _, _ -> }
+
+		assertFailsWith<IllegalArgumentException> {
+			forEachCanonicalPortableOwnerLineageForFullClear(
+				roots = graph.roots + graph.roots.last(),
+				ownerRevisions = graph.ownerRevisions,
+				checkpoint = {},
+				consume = consume,
+			)
+		}
+		assertFailsWith<IllegalArgumentException> {
+			forEachCanonicalPortableOwnerLineageForFullClear(
+				roots = graph.roots.reversed(),
+				ownerRevisions = graph.ownerRevisions,
+				checkpoint = {},
+				consume = consume,
+			)
+		}
+		assertFailsWith<IllegalArgumentException> {
+			forEachCanonicalPortableOwnerLineageForFullClear(
+				roots = graph.roots,
+				ownerRevisions = graph.ownerRevisions + graph.ownerRevisions.last(),
+				checkpoint = {},
+				consume = consume,
+			)
+		}
+		assertFailsWith<IllegalArgumentException> {
+			forEachCanonicalPortableOwnerLineageForFullClear(
+				roots = graph.roots,
+				ownerRevisions = graph.ownerRevisions.reversed(),
+				checkpoint = {},
+				consume = consume,
+			)
+		}
+		assertFailsWith<IllegalArgumentException> {
+			forEachCanonicalPortableOwnerLineageForFullClear(
+				roots = List(PortableCountDomainFormatV2.MAX_ROOTS + 1) {
+					graph.roots.first()
+				},
+				ownerRevisions = graph.ownerRevisions,
+				checkpoint = {},
+				consume = consume,
+			)
+		}
+		assertFailsWith<IllegalArgumentException> {
+			forEachCanonicalPortableOwnerLineageForFullClear(
+				roots = graph.roots,
+				ownerRevisions = List(
+					PortableCountDomainFormatV2.MAX_OWNER_REVISIONS + 1,
+				) {
+					graph.ownerRevisions.first()
+				},
+				checkpoint = {},
+				consume = consume,
+			)
+		}
+	}
+
+	@Test
+	fun `full clear linear lineage fold observes cancellation`() {
+		val graph = entry().withExplicitUnprovenCountDomain().countDomainGraph
+		var visits = 0
+
+		assertFailsWith<CancellationException> {
+			forEachCanonicalPortableOwnerLineageForFullClear(
+				roots = graph.roots,
+				ownerRevisions = graph.ownerRevisions,
+				checkpoint = {
+					visits++
+					if (visits == 2) throw CancellationException("cancelled")
+				},
+			) { _, _ -> }
+		}
+		visits shouldBe 2
+	}
+
+	@Test
 	fun `full clear keeps explicit v2 owner lineages prefix compatible`() = runTest {
 		val entry = entry()
 		val (older, latest) = sessionGraphProgression(entry)
@@ -457,7 +670,12 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 
 		assertFailsWith<IllegalArgumentException> {
 			database.withTransaction {
-				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+				database.preserveImportedPortableCountDomainFullClearFences(
+					TEST_OPERATION_ID,
+					7L,
+					8L,
+					9L,
+				)
 			}
 		}
 
@@ -510,7 +728,12 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 
 		assertFailsWith<IllegalStateException> {
 			database.withTransaction {
-				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+				database.preserveImportedPortableCountDomainFullClearFences(
+					TEST_OPERATION_ID,
+					7L,
+					8L,
+					9L,
+				)
 			}
 		}
 		dao.graph(graph.identity.value)?.graphIdentity shouldBe graph.identity.value
@@ -636,7 +859,12 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 
 		assertFailsWith<IllegalArgumentException> {
 			database.withTransaction {
-				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+				database.preserveImportedPortableCountDomainFullClearFences(
+					TEST_OPERATION_ID,
+					7L,
+					8L,
+					9L,
+				)
 			}
 		}
 
@@ -676,7 +904,12 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 
 		assertFailsWith<IllegalArgumentException> {
 			database.withTransaction {
-				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+				database.preserveImportedPortableCountDomainFullClearFences(
+					TEST_OPERATION_ID,
+					7L,
+					8L,
+					9L,
+				)
 			}
 		}
 
@@ -707,7 +940,12 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 
 		assertFailsWith<IllegalArgumentException> {
 			database.withTransaction {
-				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+				database.preserveImportedPortableCountDomainFullClearFences(
+					TEST_OPERATION_ID,
+					7L,
+					8L,
+					9L,
+				)
 			}
 		}
 
@@ -734,7 +972,12 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 
 		assertFailsWith<IllegalArgumentException> {
 			database.withTransaction {
-				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+				database.preserveImportedPortableCountDomainFullClearFences(
+					TEST_OPERATION_ID,
+					7L,
+					8L,
+					9L,
+				)
 			}
 		}
 
@@ -813,7 +1056,12 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			}
 
 			database.withTransaction {
-				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+				database.preserveImportedPortableCountDomainFullClearFences(
+					TEST_OPERATION_ID,
+					7L,
+					8L,
+					9L,
+				)
 			}
 
 			dao.graph(graph.identity.value) shouldBe null
@@ -837,7 +1085,12 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 
 		assertFailsWith<IllegalStateException> {
 			database.withTransaction {
-				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+				database.preserveImportedPortableCountDomainFullClearFences(
+					TEST_OPERATION_ID,
+					7L,
+					8L,
+					9L,
+				)
 			}
 		}
 
@@ -872,7 +1125,12 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 
 		assertFailsWith<IllegalArgumentException> {
 			database.withTransaction {
-				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+				database.preserveImportedPortableCountDomainFullClearFences(
+					TEST_OPERATION_ID,
+					7L,
+					8L,
+					9L,
+				)
 			}
 		}
 
@@ -1005,7 +1263,12 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 
 		assertFailsWith<IllegalStateException> {
 			database.withTransaction {
-				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+				database.preserveImportedPortableCountDomainFullClearFences(
+					TEST_OPERATION_ID,
+					7L,
+					8L,
+					9L,
+				)
 			}
 		}
 		dao.ownerFences(
@@ -1022,6 +1285,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 		database.withTransaction {
 			database.stageAuthenticatedPortableOwnerFencesForFullClear(
 				graphs = graphs.asSequence(),
+				operationId = TEST_OPERATION_ID,
 				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
 				collectedDataEpoch = 8L,
 				fencedAtMs = 9L,
@@ -1041,6 +1305,27 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 	}
 
 	private fun stagingTableCount(): Long =
+		ImportedPortableStepsFullClearStagingSchema.TABLES_IN_DELETE_ORDER.sumOf { table ->
+			database.openHelper.writableDatabase.query(
+				"SELECT COUNT(*) FROM main.$table",
+			).use { cursor ->
+				check(cursor.moveToFirst())
+				cursor.getLong(0)
+			}
+		}
+
+	private fun stagingRowCount(operationId: String): Long =
+		ImportedPortableStepsFullClearStagingSchema.TABLES_IN_DELETE_ORDER.sumOf { table ->
+			database.openHelper.writableDatabase.query(
+				"SELECT COUNT(*) FROM main.$table WHERE operation_id = ?",
+				arrayOf(operationId),
+			).use { cursor ->
+				check(cursor.moveToFirst())
+				cursor.getLong(0)
+			}
+		}
+
+	private fun temporaryStagingTableCount(): Long =
 		database.openHelper.writableDatabase.query(
 			"SELECT COUNT(*) FROM sqlite_temp_master WHERE type = 'table' " +
 				"AND name LIKE 'imported_steps_full_clear_%_stage'",
@@ -1048,6 +1333,28 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			check(cursor.moveToFirst())
 			cursor.getLong(0)
 		}
+
+	private fun insertStagedBinding(operationId: String) {
+		database.openHelper.writableDatabase.execSQL(
+			"INSERT INTO main.${ImportedPortableStepsFullClearStagingSchema.BINDING_TABLE} (" +
+				"operation_id, product_kind, product_identity, product_revision, graph_identity, " +
+				"source_schema_version, source_receipt_identity, source_archive_identity, " +
+				"source_archive_content_checksum, consumed" +
+				") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			arrayOf(
+				operationId,
+				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				"sha256:" + "1".repeat(64),
+				1L,
+				"sha256:" + "2".repeat(64),
+				1,
+				null,
+				null,
+				null,
+				0,
+			),
+		)
+	}
 
 	private suspend fun seedSessionPayload(entry: PortableStepsEntryV1) {
 		database.sourceEvidenceStateDao().ensure(
@@ -1405,4 +1712,9 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 
 	private fun identity(kind: PortableStepsIdentityKind, value: String) =
 		PortableStepsOpaqueIdentity.derive(kind, value)
+
+	private companion object {
+		const val RECOVERY_DATABASE = "portable-steps-full-clear-recovery"
+		const val TEST_OPERATION_ID = "portable-steps-full-clear-test"
+	}
 }

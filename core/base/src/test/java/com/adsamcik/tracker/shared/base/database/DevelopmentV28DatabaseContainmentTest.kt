@@ -122,6 +122,21 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
+	fun `pre disk staging v28 marker is classified as stale`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			markerValue = "tracker-v28-portable-ambient-graph-provenance-20260920",
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28,
+		)
+	}
+
+	@Test
 	fun `marked v28 missing an indispensable final table is contained`() {
 		createFixture(
 			version = CURRENT_DATABASE_VERSION,
@@ -259,6 +274,46 @@ class DevelopmentV28DatabaseContainmentTest {
 			includeFinalIndex = true,
 			stepsSchemaMutation = { database ->
 				database.execSQL("DROP INDEX idx_steps_count_domain_owner_terminal_age")
+			},
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `marked v28 missing portable Steps disk staging is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			stepsSchemaMutation = { database ->
+				database.execSQL("DROP TABLE imported_steps_full_clear_owner_stage")
+			},
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `marked v28 with ascending imported Steps traversal index is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			stepsSchemaMutation = { database ->
+				database.execSQL("DROP INDEX idx_imported_steps_entry_cursor")
+				database.execSQL(
+					"CREATE INDEX idx_imported_steps_entry_cursor " +
+						"ON imported_steps_entry(start_time_ms, identity)",
+				)
 			},
 		)
 
@@ -639,6 +694,15 @@ class DevelopmentV28DatabaseContainmentTest {
 							}
 						}
 						if (includeStepsCountDomain) {
+							db.execSQL(
+								"CREATE TABLE imported_steps_entry (" +
+									"identity TEXT NOT NULL PRIMARY KEY, " +
+									"start_time_ms INTEGER NOT NULL)",
+							)
+							db.execSQL(
+								"CREATE INDEX idx_imported_steps_entry_cursor " +
+									"ON imported_steps_entry(start_time_ms DESC, identity DESC)",
+							)
 							db.execSQL(
 								"CREATE TABLE ambient_steps_fact_revision (" +
 									"logical_fact_id TEXT NOT NULL, " +

@@ -6,38 +6,53 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCount
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableCountDomainIdentity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFullClearStagingSchema
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedReader
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedTraversal
 import com.adsamcik.tracker.shared.base.database.steps.imported.RetainedImportedStepsEntry
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
+import com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_COUNT_DOMAIN_OWNER_ORDER
+import com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_COUNT_DOMAIN_ROOT_ORDER
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainFormatV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOperation
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOwnerKind
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOwnerRevisionV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainRootV2
 import com.adsamcik.tracker.shared.model.steps.portable.StepsPortableFormatV1
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /**
  * Converts every live imported portable owner into a value-free terminal fence before full clear.
  */
 internal suspend fun AppDatabase.preserveImportedPortableCountDomainFullClearFences(
+	operationId: String,
 	oldCollectedDataEpoch: Long,
 	newCollectedDataEpoch: Long,
 	fencedAtMs: Long,
 ) {
+	require(operationId.isNotBlank())
 	require(oldCollectedDataEpoch >= 0L)
 	require(newCollectedDataEpoch > oldCollectedDataEpoch)
 	require(fencedAtMs >= 0L)
+	val coroutineContext = currentCoroutineContext()
+	val sqlite = openHelper.writableDatabase
+	check(sqlite.inTransaction()) {
+		"Imported portable full clear requires the owning Room transaction"
+	}
 	reconcileImportedPortableLegacyGraphsBeforeFullClear(oldCollectedDataEpoch)
 	val dao = importedPortableStepsCountDomainDao()
 	val staging = AuthenticatedFullClearOwnerFenceStaging(
-		sqlite = openHelper.writableDatabase,
+		sqlite = sqlite,
+		operationId = operationId,
 		fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
 		collectedDataEpoch = newCollectedDataEpoch,
 		fencedAtMs = fencedAtMs,
 		maximumOwnerCount = null,
 		maximumOwnerRevisionCount = null,
+		checkpoint = coroutineContext::ensureActive,
 	)
 	try {
 		stageImportedPortableBindingsForFullClear(dao, staging)
@@ -259,25 +274,30 @@ internal data class AuthenticatedFullClearGraphAppearance(
 	val isBound: Boolean,
 )
 
-internal fun AppDatabase.stageAuthenticatedPortableOwnerFencesForFullClear(
+internal suspend fun AppDatabase.stageAuthenticatedPortableOwnerFencesForFullClear(
 	graphs: Sequence<AuthenticatedFullClearGraphAppearance>,
+	operationId: String,
 	fenceKind: String,
 	collectedDataEpoch: Long,
 	fencedAtMs: Long,
 	maximumOwnerCount: Int,
 	maximumOwnerRevisionCount: Int,
 ) {
+	require(operationId.isNotBlank())
 	require(collectedDataEpoch >= 0L)
 	require(fencedAtMs >= 0L)
 	require(maximumOwnerCount > 0)
 	require(maximumOwnerRevisionCount > 0)
+	val coroutineContext = currentCoroutineContext()
 	val staging = AuthenticatedFullClearOwnerFenceStaging(
 		openHelper.writableDatabase,
+		operationId,
 		fenceKind,
 		collectedDataEpoch,
 		fencedAtMs,
 		maximumOwnerCount.toLong(),
 		maximumOwnerRevisionCount.toLong(),
+		checkpoint = coroutineContext::ensureActive,
 	)
 	try {
 		graphs.forEach(staging::add)
@@ -289,11 +309,13 @@ internal fun AppDatabase.stageAuthenticatedPortableOwnerFencesForFullClear(
 
 private class AuthenticatedFullClearOwnerFenceStaging(
 	private val sqlite: SupportSQLiteDatabase,
+	private val operationId: String,
 	private val fenceKind: String,
 	private val collectedDataEpoch: Long,
 	private val fencedAtMs: Long,
 	maximumOwnerCount: Long?,
 	maximumOwnerRevisionCount: Long?,
+	private val checkpoint: () -> Unit,
 ) {
 	private val cardinality = FullClearStagingCardinality(
 		maximumOwnerCount = maximumOwnerCount,
@@ -301,103 +323,22 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 	)
 
 	init {
-		dropTables()
-		try {
-			sqlite.execSQL(
-				"""
-				CREATE TEMP TABLE $BINDING_TABLE (
-					product_kind TEXT NOT NULL,
-					product_identity TEXT NOT NULL,
-					product_revision INTEGER NOT NULL,
-					graph_identity TEXT NOT NULL,
-					source_schema_version INTEGER NOT NULL,
-					source_receipt_identity TEXT,
-					source_archive_identity TEXT,
-					source_archive_content_checksum TEXT,
-					consumed INTEGER NOT NULL DEFAULT 0,
-					PRIMARY KEY(product_kind, product_identity, product_revision)
-				)
-				""".trimIndent(),
-			)
-			sqlite.execSQL(
-				"CREATE INDEX $BINDING_GRAPH_INDEX ON $BINDING_TABLE(graph_identity, consumed)",
-			)
-			sqlite.execSQL(
-				"""
-				CREATE TEMP TABLE $SESSION_PRODUCT_TABLE (
-					product_identity TEXT NOT NULL PRIMARY KEY,
-					content_checksum TEXT NOT NULL,
-					source_format TEXT NOT NULL,
-					source_schema_version INTEGER NOT NULL,
-					graph_identity TEXT NOT NULL,
-					source_receipt_identity TEXT,
-					source_archive_content_checksum TEXT,
-					has_stored_binding INTEGER NOT NULL,
-					source_receipt_observed INTEGER NOT NULL DEFAULT 0
-				)
-				""".trimIndent(),
-			)
-			sqlite.execSQL(
-				"""
-				CREATE TEMP TABLE $OWNER_TABLE (
-					owner_kind TEXT NOT NULL,
-					owner_identity TEXT NOT NULL,
-					scope_identity TEXT NOT NULL,
-					container_identity TEXT NOT NULL,
-					root_product_identity TEXT NOT NULL,
-					product_kind TEXT NOT NULL,
-					bound_product_identity TEXT,
-					latest_graph_identity TEXT NOT NULL,
-					latest_owner_revision INTEGER NOT NULL,
-					latest_graph_revision INTEGER NOT NULL,
-					latest_is_bound INTEGER NOT NULL,
-					latest_compare_product_identity TEXT NOT NULL,
-					explicit_lineage_length INTEGER NOT NULL,
-					PRIMARY KEY(owner_kind, owner_identity)
-				)
-				""".trimIndent(),
-			)
-			sqlite.execSQL(
-				"""
-				CREATE TEMP TABLE $REVISION_TABLE (
-					owner_kind TEXT NOT NULL,
-					owner_identity TEXT NOT NULL,
-					owner_revision INTEGER NOT NULL,
-					scope_identity TEXT NOT NULL,
-					operation TEXT NOT NULL,
-					receipt_identity TEXT,
-					owner_effect_checksum TEXT NOT NULL,
-					source_linked_at_ms INTEGER NOT NULL,
-					legacy_ambient INTEGER NOT NULL,
-					PRIMARY KEY(owner_kind, owner_identity, owner_revision)
-				)
-				""".trimIndent(),
-			)
-			sqlite.execSQL(
-				"""
-				CREATE TEMP TABLE $EXPLICIT_TABLE (
-					owner_kind TEXT NOT NULL,
-					owner_identity TEXT NOT NULL,
-					lineage_ordinal INTEGER NOT NULL,
-					owner_revision INTEGER NOT NULL,
-					PRIMARY KEY(owner_kind, owner_identity, lineage_ordinal),
-					UNIQUE(owner_kind, owner_identity, owner_revision)
-				)
-				""".trimIndent(),
-			)
-		} catch (failure: Exception) {
-			dropTables()
-			throw failure
+		check(sqlite.inTransaction()) {
+			"Imported portable full-clear staging requires the owning Room transaction"
 		}
+		require(operationId.isNotBlank())
+		clearOperation()
 	}
 
 	fun addBinding(binding: ImportedPortableStepsCountDomainBindingEntity) {
+		checkpoint()
 		sqlite.execSQL(
 			"INSERT INTO $BINDING_TABLE (" +
-				"product_kind, product_identity, product_revision, graph_identity, " +
+				"operation_id, product_kind, product_identity, product_revision, graph_identity, " +
 				"source_schema_version, source_receipt_identity, source_archive_identity, " +
-				"source_archive_content_checksum) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+				"source_archive_content_checksum) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			arrayOf(
+				operationId,
 				binding.productKind,
 				binding.productIdentity,
 				binding.productRevision,
@@ -427,13 +368,14 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainBindingEntity> {
 		require(limit > 0)
+		checkpoint()
 		return sqlite.query(
 			"SELECT product_revision, graph_identity, source_schema_version, " +
 				"source_receipt_identity, source_archive_identity, " +
 				"source_archive_content_checksum FROM $BINDING_TABLE " +
-				"WHERE product_kind = ? AND product_identity = ? " +
+				"WHERE operation_id = ? AND product_kind = ? AND product_identity = ? " +
 				"ORDER BY product_revision LIMIT ?",
-			arrayOf(productKind, productIdentity, limit),
+			arrayOf(operationId, productKind, productIdentity, limit),
 		).use { cursor ->
 			buildList {
 				while (cursor.moveToNext()) {
@@ -458,21 +400,23 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 	}
 
 	fun consumeBinding(binding: ImportedPortableStepsCountDomainBindingEntity) {
+		checkpoint()
 		sqlite.compileStatement(
-			"UPDATE $BINDING_TABLE SET consumed = 1 WHERE product_kind = ? " +
+			"UPDATE $BINDING_TABLE SET consumed = 1 WHERE operation_id = ? AND product_kind = ? " +
 				"AND product_identity = ? AND product_revision = ? AND graph_identity = ? " +
 				"AND source_schema_version = ? AND " +
 				"source_receipt_identity IS ? AND source_archive_identity IS ? AND " +
 				"source_archive_content_checksum IS ? AND consumed = 0",
 		).use { statement ->
-			statement.bindString(1, binding.productKind)
-			statement.bindString(2, binding.productIdentity)
-			statement.bindLong(3, binding.productRevision)
-			statement.bindString(4, binding.graphIdentity)
-			statement.bindLong(5, binding.sourceSchemaVersion.toLong())
-			statement.bindNullableString(6, binding.sourceReceiptIdentity)
-			statement.bindNullableString(7, binding.sourceArchiveIdentity)
-			statement.bindNullableString(8, binding.sourceArchiveContentChecksum)
+			statement.bindString(1, operationId)
+			statement.bindString(2, binding.productKind)
+			statement.bindString(3, binding.productIdentity)
+			statement.bindLong(4, binding.productRevision)
+			statement.bindString(5, binding.graphIdentity)
+			statement.bindLong(6, binding.sourceSchemaVersion.toLong())
+			statement.bindNullableString(7, binding.sourceReceiptIdentity)
+			statement.bindNullableString(8, binding.sourceArchiveIdentity)
+			statement.bindNullableString(9, binding.sourceArchiveContentChecksum)
 			require(statement.executeUpdateDelete() == 1) {
 				"Imported portable graph binding was missing, duplicated, or changed"
 			}
@@ -480,8 +424,10 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 	}
 
 	fun requireEveryBindingConsumed() {
+		checkpoint()
 		val remaining = sqlite.query(
-			"SELECT COUNT(*) FROM $BINDING_TABLE WHERE consumed = 0",
+			"SELECT COUNT(*) FROM $BINDING_TABLE WHERE operation_id = ? AND consumed = 0",
+			arrayOf(operationId),
 		).use { cursor ->
 			check(cursor.moveToFirst())
 			cursor.getLong(0)
@@ -491,24 +437,32 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		}
 	}
 
-	fun bindingCountForGraph(graphIdentity: String): Long = sqlite.query(
-		"SELECT COUNT(*) FROM $BINDING_TABLE WHERE graph_identity = ?",
-		arrayOf(graphIdentity),
-	).use { cursor ->
-		check(cursor.moveToFirst())
-		cursor.getLong(0)
+	fun bindingCountForGraph(graphIdentity: String): Long {
+		checkpoint()
+		return sqlite.query(
+			"SELECT COUNT(*) FROM $BINDING_TABLE WHERE operation_id = ? AND graph_identity = ?",
+			arrayOf(operationId, graphIdentity),
+		).use { cursor ->
+			check(cursor.moveToFirst())
+			cursor.getLong(0)
+		}
 	}
 
-	fun isGraphAuthenticated(graphIdentity: String): Boolean = sqlite.query(
-		"SELECT 1 FROM $BINDING_TABLE WHERE graph_identity = ? AND consumed = 1 LIMIT 1",
-		arrayOf(graphIdentity),
-	).use { cursor -> cursor.moveToFirst() }
+	fun isGraphAuthenticated(graphIdentity: String): Boolean {
+		checkpoint()
+		return sqlite.query(
+			"SELECT 1 FROM $BINDING_TABLE WHERE operation_id = ? " +
+				"AND graph_identity = ? AND consumed = 1 LIMIT 1",
+			arrayOf(operationId, graphIdentity),
+		).use { cursor -> cursor.moveToFirst() }
+	}
 
 	fun addSessionProduct(
 		product: RetainedImportedStepsEntry,
 		authenticated: AuthenticatedImportedPortableGraphBinding,
 		hasStoredBinding: Boolean,
 	) {
+		checkpoint()
 		val binding = authenticated.binding
 		require(
 			binding.productKind ==
@@ -525,11 +479,12 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		)
 		sqlite.execSQL(
 			"INSERT INTO $SESSION_PRODUCT_TABLE (" +
-				"product_identity, content_checksum, source_format, source_schema_version, " +
+				"operation_id, product_identity, content_checksum, source_format, source_schema_version, " +
 				"graph_identity, source_receipt_identity, source_archive_content_checksum, " +
 				"has_stored_binding, source_receipt_observed) " +
-				"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			arrayOf(
+				operationId,
 				product.metadata.identity,
 				product.metadata.contentChecksum,
 				StepsPortableFormatV1.FORMAT,
@@ -549,13 +504,14 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		val identities = productIdentities.distinct()
 		if (identities.isEmpty()) return emptyMap()
 		require(identities.size <= FILE_RECEIPT_FULL_CLEAR_PAGE_SIZE)
+		checkpoint()
 		val placeholders = identities.joinToString(separator = ",") { "?" }
 		return sqlite.query(
 			"SELECT product_identity, content_checksum, source_format, source_schema_version, " +
 				"graph_identity, source_receipt_identity, source_archive_content_checksum, " +
 				"has_stored_binding FROM $SESSION_PRODUCT_TABLE " +
-				"WHERE product_identity IN ($placeholders)",
-			identities.toTypedArray(),
+				"WHERE operation_id = ? AND product_identity IN ($placeholders)",
+			arrayOf(operationId, *identities.toTypedArray()),
 		).use { cursor ->
 			buildMap {
 				while (cursor.moveToNext()) {
@@ -582,14 +538,16 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		receiptIdentity: String,
 		archiveContentChecksum: String,
 	) {
+		checkpoint()
 		sqlite.compileStatement(
 			"UPDATE $SESSION_PRODUCT_TABLE SET source_receipt_observed = 1 " +
-				"WHERE product_identity = ? AND source_receipt_identity = ? " +
+				"WHERE operation_id = ? AND product_identity = ? AND source_receipt_identity = ? " +
 				"AND source_archive_content_checksum = ?",
 		).use { statement ->
-			statement.bindString(1, productIdentity)
-			statement.bindString(2, receiptIdentity)
-			statement.bindString(3, archiveContentChecksum)
+			statement.bindString(1, operationId)
+			statement.bindString(2, productIdentity)
+			statement.bindString(3, receiptIdentity)
+			statement.bindString(4, archiveContentChecksum)
 			require(statement.executeUpdateDelete() == 1) {
 				"Imported Steps source receipt conflicts with staged product provenance"
 			}
@@ -597,9 +555,12 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 	}
 
 	fun requireEverySourceReceiptObserved() {
+		checkpoint()
 		val missing = sqlite.query(
 			"SELECT COUNT(*) FROM $SESSION_PRODUCT_TABLE " +
-				"WHERE source_receipt_identity IS NOT NULL AND source_receipt_observed = 0",
+				"WHERE operation_id = ? AND source_receipt_identity IS NOT NULL " +
+				"AND source_receipt_observed = 0",
+			arrayOf(operationId),
 		).use { cursor ->
 			check(cursor.moveToFirst())
 			cursor.getLong(0)
@@ -611,12 +572,9 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 
 	fun add(graph: AuthenticatedFullClearGraphAppearance) {
 		check(graph.graph.identity.value == graph.graphIdentity)
-		graph.graph.roots.forEach { root ->
-			val lineage = graph.graph.ownerRevisions.filter {
-				it.ownerKind == root.ownerKind && it.ownerIdentity == root.ownerIdentity
-			}
-			check(lineage.isNotEmpty() && lineage.last().ownerRevision == root.ownerRevision)
-			addOwnerAppearance(graph, root, lineage)
+		val isLegacyAmbient = graph.isLegacyAmbientGraphAppearance(checkpoint)
+		graph.graph.forEachCanonicalOwnerLineageForFullClear(checkpoint) { root, lineage ->
+			addOwnerAppearance(graph, root, lineage, isLegacyAmbient)
 		}
 	}
 
@@ -625,9 +583,11 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		var afterIdentity: String? = null
 		var installedOwnerCount = 0L
 		while (true) {
+			checkpoint()
 			val page = ownerPage(afterKind, afterIdentity)
 			if (page.isEmpty()) break
 			page.forEach { owner ->
+				checkpoint()
 				requireLegacyRevisionsCoveredByExplicitLineage(owner)
 				val latest = requireNotNull(latestRevision(owner.ownerKind, owner.ownerIdentity))
 				require(latest.ownerRevision == owner.latestOwnerRevision)
@@ -672,13 +632,14 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 	}
 
 	fun close() {
-		dropTables()
+		clearOperation()
 	}
 
 	private fun addOwnerAppearance(
 		graph: AuthenticatedFullClearGraphAppearance,
 		root: PortableCountDomainRootV2,
 		lineage: List<PortableCountDomainOwnerRevisionV2>,
+		isLegacyAmbient: Boolean,
 	) {
 		val first = lineage.first()
 		require(lineage.all {
@@ -702,12 +663,13 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 			cardinality.recordOwner()
 			sqlite.execSQL(
 				"INSERT INTO $OWNER_TABLE (" +
-					"owner_kind, owner_identity, scope_identity, container_identity, " +
+					"operation_id, owner_kind, owner_identity, scope_identity, container_identity, " +
 					"root_product_identity, product_kind, bound_product_identity, " +
 					"latest_graph_identity, latest_owner_revision, latest_graph_revision, " +
 					"latest_is_bound, latest_compare_product_identity, explicit_lineage_length" +
-					") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
+					") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
 				arrayOf(
+					operationId,
 					ownerKind,
 					ownerIdentity,
 					first.scopeIdentity.value,
@@ -745,8 +707,8 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 				if (stored.boundProductIdentity == null) {
 					sqlite.execSQL(
 						"UPDATE $OWNER_TABLE SET bound_product_identity = ? " +
-							"WHERE owner_kind = ? AND owner_identity = ?",
-						arrayOf(boundProductIdentity, ownerKind, ownerIdentity),
+							"WHERE operation_id = ? AND owner_kind = ? AND owner_identity = ?",
+						arrayOf(boundProductIdentity, operationId, ownerKind, ownerIdentity),
 					)
 				}
 			}
@@ -755,13 +717,14 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 					"UPDATE $OWNER_TABLE SET latest_graph_identity = ?, " +
 						"latest_owner_revision = ?, latest_graph_revision = ?, " +
 						"latest_is_bound = ?, latest_compare_product_identity = ? " +
-						"WHERE owner_kind = ? AND owner_identity = ?",
+						"WHERE operation_id = ? AND owner_kind = ? AND owner_identity = ?",
 					arrayOf(
 						rank.graphIdentity,
 						rank.ownerRevision,
 						rank.graphRevision,
 						if (rank.isBound) 1 else 0,
 						rank.compareProductIdentity,
+						operationId,
 						ownerKind,
 						ownerIdentity,
 					),
@@ -769,7 +732,6 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 			}
 		}
 
-		val isLegacyAmbient = graph.isLegacyAmbientAppearance(lineage)
 		if (isLegacyAmbient) require(lineage.size == 1)
 		lineage.forEach { revision ->
 			stageRevision(revision, isLegacyAmbient)
@@ -802,10 +764,11 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 			cardinality.recordOwnerRevision()
 			sqlite.execSQL(
 				"INSERT INTO $REVISION_TABLE (" +
-					"owner_kind, owner_identity, owner_revision, scope_identity, operation, " +
+					"operation_id, owner_kind, owner_identity, owner_revision, scope_identity, operation, " +
 					"receipt_identity, owner_effect_checksum, source_linked_at_ms, legacy_ambient" +
-					") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+					") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 				arrayOf(
+					operationId,
 					revision.ownerKind.name,
 					revision.ownerIdentity.value,
 					revision.ownerRevision,
@@ -824,8 +787,10 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 			if (isLegacyAmbient && !stored.isLegacyAmbient) {
 				sqlite.execSQL(
 					"UPDATE $REVISION_TABLE SET legacy_ambient = 1 " +
-						"WHERE owner_kind = ? AND owner_identity = ? AND owner_revision = ?",
+						"WHERE operation_id = ? AND owner_kind = ? " +
+						"AND owner_identity = ? AND owner_revision = ?",
 					arrayOf(
+						operationId,
 						revision.ownerKind.name,
 						revision.ownerIdentity.value,
 						revision.ownerRevision,
@@ -862,16 +827,22 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 			}
 			sqlite.execSQL(
 				"INSERT INTO $EXPLICIT_TABLE (" +
-					"owner_kind, owner_identity, lineage_ordinal, owner_revision" +
-					") VALUES (?, ?, ?, ?)",
-				arrayOf(ownerKind, ownerIdentity, ordinal, lineage[ordinal].ownerRevision),
+					"operation_id, owner_kind, owner_identity, lineage_ordinal, owner_revision" +
+					") VALUES (?, ?, ?, ?, ?)",
+				arrayOf(
+					operationId,
+					ownerKind,
+					ownerIdentity,
+					ordinal,
+					lineage[ordinal].ownerRevision,
+				),
 			)
 		}
 		if (lineage.size > storedLength) {
 			sqlite.execSQL(
 				"UPDATE $OWNER_TABLE SET explicit_lineage_length = ? " +
-					"WHERE owner_kind = ? AND owner_identity = ?",
-				arrayOf(lineage.size, ownerKind, ownerIdentity),
+					"WHERE operation_id = ? AND owner_kind = ? AND owner_identity = ?",
+				arrayOf(lineage.size, operationId, ownerKind, ownerIdentity),
 			)
 		}
 	}
@@ -880,13 +851,15 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		if (owner.explicitLineageLength == 0) return
 		val missingCount = sqlite.query(
 			"SELECT COUNT(*) FROM $REVISION_TABLE AS revision " +
-				"WHERE revision.owner_kind = ? AND revision.owner_identity = ? " +
+				"WHERE revision.operation_id = ? AND revision.owner_kind = ? " +
+				"AND revision.owner_identity = ? " +
 				"AND revision.legacy_ambient = 1 AND NOT EXISTS (" +
 				"SELECT 1 FROM $EXPLICIT_TABLE AS lineage " +
-				"WHERE lineage.owner_kind = revision.owner_kind " +
+				"WHERE lineage.operation_id = revision.operation_id " +
+				"AND lineage.owner_kind = revision.owner_kind " +
 				"AND lineage.owner_identity = revision.owner_identity " +
 				"AND lineage.owner_revision = revision.owner_revision)",
-			arrayOf(owner.ownerKind, owner.ownerIdentity),
+			arrayOf(operationId, owner.ownerKind, owner.ownerIdentity),
 		).use { cursor ->
 			check(cursor.moveToFirst())
 			cursor.getLong(0)
@@ -902,8 +875,8 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 				"bound_product_identity, latest_graph_identity, latest_owner_revision, " +
 				"latest_graph_revision, latest_is_bound, latest_compare_product_identity, " +
 				"explicit_lineage_length FROM $OWNER_TABLE " +
-				"WHERE owner_kind = ? AND owner_identity = ?",
-			arrayOf(ownerKind, ownerIdentity),
+				"WHERE operation_id = ? AND owner_kind = ? AND owner_identity = ?",
+			arrayOf(operationId, ownerKind, ownerIdentity),
 		).use { cursor ->
 			if (!cursor.moveToFirst()) null else StagedFullClearOwner(
 				ownerKind = ownerKind,
@@ -935,20 +908,27 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 				"root_product_identity, product_kind, bound_product_identity, " +
 				"latest_graph_identity, latest_owner_revision, latest_graph_revision, " +
 				"latest_is_bound, latest_compare_product_identity, explicit_lineage_length " +
-				"FROM $OWNER_TABLE ORDER BY owner_kind, owner_identity LIMIT ?"
+				"FROM $OWNER_TABLE WHERE operation_id = ? " +
+				"ORDER BY owner_kind, owner_identity LIMIT ?"
 		} else {
 			"SELECT owner_kind, owner_identity, scope_identity, container_identity, " +
 				"root_product_identity, product_kind, bound_product_identity, " +
 				"latest_graph_identity, latest_owner_revision, latest_graph_revision, " +
 				"latest_is_bound, latest_compare_product_identity, explicit_lineage_length " +
-				"FROM $OWNER_TABLE WHERE owner_kind > ? OR " +
+				"FROM $OWNER_TABLE WHERE operation_id = ? AND (owner_kind > ? OR " +
 				"(owner_kind = ? AND owner_identity > ?) " +
-				"ORDER BY owner_kind, owner_identity LIMIT ?"
+				") ORDER BY owner_kind, owner_identity LIMIT ?"
 		}
 		val arguments = if (afterKind == null) {
-			arrayOf<Any>(OWNER_INSTALL_PAGE_SIZE)
+			arrayOf<Any>(operationId, OWNER_INSTALL_PAGE_SIZE)
 		} else {
-			arrayOf(afterKind, afterKind, requireNotNull(afterIdentity), OWNER_INSTALL_PAGE_SIZE)
+			arrayOf(
+				operationId,
+				afterKind,
+				afterKind,
+				requireNotNull(afterIdentity),
+				OWNER_INSTALL_PAGE_SIZE,
+			)
 		}
 		return sqlite.query(query, arguments).use { cursor ->
 			buildList {
@@ -987,8 +967,9 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 	): StagedFullClearRevision? = sqlite.query(
 		"SELECT scope_identity, operation, receipt_identity, owner_effect_checksum, " +
 			"source_linked_at_ms, legacy_ambient FROM $REVISION_TABLE " +
-			"WHERE owner_kind = ? AND owner_identity = ? AND owner_revision = ?",
-		arrayOf(ownerKind, ownerIdentity, ownerRevision),
+			"WHERE operation_id = ? AND owner_kind = ? " +
+			"AND owner_identity = ? AND owner_revision = ?",
+		arrayOf(operationId, ownerKind, ownerIdentity, ownerRevision),
 	).use { cursor ->
 		if (!cursor.moveToFirst()) null else StagedFullClearRevision(
 			ownerKind = ownerKind,
@@ -1009,8 +990,9 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 	): StagedFullClearRevision? = sqlite.query(
 		"SELECT owner_revision, scope_identity, operation, receipt_identity, " +
 			"owner_effect_checksum, source_linked_at_ms, legacy_ambient FROM $REVISION_TABLE " +
-			"WHERE owner_kind = ? AND owner_identity = ? ORDER BY owner_revision DESC LIMIT 1",
-		arrayOf(ownerKind, ownerIdentity),
+			"WHERE operation_id = ? AND owner_kind = ? AND owner_identity = ? " +
+			"ORDER BY owner_revision DESC LIMIT 1",
+		arrayOf(operationId, ownerKind, ownerIdentity),
 	).use { cursor ->
 		if (!cursor.moveToFirst()) null else StagedFullClearRevision(
 			ownerKind = ownerKind,
@@ -1031,8 +1013,9 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		ordinal: Int,
 	): Long? = sqlite.query(
 		"SELECT owner_revision FROM $EXPLICIT_TABLE " +
-			"WHERE owner_kind = ? AND owner_identity = ? AND lineage_ordinal = ?",
-		arrayOf(ownerKind, ownerIdentity, ordinal),
+			"WHERE operation_id = ? AND owner_kind = ? " +
+			"AND owner_identity = ? AND lineage_ordinal = ?",
+		arrayOf(operationId, ownerKind, ownerIdentity, ordinal),
 	).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null }
 
 	private fun explicitContainsRevision(
@@ -1040,36 +1023,156 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		ownerIdentity: String,
 		ownerRevision: Long,
 	): Boolean = sqlite.query(
-		"SELECT 1 FROM $EXPLICIT_TABLE WHERE owner_kind = ? AND owner_identity = ? " +
+		"SELECT 1 FROM $EXPLICIT_TABLE WHERE operation_id = ? " +
+			"AND owner_kind = ? AND owner_identity = ? " +
 			"AND owner_revision = ? LIMIT 1",
-		arrayOf(ownerKind, ownerIdentity, ownerRevision),
+		arrayOf(operationId, ownerKind, ownerIdentity, ownerRevision),
 	).use { it.moveToFirst() }
 
 	private fun tableRowCount(table: String): Long = sqlite.query(
-		"SELECT COUNT(*) FROM $table",
+		"SELECT COUNT(*) FROM $table WHERE operation_id = ?",
+		arrayOf(operationId),
 	).use { cursor ->
 		check(cursor.moveToFirst())
 		cursor.getLong(0)
 	}
 
-	private fun dropTables() {
-		sqlite.execSQL("DROP TABLE IF EXISTS $EXPLICIT_TABLE")
-		sqlite.execSQL("DROP TABLE IF EXISTS $REVISION_TABLE")
-		sqlite.execSQL("DROP TABLE IF EXISTS $OWNER_TABLE")
-		sqlite.execSQL("DROP TABLE IF EXISTS $SESSION_PRODUCT_TABLE")
-		sqlite.execSQL("DROP TABLE IF EXISTS $BINDING_TABLE")
+	private fun clearOperation() {
+		ImportedPortableStepsFullClearStagingSchema.TABLES_IN_DELETE_ORDER.forEach { table ->
+			sqlite.execSQL(
+				"DELETE FROM main.$table WHERE operation_id = ?",
+				arrayOf(operationId),
+			)
+		}
 	}
 
 	private companion object {
-		const val BINDING_TABLE = "imported_steps_full_clear_binding_stage"
-		const val BINDING_GRAPH_INDEX = "imported_steps_full_clear_binding_graph_stage"
-		const val SESSION_PRODUCT_TABLE = "imported_steps_full_clear_session_product_stage"
-		const val OWNER_TABLE = "imported_steps_full_clear_owner_stage"
-		const val REVISION_TABLE = "imported_steps_full_clear_owner_revision_stage"
-		const val EXPLICIT_TABLE = "imported_steps_full_clear_explicit_lineage_stage"
+		const val BINDING_TABLE =
+			"main.${ImportedPortableStepsFullClearStagingSchema.BINDING_TABLE}"
+		const val SESSION_PRODUCT_TABLE =
+			"main.${ImportedPortableStepsFullClearStagingSchema.SESSION_PRODUCT_TABLE}"
+		const val OWNER_TABLE =
+			"main.${ImportedPortableStepsFullClearStagingSchema.OWNER_TABLE}"
+		const val REVISION_TABLE =
+			"main.${ImportedPortableStepsFullClearStagingSchema.REVISION_TABLE}"
+		const val EXPLICIT_TABLE =
+			"main.${ImportedPortableStepsFullClearStagingSchema.EXPLICIT_TABLE}"
 		const val OWNER_INSTALL_PAGE_SIZE = 256
 	}
 }
+
+internal fun AppDatabase.cleanupImportedPortableStepsFullClearStagingInCurrentTransaction() {
+	openHelper.writableDatabase.cleanupImportedPortableStepsFullClearStagingInCurrentTransaction()
+}
+
+internal fun SupportSQLiteDatabase.cleanupImportedPortableStepsFullClearStagingInCurrentTransaction() {
+	val sqlite = this
+	check(sqlite.inTransaction()) {
+		"Imported portable full-clear staging cleanup requires a Room transaction"
+	}
+	ImportedPortableStepsFullClearStagingSchema.TABLES_IN_DELETE_ORDER.forEach { table ->
+		sqlite.execSQL("DELETE FROM main.$table")
+	}
+}
+
+internal fun PortableCountDomainGraphV2.forEachCanonicalOwnerLineageForFullClear(
+	checkpoint: () -> Unit,
+	consume: (PortableCountDomainRootV2, List<PortableCountDomainOwnerRevisionV2>) -> Unit,
+) = forEachCanonicalPortableOwnerLineageForFullClear(
+	roots = roots,
+	ownerRevisions = ownerRevisions,
+	checkpoint = checkpoint,
+	consume = consume,
+)
+
+internal fun forEachCanonicalPortableOwnerLineageForFullClear(
+	roots: List<PortableCountDomainRootV2>,
+	ownerRevisions: List<PortableCountDomainOwnerRevisionV2>,
+	checkpoint: () -> Unit,
+	consume: (PortableCountDomainRootV2, List<PortableCountDomainOwnerRevisionV2>) -> Unit,
+) {
+	require(ownerRevisions.isNotEmpty())
+	require(ownerRevisions.size <= PortableCountDomainFormatV2.MAX_OWNER_REVISIONS)
+	require(roots.isNotEmpty())
+	require(roots.size <= PortableCountDomainFormatV2.MAX_ROOTS)
+	val rootsByOwner = HashMap<FullClearOwnerKey, PortableCountDomainRootV2>(roots.size)
+	var previousRoot: PortableCountDomainRootV2? = null
+	roots.forEach { root ->
+		checkpoint()
+		previousRoot?.let {
+			require(PORTABLE_COUNT_DOMAIN_ROOT_ORDER.compare(it, root) < 0) {
+				"Imported portable roots are duplicated or out of canonical order"
+			}
+		}
+		previousRoot = root
+		require(
+			rootsByOwner.put(
+				FullClearOwnerKey(root.ownerKind, root.ownerIdentity.value),
+				root,
+			) == null,
+		) {
+			"Imported portable owner has multiple product roots"
+		}
+	}
+
+	var revisionIndex = 0
+	var previousRevision: PortableCountDomainOwnerRevisionV2? = null
+	while (revisionIndex < ownerRevisions.size) {
+		val lineageStart = revisionIndex
+		val first = ownerRevisions[lineageStart]
+		val key = FullClearOwnerKey(first.ownerKind, first.ownerIdentity.value)
+		var priorLineageRevision: Long? = null
+		while (revisionIndex < ownerRevisions.size) {
+			val revision = ownerRevisions[revisionIndex]
+			if (revision.ownerKind != first.ownerKind ||
+				revision.ownerIdentity != first.ownerIdentity
+			) {
+				break
+			}
+			checkpoint()
+			previousRevision?.let {
+				require(PORTABLE_COUNT_DOMAIN_OWNER_ORDER.compare(it, revision) < 0) {
+					"Imported portable owner revisions are duplicated or out of canonical order"
+				}
+			}
+			require(revision.scopeIdentity == first.scopeIdentity) {
+				"Imported portable owner lineage changes scope"
+			}
+			require(
+				priorLineageRevision == null ||
+					revision.ownerRevision == Math.addExact(priorLineageRevision!!, 1L),
+			) {
+				"Imported portable owner lineage is not contiguous"
+			}
+			priorLineageRevision = revision.ownerRevision
+			previousRevision = revision
+			revisionIndex++
+		}
+		val lineage = ownerRevisions.subList(lineageStart, revisionIndex)
+		require(lineage.size <= PortableCountDomainFormatV2.MAX_OWNER_LINEAGE_REVISIONS)
+		val root = requireNotNull(rootsByOwner.remove(key)) {
+			"Imported portable owner lineage has no product root"
+		}
+		require(root.ownerRevision == lineage.last().ownerRevision) {
+			"Imported portable product root does not name the latest owner revision"
+		}
+		consume(root, lineage)
+	}
+	require(rootsByOwner.isEmpty()) {
+		"Imported portable product root has no owner lineage"
+	}
+}
+
+private data class FullClearOwnerKey(
+	val ownerKind: PortableCountDomainOwnerKind,
+	val ownerIdentity: String,
+)
+
+private data class FullClearOwnerRevisionKey(
+	val ownerKind: PortableCountDomainOwnerKind,
+	val ownerIdentity: String,
+	val ownerRevision: Long,
+)
 
 private fun SupportSQLiteProgram.bindNullableString(index: Int, value: String?) {
 	if (value == null) bindNull(index) else bindString(index, value)
@@ -1183,8 +1286,8 @@ private data class FullClearStagedAppearanceRank(
 	)
 }
 
-private fun AuthenticatedFullClearGraphAppearance.isLegacyAmbientAppearance(
-	lineage: List<PortableCountDomainOwnerRevisionV2>,
+private fun AuthenticatedFullClearGraphAppearance.isLegacyAmbientGraphAppearance(
+	checkpoint: () -> Unit,
 ): Boolean {
 	if (productKind != ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY) {
 		return false
@@ -1194,13 +1297,16 @@ private fun AuthenticatedFullClearGraphAppearance.isLegacyAmbientAppearance(
 	}
 	return graph.receipts.isEmpty() &&
 		graph.completenessMarkers.isEmpty() &&
-		graph.ownerRevisions.groupBy { it.ownerKind to it.ownerIdentity }.values.all {
-			it.size == 1 &&
-				it.single().operation == PortableCountDomainOperation.UNPROVEN &&
-				it.single().receiptIdentity == null &&
-				it.single().linkedAtMs == 0L
-		} &&
-		lineage.size == 1
+		graph.ownerRevisions.withIndex().all { (index, revision) ->
+			checkpoint()
+			val previous = graph.ownerRevisions.getOrNull(index - 1)
+			(previous == null ||
+				previous.ownerKind != revision.ownerKind ||
+				previous.ownerIdentity != revision.ownerIdentity) &&
+				revision.operation == PortableCountDomainOperation.UNPROVEN &&
+				revision.receiptIdentity == null &&
+				revision.linkedAtMs == 0L
+		}
 }
 
 private fun String.toPortableProductKind(): String = when (this) {
@@ -1269,6 +1375,7 @@ private fun AppDatabase.authenticateAllPortableSessionFileReceiptsForFullClear(
 private suspend fun AppDatabase.reconcileImportedPortableLegacyGraphsBeforeFullClear(
 	oldCollectedDataEpoch: Long,
 ) {
+	val coroutineContext = currentCoroutineContext()
 	val sessionReader = ImportedStepsRetainedReader(this)
 	when (
 		val traversal = sessionReader.forEachEntryForRetentionInTransaction { product ->
@@ -1318,9 +1425,11 @@ private suspend fun AppDatabase.reconcileImportedPortableLegacyGraphsBeforeFullC
 	val ambientDao = importedAmbientStepsDao()
 	var afterDayId: String? = null
 	while (true) {
+		coroutineContext.ensureActive()
 		val page = ambientDao.fullClearDayCandidatePage(afterDayId, AMBIENT_FULL_CLEAR_PAGE_SIZE)
 		if (page.isEmpty()) break
 		page.forEach { candidate ->
+			coroutineContext.ensureActive()
 			val lineage = ambientDao.loadAuthenticatedAmbientStepsLineageForFullClear(
 				candidate,
 				oldCollectedDataEpoch,
@@ -1338,14 +1447,17 @@ private suspend fun AppDatabase.reconcileImportedPortableLegacyGraphsBeforeFullC
 	}
 }
 
-private fun AppDatabase.requireSessionGraphCoversRetainedProduct(
+private suspend fun AppDatabase.requireSessionGraphCoversRetainedProduct(
 	authenticated: AuthenticatedImportedPortableGraphBinding,
 	product: RetainedImportedStepsEntry,
 ) {
+	val coroutineContext = currentCoroutineContext()
 	val liveRunIds = product.runs.mapTo(linkedSetOf()) { it.identity }
 	val expectedRoots = buildSet {
 		product.portableRunsById.values.forEach { run ->
+			coroutineContext.ensureActive()
 			run.facts.forEach { fact ->
+				coroutineContext.ensureActive()
 				add(
 					SessionRootKey(
 						run.identity.value,
@@ -1365,6 +1477,7 @@ private fun AppDatabase.requireSessionGraphCoversRetainedProduct(
 	}
 	val graph = authenticated.graph
 	val storedRoots = graph.roots.mapTo(linkedSetOf()) {
+			coroutineContext.ensureActive()
 			SessionRootKey(
 				it.containerIdentity.value,
 				it.productIdentity.value,
@@ -1375,6 +1488,7 @@ private fun AppDatabase.requireSessionGraphCoversRetainedProduct(
 		"Imported Steps graph is missing retained run or fact ownership"
 	}
 	val extraRoots = graph.roots.filter { root ->
+		coroutineContext.ensureActive()
 		SessionRootKey(
 			root.containerIdentity.value,
 			root.productIdentity.value,
@@ -1387,16 +1501,32 @@ private fun AppDatabase.requireSessionGraphCoversRetainedProduct(
 		.flatMap { dao.ownerFencesForFullClear(it) }
 	val fencesByOwner = fences.associateBy { it.ownerKind to it.ownerIdentity }
 	require(fencesByOwner.size == fences.size)
+	val ownerRevisionsByRoot = graph.ownerRevisions.associateBy {
+		coroutineContext.ensureActive()
+		FullClearOwnerRevisionKey(
+			it.ownerKind,
+			it.ownerIdentity.value,
+			it.ownerRevision,
+		)
+	}
+	require(ownerRevisionsByRoot.size == graph.ownerRevisions.size)
 	extraRoots.forEach { root ->
+		coroutineContext.ensureActive()
 		require(root.containerIdentity.value !in liveRunIds ||
 			root.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT
 		) {
 			"Imported Steps graph has an unfenced extra live-run root"
 		}
-		val owner = graph.ownerRevisions.single {
-			it.ownerKind == root.ownerKind &&
-				it.ownerIdentity == root.ownerIdentity &&
-				it.ownerRevision == root.ownerRevision
+		val owner = requireNotNull(
+			ownerRevisionsByRoot[
+				FullClearOwnerRevisionKey(
+					root.ownerKind,
+					root.ownerIdentity.value,
+					root.ownerRevision,
+				)
+			],
+		) {
+			"Imported Steps graph extra root has no exact owner revision"
 		}
 		val fence = requireNotNull(
 			fencesByOwner[root.ownerKind.name to root.ownerIdentity.value],

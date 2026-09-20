@@ -2,6 +2,8 @@ package com.adsamcik.tracker.shared.base.database.steps.imported
 
 import androidx.room.useReaderConnection
 import java.time.DateTimeException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsManifestEntity
@@ -112,6 +114,7 @@ class ImportedStepsRetainedReader(private val database: AppDatabase) {
 		var beforeIdentity: String? = null
 		var entryCount = 0L
 		while (true) {
+			currentCoroutineContext().ensureActive()
 			when (
 				val next = authenticateAndConsumeNext(
 					beforeStartTimeMs = beforeStartTimeMs,
@@ -142,11 +145,16 @@ class ImportedStepsRetainedReader(private val database: AppDatabase) {
 		canConsume: Boolean,
 		consume: suspend (RetainedImportedStepsEntry) -> Unit,
 	): ImportedStepsRetainedTraversalStep {
-		val page = database.importedStepsDao().entryPage(
-			beforeStartTimeMs,
-			beforeIdentity,
-			SINGLE_ENTRY_PAGE_SIZE,
-		)
+		val page = if (beforeStartTimeMs == null) {
+			check(beforeIdentity == null)
+			database.importedStepsDao().firstEntryPage(SINGLE_ENTRY_PAGE_SIZE)
+		} else {
+			database.importedStepsDao().entryPageAfter(
+				beforeStartTimeMs,
+				requireNotNull(beforeIdentity),
+				SINGLE_ENTRY_PAGE_SIZE,
+			)
+		}
 		if (page.isEmpty()) return ImportedStepsRetainedTraversalStep.End
 		check(page.size == SINGLE_ENTRY_PAGE_SIZE)
 		val metadata = page.single()
@@ -192,6 +200,7 @@ class ImportedStepsRetainedReader(private val database: AppDatabase) {
 				entry
 			}
 		}
+		currentCoroutineContext().ensureActive()
 		consume(retained)
 		return ImportedStepsRetainedTraversalStep.Consumed(
 			startTimeMs = metadata.startTimeMs,
