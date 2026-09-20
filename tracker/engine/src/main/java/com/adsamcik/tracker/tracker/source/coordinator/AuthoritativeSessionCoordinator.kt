@@ -1326,14 +1326,6 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				if (run.completedAtMs != null || run.state in TERMINAL_STATES) return@withTransaction true
 				if (run.state != SessionLifecycleState.STARTING.name) return@withTransaction false
 				val session = dao.session(run.logicalTrackingId) ?: return@withTransaction false
-				if (session.state != SessionLifecycleState.STARTING.name ||
-					session.currentServiceRunId != run.serviceRunId ||
-					session.currentManifestRevision != run.preparedManifestRevision ||
-					session.currentIntentRevision != run.preparedIntentRevision ||
-					session.lifecycleRevision != intent.intentRevision ||
-					session.lifecycleLeaseGeneration != run.leaseGeneration ||
-					session.lifecycleBootId != run.bootId
-				) return@withTransaction false
 				val manifest = verifiedManifest(
 					run.logicalTrackingId,
 					run.preparedManifestRevision,
@@ -1345,6 +1337,14 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					manifest.serviceRunId != run.serviceRunId ||
 					intent.manifestRevision != run.preparedManifestRevision ||
 					intent.desiredState != LifecycleDesiredState.ACTIVE.name
+				) return@withTransaction false
+				if (session.state != SessionLifecycleState.STARTING.name ||
+					session.currentServiceRunId != run.serviceRunId ||
+					session.currentManifestRevision != run.preparedManifestRevision ||
+					session.currentIntentRevision != run.preparedIntentRevision ||
+					session.lifecycleRevision != intent.intentRevision ||
+					session.lifecycleLeaseGeneration != run.leaseGeneration ||
+					session.lifecycleBootId != run.bootId
 				) return@withTransaction false
 				val exactActions = dao.lifecycleActions(run.logicalTrackingId).filter { action ->
 					action.serviceRunId == run.serviceRunId &&
