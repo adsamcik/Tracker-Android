@@ -639,7 +639,6 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 				contentChecksum = archive.contentChecksum.value,
 				sourceFormat = AmbientStepsPortableFormatV1.FORMAT,
 				sourceSchemaVersion = AmbientStepsPortableFormatV1.SCHEMA_VERSION,
-				encodedByteCount = 512L,
 				dayCount = 1,
 				factCount = day.facts.size,
 				gapCount = day.gaps.size,
@@ -695,6 +694,7 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 				receivedAtMs = receivedAtMs,
 				archiveIdentity = archive.identity.value,
 				archiveContentChecksum = archive.contentChecksum.value,
+				encodedByteCount = 512L,
 				collectedDataEpoch = epoch,
 			),
 			protectedIdentities = listOf(

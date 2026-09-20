@@ -175,6 +175,43 @@ class PortableStepsFileImportTest {
 	}
 
 	@Test
+	fun `malformed v2 JSON is terminal before version owned source admission`() = runTest {
+		var calls = 0
+		val importer = PortableStepsFileImport(
+			dependenciesProvider = {
+				PortableStepsImportDependencies(
+					legacyImporter = sourceImporter { error("V1 must not run") },
+					receiptImporter = object : ImportPortableStepsV1WithReceipt {
+						override suspend fun importEntry(
+							entry: PortableStepsEntryV1,
+							receipt: PortableStepsImportReceipt,
+							entryOrdinal: Int,
+						): ImportPortableStepsResult = error("V1 must not run")
+					},
+					v2Importer = object : ImportPortableStepsV2 {
+						override suspend fun importEntry(
+							request: ImportPortableStepsV2Request,
+						): ImportPortableStepsResult {
+							calls++
+							return ImportPortableStepsResult.Applied(1, 1)
+						}
+					},
+				)
+			},
+		)
+		val malformed = """
+			{"format":"tracker-portable-steps","schemaVersion":2,
+			"contentChecksum":"sha256:${"a".repeat(64)}","entries":[}
+		""".trimIndent().encodeToByteArray()
+
+		importer.import(context, database, stream(malformed)) shouldBe ImportResult(
+			failedCount = 1,
+			errors = listOf(PortableStepsFileImport.PERMANENT_FORMAT_ERROR),
+		)
+		calls shouldBe 0
+	}
+
+	@Test
 	fun `independent permanent failures do not hide a later healthy entry`() = runTest {
 		val entries = listOf(
 			entry("conflict", 1_000L),

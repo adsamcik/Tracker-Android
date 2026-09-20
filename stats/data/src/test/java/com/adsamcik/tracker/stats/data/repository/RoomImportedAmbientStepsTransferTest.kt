@@ -277,14 +277,19 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	@Test
-	fun `duplicate receipt alternate receipt and stale archive replay never append or revert`() = runTest {
+	fun `equivalent whitespace byte lengths replay semantically and retain receipt provenance`() =
+		runTest {
 		val initial = archive(completeDay(LocalDate.of(2026, 1, 1), 10L))
 		val initialRequest = request(initial)
 		importer(database).importArchive(initialRequest) shouldBe applied(initial, 1)
 		val initialRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
-		importer(database).importArchive(initialRequest) shouldBe
+		importer(database).importArchive(
+			request(initial, encodedByteCount = 1_100L),
+		) shouldBe
 			ImportPortableAmbientStepsResult.Duplicate(initial.identity, 1)
 		requireNotNull(database.sourceEvidenceStateDao().get()).revision shouldBe initialRevision
+		database.importedAmbientStepsDao().receipt("job-1", "archive-1")
+			?.encodedByteCount shouldBe 1_024L
 		val conflictingReceipt = archive(completeDay(LocalDate.of(2026, 1, 2), 3L))
 		importer(database).importArchive(
 			request(conflictingReceipt),
@@ -292,8 +297,15 @@ class RoomImportedAmbientStepsTransferTest {
 			PortableAmbientStepsImportBlockedReason.RECEIPT_CONFLICT,
 		)
 		importer(database).importArchive(
-			request(initial, jobId = "alternate", archiveKey = "alternate"),
+			request(
+				initial,
+				jobId = "alternate",
+				archiveKey = "alternate",
+				encodedByteCount = 1_200L,
+			),
 		) shouldBe ImportPortableAmbientStepsResult.Duplicate(initial.identity, 1)
+		database.importedAmbientStepsDao().receipt("alternate", "alternate")
+			?.encodedByteCount shouldBe 1_200L
 
 		val correction = archive(completeDay(LocalDate.of(2026, 1, 1), 12L))
 		importer(database).importArchive(
@@ -935,7 +947,6 @@ class RoomImportedAmbientStepsTransferTest {
 					contentChecksum = truncatedArchive.contentChecksum.value,
 					sourceFormat = AmbientStepsPortableFormatV1.FORMAT,
 					sourceSchemaVersion = 2,
-					encodedByteCount = 1L,
 					dayCount = 1,
 					factCount = 1,
 					gapCount = 0,
@@ -966,6 +977,7 @@ class RoomImportedAmbientStepsTransferTest {
 					receivedAtMs = receivedAtMs,
 					archiveIdentity = truncatedArchive.identity.value,
 					archiveContentChecksum = truncatedArchive.contentChecksum.value,
+					encodedByteCount = 1L,
 					collectedDataEpoch = EPOCH,
 				),
 			)
@@ -1228,6 +1240,7 @@ class RoomImportedAmbientStepsTransferTest {
 					receivedAtMs = initial.receipt.receivedAtMs + index + 1L,
 					archiveIdentity = archive.identity.value,
 					archiveContentChecksum = archive.contentChecksum.value,
+					encodedByteCount = 1_024L,
 					collectedDataEpoch = EPOCH,
 				),
 			)
@@ -2517,7 +2530,6 @@ class RoomImportedAmbientStepsTransferTest {
 					contentChecksum = checksum,
 					sourceFormat = AmbientStepsPortableFormatV1.FORMAT,
 					sourceSchemaVersion = AmbientStepsPortableFormatV1.SCHEMA_VERSION,
-					encodedByteCount = 1L,
 					dayCount = 1,
 					factCount = 1,
 					gapCount = 0,
@@ -2808,6 +2820,7 @@ class RoomImportedAmbientStepsTransferTest {
 		archiveKey: String = "archive-1",
 		expectedEpoch: Long = EPOCH,
 		receivedAtMs: Long = archive.days.maxOf { it.structuralDayEndTimeMs },
+		encodedByteCount: Long = 1_024L,
 	) = ImportPortableAmbientStepsRequest(
 		archive = archive,
 		receipt = PortableAmbientStepsImportReceipt(
@@ -2816,7 +2829,7 @@ class RoomImportedAmbientStepsTransferTest {
 			"backup.trackerambientsteps",
 			receivedAtMs,
 		),
-		metadata = metadata(archive),
+		metadata = metadata(archive, encodedByteCount),
 		expectedCollectedDataEpoch = expectedEpoch,
 	)
 
@@ -2847,9 +2860,12 @@ class RoomImportedAmbientStepsTransferTest {
 		expectedCollectedDataEpoch = expectedEpoch,
 	)
 
-	private fun metadata(archive: PortableAmbientStepsArchiveV1) =
+	private fun metadata(
+		archive: PortableAmbientStepsArchiveV1,
+		encodedByteCount: Long = 1_024L,
+	) =
 		PortableAmbientStepsImportMetadata(
-			encodedByteCount = 1_024L,
+			encodedByteCount = encodedByteCount,
 			archiveContentChecksum = archive.contentChecksum,
 			dayCount = archive.days.size,
 			factCount = archive.days.sumOf { it.facts.size },

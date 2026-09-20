@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.base.database
 
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
@@ -29,70 +30,75 @@ internal suspend fun AppDatabase.preserveImportedPortableCountDomainFullClearFen
 	require(fencedAtMs >= 0L)
 	reconcileImportedPortableLegacyGraphsBeforeFullClear(oldCollectedDataEpoch)
 	val dao = importedPortableStepsCountDomainDao()
-	val bindings = dao.allBindingsForFullClear(MAX_FULL_CLEAR_BINDINGS + 1)
-	require(bindings.size <= MAX_FULL_CLEAR_BINDINGS)
-	require(bindings.distinct().size == bindings.size)
-	val consumedBindings = linkedSetOf<ImportedPortableStepsCountDomainBindingEntity>()
-	val authenticatedGraphIdentities = linkedSetOf<String>()
-	val fenceAccumulator = AuthenticatedFullClearOwnerFenceAccumulator(
+	val staging = AuthenticatedFullClearOwnerFenceStaging(
+		sqlite = openHelper.writableDatabase,
 		fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
 		collectedDataEpoch = newCollectedDataEpoch,
 		fencedAtMs = fencedAtMs,
 		maximumOwnerCount = MAX_FULL_CLEAR_OWNER_FENCES,
 		maximumOwnerRevisionCount = MAX_FULL_CLEAR_OWNER_REVISIONS,
 	)
-	val consumeAuthenticatedGraph:
-		(AuthenticatedImportedPortableGraphBinding, Boolean) -> Unit = { current, isStored ->
-		if (isStored) authenticatedGraphIdentities += current.binding.graphIdentity
-		fenceAccumulator.add(
-			AuthenticatedFullClearGraphAppearance(
-				graph = current.graph,
-				graphIdentity = current.binding.graphIdentity,
-				productKind = current.binding.productKind,
-				productIdentity = current.binding.productIdentity,
-				graphRevision = current.binding.productRevision,
-				sourceSchemaVersion = current.binding.sourceSchemaVersion,
-				isBound = true,
-			),
+	try {
+		val bindings = dao.allBindingsForFullClear(MAX_FULL_CLEAR_BINDINGS + 1)
+		require(bindings.size <= MAX_FULL_CLEAR_BINDINGS)
+		require(bindings.distinct().size == bindings.size)
+		val consumedBindings = linkedSetOf<ImportedPortableStepsCountDomainBindingEntity>()
+		val authenticatedGraphIdentities = linkedSetOf<String>()
+		val consumeAuthenticatedGraph:
+			(AuthenticatedImportedPortableGraphBinding, Boolean) -> Unit = { current, isStored ->
+			if (isStored) authenticatedGraphIdentities += current.binding.graphIdentity
+			staging.add(
+				AuthenticatedFullClearGraphAppearance(
+					graph = current.graph,
+					graphIdentity = current.binding.graphIdentity,
+					productKind = current.binding.productKind,
+					productIdentity = current.binding.productIdentity,
+					graphRevision = current.binding.productRevision,
+					sourceSchemaVersion = current.binding.sourceSchemaVersion,
+					isBound = true,
+				),
+			)
+		}
+		val sessionBindings = bindings.filter {
+			it.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY
+		}.associateBy { it.productIdentity }
+		require(sessionBindings.size == bindings.count {
+			it.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY
+		})
+		val sessionAuthentication = authenticatedImportedSessionBindingsForFullClear(
+			sessionBindings,
+			consumedBindings,
+			consumeAuthenticatedGraph,
 		)
+		val ambientBindings = bindings.filter {
+			it.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY
+		}.groupBy { it.productIdentity }
+		authenticatedImportedAmbientBindingsForFullClear(
+			oldCollectedDataEpoch,
+			ambientBindings,
+			consumedBindings,
+			consumeAuthenticatedGraph,
+		)
+		require(consumedBindings == bindings.toSet())
+		require(authenticatedGraphIdentities == bindings.mapTo(linkedSetOf()) { it.graphIdentity })
+		authenticateAndFoldOrphanPortableGraphsForFullClear(
+			authenticatedGraphIdentities = authenticatedGraphIdentities,
+			bindings = bindings,
+		) { orphan ->
+			staging.add(orphan)
+		}
+		authenticateAllPortableSessionFileReceiptsForFullClear(
+			sessionBindings = sessionBindings,
+			sessionProducts = sessionAuthentication,
+			authenticatedGraphIdentities = authenticatedGraphIdentities,
+		)
+		staging.install(dao)
+		dao.deleteAllBindingsForFullClear()
+		dao.deleteAllGraphsForFullClear()
+		dao.deleteAllFileReceiptsForFullClear()
+	} finally {
+		staging.close()
 	}
-	val sessionBindings = bindings.filter {
-		it.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY
-	}.associateBy { it.productIdentity }
-	require(sessionBindings.size == bindings.count {
-		it.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY
-	})
-	val sessionAuthentication = authenticatedImportedSessionBindingsForFullClear(
-		sessionBindings,
-		consumedBindings,
-		consumeAuthenticatedGraph,
-	)
-	val ambientBindings = bindings.filter {
-		it.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY
-	}.groupBy { it.productIdentity }
-	authenticatedImportedAmbientBindingsForFullClear(
-		oldCollectedDataEpoch,
-		ambientBindings,
-		consumedBindings,
-		consumeAuthenticatedGraph,
-	)
-	require(consumedBindings == bindings.toSet())
-	require(authenticatedGraphIdentities == bindings.mapTo(linkedSetOf()) { it.graphIdentity })
-	authenticateAndFoldOrphanPortableGraphsForFullClear(
-		authenticatedGraphIdentities = authenticatedGraphIdentities,
-		bindings = bindings,
-	) { orphan ->
-		fenceAccumulator.add(orphan)
-	}
-	installAuthenticatedFullClearOwnerFences(fenceAccumulator.fences())
-	authenticateAllPortableSessionFileReceiptsForFullClear(
-		sessionBindings = sessionBindings,
-		sessionProducts = sessionAuthentication,
-		authenticatedGraphIdentities = authenticatedGraphIdentities,
-	)
-	dao.deleteAllBindingsForFullClear()
-	dao.deleteAllGraphsForFullClear()
-	dao.deleteAllFileReceiptsForFullClear()
 }
 
 private suspend fun AppDatabase.authenticatedImportedSessionBindingsForFullClear(
@@ -265,48 +271,101 @@ internal data class AuthenticatedFullClearGraphAppearance(
 	val isBound: Boolean,
 )
 
-private data class FullClearRootAuthority(
-	val containerIdentity: String,
-	val productIdentity: String,
-	val ownerKind: PortableCountDomainOwnerKind,
-	val ownerIdentity: String,
-)
-
-internal data class AuthenticatedFullClearOwnerFence(
-	val fence: ImportedPortableStepsCountDomainOwnerFenceEntity,
-	val latestOwner: PortableCountDomainOwnerRevisionV2,
-)
-
-internal fun authenticatedPortableOwnerFencesForFullClear(
-	graphs: List<AuthenticatedFullClearGraphAppearance>,
+internal fun AppDatabase.stageAuthenticatedPortableOwnerFencesForFullClear(
+	graphs: Sequence<AuthenticatedFullClearGraphAppearance>,
 	fenceKind: String,
 	collectedDataEpoch: Long,
 	fencedAtMs: Long,
 	maximumOwnerCount: Int,
 	maximumOwnerRevisionCount: Int,
-): List<AuthenticatedFullClearOwnerFence> =
-	AuthenticatedFullClearOwnerFenceAccumulator(
+) {
+	require(collectedDataEpoch >= 0L)
+	require(fencedAtMs >= 0L)
+	require(maximumOwnerCount > 0)
+	require(maximumOwnerRevisionCount > 0)
+	val staging = AuthenticatedFullClearOwnerFenceStaging(
+		openHelper.writableDatabase,
 		fenceKind,
 		collectedDataEpoch,
 		fencedAtMs,
 		maximumOwnerCount,
 		maximumOwnerRevisionCount,
-	).also { accumulator ->
-		graphs.forEach(accumulator::add)
-	}.fences()
+	)
+	try {
+		graphs.forEach(staging::add)
+		staging.install(importedPortableStepsCountDomainDao())
+	} finally {
+		staging.close()
+	}
+}
 
-private class AuthenticatedFullClearOwnerFenceAccumulator(
+private class AuthenticatedFullClearOwnerFenceStaging(
+	private val sqlite: SupportSQLiteDatabase,
 	private val fenceKind: String,
 	private val collectedDataEpoch: Long,
 	private val fencedAtMs: Long,
 	private val maximumOwnerCount: Int,
 	private val maximumOwnerRevisionCount: Int,
 ) {
-	private val byOwner = linkedMapOf<
-		Pair<PortableCountDomainOwnerKind, String>,
-		FullClearOwnerAuthority
-	>()
-	private var distinctOwnerRevisionCount = 0
+	private var ownerCount = 0
+	private var ownerRevisionCount = 0
+
+	init {
+		dropTables()
+		try {
+			sqlite.execSQL(
+				"""
+				CREATE TEMP TABLE $OWNER_TABLE (
+					owner_kind TEXT NOT NULL,
+					owner_identity TEXT NOT NULL,
+					scope_identity TEXT NOT NULL,
+					container_identity TEXT NOT NULL,
+					root_product_identity TEXT NOT NULL,
+					product_kind TEXT NOT NULL,
+					bound_product_identity TEXT,
+					latest_graph_identity TEXT NOT NULL,
+					latest_owner_revision INTEGER NOT NULL,
+					latest_graph_revision INTEGER NOT NULL,
+					latest_is_bound INTEGER NOT NULL,
+					latest_compare_product_identity TEXT NOT NULL,
+					explicit_lineage_length INTEGER NOT NULL,
+					PRIMARY KEY(owner_kind, owner_identity)
+				)
+				""".trimIndent(),
+			)
+			sqlite.execSQL(
+				"""
+				CREATE TEMP TABLE $REVISION_TABLE (
+					owner_kind TEXT NOT NULL,
+					owner_identity TEXT NOT NULL,
+					owner_revision INTEGER NOT NULL,
+					scope_identity TEXT NOT NULL,
+					operation TEXT NOT NULL,
+					receipt_identity TEXT,
+					owner_effect_checksum TEXT NOT NULL,
+					source_linked_at_ms INTEGER NOT NULL,
+					legacy_ambient INTEGER NOT NULL,
+					PRIMARY KEY(owner_kind, owner_identity, owner_revision)
+				)
+				""".trimIndent(),
+			)
+			sqlite.execSQL(
+				"""
+				CREATE TEMP TABLE $EXPLICIT_TABLE (
+					owner_kind TEXT NOT NULL,
+					owner_identity TEXT NOT NULL,
+					lineage_ordinal INTEGER NOT NULL,
+					owner_revision INTEGER NOT NULL,
+					PRIMARY KEY(owner_kind, owner_identity, lineage_ordinal),
+					UNIQUE(owner_kind, owner_identity, owner_revision)
+				)
+				""".trimIndent(),
+			)
+		} catch (failure: Exception) {
+			dropTables()
+			throw failure
+		}
+	}
 
 	fun add(graph: AuthenticatedFullClearGraphAppearance) {
 		check(graph.graph.identity.value == graph.graphIdentity)
@@ -315,153 +374,504 @@ private class AuthenticatedFullClearOwnerFenceAccumulator(
 				it.ownerKind == root.ownerKind && it.ownerIdentity == root.ownerIdentity
 			}
 			check(lineage.isNotEmpty() && lineage.last().ownerRevision == root.ownerRevision)
-			val key = root.ownerKind to root.ownerIdentity.value
-			val authority = byOwner.getOrPut(key) {
-				require(byOwner.size < maximumOwnerCount) {
-					"Imported portable distinct owner count exceeds its full-clear bound"
-				}
-				FullClearOwnerAuthority()
-			}
-			distinctOwnerRevisionCount = Math.addExact(
-				distinctOwnerRevisionCount,
-				authority.add(graph, lineage, root),
-			)
-			require(distinctOwnerRevisionCount <= maximumOwnerRevisionCount) {
-				"Imported portable distinct owner revision count exceeds its full-clear bound"
-			}
+			addOwnerAppearance(graph, root, lineage)
 		}
 	}
 
-	fun fences(): List<AuthenticatedFullClearOwnerFence> =
-		byOwner.values.map { authority ->
-			authority.fence(fenceKind, collectedDataEpoch, fencedAtMs)
-		}.also {
-			require(it.size <= maximumOwnerCount)
+	fun install(dao: com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao) {
+		var afterKind: String? = null
+		var afterIdentity: String? = null
+		var installedOwnerCount = 0
+		while (true) {
+			val page = ownerPage(afterKind, afterIdentity)
+			if (page.isEmpty()) break
+			page.forEach { owner ->
+				requireLegacyRevisionsCoveredByExplicitLineage(owner)
+				val latest = requireNotNull(latestRevision(owner.ownerKind, owner.ownerIdentity))
+				require(latest.ownerRevision == owner.latestOwnerRevision)
+				val candidate = ImportedPortableStepsCountDomainOwnerFenceEntity.create(
+					ownerKind = owner.ownerKind,
+					ownerIdentity = owner.ownerIdentity,
+					scopeIdentity = owner.scopeIdentity,
+					latestSourceRevision = latest.ownerRevision,
+					latestOwnerEffectChecksum = latest.ownerEffectChecksum,
+					productKind = owner.productKind,
+					productIdentity = owner.boundProductIdentity ?: owner.rootProductIdentity,
+					graphIdentity = owner.latestGraphIdentity,
+					fenceKind = fenceKind,
+					collectedDataEpoch = collectedDataEpoch,
+					fencedAtMs = fencedAtMs,
+				)
+				val stored = dao.ownerFenceForFullClear(owner.ownerKind, owner.ownerIdentity)
+				if (stored == null) {
+					dao.insertOwnerFenceForFullClear(candidate)
+				} else {
+					require(
+						stored.effectChecksum ==
+							ImportedPortableCountDomainIdentity.ownerFenceChecksum(stored),
+					)
+					require(stored.hasCompatibleTerminalAuthority(candidate))
+					require(stored.latestSourceRevision == latest.ownerRevision)
+					require(stored.latestOwnerEffectChecksum == latest.ownerEffectChecksum) {
+						"Stored imported portable fence conflicts with authenticated owner lineage"
+					}
+					require(stored.collectedDataEpoch <= candidate.collectedDataEpoch)
+					require(stored.fencedAtMs <= candidate.fencedAtMs)
+				}
+				installedOwnerCount = Math.addExact(installedOwnerCount, 1)
+			}
+			afterKind = page.last().ownerKind
+			afterIdentity = page.last().ownerIdentity
 		}
-}
+		require(installedOwnerCount == ownerCount)
+	}
 
-private class FullClearOwnerAuthority {
-	private val revisions = sortedMapOf<Long, PortableCountDomainOwnerRevisionV2>()
-	private val legacyAmbientRevisions = sortedSetOf<Long>()
-	private var explicitLineage: List<PortableCountDomainOwnerRevisionV2>? = null
-	private var rootAuthority: FullClearRootAuthority? = null
-	private var scopeIdentity: String? = null
-	private var productKind: String? = null
-	private var boundProductIdentity: String? = null
-	private var latestAppearance: Pair<AuthenticatedFullClearGraphAppearance, PortableCountDomainRootV2>? =
-		null
+	fun close() {
+		dropTables()
+	}
 
-	fun add(
+	private fun addOwnerAppearance(
 		graph: AuthenticatedFullClearGraphAppearance,
-		lineage: List<PortableCountDomainOwnerRevisionV2>,
 		root: PortableCountDomainRootV2,
-	): Int {
+		lineage: List<PortableCountDomainOwnerRevisionV2>,
+	) {
 		val first = lineage.first()
 		require(lineage.all {
 			it.ownerKind == first.ownerKind && it.ownerIdentity == first.ownerIdentity
 		})
-		require(
-			scopeIdentity == null || scopeIdentity == first.scopeIdentity.value,
-		) {
-			"Imported portable owner appears in conflicting scopes"
-		}
-		scopeIdentity = first.scopeIdentity.value
-		require(lineage.all { it.scopeIdentity.value == scopeIdentity }) {
+		require(lineage.all { it.scopeIdentity == first.scopeIdentity }) {
 			"Imported portable owner lineage changes scope"
 		}
-		val currentRootAuthority = FullClearRootAuthority(
-			root.containerIdentity.value,
-			root.productIdentity.value,
-			root.ownerKind,
-			root.ownerIdentity.value,
+		val ownerKind = root.ownerKind.name
+		val ownerIdentity = root.ownerIdentity.value
+		val boundProductIdentity = if (graph.isBound) requireNotNull(graph.productIdentity) else null
+		val rank = FullClearStagedAppearanceRank(
+			ownerRevision = root.ownerRevision,
+			graphRevision = graph.graphRevision ?: 0L,
+			isBound = graph.isBound,
+			compareProductIdentity = graph.productIdentity ?: root.productIdentity.value,
+			graphIdentity = graph.graphIdentity,
 		)
-		require(rootAuthority == null || rootAuthority == currentRootAuthority) {
-			"Imported portable owner appears in conflicting product roots"
-		}
-		rootAuthority = currentRootAuthority
-		require(productKind == null || productKind == graph.productKind) {
-			"Imported portable owner appears in conflicting product kinds"
-		}
-		productKind = graph.productKind
-		if (graph.isBound) {
-			val currentProductIdentity = requireNotNull(graph.productIdentity)
-			require(
-				boundProductIdentity == null || boundProductIdentity == currentProductIdentity,
-			) {
-				"Imported portable owner appears in conflicting bound products"
+		val stored = owner(ownerKind, ownerIdentity)
+		if (stored == null) {
+			require(ownerCount < maximumOwnerCount) {
+				"Imported portable distinct owner count exceeds its full-clear bound"
 			}
-			boundProductIdentity = currentProductIdentity
+			sqlite.execSQL(
+				"INSERT INTO $OWNER_TABLE (" +
+					"owner_kind, owner_identity, scope_identity, container_identity, " +
+					"root_product_identity, product_kind, bound_product_identity, " +
+					"latest_graph_identity, latest_owner_revision, latest_graph_revision, " +
+					"latest_is_bound, latest_compare_product_identity, explicit_lineage_length" +
+					") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
+				arrayOf(
+					ownerKind,
+					ownerIdentity,
+					first.scopeIdentity.value,
+					root.containerIdentity.value,
+					root.productIdentity.value,
+					graph.productKind,
+					boundProductIdentity,
+					graph.graphIdentity,
+					root.ownerRevision,
+					rank.graphRevision,
+					if (rank.isBound) 1 else 0,
+					rank.compareProductIdentity,
+				),
+			)
+			ownerCount = Math.addExact(ownerCount, 1)
+		} else {
+			require(stored.scopeIdentity == first.scopeIdentity.value) {
+				"Imported portable owner appears in conflicting scopes"
+			}
+			require(
+				stored.containerIdentity == root.containerIdentity.value &&
+					stored.rootProductIdentity == root.productIdentity.value,
+			) {
+				"Imported portable owner appears in conflicting product roots"
+			}
+			require(stored.productKind == graph.productKind) {
+				"Imported portable owner appears in conflicting product kinds"
+			}
+			if (boundProductIdentity != null) {
+				require(
+					stored.boundProductIdentity == null ||
+						stored.boundProductIdentity == boundProductIdentity,
+				) {
+					"Imported portable owner appears in conflicting bound products"
+				}
+				if (stored.boundProductIdentity == null) {
+					sqlite.execSQL(
+						"UPDATE $OWNER_TABLE SET bound_product_identity = ? " +
+							"WHERE owner_kind = ? AND owner_identity = ?",
+						arrayOf(boundProductIdentity, ownerKind, ownerIdentity),
+					)
+				}
+			}
+			if (rank > stored.rank) {
+				sqlite.execSQL(
+					"UPDATE $OWNER_TABLE SET latest_graph_identity = ?, " +
+						"latest_owner_revision = ?, latest_graph_revision = ?, " +
+						"latest_is_bound = ?, latest_compare_product_identity = ? " +
+						"WHERE owner_kind = ? AND owner_identity = ?",
+					arrayOf(
+						rank.graphIdentity,
+						rank.ownerRevision,
+						rank.graphRevision,
+						if (rank.isBound) 1 else 0,
+						rank.compareProductIdentity,
+						ownerKind,
+						ownerIdentity,
+					),
+				)
+			}
 		}
 
 		val isLegacyAmbient = graph.isLegacyAmbientAppearance(lineage)
+		if (isLegacyAmbient) require(lineage.size == 1)
+		lineage.forEach { revision ->
+			stageRevision(revision, isLegacyAmbient)
+		}
 		if (isLegacyAmbient) {
-			require(lineage.size == 1)
-			legacyAmbientRevisions += lineage.single().ownerRevision
-		} else {
-			val canonical = explicitLineage
-			if (canonical == null || lineage.size > canonical.size) {
-				require(canonical == null || lineage.take(canonical.size) == canonical) {
-					"Imported portable owner has conflicting explicit graph lineage"
-				}
-				explicitLineage = lineage
-			} else {
-				require(canonical.take(lineage.size) == lineage) {
-					"Imported portable owner has conflicting explicit graph lineage"
-				}
-			}
-		}
-
-		var addedRevisionCount = 0
-		lineage.forEach { owner ->
-			val prior = revisions.putIfAbsent(owner.ownerRevision, owner)
-			require(prior == null || prior == owner) {
-				"Imported portable owner revision has conflicting graph appearances"
-			}
-			if (prior == null) addedRevisionCount = Math.addExact(addedRevisionCount, 1)
-		}
-		val priorLatest = latestAppearance
-		if (priorLatest == null ||
-			compareFullClearAppearances(graph, root, priorLatest.first, priorLatest.second) > 0
-		) {
-			latestAppearance = graph to root
-		}
-		return addedRevisionCount
-	}
-
-	fun fence(
-		fenceKind: String,
-		collectedDataEpoch: Long,
-		fencedAtMs: Long,
-	): AuthenticatedFullClearOwnerFence {
-		explicitLineage?.let { explicit ->
-			legacyAmbientRevisions.forEach { revision ->
-				require(explicit.singleOrNull { it.ownerRevision == revision } == revisions[revision]) {
+			val explicitLength = requireNotNull(owner(ownerKind, ownerIdentity)).explicitLineageLength
+			if (explicitLength > 0) {
+				require(explicitContainsRevision(ownerKind, ownerIdentity, lineage.single().ownerRevision)) {
 					"Explicit portable lineage does not preserve legacy Ambient authority"
 				}
 			}
+		} else {
+			stageExplicitLineage(ownerKind, ownerIdentity, lineage)
+			requireLegacyRevisionsCoveredByExplicitLineage(
+				requireNotNull(owner(ownerKind, ownerIdentity)),
+			)
 		}
-		val latestOwner = revisions.values.last()
-		val appearance = requireNotNull(latestAppearance)
-		val latestGraph = appearance.first
-		val latestRoot = appearance.second
-		require(latestRoot.ownerRevision == latestOwner.ownerRevision)
-		return AuthenticatedFullClearOwnerFence(
-			fence = ImportedPortableStepsCountDomainOwnerFenceEntity.create(
-				ownerKind = latestOwner.ownerKind.name,
-				ownerIdentity = latestOwner.ownerIdentity.value,
-				scopeIdentity = latestOwner.scopeIdentity.value,
-				latestSourceRevision = latestOwner.ownerRevision,
-				latestOwnerEffectChecksum = latestOwner.ownerEffectChecksum.value,
-				productKind = requireNotNull(productKind),
-				productIdentity = boundProductIdentity ?: latestRoot.productIdentity.value,
-				graphIdentity = latestGraph.graphIdentity,
-				fenceKind = fenceKind,
-				collectedDataEpoch = collectedDataEpoch,
-				fencedAtMs = fencedAtMs,
-			),
-			latestOwner = latestOwner,
+	}
+
+	private fun stageRevision(
+		revision: PortableCountDomainOwnerRevisionV2,
+		isLegacyAmbient: Boolean,
+	) {
+		val stored = revision(
+			revision.ownerKind.name,
+			revision.ownerIdentity.value,
+			revision.ownerRevision,
+		)
+		if (stored == null) {
+			require(ownerRevisionCount < maximumOwnerRevisionCount) {
+				"Imported portable distinct owner revision count exceeds its full-clear bound"
+			}
+			sqlite.execSQL(
+				"INSERT INTO $REVISION_TABLE (" +
+					"owner_kind, owner_identity, owner_revision, scope_identity, operation, " +
+					"receipt_identity, owner_effect_checksum, source_linked_at_ms, legacy_ambient" +
+					") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				arrayOf(
+					revision.ownerKind.name,
+					revision.ownerIdentity.value,
+					revision.ownerRevision,
+					revision.scopeIdentity.value,
+					revision.operation.name,
+					revision.receiptIdentity?.value,
+					revision.ownerEffectChecksum.value,
+					revision.linkedAtMs,
+					if (isLegacyAmbient) 1 else 0,
+				),
+			)
+			ownerRevisionCount = Math.addExact(ownerRevisionCount, 1)
+		} else {
+			require(stored.matches(revision)) {
+				"Imported portable owner revision has conflicting graph appearances"
+			}
+			if (isLegacyAmbient && !stored.isLegacyAmbient) {
+				sqlite.execSQL(
+					"UPDATE $REVISION_TABLE SET legacy_ambient = 1 " +
+						"WHERE owner_kind = ? AND owner_identity = ? AND owner_revision = ?",
+					arrayOf(
+						revision.ownerKind.name,
+						revision.ownerIdentity.value,
+						revision.ownerRevision,
+					),
+				)
+			}
+		}
+	}
+
+	private fun stageExplicitLineage(
+		ownerKind: String,
+		ownerIdentity: String,
+		lineage: List<PortableCountDomainOwnerRevisionV2>,
+	) {
+		val storedLength = requireNotNull(owner(ownerKind, ownerIdentity)).explicitLineageLength
+		val sharedLength = minOf(storedLength, lineage.size)
+		repeat(sharedLength) { ordinal ->
+			require(
+				explicitRevision(ownerKind, ownerIdentity, ordinal) ==
+					lineage[ordinal].ownerRevision,
+			) {
+				"Imported portable owner has conflicting explicit graph lineage"
+			}
+		}
+		for (ordinal in storedLength until lineage.size) {
+			require(
+				!explicitContainsRevision(
+					ownerKind,
+					ownerIdentity,
+					lineage[ordinal].ownerRevision,
+				),
+			) {
+				"Imported portable owner has conflicting explicit graph lineage"
+			}
+			sqlite.execSQL(
+				"INSERT INTO $EXPLICIT_TABLE (" +
+					"owner_kind, owner_identity, lineage_ordinal, owner_revision" +
+					") VALUES (?, ?, ?, ?)",
+				arrayOf(ownerKind, ownerIdentity, ordinal, lineage[ordinal].ownerRevision),
+			)
+		}
+		if (lineage.size > storedLength) {
+			sqlite.execSQL(
+				"UPDATE $OWNER_TABLE SET explicit_lineage_length = ? " +
+					"WHERE owner_kind = ? AND owner_identity = ?",
+				arrayOf(lineage.size, ownerKind, ownerIdentity),
+			)
+		}
+	}
+
+	private fun requireLegacyRevisionsCoveredByExplicitLineage(owner: StagedFullClearOwner) {
+		if (owner.explicitLineageLength == 0) return
+		val missingCount = sqlite.query(
+			"SELECT COUNT(*) FROM $REVISION_TABLE AS revision " +
+				"WHERE revision.owner_kind = ? AND revision.owner_identity = ? " +
+				"AND revision.legacy_ambient = 1 AND NOT EXISTS (" +
+				"SELECT 1 FROM $EXPLICIT_TABLE AS lineage " +
+				"WHERE lineage.owner_kind = revision.owner_kind " +
+				"AND lineage.owner_identity = revision.owner_identity " +
+				"AND lineage.owner_revision = revision.owner_revision)",
+			arrayOf(owner.ownerKind, owner.ownerIdentity),
+		).use { cursor ->
+			check(cursor.moveToFirst())
+			cursor.getLong(0)
+		}
+		require(missingCount == 0L) {
+			"Explicit portable lineage does not preserve legacy Ambient authority"
+		}
+	}
+
+	private fun owner(ownerKind: String, ownerIdentity: String): StagedFullClearOwner? =
+		sqlite.query(
+			"SELECT scope_identity, container_identity, root_product_identity, product_kind, " +
+				"bound_product_identity, latest_graph_identity, latest_owner_revision, " +
+				"latest_graph_revision, latest_is_bound, latest_compare_product_identity, " +
+				"explicit_lineage_length FROM $OWNER_TABLE " +
+				"WHERE owner_kind = ? AND owner_identity = ?",
+			arrayOf(ownerKind, ownerIdentity),
+		).use { cursor ->
+			if (!cursor.moveToFirst()) null else StagedFullClearOwner(
+				ownerKind = ownerKind,
+				ownerIdentity = ownerIdentity,
+				scopeIdentity = cursor.getString(0),
+				containerIdentity = cursor.getString(1),
+				rootProductIdentity = cursor.getString(2),
+				productKind = cursor.getString(3),
+				boundProductIdentity = if (cursor.isNull(4)) null else cursor.getString(4),
+				latestGraphIdentity = cursor.getString(5),
+				latestOwnerRevision = cursor.getLong(6),
+				rank = FullClearStagedAppearanceRank(
+					ownerRevision = cursor.getLong(6),
+					graphRevision = cursor.getLong(7),
+					isBound = cursor.getInt(8) == 1,
+					compareProductIdentity = cursor.getString(9),
+					graphIdentity = cursor.getString(5),
+				),
+				explicitLineageLength = cursor.getInt(10),
+			)
+		}
+
+	private fun ownerPage(
+		afterKind: String?,
+		afterIdentity: String?,
+	): List<StagedFullClearOwner> {
+		val query = if (afterKind == null) {
+			"SELECT owner_kind, owner_identity, scope_identity, container_identity, " +
+				"root_product_identity, product_kind, bound_product_identity, " +
+				"latest_graph_identity, latest_owner_revision, latest_graph_revision, " +
+				"latest_is_bound, latest_compare_product_identity, explicit_lineage_length " +
+				"FROM $OWNER_TABLE ORDER BY owner_kind, owner_identity LIMIT ?"
+		} else {
+			"SELECT owner_kind, owner_identity, scope_identity, container_identity, " +
+				"root_product_identity, product_kind, bound_product_identity, " +
+				"latest_graph_identity, latest_owner_revision, latest_graph_revision, " +
+				"latest_is_bound, latest_compare_product_identity, explicit_lineage_length " +
+				"FROM $OWNER_TABLE WHERE owner_kind > ? OR " +
+				"(owner_kind = ? AND owner_identity > ?) " +
+				"ORDER BY owner_kind, owner_identity LIMIT ?"
+		}
+		val arguments = if (afterKind == null) {
+			arrayOf<Any>(OWNER_INSTALL_PAGE_SIZE)
+		} else {
+			arrayOf(afterKind, afterKind, requireNotNull(afterIdentity), OWNER_INSTALL_PAGE_SIZE)
+		}
+		return sqlite.query(query, arguments).use { cursor ->
+			buildList {
+				while (cursor.moveToNext()) {
+					add(
+						StagedFullClearOwner(
+							ownerKind = cursor.getString(0),
+							ownerIdentity = cursor.getString(1),
+							scopeIdentity = cursor.getString(2),
+							containerIdentity = cursor.getString(3),
+							rootProductIdentity = cursor.getString(4),
+							productKind = cursor.getString(5),
+							boundProductIdentity =
+								if (cursor.isNull(6)) null else cursor.getString(6),
+							latestGraphIdentity = cursor.getString(7),
+							latestOwnerRevision = cursor.getLong(8),
+							rank = FullClearStagedAppearanceRank(
+								ownerRevision = cursor.getLong(8),
+								graphRevision = cursor.getLong(9),
+								isBound = cursor.getInt(10) == 1,
+								compareProductIdentity = cursor.getString(11),
+								graphIdentity = cursor.getString(7),
+							),
+							explicitLineageLength = cursor.getInt(12),
+						),
+					)
+				}
+			}
+		}.also { require(it.size <= OWNER_INSTALL_PAGE_SIZE) }
+	}
+
+	private fun revision(
+		ownerKind: String,
+		ownerIdentity: String,
+		ownerRevision: Long,
+	): StagedFullClearRevision? = sqlite.query(
+		"SELECT scope_identity, operation, receipt_identity, owner_effect_checksum, " +
+			"source_linked_at_ms, legacy_ambient FROM $REVISION_TABLE " +
+			"WHERE owner_kind = ? AND owner_identity = ? AND owner_revision = ?",
+		arrayOf(ownerKind, ownerIdentity, ownerRevision),
+	).use { cursor ->
+		if (!cursor.moveToFirst()) null else StagedFullClearRevision(
+			ownerKind = ownerKind,
+			ownerIdentity = ownerIdentity,
+			ownerRevision = ownerRevision,
+			scopeIdentity = cursor.getString(0),
+			operation = cursor.getString(1),
+			receiptIdentity = if (cursor.isNull(2)) null else cursor.getString(2),
+			ownerEffectChecksum = cursor.getString(3),
+			sourceLinkedAtMs = cursor.getLong(4),
+			isLegacyAmbient = cursor.getInt(5) == 1,
 		)
 	}
+
+	private fun latestRevision(
+		ownerKind: String,
+		ownerIdentity: String,
+	): StagedFullClearRevision? = sqlite.query(
+		"SELECT owner_revision, scope_identity, operation, receipt_identity, " +
+			"owner_effect_checksum, source_linked_at_ms, legacy_ambient FROM $REVISION_TABLE " +
+			"WHERE owner_kind = ? AND owner_identity = ? ORDER BY owner_revision DESC LIMIT 1",
+		arrayOf(ownerKind, ownerIdentity),
+	).use { cursor ->
+		if (!cursor.moveToFirst()) null else StagedFullClearRevision(
+			ownerKind = ownerKind,
+			ownerIdentity = ownerIdentity,
+			ownerRevision = cursor.getLong(0),
+			scopeIdentity = cursor.getString(1),
+			operation = cursor.getString(2),
+			receiptIdentity = if (cursor.isNull(3)) null else cursor.getString(3),
+			ownerEffectChecksum = cursor.getString(4),
+			sourceLinkedAtMs = cursor.getLong(5),
+			isLegacyAmbient = cursor.getInt(6) == 1,
+		)
+	}
+
+	private fun explicitRevision(
+		ownerKind: String,
+		ownerIdentity: String,
+		ordinal: Int,
+	): Long? = sqlite.query(
+		"SELECT owner_revision FROM $EXPLICIT_TABLE " +
+			"WHERE owner_kind = ? AND owner_identity = ? AND lineage_ordinal = ?",
+		arrayOf(ownerKind, ownerIdentity, ordinal),
+	).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null }
+
+	private fun explicitContainsRevision(
+		ownerKind: String,
+		ownerIdentity: String,
+		ownerRevision: Long,
+	): Boolean = sqlite.query(
+		"SELECT 1 FROM $EXPLICIT_TABLE WHERE owner_kind = ? AND owner_identity = ? " +
+			"AND owner_revision = ? LIMIT 1",
+		arrayOf(ownerKind, ownerIdentity, ownerRevision),
+	).use { it.moveToFirst() }
+
+	private fun dropTables() {
+		sqlite.execSQL("DROP TABLE IF EXISTS $EXPLICIT_TABLE")
+		sqlite.execSQL("DROP TABLE IF EXISTS $REVISION_TABLE")
+		sqlite.execSQL("DROP TABLE IF EXISTS $OWNER_TABLE")
+	}
+
+	private companion object {
+		const val OWNER_TABLE = "imported_steps_full_clear_owner_stage"
+		const val REVISION_TABLE = "imported_steps_full_clear_owner_revision_stage"
+		const val EXPLICIT_TABLE = "imported_steps_full_clear_explicit_lineage_stage"
+		const val OWNER_INSTALL_PAGE_SIZE = 256
+	}
+}
+
+private data class StagedFullClearOwner(
+	val ownerKind: String,
+	val ownerIdentity: String,
+	val scopeIdentity: String,
+	val containerIdentity: String,
+	val rootProductIdentity: String,
+	val productKind: String,
+	val boundProductIdentity: String?,
+	val latestGraphIdentity: String,
+	val latestOwnerRevision: Long,
+	val rank: FullClearStagedAppearanceRank,
+	val explicitLineageLength: Int,
+)
+
+private data class StagedFullClearRevision(
+	val ownerKind: String,
+	val ownerIdentity: String,
+	val ownerRevision: Long,
+	val scopeIdentity: String,
+	val operation: String,
+	val receiptIdentity: String?,
+	val ownerEffectChecksum: String,
+	val sourceLinkedAtMs: Long,
+	val isLegacyAmbient: Boolean,
+) {
+	fun matches(value: PortableCountDomainOwnerRevisionV2): Boolean =
+		ownerKind == value.ownerKind.name &&
+			ownerIdentity == value.ownerIdentity.value &&
+			ownerRevision == value.ownerRevision &&
+			scopeIdentity == value.scopeIdentity.value &&
+			operation == value.operation.name &&
+			receiptIdentity == value.receiptIdentity?.value &&
+			ownerEffectChecksum == value.ownerEffectChecksum.value &&
+			sourceLinkedAtMs == value.linkedAtMs
+}
+
+private data class FullClearStagedAppearanceRank(
+	val ownerRevision: Long,
+	val graphRevision: Long,
+	val isBound: Boolean,
+	val compareProductIdentity: String,
+	val graphIdentity: String,
+) : Comparable<FullClearStagedAppearanceRank> {
+	override fun compareTo(other: FullClearStagedAppearanceRank): Int = compareValuesBy(
+		this,
+		other,
+		FullClearStagedAppearanceRank::ownerRevision,
+		FullClearStagedAppearanceRank::graphRevision,
+		{ if (it.isBound) 1 else 0 },
+		FullClearStagedAppearanceRank::compareProductIdentity,
+		FullClearStagedAppearanceRank::graphIdentity,
+	)
 }
 
 private fun AuthenticatedFullClearGraphAppearance.isLegacyAmbientAppearance(
@@ -482,61 +892,6 @@ private fun AuthenticatedFullClearGraphAppearance.isLegacyAmbientAppearance(
 				it.single().linkedAtMs == 0L
 		} &&
 		lineage.size == 1
-}
-
-private fun compareFullClearAppearances(
-	leftGraph: AuthenticatedFullClearGraphAppearance,
-	leftRoot: PortableCountDomainRootV2,
-	rightGraph: AuthenticatedFullClearGraphAppearance,
-	rightRoot: PortableCountDomainRootV2,
-): Int = compareValuesBy(
-	leftGraph to leftRoot,
-	rightGraph to rightRoot,
-	{ it.second.ownerRevision },
-	{ it.first.graphRevision ?: 0L },
-	{ if (it.first.isBound) 1 else 0 },
-	{ it.first.productIdentity ?: it.second.productIdentity.value },
-	{ it.first.graphIdentity },
-)
-
-private fun AppDatabase.installAuthenticatedFullClearOwnerFences(
-	candidates: List<AuthenticatedFullClearOwnerFence>,
-) {
-	if (candidates.isEmpty()) return
-	val dao = importedPortableStepsCountDomainDao()
-	val candidatesByOwner = candidates.associateBy {
-		it.fence.ownerKind to it.fence.ownerIdentity
-	}
-	require(candidatesByOwner.size == candidates.size)
-	val existing = candidates.map { it.fence.ownerIdentity }.distinct().chunked(INSERT_BATCH)
-		.flatMap { ownerIdentities ->
-			dao.ownerFencesForFullClear(ownerIdentities)
-	}
-	val existingByOwner = existing.associateBy { it.ownerKind to it.ownerIdentity }
-	require(existingByOwner.size == existing.size)
-	require(existingByOwner.keys.all { it in candidatesByOwner })
-	val missing = candidates.filter { candidate ->
-		existingByOwner[candidate.fence.ownerKind to candidate.fence.ownerIdentity]?.let { stored ->
-			require(
-				stored.effectChecksum ==
-					ImportedPortableCountDomainIdentity.ownerFenceChecksum(stored),
-			)
-			require(stored.hasCompatibleTerminalAuthority(candidate.fence))
-			require(stored.latestSourceRevision == candidate.latestOwner.ownerRevision)
-			require(
-				stored.latestOwnerEffectChecksum ==
-					candidate.latestOwner.ownerEffectChecksum.value,
-			) {
-				"Stored imported portable fence conflicts with authenticated owner lineage"
-			}
-			require(stored.collectedDataEpoch <= candidate.fence.collectedDataEpoch)
-			require(stored.fencedAtMs <= candidate.fence.fencedAtMs)
-			false
-		} ?: true
-	}
-	missing.map(AuthenticatedFullClearOwnerFence::fence)
-		.chunked(INSERT_BATCH)
-		.forEach(dao::insertOwnerFencesForFullClear)
 }
 
 private fun String.toPortableProductKind(): String = when (this) {
@@ -785,7 +1140,6 @@ private const val MAX_FULL_CLEAR_BINDINGS = 131_072
 private const val MAX_FULL_CLEAR_OWNER_FENCES = 262_144
 private const val MAX_FULL_CLEAR_OWNER_REVISIONS =
 	MAX_FULL_CLEAR_OWNER_FENCES * ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY
-private const val INSERT_BATCH = 256
 private const val SESSION_FULL_CLEAR_PAGE_SIZE = 32
 private const val AMBIENT_FULL_CLEAR_PAGE_SIZE = 256
 private const val GRAPH_FULL_CLEAR_PAGE_SIZE = 64

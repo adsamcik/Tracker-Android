@@ -199,6 +199,13 @@ internal data class PortableJsonTokenLimits(
 	}
 }
 
+internal fun portableJsonDocumentTokenLimits(encodedByteCount: Int) = PortableJsonTokenLimits(
+	maxNameBytes = 384,
+	maxStringBytes = encodedByteCount.coerceAtLeast(768),
+	maxNumberBytes = 64,
+	maxNestingDepth = 32,
+)
+
 internal class PortableJsonTokenLimitException(
 	message: String,
 ) : IOException(message) {

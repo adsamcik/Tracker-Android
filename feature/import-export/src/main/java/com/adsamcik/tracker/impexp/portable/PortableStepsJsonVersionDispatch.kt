@@ -49,9 +49,15 @@ private fun schemaVersion(
 	if (bytes.size == 0 || bytes.size.toLong() > maximumBytes) {
 		throw failure("Portable document exceeds its byte bound")
 	}
-	val reader = JsonReader(InputStreamReader(bytes.inputStream(), Charsets.UTF_8)).apply {
-		isLenient = false
-	}
+	val reader = JsonReader(
+		InputStreamReader(
+			PortableJsonTokenLimitInputStream(
+				bytes.inputStream(),
+				portableJsonDocumentTokenLimits(bytes.size),
+			),
+			Charsets.UTF_8,
+		),
+	).apply { isLenient = false }
 	return try {
 		if (reader.peek() != JsonToken.BEGIN_OBJECT) throw failure("Portable root must be an object")
 		reader.beginObject()

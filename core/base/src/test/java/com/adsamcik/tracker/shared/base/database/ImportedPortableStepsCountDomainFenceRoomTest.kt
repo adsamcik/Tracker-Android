@@ -41,6 +41,7 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsRunV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsSessionMode
 import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import io.kotest.matchers.shouldBe
+import java.util.concurrent.Executor
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -93,6 +94,54 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			graph.roots.size + 1,
 		).map { it.fenceKind }.toSet() shouldBe
 			setOf(ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR)
+		stagingTableCount() shouldBe 0L
+	}
+
+	@Test
+	fun `full clear pages deterministic staging owners without heap wide revision queries`() =
+		runTest {
+			val queries = mutableListOf<String>()
+			database.close()
+			database = AppDatabase.inMemoryBuilder(
+				ApplicationProvider.getApplicationContext<Application>(),
+			).allowMainThreadQueries()
+				.setQueryCallback(
+					{ sql, _ -> queries += sql.replace(Regex("\\s+"), " ").trim().lowercase() },
+					Executor(Runnable::run),
+				)
+				.build()
+			val entry = entry()
+			seedSessionPayload(entry)
+			val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+			val dao = database.importedPortableStepsCountDomainDao()
+			dao.insertAuthenticatedGraph(
+				graph,
+				ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+			)
+			dao.insertBinding(
+				ImportedPortableStepsCountDomainBindingEntity(
+					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+					entry.identity.value,
+					1L,
+					graph.identity.value,
+					1,
+				),
+			)
+			queries.clear()
+
+			database.withTransaction {
+				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+			}
+
+			queries.any {
+				it.contains("from imported_steps_full_clear_owner_stage") &&
+					it.contains("order by owner_kind, owner_identity limit ?")
+			} shouldBe true
+			queries.none {
+				it.startsWith("select * from imported_steps_count_domain_owner_revision") &&
+					!it.contains("where graph_identity = ?")
+			} shouldBe true
+			stagingTableCount() shouldBe 0L
 	}
 
 	@Test
@@ -183,130 +232,114 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 		}
 
 	@Test
-	fun `full clear folds maximum v1 Ambient corrections and repeated graph appearances`() {
-		val day = ambientDay("bounded")
-		val appearances = (1L..ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY.toLong()).flatMap {
+	fun `full clear folds maximum v1 Ambient corrections and repeated graph appearances`() =
+		runTest {
+			val day = ambientDay("bounded")
+			val appearances = (1L..ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY.toLong()).flatMap {
 				revision ->
-			List(4) { ambientAppearance(day, revision) }
+				List(4) { ambientAppearance(day, revision) }
+			}
+
+			val fences = stageFences(
+				appearances,
+				maximumOwnerCount = 1,
+				maximumOwnerRevisionCount = ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY,
+			)
+
+			fences.single().latestSourceRevision shouldBe
+				ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY.toLong()
 		}
 
-		val fences = authenticatedPortableOwnerFencesForFullClear(
-			graphs = appearances,
-			fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
-			collectedDataEpoch = 8L,
-			fencedAtMs = 9L,
-			maximumOwnerCount = 1,
-			maximumOwnerRevisionCount = ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY,
-		)
-
-		fences.single().fence.latestSourceRevision shouldBe
-			ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY.toLong()
-	}
-
 	@Test
-	fun `full clear folds sparse v1 Ambient owner appearances across graph revisions`() {
+	fun `full clear folds sparse v1 Ambient owner appearances across graph revisions`() = runTest {
 		val first = ambientDay("sparse", factTag = "shared")
 		val middle = ambientDay("sparse", factTag = "middle")
 		val latest = ambientDay("sparse", factTag = "shared")
 
-		val fences = authenticatedPortableOwnerFencesForFullClear(
-			graphs = listOf(
+		val fences = stageFences(
+			listOf(
 				ambientAppearance(first, 1L),
 				ambientAppearance(middle, 2L),
 				ambientAppearance(latest, 3L),
 			),
-			fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
-			collectedDataEpoch = 8L,
-			fencedAtMs = 9L,
 			maximumOwnerCount = 2,
 			maximumOwnerRevisionCount = 3,
 		)
 
 		fences.single {
-			it.latestOwner.ownerIdentity ==
+			it.ownerIdentity ==
 				first.withExplicitUnprovenCountDomain(1L)
 					.countDomainGraph.ownerRevisions.single().ownerIdentity
-		}.fence.latestSourceRevision shouldBe 3L
+					.value
+		}.latestSourceRevision shouldBe 3L
 	}
 
 	@Test
-	fun `full clear rejects conflicting duplicate v1 Ambient owner semantics`() {
+	fun `full clear rejects conflicting duplicate v1 Ambient owner semantics`() = runTest {
 		val first = ambientDay("conflict", factTag = "shared", stepCount = 1L)
 		val conflicting = ambientDay("conflict", factTag = "shared", stepCount = 2L)
 		assertFailsWith<IllegalArgumentException> {
-			authenticatedPortableOwnerFencesForFullClear(
-				graphs = listOf(
+			stageFences(
+				listOf(
 					ambientAppearance(first, 1L),
 					ambientAppearance(conflicting, 1L),
 				),
-				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
-				collectedDataEpoch = 8L,
-				fencedAtMs = 9L,
 				maximumOwnerCount = 1,
 				maximumOwnerRevisionCount = 1,
 			)
 		}
+		stagingTableCount() shouldBe 0L
 	}
 
 	@Test
-	fun `full clear bounds distinct owners and owner revisions rather than appearances`() {
+	fun `full clear bounds distinct owners and owner revisions rather than appearances`() = runTest {
 		val first = ambientAppearance(ambientDay("first"), 1L)
 		val second = ambientAppearance(ambientDay("second"), 1L)
 		assertFailsWith<IllegalArgumentException> {
-			authenticatedPortableOwnerFencesForFullClear(
-				graphs = listOf(first, second),
-				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
-				collectedDataEpoch = 8L,
-				fencedAtMs = 9L,
+			stageFences(
+				listOf(first, second),
 				maximumOwnerCount = 1,
 				maximumOwnerRevisionCount = 2,
 			)
 		}
 		assertFailsWith<IllegalArgumentException> {
-			authenticatedPortableOwnerFencesForFullClear(
-				graphs = listOf(first, ambientAppearance(ambientDay("first"), 2L)),
-				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
-				collectedDataEpoch = 8L,
-				fencedAtMs = 9L,
+			stageFences(
+				listOf(first, ambientAppearance(ambientDay("first"), 2L)),
 				maximumOwnerCount = 1,
 				maximumOwnerRevisionCount = 1,
 			)
 		}
+		stagingTableCount() shouldBe 0L
 	}
 
 	@Test
-	fun `full clear keeps explicit v2 owner lineages prefix compatible`() {
+	fun `full clear keeps explicit v2 owner lineages prefix compatible`() = runTest {
 		val entry = entry()
 		val (older, latest) = sessionGraphProgression(entry)
 		val conflicting = conflictingPrefixGraph(latest)
-		authenticatedPortableOwnerFencesForFullClear(
-			graphs = listOf(
+		stageFences(
+			listOf(
 				sessionAppearance(entry, older, 1L),
 				sessionAppearance(entry, latest, 2L),
 			),
-			fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
-			collectedDataEpoch = 8L,
-			fencedAtMs = 9L,
 			maximumOwnerCount = latest.roots.size,
 			maximumOwnerRevisionCount = latest.ownerRevisions.size,
 		).single {
-			it.latestOwner.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT &&
-				it.latestOwner.ownerRevision == 2L
-		}.fence.latestSourceRevision shouldBe 2L
+			it.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT.name &&
+				it.latestSourceRevision == 2L
+		}.latestSourceRevision shouldBe 2L
 
 		assertFailsWith<IllegalArgumentException> {
-			authenticatedPortableOwnerFencesForFullClear(
-				graphs = listOf(
+			stageFences(
+				listOf(
 					sessionAppearance(entry, older, 1L),
 					sessionAppearance(entry, conflicting, 2L),
 				),
-				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
-				collectedDataEpoch = 8L,
-				fencedAtMs = 9L,
 				maximumOwnerCount = latest.roots.size,
 				maximumOwnerRevisionCount = latest.ownerRevisions.size,
 			)
 		}
+		stagingTableCount() shouldBe 0L
 	}
 
 	@Test
@@ -334,6 +367,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			latest.roots.map { it.ownerIdentity.value },
 			latest.roots.size + 1,
 		) shouldBe emptyList()
+		stagingTableCount() shouldBe 0L
 	}
 
 	@Test
@@ -747,6 +781,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			graph.roots.map { it.ownerIdentity.value },
 			graph.roots.size + 1,
 		) shouldBe listOf(conflicting)
+		stagingTableCount() shouldBe 0L
 	}
 
 	@Test
@@ -878,6 +913,41 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			fabricated.roots.size + 1,
 		) shouldBe emptyList()
 	}
+
+	private suspend fun stageFences(
+		graphs: List<AuthenticatedFullClearGraphAppearance>,
+		maximumOwnerCount: Int,
+		maximumOwnerRevisionCount: Int,
+	): List<ImportedPortableStepsCountDomainOwnerFenceEntity> {
+		database.withTransaction {
+			database.stageAuthenticatedPortableOwnerFencesForFullClear(
+				graphs = graphs.asSequence(),
+				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
+				collectedDataEpoch = 8L,
+				fencedAtMs = 9L,
+				maximumOwnerCount = maximumOwnerCount,
+				maximumOwnerRevisionCount = maximumOwnerRevisionCount,
+			)
+		}
+		val ownerIdentities = graphs.asSequence()
+			.flatMap { it.graph.roots.asSequence() }
+			.map { it.ownerIdentity.value }
+			.distinct()
+			.toList()
+		return database.importedPortableStepsCountDomainDao().ownerFences(
+			ownerIdentities,
+			ownerIdentities.size + 1,
+		)
+	}
+
+	private fun stagingTableCount(): Long =
+		database.openHelper.writableDatabase.query(
+			"SELECT COUNT(*) FROM sqlite_temp_master WHERE type = 'table' " +
+				"AND name LIKE 'imported_steps_full_clear_%_stage'",
+		).use { cursor ->
+			check(cursor.moveToFirst())
+			cursor.getLong(0)
+		}
 
 	private suspend fun seedSessionPayload(entry: PortableStepsEntryV1) {
 		database.sourceEvidenceStateDao().ensure(

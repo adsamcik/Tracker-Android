@@ -616,7 +616,6 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			stored.contentChecksum != request.sourceArchiveContentChecksum.value ||
 			stored.sourceFormat != request.sourceFormat ||
 			stored.sourceSchemaVersion != request.sourceSchemaVersion ||
-			stored.encodedByteCount != request.encodedByteCount ||
 			stored.dayCount != archive.days.size ||
 			stored.factCount != archive.days.sumOf { it.facts.size } ||
 			stored.gapCount != archive.days.sumOf { it.gaps.size } ||
@@ -1280,7 +1279,6 @@ private fun AmbientImportEnvelope.toArchiveEntity() =
 		contentChecksum = sourceArchiveContentChecksum.value,
 		sourceFormat = sourceFormat,
 		sourceSchemaVersion = sourceSchemaVersion,
-		encodedByteCount = encodedByteCount,
 		dayCount = archive.days.size,
 		factCount = archive.days.sumOf { it.facts.size },
 		gapCount = archive.days.sumOf { it.gaps.size },
@@ -1297,6 +1295,7 @@ private fun AmbientImportEnvelope.toReceiptEntity() =
 		receivedAtMs = receipt.receivedAtMs,
 		archiveIdentity = sourceArchiveIdentity.value,
 		archiveContentChecksum = sourceArchiveContentChecksum.value,
+		encodedByteCount = encodedByteCount,
 		collectedDataEpoch = expectedCollectedDataEpoch,
 	)
 

@@ -2,6 +2,7 @@ package com.adsamcik.tracker.stats.data.repository
 
 import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -73,6 +74,33 @@ class PortableStepsSourceStructureTest {
 			.toList()
 
 		assertEquals(emptyList(), duplicates)
+	}
+
+	@Test
+	fun `portable full clear stages maximum authority instead of heap aggregating it`() {
+		val fullClear = source(
+			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/" +
+				"ImportedPortableStepsCountDomainFullClear.kt",
+		)
+		val production = fullClear.substring(
+			fullClear.indexOf(
+				"internal suspend fun AppDatabase.preserveImportedPortableCountDomainFullClearFences",
+			),
+			fullClear.indexOf(
+				"private suspend fun AppDatabase.authenticatedImportedSessionBindingsForFullClear",
+			),
+		)
+
+		assertTrue("AuthenticatedFullClearOwnerFenceStaging(" in production)
+		assertFalse("AuthenticatedFullClearOwnerFenceAccumulator" in fullClear)
+		assertFalse("sortedMapOf<Long, PortableCountDomainOwnerRevisionV2>" in fullClear)
+		assertFalse(".fences()" in production)
+		assertTrue("CREATE TEMP TABLE \$OWNER_TABLE" in fullClear)
+		assertTrue("CREATE TEMP TABLE \$REVISION_TABLE" in fullClear)
+		assertTrue("ORDER BY owner_kind, owner_identity LIMIT ?" in fullClear)
+		assertTrue("MAX_FULL_CLEAR_OWNER_FENCES = 262_144" in fullClear)
+		assertTrue("MAX_FULL_CLEAR_OWNER_REVISIONS =" in fullClear)
+		assertTrue("staging.close()" in production)
 	}
 
 	private fun source(relativePath: String): String = projectRoot.resolve(relativePath).readText()

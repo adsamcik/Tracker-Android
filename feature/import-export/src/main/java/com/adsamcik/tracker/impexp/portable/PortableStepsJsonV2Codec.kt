@@ -80,12 +80,7 @@ internal class PortableStepsJsonV2Codec {
 			InputStreamReader(
 				PortableJsonTokenLimitInputStream(
 					bytes.inputStream(),
-					PortableJsonTokenLimits(
-						maxNameBytes = 384,
-						maxStringBytes = bytes.size.coerceAtLeast(768),
-						maxNumberBytes = 64,
-						maxNestingDepth = 32,
-					),
+					portableJsonDocumentTokenLimits(bytes.size),
 				),
 				Charsets.UTF_8,
 			),
@@ -123,8 +118,13 @@ internal class PortableStepsJsonV2Codec {
 			throw cancelled
 		} catch (failure: PortableStepsJsonException) {
 			throw failure
+		} catch (failure: PortableJsonTokenLimitException) {
+			throw PortableStepsJsonException(
+				"Portable Steps v2 token exceeds its lexical bound",
+				failure,
+			)
 		} catch (failure: IOException) {
-			throw failure
+			throw PortableStepsJsonException("Invalid Portable Steps v2 JSON", failure)
 		} catch (failure: Exception) {
 			throw PortableStepsJsonException("Invalid Portable Steps v2 document", failure)
 		}

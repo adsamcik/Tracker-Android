@@ -143,6 +143,73 @@ class PortableAmbientStepsFileImportTest {
 	}
 
 	@Test
+	fun `malformed v2 JSON is a terminal immutable file failure`() = runTest {
+		var calls = 0
+		val importer = PortableAmbientStepsFileImport(
+			dependenciesProvider = {
+				PortableAmbientStepsImportDependencies(
+					importer = object : ImportPortableAmbientSteps {
+						override suspend fun importArchive(
+							request: ImportPortableAmbientStepsRequest,
+						): ImportPortableAmbientStepsResult = error("V1 must not run")
+					},
+					lifecycleStore = FakeAmbientLifecycleStore(8L),
+					importerV2 = object : ImportPortableAmbientStepsV2 {
+						override suspend fun importArchive(
+							request: ImportPortableAmbientStepsV2Request,
+						): ImportPortableAmbientStepsResult {
+							calls++
+							return ImportPortableAmbientStepsResult.Duplicate(
+								request.archive.identity,
+								request.archive.days.size,
+							)
+						}
+					},
+				)
+			},
+		)
+		val malformed = """
+			{"format":"tracker-portable-ambient-steps","schemaVersion":2,
+			"contentChecksum":"sha256:${"a".repeat(64)}","days":[}
+		""".trimIndent().encodeToByteArray()
+
+		importer.import(context, database, stream(malformed, "malformed-v2")) shouldBe
+			ImportResult(
+				failedCount = 1,
+				errors = listOf(PortableAmbientStepsFileImport.PERMANENT_FORMAT_ERROR),
+			)
+		calls shouldBe 0
+	}
+
+	@Test
+	fun `whitespace equivalent archives retain semantic identity and exact byte provenance`() =
+		runTest {
+			val archive = ambientArchive(
+				completeAmbientDay(LocalDate.of(2026, 1, 1), 1L),
+			)
+			val compact = encodeAmbientStepsArchive(archive)
+			val spaced = ("\n  " + compact.decodeToString().replaceFirst("{", "{\n  "))
+				.encodeToByteArray()
+			val requests = mutableListOf<ImportPortableAmbientStepsRequest>()
+			val importer = adapter(FakeAmbientLifecycleStore(8L)) { request ->
+				requests += request
+				ImportPortableAmbientStepsResult.Duplicate(
+					request.archive.identity,
+					request.archive.days.size,
+				)
+			}
+
+			importer.import(context, database, stream(compact, "compact")) shouldBe
+				ImportResult(skippedCount = 1)
+			importer.import(context, database, stream(spaced, "spaced")) shouldBe
+				ImportResult(skippedCount = 1)
+
+			requests.map { it.archive.identity }.distinct() shouldBe listOf(archive.identity)
+			requests.map { it.metadata.encodedByteCount } shouldBe
+				listOf(compact.size.toLong(), spaced.size.toLong())
+		}
+
+	@Test
 	fun `duplicate correction deletion fence and unverifiable outcomes remain distinct`() = runTest {
 		val archive = ambientArchive(
 			completeAmbientDay(LocalDate.of(2026, 1, 1), 2L),

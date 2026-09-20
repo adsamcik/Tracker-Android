@@ -43,7 +43,7 @@ interface ImportedPortableStepsCountDomainDao {
 	suspend fun insertOwnerFences(values: List<ImportedPortableStepsCountDomainOwnerFenceEntity>)
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
-	fun insertOwnerFencesForFullClear(values: List<ImportedPortableStepsCountDomainOwnerFenceEntity>)
+	fun insertOwnerFenceForFullClear(value: ImportedPortableStepsCountDomainOwnerFenceEntity)
 
 	@Query("SELECT * FROM imported_steps_count_domain_graph WHERE graph_identity = :identity")
 	suspend fun graph(identity: String): ImportedPortableStepsCountDomainGraphEntity?
@@ -383,6 +383,15 @@ interface ImportedPortableStepsCountDomainDao {
 	fun ownerFencesForFullClear(
 		ownerIdentities: List<String>,
 	): List<ImportedPortableStepsCountDomainOwnerFenceEntity>
+
+	@Query(
+		"SELECT * FROM imported_steps_count_domain_owner_fence " +
+			"WHERE owner_kind = :ownerKind AND owner_identity = :ownerIdentity",
+	)
+	fun ownerFenceForFullClear(
+		ownerKind: String,
+		ownerIdentity: String,
+	): ImportedPortableStepsCountDomainOwnerFenceEntity?
 
 	@Query("DELETE FROM imported_steps_count_domain_binding")
 	fun deleteAllBindingsForFullClear()

@@ -12,6 +12,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsArchiveV2Si
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportMetadataV2
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStream
@@ -86,12 +87,7 @@ internal class PortableAmbientStepsJsonV2Codec {
 			InputStreamReader(
 				PortableJsonTokenLimitInputStream(
 					bytes.inputStream(),
-					PortableJsonTokenLimits(
-						maxNameBytes = 384,
-						maxStringBytes = bytes.size.coerceAtLeast(768),
-						maxNumberBytes = 64,
-						maxNestingDepth = 32,
-					),
+					portableJsonDocumentTokenLimits(bytes.size),
 				),
 				Charsets.UTF_8,
 			),
@@ -129,6 +125,13 @@ internal class PortableAmbientStepsJsonV2Codec {
 			throw cancelled
 		} catch (failure: PortableAmbientStepsFormatException) {
 			throw failure
+		} catch (failure: PortableJsonTokenLimitException) {
+			throw PortableAmbientStepsFormatException(
+				"Ambient Steps v2 token exceeds its lexical bound",
+				failure,
+			)
+		} catch (failure: IOException) {
+			throw PortableAmbientStepsFormatException("Invalid Ambient Steps v2 JSON", failure)
 		} catch (failure: Exception) {
 			throw PortableAmbientStepsFormatException("Invalid Ambient Steps v2 document", failure)
 		}

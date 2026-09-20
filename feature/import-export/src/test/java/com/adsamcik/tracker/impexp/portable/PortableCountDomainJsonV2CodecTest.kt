@@ -21,6 +21,8 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsSessionMode
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.InputStream
 import java.time.LocalDate
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -133,6 +135,61 @@ class PortableCountDomainJsonV2CodecTest {
 	}
 
 	@Test
+	fun `version dispatch bounds field names and nesting before skipping unknown values`() {
+		val longName = "n".repeat(385)
+		val deepValue = "[".repeat(40) + "0" + "]".repeat(40)
+		listOf(
+			"""{"format":"tracker-portable-steps","schemaVersion":1,"$longName":true}""",
+			"""{"format":"tracker-portable-steps","schemaVersion":1,"unknown":$deepValue}""",
+		).forEach { document ->
+			shouldThrow<PortableStepsJsonException> {
+				portableStepsSchemaVersion(document.encodeToByteArray())
+			}
+		}
+		listOf(
+			"""{"format":"tracker-portable-ambient-steps","schemaVersion":1,"$longName":true}""",
+			"""{"format":"tracker-portable-ambient-steps","schemaVersion":1,"unknown":$deepValue}""",
+		).forEach { document ->
+			shouldThrow<PortableAmbientStepsFormatException> {
+				portableAmbientStepsSchemaVersion(document.encodeToByteArray())
+			}
+		}
+	}
+
+	@Test
+	fun `v2 lexical and parser failures are permanent while source IO remains retryable`() =
+		runTest {
+			val longName = "n".repeat(385)
+			shouldThrow<PortableStepsJsonException> {
+				PortableStepsJsonV2Codec().decode(
+					"""{"format":"tracker-portable-steps","schemaVersion":2,"$longName":true}"""
+						.encodeToByteArray(),
+				)
+			}
+			shouldThrow<PortableStepsJsonException> {
+				PortableStepsJsonV2Codec().decode(
+					"""{"format":"tracker-portable-steps","schemaVersion":2,"entries":[}"""
+						.encodeToByteArray(),
+				)
+			}
+			shouldThrow<PortableAmbientStepsFormatException> {
+				PortableAmbientStepsJsonV2Codec().decode(
+					"""{"format":"tracker-portable-ambient-steps","schemaVersion":2,"days":[}"""
+						.encodeToByteArray(),
+				)
+			}
+
+			val stepsIo = IOException("steps transport")
+			val ambientIo = IOException("ambient transport")
+			(shouldThrow<IOException> {
+				PortableStepsJsonV2Codec().decode(FailingInputStream(stepsIo))
+			} === stepsIo) shouldBe true
+			(shouldThrow<IOException> {
+				PortableAmbientStepsJsonV2Codec().decode(FailingInputStream(ambientIo))
+			} === ambientIo) shouldBe true
+		}
+
+	@Test
 	fun `non-successful source creates no bytes`() = runTest {
 		val steps = ByteArrayOutputStream()
 		PortableStepsJsonV2Codec().encode(steps) {
@@ -187,4 +244,11 @@ class PortableCountDomainJsonV2CodecTest {
 
 	private fun identity(kind: PortableStepsIdentityKind, value: String) =
 		PortableStepsOpaqueIdentity.derive(kind, value)
+
+	private class FailingInputStream(
+		private val failure: IOException,
+	) : InputStream() {
+		override fun read(): Int = throw failure
+		override fun read(buffer: ByteArray, offset: Int, length: Int): Int = throw failure
+	}
 }
