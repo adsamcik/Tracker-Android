@@ -23,6 +23,9 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletenessMarkerEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
@@ -121,6 +124,94 @@ class RoomExportPortableStepsTest {
 				PortableStepsFactCoverage.PARTIAL to null,
 			)
 			run.manifests.all { manifest -> manifest.source.name == "STEPS" } shouldBe true
+		}
+
+	@Test
+	fun `truncated native owner lineage emits no invalid v2 while v1 remains representable`() =
+		runTest {
+			val seed = FactSeed("covered", 1L, count = 1L)
+			insertReadyFixture(facts = listOf(seed))
+			val fact = fact(LOGICAL_ONE, RUN_ONE, 1L, seed, 1_000L)
+			val completeness = stepsCompleteness()
+			val scope = StepsCountDomainReceiptIntegrity.sessionRunScopeIdentity(
+				LOGICAL_ONE,
+				RUN_ONE,
+			)
+			val factOwner = StepsCountDomainOwnerRevisionEntity(
+				ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+				scopeIdentity = scope,
+				ownerIdentity = StepsCountDomainReceiptIntegrity.sessionFactOwnerIdentity(
+					fact.writerProjectionId,
+					fact.writerProjectionVersion,
+					fact.logicalFactId,
+				),
+				ownerRevision = fact.semanticRevision,
+				operation = StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN,
+				receiptIdentity = null,
+				ownerEffectChecksum = fact.effectChecksum,
+				linkedAtMs = fact.appliedAtMs,
+			)
+			val completenessRevision =
+				StepsCountDomainReceiptIntegrity.completenessOwnerRevision(completeness)
+			val completenessOwner = StepsCountDomainOwnerRevisionEntity(
+				ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
+				scopeIdentity = scope,
+				ownerIdentity =
+					StepsCountDomainReceiptIntegrity.sessionCompletenessOwnerIdentity(
+						completeness.logicalTrackingId,
+						completeness.serviceRunId,
+						completeness.sourceInstanceId,
+						completeness.registrationGeneration,
+					),
+				ownerRevision = completenessRevision,
+				operation = StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN,
+				receiptIdentity = null,
+				ownerEffectChecksum =
+					StepsCountDomainReceiptIntegrity.completenessEffectChecksum(completeness),
+				linkedAtMs = completeness.updatedAtMs,
+			)
+			val timelineChecksum =
+				StepsCountDomainReceiptIntegrity.registrationTimelineChecksum(listOf(completeness))
+			val markerChecksum = StepsCountDomainReceiptIntegrity.completenessMarkerChecksum(
+				ownerKind = completenessOwner.ownerKind,
+				ownerIdentity = completenessOwner.ownerIdentity,
+				ownerRevision = completenessRevision,
+				terminalState = StepsCountDomainCompletenessMarkerEntity.STATE_UNPROVEN,
+				lastAdmissionOrdinal = null,
+				lastSourceSequence = null,
+				providerFlushOutcome = "UNPROVEN",
+				registrationRemovalOutcome = "UNPROVEN",
+				registrationTimelineChecksum = timelineChecksum,
+			)
+			val dao = database.stepsCountDomainReceiptDao()
+			dao.insertOwner(factOwner)
+			dao.insertOwner(completenessOwner)
+			dao.insertCompletenessMarker(
+				StepsCountDomainCompletenessMarkerEntity(
+					ownerKind = completenessOwner.ownerKind,
+					ownerIdentity = completenessOwner.ownerIdentity,
+					ownerRevision = completenessRevision,
+					terminalState = StepsCountDomainCompletenessMarkerEntity.STATE_UNPROVEN,
+					lastAdmissionOrdinal = null,
+					lastSourceSequence = null,
+					providerFlushOutcome = "UNPROVEN",
+					registrationRemovalOutcome = "UNPROVEN",
+					registrationTimelineChecksum = timelineChecksum,
+					evidenceChecksum = markerChecksum,
+				),
+			)
+			val emittedV2 = mutableListOf<Any>()
+
+			createV2Exporter().export(request()) { emittedV2 += it } shouldBe
+				ExportPortableStepsResult.Unverifiable(
+					PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
+				)
+			emittedV2 shouldBe emptyList()
+			val emittedV1 =
+				mutableListOf<com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV1>()
+			exporter.export(request()) { emittedV1 += it } shouldBe
+				ExportPortableStepsResult.Exported(1)
+			emittedV1.single().runs.single().facts.single().stepCount shouldBe 1L
 		}
 
 	@Test
@@ -1662,6 +1753,17 @@ class RoomExportPortableStepsTest {
 	private fun createExporter(
 		laneAuthority: SourceProductLaneExecutionAuthority = executableLaneAuthority(),
 	) = RoomExportPortableSteps(
+		reader = PortableStepsRoomReader(
+			database,
+			StepsSegmentHistorySelector(database, laneAuthority),
+			laneAuthority,
+		),
+		ioDispatcher = Dispatchers.Unconfined,
+	)
+
+	private fun createV2Exporter(
+		laneAuthority: SourceProductLaneExecutionAuthority = executableLaneAuthority(),
+	) = RoomExportPortableStepsV2(
 		reader = PortableStepsRoomReader(
 			database,
 			StepsSegmentHistorySelector(database, laneAuthority),

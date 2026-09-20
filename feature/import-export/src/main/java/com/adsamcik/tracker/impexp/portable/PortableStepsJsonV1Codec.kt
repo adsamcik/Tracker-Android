@@ -758,7 +758,7 @@ internal data class PortableStepsJsonLimits(
 	}
 }
 
-internal class PortableStepsJsonException(
+internal open class PortableStepsJsonException(
 	message: String,
 	cause: Throwable? = null,
 ) : IOException(message, cause) {
@@ -831,8 +831,14 @@ private class BoundedOutputStream(
 
 	private fun record(count: Long) {
 		if (bytesWritten > maximumBytes - count) {
-			formatFailure("Portable Steps document exceeds its byte bound")
+			throw PortableStepsEncodedSizeLimitException(
+				"Portable Steps document exceeds its byte bound",
+			)
 		}
 		bytesWritten += count
 	}
 }
+
+internal class PortableStepsEncodedSizeLimitException(
+	message: String,
+) : PortableStepsJsonException(message), PortableEncodedSizeLimitFailure

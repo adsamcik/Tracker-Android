@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import com.adsamcik.tracker.impexp.portable.PortableEncodedSizeLimitFailure
 import java.io.Closeable
 import java.io.File
 import java.io.FileOutputStream
@@ -19,6 +20,11 @@ internal data class FileBackedExportSpoolLimits(
 		require(maximumTotalBytes > 0L)
 		require(maximumAgeMs > 0L)
 	}
+}
+
+internal sealed interface FileBackedExportStage<out T> {
+	data class Complete<T>(val value: T) : FileBackedExportStage<T>
+	data object EncodedSizeExceeded : FileBackedExportStage<Nothing>
 }
 
 /** Bounded cache-backed staging whose committed contents alone reach the caller destination. */
@@ -68,6 +74,16 @@ internal class FileBackedExportSpool(
 
 	internal val byteCount: Long
 		get() = writtenBytes
+
+	suspend fun <T> stage(block: suspend (OutputStream) -> T): FileBackedExportStage<T> = try {
+		FileBackedExportStage.Complete(write(block))
+	} catch (failure: IOException) {
+		if (failure is PortableEncodedSizeLimitFailure) {
+			FileBackedExportStage.EncodedSizeExceeded
+		} else {
+			throw failure
+		}
+	}
 
 	suspend fun <T> write(block: suspend (OutputStream) -> T): T {
 		check(!closed)
@@ -122,9 +138,15 @@ internal class FileBackedExportSpool(
 			val next = try {
 				Math.addExact(writtenBytes, count.toLong())
 			} catch (_: ArithmeticException) {
-				throw IOException("Portable export spool byte count overflow")
+				throw FileBackedExportEncodedSizeException(
+					"Portable export spool byte count overflow",
+				)
 			}
-			if (next > maximumBytes) throw IOException("Portable export spool exceeds its byte bound")
+			if (next > maximumBytes) {
+				throw FileBackedExportEncodedSizeException(
+					"Portable export spool exceeds its byte bound",
+				)
+			}
 			writtenBytes = next
 		}
 	}
@@ -229,6 +251,10 @@ internal class FileBackedExportSpool(
 				invalidFuture || nowMs - oldestTimestamp > maximumAgeMs,
 			)
 		}
+
+		private class FileBackedExportEncodedSizeException(
+			message: String,
+		) : IOException(message), PortableEncodedSizeLimitFailure
 
 		fun deleteOwned(file: File) {
 			if (file.exists() && !file.delete()) {

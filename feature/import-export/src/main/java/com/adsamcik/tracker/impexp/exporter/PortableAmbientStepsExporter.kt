@@ -48,7 +48,14 @@ internal class PortableAmbientStepsExporter(
 	},
 	private val codec: PortableAmbientStepsJsonV2Codec = PortableAmbientStepsJsonV2Codec(),
 	private val legacyCodec: PortableAmbientStepsJsonV1Codec = PortableAmbientStepsJsonV1Codec(),
+	private val v2MaximumBytes: Long = AmbientStepsPortableFormatV2.MAX_FILE_BYTES,
+	private val v1MaximumBytes: Long = AmbientStepsPortableFormatV1.MAX_FILE_BYTES,
 ) : Exporter {
+	init {
+		require(v2MaximumBytes in 1..AmbientStepsPortableFormatV2.MAX_FILE_BYTES)
+		require(v1MaximumBytes in 1..AmbientStepsPortableFormatV1.MAX_FILE_BYTES)
+	}
+
 	override val requiresLocationData: Boolean = false
 	override val containsSensitiveLocationData: Boolean = true
 	override val sensitivityTitleRes: Int = R.string.export_ambient_steps_sensitivity_title
@@ -72,49 +79,63 @@ internal class PortableAmbientStepsExporter(
 				LocalizedString(R.string.export_error_portable_ambient_steps_scope),
 			)
 		}
-		val sourceResult = try {
+		val sourceResult: ExportPortableAmbientStepsResult = try {
 			val v2Result = FileBackedExportSpool(
 				context,
 				"portable-ambient-steps-v2-",
-				AmbientStepsPortableFormatV2.MAX_FILE_BYTES,
+				v2MaximumBytes,
 			).use { spool ->
-				val staged = spool.write { spoolOutput ->
+				when (val staged = spool.stage { spoolOutput ->
 					codec.encode(spoolOutput) { sink ->
 						backend.exportV2(origin, request, sink)
 					}
-				}
-				if (staged is ExportPortableAmbientStepsResult.Exported) {
-					if (spool.byteCount == 0L) {
-						throw PortableAmbientStepsFormatException(
-							"Successful Ambient Steps v2 export wrote no bytes",
-						)
+				}) {
+					is FileBackedExportStage.Complete -> {
+						if (staged.value is ExportPortableAmbientStepsResult.Exported) {
+							if (spool.byteCount == 0L) {
+								throw PortableAmbientStepsFormatException(
+									"Successful Ambient Steps v2 export wrote no bytes",
+								)
+							}
+							spool.copyTo(outputStream)
+						}
+						staged.value
 					}
-					spool.copyTo(outputStream)
+					FileBackedExportStage.EncodedSizeExceeded -> null
 				}
-				staged
 			}
 			if (
+				v2Result == null ||
 				v2Result is ExportPortableAmbientStepsResult.Unverifiable &&
-				v2Result.reason ==
-				PortableAmbientStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE
+					v2Result.reason ==
+					PortableAmbientStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE
 			) {
 				FileBackedExportSpool(
 					context,
 					"portable-ambient-steps-v1-",
-					AmbientStepsPortableFormatV1.MAX_FILE_BYTES,
+					v1MaximumBytes,
 				).use { spool ->
-					val fallback = spool.write { spoolOutput ->
+					when (val staged = spool.stage { spoolOutput ->
 						legacyCodec.encode(spoolOutput) { sink ->
 							backend.export(origin, request, sink)
 						}
+					}) {
+						is FileBackedExportStage.Complete -> {
+							if (staged.value is ExportPortableAmbientStepsResult.Exported) {
+								spool.copyTo(outputStream)
+							}
+							staged.value
+						}
+						FileBackedExportStage.EncodedSizeExceeded ->
+							return ExportResult.Error(
+								LocalizedString(
+									R.string.export_error_portable_ambient_steps_write,
+								),
+							)
 					}
-					if (fallback is ExportPortableAmbientStepsResult.Exported) {
-						spool.copyTo(outputStream)
-					}
-					fallback
 				}
 			} else {
-				v2Result
+				requireNotNull(v2Result)
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled

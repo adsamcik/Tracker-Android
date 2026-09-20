@@ -2,10 +2,8 @@ package com.adsamcik.tracker.impexp.exporter
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import java.io.File
-import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -118,7 +116,7 @@ class FileBackedExportSpoolTest {
 	}
 
 	@Test
-	fun `bounded write failure is staged and close removes the incomplete file`() = runTest {
+	fun `encoded size overflow is typed and close removes the incomplete file`() = runTest {
 		val spool = FileBackedExportSpool(
 			ApplicationProvider.getApplicationContext(),
 			"portable-steps-v2-",
@@ -129,9 +127,8 @@ class FileBackedExportSpoolTest {
 		)
 		val file = spool.backingFile
 		try {
-			shouldThrow<IOException> {
-				spool.write { output -> output.write(byteArrayOf(1, 2, 3, 4)) }
-			}
+			spool.stage { output -> output.write(byteArrayOf(1, 2, 3, 4)) } shouldBe
+				FileBackedExportStage.EncodedSizeExceeded
 		} finally {
 			spool.close()
 		}

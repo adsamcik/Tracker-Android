@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.PortableCountDomainGraphRead
 import com.adsamcik.tracker.shared.base.database.PortableCountDomainGraphReader
 import com.adsamcik.tracker.shared.base.database.PortableCountDomainRootSeed
+import com.adsamcik.tracker.shared.base.database.hasCompletePortableOwnerLineages
 import com.adsamcik.tracker.shared.base.database.dao.ScopedStepFactState
 import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateState
 import com.adsamcik.tracker.shared.base.database.dao.hasValidStepsFactCandidateState
@@ -908,6 +909,9 @@ internal class PortableStepsRoomReader @Inject constructor(
 				abort(PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE)
 			PortableCountDomainGraphRead.Unverifiable ->
 				abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		}
+		if (!graph.hasCompletePortableOwnerLineages()) {
+			abort(PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE)
 		}
 		return BuiltPortableEntry(product, PortableStepsEntryV2(product, graph))
 	}

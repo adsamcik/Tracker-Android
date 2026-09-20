@@ -8,6 +8,7 @@
     <string name="export_error_no_portable_steps">No verified Steps history is available to export.</string>
     <string name="export_error_portable_steps_retryable">Steps export is temporarily unavailable. Try again.</string>
     <string name="export_error_portable_steps_unverifiable">Steps history is incomplete or cannot be verified for export.</string>
+    <string name="export_error_portable_steps_write">The Portable Steps file could not be created.</string>
     <string name="export_error_no_portable_pressure">No verified Pressure history is available to export.</string>
     <string name="export_error_portable_pressure_data_pruned">Pressure history has been pruned or is unavailable for export.</string>
     <string name="export_error_portable_pressure_unverifiable">Pressure history is incomplete or cannot be verified for export.</string>

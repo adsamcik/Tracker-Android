@@ -36,6 +36,8 @@ internal class PortableStepsExporter(
 			PortableStepsExportEntryPoint::class.java,
 		).exportPortableSteps()
 	},
+	private val v2MaximumBytes: Long = StepsPortableFormatV2.MAX_FILE_BYTES,
+	private val v1MaximumBytes: Long = StepsPortableFormatV1.MAX_FILE_BYTES,
 	private val exporterProvider: (Context) -> ExportPortableStepsV2 = { context ->
 		EntryPointAccessors.fromApplication(
 			context.applicationContext,
@@ -43,6 +45,11 @@ internal class PortableStepsExporter(
 		).exportPortableStepsV2()
 	},
 ) : Exporter {
+	init {
+		require(v2MaximumBytes in 1..StepsPortableFormatV2.MAX_FILE_BYTES)
+		require(v1MaximumBytes in 1..StepsPortableFormatV1.MAX_FILE_BYTES)
+	}
+
 	override val requiresLocationData: Boolean = false
 	override val containsSensitiveLocationData: Boolean = false
 	override val canSelectDateRange: Boolean = true
@@ -59,44 +66,55 @@ internal class PortableStepsExporter(
 		val result = FileBackedExportSpool(
 			context,
 			"portable-steps-v2-",
-			StepsPortableFormatV2.MAX_FILE_BYTES,
+			v2MaximumBytes,
 		).use { spool ->
-			val staged = spool.write { spoolOutput ->
+			when (val staged = spool.stage { spoolOutput ->
 				PortableStepsJsonV2Codec().encode(spoolOutput) { sink ->
 					exporterProvider(context).export(request, sink)
 				}
-			}
-			if (staged is ExportPortableStepsResult.Exported) {
-				if (spool.byteCount == 0L) {
-					throw PortableStepsJsonException(
-						"Successful Portable Steps v2 export wrote no bytes",
-					)
+			}) {
+				is FileBackedExportStage.Complete -> {
+					if (staged.value is ExportPortableStepsResult.Exported) {
+						if (spool.byteCount == 0L) {
+							throw PortableStepsJsonException(
+								"Successful Portable Steps v2 export wrote no bytes",
+							)
+						}
+						spool.copyTo(outputStream)
+					}
+					staged.value
 				}
-				spool.copyTo(outputStream)
+				FileBackedExportStage.EncodedSizeExceeded -> null
 			}
-			staged
 		}
-		val finalResult = if (
+		val finalResult: ExportPortableStepsResult = if (
+			result == null ||
 			result is ExportPortableStepsResult.Unverifiable &&
-			result.reason == PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE
+				result.reason == PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE
 		) {
 			FileBackedExportSpool(
 				context,
 				"portable-steps-v1-",
-				StepsPortableFormatV1.MAX_FILE_BYTES,
+				v1MaximumBytes,
 			).use { spool ->
-				val fallback = spool.write { spoolOutput ->
+				when (val staged = spool.stage { spoolOutput ->
 					PortableStepsJsonV1Codec().encode(spoolOutput) { sink ->
 						legacyExporterProvider(context).export(request, sink)
 					}
+				}) {
+					is FileBackedExportStage.Complete -> {
+						if (staged.value is ExportPortableStepsResult.Exported) {
+							spool.copyTo(outputStream)
+						}
+						staged.value
+					}
+					FileBackedExportStage.EncodedSizeExceeded -> return ExportResult.Error(
+						LocalizedString(R.string.export_error_portable_steps_write),
+					)
 				}
-				if (fallback is ExportPortableStepsResult.Exported) {
-					spool.copyTo(outputStream)
-				}
-				fallback
 			}
 		} else {
-			result
+			requireNotNull(result)
 		}
 		return when (finalResult) {
 			is ExportPortableStepsResult.Exported -> ExportResult.Success(

@@ -42,8 +42,8 @@ interface ImportedPortableStepsCountDomainDao {
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertOwnerFences(values: List<ImportedPortableStepsCountDomainOwnerFenceEntity>)
 
-	@Insert(onConflict = OnConflictStrategy.ABORT)
-	fun insertOwnerFencesForFullClear(values: List<ImportedPortableStepsCountDomainOwnerFenceEntity>)
+	@Insert(onConflict = OnConflictStrategy.REPLACE)
+	fun upsertOwnerFencesForFullClear(values: List<ImportedPortableStepsCountDomainOwnerFenceEntity>)
 
 	@Query("SELECT * FROM imported_steps_count_domain_graph WHERE graph_identity = :identity")
 	suspend fun graph(identity: String): ImportedPortableStepsCountDomainGraphEntity?

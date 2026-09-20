@@ -181,6 +181,107 @@ class PortableStepsExporterTest {
 	}
 
 	@Test
+	fun `v2 encoded overflow falls back to bounded v1 before destination write`() = runTest {
+		val legacyEntry = entry()
+		val v1Bytes = ByteArrayOutputStream().also { output ->
+			PortableStepsJsonV1Codec().encode(output) { sink ->
+				sink.emit(legacyEntry)
+				ExportPortableStepsResult.Exported(1)
+			}
+		}.toByteArray()
+		var v2Calls = 0
+		var v1Calls = 0
+		val output = ByteArrayOutputStream()
+		val exporter = PortableStepsExporter(
+			legacyExporterProvider = {
+				fakeLegacyExporter { _, sink ->
+					v1Calls++
+					sink.emit(legacyEntry)
+					ExportPortableStepsResult.Exported(1)
+				}
+			},
+			v2MaximumBytes = v1Bytes.size.toLong(),
+			v1MaximumBytes = v1Bytes.size.toLong(),
+			exporterProvider = {
+				fakeExporter { _, sink ->
+					v2Calls++
+					sink.emit(
+						PortableStepsArchiveV2.create(
+							listOf(legacyEntry.withExplicitUnprovenCountDomain()),
+						),
+					)
+					ExportPortableStepsResult.Exported(1)
+				}
+			},
+		)
+
+		exporter.export(
+			ApplicationProvider.getApplicationContext(),
+			emptySequence(),
+			output,
+			null,
+		) shouldBe ExportResult.Success(1)
+
+		v2Calls shouldBe 1
+		v1Calls shouldBe 1
+		val decoded = mutableListOf<PortableStepsEntryV1>()
+		PortableStepsJsonV1Codec().decode(ByteArrayInputStream(output.toByteArray())) {
+			decoded += it
+		}
+		decoded shouldContainExactly listOf(legacyEntry)
+	}
+
+	@Test
+	fun `v2 and v1 encoded overflow return error without destination bytes`() = runTest {
+		val legacyEntry = entry()
+		val v1Size = ByteArrayOutputStream().also { output ->
+			PortableStepsJsonV1Codec().encode(output) { sink ->
+				sink.emit(legacyEntry)
+				ExportPortableStepsResult.Exported(1)
+			}
+		}.size()
+		var v2Calls = 0
+		var v1Calls = 0
+		val output = ByteArrayOutputStream()
+		val exporter = PortableStepsExporter(
+			legacyExporterProvider = {
+				fakeLegacyExporter { _, sink ->
+					v1Calls++
+					sink.emit(legacyEntry)
+					ExportPortableStepsResult.Exported(1)
+				}
+			},
+			v2MaximumBytes = (v1Size - 1).toLong(),
+			v1MaximumBytes = (v1Size - 1).toLong(),
+			exporterProvider = {
+				fakeExporter { _, sink ->
+					v2Calls++
+					sink.emit(
+						PortableStepsArchiveV2.create(
+							listOf(legacyEntry.withExplicitUnprovenCountDomain()),
+						),
+					)
+					ExportPortableStepsResult.Exported(1)
+				}
+			},
+		)
+
+		exporter.export(
+			ApplicationProvider.getApplicationContext(),
+			emptySequence(),
+			output,
+			null,
+		) shouldBe ExportResult.Error(
+			com.adsamcik.tracker.shared.base.misc.LocalizedString(
+				R.string.export_error_portable_steps_write,
+			),
+		)
+		v2Calls shouldBe 1
+		v1Calls shouldBe 1
+		output.size() shouldBe 0
+	}
+
+	@Test
 	fun `large v2 export streams bounded chunks without a whole-file destination write`() = runTest {
 		val entry = largeEntry(256).withExplicitUnprovenCountDomain()
 		val output = MaximumWriteOutputStream(MAX_STREAM_WRITE_SIZE)

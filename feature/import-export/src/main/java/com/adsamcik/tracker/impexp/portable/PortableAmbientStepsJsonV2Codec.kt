@@ -258,7 +258,11 @@ private class PortableV2BoundedAmbientOutputStream(
 	}
 	private fun claim(count: Int) {
 		written = Math.addExact(written, count.toLong())
-		if (written > maximumBytes) ambientFail("Ambient Steps v2 exceeds its byte bound")
+		if (written > maximumBytes) {
+			throw PortableAmbientStepsEncodedSizeLimitException(
+				"Ambient Steps v2 exceeds its byte bound",
+			)
+		}
 	}
 }
 

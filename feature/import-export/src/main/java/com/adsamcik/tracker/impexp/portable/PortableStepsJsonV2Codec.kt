@@ -267,7 +267,11 @@ private class PortableV2BoundedOutputStream(
 
 	private fun claim(count: Int) {
 		written = Math.addExact(written, count.toLong())
-		if (written > maximumBytes) fail("Portable document exceeds its byte bound")
+		if (written > maximumBytes) {
+			throw PortableStepsEncodedSizeLimitException(
+				"Portable document exceeds its byte bound",
+			)
+		}
 	}
 }
 

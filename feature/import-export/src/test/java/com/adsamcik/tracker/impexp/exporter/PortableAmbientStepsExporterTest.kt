@@ -197,6 +197,101 @@ class PortableAmbientStepsExporterTest {
 	}
 
 	@Test
+	fun `v2 encoded overflow falls back to bounded Ambient v1 before destination write`() = runTest {
+		val archive = ambientArchive(
+			completeAmbientDay(LocalDate.of(2026, 1, 3), 9L),
+		)
+		val v1Bytes = ByteArrayOutputStream().also { output ->
+			PortableAmbientStepsJsonV1Codec().encode(output) { sink ->
+				sink.emit(archive)
+				exported(archive)
+			}
+		}.toByteArray()
+		var v2Calls = 0
+		var v1Calls = 0
+		val output = ByteArrayOutputStream()
+		val exporter = PortableAmbientStepsExporter(
+			backendProvider = {
+				backend(
+					native = { _, sink ->
+						v1Calls++
+						sink.emit(archive)
+						exported(archive)
+					},
+					nativeV2 = { _, sink ->
+						v2Calls++
+						sink.emit(archive.toV2())
+						exported(archive)
+					},
+				)
+			},
+			v2MaximumBytes = v1Bytes.size.toLong(),
+			v1MaximumBytes = v1Bytes.size.toLong(),
+		)
+
+		exporter.export(
+			ApplicationProvider.getApplicationContext(),
+			emptySequence(),
+			output,
+			null,
+		) shouldBe ExportResult.Success(1)
+
+		v2Calls shouldBe 1
+		v1Calls shouldBe 1
+		PortableAmbientStepsJsonV1Codec().decode(
+			ByteArrayInputStream(output.toByteArray()),
+		).archive shouldBe archive
+	}
+
+	@Test
+	fun `v2 and v1 encoded overflow return Ambient error without destination bytes`() = runTest {
+		val archive = ambientArchive(
+			completeAmbientDay(LocalDate.of(2026, 1, 4), 9L),
+		)
+		val v1Size = ByteArrayOutputStream().also { output ->
+			PortableAmbientStepsJsonV1Codec().encode(output) { sink ->
+				sink.emit(archive)
+				exported(archive)
+			}
+		}.size()
+		var v2Calls = 0
+		var v1Calls = 0
+		val output = ByteArrayOutputStream()
+		val exporter = PortableAmbientStepsExporter(
+			backendProvider = {
+				backend(
+					native = { _, sink ->
+						v1Calls++
+						sink.emit(archive)
+						exported(archive)
+					},
+					nativeV2 = { _, sink ->
+						v2Calls++
+						sink.emit(archive.toV2())
+						exported(archive)
+					},
+				)
+			},
+			v2MaximumBytes = (v1Size - 1).toLong(),
+			v1MaximumBytes = (v1Size - 1).toLong(),
+		)
+
+		exporter.export(
+			ApplicationProvider.getApplicationContext(),
+			emptySequence(),
+			output,
+			null,
+		) shouldBe ExportResult.Error(
+			com.adsamcik.tracker.shared.base.misc.LocalizedString(
+				R.string.export_error_portable_ambient_steps_write,
+			),
+		)
+		v2Calls shouldBe 1
+		v1Calls shouldBe 1
+		output.size() shouldBe 0
+	}
+
+	@Test
 	fun `large v2 export streams bounded chunks without a whole-file destination write`() = runTest {
 		val archive = largeAmbientArchive(256)
 		val output = MaximumWriteOutputStream(MAX_STREAM_WRITE_SIZE)
@@ -431,6 +526,10 @@ class PortableAmbientStepsExporterTest {
 		) -> ExportPortableAmbientStepsResult = { _, _ ->
 			ExportPortableAmbientStepsResult.NoData
 		},
+		nativeV2: (suspend (
+			ExportPortableAmbientStepsRequest,
+			PortableAmbientStepsArchiveV2Sink,
+		) -> ExportPortableAmbientStepsResult)? = null,
 	): AmbientStepsPortableSourceBackend = AmbientStepsPortableSourceBackend(
 		nativeExporter = producer(native),
 		importedReexporter = object : ReexportImportedAmbientSteps {
@@ -439,7 +538,14 @@ class PortableAmbientStepsExporterTest {
 				sink: PortableAmbientStepsArchiveSink,
 			): ExportPortableAmbientStepsResult = imported(request, sink)
 		},
-		nativeExporterV2 = producerV2(native),
+		nativeExporterV2 = nativeV2?.let { block ->
+			object : ExportPortableAmbientStepsV2 {
+				override suspend fun export(
+					request: ExportPortableAmbientStepsRequest,
+					sink: PortableAmbientStepsArchiveV2Sink,
+				): ExportPortableAmbientStepsResult = block(request, sink)
+			}
+		} ?: producerV2(native),
 		importedReexporterV2 = object : ReexportImportedAmbientStepsV2 {
 			override suspend fun export(
 				request: ExportPortableAmbientStepsRequest,

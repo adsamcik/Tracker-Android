@@ -720,7 +720,7 @@ internal data class PortableAmbientStepsJsonLimits(
 	}
 }
 
-internal class PortableAmbientStepsFormatException(
+internal open class PortableAmbientStepsFormatException(
 	message: String,
 	cause: Throwable? = null,
 ) : IOException(message, cause) {
@@ -806,8 +806,14 @@ private class BoundedAmbientOutputStream(
 
 	private fun record(count: Long) {
 		if (bytesWritten > maximumBytes - count) {
-			formatFailure("Portable Ambient Steps document exceeds its byte bound")
+			throw PortableAmbientStepsEncodedSizeLimitException(
+				"Portable Ambient Steps document exceeds its byte bound",
+			)
 		}
 		bytesWritten += count
 	}
 }
+
+internal class PortableAmbientStepsEncodedSizeLimitException(
+	message: String,
+) : PortableAmbientStepsFormatException(message), PortableEncodedSizeLimitFailure

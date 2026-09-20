@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainDiges
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOperation
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOwnerKind
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOwnerRevisionV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainReceiptV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsDeletionScopeDigest
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsEntryV1
@@ -140,6 +141,65 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			graph.roots.size + 1,
 		).map { it.ownerIdentity }.toSet() shouldBe
 			graph.roots.map { it.ownerIdentity.value }.toSet()
+	}
+
+	@Test
+	fun `full clear aggregates overlapping bound and orphan graph revisions into latest fence`() =
+		runTest {
+			val entry = entry()
+			seedSessionPayload(entry)
+			val (older, latest) = sessionGraphProgression(entry)
+			val advancedRoot = latest.roots.first {
+				it.ownerRevision == 2L
+			}
+			val dao = database.importedPortableStepsCountDomainDao()
+			dao.insertAuthenticatedGraph(
+				older,
+				ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+			)
+			installV2SessionBinding(entry, latest)
+
+			database.withTransaction {
+				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+			}
+
+			val fence = dao.ownerFences(listOf(advancedRoot.ownerIdentity.value), 2).single()
+			fence.latestSourceRevision shouldBe 2L
+			fence.latestOwnerEffectChecksum shouldBe latest.ownerRevisions.single {
+				it.ownerKind == advancedRoot.ownerKind &&
+					it.ownerIdentity == advancedRoot.ownerIdentity &&
+					it.ownerRevision == 2L
+			}.ownerEffectChecksum.value
+			fence.graphIdentity shouldBe latest.identity.value
+			dao.graph(older.identity.value) shouldBe null
+			dao.graph(latest.identity.value) shouldBe null
+		}
+
+	@Test
+	fun `full clear rejects conflicting owner semantics across bound and orphan graphs`() = runTest {
+		val entry = entry()
+		seedSessionPayload(entry)
+		val (_, latest) = sessionGraphProgression(entry)
+		val conflicting = conflictingFirstOwnerGraph(latest)
+		val dao = database.importedPortableStepsCountDomainDao()
+		dao.insertAuthenticatedGraph(
+			conflicting,
+			ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+		)
+		installV2SessionBinding(entry, latest)
+
+		assertFailsWith<IllegalArgumentException> {
+			database.withTransaction {
+				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+			}
+		}
+
+		dao.graph(conflicting.identity.value)?.graphIdentity shouldBe conflicting.identity.value
+		dao.graph(latest.identity.value)?.graphIdentity shouldBe latest.identity.value
+		dao.ownerFences(
+			latest.roots.map { it.ownerIdentity.value },
+			latest.roots.size + 1,
+		) shouldBe emptyList()
 	}
 
 	@Test
@@ -664,8 +724,9 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 
 	private suspend fun installV2SessionBinding(
 		entry: PortableStepsEntryV1,
+		graph: PortableCountDomainGraphV2 =
+			entry.withExplicitUnprovenCountDomain().countDomainGraph,
 	): PortableCountDomainGraphV2 {
-		val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
 		val dao = database.importedPortableStepsCountDomainDao()
 		val receiptIdentity = ImportedPortableCountDomainIdentity.fileReceipt("v2-job", "v2-entry")
 		dao.insertAuthenticatedGraph(
@@ -699,6 +760,116 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 		)
 		return graph
 	}
+
+	private fun sessionGraphProgression(
+		entry: PortableStepsEntryV1,
+	): Pair<PortableCountDomainGraphV2, PortableCountDomainGraphV2> {
+		val template = entry.withExplicitUnprovenCountDomain().countDomainGraph
+		val originalOwner = template.ownerRevisions.first {
+			it.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT
+		}
+		val firstReceipt = sessionFactReceipt(
+			originalOwner,
+			1L,
+			originalOwner.ownerEffectChecksum,
+		)
+		val firstOwner = originalOwner.copy(
+			operation = PortableCountDomainOperation.BIND,
+			receiptIdentity = firstReceipt.identity,
+		)
+		val older = PortableCountDomainGraphV2.create(
+			receipts = listOf(firstReceipt),
+			ownerRevisions = template.ownerRevisions.map {
+				if (it == originalOwner) firstOwner else it
+			},
+			completenessMarkers = template.completenessMarkers,
+			roots = template.roots,
+		)
+		val latestEffect = PortableCountDomainDigest("sha256:" + "d".repeat(64))
+		val latestReceipt = sessionFactReceipt(originalOwner, 2L, latestEffect)
+		val latestOwner = PortableCountDomainOwnerRevisionV2(
+			ownerKind = originalOwner.ownerKind,
+			scopeIdentity = originalOwner.scopeIdentity,
+			ownerIdentity = originalOwner.ownerIdentity,
+			ownerRevision = 2L,
+			operation = PortableCountDomainOperation.BIND,
+			receiptIdentity = latestReceipt.identity,
+			ownerEffectChecksum = latestEffect,
+			linkedAtMs = 2L,
+		)
+		val latest = PortableCountDomainGraphV2.create(
+			receipts = listOf(firstReceipt, latestReceipt),
+			ownerRevisions = older.ownerRevisions + latestOwner,
+			completenessMarkers = older.completenessMarkers,
+			roots = older.roots.map { root ->
+				if (root.ownerKind == originalOwner.ownerKind &&
+					root.ownerIdentity == originalOwner.ownerIdentity
+				) {
+					root.copy(ownerRevision = 2L)
+				} else {
+					root
+				}
+			},
+		)
+		return older to latest
+	}
+
+	private fun conflictingFirstOwnerGraph(
+		latest: PortableCountDomainGraphV2,
+	): PortableCountDomainGraphV2 {
+		val firstOwner = latest.ownerRevisions.first {
+			it.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT &&
+				it.ownerRevision == 1L
+		}
+		val conflictingEffect = PortableCountDomainDigest("sha256:" + "c".repeat(64))
+		val receipt = sessionFactReceipt(firstOwner, 1L, conflictingEffect)
+		return PortableCountDomainGraphV2.create(
+			receipts = listOf(receipt),
+			ownerRevisions = latest.ownerRevisions
+				.filterNot {
+					it.ownerKind == firstOwner.ownerKind &&
+						it.ownerIdentity == firstOwner.ownerIdentity
+				}
+				.plus(
+					firstOwner.copy(
+						operation = PortableCountDomainOperation.BIND,
+						receiptIdentity = receipt.identity,
+						ownerEffectChecksum = conflictingEffect,
+					),
+				),
+			completenessMarkers = latest.completenessMarkers,
+			roots = latest.roots.map { root ->
+				if (root.ownerKind == firstOwner.ownerKind &&
+					root.ownerIdentity == firstOwner.ownerIdentity
+				) {
+					root.copy(ownerRevision = 1L)
+				} else {
+					root
+				}
+			},
+		)
+	}
+
+	private fun sessionFactReceipt(
+		owner: PortableCountDomainOwnerRevisionV2,
+		revision: Long,
+		effect: PortableCountDomainDigest,
+	): PortableCountDomainReceiptV2 = PortableCountDomainReceiptV2.create(
+		domainIdentity = owner.scopeIdentity,
+		ownerKind = owner.ownerKind,
+		scopeIdentity = owner.scopeIdentity,
+		ownerIdentity = owner.ownerIdentity,
+		ownerRevision = revision,
+		registrationGeneration = 1L,
+		collectedDataEpoch = 7L,
+		authorityRevision = revision,
+		authorityFingerprint = PortableCountDomainDigest("sha256:" + "a".repeat(64)),
+		coverage = PortableCountDomainCoverage.COVERED,
+		coverageVersion = 1,
+		countDomainVersion = 1,
+		effectChecksum = effect,
+		completenessEvidenceChecksum = null,
+	)
 
 	private fun fileReceipt(
 		entry: PortableStepsEntryV1,
