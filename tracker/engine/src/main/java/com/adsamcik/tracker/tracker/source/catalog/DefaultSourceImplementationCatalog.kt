@@ -2,38 +2,48 @@ package com.adsamcik.tracker.tracker.source.catalog
 
 import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.source.ambient.steps.AndroidAmbientStepsCapabilityResolver
 import com.adsamcik.tracker.tracker.source.coordinator.SemanticAcquisitionPlanFactory
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanEnvironment
+import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourcePlan
+import com.adsamcik.tracker.tracker.source.runtime.ClaimedSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.LocationDeviceStateProvider
-import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeRegistry
+import com.adsamcik.tracker.tracker.source.runtime.LocationPrerequisiteEvaluator
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class DefaultSourceImplementationCatalog internal constructor(
-	private val runtimeRegistry: SourceRuntimeRegistry,
+	runtimes: Set<@JvmSuppressWildcards ClaimedSourceRuntime<out SourcePlan>>,
 	private val acquisitionRevisionFactory: SourceAcquisitionRevisionFactory,
 	private val availabilityReaders: SourceProviderAvailabilityReaderFactory,
 	private val productFactories: SourceProductFactories,
 ) : SourceImplementationCatalog {
 	@Inject
 	constructor(
-		runtimeRegistry: SourceRuntimeRegistry,
+		runtimes: Set<@JvmSuppressWildcards ClaimedSourceRuntime<out SourcePlan>>,
 		semanticAcquisitionPlanFactory: SemanticAcquisitionPlanFactory,
 		ambientStepsCapabilityResolver: AndroidAmbientStepsCapabilityResolver,
 		locationDeviceStateProvider: LocationDeviceStateProvider,
+		locationPrerequisiteEvaluator: LocationPrerequisiteEvaluator,
+		activityRecognitionSourceStateProvider: AndroidActivityRecognitionSourceStateProvider,
 		productFactories: SourceProductFactories,
 	) : this(
-		runtimeRegistry,
+		runtimes,
 		SourceAcquisitionRevisionFactory(semanticAcquisitionPlanFactory::create),
 		DefaultSourceProviderAvailabilityReaderFactory(
 			ambientStepsCapabilityResolver,
 			locationDeviceStateProvider,
+			locationPrerequisiteEvaluator,
+			activityRecognitionSourceStateProvider,
 		),
 		productFactories,
 	)
 
+	private val runtimesBySource = runtimes.associateBy { runtime -> runtime.source }
 	private val implementationsBySource: Map<TrackingSource, SourceImplementation>
 
 	override val implementations: Set<SourceImplementation>
@@ -41,7 +51,10 @@ class DefaultSourceImplementationCatalog internal constructor(
 
 	init {
 		val expectedRuntimeSources = SourceKind.entries.toSet()
-		require(runtimeRegistry.registeredSources() == expectedRuntimeSources) {
+		require(runtimesBySource.size == runtimes.size) {
+			"Only one physical runtime may own each source"
+		}
+		require(runtimesBySource.keys == expectedRuntimeSources) {
 			"Source catalog requires exactly the six runtime owners: $expectedRuntimeSources"
 		}
 		implementationsBySource = TrackingSource.entries.associateWith(::createImplementation)
@@ -56,9 +69,17 @@ class DefaultSourceImplementationCatalog internal constructor(
 	override fun implementation(source: TrackingSource): SourceImplementation =
 		implementationsBySource.getValue(source)
 
+	override fun create(
+		settings: TrackingParamsState,
+		revision: Long,
+		createdAtMs: Long,
+		environment: SourcePlanEnvironment,
+	): AcquisitionPlanRevision =
+		acquisitionRevisionFactory.create(settings, revision, createdAtMs, environment)
+
 	private fun createImplementation(source: TrackingSource): SourceImplementation {
 		val runtimeSource = source.toRuntimeSourceKind()
-		val runtime = requireNotNull(runtimeRegistry.runtime(runtimeSource)) {
+		val runtime = requireNotNull(runtimesBySource[runtimeSource]) {
 			"Missing runtime owner for $runtimeSource"
 		}
 		return SourceImplementation(

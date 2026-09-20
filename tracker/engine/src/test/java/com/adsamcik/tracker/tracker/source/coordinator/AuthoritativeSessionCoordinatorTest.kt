@@ -36,6 +36,7 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
 import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
+import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -53,6 +54,11 @@ import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.ingress.RoomDurableSourceIngress
+import com.adsamcik.tracker.tracker.source.catalog.SourceAvailabilityTier
+import com.adsamcik.tracker.tracker.source.catalog.SourceCatalogAvailability
+import com.adsamcik.tracker.tracker.source.catalog.SourceImplementationCatalog
+import com.adsamcik.tracker.tracker.source.catalog.SourceProviderAvailability
+import com.adsamcik.tracker.tracker.source.catalog.SourceProviderPermission
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
@@ -290,6 +296,7 @@ class AuthoritativeSessionCoordinatorTest {
 				com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.STATE_ACKNOWLEDGED
 			receipt.stopStatus shouldBe SourceStopStatus.COMPLETE.name
 		}
+
 		database.sourceBrokerDao().currentDemands("session:${started.logicalTrackingId}") shouldBe emptyList()
 		database.sourceBrokerDao().demandHistory("session:${started.logicalTrackingId}")
 			.single().status shouldBe SourceDemandEntity.STATUS_RETIRED
@@ -297,6 +304,32 @@ class AuthoritativeSessionCoordinatorTest {
 			.map { it.status }.distinct() shouldBe listOf("RETIRED")
 		runtime.closed shouldBe true
 		sourceProductDrainRouter.requests shouldBe emptyList()
+	}
+
+	@Test
+	fun `session start rejects catalog permission failure before provider start`() = runTest {
+		val catalog = mockk<SourceImplementationCatalog>()
+		coEvery { catalog.availability(any()) } returns SourceCatalogAvailability.Executable(
+			SourceProviderAvailability.PermissionRequired(
+				setOf(SourceProviderPermission.RuntimePermission(SourceKind.STEPS)),
+			),
+		)
+		replaceRuntimeRegistry(SourceRuntimeRegistry(catalog))
+
+		subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.InvalidIntent>().code shouldBe
+			"SOURCE_CATALOG_STEPS_SESSION_CAPTURE_PERMISSION_REQUIRED"
+		runtime.startCount shouldBe 0
+		database.sourceSessionDao().activeSession() shouldBe null
+		coVerify(exactly = 1) {
+			catalog.availability(
+				match { request ->
+					request.source == SourceKind.STEPS &&
+						request.purpose == TrackingPurpose.SESSION_CAPTURE &&
+						request.plan.source == SourceKind.STEPS &&
+						request.tier == SourceAvailabilityTier.MANUAL_FOREGROUND_START
+				},
+			)
+		}
 	}
 
 	@Test
@@ -7996,6 +8029,25 @@ class AuthoritativeSessionCoordinatorTest {
 			database,
 			RoomSourcePlanStore(database, SourcePlanCodec()),
 			SourceRuntimeRegistry(setOf(runtime, locationRuntime)),
+			DurableSourceEventSinkFactory(ingress),
+			TrackingCoordinator(database, ingress, ProjectionDispatcher(database, emptySet())),
+			ActivityAutomaticStartActionRepository(database, ReadyTrackingStartupGate),
+			activityAutomationDrainSignal,
+			activityAutomationEpochAuthority,
+			BootClockDomainProvider { currentBootId },
+			leaseClock,
+			FakeSourceCallerDemandDispatcher(database, SourceBroker(database)),
+			rolloutStore = fixedEventRolloutStore(),
+			sourceProductDrainRouter = sourceProductDrainRouter,
+		)
+	}
+
+	private fun replaceRuntimeRegistry(registry: SourceRuntimeRegistry) {
+		val ingress = mockk<DurableSourceIngress>(relaxed = true)
+		subject = AuthoritativeSessionCoordinator(
+			database,
+			RoomSourcePlanStore(database, SourcePlanCodec()),
+			registry,
 			DurableSourceEventSinkFactory(ingress),
 			TrackingCoordinator(database, ingress, ProjectionDispatcher(database, emptySet())),
 			ActivityAutomaticStartActionRepository(database, ReadyTrackingStartupGate),

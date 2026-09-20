@@ -37,6 +37,10 @@ data class SourceWriterOwnership(
 }
 
 sealed interface SourceWriterContract {
+	data class NotApplicable(
+		val reason: SourceWriterUnsupportedReason,
+	) : SourceWriterContract
+
 	data class ProtectedLocation(
 		val ownership: SourceWriterOwnership,
 	) : SourceWriterContract
@@ -53,8 +57,6 @@ sealed interface SourceWriterContract {
 			}
 		}
 	}
-
-	data object ActivityControlOutboxOnly : SourceWriterContract
 
 	sealed interface Ambient : SourceWriterContract {
 		val writerId: String
@@ -98,6 +100,10 @@ sealed interface SourceWriterContract {
 			require(writerOwnerGeneration > 0L)
 		}
 	}
+}
+
+enum class SourceWriterUnsupportedReason {
+	CONTROL_HAS_NO_PRODUCT_WRITER,
 }
 
 sealed interface SourceProjectionContract {
@@ -324,7 +330,9 @@ sealed interface SourceProductBinding {
 		override val capability = SourceProductCapability.Contained(
 			TrackingDecisionContainmentReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
 		)
-		override val writer = SourceWriterContract.ActivityControlOutboxOnly
+		override val writer = SourceWriterContract.NotApplicable(
+			SourceWriterUnsupportedReason.CONTROL_HAS_NO_PRODUCT_WRITER,
+		)
 		override val drain = SourceDrainContract.NotApplicable(
 			SourceDrainUnsupportedReason.CONTROL_HAS_NO_PRODUCT_DRAIN,
 		)

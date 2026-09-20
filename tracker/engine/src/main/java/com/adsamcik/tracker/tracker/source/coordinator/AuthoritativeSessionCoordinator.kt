@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.time.Clock
+import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
 import com.adsamcik.tracker.tracker.api.SourceCallerAcceptanceReceipt
 import com.adsamcik.tracker.tracker.api.SourceCallerGuardResult
@@ -40,6 +41,10 @@ import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
 import com.adsamcik.tracker.tracker.source.hasAuthoritativeConsentReference
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
+import com.adsamcik.tracker.tracker.source.catalog.SourceAvailabilityRequest
+import com.adsamcik.tracker.tracker.source.catalog.SourceAvailabilityTier
+import com.adsamcik.tracker.tracker.source.catalog.SourceCatalogAvailability
+import com.adsamcik.tracker.tracker.source.catalog.SourceProviderAvailability
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
@@ -270,6 +275,12 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			request.origin.toSessionMode().captureReachabilityModeOrNull(),
 		)?.let {
 			return SessionStartPreparationResult.Rejected(it)
+		}
+		runtimes.validateCatalogStartPrerequisites(
+			request.plan,
+			request.origin.toSourceAvailabilityTier(),
+		)?.let { failure ->
+			return SessionStartPreparationResult.Rejected(failure.code, failure.disposition)
 		}
 		val ownerToken = preparedStartOwner(delivery.token)
 		val lease = acquireLease(ownerToken)
@@ -1084,6 +1095,10 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				)
 			} ?: return SessionStartResult.InvalidIntent("PREPARED_START_MANIFEST_INTEGRITY_FAILED")
 			validateSourcePolicy(plan)?.let { return SessionStartResult.InvalidPolicy(it) }
+			runtimes.validateCatalogStartPrerequisites(
+				plan,
+				SourceAvailabilityTier.SESSION_ALREADY_FOREGROUND,
+			)?.let { return SessionStartResult.InvalidIntent(it.code) }
 			planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
 			val sink = sinkFactory.forSession(run.logicalTrackingId, run.serviceRunId)
 			val executions = reconcileStartActions(
@@ -1414,6 +1429,12 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			request.origin.toSessionMode().captureReachabilityModeOrNull(),
 		)
 		if (rolloutFailure != null) return SessionStartResult.InvalidRollout(rolloutFailure)
+		runtimes.validateCatalogStartPrerequisites(
+			request.plan,
+			request.origin.toSourceAvailabilityTier(),
+		)?.let {
+			return SessionStartResult.InvalidIntent(it.code)
+		}
 		val lease = acquireLease(request.ownerToken)
 			?: return SessionStartResult.Busy
 		return try {
@@ -7246,6 +7267,86 @@ enum class SessionStartOrigin {
 	AUTOMATIC_BACKGROUND_START,
 	RECOVERY,
 	POLICY_RECONCILIATION,
+}
+
+internal data class CatalogStartPrerequisiteFailure(
+	val code: String,
+	val disposition: TrackingStartFailureDisposition,
+)
+
+internal suspend fun SourceRuntimeRegistry.validateCatalogStartPrerequisites(
+	plan: AcquisitionPlanRevision,
+	tier: SourceAvailabilityTier,
+): CatalogStartPrerequisiteFailure? {
+	val failures = plan.plans.values
+		.filter(SourcePlan::enabled)
+		.sortedBy { sourcePlan -> sourcePlan.source.stableCode }
+		.mapNotNull { sourcePlan ->
+			val availability = try {
+				availability(
+					SourceAvailabilityRequest(
+						source = sourcePlan.source,
+						purpose = TrackingPurpose.SESSION_CAPTURE,
+						plan = sourcePlan,
+						tier = tier,
+					),
+				)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				return@mapNotNull CatalogStartPrerequisiteFailure(
+					"SOURCE_CATALOG_${sourcePlan.source.name}_AVAILABILITY_READ_FAILED",
+					TrackingStartFailureDisposition.RETRYABLE,
+				)
+			}
+			availability.toStartPrerequisiteFailure(sourcePlan.source)
+		}
+	return failures.firstOrNull()
+}
+
+private fun SessionStartOrigin.toSourceAvailabilityTier(): SourceAvailabilityTier = when (this) {
+	SessionStartOrigin.MANUAL_FOREGROUND_START -> SourceAvailabilityTier.MANUAL_FOREGROUND_START
+	SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
+	SessionStartOrigin.RECOVERY,
+	-> SourceAvailabilityTier.AUTOMATIC_BACKGROUND_START
+	SessionStartOrigin.POLICY_RECONCILIATION -> SourceAvailabilityTier.SESSION_ALREADY_FOREGROUND
+}
+
+internal fun SourceCatalogAvailability.toStartPrerequisiteFailure(
+	source: SourceKind,
+): CatalogStartPrerequisiteFailure? = when (this) {
+	is SourceCatalogAvailability.Unsupported -> CatalogStartPrerequisiteFailure(
+		code = "SOURCE_CATALOG_${source.name}_${purpose.name}_UNSUPPORTED",
+		disposition = TrackingStartFailureDisposition.TERMINAL,
+	)
+	is SourceCatalogAvailability.Executable -> {
+		val code = when (availability) {
+			is SourceProviderAvailability.Available,
+			is SourceProviderAvailability.Degraded,
+			-> null
+			is SourceProviderAvailability.PermissionRequired ->
+				"SOURCE_CATALOG_${source.name}_SESSION_CAPTURE_PERMISSION_REQUIRED"
+			is SourceProviderAvailability.ProviderUnavailable ->
+				"SOURCE_CATALOG_${source.name}_SESSION_CAPTURE_PROVIDER_UNAVAILABLE"
+			is SourceProviderAvailability.OsLimited ->
+				"SOURCE_CATALOG_${source.name}_SESSION_CAPTURE_OS_LIMITED"
+			is SourceProviderAvailability.HardwareUnavailable ->
+				"SOURCE_CATALOG_${source.name}_SESSION_CAPTURE_HARDWARE_UNAVAILABLE"
+			is SourceProviderAvailability.Contained ->
+				"SOURCE_CATALOG_${source.name}_SESSION_CAPTURE_CONTAINED"
+		}
+		code?.let {
+			CatalogStartPrerequisiteFailure(
+				code = it,
+				disposition = when (availability) {
+					is SourceProviderAvailability.ProviderUnavailable,
+					is SourceProviderAvailability.OsLimited,
+					-> TrackingStartFailureDisposition.RETRYABLE
+					else -> TrackingStartFailureDisposition.TERMINAL
+				},
+			)
+		}
+	}
 }
 
 data class SessionStartRequest(

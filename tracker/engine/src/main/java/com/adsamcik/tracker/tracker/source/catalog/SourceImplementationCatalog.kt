@@ -18,6 +18,15 @@ internal fun interface SourceAcquisitionRevisionFactory {
 	): AcquisitionPlanRevision
 }
 
+fun interface SourceAcquisitionPlanFactory {
+	fun create(
+		settings: TrackingParamsState,
+		revision: Long,
+		createdAtMs: Long,
+		environment: SourcePlanEnvironment,
+	): AcquisitionPlanRevision
+}
+
 class SourceAcquisitionPlanProvider internal constructor(
 	private val source: SourceKind,
 	private val revisionFactory: SourceAcquisitionRevisionFactory,
@@ -60,7 +69,7 @@ data class SourceImplementation(
  *
  * Lookup never creates demand, registers a provider, grants retention, or activates a writer.
  */
-interface SourceImplementationCatalog {
+interface SourceImplementationCatalog : SourceAcquisitionPlanFactory {
 	val implementations: Set<SourceImplementation>
 	val bindings: Set<SourcePurposeBinding>
 
@@ -81,6 +90,18 @@ interface SourceImplementationCatalog {
 
 	fun binding(key: SourcePurposeKey): SourcePurposeBinding =
 		binding(key.source, key.purpose)
+
+	suspend fun availability(request: SourceAvailabilityRequest): SourceCatalogAvailability =
+		when (val binding = binding(request.source, request.purpose)) {
+			is SourcePurposeBinding.Executable -> SourceCatalogAvailability.Executable(
+				binding.providerAvailability.read(request),
+			)
+			is SourcePurposeBinding.Unsupported -> SourceCatalogAvailability.Unsupported(
+				source = binding.source,
+				purpose = binding.purpose,
+				reason = binding.reason,
+			)
+		}
 }
 
 internal fun TrackingSource.toRuntimeSourceKind(): SourceKind = when (this) {

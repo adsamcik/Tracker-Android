@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.di
 
 import android.content.Context
 import com.adsamcik.tracker.tracker.source.catalog.DefaultSourceImplementationCatalog
+import com.adsamcik.tracker.tracker.source.catalog.SourceAcquisitionPlanFactory
 import com.adsamcik.tracker.tracker.source.catalog.SourceImplementationCatalog
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
 import com.adsamcik.tracker.tracker.source.projection.Projection
@@ -104,6 +105,12 @@ object SourcePipelineModule {
 	fun provideSourceImplementationCatalog(
 		catalog: DefaultSourceImplementationCatalog,
 	): SourceImplementationCatalog = catalog
+
+	@Provides
+	@Singleton
+	fun provideSourceAcquisitionPlanFactory(
+		catalog: SourceImplementationCatalog,
+	): SourceAcquisitionPlanFactory = catalog
 
 	@Provides
 	@Singleton

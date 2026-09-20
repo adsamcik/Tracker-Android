@@ -4,6 +4,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequenc
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.source.battery.BatteryImpactEstimate
 import com.adsamcik.tracker.tracker.source.battery.BatteryImpactEstimator
+import com.adsamcik.tracker.tracker.source.catalog.SourceAcquisitionPlanFactory
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
@@ -104,7 +105,7 @@ interface TrackingSettingsStatusProvider {
 
 @Singleton
 class DefaultTrackingSettingsStatusProvider @Inject constructor(
-	private val planFactory: SemanticAcquisitionPlanFactory,
+	private val planFactory: SourceAcquisitionPlanFactory,
 	private val planResolver: SourcePlanResolver,
 	private val batteryImpactEstimator: BatteryImpactEstimator,
 	coordinatorTelemetry: TrackingCoordinatorTelemetry,

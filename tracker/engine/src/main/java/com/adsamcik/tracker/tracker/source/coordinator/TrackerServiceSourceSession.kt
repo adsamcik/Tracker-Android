@@ -13,6 +13,7 @@ import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStore
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreFailureKind
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreResult
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
+import com.adsamcik.tracker.tracker.source.catalog.SourceAcquisitionPlanFactory
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.DemandReason
 import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
@@ -139,7 +140,7 @@ internal data class SourceSessionStopCutoff(
 class TrackerServiceSourceSession @Inject constructor(
 	private val database: AppDatabase,
 	private val coordinator: AuthoritativeSessionCoordinator,
-	private val planFactory: SemanticAcquisitionPlanFactory,
+	private val planFactory: SourceAcquisitionPlanFactory,
 	private val planResolver: SourcePlanResolver,
 	private val telemetry: TrackingCoordinatorTelemetry,
 	private val settingsStatusProvider: TrackingSettingsStatusProvider,

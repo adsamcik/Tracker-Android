@@ -190,6 +190,28 @@ class SourcePipelineModuleTest {
 			)
 		}
 
+	@Test
+	fun `catalog owns runtime planning and readiness without a hilt dependency cycle`() {
+		val catalog = source("source/catalog/DefaultSourceImplementationCatalog.kt")
+		val registry = source("source/runtime/SourceRuntimeRegistry.kt")
+		val coordinator = source("source/coordinator/AuthoritativeSessionCoordinator.kt")
+		val serviceSession = source("source/coordinator/TrackerServiceSourceSession.kt")
+		val settingsStatus = source("source/coordinator/TrackingSettingsStatusProvider.kt")
+		val module = source("di/SourcePipelineModule.kt")
+
+		assertTrue("runtimes: Set<@JvmSuppressWildcards ClaimedSourceRuntime<out SourcePlan>>" in catalog)
+		assertFalse("SourceRuntimeRegistry" in catalog)
+		assertTrue("internal constructor(catalog: SourceImplementationCatalog)" in registry)
+		assertTrue("catalog.implementation(source).runtime" in registry)
+		assertTrue("catalog.availability(request)" in registry)
+		assertTrue("runtimes.validateCatalogStartPrerequisites(" in coordinator)
+		assertTrue("request.origin.toSourceAvailabilityTier()" in coordinator)
+		assertTrue("private val planFactory: SourceAcquisitionPlanFactory" in serviceSession)
+		assertTrue("private val planFactory: SourceAcquisitionPlanFactory" in settingsStatus)
+		assertTrue("fun provideSourceAcquisitionPlanFactory(" in module)
+		assertTrue("): SourceAcquisitionPlanFactory = catalog" in module)
+	}
+
 	private fun source(relativePath: String): String = projectRoot.resolve(
 		"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/$relativePath",
 	).readText()

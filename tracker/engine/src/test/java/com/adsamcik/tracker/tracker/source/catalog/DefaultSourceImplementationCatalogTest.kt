@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionSettings
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
 import com.adsamcik.tracker.tracker.api.TrackingDecisionContainmentReason
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsCapability
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsImportAccess
@@ -21,13 +22,22 @@ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBindi
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.SemanticAcquisitionPlanFactory
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanEnvironment
+import com.adsamcik.tracker.tracker.source.coordinator.toStartPrerequisiteFailure
+import com.adsamcik.tracker.tracker.source.coordinator.validateCatalogStartPrerequisites
+import com.adsamcik.tracker.tracker.source.model.ActivityMode
+import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
+import com.adsamcik.tracker.tracker.source.model.LocationMode
+import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
+import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
 import com.adsamcik.tracker.tracker.source.runtime.ClaimedSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.LocationDeviceState
+import com.adsamcik.tracker.tracker.source.runtime.LocationDeviceStateProvider
+import com.adsamcik.tracker.tracker.source.runtime.LocationPrerequisiteEvaluator
 import com.adsamcik.tracker.tracker.source.runtime.OwnedSourceShutdown
 import com.adsamcik.tracker.tracker.source.runtime.SessionCutoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceApplyResult
@@ -102,6 +112,7 @@ class DefaultSourceImplementationCatalogTest {
 			)
 			val revision = index.toLong() + 10L
 			val expected = expectedFactory.create(settings, revision, 100L + index, environment)
+			fixture.catalog.create(settings, revision, 100L + index, environment) shouldBe expected
 			TrackingSource.entries.forEach { source ->
 				fixture.catalog.implementation(source).acquisitionPlans.create(
 					settings,
@@ -113,7 +124,7 @@ class DefaultSourceImplementationCatalogTest {
 		}
 
 		fixture.acquisitionCalls() shouldBe
-			SourceCollectionFrequency.entries.size * SourceKind.entries.size
+			SourceCollectionFrequency.entries.size * (SourceKind.entries.size + 1)
 	}
 
 	@Test
@@ -141,45 +152,6 @@ class DefaultSourceImplementationCatalogTest {
 				SourceProviderAvailabilityEvidence.Runtime(
 					SourceKind.LOCATION,
 					setOf(SourceDegradedReason.HARDWARE_UNAVAILABLE),
-				),
-			)
-
-		val location = LocationDeviceState(
-			apiLevel = 35,
-			locationFeatureAvailable = true,
-			locationServicesEnabled = true,
-			coarsePermission = true,
-			finePermission = true,
-			backgroundLocationPermission = false,
-			fusedProviderAvailable = true,
-			foregroundServiceLocationCapability = true,
-			backgroundForegroundServiceStartLegal = false,
-		)
-		location.copy(locationFeatureAvailable = false).toSourceProviderAvailability() shouldBe
-			SourceProviderAvailability.HardwareUnavailable(
-				SourceProviderAvailabilityEvidence.Runtime(
-					SourceKind.LOCATION,
-					setOf(SourceDegradedReason.HARDWARE_UNAVAILABLE),
-				),
-			)
-		location.copy(
-			coarsePermission = false,
-			finePermission = false,
-		).toSourceProviderAvailability() shouldBe SourceProviderAvailability.PermissionRequired(
-			setOf(SourceProviderPermission.RuntimePermission(SourceKind.LOCATION)),
-		)
-		location.copy(locationServicesEnabled = false).toSourceProviderAvailability() shouldBe
-			SourceProviderAvailability.ProviderUnavailable(
-				SourceProviderAvailabilityEvidence.Runtime(
-					SourceKind.LOCATION,
-					setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
-				),
-			)
-		location.copy(foregroundServiceLocationCapability = false).toSourceProviderAvailability() shouldBe
-			SourceProviderAvailability.OsLimited(
-				SourceProviderAvailabilityEvidence.Runtime(
-					SourceKind.LOCATION,
-					setOf(SourceDegradedReason.FOREGROUND_CAPABILITY_MISSING),
 				),
 			)
 
@@ -217,7 +189,12 @@ class DefaultSourceImplementationCatalogTest {
 		).toSourceProviderAvailability() shouldBe SourceProviderAvailability.Available()
 		containedAvailability(
 			TrackingDecisionContainmentReason.EXPANDED_AMBIENT_LOCATION_UNAVAILABLE,
-		).read() shouldBe SourceProviderAvailability.Contained(
+		).read(
+			availabilityRequest(
+				SourceKind.LOCATION,
+				TrackingPurpose.AMBIENT_PRODUCT,
+			),
+		) shouldBe SourceProviderAvailability.Contained(
 			TrackingDecisionContainmentReason.EXPANDED_AMBIENT_LOCATION_UNAVAILABLE,
 		)
 
@@ -230,7 +207,13 @@ class DefaultSourceImplementationCatalogTest {
 			minimumDelayMs = null,
 			degradedReasons = emptySet(),
 		)
-		RuntimeSourceProviderAvailabilityReader(runtime).read() shouldBe
+		RuntimeSourceProviderAvailabilityReader(
+			TrackingSource.PRESSURE,
+			TrackingPurpose.SESSION_CAPTURE,
+			runtime,
+		).read(
+			availabilityRequest(SourceKind.PRESSURE),
+		) shouldBe
 			SourceProviderAvailability.HardwareUnavailable(
 				SourceProviderAvailabilityEvidence.Runtime(
 					SourceKind.PRESSURE,
@@ -238,6 +221,171 @@ class DefaultSourceImplementationCatalogTest {
 				),
 			)
 		runtime.lifecycleCalls shouldBe 0
+	}
+
+	@Test
+	fun `activity and steps session availability reads current permission and activity provider`() = runTest {
+		var state = ActivityRecognitionSourceState(permissionGranted = false, providerAvailable = true)
+		val stateProvider = ActivityRecognitionSourceStateProvider { state }
+		val activityRuntime = FakeRuntime(SourceKind.ACTIVITY)
+		val stepsRuntime = FakeRuntime(SourceKind.STEPS)
+		val activityReader = ActivitySessionSourceProviderAvailabilityReader(activityRuntime, stateProvider)
+		val stepsReader = StepsSessionSourceProviderAvailabilityReader(stepsRuntime, stateProvider)
+
+		activityReader.read(availabilityRequest(SourceKind.ACTIVITY)) shouldBe
+			SourceProviderAvailability.PermissionRequired(
+				setOf(SourceProviderPermission.RuntimePermission(SourceKind.ACTIVITY)),
+			)
+		stepsReader.read(availabilityRequest(SourceKind.STEPS)) shouldBe
+			SourceProviderAvailability.PermissionRequired(
+				setOf(SourceProviderPermission.RuntimePermission(SourceKind.STEPS)),
+			)
+
+		state = ActivityRecognitionSourceState(permissionGranted = true, providerAvailable = false)
+		activityReader.read(availabilityRequest(SourceKind.ACTIVITY)) shouldBe
+			SourceProviderAvailability.ProviderUnavailable(
+				SourceProviderAvailabilityEvidence.Runtime(
+					SourceKind.ACTIVITY,
+					setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
+				),
+			)
+		stepsReader.read(availabilityRequest(SourceKind.STEPS)) shouldBe
+			SourceProviderAvailability.Available()
+		activityRuntime.lifecycleCalls shouldBe 0
+		stepsRuntime.lifecycleCalls shouldBe 0
+	}
+
+	@Test
+	fun `location availability reports fused fallback and preserves framework blockers`() = runTest {
+		var state = availableLocationState().copy(fusedProviderAvailable = false)
+		val stateProvider = object : LocationDeviceStateProvider {
+			override fun snapshot(): LocationDeviceState = state
+		}
+		val reader = LocationSourceProviderAvailabilityReader(
+			stateProvider,
+			LocationPrerequisiteEvaluator(),
+		)
+		val fusedRequest = availabilityRequest(SourceKind.LOCATION)
+		val degraded = reader.read(fusedRequest) as SourceProviderAvailability.Degraded
+		(degraded.effectivePlan as LocationPlan).backend shouldBe LocationBackend.FRAMEWORK
+		degraded.evidence shouldBe SourceProviderAvailabilityEvidence.Location(
+			requestedBackend = LocationBackend.FUSED,
+			effectiveBackend = LocationBackend.FRAMEWORK,
+			reasons = setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
+		)
+
+		state = state.copy(locationServicesEnabled = false)
+		reader.read(
+			fusedRequest.copy(
+				plan = (fusedRequest.plan as LocationPlan).copy(backend = LocationBackend.FRAMEWORK),
+			),
+		) shouldBe SourceProviderAvailability.ProviderUnavailable(
+			SourceProviderAvailabilityEvidence.Location(
+				requestedBackend = LocationBackend.FRAMEWORK,
+				effectiveBackend = LocationBackend.FRAMEWORK,
+				reasons = setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
+			),
+		)
+
+		state = state.copy(
+			locationServicesEnabled = true,
+			coarsePermission = false,
+			finePermission = false,
+		)
+		reader.read(fusedRequest) shouldBe SourceProviderAvailability.PermissionRequired(
+			setOf(SourceProviderPermission.RuntimePermission(SourceKind.LOCATION)),
+		)
+
+		state = availableLocationState().copy(foregroundServiceLocationCapability = false)
+		reader.read(
+			fusedRequest.copy(
+				plan = (fusedRequest.plan as LocationPlan).copy(backend = LocationBackend.FRAMEWORK),
+			),
+		) shouldBe SourceProviderAvailability.OsLimited(
+			SourceProviderAvailabilityEvidence.Location(
+				requestedBackend = LocationBackend.FRAMEWORK,
+				effectiveBackend = LocationBackend.FRAMEWORK,
+				reasons = setOf(SourceDegradedReason.FOREGROUND_CAPABILITY_MISSING),
+			),
+		)
+	}
+
+	@Test
+	fun `session start prerequisite reads every catalog binding before rejecting without starts`() = runTest {
+		val fixture = fixture { request ->
+			when (request.source) {
+				SourceKind.ACTIVITY -> SourceProviderAvailability.PermissionRequired(
+					setOf(SourceProviderPermission.RuntimePermission(SourceKind.ACTIVITY)),
+				)
+				SourceKind.STEPS -> SourceProviderAvailability.ProviderUnavailable(
+					SourceProviderAvailabilityEvidence.Runtime(
+						SourceKind.STEPS,
+						setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
+					),
+				)
+				else -> SourceProviderAvailability.Available()
+			}
+		}
+		val plan = com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision(
+			revision = 1L,
+			planId = "catalog-readiness",
+			createdAtMs = 1L,
+			plans = mapOf(
+				SourceKind.ACTIVITY to ActivityPlan(
+					1L,
+					ActivityMode.CONTINUOUS_RECOGNITION,
+					1_000L,
+					60,
+					emptySet(),
+				),
+				SourceKind.STEPS to StepsPlan(1L, true, 1_000L, 1_000L, false),
+			),
+		)
+
+		fixture.registry.validateCatalogStartPrerequisites(
+			plan,
+			SourceAvailabilityTier.MANUAL_FOREGROUND_START,
+		) shouldBe com.adsamcik.tracker.tracker.source.coordinator.CatalogStartPrerequisiteFailure(
+			"SOURCE_CATALOG_ACTIVITY_SESSION_CAPTURE_PERMISSION_REQUIRED",
+			TrackingStartFailureDisposition.TERMINAL,
+		)
+		fixture.availabilityReads() shouldBe 2
+		fixture.runtimes.sumOf(FakeRuntime::lifecycleCalls) shouldBe 0
+	}
+
+	@Test
+	fun `unsupported provider and degraded catalog results map without provider starts`() {
+		SourceCatalogAvailability.Unsupported(
+			TrackingSource.ACTIVITY,
+			TrackingPurpose.SESSION_CAPTURE,
+			UnsupportedSourcePurposeReason.NOT_CANONICALLY_SUPPORTED,
+		).toStartPrerequisiteFailure(SourceKind.ACTIVITY) shouldBe
+			com.adsamcik.tracker.tracker.source.coordinator.CatalogStartPrerequisiteFailure(
+				"SOURCE_CATALOG_ACTIVITY_SESSION_CAPTURE_UNSUPPORTED",
+				TrackingStartFailureDisposition.TERMINAL,
+			)
+		SourceCatalogAvailability.Executable(
+			SourceProviderAvailability.ProviderUnavailable(
+				SourceProviderAvailabilityEvidence.Runtime(
+					SourceKind.ACTIVITY,
+					setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
+				),
+			),
+		).toStartPrerequisiteFailure(SourceKind.ACTIVITY) shouldBe
+			com.adsamcik.tracker.tracker.source.coordinator.CatalogStartPrerequisiteFailure(
+				"SOURCE_CATALOG_ACTIVITY_SESSION_CAPTURE_PROVIDER_UNAVAILABLE",
+				TrackingStartFailureDisposition.RETRYABLE,
+			)
+		val plan = availabilityRequest(SourceKind.LOCATION).plan
+		SourceCatalogAvailability.Executable(
+			SourceProviderAvailability.Degraded(
+				plan,
+				SourceProviderAvailabilityEvidence.Runtime(
+					SourceKind.LOCATION,
+					setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
+				),
+			),
+		).toStartPrerequisiteFailure(SourceKind.LOCATION) shouldBe null
 	}
 
 	@Test
@@ -266,6 +414,13 @@ class DefaultSourceImplementationCatalogTest {
 		control.activationDefault shouldBe SourceActivationDefault.CONTROL_OFF
 		control.products.capability shouldBe SourceProductCapability.Contained(
 			TrackingDecisionContainmentReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
+		)
+		control.products.writer shouldBe SourceWriterContract.NotApplicable(
+			SourceWriterUnsupportedReason.CONTROL_HAS_NO_PRODUCT_WRITER,
+		)
+		control.products.projection shouldBe SourceProjectionContract.ActivityControl(
+			ActivityAutomationProjection.ID,
+			ActivityAutomationProjection.VERSION,
 		)
 	}
 
@@ -521,27 +676,31 @@ class DefaultSourceImplementationCatalogTest {
 			degradedReasons = setOf(reason),
 		).toSourceProviderAvailability(SourceKind.LOCATION)
 
-	private fun fixture(): CatalogFixture {
+	private fun fixture(
+		availability: (SourceAvailabilityRequest) -> SourceProviderAvailability = {
+			SourceProviderAvailability.Available()
+		},
+	): CatalogFixture {
 		val runtimes = SourceKind.entries.map(::FakeRuntime)
-		val registry = SourceRuntimeRegistry(runtimes.toSet())
 		val semanticFactory = SemanticAcquisitionPlanFactory()
 		var acquisitionCalls = 0
 		var availabilityReads = 0
 		val catalog = DefaultSourceImplementationCatalog(
-			runtimeRegistry = registry,
+			runtimes = runtimes.toSet(),
 			acquisitionRevisionFactory = SourceAcquisitionRevisionFactory {
 					settings, revision, createdAtMs, environment ->
 				acquisitionCalls++
 				semanticFactory.create(settings, revision, createdAtMs, environment)
 			},
 			availabilityReaders = SourceProviderAvailabilityReaderFactory { _, _, _ ->
-				SourceProviderAvailabilityReader {
+				SourceProviderAvailabilityReader { request ->
 					availabilityReads++
-					SourceProviderAvailability.Available()
+					availability(request)
 				}
 			},
 			productFactories = SourceProductFactories(),
 		)
+		val registry = SourceRuntimeRegistry(catalog)
 		return CatalogFixture(
 			catalog,
 			registry,
@@ -594,6 +753,61 @@ class DefaultSourceImplementationCatalogTest {
 		source: TrackingSource,
 		purpose: TrackingPurpose,
 	) = SourcePurposeKey(source, purpose)
+
+	private fun availabilityRequest(
+		source: SourceKind,
+		purpose: TrackingPurpose = TrackingPurpose.SESSION_CAPTURE,
+		tier: SourceAvailabilityTier = SourceAvailabilityTier.MANUAL_FOREGROUND_START,
+	): SourceAvailabilityRequest {
+		val plan = when (source) {
+			SourceKind.LOCATION -> LocationPlan(
+				revision = 1L,
+				backend = LocationBackend.FUSED,
+				mode = LocationMode.BALANCED,
+				requestedIntervalMs = 1_000L,
+				minimumUpdateIntervalMs = 1_000L,
+				minimumDisplacementMeters = 1f,
+				maximumBatchDelayMs = 1_000L,
+				preciseLocationAvailable = true,
+			)
+			SourceKind.ACTIVITY -> ActivityPlan(
+				1L,
+				ActivityMode.CONTINUOUS_RECOGNITION,
+				1_000L,
+				60,
+				emptySet(),
+			)
+			SourceKind.STEPS -> StepsPlan(1L, true, 1_000L, 1_000L, false)
+			else -> SemanticAcquisitionPlanFactory().create(
+				TrackingParamsState(
+					sourceCollectionSettings = SourceCollectionSettings(
+						location = SourceCollectionFrequency.BALANCED,
+						activity = SourceCollectionFrequency.BALANCED,
+						steps = SourceCollectionFrequency.BALANCED,
+						pressure = SourceCollectionFrequency.BALANCED,
+						wifi = SourceCollectionFrequency.BALANCED,
+						cell = SourceCollectionFrequency.BALANCED,
+					),
+				),
+				1L,
+				1L,
+				SourcePlanEnvironment(LocationBackend.FUSED, true, emptySet()),
+			).plans.getValue(source)
+		}
+		return SourceAvailabilityRequest(source, purpose, plan, tier)
+	}
+
+	private fun availableLocationState() = LocationDeviceState(
+		apiLevel = 35,
+		locationFeatureAvailable = true,
+		locationServicesEnabled = true,
+		coarsePermission = true,
+		finePermission = true,
+		backgroundLocationPermission = true,
+		fusedProviderAvailable = true,
+		foregroundServiceLocationCapability = true,
+		backgroundForegroundServiceStartLegal = true,
+	)
 
 	private data class CatalogFixture(
 		val catalog: DefaultSourceImplementationCatalog,
