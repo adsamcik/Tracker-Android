@@ -261,6 +261,13 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		data class Acquired(val lease: LifecycleLeaseToken) : PreparedLeaseAcquisition
 		data class Rejected(val failureCode: String) : PreparedLeaseAcquisition
 	}
+	private sealed interface PreparedCallerAuthorityRebindRead {
+		data object None : PreparedCallerAuthorityRebindRead
+		data class Available(
+			val rebind: PreparedCallerAuthorityRebind,
+		) : PreparedCallerAuthorityRebindRead
+		data object Invalid : PreparedCallerAuthorityRebindRead
+	}
 
 	/**
 	 * Persists the exact provider-eligible source manifest while retaining every requested source in
@@ -841,9 +848,14 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		) {
 			is PreparedLeaseAcquisition.Acquired -> acquired.lease
 			is PreparedLeaseAcquisition.Rejected ->
-				return PreparedSessionClaimResult.Rejected(acquired.failureCode)
+				return PreparedSessionClaimResult.Rejected(
+					acquired.failureCode,
+					compensatePreparedState =
+						acquired.failureCode != "PREPARED_START_REBIND_STALE",
+				)
 		}
 		var rejection: String? = null
+		var rejectionShouldCompensate = true
 		var claimed: ClaimedPreparedSessionStart? = null
 		database.withTransaction {
 			requireLeaseInTransaction(lease)
@@ -921,6 +933,17 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				)
 			}
 			val bindings = requireNotNull(manifestEnvelope).bindings
+			val callerAuthorityRebind = when (
+				val rebind = preparedCallerAuthorityRebind(run, manifestEnvelope, intent)
+			) {
+				PreparedCallerAuthorityRebindRead.None -> null
+				is PreparedCallerAuthorityRebindRead.Available -> rebind.rebind
+				PreparedCallerAuthorityRebindRead.Invalid -> {
+					rejection = "PREPARED_START_CALLER_REBIND_INVALID"
+					rejectionShouldCompensate = false
+					return@withTransaction
+				}
+			}
 			val captureSources = bindings.asSequence()
 				.filter { it.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
 				.mapNotNull { binding -> SourceKind.entries.firstOrNull { it.stableCode == binding.sourceKind } }
@@ -956,11 +979,15 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				isAmbient = run.startIsAmbient,
 				alreadyForegroundAccepted = updated.androidDeliveryState ==
 					AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name,
+				callerAuthorityRebind = callerAuthorityRebind,
 			)
 		}
 		if (claimed == null) {
 			releaseLease(lease)
-			return PreparedSessionClaimResult.Rejected(rejection ?: "PREPARED_START_CLAIM_FAILED")
+			return PreparedSessionClaimResult.Rejected(
+				rejection ?: "PREPARED_START_CLAIM_FAILED",
+				rejectionShouldCompensate,
+			)
 		}
 		return PreparedSessionClaimResult.Claimed(requireNotNull(claimed))
 	}
@@ -1330,19 +1357,18 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					run.logicalTrackingId,
 					run.preparedManifestRevision,
 					run.serviceRunId,
-				)?.manifest ?: return@withTransaction false
+				) ?: return@withTransaction false
 				val intent = dao.lifecycleIntent(run.logicalTrackingId, run.preparedIntentRevision)
 					?: return@withTransaction false
-				if (manifest.acquisitionPlanRevision != run.desiredPlanRevision ||
-					manifest.serviceRunId != run.serviceRunId ||
-					intent.manifestRevision != run.preparedManifestRevision ||
-					intent.desiredState != LifecycleDesiredState.ACTIVE.name
+				if (manifest.manifest.acquisitionPlanRevision != run.desiredPlanRevision ||
+					manifest.manifest.serviceRunId != run.serviceRunId ||
+					intent.intentRevision != run.preparedIntentRevision ||
+					!intent.hasAuthenticStartEnvelope(manifest.manifest)
 				) return@withTransaction false
 				if (session.state != SessionLifecycleState.STARTING.name ||
 					session.currentServiceRunId != run.serviceRunId ||
 					session.currentManifestRevision != run.preparedManifestRevision ||
-					session.currentIntentRevision != run.preparedIntentRevision ||
-					session.lifecycleRevision != intent.intentRevision ||
+					session.currentIntentRevision != intent.intentRevision ||
 					session.lifecycleLeaseGeneration != run.leaseGeneration ||
 					session.lifecycleBootId != run.bootId
 				) return@withTransaction false
@@ -1353,6 +1379,14 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				if (exactActions.any { action ->
 						action.status == LifecycleActionStatus.CLEANUP_REQUIRED.name
 				}) return@withTransaction false
+				if (!hasExactPreparedStartOwner(
+						run = run,
+						manifestEnvelope = manifest,
+						intent = intent,
+						actions = exactActions,
+						lease = lease,
+					)
+				) return@withTransaction false
 				sourceBroker.retireSessionDemandsInTransaction(
 					run.logicalTrackingId,
 					currentBootId,
@@ -1414,6 +1448,106 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		} finally {
 			releaseLease(lease)
 		}
+	}
+
+	@Suppress("ComplexCondition", "LongMethod", "ReturnCount")
+	private suspend fun hasExactPreparedStartOwner(
+		run: SourceServiceRunEntity,
+		manifestEnvelope: VerifiedSessionManifest,
+		intent: SessionLifecycleIntentVersionEntity,
+		actions: List<LifecycleDesiredActionEntity>,
+		lease: LifecycleLeaseToken,
+	): Boolean {
+		val deliveryToken = run.startDeliveryToken?.takeIf(String::isNotBlank) ?: return false
+		val reference = intent.sourceCallerAuthorityReference?.takeIf(String::isNotBlank) ?: return false
+		if (lease.ownerToken != preparedStartOwner(PreparedTrackingStartToken(deliveryToken)) ||
+			lease.generation != run.leaseGeneration ||
+			lease.bootId != run.bootId ||
+			actions.isEmpty() ||
+			actions.any { action ->
+				val sourceKind = action.sourceKind ?: return@any true
+				action.logicalTrackingId != run.logicalTrackingId ||
+					action.serviceRunId != run.serviceRunId ||
+					action.manifestRevision != run.preparedManifestRevision ||
+					action.leaseGeneration != run.leaseGeneration ||
+					action.bootId != run.bootId ||
+					action.status !in setOf(
+						LifecycleActionStatus.AWAITING_FOREGROUND.name,
+						LifecycleActionStatus.PENDING.name,
+						LifecycleActionStatus.APPLYING.name,
+					) ||
+					action.actionId != lifecycleActionIdentity(
+						intent.intentRevision,
+						action.logicalTrackingId,
+						action.serviceRunId,
+						action.manifestRevision,
+						action.actionRevision,
+						action.actionFamily,
+						sourceKind,
+						action.desiredState,
+						action.desiredPlanRevision,
+						action.sourcePolicyRevision,
+						action.consentEpoch,
+						action.startOrigin,
+						action.bootId,
+						action.leaseGeneration,
+						action.requestedAtMs,
+						action.requestedElapsedRealtimeNanos,
+					)
+			}
+		) return false
+		val demands = database.sourceBrokerDao()
+			.demandHistory("session:${run.logicalTrackingId}")
+			.filter { demand ->
+				demand.serviceRunId == run.serviceRunId &&
+					demand.manifestRevision == run.preparedManifestRevision &&
+					demand.lifecycleLeaseGeneration == run.leaseGeneration
+			}
+		if (demands.isEmpty() || demands.any { demand ->
+				demand.sourceCallerAuthorityReference != reference ||
+					demand.status !in setOf(
+						SourceDemandEntity.STATUS_ACTIVE,
+						SourceDemandEntity.STATUS_BLOCKED,
+						SourceDemandEntity.STATUS_RETIRED,
+					)
+			}
+		) return false
+		val authorityRows = database.sourceCallerAuthorityDao().rows(reference)
+		if (authorityRows.isEmpty() ||
+			!SourceCallerAcceptedAuthorityEffectChecksum.isAuthentic(authorityRows) ||
+			authorityRows.any { row ->
+				row.reference != reference ||
+					row.status != SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE
+			}
+		) return false
+		val demandKeys = demands.mapTo(linkedSetOf()) { demand ->
+			demand.sourceKind to when (demand.purpose) {
+				SourceBrokerPurpose.SESSION_CAPTURE -> TrackingPurpose.SESSION_CAPTURE.stableName
+				SourceBrokerPurpose.CONTROL_CONTINUATION -> TrackingPurpose.CONTROL.stableName
+				else -> return false
+			}
+		}
+		if (authorityRows.mapTo(linkedSetOf()) { row -> row.sourceKind to row.purpose } != demandKeys) {
+			return false
+		}
+		val captureBindings = manifestEnvelope.bindings.filter { binding ->
+			binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name
+		}
+		val captureRows = authorityRows.filter { row ->
+			row.purpose == TrackingPurpose.SESSION_CAPTURE.stableName
+		}
+		val captureSourceKinds = captureBindings.mapTo(linkedSetOf()) { binding ->
+			binding.sourceKind
+		}
+		return actions.mapNotNullTo(linkedSetOf(), LifecycleDesiredActionEntity::sourceKind) ==
+			captureSourceKinds &&
+			captureRows.mapTo(linkedSetOf()) { row -> row.sourceKind } == captureSourceKinds &&
+			captureRows.all { row ->
+				row.logicalTrackingId == run.logicalTrackingId &&
+					row.manifestRevision == run.preparedManifestRevision &&
+					row.executionRevision == run.leaseGeneration &&
+					row.ownerCasToken == lease.ownerToken
+			}
 	}
 
 	suspend fun start(request: SessionStartRequest): SessionStartResult {
@@ -2026,34 +2160,64 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			request.plan,
 			SourceAvailabilityTier.SESSION_ALREADY_FOREGROUND,
 		)
+		validateSourcePolicy(request.plan)?.let { return SessionReconfigureResult.InvalidPolicy(it) }
+		val session = database.sourceSessionDao().activeSession()
+			?: return SessionReconfigureResult.NoActiveSession
+		if (session.state != SessionLifecycleState.ACTIVE.name) {
+			return SessionReconfigureResult.InvalidState(session.state)
+		}
+		val currentServiceRunId = session.currentServiceRunId
+			?: return SessionReconfigureResult.InvalidState("ACTIVE_SERVICE_RUN_MISSING")
+		val currentManifest = session.currentManifestRevision?.let { revision ->
+			verifiedManifest(session.logicalTrackingId, revision, currentServiceRunId)
+		} ?: return SessionReconfigureResult.InvalidIntent("CURRENT_MANIFEST_INTEGRITY_FAILED")
+		val currentPlan = planStore.load(currentManifest.manifest.acquisitionPlanRevision)
+			?: return SessionReconfigureResult.InvalidIntent("CURRENT_PLAN_MISSING")
+		val appliedStates = database.sourcePlanStateDao().appliedStates()
+			.associateBy { state -> state.sourceKind }
+		val currentAppliedPlans = when (val read = planStore.loadApplied(currentPlan.revision)) {
+			is AppliedPlanRead.Available -> read.plan.plans
+			AppliedPlanRead.Missing -> emptyMap()
+			is AppliedPlanRead.Invalid -> return SessionReconfigureResult.InvalidState(read.code)
+		}
+		val catalogTransition = catalogDecisions.forReconfiguration(
+			requestedPlan = request.plan,
+			currentAppliedPlans = currentAppliedPlans,
+		)
+		val exactDebtPersisted = request.desiredPlanFingerprint != null &&
+			request.catalogDebtPersistedFingerprint == request.desiredPlanFingerprint &&
+			request.catalogDebtPersistedGeneration == request.desiredPlanGeneration
+		if (catalogTransition.deferredSources.isNotEmpty() &&
+			(
+				request.catalogDebtPersistedSources != catalogTransition.deferredSources ||
+					!exactDebtPersisted
+				)
+		) {
+			val debt = requireNotNull(catalogTransition.retryableDebt)
+				.copy(sources = catalogTransition.deferredSources)
+			return SessionReconfigureResult.Retryable(
+				revision = request.plan.revision,
+				failureCode = debt.failure.code,
+				sources = debt.sources,
+			)
+		}
+		if (catalogTransition.deferredSources.isNotEmpty() &&
+			exactDebtPersisted &&
+			(
+				catalogTransition.matchesCurrentEffectivePlans(currentAppliedPlans) ||
+					catalogTransition.decisions.carriedForwardSources.isNotEmpty()
+				)
+		) {
+			val debt = requireNotNull(catalogTransition.retryableDebt)
+			return SessionReconfigureResult.Deferred(
+				revision = request.plan.revision,
+				failureCode = debt.failure.code,
+				sources = catalogTransition.deferredSources,
+			)
+		}
 		val lease = acquireLease(request.ownerToken)
 			?: return SessionReconfigureResult.Busy
 		return try {
-			validateSourcePolicy(request.plan)?.let { return SessionReconfigureResult.InvalidPolicy(it) }
-			val session = database.sourceSessionDao().activeSession()
-				?: return SessionReconfigureResult.NoActiveSession
-			if (session.state != SessionLifecycleState.ACTIVE.name) {
-				return SessionReconfigureResult.InvalidState(session.state)
-			}
-			val currentServiceRunId = session.currentServiceRunId
-				?: return SessionReconfigureResult.InvalidState("ACTIVE_SERVICE_RUN_MISSING")
-			val currentManifest = session.currentManifestRevision?.let { revision ->
-				verifiedManifest(session.logicalTrackingId, revision, currentServiceRunId)
-			} ?: return SessionReconfigureResult.InvalidIntent("CURRENT_MANIFEST_INTEGRITY_FAILED")
-			val currentPlan = planStore.load(currentManifest.manifest.acquisitionPlanRevision)
-				?: return SessionReconfigureResult.InvalidIntent("CURRENT_PLAN_MISSING")
-			val appliedStates = database.sourcePlanStateDao().appliedStates()
-				.associateBy { state -> state.sourceKind }
-			val currentAppliedPlans = when (val read = planStore.loadApplied(currentPlan.revision)) {
-				is AppliedPlanRead.Available -> read.plan.plans
-				AppliedPlanRead.Missing -> emptyMap()
-				is AppliedPlanRead.Invalid ->
-					return SessionReconfigureResult.InvalidState(read.code)
-			}
-			val catalogTransition = catalogDecisions.forReconfiguration(
-				requestedPlan = request.plan,
-				currentAppliedPlans = currentAppliedPlans,
-			)
 			val obsoletePlans = currentAppliedPlans
 				.filter { (source, sourcePlan) ->
 					source !in catalogTransition.plan.plans && sourcePlan.enabled
@@ -2073,23 +2237,6 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					catalogTransition.decisions.bySource + obsoletePlans.mapValues { (_, sourcePlan) ->
 						CatalogSourcePlanDecision.Disabled(sourcePlan)
 					},
-				)
-			}
-			val exactDebtPersisted = request.desiredPlanFingerprint != null &&
-				request.catalogDebtPersistedFingerprint == request.desiredPlanFingerprint &&
-				request.catalogDebtPersistedGeneration == request.desiredPlanGeneration
-			if (catalogTransition.deferredSources.isNotEmpty() &&
-				(
-					!request.catalogDebtPersistedSources.containsAll(catalogTransition.deferredSources) ||
-						!exactDebtPersisted
-					)
-			) {
-				val debt = requireNotNull(catalogTransition.retryableDebt)
-					.copy(sources = catalogTransition.deferredSources)
-				return SessionReconfigureResult.Retryable(
-					revision = request.plan.revision,
-					failureCode = debt.failure.code,
-					sources = debt.sources,
 				)
 			}
 			val plan = catalogTransition.plan
@@ -3441,6 +3588,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					}
 					applied.withCatalogDecision(catalogDecision)
 				}
+				is CatalogSourcePlanDecision.CarriedForward ->
+					error("Catalog carry-forward must defer before runtime reconciliation")
 				is CatalogSourcePlanDecision.Blocked -> {
 					if (!existingRuntime) {
 						catalogDecision.toBlockedExecution(nowElapsed)
@@ -6750,9 +6899,13 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		if (intentHistory.lastOrNull() != intent || intent.intentRevision == Long.MAX_VALUE) return false
 		val reboundIntentRevision = intent.intentRevision + 1L
 		val reboundReference = preparedLeaseRebindAuthorityReference(
-			reference,
-			run,
-			lease.generation,
+			previousReference = reference,
+			logicalTrackingId = run.logicalTrackingId,
+			serviceRunId = run.serviceRunId,
+			manifestRevision = run.preparedManifestRevision,
+			previousIntentRevision = run.preparedIntentRevision,
+			previousLeaseGeneration = run.leaseGeneration,
+			newLeaseGeneration = lease.generation,
 		)
 		val exactActions = sessionDao.lifecycleActions(run.logicalTrackingId).filter { action ->
 			action.serviceRunId == run.serviceRunId &&
@@ -6995,17 +7148,148 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		return true
 	}
 
+	@Suppress("ComplexCondition", "LongMethod", "ReturnCount")
+	private suspend fun preparedCallerAuthorityRebind(
+		run: SourceServiceRunEntity,
+		manifestEnvelope: VerifiedSessionManifest,
+		intent: SessionLifecycleIntentVersionEntity,
+	): PreparedCallerAuthorityRebindRead {
+		val intentHistory = database.sourceSessionDao().lifecycleIntents(run.logicalTrackingId)
+		if (intentHistory.lastOrNull() != intent) return PreparedCallerAuthorityRebindRead.Invalid
+		val predecessor = intentHistory.getOrNull(intentHistory.lastIndex - 1)
+			?: return PreparedCallerAuthorityRebindRead.None
+		if (predecessor.manifestRevision != intent.manifestRevision) {
+			return PreparedCallerAuthorityRebindRead.None
+		}
+		val manifest = manifestEnvelope.manifest
+		val previousReference = predecessor.sourceCallerAuthorityReference
+			?.takeIf(String::isNotBlank)
+			?: return PreparedCallerAuthorityRebindRead.Invalid
+		val currentReference = intent.sourceCallerAuthorityReference
+			?.takeIf(String::isNotBlank)
+			?: return PreparedCallerAuthorityRebindRead.Invalid
+		if (!predecessor.hasAuthenticStartEnvelope(manifest) ||
+			!intent.hasAuthenticStartEnvelope(manifest) ||
+			intent.intentRevision != predecessor.intentRevision + 1L ||
+			intent.copy(
+				intentRevision = predecessor.intentRevision,
+				sourceCallerAuthorityReference = previousReference,
+				intentChecksum = predecessor.intentChecksum,
+			) != predecessor ||
+			previousReference == currentReference
+		) return PreparedCallerAuthorityRebindRead.Invalid
+
+		val demandHistory = database.sourceBrokerDao()
+			.demandHistory("session:${run.logicalTrackingId}")
+			.filter { demand ->
+				demand.serviceRunId == run.serviceRunId &&
+					demand.manifestRevision == run.preparedManifestRevision
+			}
+		val previousDemands = demandHistory.filter { demand ->
+			demand.sourceCallerAuthorityReference == previousReference
+		}
+		val previousLeaseGeneration = previousDemands
+			.mapNotNull(SourceDemandEntity::lifecycleLeaseGeneration)
+			.distinct()
+			.singleOrNull()
+			?: return PreparedCallerAuthorityRebindRead.Invalid
+		val currentDemands = demandHistory.filter { demand ->
+			demand.sourceCallerAuthorityReference == currentReference &&
+				demand.lifecycleLeaseGeneration == run.leaseGeneration
+		}
+		if (previousDemands.isEmpty() || currentDemands.isEmpty() ||
+			previousDemands.any { demand -> demand.status != SourceDemandEntity.STATUS_RETIRED } ||
+			currentDemands.any { demand ->
+				demand.status !in setOf(
+					SourceDemandEntity.STATUS_ACTIVE,
+					SourceDemandEntity.STATUS_BLOCKED,
+					SourceDemandEntity.STATUS_RETIRED,
+				)
+			} ||
+			preparedLeaseRebindAuthorityReference(
+				previousReference = previousReference,
+				logicalTrackingId = run.logicalTrackingId,
+				serviceRunId = run.serviceRunId,
+				manifestRevision = run.preparedManifestRevision,
+				previousIntentRevision = predecessor.intentRevision,
+				previousLeaseGeneration = previousLeaseGeneration,
+				newLeaseGeneration = run.leaseGeneration,
+			) != currentReference
+		) return PreparedCallerAuthorityRebindRead.Invalid
+
+		val deliveryToken = run.startDeliveryToken?.takeIf(String::isNotBlank)
+			?: return PreparedCallerAuthorityRebindRead.Invalid
+		val preparedOwner = preparedStartOwner(PreparedTrackingStartToken(deliveryToken))
+		val previousAuthority = database.sourceCallerAuthorityDao().rows(previousReference)
+		val currentAuthority = database.sourceCallerAuthorityDao().rows(currentReference)
+		val captureSourceKinds = manifestEnvelope.bindings
+			.filter { binding -> binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
+			.mapTo(linkedSetOf()) { binding -> binding.sourceKind }
+		val previousCaptureAuthority = previousAuthority.filter { row ->
+			row.purpose == TrackingPurpose.SESSION_CAPTURE.stableName
+		}
+		val currentCaptureAuthority = currentAuthority.filter { row ->
+			row.purpose == TrackingPurpose.SESSION_CAPTURE.stableName
+		}
+		if (previousAuthority.isEmpty() || currentAuthority.isEmpty() ||
+			!SourceCallerAcceptedAuthorityEffectChecksum.isAuthentic(previousAuthority) ||
+			!SourceCallerAcceptedAuthorityEffectChecksum.isAuthentic(currentAuthority) ||
+			previousAuthority.any { row ->
+				row.reference != previousReference ||
+					row.status != SourceCallerAcceptedAuthorityEntity.STATUS_RETIRED ||
+					row.retireReason != "PREPARED_LEASE_REBOUND"
+			} ||
+			currentAuthority.any { row ->
+				row.reference != currentReference ||
+					row.status != SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE
+			} ||
+			previousCaptureAuthority.mapTo(linkedSetOf()) { row -> row.sourceKind } !=
+			captureSourceKinds ||
+			currentCaptureAuthority.mapTo(linkedSetOf()) { row -> row.sourceKind } !=
+			captureSourceKinds ||
+			previousCaptureAuthority.any { row ->
+				row.logicalTrackingId != run.logicalTrackingId ||
+					row.manifestRevision != run.preparedManifestRevision ||
+					row.executionRevision != previousLeaseGeneration ||
+					row.ownerCasToken != preparedOwner
+			} ||
+			currentCaptureAuthority.any { row ->
+				row.logicalTrackingId != run.logicalTrackingId ||
+					row.manifestRevision != run.preparedManifestRevision ||
+					row.executionRevision != run.leaseGeneration ||
+					row.ownerCasToken != preparedOwner
+			}
+		) return PreparedCallerAuthorityRebindRead.Invalid
+		return PreparedCallerAuthorityRebindRead.Available(
+			PreparedCallerAuthorityRebind(
+				logicalTrackingId = run.logicalTrackingId,
+				serviceRunId = run.serviceRunId,
+				manifestRevision = run.preparedManifestRevision,
+				previousIntentRevision = predecessor.intentRevision,
+				currentIntentRevision = intent.intentRevision,
+				previousLeaseGeneration = previousLeaseGeneration,
+				currentLeaseGeneration = run.leaseGeneration,
+				previousReference = SourceCallerReplayReference(previousReference),
+				currentReference = SourceCallerReplayReference(currentReference),
+			),
+		)
+	}
+
 	private fun preparedLeaseRebindAuthorityReference(
 		previousReference: String,
-		run: SourceServiceRunEntity,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		manifestRevision: Long,
+		previousIntentRevision: Long,
+		previousLeaseGeneration: Long,
 		newLeaseGeneration: Long,
 	): String = "prepared-rebind:" + stableLifecycleChecksum(
 		previousReference,
-		run.logicalTrackingId,
-		run.serviceRunId,
-		run.preparedManifestRevision,
-		run.preparedIntentRevision,
-		run.leaseGeneration,
+		logicalTrackingId,
+		serviceRunId,
+		manifestRevision,
+		previousIntentRevision,
+		previousLeaseGeneration,
 		newLeaseGeneration,
 	)
 
@@ -7958,6 +8242,28 @@ internal sealed interface CatalogSourcePlanDecision {
 		}
 	}
 
+	/**
+	 * A retryably unavailable source that is already running keeps its exact runtime authority.
+	 *
+	 * This is not permission to call the provider with a reconstructed plan. The enclosing
+	 * reconfiguration remains deferred until availability changes or the source is removed.
+	 */
+	data class CarriedForward(
+		override val requestedPlan: SourcePlan,
+		val effectivePlan: SourcePlan,
+		val reasons: Set<SourceDegradedReason>,
+		val failure: CatalogStartPrerequisiteFailure,
+	) : CatalogSourcePlanDecision {
+		init {
+			require(requestedPlan.enabled)
+			require(effectivePlan.enabled)
+			require(requestedPlan.source == effectivePlan.source)
+			require(requestedPlan.revision == effectivePlan.revision)
+			require(reasons.isNotEmpty())
+			require(failure.disposition == TrackingStartFailureDisposition.RETRYABLE)
+		}
+	}
+
 	data class Blocked(
 		override val requestedPlan: SourcePlan,
 		val availability: SourceCatalogAvailability?,
@@ -7975,14 +8281,20 @@ internal data class CatalogPlanDecisions(
 	val bySource: Map<SourceKind, CatalogSourcePlanDecision>,
 ) {
 	val acceptedSources: Set<SourceKind> = bySource.values
-		.filterIsInstance<CatalogSourcePlanDecision.Accepted>()
+		.filter { decision ->
+			decision is CatalogSourcePlanDecision.Accepted ||
+				decision is CatalogSourcePlanDecision.CarriedForward
+		}
 		.mapTo(linkedSetOf()) { decision -> decision.requestedPlan.source }
 
 	fun getValue(source: SourceKind): CatalogSourcePlanDecision = bySource.getValue(source)
 
 	fun failureIfNoAcceptedSource(): CatalogStartPrerequisiteFailure? {
 		val enabled = bySource.values.filterNot { it is CatalogSourcePlanDecision.Disabled }
-		if (enabled.any { it is CatalogSourcePlanDecision.Accepted }) return null
+		if (enabled.any { decision ->
+				decision is CatalogSourcePlanDecision.Accepted ||
+					decision is CatalogSourcePlanDecision.CarriedForward
+		}) return null
 		return enabled.filterIsInstance<CatalogSourcePlanDecision.Blocked>()
 			.minByOrNull { decision -> decision.requestedPlan.source.stableCode }
 			?.failure
@@ -8024,6 +8336,11 @@ internal data class CatalogPlanDecisions(
 			}
 		},
 	)
+
+	val carriedForwardSources: Set<SourceKind>
+		get() = bySource.values
+			.filterIsInstance<CatalogSourcePlanDecision.CarriedForward>()
+			.mapTo(linkedSetOf()) { decision -> decision.requestedPlan.source }
 }
 
 internal data class CatalogReconfigurationRetryDebt(
@@ -8064,18 +8381,13 @@ private fun CatalogPlanDecisions.forReconfiguration(
 						deferredSources += requested.source
 						CatalogSourcePlanDecision.Disabled(requested.disabledForCatalog())
 					}
-					requested.isNoStrongerThan(current) ->
-						CatalogSourcePlanDecision.Accepted(
-							requestedPlan = requested,
-							effectivePlan = requested,
-							degradedReasons = catalogDecision.reasons,
-						)
 					else -> {
 						deferredSources += requested.source
-						CatalogSourcePlanDecision.Accepted(
+						CatalogSourcePlanDecision.CarriedForward(
 							requestedPlan = requested,
 							effectivePlan = current,
-							degradedReasons = catalogDecision.reasons,
+							reasons = catalogDecision.reasons,
+							failure = catalogDecision.failure,
 						)
 					}
 				}
@@ -8101,6 +8413,27 @@ private fun CatalogPlanDecisions.forReconfiguration(
 	)
 }
 
+private fun CatalogReconfigurationTransition.matchesCurrentEffectivePlans(
+	currentAppliedPlans: Map<SourceKind, SourcePlan>,
+): Boolean {
+	val current = currentAppliedPlans.values
+		.filter(SourcePlan::enabled)
+		.associateBy(SourcePlan::source)
+	val effective = decisions.bySource.values.mapNotNull { decision ->
+		when (decision) {
+			is CatalogSourcePlanDecision.Accepted -> decision.effectivePlan
+			is CatalogSourcePlanDecision.CarriedForward -> decision.effectivePlan
+			is CatalogSourcePlanDecision.Blocked,
+			is CatalogSourcePlanDecision.Disabled,
+			-> null
+		}
+	}.filter(SourcePlan::enabled).associateBy(SourcePlan::source)
+	if (current.keys != effective.keys) return false
+	return current.all { (source, plan) ->
+		plan.withRevision(0L) == effective.getValue(source).withRevision(0L)
+	}
+}
+
 private fun SourceActionExecution.acceptedEffectivePlanOrNull(plan: SourcePlan): SourcePlan? =
 	plan.takeIf {
 		applied.source == plan.source &&
@@ -8115,51 +8448,6 @@ private fun SourcePlan.withRevision(revision: Long): SourcePlan = when (this) {
 	is PressurePlan -> copy(revision = revision)
 	is WifiPlan -> copy(revision = revision)
 	is CellPlan -> copy(revision = revision)
-}
-
-private fun SourcePlan.isNoStrongerThan(current: SourcePlan): Boolean {
-	if (source != current.source || !enabled || !current.enabled) return false
-	return when {
-		this is LocationPlan && current is LocationPlan ->
-			backend == current.backend &&
-				mode.ordinal <= current.mode.ordinal &&
-				requestedIntervalMs >= current.requestedIntervalMs &&
-				minimumUpdateIntervalMs >= current.minimumUpdateIntervalMs &&
-				minimumDisplacementMeters >= current.minimumDisplacementMeters &&
-				maximumBatchDelayMs >= current.maximumBatchDelayMs &&
-				probeDurationMs == current.probeDurationMs &&
-				(!preciseLocationAvailable || current.preciseLocationAvailable)
-		this is ActivityPlan && current is ActivityPlan ->
-			mode.ordinal <= current.mode.ordinal &&
-				desiredDetectionLatencyMs >= current.desiredDetectionLatencyMs &&
-				confidenceThresholdPercent >= current.confidenceThresholdPercent &&
-				transitionTypes.all { it in current.transitionTypes }
-		this is StepsPlan && current is StepsPlan ->
-			maximumReportLatencyMs >= current.maximumReportLatencyMs &&
-				projectionCheckpointIntervalMs >= current.projectionCheckpointIntervalMs &&
-				(!movementPolicyNeedsLowLatency || current.movementPolicyNeedsLowLatency)
-		this is PressurePlan && current is PressurePlan ->
-			hardwareSamplePeriodMicros >= current.hardwareSamplePeriodMicros &&
-				maximumReportLatencyMicros >= current.maximumReportLatencyMicros &&
-				aggregationWindowMs >= current.aggregationWindowMs
-		this is WifiPlan && current is WifiPlan ->
-			mode.ordinal <= current.mode.ordinal &&
-				minimumAttemptIntervalMs >= current.minimumAttemptIntervalMs &&
-				maximumAcceptableResultAgeMs >= current.maximumAcceptableResultAgeMs &&
-				unchangedResultDedupeWindowMs >= current.unchangedResultDedupeWindowMs &&
-				backoff.initialDelayMs >= current.backoff.initialDelayMs &&
-				backoff.maximumDelayMs >= current.backoff.maximumDelayMs &&
-				backoff.multiplier >= current.backoff.multiplier
-		this is CellPlan && current is CellPlan ->
-			mode.ordinal <= current.mode.ordinal &&
-				minimumRefreshAttemptIntervalMs >= current.minimumRefreshAttemptIntervalMs &&
-				maximumAcceptableCachedAgeMs >= current.maximumAcceptableCachedAgeMs &&
-				subscriptionIds.all { it in current.subscriptionIds } &&
-				backoff.initialDelayMs >= current.backoff.initialDelayMs &&
-				backoff.maximumDelayMs >= current.backoff.maximumDelayMs &&
-				backoff.multiplier >= current.backoff.multiplier
-		else -> false
-	}
 }
 
 internal suspend fun SourceRuntimeRegistry.catalogPlanDecisions(
@@ -8393,11 +8681,38 @@ data class ClaimedPreparedSessionStart(
 	val isUserInitiated: Boolean,
 	val isAmbient: Boolean,
 	val alreadyForegroundAccepted: Boolean,
+	val callerAuthorityRebind: PreparedCallerAuthorityRebind? = null,
 )
+
+data class PreparedCallerAuthorityRebind(
+	val logicalTrackingId: String,
+	val serviceRunId: String,
+	val manifestRevision: Long,
+	val previousIntentRevision: Long,
+	val currentIntentRevision: Long,
+	val previousLeaseGeneration: Long,
+	val currentLeaseGeneration: Long,
+	val previousReference: SourceCallerReplayReference,
+	val currentReference: SourceCallerReplayReference,
+) {
+	init {
+		require(logicalTrackingId.isNotBlank())
+		require(serviceRunId.isNotBlank())
+		require(manifestRevision > 0L)
+		require(previousIntentRevision > 0L)
+		require(currentIntentRevision == previousIntentRevision + 1L)
+		require(previousLeaseGeneration > 0L)
+		require(currentLeaseGeneration > previousLeaseGeneration)
+		require(previousReference != currentReference)
+	}
+}
 
 sealed interface PreparedSessionClaimResult {
 	data class Claimed(val start: ClaimedPreparedSessionStart) : PreparedSessionClaimResult
-	data class Rejected(val failureCode: String) : PreparedSessionClaimResult
+	data class Rejected(
+		val failureCode: String,
+		val compensatePreparedState: Boolean = true,
+	) : PreparedSessionClaimResult
 }
 
 sealed interface SessionStartResult {
@@ -8457,6 +8772,15 @@ sealed interface SessionReconfigureResult {
 		val sourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 	) : SessionReconfigureResult
 	data class Retryable(
+		val revision: Long,
+		val failureCode: String,
+		val sources: Set<SourceKind>,
+	) : SessionReconfigureResult {
+		init {
+			require(sources.isNotEmpty())
+		}
+	}
+	data class Deferred(
 		val revision: Long,
 		val failureCode: String,
 		val sources: Set<SourceKind>,

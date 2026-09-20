@@ -48,6 +48,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequenc
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
@@ -603,6 +604,7 @@ class AuthoritativeSessionCoordinatorTest {
 					binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name
 				} shouldBe emptyList()
 			locationRuntime.isActive shouldBe false
+			locationRuntime.reconfigureCount shouldBe 1
 			runtime.startCount shouldBe 0
 
 			stepsReadFails = false
@@ -717,7 +719,7 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `transient active source upgrade keeps its prior exact plan until catalog recovery`() =
+	fun `unchanged thirty second debt retries keep the active plan until catalog recovery`() =
 		runTest {
 			val catalog = mockk<SourceImplementationCatalog>()
 			var stepsReadFails = false
@@ -759,25 +761,54 @@ class AuthoritativeSessionCoordinatorTest {
 
 			subject.reconfigure(requested)
 				.shouldBeInstanceOf<SessionReconfigureResult.Retryable>()
-			val intermediate = subject.reconfigure(
-				requested.copy(
-					catalogDebtPersistedSources = setOf(SourceKind.STEPS),
-					catalogDebtPersistedFingerprint = requested.desiredPlanFingerprint,
-					catalogDebtPersistedGeneration = requested.desiredPlanGeneration,
-				),
-			).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
-
-			intermediate.deferredCatalogSources shouldBe setOf(SourceKind.STEPS)
 			val planStore = RoomSourcePlanStore(database, SourcePlanCodec())
-			val requestedStored = planStore.load(2L)
-			(requestedStored?.plans?.get(SourceKind.STEPS) as StepsPlan)
-				.maximumReportLatencyMs shouldBe 60_000L
-			val appliedStored = planStore.loadApplied(2L)
-				.shouldBeInstanceOf<AppliedPlanRead.Available>()
-			(appliedStored.plan.plans.getValue(SourceKind.STEPS) as StepsPlan)
-				.maximumReportLatencyMs shouldBe
-				300_000L
+			val originalSession = database.sourceSessionDao().session("catalog-preserve-logical")
+			val originalManifests =
+				database.sourceSessionDao().manifests("catalog-preserve-logical")
+			val originalIntents =
+				database.sourceSessionDao().lifecycleIntents("catalog-preserve-logical")
+			val originalActions =
+				database.sourceSessionDao().lifecycleActions("catalog-preserve-logical")
+			val originalDemands = database.sourceBrokerDao()
+				.demandHistory("session:catalog-preserve-logical")
+			val debtBacked = requested.copy(
+				catalogDebtPersistedSources = setOf(SourceKind.STEPS),
+				catalogDebtPersistedFingerprint = requested.desiredPlanFingerprint,
+				catalogDebtPersistedGeneration = requested.desiredPlanGeneration,
+			)
+			repeat(3) { retryIndex ->
+				subject.reconfigure(
+					debtBacked.copy(
+						wallTimeMs = 2_000L + retryIndex * 30_000L,
+						elapsedRealtimeNanos = 2_000_000L + retryIndex * 30_000_000_000L,
+					),
+				) shouldBe SessionReconfigureResult.Deferred(
+					revision = 2L,
+					failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+					sources = setOf(SourceKind.STEPS),
+				)
+			}
+
+			planStore.load(2L) shouldBe null
+			database.sourcePlanStateDao().latestRevision()?.revision shouldBe 1L
+			database.sourceSessionDao().session("catalog-preserve-logical") shouldBe originalSession
+			database.sourceSessionDao().manifests("catalog-preserve-logical") shouldBe originalManifests
+			database.sourceSessionDao().lifecycleIntents("catalog-preserve-logical") shouldBe
+				originalIntents
+			database.sourceSessionDao().lifecycleActions("catalog-preserve-logical") shouldBe
+				originalActions
+			database.sourceBrokerDao().demandHistory("session:catalog-preserve-logical") shouldBe
+				originalDemands
 			runtime.isActive shouldBe true
+			runtime.reconfigureCount shouldBe 0
+
+			stepsReadFails = false
+			subject.reconfigure(debtBacked)
+				.shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+			(planStore.loadApplied(2L).shouldBeInstanceOf<AppliedPlanRead.Available>()
+				.plan.plans.getValue(SourceKind.STEPS) as StepsPlan)
+				.maximumReportLatencyMs shouldBe 60_000L
+			runtime.reconfigureCount shouldBe 1
 		}
 
 	@Test
@@ -805,9 +836,13 @@ class AuthoritativeSessionCoordinatorTest {
 				SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
 			}
 		}
+		var locationProviderCalls = 0
 		replaceRuntimeRegistry(
 			SourceRuntimeRegistry(
-				mapOf(SourceKind.LOCATION to Provider { locationRuntime }),
+				mapOf(SourceKind.LOCATION to Provider {
+					locationProviderCalls += 1
+					locationRuntime
+				}),
 				catalog,
 				requireAllSources = false,
 			),
@@ -828,21 +863,42 @@ class AuthoritativeSessionCoordinatorTest {
 		val requested = stepsAndLocationReconfigure(2L, stepsEnabled = false)
 		subject.reconfigure(requested)
 			.shouldBeInstanceOf<SessionReconfigureResult.Retryable>()
-		subject.reconfigure(
-			requested.copy(
-				catalogDebtPersistedSources = setOf(SourceKind.LOCATION),
-				catalogDebtPersistedFingerprint = requested.desiredPlanFingerprint,
-				catalogDebtPersistedGeneration = requested.desiredPlanGeneration,
-			),
-		).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+		val demandsBeforeRetry = database.sourceBrokerDao()
+			.demandHistory("session:catalog-framework-logical")
+		val authorityBeforeRetry = database.sourceCallerAuthorityDao()
+			.rows("test:catalog-framework-logical:1")
+		val debtBacked = requested.copy(
+			catalogDebtPersistedSources = setOf(SourceKind.LOCATION),
+			catalogDebtPersistedFingerprint = requested.desiredPlanFingerprint,
+			catalogDebtPersistedGeneration = requested.desiredPlanGeneration,
+		)
+		subject.reconfigure(debtBacked) shouldBe SessionReconfigureResult.Deferred(
+			revision = 2L,
+			failureCode = "SOURCE_CATALOG_LOCATION_AVAILABILITY_READ_FAILED",
+			sources = setOf(SourceKind.LOCATION),
+		)
 
 		val store = RoomSourcePlanStore(database, SourcePlanCodec())
-		(store.load(2L)?.plans?.getValue(SourceKind.LOCATION) as LocationPlan).backend shouldBe
-			LocationBackend.FUSED
-		val preserved = store.loadApplied(2L).shouldBeInstanceOf<AppliedPlanRead.Available>()
+		store.load(2L) shouldBe null
+		val preserved = store.loadApplied(1L).shouldBeInstanceOf<AppliedPlanRead.Available>()
 		(preserved.plan.plans.getValue(SourceKind.LOCATION) as LocationPlan).backend shouldBe
 			LocationBackend.FRAMEWORK
 		locationRuntime.isActive shouldBe true
+		locationRuntime.reconfigureCount shouldBe 0
+		locationProviderCalls shouldBe 1
+		database.sourceBrokerDao()
+			.demandHistory("session:catalog-framework-logical") shouldBe demandsBeforeRetry
+		database.sourceCallerAuthorityDao()
+			.rows("test:catalog-framework-logical:1") shouldBe authorityBeforeRetry
+
+		locationReadFails = false
+		subject.reconfigure(debtBacked)
+			.shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+		(store.loadApplied(2L).shouldBeInstanceOf<AppliedPlanRead.Available>()
+			.plan.plans.getValue(SourceKind.LOCATION) as LocationPlan).backend shouldBe
+			LocationBackend.FRAMEWORK
+		locationRuntime.reconfigureCount shouldBe 1
+		locationProviderCalls shouldBe 2
 	}
 
 	@Test
@@ -957,20 +1013,30 @@ class AuthoritativeSessionCoordinatorTest {
 			)
 			subject.reconfigure(requested)
 				.shouldBeInstanceOf<SessionReconfigureResult.Retryable>()
-			val intermediate = subject.reconfigure(
-				requested.copy(
-					catalogDebtPersistedSources = setOf(SourceKind.STEPS),
-					catalogDebtPersistedFingerprint = requested.desiredPlanFingerprint,
-					catalogDebtPersistedGeneration = requested.desiredPlanGeneration,
-				),
-			).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+			val debtBacked = requested.copy(
+				catalogDebtPersistedSources = setOf(SourceKind.STEPS),
+				catalogDebtPersistedFingerprint = requested.desiredPlanFingerprint,
+				catalogDebtPersistedGeneration = requested.desiredPlanGeneration,
+			)
+			subject.reconfigure(debtBacked) shouldBe SessionReconfigureResult.Deferred(
+				revision = 2L,
+				failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+				sources = setOf(SourceKind.STEPS),
+			)
 
-			intermediate.deferredCatalogSources shouldBe setOf(SourceKind.STEPS)
+			RoomSourcePlanStore(database, SourcePlanCodec()).load(2L) shouldBe null
 			stepsProviderCalls shouldBe 1
 			runtime.startCount shouldBe 1
 			runtime.reconfigureCount shouldBe 0
 			runtime.isActive shouldBe false
 			locationRuntime.isActive shouldBe true
+
+			stepsReadFails = false
+			subject.reconfigure(debtBacked)
+				.shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+			stepsProviderCalls shouldBe 2
+			runtime.startCount shouldBe 2
+			runtime.isActive shouldBe true
 		}
 
 	@Test
@@ -6692,6 +6758,66 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `active run recovery compensation follows the exact prepared intent not lifecycle count`() =
+		runTest {
+			val old = activatePreparedAndroidRun(
+				tokenValue = "compensated-recovery-old-token",
+				commandGeneration = 33L,
+				logicalTrackingId = "compensated-recovery-logical",
+				serviceRunId = "compensated-recovery-old-run",
+			)
+			val recoveryToken = PreparedTrackingStartToken("compensated-recovery-token")
+			val recovery = subject.prepareAndroidStart(
+				startRequest().copy(
+					origin = SessionStartOrigin.RECOVERY,
+					plan = startRequest().plan.copy(
+						revision = 2L,
+						planId = "compensated-recovery-plan",
+						createdAtMs = 2_000L,
+						plans = mapOf(
+							SourceKind.STEPS to StepsPlan(2L, true, 60_000L, 15_000L, false),
+						),
+					),
+					wallTimeMs = 2_000L,
+					elapsedRealtimeNanos = expiredPreparedLeaseElapsedNanos(),
+					logicalTrackingId = old.logicalTrackingId,
+					serviceRunId = "compensated-recovery-run",
+					continuationAuthority = ServiceRunContinuationAuthority(
+						previousServiceRunId = old.serviceRunId,
+						previousDeliveryToken = old.token,
+						previousCommandGeneration = 33L,
+					),
+				),
+				AndroidStartDeliveryMetadata(recoveryToken, 34L, true, false),
+			).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+			val preparedSession = requireNotNull(
+				database.sourceSessionDao().session(recovery.logicalTrackingId),
+			)
+			database.sourceSessionDao().updateSession(
+				preparedSession.copy(lifecycleRevision = preparedSession.lifecycleRevision + 7L),
+			) shouldBe 1
+
+			subject.compensatePreparedAndroidStart(
+				recovery.token,
+				34L,
+				"RECOVERY_ENQUEUE_FAILED",
+				"boot-1",
+				leaseClock.elapsedRealtimeNanos(),
+				leaseClock.currentTimeMillis(),
+			) shouldBe true
+
+			database.sourceSessionDao().session(recovery.logicalTrackingId)?.let { session ->
+				session.state shouldBe SessionLifecycleState.FAILED.name
+				session.failureCode shouldBe "RECOVERY_ENQUEUE_FAILED"
+				session.currentServiceRunId shouldBe null
+			}
+			database.sourceSessionDao().serviceRun(recovery.serviceRunId)?.let { run ->
+				run.state shouldBe SessionLifecycleState.FAILED.name
+				run.androidDeliveryState shouldBe AndroidStartDeliveryState.TERMINAL_FAILURE.name
+			}
+		}
+
+	@Test
 	fun `interrupted manual reconfiguration prepares a replacement recovery run`() = runTest {
 		val old = activatePreparedAndroidRun(
 			tokenValue = "reconfiguring-old-token",
@@ -6802,13 +6928,13 @@ class AuthoritativeSessionCoordinatorTest {
 			leaseClock.elapsedRealtimeNanos(),
 		) shouldBe 1
 
-		subject.claimAndroidStart(
+		val claim = subject.claimAndroidStart(
 			prepared.token,
 			21L,
 			"boot-1",
 			leaseClock.elapsedRealtimeNanos(),
 			leaseClock.currentTimeMillis(),
-		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>().start
 
 		val rebound = requireNotNull(database.sourceSessionDao().serviceRun(prepared.serviceRunId))
 		rebound.leaseGeneration shouldBe before.leaseGeneration + 1L
@@ -6825,6 +6951,17 @@ class AuthoritativeSessionCoordinatorTest {
 		intentHistory.first() shouldBe beforeIntent
 		val reboundReference = requireNotNull(intentHistory.last().sourceCallerAuthorityReference)
 		(reboundReference == prepared.sourceCallerAuthorityReference.value) shouldBe false
+		claim.callerAuthorityRebind shouldBe PreparedCallerAuthorityRebind(
+			logicalTrackingId = prepared.logicalTrackingId,
+			serviceRunId = prepared.serviceRunId,
+			manifestRevision = prepared.manifestRevision,
+			previousIntentRevision = before.preparedIntentRevision,
+			currentIntentRevision = rebound.preparedIntentRevision,
+			previousLeaseGeneration = before.leaseGeneration,
+			currentLeaseGeneration = rebound.leaseGeneration,
+			previousReference = prepared.sourceCallerAuthorityReference,
+			currentReference = SourceCallerReplayReference(reboundReference),
+		)
 		database.sourceSessionDao().lifecycleActions(prepared.logicalTrackingId)
 			.filter { action -> action.serviceRunId == prepared.serviceRunId }
 			.let { actions ->
@@ -6866,13 +7003,14 @@ class AuthoritativeSessionCoordinatorTest {
 		beforeAuthority.map { row -> row.executionRevision }.distinct() shouldBe
 			listOf(before.leaseGeneration)
 
-		subject.claimAndroidStart(
+		val restartedClaim = subject.claimAndroidStart(
 			prepared.token,
 			21L,
 			"boot-1",
 			leaseClock.elapsedRealtimeNanos(),
 			leaseClock.currentTimeMillis(),
-		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>().start
+		restartedClaim.callerAuthorityRebind shouldBe claim.callerAuthorityRebind
 		database.sourceBrokerDao().demandHistory("session:${prepared.logicalTrackingId}").size shouldBe 2
 		database.sourceSessionDao().lifecycleIntents(prepared.logicalTrackingId).size shouldBe 2
 	}

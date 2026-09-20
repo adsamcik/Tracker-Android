@@ -1137,11 +1137,23 @@ class TrackerServiceSourceSessionTest {
 				DesiredPlanStatus.EFFECTIVE,
 				reference,
 			)
-			coEvery { lifecycle.reconfigure(any()) } returns SessionReconfigureResult.Retryable(
-				revision = 1L,
-				failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
-				sources = setOf(SourceKind.STEPS),
-			)
+			var reconfigureCalls = 0
+			coEvery { lifecycle.reconfigure(any()) } answers {
+				reconfigureCalls += 1
+				if (reconfigureCalls == 1) {
+					SessionReconfigureResult.Retryable(
+						revision = 1L,
+						failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+						sources = setOf(SourceKind.STEPS),
+					)
+				} else {
+					SessionReconfigureResult.Deferred(
+						revision = 1L,
+						failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+						sources = setOf(SourceKind.STEPS),
+					)
+				}
+			}
 			subject.start(
 				SourceSessionStartRequest(
 					rollout = rollout,
@@ -1156,7 +1168,7 @@ class TrackerServiceSourceSessionTest {
 			).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
 
 			subject.reconfigure(inputs(changed))
-				.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Retryable>()
+				.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Deferred>()
 				.result.sources shouldBe setOf(SourceKind.STEPS)
 			storedDescriptor.catalogReconfigurationDebt?.let { debt ->
 				debt.logicalTrackingId shouldBe "logical"
@@ -1165,7 +1177,7 @@ class TrackerServiceSourceSessionTest {
 				debt.deferredSourceMask shouldBe 1L shl (SourceKind.STEPS.stableCode - 1)
 			} ?: error("Expected durable catalog debt")
 			subject.retryPendingReconfiguration()
-				.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Retryable>()
+				.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Deferred>()
 
 			coVerify(exactly = 3) { lifecycle.reconfigure(any()) }
 		}
@@ -1204,14 +1216,18 @@ class TrackerServiceSourceSessionTest {
 		coEvery { lifecycle.reconfigure(capture(requests)) } answers {
 			reconfigureCalls += 1
 			val request = firstArg<SessionReconfigureRequest>()
-			if (reconfigureCalls <= 2) {
-				SessionReconfigureResult.Retryable(
+			when (reconfigureCalls) {
+				1 -> SessionReconfigureResult.Retryable(
 					revision = request.plan.revision,
 					failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
 					sources = setOf(SourceKind.STEPS),
 				)
-			} else {
-				SessionReconfigureResult.Applied(
+				2 -> SessionReconfigureResult.Deferred(
+					revision = request.plan.revision,
+					failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+					sources = setOf(SourceKind.STEPS),
+				)
+				else -> SessionReconfigureResult.Applied(
 					revision = request.plan.revision,
 					applied = emptyList(),
 					status = DesiredPlanStatus.EFFECTIVE,
@@ -1233,7 +1249,7 @@ class TrackerServiceSourceSessionTest {
 		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
 
 		subject.reconfigure(inputs(changed))
-			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Retryable>()
+			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Deferred>()
 		val persistedDebt = requireNotNull(storedDescriptor.catalogReconfigurationDebt)
 		persistedDebt.desiredPlanFingerprint shouldBe requests.first().desiredPlanFingerprint
 		persistedDebt.desiredPlanGeneration shouldBe requests.first().desiredPlanGeneration

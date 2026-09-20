@@ -697,12 +697,14 @@ internal class TrackerService : CoreService() {
 				val rejection = prepared as? TrackingServicePreparedStartClaim.Rejected
 					?: error("Deferred claim escaped the startup wait loop")
 				try {
-					runBoundedStartPreparationCancellationCleanup(null) {
-						trackingStartRequestCoordinator.compensate(
-							effectiveToken,
-							effectiveCommand,
-							rejection.failureCode,
-						)
+					if (rejection.compensatePreparedState) {
+						runBoundedStartPreparationCancellationCleanup(null) {
+							trackingStartRequestCoordinator.compensate(
+								effectiveToken,
+								effectiveCommand,
+								rejection.failureCode,
+							)
+						}
 					}
 				} finally {
 					rollbackRejectedPreparedStartRuntime()
@@ -1266,6 +1268,7 @@ internal class TrackerService : CoreService() {
 					.SessionReconfigureResult.Failed)
 					?.sourceCallerAuthorityReference
 			is SourceSessionReconfigureOutcome.Retryable,
+			is SourceSessionReconfigureOutcome.Deferred,
 			SourceSessionReconfigureOutcome.NotActive,
 			SourceSessionReconfigureOutcome.Unchanged,
 			-> null

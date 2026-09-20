@@ -106,6 +106,8 @@ sealed interface SourceSessionReconfigureOutcome {
 	data class Started(val result: SessionStartResult.Started) : SourceSessionReconfigureOutcome
 	data class Retryable(val result: SessionReconfigureResult.Retryable) :
 		SourceSessionReconfigureOutcome
+	data class Deferred(val result: SessionReconfigureResult.Deferred) :
+		SourceSessionReconfigureOutcome
 	data object NotActive : SourceSessionReconfigureOutcome
 	data object Unchanged : SourceSessionReconfigureOutcome
 	data class Rejected(val result: SessionReconfigureResult) : SourceSessionReconfigureOutcome
@@ -391,6 +393,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			)
 			is SourceSessionReconfigureOutcome.Started -> reconfigured.result
 			is SourceSessionReconfigureOutcome.Retryable,
+			is SourceSessionReconfigureOutcome.Deferred,
 			SourceSessionReconfigureOutcome.Unchanged,
 			-> preparedResult
 			SourceSessionReconfigureOutcome.NotActive,
@@ -730,6 +733,9 @@ class TrackerServiceSourceSession @Inject constructor(
 			}
 			settingsStatusProvider.publishFailure(result.failureCode)
 			SourceSessionReconfigureOutcome.Retryable(result)
+		} else if (result is SessionReconfigureResult.Deferred) {
+			settingsStatusProvider.publishFailure(result.failureCode)
+			SourceSessionReconfigureOutcome.Deferred(result)
 		} else {
 			if (!clearCatalogReconfigurationDebt(session)) {
 				settingsStatusProvider.publishFailure(
@@ -908,6 +914,10 @@ class TrackerServiceSourceSession @Inject constructor(
 					}
 					settingsStatusProvider.publishFailure(result.failureCode)
 					SourceSessionReconfigureOutcome.Retryable(result)
+				}
+				is SessionReconfigureResult.Deferred -> {
+					settingsStatusProvider.publishFailure(result.failureCode)
+					SourceSessionReconfigureOutcome.Deferred(result)
 				}
 				else -> {
 					if (!clearCatalogReconfigurationDebt(session)) {

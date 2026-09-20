@@ -53,6 +53,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.AndroidStartDeliveryMetad
 import com.adsamcik.tracker.tracker.source.coordinator.AuthoritativeSessionCoordinator
 import com.adsamcik.tracker.tracker.source.coordinator.ClaimedPreparedSessionStart
 import com.adsamcik.tracker.tracker.source.coordinator.PlanResolutionContext
+import com.adsamcik.tracker.tracker.source.coordinator.PreparedCallerAuthorityRebind
 import com.adsamcik.tracker.tracker.source.coordinator.PreparedSessionClaimResult
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
@@ -577,7 +578,10 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		)) {
 			is PreparedSessionClaimResult.Claimed -> result.start
 			is PreparedSessionClaimResult.Rejected ->
-				return TrackingServicePreparedStartClaim.Rejected(result.failureCode)
+				return TrackingServicePreparedStartClaim.Rejected(
+					result.failureCode,
+					result.compensatePreparedState,
+				)
 		}
 		val settings = trackingParamsRepository.data.first()
 		val automaticExpected = claim.startOrigin == SessionStartOrigin.AUTOMATIC_BACKGROUND_START
@@ -641,7 +645,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			compensatePrepared(token, commandGeneration, envelopeFailure)
 			return TrackingServicePreparedStartClaim.Rejected(envelopeFailure)
 		}
-		val descriptor = when (val stored = activeTrackingSessionStore.read()) {
+		val storedDescriptor = when (val stored = activeTrackingSessionStore.read()) {
 			is ActiveTrackingSessionStoreResult.Failure -> return when (stored.kind) {
 				ActiveTrackingSessionStoreFailureKind.CORRUPT -> {
 					compensatePrepared(token, commandGeneration, "ACTIVE_DESCRIPTOR_CORRUPT")
@@ -650,20 +654,56 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 				ActiveTrackingSessionStoreFailureKind.UNAVAILABLE ->
 					TrackingServicePreparedStartClaim.Deferred
 			}
-			is ActiveTrackingSessionStoreResult.Success -> stored.descriptor?.takeIf { current ->
-				current.logicalTrackingId == claim.logicalTrackingId &&
-					current.serviceRunId == claim.serviceRunId &&
-					current.isUserInitiated == claim.isUserInitiated &&
-					current.isAmbient == claim.isAmbient
-			}
+			is ActiveTrackingSessionStoreResult.Success -> stored.descriptor
 		}
-		if (descriptor == null) {
+		if (storedDescriptor == null ||
+			storedDescriptor.logicalTrackingId != claim.logicalTrackingId ||
+			storedDescriptor.serviceRunId != claim.serviceRunId ||
+			storedDescriptor.isUserInitiated != claim.isUserInitiated ||
+			storedDescriptor.isAmbient != claim.isAmbient
+		) {
+			if (claim.callerAuthorityRebind != null) {
+				return TrackingServicePreparedStartClaim.Rejected(
+					"PREPARED_START_DESCRIPTOR_REBIND_STALE",
+					compensatePreparedState = false,
+				)
+			}
 			compensatePrepared(token, commandGeneration, "PREPARED_START_DESCRIPTOR_MISSING")
 			return TrackingServicePreparedStartClaim.Rejected("PREPARED_START_DESCRIPTOR_MISSING")
 		}
 		val reference = claim.intent.sourceCallerAuthorityReference
 			?.takeIf(String::isNotBlank)
 			?.let(::SourceCallerReplayReference)
+		val descriptor = when (val rebind = claim.callerAuthorityRebind) {
+			null -> storedDescriptor
+			else -> {
+				if (rebind.logicalTrackingId != claim.logicalTrackingId ||
+					rebind.serviceRunId != claim.serviceRunId ||
+					rebind.manifestRevision != claim.manifestRevision ||
+					rebind.currentIntentRevision != claim.intentRevision ||
+					rebind.currentReference != reference
+				) {
+					return TrackingServicePreparedStartClaim.Rejected(
+						"PREPARED_START_DESCRIPTOR_REBIND_STALE",
+						compensatePreparedState = false,
+					)
+				}
+				when (val rebound = rebindPreparedCallerAuthorityDescriptor(
+					store = activeTrackingSessionStore,
+					descriptor = storedDescriptor,
+					rebind = rebind,
+				)) {
+					is PreparedCallerAuthorityDescriptorRebindResult.Rebound -> rebound.descriptor
+					PreparedCallerAuthorityDescriptorRebindResult.Deferred ->
+						return TrackingServicePreparedStartClaim.Deferred
+					PreparedCallerAuthorityDescriptorRebindResult.Stale ->
+						return TrackingServicePreparedStartClaim.Rejected(
+							"PREPARED_START_DESCRIPTOR_REBIND_STALE",
+							compensatePreparedState = false,
+						)
+				}
+			}
+		}
 		if (reference == null || descriptor.sourceCallerAuthorityReference != reference) {
 			if (compensatePrepared(token, commandGeneration, "SOURCE_CALLER_REFERENCE_MISSING")) {
 				clearPreparedDescriptor(descriptor)
@@ -1038,6 +1078,53 @@ internal sealed interface AndroidRedeliveryStartResolution {
 	data class Rejected(val failureCode: String) : AndroidRedeliveryStartResolution
 }
 
+internal sealed interface PreparedCallerAuthorityDescriptorRebindResult {
+	data class Rebound(
+		val descriptor: ActiveTrackingSessionDescriptor,
+	) : PreparedCallerAuthorityDescriptorRebindResult
+
+	data object Deferred : PreparedCallerAuthorityDescriptorRebindResult
+	data object Stale : PreparedCallerAuthorityDescriptorRebindResult
+}
+
+@Suppress("ComplexCondition")
+internal suspend fun rebindPreparedCallerAuthorityDescriptor(
+	store: ActiveTrackingSessionStore,
+	descriptor: ActiveTrackingSessionDescriptor,
+	rebind: PreparedCallerAuthorityRebind,
+): PreparedCallerAuthorityDescriptorRebindResult {
+	if (descriptor.sourceCallerAuthorityReference == rebind.currentReference) {
+		return if (
+			descriptor.logicalTrackingId == rebind.logicalTrackingId &&
+			descriptor.serviceRunId == rebind.serviceRunId
+		) {
+			PreparedCallerAuthorityDescriptorRebindResult.Rebound(descriptor)
+		} else {
+			PreparedCallerAuthorityDescriptorRebindResult.Stale
+		}
+	}
+	if (descriptor.logicalTrackingId != rebind.logicalTrackingId ||
+		descriptor.serviceRunId != rebind.serviceRunId ||
+		descriptor.sourceCallerAuthorityReference != rebind.previousReference ||
+		descriptor.pendingRetirementSourceCallerAuthorityReference == rebind.currentReference
+	) return PreparedCallerAuthorityDescriptorRebindResult.Stale
+	val replacement = descriptor.copy(
+		sourceCallerAuthorityReference = rebind.currentReference,
+	)
+	return when (val result = store.replaceExact(descriptor, replacement)) {
+		is ActiveTrackingSessionStoreResult.Failure ->
+			if (result.kind == ActiveTrackingSessionStoreFailureKind.UNAVAILABLE) {
+				PreparedCallerAuthorityDescriptorRebindResult.Deferred
+			} else {
+				PreparedCallerAuthorityDescriptorRebindResult.Stale
+			}
+		is ActiveTrackingSessionStoreResult.Success -> when (result.descriptor) {
+			replacement -> PreparedCallerAuthorityDescriptorRebindResult.Rebound(replacement)
+			else -> PreparedCallerAuthorityDescriptorRebindResult.Stale
+		}
+	}
+}
+
 internal sealed interface TrackingServicePreparedStartClaim {
 	/** Startup/deletion authority changed before claim; the exact prepared start remains durable. */
 	data object Deferred : TrackingServicePreparedStartClaim
@@ -1050,5 +1137,8 @@ internal sealed interface TrackingServicePreparedStartClaim {
 		val startupGeneration: Long,
 	) : TrackingServicePreparedStartClaim
 
-	data class Rejected(val failureCode: String) : TrackingServicePreparedStartClaim
+	data class Rejected(
+		val failureCode: String,
+		val compensatePreparedState: Boolean = true,
+	) : TrackingServicePreparedStartClaim
 }
