@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientStepsNativeReplayFo
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsIdentity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -564,6 +565,145 @@ class RoomImportedAmbientStepsTransferTest {
 		) shouldBe ImportPortableAmbientStepsResult.Blocked(
 			PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT,
 		)
+	}
+
+	@Test
+	fun `explicit v2 after multiple v1 revisions cannot inherit truncated synthetic lineage`() =
+		runTest {
+			val date = LocalDate.of(2026, 1, 15)
+			val initial = archive(completeDay(date, 5L))
+			val correction = archive(completeDay(date, 6L))
+			importer(database).importArchive(request(initial)) shouldBe applied(initial, 1)
+			importer(database).importArchive(
+				request(correction, jobId = "v1-revision-2", archiveKey = "v1-revision-2"),
+			) shouldBe applied(correction, 1)
+			val lineage = database.loadAuthenticatedImportedAmbientStepsGraphLineage(
+				database.importedAmbientStepsDao().loadAuthenticatedAmbientStepsLineage(
+					correction.days.single().identity.value,
+					EPOCH,
+				),
+			)
+			val revisionTwo = lineage.last().graph.ownerRevisions.single()
+			val truncatedSuccessor = PortableCountDomainGraphV2.create(
+				receipts = emptyList(),
+				ownerRevisions = listOf(
+					revisionTwo,
+					revisionTwo.copy(ownerRevision = 3L),
+				),
+				completenessMarkers = emptyList(),
+				roots = lineage.last().graph.roots.map { it.copy(ownerRevision = 3L) },
+			)
+			val explicit = PortableAmbientStepsArchiveV2.create(
+				listOf(PortableAmbientStepsDayV2(correction.days.single(), truncatedSuccessor)),
+			)
+
+			importer(database).importArchive(
+				requestV2(explicit, jobId = "v2-truncated", archiveKey = "v2-truncated"),
+			) shouldBe ImportPortableAmbientStepsResult.Blocked(
+				PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT,
+			)
+		}
+
+	@Test
+	fun `persisted v2 binding after legacy revisions must retain revision one lineage`() = runTest {
+		val date = LocalDate.of(2026, 1, 16)
+		val initial = archive(completeDay(date, 5L))
+		val correction = archive(completeDay(date, 6L))
+		importer(database).importArchive(request(initial)) shouldBe applied(initial, 1)
+		importer(database).importArchive(
+			request(correction, jobId = "persisted-v1-2", archiveKey = "persisted-v1-2"),
+		) shouldBe applied(correction, 1)
+		val storedLineage = database.loadAuthenticatedImportedAmbientStepsGraphLineage(
+			database.importedAmbientStepsDao().loadAuthenticatedAmbientStepsLineage(
+				correction.days.single().identity.value,
+				EPOCH,
+			),
+		)
+		val revisionTwo = storedLineage.last().graph.ownerRevisions.single()
+		val truncatedGraph = PortableCountDomainGraphV2.create(
+			receipts = emptyList(),
+			ownerRevisions = listOf(
+				revisionTwo,
+				revisionTwo.copy(ownerRevision = 3L),
+			),
+			completenessMarkers = emptyList(),
+			roots = storedLineage.last().graph.roots.map { it.copy(ownerRevision = 3L) },
+		)
+		val truncatedArchive = PortableAmbientStepsArchiveV2.create(
+			listOf(PortableAmbientStepsDayV2(correction.days.single(), truncatedGraph)),
+		)
+		val jobId = "persisted-v2-3"
+		val archiveKey = "persisted-v2-3"
+		val receiptIdentity = ImportedAmbientStepsIdentity.receipt(jobId, archiveKey)
+		val receivedAtMs = correction.days.single().structuralDayEndTimeMs + 3L
+		database.withTransaction {
+			database.importedAmbientStepsDao().insertArchive(
+				ImportedAmbientStepsArchiveEntity(
+					archiveIdentity = truncatedArchive.identity.value,
+					contentChecksum = truncatedArchive.contentChecksum.value,
+					sourceFormat = AmbientStepsPortableFormatV1.FORMAT,
+					sourceSchemaVersion = 2,
+					encodedByteCount = 1L,
+					dayCount = 1,
+					factCount = 1,
+					gapCount = 0,
+					collectedDataEpoch = EPOCH,
+					firstReceivedAtMs = receivedAtMs,
+				),
+			)
+			database.importedAmbientStepsDao().insertArchiveDays(
+				listOf(
+					ImportedAmbientStepsArchiveDayEntity(
+						archiveIdentity = truncatedArchive.identity.value,
+						ordinal = 0,
+						dayIdentity = correction.days.single().identity.value,
+						dayContentChecksum = correction.days.single().contentChecksum.value,
+						boundDayImportRevision = 2L,
+						factCount = 1,
+						gapCount = 0,
+						boundCountDomainGraphRevision = 3L,
+					),
+				),
+			)
+			database.importedAmbientStepsDao().insertReceipt(
+				ImportedAmbientStepsReceiptEntity(
+					importJobId = jobId,
+					archiveKey = archiveKey,
+					receiptIdentity = receiptIdentity,
+					sourceName = "persisted-v2-3.trackerambientsteps",
+					receivedAtMs = receivedAtMs,
+					archiveIdentity = truncatedArchive.identity.value,
+					archiveContentChecksum = truncatedArchive.contentChecksum.value,
+					collectedDataEpoch = EPOCH,
+				),
+			)
+			database.importedPortableStepsCountDomainDao().insertAuthenticatedGraph(
+				truncatedGraph,
+				ImportedPortableStepsCountDomainGraphEntity.SOURCE_AMBIENT_STEPS,
+			)
+			database.importedPortableStepsCountDomainDao().insertBinding(
+				ImportedPortableStepsCountDomainBindingEntity(
+					productKind =
+						ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
+					productIdentity = correction.days.single().identity.value,
+					productRevision = 3L,
+					graphIdentity = truncatedGraph.identity.value,
+					sourceSchemaVersion = 2,
+					sourceReceiptIdentity = receiptIdentity,
+					sourceArchiveIdentity = truncatedArchive.identity.value,
+					sourceArchiveContentChecksum = truncatedArchive.contentChecksum.value,
+				),
+			)
+		}
+
+		assertFailsWith<IllegalStateException> {
+			database.loadAuthenticatedImportedAmbientStepsGraphLineage(
+				database.importedAmbientStepsDao().loadAuthenticatedAmbientStepsLineage(
+					correction.days.single().identity.value,
+					EPOCH,
+				),
+			)
+		}
 	}
 
 	@Test

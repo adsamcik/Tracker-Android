@@ -179,6 +179,9 @@ private fun authenticateImportedAmbientStepsGraphLineage(
 		val productRevisions = revisionMembers.mapTo(linkedSetOf()) { it.boundDayImportRevision }
 		val graph = checkNotNull(graphs[binding.graphIdentity])
 		check(graph.identity.value == binding.graphIdentity)
+		if (binding.sourceSchemaVersion == 2) {
+			check(graph.hasCompletePortableOwnerLineages())
+		}
 		productRevisions.forEach { productRevision ->
 			val day = checkNotNull(revisionsByNumber[productRevision]).day
 			if (binding.sourceSchemaVersion == 1) {
@@ -201,9 +204,6 @@ private fun authenticateImportedAmbientStepsGraphLineage(
 			check(isAuthenticatedAmbientGraphSuccessor(previous.graph, incoming.graph))
 		}
 	}
-	graphLineage.firstOrNull()?.takeIf { it.sourceSchemaVersion == 2 }?.let { first ->
-		check(first.graph.hasCompletePortableOwnerLineages())
-	}
 	check(lineage.latest.header.importRevision in graphLineage.last().productImportRevisions)
 	return graphLineage
 }
@@ -216,6 +216,9 @@ private fun authenticateImportedSessionBinding(
 	check(binding.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY)
 	check(binding.productRevision == IMPORTED_SESSION_PRODUCT_REVISION)
 	check(binding.graphIdentity == graph.identity.value)
+	if (binding.sourceSchemaVersion == 2) {
+		check(graph.hasCompletePortableOwnerLineages())
+	}
 	if (binding.sourceReceiptIdentity == null) {
 		check(binding.sourceSchemaVersion == 1)
 		check(binding.sourceArchiveContentChecksum == null)

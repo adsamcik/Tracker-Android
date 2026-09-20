@@ -8,7 +8,10 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCount
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableCountDomainIdentity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFileReceiptEntity
-import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsAdmissionRows
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsCaptureCoverage
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsCompletenessV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsDeletionScopeDigest
@@ -48,6 +51,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 	@Test
 	fun `full clear removes graph payload and retains terminal owner fences`() = runTest {
 		val entry = entry()
+		seedSessionPayload(entry)
 		val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
 		val dao = database.importedPortableStepsCountDomainDao()
 		dao.insertAuthenticatedGraph(
@@ -79,20 +83,11 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 	@Test
 	fun `full clear rejects a graph whose bound file receipt names another graph`() = runTest {
 		val entry = entry()
+		seedSessionPayload(entry)
 		val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
 		val dao = database.importedPortableStepsCountDomainDao()
 		val receiptIdentity = ImportedPortableCountDomainIdentity.fileReceipt("job", "entry")
 		val archiveChecksum = "sha256:" + "a".repeat(64)
-		database.importedStepsDao().insertEntry(
-			ImportedStepsEntryEntity(
-				identity = entry.identity.value,
-				contentChecksum = entry.contentChecksum.value,
-				sessionMode = entry.sessionMode.name,
-				startTimeMs = entry.startTimeMs,
-				endTimeMs = entry.endTimeMs,
-				collectedDataEpoch = 7L,
-			),
-		)
 		dao.insertAuthenticatedGraph(
 			graph,
 			ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
@@ -133,6 +128,133 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			graph.roots.map { it.ownerIdentity.value },
 			graph.roots.size + 1,
 		) shouldBe emptyList()
+	}
+
+	@Test
+	fun `graphless legacy v1 session full clear reconstructs exact unproven owner fences`() = runTest {
+		val entry = entry()
+		seedSessionPayload(entry)
+		val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+		val dao = database.importedPortableStepsCountDomainDao()
+
+		AppDatabase.deleteAllCollectedData(
+			database = database,
+			operationId = "graphless-session",
+			collectedDataEpoch = 8L,
+			retainedFromMs = null,
+			updatedAtMs = 3_000L,
+		)
+
+		database.importedStepsDao().entry(entry.identity.value) shouldBe null
+		dao.ownerFences(
+			graph.roots.map { it.ownerIdentity.value },
+			graph.roots.size + 1,
+		).map { it.ownerIdentity }.toSet() shouldBe
+			graph.roots.map { it.ownerIdentity.value }.toSet()
+		dao.ownerFences(
+			graph.roots.map { it.ownerIdentity.value },
+			graph.roots.size + 1,
+		).all {
+			it.fenceKind == ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR &&
+				it.collectedDataEpoch == 8L
+		} shouldBe true
+	}
+
+	@Test
+	fun `missing graphless session evidence rolls back full clear fences`() = runTest {
+		val entry = entry()
+		seedSessionPayload(entry)
+		val factIdentity = entry.runs.single().facts.single().identity.value
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM step_fact_revision WHERE logical_fact_id = ?",
+			arrayOf(factIdentity),
+		)
+
+		assertFailsWith<IllegalStateException> {
+			database.withTransaction {
+				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+			}
+		}
+
+		database.importedStepsDao().entry(entry.identity.value)?.identity shouldBe entry.identity.value
+		database.importedPortableStepsCountDomainDao().ownerFences(
+			entry.withExplicitUnprovenCountDomain().countDomainGraph.roots
+				.map { it.ownerIdentity.value },
+			8,
+		) shouldBe emptyList()
+	}
+
+	@Test
+	fun `conflicting preexisting owner fence rolls back live graphless session clear`() = runTest {
+		val entry = entry()
+		seedSessionPayload(entry)
+		val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+		val owner = graph.ownerRevisions.first()
+		val conflicting = ImportedPortableStepsCountDomainOwnerFenceEntity.create(
+			ownerKind = owner.ownerKind.name,
+			ownerIdentity = owner.ownerIdentity.value,
+			scopeIdentity = owner.scopeIdentity.value,
+			latestSourceRevision = owner.ownerRevision,
+			latestOwnerEffectChecksum = owner.ownerEffectChecksum.value,
+			productKind = ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+			productIdentity = identity(PortableStepsIdentityKind.LOGICAL_ENTRY, "other").value,
+			graphIdentity = graph.identity.value,
+			fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_SELECTED_DELETE,
+			collectedDataEpoch = 7L,
+			fencedAtMs = 8L,
+		)
+		database.importedPortableStepsCountDomainDao().insertOwnerFences(listOf(conflicting))
+
+		assertFailsWith<IllegalArgumentException> {
+			database.withTransaction {
+				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+			}
+		}
+
+		database.importedStepsDao().entry(entry.identity.value)?.identity shouldBe entry.identity.value
+		database.importedPortableStepsCountDomainDao().ownerFences(
+			graph.roots.map { it.ownerIdentity.value },
+			graph.roots.size + 1,
+		) shouldBe listOf(conflicting)
+	}
+
+	private suspend fun seedSessionPayload(entry: PortableStepsEntryV1) {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(collectedDataEpoch = 7L),
+		)
+		val metadata = ImportedStepsAdmissionRows.entry(entry, 7L, 7L)
+		database.withTransaction {
+			database.importedStepsDao().insertEntry(metadata)
+			entry.runs.forEach { run ->
+				val segmentId = database.sessionSegmentDao().insert(
+					SessionSegment(
+						startTimeMs = run.startTimeMs,
+						endTimeMs = run.endTimeMs,
+						distanceM = 0f,
+						steps = null,
+						primaryActivity = null,
+						activityConfidence = null,
+						sampleCount = 0,
+						logicalTrackingId = metadata.identity,
+						serviceRunId = run.identity.value,
+						source = SegmentSource.PORTABLE_STEPS_IMPORT,
+						inferenceVersion = null,
+						createdAt = 100L,
+					),
+				)
+				database.importedStepsDao().insertRun(
+					ImportedStepsAdmissionRows.run(metadata, run, segmentId),
+				)
+				database.importedStepsDao().insertManifests(
+					ImportedStepsAdmissionRows.manifests(run),
+				)
+				run.facts.forEach { fact ->
+					database.stepFactRevisionDao().insert(
+						ImportedStepsAdmissionRows.fact(metadata, run, fact, 100L),
+					)
+				}
+			}
+		}
 	}
 
 	private fun entry(): PortableStepsEntryV1 {

@@ -1,7 +1,9 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.impexp.R
+import com.adsamcik.tracker.impexp.portable.PortableStepsJsonException
 import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV1Codec
 import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV2Codec
 import com.adsamcik.tracker.stats.api.repository.ExportPortableSteps
@@ -32,9 +34,15 @@ import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.OutputStream
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class PortableStepsExporterTest {
 	@Test
 	fun `range export writes canonical portable entry without reading Location`() = runTest {
@@ -143,7 +151,7 @@ class PortableStepsExporterTest {
 		val output = ByteArrayOutputStream()
 
 		exporter.export(
-			mockk(relaxed = true),
+			ApplicationProvider.getApplicationContext(),
 			emptySequence(),
 			output,
 			null,
@@ -156,6 +164,60 @@ class PortableStepsExporterTest {
 			decoded += it
 		}
 		decoded shouldContainExactly listOf(legacyEntry)
+	}
+
+	@Test
+	fun `large v2 export streams bounded chunks without a whole-file destination write`() = runTest {
+		val entry = largeEntry(256).withExplicitUnprovenCountDomain()
+		val output = MaximumWriteOutputStream(MAX_STREAM_WRITE_SIZE)
+		val exporter = PortableStepsExporter {
+			fakeExporter { _, sink ->
+				sink.emit(PortableStepsArchiveV2.create(listOf(entry)))
+				ExportPortableStepsResult.Exported(1)
+			}
+		}
+
+		exporter.export(
+			mockk(relaxed = true),
+			emptySequence(),
+			output,
+			null,
+		) shouldBe ExportResult.Success(1)
+
+		(output.writtenBytes > MAX_STREAM_WRITE_SIZE) shouldBe true
+	}
+
+	@Test
+	fun `failed v1 fallback leaves destination empty`() = runTest {
+		val legacyEntry = entry()
+		val output = ByteArrayOutputStream()
+		val exporter = PortableStepsExporter(
+			legacyExporterProvider = {
+				fakeLegacyExporter { _, sink ->
+					sink.emit(legacyEntry)
+					ExportPortableStepsResult.RetryableFailure(
+						PortableStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
+					)
+				}
+			},
+			exporterProvider = {
+				fakeExporter { _, _ ->
+					ExportPortableStepsResult.Unverifiable(
+						PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
+					)
+				}
+			},
+		)
+
+		kotlin.test.assertFailsWith<PortableStepsJsonException> {
+			exporter.export(
+				ApplicationProvider.getApplicationContext(),
+				emptySequence(),
+				output,
+				null,
+			)
+		}
+		output.size() shouldBe 0
 	}
 
 	private fun fakeExporter(
@@ -222,6 +284,65 @@ class PortableStepsExporterTest {
 		)
 	}
 
+	private fun largeEntry(factCount: Int): PortableStepsEntryV1 {
+		val start = 10_000L
+		val run = PortableStepsRunV1(
+			identity = identity(PortableStepsIdentityKind.PHYSICAL_RUN, "large-run"),
+			deletionScopeDigest = PortableStepsDeletionScopeDigest.derive("large", "run"),
+			startTimeMs = start,
+			endTimeMs = start + factCount,
+			storedZoneId = "Europe/Prague",
+			manifests = listOf(PortableStepsManifestV1(1L, start, 7L, 3L)),
+			completeness = PortableStepsCompletenessV1(
+				PortableStepsCaptureCoverage.WHOLE_RUN,
+				PortableStepsProviderCoverage.COMPLETE,
+				appDrainComplete = true,
+				stopComplete = true,
+				hasUnresolvedProviderRange = false,
+			),
+			facts = (0 until factCount).map { index ->
+				PortableStepsFactV1.create(
+					identity(PortableStepsIdentityKind.FACT, "large-fact-$index"),
+					1L,
+					start + index,
+					start + index + 1L,
+					0L,
+					PortableStepsFactCoverage.COVERED,
+					index.toLong(),
+				)
+			},
+		)
+		return PortableStepsEntryV1.create(
+			identity(PortableStepsIdentityKind.LOGICAL_ENTRY, "large-entry"),
+			PortableStepsSessionMode.MANUAL,
+			run.startTimeMs,
+			run.endTimeMs,
+			listOf(run),
+		)
+	}
+
 	private fun identity(kind: PortableStepsIdentityKind, seed: String) =
 		PortableStepsOpaqueIdentity.derive(kind, seed)
+
+	private class MaximumWriteOutputStream(
+		private val maximumWriteSize: Int,
+	) : OutputStream() {
+		var writtenBytes = 0L
+			private set
+
+		override fun write(value: Int) {
+			writtenBytes++
+		}
+
+		override fun write(buffer: ByteArray, offset: Int, length: Int) {
+			require(length <= maximumWriteSize) {
+				"Exporter attempted a whole-file write of $length bytes"
+			}
+			writtenBytes += length
+		}
+	}
+
+	private companion object {
+		const val MAX_STREAM_WRITE_SIZE = 16 * 1_024
+	}
 }

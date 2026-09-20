@@ -4,6 +4,22 @@ package com.adsamcik.tracker.shared.model.steps.portable
  * Makes legacy v1 absence explicit. It creates no receipt and therefore cannot prove compatibility.
  */
 fun PortableStepsEntryV1.withExplicitUnprovenCountDomain(): PortableStepsEntryV2 {
+	return PortableStepsEntryV2(
+		product = this,
+		countDomainGraph = legacyUnprovenStepsCountDomainGraph(contentChecksum, runs),
+	)
+}
+
+/**
+ * Reconstructs the exact legacy-v1 synthetic graph for an authenticated retained entry subset.
+ *
+ * Retention can remove sibling runs while preserving the original entry checksum used by the
+ * v1 admission rule, so full-clear authority cannot require the original whole entry value.
+ */
+fun legacyUnprovenStepsCountDomainGraph(
+	entryContentChecksum: PortableStepsDigest,
+	runs: List<PortableStepsRunV1>,
+): PortableCountDomainGraphV2 {
 	val owners = mutableListOf<PortableCountDomainOwnerRevisionV2>()
 	val markers = mutableListOf<PortableCountDomainCompletenessMarkerV2>()
 	val roots = mutableListOf<PortableCountDomainRootV2>()
@@ -44,7 +60,7 @@ fun PortableStepsEntryV1.withExplicitUnprovenCountDomain(): PortableStepsEntryV2
 		val completenessEffect = PortableCountDomainIntegrity.unprovenEffectChecksum(
 			PortableCountDomainOwnerKind.SESSION_COMPLETENESS,
 			run.identity.value,
-			contentChecksum.value,
+			entryContentChecksum.value,
 		)
 		owners += PortableCountDomainOwnerRevisionV2(
 			ownerKind = PortableCountDomainOwnerKind.SESSION_COMPLETENESS,
@@ -79,14 +95,11 @@ fun PortableStepsEntryV1.withExplicitUnprovenCountDomain(): PortableStepsEntryV2
 			ownerRevision = LEGACY_UNPROVEN_REVISION,
 		)
 	}
-	return PortableStepsEntryV2(
-		product = this,
-		countDomainGraph = PortableCountDomainGraphV2.create(
-			receipts = emptyList(),
-			ownerRevisions = owners,
-			completenessMarkers = markers,
-			roots = roots,
-		),
+	return PortableCountDomainGraphV2.create(
+		receipts = emptyList(),
+		ownerRevisions = owners,
+		completenessMarkers = markers,
+		roots = roots,
 	)
 }
 

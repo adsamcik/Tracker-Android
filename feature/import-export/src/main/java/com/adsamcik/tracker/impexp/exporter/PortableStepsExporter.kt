@@ -2,6 +2,7 @@ package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
 import com.adsamcik.tracker.impexp.R
+import com.adsamcik.tracker.impexp.portable.PortableStepsJsonException
 import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV1Codec
 import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV2Codec
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
@@ -16,7 +17,6 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 
 /** Resolves the read-only Steps exporter used by the application singleton graph. */
@@ -55,26 +55,39 @@ internal class PortableStepsExporter(
 		dateRange: LongRange?,
 	): ExportResult {
 		val request = dateRange?.toPortableRequest() ?: FULL_HISTORY
-		val v2Bytes = ByteArrayOutputStream()
-		val result = PortableStepsJsonV2Codec().encode(v2Bytes) { sink ->
+		val countedDestination = CountingExportOutputStream(outputStream)
+		val result = PortableStepsJsonV2Codec().encode(countedDestination) { sink ->
 			exporterProvider(context).export(request, sink)
+		}
+		if (result is ExportPortableStepsResult.Exported) {
+			if (countedDestination.writtenBytes == 0L) {
+				throw PortableStepsJsonException("Successful Portable Steps v2 export wrote no bytes")
+			}
+		} else if (countedDestination.writtenBytes != 0L) {
+			throw PortableStepsJsonException(
+				"Unsuccessful Portable Steps v2 export wrote destination bytes",
+			)
 		}
 		val finalResult = if (
 			result is ExportPortableStepsResult.Unverifiable &&
 			result.reason == PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE
 		) {
-			val v1Bytes = ByteArrayOutputStream()
-			val fallback = PortableStepsJsonV1Codec().encode(v1Bytes) { sink ->
-				legacyExporterProvider(context).export(request, sink)
+			FileBackedExportSpool(
+				context,
+				"portable-steps-v1-",
+				StepsPortableFormatV1.MAX_FILE_BYTES,
+			).use { spool ->
+				val fallback = spool.write { spoolOutput ->
+					PortableStepsJsonV1Codec().encode(spoolOutput) { sink ->
+						legacyExporterProvider(context).export(request, sink)
+					}
+				}
+				if (fallback is ExportPortableStepsResult.Exported) {
+					spool.copyTo(outputStream)
+				}
+				fallback
 			}
-			if (fallback is ExportPortableStepsResult.Exported) {
-				outputStream.write(v1Bytes.toByteArray())
-			}
-			fallback
 		} else {
-			if (result is ExportPortableStepsResult.Exported) {
-				outputStream.write(v2Bytes.toByteArray())
-			}
 			result
 		}
 		return when (finalResult) {

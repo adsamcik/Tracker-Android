@@ -12,6 +12,9 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsIdenti
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsProtectedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsSourceFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
@@ -21,6 +24,7 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsFactV1
 import com.adsamcik.tracker.shared.model.steps.portable.deletionScopeIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.identity
+import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import java.time.LocalDate
@@ -81,6 +85,7 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 		dao.authenticateAllAmbientStepsFences(EPOCH + 1L)
 		assertFence(old, EPOCH + 1L, 5L)
 		assertProtected(old)
+		assertCountDomainOwnerFences(old.day, EPOCH + 1L)
 		requireNotNull(dao.sourceFence()).also { retained ->
 			retained.collectedDataEpoch shouldBe EPOCH + 1L
 			retained.revokedConsentEpoch shouldBe sourceFence.revokedConsentEpoch
@@ -120,6 +125,8 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 		assertFence(unrelated, EPOCH + 2L, 6L)
 		assertProtected(old)
 		assertProtected(unrelated)
+		assertCountDomainOwnerFences(old.day, EPOCH + 1L)
+		assertCountDomainOwnerFences(unrelated.day, EPOCH + 2L)
 		dao.fenceCount() shouldBe 2L
 		requireNotNull(dao.sourceFence()).also { retained ->
 			retained.collectedDataEpoch shouldBe EPOCH + 2L
@@ -245,6 +252,89 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 	}
 
 	@Test
+	fun `missing portable product ownership rolls back ambient full clear preparation`() = runTest {
+		val before = SourceEvidenceState(revision = 9L, collectedDataEpoch = EPOCH)
+		database.sourceEvidenceStateDao().ensure(before)
+		val lineage = seedLineage("missing-owner", LocalDate.of(2026, 3, 2), EPOCH, 6L)
+		val orphanGraph = lineage.day.withExplicitUnprovenCountDomain().countDomainGraph
+		database.importedPortableStepsCountDomainDao().insertAuthenticatedGraph(
+			orphanGraph,
+			ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+		)
+		database.importedPortableStepsCountDomainDao().insertBinding(
+			ImportedPortableStepsCountDomainBindingEntity(
+				productKind =
+					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				productIdentity = identity(
+					AmbientStepsPortableIdentityKind.DAY,
+					"missing-session-product",
+				).value,
+				productRevision = 1L,
+				graphIdentity = orphanGraph.identity.value,
+				sourceSchemaVersion = 1,
+			),
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			AppDatabase.deleteAllCollectedData(
+				database = database,
+				collectedDataEpoch = EPOCH + 1L,
+				retainedFromMs = null,
+				updatedAtMs = lineage.receivedAtMs + 1L,
+			)
+		}
+
+		database.sourceEvidenceStateDao().get() shouldBe before
+		dao.fence(lineage.day.identity.value) shouldBe null
+		dao.archive(lineage.archive.identity.value) shouldBe lineage.archiveEntity
+		database.importedPortableStepsCountDomainDao()
+			.graph(orphanGraph.identity.value)?.graphIdentity shouldBe orphanGraph.identity.value
+	}
+
+	@Test
+	fun `conflicting portable owner authority rolls back ambient full clear preparation`() = runTest {
+		val before = SourceEvidenceState(revision = 9L, collectedDataEpoch = EPOCH)
+		database.sourceEvidenceStateDao().ensure(before)
+		val lineage = seedLineage("conflicting-owner", LocalDate.of(2026, 3, 3), EPOCH, 6L)
+		val graph = lineage.day.withExplicitUnprovenCountDomain().countDomainGraph
+		val owner = graph.ownerRevisions.single()
+		val conflict = ImportedPortableStepsCountDomainOwnerFenceEntity.create(
+			ownerKind = owner.ownerKind.name,
+			ownerIdentity = owner.ownerIdentity.value,
+			scopeIdentity = owner.scopeIdentity.value,
+			latestSourceRevision = owner.ownerRevision,
+			latestOwnerEffectChecksum = owner.ownerEffectChecksum.value,
+			productKind = ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
+			productIdentity = identity(
+				AmbientStepsPortableIdentityKind.DAY,
+				"other-day-product",
+			).value,
+			graphIdentity = graph.identity.value,
+			fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_SELECTED_DELETE,
+			collectedDataEpoch = EPOCH,
+			fencedAtMs = lineage.receivedAtMs,
+		)
+		database.importedPortableStepsCountDomainDao().insertOwnerFences(listOf(conflict))
+
+		shouldThrow<IllegalArgumentException> {
+			AppDatabase.deleteAllCollectedData(
+				database = database,
+				collectedDataEpoch = EPOCH + 1L,
+				retainedFromMs = null,
+				updatedAtMs = lineage.receivedAtMs + 1L,
+			)
+		}
+
+		database.sourceEvidenceStateDao().get() shouldBe before
+		dao.fence(lineage.day.identity.value) shouldBe null
+		dao.archive(lineage.archive.identity.value) shouldBe lineage.archiveEntity
+		database.importedPortableStepsCountDomainDao().ownerFences(
+			listOf(owner.ownerIdentity.value),
+			2,
+		) shouldBe listOf(conflict)
+	}
+
+	@Test
 	fun `epoch and revision exhaustion abort before ambient authority changes`() = runTest {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(
@@ -319,6 +409,26 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 		dao.insertFacts(listOf(lineage.factEntity))
 		dao.insertArchiveDays(listOf(lineage.archiveDay))
 		dao.insertReceipt(lineage.receipt)
+	}
+
+	private suspend fun assertCountDomainOwnerFences(
+		day: PortableAmbientStepsDayV1,
+		epoch: Long,
+	) {
+		val graph = day.withExplicitUnprovenCountDomain().countDomainGraph
+		database.importedPortableStepsCountDomainDao().ownerFences(
+			graph.roots.map { it.ownerIdentity.value },
+			graph.roots.size + 1,
+		).also { fences ->
+			fences.map { it.ownerIdentity }.toSet() shouldBe
+				graph.roots.map { it.ownerIdentity.value }.toSet()
+			fences.all {
+				it.fenceKind ==
+					com.adsamcik.tracker.shared.base.database.data
+						.ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR &&
+					it.collectedDataEpoch == epoch
+			} shouldBe true
+		}
 	}
 
 	@Suppress("LongMethod")

@@ -19,7 +19,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.io.OutputStream
-import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.CancellationException
 
 @EntryPoint
@@ -73,27 +72,42 @@ internal class PortableAmbientStepsExporter(
 			)
 		}
 		val sourceResult = try {
-			val v2Bytes = ByteArrayOutputStream()
-			val v2Result = codec.encode(v2Bytes) { sink ->
+			val countedDestination = CountingExportOutputStream(outputStream)
+			val v2Result = codec.encode(countedDestination) { sink ->
 				backend.exportV2(origin, request, sink)
+			}
+			if (v2Result is ExportPortableAmbientStepsResult.Exported) {
+				if (countedDestination.writtenBytes == 0L) {
+					throw PortableAmbientStepsFormatException(
+						"Successful Ambient Steps v2 export wrote no bytes",
+					)
+				}
+			} else if (countedDestination.writtenBytes != 0L) {
+				throw PortableAmbientStepsFormatException(
+					"Unsuccessful Ambient Steps v2 export wrote destination bytes",
+				)
 			}
 			if (
 				v2Result is ExportPortableAmbientStepsResult.Unverifiable &&
 				v2Result.reason ==
 				PortableAmbientStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE
 			) {
-				val v1Bytes = ByteArrayOutputStream()
-				val fallback = legacyCodec.encode(v1Bytes) { sink ->
-					backend.export(origin, request, sink)
+				FileBackedExportSpool(
+					context,
+					"portable-ambient-steps-v1-",
+					AmbientStepsPortableFormatV1.MAX_FILE_BYTES,
+				).use { spool ->
+					val fallback = spool.write { spoolOutput ->
+						legacyCodec.encode(spoolOutput) { sink ->
+							backend.export(origin, request, sink)
+						}
+					}
+					if (fallback is ExportPortableAmbientStepsResult.Exported) {
+						spool.copyTo(outputStream)
+					}
+					fallback
 				}
-				if (fallback is ExportPortableAmbientStepsResult.Exported) {
-					outputStream.write(v1Bytes.toByteArray())
-				}
-				fallback
 			} else {
-				if (v2Result is ExportPortableAmbientStepsResult.Exported) {
-					outputStream.write(v2Bytes.toByteArray())
-				}
 				v2Result
 			}
 		} catch (cancelled: CancellationException) {

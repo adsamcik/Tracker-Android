@@ -423,7 +423,6 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 					val candidateGraph = request.graphFor(day, graphRevision)
 					val existingGraph = latestGraphRevision?.graph
 					if (request.hasExplicitCountDomainGraphs &&
-						existingGraph == null &&
 						!candidateGraph.hasCompletePortableOwnerLineages()
 					) {
 						blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
