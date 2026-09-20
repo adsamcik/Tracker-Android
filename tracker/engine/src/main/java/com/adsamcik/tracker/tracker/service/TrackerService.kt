@@ -1185,6 +1185,10 @@ internal class TrackerService : CoreService() {
 						TrackingDiagnosticFailureReason.PERMISSION_RECONCILIATION_FAILURE,
 					)
 				}
+				val retryOutcome = retryPendingSourceSessionReconfiguration()
+				if (retryOutcome is SourceSessionReconfigureOutcome.Rejected) {
+					requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
+				}
 				collectionMotionController.tick(SystemClock.elapsedRealtimeNanos())
 			}
 		}
@@ -1230,8 +1234,17 @@ internal class TrackerService : CoreService() {
 
 	private suspend fun reconfigureSourceSession(
 		inputs: SourceSessionPlanInputs,
+	): SourceSessionReconfigureOutcome =
+		reconcileSourceSessionOutcome(sourceSession.reconfigure(inputs))
+
+	private suspend fun retryPendingSourceSessionReconfiguration(): SourceSessionReconfigureOutcome? =
+		sourceSession.retryPendingReconfiguration()?.let { outcome ->
+			reconcileSourceSessionOutcome(outcome)
+		}
+
+	private suspend fun reconcileSourceSessionOutcome(
+		outcome: SourceSessionReconfigureOutcome,
 	): SourceSessionReconfigureOutcome {
-		val outcome = sourceSession.reconfigure(inputs)
 		val reference = when (outcome) {
 			is SourceSessionReconfigureOutcome.Applied ->
 				outcome.result.sourceCallerAuthorityReference
@@ -1241,6 +1254,7 @@ internal class TrackerService : CoreService() {
 				(outcome.result as? com.adsamcik.tracker.tracker.source.coordinator
 					.SessionReconfigureResult.Failed)
 					?.sourceCallerAuthorityReference
+			is SourceSessionReconfigureOutcome.Retryable,
 			SourceSessionReconfigureOutcome.NotActive,
 			SourceSessionReconfigureOutcome.Unchanged,
 			-> null

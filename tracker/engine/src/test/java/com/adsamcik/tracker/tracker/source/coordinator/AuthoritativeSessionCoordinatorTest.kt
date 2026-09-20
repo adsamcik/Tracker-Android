@@ -46,6 +46,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequenc
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
+import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.resilience.PreviousExitSourceSessionFinalizer
@@ -346,6 +347,199 @@ class AuthoritativeSessionCoordinatorTest {
 			)
 		}
 	}
+
+	@Test
+	fun `only source catalog read failure remains retryable before any start authority exists`() =
+		runTest {
+			val catalog = mockk<SourceImplementationCatalog>()
+			coEvery { catalog.availability(any()) } throws SQLiteException("storage unavailable")
+			var providerCalls = 0
+			val providers: Map<
+				SourceKind,
+				Provider<ClaimedSourceRuntime<out SourcePlan>>,
+			> = mapOf(
+				SourceKind.STEPS to Provider {
+					providerCalls++
+					runtime
+				},
+			)
+			replaceRuntimeRegistry(SourceRuntimeRegistry(providers, catalog, requireAllSources = false))
+			val request = startRequest().copy(
+				logicalTrackingId = "transient-only-source-logical",
+				serviceRunId = "transient-only-source-run",
+			)
+
+			subject.prepareAndroidStart(
+				request,
+				AndroidStartDeliveryMetadata(
+					PreparedTrackingStartToken("transient-only-source-token"),
+					1L,
+					true,
+					false,
+				),
+			) shouldBe SessionStartPreparationResult.Rejected(
+				"SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+				TrackingStartFailureDisposition.RETRYABLE,
+			)
+			subject.start(request.copy(
+				logicalTrackingId = "transient-direct-logical",
+				serviceRunId = "transient-direct-run",
+			)) shouldBe SessionStartResult.InvalidIntent(
+				"SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+				TrackingStartFailureDisposition.RETRYABLE,
+			)
+
+			providerCalls shouldBe 0
+			runtime.startCount shouldBe 0
+			database.sourceSessionDao().activeSession() shouldBe null
+			database.sourcePlanStateDao().latestRevision() shouldBe null
+		}
+
+	@Test
+	fun `retryable catalog reconfiguration preserves exact active authority until later success`() =
+		runTest {
+			val catalog = mockk<SourceImplementationCatalog>()
+			var stepsReadFails = false
+			coEvery { catalog.availability(any()) } answers {
+				val request = firstArg<SourceAvailabilityRequest>()
+				if (request.source == SourceKind.STEPS && stepsReadFails) {
+					throw SQLiteException("storage unavailable")
+				}
+				SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
+			}
+			val providers: Map<
+				SourceKind,
+				Provider<ClaimedSourceRuntime<out SourcePlan>>,
+			> = mapOf(
+				SourceKind.LOCATION to Provider { locationRuntime },
+				SourceKind.STEPS to Provider { runtime },
+			)
+			replaceRuntimeRegistry(SourceRuntimeRegistry(providers, catalog, requireAllSources = false))
+			val started = subject.start(
+				startRequest().copy(
+					logicalTrackingId = "catalog-retry-logical",
+					serviceRunId = "catalog-retry-run",
+					plan = stepsAndLocationPlan(1L, stepsEnabled = true),
+				),
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+			val originalManifests = database.sourceSessionDao().manifests(started.logicalTrackingId)
+			val originalBindings = database.sourceSessionDao()
+				.manifestSources(started.logicalTrackingId, 1L)
+			val originalDemands = database.sourceBrokerDao()
+				.currentDemands("session:${started.logicalTrackingId}")
+			val originalActions = database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+			val request = stepsAndLocationReconfigure(2L, stepsEnabled = true)
+			stepsReadFails = true
+
+			val retry = subject.reconfigure(request)
+				.shouldBeInstanceOf<SessionReconfigureResult.Retryable>()
+
+			retry.failureCode shouldBe "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED"
+			retry.sources shouldBe setOf(SourceKind.STEPS)
+			database.sourceSessionDao().manifests(started.logicalTrackingId) shouldBe originalManifests
+			database.sourceSessionDao()
+				.manifestSources(started.logicalTrackingId, 1L) shouldBe originalBindings
+			database.sourceBrokerDao()
+				.currentDemands("session:${started.logicalTrackingId}") shouldBe originalDemands
+			database.sourceSessionDao().lifecycleActions(started.logicalTrackingId) shouldBe originalActions
+			database.sourceSessionDao().session(started.logicalTrackingId)?.let { session ->
+				session.state shouldBe SessionLifecycleState.ACTIVE.name
+				session.currentManifestRevision shouldBe 1L
+				session.currentIntentRevision shouldBe 1L
+			}
+			database.sourcePlanStateDao().revision(2L) shouldBe null
+			database.sourceCallerAuthorityDao().rows("test:${started.logicalTrackingId}:1")
+				.map { it.status }.distinct() shouldBe listOf("ACTIVE")
+			database.sourceCallerAuthorityDao().rows("test:${started.logicalTrackingId}:2") shouldBe
+				emptyList()
+			runtime.isActive shouldBe true
+			locationRuntime.isActive shouldBe true
+			runtime.reconfigureCount shouldBe 0
+			locationRuntime.reconfigureCount shouldBe 0
+
+			stepsReadFails = false
+			val applied = subject.reconfigure(request)
+				.shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+
+			applied.sourceCallerAuthorityReference.value shouldBe
+				"test:${started.logicalTrackingId}:2"
+			database.sourceSessionDao().manifests(started.logicalTrackingId)
+				.map { it.manifestRevision } shouldBe listOf(1L, 2L)
+			database.sourceBrokerDao()
+				.currentDemands("session:${started.logicalTrackingId}")
+				.map { it.manifestRevision }.distinct() shouldBe listOf(2L)
+			runtime.isActive shouldBe true
+			locationRuntime.isActive shouldBe true
+			runtime.reconfigureCount shouldBe 1
+			locationRuntime.reconfigureCount shouldBe 1
+		}
+
+	@Test
+	fun `terminal catalog unavailability can block one active source while its sibling continues`() =
+		runTest {
+			val catalog = mockk<SourceImplementationCatalog>()
+			var stepsPermissionGranted = true
+			coEvery { catalog.availability(any()) } answers {
+				val request = firstArg<SourceAvailabilityRequest>()
+				if (request.source == SourceKind.STEPS && !stepsPermissionGranted) {
+					SourceCatalogAvailability.Executable(
+						SourceProviderAvailability.PermissionRequired(
+							setOf(SourceProviderPermission.RuntimePermission(SourceKind.STEPS)),
+						),
+					)
+				} else {
+					SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
+				}
+			}
+			val providers: Map<
+				SourceKind,
+				Provider<ClaimedSourceRuntime<out SourcePlan>>,
+			> = mapOf(
+				SourceKind.LOCATION to Provider { locationRuntime },
+				SourceKind.STEPS to Provider { runtime },
+			)
+			replaceRuntimeRegistry(SourceRuntimeRegistry(providers, catalog, requireAllSources = false))
+			val started = subject.start(
+				startRequest().copy(
+					logicalTrackingId = "terminal-catalog-logical",
+					serviceRunId = "terminal-catalog-run",
+					plan = stepsAndLocationPlan(1L, stepsEnabled = true),
+				),
+			).shouldBeInstanceOf<SessionStartResult.Started>()
+			stepsPermissionGranted = false
+
+			val applied = subject.reconfigure(
+				stepsAndLocationReconfigure(2L, stepsEnabled = true),
+			).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+
+			applied.applied.associateBy(AppliedSourcePlan::source).let { outcomes ->
+				outcomes.getValue(SourceKind.LOCATION).status shouldBe SourceApplyStatus.APPLIED
+				outcomes.getValue(SourceKind.STEPS).let { blocked ->
+					blocked.status shouldBe SourceApplyStatus.BLOCKED
+					blocked.degradedReasons shouldBe setOf(SourceDegradedReason.PERMISSION_MISSING)
+				}
+			}
+			database.sourceSessionDao()
+				.manifestSources(started.logicalTrackingId, 2L)
+				.filter { binding ->
+					binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name
+				}
+				.map(SessionManifestSourceEntity::sourceKind) shouldBe
+				listOf(SourceKind.LOCATION.stableCode)
+			database.sourceBrokerDao()
+				.currentDemands("session:${started.logicalTrackingId}")
+				.map(SourceDemandEntity::sourceKind) shouldBe listOf(SourceKind.LOCATION.stableCode)
+			database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+				.last { action -> action.sourceKind == SourceKind.STEPS.stableCode }
+				.let { action ->
+					action.status shouldBe LifecycleActionStatus.STOP_ACCEPTED.name
+					action.failureCode shouldBe
+						"SOURCE_CATALOG_STEPS_SESSION_CAPTURE_PERMISSION_REQUIRED"
+					action.retryTrigger shouldBe null
+				}
+			runtime.isActive shouldBe false
+			locationRuntime.isActive shouldBe true
+		}
 
 	@Test
 	fun `missing optional sensors are typed blocked while location starts without resolving them`() =
@@ -8614,6 +8808,7 @@ private class FakeLocationRuntime : ClaimedSourceRuntime<LocationPlan> {
 	var failRetirement = false
 	var quiesceCount = 0
 	var closeCount = 0
+	var reconfigureCount = 0
 	var acknowledgementServiceRunId: String? = null
 	private var active = false
 	private var ownedClaim: SourceRuntimeClaim? = null
@@ -8634,6 +8829,7 @@ private class FakeLocationRuntime : ClaimedSourceRuntime<LocationPlan> {
 	}
 
 	override suspend fun reconfigure(plan: LocationPlan, sink: SourceEventSink): SourceApplyResult {
+		reconfigureCount += 1
 		if (!plan.enabled && failRetirement) {
 			return SourceApplyResult.Failed(
 				state = applied(plan).copy(status = SourceApplyStatus.FAILED),

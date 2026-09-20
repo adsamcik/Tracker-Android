@@ -1489,7 +1489,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			request.origin.toSourceAvailabilityTier(),
 		)
 		catalogDecisions.failureIfNoAcceptedSource()?.let {
-			return SessionStartResult.InvalidIntent(it.code)
+			return SessionStartResult.InvalidIntent(it.code, it.disposition)
 		}
 		val lease = acquireLease(request.ownerToken)
 			?: return SessionStartResult.Busy
@@ -2075,6 +2075,13 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			request.plan,
 			SourceAvailabilityTier.SESSION_ALREADY_FOREGROUND,
 		)
+		catalogDecisions.retryableFailure()?.let { debt ->
+			return SessionReconfigureResult.Retryable(
+				revision = request.plan.revision,
+				failureCode = debt.failure.code,
+				sources = debt.sources,
+			)
+		}
 		val lease = acquireLease(request.ownerToken)
 			?: return SessionReconfigureResult.Busy
 		return try {
@@ -7553,6 +7560,23 @@ internal data class CatalogPlanDecisions(
 			?.failure
 	}
 
+	fun retryableFailure(): CatalogReconfigurationRetryDebt? {
+		val retryable = bySource.values
+			.filterIsInstance<CatalogSourcePlanDecision.Blocked>()
+			.filter { decision ->
+				decision.failure.disposition == TrackingStartFailureDisposition.RETRYABLE
+			}
+		val failure = retryable.minByOrNull { decision ->
+			decision.requestedPlan.source.stableCode
+		} ?: return null
+		return CatalogReconfigurationRetryDebt(
+			failure = failure.failure,
+			sources = retryable.mapTo(linkedSetOf()) { decision ->
+				decision.requestedPlan.source
+			},
+		)
+	}
+
 	fun constrainedToAcceptedSources(
 		acceptedSources: Set<SourceKind>,
 	): CatalogPlanDecisions = CatalogPlanDecisions(
@@ -7572,6 +7596,16 @@ internal data class CatalogPlanDecisions(
 			}
 		},
 	)
+}
+
+internal data class CatalogReconfigurationRetryDebt(
+	val failure: CatalogStartPrerequisiteFailure,
+	val sources: Set<SourceKind>,
+) {
+	init {
+		require(failure.disposition == TrackingStartFailureDisposition.RETRYABLE)
+		require(sources.isNotEmpty())
+	}
 }
 
 internal suspend fun SourceRuntimeRegistry.catalogPlanDecisions(
@@ -7829,7 +7863,11 @@ sealed interface SessionStartResult {
 	data object Busy : SessionStartResult
 	data class InvalidRollout(val code: String) : SessionStartResult
 	data class InvalidPolicy(val code: String) : SessionStartResult
-	data class InvalidIntent(val code: String) : SessionStartResult
+	data class InvalidIntent(
+		val code: String,
+		val disposition: TrackingStartFailureDisposition =
+			TrackingStartFailureDisposition.TERMINAL,
+	) : SessionStartResult
 }
 
 data class SessionReconfigureRequest(
@@ -7856,6 +7894,15 @@ sealed interface SessionReconfigureResult {
 		val failureCode: String,
 		val sourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 	) : SessionReconfigureResult
+	data class Retryable(
+		val revision: Long,
+		val failureCode: String,
+		val sources: Set<SourceKind>,
+	) : SessionReconfigureResult {
+		init {
+			require(sources.isNotEmpty())
+		}
+	}
 	data class InvalidState(val state: String) : SessionReconfigureResult
 	data object NoActiveSession : SessionReconfigureResult
 	data object Busy : SessionReconfigureResult

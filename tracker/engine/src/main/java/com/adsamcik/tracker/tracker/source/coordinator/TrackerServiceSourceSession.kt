@@ -100,6 +100,8 @@ sealed interface SourceSessionStartOutcome {
 sealed interface SourceSessionReconfigureOutcome {
 	data class Applied(val result: SessionReconfigureResult.Applied) : SourceSessionReconfigureOutcome
 	data class Started(val result: SessionStartResult.Started) : SourceSessionReconfigureOutcome
+	data class Retryable(val result: SessionReconfigureResult.Retryable) :
+		SourceSessionReconfigureOutcome
 	data object NotActive : SourceSessionReconfigureOutcome
 	data object Unchanged : SourceSessionReconfigureOutcome
 	data class Rejected(val result: SessionReconfigureResult) : SourceSessionReconfigureOutcome
@@ -381,8 +383,19 @@ class TrackerServiceSourceSession @Inject constructor(
 		} ?: startupRejectedReconfigure()
 	}
 
+	suspend fun retryPendingReconfiguration(): SourceSessionReconfigureOutcome? {
+		val retryInputs = mutex.withLock { pendingInputs } ?: return null
+		val startupGate = trackingStartupGateProvider.get()
+		if (startupGate.reconcile() !is TrackingStartupResult.Ready) return null
+		val startupGeneration = startupGate.currentGeneration
+		return startupGate.withReadyGenerationOperation(startupGeneration) {
+			reconfigureUnderReadyGeneration(retryInputs, requirePendingMatch = true)
+		}
+	}
+
 	private suspend fun reconfigureUnderReadyGeneration(
 		inputs: SourceSessionPlanInputs,
+		requirePendingMatch: Boolean = false,
 	): SourceSessionReconfigureOutcome = mutex.withLock {
 		val session = active ?: run {
 			pendingInputs = pendingInputs
@@ -390,25 +403,36 @@ class TrackerServiceSourceSession @Inject constructor(
 				?: inputs
 			return@withLock SourceSessionReconfigureOutcome.NotActive
 		}
-		if (session.lastInputs == inputs) return@withLock SourceSessionReconfigureOutcome.Unchanged
+		if (requirePendingMatch && pendingInputs != inputs) {
+			return@withLock SourceSessionReconfigureOutcome.Unchanged
+		}
+		val requestedInputs = pendingInputs
+			?.takeIf { pending -> pending == inputs || pending.isNewerThan(inputs) }
+			?: inputs
+		if (session.lastInputs == requestedInputs) {
+			pendingInputs = null
+			return@withLock SourceSessionReconfigureOutcome.Unchanged
+		}
 		if (!session.coordinatorStarted) {
 			val ownership = TrackingSessionOwnership.resolve(
 				session.rollout,
-				inputs.settings,
+				requestedInputs.settings,
 				session.captureMode,
 			)
 			if (!ownership.eventCoordinatorRequired) {
-				session.lastInputs = inputs
+				session.lastInputs = requestedInputs
+				pendingInputs = null
 				settingsStatusProvider.publishActivePreview(
-					inputs.settings,
+					requestedInputs.settings,
 					session.rollout,
-					inputs,
+					requestedInputs,
 					session.captureMode,
 				)
 				return@withLock SourceSessionReconfigureOutcome.Unchanged
 			}
-			session.lastInputs = inputs
-			val started = startCoordinator(session, inputs)
+			session.lastInputs = requestedInputs
+			pendingInputs = null
+			val started = startCoordinator(session, requestedInputs)
 			return@withLock if (started is SessionStartResult.Started) {
 				session.coordinatorStarted = true
 				if (!propagateSourceCallerAuthority(
@@ -432,7 +456,12 @@ class TrackerServiceSourceSession @Inject constructor(
 				)
 			}
 		}
-		val plan = buildPlan(session.rollout, session.captureMode, inputs, requireEnabled = false)
+		val plan = buildPlan(
+			session.rollout,
+			session.captureMode,
+			requestedInputs,
+			requireEnabled = false,
+		)
 		val result = try {
 			coordinator.reconfigure(
 				SessionReconfigureRequest(
@@ -440,8 +469,8 @@ class TrackerServiceSourceSession @Inject constructor(
 					plan = plan,
 					wallTimeMs = Time.nowMillis,
 					elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
-					clockDomainId = inputs.clockDomainId,
-					zoneId = inputs.zoneId,
+					clockDomainId = requestedInputs.clockDomainId,
+					zoneId = requestedInputs.zoneId,
 					foregroundCapabilityFlags = session.foregroundCapabilityFlags,
 					controlDependencies = controlDependencies(session.origin),
 				),
@@ -483,10 +512,18 @@ class TrackerServiceSourceSession @Inject constructor(
 			)
 		}
 		if (result is SessionReconfigureResult.Applied) {
-			session.lastInputs = inputs
+			session.lastInputs = requestedInputs
+			pendingInputs = null
 			settingsStatusProvider.publishApplied(result.applied)
 			SourceSessionReconfigureOutcome.Applied(result)
+		} else if (result is SessionReconfigureResult.Retryable) {
+			pendingInputs = pendingInputs
+				?.takeIf { pending -> pending.isNewerThan(requestedInputs) }
+				?: requestedInputs
+			settingsStatusProvider.publishFailure(result.failureCode)
+			SourceSessionReconfigureOutcome.Retryable(result)
 		} else {
+			pendingInputs = null
 			if (result.requiresRuntimeCleanup) {
 				session.runtimeCleanupRequired = true
 			}

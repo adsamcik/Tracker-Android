@@ -851,6 +851,41 @@ class TrackerServiceSourceSessionTest {
 	}
 
 	@Test
+	fun `retryable reconfiguration remains pending without rejecting the active service session`() =
+		runTest {
+			val rollout = allEventCanonical(revision = 5)
+			val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
+			val changed = settings(SourceCollectionFrequency.BATTERY_SAVER, sourcePolicyRevision = 2)
+			coEvery { lifecycle.start(any()) } returns
+				SessionStartResult.Started("logical", "run", emptyList(), DesiredPlanStatus.EFFECTIVE)
+			coEvery { lifecycle.reconfigure(any()) } returns SessionReconfigureResult.Retryable(
+				revision = 1L,
+				failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+				sources = setOf(SourceKind.STEPS),
+			)
+			subject.start(
+				SourceSessionStartRequest(
+					rollout = rollout,
+					ownership = TrackingSessionOwnership.resolve(rollout, initial),
+					logicalTrackingId = "logical",
+					serviceRunId = "run",
+					origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+					foregroundCapabilityFlags = 1L,
+					planInputs = inputs(initial),
+					ownerToken = "owner",
+				),
+			).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+			subject.reconfigure(inputs(changed))
+				.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Retryable>()
+				.result.sources shouldBe setOf(SourceKind.STEPS)
+			subject.retryPendingReconfiguration()
+				.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Retryable>()
+
+			coVerify(exactly = 2) { lifecycle.reconfigure(any()) }
+		}
+
+	@Test
 	fun `reconfiguration persists new caller reference before retiring predecessor`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
 		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)

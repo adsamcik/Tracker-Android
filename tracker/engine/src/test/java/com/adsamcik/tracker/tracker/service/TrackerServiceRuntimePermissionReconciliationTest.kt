@@ -45,6 +45,15 @@ class TrackerServiceRuntimePermissionReconciliationTest {
 		shouldStopAfterRuntimePermissionReconfigure(SourceSessionReconfigureOutcome.NotActive) shouldBe false
 		shouldStopAfterRuntimePermissionReconfigure(SourceSessionReconfigureOutcome.Unchanged) shouldBe false
 		shouldStopAfterRuntimePermissionReconfigure(
+			SourceSessionReconfigureOutcome.Retryable(
+				SessionReconfigureResult.Retryable(
+					revision = 2L,
+					failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+					sources = setOf(SourceKind.STEPS),
+				),
+			),
+		) shouldBe false
+		shouldStopAfterRuntimePermissionReconfigure(
 			SourceSessionReconfigureOutcome.Rejected(
 				SessionReconfigureResult.InvalidState("TEST_REJECTION"),
 			),
