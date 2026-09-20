@@ -3,6 +3,8 @@ package com.adsamcik.tracker.stats.data.repository
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityResult
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityRequest
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityQuery
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerKind
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerOrigin
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerReference
 import java.time.LocalDate
 import java.time.ZoneId
@@ -110,6 +112,8 @@ internal data class QualifiedSessionStepsWindow(
 		StepsCountDomainCompatibilityResult.Unproven,
 	val origin: QualifiedSessionStepsOrigin = QualifiedSessionStepsOrigin.LOCAL_CAPTURE,
 	val countDomainOwners: List<StepsCountDomainOwnerReference> = emptyList(),
+	/** Exact Ambient owner references included in the request that produced compatibility. */
+	val exactCompatibleAmbientOwners: List<StepsCountDomainOwnerReference> = emptyList(),
 ) {
 	init {
 		require(logicalTrackingId.isNotBlank())
@@ -123,6 +127,14 @@ internal data class QualifiedSessionStepsWindow(
 		require(storedZoneId == null || storedZoneId.isNotBlank())
 		storedZoneId?.let(ZoneId::of)
 		require(countDomainOwners.distinct().size == countDomainOwners.size)
+		require(exactCompatibleAmbientOwners.distinct().size == exactCompatibleAmbientOwners.size)
+		require(exactCompatibleAmbientOwners.all {
+			it.kind == StepsCountDomainOwnerKind.AMBIENT_FACT
+		})
+		require(
+			compatibility == StepsCountDomainCompatibilityResult.ExactCompatible ||
+				exactCompatibleAmbientOwners.isEmpty(),
+		)
 	}
 }
 
@@ -196,16 +208,42 @@ internal suspend fun List<QualifiedSessionStepsWindow>.withCountDomainCompatibil
 	query: StepsCountDomainCompatibilityQuery,
 ): List<QualifiedSessionStepsWindow> {
 	if (isEmpty()) return emptyList()
-	val results = query.compare(map { it.countDomainCompatibilityRequest(facts) })
+	val requests = map { it.countDomainCompatibilityRequest(facts) }
+	val results = query.compare(requests)
 	if (results.size != size) {
-		return map {
-			it.copy(compatibility = StepsCountDomainCompatibilityResult.Unverifiable)
+		return indices.map { index ->
+			this[index].withCountDomainCompatibility(
+				request = requests[index],
+				result = StepsCountDomainCompatibilityResult.Unverifiable,
+			)
 		}
 	}
-	return zip(results) { session, compatibility ->
-		session.copy(compatibility = compatibility)
+	return indices.map { index ->
+		this[index].withCountDomainCompatibility(requests[index], results[index])
 	}
 }
+
+internal fun QualifiedSessionStepsWindow.withCountDomainCompatibility(
+	facts: List<QualifiedAmbientStepsFact>,
+	result: StepsCountDomainCompatibilityResult,
+): QualifiedSessionStepsWindow = withCountDomainCompatibility(
+	countDomainCompatibilityRequest(facts),
+	result,
+)
+
+private fun QualifiedSessionStepsWindow.withCountDomainCompatibility(
+	request: StepsCountDomainCompatibilityRequest,
+	result: StepsCountDomainCompatibilityResult,
+): QualifiedSessionStepsWindow = copy(
+	compatibility = result,
+	exactCompatibleAmbientOwners = if (
+		result == StepsCountDomainCompatibilityResult.ExactCompatible
+	) {
+		request.ambientOwners
+	} else {
+		emptyList()
+	},
+)
 
 /** Pure composition over integrity-qualified, latest-effective source facts and session evidence. */
 internal fun composeAmbientStepsDay(
@@ -326,9 +364,13 @@ internal fun composeAmbientStepsDay(
 	for (session in containedSessions) {
 		val compatible = when (session.compatibility) {
 			StepsCountDomainCompatibilityResult.ExactCompatible ->
-				orderedFacts.filter {
-					it.origin == QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER
-				}
+				facts.filter { it.isAuthenticatedBy(session.exactCompatibleAmbientOwners) }
+					.sortedWith(
+						compareBy(
+							QualifiedAmbientStepsFact::startTimeMs,
+							QualifiedAmbientStepsFact::logicalFactId,
+						),
+					)
 			StepsCountDomainCompatibilityResult.Conflict -> {
 				betweenCauses += AmbientStepsDayCause.SESSION_COUNT_DOMAIN_CONFLICT
 				continue
@@ -393,4 +435,17 @@ private fun List<QualifiedAmbientStepsFact>.covers(startTimeMs: Long, endTimeMs:
 		if (coveredThrough >= endTimeMs) return true
 	}
 	return false
+}
+
+private fun QualifiedAmbientStepsFact.isAuthenticatedBy(
+	owners: List<StepsCountDomainOwnerReference>,
+): Boolean {
+	val owner = countDomainOwner ?: return false
+	if (owner !in owners) return false
+	return when (origin) {
+		QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER ->
+			owner.origin == StepsCountDomainOwnerOrigin.NATIVE
+		QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT ->
+			owner.origin == StepsCountDomainOwnerOrigin.IMPORTED_PORTABLE
+	}
 }

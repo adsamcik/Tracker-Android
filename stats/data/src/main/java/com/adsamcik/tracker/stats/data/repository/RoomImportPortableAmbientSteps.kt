@@ -42,6 +42,7 @@ import com.adsamcik.tracker.shared.base.database.authenticateAllAmbientStepsFenc
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableV2Integrity
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1
@@ -1128,11 +1129,40 @@ private data class AmbientImportEnvelope(
 		)
 
 		fun fromV2(request: ImportPortableAmbientStepsV2Request): AmbientImportEnvelope {
-			val days = request.archive.days.map(PortableAmbientStepsDayV2::product)
-			val graphMap = request.archive.days.associate {
+			val sourceArchiveIdentity = request.archive.identity
+			val sourceArchiveContentChecksum = request.archive.contentChecksum
+			val sourceFormat = request.archive.format
+			val sourceSchemaVersion = request.archive.schemaVersion
+			val days = request.archive.days.map { day ->
+				PortableAmbientStepsDayV2(
+					product = day.product.copy(
+						partialCauses = day.product.partialCauses.toList(),
+						facts = day.product.facts.map { it.copy() },
+						gaps = day.product.gaps.map { it.copy() },
+					),
+					countDomainGraph = day.countDomainGraph.copy(
+						receipts = day.countDomainGraph.receipts.map { it.copy() },
+						ownerRevisions = day.countDomainGraph.ownerRevisions.map { it.copy() },
+						completenessMarkers =
+							day.countDomainGraph.completenessMarkers.map { it.copy() },
+						roots = day.countDomainGraph.roots.map { it.copy() },
+					),
+				)
+			}
+			val snapshot = PortableAmbientStepsArchiveV2(
+				format = sourceFormat,
+				schemaVersion = sourceSchemaVersion,
+				contentChecksum = AmbientStepsPortableV2Integrity.archiveChecksum(days),
+				days = days,
+			)
+			require(snapshot.identity == sourceArchiveIdentity)
+			require(snapshot.contentChecksum == sourceArchiveContentChecksum)
+			require(snapshot.contentChecksum == request.metadata.archiveContentChecksum)
+			val products = snapshot.days.map(PortableAmbientStepsDayV2::product)
+			val graphMap = snapshot.days.associate {
 				it.product.identity.value to it.countDomainGraph
 			}
-			require(graphMap.size == days.size)
+			require(graphMap.size == products.size)
 			require(
 				request.metadata.receiptCount ==
 					graphMap.values.sumOf { it.receipts.size },
@@ -1144,11 +1174,11 @@ private data class AmbientImportEnvelope(
 			require(request.metadata.rootCount == graphMap.values.sumOf { it.roots.size })
 			require(graphMap.values.all { it.hasCompletePortableOwnerLineages() })
 			return AmbientImportEnvelope(
-				archive = PortableAmbientStepsArchiveV1.create(days),
-				sourceArchiveIdentity = request.archive.identity,
-				sourceArchiveContentChecksum = request.archive.contentChecksum,
-				sourceFormat = request.archive.format,
-				sourceSchemaVersion = request.archive.schemaVersion,
+				archive = PortableAmbientStepsArchiveV1.create(products),
+				sourceArchiveIdentity = sourceArchiveIdentity,
+				sourceArchiveContentChecksum = sourceArchiveContentChecksum,
+				sourceFormat = sourceFormat,
+				sourceSchemaVersion = sourceSchemaVersion,
 				receipt = request.receipt,
 				encodedByteCount = request.metadata.encodedByteCount,
 				dayCount = request.metadata.dayCount,

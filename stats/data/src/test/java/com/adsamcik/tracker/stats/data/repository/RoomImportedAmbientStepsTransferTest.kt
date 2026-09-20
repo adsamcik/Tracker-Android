@@ -495,6 +495,110 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	@Test
+	fun `mutable v2 archive days substituted after construction are rejected`() = runTest {
+		val original = PortableAmbientStepsArchiveV2.create(
+			listOf(
+				completeDay(LocalDate.of(2026, 1, 20), 4L)
+					.withExplicitUnprovenCountDomain(),
+			),
+		)
+		val callerDays = original.days.toMutableList()
+		val callerArchive = original.copy(days = callerDays)
+		callerDays[0] = completeDay(LocalDate.of(2026, 1, 21), 4L)
+			.withExplicitUnprovenCountDomain()
+
+		importer(database).importArchive(
+			requestV2(
+				callerArchive,
+				jobId = "substituted-after-construction",
+				archiveKey = "substituted-after-construction",
+			),
+		) shouldBe ImportPortableAmbientStepsResult.Unverifiable(
+			PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID,
+		)
+		database.importedAmbientStepsDao().archiveCount() shouldBe 0L
+		database.importedAmbientStepsDao().receiptCount() shouldBe 0L
+	}
+
+	@Test
+	fun `v2 snapshot rejects recomputed checksum and identity mismatch`() = runTest {
+		val original = PortableAmbientStepsArchiveV2.create(
+			listOf(
+				completeDay(LocalDate.of(2026, 1, 20), 4L)
+					.withExplicitUnprovenCountDomain(),
+			),
+		)
+		val callerDays = original.days.toMutableList()
+		val callerArchive = original.copy(days = callerDays)
+		val request = requestV2(
+			callerArchive,
+			jobId = "identity-mismatch",
+			archiveKey = "identity-mismatch",
+		)
+		callerDays[0] = completeDay(LocalDate.of(2026, 1, 21), 5L)
+			.withExplicitUnprovenCountDomain()
+
+		importer(database).importArchive(request) shouldBe
+			ImportPortableAmbientStepsResult.Unverifiable(
+				PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID,
+			)
+		database.importedAmbientStepsDao().archiveCount() shouldBe 0L
+		database.importedAmbientStepsDao().receiptCount() shouldBe 0L
+	}
+
+	@Test
+	fun `v2 snapshot deep copies products graphs and preserves durable receipt`() = runTest {
+		val expected = PortableAmbientStepsArchiveV2.create(
+			listOf(
+				completeDay(LocalDate.of(2026, 1, 20), 4L)
+					.withExplicitUnprovenCountDomain(),
+			),
+		)
+		val expectedDay = expected.days.single()
+		val callerFacts = expectedDay.product.facts.toMutableList()
+		val callerOwners = expectedDay.countDomainGraph.ownerRevisions.toMutableList()
+		val callerRoots = expectedDay.countDomainGraph.roots.toMutableList()
+		val callerProduct = expectedDay.product.copy(facts = callerFacts)
+		val callerGraph = expectedDay.countDomainGraph.copy(
+			ownerRevisions = callerOwners,
+			roots = callerRoots,
+		)
+		val callerDays = mutableListOf(PortableAmbientStepsDayV2(callerProduct, callerGraph))
+		val callerArchive = expected.copy(days = callerDays)
+		val request = requestV2(
+			callerArchive,
+			jobId = "deep-copy",
+			archiveKey = "deep-copy",
+		)
+		var callerContentMutated = false
+		val subject = RoomImportPortableAmbientSteps(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+			checkpoint = {
+				if (!callerContentMutated &&
+					it == ImportedAmbientStepsWriteCheckpoint.TRANSACTION_STARTED
+				) {
+					callerDays.clear()
+					callerFacts.clear()
+					callerOwners.clear()
+					callerRoots.clear()
+					callerContentMutated = true
+				}
+			},
+		)
+
+		subject.importArchive(request) shouldBe applied(expected, 1)
+		callerContentMutated shouldBe true
+		reexportV2(database, expected) shouldBe expected
+		database.importedAmbientStepsDao().receiptCount() shouldBe 1L
+		database.importedAmbientStepsDao().receipt(
+			request.receipt.jobId,
+			request.receipt.archiveKey,
+		)?.archiveIdentity shouldBe expected.identity.value
+	}
+
+	@Test
 	fun `missing v2 ambient binding never downgrades to synthetic v1`() = runTest {
 		val day = completeDay(LocalDate.of(2026, 1, 21), 4L)
 		val archive = PortableAmbientStepsArchiveV2.create(

@@ -276,14 +276,15 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		}
 		val requestOwners = mutableListOf<Pair<Int, Int>>()
 		val sessionsByDay = days.map { day -> sessions.mapNotNull { it.forDay(day) } }
+		val factsByDay = days.map { day ->
+			val key = day.historyKey
+			native.factsByDay[key].orEmpty() + imported.factsByDay[key].orEmpty()
+		}
 		val compatibilityRequests = buildList {
-			days.forEachIndexed { dayIndex, day ->
-				val key = day.historyKey
-				val facts = native.factsByDay[key].orEmpty() +
-					imported.factsByDay[key].orEmpty()
+			days.forEachIndexed { dayIndex, _ ->
 				sessionsByDay[dayIndex].forEachIndexed { sessionIndex, session ->
 					requestOwners += dayIndex to sessionIndex
-					add(session.countDomainCompatibilityRequest(facts))
+					add(session.countDomainCompatibilityRequest(factsByDay[dayIndex]))
 				}
 			}
 		}
@@ -292,8 +293,9 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		).toMap()
 		val products = days.mapIndexed { dayIndex, day ->
 			val compatibleSessions = sessionsByDay[dayIndex].mapIndexed { sessionIndex, session ->
-				session.copy(
-					compatibility = compatibilityByOwner[dayIndex to sessionIndex]
+				session.withCountDomainCompatibility(
+					facts = factsByDay[dayIndex],
+					result = compatibilityByOwner[dayIndex to sessionIndex]
 						?: StepsCountDomainCompatibilityResult.Unverifiable,
 				)
 			}

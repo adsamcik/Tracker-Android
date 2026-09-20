@@ -532,8 +532,9 @@ internal class AmbientStepsDayRepository @Inject constructor(
 				return@mapIndexed unavailableDay(prepared.day, prepared.sessions, cause)
 			}
 			val compatibleSessions = prepared.sessions.mapIndexed { sessionIndex, session ->
-				session.copy(
-					compatibility = resultsByOwner[dayIndex to sessionIndex]
+				session.withCountDomainCompatibility(
+					facts = prepared.facts,
+					result = resultsByOwner[dayIndex to sessionIndex]
 						?: StepsCountDomainCompatibilityResult.Unverifiable,
 				)
 			}
