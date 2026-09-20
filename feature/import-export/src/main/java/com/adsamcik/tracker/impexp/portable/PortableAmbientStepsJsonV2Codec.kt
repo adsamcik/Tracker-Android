@@ -70,10 +70,22 @@ internal class PortableAmbientStepsJsonV2Codec {
 				failure,
 			)
 		}
+		return decode(bytes)
+	}
+
+	suspend fun decode(bytes: ByteArray): PortableAmbientStepsDecodedArchiveV2 =
+		decode(PortableJsonBytes.wrap(bytes))
+
+	internal suspend fun decode(
+		bytes: PortableJsonBytes,
+	): PortableAmbientStepsDecodedArchiveV2 {
+		if (bytes.size.toLong() > AmbientStepsPortableFormatV2.MAX_FILE_BYTES) {
+			ambientFail("Ambient Steps v2 exceeds its byte bound")
+		}
 		val reader = JsonReader(
 			InputStreamReader(
 				PortableJsonTokenLimitInputStream(
-					ByteArrayInputStream(bytes),
+					bytes.inputStream(),
 					PortableJsonTokenLimits(
 						maxNameBytes = 384,
 						maxStringBytes = bytes.size.coerceAtLeast(768),

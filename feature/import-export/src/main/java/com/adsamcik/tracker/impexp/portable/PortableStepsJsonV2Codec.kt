@@ -66,10 +66,20 @@ internal class PortableStepsJsonV2Codec {
 
 	suspend fun decode(inputStream: InputStream): PortableStepsDecodedArchiveV2 {
 		val bytes = readPortableBytes(inputStream, StepsPortableFormatV2.MAX_FILE_BYTES)
+		return decode(bytes)
+	}
+
+	suspend fun decode(bytes: ByteArray): PortableStepsDecodedArchiveV2 =
+		decode(PortableJsonBytes.wrap(bytes))
+
+	internal suspend fun decode(bytes: PortableJsonBytes): PortableStepsDecodedArchiveV2 {
+		if (bytes.size.toLong() > StepsPortableFormatV2.MAX_FILE_BYTES) {
+			fail("Portable document exceeds its byte bound")
+		}
 		val reader = JsonReader(
 			InputStreamReader(
 				PortableJsonTokenLimitInputStream(
-					ByteArrayInputStream(bytes),
+					bytes.inputStream(),
 					PortableJsonTokenLimits(
 						maxNameBytes = 384,
 						maxStringBytes = bytes.size.coerceAtLeast(768),
@@ -229,24 +239,6 @@ internal class PortableStepsJsonV2Codec {
 	private fun PortableStepsArchiveV2.exactCount(
 		count: (PortableStepsEntryV2) -> Int,
 	): Int = entries.fold(0) { total, entry -> Math.addExact(total, count(entry)) }
-}
-
-internal suspend fun readPortableBytes(input: InputStream, maximumBytes: Long): ByteArray {
-	require(maximumBytes in 1..Int.MAX_VALUE.toLong())
-	val output = ByteArrayOutputStream()
-	val buffer = ByteArray(8_192)
-	var total = 0L
-	while (true) {
-		currentCoroutineContext().ensureActive()
-		val read = input.read(buffer)
-		if (read < 0) break
-		if (read == 0) continue
-		total = Math.addExact(total, read.toLong())
-		if (total > maximumBytes) fail("Portable document exceeds its byte bound")
-		output.write(buffer, 0, read)
-	}
-	if (total == 0L) fail("Portable document is empty")
-	return output.toByteArray()
 }
 
 private class PortableV2BoundedOutputStream(

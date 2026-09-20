@@ -127,6 +127,17 @@ internal class PortableStepsJsonV1Codec(
 	 */
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "NestedBlockDepth")
 	suspend fun decode(
+		bytes: ByteArray,
+		sink: PortableStepsEntrySink,
+	): Int = decode(PortableJsonBytes.wrap(bytes), sink)
+
+	internal suspend fun decode(
+		bytes: PortableJsonBytes,
+		sink: PortableStepsEntrySink,
+	): Int = decode(bytes.inputStream(), sink)
+
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "NestedBlockDepth")
+	suspend fun decode(
 		inputStream: InputStream,
 		sink: PortableStepsEntrySink,
 	): Int = try {

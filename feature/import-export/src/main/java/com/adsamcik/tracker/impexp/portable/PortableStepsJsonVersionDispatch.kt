@@ -6,10 +6,12 @@ import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableForm
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV2
 import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV1
 import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV2
-import java.io.ByteArrayInputStream
 import java.io.InputStreamReader
 
-internal fun portableStepsSchemaVersion(bytes: ByteArray): Int = schemaVersion(
+internal fun portableStepsSchemaVersion(bytes: ByteArray): Int =
+	portableStepsSchemaVersion(PortableJsonBytes.wrap(bytes))
+
+internal fun portableStepsSchemaVersion(bytes: PortableJsonBytes): Int = schemaVersion(
 	bytes,
 	StepsPortableFormatV1.FORMAT,
 	StepsPortableFormatV1.MAX_FILE_BYTES,
@@ -20,7 +22,10 @@ internal fun portableStepsSchemaVersion(bytes: ByteArray): Int = schemaVersion(
 	}
 }
 
-internal fun portableAmbientStepsSchemaVersion(bytes: ByteArray): Int = schemaVersion(
+internal fun portableAmbientStepsSchemaVersion(bytes: ByteArray): Int =
+	portableAmbientStepsSchemaVersion(PortableJsonBytes.wrap(bytes))
+
+internal fun portableAmbientStepsSchemaVersion(bytes: PortableJsonBytes): Int = schemaVersion(
 	bytes,
 	AmbientStepsPortableFormatV1.FORMAT,
 	AmbientStepsPortableFormatV1.MAX_FILE_BYTES,
@@ -36,15 +41,15 @@ internal fun portableAmbientStepsSchemaVersion(bytes: ByteArray): Int = schemaVe
 }
 
 private fun schemaVersion(
-	bytes: ByteArray,
+	bytes: PortableJsonBytes,
 	expectedFormat: String,
 	maximumBytes: Long,
 	failure: (String) -> Exception,
 ): Int {
-	if (bytes.isEmpty() || bytes.size.toLong() > maximumBytes) {
+	if (bytes.size == 0 || bytes.size.toLong() > maximumBytes) {
 		throw failure("Portable document exceeds its byte bound")
 	}
-	val reader = JsonReader(InputStreamReader(ByteArrayInputStream(bytes), Charsets.UTF_8)).apply {
+	val reader = JsonReader(InputStreamReader(bytes.inputStream(), Charsets.UTF_8)).apply {
 		isLenient = false
 	}
 	return try {

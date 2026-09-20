@@ -24,7 +24,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.io.IOException
-import java.io.ByteArrayInputStream
 import java.security.MessageDigest
 
 /** Resolves the source-local authoritative importer from the application graph. */
@@ -95,8 +94,11 @@ internal class PortableStepsFileImport(
 		try {
 			when (portableStepsSchemaVersion(bytes)) {
 				StepsPortableFormatV1.SCHEMA_VERSION -> {
+					val codec = PortableStepsJsonV1Codec()
+					// Authenticate the complete archive before the first source-local mutation.
+					codec.decode(bytes) {}
 					var ordinal = 0
-					PortableStepsJsonV1Codec().decode(ByteArrayInputStream(bytes)) { entry ->
+					codec.decode(bytes) { entry ->
 						aggregate += dependencies.receiptImporter.importEntry(
 							entry,
 							fileReceipt.forEntry(entry),
@@ -106,7 +108,7 @@ internal class PortableStepsFileImport(
 					}
 				}
 				else -> {
-					val decoded = PortableStepsJsonV2Codec().decode(ByteArrayInputStream(bytes))
+					val decoded = PortableStepsJsonV2Codec().decode(bytes)
 					decoded.archive.entries.forEachIndexed { ordinal, entry ->
 						aggregate += dependencies.v2Importer.importEntry(
 							ImportPortableStepsV2Request(

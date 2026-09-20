@@ -29,7 +29,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.io.IOException
-import java.io.ByteArrayInputStream
 import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
 
@@ -93,7 +92,7 @@ internal class PortableAmbientStepsFileImport(
 			when (portableAmbientStepsSchemaVersion(bytes)) {
 				AmbientStepsPortableFormatV1.SCHEMA_VERSION -> {
 					val decoded = PortableAmbientStepsJsonV1Codec()
-						.decode(ByteArrayInputStream(bytes))
+						.decode(bytes)
 					val request = ImportPortableAmbientStepsRequest(
 						archive = decoded.archive,
 						receipt = decoded.archive.toReceipt(fileReceipt),
@@ -105,7 +104,7 @@ internal class PortableAmbientStepsFileImport(
 				}
 				else -> {
 					val decoded = PortableAmbientStepsJsonV2Codec()
-						.decode(ByteArrayInputStream(bytes))
+						.decode(bytes)
 					val request = ImportPortableAmbientStepsV2Request(
 						archive = decoded.archive,
 						receipt = decoded.archive.toReceipt(fileReceipt),

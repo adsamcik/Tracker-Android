@@ -433,11 +433,6 @@ private class FullClearOwnerAuthority {
 		collectedDataEpoch: Long,
 		fencedAtMs: Long,
 	): AuthenticatedFullClearOwnerFence {
-		legacyAmbientRevisions.zipWithNext().forEach { (previous, next) ->
-			require(next == Math.addExact(previous, 1L)) {
-				"Legacy Ambient portable owner revisions are not contiguous"
-			}
-		}
 		explicitLineage?.let { explicit ->
 			legacyAmbientRevisions.forEach { revision ->
 				require(explicit.singleOrNull { it.ownerRevision == revision } == revisions[revision]) {

@@ -20,7 +20,6 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsRunV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsSessionMode
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
-import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.time.LocalDate
 import kotlinx.coroutines.test.runTest
@@ -38,13 +37,12 @@ class PortableCountDomainJsonV2CodecTest {
 			sink.emit(archive)
 			ExportPortableStepsResult.Exported(1)
 		}
-		val decoded = PortableStepsJsonV2Codec().decode(
-			ByteArrayInputStream(output.toByteArray()),
-		)
+		val bytes = output.toByteArray()
+		val decoded = PortableStepsJsonV2Codec().decode(bytes)
 
 		decoded.archive shouldBe archive
 		decoded.metadata.archiveContentChecksum shouldBe archive.contentChecksum
-		portableStepsSchemaVersion(output.toByteArray()) shouldBe 2
+		portableStepsSchemaVersion(bytes) shouldBe 2
 	}
 
 	@Test
@@ -59,13 +57,51 @@ class PortableCountDomainJsonV2CodecTest {
 			sink.emit(archive)
 			ExportPortableAmbientStepsResult.Exported(1, 1, 0)
 		}
-		val decoded = PortableAmbientStepsJsonV2Codec().decode(
-			ByteArrayInputStream(output.toByteArray()),
-		)
+		val bytes = output.toByteArray()
+		val decoded = PortableAmbientStepsJsonV2Codec().decode(bytes)
 
 		decoded.archive shouldBe archive
 		decoded.archive.identity shouldBe archive.identity
-		portableAmbientStepsSchemaVersion(output.toByteArray()) shouldBe 2
+		portableAmbientStepsSchemaVersion(bytes) shouldBe 2
+	}
+
+	@Test
+	fun `byte array dispatch distinguishes v1 and v2 Steps and Ambient archives`() = runTest {
+		val stepsV1 = ByteArrayOutputStream().also { output ->
+			PortableStepsJsonV1Codec().encode(output) { sink ->
+				sink.emit(stepsEntry())
+				ExportPortableStepsResult.Exported(1)
+			}
+		}.toByteArray()
+		val stepsV2 = ByteArrayOutputStream().also { output ->
+			PortableStepsJsonV2Codec().encode(output) { sink ->
+				sink.emit(
+					PortableStepsArchiveV2.create(
+						listOf(stepsEntry().withExplicitUnprovenCountDomain()),
+					),
+				)
+				ExportPortableStepsResult.Exported(1)
+			}
+		}.toByteArray()
+		val ambientV1Archive = ambientArchive(
+			completeAmbientDay(LocalDate.of(2026, 1, 1), 7L),
+		)
+		val ambientV1 = encodeAmbientStepsArchive(ambientV1Archive)
+		val ambientV2 = ByteArrayOutputStream().also { output ->
+			PortableAmbientStepsJsonV2Codec().encode(output) { sink ->
+				sink.emit(
+					PortableAmbientStepsArchiveV2.create(
+						ambientV1Archive.days.map { it.withExplicitUnprovenCountDomain() },
+					),
+				)
+				ExportPortableAmbientStepsResult.Exported(1, 1, 0)
+			}
+		}.toByteArray()
+
+		portableStepsSchemaVersion(stepsV1) shouldBe 1
+		portableStepsSchemaVersion(stepsV2) shouldBe 2
+		portableAmbientStepsSchemaVersion(ambientV1) shouldBe 1
+		portableAmbientStepsSchemaVersion(ambientV2) shouldBe 2
 	}
 
 	@Test
@@ -88,12 +124,10 @@ class PortableCountDomainJsonV2CodecTest {
 		}
 		shouldThrow<PortableStepsJsonException> {
 			PortableStepsJsonV2Codec().decode(
-				ByteArrayInputStream(
-					original.replaceFirst(
-						"\"ownerEffectChecksum\":\"",
-						"\"unexpected\":true,\"ownerEffectChecksum\":\"",
-					).encodeToByteArray(),
-				),
+				original.replaceFirst(
+					"\"ownerEffectChecksum\":\"",
+					"\"unexpected\":true,\"ownerEffectChecksum\":\"",
+				).encodeToByteArray(),
 			)
 		}
 	}

@@ -70,6 +70,8 @@ class FileImportStream private constructor(
 	override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
 			currentStream().read(buffer, offset, length)
 
+	override fun available(): Int = currentStream().available()
+
 	override fun close() {
 		if (closed) return
 		closed = true

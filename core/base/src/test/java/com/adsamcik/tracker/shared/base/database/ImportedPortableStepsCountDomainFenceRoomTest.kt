@@ -201,18 +201,49 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 
 		fences.single().fence.latestSourceRevision shouldBe
 			ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY.toLong()
+	}
 
+	@Test
+	fun `full clear folds sparse v1 Ambient owner appearances across graph revisions`() {
+		val first = ambientDay("sparse", factTag = "shared")
+		val middle = ambientDay("sparse", factTag = "middle")
+		val latest = ambientDay("sparse", factTag = "shared")
+
+		val fences = authenticatedPortableOwnerFencesForFullClear(
+			graphs = listOf(
+				ambientAppearance(first, 1L),
+				ambientAppearance(middle, 2L),
+				ambientAppearance(latest, 3L),
+			),
+			fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
+			collectedDataEpoch = 8L,
+			fencedAtMs = 9L,
+			maximumOwnerCount = 2,
+			maximumOwnerRevisionCount = 3,
+		)
+
+		fences.single {
+			it.latestOwner.ownerIdentity ==
+				first.withExplicitUnprovenCountDomain(1L)
+					.countDomainGraph.ownerRevisions.single().ownerIdentity
+		}.fence.latestSourceRevision shouldBe 3L
+	}
+
+	@Test
+	fun `full clear rejects conflicting duplicate v1 Ambient owner semantics`() {
+		val first = ambientDay("conflict", factTag = "shared", stepCount = 1L)
+		val conflicting = ambientDay("conflict", factTag = "shared", stepCount = 2L)
 		assertFailsWith<IllegalArgumentException> {
 			authenticatedPortableOwnerFencesForFullClear(
 				graphs = listOf(
-					ambientAppearance(day, 1L),
-					ambientAppearance(day, 3L),
+					ambientAppearance(first, 1L),
+					ambientAppearance(conflicting, 1L),
 				),
 				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_FULL_CLEAR,
 				collectedDataEpoch = 8L,
 				fencedAtMs = 9L,
 				maximumOwnerCount = 1,
-				maximumOwnerRevisionCount = 2,
+				maximumOwnerRevisionCount = 1,
 			)
 		}
 	}
@@ -1076,15 +1107,19 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			isBound = true,
 		)
 
-	private fun ambientDay(tag: String): PortableAmbientStepsDayV1 {
+	private fun ambientDay(
+		tag: String,
+		factTag: String = tag,
+		stepCount: Long = 1L,
+	): PortableAmbientStepsDayV1 {
 		val fact = PortableAmbientStepsFactV1.create(
 			AmbientStepsPortableOpaqueIdentity.derive(
 				AmbientStepsPortableIdentityKind.FACT,
-				"fact-$tag",
+				"fact-$factTag",
 			),
 			0L,
 			86_400_000L,
-			1L,
+			stepCount,
 		)
 		return PortableAmbientStepsDayV1.create(
 			identity = AmbientStepsPortableOpaqueIdentity.derive(
@@ -1098,7 +1133,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			retainedFromTimeMs = null,
 			coverage = PortableAmbientStepsCoverage.COMPLETE,
 			partialCauses = emptyList(),
-			retainedStepCount = 1L,
+			retainedStepCount = stepCount,
 			facts = listOf(fact),
 			gaps = emptyList(),
 		)

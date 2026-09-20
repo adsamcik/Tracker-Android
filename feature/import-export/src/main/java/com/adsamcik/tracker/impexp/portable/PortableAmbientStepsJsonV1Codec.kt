@@ -93,6 +93,12 @@ internal class PortableAmbientStepsJsonV1Codec @JvmOverloads constructor(
 		}
 	}
 
+	suspend fun decode(bytes: ByteArray): PortableAmbientStepsDecodedArchive =
+		decode(PortableJsonBytes.wrap(bytes))
+
+	internal suspend fun decode(bytes: PortableJsonBytes): PortableAmbientStepsDecodedArchive =
+		decode(bytes.inputStream())
+
 	suspend fun decode(inputStream: InputStream): PortableAmbientStepsDecodedArchive {
 		val bounded = BoundedAmbientInputStream(inputStream, limits.maxFileBytes)
 		val tokenLimited = PortableJsonTokenLimitInputStream(bounded, AMBIENT_TOKEN_LIMITS)
