@@ -959,7 +959,18 @@ internal class TrackerService : CoreService() {
 					)) {
 						is com.adsamcik.tracker.tracker.source.coordinator.SessionStartResult.Started -> {
 							preparedStartRuntime = preparedStartRuntime.copy(applied = true)
-							null
+							val appliedReference = result.sourceCallerAuthorityReference
+								?: descriptor.sourceCallerAuthorityReference
+							val persistedDescriptor = appliedReference?.let { reference ->
+								sourceSession.persistedDescriptorForActiveSession(reference)
+							}
+							if (persistedDescriptor == null) {
+								"APPLIED_SOURCE_PLAN_DESCRIPTOR_MISSING"
+							} else {
+								descriptor = persistedDescriptor
+								activeSessionDescriptor = persistedDescriptor
+								null
+							}
 						}
 						null -> "TRACKING_STARTUP_GENERATION_CLOSED_BEFORE_APPLY"
 						else -> result

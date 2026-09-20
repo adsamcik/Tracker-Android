@@ -15,6 +15,7 @@ import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreResult
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.resilience.CatalogReconfigurationDebt
 import com.adsamcik.tracker.tracker.resilience.CatalogReconfigurationSourcePlan
+import com.adsamcik.tracker.tracker.resilience.SourcePlanIdentity
 import com.adsamcik.tracker.tracker.source.catalog.SourceAcquisitionPlanFactory
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.DemandReason
@@ -183,7 +184,19 @@ class TrackerServiceSourceSession @Inject constructor(
 			return@withLock SessionStartPreparationResult.Rejected(STARTUP_RECOVERY_NOT_READY)
 		}
 		val plan = buildPlan(request.rollout, request.captureMode, planInputs, requireEnabled = true)
-		coordinator.prepareAndroidStart(
+		val inputsFingerprint = planInputs.planInputsFingerprint(
+			rolloutRevision = request.rollout.revision,
+			captureMode = request.captureMode,
+			startOrigin = request.origin,
+			foregroundCapabilityFlags = request.foregroundCapabilityFlags,
+			controlDependencies = controlDependencies(request.origin),
+		)
+		val desiredIdentity = SourcePlanIdentity(
+			generation = plan.revision,
+			inputsFingerprint = inputsFingerprint,
+			planFingerprint = sourcePlanFingerprint(inputsFingerprint, plan, sourcePlanCodec),
+		)
+		when (val result = coordinator.prepareAndroidStart(
 			SessionStartRequest(
 				ownerToken = request.ownerToken,
 				origin = request.origin,
@@ -201,7 +214,12 @@ class TrackerServiceSourceSession @Inject constructor(
 				continuationAuthority = request.continuationAuthority,
 			),
 			delivery,
-		)
+		)) {
+			is SessionStartPreparationResult.Prepared -> result.copy(
+				start = result.start.copy(desiredSourcePlanIdentity = desiredIdentity),
+			)
+			else -> result
+		}
 	}
 
 	/** Applies an already foreground-accepted Room plan and attaches it for later reconfigure/stop. */
@@ -210,96 +228,183 @@ class TrackerServiceSourceSession @Inject constructor(
 		commandGeneration: Long,
 		planInputs: SourceSessionPlanInputs,
 		persistedDescriptor: ActiveTrackingSessionDescriptor? = null,
-	): SessionStartResult = mutex.withLock {
-		val claimedReference = SourceCallerReplayReference(
-			requireNotNull(claim.intent.sourceCallerAuthorityReference),
-		)
-		require(
-			persistedDescriptor == null ||
-				(
-					persistedDescriptor.logicalTrackingId == claim.logicalTrackingId &&
-						persistedDescriptor.serviceRunId == claim.serviceRunId &&
-						persistedDescriptor.sourceCallerAuthorityReference == claimedReference
-					)
-		) { "Prepared source session descriptor does not match its claimed start" }
-		val rollout = trackingRolloutStateStore.load()
-		if (rollout.revision != database.sourceSessionDao().serviceRun(claim.serviceRunId)?.rolloutRevision) {
-			return@withLock SessionStartResult.InvalidRollout("PREPARED_START_ROLLOUT_STALE")
-		}
-		val applyingSession = ActiveSession(
-			rollout = rollout,
-			ownerToken = "prepared-start:${claim.token.value}",
-			logicalTrackingId = claim.logicalTrackingId,
-			serviceRunId = claim.serviceRunId,
-			origin = claim.startOrigin,
-			captureMode = captureModeFor(claim.isUserInitiated, claim.isAmbient),
-			automaticTrigger = null,
-			foregroundCapabilityFlags = claim.desiredForegroundCapabilityFlags,
-			lastInputs = planInputs,
-			coordinatorStarted = true,
-			sourceCallerAuthorityReference = claimedReference,
-			pendingRetirementSourceCallerAuthorityReference =
-				persistedDescriptor?.pendingRetirementSourceCallerAuthorityReference,
-			catalogReconfigurationDebt = persistedDescriptor?.catalogReconfigurationDebt,
-		)
-		// Attach cleanup ownership before the first provider side effect. If the Android service is
-		// stopped and cancels this coroutine mid-apply, stop() must still fence a partially-started
-		// runtime and terminalize the durable STARTING run.
-		active = applyingSession
-		val result = try {
-			coordinator.applyPreparedAndroidStart(
-				token = claim.token,
-				commandGeneration = commandGeneration,
-				currentBootId = planInputs.clockDomainId,
-				elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
-				wallTimeMs = Time.nowMillis,
+	): SessionStartResult {
+		var requiresImmediateReconfiguration = false
+		val preparedResult = mutex.withLock {
+			val claimedReference = SourceCallerReplayReference(
+				requireNotNull(claim.intent.sourceCallerAuthorityReference),
 			)
-		} catch (error: CancellationException) {
-			applyingSession.runtimeCleanupRequired = true
-			throw error
-		}
-		if (result is SessionStartResult.Started) {
-			val appliedReference = result.sourceCallerAuthorityReference
-				?: applyingSession.sourceCallerAuthorityReference
-			if (appliedReference != applyingSession.sourceCallerAuthorityReference) {
+			require(
+				persistedDescriptor == null ||
+					(
+						persistedDescriptor.logicalTrackingId == claim.logicalTrackingId &&
+							persistedDescriptor.serviceRunId == claim.serviceRunId &&
+							persistedDescriptor.sourceCallerAuthorityReference == claimedReference
+						)
+			) { "Prepared source session descriptor does not match its claimed start" }
+			val rollout = trackingRolloutStateStore.load()
+			if (rollout.revision !=
+				database.sourceSessionDao().serviceRun(claim.serviceRunId)?.rolloutRevision
+			) {
+				return@withLock SessionStartResult.InvalidRollout("PREPARED_START_ROLLOUT_STALE")
+			}
+			val applyingSession = ActiveSession(
+				rollout = rollout,
+				ownerToken = "prepared-start:${claim.token.value}",
+				logicalTrackingId = claim.logicalTrackingId,
+				serviceRunId = claim.serviceRunId,
+				origin = claim.startOrigin,
+				captureMode = captureModeFor(claim.isUserInitiated, claim.isAmbient),
+				automaticTrigger = null,
+				foregroundCapabilityFlags = claim.desiredForegroundCapabilityFlags,
+				lastInputs = planInputs,
+				coordinatorStarted = true,
+				sourceCallerAuthorityReference = claimedReference,
+				appliedSourcePlanIdentity = persistedDescriptor?.appliedSourcePlanIdentity,
+				desiredSourcePlanIdentity = persistedDescriptor?.desiredSourcePlanIdentity,
+				pendingRetirementSourceCallerAuthorityReference =
+					persistedDescriptor?.pendingRetirementSourceCallerAuthorityReference,
+				catalogReconfigurationDebt = persistedDescriptor?.catalogReconfigurationDebt,
+			)
+			// Attach cleanup ownership before the first provider side effect. If the Android service is
+			// stopped and cancels this coroutine mid-apply, stop() must still fence a partially-started
+			// runtime and terminalize the durable STARTING run.
+			active = applyingSession
+			val result = try {
+				coordinator.applyPreparedAndroidStart(
+					token = claim.token,
+					commandGeneration = commandGeneration,
+					currentBootId = planInputs.clockDomainId,
+					elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+					wallTimeMs = Time.nowMillis,
+				)
+			} catch (error: CancellationException) {
 				applyingSession.runtimeCleanupRequired = true
-				settingsStatusProvider.publishFailure(
-					SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED,
-				)
-				return@withLock SessionStartResult.InvalidIntent(
-					SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED,
-				)
+				throw error
 			}
-			RoomSourcePlanStore(database, sourcePlanCodec).load(claim.planRevision)?.let { appliedPlan ->
-				applyingSession.markAppliedPlan(
-					inputs = planInputs,
-					fingerprint = planInputs.desiredPlanFingerprint(
-						plan = appliedPlan,
-						rolloutRevision = applyingSession.rollout.revision,
-						captureMode = applyingSession.captureMode,
-						startOrigin = applyingSession.origin,
-						foregroundCapabilityFlags = applyingSession.foregroundCapabilityFlags,
-						controlDependencies = controlDependencies(applyingSession.origin),
-						codec = sourcePlanCodec,
-					),
-					generation = appliedPlan.revision,
-				)
+			if (result is SessionStartResult.Started) {
+				val appliedReference = result.sourceCallerAuthorityReference
+					?: applyingSession.sourceCallerAuthorityReference
+				if (appliedReference != applyingSession.sourceCallerAuthorityReference) {
+					applyingSession.runtimeCleanupRequired = true
+					settingsStatusProvider.publishFailure(
+						SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED,
+					)
+					return@withLock SessionStartResult.InvalidIntent(
+						SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED,
+					)
+				}
+				val preparedIdentity = persistedDescriptor?.desiredSourcePlanIdentity
+				if (preparedIdentity != null) {
+					if (preparedIdentity.generation != claim.planRevision) {
+						applyingSession.runtimeCleanupRequired = true
+						return@withLock SessionStartResult.Failed(
+							result.logicalTrackingId,
+							result.serviceRunId,
+							result.applied,
+							PREPARED_SOURCE_PLAN_IDENTITY_STALE,
+						)
+					}
+					val planStore = RoomSourcePlanStore(database, sourcePlanCodec)
+					val preparedRequestedPlan = planStore.load(claim.planRevision)
+					if (preparedRequestedPlan == null ||
+						sourcePlanFingerprint(
+							preparedIdentity.inputsFingerprint,
+							preparedRequestedPlan,
+							sourcePlanCodec,
+						) != preparedIdentity.planFingerprint
+					) {
+						applyingSession.runtimeCleanupRequired = true
+						return@withLock SessionStartResult.Failed(
+							result.logicalTrackingId,
+							result.serviceRunId,
+							result.applied,
+							PREPARED_SOURCE_PLAN_IDENTITY_STALE,
+						)
+					}
+					val appliedPlan = when (
+						val read = planStore.loadApplied(claim.planRevision)
+					) {
+						is AppliedPlanRead.Available -> read.plan
+						AppliedPlanRead.Missing,
+						is AppliedPlanRead.Invalid,
+						-> {
+							applyingSession.runtimeCleanupRequired = true
+							return@withLock SessionStartResult.Failed(
+								result.logicalTrackingId,
+								result.serviceRunId,
+								result.applied,
+								APPLIED_SOURCE_PLAN_STATE_INVALID,
+							)
+						}
+					}
+					if (!applyingSession.markAppliedPlan(
+							inputs = planInputs,
+							appliedPlan = appliedPlan,
+							desiredIdentity = preparedIdentity,
+						)
+					) {
+						applyingSession.runtimeCleanupRequired = true
+						return@withLock SessionStartResult.Failed(
+							result.logicalTrackingId,
+							result.serviceRunId,
+							result.applied,
+							APPLIED_SOURCE_PLAN_IDENTITY_STORE_UNAVAILABLE,
+						)
+					}
+					val currentInputsFingerprint = applyingSession.inputsFingerprint(planInputs)
+					requiresImmediateReconfiguration =
+						currentInputsFingerprint != preparedIdentity.inputsFingerprint ||
+							applyingSession.appliedSourcePlanIdentity != preparedIdentity
+				}
+				if (!requiresImmediateReconfiguration &&
+					!clearCatalogDebtSatisfiedBySuccessfulStart(applyingSession)
+				) {
+					settingsStatusProvider.publishFailure(
+						CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
+					)
+				}
+				preStartInputs = null
+				settingsStatusProvider.publishApplied(result.applied)
+			} else if (result.requiresRuntimeCleanup) {
+				applyingSession.runtimeCleanupRequired = true
+				settingsStatusProvider.publishFailure(SOURCE_RUNTIME_CLEANUP_PENDING)
+			} else {
+				active = null
+				settingsStatusProvider.publishFailure("SESSION_START_REJECTED")
 			}
-			if (!clearCatalogDebtSatisfiedBySuccessfulStart(applyingSession)) {
-				settingsStatusProvider.publishFailure(
-					CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
-				)
-			}
-			preStartInputs = null
-			settingsStatusProvider.publishApplied(result.applied)
-		} else if (result.requiresRuntimeCleanup) {
-			applyingSession.runtimeCleanupRequired = true
-			settingsStatusProvider.publishFailure(SOURCE_RUNTIME_CLEANUP_PENDING)
-		} else {
-			active = null
-			settingsStatusProvider.publishFailure("SESSION_START_REJECTED")
+			result
 		}
-		result
+		if (preparedResult !is SessionStartResult.Started || !requiresImmediateReconfiguration) {
+			return preparedResult
+		}
+		return when (val reconfigured = reconfigure(planInputs)) {
+			is SourceSessionReconfigureOutcome.Applied -> SessionStartResult.Started(
+				logicalTrackingId = preparedResult.logicalTrackingId,
+				serviceRunId = preparedResult.serviceRunId,
+				applied = reconfigured.result.applied,
+				planStatus = reconfigured.result.status,
+				sourceCallerAuthorityReference =
+					reconfigured.result.sourceCallerAuthorityReference,
+			)
+			is SourceSessionReconfigureOutcome.Started -> reconfigured.result
+			is SourceSessionReconfigureOutcome.Retryable,
+			SourceSessionReconfigureOutcome.Unchanged,
+			-> preparedResult
+			SourceSessionReconfigureOutcome.NotActive,
+			is SourceSessionReconfigureOutcome.Rejected,
+			-> {
+				mutex.withLock {
+					active?.runtimeCleanupRequired = true
+				}
+				SessionStartResult.Failed(
+					logicalTrackingId = preparedResult.logicalTrackingId,
+					serviceRunId = preparedResult.serviceRunId,
+					applied = preparedResult.applied,
+					code = PREPARED_START_DESIRED_PLAN_REJECTED,
+				)
+			}
+		}
 	}
 
 	suspend fun start(request: SourceSessionStartRequest): SourceSessionStartOutcome {
@@ -429,8 +534,8 @@ class TrackerServiceSourceSession @Inject constructor(
 		val requestedInputs = inputs
 		if (session.lastInputs == requestedInputs &&
 			session.catalogReconfigurationDebt == null &&
-			session.appliedPlanFingerprint != null &&
-			session.appliedPlanFingerprint == session.desiredPlanFingerprint
+			session.appliedSourcePlanIdentity != null &&
+			session.appliedSourcePlanIdentity == session.desiredSourcePlanIdentity
 		) {
 			return@withLock SourceSessionReconfigureOutcome.Unchanged
 		}
@@ -480,13 +585,20 @@ class TrackerServiceSourceSession @Inject constructor(
 			requestedInputs,
 			requireEnabled = false,
 		)
+		val desiredInputsFingerprint = session.inputsFingerprint(requestedInputs)
 		val desiredFingerprint = session.fingerprint(requestedInputs, plan)
-		val desiredGeneration = session.desiredPlanGeneration
-			?.takeIf { session.desiredPlanFingerprint == desiredFingerprint }
-			?: maxOf(plan.revision, (session.desiredPlanGeneration ?: 0L) + 1L)
+		val desiredGeneration = session.desiredSourcePlanIdentity?.generation
+			?.takeIf {
+				session.desiredSourcePlanIdentity?.planFingerprint == desiredFingerprint
+			}
+			?: maxOf(plan.revision, (session.desiredSourcePlanIdentity?.generation ?: 0L) + 1L)
+		val desiredIdentity = SourcePlanIdentity(
+			generation = desiredGeneration,
+			inputsFingerprint = desiredInputsFingerprint,
+			planFingerprint = desiredFingerprint,
+		)
 		session.desiredInputs = requestedInputs
-		session.desiredPlanFingerprint = desiredFingerprint
-		session.desiredPlanGeneration = desiredGeneration
+		session.desiredSourcePlanIdentity = desiredIdentity
 		val request = SessionReconfigureRequest(
 			ownerToken = session.ownerToken,
 			plan = plan,
@@ -557,6 +669,22 @@ class TrackerServiceSourceSession @Inject constructor(
 			)
 		}
 		if (result is SessionReconfigureResult.Applied) {
+			if (!session.markAppliedReconfiguration(
+					inputs = requestedInputs,
+					desiredIdentity = desiredIdentity,
+					result = result,
+				)
+			) {
+				session.runtimeCleanupRequired = true
+				settingsStatusProvider.publishFailure(
+					APPLIED_SOURCE_PLAN_STATE_INVALID,
+				)
+				return@withLock SourceSessionReconfigureOutcome.Rejected(
+					SessionReconfigureResult.InvalidState(
+						APPLIED_SOURCE_PLAN_STATE_INVALID,
+					),
+				)
+			}
 			val debtUpdated = if (result.deferredCatalogSources.isEmpty()) {
 				clearCatalogReconfigurationDebt(session)
 			} else {
@@ -575,12 +703,6 @@ class TrackerServiceSourceSession @Inject constructor(
 					),
 				)
 			}
-			session.markAppliedReconfiguration(
-				inputs = requestedInputs,
-				desiredFingerprint = desiredFingerprint,
-				desiredGeneration = desiredGeneration,
-				result = result,
-			)
 			settingsStatusProvider.publishApplied(result.applied)
 			SourceSessionReconfigureOutcome.Applied(result)
 		} else if (result is SessionReconfigureResult.Retryable) {
@@ -636,10 +758,11 @@ class TrackerServiceSourceSession @Inject constructor(
 			) return@withLock null
 			val debt = stored.catalogReconfigurationDebt ?: return@withLock null
 			session.catalogReconfigurationDebt = debt
-			if (debt.desiredPlanFingerprint == session.appliedPlanFingerprint &&
-				debt.desiredPlanGeneration == session.appliedPlanGeneration
+			if (debt.desiredPlanFingerprint ==
+				session.appliedSourcePlanIdentity?.planFingerprint &&
+				debt.desiredPlanGeneration == session.appliedSourcePlanIdentity?.generation
 			) {
-				if (!replaceCatalogDebt(stored, null)) {
+				if (!replaceCatalogDebt(stored, session, null)) {
 					settingsStatusProvider.publishFailure(
 						CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
 					)
@@ -655,10 +778,11 @@ class TrackerServiceSourceSession @Inject constructor(
 				debt.zoneId != currentInputs.zoneId ||
 				debt.foregroundCapabilityFlags != session.foregroundCapabilityFlags ||
 				debt.controlDependencyMask != controlDependencies(session.origin).toSourceMask() ||
-				debt.desiredPlanFingerprint != session.desiredPlanFingerprint ||
-				debt.desiredPlanGeneration != session.desiredPlanGeneration
+				debt.desiredPlanFingerprint !=
+				session.desiredSourcePlanIdentity?.planFingerprint ||
+				debt.desiredPlanGeneration != session.desiredSourcePlanIdentity?.generation
 			) {
-				if (!replaceCatalogDebt(stored, null)) {
+				if (!replaceCatalogDebt(stored, session, null)) {
 					settingsStatusProvider.publishFailure(
 						CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
 					)
@@ -669,7 +793,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			}
 			val revision = (database.sourcePlanStateDao().latestRevision()?.revision ?: 0L) + 1L
 			val plan = debt.toPlan(revision) ?: run {
-				if (replaceCatalogDebt(stored, null)) {
+				if (replaceCatalogDebt(stored, session, null)) {
 					session.catalogReconfigurationDebt = null
 				}
 				settingsStatusProvider.publishFailure(CATALOG_RECONFIGURATION_DEBT_INVALID)
@@ -679,7 +803,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			}
 			val reconstructedFingerprint = session.fingerprint(currentInputs, plan)
 			if (reconstructedFingerprint != debt.desiredPlanFingerprint) {
-				if (replaceCatalogDebt(stored, null)) {
+				if (replaceCatalogDebt(stored, session, null)) {
 					session.catalogReconfigurationDebt = null
 				}
 				settingsStatusProvider.publishFailure(CATALOG_RECONFIGURATION_DEBT_INVALID)
@@ -725,6 +849,29 @@ class TrackerServiceSourceSession @Inject constructor(
 			}
 			when (result) {
 				is SessionReconfigureResult.Applied -> {
+					val desiredIdentity = session.desiredSourcePlanIdentity
+						?.takeIf { identity ->
+							identity.generation == debt.desiredPlanGeneration &&
+								identity.planFingerprint == debt.desiredPlanFingerprint
+						}
+						?: return@withLock SourceSessionReconfigureOutcome.Rejected(
+							SessionReconfigureResult.InvalidState(
+								CATALOG_RECONFIGURATION_DEBT_INVALID,
+							),
+						)
+					if (!session.markAppliedReconfiguration(
+							inputs = currentInputs,
+							desiredIdentity = desiredIdentity,
+							result = result,
+						)
+					) {
+						session.runtimeCleanupRequired = true
+						return@withLock SourceSessionReconfigureOutcome.Rejected(
+							SessionReconfigureResult.InvalidState(
+								APPLIED_SOURCE_PLAN_STATE_INVALID,
+							),
+						)
+					}
 					val debtUpdated = if (result.deferredCatalogSources.isEmpty()) {
 						clearCatalogReconfigurationDebt(session)
 					} else {
@@ -740,12 +887,6 @@ class TrackerServiceSourceSession @Inject constructor(
 							),
 						)
 					}
-					session.markAppliedReconfiguration(
-						inputs = currentInputs,
-						desiredFingerprint = debt.desiredPlanFingerprint,
-						desiredGeneration = debt.desiredPlanGeneration,
-						result = result,
-					)
 					settingsStatusProvider.publishApplied(result.applied)
 					SourceSessionReconfigureOutcome.Applied(result)
 				}
@@ -781,7 +922,7 @@ class TrackerServiceSourceSession @Inject constructor(
 	): Boolean {
 		val stored = currentStoredDescriptor(session) ?: return false
 		val debt = request.toCatalogReconfigurationDebt(session, deferredSources)
-		return replaceCatalogDebt(stored, debt).also { replaced ->
+		return replaceCatalogDebt(stored, session, debt).also { replaced ->
 			if (replaced) session.catalogReconfigurationDebt = debt
 		}
 	}
@@ -800,6 +941,7 @@ class TrackerServiceSourceSession @Inject constructor(
 		)
 		return replaceCatalogDebt(
 			stored,
+			session,
 			replacementDebt,
 		).also { replaced ->
 			if (replaced) session.catalogReconfigurationDebt = replacementDebt
@@ -813,14 +955,18 @@ class TrackerServiceSourceSession @Inject constructor(
 			session.catalogReconfigurationDebt = null
 			return true
 		}
-		return replaceCatalogDebt(stored, null).also { replaced ->
+		return replaceCatalogDebt(stored, session, null).also { replaced ->
 			if (replaced) session.catalogReconfigurationDebt = null
 		}
 	}
 
 	private suspend fun clearCatalogDebtSatisfiedBySuccessfulStart(
 		session: ActiveSession,
+		allowMissingAppliedIdentity: Boolean = false,
 	): Boolean {
+		if (!allowMissingAppliedIdentity &&
+			session.appliedSourcePlanIdentity != session.desiredSourcePlanIdentity
+		) return true
 		if (session.catalogReconfigurationDebt == null &&
 			session.origin != SessionStartOrigin.RECOVERY
 		) return true
@@ -831,7 +977,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			return true
 		}
 		session.catalogReconfigurationDebt = inheritedDebt
-		return replaceCatalogDebt(stored, null).also { replaced ->
+		return replaceCatalogDebt(stored, session, null).also { replaced ->
 			if (replaced) session.catalogReconfigurationDebt = null
 		}
 	}
@@ -848,9 +994,27 @@ class TrackerServiceSourceSession @Inject constructor(
 
 	private suspend fun replaceCatalogDebt(
 		stored: ActiveTrackingSessionDescriptor,
+		session: ActiveSession,
 		debt: CatalogReconfigurationDebt?,
 	): Boolean {
-		val replacement = stored.copy(catalogReconfigurationDebt = debt)
+		val replacement = stored.copy(
+			catalogReconfigurationDebt = debt,
+			appliedSourcePlanIdentity = session.appliedSourcePlanIdentity,
+			desiredSourcePlanIdentity = session.desiredSourcePlanIdentity,
+		)
+		if (replacement == stored) return true
+		return when (val result = activeTrackingSessionStore.replaceExact(stored, replacement)) {
+			is ActiveTrackingSessionStoreResult.Failure -> false
+			is ActiveTrackingSessionStoreResult.Success -> result.descriptor == replacement
+		}
+	}
+
+	private suspend fun persistSourcePlanIdentities(session: ActiveSession): Boolean {
+		val stored = currentStoredDescriptor(session) ?: return false
+		val replacement = stored.copy(
+			appliedSourcePlanIdentity = session.appliedSourcePlanIdentity,
+			desiredSourcePlanIdentity = session.desiredSourcePlanIdentity,
+		)
 		if (replacement == stored) return true
 		return when (val result = activeTrackingSessionStore.replaceExact(stored, replacement)) {
 			is ActiveTrackingSessionStoreResult.Failure -> false
@@ -978,6 +1142,9 @@ class TrackerServiceSourceSession @Inject constructor(
 		session.sourceCallerAuthorityReference = stored.sourceCallerAuthorityReference
 		session.pendingRetirementSourceCallerAuthorityReference =
 			stored.pendingRetirementSourceCallerAuthorityReference
+		session.appliedSourcePlanIdentity = stored.appliedSourcePlanIdentity
+		session.desiredSourcePlanIdentity = stored.desiredSourcePlanIdentity
+		session.catalogReconfigurationDebt = stored.catalogReconfigurationDebt
 		stored
 	}
 
@@ -1150,10 +1317,14 @@ class TrackerServiceSourceSession @Inject constructor(
 		inputs: SourceSessionPlanInputs,
 	): SessionStartResult {
 		val plan = buildPlan(session.rollout, session.captureMode, inputs, requireEnabled = true)
-		val fingerprint = session.fingerprint(inputs, plan)
+		val inputsFingerprint = session.inputsFingerprint(inputs)
+		val desiredIdentity = SourcePlanIdentity(
+			generation = plan.revision,
+			inputsFingerprint = inputsFingerprint,
+			planFingerprint = sourcePlanFingerprint(inputsFingerprint, plan, sourcePlanCodec),
+		)
 		session.desiredInputs = inputs
-		session.desiredPlanFingerprint = fingerprint
-		session.desiredPlanGeneration = plan.revision
+		session.desiredSourcePlanIdentity = desiredIdentity
 		val result = coordinator.start(
 			SessionStartRequest(
 				ownerToken = session.ownerToken,
@@ -1172,8 +1343,48 @@ class TrackerServiceSourceSession @Inject constructor(
 			),
 		)
 		if (result is SessionStartResult.Started) {
-			session.markAppliedPlan(inputs, fingerprint, plan.revision)
-			if (!clearCatalogDebtSatisfiedBySuccessfulStart(session)) {
+			val appliedPlan = when (val read =
+				RoomSourcePlanStore(database, sourcePlanCodec).loadApplied(plan.revision)
+			) {
+				is AppliedPlanRead.Available -> read.plan
+				AppliedPlanRead.Missing -> null
+				is AppliedPlanRead.Invalid -> {
+					session.runtimeCleanupRequired = true
+					return SessionStartResult.Failed(
+						result.logicalTrackingId,
+						result.serviceRunId,
+						result.applied,
+						APPLIED_SOURCE_PLAN_STATE_INVALID,
+					)
+				}
+			}
+			if (appliedPlan != null &&
+				!session.markAppliedPlan(inputs, appliedPlan, desiredIdentity)
+			) {
+				session.runtimeCleanupRequired = true
+				return SessionStartResult.Failed(
+					result.logicalTrackingId,
+					result.serviceRunId,
+					result.applied,
+					APPLIED_SOURCE_PLAN_IDENTITY_STORE_UNAVAILABLE,
+				)
+			}
+			if (appliedPlan == null && result.applied.isNotEmpty()) {
+				session.runtimeCleanupRequired = true
+				return SessionStartResult.Failed(
+					result.logicalTrackingId,
+					result.serviceRunId,
+					result.applied,
+					APPLIED_SOURCE_PLAN_STATE_INVALID,
+				)
+			}
+			if ((session.appliedSourcePlanIdentity == session.desiredSourcePlanIdentity ||
+					(appliedPlan == null && result.applied.isEmpty())) &&
+				!clearCatalogDebtSatisfiedBySuccessfulStart(
+					session,
+					allowMissingAppliedIdentity = appliedPlan == null && result.applied.isEmpty(),
+				)
+			) {
 				settingsStatusProvider.publishFailure(
 					CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE,
 				)
@@ -1271,33 +1482,66 @@ class TrackerServiceSourceSession @Inject constructor(
 		codec = sourcePlanCodec,
 	)
 
-	private fun ActiveSession.markAppliedPlan(
+	private fun ActiveSession.inputsFingerprint(
 		inputs: SourceSessionPlanInputs,
-		fingerprint: String,
-		generation: Long,
-	) {
+	): String = inputs.planInputsFingerprint(
+		rolloutRevision = rollout.revision,
+		captureMode = captureMode,
+		startOrigin = origin,
+		foregroundCapabilityFlags = foregroundCapabilityFlags,
+		controlDependencies = controlDependencies(origin),
+	)
+
+	private suspend fun ActiveSession.markAppliedPlan(
+		inputs: SourceSessionPlanInputs,
+		appliedPlan: AcquisitionPlanRevision,
+		desiredIdentity: SourcePlanIdentity,
+	): Boolean {
+		val appliedIdentity = SourcePlanIdentity(
+			generation = desiredIdentity.generation,
+			inputsFingerprint = desiredIdentity.inputsFingerprint,
+			planFingerprint = sourcePlanFingerprint(
+				desiredIdentity.inputsFingerprint,
+				appliedPlan,
+				sourcePlanCodec,
+			),
+		)
 		lastInputs = inputs
 		desiredInputs = inputs
-		appliedPlanFingerprint = fingerprint
-		appliedPlanGeneration = generation
-		desiredPlanFingerprint = fingerprint
-		desiredPlanGeneration = generation
+		appliedSourcePlanIdentity = appliedIdentity
+		desiredSourcePlanIdentity = desiredIdentity
+		return persistSourcePlanIdentities(this)
 	}
 
 	private suspend fun ActiveSession.markAppliedReconfiguration(
 		inputs: SourceSessionPlanInputs,
-		desiredFingerprint: String,
-		desiredGeneration: Long,
+		desiredIdentity: SourcePlanIdentity,
 		result: SessionReconfigureResult.Applied,
-	) {
-		if (result.deferredCatalogSources.isEmpty()) {
-			markAppliedPlan(inputs, desiredFingerprint, desiredGeneration)
-			return
-		}
+	): Boolean {
 		lastInputs = inputs
-		val effectivePlan = RoomSourcePlanStore(database, sourcePlanCodec).load(result.revision)
-		appliedPlanFingerprint = effectivePlan?.let { plan -> fingerprint(inputs, plan) }
-		appliedPlanGeneration = effectivePlan?.revision
+		desiredInputs = inputs
+		desiredSourcePlanIdentity = desiredIdentity
+		val effectivePlan = when (
+			val read = RoomSourcePlanStore(database, sourcePlanCodec).loadApplied(result.revision)
+		) {
+			is AppliedPlanRead.Available -> read.plan
+			AppliedPlanRead.Missing -> {
+				if (result.applied.isNotEmpty()) return false
+				appliedSourcePlanIdentity = desiredIdentity
+				return true
+			}
+			is AppliedPlanRead.Invalid -> return false
+		}
+		appliedSourcePlanIdentity = SourcePlanIdentity(
+			generation = desiredIdentity.generation,
+			inputsFingerprint = desiredIdentity.inputsFingerprint,
+			planFingerprint = sourcePlanFingerprint(
+				desiredIdentity.inputsFingerprint,
+				effectivePlan,
+				sourcePlanCodec,
+			),
+		)
+		return persistSourcePlanIdentities(this)
 	}
 
 	private data class ActiveSession(
@@ -1313,10 +1557,8 @@ class TrackerServiceSourceSession @Inject constructor(
 		var coordinatorStarted: Boolean,
 		var sourceCallerAuthorityReference: SourceCallerReplayReference?,
 		var desiredInputs: SourceSessionPlanInputs = lastInputs,
-		var appliedPlanFingerprint: String? = null,
-		var appliedPlanGeneration: Long? = null,
-		var desiredPlanFingerprint: String? = appliedPlanFingerprint,
-		var desiredPlanGeneration: Long? = appliedPlanGeneration,
+		var appliedSourcePlanIdentity: SourcePlanIdentity? = null,
+		var desiredSourcePlanIdentity: SourcePlanIdentity? = appliedSourcePlanIdentity,
 		var pendingSourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 		var pendingRetirementSourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 		var catalogReconfigurationDebt: CatalogReconfigurationDebt? = null,
@@ -1400,7 +1642,13 @@ private fun SessionStopResult.toSourceSessionStopOutcome(): SourceSessionStopOut
 }
 
 private val SessionStartResult.requiresRuntimeCleanup: Boolean
-	get() = this is SessionStartResult.Failed && code == SOURCE_RUNTIME_CLEANUP_PENDING
+	get() = this is SessionStartResult.Failed && code in setOf(
+		SOURCE_RUNTIME_CLEANUP_PENDING,
+		APPLIED_SOURCE_PLAN_STATE_INVALID,
+		APPLIED_SOURCE_PLAN_IDENTITY_STORE_UNAVAILABLE,
+		PREPARED_START_DESIRED_PLAN_REJECTED,
+		PREPARED_SOURCE_PLAN_IDENTITY_STALE,
+	)
 
 private val SessionReconfigureResult.requiresRuntimeCleanup: Boolean
 	get() = this is SessionReconfigureResult.Failed &&
@@ -1484,6 +1732,14 @@ private const val CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE =
 	"CATALOG_RECONFIGURATION_DEBT_STORE_UNAVAILABLE"
 private const val CATALOG_RECONFIGURATION_DEBT_INVALID =
 	"CATALOG_RECONFIGURATION_DEBT_INVALID"
+private const val APPLIED_SOURCE_PLAN_STATE_INVALID =
+	"APPLIED_SOURCE_PLAN_STATE_INVALID"
+private const val APPLIED_SOURCE_PLAN_IDENTITY_STORE_UNAVAILABLE =
+	"APPLIED_SOURCE_PLAN_IDENTITY_STORE_UNAVAILABLE"
+private const val PREPARED_START_DESIRED_PLAN_REJECTED =
+	"PREPARED_START_DESIRED_PLAN_REJECTED"
+private const val PREPARED_SOURCE_PLAN_IDENTITY_STALE =
+	"PREPARED_SOURCE_PLAN_IDENTITY_STALE"
 
 private fun controlDependencies(
 	origin: SessionStartOrigin,

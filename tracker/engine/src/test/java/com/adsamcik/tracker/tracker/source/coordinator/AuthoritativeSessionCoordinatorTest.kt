@@ -672,11 +672,105 @@ class AuthoritativeSessionCoordinatorTest {
 			).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
 
 			intermediate.deferredCatalogSources shouldBe setOf(SourceKind.STEPS)
-			val stored = RoomSourcePlanStore(database, SourcePlanCodec()).load(2L)
-			(stored?.plans?.get(SourceKind.STEPS) as StepsPlan).maximumReportLatencyMs shouldBe
+			val planStore = RoomSourcePlanStore(database, SourcePlanCodec())
+			val requestedStored = planStore.load(2L)
+			(requestedStored?.plans?.get(SourceKind.STEPS) as StepsPlan)
+				.maximumReportLatencyMs shouldBe 60_000L
+			val appliedStored = planStore.loadApplied(2L)
+				.shouldBeInstanceOf<AppliedPlanRead.Available>()
+			(appliedStored.plan.plans.getValue(SourceKind.STEPS) as StepsPlan)
+				.maximumReportLatencyMs shouldBe
 				300_000L
 			runtime.isActive shouldBe true
 		}
+
+	@Test
+	fun `transient fused request preserves exact framework effective plan separately`() = runTest {
+		val catalog = mockk<SourceImplementationCatalog>()
+		var locationReadFails = false
+		coEvery { catalog.availability(any()) } answers {
+			val request = firstArg<SourceAvailabilityRequest>()
+			if (request.source == SourceKind.LOCATION && locationReadFails) {
+				throw SQLiteException("storage unavailable")
+			}
+			val requested = request.plan
+			if (requested is LocationPlan && requested.enabled) {
+				SourceCatalogAvailability.Executable(
+					SourceProviderAvailability.Degraded(
+						effectivePlan = requested.copy(backend = LocationBackend.FRAMEWORK),
+						evidence = SourceProviderAvailabilityEvidence.Location(
+							requestedBackend = LocationBackend.FUSED,
+							effectiveBackend = LocationBackend.FRAMEWORK,
+							reasons = setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
+						),
+					),
+				)
+			} else {
+				SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
+			}
+		}
+		replaceRuntimeRegistry(
+			SourceRuntimeRegistry(
+				mapOf(SourceKind.LOCATION to Provider { locationRuntime }),
+				catalog,
+				requireAllSources = false,
+			),
+		)
+		subject.start(
+			startRequest().copy(
+				logicalTrackingId = "catalog-framework-logical",
+				serviceRunId = "catalog-framework-run",
+				plan = stepsAndLocationPlan(1L, stepsEnabled = false),
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val initialApplied = RoomSourcePlanStore(database, SourcePlanCodec()).loadApplied(1L)
+			.shouldBeInstanceOf<AppliedPlanRead.Available>()
+		(initialApplied.plan.plans.getValue(SourceKind.LOCATION) as LocationPlan).backend shouldBe
+			LocationBackend.FRAMEWORK
+
+		locationReadFails = true
+		val requested = stepsAndLocationReconfigure(2L, stepsEnabled = false)
+		subject.reconfigure(requested)
+			.shouldBeInstanceOf<SessionReconfigureResult.Retryable>()
+		subject.reconfigure(
+			requested.copy(
+				catalogDebtPersistedSources = setOf(SourceKind.LOCATION),
+				catalogDebtPersistedFingerprint = requested.desiredPlanFingerprint,
+				catalogDebtPersistedGeneration = requested.desiredPlanGeneration,
+			),
+		).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+
+		val store = RoomSourcePlanStore(database, SourcePlanCodec())
+		(store.load(2L)?.plans?.getValue(SourceKind.LOCATION) as LocationPlan).backend shouldBe
+			LocationBackend.FUSED
+		val preserved = store.loadApplied(2L).shouldBeInstanceOf<AppliedPlanRead.Available>()
+		(preserved.plan.plans.getValue(SourceKind.LOCATION) as LocationPlan).backend shouldBe
+			LocationBackend.FRAMEWORK
+		locationRuntime.isActive shouldBe true
+	}
+
+	@Test
+	fun `reconfiguration fails closed when live effective plan encoding is unknown`() = runTest {
+		subject.start(
+			startRequest().copy(
+				logicalTrackingId = "catalog-corrupt-logical",
+				serviceRunId = "catalog-corrupt-run",
+				plan = stepsAndLocationPlan(1L, stepsEnabled = false),
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val applied = database.sourcePlanStateDao().appliedStates()
+			.single { state -> state.sourceKind == SourceKind.LOCATION.stableCode }
+		database.sourcePlanStateDao().saveAppliedState(
+			applied.copy(appliedPayloadVersion = SourcePlanCodec.FORMAT_VERSION + 1),
+		)
+
+		subject.reconfigure(
+			stepsAndLocationReconfigure(2L, stepsEnabled = false),
+		) shouldBe SessionReconfigureResult.InvalidState(
+			"APPLIED_SOURCE_PLAN_PAYLOAD_INVALID",
+		)
+		locationRuntime.reconfigureCount shouldBe 0
+	}
 
 	@Test
 	fun `transient catalog failure does not revive manifest source without live applied identity`() =

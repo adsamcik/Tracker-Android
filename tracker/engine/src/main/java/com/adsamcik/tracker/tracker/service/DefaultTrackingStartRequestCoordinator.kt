@@ -42,6 +42,7 @@ import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreFailure
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreResult
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.resilience.LogicalTrackingLifecycleState
+import com.adsamcik.tracker.tracker.resilience.SourcePlanIdentity
 import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.resilience.TrackingRedeliveryRecoveryReservation
 import com.adsamcik.tracker.tracker.resilience.TrackingStartCommand
@@ -215,6 +216,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		val token = PreparedTrackingStartToken(UUID.randomUUID().toString())
 		var roomPrepared = false
 		var sourceCallerAuthorityReference: SourceCallerReplayReference? = null
+		var desiredSourcePlanIdentity: SourcePlanIdentity? = null
 		try {
 			val ownership = TrackingSessionOwnership.resolve(rollout, settings, captureMode)
 			val planInputs = sourcePlanInputs(settings, acceptedSources, resolved.origin, bootId)
@@ -245,6 +247,8 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 					roomPrepared = true
 					sourceCallerAuthorityReference =
 						preparation.start.sourceCallerAuthorityReference
+					desiredSourcePlanIdentity =
+						preparation.start.desiredSourcePlanIdentity
 				}
 				SessionStartPreparationResult.AlreadyActive ->
 					return TrackingStartPreparationResult.AlreadyActive
@@ -259,6 +263,8 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			val guardedDescriptor = resolved.descriptor.copy(
 				sourceCallerAuthorityReference =
 					requireNotNull(sourceCallerAuthorityReference),
+				desiredSourcePlanIdentity =
+					requireNotNull(desiredSourcePlanIdentity),
 			)
 			when (val stored = activeTrackingSessionStore.save(guardedDescriptor)) {
 				is ActiveTrackingSessionStoreResult.Success -> Unit
@@ -277,7 +283,11 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 				bootClockDomainProvider.current() != bootId
 			) {
 				compensatePrepared(token, request.command.generation, "STARTUP_CLOSED_AFTER_PREPARE")
-				clearResolvedDescriptors(resolved, sourceCallerAuthorityReference)
+				clearResolvedDescriptors(
+					resolved,
+					sourceCallerAuthorityReference,
+					desiredSourcePlanIdentity,
+				)
 				return retryableStartRejection("STARTUP_CLOSED_AFTER_PREPARE")
 			}
 			return TrackingStartPreparationResult.Prepared(
@@ -290,7 +300,11 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			if (roomPrepared) try {
 				runBoundedStartPreparationCancellationCleanup(request.automaticTrigger) {
 					compensatePrepared(token, request.command.generation, "START_PREPARATION_CANCELLED")
-					clearResolvedDescriptors(resolved, sourceCallerAuthorityReference)
+					clearResolvedDescriptors(
+						resolved,
+						sourceCallerAuthorityReference,
+						desiredSourcePlanIdentity,
+					)
 				}
 			} catch (_: Throwable) {
 				// Preserve cancellation; exact PREPARED state is left for startup reconciliation.
@@ -299,7 +313,11 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		} catch (_: Exception) {
 			if (roomPrepared) {
 				compensatePrepared(token, request.command.generation, "START_PREPARATION_FAILED")
-				clearResolvedDescriptors(resolved, sourceCallerAuthorityReference)
+				clearResolvedDescriptors(
+					resolved,
+					sourceCallerAuthorityReference,
+					desiredSourcePlanIdentity,
+				)
 			}
 			return retryableStartRejection("START_PREPARATION_FAILED")
 		}
@@ -802,10 +820,12 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 	private suspend fun clearResolvedDescriptors(
 		resolved: TrackingStartDescriptorResolution.Resolved,
 		sourceCallerAuthorityReference: SourceCallerReplayReference? = null,
+		desiredSourcePlanIdentity: SourcePlanIdentity? = null,
 	) {
 		clearPreparedDescriptor(
 			resolved.descriptor.copy(
 				sourceCallerAuthorityReference = sourceCallerAuthorityReference,
+				desiredSourcePlanIdentity = desiredSourcePlanIdentity,
 			),
 		)
 		resolved.previousDescriptor?.let { clearPreparedDescriptor(it) }

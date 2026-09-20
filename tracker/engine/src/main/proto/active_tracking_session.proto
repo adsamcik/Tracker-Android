@@ -29,6 +29,13 @@ message CatalogReconfigurationDebtProto {
   uint64 desired_plan_generation = 14;
 }
 
+message SourcePlanIdentityProto {
+  uint32 version = 1;
+  uint64 generation = 2;
+  string inputs_fingerprint = 3;
+  string plan_fingerprint = 4;
+}
+
 message ActiveTrackingSessionProto {
   bool active = 1;
   bool user_initiated = 2;
@@ -54,4 +61,7 @@ message ActiveTrackingSessionProto {
   string pending_retirement_source_caller_authority_reference = 16;
   // Bounded exact catalog transition debt, scoped to this logical session and service run.
   CatalogReconfigurationDebtProto catalog_reconfiguration_debt = 17;
+  // Exact effective runtime plan and independently sampled desired plan.
+  SourcePlanIdentityProto applied_source_plan_identity = 18;
+  SourcePlanIdentityProto desired_source_plan_identity = 19;
 }

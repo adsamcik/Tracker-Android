@@ -29,10 +29,34 @@ internal fun SourceSessionPlanInputs.desiredPlanFingerprint(
 	foregroundCapabilityFlags: Long,
 	controlDependencies: Set<SourceKind>,
 	codec: SourcePlanCodec,
+): String = sourcePlanFingerprint(
+	inputsFingerprint = planInputsFingerprint(
+		rolloutRevision = rolloutRevision,
+		captureMode = captureMode,
+		startOrigin = startOrigin,
+		foregroundCapabilityFlags = foregroundCapabilityFlags,
+		controlDependencies = controlDependencies,
+	),
+	plan = plan,
+	codec = codec,
+)
+
+/**
+ * Identity of planning inputs before a catalog can substitute an effective runtime plan.
+ *
+ * Keeping this digest separate lets a prepared start combine its original sampled inputs with the
+ * exact effective plans later accepted by providers, even after the Android process is recreated.
+ */
+internal fun SourceSessionPlanInputs.planInputsFingerprint(
+	rolloutRevision: Long,
+	captureMode: CaptureReachabilityMode,
+	startOrigin: SessionStartOrigin,
+	foregroundCapabilityFlags: Long,
+	controlDependencies: Set<SourceKind>,
 ): String {
 	val buffer = ByteArrayOutputStream()
 	DataOutputStream(buffer).use { output ->
-		output.writeInt(DESIRED_PLAN_FINGERPRINT_VERSION)
+		output.writeInt(PLAN_INPUTS_FINGERPRINT_VERSION)
 		output.writeLong(rolloutRevision)
 		output.writeString(captureMode.name)
 		output.writeString(startOrigin.name)
@@ -44,6 +68,21 @@ internal fun SourceSessionPlanInputs.desiredPlanFingerprint(
 		output.writeEnvironment(environment)
 		output.writeResolutionContext(resolutionContext)
 		output.writeDemands(demands)
+	}
+	return buffer.sha256()
+}
+
+/** Combines one planning-input identity with the exact typed source plans applied or desired. */
+internal fun sourcePlanFingerprint(
+	inputsFingerprint: String,
+	plan: AcquisitionPlanRevision,
+	codec: SourcePlanCodec,
+): String {
+	require(inputsFingerprint.matches(LOWERCASE_SHA_256))
+	val buffer = ByteArrayOutputStream()
+	DataOutputStream(buffer).use { output ->
+		output.writeInt(SOURCE_PLAN_FINGERPRINT_VERSION)
+		output.writeString(inputsFingerprint)
 		output.writeNullableLong(plan.sourcePolicyRevision)
 		val orderedPlans = plan.plans.values.sortedBy { sourcePlan -> sourcePlan.source.stableCode }
 		output.writeInt(orderedPlans.size)
@@ -53,10 +92,13 @@ internal fun SourceSessionPlanInputs.desiredPlanFingerprint(
 			output.writeByteArray(encoded.bytes)
 		}
 	}
-	return MessageDigest.getInstance("SHA-256")
-		.digest(buffer.toByteArray())
-		.joinToString("") { byte -> "%02x".format(byte) }
+	return buffer.sha256()
 }
+
+private fun ByteArrayOutputStream.sha256(): String =
+	MessageDigest.getInstance("SHA-256")
+		.digest(toByteArray())
+		.joinToString("") { byte -> "%02x".format(byte) }
 
 private fun DataOutputStream.writeSettings(settings: TrackingParamsState) {
 	writeBoolean(settings.locationEnabled)
@@ -175,4 +217,6 @@ private fun SourcePlan.withFingerprintRevision(): SourcePlan = when (this) {
 	is CellPlan -> copy(revision = 0L)
 }
 
-private const val DESIRED_PLAN_FINGERPRINT_VERSION = 1
+private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
+private const val PLAN_INPUTS_FINGERPRINT_VERSION = 1
+private const val SOURCE_PLAN_FINGERPRINT_VERSION = 1

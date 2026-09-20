@@ -372,6 +372,16 @@ private fun ActiveTrackingSessionProto.toDescriptor(): ActiveTrackingSessionDesc
 			} else {
 				null
 			},
+			appliedSourcePlanIdentity = if (hasAppliedSourcePlanIdentity()) {
+				appliedSourcePlanIdentity.toIdentity()
+			} else {
+				null
+			},
+			desiredSourcePlanIdentity = if (hasDesiredSourcePlanIdentity()) {
+				desiredSourcePlanIdentity.toIdentity()
+			} else {
+				null
+			},
 		)
 	} catch (exception: IllegalArgumentException) {
 		throw CorruptionException("Active tracking session descriptor is invalid", exception)
@@ -407,7 +417,32 @@ private fun ActiveTrackingSessionDescriptor.toProto(): ActiveTrackingSessionProt
 			catalogReconfigurationDebt?.let { debt ->
 				setCatalogReconfigurationDebt(debt.toProto())
 			}
+			appliedSourcePlanIdentity?.let { identity ->
+				setAppliedSourcePlanIdentity(identity.toProto())
+			}
+			desiredSourcePlanIdentity?.let { identity ->
+				setDesiredSourcePlanIdentity(identity.toProto())
+			}
 		}
+		.build()
+
+private fun SourcePlanIdentityProto.toIdentity(): SourcePlanIdentity = try {
+	SourcePlanIdentity(
+		version = version,
+		generation = generation,
+		inputsFingerprint = inputsFingerprint,
+		planFingerprint = planFingerprint,
+	)
+} catch (exception: IllegalArgumentException) {
+	throw CorruptionException("Active source-plan identity is invalid", exception)
+}
+
+private fun SourcePlanIdentity.toProto(): SourcePlanIdentityProto =
+	SourcePlanIdentityProto.newBuilder()
+		.setVersion(version)
+		.setGeneration(generation)
+		.setInputsFingerprint(inputsFingerprint)
+		.setPlanFingerprint(planFingerprint)
 		.build()
 
 private fun CatalogReconfigurationDebtProto.toDebt(): CatalogReconfigurationDebt =
@@ -499,5 +534,7 @@ private fun mergeServiceDescriptorForPersistence(
 		pendingRetirementSourceCallerAuthorityReference =
 			current.pendingRetirementSourceCallerAuthorityReference,
 		catalogReconfigurationDebt = current.catalogReconfigurationDebt,
+		appliedSourcePlanIdentity = current.appliedSourcePlanIdentity,
+		desiredSourcePlanIdentity = current.desiredSourcePlanIdentity,
 	)
 }

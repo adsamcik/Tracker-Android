@@ -49,6 +49,16 @@ class DefaultActiveTrackingSessionStoreTest {
 				logicalTrackingId = "catalog-logical",
 				serviceRunId = "catalog-run",
 			),
+			appliedSourcePlanIdentity = sourcePlanIdentity(
+				generation = 6L,
+				input = 'b',
+				plan = 'c',
+			),
+			desiredSourcePlanIdentity = sourcePlanIdentity(
+				generation = 7L,
+				input = 'd',
+				plan = 'e',
+			),
 		)
 
 		store.save(descriptor) shouldBe ActiveTrackingSessionStoreResult.Success(descriptor)
@@ -302,6 +312,7 @@ class DefaultActiveTrackingSessionStoreTest {
 		).apply {
 			writeBytes(byteArrayOf(0x0A, 0x7F))
 		}
+
 		val dataStore = DataStoreFactory.create(
 			serializer = ActiveTrackingSessionSerializer,
 			corruptionHandler = activeTrackingSessionCorruptionHandler,
@@ -321,6 +332,47 @@ class DefaultActiveTrackingSessionStoreTest {
 			.kind shouldBe ActiveTrackingSessionStoreFailureKind.CORRUPT
 		store.resetCorruptState() shouldBe ActiveTrackingSessionStoreResult.Success(null)
 		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+	}
+
+	@Test
+	fun `unknown durable source plan identity version fails closed`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val file = File(
+			context.cacheDir,
+			"active-tracking-unknown-plan-identity-${java.util.UUID.randomUUID()}.pb",
+		).apply {
+			writeBytes(
+				ActiveTrackingSessionProto.newBuilder()
+					.setActive(true)
+					.setUserInitiated(true)
+					.setPolicyTier(PolicyTier.PRECISION.name)
+					.setLogicalTrackingId("unknown-plan-logical")
+					.setServiceRunId("unknown-plan-run")
+					.setLifecycleState(LogicalTrackingLifecycleState.ACTIVE.name)
+					.setDesiredSourcePlanIdentity(
+						SourcePlanIdentityProto.newBuilder()
+							.setVersion(CURRENT_SOURCE_PLAN_IDENTITY_VERSION + 1)
+							.setGeneration(1L)
+							.setInputsFingerprint("a".repeat(64))
+							.setPlanFingerprint("b".repeat(64))
+							.build(),
+					)
+					.build()
+					.toByteArray(),
+			)
+		}
+		val store = DefaultActiveTrackingSessionStore(
+			DataStoreFactory.create(
+				serializer = ActiveTrackingSessionSerializer,
+				scope = this,
+				produceFile = { file },
+			),
+			TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+		)
+
+		store.read()
+			.shouldBeInstanceOf<ActiveTrackingSessionStoreResult.Failure>()
+			.kind shouldBe ActiveTrackingSessionStoreFailureKind.CORRUPT
 	}
 
 	@Test
@@ -357,6 +409,8 @@ class DefaultActiveTrackingSessionStoreTest {
 		restartBootId = "boot:test",
 		restartToken = "restart-token",
 		sourceCallerAuthorityReference = reference,
+		appliedSourcePlanIdentity = sourcePlanIdentity(4L, 'a', 'b'),
+		desiredSourcePlanIdentity = sourcePlanIdentity(5L, 'c', 'd'),
 		)
 
 		val debt = catalogDebt(descriptor.logicalTrackingId, descriptor.serviceRunId)
@@ -364,6 +418,8 @@ class DefaultActiveTrackingSessionStoreTest {
 		val replacement = descriptorWithDebt.forNewServiceRun(100L)
 
 		replacement.sourceCallerAuthorityReference shouldBe reference
+		replacement.appliedSourcePlanIdentity shouldBe descriptor.appliedSourcePlanIdentity
+		replacement.desiredSourcePlanIdentity shouldBe descriptor.desiredSourcePlanIdentity
 		replacement.catalogReconfigurationDebt shouldBe
 			debt.copy(serviceRunId = replacement.serviceRunId)
 	}
@@ -395,5 +451,15 @@ class DefaultActiveTrackingSessionStoreTest {
 		zoneId = "Europe/Prague",
 		foregroundCapabilityFlags = 1L,
 		controlDependencyMask = 0L,
+	)
+
+	private fun sourcePlanIdentity(
+		generation: Long,
+		input: Char,
+		plan: Char,
+	) = SourcePlanIdentity(
+		generation = generation,
+		inputsFingerprint = input.toString().repeat(64),
+		planFingerprint = plan.toString().repeat(64),
 	)
 }

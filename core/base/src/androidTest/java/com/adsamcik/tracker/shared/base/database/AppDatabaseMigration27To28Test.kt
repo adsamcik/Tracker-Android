@@ -927,6 +927,15 @@ class AppDatabaseMigration27To28Test {
 			}
 			assertTrue(foundExactBindingIndex)
 		}
+		database.query("PRAGMA table_info(source_applied_plan_state)").use { cursor ->
+			val nameColumn = cursor.getColumnIndexOrThrow("name")
+			val columns = buildSet {
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertTrue("applied_payload_version" in columns)
+			assertTrue("applied_payload" in columns)
+			assertTrue("applied_payload_checksum" in columns)
+		}
 		database.query(
 			"SELECT end_time_ms, legacy_runtime_fenced FROM tracker_run WHERE id = 1",
 		).use { cursor ->

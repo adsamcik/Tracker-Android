@@ -38,6 +38,12 @@ interface SourcePlanStateDao {
 	@Query("SELECT * FROM source_applied_plan_state ORDER BY source_kind")
 	suspend fun appliedStates(): List<SourceAppliedPlanStateEntity>
 
+	@Query(
+		"SELECT * FROM source_applied_plan_state WHERE desired_revision = :desiredRevision " +
+			"ORDER BY source_kind",
+	)
+	suspend fun appliedStates(desiredRevision: Long): List<SourceAppliedPlanStateEntity>
+
 	@Query("UPDATE acquisition_plan_revision SET status = :status WHERE revision = :revision")
 	suspend fun updateRevisionStatus(revision: Long, status: String): Int
 

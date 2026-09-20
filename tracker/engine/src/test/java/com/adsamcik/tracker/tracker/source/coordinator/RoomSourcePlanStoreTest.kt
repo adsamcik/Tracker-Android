@@ -4,9 +4,17 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
+import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
+import com.adsamcik.tracker.tracker.source.model.LocationMode
+import com.adsamcik.tracker.tracker.source.model.LocationPlan
+import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
+import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -56,4 +64,94 @@ class RoomSourcePlanStoreTest {
 			DesiredPlanStatus.DESIRED.name
 		database.sourcePlanStateDao().revision(plan.revision)?.sourcePolicyRevision shouldBe 7
 	}
+
+	@Test
+	fun `requested fused plan remains separate from durable framework effective plan`() = runTest {
+		val requested = locationPlan(LocationBackend.FUSED)
+		val effective = locationPlan(LocationBackend.FRAMEWORK)
+		store.persistDesired(requested, DesiredPlanStatus.APPLYING)
+		store.saveApplied(
+			state = AppliedSourcePlan(
+				desiredRevision = requested.revision,
+				appliedRevision = requested.revision,
+				source = SourceKind.LOCATION,
+				sourceInstanceId = SourceInstanceId("location-effective"),
+				registrationGeneration = 9L,
+				appliedAtElapsedRealtimeNanos = 500L,
+				status = SourceApplyStatus.DEGRADED,
+			),
+			effectivePlan = effective.plans.getValue(SourceKind.LOCATION),
+			updatedAtMs = 1_000L,
+		)
+
+		(store.load(requested.revision)?.plans?.get(SourceKind.LOCATION) as LocationPlan)
+			.backend shouldBe LocationBackend.FUSED
+		val restartedStore = RoomSourcePlanStore(database, SourcePlanCodec())
+		val applied = restartedStore.loadApplied(requested.revision)
+			.shouldBeInstanceOf<AppliedPlanRead.Available>()
+		(applied.plan.plans.getValue(SourceKind.LOCATION) as LocationPlan).backend shouldBe
+			LocationBackend.FRAMEWORK
+		database.sourcePlanStateDao().appliedStates().single().let { state ->
+			state.sourceInstanceId shouldBe "location-effective"
+			state.registrationGeneration shouldBe 9L
+			state.appliedPayloadVersion shouldBe SourcePlanCodec.FORMAT_VERSION
+			state.appliedPayloadChecksum?.length shouldBe 64
+		}
+	}
+
+	@Test
+	fun `unknown or corrupt effective plan encoding fails closed`() = runTest {
+		val requested = locationPlan(LocationBackend.FUSED)
+		val effective = locationPlan(LocationBackend.FRAMEWORK)
+		store.persistDesired(requested, DesiredPlanStatus.APPLYING)
+		store.saveApplied(
+			state = AppliedSourcePlan(
+				desiredRevision = requested.revision,
+				appliedRevision = requested.revision,
+				source = SourceKind.LOCATION,
+				sourceInstanceId = SourceInstanceId("location-effective"),
+				registrationGeneration = 9L,
+				appliedAtElapsedRealtimeNanos = 500L,
+				status = SourceApplyStatus.DEGRADED,
+			),
+			effectivePlan = effective.plans.getValue(SourceKind.LOCATION),
+			updatedAtMs = 1_000L,
+		)
+		val stored = database.sourcePlanStateDao().appliedStates().single()
+
+		database.sourcePlanStateDao().saveAppliedState(
+			stored.copy(appliedPayloadVersion = SourcePlanCodec.FORMAT_VERSION + 1),
+		)
+		store.loadApplied(requested.revision)
+			.shouldBeInstanceOf<AppliedPlanRead.Invalid>()
+
+		database.sourcePlanStateDao().saveAppliedState(
+			stored.copy(
+				appliedPayload = requireNotNull(stored.appliedPayload).copyOf().also { payload ->
+					payload[payload.lastIndex] = (payload.last() + 1).toByte()
+				},
+			),
+		)
+		store.loadApplied(requested.revision)
+			.shouldBeInstanceOf<AppliedPlanRead.Invalid>()
+	}
+
+	private fun locationPlan(backend: LocationBackend) = AcquisitionPlanRevision(
+		revision = 1L,
+		planId = "location-$backend",
+		createdAtMs = 100L,
+		plans = mapOf(
+			SourceKind.LOCATION to LocationPlan(
+				revision = 1L,
+				backend = backend,
+				mode = LocationMode.BALANCED,
+				requestedIntervalMs = 10_000L,
+				minimumUpdateIntervalMs = 5_000L,
+				minimumDisplacementMeters = 5f,
+				maximumBatchDelayMs = 20_000L,
+				preciseLocationAvailable = true,
+			),
+		),
+		sourcePolicyRevision = 7L,
+	)
 }
