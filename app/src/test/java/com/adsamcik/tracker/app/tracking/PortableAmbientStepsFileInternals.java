@@ -9,9 +9,12 @@ import com.adsamcik.tracker.impexp.importer.FileImportStream;
 import com.adsamcik.tracker.impexp.importer.file.FileImport;
 import com.adsamcik.tracker.impexp.importer.file.PortableAmbientStepsFileImport;
 import com.adsamcik.tracker.impexp.importer.file.PortableAmbientStepsImportDependencies;
+import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV1Codec;
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV2Codec;
 import com.adsamcik.tracker.shared.base.database.AppDatabase;
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao;
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1;
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV2;
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore;
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientSteps;
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsDay;
@@ -150,7 +153,10 @@ final class PortableAmbientStepsFileInternals {
         return new PortableAmbientStepsExporter(
                 origin,
                 (Context ignored) -> backend,
-                new PortableAmbientStepsJsonV2Codec()
+                new PortableAmbientStepsJsonV2Codec(),
+                new PortableAmbientStepsJsonV1Codec(),
+                AmbientStepsPortableFormatV2.MAX_FILE_BYTES,
+                AmbientStepsPortableFormatV1.MAX_FILE_BYTES
         );
     }
 
