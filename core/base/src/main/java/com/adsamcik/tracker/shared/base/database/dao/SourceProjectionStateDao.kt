@@ -406,6 +406,25 @@ interface SourceProjectionStateDao {
 		expiresElapsedNanos: Long,
 	): Int
 
+	@Query(
+		"UPDATE source_coordinator_lease SET " +
+			"acquired_at_ms = :nowMs, expires_at_ms = :expiresAtMs, " +
+			"acquired_elapsed_realtime_nanos = :nowElapsedNanos, " +
+			"expires_elapsed_realtime_nanos = :expiresElapsedNanos " +
+			"WHERE lease_name = :leaseName AND owner_token = :ownerToken AND boot_id = :bootId " +
+			"AND generation = :generation AND expires_elapsed_realtime_nanos > :nowElapsedNanos",
+	)
+	suspend fun renewExactLease(
+		leaseName: String,
+		ownerToken: String,
+		bootId: String,
+		generation: Long,
+		nowMs: Long,
+		expiresAtMs: Long,
+		nowElapsedNanos: Long,
+		expiresElapsedNanos: Long,
+	): Int
+
 	@Query("SELECT * FROM source_coordinator_lease WHERE lease_name = :leaseName")
 	suspend fun lease(leaseName: String): SourceCoordinatorLeaseEntity?
 

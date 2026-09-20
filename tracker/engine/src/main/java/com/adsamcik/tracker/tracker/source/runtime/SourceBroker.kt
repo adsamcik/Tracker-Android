@@ -20,10 +20,12 @@ import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOpera
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.hasReachedRetentionPhase
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
@@ -91,6 +93,11 @@ class SourceBroker @Inject internal constructor(
 	private val sourceCallerAuthorityRepository: SourceCallerAcceptedAuthorityRepository,
 	private val retentionAuthorityReader: RetentionAuthorityReader,
 ) {
+	private data class RegistrationAuthorizationBoundary(
+		val registration: ProviderRegistrationGenerationEntity,
+		val authorizationRevision: Long,
+	)
+
 	constructor(database: AppDatabase) : this(
 		database,
 		RoomTrackingRolloutStateStore(database),
@@ -298,15 +305,17 @@ class SourceBroker @Inject internal constructor(
 				purpose.toDirectDemandPurpose(),
 			)
 			SourceDemandEntity(
-				demandId = demandId(
-					consumerId,
-					binding.sourceKind,
-					purpose,
-					policyRevision,
-					binding.consentEpoch,
-					manifestRevision,
-					bootId,
-					elapsedRealtimeNanos,
+				demandId = sessionDemandId(
+					consumerId = consumerId,
+					sourceKind = binding.sourceKind,
+					purpose = purpose,
+					serviceRunId = serviceRunId,
+					policyRevision = policyRevision,
+					consentEpoch = binding.consentEpoch,
+					manifestRevision = manifestRevision,
+					lifecycleLeaseGeneration = lifecycleLeaseGeneration,
+					activationBootId = bootId,
+					activationElapsedRealtimeNanos = elapsedRealtimeNanos,
 				),
 				consumerId = consumerId,
 				sourceKind = binding.sourceKind,
@@ -410,7 +419,202 @@ class SourceBroker @Inject internal constructor(
 		}
 	}
 
-	/** Opens only the exact foreground-accepted prepared demand vector. */
+	/**
+	 * Reissues a prepared session vector for a new coordinator lease without rewriting any prior
+	 * demand or observed-time authorization identity. The caller owns the surrounding Room
+	 * transaction and updates the prepared lifecycle references in the same commit.
+	 */
+	internal suspend fun rebindPreparedSessionDemandsInTransaction(
+		expectedDemands: List<SourceDemandEntity>,
+		expectedCallerAuthorityReference: String,
+		newCallerAuthorityReference: String,
+		newLeaseGeneration: Long,
+		foregroundAccepted: Boolean,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): List<SourceDemandEntity>? {
+		if (expectedDemands.isEmpty() ||
+			expectedCallerAuthorityReference.isBlank() ||
+			newCallerAuthorityReference.isBlank() ||
+			expectedCallerAuthorityReference == newCallerAuthorityReference ||
+			newLeaseGeneration <= 0L ||
+			bootId.isBlank() ||
+			elapsedRealtimeNanos < 0L ||
+			wallTimeMs < 0L
+		) return null
+		val consumerId = expectedDemands.map(SourceDemandEntity::consumerId).distinct().singleOrNull()
+			?: return null
+		val serviceRunId = expectedDemands.mapNotNull(SourceDemandEntity::serviceRunId)
+			.distinct().singleOrNull() ?: return null
+		val manifestRevision = expectedDemands.mapNotNull(SourceDemandEntity::manifestRevision)
+			.distinct().singleOrNull() ?: return null
+		val oldLeaseGeneration = expectedDemands
+			.mapNotNull(SourceDemandEntity::lifecycleLeaseGeneration)
+			.distinct().singleOrNull() ?: return null
+		if (newLeaseGeneration <= oldLeaseGeneration ||
+			expectedDemands.any { demand ->
+				demand.sourceCallerAuthorityReference != expectedCallerAuthorityReference ||
+					demand.status !in setOf(
+						SourceDemandEntity.STATUS_ACTIVE,
+						SourceDemandEntity.STATUS_BLOCKED,
+						SourceDemandEntity.STATUS_RETIRED,
+					)
+			}
+		) return null
+		val dao = database.sourceBrokerDao()
+		val stored = dao.demandHistory(consumerId).filter { demand ->
+			demand.serviceRunId == serviceRunId &&
+				demand.manifestRevision == manifestRevision &&
+				demand.lifecycleLeaseGeneration == oldLeaseGeneration
+		}.sortedBy(SourceDemandEntity::demandId)
+		if (stored != expectedDemands.sortedBy(SourceDemandEntity::demandId) ||
+			dao.demandHistory(consumerId).any { demand ->
+				demand.serviceRunId == serviceRunId &&
+					demand.manifestRevision == manifestRevision &&
+					demand.lifecycleLeaseGeneration == newLeaseGeneration
+			}
+		) return null
+		val activeOldDemands = stored.filter { demand ->
+			demand.status == SourceDemandEntity.STATUS_ACTIVE
+		}
+		if (!foregroundAccepted && activeOldDemands.isNotEmpty()) return null
+
+		val authorizationBoundaries = mutableListOf<RegistrationAuthorizationBoundary>()
+		for (sourceKind in activeOldDemands.map(SourceDemandEntity::sourceKind).toSet()) {
+			val currentSourceDemands = dao.authorizationDemands(sourceKind)
+			val oldSourceDemands = activeOldDemands.filter { demand ->
+				demand.sourceKind == sourceKind
+			}
+			for (registration in dao.currentPhysicalRegistrations(sourceKind)
+				.filter { registration -> registration.clockDomainId == bootId }
+			) {
+				val ownedOldDemands = SourceProviderPurposeScope.selectDemands(
+					sourceKind,
+					registration.ownerScope,
+					oldSourceDemands,
+				)
+				if (ownedOldDemands.isEmpty()) continue
+				val ownedCurrentDemands = SourceProviderPurposeScope.selectDemands(
+					sourceKind,
+					registration.ownerScope,
+					currentSourceDemands,
+				)
+				val latest = dao.latestAuthorization(
+					sourceKind,
+					registration.registrationGeneration,
+				).toAuthorizationSnapshotOrNull() ?: return null
+				if (latest.effectiveBootId != bootId ||
+					latest.effectiveElapsedRealtimeNanos > elapsedRealtimeNanos ||
+					latest.authorizationFingerprint !=
+					SourceBrokerAuthorization.fingerprint(ownedCurrentDemands) ||
+					latest.authorizedMembers.mapNotNull { row -> row.demandId }.toSet() !=
+					ownedCurrentDemands.mapTo(linkedSetOf(), SourceDemandEntity::demandId) ||
+					ownedOldDemands.any { demand ->
+						latest.authorizedMembers.none { row ->
+							row.demandId == demand.demandId &&
+								row.lifecycleLeaseGeneration == oldLeaseGeneration
+						}
+					}
+				) return null
+				authorizationBoundaries += RegistrationAuthorizationBoundary(
+					registration,
+					latest.authorizationRevision,
+				)
+			}
+		}
+		val rebound = stored.map { demand ->
+			val alreadyRetired = demand.status == SourceDemandEntity.STATUS_RETIRED
+			demand.copy(
+				demandId = sessionDemandId(
+					consumerId = demand.consumerId,
+					sourceKind = demand.sourceKind,
+					purpose = demand.purpose,
+					serviceRunId = serviceRunId,
+					policyRevision = demand.sourcePolicyRevision,
+					consentEpoch = demand.consentEpoch,
+					manifestRevision = manifestRevision,
+					lifecycleLeaseGeneration = newLeaseGeneration,
+					activationBootId = bootId,
+					activationElapsedRealtimeNanos = elapsedRealtimeNanos,
+				),
+				lifecycleLeaseGeneration = newLeaseGeneration,
+				requestedBootId = bootId,
+				requestedElapsedRealtimeNanos = elapsedRealtimeNanos,
+				requestedAtMs = wallTimeMs,
+				retireBootId = bootId.takeIf { alreadyRetired },
+				retireElapsedRealtimeNanos = elapsedRealtimeNanos.takeIf { alreadyRetired },
+				retiredAtMs = wallTimeMs.takeIf { alreadyRetired },
+				sourceCallerAuthorityReference = newCallerAuthorityReference,
+			)
+		}
+		val oldDemandIds = stored.mapTo(linkedSetOf(), SourceDemandEntity::demandId)
+		val reboundDemandIds = rebound.mapTo(linkedSetOf(), SourceDemandEntity::demandId)
+		if (reboundDemandIds.size != rebound.size ||
+			reboundDemandIds.intersect(oldDemandIds).isNotEmpty()
+		) return null
+		val nonterminalOldDemands = stored.filter { demand ->
+			demand.status == SourceDemandEntity.STATUS_ACTIVE ||
+				demand.status == SourceDemandEntity.STATUS_BLOCKED
+		}
+		if (nonterminalOldDemands.isNotEmpty()) {
+			check(dao.retirePreparedSessionDemandsByIds(
+				consumerId = consumerId,
+				serviceRunId = serviceRunId,
+				manifestRevision = manifestRevision,
+				leaseGeneration = oldLeaseGeneration,
+				demandIds = nonterminalOldDemands.map(SourceDemandEntity::demandId),
+				bootId = bootId,
+				elapsedRealtimeNanos = elapsedRealtimeNanos,
+				wallTimeMs = wallTimeMs,
+			) == nonterminalOldDemands.size) {
+				"Prepared demand ownership changed during immutable lease rebind"
+			}
+		}
+		check(dao.insertDemands(rebound).all { rowId -> rowId != -1L }) {
+			"Prepared demand successor identity already exists"
+		}
+		if (foregroundAccepted) {
+			activeOldDemands.map(SourceDemandEntity::sourceKind).toSet().forEach { sourceKind ->
+				rotateCurrentAuthorizationInTransaction(
+					sourceKind,
+					bootId,
+					elapsedRealtimeNanos,
+					wallTimeMs,
+				)
+			}
+			authorizationBoundaries.forEach { boundary ->
+				val latest = requireNotNull(
+					dao.latestAuthorization(
+						boundary.registration.sourceKind,
+						boundary.registration.registrationGeneration,
+					).toAuthorizationSnapshotOrNull(),
+				)
+				val currentOwnedDemands = SourceProviderPurposeScope.selectDemands(
+					boundary.registration.sourceKind,
+					boundary.registration.ownerScope,
+					dao.authorizationDemands(boundary.registration.sourceKind),
+				)
+				check(latest.authorizationRevision > boundary.authorizationRevision &&
+					latest.authorizationFingerprint ==
+					SourceBrokerAuthorization.fingerprint(currentOwnedDemands) &&
+					latest.authorizedMembers.mapNotNull { row -> row.demandId }.toSet() ==
+					currentOwnedDemands.mapTo(linkedSetOf(), SourceDemandEntity::demandId) &&
+					latest.authorizedMembers.none { row ->
+						row.demandId in oldDemandIds
+					}
+				) {
+					"Provider authorization did not rotate to the rebound demand generation"
+				}
+			}
+		}
+		return rebound
+	}
+
+	/**
+	 * Opens the foreground-accepted capture subset and its control vector, retiring excluded
+	 * capture demands in the same transaction before any observer can see them as active.
+	 */
 	internal suspend fun activatePreparedSessionDemandsInTransaction(
 		logicalTrackingId: String,
 		serviceRunId: String,
@@ -421,6 +625,7 @@ class SourceBroker @Inject internal constructor(
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
 		currentAuthority: SourceCallerCurrentAuthorityPredicate,
+		acceptedSourceKinds: Set<Int>? = null,
 	): Boolean {
 		val consumerId = sessionConsumerId(logicalTrackingId)
 		val dao = database.sourceBrokerDao()
@@ -444,13 +649,103 @@ class SourceBroker @Inject internal constructor(
 		) return false
 		val blocked = exact.filter { it.status == SourceDemandEntity.STATUS_BLOCKED }
 		if (blocked.isEmpty()) return true
-		if (dao.activatePreparedSessionDemands(
-			consumerId,
-			serviceRunId,
-			manifestRevision,
-			leaseGeneration,
-		) != blocked.size) return false
+		if (acceptedSourceKinds == null) {
+			if (dao.activatePreparedSessionDemands(
+				consumerId,
+				serviceRunId,
+				manifestRevision,
+				leaseGeneration,
+			) != blocked.size) return false
+			blocked.map(SourceDemandEntity::sourceKind).toSet().forEach { sourceKind ->
+				rotateCurrentAuthorizationInTransaction(
+					sourceKind,
+					bootId,
+					elapsedRealtimeNanos,
+					wallTimeMs,
+				)
+			}
+			return true
+		}
+		val captureDemands = exact.filter { demand ->
+			demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+		}
+		if (acceptedSourceKinds.any { sourceKind ->
+				captureDemands.none { demand -> demand.sourceKind == sourceKind }
+			}
+		) return false
+		val toActivate = blocked.filter { demand ->
+			acceptedSourceKinds.isNotEmpty() &&
+				(demand.purpose != SourceBrokerPurpose.SESSION_CAPTURE ||
+					demand.sourceKind in acceptedSourceKinds)
+		}
+		val toRetire = blocked - toActivate.toSet()
+		if (toActivate.isNotEmpty() && dao.activatePreparedSessionDemandsByIds(
+				consumerId,
+				serviceRunId,
+				manifestRevision,
+				leaseGeneration,
+				toActivate.map(SourceDemandEntity::demandId),
+			) != toActivate.size
+		) return false
+		if (toRetire.isNotEmpty() && dao.retirePreparedSessionDemandsByIds(
+				consumerId,
+				serviceRunId,
+				manifestRevision,
+				leaseGeneration,
+				toRetire.map(SourceDemandEntity::demandId),
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			) != toRetire.size
+		) return false
 		blocked.map(SourceDemandEntity::sourceKind).toSet().forEach { sourceKind ->
+			rotateCurrentAuthorizationInTransaction(
+				sourceKind,
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			)
+		}
+		return true
+	}
+
+	internal suspend fun retirePreparedSessionCaptureDemandsInTransaction(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		manifestRevision: Long,
+		leaseGeneration: Long,
+		sourceKinds: Set<Int>,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): Boolean {
+		if (sourceKinds.isEmpty()) return true
+		val consumerId = sessionConsumerId(logicalTrackingId)
+		val dao = database.sourceBrokerDao()
+		val retiring = dao.demandHistory(consumerId).filter { demand ->
+			demand.serviceRunId == serviceRunId &&
+				demand.manifestRevision == manifestRevision &&
+				demand.lifecycleLeaseGeneration == leaseGeneration &&
+				demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+				demand.sourceKind in sourceKinds &&
+				demand.status in setOf(
+					SourceDemandEntity.STATUS_ACTIVE,
+					SourceDemandEntity.STATUS_BLOCKED,
+				)
+		}
+		if (retiring.isEmpty()) return true
+		if (dao.retirePreparedSessionDemandsByIds(
+				consumerId,
+				serviceRunId,
+				manifestRevision,
+				leaseGeneration,
+				retiring.map(SourceDemandEntity::demandId),
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			) != retiring.size
+		) return false
+		retiring.map(SourceDemandEntity::sourceKind).toSet().forEach { sourceKind ->
 			rotateCurrentAuthorizationInTransaction(
 				sourceKind,
 				bootId,
@@ -3266,6 +3561,29 @@ class SourceBroker @Inject internal constructor(
 			.digest(value.toByteArray(Charsets.UTF_8))
 			.joinToString("") { byte -> "%02x".format(byte) }
 	}
+
+	private fun sessionDemandId(
+		consumerId: String,
+		sourceKind: Int,
+		purpose: String,
+		serviceRunId: String,
+		policyRevision: Long,
+		consentEpoch: Long,
+		manifestRevision: Long,
+		lifecycleLeaseGeneration: Long,
+		activationBootId: String,
+		activationElapsedRealtimeNanos: Long,
+	): String = demandId(
+		consumerId = consumerId,
+		sourceKind = sourceKind,
+		purpose = purpose,
+		policyRevision = policyRevision,
+		consentEpoch = consentEpoch,
+		manifestRevision = manifestRevision,
+		activationBootId = activationBootId,
+		activationElapsedRealtimeNanos = activationElapsedRealtimeNanos,
+		discriminator = "session:$serviceRunId:lease:$lifecycleLeaseGeneration",
+	)
 
 }
 

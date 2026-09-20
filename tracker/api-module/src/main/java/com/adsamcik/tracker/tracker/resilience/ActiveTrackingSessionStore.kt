@@ -64,6 +64,127 @@ data class TrackingStopCandidate(
 	}
 }
 
+data class CatalogReconfigurationSourcePlan(
+	val sourceStableCode: Int,
+	val payloadVersion: Int,
+	val payloadBase64: String,
+	val payloadChecksum: String,
+) {
+	init {
+		require(sourceStableCode > 0) { "sourceStableCode must be positive" }
+		require(payloadVersion > 0) { "payloadVersion must be positive" }
+		require(payloadBase64.isNotBlank()) { "payloadBase64 must not be blank" }
+		require(payloadBase64.length <= MAX_CATALOG_RECONFIGURATION_PLAN_PAYLOAD_CHARS) {
+			"Catalog reconfiguration source-plan payload is too large"
+		}
+		require(payloadChecksum.matches(Regex("[0-9a-f]{64}"))) {
+			"payloadChecksum must be a lowercase SHA-256 value"
+		}
+	}
+}
+
+/**
+ * Durable semantic identity of one complete desired or applied source plan.
+ *
+ * [inputsFingerprint] identifies the sampled planning inputs independently from the encoded plan.
+ * [planFingerprint] combines those inputs with the exact typed source plans, allowing an effective
+ * runtime downgrade to remain distinct from the requested manifest plan across process restart.
+ */
+data class SourcePlanIdentity(
+	val version: Int = CURRENT_SOURCE_PLAN_IDENTITY_VERSION,
+	val generation: Long,
+	val inputsFingerprint: String,
+	val planFingerprint: String,
+) {
+	init {
+		require(version == CURRENT_SOURCE_PLAN_IDENTITY_VERSION) {
+			"Unsupported source-plan identity version"
+		}
+		require(generation > 0L) { "Source-plan identity generation must be positive" }
+		require(inputsFingerprint.matches(LOWERCASE_SHA_256)) {
+			"inputsFingerprint must be a lowercase SHA-256 value"
+		}
+		require(planFingerprint.matches(LOWERCASE_SHA_256)) {
+			"planFingerprint must be a lowercase SHA-256 value"
+		}
+	}
+}
+
+/** Current durable [SourcePlanIdentity] encoding. Unknown versions are rejected. */
+const val CURRENT_SOURCE_PLAN_IDENTITY_VERSION = 1
+
+/**
+ * Bounded durable debt for one exact catalog-blocked configuration transition.
+ *
+ * The payload is engine-owned and opaque to the descriptor store. Session/run identity plus the
+ * desired generation and fingerprint prevent stale configuration from being retried.
+ */
+data class CatalogReconfigurationDebt(
+	val logicalTrackingId: String,
+	val serviceRunId: String,
+	val sourcePolicyRevision: Long,
+	/** Stable generation of the desired configuration; independent of retry Room revisions. */
+	val desiredPlanGeneration: Long,
+	/** SHA-256 over exact plan inputs, resolved plans, and source-purpose authority. */
+	val desiredPlanFingerprint: String,
+	val requestedPlanRevision: Long,
+	val requestedPlanId: String,
+	val requestedPlanCreatedAtMs: Long,
+	val requestedPlans: List<CatalogReconfigurationSourcePlan>,
+	val deferredSourceMask: Long,
+	val clockDomainId: String,
+	val zoneId: String,
+	val foregroundCapabilityFlags: Long,
+	val controlDependencyMask: Long,
+) {
+	init {
+		require(logicalTrackingId.isNotBlank()) { "logicalTrackingId must not be blank" }
+		require(serviceRunId.isNotBlank()) { "serviceRunId must not be blank" }
+		require(sourcePolicyRevision > 0L) { "sourcePolicyRevision must be positive" }
+		require(desiredPlanGeneration > 0L) { "desiredPlanGeneration must be positive" }
+		require(desiredPlanFingerprint.matches(LOWERCASE_SHA_256)) {
+			"desiredPlanFingerprint must be a lowercase SHA-256 value"
+		}
+		require(requestedPlanRevision >= 0L) { "requestedPlanRevision must not be negative" }
+		require(requestedPlanId.isNotBlank()) { "requestedPlanId must not be blank" }
+		require(requestedPlanId.length <= MAX_CATALOG_RECONFIGURATION_PLAN_ID_CHARS) {
+			"requestedPlanId is too long"
+		}
+		require(requestedPlanCreatedAtMs >= 0L) { "requestedPlanCreatedAtMs must not be negative" }
+		require(requestedPlans.isNotEmpty()) { "requestedPlans must not be empty" }
+		require(requestedPlans.size <= MAX_CATALOG_RECONFIGURATION_SOURCE_PLANS) {
+			"Too many catalog reconfiguration source plans"
+		}
+		require(requestedPlans.map { it.sourceStableCode }.toSet().size == requestedPlans.size) {
+			"Catalog reconfiguration source plans must be unique"
+		}
+		require(deferredSourceMask > 0L) { "deferredSourceMask must identify at least one source" }
+		val requestedSourceMask = requestedPlans.fold(0L) { mask, plan ->
+			require(plan.sourceStableCode in 1..Long.SIZE_BITS) {
+				"Catalog reconfiguration source code exceeds mask width"
+			}
+			mask or (1L shl (plan.sourceStableCode - 1))
+		}
+		require(deferredSourceMask and requestedSourceMask == deferredSourceMask) {
+			"Deferred catalog sources must belong to the requested configuration"
+		}
+		require(clockDomainId.isNotBlank()) { "clockDomainId must not be blank" }
+		require(zoneId.isNotBlank()) { "zoneId must not be blank" }
+		require(foregroundCapabilityFlags >= 0L) {
+			"foregroundCapabilityFlags must not be negative"
+		}
+		require(controlDependencyMask >= 0L) { "controlDependencyMask must not be negative" }
+	}
+
+	fun forServiceRun(serviceRunId: String): CatalogReconfigurationDebt =
+		copy(serviceRunId = serviceRunId)
+}
+
+private const val MAX_CATALOG_RECONFIGURATION_SOURCE_PLANS = 6
+private const val MAX_CATALOG_RECONFIGURATION_PLAN_PAYLOAD_CHARS = 32 * 1024
+private const val MAX_CATALOG_RECONFIGURATION_PLAN_ID_CHARS = 512
+private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
+
 /**
  * Durable source evidence offered for one automatic service start.
  *
@@ -145,6 +266,12 @@ data class ActiveTrackingSessionDescriptor(
 	val sourceCallerAuthorityReference: SourceCallerReplayReference? = null,
 	/** Exact predecessor whose retirement is durably pending after a reference handoff. */
 	val pendingRetirementSourceCallerAuthorityReference: SourceCallerReplayReference? = null,
+	/** Exact requested source configuration awaiting catalog additions/upgrades. */
+	val catalogReconfigurationDebt: CatalogReconfigurationDebt? = null,
+	/** Exact live effective runtime plan; never inferred from the requested manifest. */
+	val appliedSourcePlanIdentity: SourcePlanIdentity? = null,
+	/** Latest requested plan, which may remain ahead of [appliedSourcePlanIdentity]. */
+	val desiredSourcePlanIdentity: SourcePlanIdentity? = null,
 ) {
 	init {
 		require(logicalTrackingId.isNotBlank()) { "logicalTrackingId must not be blank" }
@@ -166,6 +293,15 @@ data class ActiveTrackingSessionDescriptor(
 				pendingRetirementSourceCallerAuthorityReference != sourceCallerAuthorityReference
 		) {
 			"Pending caller authority retirement must identify a predecessor"
+		}
+		require(
+			catalogReconfigurationDebt == null ||
+				(
+					catalogReconfigurationDebt.logicalTrackingId == logicalTrackingId &&
+						catalogReconfigurationDebt.serviceRunId == serviceRunId
+					)
+		) {
+			"Catalog reconfiguration debt must belong to the exact descriptor run"
 		}
 		if (lifecycleState == LogicalTrackingLifecycleState.STOP_CANDIDATE) {
 			require(stopCandidate != null) {
@@ -195,11 +331,15 @@ data class ActiveTrackingSessionDescriptor(
 	 * Starts a new Android-service run without creating a new logical session.
 	 */
 	fun forNewServiceRun(changedAtEpochMs: Long? = null): ActiveTrackingSessionDescriptor =
-		transition(
-			serviceRunId = newTrackingCorrelationId(),
-			sessionSegmentId = null,
-			changedAtEpochMs = changedAtEpochMs,
-		)
+		newTrackingCorrelationId().let { replacementRunId ->
+			transition(
+				serviceRunId = replacementRunId,
+				sessionSegmentId = null,
+				changedAtEpochMs = changedAtEpochMs,
+				catalogReconfigurationDebt =
+					catalogReconfigurationDebt?.forServiceRun(replacementRunId),
+			)
+		}
 
 	fun pause(changedAtEpochMs: Long? = null): ActiveTrackingSessionDescriptor = when (lifecycleState) {
 		LogicalTrackingLifecycleState.ACTIVE -> transition(
@@ -264,6 +404,8 @@ data class ActiveTrackingSessionDescriptor(
 		changedAtEpochMs: Long?,
 		stopCandidate: TrackingStopCandidate? = this.stopCandidate,
 		sessionSegmentId: Long? = this.sessionSegmentId,
+		catalogReconfigurationDebt: CatalogReconfigurationDebt? =
+			this.catalogReconfigurationDebt,
 	): ActiveTrackingSessionDescriptor = copy(
 		serviceRunId = serviceRunId,
 		lifecycleState = lifecycleState,
@@ -271,6 +413,7 @@ data class ActiveTrackingSessionDescriptor(
 		lifecycleChangedAtEpochMs = changedAtEpochMs,
 		stopCandidate = stopCandidate,
 		sessionSegmentId = sessionSegmentId,
+		catalogReconfigurationDebt = catalogReconfigurationDebt,
 	)
 }
 
@@ -302,8 +445,8 @@ interface ActiveTrackingSessionStore {
 
 	/**
 	 * Applies service-owned lifecycle fields without letting the service rewrite engine-owned
-	 * caller-authority references for the same run. Only the engine's exact retirement CAS may
-	 * clear [ActiveTrackingSessionDescriptor.pendingRetirementSourceCallerAuthorityReference].
+	 * caller-authority references, catalog debt, or source-plan identities for the same run. Only
+	 * engine-owned exact CAS transitions may clear or replace those fields.
 	 */
 	suspend fun mergeServiceDescriptor(
 		descriptor: ActiveTrackingSessionDescriptor,
@@ -322,6 +465,9 @@ interface ActiveTrackingSessionStore {
 					sourceCallerAuthorityReference = stored.sourceCallerAuthorityReference,
 					pendingRetirementSourceCallerAuthorityReference =
 						stored.pendingRetirementSourceCallerAuthorityReference,
+					catalogReconfigurationDebt = stored.catalogReconfigurationDebt,
+					appliedSourcePlanIdentity = stored.appliedSourcePlanIdentity,
+					desiredSourcePlanIdentity = stored.desiredSourcePlanIdentity,
 				)
 			}
 			when {

@@ -33,6 +33,15 @@ class SourceBrokerDaoTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `authorization fingerprint binds the lifecycle generation directly`() {
+		val original = captureDemand()
+		val rebound = original.copy(lifecycleLeaseGeneration = 2L)
+
+		(SourceBrokerAuthorization.fingerprint(listOf(original)) ==
+			SourceBrokerAuthorization.fingerprint(listOf(rebound))) shouldBe false
+	}
+
+	@Test
 	fun `observed time selects authorization revision and physical retirement is half open`() = runTest {
 		val dao = database.sourceBrokerDao()
 		val demand = captureDemand()

@@ -76,6 +76,21 @@ interface ActivityAutomaticStartActionDao {
 	): Int
 
 	@Query(
+		"UPDATE activity_automatic_start_action SET accepted_intent_revision = :newIntentRevision " +
+			"WHERE trigger_id = :triggerId AND collected_data_epoch = :collectedDataEpoch " +
+			"AND status = 'LIFECYCLE_INTENT_ACCEPTED' " +
+			"AND accepted_logical_tracking_id = :logicalTrackingId " +
+			"AND accepted_intent_revision = :expectedIntentRevision",
+	)
+	suspend fun rebindAcceptedLifecycleIntent(
+		triggerId: String,
+		collectedDataEpoch: Long,
+		logicalTrackingId: String,
+		expectedIntentRevision: Long,
+		newIntentRevision: Long,
+	): Int
+
+	@Query(
 		"UPDATE activity_automatic_start_action SET status = 'TERMINAL', " +
 			"terminal_at_ms = :terminalAtMs, terminal_reason = :reason " +
 			"WHERE trigger_id = :triggerId AND collected_data_epoch = :collectedDataEpoch " +

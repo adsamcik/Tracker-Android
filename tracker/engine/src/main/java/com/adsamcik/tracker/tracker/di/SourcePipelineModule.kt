@@ -1,8 +1,12 @@
 package com.adsamcik.tracker.tracker.di
 
 import android.content.Context
+import com.adsamcik.tracker.tracker.source.catalog.DefaultSourceImplementationCatalog
+import com.adsamcik.tracker.tracker.source.catalog.SourceAcquisitionPlanFactory
+import com.adsamcik.tracker.tracker.source.catalog.SourceImplementationCatalog
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
 import com.adsamcik.tracker.tracker.source.projection.Projection
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
 import com.adsamcik.tracker.tracker.source.runtime.AndroidBootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.ActivitySourceRuntime
@@ -16,6 +20,7 @@ import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeMutationLeaseG
 import com.adsamcik.tracker.tracker.source.runtime.SharedCellSourceController
 import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
 import com.adsamcik.tracker.tracker.source.runtime.SharedWifiSourceController
+import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeKey
 import com.adsamcik.tracker.tracker.source.coordinator.ProtectedLocationSourceDrain
 import com.adsamcik.tracker.tracker.source.coordinator.RequiredProtectedLocationSourceDrain
 import com.adsamcik.tracker.tracker.source.coordinator.RoomSourceProductDrainRouter
@@ -28,6 +33,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dagger.multibindings.IntoMap
 import dagger.multibindings.IntoSet
 import dagger.multibindings.Multibinds
 import javax.inject.Singleton
@@ -58,29 +64,35 @@ object SourcePipelineModule {
 	fun provideActivityAutomationProjection(projection: ActivityAutomationProjection): Projection = projection
 
 	@Provides
-	@IntoSet
+	@IntoMap
+	@SourceRuntimeKey(SourceKind.ACTIVITY)
 	fun provideActivitySourceRuntime(runtime: ActivitySourceRuntime): ClaimedSourceRuntime<out SourcePlan> = runtime
 
 	@Provides
-	@IntoSet
+	@IntoMap
+	@SourceRuntimeKey(SourceKind.STEPS)
 	fun provideStepSourceRuntime(runtime: SharedStepSourceController): ClaimedSourceRuntime<out SourcePlan> = runtime
 
 	@Provides
-	@IntoSet
+	@IntoMap
+	@SourceRuntimeKey(SourceKind.PRESSURE)
 	fun providePressureSourceRuntime(runtime: PressureSourceRuntime): ClaimedSourceRuntime<out SourcePlan> = runtime
 
 	@Provides
-	@IntoSet
+	@IntoMap
+	@SourceRuntimeKey(SourceKind.LOCATION)
 	fun provideLocationSourceRuntime(runtime: LocationSourceRuntime): ClaimedSourceRuntime<out SourcePlan> = runtime
 
 	@Provides
-	@IntoSet
+	@IntoMap
+	@SourceRuntimeKey(SourceKind.WIFI)
 	fun provideWifiSourceRuntime(
 		runtime: SharedWifiSourceController,
 	): ClaimedSourceRuntime<out SourcePlan> = runtime
 
 	@Provides
-	@IntoSet
+	@IntoMap
+	@SourceRuntimeKey(SourceKind.CELL)
 	fun provideCellSourceRuntime(
 		runtime: SharedCellSourceController,
 	): ClaimedSourceRuntime<out SourcePlan> = runtime
@@ -96,6 +108,18 @@ object SourcePipelineModule {
 	fun provideSourceProductDrainRouter(
 		router: RoomSourceProductDrainRouter,
 	): SourceProductDrainRouter = router
+
+	@Provides
+	@Singleton
+	fun provideSourceImplementationCatalog(
+		catalog: DefaultSourceImplementationCatalog,
+	): SourceImplementationCatalog = catalog
+
+	@Provides
+	@Singleton
+	fun provideSourceAcquisitionPlanFactory(
+		catalog: SourceImplementationCatalog,
+	): SourceAcquisitionPlanFactory = catalog
 
 	@Provides
 	@Singleton

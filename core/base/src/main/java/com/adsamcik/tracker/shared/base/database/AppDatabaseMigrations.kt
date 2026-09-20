@@ -1508,6 +1508,9 @@ val MIGRATION_27_28: Migration = object : Migration(
 				"ALTER TABLE acquisition_plan_revision " +
 					"ADD COLUMN source_policy_revision INTEGER",
 			)
+			execSQL("ALTER TABLE source_applied_plan_state ADD COLUMN applied_payload_version INTEGER")
+			execSQL("ALTER TABLE source_applied_plan_state ADD COLUMN applied_payload BLOB")
+			execSQL("ALTER TABLE source_applied_plan_state ADD COLUMN applied_payload_checksum TEXT")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN source_policy_revision INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN delivery_identity TEXT")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN delivery_unit_index INTEGER")

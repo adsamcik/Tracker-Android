@@ -18,6 +18,15 @@ interface SourceCallerAuthorityDao {
 	)
 	suspend fun rows(reference: String): List<SourceCallerAcceptedAuthorityEntity>
 
+	@Query(
+		"SELECT * FROM source_caller_accepted_authority WHERE reference = :reference " +
+			"ORDER BY source_kind, purpose LIMIT :limit",
+	)
+	suspend fun rowsBounded(
+		reference: String,
+		limit: Int,
+	): List<SourceCallerAcceptedAuthorityEntity>
+
 	@Update
 	suspend fun update(rows: List<SourceCallerAcceptedAuthorityEntity>): Int
 

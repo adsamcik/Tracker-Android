@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.coordinator
 
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.tracker.source.catalog.SourceAcquisitionPlanFactory
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
@@ -18,8 +19,8 @@ import com.adsamcik.tracker.tracker.source.model.WifiMode
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
 import javax.inject.Inject
 
-class SemanticAcquisitionPlanFactory @Inject constructor() {
-	fun create(
+class SemanticAcquisitionPlanFactory @Inject constructor() : SourceAcquisitionPlanFactory {
+	override fun create(
 		settings: TrackingParamsState,
 		revision: Long,
 		createdAtMs: Long,

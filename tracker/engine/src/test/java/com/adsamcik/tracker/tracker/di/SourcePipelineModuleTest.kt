@@ -44,13 +44,13 @@ class SourcePipelineModuleTest {
 	}
 
 	@Test
-	fun `runtime set uniquely binds shared radio owners and keeps raw deletion barriers`() {
+	fun `runtime map uniquely binds shared radio owners and keeps raw deletion barriers`() {
 		val mainRoot = projectRoot.resolve("tracker/engine/src/main")
 		val runtimeBindings = mainRoot.walkTopDown()
 			.filter { it.isFile && it.extension == "kt" }
 			.flatMap { source ->
 				RUNTIME_BINDING.findAll(source.readText()).map { match ->
-					"${match.groupValues[1]}:${match.groupValues[2]}"
+					"${match.groupValues[1]}:${match.groupValues[2]}:${match.groupValues[3]}"
 				}
 			}
 			.sorted()
@@ -58,12 +58,12 @@ class SourcePipelineModuleTest {
 
 		assertEquals(
 			listOf(
-				"provideActivitySourceRuntime:ActivitySourceRuntime",
-				"provideCellSourceRuntime:SharedCellSourceController",
-				"provideLocationSourceRuntime:LocationSourceRuntime",
-				"providePressureSourceRuntime:PressureSourceRuntime",
-				"provideStepSourceRuntime:SharedStepSourceController",
-				"provideWifiSourceRuntime:SharedWifiSourceController",
+				"ACTIVITY:provideActivitySourceRuntime:ActivitySourceRuntime",
+				"CELL:provideCellSourceRuntime:SharedCellSourceController",
+				"LOCATION:provideLocationSourceRuntime:LocationSourceRuntime",
+				"PRESSURE:providePressureSourceRuntime:PressureSourceRuntime",
+				"STEPS:provideStepSourceRuntime:SharedStepSourceController",
+				"WIFI:provideWifiSourceRuntime:SharedWifiSourceController",
 			),
 			runtimeBindings,
 		)
@@ -190,13 +190,39 @@ class SourcePipelineModuleTest {
 			)
 		}
 
+	@Test
+	fun `catalog planning and readiness are isolated from lazy runtime ownership`() {
+		val catalog = source("source/catalog/DefaultSourceImplementationCatalog.kt")
+		val registry = source("source/runtime/SourceRuntimeRegistry.kt")
+		val coordinator = source("source/coordinator/AuthoritativeSessionCoordinator.kt")
+		val serviceSession = source("source/coordinator/TrackerServiceSourceSession.kt")
+		val settingsStatus = source("source/coordinator/TrackingSettingsStatusProvider.kt")
+		val module = source("di/SourcePipelineModule.kt")
+		val activityRuntime = source("source/runtime/ActivitySourceRuntime.kt")
+
+		assertFalse("ClaimedSourceRuntime" in catalog)
+		assertFalse("ActivitySourceRuntime" in catalog)
+		assertTrue("private val arbiter: ActivityRegistrationArbiter" in activityRuntime)
+		assertFalse("SourceRuntimeRegistry" in catalog)
+		assertTrue("Provider<ClaimedSourceRuntime<out SourcePlan>>" in registry)
+		assertTrue("runtimeProviders[source]?.get()" in registry)
+		assertTrue("availabilityCatalog.availability(request)" in registry)
+		assertTrue("runtimes.catalogPlanDecisions(" in coordinator)
+		assertTrue("request.origin.toSourceAvailabilityTier()" in coordinator)
+		assertTrue("private val planFactory: SourceAcquisitionPlanFactory" in serviceSession)
+		assertTrue("private val planFactory: SourceAcquisitionPlanFactory" in settingsStatus)
+		assertTrue("fun provideSourceAcquisitionPlanFactory(" in module)
+		assertTrue("): SourceAcquisitionPlanFactory = catalog" in module)
+	}
+
 	private fun source(relativePath: String): String = projectRoot.resolve(
 		"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/$relativePath",
 	).readText()
 
 	private companion object {
 		val RUNTIME_BINDING = Regex(
-			"""@Provides\s+@IntoSet\s+fun (provide[A-Za-z0-9]+SourceRuntime)\(\s*""" +
+			"""@Provides\s+@IntoMap\s+@SourceRuntimeKey\(SourceKind\.([A-Z]+)\)\s+""" +
+				"""fun (provide[A-Za-z0-9]+SourceRuntime)\(\s*""" +
 				"""runtime: ([A-Za-z0-9]+),?\s*\): ClaimedSourceRuntime<out SourcePlan> = runtime""",
 		)
 	}

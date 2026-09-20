@@ -161,6 +161,18 @@ interface SourceBrokerDao {
 	suspend fun demandHistory(consumerId: String): List<SourceDemandEntity>
 
 	@Query(
+		"SELECT * FROM source_demand WHERE consumer_id = :consumerId " +
+			"AND service_run_id = :serviceRunId AND manifest_revision = :manifestRevision " +
+			"ORDER BY lifecycle_lease_generation, source_kind, purpose, demand_id LIMIT :limit",
+	)
+	suspend fun preparedSessionDemandHistoryBounded(
+		consumerId: String,
+		serviceRunId: String,
+		manifestRevision: Long,
+		limit: Int,
+	): List<SourceDemandEntity>
+
+	@Query(
 		"SELECT DISTINCT source_caller_authority_reference FROM source_demand " +
 			"WHERE consumer_id = :consumerId AND source_caller_authority_reference IS NOT NULL",
 	)
@@ -181,6 +193,40 @@ interface SourceBrokerDao {
 		serviceRunId: String,
 		manifestRevision: Long,
 		leaseGeneration: Long,
+	): Int
+
+	@Query(
+		"UPDATE source_demand SET status = 'ACTIVE' " +
+			"WHERE consumer_id = :consumerId AND service_run_id = :serviceRunId " +
+			"AND manifest_revision = :manifestRevision " +
+			"AND lifecycle_lease_generation = :leaseGeneration " +
+			"AND demand_id IN (:demandIds) AND status = 'BLOCKED'",
+	)
+	suspend fun activatePreparedSessionDemandsByIds(
+		consumerId: String,
+		serviceRunId: String,
+		manifestRevision: Long,
+		leaseGeneration: Long,
+		demandIds: Collection<String>,
+	): Int
+
+	@Query(
+		"UPDATE source_demand SET status = 'RETIRED', retire_boot_id = :bootId, " +
+			"retire_elapsed_realtime_nanos = :elapsedRealtimeNanos, retired_at_ms = :wallTimeMs " +
+			"WHERE consumer_id = :consumerId AND service_run_id = :serviceRunId " +
+			"AND manifest_revision = :manifestRevision " +
+			"AND lifecycle_lease_generation = :leaseGeneration " +
+			"AND demand_id IN (:demandIds) AND status IN ('ACTIVE', 'BLOCKED')",
+	)
+	suspend fun retirePreparedSessionDemandsByIds(
+		consumerId: String,
+		serviceRunId: String,
+		manifestRevision: Long,
+		leaseGeneration: Long,
+		demandIds: Collection<String>,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
 	): Int
 
 	@Query(

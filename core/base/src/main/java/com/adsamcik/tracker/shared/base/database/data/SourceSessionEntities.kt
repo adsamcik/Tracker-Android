@@ -1025,6 +1025,7 @@ data class SourceDesiredPlanEntity(
 	@ColumnInfo(name = "payload_checksum") val payloadChecksum: String,
 )
 
+/** Replaceable current physical-session snapshot; immutable desired-plan rows retain history. */
 @Entity(tableName = "source_applied_plan_state")
 data class SourceAppliedPlanStateEntity(
 	@androidx.room.PrimaryKey
@@ -1037,4 +1038,7 @@ data class SourceAppliedPlanStateEntity(
 	@ColumnInfo(name = "status") val status: String,
 	@ColumnInfo(name = "degraded_reasons") val degradedReasons: String,
 	@ColumnInfo(name = "updated_at_ms") val updatedAtMs: Long,
+	@ColumnInfo(name = "applied_payload_version") val appliedPayloadVersion: Int? = null,
+	@ColumnInfo(name = "applied_payload") val appliedPayload: ByteArray? = null,
+	@ColumnInfo(name = "applied_payload_checksum") val appliedPayloadChecksum: String? = null,
 )

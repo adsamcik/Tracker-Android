@@ -137,6 +137,21 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
+	fun `previous portable staging marker is classified as stale`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			markerValue = "tracker-v28-portable-steps-disk-staging-20260920",
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28,
+		)
+	}
+
+	@Test
 	fun `marked v28 missing an indispensable final table is contained`() {
 		createFixture(
 			version = CURRENT_DATABASE_VERSION,
@@ -147,6 +162,25 @@ class DevelopmentV28DatabaseContainmentTest {
 		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
 			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
 		)
+	}
+
+	@Test
+	fun `marked v28 missing an applied plan payload column is contained`() {
+		APPLIED_PLAN_PAYLOAD_COLUMNS.forEach { missingColumn ->
+			deleteFixture()
+			createFixture(
+				version = CURRENT_DATABASE_VERSION,
+				includeMarker = true,
+				includeFinalTable = true,
+				includeFinalColumn = true,
+				includeFinalIndex = true,
+				appliedPlanPayloadColumns = APPLIED_PLAN_PAYLOAD_COLUMNS - missingColumn,
+			)
+
+			preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+				ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+			)
+		}
 	}
 
 	@Test
@@ -597,6 +631,7 @@ class DevelopmentV28DatabaseContainmentTest {
 		includeRadioReceiptColumn: Boolean = true,
 		includeCallerAuthority: Boolean = includeFinalTable,
 		includeStepsCountDomain: Boolean = includeFinalTable,
+		appliedPlanPayloadColumns: Set<String> = APPLIED_PLAN_PAYLOAD_COLUMNS,
 		stepsSchemaMutation: ((SupportSQLiteDatabase) -> Unit)? = null,
 		markerValue: String? = null,
 	) {
@@ -633,6 +668,29 @@ class DevelopmentV28DatabaseContainmentTest {
 										"ON imported_wifi_deletion_generation(deletion_scope_digest)",
 								)
 							}
+							val appliedPayloadColumns = buildList {
+								if ("applied_payload_version" in appliedPlanPayloadColumns) {
+										add("applied_payload_version INTEGER")
+								}
+								if ("applied_payload" in appliedPlanPayloadColumns) {
+										add("applied_payload BLOB")
+								}
+								if ("applied_payload_checksum" in appliedPlanPayloadColumns) {
+										add("applied_payload_checksum TEXT")
+								}
+							}.joinToString(separator = ", ")
+								.takeIf(String::isNotEmpty)
+								?.let { columns -> ", $columns" }
+								.orEmpty()
+							db.execSQL(
+								"CREATE TABLE source_applied_plan_state (" +
+										"source_kind INTEGER NOT NULL PRIMARY KEY, " +
+										"desired_revision INTEGER NOT NULL, applied_revision INTEGER, " +
+										"source_instance_id TEXT, registration_generation INTEGER, " +
+										"applied_at_elapsed_nanos INTEGER, status TEXT NOT NULL, " +
+										"degraded_reasons TEXT NOT NULL, updated_at_ms INTEGER NOT NULL" +
+										"$appliedPayloadColumns)",
+							)
 						}
 						if (includeRetentionTables) {
 							db.execSQL(
@@ -649,7 +707,16 @@ class DevelopmentV28DatabaseContainmentTest {
 									"operation_id TEXT PRIMARY KEY, " +
 									"retention_work_execution_id TEXT, " +
 									"retention_destructive_plan TEXT, " +
-									"settled_retained_from_ms INTEGER)",
+									"settled_retained_from_ms INTEGER, " +
+									"source_maintenance_at_ms INTEGER, " +
+									"retention_active_sources TEXT)",
+							)
+							db.execSQL(
+								"CREATE TABLE retention_work_execution_receipt (" +
+									"execution_id TEXT PRIMARY KEY, work_request_id TEXT, " +
+									"execution_generation INTEGER, worker_kind TEXT, " +
+									"started_at_ms INTEGER, state TEXT, destructive_plan TEXT, " +
+									"updated_at_ms INTEGER)",
 							)
 							val retainedFrom = if (includeRadioReceiptColumn) {
 								", retained_from_ms INTEGER"
@@ -742,6 +809,14 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	private fun databaseFile(): File = context.getDatabasePath(DATABASE_NAME)
+
+	private companion object {
+		val APPLIED_PLAN_PAYLOAD_COLUMNS = setOf(
+			"applied_payload_version",
+			"applied_payload",
+			"applied_payload_checksum",
+		)
+	}
 
 	private fun createCorruptFileFamily(): Map<File, String> {
 		val files = databaseFileFamily()

@@ -355,6 +355,9 @@ interface SourceSessionDao {
 	@Update
 	suspend fun updateLifecycleAction(entity: LifecycleDesiredActionEntity): Int
 
+	@Query("DELETE FROM lifecycle_desired_action WHERE action_id IN (:actionIds)")
+	suspend fun deleteLifecycleActions(actionIds: Collection<String>): Int
+
 	@Query("SELECT * FROM lifecycle_desired_action WHERE action_id = :actionId")
 	suspend fun lifecycleAction(actionId: String): LifecycleDesiredActionEntity?
 

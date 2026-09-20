@@ -697,12 +697,14 @@ internal class TrackerService : CoreService() {
 				val rejection = prepared as? TrackingServicePreparedStartClaim.Rejected
 					?: error("Deferred claim escaped the startup wait loop")
 				try {
-					runBoundedStartPreparationCancellationCleanup(null) {
-						trackingStartRequestCoordinator.compensate(
-							effectiveToken,
-							effectiveCommand,
-							rejection.failureCode,
-						)
+					if (rejection.compensatePreparedState) {
+						runBoundedStartPreparationCancellationCleanup(null) {
+							trackingStartRequestCoordinator.compensate(
+								effectiveToken,
+								effectiveCommand,
+								rejection.failureCode,
+							)
+						}
 					}
 				} finally {
 					rollbackRejectedPreparedStartRuntime()
@@ -959,7 +961,18 @@ internal class TrackerService : CoreService() {
 					)) {
 						is com.adsamcik.tracker.tracker.source.coordinator.SessionStartResult.Started -> {
 							preparedStartRuntime = preparedStartRuntime.copy(applied = true)
-							null
+							val appliedReference = result.sourceCallerAuthorityReference
+								?: descriptor.sourceCallerAuthorityReference
+							val persistedDescriptor = appliedReference?.let { reference ->
+								sourceSession.persistedDescriptorForActiveSession(reference)
+							}
+							if (persistedDescriptor == null) {
+								"APPLIED_SOURCE_PLAN_DESCRIPTOR_MISSING"
+							} else {
+								descriptor = persistedDescriptor
+								activeSessionDescriptor = persistedDescriptor
+								null
+							}
 						}
 						null -> "TRACKING_STARTUP_GENERATION_CLOSED_BEFORE_APPLY"
 						else -> result
@@ -1185,6 +1198,10 @@ internal class TrackerService : CoreService() {
 						TrackingDiagnosticFailureReason.PERMISSION_RECONCILIATION_FAILURE,
 					)
 				}
+				val retryOutcome = retryPendingSourceSessionReconfiguration()
+				if (retryOutcome is SourceSessionReconfigureOutcome.Rejected) {
+					requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
+				}
 				collectionMotionController.tick(SystemClock.elapsedRealtimeNanos())
 			}
 		}
@@ -1230,8 +1247,17 @@ internal class TrackerService : CoreService() {
 
 	private suspend fun reconfigureSourceSession(
 		inputs: SourceSessionPlanInputs,
+	): SourceSessionReconfigureOutcome =
+		reconcileSourceSessionOutcome(sourceSession.reconfigure(inputs))
+
+	private suspend fun retryPendingSourceSessionReconfiguration(): SourceSessionReconfigureOutcome? =
+		sourceSession.retryPendingReconfiguration()?.let { outcome ->
+			reconcileSourceSessionOutcome(outcome)
+		}
+
+	private suspend fun reconcileSourceSessionOutcome(
+		outcome: SourceSessionReconfigureOutcome,
 	): SourceSessionReconfigureOutcome {
-		val outcome = sourceSession.reconfigure(inputs)
 		val reference = when (outcome) {
 			is SourceSessionReconfigureOutcome.Applied ->
 				outcome.result.sourceCallerAuthorityReference
@@ -1241,6 +1267,8 @@ internal class TrackerService : CoreService() {
 				(outcome.result as? com.adsamcik.tracker.tracker.source.coordinator
 					.SessionReconfigureResult.Failed)
 					?.sourceCallerAuthorityReference
+			is SourceSessionReconfigureOutcome.Retryable,
+			is SourceSessionReconfigureOutcome.Deferred,
 			SourceSessionReconfigureOutcome.NotActive,
 			SourceSessionReconfigureOutcome.Unchanged,
 			-> null

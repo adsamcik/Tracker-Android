@@ -19,27 +19,45 @@ import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStore
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreResult
+import com.adsamcik.tracker.tracker.resilience.CatalogReconfigurationDebt
+import com.adsamcik.tracker.tracker.resilience.CatalogReconfigurationSourcePlan
+import com.adsamcik.tracker.tracker.resilience.SourcePlanIdentity
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
+import com.adsamcik.tracker.tracker.source.control.CollectionAcquisitionProfile
+import com.adsamcik.tracker.tracker.source.control.LocationCollectionStrategy
+import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
+import com.adsamcik.tracker.tracker.source.model.DemandReason
+import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
+import com.adsamcik.tracker.tracker.source.model.EvidenceQuality
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
+import com.adsamcik.tracker.tracker.source.model.SourceDemand
+import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
+import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementOutcome
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementRetryReason
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
+import io.mockk.firstArg
 import io.mockk.mockk
+import io.mockk.secondArg
 import io.mockk.slot
 import java.io.IOException
+import java.time.ZoneId
+import java.util.Base64
 import javax.inject.Provider
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
@@ -238,22 +256,47 @@ class TrackerServiceSourceSessionTest {
 			),
 		)
 		val captured = slot<SessionStartRequest>()
-		coEvery { lifecycle.start(capture(captured)) } returns SessionStartResult.Started(
+		var descriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = false,
+			isAmbient = false,
+			policyTier = PolicyTier.ACTIVE,
 			logicalTrackingId = "logical-mode-status",
 			serviceRunId = "run-mode-status",
-			applied = listOf(
-				AppliedSourcePlan(
-					desiredRevision = 1L,
-					appliedRevision = 1L,
-					source = SourceKind.STEPS,
-					sourceInstanceId = null,
-					registrationGeneration = null,
-					appliedAtElapsedRealtimeNanos = 1L,
-					status = SourceApplyStatus.APPLIED,
-				),
-			),
-			planStatus = DesiredPlanStatus.EFFECTIVE,
 		)
+		coEvery { activeSessionStore.read() } answers {
+			ActiveTrackingSessionStoreResult.Success(descriptor)
+		}
+		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
+			val expected = firstArg<ActiveTrackingSessionDescriptor>()
+			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
+			if (expected == descriptor) descriptor = replacement
+			ActiveTrackingSessionStoreResult.Success(descriptor)
+		}
+		coEvery { lifecycle.start(capture(captured)) } coAnswers {
+			val request = firstArg<SessionStartRequest>()
+			val applied = AppliedSourcePlan(
+				desiredRevision = request.plan.revision,
+				appliedRevision = request.plan.revision,
+				source = SourceKind.STEPS,
+				sourceInstanceId = SourceInstanceId("mode-status-steps"),
+				registrationGeneration = 1L,
+				appliedAtElapsedRealtimeNanos = 1L,
+				status = SourceApplyStatus.APPLIED,
+			)
+			val planStore = RoomSourcePlanStore(database, SourcePlanCodec())
+			planStore.persistDesired(request.plan, DesiredPlanStatus.EFFECTIVE)
+			planStore.saveApplied(
+				applied,
+				request.plan.plans.getValue(SourceKind.STEPS),
+				1L,
+			)
+			SessionStartResult.Started(
+				logicalTrackingId = "logical-mode-status",
+				serviceRunId = "run-mode-status",
+				applied = listOf(applied),
+				planStatus = DesiredPlanStatus.EFFECTIVE,
+			)
+		}
 
 		subject.start(
 			SourceSessionStartRequest(
@@ -450,6 +493,220 @@ class TrackerServiceSourceSessionTest {
 				)
 			}
 			coVerify(exactly = 0) { lifecycle.stop(any()) }
+		}
+
+	@Test
+	fun `restarted prepared exact applied identity remains unchanged without reconfiguration`() =
+		runTest {
+		installCanonicalProductLanesForTest(
+			database = database,
+			bindings = listOf(TEST_STEPS_BINDING),
+			rolloutRevision = 5L,
+			updatedAtMs = 1L,
+		)
+		val rollout = rolloutStore.load()
+		val baselineInputs = inputs(
+			settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 7L),
+		)
+		val plan = resolvedPlanForFingerprint(baselineInputs, rollout, revision = 1L)
+		val desiredIdentity = sourcePlanIdentity(baselineInputs, rollout, plan)
+		seedPreparedAppliedPlan(plan)
+		database.sourceSessionDao().insertServiceRun(
+			SourceServiceRunEntity(
+				serviceRunId = "prepared-exact-run",
+				logicalTrackingId = "prepared-exact-logical",
+				state = SessionLifecycleState.STARTING.name,
+				desiredPlanRevision = plan.revision,
+				rolloutRevision = rollout.revision,
+				foregroundCapabilityFlags = 1L,
+				startedAtMs = 1L,
+				startedElapsedNanos = 1L,
+				completedAtMs = null,
+				completionReason = null,
+			),
+		)
+		val reference = SourceCallerReplayReference("prepared-exact-authority")
+		var descriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "prepared-exact-logical",
+			serviceRunId = "prepared-exact-run",
+			sourceCallerAuthorityReference = reference,
+			desiredSourcePlanIdentity = desiredIdentity,
+		)
+		val store = mockk<ActiveTrackingSessionStore>()
+		coEvery { store.read() } answers {
+			ActiveTrackingSessionStoreResult.Success(descriptor)
+		}
+		coEvery { store.replaceExact(any(), any()) } answers {
+			val expected = firstArg<ActiveTrackingSessionDescriptor>()
+			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
+			if (expected == descriptor) descriptor = replacement
+			ActiveTrackingSessionStoreResult.Success(descriptor)
+		}
+		val localLifecycle = mockk<AuthoritativeSessionCoordinator>()
+		coEvery {
+			localLifecycle.applyPreparedAndroidStart(any(), any(), any(), any(), any())
+		} returns SessionStartResult.Started(
+			descriptor.logicalTrackingId,
+			descriptor.serviceRunId,
+			appliedStates(plan),
+			DesiredPlanStatus.EFFECTIVE,
+			reference,
+		)
+		val localSubject = sourceSession(localLifecycle, store)
+		val intent = mockk<SessionLifecycleIntentVersionEntity>()
+		every { intent.sourceCallerAuthorityReference } returns reference.value
+
+		localSubject.applyPreparedAndroidStart(
+			claim = preparedClaim(
+				logicalTrackingId = descriptor.logicalTrackingId,
+				serviceRunId = descriptor.serviceRunId,
+				planRevision = plan.revision,
+				referenceIntent = intent,
+			),
+			commandGeneration = 1L,
+			planInputs = baselineInputs,
+			persistedDescriptor = descriptor,
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+
+		descriptor.appliedSourcePlanIdentity shouldBe desiredIdentity
+		descriptor.desiredSourcePlanIdentity shouldBe desiredIdentity
+		localSubject.reconfigure(baselineInputs) shouldBe
+			SourceSessionReconfigureOutcome.Unchanged
+		coVerify(exactly = 0) { localLifecycle.reconfigure(any()) }
+	}
+
+	@Test
+	fun `prepared input changes immediately retain debt until the new desired plan applies`() =
+		runTest {
+			installCanonicalProductLanesForTest(
+				database = database,
+				bindings = listOf(TEST_STEPS_BINDING),
+				rolloutRevision = 5L,
+				updatedAtMs = 1L,
+			)
+			val rollout = rolloutStore.load()
+			val baselineInputs = inputs(
+				settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 7L),
+			)
+			val variants = listOf(
+				baselineInputs.copy(
+					resolutionContext = baselineInputs.resolutionContext.copy(powerSaver = true),
+				),
+				baselineInputs.copy(
+					resolutionContext = baselineInputs.resolutionContext.copy(doze = true),
+				),
+				baselineInputs.copy(
+					resolutionContext = baselineInputs.resolutionContext.copy(
+						motionProfile = CollectionAcquisitionProfile(
+							stationary = true,
+							locationStrategy =
+								LocationCollectionStrategy.PASSIVE_WHILE_STATIONARY,
+							expensiveNetworkScansAllowed = false,
+							continuousPressureAllowed = false,
+							lowLatencyStepReporting = false,
+						),
+					),
+				),
+				baselineInputs.copy(
+					environment = baselineInputs.environment.copy(
+						locationBackend = LocationBackend.FUSED,
+					),
+				),
+			)
+
+			variants.forEachIndexed { index, currentInputs ->
+				val revision = index.toLong() * 2L + 1L
+				val plan = resolvedPlanForFingerprint(baselineInputs, rollout, revision)
+				val desiredIdentity = sourcePlanIdentity(baselineInputs, rollout, plan)
+				seedPreparedAppliedPlan(plan)
+				val logicalId = "prepared-change-logical-$index"
+				val runId = "prepared-change-run-$index"
+				database.sourceSessionDao().insertServiceRun(
+					SourceServiceRunEntity(
+						serviceRunId = runId,
+						logicalTrackingId = logicalId,
+						state = SessionLifecycleState.STARTING.name,
+						desiredPlanRevision = plan.revision,
+						rolloutRevision = rollout.revision,
+						foregroundCapabilityFlags = 1L,
+						startedAtMs = 1L,
+						startedElapsedNanos = 1L,
+						completedAtMs = null,
+						completionReason = null,
+					),
+				)
+				val reference = SourceCallerReplayReference("prepared-change-authority-$index")
+				var descriptor = ActiveTrackingSessionDescriptor(
+					isUserInitiated = true,
+					isAmbient = false,
+					policyTier = PolicyTier.PRECISION,
+					logicalTrackingId = logicalId,
+					serviceRunId = runId,
+					sourceCallerAuthorityReference = reference,
+					desiredSourcePlanIdentity = desiredIdentity,
+				)
+				val store = mockk<ActiveTrackingSessionStore>()
+				coEvery { store.read() } answers {
+					ActiveTrackingSessionStoreResult.Success(descriptor)
+				}
+				coEvery { store.replaceExact(any(), any()) } answers {
+					val expected = firstArg<ActiveTrackingSessionDescriptor>()
+					val replacement = secondArg<ActiveTrackingSessionDescriptor>()
+					if (expected == descriptor) descriptor = replacement
+					ActiveTrackingSessionStoreResult.Success(descriptor)
+				}
+				val localLifecycle = mockk<AuthoritativeSessionCoordinator>()
+				val requests = mutableListOf<SessionReconfigureRequest>()
+				coEvery {
+					localLifecycle.applyPreparedAndroidStart(any(), any(), any(), any(), any())
+				} returns SessionStartResult.Started(
+					logicalId,
+					runId,
+					appliedStates(plan),
+					DesiredPlanStatus.EFFECTIVE,
+					reference,
+				)
+				coEvery { localLifecycle.reconfigure(capture(requests)) } answers {
+					val request = firstArg<SessionReconfigureRequest>()
+					SessionReconfigureResult.Retryable(
+						revision = request.plan.revision,
+						failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+						sources = setOf(SourceKind.STEPS),
+					)
+				}
+				val localSubject = sourceSession(localLifecycle, store)
+				val intent = mockk<SessionLifecycleIntentVersionEntity>()
+				every { intent.sourceCallerAuthorityReference } returns reference.value
+
+				localSubject.applyPreparedAndroidStart(
+					claim = preparedClaim(logicalId, runId, plan.revision, intent),
+					commandGeneration = 1L,
+					planInputs = currentInputs,
+					persistedDescriptor = descriptor,
+				).shouldBeInstanceOf<SessionStartResult.Started>()
+
+				requests.size shouldBe 2
+				val requestedFingerprint = requireNotNull(requests.last().desiredPlanFingerprint)
+				requestedFingerprint shouldNotBe desiredIdentity.planFingerprint
+				val currentInputsFingerprint = currentInputs.planInputsFingerprint(
+					rolloutRevision = rollout.revision,
+					captureMode = CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+					startOrigin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+					foregroundCapabilityFlags = 1L,
+					controlDependencies = emptySet(),
+				)
+				descriptor.appliedSourcePlanIdentity shouldBe desiredIdentity
+				descriptor.appliedSourcePlanIdentity?.inputsFingerprint shouldBe
+					desiredIdentity.inputsFingerprint
+				descriptor.desiredSourcePlanIdentity?.inputsFingerprint shouldBe
+					currentInputsFingerprint
+				descriptor.desiredSourcePlanIdentity?.planFingerprint shouldBe requestedFingerprint
+				descriptor.catalogReconfigurationDebt?.desiredPlanFingerprint shouldBe
+					requestedFingerprint
+			}
 		}
 
 	@Test
@@ -848,6 +1105,569 @@ class TrackerServiceSourceSessionTest {
 			SessionReconfigureResult.InvalidState("STARTUP_RECOVERY_NOT_READY"),
 		)
 		coVerify(exactly = 0) { lifecycle.reconfigure(any()) }
+	}
+
+	@Test
+	fun `retryable reconfiguration remains pending without rejecting the active service session`() =
+		runTest {
+			val rollout = allEventCanonical(revision = 5)
+			val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
+			val changed = settings(SourceCollectionFrequency.BATTERY_SAVER, sourcePolicyRevision = 2)
+			val reference = SourceCallerReplayReference("catalog-retry-authority")
+			var storedDescriptor = ActiveTrackingSessionDescriptor(
+				isUserInitiated = true,
+				isAmbient = false,
+				policyTier = PolicyTier.PRECISION,
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				sourceCallerAuthorityReference = reference,
+			)
+			coEvery { activeSessionStore.read() } answers
+				{ ActiveTrackingSessionStoreResult.Success(storedDescriptor) }
+			coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
+				val expected = firstArg<ActiveTrackingSessionDescriptor>()
+				val replacement = secondArg<ActiveTrackingSessionDescriptor>()
+				if (expected == storedDescriptor) storedDescriptor = replacement
+				ActiveTrackingSessionStoreResult.Success(storedDescriptor)
+			}
+			coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+				"logical",
+				"run",
+				emptyList(),
+				DesiredPlanStatus.EFFECTIVE,
+				reference,
+			)
+			var reconfigureCalls = 0
+			coEvery { lifecycle.reconfigure(any()) } answers {
+				reconfigureCalls += 1
+				if (reconfigureCalls == 1) {
+					SessionReconfigureResult.Retryable(
+						revision = 1L,
+						failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+						sources = setOf(SourceKind.STEPS),
+					)
+				} else {
+					SessionReconfigureResult.Deferred(
+						revision = 1L,
+						failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+						sources = setOf(SourceKind.STEPS),
+					)
+				}
+			}
+			subject.start(
+				SourceSessionStartRequest(
+					rollout = rollout,
+					ownership = TrackingSessionOwnership.resolve(rollout, initial),
+					logicalTrackingId = "logical",
+					serviceRunId = "run",
+					origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+					foregroundCapabilityFlags = 1L,
+					planInputs = inputs(initial),
+					ownerToken = "owner",
+				),
+			).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+			subject.reconfigure(inputs(changed))
+				.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Deferred>()
+				.result.sources shouldBe setOf(SourceKind.STEPS)
+			storedDescriptor.catalogReconfigurationDebt?.let { debt ->
+				debt.logicalTrackingId shouldBe "logical"
+				debt.serviceRunId shouldBe "run"
+				debt.sourcePolicyRevision shouldBe 2L
+				debt.deferredSourceMask shouldBe 1L shl (SourceKind.STEPS.stableCode - 1)
+			} ?: error("Expected durable catalog debt")
+			subject.retryPendingReconfiguration()
+				.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Deferred>()
+
+			coVerify(exactly = 3) { lifecycle.reconfigure(any()) }
+		}
+
+	@Test
+	fun `exact catalog debt retry success advances applied input identity`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+		val changed = settings(SourceCollectionFrequency.BATTERY_SAVER, sourcePolicyRevision = 2L)
+		val reference = SourceCallerReplayReference("catalog-retry-success-authority")
+		var storedDescriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = reference,
+		)
+		coEvery { activeSessionStore.read() } answers
+			{ ActiveTrackingSessionStoreResult.Success(storedDescriptor) }
+		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
+			val expected = firstArg<ActiveTrackingSessionDescriptor>()
+			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
+			if (expected == storedDescriptor) storedDescriptor = replacement
+			ActiveTrackingSessionStoreResult.Success(storedDescriptor)
+		}
+		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+			"logical",
+			"run",
+			emptyList(),
+			DesiredPlanStatus.EFFECTIVE,
+			reference,
+		)
+		val requests = mutableListOf<SessionReconfigureRequest>()
+		var reconfigureCalls = 0
+		coEvery { lifecycle.reconfigure(capture(requests)) } answers {
+			reconfigureCalls += 1
+			val request = firstArg<SessionReconfigureRequest>()
+			when (reconfigureCalls) {
+				1 -> SessionReconfigureResult.Retryable(
+					revision = request.plan.revision,
+					failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+					sources = setOf(SourceKind.STEPS),
+				)
+				2 -> SessionReconfigureResult.Deferred(
+					revision = request.plan.revision,
+					failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+					sources = setOf(SourceKind.STEPS),
+				)
+				else -> SessionReconfigureResult.Applied(
+					revision = request.plan.revision,
+					applied = emptyList(),
+					status = DesiredPlanStatus.EFFECTIVE,
+					sourceCallerAuthorityReference = reference,
+				)
+			}
+		}
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, initial),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(initial),
+				ownerToken = "owner",
+			),
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+		subject.reconfigure(inputs(changed))
+			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Deferred>()
+		val persistedDebt = requireNotNull(storedDescriptor.catalogReconfigurationDebt)
+		persistedDebt.desiredPlanFingerprint shouldBe requests.first().desiredPlanFingerprint
+		persistedDebt.desiredPlanGeneration shouldBe requests.first().desiredPlanGeneration
+
+		subject.retryPendingReconfiguration()
+			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
+		storedDescriptor.catalogReconfigurationDebt shouldBe null
+		subject.reconfigure(inputs(changed)) shouldBe SourceSessionReconfigureOutcome.Unchanged
+		coVerify(exactly = 3) { lifecycle.reconfigure(any()) }
+	}
+
+	@Test
+	fun `recovery supersedes same policy debt when environment zone demand or motion changed`() =
+		runTest {
+			val rollout = allEventCanonical(revision = 5)
+			val currentSettings = settings(
+				SourceCollectionFrequency.BALANCED,
+				sourcePolicyRevision = 7L,
+			)
+			val baseline = inputs(currentSettings)
+			val baselinePlan = resolvedPlanForFingerprint(baseline, rollout, revision = 1L)
+			val baselineFingerprint = baseline.desiredPlanFingerprint(
+				plan = baselinePlan,
+				rolloutRevision = rollout.revision,
+				captureMode = CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+				startOrigin = SessionStartOrigin.RECOVERY,
+				foregroundCapabilityFlags = 1L,
+				controlDependencies = emptySet(),
+				codec = SourcePlanCodec(),
+			)
+			val variants = listOf(
+				baseline.copy(
+					environment = baseline.environment.copy(
+						locationBackend = LocationBackend.FUSED,
+					),
+				),
+				baseline.copy(
+					zoneId = if (baseline.zoneId == "UTC") "Europe/Prague" else "UTC",
+				),
+				baseline.copy(
+					demands = listOf(
+						SourceDemand(
+							source = SourceKind.STEPS,
+							maximumAgeMs = 90_000L,
+							desiredLatencyMs = 30_000L,
+							quality = EvidenceQuality.BALANCED,
+							reason = DemandReason.POLICY,
+						),
+					),
+				),
+				baseline.copy(
+					resolutionContext = baseline.resolutionContext.copy(
+						motionProfile = CollectionAcquisitionProfile(
+							stationary = true,
+							locationStrategy = LocationCollectionStrategy.PASSIVE_WHILE_STATIONARY,
+							expensiveNetworkScansAllowed = false,
+							continuousPressureAllowed = false,
+							lowLatencyStepReporting = false,
+						),
+					),
+				),
+			)
+
+			variants.forEachIndexed { index, currentInputs ->
+				val logicalId = "recovery-fingerprint-logical-$index"
+				val runId = "recovery-fingerprint-run-$index"
+				val reference = SourceCallerReplayReference("recovery-fingerprint-authority-$index")
+				var descriptor = ActiveTrackingSessionDescriptor(
+					isUserInitiated = true,
+					isAmbient = false,
+					policyTier = PolicyTier.PRECISION,
+					logicalTrackingId = logicalId,
+					serviceRunId = runId,
+					sourceCallerAuthorityReference = reference,
+					catalogReconfigurationDebt = catalogDebt(
+						logicalTrackingId = logicalId,
+						serviceRunId = runId,
+						sourcePolicyRevision = 7L,
+						desiredPlanFingerprint = baselineFingerprint,
+						desiredPlanGeneration = 1L,
+						requestedPlan = baselinePlan,
+					),
+				)
+				val store = mockk<ActiveTrackingSessionStore>()
+				coEvery { store.read() } answers {
+					ActiveTrackingSessionStoreResult.Success(descriptor)
+				}
+				coEvery { store.replaceExact(any(), any()) } answers {
+					val expected = firstArg<ActiveTrackingSessionDescriptor>()
+					val replacement = secondArg<ActiveTrackingSessionDescriptor>()
+					if (expected == descriptor) descriptor = replacement
+					ActiveTrackingSessionStoreResult.Success(descriptor)
+				}
+				val localLifecycle = mockk<AuthoritativeSessionCoordinator>()
+				val capturedStart = slot<SessionStartRequest>()
+				coEvery { localLifecycle.start(capture(capturedStart)) } returns
+					SessionStartResult.Started(
+						logicalId,
+						runId,
+						emptyList(),
+						DesiredPlanStatus.EFFECTIVE,
+						reference,
+					)
+				val localSubject = TrackerServiceSourceSession(
+					database,
+					localLifecycle,
+					SemanticAcquisitionPlanFactory(),
+					SourcePlanResolver(),
+					TrackingCoordinatorTelemetry(),
+					statusProvider,
+					Provider { startupGate },
+					rolloutStore,
+					store,
+				)
+
+				localSubject.start(
+					SourceSessionStartRequest(
+						rollout = rollout,
+						ownership = TrackingSessionOwnership.resolve(rollout, currentSettings),
+						logicalTrackingId = logicalId,
+						serviceRunId = runId,
+						origin = SessionStartOrigin.RECOVERY,
+						foregroundCapabilityFlags = 1L,
+						planInputs = currentInputs,
+						ownerToken = "owner-$index",
+					),
+				).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+				val currentFingerprint = currentInputs.desiredPlanFingerprint(
+					plan = capturedStart.captured.plan,
+					rolloutRevision = rollout.revision,
+					captureMode = CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+					startOrigin = SessionStartOrigin.RECOVERY,
+					foregroundCapabilityFlags = 1L,
+					controlDependencies = emptySet(),
+					codec = SourcePlanCodec(),
+				)
+
+				currentFingerprint shouldNotBe baselineFingerprint
+				descriptor.catalogReconfigurationDebt shouldBe null
+				localSubject.retryPendingReconfiguration() shouldBe null
+				coVerify(exactly = 0) { localLifecycle.reconfigure(any()) }
+			}
+		}
+
+	@Test
+	fun `successful recovery start clears inherited catalog debt before retry`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val current = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+		val currentInputs = inputs(current)
+		val reference = SourceCallerReplayReference("restored-debt-authority")
+		var storedDescriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = reference,
+		)
+		coEvery { activeSessionStore.read() } answers
+			{ ActiveTrackingSessionStoreResult.Success(storedDescriptor) }
+		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
+			val expected = firstArg<ActiveTrackingSessionDescriptor>()
+			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
+			if (expected == storedDescriptor) storedDescriptor = replacement
+			ActiveTrackingSessionStoreResult.Success(storedDescriptor)
+		}
+		coEvery { lifecycle.start(any()) } answers {
+			val request = firstArg<SessionStartRequest>()
+			val fingerprint = currentInputs.desiredPlanFingerprint(
+				plan = request.plan,
+				rolloutRevision = rollout.revision,
+				captureMode = CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+				startOrigin = SessionStartOrigin.RECOVERY,
+				foregroundCapabilityFlags = 1L,
+				controlDependencies = emptySet(),
+				codec = SourcePlanCodec(),
+			)
+			storedDescriptor = storedDescriptor.copy(
+				catalogReconfigurationDebt = catalogDebt(
+					logicalTrackingId = "logical",
+					serviceRunId = "run",
+					sourcePolicyRevision = 1L,
+					desiredPlanFingerprint = fingerprint,
+					desiredPlanGeneration = request.plan.revision,
+					requestedPlan = request.plan,
+				),
+			)
+			SessionStartResult.Started(
+				"logical",
+				"run",
+				emptyList(),
+				DesiredPlanStatus.EFFECTIVE,
+				reference,
+			)
+		}
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, current),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.RECOVERY,
+				foregroundCapabilityFlags = 1L,
+				planInputs = currentInputs,
+				ownerToken = "owner",
+			),
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+		subject.retryPendingReconfiguration() shouldBe null
+
+		storedDescriptor.catalogReconfigurationDebt shouldBe null
+		coVerify(exactly = 0) { lifecycle.reconfigure(any()) }
+	}
+
+	@Test
+	fun `new policy revision terminally supersedes restored catalog debt`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val current = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 2L)
+		val reference = SourceCallerReplayReference("superseded-debt-authority")
+		var storedDescriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = reference,
+			catalogReconfigurationDebt = catalogDebt("logical", "run", 1L),
+		)
+		coEvery { activeSessionStore.read() } answers
+			{ ActiveTrackingSessionStoreResult.Success(storedDescriptor) }
+		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
+			val expected = firstArg<ActiveTrackingSessionDescriptor>()
+			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
+			if (expected == storedDescriptor) storedDescriptor = replacement
+			ActiveTrackingSessionStoreResult.Success(storedDescriptor)
+		}
+		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+			"logical",
+			"run",
+			emptyList(),
+			DesiredPlanStatus.EFFECTIVE,
+			reference,
+		)
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, current),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(current),
+				ownerToken = "owner",
+			),
+		)
+
+		subject.retryPendingReconfiguration() shouldBe SourceSessionReconfigureOutcome.Unchanged
+
+		storedDescriptor.catalogReconfigurationDebt shouldBe null
+		coVerify(exactly = 0) { lifecycle.reconfigure(any()) }
+	}
+
+	@Test
+	fun `stale restored catalog debt is superseded before final stop`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val current = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+		val reference = SourceCallerReplayReference("stop-debt-authority")
+		var storedDescriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = reference,
+			catalogReconfigurationDebt = catalogDebt("logical", "run", 1L),
+		)
+		coEvery { activeSessionStore.read() } answers
+			{ ActiveTrackingSessionStoreResult.Success(storedDescriptor) }
+		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
+			val expected = firstArg<ActiveTrackingSessionDescriptor>()
+			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
+			if (expected == storedDescriptor) storedDescriptor = replacement
+			ActiveTrackingSessionStoreResult.Success(storedDescriptor)
+		}
+		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+			"logical",
+			"run",
+			emptyList(),
+			DesiredPlanStatus.EFFECTIVE,
+			reference,
+		)
+		coEvery { lifecycle.reconfigure(any()) } returns SessionReconfigureResult.Retryable(
+			revision = 2L,
+			failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+			sources = setOf(SourceKind.STEPS),
+		)
+		coEvery { lifecycle.stop(any()) } returns SessionStopResult.NoActiveSession
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, current),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(current),
+				ownerToken = "owner",
+			),
+		)
+		subject.retryPendingReconfiguration() shouldBe SourceSessionReconfigureOutcome.Unchanged
+
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Stopped
+
+		storedDescriptor.catalogReconfigurationDebt shouldBe null
+	}
+
+	@Test
+	fun `source disable clears restored catalog debt`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val current = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+		val reference = SourceCallerReplayReference("disable-debt-authority")
+		var storedDescriptor = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical",
+			serviceRunId = "run",
+			sourceCallerAuthorityReference = reference,
+			catalogReconfigurationDebt = catalogDebt("logical", "run", 1L),
+		)
+		coEvery { activeSessionStore.read() } answers
+			{ ActiveTrackingSessionStoreResult.Success(storedDescriptor) }
+		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
+			val expected = firstArg<ActiveTrackingSessionDescriptor>()
+			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
+			if (expected == storedDescriptor) storedDescriptor = replacement
+			ActiveTrackingSessionStoreResult.Success(storedDescriptor)
+		}
+		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+			"logical",
+			"run",
+			emptyList(),
+			DesiredPlanStatus.EFFECTIVE,
+			reference,
+		)
+		coEvery { lifecycle.reconfigure(any()) } returns SessionReconfigureResult.Retryable(
+			revision = 2L,
+			failureCode = "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
+			sources = setOf(SourceKind.STEPS),
+		)
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, current),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(current),
+				ownerToken = "owner",
+			),
+		)
+		subject.retryPendingReconfiguration() shouldBe SourceSessionReconfigureOutcome.Unchanged
+		coEvery { lifecycle.reconfigure(any()) } returns SessionReconfigureResult.Applied(
+			revision = 3L,
+			applied = emptyList(),
+			status = DesiredPlanStatus.EFFECTIVE,
+			sourceCallerAuthorityReference = reference,
+		)
+
+		subject.reconfigure(
+			inputs(settings(SourceCollectionFrequency.OFF, sourcePolicyRevision = 1L)),
+		).shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
+
+		storedDescriptor.catalogReconfigurationDebt shouldBe null
+	}
+
+	@Test
+	fun `unrelated session cannot consume durable catalog debt`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val current = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+		val reference = SourceCallerReplayReference("current-authority")
+		val unrelated = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "other-logical",
+			serviceRunId = "other-run",
+			sourceCallerAuthorityReference = SourceCallerReplayReference("other-authority"),
+			catalogReconfigurationDebt = catalogDebt("other-logical", "other-run", 1L),
+		)
+		coEvery { activeSessionStore.read() } returns
+			ActiveTrackingSessionStoreResult.Success(unrelated)
+		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
+			"logical",
+			"run",
+			emptyList(),
+			DesiredPlanStatus.EFFECTIVE,
+			reference,
+		)
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, current),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(current),
+				ownerToken = "owner",
+			),
+		)
+
+		subject.retryPendingReconfiguration() shouldBe null
+
+		coVerify(exactly = 0) { lifecycle.reconfigure(any()) }
+		coVerify(exactly = 0) { activeSessionStore.replaceExact(any(), any()) }
 	}
 
 	@Test
@@ -1464,6 +2284,95 @@ class TrackerServiceSourceSessionTest {
 		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
 	}
 
+	private fun sourceSession(
+		lifecycle: AuthoritativeSessionCoordinator,
+		store: ActiveTrackingSessionStore,
+	) = TrackerServiceSourceSession(
+		database,
+		lifecycle,
+		SemanticAcquisitionPlanFactory(),
+		SourcePlanResolver(),
+		TrackingCoordinatorTelemetry(),
+		statusProvider,
+		Provider { startupGate },
+		rolloutStore,
+		store,
+	)
+
+	private suspend fun seedPreparedAppliedPlan(plan: AcquisitionPlanRevision) {
+		val planStore = RoomSourcePlanStore(database, SourcePlanCodec())
+		planStore.persistDesired(plan, DesiredPlanStatus.EFFECTIVE)
+		appliedStates(plan).forEach { state ->
+			planStore.saveApplied(
+				state = state,
+				effectivePlan = plan.plans.getValue(state.source),
+				updatedAtMs = plan.createdAtMs,
+			)
+		}
+	}
+
+	private fun appliedStates(plan: AcquisitionPlanRevision): List<AppliedSourcePlan> =
+		plan.plans.values.sortedBy { sourcePlan -> sourcePlan.source.stableCode }.map { sourcePlan ->
+			AppliedSourcePlan(
+				desiredRevision = plan.revision,
+				appliedRevision = plan.revision,
+				source = sourcePlan.source,
+				sourceInstanceId = SourceInstanceId(
+					"prepared-${sourcePlan.source.name.lowercase()}-${plan.revision}",
+				).takeIf { sourcePlan.enabled },
+				registrationGeneration = plan.revision.takeIf { sourcePlan.enabled },
+				appliedAtElapsedRealtimeNanos = plan.revision * 1_000L,
+				status = SourceApplyStatus.APPLIED,
+			)
+		}
+
+	private fun sourcePlanIdentity(
+		inputs: SourceSessionPlanInputs,
+		rollout: TrackingRolloutState,
+		plan: AcquisitionPlanRevision,
+	): SourcePlanIdentity {
+		val inputsFingerprint = inputs.planInputsFingerprint(
+			rolloutRevision = rollout.revision,
+			captureMode = CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+			startOrigin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+			foregroundCapabilityFlags = 1L,
+			controlDependencies = emptySet(),
+		)
+		return SourcePlanIdentity(
+			generation = plan.revision,
+			inputsFingerprint = inputsFingerprint,
+			planFingerprint = sourcePlanFingerprint(
+				inputsFingerprint,
+				plan,
+				SourcePlanCodec(),
+			),
+		)
+	}
+
+	private fun preparedClaim(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		planRevision: Long,
+		referenceIntent: SessionLifecycleIntentVersionEntity,
+	) = ClaimedPreparedSessionStart(
+		token = PreparedTrackingStartToken("prepared-$serviceRunId"),
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+		manifestRevision = 1L,
+		intentRevision = 1L,
+		planRevision = planRevision,
+		sourcePolicyRevision = 7L,
+		startOrigin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+		sessionMode = SessionMode.MANUAL,
+		acceptedSources = setOf(SourceKind.STEPS),
+		desiredForegroundCapabilityFlags = 1L,
+		intent = referenceIntent,
+		automaticTrigger = null,
+		isUserInitiated = true,
+		isAmbient = false,
+		alreadyForegroundAccepted = true,
+	)
+
 	private fun inputs(
 		settings: TrackingParamsState,
 		severeThermalPressure: Boolean = false,
@@ -1479,6 +2388,68 @@ class TrackerServiceSourceSessionTest {
 		demands = emptyList(),
 		clockDomainId = "boot-1",
 	)
+
+	private fun resolvedPlanForFingerprint(
+		inputs: SourceSessionPlanInputs,
+		rollout: TrackingRolloutState,
+		revision: Long,
+	): com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision {
+		val desired = SemanticAcquisitionPlanFactory().create(
+			inputs.settings,
+			revision,
+			1_000L,
+			inputs.environment,
+		)
+		val captureDemands = desired.plans
+			.filter { (source, plan) ->
+				plan.enabled &&
+					rollout.isCaptureReachable(
+						source,
+						CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+					)
+			}
+			.map { (source, _) ->
+				val contract = SourceDemandContractFactory.forQos(
+					source,
+					inputs.settings.sourceCollectionSettings.frequencyFor(source).stableCode,
+					DirectSourceDemandPurpose.SESSION_CAPTURE,
+				)
+				SourceDemand(
+					source = source,
+					maximumAgeMs = contract.maximumProviderItemAgeMs,
+					desiredLatencyMs = contract.targetPlanningLatencyMs,
+					quality = EvidenceQuality.ANY,
+					reason = DemandReason.SESSION,
+					acquisitionFloor = contract.floor,
+					requestedDeliveryLatencyMs = contract.requestedDeliveryLatencyMs,
+					adaptiveReductionAllowed = contract.adaptiveReductionAllowed,
+				)
+			}
+		val resolved = SourcePlanResolver().resolve(
+			desired,
+			inputs.demands + captureDemands,
+			inputs.resolutionContext,
+		)
+		return desired.copy(
+			planId = "${desired.planId}-event-rollout-${rollout.revision}",
+			plans = resolved.applicablePlans.filterKeys { source ->
+				rollout.isCaptureReachable(
+					source,
+					CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+				)
+			},
+		)
+	}
+
+	private fun SourceCollectionSettings.frequencyFor(source: SourceKind): SourceCollectionFrequency =
+		when (source) {
+			SourceKind.LOCATION -> location
+			SourceKind.ACTIVITY -> activity
+			SourceKind.STEPS -> steps
+			SourceKind.PRESSURE -> pressure
+			SourceKind.WIFI -> wifi
+			SourceKind.CELL -> cell
+		}
 
 	private fun allEventCanonical(
 		revision: Long,
@@ -1539,6 +2510,59 @@ class TrackerServiceSourceSessionTest {
 			1,
 			setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
 		)
+
+		private fun catalogDebt(
+			logicalTrackingId: String,
+			serviceRunId: String,
+			sourcePolicyRevision: Long,
+			desiredPlanFingerprint: String =
+				"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			desiredPlanGeneration: Long = 2L,
+			requestedPlan: AcquisitionPlanRevision? = null,
+		): CatalogReconfigurationDebt {
+			val plan = requestedPlan ?: AcquisitionPlanRevision(
+				revision = 2L,
+				planId = "restored-catalog-plan",
+				createdAtMs = 2_000L,
+				plans = mapOf(
+					SourceKind.STEPS to StepsPlan(
+						revision = 2L,
+						enabled = true,
+						maximumReportLatencyMs = 60_000L,
+						projectionCheckpointIntervalMs = 15_000L,
+						movementPolicyNeedsLowLatency = false,
+					),
+				),
+				sourcePolicyRevision = sourcePolicyRevision,
+			)
+			val encodedPlans = plan.plans.values
+				.sortedBy { sourcePlan -> sourcePlan.source.stableCode }
+				.map { sourcePlan ->
+					val encoded = SourcePlanCodec().encode(sourcePlan)
+					CatalogReconfigurationSourcePlan(
+						sourceStableCode = sourcePlan.source.stableCode,
+						payloadVersion = SourcePlanCodec.FORMAT_VERSION,
+						payloadBase64 = Base64.getEncoder().encodeToString(encoded.bytes),
+						payloadChecksum = encoded.checksum,
+					)
+				}
+			return CatalogReconfigurationDebt(
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				sourcePolicyRevision = sourcePolicyRevision,
+				desiredPlanGeneration = desiredPlanGeneration,
+				desiredPlanFingerprint = desiredPlanFingerprint,
+				requestedPlanRevision = plan.revision,
+				requestedPlanId = plan.planId,
+				requestedPlanCreatedAtMs = plan.createdAtMs,
+				requestedPlans = encodedPlans,
+				deferredSourceMask = 1L shl (SourceKind.STEPS.stableCode - 1),
+				clockDomainId = "boot-1",
+				zoneId = ZoneId.systemDefault().id,
+				foregroundCapabilityFlags = 1L,
+				controlDependencyMask = 0L,
+			)
+		}
 	}
 
 }

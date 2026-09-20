@@ -364,6 +364,24 @@ private fun ActiveTrackingSessionProto.toDescriptor(): ActiveTrackingSessionDesc
 				pendingRetirementSourceCallerAuthorityReference
 					.takeIf(String::isNotBlank)
 					?.let(::SourceCallerReplayReference),
+			catalogReconfigurationDebt = if (
+				hasCatalogReconfigurationDebt() &&
+				catalogReconfigurationDebt.hasExactDesiredPlanIdentity()
+			) {
+				catalogReconfigurationDebt.toDebt()
+			} else {
+				null
+			},
+			appliedSourcePlanIdentity = if (hasAppliedSourcePlanIdentity()) {
+				appliedSourcePlanIdentity.toIdentity()
+			} else {
+				null
+			},
+			desiredSourcePlanIdentity = if (hasDesiredSourcePlanIdentity()) {
+				desiredSourcePlanIdentity.toIdentity()
+			} else {
+				null
+			},
 		)
 	} catch (exception: IllegalArgumentException) {
 		throw CorruptionException("Active tracking session descriptor is invalid", exception)
@@ -395,7 +413,90 @@ private fun ActiveTrackingSessionDescriptor.toProto(): ActiveTrackingSessionProt
 		.setPendingRetirementSourceCallerAuthorityReference(
 			pendingRetirementSourceCallerAuthorityReference?.value.orEmpty(),
 		)
+		.apply {
+			catalogReconfigurationDebt?.let { debt ->
+				setCatalogReconfigurationDebt(debt.toProto())
+			}
+			appliedSourcePlanIdentity?.let { identity ->
+				setAppliedSourcePlanIdentity(identity.toProto())
+			}
+			desiredSourcePlanIdentity?.let { identity ->
+				setDesiredSourcePlanIdentity(identity.toProto())
+			}
+		}
 		.build()
+
+private fun SourcePlanIdentityProto.toIdentity(): SourcePlanIdentity = try {
+	SourcePlanIdentity(
+		version = version,
+		generation = generation,
+		inputsFingerprint = inputsFingerprint,
+		planFingerprint = planFingerprint,
+	)
+} catch (exception: IllegalArgumentException) {
+	throw CorruptionException("Active source-plan identity is invalid", exception)
+}
+
+private fun SourcePlanIdentity.toProto(): SourcePlanIdentityProto =
+	SourcePlanIdentityProto.newBuilder()
+		.setVersion(version)
+		.setGeneration(generation)
+		.setInputsFingerprint(inputsFingerprint)
+		.setPlanFingerprint(planFingerprint)
+		.build()
+
+private fun CatalogReconfigurationDebtProto.toDebt(): CatalogReconfigurationDebt =
+	CatalogReconfigurationDebt(
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+		sourcePolicyRevision = sourcePolicyRevision,
+		desiredPlanGeneration = desiredPlanGeneration,
+		desiredPlanFingerprint = desiredPlanFingerprint,
+		requestedPlanRevision = requestedPlanRevision,
+		requestedPlanId = requestedPlanId,
+		requestedPlanCreatedAtMs = requestedPlanCreatedAtMs,
+		requestedPlans = requestedPlansList.map { plan ->
+			CatalogReconfigurationSourcePlan(
+				sourceStableCode = plan.sourceStableCode,
+				payloadVersion = plan.payloadVersion,
+				payloadBase64 = plan.payloadBase64,
+				payloadChecksum = plan.payloadChecksum,
+			)
+		},
+		deferredSourceMask = deferredSourceMask,
+		clockDomainId = clockDomainId,
+		zoneId = zoneId,
+		foregroundCapabilityFlags = foregroundCapabilityFlags,
+		controlDependencyMask = controlDependencyMask,
+	)
+
+private fun CatalogReconfigurationDebt.toProto(): CatalogReconfigurationDebtProto =
+	CatalogReconfigurationDebtProto.newBuilder()
+		.setLogicalTrackingId(logicalTrackingId)
+		.setServiceRunId(serviceRunId)
+		.setSourcePolicyRevision(sourcePolicyRevision)
+		.setDesiredPlanGeneration(desiredPlanGeneration)
+		.setDesiredPlanFingerprint(desiredPlanFingerprint)
+		.setRequestedPlanRevision(requestedPlanRevision)
+		.setRequestedPlanId(requestedPlanId)
+		.setRequestedPlanCreatedAtMs(requestedPlanCreatedAtMs)
+		.addAllRequestedPlans(requestedPlans.map { plan ->
+			CatalogReconfigurationSourcePlanProto.newBuilder()
+				.setSourceStableCode(plan.sourceStableCode)
+				.setPayloadVersion(plan.payloadVersion)
+				.setPayloadBase64(plan.payloadBase64)
+				.setPayloadChecksum(plan.payloadChecksum)
+				.build()
+		})
+		.setDeferredSourceMask(deferredSourceMask)
+		.setClockDomainId(clockDomainId)
+		.setZoneId(zoneId)
+		.setForegroundCapabilityFlags(foregroundCapabilityFlags)
+		.setControlDependencyMask(controlDependencyMask)
+		.build()
+
+private fun CatalogReconfigurationDebtProto.hasExactDesiredPlanIdentity(): Boolean =
+	desiredPlanGeneration > 0L && desiredPlanFingerprint.matches(Regex("[0-9a-f]{64}"))
 
 /**
  * Old proto records did not carry correlation IDs.  Keep generation here (rather than deriving
@@ -432,5 +533,8 @@ private fun mergeServiceDescriptorForPersistence(
 		sourceCallerAuthorityReference = current.sourceCallerAuthorityReference,
 		pendingRetirementSourceCallerAuthorityReference =
 			current.pendingRetirementSourceCallerAuthorityReference,
+		catalogReconfigurationDebt = current.catalogReconfigurationDebt,
+		appliedSourcePlanIdentity = current.appliedSourcePlanIdentity,
+		desiredSourcePlanIdentity = current.desiredSourcePlanIdentity,
 	)
 }

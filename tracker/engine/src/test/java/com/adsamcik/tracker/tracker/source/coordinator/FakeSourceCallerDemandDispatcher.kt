@@ -37,6 +37,10 @@ internal class FakeSourceCallerDemandDispatcher(
 			request.manifest.logicalTrackingId,
 			request.manifest.manifestRevision,
 		)
+		val sessionLeaseOwner = database.sourceProjectionStateDao()
+			.lease("tracking-session-coordinator")
+			?.ownerToken
+			?: error("Session lease is missing during caller acceptance")
 		val identities = request.bindings.mapTo(linkedSetOf()) { binding ->
 			val source = TrackingSource.fromStableCode(binding.sourceKind)
 			val purpose = when (binding.purpose) {
@@ -52,7 +56,11 @@ internal class FakeSourceCallerDemandDispatcher(
 					collectedDataEpoch = 0L,
 					rolloutRevision = request.manifest.rolloutRevision,
 					executionRevision = request.lifecycleLeaseGeneration,
-					ownerCasToken = "test-source-caller",
+					ownerCasToken = if (purpose == TrackingPurpose.SESSION_CAPTURE) {
+						sessionLeaseOwner
+					} else {
+						"test-source-caller"
+					},
 				),
 				manifestIdentity = manifestIdentity.takeIf {
 					purpose == TrackingPurpose.SESSION_CAPTURE
