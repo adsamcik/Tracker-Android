@@ -219,7 +219,7 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 		val localFences = linkedMapOf<String, SourceDeletionFenceEntity>()
 		for (run in entry.runs) {
 			database.fenceImportedPortableSessionRun(
-				entryIdentity = entry.metadata.identity,
+				entry = entry,
 				runIdentity = run.identity,
 				fenceKind =
 					ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_SELECTED_DELETE,

@@ -1182,7 +1182,7 @@ private class AmbientStepsSessionRangeReader(
 									run.identity in entry.retentionTruncatedRunIds,
 								)
 							val owners = database.importedSessionCountDomainOwners(
-								entry.metadata.identity,
+								entry,
 								run.identity,
 							) ?: return AmbientStepsSessionRangeRead.Unverifiable
 							imported += QualifiedSessionStepsWindow(

@@ -298,6 +298,11 @@ class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
 							AmbientStepsPortableReadFailure.CORRUPT_RETAINED_STATE,
 						)
 				}
+				if (!graph.hasCompletePortableOwnerLineages()) {
+					return AmbientStepsPortableSnapshot.Unverifiable(
+						AmbientStepsPortableReadFailure.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
+					)
+				}
 				authenticatedDays += PortableAmbientStepsDayV2(portableDay, graph)
 			}
 			portableDay

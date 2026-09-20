@@ -8,6 +8,7 @@ import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV2Codec
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV2
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsV2
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResult
@@ -72,20 +73,25 @@ internal class PortableAmbientStepsExporter(
 			)
 		}
 		val sourceResult = try {
-			val countedDestination = CountingExportOutputStream(outputStream)
-			val v2Result = codec.encode(countedDestination) { sink ->
-				backend.exportV2(origin, request, sink)
-			}
-			if (v2Result is ExportPortableAmbientStepsResult.Exported) {
-				if (countedDestination.writtenBytes == 0L) {
-					throw PortableAmbientStepsFormatException(
-						"Successful Ambient Steps v2 export wrote no bytes",
-					)
+			val v2Result = FileBackedExportSpool(
+				context,
+				"portable-ambient-steps-v2-",
+				AmbientStepsPortableFormatV2.MAX_FILE_BYTES,
+			).use { spool ->
+				val staged = spool.write { spoolOutput ->
+					codec.encode(spoolOutput) { sink ->
+						backend.exportV2(origin, request, sink)
+					}
 				}
-			} else if (countedDestination.writtenBytes != 0L) {
-				throw PortableAmbientStepsFormatException(
-					"Unsuccessful Ambient Steps v2 export wrote destination bytes",
-				)
+				if (staged is ExportPortableAmbientStepsResult.Exported) {
+					if (spool.byteCount == 0L) {
+						throw PortableAmbientStepsFormatException(
+							"Successful Ambient Steps v2 export wrote no bytes",
+						)
+					}
+					spool.copyTo(outputStream)
+				}
+				staged
 			}
 			if (
 				v2Result is ExportPortableAmbientStepsResult.Unverifiable &&

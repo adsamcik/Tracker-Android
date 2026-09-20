@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -26,6 +27,8 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsOpaqueIdent
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsProviderCoverage
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsRunV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsSessionMode
+import com.adsamcik.tracker.shared.model.steps.portable.legacyUnprovenStepsCountDomainGraph
+import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.nulls.shouldNotBeNull
 import kotlinx.coroutines.test.runTest
@@ -72,6 +75,22 @@ class ImportedStepsRetentionTest {
 		retained.metadata.contentChecksum shouldBe entry.contentChecksum.value
 		retained.retentionTruncatedRunIds shouldBe setOf(entry.runs.single().identity.value)
 		retained.factsByRun.values.flatten().map { it.effectiveStepCount } shouldBe listOf(0L, null)
+		val binding = database.loadAuthenticatedImportedSessionCountDomainBinding(retained)
+			.shouldNotBeNull()
+		binding.graph shouldBe legacyUnprovenStepsCountDomainGraph(
+			entry.contentChecksum,
+			retained.portableRunsById.values.toList(),
+		)
+		val removedFact = entry.runs.single().facts.first()
+		database.importedPortableStepsCountDomainDao().ownerFences(
+			listOf(
+				entry.withExplicitUnprovenCountDomain().countDomainGraph.roots.single {
+					it.productIdentity.value == removedFact.identity.value
+				}.ownerIdentity.value,
+			),
+			2,
+		).single().fenceKind shouldBe
+			ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION
 		database.markAuthenticatedStepsRunsAffectedByRetentionFloor(25L, 1L, 101L) shouldBe 0
 		database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(25L, 1L, 101L) shouldBe 0
 	}
@@ -114,6 +133,18 @@ class ImportedStepsRetentionTest {
 		database.sessionSegmentDao().getById(requireNotNull(first.sessionSegmentId)) shouldBe null
 		fence(entry.runs.first(), StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE).shouldNotBeNull()
 		fence(entry.runs.last(), StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE) shouldBe null
+		val originalGraph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+		val deletedRunOwners = originalGraph.roots.filter {
+			it.containerIdentity.value == entry.runs.first().identity.value
+		}.map { it.ownerIdentity.value }
+		database.importedPortableStepsCountDomainDao().ownerFences(
+			deletedRunOwners,
+			deletedRunOwners.size + 1,
+		).all {
+			it.fenceKind == ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION
+		} shouldBe true
+		database.loadAuthenticatedImportedSessionCountDomainBinding(retained)
+			.shouldNotBeNull().graph shouldBe retained.legacyUnprovenCountDomainGraph()
 		database.pruneImportedStepsSegmentsBefore(81L, 101L) shouldBe 1
 		database.importedStepsDao().entry(entry.identity.value) shouldBe null
 		database.stepFactRevisionDao().countAll() shouldBe 0L

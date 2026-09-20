@@ -148,6 +148,21 @@ interface ImportedPortableStepsCountDomainDao {
 	): ImportedPortableStepsFileReceiptEntity?
 
 	@Query(
+		"UPDATE imported_steps_file_receipt SET graph_identity = :newGraphIdentity " +
+			"WHERE entry_identity = :entryIdentity AND graph_identity = :expectedGraphIdentity",
+	)
+	suspend fun updateFileReceiptGraphIdentity(
+		entryIdentity: String,
+		expectedGraphIdentity: String,
+		newGraphIdentity: String,
+	): Int
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_steps_file_receipt WHERE entry_identity = :entryIdentity",
+	)
+	suspend fun fileReceiptCountForEntry(entryIdentity: String): Int
+
+	@Query(
 		"DELETE FROM imported_steps_count_domain_binding WHERE product_kind = :productKind " +
 			"AND product_identity = :productIdentity AND product_revision = :productRevision " +
 			"AND graph_identity = :graphIdentity",

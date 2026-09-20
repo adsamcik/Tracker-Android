@@ -488,7 +488,7 @@ internal class RoomImportPortableSteps internal constructor(
 			IMPORTED_PRODUCT_REVISION,
 		) ?: return attributionUnverifiable()
 		val authenticated = try {
-			database.loadAuthenticatedImportedSessionCountDomainBinding(entry.identity.value)
+			database.loadAuthenticatedImportedSessionCountDomainBinding(entry)
 		} catch (_: IllegalArgumentException) {
 			return attributionUnverifiable()
 		} catch (_: IllegalStateException) {

@@ -134,9 +134,9 @@ private suspend fun AppDatabase.authenticatedImportedSessionBindingsForFullClear
 				)
 			} else {
 				consumedBindings += binding
-				loadAuthenticatedImportedSessionCountDomainBindingForFullClear(binding)
+				loadAuthenticatedImportedSessionCountDomainBindingForFullClear(binding, product)
 			}
-			requireSessionGraphCoversRetainedProduct(authenticated.graph, product)
+			requireSessionGraphCoversRetainedProduct(authenticated, product)
 			result += authenticated
 		}
 		beforeStartTimeMs = page.last().startTimeMs
@@ -255,8 +255,8 @@ private fun reconstructGraphlessLegacyAmbientLineage(
 		}
 }
 
-private fun requireSessionGraphCoversRetainedProduct(
-	graph: PortableCountDomainGraphV2,
+private fun AppDatabase.requireSessionGraphCoversRetainedProduct(
+	authenticated: AuthenticatedImportedPortableGraphBinding,
 	product: RetainedImportedStepsEntry,
 ) {
 	val liveRunIds = product.runs.mapTo(linkedSetOf()) { it.identity }
@@ -280,17 +280,58 @@ private fun requireSessionGraphCoversRetainedProduct(
 			)
 		}
 	}
-	val storedRoots = graph.roots
-		.filter { it.containerIdentity.value in liveRunIds }
-		.mapTo(linkedSetOf()) {
+	val graph = authenticated.graph
+	val storedRoots = graph.roots.mapTo(linkedSetOf()) {
 			SessionRootKey(
 				it.containerIdentity.value,
 				it.productIdentity.value,
 				it.ownerKind,
 			)
 		}
-	require(storedRoots == expectedRoots) {
-		"Imported Steps graph does not exactly cover every retained run and fact"
+	require(storedRoots.containsAll(expectedRoots)) {
+		"Imported Steps graph is missing retained run or fact ownership"
+	}
+	val extraRoots = graph.roots.filter { root ->
+		SessionRootKey(
+			root.containerIdentity.value,
+			root.productIdentity.value,
+			root.ownerKind,
+		) !in expectedRoots
+	}
+	if (extraRoots.isEmpty()) return
+	val dao = importedPortableStepsCountDomainDao()
+	val fences = extraRoots.map { it.ownerIdentity.value }.distinct().chunked(FENCE_QUERY_BATCH)
+		.flatMap { dao.ownerFencesForFullClear(it) }
+	val fencesByOwner = fences.associateBy { it.ownerKind to it.ownerIdentity }
+	require(fencesByOwner.size == fences.size)
+	extraRoots.forEach { root ->
+		require(root.containerIdentity.value !in liveRunIds ||
+			root.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT
+		) {
+			"Imported Steps graph has an unfenced extra live-run root"
+		}
+		val owner = graph.ownerRevisions.single {
+			it.ownerKind == root.ownerKind &&
+				it.ownerIdentity == root.ownerIdentity &&
+				it.ownerRevision == root.ownerRevision
+		}
+		val fence = requireNotNull(
+			fencesByOwner[root.ownerKind.name to root.ownerIdentity.value],
+		) {
+			"Imported Steps graph has an extra root without a terminal fence"
+		}
+		require(
+			fence.scopeIdentity == owner.scopeIdentity.value &&
+				fence.latestSourceRevision == owner.ownerRevision &&
+				fence.latestOwnerEffectChecksum == owner.ownerEffectChecksum.value &&
+				fence.productKind == authenticated.binding.productKind &&
+				fence.productIdentity == authenticated.binding.productIdentity &&
+				fence.graphIdentity == authenticated.binding.graphIdentity &&
+				fence.fenceKind in SESSION_PRUNING_FENCE_KINDS &&
+				fence.collectedDataEpoch == product.metadata.collectedDataEpoch,
+		) {
+			"Imported Steps graph extra root has conflicting terminal authority"
+		}
 	}
 }
 
@@ -306,3 +347,8 @@ private const val INSERT_BATCH = 256
 private const val SESSION_FULL_CLEAR_PAGE_SIZE = 32
 private const val AMBIENT_FULL_CLEAR_PAGE_SIZE = 256
 private const val SESSION_PRODUCT_REVISION = 1L
+private const val FENCE_QUERY_BATCH = 400
+private val SESSION_PRUNING_FENCE_KINDS = setOf(
+	ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION,
+	ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_SELECTED_DELETE,
+)

@@ -5,6 +5,8 @@ import android.database.sqlite.SQLiteException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -15,6 +17,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
@@ -275,6 +278,56 @@ class RoomImportPortableStepsTest {
 			summary.calendarZoneId shouldBe ENTRY_ZONE_ID
 		}
 	}
+
+	@Test
+	fun `graphless legacy imported deletion reconstructs and retains exact owner fences`() =
+		runTest {
+			database.sourceEvidenceStateDao().ensure(
+				SourceEvidenceState(collectedDataEpoch = 3L),
+			)
+			val entry = entry()
+			subject().importEntry(entry) shouldBe ImportPortableStepsResult.Applied(1, 1)
+			val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+			val graphDao = database.importedPortableStepsCountDomainDao()
+			val binding = requireNotNull(
+				graphDao.binding(
+					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+					entry.identity.value,
+					1L,
+				),
+			)
+			graphDao.deleteBindingExact(
+				binding.productKind,
+				binding.productIdentity,
+				binding.productRevision,
+				binding.graphIdentity,
+			) shouldBe 1
+			graphDao.deleteGraphIfUnbound(binding.graphIdentity) shouldBe 1
+			val segmentId = requireNotNull(
+				database.importedStepsDao().run(entry.runs.single().identity.value)
+					?.sessionSegmentId,
+			)
+
+			deletionSubject().deleteSelectedSession(segmentId) shouldBe
+				StepsSessionDeletionResult.Deleted
+
+			graphDao.ownerFences(
+				graph.roots.map { it.ownerIdentity.value },
+				graph.roots.size + 1,
+			).also { fences ->
+				fences.map { it.ownerIdentity }.toSet() shouldBe
+					graph.roots.map { it.ownerIdentity.value }.toSet()
+				fences.all {
+					it.fenceKind ==
+						ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_SELECTED_DELETE
+				} shouldBe true
+			}
+			graphDao.binding(
+				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				entry.identity.value,
+				1L,
+			) shouldBe null
+		}
 
 	@Test
 	fun `incomplete imported hierarchy is typed and remains untouched`() = runTest {

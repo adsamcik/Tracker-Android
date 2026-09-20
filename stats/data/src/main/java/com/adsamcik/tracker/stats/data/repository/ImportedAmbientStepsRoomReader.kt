@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.loadAuthenticatedAmbientStepsLineage
 import com.adsamcik.tracker.shared.base.database.authenticateAllAmbientStepsFences
+import com.adsamcik.tracker.shared.base.database.hasCompletePortableOwnerLineages
 import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedAmbientStepsGraphLineage
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
@@ -238,10 +239,15 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 				ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
 			)
 			if (includeCountDomainGraph) {
+				if (!checkNotNull(graphRevision).graph.hasCompletePortableOwnerLineages()) {
+					return ImportedAmbientStepsSnapshot.Unverifiable(
+						ImportedAmbientStepsReadFailure.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
+					)
+				}
 				authenticatedDays += try {
 					PortableAmbientStepsDayV2(
 						portableDay,
-						checkNotNull(graphRevision).graph,
+						graphRevision.graph,
 					)
 				} catch (_: IllegalArgumentException) {
 					return ImportedAmbientStepsSnapshot.Unverifiable(

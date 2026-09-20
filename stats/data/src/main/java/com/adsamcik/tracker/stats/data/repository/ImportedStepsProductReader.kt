@@ -190,7 +190,7 @@ internal class ImportedStepsProductReader(
 				)
 			val authenticated = try {
 				database.loadAuthenticatedImportedSessionCountDomainBinding(
-					entry.metadata.identity,
+					entry,
 				)
 			} catch (_: IllegalArgumentException) {
 				return v2Unavailable(

@@ -413,7 +413,7 @@ internal class AmbientStepsDayRepository @Inject constructor(
 							run.identity in entry.retentionTruncatedRunIds,
 						)
 						val owners = database.importedSessionCountDomainOwners(
-							entry.metadata.identity,
+							entry,
 							run.identity,
 						) ?: return historicalEvidenceMissing()
 						verified += QualifiedSessionStepsWindow(

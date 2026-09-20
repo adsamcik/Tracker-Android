@@ -562,8 +562,8 @@ class RoomImportedAmbientStepsTransferTest {
 
 		importer(database).importArchive(
 			requestV2(truncated, jobId = "truncated", archiveKey = "truncated"),
-		) shouldBe ImportPortableAmbientStepsResult.Blocked(
-			PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT,
+		) shouldBe ImportPortableAmbientStepsResult.Unverifiable(
+			PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID,
 		)
 	}
 
@@ -583,6 +583,14 @@ class RoomImportedAmbientStepsTransferTest {
 					EPOCH,
 				),
 			)
+			reexportV2Result(
+				database,
+				PortableAmbientStepsArchiveV2.create(
+					listOf(correction.days.single().withExplicitUnprovenCountDomain()),
+				),
+			) shouldBe ExportPortableAmbientStepsResult.Unverifiable(
+				PortableAmbientStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
+			)
 			val revisionTwo = lineage.last().graph.ownerRevisions.single()
 			val truncatedSuccessor = PortableCountDomainGraphV2.create(
 				receipts = emptyList(),
@@ -599,10 +607,37 @@ class RoomImportedAmbientStepsTransferTest {
 
 			importer(database).importArchive(
 				requestV2(explicit, jobId = "v2-truncated", archiveKey = "v2-truncated"),
-			) shouldBe ImportPortableAmbientStepsResult.Blocked(
-				PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT,
+			) shouldBe ImportPortableAmbientStepsResult.Unverifiable(
+				PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID,
 			)
 		}
+
+	@Test
+	fun `incomplete explicit v2 is rejected before duplicate receipt reuse`() = runTest {
+		val day = completeDay(LocalDate.of(2026, 1, 17), 5L)
+		val complete = PortableAmbientStepsArchiveV2.create(
+			listOf(day.withExplicitUnprovenCountDomain()),
+		)
+		importer(database).importArchive(requestV2(complete)) shouldBe applied(complete, 1)
+		val initialOwner = complete.days.single().countDomainGraph.ownerRevisions.single()
+		val incompleteGraph = PortableCountDomainGraphV2.create(
+			receipts = emptyList(),
+			ownerRevisions = listOf(initialOwner.copy(ownerRevision = 2L)),
+			completenessMarkers = emptyList(),
+			roots = complete.days.single().countDomainGraph.roots.map {
+				it.copy(ownerRevision = 2L)
+			},
+		)
+		val incomplete = PortableAmbientStepsArchiveV2.create(
+			listOf(PortableAmbientStepsDayV2(day, incompleteGraph)),
+		)
+
+		importer(database).importArchive(requestV2(incomplete)) shouldBe
+			ImportPortableAmbientStepsResult.Unverifiable(
+				PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID,
+			)
+		database.importedAmbientStepsDao().archiveCount() shouldBe 1L
+	}
 
 	@Test
 	fun `persisted v2 binding after legacy revisions must retain revision one lineage`() = runTest {

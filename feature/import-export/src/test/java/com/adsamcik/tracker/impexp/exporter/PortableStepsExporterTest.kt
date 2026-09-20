@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.impexp.exporter
 
-import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.portable.PortableStepsJsonException
@@ -31,10 +30,10 @@ import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
-import io.mockk.mockk
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -61,7 +60,7 @@ class PortableStepsExporterTest {
 		}
 
 		val result = exporter.export(
-			context = mockk<Context>(relaxed = true),
+			context = ApplicationProvider.getApplicationContext(),
 			locationData = locationData,
 			outputStream = output,
 			dateRange = 1_000L..1_999L,
@@ -85,7 +84,12 @@ class PortableStepsExporterTest {
 		}
 		val output = ByteArrayOutputStream()
 
-		val result = exporter.export(mockk(relaxed = true), emptySequence(), output, null)
+		val result = exporter.export(
+			ApplicationProvider.getApplicationContext(),
+			emptySequence(),
+			output,
+			null,
+		)
 
 		receivedRequest shouldBe PortableStepsExporter.FULL_HISTORY
 		result shouldBe ExportResult.Error(
@@ -108,7 +112,12 @@ class PortableStepsExporterTest {
 					PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
 				)
 			}
-		}.export(mockk(relaxed = true), emptySequence(), unavailableOutput, null)
+		}.export(
+			ApplicationProvider.getApplicationContext(),
+			emptySequence(),
+			unavailableOutput,
+			null,
+		)
 		val retryableOutput = ByteArrayOutputStream()
 		val retryable = PortableStepsExporter {
 			fakeExporter { _, _ ->
@@ -116,7 +125,12 @@ class PortableStepsExporterTest {
 					PortableStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
 				)
 			}
-		}.export(mockk(relaxed = true), emptySequence(), retryableOutput, null)
+		}.export(
+			ApplicationProvider.getApplicationContext(),
+			emptySequence(),
+			retryableOutput,
+			null,
+		)
 
 		(unavailable as ExportResult.Error).message?.stringRes shouldBe
 			R.string.export_error_portable_steps_unverifiable
@@ -178,7 +192,7 @@ class PortableStepsExporterTest {
 		}
 
 		exporter.export(
-			mockk(relaxed = true),
+			ApplicationProvider.getApplicationContext(),
 			emptySequence(),
 			output,
 			null,
@@ -210,6 +224,87 @@ class PortableStepsExporterTest {
 		)
 
 		kotlin.test.assertFailsWith<PortableStepsJsonException> {
+			exporter.export(
+				ApplicationProvider.getApplicationContext(),
+				emptySequence(),
+				output,
+				null,
+			)
+		}
+		output.size() shouldBe 0
+	}
+
+	@Test
+	fun `v2 codec failure after emission leaves caller destination empty`() = runTest {
+		val archive = PortableStepsArchiveV2.create(
+			listOf(entry().withExplicitUnprovenCountDomain()),
+		)
+		val output = ByteArrayOutputStream()
+		val exporter = PortableStepsExporter {
+			fakeExporter { _, sink ->
+				sink.emit(archive)
+				ExportPortableStepsResult.RetryableFailure(
+					PortableStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
+				)
+			}
+		}
+
+		kotlin.test.assertFailsWith<PortableStepsJsonException> {
+			exporter.export(
+				ApplicationProvider.getApplicationContext(),
+				emptySequence(),
+				output,
+				null,
+			)
+		}
+		output.size() shouldBe 0
+	}
+
+	@Test
+	fun `v2 cancellation after emission leaves caller destination empty`() = runTest {
+		val archive = PortableStepsArchiveV2.create(
+			listOf(entry().withExplicitUnprovenCountDomain()),
+		)
+		val output = ByteArrayOutputStream()
+		val exporter = PortableStepsExporter {
+			fakeExporter { _, sink ->
+				sink.emit(archive)
+				throw CancellationException("cancel staged v2 encode")
+			}
+		}
+
+		kotlin.test.assertFailsWith<CancellationException> {
+			exporter.export(
+				ApplicationProvider.getApplicationContext(),
+				emptySequence(),
+				output,
+				null,
+			)
+		}
+		output.size() shouldBe 0
+	}
+
+	@Test
+	fun `v1 fallback cancellation after emission leaves caller destination empty`() = runTest {
+		val legacyEntry = entry()
+		val output = ByteArrayOutputStream()
+		val exporter = PortableStepsExporter(
+			legacyExporterProvider = {
+				fakeLegacyExporter { _, sink ->
+					sink.emit(legacyEntry)
+					throw CancellationException("cancel staged v1 encode")
+				}
+			},
+			exporterProvider = {
+				fakeExporter { _, _ ->
+					ExportPortableStepsResult.Unverifiable(
+						PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
+					)
+				}
+			},
+		)
+
+		kotlin.test.assertFailsWith<CancellationException> {
 			exporter.export(
 				ApplicationProvider.getApplicationContext(),
 				emptySequence(),

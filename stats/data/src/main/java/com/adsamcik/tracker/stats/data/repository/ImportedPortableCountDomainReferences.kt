@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.AuthenticatedImportedAmbientSte
 import com.adsamcik.tracker.shared.base.database.loadAuthenticatedAmbientStepsLineage
 import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedAmbientStepsGraphLineage
 import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedSessionCountDomainBinding
+import com.adsamcik.tracker.shared.base.database.steps.imported.RetainedImportedStepsEntry
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerEffect
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerIdentity
@@ -13,11 +14,11 @@ import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerOrigin
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerReference
 
 internal suspend fun AppDatabase.importedSessionCountDomainOwners(
-	entryIdentity: String,
+	entry: RetainedImportedStepsEntry,
 	runIdentity: String,
 ): List<StepsCountDomainOwnerReference>? {
 	return try {
-		loadAuthenticatedImportedSessionCountDomainBinding(entryIdentity)
+		loadAuthenticatedImportedSessionCountDomainBinding(entry)
 			?.graph
 			?.referencesForContainer(runIdentity)
 	} catch (_: IllegalArgumentException) {

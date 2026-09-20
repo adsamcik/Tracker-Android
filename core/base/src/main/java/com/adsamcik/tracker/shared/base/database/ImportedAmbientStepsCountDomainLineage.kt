@@ -4,8 +4,12 @@ import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFileReceiptEntity
+import com.adsamcik.tracker.shared.base.database.steps.imported.RetainedImportedStepsEntry
+import com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_STEPS_RUN_ORDER
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2
+import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsEntryV1
+import com.adsamcik.tracker.shared.model.steps.portable.legacyUnprovenStepsCountDomainGraph
 import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 
 data class AuthenticatedImportedAmbientStepsGraphRevision(
@@ -72,14 +76,34 @@ fun AppDatabase.loadAuthenticatedImportedAmbientStepsGraphLineageForFullClear(
 }
 
 suspend fun AppDatabase.loadAuthenticatedImportedSessionCountDomainBinding(
+	entry: RetainedImportedStepsEntry,
+): AuthenticatedImportedPortableGraphBinding? =
+	loadAuthenticatedImportedSessionCountDomainBinding(
+		entry.metadata.identity,
+		entry.legacyUnprovenCountDomainGraph(),
+	)
+
+suspend fun AppDatabase.loadAuthenticatedImportedSessionCountDomainBinding(
+	entry: PortableStepsEntryV1,
+): AuthenticatedImportedPortableGraphBinding? =
+	loadAuthenticatedImportedSessionCountDomainBinding(
+		entry.identity.value,
+		legacyUnprovenStepsCountDomainGraph(entry.contentChecksum, entry.runs),
+	)
+
+private suspend fun AppDatabase.loadAuthenticatedImportedSessionCountDomainBinding(
 	entryIdentity: String,
+	expectedLegacyGraph: PortableCountDomainGraphV2,
 ): AuthenticatedImportedPortableGraphBinding? {
 	val dao = importedPortableStepsCountDomainDao()
-	val binding = dao.binding(
+	val bindings = dao.bindings(
 		ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
-		entryIdentity,
-		IMPORTED_SESSION_PRODUCT_REVISION,
-	) ?: return null
+		listOf(entryIdentity),
+	)
+	if (bindings.isEmpty()) return null
+	check(bindings.size == 1)
+	val binding = bindings.single()
+	check(binding.productRevision == IMPORTED_SESSION_PRODUCT_REVISION)
 	val graph = checkNotNull(
 		dao.authenticatedGraph(
 			binding.graphIdentity,
@@ -89,12 +113,13 @@ suspend fun AppDatabase.loadAuthenticatedImportedSessionCountDomainBinding(
 	val fileReceipt = binding.sourceReceiptIdentity?.let { receiptIdentity ->
 		checkNotNull(dao.fileReceiptByIdentity(receiptIdentity))
 	}
-	authenticateImportedSessionBinding(binding, graph, fileReceipt)
+	authenticateImportedSessionBinding(binding, graph, fileReceipt, expectedLegacyGraph)
 	return AuthenticatedImportedPortableGraphBinding(binding, graph)
 }
 
 fun AppDatabase.loadAuthenticatedImportedSessionCountDomainBindingForFullClear(
 	binding: ImportedPortableStepsCountDomainBindingEntity,
+	entry: RetainedImportedStepsEntry,
 ): AuthenticatedImportedPortableGraphBinding {
 	val dao = importedPortableStepsCountDomainDao()
 	val graph = checkNotNull(
@@ -106,9 +131,18 @@ fun AppDatabase.loadAuthenticatedImportedSessionCountDomainBindingForFullClear(
 	val fileReceipt = binding.sourceReceiptIdentity?.let { receiptIdentity ->
 		checkNotNull(dao.fileReceiptByIdentityForFullClear(receiptIdentity))
 	}
-	authenticateImportedSessionBinding(binding, graph, fileReceipt)
+	val expectedLegacyGraph = entry.legacyUnprovenCountDomainGraph()
+	authenticateImportedSessionBinding(binding, graph, fileReceipt, expectedLegacyGraph)
 	return AuthenticatedImportedPortableGraphBinding(binding, graph)
 }
+
+internal fun RetainedImportedStepsEntry.legacyUnprovenCountDomainGraph(): PortableCountDomainGraphV2 =
+	legacyUnprovenStepsCountDomainGraph(
+		com.adsamcik.tracker.shared.model.steps.portable.PortableStepsDigest(
+			metadata.contentChecksum,
+		),
+		portableRunsById.values.sortedWith(PORTABLE_STEPS_RUN_ORDER),
+	)
 
 fun isAuthenticatedAmbientGraphSuccessor(
 	previous: PortableCountDomainGraphV2,
@@ -212,12 +246,16 @@ private fun authenticateImportedSessionBinding(
 	binding: ImportedPortableStepsCountDomainBindingEntity,
 	graph: PortableCountDomainGraphV2,
 	fileReceipt: ImportedPortableStepsFileReceiptEntity?,
+	expectedLegacyGraph: PortableCountDomainGraphV2,
 ) {
 	check(binding.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY)
 	check(binding.productRevision == IMPORTED_SESSION_PRODUCT_REVISION)
 	check(binding.graphIdentity == graph.identity.value)
 	if (binding.sourceSchemaVersion == 2) {
 		check(graph.hasCompletePortableOwnerLineages())
+	} else {
+		check(binding.sourceSchemaVersion == 1)
+		check(graph == expectedLegacyGraph)
 	}
 	if (binding.sourceReceiptIdentity == null) {
 		check(binding.sourceSchemaVersion == 1)

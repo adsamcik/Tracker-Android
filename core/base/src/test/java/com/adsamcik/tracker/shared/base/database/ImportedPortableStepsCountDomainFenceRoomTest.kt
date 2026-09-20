@@ -14,6 +14,12 @@ import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsAdm
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsCaptureCoverage
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsCompletenessV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainCoverage
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainDigest
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOperation
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOwnerKind
+import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainReceiptV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsDeletionScopeDigest
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsEntryV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsFactCoverage
@@ -164,7 +170,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 	fun `missing graphless session evidence rolls back full clear fences`() = runTest {
 		val entry = entry()
 		seedSessionPayload(entry)
-		val factIdentity = entry.runs.single().facts.single().identity.value
+		val factIdentity = entry.runs.single().facts.first().identity.value
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM step_fact_revision WHERE logical_fact_id = ?",
 			arrayOf(factIdentity),
@@ -218,6 +224,136 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 		) shouldBe listOf(conflicting)
 	}
 
+	@Test
+	fun `full clear accepts retention truncated v2 graph only with exact pruned owner fence`() =
+		runTest {
+			val entry = entry()
+			seedSessionPayload(entry)
+			val graph = installV2SessionBinding(entry)
+			database.sourceEvidenceStateDao().updateLifecycle(7L, 1_500L, 100L)
+			database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
+				1_500L,
+				7L,
+				100L,
+			) shouldBe 1
+
+			AppDatabase.deleteAllCollectedData(
+				database,
+				operationId = "truncated-session",
+				collectedDataEpoch = 8L,
+				retainedFromMs = null,
+				updatedAtMs = 200L,
+			)
+
+			database.importedStepsDao().entry(entry.identity.value) shouldBe null
+			database.importedPortableStepsCountDomainDao().ownerFences(
+				graph.roots.map { it.ownerIdentity.value },
+				graph.roots.size + 1,
+			).map { it.ownerIdentity }.toSet() shouldBe
+				graph.roots.map { it.ownerIdentity.value }.toSet()
+		}
+
+	@Test
+	fun `full clear rejects retention truncated v2 graph when pruned owner fence is missing`() =
+		runTest {
+			val entry = entry()
+			seedSessionPayload(entry)
+			installV2SessionBinding(entry)
+			database.sourceEvidenceStateDao().updateLifecycle(7L, 1_500L, 100L)
+			database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
+				1_500L,
+				7L,
+				100L,
+			) shouldBe 1
+			val removedOwner = entry.withExplicitUnprovenCountDomain().countDomainGraph.roots
+				.single {
+					it.productIdentity.value == entry.runs.single().facts.first().identity.value
+				}
+				.ownerIdentity.value
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM imported_steps_count_domain_owner_fence WHERE owner_identity = ?",
+				arrayOf(removedOwner),
+			)
+
+			assertFailsWith<IllegalArgumentException> {
+				AppDatabase.deleteAllCollectedData(
+					database,
+					operationId = "truncated-session-missing-fence",
+					collectedDataEpoch = 8L,
+					retainedFromMs = null,
+					updatedAtMs = 200L,
+				)
+			}
+
+			database.importedStepsDao().entry(entry.identity.value)?.identity shouldBe
+				entry.identity.value
+		}
+
+	@Test
+	fun `schema v1 binding cannot disguise fabricated bind authority`() = runTest {
+		val entry = entry()
+		seedSessionPayload(entry)
+		val expected = entry.withExplicitUnprovenCountDomain().countDomainGraph
+		val owner = expected.ownerRevisions.first {
+			it.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT
+		}
+		val receipt = PortableCountDomainReceiptV2.create(
+			domainIdentity = owner.scopeIdentity,
+			ownerKind = owner.ownerKind,
+			scopeIdentity = owner.scopeIdentity,
+			ownerIdentity = owner.ownerIdentity,
+			ownerRevision = owner.ownerRevision,
+			registrationGeneration = 1L,
+			collectedDataEpoch = 7L,
+			authorityRevision = 1L,
+			authorityFingerprint = PortableCountDomainDigest("sha256:" + "a".repeat(64)),
+			coverage = PortableCountDomainCoverage.COVERED,
+			coverageVersion = 1,
+			countDomainVersion = 1,
+			effectChecksum = owner.ownerEffectChecksum,
+			completenessEvidenceChecksum = null,
+		)
+		val fabricated = PortableCountDomainGraphV2.create(
+			receipts = listOf(receipt),
+			ownerRevisions = expected.ownerRevisions.map {
+				if (it == owner) {
+					it.copy(
+						operation = PortableCountDomainOperation.BIND,
+						receiptIdentity = receipt.identity,
+					)
+				} else {
+					it
+				}
+			},
+			completenessMarkers = expected.completenessMarkers,
+			roots = expected.roots,
+		)
+		val dao = database.importedPortableStepsCountDomainDao()
+		dao.insertAuthenticatedGraph(
+			fabricated,
+			ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+		)
+		dao.insertBinding(
+			ImportedPortableStepsCountDomainBindingEntity(
+				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				entry.identity.value,
+				1L,
+				fabricated.identity.value,
+				1,
+			),
+		)
+
+		assertFailsWith<IllegalStateException> {
+			database.withTransaction {
+				database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+			}
+		}
+		dao.ownerFences(
+			fabricated.roots.map { it.ownerIdentity.value },
+			fabricated.roots.size + 1,
+		) shouldBe emptyList()
+	}
+
 	private suspend fun seedSessionPayload(entry: PortableStepsEntryV1) {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(collectedDataEpoch = 7L),
@@ -257,6 +393,44 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 		}
 	}
 
+	private suspend fun installV2SessionBinding(
+		entry: PortableStepsEntryV1,
+	): PortableCountDomainGraphV2 {
+		val graph = entry.withExplicitUnprovenCountDomain().countDomainGraph
+		val dao = database.importedPortableStepsCountDomainDao()
+		val receiptIdentity = ImportedPortableCountDomainIdentity.fileReceipt("v2-job", "v2-entry")
+		dao.insertAuthenticatedGraph(
+			graph,
+			ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+		)
+		dao.insertBinding(
+			ImportedPortableStepsCountDomainBindingEntity(
+				productKind =
+					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				productIdentity = entry.identity.value,
+				productRevision = 1L,
+				graphIdentity = graph.identity.value,
+				sourceSchemaVersion = 2,
+				sourceReceiptIdentity = receiptIdentity,
+				sourceArchiveContentChecksum = entry.contentChecksum.value,
+			),
+		)
+		dao.insertFileReceipt(
+			ImportedPortableStepsFileReceiptEntity(
+				importJobId = "v2-job",
+				entryKey = "v2-entry",
+				receiptIdentity = receiptIdentity,
+				sourceName = "steps.trackersteps",
+				receivedAtMs = 1L,
+				archiveContentChecksum = entry.contentChecksum.value,
+				entryOrdinal = 0,
+				entryIdentity = entry.identity.value,
+				graphIdentity = graph.identity.value,
+			),
+		)
+		return graph
+	}
+
 	private fun entry(): PortableStepsEntryV1 {
 		val run = PortableStepsRunV1(
 			identity = identity(PortableStepsIdentityKind.PHYSICAL_RUN, "run"),
@@ -274,13 +448,22 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			),
 			facts = listOf(
 				PortableStepsFactV1.create(
-					identity(PortableStepsIdentityKind.FACT, "fact"),
+					identity(PortableStepsIdentityKind.FACT, "fact-1"),
 					1L,
 					1_000L,
+					1_400L,
+					0L,
+					PortableStepsFactCoverage.COVERED,
+					2L,
+				),
+				PortableStepsFactV1.create(
+					identity(PortableStepsIdentityKind.FACT, "fact-2"),
+					1L,
+					1_400L,
 					2_000L,
 					0L,
 					PortableStepsFactCoverage.COVERED,
-					4L,
+					2L,
 				),
 			),
 		)

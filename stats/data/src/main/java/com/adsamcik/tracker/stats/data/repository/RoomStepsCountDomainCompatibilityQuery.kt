@@ -17,6 +17,8 @@ import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletene
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
+import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedRead
+import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedReader
 import com.adsamcik.tracker.stats.api.repository.MAX_STEPS_COUNT_DOMAIN_REQUESTS
 import com.adsamcik.tracker.stats.api.repository.MAX_STEPS_COUNT_DOMAIN_OWNERS_PER_BATCH
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityQuery
@@ -152,8 +154,20 @@ internal class RoomStepsCountDomainCompatibilityQuery @Inject constructor(
 				it.productKind ==
 					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY
 			}) {
+				val retained = when (
+					val read = ImportedStepsRetainedReader(database)
+						.readEntriesForRetentionInTransaction(listOf(binding.productIdentity))
+				) {
+					is ImportedStepsRetainedRead.Ready -> {
+						if (read.unverifiableEntries.isNotEmpty() || read.entries.size != 1) {
+							return null
+						}
+						read.entries.single()
+					}
+					is ImportedStepsRetainedRead.Unverifiable -> return null
+				}
 				val authenticated = database
-					.loadAuthenticatedImportedSessionCountDomainBinding(binding.productIdentity)
+					.loadAuthenticatedImportedSessionCountDomainBinding(retained)
 					?: return null
 				if (authenticated.binding != binding) return null
 				authenticatedGraphs[binding.graphIdentity] = authenticated.graph

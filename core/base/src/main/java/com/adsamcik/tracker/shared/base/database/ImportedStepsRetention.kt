@@ -57,6 +57,8 @@ internal suspend fun AppDatabase.markImportedStepsRetentionFloor(beforeMs: Long,
 internal suspend fun AppDatabase.pruneImportedStepsRetentionFloor(beforeMs: Long, markedAtMs: Long): Int {
 	var deleted = 0
 	visitImportedRetentionEntries { entry ->
+		var prunedEntry = false
+		var authenticatedGraph: AuthenticatedImportedPortableGraphBinding? = null
 		for (run in entry.runs) {
 			if (entry.crossesFloor(run, beforeMs)) {
 				installImportedRetentionFence(entry, run, markedAtMs, StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE)
@@ -65,6 +67,14 @@ internal suspend fun AppDatabase.pruneImportedStepsRetentionFloor(beforeMs: Long
 			if (expired.isEmpty()) {
 				continue
 			}
+			authenticatedGraph = fenceImportedPortableSessionFacts(
+				entry = entry,
+				runIdentity = run.identity,
+				factIdentities = expired.mapTo(linkedSetOf()) { it.logicalFactId },
+				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION,
+				collectedDataEpoch = entry.metadata.collectedDataEpoch,
+				fencedAtMs = markedAtMs,
+			)
 			deleted += deleteImportedRetentionFacts(expired)
 			val removedIds = expired.mapTo(hashSetOf()) { it.logicalFactId }
 			val portable = entry.portableRunsById.getValue(run.identity)
@@ -73,6 +83,13 @@ internal suspend fun AppDatabase.pruneImportedStepsRetentionFloor(beforeMs: Long
 			check(importedStepsDao().updateRetainedChecksum(
 				run.identity, requireNotNull(run.retainedChecksum), requireNotNull(run.sessionSegmentId), checksum,
 			) == 1) { "Imported retention receipt changed during pruning" }
+			prunedEntry = true
+		}
+		if (prunedEntry) {
+			refreshImportedLegacySessionCountDomainBinding(
+				entry.metadata.identity,
+				requireNotNull(authenticatedGraph),
+			)
 		}
 	}
 	return deleted
@@ -89,10 +106,12 @@ suspend fun AppDatabase.pruneImportedStepsSegmentsBefore(beforeMs: Long, markedA
 	require(markedAtMs >= 0L)
 	var deleted = 0
 	visitImportedRetentionEntries { entry ->
-		for (run in entry.runs.filter { it.endTimeMs < beforeMs }) {
+		val expiredRuns = entry.runs.filter { it.endTimeMs < beforeMs }
+		var authenticatedGraph: AuthenticatedImportedPortableGraphBinding? = null
+		for (run in expiredRuns) {
 			installImportedRetentionFence(entry, run, markedAtMs, StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE)
-			fenceImportedPortableSessionRun(
-				entryIdentity = entry.metadata.identity,
+			authenticatedGraph = fenceImportedPortableSessionRun(
+				entry = entry,
 				runIdentity = run.identity,
 				fenceKind = ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_RETENTION,
 				collectedDataEpoch = entry.metadata.collectedDataEpoch,
@@ -108,8 +127,15 @@ suspend fun AppDatabase.pruneImportedStepsSegmentsBefore(beforeMs: Long, markedA
 			}
 			deleted++
 		}
-		if (importedStepsDao().deleteEntryIfEmpty(entry.metadata.identity) == 1) {
-			removeImportedPortableSessionGraph(entry.metadata.identity)
+		if (expiredRuns.isNotEmpty()) {
+			if (importedStepsDao().deleteEntryIfEmpty(entry.metadata.identity) == 1) {
+				removeImportedPortableSessionGraph(entry.metadata.identity)
+			} else {
+				refreshImportedLegacySessionCountDomainBinding(
+					entry.metadata.identity,
+					requireNotNull(authenticatedGraph),
+				)
+			}
 		}
 	}
 	if (deleted > 0) {

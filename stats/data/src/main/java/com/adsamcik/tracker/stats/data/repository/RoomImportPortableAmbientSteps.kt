@@ -1142,6 +1142,7 @@ private data class AmbientImportEnvelope(
 					graphMap.values.sumOf { it.ownerRevisions.size },
 			)
 			require(request.metadata.rootCount == graphMap.values.sumOf { it.roots.size })
+			require(graphMap.values.all { it.hasCompletePortableOwnerLineages() })
 			return AmbientImportEnvelope(
 				archive = PortableAmbientStepsArchiveV1.create(days),
 				sourceArchiveIdentity = request.archive.identity,

@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.impexp.exporter
 
-import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV1Codec
@@ -29,12 +28,12 @@ import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsV2
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientStepsV2
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
-import io.mockk.mockk
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.OutputStream
 import java.time.LocalDate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -66,7 +65,7 @@ class PortableAmbientStepsExporterTest {
 		}
 
 		exporter.export(
-			mockk(relaxed = true),
+			ApplicationProvider.getApplicationContext(),
 			locations,
 			output,
 			1_000L..1_999L,
@@ -111,7 +110,7 @@ class PortableAmbientStepsExporterTest {
 		)
 
 		exporter.export(
-			mockk(relaxed = true),
+			ApplicationProvider.getApplicationContext(),
 			emptySequence(),
 			ByteArrayOutputStream(),
 			null,
@@ -211,7 +210,7 @@ class PortableAmbientStepsExporterTest {
 		)
 
 		exporter.export(
-			mockk(relaxed = true),
+			ApplicationProvider.getApplicationContext(),
 			emptySequence(),
 			output,
 			null,
@@ -275,6 +274,62 @@ class PortableAmbientStepsExporterTest {
 	}
 
 	@Test
+	fun `v2 failure after emission leaves Ambient destination empty`() = runTest {
+		val archive = ambientArchive(
+			completeAmbientDay(LocalDate.of(2026, 1, 6), 9L),
+		)
+		val output = ByteArrayOutputStream()
+		val result = PortableAmbientStepsExporter(
+			backendProvider = {
+				backend(native = { _, sink ->
+					sink.emit(archive)
+					ExportPortableAmbientStepsResult.RetryableFailure(
+						PortableAmbientStepsExportRetryableReason.STORAGE_UNAVAILABLE,
+					)
+				})
+			},
+		).export(
+			ApplicationProvider.getApplicationContext(),
+			emptySequence(),
+			output,
+			null,
+		)
+
+		result shouldBe ExportResult.Error(
+			com.adsamcik.tracker.shared.base.misc.LocalizedString(
+				R.string.export_error_portable_ambient_steps_write,
+			),
+		)
+		output.size() shouldBe 0
+	}
+
+	@Test
+	fun `v2 cancellation after emission leaves Ambient destination empty`() = runTest {
+		val archive = ambientArchive(
+			completeAmbientDay(LocalDate.of(2026, 1, 7), 9L),
+		)
+		val output = ByteArrayOutputStream()
+		val exporter = PortableAmbientStepsExporter(
+			backendProvider = {
+				backend(native = { _, sink ->
+					sink.emit(archive)
+					throw CancellationException("cancel staged Ambient v2 encode")
+				})
+			},
+		)
+
+		shouldThrow<CancellationException> {
+			exporter.export(
+				ApplicationProvider.getApplicationContext(),
+				emptySequence(),
+				output,
+				null,
+			)
+		}
+		output.size() shouldBe 0
+	}
+
+	@Test
 	fun `source backend resolves full range DST day and typed unsupported scopes`() {
 		val backend = backend()
 		backend.resolve(AmbientStepsPortableFileScope.AllAvailableSnapshot) shouldBe
@@ -317,7 +372,12 @@ class PortableAmbientStepsExporterTest {
 				backendProvider = {
 					backend(native = { _, _ -> result })
 				},
-			).export(mockk(relaxed = true), emptySequence(), ByteArrayOutputStream(), null)
+			).export(
+				ApplicationProvider.getApplicationContext(),
+				emptySequence(),
+				ByteArrayOutputStream(),
+				null,
+			)
 
 		export(ExportPortableAmbientStepsResult.NoData) shouldBe ExportResult.Error(
 			com.adsamcik.tracker.shared.base.misc.LocalizedString(
@@ -350,7 +410,7 @@ class PortableAmbientStepsExporterTest {
 		)
 		shouldThrow<IOException> {
 			ioExporter.export(
-				mockk(relaxed = true),
+				ApplicationProvider.getApplicationContext(),
 				emptySequence(),
 				FailingAmbientOutputStream(),
 				null,

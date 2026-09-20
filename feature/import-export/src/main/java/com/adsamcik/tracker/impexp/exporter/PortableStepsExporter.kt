@@ -13,6 +13,7 @@ import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV1
+import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV2
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -55,18 +56,25 @@ internal class PortableStepsExporter(
 		dateRange: LongRange?,
 	): ExportResult {
 		val request = dateRange?.toPortableRequest() ?: FULL_HISTORY
-		val countedDestination = CountingExportOutputStream(outputStream)
-		val result = PortableStepsJsonV2Codec().encode(countedDestination) { sink ->
-			exporterProvider(context).export(request, sink)
-		}
-		if (result is ExportPortableStepsResult.Exported) {
-			if (countedDestination.writtenBytes == 0L) {
-				throw PortableStepsJsonException("Successful Portable Steps v2 export wrote no bytes")
+		val result = FileBackedExportSpool(
+			context,
+			"portable-steps-v2-",
+			StepsPortableFormatV2.MAX_FILE_BYTES,
+		).use { spool ->
+			val staged = spool.write { spoolOutput ->
+				PortableStepsJsonV2Codec().encode(spoolOutput) { sink ->
+					exporterProvider(context).export(request, sink)
+				}
 			}
-		} else if (countedDestination.writtenBytes != 0L) {
-			throw PortableStepsJsonException(
-				"Unsuccessful Portable Steps v2 export wrote destination bytes",
-			)
+			if (staged is ExportPortableStepsResult.Exported) {
+				if (spool.byteCount == 0L) {
+					throw PortableStepsJsonException(
+						"Successful Portable Steps v2 export wrote no bytes",
+					)
+				}
+				spool.copyTo(outputStream)
+			}
+			staged
 		}
 		val finalResult = if (
 			result is ExportPortableStepsResult.Unverifiable &&
