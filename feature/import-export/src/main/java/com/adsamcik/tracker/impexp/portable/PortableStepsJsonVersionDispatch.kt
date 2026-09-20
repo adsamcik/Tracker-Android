@@ -53,7 +53,7 @@ private fun schemaVersion(
 		InputStreamReader(
 			PortableJsonTokenLimitInputStream(
 				bytes.inputStream(),
-				portableJsonDocumentTokenLimits(bytes.size),
+				portableJsonHeaderTokenLimits(bytes.size, expectedFormat),
 			),
 			Charsets.UTF_8,
 		),
@@ -89,6 +89,8 @@ private fun schemaVersion(
 		throw known
 	} catch (known: PortableAmbientStepsFormatException) {
 		throw known
+	} catch (_: PortableJsonTokenLimitException) {
+		throw failure("Portable header token exceeds its lexical bound")
 	} catch (error: Exception) {
 		throw failure("Malformed portable document")
 	}

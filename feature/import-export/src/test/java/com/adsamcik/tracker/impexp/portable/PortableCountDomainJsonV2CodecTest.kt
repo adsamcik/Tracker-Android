@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.impexp.portable
 
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV2
 import com.adsamcik.tracker.shared.model.steps.portable.identity
 import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
@@ -157,6 +158,69 @@ class PortableCountDomainJsonV2CodecTest {
 	}
 
 	@Test
+	fun `version dispatch bounds Steps and Ambient header materialization`() {
+		val hugeFormat = "x".repeat(1_000_000)
+		val hugeVersion = "1".repeat(1_000_000)
+		listOf(
+			StepsPortableFormatV1.FORMAT,
+			AmbientStepsPortableFormatV1.FORMAT,
+		).forEach { expectedFormat ->
+			val document = """{"format":"$hugeFormat","schemaVersion":2}""".encodeToByteArray()
+			val source = CountingInputStream(document)
+			shouldThrow<PortableJsonTokenLimitException> {
+				PortableJsonTokenLimitInputStream(
+					source,
+					portableJsonHeaderTokenLimits(document.size, expectedFormat),
+				).readBytes()
+			}
+			(source.bytesRead < document.size) shouldBe true
+		}
+
+		shouldThrow<PortableStepsJsonException> {
+			portableStepsSchemaVersion(
+				"""{"format":"$hugeFormat","schemaVersion":2}""".encodeToByteArray(),
+			)
+		}.message shouldBe "Portable header token exceeds its lexical bound"
+		shouldThrow<PortableAmbientStepsFormatException> {
+			portableAmbientStepsSchemaVersion(
+				"""{"format":"$hugeFormat","schemaVersion":2}""".encodeToByteArray(),
+			)
+		}.message shouldBe "Portable header token exceeds its lexical bound"
+		shouldThrow<PortableStepsJsonException> {
+			portableStepsSchemaVersion(
+				"""{"format":"tracker-portable-steps","schemaVersion":$hugeVersion}"""
+					.encodeToByteArray(),
+			)
+		}.message shouldBe "Portable header token exceeds its lexical bound"
+		shouldThrow<PortableAmbientStepsFormatException> {
+			portableAmbientStepsSchemaVersion(
+				"""{"format":"tracker-portable-ambient-steps","schemaVersion":$hugeVersion}"""
+					.encodeToByteArray(),
+			)
+		}.message shouldBe "Portable header token exceeds its lexical bound"
+		shouldThrow<PortableStepsJsonException> {
+			portableStepsSchemaVersion(
+				"""{"f\u006frmat":"$hugeFormat","schema\u0056ersion":2}"""
+					.encodeToByteArray(),
+			)
+		}.message shouldBe "Portable header token exceeds its lexical bound"
+	}
+
+	@Test
+	fun `version dispatch streams past large non-header payload strings`() {
+		val payload = "p".repeat(1_000_000)
+
+		portableStepsSchemaVersion(
+			"""{"payload":"$payload","schemaVersion":2,"format":"tracker-portable-steps"}"""
+				.encodeToByteArray(),
+		) shouldBe 2
+		portableAmbientStepsSchemaVersion(
+			"""{"payload":"$payload","format":"tracker-portable-ambient-steps","schemaVersion":2}"""
+				.encodeToByteArray(),
+		) shouldBe 2
+	}
+
+	@Test
 	fun `v2 lexical and parser failures are permanent while source IO remains retryable`() =
 		runTest {
 			val longName = "n".repeat(385)
@@ -250,5 +314,27 @@ class PortableCountDomainJsonV2CodecTest {
 	) : InputStream() {
 		override fun read(): Int = throw failure
 		override fun read(buffer: ByteArray, offset: Int, length: Int): Int = throw failure
+	}
+
+	private class CountingInputStream(
+		private val bytes: ByteArray,
+	) : InputStream() {
+		var bytesRead: Int = 0
+			private set
+
+		override fun read(): Int =
+			if (bytesRead >= bytes.size) {
+				-1
+			} else {
+				bytes[bytesRead++].toInt() and 0xff
+			}
+
+		override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+			if (bytesRead >= bytes.size) return -1
+			val count = minOf(length, bytes.size - bytesRead)
+			bytes.copyInto(buffer, offset, bytesRead, bytesRead + count)
+			bytesRead += count
+			return count
+		}
 	}
 }

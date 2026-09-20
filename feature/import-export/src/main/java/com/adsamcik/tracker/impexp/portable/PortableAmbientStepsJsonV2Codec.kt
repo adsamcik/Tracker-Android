@@ -87,7 +87,10 @@ internal class PortableAmbientStepsJsonV2Codec {
 			InputStreamReader(
 				PortableJsonTokenLimitInputStream(
 					bytes.inputStream(),
-					portableJsonDocumentTokenLimits(bytes.size),
+					portableJsonHeaderTokenLimits(
+						bytes.size,
+						AmbientStepsPortableFormatV2.FORMAT,
+					),
 				),
 				Charsets.UTF_8,
 			),

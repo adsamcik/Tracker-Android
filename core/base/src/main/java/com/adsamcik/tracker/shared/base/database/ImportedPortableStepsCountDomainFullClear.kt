@@ -65,10 +65,11 @@ internal suspend fun AppDatabase.preserveImportedPortableCountDomainFullClearFen
 		require(sessionBindings.size == bindings.count {
 			it.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY
 		})
-		val sessionAuthentication = authenticatedImportedSessionBindingsForFullClear(
+		authenticatedImportedSessionBindingsForFullClear(
 			sessionBindings,
 			consumedBindings,
 			consumeAuthenticatedGraph,
+			staging,
 		)
 		val ambientBindings = bindings.filter {
 			it.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY
@@ -89,7 +90,7 @@ internal suspend fun AppDatabase.preserveImportedPortableCountDomainFullClearFen
 		}
 		authenticateAllPortableSessionFileReceiptsForFullClear(
 			sessionBindings = sessionBindings,
-			sessionProducts = sessionAuthentication,
+			sessionProducts = staging,
 			authenticatedGraphIdentities = authenticatedGraphIdentities,
 		)
 		staging.install(dao)
@@ -105,8 +106,8 @@ private suspend fun AppDatabase.authenticatedImportedSessionBindingsForFullClear
 	bindingsByEntry: Map<String, ImportedPortableStepsCountDomainBindingEntity>,
 	consumedBindings: MutableSet<ImportedPortableStepsCountDomainBindingEntity>,
 	consume: (AuthenticatedImportedPortableGraphBinding, Boolean) -> Unit,
-): Map<String, RetainedImportedStepsEntry> {
-	val products = linkedMapOf<String, RetainedImportedStepsEntry>()
+	staging: AuthenticatedFullClearOwnerFenceStaging,
+) {
 	val reader = ImportedStepsRetainedReader(this)
 	var beforeStartTimeMs: Long? = null
 	var beforeIdentity: String? = null
@@ -136,7 +137,6 @@ private suspend fun AppDatabase.authenticatedImportedSessionBindingsForFullClear
 		}
 		page.forEach { entry ->
 			val product = requireNotNull(retained[entry.identity])
-			require(products.put(entry.identity, product) == null)
 			val binding = bindingsByEntry[entry.identity]
 			val authenticated = if (binding == null) {
 				val graph = product.legacyUnprovenCountDomainGraph()
@@ -157,13 +157,13 @@ private suspend fun AppDatabase.authenticatedImportedSessionBindingsForFullClear
 				loadAuthenticatedImportedSessionCountDomainBindingForFullClear(binding, product)
 			}
 			requireSessionGraphCoversRetainedProduct(authenticated, product)
+			staging.addSessionProduct(product, authenticated, binding != null)
 			consume(authenticated, binding != null)
 		}
 		beforeStartTimeMs = page.last().startTimeMs
 		beforeIdentity = page.last().identity
 		if (page.size < SESSION_FULL_CLEAR_PAGE_SIZE) break
 	}
-	return products
 }
 
 private suspend fun AppDatabase.authenticatedImportedAmbientBindingsForFullClear(
@@ -315,6 +315,20 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		try {
 			sqlite.execSQL(
 				"""
+				CREATE TEMP TABLE $SESSION_PRODUCT_TABLE (
+					product_identity TEXT NOT NULL PRIMARY KEY,
+					content_checksum TEXT NOT NULL,
+					source_format TEXT NOT NULL,
+					source_schema_version INTEGER NOT NULL,
+					graph_identity TEXT NOT NULL,
+					source_receipt_identity TEXT,
+					source_archive_content_checksum TEXT,
+					has_stored_binding INTEGER NOT NULL
+				)
+				""".trimIndent(),
+			)
+			sqlite.execSQL(
+				"""
 				CREATE TEMP TABLE $OWNER_TABLE (
 					owner_kind TEXT NOT NULL,
 					owner_identity TEXT NOT NULL,
@@ -364,6 +378,77 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		} catch (failure: Exception) {
 			dropTables()
 			throw failure
+		}
+	}
+
+	fun addSessionProduct(
+		product: RetainedImportedStepsEntry,
+		authenticated: AuthenticatedImportedPortableGraphBinding,
+		hasStoredBinding: Boolean,
+	) {
+		val binding = authenticated.binding
+		require(
+			binding.productKind ==
+				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+		)
+		require(binding.productIdentity == product.metadata.identity)
+		require(binding.productRevision == SESSION_PRODUCT_REVISION)
+		require(binding.graphIdentity == authenticated.graph.identity.value)
+		require(
+			hasStoredBinding ||
+				(binding.sourceSchemaVersion == StepsPortableFormatV1.SCHEMA_VERSION &&
+					binding.sourceReceiptIdentity == null &&
+					binding.sourceArchiveContentChecksum == null),
+		)
+		sqlite.execSQL(
+			"INSERT INTO $SESSION_PRODUCT_TABLE (" +
+				"product_identity, content_checksum, source_format, source_schema_version, " +
+				"graph_identity, source_receipt_identity, source_archive_content_checksum, " +
+				"has_stored_binding) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+			arrayOf(
+				product.metadata.identity,
+				product.metadata.contentChecksum,
+				StepsPortableFormatV1.FORMAT,
+				binding.sourceSchemaVersion,
+				binding.graphIdentity,
+				binding.sourceReceiptIdentity,
+				binding.sourceArchiveContentChecksum,
+				if (hasStoredBinding) 1 else 0,
+			),
+		)
+	}
+
+	fun sessionProducts(
+		productIdentities: List<String>,
+	): Map<String, StagedFullClearSessionProduct> {
+		val identities = productIdentities.distinct()
+		if (identities.isEmpty()) return emptyMap()
+		require(identities.size <= FILE_RECEIPT_FULL_CLEAR_PAGE_SIZE)
+		val placeholders = identities.joinToString(separator = ",") { "?" }
+		return sqlite.query(
+			"SELECT product_identity, content_checksum, source_format, source_schema_version, " +
+				"graph_identity, source_receipt_identity, source_archive_content_checksum, " +
+				"has_stored_binding FROM $SESSION_PRODUCT_TABLE " +
+				"WHERE product_identity IN ($placeholders)",
+			identities.toTypedArray(),
+		).use { cursor ->
+			buildMap {
+				while (cursor.moveToNext()) {
+					val product = StagedFullClearSessionProduct(
+						productIdentity = cursor.getString(0),
+						contentChecksum = cursor.getString(1),
+						sourceFormat = cursor.getString(2),
+						sourceSchemaVersion = cursor.getInt(3),
+						graphIdentity = cursor.getString(4),
+						sourceReceiptIdentity =
+							if (cursor.isNull(5)) null else cursor.getString(5),
+						sourceArchiveContentChecksum =
+							if (cursor.isNull(6)) null else cursor.getString(6),
+						hasStoredBinding = cursor.getInt(7) == 1,
+					)
+					require(put(product.productIdentity, product) == null)
+				}
+			}
 		}
 	}
 
@@ -810,15 +895,28 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		sqlite.execSQL("DROP TABLE IF EXISTS $EXPLICIT_TABLE")
 		sqlite.execSQL("DROP TABLE IF EXISTS $REVISION_TABLE")
 		sqlite.execSQL("DROP TABLE IF EXISTS $OWNER_TABLE")
+		sqlite.execSQL("DROP TABLE IF EXISTS $SESSION_PRODUCT_TABLE")
 	}
 
 	private companion object {
+		const val SESSION_PRODUCT_TABLE = "imported_steps_full_clear_session_product_stage"
 		const val OWNER_TABLE = "imported_steps_full_clear_owner_stage"
 		const val REVISION_TABLE = "imported_steps_full_clear_owner_revision_stage"
 		const val EXPLICIT_TABLE = "imported_steps_full_clear_explicit_lineage_stage"
 		const val OWNER_INSTALL_PAGE_SIZE = 256
 	}
 }
+
+private data class StagedFullClearSessionProduct(
+	val productIdentity: String,
+	val contentChecksum: String,
+	val sourceFormat: String,
+	val sourceSchemaVersion: Int,
+	val graphIdentity: String,
+	val sourceReceiptIdentity: String?,
+	val sourceArchiveContentChecksum: String?,
+	val hasStoredBinding: Boolean,
+)
 
 private data class StagedFullClearOwner(
 	val ownerKind: String,
@@ -904,7 +1002,7 @@ private fun String.toPortableProductKind(): String = when (this) {
 
 private fun AppDatabase.authenticateAllPortableSessionFileReceiptsForFullClear(
 	sessionBindings: Map<String, ImportedPortableStepsCountDomainBindingEntity>,
-	sessionProducts: Map<String, RetainedImportedStepsEntry>,
+	sessionProducts: AuthenticatedFullClearOwnerFenceStaging,
 	authenticatedGraphIdentities: Set<String>,
 ) {
 	val dao = importedPortableStepsCountDomainDao()
@@ -919,26 +1017,32 @@ private fun AppDatabase.authenticateAllPortableSessionFileReceiptsForFullClear(
 		)
 		if (page.isEmpty()) break
 		require(page.size <= FILE_RECEIPT_FULL_CLEAR_PAGE_SIZE)
+		val products = sessionProducts.sessionProducts(page.map { it.entryIdentity })
+		require(products.keys == page.mapTo(linkedSetOf()) { it.entryIdentity }) {
+			"Imported Steps file receipt has no authenticated product"
+		}
 		page.forEach { receipt ->
 			require(
 				afterJobId == null ||
 					receipt.importJobId > afterJobId!! ||
 					(receipt.importJobId == afterJobId && receipt.entryKey > afterEntryKey!!),
 			)
-			val binding = requireNotNull(sessionBindings[receipt.entryIdentity]) {
+			val product = requireNotNull(products[receipt.entryIdentity])
+			require(product.hasStoredBinding) {
 				"Imported Steps file receipt has no authenticated product binding"
 			}
-			val product = requireNotNull(sessionProducts[receipt.entryIdentity]) {
-				"Imported Steps file receipt has no authenticated product"
-			}
-			require(binding.graphIdentity == receipt.graphIdentity)
-			require(binding.graphIdentity in authenticatedGraphIdentities)
+			require(product.productIdentity == receipt.entryIdentity)
+			require(product.sourceFormat == StepsPortableFormatV1.FORMAT)
+			require(product.graphIdentity == receipt.graphIdentity)
+			require(product.graphIdentity in authenticatedGraphIdentities)
 			require(receipt.entryOrdinal in 0 until StepsPortableFormatV1.MAX_ENTRIES)
-			if (binding.sourceSchemaVersion == StepsPortableFormatV1.SCHEMA_VERSION) {
-				require(receipt.archiveContentChecksum == product.metadata.contentChecksum)
+			if (product.sourceSchemaVersion == StepsPortableFormatV1.SCHEMA_VERSION) {
+				require(receipt.archiveContentChecksum == product.contentChecksum)
 			}
-			if (binding.sourceReceiptIdentity == receipt.receiptIdentity) {
-				require(binding.sourceArchiveContentChecksum == receipt.archiveContentChecksum)
+			if (product.sourceReceiptIdentity == receipt.receiptIdentity) {
+				require(
+					product.sourceArchiveContentChecksum == receipt.archiveContentChecksum,
+				)
 				observedSourceReceipts += receipt.receiptIdentity
 			}
 		}

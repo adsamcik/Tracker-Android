@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFileR
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsAdmissionRows
+import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedReader
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
@@ -143,6 +144,65 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			} shouldBe true
 			stagingTableCount() shouldBe 0L
 	}
+
+	@Test
+	fun `full clear pages compact session products and rolls back a late receipt conflict`() =
+		runTest {
+			val queries = mutableListOf<String>()
+			database.close()
+			database = AppDatabase.inMemoryBuilder(
+				ApplicationProvider.getApplicationContext<Application>(),
+			).allowMainThreadQueries()
+				.setQueryCallback(
+					{ sql, _ -> queries += sql.replace(Regex("\\s+"), " ").trim().lowercase() },
+					Executor(Runnable::run),
+				)
+				.build()
+			val entries = List(ImportedStepsRetainedReader.MAX_ENTRY_BATCH + 1) { index ->
+				entry(tag = "page-$index", startTimeMs = 1_000L + index * 2_000L)
+			}
+			entries.forEach { seedSessionPayload(it) }
+			val conflicted = entries.last()
+			val graph = installV2SessionBinding(conflicted)
+			val receipt = fileReceipt(conflicted, graph, 0).copy(
+				graphIdentity = "sha256:" + "f".repeat(64),
+			)
+			database.importedPortableStepsCountDomainDao().insertFileReceipt(receipt)
+			queries.clear()
+
+			assertFailsWith<IllegalArgumentException> {
+				database.withTransaction {
+					database.preserveImportedPortableCountDomainFullClearFences(7L, 8L, 9L)
+				}
+			}
+
+			queries.count {
+				it.startsWith("select * from imported_steps_entry where") &&
+					it.contains("order by start_time_ms desc, identity desc limit ?")
+			} shouldBe 4
+			queries.count {
+				it.startsWith("select * from imported_steps_entry where identity in")
+			} shouldBe 4
+			queries.count {
+				it.contains("from imported_steps_full_clear_session_product_stage") &&
+					it.contains("where product_identity in (")
+			} shouldBe 1
+			entries.all {
+				database.importedStepsDao().entry(it.identity.value) != null
+			} shouldBe true
+			database.importedPortableStepsCountDomainDao().fileReceipt(
+				receipt.importJobId,
+				receipt.entryKey,
+			) shouldBe receipt
+			val ownerIdentities = entries.flatMap {
+				it.withExplicitUnprovenCountDomain().countDomainGraph.roots
+			}.map { it.ownerIdentity.value }.distinct()
+			database.importedPortableStepsCountDomainDao().ownerFences(
+				ownerIdentities,
+				ownerIdentities.size + 1,
+			) shouldBe emptyList()
+			stagingTableCount() shouldBe 0L
+		}
 
 	@Test
 	fun `selected root fencing derives owners from the complete authenticated graph`() {
@@ -1249,14 +1309,23 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 		graphIdentity = graph.identity.value,
 	)
 
-	private fun entry(): PortableStepsEntryV1 {
+	private fun entry(
+		tag: String? = null,
+		startTimeMs: Long = 1_000L,
+	): PortableStepsEntryV1 {
+		val entrySeed = tag?.let { "entry-$it" } ?: "entry"
+		val runSeed = tag?.let { "run-$it" } ?: "run"
+		val firstFactSeed = tag?.let { "fact-$it-1" } ?: "fact-1"
+		val secondFactSeed = tag?.let { "fact-$it-2" } ?: "fact-2"
+		val splitTimeMs = startTimeMs + 400L
+		val endTimeMs = startTimeMs + 1_000L
 		val run = PortableStepsRunV1(
-			identity = identity(PortableStepsIdentityKind.PHYSICAL_RUN, "run"),
-			deletionScopeDigest = PortableStepsDeletionScopeDigest.derive("entry", "run"),
-			startTimeMs = 1_000L,
-			endTimeMs = 2_000L,
+			identity = identity(PortableStepsIdentityKind.PHYSICAL_RUN, runSeed),
+			deletionScopeDigest = PortableStepsDeletionScopeDigest.derive(entrySeed, runSeed),
+			startTimeMs = startTimeMs,
+			endTimeMs = endTimeMs,
 			storedZoneId = "UTC",
-			manifests = listOf(PortableStepsManifestV1(1L, 1_000L, 1L, 1L)),
+			manifests = listOf(PortableStepsManifestV1(1L, startTimeMs, 1L, 1L)),
 			completeness = PortableStepsCompletenessV1(
 				PortableStepsCaptureCoverage.WHOLE_RUN,
 				PortableStepsProviderCoverage.COMPLETE,
@@ -1266,19 +1335,19 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			),
 			facts = listOf(
 				PortableStepsFactV1.create(
-					identity(PortableStepsIdentityKind.FACT, "fact-1"),
+					identity(PortableStepsIdentityKind.FACT, firstFactSeed),
 					1L,
-					1_000L,
-					1_400L,
+					startTimeMs,
+					splitTimeMs,
 					0L,
 					PortableStepsFactCoverage.COVERED,
 					2L,
 				),
 				PortableStepsFactV1.create(
-					identity(PortableStepsIdentityKind.FACT, "fact-2"),
+					identity(PortableStepsIdentityKind.FACT, secondFactSeed),
 					1L,
-					1_400L,
-					2_000L,
+					splitTimeMs,
+					endTimeMs,
 					0L,
 					PortableStepsFactCoverage.COVERED,
 					2L,
@@ -1286,10 +1355,10 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			),
 		)
 		return PortableStepsEntryV1.create(
-			identity(PortableStepsIdentityKind.LOGICAL_ENTRY, "entry"),
+			identity(PortableStepsIdentityKind.LOGICAL_ENTRY, entrySeed),
 			PortableStepsSessionMode.MANUAL,
-			1_000L,
-			2_000L,
+			startTimeMs,
+			endTimeMs,
 			listOf(run),
 		)
 	}

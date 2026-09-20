@@ -103,5 +103,57 @@ class PortableStepsSourceStructureTest {
 		assertTrue("staging.close()" in production)
 	}
 
+	@Test
+	fun `portable full clear stages compact session identity instead of retained products`() {
+		val fullClear = source(
+			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/" +
+				"ImportedPortableStepsCountDomainFullClear.kt",
+		)
+		val sessionPaging = fullClear.substring(
+			fullClear.indexOf(
+				"private suspend fun AppDatabase.authenticatedImportedSessionBindingsForFullClear",
+			),
+			fullClear.indexOf(
+				"private suspend fun AppDatabase.authenticatedImportedAmbientBindingsForFullClear",
+			),
+		)
+		val stagedType = fullClear.substring(
+			fullClear.indexOf("private data class StagedFullClearSessionProduct"),
+			fullClear.indexOf("private data class StagedFullClearOwner"),
+		)
+
+		assertTrue("staging.addSessionProduct(product, authenticated, binding != null)" in sessionPaging)
+		assertFalse("Map<String, RetainedImportedStepsEntry>" in fullClear)
+		assertFalse("linkedMapOf<String, RetainedImportedStepsEntry>" in fullClear)
+		assertTrue("CREATE TEMP TABLE \$SESSION_PRODUCT_TABLE" in fullClear)
+		assertTrue("content_checksum TEXT NOT NULL" in fullClear)
+		assertTrue("source_format TEXT NOT NULL" in fullClear)
+		assertTrue("source_receipt_identity TEXT" in fullClear)
+		assertTrue("require(identities.size <= FILE_RECEIPT_FULL_CLEAR_PAGE_SIZE)" in fullClear)
+		assertTrue("WHERE product_identity IN (\$placeholders)" in fullClear)
+		assertFalse("RetainedImportedStepsEntry" in stagedType)
+		assertFalse("PortableStepsRun" in stagedType)
+		assertFalse("StepFactRevision" in stagedType)
+	}
+
+	@Test
+	fun `portable header scanner bounds known fields while streaming unknown payloads`() {
+		val dispatch = source(
+			"feature/import-export/src/main/java/com/adsamcik/tracker/impexp/portable/" +
+				"PortableStepsJsonVersionDispatch.kt",
+		)
+		val tokenGuard = source(
+			"feature/import-export/src/main/java/com/adsamcik/tracker/impexp/portable/" +
+				"PortableJsonTokenLimitInputStream.kt",
+		)
+
+		assertTrue("portableJsonHeaderTokenLimits(bytes.size, expectedFormat)" in dispatch)
+		assertTrue("else -> reader.skipValue()" in dispatch)
+		assertTrue("\"format\" to expectedFormat.length * JSON_ESCAPE_BYTES_PER_CHARACTER" in tokenGuard)
+		assertTrue("\"schemaVersion\" to MAX_SCHEMA_VERSION_TOKEN_BYTES" in tokenGuard)
+		assertTrue("rootStringValueMaxBytes[rootFieldName]" in tokenGuard)
+		assertTrue("rootNumberValueMaxBytes[rootFieldName]" in tokenGuard)
+	}
+
 	private fun source(relativePath: String): String = projectRoot.resolve(relativePath).readText()
 }

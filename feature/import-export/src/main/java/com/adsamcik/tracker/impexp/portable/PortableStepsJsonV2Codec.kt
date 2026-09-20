@@ -80,7 +80,7 @@ internal class PortableStepsJsonV2Codec {
 			InputStreamReader(
 				PortableJsonTokenLimitInputStream(
 					bytes.inputStream(),
-					portableJsonDocumentTokenLimits(bytes.size),
+					portableJsonHeaderTokenLimits(bytes.size, StepsPortableFormatV1.FORMAT),
 				),
 				Charsets.UTF_8,
 			),
