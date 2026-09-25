@@ -115,6 +115,7 @@ class CellHistoryRepositoryRoomTest {
 		selectedEntry.startTime.raw shouldBe group.runs.first().segment.startTimeMs
 		selectedEntry.endTime.raw shouldBe group.runs.last().segment.endTimeMs
 		selectedEntry.observations shouldHaveSize 2
+		selectedEntry.observations.all { it.localSourceEventId != null } shouldBe true
 		selectedEntry.state shouldBe CellHistoryProductState.PARTIAL
 		selectedEntry.causes shouldBe setOf(CellHistoryCause.SUBSCRIPTION_GROUPING_UNKNOWN)
 		val grouped = database.withTransaction {

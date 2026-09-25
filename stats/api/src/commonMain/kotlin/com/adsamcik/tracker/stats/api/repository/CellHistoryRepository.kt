@@ -317,6 +317,7 @@ data class CellHistoryEntry(
 		(origin as? CellHistoryOrigin.Imported)?.selection,
 ) {
 	init {
+		require(origin is CellHistoryOrigin.Local || observations.all { it.localSourceEventId == null })
 		require(endTime >= startTime)
 		require(storedZoneIds.none(String::isBlank))
 		when (origin) {
@@ -373,6 +374,8 @@ data class CellHistoryObservation(
 	val sourceQualityFlags: Long,
 	val sourceQualityConfidence: Float?,
 	val storedZoneId: String,
+	/** Opaque native provider event used only to join independently retained optional context. */
+	val localSourceEventId: String? = null,
 ) {
 	init {
 		require(observedTime >= intervalStartTime)
@@ -388,6 +391,7 @@ data class CellHistoryObservation(
 		require(sourceQualityFlags >= 0L)
 		require(sourceQualityConfidence == null || sourceQualityConfidence in 0f..1f)
 		require(storedZoneId.isNotBlank())
+		require(localSourceEventId == null || localSourceEventId.isNotBlank())
 	}
 }
 

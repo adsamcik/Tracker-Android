@@ -117,6 +117,7 @@ class ImportedCellHistoryMapperTest {
 			CellHistoryCause.SUBSCRIPTION_GROUPING_UNKNOWN,
 		)
 		public.observations.single().let { observation ->
+			observation.localSourceEventId shouldBe null
 			observation.technologyMix.shouldContainExactly(
 				mapOf(CellHistoryTechnology.LTE to 1, CellHistoryTechnology.NR to 1),
 			)

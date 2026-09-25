@@ -539,6 +539,7 @@ internal object CellHistoryComposer {
 			sourceQualityFlags = fact.qualityFlags,
 			sourceQualityConfidence = fact.qualityConfidence,
 			storedZoneId = fact.storedZoneId,
+			localSourceEventId = fact.sourceEventId,
 		)
 	}
 

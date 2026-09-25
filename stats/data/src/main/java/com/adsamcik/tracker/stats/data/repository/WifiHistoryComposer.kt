@@ -769,6 +769,7 @@ internal object WifiHistoryComposer {
 			WifiHistorySignalQuality(requireNotNull(aggregate.strongestSignalDbm),
 				requireNotNull(aggregate.weakestSignalDbm), sum.toDouble() / count, count),
 			fact.qualityFlags, fact.qualityConfidence, fact.storedZoneId,
+			localSourceEventId = fact.sourceEventId,
 		)
 	}
 

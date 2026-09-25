@@ -131,6 +131,7 @@ class WifiImportedHistoryRepositoryTest {
 			).entry
 
 		recent shouldBe selected
+		selected.observations.all { it.localSourceEventId == null } shouldBe true
 		lookedUp shouldBe selected
 		sourceRecent.entries.single() shouldBe WifiSourceRecentEntry.Imported(
 			selected,

@@ -110,6 +110,8 @@ class WifiHistoryRepositoryRoomTest {
 			).value
 		selectedEntry.observations shouldHaveSize 1
 		selectedEntry.observations.single().observationCount shouldBe 2
+		selectedEntry.observations.single().localSourceEventId shouldBe
+			group.runs.single().facts.first().sourceEventId
 		selectedEntry.observations.single().bandMix shouldBe mapOf(
 			WifiHistoryBand.TWO_POINT_FOUR_GHZ to 1,
 			WifiHistoryBand.FIVE_GHZ to 1,

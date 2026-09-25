@@ -60,6 +60,9 @@ class CellHistoryRepositoryTest {
 
 		(imported.origin as CellHistoryOrigin.Imported).selection shouldBe selection
 		imported.selection shouldBe selection
+		shouldThrow<IllegalArgumentException> {
+			imported.copy(observations = listOf(observation().copy(localSourceEventId = "native-event")))
+		}
 		local.origin shouldBe CellHistoryOrigin.Local
 		local.selection shouldBe null
 		identity.toString() shouldBe "ImportedCellHistoryIdentity"

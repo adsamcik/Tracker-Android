@@ -230,6 +230,7 @@ data class WifiHistoryEntry(
 		require(localSelection == null || origin == WifiHistoryOrigin.LOCAL)
 		require(importedSelection == null || localSelection == null)
 		require(origin == WifiHistoryOrigin.LOCAL || !capturesOnlyWifi)
+		require(origin == WifiHistoryOrigin.LOCAL || observations.all { it.localSourceEventId == null })
 		when (state) {
 			WifiHistoryProductState.READY -> {
 				require(observations.isNotEmpty())
@@ -274,6 +275,8 @@ data class WifiHistoryObservation(
 	val sourceQualityFlags: Long,
 	val sourceQualityConfidence: Float?,
 	val storedZoneId: String,
+	/** Opaque native provider event used only to join independently retained optional context. */
+	val localSourceEventId: String? = null,
 ) {
 	init {
 		require(observedTime >= intervalStartTime)
@@ -287,6 +290,7 @@ data class WifiHistoryObservation(
 		require(sourceQualityFlags >= 0L)
 		require(sourceQualityConfidence == null || sourceQualityConfidence in 0f..1f)
 		require(storedZoneId.isNotBlank())
+		require(localSourceEventId == null || localSourceEventId.isNotBlank())
 	}
 }
 

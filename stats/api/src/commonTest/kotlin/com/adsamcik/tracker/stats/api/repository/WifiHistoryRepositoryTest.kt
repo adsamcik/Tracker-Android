@@ -44,6 +44,9 @@ class WifiHistoryRepositoryTest {
 			importedSelection = selection,
 		)
 		assertEquals(selection, imported.importedSelection)
+		assertFailsWith<IllegalArgumentException> {
+			imported.copy(observations = listOf(observation().copy(localSourceEventId = "native-event")))
+		}
 		assertEquals(WifiHistorySelection.Imported(selection), imported.selection)
 		assertFailsWith<IllegalArgumentException> {
 			imported.copy(capturesOnlyWifi = true)
