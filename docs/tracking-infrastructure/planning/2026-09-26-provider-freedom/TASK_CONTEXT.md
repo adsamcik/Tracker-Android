@@ -68,6 +68,12 @@ What I want is essentially to give users maximum freedom in what they track and 
 
 Yep that sounds good, please let Astra design the full implementation plan, make sure you spawn 4 focused Astra subagents to coordinate together to form the plan and ensure 100% context is gathered so that the plan covers every edge case and is accurate to current state
 
+### 10. Whole-product polish follow-up
+
+I want you to run one more pass that also considers highly polished, UX where every element and piece of text must earn its place. The goal is to make sure things don't make sense just at the tracker level but also at how we store and present the data to the user and export. All pieces of the tracker need to be considered during this work not just my request in isolation of everything else.
+
+This follow-up authorizes another planning and static source-review pass. It does not select the pending design choices in section 9 of the implementation proposal or start the deferred validation phase. Review the complete existing product and its data/export meaning; revise the proposal with concrete, evidence-backed omissions and element/copy rules, without implementing an unapproved redesign.
+
 ## Confirmed product direction
 
 The assistant's immediately preceding response accepted by message 9:
