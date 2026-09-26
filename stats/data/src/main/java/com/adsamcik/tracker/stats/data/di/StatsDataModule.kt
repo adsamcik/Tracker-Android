@@ -8,6 +8,8 @@ import com.adsamcik.tracker.stats.api.metric.PersistentDirtyState
 import com.adsamcik.tracker.stats.api.repository.AchievementMetricsProvider
 import com.adsamcik.tracker.stats.api.repository.AchievementRepository
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.AmbientCellRepository
+import com.adsamcik.tracker.stats.api.repository.AmbientWifiRepository
 import com.adsamcik.tracker.stats.api.repository.CellHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.CellSignalRepository
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
@@ -47,6 +49,8 @@ import com.adsamcik.tracker.stats.data.repository.DefaultWifiHistoryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.PressureHistoryPageReader
+import com.adsamcik.tracker.stats.data.repository.RoomAmbientCellRepository
+import com.adsamcik.tracker.stats.data.repository.RoomAmbientWifiRepository
 import com.adsamcik.tracker.stats.data.repository.PressureImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.repository.TrackingHistorySourceUnionReader
 import com.adsamcik.tracker.stats.data.scheduler.WorkManagerAchievementEvaluationScheduler
@@ -226,6 +230,12 @@ internal abstract class CellHistoryDataModule {
 	abstract fun bindCellHistoryRepository(
 		impl: DefaultCellHistoryRepository,
 	): CellHistoryRepository
+
+	@Binds
+	@Singleton
+	abstract fun bindAmbientCellRepository(
+		impl: RoomAmbientCellRepository,
+	): AmbientCellRepository
 }
 
 /** Keeps the source-specific Wi-Fi reader dormant from shared product composition. */
@@ -237,6 +247,12 @@ internal abstract class WifiHistoryDataModule {
 	abstract fun bindWifiHistoryRepository(
 		impl: DefaultWifiHistoryRepository,
 	): WifiHistoryRepository
+
+	@Binds
+	@Singleton
+	abstract fun bindAmbientWifiRepository(
+		impl: RoomAmbientWifiRepository,
+	): AmbientWifiRepository
 }
 
 /**
