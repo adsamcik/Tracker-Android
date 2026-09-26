@@ -34,7 +34,7 @@ class RoomSourcePlanStore @Inject constructor(
 				SourceDesiredPlanEntity(
 					plan.revision,
 					sourcePlan.source.stableCode,
-					SourcePlanCodec.FORMAT_VERSION,
+					value.formatVersion,
 					value.bytes,
 					value.checksum,
 				)
@@ -57,8 +57,8 @@ class RoomSourcePlanStore @Inject constructor(
 					"Plan revision source-policy collision"
 				}
 				val stored = dao.desiredPlans(plan.revision)
-				check(stored.map { it.sourceKind to it.payloadChecksum } ==
-					encoded.map { it.sourceKind to it.payloadChecksum }) {
+				check(stored.map { Triple(it.sourceKind, it.payloadVersion, it.payloadChecksum) } ==
+					encoded.map { Triple(it.sourceKind, it.payloadVersion, it.payloadChecksum) }) {
 					"Plan revision payload collision"
 				}
 				dao.updateRevisionStatus(plan.revision, status.name)
@@ -71,8 +71,7 @@ class RoomSourcePlanStore @Inject constructor(
 		val header = dao.revision(revision) ?: return@withTransaction null
 		val plans = linkedMapOf<SourceKind, SourcePlan>()
 		for (entity in dao.desiredPlans(revision)) {
-			if (entity.payloadVersion != SourcePlanCodec.FORMAT_VERSION ||
-				entity.payload.size !in 1..SourcePlanCodec.MAX_PAYLOAD_BYTES ||
+			if (entity.payload.size !in 1..SourcePlanCodec.MAX_PAYLOAD_BYTES ||
 				!entity.payloadChecksum.matches(LOWERCASE_SHA_256)
 			) return@withTransaction null
 			val sourcePlan = try {
@@ -82,6 +81,7 @@ class RoomSourcePlanStore @Inject constructor(
 			}
 			val reencoded = codec.encode(sourcePlan)
 			if (sourcePlan.source.stableCode != entity.sourceKind ||
+				reencoded.formatVersion != entity.payloadVersion ||
 				sourcePlan.revision != revision ||
 				reencoded.checksum != entity.payloadChecksum ||
 				!reencoded.bytes.contentEquals(entity.payload)
@@ -145,7 +145,7 @@ class RoomSourcePlanStore @Inject constructor(
 						.sorted()
 						.joinToString(","),
 					updatedAtMs = updatedAtMs,
-					appliedPayloadVersion = encoded?.let { SourcePlanCodec.FORMAT_VERSION }
+					appliedPayloadVersion = encoded?.formatVersion
 						?: preserved?.appliedPayloadVersion,
 					appliedPayload = encoded?.bytes ?: preserved?.appliedPayload,
 					appliedPayloadChecksum = encoded?.checksum ?: preserved?.appliedPayloadChecksum,
@@ -322,7 +322,6 @@ private fun SourceAppliedPlanStateEntity.decodeAppliedPlanOrNull(
 	codec: SourcePlanCodec,
 ): SourcePlan? {
 	if (!hasCompleteAppliedPayload() ||
-		appliedPayloadVersion != SourcePlanCodec.FORMAT_VERSION ||
 		appliedPayloadChecksum?.matches(LOWERCASE_SHA_256) != true
 	) return null
 	val payload = requireNotNull(appliedPayload)
@@ -332,6 +331,7 @@ private fun SourceAppliedPlanStateEntity.decodeAppliedPlanOrNull(
 		val reencoded = codec.encode(decoded)
 		decoded.takeIf { plan ->
 			plan.source.stableCode == sourceKind &&
+				reencoded.formatVersion == appliedPayloadVersion &&
 				reencoded.checksum == appliedPayloadChecksum &&
 				reencoded.bytes.contentEquals(payload)
 		}

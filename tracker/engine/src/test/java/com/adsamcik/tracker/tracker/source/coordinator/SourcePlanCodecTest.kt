@@ -16,9 +16,33 @@ import com.adsamcik.tracker.tracker.source.model.WifiPlan
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.Test
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
+import com.adsamcik.tracker.tracker.source.model.providerItemMaximumAgeMs
 
 class SourcePlanCodecTest {
 	private val subject = SourcePlanCodec()
+
+	@Test
+	fun `legacy Location bytes retain exact format while adaptive target preserves stable age through codec`() {
+		val legacy = LocationPlan(4, LocationBackend.FRAMEWORK, LocationMode.BALANCED,
+			5_000, 2_000, 4f, 10_000, null, true)
+		val historicalBytes = ByteArrayOutputStream().also { bytes ->
+			DataOutputStream(bytes).use {
+				it.writeInt(1); it.writeUTF("LOCATION"); it.writeLong(4)
+				it.writeUTF("FRAMEWORK"); it.writeUTF("BALANCED")
+				it.writeLong(5_000); it.writeLong(2_000); it.writeFloat(4f); it.writeLong(10_000)
+				it.writeBoolean(false); it.writeBoolean(true)
+			}
+		}.toByteArray()
+		subject.encode(legacy).bytes.toList() shouldBe historicalBytes.toList()
+		subject.decode(historicalBytes) shouldBe legacy
+		val adaptive = adaptiveLocationPlan(5, 4, LocationBackend.FRAMEWORK, true)
+		val decoded = subject.decode(subject.encode(adaptive).bytes)
+		decoded shouldBe adaptive
+		decoded.providerItemMaximumAgeMs() shouldBe 120_000L
+		legacy.providerItemMaximumAgeMs() shouldBe 10_000L
+	}
 
 	@Test
 	fun `all source plans round trip deterministically`() {

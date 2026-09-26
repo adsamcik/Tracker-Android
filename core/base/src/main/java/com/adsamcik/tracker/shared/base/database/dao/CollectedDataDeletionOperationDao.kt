@@ -143,6 +143,9 @@ interface CollectedDataDeletionOperationDao {
 			UNION ALL
 			SELECT effective_wall_time_ms AS authority_time
 			FROM ambient_cell_retention_authority
+			UNION ALL
+			SELECT effective_wall_time_ms AS authority_time
+			FROM ambient_location_retention_authority
 		)
 		""",
 	)

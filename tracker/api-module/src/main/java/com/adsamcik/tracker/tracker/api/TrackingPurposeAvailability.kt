@@ -94,6 +94,7 @@ enum class AmbientAcquisitionMechanism {
 	PASSIVE_LOCATION,
 	WIFI_SCAN_RESULTS,
 	CELL_CHANGE_CALLBACKS,
+	ADAPTIVE_LOCATION,
 }
 
 enum class AmbientSourceUnavailableReason(
@@ -118,6 +119,7 @@ enum class AmbientSourceUnavailableReason(
 	CELL_SCAN_PERMISSION_REQUIRED("CELL_SCAN_PERMISSION_REQUIRED"),
 	PLATFORM_UNAVAILABLE("AMBIENT_PLATFORM_UNAVAILABLE"),
 	PROVIDER_UNAVAILABLE("AMBIENT_PROVIDER_UNAVAILABLE"),
+	LOCATION_REQUEST_ADJUSTED("LOCATION_REQUEST_ADJUSTED"),
 }
 
 data class AmbientSourceOperationalAvailability(
@@ -150,12 +152,15 @@ data class AmbientSourceOperationalAvailability(
 			}
 			AmbientSourceOperationalState.DEGRADED -> {
 				require(
-					source == AmbientTrackingSource.STEPS &&
+					(source == AmbientTrackingSource.STEPS &&
 						mechanism == AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS &&
 						reason ==
-						AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
+						AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL) ||
+						(source == AmbientTrackingSource.LOCATION &&
+							mechanism == AmbientAcquisitionMechanism.ADAPTIVE_LOCATION &&
+							reason == AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED),
 				) {
-					"Only Health Connect Steps may be operational with optional background-read gaps"
+					"Operational degradation requires an acknowledged source-specific mechanism"
 				}
 				require(operationalIdentity != null && operationalIdentity.executionRevision > 0L) {
 					"Degraded operational ambient availability requires exact bound authority"
@@ -1282,7 +1287,8 @@ private fun AmbientTrackingSource.allowedMechanisms(): Set<AmbientAcquisitionMec
 		AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
 		AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
 	)
-	AmbientTrackingSource.LOCATION -> setOf(AmbientAcquisitionMechanism.PASSIVE_LOCATION)
+	AmbientTrackingSource.LOCATION -> setOf(AmbientAcquisitionMechanism.PASSIVE_LOCATION,
+		AmbientAcquisitionMechanism.ADAPTIVE_LOCATION)
 	AmbientTrackingSource.WIFI -> setOf(AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS)
 	AmbientTrackingSource.CELL -> setOf(AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS)
 }

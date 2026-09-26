@@ -194,3 +194,30 @@ Use exact current paths/one-based lines and distinguish main baseline, committed
 Consult repository instructions + handover prompt, settings/module graph/build logic/manifests/tests. Partition large durable design/decision/TODO/status/verification/runbook docs across four roles, with explicit coverage inventory. Follow links relevant to your role and track disagreements with stale documents.
 Each report must include: coverage/read inventory; current provider-to-product traces; exact blockers; preserved good machinery; smallest proposed changes; dependencies/ownership; focused test-source cases + eventual validation evidence; approval decisions/alternatives; cross-role questions and answers.
 Do not assert literal universal edge-case proof from static inspection. Produce an exhaustive in-scope checklist and explicit unresolved/context limits. Final independent code review after implementation remains a separate fresh-agent gate.
+
+## 19. Visualization request
+
+> Please generate me visualisation so that I can more easily understand the plan
+
+Two explanatory images were generated; these were proposal previews, not evidence of implementation.
+
+## 20. Location correction
+
+> Here is one example that I would like to tackle if we have balanced and location why would location be off. I was also thinking to expand the location to be handled much better so that we can collect easily location over time but based on settings we balance sources and collection rates. At balanced level I would expect to have decent fidelity collections optimized through activity and so on.
+
+The image used session-only Location. Code review also established actual proposal gaps: passive-by-default background, Balanced preference conflated with Android provider priority, stationary level3 cap ineffective, and displacement filtering starving stopping evidence.
+
+## 21. Tool questions and exact answers
+
+- What should Balanced Location aim to preserve during ordinary all-day tracking?
+  Answer: Daily routes (Recommended). Recognizable walks and journeys with adaptive precision/sampling and possible gaps.
+- May adaptive Location use separately permitted motion/activity hints when Activity history tracking is off?
+  Exact answer: "allow hints but make them optional we cannot force anyone to anything."
+- When the user explicitly enables background Location, should adaptive collection with an ongoing notification be the normal mode?
+  Answer: Adaptive by default (Recommended). One shared service can reduce/increase effort without needing a session.
+
+## 22. Implementation approval
+
+> Implement the proposed plan.
+
+This approves the immediately preceding All-day adaptive Location plan, reproduced in ADAPTIVE_LOCATION_IMPLEMENTATION.md. It does not lift the repository IMPLEMENTATION_ONLY phase, authorize candidate activation/push, or implicitly approve unrelated pending choices in the broader package.

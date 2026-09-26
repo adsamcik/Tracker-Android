@@ -249,7 +249,8 @@ internal object LocationQualifiedObservationQualifier {
 		if (approximate != (authority.permissionPrecision == LocationPermissionPrecision.APPROXIMATE)) {
 			return rejected(LocationFactRejection.QUALITY_AUTHORITY_MISMATCH)
 		}
-		evidence.payload.rejection(authority)?.let { reason -> return rejected(reason) }
+		evidence.payload.rejection(authority.acquisitionConfiguration.maximumHorizontalAccuracyMeters)
+			?.let { reason -> return rejected(reason) }
 		return null
 	}
 
@@ -288,16 +289,18 @@ internal object LocationQualifiedObservationQualifier {
 			},
 		)
 
+	internal fun payloadRejection(payload: LocationFixPayload, maximumAccuracyMeters: Float): LocationFactRejection? =
+		payload.rejection(maximumAccuracyMeters)
+
 	private fun LocationFixPayload.rejection(
-		authority: LocationCaptureAuthority,
+		maximumAccuracyMeters: Float,
 	): LocationFactRejection? = when {
 		!latitudeDegrees.isFinite() || latitudeDegrees !in MIN_LATITUDE..MAX_LATITUDE ||
 			!longitudeDegrees.isFinite() || longitudeDegrees !in MIN_LONGITUDE..MAX_LONGITUDE ->
 			LocationFactRejection.INVALID_COORDINATE
 		!horizontalAccuracyMeters.isFinite() || horizontalAccuracyMeters < 0f ->
 			LocationFactRejection.INVALID_ACCURACY
-		horizontalAccuracyMeters >
-			authority.acquisitionConfiguration.maximumHorizontalAccuracyMeters ->
+		horizontalAccuracyMeters > maximumAccuracyMeters ->
 			LocationFactRejection.INSUFFICIENT_ACCURACY
 		altitudeMeters?.isFinite() == false -> LocationFactRejection.INVALID_ALTITUDE
 		verticalAccuracyMeters?.let { !it.isFinite() || it < 0f } == true ->

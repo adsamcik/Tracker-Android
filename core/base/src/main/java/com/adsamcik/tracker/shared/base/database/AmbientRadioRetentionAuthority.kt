@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.shared.base.database
 
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityEntity
@@ -68,6 +70,83 @@ enum class AmbientRadioRetentionAuthorityUnavailableReason {
 	APPROVAL_REVISION_EXHAUSTED,
 	INTEGRITY_MISMATCH,
 	EFFECTIVE_TIME_INVALID,
+}
+
+suspend fun AppDatabase.applyAmbientLocationRetentionDecision(
+	decision: AmbientRadioRetentionDecision,
+): AmbientRadioRetentionAuthorityResult = try {
+	withTransaction {
+		decision.requireValid()
+		val scope = decision.wifiScope()
+		if (scope != AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT) {
+			return@withTransaction unavailableLivePolicy()
+		}
+		val dao = locationPurposeDao()
+		val evidence = sourceEvidenceStateDao().get()
+			?: return@withTransaction unavailableEpoch()
+		if (evidence.collectedDataEpoch != decision.expectedCollectedDataEpoch) {
+			return@withTransaction unavailableEpoch()
+		}
+		if (evidence.retainedFromMs != decision.expectedRetainedFromMs) {
+			return@withTransaction unavailableRetainedFrom()
+		}
+		val current = dao.latestRetentionAuthority(scope)
+		if (current != null && !AmbientLocationRetentionAuthorityIntegrity.isAuthentic(current)) {
+			return@withTransaction unavailableIntegrity()
+		}
+		if (decision is AmbientRadioRetentionDecision.Revoke && current == null) {
+			return@withTransaction unavailableMissing()
+		}
+		if (current?.approvalRevision != decision.expectedPreviousApprovalRevision()) {
+			return@withTransaction unavailableStaleRevision()
+		}
+		if (!decision.hasValidEffectiveTime(current)) {
+			return@withTransaction unavailableEffectiveTime()
+		}
+		if (!hasValidReferencedPolicyTime(decision, SourceDestinationOwnerEntity.SOURCE_LOCATION)) {
+			return@withTransaction unavailableEffectiveTime()
+		}
+		val binding = retentionBinding(decision, SourceDestinationOwnerEntity.SOURCE_LOCATION)
+			?: return@withTransaction unavailableLivePolicy()
+		val revision = dao.maximumRetentionApprovalRevision(scope)
+			.takeUnless { it == Long.MAX_VALUE }?.plus(1L)
+			?: return@withTransaction unavailableRevision()
+		val value = AmbientLocationRetentionAuthorityIntegrity.create(
+			scope,
+			revision,
+			if (decision is AmbientRadioRetentionDecision.Revoke) {
+				AmbientLocationRetentionAuthorityEntity.STATE_REVOKED
+			} else {
+				AmbientLocationRetentionAuthorityEntity.STATE_ACTIVE
+			},
+			decision.opaquePolicyId(current),
+			binding.first,
+			binding.second,
+			decision.expectedCollectedDataEpoch,
+			decision.effectiveBootId,
+			decision.effectiveElapsedRealtimeNanos,
+			decision.effectiveWallTimeMs,
+			decision.expectedRetainedFromMs,
+		)
+		dao.insertRetentionAuthority(value)
+		if (decision is AmbientRadioRetentionDecision.Revoke) removeLocationAmbientPurposeInCurrentTransaction()
+		else if (decision.expectedRetainedFromMs != current?.retainedFromMs) {
+			decision.expectedRetainedFromMs?.let { pruneLocationAmbientPurposeInCurrentTransaction(it) }
+		}
+		if (
+			sourceEvidenceStateDao().incrementRevisionForExactLifecycle(
+				expectedRevision = evidence.revision,
+				expectedCollectedDataEpoch = decision.expectedCollectedDataEpoch,
+				expectedRetainedFromMs = decision.expectedRetainedFromMs,
+				updatedAtMs = decision.effectiveWallTimeMs,
+			) != 1
+		) {
+			throw AmbientRadioRetentionLifecycleChangedDuringApply
+		}
+		AmbientRadioRetentionAuthorityResult.Applied(scope, revision)
+	}
+} catch (_: AmbientRadioRetentionLifecycleChangedDuringApply) {
+	unavailableEpoch()
 }
 
 suspend fun AppDatabase.applyAmbientWifiRetentionDecision(
@@ -234,7 +313,10 @@ private suspend fun AppDatabase.retentionBinding(
 	}
 	is AmbientRadioRetentionDecision.Revoke -> when (decision.scope) {
 		AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT -> {
-			val current = if (sourceKind == SourceDestinationOwnerEntity.SOURCE_WIFI) {
+			val current = if (sourceKind == SourceDestinationOwnerEntity.SOURCE_LOCATION) {
+				locationPurposeDao().latestRetentionAuthority(decision.scope)
+					?.let { it.sourcePolicyRevision to it.ambientConsentEpoch }
+			} else if (sourceKind == SourceDestinationOwnerEntity.SOURCE_WIFI) {
 				ambientWifiFactDao().latestRetentionAuthority(decision.scope)
 					?.let { it.sourcePolicyRevision to it.ambientConsentEpoch }
 			} else {
@@ -296,6 +378,14 @@ private fun AmbientRadioRetentionDecision.cellScope(): String = when (this) {
 )) }
 
 private fun AmbientRadioRetentionDecision.opaquePolicyId(
+	current: AmbientLocationRetentionAuthorityEntity?,
+): String = when (this) {
+	is AmbientRadioRetentionDecision.GrantLiveAmbient -> opaquePolicyId
+	is AmbientRadioRetentionDecision.GrantPortableImport -> opaquePolicyId
+	is AmbientRadioRetentionDecision.Revoke -> requireNotNull(current).opaquePolicyId
+}
+
+private fun AmbientRadioRetentionDecision.opaquePolicyId(
 	current: AmbientWifiRetentionAuthorityEntity?,
 ): String = when (this) {
 	is AmbientRadioRetentionDecision.GrantLiveAmbient -> opaquePolicyId
@@ -338,6 +428,14 @@ private fun AmbientRadioRetentionDecision.expectedPreviousApprovalRevision(): Lo
 	is AmbientRadioRetentionDecision.GrantPortableImport -> expectedPreviousApprovalRevision
 	is AmbientRadioRetentionDecision.Revoke -> expectedPreviousApprovalRevision
 }
+
+private fun AmbientRadioRetentionDecision.hasValidEffectiveTime(
+	current: AmbientLocationRetentionAuthorityEntity?,
+): Boolean = current == null || effectiveTimeFollows(
+	current.effectiveBootId,
+	current.effectiveElapsedRealtimeNanos,
+	current.effectiveWallTimeMs,
+)
 
 private fun AmbientRadioRetentionDecision.hasValidEffectiveTime(
 	current: AmbientWifiRetentionAuthorityEntity?,

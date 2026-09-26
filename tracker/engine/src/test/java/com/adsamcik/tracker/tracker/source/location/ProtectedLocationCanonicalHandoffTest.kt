@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.data.LocationAcquisitionMode
 import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
 import com.adsamcik.tracker.shared.base.data.LocationRequestPriority
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
 import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
@@ -91,6 +92,15 @@ class ProtectedLocationCanonicalHandoffTest {
 		assertEquals(WALL_TIME_MS, receipt.observation.fixTimeMs)
 		assertEquals(RECEIVED_WALL_TIME_MS, receipt.observation.receivedAtMs)
 		assertEquals(5_000L, receipt.observation.deliveryAgeMs)
+		val sample = requireNotNull(receipt.acceptedSample)
+		val common = requireNotNull(database.locationPurposeDao().receipt(sample.id))
+		assertEquals(EVENT_ID, common.sourceEventId)
+		assertEquals(command.productEffect.durableEvidence.walIntegrityIdentity, common.walIntegrityIdentity)
+		val purposes = database.locationPurposeDao().purposes(sample.id, 3)
+		assertEquals(1, purposes.size)
+		assertEquals(SourceBrokerPurpose.SESSION_CAPTURE, purposes.single().purpose)
+		assertEquals(RUN_ID, purposes.single().serviceRunId)
+		assertNull(purposes.single().ambientIntentId)
 		assertEquals(
 			ProtectedLocationCanonicalSignalIdentity.canonicalProduct(EVENT_ID),
 			database.locationObservationDecisionDao()
@@ -126,6 +136,8 @@ class ProtectedLocationCanonicalHandoffTest {
 			)
 			assertEquals(ADMISSION_ORDINAL, replay.lastCommittedOrdinal)
 			assertEquals(1, writer.writeCount)
+			val sample = requireNotNull(database.locationPurposeDao().receiptByEvent(EVENT_ID))
+			assertEquals(1, database.locationPurposeDao().purposes(sample.sampleId, 3).size)
 		}
 
 	@Test
@@ -401,7 +413,7 @@ class ProtectedLocationCanonicalHandoffTest {
 				wallTimeMs = WALL_TIME_MS + 2_000L,
 				observedNanos = OBSERVED_NANOS + 2_000_000_000L,
 				receivedNanos = RECEIVED_NANOS + 2_000_000_000L,
-				sourceSequence = 2L,
+				sourceSequence = 1L,
 			)
 			insertWal(endpoint)
 			installDrainEndpointAuthority(ADMISSION_ORDINAL + 2L)
@@ -453,7 +465,7 @@ class ProtectedLocationCanonicalHandoffTest {
 			wallTimeMs = WALL_TIME_MS + 2_000L,
 			observedNanos = OBSERVED_NANOS + 2_000_000_000L,
 			receivedNanos = RECEIVED_NANOS + 2_000_000_000L,
-			sourceSequence = 2L,
+			sourceSequence = 1L,
 		)
 		insertWal(first)
 		insertOtherSourceEvent(ADMISSION_ORDINAL + 1L)
@@ -461,7 +473,7 @@ class ProtectedLocationCanonicalHandoffTest {
 		installDrainEndpointAuthority(ADMISSION_ORDINAL + 2L)
 		updateDrainCompleteness(
 			lastAdmissionOrdinal = ADMISSION_ORDINAL + 2L,
-			lastSourceSequence = 2L,
+			lastSourceSequence = 1L,
 		)
 		val commands = mapOf(
 			first.mutation.identity.sourceEventId.value to first,
@@ -509,7 +521,7 @@ class ProtectedLocationCanonicalHandoffTest {
 			wallTimeMs = WALL_TIME_MS + 2_000L,
 			observedNanos = OBSERVED_NANOS + 2_000_000_000L,
 			receivedNanos = RECEIVED_NANOS + 2_000_000_000L,
-			sourceSequence = 2L,
+			sourceSequence = 1L,
 		)
 		insertWal(endpoint)
 
@@ -536,7 +548,7 @@ class ProtectedLocationCanonicalHandoffTest {
 			wallTimeMs = WALL_TIME_MS + 2_000L,
 			observedNanos = OBSERVED_NANOS + 2_000_000_000L,
 			receivedNanos = RECEIVED_NANOS + 2_000_000_000L,
-			sourceSequence = 1L,
+			sourceSequence = 0L,
 			sourceInstanceId = "location-runtime-2",
 			registrationGeneration = 4L,
 		)
@@ -629,7 +641,7 @@ class ProtectedLocationCanonicalHandoffTest {
 			eventId = "known-other-source",
 			sourceKind = SourceKind.ACTIVITY.stableCode,
 			sourceInstanceId = "activity-runtime",
-			sourceSequence = 1L,
+			sourceSequence = 0L,
 			deliveryIdentity = null,
 			deliveryUnitIndex = null,
 			deliveryUnitCount = null,
@@ -645,7 +657,7 @@ class ProtectedLocationCanonicalHandoffTest {
 			wallTimeMs = WALL_TIME_MS + 2_000L,
 			observedNanos = OBSERVED_NANOS + 2_000_000_000L,
 			receivedNanos = RECEIVED_NANOS + 2_000_000_000L,
-			sourceSequence = 2L,
+			sourceSequence = 1L,
 		)
 		val secondUnsigned = storedFirst.copy(
 			admissionOrdinal = 0L,
@@ -689,7 +701,7 @@ class ProtectedLocationCanonicalHandoffTest {
 	}
 
 	@Test
-	fun `global drain uses durable sequence anchor after prior WAL pruning`() = runTest {
+	fun `global drain continues instance sequence across new generation after WAL pruning`() = runTest {
 		val first = command()
 		insertWal(first)
 		val commands = mutableMapOf(EVENT_ID to first)
@@ -717,7 +729,63 @@ class ProtectedLocationCanonicalHandoffTest {
 			wallTimeMs = WALL_TIME_MS + 1_000L,
 			observedNanos = OBSERVED_NANOS + 1_000_000_000L,
 			receivedNanos = RECEIVED_NANOS + 1_000_000_000L,
-			sourceSequence = 2L,
+			sourceSequence = 1L,
+			registrationGeneration = first.authority.registrationGeneration + 1L,
+		)
+		commands[next.mutation.identity.sourceEventId.value] = next
+		insertWal(next)
+
+		val complete = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			handoff.drainHighWater(),
+		)
+
+		assertEquals(ADMISSION_ORDINAL + 1L, complete.lastCommittedOrdinal)
+	}
+
+	@Test
+	fun `global drain reads old per-generation compact anchor after WAL pruning`() = runTest {
+		val first = command()
+		insertWal(first)
+		val commands = mutableMapOf(EVENT_ID to first)
+		val writer = ReceiptWriter(database, accepted = true)
+		val handoff = ProtectedLocationCanonicalHandoff(
+			database,
+			ProtectedLocationWalQualifier { eventId ->
+				LocationWalAdapterResult.Evaluated(
+					LocationObservationQualification.Qualified(
+						requireNotNull(commands[eventId.value]),
+					),
+					TEST_ACQUISITION_METADATA,
+				)
+			},
+			writer,
+		)
+		assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainHighWater())
+		val instance = first.authority.sourceInstanceId.value
+		database.sourceBrokerDao().insertRegistration(ProviderRegistrationGenerationEntity(
+			sourceKind = SourceKind.LOCATION.stableCode, registrationGeneration = first.authority.registrationGeneration,
+			sourceInstanceId = instance, ownerScope = "location", clockDomainId = first.authority.clockDomainId,
+			physicalConfigurationFingerprint = first.authority.physicalConfigurationFingerprint,
+			collectedDataEpoch = first.authority.capturedCollectedDataEpoch, providerResidency = "PROCESS_BOUND",
+			providerProcessIncarnationId = "test", status = "RETIRED", reservedAtMs = 0, reservedElapsedRealtimeNanos = 0,
+			acceptedAtMs = 0, acceptedElapsedRealtimeNanos = 0, retiredAtMs = WALL_TIME_MS,
+			retiredElapsedRealtimeNanos = RECEIVED_NANOS, failureCode = null))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_projection_join_state SET state_key = ? WHERE state_key = ?",
+			arrayOf("physical-continuity:${instance.length}:$instance:${first.authority.registrationGeneration}",
+				"instance-continuity:${instance.length}:$instance"))
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_event_wal WHERE admission_ordinal = ?",
+			arrayOf(ADMISSION_ORDINAL),
+		)
+		val next = command(
+			eventId = "location-after-prune",
+			admissionOrdinal = ADMISSION_ORDINAL + 1L,
+			wallTimeMs = WALL_TIME_MS + 1_000L,
+			observedNanos = OBSERVED_NANOS + 1_000_000_000L,
+			receivedNanos = RECEIVED_NANOS + 1_000_000_000L,
+			sourceSequence = 1L,
+			registrationGeneration = first.authority.registrationGeneration + 1L,
 		)
 		commands[next.mutation.identity.sourceEventId.value] = next
 		insertWal(next)
@@ -739,7 +807,7 @@ class ProtectedLocationCanonicalHandoffTest {
 			wallTimeMs = WALL_TIME_MS + 1_000L,
 			observedNanos = OBSERVED_NANOS + 1_000_000_000L,
 			receivedNanos = RECEIVED_NANOS + 1_000_000_000L,
-			sourceSequence = 1L,
+			sourceSequence = 0L,
 			sourceInstanceId = "location-runtime-2",
 			registrationGeneration = 4L,
 		)
@@ -758,7 +826,7 @@ class ProtectedLocationCanonicalHandoffTest {
 				sourceInstanceId = "location-runtime-2",
 				registrationGeneration = 4L,
 				lastAdmissionOrdinal = ADMISSION_ORDINAL + 1L,
-				lastSourceSequence = 1L,
+				lastSourceSequence = 0L,
 				appDrainComplete = true,
 				providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
 				stopStatus = "COMPLETE",
@@ -1004,7 +1072,7 @@ class ProtectedLocationCanonicalHandoffTest {
 				sourceInstanceId = "location-runtime",
 				registrationGeneration = 3L,
 				lastAdmissionOrdinal = lastAdmissionOrdinal,
-				lastSourceSequence = 1L,
+				lastSourceSequence = 0L,
 				appDrainComplete = true,
 				providerCoverage = "COMPLETE",
 				stopStatus = "COMPLETE",
@@ -1048,7 +1116,7 @@ class ProtectedLocationCanonicalHandoffTest {
 			eventId = "other-source-endpoint",
 			sourceKind = SourceKind.ACTIVITY.stableCode,
 			sourceInstanceId = "activity-runtime",
-			sourceSequence = 2L,
+			sourceSequence = 1L,
 			deliveryIdentity = null,
 			deliveryUnitIndex = null,
 			deliveryUnitCount = null,
@@ -1123,7 +1191,7 @@ class ProtectedLocationCanonicalHandoffTest {
 		wallTimeMs: Long = WALL_TIME_MS,
 		observedNanos: Long = OBSERVED_NANOS,
 		receivedNanos: Long = RECEIVED_NANOS,
-		sourceSequence: Long = 1L,
+		sourceSequence: Long = 0L,
 		sourceInstanceId: String = "location-runtime",
 		registrationGeneration: Long = 3L,
 		speedMetersPerSecond: Float? = 1.25f,

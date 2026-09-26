@@ -21,6 +21,12 @@ interface TrackingStartupGate {
 	/** Full released-history recovery is complete, so providers and canonical writers may run. */
 	val isReady: Boolean
 
+	/** User-requested system stopping suppresses acquisition while allowing cleanup and history. */
+	val permitsNewCollection: Boolean get() = isReady
+
+	/** Last explicit resume fences delayed observations and provider windows from the stopped span. */
+	val collectionResumeBoundary: TrackingCollectionResumeBoundary? get() = null
+
 	/** Process-local deletion/startup generation used to fence delayed workers. */
 	val currentGeneration: Long
 		get() = 0L
@@ -92,6 +98,21 @@ interface TrackingStartupGate {
 		const val MAX_RETRY_DELAY_MILLIS = 30_000L
 		const val BLOCKED_RECHECK_DELAY_MILLIS = 15L * 60L * 1_000L
 	}
+}
+
+data class TrackingCollectionResumeBoundary(
+	val wallTimeMs: Long,
+	val bootId: String,
+	val elapsedRealtimeNanos: Long,
+) {
+	init {
+		require(wallTimeMs >= 0L && bootId.isNotBlank() && elapsedRealtimeNanos >= 0L)
+	}
+
+	fun permitsObservation(observedBootId: String, observedElapsedNanos: Long, observedWallTimeMs: Long): Boolean =
+		if (observedBootId == bootId) observedElapsedNanos >= elapsedRealtimeNanos else observedWallTimeMs >= wallTimeMs
+
+	fun permitsWindow(windowStartWallTimeMs: Long): Boolean = windowStartWallTimeMs >= wallTimeMs
 }
 
 sealed interface TrackingAdmissionStartupResult {

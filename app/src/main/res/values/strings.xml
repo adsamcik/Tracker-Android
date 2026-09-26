@@ -397,7 +397,7 @@
     <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Health Connect is genuinely unavailable and Local Recording is not available.</string>
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect mobile Steps is ready for source-owner reconciliation; coverage may still have explicit gaps.</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Health Connect is genuinely unavailable, so Local Recording is ready for source-owner reconciliation; coverage may still have explicit gaps.</string>
-    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Background Location permission is required for passive outside-trip points. This setting does not change trip Location capture.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Background Location access is needed to collect between sessions. Your session capture choice stays independent.</string>
     <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android’s Wi-Fi scan permission requirements are not met. Granting them does not enable Location capture.</string>
     <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android’s Cell callback permission requirements are not met. Granting them does not enable Location capture.</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Passive Location is ready for source-owner reconciliation. It provides opportunistic points, not route continuity.</string>

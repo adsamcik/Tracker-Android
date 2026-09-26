@@ -335,6 +335,12 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
 		ambientStepsEnabled = ambientStepsEnabled,
 		ambientWifiEnabled = ambientWifiEnabled,
 		ambientCellEnabled = ambientCellEnabled,
+		locationProfileVersion = if (hasLocationProfileVersion()) locationProfileVersion else null,
+		locationBalanceLevel = if (hasLocationBalanceLevel()) locationBalanceLevel else null,
+		locationBackgroundMode = if (hasLocationBackgroundMode()) {
+			LocationBackgroundMode.fromStableCode(locationBackgroundMode)
+		} else null,
+		locationMotionAssistanceEnabled = locationMotionAssistanceEnabled,
         autoTrackingMode = autoTrackingMode,
         transitionDetectionEnabled = transitionDetectionEnabled,
         notificationStyled = notificationStyled,
@@ -387,6 +393,12 @@ private fun TrackingParamsState.toProto(): TrackingParamsProto =
 		.setAmbientStepsEnabled(ambientStepsEnabled)
 		.setAmbientWifiEnabled(ambientWifiEnabled)
 		.setAmbientCellEnabled(ambientCellEnabled)
+		.apply {
+			this@toProto.locationProfileVersion?.let { setLocationProfileVersion(it) }
+			this@toProto.locationBalanceLevel?.let { setLocationBalanceLevel(it) }
+			this@toProto.locationBackgroundMode?.let { setLocationBackgroundMode(it.stableCode) }
+			setLocationMotionAssistanceEnabled(this@toProto.locationMotionAssistanceEnabled)
+		}
         .setLegacyMigrated(true)
         .build()
 

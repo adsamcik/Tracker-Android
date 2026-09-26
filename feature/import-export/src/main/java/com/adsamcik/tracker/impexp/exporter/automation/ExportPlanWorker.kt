@@ -172,7 +172,8 @@ class ExportPlanWorker @AssistedInject constructor(
         var maxTimeMs = 0L
         var maxId = 0L
         val locationSequence = pagedLocationSequence(
-            locationSampleDao = locationSampleDao,
+            locationPurposeDao = appDatabase.locationPurposeDao(),
+        locationSampleDao = locationSampleDao,
             fromMs = fromMs,
             toMs = toMs,
             pageSize = PAGE_SIZE,

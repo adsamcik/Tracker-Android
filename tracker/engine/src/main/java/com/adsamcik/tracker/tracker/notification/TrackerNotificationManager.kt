@@ -108,6 +108,14 @@ class TrackerNotificationManager(
 			context.notificationManager.cancel(NOTIFICATION_ID)
 		}
 
+		/** Background collection has no live session counters or live Stop action. */
+		fun getBackgroundLocationForegroundNotification(context: Context): Notification =
+			createBuilder(context, useStyle = false,
+				publicTitleRes = R.string.notification_background_location_title)
+				.setContentTitle(context.getString(R.string.notification_background_location_title))
+				.setContentText(context.getString(R.string.notification_background_location_text))
+				.build()
+
 		fun getForegroundNotification(
 			context: Context,
 			usesLocation: Boolean,

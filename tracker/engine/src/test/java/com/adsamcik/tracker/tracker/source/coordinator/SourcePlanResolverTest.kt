@@ -39,6 +39,62 @@ import org.junit.Test
 
 class SourcePlanResolverTest {
 	@Test
+	fun `severe thermal pressure constrains live adaptive Location without disabling it`() {
+		val location = adaptiveLocationPlan(4, 2, LocationBackend.FUSED, true)
+		val desired = AcquisitionPlanRevision(2, "thermal", 100, mapOf(SourceKind.LOCATION to location))
+		val demand = directDemand(SourceDemandContractFactory.forProfile(SourceKind.LOCATION, 1, 4,
+			DirectSourceDemandPurpose.SESSION_CAPTURE))
+		val context = PlanResolutionContext(emptyMap(), false, false, true,
+			locationProfileLevel = 4, locationLiveFocus = true)
+		val reduced = SourcePlanResolver().resolve(desired, listOf(demand), context)
+		val actual = reduced.applicablePlans.getValue(SourceKind.LOCATION) as LocationPlan
+		actual.enabled shouldBe true
+		actual.requestedIntervalMs shouldBe 60_000L
+		reduced.degradedReasons.getValue(SourceKind.LOCATION) shouldContain SourceDegradedReason.THERMAL
+		SourcePlanResolver().resolve(desired, listOf(demand), context.copy(severeThermalPressure = false))
+			.applicablePlans.getValue(SourceKind.LOCATION) shouldBe location
+	}
+
+	@Test
+	fun `adaptive Location only goes stationary then moving without an Activity wake dependency`() {
+		val location = adaptiveLocationPlan(3, 2, LocationBackend.FUSED, true)
+		val desired = AcquisitionPlanRevision(2, "adaptive", 100, mapOf(SourceKind.LOCATION to location))
+		val demand = directDemand(SourceDemandContractFactory.forProfile(SourceKind.LOCATION, 1, 3,
+			DirectSourceDemandPurpose.AMBIENT_PRODUCT))
+		val context = PlanResolutionContext(emptyMap(), false, false, false, locationProfileLevel = 3)
+		val stationary = SourcePlanResolver().resolve(desired, listOf(demand), context.copy(
+			motionProfile = stationaryPolicy().acquisitionProfile,
+		))
+		(stationary.applicablePlans.getValue(SourceKind.LOCATION) as LocationPlan).also {
+			it.mode shouldBe LocationMode.BALANCED
+			it.requestedIntervalMs shouldBe 30_000L
+			it.minimumUpdateIntervalMs shouldBe 15_000L
+			it.maximumBatchDelayMs shouldBe 60_000L
+			it.minimumDisplacementMeters shouldBe 0f
+		}
+		stationary.degradedReasons.getValue(SourceKind.LOCATION) shouldBe setOf(SourceDegradedReason.MOTION_REDUCTION)
+		SourcePlanResolver().resolve(desired, listOf(demand), context.copy(
+			motionProfile = CollectionMotionPolicy.awaitingEvidence().acquisitionProfile,
+		)).applicablePlans.getValue(SourceKind.LOCATION) shouldBe location
+	}
+
+	@Test
+	fun `strong baseline pressure preserves useful Location while live focus retains its target`() {
+		val location = adaptiveLocationPlan(4, 2, LocationBackend.FUSED, true)
+		val desired = AcquisitionPlanRevision(2, "adaptive", 100, mapOf(SourceKind.LOCATION to location))
+		val demand = directDemand(SourceDemandContractFactory.forProfile(SourceKind.LOCATION, 1, 4,
+			DirectSourceDemandPurpose.SESSION_CAPTURE))
+		val context = PlanResolutionContext(emptyMap(), false, false, false,
+			locationProfileLevel = 4, batteryPressure = com.adsamcik.tracker.tracker.policy.BatteryPressure.STRONG)
+		val baseline = SourcePlanResolver().resolve(desired, listOf(demand), context)
+		(baseline.applicablePlans.getValue(SourceKind.LOCATION) as LocationPlan).also {
+			it.enabled shouldBe true
+			it.requestedIntervalMs shouldBe 60_000L
+		}
+		SourcePlanResolver().resolve(desired, listOf(demand), context.copy(locationLiveFocus = true))
+			.applicablePlans.getValue(SourceKind.LOCATION) shouldBe location
+	}
+	@Test
 	fun `permission loss disables only the affected source and remains explicit`() {
 		val desired = plan()
 		val resolved = SourcePlanResolver().resolve(
@@ -175,7 +231,7 @@ class SourcePlanResolverTest {
 			location.maximumBatchDelayMs shouldBe 30_000L
 		}
 		resolved.degradedReasons.getValue(SourceKind.LOCATION) shouldBe
-			setOf(SourceDegradedReason.POWER_SAVER)
+			setOf(SourceDegradedReason.MOTION_REDUCTION)
 	}
 
 	@Test

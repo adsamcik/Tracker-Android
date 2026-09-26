@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.os.SystemClock
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import javax.inject.Provider
 import androidx.room.withTransaction
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticRejectionCode
@@ -60,6 +62,7 @@ internal data class SessionSourceDemandDispatchRequest(
 	val bootId: String,
 	val elapsedRealtimeNanos: Long,
 	val wallTimeMs: Long,
+	val policies: Map<Int, com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity>? = null,
 )
 
 internal sealed interface SessionSourceDemandDispatchResult {
@@ -172,6 +175,10 @@ internal interface SourceCallerDemandDispatcher : SourceCallerCurrentAuthorityPr
 	suspend fun dispatchAmbientSteps(
 		request: AmbientStepsDemandDispatchRequest,
 	): GuardedPurposeDemandResult<AmbientStepsDemandResult>
+
+	suspend fun dispatchAmbientLocation(
+		request: AmbientLocationDemandDispatchRequest,
+	): GuardedPurposeDemandResult<AmbientLocationDemandResult>
 
 	suspend fun retireAmbientSteps(
 		consumerId: String,
@@ -306,6 +313,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			elapsedRealtimeNanos = request.elapsedRealtimeNanos,
 			wallTimeMs = request.wallTimeMs,
 			sourceCallerAuthorityReference = permitted.reference.value,
+			policies = request.policies,
 		)
 		if (!demands.match(permitted)) {
 			return rejected(
@@ -466,6 +474,38 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			elapsedRealtimeNanos = elapsedRealtimeNanos,
 			wallTimeMs = wallTimeMs,
 		)
+
+	override suspend fun dispatchAmbientLocation(
+		request: AmbientLocationDemandDispatchRequest,
+	): GuardedPurposeDemandResult<AmbientLocationDemandResult> {
+		val ambient = request.identity
+		val identity = ambient.purposeLeaseIdentity
+		if (ambient.source != AmbientTrackingSource.LOCATION || identity.source != TrackingSource.LOCATION ||
+			identity.purpose != TrackingPurpose.AMBIENT_PRODUCT
+		) return rejectedPurpose(SourceCallerRejectionReason.AMBIENT_SOURCE_NOT_SUPPORTED)
+		val retention = sourceBroker.captureLiveAmbientRetentionSnapshot(
+			source = SourceKind.LOCATION, sourcePolicyRevision = identity.policyRevision,
+			ambientConsentEpoch = identity.consentEpoch, collectedDataEpoch = identity.collectedDataEpoch,
+			currentBootId = request.bootId, currentElapsedRealtimeNanos = request.elapsedRealtimeNanos,
+			currentWallTimeMs = request.wallTimeMs, expectedRetainedFromMs = ambient.retainedFromMs,
+		) ?: return rejectedPurpose(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
+		val grant = retention.grants[SourceKind.LOCATION]
+		if (grant?.opaquePolicyId != ambient.retentionPolicyId ||
+			grant?.approvalRevision != ambient.retentionApprovalRevision ||
+			grant?.retainedFromMs != ambient.retainedFromMs
+		) return rejectedPurpose(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
+		val prepared = when (val acceptance = preparePurposeAcceptance(identity,
+			TrackingSource.LOCATION, TrackingPurpose.AMBIENT_PRODUCT, request.wallTimeMs)) {
+			is GuardedPurposeDemandResult.Applied -> acceptance.value
+			is GuardedPurposeDemandResult.Rejected -> return acceptance
+			is GuardedPurposeDemandResult.RejectedAfterCleanup -> error("Acceptance cannot complete cleanup")
+			GuardedPurposeDemandResult.Stale -> return GuardedPurposeDemandResult.Stale
+		}
+		val result = sourceBroker.replaceAmbientLocationDemand(ambient, request.bootId,
+			request.elapsedRealtimeNanos, request.wallTimeMs, retention, prepared)
+		return GuardedPurposeDemandResult.Applied(result,
+			prepared.receipt.takeIf { result is AmbientLocationDemandResult.Active })
+	}
 
 	override suspend fun dispatchAmbientSteps(
 		request: AmbientStepsDemandDispatchRequest,
@@ -1020,6 +1060,7 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 	private val exactPurposeAuthorityReader: TrackingPurposeAuthorityReader,
 	private val executionRevisionRegistry: TrackingPurposeExecutionRevisionRegistry,
 	private val clockDomainProvider: BootClockDomainProvider,
+	private val startupGateProvider: Provider<TrackingStartupGate>? = null,
 ) : SourceCallerAuthoritySnapshotReader, CurrentSourceCallerAuthorityProvider {
 	override suspend fun read(request: SourceCallerRequest): SourceCallerAuthoritySnapshot {
 		val manifests = request.requestedDemandIdentities.mapNotNull { it.manifestIdentity }.toSet()
@@ -1062,6 +1103,7 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 		requireLiveLease: Boolean,
 		allowSuspendedSession: Boolean,
 	): SourceCallerAuthoritySnapshot? {
+		if (startupGateProvider?.get()?.permitsNewCollection == false) return null
 		val currentBootId = clockDomainProvider.current()
 		repeat(AUTHORITY_READ_ATTEMPTS) {
 			val availabilityBefore = purposeAvailabilityReader.availability.value
@@ -1195,6 +1237,7 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 	private suspend fun readSessionless(
 		requested: Set<SourceCallerDemandIdentity>,
 	): SourceCallerAuthoritySnapshot {
+		if (startupGateProvider?.get()?.permitsNewCollection == false) return unavailableSnapshot()
 		val availability = purposeAvailabilityReader.availability.value
 		val requestedKeys = requested.map(SourceCallerDemandIdentity::sourcePurpose).toSet()
 		val candidates = buildList {

@@ -43,6 +43,9 @@ class MapDataChangeObserver @Inject constructor(
 			.createFlow(
 				LOCATION_TABLE,
 				LOCATION_OBSERVATION_TABLE,
+                "location_accepted_receipt", "location_sample_purpose_authority",
+                "source_policy_authority", "source_policy", "source_consent_epoch",
+                "ambient_location_retention_authority", "source_evidence_state", "collected_data_deletion_operation",
 				CELL_TABLE,
 				WIFI_TABLE,
 				emitInitialState = true,
@@ -55,7 +58,8 @@ class MapDataChangeObserver @Inject constructor(
                     val sources = buildSet {
 						if (
 							LOCATION_TABLE in invalidatedTables ||
-							LOCATION_OBSERVATION_TABLE in invalidatedTables
+							LOCATION_OBSERVATION_TABLE in invalidatedTables ||
+                            invalidatedTables.any { it in LOCATION_AUTHORITY_TABLES }
 						) {
 							add(MapDataSource.Location)
 						}
@@ -70,6 +74,9 @@ class MapDataChangeObserver @Inject constructor(
     }
 
     private companion object {
+        val LOCATION_AUTHORITY_TABLES = setOf("location_accepted_receipt", "location_sample_purpose_authority",
+            "source_policy_authority", "source_policy", "source_consent_epoch", "ambient_location_retention_authority",
+            "source_evidence_state", "collected_data_deletion_operation")
         const val LOCATION_TABLE = "location_sample"
 		const val LOCATION_OBSERVATION_TABLE = "location_observation"
         const val CELL_TABLE = "cell_sample"

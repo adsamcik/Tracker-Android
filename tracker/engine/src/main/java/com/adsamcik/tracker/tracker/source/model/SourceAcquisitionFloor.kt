@@ -142,6 +142,31 @@ internal data class SourceDemandContract(
  * QoS supplies the target-planning signal; acquisition floors remain separate lower bounds.
  */
 internal object SourceDemandContractFactory {
+	/** New adaptive preferences alter targets, not the minimum useful historical evidence contract. */
+	fun forProfile(
+		source: SourceKind,
+		profileVersion: Int,
+		level: Int,
+		purpose: DirectSourceDemandPurpose,
+	): SourceDemandContract {
+		require(source == SourceKind.LOCATION) { "Only Location has adopted this profile contract" }
+		require(profileVersion == 1 && level in 1..5)
+		require(purpose == DirectSourceDemandPurpose.SESSION_CAPTURE || purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT)
+		return SourceDemandContract(
+			floor = LocationAcquisitionFloor(LocationFloorMode.LOW_POWER),
+			maximumProviderItemAgeMs = 120_000L,
+			targetPlanningLatencyMs = when (level) {
+				1 -> 60_000L
+				2 -> 30_000L
+				3 -> 10_000L
+				4 -> 5_000L
+				else -> 1_000L
+			},
+			requestedDeliveryLatencyMs = 120_000L,
+			adaptiveReductionAllowed = true,
+		)
+	}
+
 	/**
 	 * Declares provider identity without inventing a delivery cadence for system-owned history.
 	 * The eventual adapter must stamp each import attempt with a fresh Tracker monotonic observation

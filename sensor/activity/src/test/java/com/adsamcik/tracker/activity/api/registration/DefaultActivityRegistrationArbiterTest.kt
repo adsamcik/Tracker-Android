@@ -1,6 +1,13 @@
 package com.adsamcik.tracker.activity.api.registration
 
 import android.app.Application
+import android.os.SystemClock
+import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
+import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
+import com.adsamcik.tracker.activity.ActivityTransitionData
+import com.adsamcik.tracker.activity.ActivityTransitionType
+import com.adsamcik.tracker.stats.api.DetectedActivityType
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
@@ -50,8 +57,11 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -77,6 +87,7 @@ class DefaultActivityRegistrationArbiterTest {
 	private lateinit var cleanupScheduler: ActivityRegistrationCleanupScheduler
 	private lateinit var callbackAdmissionBarrier: ActivityCallbackAdmissionBarrier
 	private lateinit var callbackRetryOwner: ActivityCallbackRetryOwner
+	private lateinit var motionAssistance: DefaultActivityMotionAssistance
 	private var clockDomainId = "android-boot-count:7"
 	private val appliedIdentities = CopyOnWriteArrayList<ActivityRegistrationIdentity>()
 	private val appliedConfigs = CopyOnWriteArrayList<RecognitionConfig>()
@@ -126,6 +137,10 @@ class DefaultActivityRegistrationArbiterTest {
 		appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 		startupGate = FakeTrackingStartupGate()
 		lifecycleStore = FakeLifecycleStore(CollectedDataLifecycleSnapshot(7L, null))
+		motionAssistance = DefaultActivityMotionAssistance(
+			application, Provider { database }, lifecycleStore, BootClockDomainProvider { clockDomainId },
+			Provider { startupGate },
+		)
 		subject = createSubject(appScope)
 	}
 
@@ -154,6 +169,7 @@ class DefaultActivityRegistrationArbiterTest {
 		cleanupStore,
 		cleanupScheduler,
 		scope,
+		motionAssistance,
 	)
 
 	@After
@@ -163,6 +179,104 @@ class DefaultActivityRegistrationArbiterTest {
 		cleanupFile.delete()
 		File("${cleanupFile.path}.bak").delete()
 		File("${cleanupFile.path}.new").delete()
+	}
+
+	@Test
+	fun `Location helper registers with deny all Activity authority and no automatic entitlement`() = runTest {
+		val authority = enableLocationAssistance()
+		saveContainedRollout()
+		val result = subject.setDemand(ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE,
+			ActivityRegistrationDemand(transitions = helperTransitions(), motionAssistanceAuthority = authority))
+		result.status shouldBe ActivityRegistrationStatus.APPLIED
+		result.snapshot.active shouldBe true
+		motionAssistance.currentAuthority shouldBe authority
+		val config = appliedConfigs.last()
+		config.durableRecognitionEligible shouldBe false
+		config.durableTransitions shouldBe emptySet()
+		config.automaticRecognitionEligible shouldBe false
+		config.automaticTransitions shouldBe emptySet()
+		val identity = requireNotNull(result.snapshot.identity)
+		database.sourceBrokerDao().latestAuthorization(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
+			.toAuthorizationSnapshotOrNull()?.isDenied shouldBe true
+		database.sourceBrokerDao().authorizationDemands(ACTIVITY_SOURCE_KIND) shouldBe emptyList()
+		subject.clearDemand(ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE)
+		motionAssistance.currentAuthority shouldBe null
+		subject.snapshot().active shouldBe false
+	}
+
+	@Test
+	fun `helper drops wrong registration stale events and repeated transition deliveries`() = runTest {
+		val authority = enableLocationAssistance()
+		val result = subject.setDemand(ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE,
+			ActivityRegistrationDemand(transitions = helperTransitions(), motionAssistanceAuthority = authority))
+		val identity = requireNotNull(result.snapshot.identity)
+		val received = mutableListOf<ActivityMotionHint>()
+		backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { motionAssistance.hints.collect { received += it } }
+		val observed = SystemClock.elapsedRealtimeNanos() + 1L
+		val batch = ActivityRecognitionEvidenceBatch(observed, 1L, identity,
+			transitions = listOf(ActivityTransitionEvidence(DetectedActivityType.WALKING,
+				ActivityTransitionType.ENTER, observed)))
+		motionAssistance.publish(batch.copy(registrationIdentity = identity.copy(registrationGeneration = 999L)))
+		motionAssistance.publish(batch.copy(receivedElapsedRealtimeNanos = observed + 30_000_000_001L))
+		received.size shouldBe 0
+		motionAssistance.publish(batch)
+		motionAssistance.publish(batch)
+		// A routine host reconciliation does not reset the per-registration duplicate fence.
+		subject.setDemand(ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE,
+			ActivityRegistrationDemand(transitions = helperTransitions(), motionAssistanceAuthority = authority))
+		motionAssistance.publish(batch)
+		received.size shouldBe 1
+		subject.clearDemand(ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE)
+		motionAssistance.publish(batch.copy(receivedElapsedRealtimeNanos = observed + 1L))
+		received.size shouldBe 1
+	}
+
+	@Test
+	fun `helper never acknowledges provider rejection or wrong consent epoch`() = runTest {
+		val authority = enableLocationAssistance()
+		val invalid = subject.setDemand(ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE,
+			ActivityRegistrationDemand(transitions = helperTransitions(),
+				motionAssistanceAuthority = authority.copy(locationConsentEpoch = 99L)))
+		invalid.snapshot.active shouldBe false
+		motionAssistance.currentAuthority shouldBe null
+		appliedConfigs.size shouldBe 0
+		coEvery { backend.applyRegistration(any(), any()) } returns false
+		val rejected = subject.setDemand(ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE,
+			ActivityRegistrationDemand(transitions = helperTransitions(), motionAssistanceAuthority = authority))
+		rejected.snapshot.active shouldBe false
+		motionAssistance.currentAuthority shouldBe null
+	}
+
+	@Test
+	fun `helper authority expires when current Location policy changes`() = runTest {
+		val authority = enableLocationAssistance()
+		subject.setDemand(ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE,
+			ActivityRegistrationDemand(transitions = helperTransitions(), motionAssistanceAuthority = authority))
+		motionAssistance.currentAuthority shouldBe authority
+		val policies = database.sourcePolicyDao().currentPolicies()
+		database.sourcePolicyDao().insertPolicies(policies.map { it.copy(policyRevision = 7L,
+			locationMotionAssistanceEnabled = false) })
+		database.sourcePolicyDao().compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE, 6L,
+			SourcePolicyAuthorityEntity.STATE_ACTIVE, 7L, "helper-off", 300L) shouldBe 1
+		subject.reconcileDurableDemands()
+		motionAssistance.currentAuthority shouldBe null
+		subject.snapshot().active shouldBe false
+	}
+
+	private fun helperTransitions() = setOf(ActivityTransitionData(DetectedActivityType.WALKING,
+		ActivityTransitionType.ENTER))
+
+	private suspend fun enableLocationAssistance(): ActivityMotionAssistanceAuthority {
+		val dao = database.sourcePolicyDao()
+		dao.insertPolicies(dao.currentPolicies().map { it.copy(policyRevision = 6L,
+			balanceProfileVersion = if (it.sourceKind == 1) 1 else null,
+			locationMotionAssistanceEnabled = it.sourceKind == 1) })
+		dao.insertConsentEpochs(listOf(SourceConsentEpochEntity(1, SourceBrokerPurpose.SESSION_CAPTURE,
+			8L, true, true, 6L, "previous-boot", 1L, 1L, "TEST")))
+		dao.compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE, 5L,
+			SourcePolicyAuthorityEntity.STATE_ACTIVE, 6L, "helper", 200L) shouldBe 1
+		return ActivityMotionAssistanceAuthority(6L, LocationMotionPurpose.CAPTURE, 8L, 7L,
+			clockDomainId, 0L, "host-lease")
 	}
 
 	@Test

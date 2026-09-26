@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">All-day Location</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Off between sessions.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Enabled between sessions. Availability depends on access and Android background limits.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Adaptive</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Passive only</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Adjusts Location collection to motion and your detail preference, with an ongoing notification.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Uses positions supplied by other apps or the system. Long gaps are possible.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker will collect Location between sessions, adjust its effort to movement, and show an ongoing notification. This can use more battery than passive collection. Your choice is saved before Android asks for Location access. Missing access leaves it waiting; you can turn it off at any time.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Use adaptive Location</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Allow Location access</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Choose adaptive Location detail</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Location detail: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Location power and detail</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Choose a level to adopt adaptive Location. Balanced is the default; live sessions prefer more detail. Android and your access can limit the result.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Power first</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Favor power</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Balanced</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Favor detail</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Detail first</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Motion assistance</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Optionally uses motion hints to adjust Location. This records no Activity history and cannot start a session. Location still works if you decline.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Allow motion hints</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Could not apply this change. Try again.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Adaptive collection is not running yet.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Uses your adaptive Location detail level.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Adaptive Location is available.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Location request adjusted by the device.</string>
+</resources>

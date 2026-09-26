@@ -7,6 +7,18 @@ import org.junit.Test
 
 class SourceAcquisitionFloorTest {
 	@Test
+	fun `adaptive Location detail is a soft target with fixed useful admission and legacy floors retained`() {
+		(1..5).forEach { level ->
+			val contract = SourceDemandContractFactory.forProfile(SourceKind.LOCATION, 1, level,
+				DirectSourceDemandPurpose.SESSION_CAPTURE)
+			contract.maximumProviderItemAgeMs shouldBe 120_000L
+			contract.requestedDeliveryLatencyMs shouldBe 120_000L
+			contract.floor shouldBe LocationAcquisitionFloor(LocationFloorMode.LOW_POWER)
+		}
+		SourceDemandContractFactory.forQos(SourceKind.LOCATION, 3, DirectSourceDemandPurpose.SESSION_CAPTURE)
+			.maximumProviderItemAgeMs shouldBe 2_000L
+	}
+	@Test
 	fun `all source qos and relevant purpose floors have an exact canonical round trip`() {
 		val purposes = listOf(
 			DirectSourceDemandPurpose.SESSION_CAPTURE,

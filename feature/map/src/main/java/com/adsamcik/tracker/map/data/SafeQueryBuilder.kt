@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.data
 
 import androidx.sqlite.db.SimpleSQLiteQuery
+import com.adsamcik.tracker.shared.base.database.dao.LocationReadScope
 import androidx.sqlite.db.SupportSQLiteQuery
 
 /**
@@ -232,6 +233,11 @@ class SafeQueryBuilder private constructor(
         // features through their typed DAOs.
         appendClause(selection, "lat_e7 IS NOT NULL")
         appendClause(selection, "lon_e7 IS NOT NULL")
+
+        // Every ambient point must retain its independent current read authority.
+        if (table == Table.LOCATION) {
+            appendClause(selection, LocationReadScope.ALL_VISIBLE)
+        }
 
         timeFrom?.let { appendClause(selection, "time_ms >= ?").also { _ -> args += it } }
         timeTo?.let { appendClause(selection, "time_ms <= ?").also { _ -> args += it } }

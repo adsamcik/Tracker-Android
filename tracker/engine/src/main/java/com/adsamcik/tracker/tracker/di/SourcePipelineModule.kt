@@ -1,6 +1,16 @@
 package com.adsamcik.tracker.tracker.di
 
 import android.content.Context
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.tracker.source.location.LocationWalQualificationAdapter
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalHandoff
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriterChain
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationLiveWriterRegistry
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationOfflineCanonicalWriter
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationAmbientCanonicalWriter
+import com.adsamcik.tracker.tracker.source.coordinator.ProtectedLocationCanonicalSourceDrain
+import kotlinx.coroutines.CoroutineScope
 import com.adsamcik.tracker.tracker.source.catalog.DefaultSourceImplementationCatalog
 import com.adsamcik.tracker.tracker.source.catalog.SourceAcquisitionPlanFactory
 import com.adsamcik.tracker.tracker.source.catalog.SourceImplementationCatalog
@@ -14,7 +24,7 @@ import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioMutationLeaseGuar
 import com.adsamcik.tracker.tracker.source.runtime.ClaimedSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.PressureSourceRuntime
-import com.adsamcik.tracker.tracker.source.runtime.LocationSourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.SharedLocationSourceController
 import com.adsamcik.tracker.tracker.source.runtime.SerializedTrackingPurposeLeaseIssuer
 import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeMutationLeaseGuard
 import com.adsamcik.tracker.tracker.source.runtime.SharedCellSourceController
@@ -22,7 +32,6 @@ import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
 import com.adsamcik.tracker.tracker.source.runtime.SharedWifiSourceController
 import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeKey
 import com.adsamcik.tracker.tracker.source.coordinator.ProtectedLocationSourceDrain
-import com.adsamcik.tracker.tracker.source.coordinator.RequiredProtectedLocationSourceDrain
 import com.adsamcik.tracker.tracker.source.coordinator.RoomSourceProductDrainRouter
 import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainRouter
 import com.adsamcik.tracker.tracker.source.coordinator.LegacySourceWriterTransitionBoundary
@@ -81,7 +90,7 @@ object SourcePipelineModule {
 	@Provides
 	@IntoMap
 	@SourceRuntimeKey(SourceKind.LOCATION)
-	fun provideLocationSourceRuntime(runtime: LocationSourceRuntime): ClaimedSourceRuntime<out SourcePlan> = runtime
+	fun provideLocationSourceRuntime(runtime: SharedLocationSourceController): ClaimedSourceRuntime<out SourcePlan> = runtime
 
 	@Provides
 	@IntoMap
@@ -99,9 +108,22 @@ object SourcePipelineModule {
 
 	@Provides
 	@Singleton
-	fun provideProtectedLocationSourceDrain(
-		required: RequiredProtectedLocationSourceDrain,
-	): ProtectedLocationSourceDrain = required
+	internal fun provideProtectedLocationSourceDrain(
+		handoff: ProtectedLocationCanonicalHandoff,
+	): ProtectedLocationSourceDrain = ProtectedLocationCanonicalSourceDrain(handoff)
+
+	@Provides
+	@Singleton
+	internal fun provideProtectedLocationCanonicalHandoff(
+		database: AppDatabase,
+		qualifier: LocationWalQualificationAdapter,
+		live: ProtectedLocationLiveWriterRegistry,
+		offline: ProtectedLocationOfflineCanonicalWriter,
+		ambient: ProtectedLocationAmbientCanonicalWriter,
+		@ApplicationScope scope: CoroutineScope,
+	): ProtectedLocationCanonicalHandoff = ProtectedLocationCanonicalHandoff(
+		database, qualifier, ProtectedLocationCanonicalWriterChain(live::current, offline, ambient), scope,
+	)
 
 	@Provides
 	@Singleton

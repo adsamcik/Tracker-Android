@@ -11,6 +11,7 @@ internal fun createAdditionalTrackingTables(database: SupportSQLiteDatabase) {
 	createCellSelectedDeletionTables(database)
 	createAmbientStepsRetentionTable(database)
 	createAmbientStepsNativeReplayFootprintTable(database)
+	createLocationPurposeTables(database)
 	createAmbientRadioTables(database)
 	createRuntimeSettlementTables(database)
 }
@@ -994,5 +995,74 @@ private fun createRuntimeSettlementTables(database: SupportSQLiteDatabase) {
 			)
 		)
 		""".trimIndent(),
+	)
+}
+
+internal fun createLocationPurposeTables(database: SupportSQLiteDatabase) {
+	database.execSQL("""
+		CREATE TABLE IF NOT EXISTS location_registration_plan (
+			registration_generation INTEGER NOT NULL, source_instance_id TEXT NOT NULL,
+			configuration_revision INTEGER NOT NULL, authorization_revision INTEGER NOT NULL, physical_configuration_fingerprint TEXT NOT NULL,
+			payload_version INTEGER NOT NULL, payload_checksum TEXT NOT NULL, payload BLOB NOT NULL,
+			effect_checksum TEXT NOT NULL, PRIMARY KEY(registration_generation, configuration_revision, authorization_revision)
+		)
+	""".trimIndent())
+
+	database.execSQL("""
+		CREATE TABLE IF NOT EXISTS location_accepted_receipt (
+			sample_id INTEGER NOT NULL, source_event_id TEXT NOT NULL, source_signal_id TEXT NOT NULL,
+			source_admission_ordinal INTEGER NOT NULL, wal_integrity_identity TEXT NOT NULL,
+			canonical_content_checksum TEXT NOT NULL, source_instance_id TEXT NOT NULL,
+			registration_generation INTEGER NOT NULL, source_sequence INTEGER NOT NULL,
+			delivery_identity TEXT NOT NULL, delivery_unit_index INTEGER NOT NULL, delivery_unit_count INTEGER NOT NULL,
+			writer_id TEXT NOT NULL, writer_version INTEGER NOT NULL, configuration_revision INTEGER NOT NULL,
+			physical_configuration_fingerprint TEXT NOT NULL, authorization_revision INTEGER NOT NULL,
+			authorization_fingerprint TEXT NOT NULL, clock_domain_id TEXT NOT NULL, boot_id TEXT NOT NULL,
+			observed_elapsed_realtime_nanos INTEGER NOT NULL, received_elapsed_realtime_nanos INTEGER NOT NULL,
+			observed_wall_time_ms INTEGER NOT NULL, received_wall_time_ms INTEGER, wall_time_uncertainty_ms INTEGER NOT NULL,
+			collected_data_epoch INTEGER NOT NULL, PRIMARY KEY(sample_id),
+			FOREIGN KEY(sample_id) REFERENCES location_sample(id) ON UPDATE NO ACTION ON DELETE CASCADE
+		)
+	""".trimIndent())
+	database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_location_receipt_event ON location_accepted_receipt(source_event_id)")
+	database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_location_receipt_sequence ON location_accepted_receipt(source_instance_id, source_sequence)")
+	database.execSQL("CREATE INDEX IF NOT EXISTS idx_location_receipt_time ON location_accepted_receipt(observed_wall_time_ms, sample_id)")
+	database.execSQL("""
+		CREATE TABLE IF NOT EXISTS location_sample_purpose_authority (
+			sample_id INTEGER NOT NULL, purpose TEXT NOT NULL, authority_id TEXT NOT NULL,
+			source_policy_revision INTEGER NOT NULL, consent_epoch INTEGER NOT NULL,
+			effective_from_elapsed_nanos INTEGER NOT NULL, effective_until_elapsed_nanos INTEGER NOT NULL,
+			logical_tracking_id TEXT, service_run_id TEXT, session_segment_id INTEGER,
+			session_manifest_revision INTEGER, lifecycle_lease_generation INTEGER,
+			ambient_intent_id TEXT, retention_policy_id TEXT, retention_approval_revision INTEGER,
+			scope_deletion_generation INTEGER NOT NULL, zone_id TEXT,
+			PRIMARY KEY(sample_id, purpose, authority_id),
+			FOREIGN KEY(sample_id) REFERENCES location_accepted_receipt(sample_id) ON UPDATE NO ACTION ON DELETE CASCADE
+		)
+	""".trimIndent())
+	database.execSQL("CREATE INDEX IF NOT EXISTS idx_location_purpose_authority ON location_sample_purpose_authority(purpose, authority_id, sample_id)")
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS ambient_location_retention_authority (
+			scope TEXT NOT NULL,
+			approval_revision INTEGER NOT NULL,
+			state TEXT NOT NULL,
+			opaque_policy_id TEXT NOT NULL,
+			source_policy_revision INTEGER,
+			ambient_consent_epoch INTEGER,
+			collected_data_epoch INTEGER NOT NULL,
+			retained_from_ms INTEGER,
+			effective_boot_id TEXT NOT NULL,
+			effective_elapsed_realtime_nanos INTEGER NOT NULL,
+			effective_wall_time_ms INTEGER NOT NULL,
+			effect_checksum TEXT NOT NULL,
+			PRIMARY KEY(scope, approval_revision)
+		)
+		""".trimIndent(),
+	)
+	database.execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_ambient_location_retention_effective " +
+			"ON ambient_location_retention_authority(" +
+			"scope, effective_boot_id, effective_elapsed_realtime_nanos, approval_revision)",
 	)
 }

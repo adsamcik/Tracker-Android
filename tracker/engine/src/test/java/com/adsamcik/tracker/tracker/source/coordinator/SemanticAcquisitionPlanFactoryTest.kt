@@ -24,6 +24,49 @@ class SemanticAcquisitionPlanFactoryTest {
 	private val environment = SourcePlanEnvironment(LocationBackend.FRAMEWORK, true, setOf(1))
 
 	@Test
+	fun `adopted Balanced requests route capable time based fixes and focus restores saved baseline`() {
+		val settings = TrackingParamsState(locationProfileVersion = 1, locationBalanceLevel = 3)
+		fun create(live: Boolean) = subject.create(settings, 3, 100,
+			environment.copy(liveSources = if (live) setOf(SourceKind.LOCATION) else emptySet()),
+		).plans.getValue(SourceKind.LOCATION) as LocationPlan
+		val baseline = create(false)
+		baseline.mode shouldBe LocationMode.HIGH_ACCURACY
+		baseline.requestedIntervalMs shouldBe 10_000L
+		baseline.minimumUpdateIntervalMs shouldBe 10_000L
+		baseline.maximumBatchDelayMs shouldBe 50_000L
+		baseline.minimumDisplacementMeters shouldBe 0f
+		create(true).requestedIntervalMs shouldBe 5_000L
+		create(false) shouldBe baseline
+	}
+
+	@Test
+	fun `new five cadence targets preserve source off and do not reinterpret old custom settings`() {
+		(1..5).map { level ->
+			adaptiveLocationPlan(level, 1, LocationBackend.FUSED, true).requestedIntervalMs
+		} shouldBe listOf(60_000L, 30_000L, 10_000L, 5_000L, 1_000L)
+		val old = TrackingParamsState(minTimeSeconds = 17, minDistanceMeters = 43)
+		val legacy = subject.create(old, 1, 100, environment).plans.getValue(SourceKind.LOCATION) as LocationPlan
+		legacy.requestedIntervalMs shouldBe 17_000L
+		legacy.minimumDisplacementMeters shouldBe 43f
+		legacy.adaptiveProfileVersion shouldBe null
+		val disabled = old.copy(locationProfileVersion = 1, locationBalanceLevel = 5,
+			sourceCollectionSettings = old.sourceCollectionSettings.copy(location = SourceCollectionFrequency.OFF))
+		subject.create(disabled, 1, 100, environment.copy(liveSources = setOf(SourceKind.LOCATION)))
+			.plans.getValue(SourceKind.LOCATION).enabled shouldBe false
+	}
+
+	@Test
+	fun `another live source does not boost baseline Location and approximate access remains explicit`() {
+		val settings = TrackingParamsState(locationProfileVersion = 1, locationBalanceLevel = 3)
+		val location = subject.create(settings, 1, 100, environment.copy(
+			liveSources = setOf(SourceKind.STEPS), preciseLocationAvailable = false,
+		)).plans.getValue(SourceKind.LOCATION) as LocationPlan
+		location.requestedIntervalMs shouldBe 10_000L
+		location.mode shouldBe LocationMode.BALANCED
+		location.preciseLocationAvailable shouldBe false
+	}
+
+	@Test
 	fun `each component frequency controls only its own source plan`() {
 		val settings = TrackingParamsState(
 			sourcePolicyRevision = 42,

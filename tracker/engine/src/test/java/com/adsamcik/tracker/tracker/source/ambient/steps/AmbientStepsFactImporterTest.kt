@@ -2,6 +2,8 @@ package com.adsamcik.tracker.tracker.source.ambient.steps
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerLookupKey
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerRead
@@ -33,6 +35,8 @@ import com.adsamcik.tracker.tracker.source.runtime.TestLiveAmbientRetentionAutho
 import com.adsamcik.tracker.tracker.source.runtime.LiveAmbientRetentionSnapshot
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.mockk.every
+import io.mockk.mockk
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -815,11 +819,38 @@ class AmbientStepsFactImporterTest {
 		resumed.window shouldBe AmbientStepsProviderReadWindow(7_000L, 8_000L)
 	}
 
-	private fun subject(reader: RecordingAmbientReader) = AmbientStepsFactImporter(
+	@Test
+	fun `user stop suppresses provider reads and resume skips the entire stopped window`() = runTest {
+		var allowed = true
+		var resumeBoundary: TrackingCollectionResumeBoundary? = null
+		val gate = mockk<TrackingStartupGate> {
+			every { permitsNewCollection } answers { allowed }
+			every { collectionResumeBoundary } answers { resumeBoundary }
+		}
+		val reader = RecordingAmbientReader { _, _ -> null }
+		val importer = subject(reader, gate)
+		primeZone(importer)
+		allowed = false
+		importer.importNext(importBoundary(through = 6_000L)) shouldBe
+			AmbientStepsImportResult.Ineligible(AmbientStepsImportIneligibleReason.AUTHORIZATION_INELIGIBLE)
+		reader.windows shouldBe emptyList()
+		allowed = true
+		resumeBoundary = TrackingCollectionResumeBoundary(7_000L, BOOT_ID, 7_000L)
+		clock.setTime(10_000L)
+		val boundary = importBoundary(through = 8_000L, observedAt = 10_000L, observedElapsed = 10_000L)
+		importer.importNext(boundary) shouldBe AmbientStepsImportResult.Gap(
+			AmbientStepsImportGapReason.AUTHORITY_BOUNDARY_NOT_DRAINED, 2_000L, 7_000L)
+		reader.windows shouldBe emptyList()
+		importer.importNext(boundary)
+		reader.windows shouldBe listOf(AmbientStepsProviderReadWindow(7_000L, 8_000L))
+	}
+
+	private fun subject(reader: RecordingAmbientReader, gate: TrackingStartupGate? = null) = AmbientStepsFactImporter(
 		database = database,
 		lifecycleStore = lifecycleStore,
 		clock = clock,
 		readers = mapOf(PROVIDER to reader),
+		startupGate = gate,
 	)
 
 	private suspend fun primeZone(importer: AmbientStepsFactImporter) {

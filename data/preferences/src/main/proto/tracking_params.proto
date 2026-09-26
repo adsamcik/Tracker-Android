@@ -73,6 +73,14 @@ message TrackingParamsProto {
   bool ambient_wifi_enabled = 30;
   bool ambient_cell_enabled = 31;
 
+  // Additive Location profile metadata. Absence preserves legacy/custom settings exactly.
+  optional int32 location_profile_version = 32;
+  optional int32 location_balance_level = 33;
+  // 1 = PASSIVE_ONLY, 2 = ADAPTIVE. Absence retains legacy passive-only semantics.
+  optional int32 location_background_mode = 34;
+  // Helper-only consent; never Activity history or automatic-start consent.
+  bool location_motion_assistance_enabled = 35;
+
   // Internal migration marker so legacy Preferences import runs only once.
   bool legacy_migrated = 1000;
 }

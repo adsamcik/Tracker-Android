@@ -21,7 +21,10 @@ data class LocationPlan(
 	val maximumBatchDelayMs: Long,
 	val probeDurationMs: Long? = null,
 	val preciseLocationAvailable: Boolean,
+	/** Null preserves the exact legacy codec and cadence-derived validity contract. */
+	val adaptiveProfileVersion: Int? = null,
 ) : SourcePlan {
+	init { require(adaptiveProfileVersion == null || adaptiveProfileVersion == 1) }
 	override val source: SourceKind = SourceKind.LOCATION
 	override val enabled: Boolean get() = mode != LocationMode.DISABLED
 }
@@ -150,11 +153,13 @@ enum class SourceDegradedReason {
 	CATALOG_CONTAINED,
 	CATALOG_NOT_ACCEPTED,
 	AVAILABILITY_READ_FAILED,
+	PROVIDER_FALLBACK,
+	MOTION_REDUCTION,
 }
 
 /** Maximum provider-item age admitted by the plan, independent of acquisition cadence. */
 internal fun SourcePlan.providerItemMaximumAgeMs(): Long = when (this) {
-	is LocationPlan -> maxOf(requestedIntervalMs, maximumBatchDelayMs)
+	is LocationPlan -> if (adaptiveProfileVersion == 1) 120_000L else maxOf(requestedIntervalMs, maximumBatchDelayMs)
 	is ActivityPlan -> desiredDetectionLatencyMs
 	is StepsPlan -> maximumReportLatencyMs
 	is PressurePlan -> maxOf(maximumReportLatencyMicros.toLong().microsToMillisCeiling(), aggregationWindowMs)

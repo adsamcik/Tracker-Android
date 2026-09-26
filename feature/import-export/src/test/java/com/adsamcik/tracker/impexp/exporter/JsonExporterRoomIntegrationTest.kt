@@ -1,6 +1,18 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
+import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.LocationSamplePurposeAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import io.mockk.mockk
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -312,6 +324,150 @@ class JsonExporterRoomIntegrationTest {
 		).map { it.id }.toList()
 
 		exportedIds shouldBe listOf(ids[2])
+	}
+
+	@Test
+	fun `ambient-only Room geography exports as JSON3 without inventing a session`() = runTest {
+		val sample = insertAmbientSample()
+		val exporter = JsonExporter(TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
+		val outputFile = createTempExportFile()
+		val result = outputFile.outputStream().use { stream ->
+			exporter.export(context, emptySequence(), stream, 35_000L..45_000L)
+				.shouldBeInstanceOf<ExportResult.Success>()
+		}
+
+		result.recordCount shouldBe 1
+		val records = JSONArray(outputFile.readText(Charsets.UTF_8))
+		records.length() shouldBe 1
+		val record = records.getJSONObject(0)
+		record.getInt("schemaVersion") shouldBe 3
+		record.getBoolean("orphanedData") shouldBe true
+		record.has("session") shouldBe false
+		val point = record.getJSONArray("locations").getJSONObject(0)
+		point.getLong("timeMs") shouldBe sample.timeMs
+		point.getDouble("verticalAccuracyM").toFloat() shouldBe sample.vAccM
+		point.getDouble("speedAccuracyMps").toFloat() shouldBe sample.speedAccuracyMps
+		point.getString("quality") shouldBe sample.quality.name
+		// The ordinary capture reader remains empty: export did not create capture membership.
+		locationSampleDao.countBetween(35_000L, 45_000L) shouldBe 0
+	}
+
+	@Test
+	fun `JSON export rejects an ambient page buffered before consent revocation`() = runTest {
+		insertAmbientSample()
+		val exporter = JsonExporter(TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
+		val guardedDatabase = databaseAfterAmbientPage {
+			database.sourcePolicyDao().insertConsentEpochs(listOf(SourceConsentEpochEntity(
+				sourceKind = 1, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, epoch = 2,
+				eligible = false, persistenceEligible = false, policyRevision = 1,
+				effectiveBootId = "test-boot", effectiveElapsedRealtimeNanos = 3,
+				effectiveWallTimeMs = 45_000, changeReason = "USER_REVOKED",
+			)))
+		}
+		createTempExportFile().outputStream().use { stream ->
+			exporter.exportAfter(context, emptySequence(), stream, 35_000L..45_000L,
+				null, null, guardedDatabase, {}).shouldBeInstanceOf<ExportResult.Error>()
+		}
+		database.locationPurposeDao().visiblePathChunk(35_000L, 45_000L, null, null, 10) shouldBe emptyList()
+	}
+
+	@Test
+	fun `JSON export rejects a buffered ambient page when retention preparation fences reads`() = runTest {
+		insertAmbientSample()
+		val exporter = JsonExporter(TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
+		val guardedDatabase = databaseAfterAmbientPage {
+			// Epoch, floor and retention receipt are deliberately unchanged at preparation.
+			database.collectedDataDeletionOperationDao().insert(CollectedDataDeletionOperationEntity(
+				operationId = "retention-preparation", targetCollectedDataEpoch = 0,
+				retainedFromMs = 41_000, deletedAtMs = 45_000,
+				phase = CollectedDataDeletionOperationEntity.PHASE_RETENTION_PREPARED,
+				updatedAtMs = 45_000,
+			))
+		}
+		createTempExportFile().outputStream().use { stream ->
+			// Empty access hook matches interactive export: the scalar Room fence must suffice.
+			exporter.exportAfter(context, emptySequence(), stream, 35_000L..45_000L,
+				null, null, guardedDatabase, {}).shouldBeInstanceOf<ExportResult.Error>()
+		}
+		database.locationPurposeDao().visiblePathChunk(35_000L, 45_000L, null, null, 10) shouldBe emptyList()
+	}
+
+	/** Real Room queries with a deterministic lifecycle transition after a page is buffered. */
+	private fun databaseAfterAmbientPage(changeAuthority: suspend () -> Unit): AppDatabase {
+		val actual = database.locationPurposeDao()
+		var changed = false
+		val intercepted = object : LocationPurposeDao by actual {
+			override suspend fun visiblePathChunk(
+				fromMs: Long, toMs: Long, afterTimeMs: Long?, afterId: Long?, limit: Int,
+				ambientOnly: Boolean, northE7: Int?, southE7: Int?, eastE7: Int?, westE7: Int?,
+			): List<LocationPathSampleRow> {
+				val page = actual.visiblePathChunk(fromMs, toMs, afterTimeMs, afterId, limit,
+					ambientOnly, northE7, southE7, eastE7, westE7)
+				if (ambientOnly && page.isNotEmpty() && !changed) {
+					changed = true
+					changeAuthority()
+				}
+				return page
+			}
+		}
+		return mockk<AppDatabase> {
+			every { locationPurposeDao() } returns intercepted
+			every { locationSampleDao() } returns database.locationSampleDao()
+			every { tripDao() } returns database.tripDao()
+			every { wifiObservationDao() } returns database.wifiObservationDao()
+			every { cellSampleDao() } returns database.cellSampleDao()
+		}
+	}
+
+	private suspend fun insertAmbientSample(): EntityLocationSample {
+		val sample = createLocationSample(40_000L, 50.3, 14.3, 103f, 1f, 5f)
+		val id = locationSampleDao.insert(sample)
+		database.sourceEvidenceStateDao().ensure()
+		database.sourcePolicyDao().ensureAuthority(SourcePolicyAuthorityEntity(
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE, currentPolicyRevision = 1,
+			legacySettingsFingerprint = null, updatedAtMs = 0,
+		))
+		database.sourcePolicyDao().insertPolicies(listOf(SourcePolicyEntity(
+			policyRevision = 1, sourceKind = 1, enabled = true, qosCode = 2,
+			locationMinTimeSeconds = 10, locationMinDistanceMeters = 0, locationRequiredAccuracyMeters = 50,
+			capturePersistenceEligible = false, controlPersistenceEligible = false, ambientPersistenceEligible = true,
+			captureConsentEpoch = null, controlConsentEpoch = null, ambientConsentEpoch = 1,
+			effectiveBootId = "test-boot", effectiveElapsedRealtimeNanos = 0,
+			effectiveWallTimeMs = 0, changeReason = "TEST",
+		)))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(SourceConsentEpochEntity(
+			sourceKind = 1, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, epoch = 1,
+			eligible = true, persistenceEligible = true, policyRevision = 1,
+			effectiveBootId = "test-boot", effectiveElapsedRealtimeNanos = 0,
+			effectiveWallTimeMs = 0, changeReason = "TEST",
+		)))
+		val purposes = database.locationPurposeDao()
+		purposes.insertRetentionAuthority(AmbientLocationRetentionAuthorityIntegrity.create(
+			AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT, 1,
+			AmbientLocationRetentionAuthorityEntity.STATE_ACTIVE, "location-retention", 1, 1,
+			0, "test-boot", 0, 0, null,
+		))
+		purposes.insertReceiptIfAbsent(LocationAcceptedReceiptEntity(
+			sampleId = id, sourceEventId = "event", sourceSignalId = "signal", sourceAdmissionOrdinal = 1,
+			walIntegrityIdentity = "0".repeat(64), canonicalContentChecksum = "1".repeat(64),
+			sourceInstanceId = "location-instance", registrationGeneration = 1, sourceSequence = 0,
+			deliveryIdentity = "delivery", deliveryUnitIndex = 0, deliveryUnitCount = 1,
+			writerId = "protected-location", writerVersion = 1, configurationRevision = 1,
+			physicalConfigurationFingerprint = "physical", authorizationRevision = 1,
+			authorizationFingerprint = "authorization", clockDomainId = "test-clock", bootId = "test-boot",
+			observedElapsedRealtimeNanos = 1, receivedElapsedRealtimeNanos = 2,
+			observedWallTimeMs = sample.timeMs, receivedWallTimeMs = sample.timeMs,
+			wallTimeUncertaintyMs = 0, collectedDataEpoch = 0,
+		))
+		purposes.insertPurposeIfAbsent(LocationSamplePurposeAuthorityEntity(
+			sampleId = id, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, authorityId = "ambient-authority",
+			sourcePolicyRevision = 1, consentEpoch = 1, effectiveFromElapsedNanos = 0, effectiveUntilElapsedNanos = 3,
+			logicalTrackingId = null, serviceRunId = null, sessionSegmentId = null,
+			sessionManifestRevision = null, lifecycleLeaseGeneration = null, ambientIntentId = "ambient-intent",
+			retentionPolicyId = "location-retention", retentionApprovalRevision = 1, scopeDeletionGeneration = 0,
+			zoneId = null,
+		))
+		return sample.copy(id = id)
 	}
 
 	private suspend fun loadPersistedLocations(dateRange: LongRange): Sequence<LocationSample> {

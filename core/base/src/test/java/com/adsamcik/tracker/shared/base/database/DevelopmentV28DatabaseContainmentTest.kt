@@ -42,6 +42,29 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
+	fun `pre adaptive Location development marker is stale`() {
+		createFixture(CURRENT_DATABASE_VERSION, includeFinalTable = true, includeFinalColumn = true,
+			includeFinalIndex = true, markerValue = "tracker-v28-applied-source-plan-state-20260920")
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28)
+	}
+
+	@Test
+	fun `claimed current assembly without Location purpose authority is contained`() {
+		createFixture(CURRENT_DATABASE_VERSION, includeMarker = true, includeFinalTable = true,
+			includeFinalColumn = true, includeFinalIndex = true,
+			locationSchemaMutation = { it.execSQL("DROP TABLE location_sample_purpose_authority") })
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA)
+	}
+
+	@Test
+	fun `claimed current assembly without unique Location receipt identity is contained`() {
+		createFixture(CURRENT_DATABASE_VERSION, includeMarker = true, includeFinalTable = true,
+			includeFinalColumn = true, includeFinalIndex = true,
+			locationSchemaMutation = { it.execSQL("DROP INDEX idx_location_receipt_event") })
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA)
+	}
+
+	@Test
 	fun `released v27 routes to the normal migration path`() {
 		createFixture(version = LAST_RELEASED_ACTIVE_DATABASE_VERSION)
 
@@ -633,6 +656,7 @@ class DevelopmentV28DatabaseContainmentTest {
 		includeStepsCountDomain: Boolean = includeFinalTable,
 		appliedPlanPayloadColumns: Set<String> = APPLIED_PLAN_PAYLOAD_COLUMNS,
 		stepsSchemaMutation: ((SupportSQLiteDatabase) -> Unit)? = null,
+		locationSchemaMutation: ((SupportSQLiteDatabase) -> Unit)? = null,
 		markerValue: String? = null,
 	) {
 		val helper = FrameworkSQLiteOpenHelperFactory().create(
@@ -657,6 +681,11 @@ class DevelopmentV28DatabaseContainmentTest {
 							)
 						}
 						if (includeFinalTable) {
+							createLocationPurposeTables(db)
+							db.execSQL("CREATE TABLE source_policy (balance_profile_version INTEGER, " +
+								"balance_level INTEGER, location_background_mode INTEGER, " +
+								"location_motion_assistance_enabled INTEGER NOT NULL DEFAULT 0)")
+							locationSchemaMutation?.invoke(db)
 							db.execSQL(
 								"CREATE TABLE imported_wifi_deletion_generation (" +
 									"run_identity TEXT PRIMARY KEY, " +

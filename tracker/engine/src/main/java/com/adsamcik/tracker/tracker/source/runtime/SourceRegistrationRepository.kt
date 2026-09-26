@@ -3,6 +3,11 @@ package com.adsamcik.tracker.tracker.source.runtime
 import android.os.SystemClock
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.recordLocationRegistrationPlan
+import com.adsamcik.tracker.shared.base.database.data.LocationRegistrationPlanIntegrity
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
+import com.adsamcik.tracker.tracker.source.model.LocationPlan
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
@@ -115,6 +120,23 @@ class SourceRegistrationRepository @Inject constructor(
 	private val trackingRolloutStateStore: RoomTrackingRolloutStateStore,
 	private val sourceBroker: SourceBroker = SourceBroker(database),
 ) {
+	/** Preserve the actual request alongside the immutable user/session target. */
+	internal suspend fun recordLocationPlan(registration: SourceRegistration, plan: LocationPlan) {
+		check(registration.state.appliedRevision == plan.revision)
+		check(registration.physicalConfigurationFingerprint == plan.physicalConfigurationFingerprint())
+		val encoded = SourcePlanCodec().encode(plan)
+		database.recordLocationRegistrationPlan(LocationRegistrationPlanIntegrity.create(
+			registrationGeneration = registration.state.registrationGeneration,
+			sourceInstanceId = registration.state.sourceInstanceId,
+			configurationRevision = plan.revision,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			payloadVersion = encoded.formatVersion,
+			payloadChecksum = encoded.checksum,
+			payload = encoded.bytes,
+		))
+	}
+
 	internal suspend fun verifySourceEraseProviderSettled(
 		source: SourceKind,
 		expectedCollectedDataEpoch: Long,

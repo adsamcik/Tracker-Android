@@ -740,6 +740,10 @@ private fun TrackingParamsState.matchesSourceProjection(other: TrackingParamsSta
 		cellEnabled == other.cellEnabled &&
 		barometerEnabled == other.barometerEnabled &&
 		ambientLocationEnabled == other.ambientLocationEnabled &&
+		locationProfileVersion == other.locationProfileVersion &&
+		locationBalanceLevel == other.locationBalanceLevel &&
+		locationBackgroundMode == other.locationBackgroundMode &&
+		locationMotionAssistanceEnabled == other.locationMotionAssistanceEnabled &&
 		ambientStepsEnabled == other.ambientStepsEnabled &&
 		ambientWifiEnabled == other.ambientWifiEnabled &&
 		ambientCellEnabled == other.ambientCellEnabled &&
@@ -764,6 +768,10 @@ private fun TrackingParamsState.withPolicy(snapshot: SourcePolicySnapshot): Trac
 		cellEnabled = cell.enabled,
 		ambientLocationEnabled = location.ambientConsentEpoch != null &&
 			location.ambientPersistenceEligible,
+		locationProfileVersion = location.balanceProfileVersion,
+		locationBalanceLevel = location.balanceLevel,
+		locationBackgroundMode = location.locationBackgroundMode,
+		locationMotionAssistanceEnabled = location.locationMotionAssistanceEnabled,
 		ambientStepsEnabled = steps.ambientConsentEpoch != null &&
 			steps.ambientPersistenceEligible,
 		ambientWifiEnabled = wifi.ambientConsentEpoch != null &&

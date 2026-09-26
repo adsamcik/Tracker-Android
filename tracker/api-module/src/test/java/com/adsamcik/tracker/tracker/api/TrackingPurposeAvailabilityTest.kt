@@ -357,6 +357,25 @@ class TrackingPurposeAvailabilityTest {
 	}
 
 	@Test
+	fun `adaptive Location degradation requires exact acknowledged Location authority`() {
+		val identity = purposeIdentity(AmbientTrackingSource.LOCATION)
+		val adjusted = AmbientSourceOperationalAvailability(
+			source = AmbientTrackingSource.LOCATION,
+			state = AmbientSourceOperationalState.DEGRADED,
+			mechanism = AmbientAcquisitionMechanism.ADAPTIVE_LOCATION,
+			reason = AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED,
+			operationalIdentity = identity,
+		)
+		adjusted.isOperational shouldBe true
+		ready(AmbientTrackingSource.LOCATION, AmbientAcquisitionMechanism.ADAPTIVE_LOCATION).isOperational shouldBe true
+		shouldThrow<IllegalArgumentException> { adjusted.copy(operationalIdentity = null) }
+		shouldThrow<IllegalArgumentException> { adjusted.copy(operationalIdentity = identity.copy(executionRevision = 0L)) }
+		shouldThrow<IllegalArgumentException> { adjusted.copy(mechanism = AmbientAcquisitionMechanism.PASSIVE_LOCATION) }
+		shouldThrow<IllegalArgumentException> { adjusted.copy(reason = AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE) }
+		shouldThrow<IllegalArgumentException> { adjusted.copy(operationalIdentity = purposeIdentity(AmbientTrackingSource.WIFI)) }
+	}
+
+	@Test
 	fun `invalid availability matrix is rejected`() {
 		val invalid = listOf<() -> AmbientSourceOperationalAvailability>(
 			{

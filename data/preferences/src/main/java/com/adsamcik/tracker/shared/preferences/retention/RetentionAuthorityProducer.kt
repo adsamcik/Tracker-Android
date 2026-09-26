@@ -10,6 +10,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.SourceEvidenceRetentionBootstrapResult
 import com.adsamcik.tracker.shared.base.database.applyAmbientCellRetentionDecision
 import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecision
+import com.adsamcik.tracker.shared.base.database.applyAmbientLocationRetentionDecision
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.applyAmbientWifiRetentionDecision
 import com.adsamcik.tracker.shared.base.database.bootstrapSourceEvidenceForRetention
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityIntegrity
@@ -1257,6 +1259,31 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				)
 			},
 		).toResult(source, scope, RetentionAuthorityState.ACTIVE)
+		TrackingSourceComponent.LOCATION -> database.applyAmbientLocationRetentionDecision(
+			if (scope == RetentionAuthorityScope.LIVE_AMBIENT) {
+				AmbientRadioRetentionDecision.GrantLiveAmbient(
+					opaquePolicyId,
+					collectedDataEpoch,
+					requireNotNull(sourcePolicyRevision),
+					requireNotNull(ambientConsentEpoch),
+					time.bootId,
+					time.elapsedRealtimeNanos,
+					time.wallTimeMs,
+					expectedPreviousApprovalRevision,
+					retainedFromMs,
+				)
+			} else {
+				AmbientRadioRetentionDecision.GrantPortableImport(
+					opaquePolicyId,
+					collectedDataEpoch,
+					time.bootId,
+					time.elapsedRealtimeNanos,
+					time.wallTimeMs,
+					expectedPreviousApprovalRevision,
+					retainedFromMs,
+				)
+			},
+		).toResult(source, scope, RetentionAuthorityState.ACTIVE)
 		TrackingSourceComponent.WIFI -> database.applyAmbientWifiRetentionDecision(
 			if (scope == RetentionAuthorityScope.LIVE_AMBIENT) {
 				AmbientRadioRetentionDecision.GrantLiveAmbient(
@@ -1333,6 +1360,17 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				retainedFromMs,
 			),
 		).toResult(source, scope, RetentionAuthorityState.REVOKED)
+		TrackingSourceComponent.LOCATION -> database.applyAmbientLocationRetentionDecision(
+			AmbientRadioRetentionDecision.Revoke(
+				scope.name,
+				collectedDataEpoch,
+				time.bootId,
+				time.elapsedRealtimeNanos,
+				time.wallTimeMs,
+				expectedPreviousApprovalRevision,
+				retainedFromMs,
+			),
+		).toResult(source, scope, RetentionAuthorityState.REVOKED)
 		TrackingSourceComponent.WIFI -> database.applyAmbientWifiRetentionDecision(
 			AmbientRadioRetentionDecision.Revoke(
 				scope.name,
@@ -1380,6 +1418,22 @@ class DefaultRetentionAuthorityProducer internal constructor(
 					it.effectiveElapsedRealtimeNanos,
 					it.effectiveWallTimeMs,
 					AmbientStepsRetentionAuthorityIntegrity.isAuthentic(it),
+				)
+			}
+		TrackingSourceComponent.LOCATION ->
+			database.locationPurposeDao().latestRetentionAuthority(scope.name)?.let {
+				StoredRetentionAuthority(
+					it.approvalRevision,
+					if (it.isActive) RetentionAuthorityState.ACTIVE else RetentionAuthorityState.REVOKED,
+					it.opaquePolicyId,
+					it.sourcePolicyRevision,
+					it.ambientConsentEpoch,
+					it.collectedDataEpoch,
+					it.retainedFromMs,
+					it.effectiveBootId,
+					it.effectiveElapsedRealtimeNanos,
+					it.effectiveWallTimeMs,
+					AmbientLocationRetentionAuthorityIntegrity.isAuthentic(it),
 				)
 			}
 		TrackingSourceComponent.WIFI ->
@@ -1454,11 +1508,12 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			TrackingSourceComponent.CELL,
 		)
 		val DURABLE_LIVE_AMBIENT_SOURCES = setOf(
+			TrackingSourceComponent.LOCATION,
 			TrackingSourceComponent.STEPS,
 			TrackingSourceComponent.WIFI,
 			TrackingSourceComponent.CELL,
 		)
-		val PORTABLE_IMPORT_SOURCES = DURABLE_LIVE_AMBIENT_SOURCES
+		val PORTABLE_IMPORT_SOURCES = DURABLE_LIVE_AMBIENT_SOURCES - TrackingSourceComponent.LOCATION
 	}
 }
 

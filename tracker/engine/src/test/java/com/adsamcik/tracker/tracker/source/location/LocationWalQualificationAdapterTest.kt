@@ -2,6 +2,10 @@ package com.adsamcik.tracker.tracker.source.location
 
 import android.app.Application
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.removeLocationAmbientPurposeInCurrentTransaction
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.LocationRegistrationPlanIntegrity
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.data.LocationAcquisitionMode
 import com.adsamcik.tracker.shared.base.data.LocationRequestPriority
@@ -886,13 +890,12 @@ class LocationWalQualificationAdapterTest {
 	}
 
 	@Test
-	fun `zero source sequence cannot be accepted as a durably allocated delivery`() = runTest {
+	fun `zero source sequence is the first durably allocated delivery`() = runTest {
 		installValidFixture(sourceSequence = 0L)
 
-		assertEquals(
-			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.SOURCE_SEQUENCE_MISMATCH),
-			subject.qualify(EVENT_ID),
-		)
+		val evaluated = assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		val qualified = assertIs<LocationObservationQualification.Qualified>(evaluated.qualification)
+		assertEquals(0L, qualified.command.productEffect.durableEvidence.sourceSequence)
 	}
 
 	@Test
@@ -1142,6 +1145,119 @@ class LocationWalQualificationAdapterTest {
 		)
 	}
 
+	@Test
+	fun `adaptive actual v2 receipt preserves separate requested capture plan`() = runTest {
+		val requested = locationPlan(PLAN_REVISION).copy(mode = LocationMode.BALANCED, adaptiveProfileVersion = 1)
+		val actual = requested.copy(mode = LocationMode.HIGH_ACCURACY)
+		installValidFixture(plan = requested, providerFingerprint = actual.physicalConfigurationFingerprint(), actualPlan = actual,
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION, deliveryPayloads = listOf(locationPayload(false)))
+		val result = assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		assertIs<LocationObservationQualification.Qualified>(result.qualification)
+		assertEquals(LocationRequestPriority.HIGH_ACCURACY, result.acquisitionMetadata.requestPriority)
+	}
+
+	@Test
+	fun `current boot ambient registration qualifies prior boot durable consent with v2 actual plan`() = runTest {
+		installValidFixture(plan = locationPlan(PLAN_REVISION).copy(adaptiveProfileVersion = 1), ambientOnly = true,
+			priorBootPolicy = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		val command = assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(EVENT_ID)).command
+		assertEquals(null, command.wal.logicalTrackingId)
+		assertEquals(null, command.wal.serviceRunId)
+		assertEquals(null, database.sourceSessionDao().session(LOGICAL_ID))
+		assertEquals(CONSENT_EPOCH, command.authority.consentEpoch)
+	}
+
+	@Test
+	fun `current boot capture registration qualifies prior boot durable capture consent`() = runTest {
+		installValidFixture(priorBootPolicy = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		assertIs<LocationObservationQualification.Qualified>(assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID)).qualification)
+	}
+
+	@Test
+	fun `ambient writer commits once without session and legacy capture queries exclude its points`() = runTest {
+		installValidFixture(ambientOnly = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		val command = assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(EVENT_ID)).command
+		installProtectedHandoffAuthority(command.wal.admissionOrdinal)
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val writer = ProtectedLocationAmbientCanonicalWriter(context, database, dispatchers,
+			newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)))
+		assertEquals(ProtectedLocationCanonicalWriteResult.Committed, writer.write(command))
+		assertEquals(ProtectedLocationCanonicalWriteResult.Committed, writer.write(command))
+		assertEquals(1L, database.locationSampleDao().countAll())
+		assertEquals(0, database.locationSampleDao().countBetween(0, Long.MAX_VALUE))
+		assertEquals(1, database.locationPurposeDao().visiblePathChunk(0, Long.MAX_VALUE, null, null, 10).size)
+		val receipt = requireNotNull(database.locationPurposeDao().receiptByEvent(EVENT_ID.value))
+		val purpose = database.locationPurposeDao().purposes(receipt.sampleId, 3).single()
+		assertEquals(SourceBrokerPurpose.AMBIENT_PRODUCT, purpose.purpose)
+		assertEquals(null, purpose.zoneId)
+		assertEquals(null, purpose.sessionSegmentId)
+		assertEquals(null, database.sourceSessionDao().session(LOGICAL_ID))
+		database.withTransaction {
+			database.openHelper.writableDatabase.execSQL("UPDATE source_consent_epoch SET eligible = 0, persistence_eligible = 0 WHERE purpose = 'AMBIENT_PRODUCT'")
+			database.removeLocationAmbientPurposeInCurrentTransaction()
+		}
+		assertEquals(0L, database.locationSampleDao().countAll())
+		assertEquals(emptyList(), database.locationPurposeDao().visiblePathChunk(0, Long.MAX_VALUE, null, null, 10))
+		assertIs<ProtectedLocationCanonicalWriteResult.Failed>(writer.write(command))
+	}
+
+	@Test
+	fun `one physical delivery preserves ambient-only old unit and dual-purpose fresh unit`() = runTest {
+		installValidFixture(mixedPurposes = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false), locationPayload(false)),
+			observedTimes = listOf(500L, 1_000_000_500L), receivedNanos = 1_500_000_500L)
+		// Keep both observations within the same historical registration and capture interval.
+		database.openHelper.writableDatabase.execSQL("UPDATE provider_registration_generation SET retired_elapsed_realtime_nanos = 2000000000")
+		database.openHelper.writableDatabase.execSQL("UPDATE source_demand SET retire_elapsed_realtime_nanos = 2000000000")
+		database.openHelper.writableDatabase.execSQL("UPDATE logical_tracking_session SET cutoff_elapsed_nanos = 2000000000")
+		val old = assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(EVENT_ID)).command
+		val freshId = SourceEventId("location-event-sibling-1")
+		val fresh = assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(freshId)).command
+		assertEquals(old.wal.deliveryIdentity, fresh.wal.deliveryIdentity)
+		assertEquals(old.wal.authorizationRevision, fresh.wal.authorizationRevision)
+		assertEquals(SourceBrokerPurpose.MASK_AMBIENT_PRODUCT, old.wal.authorizationPurposeEligibilityMask)
+		assertEquals(null, old.wal.logicalTrackingId)
+		assertEquals(SourceBrokerPurpose.MASK_AMBIENT_PRODUCT or SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			fresh.wal.authorizationPurposeEligibilityMask)
+		assertEquals(LOGICAL_ID, fresh.wal.logicalTrackingId)
+	}
+
+	@Test
+	fun `session end drains physical ambient prefix without attributing it to capture`() = runTest {
+		installValidFixture(mixedPurposes = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false), locationPayload(false)),
+			observedTimes = listOf(500L, 501L), receivedNanos = 1_500_000_500L)
+		val endpoint = requireNotNull(database.sourceEventWalDao().getByEventId("location-event-sibling-1"))
+		installProtectedHandoffAuthority(endpoint.admissionOrdinal)
+		database.openHelper.writableDatabase.execSQL("UPDATE source_session_completeness SET last_source_sequence = 1")
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val ambientWriter = ProtectedLocationAmbientCanonicalWriter(context, database, dispatchers,
+			newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)))
+		val writer = object : ProtectedLocationCanonicalWriter {
+			override suspend fun write(command: LocationCapturedFactCommand, acquisitionMetadata: LocationWalAcquisitionMetadata): ProtectedLocationCanonicalWriteResult =
+				error("Ambient-only observations must never invoke capture persistence")
+			override suspend fun writeAmbient(command: LocationAmbientFactCommand) = ambientWriter.write(command)
+		}
+		val result = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			ProtectedLocationCanonicalHandoff(database, subject, writer).drainThrough(LOGICAL_ID, RUN_ID, endpoint.admissionOrdinal))
+		assertEquals(endpoint.admissionOrdinal, result.lastCommittedOrdinal)
+		assertEquals(0, database.locationSampleDao().countBetween(0, Long.MAX_VALUE))
+	}
+
+	@Test
+	fun `legacy requested plan does not borrow wider contract freshness from joined physical request`() = runTest {
+		val requested = locationPlan(PLAN_REVISION).copy(requestedIntervalMs = 10_000L, maximumBatchDelayMs = 50_000L)
+		val physical = requested.copy(requestedIntervalMs = 1_000L, adaptiveProfileVersion = 1)
+		installValidFixture(plan = requested, actualPlan = physical, providerFingerprint = physical.physicalConfigurationFingerprint(),
+			captureMaximumAgeMs = 120_000L, receivedNanos = OBSERVED_NANOS + 60_000_000_000L,
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION, deliveryPayloads = listOf(locationPayload(false)))
+		val evaluated = assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		assertEquals(LocationStaleReason.TOO_OLD, assertIs<LocationObservationQualification.Stale>(evaluated.qualification).reason)
+	}
+
 	private suspend fun installValidFixture(
 		plan: LocationPlan = locationPlan(PLAN_REVISION),
 		providerFingerprint: String = plan.physicalConfigurationFingerprint(),
@@ -1156,62 +1272,94 @@ class LocationWalQualificationAdapterTest {
 		segmentRunId: String = RUN_ID,
 		wallTimeUncertaintyMs: Long = 0L,
 		receivedWallTimeMs: Long? = RECEIVED_WALL_MS,
+		ambientOnly: Boolean = false,
+		priorBootPolicy: Boolean = false,
+		actualPlan: LocationPlan? = null,
+		mixedPurposes: Boolean = false,
+		observedTimes: List<Long> = List(deliveryPayloads.size) { OBSERVED_NANOS },
+		receivedNanos: Long = RECEIVED_NANOS,
+		captureMaximumAgeMs: Long = 1_000L,
 	) {
 		require(selectedUnitIndex in deliveryPayloads.indices)
 		database.sourceEvidenceStateDao().ensure(evidenceState)
 		insertPlan(plan)
-		installPolicyAndConsent()
-		val segmentId = database.sessionSegmentDao().insert(segment(segmentRunId))
-		assertEquals(SEGMENT_ID, segmentId)
-		installSessionAndManifest(segmentId, zoneId)
-		val demand = demand()
-		database.sourceBrokerDao().insertDemands(listOf(demand))
+		installPolicyAndConsent(ambientOnly || mixedPurposes, priorBootPolicy)
+		if (mixedPurposes) {
+			val ambientConsent = requireNotNull(database.sourcePolicyDao().consentEpoch(LOCATION_SOURCE, SourceBrokerPurpose.AMBIENT_PRODUCT, CONSENT_EPOCH))
+			database.sourcePolicyDao().insertConsentEpochs(listOf(ambientConsent.copy(purpose = SourceBrokerPurpose.SESSION_CAPTURE)))
+		}
+		if (!ambientOnly) {
+			val segmentId = database.sessionSegmentDao().insert(segment(segmentRunId))
+			assertEquals(SEGMENT_ID, segmentId)
+			installSessionAndManifest(segmentId, zoneId)
+		}
+		val demand = if (ambientOnly) demand().copy(consumerId = "ambient:location",
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, logicalTrackingId = null, serviceRunId = null,
+			manifestRevision = null, lifecycleLeaseGeneration = null, liveAmbientRetentionPolicyId = "location-retention",
+			liveAmbientRetentionApprovalRevision = 1) else demand().copy(maximumAgeMs = captureMaximumAgeMs)
+		val demands = if (mixedPurposes) listOf(demand, demand.copy(demandId = "ambient-demand", consumerId = "ambient:location",
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, logicalTrackingId = null, serviceRunId = null,
+			manifestRevision = null, lifecycleLeaseGeneration = null, maximumAgeMs = 120_000L,
+			liveAmbientRetentionPolicyId = "location-retention", liveAmbientRetentionApprovalRevision = 1)) else listOf(demand)
+		database.sourceBrokerDao().insertDemands(demands)
 		database.sourceBrokerDao().insertRegistration(registration(providerFingerprint))
 		val authorization = SourceBrokerAuthorization.rows(
 			sourceKind = LOCATION_SOURCE,
 			registrationGeneration = REGISTRATION_GENERATION,
 			authorizationRevision = AUTHORIZATION_REVISION,
-			demands = listOf(demand),
+			demands = demands,
 			effectiveBootId = BOOT_ID,
 			effectiveElapsedRealtimeNanos = AUTHORIZATION_START_NANOS,
 			effectiveWallTimeMs = 1_050L,
 		)
 		database.sourceBrokerDao().insertAuthorizations(authorization)
+		if (ambientOnly || mixedPurposes) database.locationPurposeDao().insertRetentionAuthority(AmbientLocationRetentionAuthorityIntegrity.create(
+			AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT, 1, AmbientLocationRetentionAuthorityEntity.STATE_ACTIVE,
+			"location-retention", POLICY_REVISION, CONSENT_EPOCH, 0, BOOT_ID, AUTHORIZATION_START_NANOS, 1_050, null))
+		(actualPlan ?: plan.takeIf { ambientOnly || mixedPurposes })?.let { actual ->
+			val encoded = planCodec.encode(actual)
+			database.locationPurposeDao().insertRegistrationPlanIfAbsent(LocationRegistrationPlanIntegrity.create(
+				REGISTRATION_GENERATION, SOURCE_INSTANCE, PLAN_REVISION, AUTHORIZATION_REVISION,
+				providerFingerprint, if (actual.adaptiveProfileVersion == null) 1 else 2, encoded.checksum, encoded.bytes))
+		}
+
 		val deliveryIdentity = deliveryIdentityOverride ?: sourceDeliveryIdentity(
-			canonicalLocationDelivery(deliveryPayloads, payloadVersion),
+			canonicalLocationDelivery(deliveryPayloads, payloadVersion, observedTimes),
 		).value
 		val walRows = deliveryPayloads.mapIndexed { index, payload ->
 			val encodedPayload = payloadCodec.encode(payload, payloadVersion)
+			val captureEligible = !ambientOnly && receivedNanos - observedTimes[index] <= demand.maximumAgeMs * 1_000_000L
 			val unsignedWal = SourceEventWalEntity(
 				eventId = if (index == selectedUnitIndex) EVENT_ID.value else "location-event-sibling-$index",
 				providerDedupKey = null,
 				deliveryIdentity = deliveryIdentity,
 				deliveryUnitIndex = index,
 				deliveryUnitCount = declaredUnitCount,
-				logicalTrackingId = LOGICAL_ID,
-				serviceRunId = RUN_ID,
+				logicalTrackingId = LOGICAL_ID.takeIf { captureEligible },
+				serviceRunId = RUN_ID.takeIf { captureEligible },
 				sourceKind = LOCATION_SOURCE,
 				sourceInstanceId = SOURCE_INSTANCE,
 				registrationGeneration = REGISTRATION_GENERATION,
 				physicalConfigurationFingerprint = providerFingerprint,
 				authorizationRevision = AUTHORIZATION_REVISION,
-				authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+				authorizationPurposeEligibilityMask = (if (ambientOnly || mixedPurposes) SourceBrokerPurpose.MASK_AMBIENT_PRODUCT else 0) or
+					(if (captureEligible) SourceBrokerPurpose.MASK_SESSION_CAPTURE else 0),
 				authorizationFingerprint = authorization.first().authorizationFingerprint,
 				sourceSequence = Math.addExact(sourceSequence, index.toLong()),
 				configRevision = PLAN_REVISION,
-				planAttribution = PlanAttribution.CAPTURED_REGISTRATION.ordinal,
+				planAttribution = (if (captureEligible) PlanAttribution.CAPTURED_REGISTRATION else PlanAttribution.RECEIVE_TIME_ONLY).ordinal,
 				clockDomainId = BOOT_ID,
-				observedElapsedNanos = OBSERVED_NANOS,
-				observedIntervalStartNanos = OBSERVED_NANOS,
-				receivedElapsedNanos = RECEIVED_NANOS,
+				observedElapsedNanos = observedTimes[index],
+				observedIntervalStartNanos = observedTimes[index],
+				receivedElapsedNanos = receivedNanos,
 				receivedWallTimeMs = receivedWallTimeMs,
 				wallTimeMs = OBSERVED_WALL_MS,
 				wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 				capturedCollectedDataEpoch = 0L,
-				sourcePolicyRevision = POLICY_REVISION,
-				captureConsentEpoch = CONSENT_EPOCH,
-				sessionManifestRevision = MANIFEST_REVISION,
-				lifecycleLeaseGeneration = LEASE_GENERATION,
+				sourcePolicyRevision = POLICY_REVISION.takeIf { captureEligible },
+				captureConsentEpoch = CONSENT_EPOCH.takeIf { captureEligible },
+				sessionManifestRevision = MANIFEST_REVISION.takeIf { captureEligible },
+				lifecycleLeaseGeneration = LEASE_GENERATION.takeIf { captureEligible },
 				acquiredAtMs = OBSERVED_WALL_MS,
 				qualityFlags = SourceQuality().toStableFlags(),
 				qualityConfidence = null,
@@ -1241,7 +1389,7 @@ class LocationWalQualificationAdapterTest {
 				SourceDesiredPlanEntity(
 					revision = plan.revision,
 					sourceKind = LOCATION_SOURCE,
-					payloadVersion = 1,
+					payloadVersion = if (plan.adaptiveProfileVersion == null) 1 else 2,
 					payload = encoded.bytes,
 					payloadChecksum = encoded.checksum,
 				),
@@ -1249,7 +1397,7 @@ class LocationWalQualificationAdapterTest {
 		)
 	}
 
-	private suspend fun installPolicyAndConsent() {
+	private suspend fun installPolicyAndConsent(ambientOnly: Boolean = false, priorBootPolicy: Boolean = false) {
 		val policyDao = database.sourcePolicyDao()
 		policyDao.ensureAuthority(
 			SourcePolicyAuthorityEntity(
@@ -1271,11 +1419,11 @@ class LocationWalQualificationAdapterTest {
 					locationRequiredAccuracyMeters = 50,
 					capturePersistenceEligible = true,
 					controlPersistenceEligible = false,
-					ambientPersistenceEligible = false,
+					ambientPersistenceEligible = ambientOnly,
 					captureConsentEpoch = CONSENT_EPOCH,
 					controlConsentEpoch = null,
-					ambientConsentEpoch = null,
-					effectiveBootId = BOOT_ID,
+					ambientConsentEpoch = CONSENT_EPOCH.takeIf { ambientOnly },
+					effectiveBootId = if (priorBootPolicy) "previous-boot" else BOOT_ID,
 					effectiveElapsedRealtimeNanos = POLICY_START_NANOS,
 					effectiveWallTimeMs = 1_000L,
 					changeReason = "TEST",
@@ -1286,12 +1434,12 @@ class LocationWalQualificationAdapterTest {
 			listOf(
 				SourceConsentEpochEntity(
 					sourceKind = LOCATION_SOURCE,
-					purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+					purpose = if (ambientOnly) SourceBrokerPurpose.AMBIENT_PRODUCT else SourceBrokerPurpose.SESSION_CAPTURE,
 					epoch = CONSENT_EPOCH,
 					eligible = true,
 					persistenceEligible = true,
 					policyRevision = POLICY_REVISION,
-					effectiveBootId = BOOT_ID,
+					effectiveBootId = if (priorBootPolicy) "previous-boot" else BOOT_ID,
 					effectiveElapsedRealtimeNanos = POLICY_START_NANOS,
 					effectiveWallTimeMs = 1_000L,
 					changeReason = "TEST",
@@ -1776,17 +1924,18 @@ class LocationWalQualificationAdapterTest {
 	private fun canonicalLocationDelivery(
 		payloads: List<LocationFixPayload>,
 		payloadVersion: Int = LEGACY_LOCATION_PAYLOAD_VERSION,
+		observedTimes: List<Long> = List(payloads.size) { OBSERVED_NANOS },
 	): ByteArray =
 		ByteArrayOutputStream().use { bytes ->
 			DataOutputStream(bytes).use { output ->
 				output.writeInt(0x4c4f4342)
 				output.writeInt(payloadVersion)
 				output.writeInt(payloads.size)
-				payloads.forEach { payload ->
+				payloads.forEachIndexed { index, payload ->
 					val provider = payload.provider.encodeToByteArray()
 					output.writeInt(provider.size)
 					output.write(provider)
-					output.writeLong(OBSERVED_NANOS)
+					output.writeLong(observedTimes[index])
 					output.writeLong(OBSERVED_WALL_MS)
 					output.writeLong(java.lang.Double.doubleToRawLongBits(payload.latitudeDegrees))
 					output.writeLong(java.lang.Double.doubleToRawLongBits(payload.longitudeDegrees))
@@ -1825,7 +1974,7 @@ class LocationWalQualificationAdapterTest {
 		const val AUTHORIZATION_REVISION = 1L
 		const val ROLLOUT_REVISION = 1L
 		const val SEGMENT_ID = 1L
-		const val SOURCE_SEQUENCE = 1L
+		const val SOURCE_SEQUENCE = 0L
 		const val LEGACY_LOCATION_PAYLOAD_VERSION = 1
 		const val MAX_LOCATION_PAYLOAD_BYTES = 65_586
 		const val QOS_CODE = 2

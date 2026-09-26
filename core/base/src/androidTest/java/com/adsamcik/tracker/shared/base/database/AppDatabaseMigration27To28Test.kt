@@ -88,6 +88,36 @@ class AppDatabaseMigration27To28Test {
 	}
 
 	@Test
+	fun locationProfileColumnsAreAdditiveAndLegacyDefaultsRemainPassive() {
+		helper.createDatabase(TEST_DATABASE, 27).use { PopulatedV27Fixture.seed(it) }
+		helper.runMigrationsAndValidate(TEST_DATABASE, 28, true, MIGRATION_27_28).use { database ->
+			listOf("location_accepted_receipt", "location_sample_purpose_authority", "ambient_location_retention_authority").forEach { table ->
+				database.query("SELECT COUNT(*) FROM $table").use {
+					assertTrue(it.moveToFirst())
+					assertEquals(0L, it.getLong(0))
+				}
+			}
+			database.execSQL(
+				"""INSERT INTO source_policy (
+					policy_revision, source_kind, enabled, qos_code,
+					location_min_time_seconds, location_min_distance_meters, location_required_accuracy_meters,
+					capture_persistence_eligible, control_persistence_eligible, ambient_persistence_eligible,
+					capture_consent_epoch, control_consent_epoch, ambient_consent_epoch,
+					effective_boot_id, effective_elapsed_realtime_nanos, effective_wall_time_ms, change_reason
+				) VALUES (1, 1, 1, 2, 17, 42, 50, 1, 0, 1, 1, NULL, 1, 'boot', 0, 1, 'legacy')""",
+			)
+			database.query("SELECT balance_profile_version, balance_level, location_background_mode, location_motion_assistance_enabled, location_min_time_seconds FROM source_policy").use {
+				assertTrue(it.moveToFirst())
+				assertTrue(it.isNull(0))
+				assertTrue(it.isNull(1))
+				assertTrue(it.isNull(2))
+				assertEquals(0, it.getInt(3))
+				assertEquals(17, it.getInt(4))
+			}
+		}
+	}
+
+	@Test
 	fun populatedV27MigrationIsInertQueryableAndDeletionSafeAcrossReopen() {
 		helper.createDatabase(TEST_DATABASE, 27).use { database ->
 			PopulatedV27Fixture.seed(database)

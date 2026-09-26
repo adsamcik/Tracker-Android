@@ -49,8 +49,8 @@ data class CollectionMotionPolicy(
 	companion object {
 		/** Default for non-service callers and compatibility tests. */
 		fun unrestricted() = CollectionMotionPolicy(
-			motionState = CollectionMotionState.MOVING,
-			confidencePercent = 100,
+			motionState = CollectionMotionState.UNKNOWN,
+			confidencePercent = 0,
 			reason = MotionPolicyReason.NO_ACTIVE_SESSION,
 			locationStrategy = LocationCollectionStrategy.FULL_FIDELITY,
 			expensiveNetworkScansAllowed = true,
@@ -62,7 +62,7 @@ data class CollectionMotionPolicy(
 			motionState = CollectionMotionState.UNKNOWN,
 			confidencePercent = 0,
 			reason = MotionPolicyReason.AWAITING_EVIDENCE,
-			locationStrategy = LocationCollectionStrategy.LOW_POWER_SENTINEL,
+			locationStrategy = LocationCollectionStrategy.FULL_FIDELITY,
 			expensiveNetworkScansAllowed = false,
 			continuousPressureAllowed = false,
 			lowLatencyStepReporting = false,

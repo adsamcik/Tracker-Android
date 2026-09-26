@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.hasReachedRetentionPhase
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
@@ -154,6 +155,145 @@ class SourceBroker @Inject internal constructor(
 		retentionAuthorityReader,
 	)
 	fun sessionConsumerId(logicalTrackingId: String): String = "session:$logicalTrackingId"
+
+	/** Reserves sessionless Location only under the exact current purpose and retention lease. */
+	internal suspend fun replaceAmbientLocationDemand(
+		leaseIdentity: AmbientReconciliationIdentity,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+		retentionSnapshot: LiveAmbientRetentionSnapshot,
+		preparedCallerAcceptance: PreparedSourceCallerAcceptance,
+	): AmbientLocationDemandResult = database.withTransaction {
+		require(leaseIdentity.source == AmbientTrackingSource.LOCATION)
+		val source = SourceKind.LOCATION
+		val policyDao = database.sourcePolicyDao()
+		val authority = policyDao.authority()
+		if (authority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
+			authority.currentPolicyRevision != leaseIdentity.policyRevision
+		) return@withTransaction AmbientLocationDemandResult.Inactive("LOCATION_POLICY_CHANGED")
+		val policy = policyDao.policyAtRevision(authority.currentPolicyRevision, source.stableCode)
+			?: return@withTransaction AmbientLocationDemandResult.Inactive("LOCATION_POLICY_MISSING")
+		if (!policy.ambientPersistenceEligible || policy.ambientConsentEpoch != leaseIdentity.consentEpoch) {
+			return@withTransaction AmbientLocationDemandResult.Inactive("LOCATION_BACKGROUND_CONSENT_CHANGED")
+		}
+		val rollout = trackingRolloutStateStore.load()
+		if (rollout.revision != leaseIdentity.rolloutRevision ||
+			!rollout.isCaptureReachable(source, CaptureReachabilityMode.AMBIENT)
+		) return@withTransaction AmbientLocationDemandResult.Inactive("LOCATION_BACKGROUND_CONTAINED")
+		val retention = retentionSnapshot.takeIf { it.matchesActiveSettlementInTransaction() }
+			?.grants?.get(source)?.takeIf { grant ->
+				grant.sourcePolicyRevision == leaseIdentity.policyRevision &&
+					grant.ambientConsentEpoch == leaseIdentity.consentEpoch &&
+					grant.collectedDataEpoch == leaseIdentity.collectedDataEpoch &&
+					grant.retainedFromMs == leaseIdentity.retainedFromMs &&
+					grant.opaquePolicyId == leaseIdentity.retentionPolicyId &&
+					grant.approvalRevision == leaseIdentity.retentionApprovalRevision &&
+					isLiveAmbientRetentionCurrentInTransaction(grant, bootId, elapsedRealtimeNanos, wallTimeMs)
+			} ?: return@withTransaction AmbientLocationDemandResult.Inactive("LOCATION_RETENTION_CHANGED")
+		val adaptive = policy.locationBackgroundMode ==
+			com.adsamcik.tracker.shared.preferences.tracking.LocationBackgroundMode.ADAPTIVE.stableCode
+		val contract = if (adaptive) {
+			if (policy.balanceProfileVersion != 1 || policy.balanceLevel?.let { it in 1..5 } != true) {
+				return@withTransaction AmbientLocationDemandResult.Inactive("LOCATION_PROFILE_UNSUPPORTED")
+			}
+			SourceDemandContractFactory.forProfile(source, 1, requireNotNull(policy.balanceLevel),
+				DirectSourceDemandPurpose.AMBIENT_PRODUCT)
+		} else SourceDemandContract(
+			floor = com.adsamcik.tracker.tracker.source.model.LocationAcquisitionFloor(
+				com.adsamcik.tracker.tracker.source.model.LocationFloorMode.PASSIVE),
+			maximumProviderItemAgeMs = 120_000L,
+			targetPlanningLatencyMs = 120_000L,
+			requestedDeliveryLatencyMs = null,
+			adaptiveReductionAllowed = false,
+		)
+		val consumerId = AMBIENT_LOCATION_CONSUMER_ID
+		val dao = database.sourceBrokerDao()
+		val reference = preparedCallerAcceptance.receipt.reference.value
+		val current = dao.currentDemands(consumerId)
+		current.singleOrNull()?.takeIf { demand ->
+			demand.status == SourceDemandEntity.STATUS_ACTIVE &&
+				demand.sourceKind == source.stableCode && demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
+				demand.logicalTrackingId == null && demand.serviceRunId == null &&
+				demand.sourcePolicyRevision == leaseIdentity.policyRevision &&
+				demand.consentEpoch == leaseIdentity.consentEpoch && demand.persistenceEligible &&
+				demand.requestedBootId == bootId && demand.minimumAcquisitionSpec == contract.encodeFloor() &&
+				demand.maximumAgeMs == contract.maximumProviderItemAgeMs &&
+				demand.desiredLatencyMs == contract.targetPlanningLatencyMs &&
+				demand.requestedDeliveryLatencyMs == contract.requestedDeliveryLatencyMs &&
+				demand.adaptiveReductionAllowed == contract.adaptiveReductionAllowed &&
+				demand.liveAmbientRetentionPolicyId == retention.opaquePolicyId &&
+				demand.liveAmbientRetentionApprovalRevision == retention.approvalRevision &&
+				demand.sourceCallerAuthorityReference == reference
+		}?.let { return@withTransaction AmbientLocationDemandResult.Active(it) }
+		val priorReferences = currentAuthorityReferences(consumerId)
+		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
+		retireAuthorityReferences(priorReferences, "AMBIENT_LOCATION_REPLACED", wallTimeMs)
+		persistPreparedCallerAuthorityInTransaction(preparedCallerAcceptance, reference,
+			leaseIdentity.purposeLeaseIdentity)
+		val demand = SourceDemandEntity(
+			demandId = demandId(consumerId, source.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT,
+				leaseIdentity.policyRevision, leaseIdentity.consentEpoch, null, bootId,
+				elapsedRealtimeNanos, reference),
+			consumerId = consumerId, sourceKind = source.stableCode,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+			logicalTrackingId = null, serviceRunId = null, manifestRevision = null,
+			lifecycleLeaseGeneration = null, sourcePolicyRevision = leaseIdentity.policyRevision,
+			consentEpoch = leaseIdentity.consentEpoch, persistenceEligible = true,
+			qosCode = 0, minimumAcquisitionSpec = contract.encodeFloor(),
+			adaptiveReductionAllowed = contract.adaptiveReductionAllowed,
+			maximumAgeMs = contract.maximumProviderItemAgeMs,
+			desiredLatencyMs = contract.targetPlanningLatencyMs,
+			requestedDeliveryLatencyMs = contract.requestedDeliveryLatencyMs,
+			requestedBootId = bootId, requestedElapsedRealtimeNanos = elapsedRealtimeNanos,
+			requestedAtMs = wallTimeMs, status = SourceDemandEntity.STATUS_ACTIVE,
+			retireBootId = null, retireElapsedRealtimeNanos = null, retiredAtMs = null,
+			sourceCallerAuthorityReference = reference,
+			liveAmbientRetentionPolicyId = retention.opaquePolicyId,
+			liveAmbientRetentionApprovalRevision = retention.approvalRevision,
+		)
+		dao.insertDemands(listOf(demand))
+		rotateCurrentAuthorizationInTransaction(source.stableCode, bootId, elapsedRealtimeNanos, wallTimeMs)
+		AmbientLocationDemandResult.Active(demand)
+	}
+
+	internal suspend fun retireAmbientLocationDemand(
+		identity: AmbientReconciliationIdentity,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): Boolean = database.withTransaction {
+		require(identity.source == AmbientTrackingSource.LOCATION)
+		val demands = currentPurposeDemands(AMBIENT_LOCATION_CONSUMER_ID)
+		if (demands.isEmpty()) return@withTransaction true
+		val demand = demands.singleOrNull() ?: return@withTransaction false
+		val reference = demand.sourceCallerAuthorityReference?.let(::SourceCallerReplayReference)
+			?: return@withTransaction false
+		val accepted = sourceCallerAuthorityRepository.load(reference) as?
+			StoredSourceCallerAuthorityLoadResult.Available ?: return@withTransaction false
+		if (accepted.authority.permittedDemandIdentities != setOf(
+			SourceCallerDemandIdentity(identity.purposeLeaseIdentity, manifestIdentity = null)) ||
+			demand.liveAmbientRetentionPolicyId != identity.retentionPolicyId ||
+			demand.liveAmbientRetentionApprovalRevision != identity.retentionApprovalRevision
+		) return@withTransaction false
+		retireAcceptedPurposeDemand(demand, bootId, elapsedRealtimeNanos, wallTimeMs)
+	}
+
+	internal suspend fun currentAmbientLocationIdentity(): AmbientReconciliationIdentity? = database.withTransaction {
+		val demand = currentPurposeDemands(AMBIENT_LOCATION_CONSUMER_ID).singleOrNull()
+			?: return@withTransaction null
+		val reference = demand.sourceCallerAuthorityReference?.let(::SourceCallerReplayReference)
+			?: return@withTransaction null
+		val accepted = sourceCallerAuthorityRepository.load(reference) as?
+			StoredSourceCallerAuthorityLoadResult.Available ?: return@withTransaction null
+		val identity = accepted.authority.permittedDemandIdentities.singleOrNull()
+			?: return@withTransaction null
+		if (identity.manifestIdentity != null || identity.purposeLeaseIdentity.source.stableCode != SourceKind.LOCATION.stableCode ||
+			identity.purposeLeaseIdentity.purpose != TrackingPurpose.AMBIENT_PRODUCT
+		) return@withTransaction null
+		AmbientReconciliationIdentity.from(identity.purposeLeaseIdentity,
+			demand.liveAmbientRetentionPolicyId, demand.liveAmbientRetentionApprovalRevision)
+	}
 
 	/** Current durable authority vector used to reconcile the one physical source owner. */
 	internal suspend fun authorizationDemands(source: SourceKind): List<SourceDemandEntity> =
@@ -287,6 +427,8 @@ class SourceBroker @Inject internal constructor(
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
 		sourceCallerAuthorityReference: String? = null,
+		/** Exact immutable rows read by the manifest transaction; null is legacy test compatibility. */
+		policies: Map<Int, SourcePolicyEntity>? = null,
 	): List<SourceDemandEntity> {
 		val consumerId = sessionConsumerId(logicalTrackingId)
 		return bindings.sortedWith(
@@ -299,7 +441,20 @@ class SourceBroker @Inject internal constructor(
 				else -> error("Unsupported session-manifest purpose ${binding.purpose}")
 			}
 			val source = SourceKind.entries.single { source -> source.stableCode == binding.sourceKind }
-			val contract = SourceDemandContractFactory.forQos(
+			val policy = policies?.let { requireNotNull(it[binding.sourceKind]) }
+			if (policy != null) {
+				require(policy.policyRevision == policyRevision && policy.sourceKind == binding.sourceKind)
+				if (purpose == SourceBrokerPurpose.SESSION_CAPTURE) {
+					require(policy.qosCode == binding.qosCode)
+					require(policy.captureConsentEpoch == binding.consentEpoch && policy.capturePersistenceEligible == binding.persistenceEligible)
+				}
+			}
+			val contract = if (source == SourceKind.LOCATION && purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+				policy?.balanceProfileVersion != null
+			) {
+				SourceDemandContractFactory.forProfile(source, requireNotNull(policy.balanceProfileVersion),
+					maxOf(requireNotNull(policy.balanceLevel), 4), purpose.toDirectDemandPurpose())
+			} else SourceDemandContractFactory.forQos(
 				source,
 				binding.qosCode,
 				purpose.toDirectDemandPurpose(),
@@ -3325,7 +3480,7 @@ class SourceBroker @Inject internal constructor(
 		expectedRetainedFromMs: Long?,
 		settlementOperationId: String?,
 	): LiveAmbientRetentionGrant? {
-		if (source !in setOf(SourceKind.STEPS, SourceKind.WIFI, SourceKind.CELL)) return null
+		if (source !in setOf(SourceKind.LOCATION, SourceKind.STEPS, SourceKind.WIFI, SourceKind.CELL)) return null
 		if (sourcePolicyRevision <= 0L || ambientConsentEpoch <= 0L || collectedDataEpoch < 0L) {
 			return null
 		}
@@ -3439,16 +3594,14 @@ class SourceBroker @Inject internal constructor(
 		) ?: return false
 		return policy.ambientPersistenceEligible &&
 			policy.ambientConsentEpoch == grant.ambientConsentEpoch &&
-			policy.effectiveBootId == currentBootId &&
-			policy.effectiveElapsedRealtimeNanos <= currentElapsedRealtimeNanos &&
-			policy.effectiveWallTimeMs <= currentWallTimeMs &&
+			(policy.effectiveBootId != currentBootId ||
+				policy.effectiveElapsedRealtimeNanos <= currentElapsedRealtimeNanos) &&
 			consent.epoch == grant.ambientConsentEpoch &&
-			consent.policyRevision == grant.sourcePolicyRevision &&
+			consent.policyRevision <= grant.sourcePolicyRevision &&
 			consent.eligible &&
 			consent.persistenceEligible &&
-			consent.effectiveBootId == currentBootId &&
-			consent.effectiveElapsedRealtimeNanos <= currentElapsedRealtimeNanos &&
-			consent.effectiveWallTimeMs <= currentWallTimeMs &&
+			(consent.effectiveBootId != currentBootId ||
+				consent.effectiveElapsedRealtimeNanos <= currentElapsedRealtimeNanos) &&
 			readPersistedLiveAmbientRetention(grant.source) == grant
 	}
 
@@ -3456,6 +3609,16 @@ class SourceBroker @Inject internal constructor(
 		source: SourceKind,
 	): LiveAmbientRetentionGrant? = try {
 		when (source) {
+			SourceKind.LOCATION -> database.locationPurposeDao().latestRetentionAuthority(
+				com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT)
+				?.takeIf(com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityIntegrity::isAuthentic)
+				?.takeIf { it.isActive }
+				?.let { authority ->
+					LiveAmbientRetentionGrant(source, requireNotNull(authority.sourcePolicyRevision),
+						requireNotNull(authority.ambientConsentEpoch), authority.collectedDataEpoch,
+						authority.retainedFromMs, authority.opaquePolicyId, authority.approvalRevision,
+						authority.effectiveBootId, authority.effectiveElapsedRealtimeNanos, authority.effectiveWallTimeMs)
+				}
 			SourceKind.STEPS -> database.ambientStepsFactRevisionDao()
 				.latestRetentionAuthority(AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT)
 				?.takeIf(AmbientStepsRetentionAuthorityIntegrity::isAuthentic)
@@ -3896,7 +4059,7 @@ internal data class LiveAmbientRetentionGrant(
 	val effectiveWallTimeMs: Long,
 ) {
 	init {
-		require(source in setOf(SourceKind.STEPS, SourceKind.WIFI, SourceKind.CELL))
+		require(source in setOf(SourceKind.LOCATION, SourceKind.STEPS, SourceKind.WIFI, SourceKind.CELL))
 		require(sourcePolicyRevision > 0L)
 		require(ambientConsentEpoch > 0L)
 		require(collectedDataEpoch >= 0L)

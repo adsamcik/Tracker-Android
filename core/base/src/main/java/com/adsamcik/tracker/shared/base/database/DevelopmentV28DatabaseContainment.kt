@@ -152,6 +152,8 @@ class ActiveDatabasePreflight internal constructor(
 				FINAL_V28_RADIO_RECEIPT_COLUMN,
 			) ||
 			!FINAL_V28_APPLIED_PLAN_COLUMNS.all(database::hasExactColumn) ||
+			!FINAL_V28_LOCATION_COLUMNS.all(database::hasExactColumn) ||
+			!FINAL_V28_LOCATION_INDEXES.all(database::hasExactIndex) ||
 			!FINAL_V28_RETENTION_JOURNAL_COLUMNS.all { column ->
 				database.hasColumn(FINAL_V28_RETENTION_JOURNAL_TABLE, column)
 			} ||
@@ -391,13 +393,15 @@ private fun SQLiteDatabase.hasExactColumn(column: FinalV28ColumnSentinel): Boole
 		val typeColumn = cursor.getColumnIndexOrThrow("type")
 		val notNullColumn = cursor.getColumnIndexOrThrow("notnull")
 		val primaryKeyColumn = cursor.getColumnIndexOrThrow("pk")
+		val defaultValueColumn = cursor.getColumnIndexOrThrow("dflt_value")
 		var found = false
 		while (cursor.moveToNext()) {
 			if (cursor.getString(nameColumn) == column.name) {
 				if (found ||
 					!cursor.getString(typeColumn).equals(column.type, ignoreCase = true) ||
 					(cursor.getInt(notNullColumn) != 0) != column.notNull ||
-					cursor.getInt(primaryKeyColumn) != column.primaryKeyPosition
+					cursor.getInt(primaryKeyColumn) != column.primaryKeyPosition ||
+					(column.defaultValue != null && cursor.getString(defaultValueColumn) != column.defaultValue)
 				) return@use false
 				found = true
 			}
@@ -509,8 +513,9 @@ private enum class FinalV28MarkerState {
 
 internal const val FINAL_V28_MARKER_ID = -280_917
 internal const val FINAL_V28_ASSEMBLY_ID =
-	"tracker-v28-applied-source-plan-state-20260920"
+	"tracker-v28-adaptive-location-authority-20260926"
 private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
+	"tracker-v28-applied-source-plan-state-20260920",
 	"tracker-v28-final-20260917",
 	"tracker-v28-retention-final-20260917",
 	"tracker-v28-retention-integrity-20260918",
@@ -555,6 +560,41 @@ private val FINAL_V28_REQUIRED_TABLES = setOf(
 	"imported_steps_full_clear_owner_revision_stage",
 	"imported_steps_full_clear_explicit_lineage_stage",
 	"source_applied_plan_state",
+	"location_registration_plan",
+	"location_accepted_receipt",
+	"location_sample_purpose_authority",
+	"ambient_location_retention_authority",
+)
+
+private val FINAL_V28_LOCATION_COLUMNS = listOf(
+	FinalV28ColumnSentinel("source_policy", "balance_profile_version", "INTEGER", false),
+	FinalV28ColumnSentinel("source_policy", "balance_level", "INTEGER", false),
+	FinalV28ColumnSentinel("source_policy", "location_background_mode", "INTEGER", false),
+	FinalV28ColumnSentinel("source_policy", "location_motion_assistance_enabled", "INTEGER", true, defaultValue = "0"),
+	FinalV28ColumnSentinel("location_registration_plan", "registration_generation", "INTEGER", true, 1),
+	FinalV28ColumnSentinel("location_registration_plan", "configuration_revision", "INTEGER", true, 2),
+	FinalV28ColumnSentinel("location_registration_plan", "authorization_revision", "INTEGER", true, 3),
+	FinalV28ColumnSentinel("location_registration_plan", "payload", "BLOB", true),
+	FinalV28ColumnSentinel("location_registration_plan", "effect_checksum", "TEXT", true),
+	FinalV28ColumnSentinel("location_accepted_receipt", "sample_id", "INTEGER", true, 1),
+	FinalV28ColumnSentinel("location_accepted_receipt", "wal_integrity_identity", "TEXT", true),
+	FinalV28ColumnSentinel("location_accepted_receipt", "canonical_content_checksum", "TEXT", true),
+	FinalV28ColumnSentinel("location_sample_purpose_authority", "sample_id", "INTEGER", true, 1),
+	FinalV28ColumnSentinel("location_sample_purpose_authority", "purpose", "TEXT", true, 2),
+	FinalV28ColumnSentinel("location_sample_purpose_authority", "authority_id", "TEXT", true, 3),
+	FinalV28ColumnSentinel("location_sample_purpose_authority", "logical_tracking_id", "TEXT", false),
+	FinalV28ColumnSentinel("location_sample_purpose_authority", "ambient_intent_id", "TEXT", false),
+	FinalV28ColumnSentinel("location_sample_purpose_authority", "zone_id", "TEXT", false),
+	FinalV28ColumnSentinel("ambient_location_retention_authority", "scope", "TEXT", true, 1),
+	FinalV28ColumnSentinel("ambient_location_retention_authority", "approval_revision", "INTEGER", true, 2),
+	FinalV28ColumnSentinel("ambient_location_retention_authority", "effect_checksum", "TEXT", true),
+)
+private val FINAL_V28_LOCATION_INDEXES = listOf(
+	FinalV28IndexSentinel("location_accepted_receipt", "idx_location_receipt_event", listOf("source_event_id"), true),
+	FinalV28IndexSentinel("location_accepted_receipt", "idx_location_receipt_sequence", listOf("source_instance_id", "source_sequence"), true),
+	FinalV28IndexSentinel("location_sample_purpose_authority", "idx_location_purpose_authority", listOf("purpose", "authority_id", "sample_id"), false),
+	FinalV28IndexSentinel("ambient_location_retention_authority", "idx_ambient_location_retention_effective",
+		listOf("scope", "effective_boot_id", "effective_elapsed_realtime_nanos", "approval_revision"), false),
 )
 private const val FINAL_V28_REQUIRED_COLUMN_TABLE = "pending_signal"
 private const val FINAL_V28_REQUIRED_COLUMN = "pressure_writer_owner_generation"
@@ -843,6 +883,7 @@ private data class FinalV28ColumnSentinel(
 	val type: String,
 	val notNull: Boolean,
 	val primaryKeyPosition: Int = 0,
+	val defaultValue: String? = null,
 )
 
 private data class FinalV28IndexedColumn(

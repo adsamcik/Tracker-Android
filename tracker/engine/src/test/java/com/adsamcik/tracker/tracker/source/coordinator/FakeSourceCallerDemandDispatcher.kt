@@ -104,6 +104,7 @@ internal class FakeSourceCallerDemandDispatcher(
 			elapsedRealtimeNanos = request.elapsedRealtimeNanos,
 			wallTimeMs = request.wallTimeMs,
 			sourceCallerAuthorityReference = receipt.reference.value,
+			policies = request.policies,
 		)
 		when (request.mutation) {
 			SessionDemandMutation.STAGE_UNTIL_FOREGROUND ->

@@ -1,6 +1,12 @@
 package com.adsamcik.tracker.tracker.pipeline.persistence
 
 import android.database.sqlite.SQLiteConstraintException
+import androidx.room.withTransaction
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationAmbientWrite
+import com.adsamcik.tracker.tracker.source.location.toAmbientObservation
+import com.adsamcik.tracker.tracker.source.location.loadLocationAmbientCurationState
+import com.adsamcik.tracker.tracker.source.location.readLocationAmbientReceipt
+import com.adsamcik.tracker.tracker.source.location.recordLocationAmbientReceipt
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
@@ -205,6 +211,45 @@ class PersistenceProcessor @Inject constructor(
 			!recoveryIncomplete &&
 			!commitStatusUnknown &&
 			!hasRetainedInMemoryState()
+
+
+	internal suspend fun hasCommittedProtectedAmbientLocation(command: com.adsamcik.tracker.tracker.source.location.LocationAmbientFactCommand): Boolean =
+		appDatabaseProvider.get().withTransaction {
+			protectedLocationCanonicalPersistenceGuardProvider.get().verifyAmbientInCurrentWriterTransaction(command)
+			appDatabaseProvider.get().readLocationAmbientReceipt(command) != null
+		}
+
+	/**
+	 * Sessionless Location uses the source WAL as its durable pending queue. It never opens a
+	 * synthetic capture pipeline or touches its mutable buffers. Room serializes this atomic
+	 * destination commit with capture commits and deletion/retention transactions.
+	 */
+	internal suspend fun commitProtectedAmbientLocation(write: ProtectedLocationAmbientWrite) {
+		appDatabaseProvider.get().withTransaction {
+			protectedLocationCanonicalPersistenceGuardProvider.get()
+				.verifyAmbientInCurrentWriterTransaction(write.command)
+			val db = appDatabaseProvider.get()
+			if (db.readLocationAmbientReceipt(write.command) != null) return@withTransaction
+			check(db.loadLocationAmbientCurationState(write.command) == write.stateBefore) {
+				"Location ambient curation checkpoint changed"
+			}
+			requireExistingLocationDestinationOwner(true)
+			check(write.observation == write.command.toAmbientObservation())
+			check((write.decision.decision == LocationObservationDecision.ACCEPTED) == (write.sample != null))
+			val revision = requireNotNull(nextSourceRevisionOrNull(true))
+			val observation = write.observation.copy(sourceRevision = revision)
+			check(db.locationObservationDao().insert(observation) != -1L) {
+				"Location observation exists without exact ambient receipt"
+			}
+			write.sample?.let { sample ->
+				check(db.locationSampleDao().insert(sample.copy(sourceRevision = revision)) != -1L) {
+					"Location sample exists without exact ambient receipt"
+				}
+			}
+			check(db.locationObservationDecisionDao().insert(listOf(write.decision.copy(sourceRevision = revision))).single() != -1L)
+			db.recordLocationAmbientReceipt(write)
+		}
+	}
 
 	/** Caller must hold the live orchestrator's component mutex. */
 	internal suspend fun flushProtectedLocationCanonicalHandoff(): Boolean = flushAll()

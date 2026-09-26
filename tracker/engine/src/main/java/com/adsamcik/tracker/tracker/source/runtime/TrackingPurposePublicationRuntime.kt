@@ -496,6 +496,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		CoroutineScope(SupervisorJob() + Dispatchers.Default),
 	private val ownerCallbackTimeoutMillis: Long = SOURCE_OWNER_CALLBACK_TIMEOUT_MILLIS,
 	private val retryScheduler: TrackingPurposeReconciliationRetryScheduler? = null,
+	private val ambientLocationPurposeOwnerProvider: Provider<AmbientLocationPurposeOwner>? = null,
 ) : TrackingPurposeSettingsReconciler,
 	TrackingPurposeSourceOwnerRegistrar,
 	TrackingRetentionFloorReconciler,
@@ -512,6 +513,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		ambientStepsPurposeOwnerProvider: Provider<AmbientStepsPurposeOwner>,
 		@ApplicationScope ownerCallbackScope: CoroutineScope,
 		retryScheduler: TrackingPurposeReconciliationRetryScheduler,
+		ambientLocationPurposeOwnerProvider: Provider<AmbientLocationPurposeOwner>,
 	) : this(
 		leaseIssuer,
 		reporter,
@@ -524,6 +526,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		ownerCallbackScope,
 		SOURCE_OWNER_CALLBACK_TIMEOUT_MILLIS,
 		retryScheduler,
+		ambientLocationPurposeOwnerProvider,
 	)
 
 	private val ownerMutex = Mutex()
@@ -811,6 +814,16 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		sources: Set<AmbientTrackingSource>,
 	) {
 		ownerMutex.withLock {
+			if (AmbientTrackingSource.LOCATION in sources &&
+				ambientOwners[AmbientTrackingSource.LOCATION] == null && ambientLocationPurposeOwnerProvider != null
+			) {
+				val sourcePurpose = AmbientTrackingSource.LOCATION.canonicalSource.forPurpose(TrackingPurpose.AMBIENT_PRODUCT)
+				ambientOwners[AmbientTrackingSource.LOCATION] = AmbientOwnerRegistration(
+					TrackingPurposeSourceOwnerRegistration(sourcePurpose, "builtin:ambient:location"),
+					1L, builtInLocationCallback(ambientLocationPurposeOwnerProvider))
+				previouslyOwnedAmbientSources += AmbientTrackingSource.LOCATION
+				executionRevisionRegistry.update(sourcePurpose, 1L)
+			}
 			if (
 				AmbientTrackingSource.STEPS in sources &&
 				ambientOwners[AmbientTrackingSource.STEPS] == null &&
@@ -881,6 +894,27 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 				)
 			}
 		}
+	}
+
+	private fun builtInLocationCallback(
+		owner: Provider<AmbientLocationPurposeOwner>,
+	): AmbientSourceReconciliationCallback = object : AmbientSourceReconciliationCallback {
+		override suspend fun reconcile(lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease) =
+			owner.get().reconcile(lease)
+		override suspend fun reconcileForRetentionFloor(
+			lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
+			settlementOperationId: String,
+		): AmbientSourceOperationalAvailability = withRetentionFloorSettlementOperation(settlementOperationId) {
+			owner.get().reconcile(lease)
+		}
+		override suspend fun compensate(lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease) =
+			owner.get().retire(lease)
+		override suspend fun retireAfterRetentionAuthorityFailure(
+			previousLease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease?,
+		) = owner.get().retire(previousLease)
+		override suspend fun closeForCollectedDataDeletion(
+			previousLease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease?,
+		) = owner.get().retire(previousLease)
 	}
 
 	private fun builtInStepsCallback(
@@ -1810,11 +1844,14 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		const val BUILT_IN_WIFI_REGISTRATION_ID = "builtin:ambient:wifi"
 		const val BUILT_IN_CELL_REGISTRATION_ID = "builtin:ambient:cell"
 		val RETENTION_FLOOR_PROVIDER_SOURCES = setOf(
+			AmbientTrackingSource.LOCATION,
 			AmbientTrackingSource.STEPS,
 			AmbientTrackingSource.WIFI,
 			AmbientTrackingSource.CELL,
 		)
 		val DURABLE_AMBIENT_COMPONENTS = linkedMapOf(
+			com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent.LOCATION to
+				AmbientTrackingSource.LOCATION,
 			com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent.STEPS to
 				AmbientTrackingSource.STEPS,
 			com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent.WIFI to

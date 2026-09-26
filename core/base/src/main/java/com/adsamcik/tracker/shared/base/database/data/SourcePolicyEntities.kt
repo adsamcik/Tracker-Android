@@ -65,6 +65,11 @@ data class SourcePolicyEntity(
 	@ColumnInfo(name = "effective_elapsed_realtime_nanos") val effectiveElapsedRealtimeNanos: Long,
 	@ColumnInfo(name = "effective_wall_time_ms") val effectiveWallTimeMs: Long,
 	@ColumnInfo(name = "change_reason") val changeReason: String,
+	@ColumnInfo(name = "balance_profile_version") val balanceProfileVersion: Int? = null,
+	@ColumnInfo(name = "balance_level") val balanceLevel: Int? = null,
+	@ColumnInfo(name = "location_background_mode") val locationBackgroundMode: Int? = null,
+	@ColumnInfo(name = "location_motion_assistance_enabled", defaultValue = "0")
+	val locationMotionAssistanceEnabled: Boolean = false,
 )
 
 /**

@@ -5,6 +5,44 @@ import kotlinx.coroutines.flow.first
 
 /** Repository boundary for tracking parameter settings. */
 interface TrackingParamsRepository {
+	/** Explicit adoption changes profile metadata without rewriting historical numeric controls. */
+	suspend fun adoptLocationProfile(level: Int = LocationAdaptiveSettings.DEFAULT_BALANCE_LEVEL) {
+		require(level in LocationAdaptiveSettings.BALANCE_LEVELS)
+		update {
+			copy(locationProfileVersion = LocationAdaptiveSettings.PROFILE_VERSION, locationBalanceLevel = level)
+		}
+	}
+
+	/** Save the disclosed all-day intent before any platform permission prompt. */
+	suspend fun enableAdaptiveBackgroundLocation() {
+		update {
+			copy(
+				ambientLocationEnabled = true,
+				locationProfileVersion = LocationAdaptiveSettings.PROFILE_VERSION,
+				locationBalanceLevel = locationBalanceLevel ?: LocationAdaptiveSettings.DEFAULT_BALANCE_LEVEL,
+				locationBackgroundMode = LocationBackgroundMode.ADAPTIVE,
+			)
+		}
+	}
+
+	suspend fun setLocationBackgroundMode(mode: LocationBackgroundMode) {
+		update {
+			copy(
+				locationBackgroundMode = mode,
+				locationProfileVersion = if (mode == LocationBackgroundMode.ADAPTIVE) {
+					LocationAdaptiveSettings.PROFILE_VERSION
+				} else locationProfileVersion,
+				locationBalanceLevel = if (mode == LocationBackgroundMode.ADAPTIVE) {
+					locationBalanceLevel ?: LocationAdaptiveSettings.DEFAULT_BALANCE_LEVEL
+				} else locationBalanceLevel,
+			)
+		}
+	}
+
+	suspend fun setLocationMotionAssistanceEnabled(enabled: Boolean) {
+		update { copy(locationMotionAssistanceEnabled = enabled) }
+	}
+
     /** Continuous stream of current tracking params; never completes. */
     val data: Flow<TrackingParamsState>
 

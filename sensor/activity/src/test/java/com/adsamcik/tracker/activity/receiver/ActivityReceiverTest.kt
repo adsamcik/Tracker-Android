@@ -24,6 +24,7 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.activity.api.registration.ActivityCallbackAdmissionBarrier
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
+import com.adsamcik.tracker.activity.api.registration.DefaultActivityMotionAssistance
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -111,6 +112,9 @@ class ActivityReceiverTest {
 			every { callbackAdmissionBarrier() } returns callbackAdmissionBarrier
 			every { callbackRetryOwner() } returns callbackRetryOwner
 			every { applicationScope() } answers { applicationScope }
+			every { motionAssistance() } returns mockk<DefaultActivityMotionAssistance> {
+				every { currentAuthority } returns null
+			}
 		}
 		mockkStatic(EntryPointAccessors::class)
 		every {

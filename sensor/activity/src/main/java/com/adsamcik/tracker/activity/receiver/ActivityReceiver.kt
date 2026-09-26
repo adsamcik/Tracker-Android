@@ -14,6 +14,10 @@ import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.C
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_REGISTRATION_GENERATION
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_SOURCE_INSTANCE_ID
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_DURABLE_RECOGNITION_ELIGIBLE
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_DURABLE_TRANSITION_FILTER
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_DURABLE_TRANSITION_ACTIVITY_TYPES
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_DURABLE_TRANSITION_TYPES
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
 import com.adsamcik.tracker.activity.api.ingress.ActivityDurableSelection
@@ -25,6 +29,7 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatc
 import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
 import com.adsamcik.tracker.activity.api.registration.ActivityCallbackAdmissionBarrier
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
+import com.adsamcik.tracker.activity.api.registration.DefaultActivityMotionAssistance
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
@@ -60,6 +65,7 @@ internal interface ActivityReceiverEntryPoint {
 	fun trackingStartupGate(): TrackingStartupGate
 	fun callbackAdmissionBarrier(): ActivityCallbackAdmissionBarrier
 	fun callbackRetryOwner(): ActivityCallbackRetryOwner
+	fun motionAssistance(): DefaultActivityMotionAssistance
 
 	@ApplicationScope
 	fun applicationScope(): CoroutineScope
@@ -93,7 +99,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			entryPoint.callbackAdmissionBarrier().tryEnter(it)
 		}
 		if (registrationIdentity != null && callbackPermit == null) return
-		val delivery = runCatching {
+		val physicalDelivery = runCatching {
 			parseDelivery(
 				registrationIdentity = registrationIdentity,
 				automaticRecognitionEligible = intent.getBooleanExtra(
@@ -120,11 +126,32 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			callbackPermit?.complete()
 			return
 		}
-		if (delivery.batch.eventCount == 0) {
+		if (physicalDelivery.batch.eventCount == 0) {
 			callbackPermit?.complete()
 			return
 		}
+		// Narrow before constructing retry ownership. Assistance-only events must never reach WAL,
+		// disk retry spools, legacy Activity caches or automatic-start flows, including cold delivery.
+		val delivery = physicalDelivery.forDurableOwners(
+			intent.getBooleanExtra(EXTRA_DURABLE_RECOGNITION_ELIGIBLE, true),
+			intent.durableTransitions(),
+		)
 		val pendingResult = goAsync()
+		if (delivery.batch.eventCount == 0) {
+			entryPoint.applicationScope().launch {
+				runBoundedActivityCallbackWork(
+					receivedElapsedRealtimeMillis = receivedElapsedRealtimeMillis,
+					currentElapsedRealtimeMillis = { Time.elapsedRealtimeMillis },
+					work = { publishMotionAssistance(entryPoint, physicalDelivery.batch) },
+					onWorkBudgetExhausted = {},
+					finish = {
+						callbackPermit?.complete()
+						pendingResult?.finish()
+					},
+				)
+			}
+			return
+		}
 		val retryOwnership = ActivityCallbackRetryOwnership(
 			batch = delivery.batch,
 			owner = entryPoint.callbackRetryOwner(),
@@ -154,6 +181,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 						},
 						retryOwnership = retryOwnership,
 					)
+					publishMotionAssistance(entryPoint, physicalDelivery.batch)
 				},
 				onWorkBudgetExhausted = {
 					runCatching { retryOwnership.retain() }
@@ -278,12 +306,55 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		}.toSet()
 	}
 
+	private fun Intent.durableTransitions(): Set<ActivityTransitionData>? {
+		if (!getBooleanExtra(EXTRA_DURABLE_TRANSITION_FILTER, false)) return null
+		val activityTypes = getIntArrayExtra(EXTRA_DURABLE_TRANSITION_ACTIVITY_TYPES) ?: return emptySet()
+		val transitionTypes = getIntArrayExtra(EXTRA_DURABLE_TRANSITION_TYPES) ?: return emptySet()
+		if (activityTypes.size != transitionTypes.size) return emptySet()
+		return activityTypes.indices.mapNotNull { index ->
+			val type = ActivityTransitionType.entries.firstOrNull { it.value == transitionTypes[index] }
+				?: return@mapNotNull null
+			ActivityTransitionData(ActivityTypeMapping.fromPlayServicesCode(activityTypes[index]), type)
+		}.toSet()
+	}
+
+	private suspend fun publishMotionAssistance(
+		entryPoint: ActivityReceiverEntryPoint,
+		batch: ActivityRecognitionEvidenceBatch,
+	) {
+		try {
+			val assistance = entryPoint.motionAssistance()
+			if (assistance.currentAuthority == null) return
+			if (entryPoint.trackingStartupGate().reconcileAdmission() is TrackingAdmissionStartupResult.Ready) {
+				assistance.publish(batch)
+			}
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			// Optional transient assistance is lossy; failure never creates durable retry authority.
+		}
+	}
+
 	private data class ParsedActivityDelivery(
 		val batch: ActivityRecognitionEvidenceBatch,
 		val recognizedActivity: RecognizedActivity?,
 		val recognitionElapsedRealtimeMillis: Long,
 		val transitionUpdates: List<TransitionUpdate>,
 	) {
+		fun forDurableOwners(
+			recognitionEligible: Boolean,
+			transitions: Set<ActivityTransitionData>?,
+		): ParsedActivityDelivery {
+			val durableBatch = batch.forDurableActivityOwners(recognitionEligible, transitions)
+			return copy(
+				batch = durableBatch,
+				recognizedActivity = recognizedActivity.takeIf { recognitionEligible },
+				transitionUpdates = transitionUpdates.filter { update ->
+					transitions == null || ActivityTransitionData(update.activityType, update.transitionType) in transitions
+				},
+			)
+		}
+
 		fun publishTo(
 			backend: GmsActivityRecognitionBackend,
 			selection: ActivityDurableSelection,
@@ -320,6 +391,17 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			internal set
 	}
 }
+
+/** Callback metadata can narrow durable routing, never grant durable policy/consent authority. */
+internal fun ActivityRecognitionEvidenceBatch.forDurableActivityOwners(
+	recognitionEligible: Boolean,
+	transitions: Set<ActivityTransitionData>?,
+): ActivityRecognitionEvidenceBatch = copy(
+	recognitions = if (recognitionEligible) recognitions else emptyList(),
+	transitions = this.transitions.filter { event ->
+		transitions == null || ActivityTransitionData(event.activityType, event.transitionType) in transitions
+	},
+)
 
 /** Keeps construction of the Room-backed ingress behind the cold-process startup boundary. */
 internal suspend fun admitActivityCallbackAfterStartup(

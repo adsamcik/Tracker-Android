@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.app.settings.tracking
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -38,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -55,6 +60,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.adsamcik.tracker.app.settings.TrackingSettingsUiState
 import com.adsamcik.tracker.app.settings.TrackingSettingsViewModel
+import com.adsamcik.tracker.app.settings.LocationSettingsPermissionKind
 import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsItem
 import com.adsamcik.tracker.app.settings.components.SettingsGroupCard
@@ -64,6 +70,7 @@ import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
 import com.adsamcik.tracker.app.settings.components.SwitchSettingsItemWithHelp
 import com.adsamcik.tracker.app.settings.ui.TrackingPresetSelector
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
+import com.adsamcik.tracker.shared.preferences.tracking.LocationBackgroundMode
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.source.coordinator.EffectiveSourceState
@@ -73,6 +80,51 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) {
     val trackingVm: TrackingSettingsViewModel = hiltViewModel()
     val lifecycleOwner = LocalLifecycleOwner.current
+	val context = LocalContext.current
+	val locationAccessLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+		trackingVm.refreshPermissionState()
+	}
+	val backgroundAccessLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+		trackingVm.refreshPermissionState()
+	}
+	val locationSettingsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+		trackingVm.refreshPermissionState()
+	}
+	val motionAssistanceLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+		// Permission completion is observation only. It cannot enable Activity or revive old intent.
+		trackingVm.refreshPermissionState()
+	}
+	LaunchedEffect(trackingVm, context) {
+		trackingVm.locationPermissionEvents.collect { request ->
+			if (!trackingVm.isCurrentLocationPermissionRequest(request)) return@collect
+			when (request.kind) {
+				LocationSettingsPermissionKind.MOTION -> {
+					if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+						!trackingVm.uiState.value.activityPermissionGranted
+					) motionAssistanceLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+				}
+				LocationSettingsPermissionKind.LOCATION -> {
+					val capability = trackingVm.uiState.value.permissionCapabilities
+					when {
+						!capability.coarseLocationGranted && !capability.preciseLocationGranted ->
+							locationAccessLauncher.launch(arrayOf(
+								Manifest.permission.ACCESS_COARSE_LOCATION,
+								Manifest.permission.ACCESS_FINE_LOCATION,
+							))
+						!capability.locationServicesEnabled ->
+							locationSettingsLauncher.launch(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+						Build.VERSION.SDK_INT == Build.VERSION_CODES.Q && !capability.backgroundLocationGranted ->
+							backgroundAccessLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+						Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !capability.backgroundLocationGranted ->
+							locationSettingsLauncher.launch(Intent(
+								Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+								Uri.parse("package:${context.packageName}"),
+							))
+					}
+				}
+			}
+		}
+	}
 
     // Single consolidated state
     val uiState by trackingVm.uiState.collectAsState()
@@ -158,6 +210,11 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         },
         onBarometerEnabledChanged = { trackingVm.setBarometerEnabled(it) },
 		onAmbientLocationEnabledChanged = { trackingVm.setAmbientLocationEnabled(it) },
+		onLocationModeChanged = trackingVm::setLocationBackgroundMode,
+		onLocationBalanceChanged = trackingVm::adoptLocationProfile,
+		onLocationAssistanceChanged = trackingVm::setLocationMotionAssistanceEnabled,
+		onLocationPermission = { trackingVm.requestSavedLocationPermission(LocationSettingsPermissionKind.LOCATION) },
+		onMotionPermission = { trackingVm.requestSavedLocationPermission(LocationSettingsPermissionKind.MOTION) },
 		onAmbientStepsEnabledChanged = { trackingVm.setAmbientStepsEnabled(it) },
 		onAmbientWifiEnabledChanged = { trackingVm.setAmbientWifiEnabled(it) },
 		onAmbientCellEnabledChanged = { trackingVm.setAmbientCellEnabled(it) },
@@ -206,6 +263,11 @@ internal fun TrackingSettingsContent(
     onStepsEnabledChanged: (Boolean) -> Unit = {},
     onBarometerEnabledChanged: (Boolean) -> Unit = {},
 	onAmbientLocationEnabledChanged: (Boolean) -> Unit = {},
+	onLocationModeChanged: (LocationBackgroundMode) -> Unit = {},
+	onLocationBalanceChanged: (Int) -> Unit = {},
+	onLocationAssistanceChanged: (Boolean) -> Unit = {},
+	onLocationPermission: () -> Unit = {},
+	onMotionPermission: () -> Unit = {},
 	onAmbientStepsEnabledChanged: (Boolean) -> Unit = {},
 	onAmbientWifiEnabledChanged: (Boolean) -> Unit = {},
 	onAmbientCellEnabledChanged: (Boolean) -> Unit = {},
@@ -414,6 +476,7 @@ internal fun TrackingSettingsContent(
                 AdvancedDataSourceSettings(
                     uiState = uiState,
                     onSourceFrequencyChanged = onSourceFrequencyChanged,
+					onLocationEnabledChanged = onLocationEnabledChanged,
                 )
             }
         } else {
@@ -441,7 +504,7 @@ internal fun TrackingSettingsContent(
         }
 
         // These parameters only control location requests/filtering, not other source cadences.
-        if (uiState.advancedSourceControlsEnabled && uiState.locationEnabled) {
+        if (uiState.advancedSourceControlsEnabled && uiState.locationEnabled && uiState.locationProfileVersion == null) {
             item {
                 SectionHeader(
                     stringResource(com.adsamcik.tracker.R.string.settings_tracking_section_detail),
@@ -492,6 +555,11 @@ internal fun TrackingSettingsContent(
 			AmbientSourcePurposeSettings(
 				uiState = uiState,
 				onLocationEnabledChanged = onAmbientLocationEnabledChanged,
+				onLocationModeChanged = onLocationModeChanged,
+				onLocationBalanceChanged = onLocationBalanceChanged,
+				onLocationAssistanceChanged = onLocationAssistanceChanged,
+				onLocationPermission = onLocationPermission,
+				onMotionPermission = onMotionPermission,
 				onStepsEnabledChanged = onAmbientStepsEnabledChanged,
 				onWifiEnabledChanged = onAmbientWifiEnabledChanged,
 				onCellEnabledChanged = onAmbientCellEnabledChanged,
@@ -648,9 +716,18 @@ private fun SimpleDataSourceSettings(
 private fun AdvancedDataSourceSettings(
     uiState: TrackingSettingsUiState,
     onSourceFrequencyChanged: (TrackingSourceComponent, SourceCollectionFrequency) -> Unit,
+	onLocationEnabledChanged: (Boolean) -> Unit,
 ) {
     SettingsGroupCard {
-        SourceFrequencySettingsItem(
+		if (uiState.locationProfileVersion != null) {
+			SwitchSettingsItem(
+				title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_location_enabled_title),
+				subtitle = stringResource(com.adsamcik.tracker.R.string.settings_location_adopted_source_summary),
+				iconRes = com.adsamcik.tracker.R.drawable.ic_tracking_source_location,
+				checked = uiState.locationEnabled,
+				onCheckedChange = onLocationEnabledChanged,
+			)
+		} else SourceFrequencySettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_location_enabled_title),
             description = stringResource(com.adsamcik.tracker.R.string.settings_location_source_compact),
             iconRes = com.adsamcik.tracker.R.drawable.ic_tracking_source_location,

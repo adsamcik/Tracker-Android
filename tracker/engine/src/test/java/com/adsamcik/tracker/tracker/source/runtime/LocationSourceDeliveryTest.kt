@@ -21,6 +21,31 @@ import org.robolectric.annotation.Config
 @OptIn(ExperimentalCoroutinesApi::class)
 class LocationSourceDeliveryTest {
 	@Test
+	fun `speed uncertainty is transient and does not rewrite persisted evidence identity`() {
+		val fix = location("gps", elapsedNanos = 700L, wallTimeMs = 7L).apply {
+			speed = 0f
+			speedAccuracyMetersPerSecond = 0.1f
+		}
+		val qualified = delivery(listOf(fix), receivedElapsedNanos = 1_000L)
+		val unknown = delivery(listOf(copyLocation(fix).apply { removeSpeedAccuracy() }), 1_000L)
+		assertEquals(0.1f, qualified.units.single().evidence.locationSpeedAccuracyMetersPerSecond)
+		assertEquals(null, unknown.units.single().evidence.locationSpeedAccuracyMetersPerSecond)
+		assertEquals(qualified.identity, unknown.identity)
+		assertEquals(qualified.units.single().evidence.payload, unknown.units.single().evidence.payload)
+	}
+
+	@Test
+	fun `invalid speed uncertainty cannot prove stationary motion`() {
+		listOf(Float.NaN, Float.POSITIVE_INFINITY, -1f).forEach { uncertainty ->
+			val fix = location("gps", elapsedNanos = 700L, wallTimeMs = 7L).apply {
+				speed = 0f
+				speedAccuracyMetersPerSecond = uncertainty
+			}
+			assertEquals(null, delivery(listOf(fix), 1_000L).units.single().evidence.locationSpeedAccuracyMetersPerSecond)
+		}
+	}
+
+	@Test
 	fun `permission gate observes revoke without waiting for reconciliation`() {
 		var state = deviceState(coarsePermission = true, finePermission = false)
 		val gate = LocationPermissionGate(object : LocationDeviceStateProvider {

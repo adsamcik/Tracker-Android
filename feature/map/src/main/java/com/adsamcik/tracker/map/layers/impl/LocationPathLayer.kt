@@ -2,6 +2,7 @@ package com.adsamcik.tracker.map.layers.impl
 
 import android.content.Context
 import com.adsamcik.tracker.map.data.Bounds
+import com.adsamcik.tracker.map.data.WeightedGeoFeature
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.graphics.PolylineOptimizer
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
@@ -13,20 +14,24 @@ import com.adsamcik.tracker.map.shared.CoordinateBounds
 
 /** Polyline layer drawing user paths with decimation. Produces MapLibreLayerConfig.Line. */
 class LocationPathLayer(
-    private val pointsProvider: suspend (LongRange, Bounds?) -> List<LatLngModel>,
-    private val perf: PerformanceManager = PerformanceManager()
+    private val pointsProvider: suspend (LongRange, Bounds?) -> List<LatLngModel> = { _, _ -> emptyList() },
+    private val perf: PerformanceManager = PerformanceManager(),
+    private val segmentsProvider: (suspend (LongRange, Bounds?) -> List<List<LatLngModel>>)? = null,
 ) : BaseMapLayer<LocationPathLayer.Input, LocationPathLayer.Prepared>(), SupportsDateRange {
 
-    data class Input(val points: List<LatLngModel>)
+    data class Input(val points: List<LatLngModel>, val segments: List<List<LatLngModel>> = listOf(points))
     data class Prepared(
         val geoJson: String,
         val points: List<LatLngModel>,
         val bounds: CoordinateBounds?,
+        val isolatedGeoJson: String? = null,
     )
 
     override var dateRange: LongRange = LongRange(0, Long.MAX_VALUE)
 
     override suspend fun loadData(context: Context, bounds: Bounds?): Input {
+        val segments = segmentsProvider?.invoke(dateRange, bounds)
+        if (segments != null) return Input(segments.flatten(), segments)
         val points = pointsProvider(dateRange, bounds)
         return Input(points)
     }
@@ -39,20 +44,25 @@ class LocationPathLayer(
         // route to a straight line. The point budget is enforced shape-awarely by
         // the optimizer (adaptive tolerance), and even-distance resampling is off so
         // corners are never rounded away.
-        val simplified = PolylineOptimizer.optimize(
-            input.points,
+        val segments = input.segments.map { segment -> PolylineOptimizer.optimize(
+            segment,
             toleranceMeters = OVERVIEW_SIMPLIFY_TOLERANCE_METERS,
-            maxPoints = budgets.maxPolylinePoints,
+            maxPoints = maxOf(2, budgets.maxPolylinePoints * segment.size / input.points.size),
             evenSpacing = false,
             smoothingIterations = PATH_SMOOTHING_ITERATIONS,
-        )
-        val geoJson = GeoJsonConverter.lineToFeatureCollection(simplified)
-        return Prepared(geoJson, simplified, simplified.coordinateBoundsOrNull())
+        ) }
+        val simplified = segments.flatten()
+        val geoJson = GeoJsonConverter.segmentsToFeatureCollection(segments)
+        val isolated = segments.filter { it.size == 1 }.map { it.single() }
+        val isolatedGeoJson = isolated.takeIf { it.isNotEmpty() }?.let { points ->
+            GeoJsonConverter.pointsToFeatureCollection(points.map { WeightedGeoFeature(it.lat, it.lng, 0L, 1.0) })
+        }
+        return Prepared(geoJson, simplified, simplified.coordinateBoundsOrNull(), isolatedGeoJson)
     }
 
     override fun produceConfig(processed: Prepared): MapLibreLayerConfig? {
         if (processed.geoJson.isEmpty()) return null
-        return MapLibreLayerConfig.Line(
+        val line = MapLibreLayerConfig.Line(
             geoJson = processed.geoJson,
             colorArgb = DEFAULT_POLYLINE_COLOR,
             widthDp = 4f,
@@ -61,6 +71,14 @@ class LocationPathLayer(
             casingColorArgb = DEFAULT_POLYLINE_CASING_COLOR,
             casingWidthDp = 2f,
         )
+        val isolated = processed.isolatedGeoJson ?: return line
+        return MapLibreLayerConfig.Composite(listOf(line, MapLibreLayerConfig.Circle(
+            geoJson = isolated,
+            colorStops = listOf(0f to DEFAULT_POLYLINE_COLOR, 1f to DEFAULT_POLYLINE_COLOR),
+            minRadiusDp = 4f,
+            maxRadiusDp = 4f,
+        )))
+
     }
 
     private fun List<LatLngModel>.coordinateBoundsOrNull(): CoordinateBounds? {

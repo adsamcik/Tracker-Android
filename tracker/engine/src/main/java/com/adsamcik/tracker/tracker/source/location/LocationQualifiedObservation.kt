@@ -170,7 +170,7 @@ internal data class LocationDurableObservationEvidence(
 ) {
 	init {
 		require(sourceAdmissionOrdinal > 0L)
-		require(sourceSequence > 0L)
+		require(sourceSequence >= 0L)
 	}
 }
 

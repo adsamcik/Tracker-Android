@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
+import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
@@ -26,6 +28,30 @@ class PagedLocationSequenceTest {
 		coEvery {
 			dao.getChunkBetweenOrdered(any(), any(), any(), any(), any())
 		} returns emptyList()
+	}
+
+	@Test fun `ambient revoke while buffered aborts before successful sequence completion`() {
+		val purposeDao = mockk<LocationPurposeDao>()
+		var stamp = "consent-1"
+		coEvery { purposeDao.ambientExportAuthorityStamp() } answers { stamp }
+		coEvery { purposeDao.visiblePathChunk(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returnsMany listOf(
+			listOf(LocationPathSampleRow(createSample(1, 100L), "physical-1", 0L, true)), emptyList())
+		val iterator = pagedLocationSequence(dao, 0, 1000, 10, locationPurposeDao = purposeDao).iterator()
+		iterator.next().id shouldBe 1L
+		stamp = "consent-2"
+		assertThrows<IllegalStateException> { iterator.hasNext() }
+	}
+
+	@Test fun `capture association survives ambient consent change during export`() {
+		val purposeDao = mockk<LocationPurposeDao>()
+		var stamp = "consent-1"
+		coEvery { purposeDao.ambientExportAuthorityStamp() } answers { stamp }
+		coEvery { purposeDao.visiblePathChunk(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returnsMany listOf(
+			listOf(LocationPathSampleRow(createSample(1, 100L), "physical-1", 0L, false)), emptyList())
+		val iterator = pagedLocationSequence(dao, 0, 1000, 10, locationPurposeDao = purposeDao).iterator()
+		iterator.next().id shouldBe 1L
+		stamp = "consent-2"
+		iterator.hasNext() shouldBe false
 	}
 
 	@Nested

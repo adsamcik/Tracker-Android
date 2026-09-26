@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.ambient.steps
 
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
@@ -135,6 +136,7 @@ internal class AmbientStepsFactImporter internal constructor(
 	private val readers: Map<AmbientStepsProvider, AmbientStepsProviderReader>,
 	private val planner: AmbientStepsStructuralWindowPlanner =
 		AmbientStepsStructuralWindowPlanner(maximumWindowsPerPass = 1),
+	private val startupGate: TrackingStartupGate? = null,
 ) {
 	@Inject
 	constructor(
@@ -143,6 +145,7 @@ internal class AmbientStepsFactImporter internal constructor(
 		clock: Clock,
 		healthConnectReader: HealthConnectAmbientStepsProviderReader,
 		localRecordingReader: LocalRecordingAmbientStepsProviderReader,
+		startupGate: TrackingStartupGate,
 	) : this(
 		database = database,
 		lifecycleStore = lifecycleStore,
@@ -151,9 +154,11 @@ internal class AmbientStepsFactImporter internal constructor(
 			healthConnectReader.provider to healthConnectReader,
 			localRecordingReader.provider to localRecordingReader,
 		),
+		startupGate = startupGate,
 	)
 
 	suspend fun importNext(boundary: AmbientStepsImportBoundary): AmbientStepsImportResult {
+		if (startupGate?.permitsNewCollection == false) return ineligible(AmbientStepsImportIneligibleReason.AUTHORIZATION_INELIGIBLE)
 		val lifecycle = lifecycleSnapshotOrNull()
 			?: return retryable(AmbientStepsImportRetryableReason.STORAGE_UNAVAILABLE)
 		val preflight = try {
@@ -181,6 +186,9 @@ internal class AmbientStepsFactImporter internal constructor(
 			?: return ineligible(AmbientStepsImportIneligibleReason.PROVIDER_READER_UNAVAILABLE)
 		if (reader.provider != preflight.authority.provider) {
 			return retryable(AmbientStepsImportRetryableReason.PROVIDER_RESULT_MISMATCH)
+		}
+		if (!collectionWindowAllowed(preflight.window.startTimeMs)) {
+			return ineligible(AmbientStepsImportIneligibleReason.AUTHORIZATION_INELIGIBLE)
 		}
 		val aggregate = try {
 			reader.read(preflight.window.providerWindow, boundary.observedAtMs)
@@ -252,7 +260,7 @@ internal class AmbientStepsFactImporter internal constructor(
 		if (preflight is HandoffPreflight.Outcome) return preflight.result
 		preflight as HandoffPreflight.Ready
 
-		val aggregate = if (preflight.drainWindow == null) {
+		val aggregate = if (preflight.drainWindow == null || !collectionWindowAllowed(preflight.drainWindow.startTimeMs)) {
 			null
 		} else {
 			val reader = readers[preflight.predecessor.provider]
@@ -296,7 +304,9 @@ internal class AmbientStepsFactImporter internal constructor(
 		}
 		return try {
 			database.withTransaction {
-				commitHandoff(preflight, command, commitLifecycle, aggregate)
+				commitHandoff(preflight, command, commitLifecycle, aggregate.takeIf {
+					preflight.drainWindow?.let { collectionWindowAllowed(it.startTimeMs) } != false
+				})
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -937,6 +947,9 @@ internal class AmbientStepsFactImporter internal constructor(
 		boundary: AmbientStepsImportBoundary,
 		lifecycle: CollectedDataLifecycleSnapshot,
 	): Preflight {
+		if (startupGate?.permitsNewCollection == false) {
+			return Preflight.Outcome(ineligible(AmbientStepsImportIneligibleReason.AUTHORIZATION_INELIGIBLE))
+		}
 		val authority = when (val resolved = resolveAuthority(boundary, lifecycle)) {
 			is AuthorityResolution.Outcome -> return Preflight.Outcome(resolved.result)
 			is AuthorityResolution.Ready -> resolved.authority
@@ -950,6 +963,18 @@ internal class AmbientStepsFactImporter internal constructor(
 		}
 		cursorResolution as CursorResolution.Ready
 		val effectiveCursor = cursorResolution.cursor
+		val resumeAtMs = startupGate?.collectionResumeBoundary?.wallTimeMs?.let(::roundForwardToSecond)
+		if (resumeAtMs != null && resumeAtMs > effectiveCursor.importedThroughTimeMs) {
+			if (resumeAtMs > boundary.throughTimeMs) {
+				return Preflight.Outcome(AmbientStepsImportResult.NoEvidence(
+					AmbientStepsImportNoEvidenceReason.NO_WINDOW_AVAILABLE))
+			}
+			advanceAcrossGap(effectiveCursor, AmbientStepsImportGapReason.AUTHORITY_BOUNDARY_NOT_DRAINED,
+				resumeAtMs, boundary.zoneId.id, boundary)
+			return Preflight.Outcome(AmbientStepsImportResult.Gap(
+				AmbientStepsImportGapReason.AUTHORITY_BOUNDARY_NOT_DRAINED,
+				effectiveCursor.importedThroughTimeMs, resumeAtMs))
+		}
 		val retainedFromMs = lifecycle.retainedFromMs?.let(::roundForwardToSecond)
 		if (retainedFromMs != null && retainedFromMs > effectiveCursor.importedThroughTimeMs) {
 			advanceAcrossGap(
@@ -1022,6 +1047,9 @@ internal class AmbientStepsFactImporter internal constructor(
 		lifecycle: CollectedDataLifecycleSnapshot,
 		aggregate: AmbientStepsProviderAggregate?,
 	): AmbientStepsImportResult {
+		if (!collectionWindowAllowed(preflight.window.startTimeMs)) {
+			return ineligible(AmbientStepsImportIneligibleReason.AUTHORIZATION_INELIGIBLE)
+		}
 		val current = when (val resolved = resolveAuthority(boundary, lifecycle)) {
 			is AuthorityResolution.Outcome -> return stale(resolved.result.toStaleReason())
 			is AuthorityResolution.Ready -> resolved.authority
@@ -1168,6 +1196,9 @@ internal class AmbientStepsFactImporter internal constructor(
 			)
 		}
 	}
+
+	private fun collectionWindowAllowed(startTimeMs: Long): Boolean =
+		startupGate?.let { it.permitsNewCollection && it.collectionResumeBoundary?.permitsWindow(startTimeMs) != false } != false
 
 	private suspend fun resolveAuthority(
 		boundary: AmbientStepsImportBoundary,

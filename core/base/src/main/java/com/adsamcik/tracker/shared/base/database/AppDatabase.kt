@@ -22,6 +22,11 @@ import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.AmbientStepsFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.AmbientStepsImportStateDao
 import com.adsamcik.tracker.shared.base.database.dao.AmbientCellFactDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
+import com.adsamcik.tracker.shared.base.database.data.LocationRegistrationPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.LocationSamplePurposeAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.dao.AmbientWifiFactDao
 import com.adsamcik.tracker.shared.base.database.dao.CellCapturedFactDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
@@ -397,6 +402,10 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			WifiSelectedDeletionProtectedIdentityEntity::class,
 			AmbientWifiAuthorityEntity::class,
 			AmbientWifiRetentionAuthorityEntity::class,
+			AmbientLocationRetentionAuthorityEntity::class,
+			LocationRegistrationPlanEntity::class,
+			LocationAcceptedReceiptEntity::class,
+			LocationSamplePurposeAuthorityEntity::class,
 			AmbientWifiFactRevisionEntity::class,
 			AmbientWifiFactCursorEntity::class,
 			AmbientWifiGapEntity::class,
@@ -548,6 +557,7 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Default-off sessionless Wi-Fi evidence; access alone creates no demand. */
 	abstract fun ambientWifiFactDao(): AmbientWifiFactDao
+	abstract fun locationPurposeDao(): LocationPurposeDao
 
 	/** Default-off sessionless Cell evidence; access alone creates no demand. */
 	abstract fun ambientCellFactDao(): AmbientCellFactDao

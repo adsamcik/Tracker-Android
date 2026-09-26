@@ -222,10 +222,12 @@ private fun DeliveryAdmissionResult.toHandoff(): SourceDeliveryAdmissionHandoff 
 	is DeliveryAdmissionResult.Admitted -> SourceDeliveryAdmissionHandoff.Durable(
 		units.sortedBy(DeliveryAdmissionResult.AdmittedUnit::unitIndex)
 			.map(DeliveryAdmissionResult.AdmittedUnit::admissionOrdinal),
+		lastSourceSequence = units.maxByOrNull(DeliveryAdmissionResult.AdmittedUnit::admissionOrdinal)?.sourceSequence,
 	)
 	is DeliveryAdmissionResult.Duplicate -> SourceDeliveryAdmissionHandoff.Duplicate(
 		units.sortedBy(DeliveryAdmissionResult.AdmittedUnit::unitIndex)
 			.map(DeliveryAdmissionResult.AdmittedUnit::admissionOrdinal),
+		lastSourceSequence = units.maxByOrNull(DeliveryAdmissionResult.AdmittedUnit::admissionOrdinal)?.sourceSequence,
 	)
 	is DeliveryAdmissionResult.SessionCutoff -> SourceDeliveryAdmissionHandoff.SessionCutoff(
 		cutoffElapsedRealtimeNanos,
@@ -245,6 +247,7 @@ private fun AdmissionFailureCode.toRuntimeCode(): SourceAdmissionFailureCode = w
 	AdmissionFailureCode.STALE_OBSERVATION -> SourceAdmissionFailureCode.INVALID_EVIDENCE
 	AdmissionFailureCode.STALE_SOURCE_POLICY -> SourceAdmissionFailureCode.SOURCE_POLICY_STALE
 	AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED -> SourceAdmissionFailureCode.SOURCE_POLICY_STALE
+	AdmissionFailureCode.COLLECTION_SUPPRESSED -> SourceAdmissionFailureCode.SOURCE_POLICY_STALE
 	AdmissionFailureCode.STALE_SESSION_MANIFEST -> SourceAdmissionFailureCode.SOURCE_POLICY_STALE
 	AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH -> SourceAdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH
 	AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY -> SourceAdmissionFailureCode.BEFORE_RETENTION_BOUNDARY

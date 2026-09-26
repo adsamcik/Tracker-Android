@@ -1,9 +1,27 @@
 package com.adsamcik.tracker.tracker.resilience
 
 import io.kotest.matchers.shouldBe
+import com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary
 import org.junit.jupiter.api.Test
 
 class TrackingLifecycleCommandAuthorityTest {
+	@Test
+	fun `explicit resume keeps bounded exit receipt and stale acknowledgement cannot clear newer stop`() {
+		val first = TrackingLifecycleCommandState().observeUserExit("exit-1")
+		val boundary = TrackingCollectionResumeBoundary(1_000L, "boot", 100L)
+		val resumed = first.resumeCollection("exit-1", boundary)
+		resumed.collectionResumeRequired shouldBe false
+		resumed.collectionResumeBoundary shouldBe boundary
+		resumed.observeUserExit("exit-1") shouldBe resumed
+		resumed.resumeCollection("exit-1", TrackingCollectionResumeBoundary(2_000L, "boot", 200L)) shouldBe resumed
+		val next = resumed.observeUserExit("exit-2")
+		next.resumeCollection("exit-1", boundary) shouldBe next
+		next.collectionResumeRequired shouldBe true
+		boundary.permitsObservation("boot", 99L, 9_000L) shouldBe false
+		boundary.permitsObservation("boot", 100L, 1L) shouldBe true
+		boundary.permitsWindow(999L) shouldBe false
+		boundary.permitsWindow(1_000L) shouldBe true
+	}
 	@Test
 	fun `stop after a queued start blocks that start before foreground session or providers`() {
 		val (startReserved, start) = TrackingLifecycleCommandState().issueStart()

@@ -28,6 +28,8 @@ import java.io.DataOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -39,6 +41,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -67,6 +70,9 @@ class LocationSourceRuntime @Inject internal constructor(
 	private var pendingRetirementToken: SourceRegistrationRetirementToken? = null
 	private var callbackToken: LocationCallbackToken? = null
 	private var callbackContext: LocationCallbackContext? = null
+	private var callbackContexts: List<LocationCallbackContext> = emptyList()
+	private var callbackCollectionBoundary = 0L
+	private var callbackContextRefresh: CompletableDeferred<List<LocationCallbackContext>>? = null
 	private var queue: LocationCallbackLane? = null
 	private var actor: Job? = null
 	private var acceptingCallbacks = false
@@ -75,7 +81,6 @@ class LocationSourceRuntime @Inject internal constructor(
 	@Volatile
 	private var cutoffElapsedNanos: Long? = null
 	private var metrics = RuntimeAdmissionMetrics()
-	private var lastAdmissionOrdinalHighWater: Long? = null
 	private var callbackOfferFailureCoverage = LocationCallbackFailureCoverage()
 	private var terminalStopAck: SourceStopAck? = null
 	private var retainedRetirementAck: SourceStopAck? = null
@@ -147,9 +152,10 @@ class LocationSourceRuntime @Inject internal constructor(
 		claim: SourceRuntimeClaim?,
 		plan: LocationPlan,
 		sink: SourceEventSink,
+		maximumEvidenceAgeMs: Long? = null,
 	): SourceApplyResult = lifecycleMutex.withLock {
 		if (isAcceptingCallbacks()) {
-			refreshCompatibleLocked(claim, plan, sink)?.let { refreshed ->
+			refreshCompatibleLocked(claim, plan, sink, maximumEvidenceAgeMs)?.let { refreshed ->
 				return@withLock refreshed
 			}
 		}
@@ -183,7 +189,7 @@ class LocationSourceRuntime @Inject internal constructor(
 				stopAck = predecessorStopAck,
 			)
 		}
-		when (val result = startLocked(claim, plan, sink)) {
+		when (val result = startLocked(claim, plan, sink, maximumEvidenceAgeMs)) {
 			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied, predecessorStopAck)
 			is SourceStartResult.Degraded -> SourceApplyResult.Degraded(result.applied, predecessorStopAck)
 			is SourceStartResult.Blocked -> SourceApplyResult.Failed(
@@ -201,6 +207,81 @@ class LocationSourceRuntime @Inject internal constructor(
 
 	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck = lifecycleMutex.withLock {
 		terminalStopAck ?: shutdownLocked(cutoff, RETIRE_REASON_SESSION_STOP)
+	}
+
+	/** Refreshes only immutable authorization when the physical request remains compatible. */
+	internal suspend fun refreshShared(
+		plan: LocationPlan,
+		sink: SourceEventSink,
+		claim: SourceRuntimeClaim? = null,
+		maximumEvidenceAgeMs: Long? = null,
+	): SourceApplyResult? = lifecycleMutex.withLock {
+		refreshCompatibleLocked(claim, plan, sink, maximumEvidenceAgeMs)
+	}
+
+	/** Shared ingress admits the union age; each durable purpose still enforces its own exact limit. */
+	internal suspend fun reconfigureShared(
+		plan: LocationPlan,
+		sink: SourceEventSink,
+		claim: SourceRuntimeClaim?,
+		maximumEvidenceAgeMs: Long,
+	): SourceApplyResult = reconfigureWithClaim(claim, plan, sink, maximumEvidenceAgeMs)
+
+	/** Drains a session's admitted prefix without installing a cutoff on the remaining background join. */
+	internal suspend fun sharedSessionCutoff(cutoff: SessionCutoff): SourceStopAck = lifecycleMutex.withLock {
+		val activeRegistration = registration ?: return@withLock unavailableAck(cutoff)
+		val barrier = synchronized(callbackLock) {
+			if (!acceptingCallbacks) return@withLock unavailableAck(cutoff)
+			// Freeze only the prefix to drain. Background callbacks keep entering the same FIFO.
+			callbackEntrySequence
+		}
+		run {
+			val remainingMs = ((cutoff.deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) /
+				LOCATION_NANOS_PER_MILLISECOND).coerceAtLeast(1L)
+			val drained = withTimeoutOrNull(remainingMs) {
+				processedCallbackSequence.first { processed ->
+					callbackOfferFailureCoverage.unaccountedRanges(processed, barrier).isEmpty()
+				}
+				true
+			} == true
+			val admission = metrics.snapshot()
+			SourceStopAck(
+				source = source,
+				sourceInstanceId = SourceInstanceId(activeRegistration.state.sourceInstanceId),
+				registrationGeneration = activeRegistration.state.registrationGeneration,
+				appliedRevision = currentPlan?.revision,
+				callbackEntryBarrierSequence = barrier,
+				lastDurablyAdmittedSequence = admission.lastDurablyAdmittedSequence,
+				lastAdmissionOrdinal = admission.lastAdmissionOrdinal,
+				failedAdmissionCount = admission.failedAdmissionCount,
+				unresolvedSequenceStart = admission.unresolvedSequenceStart,
+				unresolvedSequenceEndInclusive = admission.unresolvedSequenceEndInclusive,
+				registrationRemovalOutcome = RegistrationRemovalOutcome.NOT_REGISTERED,
+				providerFlushOutcome = ProviderFlushOutcome.NOT_REQUESTED,
+				providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+				appDrainComplete = drained,
+				status = if (drained) SourceStopStatus.COMPLETE else SourceStopStatus.TIMED_OUT,
+			)
+		}
+	}
+
+	internal suspend fun closeShared(): SourceStopAck = lifecycleMutex.withLock {
+		when {
+			currentPlan != null && (isAcceptingCallbacks() || hasUnretiredCallbackLane()) ->
+				shutdownLocked(null, RETIRE_REASON_RUNTIME_CLOSE)
+			currentPlan != null && !retryOwnedRetirementLocked() ->
+				terminalStopAck ?: unavailableAck(null).copy(
+					registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
+					appDrainComplete = false,
+					status = SourceStopStatus.PROVIDER_FAILED,
+				)
+			!reconcilePendingRetirementLocked() -> unavailableAck(null).copy(
+				registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
+				appDrainComplete = false,
+				status = SourceStopStatus.PROVIDER_FAILED,
+			)
+			else -> terminalStopAck ?: unavailableAck(null)
+		}
 	}
 
 	override suspend fun close() {
@@ -248,6 +329,7 @@ class LocationSourceRuntime @Inject internal constructor(
 		claim: SourceRuntimeClaim?,
 		plan: LocationPlan,
 		sink: SourceEventSink,
+		maximumEvidenceAgeMs: Long? = null,
 	): SourceApplyResult? {
 		val activePlan = currentPlan ?: return null
 		val activeRegistration = registration ?: return null
@@ -261,73 +343,97 @@ class LocationSourceRuntime @Inject internal constructor(
 			LocationStartContext.SESSION_ALREADY_FOREGROUND,
 		)
 		if (application.status == LocationPlanApplicationStatus.BLOCKED) return null
-		val effectivePlan = application.plan
+		val effectivePlan = activeBackend?.resolvePlan(application.plan) ?: return null
+		val backendFallback = effectivePlan.mode != application.plan.mode
 		val physicalFingerprint = effectivePlan.physicalConfigurationFingerprint()
 		if (activePlan.physicalConfigurationFingerprint() != physicalFingerprint) return null
+		val contextRefresh = CompletableDeferred<List<LocationCallbackContext>>()
 		val refreshBoundary = synchronized(callbackLock) {
 			if (!acceptingCallbacks || callbackToken !== activeToken || registration !== activeRegistration) {
 				return null
 			}
-			// A callback is either admitted with the old immutable context before this boundary or
-			// rejected until the refreshed durable authorization and context are installed.
+			// Callbacks remain in the bounded FIFO while durable attribution is refreshed.
+			// Admission waits for the exact context; no observation borrows newer consent.
 			acceptingCallbacks = false
+			callbackContextRefresh = contextRefresh
 			SystemClock.elapsedRealtimeNanos()
 		}
-		val refreshed = runCatchingNonCancellation {
-			registrations.refreshActiveAuthorization(
-				source,
-				activeRegistration,
-				plan.revision,
-				physicalFingerprint,
-				System.currentTimeMillis(),
-				refreshBoundary,
-			)
-		}.getOrElse { return null } ?: return null
-		if (refreshed.requiresProviderAcceptance ||
-			refreshed.state.sourceInstanceId != activeRegistration.state.sourceInstanceId ||
-			refreshed.state.registrationGeneration != activeRegistration.state.registrationGeneration ||
-			refreshed.physicalConfigurationFingerprint != activeRegistration.physicalConfigurationFingerprint
-		) return null
-		val switched = synchronized(callbackLock) {
-			if (acceptingCallbacks || callbackToken !== activeToken || registration !== activeRegistration) {
-				false
-			} else {
-				registration = refreshed
-				currentPlan = effectivePlan
-				currentSink = sink
-				callbackContext = refreshed.toLocationCallbackContext(
-					plan = effectivePlan,
-					sink = sink,
-					minimumObservedElapsedRealtimeNanos = maxOf(
-						activeContext.minimumObservedElapsedRealtimeNanos,
-						refreshBoundary,
-						refreshed.authorization.effectiveElapsedRealtimeNanos,
-					),
+		try {
+			val refreshed = runCatchingNonCancellation {
+				registrations.refreshActiveAuthorization(
+					source,
+					activeRegistration,
+					plan.revision,
+					physicalFingerprint,
+					System.currentTimeMillis(),
+					refreshBoundary,
 				)
-				acceptingCallbacks = true
-				true
+			}.getOrElse { return null } ?: return null
+			if (refreshed.requiresProviderAcceptance ||
+				refreshed.state.sourceInstanceId != activeRegistration.state.sourceInstanceId ||
+				refreshed.state.registrationGeneration != activeRegistration.state.registrationGeneration ||
+				refreshed.physicalConfigurationFingerprint != activeRegistration.physicalConfigurationFingerprint
+			) return null
+			if (runCatchingNonCancellation { registrations.recordLocationPlan(refreshed, effectivePlan) }.isFailure) {
+				return null
 			}
-		}
-		if (!switched) return null
-		// Same-pair authorization refresh is still a new lifecycle attempt. Transfer shutdown
-		// authority only after the refreshed immutable callback context has committed.
-		ownerClaim = claim
-		val applyStatus = if (application.status == LocationPlanApplicationStatus.DEGRADED) {
-			SourceApplyStatus.DEGRADED
-		} else {
-			SourceApplyStatus.APPLIED
-		}
-		val state = appliedState(
-			source,
-			plan.revision,
-			refreshed,
-			applyStatus,
-			SystemClock.elapsedRealtimeNanos(),
-		).copy(degradedReasons = application.reasons)
-		return if (applyStatus == SourceApplyStatus.DEGRADED) {
-			SourceApplyResult.Degraded(state)
-		} else {
-			SourceApplyResult.Applied(state)
+			val switched = synchronized(callbackLock) {
+				if (acceptingCallbacks || callbackToken !== activeToken || registration !== activeRegistration) {
+					false
+				} else {
+					registration = refreshed
+					currentPlan = effectivePlan
+					currentSink = sink
+					val sameAttribution = refreshed.toLocationDeliveryAttribution() == activeContext.attribution
+					val authorizationChanged = refreshed.authorization.authorizationRevision !=
+						activeContext.attribution.authorizationRevision
+					val nextContext = refreshed.toLocationCallbackContext(
+						plan = effectivePlan,
+						sink = sink,
+						maximumEvidenceAgeMs = maximumEvidenceAgeMs,
+						minimumObservedElapsedRealtimeNanos = when {
+							sameAttribution -> activeContext.minimumObservedElapsedRealtimeNanos
+							authorizationChanged -> maxOf(
+								callbackContexts.first().minimumObservedElapsedRealtimeNanos,
+								refreshed.authorization.effectiveElapsedRealtimeNanos,
+							)
+							else -> maxOf(activeContext.minimumObservedElapsedRealtimeNanos, refreshBoundary)
+						},
+					)
+					callbackContexts = refreshLocationCallbackContexts(callbackContexts, nextContext, refreshBoundary)
+					callbackContext = callbackContexts.last()
+					acceptingCallbacks = true
+					true
+				}
+			}
+			if (!switched) return null
+			// Same-pair authorization refresh is still a new lifecycle attempt. Transfer shutdown
+			// authority only after the refreshed immutable callback context has committed.
+			ownerClaim = claim
+			val applyStatus = if (application.status == LocationPlanApplicationStatus.DEGRADED || backendFallback) {
+				SourceApplyStatus.DEGRADED
+			} else {
+				SourceApplyStatus.APPLIED
+			}
+			val state = appliedState(
+				source,
+				plan.revision,
+				refreshed,
+				applyStatus,
+				SystemClock.elapsedRealtimeNanos(),
+			).copy(degradedReasons = application.reasons + if (backendFallback) {
+				setOf(SourceDegradedReason.PROVIDER_FALLBACK)
+			} else emptySet())
+			return if (applyStatus == SourceApplyStatus.DEGRADED) {
+				SourceApplyResult.Degraded(state)
+			} else {
+				SourceApplyResult.Applied(state)
+			}
+		} finally {
+			synchronized(callbackLock) {
+				contextRefresh.complete(callbackContexts)
+				if (callbackContextRefresh === contextRefresh) callbackContextRefresh = null
+			}
 		}
 	}
 
@@ -335,6 +441,7 @@ class LocationSourceRuntime @Inject internal constructor(
 		claim: SourceRuntimeClaim?,
 		plan: LocationPlan,
 		sink: SourceEventSink,
+		maximumEvidenceAgeMs: Long? = null,
 	): SourceStartResult {
 		terminalStopAck = null
 		if (!plan.enabled) return SourceStartResult.Started(
@@ -350,7 +457,16 @@ class LocationSourceRuntime @Inject internal constructor(
 			appliedState(source, plan.revision, null, SourceApplyStatus.BLOCKED, SystemClock.elapsedRealtimeNanos())
 				.copy(degradedReasons = application.reasons),
 		)
-		val effectivePlan = application.plan
+		val backend: LocationSourceBackendController = when (application.plan.backend) {
+			LocationBackend.FUSED -> fusedBackend
+			LocationBackend.FRAMEWORK -> frameworkBackend
+		}
+		// Persist the actual selected provider mode, never a fictional low-power or active mode.
+		val effectivePlan = backend.resolvePlan(application.plan) ?: return SourceStartResult.Blocked(
+			appliedState(source, plan.revision, null, SourceApplyStatus.BLOCKED, SystemClock.elapsedRealtimeNanos())
+				.copy(degradedReasons = application.reasons + SourceDegradedReason.PROVIDER_UNAVAILABLE),
+		)
+		val backendFallback = effectivePlan.mode != application.plan.mode
 		val nextRegistration = runCatchingNonCancellation {
 			registrations.begin(
 				source,
@@ -364,10 +480,6 @@ class LocationSourceRuntime @Inject internal constructor(
 				retryable = true,
 			)
 		}
-		val backend: LocationSourceBackendController = when (effectivePlan.backend) {
-			LocationBackend.FUSED -> fusedBackend
-			LocationBackend.FRAMEWORK -> frameworkBackend
-		}
 		val nextQueue = LocationCallbackLane()
 		val nextCallbackToken = LocationCallbackToken()
 		synchronized(callbackLock) {
@@ -377,6 +489,7 @@ class LocationSourceRuntime @Inject internal constructor(
 			activeBackend = backend
 			callbackToken = nextCallbackToken
 			callbackContext = null
+			callbackContexts = emptyList()
 			queue = nextQueue
 			acceptingCallbacks = false
 		}
@@ -384,12 +497,12 @@ class LocationSourceRuntime @Inject internal constructor(
 		processedCallbackSequence.value = 0L
 		cutoffElapsedNanos = null
 		metrics = RuntimeAdmissionMetrics()
-		lastAdmissionOrdinalHighWater = null
 		callbackOfferFailureCoverage = LocationCallbackFailureCoverage()
 		// Provider start is apply-then-report: bind the explicit attempt before the call so a
 		// throwing or partially failed publication remains exactly claim-addressable.
 		ownerClaim = claim
 		val startOutcome = try {
+			registrations.recordLocationPlan(nextRegistration, effectivePlan)
 			backend.start(effectivePlan) { locations -> onLocationBatch(nextCallbackToken, locations) }
 		} catch (cancelled: CancellationException) {
 			cleanupFailedStart(nextRegistration, backend, nextQueue, "PROVIDER_REGISTRATION_CANCELLED")
@@ -480,23 +593,28 @@ class LocationSourceRuntime @Inject internal constructor(
 			callbackContext = nextRegistration.toLocationCallbackContext(
 				plan = effectivePlan,
 				sink = sink,
+				maximumEvidenceAgeMs = maximumEvidenceAgeMs,
 				minimumObservedElapsedRealtimeNanos = maxOf(
 					minimumObservedElapsedRealtimeNanos,
 					nextRegistration.authorization.effectiveElapsedRealtimeNanos,
 				),
 			)
+			callbackContexts = listOf(requireNotNull(callbackContext))
+			callbackCollectionBoundary = requireNotNull(callbackContext).minimumObservedElapsedRealtimeNanos
 			acceptingCallbacks = true
 		}
 		nextActor.start()
 		_capabilities.value = currentCapabilities(backend)
-		val approximate = application.status == LocationPlanApplicationStatus.DEGRADED
+		val approximate = application.status == LocationPlanApplicationStatus.DEGRADED || backendFallback
 		val state = appliedState(
 			source,
 			plan.revision,
 			nextRegistration,
 			if (approximate) SourceApplyStatus.DEGRADED else SourceApplyStatus.APPLIED,
 			SystemClock.elapsedRealtimeNanos(),
-		).copy(degradedReasons = application.reasons)
+		).copy(degradedReasons = application.reasons + if (backendFallback) {
+			setOf(SourceDegradedReason.PROVIDER_FALLBACK)
+		} else emptySet())
 		return if (approximate) SourceStartResult.Degraded(state) else SourceStartResult.Started(state)
 	}
 
@@ -862,6 +980,7 @@ class LocationSourceRuntime @Inject internal constructor(
 			acceptingCallbacks = false
 			callbackToken = null
 			callbackContext = null
+			callbackContexts = emptyList()
 			queue = null
 		}
 		actor = null
@@ -879,6 +998,7 @@ class LocationSourceRuntime @Inject internal constructor(
 			acceptingCallbacks = false
 			callbackToken = null
 			callbackContext = null
+			callbackContexts = emptyList()
 			queue = null
 		}
 		actor = retiredActor
@@ -893,7 +1013,8 @@ class LocationSourceRuntime @Inject internal constructor(
 		val receivedWall = System.currentTimeMillis()
 		synchronized(callbackLock) {
 			val context = callbackContext
-			if (!acceptingCallbacks || callbackToken !== callbackGeneration || context == null) return
+			val pendingContext = callbackContextRefresh
+			if ((!acceptingCallbacks && pendingContext == null) || callbackToken !== callbackGeneration || context == null) return
 			val callbackSequence = ++callbackEntrySequence
 			val outcome = queue?.offer(
 				RawLocationBatch(
@@ -902,6 +1023,9 @@ class LocationSourceRuntime @Inject internal constructor(
 					receivedWall,
 					callbackSequence,
 					context,
+					callbackContexts,
+					callbackCollectionBoundary,
+					pendingContext,
 				),
 			) ?: LocationLaneOffer.CLOSED
 			if (outcome != LocationLaneOffer.ACCEPTED) {
@@ -952,6 +1076,15 @@ class LocationSourceRuntime @Inject internal constructor(
 				gapRecorded = true
 			}
 		}
+		val resolvedBatch = batch.contextsAfterRefresh?.await()?.let { batch.copy(contexts = it) } ?: batch
+		val partition = partitionLocationContexts(resolvedBatch)
+		if (partition.unattributedCount > 0) recordGapOnce()
+		for ((context, locations) in partition.groups) {
+			admitLocationContextBatch(batch.copy(locations = locations, context = context), ::recordGapOnce)
+		}
+	}
+
+	private suspend fun admitLocationContextBatch(batch: RawLocationBatch, recordGapOnce: () -> Unit) {
 		try {
 			var retryIndex = 0
 			while (true) {
@@ -975,13 +1108,15 @@ class LocationSourceRuntime @Inject internal constructor(
 				when (val handoff = batch.context.sink.admit(delivery)) {
 					is SourceDeliveryAdmissionHandoff.Durable -> {
 						val lastOrdinal = handoff.admissionOrdinals.maxOrNull()
-						if (lastOrdinal != null) recordDurableAdmission(batch.callbackSequence, lastOrdinal)
+						val sequence = handoff.lastSourceSequence?.takeIf { it >= 0L }
+						if (lastOrdinal != null && sequence != null) metrics.recordDurable(sequence, lastOrdinal)
 						else recordGapOnce()
 						return
 					}
 					is SourceDeliveryAdmissionHandoff.Duplicate -> {
 						val lastOrdinal = handoff.existingAdmissionOrdinals.maxOrNull()
-						if (lastOrdinal != null) recordDurableAdmission(batch.callbackSequence, lastOrdinal)
+						val sequence = handoff.lastSourceSequence?.takeIf { it >= 0L }
+						if (lastOrdinal != null && sequence != null) metrics.recordDurable(sequence, lastOrdinal)
 						else recordGapOnce()
 						return
 					}
@@ -1014,16 +1149,6 @@ class LocationSourceRuntime @Inject internal constructor(
 		}
 	}
 
-	private fun recordDurableAdmission(callbackSequence: Long, admissionOrdinal: Long) {
-		// A replay can resolve a later callback with an older WAL row. Advance callback resolution
-		// without allowing that duplicate ordinal to regress the physical run's stop boundary.
-		val ordinalHighWater = lastAdmissionOrdinalHighWater
-			?.coerceAtLeast(admissionOrdinal)
-			?: admissionOrdinal
-		lastAdmissionOrdinalHighWater = ordinalHighWater
-		metrics.recordDurable(callbackSequence, ordinalHighWater)
-	}
-
 	private fun hasCurrentLocationPermission(): Boolean = permissionGate.allowsCurrentCallback()
 
 	private fun currentCapabilities(backend: LocationSourceBackendController? = null): SourceCapabilities {
@@ -1045,6 +1170,7 @@ class LocationSourceRuntime @Inject internal constructor(
 			registration = null
 			callbackToken = null
 			callbackContext = null
+			callbackContexts = emptyList()
 			queue = null
 		}
 		actor = null
@@ -1159,6 +1285,9 @@ internal data class RawLocationBatch(
 	val receivedWallTimeMs: Long,
 	val callbackSequence: Long,
 	val context: LocationCallbackContext,
+	val contexts: List<LocationCallbackContext> = listOf(context),
+	val collectionBoundary: Long = context.minimumObservedElapsedRealtimeNanos,
+	val contextsAfterRefresh: Deferred<List<LocationCallbackContext>>? = null,
 )
 
 internal class LocationCallbackToken
@@ -1169,10 +1298,61 @@ internal data class LocationCallbackContext(
 	val sink: SourceEventSink,
 	val minimumObservedElapsedRealtimeNanos: Long,
 	val maximumEvidenceAgeNanos: Long = Long.MAX_VALUE,
+	val maximumObservedExclusive: Long = Long.MAX_VALUE,
 ) {
 	init {
 		require(minimumObservedElapsedRealtimeNanos >= 0L)
+		require(maximumObservedExclusive >= minimumObservedElapsedRealtimeNanos)
 	}
+}
+
+/** Metadata refreshes preserve observation time, including batches delivered after a purpose joins. */
+internal fun refreshLocationCallbackContexts(
+	previous: List<LocationCallbackContext>,
+	next: LocationCallbackContext,
+	nowElapsedNanos: Long,
+): List<LocationCallbackContext> {
+	val active = previous.lastOrNull() ?: return listOf(next)
+	require(active.attribution.sourceInstanceId == next.attribution.sourceInstanceId &&
+		active.attribution.registrationGeneration == next.attribution.registrationGeneration &&
+		active.attribution.physicalConfigurationFingerprint == next.attribution.physicalConfigurationFingerprint &&
+		active.attribution.clockDomainId == next.attribution.clockDomainId &&
+		active.attribution.collectedDataEpoch == next.attribution.collectedDataEpoch)
+	if (active.attribution == next.attribution) {
+		// A periodic reconciliation is not a new collection boundary.
+		return previous.dropLast(1) + next.copy(
+			minimumObservedElapsedRealtimeNanos = active.minimumObservedElapsedRealtimeNanos,
+		)
+	}
+	val boundary = next.minimumObservedElapsedRealtimeNanos
+	val retained = previous.mapNotNull { context ->
+		val end = minOf(context.maximumObservedExclusive, boundary)
+		if (end <= context.minimumObservedElapsedRealtimeNanos ||
+			nowElapsedNanos - end > context.maximumEvidenceAgeNanos
+		) null else context.copy(maximumObservedExclusive = end)
+	}
+	// The count bound also contains unusually rapid policy churn; missing authority is an explicit gap.
+	return (retained + next).takeLast(LOCATION_CALLBACK_CONTEXT_CAPACITY)
+}
+
+internal data class LocationContextPartition(
+	val groups: Map<LocationCallbackContext, List<Location>>,
+	val unattributedCount: Int,
+)
+
+internal fun partitionLocationContexts(batch: RawLocationBatch): LocationContextPartition {
+	val groups = linkedMapOf<LocationCallbackContext, MutableList<Location>>()
+	var unattributedCount = 0
+	normalizeLocationBatch(batch.locations).forEach { location ->
+		val observed = location.qualifiedObservedElapsedRealtimeNanos(batch.receivedElapsedNanos)
+		val context = observed?.let { time -> batch.contexts.singleOrNull {
+			time >= it.minimumObservedElapsedRealtimeNanos && time < it.maximumObservedExclusive
+		} }
+		if (observed != null && observed < batch.collectionBoundary) return@forEach
+		if (context == null) unattributedCount++
+		else groups.getOrPut(context) { mutableListOf() }.add(location)
+	}
+	return LocationContextPartition(groups, unattributedCount)
 }
 
 internal enum class LocationLaneOffer { ACCEPTED, CAPACITY_EXHAUSTED, CLOSED }
@@ -1296,16 +1476,23 @@ private fun SourceRegistration.toLocationCallbackContext(
 	plan: LocationPlan,
 	sink: SourceEventSink,
 	minimumObservedElapsedRealtimeNanos: Long,
+	maximumEvidenceAgeMs: Long? = null,
 ) = LocationCallbackContext(
 	attribution = toLocationDeliveryAttribution(),
 	approximate = !plan.preciseLocationAvailable,
 	sink = sink,
 	minimumObservedElapsedRealtimeNanos = minimumObservedElapsedRealtimeNanos,
-	maximumEvidenceAgeNanos = plan.maximumEvidenceAgeNanos(),
+	maximumEvidenceAgeNanos = maximumEvidenceAgeMs?.let {
+		require(it >= 0L)
+		if (it > Long.MAX_VALUE / LOCATION_NANOS_PER_MILLISECOND) Long.MAX_VALUE
+		else it * LOCATION_NANOS_PER_MILLISECOND
+	} ?: plan.maximumEvidenceAgeNanos(),
 )
 
 internal fun LocationPlan.maximumEvidenceAgeNanos(): Long {
-	val maximumAgeMs = maxOf(requestedIntervalMs, maximumBatchDelayMs).coerceAtLeast(1L)
+	val maximumAgeMs = if (adaptiveProfileVersion == 1) 120_000L else {
+		maxOf(requestedIntervalMs, maximumBatchDelayMs).coerceAtLeast(1L)
+	}
 	return if (maximumAgeMs > Long.MAX_VALUE / LOCATION_NANOS_PER_MILLISECOND) {
 		Long.MAX_VALUE
 	} else {
@@ -1378,6 +1565,8 @@ internal fun locationDeliveryCandidate(
 					wallTimeUncertaintyMs = if (location.time > 0L) 0L else 1L,
 					capturedCollectedDataEpoch = attribution.collectedDataEpoch,
 					acquiredAtMs = acquiredAtMs,
+					locationSpeedAccuracyMetersPerSecond = location.speedAccuracyMetersPerSecond
+						.takeIf { location.hasSpeedAccuracy() && it.isFinite() && it >= 0f },
 					quality = SourceQuality(
 						flags = buildSet {
 							if (approximate) add(SourceQualityFlag.APPROXIMATE)
@@ -1445,4 +1634,5 @@ private const val LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION = 2
 private const val LOCATION_NANOS_PER_MILLISECOND = 1_000_000L
 private const val LOCATION_BATCHED_AFTER_NANOS = 5_000L * LOCATION_NANOS_PER_MILLISECOND
 private const val LOCATION_CALLBACK_BUFFER_CAPACITY = 64
+private const val LOCATION_CALLBACK_CONTEXT_CAPACITY = 64
 private val LOCATION_ADMISSION_RETRY_DELAYS_MS = longArrayOf(25L, 100L, 500L, 2_000L)

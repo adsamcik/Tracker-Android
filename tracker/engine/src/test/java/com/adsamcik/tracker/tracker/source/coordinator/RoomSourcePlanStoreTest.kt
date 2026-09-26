@@ -46,6 +46,28 @@ class RoomSourcePlanStoreTest {
 	}
 
 	@Test
+	fun `desired and applied adaptive plan versions survive store recreation beside legacy history`() = runTest {
+		for (version in 1..2) {
+			val revision = version.toLong()
+			val original = locationPlan(LocationBackend.FUSED, revision)
+			val sourcePlan = if (version == 1) original.plans.getValue(SourceKind.LOCATION)
+				else adaptiveLocationPlan(3, revision, LocationBackend.FUSED, true)
+			val plan = original.copy(plans = mapOf(SourceKind.LOCATION to sourcePlan))
+			store.persistDesired(plan, DesiredPlanStatus.APPLYING)
+			store.saveApplied(AppliedSourcePlan(revision, revision, SourceKind.LOCATION,
+				SourceInstanceId("location-$version"), revision, 500, SourceApplyStatus.APPLIED),
+				sourcePlan, 1_000)
+			database.sourcePlanStateDao().desiredPlans(revision).single().payloadVersion shouldBe version
+			database.sourcePlanStateDao().appliedStates().single().appliedPayloadVersion shouldBe version
+			val recreated = RoomSourcePlanStore(database, SourcePlanCodec())
+			recreated.load(revision)?.plans?.get(SourceKind.LOCATION) shouldBe sourcePlan
+			recreated.loadApplied(revision).shouldBeInstanceOf<AppliedPlanRead.Available>()
+				.plan.plans.getValue(SourceKind.LOCATION) shouldBe sourcePlan
+		}
+		(store.load(1)?.plans?.get(SourceKind.LOCATION) as LocationPlan).adaptiveProfileVersion shouldBe null
+	}
+
+	@Test
 	fun `round trip retains policy binding and collision cannot change it`() = runTest {
 		val plan = SemanticAcquisitionPlanFactory().create(
 			settings = TrackingParamsState(sourcePolicyRevision = 7),

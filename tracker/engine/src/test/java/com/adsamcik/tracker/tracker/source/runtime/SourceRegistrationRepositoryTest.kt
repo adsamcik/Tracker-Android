@@ -30,6 +30,10 @@ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBindi
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
+import com.adsamcik.tracker.tracker.source.model.LocationPlan
+import com.adsamcik.tracker.tracker.source.model.LocationBackend
+import com.adsamcik.tracker.tracker.source.model.LocationMode
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import io.kotest.assertions.throwables.shouldThrow
@@ -1563,6 +1567,37 @@ class SourceRegistrationRepositoryTest {
 				SourceDemandEntity.STATUS_ACTIVE,
 			)
 		}
+
+	@Test
+	fun `actual Location request is durable before first provider acceptance and rejects stale active pointer`() = runTest {
+		val plan = LocationPlan(1L, LocationBackend.FRAMEWORK, LocationMode.HIGH_ACCURACY,
+			10_000L, 10_000L, 0f, 50_000L, null, true)
+		database.sourceBrokerDao().insertDemands(listOf(demand("location", "session:s1",
+			SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true, SourceKind.LOCATION)))
+		val reserved = subject.begin(SourceKind.LOCATION, plan.revision, plan.physicalConfigurationFingerprint(), 110L, 110L)
+		database.sourceRegistrationStateDao().get(SourceKind.LOCATION.stableCode, reserved.ownerScope) shouldBe null
+		subject.recordLocationPlan(reserved, plan)
+		database.locationPurposeDao().registrationPlan(reserved.state.registrationGeneration, plan.revision,
+			reserved.authorization.authorizationRevision).shouldNotBeNull()
+		// This is the runtime ordering: persist request, register the provider, then acknowledge.
+		subject.markAccepted(reserved, 120L, 120L)
+		subject.recordLocationPlan(reserved, plan)
+		database.sourceRegistrationStateDao().replace(reserved.state.copy(appliedRevision = 99L))
+		shouldThrow<IllegalStateException> { subject.recordLocationPlan(reserved, plan) }
+	}
+
+	@Test
+	fun `superseded Location reservation cannot publish an actual request`() = runTest {
+		val plan = LocationPlan(1L, LocationBackend.FRAMEWORK, LocationMode.HIGH_ACCURACY,
+			10_000L, 10_000L, 0f, 50_000L, null, true)
+		database.sourceBrokerDao().insertDemands(listOf(demand("location", "session:s1",
+			SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true, SourceKind.LOCATION)))
+		val reserved = subject.begin(SourceKind.LOCATION, plan.revision, plan.physicalConfigurationFingerprint(), 110L, 110L)
+		val row = requireNotNull(database.sourceBrokerDao().registration(SourceKind.LOCATION.stableCode,
+			reserved.state.registrationGeneration))
+		database.sourceBrokerDao().insertRegistration(row.copy(registrationGeneration = row.registrationGeneration + 1L))
+		shouldThrow<IllegalStateException> { subject.recordLocationPlan(reserved, plan) }
+	}
 
 	private fun demand(
 		id: String,

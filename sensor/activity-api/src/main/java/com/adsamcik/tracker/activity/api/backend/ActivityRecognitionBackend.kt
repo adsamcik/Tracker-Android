@@ -56,6 +56,9 @@ data class RecognitionConfig(
 	val requestedTransitions: Collection<ActivityTransitionData> = emptyList(),
 	val automaticRecognitionEligible: Boolean = false,
 	val automaticTransitions: Set<ActivityTransitionData> = emptySet(),
+	/** Exact events independently requested by durable owners; null preserves legacy transitions. */
+	val durableRecognitionEligible: Boolean = true,
+	val durableTransitions: Set<ActivityTransitionData>? = null,
 )
 
 /**

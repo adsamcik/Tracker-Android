@@ -29,6 +29,7 @@ enum class ActivityRegistrationOwner {
 	AUTOMATIC_START_MONITOR,
 	ACTIVE_SESSION,
 	LEGACY_REQUEST_MANAGER,
+	LOCATION_MOTION_ASSISTANCE,
 }
 
 data class ActivityRegistrationDemand(
@@ -37,11 +38,16 @@ data class ActivityRegistrationDemand(
 	val planRevision: Long? = null,
 	/** Exact captured-product plan; control-only owners must leave this null. */
 	val capturedPlan: ActivityRegistrationPlanAttribution? = null,
+	val motionAssistanceAuthority: ActivityMotionAssistanceAuthority? = null,
 ) {
 	init {
 		require(continuousRecognitionIntervalSeconds == null || continuousRecognitionIntervalSeconds > 0)
 		require(capturedPlan == null || planRevision == capturedPlan.configurationRevision) {
 			"Captured Activity plan revision must match the registration demand"
+		}
+		require(motionAssistanceAuthority == null ||
+			(capturedPlan == null && continuousRecognitionIntervalSeconds == null)) {
+			"Location assistance is a transient transition consumer, never captured Activity"
 		}
 	}
 

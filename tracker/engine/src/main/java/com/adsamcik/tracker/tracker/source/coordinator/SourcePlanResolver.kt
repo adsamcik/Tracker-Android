@@ -23,6 +23,7 @@ import com.adsamcik.tracker.tracker.source.model.WifiMode
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
 import com.adsamcik.tracker.tracker.source.model.satisfies
 import javax.inject.Inject
+import com.adsamcik.tracker.tracker.policy.BatteryPressure
 
 data class SourceConstraint(
 	val hardwareAvailable: Boolean = true,
@@ -38,6 +39,9 @@ data class PlanResolutionContext(
 	val doze: Boolean,
 	val severeThermalPressure: Boolean,
 	val motionProfile: CollectionAcquisitionProfile = CollectionMotionPolicy.unrestricted().acquisitionProfile,
+	val locationProfileLevel: Int? = null,
+	val locationLiveFocus: Boolean = false,
+	val batteryPressure: BatteryPressure = BatteryPressure.NONE,
 )
 
 data class ResolvedAcquisitionPlan(
@@ -90,9 +94,16 @@ class SourcePlanResolver @Inject constructor() {
 			// upgrade physical acquisition beyond the effective SourcePolicy.
 			if (!targetSatisfiesFloors) reasons += SourceDegradedReason.DEMAND_FLOOR_UNSATISFIED
 			var applicable = if (blocked || !targetSatisfiesFloors) plan.disabled() else plan
-			if (!blocked && targetSatisfiesFloors && adaptationAllowed && context.powerSaver) {
+			if (!blocked && targetSatisfiesFloors && adaptationAllowed && (context.powerSaver ||
+				(source == SourceKind.LOCATION && context.batteryPressure != BatteryPressure.NONE))) {
 				val candidate = when (applicable) {
-					is LocationPlan -> if (applicable.mode == LocationMode.HIGH_ACCURACY) {
+					is LocationPlan -> if (applicable.adaptiveProfileVersion == 1) {
+						if (context.locationLiveFocus) applicable else {
+							val level = context.locationProfileLevel
+							if (level == null) applicable else adaptiveLocationPlan(minOf(level, if (context.batteryPressure == BatteryPressure.STRONG) 1 else 3),
+								applicable.revision, applicable.backend, applicable.preciseLocationAvailable)
+						}
+					} else if (applicable.mode == LocationMode.HIGH_ACCURACY) {
 						applicable.copy(mode = LocationMode.BALANCED)
 					} else applicable
 					is CellPlan -> if (applicable.mode == CellMode.OBSERVE_AND_SPARSE_REFRESH) {
@@ -111,6 +122,17 @@ class SourcePlanResolver @Inject constructor() {
 			}
 			if (context.doze && applicable is WifiPlan && applicable.mode == WifiMode.ACTIVE_ATTEMPTS) {
 				reasons += SourceDegradedReason.DOZE
+			}
+			if (!blocked && targetSatisfiesFloors && adaptationAllowed && context.severeThermalPressure &&
+				applicable is LocationPlan && applicable.adaptiveProfileVersion == 1 && applicable.enabled) {
+				val level = context.locationProfileLevel ?: 1
+				val reduced = adaptiveLocationPlan(minOf(level, 1), applicable.revision,
+					applicable.backend, applicable.preciseLocationAvailable)
+				val accepted = applicable.acceptReduction(reduced, sourceFloors)
+				if (accepted != applicable) {
+					reasons += SourceDegradedReason.THERMAL
+					applicable = accepted
+				}
 			}
 			if (
 				!blocked &&
@@ -140,11 +162,14 @@ class SourcePlanResolver @Inject constructor() {
 			val hardBlocked = degradation.getValue(source).any { reason -> reason.isHardPrerequisite() }
 			val floorSatisfied = SourceDegradedReason.DEMAND_FLOOR_UNSATISFIED !in degradation.getValue(source)
 			val candidate = if (!hardBlocked && floorSatisfied && adaptationAllowed) {
-				plan.applyMotionPolicy(context.motionProfile, activityWakeAvailable)
+				if (plan is LocationPlan && plan.adaptiveProfileVersion == 1) {
+					// Assistance is optional: stationary reduction always retains an active request.
+					if (context.motionProfile.stationary) plan.adaptiveStationary() else plan
+				} else plan.applyMotionPolicy(context.motionProfile, activityWakeAvailable)
 			} else plan
 			val applicable = plan.acceptReduction(candidate, sourceFloors)
 			if (applicable != plan) {
-				degradation[source] = degradation.getValue(source) + SourceDegradedReason.POWER_SAVER
+				degradation[source] = degradation.getValue(source) + SourceDegradedReason.MOTION_REDUCTION
 			}
 			applicable
 		}
@@ -277,6 +302,15 @@ class SourcePlanResolver @Inject constructor() {
 		requestedIntervalMs = maxOf(requestedIntervalMs, 30_000L),
 		minimumUpdateIntervalMs = maxOf(minimumUpdateIntervalMs, 15_000L),
 		minimumDisplacementMeters = maxOf(minimumDisplacementMeters, 10f),
+		maximumBatchDelayMs = maxOf(maximumBatchDelayMs, 60_000L),
+		probeDurationMs = null,
+	)
+
+	private fun LocationPlan.adaptiveStationary() = copy(
+		mode = if (mode == LocationMode.HIGH_ACCURACY) LocationMode.BALANCED else mode,
+		requestedIntervalMs = maxOf(requestedIntervalMs, 30_000L),
+		minimumUpdateIntervalMs = maxOf(minimumUpdateIntervalMs, 15_000L),
+		minimumDisplacementMeters = 0f,
 		maximumBatchDelayMs = maxOf(maximumBatchDelayMs, 60_000L),
 		probeDurationMs = null,
 	)

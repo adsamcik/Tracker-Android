@@ -343,7 +343,7 @@ class TrackingSettingsScreenTest {
 
 		mapOf(
 			"steps" to "Steps outside trips",
-			"location" to "Location outside trips",
+			"location" to "All-day Location",
 			"wifi" to "Wi-Fi outside trips",
 			"cell" to "Cell outside trips",
 		).forEach { (source, title) ->

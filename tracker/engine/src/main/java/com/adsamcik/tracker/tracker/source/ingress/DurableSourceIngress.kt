@@ -105,6 +105,8 @@ sealed interface DeliveryAdmissionResult {
 		val unitIndex: Int,
 		val eventId: SourceEventId,
 		val admissionOrdinal: Long,
+		/** WAL allocation, distinct from callback count and provider unit index. */
+		val sourceSequence: Long? = null,
 	)
 }
 
@@ -147,6 +149,7 @@ enum class AdmissionFailureCode {
 	UNSUPPORTED_PAYLOAD,
 	STORAGE_UNAVAILABLE,
 	STARTUP_RECOVERY_NOT_READY,
+	COLLECTION_SUPPRESSED,
 	ATOMIC_CHECKPOINT_UNSUPPORTED,
 }
 
@@ -183,6 +186,9 @@ class RoomDurableSourceIngress @Inject constructor(
 			return AdmissionResult.RetryableFailure(AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY)
 		}
 		val startupGeneration = startupGate.currentGeneration
+		if (!startupGate.permitsNewEvidence(candidate)) {
+			return AdmissionResult.PermanentFailure(AdmissionFailureCode.COLLECTION_SUPPRESSED)
+		}
 		val lifecycle = lifecycleStore.snapshot()
 		if (candidate.capturedCollectedDataEpoch != lifecycle.epoch) {
 			return AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH)
@@ -201,6 +207,9 @@ class RoomDurableSourceIngress @Inject constructor(
 
 		return runCatchingNonCancellation {
 			database.withTransaction<AdmissionResult> transaction@ {
+				if (!startupGate.permitsNewEvidence(candidate)) {
+					return@transaction AdmissionResult.PermanentFailure(AdmissionFailureCode.COLLECTION_SUPPRESSED)
+				}
 				if (!startupGate.isReadyGeneration(startupGeneration)) {
 					return@transaction AdmissionResult.RetryableFailure(
 						AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY,
@@ -539,6 +548,9 @@ class RoomDurableSourceIngress @Inject constructor(
 			)
 		}
 		val startupGeneration = startupGate.currentGeneration
+		if (delivery.units.any { !startupGate.permitsNewEvidence(it.evidence) }) {
+			return DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.COLLECTION_SUPPRESSED)
+		}
 		val lifecycle = lifecycleStore.snapshot()
 		if (delivery.capturedCollectedDataEpoch != lifecycle.epoch) {
 			return DeliveryAdmissionResult.PermanentFailure(
@@ -560,6 +572,9 @@ class RoomDurableSourceIngress @Inject constructor(
 
 		return runCatchingNonCancellation {
 			database.withTransaction<DeliveryAdmissionResult> transaction@ {
+				if (delivery.units.any { !startupGate.permitsNewEvidence(it.evidence) }) {
+					return@transaction DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.COLLECTION_SUPPRESSED)
+				}
 				if (!startupGate.isReadyGeneration(startupGeneration)) {
 					return@transaction DeliveryAdmissionResult.RetryableFailure(
 						AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY,
@@ -968,6 +983,7 @@ class RoomDurableSourceIngress @Inject constructor(
 							unitIndex = requireNotNull(entity.deliveryUnitIndex),
 							eventId = SourceEventId(entity.eventId),
 							admissionOrdinal = rowIds[index],
+							sourceSequence = entity.sourceSequence,
 						)
 					},
 				)
@@ -1060,8 +1076,8 @@ class RoomDurableSourceIngress @Inject constructor(
 			currentPolicy?.enabled == true &&
 			currentPolicy.capturePersistenceEligible &&
 			currentPolicy.captureConsentEpoch == key.consentEpoch &&
-			currentPolicy.effectiveBootId == evidence.clockDomainId &&
-			currentPolicy.effectiveElapsedRealtimeNanos <= durableCutoff
+			(currentPolicy.effectiveBootId != evidence.clockDomainId ||
+				currentPolicy.effectiveElapsedRealtimeNanos <= durableCutoff)
 		val exactRetirementOnly = currentAuthorization?.isExactRetirementOf(
 			claimed = claimedAuthorization,
 			retiredCapture = captureAuthorization,
@@ -1626,6 +1642,7 @@ private fun resolveDeliveryReplay(
 					unitIndex = requireNotNull(stored.deliveryUnitIndex),
 					eventId = SourceEventId(stored.eventId),
 					admissionOrdinal = stored.admissionOrdinal,
+					sourceSequence = stored.sourceSequence,
 				)
 			},
 		)
@@ -1698,6 +1715,7 @@ private fun resolveRadioZoneReplay(
 				unitIndex = requireNotNull(stored.deliveryUnitIndex),
 				eventId = SourceEventId(stored.eventId),
 				admissionOrdinal = stored.admissionOrdinal,
+				sourceSequence = stored.sourceSequence,
 			)
 		},
 	)
@@ -1780,6 +1798,31 @@ private data class ObservedTimeInterval(
 	val startElapsedRealtimeNanos: Long,
 	val endElapsedRealtimeNanos: Long,
 )
+
+/** Suppressed observations are terminally omitted; a later resume cannot turn a retry into backfill. */
+internal fun TrackingStartupGate.permitsNewEvidence(candidate: SourceEvidenceCandidate<*>): Boolean {
+	if (!permitsNewCollection) return false
+	val boundary = collectionResumeBoundary ?: return true
+	val interval = candidate.observedTimeInterval()
+	val radioTimes = when (val payload = candidate.payload) {
+		is WifiResultSnapshotPayload -> payload.accessPoints.map { it.providerTimestampNanos }
+		is CellSnapshotPayload -> payload.observations.map { it.providerTimestampNanos }
+		else -> emptyList()
+	}
+	if (radioTimes.any { it == null || it < 0L }) return false
+	val earliest = minOf(interval.startElapsedRealtimeNanos,
+		radioTimes.filterNotNull().minOrNull() ?: interval.startElapsedRealtimeNanos)
+	if (interval.clockDomainId == boundary.bootId) {
+		return earliest >= boundary.elapsedRealtimeNanos
+	}
+	val wall = candidate.wallTimeMs ?: return false
+	val uncertainty = candidate.wallTimeUncertaintyMs ?: return false
+	val durationNanos = (candidate.observedElapsedRealtimeNanos - earliest).coerceAtLeast(0L)
+	val durationMs = durationNanos / NANOS_PER_MILLISECOND +
+		if (durationNanos % NANOS_PER_MILLISECOND == 0L) 0L else 1L
+	return wall >= durationMs && wall - durationMs >= uncertainty &&
+		boundary.permitsWindow(wall - durationMs - uncertainty)
+}
 
 private fun SourceEvidenceCandidate<*>.observedTimeInterval(): ObservedTimeInterval =
 	when (val value = payload) {

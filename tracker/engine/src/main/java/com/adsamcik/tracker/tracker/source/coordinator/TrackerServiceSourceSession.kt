@@ -21,6 +21,7 @@ import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.DemandReason
 import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
 import com.adsamcik.tracker.tracker.source.model.EvidenceQuality
+import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.SourceDemand
 import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -181,7 +182,8 @@ class TrackerServiceSourceSession @Inject constructor(
 			request.captureMode,
 		)
 		if (ownership.eventCoordinatorRequired &&
-			!trackingStartupGateProvider.get().isReadyGeneration(startupGeneration)
+			(!trackingStartupGateProvider.get().permitsNewCollection ||
+				!trackingStartupGateProvider.get().isReadyGeneration(startupGeneration))
 		) {
 			return@withLock SessionStartPreparationResult.Rejected(STARTUP_RECOVERY_NOT_READY)
 		}
@@ -414,7 +416,7 @@ class TrackerServiceSourceSession @Inject constructor(
 
 	suspend fun start(request: SourceSessionStartRequest): SourceSessionStartOutcome {
 		val startupGate = trackingStartupGateProvider.get()
-		if (startupGate.reconcile() !is TrackingStartupResult.Ready) {
+		if (startupGate.reconcile() !is TrackingStartupResult.Ready || !startupGate.permitsNewCollection) {
 			return startupRejectedStart()
 		}
 		val startupGeneration = startupGate.currentGeneration
@@ -509,7 +511,7 @@ class TrackerServiceSourceSession @Inject constructor(
 		if (inactive != null) return inactive
 
 		val startupGate = trackingStartupGateProvider.get()
-		if (startupGate.reconcile() !is TrackingStartupResult.Ready) {
+		if (startupGate.reconcile() !is TrackingStartupResult.Ready || !startupGate.permitsNewCollection) {
 			return startupRejectedReconfigure()
 		}
 		val startupGeneration = startupGate.currentGeneration
@@ -520,7 +522,7 @@ class TrackerServiceSourceSession @Inject constructor(
 
 	suspend fun retryPendingReconfiguration(): SourceSessionReconfigureOutcome? {
 		val startupGate = trackingStartupGateProvider.get()
-		if (startupGate.reconcile() !is TrackingStartupResult.Ready) return null
+		if (startupGate.reconcile() !is TrackingStartupResult.Ready || !startupGate.permitsNewCollection) return null
 		val startupGeneration = startupGate.currentGeneration
 		return startupGate.withReadyGenerationOperation(startupGeneration) {
 			retryDurableCatalogReconfiguration()
@@ -1422,7 +1424,12 @@ class TrackerServiceSourceSession @Inject constructor(
 		val captureDemands = desired.plans
 			.filter { (source, plan) -> plan.enabled && rollout.isCaptureReachable(source, captureMode) }
 			.map { (source, plan) ->
-				plan.directCaptureDemand(inputs.settings.captureQosCode(source))
+				plan.directCaptureDemand(
+					inputs.settings.captureQosCode(source),
+					inputs.settings.locationBalanceLevel?.let { level ->
+						if (source in inputs.environment.liveSources) maxOf(level, 4) else level
+					},
+				)
 			}
 		val resolved = planResolver.resolve(
 			desired,
@@ -1474,7 +1481,7 @@ class TrackerServiceSourceSession @Inject constructor(
 					val encoded = sourcePlanCodec.encode(sourcePlan)
 					CatalogReconfigurationSourcePlan(
 						sourceStableCode = sourcePlan.source.stableCode,
-						payloadVersion = SourcePlanCodec.FORMAT_VERSION,
+						payloadVersion = encoded.formatVersion,
 						payloadBase64 = Base64.getEncoder().encodeToString(encoded.bytes),
 						payloadChecksum = encoded.checksum,
 					)
@@ -1694,11 +1701,11 @@ private fun CatalogReconfigurationDebt.toPlan(revision: Long): AcquisitionPlanRe
 	return try {
 		val codec = SourcePlanCodec()
 		val decoded = requestedPlans.associate { stored ->
-			if (stored.payloadVersion != SourcePlanCodec.FORMAT_VERSION) return null
 			val payload = Base64.getDecoder().decode(stored.payloadBase64)
 			val sourcePlan = codec.decode(payload)
 			val reencoded = codec.encode(sourcePlan)
 			if (sourcePlan.source.stableCode != stored.sourceStableCode ||
+				reencoded.formatVersion != stored.payloadVersion ||
 				sourcePlan.revision != requestedPlanRevision ||
 				reencoded.checksum != stored.payloadChecksum ||
 				!reencoded.bytes.contentEquals(payload)
@@ -1800,8 +1807,15 @@ private fun TrackingParamsState.captureQosCode(source: SourceKind): Int = when (
 	SourceKind.CELL -> sourceCollectionSettings.cell.stableCode
 }
 
-private fun SourcePlan.directCaptureDemand(qosCode: Int): SourceDemand {
-	val contract = SourceDemandContractFactory.forQos(
+private fun SourcePlan.directCaptureDemand(qosCode: Int, locationBalanceLevel: Int?): SourceDemand {
+	val contract = if (this is LocationPlan && adaptiveProfileVersion == 1) {
+		SourceDemandContractFactory.forProfile(
+			source,
+			adaptiveProfileVersion,
+			requireNotNull(locationBalanceLevel),
+			DirectSourceDemandPurpose.SESSION_CAPTURE,
+		)
+	} else SourceDemandContractFactory.forQos(
 		source,
 		qosCode,
 		DirectSourceDemandPurpose.SESSION_CAPTURE,

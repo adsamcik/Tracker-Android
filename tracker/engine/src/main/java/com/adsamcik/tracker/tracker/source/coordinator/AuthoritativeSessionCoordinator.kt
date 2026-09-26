@@ -2990,6 +2990,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			SessionSourceDemandDispatchRequest(
 				manifest = draft.manifest,
 				bindings = draft.bindings,
+				policies = database.sourcePolicyDao().policiesAtRevision(draft.manifest.sourcePolicyRevision)
+					.associateBy { it.sourceKind },
 				sessionMode = sessionMode,
 				startOrigin = startOrigin,
 				mutation = mutation,
@@ -3958,6 +3960,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				SessionSourceDemandDispatchRequest(
 					manifest = manifestEnvelope.manifest,
 					bindings = manifestEnvelope.bindings,
+					policies = database.sourcePolicyDao().policiesAtRevision(manifestEnvelope.manifest.sourcePolicyRevision)
+						.associateBy { it.sourceKind },
 					sessionMode = SessionMode.valueOf(session.sessionMode),
 					startOrigin = SessionStartOrigin.valueOf(manifestEnvelope.manifest.startOrigin),
 					mutation = SessionDemandMutation.AUTHORITY_ONLY,

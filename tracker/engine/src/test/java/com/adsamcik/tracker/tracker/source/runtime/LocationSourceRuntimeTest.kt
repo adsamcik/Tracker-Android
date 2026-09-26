@@ -52,6 +52,107 @@ import org.robolectric.shadows.ShadowSystemClock
 @OptIn(ExperimentalCoroutinesApi::class)
 class LocationSourceRuntimeTest {
 	@Test
+	fun `stop receipt reports committed WAL sequence independently of callback count`() = runTest {
+		for (unitCount in listOf(1, 3)) {
+			val lastSourceSequence = unitCount.toLong() - 1L
+			val ordinals = (1..unitCount).map { it + 40L }
+			val sink = RecordingLocationSink { _, _ ->
+				SourceDeliveryAdmissionHandoff.Durable(ordinals, lastSourceSequence)
+			}
+			val fixture = locationRuntimeFixture(backgroundScope, sink = sink)
+			fixture.runtime.start(fixture.plan, sink)
+			fixture.providerCallback()((0 until unitCount).map {
+				location(50.0 + it, SystemClock.elapsedRealtimeNanos())
+			})
+			runCurrent()
+			val ack = fixture.runtime.quiesce(sessionCutoff(Long.MAX_VALUE))
+			assertEquals(1L, ack.callbackEntryBarrierSequence)
+			assertEquals(lastSourceSequence, ack.lastDurablyAdmittedSequence)
+			assertEquals(ordinals.last(), ack.lastAdmissionOrdinal)
+			assertEquals(0L, ack.failedAdmissionCount)
+		}
+	}
+
+	@Test
+	fun `missing WAL sequence cannot become a complete admission receipt`() = runTest {
+		val sink = RecordingLocationSink { _, _ -> SourceDeliveryAdmissionHandoff.Durable(listOf(41L)) }
+		val fixture = locationRuntimeFixture(backgroundScope, sink = sink)
+		fixture.runtime.start(fixture.plan, sink)
+		fixture.providerCallback()(listOf(location(50.0, SystemClock.elapsedRealtimeNanos())))
+		runCurrent()
+		val ack = fixture.runtime.quiesce(sessionCutoff(Long.MAX_VALUE))
+		assertNull(ack.lastDurablyAdmittedSequence)
+		assertNull(ack.lastAdmissionOrdinal)
+		assertEquals(1L, ack.failedAdmissionCount)
+		assertEquals(1L, ack.unresolvedSequenceStart)
+	}
+
+	@Test
+	fun `ending a shared session drains its prefix while background callbacks keep arriving`() = runTest {
+		val admissionEntered = CompletableDeferred<Unit>()
+		val releaseAdmission = CompletableDeferred<Unit>()
+		val sink = RecordingLocationSink { _, count ->
+			if (count == 1) {
+				admissionEntered.complete(Unit)
+				releaseAdmission.await()
+			}
+			SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()), lastSourceSequence = count.toLong())
+		}
+		val fixture = locationRuntimeFixture(backgroundScope, sink = sink)
+		fixture.runtime.start(fixture.plan, sink)
+		fixture.providerCallback()(listOf(location(50.0, SystemClock.elapsedRealtimeNanos())))
+		runCurrent()
+		admissionEntered.await()
+		val ended = async { fixture.runtime.sharedSessionCutoff(sessionCutoff(SystemClock.elapsedRealtimeNanos())) }
+		runCurrent()
+		fixture.providerCallback()(listOf(location(51.0, SystemClock.elapsedRealtimeNanos())))
+		releaseAdmission.complete(Unit)
+		runCurrent()
+		assertTrue(ended.await().appDrainComplete)
+		assertEquals(2, sink.deliveries.size)
+		coVerify(exactly = 0) { fixture.fusedBackend.stop() }
+		fixture.providerCallback()(listOf(location(52.0, SystemClock.elapsedRealtimeNanos())))
+		runCurrent()
+		assertEquals(3, sink.deliveries.size)
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `no-op refresh does not discard a delayed fix or restart the provider`() = runTest {
+		val fixture = locationRuntimeFixture(backgroundScope)
+		assertTrue(fixture.runtime.start(fixture.plan, fixture.sink) is SourceStartResult.Started)
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
+		val observed = SystemClock.elapsedRealtimeNanos()
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		coEvery { fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any()) } answers {
+			secondArg<SourceRegistration>()
+		}
+		assertTrue(fixture.runtime.reconfigure(fixture.plan, fixture.sink) is SourceApplyResult.Applied)
+		fixture.providerCallback()(listOf(location(50.0, observed)))
+		runCurrent()
+		assertEquals(observed, fixture.sink.singleEvidence().observedElapsedRealtimeNanos)
+		coVerify(exactly = 1) { fixture.fusedBackend.start(any(), any()) }
+		coVerify(exactly = 2) { fixture.registrations.recordLocationPlan(any(), fixture.plan) }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `new adaptive profile has a stable freshness budget independent of moving cadence`() {
+		val legacy = locationPlan(revision = 1L)
+		assertEquals(maxOf(legacy.requestedIntervalMs, legacy.maximumBatchDelayMs) * 1_000_000L,
+			legacy.maximumEvidenceAgeNanos())
+		val profile = legacy.copy(adaptiveProfileVersion = 1, requestedIntervalMs = 1_000L,
+			maximumBatchDelayMs = 2_000L)
+		assertEquals(120_000_000_000L, profile.maximumEvidenceAgeNanos())
+		val batch = partitionLocationBatch(
+			listOf(location(50.0, 5_000_000_000L)),
+			receivedElapsedRealtimeNanos = 65_000_000_000L,
+			maximumEvidenceAgeNanos = profile.maximumEvidenceAgeNanos(),
+		)
+		assertEquals(1, batch.eligible.size)
+	}
+
+	@Test
 	fun `all fixes before durable provider acceptance floor are ignored without a false gap`() = runTest {
 		val fixture = locationRuntimeFixture(
 			backgroundScope,
@@ -108,8 +209,8 @@ class LocationSourceRuntimeTest {
 					1 -> SourceDeliveryAdmissionHandoff.RetryableFailure(
 						SourceAdmissionFailureCode.STORAGE_UNAVAILABLE,
 					)
-					2 -> SourceDeliveryAdmissionHandoff.Durable(listOf(41L))
-					else -> SourceDeliveryAdmissionHandoff.Duplicate(listOf(41L))
+					2 -> SourceDeliveryAdmissionHandoff.Durable(listOf(41L), lastSourceSequence = 17L)
+					else -> SourceDeliveryAdmissionHandoff.Duplicate(listOf(41L), lastSourceSequence = 17L)
 				}
 			}
 			val fixture = locationRuntimeFixture(
@@ -145,7 +246,7 @@ class LocationSourceRuntimeTest {
 			assertEquals(SourceStopStatus.COMPLETE, ack.status)
 			assertEquals(2L, ack.callbackEntryBarrierSequence)
 			assertEquals(0L, ack.failedAdmissionCount)
-			assertEquals(2L, ack.lastDurablyAdmittedSequence)
+			assertEquals(17L, ack.lastDurablyAdmittedSequence)
 			assertEquals(41L, ack.lastAdmissionOrdinal)
 		}
 
@@ -153,9 +254,9 @@ class LocationSourceRuntimeTest {
 	fun `older duplicate ordinal cannot regress stop high water and physical restart resets it`() = runTest {
 		val sink = RecordingLocationSink { _, attempt ->
 			when (attempt) {
-				1 -> SourceDeliveryAdmissionHandoff.Durable(listOf(100L))
-				2 -> SourceDeliveryAdmissionHandoff.Duplicate(listOf(10L))
-				3 -> SourceDeliveryAdmissionHandoff.Durable(listOf(5L))
+				1 -> SourceDeliveryAdmissionHandoff.Durable(listOf(100L), lastSourceSequence = 50L)
+				2 -> SourceDeliveryAdmissionHandoff.Duplicate(listOf(10L), lastSourceSequence = 4L)
+				3 -> SourceDeliveryAdmissionHandoff.Durable(listOf(5L), lastSourceSequence = 0L)
 				else -> error("Unexpected Location admission attempt $attempt")
 			}
 		}
@@ -184,7 +285,7 @@ class LocationSourceRuntimeTest {
 
 		val firstStop = fixture.runtime.quiesce(sessionCutoff(Long.MAX_VALUE))
 
-		assertEquals(2L, firstStop.lastDurablyAdmittedSequence)
+		assertEquals(50L, firstStop.lastDurablyAdmittedSequence)
 		assertEquals(100L, firstStop.lastAdmissionOrdinal)
 		assertEquals(0L, firstStop.failedAdmissionCount)
 		assertNull(firstStop.unresolvedSequenceStart)
@@ -198,7 +299,7 @@ class LocationSourceRuntimeTest {
 		runCurrent()
 		val restartedStop = fixture.runtime.quiesce(sessionCutoff(Long.MAX_VALUE))
 
-		assertEquals(1L, restartedStop.lastDurablyAdmittedSequence)
+		assertEquals(0L, restartedStop.lastDurablyAdmittedSequence)
 		assertEquals(5L, restartedStop.lastAdmissionOrdinal)
 		assertEquals(0L, restartedStop.failedAdmissionCount)
 		assertNull(restartedStop.unresolvedSequenceStart)
@@ -342,6 +443,8 @@ class LocationSourceRuntimeTest {
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
 		val fusedBackend = mockk<FusedLocationSourceBackend>(relaxed = true)
 		val frameworkBackend = mockk<FrameworkLocationSourceBackend>(relaxed = true)
+		every { fusedBackend.resolvePlan(any()) } answers { firstArg() }
+		every { frameworkBackend.resolvePlan(any()) } answers { firstArg() }
 		stubRetirementRepository(registrations)
 		coEvery { registrations.begin(any(), any(), any(), any(), any()) } returnsMany
 			listOf(initialRegistration, replacementRegistration)
@@ -382,6 +485,8 @@ class LocationSourceRuntimeTest {
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
 		val fusedBackend = mockk<FusedLocationSourceBackend>(relaxed = true)
 		val frameworkBackend = mockk<FrameworkLocationSourceBackend>(relaxed = true)
+		every { fusedBackend.resolvePlan(any()) } answers { firstArg() }
+		every { frameworkBackend.resolvePlan(any()) } answers { firstArg() }
 		val pending = retirementToken(registration(plan, authorizationRevision = 1L))
 		coEvery { registrations.pendingRetirements(SourceKind.LOCATION) } returns listOf(pending)
 		every { fusedBackend.hasRetainedRegistration } returns true
@@ -411,6 +516,8 @@ class LocationSourceRuntimeTest {
 			val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
 			val fusedBackend = mockk<FusedLocationSourceBackend>(relaxed = true)
 			val frameworkBackend = mockk<FrameworkLocationSourceBackend>(relaxed = true)
+			every { fusedBackend.resolvePlan(any()) } answers { firstArg() }
+			every { frameworkBackend.resolvePlan(any()) } answers { firstArg() }
 			var deviceState = locationState()
 			val stateProvider = object : LocationDeviceStateProvider {
 				override fun snapshot(): LocationDeviceState = deviceState
@@ -437,8 +544,13 @@ class LocationSourceRuntimeTest {
 				prerequisiteEvaluator = LocationPrerequisiteEvaluator(),
 				deviceStateProvider = stateProvider,
 			)
-			val initialSink = RecordingLocationSink()
-			val refreshedSink = RecordingLocationSink()
+			var committedSequence = 0L
+			val admit: suspend (SourceDeliveryCandidate, Int) -> SourceDeliveryAdmissionHandoff = { _, _ ->
+				committedSequence += 1L
+				SourceDeliveryAdmissionHandoff.Durable(listOf(committedSequence), committedSequence)
+			}
+			val initialSink = RecordingLocationSink(admit)
+			val refreshedSink = RecordingLocationSink(admit)
 
 			assertTrue(runtime.start(initialPlan, initialSink) is SourceStartResult.Started)
 			val providerCallback = requireNotNull(callback)
@@ -500,13 +612,15 @@ class LocationSourceRuntimeTest {
 		}
 
 	@Test
-	fun `compatible authorization refresh raises observation floor without restarting provider`() = runTest {
+	fun `compatible authorization refresh partitions delayed fixes without borrowing newer consent`() = runTest {
 		val initialPlan = locationPlan(revision = 1L)
 		val refreshedPlan = initialPlan.copy(revision = 2L)
 		val initialRegistration = registration(initialPlan, 1L, requiresProviderAcceptance = true)
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
 		val fusedBackend = mockk<FusedLocationSourceBackend>(relaxed = true)
 		val frameworkBackend = mockk<FrameworkLocationSourceBackend>(relaxed = true)
+		every { fusedBackend.resolvePlan(any()) } answers { firstArg() }
+		every { frameworkBackend.resolvePlan(any()) } answers { firstArg() }
 		var callback: ((List<android.location.Location>) -> Unit)? = null
 		var acceptanceFloor: Long? = null
 		var refreshFloor: Long? = null
@@ -552,10 +666,14 @@ class LocationSourceRuntimeTest {
 		)
 		runCurrent()
 
-		assertTrue(initialSink.deliveries.isEmpty())
+		val beforeBoundary = initialSink.singleEvidence()
+		assertEquals(50.0, (beforeBoundary.payload as LocationFixPayload).latitudeDegrees, 0.0)
+		assertEquals(1L, beforeBoundary.authorizationRevision)
+		assertEquals(1L, beforeBoundary.configRevision)
 		val admitted = refreshedSink.deliveries.single().units.single().evidence
 		assertEquals(51.0, (admitted.payload as LocationFixPayload).latitudeDegrees, 0.0)
 		assertEquals(2L, admitted.authorizationRevision)
+		assertEquals(2L, admitted.configRevision)
 		coVerify(exactly = 1) { fusedBackend.start(any(), any()) }
 		val ack = runtime.quiesce(sessionCutoff(Long.MAX_VALUE))
 		assertEquals(0L, ack.failedAdmissionCount)
@@ -573,6 +691,8 @@ class LocationSourceRuntimeTest {
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
 		val fusedBackend = mockk<FusedLocationSourceBackend>(relaxed = true)
 		val frameworkBackend = mockk<FrameworkLocationSourceBackend>(relaxed = true)
+		every { fusedBackend.resolvePlan(any()) } answers { firstArg() }
+		every { frameworkBackend.resolvePlan(any()) } answers { firstArg() }
 		coEvery { registrations.begin(any(), any(), any(), any(), any()) } returnsMany
 			listOf(initial, replacement)
 		coEvery {
@@ -655,7 +775,7 @@ class LocationSourceRuntimeTest {
 	}
 
 	@Test
-	fun `compatible refresh fences callbacks until durable context swap`() = runTest {
+	fun `compatible refresh buffers callbacks until durable context swap`() = runTest {
 		val initialPlan = locationPlan(revision = 1L)
 		val refreshedPlan = initialPlan.copy(revision = 2L)
 		val initialRegistration = registration(initialPlan, authorizationRevision = 1L)
@@ -663,6 +783,8 @@ class LocationSourceRuntimeTest {
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
 		val fusedBackend = mockk<FusedLocationSourceBackend>(relaxed = true)
 		val frameworkBackend = mockk<FrameworkLocationSourceBackend>(relaxed = true)
+		every { fusedBackend.resolvePlan(any()) } answers { firstArg() }
+		every { frameworkBackend.resolvePlan(any()) } answers { firstArg() }
 		val refreshCommitted = CompletableDeferred<Unit>()
 		val releaseRefresh = CompletableDeferred<Unit>()
 		var callback: ((List<android.location.Location>) -> Unit)? = null
@@ -704,8 +826,10 @@ class LocationSourceRuntimeTest {
 		runCurrent()
 
 		assertEquals(1L, initialSink.singleEvidence().configRevision)
-		assertEquals(2L, refreshedSink.singleEvidence().authorizationRevision)
-		assertEquals(2L, refreshedSink.singleEvidence().configRevision)
+		assertEquals(2, refreshedSink.deliveries.size)
+		assertTrue(refreshedSink.deliveries.flatMap { it.units }.all {
+			it.evidence.authorizationRevision == 2L && it.evidence.configRevision == 2L
+		})
 		coVerify(exactly = 1) { fusedBackend.start(any(), any()) }
 		coVerify(exactly = 0) { fusedBackend.stop() }
 		runtime.close()
@@ -725,6 +849,8 @@ class LocationSourceRuntimeTest {
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
 		val fusedBackend = mockk<FusedLocationSourceBackend>(relaxed = true)
 		val frameworkBackend = mockk<FrameworkLocationSourceBackend>(relaxed = true)
+		every { fusedBackend.resolvePlan(any()) } answers { firstArg() }
+		every { frameworkBackend.resolvePlan(any()) } answers { firstArg() }
 		coEvery { registrations.begin(any(), any(), any(), any(), any()) } returnsMany
 			listOf(initialRegistration, replacementRegistration)
 		coEvery {
@@ -768,7 +894,7 @@ class LocationSourceRuntimeTest {
 		val sink = RecordingLocationSink { _, count ->
 			admissionEntered.complete(Unit)
 			releaseAdmission.await()
-			SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()))
+			SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()), lastSourceSequence = count.toLong())
 		}
 		val fixture = locationRuntimeFixture(backgroundScope, sink = sink)
 		assertTrue(fixture.runtime.start(fixture.plan, sink) is SourceStartResult.Started)
@@ -888,7 +1014,7 @@ class LocationSourceRuntimeTest {
 		val sink = RecordingLocationSink { _, count ->
 			admissionEntered.complete(Unit)
 			withContext(NonCancellable) { releaseAdmission.await() }
-			SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()))
+			SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()), lastSourceSequence = count.toLong())
 		}
 		val fixture = locationRuntimeFixture(sourceScope, sink = sink)
 		assertTrue(fixture.runtime.start(fixture.plan, sink) is SourceStartResult.Started)
@@ -933,7 +1059,7 @@ class LocationSourceRuntimeTest {
 		val sink = RecordingLocationSink { _, count ->
 			admissionEntered.complete(Unit)
 			withContext(NonCancellable) { releaseAdmission.await() }
-			SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()))
+			SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()), lastSourceSequence = count.toLong())
 		}
 		val fixture = locationRuntimeFixture(sourceScope, sink = sink)
 		lateinit var exactRetirementToken: SourceRegistrationRetirementToken
@@ -998,7 +1124,7 @@ class LocationSourceRuntimeTest {
 		val sink = RecordingLocationSink { _, count ->
 			admissionEntered.complete(Unit)
 			neverReleased.await()
-			SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()))
+			SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()), lastSourceSequence = count.toLong())
 		}
 		val fixture = locationRuntimeFixture(backgroundScope, sink = sink)
 		assertTrue(fixture.runtime.start(fixture.plan, sink) is SourceStartResult.Started)
@@ -1026,7 +1152,7 @@ class LocationSourceRuntimeTest {
 				firstAdmissionEntered.complete(Unit)
 				releaseFirstAdmission.await()
 			}
-			SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()))
+			SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()), lastSourceSequence = count.toLong())
 		}
 		val fixture = locationRuntimeFixture(backgroundScope, sink = sink)
 		assertTrue(fixture.runtime.start(fixture.plan, sink) is SourceStartResult.Started)
@@ -1191,7 +1317,7 @@ class LocationSourceRuntimeTest {
 					SourceAdmissionFailureCode.STORAGE_UNAVAILABLE,
 				)
 			} else {
-				SourceDeliveryAdmissionHandoff.Durable(listOf(attempt.toLong()))
+				SourceDeliveryAdmissionHandoff.Durable(listOf(attempt.toLong()), lastSourceSequence = attempt.toLong())
 			}
 		}
 		val fixture = locationRuntimeFixture(backgroundScope, sink = sink)
@@ -1216,7 +1342,7 @@ class LocationSourceRuntimeTest {
 
 	private class RecordingLocationSink(
 		private val response: suspend (SourceDeliveryCandidate, Int) -> SourceDeliveryAdmissionHandoff =
-			{ _, count -> SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong())) },
+			{ _, count -> SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()), lastSourceSequence = count.toLong()) },
 	) : SourceEventSink {
 		val deliveries = mutableListOf<SourceDeliveryCandidate>()
 
@@ -1257,6 +1383,8 @@ class LocationSourceRuntimeTest {
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
 		val fusedBackend = mockk<FusedLocationSourceBackend>(relaxed = true)
 		val frameworkBackend = mockk<FrameworkLocationSourceBackend>(relaxed = true)
+		every { fusedBackend.resolvePlan(any()) } answers { firstArg() }
+		every { frameworkBackend.resolvePlan(any()) } answers { firstArg() }
 		coEvery { registrations.begin(any(), any(), any(), any(), any()) } returns registration(
 			plan,
 			authorizationRevision = 1L,
@@ -1298,6 +1426,8 @@ class LocationSourceRuntimeTest {
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
 		val fusedBackend = mockk<FusedLocationSourceBackend>(relaxed = true)
 		val frameworkBackend = mockk<FrameworkLocationSourceBackend>(relaxed = true)
+		every { fusedBackend.resolvePlan(any()) } answers { firstArg() }
+		every { frameworkBackend.resolvePlan(any()) } answers { firstArg() }
 		var callback: ((List<android.location.Location>) -> Unit)? = null
 		var providerAcceptanceElapsedNanos: Long? = null
 		coEvery { registrations.begin(any(), any(), any(), any(), any()) } returns registration(

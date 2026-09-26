@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.settings
 
 import android.content.Context
+import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import android.content.pm.PackageManager
 import android.os.PowerManager
 import com.adsamcik.tracker.app.common.ui.BatteryImpact
@@ -12,6 +13,7 @@ import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.shared.preferences.tracking.LocationBackgroundMode
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationException
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationFailure
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationCoordinator
@@ -50,8 +52,10 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -149,6 +153,18 @@ class TrackingSettingsViewModelTest {
 		coEvery { trackingParamsRepository.setAmbientLocationEnabled(any()) } answers {
 			paramsFlow.value = paramsFlow.value.copy(ambientLocationEnabled = firstArg())
 		}
+		coEvery { trackingParamsRepository.enableAdaptiveBackgroundLocation() } answers {
+			paramsFlow.value = paramsFlow.value.copy(
+				ambientLocationEnabled = true, locationProfileVersion = 1, locationBalanceLevel = 3,
+				locationBackgroundMode = LocationBackgroundMode.ADAPTIVE,
+			)
+		}
+		coEvery { trackingParamsRepository.adoptLocationProfile(any()) } answers {
+			paramsFlow.value = paramsFlow.value.copy(locationProfileVersion = 1, locationBalanceLevel = firstArg())
+		}
+		coEvery { trackingParamsRepository.setLocationMotionAssistanceEnabled(any()) } answers {
+			paramsFlow.value = paramsFlow.value.copy(locationMotionAssistanceEnabled = firstArg())
+		}
 		coEvery { trackingParamsRepository.setAmbientStepsEnabled(any()) } answers {
 			paramsFlow.value = paramsFlow.value.copy(ambientStepsEnabled = firstArg())
 		}
@@ -184,6 +200,79 @@ class TrackingSettingsViewModelTest {
         unmockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
         unmockkStatic("com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilitiesKt")
     }
+
+	@Test
+	fun `Location intent is saved before prompt and late grant cannot revive disabled intent`() = runTest(testDispatcher) {
+		val vm = createViewModel()
+		val prompt = async { vm.locationPermissionEvents.first() }
+		vm.setAmbientLocationEnabled(true)
+		val request = prompt.await()
+		paramsFlow.value.ambientLocationEnabled shouldBe true
+		paramsFlow.value.locationBackgroundMode shouldBe LocationBackgroundMode.ADAPTIVE
+		paramsFlow.value.locationMotionAssistanceEnabled shouldBe false
+		vm.isCurrentLocationPermissionRequest(request) shouldBe true
+		vm.setAmbientLocationEnabled(false)
+		advanceUntilIdle()
+		vm.refreshPermissionState()
+		vm.isCurrentLocationPermissionRequest(request) shouldBe false
+		paramsFlow.value.ambientLocationEnabled shouldBe false
+		coVerify(exactly = 0) { trackingParamsRepository.setActivityEnabled(any()) }
+	}
+
+	@Test
+	fun `only explicit saved background enable acknowledges exact pending user exit`() = runTest(testDispatcher) {
+		val lifecycle = mockk<TrackingLifecycleCommandAuthority>(relaxed = true)
+		every { lifecycle.pendingCollectionResumeExitId } returns "exit-1"
+		coEvery { lifecycle.resumeCollectionAfterUserExit("exit-1") } returns true
+		val vm = TrackingSettingsViewModel(context, trackingParamsRepository, trackingStatusProvider,
+			activityWatcherController, purposeAvailabilityReader, lifecycleCommandAuthority = lifecycle)
+		advanceUntilIdle()
+		vm.refreshPermissionState()
+		coVerify(exactly = 0) { lifecycle.resumeCollectionAfterUserExit(any()) }
+		vm.setAmbientLocationEnabled(true)
+		advanceUntilIdle()
+		paramsFlow.value.ambientLocationEnabled shouldBe true
+		coVerify(exactly = 1) { lifecycle.resumeCollectionAfterUserExit("exit-1") }
+	}
+
+	@Test
+	fun `changed pending user exit remains blocked when explicit resume CAS loses`() = runTest(testDispatcher) {
+		val lifecycle = mockk<TrackingLifecycleCommandAuthority>(relaxed = true)
+		every { lifecycle.pendingCollectionResumeExitId } returns "exit-1"
+		coEvery { lifecycle.resumeCollectionAfterUserExit("exit-1") } returns false
+		val vm = TrackingSettingsViewModel(context, trackingParamsRepository, trackingStatusProvider,
+			activityWatcherController, purposeAvailabilityReader, lifecycleCommandAuthority = lifecycle)
+		vm.setAmbientLocationEnabled(true)
+		advanceUntilIdle()
+		vm.uiState.value.locationSettingsSaveFailed shouldBe true
+		coVerify(exactly = 1) { lifecycle.resumeCollectionAfterUserExit("exit-1") }
+	}
+
+	@Test
+	fun `helper refusal leaves Location enabled and grants no Activity intent`() = runTest(testDispatcher) {
+		val vm = createViewModel()
+		vm.setAmbientLocationEnabled(true)
+		advanceUntilIdle()
+		vm.setLocationMotionAssistanceEnabled(true)
+		advanceUntilIdle()
+		permissionsGranted = false
+		vm.refreshPermissionState()
+		vm.uiState.value.ambientLocationEnabled shouldBe true
+		vm.uiState.value.locationMotionAssistanceEnabled shouldBe true
+		vm.uiState.value.activityPermissionGranted shouldBe false
+		coVerify(exactly = 0) { trackingParamsRepository.setActivityEnabled(any()) }
+		coVerify(exactly = 0) { trackingParamsRepository.setTransitionDetectionEnabled(any()) }
+	}
+
+	@Test
+	fun `failed Location intent save is visible and does not enable background collection`() = runTest(testDispatcher) {
+		val vm = createViewModel()
+		coEvery { trackingParamsRepository.enableAdaptiveBackgroundLocation() } throws IllegalStateException("write failed")
+		vm.setAmbientLocationEnabled(true)
+		advanceUntilIdle()
+		vm.uiState.value.locationSettingsSaveFailed shouldBe true
+		paramsFlow.value.ambientLocationEnabled shouldBe false
+	}
 
     private fun createViewModel(
         nearbyWifiGranted: Boolean = true,

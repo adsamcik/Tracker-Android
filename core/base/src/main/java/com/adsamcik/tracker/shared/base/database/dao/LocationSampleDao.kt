@@ -41,7 +41,7 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	 */
 	@Query(
 		"SELECT alt_m, alt_datum, clock_domain_id FROM location_sample " +
-			"WHERE alt_m IS NOT NULL ORDER BY time_ms ASC, id ASC",
+			"WHERE (NOT EXISTS (SELECT 1 FROM location_accepted_receipt lr WHERE lr.sample_id = location_sample.id) OR EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id AND lp.purpose = 'SESSION_CAPTURE')) AND alt_m IS NOT NULL ORDER BY time_ms ASC, id ASC",
 	)
 	suspend fun getAltitudeSamplesOrdered(): List<OrderedAltitudeSampleRow>
 	
@@ -53,7 +53,7 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		"""
 		SELECT *
 		FROM location_sample
-		WHERE time_ms >= :fromMs
+		WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs
 			AND time_ms <= :toMs
 			AND (
 				:afterTimeMs IS NULL
@@ -70,17 +70,18 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		afterTimeMs: Long?,
 		afterId: Long?,
 		limit: Int,
-	): List<LocationSample>
+		includeAmbient: Boolean = false,
+): List<LocationSample>
 
 	@Query(
 		"""
 		SELECT * FROM location_sample
-		WHERE time_ms >= :fromMs AND time_ms <= :toMs
+		WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs AND time_ms <= :toMs
 		ORDER BY time_ms DESC, id DESC
 		LIMIT 1
 		"""
 	)
-	suspend fun getLatestBetween(fromMs: Long, toMs: Long): LocationSample?
+	suspend fun getLatestBetween(fromMs: Long, toMs: Long, includeAmbient: Boolean = false): LocationSample?
 
 	/**
 	 * Read the newest coordinate-bearing fixes for bounded live-route recovery.
@@ -89,7 +90,7 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	@Query(
 		"""
 		SELECT * FROM location_sample
-		WHERE time_ms >= :fromMs AND time_ms <= :toMs
+		WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs AND time_ms <= :toMs
 			AND lat_e7 IS NOT NULL AND lon_e7 IS NOT NULL
 		ORDER BY time_ms DESC, id DESC
 		LIMIT :limit
@@ -99,7 +100,8 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		fromMs: Long,
 		toMs: Long,
 		limit: Int,
-	): List<LocationSample>
+		includeAmbient: Boolean = false,
+): List<LocationSample>
 
 	/**
 	 * Get the next ordered chunk within a viewport. Handles antimeridian-crossing bounds
@@ -109,7 +111,7 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		"""
 		SELECT *
 		FROM location_sample
-		WHERE time_ms >= :fromMs
+		WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs
 			AND time_ms <= :toMs
 			AND lat_e7 IS NOT NULL
 			AND lon_e7 IS NOT NULL
@@ -138,12 +140,13 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		afterTimeMs: Long?,
 		afterId: Long?,
 		limit: Int,
-	): List<LocationSample>
+		includeAmbient: Boolean = false,
+): List<LocationSample>
 
 	@Query(
 		"""
 		SELECT * FROM location_sample
-		WHERE time_ms >= :fromMs
+		WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs
 			AND time_ms <= :toMs
 			AND lat_e7 IS NOT NULL
 			AND lon_e7 IS NOT NULL
@@ -164,7 +167,8 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		eastE7: Int,
 		southE7: Int,
 		westE7: Int,
-	): LocationSample?
+		includeAmbient: Boolean = false,
+): LocationSample?
 
 	/**
 	 * Observe a bounded window of location samples within a time range.
@@ -173,30 +177,30 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		"""
 		SELECT *
 		FROM location_sample
-		WHERE time_ms >= :fromMs AND time_ms <= :toMs
+		WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs AND time_ms <= :toMs
 		ORDER BY time_ms ASC, id ASC
 		LIMIT :limit
 		"""
 	)
-	fun getAllBetweenFlowLimited(fromMs: Long, toMs: Long, limit: Int): Flow<List<LocationSample>>
+	fun getAllBetweenFlowLimited(fromMs: Long, toMs: Long, limit: Int, includeAmbient: Boolean = false): Flow<List<LocationSample>>
 
 	/**
 	 * Get nearest location sample to a given timestamp (within tolerance).
 	 */
 	@Query("""
 		SELECT * FROM location_sample 
-		WHERE time_ms BETWEEN :timeMs - :toleranceMs AND :timeMs + :toleranceMs
+		WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms BETWEEN :timeMs - :toleranceMs AND :timeMs + :toleranceMs
 		AND lat_e7 IS NOT NULL AND lon_e7 IS NOT NULL
 		ORDER BY ABS(time_ms - :timeMs) ASC 
 		LIMIT 1
 	""")
-	suspend fun getNearestWithCoordinates(timeMs: Long, toleranceMs: Long): LocationSample?
+	suspend fun getNearestWithCoordinates(timeMs: Long, toleranceMs: Long, includeAmbient: Boolean = false): LocationSample?
 
 	/**
 	 * Count samples in time range.
 	 */
-	@Query("SELECT COUNT(*) FROM location_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs")
-	suspend fun countBetween(fromMs: Long, toMs: Long): Int
+	@Query("SELECT COUNT(*) FROM location_sample WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs AND time_ms <= :toMs")
+	suspend fun countBetween(fromMs: Long, toMs: Long, includeAmbient: Boolean = false): Int
 
 	/**
 	 * Delete all location samples.

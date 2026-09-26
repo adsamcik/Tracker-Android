@@ -14,18 +14,20 @@ internal class RoomImportExportDataRepository @Inject constructor(
 ) : ImportExportDataRepository {
 
     override suspend fun hasTrips(): Boolean =
-        appDatabase.tripDao().countAllTrips() > 0L
+        appDatabase.tripDao().countAllTrips() > 0L ||
+            appDatabase.locationSampleDao().countBetween(0L, Long.MAX_VALUE, includeAmbient = true) > 0
 
     override suspend fun countLocationSamples(
         fromMs: Long,
         toMs: Long,
-    ): Int = appDatabase.locationSampleDao().countBetween(fromMs, toMs)
+    ): Int = appDatabase.locationSampleDao().countBetween(fromMs, toMs, includeAmbient = true)
 
     override fun pagedLocationSamples(
         fromMs: Long,
         toMs: Long,
         pageSize: Int,
     ) = pagedLocationSequence(
+        locationPurposeDao = appDatabase.locationPurposeDao(),
         locationSampleDao = appDatabase.locationSampleDao(),
         fromMs = fromMs,
         toMs = toMs,

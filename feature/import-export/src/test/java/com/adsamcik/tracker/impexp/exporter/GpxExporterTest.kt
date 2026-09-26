@@ -77,6 +77,31 @@ class GpxExporterTest {
         )
     }
 
+    @Test
+    fun `native gaps split GPX segments while retaining every point`() = runTest {
+        val points = listOf(0L, 1L, 3L).mapIndexed { index, sequence ->
+            createTestLocation(1000L + index * 1000, 50.0 + index / 1000.0, 14.0).copy(
+                routeContinuityId = "registration-1", routeSequence = sequence, sessionless = true,
+                clockDomainId = "boot-1", elapsedRealtimeNanos = (index + 1) * 1_000_000_000L,
+            )
+        }
+        val out = ByteArrayOutputStream()
+        exporter.export(mockContext, points.asSequence(), out, null)
+        val xml = out.toString(Charsets.UTF_8.name())
+        Regex("<trkseg>").findAll(xml).count() shouldBe 2
+        Regex("<trkpt ").findAll(xml).count() shouldBe 3
+    }
+
+    @Test
+    fun `native clock gap is not drawn as uninterrupted GPX route`() = runTest {
+        val first = createTestLocation(1000L, 50.0, 14.0).copy(routeContinuityId = "a", routeSequence = 0,
+            clockDomainId = "boot", elapsedRealtimeNanos = 1_000_000_000L)
+        val later = first.copy(timeMs = 180000, routeSequence = 1, elapsedRealtimeNanos = 180_000_000_000L)
+        val out = ByteArrayOutputStream()
+        exporter.export(mockContext, sequenceOf(first, later), out, null)
+        Regex("<trkseg>").findAll(out.toString(Charsets.UTF_8.name())).count() shouldBe 2
+    }
+
     @Nested
     @DisplayName("Properties")
     inner class Properties {

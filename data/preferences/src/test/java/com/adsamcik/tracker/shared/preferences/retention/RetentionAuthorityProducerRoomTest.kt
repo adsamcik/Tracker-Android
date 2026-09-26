@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -1116,14 +1117,21 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `location seam remains unavailable and writes no other source`() = runTest {
+	fun `location retention binds its own consent without writing other sources`() = runTest {
 		bootstrap(ambientLocation = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 
 		val result = producer().reconcilePassiveLocationRetention()
 
-		assertIs<RetentionAuthorityResult.Unavailable>(result).reason shouldBe
-			RetentionAuthorityUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE
+		assertIs<RetentionAuthorityResult.Applied>(result).state shouldBe RetentionAuthorityState.ACTIVE
+		val location = requireNotNull(database.locationPurposeDao().latestRetentionAuthority(
+			AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+		))
+		location.collectedDataEpoch shouldBe lifecycle.epoch
+		location.ambientConsentEpoch shouldBe 1L
+		assertIs<RetentionAuthorityResult.Unavailable>(
+			producer().approvePortableImport(TrackingSourceComponent.LOCATION),
+		)
 		database.ambientStepsFactRevisionDao().latestRetentionAuthority(
 			AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
 		) shouldBe null

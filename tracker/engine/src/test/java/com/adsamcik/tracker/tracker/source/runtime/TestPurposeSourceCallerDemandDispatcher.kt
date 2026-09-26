@@ -25,6 +25,13 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 		Long,
 	) -> LiveAmbientRetentionSnapshot? = { _, _, _, _, _ -> null },
 ) : SourceCallerDemandDispatcher {
+	// Location tests use the real guarded dispatcher so they cannot skip its exact retention/caller proof.
+	override suspend fun dispatchAmbientLocation(
+		request: AmbientLocationDemandDispatchRequest,
+	): GuardedPurposeDemandResult<AmbientLocationDemandResult> = GuardedPurposeDemandResult.Rejected(
+		SourceCallerGuardRejection(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE),
+	)
+
 	override suspend fun dispatchSession(
 		request: SessionSourceDemandDispatchRequest,
 	): SessionSourceDemandDispatchResult = SessionSourceDemandDispatchResult.Rejected(

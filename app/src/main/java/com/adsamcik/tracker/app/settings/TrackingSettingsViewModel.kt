@@ -18,6 +18,8 @@ import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.shared.preferences.tracking.LocationBackgroundMode
+import com.adsamcik.tracker.shared.preferences.tracking.LocationAdaptiveSettings
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionSettings
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationCoordinator
@@ -56,6 +58,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
+import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import javax.inject.Inject
 
 /** Consolidated UI state for the tracking settings screen. */
@@ -71,6 +76,11 @@ data class TrackingSettingsUiState(
     val cellEnabled: Boolean = false,
     val barometerEnabled: Boolean = true,
 	val ambientLocationEnabled: Boolean = false,
+	val locationProfileVersion: Int? = null,
+	val locationBalanceLevel: Int? = null,
+	val locationBackgroundMode: LocationBackgroundMode? = null,
+	val locationMotionAssistanceEnabled: Boolean = false,
+	val locationSettingsSaveFailed: Boolean = false,
 	val ambientStepsEnabled: Boolean = false,
 	val ambientWifiEnabled: Boolean = false,
 	val ambientCellEnabled: Boolean = false,
@@ -111,6 +121,13 @@ data class TrackingSettingsUiState(
     val runtimeTelemetry: TrackingCoordinatorMetrics = TrackingCoordinatorMetrics.ZERO,
 )
 
+enum class LocationSettingsPermissionKind { LOCATION, MOTION }
+
+data class LocationSettingsPermissionRequest(
+	val kind: LocationSettingsPermissionKind,
+	val intentGeneration: Long,
+)
+
 @HiltViewModel
 class TrackingSettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -121,11 +138,15 @@ class TrackingSettingsViewModel @Inject constructor(
     private val sourcePolicyReconciliationCoordinator:
 		SourcePolicyRevisionReconciliationCoordinator =
 		UnavailableSourcePolicyRevisionReconciliationCoordinator,
+	private val lifecycleCommandAuthority: TrackingLifecycleCommandAuthority? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TrackingSettingsUiState())
     val uiState: StateFlow<TrackingSettingsUiState> = _uiState.asStateFlow()
     private var latestParams: TrackingParamsState? = null
+	private var locationIntentGeneration = 0L
+	private val locationPermissionRequests = Channel<LocationSettingsPermissionRequest>(Channel.BUFFERED)
+	val locationPermissionEvents = locationPermissionRequests.receiveAsFlow()
 	private var latestPurposeAvailability = purposeAvailabilityReader.availability.value
     private var permissionHistory = PermissionGrantHistory()
 
@@ -220,8 +241,72 @@ class TrackingSettingsViewModel @Inject constructor(
     }
 
 	fun setAmbientLocationEnabled(enabled: Boolean) {
-		launchSourcePolicyMutation {
-			trackingParamsRepository.setAmbientLocationEnabled(enabled)
+		mutateLocationSettings(if (enabled) LocationSettingsPermissionKind.LOCATION else null, resumeAfterUserExit = enabled) {
+			if (enabled) trackingParamsRepository.enableAdaptiveBackgroundLocation()
+			else trackingParamsRepository.setAmbientLocationEnabled(false)
+		}
+	}
+
+	fun setLocationBackgroundMode(mode: LocationBackgroundMode) {
+		mutateLocationSettings(
+			LocationSettingsPermissionKind.LOCATION.takeIf { _uiState.value.ambientLocationEnabled },
+			resumeAfterUserExit = mode == LocationBackgroundMode.ADAPTIVE,
+		) { trackingParamsRepository.setLocationBackgroundMode(mode) }
+	}
+
+	fun adoptLocationProfile(level: Int = LocationAdaptiveSettings.DEFAULT_BALANCE_LEVEL) {
+		mutateLocationSettings { trackingParamsRepository.adoptLocationProfile(level) }
+	}
+
+	fun setLocationMotionAssistanceEnabled(enabled: Boolean) {
+		mutateLocationSettings(if (enabled) LocationSettingsPermissionKind.MOTION else null) {
+			trackingParamsRepository.setLocationMotionAssistanceEnabled(enabled)
+		}
+	}
+
+	/** Retry permissions for already saved intent; a platform result never changes source settings. */
+	fun requestSavedLocationPermission(kind: LocationSettingsPermissionKind) {
+		val state = _uiState.value
+		val eligible = when (kind) {
+			LocationSettingsPermissionKind.LOCATION -> state.ambientLocationEnabled
+			LocationSettingsPermissionKind.MOTION -> state.locationProfileVersion == 1 &&
+				state.locationMotionAssistanceEnabled
+		}
+		if (eligible) locationPermissionRequests.trySend(LocationSettingsPermissionRequest(kind, locationIntentGeneration))
+	}
+
+	fun isCurrentLocationPermissionRequest(request: LocationSettingsPermissionRequest): Boolean =
+		request.intentGeneration == locationIntentGeneration
+
+	private fun mutateLocationSettings(
+		permission: LocationSettingsPermissionKind? = null,
+		resumeAfterUserExit: Boolean = false,
+		mutation: suspend () -> Unit,
+	) {
+		val generation = ++locationIntentGeneration
+		val expectedExitId = lifecycleCommandAuthority?.pendingCollectionResumeExitId.takeIf { resumeAfterUserExit }
+		_uiState.update { it.copy(locationSettingsSaveFailed = false) }
+		viewModelScope.launch {
+			try {
+				mutation()
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (committed: SourcePolicyRevisionReconciliationException) {
+				// The policy committed. Permissions can resolve runtime debt; never resave on grant.
+				publishSourcePolicyReconciliationDebt(committed)
+			} catch (_: Exception) {
+				if (generation == locationIntentGeneration) {
+					_uiState.update { it.copy(locationSettingsSaveFailed = true) }
+				}
+				return@launch
+			}
+			if (permission != null && generation == locationIntentGeneration) {
+				if (expectedExitId != null && lifecycleCommandAuthority?.resumeCollectionAfterUserExit(expectedExitId) != true) {
+					_uiState.update { it.copy(locationSettingsSaveFailed = true) }
+					return@launch
+				}
+				locationPermissionRequests.send(LocationSettingsPermissionRequest(permission, generation))
+			}
 		}
 	}
 
@@ -431,6 +516,10 @@ class TrackingSettingsViewModel @Inject constructor(
                 cellEnabled = params.cellEnabled,
                 barometerEnabled = params.barometerEnabled,
 				ambientLocationEnabled = params.ambientLocationEnabled,
+				locationProfileVersion = params.locationProfileVersion,
+				locationBalanceLevel = params.locationBalanceLevel,
+				locationBackgroundMode = params.locationBackgroundMode,
+				locationMotionAssistanceEnabled = params.locationMotionAssistanceEnabled,
 				ambientStepsEnabled = params.ambientStepsEnabled,
 				ambientWifiEnabled = params.ambientWifiEnabled,
 				ambientCellEnabled = params.ambientCellEnabled,

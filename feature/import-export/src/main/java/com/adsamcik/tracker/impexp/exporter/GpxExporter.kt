@@ -50,8 +50,19 @@ class GpxExporter : Exporter {
 		try {
 			val writer = BufferedWriter(OutputStreamWriter(outputStream, Charsets.UTF_8))
 			writeHeader(writer, context, dateRange)
+			var previous: LocationSample? = null
 			streamLocations { sample ->
-				writeTrackPoint(writer, sample)
+				if (sample.latE7 != null && sample.lonE7 != null) {
+					val old = previous
+					val nativeBoundary = old != null && (old.routeContinuityId != null || sample.routeContinuityId != null) &&
+						(old.routeContinuityId != sample.routeContinuityId || old.routeSequence == null ||
+							sample.routeSequence != old.routeSequence?.plus(1) || sample.clockDomainId != old.clockDomainId ||
+							sample.elapsedRealtimeNanos <= old.elapsedRealtimeNanos ||
+							sample.elapsedRealtimeNanos - old.elapsedRealtimeNanos > 120_000_000_000L)
+					if (nativeBoundary) writer.write("</trkseg><trkseg>")
+					writeTrackPoint(writer, sample)
+					previous = sample
+				}
 			}
 			writeFooter(writer)
 			writer.flush()

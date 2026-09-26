@@ -1,5 +1,8 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import javax.inject.Provider
+
 import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.shared.model.tracking.TrackingSourcePurposeIdentity
@@ -151,11 +154,15 @@ internal interface TransactionalSourceCallerGuard : SourceCallerGuard {
 internal class ExactSourceCallerGuard @Inject constructor(
 	private val authorityReader: SourceCallerAuthoritySnapshotReader,
 	private val authorityRepository: SourceCallerAcceptedAuthorityRepository,
+	private val startupGateProvider: Provider<TrackingStartupGate>? = null,
 ) : TransactionalSourceCallerGuard {
 	override suspend fun accept(request: SourceCallerRequest): SourceCallerGuardResult {
 		val canonicalRequest = request.canonicalizeReplayKind()
 		if (canonicalRequest is SourceCallerRequest.PurposeOwnerRetirement) {
 			return acceptPurposeOwnerRetirement(canonicalRequest)
+		}
+		if (startupGateProvider?.get()?.permitsNewCollection == false) {
+			return rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
 		}
 		if (canonicalRequest is SourceCallerRequest.Replay &&
 			canonicalRequest.replayKind == SourceCallerReplayKind.POLICY_RECONCILIATION
@@ -193,6 +200,10 @@ internal class ExactSourceCallerGuard @Inject constructor(
 		currentAuthority: SourceCallerAuthoritySnapshot,
 		createdAtMs: Long,
 	): SourceCallerFreshAcceptanceResult {
+		if (startupGateProvider?.get()?.permitsNewCollection == false) {
+			return SourceCallerFreshAcceptanceResult.Rejected(
+				rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE).rejection)
+		}
 		require(request !is SourceCallerRequest.Replay)
 		require(request !is SourceCallerRequest.PurposeOwnerRetirement)
 		require(createdAtMs >= 0L)
@@ -232,6 +243,9 @@ internal class ExactSourceCallerGuard @Inject constructor(
 		currentAuthority: SourceCallerAuthoritySnapshot,
 	): SourceCallerGuardResult {
 		val canonicalRequest = request.withCanonicalReplayKind()
+		if (startupGateProvider?.get()?.permitsNewCollection == false) {
+			return rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
+		}
 		if (canonicalRequest.replayKind == SourceCallerReplayKind.POLICY_RECONCILIATION) {
 			return rejected(SourceCallerRejectionReason.REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE)
 		}

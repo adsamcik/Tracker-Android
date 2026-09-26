@@ -665,6 +665,44 @@ class TrackingPurposePublicationRuntimeTest {
 	}
 
 	@Test
+	fun `built in Location owner publishes exact retained authority and retires on floor withdrawal`() = runTest {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val authority = authority(source = TrackingSource.LOCATION, purpose = TrackingPurpose.AMBIENT_PRODUCT,
+			executionRevision = 1L, retainedFromMs = 200L)
+		val owner = mockk<AmbientLocationPurposeOwner>()
+		var received: TrackingPurposeLeaseIdentity? = null
+		coEvery { owner.retire(any()) } returns true
+		coEvery { owner.reconcile(any()) } coAnswers {
+			val lease = firstArg<com.adsamcik.tracker.tracker.api.AmbientReconciliationLease>()
+			received = lease.purposeLeaseIdentity
+			AmbientSourceOperationalAvailability.ready(AmbientTrackingSource.LOCATION,
+				AmbientAcquisitionMechanism.ADAPTIVE_LOCATION, lease.purposeLeaseIdentity)
+		}
+		val runtime = DefaultTrackingPurposePublicationRuntime(
+			leaseIssuer = SerializedTrackingPurposeLeaseIssuer(
+				authorityReader = TrackingPurposeAuthorityReader { sourcePurpose, execution ->
+					authority.takeIf { it.sourcePurpose == sourcePurpose }?.copy(executionRevision = execution)
+				}, reporter = store, tokenFactory = TrackingPurposeOwnerCasTokenFactory { "location-owner" }),
+			reporter = store, executionRevisionRegistry = TrackingPurposeExecutionRevisionRegistry(),
+			retentionAuthorityProducer = AlwaysApprovedRetentionAuthorityProducer,
+			ambientLocationPurposeOwnerProvider = Provider { owner },
+		)
+		coVerify(exactly = 0) { owner.reconcile(any()) }
+		runtime.reconcile(0L, 200L, setOf(AmbientTrackingSource.LOCATION)) shouldBe
+			com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciliationResult.Complete(
+				200L, setOf(AmbientTrackingSource.LOCATION))
+		received?.retainedFromMs shouldBe 200L
+		received?.ownerCasToken shouldBe "location-owner"
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.LOCATION).operationalIdentity shouldBe received
+		store.availability.value.ambientSources.filterKeys { it != AmbientTrackingSource.LOCATION }
+			.values.any { it.isOperational } shouldBe false
+
+		runtime.reconcile(0L, 200L, emptySet())
+		coVerify { owner.retire(any()) }
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.LOCATION).isOperational shouldBe false
+	}
+
+	@Test
 	fun `retention floor fails closed when the required Steps purpose owner is missing`() = runTest {
 		val fixture = fixture(
 			authority(

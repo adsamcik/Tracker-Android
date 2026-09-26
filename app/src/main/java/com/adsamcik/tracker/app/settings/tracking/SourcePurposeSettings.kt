@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.settings.TrackingSettingsUiState
+import com.adsamcik.tracker.shared.preferences.tracking.LocationBackgroundMode
 import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
@@ -99,6 +100,11 @@ internal fun AmbientSourcePurposeSettings(
 	onStepsEnabledChanged: (Boolean) -> Unit,
 	onWifiEnabledChanged: (Boolean) -> Unit,
 	onCellEnabledChanged: (Boolean) -> Unit,
+	onLocationModeChanged: (LocationBackgroundMode) -> Unit = {},
+	onLocationBalanceChanged: (Int) -> Unit = {},
+	onLocationAssistanceChanged: (Boolean) -> Unit = {},
+	onLocationPermission: () -> Unit = {},
+	onMotionPermission: () -> Unit = {},
 	modifier: Modifier = Modifier,
 ) {
 	Column(
@@ -129,16 +135,14 @@ internal fun AmbientSourcePurposeSettings(
 				onEnabledChanged = onStepsEnabledChanged,
 			)
 			HorizontalDivider()
-			AmbientSourceSettingItem(
-				source = AmbientTrackingSource.LOCATION,
-				title = stringResource(
-					com.adsamcik.tracker.R.string.settings_ambient_location_title,
-				),
-				enabledIntent = uiState.ambientLocationEnabled,
-				availability = uiState.ambientSourceAvailability.getValue(
-					AmbientTrackingSource.LOCATION,
-				),
+			AdaptiveLocationSettings(
+				state = uiState,
 				onEnabledChanged = onLocationEnabledChanged,
+				onModeChanged = onLocationModeChanged,
+				onBalanceChanged = onLocationBalanceChanged,
+				onAssistanceChanged = onLocationAssistanceChanged,
+				onLocationPermission = onLocationPermission,
+				onMotionPermission = onMotionPermission,
 			)
 			HorizontalDivider()
 			AmbientSourceSettingItem(
@@ -233,9 +237,12 @@ private fun AmbientSourceSettingItem(
 }
 
 @Composable
-private fun ambientOperationalSummary(
+internal fun ambientOperationalSummary(
 	availability: AmbientSourceOperationalAvailability,
 ): String {
+	if (availability.reason == AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED) {
+		return stringResource(com.adsamcik.tracker.R.string.settings_location_request_adjusted)
+	}
 	if (
 		availability.reason ==
 		AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL
@@ -254,6 +261,8 @@ private fun ambientOperationalSummary(
 					com.adsamcik.tracker.R.string.settings_ambient_steps_recording_ready
 				AmbientAcquisitionMechanism.PASSIVE_LOCATION ->
 					com.adsamcik.tracker.R.string.settings_ambient_location_ready
+				AmbientAcquisitionMechanism.ADAPTIVE_LOCATION ->
+					com.adsamcik.tracker.R.string.settings_location_adaptive_ready
 				AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS ->
 					com.adsamcik.tracker.R.string.settings_ambient_wifi_ready
 				AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS ->
@@ -264,6 +273,8 @@ private fun ambientOperationalSummary(
 	}
 	return stringResource(
 		when (availability.reason) {
+			AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED ->
+				com.adsamcik.tracker.R.string.settings_location_request_adjusted
 			AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE ->
 				com.adsamcik.tracker.R.string.settings_ambient_retention_unavailable
 			AmbientSourceUnavailableReason.RECONCILIATION_PENDING ->

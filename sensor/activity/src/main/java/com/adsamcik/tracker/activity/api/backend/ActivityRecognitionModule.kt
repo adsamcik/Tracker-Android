@@ -11,6 +11,8 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
 import com.adsamcik.tracker.activity.api.registration.DefaultActivityRegistrationArbiter
+import com.adsamcik.tracker.activity.api.registration.ActivityMotionAssistance
+import com.adsamcik.tracker.activity.api.registration.DefaultActivityMotionAssistance
 
 /**
  * Hilt bindings for activity-recognition implementations.
@@ -18,6 +20,10 @@ import com.adsamcik.tracker.activity.api.registration.DefaultActivityRegistratio
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class ActivityRecognitionModule {
+	@Binds
+	@Singleton
+	abstract fun bindMotionAssistance(impl: DefaultActivityMotionAssistance): ActivityMotionAssistance
+
     @Binds
     @Singleton
     abstract fun bindBackend(

@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.resilience
 
 import android.content.Context
+import android.os.SystemClock
+import com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.base.time.AndroidBootClockDomainProvider
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
@@ -24,6 +26,23 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 	private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 	private val commandGate = Mutex()
 	@Volatile private var commandState = readPersistedState()
+
+	override val pendingCollectionResumeExitId: String?
+		get() = commandState.handledUserExitId.takeIf { commandState.collectionResumeRequired }
+	override val collectionResumeBoundary: TrackingCollectionResumeBoundary?
+		get() = commandState.collectionResumeBoundary
+
+	override suspend fun recordUserRequestedExit(exitId: String): Boolean = commandGate.withLock {
+		val updated = commandState.observeUserExit(exitId)
+		updated == commandState || writeState(updated)
+	}
+
+	override suspend fun resumeCollectionAfterUserExit(expectedExitId: String): Boolean = commandGate.withLock {
+		if (commandState.handledUserExitId != expectedExitId) return@withLock false
+		val updated = commandState.resumeCollection(expectedExitId, TrackingCollectionResumeBoundary(
+			System.currentTimeMillis(), bootClockDomainProvider.current(), SystemClock.elapsedRealtimeNanos()))
+		updated == commandState || writeState(updated)
+	}
 
 	override suspend fun reserveStart(): TrackingStartCommand? = commandGate.withLock {
 		val (updated, command) = commandState.issueStart()
@@ -170,7 +189,17 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 				preferences.getLong(KEY_LATEST_STOP_REQUESTED_AT_MS, 0L),
 			latestStopRequestedBootId = stopClock?.first,
 			latestStopRequestedElapsedRealtimeNanos = stopClock?.second,
+			handledUserExitId = preferences.getString(KEY_HANDLED_USER_EXIT, null),
+			collectionResumeRequired = preferences.getBoolean(KEY_COLLECTION_RESUME_REQUIRED, false),
+			collectionResumeBoundary = persistedResumeBoundary(),
 		)
+	}
+
+	private fun persistedResumeBoundary(): TrackingCollectionResumeBoundary? {
+		val boot = preferences.getString(KEY_RESUME_BOOT, null)?.takeIf(String::isNotBlank) ?: return null
+		val wall = preferences.getLong(KEY_RESUME_WALL, -1L)
+		val elapsed = preferences.getLong(KEY_RESUME_ELAPSED, -1L)
+		return if (wall >= 0L && elapsed >= 0L) TrackingCollectionResumeBoundary(wall, boot, elapsed) else null
 	}
 
 	private fun persistedStopClock(): Pair<String, Long>? {
@@ -195,6 +224,13 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 				.putLong(KEY_HANDLED_STOP_GENERATION, state.handledStopGeneration)
 				.putString(KEY_LATEST_STOP_REASON, state.latestStopReason.name)
 				.putLong(KEY_LATEST_STOP_REQUESTED_AT_MS, state.latestStopRequestedAtEpochMs)
+				.putString(KEY_HANDLED_USER_EXIT, state.handledUserExitId)
+				.putBoolean(KEY_COLLECTION_RESUME_REQUIRED, state.collectionResumeRequired)
+			state.collectionResumeBoundary?.let { boundary ->
+				editor.putString(KEY_RESUME_BOOT, boundary.bootId)
+					.putLong(KEY_RESUME_WALL, boundary.wallTimeMs)
+					.putLong(KEY_RESUME_ELAPSED, boundary.elapsedRealtimeNanos)
+			}
 			if (state.latestStopRequestedBootId == null) {
 				editor.remove(KEY_LATEST_STOP_REQUESTED_BOOT_ID)
 					.remove(KEY_LATEST_STOP_REQUESTED_ELAPSED_NANOS)
@@ -214,6 +250,11 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 
 	private companion object {
 		const val PREFERENCES_NAME = "tracking_lifecycle_commands"
+		const val KEY_HANDLED_USER_EXIT = "handled_user_exit"
+		const val KEY_COLLECTION_RESUME_REQUIRED = "collection_resume_required"
+		const val KEY_RESUME_BOOT = "collection_resume_boot"
+		const val KEY_RESUME_WALL = "collection_resume_wall"
+		const val KEY_RESUME_ELAPSED = "collection_resume_elapsed"
 		const val KEY_LAST_GENERATION = "last_generation"
 		const val KEY_LATEST_START_GENERATION = "latest_start_generation"
 		const val KEY_LATEST_ACCEPTED_START_GENERATION = "latest_accepted_start_generation"

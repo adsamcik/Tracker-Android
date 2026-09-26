@@ -391,82 +391,42 @@ class DefaultLayerRegistry(
                 recipe = LayerRecipe(factory = LayerFactory {
                     LayerEntry(
                         build = { ctx ->
-                            val dao = AppDatabase.database(ctx).locationSampleDao()
+                            val dao = AppDatabase.database(ctx).locationPurposeDao()
                             LocationPathLayer(
-                                pointsProvider = { range, bounds ->
+                                segmentsProvider = { range, bounds ->
                                     withContext(dispatchers.io) {
                                         val now = System.currentTimeMillis()
-                                        val fromMs = if (!range.isEmpty()) {
-                                            range.first
-                                        } else {
-                                            now - DEFAULT_LOCATION_RANGE_MS
-                                        }
-                                        val toMs = if (!range.isEmpty()) range.last else now
-                                        var afterTimeMs: Long? = null
+                                        val from = if (range.isEmpty()) now - DEFAULT_LOCATION_RANGE_MS else range.first
+                                        val to = if (range.isEmpty()) now else range.last
+                                        var afterTime: Long? = null
                                         var afterId: Long? = null
-                                        val initialRows = collectBoundedChunks(
-                                            chunkSize = LOCATION_PATH_CHUNK_SIZE,
-                                            maxMaterializedRows = LOCATION_PATH_MAX_MATERIALIZED_POINTS - 1,
-                                        ) { limit ->
-                                            val chunk = if (bounds == null) {
-                                                dao.getChunkBetweenOrdered(
-                                                    fromMs = fromMs,
-                                                    toMs = toMs,
-                                                    afterTimeMs = afterTimeMs,
-                                                    afterId = afterId,
-                                                    limit = limit,
-                                                )
-                                            } else {
-                                                dao.getChunkBetweenOrderedInBounds(
-                                                    fromMs = fromMs,
-                                                    toMs = toMs,
-                                                    northE7 = (bounds.north * E7).toInt(),
-                                                    eastE7 = (bounds.east * E7).toInt(),
-                                                    southE7 = (bounds.south * E7).toInt(),
-                                                    westE7 = (bounds.west * E7).toInt(),
-                                                    afterTimeMs = afterTimeMs,
-                                                    afterId = afterId,
-                                                    limit = limit,
-                                                )
+                                        val rows = collectBoundedChunks(LOCATION_PATH_CHUNK_SIZE, LOCATION_PATH_MAX_MATERIALIZED_POINTS) { limit ->
+                                            dao.visiblePathChunk(from, to, afterTime, afterId, limit,
+                                                northE7 = bounds?.north?.times(E7)?.toInt(), southE7 = bounds?.south?.times(E7)?.toInt(),
+                                                eastE7 = bounds?.east?.times(E7)?.toInt(), westE7 = bounds?.west?.times(E7)?.toInt()).also { page ->
+                                                page.lastOrNull()?.sample?.let { afterTime = it.timeMs; afterId = it.id }
                                             }
-                                            chunk.lastOrNull()?.let { lastRow ->
-                                                afterTimeMs = lastRow.timeMs
-                                                afterId = lastRow.id
-                                            }
-                                            chunk
                                         }
-                                        val lastRow = if (bounds == null) {
-                                            dao.getLatestBetween(fromMs, toMs)
-                                        } else {
-                                            dao.getLatestBetweenInBounds(
-                                                fromMs = fromMs,
-                                                toMs = toMs,
-                                                northE7 = (bounds.north * E7).toInt(),
-                                                eastE7 = (bounds.east * E7).toInt(),
-                                                southE7 = (bounds.south * E7).toInt(),
-                                                westE7 = (bounds.west * E7).toInt(),
-                                            )
+                                        val segments = mutableListOf<MutableList<LatLngModel>>()
+                                        var previous: com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow? = null
+                                        rows.forEach { row ->
+                                            val sample = row.sample
+                                            val lat = sample.latE7?.div(1e7)
+                                            val lon = sample.lonE7?.div(1e7)
+                                            val old = previous
+                                            val native = old?.continuityId != null || row.continuityId != null
+                                            val continuous = old != null && (!native ||
+                                                (old.continuityId == row.continuityId && old.continuitySequence != null &&
+                                                    row.continuitySequence == old.continuitySequence?.plus(1) &&
+                                                    sample.clockDomainId == old.sample.clockDomainId &&
+                                                    sample.elapsedRealtimeNanos > old.sample.elapsedRealtimeNanos &&
+                                                    sample.elapsedRealtimeNanos - old.sample.elapsedRealtimeNanos <= 120_000_000_000L))
+                                            if (lat == null || lon == null) { previous = null; return@forEach }
+                                            if (!continuous || segments.isEmpty()) segments.add(mutableListOf())
+                                            segments.last().add(LatLngModel(lat, lon))
+                                            previous = row
                                         }
-                                        val rows = if (lastRow != null && initialRows.lastOrNull()?.id != lastRow.id) {
-                                            initialRows + lastRow
-                                        } else {
-                                            initialRows
-                                        }
-                                        if (rows.isEmpty()) {
-                                            emptyList()
-                                        } else {
-                                            downSampleEvenly(rows, LOCATION_PATH_MAX_PRE_POINTS).asSequence()
-                                                .mapNotNull { row ->
-                                                    val latE7 = row.latE7
-                                                    val lonE7 = row.lonE7
-                                                    if (latE7 == null || lonE7 == null) {
-                                                        null
-                                                    } else {
-                                                        LatLngModel(latE7 / 1e7, lonE7 / 1e7)
-                                                    }
-                                                }
-                                                .toList()
-                                        }
+                                        segments
                                     }
                                 },
                                 perf = PerformanceManager()

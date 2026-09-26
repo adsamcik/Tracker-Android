@@ -22,6 +22,23 @@ class BatteryAwarePolicyTest {
 
 	private val subject = BatteryAwarePolicy(mockk(relaxed = true))
 
+	@Test
+	fun `source pressure has separate entry and recovery thresholds`() {
+		listOf(30, 20, 24, 25, 10, 14, 15, 24, 25).map {
+			subject.pressureForBatteryLevel(it, false)
+		} shouldBe listOf(BatteryPressure.NONE, BatteryPressure.MODERATE, BatteryPressure.MODERATE,
+			BatteryPressure.NONE, BatteryPressure.STRONG, BatteryPressure.STRONG,
+			BatteryPressure.MODERATE, BatteryPressure.MODERATE, BatteryPressure.NONE)
+	}
+
+	@Test
+	fun `charging clears battery pressure and unknown capacity is not critical`() {
+		subject.pressureForBatteryLevel(5, false) shouldBe BatteryPressure.STRONG
+		subject.pressureForBatteryLevel(null, false) shouldBe BatteryPressure.NONE
+		subject.pressureForBatteryLevel(5, true) shouldBe BatteryPressure.NONE
+		subject.pressureForBatteryLevel(22, false) shouldBe BatteryPressure.NONE
+	}
+
 	@Nested
 	@DisplayName("Critical battery (≤10%)")
 	inner class CriticalBattery {

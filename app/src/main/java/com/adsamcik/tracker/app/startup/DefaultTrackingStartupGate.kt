@@ -59,6 +59,7 @@ class ApplicationStartupRecoveryResolver @Inject constructor(
 	@ApplicationContext private val context: Context,
 	private val previousExitRecoveryCoordinatorProvider: Provider<PreviousExitRecoveryCoordinator>,
 	private val trackingStartupGuard: TrackingStartupGuard,
+	private val lifecycleCommands: TrackingLifecycleCommandAuthority,
 ) {
 	internal fun resolveAndPrepare(): ApplicationStartupRecoveryAction {
 		val action = applicationStartupRecoveryAction(
@@ -78,6 +79,17 @@ class ApplicationStartupRecoveryResolver @Inject constructor(
 		startupGeneration: Long,
 	) {
 		val previousExitRecoveryCoordinator = previousExitRecoveryCoordinatorProvider.get()
+		val userExitTimestamp = when {
+			action is ApplicationStartupRecoveryAction.ConfirmedForceStop -> action.completedAtMs
+			action is ApplicationStartupRecoveryAction.PreviousExit &&
+				action.reason == ApplicationExitInfo.REASON_USER_REQUESTED -> action.completedAtMs
+			else -> null
+		}
+		if (userExitTimestamp != null) {
+			check(lifecycleCommands.recordUserRequestedExit("user-requested:$userExitTimestamp")) {
+				"Unable to preserve user-requested collection stop"
+			}
+		}
 		when (action) {
 			is ApplicationStartupRecoveryAction.ConfirmedForceStop ->
 				previousExitRecoveryCoordinator.suppressAfterForceStop(action.completedAtMs)
@@ -276,6 +288,12 @@ class DefaultTrackingStartupGate @Inject constructor(
 	private var storageReadyGeneration = -1L
 	private var mismatchRecoveryStopGeneration = 0L
 	private var readySignalVersion = 0L
+
+	override val permitsNewCollection: Boolean
+		get() = isReady && lifecycleCommandAuthority.pendingCollectionResumeExitId == null
+
+	override val collectionResumeBoundary: com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary?
+		get() = lifecycleCommandAuthority.collectionResumeBoundary
 
 	override val isReady: Boolean
 		get() = !deletionBarrier.isClosed && ready != null &&

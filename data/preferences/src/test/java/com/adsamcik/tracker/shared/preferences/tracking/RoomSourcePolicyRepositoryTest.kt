@@ -62,6 +62,54 @@ class RoomSourcePolicyRepositoryTest {
 	}
 
 	@Test
+	fun `Location adoption preserves history and rotates only changed background consent`() = runTest {
+		val legacy = readySettings().copy(ambientLocationEnabled = true, minTimeSeconds = 17, minDistanceMeters = 42, autoTrackingMode = 0)
+		val before = repository.bootstrapFromLegacy(legacy)
+		val oldRows = database.sourcePolicyDao().policiesAtRevision(before.revision)
+		val adopted = legacy.copy(
+			locationProfileVersion = 1, locationBalanceLevel = 3,
+			locationBackgroundMode = LocationBackgroundMode.ADAPTIVE, locationMotionAssistanceEnabled = true,
+		)
+		val after = repository.replaceCaptureSettings(before.revision, adopted, "ADOPT")
+		val location = after[TrackingSourceComponent.LOCATION]
+		location.balanceProfileVersion shouldBe 1
+		location.balanceLevel shouldBe 3
+		location.locationBackgroundMode shouldBe LocationBackgroundMode.ADAPTIVE
+		location.locationMotionAssistanceEnabled shouldBe true
+		location.locationMinTimeSeconds shouldBe 17
+		location.locationMinDistanceMeters shouldBe 42
+		location.captureConsentEpoch shouldBe before[TrackingSourceComponent.LOCATION].captureConsentEpoch
+		location.ambientConsentEpoch shouldBe 2L
+		after[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe null
+		after[TrackingSourceComponent.ACTIVITY].captureConsentEpoch shouldBe before[TrackingSourceComponent.ACTIVITY].captureConsentEpoch
+		database.sourcePolicyDao().policiesAtRevision(before.revision) shouldBe oldRows
+		oldRows.single { it.sourceKind == TrackingSourceComponent.LOCATION.stableCode }.balanceProfileVersion shouldBe null
+		val detail = repository.replaceCaptureSettings(after.revision, adopted.copy(locationBalanceLevel = 5), "DETAIL")
+		detail[TrackingSourceComponent.LOCATION].ambientConsentEpoch shouldBe 2L
+		val passive = repository.replaceCaptureSettings(detail.revision, adopted.copy(locationBackgroundMode = LocationBackgroundMode.PASSIVE_ONLY), "PASSIVE")
+		passive[TrackingSourceComponent.LOCATION].ambientConsentEpoch shouldBe 3L
+		passive.policies.values.filter { it.source != TrackingSourceComponent.LOCATION }.forEach {
+			it.balanceProfileVersion shouldBe null
+			it.locationBackgroundMode shouldBe null
+			it.locationMotionAssistanceEnabled shouldBe false
+		}
+	}
+
+	@Test
+	fun `non capture consent updates retain Location profile metadata`() = runTest {
+		val before = repository.bootstrapFromLegacy(readySettings().copy(
+			locationProfileVersion = 1, locationBalanceLevel = 4,
+			locationBackgroundMode = LocationBackgroundMode.ADAPTIVE, locationMotionAssistanceEnabled = true,
+		))
+		val after = repository.setNonCaptureConsent(
+			before.revision, TrackingSourceComponent.WIFI, SourcePurpose.AMBIENT_PRODUCT,
+			eligible = true, persistenceEligible = true, reason = "ENABLE_WIFI",
+		)
+		after[TrackingSourceComponent.LOCATION].balanceLevel shouldBe 4
+		after[TrackingSourceComponent.LOCATION].locationMotionAssistanceEnabled shouldBe true
+	}
+
+	@Test
 	fun `bootstrap intersects boolean and frequency and imports only existing automatic control`() = runTest {
 		val snapshot = repository.bootstrapFromLegacy(
 			readySettings().copy(

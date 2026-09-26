@@ -34,6 +34,26 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
 	fun tearDown() = clearStore()
 
 	@Test
+	fun `user exit suppression and exact resume boundary survive recreation`() = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		authority.recordUserRequestedExit("user-requested:100") shouldBe true
+		val stopped = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		stopped.pendingCollectionResumeExitId shouldBe "user-requested:100"
+		stopped.resumeCollectionAfterUserExit("stale") shouldBe false
+		stopped.resumeCollectionAfterUserExit("user-requested:100") shouldBe true
+		val boundary = requireNotNull(stopped.collectionResumeBoundary)
+		val resumed = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		resumed.pendingCollectionResumeExitId shouldBe null
+		resumed.collectionResumeBoundary shouldBe boundary
+		resumed.recordUserRequestedExit("user-requested:100") shouldBe true
+		resumed.pendingCollectionResumeExitId shouldBe null
+		resumed.collectionResumeBoundary shouldBe boundary
+		resumed.recordUserRequestedExit("user-requested:200") shouldBe true
+		resumed.resumeCollectionAfterUserExit("user-requested:100") shouldBe false
+		resumed.pendingCollectionResumeExitId shouldBe "user-requested:200"
+	}
+
+	@Test
 	fun `stop tombstone is committed across authority recreation before runtime delivery`(): Unit = runBlocking {
 		val first = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
 		val queuedStart = requireNotNull(first.reserveStart())

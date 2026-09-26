@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.location.LocationListener
+import android.location.LocationManager
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
@@ -18,6 +19,45 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class LocationSourceBackendTest {
+	@Test
+	fun `GPS fallback resolves actual high accuracy before registration and never claims low power`() = runTest {
+		var requestedProvider: String? = null
+		val backend = FrameworkLocationSourceBackend(FrameworkLocationBackendOperations(
+			isProviderEnabled = { it == LocationManager.GPS_PROVIDER },
+			requestUpdates = { provider, _, _, _ -> requestedProvider = provider },
+			removeUpdates = {},
+		))
+		val desired = locationPlan(LocationBackend.FRAMEWORK).copy(mode = LocationMode.LOW_POWER)
+		val actual = requireNotNull(backend.resolvePlan(desired))
+		assertEquals(LocationMode.HIGH_ACCURACY, actual.mode)
+		assertEquals(LocationBackendStartOutcome.CLEANUP_REQUIRED, backend.start(desired) {})
+		assertFalse(backend.hasRetainedRegistration)
+		assertEquals(LocationBackendStartOutcome.STARTED, backend.start(actual) {})
+		assertEquals(LocationManager.GPS_PROVIDER, requestedProvider)
+	}
+
+	@Test
+	fun `no active provider cannot masquerade as a successful active request`() = runTest {
+		var requests = 0
+		val backend = FrameworkLocationSourceBackend(FrameworkLocationBackendOperations(
+			isProviderEnabled = { it == LocationManager.PASSIVE_PROVIDER },
+			requestUpdates = { _, _, _, _ -> requests++ }, removeUpdates = {},
+		))
+		val desired = locationPlan(LocationBackend.FRAMEWORK)
+		assertEquals(null, backend.resolvePlan(desired))
+		assertEquals(LocationBackendStartOutcome.CLEANUP_REQUIRED, backend.start(desired) {})
+		assertEquals(0, requests)
+		assertFalse(backend.hasRetainedRegistration)
+	}
+
+	@Test
+	fun `approximate fused preflight exposes its balanced mode`() {
+		val backend = FusedLocationSourceBackend(FusedLocationBackendOperations({ _, _ -> }, {}, {}))
+		val actual = backend.resolvePlan(locationPlan(LocationBackend.FUSED).copy(
+			mode = LocationMode.HIGH_ACCURACY, preciseLocationAvailable = false,
+		))
+		assertEquals(LocationMode.BALANCED, actual.mode)
+	}
 	@Test
 	fun `fused partial start retains exact callback until runtime ordered removal succeeds`() = runTest {
 		var requestedCallback: LocationCallback? = null

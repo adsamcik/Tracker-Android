@@ -2,15 +2,13 @@ package com.adsamcik.tracker.tracker.source.control
 
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
-import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
-import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import com.adsamcik.tracker.tracker.source.model.StableActivityTypeCode
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.abs
 import kotlin.math.asin
 import kotlin.math.cos
 import kotlin.math.max
@@ -24,8 +22,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * Fuses cheap, independent evidence before changing collection cost.
  *
  * Missing location fixes are deliberately not evidence of being stationary. In particular, a
- * vehicle classification survives a GPS outage (for example a tunnel) and can be extended by
- * activity, cell handovers, pressure changes, or a later location fix.
+ * vehicle classification survives a bounded GPS outage (for example a tunnel). Only fresh primary
+ * evidence can renew that hold; radio changes and pressure drift do not prove renewed movement.
  */
 @Singleton
 class CollectionMotionController @Inject constructor() {
@@ -34,6 +32,38 @@ class CollectionMotionController @Inject constructor() {
 	val policy: StateFlow<CollectionMotionPolicy> = _policy.asStateFlow()
 
 	private var session: ActiveMotionSession? = null
+
+	/** One authorized collection owner can span background work and joins/leaves of live focus. */
+	fun configureScope(scopeId: String, clockDomainId: String, effectiveSinceNanos: Long) = synchronized(lock) {
+		require(scopeId.isNotBlank() && clockDomainId.isNotBlank() && effectiveSinceNanos >= 0L)
+		val previous = session
+		if (previous?.serviceRunId == scopeId && previous.clockDomainId == clockDomainId &&
+			previous.startedElapsedRealtimeNanos == effectiveSinceNanos && !previous.sessionBound
+		) return@synchronized
+		session = ActiveMotionSession(scopeId, scopeId, effectiveSinceNanos, sessionBound = false,
+			clockDomainId = clockDomainId)
+		_policy.value = CollectionMotionPolicy.awaitingEvidence()
+	}
+
+	fun stopScope(scopeId: String) = stopSession(scopeId)
+
+	/** Caller has already matched the transient helper's exact current authority and registration. */
+	fun onMotionAssistance(
+		scopeId: String,
+		clockDomainId: String,
+		observedElapsedRealtimeNanos: Long,
+		receivedElapsedRealtimeNanos: Long,
+		activityType: Int,
+		transitionType: Int,
+	) = synchronized(lock) {
+		val active = session ?: return@synchronized
+		if (active.serviceRunId != scopeId || !active.acceptTime(clockDomainId,
+			observedElapsedRealtimeNanos, receivedElapsedRealtimeNanos, MOTION_HINT_MAX_AGE_NANOS)
+		) return@synchronized
+		active.onActivityTransition(ActivityTransitionPayload(activityType, transitionType,
+			observedElapsedRealtimeNanos), observedElapsedRealtimeNanos)
+		publish(active.policyAt(active.latestNowNanos))
+	}
 
 	fun startSession(
 		logicalTrackingId: String,
@@ -58,30 +88,41 @@ class CollectionMotionController @Inject constructor() {
 
 	fun onDurableEvidence(candidate: SourceEvidenceCandidate<*>) = synchronized(lock) {
 		val active = session ?: return@synchronized
-		if (candidate.logicalTrackingId?.value != active.logicalTrackingId ||
-			candidate.serviceRunId?.value != active.serviceRunId ||
-			candidate.observedElapsedRealtimeNanos < active.startedElapsedRealtimeNanos
+		if (active.sessionBound && (candidate.logicalTrackingId?.value != active.logicalTrackingId ||
+			candidate.serviceRunId?.value != active.serviceRunId)
 		) return@synchronized
+		val payload = candidate.payload
+		val stillHint = payload is ActivityRecognitionPayload && payload.activityType == ACTIVITY_STILL ||
+			payload is ActivityTransitionPayload && payload.activityType == ACTIVITY_STILL ||
+			payload is LocationFixPayload && payload.speedMetersPerSecond?.let { it <= STATIONARY_SPEED_METERS_PER_SECOND } == true
+		if (!active.acceptTime(candidate.clockDomainId, candidate.observedElapsedRealtimeNanos,
+			candidate.receivedElapsedRealtimeNanos, if (stillHint) STILL_HINT_MAX_AGE_NANOS else MOTION_HINT_MAX_AGE_NANOS)
+		) return@synchronized
+		val previousAt = active.latestSourceObservation[candidate.source]
+		if (previousAt != null && candidate.observedElapsedRealtimeNanos <= previousAt) return@synchronized
+		active.latestSourceObservation[candidate.source] = candidate.observedElapsedRealtimeNanos
 
 		val at = candidate.observedElapsedRealtimeNanos
-		when (val payload = candidate.payload) {
+		when (payload) {
 			is ActivityRecognitionPayload -> active.onActivityRecognition(payload, at)
 			is ActivityTransitionPayload -> active.onActivityTransition(payload, at)
 			is StepCounterWindowPayload -> if (payload.deltaCount > 0L) {
 				active.markPedestrian(at, MotionPolicyReason.STEP_COUNTER)
 			}
-			is LocationFixPayload -> active.onLocation(payload, at)
-			is CellSnapshotPayload -> active.onCell(payload, at)
-			is PressureWindowPayload -> active.onPressure(payload, at)
+			is LocationFixPayload -> active.onLocation(payload, at, candidate.locationSpeedAccuracyMetersPerSecond)
+			// Radio and Pressure can describe source value/health, but cannot renew primary motion.
 			else -> Unit
 		}
-		publish(active.policyAt(at))
+		publish(active.policyAt(active.latestNowNanos))
 	}
 
 	/** Advances hysteresis when no sensor callback arrives; absence of GPS never marks a stop. */
 	fun tick(nowElapsedRealtimeNanos: Long) = synchronized(lock) {
 		require(nowElapsedRealtimeNanos >= 0L)
-		session?.let { publish(it.policyAt(nowElapsedRealtimeNanos)) }
+		session?.let {
+			it.latestNowNanos = maxOf(it.latestNowNanos, nowElapsedRealtimeNanos)
+			publish(it.policyAt(it.latestNowNanos))
+		}
 	}
 
 	private fun publish(next: CollectionMotionPolicy) {
@@ -92,6 +133,10 @@ class CollectionMotionController @Inject constructor() {
 		val logicalTrackingId: String,
 		val serviceRunId: String,
 		val startedElapsedRealtimeNanos: Long,
+		val sessionBound: Boolean = true,
+		var clockDomainId: String? = null,
+		var latestNowNanos: Long = startedElapsedRealtimeNanos,
+		val latestSourceObservation: MutableMap<SourceKind, Long> = mutableMapOf(),
 		var lastVehicleNanos: Long? = null,
 		var vehicleExitNanos: Long? = null,
 		var lastPedestrianNanos: Long? = null,
@@ -101,9 +146,16 @@ class CollectionMotionController @Inject constructor() {
 		var stationaryConfirmations: Int = 0,
 		var lastStationaryConfirmationNanos: Long? = null,
 		var previousLocation: TimedLocation? = null,
-		var previousCellSignature: Set<String>? = null,
-		var previousPressure: TimedPressure? = null,
 	) {
+		fun acceptTime(clock: String, observed: Long, received: Long, maximumAge: Long): Boolean {
+			if (clockDomainId != null && clockDomainId != clock) return false
+			if (observed < startedElapsedRealtimeNanos || received < observed) return false
+			val now = maxOf(latestNowNanos, received)
+			if (now - observed > maximumAge) return false
+			clockDomainId = clock
+			latestNowNanos = now
+			return true
+		}
 		fun onActivityRecognition(payload: ActivityRecognitionPayload, at: Long) {
 			if (payload.confidencePercent < MIN_ACTIVITY_CONFIDENCE) return
 			when (payload.activityType) {
@@ -133,67 +185,46 @@ class CollectionMotionController @Inject constructor() {
 			}
 		}
 
-		fun onLocation(payload: LocationFixPayload, at: Long) {
+		fun onLocation(payload: LocationFixPayload, at: Long, speedUncertainty: Float?) {
 			val accurate = payload.horizontalAccuracyMeters.isFinite() &&
 				payload.horizontalAccuracyMeters in 0f..MAX_MOTION_LOCATION_ACCURACY_METERS
 			val speed = payload.speedMetersPerSecond?.takeIf { it.isFinite() && it >= 0f }
+			val uncertainty = speedUncertainty?.takeIf { it.isFinite() && it >= 0f }
+			val minimumSpeed = if (speed != null && uncertainty != null) maxOf(0f, speed - uncertainty) else null
+			val maximumSpeed = if (speed != null && uncertainty != null) speed + uncertainty else null
 			when {
-				accurate && speed != null && speed >= VEHICLE_SPEED_METERS_PER_SECOND ->
+				accurate && minimumSpeed != null && minimumSpeed >= VEHICLE_SPEED_METERS_PER_SECOND ->
 					markVehicle(at, MotionPolicyReason.LOCATION_MOTION)
-				accurate && speed != null && speed >= MOVING_SPEED_METERS_PER_SECOND ->
+				accurate && minimumSpeed != null && minimumSpeed >= MOVING_SPEED_METERS_PER_SECOND ->
 					markMoving(at, MotionPolicyReason.LOCATION_MOTION)
 				accurate && previousLocation?.isMeaningfulDisplacement(payload, at) == true ->
 					markMoving(at, MotionPolicyReason.LOCATION_MOTION)
-				accurate && speed != null && speed <= STATIONARY_SPEED_METERS_PER_SECOND ->
+				accurate && maximumSpeed != null && maximumSpeed <= STATIONARY_SPEED_METERS_PER_SECOND ->
 					markStationaryCandidate(at)
+				accurate && maximumSpeed != null && maximumSpeed > STATIONARY_SPEED_METERS_PER_SECOND -> {
+					stationaryCandidateNanos = null
+					stationaryConfirmations = 0
+					lastStationaryConfirmationNanos = null
+				}
 			}
-			if (accurate) previousLocation = TimedLocation(payload, at)
-		}
-
-		fun onCell(payload: CellSnapshotPayload, at: Long) {
-			if (payload.observations.isEmpty()) return
-			val signature = payload.observations.asSequence()
-				.filter { it.registered }
-				.map { "${it.radioType}:${it.identifierToken}" }
-				.toSet()
-			if (signature.isEmpty()) return
-			val previous = previousCellSignature
-			previousCellSignature = signature
-			if (previous == null || previous == signature) return
-
-			val recentVehicle = lastVehicleNanos?.let { at - it <= VEHICLE_CONTINUITY_NANOS } == true
-			val recentMotion = lastMovingNanos?.let { at - it <= GENERAL_MOTION_HOLD_NANOS } == true
-			when {
-				recentVehicle -> markVehicle(at, MotionPolicyReason.CELL_CHANGE)
-				recentMotion -> markMoving(at, MotionPolicyReason.CELL_CHANGE)
-			}
-		}
-
-		fun onPressure(payload: PressureWindowPayload, at: Long) {
-			val previous = previousPressure
-			previousPressure = TimedPressure(payload.meanHectopascals, at)
-			if (previous == null || at - previous.atNanos > PRESSURE_EVIDENCE_WINDOW_NANOS) return
-			if (abs(payload.meanHectopascals - previous.meanHectopascals) < PRESSURE_CHANGE_HECTOPASCALS) return
-			when {
-				lastVehicleNanos?.let { at - it <= VEHICLE_CONTINUITY_NANOS } == true ->
-					markVehicle(at, MotionPolicyReason.PRESSURE_CHANGE)
-				lastMovingNanos?.let { at - it <= GENERAL_MOTION_HOLD_NANOS } == true ->
-					markMoving(at, MotionPolicyReason.PRESSURE_CHANGE)
-			}
+			if (accurate && (previousLocation == null || at > previousLocation!!.atNanos)) previousLocation = TimedLocation(payload, at)
 		}
 
 		fun markVehicle(at: Long, reason: MotionPolicyReason) {
+			if (lastMovingNanos?.let { at < it } == true) return
 			lastVehicleNanos = max(lastVehicleNanos ?: Long.MIN_VALUE, at)
 			vehicleExitNanos = null
 			markMoving(at, reason)
 		}
 
 		fun markPedestrian(at: Long, reason: MotionPolicyReason) {
+			if (lastMovingNanos?.let { at < it } == true) return
 			lastPedestrianNanos = max(lastPedestrianNanos ?: Long.MIN_VALUE, at)
 			markMoving(at, reason)
 		}
 
 		fun markMoving(at: Long, reason: MotionPolicyReason) {
+			if (lastMovingNanos?.let { at < it } == true) return
 			lastMovingNanos = max(lastMovingNanos ?: Long.MIN_VALUE, at)
 			lastMotionReason = reason
 			stationaryCandidateNanos = null
@@ -203,6 +234,11 @@ class CollectionMotionController @Inject constructor() {
 
 		fun markStationaryCandidate(at: Long) {
 			if (lastMovingNanos?.let { at < it } == true) return
+			if (lastStationaryConfirmationNanos?.let { at - it > STILL_HINT_MAX_AGE_NANOS } == true) {
+				stationaryCandidateNanos = null
+				stationaryConfirmations = 0
+				lastStationaryConfirmationNanos = null
+			}
 			if (stationaryCandidateNanos == null) stationaryCandidateNanos = at
 			val previousConfirmation = lastStationaryConfirmationNanos
 			if (previousConfirmation == null || at - previousConfirmation >= STATIONARY_CONFIRMATION_SPACING_NANOS) {
@@ -219,7 +255,7 @@ class CollectionMotionController @Inject constructor() {
 				if (now - vehicleAt <= hold) {
 					return movingPolicy(
 						CollectionMotionState.VEHICLE,
-						if (lastMotionReason in continuityReasons) lastMotionReason else MotionPolicyReason.VEHICLE_CONTINUITY,
+						MotionPolicyReason.VEHICLE_CONTINUITY,
 						95,
 					)
 				}
@@ -233,6 +269,7 @@ class CollectionMotionController @Inject constructor() {
 
 			val stationarySince = stationaryCandidateNanos
 			if (stationarySince != null && stationaryConfirmations >= REQUIRED_STATIONARY_CONFIRMATIONS &&
+				lastStationaryConfirmationNanos?.let { now - it in 0..STILL_HINT_MAX_AGE_NANOS } == true &&
 				now - stationarySince >= STATIONARY_DWELL_NANOS &&
 				(lastMovingNanos == null || lastMovingNanos!! <= stationarySince)
 			) {
@@ -240,7 +277,7 @@ class CollectionMotionController @Inject constructor() {
 					motionState = CollectionMotionState.STATIONARY,
 					confidencePercent = 90,
 					reason = MotionPolicyReason.STATIONARY_CONFIRMED,
-					locationStrategy = LocationCollectionStrategy.PASSIVE_WHILE_STATIONARY,
+					locationStrategy = LocationCollectionStrategy.LOW_POWER_SENTINEL,
 					expensiveNetworkScansAllowed = false,
 					continuousPressureAllowed = false,
 					lowLatencyStepReporting = false,
@@ -278,8 +315,6 @@ class CollectionMotionController @Inject constructor() {
 		}
 	}
 
-	private data class TimedPressure(val meanHectopascals: Double, val atNanos: Long)
-
 	private companion object {
 		const val ACTIVITY_STILL = StableActivityTypeCode.STILL
 		const val ACTIVITY_WALKING = StableActivityTypeCode.WALKING
@@ -297,17 +332,16 @@ class CollectionMotionController @Inject constructor() {
 		const val MOVING_SPEED_METERS_PER_SECOND = 0.8f
 		const val STATIONARY_SPEED_METERS_PER_SECOND = 0.2f
 		const val MINIMUM_DISPLACEMENT_METERS = 25.0
-		const val PRESSURE_CHANGE_HECTOPASCALS = 0.12
 		const val NANOS_PER_SECOND = 1_000_000_000L
 		const val STATIONARY_CONFIRMATION_SPACING_NANOS = 20 * NANOS_PER_SECOND
 		const val STATIONARY_DWELL_NANOS = 90 * NANOS_PER_SECOND
+		const val MOTION_HINT_MAX_AGE_NANOS = 30 * NANOS_PER_SECOND
+		const val STILL_HINT_MAX_AGE_NANOS = 120 * NANOS_PER_SECOND
 		const val GENERAL_MOTION_HOLD_NANOS = 90 * NANOS_PER_SECOND
 		const val PEDESTRIAN_HOLD_NANOS = 120 * NANOS_PER_SECOND
 		const val VEHICLE_EXIT_HOLD_NANOS = 90 * NANOS_PER_SECOND
 		const val VEHICLE_CONTINUITY_NANOS = 10 * 60 * NANOS_PER_SECOND
-		const val PRESSURE_EVIDENCE_WINDOW_NANOS = 60 * NANOS_PER_SECOND
 		const val LOCATION_DISPLACEMENT_WINDOW_NANOS = 2 * 60 * NANOS_PER_SECOND
-		val continuityReasons = setOf(MotionPolicyReason.CELL_CHANGE, MotionPolicyReason.PRESSURE_CHANGE)
 	}
 }
 

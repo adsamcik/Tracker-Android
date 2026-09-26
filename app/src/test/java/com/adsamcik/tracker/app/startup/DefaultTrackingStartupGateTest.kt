@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.startup
 
 import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.content.Context
 import com.adsamcik.tracker.app.ApplicationStartupRecoveryAction
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
@@ -61,10 +62,25 @@ class ApplicationStartupRecoveryResolverTest {
 				mockk<PreviousExitRecoveryCoordinator>()
 			},
 			startupGuard,
+			mockk<TrackingLifecycleCommandAuthority>(),
 		)
 
 		resolver.resolveAndPrepare() shouldBe ApplicationStartupRecoveryAction.None
 		recoveryResolutions shouldBe 0
+	}
+
+	@Test
+	fun `ambiguous user exit and confirmed force stop preserve the same bounded stop receipt`() = runTest {
+		val recovery = mockk<PreviousExitRecoveryCoordinator>(relaxed = true)
+		val commands = mockk<TrackingLifecycleCommandAuthority> {
+			coEvery { recordUserRequestedExit(any()) } returns true
+		}
+		val resolver = ApplicationStartupRecoveryResolver(mockk(), Provider { recovery }, mockk(), commands)
+		resolver.apply(ApplicationStartupRecoveryAction.PreviousExit(ApplicationExitInfo.REASON_USER_REQUESTED, 123L), 0L)
+		resolver.apply(ApplicationStartupRecoveryAction.ConfirmedForceStop(123L), 0L)
+		coVerify(exactly = 2) { commands.recordUserRequestedExit("user-requested:123") }
+		coVerify(exactly = 1) { recovery.handle(ApplicationExitInfo.REASON_USER_REQUESTED, 123L, 0L) }
+		coVerify(exactly = 1) { recovery.suppressAfterForceStop(123L) }
 	}
 }
 
@@ -77,6 +93,8 @@ class DefaultTrackingStartupGateTest {
 	}
 	private val resolver = mockk<ApplicationStartupRecoveryResolver>()
 	private val lifecycleAuthority = mockk<TrackingLifecycleCommandAuthority> {
+		every { pendingCollectionResumeExitId } returns null
+		every { collectionResumeBoundary } returns null
 		every { latestUnhandledStop() } returns null
 		every { latestStopGeneration() } returns 0L
 		coEvery { runWithHandledStopGeneration(any(), any()) } coAnswers {

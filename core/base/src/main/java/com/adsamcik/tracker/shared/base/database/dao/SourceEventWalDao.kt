@@ -178,7 +178,7 @@ interface SourceEventWalDao {
 
 	/** Immutable WAL fields required to distinguish replay from checkpoint authority. */
 	@Query(
-		"SELECT event_id, admission_ordinal, delivery_unit_index, delivery_unit_count, " +
+		"SELECT event_id, admission_ordinal, source_sequence, delivery_unit_index, delivery_unit_count, " +
 			"source_instance_id, registration_generation, physical_configuration_fingerprint, " +
 			"authorization_revision, " +
 			"observed_elapsed_nanos, observed_interval_start_nanos, " +
@@ -214,7 +214,7 @@ interface SourceEventWalDao {
 
 	/** Bounded exact-delivery probe for source adapters with one physical delivery unit. */
 	@Query(
-		"SELECT event_id, admission_ordinal, delivery_unit_index, delivery_unit_count, " +
+		"SELECT event_id, admission_ordinal, source_sequence, delivery_unit_index, delivery_unit_count, " +
 			"source_instance_id, registration_generation, physical_configuration_fingerprint, " +
 			"authorization_revision, observed_elapsed_nanos, observed_interval_start_nanos, " +
 			"payload_version, payload_checksum " +
@@ -948,6 +948,7 @@ data class SourceDeliveryUnitIdentityRow(
 	@ColumnInfo(name = "observed_interval_start_nanos") val observedIntervalStartNanos: Long?,
 	@ColumnInfo(name = "payload_version") val payloadVersion: Int,
 	@ColumnInfo(name = "payload_checksum") val payloadChecksum: String,
+	@ColumnInfo(name = "source_sequence") val sourceSequence: Long,
 )
 
 /** Payload-free preflight for the selected WAL event. */

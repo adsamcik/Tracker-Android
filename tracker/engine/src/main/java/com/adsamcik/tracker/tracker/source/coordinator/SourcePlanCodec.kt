@@ -22,14 +22,15 @@ import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class EncodedSourcePlan(val bytes: ByteArray, val checksum: String)
+data class EncodedSourcePlan(val bytes: ByteArray, val checksum: String, val formatVersion: Int = 1)
 
 @Singleton
 class SourcePlanCodec @Inject constructor() {
 	fun encode(plan: SourcePlan): EncodedSourcePlan {
+		val formatVersion = if (plan is LocationPlan && plan.adaptiveProfileVersion != null) 2 else FORMAT_VERSION
 		val bytes = ByteArrayOutputStream().use { buffer ->
 			DataOutputStream(buffer).use { output ->
-				output.writeInt(FORMAT_VERSION)
+				output.writeInt(formatVersion)
 				output.writeUTF(plan.source.name)
 				output.writeLong(plan.revision)
 				when (plan) {
@@ -42,6 +43,7 @@ class SourcePlanCodec @Inject constructor() {
 						writeLong(plan.maximumBatchDelayMs)
 						writeNullableLong(plan.probeDurationMs)
 						writeBoolean(plan.preciseLocationAvailable)
+						plan.adaptiveProfileVersion?.let { writeInt(it) }
 					}
 					is ActivityPlan -> with(output) {
 						writeUTF(plan.mode.name)
@@ -82,14 +84,16 @@ class SourcePlanCodec @Inject constructor() {
 			buffer.toByteArray()
 		}
 		require(bytes.size <= MAX_PAYLOAD_BYTES) { "Source-plan payload exceeds the durable bound" }
-		return EncodedSourcePlan(bytes, sha256(bytes))
+		return EncodedSourcePlan(bytes, sha256(bytes), formatVersion)
 	}
 
 	fun decode(bytes: ByteArray): SourcePlan {
 		require(bytes.size in 1..MAX_PAYLOAD_BYTES) { "Source-plan payload size is invalid" }
 		return DataInputStream(ByteArrayInputStream(bytes)).use { input ->
-			require(input.readInt() == FORMAT_VERSION) { "Unsupported source-plan format" }
+			val formatVersion = input.readInt()
+			require(formatVersion == FORMAT_VERSION || formatVersion == 2) { "Unsupported source-plan format" }
 			val source = SourceKind.valueOf(input.readUTF())
+			require(formatVersion == FORMAT_VERSION || source == SourceKind.LOCATION) { "Adaptive format requires Location" }
 			val revision = input.readLong()
 			when (source) {
 				SourceKind.LOCATION -> LocationPlan(
@@ -102,6 +106,7 @@ class SourcePlanCodec @Inject constructor() {
 					input.readLong(),
 					input.readNullableLong(),
 					input.readBoolean(),
+					if (formatVersion == 2) input.readInt() else null,
 				)
 				SourceKind.ACTIVITY -> ActivityPlan(
 					revision,

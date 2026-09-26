@@ -49,6 +49,11 @@ class SemanticAcquisitionPlanFactory @Inject constructor() : SourceAcquisitionPl
 		revision: Long,
 		environment: SourcePlanEnvironment,
 	): LocationPlan {
+		if (settings.locationProfileVersion == 1 && frequency != SourceCollectionFrequency.OFF) {
+			val savedLevel = requireNotNull(settings.locationBalanceLevel)
+			val level = if (SourceKind.LOCATION in environment.liveSources) maxOf(savedLevel, 4) else savedLevel
+			return adaptiveLocationPlan(level, revision, environment.locationBackend, environment.preciseLocationAvailable)
+		}
 		val values = when (frequency) {
 			SourceCollectionFrequency.OFF -> LocationValues(LocationMode.DISABLED, 60_000, 60_000, 100f, 0)
 			SourceCollectionFrequency.BATTERY_SAVER -> LocationValues(LocationMode.LOW_POWER, 60_000, 30_000, 50f, 120_000)
@@ -135,4 +140,29 @@ data class SourcePlanEnvironment(
 	val locationBackend: LocationBackend,
 	val preciseLocationAvailable: Boolean,
 	val subscriptionIds: Set<Int>,
+	/** Actual accepted live participation, never inferred from the lifetime of the shared host. */
+	val liveSources: Set<SourceKind> = emptySet(),
 )
+
+/** Version-one adaptive targets. Legacy/custom request bytes never use this mapping. */
+internal fun adaptiveLocationPlan(
+	level: Int,
+	revision: Long,
+	backend: LocationBackend,
+	preciseLocationAvailable: Boolean,
+): LocationPlan {
+	require(level in 1..5)
+	val interval = when (level) { 1 -> 60_000L; 2 -> 30_000L; 3 -> 10_000L; 4 -> 5_000L; else -> 1_000L }
+	val minimum = when (level) { 1 -> 30_000L; 2 -> 15_000L; 3 -> 10_000L; 4 -> 2_500L; else -> 500L }
+	val batch = when (level) { 1 -> 120_000L; 2 -> 60_000L; 3 -> 50_000L; 4 -> 10_000L; else -> 2_000L }
+	val mode = when {
+		level == 1 -> LocationMode.LOW_POWER
+		level == 2 || !preciseLocationAvailable -> LocationMode.BALANCED
+		else -> LocationMode.HIGH_ACCURACY
+	}
+	return LocationPlan(
+		revision, backend, mode, interval, minimum, 0f, batch,
+		preciseLocationAvailable = preciseLocationAvailable,
+		adaptiveProfileVersion = 1,
+	)
+}

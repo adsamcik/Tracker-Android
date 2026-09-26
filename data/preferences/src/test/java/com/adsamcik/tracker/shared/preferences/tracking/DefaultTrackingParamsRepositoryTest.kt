@@ -57,6 +57,35 @@ class DefaultTrackingParamsRepositoryTest {
         assertFalse(state.wifiEnabled)
     }
 
+	@Test
+	fun `Location profile round trips independently of legacy custom settings`() = runTest {
+		val repository = DefaultTrackingParamsRepository(context, Dispatchers.IO)
+		val initial = repository.data.first()
+		assertEquals(null, initial.locationProfileVersion)
+		assertEquals(null, initial.locationBackgroundMode)
+		assertFalse(initial.locationMotionAssistanceEnabled)
+		repository.update { copy(minTimeSeconds = 17, minDistanceMeters = 43, presetName = "CUSTOM") }
+		repository.enableAdaptiveBackgroundLocation()
+		repository.adoptLocationProfile(5)
+		repository.setLocationMotionAssistanceEnabled(true)
+		val saved = repository.data.first()
+		assertEquals(1, saved.locationProfileVersion)
+		assertEquals(5, saved.locationBalanceLevel)
+		assertEquals(LocationBackgroundMode.ADAPTIVE, saved.locationBackgroundMode)
+		assertEquals(17, saved.minTimeSeconds)
+		assertEquals(43, saved.minDistanceMeters)
+		assertTrue(saved.locationMotionAssistanceEnabled)
+		assertEquals(initial.activityEnabled, saved.activityEnabled)
+		assertEquals(initial.autoTrackingMode, saved.autoTrackingMode)
+		val proto = readTrackingProto()
+		assertTrue(proto.hasLocationProfileVersion())
+		assertEquals(5, proto.locationBalanceLevel)
+		assertEquals(2, proto.locationBackgroundMode)
+		repository.setAmbientLocationEnabled(false)
+		assertFalse(repository.data.first().ambientLocationEnabled)
+		assertEquals(5, repository.data.first().locationBalanceLevel)
+	}
+
     @Test
 	fun `migration folds legacy wifi outputs and imports barometer setting`() = runTest {
 		PreferenceManager.getDefaultSharedPreferences(context).edit()

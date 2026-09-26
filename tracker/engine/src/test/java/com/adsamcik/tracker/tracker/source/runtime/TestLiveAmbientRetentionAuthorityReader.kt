@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
@@ -88,6 +90,17 @@ internal class TestLiveAmbientRetentionAuthorityReader(
 		this.effectiveWallTimeMs = effectiveWallTimeMs
 		val policyId = source.liveAmbientPolicyId()
 		when (source) {
+			TrackingSourceComponent.LOCATION -> database.locationPurposeDao().insertRetentionAuthority(
+				AmbientLocationRetentionAuthorityIntegrity.create(
+					scope = AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+					approvalRevision = approvalRevision, state = AmbientLocationRetentionAuthorityEntity.STATE_ACTIVE,
+					opaquePolicyId = policyId, sourcePolicyRevision = sourcePolicyRevision,
+					ambientConsentEpoch = ambientConsentEpoch, collectedDataEpoch = collectedDataEpoch,
+					retainedFromMs = retainedFromMs, effectiveBootId = bootId,
+					effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
+					effectiveWallTimeMs = effectiveWallTimeMs,
+				),
+			)
 			TrackingSourceComponent.STEPS -> database.ambientStepsFactRevisionDao()
 				.insertRetentionAuthority(
 					AmbientStepsRetentionAuthorityIntegrity.create(

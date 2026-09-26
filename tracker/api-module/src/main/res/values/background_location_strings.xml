@@ -1,0 +1,4 @@
+<resources>
+    <string name="notification_background_location_title">All-day Location</string>
+    <string name="notification_background_location_text">Adaptive location collection is enabled. Open Tracker to manage it.</string>
+</resources>

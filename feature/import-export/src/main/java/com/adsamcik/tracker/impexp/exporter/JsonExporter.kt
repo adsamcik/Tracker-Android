@@ -161,6 +161,43 @@ class JsonExporter @JvmOverloads @Inject constructor(
 					first = false
 				},
 			)
+			var ambientAfterTime = afterTimeMs
+			var ambientAfterId = afterId
+			var ambientStarted = false
+			var ambientAuthorityStamp: String? = null
+			var firstAmbientPoint = true
+			while (true) {
+				verifyCollectedDataAccess()
+				val before = database.locationPurposeDao().ambientExportAuthorityStamp()
+				if (ambientStarted) check(before == ambientAuthorityStamp) { "Location export consent or retention changed" }
+				val page = database.locationPurposeDao().visiblePathChunk(fromMs, toMs,
+					ambientAfterTime, ambientAfterId, 256, ambientOnly = true)
+				if (page.isEmpty()) break
+				if (!ambientStarted) ambientAuthorityStamp = before
+				check(database.locationPurposeDao().ambientExportAuthorityStamp() == ambientAuthorityStamp) {
+					"Location export consent or retention changed"
+				}
+				if (!ambientStarted) {
+					if (!first) writer.write(",")
+					writer.write("{\"schemaVersion\":3,\"orphanedData\":true,\"locations\":[")
+					ambientStarted = true
+				}
+				page.forEach { row ->
+					verifyCollectedDataAccess()
+					if (!firstAmbientPoint) writer.write(",")
+					firstAmbientPoint = false
+					writeLocation(writer, row.sample.toModel())
+					progress.include(row.sample.id, row.sample.timeMs)
+				}
+				ambientAfterTime = page.last().sample.timeMs
+				ambientAfterId = page.last().sample.id
+			}
+			if (ambientStarted) {
+				check(database.locationPurposeDao().ambientExportAuthorityStamp() == ambientAuthorityStamp) {
+					"Location export consent or retention changed"
+				}
+				writer.write("],\"wifiObservations\":[],\"cellSamples\":[]}")
+			}
 			writer.write("]")
 			writer.flush()
 		}

@@ -32,6 +32,8 @@ data class SourceEvidenceCandidate<T : SourcePayload>(
 	val quality: SourceQuality,
 	val payloadVersion: Int,
 	val payload: T,
+	/** Transient Android speed uncertainty for live motion hints; never serialized or replay authority. */
+	val locationSpeedAccuracyMetersPerSecond: Float? = null,
 ) {
 	init {
 		require(payload.source == source) { "Payload source must match candidate source" }

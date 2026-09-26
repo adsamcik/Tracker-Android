@@ -56,6 +56,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	private val cleanupStore: ActivityRegistrationCleanupStore,
 	private val cleanupScheduler: ActivityRegistrationCleanupScheduler,
 	@ApplicationScope appScope: CoroutineScope,
+	private val motionAssistance: DefaultActivityMotionAssistance,
 ) : ActivityRegistrationArbiter {
 	private val mutex = Mutex()
 	private val demands = mutableMapOf<ActivityRegistrationOwner, ActivityRegistrationDemand>()
@@ -95,21 +96,41 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		require(owner == ActivityRegistrationOwner.ACTIVE_SESSION || demand.capturedPlan == null) {
 			"Only captured session Activity demand may carry captured-plan authority"
 		}
+		require((owner == ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE) ==
+			(demand.motionAssistanceAuthority != null)) {
+			"Motion assistance requires its own Location authority and owner"
+		}
+		if (owner == ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE && demands[owner] != demand) {
+			motionAssistance.clear()
+		}
 		if (demand.enabled) demands[owner] = demand else demands.remove(owner)
-		reconcileLocked()
+		reconcileAndPublishLocked()
 	}
 
 	override suspend fun clearDemand(owner: ActivityRegistrationOwner): ActivityRegistrationResult = mutex.withLock {
+		if (owner == ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE) motionAssistance.clear()
 		demands.remove(owner)
-		reconcileLocked()
+		reconcileAndPublishLocked()
 	}
 
 	override suspend fun reconcileDurableDemands(): ActivityRegistrationResult = mutex.withLock {
-		reconcileLocked()
+		reconcileAndPublishLocked()
+	}
+
+	private suspend fun reconcileAndPublishLocked(): ActivityRegistrationResult {
+		val result = reconcileLocked()
+		val helper = demands[ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE]
+		val authority = helper?.motionAssistanceAuthority?.takeIf {
+			motionAssistance.isAuthorityCurrent(it)
+		}
+		motionAssistance.acknowledge(authority, result.snapshot, helper?.transitions.orEmpty())
+		return result
 	}
 
 	override suspend fun closeForCollectedDataDeletion(): ActivityRegistrationResult = mutex.withLock {
 		deletionPaused = true
+		motionAssistance.clear()
+		demands.remove(ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE)
 		// A session cannot survive full collected-data deletion. The application monitor remains a
 		// desired owner and will be installed with a fresh identity after the deletion commits.
 		demands.remove(ActivityRegistrationOwner.ACTIVE_SESSION)
@@ -196,9 +217,13 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	override fun snapshot(): ActivityRegistrationSnapshot = current
 
 	private suspend fun reconcileLocked(): ActivityRegistrationResult {
-		val requestedCombined = combineDemands()
+		val helper = demands[ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE]?.motionAssistanceAuthority
+		val helperEligible = helper != null && motionAssistance.isAuthorityCurrent(helper)
+		val requestedCombined = combineDemands(excludedOwners = if (helperEligible) emptySet() else
+			setOf(ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE))
 		if (deletionPaused) return applied(current)
-		if (requestedCombined.enabled && !startupGateProvider.get().isReady) {
+		if (requestedCombined.enabled && (!startupGateProvider.get().isReady ||
+			!startupGateProvider.get().permitsNewCollection)) {
 			// Do not perform enabled storage reconciliation or provider registration while process-wide
 			// recovery is closed. Cleanup remains legal, so fence an already active process-local
 			// registration before retaining the logical owners for a later Ready reconciliation.
@@ -250,7 +275,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			)
 		}
 		val durableEligibility = database.sourceBrokerDao().authorizationDemands(ACTIVITY_SOURCE_KIND)
-		if (durableEligibility.isEmpty()) {
+		if (durableEligibility.isEmpty() && !helperEligible) {
 			fenceAndRemoveLocked(clearOwners = false)
 			return failure(
 				ActivityRegistrationStatus.BLOCKED,
@@ -259,7 +284,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			)
 		}
 		val eligibilityMask = SourceBrokerAuthorization.purposeMask(durableEligibility)
-		if (eligibilityMask == 0L) {
+		if (eligibilityMask == 0L && !helperEligible) {
 			fenceAndRemoveLocked(clearOwners = false)
 			return failure(
 				ActivityRegistrationStatus.BLOCKED,
@@ -268,7 +293,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			)
 		}
 		val acquisitionEligibility = activityAcquisitionEligibility(durableEligibility)
-		if (!acquisitionEligibility.sourceEligible) {
+		if (!acquisitionEligibility.sourceEligible && !helperEligible) {
 			fenceAndRemoveLocked(clearOwners = false)
 			return failure(
 				ActivityRegistrationStatus.BLOCKED,
@@ -276,7 +301,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 				false,
 			)
 		}
-		if (acquisitionEligibility.automaticControlRefreshPending) {
+		if (acquisitionEligibility.automaticControlRefreshPending && !helperEligible) {
 			// SourcePolicy is already authoritative, but the application-scoped control demand has
 			// not yet been replaced with its new policy/consent generation. Close callback authority
 			// immediately while retaining an otherwise identical physical registration. The policy
@@ -308,11 +333,15 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 				true,
 			)
 		}
-		val combined = if (
+		val combined = if (!acquisitionEligibility.sourceEligible) {
+			combineDemands(excludedOwners = ActivityRegistrationOwner.entries.toSet() -
+				ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE)
+		} else if (
 			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR in requestedCombined.owners &&
 			!acquisitionEligibility.automaticControlEligible
 		) {
-			combineDemands(excludedOwner = ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+			combineDemands(excludedOwners = setOf(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR) +
+				if (helperEligible) emptySet() else setOf(ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE))
 		} else {
 			requestedCombined
 		}
@@ -412,7 +441,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			}
 			val stillEligible = database.withTransaction {
 				val demands = database.sourceBrokerDao().authorizationDemands(ACTIVITY_SOURCE_KIND)
-				activityAcquisitionEligibilityInTransaction(demands).allows(combined)
+				allowsCombinedInTransaction(activityAcquisitionEligibilityInTransaction(demands), combined)
 			}
 			if (!stillEligible) {
 				fenceAndRemoveLocked(clearOwners = false)
@@ -504,11 +533,13 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			withContext(NonCancellable) {
 				database.withTransaction {
 					val demands = database.sourceBrokerDao().authorizationDemands(ACTIVITY_SOURCE_KIND)
-					if (!activityAcquisitionEligibilityInTransaction(demands).allows(combined)) {
+					if (!allowsCombinedInTransaction(activityAcquisitionEligibilityInTransaction(demands), combined)) {
 						return@withTransaction null
 					}
 					requireDesiredPlanMatches(combined.capturePlan)
-					val previous = database.sourceBrokerDao().acceptReservedReplacement(
+					val previous = if (combined.assistanceOnly) {
+						acceptAssistanceReservation(reservation)
+					} else database.sourceBrokerDao().acceptReservedReplacement(
 						reservedState = reservation.state,
 						expectedPointerGeneration = reservation.predecessorState?.registrationGeneration,
 						expectedPointerInstanceId = reservation.predecessorState?.sourceInstanceId,
@@ -587,6 +618,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	}
 
 	private suspend fun fenceAndRemoveLocked(clearOwners: Boolean): ActivityRegistrationResult {
+		motionAssistance.clear()
 		hydratePersistedIdentityIfNeeded()
 		if (!current.active && !systemRegistrationRequiresRearm) {
 			current = current.copy(owners = if (clearOwners) emptySet() else demands.keys.toSet())
@@ -640,12 +672,14 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		val nowElapsed = SystemClock.elapsedRealtimeNanos()
 		return database.withTransaction {
 			val brokerDao = database.sourceBrokerDao()
-			val demands = brokerDao.authorizationDemands(ACTIVITY_SOURCE_KIND)
-			require(demands.isNotEmpty()) {
+			val demands = if (combined.assistanceOnly) emptyList() else
+				brokerDao.authorizationDemands(ACTIVITY_SOURCE_KIND)
+			require(demands.isNotEmpty() ||
+				(combined.assistanceOnly && motionAssistance.isAuthorityCurrent(requireNotNull(combined.assistanceAuthority)))) {
 				"Activity registration requires an active durable broker demand"
 			}
 			val purposeEligibilityMask = SourceBrokerAuthorization.purposeMask(demands)
-			require(purposeEligibilityMask > 0L) {
+			require(purposeEligibilityMask > 0L || combined.assistanceOnly) {
 				"Activity broker demand has no recognized purpose eligibility"
 			}
 			val dao = database.sourceRegistrationStateDao()
@@ -1032,6 +1066,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		val freshDemands = database.sourceBrokerDao().authorizationDemands(ACTIVITY_SOURCE_KIND)
 		val eligibility = activityAcquisitionEligibilityInTransaction(freshDemands)
 		val authorizedDemands = when {
+			combined.assistanceOnly -> emptyList()
 			!eligibility.sourceEligible -> emptyList()
 			eligibility.automaticControlRefreshPending ->
 				eligibility.authorizedDemandsWhileRefreshPending
@@ -1040,10 +1075,65 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		return FreshActivityAuthorization(
 			authorizedDemands = authorizedDemands,
 			result = AuthorizationRotationResult(
-				continuationEligible = eligibility.allows(combined) &&
-					!eligibility.automaticControlRefreshPending,
+				continuationEligible = allowsCombinedInTransaction(eligibility, combined) &&
+					(!eligibility.automaticControlRefreshPending ||
+						(combined.assistanceAuthority != null &&
+							ActivityRegistrationOwner.AUTOMATIC_START_MONITOR !in combined.owners)),
 			),
 		)
+	}
+
+	private suspend fun allowsCombinedInTransaction(
+		eligibility: ActivityAcquisitionEligibility,
+		combined: CombinedDemand,
+	): Boolean {
+		val helperAllowed = combined.assistanceAuthority?.let {
+			motionAssistance.isAuthorityCurrent(it)
+		} == true
+		return if (combined.assistanceOnly) helperAllowed else
+			eligibility.allows(combined) && (combined.assistanceAuthority == null || helperAllowed)
+	}
+
+	/**
+	 * The normal broker accept requires a durable Activity demand. This narrow variant accepts
+	 * only a transient Location lease and an explicit deny-all Activity persistence vector.
+	 * It uses the same registration pointer, generation, provider cleanup and retirement path.
+	 */
+	private suspend fun acceptAssistanceReservation(
+		reservation: ReservedActivityRegistration,
+	): ProviderRegistrationGenerationEntity? {
+		val dao = database.sourceBrokerDao()
+		val state = reservation.state
+		val reserved = requireNotNull(dao.registration(ACTIVITY_SOURCE_KIND, state.registrationGeneration))
+		check(reserved.status == ProviderRegistrationGenerationEntity.STATUS_RESERVED &&
+			reserved.sourceInstanceId == state.sourceInstanceId && reserved.ownerScope == OWNER_SCOPE)
+		val pointer = database.sourceRegistrationStateDao().get(ACTIVITY_SOURCE_KIND, OWNER_SCOPE)
+		check(pointer?.registrationGeneration == reservation.predecessorState?.registrationGeneration &&
+			pointer?.sourceInstanceId == reservation.predecessorState?.sourceInstanceId)
+		val authorization = requireNotNull(dao.latestAuthorization(ACTIVITY_SOURCE_KIND, state.registrationGeneration)
+			.toAuthorizationSnapshotOrNull())
+		check(authorization.isDenied) { "Transient assistance cannot accept Activity persistence authority" }
+		check(dao.markRegistrationActive(
+			ACTIVITY_SOURCE_KIND, state.registrationGeneration, state.sourceInstanceId,
+			reservation.providerRequestAtMs, reservation.providerRequestElapsedRealtimeNanos,
+		) == 1)
+		val previous = pointer?.let { dao.registration(ACTIVITY_SOURCE_KIND, it.registrationGeneration) }
+		if (previous != null) {
+			check(previous.sourceInstanceId == requireNotNull(pointer).sourceInstanceId &&
+				previous.status != ProviderRegistrationGenerationEntity.STATUS_RESERVED)
+			if (previous.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE) {
+				check(dao.markRegistrationRetiring(
+					ACTIVITY_SOURCE_KIND, previous.registrationGeneration, previous.sourceInstanceId,
+					reservation.providerRequestAtMs, reservation.providerRequestElapsedRealtimeNanos,
+					"SUPERSEDED_BY_NEW_GENERATION",
+				) == 1)
+			}
+		}
+		dao.replaceRegistrationState(state.copy(nextSequence = if (
+			pointer != null && pointer.sourceInstanceId == state.sourceInstanceId && pointer.clockDomainId == state.clockDomainId &&
+			pointer.collectedDataEpoch == state.collectedDataEpoch
+		) pointer.nextSequence else state.nextSequence))
+		return previous?.takeIf { it.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE }
 	}
 
 	private suspend fun authorizationNoLongerEligibleLocked(): ActivityRegistrationResult {
@@ -1155,11 +1245,12 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		)
 	}
 
-	private fun combineDemands(excludedOwner: ActivityRegistrationOwner? = null): CombinedDemand {
+	private fun combineDemands(excludedOwners: Set<ActivityRegistrationOwner> = emptySet()): CombinedDemand {
 		val active = demands.filter { (owner, demand) ->
-			owner != excludedOwner && demand.enabled
+			owner !in excludedOwners && demand.enabled
 		}
 		val automatic = active[ActivityRegistrationOwner.AUTOMATIC_START_MONITOR]
+		val durable = active.filterKeys { it != ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE }
 		return CombinedDemand(
 			owners = active.keys,
 			intervalSeconds = active.values.mapNotNull { it.continuousRecognitionIntervalSeconds }.minOrNull(),
@@ -1170,6 +1261,9 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 				?.capturedPlan?.configurationRevision
 				?: active.values.mapNotNull { it.planRevision }.maxOrNull(),
 			capturePlan = active[ActivityRegistrationOwner.ACTIVE_SESSION]?.capturedPlan,
+			assistanceAuthority = active[ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE]?.motionAssistanceAuthority,
+			durableRecognitionEligible = durable.values.any { it.continuousRecognitionIntervalSeconds != null },
+			durableTransitions = durable.values.flatMap { it.transitions }.toSet(),
 		)
 	}
 
@@ -1459,11 +1553,17 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		val automaticTransitions: Set<com.adsamcik.tracker.activity.ActivityTransitionData>,
 		val appliedRevision: Long?,
 		val capturePlan: ActivityRegistrationPlanAttribution?,
+		val assistanceAuthority: ActivityMotionAssistanceAuthority?,
+		val durableRecognitionEligible: Boolean,
+		val durableTransitions: Set<com.adsamcik.tracker.activity.ActivityTransitionData>,
 	) {
+		val assistanceOnly: Boolean get() = owners == setOf(ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE)
 		val enabled: Boolean get() = intervalSeconds != null || transitions.isNotEmpty()
 		val callbackMetadata = ActivityCallbackMetadata(
 			automaticRecognitionEligible,
 			automaticTransitions,
+			durableRecognitionEligible,
+			durableTransitions,
 		)
 
 		fun toRecognitionConfig() = RecognitionConfig(
@@ -1471,6 +1571,8 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			requestedTransitions = transitions,
 			automaticRecognitionEligible = automaticRecognitionEligible,
 			automaticTransitions = automaticTransitions,
+			durableRecognitionEligible = durableRecognitionEligible,
+			durableTransitions = durableTransitions,
 		)
 
 		fun physicalConfigurationFingerprint(): String {
@@ -1496,6 +1598,8 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	private data class ActivityCallbackMetadata(
 		val automaticRecognitionEligible: Boolean,
 		val automaticTransitions: Set<com.adsamcik.tracker.activity.ActivityTransitionData>,
+		val durableRecognitionEligible: Boolean,
+		val durableTransitions: Set<com.adsamcik.tracker.activity.ActivityTransitionData>,
 	)
 
 	private data class ReservedActivityRegistration(

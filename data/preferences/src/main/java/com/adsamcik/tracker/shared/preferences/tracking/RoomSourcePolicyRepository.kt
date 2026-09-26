@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.preferences.tracking
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.fenceSourcePurposesInTransaction
+import com.adsamcik.tracker.shared.base.database.removeLocationAmbientPurposeInCurrentTransaction
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
@@ -176,7 +177,11 @@ class RoomSourcePolicyRepository(
 					old.qos != next.qos ||
 					old.locationMinTimeSeconds != next.locationMinTimeSeconds ||
 					old.locationMinDistanceMeters != next.locationMinDistanceMeters ||
-					old.locationRequiredAccuracyMeters != next.locationRequiredAccuracyMeters
+					old.locationRequiredAccuracyMeters != next.locationRequiredAccuracyMeters ||
+					old.balanceProfileVersion != next.balanceProfileVersion ||
+					old.balanceLevel != next.balanceLevel ||
+					old.locationBackgroundMode != next.locationBackgroundMode ||
+					old.locationMotionAssistanceEnabled != next.locationMotionAssistanceEnabled
 			}
 			val automaticControlChanged =
 				previousAutomaticControlEligible != automaticControlEligible
@@ -221,7 +226,8 @@ class RoomSourcePolicyRepository(
 			TrackingSourceComponent.entries
 				.filter { source ->
 					current[source].ambientConsentEpoch != null &&
-						!requestedAmbientEligibility.getValue(source)
+						(!requestedAmbientEligibility.getValue(source) ||
+							current[source].locationBackgroundMode != desired.getValue(source).locationBackgroundMode)
 				}
 				.forEach { source ->
 					database.fenceSourcePurposesInTransaction(
@@ -284,8 +290,12 @@ class RoomSourcePolicyRepository(
 				val previous = current[source]
 				val requested = requestedAmbientEligibility.getValue(source)
 				val changed = (previous.ambientConsentEpoch != null) != requested ||
-					previous.ambientPersistenceEligible != requested
+					previous.ambientPersistenceEligible != requested ||
+					(requested && previous.locationBackgroundMode != desired.getValue(source).locationBackgroundMode)
 				if (changed) {
+					if (source == TrackingSourceComponent.LOCATION && previous.ambientConsentEpoch != null) {
+						database.removeLocationAmbientPurposeInCurrentTransaction()
+					}
 					val epoch = nextConsentEpoch(source, SourcePurpose.AMBIENT_PRODUCT)
 					dao.insertConsentEpochs(
 						listOf(
@@ -393,6 +403,9 @@ class RoomSourcePolicyRepository(
 			}
 
 			val nextRevision = checkedNextRevision(current.revision)
+			if (source == TrackingSourceComponent.LOCATION && purpose == SourcePurpose.AMBIENT_PRODUCT && currentlyEligible) {
+				database.removeLocationAmbientPurposeInCurrentTransaction()
+			}
 			val nextEpoch = nextConsentEpoch(source, purpose)
 			dao.insertConsentEpochs(
 				listOf(
@@ -420,6 +433,10 @@ class RoomSourcePolicyRepository(
 						previous.locationMinTimeSeconds,
 						previous.locationMinDistanceMeters,
 						previous.locationRequiredAccuracyMeters,
+						previous.balanceProfileVersion,
+						previous.balanceLevel,
+						previous.locationBackgroundMode,
+						previous.locationMotionAssistanceEnabled,
 					),
 					captureConsentEpoch = previous.captureConsentEpoch,
 					controlConsentEpoch = when {
@@ -553,6 +570,10 @@ class RoomSourcePolicyRepository(
 					wallTimeMs = entity.effectiveWallTimeMs,
 				),
 				policyRevision = entity.policyRevision,
+				balanceProfileVersion = entity.balanceProfileVersion,
+				balanceLevel = entity.balanceLevel,
+				locationBackgroundMode = entity.locationBackgroundMode?.let(LocationBackgroundMode::fromStableCode),
+				locationMotionAssistanceEnabled = entity.locationMotionAssistanceEnabled,
 			)
 			validatePurposeMatrix(policy)
 			validateConsentReference(policy, SourcePurpose.SESSION_CAPTURE)
@@ -626,6 +647,11 @@ class RoomSourcePolicyRepository(
 			locationRequiredAccuracyMeters = settings.requiredAccuracyMeters.coerceAtLeast(1).takeIf {
 				source == TrackingSourceComponent.LOCATION
 			},
+			balanceProfileVersion = settings.locationProfileVersion.takeIf { source == TrackingSourceComponent.LOCATION },
+			balanceLevel = settings.locationBalanceLevel.takeIf { source == TrackingSourceComponent.LOCATION },
+			locationBackgroundMode = settings.locationBackgroundMode.takeIf { source == TrackingSourceComponent.LOCATION },
+			locationMotionAssistanceEnabled = source == TrackingSourceComponent.LOCATION &&
+				settings.locationMotionAssistanceEnabled,
 		)
 	}
 
@@ -658,6 +684,10 @@ class RoomSourcePolicyRepository(
 		effectiveElapsedRealtimeNanos = effectiveTime.elapsedRealtimeNanos,
 		effectiveWallTimeMs = effectiveTime.wallTimeMs,
 		changeReason = reason,
+		balanceProfileVersion = desired.balanceProfileVersion,
+		balanceLevel = desired.balanceLevel,
+		locationBackgroundMode = desired.locationBackgroundMode?.stableCode,
+		locationMotionAssistanceEnabled = desired.locationMotionAssistanceEnabled,
 	)
 
 	private fun consentEntity(
@@ -693,7 +723,11 @@ class RoomSourcePolicyRepository(
 			"ambient-location:${settings.ambientLocationEnabled}|" +
 			"ambient-steps:${settings.ambientStepsEnabled}|" +
 			"ambient-wifi:${settings.ambientWifiEnabled}|" +
-			"ambient-cell:${settings.ambientCellEnabled}"
+			"ambient-cell:${settings.ambientCellEnabled}" +
+			if (settings.locationProfileVersion == null && settings.locationBackgroundMode == null &&
+				!settings.locationMotionAssistanceEnabled
+			) "" else "|location-profile:${settings.locationProfileVersion}:${settings.locationBalanceLevel}:" +
+				"${settings.locationBackgroundMode?.stableCode}:${settings.locationMotionAssistanceEnabled}"
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))
 			.joinToString("") { byte -> "%02x".format(byte) }
@@ -706,6 +740,10 @@ class RoomSourcePolicyRepository(
 		val locationMinTimeSeconds: Int?,
 		val locationMinDistanceMeters: Int?,
 		val locationRequiredAccuracyMeters: Int?,
+		val balanceProfileVersion: Int? = null,
+		val balanceLevel: Int? = null,
+		val locationBackgroundMode: LocationBackgroundMode? = null,
+		val locationMotionAssistanceEnabled: Boolean = false,
 	)
 
 	private companion object {

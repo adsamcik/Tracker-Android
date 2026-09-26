@@ -34,6 +34,7 @@ import com.adsamcik.tracker.tracker.api.TrackingStartRequestCoordinator
 import com.adsamcik.tracker.tracker.api.isRetryable
 import com.adsamcik.tracker.tracker.api.activityTransitionCallbackCleanupDeadlineElapsedRealtimeNanos
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
+import com.adsamcik.tracker.tracker.policy.BatteryAwarePolicy
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingCallerAuthorityReconciliation
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionCallerAuthorityReconciler
@@ -100,6 +101,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 	private val sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,
 	private val activeTrackingSessionCallerAuthorityReconciler:
 		ActiveTrackingSessionCallerAuthorityReconciler,
+	private val batteryAwarePolicy: BatteryAwarePolicy = BatteryAwarePolicy(context),
 ) : TrackingStartRequestCoordinator {
 	private val powerManager: PowerManager = context.getSystemServiceTyped(Context.POWER_SERVICE)
 
@@ -133,6 +135,12 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		exactContinuationAuthority: ServiceRunContinuationAuthority?,
 		startupGeneration: Long,
 	): TrackingStartPreparationResult {
+		trackingLifecycleCommandAuthority.pendingCollectionResumeExitId?.let { exitId ->
+			if (!request.isUserInitiated || request.isAmbient || request.automaticTrigger != null ||
+				request.recoveryDescriptor != null ||
+				!trackingLifecycleCommandAuthority.resumeCollectionAfterUserExit(exitId)
+			) return TrackingStartPreparationResult.Rejected("TRACKING_EXPLICIT_RESUME_REQUIRED")
+		}
 		val bootId = bootClockDomainProvider.current()
 		val descriptorResolution = resolveDescriptor(request, bootId)
 		val resolved = when (descriptorResolution) {
@@ -937,14 +945,18 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 					Manifest.permission.ACCESS_FINE_LOCATION,
 				) == PackageManager.PERMISSION_GRANTED,
 				subscriptionIds = emptySet(),
+				liveSources = acceptedSources,
 			),
 			resolutionContext = PlanResolutionContext(
+				batteryPressure = batteryAwarePolicy.currentPressure(),
 				constraints = constraints,
 				powerSaver = powerManager.isPowerSaveMode,
 				doze = powerManager.isDeviceIdleMode,
 				severeThermalPressure = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
 					powerManager.currentThermalStatus >= PowerManager.THERMAL_STATUS_SEVERE,
 				motionProfile = collectionMotionController.policy.value.acquisitionProfile,
+				locationProfileLevel = settings.locationBalanceLevel,
+				locationLiveFocus = SourceKind.LOCATION in acceptedSources,
 			),
 			demands = emptyList(),
 			clockDomainId = bootId,

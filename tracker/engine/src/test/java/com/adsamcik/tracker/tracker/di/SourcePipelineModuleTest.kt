@@ -60,7 +60,7 @@ class SourcePipelineModuleTest {
 			listOf(
 				"ACTIVITY:provideActivitySourceRuntime:ActivitySourceRuntime",
 				"CELL:provideCellSourceRuntime:SharedCellSourceController",
-				"LOCATION:provideLocationSourceRuntime:LocationSourceRuntime",
+				"LOCATION:provideLocationSourceRuntime:SharedLocationSourceController",
 				"PRESSURE:providePressureSourceRuntime:PressureSourceRuntime",
 				"STEPS:provideStepSourceRuntime:SharedStepSourceController",
 				"WIFI:provideWifiSourceRuntime:SharedWifiSourceController",

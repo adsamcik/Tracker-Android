@@ -55,6 +55,10 @@ val rawPlatformSpeedAccuracyMps: Float? = null,
 val bearingDeg: Float? = null,
 val bearingAccuracyDeg: Float? = null,
 val bootClockDomainId: String? = null,
+/** Read adapter metadata used to avoid bridging missing native observations in interchange. */
+val routeContinuityId: String? = null,
+val routeSequence: Long? = null,
+val sessionless: Boolean = false,
 )
 
 /**

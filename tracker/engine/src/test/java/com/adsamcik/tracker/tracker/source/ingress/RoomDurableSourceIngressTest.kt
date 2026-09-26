@@ -635,6 +635,7 @@ class RoomDurableSourceIngressTest {
 		val admitted = subject.admit(delivery).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
 
 		admitted.units.map { it.unitIndex } shouldBe listOf(0, 1)
+		admitted.units.map { it.sourceSequence } shouldBe listOf(0L, 1L)
 		val rows = database.sourceEventWalDao().eventsAfter(0L, 10)
 		rows.map { it.sourceSequence } shouldBe listOf(0L, 1L)
 		rows.map { it.deliveryIdentity } shouldBe listOf(delivery.identity.value, delivery.identity.value)
@@ -646,6 +647,9 @@ class RoomDurableSourceIngressTest {
 			SOURCE_OWNER_SCOPE,
 		)?.nextSequence shouldBe 2L
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
+		val replay = subject.admit(delivery).shouldBeInstanceOf<DeliveryAdmissionResult.Duplicate>()
+		replay.units shouldBe admitted.units
+		replay.units.map { it.sourceSequence } shouldBe rows.map { it.sourceSequence }
 	}
 
 	@Test
@@ -1118,6 +1122,35 @@ class RoomDurableSourceIngressTest {
 			SourceKind.ACTIVITY.stableCode,
 			SOURCE_OWNER_SCOPE,
 		)?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `suppressed collection rejects new single and batch WAL even while recovery remains ready`() = runTest {
+		startupGate.collectionAllowed = false
+		startupGate.isReady shouldBe true
+		subject.admit(candidate(sequence = 900L)) shouldBe AdmissionResult.PermanentFailure(AdmissionFailureCode.COLLECTION_SUPPRESSED)
+		subject.admit(delivery(candidate(sequence = 901L))) shouldBe
+			DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.COLLECTION_SUPPRESSED)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `explicit resume never admits a delayed point from the stopped interval`() = runTest {
+		startupGate.collectionResumeBoundary = com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary(
+			wallTimeMs = 100L, bootId = "boot", elapsedRealtimeNanos = 101L)
+		subject.admit(candidate(sequence = 900L, observedElapsedNanos = 100L)) shouldBe
+			AdmissionResult.PermanentFailure(AdmissionFailureCode.COLLECTION_SUPPRESSED)
+		subject.admit(delivery(candidate(sequence = 901L, observedElapsedNanos = 100L))) shouldBe
+			DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.COLLECTION_SUPPRESSED)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `resume rejects an overlapping Steps window without splitting its count`() {
+		startupGate.collectionResumeBoundary = com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary(
+			wallTimeMs = 100L, bootId = "boot", elapsedRealtimeNanos = 101L)
+		startupGate.permitsNewEvidence(stepCandidate(startNanos = 100L, endNanos = 105L)) shouldBe false
+		startupGate.permitsNewEvidence(stepCandidate(startNanos = 101L, endNanos = 105L)) shouldBe true
 	}
 
 	@Test
@@ -2616,6 +2649,9 @@ private class FakeTrackingStartupGate(
 	var reconcileCalls: Int = 0
 		private set
 	var allowReadyGeneration: Boolean = true
+	var collectionAllowed: Boolean = true
+	override var collectionResumeBoundary: com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary? = null
+	override val permitsNewCollection: Boolean get() = isReady && collectionAllowed
 
 	override val isReady: Boolean
 		get() = result is TrackingStartupResult.Ready

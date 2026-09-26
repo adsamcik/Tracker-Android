@@ -338,6 +338,9 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		val automaticTransitions = config.automaticTransitions.sortedWith(
 			compareBy<ActivityTransitionData> { it.activity.name }.thenBy { it.type.value },
 		)
+		val durableTransitions = config.durableTransitions?.sortedWith(
+			compareBy<ActivityTransitionData> { it.activity.name }.thenBy { it.type.value },
+		)
 		return brokeredActivityIntent(identity.sourceInstanceId, identity.registrationGeneration)
 			.putExtra(EXTRA_SOURCE_INSTANCE_ID, identity.sourceInstanceId)
 			.putExtra(EXTRA_REGISTRATION_GENERATION, identity.registrationGeneration)
@@ -345,6 +348,11 @@ class GmsActivityRecognitionBackend @Inject constructor(
 			.putExtra(EXTRA_CLOCK_DOMAIN_ID, identity.clockDomainId)
 			.putExtra(EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT, identity.physicalConfigurationFingerprint)
 			.putExtra(EXTRA_AUTOMATIC_RECOGNITION_ELIGIBLE, config.automaticRecognitionEligible)
+			.putExtra(EXTRA_DURABLE_RECOGNITION_ELIGIBLE, config.durableRecognitionEligible)
+			.putExtra(EXTRA_DURABLE_TRANSITION_FILTER, durableTransitions != null)
+			.putExtra(EXTRA_DURABLE_TRANSITION_ACTIVITY_TYPES,
+				durableTransitions?.map { ActivityTypeMapping.toPlayServicesCode(it.activity) }?.toIntArray())
+			.putExtra(EXTRA_DURABLE_TRANSITION_TYPES, durableTransitions?.map { it.type.value }?.toIntArray())
 			.putExtra(
 				EXTRA_AUTOMATIC_TRANSITION_ACTIVITY_TYPES,
 				automaticTransitions.map { transition ->
@@ -385,6 +393,10 @@ class GmsActivityRecognitionBackend @Inject constructor(
 			.setAction("${context.packageName}.ACTIVITY_RECOGNITION.$sourceInstanceId.$registrationGeneration")
 
 	companion object {
+		internal const val EXTRA_DURABLE_RECOGNITION_ELIGIBLE = "activity_durable_recognition_eligible"
+		internal const val EXTRA_DURABLE_TRANSITION_FILTER = "activity_durable_transition_filter"
+		internal const val EXTRA_DURABLE_TRANSITION_ACTIVITY_TYPES = "activity_durable_transition_activity_types"
+		internal const val EXTRA_DURABLE_TRANSITION_TYPES = "activity_durable_transition_types"
 		internal const val LIVE_UPDATE_BUFFER_CAPACITY = 64
 		internal const val EXTRA_SOURCE_INSTANCE_ID = "activity_registration_source_instance_id"
 		internal const val EXTRA_REGISTRATION_GENERATION = "activity_registration_generation"

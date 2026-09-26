@@ -13,6 +13,8 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 
+enum class BatteryPressure { NONE, MODERATE, STRONG }
+
 /**
  * Adjusts the tracking [PolicyTier] based on current battery level.
  *
@@ -30,6 +32,30 @@ import kotlinx.coroutines.flow.callbackFlow
 class BatteryAwarePolicy @Inject constructor(
 	@ApplicationContext private val context: Context,
 ) {
+	private var previousPressure = BatteryPressure.NONE
+
+	/** Shared hysteresis for source planning; unknown battery never becomes an empty battery. */
+	fun currentPressure(): BatteryPressure {
+		val manager = context.getSystemService(BatteryManager::class.java)
+		return pressureForBatteryLevel(manager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+			?.takeIf { it in 0..100 }, manager?.isCharging == true)
+	}
+
+	@Synchronized
+	internal fun pressureForBatteryLevel(level: Int?, charging: Boolean): BatteryPressure {
+		if (charging) {
+			previousPressure = BatteryPressure.NONE
+			return previousPressure
+		}
+		if (level == null || level !in 0..100) return BatteryPressure.NONE
+		previousPressure = when {
+			level <= 10 || (previousPressure == BatteryPressure.STRONG && level < 15) -> BatteryPressure.STRONG
+			level <= 20 || (previousPressure != BatteryPressure.NONE && level < 25) -> BatteryPressure.MODERATE
+			else -> BatteryPressure.NONE
+		}
+		return previousPressure
+	}
+
 	val batteryLevelUpdates: Flow<Int> = callbackFlow {
 		val receiver = object : BroadcastReceiver() {
 			override fun onReceive(context: Context, intent: Intent) {

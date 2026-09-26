@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
@@ -24,12 +25,46 @@ import com.adsamcik.tracker.tracker.api.isRetryable
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import java.io.IOException
+import javax.inject.Provider
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class ExactSourceCallerGuardTest {
+	@Test
+	fun `user stop still permits exact accepted purpose retirement`() = runTest {
+		var allowed = true
+		val gate = mockk<TrackingStartupGate> { every { permitsNewCollection } answers { allowed } }
+		val activityControl = control()
+		val fixture = TrustedSourceCallerGuardFixture(setOf(activityControl), unavailableAutomatic(), gate)
+		val receipt = fixture.permit(SourceCallerRequest.PurposeOwnerMutation(
+			source = TrackingSource.ACTIVITY, purpose = TrackingPurpose.CONTROL, enabled = false,
+			requestedDemandIdentities = setOf(activityControl)))
+		allowed = false
+		fixture.current = emptySet()
+		fixture.permit(SourceCallerRequest.PurposeOwnerRetirement(
+			source = TrackingSource.ACTIVITY, purpose = TrackingPurpose.CONTROL, reference = receipt.reference))
+			.permittedDemandIdentities shouldBe setOf(activityControl)
+	}
+
+	@Test
+	fun `user stopping blocks both fresh recovery and accepted replay`() = runTest {
+		var allowed = true
+		val gate = mockk<TrackingStartupGate> { every { permitsNewCollection } answers { allowed } }
+		val location = capture(TrackingSource.LOCATION)
+		val fixture = TrustedSourceCallerGuardFixture(setOf(location), unavailableAutomatic(), gate)
+		val request = SourceCallerRequest.RecoverySessionStart(
+			requestedCapturedSources = setOf(TrackingSource.LOCATION), manifestIdentity = MANIFEST,
+			requestedDemandIdentities = setOf(location))
+		val receipt = fixture.permit(request)
+		allowed = false
+		fixture.guard.accept(request) shouldBe rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
+		fixture.guard.accept(replay(receipt, SourceCallerReplayKind.PROCESS_RECOVERY, setOf(location))) shouldBe
+			rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
+	}
+
 	@Suppress("DEPRECATION")
 	@Test
 	fun `legacy replay enum constants resolve to canonical semantics`() {
@@ -1134,12 +1169,14 @@ internal object TrustedSourceCallerGuardFixtureFactory {
 internal class TrustedSourceCallerGuardFixture(
 	current: Set<SourceCallerDemandIdentity>,
 	availability: TrackingPurposeAvailabilitySnapshot,
+	startupGate: TrackingStartupGate? = null,
 ) {
 	var current = current
 	var availability = availability
 	private val persisted =
 		mutableMapOf<SourceCallerReplayReference, StoredSourceCallerAuthority>()
 	val guard = ExactSourceCallerGuard(
+		startupGateProvider = startupGate?.let { gate -> Provider { gate } },
 		authorityReader = SourceCallerAuthoritySnapshotReader {
 			SourceCallerAuthoritySnapshot(current, availability)
 		},

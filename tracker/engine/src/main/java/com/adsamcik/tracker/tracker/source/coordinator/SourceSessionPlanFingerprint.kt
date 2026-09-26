@@ -68,6 +68,21 @@ internal fun SourceSessionPlanInputs.planInputsFingerprint(
 		output.writeEnvironment(environment)
 		output.writeResolutionContext(resolutionContext)
 		output.writeDemands(demands)
+		// Historical input bytes remain unchanged until Location adopts the explicit profile.
+		// Assistance and background mode are intent, so they must fence delayed prepared starts too.
+		if (settings.locationProfileVersion != null || settings.locationBackgroundMode != null ||
+			settings.locationMotionAssistanceEnabled
+		) {
+			output.writeString("adaptive-location-v1")
+			output.writeNullableLong(settings.locationProfileVersion?.toLong())
+			output.writeNullableLong(settings.locationBalanceLevel?.toLong())
+			output.writeNullableLong(settings.locationBackgroundMode?.stableCode?.toLong())
+			output.writeBoolean(settings.locationMotionAssistanceEnabled)
+			output.writeSourceSet(environment.liveSources)
+			output.writeNullableLong(resolutionContext.locationProfileLevel?.toLong())
+			output.writeBoolean(resolutionContext.locationLiveFocus)
+			output.writeString(resolutionContext.batteryPressure.name)
+		}
 	}
 	return buffer.sha256()
 }

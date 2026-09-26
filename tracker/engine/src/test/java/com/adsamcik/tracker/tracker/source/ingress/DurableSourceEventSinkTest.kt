@@ -189,15 +189,15 @@ class DurableSourceEventSinkTest {
 		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
 		coEvery { deliveryIngress.admit(any()) } returns DeliveryAdmissionResult.Admitted(
 			listOf(
-				DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("event-0"), 7L),
-				DeliveryAdmissionResult.AdmittedUnit(1, SourceEventId("event-1"), 8L),
+				DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("event-0"), 7L, sourceSequence = 40L),
+				DeliveryAdmissionResult.AdmittedUnit(1, SourceEventId("event-1"), 8L, sourceSequence = 41L),
 			),
 		)
 		val subject = DurableSourceEventSinkFactory(ingress, deliveryIngress, recovery)
 
 		val handoff = subject.unbound.admit(delivery())
 
-		handoff.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		handoff.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>().lastSourceSequence shouldBe 41L
 		coVerify(exactly = 1) { deliveryIngress.admit(any()) }
 		verify(exactly = 1) { recovery.requestCommittedWorkDrain() }
 		verify(exactly = 1) { recovery.requestActivityCapturedFactDrain() }
@@ -239,7 +239,7 @@ class DurableSourceEventSinkTest {
 		val motionController = mockk<CollectionMotionController>(relaxed = true)
 		val delivery = delivery()
 		coEvery { deliveryIngress.admit(any()) } returns DeliveryAdmissionResult.Admitted(
-			listOf(DeliveryAdmissionResult.AdmittedUnit(1, SourceEventId("event-1"), 8L)),
+			listOf(DeliveryAdmissionResult.AdmittedUnit(1, SourceEventId("event-1"), 8L, sourceSequence = 0L)),
 		)
 		val subject = DurableSourceEventSinkFactory(
 			ingress,
@@ -249,6 +249,7 @@ class DurableSourceEventSinkTest {
 		)
 
 		subject.unbound.admit(delivery).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+			.lastSourceSequence shouldBe 0L
 
 		verify(exactly = 0) { motionController.onDurableEvidence(delivery.units[0].evidence) }
 		verify(exactly = 1) { motionController.onDurableEvidence(delivery.units[1].evidence) }
@@ -264,8 +265,8 @@ class DurableSourceEventSinkTest {
 		val motionController = mockk<CollectionMotionController>(relaxed = true)
 		coEvery { deliveryIngress.admit(any()) } returns DeliveryAdmissionResult.Duplicate(
 			listOf(
-				DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("event-0"), 7L),
-				DeliveryAdmissionResult.AdmittedUnit(1, SourceEventId("event-1"), 8L),
+				DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("event-0"), 7L, sourceSequence = 40L),
+				DeliveryAdmissionResult.AdmittedUnit(1, SourceEventId("event-1"), 8L, sourceSequence = 41L),
 			),
 		)
 		val subject = DurableSourceEventSinkFactory(
@@ -277,7 +278,7 @@ class DurableSourceEventSinkTest {
 
 		val handoff = subject.unbound.admit(delivery())
 
-		handoff.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Duplicate>()
+		handoff.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Duplicate>().lastSourceSequence shouldBe 41L
 		coVerify(exactly = 1) { deliveryIngress.admit(any()) }
 		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
 		verify(exactly = 1) { recovery.requestCommittedWorkDrain() }

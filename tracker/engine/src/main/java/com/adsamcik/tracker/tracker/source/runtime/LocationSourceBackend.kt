@@ -27,6 +27,8 @@ internal interface LocationSourceBackendController {
 	val batchingSupported: Boolean
 	val flushSupported: Boolean
 	val hasRetainedRegistration: Boolean
+	/** Resolve actual executable mode before registration identity/fingerprint is reserved. */
+	fun resolvePlan(plan: LocationPlan): LocationPlan? = plan
 	suspend fun start(
 		plan: LocationPlan,
 		onLocations: (List<Location>) -> Unit,
@@ -61,6 +63,10 @@ internal class FusedLocationSourceBackend internal constructor(
 	override val flushSupported = true
 	private var callback: LocationCallback? = null
 	override val hasRetainedRegistration: Boolean get() = callback != null
+	override fun resolvePlan(plan: LocationPlan): LocationPlan =
+		if (!plan.preciseLocationAvailable && plan.mode in setOf(LocationMode.HIGH_ACCURACY, LocationMode.PROBE)) {
+			plan.copy(mode = LocationMode.BALANCED, probeDurationMs = null)
+		} else plan
 
 	override suspend fun start(
 		plan: LocationPlan,
@@ -155,11 +161,24 @@ internal class FrameworkLocationSourceBackend internal constructor(
 	private var listener: LocationListener? = null
 	override val hasRetainedRegistration: Boolean get() = listener != null
 
+	override fun resolvePlan(plan: LocationPlan): LocationPlan? {
+		val provider = plan.mode.toFrameworkProvider(operations.isProviderEnabled) ?: return null
+		val actualMode = when (provider) {
+			LocationManager.GPS_PROVIDER -> LocationMode.HIGH_ACCURACY
+			LocationManager.NETWORK_PROVIDER -> if (plan.mode == LocationMode.LOW_POWER) LocationMode.LOW_POWER else LocationMode.BALANCED
+			else -> LocationMode.PASSIVE
+		}
+		return plan.copy(mode = actualMode, probeDurationMs = null)
+	}
+
 	override suspend fun start(
 		plan: LocationPlan,
 		onLocations: (List<Location>) -> Unit,
 	): LocationBackendStartOutcome {
 		if (listener != null) return LocationBackendStartOutcome.BLOCKED_BY_RETAINED_REGISTRATION
+		// The owner must reserve the resolved fingerprint. Do not silently change provider mode
+		// after that boundary if capability changed between preflight and registration.
+		if (resolvePlan(plan) != plan) return LocationBackendStartOutcome.CLEANUP_REQUIRED
 		val nextListener = object : LocationListener {
 			override fun onLocationChanged(location: Location) = onLocations(listOf(Location(location)))
 		}
@@ -167,7 +186,7 @@ internal class FrameworkLocationSourceBackend internal constructor(
 		// retained first so an OEM that applies-then-throws cannot escape runtime-owned cleanup.
 		listener = nextListener
 		return runCatchingNonCancellation {
-			val provider = plan.mode.toFrameworkProvider(operations.isProviderEnabled)
+			val provider = requireNotNull(plan.mode.toFrameworkProvider(operations.isProviderEnabled))
 			operations.requestUpdates(
 				provider,
 				plan.requestedIntervalMs.coerceAtLeast(0L),
@@ -235,15 +254,16 @@ private fun LocationMode.toFusedPriority(precise: Boolean): Int = when (this) {
 	}
 }
 
-internal fun LocationMode.toFrameworkProvider(isProviderEnabled: (String) -> Boolean): String = when (this) {
-	LocationMode.DISABLED, LocationMode.PASSIVE -> LocationManager.PASSIVE_PROVIDER
+internal fun LocationMode.toFrameworkProvider(isProviderEnabled: (String) -> Boolean): String? = when (this) {
+	LocationMode.DISABLED -> null
+	LocationMode.PASSIVE -> LocationManager.PASSIVE_PROVIDER.takeIf(isProviderEnabled)
 	LocationMode.LOW_POWER, LocationMode.BALANCED ->
 		if (isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
 			LocationManager.NETWORK_PROVIDER
 		} else if (isProviderEnabled(LocationManager.GPS_PROVIDER)) {
 			LocationManager.GPS_PROVIDER
 		} else {
-			LocationManager.PASSIVE_PROVIDER
+			null
 		}
 	LocationMode.HIGH_ACCURACY, LocationMode.PROBE ->
 		if (isProviderEnabled(LocationManager.GPS_PROVIDER)) {
@@ -251,6 +271,6 @@ internal fun LocationMode.toFrameworkProvider(isProviderEnabled: (String) -> Boo
 		} else if (isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
 			LocationManager.NETWORK_PROVIDER
 		} else {
-			LocationManager.PASSIVE_PROVIDER
+			null
 		}
 }

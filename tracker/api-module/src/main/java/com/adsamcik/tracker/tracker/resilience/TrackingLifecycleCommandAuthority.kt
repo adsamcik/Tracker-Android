@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.resilience
 
+import com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary
+
 /** One durably ordered request to enter the tracker foreground runtime. */
 data class TrackingStartCommand(
 	val generation: Long,
@@ -45,6 +47,10 @@ data class TrackingLifecycleCommandState(
 	val latestStopRequestedAtEpochMs: Long = 0L,
 	val latestStopRequestedBootId: String? = null,
 	val latestStopRequestedElapsedRealtimeNanos: Long? = null,
+	/** Bounded receipt: reopening the app cannot reinterpret an already resumed historical exit. */
+	val handledUserExitId: String? = null,
+	val collectionResumeRequired: Boolean = false,
+	val collectionResumeBoundary: TrackingCollectionResumeBoundary? = null,
 ) {
 	init {
 		require(lastGeneration >= 0L)
@@ -71,6 +77,17 @@ data class TrackingLifecycleCommandState(
 			latestStartGeneration = next,
 		) to TrackingStartCommand(next)
 	}
+
+	fun observeUserExit(exitId: String): TrackingLifecycleCommandState {
+		require(exitId.isNotBlank())
+		return if (handledUserExitId == exitId) this else copy(
+			handledUserExitId = exitId, collectionResumeRequired = true)
+	}
+
+	fun resumeCollection(expectedExitId: String, boundary: TrackingCollectionResumeBoundary): TrackingLifecycleCommandState =
+		if (handledUserExitId == expectedExitId && collectionResumeRequired) {
+			copy(collectionResumeRequired = false, collectionResumeBoundary = boundary)
+		} else this
 
 	fun issueStop(
 		reason: TrackingStopCandidateReason,
@@ -204,6 +221,12 @@ sealed interface LockedTrackingStopResult<out T> {
  * returning it; Android service delivery always happens after that boundary.
  */
 interface TrackingLifecycleCommandAuthority {
+	/** Null means no explicit tracker resume is currently required; app launch is not a resume. */
+	val pendingCollectionResumeExitId: String? get() = null
+	val collectionResumeBoundary: TrackingCollectionResumeBoundary? get() = null
+	suspend fun recordUserRequestedExit(exitId: String): Boolean = false
+	suspend fun resumeCollectionAfterUserExit(expectedExitId: String): Boolean = false
+
 	suspend fun reserveStart(): TrackingStartCommand?
 
 	/**

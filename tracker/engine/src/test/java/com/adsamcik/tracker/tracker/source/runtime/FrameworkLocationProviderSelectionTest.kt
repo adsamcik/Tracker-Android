@@ -33,15 +33,15 @@ class FrameworkLocationProviderSelectionTest {
 	}
 
 	@Test
-	fun `active tracking uses passive only when no active provider is available`() {
+	fun `active tracking is unavailable rather than silently passive when no active provider exists`() {
 		every { manager.isProviderEnabled(any()) } returns false
 
 		assertEquals(
-			LocationManager.PASSIVE_PROVIDER,
+			null,
 			LocationMode.BALANCED.toFrameworkProvider(manager::isProviderEnabled),
 		)
 		assertEquals(
-			LocationManager.PASSIVE_PROVIDER,
+			null,
 			LocationMode.HIGH_ACCURACY.toFrameworkProvider(manager::isProviderEnabled),
 		)
 	}

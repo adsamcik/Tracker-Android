@@ -30,7 +30,20 @@ data class TrackingParamsState(
 	val legacySettingsMigrationCompleted: Boolean = false,
 	/** Effective Room policy revision; null means the state is not an authoritative projection. */
 	val sourcePolicyRevision: Long? = null,
+	/** Null preserves the exact legacy/custom Location settings until explicit adoption. */
+	val locationProfileVersion: Int? = null,
+	val locationBalanceLevel: Int? = null,
+	/** Null retains historical passive-only background collection. */
+	val locationBackgroundMode: LocationBackgroundMode? = null,
+	/** Optional helper consent only; never Activity capture or automatic-start consent. */
+	val locationMotionAssistanceEnabled: Boolean = false,
 ) {
+	init {
+		LocationAdaptiveSettings.requireValidProfile(locationProfileVersion, locationBalanceLevel)
+		require(locationBackgroundMode != LocationBackgroundMode.ADAPTIVE || locationProfileVersion != null)
+		require(!locationMotionAssistanceEnabled || locationProfileVersion != null)
+	}
+
     companion object {
         const val DEFAULT_MIN_DISTANCE = 10
         const val DEFAULT_MIN_TIME = 2

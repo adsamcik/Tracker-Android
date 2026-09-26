@@ -64,8 +64,17 @@ data class SourcePolicy(
 	val ambientPersistenceEligible: Boolean,
 	val effectiveTime: SourcePolicyEffectiveTime,
 	val policyRevision: Long,
+	val balanceProfileVersion: Int? = null,
+	val balanceLevel: Int? = null,
+	val locationBackgroundMode: LocationBackgroundMode? = null,
+	val locationMotionAssistanceEnabled: Boolean = false,
 ) {
 	init {
+		LocationAdaptiveSettings.requireValidProfile(balanceProfileVersion, balanceLevel)
+		require(source == TrackingSourceComponent.LOCATION ||
+			(balanceProfileVersion == null && locationBackgroundMode == null && !locationMotionAssistanceEnabled))
+		require(locationBackgroundMode != LocationBackgroundMode.ADAPTIVE || balanceProfileVersion != null)
+		require(!locationMotionAssistanceEnabled || balanceProfileVersion != null)
 		require(enabled == (qos != SourceQos.OFF)) {
 			"Source enablement and QoS must describe one effective state"
 		}

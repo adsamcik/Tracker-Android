@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
 import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.model.LocationSample
 import kotlinx.coroutines.runBlocking
@@ -17,11 +18,14 @@ internal fun pagedLocationSequence(
 	initialAfterTimeMs: Long? = null,
 	initialAfterId: Long? = null,
 	verifyCollectedDataAccess: () -> Unit = {},
+	locationPurposeDao: LocationPurposeDao? = null,
 ): Sequence<LocationSample> = Sequence {
 	object : Iterator<LocationSample> {
 		private var buffer: List<LocationSample> = emptyList()
 		private var index = 0
 		private var exhausted = false
+		private var ambientAuthorityStamp: String? = null
+		private var emittedAmbient = false
 		private var afterTimeMs: Long? = initialAfterTimeMs
 		private var afterId: Long? = initialAfterId
 
@@ -41,7 +45,12 @@ internal fun pagedLocationSequence(
 
 		private fun loadNextPage() {
 			verifyCollectedDataAccess()
-			val chunk = runBlocking {
+			val before = locationPurposeDao?.let { runBlocking { it.ambientExportAuthorityStamp() } }
+			if (emittedAmbient) check(before == ambientAuthorityStamp) { "Location export consent or retention changed" }
+			val path = locationPurposeDao?.let { dao -> runBlocking {
+				dao.visiblePathChunk(fromMs, toMs, afterTimeMs, afterId, pageSize)
+			} }
+			val chunk = path?.map { it.sample } ?: runBlocking {
 				locationSampleDao.getChunkBetweenOrdered(
 					fromMs = fromMs,
 					toMs = toMs,
@@ -51,7 +60,16 @@ internal fun pagedLocationSequence(
 				)
 			}
 			verifyCollectedDataAccess()
-			buffer = chunk.map { it.toModel() }
+			if (path?.any { it.ambientOnly } == true) {
+				if (!emittedAmbient) ambientAuthorityStamp = before
+				emittedAmbient = true
+			}
+			if (emittedAmbient) check(runBlocking { requireNotNull(locationPurposeDao).ambientExportAuthorityStamp() } == ambientAuthorityStamp) {
+				"Location export consent or retention changed"
+			}
+			buffer = path?.map { row -> row.sample.toModel().copy(
+				routeContinuityId = row.continuityId, routeSequence = row.continuitySequence, sessionless = row.ambientOnly,
+			) } ?: chunk.map { it.toModel() }
 			index = 0
 			if (buffer.isEmpty()) {
 				exhausted = true
