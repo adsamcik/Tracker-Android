@@ -1,16 +1,20 @@
-# Independent planning review receipt
+# Planning review and adversarial simplicity receipt
 
 2026-09-26. **Static planning review only, within IMPLEMENTATION_ONLY.** No compilation, tests, schema generation, device/UI/energy checks, provider activation, integration or push. This receipt does not replace the required fresh independent review of the future assembled implementation and actual validation results.
 
-## Inputs and method
+## Initial review at checkpoint 2eeaaf9b78 (historical)
+
+The following records that initial review, including choices later rejected by the adversarial pass. It is evidence of the review performed, not the current contract. Current behavior is in COMPLETE_IMPLEMENTATION_PLAN and its five detailed contracts. In particular, the old cost comparator/dwell, frozen UI snapshot and foreign metadata/snapshot protocol below are superseded.
+
+### Initial inputs and method
 
 Three focused Astra roles produced Runtime, Data and Product gap-closure contracts and coordinated their shared interfaces. The coordinator reconciled seven current checkouts, preserved draft hashes, mapped all 25 global assembly prerequisites and wrote ASSEMBLY_GAP_CLOSURE and COMPLETE_IMPLEMENTATION_PLAN. A fourth, fresh Astra agent (`astra_plan_closure_review`, no inherited history) independently read the full original-message/decision packet in TASK_CONTEXT, current repository/handover instructions, all four closure reports, the five-level policy and final synthesis. It inspected relevant current source seams and official platform documentation. It edited no files and delegated no further agents.
 
 The reviewer challenged the proposal before approval. Its findings were corrected in the planning contracts by the responsible author/coordinator, then the affected sections were reread. Source receipts remain unassembled candidates, not current product guarantees. The large historical lifecycle diff has not been represented as line-by-line reviewed; selected-family implementation review remains a named assembly task.
 
-## Findings and disposition
+### Initial findings and disposition
 
-| Finding | Correction in current proposal | Disposition |
+| Initial finding | Correction proposed at that checkpoint | Initial disposition |
 | --- | --- | --- |
 | Merged history could skip fetched but un-emitted rows by advancing every stream to its last fetched key | Data§5 uses stable canonical representatives, consumed-frontier cursors, bounded lookahead stop, fixed snapshot and a two-stream 100+100 exact-once acceptance case | Resolved in plan |
 | Product retained an older100m map cutoff while Data chose accepted accuracy with no new cutoff | All current contracts use qualified observed points and reported uncertainty;100m remains only an alternative | Resolved |
@@ -22,10 +26,43 @@ The reviewer challenged the proposal before approval. Its findings were correcte
 | Opportunistic background radio was not the only available independent lifetime option | Runtime and reviewer traced actual service type union and official docs; package offers default-off sessionless passive-radio hosting with notification, exact immutable host opt-in and no active scan entitlement | Resolved as explicit pending product choice |
 | New radio host was omitted from an older active-Location-only hosting sentence | Runtime host command and retention paragraph now name the union of independently authorized demands; Product/Data/Assembly agree | Resolved |
 
-The reviewer reported no remaining material planning findings after these corrections; the coordinator applied and reread its final two wording corrections (cost comparison and host union). The review establishes a more complete, internally consistent proposal. It does not establish code correctness, complete physical coverage or optimal timing/energy calibration.
+The reviewer reported no remaining material planning findings after these corrections; the coordinator applied and reread its final two wording corrections (cost comparison and host union). That was the reviewer's bounded conclusion at that checkpoint; the adversarial pass below subsequently found additional material gaps. It does not establish code correctness, complete physical coverage or optimal timing/energy calibration.
 
-## Remaining authority and evidence
+## Remaining authority and evidence after both reviews
 
 New design choices still require user approval under AGENTS.md. The recommended package includes optional active Location and passive-radio visible hosting, both off by default;24h CONTROL ineligibility and bounded cleanup; editable organizational sessions and scoped file behavior; explicit unsupported/fresh-empty limitations. These are recommendations, not inferred consent.
 
 After approval, complete implementation/test authorship for all existing global prerequisites, freeze one exact convergence input, run the allowed final validation/fix batch, obtain the separately required bounded activation/device authority, and commission a different fresh review-only agent over the final code/diff/results. Only actual evidence can support on-device readiness. Preserve current candidate containment and all unrelated work until then.
+
+
+## Adversarial pass requested after the initial checkpoint
+
+The user asked whether anything was missed and explicitly invited architectural rewrites for simplicity and maintainability. TASK_CONTEXT section18 preserves that request. A fresh Astra reviewer, astra_adversary_runtime, received the original-message/decision packet and current contracts with no inherited history. Resident Astra data and runtime authors reviewed distinct data and product concerns adversarially; their prior authorship is disclosed, not described as independent. All three worked review-only, traced current source seams, coordinated concrete findings and reread affected contracts. No recursive delegation or execution occurred.
+
+The coordinator rewrote the main proposal and amended the current contracts in place. The old approval packet is superseded, not silently approved. Current candidate source hashes remain the prior inventory; no production input was changed or frozen.
+
+| Material finding | Source trace and revised disposition |
+| --- | --- |
+| A stricter live consumer can discard radio evidence still useful to background | SharedWifiSourceController294–315 and Cell counterpart select strict age; WifiSourceRuntime1194–1225 filters before ingress and qualifiedWifiProviderObservations uses a global boundary; DurableSourceIngress742–760 rejects crossing snapshots. Reuse existing captured per-item qualification (WifiCapturedFactClassifier304–366,631–649) for admission and ambient projection. Keep one immutable minimized snapshot/delivery; qualify historical authority and subsets per destination, mirror maintenance/replay, preserve old contracts. |
+| Five preference levels accidentally became incompatible hard floors | SourcePlan156–181 and LocationSourceRuntime1304–1312 derive age from request/batch; legacy factory mode floors can also defeat fallback. New profiles keep fixed useful contracts: capture Location LOW_POWER minimum/120s; background PASSIVE minimum/120s useful age/no guaranteed latency; actual detail is soft. Legacy/custom/feature hard constraints remain exact. |
+| A new qualitative cost optimizer added complexity without measured energy evidence | SourcePlanResolver93–156,229–288 already supplies explicit source reductions; BatteryImpactEstimator17–100 is a settings preview. Remove candidate enumeration/Pareto/fingerprint order/extra savings dwell. Keep explicit source rules, existing motion/battery hysteresis/cooldowns and one shared owner. |
+| Host residency was mistaken for a live session | TrackerServiceApi485–486 and widget/notification/shortcut/automation callers require separate derived hasLiveCapture/hasCollectionHost and scoped commands. End session preserves background; Turn off tracking updates existing tracker intent/fences, preserving manual preferences/history and independent feature controls. |
+| Late permission success or unavailable hardware could prevent Off or resurrect collection | TrackingSettingsScreen602/616, permission callbacks in ViewModel258–279, TrackerDashboardControls170–197. Store exact pending purpose/revision, refresh capability on result, reject superseded intent; Off/Edit/End remain available. |
+| User-requested process stop could be followed by autonomous work | Application523–550, PreviousExitRecoveryCoordinator14–21 and DefaultTrackingStartupGuard42–49. Extend the existing gate with an exact exit-token/ack receipt; block autonomous tracker rearm/new admission. Only explicit tracker Start/Resume/background enable acknowledges it. Game/My-location leases cannot restart tracker intent. Fresh Steps import receipts cannot backfill suppressed observation windows. APIs lacking exact exit evidence remain uncertain. |
+| Organization duplicated acquisition lifecycle and introduced foreign synchronization | Acquisition already owns logical live/ended state. Use recording adapters plus one local annotation table, no second OPEN/CLOSED owner, export-time writes, foreign revision/hash/snapshot conflict protocol or imported tombstones. Apply override suppression before range/limit so moved recordings cannot reappear. |
+| Bundle retries duplicated existing import infrastructure and changed prefix semantics | DataImporter111–128,149–164,269–284,398–425 already provides content jobs, entry retries and atomic worker-managed completion; PortablePressureFileImport39–45,73–85 preserves valid prefixes. Reuse those contracts; typed child formats only, bounded decoded selector recovery including skipped retry children, final annotation publication fenced by original job epoch and current retention. |
+| Multi-page history snapshots added unnecessary state | Keep bounded canonical reads and one global consumed-frontier key with Room/Paging invalidation. Explicitly register every newly consulted annotation/ambient/purpose/proof/deletion dependency. Do not advance fetched un-emitted heads; preserve historical scroll anchor during live appends. |
+| Location-format rationale and deletion guarantees were overstated | JSON3 already carries orphan/sessionless geography; new narrow Location codec serves exact identity/timing/purpose/gaps and overlap dedup. Logical CONTROL cleanup cannot prove forensic removal from SQLite free pages, old databases or external archives. Correct scope/copy; add no secure-erasure subsystem. |
+
+### What remains intentionally necessary
+
+Keep immutable authorization/effective boundaries, desired versus applied state, exact registration/delivery identities, acknowledged retirement, source-local failure isolation, count-domain correctness, durable deletion/retention fences and historical product proof. They protect distinct failure cases. Simplicity is achieved by reusing existing owners and removing duplicate machinery, not by merging authority into a mutable current-state object.
+
+The plan still covers all 25 global prerequisites, all six source verticals, existing effects/features, source-only paths, supported automatic/background collection, history/maps, files, controls and accessibility. No required vertical was deferred merely to make the architecture look smaller. Numeric timing and energy expectations remain proposed calibration inputs.
+
+### Reread outcome and evidence limit
+
+The runtime adversary found the simplified core coherent and requested final wording/contracts for explicit Location minimum modes, tracker-only stop acknowledgment, Steps suppressed-window handling, contract-specific age and genuine-intent radio budgets. Data requested override-before-range, retry selector recovery, original-job privacy/retention fencing, typed children and complete invalidation dependencies. Product confirmed the control simplification and independently identified the same feature-only restart risk. The coordinator applied these corrections and removed stale trailing acceptance contracts.
+
+Final bounded reread: the fresh runtime adversary confirmed all five corrections, with no remaining contradiction in those contracts. Data confirmed all five data corrections and identified one last selector mismatch: Location files had point identities while annotations accept entry/day selectors. The coordinator closed it with one bounded source-owned imported Location archive receipt resolving the declared points, including deduplicated ones, through the already planned source provenance association. Annotation stores one archive selector; no extra organization membership store or timestamp join is introduced. This final narrow addition received coordinator static review, not another independent approval.
+This is a source-traced planning review. It does not prove compilation, Room migration, provider delivery, battery behavior or final integrated correctness. Approval, bounded production/test authorship, global convergence, actual host/device evidence and a different fresh assembled-code reviewer remain required.

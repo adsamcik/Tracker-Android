@@ -114,6 +114,12 @@ Make sure to fill in all the gaps in the plan with consideration for all options
 
 This requests closure of the complete implementation proposal, including concrete pre-edit contracts, realistic platform alternatives, whole-product behavior, migration and verification dependencies. Inspect unresolved source-backed questions now and supply a recommended choice with tradeoffs. Keep genuine user approval and external/device evidence distinct from missing planning work. This is not blanket approval of the previous defaults, new background scope or unresolved D/P choices, and does not open deferred validation.
 
+### 18. Adversarial simplicity and missing-work review
+
+Anything left and remaining that we missed? Please also run adversary review to make sure we did not overcomplicate the design, feel free to rewrite any part of architecture if it means it will be much cleaner, more maintainable and simpler.
+
+This authorizes an adversarial review and rewriting the proposed architecture for simplicity and maintainability while preserving the task's requirements. Challenge earlier planning conclusions against actual code and concrete failure cases. It does not approve the still-pending package wholesale or open deferred execution gates; new production behavior remains subject to the Questions and approval rule. Reduce duplicate mechanisms and plan ambiguity rather than adding another competing plan layer.
+
 ## Confirmed product direction
 
 The assistant's immediately preceding response accepted by message 9:
