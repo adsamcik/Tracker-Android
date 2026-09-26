@@ -1,5 +1,7 @@
 # Provider freedom: consolidated implementation proposal
 
+**Current entry point:** [COMPLETE_IMPLEMENTATION_PLAN](COMPLETE_IMPLEMENTATION_PLAN.md) and its Runtime/Data/Product/Assembly gap-closure contracts now resolve the choices left open here. They supersede conflicting recommendations and approval lists below. This document remains the original source trace and planning history; no implementation or validation is implied.
+
 Date: 2026-09-26. Prepared by four focused Astra planners: Runtime, Data, Product and Delivery, with direct peer reconciliation and coordinator source checks.
 
 **Status: proposal awaiting approval. PLANNING_ONLY within IMPLEMENTATION_ONLY.** Existing implementation and test sources are **IMPLEMENTED_UNVALIDATED**. No compiler, test, migration, schema, lint, device, battery, CI, activation or integration gate ran for this plan. Approval of the plan would authorize its specified implementation choices; it would not activate providers/writers or approve publication.

@@ -1,0 +1,378 @@
+{
+  "date": "2026-09-26",
+  "purpose": "Planning gap closure input snapshot; not an assembly freeze or validation",
+  "phase": "IMPLEMENTATION_ONLY",
+  "inputs": [
+    {
+      "name": "MAIN",
+      "path": "C:/Users/adam-/GitHub/Tracker-Android",
+      "branch": "dev/v10",
+      "head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "status": [],
+      "source_drafts": []
+    },
+    {
+      "name": "ROOT",
+      "path": "C:\\Users\\adam-\\GitHub\\Tracker-Android\\.worktrees\\source-native-map-context-root",
+      "branch": "codex/source-native-map-context-root",
+      "head": "04487c78be925b2c3bdaafe200b627b1f259ec4a",
+      "status": [
+        " M docs/tracking-infrastructure/planning/2026-09-26-provider-freedom/TASK_CONTEXT.md"
+      ],
+      "source_drafts": []
+    },
+    {
+      "name": "LOCATION",
+      "path": "C:\\Users\\adam-\\GitHub\\Tracker-Android\\.worktrees\\location-product-query-20260925",
+      "branch": "codex/location-product-query-20260925",
+      "head": "1c17c27e15442b678e5e55139a55dd1ddc4b6b25",
+      "status": [
+        " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AdditionalTrackingSchema.kt",
+        " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservation.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+        " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+        " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt",
+        "?? core/base/src/androidTest/java/com/adsamcik/tracker/shared/base/database/LocationAcceptedProvenanceMigration27To28Test.kt",
+        "?? core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationAcceptedProvenanceDao.kt",
+        "?? core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationAcceptedProvenanceEntity.kt"
+      ],
+      "source_drafts": [
+        {
+          "path": "core/base/src/androidTest/java/com/adsamcik/tracker/shared/base/database/LocationAcceptedProvenanceMigration27To28Test.kt",
+          "sha256": "a2332f9c3079821b1bcb1be9c9622baa31c8573a276437a9654a857023492fa2"
+        },
+        {
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AdditionalTrackingSchema.kt",
+          "sha256": "ecd8582063481f73ab54cdf6bfac4847d2c713d10c6444535402e81a7a15f121"
+        },
+        {
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+          "sha256": "952c9a7890a62c22937079afbc0a8d7845273c6f0f47b96758af6045af13a8ae"
+        },
+        {
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationAcceptedProvenanceDao.kt",
+          "sha256": "86b9fe364014e752d3c430c03522b3e9489dbcb5dca58e5f9a2ef27d0e4f83f4"
+        },
+        {
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationAcceptedProvenanceEntity.kt",
+          "sha256": "eba5a536161d3ffecd6c9d18d23c23682c998fc4f46901f41a29aa421e8dd271"
+        },
+        {
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservation.kt",
+          "sha256": "b71404ebbf9725576666ffb147583f8d34229332b1431948bb786e574e6571fc"
+        },
+        {
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+          "sha256": "7b0c58f7d47231fbf23db4d1eab7e4b4bdf64cd13e7c9c315db41764696e7631"
+        },
+        {
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+          "sha256": "66476dbefd0f908e4e0ddd6e8b4af44672b5d4fb2d7cc366009312913a395132"
+        },
+        {
+          "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+          "sha256": "655c38422ac211e287fb2129d5ace854720bda9722460e01f05cdf873959b32e"
+        },
+        {
+          "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt",
+          "sha256": "a42e7881e692d7068334cefc11426b09d0f410d60717dd89bb8d2df70d5f2e6b"
+        }
+      ]
+    },
+    {
+      "name": "RADIO",
+      "path": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "branch": "codex/radio-auto-capture",
+      "head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "status": [
+        " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+        " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
+        " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
+        " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDestinationOwnerEntity.kt",
+        " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt",
+        " M core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/SourceWriterGenerationContractTest.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/catalog/SourceProductFactories.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellSessionFactProjectionLane.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStore.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/deletion/RoomCellSelectedHistoryDeletion.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/RoomDeleteSelectedWifiHistory.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiSessionFactProjectionLane.kt",
+        " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/catalog/DefaultSourceImplementationCatalogTest.kt",
+        " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+        " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+        " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStoreTest.kt",
+        " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt"
+      ],
+      "source_drafts": [
+        {
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+          "sha256": "da01431540a8c89834c32cdf36eecd08af9ea62b232dece45e4d7c20f050aefe"
+        },
+        {
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
+          "sha256": "20efd9263e36ac494456382a119262d296eb997d3f227aff4713450df286c620"
+        },
+        {
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
+          "sha256": "a7f8601bc9e530e38a6cc62843a9becb93dd69e957f0f82fdacb81358c55a228"
+        },
+        {
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDestinationOwnerEntity.kt",
+          "sha256": "f2635b0141b0f7e9c66fe298c0da258d0b42f12a6ee00fc4980b339de8592e8c"
+        },
+        {
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt",
+          "sha256": "85352138cdb9c7fe868879788cc844c7eee6c2c68c2e8e6eee1442795df2103c"
+        },
+        {
+          "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/SourceWriterGenerationContractTest.kt",
+          "sha256": "ea0c128191e53aace77f58c49354646e2be3dde22fd7ccd104dc74ba4df2c2be"
+        },
+        {
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/catalog/SourceProductFactories.kt",
+          "sha256": "4eeb01308372a8b77a58789103d6a58a20260da789543cbed7c082ed8f4f7be5"
+        },
+        {
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt",
+          "sha256": "a63b71002fb5cbf55c33539d6f6de3e1a17664f5eb821ddd83b9760600ff3f7a"
+        },
+        {
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellSessionFactProjectionLane.kt",
+          "sha256": "14b178e2b6464838dba6021ff6e820e051ab34451e040cb2cfc2a3aa171ba6a2"
+        },
+        {
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+          "sha256": "7acb1c711aca4b9c4bb267463975a4e94a1377cd473f45911cc2f38085cbc61e"
+        },
+        {
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStore.kt",
+          "sha256": "a1998261305c1f08d606fa1f5a2b69c6c62cd1a676b908684b5080d5fb16f8d5"
+        },
+        {
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/deletion/RoomCellSelectedHistoryDeletion.kt",
+          "sha256": "c917515c2bd394e238374e58889e80aa4680903a73a06ca89bc5ed0243cd5058"
+        },
+        {
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/RoomDeleteSelectedWifiHistory.kt",
+          "sha256": "2302a5e1d0a26bb54d7613af6b712a0d2ed8f04865c1cca3a25c7febb6acb975"
+        },
+        {
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+          "sha256": "b5d945ce96764b62a811bc2aef6067487997623347f81aa97abc0559c522ff80"
+        },
+        {
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+          "sha256": "f5127b49284cae293e8097c377ecbe8ce73eec6ce4dd7b05ab423a2cf382c16d"
+        },
+        {
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt",
+          "sha256": "24de9417240dc307b5afe74a66dcd8d93b6b1743386ea3e0a599c7914e24b100"
+        },
+        {
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiSessionFactProjectionLane.kt",
+          "sha256": "016b0284203218de8c743e975122da3dc855d5ae70a2051cc6ea57d71a9db3ef"
+        },
+        {
+          "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/catalog/DefaultSourceImplementationCatalogTest.kt",
+          "sha256": "ad62f568f81f3f3d1ac9b2c7648a938444de36e6cf9474b09beb99cdd3a4f440"
+        },
+        {
+          "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+          "sha256": "d5f96d8f4f43b205dc009f4726de36a5086306529f681028534c1733899b25e9"
+        },
+        {
+          "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+          "sha256": "0d20d6bd45c3a61afe0f13c5268b5c0b752211a84e5d2bbb1d868e09fc393aa3"
+        },
+        {
+          "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStoreTest.kt",
+          "sha256": "c66470b8e1b29f1ee3c1bc305051b594d9cb672a2e60e4d38e6b22a952c9e604"
+        },
+        {
+          "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+          "sha256": "9ca7e71e362a535e17b1bd58fd45f5b0983731b91622eb6d2291972befcf0350"
+        }
+      ]
+    },
+    {
+      "name": "UI",
+      "path": "C:\\Users\\adam-\\GitHub\\Tracker-Android\\.worktrees\\unified-tracking-surface",
+      "branch": "codex/unified-tracking-surface",
+      "head": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "status": [
+        " M feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/data/DashboardHistoryRepository.kt",
+        " M feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModel.kt",
+        " M feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt",
+        " M feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/cards/IdleContent.kt",
+        " M feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/state/DashboardUiState.kt",
+        " M feature/dashboard/src/main/res/values/strings.xml",
+        " M feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/data/DashboardHistoryRepositoryTest.kt",
+        "?? feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/data/DashboardAmbientSummary.kt",
+        "?? feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/cards/AmbientSummaryCard.kt",
+        "?? feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/data/DashboardAmbientSummaryReaderTest.kt"
+      ],
+      "source_drafts": [
+        {
+          "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/data/DashboardAmbientSummary.kt",
+          "sha256": "7d6314b10d497399812c4e52950d4700cec126c99a0e3e41118a9a3c0f1fe501"
+        },
+        {
+          "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/data/DashboardHistoryRepository.kt",
+          "sha256": "e2f5633f61d3053f2141897f96e7159478bd72956ed578f0d3a495474bc9578a"
+        },
+        {
+          "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/cards/AmbientSummaryCard.kt",
+          "sha256": "92f0154706fe2ccf747f8bf0964047598bb6ac2940ecdc0bc423c612f7dbb562"
+        },
+        {
+          "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/cards/IdleContent.kt",
+          "sha256": "d680e7b1a42072ad4a6e45ec1fe55746085e84656c89b8f4026f08c83f269700"
+        },
+        {
+          "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt",
+          "sha256": "4792d20768e2ab08c8f716a48d9a3e11e970c10962c2aea082a1199061a04a6a"
+        },
+        {
+          "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/state/DashboardUiState.kt",
+          "sha256": "5f89c5d4f2c4cad578d617234e7d924f7c1e24b17f05384b886ff467b6d22f4a"
+        },
+        {
+          "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModel.kt",
+          "sha256": "5acede173363a73b6fc9f2ff144f87de6150549c78e7662eea382f7a596460e9"
+        },
+        {
+          "path": "feature/dashboard/src/main/res/values/strings.xml",
+          "sha256": "aab29c309f65b250cf39b680f7f478309c390a60dbad4c2da70e9250bcb8d1b4"
+        },
+        {
+          "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/data/DashboardAmbientSummaryReaderTest.kt",
+          "sha256": "5a9e1426d2fc212c32f06f29a627c87f40ce32a83499edce333566a6c5c3decf"
+        },
+        {
+          "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/data/DashboardHistoryRepositoryTest.kt",
+          "sha256": "9b579e4e36b061ae22b0abbef4b9ebf03f3113d8a9cde7d78352bbc922136a56"
+        }
+      ]
+    },
+    {
+      "name": "LIFECYCLE",
+      "path": "C:\\Users\\adam-\\GitHub\\Tracker-Android\\.worktrees\\impl-lifecycle-product-proof",
+      "branch": "codex/impl-lifecycle-product-proof",
+      "head": "f786563167df2990202a96835ff7535488acd77c",
+      "status": [],
+      "source_drafts": []
+    },
+    {
+      "name": "AUDIT",
+      "path": "C:\\Users\\adam-\\GitHub\\Tracker-Android\\.worktrees\\audit-reconciliation-20260925",
+      "branch": "codex/audit-reconciliation-20260925",
+      "head": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "status": [
+        " M feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboard.kt",
+        " M feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardProgressCards.kt",
+        " M feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt",
+        " M feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRouteViewModel.kt",
+        " M feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardProgressCardsTest.kt",
+        " M tracker/api-module/src/main/res/values/strings.xml",
+        "?? feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/RecentTripsUiState.kt",
+        "?? feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/RecentTripsUiStateTest.kt"
+      ],
+      "source_drafts": [
+        {
+          "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/RecentTripsUiState.kt",
+          "sha256": "21bad47f1267d954a212f03605cd6d3601cd684525a95969e25cc8570f2a2a7c"
+        },
+        {
+          "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboard.kt",
+          "sha256": "9fec5877081dc667ad2ae302115ae623b6e733f50faf8823c0d32ff70af6bd07"
+        },
+        {
+          "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardProgressCards.kt",
+          "sha256": "0a4765c86e5bc84227d8881fcddebe22288ac12d2c7590c6a4c574073b011d2c"
+        },
+        {
+          "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt",
+          "sha256": "237c37367d3cf79649d86e2cd9fe8ffd389bca44e19d2c9030b66d39c0339500"
+        },
+        {
+          "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRouteViewModel.kt",
+          "sha256": "1cef8dda0d50893a1ca875f9875bb7c134b5871f2cd962995ff0a0231f43db1d"
+        },
+        {
+          "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/RecentTripsUiStateTest.kt",
+          "sha256": "966b65c3abe769f764402231ecd5de4392e87655fbd5b58c6c4a63df0787d279"
+        },
+        {
+          "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardProgressCardsTest.kt",
+          "sha256": "9a271ba25c87dc38537f6bef064cd73c876b138badfd7ab8dac43a5d1521d4a6"
+        },
+        {
+          "path": "tracker/api-module/src/main/res/values/strings.xml",
+          "sha256": "89ca7e2b5b5860ee5f9dc743c42ae2dc85ba3766f96299c9926ba39ae171ca93"
+        }
+      ]
+    }
+  ],
+  "assembly_dependencies": [
+    "WI-STEPS-MANUAL-001",
+    "WI-STEPS-AUTOMATIC-001",
+    "WI-STEPS-AMBIENT-001",
+    "WI-PRESSURE-VERTICAL-001",
+    "WI-LOCATION-VERTICAL-001",
+    "WI-ACTIVITY-VERTICAL-001",
+    "WI-WIFI-VERTICAL-001",
+    "WI-CELL-VERTICAL-001",
+    "WI-SCHEMA-CONVERGENCE-001",
+    "WI-AUTHORITY-PURPOSE-001",
+    "WI-PURPOSE-PUBLICATION-001",
+    "WI-BROKER-PROVIDER-OWNERSHIP-001",
+    "WI-SOURCE-CALLER-GUARD-001",
+    "WI-QOS-BATTERY-001",
+    "WI-LIFECYCLE-RUNTIME-001",
+    "WI-LIFECYCLE-PRODUCT-PROOF-001",
+    "WI-STEPS-NUMERIC-001",
+    "WI-CROSS-SOURCE-RECOVERY-001",
+    "WI-CROSS-SOURCE-PRIVACY-001",
+    "WI-SHARED-FILE-ASSEMBLY-001",
+    "WI-SOURCE-ACTIONS-EXPLANATION-001",
+    "WI-SHARED-HISTORY-DAY-RANGE-001",
+    "WI-INTEGRATION-SCENARIOS-001",
+    "WI-UI-SURFACES-001",
+    "WI-NONSTEPS-EFFECTS-001"
+  ],
+  "lifecycle_commits": [
+    "a9b778733bb786af7bca22adc288f18641b624e3 IMPLEMENTED_UNVALIDATED: add exact source fact proof contract",
+    "3f64da45a17749be14dfd4f098c1e20f33541beb IMPLEMENTED_UNVALIDATED: prove six-source lifecycle lineage",
+    "ece5fa5dc9920400288be2563953dce1ff97c747 IMPLEMENTED_UNVALIDATED: correct lifecycle proof authority",
+    "c989a7e754963a1b7025f963d1fe02cb67d751c9 IMPLEMENTED_UNVALIDATED: close lifecycle proof authority gaps",
+    "10455633d4d0cf6d6d9dd24495fe1f269152ce76 IMPLEMENTED_UNVALIDATED: authenticate Cell lifecycle WAL carrier",
+    "cc901e068d43d918ee0524afb49963d6c323f2f5 IMPLEMENTED_UNVALIDATED: unify Cell WAL carrier authentication",
+    "6eac9fec8ab28e64128f7e9bd77f1eae3c474739 IMPLEMENTED_UNVALIDATED: bind facts to exact WAL carriers",
+    "db1b1884e3324ecd6901d77aaec10fbe2a8a6925 IMPLEMENTED_UNVALIDATED: authenticate Pressure correction proof",
+    "a8431a0e7a23d8d43a1d18788783be5158bf53b6 IMPLEMENTED_UNVALIDATED: correct Pressure lifecycle proof",
+    "629639d3f7a28147f1272c2718bc7adf3021905f IMPLEMENTED_UNVALIDATED: authenticate lifecycle provider evidence",
+    "e888c4850166a308ff07ac7d78a4d49cadfa5f43 IMPLEMENTED_UNVALIDATED: close lifecycle proof blockers",
+    "4b6a8b74a7df35848c0751cdf4f059d83f5ec703 IMPLEMENTED_UNVALIDATED: harden lifecycle proof authority",
+    "d575139881b7c827937f50357228f7c1e50667c6 IMPLEMENTED_UNVALIDATED: close lifecycle proof edge blockers",
+    "27332b02f8598a0ace1793c9fec563c807a4d839 IMPLEMENTED_UNVALIDATED: stream lifecycle deletion proof",
+    "8422f737440fb7b2588f406d643a40dbad3b48e6 IMPLEMENTED_UNVALIDATED: persist exact Pressure retention authority",
+    "e4f3c28bd963c727b4a08ebcd14a77c8d346f2ce IMPLEMENTED_UNVALIDATED: retain every Pressure correction identity",
+    "b0feec1e7fd6f506e9a610e932a3d1048970f3e5 IMPLEMENTED_UNVALIDATED: distinguish surviving Pressure evidence",
+    "ede292a32dabeef4baec833718fd9f50b68753df IMPLEMENTED_UNVALIDATED: reject live Pressure retention collisions",
+    "e74bac1315969f89e1f58ac386618ffa2eb27f5b IMPLEMENTED_UNVALIDATED: authenticate Pressure correction history",
+    "065d36beaddf76eecd85be61eeb1982e51a840e1 IMPLEMENTED_UNVALIDATED: correct Pressure historical lifecycle proof",
+    "6ddefcc0cb223ad077772f06fa23a7c55c610663 IMPLEMENTED_UNVALIDATED: close final Pressure lifecycle proof blockers",
+    "3b5700a7e5d260ca8808e693870b5ce4b86b62c2 IMPLEMENTED_UNVALIDATED: align lifecycle retention bounds",
+    "002504cdf72c877f736dd20d18d8401ee505f5ac IMPLEMENTED_UNVALIDATED: close cross-source lifecycle proof blockers",
+    "9d755a66a4b69783a3735dd09201f2c9938f91ab IMPLEMENTED_UNVALIDATED: harden lifecycle retention proof",
+    "a4328f7e2bc5bcfc54717e44c2047370bcd5e2b3 IMPLEMENTED_UNVALIDATED: close lifecycle proof erase blockers",
+    "f786563167df2990202a96835ff7535488acd77c IMPLEMENTED_UNVALIDATED: harden lifecycle erase authority"
+  ]
+}

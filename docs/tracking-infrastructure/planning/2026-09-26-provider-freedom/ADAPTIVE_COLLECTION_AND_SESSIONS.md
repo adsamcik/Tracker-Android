@@ -1,5 +1,7 @@
 # Adaptive collection and user-organized sessions
 
+**Current entry point:** [COMPLETE_IMPLEMENTATION_PLAN](COMPLETE_IMPLEMENTATION_PLAN.md) and its Runtime/Data/Product/Assembly gap-closure contracts now specify organization, adaptive runtime, data actions and files. Earlier unresolved choices below are historical; the current package remains proposed until approval.
+
 Latest adaptive-policy proposal: [FIVE_LEVEL_ADAPTIVE_POLICY](FIVE_LEVEL_ADAPTIVE_POLICY.md) specifies the user's subsequent five-step power/detail request, central hint arbitration, live quality preference, concrete source profiles and bounded background scope. It controls adaptive-policy details; this document continues to describe session organization and its unresolved data/action/export choices.
 
 Date: 2026-09-26. Direction update after the whole-product planning checkpoint `2f8e342eea`.

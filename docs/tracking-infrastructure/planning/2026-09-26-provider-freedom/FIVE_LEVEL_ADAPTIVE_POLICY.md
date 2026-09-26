@@ -1,5 +1,7 @@
 # One adaptive tracker: five-level implementation proposal
 
+**Current entry point:** [COMPLETE_IMPLEMENTATION_PLAN](COMPLETE_IMPLEMENTATION_PLAN.md) and its Runtime/Data/Product/Assembly gap-closure contracts resolve remaining runtime, organization, product and file choices. The compatible five-profile table and metadata contracts here remain part of that proposal; newer closure rules control conflicts, including explicit cost comparison and source-control labels.
+
 2026-09-26. **PROPOSAL AWAITING APPROVAL. PLANNING_ONLY within IMPLEMENTATION_ONLY.** Static tracing and coordinated Astra Runtime, Data and Product review; no production/test implementation or execution in this pass. Earlier implementation remains IMPLEMENTED_UNVALIDATED. This document supersedes conflicting adaptive-policy details in the earlier plans; it does not approve unresolved organization/export/CONTROL-retention choices or activate providers.
 
 ## 1. Product contract

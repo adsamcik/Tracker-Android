@@ -108,6 +108,12 @@ We should also take into account during scaling how much a resource uses battery
 
 This adds a required source-and-mode cost distinction to adaptive scaling: compare additional acquisition, delivery, processing and switching work; preserve useful cheap continuity/passive observations when reducing expensive optional requests. "Basically free" is the user's relative-cost example, not approval to claim zero measured energy. FIVE_LEVEL_ADAPTIVE_POLICY section4.1 incorporates the concrete proposal and supersedes blanket per-source battery downshifts. The earlier two approval questions remain unanswered; this refinement does not approve all preceding defaults or active-background expansion.
 
+### 17. Complete plan and alternatives request
+
+Make sure to fill in all the gaps in the plan with consideration for all options available to us
+
+This requests closure of the complete implementation proposal, including concrete pre-edit contracts, realistic platform alternatives, whole-product behavior, migration and verification dependencies. Inspect unresolved source-backed questions now and supply a recommended choice with tradeoffs. Keep genuine user approval and external/device evidence distinct from missing planning work. This is not blanket approval of the previous defaults, new background scope or unresolved D/P choices, and does not open deferred validation.
+
 ## Confirmed product direction
 
 The assistant's immediately preceding response accepted by message 9:
@@ -135,6 +141,8 @@ Before the product clarification, the coordinator asked these questions. No expl
 For the plan, reduce new decisions by following already approved durable designs and established constants. A recommendation in this packet is not source evidence.
 
 ## Authoritative locations and exact current state
+
+The paths/HEADs below describe the initial planning snapshot. For this latest closure pass, use PLAN_CLOSURE_INPUTS.json for the refreshed seven-checkout inventory, source-draft hashes and full lifecycle commit list. COMPLETE_IMPLEMENTATION_PLAN.md is now the current proposal entry point; new design recommendations remain pending approval.
 
 Read CURRENT_CODE_INVENTORY.json captured immediately before this planning pass.
 Main checkout is C:/Users/adam-/GitHub/Tracker-Android, branch dev/v10, clean HEAD 13f1a99871b59d29b3d059f374fc415490da6943.

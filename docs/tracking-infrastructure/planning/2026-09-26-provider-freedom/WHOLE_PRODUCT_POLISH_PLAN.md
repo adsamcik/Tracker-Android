@@ -1,5 +1,7 @@
 # Whole-product polish and data-truth proposal
 
+**Current entry point:** [COMPLETE_IMPLEMENTATION_PLAN](COMPLETE_IMPLEMENTATION_PLAN.md) and its Runtime/Data/Product/Assembly gap-closure contracts resolve the D/P choices below. Use their current scope, actions, copy, file and approval decisions when they differ. This earlier document retains its source findings.
+
 Date: 2026-09-26. Fourth focused Astra synthesis, following TASK_CONTEXT §10. **PLANNING_ONLY inside IMPLEMENTATION_ONLY; awaiting approval.** No production/test changes, validation, activation or integration. This extends IMPLEMENTATION_PLAN rather than creating a parallel project. D1–D7 in that plan remain proposals; P1–P8 below are additional concrete choices. Settled source freedom, separate sessionless ambient consent and required default-off passive Location remain settled.
 
 ## 1. Result and boundaries
