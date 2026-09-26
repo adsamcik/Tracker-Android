@@ -94,6 +94,14 @@ Sessions will essentially ideally just be times of higher fidelity and help user
 
 This settles live sessions as fidelity requests plus organization and requires retrospective creation. ADAPTIVE_COLLECTION_AND_SESSIONS.md records the proposed concrete design and supersedes the earlier two-source-list product target. It does not approve active background escalation, exact schema/actions/export design, or unrelated earlier pending choices.
 
+### 15. Tool questions and five-level adaptive policy
+
+Can you use your tools to ask questions?
+
+The adaptive system should be able to leverage hints from multiple sources that tell it whether the user is moving, stationary, what is the settings what balance between quality and power it should use. This includes whether session is active and more, fill in all the types. The system should then based on this adapt the tracking and setups so that its working reliably and trustworthy, especially trying to balance the value. The goal is that everything should work through a central systém and it should adapt to balance what the user wants if they start a session they want to prefer quality over power otherwise based on settings other preferences may be there. Use a 5 step configuration for balance of power and performance and figure out the best system that can support it.
+
+This settles a central adaptive policy, five user-selectable power/quality levels, multiple qualified inputs, and live-session quality preference. FIVE_LEVEL_ADAPTIVE_POLICY.md develops the concrete recommendation. Five preference levels are distinct from source enablement and from motion state. Retrospective organization has no current collection effect. Exact profile behavior, live-session level mapping, device-power handling and expanded background authorization remain proposals until selected; the request does not activate providers or begin deferred validation.
+
 ## Confirmed product direction
 
 The assistant's immediately preceding response accepted by message 9:

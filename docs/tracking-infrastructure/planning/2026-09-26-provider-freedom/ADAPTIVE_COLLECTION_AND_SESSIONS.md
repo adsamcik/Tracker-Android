@@ -1,5 +1,7 @@
 # Adaptive collection and user-organized sessions
 
+Latest adaptive-policy proposal: [FIVE_LEVEL_ADAPTIVE_POLICY](FIVE_LEVEL_ADAPTIVE_POLICY.md) specifies the user's subsequent five-step power/detail request, central hint arbitration, live quality preference, concrete source profiles and bounded background scope. It controls adaptive-policy details; this document continues to describe session organization and its unresolved data/action/export choices.
+
 Date: 2026-09-26. Direction update after the whole-product planning checkpoint `2f8e342eea`.
 Status: approved product direction, with implementation details and the decisions below still proposed. PLANNING_ONLY within IMPLEMENTATION_ONLY. No production/test edits or execution, schema generation, activation, integration or push.
 
