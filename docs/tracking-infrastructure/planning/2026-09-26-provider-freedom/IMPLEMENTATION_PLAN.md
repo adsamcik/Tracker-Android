@@ -6,6 +6,8 @@ Date: 2026-09-26. Prepared by four focused Astra planners: Runtime, Data, Produc
 
 ## 1. Intended result
 
+**Latest direction:** [ADAPTIVE_COLLECTION_AND_SESSIONS](ADAPTIVE_COLLECTION_AND_SESSIONS.md) records the user's subsequent requirement for one adaptive collection system and sessions as higher-fidelity organizational intervals that can also be created afterwards. This supersedes the earlier separate source-list presentation and acquisition-only meaning of user-visible sessions. Existing acquisition identities and consent remain internal evidence. Reconcile S0/S3/S6/S8/S9 and affected history/action/export choices with that proposal before implementation; exact new contracts and active background escalation remain pending. The original evidence and unrelated approval choices below remain applicable.
+
 Users select Location, Steps, Wi-Fi and Cell freely. Every selected source records useful qualified evidence independently, in manual sessions, automatic sessions with explicit separate controls, and separately consented sessionless ambient where the source's real capability allows it. Other sources can improve presentation only from compatible data already collected. Missing Location removes geographic features; it does not remove radio or Steps history.
 
 Complete the existing source pipeline and product surfaces. Preserve source-local writers, Room authority, Hilt, Flow, lazy physical owners, current navigation and local-only data. This plan adds no new general “brain,” permanent observer network, remote service, telemetry, dependency, identity-based radio product, new active ambient scan strategy or wholesale engine rewrite.

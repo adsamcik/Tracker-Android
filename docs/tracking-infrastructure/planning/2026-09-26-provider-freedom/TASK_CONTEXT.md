@@ -74,6 +74,26 @@ I want you to run one more pass that also considers highly polished, UX where ev
 
 This follow-up authorizes another planning and static source-review pass. It does not select the pending design choices in section 9 of the implementation proposal or start the deferred validation phase. Review the complete existing product and its data/export meaning; revise the proposal with concrete, evidence-backed omissions and element/copy rules, without implementing an unapproved redesign.
 
+### 11. Questions and visual overview request
+
+Give me the questions you still have as well as visual tldr of what we want to build.
+
+### 12. Image request
+
+I can't see the flowchart can you generate visualisation images?
+
+### 13. Unified adaptive collection request
+
+Would it be possible to merge the ambient and session sources together and instead design single adaptive system that can independently scale the collections and adapt to any configuration, simply, cleanly, durably, reliable.
+
+The coordinator recommended one source list and adaptive per-source plans, preserving consent and durable collection evidence. It asked whether sessions should request greater detail or only group observations, and whether active collection may increase between sessions. The latter remains unanswered.
+
+### 14. Session semantics clarification
+
+Sessions will essentially ideally just be times of higher fidelity and help users organize data and perhaps designate sessions as activities trips and so on. Sessions can also be added manually afterwards.
+
+This settles live sessions as fidelity requests plus organization and requires retrospective creation. ADAPTIVE_COLLECTION_AND_SESSIONS.md records the proposed concrete design and supersedes the earlier two-source-list product target. It does not approve active background escalation, exact schema/actions/export design, or unrelated earlier pending choices.
+
 ## Confirmed product direction
 
 The assistant's immediately preceding response accepted by message 9:

@@ -4,6 +4,8 @@ Date: 2026-09-26. Fourth focused Astra synthesis, following TASK_CONTEXT §10. *
 
 ## 1. Result and boundaries
 
+**Subsequent user clarification:** [ADAPTIVE_COLLECTION_AND_SESSIONS](ADAPTIVE_COLLECTION_AND_SESSIONS.md) updates the target to one adaptive source configuration and live or retrospectively created organizational sessions. The existing separate-list/session-only assumptions in this earlier polish proposal must be reconciled before implementation. This changes the product target, not the phase boundary or consent on existing observations.
+
 A selected source must have the same meaning from setup through recording, stored history, statistics, maps, game/goal consumers, deletion and exported files. A missing route must not become “no data”; an unknown value must not become zero; compact copy must not hide uncertainty or change file provenance. Existing captured Activity and Pressure stay compatible, Activity CONTROL stays separate, and user-defined activity labels remain labels.
 
 Reuse current navigation, cards, repositories, source transfer contracts, provider ownership and local resources. No new navigation system, generalized export framework, automatic strategy, reward source, dwell inference, full database restore, delta-sync protocol, dependency or egress purpose is proposed. Changes below repair concrete joins and explanations around existing functionality. Static review cannot establish visual polish, platform behavior or universal completeness.
