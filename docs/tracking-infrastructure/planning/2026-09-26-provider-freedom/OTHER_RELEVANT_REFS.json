@@ -1,0 +1,27 @@
+[
+  {
+    "ref": "codex/audit-finding-fixes",
+    "status": "fulfilled",
+    "value": "a8fd308df9 Fix F-21 observable platform restrictions\n555c5fd457 Fix F-20 critical path test coverage\n9e9b113414 Fix F-19 operational health correlation\nce4c7327aa Fix F-18 atomic startup readiness\n4fb70c7b0d Fix F-17 activity elapsed-time semantics\n414701d274 Fix F-16 opportunistic source scheduling\n5b343d816d Fix F-15 truthful tracker UI state\n6ea4fa9138 Fix F-14 durable startup recovery\n9f3d26f4bc Fix F-13 power saver tracking continuity\n713c761c87 Fix F-12 adaptive location acceptance\n2af611b240 Fix F-11 callback backpressure loss\n7749206560 Fix F-10 automatic detection recovery\n0d9f45b861 Fix F-09 foreground location permission flow\n42003ffc90 Fix F-08 downstream pipeline stalls\n2e6b35b1fb Fix F-07 location acquisition health proof\na63e7d7afc Fix F-06 fail-closed configuration snapshots\n2433f9b8fe Fix F-05 autonomous source recovery\n3662b3e4ca Fix F-04 automatic session process recovery\n87b75a9c80 Fix F-03 typed start admission results\n507583d6d7 Fix F-02 tracking health lifecycle state\nbdf2420908 Fix F-01 durable frame acknowledgement\n"
+  },
+  {
+    "ref": "codex/audit-reconciliation-20260925",
+    "status": "fulfilled",
+    "value": "4facc94f40 IMPLEMENTED_UNVALIDATED F-21: report observed platform restrictions\n84bc271b2c IMPLEMENTED_UNVALIDATED F-17: attribute activity by elapsed age\n23a68a0744 IMPLEMENTED_UNVALIDATED F-13: preserve tracking through Battery Saver\nf0b84bdc55 IMPLEMENTED_UNVALIDATED F-24: guard single location decision path\nc7adc7112e IMPLEMENTED_UNVALIDATED F-23: retire sources before foreground release\n5fd683658b IMPLEMENTED_UNVALIDATED F-22: retain release control evidence\n"
+  },
+  {
+    "ref": "codex/impl-broker-provider-bindings",
+    "status": "fulfilled",
+    "value": ""
+  },
+  {
+    "ref": "codex/impl-lifecycle-product-proof",
+    "status": "fulfilled",
+    "value": "f786563167 IMPLEMENTED_UNVALIDATED: harden lifecycle erase authority\na4328f7e2b IMPLEMENTED_UNVALIDATED: close lifecycle proof erase blockers\n9d755a66a4 IMPLEMENTED_UNVALIDATED: harden lifecycle retention proof\n002504cdf7 IMPLEMENTED_UNVALIDATED: close cross-source lifecycle proof blockers\n3b5700a7e5 IMPLEMENTED_UNVALIDATED: align lifecycle retention bounds\n6ddefcc0cb IMPLEMENTED_UNVALIDATED: close final Pressure lifecycle proof blockers\n065d36bead IMPLEMENTED_UNVALIDATED: correct Pressure historical lifecycle proof\ne74bac1315 IMPLEMENTED_UNVALIDATED: authenticate Pressure correction history\nede292a32d IMPLEMENTED_UNVALIDATED: reject live Pressure retention collisions\nb0feec1e7f IMPLEMENTED_UNVALIDATED: distinguish surviving Pressure evidence\ne4f3c28bd9 IMPLEMENTED_UNVALIDATED: retain every Pressure correction identity\n8422f73744 IMPLEMENTED_UNVALIDATED: persist exact Pressure retention authority\n27332b02f8 IMPLEMENTED_UNVALIDATED: stream lifecycle deletion proof\nd575139881 IMPLEMENTED_UNVALIDATED: close lifecycle proof edge blockers\n4b6a8b74a7 IMPLEMENTED_UNVALIDATED: harden lifecycle proof authority\ne888c48501 IMPLEMENTED_UNVALIDATED: close lifecycle proof blockers\n629639d3f7 IMPLEMENTED_UNVALIDATED: authenticate lifecycle provider evidence\na8431a0e7a IMPLEMENTED_UNVALIDATED: correct Pressure lifecycle proof\ndb1b1884e3 IMPLEMENTED_UNVALIDATED: authenticate Pressure correction proof\n6eac9fec8a IMPLEMENTED_UNVALIDATED: bind facts to exact WAL carriers\ncc901e068d IMPLEMENTED_UNVALIDATED: unify Cell WAL carrier authentication\n10455633d4 IMPLEMENTED_UNVALIDATED: authenticate Cell lifecycle WAL carrier\nc989a7e754 IMPLEMENTED_UNVALIDATED: close lifecycle proof authority gaps\nece5fa5dc9 IMPLEMENTED_UNVALIDATED: correct lifecycle proof authority\n3f64da45a1 IMPLEMENTED_UNVALIDATED: prove six-source lifecycle lineage\na9b778733b IMPLEMENTED_UNVALIDATED: add exact source fact proof contract\n"
+  },
+  {
+    "ref": "codex/update-tracking-accounting-75fd",
+    "status": "fulfilled",
+    "value": ""
+  }
+]
