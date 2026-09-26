@@ -29,7 +29,7 @@ Extend existing machinery rather than introduce another independent engine:
 1. Read a consistent revision of intent, purpose consent, source limits, live leases, deletion barriers and capability state.
 2. Qualify a small bounded cache of fresh observations/control hints by source, purpose, authority, event lineage, boot and observed time.
 3. Determine motion/uncertainty independently from intent. A session start requests detail; it does not prove movement.
-4. Use the existing plan factory to construct an authorized desired plan for each source from balance, useful-data needs and current hints.
+4. Use the existing plan factory to construct an authorized desired plan for each source from balance, useful-data needs, current hints and the additional cost of its acquisition mode relative to the currently applied shared plan.
 5. Use the source resolver as the final arbiter of legal/capability/safety constraints, accepted hard requirements, explicit caps and soft targets.
 6. Persist the desired revision, apply through the existing broker/shared physical owners, and retain exact acknowledged per-source results.
 7. Feed bounded delivery/coverage/failure information into the next reconciliation. Applied acquisition, durable admission and qualified saved data remain distinct.
@@ -58,6 +58,7 @@ These are all in-scope input families. A row is a design obligation, not a claim
 | Pressure | Qualified changes/trends, interval and noise | Supporting continuity only; weather/elevators are ambiguous. Does not prove horizontal movement or altitude. No hidden Pressure acquisition or invented burst provider. |
 | Evidence quality | Observed and received time, source confidence, uncertainty, conflicts, duplicate lineage, freshness deadline | Distinguishes useful hints from stale/ambiguous evidence. Derived motion, projections, imports and replay do not become independent fresh votes. |
 | Device energy | Valid battery level, charging, Battery Saver, thermal state | Applies bounded cost/safety response. Unknown battery stays unknown; charging cannot override thermal/privacy/legal limits. |
+| Acquisition cost | Actual provider/mode, shared owner, remaining optional-attempt budget, batching/wakeup capability, delivery/processing/write work and switching cost | Compare added work against the applied plan. Cheap observations remain useful; a source name or a high-detail label alone does not establish high power use. |
 | Platform capability | Hardware/provider availability, permission precision/background grant, legal service host/start, Doze/app restriction, batching support, radio throttling, SIM/topology changes | Constrains what is achievable. Missing capability state does not default to permission. One unavailable source leaves eligible siblings usable. |
 | App lifecycle | Foreground/background, relevant visible live consumer, screen state, user stop, process restart/reboot | Controls ownership and permitted delivery needs. Screen-off is not stillness or the end of a live session. Opening a screen cannot enroll tracking. |
 | Delivered value | Time since qualified observation, current coverage/gaps, quality/freshness need, cached/novel delivery, failures, canonical processing lag | Prefer useful new evidence and recoverable continuity to redundant attempts. Do not discard valid new history merely because it adds little to motion inference. |
@@ -109,6 +110,37 @@ For a new background enablement or adoption that expands Location beyond passive
 
 Store that independent choice in immutable `source_policy.background_acquisition_envelope`: legacy/null retains the existing envelope; `ACTIVE_LOCATION_ALLOWED` is valid only for Location with explicit background consent. Choosing a new five-level profile or granting Android permission cannot set it implicitly. Expansion is a separate explicit background-consent update with its own effective boundary/epoch; preserve capture/CONTROL authority and historical rows. Factory, resolver, ingress authority and recovery all check the stored envelope. Background off still wins over either envelope.
 
+### 4.1. Source and mode cost
+
+The user's cost refinement makes this an explicit policy input. The five levels express willingness to spend additional energy for useful detail. The runtime compares feasible modes for each selected source; it must not slow every source by the same fraction or source-level decrement.
+
+| Source/mode | Initial qualitative cost assumption | Intended scaling |
+| --- | --- | --- |
+| Direct hardware Steps counter | Low incremental sensing cost; callback wakeups, host lifetime, processing and writes still cost energy | Preserve counter continuity. Batch supported delivery and coalesce downstream work within accepted latency/durability limits; do not unregister to save a small cost or lose a reliable motion hint. |
+| System Steps continuity/history | Device-managed acquisition; app pays for reads, reconciliation and persistence | Keep the selected supported mechanism; bound imports/checkpoints. Historical delivery is not a fresh motion hint, and its cost is not identical to the direct counter. |
+| Passive/cached/broadcast Wi-Fi | Receiving existing results avoids requesting a new scan; delivery and processing still have an app cost | Preserve useful eligible callbacks. Deduplicate genuinely duplicate data and coalesce derived/UI work. Do not repeatedly read the same cache or discard distinct valid observations merely for low novelty. |
+| Active Wi-Fi attempt | Additional physical scan request can be costly; actual cost depends on device/platform behavior | Spend the finite existing attempt only for unmet useful detail within consent, platform limits and remaining budget. Once spent, do not keep charging the plan as though scans were running continuously. |
+| Cell change callback / requested refresh | Existing modem observations usually add less work than an app-triggered refresh; device/network behavior varies | Prefer qualified callbacks; consider an optional refresh only when its expected added value warrants its added work. Keep the finite budget and no-churn rules. |
+| Passive / active Location | Passive delivery avoids a new app request; active low-power/balanced/high-accuracy modes have different acquisition, startup and sustained costs | Reuse an acknowledged compatible active owner; adapt precision, interval and batching independently within limits. Include poor fix yield and startup cost before switching repeatedly. |
+| Activity transitions / classifications | Wake transitions and continuing classifications have different delivery/acquisition costs | Preserve the actual capture/control contract; do not replace required classifications with a cheaper transition-only product or enable Activity without consent. |
+| Pressure | Sensor sampling and CPU delivery have separate costs; high-rate unbatched delivery may dominate | Adapt sample rate and batching only within the pressure contract. Preserve useful continuous capture; do not invent an unsupported burst mode. |
+
+These are qualitative priors, not measured ratios or battery percentages. Hardware Steps is low power, not literally free. Passive Wi-Fi means Tracker receives a scan result already produced by the system or another app; Tracker still pays for its callback and data handling. Device capability and batching support qualify the assumption. Unknown costs remain uncertain rather than being assigned zero or treated as permission for extra work.
+
+**Small implementation seam:** extend the existing qualitative estimator with a pure comparison used by the single factory/resolver path and the settings preview. Inputs are the current acknowledged shared physical plan/host, a feasible candidate, accepted quality/continuity needs, remaining attempt/outstanding-work state and known batching capability. Compare four drivers: added hardware/radio acquisition; extra delivery/wakeups; processing/durable IO; registration/switching overhead. This is a small deterministic comparison of existing legal candidates, not another controller, general optimizer, permanent cost store or sensor-measurement service. Existing `GENERIC_PRIOR`, low confidence and absent battery-percent estimates remain honest until measurement exists.
+
+Use this order under power pressure:
+
+1. Preserve consent, hard obligations, source independence and useful cheap continuity. Already authorized Steps/passive radio can stay fully useful at low balance levels.
+2. Avoid unnecessary optional active attempts/refreshes, repeated stale-cache reads and redundant derived/UI work.
+3. Batch/coalesce work when it reduces actual wake/processing cost and still meets accepted latency, durable ingress and recovery requirements. Never replace durable admission with an unsafe in-memory delay merely to reduce writes.
+4. Reduce costly active acquisition when the selected balance, live quality request and source limits permit it. Missing data still means unknown; savings cannot fabricate complete coverage.
+5. Keep the current compatible configuration when switching overhead, retirement risk or loss of continuity outweighs the expected benefit. A costly source can downshift while a cheap source remains unchanged.
+
+Account for one shared physical owner once across baseline/live/control consumers; additional authority-specific processing/writes may still cost more. Releasing one demand saves hardware energy only if the effective shared mode or owner actually changes. A Steps projection-checkpoint change affects downstream work, not sensor acquisition; the existing physical fingerprint already excludes that checkpoint. Idle collection must not accrue an unconditional running-host charge when no owner/host is needed. Capability to request an active scan differs from an outstanding or future budgeted scan.
+
+Freshness/accuracy thresholds, deduplication and admission rules describe evidence semantics. Do not loosen those values or drop distinct valid observations solely to make a power score smaller. Power adaptation changes eligible physical work and safe delivery/processing; it keeps truthful data qualification. A high-detail preference can still be cheap when the requested evidence is already arriving passively. An unselected cheap helper remains off even when it could make another source more efficient.
+
 ## 5. Motion stability and power response
 
 Proposed named initial constants reuse existing motion rules wherever their meaning fits:
@@ -122,13 +154,15 @@ Proposed named initial constants reuse existing motion rules wherever their mean
 
 Proposed battery rules are runtime adjustments, never changes to the saved setting or source selection:
 
+**Latest cost refinement:** battery bands apply cost pressure through section4.1. They do not mechanically replace every source with a lower numbered profile. The profile table remains the initial preference mapping; the actual adjustment targets reducible acquisition/delivery costs while preserving cheap useful collection and evidence semantics.
+
 | Condition | Baseline-only source | Live participating source |
 | --- | --- | --- |
 | Valid battery outside a hysteresis-held low/critical band, saver off | Saved baseline | At least4, or saved5 |
-| Battery at/below20% | One level below saved baseline, minimum1 | Keep live detail target; reduce redundant work within its constraints |
-| Battery at/below10% | Target1 while preserving required useful continuity | Keep live target; one meaningful low-battery notice, no repeated per-callback warning |
+| Battery at/below20% | Moderate cost pressure: reduce expensive optional work first, then eligible acquisition/delivery cost; preserve useful Steps/passive callbacks | Keep live detail target; reduce redundant work within its constraints |
+| Battery at/below10% | Strong cost pressure: choose the cheapest allowed useful acquisition for costly modes, retaining cheap continuity/passive data and hard obligations | Keep live target; one meaningful low-battery notice, no repeated per-callback warning |
 | Recovery | Leave critical band at15%, low band at25%; recompute from saved baseline, never ratchet | Same live rule |
-| Android Battery Saver | Same one-level preference pressure, not additive with low battery | Reduce optional work within live obligations; actual OS restrictions always apply |
+| Android Battery Saver | Same moderate cost pressure, not additive with low battery | Reduce optional work within live obligations; actual OS restrictions always apply |
 | Charging | Remove battery-percentage reduction only | Same live rule; no automatic level5 |
 | Unknown battery | Preserve unknown and avoid percentage-based adjustment | Same |
 | Severe thermal / actual OS restriction | Minimum useful safe supported plan or truthful blocked state | Same safety rule; mark unmet quality and retain allowed baseline where possible |
@@ -166,6 +200,7 @@ Full one-based code references/read inventories are in [Runtime](RUNTIME_ADAPTIV
 6. Unknown battery becomes100%; low-battery global caps can remove Location. Motion adaptation is incorrectly explained as Battery Saver.
 7. Wi-Fi motion fusion, wider background host capability and stronger profile contracts are not completed merely by this plan. Preserve actual supported mechanisms.
 8. All original provider/writer/query/history/enrichment/export/lifecycle gaps and the global six-source assembly gate remain in the parent implementation plan.
+9. `QualitativeBatteryImpactEstimator` already ranks source modes differently but is an aggregate settings-preview prior, not a runtime marginal comparison. It does not account for applied shared ownership, spent radio budgets, actual delivery/IO cost or switching. Its generic points are not measured energy. Extend that seam as specified in section4.1; do not build a competing cost engine.
 
 ## 8. Delivery and proof
 
@@ -182,6 +217,8 @@ Acceptance covers all15 nonempty four-source combinations plus empty across five
 
 Device evidence later must measure useful freshness/coverage alongside requests, wakeups, CPU/writes and battery on matched stationary/walking/vehicle/outage workloads. Static review cannot establish optimal timing, measured savings, every device behavior or trustworthiness by itself. No tests or deferred validation ran in this pass.
 
+Add focused cost-policy test source: low battery retains Steps continuity and passive radio while suppressing an unnecessary active attempt; no batching capability means no invented hardware savings; shared baseline/live ownership is charged once and releasing one consumer does not imply hardware stop; an exhausted active-attempt budget has no recurring-scan charge; a checkpoint-only change does not restart or claim savings from the sensor; near-equal alternatives do not churn registrations; power pressure does not relax freshness admission or drop valid distinct facts; live quality preference remains honored where feasible, while genuine hard source contracts and source-off remain binding. Later device comparisons must separately record acquisition requests, delivered callbacks/wakes, derived work/writes and quality, rather than infer Tracker drain from total battery decline.
+
 ## 9. Approval packet and platform references
 
 Two focused decisions can approve this adaptive slice without reasking settled direction:
@@ -193,6 +230,10 @@ Earlier unresolved session overlap/removal, portable interval representation, CO
 
 Official Android documentation checked2026-09-26: [Location and battery](https://developer.android.com/develop/sensors-and-location/location/battery) distinguishes accuracy, frequency and delivery latency; [Wi-Fi scanning](https://developer.android.com/develop/connectivity/wifi/wifi-scan) documents cached results, passive callbacks and throttling; [foreground service restrictions](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start) constrain background starts and while-in-use permissions. These support bounded target/host design, not a guarantee of the proposed timing on a device.
 
+Cost refinement references: [AOSP step-counter requirements](https://source.android.com/docs/core/interaction/sensors/sensor-types#step_counter) specify a low-power sensor; [sensor batching](https://source.android.com/docs/core/interaction/sensors/batching) explains hardware buffering and reduced application-processor wakeups. These support the mode/cost distinction, not a claim of zero energy or a measured device-specific saving.
+
 ## 10. Static peer review disposition
 
 The three focused Astra roles cross-reviewed the consolidated proposal. Product identified the unknown-motion/live-target ambiguity and insufficiently concrete background scope; both are corrected in section4. Runtime identified the finite radio budget, battery recovery-band wording and retained historical Location distinction; these are corrected in sections4–6. Data required explicit profile-to-floor compatibility, immutable metadata/collision handling and a separately stored active-background Location envelope; these are recorded in sections4/6, and Data rechecked the final envelope paragraph without remaining material findings in that scope. This is review of a proposal, not the requested final fresh-agent review of assembled production code.
+
+After the user's energy-cost refinement, Astra Runtime traced `source/battery/BatteryImpactEstimator.kt:17–100`, `source/coordinator/TrackingSettingsStatusProvider.kt:124,208`, `source/model/SourcePlan.kt:225–258`, `source/runtime/StepSourceRuntime.kt:62,510–530`, `SharedWifiSourceController.kt:287–318`, `WifiSourceRuntime.kt:957–988`, `CellSourceRuntime.kt:977–1008` and `source/coordinator/WakeupPlanner.kt:27–47` under `tracker/engine/src/main/java/com/adsamcik/tracker/tracker/`. Its recommendation is reflected in section4.1 and supersedes blanket battery-level downshifts in the earlier role reports. No implementation or validation followed from this review.

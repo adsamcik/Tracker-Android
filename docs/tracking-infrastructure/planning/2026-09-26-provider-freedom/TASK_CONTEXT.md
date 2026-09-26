@@ -102,6 +102,12 @@ The adaptive system should be able to leverage hints from multiple sources that 
 
 This settles a central adaptive policy, five user-selectable power/quality levels, multiple qualified inputs, and live-session quality preference. FIVE_LEVEL_ADAPTIVE_POLICY.md develops the concrete recommendation. Five preference levels are distinct from source enablement and from motion state. Retrospective organization has no current collection effect. Exact profile behavior, live-session level mapping, device-power handling and expanded background authorization remain proposals until selected; the request does not activate providers or begin deferred validation.
 
+### 16. Acquisition-mode energy cost refinement
+
+We should also take into account during scaling how much a resource uses battery and how much a mode uses battery, for example steps tracking is basically free, while wifi scans are quite expensive but passive wifi scans are rather cheap for the app.
+
+This adds a required source-and-mode cost distinction to adaptive scaling: compare additional acquisition, delivery, processing and switching work; preserve useful cheap continuity/passive observations when reducing expensive optional requests. "Basically free" is the user's relative-cost example, not approval to claim zero measured energy. FIVE_LEVEL_ADAPTIVE_POLICY section4.1 incorporates the concrete proposal and supersedes blanket per-source battery downshifts. The earlier two approval questions remain unanswered; this refinement does not approve all preceding defaults or active-background expansion.
+
 ## Confirmed product direction
 
 The assistant's immediately preceding response accepted by message 9:
