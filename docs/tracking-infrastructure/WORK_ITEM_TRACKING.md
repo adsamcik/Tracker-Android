@@ -39,6 +39,10 @@ open; validation and integration are deferred. The historical registry below is 
   late-permission and denied-Location sibling corrections authored, **IMPLEMENTED_UNVALIDATED**.
   CONTROL owner/48h enforcement, capability presentation and remaining automatic source bindings
   stay open. See `automatic/2026-09-27/IMPLEMENTATION_TRACE.md` and `CONTRACT_DECISIONS.md`.
+- [ ] Finish collection controls across every entry point: source settings permission-race and
+  explicit-Start/user-exit deadlock corrections authored, **IMPLEMENTED_UNVALIDATED**. Shared
+  capture-scoped End, Turn off tracking, exact external action identity and pending manual-repair
+  continuation remain open. See `collection-controls/2026-09-27/IMPLEMENTATION_TRACE.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.

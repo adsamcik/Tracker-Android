@@ -934,7 +934,25 @@
         "Real producer/writer/reader/maintenance propagation remains unstarted backlog."
       ],
       "next_bounded_action": "Preserve locally integrated runtime/lifecycle settlement and exact owner/pending DDL. Executable multi-generation rearm and source propagation remain ordered backlog.",
-      "evidence": {},
+      "evidence": {
+        "collection_controls_2026_09_27": {
+          "candidate_base": "b3dc968a1b7fc5367895c712c0e5393435dedca8",
+          "state": "source-reviewed IMPLEMENTED_UNVALIDATED bounded slice; whole collection controls open",
+          "trace": "collection-controls/2026-09-27/IMPLEMENTATION_TRACE.md",
+          "implemented": [
+            "save source intent before permission prompt; grant callbacks refresh capability only",
+            "current manual Start resumes observed exit before startup lifecycle mutex; stale commands cannot clear suppression"
+          ],
+          "remaining": [
+            "capture-scoped End and exact action identity",
+            "Turn off tracking command and entry points",
+            "pending manual permission-repair continuation contract",
+            "background Steps/Wifi/Cell explicit re-enable and independent feature gating"
+          ],
+          "validation": "deferred; no gates executed; no integration or activation",
+          "review_receipt": "collection-controls/2026-09-27/REVIEW_RECEIPT.md"
+        }
+      },
       "related_requirement_ids": [],
       "requirement_ids": [
         "TODO-CONT-20260915-016",

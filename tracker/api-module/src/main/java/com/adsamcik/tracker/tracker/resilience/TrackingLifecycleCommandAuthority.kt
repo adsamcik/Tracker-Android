@@ -81,6 +81,7 @@ data class TrackingLifecycleCommandState(
 	fun observeUserExit(exitId: String): TrackingLifecycleCommandState {
 		require(exitId.isNotBlank())
 		return if (handledUserExitId == exitId) this else copy(
+			lastGeneration = nextGeneration(),
 			handledUserExitId = exitId, collectionResumeRequired = true)
 	}
 
@@ -88,6 +89,17 @@ data class TrackingLifecycleCommandState(
 		if (handledUserExitId == expectedExitId && collectionResumeRequired) {
 			copy(collectionResumeRequired = false, collectionResumeBoundary = boundary)
 		} else this
+
+    /** Only a fresh current Start issued after the observed exit may acknowledge tracker resume. */
+    fun resumeCollectionForStart(
+        expectedExitId: String,
+        command: TrackingStartCommand,
+        boundary: TrackingCollectionResumeBoundary,
+    ): TrackingLifecycleCommandState =
+        if (command.generation == lastGeneration &&
+            command.generation == latestStartGeneration &&
+            resolveStart(command) == TrackingStartCommandDisposition.Allowed
+        ) resumeCollection(expectedExitId, boundary) else this
 
 	fun issueStop(
 		reason: TrackingStopCandidateReason,
@@ -226,6 +238,12 @@ interface TrackingLifecycleCommandAuthority {
 	val collectionResumeBoundary: TrackingCollectionResumeBoundary? get() = null
 	suspend fun recordUserRequestedExit(exitId: String): Boolean = false
 	suspend fun resumeCollectionAfterUserExit(expectedExitId: String): Boolean = false
+
+    /** Atomic exact-Start resume; call before acquiring the startup operation's lifecycle lock. */
+    suspend fun resumeCollectionForManualStart(
+        expectedExitId: String,
+        command: TrackingStartCommand,
+    ): Boolean = false
 
 	suspend fun reserveStart(): TrackingStartCommand?
 

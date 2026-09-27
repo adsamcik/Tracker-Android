@@ -115,6 +115,14 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) {
 			return retryableStartRejection("TRACKING_STARTUP_NOT_READY")
 		}
+        // The startup lease holds the lifecycle authority's non-reentrant mutex. Resume must
+        // be ordered before entering it, with the exact current Start as the durable authority.
+        trackingLifecycleCommandAuthority.pendingCollectionResumeExitId?.let { exitId ->
+            if (!request.isUserInitiated || request.isAmbient || request.automaticTrigger != null ||
+                request.recoveryDescriptor != null ||
+                !trackingLifecycleCommandAuthority.resumeCollectionForManualStart(exitId, request.command)
+            ) return TrackingStartPreparationResult.Rejected("TRACKING_EXPLICIT_RESUME_REQUIRED")
+        }
 		val startupGeneration = trackingStartupGate.currentGeneration
 		return trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
 			prepareUnderReadyGeneration(
@@ -135,12 +143,11 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		exactContinuationAuthority: ServiceRunContinuationAuthority?,
 		startupGeneration: Long,
 	): TrackingStartPreparationResult {
-		trackingLifecycleCommandAuthority.pendingCollectionResumeExitId?.let { exitId ->
-			if (!request.isUserInitiated || request.isAmbient || request.automaticTrigger != null ||
-				request.recoveryDescriptor != null ||
-				!trackingLifecycleCommandAuthority.resumeCollectionAfterUserExit(exitId)
-			) return TrackingStartPreparationResult.Rejected("TRACKING_EXPLICIT_RESUME_REQUIRED")
-		}
+        // A new user exit between resume and acquiring this lease keeps collection suppressed.
+        // Recovery/redelivery may enter this method directly and never acknowledge an exit.
+        if (trackingLifecycleCommandAuthority.pendingCollectionResumeExitId != null) {
+            return TrackingStartPreparationResult.Rejected("TRACKING_EXPLICIT_RESUME_REQUIRED")
+        }
 		val bootId = bootClockDomainProvider.current()
 		val descriptorResolution = resolveDescriptor(request, bootId)
 		val resolved = when (descriptorResolution) {

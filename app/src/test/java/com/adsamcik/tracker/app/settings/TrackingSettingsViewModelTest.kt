@@ -53,6 +53,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -307,6 +308,90 @@ class TrackingSettingsViewModelTest {
             purposeAvailabilityReader,
 			sourcePolicyReconciliationCoordinator,
         )
+    }
+
+    @Test
+    fun `late source grants refresh actual capability and cannot revive selections`() = runTest(testDispatcher) {
+        val vm = createViewModel()
+        vm.setActivityEnabled(false)
+        vm.setStepsEnabled(false)
+        vm.setWifiEnabled(false)
+        vm.setCellEnabled(false)
+        advanceUntilIdle()
+        permissionsGranted = false
+
+        vm.onActivityPermissionResult(true)
+        vm.onStepsPermissionResult(true)
+        vm.onWifiPermissionResult(true)
+        vm.onCellPermissionResult(true)
+        advanceUntilIdle()
+
+        paramsFlow.value.activityEnabled shouldBe false
+        paramsFlow.value.stepsEnabled shouldBe false
+        paramsFlow.value.wifiEnabled shouldBe false
+        paramsFlow.value.cellEnabled shouldBe false
+        vm.uiState.value.activityPermissionGranted shouldBe false
+        vm.uiState.value.wifiPermissionGranted shouldBe false
+        vm.uiState.value.cellPermissionGranted shouldBe false
+        coVerify(exactly = 0) { trackingParamsRepository.setActivityEnabled(true) }
+        coVerify(exactly = 0) { trackingParamsRepository.setStepsEnabled(true) }
+        coVerify(exactly = 0) { trackingParamsRepository.setWifiEnabled(true) }
+        coVerify(exactly = 0) { trackingParamsRepository.setCellEnabled(true) }
+    }
+
+    @Test
+    fun `source intent precedes prompt and denial preserves each saved selection`() = runTest(testDispatcher) {
+        permissionsGranted = false
+        val vm = createViewModel()
+        var prompts = 0
+        vm.setActivityEnabled(true) { paramsFlow.value.activityEnabled shouldBe true; prompts++ }
+        vm.setStepsEnabled(true) { paramsFlow.value.stepsEnabled shouldBe true; prompts++ }
+        vm.setWifiEnabled(true) { paramsFlow.value.wifiEnabled shouldBe true; prompts++ }
+        vm.setCellEnabled(true) { paramsFlow.value.cellEnabled shouldBe true; prompts++ }
+        advanceUntilIdle()
+        prompts shouldBe 4
+        vm.onActivityPermissionResult(false)
+        vm.onStepsPermissionResult(false)
+        vm.onWifiPermissionResult(false)
+        vm.onCellPermissionResult(false)
+        advanceUntilIdle()
+        paramsFlow.value.activityEnabled shouldBe true
+        paramsFlow.value.stepsEnabled shouldBe true
+        paramsFlow.value.wifiEnabled shouldBe true
+        paramsFlow.value.cellEnabled shouldBe true
+    }
+
+    @Test
+    fun `superseded suspended source save cannot launch its old permission prompt`() = runTest(testDispatcher) {
+        val saveEntered = CompletableDeferred<Unit>()
+        val releaseSave = CompletableDeferred<Unit>()
+        coEvery { trackingParamsRepository.setWifiEnabled(true) } coAnswers {
+            saveEntered.complete(Unit)
+            releaseSave.await()
+        }
+        val vm = createViewModel()
+        var prompts = 0
+        vm.setWifiEnabled(true) { prompts++ }
+        saveEntered.await()
+        vm.setWifiEnabled(false)
+        advanceUntilIdle()
+        releaseSave.complete(Unit)
+        advanceUntilIdle()
+        prompts shouldBe 0
+        paramsFlow.value.wifiEnabled shouldBe false
+    }
+
+    @Test
+    fun `source reconciliation debt suppresses the permission prompt`() = runTest(testDispatcher) {
+        val failure = SourcePolicyRevisionReconciliationException(
+            listOf(SourcePolicyRevisionReconciliationFailure.SourcePolicyUnavailable),
+        )
+        coEvery { trackingParamsRepository.setStepsEnabled(true) } throws failure
+        val vm = createViewModel()
+        var prompts = 0
+        vm.setStepsEnabled(true) { prompts++ }
+        advanceUntilIdle()
+        prompts shouldBe 0
     }
 
     // =========================================================================

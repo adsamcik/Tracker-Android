@@ -5,6 +5,28 @@ import com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary
 import org.junit.jupiter.api.Test
 
 class TrackingLifecycleCommandAuthorityTest {
+    @Test
+    fun `Start issued before user exit cannot acknowledge that exit`() {
+        val (beforeExit, oldStart) = TrackingLifecycleCommandState().issueStart()
+        val stopped = beforeExit.observeUserExit("exit-1")
+        val boundary = TrackingCollectionResumeBoundary(1_000L, "boot", 100L)
+        stopped.resumeCollectionForStart("exit-1", oldStart, boundary) shouldBe stopped
+        val (fresh, newStart) = stopped.issueStart()
+        fresh.resumeCollectionForStart("exit-1", newStart, boundary).collectionResumeRequired shouldBe false
+    }
+
+    @Test
+    fun `superseded or stop blocked Start cannot acknowledge user exit`() {
+        val stopped = TrackingLifecycleCommandState().observeUserExit("exit-1")
+        val (first, firstStart) = stopped.issueStart()
+        val (second, _) = first.issueStart()
+        val boundary = TrackingCollectionResumeBoundary(1_000L, "boot", 100L)
+        second.resumeCollectionForStart("exit-1", firstStart, boundary) shouldBe second
+        val (withStop, _) = first.issueStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 1_000L)
+        val (blocked, blockedStart) = withStop.issueStart()
+        blocked.resumeCollectionForStart("exit-1", blockedStart, boundary) shouldBe blocked
+    }
+
 	@Test
 	fun `explicit resume keeps bounded exit receipt and stale acknowledgement cannot clear newer stop`() {
 		val first = TrackingLifecycleCommandState().observeUserExit("exit-1")

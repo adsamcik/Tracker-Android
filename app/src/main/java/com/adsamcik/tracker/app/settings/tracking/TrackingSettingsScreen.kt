@@ -195,21 +195,23 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         onRequiredAccuracyChanged = { trackingVm.setRequiredAccuracy(it) },
         onLocationEnabledChanged = { trackingVm.setLocationEnabled(it) },
         onActivityEnabledChanged = { enabled ->
-            if (enabled && !uiState.activityPermissionGranted &&
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-            ) {
-                activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-            } else {
-                trackingVm.setActivityEnabled(enabled)
+            trackingVm.setActivityEnabled(enabled) {
+                if (enabled && !trackingVm.uiState.value.activityPermissionGranted &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                    lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+                ) {
+                    activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                }
             }
         },
         onStepsEnabledChanged = { enabled ->
-            if (enabled && !uiState.activityPermissionGranted &&
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-            ) {
-                stepsPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-            } else {
-                trackingVm.setStepsEnabled(enabled)
+            trackingVm.setStepsEnabled(enabled) {
+                if (enabled && !trackingVm.uiState.value.activityPermissionGranted &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                    lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+                ) {
+                    stepsPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                }
             }
         },
         onBarometerEnabledChanged = { trackingVm.setBarometerEnabled(it) },
@@ -225,27 +227,27 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         onAdvancedSourceControlsChanged = { trackingVm.setAdvancedSourceControlsEnabled(it) },
         onSourceFrequencyChanged = trackingVm::setSourceFrequency,
         onWifiEnabledChanged = { enabled ->
-            if (enabled && !uiState.wifiPermissionGranted) {
-                wifiPermissionLauncher.launch(
-                    arrayOf(
+            trackingVm.setWifiEnabled(enabled) {
+                if (enabled && !trackingVm.uiState.value.wifiPermissionGranted &&
+                    lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+                ) {
+                    wifiPermissionLauncher.launch(arrayOf(
                         Manifest.permission.ACCESS_FINE_LOCATION,
                         Manifest.permission.ACCESS_COARSE_LOCATION,
-                    ),
-                )
-            } else {
-                trackingVm.setWifiEnabled(enabled)
+                    ))
+                }
             }
         },
         onCellEnabledChanged = { enabled ->
-            if (enabled && !uiState.cellPermissionGranted) {
-                cellPermissionLauncher.launch(
-                    arrayOf(
+            trackingVm.setCellEnabled(enabled) {
+                if (enabled && !trackingVm.uiState.value.cellPermissionGranted &&
+                    lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+                ) {
+                    cellPermissionLauncher.launch(arrayOf(
                         Manifest.permission.ACCESS_FINE_LOCATION,
                         Manifest.permission.READ_PHONE_STATE,
-                    ),
-                )
-            } else {
-                trackingVm.setCellEnabled(enabled)
+                    ))
+                }
             }
         },
         onNotificationCustomize = onNavigateToNotificationManagement,

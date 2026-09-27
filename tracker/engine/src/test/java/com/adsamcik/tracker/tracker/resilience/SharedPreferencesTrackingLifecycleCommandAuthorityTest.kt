@@ -33,6 +33,40 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
 	@After
 	fun tearDown() = clearStore()
 
+    @Test
+    fun `current manual Start acknowledges exit before entering startup lifecycle fence`() = runBlocking {
+        val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+        val oldStart = requireNotNull(authority.reserveStart())
+        authority.recordUserRequestedExit("exit-1") shouldBe true
+        authority.resumeCollectionForManualStart("exit-1", oldStart) shouldBe false
+        val freshStart = requireNotNull(authority.reserveStart())
+        withTimeout(2_000L) {
+            authority.resumeCollectionForManualStart("exit-1", freshStart) shouldBe true
+            authority.runWithHandledStopGeneration(0L) {
+                authority.pendingCollectionResumeExitId shouldBe null
+            } shouldBe true
+        }
+        val reopened = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+        reopened.pendingCollectionResumeExitId shouldBe null
+        reopened.collectionResumeBoundary shouldBe authority.collectionResumeBoundary
+        reopened.recordUserRequestedExit("exit-1") shouldBe true
+        reopened.pendingCollectionResumeExitId shouldBe null
+    }
+
+    @Test
+    fun `new exit or newer Start keeps obsolete manual resume suppressed`() = runBlocking {
+        val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+        authority.recordUserRequestedExit("exit-1") shouldBe true
+        val first = requireNotNull(authority.reserveStart())
+        requireNotNull(authority.reserveStart())
+        authority.resumeCollectionForManualStart("exit-1", first) shouldBe false
+        val current = requireNotNull(authority.reserveStart())
+        authority.recordUserRequestedExit("exit-2") shouldBe true
+        authority.resumeCollectionForManualStart("exit-1", current) shouldBe false
+        authority.resumeCollectionForManualStart("exit-2", current) shouldBe false
+        authority.pendingCollectionResumeExitId shouldBe "exit-2"
+    }
+
 	@Test
 	fun `user exit suppression and exact resume boundary survive recreation`() = runBlocking {
 		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)

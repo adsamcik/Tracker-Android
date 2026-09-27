@@ -422,3 +422,25 @@ New detailed capability presentation and concrete CONTROL owner/expiry compositi
 through the question tool as required by AGENTS.md; no answer received or inferred. 48h lifetime
 itself stays settled. Dependent contracts remain unapplied; no blanket automatic support claimed.
 See ../../automatic/2026-09-27/IMPLEMENTATION_TRACE.md and CONTRACT_DECISIONS.md.
+
+## 35. Collection controls request (2026-09-27)
+
+Original user text:
+
+> **Finish collection controls across every entry point.** Connect Start, End and Turn off tracking consistently through UI, notifications, widgets and shortcuts; finish permission-race and user-stop fencing.
+
+All original messages and supplied AGENTS.md apply. IMPLEMENTATION_ONLY continues: bounded
+production and required test-source authorship, static inspection/review and local checkpoint only.
+No Gradle, compilation, tests/lint/Detekt/schema/diff-check/device/UI/battery/CI/release/rollout
+validation, activation, push or new dev/v10 integration. Protected paths/drafts unchanged.
+Candidate starts at b3dc968a1b; main remains 13f1a99871.
+
+Review-only collection_controls_review inherits original messages, approved decisions, current
+code/diff and authored tests; no recursive delegation. Review found the explicit-Start-after-exit
+mutex deadlock, grants restoring Off, unfenced manual permission repair, stale widget/notification
+actions, End retiring background-only host, missing Turn off, incomplete background re-enable and
+feature-scoped suppression. Bounded settings intent/capability and exact-current resume fixes
+implement approved requirements. New shared control placement/wiring and permission continuation
+contract were asked via question tool under AGENTS.md; no answer received or inferred. Dependent
+contracts remain unapplied. Whole collection controls and assembly stay open. See
+../../collection-controls/2026-09-27/IMPLEMENTATION_TRACE.md and CONTRACT_DECISIONS.md.

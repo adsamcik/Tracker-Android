@@ -1807,3 +1807,21 @@ integration was changed; test sources are uncompiled/unrun under IMPLEMENTATION_
 Details: automatic/2026-09-27/IMPLEMENTATION_TRACE.md and CONTRACT_DECISIONS.md.
 Checked slices describe authored and statically reviewed source only, not successful execution.
 Whole integration and assembly gate remain open; no provider/writer activation or dev/v10 change.
+
+## 2026-09-27 collection controls continuation
+
+- [x] Author source-selection-before-prompt and capability-only callback corrections for settings
+  Activity/Steps/Wi-Fi/Cell, including superseded prompt, stale grant and denial test sources.
+- [x] Author exact-current explicit Start acknowledgment outside the startup lifecycle mutex;
+  a new observed exit invalidates pre-exit Start resume acknowledgment. Author durable/pure-state regressions.
+- [ ] Authenticate manual permission/settings repair continuation against the initiating intent.
+- [ ] Use capture-scoped End across UI, notifications, widgets and shortcuts; stale displayed End
+  must never become Start or affect successor/background/feature demand.
+- [ ] Implement durable bulk Turn off with acknowledgment and failure/retry presentation while
+  preserving manual source choices, quality, history and independently controlled feature demand.
+- [ ] Complete explicit background re-enable and tracker-versus-feature suppression across sources.
+- [ ] Author complete external-action, permission/configuration/stop race and process-recovery cases.
+
+Whole collection controls stay open. See collection-controls/2026-09-27/IMPLEMENTATION_TRACE.md
+and CONTRACT_DECISIONS.md. Checked source slices are IMPLEMENTED_UNVALIDATED; no execution,
+activation, convergence freeze, integration or push is implied.

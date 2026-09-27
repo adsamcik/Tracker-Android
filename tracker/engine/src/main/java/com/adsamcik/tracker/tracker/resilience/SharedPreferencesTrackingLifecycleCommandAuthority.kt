@@ -44,6 +44,21 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 		updated == commandState || writeState(updated)
 	}
 
+    override suspend fun resumeCollectionForManualStart(
+        expectedExitId: String,
+        command: TrackingStartCommand,
+    ): Boolean = commandGate.withLock {
+        if (commandState.handledUserExitId != expectedExitId ||
+            !commandState.collectionResumeRequired
+        ) return@withLock false
+        val updated = commandState.resumeCollectionForStart(
+            expectedExitId, command, TrackingCollectionResumeBoundary(
+                System.currentTimeMillis(), bootClockDomainProvider.current(), SystemClock.elapsedRealtimeNanos(),
+            ),
+        )
+        updated != commandState && writeState(updated)
+    }
+
 	override suspend fun reserveStart(): TrackingStartCommand? = commandGate.withLock {
 		val (updated, command) = commandState.issueStart()
 		command.takeIf { writeState(updated) }

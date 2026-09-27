@@ -150,6 +150,7 @@ class TrackingSettingsViewModel @Inject constructor(
     private var latestParams: TrackingParamsState? = null
 	private var locationIntentGeneration = 0L
 	private var automaticIntentGeneration = 0L
+	private val sourceIntentGenerations = mutableMapOf<TrackingSourceComponent, Long>()
 	private val locationPermissionRequests = Channel<LocationSettingsPermissionRequest>(Channel.BUFFERED)
 	val locationPermissionEvents = locationPermissionRequests.receiveAsFlow()
 	private var latestPurposeAvailability = purposeAvailabilityReader.availability.value
@@ -210,33 +211,48 @@ class TrackingSettingsViewModel @Inject constructor(
 		}
     }
 
-    fun setActivityEnabled(enabled: Boolean) {
-		launchSourcePolicyMutation(markCustomPreset = true) {
-			trackingParamsRepository.setActivityEnabled(enabled)
-		}
+    fun setActivityEnabled(enabled: Boolean, onSaved: () -> Unit = {}) {
+        mutateSourceSelection(TrackingSourceComponent.ACTIVITY, onSaved) {
+            trackingParamsRepository.setActivityEnabled(enabled)
+        }
     }
 
-    fun setStepsEnabled(enabled: Boolean) {
-		launchSourcePolicyMutation(markCustomPreset = true) {
-			trackingParamsRepository.setStepsEnabled(enabled)
-		}
+    fun setStepsEnabled(enabled: Boolean, onSaved: () -> Unit = {}) {
+        mutateSourceSelection(TrackingSourceComponent.STEPS, onSaved) {
+            trackingParamsRepository.setStepsEnabled(enabled)
+        }
     }
 
-    fun setWifiEnabled(enabled: Boolean) {
-		launchSourcePolicyMutation(markCustomPreset = true) {
-            // Persist the user's intent. Actual scanning is guarded at runtime by the Wi-Fi
-            // producer (which re-checks the permission every cycle and nudges the user to grant
-            // it), and the UI's effective state still gates display on the permission. Coercing
-            // to false here previously discarded the intent if the permission check raced the
-            // grant callback, leaving the toggle stuck off.
+    fun setWifiEnabled(enabled: Boolean, onSaved: () -> Unit = {}) {
+        mutateSourceSelection(TrackingSourceComponent.WIFI, onSaved) {
             trackingParamsRepository.setWifiEnabled(enabled)
-		}
+        }
     }
 
-    fun setCellEnabled(enabled: Boolean) {
-		launchSourcePolicyMutation(markCustomPreset = true) {
-			trackingParamsRepository.setCellEnabled(enabled)
-		}
+    fun setCellEnabled(enabled: Boolean, onSaved: () -> Unit = {}) {
+        mutateSourceSelection(TrackingSourceComponent.CELL, onSaved) {
+            trackingParamsRepository.setCellEnabled(enabled)
+        }
+    }
+
+    /** Save participation before prompting; a superseding edit cancels the old prompt. */
+    private fun mutateSourceSelection(
+        source: TrackingSourceComponent,
+        onSaved: () -> Unit,
+        mutation: suspend () -> Unit,
+    ) {
+        val generation = (sourceIntentGenerations[source] ?: 0L) + 1L
+        sourceIntentGenerations[source] = generation
+        launchSourcePolicyMutation(
+            markCustomPreset = true,
+            afterCommittedMutation = {
+                if (sourceIntentGenerations[source] == generation) {
+                    refreshPermissionState()
+                    onSaved()
+                }
+            },
+            mutation = mutation,
+        )
     }
 
     fun setBarometerEnabled(enabled: Boolean) {
@@ -353,28 +369,18 @@ class TrackingSettingsViewModel @Inject constructor(
 		}
     }
 
-    fun onActivityPermissionResult(granted: Boolean) {
-        _uiState.update { it.copy(activityPermissionGranted = granted) }
-        if (granted) setActivityEnabled(true)
-    }
+    fun onActivityPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) = refreshSourcePermissions()
 
-    fun onStepsPermissionResult(granted: Boolean) {
-        _uiState.update { it.copy(activityPermissionGranted = granted) }
-        if (granted) setStepsEnabled(true)
-    }
+    fun onStepsPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) = refreshSourcePermissions()
 
-    fun onWifiPermissionResult(granted: Boolean) {
-        _uiState.value = _uiState.value.copy(wifiPermissionGranted = granted)
-        if (granted) {
-            setWifiEnabled(true)
-        }
-    }
+    fun onWifiPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) = refreshSourcePermissions()
 
-    fun onCellPermissionResult(granted: Boolean) {
-        _uiState.value = _uiState.value.copy(cellPermissionGranted = granted)
-        if (granted) {
-            setCellEnabled(true)
-        }
+    fun onCellPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) = refreshSourcePermissions()
+
+    /** Platform callbacks are capability changes, never new participation intent. */
+    private fun refreshSourcePermissions() {
+        refreshPermissionState()
+        retrySourcePolicyReconciliation()
     }
 
     fun setTransitionDetectionEnabled(enabled: Boolean) {
