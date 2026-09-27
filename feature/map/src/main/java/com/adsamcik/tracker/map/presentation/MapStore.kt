@@ -490,7 +490,7 @@ class MapStore @Inject constructor(
         dispatch(MapEvent.SetDateRange(range))
     }
 
-    private fun updateUserLocation(latLng: LatLngModel, accuracyM: Double) {
+    private fun updateUserLocation(latLng: LatLngModel, accuracyM: Double?) {
         val isInitial = !hasReceivedInitialLocation
         if (isInitial) {
             hasReceivedInitialLocation = true
@@ -507,10 +507,12 @@ class MapStore @Inject constructor(
             val filteredOverlays = st.overlays.filterIndexed { index, _ ->
                 index !in userOverlayIndices
             }
-            val newUserOverlays = listOf(
-                MapOverlayState.UserMarker(latLng, bearing = if (st.isFollowing) lastBearing else null),
-                MapOverlayState.AccuracyCircle(latLng, accuracyM)
-            )
+            val newUserOverlays = buildList {
+                add(MapOverlayState.UserMarker(latLng, bearing = if (st.isFollowing) lastBearing else null))
+                if (accuracyM != null && accuracyM.isFinite() && accuracyM >= 0.0) {
+                    add(MapOverlayState.AccuracyCircle(latLng, accuracyM))
+                }
+            }
             st.copy(overlays = persistentListOf(*(filteredOverlays + newUserOverlays).toTypedArray()))
         }
         if (isInitial || _state.value.isFollowing) {

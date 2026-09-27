@@ -1825,3 +1825,26 @@ Whole integration and assembly gate remain open; no provider/writer activation o
 Whole collection controls stay open. See collection-controls/2026-09-27/IMPLEMENTATION_TRACE.md
 and CONTRACT_DECISIONS.md. Checked source slices are IMPLEMENTED_UNVALIDATED; no execution,
 activation, convergence freeze, integration or push is implied.
+
+## 2026-09-27 temporary Location continuation
+
+- [x] Trace map, both game adapters/router, game service, shared durable Location controller,
+  physical retirement, startup gates and sunrise provider/persistence boundaries.
+- [x] Author valid `(0,0)` and finite coordinate admission, nullable honest accuracy and map circle
+  replacement, with actual provider-flow/store regression sources.
+- [x] Author both game adapters rejecting unknown/nonpositive observation wall timestamps instead
+  of manufacturing current time, with actual adapter regression sources.
+- [ ] Confirm the concrete shared feature host/freshness and map/sunrise lifetime contracts.
+- [ ] Compose independent feature leases and ephemeral raw delivery on the shared Location owner,
+  without dummy durable registration, capture authority, consent or WAL/history/export writes.
+- [ ] Merge request floors and replace generic active-session game routing/per-request UI providers;
+  preserve real host identity, acknowledged retirement, independent stop and game screen-off.
+- [ ] Qualify current-boot observed freshness, game measurements and stale marker/signal behavior.
+- [ ] Implement the approved sunrise lifetime and keep feature-only fixes out of retained radio
+  enrichment and collected-data storage while preserving intentional game score persistence.
+- [ ] Author complete lease/admission/retirement/permission/stop/deletion/non-persistence cases and
+  independently review the full applied source slice before convergence.
+
+Whole temporary Location unification stays open. See temporary-location/2026-09-27/
+IMPLEMENTATION_TRACE.md, CONTRACT_DECISIONS.md and REVIEW_RECEIPT.md. Checked corrections are
+source-reviewed IMPLEMENTED_UNVALIDATED only; tests uncompiled/unrun, no validation or integration.

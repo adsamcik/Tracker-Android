@@ -27,10 +27,10 @@ class LocationAndSensorsManager(
 ) {
 
     /** 
-     * Emits triples of (lat, lng, accuracyMeters). Completes when flow is closed.
+     * Emits triples of (lat, lng, nullable accuracyMeters); absent accuracy remains unknown. Completes when flow is closed.
      * Adapts priority based on granted permissions: high accuracy for precise, balanced for coarse.
      */
-    fun locationUpdates(highAccuracy: Boolean = true): Flow<Triple<Double, Double, Double>> {
+    fun locationUpdates(highAccuracy: Boolean = true): Flow<Triple<Double, Double, Double?>> {
         if (!context.hasLocationPermission) return emptyFlow()
 
         return uiLocationProvider.locationUpdates(
@@ -40,15 +40,14 @@ class LocationAndSensorsManager(
                 highAccuracy = highAccuracy && context.hasPreciseLocationPermission,
             ),
         ).mapNotNull { location ->
-            if (location.latitude != 0.0 || location.longitude != 0.0) {
-                Triple(
-                    location.latitude,
-                    location.longitude,
-                    if (location.hasAccuracy()) location.accuracy.toDouble() else 0.0,
-                )
-            } else {
-                null
-            }
+            if (!location.latitude.isFinite() || location.latitude !in -90.0..90.0 ||
+                !location.longitude.isFinite() || location.longitude !in -180.0..180.0
+            ) return@mapNotNull null
+            Triple(
+                location.latitude,
+                location.longitude,
+                location.accuracy.takeIf { location.hasAccuracy() && it.isFinite() && it >= 0f }?.toDouble(),
+            )
         }
     }
 

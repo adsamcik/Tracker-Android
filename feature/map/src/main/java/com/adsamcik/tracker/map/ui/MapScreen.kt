@@ -901,7 +901,7 @@ fun MapScreen(
                 store.dispatch(
                     MapEvent.SetUserLocation(
                         latLng = LatLngModel(lat = lat, lng = lng),
-                        accuracyM = accuracy.coerceAtLeast(0.0),
+                        accuracyM = accuracy,
                     )
                 )
             }

@@ -151,7 +151,7 @@ sealed interface MapEvent {
     data class UpdateSearchQuery(val query: String) : MapEvent
     data class SetSearchFocus(val hasFocus: Boolean) : MapEvent
     data object SubmitSearch : MapEvent
-    data class SetUserLocation(val latLng: LatLngModel, val accuracyM: Double) : MapEvent
+    data class SetUserLocation(val latLng: LatLngModel, val accuracyM: Double?) : MapEvent
     data class SetBearing(val bearing: Float) : MapEvent
 
     /** Accessibility zoom controls: step the map zoom in / out by one level. */

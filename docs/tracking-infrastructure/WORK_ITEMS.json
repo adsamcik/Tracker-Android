@@ -877,7 +877,31 @@
         "Ambient Steps currently consults the wrong session AMBIENT lane."
       ],
       "next_bounded_action": "Remain planned outside already-started runtime and purpose corrections.",
-      "evidence": {},
+      "evidence": {
+        "temporary_location_2026_09_27": {
+          "candidate_base": "ecf8c73de9515e1c0ebb2eadc7daf7bb39530cbd",
+          "state": "source-reviewed IMPLEMENTED_UNVALIDATED bounded corrections; whole temporary Location unification open",
+          "trace": "temporary-location/2026-09-27/IMPLEMENTATION_TRACE.md",
+          "implemented": [
+            "valid map coordinates including zero; nullable unknown accuracy and truthful circle replacement",
+            "both game adapters reject nonpositive observation wall time rather than manufacture current time"
+          ],
+          "remaining": [
+            "concrete feature lease/host/freshness and map/sunrise lifetime confirmation",
+            "shared ephemeral feature demand/delivery and acknowledged physical-owner retirement",
+            "map/game shared adapter, request qualification, observed freshness and independent host lifetimes",
+            "feature-only observation non-persistence across WAL/history/export/radio enrichment and sunrise"
+          ],
+          "authored_test_sources": [
+            "feature/map/src/test/java/com/adsamcik/tracker/map/presentation/sensors/LocationAndSensorsManagerTest.kt",
+            "feature/map/src/test/java/com/adsamcik/tracker/map/presentation/MapStoreTest.kt",
+            "feature/game/src/test/java/com/adsamcik/tracker/game/minigame/location/FusedMiniGameLocationSourceTest.kt",
+            "feature/game/src/test/java/com/adsamcik/tracker/game/minigame/location/LiveOrFusedMiniGameLocationSourceTest.kt"
+          ],
+          "validation": "deferred; sources uncompiled/unrun; no activation, freeze or integration",
+          "review_receipt": "temporary-location/2026-09-27/REVIEW_RECEIPT.md"
+        }
+      },
       "related_requirement_ids": [],
       "requirement_ids": [
         "TODO-BROKER-001",

@@ -347,6 +347,28 @@ class MapStoreTest {
     }
 
     @Test
+    fun `unknown accuracy removes old circle while keeping current position marker`() = runTest {
+        val origin = LatLngModel(0.0, 0.0)
+        mapStore.dispatch(MapEvent.SetUserLocation(origin, 10.0))
+        testDispatcher.scheduler.advanceUntilIdle()
+        mapStore.dispatch(MapEvent.SetUserLocation(origin, null))
+        testDispatcher.scheduler.advanceUntilIdle()
+        val overlays = mapStore.state.value.overlays
+        overlays.filterIsInstance<com.adsamcik.tracker.map.presentation.udf.MapOverlayState.UserMarker>()
+            .single().latLng shouldBe origin
+        overlays.filterIsInstance<com.adsamcik.tracker.map.presentation.udf.MapOverlayState.AccuracyCircle>() shouldHaveSize 0
+    }
+
+    @Test
+    fun `invalid accuracy cannot become a map radius`() = runTest {
+        listOf(Double.NaN, Double.POSITIVE_INFINITY, -1.0).forEach { accuracy ->
+            mapStore.dispatch(MapEvent.SetUserLocation(LatLngModel(50.0, 14.0), accuracy))
+            testDispatcher.scheduler.advanceUntilIdle()
+            mapStore.state.value.overlays.filterIsInstance<com.adsamcik.tracker.map.presentation.udf.MapOverlayState.AccuracyCircle>() shouldHaveSize 0
+        }
+    }
+
+    @Test
     fun `bearing update only affects user marker when following`() = runTest {
         val latLng = LatLngModel(37.7749, -122.4194)
         val bearing = 45f

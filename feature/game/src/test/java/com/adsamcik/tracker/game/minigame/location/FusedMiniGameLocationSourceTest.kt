@@ -42,7 +42,7 @@ import org.robolectric.annotation.Config
  *  - permission granted -> fixes map into MiniGameLocationSample correctly
  *    (lat/lon/speed/accuracy/time)
  *  - missing optional fields (no speed, no accuracy, time == 0) fall back to
- *    safe defaults and Time.nowMillis
+ *    safe defaults; absent observation times are not invented
  *  - flow cancellation removes the shared provider request
  */
 @RunWith(RobolectricTestRunner::class)
@@ -129,7 +129,7 @@ class FusedMiniGameLocationSourceTest {
 	}
 
 	@Test
-	fun `non-positive timestamp falls back to current time`() = runTest {
+	fun `unknown observation time is dropped and valid origin retains its actual timestamp`() = runTest {
 		grantFineLocation()
 
 		source.samples(request).test {
@@ -142,7 +142,13 @@ class FusedMiniGameLocationSourceTest {
 					time = 0L,
 				),
 			)
-			awaitItem().timestampMs shouldBe 1_700_000_000_000L
+			expectNoEvents()
+			locationProvider.emit(platformLocation(latitude = 0.0, longitude = 0.0, speed = 0f,
+				accuracy = 1f, time = 123L))
+			val sample = awaitItem()
+			sample.latitude shouldBe 0.0
+			sample.longitude shouldBe 0.0
+			sample.timestampMs shouldBe 123L
 			cancelAndConsumeRemainingEvents()
 		}
 	}

@@ -43,6 +43,10 @@ open; validation and integration are deferred. The historical registry below is 
   explicit-Start/user-exit deadlock corrections authored, **IMPLEMENTED_UNVALIDATED**. Shared
   capture-scoped End, Turn off tracking, exact external action identity and pending manual-repair
   continuation remain open. See `collection-controls/2026-09-27/IMPLEMENTATION_TRACE.md`.
+- [ ] Unify temporary Location consumers: valid map coordinates, unknown accuracy and actual game
+  observation time corrections authored, **IMPLEMENTED_UNVALIDATED**. Independent shared-owner
+  feature leases, real observed freshness and map/sunrise lifetime confirmation remain open.
+  See `temporary-location/2026-09-27/IMPLEMENTATION_TRACE.md` and `CONTRACT_DECISIONS.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.

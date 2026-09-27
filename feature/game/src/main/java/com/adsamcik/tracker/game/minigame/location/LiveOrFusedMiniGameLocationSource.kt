@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.game.minigame.location
 
-import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.model.Location as TrackerLocation
 import com.adsamcik.tracker.stats.api.TrackerLiveLocationFeed
 import com.google.android.gms.location.LocationRequest
@@ -11,7 +10,7 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 
 /**
  * Router that prefers the tracker's existing live location stream when the
@@ -50,19 +49,22 @@ internal class LiveOrFusedMiniGameLocationSource @Inject constructor(
 		liveFeed.isActiveFlow
 			.flatMapLatest { active ->
 				if (active) {
-					liveFeed.locations().map { it.toMiniGameLocationSample() }
+					liveFeed.locations().mapNotNull { it.toMiniGameLocationSample() }
 				} else {
 					fusedFallback.samples(request)
 				}
 			}
 			.buffer(capacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
-	private fun TrackerLocation.toMiniGameLocationSample(): MiniGameLocationSample =
-		MiniGameLocationSample(
+	private fun TrackerLocation.toMiniGameLocationSample(): MiniGameLocationSample? {
+		// Keep unknown observation time out of the game rather than inventing current time.
+		if (time <= 0L) return null
+		return MiniGameLocationSample(
 			latitude = latitude,
 			longitude = longitude,
 			speedMps = speed ?: 0f,
 			accuracyM = horizontalAccuracy ?: Float.MAX_VALUE,
-			timestampMs = time.takeIf { it > 0L } ?: Time.nowMillis,
+			timestampMs = time,
 		)
+	}
 }

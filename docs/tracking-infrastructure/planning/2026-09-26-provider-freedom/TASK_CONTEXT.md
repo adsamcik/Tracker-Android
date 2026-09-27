@@ -444,3 +444,30 @@ implement approved requirements. New shared control placement/wiring and permiss
 contract were asked via question tool under AGENTS.md; no answer received or inferred. Dependent
 contracts remain unapplied. Whole collection controls and assembly stay open. See
 ../../collection-controls/2026-09-27/IMPLEMENTATION_TRACE.md and CONTRACT_DECISIONS.md.
+
+## 36. Temporary Location consumer request (2026-09-27)
+
+Original user text:
+
+> **Unify temporary Location consumers.** Route My location and games through independent shared-owner leases with real freshness requirements and no unintended tracking persistence.
+
+All original messages above, follow-ups and supplied AGENTS.md apply. IMPLEMENTATION_ONLY
+continues: bounded production and required test-source authorship, static inspection/review and
+local checkpoint only. No Gradle, compilation, tests/lint/Detekt/schema/diff-check/device/UI/battery/
+CI/release/rollout validation, activation, push or new dev/v10 integration. Protected paths/drafts
+preserved. Candidate starts at ecf8c73de9; main remains 13f1a99871.
+
+Review-only temporary_location_review inherits original messages, approved decisions, relevant
+current code, exact diff and authored test sources; no recursive delegation. Whole-flow trace found
+generic live-session game routing, separate UI providers, process-background closure, synthetic
+game observation time, map coordinate/accuracy defects and an unmanaged persistent sunrise provider.
+Approved honest-data requirements support bounded coordinate/accuracy/timestamp corrections.
+
+The concrete shared lease/host/freshness pre-edit contract and map/sunrise lifetime changes were
+asked through the question tool as required by AGENTS.md; no answer received or inferred.
+Dependent architecture/UX/data contracts are unapplied. Shared durable registration cannot serve
+feature-only demand via a dummy purpose; it needs a genuinely ephemeral delivery path. Existing
+general startup/storage readiness differs from collection suppression; games need no new readiness
+framework and must not acknowledge tracker stop. Full temporary Location unification and the
+assembly gate remain open. See ../../temporary-location/2026-09-27/IMPLEMENTATION_TRACE.md,
+CONTRACT_DECISIONS.md and REVIEW_RECEIPT.md.

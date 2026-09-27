@@ -2,7 +2,6 @@ package com.adsamcik.tracker.game.minigame.location
 
 import android.annotation.SuppressLint
 import android.app.Application
-import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.base.location.UiLocationProvider
 import com.adsamcik.tracker.shared.base.location.UiLocationRequest
@@ -14,7 +13,7 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 
 /**
  * Default standalone mini-game source backed by the shared fused/framework UI provider.
@@ -49,13 +48,15 @@ internal class FusedMiniGameLocationSource @Inject constructor(
 				minimumDisplacementMeters = request.minUpdateDistanceMeters,
 				highAccuracy = request.priority == Priority.PRIORITY_HIGH_ACCURACY,
 			),
-		).map { location ->
+		).mapNotNull { location ->
+			// An absent observation time is not evidence that this is a new fix.
+			if (location.time <= 0L) return@mapNotNull null
 			MiniGameLocationSample(
 				latitude = location.latitude,
 				longitude = location.longitude,
 				speedMps = if (location.hasSpeed()) location.speed else 0f,
 				accuracyM = if (location.hasAccuracy()) location.accuracy else Float.MAX_VALUE,
-				timestampMs = location.time.takeIf { it > 0L } ?: Time.nowMillis,
+				timestampMs = location.time,
 			)
 		}.buffer(capacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 	}

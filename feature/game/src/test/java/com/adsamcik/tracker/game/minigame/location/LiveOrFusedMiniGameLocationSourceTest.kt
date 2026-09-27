@@ -126,7 +126,7 @@ class LiveOrFusedMiniGameLocationSourceTest {
 	}
 
 	@Test
-	fun `non-positive timestamp falls back to current time`() = runTest {
+	fun `unknown observation time is dropped rather than replaced with current time`() = runTest {
 		val liveLocations = MutableSharedFlow<Location>(replay = 0)
 		val feed = FakeLiveFeed(active = true, locationStream = liveLocations)
 		val fused = mockk<FusedMiniGameLocationSource>(relaxed = true)
@@ -134,8 +134,9 @@ class LiveOrFusedMiniGameLocationSourceTest {
 
 		source.samples(request).test {
 			liveLocations.emit(location(latitude = 1.0, longitude = 2.0, time = 0L))
-			val sample = awaitItem()
-			sample.timestampMs shouldBe 1_700_000_000_000L
+			expectNoEvents()
+			liveLocations.emit(location(latitude = 1.0, longitude = 2.0, time = 123L))
+			awaitItem().timestampMs shouldBe 123L
 			cancelAndConsumeRemainingEvents()
 		}
 	}
