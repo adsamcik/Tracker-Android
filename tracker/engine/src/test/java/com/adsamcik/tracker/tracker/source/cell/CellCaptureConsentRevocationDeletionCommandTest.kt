@@ -86,6 +86,47 @@ class CellCaptureConsentRevocationDeletionCommandTest {
 		}
 
 	@Test
+	fun `carried revoked consent and sibling heartbeat allow independent capture cleanup`() = runTest {
+		installPolicy(revoked = true, controlEligible = true)
+		val nextPolicy = policy(revoked = true, controlConsentEpoch = CONTROL_CONSENT_EPOCH).copy(
+			policyRevision = REVOKED_POLICY_REVISION + 1L,
+			effectiveBootId = "next-policy-boot",
+			effectiveElapsedRealtimeNanos = 10L,
+			effectiveWallTimeMs = REVOKED_AT_MS + 100L,
+		)
+		database.sourcePolicyDao().insertPolicies(listOf(nextPolicy))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_policy_authority SET current_policy_revision = ?, updated_at_ms = ? WHERE id = 1",
+			arrayOf(nextPolicy.policyRevision, nextPolicy.effectiveWallTimeMs),
+		)
+		database.sourceEvidenceStateDao().incrementRevision(DELETED_AT_MS + 100L) shouldBe 1
+		val sibling = sentinelControlDemand()
+		database.sourceBrokerDao().insertDemands(listOf(sibling))
+		coEvery { runtime.establishCaptureDeletionBarrier(COLLECTED_DATA_EPOCH) } returns
+			CellCaptureDeletionBarrierResult.NoLocalProvider
+
+		subject.delete(request()) shouldBe CellCaptureConsentRevocationDeletionResult.AlreadyDeleted
+
+		coVerify(exactly = 1) { runtime.establishCaptureDeletionBarrier(COLLECTED_DATA_EPOCH) }
+		database.sourceBrokerDao().demandsByIds(listOf(sibling.demandId)) shouldBe listOf(sibling)
+		database.sourceEvidenceStateDao().get()?.updatedAtMs shouldBe DELETED_AT_MS + 100L
+	}
+
+	@Test
+	fun `consent from a future policy is blocked before touching Cell runtime`() = runTest {
+		installPolicy(revoked = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_consent_epoch SET policy_revision = ? WHERE source_kind = ? AND purpose = ? AND epoch = ?",
+			arrayOf(REVOKED_POLICY_REVISION + 1L, CELL_SOURCE,
+				SourceBrokerPurpose.SESSION_CAPTURE, REVOKED_CONSENT_EPOCH),
+		)
+		subject.delete(request()) shouldBe CellCaptureConsentRevocationDeletionResult.Blocked(
+			CellCapturedSourceDeletionBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE,
+		)
+		coVerify(exactly = 0) { runtime.establishCaptureDeletionBarrier(any()) }
+	}
+
+	@Test
 	fun `eligible consent is blocked before touching Cell runtime`() = runTest {
 		installPolicy(revoked = false)
 

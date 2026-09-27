@@ -697,7 +697,7 @@ internal suspend fun AppDatabase.pruneCapturedCellFactsAffectedByRetentionFloor(
 				removedRevisions = Math.addExact(removedRevisions, deletedRevisions)
 				checkpoint(CellCapturedMaintenanceCheckpoint.PAYLOAD_REMOVED)
 			}
-			check(sourceEvidenceStateDao().incrementRevision(markedAtMs) == 1) {
+			check(sourceEvidenceStateDao().incrementRevision(maxOf(state.updatedAtMs, markedAtMs)) == 1) {
 				"Unable to publish captured Cell retention"
 			}
 			CellCapturedRetentionResult.Pruned(selected.size, removedRevisions)
@@ -766,16 +766,13 @@ internal suspend fun AppDatabase.deleteCapturedCellFactsAfterConsentReset(
 			) block(CellCapturedSourceDeletionBlockedReason.POLICY_AUTHORITY_UNAVAILABLE)
 			if (policy.capturePersistenceEligible || policy.captureConsentEpoch != null ||
 				revokedConsent.eligible || revokedConsent.persistenceEligible ||
-				revokedConsent.policyRevision != policy.policyRevision ||
-				revokedConsent.effectiveBootId != policy.effectiveBootId ||
-				revokedConsent.effectiveElapsedRealtimeNanos != policy.effectiveElapsedRealtimeNanos ||
-				revokedConsent.effectiveWallTimeMs != policy.effectiveWallTimeMs
+				revokedConsent.policyRevision > policy.policyRevision
 			) block(CellCapturedSourceDeletionBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE)
+			// Exact epoch/high-water and capture clocks fence this erase; sibling WAL cannot veto it.
 			if (deletedAtMs < maxOf(
 				policyAuthority.updatedAtMs,
 				policy.effectiveWallTimeMs,
 				revokedConsent.effectiveWallTimeMs,
-				evidenceState.updatedAtMs,
 			)) block(CellCapturedSourceDeletionBlockedReason.STALE_REQUEST)
 
 			val dao = cellCapturedFactDao()
@@ -789,7 +786,6 @@ internal suspend fun AppDatabase.deleteCapturedCellFactsAfterConsentReset(
 			}
 			authenticateRetiringCellCaptureDemands(
 				demands = demands,
-				revokedPolicyRevision = policy.policyRevision,
 				revokedConsent = revokedConsent,
 			)
 			val registrations = dao.cellRegistrationsForDeletion(
@@ -1046,7 +1042,7 @@ internal suspend fun AppDatabase.deleteCapturedCellFactsAfterConsentReset(
 			if (sourceEventRetentionScopeProofDao().countForSource(CELL_SOURCE) != 0L) {
 				block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 			}
-			check(sourceEvidenceStateDao().incrementRevision(deletedAtMs) == 1) {
+			check(sourceEvidenceStateDao().incrementRevision(maxOf(evidenceState.updatedAtMs, deletedAtMs)) == 1) {
 				"Unable to publish captured Cell source deletion"
 			}
 			checkpoint(CellCapturedMaintenanceCheckpoint.PAYLOAD_REMOVED)
@@ -1183,7 +1179,6 @@ internal suspend fun AppDatabase.auditCapturedCellFacts(
 			CellCapturedRunScope(generation.logicalTrackingId, generation.serviceRunId)
 		},
 		latestDurableTimeMs = maxOf(
-			evidenceState.updatedAtMs,
 			owner?.updatedAtMs ?: 0L,
 			latestWalTimeMs,
 			lineages.maxOfOrNull { lineage -> lineage.revisions.maxOf { it.appliedAtMs } } ?: 0L,
@@ -1635,7 +1630,6 @@ private suspend fun AppDatabase.boundedAuthorizationMembers(
  */
 private suspend fun AppDatabase.authenticateRetiringCellCaptureDemands(
 	demands: List<SourceDemandEntity>,
-	revokedPolicyRevision: Long,
 	revokedConsent: SourceConsentEpochEntity,
 ) {
 	for (demand in demands) {
@@ -1664,14 +1658,14 @@ private suspend fun AppDatabase.authenticateRetiringCellCaptureDemands(
 			demand.purpose != CAPTURE_PURPOSE || !demand.persistenceEligible ||
 			demand.logicalTrackingId.isNullOrBlank() || demand.serviceRunId.isNullOrBlank() ||
 			demand.manifestRevision == null || demand.lifecycleLeaseGeneration == null ||
-			demand.sourcePolicyRevision >= revokedPolicyRevision || policy == null || consent == null ||
+			demand.sourcePolicyRevision >= revokedConsent.policyRevision || policy == null || consent == null ||
 			!policy.enabled || !policy.capturePersistenceEligible ||
 			policy.captureConsentEpoch != demand.consentEpoch || policy.qosCode != demand.qosCode ||
 			!consent.eligible || !consent.persistenceEligible ||
-			consent.policyRevision != policy.policyRevision ||
-			consent.effectiveBootId != policy.effectiveBootId ||
-			consent.effectiveElapsedRealtimeNanos != policy.effectiveElapsedRealtimeNanos ||
-			consent.effectiveWallTimeMs != policy.effectiveWallTimeMs ||
+			consent.policyRevision > policy.policyRevision ||
+			consent.effectiveWallTimeMs > demand.requestedAtMs ||
+			(consent.effectiveBootId == demand.requestedBootId &&
+				consent.effectiveElapsedRealtimeNanos > demand.requestedElapsedRealtimeNanos) ||
 			demand.requestedBootId != policy.effectiveBootId ||
 			demand.requestedElapsedRealtimeNanos < policy.effectiveElapsedRealtimeNanos ||
 			demand.requestedAtMs < policy.effectiveWallTimeMs

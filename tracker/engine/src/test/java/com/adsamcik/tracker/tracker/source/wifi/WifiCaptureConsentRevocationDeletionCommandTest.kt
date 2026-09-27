@@ -185,6 +185,48 @@ class WifiCaptureConsentRevocationDeletionCommandTest {
 	}
 
 	@Test
+	fun `retiring Wifi demand accepts carried grant but rejects backward temporal consent`() = runTest {
+		installPolicy(revoked = false)
+		val qualityPolicy = eligiblePolicy().copy(policyRevision = 2L,
+			effectiveElapsedRealtimeNanos = 150L, effectiveWallTimeMs = 1_500L)
+		database.sourcePolicyDao().insertPolicies(listOf(qualityPolicy,
+			revokedCapturePolicy().copy(policyRevision = CURRENT_POLICY_REVISION)))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(
+			captureConsent(revoked = true).copy(policyRevision = CURRENT_POLICY_REVISION)))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_policy_authority SET current_policy_revision = ?, updated_at_ms = ? WHERE id = 1",
+			arrayOf(CURRENT_POLICY_REVISION, REVOKED_AT_MS),
+		)
+		val retiring = sentinelCaptureDemand().copy(sourcePolicyRevision = 2L,
+			requestedElapsedRealtimeNanos = 160L, requestedAtMs = 1_600L)
+		database.sourceBrokerDao().insertDemands(listOf(retiring))
+		coEvery { runtime.establishCaptureDeletionBarrier(COLLECTED_DATA_EPOCH) } returns
+			WifiCaptureDeletionBarrierResult.NoLocalProvider
+		for ((wall, elapsed, revision) in listOf(Triple(1_601L, ELIGIBLE_ELAPSED_NANOS, 1L),
+			Triple(ELIGIBLE_AT_MS, 161L, 1L), Triple(ELIGIBLE_AT_MS, ELIGIBLE_ELAPSED_NANOS, 3L))) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_consent_epoch SET effective_wall_time_ms = ?, effective_elapsed_realtime_nanos = ?, " +
+					"policy_revision = ? WHERE source_kind = ? AND purpose = ? AND epoch = ?",
+				arrayOf(wall, elapsed, revision, WIFI_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, CAPTURE_CONSENT_EPOCH),
+			)
+			subject.delete(request()) shouldBe WifiCaptureConsentRevocationDeletionResult.Blocked(
+				WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+			)
+			database.sourceBrokerDao().demandsByIds(listOf(retiring.demandId)) shouldBe listOf(retiring)
+			database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		}
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_consent_epoch SET effective_wall_time_ms = ?, effective_elapsed_realtime_nanos = ?, " +
+				"policy_revision = 1 WHERE source_kind = ? AND purpose = ? AND epoch = ?",
+			arrayOf(ELIGIBLE_AT_MS, ELIGIBLE_ELAPSED_NANOS, WIFI_SOURCE,
+				SourceBrokerPurpose.SESSION_CAPTURE, CAPTURE_CONSENT_EPOCH),
+		)
+		subject.delete(request()) shouldBe WifiCaptureConsentRevocationDeletionResult.AlreadyDeleted
+		database.sourceBrokerDao().demandsByIds(listOf(retiring.demandId)).single().status shouldBe
+			SourceDemandEntity.STATUS_RETIRED
+	}
+
+	@Test
 	fun `eligible consent is blocked before touching Wi-Fi runtime`() = runTest {
 		installPolicy(revoked = false)
 

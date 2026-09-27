@@ -164,16 +164,13 @@ internal class CellCaptureConsentRevocationDeletionCommand @Inject constructor(
 		) return@withTransaction CellCapturedSourceDeletionBlockedReason.POLICY_AUTHORITY_UNAVAILABLE
 		if (policy.capturePersistenceEligible || policy.captureConsentEpoch != null ||
 			consent.eligible || consent.persistenceEligible ||
-			consent.policyRevision != policy.policyRevision ||
-			consent.effectiveBootId != policy.effectiveBootId ||
-			consent.effectiveElapsedRealtimeNanos != policy.effectiveElapsedRealtimeNanos ||
-			consent.effectiveWallTimeMs != policy.effectiveWallTimeMs
+			consent.policyRevision > policy.policyRevision
 		) return@withTransaction CellCapturedSourceDeletionBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE
+		// Sibling ingress advances the shared evidence heartbeat, not capture deletion authority.
 		if (request.deletedAtMs < maxOf(
 				authority.updatedAtMs,
 				policy.effectiveWallTimeMs,
 				consent.effectiveWallTimeMs,
-				evidence.updatedAtMs,
 			)
 		) return@withTransaction CellCapturedSourceDeletionBlockedReason.STALE_REQUEST
 		null

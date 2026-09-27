@@ -47,6 +47,10 @@ open; validation and integration are deferred. The historical registry below is 
   observation time corrections authored, **IMPLEMENTED_UNVALIDATED**. Independent shared-owner
   feature leases, real observed freshness and map/sunrise lifetime confirmation remain open.
   See `temporary-location/2026-09-27/IMPLEMENTATION_TRACE.md` and `CONTRACT_DECISIONS.md`.
+- [ ] Complete retained data authority: carried capture-consent/retiring radio grant checks and
+  Cell/Wi-Fi/Activity shared-heartbeat corrections authored, **IMPLEMENTED_UNVALIDATED**. Purpose settlement,
+  historical Location semantics, CONTROL expiry and full restore remain open. See
+  `retained-authority/2026-09-27/IMPLEMENTATION_TRACE.md` and `CONTRACT_DECISIONS.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.

@@ -471,3 +471,36 @@ general startup/storage readiness differs from collection suppression; games nee
 framework and must not acknowledge tracker stop. Full temporary Location unification and the
 assembly gate remain open. See ../../temporary-location/2026-09-27/IMPLEMENTATION_TRACE.md,
 CONTRACT_DECISIONS.md and REVIEW_RECEIPT.md.
+
+## 37. Retained data authority request (2026-09-27)
+
+Original user text:
+
+> **Complete retained data authority.** Reconcile consent, correction, retention, erase, replay and restore behavior while preserving independently authorized sibling purposes.
+
+All original messages above, follow-ups and supplied AGENTS.md apply. IMPLEMENTATION_ONLY
+continues: bounded production and required test-source authorship, static inspection/review and
+local checkpoint only. No Gradle, compilation, tests/lint/Detekt/schema/diff-check/device/UI/battery/
+CI/release/rollout validation, activation, push or new dev/v10 integration. Protected paths/drafts
+preserved. Candidate starts at 15f639b68d; main remains 13f1a99871.
+
+Review-only retained_authority_review inherits all original user messages, approved decisions,
+current selected code/diff and authored tests; no recursive delegation. Code trace found carried
+revoked capture consent blocked by current-policy equality, Cell cleanup blocked by generic sibling
+heartbeat, retiring radio grant equality, missing exact Activity/Steps sibling-purpose settlement,
+Location Off deleting history/current consent gating reads, missing Location capture-association
+actions, CONTROL 48h owner/expiry and full restore gaps. The real Pressure persistence barrier is
+DI-bound; the unavailable fallback concern was rejected by code trace.
+
+Approved carried-consent/source independence supports bounded source-local cleanup corrections
+and retiring radio grant temporal checks. Static review required preserving the newer shared Cell
+heartbeat after successful erase/retention; that correction and regression sources are authored.
+The same bounded monotonic publication correction is authored for existing Wi-Fi and Activity
+erase/retention, with actual mutation and correction/replay regression sources. Final root source
+inspection identified the Activity case after the earlier accepted diff; affected independent static
+review accepted its production/test sources and accurate documentation with no blocking finding.
+New historical Location Off/read behavior was asked via question tool under AGENTS.md because
+current code conflicts with the plan; no answer received or inferred. The earlier full restore
+target and automatic owner contracts remain unanswered and dependent changes are unapplied.
+Full retained authority and the assembly gate stay open. See ../../retained-authority/2026-09-27/
+IMPLEMENTATION_TRACE.md, CONTRACT_DECISIONS.md and REVIEW_RECEIPT.md.

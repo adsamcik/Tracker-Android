@@ -269,7 +269,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 					removedRevisions = Math.addExact(removedRevisions, removed)
 					checkpoint(WifiCapturedMaintenanceCheckpoint.PAYLOAD_REMOVED)
 				}
-				check(database.sourceEvidenceStateDao().incrementRevision(markedAtMs) == 1) {
+				check(database.sourceEvidenceStateDao().incrementRevision(maxOf(evidence.updatedAtMs, markedAtMs)) == 1) {
 					"Unable to publish captured Wi-Fi retention"
 				}
 				WifiCapturedRetentionResult.Pruned(selected.size, removedRevisions)
@@ -621,7 +621,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				if (database.sourceEventRetentionScopeProofDao().countForSource(WIFI_SOURCE) != 0L) {
 					block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 				}
-				check(database.sourceEvidenceStateDao().incrementRevision(deletedAtMs) == 1) {
+				check(database.sourceEvidenceStateDao().incrementRevision(maxOf(evidence.updatedAtMs, deletedAtMs)) == 1) {
 					"Unable to publish captured Wi-Fi source deletion"
 				}
 				checkpoint(WifiCapturedMaintenanceCheckpoint.PAYLOAD_REMOVED)
@@ -2220,10 +2220,10 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				!policy.enabled || !policy.capturePersistenceEligible ||
 				policy.captureConsentEpoch != demand.consentEpoch || policy.qosCode != demand.qosCode ||
 				!consent.eligible || !consent.persistenceEligible ||
-				consent.policyRevision != policy.policyRevision ||
-				consent.effectiveBootId != policy.effectiveBootId ||
-				consent.effectiveElapsedRealtimeNanos != policy.effectiveElapsedRealtimeNanos ||
-				consent.effectiveWallTimeMs != policy.effectiveWallTimeMs ||
+				consent.policyRevision > policy.policyRevision ||
+				consent.effectiveWallTimeMs > demand.requestedAtMs ||
+				(consent.effectiveBootId == demand.requestedBootId &&
+					consent.effectiveElapsedRealtimeNanos > demand.requestedElapsedRealtimeNanos) ||
 				demand.requestedBootId != policy.effectiveBootId ||
 				demand.requestedElapsedRealtimeNanos < policy.effectiveElapsedRealtimeNanos ||
 				demand.requestedAtMs < policy.effectiveWallTimeMs

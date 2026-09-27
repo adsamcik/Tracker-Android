@@ -311,6 +311,51 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		}
 
 	@Test
+	fun `Pressure erase accepts carried revoked consent but rejects a future consent revision`() = runTest {
+		val fixture = insertPressureSession("carried-revoked-consent", 1L, 1_000L, 2_000L)
+		installContainedPressureEraseAuthority(cutoffOrdinal = 1L)
+		val revokedPolicy = pressurePolicy().copy(policyRevision = 2L, enabled = false,
+			capturePersistenceEligible = false, captureConsentEpoch = null,
+			effectiveWallTimeMs = 2_500L, effectiveElapsedRealtimeNanos = 2_500L)
+		val nextPolicy = revokedPolicy.copy(policyRevision = 3L, effectiveBootId = "next-policy-boot",
+			effectiveWallTimeMs = 2_600L, effectiveElapsedRealtimeNanos = 10L)
+		database.sourcePolicyDao().insertPolicies(listOf(revokedPolicy, nextPolicy))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(pressureConsent().copy(
+			epoch = 2L, eligible = false, persistenceEligible = false, policyRevision = 2L,
+			effectiveWallTimeMs = 2_500L, effectiveElapsedRealtimeNanos = 2_500L)))
+		database.sourcePolicyDao().ensureAuthority(SourcePolicyAuthorityEntity(
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE, currentPolicyRevision = 3L,
+			legacySettingsFingerprint = null, updatedAtMs = 2_600L))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_consent_epoch SET policy_revision = 4 WHERE source_kind = ? AND purpose = ? AND epoch = 2",
+			arrayOf(SourceDestinationOwnerEntity.SOURCE_PRESSURE, SourceBrokerPurpose.SESSION_CAPTURE),
+		)
+		val failure = shouldThrow<PressureSourceEraseLocalFailure> {
+			database.withTransaction {
+				database.auditPressureSourceEraseLocalAuthorityInTransaction(
+					COLLECTED_DATA_EPOCH, 0L, 3L, 2L, 3_000L, containedPressureWriterFence(),
+				)
+			}
+		}
+		failure.reason shouldBe PressureSourceEraseLocalFailureReason.CAPTURE_CONSENT_STILL_ELIGIBLE
+		database.pressureFactRevisionDao().count() shouldBe 1L
+		exactFence(fixture) shouldBe null
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_consent_epoch SET policy_revision = 2 WHERE source_kind = ? AND purpose = ? AND epoch = 2",
+			arrayOf(SourceDestinationOwnerEntity.SOURCE_PRESSURE, SourceBrokerPurpose.SESSION_CAPTURE),
+		)
+		database.withTransaction {
+			val audit = database.auditPressureSourceEraseLocalAuthorityInTransaction(
+				COLLECTED_DATA_EPOCH, 0L, 3L, 2L, 3_000L, containedPressureWriterFence(),
+			)
+			audit.factRevisionCount shouldBe 1
+			database.applyPressureSourceEraseLocalMutationInTransaction(audit, COLLECTED_DATA_EPOCH, 3_000L)
+		}
+		database.pressureFactRevisionDao().count() shouldBe 0L
+		exactFence(fixture)?.fenceGeneration shouldBe 1L
+	}
+
+	@Test
 	fun `source erase blocks exact direct Pressure demand before local mutation`() = runTest {
 		val fixture = insertPressureSession(
 			"source-erase-demand",

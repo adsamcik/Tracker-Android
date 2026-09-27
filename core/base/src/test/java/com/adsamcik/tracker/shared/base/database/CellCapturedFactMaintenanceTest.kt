@@ -127,6 +127,19 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `Cell retention uses source clocks and preserves a newer sibling heartbeat`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+		database.sourceEvidenceStateDao().incrementRevision(MAINTENANCE_TIME_MS + 100L) shouldBe 1
+
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(FLOOR_MS, 0L, 0L,
+			MAINTENANCE_TIME_MS) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
+
+		database.sourceEvidenceStateDao().get()?.updatedAtMs shouldBe MAINTENANCE_TIME_MS + 100L
+		database.cellCapturedFactDao().revisionCount() shouldBe 0L
+		database.capturedRadioFactRetentionProofDao().countAll() shouldBe 1L
+	}
+
+	@Test
 	fun `nonzero callback barrier within retained capture authorization remains authentic`() = runTest {
 		seedCapturedCell(retainedFromMs = FLOOR_MS)
 		database.openHelper.writableDatabase.execSQL(
@@ -1096,6 +1109,94 @@ class CellCapturedFactMaintenanceTest {
 		)?.generation shouldBe 1L
 		database.cellCapturedFactDao().revisionCount() shouldBe 0L
 		database.cellCapturedFactDao().cursorCount() shouldBe 0L
+	}
+
+	@Test
+	fun `carried revoked consent and newer sibling heartbeat preserve CONTROL during capture erase`() = runTest {
+		seedCapturedCell(revokedCapture = true)
+		val control = installActiveControlOnlyProvider(captureBarrierRevision = SECOND_AUTHORIZATION_REVISION)
+		val controlWal = insertNewerControlOnlyWal()
+		val nextPolicy = revokedPolicy().copy(
+			policyRevision = REVOKED_POLICY_REVISION + 1L,
+			effectiveBootId = "next-policy-boot",
+			effectiveElapsedRealtimeNanos = 10L,
+			effectiveWallTimeMs = REVOKED_POLICY_WALL_MS + 100L,
+		)
+		database.sourcePolicyDao().insertPolicies(listOf(nextPolicy))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_policy_authority SET current_policy_revision = ?, updated_at_ms = ? WHERE id = 1",
+			arrayOf(nextPolicy.policyRevision, nextPolicy.effectiveWallTimeMs),
+		)
+		database.sourceEvidenceStateDao().incrementRevision(DELETION_TIME_MS + 100L) shouldBe 1
+
+		database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS) shouldBe CellCapturedSourceDeletionResult.Deleted(1, 1, 1)
+
+		database.sourceBrokerDao().demandsByIds(listOf(control.demandId)) shouldBe listOf(control)
+		val retained = requireNotNull(database.sourceEventWalDao().getByEventId(controlWal.eventId))
+		retained.integrityIdentity shouldBe controlWal.integrityIdentity
+		retained.payload.contentEquals(controlWal.payload) shouldBe true
+		database.cellCapturedFactDao().revisionCount() shouldBe 0L
+		database.cellCapturedFactDao().deletionGeneration(LOGICAL_TRACKING_ID, SERVICE_RUN_ID)?.generation shouldBe 1L
+		database.sourceEvidenceStateDao().get()?.updatedAtMs shouldBe DELETION_TIME_MS + 100L
+	}
+
+	@Test
+	fun `retiring Cell demand accepts carried grant but rejects backward temporal consent`() = runTest {
+		seedCapturedCell(revokedCapture = false)
+		val qualityPolicy = historicalPolicy().copy(policyRevision = 2L,
+			effectiveElapsedRealtimeNanos = 180_000_000L, effectiveWallTimeMs = 1_500L)
+		val revoked = revokedPolicy().copy(policyRevision = 3L)
+		database.sourcePolicyDao().insertPolicies(listOf(qualityPolicy, revoked))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(revokedConsent().copy(policyRevision = 3L)))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_policy_authority SET current_policy_revision = 3, updated_at_ms = ? WHERE id = 1",
+			arrayOf(REVOKED_POLICY_WALL_MS),
+		)
+		val retiring = demand(active = false, requestedElapsedRealtimeNanos = 250_000_000L,
+			requestedAtMs = 2_400L).copy(sourcePolicyRevision = 2L, status = SourceDemandEntity.STATUS_RETIRING)
+		database.sourceBrokerDao().insertDemands(listOf(retiring))
+		for ((wall, elapsed, revision) in listOf(Triple(2_401L, POLICY_START_NANOS, 1L),
+			Triple(RUN_START_WALL_MS, 250_000_001L, 1L), Triple(RUN_START_WALL_MS, POLICY_START_NANOS, 3L))) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_consent_epoch SET effective_wall_time_ms = ?, effective_elapsed_realtime_nanos = ?, " +
+					"policy_revision = ? WHERE source_kind = ? AND purpose = ? AND epoch = ?",
+				arrayOf(wall, elapsed, revision, CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, CONSENT_EPOCH),
+			)
+			database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
+				DELETION_TIME_MS) shouldBe CellCapturedSourceDeletionResult.Blocked(
+				CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+			)
+			database.sourceBrokerDao().demandsByIds(listOf(retiring.demandId)) shouldBe listOf(retiring)
+			database.cellCapturedFactDao().revisionCount() shouldBe 1L
+			database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		}
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_consent_epoch SET effective_wall_time_ms = ?, effective_elapsed_realtime_nanos = ?, " +
+				"policy_revision = 1 WHERE source_kind = ? AND purpose = ? AND epoch = ?",
+			arrayOf(RUN_START_WALL_MS, POLICY_START_NANOS, CELL_SOURCE,
+				SourceBrokerPurpose.SESSION_CAPTURE, CONSENT_EPOCH),
+		)
+		database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS) shouldBe CellCapturedSourceDeletionResult.Deleted(1, 1, 1)
+		database.sourceBrokerDao().demandsByIds(listOf(retiring.demandId)).single().status shouldBe
+			SourceDemandEntity.STATUS_RETIRED
+	}
+
+	@Test
+	fun `future revoked consent cannot erase Cell capture payload`() = runTest {
+		seedCapturedCell(revokedCapture = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_consent_epoch SET policy_revision = ? WHERE source_kind = ? AND purpose = ? AND epoch = ?",
+			arrayOf(REVOKED_POLICY_REVISION + 1L, CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE,
+				REVOKED_CONSENT_EPOCH),
+		)
+		database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS) shouldBe CellCapturedSourceDeletionResult.Blocked(
+			CellCapturedSourceDeletionBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE,
+		)
+		database.cellCapturedFactDao().revisionCount() shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
 	}
 
 	@Test

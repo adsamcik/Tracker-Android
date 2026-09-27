@@ -390,7 +390,7 @@ internal suspend fun AppDatabase.pruneCapturedActivityFactsAffectedByRetentionFl
 				removedRevisions = Math.addExact(removedRevisions, deletedRevisions)
 				checkpoint(ActivityCapturedMaintenanceCheckpoint.PAYLOAD_REMOVED)
 			}
-			check(sourceEvidenceStateDao().incrementRevision(markedAtMs) == 1) {
+			check(sourceEvidenceStateDao().incrementRevision(maxOf(state.updatedAtMs, markedAtMs)) == 1) {
 				"Unable to publish captured Activity retention"
 			}
 			ActivityCapturedRetentionResult.Pruned(selected.size, removedRevisions)
@@ -441,7 +441,7 @@ internal suspend fun AppDatabase.deleteCapturedActivityFactsAfterConsentReset(
 		withTransaction {
 			checkpoint(ActivityCapturedMaintenanceCheckpoint.TRANSACTION_STARTED)
 			val evidenceState = sourceEvidenceStateDao().get()
-			if (evidenceState?.collectedDataEpoch != expectedCollectedDataEpoch) {
+			if (evidenceState == null || evidenceState.collectedDataEpoch != expectedCollectedDataEpoch) {
 				block(ActivityCapturedSourceDeletionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
 			}
 			val policyAuthority = sourcePolicyDao().authority()
@@ -459,11 +459,7 @@ internal suspend fun AppDatabase.deleteCapturedActivityFactsAfterConsentReset(
 			) block(ActivityCapturedSourceDeletionBlockedReason.POLICY_AUTHORITY_UNAVAILABLE)
 			if (policy.capturePersistenceEligible || policy.captureConsentEpoch != null ||
 				revokedConsent.eligible || revokedConsent.persistenceEligible ||
-				revokedConsent.policyRevision != policy.policyRevision ||
-				revokedConsent.effectiveBootId != policy.effectiveBootId ||
-				revokedConsent.effectiveElapsedRealtimeNanos !=
-					policy.effectiveElapsedRealtimeNanos ||
-				revokedConsent.effectiveWallTimeMs != policy.effectiveWallTimeMs
+				revokedConsent.policyRevision > policy.policyRevision
 			) block(ActivityCapturedSourceDeletionBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE)
 			if (deletedAtMs < maxOf(
 				policyAuthority.updatedAtMs,
@@ -544,7 +540,7 @@ internal suspend fun AppDatabase.deleteCapturedActivityFactsAfterConsentReset(
 				dao.evidenceCount() != 0L || dao.cursorCount() != 0L ||
 				dao.registrationPlanBindingCount() != 0L
 			) block(ActivityCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-			check(sourceEvidenceStateDao().incrementRevision(deletedAtMs) == 1) {
+			check(sourceEvidenceStateDao().incrementRevision(maxOf(evidenceState.updatedAtMs, deletedAtMs)) == 1) {
 				"Unable to publish captured Activity source deletion"
 			}
 			checkpoint(ActivityCapturedMaintenanceCheckpoint.PAYLOAD_REMOVED)

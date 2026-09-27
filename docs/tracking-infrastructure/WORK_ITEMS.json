@@ -5439,7 +5439,36 @@
         "Wi-Fi/Cell remaining maintenance, Ambient Steps files, Pressure maintenance and Location product are incomplete."
       ],
       "next_bounded_action": "Preserve closed started artifacts and hand over remaining source retention, transfer, erase and no-resurrection work in dependency order.",
-      "evidence": {},
+      "evidence": {
+        "retained_authority_2026_09_27": {
+          "candidate_base": "15f639b68d76b79f3a06b63275ec1575ab72f00f",
+          "state": "source-reviewed IMPLEMENTED_UNVALIDATED bounded cleanup corrections; whole retained data authority open",
+          "trace": "retained-authority/2026-09-27/IMPLEMENTATION_TRACE.md",
+          "implemented": [
+            "latest revoked capture consent survives later policy revisions for Cell, Activity and Pressure cleanup; future consent remains blocked",
+            "Cell capture erase and retention use source-specific clocks and preserve a newer shared evidence heartbeat",
+            "retiring Wifi/Cell demands accept carried grants only before original demand time and actual revoked policy revision",
+            "existing Wifi and Activity erase/retention preserve newer shared evidence heartbeat with actual writer/mutation/correction/replay regression sources"
+          ],
+          "remaining": [
+            "historical Location access versus background Off/reconfiguration contract confirmation and dependent reads/cleanup",
+            "purpose-specific Activity/Steps callback settlement and Location capture-association erase",
+            "ambient Steps carried-consent read authentication and remaining purpose retention/replay composition",
+            "CONTROL owner and approved 48h expiry with independent capture proof survival",
+            "full backup restore target decision, complete durable-store snapshot/replacement and operational authority reset"
+          ],
+          "authored_test_sources": [
+            "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedFactMaintenanceTest.kt",
+            "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt",
+            "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellCaptureConsentRevocationDeletionCommandTest.kt",
+            "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/deletion/RoomPressureSelectedSessionDeletionServiceTest.kt",
+            "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiCaptureConsentRevocationDeletionCommandTest.kt",
+            "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt"
+          ],
+          "validation": "deferred; sources uncompiled/unrun; no activation, freeze, integration or push",
+          "review_receipt": "retained-authority/2026-09-27/REVIEW_RECEIPT.md"
+        }
+      },
       "related_requirement_ids": [],
       "requirement_ids": [
         "TODO-PRIV-001",

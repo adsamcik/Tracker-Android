@@ -1848,3 +1848,32 @@ activation, convergence freeze, integration or push is implied.
 Whole temporary Location unification stays open. See temporary-location/2026-09-27/
 IMPLEMENTATION_TRACE.md, CONTRACT_DECISIONS.md and REVIEW_RECEIPT.md. Checked corrections are
 source-reviewed IMPLEMENTED_UNVALIDATED only; tests uncompiled/unrun, no validation or integration.
+
+## 2026-09-27 retained authority continuation
+
+- [x] Trace consent publication, source-specific correction/retention/fences, capture/ambient erase,
+  replay footprints, full collected-data deletion and legacy export/import versus full restore.
+- [x] Author latest revoked capture consent carried through later policy revision for Cell,
+  Activity and Pressure cleanup; retain exact epoch/ineligibility/future-revision rejection.
+- [x] Author Cell capture erase/retention source-clock qualification while preserving the newer
+  shared evidence heartbeat; author actual successful mutation regression sources.
+- [x] Preserve the newer shared heartbeat during existing Wi-Fi and Activity erase/retention
+  publication, with actual writer/maintenance/correction-lineage/fence/delayed-replay sources.
+- [x] Author carried eligible grant admission for retiring Wi-Fi/Cell demands, independently proving
+  consent-before-original-demand wall/same-boot elapsed time and actual revocation cutoff.
+- [ ] Confirm historical Location behavior across Off/reconfiguration/re-enable and reconcile current
+  read/retention-approval/canonical-association cleanup without erasing authorized siblings.
+- [ ] Implement exact Activity capture and ambient Steps callback settlement with surviving sibling
+  demand; preserve physical retirement guards until the source acknowledges the retiring purpose.
+- [ ] Implement Location capture-association erase and finish source-specific historical consent,
+  correction, retention, replay, delayed-callback and derived-effect retraction wiring.
+- [ ] Implement approved CONTROL 48h owner/expiry and independently captured proof survival under
+  the separately pending exact automatic/runtime contract.
+- [ ] Resolve the pending full restore target; implement registered durable-store snapshot,
+  recoverable replacement and stopped operational authority with owned-file/schedule handling.
+- [ ] Author all remaining replay/restore/interruption/sibling-preservation regression sources,
+  then independently review the entire applied slice before final convergence.
+
+Whole retained data authority stays open. See retained-authority/2026-09-27/IMPLEMENTATION_TRACE.md,
+CONTRACT_DECISIONS.md and REVIEW_RECEIPT.md. Authored tests are uncompiled/unrun; no validation,
+activation, freeze, integration or push is implied by the checked implementation slices.

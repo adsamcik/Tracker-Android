@@ -1209,6 +1209,8 @@ class WifiWalQualificationAdapterTest {
 			),
 		)
 
+		assertEquals(1, database.sourceEvidenceStateDao().incrementRevision(markedAtMs + 1L))
+
 		assertEquals(
 			WifiCapturedRetentionResult.Pruned(logicalFactCount = 2, revisionCount = 2),
 			maintenance.pruneAffectedByRetentionFloor(
@@ -1221,6 +1223,7 @@ class WifiWalQualificationAdapterTest {
 		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
 		assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
 		assertEquals(2L, database.sourceEventWalDao().countAll())
+		assertEquals(markedAtMs + 1L, database.sourceEvidenceStateDao().get()?.updatedAtMs)
 	}
 
 	@Test
@@ -1770,6 +1773,7 @@ class WifiWalQualificationAdapterTest {
 		installValidFixture(candidateWriter = true)
 		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
 		revokeCaptureConsent()
+		assertEquals(1, database.sourceEvidenceStateDao().incrementRevision(DELETE_AT_MS + 1L))
 
 		assertEquals(
 			WifiCapturedSourceDeletionResult.Deleted(1, 1, 1),
@@ -1784,6 +1788,7 @@ class WifiWalQualificationAdapterTest {
 		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
 		assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
 		assertEquals(1L, database.sourceEventWalDao().countAll())
+		assertEquals(DELETE_AT_MS + 1L, database.sourceEvidenceStateDao().get()?.updatedAtMs)
 		assertEquals(
 			1L,
 			requireNotNull(database.wifiCapturedFactDao().deletionGeneration(LOGICAL_ID, RUN_ID)).generation,

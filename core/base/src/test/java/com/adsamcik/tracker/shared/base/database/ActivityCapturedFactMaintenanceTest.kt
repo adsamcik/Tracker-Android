@@ -82,6 +82,7 @@ class ActivityCapturedFactMaintenanceTest {
 	@Test
 	fun `retention removes the complete correction lineage at an uncertain floor`() = runTest {
 		seedCapturedActivity(retainedFromMs = 1_990L, semanticRevisions = 2)
+		database.sourceEvidenceStateDao().incrementRevision(6_000L) shouldBe 1
 
 		database.pruneCapturedActivityFactsAffectedByRetentionFloor(
 			beforeMs = 1_990L,
@@ -94,6 +95,7 @@ class ActivityCapturedFactMaintenanceTest {
 		database.activityCapturedFactDao().evidenceCount() shouldBe 0L
 		database.activityCapturedFactDao().cursorCount() shouldBe 0L
 		database.activityCapturedFactDao().registrationPlanBindingCount() shouldBe 1L
+		database.sourceEvidenceStateDao().get()?.updatedAtMs shouldBe 6_000L
 	}
 
 	@Test
@@ -241,6 +243,45 @@ class ActivityCapturedFactMaintenanceTest {
 		database.activityCapturedFactDao().registrationPlanBindingCount() shouldBe 0L
 		database.sourceBrokerDao().activeDemands(ACTIVITY_SOURCE).single().purpose shouldBe
 			SourceBrokerPurpose.CONTROL_AUTOSTART
+	}
+
+	@Test
+	fun `carried revoked capture consent preserves independent Activity CONTROL demand`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+		val sibling = controlDemand()
+		database.sourceBrokerDao().insertDemands(listOf(sibling))
+		val nextPolicy = revokedPolicy().copy(policyRevision = 3L,
+			effectiveBootId = "next-policy-boot", effectiveElapsedRealtimeNanos = 10L,
+			effectiveWallTimeMs = 4_100L)
+		database.sourcePolicyDao().insertPolicies(listOf(nextPolicy))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_policy_authority SET current_policy_revision = ?, updated_at_ms = ? WHERE id = 1",
+			arrayOf(nextPolicy.policyRevision, nextPolicy.effectiveWallTimeMs),
+		)
+		database.sourceEvidenceStateDao().incrementRevision(6_000L) shouldBe 1
+
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Deleted(1, 1, 1, 1)
+
+		database.sourceBrokerDao().activeDemands(ACTIVITY_SOURCE) shouldBe listOf(sibling)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+		database.sourceDeletionFenceDao().countAll() shouldBe 1L
+		database.sourceEvidenceStateDao().get()?.updatedAtMs shouldBe 6_000L
+	}
+
+	@Test
+	fun `future revoked consent cannot erase Activity capture payload`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_consent_epoch SET policy_revision = 3 WHERE source_kind = ? AND purpose = ? AND epoch = 1",
+			arrayOf(ACTIVITY_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE),
+		)
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Blocked(
+				ActivityCapturedSourceDeletionBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE,
+			)
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
 	}
 
 	@Test

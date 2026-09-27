@@ -886,10 +886,7 @@ suspend fun AppDatabase.auditPressureSourceEraseLocalAuthorityInTransaction(
 	) failPressureErase(PressureSourceEraseLocalFailureReason.POLICY_AUTHORITY_UNAVAILABLE)
 	if (policy.capturePersistenceEligible || policy.captureConsentEpoch != null ||
 		revokedConsent.eligible || revokedConsent.persistenceEligible ||
-		revokedConsent.policyRevision != policy.policyRevision ||
-		revokedConsent.effectiveBootId != policy.effectiveBootId ||
-		revokedConsent.effectiveElapsedRealtimeNanos != policy.effectiveElapsedRealtimeNanos ||
-		revokedConsent.effectiveWallTimeMs != policy.effectiveWallTimeMs
+		revokedConsent.policyRevision > policy.policyRevision
 	) failPressureErase(PressureSourceEraseLocalFailureReason.CAPTURE_CONSENT_STILL_ELIGIBLE)
 	if (factCount == 0 && retentionAuthorityCount == 0 &&
 		retentionRevisionAuthorityCount == 0 && walCount == 0 &&
