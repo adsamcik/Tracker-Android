@@ -17,7 +17,7 @@ import com.adsamcik.tracker.stats.api.metric.TimeWindow
  *
  * Steps metrics return [StatsError.ValidationError]: legacy aggregates do not establish complete
  * source-qualified Steps. Callers needing Steps must use [StepsNumericSummaryRepository].
- * Other unknown metrics retain the compatibility value 0; callers validate their catalog.
+ * Unknown metrics and malformed windows return a typed rejection, never a fabricated zero.
  */
 interface WindowedMetricsProvider {
 	/** Returns an independent aggregate or a typed rejection when the metric needs source qualification. */

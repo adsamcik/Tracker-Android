@@ -34,18 +34,27 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 		if (metric == MetricKeys.STEPS || metric == MetricKeys.STEPS_TOTAL || metric == MetricKeys.BEST_DAILY_STEPS) {
 			return StatsError.ValidationError("Steps require source-qualified numeric evidence").left()
 		}
-		return when (window) {
+		val value = when (window) {
 			TimeWindow.Cumulative -> collectCumulative(metric)
-			is TimeWindow.Interval -> collectInterval(metric, window.startMs, window.endMs)
-			is TimeWindow.Rolling -> {
-				val nowMs = System.currentTimeMillis()
-				val fromMs = nowMs - window.durationMs.coerceAtLeast(0L)
-				collectInterval(metric, fromMs, nowMs)
+			is TimeWindow.Interval -> {
+				if (window.startMs > window.endMs) {
+					return StatsError.ValidationError("Metric interval cannot end before it starts").left()
+				}
+				collectInterval(metric, window.startMs, window.endMs)
 			}
-		}.right()
+			is TimeWindow.Rolling -> {
+				if (window.durationMs < 0L) {
+					return StatsError.ValidationError("Rolling duration cannot be negative").left()
+				}
+				val nowMs = System.currentTimeMillis()
+				collectInterval(metric, nowMs - window.durationMs, nowMs)
+			}
+		}
+		return value?.right()
+			?: StatsError.ValidationError("Metric is not supported by this provider").left()
 	}
 
-	private suspend fun collectCumulative(metric: String): Long = when (metric) {
+	private suspend fun collectCumulative(metric: String): Long? = when (metric) {
 		MetricKeys.DISTANCE_M -> dailySummaryDao.sumTotalDistance()
 		MetricKeys.DISTANCE_TOTAL_M -> dailySummaryDao.sumTotalDistance()
 		MetricKeys.ACTIVE_MINUTES -> dailySummaryDao.sumActiveMinutes()
@@ -67,13 +76,10 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 		MetricKeys.WEEKLY_STREAK -> explorationStreakDao.getByType(WEEKLY_STREAK_TYPE)?.bestCount?.toLong() ?: 0L
 		MetricKeys.TOTAL_EXPORTS -> exportLogDao.countTotal()
 		MetricKeys.ACTIVE_DAYS_TOTAL -> dailySummaryDao.countActiveDays(MetricKeys.MIN_DAILY_TRIPS)
-		else -> 0L
+		else -> null
 	}
 
-	private suspend fun collectInterval(metric: String, fromMs: Long, toMs: Long): Long {
-		if (fromMs > toMs) {
-			return 0L
-		}
+	private suspend fun collectInterval(metric: String, fromMs: Long, toMs: Long): Long? {
 
 		// Daily-summary queries use the epoch_day primary index, NOT the wall-clock ms.
 		// Compute the day bounds once so each metric branch hits the index directly.
@@ -112,7 +118,7 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 			MetricKeys.TOTAL_EXPORTS,
 			-> collectCumulative(metric)
 
-			else -> 0L
+			else -> null
 		}
 	}
 

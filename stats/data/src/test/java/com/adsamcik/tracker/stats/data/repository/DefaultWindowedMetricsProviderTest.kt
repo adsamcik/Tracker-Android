@@ -175,13 +175,26 @@ class DefaultWindowedMetricsProviderTest {
 	}
 
 	@Test
-	fun `collect returns zero for unsupported metric`() = runTest {
-		val result = provider.collect(
-			metric = "unsupported_metric",
-			window = TimeWindow.Interval(1_000L, 2_000L),
-		)
+	fun `unknown metric is unavailable for every window without reading a DAO`() = runTest {
+		for (window in listOf(TimeWindow.Cumulative, TimeWindow.Interval(1_000L, 2_000L),
+			TimeWindow.Rolling(60_000L))) {
+			provider.collect("unsupported_metric", window) shouldBe
+				StatsError.ValidationError("Metric is not supported by this provider").left()
+		}
+		verify {
+			listOf(dailySummaryDao, explorationCellDao, explorationStreakDao, sessionSegmentDao, exportLogDao) wasNot Called
+		}
+	}
 
-		result shouldBe 0L.right()
+	@Test
+	fun `malformed windows are unavailable without coerced zero or widened DAO reads`() = runTest {
+		provider.collect(MetricKeys.DISTANCE_TOTAL_M, TimeWindow.Interval(2_000L, 1_000L)) shouldBe
+			StatsError.ValidationError("Metric interval cannot end before it starts").left()
+		provider.collect(MetricKeys.DISTANCE_TOTAL_M, TimeWindow.Rolling(-1L)) shouldBe
+			StatsError.ValidationError("Rolling duration cannot be negative").left()
+		verify {
+			listOf(dailySummaryDao, explorationCellDao, explorationStreakDao, sessionSegmentDao, exportLogDao) wasNot Called
+		}
 	}
 
 	@Test
