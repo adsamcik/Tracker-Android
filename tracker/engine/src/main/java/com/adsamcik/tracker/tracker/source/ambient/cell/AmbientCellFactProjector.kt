@@ -2,6 +2,9 @@ package com.adsamcik.tracker.tracker.source.ambient.cell
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
+import com.adsamcik.tracker.shared.base.database.authenticateHistoricalProviderRegistration
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactCursorEntity
@@ -12,12 +15,15 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientCellReplayFootprint
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+import com.adsamcik.tracker.shared.base.database.data.MAX_CELL_WAL_PAYLOAD_BYTES
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
 import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
@@ -36,6 +42,7 @@ internal class AmbientCellFactProjector @Inject constructor(
 	private val database: AppDatabase,
 	private val payloadCodec: SourcePayloadCodec,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+	private val bootClockDomainProvider: BootClockDomainProvider,
 ) {
 	suspend fun project(admissionOrdinal: Long): AmbientCellProjectionResult =
 		withContext(ioDispatcher) {
@@ -59,13 +66,18 @@ internal class AmbientCellFactProjector @Inject constructor(
 		) {
 			return AmbientCellProjectionResult.RetryableFailure
 		}
-		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(admissionOrdinal)
+		val wal = database.sourceEventWalDao().boundedPayloadByAdmissionOrdinal(admissionOrdinal, MAX_CELL_WAL_PAYLOAD_BYTES)
 			?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.WAL_MISSING)
 		if (wal.sourceKind != SourceKind.CELL.stableCode) {
 			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.WRONG_SOURCE)
 		}
 		if (!wal.hasQualifiedIntegrity()) {
 			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.WAL_INTEGRITY)
+		}
+		val sequence = database.sourceEventWalDao().identityBySourceSequence(wal.sourceKind, wal.sourceInstanceId, wal.sourceSequence)
+		if (wal.sourceSequence < 0L || sequence?.eventId != wal.eventId ||
+			sequence.admissionOrdinal != wal.admissionOrdinal || sequence.integrityIdentity != wal.integrityIdentity) {
+			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.WAL_SHAPE)
 		}
 		val deliveryIdentity = wal.deliveryIdentity?.takeIf(DIGEST::matches)
 			?: return cellUnverifiable(
@@ -84,10 +96,27 @@ internal class AmbientCellFactProjector @Inject constructor(
 			?: return cellUnverifiable(
 				AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
 			)
-		if (lifecycle.collectedDataEpoch != wal.capturedCollectedDataEpoch) {
+		if (lifecycle.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
+			wal.admissionOrdinal <= lifecycle.deletedSourceEventHighWaterOrdinal) {
 			return cellUnverifiable(
 				AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
 			)
+		}
+		val registrationAuthentication = database.authenticateHistoricalProviderRegistration(
+			sourceKind = wal.sourceKind,
+			registrationGeneration = wal.registrationGeneration,
+			sourceInstanceId = wal.sourceInstanceId,
+			clockDomainId = wal.clockDomainId,
+			physicalConfigurationFingerprint = requireNotNull(wal.physicalConfigurationFingerprint),
+			collectedDataEpoch = wal.capturedCollectedDataEpoch,
+			expectedProviderResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+			observedStartNanos = wal.observedElapsedNanos,
+			observedEndNanos = wal.observedElapsedNanos,
+			observedWallTimeMs = observedWallTimeMs,
+			currentClockDomainId = bootClockDomainProvider.current(),
+		)
+		if (registrationAuthentication !is ProviderRegistrationIntervalAuthentication.Authenticated) {
+			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.REGISTRATION_MISMATCH)
 		}
 		val rows = database.sourceBrokerDao().authorizationRevisionBounded(
 			SourceKind.CELL.stableCode,
@@ -102,6 +131,22 @@ internal class AmbientCellFactProjector @Inject constructor(
 			?: return cellUnverifiable(
 				AmbientCellProjectionUnverifiableReason.AUTHORIZATION_MISSING,
 			)
+		val demandIds = authorization.authorizedMembers.mapNotNull { it.demandId }
+		val demands = database.sourceBrokerDao().demandsByIds(demandIds)
+		val reconstructed = runCatching {
+			SourceBrokerAuthorization.rows(wal.sourceKind, wal.registrationGeneration,
+				requireNotNull(wal.authorizationRevision), demands, authorization.effectiveBootId,
+				authorization.effectiveElapsedRealtimeNanos, authorization.members.first().effectiveWallTimeMs)
+		}.getOrNull()
+		val observedAuthorization = database.sourceBrokerDao().authorizationAtBounded(wal.sourceKind,
+			wal.registrationGeneration, wal.clockDomainId, wal.observedElapsedNanos, MAX_AUTHORIZATION_MEMBERS + 1)
+			.toAuthorizationSnapshotOrNull()
+		if (authorization.isDenied || demandIds.size != authorization.authorizedMembers.size ||
+			demandIds.distinct().size != demandIds.size || demands.size != demandIds.size ||
+			reconstructed?.sortedBy { it.memberId } != authorization.members.sortedBy { it.memberId } ||
+			observedAuthorization != authorization) {
+			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.AUTHORIZATION_MISMATCH)
+		}
 		if (authorization.authorizationRevision != wal.authorizationRevision ||
 			authorization.authorizationFingerprint != wal.authorizationFingerprint ||
 			authorization.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask ||
@@ -241,20 +286,6 @@ internal class AmbientCellFactProjector @Inject constructor(
 		}
 		if (currentAuthority.scopeDeletionGeneration != deletionGeneration) {
 			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.DELETED_SCOPE)
-		}
-		val registration = database.sourceBrokerDao().registration(
-			SourceKind.CELL.stableCode,
-			wal.registrationGeneration,
-		)
-		if (registration == null ||
-			registration.sourceInstanceId != wal.sourceInstanceId ||
-			registration.clockDomainId != wal.clockDomainId ||
-			registration.physicalConfigurationFingerprint != wal.physicalConfigurationFingerprint ||
-			registration.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
-			registration.acceptedElapsedRealtimeNanos?.let { it <= wal.observedElapsedNanos } != true ||
-			registration.retiredElapsedRealtimeNanos?.let { wal.observedElapsedNanos < it } == false
-		) {
-			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.REGISTRATION_MISMATCH)
 		}
 		val payload = runCatching {
 			payloadCodec.decode(SourceKind.CELL, wal.payloadVersion, wal.payload)

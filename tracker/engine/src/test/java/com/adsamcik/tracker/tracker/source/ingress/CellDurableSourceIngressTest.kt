@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.ingress
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.AmbientRadioRetentionDecision
 import com.adsamcik.tracker.shared.base.database.applyAmbientCellRetentionDecision
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -11,7 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegr
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellReplayFootprintEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -79,6 +80,7 @@ import org.robolectric.annotation.Config
 class CellDurableSourceIngressTest {
 	private lateinit var database: AppDatabase
 	private lateinit var ingress: RoomDurableSourceIngress
+	private lateinit var ambientEligibilityFingerprint: String
 
 	@Before
 	fun setUp() = runTest {
@@ -112,6 +114,79 @@ class CellDurableSourceIngressTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `ambient Cell rejects provider acceptance after the observation wall time`() = runTest {
+		val ordinal = DurableSourceEventSinkFactory(ingress).unbound.admit(
+			cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110L),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>().admissionOrdinals.single()
+		val wal = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(ordinal))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET accepted_at_ms = ? WHERE source_kind = ? AND registration_generation = 1",
+			arrayOf(requireNotNull(wal.wallTimeMs) + 1L, SourceKind.CELL.stableCode),
+		)
+
+		val result = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+
+		(result as AmbientCellProjectionResult.Unverifiable).reason shouldBe
+			AmbientCellProjectionUnverifiableReason.REGISTRATION_MISMATCH
+		database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 0
+	}
+
+	@Test
+	fun `ambient Cell rejects open registrations from a prior boot`() = runTest {
+		val ordinal = DurableSourceEventSinkFactory(ingress).unbound.admit(
+			cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110L),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>().admissionOrdinals.single()
+
+		val result = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { "different-boot" }).project(ordinal)
+
+		(result as AmbientCellProjectionResult.Unverifiable).reason shouldBe
+			AmbientCellProjectionUnverifiableReason.REGISTRATION_MISMATCH
+		database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 0
+	}
+
+	@Test
+	fun `ambient Cell cannot materialize a rehashed negative source sequence`() = runTest {
+		val admitted = DurableSourceEventSinkFactory(ingress).unbound.admit(cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110L))
+			.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		val ordinal = admitted.admissionOrdinals.single()
+		val original = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(ordinal))
+		val negative = original.copy(sourceSequence = -1L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET source_sequence = ?, integrity_identity = ? WHERE admission_ordinal = ?",
+			arrayOf(-1L, negative.calculatedIntegrityIdentity(), ordinal))
+		val result = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined, BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+		(result as AmbientCellProjectionResult.Unverifiable).reason shouldBe AmbientCellProjectionUnverifiableReason.WAL_SHAPE
+		database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 0
+	}
+
+	@Test
+	fun `ambient Cell deletion fence blocks surviving WAL replay`() = runTest {
+		val admitted = DurableSourceEventSinkFactory(ingress).unbound.admit(cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110L))
+			.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		val ordinal = admitted.admissionOrdinals.single()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_evidence_state SET deleted_source_event_high_water_ordinal = ?", arrayOf(ordinal))
+		val result = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined, BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+		(result as AmbientCellProjectionResult.Unverifiable).reason shouldBe AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH
+		database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 0
+	}
+
+	@Test
+	fun `ambient Cell reconstructs authorization from immutable demand members`() = runTest {
+		val admitted = DurableSourceEventSinkFactory(ingress).unbound.admit(cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110L))
+			.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		val ordinal = admitted.admissionOrdinals.single()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET persistence_eligible = 0 WHERE source_kind = ?", arrayOf(SourceKind.CELL.stableCode))
+		val result = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined, BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+		(result as AmbientCellProjectionResult.Unverifiable).reason shouldBe AmbientCellProjectionUnverifiableReason.AUTHORIZATION_MISMATCH
+		database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 0
+	}
+
 
 	@Test
 	fun `Cell provider replay across runtime generations allocates one Room sequence`() = runTest {
@@ -328,6 +403,7 @@ class CellDurableSourceIngressTest {
 			database,
 			DefaultSourcePayloadCodec(),
 			Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID },
 		).project(originalOrdinal)
 			.shouldBeInstanceOf<AmbientCellProjectionResult.FactWritten>()
 		val row = database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single()
@@ -349,6 +425,7 @@ class CellDurableSourceIngressTest {
 			database,
 			DefaultSourcePayloadCodec(),
 			Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID },
 		).project(freshUnchanged.admissionOrdinals.single())
 			.shouldBeInstanceOf<AmbientCellProjectionResult.CoverageCompacted>()
 		val gapDelivery = sinkFactory.unbound.admit(
@@ -394,6 +471,7 @@ class CellDurableSourceIngressTest {
 			database,
 			DefaultSourcePayloadCodec(),
 			Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID },
 		).project(gapOrdinal) shouldBe AmbientCellProjectionResult.Unverifiable(
 			AmbientCellProjectionUnverifiableReason.REPLAY_FOOTPRINT_CORRUPT,
 		)
@@ -421,6 +499,7 @@ class CellDurableSourceIngressTest {
 			database,
 			DefaultSourcePayloadCodec(),
 			Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID },
 		).project(pendingDeletion.admissionOrdinals.single()) shouldBe
 			AmbientCellProjectionResult.Unverifiable(
 				AmbientCellProjectionUnverifiableReason.DELETED_SCOPE,
@@ -456,7 +535,7 @@ class CellDurableSourceIngressTest {
 			physicalConfigurationFingerprint = physicalConfigurationFingerprint,
 			authorizationRevision = authorizationRevision,
 			registrationPurposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
-			registrationEligibilityFingerprint = CELL_ELIGIBILITY_FINGERPRINT,
+			registrationEligibilityFingerprint = ambientEligibilityFingerprint,
 			// The atomic Room ingress owns the only source-sequence allocation.
 			sourceSequence = 0L,
 			configRevision = authorizationRevision,
@@ -590,31 +669,17 @@ class CellDurableSourceIngressTest {
 		authorizationRevision: Long,
 		effectiveElapsedRealtimeNanos: Long,
 	) {
-		database.sourceBrokerDao().insertAuthorizations(
-			listOf(
-				SourceAuthorizationEntity(
-					sourceKind = SourceKind.CELL.stableCode,
-					registrationGeneration = generation,
-					authorizationRevision = authorizationRevision,
-					memberId = "demand:$CELL_DEMAND_ID",
-					authorizationFingerprint = CELL_ELIGIBILITY_FINGERPRINT,
-					purposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
-					demandId = CELL_DEMAND_ID,
-					consumerId = "app:cell-ingress-test",
-					purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
-					sourcePolicyRevision = 1L,
-					consentEpoch = 1L,
-					persistenceEligible = true,
-					effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
-					effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
-					effectiveWallTimeMs = effectiveElapsedRealtimeNanos,
-					logicalTrackingId = null,
-					serviceRunId = null,
-					manifestRevision = null,
-					lifecycleLeaseGeneration = null,
-				),
-			),
+		val rows = SourceBrokerAuthorization.rows(
+			sourceKind = SourceKind.CELL.stableCode,
+			registrationGeneration = generation,
+			authorizationRevision = authorizationRevision,
+			demands = database.sourceBrokerDao().demandsByIds(listOf(CELL_DEMAND_ID)),
+			effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
+			effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
+			effectiveWallTimeMs = effectiveElapsedRealtimeNanos,
 		)
+		ambientEligibilityFingerprint = rows.first().authorizationFingerprint
+		database.sourceBrokerDao().insertAuthorizations(rows)
 	}
 
 	private suspend fun replaceCellRuntimeGeneration() {
@@ -651,7 +716,6 @@ class CellDurableSourceIngressTest {
 		const val PROVIDER_TIMESTAMP_NANOS = 100L
 		const val CELL_SOURCE_INSTANCE_ID = "cell-source-instance"
 		const val CELL_DEMAND_ID = "cell-ambient-demand"
-		const val CELL_ELIGIBILITY_FINGERPRINT = "cell-ambient-eligibility"
 		const val FIRST_PHYSICAL_CONFIGURATION = "cell-physical-before"
 		const val SECOND_PHYSICAL_CONFIGURATION = "cell-physical-after"
 		const val CELL_PROJECTION_ID = "cell-ingress-test"

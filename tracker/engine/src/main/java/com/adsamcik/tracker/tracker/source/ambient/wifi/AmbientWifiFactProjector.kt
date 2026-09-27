@@ -2,6 +2,9 @@ package com.adsamcik.tracker.tracker.source.ambient.wifi
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
+import com.adsamcik.tracker.shared.base.database.authenticateHistoricalProviderRegistration
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactCursorEntity
@@ -12,12 +15,15 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientWifiReplayFootprint
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+import com.adsamcik.tracker.shared.base.database.data.MAX_WIFI_WAL_PAYLOAD_BYTES
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
 import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
@@ -35,6 +41,7 @@ internal class AmbientWifiFactProjector @Inject constructor(
 	private val database: AppDatabase,
 	private val payloadCodec: SourcePayloadCodec,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+	private val bootClockDomainProvider: BootClockDomainProvider,
 ) {
 	suspend fun project(admissionOrdinal: Long): AmbientWifiProjectionResult =
 		withContext(ioDispatcher) {
@@ -58,13 +65,18 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		) {
 			return AmbientWifiProjectionResult.RetryableFailure
 		}
-		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(admissionOrdinal)
+		val wal = database.sourceEventWalDao().boundedPayloadByAdmissionOrdinal(admissionOrdinal, MAX_WIFI_WAL_PAYLOAD_BYTES)
 			?: return unverifiable(AmbientWifiProjectionUnverifiableReason.WAL_MISSING)
 		if (wal.sourceKind != SourceKind.WIFI.stableCode) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.WRONG_SOURCE)
 		}
 		if (!wal.hasQualifiedIntegrity()) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.WAL_INTEGRITY)
+		}
+		val sequence = database.sourceEventWalDao().identityBySourceSequence(wal.sourceKind, wal.sourceInstanceId, wal.sourceSequence)
+		if (wal.sourceSequence < 0L || sequence?.eventId != wal.eventId ||
+			sequence.admissionOrdinal != wal.admissionOrdinal || sequence.integrityIdentity != wal.integrityIdentity) {
+			return unverifiable(AmbientWifiProjectionUnverifiableReason.WAL_SHAPE)
 		}
 		val deliveryIdentity = wal.deliveryIdentity
 			?.takeIf(DIGEST::matches)
@@ -82,10 +94,27 @@ internal class AmbientWifiFactProjector @Inject constructor(
 			?: return unverifiable(
 				AmbientWifiProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
 			)
-		if (lifecycle.collectedDataEpoch != wal.capturedCollectedDataEpoch) {
+		if (lifecycle.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
+			wal.admissionOrdinal <= lifecycle.deletedSourceEventHighWaterOrdinal) {
 			return unverifiable(
 				AmbientWifiProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
 			)
+		}
+		val registrationAuthentication = database.authenticateHistoricalProviderRegistration(
+			sourceKind = wal.sourceKind,
+			registrationGeneration = wal.registrationGeneration,
+			sourceInstanceId = wal.sourceInstanceId,
+			clockDomainId = wal.clockDomainId,
+			physicalConfigurationFingerprint = requireNotNull(wal.physicalConfigurationFingerprint),
+			collectedDataEpoch = wal.capturedCollectedDataEpoch,
+			expectedProviderResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+			observedStartNanos = wal.observedElapsedNanos,
+			observedEndNanos = wal.observedElapsedNanos,
+			observedWallTimeMs = observedWallTimeMs,
+			currentClockDomainId = bootClockDomainProvider.current(),
+		)
+		if (registrationAuthentication !is ProviderRegistrationIntervalAuthentication.Authenticated) {
+			return unverifiable(AmbientWifiProjectionUnverifiableReason.REGISTRATION_MISMATCH)
 		}
 		val authorizationRows = database.sourceBrokerDao().authorizationRevisionBounded(
 			SourceKind.WIFI.stableCode,
@@ -101,6 +130,22 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		}.getOrNull() ?: return unverifiable(
 			AmbientWifiProjectionUnverifiableReason.AUTHORIZATION_MISSING,
 		)
+		val demandIds = authorization.authorizedMembers.mapNotNull { it.demandId }
+		val demands = database.sourceBrokerDao().demandsByIds(demandIds)
+		val reconstructed = runCatching {
+			SourceBrokerAuthorization.rows(wal.sourceKind, wal.registrationGeneration,
+				requireNotNull(wal.authorizationRevision), demands, authorization.effectiveBootId,
+				authorization.effectiveElapsedRealtimeNanos, authorization.members.first().effectiveWallTimeMs)
+		}.getOrNull()
+		val observedAuthorization = database.sourceBrokerDao().authorizationAtBounded(wal.sourceKind,
+			wal.registrationGeneration, wal.clockDomainId, wal.observedElapsedNanos, MAX_AUTHORIZATION_MEMBERS + 1)
+			.toAuthorizationSnapshotOrNull()
+		if (authorization.isDenied || demandIds.size != authorization.authorizedMembers.size ||
+			demandIds.distinct().size != demandIds.size || demands.size != demandIds.size ||
+			reconstructed?.sortedBy { it.memberId } != authorization.members.sortedBy { it.memberId } ||
+			observedAuthorization != authorization) {
+			return unverifiable(AmbientWifiProjectionUnverifiableReason.AUTHORIZATION_MISMATCH)
+		}
 		if (authorization.authorizationRevision != wal.authorizationRevision ||
 			authorization.authorizationFingerprint != wal.authorizationFingerprint ||
 			authorization.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask ||
@@ -232,20 +277,6 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		}
 		if (currentAuthority.scopeDeletionGeneration != currentDeletionGeneration) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.DELETED_SCOPE)
-		}
-		val registration = database.sourceBrokerDao().registration(
-			SourceKind.WIFI.stableCode,
-			wal.registrationGeneration,
-		)
-		if (registration == null ||
-			registration.sourceInstanceId != wal.sourceInstanceId ||
-			registration.clockDomainId != wal.clockDomainId ||
-			registration.physicalConfigurationFingerprint != wal.physicalConfigurationFingerprint ||
-			registration.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
-			registration.acceptedElapsedRealtimeNanos?.let { it <= wal.observedElapsedNanos } != true ||
-			registration.retiredElapsedRealtimeNanos?.let { wal.observedElapsedNanos < it } == false
-		) {
-			return unverifiable(AmbientWifiProjectionUnverifiableReason.REGISTRATION_MISMATCH)
 		}
 		val payload = runCatching {
 			payloadCodec.decode(SourceKind.WIFI, wal.payloadVersion, wal.payload)

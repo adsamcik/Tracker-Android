@@ -5,6 +5,7 @@ import android.os.SystemClock
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.AmbientRadioRetentionDecision
 import com.adsamcik.tracker.shared.base.database.applyAmbientWifiRetentionDecision
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
@@ -117,6 +118,7 @@ import org.robolectric.annotation.Config
 class WifiDurableSourceIngressTest {
 	private lateinit var database: AppDatabase
 	private lateinit var ingress: RoomDurableSourceIngress
+	private lateinit var ambientEligibilityFingerprint: String
 
 	@Before
 	fun setUp() = runTest {
@@ -151,6 +153,79 @@ class WifiDurableSourceIngressTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `ambient Wifi rejects provider acceptance after the observation wall time`() = runTest {
+		val ordinal = DurableSourceEventSinkFactory(ingress).unbound.admit(
+			wifiDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110_000_000L),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>().admissionOrdinals.single()
+		val wal = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(ordinal))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET accepted_at_ms = ? WHERE source_kind = ? AND registration_generation = 1",
+			arrayOf(requireNotNull(wal.wallTimeMs) + 1L, SourceKind.WIFI.stableCode),
+		)
+
+		val result = AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+
+		(result as AmbientWifiProjectionResult.Unverifiable).reason shouldBe
+			AmbientWifiProjectionUnverifiableReason.REGISTRATION_MISMATCH
+		database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 0
+	}
+
+	@Test
+	fun `ambient Wifi rejects open registrations from a prior boot`() = runTest {
+		val ordinal = DurableSourceEventSinkFactory(ingress).unbound.admit(
+			wifiDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110_000_000L),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>().admissionOrdinals.single()
+
+		val result = AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { "different-boot" }).project(ordinal)
+
+		(result as AmbientWifiProjectionResult.Unverifiable).reason shouldBe
+			AmbientWifiProjectionUnverifiableReason.REGISTRATION_MISMATCH
+		database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 0
+	}
+
+	@Test
+	fun `ambient Wifi cannot materialize a rehashed negative source sequence`() = runTest {
+		val admitted = DurableSourceEventSinkFactory(ingress).unbound.admit(wifiDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110_000_000L))
+			.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		val ordinal = admitted.admissionOrdinals.single()
+		val original = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(ordinal))
+		val negative = original.copy(sourceSequence = -1L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET source_sequence = ?, integrity_identity = ? WHERE admission_ordinal = ?",
+			arrayOf(-1L, negative.calculatedIntegrityIdentity(), ordinal))
+		val result = AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined, BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+		(result as AmbientWifiProjectionResult.Unverifiable).reason shouldBe AmbientWifiProjectionUnverifiableReason.WAL_SHAPE
+		database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 0
+	}
+
+	@Test
+	fun `ambient Wifi deletion fence blocks surviving WAL replay`() = runTest {
+		val admitted = DurableSourceEventSinkFactory(ingress).unbound.admit(wifiDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110_000_000L))
+			.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		val ordinal = admitted.admissionOrdinals.single()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_evidence_state SET deleted_source_event_high_water_ordinal = ?", arrayOf(ordinal))
+		val result = AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined, BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+		(result as AmbientWifiProjectionResult.Unverifiable).reason shouldBe AmbientWifiProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH
+		database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 0
+	}
+
+	@Test
+	fun `ambient Wifi reconstructs authorization from immutable demand members`() = runTest {
+		val admitted = DurableSourceEventSinkFactory(ingress).unbound.admit(wifiDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110_000_000L))
+			.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		val ordinal = admitted.admissionOrdinals.single()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET persistence_eligible = 0 WHERE source_kind = ?", arrayOf(SourceKind.WIFI.stableCode))
+		val result = AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined, BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+		(result as AmbientWifiProjectionResult.Unverifiable).reason shouldBe AmbientWifiProjectionUnverifiableReason.AUTHORIZATION_MISMATCH
+		database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 0
+	}
+
 
 	@Test
 	fun `Wi-Fi exact provider replay across runtime generations allocates one Room sequence`() = runTest {
@@ -355,6 +430,7 @@ class WifiDurableSourceIngressTest {
 			database,
 			DefaultSourcePayloadCodec(),
 			Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID },
 		)
 		projector.project(originalOrdinal)
 			.shouldBeInstanceOf<AmbientWifiProjectionResult.FactWritten>()
@@ -1372,7 +1448,7 @@ class WifiDurableSourceIngressTest {
 			),
 		),
 		purposeEligibilityMask: Long = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
-		eligibilityFingerprint: String = WIFI_ELIGIBILITY_FINGERPRINT,
+		eligibilityFingerprint: String = ambientEligibilityFingerprint,
 		payloadVersion: Int = WIFI_PAYLOAD_VERSION,
 		observationZoneId: String? = "UTC",
 		resultAgeMs: Long? = null,
@@ -1823,7 +1899,7 @@ class WifiDurableSourceIngressTest {
 						registrationGeneration = 1L,
 						authorizationRevision = 3L,
 						memberId = "demand:$WIFI_DEMAND_ID",
-						authorizationFingerprint = WIFI_ELIGIBILITY_FINGERPRINT,
+						authorizationFingerprint = ambientEligibilityFingerprint,
 						purposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
 						demandId = WIFI_DEMAND_ID,
 						consumerId = ambientSiblingConsumerId,
@@ -2036,7 +2112,7 @@ class WifiDurableSourceIngressTest {
 					nextSequence = 0L,
 					appliedRevision = authorizationRevision,
 					collectedDataEpoch = 0L,
-					updatedAtMs = acceptedElapsedRealtimeNanos,
+					updatedAtMs = acceptedElapsedRealtimeNanos / NANOS_PER_MILLISECOND,
 				),
 			)
 		}
@@ -2052,9 +2128,9 @@ class WifiDurableSourceIngressTest {
 				physicalConfigurationFingerprint = physicalConfigurationFingerprint,
 				collectedDataEpoch = 0L,
 				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
-				reservedAtMs = acceptedElapsedRealtimeNanos,
+				reservedAtMs = acceptedElapsedRealtimeNanos / NANOS_PER_MILLISECOND,
 				reservedElapsedRealtimeNanos = acceptedElapsedRealtimeNanos,
-				acceptedAtMs = acceptedElapsedRealtimeNanos,
+				acceptedAtMs = acceptedElapsedRealtimeNanos / NANOS_PER_MILLISECOND,
 				acceptedElapsedRealtimeNanos = acceptedElapsedRealtimeNanos,
 				retiredAtMs = null,
 				retiredElapsedRealtimeNanos = null,
@@ -2073,31 +2149,17 @@ class WifiDurableSourceIngressTest {
 		authorizationRevision: Long,
 		effectiveElapsedRealtimeNanos: Long,
 	) {
-		database.sourceBrokerDao().insertAuthorizations(
-			listOf(
-				SourceAuthorizationEntity(
-					sourceKind = SourceKind.WIFI.stableCode,
-					registrationGeneration = generation,
-					authorizationRevision = authorizationRevision,
-					memberId = "demand:$WIFI_DEMAND_ID",
-					authorizationFingerprint = WIFI_ELIGIBILITY_FINGERPRINT,
-					purposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
-					demandId = WIFI_DEMAND_ID,
-					consumerId = "app:wifi-ingress-test",
-					purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
-					sourcePolicyRevision = 1L,
-					consentEpoch = 1L,
-					persistenceEligible = true,
-					effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
-					effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
-					effectiveWallTimeMs = effectiveElapsedRealtimeNanos,
-					logicalTrackingId = null,
-					serviceRunId = null,
-					manifestRevision = null,
-					lifecycleLeaseGeneration = null,
-				),
-			),
+		val rows = SourceBrokerAuthorization.rows(
+			sourceKind = SourceKind.WIFI.stableCode,
+			registrationGeneration = generation,
+			authorizationRevision = authorizationRevision,
+			demands = database.sourceBrokerDao().demandsByIds(listOf(WIFI_DEMAND_ID)),
+			effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
+			effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
+			effectiveWallTimeMs = effectiveElapsedRealtimeNanos / NANOS_PER_MILLISECOND,
 		)
+		ambientEligibilityFingerprint = rows.first().authorizationFingerprint
+		database.sourceBrokerDao().insertAuthorizations(rows)
 	}
 
 	private suspend fun replaceWifiRuntimeGeneration() {
@@ -2143,7 +2205,6 @@ class WifiDurableSourceIngressTest {
 		const val WIFI_STOP_LEASE_GENERATION = 8L
 		const val WIFI_SUSPEND_INTENT_REVISION = 2L
 		const val WIFI_CURRENT_MANIFEST_REVISION = 2L
-		const val WIFI_ELIGIBILITY_FINGERPRINT = "wifi-ambient-eligibility"
 		const val WIFI_CAPTURE_ELIGIBILITY_FINGERPRINT = "wifi-session-eligibility"
 		const val FIRST_PHYSICAL_CONFIGURATION = "wifi-physical-before"
 		const val SECOND_PHYSICAL_CONFIGURATION = "wifi-physical-after"
