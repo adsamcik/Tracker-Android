@@ -101,7 +101,7 @@ internal data class ActivityCapturedObservationReference(
 ) {
 	init {
 		require(admissionOrdinal > 0L)
-		require(sourceSequence > 0L)
+		require(sourceSequence >= 0L)
 		require(providerElapsedRealtimeNanos >= 0L)
 		require(receivedElapsedRealtimeNanos >= providerElapsedRealtimeNanos)
 		when (observationKind) {

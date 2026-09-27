@@ -1850,7 +1850,7 @@ class StepsCountDomainStore(
 			candidate.authorizationPurposeEligibilityMask ||
 			wal.sourceKind != SourceDestinationOwnerEntity.SOURCE_STEPS ||
 			!wal.hasQualifiedIntegrity() ||
-			wal.sourceSequence <= 0L ||
+			wal.sourceSequence < 0L ||
 			wal.registrationGeneration <= 0L ||
 			wal.sourceInstanceId.isBlank() ||
 			wal.physicalConfigurationFingerprint.isNullOrBlank() ||

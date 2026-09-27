@@ -270,7 +270,7 @@ object PressureWalCarrierAuthenticator {
 			wal.deliveryIdentity?.let(SOURCE_WAL_SHA_256::matches) != true ||
 			wal.deliveryUnitIndex != 0 ||
 			wal.deliveryUnitCount != 1 ||
-			wal.sourceSequence <= 0L ||
+			wal.sourceSequence < 0L ||
 			wal.observedIntervalStartNanos?.let { it >= 0L } != true ||
 			wal.observedElapsedNanos < requireNotNull(wal.observedIntervalStartNanos) ||
 			wal.receivedElapsedNanos < wal.observedElapsedNanos ||

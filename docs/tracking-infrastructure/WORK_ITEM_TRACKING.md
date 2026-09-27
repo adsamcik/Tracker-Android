@@ -1,6 +1,44 @@
 # Tracking Infrastructure Work-Item Tracking
 
-Last updated: 2026-09-20
+Last updated: 2026-09-27
+
+## Current provider completion checklist
+
+These marks describe source implementation and static review only. The assembly gate remains
+open; validation and integration are deferred. The historical registry below is preserved.
+
+- [x] Close settled design decisions: CONTROL retention is 48 hours; optional passive Wi-Fi/Cell
+  notification hosting is approved; export produces only the selected format. Backup restore
+  target restrictions remain a separate unresolved decision in `planning/2026-09-26-provider-freedom/DECISION_CLOSURE.md`.
+- [x] Reconcile implementation inputs: candidate `dedc7df8f1` records final selected versions,
+  all overlaps, original refs and exact preserved live drafts. See
+  `reconciliation/2026-09-27/README.md` and `SELECTION_MANIFEST.json`.
+- [ ] Complete source lifecycle proof: authenticate observation identity, registration,
+  authorization, sequence and product lineage consistently across all six sources. In progress
+  on `codex/source-native-map-context-root`; includes supported sessionless ambient purposes.
+- [ ] Finish the remaining production and test-source slices in the approved implementation plan.
+- [ ] Freeze the complete convergence input set and run the deferred validation batch.
+- [ ] Obtain authorized provider/device evidence and fresh final independent review.
+- [ ] Integrate the proven final result into local `dev/v10`.
+
+No checked item above establishes runtime success, provider activation or whole-plan completion.
+
+### Lifecycle proof implementation slices
+
+- [x] Consistent zero-based WAL sequence through Activity admission/facts, Steps carrier/count-domain
+  maintenance and Pressure carrier. Authored positive-zero and negative-sequence regression cases.
+- [x] Shared historical provider-registration authentication for ambient Location, including boot,
+  residency, wall/elapsed lifetime and epoch boundaries; bounded authorization lookup. Authored
+  inconsistent acceptance-wall and prior-boot open-registration cases.
+- [ ] Authenticate ambient radio physical carriers and independently qualify each provider item.
+- [ ] Purpose-aware RECORDING/MATERIALIZED/QUERYABLE adapters for supported ambient sources.
+- [ ] Native aggregate Steps identity/registration/revision/count-domain proof without fabricated WAL identity.
+- [ ] Trace immutable automatic writer generations through admission, receipts and production queries.
+- [ ] Final fresh static review of the complete lifecycle slice and evidence receipt.
+
+The first two slices received independent static review, including a corrected Activity tail fixture.
+Their test sources have not been compiled or executed. All remaining lifecycle slices keep
+`WI-LIFECYCLE-PRODUCT-PROOF-001` and `TODO-LIFE-003/004/005` open.
 
 ## 2026-09-20 authority and Steps P5 integration ledger
 

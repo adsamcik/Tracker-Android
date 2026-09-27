@@ -218,7 +218,7 @@ internal object ActivityCapturedObservationAdmission {
 			configurationRevision == null || sourcePolicyRevision == null || captureConsentEpoch == null ||
 			manifestRevision == null || leaseGeneration == null ||
 			evidence.planAttribution != PlanAttribution.CAPTURED_REGISTRATION ||
-			evidence.registrationGeneration <= 0L || evidence.sourceSequence <= 0L ||
+			evidence.registrationGeneration <= 0L || evidence.sourceSequence < 0L ||
 			evidence.registrationPurposeEligibilityMask and
 				SourceBrokerPurpose.ALL_MASK != evidence.registrationPurposeEligibilityMask
 		) return rejected(ActivityCaptureAdmissionRejection.INCOMPLETE_CAPTURE_AUTHORITY)

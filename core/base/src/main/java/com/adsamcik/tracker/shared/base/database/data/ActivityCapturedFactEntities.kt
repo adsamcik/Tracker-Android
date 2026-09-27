@@ -439,7 +439,7 @@ data class ActivityCapturedEvidenceEntity(
 		require(writerProjectionVersion == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION)
 		require(logicalWindowId.isNotBlank() && semanticRevision > 0L)
 		require(fragmentOrdinal >= 0 && evidenceOrdinal >= 0)
-		require(sourceEventId.isNotBlank() && sourceAdmissionOrdinal > 0L && sourceSequence > 0L)
+		require(sourceEventId.isNotBlank() && sourceAdmissionOrdinal > 0L && sourceSequence >= 0L)
 		require(providerElapsedRealtimeNanos >= 0L)
 		require(receivedElapsedRealtimeNanos >= providerElapsedRealtimeNanos)
 		require(observedActivity.isNotBlank())

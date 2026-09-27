@@ -200,7 +200,7 @@ object StepsWalCarrierAuthenticator {
 			wal.deliveryUnitIndex != null ||
 			wal.deliveryUnitCount != null ||
 			wal.activityAutomationEpoch != null ||
-			wal.sourceSequence <= 0L ||
+			wal.sourceSequence < 0L ||
 			wal.observedIntervalStartNanos?.let { it >= 0L } != true ||
 			wal.observedElapsedNanos < requireNotNull(wal.observedIntervalStartNanos) ||
 			wal.receivedElapsedNanos < wal.observedElapsedNanos ||

@@ -12,6 +12,28 @@ import org.junit.Test
 
 class SourceWalCarrierAuthenticatorTest {
 	@Test
+	fun `first zero-based WAL sequence authenticates for Activity Steps and Pressure`() {
+		val activity = activityWal(ActivityWalPayload.Transition(1, 0, 1_000_000L))
+			.resigned(sourceSequence = 0L)
+		val steps = stepsWal(stepsPayload()).resigned(sourceSequence = 0L)
+		val pressure = pressureWal(pressurePayload()).resigned(sourceSequence = 0L)
+		assertIs<ActivityWalCarrierAuthentication.Authenticated>(ActivityWalCarrierAuthenticator.authenticate(activity))
+		assertIs<StepsWalCarrierAuthentication.Authenticated>(StepsWalCarrierAuthenticator.authenticate(steps))
+		assertIs<PressureWalCarrierAuthentication.Authenticated>(PressureWalCarrierAuthenticator.authenticate(pressure))
+	}
+
+	@Test
+	fun `negative WAL sequence remains rejected even with recomputed integrity`() {
+		val activity = activityWal(ActivityWalPayload.Transition(1, 0, 1_000_000L))
+			.resigned(sourceSequence = -1L)
+		val steps = stepsWal(stepsPayload()).resigned(sourceSequence = -1L)
+		val pressure = pressureWal(pressurePayload()).resigned(sourceSequence = -1L)
+		assertIs<ActivityWalCarrierAuthentication.Rejected>(ActivityWalCarrierAuthenticator.authenticate(activity))
+		assertIs<StepsWalCarrierAuthentication.Rejected>(StepsWalCarrierAuthenticator.authenticate(steps))
+		assertIs<PressureWalCarrierAuthentication.Rejected>(PressureWalCarrierAuthenticator.authenticate(pressure))
+	}
+
+	@Test
 	fun `Pressure fact rejects rehashed canonical WAL with different hPa payload`() {
 		val binding = pressureBinding()
 		val originalWal = pressureWal(pressurePayload())

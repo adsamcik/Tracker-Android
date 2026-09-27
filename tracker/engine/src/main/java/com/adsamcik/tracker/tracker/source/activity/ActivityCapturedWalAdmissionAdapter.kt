@@ -157,7 +157,7 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			if (!selected.hasQualifiedIntegrity()) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.WAL_INTEGRITY_MISMATCH)
 			}
-			if (selected.sourceSequence !in 1..MAX_DURABLE_SOURCE_SEQUENCE) {
+			if (selected.sourceSequence !in 0..MAX_DURABLE_SOURCE_SEQUENCE) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.SOURCE_SEQUENCE_MISMATCH)
 			}
 			val deliveryIdentity = selected.deliveryIdentity?.let { identity ->
@@ -654,7 +654,7 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				wal.deliveryIdentity != selected.deliveryIdentity ||
 				wal.deliveryUnitCount != declaredCount || wal.deliveryUnitIndex != index ||
 				!wal.hasSameDeliveryAuthorityAs(selected) ||
-				wal.sourceSequence !in 1..MAX_DURABLE_SOURCE_SEQUENCE ||
+				wal.sourceSequence !in 0..MAX_DURABLE_SOURCE_SEQUENCE ||
 				wal.sourceSequence != expectedSequence
 			) return null
 			val authenticated = ActivityWalCarrierAuthenticator.authenticate(wal)

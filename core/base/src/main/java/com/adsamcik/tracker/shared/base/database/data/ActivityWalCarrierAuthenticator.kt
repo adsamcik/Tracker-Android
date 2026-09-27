@@ -137,7 +137,7 @@ object ActivityWalCarrierAuthenticator {
 			wal.deliveryUnitCount?.let { count ->
 				count > 0 && requireNotNull(wal.deliveryUnitIndex) < count
 			} != true ||
-			wal.sourceSequence <= 0L ||
+			wal.sourceSequence < 0L ||
 			wal.observedIntervalStartNanos != wal.observedElapsedNanos ||
 			wal.observedElapsedNanos < 0L ||
 			wal.receivedElapsedNanos < wal.observedElapsedNanos ||

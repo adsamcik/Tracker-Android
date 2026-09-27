@@ -1182,6 +1182,31 @@ class LocationWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `ambient Location rejects inconsistent provider acceptance wall boundary`() = runTest {
+		installValidFixture(ambientOnly = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(isMock = false)))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET accepted_at_ms = ? WHERE source_kind = ?",
+			arrayOf(RECEIVED_WALL_MS + 1L, LOCATION_SOURCE),
+		)
+		assertEquals(LocationAmbientQualification.Rejected(LocationWalAdapterRejection.REGISTRATION_MISMATCH),
+			subject.qualifyAmbient(EVENT_ID))
+	}
+
+	@Test
+	fun `ambient Location cannot prove an open registration from a different boot`() = runTest {
+		installValidFixture(ambientOnly = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(isMock = false)))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET status = 'ACTIVE', retired_at_ms = NULL, " +
+				"retired_elapsed_realtime_nanos = NULL WHERE source_kind = ?", arrayOf(LOCATION_SOURCE))
+		val previousBootReader = LocationWalQualificationAdapter(database, payloadCodec, planCodec,
+			BootClockDomainProvider { "different-boot" })
+		assertEquals(LocationAmbientQualification.Rejected(LocationWalAdapterRejection.REGISTRATION_MISMATCH),
+			previousBootReader.qualifyAmbient(EVENT_ID))
+	}
+
+	@Test
 	fun `ambient writer commits once without session and legacy capture queries exclude its points`() = runTest {
 		installValidFixture(ambientOnly = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
 			deliveryPayloads = listOf(locationPayload(false)))

@@ -1533,10 +1533,10 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
-	fun `processed shadow Steps WAL observed before retirement prunes without an owner`() =
+	fun `first zero-based shadow Steps WAL observed before retirement prunes without an owner`() =
 		runTest {
 			installSchema()
-			val wal = insertWal("ownerless-shadow", 1L, payloadVersion = 7)
+			val wal = insertWal("ownerless-shadow", 0L, payloadVersion = 7)
 			installOwnerlessStepsWalAuthority(
 				wal = wal,
 				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,

@@ -38,6 +38,13 @@ private val SAMPLED_PLAN_FINGERPRINT = SAMPLED_ACTIVITY_PLAN.physicalConfigurati
 
 class ActivityCapturedObservationAdmissionTest {
 	@Test
+	fun `first zero-based source observation is captured without inventing a prior event`() {
+		val first = event(sourceSequence = 0L)
+		val result = ActivityCapturedObservationAdmission.admit(first, acquisitionAuthority())
+		(result as ActivityCaptureAdmissionResult.Captured).observation.reference.sourceSequence shouldBe 0L
+	}
+
+	@Test
 	fun `control-only callback is rejected from captured history`() {
 		val result = ActivityCapturedObservationAdmission.admit(
 			event(purposeMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART),
@@ -401,6 +408,7 @@ class ActivityCapturedObservationAdmissionTest {
 		providerTime: Long = 1_000L,
 		receivedTime: Long = 1_100L,
 		physicalFingerprint: String = TRANSITION_PLAN_FINGERPRINT,
+		sourceSequence: Long = 31L,
 	) = AdmittedSourceEvent(
 		eventId = SourceEventId("activity-event-1"),
 		admissionOrdinal = 29L,
@@ -415,7 +423,7 @@ class ActivityCapturedObservationAdmissionTest {
 			authorizationRevision = authorizationRevision,
 			registrationPurposeEligibilityMask = purposeMask,
 			registrationEligibilityFingerprint = "activity-eligibility",
-			sourceSequence = 31L,
+			sourceSequence = sourceSequence,
 			configRevision = 5L,
 			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
 			clockDomainId = "boot-1",

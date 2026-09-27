@@ -69,7 +69,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun `Activity WAL source conversion compiles and admits exact transition`() = runTest {
+	fun `first zero-based Activity WAL delivery admits exact transition`() = runTest {
 		installFixture()
 
 		val result = subject().admit(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted
@@ -84,6 +84,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 			observation.change shouldBe ActivityTransitionChange.ENTER
 			observation.activity shouldBe CapturedActivityType.WALKING
 			observation.reference.sourceEventId shouldBe EVENT_ID
+			observation.reference.sourceSequence shouldBe 0L
 		}
 		database.activityCapturedFactDao().revisionCount() shouldBe 0L
 	}
@@ -525,7 +526,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				authorizationRevision = AUTHORIZATION_REVISION,
 				authorizationPurposeEligibilityMask = purposeMask,
 				authorizationFingerprint = authorizationFingerprint,
-				sourceSequence = index + 1L,
+				sourceSequence = index.toLong(),
 				configRevision = PLAN_REVISION,
 				planAttribution = if (controlOnly) {
 					PlanAttribution.RECEIVE_TIME_ONLY.ordinal
@@ -682,7 +683,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 					sourceInstanceId = SOURCE_INSTANCE_ID,
 					registrationGeneration = REGISTRATION_GENERATION,
 					lastAdmissionOrdinal = finalAdmissionOrdinal,
-					lastSourceSequence = finalAdmissionOrdinal,
+				lastSourceSequence = finalAdmissionOrdinal - 1L,
 					appDrainComplete = true,
 					providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
 					stopStatus = "COMPLETE",

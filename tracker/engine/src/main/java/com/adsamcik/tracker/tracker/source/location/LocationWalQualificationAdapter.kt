@@ -191,7 +191,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		if (rows.size > 16) return@withTransaction reject(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
 		val authorization = rows.toAuthorizationSnapshotOrNull()
 			?: return@withTransaction reject(LocationWalAdapterRejection.MISSING_AUTHORIZATION)
-		val observed = broker.authorizationAt(LOCATION_SOURCE, wal.registrationGeneration, wal.clockDomainId, wal.observedElapsedNanos)
+		val observed = broker.authorizationAtBounded(LOCATION_SOURCE, wal.registrationGeneration, wal.clockDomainId, wal.observedElapsedNanos, 17)
 			.toAuthorizationSnapshotOrNull()
 		val ids = authorization.authorizedMembers.mapNotNull { it.demandId }
 		val demands = broker.demandsByIds(ids)
@@ -211,16 +211,23 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		} ?: return@withTransaction LocationAmbientQualification.NotEligible
 		val demand = demands.singleOrNull { it.demandId == member.demandId }
 			?: return@withTransaction reject(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
-		val registration = broker.registration(LOCATION_SOURCE, wal.registrationGeneration)
-			?: return@withTransaction reject(LocationWalAdapterRejection.MISSING_REGISTRATION)
-		if (registration.sourceInstanceId != wal.sourceInstanceId || registration.clockDomainId != wal.clockDomainId ||
-			registration.physicalConfigurationFingerprint != wal.physicalConfigurationFingerprint ||
-			registration.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
-			registration.acceptedElapsedRealtimeNanos?.let { it <= wal.observedElapsedNanos } != true ||
-			registration.retiredElapsedRealtimeNanos?.let { wal.observedElapsedNanos >= it } == true ||
-			registration.status !in setOf(ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
-				ProviderRegistrationGenerationEntity.STATUS_RETIRING, ProviderRegistrationGenerationEntity.STATUS_RETIRED)
-		) return@withTransaction reject(LocationWalAdapterRejection.REGISTRATION_MISMATCH)
+		val registrationProof = database.authenticateHistoricalProviderRegistration(
+			sourceKind = LOCATION_SOURCE,
+			registrationGeneration = wal.registrationGeneration,
+			sourceInstanceId = wal.sourceInstanceId,
+			clockDomainId = wal.clockDomainId,
+			physicalConfigurationFingerprint = requireNotNull(wal.physicalConfigurationFingerprint),
+			collectedDataEpoch = wal.capturedCollectedDataEpoch,
+			expectedProviderResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+			observedStartNanos = wal.observedElapsedNanos,
+			observedEndNanos = wal.observedElapsedNanos,
+			observedWallTimeMs = wall,
+			currentClockDomainId = bootClockDomainProvider.current(),
+		)
+		if (registrationProof is ProviderRegistrationIntervalAuthentication.Rejected) {
+			return@withTransaction reject(if (registrationProof.reason == ProviderRegistrationIntervalFailure.MISSING_REGISTRATION)
+				LocationWalAdapterRejection.MISSING_REGISTRATION else LocationWalAdapterRejection.REGISTRATION_MISMATCH)
+		}
 		val policyDao = database.sourcePolicyDao()
 		val policy = policyDao.policyAtRevision(demand.sourcePolicyRevision, LOCATION_SOURCE)
 			?: return@withTransaction reject(LocationWalAdapterRejection.MISSING_POLICY)
