@@ -1,6 +1,6 @@
 # Remaining design decisions — 2026-09-27
 
-Status: **PARTIALLY APPROVED.** The user approved 48-hour CONTROL-only retention and optional default-off Wi-Fi/Cell notification hosting. Selected-data file behavior needs clarification. The user requires a clean backup of all data; the previous archive-only recommendation is superseded, with the restore choice awaiting confirmation. This packet does not reopen source independence, five balance levels, sessionless background collection, retrospective session organization, or the approved all-day adaptive Location refinement.
+Status: **PARTIALLY APPROVED.** The user approved 48-hour CONTROL-only retention, optional default-off Wi-Fi/Cell notification hosting, and export output strictly in the selected format. Proposed new formats and detailed import behavior are not implicitly approved. The user requires a clean backup of all data; the previous archive-only recommendation is superseded, with the restore choice awaiting confirmation. This packet does not reopen source independence, five balance levels, sessionless background collection, retrospective session organization, or the approved all-day adaptive Location refinement.
 
 Phase: **IMPLEMENTATION_ONLY**. This is decision preparation, not production implementation, executed validation, assembly completion, provider activation or local integration.
 
@@ -38,15 +38,19 @@ The existing all-day Location approval supersedes the older proposal's default-o
 
 ## D3 — Portable and interchange files
 
-**Awaiting clarification.** Exact user answer: "I don't get what this is about". This is not approval of the format proposal below.
+**Selected-format output approved.** After the initial answer "I don't get what this is about", the user clarified: "No if user selects a given format they should get export in just that format."
+
+An export produces only the format the user selected. GPX means GPX only; KML means KML only; JSON means JSON only. Do not automatically attach a Tracker file, session bundle, backup or extra format, wrap the selected output in a different archive, or fall back to a different format. A proposed Tracker/session-bundle format is a separate explicit format choice if approved, never a companion automatically added to another export. Full backup also requires its own explicit selection. This correction supersedes the ambiguous "Tracker files alongside GPX/KML" follow-up question; do not reask that question.
+
+The correction does not itself approve introducing new formats or every timing/scope/import proposal below. Preserve their proposed status.
 
 Plain-language distinction:
 
 - **Backup:** save all durable Tracker data and settings to restore the app later (D4).
-- **Export:** save only a selected session or date range to share or use elsewhere. A Tracker file preserves the selected source data and labels; GPX/KML carry geographic data for other apps and cannot represent every Tracker source.
+- **Export:** save a selected session or date range in the chosen format only. Each format carries its supported data; a GPX/KML selection does not produce an additional Tracker file to carry omitted sources or labels.
 - Show when an export must include a complete measurement/day rather than an exact time slice. Do not invent a time for imported coordinates that have none. Supporting separately browsable undated geometry is a larger alternative, not silently included.
 
-Recommendation: keep existing typed source formats; add the planned exact `.trackerlocation` point format and small session bundle using existing import job/entry receipts. Keep JSON3, GPX and KML as clearly described interchange formats.
+Remaining proposal: keep existing typed source formats; add the planned exact `.trackerlocation` point format and small session bundle as separate explicit format choices using existing import job/entry receipts. Keep JSON3, GPX and KML as clearly described interchange formats. None is automatically packaged with another selected format.
 
 - A session bundle carries local annotation metadata plus unchanged typed source files. Imports create a local annotation copy; they cannot restore current native provider ownership, consent, leases or automatic-start authority.
 - Exact point identities/source receipts handle duplicate observations across files. Imported annotations select their declared source entries, not every record with a coincident timestamp.
@@ -60,6 +64,8 @@ Recommendation: keep existing typed source formats; add the planned exact `.trac
 Alternative presented: additionally retain untimed KML as explicitly undated geometry. That requires a separate time-quality/storage/presentation path and expands implementation beyond the recommended initial format support.
 
 Existing detailed contract: `DATA_GAP_CLOSURE.md`, sections 7–8, and `PRODUCT_GAP_CLOSURE.md`, section 8.
+
+Required future format-dispatch test source: each selected format produces only its own output bytes/type and no companion file or enclosing bundle; unsupported data never silently switches the format; a bundle is written only when that bundle format is explicitly selected. Author and execute under the existing implementation/convergence phase boundaries, not as validation of this documentation slice.
 
 ## D4 — Full backup and restore; legacy archives and schedules
 
@@ -110,5 +116,5 @@ Required focused test source after approval: populated backup/restore across eve
 
 - D1 CONTROL retention: **approved 48 hours**; exact answer "48 hours retention".
 - D2 radio hosting: **approved optional/off by default**; exact answer "Yes" to that explicit question.
-- D3 portable files: **clarification pending**; exact answer "I don't get what this is about". Follow-up asks whether to retain selected Tracker files alongside GPX/KML, accurate whole-entry scope and no invented timestamps.
+- D3 format selection: **approved selected format only**; exact correction "No if user selects a given format they should get export in just that format." The earlier selected-export tool question is superseded. No automatic extra format/bundle/backup or fallback. New codec/bundle and detailed import proposals remain unapproved.
 - D4 backup purpose: **all-data backup required**; exact answer "The point of database export was a clean way to backup all data". Follow-up proposes all durable data/settings/files, omits only caches/bundled assets, and asks replacement-after-confirmation versus empty-installation-only restore. No automatic schedule migration is approved yet.

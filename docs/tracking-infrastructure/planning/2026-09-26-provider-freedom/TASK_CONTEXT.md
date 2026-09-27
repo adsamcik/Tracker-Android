@@ -241,7 +241,7 @@ The user then answered the four tool questions:
 
 The questions concerned (1) CONTROL-only lifetime, (2) optional default-off “Keep running with notification” for Wi-Fi/Cell, (3) selected portable files/geographic interchange with truthful time/scope, and (4) retaining raw database archives as advanced exports without complete restore. Therefore 48h and the host option are approved; file-format confusion is not approval; the archive-only recommendation is superseded by the all-data-backup requirement.
 
-Follow-up question tool, still pending:
+Follow-up question tool (selected-export question superseded by section24; restore question still pending):
 
 > For selected-data exports, I recommend a Tracker file that preserves the selected data and session labels, alongside GPX/KML for other apps. Exports would show when a whole day or measurement must be included, and imports would never invent missing timestamps. Is that the behavior you want, separately from full backup?
 
@@ -252,3 +252,9 @@ Options: Yes—Tracker files plus GPX/KML (Recommended); Keep selected exports t
 Options: Allow replacement after confirmation (Recommended); Restore only into an empty app.
 
 DECISION_CLOSURE contains the concrete proposal and current source evidence. No complete backup/restore implementation, recurring schedule migration, validation or integration is authorized merely by recording this decision packet. Phase remains IMPLEMENTATION_ONLY.
+
+## 24. Export format correction — 2026-09-27
+
+> No if user selects a given format they should get export in just that format.
+
+This settles output strictly in the user's selected format. No automatic companion Tracker file, session bundle, backup, different enclosing archive or format fallback. A proposed new bundle/codec remains a separate explicit format choice if approved; this correction is not approval to add those formats or all detailed import proposals. The earlier selected-export follow-up is superseded, not pending and not to be reasked. The full-backup restore question remains pending. Phase remains IMPLEMENTATION_ONLY; this slice records the design correction only.

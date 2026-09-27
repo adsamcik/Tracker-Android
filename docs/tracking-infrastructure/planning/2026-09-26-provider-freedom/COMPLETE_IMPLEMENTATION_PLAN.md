@@ -4,7 +4,7 @@
 
 This is the current entry point and replaces the previous approval packet. Current detailed contracts are Runtime, Data, Product, Assembly and the five-level profile table linked below. Other planning reports are historical source evidence, not additional mechanisms to implement. This pass changes the proposal only; it neither implements providers nor opens deferred validation.
 
-**2026-09-27 decision update:** [DECISION_CLOSURE.md](DECISION_CLOSURE.md) records approved 48-hour CONTROL retention and optional default-off Wi-Fi/Cell notification hosting. The user requires a clean backup of all data; the earlier raw-archive-only/no-restore proposal is superseded. Selected-data export and full-backup restore behavior await focused confirmation. These decisions do not approve the entire remaining implementation package.
+**2026-09-27 decision update:** [DECISION_CLOSURE.md](DECISION_CLOSURE.md) records approved 48-hour CONTROL retention, optional default-off Wi-Fi/Cell notification hosting, and export output only in the selected format. The user requires a clean backup of all data; the earlier raw-archive-only/no-restore proposal is superseded. New format proposals and full-backup restore behavior remain unapproved. These decisions do not approve the entire remaining implementation package.
 
 ## 1. The product
 
@@ -110,6 +110,7 @@ Explicit My location/games use temporary shared nonpersisting Location leases wi
 
 | Operation | Minimal complete contract |
 | --- | --- |
+| Selected format | Produce only that format. No automatically added source file/bundle/backup, enclosing archive of a different format, or fallback to another format. Any new bundle is a separate explicit format choice, still proposed |
 | Existing source files | Finish missing radio adapters; preserve source versions, identity, correction and partial-prefix import semantics |
 | JSON3/GPX/KML | Preserve declared geographic scope and actual imported quality; GPX breaks unproven routes, passive points can be waypoints, untimed KML is not assigned invented time |
 | Exact Location point file | One narrow codec, imported archive receipt and point identity association for exact timing/purpose/gap roundtrip and overlapping-file dedup; JSON3 already supports sessionless geography and remains available |
@@ -127,7 +128,7 @@ CONTROL is ineligible after the approved 48h TTL, with active-store rows pruned 
 
 All original D1–D7/P1–P8 obligations remain accounted for in the current contracts; the unnecessary mechanisms above are replaced, not silently deferred. Required passive Location, Activity/Pressure, effects, privacy and source-only paths remain in scope. Rejected alternatives include a second policy engine, source-wide battery downgrades, replicated organization metadata, mass backfill, generic all-source format replacement and a new pause framework.
 
-CONTROL retention is settled at 48h; the optional visible Wi-Fi/Cell host is approved off by default. Selected-data file behavior and full-backup restore behavior remain in DECISION_CLOSURE. The stated initial profiles and other unapproved detailed choices remain proposals; do not treat these focused replies as blanket approval.
+CONTROL retention is settled at 48h; the optional visible Wi-Fi/Cell host is approved off by default; exports produce only their selected format. Remaining new format/import proposals and full-backup restore behavior are in DECISION_CLOSURE. The stated initial profiles and other unapproved detailed choices remain proposals; do not treat these focused replies as blanket approval.
 
 [Assembly contract](ASSEMBLY_GAP_CLOSURE.md) maps all 25 prerequisites and exact candidate dispositions. The [input receipt](PLAN_CLOSURE_INPUTS.json) records seven checkouts and preserved source hashes at the prior checkpoint; it is not an assembly freeze. [Review history](PLAN_REVIEW.md) records the initial review and the later adversarial corrections.
 

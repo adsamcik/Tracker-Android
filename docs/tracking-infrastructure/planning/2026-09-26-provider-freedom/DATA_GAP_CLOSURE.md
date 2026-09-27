@@ -129,6 +129,8 @@ Read bounded paired sets through one snapshot/batch; no per-point query cascade.
 
 ## 7. Portable files without a second import protocol
 
+**Approved format-selection rule, 2026-09-27:** write only the user's selected format. GPX/KML/JSON exports never add a companion source file, session bundle or backup, never wrap themselves in a different archive, and never switch formats silently. New typed files and the proposed session bundle remain separate explicit format choices if approved. Their internal typed children are part of that explicitly selected bundle format, not extra output attached to geographic exports.
+
 ### Preserve existing source-owned imports
 
 Keep existing Steps/ambient Steps/Activity/Pressure files; add missing captured/ambient Wi-Fi and Cell adapters for their existing transfer contracts. Preserve source versions, exact fields, checksums, identity/correction/deletion rules and bounded transaction semantics. A runtime generation change is not automatically a portable version change.
