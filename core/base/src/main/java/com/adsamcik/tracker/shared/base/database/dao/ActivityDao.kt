@@ -34,6 +34,10 @@ interface ActivityDao : BaseDao<SessionActivity> {
 	@Query("SELECT * FROM activity WHERE id = :id")
 	suspend fun get(id: Long): SessionActivity?
 
+	/** Bounded organization page label resolution; callers pass at most 100 IDs. */
+	@Query("SELECT * FROM activity WHERE id IN (:ids)")
+	suspend fun getByIds(ids: List<Long>): List<SessionActivity>
+
 	/**
 	 * Get specific localized session activity.
 	 */

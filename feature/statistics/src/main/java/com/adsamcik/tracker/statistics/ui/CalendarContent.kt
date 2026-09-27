@@ -28,6 +28,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import com.adsamcik.tracker.stats.api.repository.SessionOrganizationRead
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +69,9 @@ internal fun CalendarContent(
 	onMonthChange: (YearMonth) -> Unit = {},
 	onNavigateToTripDetail: (Long) -> Unit,
 	onViewTripOnMap: (Trip) -> Unit = {},
+	organizationDays: Set<LocalDate> = emptySet(),
+	organizationRead: SessionOrganizationRead? = null,
+	onViewSessionsForDay: ((LocalDate) -> Unit)? = null,
 	modifier: Modifier = Modifier,
 ) {
 	Column(modifier = modifier.fillMaxSize()) {
@@ -79,10 +84,21 @@ internal fun CalendarContent(
 		CalendarGrid(
 			yearMonth = state.currentMonth,
 			dayData = state.dayData,
+			organizationDays = organizationDays,
 			selectedDay = state.selectedDay,
 			onDayClick = onDayClick,
 		)
 
+		if (onViewSessionsForDay != null) {
+			state.selectedDay?.let { day -> TextButton(onClick = { onViewSessionsForDay(day) }) {
+				Text(stringResource(R.string.organization_day_sessions))
+			} }
+			when (organizationRead) {
+				SessionOrganizationRead.Unavailable -> Text(stringResource(R.string.organization_unavailable))
+				is SessionOrganizationRead.Content -> if (organizationRead.hasMore) Text(stringResource(R.string.organization_calendar_more))
+				else -> Unit
+			}
+		}
 		// Day detail bottom section
 		state.selectedDayDetail?.let { detail ->
 			HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -132,6 +148,7 @@ private fun MonthHeader(
 private fun CalendarGrid(
 	yearMonth: YearMonth,
 	dayData: Map<LocalDate, CalendarDayData>,
+	organizationDays: Set<LocalDate>,
 	selectedDay: LocalDate?,
 	onDayClick: (LocalDate) -> Unit,
 	modifier: Modifier = Modifier,
@@ -170,6 +187,7 @@ private fun CalendarGrid(
 						CalendarCell(
 							dayNum = dayNum,
 							intensity = data?.intensity ?: 0f,
+							hasOrganization = date in organizationDays,
 							isSelected = date == selectedDay,
 							isToday = date == LocalDate.now(),
 							onClick = { onDayClick(date) },
@@ -188,6 +206,7 @@ private fun CalendarGrid(
 private fun CalendarCell(
 	dayNum: Int,
 	intensity: Float,
+	hasOrganization: Boolean,
 	isSelected: Boolean,
 	isToday: Boolean,
 	onClick: () -> Unit,
@@ -208,6 +227,7 @@ private fun CalendarCell(
 		else -> MaterialTheme.colorScheme.onSurface
 	}
 
+	val description = stringResource(if (hasOrganization) R.string.organization_calendar_day else R.string.history_calendar_day, dayNum)
 	Box(
 		modifier = modifier
 			.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
@@ -216,9 +236,10 @@ private fun CalendarCell(
 			.clip(CircleShape)
 			.background(bgColor)
 			.clickable(onClick = onClick)
-			.semantics { contentDescription = "Day $dayNum" },
+			.semantics { contentDescription = description },
 		contentAlignment = Alignment.Center,
 	) {
+		if (hasOrganization) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp).size(4.dp).background(textColor, CircleShape))
 		Text(
 			text = dayNum.toString(),
 			style = if (isToday) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodySmall,

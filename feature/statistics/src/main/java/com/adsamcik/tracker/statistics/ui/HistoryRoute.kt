@@ -3,7 +3,6 @@ package com.adsamcik.tracker.statistics.ui
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,31 +17,35 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SnackbarDuration
+import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.paging.compose.collectAsLazyPagingItems
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
 import com.adsamcik.tracker.statistics.viewmodel.CalendarState
+import com.adsamcik.tracker.statistics.presenter.SessionOrganizationViewModel
+import com.adsamcik.tracker.stats.api.repository.SessionOrganizationRead
 import com.adsamcik.tracker.statistics.presenter.HistoryPresenterViewModel
 import com.adsamcik.tracker.statistics.viewmodel.HistoryTab
 import com.adsamcik.tracker.statistics.viewmodel.HistoryStepsValue
@@ -67,27 +70,34 @@ fun HistoryRoute(
 	onNavigateToMap: (Long, Long, Long) -> Unit = { _, _, _ -> },
 	modifier: Modifier = Modifier,
 	viewModel: HistoryPresenterViewModel = hiltViewModel(),
+	organization: SessionOrganizationViewModel = hiltViewModel(),
 ) {
 	val selectedTab by viewModel.selectedTab.collectAsState()
 	val timelineState by viewModel.timelineState.collectAsState()
 	val calendarState by viewModel.calendarState.collectAsState()
-	val tripsItems = viewModel.pagedTrips.collectAsLazyPagingItems()
+	val sessionPages = organization.pagedSessions.collectAsLazyPagingItems()
+	val recordingPages = viewModel.pagedTrips.collectAsLazyPagingItems()
 	val pendingDeletes by viewModel.pendingDeletes.collectAsState()
+	var showRecordings by remember { mutableStateOf(false) }
 	val snackbarHostState = remember { SnackbarHostState() }
 	val deletedMessage = stringResource(R.string.trip_deleted_snackbar)
 	val undoLabel = stringResource(com.adsamcik.tracker.shared.base.R.string.generic_undo)
-
 	LaunchedEffect(viewModel, snackbarHostState, deletedMessage, undoLabel) {
 		viewModel.pendingDeleteEvents.collect { event ->
-			val result = snackbarHostState.showSnackbar(
-				message = deletedMessage,
-				actionLabel = undoLabel,
-				duration = SnackbarDuration.Long,
-			)
-			if (result == SnackbarResult.ActionPerformed) {
+			if (snackbarHostState.showSnackbar(deletedMessage, undoLabel, duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed)
 				viewModel.undoDeleteTrip(event.tripId)
-			}
 		}
+	}
+	val sessions by organization.read.collectAsState()
+	val monthSessions by organization.monthRead.collectAsState()
+	val organizationDay by organization.selectedDay.collectAsState()
+	val editor by organization.editor.collectAsState()
+	val labels by organization.labels.collectAsState()
+	val problem by organization.problem.collectAsState()
+	val busy by organization.busy.collectAsState()
+	LaunchedEffect(calendarState.currentMonth) { organization.showMonth(calendarState.currentMonth) }
+	val organizationDays = remember(monthSessions, calendarState.currentMonth) {
+		organizationCalendarDays(monthSessions, calendarState.currentMonth)
 	}
 
 	BackHandler(onBack = onBack)
@@ -104,6 +114,11 @@ fun HistoryRoute(
 							contentDescription = stringResource(R.string.action_navigate_back),
 						)
 					}
+				},
+				actions = {
+					TextButton(enabled = sessions is SessionOrganizationRead.Content && !busy, onClick = {
+						organization.add(if (selectedTab == HistoryTab.CALENDAR) calendarState.selectedDay else organizationDay)
+					}) { Text(stringResource(R.string.organization_add)) }
 				},
 				colors = TopAppBarDefaults.topAppBarColors(
 					containerColor = MaterialTheme.colorScheme.surface,
@@ -122,6 +137,8 @@ fun HistoryRoute(
 				onTabSelected = viewModel::selectTab,
 			)
 
+			if (editor == null && problem != null) Text(stringResource(organizationProblemText(requireNotNull(problem))),
+				modifier = Modifier.padding(horizontal = 16.dp))
 			AnimatedContent(
 				targetState = selectedTab,
 				label = "history_tab_content",
@@ -131,20 +148,22 @@ fun HistoryRoute(
 						state = timelineState,
 						onTripClick = onNavigateToTripDetail,
 					)
-					HistoryTab.TRIPS -> TripsContent(
-						tripsItems = tripsItems,
-						onTripClick = onNavigateToTripDetail,
-						onViewTripOnMap = { trip ->
-							onNavigateToMap(trip.id, trip.startTimeMs, trip.endTimeMs)
-						},
-						onDeleteTrip = { tripId ->
-							viewModel.requestDeleteTrip(tripId)
-						},
-						pendingDeletes = pendingDeletes,
-					)
+					HistoryTab.TRIPS -> Column {
+						TextButton(onClick = { showRecordings = !showRecordings }) {
+							Text(stringResource(if (showRecordings) R.string.organization_back_sessions else R.string.organization_browse_recordings))
+						}
+						if (showRecordings && sessions is SessionOrganizationRead.Content) TripsContent(recordingPages, onNavigateToTripDetail,
+							onDeleteTrip = viewModel::requestDeleteTrip, pendingDeletes = pendingDeletes,
+							onViewTripOnMap = { onNavigateToMap(it.id, it.startTimeMs, it.endTimeMs) })
+						else OrganizedSessionsContent(sessions, organizationDay, organization::edit,
+							onShowAll = { organization.showDay(null) }, pages = sessionPages)
+					}
 					HistoryTab.CALENDAR -> CalendarContent(
 						state = calendarState,
 						onDayClick = viewModel::selectDay,
+						organizationDays = organizationDays,
+						organizationRead = monthSessions,
+						onViewSessionsForDay = { day -> showRecordings = false; organization.showDay(day); viewModel.selectTab(HistoryTab.TRIPS) },
 						onMonthChange = viewModel::selectMonth,
 						onNavigateToTripDetail = onNavigateToTripDetail,
 						onViewTripOnMap = { trip ->
@@ -155,6 +174,10 @@ fun HistoryRoute(
 			}
 		}
 	}
+	editor?.let { target -> SessionOrganizationEditor(target, labels, busy, problem,
+		onDismiss = organization::dismiss, onReload = organization::reload,
+		onSave = organization::save, onRemove = organization::remove, onRecording = onNavigateToTripDetail) }
+
 }
 
 @Composable
@@ -179,7 +202,7 @@ private fun HistoryTabRow(
 				Text(
 					text = when (tab) {
 						HistoryTab.TIMELINE -> stringResource(R.string.history_tab_timeline)
-						HistoryTab.TRIPS -> stringResource(R.string.history_tab_trips)
+						HistoryTab.TRIPS -> stringResource(R.string.history_tab_sessions)
 						HistoryTab.CALENDAR -> stringResource(R.string.history_tab_calendar)
 					},
 				)

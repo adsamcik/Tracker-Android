@@ -10,6 +10,10 @@ internal object TrackingOwnerValidationRoomCallback : RoomDatabase.Callback() {
 }
 
 internal fun createTrackingOwnerValidationTriggers(database: SupportSQLiteDatabase) {
+	if (database.hasColumns("organization_annotation", setOf("activity_label_id", "revision")) &&
+		database.hasColumns("activity", setOf("id"))
+	) createOrganizationAnnotationLabelTrigger(database)
+
 	if (database.hasColumns(
 			"pending_signal",
 			setOf(

@@ -58,6 +58,11 @@ open; validation and integration are deferred. The historical registry below is 
   entity/DAO/migration/DI wiring traced. Pending contracts, final input freeze, generated schema,
   migration execution and compiled DI proof remain open. See
   `schema-wiring/2026-09-27/IMPLEMENTATION_TRACE.md`.
+- [x] Implement local session organization: retrospective overlapping groups, optional names/activity
+  labels, editable closed intervals, live metadata-only edits, paged History/editor/calendar,
+  grouping-only removal and epoch/revision/retention/full-clear fences authored and independently
+  source-reviewed, **IMPLEMENTED_UNVALIDATED**. Whole structural contents and portable annotation
+  import/export remain separate assembly work. See `session-organization/2026-09-27/IMPLEMENTATION_TRACE.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.

@@ -74,6 +74,19 @@ abstract class StatsDataModule {
 
 	@Binds
 	@Singleton
+	abstract fun bindPagedSessionOrganizationRepository(
+		impl: com.adsamcik.tracker.stats.data.repository.RoomSessionOrganizationRepository,
+	): com.adsamcik.tracker.stats.api.repository.PagedSessionOrganizationRepository
+
+	@Binds
+	@Singleton
+	abstract fun bindSessionOrganizationRepository(
+		impl: com.adsamcik.tracker.stats.data.repository.RoomSessionOrganizationRepository,
+	): com.adsamcik.tracker.stats.api.repository.SessionOrganizationRepository
+
+
+	@Binds
+	@Singleton
 	abstract fun bindTripRepository(impl: DefaultTripRepository): TripRepository
 
 	@Binds

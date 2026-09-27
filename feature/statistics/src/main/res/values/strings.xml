@@ -383,4 +383,50 @@
     <string name="stats_heatmap_title">Activity</string>
     <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Imported Steps</string>
     <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Route and other sensor data are not included.</string>
+
+	<!-- Session organization: metadata never claims recording coverage. -->
+	<string name="history_tab_sessions" tools:ignore="MissingTranslation">Sessions</string>
+	<string name="organization_add" tools:ignore="MissingTranslation">Add session</string>
+	<string name="organization_edit" tools:ignore="MissingTranslation">Edit session</string>
+	<string name="organization_name" tools:ignore="MissingTranslation">Name (optional)</string>
+	<string name="organization_label" tools:ignore="MissingTranslation">Activity label</string>
+	<string name="organization_no_label" tools:ignore="MissingTranslation">No label</string>
+	<string name="organization_start" tools:ignore="MissingTranslation">Start</string>
+	<string name="organization_end" tools:ignore="MissingTranslation">End</string>
+	<string name="organization_zone" tools:ignore="MissingTranslation">Time zone</string>
+	<string name="organization_apply_zone" tools:ignore="MissingTranslation">Apply time zone</string>
+	<string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Apply the time zone before saving.</string>
+	<string name="organization_reload" tools:ignore="MissingTranslation">Reload session</string>
+	<string name="organization_recording" tools:ignore="MissingTranslation">Recording details</string>
+	<string name="organization_remove" tools:ignore="MissingTranslation">Remove session</string>
+	<string name="organization_save" tools:ignore="MissingTranslation">Save</string>
+	<string name="organization_cancel" tools:ignore="MissingTranslation">Cancel</string>
+	<string name="organization_remove_title" tools:ignore="MissingTranslation">Remove this session?</string>
+	<string name="organization_remove_body" tools:ignore="MissingTranslation">Recorded data will remain in history.</string>
+	<string name="organization_date" tools:ignore="MissingTranslation">Date</string>
+	<string name="organization_time" tools:ignore="MissingTranslation">Time</string>
+	<string name="organization_dst_gap" tools:ignore="MissingTranslation">This local time does not exist because the clocks move forward. Choose another time.</string>
+	<string name="organization_dst_overlap" tools:ignore="MissingTranslation">This time occurs twice. Choose its UTC offset.</string>
+	<string name="organization_invalid_interval" tools:ignore="MissingTranslation">The end must be after the start. Both times must be on or after 1 January 1970.</string>
+	<string name="organization_future_end" tools:ignore="MissingTranslation">The end cannot be in the future.</string>
+	<string name="organization_invalid_zone" tools:ignore="MissingTranslation">Enter an IANA time zone, such as Europe/Prague or UTC.</string>
+	<string name="organization_name_long" tools:ignore="MissingTranslation">Use at most 200 characters.</string>
+	<string name="organization_label_missing" tools:ignore="MissingTranslation">This label was removed. Choose another label or no label.</string>
+	<string name="organization_stale" tools:ignore="MissingTranslation">This session changed or collected data was cleared. Reload before saving.</string>
+	<string name="organization_missing" tools:ignore="MissingTranslation">This session is no longer available.</string>
+	<string name="organization_unavailable" tools:ignore="MissingTranslation">Sessions are temporarily unavailable. Try reopening History.</string>
+	<string name="organization_empty" tools:ignore="MissingTranslation">No sessions in this period.</string>
+	<string name="organization_unnamed" tools:ignore="MissingTranslation">Unnamed session</string>
+	<string name="organization_active" tools:ignore="MissingTranslation">Recording</string>
+	<string name="organization_time_uncertain" tools:ignore="MissingTranslation">Recording time is uncertain. Confirm the time before changing its interval.</string>
+	<string name="organization_continued" tools:ignore="MissingTranslation">Continued from an earlier day</string>
+	<string name="organization_show_all" tools:ignore="MissingTranslation">Show all</string>
+	<string name="organization_end_first" tools:ignore="MissingTranslation">End the session to edit its time or remove it.</string>
+	<string name="organization_day_sessions" tools:ignore="MissingTranslation">View sessions for this day</string>
+	<string name="organization_calendar_more" tools:ignore="MissingTranslation">Some session markers are not shown. Select a day to view its sessions.</string>
+	<string name="organization_calendar_day" tools:ignore="MissingTranslation">Day %1$d, has sessions</string>
+	<string name="history_calendar_day" tools:ignore="MissingTranslation">Day %1$d</string>
+	<string name="organization_retry" tools:ignore="MissingTranslation">Retry</string>
+	<string name="organization_browse_recordings" tools:ignore="MissingTranslation">Browse recordings</string>
+	<string name="organization_back_sessions" tools:ignore="MissingTranslation">Back to sessions</string>
 </resources>

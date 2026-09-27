@@ -194,7 +194,10 @@ class ActiveDatabasePreflight internal constructor(
 			!FINAL_V28_STEPS_INDEXES.all(database::hasExactIndex) ||
 			!FINAL_V28_STEPS_TRIGGERS.all(database::hasTrigger) ||
 			!database.hasExactStepsCountDomainMarker() ||
-			!FINAL_V28_AUTHORITY_INDEXES.all(database::hasExactIndex)
+			!FINAL_V28_AUTHORITY_INDEXES.all(database::hasExactIndex) ||
+			!FINAL_V28_ORGANIZATION_COLUMNS.all(database::hasExactColumn) ||
+			!FINAL_V28_ORGANIZATION_INDEXES.all(database::hasExactIndex) ||
+			!database.hasTrigger(FinalV28TriggerSentinel("clear_organization_activity_label", "activity"))
 		) {
 			return ActiveDatabasePreflightResult.Blocked(
 				ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
@@ -512,8 +515,9 @@ private enum class FinalV28MarkerState {
 
 internal const val FINAL_V28_MARKER_ID = -280_917
 internal const val FINAL_V28_ASSEMBLY_ID =
-	"tracker-v28-reconciled-source-inputs-20260927"
+	"tracker-v28-session-organization-20260927"
 private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
+	"tracker-v28-reconciled-source-inputs-20260927",
 	"tracker-v28-adaptive-location-authority-20260926",
 	"tracker-v28-authenticated-retention-scope-proof-20260921",
 	"tracker-v28-applied-source-plan-state-20260920",
@@ -909,6 +913,24 @@ private val FINAL_V28_LIFECYCLE_PROOF_INDEXES = listOf(
 		listOf("writer_projection_id", "writer_projection_version", "source_admission_ordinal"),
 		unique = false,
 	),
+)
+private val FINAL_V28_ORGANIZATION_COLUMNS = listOf(
+	FinalV28ColumnSentinel("organization_annotation", "local_id", "TEXT", true, 1),
+	FinalV28ColumnSentinel("organization_annotation", "revision", "INTEGER", true),
+	FinalV28ColumnSentinel("organization_annotation", "created_at_ms", "INTEGER", true),
+	FinalV28ColumnSentinel("organization_annotation", "updated_at_ms", "INTEGER", true),
+	FinalV28ColumnSentinel("organization_annotation", "recording_adapter_key", "TEXT", false),
+	FinalV28ColumnSentinel("organization_annotation", "start_time_ms", "INTEGER", false),
+	FinalV28ColumnSentinel("organization_annotation", "end_time_ms", "INTEGER", false),
+	FinalV28ColumnSentinel("organization_annotation", "display_zone_id", "TEXT", false),
+	FinalV28ColumnSentinel("organization_annotation", "name", "TEXT", false),
+	FinalV28ColumnSentinel("organization_annotation", "activity_label_id", "INTEGER", false),
+	FinalV28ColumnSentinel("organization_annotation", "hidden", "INTEGER", true),
+)
+private val FINAL_V28_ORGANIZATION_INDEXES = listOf(
+	FinalV28IndexSentinel("organization_annotation", "idx_organization_adapter", listOf("recording_adapter_key"), true),
+	FinalV28IndexSentinel("organization_annotation", "idx_organization_bounds", listOf("hidden", "start_time_ms", "end_time_ms"), false),
+	FinalV28IndexSentinel("organization_annotation", "idx_organization_end", listOf("end_time_ms"), false),
 )
 private val FINAL_V28_PRESSURE_RETENTION_TRIGGER = FinalV28TriggerSentinel(
 	name = "reject_pressure_fact_retention_resurrection",

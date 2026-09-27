@@ -1,0 +1,59 @@
+package com.adsamcik.tracker.stats.api.repository
+
+import kotlinx.coroutines.flow.Flow
+
+/** Metadata selection only. It grants no provider, source erase, export or reward authority. */
+sealed interface OrganizationSessionId {
+	data class Annotation(val localId: String) : OrganizationSessionId
+	data class Recording(val adapterKey: String) : OrganizationSessionId
+}
+
+data class OrganizationInterval(val fromMs: Long, val toMs: Long)
+data class OrganizationActivityLabel(val id: Long, val name: String)
+
+data class OrganizedSession(
+	val id: OrganizationSessionId,
+	val revision: Long,
+	val collectedDataEpoch: Long,
+	val name: String?,
+	val activityLabelId: Long?,
+	val activityLabelName: String?,
+	val displayZoneId: String,
+	val fromMs: Long?,
+	val toMs: Long?,
+	/** Derived from acquisition, never stored as another organization lifecycle. */
+	val isActive: Boolean,
+	val timeUncertain: Boolean,
+	/** Opens the original recording; edited bounds do not reattribute its source evidence. */
+	val originalSegmentId: Long? = null,
+)
+
+sealed interface SessionOrganizationRead {
+	data class Content(val sessions: List<OrganizedSession>, val hasMore: Boolean,
+		val collectedDataEpoch: Long) : SessionOrganizationRead
+	data object Unavailable : SessionOrganizationRead
+}
+
+enum class OrganizationEditProblem {
+	INVALID_INTERVAL, FUTURE_END, INVALID_ZONE, NAME_TOO_LONG, MISSING_ACTIVITY_LABEL,
+	END_SESSION_FIRST, STALE, NOT_FOUND, STORAGE_UNAVAILABLE,
+}
+sealed interface OrganizationMutationResult {
+	data object Saved : OrganizationMutationResult
+	data class Rejected(val problem: OrganizationEditProblem) : OrganizationMutationResult
+}
+
+interface SessionOrganizationRepository {
+	/** Bounded metadata view. Null bounds request recent groups, not an unbounded payload read. */
+	fun observe(fromMs: Long? = null, toMs: Long? = null, limit: Int = 100): Flow<SessionOrganizationRead>
+	suspend fun read(fromMs: Long? = null, toMs: Long? = null, limit: Int = 100): SessionOrganizationRead
+	/** Exact metadata lookup for editors, independent of paging/range position. */
+	suspend fun find(id: OrganizationSessionId): SessionOrganizationRead
+	suspend fun activityLabels(): List<OrganizationActivityLabel>
+	suspend fun create(expectedEpoch: Long, interval: OrganizationInterval,
+		displayZoneId: String, name: String?, activityLabelId: Long?): OrganizationMutationResult
+	/** Null intervalChange preserves exact existing instants, including zone-only edits. */
+	suspend fun edit(selection: OrganizedSession, intervalChange: OrganizationInterval?,
+		displayZoneId: String, name: String?, activityLabelId: Long?): OrganizationMutationResult
+	suspend fun remove(selection: OrganizedSession): OrganizationMutationResult
+}

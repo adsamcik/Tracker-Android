@@ -694,7 +694,10 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		db.withTransaction {
 			requireDestructiveAuthority(db, execution, startupGeneration, authority)
 			try {
+				db.organizationAnnotationDao().purgeFreeBefore(cutoff)
+				db.organizationAnnotationDao().suppressExpiredOverrides(cutoff, now)
 				db.sessionSegmentDao().deleteOlderThan(cutoff)
+				db.organizationAnnotationDao().pruneUnusedSuppression()
 				db.pruneImportedStepsSegmentsBefore(cutoff, now)
 			} finally {
 				requireDestructiveAuthority(db, execution, startupGeneration, authority)

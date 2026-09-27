@@ -541,3 +541,29 @@ assembly is not frozen: pending purpose/control/temporary Location/restore contr
 v28, migration execution and compiled Hilt/Room proof remain open. Selected preflight is not full
 owner-trigger-body authentication; configurable fileBuilder is test-used and not guarded by default.
 See ../../schema-wiring/2026-09-27/IMPLEMENTATION_TRACE.md and REVIEW_RECEIPT.md.
+
+## 39. Session organization request (2026-09-27)
+
+Original user text:
+
+> **Implement session organization.** Add retrospective sessions, names/activity labels and editable closed intervals using the planned annotation model.
+
+All original messages, follow-ups and supplied AGENTS.md apply. IMPLEMENTATION_ONLY continues:
+production/test-source authorship, static inspection/review and local IMPLEMENTED_UNVALIDATED
+checkpoint only. No Gradle, compilation, tests/lint/Detekt/schema/diff-check/device/UI/battery/CI/
+release/rollout validation, activation, new dev/v10 integration or push. Candidate base5b57140041;
+main13f1a99871. Protected root paths/source drafts remain preserved and selected V1 families remain.
+
+Implement the settled DATA_GAP_CLOSURE one-annotation local organization behavior and
+PRODUCT_GAP_CLOSURE History create/edit/removal flow. Retrospective overlaps and empty periods
+are legal; live name/label only; saved IANA zone/explicit DST resolution; metadata never acquires
+source facts/consent/erase/export/reward authority. Retention reuses approved trip cutoff; full-clear
+reuses epoch/lease. Existing recording browsing/actions remain reachable. No new dependency,
+second lifecycle, output format or restore decision is introduced.
+
+Independent review-only session_organization_review inherits original messages/decisions and exact
+scoped source/test diff; no recursive delegation. Concrete foundation/UI/paging/privacy findings
+were corrected and regression sources authored. Reviewer reports no remaining blocker for scoped
+local/native/legacy annotation source. Whole structural source contents, portable organization
+selectors/import/export/file assembly, generated schema and executed evidence remain separate.
+See ../../session-organization/2026-09-27/IMPLEMENTATION_TRACE.md and REVIEW_RECEIPT.md.

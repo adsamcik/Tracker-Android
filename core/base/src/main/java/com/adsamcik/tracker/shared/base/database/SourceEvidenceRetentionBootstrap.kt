@@ -115,7 +115,7 @@ private fun SupportSQLiteDatabase.hasConflictingRetentionEvidence(): Boolean {
 private fun SupportSQLiteDatabase.hasNonZeroAutoincrementHighWater(): Boolean =
 	query(
 		"SELECT EXISTS(SELECT 1 FROM sqlite_sequence " +
-			"WHERE seq IS NULL OR seq != 0 LIMIT 1)",
+			"WHERE (name IS NULL OR name != 'activity') AND (seq IS NULL OR seq != 0) LIMIT 1)",
 	).use { cursor ->
 		check(cursor.moveToFirst()) {
 			"Unable to inspect AUTOINCREMENT high-water during retention bootstrap"
@@ -147,6 +147,8 @@ private fun SupportSQLiteDatabase.rowCount(table: String): Long =
 private fun String.quotedIdentifier(): String = "\"${replace("\"", "\"\"")}\""
 
 private val RETENTION_BOOTSTRAP_NON_EVIDENCE_TABLES = setOf(
+	// Reusable user activity labels are reference data, not tracking observations.
+	"activity",
 	"android_metadata",
 	"room_master_table",
 	"source_evidence_state",

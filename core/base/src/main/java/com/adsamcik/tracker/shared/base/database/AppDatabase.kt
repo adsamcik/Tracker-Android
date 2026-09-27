@@ -310,6 +310,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 @Database(
 		version = CURRENT_DATABASE_VERSION,
 		entities = [
+			com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity::class,
 			// Core reference entities
 			SessionActivity::class,
 			// Sessionless architecture entities
@@ -528,6 +529,8 @@ abstract class AppDatabase : RoomDatabase() {
 	 * Provides access to activity data.
 	 */
 	abstract fun activityDao(): ActivityDao
+
+	abstract fun organizationAnnotationDao(): com.adsamcik.tracker.shared.base.database.dao.OrganizationAnnotationDao
 
 	/**
 	 * Provides access to general utility methods.
@@ -1154,6 +1157,8 @@ abstract class AppDatabase : RoomDatabase() {
 		}
 
 		private fun deleteCollectedRows(database: AppDatabase) {
+			// Organization metadata is collected data; a stale editor is fenced by the epoch.
+			database.openHelper.writableDatabase.execSQL("DELETE FROM organization_annotation")
 			// Source-event pipeline. Delete dependent state before immutable evidence.
 			database.locationProjectionDao().deleteAllObservations()
 			database.openHelper.writableDatabase.execSQL("DELETE FROM source_capture_admission_barrier")

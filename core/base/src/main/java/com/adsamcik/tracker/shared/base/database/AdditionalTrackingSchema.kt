@@ -5,6 +5,7 @@ package com.adsamcik.tracker.shared.base.database
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 internal fun createAdditionalTrackingTables(database: SupportSQLiteDatabase) {
+	createOrganizationAnnotationTable(database)
 	createCollectedDataDeletionOperationTable(database)
 	createRetentionWorkExecutionReceiptTable(database)
 	createSourceEventRetentionProofTable(database)

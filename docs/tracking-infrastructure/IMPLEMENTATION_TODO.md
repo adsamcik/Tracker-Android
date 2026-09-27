@@ -1901,3 +1901,24 @@ IMPLEMENTATION_ONLY; authored source IMPLEMENTED_UNVALIDATED. Main dev/v10 uncha
 See schema-wiring/2026-09-27/IMPLEMENTATION_TRACE.md and REVIEW_RECEIPT.md. Existing preflight
 sentinels are not exhaustive authentication of every table or owner-trigger body. No whole
 schema-convergence, executed test pass, provider activation, integration or push is claimed.
+
+## 2026-09-27 local session organization slice
+
+IMPLEMENTATION_ONLY; source IMPLEMENTED_UNVALIDATED. Main dev/v10 unchanged.
+
+- [x] Add one metadata-only annotation model and composed native/legacy recording adapters;
+  suppress overrides before filter/limit and preserve acquisition/source authority.
+- [x] Implement retrospective overlapping intervals, trimmed Unicode-bounded names, existing
+  activity labels, optimistic revision/epoch edits, live name/label only and grouping removal.
+- [x] Wire paged Sessions, Add/edit/remove, saved zone, DST choices, explicit stale Reload,
+  calendar presence and existing paged recording actions in History.
+- [x] Wire approved trip metadata retention, label deletion and actual parent full-clear.
+- [x] Author focused Room/core/preflight/time/calendar/Compose/ViewModel regression sources;
+  address independent static review's concrete findings.
+- [ ] Complete whole six-source structural history/group contents and portable annotation selectors,
+  re-keying/import/export/file assembly through separately approved contracts.
+- [ ] Freeze the complete input set and execute deferred generated schema, migration, compilation,
+  test/quality/UI/device gates; only then integrate the proven final result.
+
+See session-organization/2026-09-27/IMPLEMENTATION_TRACE.md and REVIEW_RECEIPT.md. Authored tests
+are uncompiled and unrun. No new format, provider activation, final proof, integration or push.

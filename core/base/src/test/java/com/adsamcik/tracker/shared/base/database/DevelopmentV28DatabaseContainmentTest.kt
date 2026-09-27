@@ -45,6 +45,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	fun `both pre reconciliation assembly markers are contained`() {
 		listOf(
 			"tracker-v28-adaptive-location-authority-20260926",
+			"tracker-v28-reconciled-source-inputs-20260927",
 			"tracker-v28-authenticated-retention-scope-proof-20260921",
 		).forEach { marker ->
 			deleteFixture()
@@ -59,6 +60,24 @@ class DevelopmentV28DatabaseContainmentTest {
 		createFixture(CURRENT_DATABASE_VERSION, includeFinalTable = true, includeFinalColumn = true,
 			includeFinalIndex = true, markerValue = "tracker-v28-applied-source-plan-state-20260920")
 		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28)
+	}
+
+	@Test
+	fun `current assembly requires annotation bounds adapter uniqueness and label cleanup`() {
+		val mutations: List<(SupportSQLiteDatabase) -> Unit> = listOf(
+			{ it.execSQL("DROP TABLE organization_annotation") },
+			{ it.execSQL("DROP INDEX idx_organization_adapter"); it.execSQL("CREATE INDEX idx_organization_adapter ON organization_annotation(recording_adapter_key)") },
+			{ it.execSQL("DROP INDEX idx_organization_bounds"); it.execSQL("CREATE INDEX idx_organization_bounds ON organization_annotation(hidden, end_time_ms, start_time_ms)") },
+			{ it.execSQL("DROP TRIGGER clear_organization_activity_label") },
+		)
+		mutations.forEach { mutate ->
+			deleteFixture()
+			createFixture(CURRENT_DATABASE_VERSION, includeFinalTable = true, includeFinalColumn = true,
+				includeFinalIndex = true, stepsSchemaMutation = mutate)
+			val before = context.getDatabasePath(DATABASE_NAME).readBytes().toList()
+			preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA)
+			context.getDatabasePath(DATABASE_NAME).readBytes().toList() shouldBe before
+		}
 	}
 
 	@Test
@@ -1230,6 +1249,9 @@ class DevelopmentV28DatabaseContainmentTest {
 									StepsCountDomainSchemaState.ValidV2,
 							)
 							createImportedPortableStepsCountDomainTables(db)
+							createOrganizationAnnotationTable(db)
+							db.execSQL("CREATE TABLE IF NOT EXISTS activity (id INTEGER NOT NULL PRIMARY KEY)")
+							createOrganizationAnnotationLabelTrigger(db)
 							stepsSchemaMutation?.invoke(db)
 						}
 						if (markerValue != null) {
