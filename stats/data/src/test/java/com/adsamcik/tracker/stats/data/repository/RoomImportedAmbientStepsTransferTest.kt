@@ -103,6 +103,10 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -1678,6 +1682,31 @@ class RoomImportedAmbientStepsTransferTest {
 		snapshots[1].days.single().total shouldBe AmbientStepsHistoryValue.Exact(5L)
 		snapshots[2].days.single().total shouldBe AmbientStepsHistoryValue.Exact(9L)
 		database.dailySummaryDao().getByDay(initial.days.single().structuralEpochDay) shouldBe null
+	}
+
+	@Test
+	fun `public range observation withdraws an exact total after imported count domain only damage`() = runTest {
+		val day = completeDay(LocalDate.of(2026, 1, 3), 5L)
+		val archive = PortableAmbientStepsArchiveV2.create(listOf(authenticatedAmbientDay(day)))
+		importer(database).importArchive(requestV2(archive)) shouldBe applied(archive, 1)
+		val before = database.sourceEvidenceStateDao().get()
+		val initial = CompletableDeferred<Unit>()
+		val observed = async {
+			history(database).observeRange(historyRequest(PortableAmbientStepsArchiveV1.create(listOf(day))))
+				.onEach { initial.complete(Unit) }.take(2).toList()
+		}
+		withContext(Dispatchers.Default) { withTimeout(5_000L) { initial.await() } }
+
+		database.openHelper.writableDatabase.execSQL("DELETE FROM imported_steps_count_domain_receipt")
+		database.invalidationTracker.refreshAsync()
+		val emissions = withContext(Dispatchers.Default) { withTimeout(5_000L) { observed.await() } }
+
+		(emissions.first() as AmbientStepsHistoryRead.Snapshot).days.single().total shouldBe
+			AmbientStepsHistoryValue.Exact(5L)
+		emissions.last() shouldBe AmbientStepsHistoryRead.Unavailable(
+			com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
+		)
+		database.sourceEvidenceStateDao().get() shouldBe before
 	}
 
 	@Test

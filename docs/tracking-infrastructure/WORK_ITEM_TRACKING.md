@@ -52,6 +52,12 @@ open; validation and integration are deferred. The historical registry below is 
   **IMPLEMENTED_UNVALIDATED**. Purpose settlement,
   historical Location semantics, CONTROL expiry and full restore remain open. See
   `retained-authority/2026-09-27/IMPLEMENTATION_TRACE.md` and `CONTRACT_DECISIONS.md`.
+- [ ] Converge the schema and dependency wiring: typed Pressure trigger sentinel, exact selected
+  index admission and count-domain/retention-proof invalidations corrected; actual Room observer
+  and database-preservation regression sources authored, **IMPLEMENTED_UNVALIDATED**. Selected
+  entity/DAO/migration/DI wiring traced. Pending contracts, final input freeze, generated schema,
+  migration execution and compiled DI proof remain open. See
+  `schema-wiring/2026-09-27/IMPLEMENTATION_TRACE.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.

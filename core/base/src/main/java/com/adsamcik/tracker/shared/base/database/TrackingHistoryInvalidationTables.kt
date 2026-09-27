@@ -16,6 +16,8 @@ val TRACKING_HISTORY_INVALIDATION_TABLES: List<String> = listOf(
 	"source_consent_epoch",
 	"source_destination_owner",
 	"source_event_wal",
+	"source_event_retention_proof",
+	"captured_radio_fact_retention_proof",
 	"source_projection_registration",
 	"source_projection_checkpoint",
 	"source_product_projection_lane",

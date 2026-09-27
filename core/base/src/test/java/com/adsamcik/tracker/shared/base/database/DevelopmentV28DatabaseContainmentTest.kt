@@ -370,6 +370,77 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
+	fun `same named Pressure retention trigger on another table is preserved and contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			stepsSchemaMutation = { database ->
+				database.execSQL("DROP TRIGGER reject_pressure_fact_retention_resurrection")
+				database.execSQL(
+					"CREATE TRIGGER reject_pressure_fact_retention_resurrection " +
+						"BEFORE INSERT ON source_event_retention_proof BEGIN SELECT 1; END",
+				)
+			},
+		)
+		val before = databaseFileFamily().filter(File::exists).associateWith(::sha256)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+		assertFileFamilyUnchanged(before)
+	}
+
+	@Test
+	fun `same named weakened authority indexes are preserved and contained`() {
+		val definitions = listOf(
+			"idx_imported_wifi_deletion_scope" to
+				"CREATE INDEX idx_imported_wifi_deletion_scope " +
+					"ON imported_wifi_deletion_generation(deletion_scope_digest)",
+			"idx_imported_wifi_deletion_scope" to
+				"CREATE UNIQUE INDEX idx_imported_wifi_deletion_scope " +
+					"ON imported_wifi_deletion_generation(deletion_scope_digest) WHERE 0",
+			"idx_imported_wifi_deletion_scope" to
+				"CREATE UNIQUE INDEX idx_imported_wifi_deletion_scope " +
+					"ON imported_wifi_deletion_generation(deletion_scope_digest COLLATE NOCASE)",
+			"idx_ambient_steps_retention_scope" to
+				"CREATE UNIQUE INDEX idx_ambient_steps_retention_scope " +
+					"ON ambient_steps_retention_authority(scope)",
+			"idx_ambient_steps_retention_scope" to
+				"CREATE INDEX idx_ambient_steps_retention_scope " +
+					"ON ambient_steps_retention_authority(scope) WHERE 0",
+			"idx_source_caller_authority_status" to
+				"CREATE UNIQUE INDEX idx_source_caller_authority_status " +
+					"ON source_caller_accepted_authority(status)",
+			"idx_source_caller_authority_status" to
+				"CREATE INDEX idx_source_caller_authority_status " +
+					"ON source_caller_accepted_authority(status) WHERE 0",
+		)
+		definitions.forEach { (name, definition) ->
+			deleteFixture()
+			createFixture(
+				version = CURRENT_DATABASE_VERSION,
+				includeMarker = true,
+				includeFinalTable = true,
+				includeFinalColumn = true,
+				includeFinalIndex = true,
+				stepsSchemaMutation = { database ->
+					database.execSQL("DROP INDEX `$name`")
+					database.execSQL(definition)
+				},
+			)
+			val before = databaseFileFamily().filter(File::exists).associateWith(::sha256)
+
+			preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+				ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+			)
+			assertFileFamilyUnchanged(before)
+		}
+	}
+
+	@Test
 	fun `marked v28 missing an indispensable final column is contained`() {
 		createFixture(
 			version = CURRENT_DATABASE_VERSION,
@@ -1186,6 +1257,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	private fun databaseFile(): File = context.getDatabasePath(DATABASE_NAME)
 
 	private companion object {
+		const val DATABASE_NAME = "development-v28-containment-test.db"
 		val APPLIED_PLAN_PAYLOAD_COLUMNS = setOf(
 			"applied_payload_version",
 			"applied_payload",
@@ -1232,7 +1304,4 @@ class DevelopmentV28DatabaseContainmentTest {
 		databaseFileFamily().forEach { it.delete() }
 	}
 
-	private companion object {
-		const val DATABASE_NAME = "development-v28-containment-test.db"
-	}
 }

@@ -516,3 +516,28 @@ the existing erase/regrant test now exercises before/after quality changes, futu
 and deleted-day replay exclusion. Independent static review accepted the combined four production/
 two test sources plus documentation without blocking findings; full historical monotonic demand
 composition remains open. No tests/compilation/validation or new design is inferred.
+
+## 38. Schema and dependency wiring request (2026-09-27)
+
+Original user text:
+
+> **Converge the schema and dependency wiring.** Assemble the final entities, DAOs, indexes, migrations, triggers, invalidation and DI; preserve released and unknown databases.
+
+All original messages above, follow-ups and supplied AGENTS.md apply. IMPLEMENTATION_ONLY
+continues: bounded production/test-source authorship, static inspection/review and local checkpoint
+only. No Gradle, compilation, test/lint/Detekt/schema/diff-check/device/UI/battery/CI/release/rollout
+validation, activation, new dev/v10 integration or push. Candidate base a0b39fd96c; main 13f1a99871.
+Protected root paths and frozen/source drafts remain preserved; selected V1 families remain.
+
+Independent review-only schema_wiring_review inherits original messages/decisions/current code and
+exact scoped diff/authored tests; no recursive delegation. It confirmed typed Pressure sentinel
+mismatch, weaker index shape admission and missing actual read dependencies. Existing approved
+preservation/trusted-read contracts authorize bounded corrections with existing verifier/list
+patterns. No new entity, schema version, dependency or production ownership architecture introduced.
+
+Actual Room observer and file-preservation regression sources are authored, not run. Production
+DI uses the guarded singleton database; no missing selected binding found by static trace. Whole
+assembly is not frozen: pending purpose/control/temporary Location/restore contracts, generated
+v28, migration execution and compiled Hilt/Room proof remain open. Selected preflight is not full
+owner-trigger-body authentication; configurable fileBuilder is test-used and not guarded by default.
+See ../../schema-wiring/2026-09-27/IMPLEMENTATION_TRACE.md and REVIEW_RECEIPT.md.

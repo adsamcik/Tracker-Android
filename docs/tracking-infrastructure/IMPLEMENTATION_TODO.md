@@ -1881,3 +1881,23 @@ source-reviewed IMPLEMENTED_UNVALIDATED only; tests uncompiled/unrun, no validat
 Whole retained data authority stays open. See retained-authority/2026-09-27/IMPLEMENTATION_TRACE.md,
 CONTRACT_DECISIONS.md and REVIEW_RECEIPT.md. Authored tests are uncompiled/unrun; no validation,
 activation, freeze, integration or push is implied by the checked implementation slices.
+
+## 2026-09-27 selected schema and dependency wiring slice
+
+IMPLEMENTATION_ONLY; authored source IMPLEMENTED_UNVALIDATED. Main dev/v10 unchanged.
+
+- [x] Correct Pressure typed trigger sentinel and remove weaker single-column index checks;
+  authenticate uniqueness, nonpartial shape, default BINARY comparison and exact key order.
+- [x] Add verified count-domain and retained-proof Room invalidation dependencies without
+  inventing authority or bumping generic evidence to hide missing dependencies.
+- [x] Author actual public imported Ambient history, native count-domain query, retained-proof
+  lifecycle/recording observer and unknown-weakened-schema preservation regression sources.
+- [x] Trace selected entity/DAO registries, owned additive DDL, fresh callbacks, production
+  containment/backup/Room order and six-source runtime/history/deletion/purpose DI.
+- [ ] Finish unresolved production contracts before declaring a final storage input set.
+- [ ] Freeze whole assembly and execute the deferred migration/schema/compilation/DI/observer
+  gates only when the implementation-only phase is expressly closed.
+
+See schema-wiring/2026-09-27/IMPLEMENTATION_TRACE.md and REVIEW_RECEIPT.md. Existing preflight
+sentinels are not exhaustive authentication of every table or owner-trigger body. No whole
+schema-convergence, executed test pass, provider activation, integration or push is claimed.

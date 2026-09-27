@@ -829,7 +829,9 @@ abstract class AppDatabase : RoomDatabase() {
 		 *
 		 * Repository code that needs a directly configurable Room builder must start from
 		 * [fileBuilder] or [inMemoryBuilder] rather than constructing AppDatabase through Room
-		 * directly. That keeps the final-v28 schema authentication on every supported path.
+		 * directly. This keeps migrations and the exact Steps schema callbacks on those paths.
+		 * Production file containment and migration backup are supplied by [openHelperFactory];
+		 * a configurable file builder does not install that factory automatically.
 		 */
 		fun configureBuilder(database: Builder<AppDatabase>): Builder<AppDatabase> = database.apply {
 			addMigrations(*activeMigrations)

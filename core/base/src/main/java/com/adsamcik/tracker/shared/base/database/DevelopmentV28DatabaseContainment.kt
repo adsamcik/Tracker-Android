@@ -194,21 +194,7 @@ class ActiveDatabasePreflight internal constructor(
 			!FINAL_V28_STEPS_INDEXES.all(database::hasExactIndex) ||
 			!FINAL_V28_STEPS_TRIGGERS.all(database::hasTrigger) ||
 			!database.hasExactStepsCountDomainMarker() ||
-			!database.hasSingleColumnIndex(
-				table = FINAL_V28_INDEX_TABLE,
-				index = FINAL_V28_REQUIRED_INDEX,
-				column = FINAL_V28_REQUIRED_INDEX_COLUMN,
-			) ||
-			!database.hasSingleColumnIndex(
-				table = FINAL_V28_RETENTION_TABLE,
-				index = FINAL_V28_RETENTION_INDEX,
-				column = FINAL_V28_RETENTION_INDEX_COLUMN,
-			) ||
-			!database.hasSingleColumnIndex(
-				table = FINAL_V28_CALLER_AUTHORITY_TABLE,
-				index = FINAL_V28_CALLER_AUTHORITY_INDEX,
-				column = FINAL_V28_CALLER_AUTHORITY_INDEX_COLUMN,
-			)
+			!FINAL_V28_AUTHORITY_INDEXES.all(database::hasExactIndex)
 		) {
 			return ActiveDatabasePreflightResult.Blocked(
 				ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
@@ -445,32 +431,17 @@ private fun SQLiteDatabase.hasExactColumns(
 	actualColumns == expectedColumns
 }
 
-private fun SQLiteDatabase.hasSingleColumnIndex(
-	table: String,
-	index: String,
-	column: String,
-): Boolean {
-	val belongsToTable = rawQuery(
-		"SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ? AND tbl_name = ? LIMIT 1",
-		arrayOf(index, table),
-	).use { it.moveToFirst() }
-	if (!belongsToTable) return false
-	return rawQuery("PRAGMA index_info(`$index`)", null).use { cursor ->
-		val nameColumn = cursor.getColumnIndexOrThrow("name")
-		cursor.moveToFirst() &&
-			cursor.getString(nameColumn) == column &&
-			!cursor.moveToNext()
-	}
-}
-
 private fun SQLiteDatabase.hasExactIndex(index: FinalV28IndexSentinel): Boolean {
 	val exactDefinition = rawQuery("PRAGMA index_list(`${index.table}`)", null).use { cursor ->
 		val nameColumn = cursor.getColumnIndexOrThrow("name")
 		val uniqueColumn = cursor.getColumnIndexOrThrow("unique")
+		val partialColumn = cursor.getColumnIndexOrThrow("partial")
 		var found = false
 		while (cursor.moveToNext()) {
 			if (cursor.getString(nameColumn) == index.name) {
-				if (found || (cursor.getInt(uniqueColumn) != 0) != index.unique) return@use false
+				if (found || (cursor.getInt(uniqueColumn) != 0) != index.unique ||
+					cursor.getInt(partialColumn) != 0
+				) return@use false
 				found = true
 			}
 		}
@@ -481,9 +452,12 @@ private fun SQLiteDatabase.hasExactIndex(index: FinalV28IndexSentinel): Boolean 
 		val nameColumn = cursor.getColumnIndexOrThrow("name")
 		val descendingColumn = cursor.getColumnIndexOrThrow("desc")
 		val keyColumn = cursor.getColumnIndexOrThrow("key")
+		val collationColumn = cursor.getColumnIndexOrThrow("coll")
 		buildList {
 			while (cursor.moveToNext()) {
 				if (cursor.getInt(keyColumn) != 0) {
+					// Owned sentinel DDL uses default BINARY comparison, including identity keys.
+					if (cursor.getString(collationColumn) != "BINARY") return false
 					add(
 						FinalV28IndexedColumn(
 							name = cursor.getString(nameColumn),
@@ -936,8 +910,30 @@ private val FINAL_V28_LIFECYCLE_PROOF_INDEXES = listOf(
 		unique = false,
 	),
 )
-private const val FINAL_V28_PRESSURE_RETENTION_TRIGGER =
-	"reject_pressure_fact_retention_resurrection"
+private val FINAL_V28_PRESSURE_RETENTION_TRIGGER = FinalV28TriggerSentinel(
+	name = "reject_pressure_fact_retention_resurrection",
+	table = "pressure_fact_revision",
+)
+private val FINAL_V28_AUTHORITY_INDEXES = listOf(
+	FinalV28IndexSentinel(
+		FINAL_V28_INDEX_TABLE,
+		FINAL_V28_REQUIRED_INDEX,
+		listOf(FINAL_V28_REQUIRED_INDEX_COLUMN),
+		unique = true,
+	),
+	FinalV28IndexSentinel(
+		FINAL_V28_RETENTION_TABLE,
+		FINAL_V28_RETENTION_INDEX,
+		listOf(FINAL_V28_RETENTION_INDEX_COLUMN),
+		unique = false,
+	),
+	FinalV28IndexSentinel(
+		FINAL_V28_CALLER_AUTHORITY_TABLE,
+		FINAL_V28_CALLER_AUTHORITY_INDEX,
+		listOf(FINAL_V28_CALLER_AUTHORITY_INDEX_COLUMN),
+		unique = false,
+	),
+)
 private val FINAL_V28_STEPS_TABLE_COLUMNS = mapOf(
 	StepsCountDomainSchema.RECEIPT_TABLE to listOf(
 		"receipt_identity",

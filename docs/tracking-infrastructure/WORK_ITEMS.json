@@ -787,7 +787,40 @@
         ".\\gradlew.bat :core:base:testDebugUnitTest --tests \"*Migration27To28*\" --tests \"*Schema*\"",
         ".\\gradlew.bat checkRoomSchemaDrift"
       ],
-      "authored_evidence_test_paths": []
+      "authored_evidence_test_paths": [],
+      "continuation_2026_09_27": {
+        "phase": "implementation_only",
+        "state": "partial_implemented",
+        "validation_state": "deferred_implementation_only",
+        "candidate_base": "a0b39fd96c2e031133660d390007f9a7eb55b1eb",
+        "integration_state": "candidate_only_main_13f1a99871_unchanged",
+        "trace": "schema-wiring/2026-09-27/IMPLEMENTATION_TRACE.md",
+        "review_receipt": "schema-wiring/2026-09-27/REVIEW_RECEIPT.md",
+        "applied": [
+          "Typed Pressure retention trigger sentinel",
+          "Exact selected index uniqueness, nonpartial and default BINARY authentication",
+          "Four native and seven imported count-domain invalidation dependencies",
+          "Generic source-event and captured-radio retained-proof invalidation dependencies",
+          "Actual Room observer and database-family-preservation regression test sources"
+        ],
+        "static_inventory": {
+          "app_database_entity_declarations": 195,
+          "dao_accessor_declarations": 76,
+          "schema_generation_executed": false
+        },
+        "authored_test_paths": [
+          "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt",
+          "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomStepsCountDomainCompatibilityQueryRoomTest.kt",
+          "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportedAmbientStepsTransferTest.kt",
+          "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceEventRetentionProofLifecycleTest.kt"
+        ],
+        "remaining": [
+          "Pending contracts before whole input freeze",
+          "Generated Room v28 and executed migration/schema parity",
+          "Compiled Hilt/Room and observer behavior proof",
+          "Selected preflight is not exhaustive owner-trigger-body or full table-type authentication"
+        ]
+      }
     },
     {
       "id": "WI-AUTHORITY-PURPOSE-001",

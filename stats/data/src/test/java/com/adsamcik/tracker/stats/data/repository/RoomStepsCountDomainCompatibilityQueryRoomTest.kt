@@ -41,6 +41,14 @@ import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportMetad
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportReceipt
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.Dispatchers
 import org.junit.After
@@ -109,6 +117,43 @@ class RoomStepsCountDomainCompatibilityQueryRoomTest {
 		)
 		query.compare(listOf(request)) shouldContainExactly
 			listOf(StepsCountDomainCompatibilityResult.Unverifiable)
+	}
+
+	@Test
+	fun `ambient history dependencies refresh compatibility after a count domain only write`() = runTest {
+		val sessionFact = insertEvidence(StepsCountDomainOwnerKind.SESSION_FACT, '1', tokenDigit = 'a')
+		val completeness = insertEvidence(
+			StepsCountDomainOwnerKind.SESSION_COMPLETENESS, '2', tokenDigit = 'a',
+		)
+		val ambient = insertEvidence(StepsCountDomainOwnerKind.AMBIENT_FACT, '3', tokenDigit = 'a')
+		val request = StepsCountDomainCompatibilityRequest(
+			listOf(sessionFact, completeness), listOf(ambient),
+		)
+		val before = database.sourceEvidenceStateDao().get()
+		database.invalidationTracker.refreshAsync()
+		val initial = kotlinx.coroutines.CompletableDeferred<Unit>()
+		val observed = async {
+			database.invalidationTracker.createFlow(
+				*DefaultAmbientStepsHistoryRepository.AMBIENT_HISTORY_DEPENDENCY_TABLES,
+				emitInitialState = true,
+			).map {
+				query.compare(listOf(request)).also { initial.complete(Unit) }
+			}.distinctUntilChanged().take(2).toList()
+		}
+		withContext(Dispatchers.Default) { withTimeout(5_000L) { initial.await() } }
+
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM steps_count_domain_completeness_marker WHERE owner_identity = ?",
+			arrayOf(completeness.identity.encoded),
+		)
+		database.invalidationTracker.refreshAsync()
+		runCurrent()
+
+		withContext(Dispatchers.Default) { withTimeout(5_000L) { observed.await() } } shouldBe listOf(
+			listOf(StepsCountDomainCompatibilityResult.ExactCompatible),
+			listOf(StepsCountDomainCompatibilityResult.Unverifiable),
+		)
+		database.sourceEvidenceStateDao().get() shouldBe before
 	}
 
 	@Test

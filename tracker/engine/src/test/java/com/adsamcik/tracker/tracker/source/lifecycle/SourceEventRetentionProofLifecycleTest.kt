@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.lifecycle
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.TRACKING_HISTORY_INVALIDATION_TABLES
 import com.adsamcik.tracker.shared.base.database.persistCapturedRadioFactRetentionProofs
 import com.adsamcik.tracker.shared.base.database.persistPressureFactRetentionAuthority
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
@@ -35,6 +36,15 @@ import com.adsamcik.tracker.tracker.source.wifi.WifiWalQualificationAdapter
 import io.kotest.matchers.shouldBe
 import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -180,6 +190,40 @@ class SourceEventRetentionProofLifecycleTest {
 				recording().lineage,
 			)
 		}
+
+	@Test
+	fun `captured radio retention proof only write refreshes actual lifecycle materialization`() = runTest {
+		database.sourceEvidenceStateDao().updateLifecycle(7L, 100L, 200L)
+		val before = database.sourceEvidenceStateDao().get()
+		val adapter = factory.create(TrackingSource.CELL)
+		val initial = CompletableDeferred<Unit>()
+		val observed = async {
+			database.lifecycleInvalidations().map {
+				adapter.materialized(key(TrackingSource.CELL), recording())
+					.also { initial.complete(Unit) }
+			}.distinctUntilChanged().take(2).toList()
+		}
+		withContext(Dispatchers.Default) { withTimeout(5_000L) { initial.await() } }
+
+		database.capturedRadioFactRetentionProofDao().insert(
+			capturedRadioRetentionProof(SourceDestinationOwnerEntity.SOURCE_CELL),
+		)
+		database.invalidationTracker.refreshAsync()
+
+		withContext(Dispatchers.Default) { withTimeout(5_000L) { observed.await() } } shouldBe listOf(
+			SourceProofResult.Pending(
+				SourceProofStage.MATERIALIZED,
+				SourceProofReason.MATERIALIZATION_PENDING,
+				recording().lineage,
+			),
+			SourceProofResult.Deleted(
+				SourceProofStage.MATERIALIZED,
+				SourceProofReason.RETENTION_EXPIRED,
+				recording().lineage,
+			),
+		)
+		database.sourceEvidenceStateDao().get() shouldBe before
+	}
 
 	@Test
 	fun `corrupt Cell dependency retention proof fails materialization closed`() = runTest {
@@ -408,6 +452,31 @@ class SourceEventRetentionProofLifecycleTest {
 				SourceProofReason.IMMUTABLE_AUTHORITY_MISSING,
 			)
 		}
+
+	@Test
+	fun `shared history dependencies refresh recording after a retention proof only write`() = runTest {
+		val before = database.sourceEvidenceStateDao().get()
+		val adapter = factory.create(TrackingSource.PRESSURE)
+		val initial = CompletableDeferred<Unit>()
+		val observed = async {
+			database.invalidationTracker.createFlow(
+				*TRACKING_HISTORY_INVALIDATION_TABLES.toTypedArray(),
+				emitInitialState = true,
+			).map {
+				adapter.recording(key(TrackingSource.PRESSURE)).also { initial.complete(Unit) }
+			}.distinctUntilChanged().take(2).toList()
+		}
+		withContext(Dispatchers.Default) { withTimeout(5_000L) { initial.await() } }
+
+		database.sourceEventRetentionProofDao().insertAll(listOf(receipt()))
+		database.invalidationTracker.refreshAsync()
+
+		withContext(Dispatchers.Default) { withTimeout(5_000L) { observed.await() } } shouldBe listOf(
+			SourceProofResult.Pending(SourceProofStage.RECORDING, SourceProofReason.EVIDENCE_NOT_FOUND),
+			SourceProofResult.Deleted(SourceProofStage.RECORDING, SourceProofReason.RETENTION_EXPIRED),
+		)
+		database.sourceEvidenceStateDao().get() shouldBe before
+	}
 
 	@Test
 	fun `retention receipt requires exact policy consent and run scope`() = runTest {
