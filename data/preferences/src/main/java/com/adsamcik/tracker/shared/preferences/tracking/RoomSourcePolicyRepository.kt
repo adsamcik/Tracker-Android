@@ -180,6 +180,8 @@ class RoomSourcePolicyRepository(
 					old.locationRequiredAccuracyMeters != next.locationRequiredAccuracyMeters ||
 					old.balanceProfileVersion != next.balanceProfileVersion ||
 					old.balanceLevel != next.balanceLevel ||
+					old.overallBalanceLevel != next.overallBalanceLevel ||
+					old.sourceBalanceOverride != next.sourceBalanceOverride ||
 					old.locationBackgroundMode != next.locationBackgroundMode ||
 					old.locationMotionAssistanceEnabled != next.locationMotionAssistanceEnabled
 			}
@@ -437,6 +439,8 @@ class RoomSourcePolicyRepository(
 						previous.balanceLevel,
 						previous.locationBackgroundMode,
 						previous.locationMotionAssistanceEnabled,
+						previous.overallBalanceLevel,
+						previous.sourceBalanceOverride,
 					),
 					captureConsentEpoch = previous.captureConsentEpoch,
 					controlConsentEpoch = when {
@@ -572,6 +576,8 @@ class RoomSourcePolicyRepository(
 				policyRevision = entity.policyRevision,
 				balanceProfileVersion = entity.balanceProfileVersion,
 				balanceLevel = entity.balanceLevel,
+				overallBalanceLevel = entity.overallBalanceLevel,
+				sourceBalanceOverride = entity.sourceBalanceOverride,
 				locationBackgroundMode = entity.locationBackgroundMode?.let(LocationBackgroundMode::fromStableCode),
 				locationMotionAssistanceEnabled = entity.locationMotionAssistanceEnabled,
 			)
@@ -631,13 +637,12 @@ class RoomSourcePolicyRepository(
 	private fun desiredCapturePolicies(
 		settings: TrackingParamsState,
 	): Map<TrackingSourceComponent, DesiredCapturePolicy> = TrackingSourceComponent.entries.associateWith { source ->
-		val booleanEnabled = settings.booleanEnabled(source)
 		val frequency = settings.frequency(source)
-		val enabled = booleanEnabled && frequency != SourceCollectionFrequency.OFF
+		val enabled = settings.captureParticipates(source)
 		DesiredCapturePolicy(
 			source = source,
 			enabled = enabled,
-			qos = if (enabled) frequency.toQos() else SourceQos.OFF,
+			qos = if (enabled) frequency.takeUnless { it == SourceCollectionFrequency.OFF }?.toQos() ?: SourceQos.BALANCED else SourceQos.OFF,
 			locationMinTimeSeconds = settings.minTimeSeconds.coerceAtLeast(1).takeIf {
 				source == TrackingSourceComponent.LOCATION
 			},
@@ -647,8 +652,10 @@ class RoomSourcePolicyRepository(
 			locationRequiredAccuracyMeters = settings.requiredAccuracyMeters.coerceAtLeast(1).takeIf {
 				source == TrackingSourceComponent.LOCATION
 			},
-			balanceProfileVersion = settings.locationProfileVersion.takeIf { source == TrackingSourceComponent.LOCATION },
-			balanceLevel = settings.locationBalanceLevel.takeIf { source == TrackingSourceComponent.LOCATION },
+			balanceProfileVersion = settings.balanceProfileVersion ?: settings.locationProfileVersion.takeIf { source == TrackingSourceComponent.LOCATION },
+			balanceLevel = settings.baselineBalanceLevel(source),
+			overallBalanceLevel = settings.overallBalanceLevel,
+			sourceBalanceOverride = settings.sourceBalanceOverrides[source],
 			locationBackgroundMode = settings.locationBackgroundMode.takeIf { source == TrackingSourceComponent.LOCATION },
 			locationMotionAssistanceEnabled = source == TrackingSourceComponent.LOCATION &&
 				settings.locationMotionAssistanceEnabled,
@@ -686,6 +693,8 @@ class RoomSourcePolicyRepository(
 		changeReason = reason,
 		balanceProfileVersion = desired.balanceProfileVersion,
 		balanceLevel = desired.balanceLevel,
+		overallBalanceLevel = desired.overallBalanceLevel,
+		sourceBalanceOverride = desired.sourceBalanceOverride,
 		locationBackgroundMode = desired.locationBackgroundMode?.stableCode,
 		locationMotionAssistanceEnabled = desired.locationMotionAssistanceEnabled,
 	)
@@ -724,10 +733,12 @@ class RoomSourcePolicyRepository(
 			"ambient-steps:${settings.ambientStepsEnabled}|" +
 			"ambient-wifi:${settings.ambientWifiEnabled}|" +
 			"ambient-cell:${settings.ambientCellEnabled}" +
-			if (settings.locationProfileVersion == null && settings.locationBackgroundMode == null &&
+			(if (settings.locationProfileVersion == null && settings.locationBackgroundMode == null &&
 				!settings.locationMotionAssistanceEnabled
 			) "" else "|location-profile:${settings.locationProfileVersion}:${settings.locationBalanceLevel}:" +
-				"${settings.locationBackgroundMode?.stableCode}:${settings.locationMotionAssistanceEnabled}"
+				"${settings.locationBackgroundMode?.stableCode}:${settings.locationMotionAssistanceEnabled}") +
+			if (settings.balanceProfileVersion == null) "" else "|balance:${settings.balanceProfileVersion}:${settings.overallBalanceLevel}:" +
+				TrackingSourceComponent.entries.joinToString(",") { "${it.stableCode}:${settings.sourceBalanceOverrides[it]}" }
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))
 			.joinToString("") { byte -> "%02x".format(byte) }
@@ -744,6 +755,8 @@ class RoomSourcePolicyRepository(
 		val balanceLevel: Int? = null,
 		val locationBackgroundMode: LocationBackgroundMode? = null,
 		val locationMotionAssistanceEnabled: Boolean = false,
+		val overallBalanceLevel: Int? = null,
+		val sourceBalanceOverride: Int? = null,
 	)
 
 	private companion object {

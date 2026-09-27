@@ -1011,6 +1011,7 @@ data class AcquisitionPlanRevisionEntity(
 	@ColumnInfo(name = "created_at_ms") val createdAtMs: Long,
 	@ColumnInfo(name = "status") val status: String,
 	@ColumnInfo(name = "source_policy_revision") val sourcePolicyRevision: Long? = null,
+	@ColumnInfo(name = "balance_profile_version") val balanceProfileVersion: Int? = null,
 )
 
 @Entity(
@@ -1023,6 +1024,8 @@ data class SourceDesiredPlanEntity(
 	@ColumnInfo(name = "payload_version") val payloadVersion: Int,
 	@ColumnInfo(name = "payload") val payload: ByteArray,
 	@ColumnInfo(name = "payload_checksum") val payloadChecksum: String,
+	@ColumnInfo(name = "requested_balance_level") val requestedBalanceLevel: Int? = null,
+	@ColumnInfo(name = "focus_requested", defaultValue = "0") val focusRequested: Boolean = false,
 )
 
 /** Replaceable current physical-session snapshot; immutable desired-plan rows retain history. */

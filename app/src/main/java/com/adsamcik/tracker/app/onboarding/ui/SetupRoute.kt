@@ -161,6 +161,8 @@ fun SetupRoute(
                         trackingPreset = state.trackingPreset,
                         onAutoTrackingModeChange = viewModel::setAutoTrackingMode,
                         onPresetChange = viewModel::setTrackingPreset,
+						balanceLevel = state.balanceLevel,
+						onBalanceChange = viewModel::setBalanceLevel,
                         onContinue = { viewModel.goToNextStep() },
                     )
 

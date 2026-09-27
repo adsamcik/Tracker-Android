@@ -149,22 +149,24 @@ internal object SourceDemandContractFactory {
 		level: Int,
 		purpose: DirectSourceDemandPurpose,
 	): SourceDemandContract {
-		require(source == SourceKind.LOCATION) { "Only Location has adopted this profile contract" }
-		require(profileVersion == 1 && level in 1..5)
-		require(purpose == DirectSourceDemandPurpose.SESSION_CAPTURE || purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT)
-		return SourceDemandContract(
-			floor = LocationAcquisitionFloor(LocationFloorMode.LOW_POWER),
-			maximumProviderItemAgeMs = 120_000L,
-			targetPlanningLatencyMs = when (level) {
-				1 -> 60_000L
-				2 -> 30_000L
-				3 -> 10_000L
-				4 -> 5_000L
-				else -> 1_000L
-			},
-			requestedDeliveryLatencyMs = 120_000L,
-			adaptiveReductionAllowed = true,
-		)
+        require(profileVersion == 1 && level in 1..5)
+        require(purpose == DirectSourceDemandPurpose.SESSION_CAPTURE || purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT)
+        require(purpose == DirectSourceDemandPurpose.SESSION_CAPTURE || source in setOf(SourceKind.LOCATION, SourceKind.WIFI, SourceKind.CELL)) {
+            "This source has no profile-based background acquisition; system Steps uses its native contract"
+        }
+        val index = level - 1
+        return when (source) {
+            SourceKind.LOCATION -> SourceDemandContract(LocationAcquisitionFloor(LocationFloorMode.LOW_POWER),
+                120_000L, listOf(60_000L, 30_000L, 10_000L, 5_000L, 1_000L)[index], 120_000L, true)
+            SourceKind.ACTIVITY -> SourceDemandContract(ActivityAcquisitionFloor(setOf(ActivityAcquisitionCapability.CLASSIFICATIONS)),
+                120_000L, listOf(60_000L, 45_000L, 30_000L, 15_000L, 5_000L)[index], 120_000L, true)
+            SourceKind.STEPS -> SourceDemandContract(StepsAcquisitionFloor(StepsAcquisitionMechanism.DIRECT_COUNTER, 300_000L, false),
+                300_000L, listOf(300_000L, 120_000L, 60_000L, 15_000L, 5_000L)[index], 300_000L, true)
+            SourceKind.PRESSURE -> SourceDemandContract(PressureAcquisitionFloor(1_000_000, 60_000_000, 60_000L),
+                60_000L, listOf(60_000L, 30_000L, 10_000L, 5_000L, 1_000L)[index], 60_000L, true)
+            SourceKind.WIFI -> SourceDemandContract(WifiBroadcastAcquisitionFloor, 600_000L, Long.MAX_VALUE, null, true)
+            SourceKind.CELL -> SourceDemandContract(CellCallbackAcquisitionFloor, 600_000L, Long.MAX_VALUE, null, true)
+        }
 	}
 
 	/**

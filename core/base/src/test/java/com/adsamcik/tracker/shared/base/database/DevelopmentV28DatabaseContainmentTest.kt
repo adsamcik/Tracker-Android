@@ -828,9 +828,11 @@ class DevelopmentV28DatabaseContainmentTest {
 							)
 						}
 						if (includeFinalTable) {
+                            db.execSQL("CREATE TABLE acquisition_plan_revision (balance_profile_version INTEGER)")
+                            db.execSQL("CREATE TABLE source_desired_plan (requested_balance_level INTEGER, focus_requested INTEGER NOT NULL DEFAULT 0)")
 							createLocationPurposeTables(db)
 							db.execSQL("CREATE TABLE source_policy (balance_profile_version INTEGER, " +
-								"balance_level INTEGER, location_background_mode INTEGER, " +
+								"balance_level INTEGER, overall_balance_level INTEGER, source_balance_override INTEGER, location_background_mode INTEGER, " +
 								"location_motion_assistance_enabled INTEGER NOT NULL DEFAULT 0)")
 							locationSchemaMutation?.invoke(db)
 							db.execSQL(

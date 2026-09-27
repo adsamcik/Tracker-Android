@@ -12,6 +12,8 @@ import com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilities
 import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.LocationBackgroundMode
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationException
@@ -159,6 +161,18 @@ class TrackingSettingsViewModelTest {
 				locationBackgroundMode = LocationBackgroundMode.ADAPTIVE,
 			)
 		}
+        coEvery { trackingParamsRepository.adoptBalanceProfile(any()) } answers {
+            val level = firstArg<Int>()
+            paramsFlow.value = paramsFlow.value.copy(balanceProfileVersion = 1, overallBalanceLevel = level,
+                locationProfileVersion = 1, locationBalanceLevel = paramsFlow.value.sourceBalanceOverrides.location ?: level)
+        }
+        coEvery { trackingParamsRepository.setSourceBalanceOverride(any(), any()) } answers {
+            val source = firstArg<TrackingSourceComponent>()
+            val level = secondArg<Int?>()
+            val overrides = paramsFlow.value.sourceBalanceOverrides.with(source, level)
+            paramsFlow.value = paramsFlow.value.copy(sourceBalanceOverrides = overrides,
+                locationBalanceLevel = overrides.location ?: paramsFlow.value.overallBalanceLevel)
+        }
 		coEvery { trackingParamsRepository.adoptLocationProfile(any()) } answers {
 			paramsFlow.value = paramsFlow.value.copy(locationProfileVersion = 1, locationBalanceLevel = firstArg())
 		}
@@ -844,130 +858,40 @@ class TrackingSettingsViewModelTest {
 			}
 
         @Test
-        fun `applyPreset POWER_SAVE updates all settings`() = runTest(testDispatcher) {
+        fun `preset compatibility actions select quality without changing sources consent or custom settings`() = runTest(testDispatcher) {
+            paramsFlow.value = paramsFlow.value.copy(locationEnabled = false, wifiEnabled = true, cellEnabled = false,
+                ambientWifiEnabled = true, ambientStepsEnabled = true, autoTrackingMode = 0,
+                minTimeSeconds = 17, minDistanceMeters = 43, requiredAccuracyMeters = 71, presetName = "CUSTOM")
+            val original = paramsFlow.value
             val vm = createViewModel()
             advanceUntilIdle()
-
-            vm.applyPreset(TrackingPreset.POWER_SAVE)
-            advanceUntilIdle()
-
-            val config = TrackingPreset.POWER_SAVE
-            vm.uiState.value.locationEnabled shouldBe config.locationEnabled
-            vm.uiState.value.activityEnabled shouldBe config.activityEnabled
-            vm.uiState.value.stepsEnabled shouldBe config.stepsEnabled
-            vm.uiState.value.wifiEnabled shouldBe config.wifiEnabled
-            vm.uiState.value.cellEnabled shouldBe config.cellEnabled
-            vm.uiState.value.barometerEnabled shouldBe config.barometerEnabled
-            vm.uiState.value.minDistance shouldBe config.minDistanceMeters
-            vm.uiState.value.minTime shouldBe config.minTimeSeconds
-            vm.uiState.value.requiredAccuracy shouldBe config.requiredAccuracyMeters
-            vm.uiState.value.currentPreset shouldBe TrackingPreset.POWER_SAVE
-            vm.uiState.value.currentBatteryImpact shouldBe BatteryImpact.LOW
-        }
-
-        @Test
-        fun `applyPreset HIGH_ACCURACY updates all settings`() = runTest(testDispatcher) {
-            val vm = createViewModel()
-            advanceUntilIdle()
-
-            vm.applyPreset(TrackingPreset.HIGH_ACCURACY)
-            advanceUntilIdle()
-
-            val config = TrackingPreset.HIGH_ACCURACY
-            vm.uiState.value.locationEnabled shouldBe config.locationEnabled
-            vm.uiState.value.wifiEnabled shouldBe config.wifiEnabled
-            vm.uiState.value.cellEnabled shouldBe config.cellEnabled
-            vm.uiState.value.barometerEnabled shouldBe config.barometerEnabled
-            vm.uiState.value.minDistance shouldBe config.minDistanceMeters
-            vm.uiState.value.minTime shouldBe config.minTimeSeconds
-            vm.uiState.value.requiredAccuracy shouldBe config.requiredAccuracyMeters
-            vm.uiState.value.currentPreset shouldBe TrackingPreset.HIGH_ACCURACY
-            vm.uiState.value.currentBatteryImpact shouldBe BatteryImpact.HIGH
-        }
-
-        @Test
-        fun `changing a setting after preset marks custom`() = runTest(testDispatcher) {
-            val vm = createViewModel()
-            advanceUntilIdle()
-
-            vm.applyPreset(TrackingPreset.BALANCED)
-            advanceUntilIdle()
-            vm.uiState.value.currentPreset shouldBe TrackingPreset.BALANCED
-
-            vm.setMinDistance(999)
-            advanceUntilIdle()
-            vm.uiState.value.currentPreset shouldBe TrackingPreset.CUSTOM
-        }
-
-        @Test
-        fun `building from a preset keeps other preset values when one is edited`() =
-            runTest(testDispatcher) {
-                val vm = createViewModel()
+            listOf(TrackingPreset.POWER_SAVE to 1, TrackingPreset.BALANCED to 3, TrackingPreset.HIGH_ACCURACY to 5).forEach { (preset, level) ->
+                vm.applyPreset(preset)
                 advanceUntilIdle()
-
-                vm.applyPreset(TrackingPreset.POWER_SAVE)
-                advanceUntilIdle()
-
-                // Fine-tune a single control on top of the preset.
-                vm.setMinDistance(42)
-                advanceUntilIdle()
-
-                // The profile becomes Custom, the edited value is applied, and the remaining
-                // POWER_SAVE values are preserved (the user builds from the preset rather than
-                // starting from scratch).
-                vm.uiState.value.currentPreset shouldBe TrackingPreset.CUSTOM
-                vm.uiState.value.minDistance shouldBe 42
-                vm.uiState.value.minTime shouldBe TrackingPreset.POWER_SAVE.minTimeSeconds
-                vm.uiState.value.requiredAccuracy shouldBe TrackingPreset.POWER_SAVE.requiredAccuracyMeters
-                vm.uiState.value.stepsEnabled shouldBe TrackingPreset.POWER_SAVE.stepsEnabled
+                vm.uiState.value.overallBalanceLevel shouldBe level
+                paramsFlow.value.copy(balanceProfileVersion = null, overallBalanceLevel = null,
+                    locationProfileVersion = null, locationBalanceLevel = null) shouldBe original
             }
-
-        @Test
-        fun `applying preset after custom restores named preset`() = runTest(testDispatcher) {
-            val vm = createViewModel()
-            advanceUntilIdle()
-
-            // Go custom
-            vm.setMinDistance(999)
-            advanceUntilIdle()
-            vm.uiState.value.currentPreset shouldBe TrackingPreset.CUSTOM
-
-            // Apply named preset
-            vm.applyPreset(TrackingPreset.BALANCED)
-            advanceUntilIdle()
-            vm.uiState.value.currentPreset shouldBe TrackingPreset.BALANCED
+            vm.uiState.value.locationEnabled shouldBe false
+            vm.uiState.value.wifiEnabled shouldBe true
+            coVerify(exactly = 0) { trackingParamsRepository.setWifiEnabled(any()) }
+            coVerify(exactly = 0) { trackingParamsRepository.setAmbientLocationEnabled(any()) }
         }
 
         @Test
-        fun `applyPreset validates sources`() = runTest(testDispatcher) {
+        fun `quality override can be changed while a source remains off`() = runTest(testDispatcher) {
             val vm = createViewModel()
+            vm.adoptBalanceProfile(3)
             advanceUntilIdle()
-
-            // All presets have at least location enabled
-            vm.applyPreset(TrackingPreset.POWER_SAVE)
+            vm.setSourceBalanceOverride(TrackingSourceComponent.WIFI, 5)
             advanceUntilIdle()
-            vm.uiState.value.hasValidSources shouldBe true
+            vm.uiState.value.sourceBalanceOverrides.wifi shouldBe 5
+            vm.uiState.value.wifiEnabled shouldBe false
+            vm.uiState.value.ambientWifiEnabled shouldBe false
+            vm.setSourceBalanceOverride(TrackingSourceComponent.WIFI, null)
+            advanceUntilIdle()
+            vm.uiState.value.sourceBalanceOverrides.wifi shouldBe null
         }
-
-        @Test
-        fun `applyPreset persists requested wifi when wifi permission is denied`() =
-            runTest(testDispatcher) {
-                permissionsGranted = false
-                val vm = TrackingSettingsViewModel(
-                    context,
-                    trackingParamsRepository,
-                    trackingStatusProvider,
-                    activityWatcherController,
-					purposeAvailabilityReader,
-                )
-                advanceUntilIdle()
-
-                vm.applyPreset(TrackingPreset.HIGH_ACCURACY)
-                advanceUntilIdle()
-
-                paramsFlow.value.wifiEnabled shouldBe true
-                vm.uiState.value.wifiEnabled shouldBe true
-            }
     }
 
     @Nested
@@ -1016,17 +940,17 @@ class TrackingSettingsViewModelTest {
     inner class BatteryImpactTests {
 
         @Test
-        fun `applyPreset updates battery impact`() = runTest(testDispatcher) {
+        fun `profile changes keep estimate derived from the resulting source plans`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
-
-            vm.applyPreset(TrackingPreset.POWER_SAVE)
+            vm.adoptBalanceProfile(1)
             advanceUntilIdle()
-            vm.uiState.value.currentBatteryImpact shouldBe BatteryImpact.LOW
-
-            vm.applyPreset(TrackingPreset.HIGH_ACCURACY)
+            vm.uiState.value.overallBalanceLevel shouldBe 1
+            (vm.uiState.value.sourcePlans[SourceKind.LOCATION] as LocationPlan).requestedIntervalMs shouldBe 60_000L
+            vm.adoptBalanceProfile(5)
             advanceUntilIdle()
-            vm.uiState.value.currentBatteryImpact shouldBe BatteryImpact.HIGH
+            vm.uiState.value.overallBalanceLevel shouldBe 5
+            (vm.uiState.value.sourcePlans[SourceKind.LOCATION] as LocationPlan).requestedIntervalMs shouldBe 1_000L
         }
     }
 

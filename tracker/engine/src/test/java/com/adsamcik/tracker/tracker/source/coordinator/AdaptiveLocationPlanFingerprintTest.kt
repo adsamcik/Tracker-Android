@@ -9,6 +9,19 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 class AdaptiveLocationPlanFingerprintTest {
+    @Test
+    fun `overall overrides and actual participant set fence adopted delayed starts`() {
+        val settings = TrackingParamsState(balanceProfileVersion = 1, overallBalanceLevel = 2,
+            locationProfileVersion = 1, locationBalanceLevel = 2)
+        val initial = inputs(settings)
+        val original = fingerprint(initial)
+        assertNotEquals(original, fingerprint(inputs(settings.copy(overallBalanceLevel = 3, locationBalanceLevel = 3))))
+        assertNotEquals(original, fingerprint(inputs(settings.copy(sourceBalanceOverrides =
+            com.adsamcik.tracker.shared.preferences.tracking.SourceBalanceOverrides(wifi = 5)))))
+        assertNotEquals(original, fingerprint(initial.copy(environment = initial.environment.copy(liveSources = setOf(SourceKind.STEPS)))))
+        assertEquals(original, fingerprint(inputs(settings.copy())))
+    }
+
 	@Test
 	fun `new metadata does not alter a legacy prepared start`() {
 		val legacy = inputs(TrackingParamsState())

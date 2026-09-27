@@ -215,7 +215,7 @@ class ActivitySourceRuntime @Inject constructor(
 				planRevision = plan.revision,
 				capturedPlan = ActivityRegistrationPlanAttribution(
 					configurationRevision = plan.revision,
-					payloadVersion = SourcePlanCodec.FORMAT_VERSION,
+					payloadVersion = encodedPlan.formatVersion,
 					payload = encodedPlan.bytes,
 					payloadChecksum = encodedPlan.checksum,
 					physicalConfigurationFingerprint = plan.physicalConfigurationFingerprint(),

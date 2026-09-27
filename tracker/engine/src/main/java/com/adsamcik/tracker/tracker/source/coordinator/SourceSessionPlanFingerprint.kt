@@ -68,6 +68,15 @@ internal fun SourceSessionPlanInputs.planInputsFingerprint(
 		output.writeEnvironment(environment)
 		output.writeResolutionContext(resolutionContext)
 		output.writeDemands(demands)
+        if (settings.balanceProfileVersion != null) {
+            output.writeString("source-balance-v1")
+            output.writeNullableLong(settings.balanceProfileVersion.toLong())
+            output.writeNullableLong(settings.overallBalanceLevel?.toLong())
+            com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent.entries.forEach {
+                output.writeNullableLong(settings.sourceBalanceOverrides[it]?.toLong())
+            }
+            output.writeSourceSet(environment.liveSources)
+        }
 		// Historical input bytes remain unchanged until Location adopts the explicit profile.
 		// Assistance and background mode are intent, so they must fence delayed prepared starts too.
 		if (settings.locationProfileVersion != null || settings.locationBackgroundMode != null ||
@@ -99,6 +108,15 @@ internal fun sourcePlanFingerprint(
 		output.writeInt(SOURCE_PLAN_FINGERPRINT_VERSION)
 		output.writeString(inputsFingerprint)
 		output.writeNullableLong(plan.sourcePolicyRevision)
+        if (plan.balanceProfileVersion != null) {
+            output.writeString("source-balance-v1")
+            output.writeNullableLong(plan.balanceProfileVersion.toLong())
+            plan.sourcePreferences.entries.sortedBy { it.key.stableCode }.forEach { (source, preference) ->
+                output.writeInt(source.stableCode)
+                output.writeInt(preference.requestedLevel)
+                output.writeBoolean(preference.focusRequested)
+            }
+        }
 		val orderedPlans = plan.plans.values.sortedBy { sourcePlan -> sourcePlan.source.stableCode }
 		output.writeInt(orderedPlans.size)
 		orderedPlans.forEach { sourcePlan ->

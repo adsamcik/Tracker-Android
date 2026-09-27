@@ -28,6 +28,24 @@ class TrackingSettingsStatusProviderTest {
 		telemetry,
 	)
 
+    @Test
+    fun `adopted status names the exact live level without exposing dormant legacy choices`() {
+        val settings = TrackingParamsState(balanceProfileVersion = 1, overallBalanceLevel = 1,
+            locationProfileVersion = 1, locationBalanceLevel = 1, advancedSourceControlsEnabled = true,
+            wifiEnabled = true, sourceCollectionSettings = SourceCollectionSettings(wifi = SourceCollectionFrequency.RESPONSIVE))
+        val environment = TrackingSettingsPreviewEnvironment(
+            SourcePlanEnvironment(LocationBackend.FUSED, true, emptySet(), liveSources = setOf(SourceKind.WIFI)),
+            PlanResolutionContext(emptyMap(), false, false, false))
+        val live = subject.preview(settings, environment)
+        live.sources.getValue(SourceKind.WIFI).requestedBalanceLevel shouldBe 4
+        live.sources.getValue(SourceKind.LOCATION).requestedBalanceLevel shouldBe 1
+        live.frequencyOptions shouldBe emptyMap()
+        val baseline = subject.preview(settings, environment.copy(planEnvironment = environment.planEnvironment.copy(liveSources = emptySet())))
+        baseline.sources.getValue(SourceKind.WIFI).requestedBalanceLevel shouldBe 1
+        baseline.sources.getValue(SourceKind.CELL).state shouldBe EffectiveSourceState.DISABLED
+    }
+
+
 	@Test
 	fun `preview preserves requested intent while reporting permission block`() {
 		val settings = TrackingParamsState(

@@ -1521,6 +1521,9 @@ val MIGRATION_27_28: Migration = object : Migration(
 				"ALTER TABLE acquisition_plan_revision " +
 					"ADD COLUMN source_policy_revision INTEGER",
 			)
+            execSQL("ALTER TABLE acquisition_plan_revision ADD COLUMN balance_profile_version INTEGER")
+            execSQL("ALTER TABLE source_desired_plan ADD COLUMN requested_balance_level INTEGER")
+            execSQL("ALTER TABLE source_desired_plan ADD COLUMN focus_requested INTEGER NOT NULL DEFAULT 0")
 			execSQL("ALTER TABLE source_applied_plan_state ADD COLUMN applied_payload_version INTEGER")
 			execSQL("ALTER TABLE source_applied_plan_state ADD COLUMN applied_payload BLOB")
 			execSQL("ALTER TABLE source_applied_plan_state ADD COLUMN applied_payload_checksum TEXT")
@@ -3590,6 +3593,8 @@ val MIGRATION_27_28: Migration = object : Migration(
 					location_required_accuracy_meters INTEGER,
 					balance_profile_version INTEGER,
 					balance_level INTEGER,
+					overall_balance_level INTEGER,
+					source_balance_override INTEGER,
 					location_background_mode INTEGER,
 					location_motion_assistance_enabled INTEGER NOT NULL DEFAULT 0,
 					capture_persistence_eligible INTEGER NOT NULL,

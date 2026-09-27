@@ -112,6 +112,23 @@ class SetupViewModelTest {
         onlineMapTilesRepository = onlineMapTilesRepository,
     )
 
+    @Test
+    fun `all five setup levels survive draft recreation without changing source choices`() {
+        val saved = SavedStateHandle()
+        val vm = createViewModel(saved)
+        vm.setWifiEnabled(false)
+        vm.setCellEnabled(true)
+        for (level in 1..5) {
+            vm.setBalanceLevel(level)
+            val restored = createViewModel(saved).state.value
+            restored.balanceLevel shouldBe level
+            restored.wifiEnabled shouldBe false
+            restored.cellEnabled shouldBe true
+        }
+        createViewModel(SavedStateHandle(mapOf("setup_tracking_preset" to "HIGH_PRECISION"))).state.value.balanceLevel shouldBe 5
+        createViewModel().state.value.balanceLevel shouldBe 3
+    }
+
     @Nested
     @DisplayName("Initial state")
     inner class InitialState {

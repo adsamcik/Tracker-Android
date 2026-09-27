@@ -15,6 +15,7 @@ data class SetupUiState(
     /** 0 = disabled, 1 = on foot, 2 = in motion. */
     val autoTrackingMode: Int = 1,
     val trackingPreset: TrackingPolicyPreset = TrackingPolicyPreset.BALANCED,
+	val balanceLevel: Int = 3,
 
     // Step 3 – What to Collect
     val locationEnabled: Boolean = true,
@@ -44,6 +45,7 @@ data class SetupUiState(
     // Step 4 – Online Map Tiles (recommended for the easiest map experience)
     val onlineMapTilesEnabled: Boolean = true,
 ) {
+	init { require(balanceLevel in 1..5) }
 	val locationPermissionGranted: Boolean
 		get() = permissionCapabilities.hasForegroundLocation
 

@@ -1186,6 +1186,30 @@ class SourceBrokerTest {
 			StoredSourceCallerAuthorityLoadResult.Missing
 	}
 
+    @Test
+    fun `six source manifest demands retain exact profile floors and only selected bindings gain live preference`() = runTest {
+        val repository = RoomSourcePolicyRepository(database) { SourcePolicyEffectiveTime("boot-1", 10, 10) }
+        val settings = TrackingParamsState(legacySettingsMigrationCompleted = true, balanceProfileVersion = 1,
+            overallBalanceLevel = 2, locationProfileVersion = 1, locationBalanceLevel = 2,
+            wifiEnabled = true, cellEnabled = true, barometerEnabled = true)
+        val snapshot = repository.bootstrapFromLegacy(settings)
+        val policies = database.sourcePolicyDao().policiesAtRevision(snapshot.revision).associateBy { it.sourceKind }
+        for (source in SourceKind.entries) {
+            val policy = policies.getValue(source.stableCode)
+            val sourceBinding = binding(source, SourceBrokerPurpose.SESSION_CAPTURE,
+                requireNotNull(policy.captureConsentEpoch), true).copy(qosCode = policy.qosCode)
+            val demand = subject.buildSessionDemands("session-1", "run-1", 4, 2, snapshot.revision,
+                listOf(sourceBinding), "boot-1", 100, 200, policies = policies).single()
+            demand.sourceKind shouldBe source.stableCode
+            demand.toSourceDemandContract() shouldBe SourceDemandContractFactory.forProfile(source, 1, 4,
+                DirectSourceDemandPurpose.SESSION_CAPTURE)
+            demand.sourcePolicyRevision shouldBe snapshot.revision
+            demand.consentEpoch shouldBe policy.captureConsentEpoch
+        }
+        subject.buildSessionDemands("session-1", "run-1", 4, 2, snapshot.revision,
+            emptyList(), "boot-1", 100, 200, policies = policies).shouldBeEmpty()
+    }
+
 	@Test
 	fun `manifest bindings become explicit capture and continuation control demands`() {
 		val demands = subject.buildSessionDemands(

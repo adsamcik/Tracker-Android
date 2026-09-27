@@ -57,6 +57,49 @@ class DefaultTrackingParamsRepositoryTest {
         assertFalse(state.wifiEnabled)
     }
 
+    @Test
+    fun `all-source profile roundtrip preserves participation custom values dormant vector and source overrides`() = runTest {
+        val repository = DefaultTrackingParamsRepository(context, Dispatchers.IO)
+        repository.update { copy(locationEnabled = false, wifiEnabled = false, cellEnabled = false,
+            minTimeSeconds = 17, minDistanceMeters = 43, requiredAccuracyMeters = 71,
+            ambientWifiEnabled = true, autoTrackingMode = 0, presetName = "CUSTOM") }
+        val legacy = repository.data.first()
+        assertEquals(null, legacy.balanceProfileVersion)
+        repository.adoptBalanceProfile(2)
+        repository.setSourceBalanceOverride(TrackingSourceComponent.WIFI, 5)
+        repository.setWifiEnabled(true)
+        repository.setWifiEnabled(false)
+        val reopened = DefaultTrackingParamsRepository(context, Dispatchers.IO).data.first()
+        assertEquals(1, reopened.balanceProfileVersion)
+        assertEquals(2, reopened.overallBalanceLevel)
+        assertEquals(5, reopened.sourceBalanceOverrides.wifi)
+        assertEquals(legacy.sourceCollectionSettings, reopened.sourceCollectionSettings)
+        assertFalse(reopened.wifiEnabled)
+        assertFalse(reopened.locationEnabled)
+        assertTrue(reopened.ambientWifiEnabled)
+        assertEquals(17, reopened.minTimeSeconds)
+        assertEquals(43, reopened.minDistanceMeters)
+        assertEquals(71, reopened.requiredAccuracyMeters)
+        repository.setSourceBalanceOverride(TrackingSourceComponent.WIFI, null)
+        assertEquals(null, repository.data.first().sourceBalanceOverrides.wifi)
+    }
+
+    @Test
+    fun `overall adoption preserves earlier explicit Location preference and helper consent`() = runTest {
+        val repository = DefaultTrackingParamsRepository(context, Dispatchers.IO)
+        repository.enableAdaptiveBackgroundLocation()
+        repository.adoptLocationProfile(5)
+        repository.setLocationMotionAssistanceEnabled(true)
+        repository.adoptBalanceProfile(2)
+        val adopted = repository.data.first()
+        assertEquals(5, adopted.sourceBalanceOverrides.location)
+        assertEquals(5, adopted.locationBalanceLevel)
+        assertTrue(adopted.locationMotionAssistanceEnabled)
+        assertEquals(LocationBackgroundMode.ADAPTIVE, adopted.locationBackgroundMode)
+        repository.setSourceBalanceOverride(TrackingSourceComponent.LOCATION, null)
+        assertEquals(2, repository.data.first().locationBalanceLevel)
+    }
+
 	@Test
 	fun `Location profile round trips independently of legacy custom settings`() = runTest {
 		val repository = DefaultTrackingParamsRepository(context, Dispatchers.IO)

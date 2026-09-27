@@ -10,6 +10,26 @@ import kotlin.random.Random
 import org.junit.Test
 
 class TrackingSessionOwnershipStressTest {
+    @Test
+    fun `adopted selection reaches ownership even with dormant legacy frequencies off`() {
+        val off = SourceCollectionFrequency.OFF
+        for (level in 1..5) for (mask in 0..63) {
+            val settings = TrackingParamsState(balanceProfileVersion = 1, overallBalanceLevel = level,
+                locationProfileVersion = 1, locationBalanceLevel = level,
+                locationEnabled = mask and 1 != 0, activityEnabled = mask and 2 != 0,
+                stepsEnabled = mask and 4 != 0, barometerEnabled = mask and 8 != 0,
+                wifiEnabled = mask and 16 != 0, cellEnabled = mask and 32 != 0,
+                sourceCollectionSettings = SourceCollectionSettings(off, off, off, off, off, off))
+            val expected = listOf(SourceKind.LOCATION, SourceKind.ACTIVITY, SourceKind.STEPS,
+                SourceKind.PRESSURE, SourceKind.WIFI, SourceKind.CELL)
+                .filterIndexed { index, _ -> mask and (1 shl index) != 0 }.toSet()
+            val actual = TrackingSessionOwnership.resolve(TrackingRolloutState.eventCanonical(SourceKind.entries.toSet()), settings)
+            actual.configuredSources shouldBe expected
+            actual.enabledEventSources shouldBe expected
+            actual.containedSources shouldBe emptySet()
+        }
+    }
+
 	@Test
 	fun `randomized source settings resolve only to event ownership`() {
 		val random = Random(8_2026)

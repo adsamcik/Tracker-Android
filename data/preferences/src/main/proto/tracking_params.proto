@@ -80,6 +80,14 @@ message TrackingParamsProto {
   optional int32 location_background_mode = 34;
   // Helper-only consent; never Activity history or automatic-start consent.
   bool location_motion_assistance_enabled = 35;
+  optional int32 balance_profile_version = 36;
+  optional int32 overall_balance_level = 37;
+  optional int32 location_balance_override = 38;
+  optional int32 activity_balance_override = 39;
+  optional int32 steps_balance_override = 40;
+  optional int32 pressure_balance_override = 41;
+  optional int32 wifi_balance_override = 42;
+  optional int32 cell_balance_override = 43;
 
   // Internal migration marker so legacy Preferences import runs only once.
   bool legacy_migrated = 1000;

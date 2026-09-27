@@ -66,13 +66,21 @@ data class SourcePolicy(
 	val policyRevision: Long,
 	val balanceProfileVersion: Int? = null,
 	val balanceLevel: Int? = null,
+	val overallBalanceLevel: Int? = null,
+	val sourceBalanceOverride: Int? = null,
 	val locationBackgroundMode: LocationBackgroundMode? = null,
 	val locationMotionAssistanceEnabled: Boolean = false,
 ) {
 	init {
 		LocationAdaptiveSettings.requireValidProfile(balanceProfileVersion, balanceLevel)
-		require(source == TrackingSourceComponent.LOCATION ||
-			(balanceProfileVersion == null && locationBackgroundMode == null && !locationMotionAssistanceEnabled))
+        require(overallBalanceLevel == null || overallBalanceLevel in 1..5)
+        require(sourceBalanceOverride == null || sourceBalanceOverride in 1..5)
+        require(overallBalanceLevel != null || sourceBalanceOverride == null)
+        require(overallBalanceLevel == null || (balanceProfileVersion == 1 &&
+            balanceLevel == (sourceBalanceOverride ?: overallBalanceLevel)))
+        require(source == TrackingSourceComponent.LOCATION ||
+            (locationBackgroundMode == null && !locationMotionAssistanceEnabled &&
+                (balanceProfileVersion == null || overallBalanceLevel != null)))
 		require(locationBackgroundMode != LocationBackgroundMode.ADAPTIVE || balanceProfileVersion != null)
 		require(!locationMotionAssistanceEnabled || balanceProfileVersion != null)
 		require(enabled == (qos != SourceQos.OFF)) {
@@ -129,6 +137,12 @@ data class SourcePolicySnapshot(
 		require(policies.keys == TrackingSourceComponent.entries.toSet()) {
 			"An effective policy snapshot must contain every supported source"
 		}
+        require(policies.values.map { it.overallBalanceLevel }.distinct().size == 1) {
+            "All source rows must agree on overall balance metadata"
+        }
+        if (policies.values.first().overallBalanceLevel != null) {
+            require(policies.values.all { it.balanceProfileVersion == SourceBalanceSettings.PROFILE_VERSION })
+        }
 		require(policies.values.all { it.policyRevision == revision }) {
 			"Every source must belong to the effective policy revision"
 		}

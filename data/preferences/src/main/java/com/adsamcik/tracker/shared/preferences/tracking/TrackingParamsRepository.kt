@@ -5,11 +5,35 @@ import kotlinx.coroutines.flow.first
 
 /** Repository boundary for tracking parameter settings. */
 interface TrackingParamsRepository {
+    /** Quality adoption preserves source participation, legacy vectors, limits and purpose consent. */
+    suspend fun adoptBalanceProfile(level: Int = SourceBalanceSettings.DEFAULT_LEVEL) {
+        require(level in 1..5)
+        update {
+            val overrides = if (balanceProfileVersion == null && locationBalanceLevel != null) {
+                sourceBalanceOverrides.copy(location = locationBalanceLevel)
+            } else sourceBalanceOverrides
+            copy(balanceProfileVersion = SourceBalanceSettings.PROFILE_VERSION, overallBalanceLevel = level,
+                sourceBalanceOverrides = overrides, locationProfileVersion = LocationAdaptiveSettings.PROFILE_VERSION,
+                locationBalanceLevel = overrides.location ?: level)
+        }
+    }
+
+    /** Null inherits the overall preference. Changing quality never grants participation. */
+    suspend fun setSourceBalanceOverride(source: TrackingSourceComponent, level: Int?) {
+        require(level == null || level in 1..5)
+        update {
+            require(balanceProfileVersion != null) { "Adopt an overall balance before setting overrides" }
+            val overrides = sourceBalanceOverrides.with(source, level)
+            copy(sourceBalanceOverrides = overrides, locationBalanceLevel = overrides.location ?: overallBalanceLevel)
+        }
+    }
+
 	/** Explicit adoption changes profile metadata without rewriting historical numeric controls. */
 	suspend fun adoptLocationProfile(level: Int = LocationAdaptiveSettings.DEFAULT_BALANCE_LEVEL) {
 		require(level in LocationAdaptiveSettings.BALANCE_LEVELS)
 		update {
-			copy(locationProfileVersion = LocationAdaptiveSettings.PROFILE_VERSION, locationBalanceLevel = level)
+			copy(locationProfileVersion = LocationAdaptiveSettings.PROFILE_VERSION, locationBalanceLevel = level,
+				sourceBalanceOverrides = if (balanceProfileVersion != null) sourceBalanceOverrides.copy(location = level) else sourceBalanceOverrides)
 		}
 	}
 
@@ -90,6 +114,7 @@ interface TrackingParamsRepository {
 	}
 	suspend fun setSourceFrequency(component: TrackingSourceComponent, frequency: SourceCollectionFrequency) {
 		update {
+			require(balanceProfileVersion == null) { "Legacy frequency editing requires a legacy/custom configuration" }
 			val current = sourceCollectionSettings
 			val next = when (component) {
 				TrackingSourceComponent.LOCATION -> current.copy(location = frequency)

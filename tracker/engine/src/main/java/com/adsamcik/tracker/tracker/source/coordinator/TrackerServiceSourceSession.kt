@@ -6,6 +6,9 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.shared.preferences.tracking.baselineBalanceLevel
+import com.adsamcik.tracker.shared.preferences.tracking.captureParticipates
 import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
@@ -808,7 +811,7 @@ class TrackerServiceSourceSession @Inject constructor(
 				return@withLock SourceSessionReconfigureOutcome.Unchanged
 			}
 			val revision = (database.sourcePlanStateDao().latestRevision()?.revision ?: 0L) + 1L
-			val plan = debt.toPlan(revision) ?: run {
+			val plan = debt.toPlan(revision, currentInputs.settings, currentInputs.environment.liveSources) ?: run {
 				if (replaceCatalogDebt(stored, session, null)) {
 					session.catalogReconfigurationDebt = null
 				}
@@ -1426,7 +1429,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			.map { (source, plan) ->
 				plan.directCaptureDemand(
 					inputs.settings.captureQosCode(source),
-					inputs.settings.locationBalanceLevel?.let { level ->
+					inputs.settings.baselineBalanceLevel(TrackingSourceComponent.fromStableCode(source.stableCode))?.let { level ->
 						if (source in inputs.environment.liveSources) maxOf(level, 4) else level
 					},
 				)
@@ -1458,6 +1461,8 @@ class TrackerServiceSourceSession @Inject constructor(
 			createdAtMs = desired.createdAtMs,
 			plans = eventPlans,
 			sourcePolicyRevision = desired.sourcePolicyRevision,
+			balanceProfileVersion = desired.balanceProfileVersion,
+			sourcePreferences = desired.sourcePreferences.filterKeys { it in eventPlans },
 		)
 	}
 
@@ -1697,7 +1702,7 @@ private fun SessionStartOrigin.defaultCaptureMode(): CaptureReachabilityMode = w
 	-> CaptureReachabilityMode.MANUAL_SESSION_CAPTURE
 }
 
-private fun CatalogReconfigurationDebt.toPlan(revision: Long): AcquisitionPlanRevision? {
+private fun CatalogReconfigurationDebt.toPlan(revision: Long, settings: TrackingParamsState, liveSources: Set<SourceKind>): AcquisitionPlanRevision? {
 	return try {
 		val codec = SourcePlanCodec()
 		val decoded = requestedPlans.associate { stored ->
@@ -1720,6 +1725,12 @@ private fun CatalogReconfigurationDebt.toPlan(revision: Long): AcquisitionPlanRe
 		) return null
 		AcquisitionPlanRevision(
 			revision = revision,
+            balanceProfileVersion = settings.balanceProfileVersion,
+            sourcePreferences = if (settings.balanceProfileVersion == null) emptyMap() else decoded.keys.associateWith { source ->
+                val level = requireNotNull(settings.baselineBalanceLevel(TrackingSourceComponent.fromStableCode(source.stableCode)))
+                val focus = settings.captureParticipates(TrackingSourceComponent.fromStableCode(source.stableCode)) && source in liveSources
+                com.adsamcik.tracker.tracker.source.model.SourceBalancePreference(if (focus) maxOf(level, 4) else level, focus)
+            },
 			planId = "catalog-retry-$sourcePolicyRevision-$revision",
 			createdAtMs = Time.nowMillis,
 			plans = decoded,
@@ -1787,15 +1798,10 @@ private fun SourceSessionPlanInputs.isAtLeastAsCurrentAs(other: SourceSessionPla
 	return otherRevision == null || candidateRevision >= otherRevision
 }
 
-private fun TrackingParamsState.enabledSemanticSources(): Set<SourceKind> = buildSet {
-	val frequency = sourceCollectionSettings
-	if (frequency.location != SourceCollectionFrequency.OFF && locationEnabled) add(SourceKind.LOCATION)
-	if (frequency.activity != SourceCollectionFrequency.OFF && activityEnabled) add(SourceKind.ACTIVITY)
-	if (frequency.steps != SourceCollectionFrequency.OFF && stepsEnabled) add(SourceKind.STEPS)
-	if (frequency.pressure != SourceCollectionFrequency.OFF && barometerEnabled) add(SourceKind.PRESSURE)
-	if (frequency.wifi != SourceCollectionFrequency.OFF && wifiEnabled) add(SourceKind.WIFI)
-	if (frequency.cell != SourceCollectionFrequency.OFF && cellEnabled) add(SourceKind.CELL)
-}
+private fun TrackingParamsState.enabledSemanticSources(): Set<SourceKind> =
+    SourceKind.entries.filterTo(linkedSetOf()) { source ->
+        captureParticipates(TrackingSourceComponent.fromStableCode(source.stableCode))
+    }
 
 
 private fun TrackingParamsState.captureQosCode(source: SourceKind): Int = when (source) {
@@ -1807,12 +1813,12 @@ private fun TrackingParamsState.captureQosCode(source: SourceKind): Int = when (
 	SourceKind.CELL -> sourceCollectionSettings.cell.stableCode
 }
 
-private fun SourcePlan.directCaptureDemand(qosCode: Int, locationBalanceLevel: Int?): SourceDemand {
-	val contract = if (this is LocationPlan && adaptiveProfileVersion == 1) {
+private fun SourcePlan.directCaptureDemand(qosCode: Int, balanceLevel: Int?): SourceDemand {
+	val contract = if (balanceLevel != null) {
 		SourceDemandContractFactory.forProfile(
 			source,
-			adaptiveProfileVersion,
-			requireNotNull(locationBalanceLevel),
+			1,
+			balanceLevel,
 			DirectSourceDemandPurpose.SESSION_CAPTURE,
 		)
 	} else SourceDemandContractFactory.forQos(

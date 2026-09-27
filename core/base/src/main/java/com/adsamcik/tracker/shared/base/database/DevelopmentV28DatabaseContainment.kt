@@ -607,8 +607,13 @@ private val FINAL_V28_REQUIRED_TABLES = setOf(
 )
 
 private val FINAL_V28_LOCATION_COLUMNS = listOf(
+	FinalV28ColumnSentinel("acquisition_plan_revision", "balance_profile_version", "INTEGER", false),
+	FinalV28ColumnSentinel("source_desired_plan", "requested_balance_level", "INTEGER", false),
+	FinalV28ColumnSentinel("source_desired_plan", "focus_requested", "INTEGER", true, defaultValue = "0"),
 	FinalV28ColumnSentinel("source_policy", "balance_profile_version", "INTEGER", false),
 	FinalV28ColumnSentinel("source_policy", "balance_level", "INTEGER", false),
+	FinalV28ColumnSentinel("source_policy", "overall_balance_level", "INTEGER", false),
+	FinalV28ColumnSentinel("source_policy", "source_balance_override", "INTEGER", false),
 	FinalV28ColumnSentinel("source_policy", "location_background_mode", "INTEGER", false),
 	FinalV28ColumnSentinel("source_policy", "location_motion_assistance_enabled", "INTEGER", true, defaultValue = "0"),
 	FinalV28ColumnSentinel("location_registration_plan", "registration_generation", "INTEGER", true, 1),

@@ -218,7 +218,7 @@ internal fun EffectiveTrackingStatusCard(
 				.sortedBy { it.source.ordinal }
 				.forEach { status ->
 					Text(
-						text = "${status.source.displayName()}: ${status.requestedFrequency.displayName()} → " +
+						text = "${status.source.displayName()}: ${status.requestedBalanceLevel?.let { locationBalanceLabel(it) } ?: status.requestedFrequency.displayName()} → " +
 							status.effectiveDescription(),
 						style = MaterialTheme.typography.bodySmall,
 					)

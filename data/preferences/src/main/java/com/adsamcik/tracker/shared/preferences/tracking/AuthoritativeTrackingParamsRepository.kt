@@ -742,6 +742,9 @@ private fun TrackingParamsState.matchesSourceProjection(other: TrackingParamsSta
 		ambientLocationEnabled == other.ambientLocationEnabled &&
 		locationProfileVersion == other.locationProfileVersion &&
 		locationBalanceLevel == other.locationBalanceLevel &&
+		balanceProfileVersion == other.balanceProfileVersion &&
+		overallBalanceLevel == other.overallBalanceLevel &&
+		sourceBalanceOverrides == other.sourceBalanceOverrides &&
 		locationBackgroundMode == other.locationBackgroundMode &&
 		locationMotionAssistanceEnabled == other.locationMotionAssistanceEnabled &&
 		ambientStepsEnabled == other.ambientStepsEnabled &&
@@ -770,6 +773,10 @@ private fun TrackingParamsState.withPolicy(snapshot: SourcePolicySnapshot): Trac
 			location.ambientPersistenceEligible,
 		locationProfileVersion = location.balanceProfileVersion,
 		locationBalanceLevel = location.balanceLevel,
+		balanceProfileVersion = location.balanceProfileVersion.takeIf { location.overallBalanceLevel != null },
+		overallBalanceLevel = location.overallBalanceLevel,
+		sourceBalanceOverrides = SourceBalanceOverrides(location.sourceBalanceOverride, activity.sourceBalanceOverride,
+			steps.sourceBalanceOverride, pressure.sourceBalanceOverride, wifi.sourceBalanceOverride, cell.sourceBalanceOverride),
 		locationBackgroundMode = location.locationBackgroundMode,
 		locationMotionAssistanceEnabled = location.locationMotionAssistanceEnabled,
 		ambientStepsEnabled = steps.ambientConsentEpoch != null &&
@@ -781,7 +788,7 @@ private fun TrackingParamsState.withPolicy(snapshot: SourcePolicySnapshot): Trac
 		minTimeSeconds = requireNotNull(location.locationMinTimeSeconds),
 		minDistanceMeters = requireNotNull(location.locationMinDistanceMeters),
 		requiredAccuracyMeters = requireNotNull(location.locationRequiredAccuracyMeters),
-		sourceCollectionSettings = SourceCollectionSettings(
+		sourceCollectionSettings = if (location.overallBalanceLevel != null) sourceCollectionSettings else SourceCollectionSettings(
 			location = location.qos.toFrequency(),
 			activity = activity.qos.toFrequency(),
 			steps = steps.qos.toFrequency(),
@@ -821,6 +828,14 @@ private fun TrackingParamsState.withSourceEnabled(
 	source: TrackingSourceComponent,
 	enabled: Boolean,
 ): TrackingParamsState {
+    if (balanceProfileVersion != null) return copy(
+        locationEnabled = if (source == TrackingSourceComponent.LOCATION) enabled else locationEnabled,
+        activityEnabled = if (source == TrackingSourceComponent.ACTIVITY) enabled else activityEnabled,
+        stepsEnabled = if (source == TrackingSourceComponent.STEPS) enabled else stepsEnabled,
+        barometerEnabled = if (source == TrackingSourceComponent.PRESSURE) enabled else barometerEnabled,
+        wifiEnabled = if (source == TrackingSourceComponent.WIFI) enabled else wifiEnabled,
+        cellEnabled = if (source == TrackingSourceComponent.CELL) enabled else cellEnabled,
+    )
 	val nextFrequency = frequency(source).forPolicyEnabled(enabled)
 	return withSourceFrequency(source, nextFrequency)
 }
@@ -829,6 +844,7 @@ private fun TrackingParamsState.withSourceFrequency(
 	source: TrackingSourceComponent,
 	frequency: SourceCollectionFrequency,
 ): TrackingParamsState {
+	require(balanceProfileVersion == null) { "Legacy frequency editing requires a legacy/custom configuration" }
 	val enabled = frequency != SourceCollectionFrequency.OFF
 	val nextCollection = when (source) {
 		TrackingSourceComponent.LOCATION -> sourceCollectionSettings.copy(location = frequency)
@@ -857,6 +873,7 @@ private fun TrackingParamsState.withSourceFrequency(
 private fun TrackingParamsState.normalizeSourceMutationFrom(
 	previous: TrackingParamsState,
 ): TrackingParamsState {
+	if (balanceProfileVersion != null) return this
 	var normalized = this
 	TrackingSourceComponent.entries.forEach { source ->
 		val previousEnabled = previous.enabled(source)

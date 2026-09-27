@@ -37,6 +37,41 @@ private val TRANSITION_PLAN_FINGERPRINT =
 private val SAMPLED_PLAN_FINGERPRINT = SAMPLED_ACTIVITY_PLAN.physicalConfigurationFingerprint()
 
 class ActivityCapturedObservationAdmissionTest {
+    @Test
+    fun `new Activity contract separates freshness from sampled coverage without changing legacy`() {
+        val legacy = SAMPLED_ACTIVITY_PLAN.copy(desiredDetectionLatencyMs = 5_000L, confidenceThresholdPercent = 65)
+        val adopted = legacy.copy(adaptiveProfileVersion = 1)
+        legacy.capturedObservationMaximumAgeNanosOrNull() shouldBe 5_000_000_000L
+        adopted.capturedObservationMaximumAgeNanosOrNull() shouldBe 120_000_000_000L
+        adopted.capturedCoverageHorizonNanosOrNull() shouldBe 5_000_000_000L
+        val encoded = SourcePlanCodec().encode(adopted)
+        encoded.formatVersion shouldBe 3
+        SourcePlanCodec().decode(encoded.bytes) shouldBe adopted
+        val row = com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity(5, SourceKind.ACTIVITY.stableCode,
+            encoded.formatVersion, encoded.bytes, encoded.checksum)
+        com.adsamcik.tracker.shared.base.database.data.ActivityCapturedPlanIntegrity.decode(row)?.adaptiveProfileVersion shouldBe 1
+        com.adsamcik.tracker.shared.base.database.data.ActivityCapturedPlanIntegrity.decode(row.copy(payloadVersion = 1)) shouldBe null
+        SourcePlanCodec().encode(legacy).formatVersion shouldBe 1
+    }
+
+    @Test
+    fun `adopted delayed classification keeps five second coverage while legacy rejects its age`() {
+        val legacy = SAMPLED_ACTIVITY_PLAN.copy(desiredDetectionLatencyMs = 5_000L, confidenceThresholdPercent = 65)
+        val interval = ActivityProviderTimeInterval(0, 300_000_000_000L)
+        fun admit(plan: ActivityPlan, confidence: Int) = ActivityCapturedObservationAdmission.admit(
+            event(payload = sampled(confidence).copy(providerElapsedRealtimeNanos = 1_000_000_000L),
+                providerTime = 1_000_000_000L, receivedTime = 31_000_000_000L,
+                physicalFingerprint = plan.physicalConfigurationFingerprint()),
+            acquisitionAuthority(activityPlan = plan, providerAcceptance = interval,
+                authorizationEffect = interval, sessionRunEffect = interval))
+        val adopted = legacy.copy(adaptiveProfileVersion = 1)
+        val observation = (admit(adopted, 65) as ActivityCaptureAdmissionResult.Captured).observation as
+            ActivityCapturedObservation.SampledClassification
+        observation.coverageEndExclusiveElapsedRealtimeNanos shouldBe 6_000_000_000L
+        admit(adopted, 64) shouldBe rejected(ActivityCaptureAdmissionRejection.SAMPLED_CLASSIFICATION_BELOW_THRESHOLD)
+        admit(legacy, 65) shouldBe rejected(ActivityCaptureAdmissionRejection.STALE_PROVIDER_TIME)
+    }
+
 	@Test
 	fun `first zero-based source observation is captured without inventing a prior event`() {
 		val first = event(sourceSequence = 0L)
@@ -357,7 +392,7 @@ class ActivityCapturedObservationAdmissionTest {
 				providerAcceptance = providerAcceptance,
 				authorizationEffect = authorizationEffect,
 				sessionRunEffect = sessionRunEffect,
-				desiredPlanPayloadVersion = 1,
+				desiredPlanPayloadVersion = encodedPlan.formatVersion,
 				desiredPlanPayloadChecksum = encodedPlan.checksum,
 				desiredPlanPayload = encodedPlan.bytes,
 			),

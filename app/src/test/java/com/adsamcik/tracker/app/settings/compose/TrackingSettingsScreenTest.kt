@@ -114,12 +114,33 @@ class TrackingSettingsScreenTest {
 		)
 
     @Test
-    fun displaysPresetSelector() {
+    fun fiveLevelBalanceIsExplicitAndDoesNotChangeParticipation() {
+        var selected: Int? = null
         composeTestRule.setContent {
-            AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
+            AppTheme { TrackingSettingsContent(defaultUiState, onBalanceSelected = { selected = it }) }
         }
-        scrollTo("Balanced")
-        composeTestRule.onNodeWithText("Balanced", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("trackingBalance").performScrollTo().performClick()
+        (1..5).forEach { composeTestRule.onNodeWithTag("trackingBalance-$it").assertIsDisplayed() }
+        composeTestRule.onNodeWithTag("trackingBalance-2").performClick()
+        selected shouldBe 2
+    }
+
+    @Test
+    fun offSourceOverrideDoesNotEnableLiveOrBackgroundCollection() {
+        var selected: Pair<TrackingSourceComponent, Int?>? = null
+        var participationChanges = 0
+        val state = defaultUiState.copy(balanceProfileVersion = 1, overallBalanceLevel = 3,
+            locationProfileVersion = 1, locationBalanceLevel = 3, wifiEnabled = false,
+            ambientWifiEnabled = false, advancedSourceControlsEnabled = true)
+        composeTestRule.setContent {
+            AppTheme { TrackingSettingsContent(state, onSourceBalanceSelected = { source, level -> selected = source to level },
+                onWifiEnabledChanged = { participationChanges++ }, onAmbientWifiEnabledChanged = { participationChanges++ }) }
+        }
+        composeTestRule.onNodeWithTag("sourceBalance-WIFI").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("sourceBalance-WIFI-inherit").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("sourceBalance-WIFI-5").performClick()
+        selected shouldBe (TrackingSourceComponent.WIFI to 5)
+        participationChanges shouldBe 0
     }
 
 	@Test
@@ -145,7 +166,7 @@ class TrackingSettingsScreenTest {
         composeTestRule.setContent {
             AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
         }
-        composeTestRule.onNodeWithText("Changes take effect", substring = true).assertDoesNotExist()
+        composeTestRule.onNodeWithText("Changes update current tracking", substring = true).assertDoesNotExist()
     }
 
     @Test
@@ -155,7 +176,7 @@ class TrackingSettingsScreenTest {
                 TrackingSettingsContent(uiState = defaultUiState.copy(trackingActive = true))
             }
         }
-        composeTestRule.onNodeWithText("Changes take effect", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Changes update current tracking", substring = true).assertIsDisplayed()
     }
 
     @Test

@@ -508,7 +508,7 @@ private fun ActivityCapturedObservationReference.expectedSampledCoverageEnd(
 	activityPlan: ActivityPlan,
 	authority: ActivityCaptureAuthority,
 ): Long? {
-	val horizonNanos = activityPlan.capturedObservationMaximumAgeNanosOrNull() ?: return null
+	val horizonNanos = activityPlan.capturedCoverageHorizonNanosOrNull() ?: return null
 	val configuredEnd = if (providerElapsedRealtimeNanos <= Long.MAX_VALUE - horizonNanos) {
 		providerElapsedRealtimeNanos + horizonNanos
 	} else {

@@ -6,11 +6,13 @@ import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEnt
 import com.adsamcik.tracker.shared.base.database.data.SourceAppliedPlanStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
+import com.adsamcik.tracker.tracker.source.model.SourceBalancePreference
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -28,6 +30,7 @@ class RoomSourcePlanStore @Inject constructor(
 	suspend fun persistDesired(plan: AcquisitionPlanRevision, status: DesiredPlanStatus) {
 		database.withTransaction {
 			val dao = database.sourcePlanStateDao()
+			validateBalanceMetadata(plan)
 			val existing = dao.revision(plan.revision)
 			val encoded = plan.plans.values.sortedBy { it.source.stableCode }.map { sourcePlan ->
 				val value = codec.encode(sourcePlan)
@@ -37,6 +40,8 @@ class RoomSourcePlanStore @Inject constructor(
 					value.formatVersion,
 					value.bytes,
 					value.checksum,
+					plan.sourcePreferences[sourcePlan.source]?.requestedLevel,
+					plan.sourcePreferences[sourcePlan.source]?.focusRequested ?: false,
 				)
 			}
 			if (existing == null) {
@@ -47,6 +52,7 @@ class RoomSourcePlanStore @Inject constructor(
 						plan.createdAtMs,
 						status.name,
 						plan.sourcePolicyRevision,
+						plan.balanceProfileVersion,
 					),
 				)
 				dao.insertDesiredPlans(encoded)
@@ -56,7 +62,10 @@ class RoomSourcePlanStore @Inject constructor(
 				check(existing.sourcePolicyRevision == plan.sourcePolicyRevision) {
 					"Plan revision source-policy collision"
 				}
+				check(existing.balanceProfileVersion == plan.balanceProfileVersion) { "Plan revision balance-profile collision" }
 				val stored = dao.desiredPlans(plan.revision)
+				check(stored.map { it.requestedBalanceLevel to it.focusRequested } ==
+					encoded.map { it.requestedBalanceLevel to it.focusRequested }) { "Plan revision balance-preference collision" }
 				check(stored.map { Triple(it.sourceKind, it.payloadVersion, it.payloadChecksum) } ==
 					encoded.map { Triple(it.sourceKind, it.payloadVersion, it.payloadChecksum) }) {
 					"Plan revision payload collision"
@@ -70,6 +79,7 @@ class RoomSourcePlanStore @Inject constructor(
 		val dao = database.sourcePlanStateDao()
 		val header = dao.revision(revision) ?: return@withTransaction null
 		val plans = linkedMapOf<SourceKind, SourcePlan>()
+		val preferences = linkedMapOf<SourceKind, SourceBalancePreference>()
 		for (entity in dao.desiredPlans(revision)) {
 			if (entity.payload.size !in 1..SourcePlanCodec.MAX_PAYLOAD_BYTES ||
 				!entity.payloadChecksum.matches(LOWERCASE_SHA_256)
@@ -86,16 +96,57 @@ class RoomSourcePlanStore @Inject constructor(
 				reencoded.checksum != entity.payloadChecksum ||
 				!reencoded.bytes.contentEquals(entity.payload)
 			) return@withTransaction null
+            if (header.balanceProfileVersion == null) {
+                if (entity.requestedBalanceLevel != null || entity.focusRequested) return@withTransaction null
+            } else {
+                val level = entity.requestedBalanceLevel ?: return@withTransaction null
+                val preference = runCatching { SourceBalancePreference(level, entity.focusRequested) }.getOrNull()
+                    ?: return@withTransaction null
+                preferences[sourcePlan.source] = preference
+            }
 			plans[sourcePlan.source] = sourcePlan
 		}
-		AcquisitionPlanRevision(
+		val result = runCatching { AcquisitionPlanRevision(
 			header.revision,
 			header.planId,
 			header.createdAtMs,
 			plans,
-			header.sourcePolicyRevision,
-		)
+            header.sourcePolicyRevision,
+            header.balanceProfileVersion,
+            preferences,
+        ) }.getOrNull() ?: return@withTransaction null
+        readAuthenticatedBalance { validateBalanceMetadata(result) } ?: return@withTransaction null
+        result
 	}
+
+    private suspend fun validateBalanceMetadata(plan: AcquisitionPlanRevision) {
+        if (plan.balanceProfileVersion == null) {
+            require(plan.sourcePreferences.isEmpty())
+            plan.sourcePolicyRevision?.let { revision ->
+                require(database.sourcePolicyDao().policiesAtRevision(revision).none { it.overallBalanceLevel != null })
+            }
+            return
+        }
+        require(plan.balanceProfileVersion == 1)
+        val policyRevision = requireNotNull(plan.sourcePolicyRevision)
+        val policies = database.sourcePolicyDao().policiesAtRevision(policyRevision)
+        require(policies.size == SourceKind.entries.size)
+        require(policies.map { it.sourceKind }.toSet() == SourceKind.entries.map { it.stableCode }.toSet())
+        require(policies.map { it.overallBalanceLevel }.distinct().size == 1)
+        require(policies.all { it.balanceProfileVersion == 1 && it.overallBalanceLevel?.let { level -> level in 1..5 } == true })
+        require(policies.all { policy ->
+            policy.balanceLevel == (policy.sourceBalanceOverride ?: policy.overallBalanceLevel) &&
+                (policy.sourceBalanceOverride == null || policy.sourceBalanceOverride?.let { it in 1..5 } == true)
+        })
+        require(plan.sourcePreferences.keys == plan.plans.keys)
+        plan.sourcePreferences.forEach { (source, preference) ->
+            val policy = policies.single { it.sourceKind == source.stableCode }
+            val baseline = requireNotNull(policy.sourceBalanceOverride ?: policy.overallBalanceLevel)
+            require(policy.balanceLevel == baseline)
+            require(preference.requestedLevel == if (preference.focusRequested) maxOf(baseline, 4) else baseline)
+            require(!preference.focusRequested || (policy.enabled && policy.capturePersistenceEligible && policy.captureConsentEpoch != null))
+        }
+    }
 
 	suspend fun saveApplied(
 		state: AppliedSourcePlan,
@@ -184,10 +235,16 @@ class RoomSourcePlanStore @Inject constructor(
 		val header = dao.revision(plan.revision) ?: return AppliedPlanRead.Missing
 		if (header.planId != plan.planId ||
 			header.createdAtMs != plan.createdAtMs ||
-			header.sourcePolicyRevision != plan.sourcePolicyRevision
+			header.sourcePolicyRevision != plan.sourcePolicyRevision ||
+			header.balanceProfileVersion != plan.balanceProfileVersion
 		) return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_DESIRED_IDENTITY_MISMATCH")
-		val desiredSourceKinds = dao.desiredPlans(plan.revision)
-			.mapTo(linkedSetOf(), SourceDesiredPlanEntity::sourceKind)
+        val desiredRows = dao.desiredPlans(plan.revision)
+        if (desiredRows.any { row ->
+            val source = SourceKind.entries.singleOrNull { it.stableCode == row.sourceKind } ?: return@any true
+            val preference = plan.sourcePreferences[source]
+            row.requestedBalanceLevel != preference?.requestedLevel || row.focusRequested != (preference?.focusRequested ?: false)
+        }) return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_BALANCE_IDENTITY_MISMATCH")
+		val desiredSourceKinds = desiredRows.mapTo(linkedSetOf(), SourceDesiredPlanEntity::sourceKind)
 		if (desiredSourceKinds != plan.plans.keys.mapTo(linkedSetOf(), SourceKind::stableCode)) {
 			return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_DESIRED_SOURCE_SET_MISMATCH")
 		}
@@ -216,7 +273,7 @@ class RoomSourcePlanStore @Inject constructor(
 		database.sourcePlanStateDao().deleteAllAppliedStates()
 	}
 
-	private fun loadCurrentAppliedInTransaction(
+	private suspend fun loadCurrentAppliedInTransaction(
 		desiredRevision: Long,
 		header: AcquisitionPlanRevisionEntity,
 		expectedSourceKinds: Set<Int>,
@@ -236,13 +293,15 @@ class RoomSourcePlanStore @Inject constructor(
 				if (read.plan.revision != desiredRevision) {
 					AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_REVISION_MISMATCH")
 				} else {
-					AppliedPlanRead.Available(
-						read.plan.copy(
-							planId = "applied-runtime-$desiredRevision",
-							createdAtMs = header.createdAtMs,
-							sourcePolicyRevision = header.sourcePolicyRevision,
-						),
-					)
+                    val applied = readAuthenticatedBalance {
+                        // Authenticate the full immutable desired set, including disabled or failed rows.
+                        val desired = requireNotNull(load(desiredRevision))
+                        val preferences = desired.sourcePreferences.filterKeys { it in read.plan.plans }
+                        read.plan.copy(planId = "applied-runtime-$desiredRevision", createdAtMs = header.createdAtMs,
+                            sourcePolicyRevision = header.sourcePolicyRevision, balanceProfileVersion = header.balanceProfileVersion,
+                            sourcePreferences = preferences).also { validateBalanceMetadata(it) }
+                    } ?: return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_BALANCE_INVALID")
+                    AppliedPlanRead.Available(applied)
 				}
 			}
 			is AppliedPlanRead.Invalid -> read
@@ -341,5 +400,14 @@ private fun SourceAppliedPlanStateEntity.decodeAppliedPlanOrNull(
 }
 
 enum class DesiredPlanStatus { DESIRED, APPLYING, EFFECTIVE, DEGRADED, FAILED, SUPERSEDED }
+
+/** Malformed persisted metadata is rejected; cancellation remains cancellation. */
+private suspend fun <T> readAuthenticatedBalance(block: suspend () -> T): T? = try {
+    block()
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (@Suppress("TooGenericExceptionCaught") _: Exception) {
+    null
+}
 
 private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")

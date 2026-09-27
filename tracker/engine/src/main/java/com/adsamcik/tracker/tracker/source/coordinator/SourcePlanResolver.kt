@@ -165,7 +165,13 @@ class SourcePlanResolver @Inject constructor() {
 				if (plan is LocationPlan && plan.adaptiveProfileVersion == 1) {
 					// Assistance is optional: stationary reduction always retains an active request.
 					if (context.motionProfile.stationary) plan.adaptiveStationary() else plan
-				} else plan.applyMotionPolicy(context.motionProfile, activityWakeAvailable)
+                } else if (desired.balanceProfileVersion != null) {
+                    when {
+                        context.motionProfile.stationary && plan is WifiPlan && plan.mode == WifiMode.ACTIVE_ATTEMPTS -> plan.copy(mode = WifiMode.BROADCAST_DRIVEN)
+                        context.motionProfile.stationary && plan is CellPlan && plan.mode == CellMode.OBSERVE_AND_SPARSE_REFRESH -> plan.copy(mode = CellMode.OBSERVE_CHANGES)
+                        else -> plan
+                    }
+                } else plan.applyMotionPolicy(context.motionProfile, activityWakeAvailable)
 			} else plan
 			val applicable = plan.acceptReduction(candidate, sourceFloors)
 			if (applicable != plan) {

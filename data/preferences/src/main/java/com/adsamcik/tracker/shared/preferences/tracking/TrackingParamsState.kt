@@ -31,6 +31,9 @@ data class TrackingParamsState(
 	/** Effective Room policy revision; null means the state is not an authoritative projection. */
 	val sourcePolicyRevision: Long? = null,
 	/** Null preserves the exact legacy/custom Location settings until explicit adoption. */
+	val balanceProfileVersion: Int? = null,
+	val overallBalanceLevel: Int? = null,
+	val sourceBalanceOverrides: SourceBalanceOverrides = SourceBalanceOverrides(),
 	val locationProfileVersion: Int? = null,
 	val locationBalanceLevel: Int? = null,
 	/** Null retains historical passive-only background collection. */
@@ -39,6 +42,10 @@ data class TrackingParamsState(
 	val locationMotionAssistanceEnabled: Boolean = false,
 ) {
 	init {
+		SourceBalanceSettings.requireValid(balanceProfileVersion, overallBalanceLevel, sourceBalanceOverrides)
+		require(balanceProfileVersion == null ||
+			(locationProfileVersion == balanceProfileVersion && locationBalanceLevel ==
+				(sourceBalanceOverrides.location ?: overallBalanceLevel)))
 		LocationAdaptiveSettings.requireValidProfile(locationProfileVersion, locationBalanceLevel)
 		require(locationBackgroundMode != LocationBackgroundMode.ADAPTIVE || locationProfileVersion != null)
 		require(!locationMotionAssistanceEnabled || locationProfileVersion != null)

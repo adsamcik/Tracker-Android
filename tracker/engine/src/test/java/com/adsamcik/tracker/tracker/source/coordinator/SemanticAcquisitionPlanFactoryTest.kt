@@ -70,6 +70,7 @@ class SemanticAcquisitionPlanFactoryTest {
 	fun `each component frequency controls only its own source plan`() {
 		val settings = TrackingParamsState(
 			sourcePolicyRevision = 42,
+            wifiEnabled = true,
 			sourceCollectionSettings = SourceCollectionSettings(
 				location = SourceCollectionFrequency.RESPONSIVE,
 				activity = SourceCollectionFrequency.OFF,
@@ -97,6 +98,7 @@ class SemanticAcquisitionPlanFactoryTest {
 		).forEach { (frequency, expectedLatencyMs) ->
 			val plan = subject.create(
 				TrackingParamsState(
+                    activityEnabled = true, wifiEnabled = true,
 					sourceCollectionSettings = SourceCollectionSettings(
 						activity = frequency,
 						wifi = SourceCollectionFrequency.BATTERY_SAVER,
@@ -124,6 +126,7 @@ class SemanticAcquisitionPlanFactoryTest {
 		).map { frequency ->
 			subject.create(
 				TrackingParamsState(
+                    barometerEnabled = true,
 					sourceCollectionSettings = SourceCollectionSettings(pressure = frequency),
 				),
 				revision = 7L,
@@ -149,6 +152,7 @@ class SemanticAcquisitionPlanFactoryTest {
 	@Test
 	fun `cost explanation exposes dominant expensive component without fake percent per hour`() {
 		val settings = TrackingParamsState(
+            wifiEnabled = true,
 			sourceCollectionSettings = SourceCollectionSettings(
 				location = SourceCollectionFrequency.RESPONSIVE,
 				wifi = SourceCollectionFrequency.RESPONSIVE,

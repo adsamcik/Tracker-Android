@@ -2,6 +2,10 @@ package com.adsamcik.tracker.tracker.source.coordinator
 
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.shared.preferences.tracking.baselineBalanceLevel
+import com.adsamcik.tracker.shared.preferences.tracking.captureParticipates
+import com.adsamcik.tracker.tracker.source.model.SourceBalancePreference
 import com.adsamcik.tracker.tracker.source.catalog.SourceAcquisitionPlanFactory
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
@@ -26,19 +30,40 @@ class SemanticAcquisitionPlanFactory @Inject constructor() : SourceAcquisitionPl
 		createdAtMs: Long,
 		environment: SourcePlanEnvironment,
 	): AcquisitionPlanRevision {
-		val frequency = settings.sourceCollectionSettings
+        fun legacy(source: SourceKind, frequency: SourceCollectionFrequency): SourceCollectionFrequency =
+            if (!settings.captureParticipates(TrackingSourceComponent.fromStableCode(source.stableCode))) SourceCollectionFrequency.OFF
+            else frequency.takeUnless { it == SourceCollectionFrequency.OFF } ?: SourceCollectionFrequency.BALANCED
+        val stored = settings.sourceCollectionSettings
+        val frequency = stored.copy(
+            location = legacy(SourceKind.LOCATION, stored.location), activity = legacy(SourceKind.ACTIVITY, stored.activity),
+            steps = legacy(SourceKind.STEPS, stored.steps), pressure = legacy(SourceKind.PRESSURE, stored.pressure),
+            wifi = legacy(SourceKind.WIFI, stored.wifi), cell = legacy(SourceKind.CELL, stored.cell),
+        )
+        val preferences = if (settings.balanceProfileVersion == null) emptyMap() else SourceKind.entries.associateWith { source ->
+            val component = TrackingSourceComponent.fromStableCode(source.stableCode)
+            val baseline = requireNotNull(settings.baselineBalanceLevel(component))
+            val focus = settings.captureParticipates(component) && source in environment.liveSources
+            SourceBalancePreference(if (focus) maxOf(baseline, 4) else baseline, focus)
+        }
 		return AcquisitionPlanRevision(
 			revision = revision,
 			planId = "semantic-v${settings.sourceSettingsVersion}-${settings.presetName.lowercase()}",
 			createdAtMs = createdAtMs,
 			sourcePolicyRevision = settings.sourcePolicyRevision,
+			balanceProfileVersion = settings.balanceProfileVersion,
+			sourcePreferences = preferences,
 			plans = mapOf(
 				SourceKind.LOCATION to locationPlan(settings, frequency.location, revision, environment),
-				SourceKind.ACTIVITY to activityPlan(frequency.activity, revision),
-				SourceKind.STEPS to stepsPlan(frequency.steps, revision),
-				SourceKind.PRESSURE to pressurePlan(frequency.pressure, revision),
-				SourceKind.WIFI to wifiPlan(frequency.wifi, revision),
-				SourceKind.CELL to cellPlan(frequency.cell, revision, environment.subscriptionIds),
+				SourceKind.ACTIVITY to if (preferences.isNotEmpty() && frequency.activity != SourceCollectionFrequency.OFF)
+                    adaptiveSourcePlan(SourceKind.ACTIVITY, preferences.getValue(SourceKind.ACTIVITY).requestedLevel, revision, environment) else activityPlan(frequency.activity, revision),
+				SourceKind.STEPS to if (preferences.isNotEmpty() && frequency.steps != SourceCollectionFrequency.OFF)
+                    adaptiveSourcePlan(SourceKind.STEPS, preferences.getValue(SourceKind.STEPS).requestedLevel, revision, environment) else stepsPlan(frequency.steps, revision),
+				SourceKind.PRESSURE to if (preferences.isNotEmpty() && frequency.pressure != SourceCollectionFrequency.OFF)
+                    adaptiveSourcePlan(SourceKind.PRESSURE, preferences.getValue(SourceKind.PRESSURE).requestedLevel, revision, environment) else pressurePlan(frequency.pressure, revision),
+				SourceKind.WIFI to if (preferences.isNotEmpty() && frequency.wifi != SourceCollectionFrequency.OFF)
+                    adaptiveSourcePlan(SourceKind.WIFI, preferences.getValue(SourceKind.WIFI).requestedLevel, revision, environment) else wifiPlan(frequency.wifi, revision),
+				SourceKind.CELL to if (preferences.isNotEmpty() && frequency.cell != SourceCollectionFrequency.OFF)
+                    adaptiveSourcePlan(SourceKind.CELL, preferences.getValue(SourceKind.CELL).requestedLevel, revision, environment) else cellPlan(frequency.cell, revision, environment.subscriptionIds),
 			),
 		)
 	}
@@ -165,4 +190,29 @@ internal fun adaptiveLocationPlan(
 		preciseLocationAvailable = preciseLocationAvailable,
 		adaptiveProfileVersion = 1,
 	)
+}
+
+/** Only preferences change between levels; useful-evidence contracts stay fixed. */
+internal fun adaptiveSourcePlan(source: SourceKind, level: Int, revision: Long, environment: SourcePlanEnvironment): com.adsamcik.tracker.tracker.source.model.SourcePlan {
+    require(level in 1..5)
+    val index = level - 1
+    val backoff = RetryBackoff(30_000L, 30 * 60_000L)
+    return when (source) {
+        SourceKind.LOCATION -> adaptiveLocationPlan(level, revision, environment.locationBackend, environment.preciseLocationAvailable)
+        SourceKind.ACTIVITY -> ActivityPlan(revision, ActivityMode.CONTINUOUS_RECOGNITION,
+            listOf(60_000L, 45_000L, 30_000L, 15_000L, 5_000L)[index], 65, setOf(0, 1), adaptiveProfileVersion = 1)
+        SourceKind.STEPS -> StepsPlan(revision, true,
+            listOf(300_000L, 120_000L, 60_000L, 15_000L, 5_000L)[index],
+            listOf(60_000L, 30_000L, 15_000L, 5_000L, 2_000L)[index], level >= 4)
+        SourceKind.PRESSURE -> PressurePlan(revision, true,
+            listOf(1_000_000, 500_000, 200_000, 100_000, 50_000)[index],
+            listOf(60_000_000, 30_000_000, 10_000_000, 5_000_000, 1_000_000)[index],
+            listOf(60_000L, 30_000L, 10_000L, 5_000L, 2_000L)[index])
+        SourceKind.WIFI -> WifiPlan(revision,
+            if (level >= 4) WifiMode.ACTIVE_ATTEMPTS else WifiMode.BROADCAST_DRIVEN,
+            if (level == 5) 60_000L else 120_000L, 600_000L, 600_000L, backoff)
+        SourceKind.CELL -> CellPlan(revision,
+            if (level >= 4) CellMode.OBSERVE_AND_SPARSE_REFRESH else CellMode.OBSERVE_CHANGES,
+            if (level == 5) 120_000L else 300_000L, 600_000L, environment.subscriptionIds, backoff)
+    }
 }

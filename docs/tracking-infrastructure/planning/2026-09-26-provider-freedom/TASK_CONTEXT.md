@@ -305,3 +305,22 @@ Options: "Approve explicit versioned contract (Recommended)"; "Apply correction 
 No answer has been received or inferred. Common pure qualifier/test-source extraction proceeds as
 authorized preparatory implementation; no caller, stored contract or activation changes are applied.
 The full checklist item remains open. Implementation-only restrictions and protected paths apply.
+
+
+## 29. Five-level configuration completion — 2026-09-27
+
+> **Complete five-level configuration across sources.** Separate participation from quality, preserve legacy/custom settings, and apply live-session quality preference only to participating sources.
+
+This implements the already-approved five-level profile, additive metadata, baseline/override and
+actual accepted live participant decisions in FIVE_LEVEL_ADAPTIVE_POLICY.md and the newer Location
+mapping in ADAPTIVE_LOCATION_IMPLEMENTATION.md. It adds no consent, background mode or recurring
+radio attempt capability. The quality slice uses current source selection, native ambient Steps
+and existing automatic operational permission behavior. Prior pending shared-radio marker and
+ambient aggregate Steps proof questions remain unanswered; their dependent changes are unapplied.
+
+The candidate is `codex/source-native-map-context-root`, based on `1d77cce2d1`. The main `dev/v10`
+checkpoint remains unchanged. Production and focused test sources are authored; static independent
+review is mandatory before a local IMPLEMENTED_UNVALIDATED commit. No Gradle, compilation, tests,
+lint, Detekt, schema generation/drift, diff-check, device, UI, battery, CI, release, rollout,
+provider/writer activation, push or integration is permitted in this implementation-only phase.
+See `../../five-level/2026-09-27/IMPLEMENTATION_TRACE.md` for the trace and evidence boundary.

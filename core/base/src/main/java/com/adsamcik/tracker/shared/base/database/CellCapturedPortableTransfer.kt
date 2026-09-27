@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
@@ -1709,7 +1710,9 @@ private suspend fun AppDatabase.authenticatePortableCellSettlement(
 			.orEmpty().singleOrNull(::isPortableCellCaptureMembership) ?: return false
 		val desiredPlan = desiredPlanByRevision[manifest.acquisitionPlanRevision] ?: return false
 		val plan = decodeCanonicalCellPlan(desiredPlan.payload) ?: return false
-		if (!demand.hasExactPortableCellSettlementShape(row, run, manifest, binding) ||
+        val policy = sourcePolicyDao().policyAtRevision(manifest.sourcePolicyRevision, CELL_SOURCE_KIND) ?: return false
+        if (policy.qosCode != binding.qosCode || policy.captureConsentEpoch != binding.consentEpoch) return false
+		if (!demand.hasExactPortableCellSettlementShape(row, run, manifest, binding, policy) ||
 			registration.physicalConfigurationFingerprint != plan.physicalConfigurationFingerprint() ||
 			authorization.effectiveElapsedRealtimeNanos < demand.requestedElapsedRealtimeNanos ||
 			authorization.effectiveElapsedRealtimeNanos > requireNotNull(demand.retireElapsedRealtimeNanos)
@@ -1753,16 +1756,24 @@ private fun SourceDemandEntity.hasExactPortableCellSettlementShape(
 	run: SourceServiceRunEntity,
 	manifest: SessionManifestVersionEntity,
 	binding: SessionManifestSourceEntity,
+	policy: SourcePolicyEntity,
 ): Boolean {
 	val retiredBootId = retireBootId ?: return false
 	val retiredElapsedNanos = retireElapsedRealtimeNanos ?: return false
 	val retiredWallTimeMs = retiredAtMs ?: return false
-	val expectedMaximumAgeMs = when (qosCode) {
-		1 -> 10 * 60_000L
-		2 -> 5 * 60_000L
-		3 -> 60_000L
-		else -> return false
-	}
+	val expectedMaximumAgeMs = when (policy.balanceProfileVersion) {
+        null -> {
+            if (policy.balanceLevel != null || policy.overallBalanceLevel != null || policy.sourceBalanceOverride != null) return false
+            when (qosCode) { 1 -> 600_000L; 2 -> 300_000L; 3 -> 60_000L; else -> return false }
+        }
+        1 -> {
+            val baseline = policy.balanceLevel ?: return false
+            if (baseline !in 1..5 || policy.overallBalanceLevel?.let { it in 1..5 } != true ||
+                baseline != (policy.sourceBalanceOverride ?: policy.overallBalanceLevel)) return false
+            600_000L
+        }
+        else -> return false
+    }
 	return demandId == portableCellDemandId(this) && consumerId == "session:${row.logicalTrackingId}" &&
 		sourceKind == CELL_SOURCE_KIND && purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
 		logicalTrackingId == row.logicalTrackingId && serviceRunId == row.serviceRunId &&

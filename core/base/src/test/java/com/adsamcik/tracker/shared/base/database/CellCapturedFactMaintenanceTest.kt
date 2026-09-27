@@ -62,10 +62,15 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class CellCapturedFactMaintenanceTest {
+    private var captureProfileLevel: Int? = null
+    private var fixtureQosCode = QOS_CODE
+    private val fixtureMaximumAgeMs get() = if (captureProfileLevel == null) MAXIMUM_ACCEPTABLE_CACHED_AGE_MS else 600_000L
 	private lateinit var database: AppDatabase
 
 	@Before
 	fun setUp() {
+        captureProfileLevel = null
+        fixtureQosCode = QOS_CODE
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 	}
@@ -1882,6 +1887,26 @@ class CellCapturedFactMaintenanceTest {
 		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Materializing
 	}
 
+    @Test
+    fun `portable zero callback settlement preserves adopted fixed age beside legacy QoS`() = runTest {
+        captureProfileLevel = 2
+        fixtureQosCode = 1 // Legacy age is also 600s; unknown-marker rejection must be explicit.
+        seedCapturedCell(withPortableExportState = true)
+        installCapturedReplacementRun()
+        var emitted: PortableCapturedCellEntryV1? = null
+        portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) { emitted = it }
+        requireNotNull(emitted).runs.single { it.startTimeMs == REPLACEMENT_RUN_START_WALL_MS }
+            .availability shouldBe PortableCellRunAvailability.NO_RETAINED_OBSERVATION
+        database.sourceBrokerDao().demandHistory("session:$LOGICAL_TRACKING_ID").forEach {
+            it.maximumAgeMs shouldBe 600_000L
+        }
+        // Unknown profile metadata must not reinterpret the new floor as historical QoS.
+        database.openHelper.writableDatabase.execSQL("UPDATE source_policy SET balance_profile_version = 2 WHERE policy_revision = ?",
+            arrayOf(POLICY_REVISION))
+        exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+            PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE)
+    }
+
 	@Test
 	fun `portable export accepts a captured replacement with zero callbacks`() = runTest {
 		seedCapturedCell(withPortableExportState = true)
@@ -2947,7 +2972,7 @@ class CellCapturedFactMaintenanceTest {
 			purpose = SessionManifestPurposeCode.CONTROL,
 			consentEpoch = CONTROL_CONSENT_EPOCH,
 			persistenceEligible = false,
-			qosCode = QOS_CODE,
+			qosCode = fixtureQosCode,
 		)
 		val unsigned = SessionManifestVersionEntity(
 			logicalTrackingId = LOGICAL_TRACKING_ID,
@@ -3306,7 +3331,7 @@ class CellCapturedFactMaintenanceTest {
 			purpose = SessionManifestPurposeCode.CONTROL,
 			consentEpoch = CONTROL_CONSENT_EPOCH,
 			persistenceEligible = false,
-			qosCode = QOS_CODE,
+			qosCode = fixtureQosCode,
 		)
 		val unsigned = SessionManifestVersionEntity(
 			logicalTrackingId = LOGICAL_TRACKING_ID,
@@ -3557,7 +3582,7 @@ class CellCapturedFactMaintenanceTest {
 			sessionRunEffectEndNanos = REGISTRATION_END_NANOS,
 			deletionEffectStartNanos = RUN_START_NANOS,
 			deletionEffectEndNanos = SESSION_END_NANOS,
-			maximumObservationAgeNanos = MAXIMUM_OBSERVATION_AGE_NANOS,
+			maximumObservationAgeNanos = fixtureMaximumAgeMs * NANOS_PER_MILLISECOND,
 			observedIntervalStartNanos = observedIntervalStartNanos,
 			observedElapsedNanos = providerNanos,
 			receivedElapsedNanos = providerNanos + 1L,
@@ -3682,7 +3707,8 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	private suspend fun installPolicy(revokedCapture: Boolean) {
-		val policies = mutableListOf(historicalPolicy())
+		val policies = mutableListOf(historicalPolicy().copy(balanceProfileVersion = captureProfileLevel?.let { 1 },
+            balanceLevel = captureProfileLevel, overallBalanceLevel = captureProfileLevel))
 		val consents = mutableListOf(historicalConsent(), historicalControlConsent())
 		if (revokedCapture) {
 			policies += revokedPolicy()
@@ -3806,7 +3832,7 @@ class CellCapturedFactMaintenanceTest {
 		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
 		consentEpoch = CONSENT_EPOCH,
 		persistenceEligible = true,
-		qosCode = QOS_CODE,
+		qosCode = fixtureQosCode,
 		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
 		writerOwner = SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
 		writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
@@ -3819,7 +3845,7 @@ class CellCapturedFactMaintenanceTest {
 		policyRevision = POLICY_REVISION,
 		sourceKind = CELL_SOURCE,
 		enabled = true,
-		qosCode = QOS_CODE,
+		qosCode = fixtureQosCode,
 		locationMinTimeSeconds = null,
 		locationMinDistanceMeters = null,
 		locationRequiredAccuracyMeters = null,
@@ -3901,10 +3927,10 @@ class CellCapturedFactMaintenanceTest {
 			sourcePolicyRevision = POLICY_REVISION,
 			consentEpoch = CONSENT_EPOCH,
 			persistenceEligible = true,
-			qosCode = QOS_CODE,
+			qosCode = fixtureQosCode,
 			minimumAcquisitionSpec = "cell:v1:required=CHANGE_CALLBACK",
 			adaptiveReductionAllowed = true,
-			maximumAgeMs = 5 * 60_000L,
+			maximumAgeMs = if (captureProfileLevel == null) 5 * 60_000L else 600_000L,
 			desiredLatencyMs = Long.MAX_VALUE,
 			requestedDeliveryLatencyMs = null,
 			requestedBootId = BOOT_ID,
@@ -4228,7 +4254,7 @@ class CellCapturedFactMaintenanceTest {
 				output.writeLong(PLAN_REVISION)
 				output.writeUTF(mode)
 				output.writeLong(MINIMUM_REFRESH_INTERVAL_MS)
-				output.writeLong(MAXIMUM_ACCEPTABLE_CACHED_AGE_MS)
+				output.writeLong(fixtureMaximumAgeMs)
 				output.writeInt(0)
 				output.writeLong(BACKOFF_INITIAL_DELAY_MS)
 				output.writeLong(BACKOFF_MAXIMUM_DELAY_MS)

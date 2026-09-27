@@ -92,7 +92,16 @@ class SetupViewModel @Inject constructor(
     }
 
     fun setTrackingPreset(preset: TrackingPolicyPreset) {
-        updateState { it.copy(trackingPreset = preset) }
+        updateState { it.copy(trackingPreset = preset, balanceLevel = when (preset) {
+            TrackingPolicyPreset.BATTERY_SAVER -> 1
+            TrackingPolicyPreset.BALANCED -> 3
+            TrackingPolicyPreset.HIGH_PRECISION -> 5
+        }) }
+    }
+
+    fun setBalanceLevel(level: Int) {
+        require(level in 1..5)
+        updateState { it.copy(balanceLevel = level) }
     }
 
     // endregion
@@ -270,9 +279,6 @@ class SetupViewModel @Inject constructor(
         val preset = s.trackingPreset.settings
         val capabilities = appContext.trackingPermissionCapabilities(s.permissionHistory)
         val locationAllowed = s.locationEnabled && capabilities.hasForegroundLocation
-        val wifiAllowed = s.wifiEnabled && capabilities.wifiFeatureAvailable &&
-            capabilities.hasWifiScanPermissions
-        val cellAllowed = s.cellEnabled && appContext.hasCellScanPermission
         val activityAllowed = s.activityPermissionGranted || appContext.hasActivityPermission
         val automaticLocationAllowed = !locationAllowed || capabilities.hasBackgroundLocation
         val effectiveMode = if (activityAllowed && automaticLocationAllowed) s.autoTrackingMode else 0
@@ -298,13 +304,12 @@ class SetupViewModel @Inject constructor(
 
         trackingParamsRepository.update {
             copy(
-                locationEnabled = locationAllowed,
-                activityEnabled = s.activityEnabled && activityAllowed,
-                stepsEnabled = s.stepsEnabled &&
-                    s.stepCounterAvailable && activityAllowed,
-                wifiEnabled = wifiAllowed,
-                cellEnabled = cellAllowed,
-                barometerEnabled = preset.barometerEnabled && appContext.hasPressureSensor,
+                locationEnabled = s.locationEnabled,
+                activityEnabled = s.activityEnabled,
+                stepsEnabled = s.stepsEnabled,
+                wifiEnabled = s.wifiEnabled,
+                cellEnabled = s.cellEnabled,
+                barometerEnabled = false, // Pressure is not offered during setup; quality must not select it.
                 autoTrackingMode = effectiveMode,
                 transitionDetectionEnabled = preset.useTransitionDetection,
                 notificationStyled = true,
@@ -312,6 +317,11 @@ class SetupViewModel @Inject constructor(
                 minTimeSeconds = preset.minTimeSeconds,
                 requiredAccuracyMeters = preset.requiredAccuracyMeters,
                 presetName = s.trackingPreset.toTrackingPreset().name,
+                balanceProfileVersion = 1,
+                overallBalanceLevel = s.balanceLevel,
+                sourceBalanceOverrides = com.adsamcik.tracker.shared.preferences.tracking.SourceBalanceOverrides(),
+                locationProfileVersion = 1,
+                locationBalanceLevel = s.balanceLevel,
             )
         }
 
@@ -345,6 +355,7 @@ class SetupViewModel @Inject constructor(
         savedStateHandle[KEY_STEP] = state.currentStep.index
         savedStateHandle[KEY_AUTO_TRACKING_MODE] = state.autoTrackingMode
         savedStateHandle[KEY_TRACKING_PRESET] = state.trackingPreset.name
+		savedStateHandle[KEY_BALANCE_LEVEL] = state.balanceLevel
         savedStateHandle[KEY_LOCATION_ENABLED] = state.locationEnabled
         savedStateHandle[KEY_LOCATION_PRECISION] = state.locationPrecision.name
         savedStateHandle[KEY_ACTIVITY_ENABLED] = state.activityEnabled
@@ -373,6 +384,11 @@ class SetupViewModel @Inject constructor(
         trackingPreset = get<String>(KEY_TRACKING_PRESET)
             ?.let { runCatching { TrackingPolicyPreset.valueOf(it) }.getOrNull() }
             ?: TrackingPolicyPreset.BALANCED,
+        balanceLevel = get<Int>(KEY_BALANCE_LEVEL)?.takeIf { it in 1..5 } ?: when (get<String>(KEY_TRACKING_PRESET)) {
+            TrackingPolicyPreset.BATTERY_SAVER.name -> 1
+            TrackingPolicyPreset.HIGH_PRECISION.name -> 5
+            else -> 3
+        },
         locationEnabled = get<Boolean>(KEY_LOCATION_ENABLED) ?: true,
         locationPrecision = get<String>(KEY_LOCATION_PRECISION)
             ?.let { runCatching { LocationPrecisionMode.valueOf(it) }.getOrNull() }
@@ -402,6 +418,7 @@ class SetupViewModel @Inject constructor(
         const val KEY_STEP = "setup_step"
         const val KEY_AUTO_TRACKING_MODE = "setup_auto_tracking_mode"
         const val KEY_TRACKING_PRESET = "setup_tracking_preset"
+		const val KEY_BALANCE_LEVEL = "setup_balance_level"
         const val KEY_LOCATION_ENABLED = "setup_location_enabled"
         const val KEY_LOCATION_PRECISION = "setup_location_precision"
         const val KEY_ACTIVITY_ENABLED = "setup_activity_enabled"

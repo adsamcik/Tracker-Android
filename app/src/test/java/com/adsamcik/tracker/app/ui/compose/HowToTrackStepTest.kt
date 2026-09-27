@@ -29,6 +29,18 @@ class HowToTrackStepTest {
     val composeTestRule = createComposeRule()
 
     @Test
+    fun allFiveQualityChoicesIncludeIntermediateLevels() {
+        var chosen: Int? = null
+        composeTestRule.setContent {
+            AppTheme { HowToTrackStep(1, TrackingPolicyPreset.BALANCED, {}, {}, {},
+                balanceLevel = 3, onBalanceChange = { chosen = it }) }
+        }
+        (1..5).forEach { composeTestRule.onNodeWithTag("setupBalance-$it").performScrollTo().assertIsDisplayed() }
+        composeTestRule.onNodeWithTag("setupBalance-2").performScrollTo().performClick()
+        chosen shouldBe 2
+    }
+
+    @Test
     fun displaysContinueButton() {
         composeTestRule.setContent {
             AppTheme {
@@ -102,7 +114,7 @@ class HowToTrackStepTest {
             .performScrollTo()
             .assertIsDisplayed()
         composeTestRule.onNodeWithTag(
-            testTag = "setup_preset_recommended",
+            testTag = "setupBalance-3",
             useUnmergedTree = true,
         )
             .performScrollTo()
@@ -128,7 +140,7 @@ class HowToTrackStepTest {
         composeTestRule.onNodeWithTag("setup_how_to_track_scroll_bottom_padding")
             .performScrollTo()
 
-        val highPrecisionNode = composeTestRule.onNodeWithTag("setup_preset_high_precision")
+        val highPrecisionNode = composeTestRule.onNodeWithTag("setupBalance-5")
             .fetchSemanticsNode()
         val continueNode = composeTestRule.onNodeWithTag("setup_cta_how_to_track")
             .fetchSemanticsNode()
@@ -136,7 +148,7 @@ class HowToTrackStepTest {
 
         assertTrue(
             actual = highPrecisionNode.boundsInRoot.bottom <= continueNode.boundsInRoot.top - minClearancePx,
-            message = "Expected High Accuracy card to scroll above the pinned continue CTA with touch-safe " +
+            message = "Expected Detail first choice to scroll above the pinned continue CTA with touch-safe " +
                 "clearance. cardBounds=${highPrecisionNode.boundsInRoot}, " +
                 "ctaBounds=${continueNode.boundsInRoot}",
         )

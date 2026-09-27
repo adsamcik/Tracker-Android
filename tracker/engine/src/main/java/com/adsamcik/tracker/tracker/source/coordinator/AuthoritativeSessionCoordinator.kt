@@ -58,6 +58,7 @@ import com.adsamcik.tracker.tracker.source.model.CellMode
 import com.adsamcik.tracker.tracker.source.model.CellPlan
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
+import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
@@ -2695,9 +2696,23 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		) {
 			return "SOURCE_POLICY_INCOMPLETE"
 		}
+        if (policies.map { it.overallBalanceLevel }.distinct().size != 1) return "SOURCE_POLICY_BALANCE_INCONSISTENT"
+        val overall = policies.first().overallBalanceLevel
+        if (overall != null) {
+            if (plan.balanceProfileVersion != 1 || plan.sourcePreferences.keys != plan.plans.keys ||
+                policies.any { it.balanceProfileVersion != 1 || it.balanceLevel != (it.sourceBalanceOverride ?: overall) }) {
+                return "SOURCE_PLAN_BALANCE_BINDING_INVALID"
+            }
+            if (plan.sourcePreferences.any { (source, preference) ->
+                val policy = policies.single { it.sourceKind == source.stableCode }
+                val baseline = requireNotNull(policy.balanceLevel)
+                preference.requestedLevel != (if (preference.focusRequested) maxOf(baseline, 4) else baseline) ||
+                    (preference.focusRequested && !policy.enabled)
+            }) return "SOURCE_PLAN_BALANCE_FOCUS_INVALID"
+        } else if (plan.balanceProfileVersion != null) return "SOURCE_PLAN_BALANCE_BINDING_INVALID"
 		val policyBySource = policies.associateBy(SourcePolicyEntity::sourceKind)
 		if (plan.plans.values.any { sourcePlan ->
-				policyBySource[sourcePlan.source.stableCode]?.allows(sourcePlan) != true
+				policyBySource[sourcePlan.source.stableCode]?.allows(sourcePlan, plan.sourcePreferences[sourcePlan.source]?.requestedLevel) != true
 			}) {
 			return "SOURCE_PLAN_EXCEEDS_POLICY"
 		}
@@ -7974,11 +7989,44 @@ private fun SourceRunRetirementEntity.toStopAckOrNullForReplay(): SourceStopAck?
 }
 
 /** Allows capability/power degradation while rejecting any plan stronger than policy QoS. */
-private fun SourcePolicyEntity.allows(plan: SourcePlan): Boolean {
+private fun SourcePolicyEntity.allows(plan: SourcePlan, requestedLevel: Int? = null): Boolean {
 	if (sourceKind != plan.source.stableCode) return false
 	if (!enabled) return !plan.enabled
 	if (!capturePersistenceEligible || captureConsentEpoch == null) return false
 	if (!plan.enabled) return true
+    if (balanceProfileVersion == 1) {
+        val level = requestedLevel ?: maxOf(requireNotNull(balanceLevel), 4)
+        if (level !in 1..5) return false
+        val target = adaptiveSourcePlan(plan.source, level, plan.revision,
+            SourcePlanEnvironment((plan as? LocationPlan)?.backend ?: LocationBackend.FUSED,
+                (plan as? LocationPlan)?.preciseLocationAvailable ?: true,
+                (plan as? CellPlan)?.subscriptionIds.orEmpty()))
+        return when {
+            plan is LocationPlan && target is LocationPlan -> plan.adaptiveProfileVersion == 1 &&
+                plan.mode in setOf(LocationMode.PASSIVE, LocationMode.LOW_POWER, LocationMode.BALANCED, LocationMode.HIGH_ACCURACY) &&
+                plan.mode.ordinal <= target.mode.ordinal && plan.requestedIntervalMs >= target.requestedIntervalMs &&
+                plan.minimumUpdateIntervalMs >= target.minimumUpdateIntervalMs && plan.minimumDisplacementMeters == 0f &&
+                plan.maximumBatchDelayMs >= target.maximumBatchDelayMs
+            plan is ActivityPlan && target is ActivityPlan -> plan.adaptiveProfileVersion == 1 &&
+                plan.mode == ActivityMode.CONTINUOUS_RECOGNITION && plan.confidenceThresholdPercent == 65 &&
+                plan.desiredDetectionLatencyMs >= target.desiredDetectionLatencyMs
+            plan is StepsPlan && target is StepsPlan -> plan.maximumReportLatencyMs >= target.maximumReportLatencyMs &&
+                plan.projectionCheckpointIntervalMs >= target.projectionCheckpointIntervalMs &&
+                (!plan.movementPolicyNeedsLowLatency || target.movementPolicyNeedsLowLatency)
+            plan is PressurePlan && target is PressurePlan -> plan.hardwareSamplePeriodMicros >= target.hardwareSamplePeriodMicros &&
+                plan.maximumReportLatencyMicros >= target.maximumReportLatencyMicros && plan.aggregationWindowMs >= target.aggregationWindowMs
+            plan is WifiPlan && target is WifiPlan -> plan.mode in setOf(WifiMode.BROADCAST_DRIVEN, WifiMode.ACTIVE_ATTEMPTS) &&
+                plan.mode.ordinal <= target.mode.ordinal && plan.minimumAttemptIntervalMs >= target.minimumAttemptIntervalMs &&
+                plan.maximumAcceptableResultAgeMs == 600_000L && plan.unchangedResultDedupeWindowMs == 600_000L &&
+                plan.backoff.initialDelayMs >= target.backoff.initialDelayMs && plan.backoff.maximumDelayMs >= target.backoff.maximumDelayMs &&
+                plan.backoff.multiplier >= target.backoff.multiplier
+            plan is CellPlan && target is CellPlan -> plan.mode in setOf(CellMode.OBSERVE_CHANGES, CellMode.OBSERVE_AND_SPARSE_REFRESH) &&
+                plan.mode.ordinal <= target.mode.ordinal && plan.minimumRefreshAttemptIntervalMs >= target.minimumRefreshAttemptIntervalMs &&
+                plan.maximumAcceptableCachedAgeMs == 600_000L && plan.backoff.initialDelayMs >= target.backoff.initialDelayMs &&
+                plan.backoff.maximumDelayMs >= target.backoff.maximumDelayMs && plan.backoff.multiplier >= target.backoff.multiplier
+            else -> false
+        }
+    }
 	return when (qosCode) {
 		0 -> false
 		1 -> when (plan) {

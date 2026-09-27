@@ -123,7 +123,10 @@ class SetupViewModelCompletionRobolectricTest {
 		state.stepsEnabled shouldBe true
 		state.wifiEnabled shouldBe true
 		state.cellEnabled shouldBe true
-		state.barometerEnabled shouldBe true
+		state.barometerEnabled shouldBe false
+        state.balanceProfileVersion shouldBe 1
+        state.overallBalanceLevel shouldBe 5
+        state.locationBalanceLevel shouldBe 5
 		state.autoTrackingMode shouldBe 2
 		state.transitionDetectionEnabled shouldBe false
 		state.minDistanceMeters shouldBe 5

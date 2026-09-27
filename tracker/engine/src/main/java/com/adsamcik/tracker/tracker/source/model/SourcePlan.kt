@@ -37,7 +37,9 @@ data class ActivityPlan(
 	val desiredDetectionLatencyMs: Long,
 	val confidenceThresholdPercent: Int,
 	val transitionTypes: Set<Int>,
+	val adaptiveProfileVersion: Int? = null,
 ) : SourcePlan {
+	init { require(adaptiveProfileVersion == null || adaptiveProfileVersion == 1) }
 	override val source: SourceKind = SourceKind.ACTIVITY
 	override val enabled: Boolean get() = mode != ActivityMode.OFF
 }
@@ -107,18 +109,27 @@ data class CellPlan(
 	override val enabled: Boolean get() = mode != CellMode.OFF
 }
 
+data class SourceBalancePreference(val requestedLevel: Int, val focusRequested: Boolean) {
+    init { require(requestedLevel in 1..5); require(!focusRequested || requestedLevel >= 4) }
+}
+
 data class AcquisitionPlanRevision(
 	val revision: Long,
 	val planId: String,
 	val createdAtMs: Long,
 	val plans: Map<SourceKind, SourcePlan>,
 	val sourcePolicyRevision: Long? = null,
+	val balanceProfileVersion: Int? = null,
+	val sourcePreferences: Map<SourceKind, SourceBalancePreference> = emptyMap(),
 ) {
 	init {
 		require(revision >= 0L)
 		require(planId.isNotBlank())
 		require(createdAtMs >= 0L)
 		require(sourcePolicyRevision == null || sourcePolicyRevision > 0L)
+        require(balanceProfileVersion == null || balanceProfileVersion == 1)
+        require(balanceProfileVersion != null || sourcePreferences.isEmpty())
+        require(balanceProfileVersion == null || sourcePreferences.keys == plans.keys)
 		require(plans.all { (source, plan) -> source == plan.source && plan.revision == revision }) {
 			"Every source plan must match its map key and desired-plan revision"
 		}
@@ -160,7 +171,7 @@ enum class SourceDegradedReason {
 /** Maximum provider-item age admitted by the plan, independent of acquisition cadence. */
 internal fun SourcePlan.providerItemMaximumAgeMs(): Long = when (this) {
 	is LocationPlan -> if (adaptiveProfileVersion == 1) 120_000L else maxOf(requestedIntervalMs, maximumBatchDelayMs)
-	is ActivityPlan -> desiredDetectionLatencyMs
+	is ActivityPlan -> if (adaptiveProfileVersion == 1) 120_000L else desiredDetectionLatencyMs
 	is StepsPlan -> maximumReportLatencyMs
 	is PressurePlan -> maxOf(maximumReportLatencyMicros.toLong().microsToMillisCeiling(), aggregationWindowMs)
 	is WifiPlan -> maximumAcceptableResultAgeMs

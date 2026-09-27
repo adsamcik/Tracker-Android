@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.LocationBackgroundMode
 import com.adsamcik.tracker.shared.preferences.tracking.LocationAdaptiveSettings
+import com.adsamcik.tracker.shared.preferences.tracking.SourceBalanceOverrides
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionSettings
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationCoordinator
@@ -78,6 +79,9 @@ data class TrackingSettingsUiState(
 	val ambientLocationEnabled: Boolean = false,
 	val locationProfileVersion: Int? = null,
 	val locationBalanceLevel: Int? = null,
+	val balanceProfileVersion: Int? = null,
+	val overallBalanceLevel: Int? = null,
+	val sourceBalanceOverrides: SourceBalanceOverrides = SourceBalanceOverrides(),
 	val locationBackgroundMode: LocationBackgroundMode? = null,
 	val locationMotionAssistanceEnabled: Boolean = false,
 	val locationSettingsSaveFailed: Boolean = false,
@@ -253,6 +257,14 @@ class TrackingSettingsViewModel @Inject constructor(
 			resumeAfterUserExit = mode == LocationBackgroundMode.ADAPTIVE,
 		) { trackingParamsRepository.setLocationBackgroundMode(mode) }
 	}
+
+    fun adoptBalanceProfile(level: Int) {
+        launchSourcePolicyMutation { trackingParamsRepository.adoptBalanceProfile(level) }
+    }
+
+    fun setSourceBalanceOverride(source: TrackingSourceComponent, level: Int?) {
+        launchSourcePolicyMutation { trackingParamsRepository.setSourceBalanceOverride(source, level) }
+    }
 
 	fun adoptLocationProfile(level: Int = LocationAdaptiveSettings.DEFAULT_BALANCE_LEVEL) {
 		mutateLocationSettings { trackingParamsRepository.adoptLocationProfile(level) }
@@ -433,53 +445,16 @@ class TrackingSettingsViewModel @Inject constructor(
 		}
     }
 
+    /** Compatibility action: a preset selects quality and never rewrites participation or limits. */
     fun applyPreset(preset: TrackingPreset) {
-		launchSourcePolicyMutation {
-            val config = preset
-            trackingParamsRepository.update {
-                copy(
-                    locationEnabled = config.locationEnabled,
-                    activityEnabled = config.activityEnabled,
-                    stepsEnabled = config.stepsEnabled,
-                    wifiEnabled = config.wifiEnabled,
-                    cellEnabled = config.cellEnabled,
-                    barometerEnabled = config.barometerEnabled,
-                    transitionDetectionEnabled = transitionDetectionEnabled,
-                    minDistanceMeters = config.minDistanceMeters,
-                    minTimeSeconds = config.minTimeSeconds,
-                    requiredAccuracyMeters = config.requiredAccuracyMeters,
-                    presetName = preset.name,
-                    sourceCollectionSettings = when (preset) {
-                        TrackingPreset.HIGH_ACCURACY -> SourceCollectionSettings(
-                            location = SourceCollectionFrequency.RESPONSIVE,
-                            activity = SourceCollectionFrequency.RESPONSIVE,
-                            steps = SourceCollectionFrequency.RESPONSIVE,
-                            pressure = SourceCollectionFrequency.RESPONSIVE,
-                            wifi = SourceCollectionFrequency.RESPONSIVE,
-                            cell = SourceCollectionFrequency.RESPONSIVE,
-                        )
-                        TrackingPreset.BALANCED -> SourceCollectionSettings(
-                            location = SourceCollectionFrequency.BALANCED,
-                            activity = SourceCollectionFrequency.BALANCED,
-                            steps = SourceCollectionFrequency.BALANCED,
-                            pressure = SourceCollectionFrequency.BALANCED,
-                            wifi = SourceCollectionFrequency.BALANCED,
-                            cell = SourceCollectionFrequency.OFF,
-                        )
-                        TrackingPreset.POWER_SAVE -> SourceCollectionSettings(
-                            location = SourceCollectionFrequency.BATTERY_SAVER,
-                            activity = SourceCollectionFrequency.BATTERY_SAVER,
-                            steps = SourceCollectionFrequency.OFF,
-                            pressure = SourceCollectionFrequency.OFF,
-                            wifi = SourceCollectionFrequency.OFF,
-                            cell = SourceCollectionFrequency.OFF,
-                        )
-                        TrackingPreset.CUSTOM -> sourceCollectionSettings
-                    },
-                )
-			}
-		}
-	}
+        if (preset == TrackingPreset.CUSTOM) return
+        adoptBalanceProfile(when (preset) {
+            TrackingPreset.POWER_SAVE -> 1
+            TrackingPreset.BALANCED -> 3
+            TrackingPreset.HIGH_ACCURACY -> 5
+            TrackingPreset.CUSTOM -> return
+        })
+    }
 
 	fun retrySourcePolicyReconciliation() {
 		viewModelScope.launch {
@@ -518,6 +493,9 @@ class TrackingSettingsViewModel @Inject constructor(
 				ambientLocationEnabled = params.ambientLocationEnabled,
 				locationProfileVersion = params.locationProfileVersion,
 				locationBalanceLevel = params.locationBalanceLevel,
+				balanceProfileVersion = params.balanceProfileVersion,
+				overallBalanceLevel = params.overallBalanceLevel,
+				sourceBalanceOverrides = params.sourceBalanceOverrides,
 				locationBackgroundMode = params.locationBackgroundMode,
 				locationMotionAssistanceEnabled = params.locationMotionAssistanceEnabled,
 				ambientStepsEnabled = params.ambientStepsEnabled,

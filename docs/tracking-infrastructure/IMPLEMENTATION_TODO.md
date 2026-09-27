@@ -16,6 +16,15 @@ qualification is source-reviewed at `b9fdbae62c`; the whole correction remains o
 the shared-item contract decision and complete admission/projection/maintenance/replay wiring.
 See `shared-radio/2026-09-27/CONTRACT_DECISION.md` and `REVIEW_RECEIPT.md` in that folder.
 
+## 2026-09-27 five-level configuration continuation
+
+The current five-level configuration source trace and focused test-source inventory are in
+`five-level/2026-09-27/IMPLEMENTATION_TRACE.md`; bounded completion is tracked in
+`WORK_ITEM_TRACKING.md`. Overall/source quality is separate from participation and consent;
+legacy/custom absence is preserved, and only actual accepted live participants request quality
+focus. This is IMPLEMENTED_UNVALIDATED candidate work, not a convergence freeze, activation,
+executed gate or new dev/v10 integration.
+
 ## 2026-09-20 exact authority and Steps P5 completions
 
 - [x] `integration-retention-authority-20260919` —

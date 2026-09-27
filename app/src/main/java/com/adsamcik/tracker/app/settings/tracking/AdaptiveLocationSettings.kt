@@ -91,7 +91,7 @@ internal fun AdaptiveLocationSettings(
 				}
 			}
 		}
-		TextButton(onClick = { showBalance = true }, modifier = Modifier.testTag("locationBalance")) {
+		if (state.balanceProfileVersion == null) TextButton(onClick = { showBalance = true }, modifier = Modifier.testTag("locationBalance")) {
 			Text(
 				if (state.locationBalanceLevel == null) stringResource(R.string.settings_location_adopt_profile)
 				else stringResource(R.string.settings_location_balance_value, locationBalanceLabel(state.locationBalanceLevel)),
@@ -154,7 +154,7 @@ internal fun AdaptiveLocationSettings(
 }
 
 @Composable
-private fun locationBalanceLabel(level: Int): String = stringResource(
+internal fun locationBalanceLabel(level: Int): String = stringResource(
 	when (level) {
 		1 -> R.string.settings_location_balance_1
 		2 -> R.string.settings_location_balance_2
@@ -177,7 +177,7 @@ private fun LocationSwitch(title: String, checked: Boolean, tag: String, onCheck
 }
 
 @Composable
-private fun LocationChoice(title: String, selected: Boolean, tag: String, onClick: () -> Unit) {
+internal fun LocationChoice(title: String, selected: Boolean, tag: String, onClick: () -> Unit) {
 	Row(
 		Modifier.fillMaxWidth().selectable(selected, role = Role.RadioButton, onClick = onClick)
 			.padding(vertical = 8.dp).testTag(tag),

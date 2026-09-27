@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.app.onboarding.ui.steps
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +16,7 @@ import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -24,7 +24,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.app.common.ui.BatteryImpactIndicator
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 
@@ -33,7 +32,7 @@ import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
  *
  * Two sections:
  * 1. Auto-tracking mode (disabled / on foot / in motion)
- * 2. Tracking preset (battery saver / balanced / high precision)
+ * 2. Five-level power/detail preference; source participation is chosen separately.
  */
 @Composable
 fun HowToTrackStep(
@@ -43,6 +42,8 @@ fun HowToTrackStep(
     onPresetChange: (TrackingPolicyPreset) -> Unit,
     onContinue: () -> Unit,
     modifier: Modifier = Modifier,
+	balanceLevel: Int = 3,
+	onBalanceChange: (Int) -> Unit = {},
 ) {
     SetupStepScaffold(
         actionText = stringResource(R.string.button_continue),
@@ -108,9 +109,9 @@ fun HowToTrackStep(
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        // --- Tracking preset ---
+        // --- Power/detail balance ---
         Text(
-            text = stringResource(R.string.setup_preset_title),
+            text = stringResource(R.string.settings_balance_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
@@ -118,15 +119,13 @@ fun HowToTrackStep(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        TrackingPolicyPreset.entries.forEach { preset ->
-            PresetCard(
-                selected = trackingPreset == preset,
-                preset = preset,
-                recommended = preset == TrackingPolicyPreset.BALANCED,
-                onClick = { onPresetChange(preset) },
-                modifier = Modifier.testTag(preset.testTag),
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+        Column(Modifier.selectableGroup()) {
+            (1..5).forEach { level ->
+                com.adsamcik.tracker.app.settings.tracking.LocationChoice(
+                    com.adsamcik.tracker.app.settings.tracking.locationBalanceLabel(level),
+                    balanceLevel == level, "setupBalance-$level",
+                ) { onBalanceChange(level) }
+            }
         }
     }
 }
@@ -192,72 +191,6 @@ private fun AutoTrackingModeCard(
     }
 }
 
-@Composable
-private fun PresetCard(
-    selected: Boolean,
-    preset: TrackingPolicyPreset,
-    recommended: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    GlassCard(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(
-                if (selected) Modifier.border(
-                    2.dp,
-                    MaterialTheme.colorScheme.primary,
-                    MaterialTheme.shapes.medium,
-                ) else Modifier,
-            )
-            .clickable(onClick = onClick),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            RadioButton(
-                selected = selected,
-                onClick = null,
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = MaterialTheme.colorScheme.primary,
-                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                ),
-            )
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = stringResource(preset.nameRes),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (recommended) {
-                        RecommendationBadge(
-                            modifier = Modifier.testTag("setup_preset_recommended"),
-                        )
-                    }
-                }
-                Text(
-                    text = stringResource(preset.descriptionRes),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                BatteryImpactIndicator(
-                    impact = preset.batteryImpact,
-                    compact = true,
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun RecommendationBadge(modifier: Modifier = Modifier) {
@@ -276,5 +209,3 @@ private fun RecommendationBadge(modifier: Modifier = Modifier) {
     }
 }
 
-private val TrackingPolicyPreset.testTag: String
-    get() = "setup_preset_${name.lowercase()}"

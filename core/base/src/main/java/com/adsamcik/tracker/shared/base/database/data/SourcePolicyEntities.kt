@@ -67,6 +67,8 @@ data class SourcePolicyEntity(
 	@ColumnInfo(name = "change_reason") val changeReason: String,
 	@ColumnInfo(name = "balance_profile_version") val balanceProfileVersion: Int? = null,
 	@ColumnInfo(name = "balance_level") val balanceLevel: Int? = null,
+	@ColumnInfo(name = "overall_balance_level") val overallBalanceLevel: Int? = null,
+	@ColumnInfo(name = "source_balance_override") val sourceBalanceOverride: Int? = null,
 	@ColumnInfo(name = "location_background_mode") val locationBackgroundMode: Int? = null,
 	@ColumnInfo(name = "location_motion_assistance_enabled", defaultValue = "0")
 	val locationMotionAssistanceEnabled: Boolean = false,

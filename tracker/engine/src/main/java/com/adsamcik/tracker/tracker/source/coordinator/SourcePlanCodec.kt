@@ -27,7 +27,11 @@ data class EncodedSourcePlan(val bytes: ByteArray, val checksum: String, val for
 @Singleton
 class SourcePlanCodec @Inject constructor() {
 	fun encode(plan: SourcePlan): EncodedSourcePlan {
-		val formatVersion = if (plan is LocationPlan && plan.adaptiveProfileVersion != null) 2 else FORMAT_VERSION
+		val formatVersion = when {
+			plan is LocationPlan && plan.adaptiveProfileVersion != null -> 2
+			plan is ActivityPlan && plan.adaptiveProfileVersion != null -> 3
+			else -> FORMAT_VERSION
+		}
 		val bytes = ByteArrayOutputStream().use { buffer ->
 			DataOutputStream(buffer).use { output ->
 				output.writeInt(formatVersion)
@@ -50,6 +54,7 @@ class SourcePlanCodec @Inject constructor() {
 						writeLong(plan.desiredDetectionLatencyMs)
 						writeInt(plan.confidenceThresholdPercent)
 						writeIntSet(plan.transitionTypes)
+						plan.adaptiveProfileVersion?.let { writeInt(it) }
 					}
 					is StepsPlan -> with(output) {
 						writeBoolean(plan.enabled)
@@ -91,9 +96,9 @@ class SourcePlanCodec @Inject constructor() {
 		require(bytes.size in 1..MAX_PAYLOAD_BYTES) { "Source-plan payload size is invalid" }
 		return DataInputStream(ByteArrayInputStream(bytes)).use { input ->
 			val formatVersion = input.readInt()
-			require(formatVersion == FORMAT_VERSION || formatVersion == 2) { "Unsupported source-plan format" }
+			require(formatVersion in 1..3) { "Unsupported source-plan format" }
 			val source = SourceKind.valueOf(input.readUTF())
-			require(formatVersion == FORMAT_VERSION || source == SourceKind.LOCATION) { "Adaptive format requires Location" }
+			require(formatVersion == FORMAT_VERSION || (formatVersion == 2 && source == SourceKind.LOCATION) || (formatVersion == 3 && source == SourceKind.ACTIVITY)) { "Source-plan format does not match source" }
 			val revision = input.readLong()
 			when (source) {
 				SourceKind.LOCATION -> LocationPlan(
@@ -114,6 +119,7 @@ class SourcePlanCodec @Inject constructor() {
 					input.readLong(),
 					input.readInt(),
 					input.readIntSet(),
+					if (formatVersion == 3) input.readInt() else null,
 				)
 				SourceKind.STEPS -> StepsPlan(
 					revision,

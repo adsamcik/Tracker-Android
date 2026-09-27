@@ -1183,10 +1183,13 @@ class TrackerServiceSourceSessionTest {
 		}
 
 	@Test
-	fun `exact catalog debt retry success advances applied input identity`() = runTest {
+	fun `adopted catalog debt retry retains exact levels focus and applied input identity`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
-		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
-		val changed = settings(SourceCollectionFrequency.BATTERY_SAVER, sourcePolicyRevision = 2L)
+		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L).copy(
+            balanceProfileVersion = 1, overallBalanceLevel = 3, locationProfileVersion = 1, locationBalanceLevel = 3)
+		val changed = initial.copy(sourcePolicyRevision = 2, overallBalanceLevel = 2, locationBalanceLevel = 2)
+        fun profileInputs(state: TrackingParamsState) = inputs(state).copy(environment =
+            SourcePlanEnvironment(LocationBackend.FRAMEWORK, true, emptySet(), liveSources = setOf(SourceKind.STEPS)))
 		val reference = SourceCallerReplayReference("catalog-retry-success-authority")
 		var storedDescriptor = ActiveTrackingSessionDescriptor(
 			isUserInitiated = true,
@@ -1243,12 +1246,12 @@ class TrackerServiceSourceSessionTest {
 				serviceRunId = "run",
 				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
 				foregroundCapabilityFlags = 1L,
-				planInputs = inputs(initial),
+				planInputs = profileInputs(initial),
 				ownerToken = "owner",
 			),
 		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
 
-		subject.reconfigure(inputs(changed))
+		subject.reconfigure(profileInputs(changed))
 			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Deferred>()
 		val persistedDebt = requireNotNull(storedDescriptor.catalogReconfigurationDebt)
 		persistedDebt.desiredPlanFingerprint shouldBe requests.first().desiredPlanFingerprint
@@ -1257,7 +1260,11 @@ class TrackerServiceSourceSessionTest {
 		subject.retryPendingReconfiguration()
 			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
 		storedDescriptor.catalogReconfigurationDebt shouldBe null
-		subject.reconfigure(inputs(changed)) shouldBe SourceSessionReconfigureOutcome.Unchanged
+        requests.last().plan.balanceProfileVersion shouldBe 1
+        requests.last().plan.sourcePreferences.getValue(SourceKind.STEPS) shouldBe
+            com.adsamcik.tracker.tracker.source.model.SourceBalancePreference(4, true)
+        requests.last().plan.sourcePreferences shouldBe requests.first().plan.sourcePreferences
+		subject.reconfigure(profileInputs(changed)) shouldBe SourceSessionReconfigureOutcome.Unchanged
 		coVerify(exactly = 3) { lifecycle.reconfigure(any()) }
 	}
 

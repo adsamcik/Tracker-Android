@@ -93,6 +93,31 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		applicationScope.cancel()
 	}
 
+    @Test
+    fun `quality adoption and off override remain authoritative across recreation and stale mirror`() = runTest {
+        val initial = repository.data.first { it.sourcePolicyRevision == 1L }
+        repository.adoptBalanceProfile(2)
+        repository.setSourceBalanceOverride(TrackingSourceComponent.WIFI, 5)
+        val committed = repository.data.first { it.sourceBalanceOverrides.wifi == 5 }
+        committed.wifiEnabled shouldBe initial.wifiEnabled
+        committed.ambientWifiEnabled shouldBe initial.ambientWifiEnabled
+        committed.sourceCollectionSettings shouldBe initial.sourceCollectionSettings
+        committed.overallBalanceLevel shouldBe 2
+        legacy.force(initial)
+        val recreated = AuthoritativeTrackingParamsRepository(legacy, policy, applicationScope, startupGate,
+            retention, ambientSteps)
+        val recovered = recreated.data.first { it.sourcePolicyRevision == committed.sourcePolicyRevision }
+        recovered.overallBalanceLevel shouldBe 2
+        recovered.sourceBalanceOverrides.wifi shouldBe 5
+        recovered.wifiEnabled shouldBe false
+        recreated.setWifiEnabled(true)
+        val enabled = recreated.data.first { it.wifiEnabled }
+        enabled.sourceBalanceOverrides.wifi shouldBe 5
+        enabled.sourceCollectionSettings.wifi shouldBe SourceCollectionFrequency.OFF
+        recreated.setWifiEnabled(false)
+        recreated.data.first { !it.wifiEnabled }.sourceBalanceOverrides.wifi shouldBe 5
+    }
+
 	@Test
 	fun `post-bootstrap legacy conflict cannot revive or disable a source`() = runTest {
 		repository.data.first()[TrackingSourceComponent.LOCATION].shouldBeTrue()

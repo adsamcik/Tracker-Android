@@ -51,6 +51,42 @@ class RoomSourcePolicyRepositoryTest {
 		database.close()
 	}
 
+    @Test
+    fun `five-level metadata belongs to every immutable row without rotating unchanged consent`() = runTest {
+        val legacy = readySettings().copy(locationEnabled = false, ambientWifiEnabled = true,
+            minTimeSeconds = 17, minDistanceMeters = 43, requiredAccuracyMeters = 71, autoTrackingMode = 0)
+        val before = repository.bootstrapFromLegacy(legacy)
+        val retained = database.sourcePolicyDao().policiesAtRevision(before.revision)
+        val adopted = legacy.copy(balanceProfileVersion = 1, overallBalanceLevel = 2,
+            sourceBalanceOverrides = SourceBalanceOverrides(wifi = 5), locationProfileVersion = 1, locationBalanceLevel = 2)
+        val after = repository.replaceCaptureSettings(before.revision, adopted, "ADOPT_ALL")
+        after.policies.values.forEach { policy ->
+            policy.balanceProfileVersion shouldBe 1
+            policy.overallBalanceLevel shouldBe 2
+            policy.captureConsentEpoch shouldBe before[policy.source].captureConsentEpoch
+            policy.ambientConsentEpoch shouldBe before[policy.source].ambientConsentEpoch
+        }
+        after[TrackingSourceComponent.WIFI].balanceLevel shouldBe 5
+        after[TrackingSourceComponent.WIFI].enabled shouldBe false
+        after[TrackingSourceComponent.LOCATION].locationMinTimeSeconds shouldBe 17
+        after[TrackingSourceComponent.LOCATION].locationMinDistanceMeters shouldBe 43
+        database.sourcePolicyDao().policiesAtRevision(before.revision) shouldBe retained
+        val consent = repository.setNonCaptureConsent(after.revision, TrackingSourceComponent.CELL,
+            SourcePurpose.AMBIENT_PRODUCT, true, true, "BACKGROUND")
+        consent.policies.values.forEach { it.overallBalanceLevel shouldBe 2 }
+        consent[TrackingSourceComponent.WIFI].sourceBalanceOverride shouldBe 5
+    }
+
+    @Test
+    fun `inconsistent all-source metadata is rejected rather than adopted partially`() = runTest {
+        val initial = repository.bootstrapFromLegacy(readySettings().copy(balanceProfileVersion = 1,
+            overallBalanceLevel = 3, locationProfileVersion = 1, locationBalanceLevel = 3))
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE source_policy SET overall_balance_level = 2, balance_level = 2 WHERE policy_revision = ? AND source_kind = ?",
+            arrayOf(initial.revision, TrackingSourceComponent.STEPS.stableCode))
+        (repository.currentState() is SourcePolicyAuthorityState.Invalid) shouldBe true
+    }
+
 	@Test
 	fun `unverified legacy defaults cannot activate policy`() = runTest {
 		shouldThrow<LegacySourceSettingsUnavailableException> {

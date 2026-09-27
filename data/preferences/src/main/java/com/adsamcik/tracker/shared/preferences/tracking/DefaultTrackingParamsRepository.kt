@@ -101,7 +101,7 @@ class DefaultTrackingParamsRepository(
 		copy(
 			locationEnabled = enabled,
 			sourceCollectionSettings = sourceCollectionSettings.copy(
-				location = sourceCollectionSettings.location.forEnabled(enabled),
+				location = sourceCollectionSettings.location.let { if (balanceProfileVersion != null) it else it.forEnabled(enabled) },
 			),
 		)
 	}
@@ -109,7 +109,7 @@ class DefaultTrackingParamsRepository(
 		copy(
 			activityEnabled = enabled,
 			sourceCollectionSettings = sourceCollectionSettings.copy(
-				activity = sourceCollectionSettings.activity.forEnabled(enabled),
+				activity = sourceCollectionSettings.activity.let { if (balanceProfileVersion != null) it else it.forEnabled(enabled) },
 			),
 		)
 	}
@@ -117,7 +117,7 @@ class DefaultTrackingParamsRepository(
 		copy(
 			stepsEnabled = enabled,
 			sourceCollectionSettings = sourceCollectionSettings.copy(
-				steps = sourceCollectionSettings.steps.forEnabled(enabled),
+				steps = sourceCollectionSettings.steps.let { if (balanceProfileVersion != null) it else it.forEnabled(enabled) },
 			),
 		)
 	}
@@ -125,7 +125,7 @@ class DefaultTrackingParamsRepository(
 		copy(
 			wifiEnabled = enabled,
 			sourceCollectionSettings = sourceCollectionSettings.copy(
-				wifi = sourceCollectionSettings.wifi.forEnabled(enabled),
+				wifi = sourceCollectionSettings.wifi.let { if (balanceProfileVersion != null) it else it.forEnabled(enabled) },
 			),
 		)
 	}
@@ -133,7 +133,7 @@ class DefaultTrackingParamsRepository(
 		copy(
 			cellEnabled = enabled,
 			sourceCollectionSettings = sourceCollectionSettings.copy(
-				cell = sourceCollectionSettings.cell.forEnabled(enabled),
+				cell = sourceCollectionSettings.cell.let { if (balanceProfileVersion != null) it else it.forEnabled(enabled) },
 			),
 		)
 	}
@@ -141,7 +141,7 @@ class DefaultTrackingParamsRepository(
 		copy(
 			barometerEnabled = enabled,
 			sourceCollectionSettings = sourceCollectionSettings.copy(
-				pressure = sourceCollectionSettings.pressure.forEnabled(enabled),
+				pressure = sourceCollectionSettings.pressure.let { if (balanceProfileVersion != null) it else it.forEnabled(enabled) },
 			),
 		)
 	}
@@ -156,6 +156,7 @@ class DefaultTrackingParamsRepository(
 		component: TrackingSourceComponent,
 		frequency: SourceCollectionFrequency,
 	) = update {
+		require(balanceProfileVersion == null) { "Legacy frequency editing requires a legacy/custom configuration" }
 		val next = when (component) {
 			TrackingSourceComponent.LOCATION -> sourceCollectionSettings.copy(location = frequency)
 			TrackingSourceComponent.ACTIVITY -> sourceCollectionSettings.copy(activity = frequency)
@@ -335,6 +336,16 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
 		ambientStepsEnabled = ambientStepsEnabled,
 		ambientWifiEnabled = ambientWifiEnabled,
 		ambientCellEnabled = ambientCellEnabled,
+        balanceProfileVersion = if (hasBalanceProfileVersion()) balanceProfileVersion else null,
+        overallBalanceLevel = if (hasOverallBalanceLevel()) overallBalanceLevel else null,
+        sourceBalanceOverrides = SourceBalanceOverrides(
+            location = if (hasLocationBalanceOverride()) locationBalanceOverride else null,
+            activity = if (hasActivityBalanceOverride()) activityBalanceOverride else null,
+            steps = if (hasStepsBalanceOverride()) stepsBalanceOverride else null,
+            pressure = if (hasPressureBalanceOverride()) pressureBalanceOverride else null,
+            wifi = if (hasWifiBalanceOverride()) wifiBalanceOverride else null,
+            cell = if (hasCellBalanceOverride()) cellBalanceOverride else null,
+        ),
 		locationProfileVersion = if (hasLocationProfileVersion()) locationProfileVersion else null,
 		locationBalanceLevel = if (hasLocationBalanceLevel()) locationBalanceLevel else null,
 		locationBackgroundMode = if (hasLocationBackgroundMode()) {
@@ -394,6 +405,14 @@ private fun TrackingParamsState.toProto(): TrackingParamsProto =
 		.setAmbientWifiEnabled(ambientWifiEnabled)
 		.setAmbientCellEnabled(ambientCellEnabled)
 		.apply {
+            this@toProto.balanceProfileVersion?.let { setBalanceProfileVersion(it) }
+            this@toProto.overallBalanceLevel?.let { setOverallBalanceLevel(it) }
+            this@toProto.sourceBalanceOverrides.location?.let { setLocationBalanceOverride(it) }
+            this@toProto.sourceBalanceOverrides.activity?.let { setActivityBalanceOverride(it) }
+            this@toProto.sourceBalanceOverrides.steps?.let { setStepsBalanceOverride(it) }
+            this@toProto.sourceBalanceOverrides.pressure?.let { setPressureBalanceOverride(it) }
+            this@toProto.sourceBalanceOverrides.wifi?.let { setWifiBalanceOverride(it) }
+            this@toProto.sourceBalanceOverrides.cell?.let { setCellBalanceOverride(it) }
 			this@toProto.locationProfileVersion?.let { setLocationProfileVersion(it) }
 			this@toProto.locationBalanceLevel?.let { setLocationBalanceLevel(it) }
 			this@toProto.locationBackgroundMode?.let { setLocationBackgroundMode(it.stableCode) }

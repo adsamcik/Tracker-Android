@@ -38,6 +38,31 @@ import io.kotest.matchers.shouldBe
 import org.junit.Test
 
 class SourcePlanResolverTest {
+    @Test
+    fun `adopted rates survive unknown motion and stationary reduces only optional radio work`() {
+        val environment = SourcePlanEnvironment(LocationBackend.FUSED, true, emptySet())
+        val settings = TrackingParamsState(balanceProfileVersion = 1, overallBalanceLevel = 4,
+            locationProfileVersion = 1, locationBalanceLevel = 4, locationEnabled = false,
+            wifiEnabled = true, cellEnabled = true, barometerEnabled = true)
+        val desired = SemanticAcquisitionPlanFactory().create(settings, 1, 0, environment)
+        val context = PlanResolutionContext(emptyMap(), false, false, false)
+        val subject = SourcePlanResolver()
+        val unknown = subject.resolve(desired, emptyList(), context)
+        unknown.applicablePlans shouldBe desired.plans
+        val stationary = subject.resolve(desired, emptyList(), context.copy(motionProfile = stationaryPolicy().acquisitionProfile))
+        listOf(SourceKind.ACTIVITY, SourceKind.STEPS, SourceKind.PRESSURE, SourceKind.LOCATION).forEach { source ->
+            stationary.applicablePlans[source] shouldBe desired.plans[source]
+        }
+        (stationary.applicablePlans.getValue(SourceKind.WIFI) as WifiPlan).mode shouldBe WifiMode.BROADCAST_DRIVEN
+        (stationary.applicablePlans.getValue(SourceKind.CELL) as CellPlan).mode shouldBe CellMode.OBSERVE_CHANGES
+        subject.resolve(desired, emptyList(), context).applicablePlans shouldBe desired.plans
+        val blocked = subject.resolve(desired, emptyList(), context.copy(constraints =
+            mapOf(SourceKind.WIFI to SourceConstraint(permissionGranted = false))))
+        blocked.applicablePlans.getValue(SourceKind.WIFI).enabled shouldBe false
+        blocked.desired.sourcePreferences shouldBe desired.sourcePreferences
+        blocked.applicablePlans.getValue(SourceKind.LOCATION).enabled shouldBe false
+    }
+
 	@Test
 	fun `severe thermal pressure constrains live adaptive Location without disabling it`() {
 		val location = adaptiveLocationPlan(4, 2, LocationBackend.FUSED, true)

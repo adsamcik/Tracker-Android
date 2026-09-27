@@ -2635,6 +2635,7 @@ private data class PortableDecodedActivityPlan(
 	val confidenceThresholdPercent: Int,
 	val transitionTypes: Set<Int>,
 	val physicalConfigurationFingerprint: String,
+	val adaptiveProfileVersion: Int? = null,
 ) {
 	val enabled: Boolean
 		get() = mode != "OFF"
@@ -2644,9 +2645,9 @@ private data class PortableDecodedActivityPlan(
 private object PortableActivityPlanIntegrity {
 	fun decode(row: SourceDesiredPlanEntity): PortableDecodedActivityPlan? = runCatching {
 		require(row.sourceKind == SourceDestinationOwnerEntity.SOURCE_ACTIVITY)
-		require(row.payloadVersion == 1 && row.payloadChecksum == sha256(row.payload))
+		require(row.payloadVersion in setOf(1, 3) && row.payloadChecksum == sha256(row.payload))
 		val decoded = DataInputStream(ByteArrayInputStream(row.payload)).use { input ->
-			require(input.readInt() == 1)
+			require(input.readInt() == row.payloadVersion)
 			require(input.readUTF() == "ACTIVITY")
 			val revision = input.readLong()
 			val mode = input.readUTF()
@@ -2657,6 +2658,7 @@ private object PortableActivityPlanIntegrity {
 			val transitions = buildSet(transitionCount) {
 				repeat(transitionCount) { add(input.readInt()) }
 			}
+			val profile = if (row.payloadVersion == 3) input.readInt().also { require(it == 1) } else null
 			require(input.available() == 0 && revision == row.revision && revision > 0L)
 			require(transitions.size == transitionCount)
 			require(mode in PORTABLE_ACTIVITY_PLAN_MODES && latency >= 0L && confidence in 0..100)
@@ -2666,6 +2668,7 @@ private object PortableActivityPlanIntegrity {
 				desiredDetectionLatencyMs = latency,
 				confidenceThresholdPercent = confidence,
 				transitionTypes = transitions,
+				adaptiveProfileVersion = profile,
 				physicalConfigurationFingerprint = sha256(
 					listOf(
 						"ACTIVITY",
@@ -2688,7 +2691,7 @@ private object PortableActivityPlanIntegrity {
 	private fun encode(plan: PortableDecodedActivityPlan): ByteArray =
 		ByteArrayOutputStream().use { buffer ->
 			DataOutputStream(buffer).use { output ->
-				output.writeInt(1)
+				output.writeInt(if (plan.adaptiveProfileVersion == null) 1 else 3)
 				output.writeUTF("ACTIVITY")
 				output.writeLong(plan.revision)
 				output.writeUTF(plan.mode)
@@ -2696,6 +2699,7 @@ private object PortableActivityPlanIntegrity {
 				output.writeInt(plan.confidenceThresholdPercent)
 				output.writeInt(plan.transitionTypes.size)
 				plan.transitionTypes.sorted().forEach(output::writeInt)
+				plan.adaptiveProfileVersion?.let(output::writeInt)
 			}
 			buffer.toByteArray()
 		}

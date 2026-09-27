@@ -449,7 +449,7 @@ class SourceBroker @Inject internal constructor(
 					require(policy.captureConsentEpoch == binding.consentEpoch && policy.capturePersistenceEligible == binding.persistenceEligible)
 				}
 			}
-			val contract = if (source == SourceKind.LOCATION && purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+			val contract = if (purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
 				policy?.balanceProfileVersion != null
 			) {
 				SourceDemandContractFactory.forProfile(source, requireNotNull(policy.balanceProfileVersion),
@@ -3236,11 +3236,17 @@ class SourceBroker @Inject internal constructor(
 		}
 		val deletionGeneration = currentDeletionGeneration(leaseIdentity.collectedDataEpoch)
 			?: return revoke(AmbientRadioDemandInactiveReason.DELETION_AUTHORITY_MISMATCH)
-		val contract = SourceDemandContractFactory.forQos(
-			source,
-			qosCode = 0,
-			purpose = DirectSourceDemandPurpose.AMBIENT_PRODUCT,
-		)
+		val contract = if (policy.balanceProfileVersion != null) {
+            val baseline = policy.balanceLevel
+            if (policy.balanceProfileVersion != 1 || baseline == null || baseline !in 1..5 ||
+                policy.overallBalanceLevel?.let { it in 1..5 } != true ||
+                baseline != (policy.sourceBalanceOverride ?: policy.overallBalanceLevel)) {
+                return revoke(AmbientRadioDemandInactiveReason.AUTHORITY_INACTIVE)
+            }
+            SourceDemandContractFactory.forProfile(source, 1, baseline, DirectSourceDemandPurpose.AMBIENT_PRODUCT)
+        } else SourceDemandContractFactory.forQos(
+            source, 0, DirectSourceDemandPurpose.AMBIENT_PRODUCT,
+        )
 		val unchangedDemand = currentDemands.singleOrNull()?.takeIf { demand ->
 			demand.status == SourceDemandEntity.STATUS_ACTIVE &&
 				demand.sourceKind == source.stableCode &&

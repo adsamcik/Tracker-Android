@@ -324,6 +324,7 @@ data class ActivityCapturedDesiredPlan(
 	val confidenceThresholdPercent: Int,
 	val transitionTypes: Set<Int>,
 	val physicalConfigurationFingerprint: String,
+	val adaptiveProfileVersion: Int? = null,
 ) {
 	val enabled: Boolean
 		get() = mode != MODE_OFF
@@ -342,10 +343,10 @@ data class ActivityCapturedDesiredPlan(
 object ActivityCapturedPlanIntegrity {
 	fun decode(row: SourceDesiredPlanEntity): ActivityCapturedDesiredPlan? = runCatching {
 		require(row.sourceKind == SourceDestinationOwnerEntity.SOURCE_ACTIVITY)
-		require(row.payloadVersion == PAYLOAD_VERSION)
+		require(row.payloadVersion in setOf(1, 3))
 		require(row.payloadChecksum == sha256(row.payload))
 		val decoded = DataInputStream(ByteArrayInputStream(row.payload)).use { input ->
-			require(input.readInt() == FORMAT_VERSION)
+			require(input.readInt() == row.payloadVersion)
 			require(input.readUTF() == SOURCE_ACTIVITY)
 			val revision = input.readLong()
 			val mode = input.readUTF()
@@ -356,6 +357,7 @@ object ActivityCapturedPlanIntegrity {
 			val transitions = buildSet(transitionCount) {
 				repeat(transitionCount) { add(input.readInt()) }
 			}
+			val profile = if (row.payloadVersion == 3) input.readInt().also { require(it == 1) } else null
 			require(input.available() == 0)
 			require(revision == row.revision && revision > 0L)
 			require(mode in ACTIVITY_MODES)
@@ -367,6 +369,7 @@ object ActivityCapturedPlanIntegrity {
 				desiredDetectionLatencyMs = latency,
 				confidenceThresholdPercent = confidence,
 				transitionTypes = transitions,
+				adaptiveProfileVersion = profile,
 				physicalConfigurationFingerprint = physicalFingerprint(
 					mode,
 					latency,
@@ -382,7 +385,7 @@ object ActivityCapturedPlanIntegrity {
 	private fun encode(plan: ActivityCapturedDesiredPlan): ByteArray =
 		ByteArrayOutputStream().use { buffer ->
 			DataOutputStream(buffer).use { output ->
-				output.writeInt(FORMAT_VERSION)
+				output.writeInt(if (plan.adaptiveProfileVersion == null) 1 else 3)
 				output.writeUTF(SOURCE_ACTIVITY)
 				output.writeLong(plan.revision)
 				output.writeUTF(plan.mode)
@@ -390,6 +393,7 @@ object ActivityCapturedPlanIntegrity {
 				output.writeInt(plan.confidenceThresholdPercent)
 				output.writeInt(plan.transitionTypes.size)
 				plan.transitionTypes.sorted().forEach(output::writeInt)
+				plan.adaptiveProfileVersion?.let(output::writeInt)
 			}
 			buffer.toByteArray()
 		}
@@ -413,8 +417,6 @@ object ActivityCapturedPlanIntegrity {
 		.digest(bytes)
 		.joinToString(separator = "") { byte -> "%02x".format(byte) }
 
-	private const val PAYLOAD_VERSION = 1
-	private const val FORMAT_VERSION = 1
 	private const val SOURCE_ACTIVITY = "ACTIVITY"
 	private const val MAX_TRANSITION_TYPES = 10_000
 	private val ACTIVITY_MODES = setOf("OFF", "TRANSITIONS_ONLY", "CONTINUOUS_RECOGNITION")

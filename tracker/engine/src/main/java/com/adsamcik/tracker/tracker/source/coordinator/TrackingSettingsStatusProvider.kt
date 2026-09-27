@@ -51,6 +51,7 @@ data class EffectiveSourceStatus(
 	val reasonCodes: Set<String>,
 	val desiredRevision: Long?,
 	val appliedRevision: Long?,
+	val requestedBalanceLevel: Int? = null,
 )
 
 data class TrackingSettingsPreview(
@@ -132,7 +133,7 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 				active = false,
 			),
 			requestedPlans = desired.plans,
-			frequencyOptions = if (settings.advancedSourceControlsEnabled) {
+			frequencyOptions = if (settings.advancedSourceControlsEnabled && settings.balanceProfileVersion == null) {
 				frequencyOptions(settings, environment)
 			} else {
 				emptyMap()
@@ -147,6 +148,12 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 		val plansByFrequency = SourceCollectionFrequency.entries.associateWith { frequency ->
 			val current = settings.sourceCollectionSettings
 			val optionSettings = settings.copy(
+                locationEnabled = frequency != SourceCollectionFrequency.OFF,
+                activityEnabled = frequency != SourceCollectionFrequency.OFF,
+                stepsEnabled = frequency != SourceCollectionFrequency.OFF,
+                barometerEnabled = frequency != SourceCollectionFrequency.OFF,
+                wifiEnabled = frequency != SourceCollectionFrequency.OFF,
+                cellEnabled = frequency != SourceCollectionFrequency.OFF,
 				sourceCollectionSettings = current.copy(
 					location = frequency,
 					activity = frequency,
@@ -197,6 +204,8 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 			createdAtMs = resolved.desired.createdAtMs,
 			plans = acceptedPlans,
 			sourcePolicyRevision = resolved.desired.sourcePolicyRevision,
+			balanceProfileVersion = resolved.desired.balanceProfileVersion,
+			sourcePreferences = resolved.desired.sourcePreferences.filterKeys { it in acceptedPlans },
 		)
 		mutableRuntimeStatus.value = TrackingRuntimeStatus(
 			active = true,
@@ -305,7 +314,9 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 		val accepted = acceptedPlans == null || source in acceptedPlans
 		val effective = acceptedPlans?.get(source) ?: resolvedEffective
 		val reasons = resolved.degradedReasons[source].orEmpty()
-		val frequency = settings.frequency(source)
+        val frequency = if (settings.balanceProfileVersion == null) settings.frequency(source) else
+            if (!desired.enabled) SourceCollectionFrequency.OFF else
+                settings.frequency(source).takeUnless { it == SourceCollectionFrequency.OFF } ?: SourceCollectionFrequency.BALANCED
 		val blocked = reasons.any { reason ->
 			reason.name in BLOCKING_REASONS
 		}
@@ -319,6 +330,7 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 			source = source,
 			owner = owner,
 			requestedFrequency = frequency,
+			requestedBalanceLevel = resolved.desired.sourcePreferences[source]?.requestedLevel,
 			requestedMode = desired.presentationCode(),
 			effectiveMode = if (planNotAccepted) NOT_ACCEPTED_MODE else effective.presentationCode(),
 			state = when {

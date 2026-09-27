@@ -102,7 +102,10 @@ class AmbientRadioSourceBrokerTest {
 	}
 
 	@Test
-	fun `Wi-Fi ambient grant binds demand retention and source authority atomically`() = runTest {
+	fun `adopted Wi-Fi ambient grant stays sessionless and binds baseline callback contract atomically`() = runTest {
+        policyRepository.replaceCaptureSettings(1, TrackingParamsState(legacySettingsMigrationCompleted = true,
+            balanceProfileVersion = 1, overallBalanceLevel = 5, locationProfileVersion = 1, locationBalanceLevel = 5,
+            wifiEnabled = true), "ADOPT_ALL")
 		val policy = grant(TrackingSourceComponent.WIFI)
 		val consentEpoch = policy[TrackingSourceComponent.WIFI].ambientConsentEpoch!!
 		database.applyAmbientWifiRetentionDecision(
@@ -138,6 +141,11 @@ class AmbientRadioSourceBrokerTest {
 		val demand = database.sourceBrokerDao().currentDemands("app:ambient:wifi").single()
 		assertEquals(SourceBrokerPurpose.AMBIENT_PRODUCT, demand.purpose)
 		assertEquals(result.demand, demand)
+        assertEquals(0, demand.qosCode)
+        assertEquals(null, demand.logicalTrackingId)
+        assertEquals(com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory.forProfile(
+            SourceKind.WIFI, 1, 5, com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose.AMBIENT_PRODUCT),
+            demand.toSourceDemandContract())
 		assertEquals("privacy:wifi:ambient:v1", demand.liveAmbientRetentionPolicyId)
 		assertEquals(1L, demand.liveAmbientRetentionApprovalRevision)
 		assertEquals(policy.revision, result.reconciliationAuthority.policyRevision)

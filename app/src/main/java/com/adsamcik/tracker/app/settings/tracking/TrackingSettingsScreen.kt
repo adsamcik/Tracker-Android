@@ -173,6 +173,8 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
     TrackingSettingsContent(
         uiState = uiState,
         onPresetSelected = { trackingVm.applyPreset(it) },
+		onBalanceSelected = trackingVm::adoptBalanceProfile,
+		onSourceBalanceSelected = trackingVm::setSourceBalanceOverride,
         onAutoTrackingModeChanged = { mode ->
             if (mode > 0 && uiState.automaticControlAvailability.isOperational &&
 				!uiState.activityPermissionGranted &&
@@ -252,6 +254,8 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 internal fun TrackingSettingsContent(
     uiState: TrackingSettingsUiState,
     onPresetSelected: (TrackingPreset) -> Unit = {},
+	onBalanceSelected: (Int) -> Unit = {},
+	onSourceBalanceSelected: (TrackingSourceComponent, Int?) -> Unit = { _, _ -> },
     onAutoTrackingModeChanged: (Int) -> Unit = {},
     onTransitionDetectionChanged: (Boolean) -> Unit = {},
     onNotificationStyledChanged: (Boolean) -> Unit = {},
@@ -337,7 +341,7 @@ internal fun TrackingSettingsContent(
             .testTag("trackingSettingsList"),
         contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
-        // Only active trips need to be restarted before changes can be applied.
+        // Changes reconcile into the active source flow; status below reports any blockers.
         if (uiState.trackingActive) item {
             Card(
                 modifier = Modifier
@@ -357,7 +361,7 @@ internal fun TrackingSettingsContent(
                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
-                        stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_notice_summary),
+                        stringResource(com.adsamcik.tracker.R.string.settings_tracking_changes_apply_live),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -432,11 +436,7 @@ internal fun TrackingSettingsContent(
         }
 
         item {
-            TrackingPresetSelector(
-                selectedPreset = uiState.currentPreset,
-                currentBatteryImpact = uiState.currentBatteryImpact,
-                onPresetSelected = onPresetSelected,
-            )
+            SourceBalanceSettingsItem(uiState, onBalanceSelected)
         }
 
         // --- Data collected ---
@@ -450,7 +450,7 @@ internal fun TrackingSettingsContent(
                     icon = Icons.Default.Storage,
                 )
                 Spacer(Modifier.weight(1f))
-                if (uiState.advancedSourceControlsEnabled) {
+                if (uiState.advancedSourceControlsEnabled && uiState.balanceProfileVersion == null) {
                     TextButton(onClick = { onAdvancedSourceControlsChanged(false) }) {
                         Icon(
                             imageVector = Icons.Default.Tune,
@@ -471,7 +471,7 @@ internal fun TrackingSettingsContent(
             }
         }
 
-        if (uiState.advancedSourceControlsEnabled) {
+        if (uiState.advancedSourceControlsEnabled && uiState.balanceProfileVersion == null) {
             item {
                 AdvancedDataSourceSettings(
                     uiState = uiState,
@@ -489,9 +489,10 @@ internal fun TrackingSettingsContent(
                     onBarometerEnabledChanged = onBarometerEnabledChanged,
                     onWifiEnabledChanged = onWifiEnabledChanged,
                     onCellEnabledChanged = onCellEnabledChanged,
+					onSourceBalanceSelected = onSourceBalanceSelected,
                 )
             }
-            item {
+            if (uiState.balanceProfileVersion == null) item {
                 SettingsGroupCard(modifier = Modifier.padding(top = 8.dp)) {
                     SettingsItem(
                         title = stringResource(com.adsamcik.tracker.R.string.settings_advanced_source_controls_title),
@@ -629,6 +630,7 @@ private fun SimpleDataSourceSettings(
     onBarometerEnabledChanged: (Boolean) -> Unit,
     onWifiEnabledChanged: (Boolean) -> Unit,
     onCellEnabledChanged: (Boolean) -> Unit,
+	onSourceBalanceSelected: (TrackingSourceComponent, Int?) -> Unit,
 ) {
     SettingsGroupCard {
         SwitchSettingsItem(
@@ -638,6 +640,8 @@ private fun SimpleDataSourceSettings(
             checked = uiState.locationEnabled,
             onCheckedChange = onLocationEnabledChanged,
         )
+
+		SourceBalanceOverrideItem(TrackingSourceComponent.LOCATION, uiState, onSourceBalanceSelected)
         SettingsRowDivider()
         SwitchSettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
@@ -651,6 +655,8 @@ private fun SimpleDataSourceSettings(
             checked = uiState.activityEnabled,
             onCheckedChange = onActivityEnabledChanged,
         )
+
+		SourceBalanceOverrideItem(TrackingSourceComponent.ACTIVITY, uiState, onSourceBalanceSelected)
         SettingsRowDivider()
         SwitchSettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
@@ -669,6 +675,8 @@ private fun SimpleDataSourceSettings(
             onCheckedChange = onStepsEnabledChanged,
             enabled = uiState.stepCounterAvailable,
         )
+
+		SourceBalanceOverrideItem(TrackingSourceComponent.STEPS, uiState, onSourceBalanceSelected)
         SettingsRowDivider()
         SwitchSettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_barometer_enabled_title),
@@ -683,6 +691,8 @@ private fun SimpleDataSourceSettings(
             onCheckedChange = onBarometerEnabledChanged,
             enabled = uiState.barometerAvailable,
         )
+
+		SourceBalanceOverrideItem(TrackingSourceComponent.PRESSURE, uiState, onSourceBalanceSelected)
         SettingsRowDivider()
         SwitchSettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_enabled_title),
@@ -696,6 +706,8 @@ private fun SimpleDataSourceSettings(
             checked = uiState.wifiEnabled,
             onCheckedChange = onWifiEnabledChanged,
         )
+
+		SourceBalanceOverrideItem(TrackingSourceComponent.WIFI, uiState, onSourceBalanceSelected)
         SettingsRowDivider()
         SwitchSettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_cell_enabled_title),
@@ -709,6 +721,7 @@ private fun SimpleDataSourceSettings(
             checked = uiState.cellEnabled,
             onCheckedChange = onCellEnabledChanged,
         )
+		SourceBalanceOverrideItem(TrackingSourceComponent.CELL, uiState, onSourceBalanceSelected)
     }
 }
 

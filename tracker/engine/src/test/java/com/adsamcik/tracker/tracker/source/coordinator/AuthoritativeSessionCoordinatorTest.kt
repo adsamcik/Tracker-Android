@@ -8102,6 +8102,28 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourcePlanStateDao().latestRevision() shouldBe null
 	}
 
+    @Test
+    fun `adopted policy rejects hidden low latency and weaker radio backoff substitutions`() = runTest {
+        val settings = TrackingParamsState(legacySettingsMigrationCompleted = true,
+            balanceProfileVersion = 1, overallBalanceLevel = 2, locationProfileVersion = 1, locationBalanceLevel = 2,
+            wifiEnabled = true, cellEnabled = true)
+        val snapshot = policy.replaceCaptureSettings(1, settings, "ADOPT_ALL")
+        val environment = SourcePlanEnvironment(LocationBackend.FUSED, true, emptySet())
+        val forged = listOf(
+            (adaptiveSourcePlan(SourceKind.STEPS, 2, 1, environment) as StepsPlan).copy(movementPolicyNeedsLowLatency = true),
+            (adaptiveSourcePlan(SourceKind.WIFI, 2, 1, environment) as WifiPlan).let { it.copy(backoff = it.backoff.copy(multiplier = 1.0)) },
+            (adaptiveSourcePlan(SourceKind.CELL, 2, 1, environment) as CellPlan).let { it.copy(backoff = it.backoff.copy(multiplier = 1.0)) },
+        )
+        forged.forEach { sourcePlan ->
+            val request = startRequest().copy(plan = AcquisitionPlanRevision(1, "substituted-profile", 1_000,
+                mapOf(sourcePlan.source to sourcePlan), snapshot.revision, 1,
+                mapOf(sourcePlan.source to com.adsamcik.tracker.tracker.source.model.SourceBalancePreference(2, false))))
+            subject.start(request) shouldBe SessionStartResult.InvalidPolicy("SOURCE_PLAN_EXCEEDS_POLICY")
+        }
+        database.sourceSessionDao().activeSession() shouldBe null
+        runtime.stateObservedAtStart shouldBe null
+    }
+
 	@Test
 	fun `plan stronger than current policy QoS is rejected`() = runTest {
 		val forged = startRequest().plan.copy(

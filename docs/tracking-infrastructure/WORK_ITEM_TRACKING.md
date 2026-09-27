@@ -19,6 +19,8 @@ open; validation and integration are deferred. The historical registry below is 
 - [ ] Fix shared Wi-Fi/Cell admission: qualify each item by its destination's historical authority
   and age, preserve valid background subsets, and prohibit backward consent. Versioned contract
   confirmation and end-to-end wiring remain open; see `shared-radio/2026-09-27/CONTRACT_DECISION.md`.
+- [x] Complete five-level configuration across sources: production and focused test sources
+  authored and independently source-reviewed, **IMPLEMENTED_UNVALIDATED**. See `five-level/2026-09-27/IMPLEMENTATION_TRACE.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.

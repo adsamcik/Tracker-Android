@@ -56,7 +56,7 @@ internal class ActivityHistoricalAcquisitionConfiguration private constructor(
 		activityPlan.capturedSampledClassificationPolicy()
 
 	init {
-		require(desiredPlanPayloadVersion == SOURCE_PLAN_PAYLOAD_VERSION)
+		require(desiredPlanPayloadVersion in setOf(SOURCE_PLAN_PAYLOAD_VERSION, 3))
 		require(desiredPlanPayloadChecksum.isNotBlank())
 		require(activityPlan.revision == identity.configurationRevision)
 		require(activityPlan.enabled)
@@ -76,11 +76,12 @@ internal class ActivityHistoricalAcquisitionConfiguration private constructor(
 			desiredPlanPayload: ByteArray,
 			planCodec: SourcePlanCodec = SourcePlanCodec(),
 		): ActivityHistoricalAcquisitionConfiguration {
-			require(desiredPlanPayloadVersion == SOURCE_PLAN_PAYLOAD_VERSION)
+			require(desiredPlanPayloadVersion in setOf(SOURCE_PLAN_PAYLOAD_VERSION, 3))
 			val decoded = runCatching { planCodec.decode(desiredPlanPayload) }.getOrNull()
 			val activityPlan = decoded as? ActivityPlan
 				?: throw IllegalArgumentException("Historical Activity plan payload is unsupported")
 			val canonical = planCodec.encode(activityPlan)
+			require(canonical.formatVersion == desiredPlanPayloadVersion)
 			require(desiredPlanPayload.contentEquals(canonical.bytes)) {
 				"Historical Activity plan payload is not canonical"
 			}
@@ -103,16 +104,20 @@ internal class ActivityHistoricalAcquisitionConfiguration private constructor(
 }
 
 internal fun ActivityPlan.capturedObservationMaximumAgeNanosOrNull(): Long? =
-	desiredDetectionLatencyMs.takeIf { latencyMs ->
+	(if (adaptiveProfileVersion == 1) 120_000L else desiredDetectionLatencyMs).takeIf { latencyMs ->
 		latencyMs > 0L && latencyMs <= Long.MAX_VALUE / NANOS_PER_MILLISECOND
 	}?.times(NANOS_PER_MILLISECOND)
+
+internal fun ActivityPlan.capturedCoverageHorizonNanosOrNull(): Long? =
+    desiredDetectionLatencyMs.takeIf { it > 0L && it <= Long.MAX_VALUE / NANOS_PER_MILLISECOND }
+        ?.times(NANOS_PER_MILLISECOND)
 
 private fun ActivityPlan.capturedSampledClassificationPolicy():
 	ActivitySampledClassificationPolicy = when (mode) {
 		ActivityMode.CONTINUOUS_RECOGNITION -> ActivitySampledClassificationPolicy.DirectCaptureDetail(
 			minimumConfidencePercent = confidenceThresholdPercent,
 			maximumCoverageAfterObservationNanos =
-				requireNotNull(capturedObservationMaximumAgeNanosOrNull()),
+				requireNotNull(capturedCoverageHorizonNanosOrNull()),
 		)
 		ActivityMode.TRANSITIONS_ONLY,
 		ActivityMode.OFF,

@@ -45,6 +45,38 @@ class RoomSourcePlanStoreTest {
 		database.close()
 	}
 
+    @Test
+    fun `all-source metadata survives recreation and collisions cannot substitute live focus`() = runTest {
+        val settings = TrackingParamsState(balanceProfileVersion = 1, overallBalanceLevel = 2,
+            locationProfileVersion = 1, locationBalanceLevel = 2, legacySettingsMigrationCompleted = true,
+            autoTrackingMode = 0, wifiEnabled = true)
+        val policy = com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository(database) {
+            com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime("boot", 1, 100)
+        }.bootstrapFromLegacy(settings)
+        val plan = SemanticAcquisitionPlanFactory().create(settings.copy(sourcePolicyRevision = policy.revision), 1, 100,
+            SourcePlanEnvironment(LocationBackend.FUSED, true, setOf(1), liveSources = setOf(SourceKind.STEPS)))
+        store.persistDesired(plan, DesiredPlanStatus.DESIRED)
+        RoomSourcePlanStore(database, SourcePlanCodec()).load(1) shouldBe plan
+        val baseline = plan.sourcePreferences.toMutableMap().apply {
+            put(SourceKind.STEPS, com.adsamcik.tracker.tracker.source.model.SourceBalancePreference(2, false))
+        }
+        shouldThrow<IllegalStateException> { store.persistDesired(plan.copy(sourcePreferences = baseline), DesiredPlanStatus.APPLYING) }
+        store.load(1) shouldBe plan
+        plan.plans.values.forEach { sourcePlan ->
+            store.saveApplied(AppliedSourcePlan(1, 1, sourcePlan.source,
+                if (sourcePlan.enabled) SourceInstanceId("source-${sourcePlan.source}") else null,
+                if (sourcePlan.enabled) 1L else null, 100, SourceApplyStatus.APPLIED), sourcePlan, 100)
+        }
+        val applied = store.loadApplied(1).shouldBeInstanceOf<AppliedPlanRead.Available>().plan
+        applied.balanceProfileVersion shouldBe 1
+        applied.sourcePreferences shouldBe plan.sourcePreferences
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE source_desired_plan SET requested_balance_level = 5 WHERE revision = 1 AND source_kind = ?",
+            arrayOf(SourceKind.STEPS.stableCode))
+        store.load(1) shouldBe null
+        store.loadApplied(1).shouldBeInstanceOf<AppliedPlanRead.Invalid>()
+    }
+
 	@Test
 	fun `desired and applied adaptive plan versions survive store recreation beside legacy history`() = runTest {
 		for (version in 1..2) {

@@ -1713,7 +1713,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			demand.consentEpoch,
 		) ?: block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 		val expectedContract = runCatching {
-			SourceDemandContractFactory.forQos(SourceKind.WIFI, policy.qosCode, directPurpose)
+			policy.historicalWifiDemandContract(directPurpose)
 		}.getOrNull()
 		val actualContract = runCatching { demand.toSourceDemandContract() }.getOrNull()
 		val consentPrecedesDemand = consent.effectiveWallTimeMs <= demand.requestedAtMs &&
@@ -1727,7 +1727,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			(demand.requestedBootId != authorization.effectiveBootId ||
 				demand.requestedElapsedRealtimeNanos <= authorization.effectiveElapsedRealtimeNanos)
 		if (demand.sourceKind != WIFI_SOURCE || demand.purpose !in NONCAPTURE_BROKER_PURPOSES ||
-			policy.qosCode != demand.qosCode || policyConsentEpoch != demand.consentEpoch ||
+			policy.historicalWifiQosCode(directPurpose) != demand.qosCode || policyConsentEpoch != demand.consentEpoch ||
 			policyPersistenceEligible != demand.persistenceEligible || expectedContract == null ||
 			actualContract != expectedContract || !consent.eligible ||
 			consent.persistenceEligible != demand.persistenceEligible ||
@@ -2370,7 +2370,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				demand.consentEpoch,
 			) ?: block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 			val expectedContract = runCatching {
-				SourceDemandContractFactory.forQos(SourceKind.WIFI, demandPolicy.qosCode, directPurpose)
+				demandPolicy.historicalWifiDemandContract(directPurpose)
 			}.getOrNull()
 			val actualContract = runCatching { demand.toSourceDemandContract() }.getOrNull()
 			val consentPrecedesDemand = consent.effectiveWallTimeMs <= demand.requestedAtMs &&
@@ -2383,7 +2383,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				authorization.members.first().effectiveWallTimeMs &&
 				(demand.requestedBootId != authorization.effectiveBootId ||
 					demand.requestedElapsedRealtimeNanos <= authorization.effectiveElapsedRealtimeNanos)
-			if (demandPolicy.qosCode != demand.qosCode || expectedContract == null ||
+			if (demandPolicy.historicalWifiQosCode(directPurpose) != demand.qosCode || expectedContract == null ||
 				actualContract != expectedContract || historicalConsentEpoch != demand.consentEpoch ||
 				historicalPersistenceEligible != demand.persistenceEligible ||
 				currentConsentEpoch != demand.consentEpoch ||
@@ -3331,7 +3331,7 @@ internal data class WifiPortableAuthoritySnapshot(
 			?: return false
 		val (policyEpoch, policyPersistence) = policy.portableAuthorityFor(policyPurpose)
 		val expectedContract = runCatching {
-			SourceDemandContractFactory.forQos(SourceKind.WIFI, policy.qosCode, directPurpose)
+			policy.historicalWifiDemandContract(directPurpose)
 		}.getOrNull() ?: return false
 		val actualContract = runCatching { demand.toSourceDemandContract() }.getOrNull() ?: return false
 		val lifecycleValid = when (demand.status) {
@@ -3358,7 +3358,7 @@ internal data class WifiPortableAuthoritySnapshot(
 		return lifecycleValid && demand.sourceKind == WIFI_SOURCE &&
 			(demand.purpose != CAPTURE_PURPOSE || policy.enabled) &&
 			policy.sourceKind == WIFI_SOURCE && policy.policyRevision == demand.sourcePolicyRevision &&
-			policy.qosCode == demand.qosCode && policyEpoch == demand.consentEpoch &&
+			policy.historicalWifiQosCode(directPurpose) == demand.qosCode && policyEpoch == demand.consentEpoch &&
 			policyPersistence == demand.persistenceEligible && expectedContract == actualContract &&
 			consent.sourceKind == WIFI_SOURCE && consent.purpose == policyPurpose &&
 			consent.epoch == demand.consentEpoch && consent.eligible &&
@@ -3548,3 +3548,23 @@ private val WIFI_PROVIDER_ITEM_ORDER = compareBy<WifiAccessPointEvidence>(
 )
 private const val MAX_CANONICAL_WIFI_PAYLOAD_BYTES = MAX_WIFI_WAL_PAYLOAD_BYTES
 private val DEFAULT_LIMITS = WifiCapturedMaintenanceLimits()
+
+/** Profile-based ambient radio keeps its independent QoS-zero callback demand, without live focus. */
+private fun SourcePolicyEntity.historicalWifiQosCode(purpose: DirectSourceDemandPurpose): Int =
+    if (balanceProfileVersion != null && purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT) 0 else qosCode
+
+private fun SourcePolicyEntity.historicalWifiDemandContract(purpose: DirectSourceDemandPurpose): SourceDemandContract {
+    if (balanceProfileVersion != null && purpose in setOf(
+            DirectSourceDemandPurpose.SESSION_CAPTURE, DirectSourceDemandPurpose.AMBIENT_PRODUCT)) {
+        require(balanceProfileVersion == 1)
+        val baseline = requireNotNull(balanceLevel)
+        require(baseline in 1..5 && overallBalanceLevel?.let { it in 1..5 } == true)
+        require(baseline == (sourceBalanceOverride ?: overallBalanceLevel))
+        return SourceDemandContractFactory.forProfile(SourceKind.WIFI, 1,
+            if (purpose == DirectSourceDemandPurpose.SESSION_CAPTURE) maxOf(baseline, 4) else baseline, purpose)
+    }
+    if (balanceProfileVersion == null) {
+        require(balanceLevel == null && overallBalanceLevel == null && sourceBalanceOverride == null)
+    }
+    return SourceDemandContractFactory.forQos(SourceKind.WIFI, qosCode, purpose)
+}

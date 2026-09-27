@@ -630,4 +630,11 @@
     <string name="settings_tracebox_title">Crash diagnostics</string>
     <string name="settings_tracebox_root_summary">Local crash, ANR, and structural diagnostics</string>
 
+    <string name="settings_tracking_changes_apply_live">Changes update current tracking</string>
+    <string name="settings_balance_title">Power and detail</string>
+    <string name="settings_balance_custom">Custom settings · Choose balance</string>
+    <string name="settings_balance_value">Balance: %1$s</string>
+    <string name="settings_balance_inherit_value">Details · Use overall: %1$s</string>
+    <string name="settings_balance_inherit">Use overall balance</string>
+    <string name="settings_balance_summary">Choose the usual quality for your selected sources. Live sessions favor detail for participating sources. Choosing a balance replaces legacy collection rates; source choices, background consent and accuracy filters stay as saved.</string>
 </resources>
