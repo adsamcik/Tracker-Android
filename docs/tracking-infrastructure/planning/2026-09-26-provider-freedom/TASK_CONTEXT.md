@@ -383,3 +383,23 @@ See ../../passive-location/2026-09-27/CONTRACT_AND_TRACE.md. Earlier pending dec
 Current source already includes a durable observed-user-stop gate distinct from the positive
 force-stop process guard; the new passive receiver/recovery must reuse both. Whole passive Location
 and the assembly gate remain open.
+
+## 33. Background Steps execution request (2026-09-27)
+
+Original user text:
+
+> **Complete background Steps execution.** Finish supported system-provider import scheduling, count-domain deduplication, bounded recovery and honest coverage gaps.
+
+All original user messages above and user-provided AGENTS.md apply. IMPLEMENTATION_ONLY continues:
+bounded production/test-source authorship, static inspection/review and coherent local checkpoint
+only. No Gradle, compilation, tests/lint/Detekt/schema/diff-check/device/UI/battery/CI/release/
+rollout validation, activation, push or new dev/v10 integration. Protected paths/drafts preserved.
+Candidate starts at fee73e09c4; main dev/v10 remains 13f1a99871.
+
+Independent review-only background_steps_review inherits all original messages and requirements;
+no recursive delegation. It reviewed the exact bounded retention diff, including authored test sources.
+The new scheduling cadence/bounds were explicitly asked via a question tool under AGENTS.md;
+confirmation is pending. No reply is inferred. Dependent scheduler/worker/budget contracts are
+unapplied. The existing native aggregate importer has real semantic revisions, not fabricated WAL
+ordinals; the separately pending generic native-product proof question remains open.
+See ../../background-steps/2026-09-27/IMPLEMENTATION_TRACE.md and SCHEDULING_CONTRACT.md.

@@ -161,6 +161,14 @@ internal class AmbientStepsFactImporter internal constructor(
 		if (startupGate?.permitsNewCollection == false) return ineligible(AmbientStepsImportIneligibleReason.AUTHORIZATION_INELIGIBLE)
 		val lifecycle = lifecycleSnapshotOrNull()
 			?: return retryable(AmbientStepsImportRetryableReason.STORAGE_UNAVAILABLE)
+		// A delayed execution can request a high-water that retention has already passed. No
+		// permitted provider window exists yet; do not advance the cursor beyond this attempt's
+		// upper bound or misclassify its absence as a failed storage mutation.
+		// throughTimeMs is second-aligned, so comparing the raw floor is equivalent to rounding
+		// it forward first and also remains safe for a floor near Long.MAX_VALUE.
+		if (lifecycle.retainedFromMs?.let { it > boundary.throughTimeMs } == true) {
+			return AmbientStepsImportResult.NoEvidence(AmbientStepsImportNoEvidenceReason.NO_WINDOW_AVAILABLE)
+		}
 		val preflight = try {
 			database.withTransaction {
 				if (

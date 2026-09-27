@@ -31,6 +31,10 @@ open; validation and integration are deferred. The historical registry below is 
   recovery contract prepared; confirmation and dependent implementation remain open. See
   `passive-location/2026-09-27/CONTRACT_AND_TRACE.md`. Process-bound passive callbacks do not
   establish system-rearmable delivery.
+- [ ] Complete background Steps execution: supported provider import has no production scheduler;
+  execution permission, finite recovery and predecessor drain wiring remain open. A retention
+  high-water correction and focused regression sources are authored, **IMPLEMENTED_UNVALIDATED**.
+  See `background-steps/2026-09-27/IMPLEMENTATION_TRACE.md` and `SCHEDULING_CONTRACT.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.

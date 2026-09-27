@@ -845,6 +845,57 @@ class AmbientStepsFactImporterTest {
 		reader.windows shouldBe listOf(AmbientStepsProviderReadWindow(7_000L, 8_000L))
 	}
 
+	@Test
+	fun `retention beyond requested high-water leaves cursor and coverage untouched`() = runTest {
+		val reader = RecordingAmbientReader { _, _ -> error("No retained window may be read") }
+		val importer = subject(reader)
+		primeZone(importer)
+		val cursorBefore = database.ambientStepsImportStateDao()
+			.cursor(registration.state.registrationGeneration)
+		val evidenceBefore = database.sourceEvidenceStateDao().get()
+		lifecycleStore.set(CollectedDataLifecycleSnapshot(
+			epoch = COLLECTED_DATA_EPOCH,
+			retainedFromMs = 6_001L,
+		))
+
+		// The whole-second provider floor is 7000: even a request ending at 6000 has no window.
+		importer.importNext(importBoundary(through = 6_000L)) shouldBe
+			AmbientStepsImportResult.NoEvidence(AmbientStepsImportNoEvidenceReason.NO_WINDOW_AVAILABLE)
+
+		reader.windows shouldBe emptyList()
+		database.ambientStepsImportStateDao()
+			.cursor(registration.state.registrationGeneration) shouldBe cursorBefore
+		database.ambientStepsImportStateDao()
+			.gaps(registration.state.registrationGeneration) shouldBe emptyList()
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get() shouldBe evidenceBefore
+	}
+
+	@Test
+	fun `extreme retention floor returns no window without overflow or mutation`() = runTest {
+		val reader = RecordingAmbientReader { _, _ -> error("No retained window may be read") }
+		val importer = subject(reader)
+		primeZone(importer)
+		val cursorBefore = database.ambientStepsImportStateDao()
+			.cursor(registration.state.registrationGeneration)
+		val evidenceBefore = database.sourceEvidenceStateDao().get()
+		lifecycleStore.set(CollectedDataLifecycleSnapshot(
+			epoch = COLLECTED_DATA_EPOCH,
+			retainedFromMs = Long.MAX_VALUE,
+		))
+
+		importer.importNext(importBoundary(through = 6_000L)) shouldBe
+			AmbientStepsImportResult.NoEvidence(AmbientStepsImportNoEvidenceReason.NO_WINDOW_AVAILABLE)
+
+		reader.windows shouldBe emptyList()
+		database.ambientStepsImportStateDao()
+			.cursor(registration.state.registrationGeneration) shouldBe cursorBefore
+		database.ambientStepsImportStateDao()
+			.gaps(registration.state.registrationGeneration) shouldBe emptyList()
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get() shouldBe evidenceBefore
+	}
+
 	private fun subject(reader: RecordingAmbientReader, gate: TrackingStartupGate? = null) = AmbientStepsFactImporter(
 		database = database,
 		lifecycleStore = lifecycleStore,

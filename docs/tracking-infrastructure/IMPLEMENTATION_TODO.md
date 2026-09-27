@@ -1761,3 +1761,25 @@ contracts stay pending. Main dev/v10 remains unchanged. No validation or activat
 
 Concrete trace: passive-location/2026-09-27/CONTRACT_AND_TRACE.md. No passive production behavior
 was changed by this planning slice; this does not close TODO-LOC-* or the assembly gate.
+
+## 2026-09-27 background Steps continuation
+
+- [x] TODO-BG-STEPS-TRACE Trace capability, registration, importer, native count-domain receipts,
+  coverage, recovery and caller boundaries; static inspection only.
+- [x] TODO-BG-STEPS-RETENTION Author no-window handling when retention exceeds the requested
+  high-water, including ordinary/extreme-floor no-mutation regression sources.
+- [ ] TODO-BG-STEPS-SCHEDULE Confirm cadence/bounds and implement one serialized Steps execution
+  owner with periodic and immediate opportunities using existing WorkManager infrastructure.
+- [ ] TODO-BG-STEPS-ACCESS Recheck current provider support, read/background permissions, consent,
+  accepted residency, lifecycle and startup suppression on every execution; foreground-only reads
+  require a lawful foreground opportunity rather than permission borrowing from a session.
+- [ ] TODO-BG-STEPS-RECOVERY Bound provider operations and retries without advancing missing current
+  coverage or losing an undrained predecessor; preserve acknowledged retirement and exact replay.
+- [ ] TODO-BG-STEPS-COVERAGE Keep tokenless native aggregates UNPROVEN for overlap with direct Steps;
+  do not sum live and system counts or fabricate zero, late-day corrections or historical zones.
+- [ ] TODO-BG-STEPS-TEST-SOURCES Author worker/permission/retry/handoff/coverage regression sources.
+- [ ] TODO-BG-STEPS-REVIEW Review the complete applied execution slice after dependent work exists.
+
+Details: background-steps/2026-09-27/IMPLEMENTATION_TRACE.md and SCHEDULING_CONTRACT.md.
+The whole item remains open. No scheduler, read permission contract, activation or dev/v10
+integration was changed; test sources are uncompiled/unrun under IMPLEMENTATION_ONLY.
