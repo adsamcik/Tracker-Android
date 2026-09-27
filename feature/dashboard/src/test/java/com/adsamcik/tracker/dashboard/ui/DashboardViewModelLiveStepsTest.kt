@@ -1,5 +1,10 @@
 package com.adsamcik.tracker.dashboard.ui
 
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.SharingStarted
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.dashboard.data.DashboardHistoryRepository
@@ -654,7 +659,7 @@ class DashboardViewModelLiveStepsTest {
 		}
 	}
 
-	private fun createViewModel(
+	private fun TestScope.createViewModel(
 		running: MutableStateFlow<Boolean>,
 		session: MutableStateFlow<TrackerSessionSnapshot?>,
 		trackingHistoryRepository: TrackingHistoryRepository,
@@ -663,6 +668,10 @@ class DashboardViewModelLiveStepsTest {
 		every { layoutRepository.layout } returns flowOf(DashboardLayout())
 		val trackerStateReader = mockk<TrackerStateReader>()
 		every { trackerStateReader.isServiceRunningFlow } returns running
+		every { trackerStateReader.sessionInfoFlow } returns running
+			.map { active -> if (active) TrackerSessionInfo(true) else null }
+			.stateIn(backgroundScope, SharingStarted.Eagerly,
+				if (running.value) TrackerSessionInfo(true) else null)
 		every { trackerStateReader.sessionFlow } returns session
 		val lockManager = mockk<LockManager>()
 		every { lockManager.isLockedFlow } returns MutableStateFlow(false)

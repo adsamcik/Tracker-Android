@@ -287,15 +287,38 @@ class SharedStepSourceControllerTest {
 		coEvery { physical.reconfigure(claim, any(), unboundSink) } answers {
 			SourceApplyResult.Applied(applied(secondArg()))
 		}
-		coEvery { physical.quiesce(cutoff) } returnsMany listOf(providerFailedAck(), completeAck())
+		coEvery { physical.quiesce(any()) } returnsMany listOf(providerFailedAck(), providerFailedAck(), completeAck())
 
 		assertIs<SourceStartResult.Started>(subject.start(claim, plan, mockk()))
 		assertEquals(SourceStopStatus.PROVIDER_FAILED, subject.quiesce(cutoff).status)
 		subject.close()
 
 		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(claim, cutoff))
-		coVerify(exactly = 2) { physical.quiesce(cutoff) }
-		coVerify(exactly = 1) { physical.close() }
+		coVerify(exactly = 3) { physical.quiesce(any()) }
+		coVerify(exactly = 0) { physical.close() }
+	}
+
+	@Test
+	fun `foreign Steps start reconfigure and disable preserve lawful predecessor`() = runTest {
+		val capture = demand(SourceBrokerPurpose.SESSION_CAPTURE, "session:logical-1")
+		coEvery { broker.authorizationDemands(SourceKind.STEPS) } returns listOf(capture)
+		val owner = runtimeClaim("owner")
+		val plan = StepsPlan(9L, true, 5_000L, 15_000L, false)
+		coEvery { physical.reconfigure(owner, any(), unboundSink) } answers {
+			SourceApplyResult.Applied(applied(secondArg()))
+		}
+		coEvery { physical.quiesce(any()) } returns completeAck()
+		assertIs<SourceStartResult.Started>(subject.start(owner, plan, mockk()))
+		for (foreign in listOf(owner.copy(logicalTrackingId = "other"),
+			owner.copy(serviceRunId = "other-run"), owner.copy(leaseGeneration = 2L))) {
+			assertIs<SourceStartResult.Blocked>(subject.start(foreign, plan, mockk()))
+			assertIs<SourceApplyResult.Failed>(subject.reconfigure(foreign, plan, mockk()))
+			assertIs<SourceApplyResult.Failed>(subject.reconfigure(foreign, plan.copy(enabled = false), mockk()))
+		}
+		coVerify(exactly = 1) { physical.reconfigure(any(), any(), any()) }
+		coVerify(exactly = 0) { physical.close() }
+		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(owner,
+			SessionCutoff("logical-1", 900L, 10L, Long.MAX_VALUE)))
 	}
 
 	private fun demand(purpose: String, consumer: String) = SourceDemandEntity(

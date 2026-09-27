@@ -24,7 +24,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!--
-        Runtime types follow active sources: LOCATION only while GPS collection is active,
+        Runtime types follow accepted sources: LOCATION for location-accessing Location/Wi-Fi/Cell,
         HEALTH while activity/step collection is active, and SPECIAL_USE only for a genuinely
         uncovered signal-only session. Permission possession alone never adds a type.
     -->

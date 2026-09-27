@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.map.ui
 
+import com.adsamcik.tracker.tracker.controller.hasLiveCapture
+import com.adsamcik.tracker.tracker.controller.hasLiveCaptureFlow
 import android.os.StrictMode
 import android.os.SystemClock
 import android.provider.Settings
@@ -211,7 +213,7 @@ fun MapScreen(
     val hasLocationPermission = isLocationPermissionGranted || locationPermissionFlow.isGranted
     var isPermissionBannerDismissed by rememberSaveable { mutableStateOf(false) }
     val trackerController = store.trackerController
-    val isTracking by trackerController.isServiceRunningFlow.collectAsState()
+    val isTracking by trackerController.hasLiveCaptureFlow.collectAsState(initial = trackerController.hasLiveCapture)
     val activeSession by trackerController.sessionFlow.collectAsState()
     val livePathPoints by trackerController.pathPointsFlow.collectAsState()
     val activeSessionId = activeSession?.id

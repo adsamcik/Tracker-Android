@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.dashboard.ui
 
+import com.adsamcik.tracker.tracker.controller.hasLiveCaptureFlow
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -122,7 +123,7 @@ class DashboardViewModel @Inject constructor(
 	val trackingParams: StateFlow<TrackingParamsState> = trackingParamsRepository.data
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TrackingParamsState())
 
-	val isTracking: StateFlow<Boolean> = trackerStateReader.isServiceRunningFlow
+	val isTracking: StateFlow<Boolean> = trackerStateReader.hasLiveCaptureFlow
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 	val isLocked: StateFlow<Boolean> = lockManager.isLockedFlow
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -133,7 +134,7 @@ class DashboardViewModel @Inject constructor(
 	 */
 	@OptIn(ExperimentalCoroutinesApi::class)
 	val recentHistory: StateFlow<DashboardRecentHistoryState> =
-		trackerStateReader.isServiceRunningFlow
+		trackerStateReader.hasLiveCaptureFlow
 			.flatMapLatest { isRunning ->
 				if (isRunning) {
 					flowOf(DashboardRecentHistoryState.Loading)
@@ -169,7 +170,7 @@ class DashboardViewModel @Inject constructor(
 	 */
 	@OptIn(ExperimentalCoroutinesApi::class)
 	val liveSessionPresentation: StateFlow<DashboardLiveSessionPresentation> = combine(
-		trackerStateReader.isServiceRunningFlow,
+		trackerStateReader.hasLiveCaptureFlow,
 		trackerStateReader.sessionFlow,
 	) { isRunning, session ->
 		session?.id?.takeIf { isRunning && it > 0L }

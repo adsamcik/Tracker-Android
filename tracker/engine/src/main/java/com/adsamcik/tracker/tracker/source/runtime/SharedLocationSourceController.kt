@@ -59,7 +59,13 @@ class SharedLocationSourceController @Inject constructor(
 		val previousClaim = sessionClaim
 		sessionPlan = plan
 		sessionClaim = claim
-		val demands = selectedDemands()
+		val demands = try {
+			selectedDemands()
+		} catch (failure: Throwable) {
+			sessionPlan = previousPlan
+			sessionClaim = previousClaim
+			throw failure
+		}
 		if (demands.none { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
 			sessionPlan = previousPlan
 			sessionClaim = previousClaim
@@ -101,13 +107,16 @@ class SharedLocationSourceController @Inject constructor(
 	): SourceApplyResult {
 		@Suppress("UNUSED_VARIABLE") val sessionSinkCannotRelabelSharedEvidence = sink
 		if (!plan.enabled) {
+			if (claim != null && sessionClaim != null && claim != sessionClaim) {
+				return SourceApplyResult.Failed(blockedState(plan), retryable = false)
+			}
 			val claim = sessionClaim
 			if (claim != null) {
 				val cutoff = SessionCutoff(
 					logicalTrackingId = claim.logicalTrackingId,
 					elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
 					wallTimeMs = System.currentTimeMillis(),
-					deadlineElapsedRealtimeNanos = Long.MAX_VALUE,
+					deadlineElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos() + 3_000_000_000L,
 				)
 				val acknowledgement = quiesceLocked(cutoff)
 				return if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
@@ -134,7 +143,13 @@ class SharedLocationSourceController @Inject constructor(
 		val previousClaim = sessionClaim
 		sessionPlan = plan
 		sessionClaim = claim
-		val demands = selectedDemands()
+		val demands = try {
+			selectedDemands()
+		} catch (failure: Throwable) {
+			sessionPlan = previousPlan
+			sessionClaim = previousClaim
+			throw failure
+		}
 		if (demands.none { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
 			sessionPlan = previousPlan
 			sessionClaim = previousClaim
@@ -168,6 +183,20 @@ class SharedLocationSourceController @Inject constructor(
 	}
 
 	private suspend fun quiesceLocked(cutoff: SessionCutoff): SourceStopAck {
+		val previousPlan = sessionPlan
+		val retiringClaim = sessionClaim
+		require(retiringClaim == null || cutoff.logicalTrackingId == retiringClaim.logicalTrackingId) {
+			"A session cutoff cannot release another logical source owner"
+		}
+		return try {
+			settleSessionCutoffLocked(cutoff)
+		} catch (failure: Throwable) {
+			sessionPlan = previousPlan
+			throw failure
+		}
+	}
+
+	private suspend fun settleSessionCutoffLocked(cutoff: SessionCutoff): SourceStopAck {
 		val priorPlan = sessionPlan
 		val retiringClaim = sessionClaim
 		sessionPlan = null
@@ -204,7 +233,7 @@ class SharedLocationSourceController @Inject constructor(
 		cutoff: SessionCutoff,
 	): OwnedSourceShutdown = mutex.withLock {
 		require(claim.source == source)
-		if (sessionClaim != claim) return@withLock OwnedSourceShutdown.NotOwned
+		if (sessionClaim != claim) return@withLock physicalRuntime.shutdownIfOwned(claim, cutoff)
 		quiesceLocked(cutoff).toOwnedShutdown().also { shutdown ->
 			if (shutdown is OwnedSourceShutdown.Released) sessionClaim = null
 		}
@@ -305,6 +334,16 @@ class SharedLocationSourceController @Inject constructor(
 	}
 
 	override suspend fun close() = mutex.withLock {
+		val retiringClaim = sessionClaim
+		if (retiringClaim != null) {
+			val now = SystemClock.elapsedRealtimeNanos()
+			val acknowledgement = quiesceLocked(
+				SessionCutoff(retiringClaim.logicalTrackingId, now, System.currentTimeMillis(),
+					now + 3_000_000_000L),
+			)
+			if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) sessionClaim = null
+			return@withLock Unit
+		}
 		sessionPlan = null
 		sessionClaim = null
 		val demands = selectedDemands()

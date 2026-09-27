@@ -1482,7 +1482,7 @@ class DefaultActivityRegistrationArbiterTest {
 	}
 
 	@Test
-	fun `failed replacement preserves the accepted provider and pointer`() = runTest {
+	fun `failed successor leaves retired predecessor pointer and honest acquisition gap`() = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
 		)
@@ -1508,12 +1508,12 @@ class DefaultActivityRegistrationArbiterTest {
 			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 10),
 		)
 
-		replacement.status shouldBe ActivityRegistrationStatus.DEGRADED
-		replacement.snapshot.active shouldBe true
+		replacement.status shouldBe ActivityRegistrationStatus.FAILED
+		replacement.snapshot.active shouldBe false
 		replacement.snapshot.identity shouldBe firstIdentity
-		removedIdentities shouldBe emptyList()
+		removedIdentities shouldBe listOf(firstIdentity)
 		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, 1L)?.status shouldBe
-			ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+			ProviderRegistrationGenerationEntity.STATUS_RETIRED
 		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, 2L)?.status shouldBe
 			ProviderRegistrationGenerationEntity.STATUS_FAILED
 		statusDuringFailedApply shouldBe listOf(ProviderRegistrationGenerationEntity.STATUS_RESERVED)
@@ -1522,7 +1522,7 @@ class DefaultActivityRegistrationArbiterTest {
 	}
 
 	@Test
-	fun `successful replacement accepts new provider before retiring and removing old`() = runTest {
+	fun `successful replacement acknowledges predecessor retirement before successor request`() = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
 		)
@@ -1531,6 +1531,15 @@ class DefaultActivityRegistrationArbiterTest {
 			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
 		)
 		val firstIdentity = requireNotNull(first.snapshot.identity)
+
+		coEvery { backend.applyRegistration(any(), any()) } coAnswers {
+			removedIdentities shouldBe listOf(firstIdentity)
+			database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, 1L)?.status shouldBe
+				ProviderRegistrationGenerationEntity.STATUS_RETIRED
+			statusesObservedAtProviderCall += requireNotNull(database.sourceBrokerDao().registration(
+				ACTIVITY_SOURCE_KIND, arg<ActivityRegistrationIdentity>(1).registrationGeneration)).status
+			true
+		}
 
 		val replacement = subject.setDemand(
 			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
@@ -1554,7 +1563,7 @@ class DefaultActivityRegistrationArbiterTest {
 	}
 
 	@Test
-	fun `failed old-provider cleanup remains durable and retries without replacing new provider`() = runTest {
+	fun `failed predecessor removal blocks successor until acknowledged retry`() = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
 		)
@@ -1577,8 +1586,9 @@ class DefaultActivityRegistrationArbiterTest {
 		replacement.status shouldBe ActivityRegistrationStatus.DEGRADED
 		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, 1L)?.status shouldBe
 			ProviderRegistrationGenerationEntity.STATUS_RETIRING
-		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, 2L)?.status shouldBe
-			ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+		replacement.snapshot.active shouldBe false
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, 2L) shouldBe null
+		coVerify(exactly = 1) { backend.applyRegistration(any(), any()) }
 
 		val reconciled = subject.reconcileDurableDemands()
 
@@ -1613,7 +1623,7 @@ class DefaultActivityRegistrationArbiterTest {
 	}
 
 	@Test
-	fun `failed stale cleanup does not block last demand from fencing current provider`() = runTest {
+	fun `last demand removal stays fenced while exact predecessor cleanup is pending`() = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
 		)
@@ -1631,7 +1641,7 @@ class DefaultActivityRegistrationArbiterTest {
 			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
 			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 10),
 		)
-		val secondIdentity = requireNotNull(replacement.snapshot.identity)
+		replacement.snapshot.active shouldBe false
 		database.sourceBrokerDao().retireConsumer("app:auto", "boot-1", 300L, 300L)
 
 		val cleared = subject.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
@@ -1639,15 +1649,15 @@ class DefaultActivityRegistrationArbiterTest {
 		cleared.status shouldBe ActivityRegistrationStatus.DEGRADED
 		cleared.failureCode shouldBe ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED
 		cleared.snapshot.active shouldBe false
-		removedIdentities.contains(secondIdentity) shouldBe true
+		removedIdentities.all { it == firstIdentity } shouldBe true
 		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, 1L)?.status shouldBe
 			ProviderRegistrationGenerationEntity.STATUS_RETIRING
-		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, 2L)?.status shouldBe
-			ProviderRegistrationGenerationEntity.STATUS_RETIRED
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, 2L) shouldBe null
+		coVerify(exactly = 1) { backend.applyRegistration(any(), any()) }
 	}
 
 	@Test
-	fun `failed stale cleanup blocks another replacement while current provider remains active`() = runTest {
+	fun `failed retirement blocks all later replacement requests without overlap`() = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
 		)
@@ -1667,11 +1677,12 @@ class DefaultActivityRegistrationArbiterTest {
 			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 15),
 		)
 
-		blockedReplacement.status shouldBe ActivityRegistrationStatus.DEGRADED
+		blockedReplacement.status shouldBe ActivityRegistrationStatus.FAILED
 		blockedReplacement.failureCode shouldBe ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED
 		blockedReplacement.snapshot.identity shouldBe acceptedIdentity
-		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, 3L) shouldBe null
-		coVerify(exactly = 2) { backend.applyRegistration(any(), any()) }
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, 2L) shouldBe null
+		blockedReplacement.snapshot.active shouldBe false
+		coVerify(exactly = 1) { backend.applyRegistration(any(), any()) }
 	}
 
 	@Test

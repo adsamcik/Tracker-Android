@@ -32,6 +32,8 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -55,6 +57,46 @@ import org.robolectric.shadows.ShadowSystemClock
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
 class CellSourceRuntimeTest {
+	@Test
+	fun `unsettled Cell admission retains exact retirement and blocks replacement`() = runTest {
+		val initialPlan = cellPlan(revision = 1L)
+		val successorPlan = initialPlan.copy(revision = 2L,
+			mode = CellMode.OBSERVE_AND_SPARSE_REFRESH,
+		)
+		val fixture = runtimeFixture(this, initialPlan)
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		fixture.start(cellCandidateSink {
+			withContext(NonCancellable) {
+				entered.complete(Unit)
+				release.await()
+				SourceAdmissionHandoff.Durable(1L)
+			}
+		})
+		fixture.emit(freshProviderDelivery())
+		runCurrent()
+		entered.await()
+		try {
+			val stopping = async { fixture.quiesce(deadlineOffsetNanos = 1L) }
+			runCurrent()
+			advanceTimeBy(2_010L)
+			runCurrent()
+			assertTrue(stopping.isCompleted)
+			val acknowledgement = stopping.await()
+			assertEquals(SourceStopStatus.TIMED_OUT, acknowledgement.status)
+			assertFalse(acknowledgement.appDrainComplete)
+			assertEquals(acknowledgement, fixture.quiesce(deadlineOffsetNanos = 1L))
+			assertTrue(fixture.runtime.reconfigure(successorPlan,
+				SourceEventSink { SourceAdmissionHandoff.Durable(2L) }) is SourceApplyResult.Failed)
+			coVerify(exactly = 1) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
+			coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+		} finally {
+			release.complete(Unit)
+			runCurrent()
+			fixture.runtime.close()
+		}
+	}
+
 	@Test
 	fun `ambiguous retirement completion reuses exact token before replacement`() = runTest {
 		val initialPlan = cellPlan(revision = 1L)

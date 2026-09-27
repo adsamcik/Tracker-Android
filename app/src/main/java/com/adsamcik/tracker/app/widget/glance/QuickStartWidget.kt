@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.widget.glance
 
+import com.adsamcik.tracker.tracker.controller.hasLiveCapture
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
@@ -47,7 +48,7 @@ class QuickStartWidget : GlanceAppWidget() {
                 TrackerWidgetEntryPoint::class.java,
             )
             val controller = entryPoint.trackerStateReader()
-            isRunning = controller.isServiceRunning
+            isRunning = controller.hasLiveCapture
             val session = controller.sessionFlow.value
             durationText = if (isRunning && session != null) {
                 val elapsed = System.currentTimeMillis() - session.start

@@ -22,7 +22,7 @@ class ToggleTrackingAction : ActionCallback {
         parameters: ActionParameters,
     ) {
         try {
-            val isRunning = TrackerServiceApi.isActive(context)
+            val isRunning = TrackerServiceApi.hasLiveCapture(context)
             if (isRunning) {
                 TrackerServiceApi.stopService(context)
             } else {

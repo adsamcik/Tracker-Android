@@ -24,6 +24,9 @@ open; validation and integration are deferred. The historical registry below is 
 - [ ] Implement source-specific power behavior: independent Steps reporting/request-ownership
   fixes and focused test sources authored; durable intent budget, carried cooldown and profile
   freshness remain open pending the recovery contract. See `source-power/2026-09-27/IMPLEMENTATION_TRACE.md`.
+- [ ] Finish shared provider and host ownership: bounded claimant, retirement, capture/host type and
+  control-state fixes authored; optional radio hosting and feature Location leases remain pending
+  contract confirmation. See `provider-host/2026-09-27/IMPLEMENTATION_TRACE.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.
@@ -89,6 +92,31 @@ The checked slices above are IMPLEMENTED_UNVALIDATED source work. The whole task
 its initial/final bounded static review is recorded in `source-power/2026-09-27/REVIEW_RECEIPT.md`.
 No checkpoint proposal is implicitly approved. Existing per-registration budget reset paths remain
 until its dependent slice is completed.
+
+### Shared provider and host ownership slices
+
+- [x] Static trace of all six singleton source bindings and direct/system Steps count-domain separation.
+- [x] Exact Location/Wi-Fi/Cell/Steps claimed capture joins, rejected-join rollback, stale disabled-claim
+  fencing and acknowledged claimed close; preserve independent baseline joins. Source/test authorship.
+- [x] Radio unsettled actor/retirement receipt retention; finite cancelled-actor join and replacement
+  fencing. Source/test authorship, including noncooperative admission cases.
+- [x] Activity changed-request predecessor retirement before successor registration; pending cleanup
+  blocks replacement. Authored source cases replace prior make-before-break expectations.
+- [x] Authenticate capture FGS mask separately from the full acknowledged host union; no source consent
+  borrowing. Authored source-only/API and stale-union cases.
+- [x] Derived live capture versus physical collection host predicates in session UI, widgets, shortcuts,
+  automatic decisions and deletion presentation cleanup; preserve writer's physical host-loss fence.
+- [x] Existing Location host ticket promotion uses the shared sub-five-second deadline; exact service
+  attachment and accepted-ticket abandonment; authored delayed-authority/concurrent-ticket cases.
+- [ ] Confirm final per-radio saved notification-host contract and feature Location/sunrise subdesign.
+- [ ] Implement multi-source host, source-specific options/notifications and final-host release.
+- [ ] Implement shared nonpersisting Map/game lease adapter, observed-time capability/freshness routing
+  and eliminate permanent sunrise provider. Live-feed baseline regression is fixed; existing generic
+  live capture still does not prove Location quality/capability until that adapter is complete.
+- [ ] Complete independent static review of the entire ownership slice after dependent work exists.
+
+Checked entries describe bounded IMPLEMENTED_UNVALIDATED source work only; the whole item is open.
+See `provider-host/2026-09-27/IMPLEMENTATION_TRACE.md` and `REVIEW_RECEIPT.md` for exact limits.
 
 ## 2026-09-20 authority and Steps P5 integration ledger
 

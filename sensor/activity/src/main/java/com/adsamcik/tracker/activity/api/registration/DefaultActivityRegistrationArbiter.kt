@@ -506,6 +506,13 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			return applied(current)
 		}
 
+		// Changed physical requests must retire their exact predecessor before any successor binder call.
+		// A removal/storage failure keeps a retryable gap, never two simultaneous registrations.
+		if (current.active || systemRegistrationRequiresRearm) {
+			val retired = fenceAndRemoveLocked(clearOwners = false)
+			if (retired.status != ActivityRegistrationStatus.APPLIED) return retired
+		}
+
 		val reservation = try {
 			reserveIdentity(combined, physicalConfigurationFingerprint)
 		} catch (error: CancellationException) {
@@ -604,6 +611,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		currentCallbackMetadata = combined.callbackMetadata
 		systemRegistrationRequiresRearm = false
 		val removalFailed = previous != null &&
+			previous.status != ProviderRegistrationGenerationEntity.STATUS_RETIRED &&
 			!removeAndCompleteRegistration(previous, nonCancellable = true)
 		currentCoroutineContext().ensureActive()
 		if (removalFailed) {

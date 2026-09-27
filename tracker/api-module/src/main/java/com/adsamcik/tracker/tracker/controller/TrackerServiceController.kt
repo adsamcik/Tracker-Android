@@ -22,7 +22,8 @@ import kotlinx.coroutines.flow.StateFlow
 interface TrackerStateReader {
     /**
      * Observable tracking service running state.
-     * True when TrackerService is actively running.
+     * True while TrackerService hosts accepted collection work, including background-only work.
+     * Session controls use hasLiveCapture/hasLiveCaptureFlow.
      */
     val isServiceRunningFlow: StateFlow<Boolean>
     

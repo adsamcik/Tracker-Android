@@ -328,7 +328,10 @@ internal class TrackerService : CoreService() {
 		createCycleDispatcher()
 		backgroundLocationHost.attach(this) {
 			launch { reconcileLocationMotionScope() }
-			if (sessionInfo == null && !startSingleFlight.get() && liveTeardownJob?.isActive != true) stopSelf()
+			// A successor can acknowledge its host while a predecessor release dispatches to main.
+			if (backgroundLocationHost.active.value == null && sessionInfo == null &&
+				!startSingleFlight.get() && liveTeardownJob?.isActive != true
+			) stopSelf()
 		}
 		backgroundHostObservationJob = launch {
 			trackingParamsRepository.data.collect {
@@ -370,6 +373,7 @@ internal class TrackerService : CoreService() {
 						backgroundOnly = sessionInfo == null && !startSingleFlight.get())
 				}
 				if (accepted) {
+					controller.updateServiceRunning(true)
 					reconcileLocationMotionScope()
 					observeCollectionMotionPolicy()
 				} else if (sessionInfo == null && backgroundLocationHost.active.value == null && !startSingleFlight.get()) {
@@ -718,8 +722,17 @@ internal class TrackerService : CoreService() {
 							)) return@startAcceptance TrackingServicePreparedStartClaim.Rejected(
 									"TRACKING_FOREGROUND_PROMOTION_FAILED",
 								)
-							val appliedMask = activeForegroundServiceType?.toLong() ?: 0L
-							if (appliedMask != claimed.claim.desiredForegroundCapabilityFlags) {
+							val hostedSources = if (backgroundLocationHost.active.value != null) {
+								setOf(SourceKind.LOCATION)
+							} else emptySet()
+							if (!foregroundPromotionMatches(
+								sdkInt = Build.VERSION.SDK_INT,
+								captureSources = claimed.claim.acceptedSources,
+								hostedSources = hostedSources,
+								desiredCaptureMask = claimed.claim.desiredForegroundCapabilityFlags,
+								appliedSources = activeForegroundRequirements?.acceptedSources.orEmpty(),
+								appliedMask = activeForegroundServiceType?.toLong() ?: 0L,
+							)) {
 								return@startAcceptance TrackingServicePreparedStartClaim.Rejected(
 										"TRACKING_FOREGROUND_TYPE_MISMATCH",
 									)
@@ -1338,7 +1351,7 @@ internal class TrackerService : CoreService() {
 			) { performTeardown(this@TrackerService) }
 			clearCompletedStopCandidate()
 			trackingStartupGate.reconcile()
-			orchestrator.resetMetadata()
+			orchestrator.resetMetadata(keepCollectionHost = backgroundLocationHost.active.value != null)
 			updateLiveTrackingShortcut(active = false)
 			sessionInfo = null
 			activeSessionDescriptor = null
@@ -2889,4 +2902,20 @@ internal fun resolveInitialPolicyTier(
 	isAmbient -> PolicyTier.AMBIENT
 	locationEnabled -> PolicyTier.ACTIVE
 	else -> PolicyTier.AMBIENT
+}
+
+/** Capture authority cannot borrow a hosted source; the physical host still promotes the full union. */
+internal fun foregroundPromotionMatches(
+	sdkInt: Int,
+	captureSources: Set<SourceKind>,
+	hostedSources: Set<SourceKind>,
+	desiredCaptureMask: Long,
+	appliedSources: Set<SourceKind>,
+	appliedMask: Long,
+): Boolean {
+	if (captureSources.isEmpty()) return false
+	val captureMask = foregroundServiceTypeMask(sdkInt, captureSources) ?: return false
+	val union = captureSources + hostedSources
+	val unionMask = foregroundServiceTypeMask(sdkInt, union) ?: return false
+	return desiredCaptureMask == captureMask && appliedSources == union && appliedMask == unionMask
 }

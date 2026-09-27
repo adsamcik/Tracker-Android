@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.widget.glance
 
+import com.adsamcik.tracker.tracker.controller.hasLiveCapture
 import android.content.Context
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
@@ -70,7 +71,7 @@ class ActiveSessionWidget : GlanceAppWidget() {
                 TrackerWidgetEntryPoint::class.java,
             )
             val controller = entryPoint.trackerStateReader()
-            isRunning = controller.isServiceRunning
+            isRunning = controller.hasLiveCapture
             session = controller.sessionFlow.value
             policyTier = controller.policyTierFlow.value
             collectionSnapshot = controller.collectionDataFlow.value

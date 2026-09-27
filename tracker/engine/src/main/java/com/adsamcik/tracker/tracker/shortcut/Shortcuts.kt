@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.shortcut
 
+import com.adsamcik.tracker.tracker.controller.hasLiveCapture
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ShortcutInfo
@@ -51,7 +52,7 @@ object Shortcuts {
 			context.applicationContext,
 			ShortcutsEntryPoint::class.java
 		)
-		val isServiceRunning = entryPoint.trackerStateReader().isServiceRunning
+		val isServiceRunning = entryPoint.trackerStateReader().hasLiveCapture
 		if (!isServiceRunning) {
 			shortcuts.add(
 					createShortcut(

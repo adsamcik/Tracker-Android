@@ -1,5 +1,10 @@
 package com.adsamcik.tracker.dashboard.ui
 
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.SharingStarted
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.dashboard.data.DashboardAchievementHistory
@@ -68,6 +73,28 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class DashboardViewModelHistoryTest {
+	@Test
+	fun `background-only host keeps recent history and Start state available`() = runTest {
+		Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+		try {
+			val repository = QueuedDashboardHistoryRepository(successfulHistory())
+			val viewModel = createViewModel(repository, collectionHost = MutableStateFlow(true))
+			val observer = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.recentHistory.collect { }
+			}
+			val liveObserver = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.isTracking.collect { }
+			}
+			runCurrent()
+			viewModel.isTracking.value shouldBe false
+			viewModel.recentHistory.value shouldBe DashboardRecentHistoryState.Content(emptyList())
+			observer.cancel()
+			liveObserver.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
 	@Test
 	fun `transient optional failures preserve previously loaded cards`() = runTest {
 		val mainDispatcher = StandardTestDispatcher(testScheduler)
@@ -342,14 +369,19 @@ class DashboardViewModelHistoryTest {
 		selection = LocalCellHistorySelection(LocalCellHistoryIdentity("a".repeat(64))),
 	)
 
-	private fun createViewModel(
+	private fun TestScope.createViewModel(
 		historyRepository: DashboardHistoryRepository,
 		isTracking: MutableStateFlow<Boolean> = MutableStateFlow(false),
+		collectionHost: MutableStateFlow<Boolean> = isTracking,
 	): DashboardViewModel {
 		val layoutRepository = mockk<DashboardLayoutStore>()
 		every { layoutRepository.layout } returns flowOf(DashboardLayout())
 		val trackerStateReader = mockk<TrackerStateReader>()
-		every { trackerStateReader.isServiceRunningFlow } returns isTracking
+		every { trackerStateReader.isServiceRunningFlow } returns collectionHost
+		every { trackerStateReader.sessionInfoFlow } returns isTracking
+			.map { active -> if (active) TrackerSessionInfo(true) else null }
+			.stateIn(backgroundScope, SharingStarted.Eagerly,
+				if (isTracking.value) TrackerSessionInfo(true) else null)
 		every { trackerStateReader.sessionFlow } returns MutableStateFlow(null)
 		val lockManager = mockk<LockManager>()
 		every { lockManager.isLockedFlow } returns MutableStateFlow(false)

@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.service
 
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -46,6 +47,7 @@ class BackgroundLocationHost @Inject constructor(
 	private val _active = MutableStateFlow<BackgroundLocationHostResult.Active?>(null)
 	val active = _active.asStateFlow()
 	private var serviceOwner: Any? = null
+	private var activeTicket: String? = null
 	private var onRelease: (() -> Unit)? = null
 
 	suspend fun acquire(identity: AmbientReconciliationIdentity): BackgroundLocationHostResult {
@@ -73,21 +75,32 @@ class BackgroundLocationHost @Inject constructor(
 		} finally {
 			val abandoned = synchronized(lock) {
 				requests.remove(ticket)
-				!delivered && _active.value?.identity == identity
+				!delivered && activeTicket == ticket && _active.value?.identity == identity
 			}
-			if (abandoned) withContext(NonCancellable) { release(identity) }
+			if (abandoned) withContext(NonCancellable) { releaseIfOwned(identity, expectedTicket = ticket) }
 		}
 	}
 
 	/** Exact identity comparison prevents a late predecessor close from releasing its successor. */
-	suspend fun release(identity: AmbientReconciliationIdentity): Boolean {
+	suspend fun release(identity: AmbientReconciliationIdentity): Boolean = releaseIfOwned(identity)
+
+	private suspend fun releaseIfOwned(
+		identity: AmbientReconciliationIdentity,
+		expectedTicket: String? = null,
+	): Boolean {
 		val callback = synchronized(lock) {
-			requests.values.filter { it.identity == identity }.forEach {
-				it.result.complete(BackgroundLocationHostResult.Blocked("LOCATION_HOST_LEASE_RELEASED"))
+			// Abandonment releases only its accepted ticket, atomically with clearing the lease.
+			// Public purpose retirement still fences every pending delivery for that exact identity.
+			if (expectedTicket != null && activeTicket != expectedTicket) return false
+			if (expectedTicket == null) {
+				requests.values.filter { it.identity == identity }.forEach {
+					it.result.complete(BackgroundLocationHostResult.Blocked("LOCATION_HOST_LEASE_RELEASED"))
+				}
+				requests.entries.removeAll { it.value.identity == identity }
 			}
-			requests.entries.removeAll { it.value.identity == identity }
 			if (_active.value?.identity != identity) return false
 			_active.value = null
+			activeTicket = null
 			onRelease
 		}
 		withContext(dispatchers.main) { callback?.invoke() }
@@ -95,6 +108,7 @@ class BackgroundLocationHost @Inject constructor(
 	}
 
 	internal fun attach(owner: Any, released: () -> Unit) = synchronized(lock) {
+		check(serviceOwner == null || serviceOwner === owner) { "Collection host already has a service owner" }
 		serviceOwner = owner
 		onRelease = released
 	}
@@ -105,6 +119,7 @@ class BackgroundLocationHost @Inject constructor(
 		serviceOwner = null
 		onRelease = null
 		_active.value = null
+		activeTicket = null
 		requests.values.forEach { it.result.complete(BackgroundLocationHostResult.Blocked("LOCATION_HOST_DESTROYED")) }
 		requests.clear()
 		retiring
@@ -118,10 +133,22 @@ class BackgroundLocationHost @Inject constructor(
 		promote: () -> Boolean,
 	): Boolean {
 		val request = synchronized(lock) { requests[ticket] } ?: return false
-		val valid = startup.permitsNewCollection && startup.isReadyGeneration(request.startupGeneration) &&
-			commands.latestStopGeneration() == request.stopGeneration && commands.latestUnhandledStop() == null &&
-			authorityCurrent(request.identity)
-		if (!valid || !promote()) {
+		val remainingMillis = ((request.foregroundDeadlineNanos - SystemClock.elapsedRealtimeNanos()) /
+			1_000_000L).coerceAtMost(PRE_FOREGROUND_START_BUDGET_MILLIS)
+		val promoted = if (remainingMillis <= 0L) false else withTimeoutOrNull(remainingMillis) {
+			val valid = startup.permitsNewCollection && startup.isReadyGeneration(request.startupGeneration) &&
+				commands.latestStopGeneration() == request.stopGeneration && commands.latestUnhandledStop() == null &&
+				authorityCurrent(request.identity)
+			if (!valid) false else withContext(dispatchers.main) {
+				val stillOwnsDelivery = synchronized(lock) {
+					serviceOwner === owner && requests[ticket] === request && !request.result.isCompleted
+				}
+				stillOwnsDelivery && SystemClock.elapsedRealtimeNanos() < request.foregroundDeadlineNanos &&
+					startup.permitsNewCollection && startup.isReadyGeneration(request.startupGeneration) &&
+					commands.latestStopGeneration() == request.stopGeneration && promote()
+			}
+		} == true
+		if (!promoted) {
 			request.result.complete(BackgroundLocationHostResult.Blocked("LOCATION_HOST_AUTHORITY_OR_FOREGROUND_UNAVAILABLE"))
 			return false
 		}
@@ -132,6 +159,7 @@ class BackgroundLocationHost @Inject constructor(
 			) return@synchronized false
 			val accepted = BackgroundLocationHostResult.Active(request.identity, scope)
 			_active.value = accepted
+			activeTicket = ticket
 			request.result.complete(accepted)
 			true
 		}
@@ -158,6 +186,8 @@ class BackgroundLocationHost @Inject constructor(
 	}
 
 	private class Request(val identity: AmbientReconciliationIdentity, val startupGeneration: Long, val stopGeneration: Long) {
+		val foregroundDeadlineNanos = SystemClock.elapsedRealtimeNanos() +
+			PRE_FOREGROUND_START_BUDGET_MILLIS * 1_000_000L
 		val result = CompletableDeferred<BackgroundLocationHostResult>()
 	}
 

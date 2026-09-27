@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.api
 
+import com.adsamcik.tracker.tracker.controller.hasCollectionHost
+import com.adsamcik.tracker.tracker.controller.hasLiveCapture
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
@@ -484,6 +486,12 @@ object TrackerServiceApi {
 	 */
 	fun isActive(context: Context): Boolean =
 		getStateReader(context).isServiceRunning
+
+	/** Whether a live capture exists; Start/End/automatic locks use this predicate. */
+	fun hasLiveCapture(context: Context): Boolean = getStateReader(context).hasLiveCapture
+
+	/** Whether the collection service is hosting accepted work independently of live capture. */
+	fun hasCollectionHost(context: Context): Boolean = getStateReader(context).hasCollectionHost
 
 	/** Informational compatibility probe used only to repair stale presentation state. */
 	fun isRunningInSystem(context: Context): Boolean {

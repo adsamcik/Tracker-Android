@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.service
 
+import com.adsamcik.tracker.tracker.controller.hasLiveCapture
+import com.adsamcik.tracker.tracker.controller.hasCollectionHost
 import androidx.room.withTransaction
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
@@ -480,7 +482,7 @@ internal class TrackingOrchestrator(
 		cycle: TrackingCycle,
 	) {
 		componentMutex.withLock {
-			if (!controller.isServiceRunning) return
+			if (!controller.hasCollectionHost || !controller.hasLiveCapture) return
 			if (cycle.location != null) {
 				val persistence = signalProcessors.filterIsInstance<PersistenceProcessor>()
 					.singleOrNull()
@@ -508,7 +510,7 @@ internal class TrackingOrchestrator(
 			?: return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
 				"LOCATION_CANONICAL_PIPELINE_INACTIVE",
 			)
-		if (!controller.isServiceRunning) {
+		if (!controller.hasCollectionHost || !controller.hasLiveCapture) {
 			return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
 				"LOCATION_CANONICAL_SERVICE_INACTIVE",
 			)
@@ -782,8 +784,8 @@ internal class TrackingOrchestrator(
 	 * Reset controller metadata after the service stops.
 	 * Call from the service's onDestroy after [shutdown].
 	 */
-	fun resetMetadata() {
-		controller.updateServiceRunning(false)
+	fun resetMetadata(keepCollectionHost: Boolean = false) {
+		controller.updateServiceRunning(keepCollectionHost)
 		controller.updateSessionInfo(null)
 		controller.updateSession(null)
 		controller.updateCollectionData(null)

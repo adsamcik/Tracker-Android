@@ -55,18 +55,21 @@ class SharedStepSourceController @Inject internal constructor(
 		sink: SourceEventSink,
 	): SourceStartResult {
 		@Suppress("UNUSED_VARIABLE") val sessionBoundSinkMustNotRelabelSharedEvidence = sink
-		if (!plan.enabled) {
-			sessionClaim = null
-			return SourceStartResult.Started(disabledState(plan))
-		}
+		if (!plan.enabled) return SourceStartResult.Started(disabledState(plan))
 		val predecessorPlan = sessionPlan
 		val predecessorClaim = sessionClaim
 		sessionPlan = plan
-		val demands = selectedDemands()
+		sessionClaim = claim
+		val demands = try {
+			selectedDemands()
+		} catch (failure: Throwable) {
+			sessionPlan = predecessorPlan
+			sessionClaim = predecessorClaim
+			throw failure
+		}
 		if (demands.none { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
-			sessionPlan = null
-			sessionClaim = null
-			reconcileRemainingControl()
+			sessionPlan = predecessorPlan
+			sessionClaim = predecessorClaim
 			return SourceStartResult.Blocked(blockedState(plan))
 		}
 		return try {
@@ -106,12 +109,21 @@ class SharedStepSourceController @Inject internal constructor(
 		@Suppress("UNUSED_VARIABLE") val sessionBoundSinkMustNotRelabelSharedEvidence = sink
 		val predecessorPlan = sessionPlan
 		val predecessorClaim = sessionClaim
+		if (!plan.enabled && claim != null && sessionClaim != null && claim != sessionClaim) {
+			return SourceApplyResult.Failed(blockedState(plan), retryable = false)
+		}
 		sessionPlan = plan.takeIf(StepsPlan::enabled)
-		val demands = selectedDemands()
+		sessionClaim = claim.takeIf { plan.enabled }
+		val demands = try {
+			selectedDemands()
+		} catch (failure: Throwable) {
+			sessionPlan = predecessorPlan
+			sessionClaim = predecessorClaim
+			throw failure
+		}
 		if (plan.enabled && demands.none { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
-			sessionPlan = null
-			sessionClaim = null
-			reconcileRemainingControl()
+			sessionPlan = predecessorPlan
+			sessionClaim = predecessorClaim
 			return SourceApplyResult.Failed(blockedState(plan), retryable = false)
 		}
 		val effective = effectivePlan(demands)
@@ -140,6 +152,20 @@ class SharedStepSourceController @Inject internal constructor(
 	}
 
 	private suspend fun quiesceLocked(cutoff: SessionCutoff): SourceStopAck {
+		val previousPlan = sessionPlan
+		val retiringClaim = sessionClaim
+		require(retiringClaim == null || cutoff.logicalTrackingId == retiringClaim.logicalTrackingId) {
+			"A session cutoff cannot release another logical source owner"
+		}
+		return try {
+			settleSessionCutoffLocked(cutoff)
+		} catch (failure: Throwable) {
+			sessionPlan = previousPlan
+			throw failure
+		}
+	}
+
+	private suspend fun settleSessionCutoffLocked(cutoff: SessionCutoff): SourceStopAck {
 		val predecessorPlan = sessionPlan
 		val retiringClaim = sessionClaim
 		sessionPlan = null
@@ -191,6 +217,16 @@ class SharedStepSourceController @Inject internal constructor(
 
 	/** Session owners release their join; no orphan automatic-control listener may remain. */
 	override suspend fun close() = mutex.withLock {
+		val retiringClaim = sessionClaim
+		if (retiringClaim != null) {
+			val now = SystemClock.elapsedRealtimeNanos()
+			val acknowledgement = quiesceLocked(
+				SessionCutoff(retiringClaim.logicalTrackingId, now, System.currentTimeMillis(),
+					now + 3_000_000_000L),
+			)
+			clearClaimIfReleased(acknowledgement)
+			return@withLock Unit
+		}
 		sessionPlan = null
 		reconcileRemainingControl()
 		Unit
@@ -248,7 +284,10 @@ class SharedStepSourceController @Inject internal constructor(
 
 	private suspend fun selectedDemands(): List<SourceDemandEntity> =
 		sourceBroker.authorizationDemands(source).filter { demand ->
-			sessionPlan != null && demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+			sessionPlan != null && demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+				(sessionClaim == null || (demand.logicalTrackingId == sessionClaim?.logicalTrackingId &&
+					demand.serviceRunId == sessionClaim?.serviceRunId &&
+					demand.lifecycleLeaseGeneration == sessionClaim?.leaseGeneration))
 		}
 
 	private fun effectivePlan(demands: List<SourceDemandEntity>): StepsPlan? {

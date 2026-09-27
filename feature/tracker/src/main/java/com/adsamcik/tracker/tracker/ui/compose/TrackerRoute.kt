@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.ui.compose
 
+import com.adsamcik.tracker.tracker.controller.hasLiveCapture
+import com.adsamcik.tracker.tracker.controller.hasLiveCaptureFlow
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -123,7 +125,7 @@ fun TrackerRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     
     // Observe tracking state via injected controller (replaces TrackerService static access)
-    val isTracking by controller.isServiceRunningFlow.collectAsStateWithLifecycle()
+    val isTracking by controller.hasLiveCaptureFlow.collectAsStateWithLifecycle(initialValue = controller.hasLiveCapture)
     
     // Observe lock state via injected manager (replaces TrackerLocker static access)
     val isLocked by lockManager.isLockedFlow.collectAsStateWithLifecycle()

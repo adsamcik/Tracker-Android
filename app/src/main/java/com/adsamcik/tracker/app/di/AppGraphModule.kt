@@ -66,7 +66,8 @@ object AppGraphModule {
     @Singleton
     fun provideTrackerLiveLocationFeed(
         controller: TrackerStateReader,
-    ): TrackerLiveLocationFeed = DefaultTrackerLiveLocationFeed(controller)
+        @ApplicationScope applicationScope: CoroutineScope,
+    ): TrackerLiveLocationFeed = DefaultTrackerLiveLocationFeed(controller, applicationScope)
 
     @Provides
     @Singleton

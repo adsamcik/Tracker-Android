@@ -1085,7 +1085,10 @@ class TrackingOrchestratorIntegrationTest {
 		controller.updateSailingState(mockk<LiveSailingState>())
 		controller.updatePlaneState(mockk<LivePlaneState>())
 
-		orchestrator.resetMetadata()
+		controller.updateServiceRunning(true)
+		orchestrator.resetMetadata(keepCollectionHost = true)
+		controller.isServiceRunning shouldBe true
+		controller.sessionInfoFlow.value shouldBe null
 
 		controller.skiStateFlow.value shouldBe null
 		controller.sailingStateFlow.value shouldBe null

@@ -35,6 +35,7 @@ class SharedLocationSourceControllerTest {
 			SourceCapabilities(true, true, true, null, null),
 		)
 		every { sinkFactory.unbound } returns sink
+		coEvery { physical.shutdownIfOwned(any(), any()) } returns OwnedSourceShutdown.NotOwned
 		coEvery { broker.authorizationDemands(SourceKind.LOCATION) } answers { demands }
 		coEvery { physical.refreshShared(any(), sink, any(), any()) } answers {
 			SourceApplyResult.Applied(appliedState(
@@ -165,6 +166,55 @@ class SharedLocationSourceControllerTest {
 		assertEquals(focus, joinLocationPlans(focus, baseline.copy(mode = LocationMode.DISABLED)))
 		assertEquals(baseline, joinLocationPlans(focus.copy(mode = LocationMode.DISABLED), baseline))
 		assertNull(joinLocationPlans(baseline.copy(adaptiveProfileVersion = null), focus)?.adaptiveProfileVersion)
+	}
+
+	@Test
+	fun `foreign Location disable cannot retire current capture`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(true))
+		assertIs<SourceStartResult.Started>(subject.start(claim, focus, mockk()))
+		assertIs<SourceApplyResult.Failed>(subject.reconfigure(
+			claim.copy(serviceRunId = "other-run"), focus.copy(mode = LocationMode.DISABLED), mockk()))
+		coVerify(exactly = 0) { physical.quiesce(any()) }
+		coEvery { physical.quiesce(any()) } returns completeAck()
+		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(claim, cutoff))
+	}
+
+	@Test
+	fun `failed physical Location successor stays cleanable without discarding logical predecessor`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(true))
+		assertIs<SourceStartResult.Started>(subject.start(claim, focus, mockk()))
+		val successor = claim.copy(actionId = "successor", leaseGeneration = 2L)
+		demands = listOf(demand(true).copy(lifecycleLeaseGeneration = 2L))
+		coEvery { physical.refreshShared(focus, sink, successor, any()) } returns
+			SourceApplyResult.Failed(appliedState(SourceKind.LOCATION, focus.revision, null,
+				SourceApplyStatus.FAILED, 1L), retryable = true)
+		val acknowledgement = completeAck().withSessionMembership(successor)
+		coEvery { physical.shutdownIfOwned(successor, cutoff) } returns
+			OwnedSourceShutdown.Released(null, acknowledgement)
+		assertIs<SourceApplyResult.Failed>(subject.reconfigure(successor, focus, mockk()))
+		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(successor, cutoff))
+		coVerify(exactly = 0) { physical.quiesce(any()) }
+		coEvery { physical.quiesce(any()) } returns completeAck()
+		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(claim, cutoff))
+	}
+
+	@Test
+	fun `Location close preserves background and only releases capture after its acknowledgement`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(false))
+		subject.reconcileAmbientJoin(baseline, 2L)
+		demands = demands + demand(true)
+		subject.start(claim, focus, mockk())
+		coEvery { physical.sharedSessionCutoff(any()) } returnsMany listOf(
+			completeAck().copy(appDrainComplete = false, status = SourceStopStatus.TIMED_OUT), completeAck(),
+		)
+		subject.close()
+		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(claim, cutoff))
+		coVerify(exactly = 2) { physical.sharedSessionCutoff(any()) }
+		coVerify(exactly = 0) { physical.close() }
+		coVerify(exactly = 0) { physical.quiesce(any()) }
 	}
 
 	private fun demand(capture: Boolean) = SourceDemandEntity(

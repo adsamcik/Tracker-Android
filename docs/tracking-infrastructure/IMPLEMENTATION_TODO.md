@@ -1729,3 +1729,19 @@ synchronized sample schema, new UI platform, mandatory Days-first rewrite, enter
 remote tracking upload, learned battery optimizer, exhaustive OEM matrix, continuous ambient
 Pressure, default active ambient radio scans, unmeasured wake-reliable radio cadence, fabricated
 Pressure elevation, or a second simultaneous canonical Location writer.
+
+
+## 2026-09-27 shared provider/host continuation
+
+- [x] TODO-OWNER-CLAIMS Authored exact claimed capture selection/rollback, foreign-disable fence and
+  acknowledged bounded claimed close for shared Location/Wi-Fi/Cell/Steps.
+- [x] TODO-OWNER-RETIRE Authored radio retained actor receipts and strict Activity predecessor removal.
+- [x] TODO-OWNER-HOST-UNION Authored capture-mask versus hosted union authentication, host-only controls,
+  deletion presentation cleanup, physical host-loss writer guard and bounded host ticket promotion.
+- [ ] TODO-OWNER-RADIO-HOST Confirm and implement saved default-off radio hosting in the existing host.
+- [ ] TODO-OWNER-FEATURE-LEASE Confirm and implement shared nonpersisting Location adapter and sunrise
+  cache behavior, including source/quality/freshness-safe game routing.
+- [ ] TODO-OWNER-FINAL-REVIEW Finish review of the complete ownership slice; no runtime/device proof yet.
+
+Details: provider-host/2026-09-27/IMPLEMENTATION_TRACE.md and CONTRACT_DECISIONS.md. Earlier pending
+contracts stay pending. Main dev/v10 remains unchanged. No validation or activation is authorized.

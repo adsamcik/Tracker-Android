@@ -95,6 +95,7 @@ class DashboardViewModelSessionInsightsTest {
 		every { layoutRepository.layout } returns flowOf(DashboardLayout())
 		val trackerStateReader = mockk<TrackerStateReader>()
 		every { trackerStateReader.isServiceRunningFlow } returns MutableStateFlow(false)
+        every { trackerStateReader.sessionInfoFlow } returns MutableStateFlow(null)
 		every { trackerStateReader.sessionFlow } returns MutableStateFlow(null)
 		val lockManager = mockk<LockManager>()
 		every { lockManager.isLockedFlow } returns MutableStateFlow(false)

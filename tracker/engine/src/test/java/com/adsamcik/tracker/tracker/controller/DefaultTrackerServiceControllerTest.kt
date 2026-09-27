@@ -30,6 +30,24 @@ class DefaultTrackerServiceControllerTest {
 		controller = DefaultTrackerServiceController()
 	}
 
+	@Test
+	fun `background host has no live session and End preserves its independent host`() = runTest {
+		controller.updateServiceRunning(true)
+		controller.hasCollectionHost shouldBe true
+		controller.hasLiveCapture shouldBe false
+		controller.hasLiveCaptureFlow.test {
+			awaitItem() shouldBe false
+			controller.updateSessionInfo(TrackerSessionInfo(true))
+			awaitItem() shouldBe true
+			controller.updateSessionInfo(null)
+			awaitItem() shouldBe false
+			controller.hasCollectionHost shouldBe true
+			controller.updateServiceRunning(false)
+			controller.hasCollectionHost shouldBe false
+			expectNoEvents()
+		}
+	}
+
 	@Nested
 	inner class `initial state` {
 

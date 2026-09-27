@@ -1,5 +1,9 @@
 package com.adsamcik.tracker.tracker.service
 
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.delay
 import android.app.Application
 import android.content.ComponentName
 import android.content.Intent
@@ -77,6 +81,7 @@ class BackgroundLocationHostTest {
 			val owner = Any()
 			var released = 0
 			host.attach(owner) { released++ }
+			assertFailsWith<IllegalStateException> { host.attach(Any()) { error("Must not steal host") } }
 			val first = identity("first")
 			val pending = async { host.acquire(first) }
 			val firstIntent = delivered.receive()
@@ -95,6 +100,38 @@ class BackgroundLocationHostTest {
 			host.active.value?.identity shouldBe successor
 			host.release(successor) shouldBe true
 			released shouldBe 1
+			val sharedIdentity = identity("same-concurrent-identity")
+			val abandoned = async { host.acquire(sharedIdentity) }
+			val abandonedIntent = delivered.receive()
+			val accepted = async { host.acquire(sharedIdentity) }
+			val acceptedIntent = delivered.receive()
+			host.acceptDelivery(requireNotNull(acceptedIntent.getStringExtra(BackgroundLocationHost.EXTRA_TICKET)),
+				owner, scope) { true } shouldBe true
+			abandoned.cancel()
+			runCurrent()
+			accepted.await() shouldBe BackgroundLocationHostResult.Active(sharedIdentity, scope)
+			host.active.value?.identity shouldBe sharedIdentity
+			host.acceptDelivery(requireNotNull(abandonedIntent.getStringExtra(BackgroundLocationHost.EXTRA_TICKET)),
+				owner, scope) { error("Abandoned ticket must not promote") } shouldBe false
+			host.release(sharedIdentity) shouldBe true
+			val slowAcquire = async { host.acquire(identity("slow-authority")) }
+			val slowIntent = delivered.receive()
+			coEvery { lifecycle.snapshot() } coAnswers {
+				delay(PRE_FOREGROUND_START_BUDGET_MILLIS + 1_000L)
+				CollectedDataLifecycleSnapshot(0L, null)
+			}
+			var promoted = false
+			val slowDelivery = async {
+				host.acceptDelivery(requireNotNull(slowIntent.getStringExtra(BackgroundLocationHost.EXTRA_TICKET)),
+					owner, scope) { promoted = true; true }
+			}
+			runCurrent()
+			advanceTimeBy(PRE_FOREGROUND_START_BUDGET_MILLIS + 1L)
+			runCurrent()
+			slowDelivery.await() shouldBe false
+			promoted shouldBe false
+			host.active.value shouldBe null
+			(slowAcquire.await() is BackgroundLocationHostResult.Blocked) shouldBe true
 			host.detach(owner)
 			host.acceptDelivery("old-or-redelivered-ticket", owner, scope) { error("Must not promote") } shouldBe false
 		} finally {

@@ -101,6 +101,9 @@ class CellSourceRuntime @Inject internal constructor(
 	private var metrics = RuntimeAdmissionMetrics()
 	private var lastAdmissionOrdinalHighWater: Long? = null
 	private var retirementIntent: CellProviderRetirementIntent? = null
+	// Keep the exact callback actor and retirement receipt until both owners settle.
+	private var retainedActorRetirementAck: SourceStopAck? = null
+	private var providerRetiredWhileActorRetained = false
 	private var automaticFailureAck: SourceStopAck? = null
 	private var ownerClaim: SourceRuntimeClaim? = null
 	private val processedCallbackSequence = MutableStateFlow(0L)
@@ -756,6 +759,11 @@ class CellSourceRuntime @Inject internal constructor(
 
 	private suspend fun settleShutdownLocked(cutoff: SessionCutoff?): SourceStopAck {
 		val activeRegistration = registration ?: return unavailableAck(cutoff)
+		val retainedAck = retainedActorRetirementAck
+		if (retainedAck != null && actor?.isCompleted != true) {
+			// A retry cannot turn an unsettled predecessor into an unavailable/complete source.
+			return retainedAck
+		}
 		wakeups.cancel(REFRESH_WAKEUP_ID)
 		wakeups.cancel(TIMEOUT_WAKEUP_ID)
 		val barrier: Long
@@ -768,7 +776,9 @@ class CellSourceRuntime @Inject internal constructor(
 				retirementBoundary = SystemClock.elapsedRealtimeNanos()
 			}
 		}
-		val retirement = retireProviderRegistration(
+		val retirement = if (providerRetiredWhileActorRetained) {
+			CellProviderRetirement.COMPLETE
+		} else retireProviderRegistration(
 			activeRegistration,
 			reason = "ORDERLY_STOP",
 			retiredElapsedRealtimeNanos = retirementBoundary,
@@ -786,11 +796,11 @@ class CellSourceRuntime @Inject internal constructor(
 		} ?: DEFAULT_DRAIN_TIMEOUT_MS
 		val joinedBeforeDeadline = activeActor == null ||
 			withTimeoutOrNull(remainingMs) { activeActor.join(); true } == true
-		if (!joinedBeforeDeadline) {
+		val actorSettled = if (!joinedBeforeDeadline) {
 			val timedOutActor = requireNotNull(activeActor)
 			timedOutActor.cancel()
-			withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) { timedOutActor.join() }
-		}
+			withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) { timedOutActor.join(); true } == true
+		} else true
 		val unaccountedTail = callbackOfferFailureCoverage.unaccountedRanges(
 			processedCallbackSequence.value,
 			barrier,
@@ -817,9 +827,15 @@ class CellSourceRuntime @Inject internal constructor(
 				else -> SourceStopStatus.COMPLETE
 			},
 		).withSessionMembership(ownerClaim)
-		if (retirement == CellProviderRetirement.COMPLETE) {
+		if (!actorSettled) {
+			retainedActorRetirementAck = ack
+			providerRetiredWhileActorRetained = retirement == CellProviderRetirement.COMPLETE
+			// Fence entry but keep the exact actor/registration/claim for later settlement.
+			retainProviderForRetirementRetry(keepActor = true)
+		} else if (retirement == CellProviderRetirement.COMPLETE) {
 			clearActiveState()
 		} else {
+			retainedActorRetirementAck = null
 			retainProviderForRetirementRetry()
 		}
 		return ack
@@ -910,14 +926,14 @@ class CellSourceRuntime @Inject internal constructor(
 		}
 	}
 
-	private fun retainProviderForRetirementRetry() {
+	private fun retainProviderForRetirementRetry(keepActor: Boolean = false) {
 		synchronized(callbackLock) {
 			accepting = false
 			callbackToken = null
 			currentSink = null
 			queue = null
 		}
-		actor = null
+		if (!keepActor) actor = null
 	}
 
 	private fun onBackendSnapshot(
@@ -1279,6 +1295,8 @@ class CellSourceRuntime @Inject internal constructor(
 			retirementIntent = null
 		}
 		actor = null
+		retainedActorRetirementAck = null
+		providerRetiredWhileActorRetained = false
 		cutoffElapsedNanos = null
 		currentPlan = null
 		ownerClaim = null

@@ -57,9 +57,17 @@ class SharedWifiSourceController @Inject constructor(
 		val previousPlan = sessionPlan
 		val previousClaim = sessionClaim
 		sessionPlan = plan
-		val demands = selectedDemands()
+		sessionClaim = claim
+		val demands = try {
+			selectedDemands()
+		} catch (failure: Throwable) {
+			sessionPlan = previousPlan
+			sessionClaim = previousClaim
+			throw failure
+		}
 		if (demands.none { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
 			sessionPlan = previousPlan
+			sessionClaim = previousClaim
 			return SourceStartResult.Blocked(blockedState(plan))
 		}
 		return try {
@@ -98,13 +106,16 @@ class SharedWifiSourceController @Inject constructor(
 	): SourceApplyResult {
 		@Suppress("UNUSED_VARIABLE") val sessionSinkCannotRelabelSharedEvidence = sink
 		if (!plan.enabled) {
+			if (claim != null && sessionClaim != null && claim != sessionClaim) {
+				return SourceApplyResult.Failed(blockedState(plan), retryable = false)
+			}
 			val claim = sessionClaim
 			if (claim != null) {
 				val cutoff = SessionCutoff(
 					logicalTrackingId = claim.logicalTrackingId,
 					elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
 					wallTimeMs = System.currentTimeMillis(),
-					deadlineElapsedRealtimeNanos = Long.MAX_VALUE,
+					deadlineElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos() + 3_000_000_000L,
 				)
 				val acknowledgement = quiesceLocked(cutoff)
 				return if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
@@ -129,9 +140,17 @@ class SharedWifiSourceController @Inject constructor(
 		val previousPlan = sessionPlan
 		val previousClaim = sessionClaim
 		sessionPlan = plan
-		val demands = selectedDemands()
+		sessionClaim = claim
+		val demands = try {
+			selectedDemands()
+		} catch (failure: Throwable) {
+			sessionPlan = previousPlan
+			sessionClaim = previousClaim
+			throw failure
+		}
 		if (demands.none { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
 			sessionPlan = previousPlan
+			sessionClaim = previousClaim
 			return SourceApplyResult.Failed(blockedState(plan), retryable = false)
 		}
 		return try {
@@ -162,6 +181,20 @@ class SharedWifiSourceController @Inject constructor(
 	}
 
 	private suspend fun quiesceLocked(cutoff: SessionCutoff): SourceStopAck {
+		val previousPlan = sessionPlan
+		val retiringClaim = sessionClaim
+		require(retiringClaim == null || cutoff.logicalTrackingId == retiringClaim.logicalTrackingId) {
+			"A session cutoff cannot release another logical source owner"
+		}
+		return try {
+			settleSessionCutoffLocked(cutoff)
+		} catch (failure: Throwable) {
+			sessionPlan = previousPlan
+			throw failure
+		}
+	}
+
+	private suspend fun settleSessionCutoffLocked(cutoff: SessionCutoff): SourceStopAck {
 		val priorPlan = sessionPlan
 		val retiringClaim = sessionClaim
 		sessionPlan = null
@@ -269,6 +302,16 @@ class SharedWifiSourceController @Inject constructor(
 	}
 
 	override suspend fun close() = mutex.withLock {
+		val retiringClaim = sessionClaim
+		if (retiringClaim != null) {
+			val now = SystemClock.elapsedRealtimeNanos()
+			val acknowledgement = quiesceLocked(
+				SessionCutoff(retiringClaim.logicalTrackingId, now, System.currentTimeMillis(),
+					now + 3_000_000_000L),
+			)
+			if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) sessionClaim = null
+			return@withLock Unit
+		}
 		sessionPlan = null
 		val demands = selectedDemands()
 		val effective = effectivePlan(demands)
@@ -286,8 +329,16 @@ class SharedWifiSourceController @Inject constructor(
 
 	private suspend fun selectedDemands(): List<SourceDemandEntity> =
 		sourceBroker.authorizationDemands(source).filter { demand ->
-			demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT ||
-				(sessionPlan != null && demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE)
+			when (demand.purpose) {
+				SourceBrokerPurpose.AMBIENT_PRODUCT ->
+					demand.consumerId == "app:ambient:wifi" &&
+						demand.logicalTrackingId == null && demand.serviceRunId == null
+				SourceBrokerPurpose.SESSION_CAPTURE -> sessionPlan != null &&
+					(sessionClaim == null || (demand.logicalTrackingId == sessionClaim?.logicalTrackingId &&
+						demand.serviceRunId == sessionClaim?.serviceRunId &&
+						demand.lifecycleLeaseGeneration == sessionClaim?.leaseGeneration))
+				else -> false
+			}
 		}
 
 	private fun effectivePlan(demands: List<SourceDemandEntity>): WifiPlan? {

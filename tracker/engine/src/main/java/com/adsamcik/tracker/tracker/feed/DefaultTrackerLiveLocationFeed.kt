@@ -3,6 +3,13 @@ package com.adsamcik.tracker.tracker.feed
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.TrackerLiveLocationFeed
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
+import com.adsamcik.tracker.tracker.controller.hasLiveCapture
+import com.adsamcik.tracker.tracker.controller.hasCollectionHost
+import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -34,13 +41,19 @@ import javax.inject.Singleton
 @Singleton
 class DefaultTrackerLiveLocationFeed @Inject constructor(
 	private val controller: TrackerStateReader,
+	@ApplicationScope private val applicationScope: CoroutineScope,
 ) : TrackerLiveLocationFeed {
 
-	override val isActiveFlow: StateFlow<Boolean>
-		get() = controller.isServiceRunningFlow
+	// A background-only host exposes no capture feed. Source/quality capability selection is
+	// completed by the separately planned shared feature-lease adapter.
+	override val isActiveFlow: StateFlow<Boolean> = combine(
+		controller.isServiceRunningFlow,
+		controller.sessionInfoFlow,
+	) { hosted, session -> hosted && session != null }
+		.stateIn(applicationScope, SharingStarted.Eagerly, isActive)
 
 	override val isActive: Boolean
-		get() = controller.isServiceRunning
+		get() = controller.hasCollectionHost && controller.hasLiveCapture
 
 	override fun locations(): Flow<Location> = controller.collectionDataFlow
 		.filterNotNull()

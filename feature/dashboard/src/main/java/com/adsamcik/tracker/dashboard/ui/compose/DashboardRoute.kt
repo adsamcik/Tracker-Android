@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.dashboard.ui.compose
 
+import com.adsamcik.tracker.tracker.controller.hasLiveCapture
+import com.adsamcik.tracker.tracker.controller.hasLiveCaptureFlow
 import android.Manifest
 import android.app.Activity
 import android.os.Build
@@ -112,7 +114,7 @@ fun DashboardRoute(
 	}
 
 	// Observe tracking state
-	val isTracking by trackerState.isServiceRunningFlow.collectAsState()
+	val isTracking by trackerState.hasLiveCaptureFlow.collectAsState(initial = trackerState.hasLiveCapture)
 	val sessionInfo by trackerState.sessionInfoFlow.collectAsState()
 	val isLocked by lockManager.isLockedFlow.collectAsState()
 	val policyTier by trackerState.policyTierFlow.collectAsState()
@@ -266,7 +268,7 @@ fun DashboardRoute(
 			if (TrackerServiceApi.isRunningInSystem(context)) {
 				false
 			} else {
-				if (trackerState.isServiceRunning) {
+				if (trackerState.hasLiveCapture) {
 					TrackerServiceApi.repairStoppedServiceState(context)
 				}
 

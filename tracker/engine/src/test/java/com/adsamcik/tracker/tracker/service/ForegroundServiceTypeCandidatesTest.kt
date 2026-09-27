@@ -22,6 +22,31 @@ class ForegroundServiceTypeCandidatesTest {
 	private val android9 = Build.VERSION_CODES.P
 
 	@Test
+	fun `hosted Location does not invalidate independent capture authority`() {
+		for (sdk in listOf(28, 29, 33, 34, 37)) {
+			for (source in SourceKind.entries) {
+				val capture = setOf(source)
+				val hosted = setOf(SourceKind.LOCATION)
+				foregroundPromotionMatches(sdk, capture, hosted,
+					requireNotNull(foregroundServiceTypeMask(sdk, capture)), capture + hosted,
+					requireNotNull(foregroundServiceTypeMask(sdk, capture + hosted))) shouldBe true
+			}
+		}
+	}
+
+	@Test
+	fun `capture cannot borrow baseline capability or tolerate stale host membership`() {
+		val capture = setOf(SourceKind.STEPS)
+		val hosted = setOf(SourceKind.LOCATION)
+		val captureMask = requireNotNull(foregroundServiceTypeMask(34, capture))
+		val unionMask = requireNotNull(foregroundServiceTypeMask(34, capture + hosted))
+		foregroundPromotionMatches(34, capture, hosted, unionMask, capture + hosted, unionMask) shouldBe false
+		foregroundPromotionMatches(34, capture, hosted, captureMask, capture, captureMask) shouldBe false
+		foregroundPromotionMatches(34, capture, emptySet(), captureMask, capture + hosted, unionMask) shouldBe false
+		foregroundPromotionMatches(34, emptySet(), hosted, 0L, hosted, unionMask) shouldBe false
+	}
+
+	@Test
 	fun `descriptor action and type validation share one sub-five-second promotion budget`() {
 		(PRE_FOREGROUND_START_BUDGET_MILLIS in 1L until 5_000L) shouldBe true
 	}

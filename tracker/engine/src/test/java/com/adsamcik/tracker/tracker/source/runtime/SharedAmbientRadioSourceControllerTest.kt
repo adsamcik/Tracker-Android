@@ -19,6 +19,7 @@ import io.mockk.mockk
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 
@@ -158,8 +159,8 @@ class SharedAmbientRadioSourceControllerTest {
 		val subject = SharedCellSourceController(physical, broker, sinkFactory)
 
 		assertTrue(!subject.closeAmbientForCollectedDataDeletion())
-		coVerify(exactly = 0) { wifi.reconfigure(any(), any()) }
-		coVerify(exactly = 0) { wifi.close() }
+		coVerify(exactly = 0) { physical.reconfigure(any(), any()) }
+		coVerify(exactly = 0) { physical.close() }
 	}
 
 	@Test
@@ -201,7 +202,7 @@ class SharedAmbientRadioSourceControllerTest {
 		coEvery { broker.authorizationDemands(SourceKind.WIFI) } returnsMany listOf(
 			listOf(capture, ambient),
 			listOf(ambient),
-			listOf(capture, ambient),
+			listOf(capture.copy(lifecycleLeaseGeneration = 2L), ambient),
 		)
 		val oldClaim = claim(SourceKind.WIFI)
 		val newClaim = oldClaim.copy(actionId = "action-WIFI-new", leaseGeneration = 2L)
@@ -241,7 +242,7 @@ class SharedAmbientRadioSourceControllerTest {
 		coEvery { broker.authorizationDemands(SourceKind.CELL) } returnsMany listOf(
 			listOf(capture, ambient),
 			listOf(ambient),
-			listOf(capture, ambient),
+			listOf(capture.copy(lifecycleLeaseGeneration = 2L), ambient),
 		)
 		val oldClaim = claim(SourceKind.CELL)
 		val newClaim = oldClaim.copy(actionId = "action-CELL-new", leaseGeneration = 2L)
@@ -267,6 +268,126 @@ class SharedAmbientRadioSourceControllerTest {
 		)
 		assertEquals(OwnedSourceShutdown.NotOwned, subject.shutdownIfOwned(oldClaim, cutoff()))
 		assertIs<SourceStartResult.Started>(subject.start(newClaim, plan, mockk()))
+	}
+
+	@Test
+	fun `Wifi rejects foreign capture identities and preserves exact predecessor`() = runTest {
+		val physical = mockk<WifiSourceRuntime>()
+		val broker = mockk<SourceBroker>()
+		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
+		every { physical.capabilities } returns MutableStateFlow(capabilities())
+		every { sinkFactory.unbound } returns unboundSink
+		val currentClaim = claim(SourceKind.WIFI)
+		val plan = wifiPlan()
+		coEvery { broker.authorizationDemands(SourceKind.WIFI) } returns
+			listOf(demand(SourceKind.WIFI, SourceBrokerPurpose.SESSION_CAPTURE))
+		coEvery { physical.refreshShared(plan, unboundSink, currentClaim) } returns
+			SourceApplyResult.Applied(applied(SourceKind.WIFI, plan.revision, 7L))
+		coEvery { physical.quiesce(any()) } returns completeAck(
+			SourceKind.WIFI, 7L, RegistrationRemovalOutcome.REMOVED,
+		)
+		val subject = SharedWifiSourceController(physical, broker, sinkFactory)
+		assertIs<SourceStartResult.Started>(subject.start(currentClaim, plan, mockk()))
+
+		for (foreign in listOf(
+			currentClaim.copy(logicalTrackingId = "other-session"),
+			currentClaim.copy(serviceRunId = "other-run"),
+			currentClaim.copy(leaseGeneration = 2L),
+		)) {
+			assertIs<SourceStartResult.Blocked>(subject.start(foreign, plan, mockk()))
+			assertIs<SourceApplyResult.Failed>(subject.reconfigure(foreign, plan, mockk()))
+			assertIs<SourceApplyResult.Failed>(subject.reconfigure(foreign,
+				plan.copy(mode = WifiMode.OFF), mockk()))
+		}
+		coVerify(exactly = 1) { physical.refreshShared(any(), any(), any()) }
+		coVerify(exactly = 0) { physical.reconfigure(any(), any(), any()) }
+		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(currentClaim, cutoff()))
+		coVerify(exactly = 1) { physical.quiesce(any()) }
+	}
+
+	@Test
+	fun `Wifi close retains claimant on incomplete retirement`() = runTest {
+		val physical = mockk<WifiSourceRuntime>()
+		val broker = mockk<SourceBroker>()
+		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
+		every { physical.capabilities } returns MutableStateFlow(capabilities())
+		every { sinkFactory.unbound } returns unboundSink
+		val claim = claim(SourceKind.WIFI)
+		val plan = wifiPlan()
+		coEvery { broker.authorizationDemands(SourceKind.WIFI) } returns
+			listOf(demand(SourceKind.WIFI, SourceBrokerPurpose.SESSION_CAPTURE))
+		coEvery { physical.refreshShared(plan, unboundSink, claim) } returns
+			SourceApplyResult.Applied(applied(SourceKind.WIFI, plan.revision, 7L))
+		coEvery { physical.quiesce(any()) } returnsMany listOf(
+			completeAck(SourceKind.WIFI, 7L, RegistrationRemovalOutcome.FAILED)
+				.copy(status = SourceStopStatus.PROVIDER_FAILED, appDrainComplete = false),
+			completeAck(SourceKind.WIFI, 7L, RegistrationRemovalOutcome.REMOVED),
+		)
+		val subject = SharedWifiSourceController(physical, broker, sinkFactory)
+		assertIs<SourceStartResult.Started>(subject.start(claim, plan, mockk()))
+		subject.close()
+		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(claim, cutoff()))
+		coVerify(exactly = 2) { physical.quiesce(any()) }
+	}
+
+	@Test
+	fun `Cell rejects foreign capture identities and preserves exact predecessor`() = runTest {
+		val physical = mockk<CellSourceRuntime>()
+		val broker = mockk<SourceBroker>()
+		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
+		every { physical.capabilities } returns MutableStateFlow(capabilities())
+		every { sinkFactory.unbound } returns unboundSink
+		val currentClaim = claim(SourceKind.CELL)
+		val plan = cellPlan()
+		coEvery { broker.authorizationDemands(SourceKind.CELL) } returns
+			listOf(demand(SourceKind.CELL, SourceBrokerPurpose.SESSION_CAPTURE))
+		coEvery { physical.refreshShared(plan, unboundSink, currentClaim) } returns
+			SourceApplyResult.Applied(applied(SourceKind.CELL, plan.revision, 7L))
+		coEvery { physical.quiesce(any()) } returns completeAck(
+			SourceKind.CELL, 7L, RegistrationRemovalOutcome.REMOVED,
+		)
+		val subject = SharedCellSourceController(physical, broker, sinkFactory)
+		assertIs<SourceStartResult.Started>(subject.start(currentClaim, plan, mockk()))
+
+		for (foreign in listOf(
+			currentClaim.copy(logicalTrackingId = "other-session"),
+			currentClaim.copy(serviceRunId = "other-run"),
+			currentClaim.copy(leaseGeneration = 2L),
+		)) {
+			assertIs<SourceStartResult.Blocked>(subject.start(foreign, plan, mockk()))
+			assertIs<SourceApplyResult.Failed>(subject.reconfigure(foreign, plan, mockk()))
+			assertIs<SourceApplyResult.Failed>(subject.reconfigure(foreign,
+				plan.copy(mode = CellMode.OFF), mockk()))
+		}
+		coVerify(exactly = 1) { physical.refreshShared(any(), any(), any()) }
+		coVerify(exactly = 0) { physical.reconfigure(any(), any(), any()) }
+		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(currentClaim, cutoff()))
+		coVerify(exactly = 1) { physical.quiesce(any()) }
+	}
+
+	@Test
+	fun `Cell close retains claimant on incomplete retirement`() = runTest {
+		val physical = mockk<CellSourceRuntime>()
+		val broker = mockk<SourceBroker>()
+		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
+		every { physical.capabilities } returns MutableStateFlow(capabilities())
+		every { sinkFactory.unbound } returns unboundSink
+		val claim = claim(SourceKind.CELL)
+		val plan = cellPlan()
+		coEvery { broker.authorizationDemands(SourceKind.CELL) } returns
+			listOf(demand(SourceKind.CELL, SourceBrokerPurpose.SESSION_CAPTURE))
+		coEvery { physical.refreshShared(plan, unboundSink, claim) } returns
+			SourceApplyResult.Applied(applied(SourceKind.CELL, plan.revision, 7L))
+		coEvery { physical.quiesce(any()) } returnsMany listOf(
+			completeAck(SourceKind.CELL, 7L, RegistrationRemovalOutcome.FAILED)
+				.copy(status = SourceStopStatus.PROVIDER_FAILED, appDrainComplete = false),
+			completeAck(SourceKind.CELL, 7L, RegistrationRemovalOutcome.REMOVED),
+		)
+		val subject = SharedCellSourceController(physical, broker, sinkFactory)
+		assertIs<SourceStartResult.Started>(subject.start(claim, plan, mockk()))
+		subject.close()
+		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(claim, cutoff()))
+		coVerify(exactly = 2) { physical.quiesce(any()) }
 	}
 
 	private fun demand(source: SourceKind, purpose: String) = SourceDemandEntity(

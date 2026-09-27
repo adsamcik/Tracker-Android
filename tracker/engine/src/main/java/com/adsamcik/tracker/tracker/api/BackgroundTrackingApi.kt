@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.api
 
+import com.adsamcik.tracker.tracker.controller.hasLiveCapture
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
@@ -236,7 +237,7 @@ object BackgroundTrackingApi {
 			// instead of acting on a now-defunct subscription; it re-arms when re-granted.
 			revalidatePermissions(context)
 			return ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
-		} else if (TrackerServiceApi.isActive(context)) {
+		} else if (TrackerServiceApi.hasLiveCapture(context)) {
 			// Stop evaluation is unchanged: only reconsider continuation at the full confidence
 			// threshold so a borderline reading never tears down an active session.
 			if (activity.confidence >= REQUIRED_CONFIDENCE) {
@@ -285,7 +286,7 @@ object BackgroundTrackingApi {
 			cancelAutomaticStopGrace()
 			revalidatePermissions(context)
 			return ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
-		} else if (TrackerServiceApi.isActive(context)) {
+		} else if (TrackerServiceApi.hasLiveCapture(context)) {
 			val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value ?: run {
 				cancelAutomaticStopGrace()
 				return ActivityAutomationDeliveryResult.ACCEPTED
@@ -396,7 +397,7 @@ object BackgroundTrackingApi {
 			delay(AUTOMATIC_STOP_GRACE_MILLIS)
 			if (generation != automaticStopGeneration) return@launch
 			automaticStopGraceJob = null
-			if (!TrackerServiceApi.isActive(appContext)) return@launch
+			if (!TrackerServiceApi.hasLiveCapture(appContext)) return@launch
 			val sessionInfo = TrackerServiceApi.sessionInfoFlow(appContext).value ?: return@launch
 			if (!sessionInfo.isInitiatedByUser) {
 				TrackerServiceApi.stopService(
@@ -438,7 +439,7 @@ object BackgroundTrackingApi {
 	private fun canBackgroundTrack(context: Context, groupedActivity: GroupedActivity): Boolean {
 		val entryPoint = getEntryPoint(context)
 		val params = cachedParamsSnapshot()
-		val isTrackerRunning = entryPoint.trackerStateReader().isServiceRunning
+		val isTrackerRunning = entryPoint.trackerStateReader().hasLiveCapture
 		return canBackgroundTrackWithParams(
 			groupedActivity = groupedActivity,
 			isTrackerRunning = isTrackerRunning,
@@ -961,7 +962,7 @@ object BackgroundTrackingApi {
 				AutoTrackingPreferenceAction.NONE -> Unit
 			}
 		}
-		if (effectiveValue == GroupedActivity.STILL.ordinal && TrackerServiceApi.isActive(context)) {
+		if (effectiveValue == GroupedActivity.STILL.ordinal && TrackerServiceApi.hasLiveCapture(context)) {
 			val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
 			if (shouldStopSessionWhenAutoTrackingDisabled(effectiveValue, sessionInfo?.isInitiatedByUser)) {
 				TrackerServiceApi.stopService(context, TrackingStopCandidateReason.EXPLICIT_REQUEST)
@@ -1167,7 +1168,7 @@ object BackgroundTrackingApi {
 				startImmediateCleanup = {
 					CompletableDeferred<AutomaticControlRecoveryResult>().also { completion ->
 						disable(context, completion)
-						if (TrackerServiceApi.isActive(context)) {
+						if (TrackerServiceApi.hasLiveCapture(context)) {
 							val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
 							if (sessionInfo?.isInitiatedByUser == false) {
 								TrackerServiceApi.stopService(

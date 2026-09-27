@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.app.settings
 
+import com.adsamcik.tracker.tracker.controller.hasLiveCapture
+import com.adsamcik.tracker.tracker.controller.hasLiveCaptureFlow
 import android.content.Context
 import android.system.Os
 import android.system.OsConstants
@@ -231,8 +233,8 @@ class DefaultCollectedDataWriterQuiescer(
 				}
 				// Presentation state is not the writer boundary. Once the durable STOP is handled it
 				// may still lag briefly, so retain this wait only as UI-state cleanup.
-				if (trackerStateReader.isServiceRunning) {
-					trackerStateReader.isServiceRunningFlow.first { isRunning -> !isRunning }
+				if (trackerStateReader.hasLiveCapture) {
+					trackerStateReader.hasLiveCaptureFlow.first { isRunning -> !isRunning }
 				}
 				awaitCancellation(
 					ActivityRecognitionApi.cancelPendingWork(context),

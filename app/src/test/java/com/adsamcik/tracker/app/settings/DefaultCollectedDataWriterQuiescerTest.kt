@@ -26,6 +26,7 @@ import com.adsamcik.tracker.shared.base.database.beginOrResumeRetentionWorkExecu
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.stats.data.worker.AchievementWorker
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.api.TrackingStopQuiescenceResult
 import com.adsamcik.tracker.tracker.resilience.PendingSignalDrainWork
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
@@ -84,6 +85,7 @@ class DefaultCollectedDataWriterQuiescerTest {
 		retentionWorkScheduler = RetentionWorkScheduler(Provider { database }, workManager)
 		every { trackerStateReader.isServiceRunning } answers { trackerRunning.value }
 		every { trackerStateReader.isServiceRunningFlow } returns trackerRunning
+		every { trackerStateReader.sessionInfoFlow } returns MutableStateFlow<TrackerSessionInfo?>(null)
 		every { activityWatcherController.pauseForDataDeletion() } just Runs
 		every { activityWatcherController.resumeAfterDataDeletion() } just Runs
 		coEvery { exportAutomationController.pauseForDataDeletion() } just Runs
@@ -250,6 +252,18 @@ class DefaultCollectedDataWriterQuiescerTest {
 
 		awaited shouldBe true
 		coVerify(exactly = 0) { exportAutomationController.pauseForDataDeletion() }
+	}
+
+	@Test
+	fun `acknowledged capture stop does not wait for independent background host`() = runTest {
+		trackerRunning.value = true
+		val quiescer = DefaultCollectedDataWriterQuiescer(
+			context, trackerStateReader, activityWatcherController, exportAutomationController,
+			retentionWorkScheduler, awaitTrackerQuiescence = { TrackingStopQuiescenceResult.HANDLED },
+		)
+		quiescer.quiesce()
+		trackerRunning.value shouldBe true
+		coVerify(exactly = 1) { exportAutomationController.pauseForDataDeletion() }
 	}
 
 	private fun delayedWork(tag: String? = null) =

@@ -340,3 +340,25 @@ The approved finite-attempt policy remains unchanged. A new versioned radio powe
 contract in existing runtime-state storage was proposed explicitly through a question tool;
 confirmation is pending. Its dependent persistence work is unapplied. Independent Steps quality
 and radio request-fencing source fixes may proceed; entire source-power item remains open.
+
+
+## 31. Shared provider and host ownership request (2026-09-27)
+
+Original user text:
+
+> **Finish shared provider and host ownership.** Ensure one physical owner per source, acknowledged retirement, independent purpose lifetimes and the correct foreground-service requirements.
+
+The full original user packet above and user-provided AGENTS.md apply. Work remains implementation-only:
+production/test-source authorship and static inspection/review only; no Gradle, compilation, test,
+lint, Detekt, Room schema generation/drift, diff-check, emulator/device, UI/battery, CI/release/
+rollout gates, activation, push or new dev/v10 integration. Preserve protected paths and drafts.
+The selected candidate is codex/source-native-map-context-root based on b23b496e2f; main dev/v10
+remains 13f1a99871. Independent review-only provider_host_review has full original context and diff.
+
+Two concrete remaining contracts were asked via question tools under AGENTS.md. Radio hosting:
+extend existing host with separately keyed leases and default-off per-radio saved choices. Feature
+Location: shared nonpersisting adapter, approved Map/game observed-age proposals, and newly proposed
+cache-only sunrise refresh from already-authorized collection. No answer has been received or
+inferred; dependent work is unapplied. See ../../provider-host/2026-09-27/CONTRACT_DECISIONS.md.
+Earlier shared-item WAL, aggregate Steps identity, radio recovery and backup restore decisions
+remain pending. Whole ownership completion and convergence gate remain open.
