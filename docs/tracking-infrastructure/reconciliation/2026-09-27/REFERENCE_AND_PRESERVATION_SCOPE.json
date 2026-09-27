@@ -1,0 +1,1141 @@
+{
+  "date": "2026-09-27",
+  "phase": "IMPLEMENTATION_ONLY",
+  "dev_v10": "13f1a99871b59d29b3d059f374fc415490da6943",
+  "all_refs": [
+    {
+      "ref": "refs/codex/turn-diffs/captures/1790495434273/f5fbb350-259f-4e10-ab80-7504bf4d464f/base",
+      "object": "0a63312d654a9d49d61e0abb5115aef7670d1818",
+      "type": "tree",
+      "commit": "",
+      "ancestor_of_dev_v10": null,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/codex/turn-diffs/checkpoints/24439b3fafc0529de97ba22c13e66ba895b0e5f8c2c2849663646bc95599e032/330b41d3d22a298638ecb98c7f1b97df6681d746cf52064dfb20521e61d5dc95/1783946228843/38643cd7-85dd-4d17-923b-744dfb7114de",
+      "object": "1381c26bc574b8f351e6f20f186736c6d9520d3e",
+      "type": "tree",
+      "commit": "",
+      "ancestor_of_dev_v10": null,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/codex/turn-diffs/checkpoints/6d0feb201542553edb216cf15cd7e573/ad8fa4826b91d113407d0fb69c4c2034/1790406046953/e2da9d35-e5e8-4c4e-b1eb-d870a1e1b165",
+      "object": "0a63312d654a9d49d61e0abb5115aef7670d1818",
+      "type": "tree",
+      "commit": "",
+      "ancestor_of_dev_v10": null,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/codex/turn-diffs/checkpoints/f12c31cdecd077503e8f9074d36a9817/3e6a1ffbdfc81b9b498c027c6bf0c518/1790495421208/9aef704d-f776-43c1-b398-24ea439353d5",
+      "object": "0a63312d654a9d49d61e0abb5115aef7670d1818",
+      "type": "tree",
+      "commit": "",
+      "ancestor_of_dev_v10": null,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/audit-finding-fixes",
+      "object": "a8fd308df926bbaa3c8598cc04bdff463bf97e73",
+      "type": "commit",
+      "commit": "a8fd308df926bbaa3c8598cc04bdff463bf97e73",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/audit-reconciliation-20260925",
+      "object": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "type": "commit",
+      "commit": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/impl-broker-provider-bindings",
+      "object": "0e374345eb79b34529132fbea52d9797130648ac",
+      "type": "commit",
+      "commit": "0e374345eb79b34529132fbea52d9797130648ac",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/impl-lifecycle-product-proof",
+      "object": "f786563167df2990202a96835ff7535488acd77c",
+      "type": "commit",
+      "commit": "f786563167df2990202a96835ff7535488acd77c",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/location-product-query-20260925",
+      "object": "1c17c27e15442b678e5e55139a55dd1ddc4b6b25",
+      "type": "commit",
+      "commit": "1c17c27e15442b678e5e55139a55dd1ddc4b6b25",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/radio-auto-capture",
+      "object": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "type": "commit",
+      "commit": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/review-ci-foundation",
+      "object": "c7c61b54880347c851bd39dcb1a04a5338fb9b2c",
+      "type": "commit",
+      "commit": "c7c61b54880347c851bd39dcb1a04a5338fb9b2c",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/source-native-map-context-root",
+      "object": "63ef296026e440e4a5667235fe0769a03004eb47",
+      "type": "commit",
+      "commit": "63ef296026e440e4a5667235fe0769a03004eb47",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-activity-range-product-20260915",
+      "object": "6dfa484128b43c6c47ca9a66571a607561227fe7",
+      "type": "commit",
+      "commit": "6dfa484128b43c6c47ca9a66571a607561227fe7",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-activity-recent-producer-20260915",
+      "object": "42278b2cf47744ab29b4c4d0c5c28782496ca409",
+      "type": "commit",
+      "commit": "42278b2cf47744ab29b4c4d0c5c28782496ca409",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-activity-source-actions-20260915",
+      "object": "35368a2996ee040002589df25ca26fcd87f87a65",
+      "type": "commit",
+      "commit": "35368a2996ee040002589df25ca26fcd87f87a65",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-ambient-file-integration-20260916",
+      "object": "bf260d7b1fc5d837bfe0c96fbfecfc0e48723cdd",
+      "type": "commit",
+      "commit": "bf260d7b1fc5d837bfe0c96fbfecfc0e48723cdd",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-ambient-steps-file-actions-20260915",
+      "object": "220a2721825272bdf84f5f8ece80c52f8dc37c50",
+      "type": "commit",
+      "commit": "220a2721825272bdf84f5f8ece80c52f8dc37c50",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-ambient-steps-import-20260915",
+      "object": "876ca17547d6e3d48940d399057ffe121964780b",
+      "type": "commit",
+      "commit": "876ca17547d6e3d48940d399057ffe121964780b",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-ambient-steps-p5-portable-20260920",
+      "object": "fa552638c3ced4fe033081d2b945c793583c2391",
+      "type": "commit",
+      "commit": "fa552638c3ced4fe033081d2b945c793583c2391",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-ambient-steps-product-20260915",
+      "object": "0c4728c2b50efd5f68a6013d89f8b4408837d18b",
+      "type": "commit",
+      "commit": "0c4728c2b50efd5f68a6013d89f8b4408837d18b",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-caller-guard-contract-wave0-20260916",
+      "object": "fb21dd3908284eb85495c647c38b9de050c65714",
+      "type": "commit",
+      "commit": "fb21dd3908284eb85495c647c38b9de050c65714",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-cell-import-product-20260915",
+      "object": "1ff5ebf7d18ddf6fed4741d256a2f4532040700c",
+      "type": "commit",
+      "commit": "1ff5ebf7d18ddf6fed4741d256a2f4532040700c",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-dev-v28-containment-wave1-20260917",
+      "object": "7e88cdfa0a8ddc07b982aa747fb8f84d9f3e9e92",
+      "type": "commit",
+      "commit": "7e88cdfa0a8ddc07b982aa747fb8f84d9f3e9e92",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-imported-schema-assembly-20260915",
+      "object": "a4ae2dd57b87c5f16bb172dc4266a3021adff5c9",
+      "type": "commit",
+      "commit": "a4ae2dd57b87c5f16bb172dc4266a3021adff5c9",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-observability-contract-wave0-20260916",
+      "object": "2cc213e753834dbdab2a7952274be5abe35c39f6",
+      "type": "commit",
+      "commit": "2cc213e753834dbdab2a7952274be5abe35c39f6",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-observability-recorder-wave1-20260917",
+      "object": "5f4df6c7ecbc803ad0577be221c82add1ecbca72",
+      "type": "commit",
+      "commit": "5f4df6c7ecbc803ad0577be221c82add1ecbca72",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-observability-store-wave1-20260917",
+      "object": "13eee220798c7c798d87776ae3f7f42422aba946",
+      "type": "commit",
+      "commit": "13eee220798c7c798d87776ae3f7f42422aba946",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-passive-ambient-radio-20260915",
+      "object": "1b2467e38edade32ef70a9262dad8f221c410733",
+      "type": "commit",
+      "commit": "1b2467e38edade32ef70a9262dad8f221c410733",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-portable-file-assembly-20260915",
+      "object": "aa9447e070e67e9a6802e940b2bae6c1e3da9a81",
+      "type": "commit",
+      "commit": "aa9447e070e67e9a6802e940b2bae6c1e3da9a81",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-portable-receipt-context-20260915",
+      "object": "ba73b7a6f3d3e49c413d54e253ad03802f6ccb59",
+      "type": "commit",
+      "commit": "ba73b7a6f3d3e49c413d54e253ad03802f6ccb59",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-pressure-file-actions-20260915",
+      "object": "8ba72248ba2b9ade2908947d1858ec6420e74c3d",
+      "type": "commit",
+      "commit": "8ba72248ba2b9ade2908947d1858ec6420e74c3d",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-pressure-import-maintenance-20260915",
+      "object": "7ce26646d3c68f42da8da4aed75634f17a55762d",
+      "type": "commit",
+      "commit": "7ce26646d3c68f42da8da4aed75634f17a55762d",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-product-contract-wave0-20260916",
+      "object": "39eb94fa2d86d3af40ac3a2a89fda8873c967611",
+      "type": "commit",
+      "commit": "39eb94fa2d86d3af40ac3a2a89fda8873c967611",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-protected-location-handoff-20260915",
+      "object": "ffdef045b91dc5a2c467616db94d09ff1e05ddb8",
+      "type": "commit",
+      "commit": "ffdef045b91dc5a2c467616db94d09ff1e05ddb8",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-purpose-contract-wave0-20260916",
+      "object": "b66e02c13279acdae61424a05d493356476beb03",
+      "type": "commit",
+      "commit": "b66e02c13279acdae61424a05d493356476beb03",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-purpose-publication-wave1-20260917",
+      "object": "df89113603e20e676dade559ac2038bd962d3316",
+      "type": "commit",
+      "commit": "df89113603e20e676dade559ac2038bd962d3316",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-purpose-settings-20260915",
+      "object": "8943f299f812a903f68dbc172412da2c9982a4eb",
+      "type": "commit",
+      "commit": "8943f299f812a903f68dbc172412da2c9982a4eb",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-rearm-contract-wave0-20260916",
+      "object": "9f01b5d4117067755a32bf7b10b176eeb345311d",
+      "type": "commit",
+      "commit": "9f01b5d4117067755a32bf7b10b176eeb345311d",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-retention-authority-wave1-20260917",
+      "object": "352dc074bc7a45f536acd4bf7aa5ef87895bbdc0",
+      "type": "commit",
+      "commit": "352dc074bc7a45f536acd4bf7aa5ef87895bbdc0",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-runtime-settlement-20260915",
+      "object": "e71c739ea3899538e409bb8e807189ce331678e6",
+      "type": "commit",
+      "commit": "e71c739ea3899538e409bb8e807189ce331678e6",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-shared-history-union-20260915",
+      "object": "98f2f567cecdd4ad6b55a252b313125df6a34564",
+      "type": "commit",
+      "commit": "98f2f567cecdd4ad6b55a252b313125df6a34564",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-source-caller-guard-wave1-20260917",
+      "object": "484839083510d3ce8a828e171dc6575b02d92855",
+      "type": "commit",
+      "commit": "484839083510d3ce8a828e171dc6575b02d92855",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-source-catalog-20260920",
+      "object": "15b4a45faeb77617cc524055dfa56389c92e04c3",
+      "type": "commit",
+      "commit": "15b4a45faeb77617cc524055dfa56389c92e04c3",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-source-detail-product-20260915",
+      "object": "cda6aff87cb87b9642bde8f352458d31a8cd57fd",
+      "type": "commit",
+      "commit": "cda6aff87cb87b9642bde8f352458d31a8cd57fd",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-source-history-consumers-20260915",
+      "object": "335df7ea571e2afe6f6d386a102c299ec78ac45c",
+      "type": "commit",
+      "commit": "335df7ea571e2afe6f6d386a102c299ec78ac45c",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-steps-p5-storage-wave2-20260917",
+      "object": "bc43dd972ac8f1a63a37827cf7c2eaad90db5600",
+      "type": "commit",
+      "commit": "bc43dd972ac8f1a63a37827cf7c2eaad90db5600",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/ti-wifi-import-product-20260915",
+      "object": "99c560062df223ba719a485532f044ac9d62a247",
+      "type": "commit",
+      "commit": "99c560062df223ba719a485532f044ac9d62a247",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/unified-tracking-surface",
+      "object": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "type": "commit",
+      "commit": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/codex/update-tracking-accounting-75fd",
+      "object": "62fa4196e52ceb4b874971e03b292ced09a43827",
+      "type": "commit",
+      "commit": "62fa4196e52ceb4b874971e03b292ced09a43827",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/dev/v10",
+      "object": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "type": "commit",
+      "commit": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/handover/reviewed/impl-broker-provider-bindings-20260920",
+      "object": "f0d14b2e753da6bf34fdefec327e65e769ebc43e",
+      "type": "commit",
+      "commit": "f0d14b2e753da6bf34fdefec327e65e769ebc43e",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/handover/reviewed/ti-ambient-steps-p5-portable-20260920",
+      "object": "94901de49bde1ccc508532870ca4cec4bc55b824",
+      "type": "commit",
+      "commit": "94901de49bde1ccc508532870ca4cec4bc55b824",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/handover/reviewed/ti-caller-authority-20260919",
+      "object": "484839083510d3ce8a828e171dc6575b02d92855",
+      "type": "commit",
+      "commit": "484839083510d3ce8a828e171dc6575b02d92855",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/handover/reviewed/ti-retention-authority-20260919",
+      "object": "ad234dd27c5dddd19b3fc1e5bd7a1ad66646e38c",
+      "type": "commit",
+      "commit": "ad234dd27c5dddd19b3fc1e5bd7a1ad66646e38c",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/handover/reviewed/ti-source-catalog-20260920",
+      "object": "15b4a45faeb77617cc524055dfa56389c92e04c3",
+      "type": "commit",
+      "commit": "15b4a45faeb77617cc524055dfa56389c92e04c3",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/handover/reviewed/ti-steps-p5-assembled-20260919",
+      "object": "bc43dd972ac8f1a63a37827cf7c2eaad90db5600",
+      "type": "commit",
+      "commit": "bc43dd972ac8f1a63a37827cf7c2eaad90db5600",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/handover/reviewed/ti-steps-p5-source-20260919",
+      "object": "4ad78ef8086cade4aedd6963e0af7432fba0fe36",
+      "type": "commit",
+      "commit": "4ad78ef8086cade4aedd6963e0af7432fba0fe36",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/heads/main",
+      "object": "59fda665c7099d10b16aa60f505de88bd05d3131",
+      "type": "commit",
+      "commit": "59fda665c7099d10b16aa60f505de88bd05d3131",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/blocked/caller-authority-correction-20260919-a5cdefc",
+      "object": "a5cdefcdbc9ae74dab5a0ba8b61fcf0162e7a72d",
+      "type": "commit",
+      "commit": "a5cdefcdbc9ae74dab5a0ba8b61fcf0162e7a72d",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-activity-captured-facts",
+      "object": "a8c1752cb622fb9e4f6b0f72b36453dfc12c77ca",
+      "type": "commit",
+      "commit": "a8c1752cb622fb9e4f6b0f72b36453dfc12c77ca",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-activity-maintenance",
+      "object": "dd19b4d332c2a343798350ccb74e75c6ae018880",
+      "type": "commit",
+      "commit": "dd19b4d332c2a343798350ccb74e75c6ae018880",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-activity-pressure-product-ui",
+      "object": "100d3e9d27af66ac9ca9d2a889852d1bd0bec7a5",
+      "type": "commit",
+      "commit": "100d3e9d27af66ac9ca9d2a889852d1bd0bec7a5",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-activity-product-read",
+      "object": "d0bf3bf591f44185668ad2256e885eb9028e468c",
+      "type": "commit",
+      "commit": "d0bf3bf591f44185668ad2256e885eb9028e468c",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-activity-projection-adapter",
+      "object": "f269b562abcf513931545578bfb87f67dd3b440a",
+      "type": "commit",
+      "commit": "f269b562abcf513931545578bfb87f67dd3b440a",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-activity-transfer",
+      "object": "b13765db7dca0be8e09f230ec3bb2989cca9d12c",
+      "type": "commit",
+      "commit": "b13765db7dca0be8e09f230ec3bb2989cca9d12c",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-activity-ui",
+      "object": "48d4d3e678bd9200d0e0d434fa5fd0cc3d6e43eb",
+      "type": "commit",
+      "commit": "48d4d3e678bd9200d0e0d434fa5fd0cc3d6e43eb",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-ambient-maintenance",
+      "object": "d998dbb4cfbc9a54a16b9ba979e6a2cf53526f7b",
+      "type": "commit",
+      "commit": "d998dbb4cfbc9a54a16b9ba979e6a2cf53526f7b",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-ambient-product-read",
+      "object": "55024d9f660e9586a05cae13f73e672980d5655a",
+      "type": "commit",
+      "commit": "55024d9f660e9586a05cae13f73e672980d5655a",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-ambient-transfer",
+      "object": "8ff5ec428cb191c1ab585d6355712d5ead85a8af",
+      "type": "commit",
+      "commit": "8ff5ec428cb191c1ab585d6355712d5ead85a8af",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-cell-fact-model",
+      "object": "0dae1d8f55ae65bd85dcf9b0ed117fb72ed60287",
+      "type": "commit",
+      "commit": "0dae1d8f55ae65bd85dcf9b0ed117fb72ed60287",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-cell-maintenance",
+      "object": "f8dd5d6d115c63b8cc771313901978098e2a5608",
+      "type": "commit",
+      "commit": "f8dd5d6d115c63b8cc771313901978098e2a5608",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-cell-product-read",
+      "object": "79056b454b634ae65ed1ba85e2fea32cebba5cb3",
+      "type": "commit",
+      "commit": "79056b454b634ae65ed1ba85e2fea32cebba5cb3",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-handover-assembly-2026-09-15",
+      "object": "29323cfabe445ddb0278413b1710a31cdaab8073",
+      "type": "commit",
+      "commit": "29323cfabe445ddb0278413b1710a31cdaab8073",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-location-qualified-observation",
+      "object": "762186a24f55c06adfc7f9f0a3a985fffe0e82c3",
+      "type": "commit",
+      "commit": "762186a24f55c06adfc7f9f0a3a985fffe0e82c3",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-location-wal-adapter",
+      "object": "8a90104ce50b5a877a2df977d3c73539b5a04328",
+      "type": "commit",
+      "commit": "8a90104ce50b5a877a2df977d3c73539b5a04328",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-location-wal-provenance",
+      "object": "6e9d84f38fbb2132fb2d068ec4967e43d551ed23",
+      "type": "commit",
+      "commit": "6e9d84f38fbb2132fb2d068ec4967e43d551ed23",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-acquisition",
+      "object": "3b8abe350b7874227c61b32f66f669ad8602fefc",
+      "type": "commit",
+      "commit": "3b8abe350b7874227c61b32f66f669ad8602fefc",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-deletion-repair",
+      "object": "ed408932367f0083c38ed2752dd441565b304bed",
+      "type": "commit",
+      "commit": "ed408932367f0083c38ed2752dd441565b304bed",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-detail",
+      "object": "c27cc1c182a7a32688e0500fcb7777567386550d",
+      "type": "commit",
+      "commit": "c27cc1c182a7a32688e0500fcb7777567386550d",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-import",
+      "object": "94199906088b9d40b623fce1413c2fd44c6b470d",
+      "type": "commit",
+      "commit": "94199906088b9d40b623fce1413c2fd44c6b470d",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-maintenance",
+      "object": "ed408932367f0083c38ed2752dd441565b304bed",
+      "type": "commit",
+      "commit": "ed408932367f0083c38ed2752dd441565b304bed",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-product-read",
+      "object": "97941e8b19f186a89f8e5cd188360dde1aa13769",
+      "type": "commit",
+      "commit": "97941e8b19f186a89f8e5cd188360dde1aa13769",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-retention-product",
+      "object": "85ac20157eb365012cd726972d8171e2f1f21f36",
+      "type": "commit",
+      "commit": "85ac20157eb365012cd726972d8171e2f1f21f36",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-session-facts",
+      "object": "db2a460a300bf48d3eeace5904b4a32f64967d59",
+      "type": "commit",
+      "commit": "db2a460a300bf48d3eeace5904b4a32f64967d59",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-transfer",
+      "object": "63b9667b30631c3dd9e83d5c0bf181be44c5df3f",
+      "type": "commit",
+      "commit": "63b9667b30631c3dd9e83d5c0bf181be44c5df3f",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-ui",
+      "object": "8214b92ab10f8a09bac59bc24b4ec6915f59ccc6",
+      "type": "commit",
+      "commit": "8214b92ab10f8a09bac59bc24b4ec6915f59ccc6",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-writer-activation",
+      "object": "a410dcb86b04b1943035c1505a61592e044c7139",
+      "type": "commit",
+      "commit": "a410dcb86b04b1943035c1505a61592e044c7139",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-steps-import-actions",
+      "object": "43757982088e292b9bb97f6218706d6665c5e3b6",
+      "type": "commit",
+      "commit": "43757982088e292b9bb97f6218706d6665c5e3b6",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-steps-import-admission",
+      "object": "4db55146eccad9e39adc7725076cb2783d92e330",
+      "type": "commit",
+      "commit": "4db55146eccad9e39adc7725076cb2783d92e330",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-steps-import-product",
+      "object": "f93b373ef6392fdca8727776bb052e292fd3f9ce",
+      "type": "commit",
+      "commit": "f93b373ef6392fdca8727776bb052e292fd3f9ce",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-steps-numeric-consumers",
+      "object": "3e727f255062cd328bf45a53dcc39910239a034e",
+      "type": "commit",
+      "commit": "3e727f255062cd328bf45a53dcc39910239a034e",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-steps-portable-import",
+      "object": "a347df9a25e2902b3d9951639f2303e9806f7645",
+      "type": "commit",
+      "commit": "a347df9a25e2902b3d9951639f2303e9806f7645",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-steps-qualified-awards",
+      "object": "a347df9a25e2902b3d9951639f2303e9806f7645",
+      "type": "commit",
+      "commit": "a347df9a25e2902b3d9951639f2303e9806f7645",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-steps-summary-authority",
+      "object": "3f62d5c644b44277088097800a85637a955cfdb0",
+      "type": "commit",
+      "commit": "3f62d5c644b44277088097800a85637a955cfdb0",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-wifi-fact-model",
+      "object": "26347367c44e93639c59d38fd43a845000335d0f",
+      "type": "commit",
+      "commit": "26347367c44e93639c59d38fd43a845000335d0f",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-wifi-maintenance",
+      "object": "315ac6a8347b8e38ff6b64876734d9c265c7463c",
+      "type": "commit",
+      "commit": "315ac6a8347b8e38ff6b64876734d9c265c7463c",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-wifi-manual-action",
+      "object": "750bd6c423a62267e14bcb58e010b4b6d268a545",
+      "type": "commit",
+      "commit": "750bd6c423a62267e14bcb58e010b4b6d268a545",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-wifi-product-read",
+      "object": "adde063f39273831440a065304364728c098dee2",
+      "type": "commit",
+      "commit": "adde063f39273831440a065304364728c098dee2",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-ambient-file-integration-20260916",
+      "object": "d5a565b4185fb9bc25856134d7547c8f33dc3532",
+      "type": "commit",
+      "commit": "d5a565b4185fb9bc25856134d7547c8f33dc3532",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-consumer-recreation-fix-20260916",
+      "object": "b3f490c76d6dbbe2eebbf6720a0f51f9212c2aa0",
+      "type": "commit",
+      "commit": "b3f490c76d6dbbe2eebbf6720a0f51f9212c2aa0",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-factless-steps-history-20260915",
+      "object": "771ce960b37e3c7589c077ef848a20759f5cab31",
+      "type": "commit",
+      "commit": "771ce960b37e3c7589c077ef848a20759f5cab31",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-final-source-schema-20260916",
+      "object": "7142543ba9556d9fa9cf484bd6b642c8e9c3e755",
+      "type": "commit",
+      "commit": "7142543ba9556d9fa9cf484bd6b642c8e9c3e755",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-five-source-history-20260916",
+      "object": "1031df9f35e040900e0919fb06705064b07c0286",
+      "type": "commit",
+      "commit": "1031df9f35e040900e0919fb06705064b07c0286",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-legacy-radio-retention-20260915",
+      "object": "afa939b0fd84cc9e6ebda9262bf57bbf16a5eca0",
+      "type": "commit",
+      "commit": "afa939b0fd84cc9e6ebda9262bf57bbf16a5eca0",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-portable-file-assembly-20260915",
+      "object": "2697903ae6a2b5a61acd2981c990c3f3638d9a37",
+      "type": "commit",
+      "commit": "2697903ae6a2b5a61acd2981c990c3f3638d9a37",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-pressure-file-initial-20260915",
+      "object": "ea577ac7bcc1b534aace119d9cd35c8792f65924",
+      "type": "commit",
+      "commit": "ea577ac7bcc1b534aace119d9cd35c8792f65924",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-purpose-settings-20260915",
+      "object": "cef95415e2f5e77fb9e12ea3e95776ef26e36efe",
+      "type": "commit",
+      "commit": "cef95415e2f5e77fb9e12ea3e95776ef26e36efe",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-source-detail-product-20260915",
+      "object": "9c545380d65042ee6f85dc0d300353cc6640d50d",
+      "type": "commit",
+      "commit": "9c545380d65042ee6f85dc0d300353cc6640d50d",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-source-history-consumers-20260916",
+      "object": "10ed3b99dad7a2862747b83190ba06fe1323c31f",
+      "type": "commit",
+      "commit": "10ed3b99dad7a2862747b83190ba06fe1323c31f",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave0-caller-purpose-20260916",
+      "object": "fb21dd3908284eb85495c647c38b9de050c65714",
+      "type": "commit",
+      "commit": "fb21dd3908284eb85495c647c38b9de050c65714",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave0-observability-contract-20260917",
+      "object": "b1d122a7f1bf26fed464647ada85322092a750c2",
+      "type": "commit",
+      "commit": "b1d122a7f1bf26fed464647ada85322092a750c2",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave0-product-enrichment-20260916",
+      "object": "75acfc4874ad75b9e794fd0ba5f61c19e59ddf89",
+      "type": "commit",
+      "commit": "75acfc4874ad75b9e794fd0ba5f61c19e59ddf89",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave0-rearm-20260916",
+      "object": "e0cd99cc1dfe0b9adf466eea5283e59b8e447387",
+      "type": "commit",
+      "commit": "e0cd99cc1dfe0b9adf466eea5283e59b8e447387",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave1-dev-v28-containment-20260917",
+      "object": "05d2b72781593c9a47c70fc8e851272912fb08d9",
+      "type": "commit",
+      "commit": "05d2b72781593c9a47c70fc8e851272912fb08d9",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave1-observability-recorder-20260917",
+      "object": "5f4df6c7ecbc803ad0577be221c82add1ecbca72",
+      "type": "commit",
+      "commit": "5f4df6c7ecbc803ad0577be221c82add1ecbca72",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave1-observability-store-20260917",
+      "object": "1b46dd6d739b4127cbfb02536bccc50b392849bd",
+      "type": "commit",
+      "commit": "1b46dd6d739b4127cbfb02536bccc50b392849bd",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave1-purpose-publication-20260917",
+      "object": "e0bcdcf9d464eea3120aad3f055844cf994c7ba2",
+      "type": "commit",
+      "commit": "e0bcdcf9d464eea3120aad3f055844cf994c7ba2",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wifi-full-clear-20260915",
+      "object": "fc1e540f5b135d2485a9267127c4435c5b067356",
+      "type": "commit",
+      "commit": "fc1e540f5b135d2485a9267127c4435c5b067356",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/origin/2021.2",
+      "object": "6e733b98afc41b2074699ccb9d450cf4357085f2",
+      "type": "commit",
+      "commit": "6e733b98afc41b2074699ccb9d450cf4357085f2",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/origin/2024.3",
+      "object": "26cd6102ab9821683b906c038fb213b0ce5922a6",
+      "type": "commit",
+      "commit": "26cd6102ab9821683b906c038fb213b0ce5922a6",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/origin/HEAD",
+      "object": "59fda665c7099d10b16aa60f505de88bd05d3131",
+      "type": "commit",
+      "commit": "59fda665c7099d10b16aa60f505de88bd05d3131",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/origin/chore/job-quota-observability",
+      "object": "08ec8a7d15b59b724d61677c4b75622d8f6d2bb5",
+      "type": "commit",
+      "commit": "08ec8a7d15b59b724d61677c4b75622d8f6d2bb5",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/origin/copilot/tracebox-v1-dev-v10",
+      "object": "87564c0a009d41505467e6c0f088a3f3fa8a899e",
+      "type": "commit",
+      "commit": "87564c0a009d41505467e6c0f088a3f3fa8a899e",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/origin/dev/v10",
+      "object": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "type": "commit",
+      "commit": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/origin/feat/resilient-session-restart",
+      "object": "9d8c1af13b163772002d6a3235921cc2c3ca5c42",
+      "type": "commit",
+      "commit": "9d8c1af13b163772002d6a3235921cc2c3ca5c42",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/origin/fix/fgs-lifecycle-robustness",
+      "object": "c77da5d4a356b5a5b0bc854b1e5218d672099466",
+      "type": "commit",
+      "commit": "c77da5d4a356b5a5b0bc854b1e5218d672099466",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/origin/main",
+      "object": "59fda665c7099d10b16aa60f505de88bd05d3131",
+      "type": "commit",
+      "commit": "59fda665c7099d10b16aa60f505de88bd05d3131",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/remotes/origin/perf/location-batching-passive",
+      "object": "3b98c395dd1e5fc648a97890294d8562df23c231",
+      "type": "commit",
+      "commit": "3b98c395dd1e5fc648a97890294d8562df23c231",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/tags/2019.1",
+      "object": "fe2d86c9aef6dc620ff1e85af15c34071efdbf85",
+      "type": "commit",
+      "commit": "fe2d86c9aef6dc620ff1e85af15c34071efdbf85",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/tags/2020.1",
+      "object": "24e124a5d55fe1b3ead99361dcd0121241039f69",
+      "type": "commit",
+      "commit": "24e124a5d55fe1b3ead99361dcd0121241039f69",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/tags/2021.1",
+      "object": "38d9709ef5dd59514e1b7e2796594b2f4724664c",
+      "type": "commit",
+      "commit": "38d9709ef5dd59514e1b7e2796594b2f4724664c",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/tags/2023.1",
+      "object": "03ab69e50ad8621627a420dc4e4b722750c6a9d5",
+      "type": "commit",
+      "commit": "03ab69e50ad8621627a420dc4e4b722750c6a9d5",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/tags/2024.1",
+      "object": "e8586ade79569fb756ed6736184d6f55cc4ffd3f",
+      "type": "commit",
+      "commit": "e8586ade79569fb756ed6736184d6f55cc4ffd3f",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/tags/2024.2",
+      "object": "892bc2b2fdce93c8fa9293261c910c8af82a7966",
+      "type": "commit",
+      "commit": "892bc2b2fdce93c8fa9293261c910c8af82a7966",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/tags/4.9.0",
+      "object": "900313ab7967054bae4dfe9aa7ea79991f280522",
+      "type": "commit",
+      "commit": "900313ab7967054bae4dfe9aa7ea79991f280522",
+      "ancestor_of_dev_v10": false,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/tags/6.0Beta",
+      "object": "895b6d7d916241f73a7ab841daff9ef696d3e42b",
+      "type": "commit",
+      "commit": "895b6d7d916241f73a7ab841daff9ef696d3e42b",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    },
+    {
+      "ref": "refs/tags/6.1Beta",
+      "object": "d7e5e9e2471e2c4a0481b6f07aa91280b783eb9c",
+      "type": "commit",
+      "commit": "d7e5e9e2471e2c4a0481b6f07aa91280b783eb9c",
+      "ancestor_of_dev_v10": true,
+      "scope": "reference preservation only; not selected by prefix/date"
+    }
+  ],
+  "unrelated_preserved_files": [
+    {
+      "path": "C:\\Users\\adam-\\GitHub\\Tracker-Android\\.external-wip\\29-third.json",
+      "sha256": "098f2d7f72a51e0e297fa3f6cadd1b21db7ff917369ddad55f5fd2a43184767c",
+      "bytes": 79803,
+      "disposition": "unrelated preserved map/schema drafts; not selected or modified"
+    },
+    {
+      "path": "C:\\Users\\adam-\\GitHub\\Tracker-Android\\.external-wip\\29.json",
+      "sha256": "098f2d7f72a51e0e297fa3f6cadd1b21db7ff917369ddad55f5fd2a43184767c",
+      "bytes": 79803,
+      "disposition": "unrelated preserved map/schema drafts; not selected or modified"
+    },
+    {
+      "path": "C:\\Users\\adam-\\GitHub\\Tracker-Android\\.external-wip\\MapLayerEntryPoint-2.kt",
+      "sha256": "686d48394bed41fc23e79f63b3aebd9826960f31e1d05da494afa4d434d58a2e",
+      "bytes": 997,
+      "disposition": "unrelated preserved map/schema drafts; not selected or modified"
+    },
+    {
+      "path": "C:\\Users\\adam-\\GitHub\\Tracker-Android\\.external-wip\\MapLayerEntryPoint.kt",
+      "sha256": "686d48394bed41fc23e79f63b3aebd9826960f31e1d05da494afa4d434d58a2e",
+      "bytes": 997,
+      "disposition": "unrelated preserved map/schema drafts; not selected or modified"
+    },
+    {
+      "path": "C:\\Users\\adam-\\GitHub\\Tracker-Android\\.external-wip\\VehicleComplianceLayer.kt",
+      "sha256": "c3f099ffc298986bf7442ca284d4795119a62e16c6629a86c3275b93e4dfec79",
+      "bytes": 5893,
+      "disposition": "unrelated preserved map/schema drafts; not selected or modified"
+    }
+  ],
+  "quarantine_payload_search": {
+    "scope": "repository docs plus registered worktrees/current local refs",
+    "matches": [],
+    "historical_receipt": "docs/tracking-infrastructure/handover/2026-09-15/QUARANTINE.md",
+    "status": "historical six protected paths and two frozen draft worktrees not present as dirty live worktrees; do not claim original quarantine payload bytes are available merely from documentation"
+  }
+}

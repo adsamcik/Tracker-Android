@@ -1,0 +1,339 @@
+[
+  {
+    "path": ".github/workflows/android.yml",
+    "versions": [
+      "codex/audit-reconciliation-20260925",
+      "DRAFT:audit-finding-fixes:refs/heads/codex/audit-finding-fixes"
+    ]
+  },
+  {
+    "path": "app/src/main/res/values/strings.xml",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/audit-reconciliation-20260925"
+    ]
+  },
+  {
+    "path": "app/src/test/java/com/adsamcik/tracker/app/architecture/ArchitecturalFitnessTest.kt",
+    "versions": [
+      "codex/audit-reconciliation-20260925",
+      "DRAFT:audit-finding-fixes:refs/heads/codex/audit-finding-fixes"
+    ]
+  },
+  {
+    "path": "build.gradle.kts",
+    "versions": [
+      "codex/audit-reconciliation-20260925",
+      "DRAFT:audit-finding-fixes:refs/heads/codex/audit-finding-fixes"
+    ]
+  },
+  {
+    "path": "core/base/src/androidTest/java/com/adsamcik/tracker/shared/base/database/AppDatabaseMigration27To28Test.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ]
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AdditionalTrackingSchema.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:location-product-query-20260925:refs/heads/codex/location-product-query-20260925"
+    ]
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:location-product-query-20260925:refs/heads/codex/location-product-query-20260925"
+    ]
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabaseMigrations.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ]
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ]
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationSampleDao.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ]
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceEventWalDao.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ]
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ]
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDestinationOwnerEntity.kt",
+    "versions": [
+      "codex/location-product-query-20260925",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ]
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ]
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ]
+  },
+  {
+    "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ]
+  },
+  {
+    "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModel.kt",
+    "versions": [
+      "codex/unified-tracking-surface",
+      "DRAFT:unified-tracking-surface:refs/heads/codex/unified-tracking-surface"
+    ]
+  },
+  {
+    "path": "feature/dashboard/src/main/res/values/strings.xml",
+    "versions": [
+      "codex/unified-tracking-surface",
+      "DRAFT:unified-tracking-surface:refs/heads/codex/unified-tracking-surface"
+    ]
+  },
+  {
+    "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelLiveStepsTest.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "codex/unified-tracking-surface"
+    ]
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ]
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ]
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryComposer.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ]
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ]
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ]
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiImportedHistoryRepositoryTest.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ]
+  },
+  {
+    "path": "tools/release_manifest.py",
+    "versions": [
+      "codex/audit-reconciliation-20260925",
+      "DRAFT:audit-finding-fixes:refs/heads/codex/audit-finding-fixes"
+    ]
+  },
+  {
+    "path": "tools/release_validation.py",
+    "versions": [
+      "codex/audit-reconciliation-20260925",
+      "DRAFT:audit-finding-fixes:refs/heads/codex/audit-finding-fixes"
+    ]
+  },
+  {
+    "path": "tools/tests/test_release_manifest.py",
+    "versions": [
+      "codex/audit-reconciliation-20260925",
+      "DRAFT:audit-finding-fixes:refs/heads/codex/audit-finding-fixes"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/persistence/PersistenceProcessor.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/policy/BatteryAwarePolicy.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/audit-reconciliation-20260925"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/audit-reconciliation-20260925"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStore.kt",
+    "versions": [
+      "codex/location-product-query-20260925",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservation.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "DRAFT:location-product-query-20260925:refs/heads/codex/location-product-query-20260925"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservationQualifier.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:location-product-query-20260925:refs/heads/codex/location-product-query-20260925"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof",
+      "codex/location-product-query-20260925",
+      "DRAFT:location-product-query-20260925:refs/heads/codex/location-product-query-20260925"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStoreTest.kt",
+    "versions": [
+      "codex/location-product-query-20260925",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:location-product-query-20260925:refs/heads/codex/location-product-query-20260925"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof",
+      "codex/location-product-query-20260925",
+      "DRAFT:location-product-query-20260925:refs/heads/codex/location-product-query-20260925"
+    ]
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ]
+  }
+]

@@ -258,3 +258,9 @@ DECISION_CLOSURE contains the concrete proposal and current source evidence. No 
 > No if user selects a given format they should get export in just that format.
 
 This settles output strictly in the user's selected format. No automatic companion Tracker file, session bundle, backup, different enclosing archive or format fallback. A proposed new bundle/codec remains a separate explicit format choice if approved; this correction is not approval to add those formats or all detailed import proposals. The earlier selected-export follow-up is superseded, not pending and not to be reasked. The full-backup restore question remains pending. Phase remains IMPLEMENTATION_ONLY; this slice records the design correction only.
+
+## 25. Reconcile implementation inputs
+
+> Reconcile implementation inputs. Inventory committed candidates and preserved drafts, select their final versions, and resolve overlapping changes without losing existing work.
+
+Work continues on the existing candidate from63ef296026, preserving original refs and dirty draft files. Current inventory and final selection/reconciliation receipts live under `reconciliation/2026-09-27`. The user authorizes input reconciliation, not new product/data-handling decisions, provider/writer activation, deferred validation, integration into dev/v10 or push. The independent reviewer receives the full original user packet, approved decisions, exact inputs/diff and static-only verification boundary. No recursive delegation.
