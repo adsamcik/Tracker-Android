@@ -108,6 +108,52 @@ interface ActivityCapturedFactDao {
 		semanticRevision: Long,
 	): List<ActivityCapturedEvidenceEntity>
 
+	/**
+	 * Indexed bounded reverse lookup from one immutable WAL admission to current Activity heads.
+	 *
+	 * Corrections may intentionally replace the current fact with a gap-only revision that carries
+	 * no evidence rows. Historical evidence therefore discovers the immutable window lineage, while
+	 * the accepted cursor selects its current head.
+	 */
+	@Query(
+		"SELECT DISTINCT revision.* FROM activity_captured_evidence AS evidence " +
+			"INNER JOIN activity_captured_window_cursor AS fact_cursor " +
+			"ON fact_cursor.writer_projection_id = evidence.writer_projection_id " +
+			"AND fact_cursor.writer_projection_version = evidence.writer_projection_version " +
+			"AND fact_cursor.logical_window_id = evidence.logical_window_id " +
+			"INNER JOIN activity_captured_window_revision AS revision " +
+			"ON revision.writer_projection_id = fact_cursor.writer_projection_id " +
+			"AND revision.writer_projection_version = fact_cursor.writer_projection_version " +
+			"AND revision.logical_window_id = fact_cursor.logical_window_id " +
+			"AND fact_cursor.latest_semantic_revision = revision.semantic_revision " +
+			"AND fact_cursor.latest_mutation_id = revision.mutation_id " +
+			"AND fact_cursor.latest_effect_checksum = revision.effect_checksum " +
+			"WHERE evidence.writer_projection_id = :writerProjectionId " +
+			"AND evidence.writer_projection_version = :writerProjectionVersion " +
+			"AND evidence.source_admission_ordinal = :sourceAdmissionOrdinal " +
+			"ORDER BY revision.logical_window_id LIMIT :limit",
+	)
+	suspend fun currentRevisionsForWriterAdmission(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		sourceAdmissionOrdinal: Long,
+		limit: Int,
+	): List<ActivityCapturedWindowRevisionEntity>
+
+	@Query(
+		"SELECT * FROM activity_captured_window_revision " +
+			"WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND logical_window_id = :logicalWindowId " +
+			"ORDER BY semantic_revision LIMIT :limit",
+	)
+	suspend fun revisionsForWindow(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		logicalWindowId: String,
+		limit: Int,
+	): List<ActivityCapturedWindowRevisionEntity>
+
 	@Query(
 		"SELECT * FROM activity_captured_window_cursor " +
 			"WHERE writer_projection_id = :writerProjectionId " +

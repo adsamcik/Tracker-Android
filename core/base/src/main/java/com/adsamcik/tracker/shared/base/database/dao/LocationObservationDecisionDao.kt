@@ -1,10 +1,16 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
+
+data class LocationObservationDecisionRetentionRef(
+	val id: Long,
+	@ColumnInfo(name = "observation_source_event_id") val observationSourceEventId: String,
+)
 
 @Dao
 interface LocationObservationDecisionDao {
@@ -22,6 +28,15 @@ interface LocationObservationDecisionDao {
 	suspend fun getBySourceEventId(sourceEventId: String): LocationObservationDecision?
 
 	@Query(
+		"SELECT id, observation_source_event_id FROM location_observation_decision " +
+			"WHERE id > :afterId ORDER BY id LIMIT :limit",
+	)
+	suspend fun retentionPage(
+		afterId: Long,
+		limit: Int,
+	): List<LocationObservationDecisionRetentionRef>
+
+	@Query(
 		"""
 		SELECT * FROM location_observation_decision
 		WHERE decided_at_ms >= :fromMs AND decided_at_ms <= :toMs
@@ -32,6 +47,12 @@ interface LocationObservationDecisionDao {
 
 	@Query("DELETE FROM location_observation_decision WHERE decided_at_ms < :beforeMs")
 	suspend fun deleteOlderThan(beforeMs: Long): Int
+
+	@Query(
+		"DELETE FROM location_observation_decision " +
+			"WHERE observation_source_event_id IN (:sourceEventIds)",
+	)
+	suspend fun deleteBySourceEventIds(sourceEventIds: List<String>): Int
 
 	/**
 	 * Removes terminal decisions whose immutable raw observation was removed by

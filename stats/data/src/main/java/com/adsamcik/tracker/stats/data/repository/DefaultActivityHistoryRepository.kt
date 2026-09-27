@@ -2,6 +2,7 @@ package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivityRequest
 import com.adsamcik.tracker.shared.base.database.ImportedActivityOrderedProductEvaluation
 import com.adsamcik.tracker.shared.base.database.ImportedActivityOrderedProductPage
@@ -22,6 +23,7 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEn
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.MAX_ACTIVITY_WAL_PAYLOAD_BYTES
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -34,6 +36,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
@@ -69,11 +72,26 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 /** Source-local Activity history facade. All dependencies are read in one bounded Room snapshot. */
-internal class DefaultActivityHistoryRepository @Inject constructor(
+internal class DefaultActivityHistoryRepository private constructor(
 	private val database: AppDatabase,
 	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+	private val currentClockDomainProvider: (() -> String)?,
 ) : ActivityHistoryRepository, ActivityImportedHistoryEligibleReader {
+	@Inject
+	internal constructor(
+		database: AppDatabase,
+		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
+		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+		bootClockDomainProvider: BootClockDomainProvider,
+	) : this(database, laneExecutionAuthority, ioDispatcher, bootClockDomainProvider::current)
+
+	internal constructor(
+		database: AppDatabase,
+		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
+		ioDispatcher: CoroutineDispatcher,
+	) : this(database, laneExecutionAuthority, ioDispatcher, null)
+
 	private val importedProductReader = ImportedActivityProductReader(database)
 	private val rangeIssuer = Any()
 	private val localPortableReader = RoomReadLocalPortableCapturedActivity(
@@ -1180,6 +1198,18 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 		val evidence = if (windowIds.isEmpty()) emptyList() else {
 			factDao.historyEvidence(windowIds, MAX_ACTIVITY_EVIDENCE + 1)
 		}
+		val activityEventIds = evidence.map(ActivityCapturedEvidenceEntity::sourceEventId).distinct()
+		val activityWalRows = mutableListOf<SourceEventWalEntity>()
+		for (eventIds in activityEventIds.chunked(ACTIVITY_WAL_ID_BATCH_SIZE)) {
+			currentCoroutineContext().ensureActive()
+			activityWalRows += database.sourceEventWalDao().boundedPayloadsByEventIds(
+				sourceKind = ACTIVITY_SOURCE,
+				eventIds = eventIds,
+				maximumPayloadBytes = MAX_ACTIVITY_WAL_PAYLOAD_BYTES,
+				limit = eventIds.size,
+			)
+		}
+		val walByEventId = activityWalRows.associateBy(SourceEventWalEntity::eventId)
 		currentCoroutineContext().ensureActive()
 		val activityCompleteness = completeness.filter { it.sourceKind == ACTIVITY_SOURCE }
 		val sourceInstanceIds = sequenceOf(
@@ -1213,6 +1243,16 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 				ACTIVITY_SOURCE, registrationGenerations, MAX_ACTIVITY_PROVIDER_REGISTRATIONS + 1,
 			)
 		}
+		val currentProviderRows = database.sourceBrokerDao().currentPhysicalRegistrationsBounded(
+			ACTIVITY_SOURCE,
+			MAX_ACTIVITY_PROVIDER_REGISTRATIONS + 1,
+		)
+		val retiringProviderRows = database.sourceBrokerDao().pendingProviderRemovalsBounded(
+			ACTIVITY_SOURCE,
+			MAX_ACTIVITY_PROVIDER_REGISTRATIONS + 1,
+		)
+		val currentProviderRegistrations = (currentProviderRows + retiringProviderRows)
+			.distinctBy(ProviderRegistrationGenerationEntity::registrationGeneration)
 		val authorizations = if (registrationGenerations.isEmpty()) emptyList() else {
 			factDao.historyAuthorizations(
 				ACTIVITY_SOURCE, registrationGenerations, MAX_ACTIVITY_AUTHORIZATIONS + 1,
@@ -1284,6 +1324,9 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 			acquisitionPlanRevisions.size > MAX_ACTIVITY_ACQUISITION_PLANS ||
 			desiredPlans.size > MAX_ACTIVITY_DESIRED_PLANS ||
 			providerRegistrations.size > MAX_ACTIVITY_PROVIDER_REGISTRATIONS ||
+			currentProviderRows.size > MAX_ACTIVITY_PROVIDER_REGISTRATIONS ||
+			retiringProviderRows.size > MAX_ACTIVITY_PROVIDER_REGISTRATIONS ||
+			currentProviderRegistrations.size > MAX_ACTIVITY_PROVIDER_REGISTRATIONS ||
 			authorizations.size > MAX_ACTIVITY_AUTHORIZATIONS ||
 			terminalFailures.size > MAX_ACTIVITY_TERMINAL_FAILURES
 		return ActivityHistorySnapshot(
@@ -1303,6 +1346,7 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 			cursors = cursors.take(MAX_ACTIVITY_CURSORS),
 			fragmentsByRevision = fragments.take(MAX_ACTIVITY_FRAGMENTS).groupBy(::revisionKey),
 			evidenceByRevision = evidence.take(MAX_ACTIVITY_EVIDENCE).groupBy(::revisionKey),
+			walByEventId = walByEventId,
 			registrationPlans = registrationPlans.take(MAX_ACTIVITY_REGISTRATION_PLANS)
 				.associateBy { it.sourceInstanceId to it.registrationGeneration },
 			acquisitionPlanRevisions = acquisitionPlanRevisions.take(MAX_ACTIVITY_ACQUISITION_PLANS)
@@ -1311,6 +1355,12 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 				.associateBy(SourceDesiredPlanEntity::revision),
 			providerRegistrations = providerRegistrations.take(MAX_ACTIVITY_PROVIDER_REGISTRATIONS)
 				.associateBy(ProviderRegistrationGenerationEntity::registrationGeneration),
+			currentProviderRegistrations =
+				currentProviderRegistrations.take(MAX_ACTIVITY_PROVIDER_REGISTRATIONS),
+			currentClockDomainId = currentClockDomainProvider?.invoke()
+				?: currentProviderRegistrations.singleOrNull {
+					it.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+				}?.clockDomainId,
 			authorizationsByRegistration = authorizations.take(MAX_ACTIVITY_AUTHORIZATIONS)
 				.groupBy(SourceAuthorizationEntity::registrationGeneration),
 			deletionFenceDigests = deletionFences.mapTo(hashSetOf()) { it.scopeIdentityDigest },
@@ -1413,6 +1463,7 @@ internal data class ActivityHistorySnapshot(
 	val cursors: List<ActivityCapturedWindowCursorEntity>,
 	val fragmentsByRevision: Map<ActivityRevisionKey, List<ActivityCapturedFragmentEntity>>,
 	val evidenceByRevision: Map<ActivityRevisionKey, List<ActivityCapturedEvidenceEntity>>,
+	val walByEventId: Map<String, SourceEventWalEntity> = emptyMap(),
 	val registrationPlans: Map<Pair<String, Long>, ActivityCapturedRegistrationPlanEntity>,
 	val acquisitionPlanRevisions: Map<Long, AcquisitionPlanRevisionEntity>,
 	val desiredPlans: Map<Long, SourceDesiredPlanEntity>,
@@ -1423,6 +1474,8 @@ internal data class ActivityHistorySnapshot(
 	val terminalFailures: List<SourceProjectionFailureEntity>,
 	val evidenceState: SourceEvidenceState?,
 	val overflow: Boolean,
+	val currentProviderRegistrations: List<ProviderRegistrationGenerationEntity> = emptyList(),
+	val currentClockDomainId: String? = null,
 ) {
 	companion object {
 		fun empty(expansion: ActivityMembershipExpansion) = ActivityHistorySnapshot(
@@ -1438,6 +1491,7 @@ internal data class ActivityHistorySnapshot(
 			cursors = emptyList(),
 			fragmentsByRevision = emptyMap(),
 			evidenceByRevision = emptyMap(),
+			walByEventId = emptyMap(),
 			registrationPlans = emptyMap(),
 			acquisitionPlanRevisions = emptyMap(),
 			desiredPlans = emptyMap(),
@@ -1469,6 +1523,8 @@ internal fun revisionKey(entity: ActivityCapturedWindowRevisionEntity) = Activit
 	entity.logicalWindowId,
 	entity.semanticRevision,
 )
+
+private const val ACTIVITY_WAL_ID_BATCH_SIZE = 400
 
 private fun revisionKey(entity: ActivityCapturedFragmentEntity) = ActivityRevisionKey(
 	entity.writerProjectionId,

@@ -7,6 +7,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 internal fun createAdditionalTrackingTables(database: SupportSQLiteDatabase) {
 	createCollectedDataDeletionOperationTable(database)
 	createRetentionWorkExecutionReceiptTable(database)
+	createSourceEventRetentionProofTable(database)
+	createSourceEventRetentionScopeProofTable(database)
+	createCapturedRadioFactRetentionProofTable(database)
 	createWifiSelectedDeletionTables(database)
 	createCellSelectedDeletionTables(database)
 	createAmbientStepsRetentionTable(database)
@@ -14,6 +17,116 @@ internal fun createAdditionalTrackingTables(database: SupportSQLiteDatabase) {
 	createLocationPurposeTables(database)
 	createAmbientRadioTables(database)
 	createRuntimeSettlementTables(database)
+}
+
+private fun createCapturedRadioFactRetentionProofTable(database: SupportSQLiteDatabase) {
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS captured_radio_fact_retention_proof (
+			source_kind INTEGER NOT NULL,
+			writer_projection_id TEXT NOT NULL,
+			writer_projection_version INTEGER NOT NULL,
+			writer_binding_generation INTEGER NOT NULL,
+			writer_owner_generation INTEGER NOT NULL,
+			logical_fact_id TEXT NOT NULL,
+			semantic_revision INTEGER NOT NULL,
+			mutation_id TEXT NOT NULL,
+			fact_effect_checksum TEXT NOT NULL,
+			source_event_id TEXT NOT NULL,
+			source_admission_ordinal INTEGER NOT NULL,
+			wal_integrity_identity TEXT NOT NULL,
+			source_policy_revision INTEGER NOT NULL,
+			capture_consent_epoch INTEGER NOT NULL,
+			collected_data_epoch INTEGER NOT NULL,
+			logical_tracking_id TEXT NOT NULL,
+			service_run_id TEXT NOT NULL,
+			scope_deletion_generation INTEGER NOT NULL,
+			logical_run_scope_digest TEXT NOT NULL,
+			cursor_revision INTEGER NOT NULL,
+			cursor_mutation_id TEXT NOT NULL,
+			cursor_effect_checksum TEXT NOT NULL,
+			cursor_source_admission_ordinal INTEGER NOT NULL,
+			cursor_updated_at_ms INTEGER NOT NULL,
+			aggregate_owner_logical_fact_id TEXT,
+			aggregate_owner_semantic_revision INTEGER,
+			aggregate_owner_source_event_id TEXT,
+			aggregate_owner_source_admission_ordinal INTEGER,
+			aggregate_owner_wal_integrity_identity TEXT,
+			aggregate_owner_effect_checksum TEXT,
+			aggregate_owner_cursor_revision INTEGER,
+			retained_from_ms INTEGER NOT NULL,
+			retained_at_ms INTEGER NOT NULL,
+			reason TEXT NOT NULL,
+			effect_checksum TEXT NOT NULL,
+			PRIMARY KEY(source_kind, writer_projection_id, writer_projection_version, logical_fact_id)
+		)
+		""".trimIndent(),
+	)
+	database.execSQL(
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_captured_radio_retention_event " +
+			"ON captured_radio_fact_retention_proof(source_kind, source_event_id)",
+	)
+	database.execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_captured_radio_retention_floor " +
+			"ON captured_radio_fact_retention_proof(source_kind, retained_from_ms)",
+	)
+}
+
+private fun createSourceEventRetentionProofTable(database: SupportSQLiteDatabase) {
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_event_retention_proof (
+			source_kind INTEGER NOT NULL,
+			event_id TEXT NOT NULL,
+			source_admission_ordinal INTEGER NOT NULL,
+			purpose_eligibility_mask INTEGER NOT NULL,
+			source_policy_revision INTEGER,
+			capture_consent_epoch INTEGER,
+			collected_data_epoch INTEGER NOT NULL,
+			logical_tracking_id TEXT,
+			service_run_id TEXT,
+			scope_deletion_generation INTEGER,
+			logical_run_scope_digest TEXT,
+			wal_payload_checksum TEXT NOT NULL,
+			wal_integrity_identity TEXT NOT NULL,
+			proof_authority_fingerprint TEXT NOT NULL,
+			reason TEXT NOT NULL,
+			effect_checksum TEXT NOT NULL,
+			PRIMARY KEY(source_kind, event_id)
+		)
+		""".trimIndent(),
+	)
+	database.execSQL(
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_source_event_retention_proof_admission " +
+			"ON source_event_retention_proof(source_kind, source_admission_ordinal)",
+	)
+}
+
+private fun createSourceEventRetentionScopeProofTable(database: SupportSQLiteDatabase) {
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_event_retention_scope_proof (
+			source_kind INTEGER NOT NULL,
+			purpose TEXT NOT NULL,
+			logical_tracking_id TEXT NOT NULL,
+			service_run_id TEXT NOT NULL,
+			source_policy_revision INTEGER NOT NULL,
+			capture_consent_epoch INTEGER NOT NULL,
+			collected_data_epoch INTEGER NOT NULL,
+			scope_deletion_generation INTEGER NOT NULL,
+			logical_run_scope_digest TEXT NOT NULL,
+			retained_event_high_water_ordinal INTEGER NOT NULL,
+			retained_event_authority_checksum TEXT NOT NULL,
+			effect_checksum TEXT NOT NULL,
+			PRIMARY KEY(source_kind, logical_run_scope_digest)
+		)
+		""".trimIndent(),
+	)
+	database.execSQL(
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_source_event_retention_scope_run " +
+			"ON source_event_retention_scope_proof(" +
+			"source_kind, logical_tracking_id, service_run_id)",
+	)
 }
 
 private fun createCollectedDataDeletionOperationTable(database: SupportSQLiteDatabase) {

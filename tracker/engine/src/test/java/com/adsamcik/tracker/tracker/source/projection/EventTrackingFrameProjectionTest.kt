@@ -12,6 +12,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
+import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
@@ -117,7 +118,24 @@ class EventTrackingFrameProjectionTest {
 	}
 
 	@Test
-	fun `live production projections do not emit v2 frames for steps or pressure`() = runTest {
+	fun `released compatibility converter never creates a second location decision`() {
+		val location = LocationFixPayload(
+			latitudeDegrees = 50.0,
+			longitudeDegrees = 14.0,
+			horizontalAccuracyMeters = 5f,
+			altitudeMeters = 250.0,
+			verticalAccuracyMeters = 4f,
+			speedMetersPerSecond = null,
+			bearingDegrees = null,
+			provider = "gps",
+		)
+
+		event("location", 1L, location).toEventTrackingFrame() shouldBe null
+		releasedV1EventTrackingFrame("location", 1_001L, location) shouldBe null
+	}
+
+	@Test
+	fun `live production projections do not emit v2 frames for steps pressure or location`() = runTest {
 		val productionProjections = setOf(
 			SourcePipelineModule.provideActivityAutomationProjection(ActivityAutomationProjection()),
 		)
@@ -145,6 +163,13 @@ class EventTrackingFrameProjectionTest {
 					firstProviderSequence = 1,
 					lastProviderSequence = 2,
 				),
+			),
+		).complete shouldBe true
+		projections.dispatch(
+			event(
+				"live-location",
+				3L,
+				LocationFixPayload(50.0, 14.0, 5f, 250.0, 4f, null, null, "gps"),
 			),
 		).complete shouldBe true
 

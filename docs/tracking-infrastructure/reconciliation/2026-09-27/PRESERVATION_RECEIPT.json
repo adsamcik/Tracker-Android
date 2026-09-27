@@ -1,0 +1,2048 @@
+{
+  "date": "2026-09-27T08:30:30.643630+00:00",
+  "phase": "IMPLEMENTATION_ONLY",
+  "evidence_kind": "static preservation inventory only; no executed product validation",
+  "input_refs": 137,
+  "original_worktrees": 51,
+  "original_drafts": 56,
+  "draft_archive_sha256": "4c36c1d8d49d275c5d4592dd354b319820fa82604c59ea37d076c36a448ec15f",
+  "refs": [
+    {
+      "ref": "refs/codex/turn-diffs/captures/1790495434273/f5fbb350-259f-4e10-ab80-7504bf4d464f/base",
+      "original": "0a63312d654a9d49d61e0abb5115aef7670d1818",
+      "current": "0a63312d654a9d49d61e0abb5115aef7670d1818",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/codex/turn-diffs/checkpoints/24439b3fafc0529de97ba22c13e66ba895b0e5f8c2c2849663646bc95599e032/330b41d3d22a298638ecb98c7f1b97df6681d746cf52064dfb20521e61d5dc95/1783946228843/38643cd7-85dd-4d17-923b-744dfb7114de",
+      "original": "1381c26bc574b8f351e6f20f186736c6d9520d3e",
+      "current": "1381c26bc574b8f351e6f20f186736c6d9520d3e",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/codex/turn-diffs/checkpoints/6d0feb201542553edb216cf15cd7e573/ad8fa4826b91d113407d0fb69c4c2034/1790406046953/e2da9d35-e5e8-4c4e-b1eb-d870a1e1b165",
+      "original": "0a63312d654a9d49d61e0abb5115aef7670d1818",
+      "current": "0a63312d654a9d49d61e0abb5115aef7670d1818",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/codex/turn-diffs/checkpoints/f12c31cdecd077503e8f9074d36a9817/3e6a1ffbdfc81b9b498c027c6bf0c518/1790495421208/9aef704d-f776-43c1-b398-24ea439353d5",
+      "original": "0a63312d654a9d49d61e0abb5115aef7670d1818",
+      "current": "0a63312d654a9d49d61e0abb5115aef7670d1818",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/audit-finding-fixes",
+      "original": "a8fd308df926bbaa3c8598cc04bdff463bf97e73",
+      "current": "a8fd308df926bbaa3c8598cc04bdff463bf97e73",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/audit-reconciliation-20260925",
+      "original": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "current": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/impl-broker-provider-bindings",
+      "original": "0e374345eb79b34529132fbea52d9797130648ac",
+      "current": "0e374345eb79b34529132fbea52d9797130648ac",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/impl-lifecycle-product-proof",
+      "original": "f786563167df2990202a96835ff7535488acd77c",
+      "current": "f786563167df2990202a96835ff7535488acd77c",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/location-product-query-20260925",
+      "original": "1c17c27e15442b678e5e55139a55dd1ddc4b6b25",
+      "current": "1c17c27e15442b678e5e55139a55dd1ddc4b6b25",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/radio-auto-capture",
+      "original": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "current": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/review-ci-foundation",
+      "original": "c7c61b54880347c851bd39dcb1a04a5338fb9b2c",
+      "current": "c7c61b54880347c851bd39dcb1a04a5338fb9b2c",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/source-native-map-context-root",
+      "original": "63ef296026e440e4a5667235fe0769a03004eb47",
+      "current": "3a84f5878ae20c5ab85f2c0d45c38d80ed80f85e",
+      "original_object_preserved": true,
+      "unchanged": false,
+      "authorized_continuation": true
+    },
+    {
+      "ref": "refs/heads/codex/ti-activity-range-product-20260915",
+      "original": "6dfa484128b43c6c47ca9a66571a607561227fe7",
+      "current": "6dfa484128b43c6c47ca9a66571a607561227fe7",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-activity-recent-producer-20260915",
+      "original": "42278b2cf47744ab29b4c4d0c5c28782496ca409",
+      "current": "42278b2cf47744ab29b4c4d0c5c28782496ca409",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-activity-source-actions-20260915",
+      "original": "35368a2996ee040002589df25ca26fcd87f87a65",
+      "current": "35368a2996ee040002589df25ca26fcd87f87a65",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-ambient-file-integration-20260916",
+      "original": "bf260d7b1fc5d837bfe0c96fbfecfc0e48723cdd",
+      "current": "bf260d7b1fc5d837bfe0c96fbfecfc0e48723cdd",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-ambient-steps-file-actions-20260915",
+      "original": "220a2721825272bdf84f5f8ece80c52f8dc37c50",
+      "current": "220a2721825272bdf84f5f8ece80c52f8dc37c50",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-ambient-steps-import-20260915",
+      "original": "876ca17547d6e3d48940d399057ffe121964780b",
+      "current": "876ca17547d6e3d48940d399057ffe121964780b",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-ambient-steps-p5-portable-20260920",
+      "original": "fa552638c3ced4fe033081d2b945c793583c2391",
+      "current": "fa552638c3ced4fe033081d2b945c793583c2391",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-ambient-steps-product-20260915",
+      "original": "0c4728c2b50efd5f68a6013d89f8b4408837d18b",
+      "current": "0c4728c2b50efd5f68a6013d89f8b4408837d18b",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-caller-guard-contract-wave0-20260916",
+      "original": "fb21dd3908284eb85495c647c38b9de050c65714",
+      "current": "fb21dd3908284eb85495c647c38b9de050c65714",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-cell-import-product-20260915",
+      "original": "1ff5ebf7d18ddf6fed4741d256a2f4532040700c",
+      "current": "1ff5ebf7d18ddf6fed4741d256a2f4532040700c",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-dev-v28-containment-wave1-20260917",
+      "original": "7e88cdfa0a8ddc07b982aa747fb8f84d9f3e9e92",
+      "current": "7e88cdfa0a8ddc07b982aa747fb8f84d9f3e9e92",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-imported-schema-assembly-20260915",
+      "original": "a4ae2dd57b87c5f16bb172dc4266a3021adff5c9",
+      "current": "a4ae2dd57b87c5f16bb172dc4266a3021adff5c9",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-observability-contract-wave0-20260916",
+      "original": "2cc213e753834dbdab2a7952274be5abe35c39f6",
+      "current": "2cc213e753834dbdab2a7952274be5abe35c39f6",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-observability-recorder-wave1-20260917",
+      "original": "5f4df6c7ecbc803ad0577be221c82add1ecbca72",
+      "current": "5f4df6c7ecbc803ad0577be221c82add1ecbca72",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-observability-store-wave1-20260917",
+      "original": "13eee220798c7c798d87776ae3f7f42422aba946",
+      "current": "13eee220798c7c798d87776ae3f7f42422aba946",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-passive-ambient-radio-20260915",
+      "original": "1b2467e38edade32ef70a9262dad8f221c410733",
+      "current": "1b2467e38edade32ef70a9262dad8f221c410733",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-portable-file-assembly-20260915",
+      "original": "aa9447e070e67e9a6802e940b2bae6c1e3da9a81",
+      "current": "aa9447e070e67e9a6802e940b2bae6c1e3da9a81",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-portable-receipt-context-20260915",
+      "original": "ba73b7a6f3d3e49c413d54e253ad03802f6ccb59",
+      "current": "ba73b7a6f3d3e49c413d54e253ad03802f6ccb59",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-pressure-file-actions-20260915",
+      "original": "8ba72248ba2b9ade2908947d1858ec6420e74c3d",
+      "current": "8ba72248ba2b9ade2908947d1858ec6420e74c3d",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-pressure-import-maintenance-20260915",
+      "original": "7ce26646d3c68f42da8da4aed75634f17a55762d",
+      "current": "7ce26646d3c68f42da8da4aed75634f17a55762d",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-product-contract-wave0-20260916",
+      "original": "39eb94fa2d86d3af40ac3a2a89fda8873c967611",
+      "current": "39eb94fa2d86d3af40ac3a2a89fda8873c967611",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-protected-location-handoff-20260915",
+      "original": "ffdef045b91dc5a2c467616db94d09ff1e05ddb8",
+      "current": "ffdef045b91dc5a2c467616db94d09ff1e05ddb8",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-purpose-contract-wave0-20260916",
+      "original": "b66e02c13279acdae61424a05d493356476beb03",
+      "current": "b66e02c13279acdae61424a05d493356476beb03",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-purpose-publication-wave1-20260917",
+      "original": "df89113603e20e676dade559ac2038bd962d3316",
+      "current": "df89113603e20e676dade559ac2038bd962d3316",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-purpose-settings-20260915",
+      "original": "8943f299f812a903f68dbc172412da2c9982a4eb",
+      "current": "8943f299f812a903f68dbc172412da2c9982a4eb",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-rearm-contract-wave0-20260916",
+      "original": "9f01b5d4117067755a32bf7b10b176eeb345311d",
+      "current": "9f01b5d4117067755a32bf7b10b176eeb345311d",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-retention-authority-wave1-20260917",
+      "original": "352dc074bc7a45f536acd4bf7aa5ef87895bbdc0",
+      "current": "352dc074bc7a45f536acd4bf7aa5ef87895bbdc0",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-runtime-settlement-20260915",
+      "original": "e71c739ea3899538e409bb8e807189ce331678e6",
+      "current": "e71c739ea3899538e409bb8e807189ce331678e6",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-shared-history-union-20260915",
+      "original": "98f2f567cecdd4ad6b55a252b313125df6a34564",
+      "current": "98f2f567cecdd4ad6b55a252b313125df6a34564",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-source-caller-guard-wave1-20260917",
+      "original": "484839083510d3ce8a828e171dc6575b02d92855",
+      "current": "484839083510d3ce8a828e171dc6575b02d92855",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-source-catalog-20260920",
+      "original": "15b4a45faeb77617cc524055dfa56389c92e04c3",
+      "current": "15b4a45faeb77617cc524055dfa56389c92e04c3",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-source-detail-product-20260915",
+      "original": "cda6aff87cb87b9642bde8f352458d31a8cd57fd",
+      "current": "cda6aff87cb87b9642bde8f352458d31a8cd57fd",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-source-history-consumers-20260915",
+      "original": "335df7ea571e2afe6f6d386a102c299ec78ac45c",
+      "current": "335df7ea571e2afe6f6d386a102c299ec78ac45c",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-steps-p5-storage-wave2-20260917",
+      "original": "bc43dd972ac8f1a63a37827cf7c2eaad90db5600",
+      "current": "bc43dd972ac8f1a63a37827cf7c2eaad90db5600",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/ti-wifi-import-product-20260915",
+      "original": "99c560062df223ba719a485532f044ac9d62a247",
+      "current": "99c560062df223ba719a485532f044ac9d62a247",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/unified-tracking-surface",
+      "original": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "current": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/codex/update-tracking-accounting-75fd",
+      "original": "62fa4196e52ceb4b874971e03b292ced09a43827",
+      "current": "62fa4196e52ceb4b874971e03b292ced09a43827",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/dev/v10",
+      "original": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "current": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/handover/reviewed/impl-broker-provider-bindings-20260920",
+      "original": "f0d14b2e753da6bf34fdefec327e65e769ebc43e",
+      "current": "f0d14b2e753da6bf34fdefec327e65e769ebc43e",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/handover/reviewed/ti-ambient-steps-p5-portable-20260920",
+      "original": "94901de49bde1ccc508532870ca4cec4bc55b824",
+      "current": "94901de49bde1ccc508532870ca4cec4bc55b824",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/handover/reviewed/ti-caller-authority-20260919",
+      "original": "484839083510d3ce8a828e171dc6575b02d92855",
+      "current": "484839083510d3ce8a828e171dc6575b02d92855",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/handover/reviewed/ti-retention-authority-20260919",
+      "original": "ad234dd27c5dddd19b3fc1e5bd7a1ad66646e38c",
+      "current": "ad234dd27c5dddd19b3fc1e5bd7a1ad66646e38c",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/handover/reviewed/ti-source-catalog-20260920",
+      "original": "15b4a45faeb77617cc524055dfa56389c92e04c3",
+      "current": "15b4a45faeb77617cc524055dfa56389c92e04c3",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/handover/reviewed/ti-steps-p5-assembled-20260919",
+      "original": "bc43dd972ac8f1a63a37827cf7c2eaad90db5600",
+      "current": "bc43dd972ac8f1a63a37827cf7c2eaad90db5600",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/handover/reviewed/ti-steps-p5-source-20260919",
+      "original": "4ad78ef8086cade4aedd6963e0af7432fba0fe36",
+      "current": "4ad78ef8086cade4aedd6963e0af7432fba0fe36",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/heads/main",
+      "original": "59fda665c7099d10b16aa60f505de88bd05d3131",
+      "current": "59fda665c7099d10b16aa60f505de88bd05d3131",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/blocked/caller-authority-correction-20260919-a5cdefc",
+      "original": "a5cdefcdbc9ae74dab5a0ba8b61fcf0162e7a72d",
+      "current": "a5cdefcdbc9ae74dab5a0ba8b61fcf0162e7a72d",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-activity-captured-facts",
+      "original": "a8c1752cb622fb9e4f6b0f72b36453dfc12c77ca",
+      "current": "a8c1752cb622fb9e4f6b0f72b36453dfc12c77ca",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-activity-maintenance",
+      "original": "dd19b4d332c2a343798350ccb74e75c6ae018880",
+      "current": "dd19b4d332c2a343798350ccb74e75c6ae018880",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-activity-pressure-product-ui",
+      "original": "100d3e9d27af66ac9ca9d2a889852d1bd0bec7a5",
+      "current": "100d3e9d27af66ac9ca9d2a889852d1bd0bec7a5",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-activity-product-read",
+      "original": "d0bf3bf591f44185668ad2256e885eb9028e468c",
+      "current": "d0bf3bf591f44185668ad2256e885eb9028e468c",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-activity-projection-adapter",
+      "original": "f269b562abcf513931545578bfb87f67dd3b440a",
+      "current": "f269b562abcf513931545578bfb87f67dd3b440a",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-activity-transfer",
+      "original": "b13765db7dca0be8e09f230ec3bb2989cca9d12c",
+      "current": "b13765db7dca0be8e09f230ec3bb2989cca9d12c",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-activity-ui",
+      "original": "48d4d3e678bd9200d0e0d434fa5fd0cc3d6e43eb",
+      "current": "48d4d3e678bd9200d0e0d434fa5fd0cc3d6e43eb",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-ambient-maintenance",
+      "original": "d998dbb4cfbc9a54a16b9ba979e6a2cf53526f7b",
+      "current": "d998dbb4cfbc9a54a16b9ba979e6a2cf53526f7b",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-ambient-product-read",
+      "original": "55024d9f660e9586a05cae13f73e672980d5655a",
+      "current": "55024d9f660e9586a05cae13f73e672980d5655a",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-ambient-transfer",
+      "original": "8ff5ec428cb191c1ab585d6355712d5ead85a8af",
+      "current": "8ff5ec428cb191c1ab585d6355712d5ead85a8af",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-cell-fact-model",
+      "original": "0dae1d8f55ae65bd85dcf9b0ed117fb72ed60287",
+      "current": "0dae1d8f55ae65bd85dcf9b0ed117fb72ed60287",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-cell-maintenance",
+      "original": "f8dd5d6d115c63b8cc771313901978098e2a5608",
+      "current": "f8dd5d6d115c63b8cc771313901978098e2a5608",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-cell-product-read",
+      "original": "79056b454b634ae65ed1ba85e2fea32cebba5cb3",
+      "current": "79056b454b634ae65ed1ba85e2fea32cebba5cb3",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-handover-assembly-2026-09-15",
+      "original": "29323cfabe445ddb0278413b1710a31cdaab8073",
+      "current": "29323cfabe445ddb0278413b1710a31cdaab8073",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-location-qualified-observation",
+      "original": "762186a24f55c06adfc7f9f0a3a985fffe0e82c3",
+      "current": "762186a24f55c06adfc7f9f0a3a985fffe0e82c3",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-location-wal-adapter",
+      "original": "8a90104ce50b5a877a2df977d3c73539b5a04328",
+      "current": "8a90104ce50b5a877a2df977d3c73539b5a04328",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-location-wal-provenance",
+      "original": "6e9d84f38fbb2132fb2d068ec4967e43d551ed23",
+      "current": "6e9d84f38fbb2132fb2d068ec4967e43d551ed23",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-acquisition",
+      "original": "3b8abe350b7874227c61b32f66f669ad8602fefc",
+      "current": "3b8abe350b7874227c61b32f66f669ad8602fefc",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-deletion-repair",
+      "original": "ed408932367f0083c38ed2752dd441565b304bed",
+      "current": "ed408932367f0083c38ed2752dd441565b304bed",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-detail",
+      "original": "c27cc1c182a7a32688e0500fcb7777567386550d",
+      "current": "c27cc1c182a7a32688e0500fcb7777567386550d",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-import",
+      "original": "94199906088b9d40b623fce1413c2fd44c6b470d",
+      "current": "94199906088b9d40b623fce1413c2fd44c6b470d",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-maintenance",
+      "original": "ed408932367f0083c38ed2752dd441565b304bed",
+      "current": "ed408932367f0083c38ed2752dd441565b304bed",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-product-read",
+      "original": "97941e8b19f186a89f8e5cd188360dde1aa13769",
+      "current": "97941e8b19f186a89f8e5cd188360dde1aa13769",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-retention-product",
+      "original": "85ac20157eb365012cd726972d8171e2f1f21f36",
+      "current": "85ac20157eb365012cd726972d8171e2f1f21f36",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-session-facts",
+      "original": "db2a460a300bf48d3eeace5904b4a32f64967d59",
+      "current": "db2a460a300bf48d3eeace5904b4a32f64967d59",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-transfer",
+      "original": "63b9667b30631c3dd9e83d5c0bf181be44c5df3f",
+      "current": "63b9667b30631c3dd9e83d5c0bf181be44c5df3f",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-ui",
+      "original": "8214b92ab10f8a09bac59bc24b4ec6915f59ccc6",
+      "current": "8214b92ab10f8a09bac59bc24b4ec6915f59ccc6",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-pressure-writer-activation",
+      "original": "a410dcb86b04b1943035c1505a61592e044c7139",
+      "current": "a410dcb86b04b1943035c1505a61592e044c7139",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-steps-import-actions",
+      "original": "43757982088e292b9bb97f6218706d6665c5e3b6",
+      "current": "43757982088e292b9bb97f6218706d6665c5e3b6",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-steps-import-admission",
+      "original": "4db55146eccad9e39adc7725076cb2783d92e330",
+      "current": "4db55146eccad9e39adc7725076cb2783d92e330",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-steps-import-product",
+      "original": "f93b373ef6392fdca8727776bb052e292fd3f9ce",
+      "current": "f93b373ef6392fdca8727776bb052e292fd3f9ce",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-steps-numeric-consumers",
+      "original": "3e727f255062cd328bf45a53dcc39910239a034e",
+      "current": "3e727f255062cd328bf45a53dcc39910239a034e",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-steps-portable-import",
+      "original": "a347df9a25e2902b3d9951639f2303e9806f7645",
+      "current": "a347df9a25e2902b3d9951639f2303e9806f7645",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-steps-qualified-awards",
+      "original": "a347df9a25e2902b3d9951639f2303e9806f7645",
+      "current": "a347df9a25e2902b3d9951639f2303e9806f7645",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-steps-summary-authority",
+      "original": "3f62d5c644b44277088097800a85637a955cfdb0",
+      "current": "3f62d5c644b44277088097800a85637a955cfdb0",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-wifi-fact-model",
+      "original": "26347367c44e93639c59d38fd43a845000335d0f",
+      "current": "26347367c44e93639c59d38fd43a845000335d0f",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-wifi-maintenance",
+      "original": "315ac6a8347b8e38ff6b64876734d9c265c7463c",
+      "current": "315ac6a8347b8e38ff6b64876734d9c265c7463c",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-wifi-manual-action",
+      "original": "750bd6c423a62267e14bcb58e010b4b6d268a545",
+      "current": "750bd6c423a62267e14bcb58e010b4b6d268a545",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/codex/ti-wifi-product-read",
+      "original": "adde063f39273831440a065304364728c098dee2",
+      "current": "adde063f39273831440a065304364728c098dee2",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-ambient-file-integration-20260916",
+      "original": "d5a565b4185fb9bc25856134d7547c8f33dc3532",
+      "current": "d5a565b4185fb9bc25856134d7547c8f33dc3532",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-consumer-recreation-fix-20260916",
+      "original": "b3f490c76d6dbbe2eebbf6720a0f51f9212c2aa0",
+      "current": "b3f490c76d6dbbe2eebbf6720a0f51f9212c2aa0",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-factless-steps-history-20260915",
+      "original": "771ce960b37e3c7589c077ef848a20759f5cab31",
+      "current": "771ce960b37e3c7589c077ef848a20759f5cab31",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-final-source-schema-20260916",
+      "original": "7142543ba9556d9fa9cf484bd6b642c8e9c3e755",
+      "current": "7142543ba9556d9fa9cf484bd6b642c8e9c3e755",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-five-source-history-20260916",
+      "original": "1031df9f35e040900e0919fb06705064b07c0286",
+      "current": "1031df9f35e040900e0919fb06705064b07c0286",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-legacy-radio-retention-20260915",
+      "original": "afa939b0fd84cc9e6ebda9262bf57bbf16a5eca0",
+      "current": "afa939b0fd84cc9e6ebda9262bf57bbf16a5eca0",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-portable-file-assembly-20260915",
+      "original": "2697903ae6a2b5a61acd2981c990c3f3638d9a37",
+      "current": "2697903ae6a2b5a61acd2981c990c3f3638d9a37",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-pressure-file-initial-20260915",
+      "original": "ea577ac7bcc1b534aace119d9cd35c8792f65924",
+      "current": "ea577ac7bcc1b534aace119d9cd35c8792f65924",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-purpose-settings-20260915",
+      "original": "cef95415e2f5e77fb9e12ea3e95776ef26e36efe",
+      "current": "cef95415e2f5e77fb9e12ea3e95776ef26e36efe",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-source-detail-product-20260915",
+      "original": "9c545380d65042ee6f85dc0d300353cc6640d50d",
+      "current": "9c545380d65042ee6f85dc0d300353cc6640d50d",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-source-history-consumers-20260916",
+      "original": "10ed3b99dad7a2862747b83190ba06fe1323c31f",
+      "current": "10ed3b99dad7a2862747b83190ba06fe1323c31f",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave0-caller-purpose-20260916",
+      "original": "fb21dd3908284eb85495c647c38b9de050c65714",
+      "current": "fb21dd3908284eb85495c647c38b9de050c65714",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave0-observability-contract-20260917",
+      "original": "b1d122a7f1bf26fed464647ada85322092a750c2",
+      "current": "b1d122a7f1bf26fed464647ada85322092a750c2",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave0-product-enrichment-20260916",
+      "original": "75acfc4874ad75b9e794fd0ba5f61c19e59ddf89",
+      "current": "75acfc4874ad75b9e794fd0ba5f61c19e59ddf89",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave0-rearm-20260916",
+      "original": "e0cd99cc1dfe0b9adf466eea5283e59b8e447387",
+      "current": "e0cd99cc1dfe0b9adf466eea5283e59b8e447387",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave1-dev-v28-containment-20260917",
+      "original": "05d2b72781593c9a47c70fc8e851272912fb08d9",
+      "current": "05d2b72781593c9a47c70fc8e851272912fb08d9",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave1-observability-recorder-20260917",
+      "original": "5f4df6c7ecbc803ad0577be221c82add1ecbca72",
+      "current": "5f4df6c7ecbc803ad0577be221c82add1ecbca72",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave1-observability-store-20260917",
+      "original": "1b46dd6d739b4127cbfb02536bccc50b392849bd",
+      "current": "1b46dd6d739b4127cbfb02536bccc50b392849bd",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wave1-purpose-publication-20260917",
+      "original": "e0bcdcf9d464eea3120aad3f055844cf994c7ba2",
+      "current": "e0bcdcf9d464eea3120aad3f055844cf994c7ba2",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/handover/reviewed/ti-wifi-full-clear-20260915",
+      "original": "fc1e540f5b135d2485a9267127c4435c5b067356",
+      "current": "fc1e540f5b135d2485a9267127c4435c5b067356",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/origin/2021.2",
+      "original": "6e733b98afc41b2074699ccb9d450cf4357085f2",
+      "current": "6e733b98afc41b2074699ccb9d450cf4357085f2",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/origin/2024.3",
+      "original": "26cd6102ab9821683b906c038fb213b0ce5922a6",
+      "current": "26cd6102ab9821683b906c038fb213b0ce5922a6",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/origin/HEAD",
+      "original": "59fda665c7099d10b16aa60f505de88bd05d3131",
+      "current": "59fda665c7099d10b16aa60f505de88bd05d3131",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/origin/chore/job-quota-observability",
+      "original": "08ec8a7d15b59b724d61677c4b75622d8f6d2bb5",
+      "current": "08ec8a7d15b59b724d61677c4b75622d8f6d2bb5",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/origin/copilot/tracebox-v1-dev-v10",
+      "original": "87564c0a009d41505467e6c0f088a3f3fa8a899e",
+      "current": "87564c0a009d41505467e6c0f088a3f3fa8a899e",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/origin/dev/v10",
+      "original": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "current": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/origin/feat/resilient-session-restart",
+      "original": "9d8c1af13b163772002d6a3235921cc2c3ca5c42",
+      "current": "9d8c1af13b163772002d6a3235921cc2c3ca5c42",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/origin/fix/fgs-lifecycle-robustness",
+      "original": "c77da5d4a356b5a5b0bc854b1e5218d672099466",
+      "current": "c77da5d4a356b5a5b0bc854b1e5218d672099466",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/origin/main",
+      "original": "59fda665c7099d10b16aa60f505de88bd05d3131",
+      "current": "59fda665c7099d10b16aa60f505de88bd05d3131",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/remotes/origin/perf/location-batching-passive",
+      "original": "3b98c395dd1e5fc648a97890294d8562df23c231",
+      "current": "3b98c395dd1e5fc648a97890294d8562df23c231",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/tags/2019.1",
+      "original": "fe2d86c9aef6dc620ff1e85af15c34071efdbf85",
+      "current": "fe2d86c9aef6dc620ff1e85af15c34071efdbf85",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/tags/2020.1",
+      "original": "24e124a5d55fe1b3ead99361dcd0121241039f69",
+      "current": "24e124a5d55fe1b3ead99361dcd0121241039f69",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/tags/2021.1",
+      "original": "38d9709ef5dd59514e1b7e2796594b2f4724664c",
+      "current": "38d9709ef5dd59514e1b7e2796594b2f4724664c",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/tags/2023.1",
+      "original": "03ab69e50ad8621627a420dc4e4b722750c6a9d5",
+      "current": "03ab69e50ad8621627a420dc4e4b722750c6a9d5",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/tags/2024.1",
+      "original": "e8586ade79569fb756ed6736184d6f55cc4ffd3f",
+      "current": "e8586ade79569fb756ed6736184d6f55cc4ffd3f",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/tags/2024.2",
+      "original": "892bc2b2fdce93c8fa9293261c910c8af82a7966",
+      "current": "892bc2b2fdce93c8fa9293261c910c8af82a7966",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/tags/4.9.0",
+      "original": "900313ab7967054bae4dfe9aa7ea79991f280522",
+      "current": "900313ab7967054bae4dfe9aa7ea79991f280522",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/tags/6.0Beta",
+      "original": "895b6d7d916241f73a7ab841daff9ef696d3e42b",
+      "current": "895b6d7d916241f73a7ab841daff9ef696d3e42b",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    },
+    {
+      "ref": "refs/tags/6.1Beta",
+      "original": "d7e5e9e2471e2c4a0481b6f07aa91280b783eb9c",
+      "current": "d7e5e9e2471e2c4a0481b6f07aa91280b783eb9c",
+      "original_object_preserved": true,
+      "unchanged": true,
+      "authorized_continuation": false
+    }
+  ],
+  "worktrees": [
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android",
+      "input_head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "current_head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "current_head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": [
+        " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+        " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
+        " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
+        " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDestinationOwnerEntity.kt",
+        " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt",
+        " M core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/SourceWriterGenerationContractTest.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/catalog/SourceProductFactories.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellSessionFactProjectionLane.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStore.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/deletion/RoomCellSelectedHistoryDeletion.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/RoomDeleteSelectedWifiHistory.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiSessionFactProjectionLane.kt",
+        " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/catalog/DefaultSourceImplementationCatalogTest.kt",
+        " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+        " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+        " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStoreTest.kt",
+        " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt"
+      ]
+    },
+    {
+      "path": "C:/Users/adam-/.codex/worktrees/source-native-map-context/Tracker-Android",
+      "input_head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "current_head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/.codex/worktrees/unified-tracking-surface/Tracker-Android",
+      "input_head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "current_head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-finding-fixes",
+      "input_head": "a8fd308df926bbaa3c8598cc04bdff463bf97e73",
+      "current_head": "a8fd308df926bbaa3c8598cc04bdff463bf97e73",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": [
+        " M .github/workflows/android.yml",
+        " M app/src/test/java/com/adsamcik/tracker/app/architecture/ArchitecturalFitnessTest.kt",
+        " M build.gradle.kts",
+        " M tools/release_manifest.py",
+        " M tools/release_validation.py",
+        " M tools/tests/test_release_manifest.py"
+      ]
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-reconciliation-20260925",
+      "input_head": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "current_head": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": [
+        " M feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboard.kt",
+        " M feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardProgressCards.kt",
+        " M feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt",
+        " M feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRouteViewModel.kt",
+        " M feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardProgressCardsTest.kt",
+        " M tracker/api-module/src/main/res/values/strings.xml",
+        "?? feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/RecentTripsUiState.kt",
+        "?? feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/RecentTripsUiStateTest.kt"
+      ]
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/impl-broker-provider-bindings",
+      "input_head": "0e374345eb79b34529132fbea52d9797130648ac",
+      "current_head": "0e374345eb79b34529132fbea52d9797130648ac",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/impl-lifecycle-product-proof",
+      "input_head": "f786563167df2990202a96835ff7535488acd77c",
+      "current_head": "f786563167df2990202a96835ff7535488acd77c",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/location-product-query-20260925",
+      "input_head": "1c17c27e15442b678e5e55139a55dd1ddc4b6b25",
+      "current_head": "1c17c27e15442b678e5e55139a55dd1ddc4b6b25",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": [
+        " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AdditionalTrackingSchema.kt",
+        " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservation.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+        " M tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+        " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+        " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt",
+        "?? core/base/src/androidTest/java/com/adsamcik/tracker/shared/base/database/LocationAcceptedProvenanceMigration27To28Test.kt",
+        "?? core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationAcceptedProvenanceDao.kt",
+        "?? core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationAcceptedProvenanceEntity.kt"
+      ]
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/source-native-map-context-root",
+      "input_head": "63ef296026e440e4a5667235fe0769a03004eb47",
+      "current_head": "3a84f5878ae20c5ab85f2c0d45c38d80ed80f85e",
+      "head_unchanged": false,
+      "status_unchanged": false,
+      "authorized_continuation": true,
+      "current_status": "intentional selected continuation changes; exact paths in final manifest"
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-activity-actions-review-20260915",
+      "input_head": "b6a0b0933ff4a65d5c536ff0cda98d21fb983f41",
+      "current_head": "b6a0b0933ff4a65d5c536ff0cda98d21fb983f41",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-activity-range-product-20260915",
+      "input_head": "6dfa484128b43c6c47ca9a66571a607561227fe7",
+      "current_head": "6dfa484128b43c6c47ca9a66571a607561227fe7",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-activity-source-actions-20260915",
+      "input_head": "35368a2996ee040002589df25ca26fcd87f87a65",
+      "current_head": "35368a2996ee040002589df25ca26fcd87f87a65",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-ambient-file-integration-20260916",
+      "input_head": "bf260d7b1fc5d837bfe0c96fbfecfc0e48723cdd",
+      "current_head": "bf260d7b1fc5d837bfe0c96fbfecfc0e48723cdd",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-ambient-steps-file-actions-20260915",
+      "input_head": "220a2721825272bdf84f5f8ece80c52f8dc37c50",
+      "current_head": "220a2721825272bdf84f5f8ece80c52f8dc37c50",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-ambient-steps-import-20260915",
+      "input_head": "876ca17547d6e3d48940d399057ffe121964780b",
+      "current_head": "876ca17547d6e3d48940d399057ffe121964780b",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-ambient-steps-p5-portable-20260920",
+      "input_head": "fa552638c3ced4fe033081d2b945c793583c2391",
+      "current_head": "fa552638c3ced4fe033081d2b945c793583c2391",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-ambient-steps-product-20260915",
+      "input_head": "0c4728c2b50efd5f68a6013d89f8b4408837d18b",
+      "current_head": "0c4728c2b50efd5f68a6013d89f8b4408837d18b",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-caller-guard-contract-wave0-20260916",
+      "input_head": "fb21dd3908284eb85495c647c38b9de050c65714",
+      "current_head": "fb21dd3908284eb85495c647c38b9de050c65714",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-cell-import-product-20260915",
+      "input_head": "1ff5ebf7d18ddf6fed4741d256a2f4532040700c",
+      "current_head": "1ff5ebf7d18ddf6fed4741d256a2f4532040700c",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-cell-product-review-20260915",
+      "input_head": "1b67108c1990952d0c6a1008a2b058efd8926fa5",
+      "current_head": "1b67108c1990952d0c6a1008a2b058efd8926fa5",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-dev-v28-containment-wave1-20260917",
+      "input_head": "7e88cdfa0a8ddc07b982aa747fb8f84d9f3e9e92",
+      "current_head": "7e88cdfa0a8ddc07b982aa747fb8f84d9f3e9e92",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-imported-schema-assembly-20260915",
+      "input_head": "a4ae2dd57b87c5f16bb172dc4266a3021adff5c9",
+      "current_head": "a4ae2dd57b87c5f16bb172dc4266a3021adff5c9",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-observability-contract-wave0-20260916",
+      "input_head": "2cc213e753834dbdab2a7952274be5abe35c39f6",
+      "current_head": "2cc213e753834dbdab2a7952274be5abe35c39f6",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-observability-recorder-wave1-20260917",
+      "input_head": "5f4df6c7ecbc803ad0577be221c82add1ecbca72",
+      "current_head": "5f4df6c7ecbc803ad0577be221c82add1ecbca72",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-observability-store-wave1-20260917",
+      "input_head": "13eee220798c7c798d87776ae3f7f42422aba946",
+      "current_head": "13eee220798c7c798d87776ae3f7f42422aba946",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-passive-ambient-radio-20260915",
+      "input_head": "1b2467e38edade32ef70a9262dad8f221c410733",
+      "current_head": "1b2467e38edade32ef70a9262dad8f221c410733",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-portable-file-assembly-20260915",
+      "input_head": "aa9447e070e67e9a6802e940b2bae6c1e3da9a81",
+      "current_head": "aa9447e070e67e9a6802e940b2bae6c1e3da9a81",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-portable-receipt-context-20260915",
+      "input_head": "ba73b7a6f3d3e49c413d54e253ad03802f6ccb59",
+      "current_head": "ba73b7a6f3d3e49c413d54e253ad03802f6ccb59",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-pressure-file-actions-20260915",
+      "input_head": "8ba72248ba2b9ade2908947d1858ec6420e74c3d",
+      "current_head": "8ba72248ba2b9ade2908947d1858ec6420e74c3d",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-pressure-import-maintenance-20260915",
+      "input_head": "7ce26646d3c68f42da8da4aed75634f17a55762d",
+      "current_head": "7ce26646d3c68f42da8da4aed75634f17a55762d",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-product-contract-wave0-20260916",
+      "input_head": "39eb94fa2d86d3af40ac3a2a89fda8873c967611",
+      "current_head": "39eb94fa2d86d3af40ac3a2a89fda8873c967611",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-protected-location-handoff-20260915",
+      "input_head": "ffdef045b91dc5a2c467616db94d09ff1e05ddb8",
+      "current_head": "ffdef045b91dc5a2c467616db94d09ff1e05ddb8",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-purpose-contract-wave0-20260916",
+      "input_head": "b66e02c13279acdae61424a05d493356476beb03",
+      "current_head": "b66e02c13279acdae61424a05d493356476beb03",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-purpose-publication-wave1-20260917",
+      "input_head": "df89113603e20e676dade559ac2038bd962d3316",
+      "current_head": "df89113603e20e676dade559ac2038bd962d3316",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-purpose-settings-20260915",
+      "input_head": "8943f299f812a903f68dbc172412da2c9982a4eb",
+      "current_head": "8943f299f812a903f68dbc172412da2c9982a4eb",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-rearm-contract-wave0-20260916",
+      "input_head": "9f01b5d4117067755a32bf7b10b176eeb345311d",
+      "current_head": "9f01b5d4117067755a32bf7b10b176eeb345311d",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-retention-authority-wave1-20260917",
+      "input_head": "352dc074bc7a45f536acd4bf7aa5ef87895bbdc0",
+      "current_head": "352dc074bc7a45f536acd4bf7aa5ef87895bbdc0",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-runtime-settlement-20260915",
+      "input_head": "e71c739ea3899538e409bb8e807189ce331678e6",
+      "current_head": "e71c739ea3899538e409bb8e807189ce331678e6",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-shared-history-union-20260915",
+      "input_head": "98f2f567cecdd4ad6b55a252b313125df6a34564",
+      "current_head": "98f2f567cecdd4ad6b55a252b313125df6a34564",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-source-caller-guard-wave1-20260917",
+      "input_head": "484839083510d3ce8a828e171dc6575b02d92855",
+      "current_head": "484839083510d3ce8a828e171dc6575b02d92855",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-source-catalog-20260920",
+      "input_head": "15b4a45faeb77617cc524055dfa56389c92e04c3",
+      "current_head": "15b4a45faeb77617cc524055dfa56389c92e04c3",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-source-detail-product-20260915",
+      "input_head": "cda6aff87cb87b9642bde8f352458d31a8cd57fd",
+      "current_head": "cda6aff87cb87b9642bde8f352458d31a8cd57fd",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-source-history-consumers-20260915",
+      "input_head": "335df7ea571e2afe6f6d386a102c299ec78ac45c",
+      "current_head": "335df7ea571e2afe6f6d386a102c299ec78ac45c",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-steps-p5-storage-wave2-20260917",
+      "input_head": "bc43dd972ac8f1a63a37827cf7c2eaad90db5600",
+      "current_head": "bc43dd972ac8f1a63a37827cf7c2eaad90db5600",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-wifi-import-product-20260915",
+      "input_head": "99c560062df223ba719a485532f044ac9d62a247",
+      "current_head": "99c560062df223ba719a485532f044ac9d62a247",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-wifi-product-review-20260915",
+      "input_head": "99c560062df223ba719a485532f044ac9d62a247",
+      "current_head": "99c560062df223ba719a485532f044ac9d62a247",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-work-item-registry-review-20260915",
+      "input_head": "4c9bdc029e9d70ec4b2cf9479f633fad91271d5a",
+      "current_head": "4c9bdc029e9d70ec4b2cf9479f633fad91271d5a",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/unified-tracking-surface",
+      "input_head": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "current_head": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": [
+        " M feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/data/DashboardHistoryRepository.kt",
+        " M feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModel.kt",
+        " M feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt",
+        " M feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/cards/IdleContent.kt",
+        " M feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/state/DashboardUiState.kt",
+        " M feature/dashboard/src/main/res/values/strings.xml",
+        " M feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/data/DashboardHistoryRepositoryTest.kt",
+        "?? feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/data/DashboardAmbientSummary.kt",
+        "?? feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/cards/AmbientSummaryCard.kt",
+        "?? feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/data/DashboardAmbientSummaryReaderTest.kt"
+      ]
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/update-tracking-accounting-75fd",
+      "input_head": "62fa4196e52ceb4b874971e03b292ced09a43827",
+      "current_head": "62fa4196e52ceb4b874971e03b292ced09a43827",
+      "head_unchanged": true,
+      "status_unchanged": true,
+      "authorized_continuation": false,
+      "current_status": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android-wt-ci-foundation",
+      "registered_missing_originally": true,
+      "registration_not_pruned": true
+    }
+  ],
+  "drafts": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "da01431540a8c89834c32cdf36eecd08af9ea62b232dece45e4d7c20f050aefe",
+      "current_sha256": "da01431540a8c89834c32cdf36eecd08af9ea62b232dece45e4d7c20f050aefe",
+      "unchanged": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "20efd9263e36ac494456382a119262d296eb997d3f227aff4713450df286c620",
+      "current_sha256": "20efd9263e36ac494456382a119262d296eb997d3f227aff4713450df286c620",
+      "unchanged": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "a7f8601bc9e530e38a6cc62843a9becb93dd69e957f0f82fdacb81358c55a228",
+      "current_sha256": "a7f8601bc9e530e38a6cc62843a9becb93dd69e957f0f82fdacb81358c55a228",
+      "unchanged": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDestinationOwnerEntity.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "f2635b0141b0f7e9c66fe298c0da258d0b42f12a6ee00fc4980b339de8592e8c",
+      "current_sha256": "f2635b0141b0f7e9c66fe298c0da258d0b42f12a6ee00fc4980b339de8592e8c",
+      "unchanged": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "85352138cdb9c7fe868879788cc844c7eee6c2c68c2e8e6eee1442795df2103c",
+      "current_sha256": "85352138cdb9c7fe868879788cc844c7eee6c2c68c2e8e6eee1442795df2103c",
+      "unchanged": true
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/SourceWriterGenerationContractTest.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "ea0c128191e53aace77f58c49354646e2be3dde22fd7ccd104dc74ba4df2c2be",
+      "current_sha256": "ea0c128191e53aace77f58c49354646e2be3dde22fd7ccd104dc74ba4df2c2be",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/catalog/SourceProductFactories.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "4eeb01308372a8b77a58789103d6a58a20260da789543cbed7c082ed8f4f7be5",
+      "current_sha256": "4eeb01308372a8b77a58789103d6a58a20260da789543cbed7c082ed8f4f7be5",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "a63b71002fb5cbf55c33539d6f6de3e1a17664f5eb821ddd83b9760600ff3f7a",
+      "current_sha256": "a63b71002fb5cbf55c33539d6f6de3e1a17664f5eb821ddd83b9760600ff3f7a",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellSessionFactProjectionLane.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "14b178e2b6464838dba6021ff6e820e051ab34451e040cb2cfc2a3aa171ba6a2",
+      "current_sha256": "14b178e2b6464838dba6021ff6e820e051ab34451e040cb2cfc2a3aa171ba6a2",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "7acb1c711aca4b9c4bb267463975a4e94a1377cd473f45911cc2f38085cbc61e",
+      "current_sha256": "7acb1c711aca4b9c4bb267463975a4e94a1377cd473f45911cc2f38085cbc61e",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStore.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "a1998261305c1f08d606fa1f5a2b69c6c62cd1a676b908684b5080d5fb16f8d5",
+      "current_sha256": "a1998261305c1f08d606fa1f5a2b69c6c62cd1a676b908684b5080d5fb16f8d5",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/deletion/RoomCellSelectedHistoryDeletion.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "c917515c2bd394e238374e58889e80aa4680903a73a06ca89bc5ed0243cd5058",
+      "current_sha256": "c917515c2bd394e238374e58889e80aa4680903a73a06ca89bc5ed0243cd5058",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/RoomDeleteSelectedWifiHistory.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "2302a5e1d0a26bb54d7613af6b712a0d2ed8f04865c1cca3a25c7febb6acb975",
+      "current_sha256": "2302a5e1d0a26bb54d7613af6b712a0d2ed8f04865c1cca3a25c7febb6acb975",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "b5d945ce96764b62a811bc2aef6067487997623347f81aa97abc0559c522ff80",
+      "current_sha256": "b5d945ce96764b62a811bc2aef6067487997623347f81aa97abc0559c522ff80",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "f5127b49284cae293e8097c377ecbe8ce73eec6ce4dd7b05ab423a2cf382c16d",
+      "current_sha256": "f5127b49284cae293e8097c377ecbe8ce73eec6ce4dd7b05ab423a2cf382c16d",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "24de9417240dc307b5afe74a66dcd8d93b6b1743386ea3e0a599c7914e24b100",
+      "current_sha256": "24de9417240dc307b5afe74a66dcd8d93b6b1743386ea3e0a599c7914e24b100",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiSessionFactProjectionLane.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "016b0284203218de8c743e975122da3dc855d5ae70a2051cc6ea57d71a9db3ef",
+      "current_sha256": "016b0284203218de8c743e975122da3dc855d5ae70a2051cc6ea57d71a9db3ef",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/catalog/DefaultSourceImplementationCatalogTest.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "ad62f568f81f3f3d1ac9b2c7648a938444de36e6cf9474b09beb99cdd3a4f440",
+      "current_sha256": "ad62f568f81f3f3d1ac9b2c7648a938444de36e6cf9474b09beb99cdd3a4f440",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "d5f96d8f4f43b205dc009f4726de36a5086306529f681028534c1733899b25e9",
+      "current_sha256": "d5f96d8f4f43b205dc009f4726de36a5086306529f681028534c1733899b25e9",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "0d20d6bd45c3a61afe0f13c5268b5c0b752211a84e5d2bbb1d868e09fc393aa3",
+      "current_sha256": "0d20d6bd45c3a61afe0f13c5268b5c0b752211a84e5d2bbb1d868e09fc393aa3",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStoreTest.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "c66470b8e1b29f1ee3c1bc305051b594d9cb672a2e60e4d38e6b22a952c9e604",
+      "current_sha256": "c66470b8e1b29f1ee3c1bc305051b594d9cb672a2e60e4d38e6b22a952c9e604",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "worktree": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "input_sha256": "9ca7e71e362a535e17b1bd58fd45f5b0983731b91622eb6d2291972befcf0350",
+      "current_sha256": "9ca7e71e362a535e17b1bd58fd45f5b0983731b91622eb6d2291972befcf0350",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/android.yml",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-finding-fixes",
+      "input_sha256": "891ba0b54335b05aac6406fea3bfaaa0c6df2f9075ed2799c8bc6706b9c559ec",
+      "current_sha256": "891ba0b54335b05aac6406fea3bfaaa0c6df2f9075ed2799c8bc6706b9c559ec",
+      "unchanged": true
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/architecture/ArchitecturalFitnessTest.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-finding-fixes",
+      "input_sha256": "7c70f1eb026b90c227ef2e338479027de1bb5c473f62f4a7ab9fed22d5b351ce",
+      "current_sha256": "7c70f1eb026b90c227ef2e338479027de1bb5c473f62f4a7ab9fed22d5b351ce",
+      "unchanged": true
+    },
+    {
+      "path": "build.gradle.kts",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-finding-fixes",
+      "input_sha256": "f12da34483a46dc2aad35b8119d9faa5851dd7e5b3abed2b74d676516533fb76",
+      "current_sha256": "f12da34483a46dc2aad35b8119d9faa5851dd7e5b3abed2b74d676516533fb76",
+      "unchanged": true
+    },
+    {
+      "path": "tools/release_manifest.py",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-finding-fixes",
+      "input_sha256": "900402a8632ea8318bbd16601cc0ec64c5b764d8c04807e5cf9d45d54c839182",
+      "current_sha256": "900402a8632ea8318bbd16601cc0ec64c5b764d8c04807e5cf9d45d54c839182",
+      "unchanged": true
+    },
+    {
+      "path": "tools/release_validation.py",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-finding-fixes",
+      "input_sha256": "553e43ffe2b64778b11680560ea6da8e12254dcb7a9b3c9d29c32d93745211c2",
+      "current_sha256": "553e43ffe2b64778b11680560ea6da8e12254dcb7a9b3c9d29c32d93745211c2",
+      "unchanged": true
+    },
+    {
+      "path": "tools/tests/test_release_manifest.py",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-finding-fixes",
+      "input_sha256": "19f31bbfa172050dec9be103d6e3f2a9f7a3cc234c78597849760d43160b9863",
+      "current_sha256": "19f31bbfa172050dec9be103d6e3f2a9f7a3cc234c78597849760d43160b9863",
+      "unchanged": true
+    },
+    {
+      "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboard.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-reconciliation-20260925",
+      "input_sha256": "9fec5877081dc667ad2ae302115ae623b6e733f50faf8823c0d32ff70af6bd07",
+      "current_sha256": "9fec5877081dc667ad2ae302115ae623b6e733f50faf8823c0d32ff70af6bd07",
+      "unchanged": true
+    },
+    {
+      "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardProgressCards.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-reconciliation-20260925",
+      "input_sha256": "0a4765c86e5bc84227d8881fcddebe22288ac12d2c7590c6a4c574073b011d2c",
+      "current_sha256": "0a4765c86e5bc84227d8881fcddebe22288ac12d2c7590c6a4c574073b011d2c",
+      "unchanged": true
+    },
+    {
+      "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-reconciliation-20260925",
+      "input_sha256": "237c37367d3cf79649d86e2cd9fe8ffd389bca44e19d2c9030b66d39c0339500",
+      "current_sha256": "237c37367d3cf79649d86e2cd9fe8ffd389bca44e19d2c9030b66d39c0339500",
+      "unchanged": true
+    },
+    {
+      "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRouteViewModel.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-reconciliation-20260925",
+      "input_sha256": "1cef8dda0d50893a1ca875f9875bb7c134b5871f2cd962995ff0a0231f43db1d",
+      "current_sha256": "1cef8dda0d50893a1ca875f9875bb7c134b5871f2cd962995ff0a0231f43db1d",
+      "unchanged": true
+    },
+    {
+      "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardProgressCardsTest.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-reconciliation-20260925",
+      "input_sha256": "9a271ba25c87dc38537f6bef064cd73c876b138badfd7ab8dac43a5d1521d4a6",
+      "current_sha256": "9a271ba25c87dc38537f6bef064cd73c876b138badfd7ab8dac43a5d1521d4a6",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/api-module/src/main/res/values/strings.xml",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-reconciliation-20260925",
+      "input_sha256": "89ca7e2b5b5860ee5f9dc743c42ae2dc85ba3766f96299c9926ba39ae171ca93",
+      "current_sha256": "89ca7e2b5b5860ee5f9dc743c42ae2dc85ba3766f96299c9926ba39ae171ca93",
+      "unchanged": true
+    },
+    {
+      "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/RecentTripsUiState.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-reconciliation-20260925",
+      "input_sha256": "21bad47f1267d954a212f03605cd6d3601cd684525a95969e25cc8570f2a2a7c",
+      "current_sha256": "21bad47f1267d954a212f03605cd6d3601cd684525a95969e25cc8570f2a2a7c",
+      "unchanged": true
+    },
+    {
+      "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/RecentTripsUiStateTest.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-reconciliation-20260925",
+      "input_sha256": "966b65c3abe769f764402231ecd5de4392e87655fbd5b58c6c4a63df0787d279",
+      "current_sha256": "966b65c3abe769f764402231ecd5de4392e87655fbd5b58c6c4a63df0787d279",
+      "unchanged": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AdditionalTrackingSchema.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/location-product-query-20260925",
+      "input_sha256": "ecd8582063481f73ab54cdf6bfac4847d2c713d10c6444535402e81a7a15f121",
+      "current_sha256": "ecd8582063481f73ab54cdf6bfac4847d2c713d10c6444535402e81a7a15f121",
+      "unchanged": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/location-product-query-20260925",
+      "input_sha256": "952c9a7890a62c22937079afbc0a8d7845273c6f0f47b96758af6045af13a8ae",
+      "current_sha256": "952c9a7890a62c22937079afbc0a8d7845273c6f0f47b96758af6045af13a8ae",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservation.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/location-product-query-20260925",
+      "input_sha256": "b71404ebbf9725576666ffb147583f8d34229332b1431948bb786e574e6571fc",
+      "current_sha256": "b71404ebbf9725576666ffb147583f8d34229332b1431948bb786e574e6571fc",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/location-product-query-20260925",
+      "input_sha256": "7b0c58f7d47231fbf23db4d1eab7e4b4bdf64cd13e7c9c315db41764696e7631",
+      "current_sha256": "7b0c58f7d47231fbf23db4d1eab7e4b4bdf64cd13e7c9c315db41764696e7631",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/location-product-query-20260925",
+      "input_sha256": "66476dbefd0f908e4e0ddd6e8b4af44672b5d4fb2d7cc366009312913a395132",
+      "current_sha256": "66476dbefd0f908e4e0ddd6e8b4af44672b5d4fb2d7cc366009312913a395132",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/location-product-query-20260925",
+      "input_sha256": "655c38422ac211e287fb2129d5ace854720bda9722460e01f05cdf873959b32e",
+      "current_sha256": "655c38422ac211e287fb2129d5ace854720bda9722460e01f05cdf873959b32e",
+      "unchanged": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/location-product-query-20260925",
+      "input_sha256": "a42e7881e692d7068334cefc11426b09d0f410d60717dd89bb8d2df70d5f2e6b",
+      "current_sha256": "a42e7881e692d7068334cefc11426b09d0f410d60717dd89bb8d2df70d5f2e6b",
+      "unchanged": true
+    },
+    {
+      "path": "core/base/src/androidTest/java/com/adsamcik/tracker/shared/base/database/LocationAcceptedProvenanceMigration27To28Test.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/location-product-query-20260925",
+      "input_sha256": "a2332f9c3079821b1bcb1be9c9622baa31c8573a276437a9654a857023492fa2",
+      "current_sha256": "a2332f9c3079821b1bcb1be9c9622baa31c8573a276437a9654a857023492fa2",
+      "unchanged": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationAcceptedProvenanceDao.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/location-product-query-20260925",
+      "input_sha256": "86b9fe364014e752d3c430c03522b3e9489dbcb5dca58e5f9a2ef27d0e4f83f4",
+      "current_sha256": "86b9fe364014e752d3c430c03522b3e9489dbcb5dca58e5f9a2ef27d0e4f83f4",
+      "unchanged": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationAcceptedProvenanceEntity.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/location-product-query-20260925",
+      "input_sha256": "eba5a536161d3ffecd6c9d18d23c23682c998fc4f46901f41a29aa421e8dd271",
+      "current_sha256": "eba5a536161d3ffecd6c9d18d23c23682c998fc4f46901f41a29aa421e8dd271",
+      "unchanged": true
+    },
+    {
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/data/DashboardHistoryRepository.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/unified-tracking-surface",
+      "input_sha256": "e2f5633f61d3053f2141897f96e7159478bd72956ed578f0d3a495474bc9578a",
+      "current_sha256": "e2f5633f61d3053f2141897f96e7159478bd72956ed578f0d3a495474bc9578a",
+      "unchanged": true
+    },
+    {
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModel.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/unified-tracking-surface",
+      "input_sha256": "5acede173363a73b6fc9f2ff144f87de6150549c78e7662eea382f7a596460e9",
+      "current_sha256": "5acede173363a73b6fc9f2ff144f87de6150549c78e7662eea382f7a596460e9",
+      "unchanged": true
+    },
+    {
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/unified-tracking-surface",
+      "input_sha256": "4792d20768e2ab08c8f716a48d9a3e11e970c10962c2aea082a1199061a04a6a",
+      "current_sha256": "4792d20768e2ab08c8f716a48d9a3e11e970c10962c2aea082a1199061a04a6a",
+      "unchanged": true
+    },
+    {
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/cards/IdleContent.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/unified-tracking-surface",
+      "input_sha256": "d680e7b1a42072ad4a6e45ec1fe55746085e84656c89b8f4026f08c83f269700",
+      "current_sha256": "d680e7b1a42072ad4a6e45ec1fe55746085e84656c89b8f4026f08c83f269700",
+      "unchanged": true
+    },
+    {
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/state/DashboardUiState.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/unified-tracking-surface",
+      "input_sha256": "5f89c5d4f2c4cad578d617234e7d924f7c1e24b17f05384b886ff467b6d22f4a",
+      "current_sha256": "5f89c5d4f2c4cad578d617234e7d924f7c1e24b17f05384b886ff467b6d22f4a",
+      "unchanged": true
+    },
+    {
+      "path": "feature/dashboard/src/main/res/values/strings.xml",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/unified-tracking-surface",
+      "input_sha256": "aab29c309f65b250cf39b680f7f478309c390a60dbad4c2da70e9250bcb8d1b4",
+      "current_sha256": "aab29c309f65b250cf39b680f7f478309c390a60dbad4c2da70e9250bcb8d1b4",
+      "unchanged": true
+    },
+    {
+      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/data/DashboardHistoryRepositoryTest.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/unified-tracking-surface",
+      "input_sha256": "9b579e4e36b061ae22b0abbef4b9ebf03f3113d8a9cde7d78352bbc922136a56",
+      "current_sha256": "9b579e4e36b061ae22b0abbef4b9ebf03f3113d8a9cde7d78352bbc922136a56",
+      "unchanged": true
+    },
+    {
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/data/DashboardAmbientSummary.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/unified-tracking-surface",
+      "input_sha256": "7d6314b10d497399812c4e52950d4700cec126c99a0e3e41118a9a3c0f1fe501",
+      "current_sha256": "7d6314b10d497399812c4e52950d4700cec126c99a0e3e41118a9a3c0f1fe501",
+      "unchanged": true
+    },
+    {
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/cards/AmbientSummaryCard.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/unified-tracking-surface",
+      "input_sha256": "92f0154706fe2ccf747f8bf0964047598bb6ac2940ecdc0bc423c612f7dbb562",
+      "current_sha256": "92f0154706fe2ccf747f8bf0964047598bb6ac2940ecdc0bc423c612f7dbb562",
+      "unchanged": true
+    },
+    {
+      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/data/DashboardAmbientSummaryReaderTest.kt",
+      "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/unified-tracking-surface",
+      "input_sha256": "5a9e1426d2fc212c32f06f29a627c87f40ce32a83499edce333566a6c5c3decf",
+      "current_sha256": "5a9e1426d2fc212c32f06f29a627c87f40ce32a83499edce333566a6c5c3decf",
+      "unchanged": true
+    }
+  ],
+  "protected_paths": [
+    {
+      "path": "docs/TRACKING_INFRASTRUCTURE_FINAL_PLAN_AND_DESIGN.docx",
+      "candidate_unchanged": true
+    },
+    {
+      "path": "docs/TRACKING_INFRASTRUCTURE_IMPLEMENTATION_ORCHESTRATOR_PROMPT.md",
+      "candidate_unchanged": true
+    },
+    {
+      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardManualStartDecisionTest.kt",
+      "candidate_unchanged": true
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/DatabaseImport.kt",
+      "candidate_unchanged": true
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/DatabaseImportCollisionTest.kt",
+      "candidate_unchanged": true
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/DatabaseImportTest.kt",
+      "candidate_unchanged": true
+    }
+  ],
+  "unexpected_changes": [],
+  "all_original_inputs_preserved": true,
+  "main_branch_and_head": "dev/v10 13f1a99871b59d29b3d059f374fc415490da6943"
+}

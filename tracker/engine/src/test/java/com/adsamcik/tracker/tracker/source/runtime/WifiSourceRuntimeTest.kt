@@ -44,6 +44,25 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class WifiSourceRuntimeTest {
 	@Test
+	fun `wifi receipt time remains distinct from aged provider observation time`() = runTest {
+		val fixture = runtimeFixture(this)
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		fixture.start(wifiCandidateSink { candidate ->
+			admitted += candidate
+			SourceAdmissionHandoff.Durable(admitted.size.toLong())
+		})
+		fixture.emit(resultEvent(receivedNanos = 10_000_000L).copy(receivedWallTimeMs = 1_700L))
+		advanceUntilIdle()
+
+		val evidence = admitted.single()
+		assertEquals(1_700L, evidence.receivedWallTimeMs)
+		assertEquals(1_699L, evidence.wallTimeMs)
+		assertEquals(10_000_000L, evidence.receivedElapsedRealtimeNanos)
+		assertEquals(9_000_000L, evidence.observedElapsedRealtimeNanos)
+		fixture.runtime.close()
+	}
+
+	@Test
 	fun `wifi capability makes no wake reliable cadence claim`() {
 		val capability = wifiCapabilities(readyState())
 

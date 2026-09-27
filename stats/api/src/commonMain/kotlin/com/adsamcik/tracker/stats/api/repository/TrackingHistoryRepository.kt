@@ -11,6 +11,12 @@ import kotlinx.coroutines.flow.Flow
  */
 interface TrackingHistoryRepository {
 	/**
+	 * Resolves one exact already-materialized source fact through the same production history
+	 * qualification boundary used by session presentation.
+	 */
+	suspend fun lookupSourceFact(request: SourceFactLookupRequest): SourceFactLookupResult
+
+	/**
 	 * Observe the durable history attached to one local session-segment row.
 	 *
 	 * This narrow query is intended for one selected session. It is not a portable session identity

@@ -467,6 +467,64 @@ class SessionTrackerComponentTest {
 		segment.activityConfidence shouldBe 92
 	}
 
+	@Test
+	fun recentActivityIsAttributedAtDeviceUptimesFromSecondsToWeeks() = runTest {
+		val uptimes = listOf(10L * 1_000_000_000L, 21L * 24L * 60L * 60L * 1_000_000_000L)
+		uptimes.forEach { now ->
+			val session = activityDistanceSession(now, now - 5L * 1_000_000_000L)
+			session.distanceOnFootInM shouldBe 100f
+			session.distanceInVehicleInM shouldBe 0f
+		}
+	}
+
+	@Test
+	fun staleMissingAndFutureActivityAreNotTimeQualified() = runTest {
+		val now = 21L * 24L * 60L * 60L * 1_000_000_000L
+		listOf<Long?>(now - 21L * 1_000_000_000L, null, now + 1L).forEach { observed ->
+			val session = activityDistanceSession(now, observed)
+			session.distanceOnFootInM shouldBe 0f
+			session.distanceInVehicleInM shouldBe 0f
+		}
+	}
+
+	@Test
+	fun sessionUsesSpeedCorrectedActivityForDistanceAttribution() = runTest {
+		val now = 7L * 24L * 60L * 60L * 1_000_000_000L
+		val session = activityDistanceSession(
+			now,
+			now - 1_000_000_000L,
+			ActivityInfo(DetectedActivity.IN_VEHICLE, confidence = 90),
+		)
+		session.distanceOnFootInM shouldBe 0f
+		session.distanceInVehicleInM shouldBe 100f
+	}
+
+	private suspend fun activityDistanceSession(
+		nowElapsedRealtimeNanos: Long,
+		activityElapsedRealtimeNanos: Long?,
+		effectiveActivity: ActivityInfo = ActivityInfo(DetectedActivity.WALKING, confidence = 90),
+	): MutableTrackerSession {
+		val component = createComponent()
+		val session = emptySession(id = 1L)
+		setSession(component, session)
+		val collectionData = MutableCollectionData(1_000L).apply {
+			setLocation(Location("test"))
+			distanceFromPreviousM = 100f
+			activity = effectiveActivity
+		}
+		component.onDataUpdated(
+			cycle = TrackingCycle(
+				timestampMs = 1_000L,
+				elapsedRealtimeNanos = nowElapsedRealtimeNanos,
+				activity = ActivityInfo(DetectedActivity.WALKING, confidence = 90),
+				activityFresh = true,
+				activitySourceElapsedRealtimeNanos = activityElapsedRealtimeNanos,
+			),
+			collectionData = collectionData,
+		)
+		return session
+	}
+
 
 	/**
 	 * Helper to create a [TrackingCycle] with precomputed distance in [LocationData],

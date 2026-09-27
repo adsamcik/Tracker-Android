@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEn
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -782,20 +783,7 @@ private fun authenticateActivityCapturedLineage(
 			) || !persisted.hasCanonicalFragmentsAndEvidence() ||
 			revision.effectChecksum != calculatedEffectChecksum(persisted)
 		) block(ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-		val revisionEarliest = persisted.fragments.asSequence()
-			.filter { fragment -> fragment.fragmentKind == ActivityCapturedFragmentEntity.KIND_BAND }
-			.flatMap { fragment ->
-				sequenceOf(
-					earliestPossibleWallTime(
-						requireNotNull(fragment.startWallTimeMs),
-						requireNotNull(fragment.startWallTimeUncertaintyMs),
-					),
-					earliestPossibleWallTime(
-						requireNotNull(fragment.endWallTimeMs),
-						requireNotNull(fragment.endWallTimeUncertaintyMs),
-					),
-				)
-			}.minOrNull()
+		val revisionEarliest = CanonicalRetentionBounds.activityLineage(persisted.fragments)
 		earliestWallTimeMs = listOfNotNull(earliestWallTimeMs, revisionEarliest).minOrNull()
 	}
 	return ActivityCapturedLineage(
@@ -1246,9 +1234,6 @@ private fun SessionManifestSourceEntity.isCapturedActivityBinding(
 	writerOwnerGeneration == revision.writerOwnerGeneration &&
 	writerProjectionId == WRITER_ID && writerProjectionVersion == WRITER_VERSION &&
 	writerBindingGeneration == SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION
-
-private fun earliestPossibleWallTime(wallTimeMs: Long, uncertaintyMs: Long): Long =
-	if (uncertaintyMs >= wallTimeMs) 0L else wallTimeMs - uncertaintyMs
 
 private fun hasValidZone(zoneId: String): Boolean = try {
 	ZoneId.of(zoneId)

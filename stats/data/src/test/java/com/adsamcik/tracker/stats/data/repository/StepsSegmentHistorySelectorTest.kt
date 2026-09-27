@@ -3,6 +3,10 @@ package com.adsamcik.tracker.stats.data.repository
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -14,6 +18,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
@@ -22,7 +27,12 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsWalBoundaryKind
+import com.adsamcik.tracker.shared.base.database.data.StepsWalPayload
+import com.adsamcik.tracker.shared.base.database.data.StepsWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.STEPS_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
@@ -63,6 +73,10 @@ class StepsSegmentHistorySelectorTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState())
+		check(
+			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) ==
+				StepsCountDomainSchemaState.ValidV2,
+		)
 		selector = StepsSegmentHistorySelector(database, executableLaneAuthority())
 		logicalHistoryReader = LogicalTrackingHistoryReader(database, selector)
 	}
@@ -227,6 +241,42 @@ class StepsSegmentHistorySelectorTest {
 		capture.capturedInAnyRevision shouldBe setOf(TrackingSourceComponent.STEPS)
 		capture.capturedForWholeRun shouldBe setOf(TrackingSourceComponent.STEPS)
 		capture.revisions.single().controlSources shouldBe emptySet()
+	}
+
+	@Test
+	fun `rehashed canonical Steps WAL cannot replace count-domain bound fact data`() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+		)
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId("event-1"))
+		val payload = requireNotNull(
+			StepsWalPayloadCodec.decodeCanonical(wal.payloadVersion, wal.payload),
+		)
+		val changedPayload = payload.copy(
+			lastCumulativeCount = payload.lastCumulativeCount + 1L,
+			deltaCount = payload.deltaCount + 1L,
+		)
+		val bytes = StepsWalPayloadCodec.encode(changedPayload, wal.payloadVersion)
+		val changed = wal.copy(
+			payload = bytes,
+			payloadChecksum = "",
+			integrityIdentity = "pending",
+		)
+		val checksummed = changed.copy(payloadChecksum = changed.calculatedPayloadChecksum())
+		val rehashed = checksummed.copy(
+			integrityIdentity = checksummed.calculatedIntegrityIdentity(),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET payload = ?, payload_checksum = ?, " +
+				"integrity_identity = ? WHERE event_id = ?",
+			arrayOf(rehashed.payload, rehashed.payloadChecksum, rehashed.integrityIdentity, wal.eventId),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null)) shouldBe
+			failedResult(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED)
 	}
 
 	@Test
@@ -3814,17 +3864,32 @@ class StepsSegmentHistorySelectorTest {
 			),
 		)
 		facts.forEach { fact ->
-			val transformed = factTransform(
-				fact.withTestAttribution(
-					logicalId = logicalId,
-					runId = runId,
-					manifestRevision = manifestRevision,
-					writerBindingGeneration = writerBindingGeneration,
-				),
+			val authentic = fact.withTestAttribution(
+				logicalId = logicalId,
+				runId = runId,
+				manifestRevision = manifestRevision,
+				writerBindingGeneration = writerBindingGeneration,
+			).withValidLiveWalEffectChecksum()
+			val wal = stepsWal(authentic)
+			database.sourceEventWalDao().insertIgnoringDuplicate(wal)
+			val token = walToken(authentic)
+			check(
+				StepsCountDomainStore(database).recordSessionWal(wal, token) in
+					setOf(
+						StepsCountDomainWriteResult.INSERTED,
+						StepsCountDomainWriteResult.EXACT_REPLAY,
+						StepsCountDomainWriteResult.UNPROVEN,
+					),
 			)
-			database.stepFactRevisionDao().insert(
-				transformed.withValidLiveWalEffectChecksum(),
+			check(
+				StepsCountDomainStore(database).recordSessionFact(authentic) in
+					setOf(
+						StepsCountDomainWriteResult.INSERTED,
+						StepsCountDomainWriteResult.EXACT_REPLAY,
+						StepsCountDomainWriteResult.UNPROVEN,
+					),
 			)
+			database.stepFactRevisionDao().insert(factTransform(authentic))
 		}
 	}
 
@@ -4307,6 +4372,91 @@ class StepsSegmentHistorySelectorTest {
 		appliedAtMs = 1_500L,
 	).withValidLiveWalEffectChecksum()
 	}
+
+	private fun stepsWal(fact: StepFactRevisionEntity): SourceEventWalEntity {
+		val payloadVersion = if (
+			fact.coverageKind == StepFactRevisionEntity.COVERAGE_PARTIAL
+		) {
+			1
+		} else {
+			STEPS_WAL_PAYLOAD_VERSION
+		}
+		val payload = StepsWalPayload(
+			bootClockDomainId = requireNotNull(fact.bootClockDomainId),
+			firstCumulativeCount = requireNotNull(fact.cumulativeStepCountStart),
+			lastCumulativeCount = requireNotNull(fact.cumulativeStepCountEnd),
+			deltaCount = requireNotNull(fact.effectiveStepCount),
+			windowStartElapsedRealtimeNanos =
+				requireNotNull(fact.intervalStartElapsedRealtimeNanos),
+			windowEndElapsedRealtimeNanos =
+				requireNotNull(fact.intervalEndElapsedRealtimeNanos),
+			firstProviderSequence = requireNotNull(fact.sourceAdmissionOrdinal),
+			lastProviderSequence = requireNotNull(fact.sourceAdmissionOrdinal),
+			boundaryKind = when (fact.coverageKind) {
+				StepFactRevisionEntity.COVERAGE_BASELINE -> StepsWalBoundaryKind.BASELINE
+				StepFactRevisionEntity.COVERAGE_COVERED -> StepsWalBoundaryKind.COVERED
+				StepFactRevisionEntity.COVERAGE_RESET_GAP -> StepsWalBoundaryKind.COUNTER_RESET
+				else -> StepsWalBoundaryKind.LEGACY_AMBIGUOUS
+			},
+			counterEpochGeneration = 1L.takeIf {
+				payloadVersion == STEPS_WAL_PAYLOAD_VERSION
+			},
+			counterDomainToken = walToken(fact),
+		)
+		val bytes = StepsWalPayloadCodec.encode(payload, payloadVersion)
+		val unsigned = SourceEventWalEntity(
+			admissionOrdinal = requireNotNull(fact.sourceAdmissionOrdinal),
+			eventId = requireNotNull(fact.sourceEventId),
+			providerDedupKey = "steps:${fact.serviceRunId}:${fact.sourceEventId}",
+			deliveryIdentity = null,
+			deliveryUnitIndex = null,
+			deliveryUnitCount = null,
+			logicalTrackingId = fact.logicalTrackingId,
+			serviceRunId = fact.serviceRunId,
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			sourceInstanceId = "steps-instance:${fact.serviceRunId}",
+			registrationGeneration = 1L,
+			physicalConfigurationFingerprint = "f".repeat(64),
+			authorizationRevision = 1L,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			authorizationFingerprint = "a".repeat(64),
+			sourceSequence = requireNotNull(fact.sourceAdmissionOrdinal),
+			configRevision = fact.manifestRevision,
+			planAttribution = 0,
+			clockDomainId = requireNotNull(fact.clockDomainId),
+			observedElapsedNanos = requireNotNull(fact.intervalEndElapsedRealtimeNanos),
+			observedIntervalStartNanos = fact.intervalStartElapsedRealtimeNanos,
+			receivedElapsedNanos = requireNotNull(fact.intervalEndElapsedRealtimeNanos) + 1L,
+			receivedWallTimeMs = requireNotNull(fact.intervalEndTimeMs) + 1L,
+			wallTimeMs = fact.intervalEndTimeMs,
+			wallTimeUncertaintyMs = fact.wallTimeUncertaintyMs,
+			capturedCollectedDataEpoch = fact.collectedDataEpoch,
+			activityAutomationEpoch = null,
+			sourcePolicyRevision = fact.sourcePolicyRevision,
+			captureConsentEpoch = fact.captureConsentEpoch,
+			sessionManifestRevision = fact.manifestRevision,
+			lifecycleLeaseGeneration = 1L,
+			acquiredAtMs = requireNotNull(fact.intervalEndTimeMs),
+			qualityFlags = 0L,
+			qualityConfidence = null,
+			payloadVersion = payloadVersion,
+			payload = bytes,
+			payloadChecksum = "",
+			integrityIdentity = "pending",
+			createdAtMs = requireNotNull(fact.intervalEndTimeMs) + 1L,
+		)
+		val checksummed = unsigned.copy(payloadChecksum = unsigned.calculatedPayloadChecksum())
+		return checksummed.copy(integrityIdentity = checksummed.calculatedIntegrityIdentity())
+	}
+
+	private fun walToken(fact: StepFactRevisionEntity): StepsCounterDomainToken? =
+		if (fact.coverageKind == StepFactRevisionEntity.COVERAGE_RESET_GAP ||
+			fact.coverageKind == StepFactRevisionEntity.COVERAGE_PARTIAL
+		) {
+			null
+		} else {
+			StepsCounterDomainToken.opaque("sha256:${"c".repeat(64)}")
+		}
 
 	private fun StepFactRevisionEntity.withValidLiveWalEffectChecksum(): StepFactRevisionEntity =
 		copy(effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(this))

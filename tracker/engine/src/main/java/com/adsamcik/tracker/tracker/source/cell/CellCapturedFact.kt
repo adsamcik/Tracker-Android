@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.source.cell
 
+import com.adsamcik.tracker.shared.base.database.data.CellAggregateReuseAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -563,13 +564,21 @@ private fun validateCellFactBinding(
 
 /** Physical provider/auth changes may reuse bytes only inside the same exact product authority. */
 internal fun CellCaptureAuthority.canReuseAggregateFrom(other: CellCaptureAuthority): Boolean =
-	logicalTrackingId == other.logicalTrackingId && serviceRunId == other.serviceRunId &&
-		sessionSegmentId == other.sessionSegmentId && capturedSources == other.capturedSources &&
-		controlSources == other.controlSources && purposeEligibilityMask == other.purposeEligibilityMask &&
-		captureConsentEpoch == other.captureConsentEpoch &&
-		collectedDataEpoch == other.collectedDataEpoch &&
-		scopeDeletionGeneration == other.scopeDeletionGeneration && zoneId == other.zoneId &&
-		structuralEpochDay == other.structuralEpochDay
+	aggregateReuseAuthority().canReuseAggregateFrom(other.aggregateReuseAuthority())
+
+private fun CellCaptureAuthority.aggregateReuseAuthority() = CellAggregateReuseAuthority(
+	logicalTrackingId = logicalTrackingId.value,
+	serviceRunId = serviceRunId.value,
+	sessionSegmentId = sessionSegmentId,
+	capturedSources = capturedSources.mapTo(linkedSetOf()) { it.stableCode },
+	controlSources = controlSources.mapTo(linkedSetOf()) { it.stableCode },
+	purposeEligibilityMask = purposeEligibilityMask,
+	captureConsentEpoch = captureConsentEpoch,
+	collectedDataEpoch = collectedDataEpoch,
+	scopeDeletionGeneration = scopeDeletionGeneration,
+	storedZoneId = zoneId,
+	structuralEpochDay = structuralEpochDay,
+)
 
 /**
  * A persisted authority may be corrected only by closing bounds that were genuinely open when the

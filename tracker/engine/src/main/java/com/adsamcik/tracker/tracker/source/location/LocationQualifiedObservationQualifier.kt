@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.location
 
 import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
@@ -257,9 +258,12 @@ internal object LocationQualifiedObservationQualifier {
 	private fun uncertaintyInterval(clock: LocationDurableClockAuthority): LongRange? {
 		if (clock.observedWallTimeMs < 0L || clock.wallTimeUncertaintyMs < 0L) return null
 		return runCatching {
-			val start = Math.subtractExact(clock.observedWallTimeMs, clock.wallTimeUncertaintyMs)
+			val start = CanonicalRetentionBounds.location(
+				clock.observedWallTimeMs,
+				clock.wallTimeUncertaintyMs,
+			) ?: return null
 			val end = Math.addExact(clock.observedWallTimeMs, clock.wallTimeUncertaintyMs)
-			if (start < 0L) null else start..end
+			start..end
 		}.getOrNull()
 	}
 

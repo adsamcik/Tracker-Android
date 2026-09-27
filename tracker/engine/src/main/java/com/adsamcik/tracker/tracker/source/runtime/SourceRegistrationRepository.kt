@@ -169,7 +169,8 @@ class SourceRegistrationRepository @Inject constructor(
 			currentBootId = clockDomainProvider.current(),
 			reconciledAtMs = reconciledAtMs,
 			reconciledElapsedRealtimeNanos = reconciledElapsedRealtimeNanos,
-			reason = "PRIOR_PROCESS_INCARNATION_ENDED",
+			reason =
+				ProviderRegistrationGenerationEntity.FAILURE_PRIOR_PROCESS_INCARNATION_ENDED,
 		)
 
 	suspend fun begin(

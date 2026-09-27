@@ -137,6 +137,17 @@ def collect_release_evidence(args: argparse.Namespace) -> Path:
         (repo_root / "app" / "build" / "outputs" / "bundle" / "release").glob("*.aab"),
         "release AAB",
     )
+    non_minified_aab = _single_file(
+        (
+            repo_root
+            / "app"
+            / "build"
+            / "outputs"
+            / "bundle"
+            / "release_nominify"
+        ).glob("*.aab"),
+        "release_nominify AAB",
+    )
 
     artifacts_dir = output / "artifacts"
     artifacts_dir.mkdir(parents=True)
@@ -200,6 +211,23 @@ def collect_release_evidence(args: argparse.Namespace) -> Path:
         ],
         "merged release manifest",
     )
+    non_minified_merged_manifest = _first_file(
+        [
+            app_build
+            / "intermediates"
+            / "merged_manifests"
+            / "release_nominify"
+            / "processRelease_nominifyManifest"
+            / "AndroidManifest.xml",
+            app_build
+            / "intermediates"
+            / "packaged_manifests"
+            / "release_nominify"
+            / "processRelease_nominifyManifestForPackage"
+            / "AndroidManifest.xml",
+        ],
+        "merged release_nominify manifest",
+    )
     manifest_report = _first_file(
         [app_build / "outputs" / "logs" / "manifest-merger-release-report.txt"],
         "manifest merger report",
@@ -258,6 +286,13 @@ def collect_release_evidence(args: argparse.Namespace) -> Path:
         (
             "merged-manifest",
             copy_evidence(merged_manifest, output / "manifest" / "AndroidManifest.xml"),
+        ),
+        (
+            "nominify-merged-manifest",
+            copy_evidence(
+                non_minified_merged_manifest,
+                output / "manifest" / "AndroidManifest-nominify.xml",
+            ),
         ),
         (
             "manifest-merger-report",
@@ -319,9 +354,11 @@ def collect_release_evidence(args: argparse.Namespace) -> Path:
         repo_root=repo_root,
         release_inputs=release_inputs,
         aab=aab,
+        non_minified_aab=non_minified_aab,
         apk_set=apk_set,
         apks=apk_paths,
         merged_manifest=merged_manifest,
+        non_minified_merged_manifest=non_minified_merged_manifest,
         evidence_files=copied_evidence,
         dependency_metadata=dependency_json,
         native_inventory=native_inventory,

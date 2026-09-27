@@ -27,6 +27,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
@@ -68,7 +69,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun `complete settled capture delivery admits exact transition without writing a fact`() = runTest {
+	fun `Activity WAL source conversion compiles and admits exact transition`() = runTest {
 		installFixture()
 
 		val result = subject().admit(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted
@@ -373,7 +374,11 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		)
 	}
 
-	private fun subject() = ActivityCapturedWalAdmissionAdapter(database, payloadCodec, planCodec)
+	private fun subject() = ActivityCapturedWalAdmissionAdapter(
+		database,
+		planCodec,
+		BootClockDomainProvider { BOOT_ID },
+	)
 
 	@Suppress("LongMethod")
 	private suspend fun installFixture(
@@ -531,6 +536,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				observedElapsedNanos = unit.evidence.observedElapsedRealtimeNanos,
 				observedIntervalStartNanos = unit.observedIntervalStartElapsedRealtimeNanos,
 				receivedElapsedNanos = unit.evidence.receivedElapsedRealtimeNanos,
+				receivedWallTimeMs = 2_001L,
 				wallTimeMs = unit.evidence.wallTimeMs,
 				wallTimeUncertaintyMs = unit.evidence.wallTimeUncertaintyMs,
 				capturedCollectedDataEpoch = 0L,

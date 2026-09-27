@@ -1,7 +1,12 @@
 package com.adsamcik.tracker.shared.base.database
 
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.dao.SourceEventRetentionProofCandidateRow
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionProofEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionScopeProofEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
@@ -111,9 +116,10 @@ suspend fun AppDatabase.liveSourceProjectionActivationOrdinal(): Long {
  * Removes source-event rows only after every global projection, durable join, legacy recovery
  * consumer, and retaining product lane for that row's source has advanced past them.
  *
- * Every source is drained in independently committed, bounded transactions. Typed source debt
- * rolls back only the blocked source batch, while already completed sources remain committed and
- * later sources are still attempted.
+ * Every source is drained in independently committed, bounded transactions. Before one WAL batch
+ * is removed, its exact payload-free retention proofs are durably inserted in the same transaction.
+ * Typed source debt rolls back only the blocked source batch, while already completed sources
+ * remain committed and later sources are still attempted.
  */
 suspend fun AppDatabase.pruneSourceEventStorageBefore(
 	createdBeforeMs: Long,
@@ -130,6 +136,7 @@ internal suspend fun AppDatabase.pruneSourceEventStorageBeforeWithSourceOperatio
 	batchSize: Int,
 	verifyCollectedDataAccess: suspend () -> Unit,
 	sourceKinds: List<Int> = SOURCE_EVENT_STORAGE_SOURCE_KINDS,
+	maximumRetentionProofsPerSource: Int = MAX_SOURCE_EVENT_RETENTION_PROOFS_PER_SOURCE,
 	pruneSourceBatch: SourceEventStorageBatchPruner = {
 			sourceKind, globalSafeOrdinal, sourceCreatedBeforeMs, sourceBatchSize ->
 		pruneSourceEventStorageBatch(
@@ -143,6 +150,7 @@ internal suspend fun AppDatabase.pruneSourceEventStorageBeforeWithSourceOperatio
 ): SourceEventStoragePruneResult {
 	require(createdBeforeMs >= 0L)
 	require(batchSize > 0)
+	require(maximumRetentionProofsPerSource > 0)
 	require(sourceKinds.distinct().size == sourceKinds.size)
 	require(sourceKinds.all(SOURCE_EVENT_STORAGE_SOURCE_KINDS::contains))
 
@@ -165,7 +173,14 @@ internal suspend fun AppDatabase.pruneSourceEventStorageBeforeWithSourceOperatio
 							batchSize,
 						)
 						when (result) {
-							is SourceEventStoragePruneBatchResult.Applied -> result
+							is SourceEventStoragePruneBatchResult.Applied -> {
+								sourceEventRetentionProofDao().deleteProofsWithLiveWal(sourceKind)
+								sourceEventRetentionProofDao().trimSourceToNewest(
+									sourceKind,
+									maximumRetentionProofsPerSource,
+								)
+								result
+							}
 							is SourceEventStoragePruneBatchResult.Blocked ->
 								throw SourceEventStoragePruneBlockedException(result.reason)
 						}
@@ -284,21 +299,47 @@ private suspend fun AppDatabase.pruneSourceEventStorageBatch(
 	)
 	val walDao = sourceEventWalDao()
 	val sourceWal = if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS) {
+		var candidateCount = 0
 		when (
 			val result = StepsCountDomainStore(this).pruneSessionWalForStorage(
 				safeOrdinal = sourceSafeOrdinal,
 				createdBeforeMs = createdBeforeMs,
 				limit = batchSize,
+				beforeWalDeletion = { candidates ->
+					candidateCount = candidates.size
+					requireRetentionProofs(sourceKind, candidates)
+				},
 			)
 		) {
-			is StepsCountDomainMaintenanceResult.Applied -> result.walEventsDeleted
-			StepsCountDomainMaintenanceResult.SchemaUnavailable ->
-				walDao.deleteProjectedSourceBatch(
+			is StepsCountDomainMaintenanceResult.Applied -> {
+				if (result.walEventsDeleted != candidateCount) {
+					return SourceEventStoragePruneBatchResult.Blocked(
+						SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
+					)
+				}
+				result.walEventsDeleted
+			}
+			StepsCountDomainMaintenanceResult.SchemaUnavailable -> {
+				val candidates = walDao.retentionProofCandidatesForProjectedSourceBatch(
 					sourceKind = sourceKind,
 					safeOrdinal = sourceSafeOrdinal,
 					createdBeforeMs = createdBeforeMs,
 					limit = batchSize,
 				)
+				requireRetentionProofs(sourceKind, candidates)
+				val deleted = walDao.deleteProjectedSourceBatch(
+					sourceKind = sourceKind,
+					safeOrdinal = sourceSafeOrdinal,
+					createdBeforeMs = createdBeforeMs,
+					limit = batchSize,
+				)
+				if (deleted != candidates.size) {
+					return SourceEventStoragePruneBatchResult.Blocked(
+						SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
+					)
+				}
+				deleted
+			}
 			StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable ->
 				return SourceEventStoragePruneBatchResult.Blocked(
 					SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
@@ -309,17 +350,143 @@ private suspend fun AppDatabase.pruneSourceEventStorageBatch(
 				)
 		}
 	} else {
-		walDao.deleteProjectedSourceBatch(
+		val candidates = walDao.retentionProofCandidatesForProjectedSourceBatch(
 			sourceKind = sourceKind,
 			safeOrdinal = sourceSafeOrdinal,
 			createdBeforeMs = createdBeforeMs,
 			limit = batchSize,
 		)
+		requireRetentionProofs(sourceKind, candidates)
+		val deleted = walDao.deleteProjectedSourceBatch(
+			sourceKind = sourceKind,
+			safeOrdinal = sourceSafeOrdinal,
+			createdBeforeMs = createdBeforeMs,
+			limit = batchSize,
+		)
+		if (deleted != candidates.size) {
+			return SourceEventStoragePruneBatchResult.Blocked(
+				SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		deleted
 	}
 	return SourceEventStoragePruneBatchResult.Applied(
 		walEventsDeleted = sourceWal,
 		deliveredEffectsDeleted = sourceEffects,
 	)
+}
+
+private suspend fun AppDatabase.requireRetentionProofs(
+	expectedSourceKind: Int,
+	candidates: List<SourceEventRetentionProofCandidateRow>,
+) {
+	if (candidates.isEmpty()) return
+	if (candidates.any { it.sourceKind != expectedSourceKind }) {
+		throw SourceEventStoragePruneBlockedException(
+			SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
+	val receipts = try {
+		candidates.map { candidate ->
+			val wal = sourceEventWalDao().getByEventId(candidate.eventId)
+			requireNotNull(wal)
+			candidate.createAuthenticatedRetentionProof(wal)
+		}
+	} catch (_: IllegalArgumentException) {
+		throw SourceEventStoragePruneBlockedException(
+			SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
+	val insertions = sourceEventRetentionProofDao().insertAll(receipts)
+	if (insertions.size != receipts.size) {
+		throw SourceEventStoragePruneBlockedException(
+			SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
+	insertions.forEachIndexed { index, insertion ->
+		if (insertion == -1L) {
+			val expected = receipts[index]
+			val stored = sourceEventRetentionProofDao().get(expected.sourceKind, expected.eventId)
+			if (stored != expected || !stored.hasValidStoredIntegrity()) {
+				throw SourceEventStoragePruneBlockedException(
+					SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			}
+		}
+	}
+	try {
+		receipts.forEach { receipt ->
+			if (receipt.sourceKind in RETAINED_CAPTURE_SCOPE_SOURCE_KINDS &&
+				receipt.purposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
+			) {
+				persistSourceEventRetentionScopeProof(receipt)
+			}
+		}
+	} catch (_: IllegalArgumentException) {
+		throw SourceEventStoragePruneBlockedException(
+			SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	} catch (_: IllegalStateException) {
+		throw SourceEventStoragePruneBlockedException(
+			SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
+}
+
+private suspend fun AppDatabase.persistSourceEventRetentionScopeProof(
+	eventProof: SourceEventRetentionProofEntity,
+) {
+	val dao = sourceEventRetentionScopeProofDao()
+	val candidate = SourceEventRetentionScopeProofEntity.create(eventProof)
+	val stored = dao.get(candidate.sourceKind, candidate.logicalRunScopeDigest)
+	if (stored == null) {
+		if (dao.insertIfAbsent(candidate) == -1L) {
+			val raced = dao.get(candidate.sourceKind, candidate.logicalRunScopeDigest)
+			require(raced != null && raced.hasValidStoredIntegrity())
+			val advanced = raced.advance(eventProof)
+			if (advanced != raced) require(dao.update(advanced) == 1)
+		}
+	} else {
+		require(stored.hasValidStoredIntegrity())
+		val advanced = stored.advance(eventProof)
+		if (advanced != stored) require(dao.update(advanced) == 1)
+	}
+	val persisted = requireNotNull(
+		dao.get(candidate.sourceKind, candidate.logicalRunScopeDigest),
+	)
+	require(persisted.hasValidStoredIntegrity())
+	require(persisted.advance(eventProof) == persisted)
+}
+
+internal fun SourceEventRetentionProofCandidateRow.authenticatesRetentionWal(
+	wal: SourceEventWalEntity,
+): Boolean = sourceKind == wal.sourceKind &&
+	eventId == wal.eventId &&
+	sourceAdmissionOrdinal == wal.admissionOrdinal &&
+	purposeEligibilityMask == wal.authorizationPurposeEligibilityMask &&
+	sourcePolicyRevision == wal.sourcePolicyRevision &&
+	captureConsentEpoch == wal.captureConsentEpoch &&
+	collectedDataEpoch == wal.capturedCollectedDataEpoch &&
+	logicalTrackingId == wal.logicalTrackingId &&
+	serviceRunId == wal.serviceRunId &&
+	clockDomainId == wal.clockDomainId &&
+	sessionManifestRevision == wal.sessionManifestRevision &&
+	lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration &&
+	sourceInstanceId == wal.sourceInstanceId &&
+	registrationGeneration == wal.registrationGeneration &&
+	physicalConfigurationFingerprint == wal.physicalConfigurationFingerprint &&
+	authorizationRevision == wal.authorizationRevision &&
+	authorizationFingerprint == wal.authorizationFingerprint &&
+	configurationRevision == wal.configRevision &&
+	walPayloadChecksum == wal.payloadChecksum &&
+	walIntegrityIdentity == wal.integrityIdentity &&
+	wal.hasQualifiedIntegrity()
+
+internal fun SourceEventRetentionProofCandidateRow.createAuthenticatedRetentionProof(
+	wal: SourceEventWalEntity,
+): SourceEventRetentionProofEntity {
+	require(authenticatesRetentionWal(wal))
+	return SourceEventRetentionProofEntity.createFromWal(wal)
 }
 
 private class SourceEventStoragePruneBlockedException(
@@ -334,5 +501,10 @@ private val SOURCE_EVENT_STORAGE_SOURCE_KINDS = listOf(
 	SourceDestinationOwnerEntity.SOURCE_WIFI,
 	SourceDestinationOwnerEntity.SOURCE_CELL,
 )
+private val RETAINED_CAPTURE_SCOPE_SOURCE_KINDS = setOf(
+	SourceDestinationOwnerEntity.SOURCE_WIFI,
+	SourceDestinationOwnerEntity.SOURCE_CELL,
+)
 
 private const val DEFAULT_SOURCE_EVENT_PRUNE_BATCH_SIZE = 1_000
+internal const val MAX_SOURCE_EVENT_RETENTION_PROOFS_PER_SOURCE = 4_096

@@ -415,6 +415,7 @@ private fun com.adsamcik.tracker.stats.api.repository.SessionHistory.toLivePrese
 	snapshot: LiveSessionHistorySnapshot,
 ): DashboardLiveSessionPresentation {
 	val exactCapture = capture as? HistoryCapture.Exact
+	val locationFreeCapturedSources = exactCapture?.capturedSourcesWithoutLocation()
 	val sourceProducts = sourceProducts
 	return when {
 		exactCapture.capturesOnly(HistorySource.WIFI) -> when (
@@ -504,6 +505,12 @@ private fun com.adsamcik.tracker.stats.api.repository.SessionHistory.toLivePrese
 			segmentId = requestedSegmentId,
 			steps = steps.toDashboardLiveStepsValue(),
 		)
+		locationFreeCapturedSources != null && locationFreeCapturedSources.size >= 2 ->
+			toSourceSetWithoutLocation(
+				segmentId = requestedSegmentId,
+				capturedSources = locationFreeCapturedSources,
+				snapshot = snapshot,
+			)
 		else -> DashboardLiveSessionPresentation.Standard(
 			segmentId = requestedSegmentId,
 			steps = steps
@@ -511,6 +518,39 @@ private fun com.adsamcik.tracker.stats.api.repository.SessionHistory.toLivePrese
 				?.toDashboardLiveStepsValue(),
 		)
 	}
+}
+
+private fun HistoryCapture.Exact.capturedSourcesWithoutLocation(): Set<HistorySource>? =
+	revisions.flatMapTo(linkedSetOf()) { it.capturedSources }
+		.takeIf { HistorySource.LOCATION !in it }
+
+private fun com.adsamcik.tracker.stats.api.repository.SessionHistory.toSourceSetWithoutLocation(
+	segmentId: Long,
+	capturedSources: Set<HistorySource>,
+	snapshot: LiveSessionHistorySnapshot,
+): DashboardLiveSessionPresentation.SourceSetWithoutLocation {
+	val selected = sourceProducts
+	val activity = (selected?.activity ?: snapshot.activity) as? ActivityHistoryQuery.Found
+	val pressure = (selected?.pressure ?: snapshot.pressure) as? PressureSessionHistoryQuery.Found
+	val wifi = (selected?.wifi ?: snapshot.wifi) as? WifiHistoryQuery.Found
+	val cell = (selected?.cell ?: snapshot.cell) as? CellHistoryQuery.Found
+	return DashboardLiveSessionPresentation.SourceSetWithoutLocation(
+		segmentId = segmentId,
+		capturedSources = capturedSources,
+		steps = steps.toDashboardLiveStepsValue().takeIf { HistorySource.STEPS in capturedSources },
+		activity = activity?.entry
+			?.takeIf { HistorySource.ACTIVITY in capturedSources && it.historyUnavailableReasonOrNull() == null }
+			?.toDashboardLiveActivityValue(),
+		pressure = pressure?.history?.pressure
+			?.takeIf { HistorySource.PRESSURE in capturedSources && it.historyUnavailableReasonOrNull() == null }
+			?.toDashboardLivePressureValue(),
+		wifi = wifi?.entry
+			?.takeIf { HistorySource.WIFI in capturedSources && it.historyUnavailableReasonOrNull() == null }
+			?.toDashboardRadioHistoryValue(),
+		cell = cell?.entry
+			?.takeIf { HistorySource.CELL in capturedSources && it.historyUnavailableReasonOrNull() == null }
+			?.toDashboardRadioHistoryValue(),
+	)
 }
 
 private fun HistoryCapture.Exact?.capturesOnly(source: HistorySource): Boolean =

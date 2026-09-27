@@ -26,6 +26,15 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	@Query("SELECT COUNT(*) FROM location_sample")
 	suspend fun countAll(): Long
 
+	@Query("SELECT * FROM location_sample WHERE id > :afterId ORDER BY id LIMIT :limit")
+	suspend fun retentionPage(afterId: Long, limit: Int): List<LocationSample>
+
+	@Query("DELETE FROM location_sample WHERE id IN (:ids)")
+	suspend fun deleteExactIds(ids: List<Long>): Int
+
+	@Query("DELETE FROM location_sample WHERE source_event_id IN (:sourceEventIds)")
+	suspend fun deleteBySourceEventIds(sourceEventIds: List<String>): Int
+
 	@Query(
 		"""
 		SELECT * FROM location_sample
@@ -34,6 +43,19 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		""",
 	)
 	suspend fun getBySourceSignalId(sourceSignalId: String): LocationSample?
+
+	@Query(
+		"""
+		SELECT * FROM location_sample
+		WHERE source_event_id = :sourceEventId
+		ORDER BY id
+		LIMIT :limit
+		""",
+	)
+	suspend fun getBySourceEventIdBounded(
+		sourceEventId: String,
+		limit: Int,
+	): List<LocationSample>
 
 	/**
 	 * Ordered identified-altitude evidence for gain/loss aggregation. Callers must reset the baseline

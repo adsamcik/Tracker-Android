@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from release_manifest import (  # noqa: E402
     inspect_merged_manifest,
+    inspect_r8_manifest_parity,
     room_schema_evidence,
     validate_release_manifest,
 )
@@ -45,7 +46,7 @@ def manifest_fixture() -> dict:
         "relro": True,
     }
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "releaseId": f"example.app:1.0(1)@{COMMIT[:12]}",
         "source": {"commit": COMMIT, "tree": TREE, "clean": True},
         "version": {
@@ -72,9 +73,15 @@ def manifest_fixture() -> dict:
                 }
             ],
         },
-        "artifacts": [record("aab"), record("apk-set"), record("apk")],
+        "artifacts": [
+            record("aab"),
+            record("aab-nominify"),
+            record("apk-set"),
+            record("apk"),
+        ],
         "evidence": [
             record("merged-manifest"),
+            record("nominify-merged-manifest"),
             record("bundle-config-json"),
             record("bundle-config-proto"),
             record("r8-mapping"),
@@ -82,6 +89,11 @@ def manifest_fixture() -> dict:
             record("dependency-metadata"),
             record("source-commit"),
         ],
+        "r8Parity": {
+            "optimizedBuildType": "release",
+            "controlBuildType": "release_nominify",
+            "manifestEquivalent": True,
+        },
         "room": {"count": 1, "sha256": HASH, "schemas": []},
         "tooling": {"bundletoolCoordinate": "com.android.tools.build:bundletool:1.18.3"},
         "sqlite": {"sha256": HASH, "sha3_256": HASH, "sourceId": "fixed"},
@@ -181,6 +193,36 @@ class ReleaseManifestValidationTest(unittest.TestCase):
             with self.assertRaisesRegex(ReleaseValidationError, "exactly one non-empty"):
                 inspect_merged_manifest(path)
 
+    def test_requires_optimized_and_control_manifests_to_match(self) -> None:
+        optimized_xml = """\
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="example.app" android:versionCode="1" android:versionName="1.0">
+    <uses-sdk android:targetSdkVersion="37" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <application>
+        <service android:name="example.TrackerService"
+            android:foregroundServiceType="location|specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="local_device_signal_collection" />
+        </service>
+    </application>
+</manifest>
+"""
+        control_xml = optimized_xml.replace("location|specialUse", "specialUse")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            optimized = root / "optimized.xml"
+            control = root / "control.xml"
+            optimized.write_text(optimized_xml, encoding="utf-8")
+            control.write_text(control_xml, encoding="utf-8")
+
+            self.assertEqual(
+                inspect_merged_manifest(optimized),
+                inspect_r8_manifest_parity(optimized, optimized),
+            )
+            with self.assertRaisesRegex(ReleaseValidationError, "foregroundServices"):
+                inspect_r8_manifest_parity(optimized, control)
+
     def test_collects_nested_tracked_room_schema(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -241,6 +283,20 @@ class ReleaseManifestValidationTest(unittest.TestCase):
             if item["kind"] != "bundle-config-json"
         ]
         with self.assertRaisesRegex(ReleaseValidationError, "bundle-config-json"):
+            validate_release_manifest(manifest)
+
+    def test_rejects_missing_r8_control_artifact(self) -> None:
+        manifest = manifest_fixture()
+        manifest["artifacts"] = [
+            item for item in manifest["artifacts"] if item["kind"] != "aab-nominify"
+        ]
+        with self.assertRaisesRegex(ReleaseValidationError, "aab-nominify"):
+            validate_release_manifest(manifest)
+
+    def test_rejects_nonpassing_r8_parity(self) -> None:
+        manifest = manifest_fixture()
+        manifest["r8Parity"]["manifestEquivalent"] = False
+        with self.assertRaisesRegex(ReleaseValidationError, "R8 parity"):
             validate_release_manifest(manifest)
 
     def test_rejects_controlled_unaligned_native_manifest(self) -> None:

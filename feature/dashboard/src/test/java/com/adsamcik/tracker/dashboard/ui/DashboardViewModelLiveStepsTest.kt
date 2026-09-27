@@ -108,6 +108,52 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class DashboardViewModelLiveStepsTest {
 	@Test
+	fun `exact Steps and Wi-Fi capture without Location selects source set presentation`() = runTest {
+		val mainDispatcher = StandardTestDispatcher(testScheduler)
+		Dispatchers.setMain(mainDispatcher)
+		try {
+			val running = MutableStateFlow(true)
+			val session = MutableStateFlow<TrackerSessionSnapshot?>(
+				TrackerSessionSnapshot(id = FIRST_SEGMENT_ID, start = 1L),
+			)
+			val repository = RecordingTrackingHistoryRepository()
+			val viewModel = createViewModel(running, session, repository)
+			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.liveSessionPresentation.collect { }
+			}
+			advanceUntilIdle()
+
+			repository.update(
+				FIRST_SEGMENT_ID,
+				SessionHistoryQuery.Found(
+					SessionHistory(
+						segmentId = FIRST_SEGMENT_ID,
+						capture = HistoryCapture.Exact(listOf(HistoryCaptureRevision(
+							revision = 1L,
+							effectiveAt = EpochMs(1L),
+							capturedSources = setOf(HistorySource.STEPS, HistorySource.WIFI),
+							controlSources = setOf(HistorySource.ACTIVITY),
+						))),
+						qualifiedSources = emptySet(),
+						steps = materializingSteps(),
+					),
+				),
+			)
+			advanceUntilIdle()
+
+			viewModel.liveSessionPresentation.value shouldBe
+				DashboardLiveSessionPresentation.SourceSetWithoutLocation(
+					segmentId = FIRST_SEGMENT_ID,
+					capturedSources = setOf(HistorySource.STEPS, HistorySource.WIFI),
+					steps = DashboardLiveStepsValue.Materializing,
+				)
+			collection.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
+	@Test
 	fun `segment replacement and stop cancel the previous history observation`() = runTest {
 		val mainDispatcher = StandardTestDispatcher(testScheduler)
 		Dispatchers.setMain(mainDispatcher)
@@ -1006,6 +1052,11 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 	private val liveRejections = mutableMapOf<Long, String>()
 	val liveStarted = mutableListOf<Long>()
 	val liveCancelled = mutableListOf<Long>()
+
+	override suspend fun lookupSourceFact(
+		request: com.adsamcik.tracker.stats.api.repository.SourceFactLookupRequest,
+	): com.adsamcik.tracker.stats.api.repository.SourceFactLookupResult =
+		com.adsamcik.tracker.stats.api.repository.SourceFactLookupResult.NotFound()
 
 	override fun observeSession(segmentId: Long): Flow<SessionHistoryQuery> =
 		flowOf(SessionHistoryQuery.NotFound)

@@ -63,6 +63,39 @@ data class SourceProductProjectionLaneEntity(
 	}
 }
 
+/** Immutable-shape validation used when a retained fact outlives active owner or lane selection. */
+fun SourceProductProjectionLaneEntity.hasValidCanonicalHistoryShape(): Boolean {
+	if (captureModeMask <= 0L ||
+		productStage != SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL ||
+		activatedRolloutRevision <= 0L ||
+		activationOrdinal <= 0L ||
+		installedAtMs < 0L ||
+		updatedAtMs < installedAtMs
+	) return false
+	val minimumCursor = activationOrdinal - 1L
+	val cutoff = captureAdmissionCutoffOrdinal
+	if (contiguousAdmissionOrdinal < minimumCursor ||
+		(cutoff != null && (cutoff < minimumCursor || contiguousAdmissionOrdinal > cutoff)) ||
+		(terminalDisposition == null) != (terminalAtMs == null)
+	) return false
+	return when (status) {
+		SourceProductProjectionLaneEntity.STATUS_ACTIVE ->
+			retentionRequired && terminalDisposition == null
+		SourceProductProjectionLaneEntity.STATUS_RETIRED -> {
+			if (retentionRequired) return false
+			if (terminalDisposition == null) return cutoff == null
+			val terminalAt = terminalAtMs ?: return false
+			terminalDisposition ==
+				SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN &&
+				cutoff != null &&
+				contiguousAdmissionOrdinal == cutoff &&
+				terminalAt >= installedAtMs &&
+				updatedAtMs >= terminalAt
+		}
+		else -> false
+	}
+}
+
 /** Compile-time app authority for the source-product lanes this binary can execute. */
 fun interface SourceProductLaneExecutionAuthority {
 	fun owns(lane: SourceProductProjectionLaneEntity): Boolean

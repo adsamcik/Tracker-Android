@@ -173,6 +173,53 @@ class DashboardScreenTest {
 	}
 
 	@Test
+	fun exactStepsAndWifiSessionWithoutLocation_showsBothSourcesWithoutGpsHero() {
+		val segmentId = 42L
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				DashboardScreen(
+					state = DashboardUiState(
+						dashboardMode = DashboardMode.TRACKING,
+						isTracking = true,
+						hasLocationPermission = false,
+						sessionData = TrackerSessionSnapshot(id = segmentId, start = 1L),
+						liveSessionPresentation = DashboardLiveSessionPresentation.SourceSetWithoutLocation(
+							segmentId = segmentId,
+							capturedSources = setOf(HistorySource.STEPS, HistorySource.WIFI),
+							steps = DashboardLiveStepsValue.Complete(42L),
+							wifi = DashboardRadioHistoryValue(
+								source = HistorySource.WIFI,
+								origin = DashboardRadioOrigin.LOCAL,
+								state = DashboardRadioProductState.PARTIAL,
+								coverage = DashboardRadioCoverage.PARTIAL,
+								deliveryCount = 1,
+								retainedRecordCount = 2,
+								partialDeliveryCount = 1,
+							),
+						),
+					),
+					onSettingsClick = {},
+					onMapClick = {},
+					onToggleTracking = {},
+					onRequestPermission = {},
+					onGameClick = null,
+					onSessionDetailClick = null,
+					snackbarHostState = remember { SnackbarHostState() },
+				)
+			}
+		}
+
+		composeRule.onNodeWithTag("dashboard_source_set_tracking").assertIsDisplayed()
+		composeRule.onNodeWithText("Sources in this session").assertIsDisplayed()
+		composeRule.onNodeWithText("42").assertIsDisplayed()
+		composeRule.onNodeWithTag("dashboard_source_set_tracking")
+			.performScrollToNode(hasText("2 retained scan results"))
+		composeRule.onNodeWithText("2 retained scan results").assertIsDisplayed()
+		composeRule.onAllNodesWithText("Awaiting GPS signal", substring = true).assertCountEquals(0)
+		composeRule.onAllNodesWithText("Distance", substring = true).assertCountEquals(0)
+	}
+
+	@Test
 	fun exactCellOnlyTracking_factlessIntentNeverRendersZeroOrTowerIdentity() {
 		val segmentId = 42L
 		composeRule.setContent {

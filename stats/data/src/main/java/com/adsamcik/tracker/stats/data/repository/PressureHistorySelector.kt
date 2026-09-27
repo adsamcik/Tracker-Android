@@ -2,6 +2,11 @@ package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.PressureFactLineageProof
+import com.adsamcik.tracker.shared.base.database.PressureFactProofAuthenticator
+import com.adsamcik.tracker.shared.base.database.PressureFactProofFailure
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
+import com.adsamcik.tracker.shared.base.database.data.PressureFactRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -17,6 +22,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecution
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import java.time.DateTimeException
 import java.time.ZoneId
@@ -26,10 +32,23 @@ import kotlinx.coroutines.ensureActive
 
 /** Selects checksum-qualified Pressure history and composes only explicit replacement-run groups. */
 @Suppress("LargeClass", "TooManyFunctions")
-internal class PressureHistorySelector @Inject constructor(
+internal class PressureHistorySelector private constructor(
 	private val database: AppDatabase,
 	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
+	private val currentClockDomainId: () -> String?,
 ) {
+	@Inject
+	internal constructor(
+		database: AppDatabase,
+		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
+		bootClockDomainProvider: BootClockDomainProvider,
+	) : this(database, laneExecutionAuthority, { bootClockDomainProvider.current() })
+
+	internal constructor(
+		database: AppDatabase,
+		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
+	) : this(database, laneExecutionAuthority, { null })
+
 	internal suspend fun selectBySegmentId(segmentId: Long): PressurePhysicalHistory? =
 		selectPhysicalBySegmentIds(listOf(segmentId))[segmentId]
 
@@ -231,6 +250,7 @@ internal class PressureHistorySelector @Inject constructor(
 			database = database,
 			segments = expansion.segments,
 			logicalMembershipFailures = expansion.failures,
+			currentClockDomainId = currentClockDomainId(),
 		)
 		return PressureLogicalHistoryComposer.compose(
 			selectManyWithSnapshot(expansion.segments, snapshot),
@@ -248,6 +268,7 @@ internal class PressureHistorySelector @Inject constructor(
 			database = database,
 			segments = expansion.segments,
 			logicalMembershipFailures = expansion.failures,
+			currentClockDomainId = currentClockDomainId(),
 		)
 		return selectManyWithSnapshot(expansion.segments, snapshot)
 	}
@@ -266,7 +287,9 @@ internal class PressureHistorySelector @Inject constructor(
 		segment: SessionSegment,
 		snapshot: PressureHistoryBatchSnapshot,
 	): PressurePhysicalHistory {
-		if (snapshot.terminalFailureOverflow || snapshot.factRevisionOverflow) {
+		if (snapshot.terminalFailureOverflow || snapshot.factRevisionOverflow ||
+			snapshot.retentionAuthorityOverflow || snapshot.retentionRevisionAuthorityOverflow
+		) {
 			return unavailable(
 				segment,
 				HistoricalCaptureFailure.BATCH_DEPENDENCY_OVERFLOW,
@@ -515,6 +538,8 @@ internal class PressureHistorySelector @Inject constructor(
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
 			collectedDataEpoch = evidenceState.collectedDataEpoch,
+			retainedFromMs = evidenceState.retainedFromMs,
+			retainedFacts = snapshot.factRevisionsByRun[serviceRunId].orEmpty(),
 		)
 		if (markerState == PressureRetentionTruncationState.INVALID) {
 			return failed(
@@ -571,8 +596,30 @@ internal class PressureHistorySelector @Inject constructor(
 			return failed(segment, captureAuthority, PressureHistoryReason.COMPLETENESS_INVALID)
 		}
 		val manifestsByRevision = manifests.associateBy(SessionManifestVersionEntity::manifestRevision)
-		val correctionFailure = correctionFailure(revisions, manifestsByRevision)
-		if (correctionFailure != null) return failed(segment, captureAuthority, correctionFailure)
+		val authenticatedLineages = mutableListOf<PressureFactLineageProof.Authenticated>()
+		for (lineage in revisions.groupBy(PressureFactRevisionEntity::logicalFactId).values) {
+			when (
+				val proof = PressureFactProofAuthenticator.authenticateLineage(
+					revisions = lineage,
+					snapshot = snapshot.factProof,
+				)
+			) {
+				is PressureFactLineageProof.Authenticated -> authenticatedLineages += proof
+				is PressureFactLineageProof.Rejected -> return failed(
+					segment,
+					captureAuthority,
+					if (proof.reason == PressureFactProofFailure.LINEAGE_INCOMPLETE ||
+						proof.reason == PressureFactProofFailure.CURRENT_FACT_MISMATCH
+					) {
+						PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE
+					} else if (proof.reason == PressureFactProofFailure.BOUND_EXCEEDED) {
+						PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW
+					} else {
+						PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED
+					},
+				)
+			}
+		}
 
 		val nextManifestByRevision = manifests.mapIndexed { index, manifest ->
 			manifest.manifestRevision to manifests.getOrNull(index + 1)
@@ -612,11 +659,18 @@ internal class PressureHistorySelector @Inject constructor(
 				)
 			}
 		}
-		val effectiveFacts = revisions.groupBy(PressureFactRevisionEntity::logicalFactId)
-			.values.map { lineage -> lineage.maxBy(PressureFactRevisionEntity::semanticRevision) }
-			.filter { fact ->
-				evidenceState.retainedFromMs?.let { fact.intervalEndTimeMs >= it } != false
-			}.sortedWith(compareBy(
+		val retainedLineages = authenticatedLineages.filter { proof ->
+			val lowerBound = CanonicalRetentionBounds.pressureLineage(proof.revisions)
+				?: return failed(
+					segment,
+					captureAuthority,
+					PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED,
+				)
+			evidenceState.retainedFromMs?.let { lowerBound >= it } != false
+		}
+		val reportedRetentionTruncated =
+			retentionTruncated || retainedLineages.size != authenticatedLineages.size
+		val effectiveFacts = retainedLineages.map { it.current }.sortedWith(compareBy(
 				PressureFactRevisionEntity::windowStartElapsedRealtimeNanos,
 				PressureFactRevisionEntity::windowEndElapsedRealtimeNanos,
 				PressureFactRevisionEntity::logicalFactId,
@@ -631,7 +685,7 @@ internal class PressureHistorySelector @Inject constructor(
 		if (!captureCoveredWholeRun) reasons += PressureHistoryReason.CAPTURE_NOT_ENABLED_FOR_WHOLE_RUN
 		if (!serviceRunCompleted) reasons += PressureHistoryReason.SERVICE_RUN_ACTIVE
 		if (retentionCrossesSegment) reasons += PressureHistoryReason.RETENTION_CROSSES_SEGMENT
-		if (retentionTruncated) reasons += PressureHistoryReason.RETENTION_TRUNCATED
+		if (reportedRetentionTruncated) reasons += PressureHistoryReason.RETENTION_TRUNCATED
 		if (completeness.isEmpty()) reasons += PressureHistoryReason.COMPLETENESS_MISSING
 		if (completeness.any { !it.appDrainComplete }) {
 			reasons += PressureHistoryReason.APP_DRAIN_INCOMPLETE
@@ -695,7 +749,7 @@ internal class PressureHistorySelector @Inject constructor(
 				row.providerCoverage == COMPLETE_PROVIDER_COVERAGE
 		}
 		val coverage = when {
-			retentionTruncated -> PressureHistoryCoverage.PARTIAL
+			reportedRetentionTruncated -> PressureHistoryCoverage.PARTIAL
 			windows.isEmpty() -> PressureHistoryCoverage.NONE
 			materialization == PressureHistoryMaterialization.READY && acquisitionComplete &&
 				captureCoveredWholeRun && !retentionCrossesSegment &&
@@ -723,73 +777,62 @@ internal class PressureHistorySelector @Inject constructor(
 		logicalTrackingId: String,
 		serviceRunId: String,
 		collectedDataEpoch: Long,
+		retainedFromMs: Long?,
+		retainedFacts: List<PressureFactRevisionEntity>,
 	): PressureRetentionTruncationState {
 		val digest = PressureFactRevisionIntegrity.retentionTruncationIdentity(
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
 		)
 		val marker = snapshot.retentionTruncationFencesByDigest[digest]
-			?: return PressureRetentionTruncationState.ABSENT
+		val authorities = snapshot.retentionAuthoritiesByRun[serviceRunId].orEmpty()
+		val revisionAuthorities =
+			snapshot.retentionRevisionAuthoritiesByRun[serviceRunId].orEmpty()
+		if (marker == null && authorities.isEmpty() && revisionAuthorities.isEmpty()) {
+			return PressureRetentionTruncationState.ABSENT
+		}
+		if (marker == null || authorities.isEmpty() || revisionAuthorities.isEmpty() ||
+			retainedFromMs == null
+		) {
+			return PressureRetentionTruncationState.INVALID
+		}
+		val retainedFactIds = retainedFacts.mapTo(hashSetOf(), PressureFactRevisionEntity::logicalFactId)
+		val revisionAuthoritiesByFact = revisionAuthorities.groupBy { authority ->
+			Triple(
+				authority.writerProjectionId,
+				authority.writerProjectionVersion,
+				authority.logicalFactId,
+			)
+		}
 		return if (PressureFactRevisionIntegrity.isRetentionTruncationFence(
 				fence = marker,
 				logicalTrackingId = logicalTrackingId,
 				serviceRunId = serviceRunId,
 				collectedDataEpoch = collectedDataEpoch,
-			)
+			) &&
+			authorities.map(PressureFactRetentionAuthorityEntity::logicalFactId).distinct().size ==
+			authorities.size &&
+			authorities.none { it.logicalFactId in retainedFactIds } &&
+			authorities.all { authority ->
+				authority.hasValidStoredIntegrity() &&
+					authority.logicalTrackingId == logicalTrackingId &&
+					authority.serviceRunId == serviceRunId &&
+					authority.collectedDataEpoch == collectedDataEpoch &&
+					authority.retainedFromMs <= retainedFromMs &&
+					authority.retainedAtMs >= marker.deletedAtMs &&
+					authority.authenticatesRevisionAuthorities(
+						revisionAuthoritiesByFact[Triple(
+							authority.writerProjectionId,
+							authority.writerProjectionVersion,
+							authority.logicalFactId,
+						)].orEmpty(),
+					)
+			}
 		) {
 			PressureRetentionTruncationState.VALID
 		} else {
 			PressureRetentionTruncationState.INVALID
 		}
-	}
-
-	private fun correctionFailure(
-		revisions: List<PressureFactRevisionEntity>,
-		manifestsByRevision: Map<Long, SessionManifestVersionEntity>,
-	): PressureHistoryReason? {
-		if (revisions.map(PressureFactRevisionEntity::sourceAdmissionOrdinal).distinct().size !=
-			revisions.size
-		) return PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED
-		for (lineage in revisions.groupBy(PressureFactRevisionEntity::logicalFactId).values) {
-			val ordered = lineage.sortedBy(PressureFactRevisionEntity::semanticRevision)
-			if (ordered.first().semanticRevision != FIRST_SEMANTIC_REVISION) {
-				return PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE
-			}
-			for ((prior, current) in ordered.zipWithNext()) {
-				val expectedRevision = try {
-					Math.addExact(prior.semanticRevision, 1L)
-				} catch (_: ArithmeticException) {
-					return PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE
-				}
-				val priorAuthority = prior.correctionAuthority(manifestsByRevision)
-				val currentAuthority = current.correctionAuthority(manifestsByRevision)
-				if (current.semanticRevision != expectedRevision ||
-					current.sourceAdmissionOrdinal <= prior.sourceAdmissionOrdinal ||
-					current.sourceEventId != prior.sourceEventId ||
-					current.writerBindingGeneration != prior.writerBindingGeneration ||
-					current.logicalTrackingId != prior.logicalTrackingId ||
-					current.serviceRunId != prior.serviceRunId || current.purpose != prior.purpose ||
-					current.collectedDataEpoch != prior.collectedDataEpoch ||
-					priorAuthority == null || currentAuthority != priorAuthority
-				) return PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE
-			}
-		}
-		return null
-	}
-
-	private fun PressureFactRevisionEntity.correctionAuthority(
-		manifestsByRevision: Map<Long, SessionManifestVersionEntity>,
-	): PressureCorrectionAuthority? {
-		val manifest = manifestsByRevision[manifestRevision] ?: return null
-		return PressureCorrectionAuthority(
-			manifestRevision = manifestRevision,
-			sourcePolicyRevision = sourcePolicyRevision,
-			captureConsentEpoch = captureConsentEpoch,
-			clockDomainId = clockDomainId,
-			wallTimeUncertaintyMs = wallTimeUncertaintyMs,
-			manifestClockDomainId = manifest.effectiveBootId,
-			zoneId = manifest.zoneId,
-		)
 	}
 
 	@Suppress("ComplexCondition")
@@ -860,8 +903,8 @@ internal class PressureHistorySelector @Inject constructor(
 	): Boolean {
 		val expectedLogicalFactId =
 			"${SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID}:${fact.sourceEventId}"
-		return fact.logicalFactId == expectedLogicalFactId &&
-			fact.mutationId == "$expectedLogicalFactId:${fact.semanticRevision}" &&
+		return (fact.semanticRevision > 1L || fact.logicalFactId == expectedLogicalFactId) &&
+			fact.mutationId == "${fact.logicalFactId}:${fact.semanticRevision}" &&
 			PressureFactRevisionIntegrity.hasValidEffectChecksum(fact, binding)
 	}
 
@@ -1093,16 +1136,6 @@ internal class PressureHistorySelector @Inject constructor(
 		)
 	}
 
-	private data class PressureCorrectionAuthority(
-		val manifestRevision: Long,
-		val sourcePolicyRevision: Long,
-		val captureConsentEpoch: Long,
-		val clockDomainId: String,
-		val wallTimeUncertaintyMs: Long,
-		val manifestClockDomainId: String,
-		val zoneId: String,
-	)
-
 	private enum class PressureRetentionTruncationState { ABSENT, VALID, INVALID }
 
 	private data class PressureWriterBinding(
@@ -1121,7 +1154,6 @@ internal class PressureHistorySelector @Inject constructor(
 	}
 
 	private companion object {
-		const val FIRST_SEMANTIC_REVISION = 1L
 		const val MIN_CAPTURE_QOS = 1
 		const val MAX_CAPTURE_QOS = 3
 		const val COMPLETE_STOP_STATUS = "COMPLETE"

@@ -95,6 +95,69 @@ object ActivityCapturedFactIntegrity {
 			} && validSummary(revision, fragments)
 	}.getOrDefault(false)
 
+	fun hasCompleteRevisionLineage(
+		ordered: List<ActivityCapturedWindowRevisionEntity>,
+	): Boolean = ordered.isNotEmpty() &&
+		ordered.withIndex().all { (index, revision) ->
+			val expectedRevision = index + 1L
+			val expectedSupersedes = if (index == 0) null else index.toLong()
+			revision.semanticRevision == expectedRevision &&
+				revision.supersedesSemanticRevision == expectedSupersedes &&
+				hasSameStableAuthority(ordered.first(), revision)
+		}
+
+	fun hasSameRecordedObservation(
+		first: ActivityCapturedEvidenceEntity,
+		candidate: ActivityCapturedEvidenceEntity,
+	): Boolean = first.sourceEventId == candidate.sourceEventId &&
+		first.sourceAdmissionOrdinal == candidate.sourceAdmissionOrdinal &&
+		first.sourceSequence == candidate.sourceSequence &&
+		first.providerElapsedRealtimeNanos == candidate.providerElapsedRealtimeNanos &&
+		first.receivedElapsedRealtimeNanos == candidate.receivedElapsedRealtimeNanos &&
+		first.observationKind == candidate.observationKind &&
+		first.observedActivity == candidate.observedActivity &&
+		first.transitionChange == candidate.transitionChange &&
+		first.confidencePercent == candidate.confidencePercent &&
+		first.coverageEndExclusiveElapsedRealtimeNanos ==
+		candidate.coverageEndExclusiveElapsedRealtimeNanos
+
+	@Suppress("ComplexCondition", "LongMethod")
+	private fun hasSameStableAuthority(
+		first: ActivityCapturedWindowRevisionEntity,
+		candidate: ActivityCapturedWindowRevisionEntity,
+	): Boolean = first.writerProjectionId == candidate.writerProjectionId &&
+		first.writerProjectionVersion == candidate.writerProjectionVersion &&
+		first.writerBindingGeneration == candidate.writerBindingGeneration &&
+		first.writerOwnerGeneration == candidate.writerOwnerGeneration &&
+		first.logicalWindowId == candidate.logicalWindowId &&
+		first.logicalTrackingId == candidate.logicalTrackingId &&
+		first.serviceRunId == candidate.serviceRunId &&
+		first.sessionSegmentId == candidate.sessionSegmentId &&
+		first.purpose == candidate.purpose &&
+		first.sourceInstanceId == candidate.sourceInstanceId &&
+		first.registrationGeneration == candidate.registrationGeneration &&
+		first.configurationRevision == candidate.configurationRevision &&
+		first.physicalConfigurationFingerprint == candidate.physicalConfigurationFingerprint &&
+		first.authorizationRevision == candidate.authorizationRevision &&
+		first.authorizationFingerprint == candidate.authorizationFingerprint &&
+		first.purposeEligibilityMask == candidate.purposeEligibilityMask &&
+		first.sourcePolicyRevision == candidate.sourcePolicyRevision &&
+		first.captureConsentEpoch == candidate.captureConsentEpoch &&
+		first.manifestRevision == candidate.manifestRevision &&
+		first.lifecycleLeaseGeneration == candidate.lifecycleLeaseGeneration &&
+		first.collectedDataEpoch == candidate.collectedDataEpoch &&
+		first.clockDomainId == candidate.clockDomainId &&
+		first.storedZoneId == candidate.storedZoneId &&
+		first.providerAcceptanceStartNanos == candidate.providerAcceptanceStartNanos &&
+		first.providerAcceptanceEndNanos == candidate.providerAcceptanceEndNanos &&
+		first.authorizationEffectStartNanos == candidate.authorizationEffectStartNanos &&
+		first.authorizationEffectEndNanos == candidate.authorizationEffectEndNanos &&
+		first.sessionRunEffectStartNanos == candidate.sessionRunEffectStartNanos &&
+		first.sessionRunEffectEndNanos == candidate.sessionRunEffectEndNanos &&
+		first.windowStartElapsedRealtimeNanos == candidate.windowStartElapsedRealtimeNanos &&
+		first.windowEndElapsedRealtimeNanos == candidate.windowEndElapsedRealtimeNanos &&
+		first.scopeDeletionGeneration == candidate.scopeDeletionGeneration
+
 	private fun validSummary(
 		revision: ActivityCapturedWindowRevisionEntity,
 		fragments: List<ActivityCapturedFragmentEntity>,

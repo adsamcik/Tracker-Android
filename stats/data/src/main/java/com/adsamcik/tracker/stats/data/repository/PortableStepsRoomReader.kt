@@ -493,6 +493,12 @@ internal class PortableStepsRoomReader @Inject constructor(
 			serviceRuns = serviceRuns,
 			onPageLoaded = budget::consume,
 		)
+		val carrierAuthority = loadStepsCarrierAuthority(database, historyFactStatesByRun)
+		if (historyFactStatesByRun.isNotEmpty() &&
+			carrierAuthority.state != StepsCarrierAuthorityState.READY
+		) {
+			abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		}
 		val serviceRunsById = serviceRuns.associateBy(SourceServiceRunEntity::serviceRunId)
 		if (historyFactStatesByRun.any { (runId, states) ->
 				val run = serviceRunsById[runId]
@@ -594,6 +600,8 @@ internal class PortableStepsRoomReader @Inject constructor(
 			completeness = completeness,
 			lanes = lanes.values.toList(),
 			historyFactStatesByRun = historyFactStatesByRun,
+			walByEventId = carrierAuthority.walByEventId,
+			countDomainOwners = carrierAuthority.countDomainOwners,
 			factStates = factStates,
 			upsertRevisions = upsertRevisions,
 			fences = fences,
@@ -1813,6 +1821,11 @@ private data class PortableRoomDependencies(
 	val completeness: List<SourceSessionCompletenessEntity>,
 	val lanes: List<SourceProductProjectionLaneEntity>,
 	val historyFactStatesByRun: Map<String, List<StepsFactCandidateState>>,
+	val walByEventId: Map<String, com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity>,
+	val countDomainOwners: Map<
+		com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerLookupKey,
+		com.adsamcik.tracker.shared.base.database.StepsCountDomainStoredOwner,
+	>,
 	val factStates: List<ScopedStepFactState>,
 	val upsertRevisions: List<StepFactRevisionEntity>,
 	val fences: List<SourceDeletionFenceEntity>,
@@ -1870,6 +1883,9 @@ private data class PortableRoomDependencies(
 			deletionFenceDigests = fencesByDigest.keys,
 			retentionTruncationFencesByDigest = retentionTruncationFencesByDigest,
 			factStatesByRun = historyFactStatesByRun,
+			walByEventId = walByEventId,
+			countDomainOwners = countDomainOwners,
+			carrierAuthorityState = StepsCarrierAuthorityState.READY,
 			completenessByRun = completenessByRun,
 			productLanes = lanesByKey,
 			terminalFailures = terminalFailures,

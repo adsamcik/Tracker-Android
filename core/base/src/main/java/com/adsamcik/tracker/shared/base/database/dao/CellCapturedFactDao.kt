@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 
 data class CellWalMaintenanceKey(
 	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
@@ -74,6 +75,54 @@ interface CellCapturedFactDao {
 		writerProjectionId: String,
 		writerProjectionVersion: Int,
 		logicalFactId: String,
+		limit: Int,
+	): List<CellCapturedFactRevisionEntity>
+
+	/** Indexed bounded reverse lookup from one immutable Cell admission to its fact lineage. */
+	@Query(
+		"SELECT * FROM cell_captured_fact_revision WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND source_admission_ordinal = :sourceAdmissionOrdinal LIMIT :limit",
+	)
+	suspend fun revisionsForWriterAdmission(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		sourceAdmissionOrdinal: Long,
+		limit: Int,
+	): List<CellCapturedFactRevisionEntity>
+
+	/**
+	 * Bounded reverse lookup of cursor-authenticated current heads for one immutable admission.
+	 *
+	 * An empty result with retained admission revisions means the cursor is absent or mismatched;
+	 * multiple rows mean the admission ambiguously claims more than one current fact lineage.
+	 */
+	@Query(
+		"SELECT revision.* FROM cell_captured_fact_revision AS revision " +
+			"INNER JOIN cell_captured_fact_cursor AS fact_cursor " +
+			"ON fact_cursor.writer_projection_id = revision.writer_projection_id " +
+			"AND fact_cursor.writer_projection_version = revision.writer_projection_version " +
+			"AND fact_cursor.logical_fact_id = revision.logical_fact_id " +
+			"AND fact_cursor.logical_tracking_id = revision.logical_tracking_id " +
+			"AND fact_cursor.service_run_id = revision.service_run_id " +
+			"AND fact_cursor.session_segment_id = revision.session_segment_id " +
+			"AND fact_cursor.writer_owner_generation = revision.writer_owner_generation " +
+			"AND fact_cursor.collected_data_epoch = revision.collected_data_epoch " +
+			"AND fact_cursor.scope_deletion_generation = revision.scope_deletion_generation " +
+			"AND fact_cursor.latest_semantic_revision = revision.semantic_revision " +
+			"AND fact_cursor.latest_mutation_id = revision.mutation_id " +
+			"AND fact_cursor.latest_effect_checksum = revision.effect_checksum " +
+			"AND fact_cursor.latest_source_admission_ordinal = revision.source_admission_ordinal " +
+			"AND fact_cursor.cursor_revision = revision.semantic_revision " +
+			"AND fact_cursor.updated_at_ms = revision.applied_at_ms " +
+			"WHERE revision.writer_projection_id = :writerProjectionId " +
+			"AND revision.writer_projection_version = :writerProjectionVersion " +
+			"AND revision.source_admission_ordinal = :sourceAdmissionOrdinal LIMIT :limit",
+	)
+	suspend fun currentRevisionsForWriterAdmission(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		sourceAdmissionOrdinal: Long,
 		limit: Int,
 	): List<CellCapturedFactRevisionEntity>
 
@@ -892,6 +941,16 @@ interface CellCapturedFactDao {
 		afterLogicalFactId: String?,
 		afterSemanticRevision: Long?,
 	): List<CellCapturedFactRevisionEntity>
+
+	/** Indexed bounded load of the exact immutable WAL carriers named by retained Cell facts. */
+	@Query(
+		"SELECT * FROM source_event_wal WHERE event_id IN (:eventIds) " +
+			"ORDER BY admission_ordinal LIMIT :limit",
+	)
+	suspend fun historyWalCarriers(
+		eventIds: List<String>,
+		limit: Int,
+	): List<SourceEventWalEntity>
 
 	@Query(
 		"SELECT * FROM cell_captured_fact_cursor WHERE logical_fact_id IN (:logicalFactIds) " +

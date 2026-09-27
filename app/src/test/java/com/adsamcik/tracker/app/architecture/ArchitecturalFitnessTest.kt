@@ -299,6 +299,8 @@ class ArchitecturalFitnessTest {
 			val appBuild = projectRoot.resolve("app/build.gradle.kts").readText()
 			val proguard = projectRoot.resolve("app/proguard-rules.pro").readText()
 			val releaseManifest = projectRoot.resolve("tools/release_manifest.py").readText()
+			val releaseValidation = projectRoot.resolve("tools/release_validation.py").readText()
+			val rootBuild = projectRoot.resolve("build.gradle.kts").readText()
 			val workflow = projectRoot.resolve(".github/workflows/android.yml").readText()
 
 			buildList {
@@ -311,10 +313,17 @@ class ArchitecturalFitnessTest {
 				if ("\"r8-mapping\"" !in releaseManifest || "source['commit'][:12]" !in releaseManifest) {
 					add("release evidence must bind R8 mapping to the source-qualified release ID")
 				}
-				if ("app/build/outputs/mapping/release/**" !in workflow ||
-					"app/build/outputs/native-debug-symbols/release/**" !in workflow
+				if ("inspect_r8_manifest_parity" !in releaseManifest ||
+					"release_nominify AAB" !in releaseValidation ||
+					"\":app:bundleRelease_nominify\"" !in rootBuild
 				) {
-					add("CI must retain R8 mapping and native symbol evidence")
+					add("release validation must compare R8 output with a non-minified control")
+				}
+				if ("app/build/outputs/mapping/release/**" !in workflow ||
+					"app/build/outputs/native-debug-symbols/release/**" !in workflow ||
+					"app/build/outputs/bundle/release_nominify/*.aab" !in workflow
+				) {
+					add("CI must retain R8 mapping, control bundle, and native symbol evidence")
 				}
 			}.shouldBeEmpty()
 		}

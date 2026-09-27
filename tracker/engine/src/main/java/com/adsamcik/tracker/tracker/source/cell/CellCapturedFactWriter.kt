@@ -2,9 +2,12 @@ package com.adsamcik.tracker.tracker.source.cell
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication
+import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
@@ -215,8 +218,16 @@ internal class CellCapturedFactWriter @Inject constructor(
 			fact.evidenceBinding.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal
 		) reject(CellCapturedWriteRejection.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
 		val mapped = CellCapturedPersistence.map(fact, owner.ownerGeneration)
+		requireNoRetainedFactProof(mapped, state.retainedFromMs)
 		if (state.retainedFromMs?.let { retainedFrom ->
-			mapped.earliestCoveredWallTimeMs()?.let { earliest -> earliest < retainedFrom } ?: true
+			CanonicalRetentionBounds.cellCoverage(
+				walObservedWallTimeMs = fact.evidenceBinding.observedWallTimeMs,
+				wallTimeUncertaintyMs = fact.evidenceBinding.wallTimeUncertaintyMs,
+				walObservedElapsedRealtimeNanos =
+					fact.evidenceBinding.observedElapsedRealtimeNanos,
+				coverageStartElapsedRealtimeNanos =
+					fact.coverage.providerIntervalStartElapsedRealtimeNanos,
+			)?.let { earliest -> earliest < retainedFrom } ?: true
 		} == true) reject(CellCapturedWriteRejection.RETAINED_DATA)
 		requireUndeletedScope(logicalTrackingId, serviceRunId, authority.scopeDeletionGeneration)
 
@@ -246,7 +257,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 			)
 		}
 
-		validateAggregateOwner(mapped)
+		validateAggregateOwner(mapped, authority)
 		val current = dao.cursor(WRITER_ID, WRITER_VERSION, mapped.logicalFactId)
 		if (current == null) {
 			if (mapped.semanticRevision != 1L || mapped.supersedesSemanticRevision != null) {
@@ -362,7 +373,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 			fact.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal
 		) reject(CellCapturedWriteRejection.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
 		if (state.retainedFromMs?.let { retainedFrom ->
-			fact.earliestCoveredWallTimeMs()?.let { earliest -> earliest < retainedFrom } ?: true
+			canonicalRetentionLowerBound(fact)?.let { earliest -> earliest < retainedFrom } ?: true
 		} == true) reject(CellCapturedWriteRejection.RETAINED_DATA)
 		requireUndeletedScope(
 			fact.logicalTrackingId,
@@ -679,7 +690,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 		val zone = runCatching { ZoneId.of(row.storedZoneId) }.getOrNull()
 			?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-		val earliestWall = row.earliestCoveredWallTimeMs()
+		val earliestWall = canonicalRetentionLowerBound(row)
 			?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 		val latestWall = runCatching {
 			Math.addExact(row.observedWallTimeMs, row.wallTimeUncertaintyMs)
@@ -801,7 +812,10 @@ internal class CellCapturedFactWriter @Inject constructor(
 		}
 	}
 
-	private suspend fun validateAggregateOwner(fact: CellCapturedFactRevisionEntity) {
+	private suspend fun validateAggregateOwner(
+		fact: CellCapturedFactRevisionEntity,
+		currentAuthority: CellCaptureAuthority,
+	) {
 		if (fact.factKind != CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY) return
 		val ownerLogicalId = requireNotNull(fact.aggregateOwnerLogicalFactId)
 		val ownerRevision = requireNotNull(fact.aggregateOwnerSemanticRevision)
@@ -809,12 +823,59 @@ internal class CellCapturedFactWriter @Inject constructor(
 		if (owner.reference.identity.logicalTrackingId.value != fact.logicalTrackingId ||
 			owner.reference.identity.serviceRunId.value != fact.serviceRunId ||
 			owner.reference.identity.sessionSegmentId != fact.sessionSegmentId ||
-			owner.authority.captureConsentEpoch != fact.captureConsentEpoch ||
-			owner.authority.collectedDataEpoch != fact.collectedDataEpoch ||
-			owner.authority.scopeDeletionGeneration != fact.scopeDeletionGeneration ||
-			owner.authority.zoneId != fact.storedZoneId ||
-			owner.authority.structuralEpochDay != fact.structuralEpochDay
+			!currentAuthority.canReuseAggregateFrom(owner.authority)
 		) reject(CellCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
+	}
+
+	private suspend fun canonicalRetentionLowerBound(
+		fact: CellCapturedFactRevisionEntity,
+	): Long? {
+		val wal = database.sourceEventWalDao().getByEventId(fact.sourceEventId) ?: return null
+		val authenticated = CellWalCarrierAuthenticator.authenticate(fact, wal)
+			as? CellWalCarrierAuthentication.Authenticated ?: return null
+		return CellWalCarrierAuthenticator.retentionLowerBound(fact, authenticated.carrier)
+	}
+
+	private suspend fun requireNoRetainedFactProof(
+		fact: CellCapturedFactRevisionEntity,
+		currentRetainedFromMs: Long?,
+	) {
+		val dao = database.capturedRadioFactRetentionProofDao()
+		val byEvent = dao.byEvent(SOURCE_KIND, fact.sourceEventId)
+		val byFact = dao.byFact(
+			SOURCE_KIND,
+			fact.writerProjectionId,
+			fact.writerProjectionVersion,
+			fact.logicalFactId,
+		)
+		if (byEvent == null && byFact == null) return
+		if (byEvent == null || byFact == null || byEvent != byFact ||
+			!byEvent.authenticatesRequest(
+				expectedSourceKind = SOURCE_KIND,
+				expectedWriterProjectionId = fact.writerProjectionId,
+				expectedWriterProjectionVersion = fact.writerProjectionVersion,
+				expectedWriterBindingGeneration = fact.writerBindingGeneration,
+				expectedWriterOwnerGeneration = fact.writerOwnerGeneration,
+				expectedLogicalFactId = fact.logicalFactId,
+				expectedSemanticRevision = fact.semanticRevision,
+				expectedCursorRevision = fact.semanticRevision,
+				expectedSourceEventId = fact.sourceEventId,
+				expectedSourceAdmissionOrdinal = fact.sourceAdmissionOrdinal,
+				expectedSourcePolicyRevision = fact.sourcePolicyRevision,
+				expectedCaptureConsentEpoch = fact.captureConsentEpoch,
+				expectedCollectedDataEpoch = fact.collectedDataEpoch,
+				expectedScopeDeletionGeneration = fact.scopeDeletionGeneration,
+				expectedLogicalRunScopeDigest =
+					SourceDeletionFenceEntity.logicalServiceRunIdentity(
+						SOURCE_KIND,
+						PURPOSE,
+						fact.logicalTrackingId,
+						fact.serviceRunId,
+					),
+				currentRetainedFromMs = currentRetainedFromMs,
+			)
+		) reject(CellCapturedWriteRejection.IDENTITY_COLLISION)
+		reject(CellCapturedWriteRejection.RETAINED_DATA)
 	}
 
 	private fun reject(reason: CellCapturedWriteRejection): Nothing =
@@ -979,7 +1040,7 @@ private fun CellCapturedFactRevisionEntity.persistedEvidence(
 	observedIntervalStartElapsedRealtimeNanos = observedIntervalStartNanos,
 	observedElapsedRealtimeNanos = observedElapsedNanos,
 	receivedElapsedRealtimeNanos = receivedElapsedNanos,
-	observedWallTimeMs = observedWallTimeMs,
+	observedWallTimeMs = acquiredAtMs,
 	wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 	acquiredAtMs = acquiredAtMs,
 	createdAtMs = createdAtMs,
@@ -1003,14 +1064,6 @@ private fun CellCapturedFactRevisionEntity.persistedCoverage() = CellCoverageEvi
 	subscriptionCompleteness = CellSubscriptionCompleteness.valueOf(subscriptionCompleteness),
 	childCompleteness = CellChildCompleteness.valueOf(childCompleteness),
 )
-
-private fun CellCapturedFactRevisionEntity.earliestCoveredWallTimeMs(): Long? = runCatching {
-	val providerSpanMs = (observedElapsedNanos - coverageIntervalStartNanos) / 1_000_000L
-	Math.subtractExact(
-		Math.subtractExact(observedWallTimeMs, providerSpanMs),
-		wallTimeUncertaintyMs,
-	).takeIf { it >= 0L }
-}.getOrNull()
 
 private fun CellCapturedFactRevisionEntity.persistedAggregate(): CellIdentityFreeAggregate {
 	val technologies = buildMap {

@@ -6,14 +6,18 @@ import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 
 /** Deliberately narrow storage boundary for the dormant Pressure fact writer. */
 @Dao
@@ -50,6 +54,79 @@ interface PressureFactRevisionDao {
 		writerProjectionVersion: Int,
 		logicalFactId: String,
 	): PressureFactRevisionEntity?
+
+	/** Complete bounded correction lineage for one exact Pressure logical fact. */
+	@Query(
+		"SELECT * FROM pressure_fact_revision WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND logical_fact_id = :logicalFactId ORDER BY semantic_revision LIMIT :limit",
+	)
+	suspend fun revisionsForFact(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		logicalFactId: String,
+		limit: Int,
+	): List<PressureFactRevisionEntity>
+
+	/** Indexed bounded reverse lookup from one immutable Pressure admission to its fact lineage. */
+	@Query(
+		"SELECT * FROM pressure_fact_revision WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND source_admission_ordinal = :sourceAdmissionOrdinal LIMIT :limit",
+	)
+	suspend fun revisionsForWriterAdmission(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		sourceAdmissionOrdinal: Long,
+		limit: Int,
+	): List<PressureFactRevisionEntity>
+
+	/** Bounded provider authority referenced by a Pressure proof snapshot. */
+	@Query(
+		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
+			"AND registration_generation IN (:registrationGenerations) " +
+			"ORDER BY registration_generation LIMIT :limit",
+	)
+	suspend fun proofProviderRegistrations(
+		sourceKind: Int,
+		registrationGenerations: List<Long>,
+		limit: Int,
+	): List<ProviderRegistrationGenerationEntity>
+
+	/** Complete bounded authorization timelines for the referenced Pressure registrations. */
+	@Query(
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation IN (:registrationGenerations) " +
+			"ORDER BY registration_generation, effective_elapsed_realtime_nanos, " +
+			"authorization_revision, member_id LIMIT :limit",
+	)
+	suspend fun proofAuthorizations(
+		sourceKind: Int,
+		registrationGenerations: List<Long>,
+		limit: Int,
+	): List<SourceAuthorizationEntity>
+
+	/** Exact immutable demand rows named by the selected authorization closure. */
+	@Query(
+		"SELECT * FROM source_demand WHERE demand_id IN (:demandIds) " +
+			"ORDER BY demand_id LIMIT :limit",
+	)
+	suspend fun proofDemands(
+		demandIds: List<String>,
+		limit: Int,
+	): List<SourceDemandEntity>
+
+	/** Bounded historical source-start settlements for the selected Pressure runs. */
+	@Query(
+		"SELECT * FROM lifecycle_desired_action WHERE source_kind = :sourceKind " +
+			"AND service_run_id IN (:serviceRunIds) AND action_family = 'SOURCE_RUNTIME' " +
+			"AND desired_state = 'STARTED' ORDER BY action_revision LIMIT :limit",
+	)
+	suspend fun proofStartActions(
+		sourceKind: Int,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<LifecycleDesiredActionEntity>
 
 	/** Returns the first deterministic page attributed to one exact run scope. */
 	@Query(

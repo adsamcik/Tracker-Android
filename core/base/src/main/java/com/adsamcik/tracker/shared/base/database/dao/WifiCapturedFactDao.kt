@@ -78,6 +78,54 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<WifiCapturedFactRevisionEntity>
 
+	/** Indexed bounded reverse lookup from one immutable Wi-Fi admission to its fact lineage. */
+	@Query(
+		"SELECT * FROM wifi_captured_fact_revision WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND source_admission_ordinal = :sourceAdmissionOrdinal LIMIT :limit",
+	)
+	suspend fun revisionsForWriterAdmission(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		sourceAdmissionOrdinal: Long,
+		limit: Int,
+	): List<WifiCapturedFactRevisionEntity>
+
+	/**
+	 * Bounded reverse lookup of cursor-authenticated current heads for one immutable admission.
+	 *
+	 * An empty result with retained admission revisions means the cursor is absent or mismatched;
+	 * multiple rows mean the admission ambiguously claims more than one current fact lineage.
+	 */
+	@Query(
+		"SELECT revision.* FROM wifi_captured_fact_revision AS revision " +
+			"INNER JOIN wifi_captured_fact_cursor AS fact_cursor " +
+			"ON fact_cursor.writer_projection_id = revision.writer_projection_id " +
+			"AND fact_cursor.writer_projection_version = revision.writer_projection_version " +
+			"AND fact_cursor.logical_fact_id = revision.logical_fact_id " +
+			"AND fact_cursor.logical_tracking_id = revision.logical_tracking_id " +
+			"AND fact_cursor.service_run_id = revision.service_run_id " +
+			"AND fact_cursor.session_segment_id = revision.session_segment_id " +
+			"AND fact_cursor.writer_owner_generation = revision.writer_owner_generation " +
+			"AND fact_cursor.collected_data_epoch = revision.collected_data_epoch " +
+			"AND fact_cursor.scope_deletion_generation = revision.scope_deletion_generation " +
+			"AND fact_cursor.latest_semantic_revision = revision.semantic_revision " +
+			"AND fact_cursor.latest_mutation_id = revision.mutation_id " +
+			"AND fact_cursor.latest_effect_checksum = revision.effect_checksum " +
+			"AND fact_cursor.latest_source_admission_ordinal = revision.source_admission_ordinal " +
+			"AND fact_cursor.cursor_revision = revision.semantic_revision " +
+			"AND fact_cursor.updated_at_ms = revision.applied_at_ms " +
+			"WHERE revision.writer_projection_id = :writerProjectionId " +
+			"AND revision.writer_projection_version = :writerProjectionVersion " +
+			"AND revision.source_admission_ordinal = :sourceAdmissionOrdinal LIMIT :limit",
+	)
+	suspend fun currentRevisionsForWriterAdmission(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		sourceAdmissionOrdinal: Long,
+		limit: Int,
+	): List<WifiCapturedFactRevisionEntity>
+
 	@Query(
 		"SELECT * FROM wifi_captured_fact_cursor WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion AND logical_fact_id = :logicalFactId LIMIT 1",

@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.adsamcik.tracker.shared.base.database.dao.SourceEventRetentionProofCandidateRow
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -111,11 +112,14 @@ private data class StepsWalPruneCursor(
 
 private data class StepsWalPruneCandidate(
 	val cursor: StepsWalPruneCursor,
-	val eventId: String,
-	val authorizationPurposeEligibilityMask: Long,
+	val retentionProofAuthority: SourceEventRetentionProofCandidateRow,
 	val ownerKey: StepsCountDomainOwnerLookupKey?,
 	val ownerlessRunKey: OwnerlessStepsManifestRunKey?,
 ) {
+	val eventId: String get() = retentionProofAuthority.eventId
+	val collectedDataEpoch: Long get() = retentionProofAuthority.collectedDataEpoch
+	val authorizationPurposeEligibilityMask: Long
+		get() = retentionProofAuthority.purposeEligibilityMask
 	val isLegacyV27: Boolean
 		get() = authorizationPurposeEligibilityMask == 0L
 }
@@ -1597,6 +1601,7 @@ class StepsCountDomainStore(
 		safeOrdinal: Long,
 		createdBeforeMs: Long,
 		limit: Int,
+		beforeWalDeletion: suspend (List<SourceEventRetentionProofCandidateRow>) -> Unit = {},
 	): StepsCountDomainMaintenanceResult = authenticateCountDomainMaintenance {
 		withOwnerMaintenance { session ->
 			pruneSessionWalForStorageAuthenticated(
@@ -1604,6 +1609,7 @@ class StepsCountDomainStore(
 				createdBeforeMs = createdBeforeMs,
 				limit = limit,
 				session = session,
+				beforeWalDeletion = beforeWalDeletion,
 			)
 		}
 	}
@@ -1667,6 +1673,7 @@ class StepsCountDomainStore(
 		createdBeforeMs: Long,
 		limit: Int,
 		session: OwnerMaintenanceSession,
+		beforeWalDeletion: suspend (List<SourceEventRetentionProofCandidateRow>) -> Unit,
 	): StepsCountDomainMaintenanceResult {
 		require(safeOrdinal >= 0L)
 		require(createdBeforeMs >= 0L)
@@ -1711,6 +1718,7 @@ class StepsCountDomainStore(
 					-> throw CountDomainStoredEvidenceException()
 				}
 			}
+			beforeWalDeletion(candidates.map(StepsWalPruneCandidate::retentionProofAuthority))
 			val legacy = candidates.filter(StepsWalPruneCandidate::isLegacyV27)
 			legacy.chunked(WAL_PRUNE_CANDIDATE_PAGE_SIZE).forEach { chunk ->
 				currentCoroutineContext().ensureActive()
@@ -3037,8 +3045,13 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwnerPage(
 	}.toTypedArray()
 	return query(
 		"SELECT wal.admission_ordinal, wal.event_id, wal.created_at_ms, " +
-			"wal.authorization_purpose_eligibility_mask, wal.logical_tracking_id, " +
-			"wal.service_run_id " +
+			"wal.captured_collected_data_epoch, wal.authorization_purpose_eligibility_mask, " +
+			"wal.logical_tracking_id, wal.service_run_id, wal.source_policy_revision, " +
+			"wal.capture_consent_epoch, wal.clock_domain_id, wal.session_manifest_revision, " +
+			"wal.lifecycle_lease_generation, wal.source_instance_id, wal.registration_generation, " +
+			"wal.physical_configuration_fingerprint, wal.authorization_revision, " +
+			"wal.authorization_fingerprint, wal.config_revision, wal.payload_checksum, " +
+			"wal.integrity_identity " +
 			"FROM source_event_wal AS wal " +
 			"WHERE wal.source_kind = ? AND wal.created_at_ms < ? AND wal.admission_ordinal <= ? " +
 			cursorPredicate +
@@ -3075,7 +3088,8 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwnerPage(
 					createdAtMs = cursor.requiredLong(2),
 					admissionOrdinal = admissionOrdinal,
 				)
-				val eligibilityMask = cursor.requiredLong(3)
+				val collectedDataEpoch = cursor.requiredLong(3)
+				val eligibilityMask = cursor.requiredLong(4)
 				val logicalTrackingId = cursor.nullableText("logical_tracking_id")
 				val serviceRunId = cursor.nullableText("service_run_id")
 				val captureEligible =
@@ -3101,8 +3115,43 @@ private fun SupportSQLiteDatabase.querySessionWalPruneOwnerPage(
 				add(
 					StepsWalPruneCandidate(
 						cursor = candidateCursor,
-						eventId = eventId,
-						authorizationPurposeEligibilityMask = eligibilityMask,
+						retentionProofAuthority = SourceEventRetentionProofCandidateRow(
+							sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+							eventId = eventId,
+							sourceAdmissionOrdinal = admissionOrdinal,
+							purposeEligibilityMask = eligibilityMask,
+							sourcePolicyRevision = cursor.nullableLong("source_policy_revision"),
+							captureConsentEpoch = cursor.nullableLong("capture_consent_epoch"),
+							collectedDataEpoch = collectedDataEpoch,
+							logicalTrackingId = logicalTrackingId,
+							serviceRunId = serviceRunId,
+							clockDomainId = cursor.requiredText(
+								cursor.getColumnIndexOrThrow("clock_domain_id"),
+							),
+							sessionManifestRevision =
+								cursor.nullableLong("session_manifest_revision"),
+							lifecycleLeaseGeneration =
+								cursor.nullableLong("lifecycle_lease_generation"),
+							sourceInstanceId = cursor.requiredText(
+								cursor.getColumnIndexOrThrow("source_instance_id"),
+							),
+							registrationGeneration = cursor.requiredLong(
+								cursor.getColumnIndexOrThrow("registration_generation"),
+							),
+							physicalConfigurationFingerprint =
+								cursor.nullableText("physical_configuration_fingerprint"),
+							authorizationRevision =
+								cursor.nullableLong("authorization_revision"),
+							authorizationFingerprint =
+								cursor.nullableText("authorization_fingerprint"),
+							configurationRevision = cursor.nullableLong("config_revision"),
+							walPayloadChecksum = cursor.requiredText(
+								cursor.getColumnIndexOrThrow("payload_checksum"),
+							),
+							walIntegrityIdentity = cursor.requiredText(
+								cursor.getColumnIndexOrThrow("integrity_identity"),
+							),
+						),
 						ownerKey = if (
 							eligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
 						) {

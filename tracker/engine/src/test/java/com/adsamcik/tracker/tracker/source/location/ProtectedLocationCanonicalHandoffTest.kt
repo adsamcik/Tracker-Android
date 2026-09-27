@@ -101,11 +101,22 @@ class ProtectedLocationCanonicalHandoffTest {
 		assertEquals(SourceBrokerPurpose.SESSION_CAPTURE, purposes.single().purpose)
 		assertEquals(RUN_ID, purposes.single().serviceRunId)
 		assertNull(purposes.single().ambientIntentId)
+		val decision = requireNotNull(
+			database.locationObservationDecisionDao().getBySourceEventId(EVENT_ID),
+		)
 		assertEquals(
 			ProtectedLocationCanonicalSignalIdentity.canonicalProduct(EVENT_ID),
-			database.locationObservationDecisionDao()
-				.getBySourceEventId(EVENT_ID)
-				?.acceptedSampleSourceSignalId,
+			decision.acceptedSampleSourceSignalId,
+		)
+		assertEquals(ProtectedLocationCanonicalHandoff.WRITER_ID, decision.writerProjectionId)
+		assertEquals(ProtectedLocationCanonicalHandoff.WRITER_VERSION, decision.writerProjectionVersion)
+		assertEquals(
+			ProtectedLocationCanonicalHandoff.BINDING_GENERATION,
+			decision.writerBindingGeneration,
+		)
+		assertEquals(
+			SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
+			decision.writerOwnerGeneration,
 		)
 	}
 
@@ -1337,6 +1348,11 @@ private class ReceiptWriter(
 					LocationObservationDecision.REJECTED
 				},
 				reason = if (accepted) null else "CURATED_LOCATION_REJECTED",
+				writerProjectionId = ProtectedLocationCanonicalHandoff.WRITER_ID,
+				writerProjectionVersion = ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+				writerBindingGeneration = ProtectedLocationCanonicalHandoff.BINDING_GENERATION,
+				writerOwnerGeneration =
+					SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
 				acceptedSampleSourceSignalId = signalId.takeIf { accepted },
 				sourceSignalId = signalId,
 				clockDomainId = command.authority.clockDomainId,

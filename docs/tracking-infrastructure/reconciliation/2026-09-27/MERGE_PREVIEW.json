@@ -1,0 +1,2130 @@
+{
+  "date": "2026-09-27",
+  "phase": "IMPLEMENTATION_ONLY",
+  "candidate_base": "63ef296026e440e4a5667235fe0769a03004eb47",
+  "scratch": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026",
+  "status": "Historical exploratory union only. Superseded by SELECTION_MANIFEST.json; V2 and incompatible Location retention inputs are deferred. Do not apply this preview.",
+  "rows": [
+    {
+      "family": "LOCATION",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDestinationOwnerEntity.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "1c17c27e15442b678e5e55139a55dd1ddc4b6b25",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceDestinationOwnerEntity.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LOCATION\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceDestinationOwnerEntity.kt"
+    },
+    {
+      "family": "LOCATION",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStore.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "1c17c27e15442b678e5e55139a55dd1ddc4b6b25",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\TrackingRolloutStateStore.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LOCATION\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\TrackingRolloutStateStore.kt"
+    },
+    {
+      "family": "LOCATION",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "1c17c27e15442b678e5e55139a55dd1ddc4b6b25",
+      "result": "manual_resolution_required_current_preserved",
+      "conflict_count": 1,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\location\\ProtectedLocationCanonicalHandoff.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LOCATION\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\location\\ProtectedLocationCanonicalHandoff.kt"
+    },
+    {
+      "family": "LOCATION",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStoreTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "1c17c27e15442b678e5e55139a55dd1ddc4b6b25",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\TrackingRolloutStateStoreTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LOCATION\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\TrackingRolloutStateStoreTest.kt"
+    },
+    {
+      "family": "LOCATION",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "1c17c27e15442b678e5e55139a55dd1ddc4b6b25",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\location\\ProtectedLocationCanonicalHandoffTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LOCATION\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\location\\ProtectedLocationCanonicalHandoffTest.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\CellCapturedFactMaintenance.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\CellCapturedFactMaintenance.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\CellCapturedPortableTransfer.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\CellCapturedPortableTransfer.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CellCapturedFactEntities.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CellCapturedFactEntities.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDestinationOwnerEntity.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceDestinationOwnerEntity.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceDestinationOwnerEntity.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\WifiCapturedFactEntities.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\WifiCapturedFactEntities.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/SourceWriterGenerationContractTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceWriterGenerationContractTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceWriterGenerationContractTest.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/catalog/SourceProductFactories.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\catalog\\SourceProductFactories.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\catalog\\SourceProductFactories.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellCapturedFactWriter.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellCapturedFactWriter.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellSessionFactProjectionLane.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellSessionFactProjectionLane.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellSessionFactProjectionLane.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\AuthoritativeSessionCoordinator.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\AuthoritativeSessionCoordinator.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStore.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\TrackingRolloutStateStore.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\TrackingRolloutStateStore.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/deletion/RoomCellSelectedHistoryDeletion.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\deletion\\RoomCellSelectedHistoryDeletion.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\deletion\\RoomCellSelectedHistoryDeletion.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/RoomDeleteSelectedWifiHistory.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\RoomDeleteSelectedWifiHistory.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\RoomDeleteSelectedWifiHistory.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedFactMaintenance.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedFactMaintenance.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedFactWriter.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedFactWriter.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedPortableTransfer.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedPortableTransfer.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiSessionFactProjectionLane.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiSessionFactProjectionLane.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiSessionFactProjectionLane.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/catalog/DefaultSourceImplementationCatalogTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\catalog\\DefaultSourceImplementationCatalogTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\catalog\\DefaultSourceImplementationCatalogTest.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellWalQualificationAdapterTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellWalQualificationAdapterTest.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\AuthoritativeSessionCoordinatorTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\AuthoritativeSessionCoordinatorTest.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStoreTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\TrackingRolloutStateStoreTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\TrackingRolloutStateStoreTest.kt"
+    },
+    {
+      "family": "RADIO",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": null,
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiWalQualificationAdapterTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\RADIO\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiWalQualificationAdapterTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "app/src/main/java/com/adsamcik/tracker/app/di/TrackingInfrastructureIntegrationEntryPoint.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\TrackingInfrastructureIntegrationEntryPoint.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\TrackingInfrastructureIntegrationEntryPoint.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "app/src/main/java/com/adsamcik/tracker/app/maintenance/RetentionPipelineWorker.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\maintenance\\RetentionPipelineWorker.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\maintenance\\RetentionPipelineWorker.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "app/src/main/java/com/adsamcik/tracker/maintenance/DataRetentionWorker.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\app\\src\\main\\java\\com\\adsamcik\\tracker\\maintenance\\DataRetentionWorker.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\app\\src\\main\\java\\com\\adsamcik\\tracker\\maintenance\\DataRetentionWorker.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/androidTest/java/com/adsamcik/tracker/shared/base/database/AppDatabaseMigration27To28Test.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\androidTest\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\AppDatabaseMigration27To28Test.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\androidTest\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\AppDatabaseMigration27To28Test.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedFactMaintenance.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\ActivityCapturedFactMaintenance.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\ActivityCapturedFactMaintenance.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AdditionalTrackingSchema.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\AdditionalTrackingSchema.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\AdditionalTrackingSchema.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\AppDatabase.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\AppDatabase.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabaseMigrations.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\AppDatabaseMigrations.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\AppDatabaseMigrations.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CapturedRadioFactRetentionProofStore.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\CapturedRadioFactRetentionProofStore.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\CapturedRadioFactRetentionProofStore.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\CellCapturedFactMaintenance.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\CellCapturedFactMaintenance.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "manual_resolution_required_current_preserved",
+      "conflict_count": 1,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\DevelopmentV28DatabaseContainment.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\DevelopmentV28DatabaseContainment.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/LocationRetentionMaintenance.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\LocationRetentionMaintenance.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\LocationRetentionMaintenance.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticator.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\PressureFactProofAuthenticator.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\PressureFactProofAuthenticator.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/PressureFactRetentionResolution.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\PressureFactRetentionResolution.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\PressureFactRetentionResolution.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/PressureRetentionTruncation.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\PressureRetentionTruncation.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\PressureRetentionTruncation.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ProviderRegistrationIntervalAuthenticator.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\ProviderRegistrationIntervalAuthenticator.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\ProviderRegistrationIntervalAuthenticator.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenance.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\SourceEventStorageMaintenance.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\SourceEventStorageMaintenance.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/StepsCountDomainStore.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\StepsCountDomainStore.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\StepsCountDomainStore.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/StepsRetentionTruncation.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\StepsRetentionTruncation.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\StepsRetentionTruncation.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/TrackingHistoryInvalidationTables.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\TrackingHistoryInvalidationTables.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\TrackingHistoryInvalidationTables.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/TrackingOwnerValidationTriggers.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\TrackingOwnerValidationTriggers.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\TrackingOwnerValidationTriggers.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ActivityCapturedFactDao.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ActivityCapturedFactDao.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ActivityCapturedFactDao.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/CapturedRadioFactRetentionProofDao.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\CapturedRadioFactRetentionProofDao.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\CapturedRadioFactRetentionProofDao.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/CellCapturedFactDao.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\CellCapturedFactDao.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\CellCapturedFactDao.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationObservationDao.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\LocationObservationDao.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\LocationObservationDao.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationObservationDecisionDao.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\LocationObservationDecisionDao.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\LocationObservationDecisionDao.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationProjectionDao.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\LocationProjectionDao.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\LocationProjectionDao.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationSampleDao.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\LocationSampleDao.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\LocationSampleDao.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRetentionAuthorityDao.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\PressureFactRetentionAuthorityDao.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\PressureFactRetentionAuthorityDao.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRetentionRevisionAuthorityDao.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\PressureFactRetentionRevisionAuthorityDao.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\PressureFactRetentionRevisionAuthorityDao.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRevisionDao.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\PressureFactRevisionDao.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\PressureFactRevisionDao.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceEventRetentionProofDao.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SourceEventRetentionProofDao.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SourceEventRetentionProofDao.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceEventRetentionScopeProofDao.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SourceEventRetentionScopeProofDao.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SourceEventRetentionScopeProofDao.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceEventWalDao.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SourceEventWalDao.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SourceEventWalDao.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceProjectionStateDao.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SourceProjectionStateDao.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SourceProjectionStateDao.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/WifiCapturedFactDao.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\WifiCapturedFactDao.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\WifiCapturedFactDao.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/ActivityCapturedFactEntities.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\ActivityCapturedFactEntities.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\ActivityCapturedFactEntities.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/ActivityCapturedFactIntegrity.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\ActivityCapturedFactIntegrity.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\ActivityCapturedFactIntegrity.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/ActivityWalCarrierAuthenticator.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\ActivityWalCarrierAuthenticator.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\ActivityWalCarrierAuthenticator.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CanonicalRetentionBounds.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CanonicalRetentionBounds.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CanonicalRetentionBounds.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CapturedRadioFactRetentionProofEntity.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CapturedRadioFactRetentionProofEntity.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CapturedRadioFactRetentionProofEntity.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CellCapturedFactEntities.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CellCapturedFactEntities.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellWalCarrierAuthenticator.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CellWalCarrierAuthenticator.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CellWalCarrierAuthenticator.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellWalPayloadCodec.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CellWalPayloadCodec.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CellWalPayloadCodec.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationObservationDecision.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\LocationObservationDecision.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\LocationObservationDecision.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/PressureFactRetentionAuthorityEntity.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\PressureFactRetentionAuthorityEntity.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\PressureFactRetentionAuthorityEntity.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/PressureFactRetentionRevisionAuthorityEntity.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\PressureFactRetentionRevisionAuthorityEntity.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\PressureFactRetentionRevisionAuthorityEntity.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/PressureWalCarrierAuthenticator.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\PressureWalCarrierAuthenticator.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\PressureWalCarrierAuthenticator.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/ProtectedLocationCanonicalReceiptIntegrity.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\ProtectedLocationCanonicalReceiptIntegrity.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\ProtectedLocationCanonicalReceiptIntegrity.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RetainedCaptureScopeIdentity.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\RetainedCaptureScopeIdentity.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\RetainedCaptureScopeIdentity.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceBrokerEntities.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceBrokerEntities.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceEventRetentionProofEntity.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceEventRetentionProofEntity.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceEventRetentionProofEntity.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceEventRetentionScopeProofEntity.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceEventRetentionScopeProofEntity.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceEventRetentionScopeProofEntity.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceProjectionEntities.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceProjectionEntities.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceProjectionEntities.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceWalCarrierIntegrity.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceWalCarrierIntegrity.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceWalCarrierIntegrity.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepsWalCarrierAuthenticator.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\StepsWalCarrierAuthenticator.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\StepsWalCarrierAuthenticator.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\WifiCapturedFactEntities.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\WifiCapturedFactEntities.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticator.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\WifiWalCarrierAuthenticator.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\WifiWalCarrierAuthenticator.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedFactMaintenanceTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\ActivityCapturedFactMaintenanceTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\ActivityCapturedFactMaintenanceTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CapturedRadioFactRetentionProofRoomTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\CapturedRadioFactRetentionProofRoomTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\CapturedRadioFactRetentionProofRoomTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\CellCapturedFactMaintenanceTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\CellCapturedFactMaintenanceTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\DevelopmentV28DatabaseContainmentTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\DevelopmentV28DatabaseContainmentTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/LegacyV26ImportTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\LegacyV26ImportTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\LegacyV26ImportTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/LocationRetentionMaintenancePagingTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\LocationRetentionMaintenancePagingTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\LocationRetentionMaintenancePagingTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticatorTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\PressureFactProofAuthenticatorTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\PressureFactProofAuthenticatorTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/PressureRetentionTruncationTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\PressureRetentionTruncationTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\PressureRetentionTruncationTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ProviderRegistrationIntervalAuthenticatorTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\ProviderRegistrationIntervalAuthenticatorTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\ProviderRegistrationIntervalAuthenticatorTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenanceTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\SourceEventStorageMaintenanceTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\SourceEventStorageMaintenanceTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRetentionAuthorityDaoTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\PressureFactRetentionAuthorityDaoTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\PressureFactRetentionAuthorityDaoTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/CanonicalRetentionBoundsTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CanonicalRetentionBoundsTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CanonicalRetentionBoundsTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/CellWalCarrierAuthenticatorTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CellWalCarrierAuthenticatorTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\CellWalCarrierAuthenticatorTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/SourceWalCarrierAuthenticatorTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceWalCarrierAuthenticatorTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceWalCarrierAuthenticatorTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticatorTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\WifiWalCarrierAuthenticatorTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\WifiWalCarrierAuthenticatorTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelLiveStepsTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\feature\\dashboard\\src\\test\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\DashboardViewModelLiveStepsTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\feature\\dashboard\\src\\test\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\DashboardViewModelLiveStepsTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/LocationSampleRepository.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\api\\src\\androidMain\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\LocationSampleRepository.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\api\\src\\androidMain\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\LocationSampleRepository.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SourceLifecycleProof.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\api\\src\\commonMain\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\SourceLifecycleProof.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\api\\src\\commonMain\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\SourceLifecycleProof.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/TrackingHistoryRepository.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\api\\src\\commonMain\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\TrackingHistoryRepository.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\api\\src\\commonMain\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\TrackingHistoryRepository.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/SourceLifecycleProofTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\api\\src\\commonTest\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\SourceLifecycleProofTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\api\\src\\commonTest\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\SourceLifecycleProofTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\di\\StatsDataModule.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\di\\StatsDataModule.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposer.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\ActivityHistoryComposer.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\ActivityHistoryComposer.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\CellHistoryComposer.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\CellHistoryComposer.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultActivityHistoryRepository.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultActivityHistoryRepository.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultCellHistoryRepository.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultCellHistoryRepository.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultLocationSampleRepository.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultLocationSampleRepository.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultLocationSampleRepository.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultSourceFactQueryRepository.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultSourceFactQueryRepository.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultSourceFactQueryRepository.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultTrackingHistoryRepository.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultTrackingHistoryRepository.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultWifiHistoryRepository.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultWifiHistoryRepository.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PortableStepsRoomReader.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\PortableStepsRoomReader.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\PortableStepsRoomReader.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryBatchReader.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\PressureHistoryBatchReader.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\PressureHistoryBatchReader.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\PressureHistorySelector.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\PressureHistorySelector.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/StepsHistoryBatchReader.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\StepsHistoryBatchReader.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\StepsHistoryBatchReader.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelector.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\StepsSegmentHistorySelector.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\StepsSegmentHistorySelector.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryComposer.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\WifiHistoryComposer.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\WifiHistoryComposer.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\ActivityHistoryComposerTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\ActivityHistoryComposerTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\CellHistoryRepositoryRoomTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\CellHistoryRepositoryRoomTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\PressureHistorySelectorTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\PressureHistorySelectorTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureSourceFactQueryProofTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\PressureSourceFactQueryProofTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\PressureSourceFactQueryProofTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SourceFactQueryRepositoryRoomTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\SourceFactQueryRepositoryRoomTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\SourceFactQueryRepositoryRoomTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\StepsSegmentHistorySelectorTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\StepsSegmentHistorySelectorTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/TrackingHistorySourceUnionRepositoryTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\TrackingHistorySourceUnionRepositoryTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\TrackingHistorySourceUnionRepositoryTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\WifiHistoryRepositoryRoomTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\WifiHistoryRepositoryRoomTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiImportedHistoryRepositoryTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\WifiImportedHistoryRepositoryTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\WifiImportedHistoryRepositoryTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/persistence/PersistenceProcessor.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\pipeline\\persistence\\PersistenceProcessor.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\pipeline\\persistence\\PersistenceProcessor.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactWriter.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\ActivityCapturedFactWriter.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\ActivityCapturedFactWriter.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapter.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\ActivityCapturedWalAdmissionAdapter.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\ActivityCapturedWalAdmissionAdapter.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFact.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellCapturedFact.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellCapturedFact.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactClassifier.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellCapturedFactClassifier.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellCapturedFactClassifier.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "manual_resolution_required_current_preserved",
+      "conflict_count": 1,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellCapturedFactWriter.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellCapturedFactWriter.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapter.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellWalQualificationAdapter.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellWalQualificationAdapter.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/deletion/RoomPressureSelectedSessionDeletionService.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\deletion\\RoomPressureSelectedSessionDeletionService.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\deletion\\RoomPressureSelectedSessionDeletionService.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/SourcePayloadCodec.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\ingress\\SourcePayloadCodec.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\ingress\\SourcePayloadCodec.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/DefaultSourceLifecycleProofAdapter.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\DefaultSourceLifecycleProofAdapter.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\DefaultSourceLifecycleProofAdapter.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofAdapter.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceLifecycleProofAdapter.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceLifecycleProofAdapter.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCatalog.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceLifecycleProofCatalog.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceLifecycleProofCatalog.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinator.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceLifecycleProofCoordinator.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceLifecycleProofCoordinator.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservationQualifier.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\location\\LocationQualifiedObservationQualifier.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\location\\LocationQualifiedObservationQualifier.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\location\\LocationWalQualificationAdapter.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\location\\LocationWalQualificationAdapter.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "manual_resolution_required_current_preserved",
+      "conflict_count": 3,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\location\\ProtectedLocationCanonicalHandoff.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\location\\ProtectedLocationCanonicalHandoff.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourcePayload.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\model\\SourcePayload.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\model\\SourcePayload.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/PressureSessionFactProjectionLane.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\projection\\PressureSessionFactProjectionLane.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\projection\\PressureSessionFactProjectionLane.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/StepsSessionFactProjectionLane.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\projection\\StepsSessionFactProjectionLane.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\projection\\StepsSessionFactProjectionLane.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\SourceRegistrationRepository.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\SourceRegistrationRepository.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntime.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\WifiSourceRuntime.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\WifiSourceRuntime.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactClassifier.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedFactClassifier.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedFactClassifier.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedFactMaintenance.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedFactMaintenance.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "manual_resolution_required_current_preserved",
+      "conflict_count": 1,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedFactWriter.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedFactWriter.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedPortableTransfer.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedPortableTransfer.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapter.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiWalQualificationAdapter.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiWalQualificationAdapter.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactWriterTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\ActivityCapturedFactWriterTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\ActivityCapturedFactWriterTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapterTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\ActivityCapturedWalAdmissionAdapterTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\ActivityCapturedWalAdmissionAdapterTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactClassifierTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellCapturedFactClassifierTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellCapturedFactClassifierTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellWalQualificationAdapterTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\cell\\CellWalQualificationAdapterTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/deletion/RoomPressureSelectedSessionDeletionServiceTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\deletion\\RoomPressureSelectedSessionDeletionServiceTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\deletion\\RoomPressureSelectedSessionDeletionServiceTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\ingress\\WifiDurableSourceIngressTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\ingress\\WifiDurableSourceIngressTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceEventRetentionProofLifecycleTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceEventRetentionProofLifecycleTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceEventRetentionProofLifecycleTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCatalogTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceLifecycleProofCatalogTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceLifecycleProofCatalogTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceLifecycleProofCoordinatorTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceLifecycleProofCoordinatorTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceMaterializationRevisionSelectionTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceMaterializationRevisionSelectionTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceMaterializationRevisionSelectionTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceRecordingHistoricalAuthorityRoomTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceRecordingHistoricalAuthorityRoomTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceRecordingHistoricalAuthorityRoomTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceRecordingQualificationTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceRecordingQualificationTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\lifecycle\\SourceRecordingQualificationTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\location\\LocationWalQualificationAdapterTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\location\\LocationWalQualificationAdapterTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "manual_resolution_required_current_preserved",
+      "conflict_count": 1,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\location\\ProtectedLocationCanonicalHandoffTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\location\\ProtectedLocationCanonicalHandoffTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/PressureSessionFactProjectionLaneTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\projection\\PressureSessionFactProjectionLaneTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\projection\\PressureSessionFactProjectionLaneTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/StepsSessionFactProjectionLaneTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\projection\\StepsSessionFactProjectionLaneTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\projection\\StepsSessionFactProjectionLaneTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiCaptureConsentRevocationDeletionCommandTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCaptureConsentRevocationDeletionCommandTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCaptureConsentRevocationDeletionCommandTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactClassifierTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedFactClassifierTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiCapturedFactClassifierTest.kt"
+    },
+    {
+      "family": "LIFECYCLE",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "f786563167df2990202a96835ff7535488acd77c",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiWalQualificationAdapterTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\LIFECYCLE\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\wifi\\WifiWalQualificationAdapterTest.kt"
+    },
+    {
+      "family": "UI",
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModel.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\DashboardViewModel.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\UI\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\DashboardViewModel.kt"
+    },
+    {
+      "family": "UI",
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardScreen.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\DashboardScreen.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\UI\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\DashboardScreen.kt"
+    },
+    {
+      "family": "UI",
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/components/TrackingActionRing.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\components\\TrackingActionRing.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\UI\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\components\\TrackingActionRing.kt"
+    },
+    {
+      "family": "UI",
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/state/DashboardLiveStepsState.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\state\\DashboardLiveStepsState.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\UI\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\state\\DashboardLiveStepsState.kt"
+    },
+    {
+      "family": "UI",
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/tracking/ActivityOnlyTrackingContent.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\tracking\\ActivityOnlyTrackingContent.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\UI\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\tracking\\ActivityOnlyTrackingContent.kt"
+    },
+    {
+      "family": "UI",
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/tracking/PressureOnlyTrackingContent.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\tracking\\PressureOnlyTrackingContent.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\UI\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\tracking\\PressureOnlyTrackingContent.kt"
+    },
+    {
+      "family": "UI",
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/tracking/RadioOnlyTrackingContent.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\tracking\\RadioOnlyTrackingContent.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\UI\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\tracking\\RadioOnlyTrackingContent.kt"
+    },
+    {
+      "family": "UI",
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/tracking/SourceSetTrackingContent.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\tracking\\SourceSetTrackingContent.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\UI\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\tracking\\SourceSetTrackingContent.kt"
+    },
+    {
+      "family": "UI",
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/tracking/StepsOnlyTrackingContent.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\tracking\\StepsOnlyTrackingContent.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\UI\\feature\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\tracking\\StepsOnlyTrackingContent.kt"
+    },
+    {
+      "family": "UI",
+      "path": "feature/dashboard/src/main/res/values/strings.xml",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\feature\\dashboard\\src\\main\\res\\values\\strings.xml",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\UI\\feature\\dashboard\\src\\main\\res\\values\\strings.xml"
+    },
+    {
+      "family": "UI",
+      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelLiveStepsTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\feature\\dashboard\\src\\test\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\DashboardViewModelLiveStepsTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\UI\\feature\\dashboard\\src\\test\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\DashboardViewModelLiveStepsTest.kt"
+    },
+    {
+      "family": "UI",
+      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardScreenTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\feature\\dashboard\\src\\test\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\DashboardScreenTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\UI\\feature\\dashboard\\src\\test\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\DashboardScreenTest.kt"
+    },
+    {
+      "family": "UI",
+      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/compose/components/TrackingActionRingTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\feature\\dashboard\\src\\test\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\components\\TrackingActionRingTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\UI\\feature\\dashboard\\src\\test\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\compose\\components\\TrackingActionRingTest.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": ".github/workflows/android.yml",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\.github\\workflows\\android.yml",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\.github\\workflows\\android.yml"
+    },
+    {
+      "family": "AUDIT",
+      "path": "app/src/main/java/com/adsamcik/tracker/app/background/BackgroundReliabilityCard.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\background\\BackgroundReliabilityCard.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\background\\BackgroundReliabilityCard.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "app/src/main/java/com/adsamcik/tracker/app/background/BatteryOptimizationHelper.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\background\\BatteryOptimizationHelper.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\background\\BatteryOptimizationHelper.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/BackgroundAccessStep.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\onboarding\\ui\\steps\\BackgroundAccessStep.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\onboarding\\ui\\steps\\BackgroundAccessStep.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "app/src/main/java/com/adsamcik/tracker/app/tracebox/TrackerRuntimeMeasurements.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\tracebox\\TrackerRuntimeMeasurements.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\tracebox\\TrackerRuntimeMeasurements.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "app/src/main/res/values/strings.xml",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\app\\src\\main\\res\\values\\strings.xml",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\app\\src\\main\\res\\values\\strings.xml"
+    },
+    {
+      "family": "AUDIT",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/architecture/ArchitecturalFitnessTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\app\\src\\test\\java\\com\\adsamcik\\tracker\\app\\architecture\\ArchitecturalFitnessTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\app\\src\\test\\java\\com\\adsamcik\\tracker\\app\\architecture\\ArchitecturalFitnessTest.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/background/BatteryOptimizationHelperTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\app\\src\\test\\java\\com\\adsamcik\\tracker\\app\\background\\BatteryOptimizationHelperTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\app\\src\\test\\java\\com\\adsamcik\\tracker\\app\\background\\BatteryOptimizationHelperTest.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/tracebox/TrackerRuntimeMeasurementsTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\app\\src\\test\\java\\com\\adsamcik\\tracker\\app\\tracebox\\TrackerRuntimeMeasurementsTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\app\\src\\test\\java\\com\\adsamcik\\tracker\\app\\tracebox\\TrackerRuntimeMeasurementsTest.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "build.gradle.kts",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\build.gradle.kts",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\build.gradle.kts"
+    },
+    {
+      "family": "AUDIT",
+      "path": "core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/TrackerTraceboxTemplates.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\core\\diagnostics\\src\\main\\java\\com\\adsamcik\\tracker\\diagnostics\\TrackerTraceboxTemplates.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\core\\diagnostics\\src\\main\\java\\com\\adsamcik\\tracker\\diagnostics\\TrackerTraceboxTemplates.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "tools/release_manifest.py",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tools\\release_manifest.py",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\tools\\release_manifest.py"
+    },
+    {
+      "family": "AUDIT",
+      "path": "tools/release_validation.py",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tools\\release_validation.py",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\tools\\release_validation.py"
+    },
+    {
+      "family": "AUDIT",
+      "path": "tools/tests/test_release_manifest.py",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tools\\tests\\test_release_manifest.py",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\tools\\tests\\test_release_manifest.py"
+    },
+    {
+      "family": "AUDIT",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\api\\BackgroundTrackingApi.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\api\\BackgroundTrackingApi.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/consumer/SessionTrackerComponent.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\consumer\\SessionTrackerComponent.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\consumer\\SessionTrackerComponent.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/policy/BatteryAwarePolicy.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "three_way_union",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\policy\\BatteryAwarePolicy.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\policy\\BatteryAwarePolicy.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "manual_resolution_required_current_preserved",
+      "conflict_count": 2,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\service\\TrackerService.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\service\\TrackerService.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackingLifecycleBarrier.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\service\\TrackingLifecycleBarrier.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\service\\TrackingLifecycleBarrier.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/EventTrackingFrameProjection.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\projection\\EventTrackingFrameProjection.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\projection\\EventTrackingFrameProjection.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/time/ElapsedRealtimeNanos.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\time\\ElapsedRealtimeNanos.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\time\\ElapsedRealtimeNanos.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/SessionTrackerComponentTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\component\\consumer\\SessionTrackerComponentTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\component\\consumer\\SessionTrackerComponentTest.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/policy/BatteryAwarePolicyPowerSaveTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\policy\\BatteryAwarePolicyPowerSaveTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\policy\\BatteryAwarePolicyPowerSaveTest.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/TrackingShutdownSequenceTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\service\\TrackingShutdownSequenceTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\service\\TrackingShutdownSequenceTest.kt"
+    },
+    {
+      "family": "AUDIT",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/EventTrackingFrameProjectionTest.kt",
+      "base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "incoming": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "result": "incoming_final_state",
+      "conflict_count": 0,
+      "stage_path": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\selected\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\projection\\EventTrackingFrameProjectionTest.kt",
+      "version_root": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-input-reconciliation-20260927-63ef296026\\versions\\AUDIT\\tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\projection\\EventTrackingFrameProjectionTest.kt"
+    }
+  ],
+  "superseded_by": "SELECTION_MANIFEST.json"
+}

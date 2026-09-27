@@ -4,6 +4,7 @@ package com.adsamcik.tracker.tracker.source.wifi
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -1074,26 +1075,22 @@ private fun SourceSessionCompletenessEntity.hasValidStopShape(): Boolean {
 }
 
 private fun WifiCapturedFactRevisionEntity.earliestPossibleWallTimeMs(): Long {
-	val elapsedSpanNanos = Math.subtractExact(observedElapsedNanos, coverageIntervalStartNanos)
-	val spanMs = elapsedSpanNanos / NANOS_PER_MILLISECOND
-	val roundingMs = if (elapsedSpanNanos % NANOS_PER_MILLISECOND == 0L) 0L else 1L
-	return Math.subtractExact(
-		Math.subtractExact(observedWallTimeMs, spanMs),
-		Math.addExact(wallTimeUncertaintyMs, roundingMs),
-	).also { require(it >= 0L) }
+	return requireNotNull(CanonicalRetentionBounds.wifiCoverage(
+		coverageEndWallTimeMs = observedWallTimeMs,
+		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+		coverageStartElapsedRealtimeNanos = coverageIntervalStartNanos,
+		coverageEndElapsedRealtimeNanos = coverageIntervalEndNanos,
+	))
 }
 
 private fun AuthenticatedWifiWal.earliestPossibleWallTimeMs(): Long {
-	val elapsedSpanNanos = Math.subtractExact(
-		evidence.clock.observedElapsedRealtimeNanos,
-		evidence.clock.observedIntervalStartElapsedRealtimeNanos,
-	)
-	val spanMs = elapsedSpanNanos / NANOS_PER_MILLISECOND
-	val roundingMs = if (elapsedSpanNanos % NANOS_PER_MILLISECOND == 0L) 0L else 1L
-	return Math.subtractExact(
-		Math.subtractExact(evidence.clock.observedWallTimeMs, spanMs),
-		Math.addExact(evidence.clock.wallTimeUncertaintyMs, roundingMs),
-	).also { require(it >= 0L) }
+	return requireNotNull(CanonicalRetentionBounds.wifiCoverage(
+		coverageEndWallTimeMs = evidence.clock.observedWallTimeMs,
+		wallTimeUncertaintyMs = evidence.clock.wallTimeUncertaintyMs,
+		coverageStartElapsedRealtimeNanos =
+			evidence.clock.observedIntervalStartElapsedRealtimeNanos,
+		coverageEndElapsedRealtimeNanos = evidence.clock.observedElapsedRealtimeNanos,
+	))
 }
 
 private fun List<SourceSessionCompletenessEntity>.toPortableCompleteness(
@@ -1148,7 +1145,6 @@ private const val AUTOMATIC_CAPTURE_MASK = 2L
 private const val ALL_CAPTURE_MASK = MANUAL_CAPTURE_MASK or AUTOMATIC_CAPTURE_MASK
 private const val PLAN_PAYLOAD_VERSION = 1
 private const val MAX_PLAN_PAYLOAD_BYTES = 1_024
-private const val NANOS_PER_MILLISECOND = 1_000_000L
 private val TERMINAL_STATES = setOf("FINALIZED", "FAILED", "CLOSED")
 private val ALL_SESSION_STATES = TERMINAL_STATES + setOf("STARTING", "ACTIVE", "RECONFIGURING", "STOPPING")
 private val ALL_RUN_STATES = ALL_SESSION_STATES

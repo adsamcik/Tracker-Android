@@ -8,18 +8,36 @@ import org.junit.jupiter.api.Test
 class BatteryOptimizationHelperTest {
 
     @Test
-    fun `recognizes samsung regardless of case and whitespace`() {
-        BatteryOptimizationHelper.isSamsungManufacturer("samsung") shouldBe true
-        BatteryOptimizationHelper.isSamsungManufacturer("Samsung") shouldBe true
-        BatteryOptimizationHelper.isSamsungManufacturer("SAMSUNG") shouldBe true
-        BatteryOptimizationHelper.isSamsungManufacturer("  samsung  ") shouldBe true
+	fun `explicit background restriction takes precedence over allowlist state`() {
+		resolveBackgroundReliabilityCondition(
+			batteryOptimizationsExempt = true,
+			backgroundRestricted = true,
+		) shouldBe BackgroundReliabilityCondition.BACKGROUND_RESTRICTED
+		resolveBackgroundReliabilityCondition(
+			batteryOptimizationsExempt = false,
+			backgroundRestricted = true,
+		) shouldBe BackgroundReliabilityCondition.BACKGROUND_RESTRICTED
     }
 
     @Test
-    fun `rejects non-samsung and null`() {
-        BatteryOptimizationHelper.isSamsungManufacturer("Google") shouldBe false
-        BatteryOptimizationHelper.isSamsungManufacturer("Xiaomi") shouldBe false
-        BatteryOptimizationHelper.isSamsungManufacturer("") shouldBe false
-        BatteryOptimizationHelper.isSamsungManufacturer(null) shouldBe false
+	fun `battery optimization is actionable only when explicitly observed`() {
+		resolveBackgroundReliabilityCondition(
+			batteryOptimizationsExempt = false,
+			backgroundRestricted = false,
+		) shouldBe BackgroundReliabilityCondition.BATTERY_OPTIMIZED
+		BackgroundReliabilityState(false, false).actionRequired shouldBe true
+		BackgroundReliabilityState(true, false).actionRequired shouldBe false
+	}
+
+	@Test
+	fun `unknown signals do not invent a platform cause`() {
+		resolveBackgroundReliabilityCondition(null, null) shouldBe
+			BackgroundReliabilityCondition.UNKNOWN
+		resolveBackgroundReliabilityCondition(true, null) shouldBe
+			BackgroundReliabilityCondition.UNKNOWN
+		resolveBackgroundReliabilityCondition(null, false) shouldBe
+			BackgroundReliabilityCondition.UNKNOWN
+		resolveBackgroundReliabilityCondition(true, false) shouldBe
+			BackgroundReliabilityCondition.NO_DETECTED_RESTRICTION
     }
 }

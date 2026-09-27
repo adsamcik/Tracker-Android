@@ -5,6 +5,8 @@ import android.content.BroadcastReceiver
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import android.os.PowerManager
+import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.stats.api.PolicyTier
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -12,6 +14,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 enum class BatteryPressure { NONE, MODERATE, STRONG }
 
@@ -69,6 +72,29 @@ class BatteryAwarePolicy @Inject constructor(
 		trySend(stickyIntent?.batteryPercentageOrNull() ?: currentBatteryLevel())
 		awaitClose { context.unregisterReceiver(receiver) }
 	}
+
+	/** Battery Saver changes adjust the source plan; they do not terminate tracking. */
+	val powerSaveModeUpdates: Flow<Boolean> = callbackFlow {
+		val powerManager = context.getSystemService(PowerManager::class.java)
+		if (powerManager == null) {
+			trySend(false)
+			close()
+			return@callbackFlow
+		}
+		val receiver = object : BroadcastReceiver() {
+			override fun onReceive(context: Context, intent: Intent) {
+				trySend(powerManager.isPowerSaveMode)
+			}
+		}
+		ContextCompat.registerReceiver(
+			context,
+			receiver,
+			IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+			ContextCompat.RECEIVER_NOT_EXPORTED,
+		)
+		trySend(powerManager.isPowerSaveMode)
+		awaitClose { context.unregisterReceiver(receiver) }
+	}.distinctUntilChanged()
 
 	/**
 	 * Adjusts [baseTier] downward based on current battery level.

@@ -1089,6 +1089,9 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "step_fact_revision", 0)
 		assertTableCount(database, "collected_data_deletion_operation", 0)
 		assertTableCount(database, "retention_work_execution_receipt", 0)
+		assertTableCount(database, "source_event_retention_proof", 0)
+		assertTableCount(database, "source_event_retention_scope_proof", 0)
+		assertTableCount(database, "captured_radio_fact_retention_proof", 0)
 		database.query("PRAGMA table_info(collected_data_deletion_operation)").use { cursor ->
 			val columns = buildSet {
 				val nameColumn = cursor.getColumnIndexOrThrow("name")
@@ -1114,6 +1117,87 @@ class AppDatabaseMigration27To28Test {
 			assertTrue("destructive_plan" in columns)
 			assertTrue("updated_at_ms" in columns)
 		}
+		database.query("PRAGMA table_info(source_event_retention_proof)").use { cursor ->
+			val columns = buildSet {
+				val nameColumn = cursor.getColumnIndexOrThrow("name")
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertEquals(
+				setOf(
+					"source_kind",
+					"event_id",
+					"source_admission_ordinal",
+					"purpose_eligibility_mask",
+					"source_policy_revision",
+					"capture_consent_epoch",
+					"collected_data_epoch",
+					"logical_tracking_id",
+					"service_run_id",
+					"scope_deletion_generation",
+					"logical_run_scope_digest",
+					"wal_payload_checksum",
+					"wal_integrity_identity",
+					"proof_authority_fingerprint",
+					"reason",
+					"effect_checksum",
+				),
+				columns,
+			)
+		}
+		database.query("PRAGMA table_info(source_event_retention_scope_proof)").use { cursor ->
+			val columns = buildSet {
+				val nameColumn = cursor.getColumnIndexOrThrow("name")
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertEquals(
+				setOf(
+					"source_kind",
+					"purpose",
+					"logical_tracking_id",
+					"service_run_id",
+					"source_policy_revision",
+					"capture_consent_epoch",
+					"collected_data_epoch",
+					"scope_deletion_generation",
+					"logical_run_scope_digest",
+					"retained_event_high_water_ordinal",
+					"retained_event_authority_checksum",
+					"effect_checksum",
+				),
+				columns,
+			)
+		}
+		database.query("PRAGMA table_info(captured_radio_fact_retention_proof)").use { cursor ->
+			val columns = buildSet {
+				val nameColumn = cursor.getColumnIndexOrThrow("name")
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertTrue("source_kind" in columns)
+			assertTrue("logical_fact_id" in columns)
+			assertTrue("source_event_id" in columns)
+			assertTrue("logical_tracking_id" in columns)
+			assertTrue("service_run_id" in columns)
+			assertTrue("scope_deletion_generation" in columns)
+			assertTrue("aggregate_owner_logical_fact_id" in columns)
+			assertTrue("aggregate_owner_cursor_revision" in columns)
+			assertTrue("retained_from_ms" in columns)
+			assertTrue("effect_checksum" in columns)
+		}
+		assertIndexColumns(
+			database,
+			"idx_source_event_retention_scope_run",
+			listOf("source_kind", "logical_tracking_id", "service_run_id"),
+		)
+		assertIndexColumns(
+			database,
+			"idx_captured_radio_retention_event",
+			listOf("source_kind", "source_event_id"),
+		)
+		assertIndexColumns(
+			database,
+			"idx_captured_radio_retention_floor",
+			listOf("source_kind", "retained_from_ms"),
+		)
 		assertTableCount(database, "ambient_steps_fact_revision", 0)
 		assertEquals(
 			StepsCountDomainSchemaState.ValidV2,
@@ -1269,6 +1353,36 @@ class AppDatabaseMigration27To28Test {
 		)
 		// Legacy pressure_sample rows lack v4 qualification and must never be backfilled.
 		assertTableCount(database, "pressure_fact_revision", 0)
+		assertTableCount(database, "pressure_fact_retention_authority", 0)
+		assertTableCount(database, "pressure_fact_retention_revision_authority", 0)
+		database.query("PRAGMA table_info(pressure_fact_retention_authority)").use { cursor ->
+			val nameColumn = cursor.getColumnIndexOrThrow("name")
+			val columns = buildSet {
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertTrue("logical_fact_id" in columns)
+			assertTrue("current_source_event_id" in columns)
+			assertTrue("trigger_source_event_id" in columns)
+			assertTrue("retained_from_ms" in columns)
+			assertTrue("lineage_effect_checksum" in columns)
+			assertTrue("revision_authority_set_checksum" in columns)
+			assertTrue("effect_checksum" in columns)
+		}
+		database.query(
+			"PRAGMA table_info(pressure_fact_retention_revision_authority)",
+		).use { cursor ->
+			val nameColumn = cursor.getColumnIndexOrThrow("name")
+			val columns = buildSet {
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertTrue("logical_fact_id" in columns)
+			assertTrue("semantic_revision" in columns)
+			assertTrue("source_event_id" in columns)
+			assertTrue("source_admission_ordinal" in columns)
+			assertTrue("revision_effect_checksum" in columns)
+			assertTrue("parent_authority_checksum" in columns)
+			assertTrue("effect_checksum" in columns)
+		}
 		// Legacy Activity snapshots lack captured-window authority and must never be backfilled.
 		assertTableCount(database, "activity_captured_registration_plan", 0)
 		assertTableCount(database, "activity_captured_window_revision", 0)
@@ -1295,6 +1409,92 @@ class AppDatabaseMigration27To28Test {
 				"semantic_revision",
 			),
 		)
+		assertIndexColumns(
+			database = database,
+			indexName = "idx_activity_captured_evidence_writer_admission",
+			expected = listOf(
+				"writer_projection_id",
+				"writer_projection_version",
+				"source_admission_ordinal",
+			),
+		)
+		assertIndexColumns(
+			database = database,
+			indexName = "idx_pressure_fact_revision_writer_admission",
+			expected = listOf(
+				"writer_projection_id",
+				"writer_projection_version",
+				"source_admission_ordinal",
+			),
+		)
+		assertIndexColumns(
+			database = database,
+			indexName = "idx_pressure_retention_current_event",
+			expected = listOf(
+				"writer_projection_id",
+				"writer_projection_version",
+				"current_source_event_id",
+			),
+		)
+		assertIndexColumns(
+			database = database,
+			indexName = "idx_pressure_retention_trigger_evidence",
+			expected = listOf(
+				"trigger_source_event_id",
+				"trigger_source_admission_ordinal",
+			),
+		)
+		assertIndexColumns(
+			database = database,
+			indexName = "idx_pressure_retention_revision_event",
+			expected = listOf(
+				"writer_projection_id",
+				"writer_projection_version",
+				"source_event_id",
+			),
+		)
+		assertIndexColumns(
+			database = database,
+			indexName = "idx_pressure_retention_revision_admission",
+			expected = listOf(
+				"writer_projection_id",
+				"writer_projection_version",
+				"source_admission_ordinal",
+			),
+		)
+		database.query(
+			"SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?",
+			arrayOf("reject_pressure_fact_retention_resurrection"),
+		).use { cursor ->
+			assertTrue("Pressure retention resurrection trigger", cursor.moveToFirst())
+		}
+		assertIndexColumns(
+			database = database,
+			indexName = "idx_wifi_captured_fact_admission",
+			expected = listOf(
+				"writer_projection_id",
+				"writer_projection_version",
+				"source_admission_ordinal",
+			),
+		)
+		assertIndexColumns(
+			database = database,
+			indexName = "idx_cell_captured_fact_admission",
+			expected = listOf(
+				"writer_projection_id",
+				"writer_projection_version",
+				"source_admission_ordinal",
+			),
+		)
+		database.query("PRAGMA table_info(location_observation_decision)").use { cursor ->
+			val columns = buildSet {
+				while (cursor.moveToNext()) add(cursor.getString(1))
+			}
+			assertTrue("writer_projection_id" in columns)
+			assertTrue("writer_projection_version" in columns)
+			assertTrue("writer_binding_generation" in columns)
+			assertTrue("writer_owner_generation" in columns)
+		}
 		assertTableCount(database, "source_deletion_fence", 0)
 		assertTableCount(database, "source_destination_owner", 5)
 		database.query(

@@ -1,11 +1,15 @@
 package com.adsamcik.tracker.app.tracebox
 
 import android.app.ActivityManager
+import android.app.usage.UsageStatsManager
 import android.content.Context
+import android.location.LocationManager
 import android.os.BatteryManager
+import android.os.Build
 import android.os.Debug
 import android.os.PowerManager
 import android.os.SystemClock
+import androidx.core.location.LocationManagerCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
@@ -100,6 +104,33 @@ internal class TrackerRuntimeMeasurements(
 				public(snapshot.nativeHeapAllocatedKiB),
 				public(snapshot.trimLevel),
 			)
+			logger.performanceEvent(
+				TrackerTraceboxTemplates.APPLICATION_PLATFORM_RESTRICTION_MEASUREMENT,
+				public(foreground),
+				public(foregroundEntryCount),
+				public(snapshot.batteryOptimizationsExempt != null),
+				public(snapshot.batteryOptimizationsExempt ?: false),
+				public(snapshot.backgroundRestricted != null),
+				public(snapshot.backgroundRestricted ?: false),
+				public(snapshot.appStandbyBucket != null),
+				public(snapshot.appStandbyBucket ?: 0),
+			)
+			logger.performanceEvent(
+				TrackerTraceboxTemplates.APPLICATION_LOCATION_CAPABILITY_MEASUREMENT,
+				public(foreground),
+				public(foregroundEntryCount),
+				public(snapshot.locationServiceAvailable),
+				public(snapshot.locationServicesEnabled != null),
+				public(snapshot.locationServicesEnabled ?: false),
+				public(snapshot.gpsProviderAvailable != null),
+				public(snapshot.gpsProviderAvailable ?: false),
+				public(snapshot.gpsProviderEnabled != null),
+				public(snapshot.gpsProviderEnabled ?: false),
+				public(snapshot.networkProviderAvailable != null),
+				public(snapshot.networkProviderAvailable ?: false),
+				public(snapshot.networkProviderEnabled != null),
+				public(snapshot.networkProviderEnabled ?: false),
+			)
 		}
 	}
 
@@ -123,6 +154,15 @@ internal data class TrackerResourceSnapshot(
 	val interactive: Boolean,
 	val deviceIdle: Boolean,
 	val powerSave: Boolean,
+	val batteryOptimizationsExempt: Boolean?,
+	val backgroundRestricted: Boolean?,
+	val appStandbyBucket: Int?,
+	val locationServiceAvailable: Boolean,
+	val locationServicesEnabled: Boolean?,
+	val gpsProviderAvailable: Boolean?,
+	val gpsProviderEnabled: Boolean?,
+	val networkProviderAvailable: Boolean?,
+	val networkProviderEnabled: Boolean?,
 	val processPssKiB: Long,
 	val javaHeapUsedKiB: Long,
 	val nativeHeapAllocatedKiB: Long,
@@ -133,6 +173,10 @@ internal class AndroidTrackerRuntimeMeasurementSource(context: Context) :
 	TrackerRuntimeMeasurementSource {
 	private val batteryManager = context.getSystemService(BatteryManager::class.java)
 	private val powerManager = context.getSystemService(PowerManager::class.java)
+	private val activityManager = context.getSystemService(ActivityManager::class.java)
+	private val usageStatsManager = context.getSystemService(UsageStatsManager::class.java)
+	private val locationManager = context.getSystemService(LocationManager::class.java)
+	private val packageName = context.packageName
 
 	override fun processStartedAtElapsedRealtimeMs(): Long =
 		android.os.Process.getStartElapsedRealtime()
@@ -145,6 +189,8 @@ internal class AndroidTrackerRuntimeMeasurementSource(context: Context) :
 		val runtime = Runtime.getRuntime()
 		val processInfo = ActivityManager.RunningAppProcessInfo()
 		ActivityManager.getMyMemoryState(processInfo)
+		val gpsProviderAvailable = providerAvailable(LocationManager.GPS_PROVIDER)
+		val networkProviderAvailable = providerAvailable(LocationManager.NETWORK_PROVIDER)
 		return TrackerResourceSnapshot(
 			batteryServiceAvailable = batteryManager != null,
 			batteryPercent = batteryManager
@@ -160,6 +206,26 @@ internal class AndroidTrackerRuntimeMeasurementSource(context: Context) :
 			interactive = powerManager?.isInteractive == true,
 			deviceIdle = powerManager?.isDeviceIdleMode == true,
 			powerSave = powerManager?.isPowerSaveMode == true,
+			batteryOptimizationsExempt = powerManager
+				?.isIgnoringBatteryOptimizations(packageName),
+			backgroundRestricted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+				activityManager?.isBackgroundRestricted
+			} else {
+				null
+			},
+			appStandbyBucket = readAppStandbyBucket(),
+			locationServiceAvailable = locationManager != null,
+			locationServicesEnabled = readLocationServicesEnabled(),
+			gpsProviderAvailable = gpsProviderAvailable,
+			gpsProviderEnabled = providerEnabled(
+				LocationManager.GPS_PROVIDER,
+				gpsProviderAvailable,
+			),
+			networkProviderAvailable = networkProviderAvailable,
+			networkProviderEnabled = providerEnabled(
+				LocationManager.NETWORK_PROVIDER,
+				networkProviderAvailable,
+			),
 			processPssKiB = Debug.getPss().coerceAtLeast(0L),
 			javaHeapUsedKiB = (
 				(runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L) / BYTES_PER_KIB
@@ -169,6 +235,45 @@ internal class AndroidTrackerRuntimeMeasurementSource(context: Context) :
 			),
 			trimLevel = processInfo.lastTrimLevel,
 		)
+	}
+
+	private fun readAppStandbyBucket(): Int? {
+		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return null
+		return try {
+			usageStatsManager?.appStandbyBucket
+		} catch (_: SecurityException) {
+			null
+		}
+	}
+
+	private fun readLocationServicesEnabled(): Boolean? {
+		val manager = locationManager ?: return null
+		return try {
+			LocationManagerCompat.isLocationEnabled(manager)
+		} catch (_: SecurityException) {
+			null
+		}
+	}
+
+	private fun providerAvailable(provider: String): Boolean? {
+		val manager = locationManager ?: return null
+		return try {
+			provider in manager.allProviders
+		} catch (_: SecurityException) {
+			null
+		}
+	}
+
+	private fun providerEnabled(provider: String, available: Boolean?): Boolean? {
+		val manager = locationManager ?: return null
+		if (available != true) return null
+		return try {
+			manager.isProviderEnabled(provider)
+		} catch (_: SecurityException) {
+			null
+		} catch (_: IllegalArgumentException) {
+			null
+		}
 	}
 
 	private companion object {

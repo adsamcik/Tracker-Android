@@ -146,6 +146,26 @@ class ActiveDatabasePreflight internal constructor(
 			FinalV28MarkerState.VALID -> Unit
 		}
 		if (!FINAL_V28_REQUIRED_TABLES.all(database::hasTable) ||
+			!database.hasExactColumns(
+				FINAL_V28_SOURCE_EVENT_RETENTION_PROOF_TABLE,
+				FINAL_V28_SOURCE_EVENT_RETENTION_PROOF_COLUMNS,
+			) ||
+			!database.hasExactColumns(
+				FINAL_V28_SOURCE_EVENT_RETENTION_SCOPE_PROOF_TABLE,
+				FINAL_V28_SOURCE_EVENT_RETENTION_SCOPE_PROOF_COLUMNS,
+			) ||
+			!database.hasExactColumns(
+				FINAL_V28_CAPTURED_RADIO_RETENTION_PROOF_TABLE,
+				FINAL_V28_CAPTURED_RADIO_RETENTION_PROOF_COLUMNS,
+			) ||
+			!database.hasExactColumns(
+				FINAL_V28_PRESSURE_RETENTION_AUTHORITY_TABLE,
+				FINAL_V28_PRESSURE_RETENTION_AUTHORITY_COLUMNS,
+			) ||
+			!database.hasExactColumns(
+				FINAL_V28_PRESSURE_RETENTION_REVISION_AUTHORITY_TABLE,
+				FINAL_V28_PRESSURE_RETENTION_REVISION_AUTHORITY_COLUMNS,
+			) ||
 			!database.hasColumn(FINAL_V28_REQUIRED_COLUMN_TABLE, FINAL_V28_REQUIRED_COLUMN) ||
 			!database.hasColumn(
 				FINAL_V28_RADIO_RECEIPT_TABLE,
@@ -163,9 +183,14 @@ class ActiveDatabasePreflight internal constructor(
 			!FINAL_V28_CALLER_AUTHORITY_COLUMNS.all { column ->
 				database.hasColumn(FINAL_V28_CALLER_AUTHORITY_TABLE, column)
 			} ||
+			!FINAL_V28_LOCATION_DECISION_COLUMNS.all { column ->
+				database.hasColumn(FINAL_V28_LOCATION_DECISION_TABLE, column)
+			} ||
 			!FINAL_V28_STEPS_TABLE_COLUMNS.all { (table, columns) ->
 				database.hasExactColumns(table, columns)
 			} ||
+			!FINAL_V28_LIFECYCLE_PROOF_INDEXES.all(database::hasExactIndex) ||
+			!database.hasTrigger(FINAL_V28_PRESSURE_RETENTION_TRIGGER) ||
 			!FINAL_V28_STEPS_INDEXES.all(database::hasExactIndex) ||
 			!FINAL_V28_STEPS_TRIGGERS.all(database::hasTrigger) ||
 			!database.hasExactStepsCountDomainMarker() ||
@@ -513,9 +538,14 @@ private enum class FinalV28MarkerState {
 
 internal const val FINAL_V28_MARKER_ID = -280_917
 internal const val FINAL_V28_ASSEMBLY_ID =
-	"tracker-v28-adaptive-location-authority-20260926"
+	"tracker-v28-reconciled-source-inputs-20260927"
 private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
+	"tracker-v28-adaptive-location-authority-20260926",
+	"tracker-v28-authenticated-retention-scope-proof-20260921",
 	"tracker-v28-applied-source-plan-state-20260920",
+	"tracker-v28-retention-scope-proof-20260921",
+	"tracker-v28-radio-source-erase-proof-20260921",
+	"tracker-v28-radio-fact-retention-proof-20260921",
 	"tracker-v28-final-20260917",
 	"tracker-v28-retention-final-20260917",
 	"tracker-v28-retention-integrity-20260918",
@@ -527,6 +557,11 @@ private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
 	"tracker-v28-portable-ambient-graph-revision-20260920",
 	"tracker-v28-portable-ambient-graph-provenance-20260920",
 	"tracker-v28-portable-steps-disk-staging-20260920",
+	"tracker-v28-lifecycle-source-proof-20260920",
+	"tracker-v28-lifecycle-retention-proof-20260920",
+	"tracker-v28-lifecycle-retention-authority-proof-20260920",
+	"tracker-v28-pressure-retention-revision-authority-20260921",
+	"tracker-v28-pressure-lineage-retention-authority-20260921",
 )
 
 private val BASELINE_TABLES = setOf(
@@ -541,6 +576,11 @@ private val FINAL_V28_REQUIRED_TABLES = setOf(
 	"ambient_steps_native_replay_footprint",
 	"collected_data_deletion_operation",
 	"retention_work_execution_receipt",
+	FINAL_V28_SOURCE_EVENT_RETENTION_PROOF_TABLE,
+	FINAL_V28_SOURCE_EVENT_RETENTION_SCOPE_PROOF_TABLE,
+	FINAL_V28_CAPTURED_RADIO_RETENTION_PROOF_TABLE,
+	FINAL_V28_PRESSURE_RETENTION_AUTHORITY_TABLE,
+	FINAL_V28_PRESSURE_RETENTION_REVISION_AUTHORITY_TABLE,
 	FINAL_V28_CALLER_AUTHORITY_TABLE,
 	StepsCountDomainSchema.RECEIPT_TABLE,
 	StepsCountDomainSchema.OWNER_TABLE,
@@ -600,6 +640,126 @@ private const val FINAL_V28_REQUIRED_COLUMN_TABLE = "pending_signal"
 private const val FINAL_V28_REQUIRED_COLUMN = "pressure_writer_owner_generation"
 private const val FINAL_V28_RADIO_RECEIPT_TABLE = "cell_captured_entry_deletion_receipt"
 private const val FINAL_V28_RADIO_RECEIPT_COLUMN = "retained_from_ms"
+private const val FINAL_V28_SOURCE_EVENT_RETENTION_PROOF_TABLE =
+	"source_event_retention_proof"
+private val FINAL_V28_SOURCE_EVENT_RETENTION_PROOF_COLUMNS = listOf(
+	"source_kind",
+	"event_id",
+	"source_admission_ordinal",
+	"purpose_eligibility_mask",
+	"source_policy_revision",
+	"capture_consent_epoch",
+	"collected_data_epoch",
+	"logical_tracking_id",
+	"service_run_id",
+	"scope_deletion_generation",
+	"logical_run_scope_digest",
+	"wal_payload_checksum",
+	"wal_integrity_identity",
+	"proof_authority_fingerprint",
+	"reason",
+	"effect_checksum",
+)
+private const val FINAL_V28_SOURCE_EVENT_RETENTION_SCOPE_PROOF_TABLE =
+	"source_event_retention_scope_proof"
+private val FINAL_V28_SOURCE_EVENT_RETENTION_SCOPE_PROOF_COLUMNS = listOf(
+	"source_kind",
+	"purpose",
+	"logical_tracking_id",
+	"service_run_id",
+	"source_policy_revision",
+	"capture_consent_epoch",
+	"collected_data_epoch",
+	"scope_deletion_generation",
+	"logical_run_scope_digest",
+	"retained_event_high_water_ordinal",
+	"retained_event_authority_checksum",
+	"effect_checksum",
+)
+private const val FINAL_V28_CAPTURED_RADIO_RETENTION_PROOF_TABLE =
+	"captured_radio_fact_retention_proof"
+private val FINAL_V28_CAPTURED_RADIO_RETENTION_PROOF_COLUMNS = listOf(
+	"source_kind",
+	"writer_projection_id",
+	"writer_projection_version",
+	"writer_binding_generation",
+	"writer_owner_generation",
+	"logical_fact_id",
+	"semantic_revision",
+	"mutation_id",
+	"fact_effect_checksum",
+	"source_event_id",
+	"source_admission_ordinal",
+	"wal_integrity_identity",
+	"source_policy_revision",
+	"capture_consent_epoch",
+	"collected_data_epoch",
+	"logical_tracking_id",
+	"service_run_id",
+	"scope_deletion_generation",
+	"logical_run_scope_digest",
+	"cursor_revision",
+	"cursor_mutation_id",
+	"cursor_effect_checksum",
+	"cursor_source_admission_ordinal",
+	"cursor_updated_at_ms",
+	"aggregate_owner_logical_fact_id",
+	"aggregate_owner_semantic_revision",
+	"aggregate_owner_source_event_id",
+	"aggregate_owner_source_admission_ordinal",
+	"aggregate_owner_wal_integrity_identity",
+	"aggregate_owner_effect_checksum",
+	"aggregate_owner_cursor_revision",
+	"retained_from_ms",
+	"retained_at_ms",
+	"reason",
+	"effect_checksum",
+)
+private const val FINAL_V28_PRESSURE_RETENTION_AUTHORITY_TABLE =
+	"pressure_fact_retention_authority"
+private val FINAL_V28_PRESSURE_RETENTION_AUTHORITY_COLUMNS = listOf(
+	"writer_projection_id",
+	"writer_projection_version",
+	"logical_fact_id",
+	"current_semantic_revision",
+	"current_source_event_id",
+	"current_source_admission_ordinal",
+	"current_source_policy_revision",
+	"current_capture_consent_epoch",
+	"trigger_semantic_revision",
+	"trigger_source_event_id",
+	"trigger_source_admission_ordinal",
+	"trigger_source_policy_revision",
+	"trigger_capture_consent_epoch",
+	"logical_tracking_id",
+	"service_run_id",
+	"collected_data_epoch",
+	"retained_from_ms",
+	"lineage_interval_start_ms",
+	"lineage_interval_end_ms",
+	"lineage_earliest_possible_start_ms",
+	"lineage_revision_count",
+	"lineage_effect_checksum",
+	"revision_authority_set_checksum",
+	"retained_at_ms",
+	"reason",
+	"effect_checksum",
+)
+private const val FINAL_V28_PRESSURE_RETENTION_REVISION_AUTHORITY_TABLE =
+	"pressure_fact_retention_revision_authority"
+private val FINAL_V28_PRESSURE_RETENTION_REVISION_AUTHORITY_COLUMNS = listOf(
+	"writer_projection_id",
+	"writer_projection_version",
+	"logical_fact_id",
+	"semantic_revision",
+	"source_event_id",
+	"source_admission_ordinal",
+	"source_policy_revision",
+	"capture_consent_epoch",
+	"revision_effect_checksum",
+	"parent_authority_checksum",
+	"effect_checksum",
+)
 private val FINAL_V28_APPLIED_PLAN_COLUMNS = listOf(
 	FinalV28ColumnSentinel(
 		table = "source_applied_plan_state",
@@ -670,6 +830,109 @@ private val FINAL_V28_CALLER_AUTHORITY_COLUMNS = setOf(
 )
 private const val FINAL_V28_CALLER_AUTHORITY_INDEX = "idx_source_caller_authority_status"
 private const val FINAL_V28_CALLER_AUTHORITY_INDEX_COLUMN = "status"
+private const val FINAL_V28_LOCATION_DECISION_TABLE = "location_observation_decision"
+private val FINAL_V28_LOCATION_DECISION_COLUMNS = setOf(
+	"writer_projection_id",
+	"writer_projection_version",
+	"writer_binding_generation",
+	"writer_owner_generation",
+)
+private val FINAL_V28_LIFECYCLE_PROOF_INDEXES = listOf(
+	FinalV28IndexSentinel(
+		"source_event_retention_proof",
+		"idx_source_event_retention_proof_admission",
+		listOf("source_kind", "source_admission_ordinal"),
+		unique = true,
+	),
+	FinalV28IndexSentinel(
+		FINAL_V28_SOURCE_EVENT_RETENTION_SCOPE_PROOF_TABLE,
+		"idx_source_event_retention_scope_run",
+		listOf("source_kind", "logical_tracking_id", "service_run_id"),
+		unique = true,
+	),
+	FinalV28IndexSentinel(
+		FINAL_V28_CAPTURED_RADIO_RETENTION_PROOF_TABLE,
+		"idx_captured_radio_retention_event",
+		listOf("source_kind", "source_event_id"),
+		unique = true,
+	),
+	FinalV28IndexSentinel(
+		FINAL_V28_CAPTURED_RADIO_RETENTION_PROOF_TABLE,
+		"idx_captured_radio_retention_floor",
+		listOf("source_kind", "retained_from_ms"),
+		unique = false,
+	),
+	FinalV28IndexSentinel(
+		"activity_captured_evidence",
+		"idx_activity_captured_evidence_writer_admission",
+		listOf("writer_projection_id", "writer_projection_version", "source_admission_ordinal"),
+		unique = false,
+	),
+	FinalV28IndexSentinel(
+		"pressure_fact_revision",
+		"idx_pressure_fact_revision_writer_admission",
+		listOf("writer_projection_id", "writer_projection_version", "source_admission_ordinal"),
+		unique = true,
+	),
+	FinalV28IndexSentinel(
+		FINAL_V28_PRESSURE_RETENTION_AUTHORITY_TABLE,
+		"idx_pressure_retention_current_event",
+		listOf("writer_projection_id", "writer_projection_version", "current_source_event_id"),
+		unique = true,
+	),
+	FinalV28IndexSentinel(
+		FINAL_V28_PRESSURE_RETENTION_AUTHORITY_TABLE,
+		"idx_pressure_retention_current_admission",
+		listOf(
+			"writer_projection_id",
+			"writer_projection_version",
+			"current_source_admission_ordinal",
+		),
+		unique = true,
+	),
+	FinalV28IndexSentinel(
+		FINAL_V28_PRESSURE_RETENTION_AUTHORITY_TABLE,
+		"idx_pressure_retention_trigger_evidence",
+		listOf("trigger_source_event_id", "trigger_source_admission_ordinal"),
+		unique = false,
+	),
+	FinalV28IndexSentinel(
+		FINAL_V28_PRESSURE_RETENTION_AUTHORITY_TABLE,
+		"idx_pressure_retention_run_scope",
+		listOf("service_run_id", "logical_tracking_id", "logical_fact_id"),
+		unique = false,
+	),
+	FinalV28IndexSentinel(
+		FINAL_V28_PRESSURE_RETENTION_REVISION_AUTHORITY_TABLE,
+		"idx_pressure_retention_revision_event",
+		listOf("writer_projection_id", "writer_projection_version", "source_event_id"),
+		unique = true,
+	),
+	FinalV28IndexSentinel(
+		FINAL_V28_PRESSURE_RETENTION_REVISION_AUTHORITY_TABLE,
+		"idx_pressure_retention_revision_admission",
+		listOf(
+			"writer_projection_id",
+			"writer_projection_version",
+			"source_admission_ordinal",
+		),
+		unique = true,
+	),
+	FinalV28IndexSentinel(
+		"wifi_captured_fact_revision",
+		"idx_wifi_captured_fact_admission",
+		listOf("writer_projection_id", "writer_projection_version", "source_admission_ordinal"),
+		unique = false,
+	),
+	FinalV28IndexSentinel(
+		"cell_captured_fact_revision",
+		"idx_cell_captured_fact_admission",
+		listOf("writer_projection_id", "writer_projection_version", "source_admission_ordinal"),
+		unique = false,
+	),
+)
+private const val FINAL_V28_PRESSURE_RETENTION_TRIGGER =
+	"reject_pressure_fact_retention_resurrection"
 private val FINAL_V28_STEPS_TABLE_COLUMNS = mapOf(
 	StepsCountDomainSchema.RECEIPT_TABLE to listOf(
 		"receipt_identity",

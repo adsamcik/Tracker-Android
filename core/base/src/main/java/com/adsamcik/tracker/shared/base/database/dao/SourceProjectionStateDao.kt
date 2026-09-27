@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -11,6 +12,11 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionJoinStateE
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+
+data class SourceProjectionJoinStateMetadata(
+	@ColumnInfo(name = "state_key") val stateKey: String,
+	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
+)
 
 @Dao
 interface SourceProjectionStateDao {
@@ -333,6 +339,21 @@ interface SourceProjectionStateDao {
 	suspend fun joinStates(projectionId: String, projectionVersion: Int): List<SourceProjectionJoinStateEntity>
 
 	@Query(
+		"SELECT state_key, logical_tracking_id FROM source_projection_join_state " +
+			"WHERE projection_id = :projectionId AND projection_version = :projectionVersion " +
+			"AND state_key >= :stateKeyPrefix AND state_key < :stateKeyUpperBound " +
+			"AND state_key > :afterStateKey ORDER BY state_key LIMIT :limit",
+	)
+	suspend fun joinStateMetadataPage(
+		projectionId: String,
+		projectionVersion: Int,
+		stateKeyPrefix: String,
+		stateKeyUpperBound: String,
+		afterStateKey: String,
+		limit: Int,
+	): List<SourceProjectionJoinStateMetadata>
+
+	@Query(
 		"SELECT * FROM source_projection_join_state " +
 			"WHERE projection_id = :projectionId AND projection_version = :projectionVersion " +
 			"AND state_key = :stateKey",
@@ -348,6 +369,17 @@ interface SourceProjectionStateDao {
 			"WHERE projection_id = :projectionId AND projection_version = :projectionVersion AND state_key = :stateKey",
 	)
 	suspend fun deleteJoinState(projectionId: String, projectionVersion: Int, stateKey: String)
+
+	@Query(
+		"DELETE FROM source_projection_join_state " +
+			"WHERE projection_id = :projectionId AND projection_version = :projectionVersion " +
+			"AND state_key IN (:stateKeys)",
+	)
+	suspend fun deleteJoinStates(
+		projectionId: String,
+		projectionVersion: Int,
+		stateKeys: List<String>,
+	): Int
 
 	@Query(
 		"SELECT MIN(COALESCE(checkpoint.contiguous_admission_ordinal, " +

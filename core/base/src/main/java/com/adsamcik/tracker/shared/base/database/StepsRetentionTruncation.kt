@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateIdentity
 import com.adsamcik.tracker.shared.base.database.dao.hasValidStepsFactCandidateState
 import com.adsamcik.tracker.shared.base.database.dao.visitStepsFactCandidateStatesByRun
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
@@ -225,7 +226,11 @@ private suspend fun AppDatabase.visitAuthenticatedRetentionRunBatches(
 				return@visitStepsFactCandidateStatesByRun true
 			}
 			builder.authenticatedFacts[identity] = scope
-			if (requireNotNull(scope.intervalEndTimeMs) < beforeMs) {
+			if (CanonicalRetentionBounds.stepsWindowCrossesFloor(
+					scope.intervalEndTimeMs,
+					beforeMs,
+				)
+			) {
 				builder.expiredFactIdentities += identity
 				if (state.operation == StepFactRevisionEntity.OPERATION_UPSERT) {
 					builder.requiresRetentionMarker = true

@@ -397,6 +397,8 @@ data class ProviderRegistrationGenerationEntity(
 		const val STATUS_RETIRING = "RETIRING"
 		const val STATUS_RETIRED = "RETIRED"
 		const val STATUS_FAILED = "FAILED"
+		const val FAILURE_PRIOR_PROCESS_INCARNATION_ENDED =
+			"PRIOR_PROCESS_INCARNATION_ENDED"
 	}
 }
 

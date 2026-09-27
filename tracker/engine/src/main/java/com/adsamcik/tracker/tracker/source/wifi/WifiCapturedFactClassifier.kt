@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.source.wifi
 
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.MAX_WIFI_WAL_PAYLOAD_BYTES
+import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
@@ -39,6 +41,7 @@ internal data class WifiDurableClockEvidence(
 	val observedIntervalStartElapsedRealtimeNanos: Long,
 	val observedElapsedRealtimeNanos: Long,
 	val receivedElapsedRealtimeNanos: Long,
+	val receivedWallTimeMs: Long,
 	val observedWallTimeMs: Long,
 	val wallTimeUncertaintyMs: Long,
 )
@@ -104,6 +107,7 @@ internal data class WifiWalObservationEvidence(
 		observedElapsedNanos = clock.observedElapsedRealtimeNanos,
 		observedIntervalStartNanos = clock.observedIntervalStartElapsedRealtimeNanos,
 		receivedElapsedNanos = clock.receivedElapsedRealtimeNanos,
+		receivedWallTimeMs = clock.receivedWallTimeMs,
 		wallTimeMs = clock.observedWallTimeMs,
 		wallTimeUncertaintyMs = clock.wallTimeUncertaintyMs,
 		capturedCollectedDataEpoch = capturedCollectedDataEpoch,
@@ -217,7 +221,7 @@ internal object WifiCapturedFactClassifier {
 		if (wal.configurationRevision?.let { it != qualifiedPlan.plan.revision } == true) {
 			return rejected(WifiFactRejection.ACQUISITION_PLAN_UNVERIFIABLE)
 		}
-		if (wal.payloadBytes.size > MAX_CANONICAL_WIFI_PAYLOAD_BYTES) {
+		if (wal.payloadBytes.size > MAX_WIFI_WAL_PAYLOAD_BYTES) {
 			return rejected(WifiFactRejection.PAYLOAD_TOO_LARGE)
 		}
 		val payload = decodeWalPayload(wal) ?: return walPayloadRejection(wal)
@@ -453,14 +457,14 @@ internal object WifiCapturedFactClassifier {
 		val bytes = wal.payloadBytes.toByteArray()
 		if (bytes.sha256() != wal.payloadChecksum ||
 			wal.calculatedWalIntegrityIdentity() != wal.walIntegrityIdentity ||
-			wal.payloadVersion != WIFI_PAYLOAD_VERSION
+			wal.payloadVersion != WIFI_WAL_PAYLOAD_VERSION
 		) {
 			return null
 		}
 		return runCatching {
 			val decoded = payloadCodec.decode(SourceKind.WIFI, wal.payloadVersion, bytes)
 				as? WifiResultSnapshotPayload ?: return@runCatching null
-			val canonical = payloadCodec.encode(decoded, WIFI_PAYLOAD_VERSION).bytes
+			val canonical = payloadCodec.encode(decoded, WIFI_WAL_PAYLOAD_VERSION).bytes
 			decoded.takeIf { canonical.contentEquals(bytes) }
 		}.getOrNull()
 	}
@@ -606,6 +610,7 @@ internal object WifiCapturedFactClassifier {
 			observedIntervalStartElapsedRealtimeNanos > 0L &&
 			observedElapsedRealtimeNanos >= observedIntervalStartElapsedRealtimeNanos &&
 			receivedElapsedRealtimeNanos >= observedElapsedRealtimeNanos &&
+			receivedWallTimeMs >= observedWallTimeMs &&
 			observedWallTimeMs >= 0L && wallTimeUncertaintyMs >= 0L
 
 	private fun WifiResultSnapshotPayload.providerTimelineMatches(
@@ -748,7 +753,6 @@ internal object WifiCapturedFactClassifier {
 	private enum class WifiBand { TWO_POINT_FOUR_GHZ, FIVE_GHZ, SIX_GHZ, OTHER }
 
 	private const val SOURCE_PLAN_PAYLOAD_VERSION = 1
-	private const val WIFI_PAYLOAD_VERSION = 2
 	private const val NANOS_PER_MILLISECOND = 1_000_000L
 	private const val WIFI_24_GHZ_MIN_MHZ = 2_400
 	private const val WIFI_24_GHZ_MAX_MHZ = 2_500
@@ -756,10 +760,6 @@ internal object WifiCapturedFactClassifier {
 	private const val WIFI_5_GHZ_MAX_MHZ = 5_900
 	private const val WIFI_6_GHZ_MIN_MHZ = 5_925
 	private const val WIFI_6_GHZ_MAX_MHZ = 7_125
-	// Canonical v2 bytes: type + count + 64 minimized APs + platform time + null result age.
-	// A minimized AP is empty modified-UTF (2), frequency (4), signal (4), and timestamp (1 + 8).
-	private val MAX_CANONICAL_WIFI_PAYLOAD_BYTES = 4 + 4 +
-		(WifiIdentityFreeResultContract.ANDROID_SCAN_RESULTS_V1.maximumAccessPointCount * 19) + 9 + 1
 	private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
 	private val WIFI_PROVIDER_ITEM_ORDER = compareBy<WifiAccessPointEvidence>(
 		WifiAccessPointEvidence::frequencyMhz,

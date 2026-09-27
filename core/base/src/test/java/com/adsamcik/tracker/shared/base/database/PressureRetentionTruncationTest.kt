@@ -1,23 +1,33 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
+import android.database.sqlite.SQLiteException
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.MAX_PRESSURE_RETENTION_REVISION_AUTHORITIES
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.PressureWalClosureKind
+import com.adsamcik.tracker.shared.base.database.data.PressureWalPayload
+import com.adsamcik.tracker.shared.base.database.data.PressureWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.PressureWalSensorAccuracy
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -52,7 +62,7 @@ class PressureRetentionTruncationTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun `total revision overflow rolls back an earlier marker and lineage deletion`() = runTest {
+	fun `total page overflow rolls back an earlier marker and lineage deletion`() = runTest {
 		insertRetainedPressureRun("a", 1L)
 		insertRetainedPressureRun("b", 2L)
 
@@ -61,12 +71,14 @@ class PressureRetentionTruncationTest {
 				beforeMs = RETENTION_FLOOR_MS,
 				collectedDataEpoch = COLLECTED_DATA_EPOCH,
 				markedAtMs = MARKED_AT_MS,
-				limits = limits(maximumFactRevisions = 1L),
+				limits = limits(maximumFactPages = 1L),
 				checkpoint = {},
 			)
 		}
 
 		database.pressureFactRevisionDao().count() shouldBe 2L
+		database.pressureFactRetentionAuthorityDao().count() shouldBe 0L
+		database.pressureFactRetentionRevisionAuthorityDao().count() shouldBe 0L
 		database.sourceDeletionFenceDao().countAll() shouldBe 0L
 	}
 
@@ -89,10 +101,741 @@ class PressureRetentionTruncationTest {
 		}
 
 		database.pressureFactRevisionDao().count() shouldBe 1L
+		database.pressureFactRetentionAuthorityDao().count() shouldBe 0L
+		database.pressureFactRetentionRevisionAuthorityDao().count() shouldBe 0L
 		database.sourceDeletionFenceDao().countAll() shouldBe 0L
 	}
 
-	private suspend fun insertRetainedPressureRun(key: String, admissionOrdinal: Long) {
+	@Test
+	fun `lineage revision overflow rejects without a retention marker`() = runTest {
+		val fixture = insertRetainedPressureRun("lineage-overflow", 1L)
+		val correction = pressureCorrection(fixture, 2L, "pressure-lineage-overflow-2")
+		database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(correction))
+		database.pressureFactRevisionDao().insert(correction)
+
+		shouldThrow<IllegalStateException> {
+			database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+				beforeMs = RETENTION_FLOOR_MS,
+				collectedDataEpoch = COLLECTED_DATA_EPOCH,
+				markedAtMs = MARKED_AT_MS,
+				limits = limits(maximumLineageRevisions = 1),
+				checkpoint = {},
+			)
+		}
+
+		database.pressureFactRevisionDao().count() shouldBe 2L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `single revision Pressure retention rejects missing WAL authority`() = runTest {
+		insertRetainedPressureRun("single-missing-wal", 1L, insertWal = false)
+
+		shouldThrow<IllegalStateException> {
+			database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+				beforeMs = RETENTION_FLOOR_MS,
+				collectedDataEpoch = COLLECTED_DATA_EPOCH,
+				markedAtMs = MARKED_AT_MS,
+			)
+		}
+
+		database.pressureFactRevisionDao().count() shouldBe 1L
+		database.pressureFactRetentionAuthorityDao().count() shouldBe 0L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `single revision Pressure retention rejects mismatched WAL authority`() = runTest {
+		val fixture = insertRetainedPressureRun("single-mismatched-wal", 1L, insertWal = false)
+		val mismatched = pressureWal(fixture.fact)
+			.copy(sourcePolicyRevision = fixture.fact.sourcePolicyRevision + 1L)
+			.let { wal -> wal.copy(integrityIdentity = wal.calculatedIntegrityIdentity()) }
+		database.sourceEventWalDao().insertIgnoringDuplicate(mismatched)
+
+		shouldThrow<IllegalStateException> {
+			database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+				beforeMs = RETENTION_FLOOR_MS,
+				collectedDataEpoch = COLLECTED_DATA_EPOCH,
+				markedAtMs = MARKED_AT_MS,
+			)
+		}
+
+		database.pressureFactRevisionDao().count() shouldBe 1L
+		database.pressureFactRetentionAuthorityDao().count() shouldBe 0L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `single revision Pressure retention accepts exact WAL authority`() = runTest {
+		val fixture = insertRetainedPressureRun("single-valid-wal", 1L)
+
+		database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+			beforeMs = RETENTION_FLOOR_MS,
+			collectedDataEpoch = COLLECTED_DATA_EPOCH,
+			markedAtMs = MARKED_AT_MS,
+		) shouldBe 1
+
+		database.pressureFactRevisionDao().count() shouldBe 0L
+		database.pressureFactRetentionAuthorityDao().get(
+			fixture.fact.writerProjectionId,
+			fixture.fact.writerProjectionVersion,
+			fixture.fact.logicalFactId,
+		)?.hasValidStoredIntegrity() shouldBe true
+	}
+
+	@Test
+	fun `retention removes corrected Pressure lineage with stable fact identity and distinct WALs`() =
+		runTest {
+			val fixture = insertRetainedPressureRun("corrected", 1L)
+			val correction = pressureCorrection(fixture, 2L, "pressure-corrected-2")
+			database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(fixture.fact))
+			database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(correction))
+			database.pressureFactRevisionDao().insert(correction)
+
+			database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+				beforeMs = RETENTION_FLOOR_MS,
+				collectedDataEpoch = COLLECTED_DATA_EPOCH,
+				markedAtMs = MARKED_AT_MS,
+			) shouldBe 2
+
+			database.pressureFactRevisionDao().count() shouldBe 0L
+			database.sourceDeletionFenceDao().countAll() shouldBe 1L
+			val retained = requireNotNull(database.pressureFactRetentionAuthorityDao().get(
+				fixture.fact.writerProjectionId,
+				fixture.fact.writerProjectionVersion,
+				fixture.fact.logicalFactId,
+			))
+			retained.hasValidStoredIntegrity() shouldBe true
+			retained.triggerSourceEventId shouldBe fixture.fact.sourceEventId
+			retained.currentSourceEventId shouldBe correction.sourceEventId
+			retained.currentSemanticRevision shouldBe correction.semanticRevision
+			database.sourceEventWalDao().getByEventId(
+				correction.sourceEventId,
+			)?.eventId shouldBe correction.sourceEventId
+		}
+
+	@Test
+	fun `mixed run retains current lineages and receipts only exact deleted lineages`() = runTest {
+		val fixture = insertRetainedPressureRun("mixed", 1L)
+		val retained = retainedIndependentPressureFact(fixture, 2L)
+		database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(retained))
+		database.pressureFactRevisionDao().insert(retained)
+
+		database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+			beforeMs = RETENTION_FLOOR_MS,
+			collectedDataEpoch = COLLECTED_DATA_EPOCH,
+			markedAtMs = MARKED_AT_MS,
+		) shouldBe 1
+
+		database.pressureFactRevisionDao().latest(
+			retained.writerProjectionId,
+			retained.writerProjectionVersion,
+			retained.logicalFactId,
+		) shouldBe retained
+		database.pressureFactRevisionDao().latest(
+			fixture.fact.writerProjectionId,
+			fixture.fact.writerProjectionVersion,
+			fixture.fact.logicalFactId,
+		) shouldBe null
+		database.pressureFactRetentionAuthorityDao().get(
+			fixture.fact.writerProjectionId,
+			fixture.fact.writerProjectionVersion,
+			fixture.fact.logicalFactId,
+		)?.hasValidStoredIntegrity() shouldBe true
+		database.pressureFactRetentionAuthorityDao().get(
+			retained.writerProjectionId,
+			retained.writerProjectionVersion,
+			retained.logicalFactId,
+		) shouldBe null
+	}
+
+	@Test
+	fun `unrelated retained lineage leaves surviving evidence absent`() = runTest {
+		val fixture = insertRetainedPressureRun("mixed-resolution", 1L)
+		database.pressureFactRevisionDao().deleteExactLineages(
+			logicalTrackingId = fixture.fact.logicalTrackingId,
+			serviceRunId = fixture.fact.serviceRunId,
+			writerProjectionId = fixture.fact.writerProjectionId,
+			writerProjectionVersion = fixture.fact.writerProjectionVersion,
+			logicalFactIds = listOf(fixture.fact.logicalFactId),
+		) shouldBe 1
+		val surviving = retainedIndependentPressureFact(fixture, 2L)
+		database.pressureFactRevisionDao().insert(surviving)
+		database.persistPressureFactRetentionAuthority(
+			revisions = listOf(fixture.fact),
+			retainedFromMs = RETENTION_FLOOR_MS,
+			retainedAtMs = MARKED_AT_MS,
+		)
+
+		resolveRetentionByEvidence(surviving) shouldBe PressureFactRetentionResolution.Absent
+	}
+
+	@Test
+	fun `live retained logical fact collision invalidates absent and authenticated resolution`() =
+		runTest {
+			val fixture = insertRetainedPressureRun("live-logical-collision", 1L)
+			database.persistPressureFactRetentionAuthority(
+				revisions = listOf(fixture.fact),
+				retainedFromMs = RETENTION_FLOOR_MS,
+				retainedAtMs = MARKED_AT_MS,
+			)
+
+			resolveRetentionByEvidence(fixture.fact) shouldBe PressureFactRetentionResolution.Invalid
+			resolveRetentionByFact(fixture.fact) shouldBe PressureFactRetentionResolution.Invalid
+			val survivor = retainedIndependentPressureFact(fixture, 2L)
+			resolveRetentionByEvidence(survivor) shouldBe PressureFactRetentionResolution.Invalid
+			resolveRetentionByFact(survivor) shouldBe PressureFactRetentionResolution.Invalid
+		}
+
+	@Test
+	fun `live retained event collision invalidates run authority`() = runTest {
+		val fixture = insertRetainedPressureRun("live-event-collision", 1L)
+		database.pressureFactRevisionDao().deleteExactLineages(
+			logicalTrackingId = fixture.fact.logicalTrackingId,
+			serviceRunId = fixture.fact.serviceRunId,
+			writerProjectionId = fixture.fact.writerProjectionId,
+			writerProjectionVersion = fixture.fact.writerProjectionVersion,
+			logicalFactIds = listOf(fixture.fact.logicalFactId),
+		) shouldBe 1
+		val unsignedCollision = retainedIndependentPressureFact(fixture, 2L).copy(
+			sourceEventId = fixture.fact.sourceEventId,
+			effectChecksum = "pending",
+		)
+		val collision = unsignedCollision.copy(
+			effectChecksum =
+				PressureFactRevisionIntegrity.effectChecksum(unsignedCollision, fixture.binding),
+		)
+		database.pressureFactRevisionDao().insert(collision)
+		database.persistPressureFactRetentionAuthority(
+			revisions = listOf(fixture.fact),
+			retainedFromMs = RETENTION_FLOOR_MS,
+			retainedAtMs = MARKED_AT_MS,
+		)
+
+		resolveRetentionByEvidence(fixture.fact) shouldBe PressureFactRetentionResolution.Invalid
+		resolveRetentionByFact(fixture.fact) shouldBe PressureFactRetentionResolution.Invalid
+	}
+
+	@Test
+	fun `live retained admission collision invalidates run authority`() = runTest {
+		val fixture = insertRetainedPressureRun("live-admission-collision", 1L)
+		database.pressureFactRevisionDao().deleteExactLineages(
+			logicalTrackingId = fixture.fact.logicalTrackingId,
+			serviceRunId = fixture.fact.serviceRunId,
+			writerProjectionId = fixture.fact.writerProjectionId,
+			writerProjectionVersion = fixture.fact.writerProjectionVersion,
+			logicalFactIds = listOf(fixture.fact.logicalFactId),
+		) shouldBe 1
+		val unsignedCollision = retainedIndependentPressureFact(fixture, 2L).copy(
+			sourceAdmissionOrdinal = fixture.fact.sourceAdmissionOrdinal,
+			effectChecksum = "pending",
+		)
+		val collision = unsignedCollision.copy(
+			effectChecksum =
+				PressureFactRevisionIntegrity.effectChecksum(unsignedCollision, fixture.binding),
+		)
+		database.pressureFactRevisionDao().insert(collision)
+		database.persistPressureFactRetentionAuthority(
+			revisions = listOf(fixture.fact),
+			retainedFromMs = RETENTION_FLOOR_MS,
+			retainedAtMs = MARKED_AT_MS,
+		)
+
+		resolveRetentionByEvidence(fixture.fact) shouldBe PressureFactRetentionResolution.Invalid
+		resolveRetentionByFact(fixture.fact) shouldBe PressureFactRetentionResolution.Invalid
+	}
+
+	@Test
+	fun `exact retained event with wrong admission fails closed`() = runTest {
+		val fixture = insertRetainedPressureRun("wrong-admission", 1L)
+		database.persistPressureFactRetentionAuthority(
+			revisions = listOf(fixture.fact),
+			retainedFromMs = RETENTION_FLOOR_MS,
+			retainedAtMs = MARKED_AT_MS,
+		)
+
+		resolveRetentionByEvidence(
+			fact = fixture.fact,
+			sourceAdmissionOrdinal = fixture.fact.sourceAdmissionOrdinal + 1L,
+		) shouldBe PressureFactRetentionResolution.Invalid
+	}
+
+	@Test
+	fun `duplicate conflicting child identity invalidates surviving evidence`() = runTest {
+		val fixture = insertRetainedPressureRun("duplicate-child", 1L)
+		database.persistPressureFactRetentionAuthority(
+			revisions = listOf(fixture.fact),
+			retainedFromMs = RETENTION_FLOOR_MS,
+			retainedAtMs = MARKED_AT_MS,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"DROP INDEX idx_pressure_retention_current_event",
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"DROP INDEX idx_pressure_retention_revision_event",
+		)
+		val conflictUnsigned = independentPressureFact(fixture, 2L).copy(
+			sourceEventId = fixture.fact.sourceEventId,
+			effectChecksum = "pending",
+		)
+		val conflict = conflictUnsigned.copy(
+			effectChecksum =
+				PressureFactRevisionIntegrity.effectChecksum(conflictUnsigned, fixture.binding),
+		)
+		database.persistPressureFactRetentionAuthority(
+			revisions = listOf(conflict),
+			retainedFromMs = RETENTION_FLOOR_MS,
+			retainedAtMs = MARKED_AT_MS,
+		)
+
+		resolveRetentionByEvidence(
+			retainedIndependentPressureFact(fixture, 3L),
+		) shouldBe PressureFactRetentionResolution.Invalid
+	}
+
+	@Test
+	fun `orphan retained parent invalidates surviving evidence`() = runTest {
+		val fixture = insertRetainedPressureRun("orphan-parent", 1L)
+		database.persistPressureFactRetentionAuthority(
+			revisions = listOf(fixture.fact),
+			retainedFromMs = RETENTION_FLOOR_MS,
+			retainedAtMs = MARKED_AT_MS,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM pressure_fact_retention_revision_authority " +
+				"WHERE logical_fact_id = ?",
+			arrayOf(fixture.fact.logicalFactId),
+		)
+
+		resolveRetentionByEvidence(
+			retainedIndependentPressureFact(fixture, 2L),
+		) shouldBe PressureFactRetentionResolution.Invalid
+	}
+
+	@Test
+	fun `orphan retained child invalidates surviving evidence`() = runTest {
+		val fixture = insertRetainedPressureRun("orphan-child", 1L)
+		database.persistPressureFactRetentionAuthority(
+			revisions = listOf(fixture.fact),
+			retainedFromMs = RETENTION_FLOOR_MS,
+			retainedAtMs = MARKED_AT_MS,
+		)
+		database.openHelper.writableDatabase.execSQL("PRAGMA foreign_keys = OFF")
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM pressure_fact_retention_authority WHERE logical_fact_id = ?",
+			arrayOf(fixture.fact.logicalFactId),
+		)
+		database.openHelper.writableDatabase.execSQL("PRAGMA foreign_keys = ON")
+
+		resolveRetentionByEvidence(
+			retainedIndependentPressureFact(fixture, 2L),
+		) shouldBe PressureFactRetentionResolution.Invalid
+	}
+
+	@Test
+	fun `corrupt unrelated retained authority invalidates surviving evidence`() = runTest {
+		val fixture = insertRetainedPressureRun("corrupt-run", 1L)
+		database.persistPressureFactRetentionAuthority(
+			revisions = listOf(fixture.fact),
+			retainedFromMs = RETENTION_FLOOR_MS,
+			retainedAtMs = MARKED_AT_MS,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE pressure_fact_retention_authority SET effect_checksum = 'corrupt' " +
+				"WHERE logical_fact_id = ?",
+			arrayOf(fixture.fact.logicalFactId),
+		)
+
+		resolveRetentionByEvidence(
+			retainedIndependentPressureFact(fixture, 2L),
+		) shouldBe PressureFactRetentionResolution.Invalid
+	}
+
+	@Test
+	fun `malformed run scope cannot resolve absent retention evidence`() = runTest {
+		val fixture = insertRetainedPressureRun("malformed-scope", 1L)
+
+		resolveRetentionByEvidence(
+			fact = retainedIndependentPressureFact(fixture, 2L),
+			logicalTrackingId = "",
+		) shouldBe PressureFactRetentionResolution.Invalid
+	}
+
+	@Test
+	fun `window crossing retention floor removes the complete exact lineage`() = runTest {
+		val fixture = insertRetainedPressureRun("floor-crossing", 1L)
+		database.pressureFactRevisionDao().deleteExactLineages(
+			logicalTrackingId = fixture.fact.logicalTrackingId,
+			serviceRunId = fixture.fact.serviceRunId,
+			writerProjectionId = fixture.fact.writerProjectionId,
+			writerProjectionVersion = fixture.fact.writerProjectionVersion,
+			logicalFactIds = listOf(fixture.fact.logicalFactId),
+		) shouldBe 1
+		val wallOffsetMs = 1_400L - fixture.fact.intervalStartTimeMs
+		val unsigned = fixture.fact.copy(
+			intervalStartTimeMs = 1_400L,
+			intervalEndTimeMs = 1_400L + WINDOW_MS,
+			windowStartElapsedRealtimeNanos =
+				fixture.fact.windowStartElapsedRealtimeNanos + wallOffsetMs * 1_000_000L,
+			windowEndElapsedRealtimeNanos =
+				fixture.fact.windowEndElapsedRealtimeNanos + wallOffsetMs * 1_000_000L,
+			appliedAtMs = 1_400L + WINDOW_MS,
+			effectChecksum = "pending",
+		)
+		val crossing = unsigned.copy(
+			effectChecksum = PressureFactRevisionIntegrity.effectChecksum(unsigned, fixture.binding),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_event_wal WHERE event_id = ?",
+			arrayOf(fixture.fact.sourceEventId),
+		)
+		database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(crossing))
+		database.pressureFactRevisionDao().insert(crossing)
+
+		database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+			beforeMs = RETENTION_FLOOR_MS,
+			collectedDataEpoch = COLLECTED_DATA_EPOCH,
+			markedAtMs = MARKED_AT_MS,
+		) shouldBe 1
+
+		val authority = requireNotNull(database.pressureFactRetentionAuthorityDao().get(
+			crossing.writerProjectionId,
+			crossing.writerProjectionVersion,
+			crossing.logicalFactId,
+		))
+		authority.lineageIntervalStartMs shouldBe 1_400L
+		authority.lineageIntervalEndMs shouldBe 1_550L
+		authority.lineageEarliestPossibleStartMs shouldBe 1_399L
+	}
+
+	@Test
+	fun `older correction revision crossing floor binds current retained identity`() = runTest {
+		val fixture = insertRetainedPressureRun("old-revision", 1L)
+		database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(fixture.fact))
+		val intermediate = retainedPressureCorrection(
+			fixture = fixture,
+			admissionOrdinal = 2L,
+			eventId = "pressure-old-revision-intermediate",
+		)
+		val current = retainedPressureCorrection(
+			fixture = fixture,
+			admissionOrdinal = 3L,
+			eventId = "pressure-old-revision-current",
+			semanticRevision = 3L,
+		)
+		database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(intermediate))
+		database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(current))
+		database.pressureFactRevisionDao().insert(intermediate)
+		database.pressureFactRevisionDao().insert(current)
+
+		database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+			beforeMs = RETENTION_FLOOR_MS,
+			collectedDataEpoch = COLLECTED_DATA_EPOCH,
+			markedAtMs = MARKED_AT_MS,
+		) shouldBe 3
+
+		val authority = requireNotNull(database.pressureFactRetentionAuthorityDao().get(
+			current.writerProjectionId,
+			current.writerProjectionVersion,
+			current.logicalFactId,
+		))
+		authority.triggerSemanticRevision shouldBe 1L
+		authority.triggerSourceEventId shouldBe fixture.fact.sourceEventId
+		authority.currentSemanticRevision shouldBe 3L
+		authority.currentSourceEventId shouldBe current.sourceEventId
+		val revisionAuthorities =
+			database.pressureFactRetentionRevisionAuthorityDao().forLineage(
+				current.writerProjectionId,
+				current.writerProjectionVersion,
+				current.logicalFactId,
+				4,
+			)
+		authority.authenticatesRevisionAuthorities(revisionAuthorities) shouldBe true
+		revisionAuthorities.map { it.sourceEventId } shouldBe listOf(
+			fixture.fact.sourceEventId,
+			intermediate.sourceEventId,
+			current.sourceEventId,
+		)
+		database.persistPressureFactRetentionAuthority(
+			listOf(fixture.fact, intermediate, current),
+			RETENTION_FLOOR_MS,
+			MARKED_AT_MS,
+		) shouldBe authority
+		shouldThrow<IllegalStateException> {
+			database.persistPressureFactRetentionAuthority(
+				listOf(
+					fixture.fact,
+					intermediate.copy(sourcePolicyRevision = intermediate.sourcePolicyRevision + 1L),
+					current,
+				),
+				RETENTION_FLOOR_MS,
+				MARKED_AT_MS,
+			)
+		}
+		database.resolvePressureRetentionByFact(
+			writerProjectionId = current.writerProjectionId,
+			writerProjectionVersion = current.writerProjectionVersion,
+			logicalFactId = current.logicalFactId,
+			semanticRevision = intermediate.semanticRevision,
+			sourceEventId = intermediate.sourceEventId,
+			sourceAdmissionOrdinal = intermediate.sourceAdmissionOrdinal,
+			sourcePolicyRevision = intermediate.sourcePolicyRevision,
+			captureConsentEpoch = intermediate.captureConsentEpoch,
+			collectedDataEpoch = intermediate.collectedDataEpoch,
+			logicalTrackingId = intermediate.logicalTrackingId,
+			serviceRunId = intermediate.serviceRunId,
+			retainedFromMs = RETENTION_FLOOR_MS,
+		) shouldBe PressureFactRetentionResolution.Authenticated(
+			authority,
+			revisionAuthorities[1],
+		)
+		shouldThrow<SQLiteException> {
+			database.pressureFactRevisionDao().insert(
+				independentPressureFact(fixture, 10L).copy(
+					sourceEventId = intermediate.sourceEventId,
+				),
+			)
+		}
+		shouldThrow<SQLiteException> {
+			database.pressureFactRevisionDao().insert(
+				independentPressureFact(fixture, intermediate.sourceAdmissionOrdinal).copy(
+					sourceEventId = "pressure-resurrection-by-admission",
+				),
+			)
+		}
+		listOf(fixture.fact, intermediate, current).forEachIndexed { index, revision ->
+			database.resolvePressureRetentionByFact(
+				writerProjectionId = revision.writerProjectionId,
+				writerProjectionVersion = revision.writerProjectionVersion,
+				logicalFactId = revision.logicalFactId,
+				semanticRevision = revision.semanticRevision,
+				sourceEventId = revision.sourceEventId,
+				sourceAdmissionOrdinal = revision.sourceAdmissionOrdinal,
+				sourcePolicyRevision = revision.sourcePolicyRevision,
+				captureConsentEpoch = revision.captureConsentEpoch,
+				collectedDataEpoch = revision.collectedDataEpoch,
+				logicalTrackingId = revision.logicalTrackingId,
+				serviceRunId = revision.serviceRunId,
+				retainedFromMs = RETENTION_FLOOR_MS,
+			) shouldBe PressureFactRetentionResolution.Authenticated(
+				authority,
+				revisionAuthorities[index],
+			)
+		}
+	}
+
+	@Test
+	fun `retention authority corruption and resurrection are rejected and full clear removes authority`() =
+		runTest {
+			val fixture = insertRetainedPressureRun("terminal-authority", 1L)
+			database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+				beforeMs = RETENTION_FLOOR_MS,
+				collectedDataEpoch = COLLECTED_DATA_EPOCH,
+				markedAtMs = MARKED_AT_MS,
+			) shouldBe 1
+
+			val authority = requireNotNull(database.pressureFactRetentionAuthorityDao().get(
+				fixture.fact.writerProjectionId,
+				fixture.fact.writerProjectionVersion,
+				fixture.fact.logicalFactId,
+			))
+			database.pressureFactRetentionAuthorityDao().insertIfAbsent(authority) shouldBe -1L
+			database.pressureFactRetentionAuthorityDao().get(
+				fixture.fact.writerProjectionId,
+				fixture.fact.writerProjectionVersion,
+				fixture.fact.logicalFactId,
+			) shouldBe authority
+			shouldThrow<SQLiteException> {
+				database.pressureFactRevisionDao().insert(fixture.fact)
+			}
+			val retainedRevision = database.pressureFactRetentionRevisionAuthorityDao()
+				.forLineage(
+					fixture.fact.writerProjectionId,
+					fixture.fact.writerProjectionVersion,
+					fixture.fact.logicalFactId,
+					2,
+				).single()
+			database.pressureFactRetentionRevisionAuthorityDao().insertIfAbsent(
+				listOf(retainedRevision),
+			) shouldBe listOf(-1L)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE pressure_fact_retention_authority SET effect_checksum = ? " +
+					"WHERE logical_fact_id = ?",
+				arrayOf("corrupt", fixture.fact.logicalFactId),
+			)
+			database.pressureFactRetentionAuthorityDao().get(
+				fixture.fact.writerProjectionId,
+				fixture.fact.writerProjectionVersion,
+				fixture.fact.logicalFactId,
+			)?.hasValidStoredIntegrity() shouldBe false
+
+			database.clearAllTables()
+
+			database.pressureFactRetentionAuthorityDao().count() shouldBe 0L
+			database.pressureFactRetentionRevisionAuthorityDao().count() shouldBe 0L
+		}
+
+	@Test
+	fun `Pressure source erase removes retained lineage authority`() = runTest {
+		insertRetainedPressureRun("source-erase-authority", 1L)
+		database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+			beforeMs = RETENTION_FLOOR_MS,
+			collectedDataEpoch = COLLECTED_DATA_EPOCH,
+			markedAtMs = MARKED_AT_MS,
+		) shouldBe 1
+		database.sourceEventWalDao().deleteAll()
+
+		database.withTransaction {
+			database.deletePressureSourceEraseLocalPayloadInTransaction(
+				PressureSourceEraseLocalAudit(
+					factRevisionCount = 0,
+					retentionAuthorityCount = 1,
+					retentionRevisionAuthorityCount = 1,
+					walEventCount = 0,
+					legacySampleCount = 0,
+					legacySampleWitnesses = emptyList(),
+					scopes = emptyList(),
+					latestDurableTimeMs = MARKED_AT_MS,
+					writerFence = PressureSourceEraseWriterFence(
+						collectedDataEpoch = COLLECTED_DATA_EPOCH,
+						owner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+						ownerGeneration =
+							SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION,
+					),
+				),
+			)
+		}
+
+		database.pressureFactRetentionAuthorityDao().count() shouldBe 0L
+		database.pressureFactRetentionRevisionAuthorityDao().count() shouldBe 0L
+	}
+
+	@Test
+	fun `retention carries one authenticated correction lineage across pages`() = runTest {
+		val fixture = insertRetainedPressureRun("corrected-page", 1L)
+		database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(fixture.fact))
+		for (revision in 2L..CORRECTED_LINEAGE_REVISION_COUNT) {
+			val correction = pressureCorrection(
+				fixture = fixture,
+				admissionOrdinal = revision,
+				eventId = "pressure-corrected-page-$revision",
+				semanticRevision = revision,
+			)
+			database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(correction))
+			database.pressureFactRevisionDao().insert(correction)
+		}
+		val observations = mutableListOf<Triple<Int, Int, Int>>()
+
+		database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+			beforeMs = RETENTION_FLOOR_MS,
+			collectedDataEpoch = COLLECTED_DATA_EPOCH,
+			markedAtMs = MARKED_AT_MS,
+			limits = limits(),
+			checkpoint = {},
+			afterFactPageScanned = { pageCount, factCount, residentLineageRevisionCount ->
+				observations += Triple(pageCount, factCount, residentLineageRevisionCount)
+			},
+		) shouldBe CORRECTED_LINEAGE_REVISION_COUNT.toInt()
+
+		observations shouldBe listOf(
+			Triple(1, RETENTION_PAGE_SIZE, RETENTION_PAGE_SIZE),
+			Triple(
+				2,
+				CORRECTED_LINEAGE_REVISION_COUNT.toInt(),
+				CORRECTED_LINEAGE_REVISION_COUNT.toInt(),
+			),
+		)
+		database.pressureFactRevisionDao().count() shouldBe 0L
+	}
+
+	@Test
+	fun `million-lineage budget streams bounded pages with one resident lineage and bounded deletes`() =
+		runTest {
+		val fixture = insertRetainedPressureRun("large-pages", 1L)
+		for (ordinal in 2L..LARGE_RETENTION_LINEAGE_COUNT) {
+			val fact = independentPressureFact(fixture, ordinal)
+			database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(fact))
+			database.pressureFactRevisionDao().insert(fact)
+		}
+		val checkpoints = mutableListOf<PressureRetentionCheckpoint>()
+		val observations = mutableListOf<Triple<Int, Int, Int>>()
+
+		database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+			beforeMs = RETENTION_FLOOR_MS,
+			collectedDataEpoch = COLLECTED_DATA_EPOCH,
+			markedAtMs = MARKED_AT_MS,
+			limits = limits(maximumFactLineages = 1_000_000L),
+			checkpoint = { checkpoint -> checkpoints += checkpoint },
+			afterFactPageScanned = { pageCount, factCount, residentLineageRevisionCount ->
+				observations += Triple(pageCount, factCount, residentLineageRevisionCount)
+			},
+		) shouldBe LARGE_RETENTION_LINEAGE_COUNT.toInt()
+
+		observations.map { it.first } shouldBe listOf(1, 2, 3)
+		observations.map { it.second } shouldBe
+			listOf(RETENTION_PAGE_SIZE, RETENTION_PAGE_SIZE * 2, 513)
+		observations.maxOf { it.third } shouldBe 1
+		checkpoints.count { it == PressureRetentionCheckpoint.DELETE_BATCH_APPLIED } shouldBe
+			5
+		checkpoints.indexOf(PressureRetentionCheckpoint.TRANSACTION_STARTED) shouldBe 0
+		(checkpoints.indexOf(PressureRetentionCheckpoint.RUN_PAGE_LOADED) <
+			checkpoints.indexOf(PressureRetentionCheckpoint.FACT_PAGE_LOADED)) shouldBe true
+		(checkpoints.indexOf(PressureRetentionCheckpoint.LINEAGE_AUTHENTICATED) <
+			checkpoints.indexOf(PressureRetentionCheckpoint.RETENTION_AUTHORITY_INSERTED)) shouldBe true
+		(checkpoints.indexOf(PressureRetentionCheckpoint.RETENTION_AUTHORITY_INSERTED) <
+			checkpoints.indexOf(PressureRetentionCheckpoint.RUN_MARKED)) shouldBe true
+		(checkpoints.indexOf(PressureRetentionCheckpoint.RUN_MARKED) <
+			checkpoints.indexOf(PressureRetentionCheckpoint.DELETE_BATCH_APPLIED)) shouldBe true
+		(checkpoints.lastIndexOf(PressureRetentionCheckpoint.DELETE_BATCH_APPLIED) <
+			checkpoints.indexOf(PressureRetentionCheckpoint.RUN_AUTHENTICATED)) shouldBe true
+		database.pressureFactRevisionDao().count() shouldBe 0L
+		database.pressureFactRetentionAuthorityDao().count() shouldBe
+			LARGE_RETENTION_LINEAGE_COUNT
+	}
+
+	@Test
+	fun `production retention budget admits a million single revision lineages`() {
+		DEFAULT_PRESSURE_RETENTION_TRAVERSAL_LIMITS.maximumFactLineages >= 1_000_000L shouldBe true
+		DEFAULT_PRESSURE_RETENTION_TRAVERSAL_LIMITS.maximumFactPagesPerRun.toLong() *
+			RETENTION_PAGE_SIZE >= 1_000_000L shouldBe true
+		MAX_PRESSURE_RETENTION_REVISION_AUTHORITIES shouldBe 8_192
+	}
+
+	@Test
+	fun `cancellation from a later retention page rolls back the streamed transaction`() = runTest {
+		val fixture = insertRetainedPressureRun("cancel-page", 1L)
+		for (ordinal in 2L..CANCELLATION_LINEAGE_COUNT) {
+			val fact = independentPressureFact(fixture, ordinal)
+			database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(fact))
+			database.pressureFactRevisionDao().insert(fact)
+		}
+
+		shouldThrow<CancellationException> {
+			database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+				beforeMs = RETENTION_FLOOR_MS,
+				collectedDataEpoch = COLLECTED_DATA_EPOCH,
+				markedAtMs = MARKED_AT_MS,
+				limits = limits(),
+				checkpoint = {},
+				afterFactPageScanned = { pageCount, _, _ ->
+					if (pageCount == 2) {
+						throw CancellationException("cancel streamed Pressure retention")
+					}
+				},
+			)
+		}
+
+		database.pressureFactRevisionDao().count() shouldBe CANCELLATION_LINEAGE_COUNT
+		database.pressureFactRetentionAuthorityDao().count() shouldBe 0L
+		database.pressureFactRetentionRevisionAuthorityDao().count() shouldBe 0L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	private suspend fun insertRetainedPressureRun(
+		key: String,
+		admissionOrdinal: Long,
+		insertWal: Boolean = true,
+	): PressureRetentionFixture {
 		val logicalId = "logical-pressure-$key"
 		val runId = "run-pressure-$key"
 		val segmentId = database.sessionSegmentDao().insert(
@@ -127,6 +870,10 @@ class PressureRetentionTruncationTest {
 		database.pressureFactRevisionDao().insert(fact).let { inserted ->
 			check(inserted > 0L)
 		}
+		if (insertWal) {
+			database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(fact))
+		}
+		return PressureRetentionFixture(binding, fact)
 	}
 
 	private fun logicalSession(logicalId: String) = LogicalTrackingSessionEntity(
@@ -278,6 +1025,237 @@ class PressureRetentionTruncationTest {
 		)
 	}
 
+	private fun pressureCorrection(
+		fixture: PressureRetentionFixture,
+		admissionOrdinal: Long,
+		eventId: String,
+		semanticRevision: Long = 2L,
+	): PressureFactRevisionEntity {
+		val offsetMs = semanticRevision - 1L
+		val offsetNanos = offsetMs * 1_000_000L
+		val unsigned = fixture.fact.copy(
+			semanticRevision = semanticRevision,
+			mutationId = "${fixture.fact.logicalFactId}:$semanticRevision",
+			sourceEventId = eventId,
+			sourceAdmissionOrdinal = admissionOrdinal,
+			intervalStartTimeMs = fixture.fact.intervalStartTimeMs + offsetMs,
+			intervalEndTimeMs = fixture.fact.intervalEndTimeMs + offsetMs,
+			windowStartElapsedRealtimeNanos =
+				fixture.fact.windowStartElapsedRealtimeNanos + offsetNanos,
+			windowEndElapsedRealtimeNanos =
+				fixture.fact.windowEndElapsedRealtimeNanos + offsetNanos,
+			firstProviderSequence = fixture.fact.lastProviderSequence +
+				(semanticRevision - 2L) * fixture.fact.sampleCount + 1L,
+			lastProviderSequence = fixture.fact.lastProviderSequence +
+				(semanticRevision - 1L) * fixture.fact.sampleCount,
+			appliedAtMs = fixture.fact.appliedAtMs + offsetMs,
+			effectChecksum = "pending",
+		)
+		return unsigned.copy(
+			effectChecksum = PressureFactRevisionIntegrity.effectChecksum(unsigned, fixture.binding),
+		)
+	}
+
+	private fun independentPressureFact(
+		fixture: PressureRetentionFixture,
+		admissionOrdinal: Long,
+	): PressureFactRevisionEntity {
+		val eventId = "pressure-large-page-$admissionOrdinal"
+		val logicalFactId =
+			"${SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID}:$eventId"
+		val unsigned = fixture.fact.copy(
+			logicalFactId = logicalFactId,
+			mutationId = "$logicalFactId:1",
+			sourceEventId = eventId,
+			sourceAdmissionOrdinal = admissionOrdinal,
+			windowStartElapsedRealtimeNanos = admissionOrdinal * SECOND_NANOS,
+			windowEndElapsedRealtimeNanos = admissionOrdinal * SECOND_NANOS + WINDOW_NANOS,
+			firstProviderSequence = admissionOrdinal * 10L + 1L,
+			lastProviderSequence = admissionOrdinal * 10L + 4L,
+			effectChecksum = "pending",
+		)
+		return unsigned.copy(
+			effectChecksum = PressureFactRevisionIntegrity.effectChecksum(unsigned, fixture.binding),
+		)
+	}
+
+	private fun retainedIndependentPressureFact(
+		fixture: PressureRetentionFixture,
+		admissionOrdinal: Long,
+	): PressureFactRevisionEntity {
+		val fact = independentPressureFact(fixture, admissionOrdinal)
+		val unsigned = fact.copy(
+			intervalStartTimeMs = RETENTION_FLOOR_MS + 100L,
+			intervalEndTimeMs = RETENTION_FLOOR_MS + 100L + WINDOW_MS,
+			appliedAtMs = RETENTION_FLOOR_MS + 100L + WINDOW_MS,
+			effectChecksum = "pending",
+		)
+		return unsigned.copy(
+			effectChecksum = PressureFactRevisionIntegrity.effectChecksum(unsigned, fixture.binding),
+		)
+	}
+
+	private fun retainedPressureCorrection(
+		fixture: PressureRetentionFixture,
+		admissionOrdinal: Long,
+		eventId: String,
+		semanticRevision: Long = 2L,
+	): PressureFactRevisionEntity {
+		val correction = pressureCorrection(
+			fixture,
+			admissionOrdinal,
+			eventId,
+			semanticRevision,
+		)
+		val wallOffsetMs = RETENTION_FLOOR_MS + 100L - correction.intervalStartTimeMs
+		val elapsedOffsetNanos = wallOffsetMs * 1_000_000L
+		val unsigned = correction.copy(
+			intervalStartTimeMs = RETENTION_FLOOR_MS + 100L,
+			intervalEndTimeMs = RETENTION_FLOOR_MS + 100L + WINDOW_MS,
+			windowStartElapsedRealtimeNanos =
+				correction.windowStartElapsedRealtimeNanos + elapsedOffsetNanos,
+			windowEndElapsedRealtimeNanos =
+				correction.windowEndElapsedRealtimeNanos + elapsedOffsetNanos,
+			appliedAtMs = RETENTION_FLOOR_MS + 100L + WINDOW_MS,
+			effectChecksum = "pending",
+		)
+		return unsigned.copy(
+			effectChecksum = PressureFactRevisionIntegrity.effectChecksum(unsigned, fixture.binding),
+		)
+	}
+
+	private suspend fun resolveRetentionByEvidence(
+		fact: PressureFactRevisionEntity,
+		sourceEventId: String = fact.sourceEventId,
+		sourceAdmissionOrdinal: Long? = fact.sourceAdmissionOrdinal,
+		logicalTrackingId: String = fact.logicalTrackingId,
+		serviceRunId: String = fact.serviceRunId,
+	): PressureFactRetentionResolution = database.resolvePressureRetentionByEvidence(
+		writerProjectionId = fact.writerProjectionId,
+		writerProjectionVersion = fact.writerProjectionVersion,
+		sourceEventId = sourceEventId,
+		sourceAdmissionOrdinal = sourceAdmissionOrdinal,
+		sourcePolicyRevision = fact.sourcePolicyRevision,
+		captureConsentEpoch = fact.captureConsentEpoch,
+		collectedDataEpoch = fact.collectedDataEpoch,
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+		retainedFromMs = RETENTION_FLOOR_MS,
+	)
+
+	private suspend fun resolveRetentionByFact(
+		fact: PressureFactRevisionEntity,
+	): PressureFactRetentionResolution = database.resolvePressureRetentionByFact(
+		writerProjectionId = fact.writerProjectionId,
+		writerProjectionVersion = fact.writerProjectionVersion,
+		logicalFactId = fact.logicalFactId,
+		semanticRevision = fact.semanticRevision,
+		sourceEventId = fact.sourceEventId,
+		sourceAdmissionOrdinal = fact.sourceAdmissionOrdinal,
+		sourcePolicyRevision = fact.sourcePolicyRevision,
+		captureConsentEpoch = fact.captureConsentEpoch,
+		collectedDataEpoch = fact.collectedDataEpoch,
+		logicalTrackingId = fact.logicalTrackingId,
+		serviceRunId = fact.serviceRunId,
+		retainedFromMs = RETENTION_FLOOR_MS,
+	)
+
+	private fun pressureWal(fact: PressureFactRevisionEntity): SourceEventWalEntity {
+		val payload = PressureWalPayload(
+			sampleCount = fact.sampleCount,
+			meanHectopascals = fact.meanHectopascals,
+			sumSquaredDeviations = fact.sumSquaredDeviations,
+			minimumHectopascals = fact.minimumHectopascals,
+			maximumHectopascals = fact.maximumHectopascals,
+			windowStartElapsedRealtimeNanos = fact.windowStartElapsedRealtimeNanos,
+			windowEndElapsedRealtimeNanos = fact.windowEndElapsedRealtimeNanos,
+			firstProviderSequence = fact.firstProviderSequence,
+			lastProviderSequence = fact.lastProviderSequence,
+			firstHectopascals = fact.firstHectopascals,
+			lastHectopascals = fact.lastHectopascals,
+			slopeHectopascalsPerSecond = fact.slopeHectopascalsPerSecond,
+			rSquared = fact.rSquared,
+			sensorAccuracy = PressureWalSensorAccuracy.valueOf(fact.sensorAccuracy),
+			effectiveSamplePeriodMicros = fact.effectiveSamplePeriodMicros,
+			effectiveMaximumReportLatencyMicros = fact.effectiveMaximumReportLatencyMicros,
+			targetWindowDurationNanos = fact.targetWindowDurationNanos,
+			expectedSampleCount = fact.expectedSampleCount,
+			maximumInterSampleGapNanos = fact.maximumInterSampleGapNanos,
+			closureKind = PressureWalClosureKind.valueOf(fact.closureKind),
+		)
+		val bytes = PressureWalPayloadCodec.encode(payload)
+		val unsigned = SourceEventWalEntity(
+			admissionOrdinal = fact.sourceAdmissionOrdinal,
+			eventId = fact.sourceEventId,
+			providerDedupKey = null,
+			deliveryIdentity = pressureDeliveryIdentity(fact.clockDomainId, payload),
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 1,
+			logicalTrackingId = fact.logicalTrackingId,
+			serviceRunId = fact.serviceRunId,
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			sourceInstanceId = "pressure-provider",
+			registrationGeneration = 1L,
+			physicalConfigurationFingerprint = "pressure-config",
+			authorizationRevision = 1L,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			authorizationFingerprint = "a".repeat(64),
+			sourceSequence = fact.lastProviderSequence,
+			configRevision = 1L,
+			planAttribution = 0,
+			clockDomainId = fact.clockDomainId,
+			observedElapsedNanos = fact.windowEndElapsedRealtimeNanos,
+			observedIntervalStartNanos = fact.windowStartElapsedRealtimeNanos,
+			receivedElapsedNanos = fact.windowEndElapsedRealtimeNanos + 1L,
+			receivedWallTimeMs = fact.intervalEndTimeMs + 1L,
+			wallTimeMs = fact.intervalEndTimeMs,
+			wallTimeUncertaintyMs = fact.wallTimeUncertaintyMs,
+			capturedCollectedDataEpoch = fact.collectedDataEpoch,
+			sourcePolicyRevision = fact.sourcePolicyRevision,
+			captureConsentEpoch = fact.captureConsentEpoch,
+			sessionManifestRevision = fact.manifestRevision,
+			lifecycleLeaseGeneration = 1L,
+			acquiredAtMs = fact.intervalEndTimeMs,
+			qualityFlags = fact.sourceQualityFlags,
+			qualityConfidence = fact.sourceQualityConfidence,
+			payloadVersion = fact.payloadVersion,
+			payload = bytes,
+			payloadChecksum = "",
+			createdAtMs = fact.intervalEndTimeMs + 1L,
+		)
+		val checksummed = unsigned.copy(payloadChecksum = unsigned.calculatedPayloadChecksum())
+		return checksummed.copy(integrityIdentity = checksummed.calculatedIntegrityIdentity())
+	}
+
+	private fun pressureDeliveryIdentity(
+		clockDomainId: String,
+		payload: PressureWalPayload,
+	): String {
+		val canonical = buildString {
+			append("pressure-window-v1|")
+			append(clockDomainId.length)
+			append(':')
+			append(clockDomainId)
+			append("|start:")
+			append(payload.windowStartElapsedRealtimeNanos)
+			append("|end:")
+			append(payload.windowEndElapsedRealtimeNanos)
+			append("|count:")
+			append(payload.sampleCount)
+			append("|mean-bits:")
+			append(payload.meanHectopascals.toRawBits())
+			append("|m2-bits:")
+			append(payload.sumSquaredDeviations.toRawBits())
+			append("|min-bits:")
+			append(payload.minimumHectopascals.toRawBits())
+			append("|max-bits:")
+			append(payload.maximumHectopascals.toRawBits())
+		}
+		return MessageDigest.getInstance("SHA-256")
+			.digest(canonical.toByteArray(Charsets.UTF_8))
+			.joinToString("") { byte -> "%02x".format(byte) }
+	}
+
 	private fun pressurePolicy() = SourcePolicyEntity(
 		policyRevision = POLICY_REVISION,
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
@@ -311,13 +1289,22 @@ class PressureRetentionTruncationTest {
 		changeReason = "TEST",
 	)
 
-	private fun limits(maximumFactRevisions: Long = 16L) = PressureRetentionTraversalLimits(
+	private fun limits(
+		maximumFactPages: Long = 16L,
+		maximumLineageRevisions: Int = 8_192,
+		maximumFactLineages: Long = 2_048L,
+	) = PressureRetentionTraversalLimits(
 		maximumRuns = 8L,
-		maximumTraversalRows = 128L,
-		maximumFactRevisions = maximumFactRevisions,
-		maximumFactLineages = 16L,
-		maximumFactRevisionsPerRun = maximumFactRevisions.coerceAtMost(8L).toInt(),
-		maximumFactLineagesPerRun = 8,
+		maximumTraversalRows = 4_096L,
+		maximumFactPages = maximumFactPages,
+		maximumFactLineages = maximumFactLineages,
+		maximumFactPagesPerRun = maximumFactPages.coerceAtMost(16L).toInt(),
+		maximumLineageRevisions = maximumLineageRevisions,
+	)
+
+	private data class PressureRetentionFixture(
+		val binding: SessionManifestSourceEntity,
+		val fact: PressureFactRevisionEntity,
 	)
 
 	private companion object {
@@ -334,5 +1321,9 @@ class PressureRetentionTruncationTest {
 		const val WINDOW_MS = 150L
 		const val WINDOW_NANOS = 150_000_000L
 		const val SECOND_NANOS = 1_000_000_000L
+		const val RETENTION_PAGE_SIZE = 256
+		const val CORRECTED_LINEAGE_REVISION_COUNT = 257L
+		const val LARGE_RETENTION_LINEAGE_COUNT = 513L
+		const val CANCELLATION_LINEAGE_COUNT = 300L
 	}
 }

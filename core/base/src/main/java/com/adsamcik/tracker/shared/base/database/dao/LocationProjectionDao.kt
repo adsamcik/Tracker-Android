@@ -1,10 +1,15 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
 import com.adsamcik.tracker.shared.base.database.data.LocationProjectionObservationEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationProjectionPointEntity
+
+data class LocationProjectionRetentionRef(
+	@ColumnInfo(name = "event_id") val eventId: String,
+)
 
 @Dao
 interface LocationProjectionDao {
@@ -28,6 +33,19 @@ interface LocationProjectionDao {
 
 	@Query("SELECT * FROM location_projection_point WHERE event_id = :eventId")
 	suspend fun point(eventId: String): LocationProjectionPointEntity?
+
+	@Query(
+		"""
+		SELECT event_id FROM location_projection_observation
+		WHERE event_id > :afterEventId
+		ORDER BY event_id
+		LIMIT :limit
+		""",
+	)
+	suspend fun retentionPage(
+		afterEventId: String,
+		limit: Int,
+	): List<LocationProjectionRetentionRef>
 
 	@Query(
 		"""
@@ -66,6 +84,9 @@ interface LocationProjectionDao {
 
 	@Query("DELETE FROM location_projection_observation WHERE wall_time_ms < :beforeMs")
 	suspend fun deleteObservationsOlderThan(beforeMs: Long): Int
+
+	@Query("DELETE FROM location_projection_observation WHERE event_id IN (:eventIds)")
+	suspend fun deleteObservationsByEventIds(eventIds: List<String>): Int
 
 	@Query("DELETE FROM location_projection_observation")
 	fun deleteAllObservations(): Int

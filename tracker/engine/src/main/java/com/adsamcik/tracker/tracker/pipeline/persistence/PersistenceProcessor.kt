@@ -282,6 +282,7 @@ class PersistenceProcessor @Inject constructor(
 		val acceptedSampleSourceSignalId: String?,
 		val clockDomainId: String?,
 		val decidedAtMs: Long,
+		val canonicalWriterProvenance: Boolean,
 	)
 
 	private data class PendingAdmission(
@@ -522,6 +523,7 @@ class PersistenceProcessor @Inject constructor(
 					clockDomainId = signal.clockDomainId,
 					decidedAtMs = observation.receivedAtMs.takeIf { it > 0L }
 						?: signal.timestampMs.raw,
+					canonicalWriterProvenance = false,
 				),
 			)
 		}
@@ -597,6 +599,9 @@ class PersistenceProcessor @Inject constructor(
 				},
 				clockDomainId = signal.clockDomainId,
 				decidedAtMs = signal.timestampMs.raw,
+				canonicalWriterProvenance =
+					ProtectedLocationCanonicalSignalIdentity.canonicalEventId(sourceSignalId) ==
+						decision.sourceEventId,
 			),
 		)
 	}
@@ -1225,6 +1230,10 @@ class PersistenceProcessor @Inject constructor(
 							decision = stored.decision,
 							reason = stored.reason,
 							decisionVersion = stored.decisionVersion,
+							writerProjectionId = stored.writerProjectionId,
+							writerProjectionVersion = stored.writerProjectionVersion,
+							writerBindingGeneration = stored.writerBindingGeneration,
+							writerOwnerGeneration = stored.writerOwnerGeneration,
 							acceptedSampleSourceSignalId = stored.acceptedSampleSourceSignalId,
 							sourceSignalId = stored.sourceSignalId,
 							clockDomainId = stored.clockDomainId,
@@ -1341,6 +1350,18 @@ class PersistenceProcessor @Inject constructor(
 			observationSourceEventId = buffered.signal.sourceEventId,
 			decision = buffered.signal.decision.name,
 			reason = buffered.signal.reason,
+			writerProjectionId = SourceDestinationOwnerEntity
+				.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID
+				.takeIf { buffered.canonicalWriterProvenance },
+			writerProjectionVersion = SourceDestinationOwnerEntity
+				.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION
+				.takeIf { buffered.canonicalWriterProvenance },
+			writerBindingGeneration = SourceDestinationOwnerEntity
+				.LOCATION_CANONICAL_HANDOFF_BINDING_GENERATION
+				.takeIf { buffered.canonicalWriterProvenance },
+			writerOwnerGeneration = SourceDestinationOwnerEntity
+				.INITIAL_EXISTING_LOCATION_GENERATION
+				.takeIf { buffered.canonicalWriterProvenance },
 			acceptedSampleSourceSignalId = buffered.acceptedSampleSourceSignalId,
 			sourceSignalId = buffered.sourceSignalId,
 			clockDomainId = buffered.clockDomainId,

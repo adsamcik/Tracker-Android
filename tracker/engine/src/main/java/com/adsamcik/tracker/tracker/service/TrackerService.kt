@@ -225,6 +225,7 @@ internal class TrackerService : CoreService() {
 	private var lockObservationJob: Job? = null
 	private var initializationJob: Job? = null
 	private var batteryObservationJob: Job? = null
+	private var powerSaveObservationJob: Job? = null
 	private var collectionMotionObservationJob: Job? = null
 	private var sessionRecoveryJob: Job? = null
 	private var descriptorObservationJob: Job? = null
@@ -237,6 +238,8 @@ internal class TrackerService : CoreService() {
 	@Volatile private var sessionInfo: TrackerSessionInfo? = null
 	@Volatile private var activeSessionDescriptor: ActiveTrackingSessionDescriptor? = null
 	@Volatile private var gracefulStopRequested = false
+	@Volatile private var stopRequestGeneration = 0L
+	@Volatile private var durableStopReadyGeneration = 0L
 	private var latestDeliveredStartId = 0
 	@Volatile private var activeExternalStop: ActiveExternalStop? = null
 	@Volatile private var stopReason: TrackingStopCandidateReason = TrackingStopCandidateReason.UNKNOWN
@@ -904,6 +907,7 @@ internal class TrackerService : CoreService() {
 			TrackerDiagnosticInfoCode.TRACKING_SESSION_START_REQUESTED,
 		)
 		gracefulStopRequested = false
+		stopRequestGeneration++
 		stopReason = TrackingStopCandidateReason.UNKNOWN
 		// A restart retains the logical session identity but is a distinct Android-service run.
 		val serviceRunDescriptor = preparedTrackingStart.descriptor
@@ -1103,6 +1107,7 @@ internal class TrackerService : CoreService() {
 					reconcileLocationMotionScope()
 					sourcePipelineRecovery.drainCommittedWork()
 					observeCollectionMotionPolicy()
+					observePowerSavePolicy()
 
 					batteryObservationJob?.cancel()
 					batteryObservationJob = launch {
@@ -1357,6 +1362,24 @@ internal class TrackerService : CoreService() {
 		}
 	}
 
+	private fun observePowerSavePolicy() {
+		powerSaveObservationJob?.cancel()
+		powerSaveObservationJob = launch {
+			batteryAwarePolicy.powerSaveModeUpdates.collect {
+				if (gracefulStopRequested) return@collect
+				refreshBackgroundLocationPlan()
+				if (sessionInfo == null) return@collect
+				val currentSettings = trackingParamsRepository.data.first()
+				val result = reconfigureSourceSession(
+					sourcePlanInputs(currentSettings, orchestrator.currentSourceDemands()),
+				)
+				if (result is SourceSessionReconfigureOutcome.Rejected) {
+					requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
+				}
+			}
+		}
+	}
+
 	private suspend fun onRuntimePermissionChanged() {
 		reconcileLocationMotionScope()
 		if (!hasLocationPermission) backgroundLocationHost.active.value?.identity?.let { backgroundLocationHost.release(it) }
@@ -1607,11 +1630,6 @@ internal class TrackerService : CoreService() {
 				wakeLockNanos = Time.elapsedRealtimeNanos - wakeLockStartedAtNanos,
 			)
 		}
-
-		// Power-save check (Android concern, kept in service)
-		if (!requireNotNull(sessionInfo).isInitiatedByUser && powerManager.isPowerSaveMode) {
-			requestGracefulStop(reason = TrackingStopCandidateReason.POWER_SAVER)
-		}
 	}
 
 	private fun createCycleDispatcher() {
@@ -1678,6 +1696,7 @@ internal class TrackerService : CoreService() {
 		}
 		TrackerDiagnosticLog.trackingStopRequested()
 		gracefulStopRequested = true
+		val stopGeneration = ++stopRequestGeneration
 		stopReason = reason
 		activeExternalStop = externalCommand?.let { command ->
 			ActiveExternalStop(
@@ -1701,21 +1720,55 @@ internal class TrackerService : CoreService() {
 			changedAtEpochMs = activeExternalStop?.cutoff?.wallTimeMs ?: System.currentTimeMillis(),
 		)
 		activeSessionDescriptor = stopCandidate
-		val stopAfterStartId = startId ?: latestDeliveredStartId.takeIf { it > 0 }
 		liveTeardownJob = launch {
+			initializationJob?.join()
 			// Keep the stop candidate durable until teardown completes.  An unexpected kill in this
 			// interval must not be interpreted as a user-session crash eligible for restart.
-			if (stopCandidate != null) {
-				saveActiveSession(stopCandidate)
-			}
+			val ready = completeDurableStopBeforeForegroundRelease(
+				isCurrent = { gracefulStopRequested && stopRequestGeneration == stopGeneration },
+				persistStopCandidate = {
+					stopCandidate == null || saveActiveSession(
+						stopCandidate,
+						requireLifecycleState = true,
+					)
+				},
+				retireSources = {
+					if (!preparedStartRuntime.applyStarted) {
+						true
+					} else {
+						val outcome = sourceSession.stop(
+							reason = stopReason.name,
+							preserveLogicalSession = false,
+							factualCutoff = activeExternalStop?.cutoff,
+						)
+						outcome.requestCapturedActivityProjectionOnSettlement(
+							sourcePipelineRecovery::requestActivityCapturedFactDrain,
+						)
+						outcome == SourceSessionStopOutcome.Stopped ||
+							outcome == SourceSessionStopOutcome.NotActive
+					}
+				},
+				onFailure = { attempt, _ ->
+					if (attempt == 1L || attempt % PERSISTENT_TEARDOWN_LOG_EVERY_ATTEMPTS == 0L) {
+						TrackerDiagnosticLog.trackingProviderTeardownFailed(
+							TrackingDiagnosticFailureReason.PROVIDER_FAILURE,
+							attempt,
+						)
+					}
+				},
+			)
+			if (!ready) return@launch
+			durableStopReadyGeneration = stopGeneration
+			val stopAfterStartId = startId ?: latestDeliveredStartId.takeIf { it > 0 }
 			if (backgroundLocationHost.active.value != null && sessionInfo != null) {
 				finishLiveSessionKeepingBackground()
 				return@launch
 			}
-			if (externalCommand == null) {
+			val currentExternalStop = activeExternalStop?.command
+			if (currentExternalStop == null) {
 				if (stopAfterStartId == null) stopSelf() else stopSelfResult(stopAfterStartId)
 			} else {
-				completeExternalStopDelivery(externalCommand, stopAfterStartId)
+				completeExternalStopDelivery(currentExternalStop, stopAfterStartId)
 			}
 		}
 	}
@@ -1740,14 +1793,24 @@ internal class TrackerService : CoreService() {
 			),
 		)
 		stopReason = reason
-		val stopAfterStartId = startId ?: latestDeliveredStartId.takeIf { it > 0 }
-		launch { completeExternalStopDelivery(externalCommand, stopAfterStartId) }
+		val pendingStop = liveTeardownJob
+		val stopGeneration = stopRequestGeneration
+		launch {
+			pendingStop?.join()
+			if (durableStopReadyGeneration == stopGeneration) {
+				completeExternalStopDelivery(
+					externalCommand,
+					startId ?: latestDeliveredStartId.takeIf { it > 0 },
+				)
+			}
+		}
 	}
 
 	private suspend fun completeExternalStopDelivery(
 		command: TrackingStopCommand,
 		stopAfterStartId: Int?,
 	) {
+		if (durableStopReadyGeneration != stopRequestGeneration) return
 		if (!trackingLifecycleCommandAuthority.isStopActionable(command)) {
 			withdrawSupersededExternalStop(command)
 			return
@@ -1790,6 +1853,7 @@ internal class TrackerService : CoreService() {
 			trackingLifecycleCommandAuthority.isStopCurrent(stop)
 		) return
 		gracefulStopRequested = false
+		stopRequestGeneration++
 		stopReason = TrackingStopCandidateReason.UNKNOWN
 		activeExternalStop = null
 		startSingleFlight.set(false)
@@ -1802,6 +1866,7 @@ internal class TrackerService : CoreService() {
 		if (activeExternalStop?.command != command) return
 		if (trackingLifecycleCommandAuthority.isStopCurrent(command)) return
 		gracefulStopRequested = false
+		stopRequestGeneration++
 		stopReason = TrackingStopCandidateReason.UNKNOWN
 		activeExternalStop = null
 		startSingleFlight.set(false)
@@ -1840,25 +1905,36 @@ internal class TrackerService : CoreService() {
 		}
 	}
 
-	private suspend fun saveActiveSession(descriptor: ActiveTrackingSessionDescriptor) {
+	private suspend fun saveActiveSession(
+		descriptor: ActiveTrackingSessionDescriptor,
+		requireLifecycleState: Boolean = false,
+	): Boolean {
 		when (val result = activeTrackingSessionStore.mergeServiceDescriptor(descriptor)) {
-			is ActiveTrackingSessionStoreResult.Failure -> TrackerDiagnosticLog.failure(
-				TrackerDiagnosticFailureCode.TRACKING_SESSION_STORE_FAILED,
-				TrackingDiagnosticFailureReason.STORAGE_UNAVAILABLE,
-			)
+			is ActiveTrackingSessionStoreResult.Failure -> {
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.TRACKING_SESSION_STORE_FAILED,
+					TrackingDiagnosticFailureReason.STORAGE_UNAVAILABLE,
+				)
+				return false
+			}
 			is ActiveTrackingSessionStoreResult.Success -> {
 				val persisted = result.descriptor
 				?.takeIf {
 					it.logicalTrackingId == descriptor.logicalTrackingId &&
-						it.serviceRunId == descriptor.serviceRunId
+						it.serviceRunId == descriptor.serviceRunId &&
+						(!requireLifecycleState ||
+							(it.lifecycleState == descriptor.lifecycleState &&
+								it.lifecycleRevision >= descriptor.lifecycleRevision))
 				}
 				if (persisted == null) {
-				TrackerDiagnosticLog.failure(
-					TrackerDiagnosticFailureCode.TRACKING_SESSION_STORE_FAILED,
-					TrackingDiagnosticFailureReason.INTERNAL_INVARIANT,
-				)
+					TrackerDiagnosticLog.failure(
+						TrackerDiagnosticFailureCode.TRACKING_SESSION_STORE_FAILED,
+						TrackingDiagnosticFailureReason.INTERNAL_INVARIANT,
+					)
+					return false
 				} else {
-				activeSessionDescriptor = persisted
+					activeSessionDescriptor = persisted
+					return true
 				}
 			}
 		}
@@ -1905,6 +1981,8 @@ internal class TrackerService : CoreService() {
 		lockObservationJob = null
 		batteryObservationJob?.cancel()
 		batteryObservationJob = null
+		powerSaveObservationJob?.cancel()
+		powerSaveObservationJob = null
 
 		// Fire-and-forget cleanup on an independent scope to avoid blocking the main thread.
 		// Replacement initialization awaits this deferred, so cleanup keeps retrying until

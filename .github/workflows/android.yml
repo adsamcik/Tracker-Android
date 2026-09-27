@@ -180,6 +180,7 @@ jobs:
           path: |
             build/release-evidence/**
             app/build/outputs/bundle/release/*.aab
+            app/build/outputs/bundle/release_nominify/*.aab
             app/build/outputs/mapping/release/**
             app/build/outputs/native-debug-symbols/release/**
           if-no-files-found: error

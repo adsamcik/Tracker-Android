@@ -29,6 +29,7 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSamplePurposeAutho
 import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.dao.AmbientWifiFactDao
 import com.adsamcik.tracker.shared.base.database.dao.CellCapturedFactDao
+import com.adsamcik.tracker.shared.base.database.dao.CapturedRadioFactRetentionProofDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.CollectedDataDeletionOperationDao
 import com.adsamcik.tracker.shared.base.database.dao.RetentionWorkExecutionReceiptDao
@@ -55,6 +56,8 @@ import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureFactRevisionDao
+import com.adsamcik.tracker.shared.base.database.dao.PressureFactRetentionAuthorityDao
+import com.adsamcik.tracker.shared.base.database.dao.PressureFactRetentionRevisionAuthorityDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceDeletionFenceDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceDestinationOwnerDao
@@ -99,6 +102,7 @@ import com.adsamcik.tracker.shared.base.database.data.CellCapturedDeletedRunEnti
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CapturedRadioFactRetentionProofEntity
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.data.RetentionWorkExecutionReceiptEntity
@@ -123,6 +127,8 @@ import com.adsamcik.tracker.shared.base.database.data.LocationProjectionPointEnt
 import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
+import com.adsamcik.tracker.shared.base.database.data.PressureFactRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.PressureFactRetentionRevisionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletenessMarkerEntity
@@ -222,6 +228,8 @@ import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.QuarantinedSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceEventRetentionProofDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceEventRetentionScopeProofDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceProjectionStateDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceRegistrationStateDao
@@ -243,6 +251,8 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionProofEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionScopeProofEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionCheckpointEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
@@ -370,6 +380,8 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedActivityEntryDeletionReceiptEntity::class,
 			ImportedActivityDeletionGenerationEntity::class,
 			PressureFactRevisionEntity::class,
+			PressureFactRetentionAuthorityEntity::class,
+			PressureFactRetentionRevisionAuthorityEntity::class,
 			ActivityCapturedRegistrationPlanEntity::class,
 			ActivityCapturedWindowRevisionEntity::class,
 			ActivityCapturedFragmentEntity::class,
@@ -377,6 +389,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ActivityCapturedWindowCursorEntity::class,
 			CellCapturedFactRevisionEntity::class,
 			CellCapturedFactCursorEntity::class,
+			CapturedRadioFactRetentionProofEntity::class,
 			CellCaptureDeletionGenerationEntity::class,
 			CellCapturedEntryDeletionReceiptEntity::class,
 			CellCapturedDeletedRunEntity::class,
@@ -437,6 +450,8 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			CollectedDataDeletionOperationEntity::class,
 			RetentionWorkExecutionReceiptEntity::class,
 			SourceEventWalEntity::class,
+			SourceEventRetentionProofEntity::class,
+			SourceEventRetentionScopeProofEntity::class,
 			SourceCaptureAdmissionBarrierEntity::class,
 			SourceRunRetirementEntity::class,
 			SourceProductProjectionLaneEntity::class,
@@ -586,6 +601,12 @@ abstract class AppDatabase : RoomDatabase() {
 	/** Provides the dormant append-only source-qualified Pressure fact history. */
 	abstract fun pressureFactRevisionDao(): PressureFactRevisionDao
 
+	/** Value-free terminal authority for native Pressure fact lineages removed by retention. */
+	abstract fun pressureFactRetentionAuthorityDao(): PressureFactRetentionAuthorityDao
+
+	/** Value-free per-revision identity authority for retained native Pressure correction lineages. */
+	abstract fun pressureFactRetentionRevisionAuthorityDao(): PressureFactRetentionRevisionAuthorityDao
+
 	/** Dormant append-only captured Activity facts; this accessor does not activate acquisition. */
 	abstract fun activityCapturedFactDao(): ActivityCapturedFactDao
 	/** Dormant identity-free Cell captured-fact persistence. */
@@ -633,6 +654,12 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun retentionWorkExecutionReceiptDao(): RetentionWorkExecutionReceiptDao
 
 	abstract fun sourceEventWalDao(): SourceEventWalDao
+
+	abstract fun sourceEventRetentionProofDao(): SourceEventRetentionProofDao
+
+	abstract fun sourceEventRetentionScopeProofDao(): SourceEventRetentionScopeProofDao
+
+	abstract fun capturedRadioFactRetentionProofDao(): CapturedRadioFactRetentionProofDao
 
 	abstract fun sourceProjectionStateDao(): SourceProjectionStateDao
 
@@ -1154,6 +1181,9 @@ abstract class AppDatabase : RoomDatabase() {
 			database.sourceSessionDao().deleteAllSessions()
 			database.sourceCallerAuthorityDao().deleteAll()
 			database.sourceEventWalDao().deleteAll()
+			database.sourceEventRetentionProofDao().deleteAll()
+			database.sourceEventRetentionScopeProofDao().deleteAll()
+			database.capturedRadioFactRetentionProofDao().deleteAll()
 
 			// Sessionless architecture tables
 			database.locationSampleDao().deleteAll()
@@ -1183,6 +1213,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.importedActivityDao().deleteAllEntryDeletionReceipts()
 			database.importedActivityDao().deleteAllEntryDeletions()
 			database.importedActivityDao().deleteAllDeletionGenerations()
+			database.pressureFactRetentionAuthorityDao().deleteAll()
 			database.pressureFactRevisionDao().deleteAll()
 			database.activityCapturedFactDao().deleteAllEvidence()
 			database.activityCapturedFactDao().deleteAllFragments()

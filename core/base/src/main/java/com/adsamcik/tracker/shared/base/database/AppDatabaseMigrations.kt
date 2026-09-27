@@ -1395,6 +1395,19 @@ val MIGRATION_27_28: Migration = object : Migration(
 		with(db) {
 			execSQL("ALTER TABLE session_segment ADD COLUMN logical_tracking_id TEXT")
 			execSQL("ALTER TABLE session_segment ADD COLUMN service_run_id TEXT")
+			execSQL("ALTER TABLE location_observation_decision ADD COLUMN writer_projection_id TEXT")
+			execSQL(
+				"ALTER TABLE location_observation_decision ADD COLUMN " +
+					"writer_projection_version INTEGER",
+			)
+			execSQL(
+				"ALTER TABLE location_observation_decision ADD COLUMN " +
+					"writer_binding_generation INTEGER",
+			)
+			execSQL(
+				"ALTER TABLE location_observation_decision ADD COLUMN " +
+					"writer_owner_generation INTEGER",
+			)
 			execSQL("ALTER TABLE xp_ledger ADD COLUMN source_key TEXT")
 			execSQL("ALTER TABLE xp_ledger ADD COLUMN source_revision INTEGER")
 			execSQL("ALTER TABLE achievement_progress ADD COLUMN authority_kind TEXT")
@@ -2438,6 +2451,105 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS pressure_fact_retention_authority (
+					writer_projection_id TEXT NOT NULL,
+					writer_projection_version INTEGER NOT NULL,
+					logical_fact_id TEXT NOT NULL,
+					current_semantic_revision INTEGER NOT NULL,
+					current_source_event_id TEXT NOT NULL,
+					current_source_admission_ordinal INTEGER NOT NULL,
+					current_source_policy_revision INTEGER NOT NULL,
+					current_capture_consent_epoch INTEGER NOT NULL,
+					trigger_semantic_revision INTEGER NOT NULL,
+					trigger_source_event_id TEXT NOT NULL,
+					trigger_source_admission_ordinal INTEGER NOT NULL,
+					trigger_source_policy_revision INTEGER NOT NULL,
+					trigger_capture_consent_epoch INTEGER NOT NULL,
+					logical_tracking_id TEXT NOT NULL,
+					service_run_id TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					retained_from_ms INTEGER NOT NULL,
+					lineage_interval_start_ms INTEGER NOT NULL,
+					lineage_interval_end_ms INTEGER NOT NULL,
+					lineage_earliest_possible_start_ms INTEGER NOT NULL,
+					lineage_revision_count INTEGER NOT NULL,
+					lineage_effect_checksum TEXT NOT NULL,
+					revision_authority_set_checksum TEXT NOT NULL,
+					retained_at_ms INTEGER NOT NULL,
+					reason TEXT NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					PRIMARY KEY(
+						writer_projection_id,
+						writer_projection_version,
+						logical_fact_id
+					)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_pressure_retention_current_event " +
+					"ON pressure_fact_retention_authority(writer_projection_id, " +
+					"writer_projection_version, current_source_event_id)",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_pressure_retention_current_admission " +
+					"ON pressure_fact_retention_authority(writer_projection_id, " +
+					"writer_projection_version, current_source_admission_ordinal)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_pressure_retention_trigger_evidence " +
+					"ON pressure_fact_retention_authority(trigger_source_event_id, " +
+					"trigger_source_admission_ordinal)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_pressure_retention_run_scope " +
+					"ON pressure_fact_retention_authority(service_run_id, logical_tracking_id, " +
+					"logical_fact_id)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS pressure_fact_retention_revision_authority (
+					writer_projection_id TEXT NOT NULL,
+					writer_projection_version INTEGER NOT NULL,
+					logical_fact_id TEXT NOT NULL,
+					semantic_revision INTEGER NOT NULL,
+					source_event_id TEXT NOT NULL,
+					source_admission_ordinal INTEGER NOT NULL,
+					source_policy_revision INTEGER NOT NULL,
+					capture_consent_epoch INTEGER NOT NULL,
+					revision_effect_checksum TEXT NOT NULL,
+					parent_authority_checksum TEXT NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					PRIMARY KEY(
+						writer_projection_id,
+						writer_projection_version,
+						logical_fact_id,
+						semantic_revision
+					),
+					FOREIGN KEY(
+						writer_projection_id,
+						writer_projection_version,
+						logical_fact_id
+					) REFERENCES pressure_fact_retention_authority(
+						writer_projection_id,
+						writer_projection_version,
+						logical_fact_id
+					) ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_pressure_retention_revision_event " +
+					"ON pressure_fact_retention_revision_authority(writer_projection_id, " +
+					"writer_projection_version, source_event_id)",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_pressure_retention_revision_admission " +
+					"ON pressure_fact_retention_revision_authority(writer_projection_id, " +
+					"writer_projection_version, source_admission_ordinal)",
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS wifi_captured_fact_revision (
 					writer_projection_id TEXT NOT NULL,
 					writer_projection_version INTEGER NOT NULL,
@@ -3085,6 +3197,11 @@ val MIGRATION_27_28: Migration = object : Migration(
 				"CREATE INDEX IF NOT EXISTS idx_activity_captured_evidence_fragment " +
 					"ON activity_captured_evidence(writer_projection_id, writer_projection_version, " +
 					"logical_window_id, semantic_revision, fragment_ordinal)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_activity_captured_evidence_writer_admission " +
+					"ON activity_captured_evidence(writer_projection_id, " +
+					"writer_projection_version, source_admission_ordinal)",
 			)
 			execSQL(
 				"""

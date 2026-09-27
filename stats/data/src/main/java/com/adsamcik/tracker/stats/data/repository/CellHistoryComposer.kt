@@ -1,10 +1,15 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.CellAggregateReuseAuthority
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication
+import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -19,6 +24,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
@@ -225,16 +231,102 @@ internal object CellHistoryComposer {
 
 		val evidenceState = snapshot.evidenceState
 			?: return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED)
-		val current = mutableListOf<Pair<CellCapturedFactRevisionEntity, CellCapturedFactRevisionEntity>>()
+		val admissionsByEventId = snapshot.admissions.associateBy(SourceEventWalEntity::eventId)
+		val admissionsByOrdinal = snapshot.admissions.associateBy(SourceEventWalEntity::admissionOrdinal)
+		val admissionsByDelivery = snapshot.admissions.associateBy(SourceEventWalEntity::deliveryIdentity)
+		if (admissionsByEventId.size != snapshot.admissions.size ||
+			admissionsByOrdinal.size != snapshot.admissions.size ||
+			admissionsByDelivery.size != snapshot.admissions.size
+		) return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
+		val current = mutableListOf<AuthenticatedCellHistoryFact>()
+		val factOwnerByEvent = linkedMapOf<String, String>()
 		for ((_, lineage) in relatedRevisions.groupBy(CellCapturedFactRevisionEntity::logicalFactId)) {
 			val latest = validateLineage(lineage.sortedBy(CellCapturedFactRevisionEntity::semanticRevision), snapshot)
 				?: return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED)
 			val aggregate = resolveAggregate(latest, snapshot)
 				?: return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED)
-			if (!factHasExactAuthority(latest, aggregate, snapshot, manifestsByRun, bindings, evidenceState)) {
+			val wal = admissionsByEventId[latest.sourceEventId]
+				?: return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
+			val walAuthentication = CellWalCarrierAuthenticator.authenticate(latest, wal)
+				as? CellWalCarrierAuthentication.Authenticated
+			val aggregateWal = admissionsByEventId[aggregate.sourceEventId]
+				?: return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
+			val aggregateWalAuthentication =
+				CellWalCarrierAuthenticator.authenticate(aggregate, aggregateWal)
+					as? CellWalCarrierAuthentication.Authenticated
+			val retentionLowerBound = walAuthentication?.let { authentication ->
+				CellWalCarrierAuthenticator.retentionLowerBound(latest, authentication.carrier)
+			}
+			val aggregateRetentionLowerBound =
+				aggregateWalAuthentication?.let { authentication ->
+					CellWalCarrierAuthenticator.retentionLowerBound(
+						aggregate,
+						authentication.carrier,
+					)
+				}
+			val coverageStartWallTime = walAuthentication?.let { authentication ->
+				CellWalCarrierAuthenticator.coverageStartWallTime(latest, authentication.carrier)
+			}
+			if (admissionsByOrdinal[latest.sourceAdmissionOrdinal] != wal ||
+				admissionsByDelivery[latest.sourceDeliveryIdentity] != wal ||
+				walAuthentication == null ||
+				admissionsByOrdinal[aggregate.sourceAdmissionOrdinal] != aggregateWal ||
+				admissionsByDelivery[aggregate.sourceDeliveryIdentity] != aggregateWal ||
+				aggregateWalAuthentication == null ||
+				retentionLowerBound == null ||
+				aggregateRetentionLowerBound == null ||
+				coverageStartWallTime == null ||
+				!(if (latest.factKind ==
+					CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY
+				) {
+					CellWalCarrierAuthenticator.authenticatesAggregate(
+						aggregate,
+						walAuthentication.carrier,
+						latest,
+					)
+				} else {
+					CellWalCarrierAuthenticator.authenticatesAggregate(
+						aggregate,
+						walAuthentication.carrier,
+					)
+				}) ||
+				!CellWalCarrierAuthenticator.authenticatesAggregate(
+					aggregate,
+					aggregateWalAuthentication.carrier,
+				)
+			) return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
+			val priorFact = factOwnerByEvent.putIfAbsent(latest.sourceEventId, latest.logicalFactId)
+			if (priorFact != null && priorFact != latest.logicalFactId) {
 				return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
 			}
-			current += latest to aggregate
+			if (!factHasExactAuthority(
+					latest,
+					aggregate,
+					retentionLowerBound,
+					snapshot,
+					manifestsByRun,
+					bindings,
+					evidenceState,
+				)
+				|| aggregate !== latest && !factHasExactAuthority(
+					aggregate,
+					aggregate,
+					aggregateRetentionLowerBound,
+					snapshot,
+					manifestsByRun,
+					bindings,
+					evidenceState,
+				)
+			) {
+				return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
+			}
+			current += AuthenticatedCellHistoryFact(
+				fact = latest,
+				aggregate = aggregate,
+				retentionLowerBoundMs = retentionLowerBound,
+				aggregateRetentionLowerBoundMs = aggregateRetentionLowerBound,
+				coverageStartWallTimeMs = coverageStartWallTime,
+			)
 		}
 
 		val deletedRuns = runIds.filter { runId ->
@@ -243,16 +335,16 @@ internal object CellHistoryComposer {
 		}.toSet()
 		if (deletedRuns.isNotEmpty()) return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED)
 
-		val currentEpoch = current.filter { (fact, aggregate) ->
-			fact.hasCurrentPrivacyAuthority(logicalId, evidenceState, snapshot) &&
-				aggregate.hasCurrentPrivacyAuthority(logicalId, evidenceState, snapshot)
+		val currentEpoch = current.filter { authenticated ->
+			authenticated.fact.hasCurrentPrivacyAuthority(logicalId, evidenceState, snapshot) &&
+				authenticated.aggregate.hasCurrentPrivacyAuthority(logicalId, evidenceState, snapshot)
 		}
 		val epochLoss = currentEpoch.size != current.size
 		val retained = runCatching {
-			currentEpoch.filter { (fact, aggregate) ->
+			currentEpoch.filter { authenticated ->
 				evidenceState.retainedFromMs?.let { floor ->
-					earliestPossibleWallTimeMs(fact) >= floor &&
-						earliestPossibleWallTimeMs(aggregate) >= floor
+					authenticated.retentionLowerBoundMs >= floor &&
+						authenticated.aggregateRetentionLowerBoundMs >= floor
 				} != false
 			}
 		}.getOrElse { return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED) }
@@ -273,9 +365,17 @@ internal object CellHistoryComposer {
 		}
 
 		val observations = runCatching {
-			retained.sortedWith(compareBy<Pair<CellCapturedFactRevisionEntity, CellCapturedFactRevisionEntity>>(
-				{ it.first.observedWallTimeMs }, { it.first.sourceAdmissionOrdinal }, { it.first.logicalFactId },
-			)).map { (fact, aggregate) -> toObservation(fact, aggregate) }
+			retained.sortedWith(compareBy<AuthenticatedCellHistoryFact>(
+				{ it.fact.observedWallTimeMs },
+				{ it.fact.sourceAdmissionOrdinal },
+				{ it.fact.logicalFactId },
+			)).map { authenticated ->
+				toObservation(
+					authenticated.fact,
+					authenticated.aggregate,
+					authenticated.coverageStartWallTimeMs,
+				)
+			}
 		}.getOrElse { return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED) }
 		val causes = linkedSetOf<CellHistoryCause>()
 		if (isActive(session, runs)) causes += CellHistoryCause.SESSION_ACTIVE
@@ -288,7 +388,10 @@ internal object CellHistoryComposer {
 			row.unresolvedSequenceStart != null || row.unresolvedSequenceEnd != null ||
 				row.providerCoverage != COMPLETE_PROVIDER_COVERAGE || row.stopStatus != COMPLETE_STOP_STATUS
 		}) causes += CellHistoryCause.ACQUISITION_INCOMPLETE
-		if (retained.any { it.first.childCompleteness == CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_PARTIAL }) {
+		if (retained.any {
+				it.fact.childCompleteness == CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_PARTIAL
+			}
+		) {
 			causes += CellHistoryCause.CHILDREN_PARTIAL
 		}
 		// v1 deliberately cannot prove complete multi-SIM grouping.
@@ -351,13 +454,12 @@ internal object CellHistoryComposer {
 		ordered: List<CellCapturedFactRevisionEntity>,
 		snapshot: CellHistorySnapshot,
 	): CellCapturedFactRevisionEntity? {
-		if (ordered.isEmpty() || ordered.map(CellCapturedFactRevisionEntity::semanticRevision) !=
-			(1L..ordered.size.toLong()).toList()) return null
-		if (ordered.any { !CellCapturedFactRevisionIntegrity.hasValidEffectChecksum(it) }) return null
-		if (ordered.zipWithNext().any { (previous, next) -> !next.isExactSuccessorOf(previous) }) return null
+		if (!CellCapturedFactRevisionIntegrity.hasValidRetainedLineage(ordered)) return null
 		val latest = ordered.last()
 		val cursor = snapshot.cursors.singleOrNull { it.logicalFactId == latest.logicalFactId }
-		return latest.takeIf { cursor?.matches(latest) == true }
+		return latest.takeIf { candidate ->
+			cursor?.let { CellCapturedFactRevisionIntegrity.cursorAuthenticatesCurrent(it, candidate) } == true
+		}
 	}
 
 	private fun resolveAggregate(
@@ -372,9 +474,19 @@ internal object CellHistoryComposer {
 			val owner = ownerLineage.singleOrNull { it.semanticRevision == ownerRevision } ?: return null
 			val currentOwner = validateLineage(ownerLineage.sortedBy(CellCapturedFactRevisionEntity::semanticRevision),
 				snapshot) ?: return null
+			val ownerCursor = snapshot.cursors.singleOrNull { it.logicalFactId == ownerId }
+				?: return null
+			val dependentAuthority = fact.aggregateReuseAuthority(snapshot) ?: return null
+			val ownerAuthority = owner.aggregateReuseAuthority(snapshot) ?: return null
 			owner.takeIf { owner.factKind == CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE &&
 				ownerLineage.all { it.factKind == CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE } &&
-				currentOwner.logicalFactId == ownerId && owner.hasCompatibleAggregateAuthority(fact, snapshot) }
+				currentOwner == owner &&
+				CellCapturedFactRevisionIntegrity.coverageOnlyOwnerCursorAuthenticates(
+					fact,
+					owner,
+					ownerCursor,
+				) &&
+				dependentAuthority.canReuseAggregateFrom(ownerAuthority) }
 		}
 		else -> null
 	}
@@ -383,6 +495,7 @@ internal object CellHistoryComposer {
 	private fun factHasExactAuthority(
 		fact: CellCapturedFactRevisionEntity,
 		aggregate: CellCapturedFactRevisionEntity,
+		retentionLowerBoundMs: Long,
 		snapshot: CellHistorySnapshot,
 		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		bindings: Map<Long, SessionManifestSourceEntity>,
@@ -402,7 +515,23 @@ internal object CellHistoryComposer {
 		val session = snapshot.sessions[fact.logicalTrackingId] ?: return false
 		val sessionEnd = session.cutoffElapsedNanos
 			.takeIf { session.lifecycleBootId == fact.clockDomainId } ?: Long.MAX_VALUE
-		val providerEnd = provider.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE
+		val providerAuthentication = ProviderRegistrationIntervalAuthenticator.authenticate(
+			registration = provider,
+			expectedSourceKind = CELL_SOURCE,
+			expectedRegistrationGeneration = fact.registrationGeneration,
+			expectedSourceInstanceId = fact.sourceInstanceId,
+			expectedClockDomainId = fact.clockDomainId,
+			expectedPhysicalConfigurationFingerprint = fact.physicalConfigurationFingerprint,
+			expectedCollectedDataEpoch = fact.collectedDataEpoch,
+			expectedProviderResidency =
+				ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+			observedStartNanos = fact.coverageIntervalStartNanos,
+			observedEndNanos = fact.coverageIntervalEndNanos,
+			observedWallTimeMs = fact.observedWallTimeMs,
+			currentClockDomainId = snapshot.currentClockDomainId,
+			currentProviderRegistrations = snapshot.currentProviderRegistrations,
+		) as? ProviderRegistrationIntervalAuthentication.Authenticated ?: return false
+		val providerEnd = providerAuthentication.interval.endExclusiveNanos
 		val consent = snapshot.consents[fact.captureConsentEpoch] ?: return false
 		val expectedManifestEnd = nextManifest?.effectiveElapsedRealtimeNanos
 			?: minOf(sessionEnd, providerEnd, fact.authorizationEffectEndNanos)
@@ -419,7 +548,7 @@ internal object CellHistoryComposer {
 			fact.sourcePolicyRevision == manifest.sourcePolicyRevision &&
 			fact.captureConsentEpoch == binding.consentEpoch && fact.lifecycleLeaseGeneration == run.leaseGeneration &&
 			fact.clockDomainId == run.bootId && fact.storedZoneId == manifest.zoneId &&
-			fact.hasExactStoredDay() &&
+			fact.hasExactStoredDay(retentionLowerBoundMs) &&
 			fact.consentEffectStartNanos == consent.effectiveElapsedRealtimeNanos &&
 			fact.consentEffectEndNanos == fact.authorizationEffectEndNanos &&
 			fact.sessionRunEffectStartNanos == manifest.effectiveElapsedRealtimeNanos &&
@@ -435,8 +564,6 @@ internal object CellHistoryComposer {
 			provider.sourceKind == CELL_SOURCE && provider.registrationGeneration == fact.registrationGeneration &&
 			provider.sourceInstanceId == fact.sourceInstanceId && provider.clockDomainId == fact.clockDomainId &&
 			provider.ownerScope == "source-broker:$CELL_SOURCE" &&
-			provider.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
-			provider.status in ACCEPTED_REGISTRATION_STATES &&
 			provider.physicalConfigurationFingerprint == fact.physicalConfigurationFingerprint &&
 			provider.collectedDataEpoch == fact.collectedDataEpoch &&
 			provider.acceptedElapsedRealtimeNanos == fact.providerAcceptanceStartNanos &&
@@ -500,9 +627,8 @@ internal object CellHistoryComposer {
 	private fun toObservation(
 		fact: CellCapturedFactRevisionEntity,
 		aggregate: CellCapturedFactRevisionEntity,
+		coverageStartWallTimeMs: Long,
 	): CellHistoryObservation {
-		val spanMs = Math.subtractExact(fact.observedElapsedNanos, fact.coverageIntervalStartNanos) / 1_000_000L
-		val start = Math.subtractExact(fact.observedWallTimeMs, spanMs)
 		val rejected = listOf(fact.staleChildCount, fact.futureTimeChildCount, fact.missingTimeChildCount,
 			fact.clockUnverifiableChildCount, fact.authorityMismatchChildCount,
 			fact.unsupportedTechnologyChildCount).fold(0, Math::addExact)
@@ -515,7 +641,7 @@ internal object CellHistoryComposer {
 		put(CellHistoryTechnology.LTE, aggregate.lteCount)
 		put(CellHistoryTechnology.NR, aggregate.nrCount)
 		return CellHistoryObservation(
-			intervalStartTime = EpochMs(start),
+			intervalStartTime = EpochMs(coverageStartWallTimeMs),
 			observedTime = EpochMs(fact.observedWallTimeMs),
 			wallTimeUncertaintyMs = fact.wallTimeUncertaintyMs,
 			availability = CellHistoryAvailability.AVAILABLE,
@@ -552,20 +678,26 @@ internal object CellHistoryComposer {
 				qualityModerateCount, qualityGoodCount, qualityGreatCount)
 				.filterNotNull().fold(0, Math::addExact) == observationCount
 
-	private fun CellCapturedFactRevisionEntity.hasCompatibleAggregateAuthority(
-		dependent: CellCapturedFactRevisionEntity,
+	private fun CellCapturedFactRevisionEntity.aggregateReuseAuthority(
 		snapshot: CellHistorySnapshot,
-	): Boolean {
-		val ownerSources = snapshot.manifestAuthorityShape(logicalTrackingId, manifestRevision) ?: return false
-		val dependentSources = snapshot.manifestAuthorityShape(
-			dependent.logicalTrackingId, dependent.manifestRevision,
-		) ?: return false
-		return logicalTrackingId == dependent.logicalTrackingId && serviceRunId == dependent.serviceRunId &&
-			sessionSegmentId == dependent.sessionSegmentId && collectedDataEpoch == dependent.collectedDataEpoch &&
-			scopeDeletionGeneration == dependent.scopeDeletionGeneration && storedZoneId == dependent.storedZoneId &&
-			structuralEpochDay == dependent.structuralEpochDay &&
-			purposeEligibilityMask == dependent.purposeEligibilityMask &&
-			captureConsentEpoch == dependent.captureConsentEpoch && ownerSources == dependentSources
+	): CellAggregateReuseAuthority? {
+		val (capturedSources, controlSources) = snapshot.manifestAuthorityShape(
+			logicalTrackingId,
+			manifestRevision,
+		) ?: return null
+		return CellAggregateReuseAuthority(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sessionSegmentId = sessionSegmentId,
+			capturedSources = capturedSources,
+			controlSources = controlSources,
+			purposeEligibilityMask = purposeEligibilityMask,
+			captureConsentEpoch = captureConsentEpoch,
+			collectedDataEpoch = collectedDataEpoch,
+			scopeDeletionGeneration = scopeDeletionGeneration,
+			storedZoneId = storedZoneId,
+			structuralEpochDay = structuralEpochDay,
+		)
 	}
 
 	private fun CellCapturedFactRevisionEntity.hasCurrentPrivacyAuthority(
@@ -590,53 +722,6 @@ internal object CellHistoryComposer {
 			.mapTo(linkedSetOf(), SessionManifestSourceEntity::sourceKind)
 		return captured to control
 	}
-
-	private fun CellCapturedFactRevisionEntity.isExactSuccessorOf(
-		previous: CellCapturedFactRevisionEntity,
-	): Boolean = fixedCorrectionAuthority() == previous.fixedCorrectionAuthority() &&
-		providerAcceptanceEndNanos.settles(previous.providerAcceptanceEndNanos) &&
-		authorizationEffectEndNanos.settles(previous.authorizationEffectEndNanos) &&
-		consentEffectEndNanos.settles(previous.consentEffectEndNanos) &&
-		sessionRunEffectEndNanos.settles(previous.sessionRunEffectEndNanos) &&
-		deletionEffectEndNanos.settles(previous.deletionEffectEndNanos)
-
-	@Suppress("LongMethod")
-	private fun CellCapturedFactRevisionEntity.fixedCorrectionAuthority(): List<Any?> = listOf(
-		writerProjectionId, writerProjectionVersion, writerBindingGeneration, writerOwnerGeneration,
-		logicalFactId, logicalTrackingId, serviceRunId, sessionSegmentId, purpose, sourceDeliveryIdentity,
-		sourceEventId, sourceAdmissionOrdinal, walIntegrityIdentity, payloadChecksum, deliveryUnitIndex,
-		deliveryUnitCount, sourceSequence, planAttribution, payloadVersion, canonicalProviderSemanticsDigest,
-		sourceInstanceId, registrationGeneration, configurationRevision, physicalConfigurationFingerprint,
-		authorizationRevision, authorizationFingerprint, purposeEligibilityMask, sourcePolicyRevision,
-		captureConsentEpoch, manifestRevision, lifecycleLeaseGeneration, collectedDataEpoch,
-		scopeDeletionGeneration, clockDomainId, storedZoneId, structuralEpochDay,
-		providerAcceptanceStartNanos, authorizationEffectStartNanos, consentEffectStartNanos,
-		sessionRunEffectStartNanos, deletionEffectStartNanos, maximumObservationAgeNanos,
-		observedIntervalStartNanos, observedElapsedNanos, receivedElapsedNanos,
-		observedWallTimeMs, wallTimeUncertaintyMs, acquiredAtMs, createdAtMs, qualityFlags, qualityConfidence,
-		factKind, aggregateOwnerLogicalFactId, aggregateOwnerSemanticRevision,
-		coverageIntervalStartNanos, coverageIntervalEndNanos, availability,
-		submittedChildCount, acceptedChildCount, staleChildCount, futureTimeChildCount,
-		missingTimeChildCount, clockUnverifiableChildCount, authorityMismatchChildCount,
-		unsupportedTechnologyChildCount, subscriptionCompleteness, childCompleteness,
-		observationCount, registeredObservationCount, gsmCount, cdmaCount, wcdmaCount, tdscdmaCount,
-		lteCount, nrCount, qualityUnknownCount, qualityNoneOrUnknownCount, qualityPoorCount,
-		qualityModerateCount, qualityGoodCount, qualityGreatCount, weakObservationCount,
-		knownQualityObservationCount, allKnownQualityIsWeak,
-	)
-
-	private fun Long.settles(previous: Long): Boolean =
-		this == previous || previous == Long.MAX_VALUE && this < Long.MAX_VALUE
-
-	private fun CellCapturedFactCursorEntity.matches(fact: CellCapturedFactRevisionEntity): Boolean =
-		writerProjectionId == fact.writerProjectionId && writerProjectionVersion == fact.writerProjectionVersion &&
-		logicalFactId == fact.logicalFactId && logicalTrackingId == fact.logicalTrackingId &&
-		serviceRunId == fact.serviceRunId && sessionSegmentId == fact.sessionSegmentId &&
-		writerOwnerGeneration == fact.writerOwnerGeneration && collectedDataEpoch == fact.collectedDataEpoch &&
-		scopeDeletionGeneration == fact.scopeDeletionGeneration &&
-		latestSemanticRevision == fact.semanticRevision && latestMutationId == fact.mutationId &&
-		latestEffectChecksum == fact.effectChecksum && latestSourceAdmissionOrdinal == fact.sourceAdmissionOrdinal &&
-		cursorRevision == fact.semanticRevision && updatedAtMs == fact.appliedAtMs
 
 	private fun hasValidCompleteness(
 		rows: List<SourceSessionCompletenessEntity>, logicalId: String, runIds: List<String>,
@@ -711,16 +796,11 @@ internal object CellHistoryComposer {
 			presentationAcknowledgement != SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE
 	}
 
-	private fun earliestPossibleWallTimeMs(fact: CellCapturedFactRevisionEntity): Long =
-		Math.subtractExact(
-			Math.subtractExact(fact.observedWallTimeMs,
-				Math.subtractExact(fact.observedElapsedNanos, fact.coverageIntervalStartNanos) / 1_000_000L),
-			fact.wallTimeUncertaintyMs,
-		)
-
-	private fun CellCapturedFactRevisionEntity.hasExactStoredDay(): Boolean = runCatching {
+	private fun CellCapturedFactRevisionEntity.hasExactStoredDay(
+		retentionLowerBoundMs: Long,
+	): Boolean = runCatching {
 		val zone = ZoneId.of(storedZoneId)
-		val earliest = earliestPossibleWallTimeMs(this)
+		val earliest = retentionLowerBoundMs
 		val latest = Math.addExact(observedWallTimeMs, wallTimeUncertaintyMs)
 		val firstDay = Instant.ofEpochMilli(earliest).atZone(zone).toLocalDate().toEpochDay()
 		val lastDay = Instant.ofEpochMilli(latest).atZone(zone).toLocalDate().toEpochDay()
@@ -833,11 +913,6 @@ internal object CellHistoryComposer {
 	)
 	private const val COMPLETE_PROVIDER_COVERAGE = "CALLBACKS_ENTERED_BEFORE_BARRIER"
 	private const val COMPLETE_STOP_STATUS = "COMPLETE"
-	private val ACCEPTED_REGISTRATION_STATES = setOf(
-		ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
-		ProviderRegistrationGenerationEntity.STATUS_RETIRING,
-		ProviderRegistrationGenerationEntity.STATUS_RETIRED,
-	)
 	private const val MANUAL_CAPTURE_MASK = 1L
 	private const val AUTOMATIC_CAPTURE_MASK = 2L
 	private const val ALL_CAPTURE_MASK = MANUAL_CAPTURE_MASK or AUTOMATIC_CAPTURE_MASK
@@ -906,6 +981,14 @@ internal data class CellMembershipExpansion(
 
 internal data class CellManifestKey(val logicalTrackingId: String, val manifestRevision: Long)
 
+private data class AuthenticatedCellHistoryFact(
+	val fact: CellCapturedFactRevisionEntity,
+	val aggregate: CellCapturedFactRevisionEntity,
+	val retentionLowerBoundMs: Long,
+	val aggregateRetentionLowerBoundMs: Long,
+	val coverageStartWallTimeMs: Long,
+)
+
 @Suppress("LongParameterList")
 internal data class CellHistorySnapshot(
 	val expansion: CellMembershipExpansion,
@@ -925,16 +1008,39 @@ internal data class CellHistorySnapshot(
 	val providerRegistrations: Map<Long, ProviderRegistrationGenerationEntity>,
 	val authorizationsByRegistration: Map<Long, List<SourceAuthorizationEntity>>,
 	val demands: Map<String, SourceDemandEntity>,
+	val admissions: List<SourceEventWalEntity>,
 	val lanes: List<SourceProductProjectionLaneEntity>,
 	val terminalFailures: List<SourceProjectionFailureEntity>,
 	val evidenceState: SourceEvidenceState?,
 	val overflow: Boolean,
+	val currentProviderRegistrations: List<ProviderRegistrationGenerationEntity> = emptyList(),
+	val currentClockDomainId: String? = null,
 ) {
 	companion object {
-		fun empty(expansion: CellMembershipExpansion) = CellHistorySnapshot(expansion, emptyMap(), emptyMap(),
-			emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyList(), emptyList(), emptyMap(),
-			emptySet(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyList(), emptyList(), null,
-			false)
+		fun empty(expansion: CellMembershipExpansion) = CellHistorySnapshot(
+			expansion = expansion,
+			sessions = emptyMap(),
+			runs = emptyMap(),
+			manifestsByRun = emptyMap(),
+			sourcesByManifest = emptyMap(),
+			policies = emptyMap(),
+			consents = emptyMap(),
+			completenessByRun = emptyMap(),
+			revisions = emptyList(),
+			cursors = emptyList(),
+			deletionGenerations = emptyMap(),
+			deletedScopes = emptySet(),
+			planHeaders = emptyMap(),
+			desiredPlans = emptyMap(),
+			providerRegistrations = emptyMap(),
+			authorizationsByRegistration = emptyMap(),
+			demands = emptyMap(),
+			admissions = emptyList(),
+			lanes = emptyList(),
+			terminalFailures = emptyList(),
+			evidenceState = null,
+			overflow = false,
+		)
 	}
 }
 

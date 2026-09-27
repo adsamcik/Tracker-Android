@@ -19,6 +19,7 @@ import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
 import com.adsamcik.tracker.stats.api.repository.LiveStatsRepository
 import com.adsamcik.tracker.stats.api.repository.SessionStatsRepository
 import com.adsamcik.tracker.stats.api.repository.SkiRunSegmentRepository
+import com.adsamcik.tracker.stats.api.repository.SourceFactQueryRepository
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.repository.TripRepository
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
@@ -42,6 +43,7 @@ import com.adsamcik.tracker.stats.data.repository.DefaultLocationSampleRepositor
 import com.adsamcik.tracker.stats.data.repository.DefaultLiveStatsRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultSessionStatsRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultSkiRunSegmentRepository
+import com.adsamcik.tracker.stats.data.repository.DefaultSourceFactQueryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultTripRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultTrackingHistoryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultTrackingHistorySourceUnionReader
@@ -190,6 +192,12 @@ internal abstract class TrackingHistoryDataModule {
 	abstract fun bindTrackingHistoryRepository(
 		impl: DefaultTrackingHistoryRepository,
 	): TrackingHistoryRepository
+
+	@Binds
+	@Singleton
+	abstract fun bindSourceFactQueryRepository(
+		impl: DefaultSourceFactQueryRepository,
+	): SourceFactQueryRepository
 
 	@Binds
 	@Singleton

@@ -20,6 +20,27 @@ import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.WifiScanAttemptOutcome
 import com.adsamcik.tracker.tracker.source.model.WifiScanAttemptPayload
 import com.adsamcik.tracker.tracker.source.model.expectedPressureSampleCount
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.ACTIVITY_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.ActivityWalPayload
+import com.adsamcik.tracker.shared.base.database.data.ActivityWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayload
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadDecodeResult
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadObservation
+import com.adsamcik.tracker.shared.base.database.data.PRESSURE_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.PressureWalClosureKind
+import com.adsamcik.tracker.shared.base.database.data.PressureWalPayload
+import com.adsamcik.tracker.shared.base.database.data.PressureWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.PressureWalSensorAccuracy
+import com.adsamcik.tracker.shared.base.database.data.StepsWalBoundaryKind
+import com.adsamcik.tracker.shared.base.database.data.StepsWalPayload
+import com.adsamcik.tracker.shared.base.database.data.StepsWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.WifiWalPayload
+import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadDecodeResult
+import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadObservation
 import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -45,6 +66,72 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 		require(payloadVersion in MINIMUM_VERSION..CURRENT_VERSION) {
 			"Unsupported source payload version $payloadVersion"
 		}
+		if (payload is CellSnapshotPayload && payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+			val encoded = CellWalPayloadCodec.encode(
+				CellWalPayload(
+					subscriptionId = payload.subscriptionId,
+					observations = payload.observations.map { observation ->
+						CellWalPayloadObservation(
+							identifierToken = observation.identifierToken,
+							radioType = observation.radioType,
+							registered = observation.registered,
+							signalLevelDbm = observation.signalLevelDbm,
+							providerTimestampNanos = observation.providerTimestampNanos,
+						)
+					},
+					refreshOutcomeCode = payload.refreshOutcome.ordinal,
+					observationZoneId = requireNotNull(payload.observationZoneId),
+				),
+			)
+			return EncodedSourcePayload(encoded.toByteArray(), encoded.checksum)
+		}
+		if (payload is WifiResultSnapshotPayload && payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
+			val encoded = WifiWalPayloadCodec.encode(
+				WifiWalPayload(
+					observations = payload.accessPoints.map { observation ->
+						WifiWalPayloadObservation(
+							identifierToken = observation.identifierToken,
+							frequencyMhz = observation.frequencyMhz,
+							signalLevelDbm = observation.signalLevelDbm,
+							providerTimestampNanos = observation.providerTimestampNanos,
+						)
+					},
+					platformTimestampMs = payload.platformTimestampMs,
+					resultAgeMs = payload.resultAgeMs,
+					observationZoneId = requireNotNull(payload.observationZoneId),
+				),
+			)
+			return EncodedSourcePayload(encoded.toByteArray(), encoded.checksum)
+		}
+		val canonicalBytes = when {
+			payload is ActivityTransitionPayload &&
+				payloadVersion == ACTIVITY_WAL_PAYLOAD_VERSION ->
+				ActivityWalPayloadCodec.encode(
+					ActivityWalPayload.Transition(
+						payload.activityType,
+						payload.transitionType,
+						payload.providerElapsedRealtimeNanos,
+					),
+				)
+			payload is ActivityRecognitionPayload &&
+				payloadVersion == ACTIVITY_WAL_PAYLOAD_VERSION ->
+				ActivityWalPayloadCodec.encode(
+					ActivityWalPayload.Recognition(
+						payload.activityType,
+						payload.confidencePercent,
+						payload.providerElapsedRealtimeNanos,
+					),
+				)
+			payload is StepCounterWindowPayload ->
+				StepsWalPayloadCodec.encode(payload.toWalPayload(), payloadVersion)
+			payload is PressureWindowPayload &&
+				payloadVersion == PRESSURE_WAL_PAYLOAD_VERSION ->
+				PressureWalPayloadCodec.encode(payload.toWalPayload())
+			else -> null
+		}
+		if (canonicalBytes != null) {
+			return EncodedSourcePayload(canonicalBytes, canonicalBytes.sha256())
+		}
 		val bytes = ByteArrayOutputStream().use { buffer ->
 			DataOutputStream(buffer).use { output -> output.writePayload(payload, payloadVersion) }
 			buffer.toByteArray()
@@ -55,6 +142,84 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 	override fun decode(source: SourceKind, payloadVersion: Int, bytes: ByteArray): SourcePayload {
 		require(payloadVersion in MINIMUM_VERSION..CURRENT_VERSION) {
 			"Unsupported source payload version $payloadVersion"
+		}
+		if (source == SourceKind.CELL && payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+			val decoded = CellWalPayloadCodec.decodeCanonical(payloadVersion, bytes)
+			require(decoded is CellWalPayloadDecodeResult.Decoded) {
+				"Invalid canonical Cell WAL payload"
+			}
+			return decoded.payload.let { payload ->
+				CellSnapshotPayload(
+					subscriptionId = payload.subscriptionId,
+					observations = payload.observations.map { observation ->
+						CellObservationEvidence(
+							identifierToken = observation.identifierToken,
+							radioType = observation.radioType,
+							registered = observation.registered,
+							signalLevelDbm = observation.signalLevelDbm,
+							providerTimestampNanos = observation.providerTimestampNanos,
+						)
+					},
+					refreshOutcome = CellRefreshOutcome.entries[payload.refreshOutcomeCode],
+					observationZoneId = payload.observationZoneId,
+				)
+			}
+		}
+		if (source == SourceKind.WIFI && payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
+			val decoded = WifiWalPayloadCodec.decodeCanonical(payloadVersion, bytes)
+			require(decoded is WifiWalPayloadDecodeResult.Decoded) {
+				"Invalid canonical Wi-Fi WAL payload"
+			}
+			return WifiResultSnapshotPayload(
+				accessPoints = decoded.payload.observations.map { observation ->
+					WifiAccessPointEvidence(
+						identifierToken = observation.identifierToken,
+						frequencyMhz = observation.frequencyMhz,
+						signalLevelDbm = observation.signalLevelDbm,
+						providerTimestampNanos = observation.providerTimestampNanos,
+					)
+				},
+				platformTimestampMs = decoded.payload.platformTimestampMs,
+				resultAgeMs = decoded.payload.resultAgeMs,
+				observationZoneId = decoded.payload.observationZoneId,
+			)
+		}
+		if (source == SourceKind.ACTIVITY && payloadVersion == ACTIVITY_WAL_PAYLOAD_VERSION) {
+			return when (val payload = ActivityWalPayloadCodec.decodeCanonical(payloadVersion, bytes)) {
+				is ActivityWalPayload.Transition -> ActivityTransitionPayload(
+					payload.activityType,
+					payload.transitionType,
+					payload.providerElapsedRealtimeNanos,
+				)
+				is ActivityWalPayload.Recognition -> ActivityRecognitionPayload(
+					payload.activityType,
+					payload.confidencePercent,
+					payload.providerElapsedRealtimeNanos,
+				)
+				null -> error("Invalid canonical Activity WAL payload")
+			}
+		}
+		if (source == SourceKind.STEPS) {
+			val payload = StepsWalPayloadCodec.decodeCanonical(payloadVersion, bytes)
+				?: error("Invalid canonical Steps WAL payload")
+			return StepCounterWindowPayload(
+				bootClockDomainId = payload.bootClockDomainId,
+				firstCumulativeCount = payload.firstCumulativeCount,
+				lastCumulativeCount = payload.lastCumulativeCount,
+				deltaCount = payload.deltaCount,
+				windowStartElapsedRealtimeNanos = payload.windowStartElapsedRealtimeNanos,
+				windowEndElapsedRealtimeNanos = payload.windowEndElapsedRealtimeNanos,
+				firstProviderSequence = payload.firstProviderSequence,
+				lastProviderSequence = payload.lastProviderSequence,
+				boundaryKind = payload.boundaryKind.toSourceBoundary(),
+				counterDomainToken = payload.counterDomainToken,
+				counterEpochGeneration = payload.counterEpochGeneration,
+			)
+		}
+		if (source == SourceKind.PRESSURE && payloadVersion == PRESSURE_WAL_PAYLOAD_VERSION) {
+			val payload = PressureWalPayloadCodec.decodeCanonical(payloadVersion, bytes)
+				?: error("Invalid canonical Pressure WAL payload")
+			return payload.toSourcePayload()
 		}
 		if (payloadVersion == LEGACY_V27_VERSION) {
 			return LegacyV27SourcePayloadDecoder.decode(source, bytes)
@@ -419,6 +584,78 @@ internal const val STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION =
 	StepsCounterDomainToken.MINIMUM_DURABLE_PAYLOAD_VERSION
 internal const val STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION =
 	StepsCounterDomainToken.COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION
+
+private fun StepCounterWindowPayload.toWalPayload() = StepsWalPayload(
+	bootClockDomainId = bootClockDomainId,
+	firstCumulativeCount = firstCumulativeCount,
+	lastCumulativeCount = lastCumulativeCount,
+	deltaCount = deltaCount,
+	windowStartElapsedRealtimeNanos = windowStartElapsedRealtimeNanos,
+	windowEndElapsedRealtimeNanos = windowEndElapsedRealtimeNanos,
+	firstProviderSequence = firstProviderSequence,
+	lastProviderSequence = lastProviderSequence,
+	boundaryKind = when (boundaryKind) {
+		StepBoundaryKind.BASELINE -> StepsWalBoundaryKind.BASELINE
+		StepBoundaryKind.COVERED -> StepsWalBoundaryKind.COVERED
+		StepBoundaryKind.COUNTER_RESET -> StepsWalBoundaryKind.COUNTER_RESET
+		StepBoundaryKind.LEGACY_AMBIGUOUS -> StepsWalBoundaryKind.LEGACY_AMBIGUOUS
+	},
+	counterEpochGeneration = counterEpochGeneration,
+	counterDomainToken = counterDomainToken,
+)
+
+private fun StepsWalBoundaryKind.toSourceBoundary(): StepBoundaryKind = when (this) {
+	StepsWalBoundaryKind.BASELINE -> StepBoundaryKind.BASELINE
+	StepsWalBoundaryKind.COVERED -> StepBoundaryKind.COVERED
+	StepsWalBoundaryKind.COUNTER_RESET -> StepBoundaryKind.COUNTER_RESET
+	StepsWalBoundaryKind.LEGACY_AMBIGUOUS -> StepBoundaryKind.LEGACY_AMBIGUOUS
+}
+
+private fun PressureWindowPayload.toWalPayload() = PressureWalPayload(
+	sampleCount = sampleCount,
+	meanHectopascals = meanHectopascals,
+	sumSquaredDeviations = sumSquaredDeviations,
+	minimumHectopascals = minimumHectopascals,
+	maximumHectopascals = maximumHectopascals,
+	windowStartElapsedRealtimeNanos = windowStartElapsedRealtimeNanos,
+	windowEndElapsedRealtimeNanos = windowEndElapsedRealtimeNanos,
+	firstProviderSequence = firstProviderSequence,
+	lastProviderSequence = lastProviderSequence,
+	firstHectopascals = requireNotNull(firstHectopascals),
+	lastHectopascals = requireNotNull(lastHectopascals),
+	slopeHectopascalsPerSecond = slopeHectopascalsPerSecond,
+	rSquared = rSquared,
+	sensorAccuracy = PressureWalSensorAccuracy.valueOf(sensorAccuracy.name),
+	effectiveSamplePeriodMicros = requireNotNull(effectiveSamplePeriodMicros),
+	effectiveMaximumReportLatencyMicros = requireNotNull(effectiveMaximumReportLatencyMicros),
+	targetWindowDurationNanos = requireNotNull(targetWindowDurationNanos),
+	expectedSampleCount = requireNotNull(expectedSampleCount),
+	maximumInterSampleGapNanos = requireNotNull(maximumInterSampleGapNanos),
+	closureKind = PressureWalClosureKind.valueOf(closureKind.name),
+)
+
+private fun PressureWalPayload.toSourcePayload() = PressureWindowPayload(
+	sampleCount = sampleCount,
+	meanHectopascals = meanHectopascals,
+	sumSquaredDeviations = sumSquaredDeviations,
+	minimumHectopascals = minimumHectopascals,
+	maximumHectopascals = maximumHectopascals,
+	windowStartElapsedRealtimeNanos = windowStartElapsedRealtimeNanos,
+	windowEndElapsedRealtimeNanos = windowEndElapsedRealtimeNanos,
+	firstProviderSequence = firstProviderSequence,
+	lastProviderSequence = lastProviderSequence,
+	firstHectopascals = firstHectopascals,
+	lastHectopascals = lastHectopascals,
+	slopeHectopascalsPerSecond = slopeHectopascalsPerSecond,
+	rSquared = rSquared,
+	sensorAccuracy = PressureSensorAccuracy.valueOf(sensorAccuracy.name),
+	effectiveSamplePeriodMicros = effectiveSamplePeriodMicros,
+	effectiveMaximumReportLatencyMicros = effectiveMaximumReportLatencyMicros,
+	targetWindowDurationNanos = targetWindowDurationNanos,
+	expectedSampleCount = expectedSampleCount,
+	maximumInterSampleGapNanos = maximumInterSampleGapNanos,
+	closureKind = PressureWindowClosureKind.valueOf(closureKind.name),
+)
 
 private const val PRESSURE_ACCURACY_UNKNOWN_WIRE_CODE = 1
 private const val PRESSURE_ACCURACY_UNRELIABLE_WIRE_CODE = 2

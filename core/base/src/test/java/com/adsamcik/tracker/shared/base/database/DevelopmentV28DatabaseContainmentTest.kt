@@ -42,6 +42,19 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
+	fun `both pre reconciliation assembly markers are contained`() {
+		listOf(
+			"tracker-v28-adaptive-location-authority-20260926",
+			"tracker-v28-authenticated-retention-scope-proof-20260921",
+		).forEach { marker ->
+			deleteFixture()
+			createFixture(CURRENT_DATABASE_VERSION, includeFinalTable = true, includeFinalColumn = true,
+				includeFinalIndex = true, markerValue = marker)
+			preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28)
+		}
+	}
+
+	@Test
 	fun `pre adaptive Location development marker is stale`() {
 		createFixture(CURRENT_DATABASE_VERSION, includeFinalTable = true, includeFinalColumn = true,
 			includeFinalIndex = true, markerValue = "tracker-v28-applied-source-plan-state-20260920")
@@ -175,6 +188,21 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
+	fun `pre retention proof lifecycle marker is classified as stale`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			markerValue = "tracker-v28-lifecycle-source-proof-20260920",
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28,
+		)
+	}
+
+	@Test
 	fun `marked v28 missing an indispensable final table is contained`() {
 		createFixture(
 			version = CURRENT_DATABASE_VERSION,
@@ -215,6 +243,125 @@ class DevelopmentV28DatabaseContainmentTest {
 			includeRetentionTables = false,
 			includeFinalColumn = true,
 			includeFinalIndex = true,
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `marked v28 missing source event retention proof is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			stepsSchemaMutation = { database ->
+				database.execSQL("DROP TABLE source_event_retention_proof")
+			},
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `marked v28 with incomplete source event retention authority is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			stepsSchemaMutation = { database ->
+				database.execSQL("DROP TABLE source_event_retention_proof")
+				database.execSQL(
+					"CREATE TABLE source_event_retention_proof (" +
+						"source_kind INTEGER NOT NULL, event_id TEXT NOT NULL, " +
+						"source_admission_ordinal INTEGER NOT NULL, " +
+						"collected_data_epoch INTEGER NOT NULL, reason TEXT NOT NULL, " +
+						"effect_checksum TEXT NOT NULL, PRIMARY KEY(source_kind, event_id))",
+				)
+				database.execSQL(
+					"CREATE UNIQUE INDEX idx_source_event_retention_proof_admission " +
+						"ON source_event_retention_proof(source_kind, source_admission_ordinal)",
+				)
+			},
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `marked v28 missing retained source scope authority is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			stepsSchemaMutation = { database ->
+				database.execSQL("DROP TABLE source_event_retention_scope_proof")
+			},
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `marked v28 missing exact Pressure lineage retention authority is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			stepsSchemaMutation = { database ->
+				database.execSQL("DROP TABLE pressure_fact_retention_authority")
+			},
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `marked v28 missing Pressure retained revision authority is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			stepsSchemaMutation = { database ->
+				database.execSQL("DROP TABLE pressure_fact_retention_revision_authority")
+			},
+		)
+
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `marked v28 missing Pressure retention resurrection trigger is contained`() {
+		createFixture(
+			version = CURRENT_DATABASE_VERSION,
+			includeMarker = true,
+			includeFinalTable = true,
+			includeFinalColumn = true,
+			includeFinalIndex = true,
+			stepsSchemaMutation = { database ->
+				database.execSQL("DROP TRIGGER reject_pressure_fact_retention_resurrection")
+			},
 		)
 
 		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
@@ -723,6 +870,125 @@ class DevelopmentV28DatabaseContainmentTest {
 						}
 						if (includeRetentionTables) {
 							db.execSQL(
+								"CREATE TABLE pressure_fact_revision (" +
+									"writer_projection_id TEXT NOT NULL, " +
+									"writer_projection_version INTEGER NOT NULL, " +
+									"logical_fact_id TEXT NOT NULL, " +
+									"source_event_id TEXT NOT NULL, " +
+									"source_admission_ordinal INTEGER NOT NULL, " +
+									"PRIMARY KEY(writer_projection_id, writer_projection_version, " +
+									"logical_fact_id))",
+							)
+							db.execSQL(
+								"CREATE TABLE source_event_retention_proof (" +
+									"source_kind INTEGER NOT NULL, event_id TEXT NOT NULL, " +
+									"source_admission_ordinal INTEGER NOT NULL, " +
+									"purpose_eligibility_mask INTEGER NOT NULL, " +
+									"source_policy_revision INTEGER, capture_consent_epoch INTEGER, " +
+									"collected_data_epoch INTEGER NOT NULL, " +
+									"logical_tracking_id TEXT, service_run_id TEXT, " +
+									"scope_deletion_generation INTEGER, " +
+									"logical_run_scope_digest TEXT, " +
+									"wal_payload_checksum TEXT NOT NULL, " +
+									"wal_integrity_identity TEXT NOT NULL, " +
+									"proof_authority_fingerprint TEXT NOT NULL, reason TEXT NOT NULL, " +
+									"effect_checksum TEXT NOT NULL, PRIMARY KEY(source_kind, event_id))",
+							)
+							db.execSQL(
+								"CREATE TABLE source_event_retention_scope_proof (" +
+									"source_kind INTEGER NOT NULL, purpose TEXT NOT NULL, " +
+									"logical_tracking_id TEXT NOT NULL, service_run_id TEXT NOT NULL, " +
+									"source_policy_revision INTEGER NOT NULL, " +
+									"capture_consent_epoch INTEGER NOT NULL, " +
+									"collected_data_epoch INTEGER NOT NULL, " +
+									"scope_deletion_generation INTEGER NOT NULL, " +
+									"logical_run_scope_digest TEXT NOT NULL, " +
+									"retained_event_high_water_ordinal INTEGER NOT NULL, " +
+									"retained_event_authority_checksum TEXT NOT NULL, " +
+									"effect_checksum TEXT NOT NULL, " +
+									"PRIMARY KEY(source_kind, logical_run_scope_digest))",
+							)
+							db.execSQL(
+								"CREATE TABLE captured_radio_fact_retention_proof (" +
+									"source_kind INTEGER NOT NULL, writer_projection_id TEXT NOT NULL, " +
+									"writer_projection_version INTEGER NOT NULL, " +
+									"writer_binding_generation INTEGER NOT NULL, " +
+									"writer_owner_generation INTEGER NOT NULL, " +
+									"logical_fact_id TEXT NOT NULL, semantic_revision INTEGER NOT NULL, " +
+									"mutation_id TEXT NOT NULL, fact_effect_checksum TEXT NOT NULL, " +
+									"source_event_id TEXT NOT NULL, source_admission_ordinal INTEGER NOT NULL, " +
+									"wal_integrity_identity TEXT NOT NULL, " +
+									"source_policy_revision INTEGER NOT NULL, " +
+									"capture_consent_epoch INTEGER NOT NULL, " +
+									"collected_data_epoch INTEGER NOT NULL, " +
+									"logical_tracking_id TEXT NOT NULL, " +
+									"service_run_id TEXT NOT NULL, " +
+									"scope_deletion_generation INTEGER NOT NULL, " +
+									"logical_run_scope_digest TEXT NOT NULL, " +
+									"cursor_revision INTEGER NOT NULL, cursor_mutation_id TEXT NOT NULL, " +
+									"cursor_effect_checksum TEXT NOT NULL, " +
+									"cursor_source_admission_ordinal INTEGER NOT NULL, " +
+									"cursor_updated_at_ms INTEGER NOT NULL, " +
+									"aggregate_owner_logical_fact_id TEXT, " +
+									"aggregate_owner_semantic_revision INTEGER, " +
+									"aggregate_owner_source_event_id TEXT, " +
+									"aggregate_owner_source_admission_ordinal INTEGER, " +
+									"aggregate_owner_wal_integrity_identity TEXT, " +
+									"aggregate_owner_effect_checksum TEXT, " +
+									"aggregate_owner_cursor_revision INTEGER, " +
+									"retained_from_ms INTEGER NOT NULL, retained_at_ms INTEGER NOT NULL, " +
+									"reason TEXT NOT NULL, effect_checksum TEXT NOT NULL, " +
+									"PRIMARY KEY(source_kind, writer_projection_id, " +
+									"writer_projection_version, logical_fact_id))",
+							)
+							db.execSQL(
+								"CREATE TABLE pressure_fact_retention_authority (" +
+									"writer_projection_id TEXT NOT NULL, " +
+									"writer_projection_version INTEGER NOT NULL, " +
+									"logical_fact_id TEXT NOT NULL, " +
+									"current_semantic_revision INTEGER NOT NULL, " +
+									"current_source_event_id TEXT NOT NULL, " +
+									"current_source_admission_ordinal INTEGER NOT NULL, " +
+									"current_source_policy_revision INTEGER NOT NULL, " +
+									"current_capture_consent_epoch INTEGER NOT NULL, " +
+									"trigger_semantic_revision INTEGER NOT NULL, " +
+									"trigger_source_event_id TEXT NOT NULL, " +
+									"trigger_source_admission_ordinal INTEGER NOT NULL, " +
+									"trigger_source_policy_revision INTEGER NOT NULL, " +
+									"trigger_capture_consent_epoch INTEGER NOT NULL, " +
+									"logical_tracking_id TEXT NOT NULL, service_run_id TEXT NOT NULL, " +
+									"collected_data_epoch INTEGER NOT NULL, retained_from_ms INTEGER NOT NULL, " +
+									"lineage_interval_start_ms INTEGER NOT NULL, " +
+									"lineage_interval_end_ms INTEGER NOT NULL, " +
+									"lineage_earliest_possible_start_ms INTEGER NOT NULL, " +
+									"lineage_revision_count INTEGER NOT NULL, " +
+									"lineage_effect_checksum TEXT NOT NULL, " +
+									"revision_authority_set_checksum TEXT NOT NULL, " +
+									"retained_at_ms INTEGER NOT NULL, " +
+									"reason TEXT NOT NULL, effect_checksum TEXT NOT NULL, " +
+									"PRIMARY KEY(writer_projection_id, writer_projection_version, " +
+									"logical_fact_id))",
+							)
+							db.execSQL(
+								"CREATE TABLE pressure_fact_retention_revision_authority (" +
+									"writer_projection_id TEXT NOT NULL, " +
+									"writer_projection_version INTEGER NOT NULL, " +
+									"logical_fact_id TEXT NOT NULL, semantic_revision INTEGER NOT NULL, " +
+									"source_event_id TEXT NOT NULL, " +
+									"source_admission_ordinal INTEGER NOT NULL, " +
+									"source_policy_revision INTEGER NOT NULL, " +
+									"capture_consent_epoch INTEGER NOT NULL, " +
+									"revision_effect_checksum TEXT NOT NULL, " +
+									"parent_authority_checksum TEXT NOT NULL, " +
+									"effect_checksum TEXT NOT NULL, " +
+									"PRIMARY KEY(writer_projection_id, writer_projection_version, " +
+									"logical_fact_id, semantic_revision), " +
+									"FOREIGN KEY(writer_projection_id, writer_projection_version, " +
+									"logical_fact_id) REFERENCES pressure_fact_retention_authority(" +
+									"writer_projection_id, writer_projection_version, logical_fact_id) " +
+									"ON DELETE CASCADE)",
+							)
+							db.execSQL(
 								"CREATE TABLE ambient_steps_retention_authority (" +
 									"scope TEXT NOT NULL, approval_revision INTEGER NOT NULL, " +
 									"PRIMARY KEY(scope, approval_revision))",
@@ -758,8 +1024,86 @@ class DevelopmentV28DatabaseContainmentTest {
 							)
 							if (includeFinalIndex) {
 								db.execSQL(
+									"CREATE UNIQUE INDEX idx_source_event_retention_proof_admission " +
+										"ON source_event_retention_proof(" +
+										"source_kind, source_admission_ordinal)",
+								)
+								db.execSQL(
+									"CREATE UNIQUE INDEX idx_source_event_retention_scope_run " +
+										"ON source_event_retention_scope_proof(" +
+										"source_kind, logical_tracking_id, service_run_id)",
+								)
+								db.execSQL(
+									"CREATE UNIQUE INDEX idx_captured_radio_retention_event " +
+										"ON captured_radio_fact_retention_proof(" +
+										"source_kind, source_event_id)",
+								)
+								db.execSQL(
+									"CREATE INDEX idx_captured_radio_retention_floor " +
+										"ON captured_radio_fact_retention_proof(" +
+										"source_kind, retained_from_ms)",
+								)
+								db.execSQL(
 									"CREATE INDEX idx_ambient_steps_retention_scope " +
 										"ON ambient_steps_retention_authority(scope)",
+								)
+								db.execSQL(
+									"CREATE UNIQUE INDEX idx_pressure_retention_current_event " +
+										"ON pressure_fact_retention_authority(writer_projection_id, " +
+										"writer_projection_version, current_source_event_id)",
+								)
+								db.execSQL(
+									"CREATE UNIQUE INDEX idx_pressure_retention_current_admission " +
+										"ON pressure_fact_retention_authority(writer_projection_id, " +
+										"writer_projection_version, current_source_admission_ordinal)",
+								)
+								db.execSQL(
+									"CREATE INDEX idx_pressure_retention_trigger_evidence " +
+										"ON pressure_fact_retention_authority(trigger_source_event_id, " +
+										"trigger_source_admission_ordinal)",
+								)
+								db.execSQL(
+									"CREATE INDEX idx_pressure_retention_run_scope " +
+										"ON pressure_fact_retention_authority(service_run_id, " +
+										"logical_tracking_id, logical_fact_id)",
+								)
+								db.execSQL(
+									"CREATE UNIQUE INDEX idx_pressure_retention_revision_event " +
+										"ON pressure_fact_retention_revision_authority(" +
+										"writer_projection_id, writer_projection_version, " +
+										"source_event_id)",
+								)
+								db.execSQL(
+									"CREATE UNIQUE INDEX idx_pressure_retention_revision_admission " +
+										"ON pressure_fact_retention_revision_authority(" +
+										"writer_projection_id, writer_projection_version, " +
+										"source_admission_ordinal)",
+								)
+								db.execSQL(
+									"CREATE UNIQUE INDEX idx_pressure_fact_revision_writer_admission " +
+										"ON pressure_fact_revision(writer_projection_id, " +
+										"writer_projection_version, source_admission_ordinal)",
+								)
+								db.execSQL(
+									"CREATE TRIGGER reject_pressure_fact_retention_resurrection " +
+										"BEFORE INSERT ON pressure_fact_revision WHEN EXISTS (" +
+										"SELECT 1 FROM pressure_fact_retention_authority AS retained " +
+										"WHERE retained.writer_projection_id = NEW.writer_projection_id " +
+										"AND retained.writer_projection_version = " +
+										"NEW.writer_projection_version " +
+										"AND retained.logical_fact_id = NEW.logical_fact_id) " +
+										"OR EXISTS (SELECT 1 FROM " +
+										"pressure_fact_retention_revision_authority AS revision " +
+										"WHERE revision.writer_projection_id = " +
+										"NEW.writer_projection_id AND " +
+										"revision.writer_projection_version = " +
+										"NEW.writer_projection_version AND (" +
+										"revision.logical_fact_id = NEW.logical_fact_id OR " +
+										"revision.source_event_id = NEW.source_event_id OR " +
+										"revision.source_admission_ordinal = " +
+										"NEW.source_admission_ordinal)) BEGIN " +
+										"SELECT RAISE(ABORT, 'Pressure retention authority rejects " +
+										"fact resurrection'); END",
 								)
 							}
 						}

@@ -3,6 +3,7 @@ package com.adsamcik.tracker.stats.data.repository
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.PortableActivityDigest
 import com.adsamcik.tracker.shared.base.database.PortableActivityOpaqueIdentity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
@@ -660,6 +661,8 @@ class TrackingHistorySourceUnionRepositoryTest {
 			): ReadLocalPortableCapturedWifiResult =
 				error("An empty database has no local Wi-Fi collision")
 		},
+		deletedHistoryReader = WifiDeletedHistoryReader { WifiDeletedHistoryResult.NotDeleted },
+		bootClockDomainProvider = BootClockDomainProvider { "tracking-history-union-test-boot" },
 		ioDispatcher = dispatcher,
 	)
 

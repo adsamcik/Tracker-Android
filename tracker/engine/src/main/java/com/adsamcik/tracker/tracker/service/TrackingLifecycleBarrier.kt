@@ -141,3 +141,25 @@ internal suspend fun <T> retryTrackingShutdownUntilSuccess(
 		}
 	}
 }
+
+/** Keep the service foreground until its stop intent and source retirement are durable. */
+internal suspend fun completeDurableStopBeforeForegroundRelease(
+	isCurrent: () -> Boolean,
+	persistStopCandidate: suspend () -> Boolean,
+	retireSources: suspend () -> Boolean,
+	retryDelayMillis: Long = 1_000L,
+	maxRetryDelayMillis: Long = 60_000L,
+	onFailure: (attempt: Long, failure: Exception) -> Unit = { _, _ -> },
+): Boolean {
+	retryTrackingShutdownUntilSuccess(
+		retryDelayMillis = retryDelayMillis,
+		maxRetryDelayMillis = maxRetryDelayMillis,
+		onFailure = onFailure,
+	) {
+		if (!isCurrent()) return@retryTrackingShutdownUntilSuccess
+		if (!persistStopCandidate()) throw TrackingShutdownRetryException("STOP_CANDIDATE_NOT_DURABLE")
+		if (!isCurrent()) return@retryTrackingShutdownUntilSuccess
+		if (!retireSources()) throw TrackingShutdownRetryException("SOURCE_RETIREMENT_NOT_DURABLE")
+	}
+	return isCurrent()
+}

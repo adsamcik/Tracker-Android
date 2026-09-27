@@ -8,6 +8,10 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedPlanIntegr
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityWalCarrierAuthentication
+import com.adsamcik.tracker.shared.base.database.data.ActivityWalCarrierAuthenticator
+import com.adsamcik.tracker.shared.base.database.data.ActivityWalPayload
+import com.adsamcik.tracker.shared.base.database.data.MAX_ACTIVITY_WAL_PAYLOAD_BYTES
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -16,8 +20,6 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
-import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
-import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
@@ -82,7 +84,6 @@ internal sealed interface ActivityCapturedWriteResult {
 internal class ActivityCapturedFactWriter(
 	private val database: AppDatabase,
 	private val planCodec: SourcePlanCodec = SourcePlanCodec(),
-	private val payloadCodec: SourcePayloadCodec = DefaultSourcePayloadCodec(),
 ) {
 	suspend fun write(command: ActivityCapturedWriteCommand): ActivityCapturedWriteResult {
 		if (command is ActivityCapturedWriteCommand.ControlOnly) {
@@ -412,11 +413,17 @@ internal class ActivityCapturedFactWriter(
 		for (band in window.bands) {
 			for (reference in band.evidence) {
 				val eventId = reference.sourceEventId.value
-				val wal = walByEventId[eventId] ?: walDao.getByEventId(eventId)
+				val wal = walByEventId[eventId] ?: walDao.boundedPayloadByEventId(
+					eventId,
+					MAX_ACTIVITY_WAL_PAYLOAD_BYTES,
+				)
 					?: reject(ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH)
-				val decodedPayload = wal.exactCanonicalPayloadOrNull(payloadCodec)
+				val authenticated = ActivityWalCarrierAuthenticator.authenticate(wal)
+					as? ActivityWalCarrierAuthentication.Authenticated
+					?: reject(ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH)
+				val decodedPayload = authenticated.carrier.payload.toSourcePayload()
 				if (!wal.matches(reference, authority) ||
-					decodedPayload == null || !reference.matches(decodedPayload, activityPlan, authority)
+					!reference.matches(decodedPayload, activityPlan, authority)
 				) {
 					reject(ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH)
 				}
@@ -446,17 +453,17 @@ internal class ActivityCapturedFactWriter(
 	}
 }
 
-private fun SourceEventWalEntity.exactCanonicalPayloadOrNull(
-	payloadCodec: SourcePayloadCodec,
-): SourcePayload? {
-	val decoded = runCatching {
-		payloadCodec.decode(SourceKind.ACTIVITY, payloadVersion, payload)
-	}.getOrNull() ?: return null
-	val canonical = runCatching { payloadCodec.encode(decoded, payloadVersion) }.getOrNull()
-		?: return null
-	return decoded.takeIf {
-		payload.contentEquals(canonical.bytes) && payloadChecksum == canonical.checksum
-	}
+private fun ActivityWalPayload.toSourcePayload(): SourcePayload = when (this) {
+	is ActivityWalPayload.Transition -> ActivityTransitionPayload(
+		activityType = activityType,
+		transitionType = transitionType,
+		providerElapsedRealtimeNanos = providerElapsedRealtimeNanos,
+	)
+	is ActivityWalPayload.Recognition -> ActivityRecognitionPayload(
+		activityType = activityType,
+		confidencePercent = confidencePercent,
+		providerElapsedRealtimeNanos = providerElapsedRealtimeNanos,
+	)
 }
 
 private fun ActivityCapturedObservationReference.matches(

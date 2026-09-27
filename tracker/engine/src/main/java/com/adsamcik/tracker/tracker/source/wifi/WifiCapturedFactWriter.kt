@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.wifi
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -208,6 +209,7 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			cursor.cursorRevision
 		}
 		val mapped = WifiCapturedPersistence.map(fact, owner.ownerGeneration, ownerCursorRevision)
+		requireNoRetainedFactProof(mapped, state.retainedFromMs)
 		if (mapped.earliestCoveredWallTimeMs()?.let { earliest ->
 			state.retainedFromMs?.let { earliest < it }
 		} == true) reject(WifiCapturedWriteRejection.RETAINED_DATA)
@@ -417,6 +419,48 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			owner.authority != currentAuthority ||
 			owner.productEffect.aggregate?.observationCount != fact.acceptedResultCount
 		) reject(WifiCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
+	}
+
+	private suspend fun requireNoRetainedFactProof(
+		fact: WifiCapturedFactRevisionEntity,
+		currentRetainedFromMs: Long?,
+	) {
+		val dao = database.capturedRadioFactRetentionProofDao()
+		val byEvent = dao.byEvent(SOURCE_KIND, fact.sourceEventId)
+		val byFact = dao.byFact(
+			SOURCE_KIND,
+			fact.writerProjectionId,
+			fact.writerProjectionVersion,
+			fact.logicalFactId,
+		)
+		if (byEvent == null && byFact == null) return
+		if (byEvent == null || byFact == null || byEvent != byFact ||
+			!byEvent.authenticatesRequest(
+				expectedSourceKind = SOURCE_KIND,
+				expectedWriterProjectionId = fact.writerProjectionId,
+				expectedWriterProjectionVersion = fact.writerProjectionVersion,
+				expectedWriterBindingGeneration = fact.writerBindingGeneration,
+				expectedWriterOwnerGeneration = fact.writerOwnerGeneration,
+				expectedLogicalFactId = fact.logicalFactId,
+				expectedSemanticRevision = fact.semanticRevision,
+				expectedCursorRevision = fact.semanticRevision,
+				expectedSourceEventId = fact.sourceEventId,
+				expectedSourceAdmissionOrdinal = fact.sourceAdmissionOrdinal,
+				expectedSourcePolicyRevision = fact.sourcePolicyRevision,
+				expectedCaptureConsentEpoch = fact.captureConsentEpoch,
+				expectedCollectedDataEpoch = fact.collectedDataEpoch,
+				expectedScopeDeletionGeneration = fact.scopeDeletionGeneration,
+				expectedLogicalRunScopeDigest =
+					SourceDeletionFenceEntity.logicalServiceRunIdentity(
+						SOURCE_KIND,
+						PURPOSE,
+						fact.logicalTrackingId,
+						fact.serviceRunId,
+					),
+				currentRetainedFromMs = currentRetainedFromMs,
+			)
+		) reject(WifiCapturedWriteRejection.IDENTITY_COLLISION)
+		reject(WifiCapturedWriteRejection.RETAINED_DATA)
 	}
 
 	private suspend fun requireCurrentWriteAuthority(row: WifiCapturedFactRevisionEntity) {
@@ -662,9 +706,12 @@ private fun WifiCapturedFactRevisionEntity.persistedAggregate() = WifiIdentityFr
 )
 
 private fun WifiCapturedFactRevisionEntity.earliestCoveredWallTimeMs(): Long? = runCatching {
-	val spanMs = (observedElapsedNanos - coverageIntervalStartNanos) / 1_000_000L
-	Math.subtractExact(Math.subtractExact(observedWallTimeMs, spanMs), wallTimeUncertaintyMs)
-		.takeIf { it >= 0L }
+	CanonicalRetentionBounds.wifiCoverage(
+		coverageEndWallTimeMs = observedWallTimeMs,
+		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+		coverageStartElapsedRealtimeNanos = coverageIntervalStartNanos,
+		coverageEndElapsedRealtimeNanos = coverageIntervalEndNanos,
+	)
 }.getOrNull()
 
 private object WifiCapturedPersistence {

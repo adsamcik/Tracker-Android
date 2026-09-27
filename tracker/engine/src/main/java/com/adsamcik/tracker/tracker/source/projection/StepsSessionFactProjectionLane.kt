@@ -5,6 +5,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerLookupKey
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerRead
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.publishStepsCountDomainEvidenceRevisionAtWallTime
 import com.adsamcik.tracker.shared.base.database.enqueueAllStepsGoalRepairs
@@ -18,6 +20,11 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.MAX_STEPS_WAL_PAYLOAD_BYTES
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsWalCarrierAuthentication
+import com.adsamcik.tracker.shared.base.database.data.StepsWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -744,7 +751,6 @@ class StepsSessionFactProjectionLane private constructor(
 		val admissionOrdinal = requireNotNull(candidate.sourceAdmissionOrdinal)
 		val store = StepsCountDomainStore(database)
 		when (store.recordSessionFact(candidate)) {
-			StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
 			StepsCountDomainWriteResult.INSERTED,
 			StepsCountDomainWriteResult.EXACT_REPLAY,
 			-> Unit
@@ -753,16 +759,81 @@ class StepsSessionFactProjectionLane private constructor(
 				"STEPS_COUNT_DOMAIN_FACT_CONFLICT",
 			)
 		}
+		val wal = database.sourceEventWalDao().boundedPayloadByEventId(
+			requireNotNull(candidate.sourceEventId),
+			MAX_STEPS_WAL_PAYLOAD_BYTES,
+		) ?: throw StepsSessionFactIdentityCollisionException(
+			admissionOrdinal,
+			"STEPS_WAL_CARRIER_MISSING",
+		)
+		val ownerKeys = listOf(
+			StepsCountDomainOwnerLookupKey(
+				StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+				StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
+					wal.admissionOrdinal,
+					wal.eventId,
+				),
+				1L,
+			),
+			StepsCountDomainOwnerLookupKey(
+				StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+				StepsCountDomainReceiptIntegrity.sessionFactOwnerIdentity(
+					candidate.writerProjectionId,
+					candidate.writerProjectionVersion,
+					candidate.logicalFactId,
+				),
+				candidate.semanticRevision,
+			),
+		)
+		val owners = (store.readOwners(ownerKeys) as? StepsCountDomainOwnerRead.Ready)?.owners
+			?: throw StepsSessionFactIdentityCollisionException(
+				admissionOrdinal,
+				"STEPS_COUNT_DOMAIN_FACT_AUTHORITY_UNVERIFIABLE",
+			)
+		if (!StepsWalCarrierAuthenticator.authenticates(
+				candidate,
+				wal,
+				owners[ownerKeys[0]],
+				owners[ownerKeys[1]],
+			)
+		) {
+			throw StepsSessionFactIdentityCollisionException(
+				admissionOrdinal,
+				"STEPS_WAL_CARRIER_MISMATCH",
+			)
+		}
 	}
 
 	private suspend fun recordWalCountDomainOrThrow(
 		admissionOrdinal: Long,
 		counterDomainToken: StepsCounterDomainToken?,
 	) {
+		val wal = database.sourceEventWalDao().boundedPayloadByAdmissionOrdinal(
+			admissionOrdinal,
+			MAX_STEPS_WAL_PAYLOAD_BYTES,
+		) ?: throw StepsSessionFactIdentityCollisionException(
+			admissionOrdinal,
+			"STEPS_COUNT_DOMAIN_WAL_MISSING",
+		)
+		val carrier = StepsWalCarrierAuthenticator.authenticate(wal)
+			as? StepsWalCarrierAuthentication.Authenticated
+			?: throw StepsSessionFactIdentityCollisionException(
+				admissionOrdinal,
+				"STEPS_WAL_CARRIER_INVALID",
+			)
+		if (carrier.carrier.payload.counterDomainToken != counterDomainToken) {
+			throw StepsSessionFactIdentityCollisionException(
+				admissionOrdinal,
+				"STEPS_COUNT_DOMAIN_TOKEN_MISMATCH",
+			)
+		}
 		when (StepsCountDomainSchema.inspect(database.openHelper.writableDatabase)) {
 			StepsCountDomainSchemaState.Absent,
 			StepsCountDomainSchemaState.FreshRoomScaffold,
-			-> return
+			-> throw StepsSessionFactIdentityCollisionException(
+				admissionOrdinal,
+				"STEPS_COUNT_DOMAIN_SCHEMA_UNAVAILABLE",
+			)
 			StepsCountDomainSchemaState.Incompatible ->
 				throw StepsSessionFactIdentityCollisionException(
 					admissionOrdinal,
@@ -770,13 +841,7 @@ class StepsSessionFactProjectionLane private constructor(
 				)
 			StepsCountDomainSchemaState.ValidV2 -> Unit
 		}
-		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(admissionOrdinal)
-			?: throw StepsSessionFactIdentityCollisionException(
-				admissionOrdinal,
-				"STEPS_COUNT_DOMAIN_WAL_MISSING",
-			)
 		when (StepsCountDomainStore(database).recordSessionWal(wal, counterDomainToken)) {
-			StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
 			StepsCountDomainWriteResult.INSERTED,
 			StepsCountDomainWriteResult.EXACT_REPLAY,
 			StepsCountDomainWriteResult.UNPROVEN,

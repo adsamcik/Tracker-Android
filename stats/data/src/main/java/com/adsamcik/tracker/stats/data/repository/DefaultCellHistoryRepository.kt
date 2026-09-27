@@ -63,6 +63,7 @@ import com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.value.EpochMs
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import java.time.Instant
 import java.time.ZoneId
 import javax.inject.Inject
@@ -77,17 +78,32 @@ internal class DefaultCellHistoryRepository internal constructor(
 	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 	private val ioDispatcher: CoroutineDispatcher,
 	private val sharedHistoryPageCheckpoint: suspend (completedPageCount: Int) -> Unit,
+	private val bootClockDomainProvider: BootClockDomainProvider? = null,
 ) : CellHistoryRepository, CellImportedHistoryEligibleReader {
 	@Inject
 	constructor(
 		database: AppDatabase,
 		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+		bootClockDomainProvider: BootClockDomainProvider,
 	) : this(
 		database,
 		laneExecutionAuthority,
 		ioDispatcher,
 		{ currentCoroutineContext().ensureActive() },
+		bootClockDomainProvider,
+	)
+
+	internal constructor(
+		database: AppDatabase,
+		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
+		ioDispatcher: CoroutineDispatcher,
+	) : this(
+		database,
+		laneExecutionAuthority,
+		ioDispatcher,
+		{ currentCoroutineContext().ensureActive() },
+		null,
 	)
 
 	private val importedProductReader = ImportedCellProductReader(database)
@@ -1081,6 +1097,11 @@ internal class DefaultCellHistoryRepository internal constructor(
 		val sessions = database.sourceSessionDao().sessions(logicalIds)
 		val factLoad = loadFactPages(runIds, logicalIds)
 		val revisions = factLoad.revisions
+		val walEventIds = revisions.map(CellCapturedFactRevisionEntity::sourceEventId).distinct()
+		val admissions = walEventIds.chunked(SQL_ID_BATCH).flatMap { eventIds ->
+			currentCoroutineContext().ensureActive()
+			factDao.historyWalCarriers(eventIds, eventIds.size)
+		}
 		currentCoroutineContext().ensureActive()
 		val scopedCursors = factDao.historyCursorsForScopes(
 			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
@@ -1108,6 +1129,16 @@ internal class DefaultCellHistoryRepository internal constructor(
 			currentCoroutineContext().ensureActive()
 			factDao.historyProviderRegistrations(CELL_SOURCE, ids, MAX_PROVIDERS + 1)
 		}
+		val currentProviderRows = database.sourceBrokerDao().currentPhysicalRegistrationsBounded(
+			CELL_SOURCE,
+			MAX_PROVIDERS + 1,
+		)
+		val retiringProviderRows = database.sourceBrokerDao().pendingProviderRemovalsBounded(
+			CELL_SOURCE,
+			MAX_PROVIDERS + 1,
+		)
+		val currentProviderRegistrations = (currentProviderRows + retiringProviderRows)
+			.distinctBy(ProviderRegistrationGenerationEntity::registrationGeneration)
 		val authorizations = registrationGenerations.chunked(SQL_ID_BATCH).flatMap { ids ->
 			currentCoroutineContext().ensureActive()
 			factDao.historyAuthorizations(CELL_SOURCE, ids, MAX_AUTHORIZATIONS + 1)
@@ -1156,7 +1187,11 @@ internal class DefaultCellHistoryRepository internal constructor(
 			cursors.size > MAX_CURSORS || generations.size > MAX_DELETION_GENERATIONS ||
 			planHeaders.size > MAX_PLANS || desiredPlans.size > MAX_PLANS ||
 			providers.size > MAX_PROVIDERS || authorizations.size > MAX_AUTHORIZATIONS ||
+			currentProviderRows.size > MAX_PROVIDERS ||
+			retiringProviderRows.size > MAX_PROVIDERS ||
+			currentProviderRegistrations.size > MAX_PROVIDERS ||
 			demands.size > MAX_DEMANDS ||
+			admissions.size > MAX_WAL_CARRIERS ||
 			fences.size > MAX_DELETION_FENCES || lanes.size > MAX_LANES ||
 			failures.size > MAX_TERMINAL_FAILURES
 		return CellHistorySnapshot(
@@ -1179,9 +1214,15 @@ internal class DefaultCellHistoryRepository internal constructor(
 			planHeaders = planHeaders.take(MAX_PLANS).associateBy { it.revision },
 			desiredPlans = desiredPlans.take(MAX_PLANS).associateBy(SourceDesiredPlanEntity::revision),
 			providerRegistrations = providers.take(MAX_PROVIDERS).associateBy { it.registrationGeneration },
+			currentProviderRegistrations = currentProviderRegistrations.take(MAX_PROVIDERS),
+			currentClockDomainId = bootClockDomainProvider?.current()
+				?: currentProviderRegistrations.singleOrNull {
+					it.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+				}?.clockDomainId,
 			authorizationsByRegistration = authorizations.take(MAX_AUTHORIZATIONS)
 				.groupBy { it.registrationGeneration },
 			demands = demands.take(MAX_DEMANDS).associateBy(SourceDemandEntity::demandId),
+			admissions = admissions.take(MAX_WAL_CARRIERS),
 			lanes = lanes,
 			terminalFailures = failures.take(MAX_TERMINAL_FAILURES),
 			evidenceState = evidence,
@@ -1272,6 +1313,7 @@ internal class DefaultCellHistoryRepository internal constructor(
 		const val MAX_PROVIDERS = 512
 		const val MAX_AUTHORIZATIONS = 4_096
 		const val MAX_DEMANDS = 4_096
+		const val MAX_WAL_CARRIERS = 4_096
 		const val MAX_TERMINAL_FAILURES = 512
 		const val SQL_ID_BATCH = 400
 	}

@@ -50,6 +50,7 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.qualifiedMilestoneSteps
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.ActivityOnlyTrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.CellOnlyTrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.PressureOnlyTrackingContent
+import com.adsamcik.tracker.dashboard.ui.compose.tracking.SourceSetTrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.StepsOnlyTrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.TrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.TrackingHistoryResolutionContent
@@ -289,6 +290,21 @@ internal fun DashboardScreen(
 							val session = state.sessionData
 							if (session != null && session.id == presentation.segmentId) {
 								CellOnlyTrackingContent(
+									sessionData = session,
+									presentation = presentation,
+									bottomClearance = bottomClearance,
+								)
+							} else {
+								TrackingHistoryResolutionContent(
+									historyUnavailable = false,
+									bottomClearance = bottomClearance,
+								)
+							}
+						}
+						is DashboardLiveSessionPresentation.SourceSetWithoutLocation -> {
+							val session = state.sessionData
+							if (session != null && session.id == presentation.segmentId) {
+								SourceSetTrackingContent(
 									sessionData = session,
 									presentation = presentation,
 									bottomClearance = bottomClearance,

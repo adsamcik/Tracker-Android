@@ -78,6 +78,45 @@ class TrackingActionRingTest {
 	}
 
 	@Test
+	fun activeSessionWithoutLocationPermission_standaloneActionStillStops() {
+		var stopRequested = false
+		var permissionRequested = false
+		setContent(
+			isTracking = true,
+			hasPermission = false,
+			onToggleTracking = { stopRequested = true },
+			onRequestPermission = { permissionRequested = true },
+		)
+
+		composeRule.onNodeWithText("Stop tracking").assertIsDisplayed()
+		composeRule.onNodeWithTag("tracking_action_ring").performClick()
+		stopRequested shouldBe true
+		permissionRequested shouldBe false
+	}
+
+	@Test
+	fun activeSessionWithoutLocationPermission_goalRingStillStops() {
+		var stopRequested = false
+		var permissionRequested = false
+		setContent(
+			isTracking = true,
+			hasPermission = false,
+			goalProgress = GoalProgressState(
+				gamificationEnabled = true,
+				dailyGoalSteps = 10_000,
+				dailySteps = QualifiedStepCount.Ready(5_000),
+			),
+			onToggleTracking = { stopRequested = true },
+			onRequestPermission = { permissionRequested = true },
+		)
+
+		composeRule.onNodeWithText("Stop tracking").assertIsDisplayed()
+		composeRule.onNodeWithTag("tracking_action_ring").performClick()
+		stopRequested shouldBe true
+		permissionRequested shouldBe false
+	}
+
+	@Test
 	fun gamificationEnabled_showsRingTag() {
 		setContent(
 			isTracking = false,

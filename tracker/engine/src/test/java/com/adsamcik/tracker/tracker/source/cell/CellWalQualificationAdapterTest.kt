@@ -3,10 +3,13 @@ package com.adsamcik.tracker.tracker.source.cell
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
+import com.adsamcik.tracker.shared.base.database.pruneCapturedCellFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -22,25 +25,44 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
+import com.adsamcik.tracker.shared.model.tracking.TrackingSource
+import com.adsamcik.tracker.stats.api.repository.RecordingProofState
+import com.adsamcik.tracker.stats.api.repository.SourceEvidenceIdentity
+import com.adsamcik.tracker.stats.api.repository.SourceProofCompleteness
+import com.adsamcik.tracker.stats.api.repository.SourceProofCoverage
+import com.adsamcik.tracker.stats.api.repository.SourceProofKey
+import com.adsamcik.tracker.stats.api.repository.SourceProofLineage
+import com.adsamcik.tracker.stats.api.repository.SourceProofReason
+import com.adsamcik.tracker.stats.api.repository.SourceProofResult
+import com.adsamcik.tracker.stats.api.repository.SourceProofScope
+import com.adsamcik.tracker.stats.api.repository.SourceProofStage
+import com.adsamcik.tracker.tracker.source.activity.ActivityCapturedWalAdmissionAdapter
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
+import com.adsamcik.tracker.tracker.source.lifecycle.DefaultSourceLifecycleProofAdapterFactory
+import com.adsamcik.tracker.tracker.source.location.LocationWalQualificationAdapter
 import com.adsamcik.tracker.tracker.source.model.CellMode
 import com.adsamcik.tracker.tracker.source.model.CellObservationEvidence
 import com.adsamcik.tracker.tracker.source.model.CellPlan
 import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
+import com.adsamcik.tracker.tracker.source.model.RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.RetryBackoff
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.runtime.cellProviderDeliveryIdentity
+import com.adsamcik.tracker.tracker.source.wifi.WifiWalQualificationAdapter
+import io.mockk.mockk
 import java.time.Instant
 import java.time.ZoneId
 import kotlin.coroutines.cancellation.CancellationException
@@ -68,7 +90,11 @@ class CellWalQualificationAdapterTest {
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
-		subject = CellWalQualificationAdapter(database, payloadCodec, planCodec)
+		subject = CellWalQualificationAdapter(
+			database,
+			planCodec,
+			BootClockDomainProvider { BOOT_ID },
+		)
 		writer = CellCapturedFactWriter(database, subject)
 	}
 
@@ -244,6 +270,39 @@ class CellWalQualificationAdapterTest {
 
 		assertEquals(
 			CellWalAdapterResult.Rejected(CellWalAdapterRejection.SEGMENT_MISMATCH),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `selected deletion fence wins after its exact Cell segment is removed`() = runTest {
+		installValidFixture()
+		database.sourceDeletionFenceDao().insertIfAbsent(
+			SourceDeletionFenceEntity.createLogicalServiceRun(
+				sourceKind = CELL_SOURCE,
+				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				logicalTrackingId = LOGICAL_ID,
+				serviceRunId = RUN_ID,
+				fenceGeneration = 1L,
+				collectedDataEpoch = 0L,
+				deletedAtMs = SESSION_END_WALL_MS,
+			),
+		)
+		database.sessionSegmentDao().deleteExact(SEGMENT_ID, LOGICAL_ID, RUN_ID)
+
+		assertEquals(
+			CellWalAdapterResult.Rejected(CellWalAdapterRejection.DELETED_SCOPE),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `missing Cell segment without a deletion fence remains corruption`() = runTest {
+		installValidFixture()
+		database.sessionSegmentDao().deleteExact(SEGMENT_ID, LOGICAL_ID, RUN_ID)
+
+		assertEquals(
+			CellWalAdapterResult.Rejected(CellWalAdapterRejection.MISSING_SEGMENT),
 			subject.qualify(EVENT_ID),
 		)
 	}
@@ -633,6 +692,118 @@ class CellWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `dependent Cell replay cannot resurrect after its older aggregate owner expires`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val shifted = observations().map { observation ->
+			observation.copy(
+				providerTimestampNanos = requireNotNull(observation.providerTimestampNanos) +
+					SECOND_DELIVERY_SHIFT_NANOS,
+			)
+		}
+		insertAdditionalWal(SECOND_EVENT_ID, shifted, SOURCE_SEQUENCE + 1L)
+		assertIs<CellCapturedWriteResult.Applied>(writer.write(SECOND_EVENT_ID))
+		val floor = OBSERVED_WALL_MS + 1L
+		val markedAtMs = OBSERVED_WALL_MS + 10_000L
+		database.sourceEvidenceStateDao().updateLifecycle(0L, floor, markedAtMs)
+
+		assertEquals(
+			CellCapturedRetentionResult.Pruned(2, 2),
+			database.pruneCapturedCellFactsAffectedByRetentionFloor(
+				floor,
+				0L,
+				0L,
+				markedAtMs,
+			),
+		)
+		assertEquals(
+			CellCapturedWriteResult.Rejected(CellCapturedWriteRejection.RETAINED_DATA),
+			writer.write(SECOND_EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `Cell lifecycle materialization requires current owner and applies its retention floor`() =
+		runTest {
+			installValidFixture(candidateWriter = true)
+			val ownerApplied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+			val shifted = observations().map { observation ->
+				observation.copy(
+					providerTimestampNanos = requireNotNull(observation.providerTimestampNanos) +
+						SECOND_DELIVERY_SHIFT_NANOS,
+				)
+			}
+			insertAdditionalWal(SECOND_EVENT_ID, shifted, SOURCE_SEQUENCE + 1L)
+			val dependentApplied =
+				assertIs<CellCapturedWriteResult.Applied>(writer.write(SECOND_EVENT_ID))
+			val dependent = fact(dependentApplied.logicalFactId, dependentApplied.semanticRevision)
+			val owner = fact(ownerApplied.logicalFactId, ownerApplied.semanticRevision)
+			installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_product_projection_lane SET contiguous_admission_ordinal = 2 " +
+					"WHERE source_kind = ?",
+				arrayOf(CELL_SOURCE),
+			)
+			val recording = RecordingProofState(
+				lineage = SourceProofLineage(
+					evidenceIdentity = SourceEvidenceIdentity(SECOND_EVENT_ID.value),
+					sourceAdmissionOrdinal = dependent.sourceAdmissionOrdinal,
+					sourceEvidenceRevision =
+						requireNotNull(database.sourceEvidenceStateDao().get()).revision,
+				),
+				coverage = SourceProofCoverage.ProviderInterval(
+					dependent.coverageIntervalStartNanos,
+					dependent.coverageIntervalEndNanos,
+				),
+				completeness = SourceProofCompleteness.COMPLETE,
+			)
+			val key = SourceProofKey(
+				source = TrackingSource.CELL,
+				purpose = TrackingPurpose.SESSION_CAPTURE,
+				evidenceIdentity = SourceEvidenceIdentity(SECOND_EVENT_ID.value),
+				sourcePolicyRevision = POLICY_REVISION,
+				captureConsentEpoch = CONSENT_EPOCH,
+				collectedDataEpoch = 0L,
+				scope = SourceProofScope.Run(LOGICAL_ID, RUN_ID),
+			)
+			val adapter = lifecycleFactory().create(TrackingSource.CELL)
+
+			assertIs<SourceProofResult.Proven<*>>(adapter.materialized(key, recording))
+
+			val ownerCursor = requireNotNull(database.cellCapturedFactDao().cursor(
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				owner.logicalFactId,
+			))
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE cell_captured_fact_cursor SET latest_effect_checksum = ? " +
+					"WHERE logical_fact_id = ?",
+				arrayOf("0".repeat(64), owner.logicalFactId),
+			)
+			adapter.materialized(key, recording) shouldBe SourceProofResult.Unavailable(
+				SourceProofStage.MATERIALIZED,
+				SourceProofReason.STALE,
+				recording.lineage,
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE cell_captured_fact_cursor SET latest_effect_checksum = ? " +
+					"WHERE logical_fact_id = ?",
+				arrayOf(ownerCursor.latestEffectChecksum, owner.logicalFactId),
+			)
+			database.sourceEvidenceStateDao().updateLifecycle(
+				epoch = 0L,
+				retainedFromMs = owner.observedWallTimeMs + 1L,
+				updatedAtMs = OBSERVED_WALL_MS + 10_000L,
+			)
+
+			adapter.materialized(key, recording) shouldBe SourceProofResult.Deleted(
+				SourceProofStage.MATERIALIZED,
+				SourceProofReason.RETENTION_EXPIRED,
+				recording.lineage,
+			)
+		}
+
+	@Test
 	fun `historical open dependent self materializes after its owner settles`() = runTest {
 		installValidFixture(candidateWriter = true, openAuthority = true)
 		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
@@ -1019,6 +1190,13 @@ class CellWalQualificationAdapterTest {
 		assertEquals(OBSERVED_END_NANOS, fact.coverageIntervalEndNanos)
 		assertEquals(1, fact.acceptedChildCount)
 		assertEquals(1, fact.staleChildCount)
+		assertEquals(
+			true,
+			CellWalCarrierAuthenticator.authenticates(
+				fact,
+				requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value)),
+			),
+		)
 	}
 
 	private suspend fun installValidFixture(
@@ -1078,7 +1256,12 @@ class CellWalQualificationAdapterTest {
 			effectiveWallTimeMs = RUN_START_WALL_MS,
 		)
 		database.sourceBrokerDao().insertAuthorizations(authorization)
-		val payload = CellSnapshotPayload(null, observations, CellRefreshOutcome.CALLBACK)
+		val payload = CellSnapshotPayload(
+			null,
+			observations,
+			CellRefreshOutcome.CALLBACK,
+			zoneId,
+		)
 		val encodedPayload = payloadCodec.encode(payload, PAYLOAD_VERSION)
 		val deliveryIdentity = deliveryIdentityOverride ?: cellProviderDeliveryIdentity(
 			BOOT_ID,
@@ -1137,7 +1320,12 @@ class CellWalQualificationAdapterTest {
 	) {
 		val original = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
 		val encodedPayload = payloadCodec.encode(
-			CellSnapshotPayload(null, observations, CellRefreshOutcome.CALLBACK),
+			CellSnapshotPayload(
+				null,
+				observations,
+				CellRefreshOutcome.CALLBACK,
+				ZONE_ID,
+			),
 			PAYLOAD_VERSION,
 		)
 		val latestProviderTime = requireNotNull(
@@ -1185,6 +1373,17 @@ class CellWalQualificationAdapterTest {
 			),
 		)
 	}
+
+	private fun lifecycleFactory() = DefaultSourceLifecycleProofAdapterFactory(
+		database = database,
+		payloadCodec = payloadCodec,
+		planCodec = planCodec,
+		locationQualifier = mockk<LocationWalQualificationAdapter>(relaxed = true),
+		activityQualifier = mockk<ActivityCapturedWalAdmissionAdapter>(relaxed = true),
+		wifiQualifier = mockk<WifiWalQualificationAdapter>(relaxed = true),
+		cellQualifier = subject,
+		bootClockDomainProvider = BootClockDomainProvider { BOOT_ID },
+	)
 
 	private suspend fun rewriteWalPurpose(eventId: SourceEventId, purposeMask: Long) {
 		val original = requireNotNull(database.sourceEventWalDao().getByEventId(eventId.value))
@@ -1691,7 +1890,7 @@ class CellWalQualificationAdapterTest {
 		const val ROLLOUT_REVISION = 1L
 		const val SEGMENT_ID = 1L
 		const val SOURCE_SEQUENCE = 0L
-		const val PAYLOAD_VERSION = 1
+		const val PAYLOAD_VERSION = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 		const val QOS_CODE = 2
 		const val START_ORIGIN = "MANUAL_FOREGROUND_START"
 		const val RUN_START_NANOS = 1_000_000_000L

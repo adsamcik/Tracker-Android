@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiRequest
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductCandidate
@@ -112,6 +113,7 @@ class WifiImportedHistoryRepositoryTest {
 				): ReadLocalPortableCapturedWifiResult = error("No local collision expected")
 			},
 			WifiDeletedHistoryReader { WifiDeletedHistoryResult.NotDeleted },
+			BootClockDomainProvider { "wifi-imported-test-boot" },
 			UnconfinedTestDispatcher(testScheduler),
 		)
 
@@ -193,6 +195,7 @@ class WifiImportedHistoryRepositoryTest {
 				): ReadLocalPortableCapturedWifiResult = error("No local collision expected")
 			},
 			WifiDeletedHistoryReader { WifiDeletedHistoryResult.NotDeleted },
+			BootClockDomainProvider { "wifi-imported-test-boot" },
 			UnconfinedTestDispatcher(testScheduler),
 		)
 
@@ -254,6 +257,7 @@ class WifiImportedHistoryRepositoryTest {
 				): ReadLocalPortableCapturedWifiResult = error("No local collision expected")
 			},
 			WifiDeletedHistoryReader { WifiDeletedHistoryResult.NotDeleted },
+			BootClockDomainProvider { "wifi-imported-test-boot" },
 			UnconfinedTestDispatcher(testScheduler),
 		)
 

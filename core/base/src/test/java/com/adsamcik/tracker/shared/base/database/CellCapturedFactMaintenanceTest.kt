@@ -8,7 +8,13 @@ import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerat
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.CapturedRadioFactRetentionProofEntity
 import com.adsamcik.tracker.shared.base.database.data.CellProviderDeliveryIdentityFact
+import com.adsamcik.tracker.shared.base.database.data.CELL_REFRESH_OUTCOME_CALLBACK
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayload
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadObservation
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -23,6 +29,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionProofEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionScopeProofEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
@@ -84,6 +92,17 @@ class CellCapturedFactMaintenanceTest {
 		database.cellCapturedFactDao().revisionCount() shouldBe 0L
 		database.cellCapturedFactDao().cursorCount() shouldBe 0L
 		database.cellCapturedFactDao().maintenanceWalCount(CELL_SOURCE) shouldBe 2L
+		val proofs = database.capturedRadioFactRetentionProofDao().allForSource(CELL_SOURCE)
+		proofs.size shouldBe 2
+		proofs.all { it.scopeDeletionGeneration == 0L } shouldBe true
+		proofs.single { it.logicalFactId == owner.logicalFactId }.reason shouldBe
+			CapturedRadioFactRetentionProofEntity.REASON_DIRECT_FLOOR
+		proofs.single { it.logicalFactId != owner.logicalFactId }.apply {
+			reason shouldBe CapturedRadioFactRetentionProofEntity.REASON_DEPENDENCY_CLOSURE
+			aggregateOwnerLogicalFactId shouldBe owner.logicalFactId
+			aggregateOwnerSemanticRevision shouldBe owner.semanticRevision
+			hasValidStoredIntegrity() shouldBe true
+		}
 	}
 
 	@Test
@@ -141,6 +160,11 @@ class CellCapturedFactMaintenanceTest {
 
 		database.cellCapturedFactDao().revisionCount() shouldBe 0L
 		database.cellCapturedFactDao().cursorCount() shouldBe 0L
+		val proofs = database.capturedRadioFactRetentionProofDao().allForSource(CELL_SOURCE)
+		proofs.single { it.logicalFactId == owner.logicalFactId }.reason shouldBe
+			CapturedRadioFactRetentionProofEntity.REASON_DEPENDENCY_CLOSURE
+		proofs.single { it.logicalFactId != owner.logicalFactId }.reason shouldBe
+			CapturedRadioFactRetentionProofEntity.REASON_DIRECT_FLOOR
 	}
 
 	@Test
@@ -402,7 +426,7 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
-	fun `coverage cannot retarget an owner across provider registration generations`() = runTest {
+	fun `coverage can reuse an independently authenticated owner across registrations`() = runTest {
 		val owner = seedCapturedCell(retainedFromMs = 1_000L)
 		database.sourceBrokerDao().insertRegistration(
 			registration(
@@ -434,13 +458,12 @@ class CellCapturedFactMaintenanceTest {
 			0L,
 			0L,
 			MAINTENANCE_TIME_MS,
-		) shouldBe CellCapturedRetentionResult.Blocked(
-			CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
-		)
+		) shouldBe CellCapturedRetentionResult.NoChange
+		database.cellCapturedFactDao().revisionCount() shouldBe 2L
 	}
 
 	@Test
-	fun `coverage cannot retarget an owner across authorization revisions`() = runTest {
+	fun `coverage can reuse an independently authenticated owner across authorizations`() = runTest {
 		val originalOwner = seedCapturedCell(retainedFromMs = 1_000L)
 		val laterAuthorization = SourceBrokerAuthorization.rows(
 			sourceKind = CELL_SOURCE,
@@ -499,9 +522,8 @@ class CellCapturedFactMaintenanceTest {
 			0L,
 			0L,
 			MAINTENANCE_TIME_MS,
-		) shouldBe CellCapturedRetentionResult.Blocked(
-			CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
-		)
+		) shouldBe CellCapturedRetentionResult.NoChange
+		database.cellCapturedFactDao().revisionCount() shouldBe 2L
 	}
 
 	@Test
@@ -661,7 +683,7 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
-	fun `consent deletion fences retained WAL after retention removed every fact`() = runTest {
+	fun `consent deletion fences proof-only scope after retention removed facts and WAL`() = runTest {
 		seedCapturedCell(retainedFromMs = FLOOR_MS, revokedCapture = true)
 		database.pruneCapturedCellFactsAffectedByRetentionFloor(
 			beforeMs = FLOOR_MS,
@@ -669,6 +691,10 @@ class CellCapturedFactMaintenanceTest {
 			expectedDeletedSourceEventHighWaterOrdinal = 0L,
 			markedAtMs = MAINTENANCE_TIME_MS,
 		) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_event_wal WHERE source_kind = ?",
+			arrayOf(CELL_SOURCE),
+		)
 
 		database.deleteCapturedCellFactsAfterConsentReset(
 			expectedCollectedDataEpoch = 0L,
@@ -690,7 +716,9 @@ class CellCapturedFactMaintenanceTest {
 			digest,
 		) shouldBe true
 		database.cellCapturedFactDao().deletionGenerationCount() shouldBe 1L
-		database.cellCapturedFactDao().maintenanceWalCount(CELL_SOURCE) shouldBe 1L
+		database.cellCapturedFactDao().maintenanceWalCount(CELL_SOURCE) shouldBe 0L
+		database.capturedRadioFactRetentionProofDao().allForSource(CELL_SOURCE) shouldBe
+			emptyList()
 
 		database.deleteCapturedCellFactsAfterConsentReset(
 			0L,
@@ -698,6 +726,135 @@ class CellCapturedFactMaintenanceTest {
 			REVOKED_CONSENT_EPOCH,
 			DELETION_TIME_MS + 1L,
 		) shouldBe CellCapturedSourceDeletionResult.AlreadyDeleted
+	}
+
+	@Test
+	fun `Cell WAL retention proof alone installs both fences and preserves unrelated receipts`() =
+		runTest {
+			seedCapturedCell(revokedCapture = true)
+			val captureWal = requireNotNull(
+				database.sourceEventWalDao().getByEventId("cell-event-0"),
+			)
+			val captureProof = SourceEventRetentionProofEntity.createFromWal(captureWal)
+			val controlWal = captureWal.copy(
+				admissionOrdinal = captureWal.admissionOrdinal + 1L,
+				eventId = "cell-control-proof",
+				providerDedupKey = "cell-control-proof",
+				logicalTrackingId = null,
+				serviceRunId = null,
+				authorizationPurposeEligibilityMask =
+					SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+				sourcePolicyRevision = null,
+				captureConsentEpoch = null,
+				sessionManifestRevision = null,
+				lifecycleLeaseGeneration = null,
+				sourceSequence = captureWal.sourceSequence + 1L,
+				integrityIdentity = "",
+			)
+			val controlProof = SourceEventRetentionProofEntity.createFromWal(
+				controlWal.copy(integrityIdentity = controlWal.calculatedIntegrityIdentity()),
+			)
+			val otherSourceWal = captureWal.copy(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_WIFI,
+				eventId = "other-source-proof",
+				providerDedupKey = "other-source-proof",
+				integrityIdentity = "",
+			)
+			val otherSourceProof = SourceEventRetentionProofEntity.createFromWal(
+				otherSourceWal.copy(
+					integrityIdentity = otherSourceWal.calculatedIntegrityIdentity(),
+				),
+			)
+			database.sourceEventRetentionProofDao().insertAll(
+				listOf(captureProof, controlProof, otherSourceProof),
+			)
+			database.sourceEventRetentionScopeProofDao().insertIfAbsent(
+				SourceEventRetentionScopeProofEntity.create(captureProof),
+			)
+			val otherSourceScope = SourceEventRetentionScopeProofEntity.create(otherSourceProof)
+			database.sourceEventRetentionScopeProofDao().insertIfAbsent(otherSourceScope)
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM cell_captured_fact_cursor",
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM cell_captured_fact_revision",
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM source_event_wal WHERE source_kind = ?",
+				arrayOf(CELL_SOURCE),
+			)
+
+			database.deleteCapturedCellFactsAfterConsentReset(
+				expectedCollectedDataEpoch = 0L,
+				expectedDeletedSourceEventHighWaterOrdinal = 0L,
+				expectedRevokedConsentEpoch = REVOKED_CONSENT_EPOCH,
+				deletedAtMs = DELETION_TIME_MS,
+			) shouldBe CellCapturedSourceDeletionResult.Deleted(0, 0, 1)
+
+			database.cellCapturedFactDao().deletionGeneration(
+				LOGICAL_TRACKING_ID,
+				SERVICE_RUN_ID,
+			) shouldBe CellCaptureDeletionGenerationEntity(
+				LOGICAL_TRACKING_ID,
+				SERVICE_RUN_ID,
+				0L,
+				1L,
+				DELETION_TIME_MS,
+			)
+			database.sourceDeletionFenceDao().contains(
+				CELL_SOURCE,
+				SourceBrokerPurpose.SESSION_CAPTURE,
+				SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+				requireNotNull(captureProof.logicalRunScopeDigest),
+			) shouldBe true
+			database.sourceEventRetentionProofDao().get(
+				CELL_SOURCE,
+				captureProof.eventId,
+			) shouldBe null
+			database.sourceEventRetentionProofDao().get(
+				CELL_SOURCE,
+				controlProof.eventId,
+			) shouldBe controlProof
+			database.sourceEventRetentionProofDao().get(
+				SourceDestinationOwnerEntity.SOURCE_WIFI,
+				otherSourceProof.eventId,
+			) shouldBe otherSourceProof
+			database.sourceEventRetentionScopeProofDao().countForSource(CELL_SOURCE) shouldBe 0L
+			database.sourceEventRetentionScopeProofDao().get(
+				SourceDestinationOwnerEntity.SOURCE_WIFI,
+				otherSourceScope.logicalRunScopeDigest,
+			) shouldBe otherSourceScope
+		}
+
+	@Test
+	fun `corrupt proof-only Cell source erase fails closed before fence or proof deletion`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS, revokedCapture = true)
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			FLOOR_MS,
+			0L,
+			0L,
+			MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_event_wal WHERE source_kind = ?",
+			arrayOf(CELL_SOURCE),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE captured_radio_fact_retention_proof SET effect_checksum = 'corrupt' " +
+				"WHERE source_kind = ?",
+			arrayOf(CELL_SOURCE),
+		)
+
+		database.deleteCapturedCellFactsAfterConsentReset(
+			0L,
+			0L,
+			REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS,
+		) shouldBe CellCapturedSourceDeletionResult.Blocked(
+			CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		database.capturedRadioFactRetentionProofDao().countAll() shouldBe 1L
 	}
 
 	@Test
@@ -780,6 +937,23 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `fractional Cell coverage age rounds conservatively from the original WAL anchor`() = runTest {
+		val fractionalSpanNanos = COVERAGE_SPAN_NANOS + 1L
+		seedCapturedCell(
+			retainedFromMs = FLOOR_MS,
+			observedWallTimeMs = FLOOR_MS + COVERAGE_SPAN_MS + 1L + WALL_UNCERTAINTY_MS,
+			coverageSpanNanos = fractionalSpanNanos,
+		)
+
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			beforeMs = FLOOR_MS,
+			expectedCollectedDataEpoch = 0L,
+			expectedDeletedSourceEventHighWaterOrdinal = 0L,
+			markedAtMs = MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.NoChange
+	}
+
+	@Test
 	fun `cancellation after retention payload removal rolls back the whole lineage`() = runTest {
 		seedCapturedCell(retainedFromMs = FLOOR_MS, semanticRevisions = 2)
 
@@ -800,6 +974,32 @@ class CellCapturedFactMaintenanceTest {
 
 		database.cellCapturedFactDao().revisionCount() shouldBe 2L
 		database.cellCapturedFactDao().cursorCount() shouldBe 1L
+		database.capturedRadioFactRetentionProofDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `cancellation after Cell retention proof staging rolls back proof and live facts`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+
+		shouldThrow<CancellationException> {
+			database.pruneCapturedCellFactsAffectedByRetentionFloor(
+				beforeMs = FLOOR_MS,
+				expectedCollectedDataEpoch = 0L,
+				expectedDeletedSourceEventHighWaterOrdinal = 0L,
+				markedAtMs = MAINTENANCE_TIME_MS,
+				limits = CellCapturedMaintenanceLimits(),
+				checkpoint = { point ->
+					if (point == CellCapturedMaintenanceCheckpoint.RETENTION_PROOF_PERSISTED) {
+						database.capturedRadioFactRetentionProofDao().countAll() shouldBe 1L
+						database.cellCapturedFactDao().revisionCount() shouldBe 1L
+						throw CancellationException("test staged proof cancellation")
+					}
+				},
+			)
+		}
+
+		database.capturedRadioFactRetentionProofDao().countAll() shouldBe 0L
+		database.cellCapturedFactDao().revisionCount() shouldBe 1L
 	}
 
 	@Test
@@ -1417,7 +1617,7 @@ class CellCapturedFactMaintenanceTest {
 
 	@Test
 	fun `portable export retains partial child and unknown multi SIM truth`() = runTest {
-		seedCapturedCell(missingTimeChildCount = 1, withPortableExportState = true)
+		seedCapturedCell(staleChildCount = 1, withPortableExportState = true)
 		database.sourceSessionDao().saveCompleteness(
 			portableCompleteness(
 				providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
@@ -1435,7 +1635,7 @@ class CellCapturedFactMaintenanceTest {
 		run.acquisitionCompleteness shouldBe PortableCellAcquisitionCompleteness.PARTIAL
 		run.subscriptionGrouping shouldBe PortableCellSubscriptionGrouping.UNKNOWN
 		run.observations.single().childCompleteness shouldBe PortableCellChildCompleteness.PARTIAL
-		run.observations.single().missingTimeChildCount shouldBe 1
+		run.observations.single().staleChildCount shouldBe 1
 	}
 
 	@Test
@@ -2486,6 +2686,7 @@ class CellCapturedFactMaintenanceTest {
 		retainedFromMs: Long? = null,
 		semanticRevisions: Int = 1,
 		missingTimeChildCount: Int = 0,
+		staleChildCount: Int = 0,
 		observedWallTimeMs: Long = OBSERVED_WALL_MS,
 		coverageSpanNanos: Long = 0L,
 		acceptedChildCount: Int? = null,
@@ -2533,6 +2734,7 @@ class CellCapturedFactMaintenanceTest {
 			authorizationFingerprint = authorization.first().authorizationFingerprint,
 			semanticRevisions = semanticRevisions,
 			missingTimeChildCount = missingTimeChildCount,
+			staleChildCount = staleChildCount,
 			persistProduct = persistCapturedProduct,
 		)
 		if (withPortableExportState) {
@@ -3007,7 +3209,7 @@ class CellCapturedFactMaintenanceTest {
 			acquiredAtMs = REPLACEMENT_WAL_WALL_MS,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = 1,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
 			payload = payload,
 			payloadChecksum = sha256(payload),
 			createdAtMs = REPLACEMENT_WAL_WALL_MS,
@@ -3187,6 +3389,7 @@ class CellCapturedFactMaintenanceTest {
 		aggregateOwner: CellCapturedFactRevisionEntity? = null,
 		acceptedChildCount: Int = 1,
 		missingTimeChildCount: Int = 0,
+		staleChildCount: Int = 0,
 		semanticRevisions: Int = 1,
 		coverageSpanNanos: Long = 0L,
 		radioType: String = CELL_TECHNOLOGY_LTE,
@@ -3202,7 +3405,8 @@ class CellCapturedFactMaintenanceTest {
 	): CellCapturedFactRevisionEntity {
 		require(
 			deliveryIndex in 0..9 && semanticRevisions in 1..2 && coverageSpanNanos >= 0L &&
-				acceptedChildCount > 0 && missingTimeChildCount >= 0 && providerNanos > 0L,
+				acceptedChildCount > 0 && missingTimeChildCount >= 0 && staleChildCount >= 0 &&
+				providerNanos > 0L,
 		)
 		val exactAuthorizationFingerprint = authorizationFingerprint ?: requireNotNull(
 			database.cellCapturedFactDao().maintenanceAuthorizationMembers(
@@ -3216,6 +3420,14 @@ class CellCapturedFactMaintenanceTest {
 		val coverageStartNanos = providerNanos - coverageSpanNanos
 		require(coverageStartNanos > 0L)
 		val observations = buildList {
+			repeat(staleChildCount) {
+				add(CellTestObservation(
+					radioType = radioType,
+					registered = registered,
+					signalLevelDbm = signalLevelDbm,
+					providerTimestampNanos = authorizationEffectStartNanos - 1L,
+				))
+			}
 			repeat(acceptedChildCount) { index ->
 				add(CellTestObservation(
 					radioType = radioType,
@@ -3234,6 +3446,9 @@ class CellCapturedFactMaintenanceTest {
 			observations.mapNotNull { it.toProviderDeliveryIdentityFactOrNull() },
 		)
 		val payloadChecksum = sha256(payload)
+		val observedIntervalStartNanos = observations.mapNotNull(
+			CellTestObservation::providerTimestampNanos,
+		).minOrNull() ?: coverageStartNanos
 		val unsignedWal = SourceEventWalEntity(
 			eventId = eventId,
 			providerDedupKey = null,
@@ -3254,7 +3469,7 @@ class CellCapturedFactMaintenanceTest {
 			planAttribution = 0,
 			clockDomainId = BOOT_ID,
 			observedElapsedNanos = providerNanos,
-			observedIntervalStartNanos = coverageStartNanos,
+			observedIntervalStartNanos = observedIntervalStartNanos,
 			receivedElapsedNanos = providerNanos + 1L,
 			wallTimeMs = observedWallTimeMs,
 			wallTimeUncertaintyMs = WALL_UNCERTAINTY_MS,
@@ -3267,7 +3482,7 @@ class CellCapturedFactMaintenanceTest {
 			acquiredAtMs = observedWallTimeMs,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = 1,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
 			payload = payload,
 			payloadChecksum = payloadChecksum,
 			createdAtMs = observedWallTimeMs,
@@ -3312,7 +3527,7 @@ class CellCapturedFactMaintenanceTest {
 			deliveryUnitCount = 1,
 			sourceSequence = deliveryIndex.toLong(),
 			planAttribution = CellCapturedFactRevisionEntity.PLAN_ATTRIBUTION_CAPTURED_REGISTRATION,
-			payloadVersion = 1,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
 			canonicalProviderSemanticsDigest = deliveryIdentity,
 			sourceInstanceId = sourceInstanceId,
 			registrationGeneration = registrationGeneration,
@@ -3343,7 +3558,7 @@ class CellCapturedFactMaintenanceTest {
 			deletionEffectStartNanos = RUN_START_NANOS,
 			deletionEffectEndNanos = SESSION_END_NANOS,
 			maximumObservationAgeNanos = MAXIMUM_OBSERVATION_AGE_NANOS,
-			observedIntervalStartNanos = coverageStartNanos,
+			observedIntervalStartNanos = observedIntervalStartNanos,
 			observedElapsedNanos = providerNanos,
 			receivedElapsedNanos = providerNanos + 1L,
 			coverageIntervalStartNanos = coverageStartNanos,
@@ -3355,9 +3570,12 @@ class CellCapturedFactMaintenanceTest {
 			qualityFlags = 0L,
 			qualityConfidence = null,
 			availability = CellCapturedFactRevisionEntity.AVAILABILITY_AVAILABLE,
-			submittedChildCount = Math.addExact(acceptedChildCount, missingTimeChildCount),
+			submittedChildCount = Math.addExact(
+				Math.addExact(acceptedChildCount, staleChildCount),
+				missingTimeChildCount,
+			),
 			acceptedChildCount = acceptedChildCount,
-			staleChildCount = 0,
+			staleChildCount = staleChildCount,
 			futureTimeChildCount = 0,
 			missingTimeChildCount = missingTimeChildCount,
 			clockUnverifiableChildCount = 0,
@@ -3365,7 +3583,7 @@ class CellCapturedFactMaintenanceTest {
 			unsupportedTechnologyChildCount = 0,
 			subscriptionCompleteness =
 				CellCapturedFactRevisionEntity.SUBSCRIPTION_COMPLETENESS_UNKNOWN,
-			childCompleteness = if (missingTimeChildCount == 0) {
+			childCompleteness = if (missingTimeChildCount == 0 && staleChildCount == 0) {
 				CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_COMPLETE
 			} else {
 				CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_PARTIAL
@@ -3882,7 +4100,7 @@ class CellCapturedFactMaintenanceTest {
 			acquiredAtMs = CONTROL_WAL_CREATED_AT_MS,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = 1,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
 			payload = payload,
 			payloadChecksum = sha256(payload),
 			createdAtMs = CONTROL_WAL_CREATED_AT_MS,
@@ -3937,7 +4155,7 @@ class CellCapturedFactMaintenanceTest {
 			acquiredAtMs = CONTROL_WAL_CREATED_AT_MS + 1L,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = 1,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
 			payload = payload,
 			payloadChecksum = sha256(payload),
 			createdAtMs = CONTROL_WAL_CREATED_AT_MS + 1L,
@@ -3972,26 +4190,25 @@ class CellCapturedFactMaintenanceTest {
 		.digest(bytes)
 		.joinToString(separator = "") { byte -> "%02x".format(byte) }
 
-	private fun cellPayload(observations: List<CellTestObservation>): ByteArray =
-		ByteArrayOutputStream().use { buffer ->
-			require(observations.isNotEmpty())
-			DataOutputStream(buffer).use { output ->
-				output.writeInt(CELL_PAYLOAD_TYPE)
-				output.writeBoolean(false)
-				output.writeInt(observations.size)
-				observations.forEach { observation ->
-					output.writeUTF("")
-					output.writeUTF(observation.radioType)
-					output.writeBoolean(observation.registered)
-					output.writeBoolean(observation.signalLevelDbm != null)
-					observation.signalLevelDbm?.let(output::writeInt)
-					output.writeBoolean(observation.providerTimestampNanos != null)
-					observation.providerTimestampNanos?.let(output::writeLong)
-				}
-				output.writeInt(CELL_REFRESH_OUTCOME_CALLBACK)
-			}
-			buffer.toByteArray()
-		}
+	private fun cellPayload(observations: List<CellTestObservation>): ByteArray {
+		require(observations.isNotEmpty())
+		return CellWalPayloadCodec.encode(
+			CellWalPayload(
+				subscriptionId = null,
+				observations = observations.map { observation ->
+					CellWalPayloadObservation(
+						identifierToken = "",
+						radioType = observation.radioType,
+						registered = observation.registered,
+						signalLevelDbm = observation.signalLevelDbm,
+						providerTimestampNanos = observation.providerTimestampNanos,
+					)
+				},
+				refreshOutcomeCode = CELL_REFRESH_OUTCOME_CALLBACK,
+				observationZoneId = ZONE_ID,
+			),
+		).toByteArray()
+	}
 
 	private fun CellTestObservation.toProviderDeliveryIdentityFactOrNull() =
 		providerTimestampNanos?.let { providerTime ->
@@ -4109,8 +4326,6 @@ class CellCapturedFactMaintenanceTest {
 		const val BACKOFF_MULTIPLIER = 2.0
 		const val CELL_MODE_OBSERVE_CHANGES = "OBSERVE_CHANGES"
 		const val CELL_MODE_OBSERVE_AND_SPARSE_REFRESH = "OBSERVE_AND_SPARSE_REFRESH"
-		const val CELL_PAYLOAD_TYPE = 8
-		const val CELL_REFRESH_OUTCOME_CALLBACK = 0
 		const val CELL_TECHNOLOGY_GSM = "GSM"
 		const val CELL_TECHNOLOGY_CDMA = "CDMA"
 		const val CELL_TECHNOLOGY_WCDMA = "WCDMA"

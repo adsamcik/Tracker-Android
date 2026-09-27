@@ -175,6 +175,26 @@ def inspect_merged_manifest(path: Path) -> dict[str, Any]:
     }
 
 
+def inspect_r8_manifest_parity(
+    optimized_manifest: Path,
+    non_minified_manifest: Path,
+) -> dict[str, Any]:
+    """Require optimized and control builds to expose identical platform declarations."""
+    optimized = inspect_merged_manifest(optimized_manifest)
+    non_minified = inspect_merged_manifest(non_minified_manifest)
+    if optimized != non_minified:
+        differing_keys = sorted(
+            key
+            for key in set(optimized).union(non_minified)
+            if optimized.get(key) != non_minified.get(key)
+        )
+        raise ReleaseValidationError(
+            "R8 release manifest differs from release_nominify control: "
+            + ", ".join(differing_keys)
+        )
+    return optimized
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -425,8 +445,8 @@ def _require_git_object(value: Any, label: str) -> None:
 
 
 def validate_release_manifest(manifest: Mapping[str, Any]) -> None:
-    if manifest.get("schemaVersion") != 1:
-        raise ReleaseValidationError("release manifest schemaVersion must be 1")
+    if manifest.get("schemaVersion") != 2:
+        raise ReleaseValidationError("release manifest schemaVersion must be 2")
 
     source = manifest.get("source")
     if not isinstance(source, dict):
@@ -494,7 +514,7 @@ def validate_release_manifest(manifest: Mapping[str, Any]) -> None:
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, list):
         raise ReleaseValidationError("release manifest artifacts must be a list")
-    required_kinds = {"aab", "apk-set", "apk"}
+    required_kinds = {"aab", "aab-nominify", "apk-set", "apk"}
     found_kinds = {item.get("kind") for item in artifacts if isinstance(item, dict)}
     if not required_kinds.issubset(found_kinds):
         raise ReleaseValidationError(
@@ -511,6 +531,7 @@ def validate_release_manifest(manifest: Mapping[str, Any]) -> None:
     evidence_kinds = {item.get("kind") for item in evidence if isinstance(item, dict)}
     required_evidence = {
         "merged-manifest",
+        "nominify-merged-manifest",
         "bundle-config-json",
         "bundle-config-proto",
         "r8-mapping",
@@ -525,6 +546,16 @@ def validate_release_manifest(manifest: Mapping[str, Any]) -> None:
         )
     for index, item in enumerate(evidence):
         _require_sha256(item.get("sha256"), f"evidence[{index}].sha256")
+
+    r8_parity = manifest.get("r8Parity")
+    if not isinstance(r8_parity, dict):
+        raise ReleaseValidationError("R8 parity evidence is missing")
+    if r8_parity != {
+        "optimizedBuildType": "release",
+        "controlBuildType": "release_nominify",
+        "manifestEquivalent": True,
+    }:
+        raise ReleaseValidationError("R8 parity evidence is incomplete or not passing")
 
     room = manifest.get("room")
     if not isinstance(room, dict) or room.get("count", 0) <= 0:
@@ -636,9 +667,11 @@ def build_release_manifest(
     repo_root: Path,
     release_inputs: Mapping[str, Any],
     aab: Path,
+    non_minified_aab: Path,
     apk_set: Path,
     apks: Sequence[Path],
     merged_manifest: Path,
+    non_minified_merged_manifest: Path,
     evidence_files: Sequence[tuple[str, Path]],
     dependency_metadata: Path,
     native_inventory: Mapping[str, Any],
@@ -648,7 +681,10 @@ def build_release_manifest(
     configured_version = parse_application_identity(
         repo_root / "app" / "build.gradle.kts"
     )
-    android_manifest = inspect_merged_manifest(merged_manifest)
+    android_manifest = inspect_r8_manifest_parity(
+        merged_manifest,
+        non_minified_merged_manifest,
+    )
     version = {
         key: android_manifest[key]
         for key in ("applicationId", "versionName", "versionCode")
@@ -678,6 +714,7 @@ def build_release_manifest(
 
     artifacts = [
         artifact_record("aab", aab, repo_root),
+        artifact_record("aab-nominify", non_minified_aab, repo_root),
         artifact_record("apk-set", apk_set, repo_root),
     ]
     artifacts.extend(artifact_record("apk", apk, repo_root) for apk in apks)
@@ -688,12 +725,17 @@ def build_release_manifest(
     ]
 
     manifest: dict[str, Any] = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "releaseId": release_id,
         "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
         "source": source,
         "version": version,
         "androidManifest": android_manifest,
+        "r8Parity": {
+            "optimizedBuildType": "release",
+            "controlBuildType": "release_nominify",
+            "manifestEquivalent": True,
+        },
         "ci": ci_context(source["commit"]),
         "artifacts": artifacts,
         "evidence": evidence,

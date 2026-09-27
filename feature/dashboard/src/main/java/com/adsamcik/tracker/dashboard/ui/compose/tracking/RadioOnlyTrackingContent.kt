@@ -78,30 +78,39 @@ private fun RadioOnlyTrackingContent(
 		verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Lg),
 	) {
 		item(key = tag) {
-			Card(
-				modifier = Modifier.fillMaxWidth(),
-				colors = CardDefaults.cardColors(
-					containerColor = MaterialTheme.colorScheme.primaryContainer,
-				),
-				shape = RidgelineCardDefaults.shape,
-			) {
-				Column(
-					modifier = Modifier.padding(RidgelineSpacing.Lg),
-					verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Md),
-				) {
-					Text(
-						text = title,
-						style = MaterialTheme.typography.titleMedium,
-						fontWeight = FontWeight.SemiBold,
-						color = MaterialTheme.colorScheme.onPrimaryContainer,
-					)
-					DashboardRadioHistoryFacts(presentation)
-					Text(
-						text = stringResource(R.string.dashboard_radio_location_excluded),
-						style = MaterialTheme.typography.bodySmall,
-						color = MaterialTheme.colorScheme.onPrimaryContainer,
-					)
-				}
+			RadioTrackingCard(title = title, presentation = presentation)
+		}
+	}
+}
+
+@Composable
+internal fun RadioTrackingCard(
+	title: String,
+	presentation: com.adsamcik.tracker.dashboard.ui.compose.state.DashboardRadioHistoryValue,
+	includeLocationNotice: Boolean = true,
+) {
+	Card(
+		modifier = Modifier.fillMaxWidth(),
+		colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+		shape = RidgelineCardDefaults.shape,
+	) {
+		Column(
+			modifier = Modifier.padding(RidgelineSpacing.Lg),
+			verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Md),
+		) {
+			Text(
+				text = title,
+				style = MaterialTheme.typography.titleMedium,
+				fontWeight = FontWeight.SemiBold,
+				color = MaterialTheme.colorScheme.onPrimaryContainer,
+			)
+			DashboardRadioHistoryFacts(presentation)
+			if (includeLocationNotice) {
+				Text(
+					text = stringResource(R.string.dashboard_radio_location_excluded),
+					style = MaterialTheme.typography.bodySmall,
+					color = MaterialTheme.colorScheme.onPrimaryContainer,
+				)
 			}
 		}
 	}

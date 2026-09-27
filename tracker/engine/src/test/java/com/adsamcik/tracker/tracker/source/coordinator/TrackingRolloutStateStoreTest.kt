@@ -46,6 +46,19 @@ class TrackingRolloutStateStoreTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `unassembled automatic location and radio contracts are not executable`() {
+		val catalog = ExecutableSourceLaneCatalog()
+		listOf(
+			ExecutableSourceLaneCatalog.LOCATION_SESSION_CANONICAL_V1,
+			ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS,
+			ExecutableSourceLaneCatalog.CELL_SESSION_FACTS,
+		).forEach { binding ->
+			catalog.owns(binding) shouldBe true
+			catalog.owns(binding.copy(bindingGeneration = binding.bindingGeneration + 1L)) shouldBe false
+		}
+	}
+
+	@Test
 	fun `missing row initializes contained without authorizing acquisition`() = runTest {
 		store.load() shouldBe TrackingRolloutState.contained()
 	}

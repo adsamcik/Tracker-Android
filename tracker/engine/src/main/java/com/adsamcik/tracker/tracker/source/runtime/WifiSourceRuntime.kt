@@ -3,6 +3,9 @@ package com.adsamcik.tracker.tracker.source.runtime
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadObservation
+import com.adsamcik.tracker.shared.base.database.data.canonicalWifiProviderDeliveryIdentity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -18,9 +21,7 @@ import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
 import com.adsamcik.tracker.tracker.source.model.WifiMode
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
 import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
-import com.adsamcik.tracker.tracker.source.model.RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
-import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -1232,7 +1233,7 @@ class WifiSourceRuntime @Inject internal constructor(
 		val wallTime = receivedWallTimeMs - ageMs
 		val delivery = wifiDelivery(
 			registration, observedIntervalStart, observed, receivedElapsedNanos,
-			wallTime,
+			wallTime, receivedWallTimeMs,
 			if (linkedAttemptId != null) registration.state.appliedRevision else null,
 			attribution,
 			SourceQuality(),
@@ -1255,6 +1256,7 @@ class WifiSourceRuntime @Inject internal constructor(
 		observedNanos: Long,
 		receivedNanos: Long,
 		wallTimeMs: Long,
+		receivedWallTimeMs: Long,
 		configRevision: Long?,
 		attribution: PlanAttribution,
 		quality: SourceQuality,
@@ -1277,6 +1279,7 @@ class WifiSourceRuntime @Inject internal constructor(
 			planAttribution = attribution, clockDomainId = registration.state.clockDomainId,
 			observedElapsedRealtimeNanos = observedNanos.coerceAtLeast(0L),
 			receivedElapsedRealtimeNanos = receivedNanos.coerceAtLeast(0L),
+			receivedWallTimeMs = receivedWallTimeMs.coerceAtLeast(0L),
 			wallTimeMs = wallTimeMs.coerceAtLeast(0L), wallTimeUncertaintyMs = 1L,
 			capturedCollectedDataEpoch = registration.state.collectedDataEpoch,
 			acquiredAtMs = wallTimeMs.coerceAtLeast(0L), quality = quality,
@@ -1380,7 +1383,7 @@ class WifiSourceRuntime @Inject internal constructor(
 	)
 
 	private companion object {
-		const val WIFI_PAYLOAD_VERSION = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
+		const val WIFI_PAYLOAD_VERSION = WIFI_WAL_PAYLOAD_VERSION
 		const val WAKEUP_ID = "wifi-active-attempt"
 		const val DEFAULT_DRAIN_TIMEOUT_MS = 3_000L
 		const val NANOS_PER_MILLISECOND = 1_000_000L
@@ -1514,31 +1517,19 @@ internal fun wifiProviderDeliveryIdentity(
 	clockDomainId: String,
 	accessPoints: List<WifiAccessPointEvidence>,
 ): SourceDeliveryIdentity {
-	require(clockDomainId.isNotBlank())
-	require(accessPoints.isNotEmpty())
-	require(accessPoints.all { it.identifierToken == WITHHELD_RADIO_IDENTIFIER_TOKEN })
-	val canonical = buildString {
-		append("wifi-v1|")
-		append(clockDomainId.length)
-		append(':')
-		append(clockDomainId)
-		append("|items:")
-		accessPoints.sortedWith(
-			compareBy<WifiAccessPointEvidence>(
-				WifiAccessPointEvidence::frequencyMhz,
-				WifiAccessPointEvidence::signalLevelDbm,
-				WifiAccessPointEvidence::providerTimestampNanos,
-			),
-		).forEach { item ->
-			append(item.frequencyMhz)
-			append(':')
-			append(item.signalLevelDbm)
-			append(':')
-			append(requireNotNull(item.providerTimestampNanos))
-			append('|')
-		}
-	}
-	return sourceDeliveryIdentity(canonical.toByteArray(Charsets.UTF_8))
+	return SourceDeliveryIdentity(
+		canonicalWifiProviderDeliveryIdentity(
+			clockDomainId,
+			accessPoints.map { observation ->
+				WifiWalPayloadObservation(
+					identifierToken = observation.identifierToken,
+					frequencyMhz = observation.frequencyMhz,
+					signalLevelDbm = observation.signalLevelDbm,
+					providerTimestampNanos = observation.providerTimestampNanos,
+				)
+			},
+		),
+	)
 }
 
 private fun SourceRegistration.samePhysicalRegistration(other: SourceRegistration): Boolean =

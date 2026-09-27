@@ -20,6 +20,82 @@ import java.io.IOException
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackingShutdownSequenceTest {
 	@Test
+	fun `stop superseded during retirement cannot release foreground`() = runTest {
+		var current = true
+		val retirementStarted = CompletableDeferred<Unit>()
+		val retirementFinished = CompletableDeferred<Unit>()
+		var released = false
+		val stop = launch {
+			val ready = completeDurableStopBeforeForegroundRelease(
+				isCurrent = { current },
+				persistStopCandidate = { true },
+				retireSources = {
+					retirementStarted.complete(Unit)
+					retirementFinished.await()
+					true
+				},
+			)
+			if (ready) released = true
+		}
+		retirementStarted.await()
+		released shouldBe false
+		current = false
+		retirementFinished.complete(Unit)
+		stop.join()
+		released shouldBe false
+	}
+
+	@Test
+	fun `foreground release waits for durable candidate and source retirement`() = runTest {
+		val calls = mutableListOf<String>()
+		var candidateAttempts = 0
+		var retirementAttempts = 0
+
+		val ready = completeDurableStopBeforeForegroundRelease(
+			isCurrent = { true },
+			persistStopCandidate = {
+				calls += "candidate"
+				++candidateAttempts >= 2
+			},
+			retireSources = {
+				calls += "retire"
+				++retirementAttempts >= 2
+			},
+			retryDelayMillis = 1L,
+		)
+		if (ready) calls += "release"
+
+		ready shouldBe true
+		calls shouldContainExactly listOf(
+			"candidate", "candidate", "retire", "candidate", "retire", "release",
+		)
+	}
+
+	@Test
+	fun `superseded stop never retires sources or releases foreground`() = runTest {
+		val calls = mutableListOf<String>()
+		var current = true
+
+		val ready = completeDurableStopBeforeForegroundRelease(
+			isCurrent = { current },
+			persistStopCandidate = {
+				calls += "candidate"
+				current = false
+				true
+			},
+			retireSources = {
+				calls += "retire"
+				true
+			},
+			retryDelayMillis = 1L,
+		)
+		if (ready) calls += "release"
+
+		ready shouldBe false
+		calls shouldContainExactly listOf("candidate")
+	}
+
+	@Test
 	fun `drain timeout cancels queued cycles and still runs teardown`() = runTest {
 		val calls = mutableListOf<String>()
 

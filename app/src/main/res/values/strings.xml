@@ -614,6 +614,17 @@
     <string name="background_reliability_allow_action">Allow background activity</string>
     <string name="background_reliability_samsung_hint">Samsung devices may also place apps into \"Sleeping apps\". Open battery settings, then remove Tracker from Sleeping apps and set it to not be put to sleep.</string>
     <string name="background_reliability_samsung_action">Open device battery settings</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android and device policy can pause or stop background work. Tracker can report restrictions Android exposes, but it cannot override Restricted or force-stopped state.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Background restriction detected</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Battery optimization detected</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">No restriction detected</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Restriction state unavailable</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android reports that background activity is Restricted. Tracking may stop when Tracker is not visible; the app cannot override this policy.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android reports that Tracker is not on the battery allowlist. Power management may delay background work; allowlisting reduces restrictions but does not guarantee continuous tracking.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android reports no background restriction and Tracker is on the battery allowlist. The system can still stop the app, and force-stop cannot be overridden.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker could not read every relevant Android restriction signal. No device-specific cause or remedy can be confirmed.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Open app battery settings</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Open battery optimization settings</string>
 
     <!-- Local crash and diagnostic capture -->
     <string name="settings_tracebox_title">Crash diagnostics</string>

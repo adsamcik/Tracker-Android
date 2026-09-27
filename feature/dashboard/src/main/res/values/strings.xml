@@ -124,6 +124,9 @@
     <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Cell session</string>
     <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Captured Wi‑Fi</string>
     <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Captured cell radio</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">Sources in this session</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">Location is not captured in this session. Route, distance, speed, and altitude are unavailable.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">Verified %1$s history is unavailable.</string>
     <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Captured on this device</string>
     <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">Imported retained evidence</string>
     <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">Preparing retained radio history…</string>

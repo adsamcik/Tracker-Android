@@ -406,6 +406,13 @@ data class ActivityCapturedFragmentEntity(
 			],
 			name = "idx_activity_captured_evidence_fragment",
 		),
+		Index(
+			value = [
+				"writer_projection_id", "writer_projection_version",
+				"source_admission_ordinal",
+			],
+			name = "idx_activity_captured_evidence_writer_admission",
+		),
 	],
 )
 data class ActivityCapturedEvidenceEntity(

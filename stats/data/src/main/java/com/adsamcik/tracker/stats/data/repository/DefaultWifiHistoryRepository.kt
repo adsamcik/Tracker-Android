@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiRequest
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
@@ -57,6 +58,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 	private val importedProductEvaluator: ImportedWifiProductEvaluator,
 	private val localPortableReader: ReadLocalPortableCapturedWifi,
 	private val deletedHistoryReader: WifiDeletedHistoryReader,
+	private val bootClockDomainProvider: BootClockDomainProvider,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : WifiHistoryRepository {
 	override suspend fun session(segmentId: Long): WifiHistoryQuery {
@@ -773,6 +775,16 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			factDao.historyProviderRegistrations(WIFI_SOURCE, ids, limit)
 		}
 		val providers = providerLoad.rows
+		val currentProviderRows = database.sourceBrokerDao().currentPhysicalRegistrationsBounded(
+			WIFI_SOURCE,
+			MAX_PROVIDERS + 1,
+		)
+		val retiringProviderRows = database.sourceBrokerDao().pendingProviderRemovalsBounded(
+			WIFI_SOURCE,
+			MAX_PROVIDERS + 1,
+		)
+		val currentProviders = (currentProviderRows + retiringProviderRows)
+			.distinctBy { it.registrationGeneration }
 		val authorizationLoad = loadChunked(registrationGenerations, MAX_AUTHORIZATIONS) { ids, limit ->
 			factDao.historyAuthorizations(WIFI_SOURCE, ids, limit)
 		}
@@ -834,6 +846,9 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			cursors.size > MAX_CURSORS || generations.size > MAX_DELETION_GENERATIONS ||
 			planHeaders.size > MAX_PLANS || desiredPlans.size > MAX_PLANS ||
 			providers.size > MAX_PROVIDERS || authorizations.size > MAX_AUTHORIZATIONS ||
+			currentProviderRows.size > MAX_PROVIDERS ||
+			retiringProviderRows.size > MAX_PROVIDERS ||
+			currentProviders.size > MAX_PROVIDERS ||
 			demands.size > MAX_DEMANDS || actions.size > MAX_ACTIONS ||
 			admissions.size > MAX_ADMISSION_ROWS ||
 			fences.size > MAX_DELETION_FENCES || lanes.size > MAX_LANES ||
@@ -858,6 +873,8 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			planHeaders = planHeaders.take(MAX_PLANS).associateBy { it.revision },
 			desiredPlans = desiredPlans.take(MAX_PLANS).associateBy(SourceDesiredPlanEntity::revision),
 			providerRegistrations = providers.take(MAX_PROVIDERS).associateBy { it.registrationGeneration },
+			currentProviderRegistrations = currentProviders.take(MAX_PROVIDERS),
+			currentClockDomainId = bootClockDomainProvider.current(),
 			authorizationsByRegistration = authorizations.take(MAX_AUTHORIZATIONS)
 				.groupBy { it.registrationGeneration },
 			demands = demands.take(MAX_DEMANDS).associateBy(SourceDemandEntity::demandId),

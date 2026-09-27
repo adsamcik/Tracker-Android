@@ -30,7 +30,6 @@ import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
-import com.adsamcik.tracker.shared.base.extension.powerManager
 import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
@@ -418,7 +417,6 @@ object BackgroundTrackingApi {
 		val entryPoint = getEntryPoint(context)
 		val capabilities = context.trackingPermissionCapabilities()
 		return !entryPoint.lockManager().isLocked &&
-			!context.powerManager.isPowerSaveMode &&
 			isAutomaticStartEligible(
 				params = cachedParamsSnapshot(),
 				locationAvailable = capabilities.hasForegroundLocation,

@@ -23,6 +23,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVers
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -1373,7 +1374,7 @@ class WifiDurableSourceIngressTest {
 		purposeEligibilityMask: Long = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
 		eligibilityFingerprint: String = WIFI_ELIGIBILITY_FINGERPRINT,
 		payloadVersion: Int = WIFI_PAYLOAD_VERSION,
-		observationZoneId: String? = null,
+		observationZoneId: String? = "UTC",
 		resultAgeMs: Long? = null,
 	): SourceDeliveryCandidate {
 		val observed = requireNotNull(accessPoints.mapNotNull { it.providerTimestampNanos }.maxOrNull())
@@ -2132,7 +2133,7 @@ class WifiDurableSourceIngressTest {
 		const val BOOT_CLOCK_DOMAIN_ID = "boot"
 		const val PROVIDER_TIMESTAMP_NANOS = 100_000_000L
 		const val NANOS_PER_MILLISECOND = 1_000_000L
-		const val WIFI_PAYLOAD_VERSION = 2
+		const val WIFI_PAYLOAD_VERSION = WIFI_WAL_PAYLOAD_VERSION
 		const val WIFI_SOURCE_INSTANCE_ID = "wifi-source-instance"
 		const val WIFI_DEMAND_ID = "wifi-ambient-demand"
 		const val WIFI_CAPTURE_DEMAND_ID = "wifi-session-demand"

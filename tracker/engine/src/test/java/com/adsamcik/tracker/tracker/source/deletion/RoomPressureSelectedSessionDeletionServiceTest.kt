@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.persistPressureFactRetentionAuthority
 import com.adsamcik.tracker.shared.base.database.applyPressureSourceEraseLocalMutationInTransaction
 import com.adsamcik.tracker.shared.base.database.auditPressureSourceEraseLocalAuthorityInTransaction
 import com.adsamcik.tracker.shared.base.database.PressureSourceEraseLocalFailure
@@ -16,6 +17,10 @@ import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEnti
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.PressureWalClosureKind
+import com.adsamcik.tracker.shared.base.database.data.PressureWalPayload
+import com.adsamcik.tracker.shared.base.database.data.PressureWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.PressureWalSensorAccuracy
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -97,9 +102,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.security.MessageDigest
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.TimeZone
+import java.util.concurrent.Executor
 import javax.inject.Provider
 
 @RunWith(RobolectricTestRunner::class)
@@ -109,11 +116,21 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 	private lateinit var database: AppDatabase
 	private lateinit var dirtyTracker: MetricDirtyTracker
 	private var drainRequests = 0
+	private val observedQueries = mutableListOf<String>()
 
 	@Before
 	fun setUp() = runTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
-		database = AppDatabase.testDatabase(context)
+		observedQueries.clear()
+		database = AppDatabase.inMemoryBuilder(context)
+			.allowMainThreadQueries()
+			.setQueryCallback(
+				{ sql, _ ->
+					observedQueries += sql.replace(Regex("\\s+"), " ").trim().lowercase()
+				},
+				Executor(Runnable::run),
+			)
+			.build()
 		dirtyTracker = mockk(relaxed = true)
 		drainRequests = 0
 		database.sourceEvidenceStateDao().ensure(
@@ -130,7 +147,13 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 	@Test
 	fun `source erase authenticates and fences local Pressure without deleting session authority`() =
 		runTest {
-			val fixture = insertPressureSession("source-erase", 1L, 1_000L, 2_000L)
+			val fixture = insertPressureSession(
+				"source-erase",
+				1L,
+				1_000L,
+				2_000L,
+				insertWal = false,
+			)
 			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(
 				pressureSourceEraseWal(fixture, admissionOrdinal = 2L, capture = true),
 			).shouldBeGreaterThanZero()
@@ -141,6 +164,19 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			)
 			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(controlWal)
 				.shouldBeGreaterThanZero()
+			repeat(SOURCE_ERASE_RETENTION_AUTHORITY_COUNT) { offset ->
+				database.persistPressureFactRetentionAuthority(
+					revisions = listOf(
+						pressureFact(
+							fixture = fixture,
+							admissionOrdinal = 100L + offset,
+							eventId = "pressure-source-erase-retained-$offset",
+						),
+					),
+					retainedFromMs = 1_500L,
+					retainedAtMs = 2_500L,
+				)
+			}
 			installContainedPressureEraseAuthority(cutoffOrdinal = 2L)
 			val persistence = realPersistenceProcessor(testScheduler)
 			val lifecycleBarrier = PersistenceLegacyPressureWriterLifecycleBarrier(
@@ -219,6 +255,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			)
 
 			database.withTransaction {
+				observedQueries.clear()
 				lifecycleBarrier.verifySettled(barrierToken) {
 					PressureProviderEraseVerification.Verified
 				} shouldBe PressureSourceEraseBarrierVerification.Verified
@@ -231,6 +268,9 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 					verifiedWriterFence = barrierToken.toLocalWriterFence(),
 				)
 				audit.factRevisionCount shouldBe 1
+				audit.retentionAuthorityCount shouldBe SOURCE_ERASE_RETENTION_AUTHORITY_COUNT
+				audit.retentionRevisionAuthorityCount shouldBe
+					SOURCE_ERASE_RETENTION_AUTHORITY_COUNT
 				audit.walEventCount shouldBe 1
 				audit.scopes shouldBe listOf(
 					com.adsamcik.tracker.shared.base.database.PressureSourceEraseLocalScope(
@@ -246,7 +286,21 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			}
 
 			database.pressureFactRevisionDao().count() shouldBe 0L
+			database.pressureFactRetentionAuthorityDao().count() shouldBe 0L
+			database.pressureFactRetentionRevisionAuthorityDao().count() shouldBe 0L
 			database.pressureFactRevisionDao().sourceEraseWalCount() shouldBe 0L
+			val authorityPages = observedQueries.filter { sql ->
+				sql.contains("from pressure_fact_retention_authority") &&
+					sql.contains("writer_projection_id = ?") &&
+					sql.contains("writer_projection_version = ?") &&
+					sql.contains("order by logical_fact_id limit ?")
+			}
+			authorityPages.size shouldBe 2
+			observedQueries.none { sql ->
+				sql.contains("from pressure_fact_retention_authority") &&
+					sql.contains("logical_fact_id > ?") &&
+					!sql.contains("writer_projection_id = ?")
+			} shouldBe true
 			requireNotNull(database.sourceEventWalDao().getByEventId(controlWal.eventId)).also {
 				it.authorizationPurposeEligibilityMask shouldBe
 					SourceBrokerPurpose.MASK_CONTROL_AUTOSTART
@@ -258,7 +312,13 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 
 	@Test
 	fun `source erase blocks exact direct Pressure demand before local mutation`() = runTest {
-		val fixture = insertPressureSession("source-erase-demand", 1L, 1_000L, 2_000L)
+		val fixture = insertPressureSession(
+			"source-erase-demand",
+			1L,
+			1_000L,
+			2_000L,
+			insertWal = false,
+		)
 		installContainedPressureEraseAuthority(cutoffOrdinal = 1L)
 		database.sourceBrokerDao().insertDemands(listOf(activeDemand(fixture)))
 
@@ -302,7 +362,13 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 	@Test
 	fun `Room source erase rejects mismatched fact projection and wrong contained lane without deletion`() =
 		runTest {
-			val fixture = insertPressureSession("room-source-erase-invalid-fact", 1L, 1_000L, 2_000L)
+			val fixture = insertPressureSession(
+				"room-source-erase-invalid-fact",
+				1L,
+				1_000L,
+				2_000L,
+				insertWal = false,
+			)
 			val captureWal = pressureSourceEraseWal(fixture, admissionOrdinal = 2L, capture = true)
 			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(captureWal)
 				.shouldBeGreaterThanZero()
@@ -356,6 +422,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 				1L,
 				1_000L,
 				2_000L,
+				insertWal = false,
 			)
 			val walFixture = insertPressureSession(
 				key = "room-source-erase-wrong-wal-generation",
@@ -363,6 +430,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 				startMs = 3_000L,
 				endMs = 4_000L,
 				writerBindingGeneration = 2L,
+				insertWal = false,
 			)
 			database.pressureFactRevisionDao().deleteExactServiceRunPageThrough(
 				logicalTrackingId = walFixture.logicalId,
@@ -425,11 +493,14 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			val correctedUnsigned = uncertain.copy(
 				semanticRevision = 2L,
 				mutationId = "${uncertain.logicalFactId}:2",
+				sourceEventId = "pressure-retention-crossing-corrected",
 				sourceAdmissionOrdinal = 11L,
 				intervalStartTimeMs = 4_000L,
 				intervalEndTimeMs = 4_150L,
 				windowStartElapsedRealtimeNanos = 4L * SECOND_NANOS,
 				windowEndElapsedRealtimeNanos = 4L * SECOND_NANOS + PRESSURE_WINDOW_NANOS,
+				firstProviderSequence = uncertain.lastProviderSequence + 1L,
+				lastProviderSequence = uncertain.lastProviderSequence + uncertain.sampleCount,
 				appliedAtMs = 4_150L,
 				effectChecksum = "pending-retention-correction",
 			)
@@ -448,6 +519,14 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			val safe = safeUnsigned.copy(
 				effectChecksum = pressureEffectChecksum(safeUnsigned, fixture.binding),
 			)
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM source_event_wal WHERE event_id = ?",
+				arrayOf(fixture.fact.sourceEventId),
+			)
+			listOf(uncertain, corrected, safe).forEach { fact ->
+				database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(pressureWal(fact))
+					.shouldBeGreaterThanZero()
+			}
 			factDao.insert(uncertain).shouldBeGreaterThanZero()
 			factDao.insert(corrected).shouldBeGreaterThanZero()
 			factDao.insert(safe).shouldBeGreaterThanZero()
@@ -505,6 +584,8 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			)
 			val corrupt = pressureFact(fixture, 21L, "pressure-retention-corrupt")
 				.copy(effectChecksum = "corrupt-retention-effect")
+			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(pressureWal(corrupt))
+				.shouldBeGreaterThanZero()
 			database.pressureFactRevisionDao().insert(corrupt).shouldBeGreaterThanZero()
 			database.sourceEvidenceStateDao().updateLifecycle(
 				epoch = COLLECTED_DATA_EPOCH,
@@ -652,25 +733,261 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 	}
 
 	@Test
+	fun `selected deletion rejects single revision Pressure lineage without WAL`() = runTest {
+		val fixture = insertPressureSession(
+			"single-missing-wal",
+			1L,
+			1_000L,
+			2_000L,
+			insertWal = false,
+		)
+
+		subject().deleteSelectedSession(fixture.segmentId) shouldBe
+			PressureSessionDeletionResult.UnsupportedScope(
+				PressureSessionDeletionUnsupportedReason.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
+			)
+		database.sessionSegmentDao().getById(fixture.segmentId).shouldNotBeNull()
+		factsFor(fixture, 2) shouldBe listOf(fixture.fact)
+		exactFence(fixture) shouldBe null
+	}
+
+	@Test
+	fun `selected deletion rejects single revision Pressure lineage with mismatched WAL`() = runTest {
+		val fixture = insertPressureSession(
+			"single-mismatched-wal",
+			1L,
+			1_000L,
+			2_000L,
+			insertWal = false,
+		)
+		val mismatched = pressureWal(fixture.fact)
+			.copy(sourcePolicyRevision = fixture.fact.sourcePolicyRevision + 1L)
+			.let { wal -> wal.copy(integrityIdentity = wal.calculatedIntegrityIdentity()) }
+		database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(mismatched)
+			.shouldBeGreaterThanZero()
+
+		subject().deleteSelectedSession(fixture.segmentId) shouldBe
+			PressureSessionDeletionResult.UnsupportedScope(
+				PressureSessionDeletionUnsupportedReason.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
+			)
+		database.sessionSegmentDao().getById(fixture.segmentId).shouldNotBeNull()
+		factsFor(fixture, 2) shouldBe listOf(fixture.fact)
+		exactFence(fixture) shouldBe null
+	}
+
+	@Test
+	fun `selected deletion accepts single revision Pressure lineage with exact WAL`() = runTest {
+		val fixture = insertPressureSession("single-valid-wal", 1L, 1_000L, 2_000L)
+
+		subject().deleteSelectedSession(fixture.segmentId) shouldBe
+			PressureSessionDeletionResult.Deleted
+		database.sessionSegmentDao().getById(fixture.segmentId) shouldBe null
+		factsFor(fixture, 2) shouldBe emptyList()
+	}
+
+	@Test
+	fun `selected deletion authenticates corrected Pressure lineage with distinct WAL carriers`() =
+		runTest {
+			val fixture = insertPressureSession("corrected", 1L, 1_000L, 3_000L)
+			val correction = pressureCorrection(
+				fixture = fixture,
+				admissionOrdinal = 2L,
+				eventId = "pressure-corrected-revision-2",
+			)
+			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(
+				pressureWal(correction),
+			).shouldBeGreaterThanZero()
+			database.pressureFactRevisionDao().insert(correction).shouldBeGreaterThanZero()
+
+			subject().deleteSelectedSession(fixture.segmentId) shouldBe
+				PressureSessionDeletionResult.Deleted
+			factsFor(fixture, 3) shouldBe emptyList()
+		}
+
+	@Test
+	fun `selected deletion accepts retained-only Pressure scope and clears identity authority`() =
+		runTest {
+			val fixture = insertPressureSession("retained-only", 1L, 1_000L, 3_000L)
+			database.sourceEvidenceStateDao().updateLifecycle(
+				epoch = COLLECTED_DATA_EPOCH,
+				retainedFromMs = 1_500L,
+				updatedAtMs = DELETED_AT_MS,
+			) shouldBe 1
+			database.withTransaction {
+				database.persistPressureFactRetentionAuthority(
+					revisions = listOf(fixture.fact),
+					retainedFromMs = 1_500L,
+					retainedAtMs = DELETED_AT_MS,
+				)
+				database.pressureFactRevisionDao().deleteExactLineages(
+					logicalTrackingId = fixture.logicalId,
+					serviceRunId = fixture.runId,
+					writerProjectionId = fixture.fact.writerProjectionId,
+					writerProjectionVersion = fixture.fact.writerProjectionVersion,
+					logicalFactIds = listOf(fixture.fact.logicalFactId),
+				) shouldBe 1
+			}
+
+			subject().deleteSelectedSession(fixture.segmentId) shouldBe
+				PressureSessionDeletionResult.Deleted
+
+			exactFence(fixture).shouldNotBeNull()
+			database.pressureFactRetentionAuthorityDao().countForExactRun(
+				fixture.logicalId,
+				fixture.runId,
+			) shouldBe 0L
+			database.pressureFactRetentionRevisionAuthorityDao().countForExactRun(
+				fixture.logicalId,
+				fixture.runId,
+			) shouldBe 0L
+		}
+
+	@Test
+	fun `selected deletion clears retained and live Pressure lineages in one fenced transaction`() =
+		runTest {
+			val fixture = insertPressureSession("retained-live", 1L, 1_000L, 3_000L)
+			database.sourceEvidenceStateDao().updateLifecycle(
+				epoch = COLLECTED_DATA_EPOCH,
+				retainedFromMs = 1_500L,
+				updatedAtMs = DELETED_AT_MS,
+			) shouldBe 1
+			database.withTransaction {
+				database.persistPressureFactRetentionAuthority(
+					revisions = listOf(fixture.fact),
+					retainedFromMs = 1_500L,
+					retainedAtMs = DELETED_AT_MS,
+				)
+				database.pressureFactRevisionDao().deleteExactLineages(
+					logicalTrackingId = fixture.logicalId,
+					serviceRunId = fixture.runId,
+					writerProjectionId = fixture.fact.writerProjectionId,
+					writerProjectionVersion = fixture.fact.writerProjectionVersion,
+					logicalFactIds = listOf(fixture.fact.logicalFactId),
+				) shouldBe 1
+			}
+			val live = pressureFact(fixture, 2L, "pressure-retained-live-current")
+			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(
+				pressureWal(live),
+			).shouldBeGreaterThanZero()
+			database.pressureFactRevisionDao().insert(live).shouldBeGreaterThanZero()
+			database.sourceSessionDao().saveCompleteness(
+				database.sourceSessionDao().completeness(fixture.logicalId).single().copy(
+					lastAdmissionOrdinal = live.sourceAdmissionOrdinal,
+					lastSourceSequence = live.sourceAdmissionOrdinal,
+				),
+			)
+
+			subject().deleteSelectedSession(fixture.segmentId) shouldBe
+				PressureSessionDeletionResult.Deleted
+
+			exactFence(fixture).shouldNotBeNull()
+			database.pressureFactRevisionDao().count() shouldBe 0L
+			database.pressureFactRetentionAuthorityDao().count() shouldBe 0L
+			database.pressureFactRetentionRevisionAuthorityDao().count() shouldBe 0L
+		}
+
+	@Test
+	fun `selected deletion rejects retained scope with missing revision authority`() = runTest {
+		val fixture = insertPressureSession("retained-missing-child", 1L, 1_000L, 3_000L)
+		database.sourceEvidenceStateDao().updateLifecycle(
+			epoch = COLLECTED_DATA_EPOCH,
+			retainedFromMs = 1_500L,
+			updatedAtMs = DELETED_AT_MS,
+		) shouldBe 1
+		database.withTransaction {
+			database.persistPressureFactRetentionAuthority(
+				revisions = listOf(fixture.fact),
+				retainedFromMs = 1_500L,
+				retainedAtMs = DELETED_AT_MS,
+			)
+			database.pressureFactRevisionDao().deleteExactLineages(
+				logicalTrackingId = fixture.logicalId,
+				serviceRunId = fixture.runId,
+				writerProjectionId = fixture.fact.writerProjectionId,
+				writerProjectionVersion = fixture.fact.writerProjectionVersion,
+				logicalFactIds = listOf(fixture.fact.logicalFactId),
+			) shouldBe 1
+		}
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM pressure_fact_retention_revision_authority",
+		)
+
+		subject().deleteSelectedSession(fixture.segmentId) shouldBe
+			PressureSessionDeletionResult.UnsupportedScope(
+				PressureSessionDeletionUnsupportedReason.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
+			)
+		database.sessionSegmentDao().getById(fixture.segmentId).shouldNotBeNull()
+		exactFence(fixture) shouldBe null
+		database.pressureFactRetentionAuthorityDao().count() shouldBe 1L
+	}
+
+	@Test
+	fun `selected deletion carries one corrected lineage across fact pages`() = runTest {
+		val fixture = insertPressureSession("corrected-page", 1L, 1_000L, 3_000L)
+		database.withTransaction {
+			for (revision in 2L..CORRECTED_LINEAGE_REVISION_COUNT) {
+				val correction = pressureCorrection(
+					fixture = fixture,
+					admissionOrdinal = revision,
+					eventId = "pressure-corrected-page-$revision",
+					semanticRevision = revision,
+				)
+				database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(
+					pressureWal(correction),
+				).shouldBeGreaterThanZero()
+				database.pressureFactRevisionDao().insert(correction).shouldBeGreaterThanZero()
+			}
+		}
+		val observations = mutableListOf<Triple<Int, Long, Int>>()
+
+		subject(
+			afterFactPageScanned = { pageCount, factCount, residentLineageRevisionCount ->
+				observations += Triple(pageCount, factCount, residentLineageRevisionCount)
+			},
+		).deleteSelectedSession(fixture.segmentId) shouldBe
+			PressureSessionDeletionResult.Deleted
+
+		val expectedScan = listOf(
+			Triple(1, FACT_DELETE_PAGE_SIZE, FACT_DELETE_PAGE_SIZE.toInt()),
+			Triple(
+				2,
+				CORRECTED_LINEAGE_REVISION_COUNT,
+				CORRECTED_LINEAGE_REVISION_COUNT.toInt(),
+			),
+		)
+		observations shouldBe expectedScan + expectedScan
+		database.pressureFactRevisionDao().count() shouldBe 0L
+	}
+
+	@Test
 	fun `partial Pressure window remains truthfully deletable`() = runTest {
 		val fixture = insertPressureSession("partial", 1L, 1_000L, 2_000L)
 		val partial = fixture.fact.copy(
 			closureKind = PressureFactRevisionEntity.CLOSURE_SOURCE_BOUNDARY,
 			qualification = PressureFactRevisionEntity.QUALIFICATION_PARTIAL,
+			sourceQualityFlags =
+				fixture.fact.sourceQualityFlags or SourceQualityFlag.INCOMPLETE_WINDOW.bit,
 			effectChecksum = "pending-partial-effect",
 		).let { candidate ->
 			candidate.copy(effectChecksum = pressureEffectChecksum(candidate, fixture.binding))
 		}
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE pressure_fact_revision SET closure_kind = ?, qualification = ?, " +
-				"effect_checksum = ? WHERE service_run_id = ?",
+				"source_quality_flags = ?, effect_checksum = ? WHERE service_run_id = ?",
 			arrayOf<Any>(
 				partial.closureKind,
 				partial.qualification,
+				partial.sourceQualityFlags,
 				partial.effectChecksum,
 				fixture.runId,
 			),
 		)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_event_wal WHERE event_id = ?",
+			arrayOf(fixture.fact.sourceEventId),
+		)
+		database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(pressureWal(partial))
+			.shouldBeGreaterThanZero()
 
 		subject().deleteSelectedSession(fixture.segmentId) shouldBe
 			PressureSessionDeletionResult.Deleted
@@ -700,6 +1017,8 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			manifest = secondManifest,
 			binding = secondBinding,
 		)
+		database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(pressureWal(secondFact))
+			.shouldBeGreaterThanZero()
 		database.pressureFactRevisionDao().insert(secondFact).shouldBeGreaterThanZero()
 
 		subject().deleteSelectedSession(fixture.segmentId) shouldBe
@@ -1171,7 +1490,12 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 				mutate = ::insertNonmonotonicCorrection,
 			),
 			NegativeCase(
-				name = "changed correction source-event lineage",
+				name = "reused correction source-event identity",
+				expected = PressureSessionDeletionUnsupportedReason.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
+				mutate = ::insertReusedSourceEventCorrection,
+			),
+			NegativeCase(
+				name = "correction missing exact WAL carrier",
 				expected = PressureSessionDeletionUnsupportedReason.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
 				mutate = ::insertChangedSourceEventCorrection,
 			),
@@ -1214,10 +1538,9 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 
 	@Test
 	@Suppress("LongMethod")
-	fun `large scope correction crossing page cancels transactionally then deletes idempotently`() =
+	fun `large scope crossing fact page cancels transactionally then deletes idempotently`() =
 		runTest {
 			val fixture = insertPressureSession("large", 1L, 1_000L, 2_000L)
-			var correction: PressureFactRevisionEntity? = null
 			database.withTransaction {
 				for (ordinal in 2L..LARGE_SESSION_FACT_COUNT) {
 					val fact = when {
@@ -1226,34 +1549,21 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 							admissionOrdinal = ordinal,
 							eventId = "000-large-$ordinal",
 						)
-						ordinal == FACT_DELETE_PAGE_SIZE + 1L -> pressureFact(
-							fixture = fixture,
-							admissionOrdinal = ordinal,
-							eventId = fixture.fact.sourceEventId,
-							semanticRevision = 2L,
-						).also { correction = it }
 						else -> pressureFact(
 							fixture = fixture,
 							admissionOrdinal = ordinal,
 							eventId = "zzz-large-$ordinal",
 						)
 					}
+					database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(pressureWal(fact))
+						.shouldBeGreaterThanZero()
 					database.pressureFactRevisionDao().insert(fact).shouldBeGreaterThanZero()
 				}
 			}
-			val exactCorrection = requireNotNull(correction)
 			database.pressureFactRevisionDao().count() shouldBe LARGE_SESSION_FACT_COUNT
 			val firstPage = factsFor(fixture, FACT_DELETE_PAGE_SIZE.toInt())
 			firstPage.last() shouldBe fixture.fact
-			database.pressureFactRevisionDao().exactServiceRunPageAfter(
-				logicalTrackingId = fixture.logicalId,
-				serviceRunId = fixture.runId,
-				afterWriterId = fixture.fact.writerProjectionId,
-				afterWriterVersion = fixture.fact.writerProjectionVersion,
-				afterLogicalFactId = fixture.fact.logicalFactId,
-				afterSemanticRevision = fixture.fact.semanticRevision,
-				limit = 1,
-			) shouldBe listOf(exactCorrection)
+			val pageObservations = mutableListOf<Triple<Int, Long, Int>>()
 			var cancellationObserved = false
 			try {
 				subject(
@@ -1262,12 +1572,27 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 							throw CancellationException("cancel after first fact batch")
 						}
 					},
+					afterFactPageScanned = {
+							pageCount, factCount, residentLineageRevisionCount ->
+						pageObservations += Triple(
+							pageCount,
+							factCount,
+							residentLineageRevisionCount,
+						)
+					},
 				).deleteSelectedSession(fixture.segmentId)
 			} catch (_: CancellationException) {
 				cancellationObserved = true
 			}
 
 			cancellationObserved shouldBe true
+			val expectedPageCounts = (1..9).toList()
+			val expectedFactCounts =
+				(1L..8L).map { page -> page * FACT_DELETE_PAGE_SIZE } +
+				LARGE_SESSION_FACT_COUNT
+			pageObservations.map { it.first } shouldBe expectedPageCounts + expectedPageCounts
+			pageObservations.map { it.second } shouldBe expectedFactCounts + expectedFactCounts
+			pageObservations.maxOf { it.third } shouldBe 1
 			database.pressureFactRevisionDao().count() shouldBe LARGE_SESSION_FACT_COUNT
 			database.sessionSegmentDao().getById(fixture.segmentId).shouldNotBeNull()
 			exactFence(fixture) shouldBe null
@@ -1397,6 +1722,11 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		beforeMutation: suspend () -> Unit = {},
 		afterFenceInstalled: suspend () -> Unit = {},
 		afterFactBatchDeleted: suspend (deletedCount: Long) -> Unit = {},
+		afterFactPageScanned: suspend (
+			pageCount: Int,
+			factCount: Long,
+			residentLineageRevisionCount: Int,
+		) -> Unit = { _, _, _ -> },
 	) = RoomPressureSelectedSessionDeletionService(
 		database = database,
 		dirtyTracker = dirtyTracker,
@@ -1406,6 +1736,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		beforeMutation = beforeMutation,
 		afterFenceInstalled = afterFenceInstalled,
 		afterFactBatchDeleted = afterFactBatchDeleted,
+		afterFactPageScanned = afterFactPageScanned,
 	)
 
 	private suspend fun factsFor(
@@ -1427,6 +1758,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		insertCompleteness: Boolean = false,
 		writerBindingGeneration: Long =
 			SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+		insertWal: Boolean = true,
 	): PressureFixture {
 		val logicalId = "logical-pressure-$key"
 		val runId = "run-pressure-$key"
@@ -1480,6 +1812,10 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		)
 		val fact = pressureFact(incomplete, admissionOrdinal, "pressure-$key")
 		database.pressureFactRevisionDao().insert(fact).shouldBeGreaterThanZero()
+		if (insertWal) {
+			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(pressureWal(fact))
+				.shouldBeGreaterThanZero()
+		}
 		if (insertCompleteness) {
 			database.sourceSessionDao().saveCompleteness(
 				SourceSessionCompletenessEntity(
@@ -1592,6 +1928,136 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 				effectChecksum = "pending",
 			)
 		return candidate.copy(effectChecksum = pressureEffectChecksum(candidate, binding))
+	}
+
+	private fun pressureCorrection(
+		fixture: PressureFixture,
+		admissionOrdinal: Long,
+		eventId: String,
+		semanticRevision: Long = 2L,
+	): PressureFactRevisionEntity {
+		val offsetMs = semanticRevision - 1L
+		val offsetNanos = offsetMs * 1_000_000L
+		val unsigned = pressureFact(
+			fixture = fixture,
+			admissionOrdinal = admissionOrdinal,
+			eventId = eventId,
+			semanticRevision = semanticRevision,
+		).copy(
+			logicalFactId = fixture.fact.logicalFactId,
+			mutationId = "${fixture.fact.logicalFactId}:$semanticRevision",
+			intervalStartTimeMs = fixture.fact.intervalStartTimeMs + offsetMs,
+			intervalEndTimeMs = fixture.fact.intervalEndTimeMs + offsetMs,
+			windowStartElapsedRealtimeNanos =
+				fixture.fact.windowStartElapsedRealtimeNanos + offsetNanos,
+			windowEndElapsedRealtimeNanos =
+				fixture.fact.windowEndElapsedRealtimeNanos + offsetNanos,
+			firstProviderSequence = fixture.fact.lastProviderSequence +
+				(semanticRevision - 2L) * fixture.fact.sampleCount + 1L,
+			lastProviderSequence = fixture.fact.lastProviderSequence +
+				(semanticRevision - 1L) * fixture.fact.sampleCount,
+			appliedAtMs = fixture.fact.appliedAtMs + offsetMs,
+			effectChecksum = "pending",
+		)
+		return unsigned.copy(
+			effectChecksum = pressureEffectChecksum(unsigned, fixture.binding),
+		)
+	}
+
+	private fun pressureWal(fact: PressureFactRevisionEntity): SourceEventWalEntity {
+		val payload = PressureWalPayload(
+			sampleCount = fact.sampleCount,
+			meanHectopascals = fact.meanHectopascals,
+			sumSquaredDeviations = fact.sumSquaredDeviations,
+			minimumHectopascals = fact.minimumHectopascals,
+			maximumHectopascals = fact.maximumHectopascals,
+			windowStartElapsedRealtimeNanos = fact.windowStartElapsedRealtimeNanos,
+			windowEndElapsedRealtimeNanos = fact.windowEndElapsedRealtimeNanos,
+			firstProviderSequence = fact.firstProviderSequence,
+			lastProviderSequence = fact.lastProviderSequence,
+			firstHectopascals = fact.firstHectopascals,
+			lastHectopascals = fact.lastHectopascals,
+			slopeHectopascalsPerSecond = fact.slopeHectopascalsPerSecond,
+			rSquared = fact.rSquared,
+			sensorAccuracy = PressureWalSensorAccuracy.valueOf(fact.sensorAccuracy),
+			effectiveSamplePeriodMicros = fact.effectiveSamplePeriodMicros,
+			effectiveMaximumReportLatencyMicros = fact.effectiveMaximumReportLatencyMicros,
+			targetWindowDurationNanos = fact.targetWindowDurationNanos,
+			expectedSampleCount = fact.expectedSampleCount,
+			maximumInterSampleGapNanos = fact.maximumInterSampleGapNanos,
+			closureKind = PressureWalClosureKind.valueOf(fact.closureKind),
+		)
+		val bytes = PressureWalPayloadCodec.encode(payload)
+		val unsigned = SourceEventWalEntity(
+			admissionOrdinal = fact.sourceAdmissionOrdinal,
+			eventId = fact.sourceEventId,
+			providerDedupKey = null,
+			deliveryIdentity = pressureDeliveryIdentity(fact.clockDomainId, payload),
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 1,
+			logicalTrackingId = fact.logicalTrackingId,
+			serviceRunId = fact.serviceRunId,
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			sourceInstanceId = "pressure-provider",
+			registrationGeneration = 1L,
+			physicalConfigurationFingerprint = "pressure-config",
+			authorizationRevision = 1L,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			authorizationFingerprint = "a".repeat(64),
+			sourceSequence = fact.lastProviderSequence,
+			configRevision = 1L,
+			planAttribution = PlanAttribution.CAPTURED_REGISTRATION.ordinal,
+			clockDomainId = fact.clockDomainId,
+			observedElapsedNanos = fact.windowEndElapsedRealtimeNanos,
+			observedIntervalStartNanos = fact.windowStartElapsedRealtimeNanos,
+			receivedElapsedNanos = fact.windowEndElapsedRealtimeNanos + 1L,
+			receivedWallTimeMs = fact.intervalEndTimeMs + 1L,
+			wallTimeMs = fact.intervalEndTimeMs,
+			wallTimeUncertaintyMs = fact.wallTimeUncertaintyMs,
+			capturedCollectedDataEpoch = fact.collectedDataEpoch,
+			sourcePolicyRevision = fact.sourcePolicyRevision,
+			captureConsentEpoch = fact.captureConsentEpoch,
+			sessionManifestRevision = fact.manifestRevision,
+			lifecycleLeaseGeneration = 1L,
+			acquiredAtMs = fact.intervalEndTimeMs,
+			qualityFlags = fact.sourceQualityFlags,
+			qualityConfidence = fact.sourceQualityConfidence,
+			payloadVersion = fact.payloadVersion,
+			payload = bytes,
+			payloadChecksum = "",
+			createdAtMs = fact.intervalEndTimeMs + 1L,
+		)
+		val checksummed = unsigned.copy(payloadChecksum = unsigned.calculatedPayloadChecksum())
+		return checksummed.copy(integrityIdentity = checksummed.calculatedIntegrityIdentity())
+	}
+
+	private fun pressureDeliveryIdentity(
+		clockDomainId: String,
+		payload: PressureWalPayload,
+	): String {
+		val canonical = buildString {
+			append("pressure-window-v1|")
+			append(clockDomainId.length)
+			append(':')
+			append(clockDomainId)
+			append("|start:")
+			append(payload.windowStartElapsedRealtimeNanos)
+			append("|end:")
+			append(payload.windowEndElapsedRealtimeNanos)
+			append("|count:")
+			append(payload.sampleCount)
+			append("|mean-bits:")
+			append(payload.meanHectopascals.toRawBits())
+			append("|m2-bits:")
+			append(payload.sumSquaredDeviations.toRawBits())
+			append("|min-bits:")
+			append(payload.minimumHectopascals.toRawBits())
+			append("|max-bits:")
+			append(payload.maximumHectopascals.toRawBits())
+		}
+		return MessageDigest.getInstance("SHA-256")
+			.digest(canonical.toByteArray(Charsets.UTF_8))
+			.joinToString("") { byte -> "%02x".format(byte) }
 	}
 
 	private suspend fun insertAdditionalPressureManifest(
@@ -2028,6 +2494,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			startMs = 1_000L,
 			endMs = 2_000L,
 			writerBindingGeneration = bindingGeneration,
+			insertWal = false,
 		)
 		val captureWal = pressureSourceEraseWal(fixture, admissionOrdinal = 2L, capture = true)
 		val controlWal = pressureSourceEraseWal(fixture, admissionOrdinal = 3L, capture = false)
@@ -2520,6 +2987,17 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		).shouldBeGreaterThanZero()
 	}
 
+	private suspend fun insertReusedSourceEventCorrection(fixture: PressureFixture) {
+		database.pressureFactRevisionDao().insert(
+			pressureFact(
+				fixture = fixture,
+				admissionOrdinal = fixture.fact.sourceAdmissionOrdinal + 1L,
+				eventId = fixture.fact.sourceEventId,
+				semanticRevision = 2L,
+			),
+		).shouldBeGreaterThanZero()
+	}
+
 	private suspend fun insertChangedSourceEventCorrection(fixture: PressureFixture) {
 		val unsigned = pressureFact(
 			fixture = fixture,
@@ -2801,6 +3279,8 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		const val MISSING_SEGMENT_ID = 99_999L
 		const val LARGE_SESSION_FACT_COUNT = 2_051L
 		const val FACT_DELETE_PAGE_SIZE = 256L
+		const val CORRECTED_LINEAGE_REVISION_COUNT = 257L
+		const val SOURCE_ERASE_RETENTION_AUTHORITY_COUNT = 257
 		val TERMINAL_STATES = setOf("FINALIZED", "FAILED", "CLOSED")
 	}
 }

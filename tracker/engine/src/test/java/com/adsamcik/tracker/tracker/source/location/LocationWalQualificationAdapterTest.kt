@@ -31,6 +31,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
@@ -120,7 +121,12 @@ class LocationWalQualificationAdapterTest {
 				}
 			}, Executor(Runnable::run))
 			.build()
-		subject = LocationWalQualificationAdapter(database, payloadCodec, planCodec)
+		subject = LocationWalQualificationAdapter(
+			database,
+			payloadCodec,
+			planCodec,
+			BootClockDomainProvider { BOOT_ID },
+		)
 	}
 
 	@After

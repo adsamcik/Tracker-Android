@@ -31,6 +31,8 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEn
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityWalPayload
+import com.adsamcik.tracker.shared.base.database.data.ActivityWalPayloadCodec
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetentionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
@@ -49,6 +51,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -1073,6 +1076,130 @@ class ActivityHistoryComposerTest {
 	}
 
 	@Test
+	fun `Activity history requires production system-rearmable provider residency`() {
+		val production = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+
+		ActivityHistoryComposer.composeRecent(production, EXECUTION_AUTHORITY)
+			.single().entry.state shouldBe ActivityHistoryProductState.PARTIAL
+
+		val wrongResidency = production.copy(
+			providerRegistrations = production.providerRegistrations.mapValues { (_, provider) ->
+				provider.copy(
+					providerResidency =
+						ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+					providerProcessIncarnationId = "process-bound",
+				)
+			},
+		)
+		val failed = ActivityHistoryComposer.composeRecent(
+			wrongResidency,
+			EXECUTION_AUTHORITY,
+		).single().entry
+		failed.state shouldBe ActivityHistoryProductState.FAILED
+		failed.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+	}
+
+	@Test
+	fun `gap-only correction preserves original recording lineage and becomes partial history`() {
+		val snapshot = gapOnlyCorrection(fixture(listOf(RunSpec(1L, "run-a", "UTC"))))
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.state shouldBe ActivityHistoryProductState.PARTIAL
+		entry.coverage shouldBe ActivityHistoryCoverage.PARTIAL
+		entry.causes shouldBe setOf(ActivityHistoryCause.PROVIDER_GAP)
+		entry.fragments shouldHaveSize 3
+		entry.fragments.all { it is ActivityHistoryFragment.Gap } shouldBe true
+		entry.activeTime?.knownActiveDurationNanos shouldBe 0L
+		entry.activeTime?.unobservedDurationNanos shouldBe 500L
+		snapshot.evidenceByRevision.getValue(revisionKey(snapshot.revisions.first()))
+			.single().sourceEventId shouldBe "event-1"
+		snapshot.evidenceByRevision.getValue(revisionKey(snapshot.revisions.last())) shouldBe emptyList()
+	}
+
+	@Test
+	fun `gap-only correction follows authenticated prior lineage across retention advance`() {
+		val original = gapOnlyCorrection(fixture(listOf(RunSpec(1L, "run-a", "UTC"))))
+		val priorWallTime = requireNotNull(original.walByEventId.getValue("event-1").wallTimeMs)
+		val withinFloor = original.copy(
+			evidenceState = requireNotNull(original.evidenceState).copy(
+				retainedFromMs = priorWallTime,
+			),
+		)
+		val expired = original.copy(
+			evidenceState = requireNotNull(original.evidenceState).copy(
+				retainedFromMs = priorWallTime + 1L,
+			),
+		)
+
+		ActivityHistoryComposer.composeRecent(withinFloor, EXECUTION_AUTHORITY)
+			.single().entry.state shouldBe ActivityHistoryProductState.PARTIAL
+		ActivityHistoryComposer.composeRecent(expired, EXECUTION_AUTHORITY)
+			.single().entry.let { entry ->
+				entry.state shouldBe ActivityHistoryProductState.UNAVAILABLE
+				entry.causes shouldBe setOf(ActivityHistoryCause.RETENTION_LIMIT)
+			}
+	}
+
+	@Test
+	fun `gap-only Activity history with a retention floor and no wall authority fails closed`() {
+		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC", gap = true))).copy(
+			evidenceState = SourceEvidenceState(
+				collectedDataEpoch = 0L,
+				retainedFromMs = 1L,
+			),
+		)
+
+		ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY)
+			.single().entry.let { entry ->
+				entry.state shouldBe ActivityHistoryProductState.UNAVAILABLE
+				entry.causes shouldBe setOf(ActivityHistoryCause.RETENTION_LIMIT)
+			}
+	}
+
+	@Test
+	fun `malformed gap-only correction fails instead of fabricating partial history`() {
+		val valid = gapOnlyCorrection(fixture(listOf(RunSpec(1L, "run-a", "UTC"))))
+		val latest = valid.revisions.last()
+		val malformedFragment = valid.fragmentsByRevision.getValue(revisionKey(latest)).single().copy(
+			intervalEndElapsedRealtimeNanos = latest.windowEndElapsedRealtimeNanos - 1L,
+		)
+		val malformedRevision = latest.copy(
+			effectChecksum = ActivityCapturedFactIntegrity.effectChecksum(
+				latest,
+				listOf(malformedFragment),
+				emptyList(),
+			),
+		)
+		val malformed = valid.copy(
+			revisions = listOf(valid.revisions.first(), malformedRevision),
+			cursors = listOf(
+				valid.cursors.single().copy(
+					latestEffectChecksum = malformedRevision.effectChecksum,
+				),
+			),
+			fragmentsByRevision = valid.fragmentsByRevision +
+				(revisionKey(malformedRevision) to listOf(malformedFragment)),
+		)
+
+		val entry = ActivityHistoryComposer.composeRecent(malformed, EXECUTION_AUTHORITY).single().entry
+
+		entry.state shouldBe ActivityHistoryProductState.FAILED
+		entry.causes shouldBe setOf(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+	}
+
+	@Test
+	fun `gap-only correction without provider authority fails closed`() {
+		val snapshot = gapOnlyCorrection(fixture(listOf(RunSpec(1L, "run-a", "UTC"))))
+			.copy(providerRegistrations = emptyMap())
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.state shouldBe ActivityHistoryProductState.FAILED
+		entry.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+	}
+
+	@Test
 	fun `missing retained facts is typed unavailable and never fabricates active time`() {
 		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC"))).copy(
 			revisions = emptyList(),
@@ -1105,6 +1232,38 @@ class ActivityHistoryComposerTest {
 		val snapshot = original.copy(revisions = listOf(first, corrupt))
 
 		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.state shouldBe ActivityHistoryProductState.FAILED
+		entry.causes shouldBe setOf(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+	}
+
+	@Test
+	fun `rehashed canonical Activity WAL cannot replace the fact evidence payload`() {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val eventId = original.evidenceByRevision.values.single().single().sourceEventId
+		val wal = original.walByEventId.getValue(eventId)
+		val changedBytes = ActivityWalPayloadCodec.encode(
+			ActivityWalPayload.Transition(
+				activityType = 2,
+				transitionType = 0,
+				providerElapsedRealtimeNanos = wal.observedElapsedNanos,
+			),
+		)
+		val changedPayload = wal.copy(
+			payload = changedBytes,
+			payloadChecksum = "",
+			integrityIdentity = "pending",
+		)
+		val checksummed = changedPayload.copy(
+			payloadChecksum = changedPayload.calculatedPayloadChecksum(),
+		)
+		val rehashed = checksummed.copy(
+			integrityIdentity = checksummed.calculatedIntegrityIdentity(),
+		)
+		val entry = ActivityHistoryComposer.composeRecent(
+			original.copy(walByEventId = mapOf(eventId to rehashed)),
+			EXECUTION_AUTHORITY,
+		).single().entry
 
 		entry.state shouldBe ActivityHistoryProductState.FAILED
 		entry.causes shouldBe setOf(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
@@ -1683,6 +1842,37 @@ class ActivityHistoryComposerTest {
 		entry.fragments shouldBe emptyList()
 	}
 
+	@Test
+	fun `prior boot active Activity provider cannot authenticate history`() {
+		val snapshot = boundarylessProviderSnapshot(
+			status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+			failureCode = null,
+			currentProviderVisible = true,
+		)
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.state shouldBe ActivityHistoryProductState.FAILED
+		entry.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		entry.fragments shouldBe emptyList()
+	}
+
+	@Test
+	fun `system-rearmable Activity cannot use process-bound prior boot reconciliation`() {
+		val snapshot = boundarylessProviderSnapshot(
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			failureCode = ProviderRegistrationGenerationEntity
+				.FAILURE_PRIOR_PROCESS_INCARNATION_ENDED,
+			currentProviderVisible = false,
+		)
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.state shouldBe ActivityHistoryProductState.FAILED
+		entry.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		entry.fragments shouldBe emptyList()
+	}
+
 	private fun fixture(specs: List<RunSpec>): ActivityHistorySnapshot {
 		val built = specs.map(::buildRun)
 		val sessionStart = built.minOf { it.run.startedElapsedNanos }
@@ -1724,6 +1914,9 @@ class ActivityHistoryComposerTest {
 			cursors = built.map(BuiltRun::cursor),
 			fragmentsByRevision = built.associate { revisionKey(it.revision) to listOf(it.fragment) },
 			evidenceByRevision = built.associate { revisionKey(it.revision) to it.evidence },
+			walByEventId = built.flatMap { run ->
+				run.evidence.map { evidence -> activityWal(run.revision, evidence) }
+			}.associateBy(SourceEventWalEntity::eventId),
 			registrationPlans = built.associate {
 				(it.plan.sourceInstanceId to it.plan.registrationGeneration) to it.plan
 			},
@@ -1739,6 +1932,111 @@ class ActivityHistoryComposerTest {
 			terminalFailures = emptyList(),
 			evidenceState = SourceEvidenceState(collectedDataEpoch = 0L),
 			overflow = false,
+		)
+	}
+
+	private fun gapOnlyCorrection(original: ActivityHistorySnapshot): ActivityHistorySnapshot {
+		val first = original.revisions.single()
+		val unsigned = first.copy(
+			semanticRevision = 2L,
+			supersedesSemanticRevision = 1L,
+			mutationId = ActivityCapturedFactIntegrity.mutationId(first.logicalWindowId, 2L),
+			coverage = "NONE",
+			knownActiveDurationNanos = 0L,
+			knownInactiveDurationNanos = 0L,
+			unknownActivityDurationNanos = 0L,
+			unobservedDurationNanos = Math.subtractExact(
+				first.windowEndElapsedRealtimeNanos,
+				first.windowStartElapsedRealtimeNanos,
+			),
+			effectChecksum = ZERO_SHA,
+			appliedAtMs = first.appliedAtMs + 1L,
+		)
+		val gap = original.fragmentsByRevision.getValue(revisionKey(first)).single().copy(
+			semanticRevision = 2L,
+			fragmentKind = ActivityCapturedFragmentEntity.KIND_GAP,
+			bandOrdinal = null,
+			gapReason = "PROVIDER_DISCONTINUITY",
+			activity = null,
+			mechanism = null,
+			refinedTransitionActivity = null,
+			confidenceKind = null,
+			confidenceMinimumPercent = null,
+			confidenceMaximumPercent = null,
+			confidenceObservationCount = null,
+			startWallTimeMs = null,
+			startWallTimeUncertaintyMs = null,
+			startBoundaryKind = null,
+			startAnchorSourceEventId = null,
+			startAnchorProviderElapsedNanos = null,
+			endWallTimeMs = null,
+			endWallTimeUncertaintyMs = null,
+			endBoundaryKind = null,
+			endAnchorSourceEventId = null,
+			endAnchorProviderElapsedNanos = null,
+			wallTimeContinuity = null,
+		)
+		val corrected = unsigned.copy(
+			effectChecksum = ActivityCapturedFactIntegrity.effectChecksum(
+				unsigned,
+				listOf(gap),
+				emptyList(),
+			),
+		)
+		return original.copy(
+			revisions = listOf(first, corrected),
+			cursors = listOf(
+				original.cursors.single().copy(
+					latestSemanticRevision = 2L,
+					latestMutationId = corrected.mutationId,
+					latestEffectChecksum = corrected.effectChecksum,
+					cursorRevision = 2L,
+					updatedAtMs = corrected.appliedAtMs,
+				),
+			),
+			fragmentsByRevision = original.fragmentsByRevision +
+				(revisionKey(corrected) to listOf(gap)),
+			evidenceByRevision = original.evidenceByRevision +
+				(revisionKey(corrected) to emptyList()),
+		)
+	}
+
+	private fun boundarylessProviderSnapshot(
+		status: String,
+		failureCode: String?,
+		currentProviderVisible: Boolean,
+	): ActivityHistorySnapshot {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val provider = original.providerRegistrations.values.single().copy(
+			status = status,
+			retiredAtMs = null,
+			retiredElapsedRealtimeNanos = null,
+			failureCode = failureCode,
+		)
+		val prior = original.revisions.single()
+		val unsigned = prior.copy(
+			providerAcceptanceEndNanos = Long.MAX_VALUE,
+			effectChecksum = ZERO_SHA,
+		)
+		val fragments = original.fragmentsByRevision.getValue(revisionKey(prior))
+		val evidence = original.evidenceByRevision.getValue(revisionKey(prior))
+		val revision = unsigned.copy(
+			effectChecksum = ActivityCapturedFactIntegrity.effectChecksum(
+				unsigned,
+				fragments,
+				evidence,
+			),
+		)
+		val cursor = original.cursors.single().copy(
+			latestEffectChecksum = revision.effectChecksum,
+			updatedAtMs = revision.appliedAtMs,
+		)
+		return original.copy(
+			revisions = listOf(revision),
+			cursors = listOf(cursor),
+			providerRegistrations = mapOf(provider.registrationGeneration to provider),
+			currentProviderRegistrations = if (currentProviderVisible) listOf(provider) else emptyList(),
+			currentClockDomainId = "boot-current",
 		)
 	}
 
@@ -1926,6 +2224,8 @@ class ActivityHistoryComposerTest {
 		)
 		snapshot.lanes.forEach { database.sourceProjectionStateDao().installProductLane(it) }
 		snapshot.completenessByRun.values.flatten().forEach { sessionDao.saveCompleteness(it) }
+		snapshot.walByEventId.values.sortedBy(SourceEventWalEntity::admissionOrdinal)
+			.forEach { database.sourceEventWalDao().insertIgnoringDuplicate(it) }
 		snapshot.revisions.sortedWith(
 			compareBy(
 				ActivityCapturedWindowRevisionEntity::logicalWindowId,
@@ -2478,8 +2778,8 @@ class ActivityHistoryComposerTest {
 			clockDomainId = run.bootId,
 			physicalConfigurationFingerprint = plan.physicalConfigurationFingerprint,
 			collectedDataEpoch = 0L,
-			providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
-			providerProcessIncarnationId = "process-${spec.revision}",
+			providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+			providerProcessIncarnationId = null,
 			status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
 			reservedAtMs = baseElapsed,
 			reservedElapsedRealtimeNanos = baseElapsed,
@@ -2676,6 +2976,62 @@ class ActivityHistoryComposerTest {
 		confidencePercent = null,
 		coverageEndExclusiveElapsedRealtimeNanos = null,
 	)
+
+	private fun activityWal(
+		revision: ActivityCapturedWindowRevisionEntity,
+		evidence: ActivityCapturedEvidenceEntity,
+	): SourceEventWalEntity {
+		val payload = ActivityWalPayload.Transition(
+			activityType = 1,
+			transitionType = 0,
+			providerElapsedRealtimeNanos = evidence.providerElapsedRealtimeNanos,
+		)
+		val bytes = ActivityWalPayloadCodec.encode(payload)
+		val unsigned = SourceEventWalEntity(
+			admissionOrdinal = evidence.sourceAdmissionOrdinal,
+			eventId = evidence.sourceEventId,
+			providerDedupKey = null,
+			deliveryIdentity = "d".repeat(63) +
+				('0'.code + (evidence.sourceAdmissionOrdinal % 10L).toInt()).toChar(),
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 1,
+			logicalTrackingId = revision.logicalTrackingId,
+			serviceRunId = revision.serviceRunId,
+			sourceKind = ACTIVITY_SOURCE,
+			sourceInstanceId = revision.sourceInstanceId,
+			registrationGeneration = revision.registrationGeneration,
+			physicalConfigurationFingerprint = revision.physicalConfigurationFingerprint,
+			authorizationRevision = revision.authorizationRevision,
+			authorizationPurposeEligibilityMask = revision.purposeEligibilityMask,
+			authorizationFingerprint = revision.authorizationFingerprint,
+			sourceSequence = evidence.sourceSequence,
+			configRevision = revision.configurationRevision,
+			planAttribution = 0,
+			clockDomainId = revision.clockDomainId,
+			observedElapsedNanos = evidence.providerElapsedRealtimeNanos,
+			observedIntervalStartNanos = evidence.providerElapsedRealtimeNanos,
+			receivedElapsedNanos = evidence.receivedElapsedRealtimeNanos,
+			receivedWallTimeMs = evidence.receivedElapsedRealtimeNanos,
+			wallTimeMs = evidence.providerElapsedRealtimeNanos,
+			wallTimeUncertaintyMs = 0L,
+			capturedCollectedDataEpoch = revision.collectedDataEpoch,
+			activityAutomationEpoch = null,
+			sourcePolicyRevision = revision.sourcePolicyRevision,
+			captureConsentEpoch = revision.captureConsentEpoch,
+			sessionManifestRevision = revision.manifestRevision,
+			lifecycleLeaseGeneration = revision.lifecycleLeaseGeneration,
+			acquiredAtMs = evidence.providerElapsedRealtimeNanos,
+			qualityFlags = 0L,
+			qualityConfidence = 1f,
+			payloadVersion = 1,
+			payload = bytes,
+			payloadChecksum = "",
+			integrityIdentity = "pending",
+			createdAtMs = evidence.receivedElapsedRealtimeNanos,
+		)
+		val checksummed = unsigned.copy(payloadChecksum = unsigned.calculatedPayloadChecksum())
+		return checksummed.copy(integrityIdentity = checksummed.calculatedIntegrityIdentity())
+	}
 
 	private fun authorizations(
 		spec: RunSpec,

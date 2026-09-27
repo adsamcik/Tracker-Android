@@ -1,0 +1,960 @@
+[
+  {
+    "path": ".github/workflows/android.yml",
+    "versions": [
+      "codex/audit-reconciliation-20260925",
+      "DRAFT:audit-finding-fixes:refs/heads/codex/audit-finding-fixes"
+    ],
+    "final_selection": {
+      "path": ".github/workflows/android.yml",
+      "sha256": "0d0379d869792825506d3c2fd761d1d57ba4a50ea3d4b90de7af1713777565f5",
+      "bytes": 7960,
+      "inputs": [
+        {
+          "family": "AUDIT",
+          "ref_head": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "app/src/main/res/values/strings.xml",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/audit-reconciliation-20260925"
+    ],
+    "final_selection": {
+      "path": "app/src/main/res/values/strings.xml",
+      "sha256": "4d855f937de0bda020438e057d1bd8e191e97b788522497d7186018d4d57fd31",
+      "bytes": 59510,
+      "inputs": [
+        {
+          "family": "AUDIT",
+          "ref_head": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "app/src/test/java/com/adsamcik/tracker/app/architecture/ArchitecturalFitnessTest.kt",
+    "versions": [
+      "codex/audit-reconciliation-20260925",
+      "DRAFT:audit-finding-fixes:refs/heads/codex/audit-finding-fixes"
+    ],
+    "final_selection": {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/architecture/ArchitecturalFitnessTest.kt",
+      "sha256": "3860df6821d2732222f6af9a035b690ca18929644cc1df76e2ba48213ad1880d",
+      "bytes": 97117,
+      "inputs": [
+        {
+          "family": "AUDIT",
+          "ref_head": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "build.gradle.kts",
+    "versions": [
+      "codex/audit-reconciliation-20260925",
+      "DRAFT:audit-finding-fixes:refs/heads/codex/audit-finding-fixes"
+    ],
+    "final_selection": {
+      "path": "build.gradle.kts",
+      "sha256": "eb02e49a6081419f245e7aa7c1d1deec2cf816ecf0d3f51807f67447ded46b06",
+      "bytes": 7350,
+      "inputs": [
+        {
+          "family": "AUDIT",
+          "ref_head": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "core/base/src/androidTest/java/com/adsamcik/tracker/shared/base/database/AppDatabaseMigration27To28Test.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ],
+    "final_selection": {
+      "path": "core/base/src/androidTest/java/com/adsamcik/tracker/shared/base/database/AppDatabaseMigration27To28Test.kt",
+      "sha256": "0a12b3bcb7f52f895e62093a45df70b88b6efb04b45a9692b4d1cc23e86082c4",
+      "bytes": 98481,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AdditionalTrackingSchema.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:location-product-query-20260925:refs/heads/codex/location-product-query-20260925"
+    ],
+    "final_selection": {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AdditionalTrackingSchema.kt",
+      "sha256": "69bf52b6eefacb8b5c69ffef2b26698697f1af67c22a2898fcfa3fb0e5ffc856",
+      "bytes": 42277,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:location-product-query-20260925:refs/heads/codex/location-product-query-20260925"
+    ],
+    "final_selection": {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "sha256": "d5354ea2ab86cd9367ed8b1668b468db22adc046e8cdfbb5ab2141e2138e51f5",
+      "bytes": 60963,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabaseMigrations.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ],
+    "final_selection": {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabaseMigrations.kt",
+      "sha256": "8598c72b7741e50a2ffe3fdaf6c1895a94575f45d482cbadaf01c4fd7132363f",
+      "bytes": 163652,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ],
+    "final_selection": {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+      "sha256": "066ab2dfc9bed80c4b2237faef84ac8cc4a59bbd7142578603915f7754ab0ec4",
+      "bytes": 134547,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationSampleDao.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ],
+    "final_selection": {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationSampleDao.kt",
+      "sha256": "0fbee824b1b54adad77fe7e7d1344c7a4cccf2b2b6e434c995b997d3aec7434c",
+      "bytes": 7139,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceEventWalDao.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ],
+    "final_selection": {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceEventWalDao.kt",
+      "sha256": "9d92e91c9c876413b1db01f426a1e76c3ca888d63767eece7d2001dd3a58b679",
+      "bytes": 55179,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ],
+    "final_selection": {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
+      "sha256": "b4d927b4565cbf71c4c71a00dbc23f61d2a6a7775a093bdec6d23236496c488e",
+      "bytes": 37588,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDestinationOwnerEntity.kt",
+    "versions": [
+      "codex/location-product-query-20260925",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ],
+    "final_selection": {
+      "version": "ROOT_base_retained",
+      "sha256": "7557415377ece33928fc9530ee4ae3dba4d2db44a23d4ba08d1aa634523cd88c",
+      "reason": "Draft/older input preserved with manifest disposition; not blindly applied."
+    }
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ],
+    "final_selection": {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt",
+      "sha256": "77243eea851d50b2e738927e2c04d17b76ffac28c4ee37679aa674c51716b7e7",
+      "bytes": 23985,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ],
+    "final_selection": {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt",
+      "sha256": "8a83ccd958e0bd3e82874b935486abae5ecff03f78f4bd8e172d444f45cc1128",
+      "bytes": 41561,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "manual_union",
+          "conflict_blocks": 1
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ],
+    "final_selection": {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt",
+      "sha256": "b7856bcd521fcf237db4d3d0859ed52a26657ce72b9ddd1f3d4c9bd763c8172f",
+      "bytes": 42425,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": true
+    }
+  },
+  {
+    "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModel.kt",
+    "versions": [
+      "codex/unified-tracking-surface",
+      "DRAFT:unified-tracking-surface:refs/heads/codex/unified-tracking-surface"
+    ],
+    "final_selection": {
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModel.kt",
+      "sha256": "34a060f83260e509d162fcc58d6dbb08ccc2f045886403323d8f6357ace719fc",
+      "bytes": 24107,
+      "inputs": [
+        {
+          "family": "UI",
+          "ref_head": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "feature/dashboard/src/main/res/values/strings.xml",
+    "versions": [
+      "codex/unified-tracking-surface",
+      "DRAFT:unified-tracking-surface:refs/heads/codex/unified-tracking-surface"
+    ],
+    "final_selection": {
+      "path": "feature/dashboard/src/main/res/values/strings.xml",
+      "sha256": "8f7dae529de4919dd1bcee5b86e066f6c5314abf9b9969399b2b864a0f7b92a2",
+      "bytes": 23327,
+      "inputs": [
+        {
+          "family": "UI",
+          "ref_head": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelLiveStepsTest.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "codex/unified-tracking-surface"
+    ],
+    "final_selection": {
+      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelLiveStepsTest.kt",
+      "sha256": "5ee413f98f2685ae3d57632ebfd6e118a36892a29b8ef3fa3dc58136f93f903c",
+      "bytes": 44299,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        },
+        {
+          "family": "UI",
+          "ref_head": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ],
+    "final_selection": {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt",
+      "sha256": "b6b7ecb48f08fb2265e98046d061d23882355f11667fce8075ce9c6be3494a37",
+      "bytes": 11418,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ],
+    "final_selection": {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt",
+      "sha256": "18ef7279899ebba4ec5eaef3dc3fe4df204fa6821f7d6f61757b70533e857a32",
+      "bytes": 53624,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryComposer.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ],
+    "final_selection": {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryComposer.kt",
+      "sha256": "d4c0980561c643f3e985cd5d86c4a121089928cdfec77712d3becbea64163f70",
+      "bytes": 67875,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ],
+    "final_selection": {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "sha256": "ece6d52c9a01994af7ee6b27a7b2336d7136c2faf8799414ad9e9724ae3d1d85",
+      "bytes": 77899,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ],
+    "final_selection": {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+      "sha256": "f5dbffc97e02242c3ff88824a452183884c4507930adf56be8b6ae5ff6cea5e8",
+      "bytes": 72226,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiImportedHistoryRepositoryTest.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ],
+    "final_selection": {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiImportedHistoryRepositoryTest.kt",
+      "sha256": "e1117bc81b27e653358d04447905350375a296ff56cc8a6dcdbfb938066597bb",
+      "bytes": 13384,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tools/release_manifest.py",
+    "versions": [
+      "codex/audit-reconciliation-20260925",
+      "DRAFT:audit-finding-fixes:refs/heads/codex/audit-finding-fixes"
+    ],
+    "final_selection": {
+      "path": "tools/release_manifest.py",
+      "sha256": "99bad49cec28ae1f1cb4d600abe78684c9b089985c4958f5ed1030b142e4862f",
+      "bytes": 31242,
+      "inputs": [
+        {
+          "family": "AUDIT",
+          "ref_head": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tools/release_validation.py",
+    "versions": [
+      "codex/audit-reconciliation-20260925",
+      "DRAFT:audit-finding-fixes:refs/heads/codex/audit-finding-fixes"
+    ],
+    "final_selection": {
+      "path": "tools/release_validation.py",
+      "sha256": "23510fa9f91c9f9d85962fd4004c7ee86ba7c08b05d41805928983b82f862a50",
+      "bytes": 12385,
+      "inputs": [
+        {
+          "family": "AUDIT",
+          "ref_head": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tools/tests/test_release_manifest.py",
+    "versions": [
+      "codex/audit-reconciliation-20260925",
+      "DRAFT:audit-finding-fixes:refs/heads/codex/audit-finding-fixes"
+    ],
+    "final_selection": {
+      "path": "tools/tests/test_release_manifest.py",
+      "sha256": "a0a40c1a662ea6685c641f0957111a4fc3a5fffecdbd58d2e878343856adadc8",
+      "bytes": 12172,
+      "inputs": [
+        {
+          "family": "AUDIT",
+          "ref_head": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/persistence/PersistenceProcessor.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/persistence/PersistenceProcessor.kt",
+      "sha256": "60153b1b455d569e8d5873e1c06aad7e83c783be72dcc9a05565839a527f318c",
+      "bytes": 66323,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/policy/BatteryAwarePolicy.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/audit-reconciliation-20260925"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/policy/BatteryAwarePolicy.kt",
+      "sha256": "6b3a3f91e0f5caedfc41fd99151ac46ddeaa07a181cc2f377c1e11713285d00b",
+      "bytes": 5286,
+      "inputs": [
+        {
+          "family": "AUDIT",
+          "ref_head": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/audit-reconciliation-20260925"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt",
+      "sha256": "3f323e12eb4addf80f9132be260bae23031e4f26d533487f1fe9b084982794bd",
+      "bytes": 110563,
+      "inputs": [
+        {
+          "family": "AUDIT",
+          "ref_head": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+          "selection": "manual_union",
+          "conflict_blocks": 2
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt",
+      "sha256": "58cb03ab8683e45d167b873dfd3abefe278414e7689cef6c69e89b513d8343f4",
+      "bytes": 56379,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ],
+    "final_selection": {
+      "version": "ROOT_base_retained",
+      "sha256": "563baec552ed6993a1d05cab65437247bd3f13c124d83348bd3982b3a8f1d0a0",
+      "reason": "Draft/older input preserved with manifest disposition; not blindly applied."
+    }
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStore.kt",
+    "versions": [
+      "codex/location-product-query-20260925",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ],
+    "final_selection": {
+      "version": "ROOT_base_retained",
+      "sha256": "cbd732f0fedc2969c5dc7726cee0f9469888c077a9119684ae931ed3f39a684a",
+      "reason": "Draft/older input preserved with manifest disposition; not blindly applied."
+    }
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservation.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "DRAFT:location-product-query-20260925:refs/heads/codex/location-product-query-20260925"
+    ],
+    "final_selection": {
+      "version": "ROOT_base_retained",
+      "sha256": "ea0faab2b5742e0df12a537de71a20efe337aa7acc6ddd5625745b0c2b24cb89",
+      "reason": "Draft/older input preserved with manifest disposition; not blindly applied."
+    }
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservationQualifier.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservationQualifier.kt",
+      "sha256": "add8e3ad2bc360ccd0ebb206561ef5c446f8abeb5d0856dd9d505a86060ca565",
+      "bytes": 13199,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:location-product-query-20260925:refs/heads/codex/location-product-query-20260925"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+      "sha256": "4c64777acae9d401915f0dfe7867e53bcef2fd8a3d4685e0d3f67763622507cc",
+      "bytes": 54967,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof",
+      "codex/location-product-query-20260925",
+      "DRAFT:location-product-query-20260925:refs/heads/codex/location-product-query-20260925"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+      "sha256": "2e0794776630f57fcf7e5115feaa5d72a7724d0a5a7b999c358c3fe739954b24",
+      "bytes": 111019,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "manual_union",
+          "conflict_blocks": 3
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt",
+      "sha256": "82dc2a220271482dc64f1f840a31af796b2e42acd8738a473ce68ea699183a25",
+      "bytes": 52828,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+      "sha256": "74748a3bf1bbece2a078d8328699c42db8499efcf1eae12ca2b4f4bf955ff827",
+      "bytes": 163793,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+      "sha256": "108d5a2cb124a3f0767f171d39cb74fa1b3d97360089e75e702a862660189029",
+      "bytes": 38095,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt",
+      "sha256": "51830928591699bfe2c860aab373dce06ed2756e1656ff9c1c1241c090ca3b4a",
+      "bytes": 59496,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+      "sha256": "fcbd4506311d1947473f816e7895f40983b0d85c660278b49b33e6e6b6c7370b",
+      "bytes": 73221,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStoreTest.kt",
+    "versions": [
+      "codex/location-product-query-20260925",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStoreTest.kt",
+      "sha256": "65cb31a0c912bbe90b020e4d50ca9d37f431678916e7e60ecc176b7fc535f676",
+      "bytes": 45626,
+      "inputs": [],
+      "authored_test_source": true
+    }
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:location-product-query-20260925:refs/heads/codex/location-product-query-20260925"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+      "sha256": "318faf9610595f5a928424dc735e2b9c500f649241e27c3c76f85b6a2459598c",
+      "bytes": 78548,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "three_way_union",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt",
+    "versions": [
+      "codex/source-native-map-context-root",
+      "codex/impl-lifecycle-product-proof",
+      "codex/location-product-query-20260925",
+      "DRAFT:location-product-query-20260925:refs/heads/codex/location-product-query-20260925"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt",
+      "sha256": "b0567b3eef59812d7df0812c9155b54a3202674f76700f216a88d799e690739d",
+      "bytes": 55641,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "manual_union",
+          "conflict_blocks": 1
+        }
+      ],
+      "authored_test_source": false
+    }
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "versions": [
+      "codex/impl-lifecycle-product-proof",
+      "DRAFT:Tracker-Android:refs/heads/codex/radio-auto-capture"
+    ],
+    "final_selection": {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "sha256": "4f244b9c75de950db89015483b8e1cde08a741cda8bb3ebf78feae852716486a",
+      "bytes": 173541,
+      "inputs": [
+        {
+          "family": "LIFECYCLE",
+          "ref_head": "f786563167df2990202a96835ff7535488acd77c",
+          "selection": "incoming_final_state",
+          "conflict_blocks": 0
+        }
+      ],
+      "authored_test_source": false
+    }
+  }
+]

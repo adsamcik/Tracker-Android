@@ -63,7 +63,7 @@ internal fun PressureOnlyTrackingContent(
 }
 
 @Composable
-private fun PressureOnlyTrackingCard(pressure: DashboardLivePressureValue) {
+internal fun PressureOnlyTrackingCard(pressure: DashboardLivePressureValue) {
 	val metrics = pressure.metricsOrNull
 	Card(
 		modifier = Modifier

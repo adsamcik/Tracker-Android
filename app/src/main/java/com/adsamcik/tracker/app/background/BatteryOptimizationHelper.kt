@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.app.background
 
-import android.content.ComponentName
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -9,31 +9,31 @@ import android.os.PowerManager
 import android.provider.Settings
 
 /**
- * Helpers for guiding the user to exclude the app from battery optimization /
- * OEM background-kill features (e.g. Samsung "Sleeping apps").
+ * Reads the public Android background-restriction signals and opens only public, OEM-neutral
+ * settings surfaces for a restriction the platform reports.
  *
  * Compliance note: this intentionally does NOT use
  * `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` and does NOT declare the
  * `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` permission (which Google Play flags).
- * It only opens the relevant system settings screens, which require no special
- * permission and carry no Play-policy risk.
+ * It opens public system settings screens without requesting the battery-exemption permission.
  */
 object BatteryOptimizationHelper {
-
-	private const val SAMSUNG = "samsung"
-
-	// Samsung Device Care battery screen (best-effort; component may change across One UI versions).
-	private const val SAMSUNG_DEVICE_CARE_PACKAGE = "com.samsung.android.lool"
-	private const val SAMSUNG_BATTERY_ACTIVITY = "com.samsung.android.sm.ui.battery.BatteryActivity"
-
 	/**
-	 * @return true when the app is already exempt from battery optimization (Doze
-	 * won't throttle its background work), false otherwise. Always true below API 23.
+	 * Returns nullable values so a missing service or an unsupported platform signal is never
+	 * presented as evidence that a restriction exists or does not exist.
 	 */
-	fun isIgnoringBatteryOptimizations(context: Context): Boolean {
-		val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-			?: return false
-		return powerManager.isIgnoringBatteryOptimizations(context.packageName)
+	fun readReliabilityState(context: Context): BackgroundReliabilityState {
+		val powerManager = context.getSystemService(PowerManager::class.java)
+		val activityManager = context.getSystemService(ActivityManager::class.java)
+		return BackgroundReliabilityState(
+			batteryOptimizationsExempt = powerManager
+				?.isIgnoringBatteryOptimizations(context.packageName),
+			backgroundRestricted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+				activityManager?.isBackgroundRestricted
+			} else {
+				null
+			},
+		)
 	}
 
 	/**
@@ -42,7 +42,7 @@ object BatteryOptimizationHelper {
 	 *
 	 * @return true if a settings screen was launched.
 	 */
-	fun openBatteryOptimizationSettings(context: Context): Boolean {
+	private fun openBatteryOptimizationSettings(context: Context): Boolean {
 		val listIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
 			.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 		if (tryStart(context, listIntent)) return true
@@ -52,29 +52,21 @@ object BatteryOptimizationHelper {
 	}
 
 	/**
-	 * Best-effort deep link into the manufacturer's power-management screen. On
-	 * Samsung this targets Device Care's battery screen (closest reachable point to
-	 * the "Sleeping apps" list, which has no public intent). Falls back to the app
-	 * details page when the OEM component is unavailable.
-	 *
-	 * @return true if a screen was launched.
+	 * Opens the setting that corresponds to direct platform evidence. Unknown or already-clear
+	 * states intentionally have no speculative remediation route.
 	 */
-	fun openManufacturerPowerSettings(context: Context): Boolean {
-		if (isSamsungDevice()) {
-			val deviceCare = Intent().setComponent(
-				ComponentName(SAMSUNG_DEVICE_CARE_PACKAGE, SAMSUNG_BATTERY_ACTIVITY),
-			).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-			if (tryStart(context, deviceCare)) return true
-		}
-		return tryStart(context, appDetailsIntent(context))
+	fun openReliabilitySettings(
+		context: Context,
+		state: BackgroundReliabilityState,
+	): Boolean = when (state.condition) {
+		BackgroundReliabilityCondition.BACKGROUND_RESTRICTED ->
+			tryStart(context, appDetailsIntent(context))
+		BackgroundReliabilityCondition.BATTERY_OPTIMIZED ->
+			openBatteryOptimizationSettings(context)
+		BackgroundReliabilityCondition.NO_DETECTED_RESTRICTION,
+		BackgroundReliabilityCondition.UNKNOWN,
+		-> false
 	}
-
-	/** True when the current device is made by Samsung (One UI "Sleeping apps"). */
-	fun isSamsungDevice(): Boolean = isSamsungManufacturer(Build.MANUFACTURER)
-
-	/** Pure, testable manufacturer check. */
-	internal fun isSamsungManufacturer(manufacturer: String?): Boolean =
-		manufacturer?.trim()?.equals(SAMSUNG, ignoreCase = true) == true
 
 	private fun appDetailsIntent(context: Context): Intent =
 		Intent(
@@ -90,4 +82,37 @@ object BatteryOptimizationHelper {
 	} catch (_: SecurityException) {
 		false
 	}
+}
+
+data class BackgroundReliabilityState(
+	val batteryOptimizationsExempt: Boolean?,
+	val backgroundRestricted: Boolean?,
+) {
+	val condition: BackgroundReliabilityCondition
+		get() = resolveBackgroundReliabilityCondition(
+			batteryOptimizationsExempt = batteryOptimizationsExempt,
+			backgroundRestricted = backgroundRestricted,
+		)
+
+	val actionRequired: Boolean
+		get() = condition == BackgroundReliabilityCondition.BACKGROUND_RESTRICTED ||
+			condition == BackgroundReliabilityCondition.BATTERY_OPTIMIZED
+}
+
+enum class BackgroundReliabilityCondition {
+	BACKGROUND_RESTRICTED,
+	BATTERY_OPTIMIZED,
+	NO_DETECTED_RESTRICTION,
+	UNKNOWN,
+}
+
+internal fun resolveBackgroundReliabilityCondition(
+	batteryOptimizationsExempt: Boolean?,
+	backgroundRestricted: Boolean?,
+): BackgroundReliabilityCondition = when {
+	backgroundRestricted == true -> BackgroundReliabilityCondition.BACKGROUND_RESTRICTED
+	batteryOptimizationsExempt == false -> BackgroundReliabilityCondition.BATTERY_OPTIMIZED
+	backgroundRestricted == false && batteryOptimizationsExempt == true ->
+		BackgroundReliabilityCondition.NO_DETECTED_RESTRICTION
+	else -> BackgroundReliabilityCondition.UNKNOWN
 }

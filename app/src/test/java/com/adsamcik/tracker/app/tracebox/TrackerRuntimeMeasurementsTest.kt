@@ -85,8 +85,12 @@ class TrackerRuntimeMeasurementsTest {
 		logger.events.map(RecordedEvent::template) shouldContainExactly listOf(
 			TrackerTraceboxTemplates.APPLICATION_BATTERY_POWER_MEASUREMENT,
 			TrackerTraceboxTemplates.APPLICATION_MEMORY_MEASUREMENT,
+			TrackerTraceboxTemplates.APPLICATION_PLATFORM_RESTRICTION_MEASUREMENT,
+			TrackerTraceboxTemplates.APPLICATION_LOCATION_CAPABILITY_MEASUREMENT,
 			TrackerTraceboxTemplates.APPLICATION_BATTERY_POWER_MEASUREMENT,
 			TrackerTraceboxTemplates.APPLICATION_MEMORY_MEASUREMENT,
+			TrackerTraceboxTemplates.APPLICATION_PLATFORM_RESTRICTION_MEASUREMENT,
+			TrackerTraceboxTemplates.APPLICATION_LOCATION_CAPABILITY_MEASUREMENT,
 		)
 		logger.events[0].renderedArguments() shouldContainExactly listOf(
 			"true", "1", "true", "true", "82", "true", "true", "4200000",
@@ -95,10 +99,55 @@ class TrackerRuntimeMeasurementsTest {
 		logger.events[1].renderedArguments() shouldContainExactly listOf(
 			"true", "1", "12345", "23456", "34567", "10",
 		)
-		logger.events[2].renderedArguments().take(2) shouldContainExactly listOf("false", "1")
+		logger.events[2].renderedArguments() shouldContainExactly listOf(
+			"true", "1", "true", "true", "true", "false", "true", "10",
+		)
+		logger.events[3].renderedArguments() shouldContainExactly listOf(
+			"true", "1", "true", "true", "true", "true", "true", "true", "true",
+			"true", "true", "true", "false",
+		)
+		logger.events[4].renderedArguments().take(2) shouldContainExactly listOf("false", "1")
 		logger.events.flatMap { it.arguments.asIterable() }.forEach { argument ->
 			PrivacyConfiguration.defaults().render(argument).privacy shouldBe Privacy.PUBLIC
 		}
+	}
+
+	@Test
+	fun `unavailable platform signals remain unknown instead of inventing a cause`() = runTest {
+		val logger = RecordingLogger(performanceEnabled = true)
+		val source = FakeMeasurementSource(
+			resourceSnapshot = SNAPSHOT.copy(
+				batteryOptimizationsExempt = null,
+				backgroundRestricted = null,
+				appStandbyBucket = null,
+				locationServiceAvailable = false,
+				locationServicesEnabled = null,
+				gpsProviderAvailable = null,
+				gpsProviderEnabled = null,
+				networkProviderAvailable = null,
+				networkProviderEnabled = null,
+			),
+		)
+		val measurements = TrackerRuntimeMeasurements(
+			logger = logger,
+			source = source,
+			scope = this,
+			dispatcher = UnconfinedTestDispatcher(testScheduler),
+		)
+
+		measurements.onStart(TEST_OWNER)
+
+		logger.events.single {
+			it.template == TrackerTraceboxTemplates.APPLICATION_PLATFORM_RESTRICTION_MEASUREMENT
+		}.renderedArguments() shouldContainExactly listOf(
+			"true", "1", "false", "false", "false", "false", "false", "0",
+		)
+		logger.events.single {
+			it.template == TrackerTraceboxTemplates.APPLICATION_LOCATION_CAPABILITY_MEASUREMENT
+		}.renderedArguments() shouldContainExactly listOf(
+			"true", "1", "false", "false", "false", "false", "false", "false", "false",
+			"false", "false", "false", "false",
+		)
 	}
 
 	@Test
@@ -229,6 +278,15 @@ class TrackerRuntimeMeasurementsTest {
 			interactive = true,
 			deviceIdle = false,
 			powerSave = true,
+			batteryOptimizationsExempt = true,
+			backgroundRestricted = false,
+			appStandbyBucket = 10,
+			locationServiceAvailable = true,
+			locationServicesEnabled = true,
+			gpsProviderAvailable = true,
+			gpsProviderEnabled = true,
+			networkProviderAvailable = true,
+			networkProviderEnabled = false,
 			processPssKiB = 12_345L,
 			javaHeapUsedKiB = 23_456L,
 			nativeHeapAllocatedKiB = 34_567L,

@@ -35,6 +35,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
+import com.adsamcik.tracker.tracker.source.runtime.pressureProviderDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.model.toStableFlags
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -934,7 +935,13 @@ class PressureSessionFactProjectionLaneTest {
 		val raw = SourceEventWalEntity(
 			admissionOrdinal = event.admissionOrdinal,
 			eventId = event.eventId.value,
-			providerDedupKey = evidence.providerDedupKey,
+			providerDedupKey = null,
+			deliveryIdentity = pressureProviderDeliveryIdentity(
+				evidence.clockDomainId,
+				evidence.payload,
+			).value,
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 1,
 			logicalTrackingId = evidence.logicalTrackingId?.value,
 			serviceRunId = evidence.serviceRunId?.value,
 			sourceKind = evidence.source.stableCode,
@@ -951,6 +958,7 @@ class PressureSessionFactProjectionLaneTest {
 			observedElapsedNanos = evidence.observedElapsedRealtimeNanos,
 			observedIntervalStartNanos = evidence.payload.windowStartElapsedRealtimeNanos,
 			receivedElapsedNanos = evidence.receivedElapsedRealtimeNanos,
+			receivedWallTimeMs = evidence.receivedWallTimeMs,
 			wallTimeMs = evidence.wallTimeMs,
 			wallTimeUncertaintyMs = evidence.wallTimeUncertaintyMs,
 			capturedCollectedDataEpoch = evidence.capturedCollectedDataEpoch,
@@ -989,7 +997,7 @@ class PressureSessionFactProjectionLaneTest {
 			physicalConfigurationFingerprint = "pressure-config",
 			authorizationRevision = 1L,
 			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-			authorizationFingerprint = "pressure-capture",
+			authorizationFingerprint = "a".repeat(64),
 			sourceSequence = ordinal,
 			configRevision = 1L,
 			planAttribution = PlanAttribution.CAPTURED_REGISTRATION.ordinal,
@@ -1057,7 +1065,7 @@ class PressureSessionFactProjectionLaneTest {
 				physicalConfigurationFingerprint = "pressure-config",
 				authorizationRevision = 1L,
 				registrationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-				registrationEligibilityFingerprint = "pressure-capture",
+				registrationEligibilityFingerprint = "a".repeat(64),
 				sourceSequence = ordinal,
 				configRevision = 1L,
 				planAttribution = PlanAttribution.CAPTURED_REGISTRATION,

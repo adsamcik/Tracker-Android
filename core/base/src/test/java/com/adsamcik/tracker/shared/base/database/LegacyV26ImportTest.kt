@@ -122,6 +122,7 @@ class LegacyV26ImportTest {
 			"validate_pending_signal_writer_owners_update",
 			"validate_imported_pressure_source_erase_owner_insert",
 			"validate_imported_pressure_source_erase_owner_update",
+			"reject_pressure_fact_retention_resurrection",
 		).forEach { trigger ->
 			longValue(
 				raw,
@@ -129,6 +130,8 @@ class LegacyV26ImportTest {
 			) shouldBe 1L
 		}
 		count(raw, "pressure_fact_revision") shouldBe 0L
+		count(raw, "pressure_fact_retention_authority") shouldBe 0L
+		count(raw, "pressure_fact_retention_revision_authority") shouldBe 0L
 		count(raw, "activity_captured_registration_plan") shouldBe 0L
 		count(raw, "activity_captured_window_revision") shouldBe 0L
 	}
@@ -146,6 +149,8 @@ class LegacyV26ImportTest {
 		count(raw, "daily_summary") shouldBe 1L
 		count(raw, "achievement_progress") shouldBe 0L
 		count(raw, "pressure_fact_revision") shouldBe 0L
+		count(raw, "pressure_fact_retention_authority") shouldBe 0L
+		count(raw, "pressure_fact_retention_revision_authority") shouldBe 0L
 		count(raw, "pending_signal") shouldBe 0L
 		assertPendingPressureColumns(raw)
 		longValue(raw, "SELECT primary_activity FROM session_segment WHERE id = 9007") shouldBe 7L

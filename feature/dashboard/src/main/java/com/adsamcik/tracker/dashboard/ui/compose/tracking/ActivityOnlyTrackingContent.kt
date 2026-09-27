@@ -60,7 +60,7 @@ internal fun ActivityOnlyTrackingContent(
 }
 
 @Composable
-private fun ActivityOnlyTrackingCard(activity: DashboardLiveActivityValue) {
+internal fun ActivityOnlyTrackingCard(activity: DashboardLiveActivityValue) {
 	Card(
 		modifier = Modifier
 			.fillMaxWidth()

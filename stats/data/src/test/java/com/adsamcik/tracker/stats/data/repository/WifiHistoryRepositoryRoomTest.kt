@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -29,7 +30,14 @@ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessE
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.WifiWalPayload
+import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadObservation
+import com.adsamcik.tracker.shared.base.database.data.canonicalWifiProviderDeliveryIdentity
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
+import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiRequest
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluator
@@ -37,6 +45,18 @@ import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangePage
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest
 import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifi
 import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifiResult
+import com.adsamcik.tracker.stats.api.repository.MaterializedProofState
+import com.adsamcik.tracker.stats.api.repository.SourceEvidenceIdentity
+import com.adsamcik.tracker.stats.api.repository.SourceFactIdentity
+import com.adsamcik.tracker.stats.api.repository.SourceFactLookupRequest
+import com.adsamcik.tracker.stats.api.repository.SourceFactLookupResult
+import com.adsamcik.tracker.stats.api.repository.SourceProofCompleteness
+import com.adsamcik.tracker.stats.api.repository.SourceProofCoverage
+import com.adsamcik.tracker.stats.api.repository.SourceProofKey
+import com.adsamcik.tracker.stats.api.repository.SourceProofLineage
+import com.adsamcik.tracker.stats.api.repository.SourceProofReason
+import com.adsamcik.tracker.stats.api.repository.SourceProofScope
+import com.adsamcik.tracker.stats.api.repository.SourceProofWriterIdentity
 import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryBand
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
@@ -82,6 +102,42 @@ class WifiHistoryRepositoryRoomTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `writer admission reverse lookup selects cursor authenticated revision two`() = runTest {
+		val run = buildGroup(901, 1, setOf(0)).runs.single()
+		val lineage = run.facts.groupBy(WifiCapturedFactRevisionEntity::logicalFactId)
+			.values.single { revisions -> revisions.size == 2 }
+			.sortedBy(WifiCapturedFactRevisionEntity::semanticRevision)
+		lineage.forEach { database.wifiCapturedFactDao().insertRevision(it) }
+		database.wifiCapturedFactDao().insertCursor(cursor(lineage.last()))
+
+		database.wifiCapturedFactDao().currentRevisionsForWriterAdmission(
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
+			lineage.first().sourceAdmissionOrdinal,
+			2,
+		) shouldBe listOf(lineage.last())
+	}
+
+	@Test
+	fun `writer admission reverse lookup rejects a mismatched cursor`() = runTest {
+		val run = buildGroup(902, 1, setOf(0)).runs.single()
+		val lineage = run.facts.groupBy(WifiCapturedFactRevisionEntity::logicalFactId)
+			.values.single { revisions -> revisions.size == 2 }
+			.sortedBy(WifiCapturedFactRevisionEntity::semanticRevision)
+		lineage.forEach { database.wifiCapturedFactDao().insertRevision(it) }
+		database.wifiCapturedFactDao().insertCursor(
+			cursor(lineage.last()).copy(latestMutationId = lineage.first().mutationId),
+		)
+
+		database.wifiCapturedFactDao().currentRevisionsForWriterAdmission(
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
+			lineage.first().sourceAdmissionOrdinal,
+			2,
+		) shouldBe emptyList()
+	}
 
 	@Test
 	fun `zero sample Wi-Fi fact is ordinarily discovered with identity-free metrics`() = runTest {
@@ -187,6 +243,20 @@ class WifiHistoryRepositoryRoomTest {
 	}
 
 	@Test
+	fun `rehashed Wi-Fi fact inconsistent with its canonical WAL fails history`() = runTest {
+		val group = transformFacts(buildGroup(309, 1, setOf(0))) { fact ->
+			if (fact.factKind == WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE) {
+				fact.copy(strongestSignalDbm = -41)
+			} else {
+				fact
+			}
+		}
+		persist(listOf(group))
+
+		assertRecentWriterFailure()
+	}
+
+	@Test
 	fun `replacement siblings and correction revisions compose one logical entry`() = runTest {
 		val group = buildGroup(2, 33, setOf(0))
 		persist(listOf(group))
@@ -285,12 +355,57 @@ class WifiHistoryRepositoryRoomTest {
 	fun `one-hop unchanged coverage reuses only an authenticated current aggregate`() = runTest {
 		val group = buildGroup(7, 1, setOf(0), includeReuse = true)
 		persist(listOf(group))
+		val dependent = group.runs.single().facts.single {
+			it.factKind == WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY
+		}
 
 		val entry = (repository { true }.recent(1) as WifiHistoryPage.Available).entries.single()
 
 		entry.state shouldBe WifiHistoryProductState.READY
 		entry.observations shouldHaveSize 2
 		entry.observations.map { it.bandMix }.distinct() shouldHaveSize 1
+		val lookup = RoomSourceFactLookupReader(
+			database,
+			UnconfinedTestDispatcher(),
+			BootClockDomainProvider { BOOT_ID },
+		).lookup(wifiFactLookupRequest(dependent))
+		(lookup is SourceFactLookupResult.Found) shouldBe true
+	}
+
+	@Test
+	fun `coverage-only materialization and query reject a superseded aggregate owner`() = runTest {
+		val group = buildGroup(8, 1, setOf(0), includeReuse = true)
+		persist(listOf(group))
+		val built = group.runs.single()
+		val owner = built.facts.filter {
+			it.factKind == WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE
+		}.maxBy(WifiCapturedFactRevisionEntity::semanticRevision)
+		val dependent = built.facts.single {
+			it.factKind == WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY
+		}
+		val unsignedSuccessor = owner.copy(
+			semanticRevision = owner.semanticRevision + 1L,
+			supersedesSemanticRevision = owner.semanticRevision,
+			mutationId = WifiCapturedFactRevisionIntegrity.mutationId(
+				owner.logicalFactId,
+				owner.semanticRevision + 1L,
+			),
+			effectChecksum = ZERO_SHA,
+			appliedAtMs = owner.appliedAtMs + 1L,
+		)
+		val successor = unsignedSuccessor.copy(
+			effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsignedSuccessor),
+		)
+		database.wifiCapturedFactDao().insertRevision(successor)
+		database.wifiCapturedFactDao().insertCursor(cursor(successor))
+
+		assertRecentFactFailure()
+		RoomSourceFactLookupReader(
+			database,
+			UnconfinedTestDispatcher(),
+			BootClockDomainProvider { BOOT_ID },
+		).lookup(wifiFactLookupRequest(dependent)) shouldBe
+			SourceFactLookupResult.NotFound(SourceProofReason.STALE)
 	}
 
 	@Test
@@ -644,6 +759,7 @@ class WifiHistoryRepositoryRoomTest {
 			): ReadLocalPortableCapturedWifiResult = error("No imported collision expected")
 		},
 		WifiDeletedHistoryReader { WifiDeletedHistoryResult.NotDeleted },
+		BootClockDomainProvider { BOOT_ID },
 		UnconfinedTestDispatcher(),
 	)
 
@@ -1135,7 +1251,19 @@ class WifiHistoryRepositoryRoomTest {
 		admissionOffset: Long,
 	): WifiCapturedFactRevisionEntity {
 		val admission = spec.globalRevision * 10L + admissionOffset
-		val delivery = sha256("wifi-delivery-$admission")
+		val observationOffsetNanos = admissionOffset * 1_000L
+		val coverageStartNanos =
+			spec.startElapsedNanos + 100_000_000L + observationOffsetNanos
+		val coverageEndNanos =
+			spec.startElapsedNanos + 200_000_000L + observationOffsetNanos
+		val payload = wifiPayload(
+			coverageStartNanos = coverageStartNanos,
+			coverageEndNanos = coverageEndNanos,
+			partial = partial,
+			zoneId = ZONE_ID,
+		)
+		val encoded = WifiWalPayloadCodec.encode(payload)
+		val delivery = canonicalWifiProviderDeliveryIdentity(BOOT_ID, payload.observations)
 		val logicalFactId = WifiCapturedFactRevisionIntegrity.logicalFactId(delivery, logicalId,
 			spec.runId, segmentId, spec.manifestRevision, 0L, 0L)
 		val unsigned = WifiCapturedFactRevisionEntity(
@@ -1160,7 +1288,7 @@ class WifiHistoryRepositoryRoomTest {
 			sourceEventId = "wifi-event-$admission",
 			sourceAdmissionOrdinal = admission,
 			walIntegrityIdentity = ZERO_SHA,
-			payloadChecksum = sha256(callbackPayload(admission)),
+			payloadChecksum = encoded.checksum,
 			sourceDeliveryIdentity = delivery,
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 1,
@@ -1192,22 +1320,24 @@ class WifiHistoryRepositoryRoomTest {
 			authorizationEffectEndNanos = temporalEnd,
 			sessionRunEffectStartNanos = spec.startElapsedNanos,
 			sessionRunEffectEndNanos = temporalEnd,
-			observedIntervalStartNanos = spec.startElapsedNanos + 100_000_000L,
-			observedElapsedNanos = spec.startElapsedNanos + 200_000_000L,
-			receivedElapsedNanos = spec.startElapsedNanos + 210_000_000L,
-			coverageIntervalStartNanos = spec.startElapsedNanos + 100_000_000L,
-			coverageIntervalEndNanos = spec.startElapsedNanos + 200_000_000L,
+			observedIntervalStartNanos = payload.observations.minOf {
+				requireNotNull(it.providerTimestampNanos)
+			},
+			observedElapsedNanos = coverageEndNanos,
+			receivedElapsedNanos = coverageEndNanos + 10_000_000L,
+			coverageIntervalStartNanos = coverageStartNanos,
+			coverageIntervalEndNanos = coverageEndNanos,
 			observedWallTimeMs = spec.startWallMs + 200L,
 			wallTimeUncertaintyMs = 1L,
 			acquiredAtMs = spec.startWallMs + 200L,
 			qualityFlags = 0L,
-			qualityConfidence = 1f,
+			qualityConfidence = null,
 			availability = WifiCapturedFactRevisionEntity.AVAILABILITY_AVAILABLE,
 			submittedResultCount = if (partial) 3 else 2,
 			acceptedResultCount = 2,
-			staleResultCount = if (partial) 1 else 0,
+			staleResultCount = 0,
 			clockUnverifiableResultCount = 0,
-			malformedResultCount = 0,
+			malformedResultCount = if (partial) 1 else 0,
 			coverageCompleteness = if (partial) WifiCapturedFactRevisionEntity.COVERAGE_PARTIAL else
 				WifiCapturedFactRevisionEntity.COVERAGE_COMPLETE,
 			observationCount = 2,
@@ -1225,7 +1355,14 @@ class WifiHistoryRepositoryRoomTest {
 	}
 
 	private fun admission(fact: WifiCapturedFactRevisionEntity): SourceEventWalEntity {
-		val payload = callbackPayload(fact.sourceAdmissionOrdinal)
+		val payload = WifiWalPayloadCodec.encode(
+			wifiPayload(
+				coverageStartNanos = fact.coverageIntervalStartNanos,
+				coverageEndNanos = fact.coverageIntervalEndNanos,
+				partial = fact.submittedResultCount > fact.acceptedResultCount,
+				zoneId = fact.storedZoneId,
+			),
+		)
 		val unsigned = SourceEventWalEntity(
 			admissionOrdinal = fact.sourceAdmissionOrdinal,
 			eventId = fact.sourceEventId,
@@ -1249,6 +1386,8 @@ class WifiHistoryRepositoryRoomTest {
 			observedElapsedNanos = fact.observedElapsedNanos,
 			observedIntervalStartNanos = fact.observedIntervalStartNanos,
 			receivedElapsedNanos = fact.receivedElapsedNanos,
+			receivedWallTimeMs = fact.observedWallTimeMs +
+				(fact.receivedElapsedNanos - fact.observedElapsedNanos) / 1_000_000L,
 			wallTimeMs = fact.observedWallTimeMs,
 			wallTimeUncertaintyMs = fact.wallTimeUncertaintyMs,
 			capturedCollectedDataEpoch = fact.collectedDataEpoch,
@@ -1260,8 +1399,8 @@ class WifiHistoryRepositoryRoomTest {
 			acquiredAtMs = fact.acquiredAtMs,
 			qualityFlags = fact.qualityFlags,
 			qualityConfidence = fact.qualityConfidence,
-			payloadVersion = 2,
-			payload = payload,
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION,
+			payload = payload.toByteArray(),
 			payloadChecksum = fact.payloadChecksum,
 			createdAtMs = fact.appliedAtMs,
 		)
@@ -1279,11 +1418,39 @@ class WifiHistoryRepositoryRoomTest {
 		return unsigned.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsigned))
 	}
 
-	private fun callbackPayload(admissionOrdinal: Long) = byteArrayOf(
-		(admissionOrdinal and 0xff).toByte(),
-		(admissionOrdinal ushr 8 and 0xff).toByte(),
-		(admissionOrdinal ushr 16 and 0xff).toByte(),
-	)
+	private fun wifiPayload(
+		coverageStartNanos: Long,
+		coverageEndNanos: Long,
+		partial: Boolean,
+		zoneId: String,
+	): WifiWalPayload {
+		val observations = buildList {
+			if (partial) {
+				add(
+					WifiWalPayloadObservation(
+						identifierToken = "",
+						frequencyMhz = 100,
+						signalLevelDbm = -70,
+						providerTimestampNanos = coverageStartNanos,
+					),
+				)
+			}
+			add(WifiWalPayloadObservation("", 2_412, -60, coverageStartNanos))
+			add(WifiWalPayloadObservation("", 5_180, -40, coverageEndNanos))
+		}.sortedWith(
+			compareBy<WifiWalPayloadObservation>(
+				WifiWalPayloadObservation::frequencyMhz,
+				WifiWalPayloadObservation::signalLevelDbm,
+				WifiWalPayloadObservation::providerTimestampNanos,
+			),
+		)
+		return WifiWalPayload(
+			observations = observations,
+			platformTimestampMs = coverageEndNanos / 1_000_000L,
+			resultAgeMs = null,
+			observationZoneId = zoneId,
+		)
+	}
 
 	private fun coverageFact(
 		base: WifiCapturedFactRevisionEntity,
@@ -1330,6 +1497,51 @@ class WifiHistoryRepositoryRoomTest {
 		fact.sourceAdmissionOrdinal, fact.semanticRevision, fact.appliedAtMs,
 	)
 
+	private fun wifiFactLookupRequest(
+		fact: WifiCapturedFactRevisionEntity,
+	): SourceFactLookupRequest = SourceFactLookupRequest(
+		key = SourceProofKey(
+			source = TrackingSource.WIFI,
+			purpose = TrackingPurpose.SESSION_CAPTURE,
+			evidenceIdentity = SourceEvidenceIdentity(fact.sourceEventId),
+			sourcePolicyRevision = fact.sourcePolicyRevision,
+			captureConsentEpoch = fact.captureConsentEpoch,
+			collectedDataEpoch = fact.collectedDataEpoch,
+			scope = SourceProofScope.Run(fact.logicalTrackingId, fact.serviceRunId),
+		),
+		materialized = MaterializedProofState(
+			lineage = SourceProofLineage(
+				evidenceIdentity = SourceEvidenceIdentity(fact.sourceEventId),
+				sourceAdmissionOrdinal = fact.sourceAdmissionOrdinal,
+				sourceEvidenceRevision = 0L,
+				factIdentity = SourceFactIdentity(fact.logicalFactId),
+				semanticRevision = fact.semanticRevision,
+				writer = SourceProofWriterIdentity(
+					fact.writerProjectionId,
+					fact.writerProjectionVersion,
+					fact.writerBindingGeneration,
+					fact.writerOwnerGeneration,
+				),
+				cursorRevision = fact.semanticRevision,
+			),
+			coverage = if (fact.coverageIntervalEndNanos > fact.coverageIntervalStartNanos) {
+				SourceProofCoverage.ProviderInterval(
+					fact.coverageIntervalStartNanos,
+					fact.coverageIntervalEndNanos,
+				)
+			} else {
+				SourceProofCoverage.ProviderPoint(fact.coverageIntervalStartNanos)
+			},
+			completeness = if (
+				fact.coverageCompleteness == WifiCapturedFactRevisionEntity.COVERAGE_COMPLETE
+			) {
+				SourceProofCompleteness.COMPLETE
+			} else {
+				SourceProofCompleteness.PARTIAL
+			},
+		),
+	)
+
 	private fun startAction(logicalId: String, spec: RunSpec) = LifecycleDesiredActionEntity(
 		actionId = "wifi-start-action-${spec.globalRevision}",
 		logicalTrackingId = logicalId,
@@ -1363,11 +1575,17 @@ class WifiHistoryRepositoryRoomTest {
 		plan: WifiPlanEvidence,
 		authorizationFingerprint: String,
 	): SourceEventWalEntity {
-		val payload = byteArrayOf(1, 2, 3)
+		val payload = wifiPayload(
+			coverageStartNanos = spec.startElapsedNanos + 100_000_000L,
+			coverageEndNanos = spec.startElapsedNanos + 200_000_000L,
+			partial = false,
+			zoneId = ZONE_ID,
+		)
+		val encoded = WifiWalPayloadCodec.encode(payload)
 		val unsigned = SourceEventWalEntity(
 			eventId = "wifi-pending-event-${spec.globalRevision}",
 			providerDedupKey = null,
-			deliveryIdentity = sha256("wifi-pending-delivery-${spec.globalRevision}"),
+			deliveryIdentity = canonicalWifiProviderDeliveryIdentity(BOOT_ID, payload.observations),
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 1,
 			logicalTrackingId = logicalId,
@@ -1386,6 +1604,7 @@ class WifiHistoryRepositoryRoomTest {
 			observedElapsedNanos = spec.startElapsedNanos + 200_000_000L,
 			observedIntervalStartNanos = spec.startElapsedNanos + 100_000_000L,
 			receivedElapsedNanos = spec.startElapsedNanos + 210_000_000L,
+			receivedWallTimeMs = spec.startWallMs + 210L,
 			wallTimeMs = spec.startWallMs + 200L,
 			wallTimeUncertaintyMs = 1L,
 			capturedCollectedDataEpoch = 0L,
@@ -1396,10 +1615,10 @@ class WifiHistoryRepositoryRoomTest {
 			lifecycleLeaseGeneration = LEASE_GENERATION,
 			acquiredAtMs = spec.startWallMs + 200L,
 			qualityFlags = 0L,
-			qualityConfidence = 1f,
-			payloadVersion = 2,
-			payload = payload,
-			payloadChecksum = sha256(payload),
+			qualityConfidence = null,
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION,
+			payload = encoded.toByteArray(),
+			payloadChecksum = encoded.checksum,
 			createdAtMs = spec.startWallMs + 201L,
 		)
 		return unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())

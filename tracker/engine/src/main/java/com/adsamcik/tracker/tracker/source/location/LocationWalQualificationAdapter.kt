@@ -6,6 +6,10 @@ import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
 import com.adsamcik.tracker.shared.base.data.LocationRequestPriority
 import com.adsamcik.tracker.shared.model.AltitudeContractVersions
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalFailure
+import com.adsamcik.tracker.shared.base.database.authenticateHistoricalProviderRegistration
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
@@ -19,6 +23,7 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAu
 import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
@@ -145,6 +150,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 	private val database: AppDatabase,
 	private val payloadCodec: SourcePayloadCodec,
 	private val planCodec: SourcePlanCodec,
+	private val bootClockDomainProvider: BootClockDomainProvider,
 ) : ProtectedLocationWalQualifier {
 	/** The same physical WAL authentication, with independent sessionless product authority. */
 	override suspend fun qualifyAmbient(eventId: SourceEventId): LocationAmbientQualification = database.withTransaction {
@@ -315,23 +321,37 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		}
 
 		val brokerDao = database.sourceBrokerDao()
-		val registration = brokerDao.registration(LOCATION_SOURCE, wal.registrationGeneration)
-			?: return@withTransaction rejected(LocationWalAdapterRejection.MISSING_REGISTRATION)
-		val registrationStart = registration.acceptedElapsedRealtimeNanos
-		if (registrationStart == null || registration.sourceInstanceId != wal.sourceInstanceId ||
-			registration.physicalConfigurationFingerprint != physicalFingerprint ||
-			registration.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
-			registration.clockDomainId != wal.clockDomainId ||
-			registration.status !in setOf(
-				ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
-				ProviderRegistrationGenerationEntity.STATUS_RETIRING,
-				ProviderRegistrationGenerationEntity.STATUS_RETIRED,
-			) ||
-			registrationStart > wal.observedElapsedNanos ||
-			registration.retiredElapsedRealtimeNanos?.let { wal.observedElapsedNanos >= it } == true
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.REGISTRATION_MISMATCH)
+		val registrationAuthentication = database.authenticateHistoricalProviderRegistration(
+			sourceKind = LOCATION_SOURCE,
+			registrationGeneration = wal.registrationGeneration,
+			sourceInstanceId = wal.sourceInstanceId,
+			clockDomainId = wal.clockDomainId,
+			physicalConfigurationFingerprint = physicalFingerprint,
+			collectedDataEpoch = wal.capturedCollectedDataEpoch,
+			expectedProviderResidency =
+				ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+			observedStartNanos = wal.observedElapsedNanos,
+			observedEndNanos = wal.observedElapsedNanos,
+			observedWallTimeMs = wallTime,
+			currentClockDomainId = bootClockDomainProvider.current(),
+		)
+		val authenticatedRegistration = when (registrationAuthentication) {
+			is ProviderRegistrationIntervalAuthentication.Authenticated ->
+				registrationAuthentication
+			is ProviderRegistrationIntervalAuthentication.Rejected ->
+				return@withTransaction rejected(
+					if (registrationAuthentication.reason ==
+						ProviderRegistrationIntervalFailure.MISSING_REGISTRATION
+					) {
+						LocationWalAdapterRejection.MISSING_REGISTRATION
+					} else {
+						LocationWalAdapterRejection.REGISTRATION_MISMATCH
+					},
+				)
 		}
+		val registration = authenticatedRegistration.registration
+		val registrationStart = authenticatedRegistration.interval.startInclusiveNanos
+		val registrationEnd = authenticatedRegistration.interval.endExclusiveNanos
 
 		val authorization = brokerDao.authorizationRevision(
 			LOCATION_SOURCE,
@@ -383,7 +403,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			authorization.authorizationRevision,
 		).toAuthorizationSnapshotOrNull()
 		val authorizationEnd = authorizationEndExclusive(
-			registration.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE,
+			registrationEnd,
 			authorization,
 			nextAuthorization,
 		)
@@ -503,7 +523,6 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			return@withTransaction rejected(LocationWalAdapterRejection.DELETED_EVIDENCE)
 		}
 		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
-		val registrationEnd = registration.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE
 		val manifestEnd = manifests.getOrNull(manifestIndex + 1)?.effectiveElapsedRealtimeNanos
 			?: minOf(sessionEnd, registrationEnd, authorizationEnd)
 		val temporal = runCatching {
@@ -569,7 +588,10 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		) {
 			return@withTransaction rejected(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
 		}
-		val earliestPossibleWallTimeMs = if (wallTime < wallUncertainty) 0L else wallTime - wallUncertainty
+		val earliestPossibleWallTimeMs = CanonicalRetentionBounds.location(
+			wallTime,
+			wallUncertainty,
+		) ?: return@withTransaction rejected(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
 		if (evidenceState.retainedFromMs?.let { retainedFrom ->
 			earliestPossibleWallTimeMs < retainedFrom
 		} == true) {

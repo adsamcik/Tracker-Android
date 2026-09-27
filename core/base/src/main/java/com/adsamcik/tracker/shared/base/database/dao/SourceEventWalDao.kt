@@ -79,6 +79,15 @@ interface SourceEventWalDao {
 	@Query("SELECT * FROM source_event_wal WHERE admission_ordinal = :admissionOrdinal LIMIT 1")
 	suspend fun getByAdmissionOrdinal(admissionOrdinal: Long): SourceEventWalEntity?
 
+	@Query(
+		"SELECT * FROM source_event_wal WHERE admission_ordinal = :admissionOrdinal " +
+			"AND LENGTH(payload) <= :maximumPayloadBytes LIMIT 1",
+	)
+	suspend fun boundedPayloadByAdmissionOrdinal(
+		admissionOrdinal: Long,
+		maximumPayloadBytes: Int,
+	): SourceEventWalEntity?
+
 	/** Payload-free size and delivery identity checked before a source adapter may read one BLOB. */
 	@Query(
 		"SELECT event_id, source_kind, captured_collected_data_epoch, clock_domain_id, " +
@@ -96,6 +105,24 @@ interface SourceEventWalDao {
 		eventId: String,
 		maximumPayloadBytes: Int,
 	): SourceEventWalEntity?
+
+	/**
+	 * Indexed fixed-batch carrier lookup for production history.
+	 *
+	 * Callers compare the returned event-id set with their requested set, so an oversized or missing
+	 * payload fails closed instead of being silently omitted.
+	 */
+	@Query(
+		"SELECT * FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND event_id IN (:eventIds) AND LENGTH(payload) <= :maximumPayloadBytes " +
+			"ORDER BY event_id LIMIT :limit",
+	)
+	suspend fun boundedPayloadsByEventIds(
+		sourceKind: Int,
+		eventIds: List<String>,
+		maximumPayloadBytes: Int,
+		limit: Int,
+	): List<SourceEventWalEntity>
 
 	/** Loads the payload-free authority needed to reconcile one projection failure. */
 	@Query(
@@ -754,6 +781,93 @@ interface SourceEventWalDao {
 	suspend fun sourceKindsThrough(safeOrdinal: Long): List<Int>
 
 	/**
+	 * Payload-free exact rows selected by ordinary non-Steps WAL retention.
+	 *
+	 * Steps uses its count-domain authenticated candidate path and supplies the same projection to
+	 * source-event storage maintenance immediately before deletion.
+	 */
+	@Query(
+		"SELECT wal.source_kind AS source_kind, wal.event_id AS event_id, " +
+			"wal.admission_ordinal AS source_admission_ordinal, " +
+			"wal.authorization_purpose_eligibility_mask AS purpose_eligibility_mask, " +
+			"wal.source_policy_revision AS source_policy_revision, " +
+			"wal.capture_consent_epoch AS capture_consent_epoch, " +
+			"wal.captured_collected_data_epoch AS collected_data_epoch, " +
+			"wal.logical_tracking_id AS logical_tracking_id, " +
+			"wal.service_run_id AS service_run_id, " +
+			"wal.clock_domain_id AS clock_domain_id, " +
+			"wal.session_manifest_revision AS session_manifest_revision, " +
+			"wal.lifecycle_lease_generation AS lifecycle_lease_generation, " +
+			"wal.source_instance_id AS source_instance_id, " +
+			"wal.registration_generation AS registration_generation, " +
+			"wal.physical_configuration_fingerprint AS physical_configuration_fingerprint, " +
+			"wal.authorization_revision AS authorization_revision, " +
+			"wal.authorization_fingerprint AS authorization_fingerprint, " +
+			"wal.config_revision AS configuration_revision, " +
+			"wal.payload_checksum AS wal_payload_checksum, " +
+			"wal.integrity_identity AS wal_integrity_identity " +
+			"FROM source_event_wal AS wal " +
+			"WHERE wal.source_kind = :sourceKind AND wal.created_at_ms < :createdBeforeMs " +
+			"AND wal.admission_ordinal <= :safeOrdinal AND (" +
+			":sourceKind != " + STEPS_SOURCE_KIND_SQL + " OR NOT EXISTS (" +
+			"SELECT 1 FROM source_event_wal AS invalid_steps " +
+			"WHERE invalid_steps.source_kind = " + STEPS_SOURCE_KIND_SQL + " AND (" +
+			"typeof(invalid_steps.authorization_purpose_eligibility_mask) != 'integer' OR " +
+			"invalid_steps.authorization_purpose_eligibility_mask NOT BETWEEN 1 AND " +
+			STEPS_WAL_ALLOWED_PURPOSE_MASK_SQL + " OR (" +
+			"(invalid_steps.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") != 0 AND " +
+			"(invalid_steps.logical_tracking_id IS NULL OR " +
+			"invalid_steps.service_run_id IS NULL)) OR (" +
+			"(invalid_steps.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") = 0 AND " +
+			"(invalid_steps.logical_tracking_id IS NOT NULL OR " +
+			"invalid_steps.service_run_id IS NOT NULL))))) AND (" +
+			":sourceKind != " + STEPS_SOURCE_KIND_SQL + " OR (" +
+			"typeof(wal.authorization_purpose_eligibility_mask) = 'integer' AND " +
+			"wal.authorization_purpose_eligibility_mask BETWEEN 1 AND " +
+			STEPS_WAL_ALLOWED_PURPOSE_MASK_SQL + " AND ((" +
+			"(wal.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") != 0 AND " +
+			"wal.logical_tracking_id IS NOT NULL AND wal.service_run_id IS NOT NULL) OR (" +
+			"(wal.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") = 0 AND " +
+			"wal.logical_tracking_id IS NULL AND wal.service_run_id IS NULL)))) AND NOT (" +
+			":sourceKind = " + STEPS_SOURCE_KIND_SQL + " AND " +
+			"(wal.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") != 0 AND " +
+			"wal.logical_tracking_id IS NOT NULL AND wal.service_run_id IS NOT NULL AND " +
+			"wal.admission_ordinal = (" +
+			"SELECT MAX(candidate.admission_ordinal) FROM source_event_wal AS candidate " +
+			"WHERE candidate.source_kind = wal.source_kind " +
+			"AND candidate.source_instance_id = wal.source_instance_id " +
+			"AND candidate.registration_generation = wal.registration_generation " +
+			"AND candidate.logical_tracking_id = wal.logical_tracking_id " +
+			"AND candidate.service_run_id = wal.service_run_id " +
+			"AND (candidate.authorization_purpose_eligibility_mask & " +
+			SESSION_CAPTURE_MASK_SQL + ") != 0" +
+			") AND (" +
+			"EXISTS (SELECT 1 FROM provider_registration_generation AS registration " +
+			"WHERE registration.source_kind = wal.source_kind " +
+			"AND registration.source_instance_id = wal.source_instance_id " +
+			"AND registration.registration_generation = wal.registration_generation " +
+			"AND registration.status IN ('RESERVED', 'ACTIVE', 'RETIRING')) " +
+			"OR EXISTS (SELECT 1 FROM source_service_run AS run " +
+			"WHERE run.service_run_id = wal.service_run_id " +
+			"AND run.logical_tracking_id = wal.logical_tracking_id " +
+			"AND (run.state NOT IN ('FINALIZED', 'CLOSED', 'FAILED') OR " +
+			"(run.completed_at_ms IS NULL AND NOT (" +
+			V28_MIGRATION_TERMINAL_RUN_SQL + "))))" +
+			")) ORDER BY wal.created_at_ms, wal.admission_ordinal LIMIT :limit",
+	)
+	suspend fun retentionProofCandidatesForProjectedSourceBatch(
+		sourceKind: Int,
+		safeOrdinal: Long,
+		createdBeforeMs: Long,
+		limit: Int,
+	): List<SourceEventRetentionProofCandidateRow>
+
+	/**
 	 * Deletes TTL-eligible facts for one source through its own safe checkpoint.
 	 *
 	 * Outbox delivery is independent once its payload is durable, so a pending non-retaining control
@@ -874,6 +988,31 @@ data class SourceEventProjectionEligibilityRow(
 data class SourceProjectionEventIdentityRow(
 	@ColumnInfo(name = "event_id") val eventId: String,
 	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
+)
+
+/** Payload-free source-event identity retained after an ordinary WAL retention deletion. */
+data class SourceEventRetentionProofCandidateRow(
+	@ColumnInfo(name = "source_kind") val sourceKind: Int,
+	@ColumnInfo(name = "event_id") val eventId: String,
+	@ColumnInfo(name = "source_admission_ordinal") val sourceAdmissionOrdinal: Long,
+	@ColumnInfo(name = "purpose_eligibility_mask") val purposeEligibilityMask: Long,
+	@ColumnInfo(name = "source_policy_revision") val sourcePolicyRevision: Long?,
+	@ColumnInfo(name = "capture_consent_epoch") val captureConsentEpoch: Long?,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
+	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
+	@ColumnInfo(name = "clock_domain_id") val clockDomainId: String,
+	@ColumnInfo(name = "session_manifest_revision") val sessionManifestRevision: Long?,
+	@ColumnInfo(name = "lifecycle_lease_generation") val lifecycleLeaseGeneration: Long?,
+	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String,
+	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
+	@ColumnInfo(name = "physical_configuration_fingerprint")
+	val physicalConfigurationFingerprint: String?,
+	@ColumnInfo(name = "authorization_revision") val authorizationRevision: Long?,
+	@ColumnInfo(name = "authorization_fingerprint") val authorizationFingerprint: String?,
+	@ColumnInfo(name = "configuration_revision") val configurationRevision: Long?,
+	@ColumnInfo(name = "wal_payload_checksum") val walPayloadChecksum: String,
+	@ColumnInfo(name = "wal_integrity_identity") val walIntegrityIdentity: String,
 )
 
 data class SourceEventContinuityRow(

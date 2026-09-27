@@ -2,10 +2,13 @@ package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.TRACKING_HISTORY_INVALIDATION_TABLES
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsReadFailure
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
@@ -38,6 +41,10 @@ import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
+import com.adsamcik.tracker.stats.api.repository.SourceFactLookupRequest
+import com.adsamcik.tracker.stats.api.repository.SourceFactLookupResult
+import com.adsamcik.tracker.stats.api.repository.SourceProofReason
+import com.adsamcik.tracker.stats.api.repository.SourceProofScope
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage as ApiStepsHistoryCoverage
@@ -45,11 +52,13 @@ import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /** Room-backed, read-only history facade. */
@@ -63,6 +72,8 @@ internal class DefaultTrackingHistoryRepository private constructor(
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 	private val integrationObserver: TrackingHistoryIntegrationObserver =
 		TrackingHistoryIntegrationObserver(),
+	private val sourceFactLookupReader: RoomSourceFactLookupReader =
+		RoomSourceFactLookupReader(database, ioDispatcher),
 ) : TrackingHistoryRepository {
 	private val importedReader = ImportedStepsProductReader(database)
 
@@ -75,6 +86,7 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		pressurePageReader: PressureHistoryPageReader,
 		sourceUnionReader: TrackingHistorySourceUnionReader,
 		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+		bootClockDomainProvider: BootClockDomainProvider,
 		integrationObserver: TrackingHistoryIntegrationObserver =
 			TrackingHistoryIntegrationObserver(),
 	) : this(
@@ -86,6 +98,11 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		sourceUnionReader = sourceUnionReader,
 		ioDispatcher = ioDispatcher,
 		integrationObserver = integrationObserver,
+		sourceFactLookupReader = RoomSourceFactLookupReader(
+			database,
+			ioDispatcher,
+			bootClockDomainProvider,
+		),
 	)
 
 	/** Steps-only host fixtures install no active Pressure lane. Production uses Hilt. */
@@ -184,6 +201,24 @@ internal class DefaultTrackingHistoryRepository private constructor(
 			}
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
+	}
+
+	override suspend fun lookupSourceFact(
+		request: SourceFactLookupRequest,
+	): SourceFactLookupResult = withContext(ioDispatcher) {
+		runCatching {
+			database.withTransaction {
+				// Deletion authority survives the payload and presentation cascade.
+				when (val sourceLocal = sourceFactLookupReader.lookupInTransaction(request)) {
+					is SourceFactLookupResult.Found ->
+						sourceFactPresentationRejection(request) ?: sourceLocal
+					else -> sourceLocal
+				}
+			}
+		}.getOrElse { failure ->
+			if (failure is CancellationException) throw failure
+			SourceFactLookupResult.Failed(SourceProofReason.REPOSITORY_FAILURE)
+		}
 	}
 
 	@OptIn(ExperimentalCoroutinesApi::class)
@@ -297,6 +332,7 @@ internal class DefaultTrackingHistoryRepository private constructor(
 				readSnapshot = readSnapshot,
 			)
 		}
+
 		val selected = stepsSelector.selectManyInTransaction(listOf(segment))
 			.singleOrNull { it.segment.id == segmentId }
 			?: return unavailableLiveSession(
@@ -573,155 +609,71 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		}
 	}
 
+	private suspend fun sourceFactPresentationRejection(
+		request: SourceFactLookupRequest,
+	): SourceFactLookupResult? {
+		val scope = request.key.scope as? SourceProofScope.Run
+			?: return SourceFactLookupResult.Failed(SourceProofReason.SCOPE_MISMATCH)
+		val run = database.sourceSessionDao().serviceRun(scope.serviceRunId)
+			?: return SourceFactLookupResult.NotFound()
+		if (run.logicalTrackingId != scope.logicalTrackingId) {
+			return SourceFactLookupResult.Failed(SourceProofReason.SCOPE_MISMATCH)
+		}
+		val segmentId = run.sessionSegmentId
+			?: return SourceFactLookupResult.Unavailable(
+				SourceProofReason.IMMUTABLE_AUTHORITY_MISSING,
+			)
+		val selected = selectLiveSessionInTransaction(segmentId)
+		val history = when (val session = selected.session) {
+			SessionHistoryQuery.NotFound -> return SourceFactLookupResult.NotFound()
+			is SessionHistoryQuery.Unavailable -> return SourceFactLookupResult.Unavailable(
+				when (session.reason) {
+					TrackingHistoryUnavailableReason.SOURCE_EVIDENCE_STATE_UNAVAILABLE ->
+						SourceProofReason.IMMUTABLE_AUTHORITY_MISSING
+					TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED ->
+						SourceProofReason.PARTIAL_COMPLETENESS
+					TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+					TrackingHistoryUnavailableReason.PHYSICAL_MEMBERSHIP_INVALID,
+					-> SourceProofReason.INTEGRITY_FAILURE
+				},
+			)
+			is SessionHistoryQuery.Found -> session.history
+		}
+		val historySource = request.key.source.toHistorySource()
+		val capture = history.capture as? HistoryCapture.Exact
+			?: return SourceFactLookupResult.Unavailable(
+				SourceProofReason.IMMUTABLE_AUTHORITY_MISSING,
+			)
+		val captured = capture.revisions.any { revision ->
+			historySource in revision.capturedSources
+		}
+		if (!captured) return SourceFactLookupResult.NotFound(SourceProofReason.QUERY_MISS)
+		if (request.key.source != TrackingSource.LOCATION &&
+			historySource !in history.qualifiedSources
+		) {
+			return SourceFactLookupResult.NotFound(SourceProofReason.QUERY_MISS)
+		}
+		return null
+	}
+
 	private fun historyInvalidations() = database.invalidationTracker.createFlow(
-		SESSION_SEGMENT_TABLE,
-		SERVICE_RUN_TABLE,
-		MANIFEST_TABLE,
-		MANIFEST_SOURCE_TABLE,
-		SOURCE_POLICY_TABLE,
-		SOURCE_CONSENT_EPOCH_TABLE,
-		SOURCE_DESTINATION_OWNER_TABLE,
-		SOURCE_EVENT_WAL_TABLE,
-		SOURCE_PROJECTION_REGISTRATION_TABLE,
-		SOURCE_PROJECTION_CHECKPOINT_TABLE,
-		PRODUCT_LANE_TABLE,
-		PROJECTION_FAILURE_TABLE,
-		SOURCE_EVIDENCE_TABLE,
-		SOURCE_DELETION_FENCE_TABLE,
-		SOURCE_DEMAND_TABLE,
-		STEP_FACT_TABLE,
-		PRESSURE_FACT_TABLE,
-		WIFI_FACT_TABLE,
-		WIFI_CURSOR_TABLE,
-		WIFI_DELETION_TABLE,
-		CELL_FACT_TABLE,
-		CELL_CURSOR_TABLE,
-		CELL_DELETION_TABLE,
-		ACTIVITY_FACT_TABLE,
-		ACTIVITY_FRAGMENT_TABLE,
-		ACTIVITY_EVIDENCE_TABLE,
-		ACTIVITY_CURSOR_TABLE,
-		ACTIVITY_REGISTRATION_PLAN_TABLE,
-		ACQUISITION_PLAN_TABLE,
-		DESIRED_PLAN_TABLE,
-		PROVIDER_REGISTRATION_TABLE,
-		SOURCE_AUTHORIZATION_TABLE,
-		SOURCE_SESSION_TABLE,
-		LIFECYCLE_DESIRED_ACTION_TABLE,
-		SESSION_COMPLETENESS_TABLE,
-		"imported_steps_entry",
-		"imported_steps_run",
-		"imported_steps_manifest",
-		IMPORTED_WIFI_ENTRY_TABLE,
-		IMPORTED_WIFI_RECEIPT_TABLE,
-		IMPORTED_WIFI_RUN_TABLE,
-		IMPORTED_WIFI_ZONE_TABLE,
-		IMPORTED_WIFI_OBSERVATION_TABLE,
-		IMPORTED_WIFI_ENTRY_DELETION_TABLE,
-		IMPORTED_WIFI_DELETION_TABLE,
-		IMPORTED_CELL_ENTRY_TABLE,
-		IMPORTED_CELL_RECEIPT_TABLE,
-		IMPORTED_CELL_RUN_TABLE,
-		IMPORTED_CELL_OBSERVATION_TABLE,
-		IMPORTED_CELL_ENTRY_DELETION_TABLE,
-		IMPORTED_CELL_DELETION_TABLE,
-		IMPORTED_CELL_DELETION_RECEIPT_TABLE,
-		IMPORTED_CELL_DELETED_IDENTITY_TABLE,
-		IMPORTED_ACTIVITY_ENTRY_TABLE,
-		IMPORTED_ACTIVITY_RECEIPT_TABLE,
-		IMPORTED_ACTIVITY_RUN_TABLE,
-		IMPORTED_ACTIVITY_ZONE_TABLE,
-		IMPORTED_ACTIVITY_WINDOW_TABLE,
-		IMPORTED_ACTIVITY_FRAGMENT_TABLE,
-		IMPORTED_ACTIVITY_RETENTION_TABLE,
-		IMPORTED_ACTIVITY_RETAINED_IDENTITY_TABLE,
-		IMPORTED_ACTIVITY_ENTRY_DELETION_TABLE,
-		IMPORTED_ACTIVITY_DELETION_RECEIPT_TABLE,
-		IMPORTED_ACTIVITY_DELETION_TABLE,
-		IMPORTED_PRESSURE_ENTRY_TABLE,
-		IMPORTED_PRESSURE_RECEIPT_TABLE,
-		IMPORTED_PRESSURE_RUN_TABLE,
-		IMPORTED_PRESSURE_WINDOW_TABLE,
-		IMPORTED_PRESSURE_ENTRY_DELETION_TABLE,
-		IMPORTED_PRESSURE_DELETION_TABLE,
+		*TRACKING_HISTORY_INVALIDATION_TABLES.toTypedArray(),
 		emitInitialState = true,
 	)
 
 	private companion object {
 		const val MAX_RECENT_ENTRY_COUNT = 100
 		const val MAX_RECENT_PRESSURE_ENTRY_COUNT = 64
-		const val SESSION_SEGMENT_TABLE = "session_segment"
-		const val SERVICE_RUN_TABLE = "source_service_run"
-		const val MANIFEST_TABLE = "session_manifest_version"
-		const val MANIFEST_SOURCE_TABLE = "session_manifest_source"
-		const val SOURCE_POLICY_TABLE = "source_policy"
-		const val SOURCE_CONSENT_EPOCH_TABLE = "source_consent_epoch"
-		const val SOURCE_DESTINATION_OWNER_TABLE = "source_destination_owner"
-		const val SOURCE_EVENT_WAL_TABLE = "source_event_wal"
-		const val SOURCE_PROJECTION_REGISTRATION_TABLE = "source_projection_registration"
-		const val SOURCE_PROJECTION_CHECKPOINT_TABLE = "source_projection_checkpoint"
-		const val PRODUCT_LANE_TABLE = "source_product_projection_lane"
-		const val PROJECTION_FAILURE_TABLE = "source_projection_failure"
-		const val SOURCE_EVIDENCE_TABLE = "source_evidence_state"
-		const val SOURCE_DELETION_FENCE_TABLE = "source_deletion_fence"
-		const val SOURCE_DEMAND_TABLE = "source_demand"
-		const val STEP_FACT_TABLE = "step_fact_revision"
-		const val PRESSURE_FACT_TABLE = "pressure_fact_revision"
-		const val WIFI_FACT_TABLE = "wifi_captured_fact_revision"
-		const val WIFI_CURSOR_TABLE = "wifi_captured_fact_cursor"
-		const val WIFI_DELETION_TABLE = "wifi_capture_deletion_generation"
-		const val CELL_FACT_TABLE = "cell_captured_fact_revision"
-		const val CELL_CURSOR_TABLE = "cell_captured_fact_cursor"
-		const val CELL_DELETION_TABLE = "cell_capture_deletion_generation"
-		const val ACTIVITY_FACT_TABLE = "activity_captured_window_revision"
-		const val ACTIVITY_FRAGMENT_TABLE = "activity_captured_fragment"
-		const val ACTIVITY_EVIDENCE_TABLE = "activity_captured_evidence"
-		const val ACTIVITY_CURSOR_TABLE = "activity_captured_window_cursor"
-		const val ACTIVITY_REGISTRATION_PLAN_TABLE = "activity_captured_registration_plan"
-		const val ACQUISITION_PLAN_TABLE = "acquisition_plan_revision"
-		const val DESIRED_PLAN_TABLE = "source_desired_plan"
-		const val PROVIDER_REGISTRATION_TABLE = "provider_registration_generation"
-		const val SOURCE_AUTHORIZATION_TABLE = "source_authorization"
-		const val SOURCE_SESSION_TABLE = "logical_tracking_session"
-		const val LIFECYCLE_DESIRED_ACTION_TABLE = "lifecycle_desired_action"
-		const val SESSION_COMPLETENESS_TABLE = "source_session_completeness"
-		const val IMPORTED_WIFI_ENTRY_TABLE = "imported_wifi_entry_revision"
-		const val IMPORTED_WIFI_RECEIPT_TABLE = "imported_wifi_receipt"
-		const val IMPORTED_WIFI_RUN_TABLE = "imported_wifi_run"
-		const val IMPORTED_WIFI_ZONE_TABLE = "imported_wifi_run_zone"
-		const val IMPORTED_WIFI_OBSERVATION_TABLE = "imported_wifi_observation"
-		const val IMPORTED_WIFI_ENTRY_DELETION_TABLE = "imported_wifi_entry_deletion"
-		const val IMPORTED_WIFI_DELETION_TABLE = "imported_wifi_deletion_generation"
-		const val IMPORTED_CELL_ENTRY_TABLE = "imported_cell_entry_revision"
-		const val IMPORTED_CELL_RECEIPT_TABLE = "imported_cell_receipt"
-		const val IMPORTED_CELL_RUN_TABLE = "imported_cell_run"
-		const val IMPORTED_CELL_OBSERVATION_TABLE = "imported_cell_observation"
-		const val IMPORTED_CELL_ENTRY_DELETION_TABLE = "imported_cell_entry_deletion"
-		const val IMPORTED_CELL_DELETION_TABLE = "imported_cell_deletion_generation"
-		const val IMPORTED_CELL_DELETION_RECEIPT_TABLE =
-			"imported_cell_entry_deletion_receipt"
-		const val IMPORTED_CELL_DELETED_IDENTITY_TABLE = "imported_cell_deleted_identity"
-		const val IMPORTED_ACTIVITY_ENTRY_TABLE = "imported_activity_entry_revision"
-		const val IMPORTED_ACTIVITY_RECEIPT_TABLE = "imported_activity_receipt"
-		const val IMPORTED_ACTIVITY_RUN_TABLE = "imported_activity_run"
-		const val IMPORTED_ACTIVITY_ZONE_TABLE = "imported_activity_zone_epoch"
-		const val IMPORTED_ACTIVITY_WINDOW_TABLE = "imported_activity_window"
-		const val IMPORTED_ACTIVITY_FRAGMENT_TABLE = "imported_activity_fragment"
-		const val IMPORTED_ACTIVITY_RETENTION_TABLE = "imported_activity_retention_receipt"
-		const val IMPORTED_ACTIVITY_RETAINED_IDENTITY_TABLE =
-			"imported_activity_retained_identity"
-		const val IMPORTED_ACTIVITY_ENTRY_DELETION_TABLE =
-			"imported_activity_entry_deletion"
-		const val IMPORTED_ACTIVITY_DELETION_RECEIPT_TABLE =
-			"imported_activity_entry_deletion_receipt"
-		const val IMPORTED_ACTIVITY_DELETION_TABLE = "imported_activity_deletion_generation"
-		const val IMPORTED_PRESSURE_ENTRY_TABLE = "imported_pressure_entry_revision"
-		const val IMPORTED_PRESSURE_RECEIPT_TABLE = "imported_pressure_receipt"
-		const val IMPORTED_PRESSURE_RUN_TABLE = "imported_pressure_run"
-		const val IMPORTED_PRESSURE_WINDOW_TABLE = "imported_pressure_window"
-		const val IMPORTED_PRESSURE_ENTRY_DELETION_TABLE = "imported_pressure_entry_deletion"
-		const val IMPORTED_PRESSURE_DELETION_TABLE = "imported_pressure_deletion_generation"
 	}
+}
+
+private fun TrackingSource.toHistorySource(): HistorySource = when (this) {
+	TrackingSource.LOCATION -> HistorySource.LOCATION
+	TrackingSource.ACTIVITY -> HistorySource.ACTIVITY
+	TrackingSource.STEPS -> HistorySource.STEPS
+	TrackingSource.PRESSURE -> HistorySource.PRESSURE
+	TrackingSource.WIFI -> HistorySource.WIFI
+	TrackingSource.CELL -> HistorySource.CELL
 }
 
 private fun SourceEvidenceState.hasValidHistorySnapshotShape(): Boolean =

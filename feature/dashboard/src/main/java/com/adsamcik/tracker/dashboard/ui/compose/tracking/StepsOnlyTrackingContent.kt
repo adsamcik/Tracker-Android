@@ -65,7 +65,7 @@ internal fun StepsOnlyTrackingContent(
 }
 
 @Composable
-private fun StepsOnlyTrackingCard(
+internal fun StepsOnlyTrackingCard(
 	steps: DashboardLiveStepsValue,
 ) {
 	Card(

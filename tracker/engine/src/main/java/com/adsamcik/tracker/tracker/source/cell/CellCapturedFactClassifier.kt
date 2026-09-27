@@ -1,9 +1,12 @@
 package com.adsamcik.tracker.tracker.source.cell
 
+import com.adsamcik.tracker.shared.base.database.data.CellWalCaptureAuthority
+import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication
+import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
+import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierFailure
+import com.adsamcik.tracker.shared.base.database.data.CellWalChildQualification
+import com.adsamcik.tracker.shared.base.database.data.CellWalProviderInterval
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
-import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
-import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
-import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
@@ -11,8 +14,6 @@ import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
-import com.adsamcik.tracker.tracker.source.runtime.cellProviderDeliveryIdentity
-import java.security.MessageDigest
 
 internal enum class CellObservationOrigin {
 	/** Durable WAL proves a provider callback, but v1 does not retain change-vs-refresh origin. */
@@ -30,20 +31,6 @@ internal enum class CellProviderOutcome {
 	FAILED,
 	PERMISSION_LIMITED,
 	OS_LIMITED,
-}
-
-/** A minimized callback child. Raw Cell or subscription identifiers cannot enter this contract. */
-internal data class CellProviderChild(
-	val containsProhibitedIdentity: Boolean,
-	val radioTechnology: CellRadioTechnology?,
-	val registered: Boolean,
-	val signalQualityLevel: Int?,
-	val providerTimestampNanos: Long?,
-	val authority: CellChildAuthority,
-) {
-	init {
-		require(signalQualityLevel == null || signalQualityLevel in MIN_SIGNAL_LEVEL..MAX_SIGNAL_LEVEL)
-	}
 }
 
 /** Exact admitted WAL identity and captured authority for one decoded Cell provider delivery. */
@@ -75,6 +62,7 @@ internal data class CellWalObservationEvidence(
 	val activityAutomationEpoch: Long?,
 	val planAttribution: PlanAttribution,
 	val clock: CellDurableClockEvidence,
+	val receivedWallTimeMs: Long?,
 	val acquiredAtMs: Long,
 	val qualityFlags: Long,
 	val qualityConfidence: Float?,
@@ -83,9 +71,9 @@ internal data class CellWalObservationEvidence(
 	val createdAtMs: Long,
 	val capturedAuthority: CellCaptureAuthority,
 ) {
-	fun calculatedWalIntegrityIdentity(): String = asWalEntity().calculatedIntegrityIdentity()
+	fun calculatedWalIntegrityIdentity(): String = toWalEntity().calculatedIntegrityIdentity()
 
-	private fun asWalEntity(): SourceEventWalEntity = SourceEventWalEntity(
+	internal fun toWalEntity(): SourceEventWalEntity = SourceEventWalEntity(
 		admissionOrdinal = sourceAdmissionOrdinal,
 		eventId = sourceEventId.value,
 		providerDedupKey = providerDedupKey,
@@ -108,6 +96,7 @@ internal data class CellWalObservationEvidence(
 		observedElapsedNanos = clock.observedElapsedRealtimeNanos,
 		observedIntervalStartNanos = clock.observedIntervalStartElapsedRealtimeNanos,
 		receivedElapsedNanos = clock.receivedElapsedRealtimeNanos,
+		receivedWallTimeMs = receivedWallTimeMs,
 		wallTimeMs = clock.observedWallTimeMs,
 		wallTimeUncertaintyMs = clock.wallTimeUncertaintyMs,
 		capturedCollectedDataEpoch = capturedCollectedDataEpoch,
@@ -220,8 +209,6 @@ internal sealed interface CellCapturedFactClassification {
 
 /** Bounded deterministic Cell classification before a source-local writer persists any fact. */
 internal object CellCapturedFactClassifier {
-	private val payloadCodec = DefaultSourcePayloadCodec()
-
 	fun classify(
 		input: CellObservationInput,
 		authority: CellCaptureAuthority,
@@ -248,78 +235,26 @@ internal object CellCapturedFactClassifier {
 		val wal = input.walEvidence ?: return CellCapturedFactClassification.SourceUnverifiable(
 			CellSourceUnverifiableReason.DELIVERY_IDENTITY_MISSING,
 		)
-		if (!wal.hasValidWalProvenance()) {
-			return CellCapturedFactClassification.Rejected(
-				CellFactRejection.WAL_PROVENANCE_UNVERIFIABLE,
-			)
-		}
-		if (!wal.matchesCapturedAuthority(authority)) {
+		if (wal.capturedAuthority != authority) {
 			return CellCapturedFactClassification.Rejected(
 				CellFactRejection.CAPTURE_AUTHORITY_MISMATCH,
 			)
 		}
-		val payload = decodeWalPayload(wal) ?: return walPayloadRejection(wal)
-		if (!wal.clock.isValidFor(authority) || !payload.providerTimelineMatches(wal.clock)) {
-			return CellCapturedFactClassification.ClockUnverifiable(
-				CellClockUnverifiableReason.DELIVERY_CLOCK_DOMAIN_MISSING_OR_MISMATCHED,
-			)
-		}
-		if (payload.subscriptionId != null || payload.refreshOutcome != CellRefreshOutcome.CALLBACK) {
-			return CellCapturedFactClassification.Rejected(
-				CellFactRejection.PROVIDER_SEMANTICS_MISMATCH,
-			)
-		}
-		if (payload.observations.isEmpty()) {
-			return CellCapturedFactClassification.SourceUnverifiable(
-				CellSourceUnverifiableReason.PROVIDER_CONFIRMED_EMPTY_PROOF_UNAVAILABLE,
-			)
-		}
-		if (payload.observations.size > MAX_CELL_CHILDREN_PER_DELIVERY) {
-			return CellCapturedFactClassification.Rejected(
-				CellFactRejection.PROCESSING_LIMIT_EXCEEDED,
-			)
-		}
-		val decodedChildren = payload.observations.map { observation ->
-			CellProviderChild(
-				containsProhibitedIdentity = observation.identifierToken.isNotEmpty(),
-				radioTechnology = observation.radioType.toCellRadioTechnologyOrNull(),
-				registered = observation.registered,
-				signalQualityLevel = observation.signalLevelDbm.toQualityLevel(),
-				providerTimestampNanos = observation.providerTimestampNanos,
-				authority = authority.childAuthority,
-			)
-		}
-		if (wal.clock.clockDomainId != authority.clockDomainId) {
-			return CellCapturedFactClassification.ClockUnverifiable(
-				CellClockUnverifiableReason.DELIVERY_CLOCK_DOMAIN_MISSING_OR_MISMATCHED,
-			)
-		}
-		if (decodedChildren.any(CellProviderChild::containsProhibitedIdentity)) {
-			return CellCapturedFactClassification.Rejected(
-				CellFactRejection.IDENTITY_BEARING_INPUT,
-			)
-		}
-		val deliveryIdentity = wal.sourceDeliveryIdentity
-			?: return CellCapturedFactClassification.SourceUnverifiable(
-				CellSourceUnverifiableReason.DELIVERY_IDENTITY_MISSING,
-			)
-		val canonicalDeliveryIdentity = runCatching {
-			cellProviderDeliveryIdentity(wal.clock.clockDomainId, payload.observations)
-		}.getOrNull() ?: return CellCapturedFactClassification.Rejected(
-			CellFactRejection.PROVIDER_SEMANTICS_MISMATCH,
-		)
-		if (canonicalDeliveryIdentity != deliveryIdentity) {
-			return if (priorFact?.reference?.identity?.sourceDeliveryIdentity == deliveryIdentity) {
-				CellCapturedFactClassification.Rejected(
-					CellFactRejection.DELIVERY_IDENTITY_COLLISION,
+		val authenticated = when (val authentication = CellWalCarrierAuthenticator.authenticate(
+			wal.toWalEntity(),
+			authority.toWalCaptureAuthority(),
+		)) {
+			is CellWalCarrierAuthentication.Authenticated -> authentication.carrier
+			is CellWalCarrierAuthentication.Rejected ->
+				return walAuthenticationRejection(
+					authentication.reason,
+					wal.sourceDeliveryIdentity,
+					priorFact,
 				)
-			} else {
-				CellCapturedFactClassification.Rejected(
-					CellFactRejection.PROVIDER_SEMANTICS_MISMATCH,
-				)
-			}
 		}
-		val evidenceBinding = wal.evidenceBinding(canonicalDeliveryIdentity)
+		val deliveryIdentity = requireNotNull(wal.sourceDeliveryIdentity)
+		val qualification = requireNotNull(authenticated.childQualification)
+		val evidenceBinding = wal.evidenceBinding(SourceDeliveryIdentity(authenticated.deliveryIdentity))
 		val identity = authority.factIdentity(deliveryIdentity)
 		val mutation = runCatching {
 			CellCapturedFactMutation(identity, semanticRevision, supersedesSemanticRevision)
@@ -335,8 +270,7 @@ internal object CellCapturedFactClassifier {
 		}
 
 		return classifyChildren(
-			children = decodedChildren,
-			clock = wal.clock,
+			qualification = qualification,
 			authority = authority,
 			mutation = mutation,
 			evidenceBinding = evidenceBinding,
@@ -346,42 +280,72 @@ internal object CellCapturedFactClassifier {
 	}
 
 	private fun classifyChildren(
-		children: List<CellProviderChild>,
-		clock: CellDurableClockEvidence,
+		qualification: CellWalChildQualification,
 		authority: CellCaptureAuthority,
 		mutation: CellCapturedFactMutation,
 		evidenceBinding: CellCapturedEvidenceBinding,
 		priorFact: CellReusableFact?,
 		correctionBase: CellReusableFact?,
 	): CellCapturedFactClassification {
-		val classified = children.map { child ->
-			ClassifiedChild(child, authority.classifyChild(child, clock.receivedElapsedRealtimeNanos))
-		}
-		val accepted = classified.filter { it.classification == ChildClassification.FRESH }
-		if (accepted.isEmpty()) return classified.noAcceptedResult()
-
-		val providerTimes = accepted.map { requireNotNull(it.child.providerTimestampNanos) }
-		val observedWallTimeMs = observedWallTimeMs(
-			providerTimeNanos = requireNotNull(providerTimes.maxOrNull()),
-			clock = clock,
-		) ?: return CellCapturedFactClassification.ClockUnverifiable(
-			CellClockUnverifiableReason.WALL_TIME_MAPPING_UNDERFLOW,
+		if (qualification.acceptedChildCount == 0) return qualification.noAcceptedResult()
+		val aggregate = requireNotNull(qualification.aggregate)
+		val coverage = CellCoverageEvidence(
+			providerIntervalStartElapsedRealtimeNanos =
+				requireNotNull(qualification.coverageIntervalStartNanos),
+			providerIntervalEndElapsedRealtimeNanos =
+				requireNotNull(qualification.coverageIntervalEndNanos),
+			submittedChildCount = qualification.submittedChildCount,
+			acceptedChildCount = qualification.acceptedChildCount,
+			staleChildCount = qualification.staleChildCount,
+			futureTimeChildCount = qualification.futureTimeChildCount,
+			missingTimeChildCount = 0,
+			clockUnverifiableChildCount = 0,
+			authorityMismatchChildCount = 0,
+			unsupportedTechnologyChildCount = qualification.unsupportedTechnologyChildCount,
+			expectedSubscriptionCount = null,
+			observedSubscriptionCount = null,
+			subscriptionCompleteness = CellSubscriptionCompleteness.UNKNOWN,
+			childCompleteness = if (qualification.isComplete) {
+				CellChildCompleteness.COMPLETE
+			} else {
+				CellChildCompleteness.PARTIAL
+			},
 		)
-		val coverage = coverage(
-			classified = classified,
-			providerStartNanos = requireNotNull(providerTimes.minOrNull()),
-			providerEndNanos = requireNotNull(providerTimes.maxOrNull()),
-		)
-		val aggregate = identityFreeAggregate(accepted.map(ClassifiedChild::child))
 		return classifyCandidate(
 			mutation = mutation,
 			authority = authority,
 			evidenceBinding = evidenceBinding,
-			observedWallTimeMs = observedWallTimeMs,
-			wallTimeUncertaintyMs = clock.wallTimeUncertaintyMs,
+			observedWallTimeMs = requireNotNull(qualification.observedWallTimeMs),
+			wallTimeUncertaintyMs = evidenceBinding.wallTimeUncertaintyMs,
 			availability = CellAvailability.AVAILABLE,
 			coverage = coverage,
-			aggregate = aggregate,
+			aggregate = CellIdentityFreeAggregate(
+				observationCount = aggregate.observationCount,
+				registeredObservationCount = aggregate.registeredObservationCount,
+				technologyMix = CellTechnologyMix(
+					mapOf(
+						CellRadioTechnology.GSM to aggregate.gsmCount,
+						CellRadioTechnology.CDMA to aggregate.cdmaCount,
+						CellRadioTechnology.WCDMA to aggregate.wcdmaCount,
+						CellRadioTechnology.TDSCDMA to aggregate.tdscdmaCount,
+						CellRadioTechnology.LTE to aggregate.lteCount,
+						CellRadioTechnology.NR to aggregate.nrCount,
+					).filterValues { it > 0 },
+				),
+				signalQuality = CellSignalQualityDistribution(
+					unknownCount = aggregate.qualityUnknownCount,
+					noneOrUnknownCount = aggregate.qualityNoneOrUnknownCount,
+					poorCount = aggregate.qualityPoorCount,
+					moderateCount = aggregate.qualityModerateCount,
+					goodCount = aggregate.qualityGoodCount,
+					greatCount = aggregate.qualityGreatCount,
+				),
+				weakPeriod = CellWeakPeriodEvidence(
+					weakObservationCount = aggregate.weakObservationCount,
+					knownQualityObservationCount = aggregate.knownQualityObservationCount,
+					allKnownQualityIsWeak = aggregate.allKnownQualityIsWeak,
+				),
+			),
 			priorFact = priorFact,
 			correctionBase = correctionBase,
 		)
@@ -470,134 +434,15 @@ internal object CellCapturedFactClassifier {
 		)
 	}
 
-	private fun CellCaptureAuthority.classifyChild(
-		child: CellProviderChild,
-		receivedElapsedRealtimeNanos: Long,
-	): ChildClassification {
-		if (child.authority.clockDomainId != clockDomainId) {
-			return ChildClassification.CLOCK_UNVERIFIABLE
-		}
-		if (child.authority != childAuthority) return ChildClassification.AUTHORITY_MISMATCH
-		val timeClassification = classifyProviderTime(
-			child.providerTimestampNanos,
-			receivedElapsedRealtimeNanos,
-		)
-		if (timeClassification != ChildClassification.FRESH) return timeClassification
-		return if (child.radioTechnology == null) {
-			ChildClassification.UNSUPPORTED_TECHNOLOGY
-		} else {
-			ChildClassification.FRESH
-		}
-	}
-
-	private fun CellCaptureAuthority.classifyProviderTime(
-		providerTimeNanos: Long?,
-		receivedElapsedRealtimeNanos: Long,
-	): ChildClassification {
-		if (providerTimeNanos == null || providerTimeNanos <= 0L) {
-			return ChildClassification.MISSING_TIME
-		}
-		if (providerTimeNanos > receivedElapsedRealtimeNanos) {
-			return ChildClassification.FUTURE_TIME
-		}
-		if (providerTimeNanos !in temporalAuthority ||
-			receivedElapsedRealtimeNanos - providerTimeNanos > maximumObservationAgeNanos
-		) {
-			return ChildClassification.STALE
-		}
-		return ChildClassification.FRESH
-	}
-
-	private fun coverage(
-		classified: List<ClassifiedChild>,
-		providerStartNanos: Long,
-		providerEndNanos: Long,
-	): CellCoverageEvidence {
-		return CellCoverageEvidence(
-			providerIntervalStartElapsedRealtimeNanos = providerStartNanos,
-			providerIntervalEndElapsedRealtimeNanos = providerEndNanos,
-			submittedChildCount = classified.size,
-			acceptedChildCount = classified.count(ChildClassification.FRESH),
-			staleChildCount = classified.count(ChildClassification.STALE),
-			futureTimeChildCount = classified.count(ChildClassification.FUTURE_TIME),
-			missingTimeChildCount = classified.count(ChildClassification.MISSING_TIME),
-			clockUnverifiableChildCount = classified.count(ChildClassification.CLOCK_UNVERIFIABLE),
-			authorityMismatchChildCount = classified.count(ChildClassification.AUTHORITY_MISMATCH),
-			unsupportedTechnologyChildCount = classified.count(
-				ChildClassification.UNSUPPORTED_TECHNOLOGY,
-			),
-			expectedSubscriptionCount = null,
-			observedSubscriptionCount = null,
-			subscriptionCompleteness = CellSubscriptionCompleteness.UNKNOWN,
-			childCompleteness = if (
-				classified.all { it.classification == ChildClassification.FRESH }
-			) {
-				CellChildCompleteness.COMPLETE
-			} else {
-				CellChildCompleteness.PARTIAL
-			},
-		)
-	}
-
-	private fun identityFreeAggregate(children: List<CellProviderChild>): CellIdentityFreeAggregate {
-		val technologies = children.groupingBy { requireNotNull(it.radioTechnology) }
-			.eachCount()
-		val quality = children.groupingBy(CellProviderChild::signalQualityLevel).eachCount()
-		val distribution = CellSignalQualityDistribution(
-			unknownCount = quality[null] ?: 0,
-			noneOrUnknownCount = quality[0] ?: 0,
-			poorCount = quality[1] ?: 0,
-			moderateCount = quality[2] ?: 0,
-			goodCount = quality[3] ?: 0,
-			greatCount = quality[4] ?: 0,
-		)
-		return CellIdentityFreeAggregate(
-			observationCount = children.size,
-			registeredObservationCount = children.count(CellProviderChild::registered),
-			technologyMix = CellTechnologyMix(technologies),
-			signalQuality = distribution,
-			weakPeriod = CellWeakPeriodEvidence(
-				weakObservationCount = distribution.weakCount,
-				knownQualityObservationCount = distribution.knownCount,
-				allKnownQualityIsWeak = distribution.knownCount > 0 &&
-					distribution.weakCount == distribution.knownCount,
-			),
-		)
-	}
-
-	private fun List<ClassifiedChild>.noAcceptedResult(): CellCapturedFactClassification {
-		val missing = count(ChildClassification.MISSING_TIME)
-		val future = count(ChildClassification.FUTURE_TIME)
+	private fun CellWalChildQualification.noAcceptedResult(): CellCapturedFactClassification {
 		return when {
-			count(ChildClassification.CLOCK_UNVERIFIABLE) > 0 ->
-				CellCapturedFactClassification.ClockUnverifiable(
-					CellClockUnverifiableReason.CHILD_CLOCK_DOMAIN_MISMATCH,
-				)
-			missing > 0 -> CellCapturedFactClassification.ClockUnverifiable(
-				CellClockUnverifiableReason.PROVIDER_TIME_MISSING,
-			)
-			future > 0 -> CellCapturedFactClassification.ClockUnverifiable(
+			futureTimeChildCount > 0 -> CellCapturedFactClassification.ClockUnverifiable(
 				CellClockUnverifiableReason.PROVIDER_TIME_IN_FUTURE,
 			)
-			count(ChildClassification.AUTHORITY_MISMATCH) > 0 ->
-				CellCapturedFactClassification.Rejected(CellFactRejection.CHILD_AUTHORITY_MISMATCH)
-			count(ChildClassification.UNSUPPORTED_TECHNOLOGY) > 0 ->
+			unsupportedTechnologyChildCount > 0 ->
 				CellCapturedFactClassification.OsLimited
-			else -> CellCapturedFactClassification.Stale(size)
+			else -> CellCapturedFactClassification.Stale(submittedChildCount)
 		}
-	}
-
-	private fun List<ClassifiedChild>.count(classification: ChildClassification): Int =
-		count { it.classification == classification }
-
-	private fun observedWallTimeMs(
-		providerTimeNanos: Long,
-		clock: CellDurableClockEvidence,
-	): Long? {
-		val ageNanos = clock.observedElapsedRealtimeNanos - providerTimeNanos
-		if (ageNanos < 0L) return null
-		val ageMs = ageNanos / NANOS_PER_MILLISECOND
-		return clock.observedWallTimeMs.takeIf { it >= ageMs }?.minus(ageMs)
 	}
 
 	private fun hasValidCorrectionBase(
@@ -652,100 +497,104 @@ internal object CellCapturedFactClassifier {
 		qualityConfidence = qualityConfidence,
 	)
 
-	private fun CellWalObservationEvidence.hasValidWalProvenance(): Boolean =
-		sourceKind == SourceKind.CELL && sourceAdmissionOrdinal > 0L &&
-			providerDedupKey == null &&
-			deliveryUnitCount > 0 && deliveryUnitIndex in 0 until deliveryUnitCount &&
-			sourceSequence >= 0L && activityAutomationEpoch == null &&
-			planAttribution == PlanAttribution.CAPTURED_REGISTRATION && acquiredAtMs >= 0L &&
-			createdAtMs >= 0L &&
-			(qualityConfidence == null || qualityConfidence in 0f..1f)
+	private fun CellCaptureAuthority.toWalCaptureAuthority() = CellWalCaptureAuthority(
+		logicalTrackingId = logicalTrackingId.value,
+		serviceRunId = serviceRunId.value,
+		sourceInstanceId = sourceInstanceId.value,
+		registrationGeneration = registrationGeneration,
+		configurationRevision = configurationRevision,
+		physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+		authorizationRevision = authorizationRevision,
+		authorizationFingerprint = authorizationFingerprint,
+		purposeEligibilityMask = purposeEligibilityMask,
+		sourcePolicyRevision = sourcePolicyRevision,
+		captureConsentEpoch = captureConsentEpoch,
+		manifestRevision = sessionManifestRevision,
+		lifecycleLeaseGeneration = lifecycleLeaseGeneration,
+		collectedDataEpoch = collectedDataEpoch,
+		clockDomainId = clockDomainId,
+		zoneId = zoneId,
+		structuralEpochDay = structuralEpochDay,
+		providerAcceptance = temporalAuthority.providerAcceptance.toWalInterval(),
+		authorizationEffect = temporalAuthority.authorizationEffect.toWalInterval(),
+		consentEffect = temporalAuthority.consentEffect.toWalInterval(),
+		sessionRunEffect = temporalAuthority.sessionRunEffect.toWalInterval(),
+		deletionEffect = temporalAuthority.deletionEffect.toWalInterval(),
+		maximumObservationAgeNanos = maximumObservationAgeNanos,
+	)
 
-	private fun CellWalObservationEvidence.matchesCapturedAuthority(
-		authority: CellCaptureAuthority,
-	): Boolean = capturedAuthority == authority && logicalTrackingId == authority.logicalTrackingId &&
-		serviceRunId == authority.serviceRunId && sourceInstanceId == authority.sourceInstanceId &&
-		registrationGeneration == authority.registrationGeneration &&
-		configurationRevision == authority.configurationRevision &&
-		physicalConfigurationFingerprint == authority.physicalConfigurationFingerprint &&
-		authorizationRevision == authority.authorizationRevision &&
-		authorizationFingerprint == authority.authorizationFingerprint &&
-		purposeEligibilityMask == authority.purposeEligibilityMask &&
-		sourcePolicyRevision == authority.sourcePolicyRevision &&
-		captureConsentEpoch == authority.captureConsentEpoch &&
-		sessionManifestRevision == authority.sessionManifestRevision &&
-		lifecycleLeaseGeneration == authority.lifecycleLeaseGeneration &&
-		capturedCollectedDataEpoch == authority.collectedDataEpoch &&
-		clock.clockDomainId == authority.clockDomainId
+	private fun CellProviderTimeInterval.toWalInterval() = CellWalProviderInterval(
+		startInclusiveNanos,
+		endExclusiveNanos,
+	)
 
-	private fun CellDurableClockEvidence.isValidFor(authority: CellCaptureAuthority): Boolean =
-		clockDomainId == authority.clockDomainId && observedIntervalStartElapsedRealtimeNanos > 0L &&
-		observedElapsedRealtimeNanos >= observedIntervalStartElapsedRealtimeNanos &&
-		receivedElapsedRealtimeNanos >= observedElapsedRealtimeNanos &&
-		observedWallTimeMs >= 0L && wallTimeUncertaintyMs >= 0L &&
-		wallBelongsToStructuralDay(authority, observedWallTimeMs)
-
-	private fun CellSnapshotPayload.providerTimelineMatches(
-		clock: CellDurableClockEvidence,
-	): Boolean {
-		val providerTimes = observations.mapNotNull { it.providerTimestampNanos }
-		if (providerTimes.isEmpty()) return true
-		return providerTimes.minOrNull() == clock.observedIntervalStartElapsedRealtimeNanos &&
-			providerTimes.maxOrNull() == clock.observedElapsedRealtimeNanos
-	}
-
-	private fun wallBelongsToStructuralDay(
-		authority: CellCaptureAuthority,
-		wallTimeMs: Long,
-	): Boolean {
-		val zone = java.time.ZoneId.of(authority.zoneId)
-		val date = java.time.LocalDate.ofEpochDay(authority.structuralEpochDay)
-		val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
-		val end = date.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli()
-		return wallTimeMs in start until end
-	}
-
-	private fun decodeWalPayload(wal: CellWalObservationEvidence): CellSnapshotPayload? {
-		if (!LOWERCASE_SHA_256.matches(wal.walIntegrityIdentity) ||
-			!LOWERCASE_SHA_256.matches(wal.payloadChecksum)
-		) return null
-		val bytes = wal.payloadBytes.toByteArray()
-		if (bytes.sha256() != wal.payloadChecksum ||
-			wal.calculatedWalIntegrityIdentity() != wal.walIntegrityIdentity ||
-			wal.payloadVersion != CELL_PAYLOAD_VERSION
-		) return null
-		return runCatching {
-			payloadCodec.decode(SourceKind.CELL, wal.payloadVersion, bytes) as? CellSnapshotPayload
-		}.getOrNull()
-	}
-
-	private fun walPayloadRejection(wal: CellWalObservationEvidence): CellCapturedFactClassification {
-		if (!LOWERCASE_SHA_256.matches(wal.walIntegrityIdentity) ||
-			wal.calculatedWalIntegrityIdentity() != wal.walIntegrityIdentity
-		) {
-			return CellCapturedFactClassification.Rejected(
+	private fun walAuthenticationRejection(
+		reason: CellWalCarrierFailure,
+		deliveryIdentity: SourceDeliveryIdentity?,
+		priorFact: CellReusableFact?,
+	): CellCapturedFactClassification = when (reason) {
+		CellWalCarrierFailure.WAL_INTEGRITY_MISMATCH ->
+			CellCapturedFactClassification.Rejected(
 				CellFactRejection.WAL_INTEGRITY_UNVERIFIABLE,
 			)
-		}
-		val bytes = wal.payloadBytes.toByteArray()
-		if (!LOWERCASE_SHA_256.matches(wal.payloadChecksum) || bytes.sha256() != wal.payloadChecksum) {
-			return CellCapturedFactClassification.Rejected(
+		CellWalCarrierFailure.PAYLOAD_INTEGRITY_MISMATCH ->
+			CellCapturedFactClassification.Rejected(
 				CellFactRejection.PAYLOAD_INTEGRITY_UNVERIFIABLE,
 			)
-		}
-		return CellCapturedFactClassification.Rejected(CellFactRejection.PAYLOAD_DECODE_FAILED)
-	}
-
-	private fun String.toCellRadioTechnologyOrNull(): CellRadioTechnology? =
-		CellRadioTechnology.entries.singleOrNull { it.name == uppercase() }
-
-	private fun Int?.toQualityLevel(): Int? = when {
-		this == null || this == Int.MAX_VALUE -> null
-		this <= -120 -> 0
-		this <= -110 -> 1
-		this <= -100 -> 2
-		this <= -90 -> 3
-		else -> 4
+		CellWalCarrierFailure.CAPTURE_AUTHORITY_MISMATCH ->
+			CellCapturedFactClassification.Rejected(CellFactRejection.CAPTURE_AUTHORITY_MISMATCH)
+		CellWalCarrierFailure.EMPTY_PROVIDER_DELIVERY ->
+			CellCapturedFactClassification.SourceUnverifiable(
+				CellSourceUnverifiableReason.PROVIDER_CONFIRMED_EMPTY_PROOF_UNAVAILABLE,
+			)
+		CellWalCarrierFailure.TOO_MANY_CHILDREN,
+		CellWalCarrierFailure.PAYLOAD_TOO_LARGE ->
+			CellCapturedFactClassification.Rejected(CellFactRejection.PROCESSING_LIMIT_EXCEEDED)
+		CellWalCarrierFailure.IDENTITY_BEARING_CHILD ->
+			CellCapturedFactClassification.Rejected(CellFactRejection.IDENTITY_BEARING_INPUT)
+		CellWalCarrierFailure.INVALID_PROVIDER_TIME,
+		CellWalCarrierFailure.PROVIDER_TIMELINE_MISMATCH,
+		CellWalCarrierFailure.STRUCTURAL_DAY_MISMATCH ->
+			CellCapturedFactClassification.ClockUnverifiable(
+				CellClockUnverifiableReason.DELIVERY_CLOCK_DOMAIN_MISSING_OR_MISMATCHED,
+			)
+		CellWalCarrierFailure.DELIVERY_IDENTITY_MISMATCH ->
+			if (priorFact?.reference?.identity?.sourceDeliveryIdentity == deliveryIdentity) {
+				CellCapturedFactClassification.Rejected(
+					CellFactRejection.DELIVERY_IDENTITY_COLLISION,
+				)
+			} else {
+				CellCapturedFactClassification.Rejected(
+					CellFactRejection.PROVIDER_SEMANTICS_MISMATCH,
+				)
+			}
+		CellWalCarrierFailure.UNSUPPORTED_PAYLOAD_VERSION,
+		CellWalCarrierFailure.PAYLOAD_DECODE_FAILED,
+		CellWalCarrierFailure.NON_CANONICAL_PAYLOAD ->
+			CellCapturedFactClassification.Rejected(CellFactRejection.PAYLOAD_DECODE_FAILED)
+		CellWalCarrierFailure.NON_CANONICAL_CHILD_ORDER ->
+			CellCapturedFactClassification.Rejected(CellFactRejection.PROVIDER_SEMANTICS_MISMATCH)
+		CellWalCarrierFailure.INCOMPLETE_CAPTURE_BINDING ->
+			if (deliveryIdentity == null) {
+				CellCapturedFactClassification.SourceUnverifiable(
+					CellSourceUnverifiableReason.DELIVERY_IDENTITY_MISSING,
+				)
+			} else {
+				CellCapturedFactClassification.Rejected(
+					CellFactRejection.WAL_PROVENANCE_UNVERIFIABLE,
+				)
+			}
+		CellWalCarrierFailure.WRONG_SOURCE,
+		CellWalCarrierFailure.NON_CAPTURE_PURPOSE,
+		CellWalCarrierFailure.PROVIDER_DEDUP_KEY_PRESENT,
+		CellWalCarrierFailure.ACTIVITY_AUTOMATION_PRESENT,
+		CellWalCarrierFailure.MALFORMED_PROVIDER_ENVELOPE ->
+			CellCapturedFactClassification.Rejected(
+				CellFactRejection.WAL_PROVENANCE_UNVERIFIABLE,
+			)
+		CellWalCarrierFailure.FACT_LINKAGE_MISMATCH,
+		CellWalCarrierFailure.FACT_SEMANTICS_MISMATCH ->
+			CellCapturedFactClassification.Rejected(CellFactRejection.PROVIDER_SEMANTICS_MISMATCH)
 	}
 
 	private val CellObservationOrigin.isProviderCallback: Boolean
@@ -753,30 +602,7 @@ internal object CellCapturedFactClassifier {
 			this == CellObservationOrigin.CHANGE_CALLBACK ||
 			this == CellObservationOrigin.REFRESH_RESULT_CALLBACK
 
-	private data class ClassifiedChild(
-		val child: CellProviderChild,
-		val classification: ChildClassification,
-	)
-
-	private enum class ChildClassification {
-		FRESH,
-		STALE,
-		FUTURE_TIME,
-		MISSING_TIME,
-		CLOCK_UNVERIFIABLE,
-		AUTHORITY_MISMATCH,
-		UNSUPPORTED_TECHNOLOGY,
-	}
 }
 
 internal const val MAX_CELL_CHILDREN_PER_DELIVERY = 256
 internal const val MAX_CELL_SUBSCRIPTIONS_PER_DELIVERY = 8
-private const val MIN_SIGNAL_LEVEL = 0
-private const val MAX_SIGNAL_LEVEL = 4
-private const val NANOS_PER_MILLISECOND = 1_000_000L
-private const val CELL_PAYLOAD_VERSION = 1
-private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
-
-private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
-	.digest(this)
-	.joinToString(separator = "") { byte -> "%02x".format(byte) }

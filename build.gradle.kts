@@ -171,7 +171,7 @@ tasks.named("ciCheck").configure {
 tasks.register<CollectReleaseEvidenceTask>("releaseValidation") {
 	group = "verification"
 	description =
-		"Builds the release AAB and representative debug-signed APK set, then records strict evidence."
+		"Builds optimized and control release AABs, then records strict release evidence."
 	notCompatibleWithConfigurationCache(
 		"The Google OSS Licenses release task is not configuration-cache serializable."
 	)
@@ -181,6 +181,7 @@ tasks.register<CollectReleaseEvidenceTask>("releaseValidation") {
 		"checkRoomSchemaDrift",
 		":app:sdkReleaseDependencyData",
 		":app:bundleRelease",
+		":app:bundleRelease_nominify",
 	)
 	outputs.upToDateWhen { false }
 	validationScript.set(layout.projectDirectory.file("tools/release_validation.py"))

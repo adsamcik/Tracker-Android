@@ -2,14 +2,21 @@ package com.adsamcik.tracker.shared.base.database
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.CellAggregateReuseAuthority
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication
+import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
+import com.adsamcik.tracker.shared.base.database.data.CellWalIdentityFreeAggregate
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
+import com.adsamcik.tracker.shared.base.database.data.CapturedRadioFactRetentionProofEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedDeletedRunEntity
-import com.adsamcik.tracker.shared.base.database.data.CellProviderDeliveryIdentityFact
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.RetainedCaptureEventIdentity
+import com.adsamcik.tracker.shared.base.database.data.RetainedCaptureScopeIdentity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -20,10 +27,11 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionProofEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionScopeProofEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
-import com.adsamcik.tracker.shared.base.database.data.canonicalCellProviderDeliveryIdentity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -40,6 +48,7 @@ internal enum class CellCapturedMaintenanceCheckpoint {
 	TRANSACTION_STARTED,
 	REVISION_PAGE_LOADED,
 	LINEAGE_AUTHENTICATED,
+	RETENTION_PROOF_PERSISTED,
 	DELETION_FENCES_INSTALLED,
 	PAYLOAD_REMOVED,
 }
@@ -629,8 +638,15 @@ internal suspend fun AppDatabase.pruneCapturedCellFactsAffectedByRetentionFloor(
 			if (markedAtMs < audit.latestDurableTimeMs) {
 				block(CellCapturedRetentionBlockedReason.STALE_REQUEST)
 			}
-			val selectedIds = affectedDependencyClosure(audit.lineages, beforeMs)
+			val selectedIds = affectedDependencyClosure(
+				audit.lineages,
+				audit.canonicalRetentionLowerBoundById,
+				beforeMs,
+			)
 			if (selectedIds.isEmpty()) return@withTransaction CellCapturedRetentionResult.NoChange
+			val directlyExpiredIds = audit.canonicalRetentionLowerBoundById
+				.filterValues { lowerBound -> lowerBound < beforeMs }
+				.keys
 			val selected = selectedIds.map { logicalFactId ->
 				audit.lineagesById.getValue(logicalFactId)
 			}
@@ -640,6 +656,32 @@ internal suspend fun AppDatabase.pruneCapturedCellFactsAffectedByRetentionFloor(
 			}) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 
 			val dao = cellCapturedFactDao()
+			val retentionProofs = selected.map { lineage ->
+				val fact = lineage.revisions.last()
+				val owner = lineage.aggregateOwnerLogicalFactId?.let { ownerId ->
+					audit.lineagesById[ownerId]?.revisions?.last()
+				}
+				val ownerCursor = owner?.let { audit.cursorsById[it.logicalFactId] }
+				CapturedRadioFactRetentionProofEntity.createCell(
+					fact = fact,
+					cursor = audit.cursorsById.getValue(fact.logicalFactId),
+					aggregateOwner = owner,
+					aggregateOwnerCursor = ownerCursor,
+					retainedFromMs = beforeMs,
+					retainedAtMs = markedAtMs,
+					reason = if (fact.logicalFactId in directlyExpiredIds) {
+						CapturedRadioFactRetentionProofEntity.REASON_DIRECT_FLOOR
+					} else {
+						CapturedRadioFactRetentionProofEntity.REASON_DEPENDENCY_CLOSURE
+					},
+				)
+			}
+			try {
+				persistCapturedRadioFactRetentionProofs(retentionProofs)
+			} catch (_: IllegalStateException) {
+				block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			}
+			checkpoint(CellCapturedMaintenanceCheckpoint.RETENTION_PROOF_PERSISTED)
 			var removedRevisions = 0
 			selected.chunked(DELETE_BATCH_SIZE).forEach { batch ->
 				currentCoroutineContext().ensureActive()
@@ -789,43 +831,172 @@ internal suspend fun AppDatabase.deleteCapturedCellFactsAfterConsentReset(
 			if (deletedAtMs < maxOf(audit.latestDurableTimeMs, walAudit.latestDurableTimeMs)) {
 				block(CellCapturedSourceDeletionBlockedReason.STALE_REQUEST)
 			}
-			val scopes = (audit.lineages.map(CellCapturedLineage::scope) + walAudit.scopes).distinct()
-			val scopesNeedingFence = scopes.filter { scope -> audit.generationByScope[scope] == null }
-			if (audit.lineages.isEmpty() && scopesNeedingFence.isEmpty()) {
-				return@withTransaction CellCapturedSourceDeletionResult.AlreadyDeleted
+			val retainedProofs = loadCellCapturedRetentionProofsForSourceErase(limits)
+			val retainedEventProofs = loadCellSourceEventRetentionProofsForSourceErase(limits)
+			val retainedScopeProofs = loadCellSourceEventRetentionScopeProofsForSourceErase(limits)
+			val scopeAuthorities = linkedMapOf<CellCapturedRunScope, RetainedCaptureScopeIdentity>()
+			val eventAuthorities = mutableMapOf<String, RetainedCaptureEventIdentity>()
+			fun registerScope(
+				identity: RetainedCaptureScopeIdentity,
+				eventIdentity: RetainedCaptureEventIdentity? = null,
+			) {
+				if (!identity.isCanonicalFor(CELL_SOURCE, expectedCollectedDataEpoch)) {
+					block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+				}
+				val scope = CellCapturedRunScope(
+					identity.logicalTrackingId,
+					identity.serviceRunId,
+				)
+				val retainedScope = scopeAuthorities.putIfAbsent(scope, identity)
+				if (retainedScope != null && retainedScope != identity) {
+					block(CellCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+				}
+				if (retainedScope == null &&
+					scopeAuthorities.size > limits.maximumDeletionGenerations
+				) throw CellCapturedMaintenanceLimitExceeded()
+				if (eventIdentity != null &&
+					eventIdentity.sourceAdmissionOrdinal <=
+					expectedDeletedSourceEventHighWaterOrdinal
+				) block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+				if (eventIdentity != null) {
+					val retained = eventAuthorities.putIfAbsent(
+						eventIdentity.eventId,
+						eventIdentity,
+					)
+					if (retained != null && retained != eventIdentity) {
+						block(CellCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+					}
+				}
 			}
-			for (scope in scopesNeedingFence) {
+			for (scope in audit.lineages.map(CellCapturedLineage::scope) + walAudit.scopes) {
+				registerScope(scope.retainedIdentity(expectedCollectedDataEpoch))
+			}
+			for (carrier in walAudit.carriers) {
+				val scope = carrier.scope.retainedIdentity(expectedCollectedDataEpoch)
+				registerScope(
+					scope,
+					RetainedCaptureEventIdentity(
+						eventId = carrier.eventId,
+						sourceAdmissionOrdinal = carrier.admissionOrdinal,
+						sourcePolicyRevision = carrier.sourcePolicyRevision,
+						captureConsentEpoch = carrier.captureConsentEpoch,
+						walIntegrityIdentity = carrier.walIntegrityIdentity,
+						scope = scope,
+					),
+				)
+			}
+			for (proof in retainedProofs) {
+				val eventIdentity = proof.authenticatedCaptureEvent(
+					expectedSourceKind = CELL_SOURCE,
+					expectedCollectedDataEpoch = expectedCollectedDataEpoch,
+					currentRetainedFromMs = evidenceState.retainedFromMs,
+					deletedAtMs = deletedAtMs,
+				) ?: block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+				registerScope(eventIdentity.scope, eventIdentity)
+			}
+			val scopeProofsByDigest =
+				retainedScopeProofs.associateBy(
+					SourceEventRetentionScopeProofEntity::logicalRunScopeDigest,
+				)
+			if (scopeProofsByDigest.size != retainedScopeProofs.size) {
+				block(CellCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+			}
+			for (proof in retainedScopeProofs) {
+				val identity = proof.authenticatedCaptureScope(
+					expectedSourceKind = CELL_SOURCE,
+					expectedCollectedDataEpoch = expectedCollectedDataEpoch,
+					expectedDeletedSourceEventHighWaterOrdinal =
+						expectedDeletedSourceEventHighWaterOrdinal,
+				) ?: block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+				registerScope(identity)
+			}
+			for (proof in retainedEventProofs) {
+				val eventIdentity = proof.authenticatedCaptureEvent(
+					expectedSourceKind = CELL_SOURCE,
+					expectedCollectedDataEpoch = expectedCollectedDataEpoch,
+				) ?: block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+				val scopeProof = proof.logicalRunScopeDigest?.let(scopeProofsByDigest::get)
+				if (scopeProof?.authenticatesRetainedEvent(proof) != true) {
+					block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+				}
+				registerScope(eventIdentity.scope, eventIdentity)
+			}
+			val scopesNeedingAuthority = mutableListOf<RetainedCaptureScopeIdentity>()
+			for (identity in scopeAuthorities.values) {
 				currentCoroutineContext().ensureActive()
-				val nextGeneration = 1L
+				val scope = CellCapturedRunScope(
+					identity.logicalTrackingId,
+					identity.serviceRunId,
+				)
+				val generation = audit.generationByScope[scope]
+				val fence = sourceDeletionFenceDao().get(
+					CELL_SOURCE,
+					CAPTURE_PURPOSE,
+					SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+					identity.logicalRunScopeDigest,
+				)
+				if (generation == null && fence == null) {
+					scopesNeedingAuthority += identity
+					continue
+				}
+				if (generation == null || fence == null ||
+					generation.logicalTrackingId != identity.logicalTrackingId ||
+					generation.serviceRunId != identity.serviceRunId ||
+					generation.collectedDataEpoch != expectedCollectedDataEpoch ||
+					generation.generation != FIRST_DELETION_GENERATION ||
+					fence != SourceDeletionFenceEntity.createLogicalServiceRun(
+						CELL_SOURCE,
+						CAPTURE_PURPOSE,
+						identity.logicalTrackingId,
+						identity.serviceRunId,
+						FIRST_DELETION_GENERATION,
+						expectedCollectedDataEpoch,
+						generation.updatedAtMs,
+					)
+				) block(CellCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+			}
+			if (audit.lineages.isEmpty() && scopesNeedingAuthority.isEmpty() &&
+				retainedProofs.isEmpty() && retainedEventProofs.isEmpty() &&
+				retainedScopeProofs.isEmpty()
+			) return@withTransaction CellCapturedSourceDeletionResult.AlreadyDeleted
+			for (identity in scopesNeedingAuthority) {
+				currentCoroutineContext().ensureActive()
 				val fence = SourceDeletionFenceEntity.createLogicalServiceRun(
 					sourceKind = CELL_SOURCE,
 					purpose = CAPTURE_PURPOSE,
-					logicalTrackingId = scope.logicalTrackingId,
-					serviceRunId = scope.serviceRunId,
-					fenceGeneration = nextGeneration,
+					logicalTrackingId = identity.logicalTrackingId,
+					serviceRunId = identity.serviceRunId,
+					fenceGeneration = FIRST_DELETION_GENERATION,
 					collectedDataEpoch = expectedCollectedDataEpoch,
 					deletedAtMs = deletedAtMs,
 				)
-				if (sourceDeletionFenceDao().insertIfAbsent(fence) == INSERT_IGNORED) {
-					val retained = sourceDeletionFenceDao().get(
+				if (sourceDeletionFenceDao().insertIfAbsent(fence) == INSERT_IGNORED &&
+					sourceDeletionFenceDao().get(
 						fence.sourceKind,
 						fence.purpose,
 						fence.scopeKind,
 						fence.scopeIdentityDigest,
-					)
-					if (retained != fence) {
-						block(CellCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
-					}
-				}
-				dao.insertDeletionGeneration(
-					CellCaptureDeletionGenerationEntity(
-						logicalTrackingId = scope.logicalTrackingId,
-						serviceRunId = scope.serviceRunId,
-						collectedDataEpoch = expectedCollectedDataEpoch,
-						generation = nextGeneration,
-						updatedAtMs = deletedAtMs,
-					),
+					) != fence
+				) block(CellCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+				val generation = CellCaptureDeletionGenerationEntity(
+					logicalTrackingId = identity.logicalTrackingId,
+					serviceRunId = identity.serviceRunId,
+					collectedDataEpoch = expectedCollectedDataEpoch,
+					generation = FIRST_DELETION_GENERATION,
+					updatedAtMs = deletedAtMs,
 				)
+				dao.insertDeletionGeneration(generation)
+				if (dao.deletionGeneration(
+						identity.logicalTrackingId,
+						identity.serviceRunId,
+					) != generation ||
+					sourceDeletionFenceDao().get(
+						fence.sourceKind,
+						fence.purpose,
+						fence.scopeKind,
+						fence.scopeIdentityDigest,
+					) != fence
+				) block(CellCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
 			}
 			checkpoint(CellCapturedMaintenanceCheckpoint.DELETION_FENCES_INSTALLED)
 
@@ -841,6 +1012,40 @@ internal suspend fun AppDatabase.deleteCapturedCellFactsAfterConsentReset(
 			if (dao.revisionCount() != 0L || dao.cursorCount() != 0L) {
 				block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 			}
+			capturedRadioFactRetentionProofDao().deleteSource(CELL_SOURCE)
+			if (capturedRadioFactRetentionProofDao().allForSource(CELL_SOURCE).isNotEmpty()) {
+				block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			}
+			if (retainedEventProofs.isNotEmpty()) {
+				val eventIds = retainedEventProofs.map(SourceEventRetentionProofEntity::eventId)
+				val deletedProofs = eventIds.chunked(DELETE_BATCH_SIZE).sumOf { batch ->
+					sourceEventRetentionProofDao().deleteExactSourceEvents(CELL_SOURCE, batch)
+				}
+				if (deletedProofs != eventIds.size) {
+					block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+				}
+			}
+			if (sourceEventRetentionProofDao().captureProofCount(
+					CELL_SOURCE,
+					SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+				) != 0L
+			) block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			if (retainedScopeProofs.isNotEmpty()) {
+				val scopeDigests =
+					retainedScopeProofs.map(SourceEventRetentionScopeProofEntity::logicalRunScopeDigest)
+				val deletedScopes = scopeDigests.chunked(DELETE_BATCH_SIZE).sumOf { batch ->
+					sourceEventRetentionScopeProofDao().deleteExactSourceScopes(
+						CELL_SOURCE,
+						batch,
+					)
+				}
+				if (deletedScopes != scopeDigests.size) {
+					block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+				}
+			}
+			if (sourceEventRetentionScopeProofDao().countForSource(CELL_SOURCE) != 0L) {
+				block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			}
 			check(sourceEvidenceStateDao().incrementRevision(deletedAtMs) == 1) {
 				"Unable to publish captured Cell source deletion"
 			}
@@ -848,7 +1053,7 @@ internal suspend fun AppDatabase.deleteCapturedCellFactsAfterConsentReset(
 			CellCapturedSourceDeletionResult.Deleted(
 				logicalFactCount = audit.lineages.size,
 				revisionCount = revisionCount,
-				fencedServiceRunCount = scopesNeedingFence.size,
+				fencedServiceRunCount = scopesNeedingAuthority.size,
 			)
 		}
 	} catch (blocked: CellCapturedSourceDeletionBlockedException) {
@@ -945,6 +1150,7 @@ internal suspend fun AppDatabase.auditCapturedCellFacts(
 	if (byId.size != lineages.size) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	val reuseAuthorityById = mutableMapOf<String, CellAggregateReuseAuthority>()
 	val aggregateById = mutableMapOf<String, CellHistoricalIdentityFreeAggregate>()
+	val canonicalRetentionLowerBoundById = mutableMapOf<String, Long>()
 	var latestWalTimeMs = 0L
 	for (lineage in lineages) {
 		currentCoroutineContext().ensureActive()
@@ -959,6 +1165,8 @@ internal suspend fun AppDatabase.auditCapturedCellFacts(
 		val authenticated = authenticateCellCapturedAuthority(latest, limits)
 		reuseAuthorityById[lineage.logicalFactId] = authenticated.reuseAuthority
 		aggregateById[lineage.logicalFactId] = authenticated.aggregate
+		canonicalRetentionLowerBoundById[lineage.logicalFactId] =
+			authenticated.retentionLowerBoundMs
 		latestWalTimeMs = maxOf(latestWalTimeMs, authenticated.walCreatedAtMs)
 		checkpoint(CellCapturedMaintenanceCheckpoint.LINEAGE_AUTHENTICATED)
 	}
@@ -968,6 +1176,8 @@ internal suspend fun AppDatabase.auditCapturedCellFacts(
 	return CellCapturedFactAudit(
 		lineages = lineages,
 		lineagesById = byId,
+		cursorsById = cursors,
+		canonicalRetentionLowerBoundById = canonicalRetentionLowerBoundById,
 		aggregateById = aggregateById,
 		generationByScope = generations.associateBy { generation ->
 			CellCapturedRunScope(generation.logicalTrackingId, generation.serviceRunId)
@@ -1068,6 +1278,7 @@ internal suspend fun AppDatabase.auditPortableCapturedCellFacts(
 
 	val reuseAuthorityById = mutableMapOf<String, CellAggregateReuseAuthority>()
 	val aggregateById = mutableMapOf<String, CellHistoricalIdentityFreeAggregate>()
+	val canonicalRetentionLowerBoundById = mutableMapOf<String, Long>()
 	var latestWalTimeMs = 0L
 	for (lineage in lineages) {
 		currentCoroutineContext().ensureActive()
@@ -1082,6 +1293,8 @@ internal suspend fun AppDatabase.auditPortableCapturedCellFacts(
 		val authenticated = authenticateCellCapturedAuthority(latest, limits)
 		reuseAuthorityById[lineage.logicalFactId] = authenticated.reuseAuthority
 		aggregateById[lineage.logicalFactId] = authenticated.aggregate
+		canonicalRetentionLowerBoundById[lineage.logicalFactId] =
+			authenticated.retentionLowerBoundMs
 		latestWalTimeMs = maxOf(latestWalTimeMs, authenticated.walCreatedAtMs)
 		checkpoint(CellCapturedMaintenanceCheckpoint.LINEAGE_AUTHENTICATED)
 	}
@@ -1093,6 +1306,8 @@ internal suspend fun AppDatabase.auditPortableCapturedCellFacts(
 	return CellCapturedFactAudit(
 		lineages = lineages,
 		lineagesById = byId,
+		cursorsById = cursors,
+		canonicalRetentionLowerBoundById = canonicalRetentionLowerBoundById,
 		aggregateById = aggregateById,
 		generationByScope = generationByScope,
 		latestDurableTimeMs = maxOf(
@@ -1135,12 +1350,6 @@ private fun authenticateCellCapturedLineage(
 	return CellCapturedLineage(
 		logicalFactId = first.logicalFactId,
 		revisions = revisions,
-		earliestPossibleWallTimeMs = earliestCoveredWallTime(
-			first.observedWallTimeMs,
-			first.wallTimeUncertaintyMs,
-			first.observedElapsedNanos,
-			first.coverageIntervalStartNanos,
-		),
 		aggregateOwnerLogicalFactId = first.aggregateOwnerLogicalFactId,
 		aggregateOwnerSemanticRevision = first.aggregateOwnerSemanticRevision,
 	)
@@ -1155,53 +1364,13 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 		block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	}
 	val wal = sourceEventWalDao().getByEventId(revision.sourceEventId)
-	if (wal == null || !wal.hasQualifiedIntegrity() || wal.sourceKind != CELL_SOURCE ||
-		wal.admissionOrdinal != revision.sourceAdmissionOrdinal ||
-		wal.deliveryIdentity != revision.sourceDeliveryIdentity ||
-		wal.deliveryUnitIndex != revision.deliveryUnitIndex ||
-		wal.deliveryUnitCount != revision.deliveryUnitCount ||
-		wal.logicalTrackingId != revision.logicalTrackingId ||
-		wal.serviceRunId != revision.serviceRunId || wal.sourceInstanceId != revision.sourceInstanceId ||
-		wal.registrationGeneration != revision.registrationGeneration ||
-		wal.physicalConfigurationFingerprint != revision.physicalConfigurationFingerprint ||
-		wal.authorizationRevision != revision.authorizationRevision ||
-		wal.authorizationPurposeEligibilityMask != revision.purposeEligibilityMask ||
-		wal.authorizationFingerprint != revision.authorizationFingerprint ||
-		wal.sourceSequence != revision.sourceSequence ||
-		wal.configRevision != revision.configurationRevision ||
-		wal.planAttribution != CAPTURED_REGISTRATION_PLAN_ATTRIBUTION ||
-		wal.clockDomainId != revision.clockDomainId ||
-		wal.observedElapsedNanos != revision.observedElapsedNanos ||
-		wal.observedIntervalStartNanos != revision.observedIntervalStartNanos ||
-		wal.receivedElapsedNanos != revision.receivedElapsedNanos ||
-		wal.wallTimeMs != revision.observedWallTimeMs ||
-		wal.wallTimeUncertaintyMs != revision.wallTimeUncertaintyMs ||
-		wal.capturedCollectedDataEpoch != revision.collectedDataEpoch ||
-		wal.sourcePolicyRevision != revision.sourcePolicyRevision ||
-		wal.captureConsentEpoch != revision.captureConsentEpoch ||
-		wal.sessionManifestRevision != revision.manifestRevision ||
-		wal.lifecycleLeaseGeneration != revision.lifecycleLeaseGeneration ||
-		wal.acquiredAtMs != revision.acquiredAtMs || wal.qualityFlags != revision.qualityFlags ||
-		wal.qualityConfidence != revision.qualityConfidence || wal.payloadVersion != revision.payloadVersion ||
-		wal.payloadChecksum != revision.payloadChecksum ||
-		wal.integrityIdentity != revision.walIntegrityIdentity || wal.createdAtMs != revision.createdAtMs
-	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-	val decodedPayload = wal.decodeCanonicalCellPayload()
 		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-	val canonicalDeliveryIdentity = runCatching {
-		canonicalCellProviderDeliveryIdentity(
-			wal.clockDomainId,
-			decodedPayload.map(CellHistoricalObservation::toProviderDeliveryIdentityFact),
-		)
-	}.getOrNull() ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-	if (canonicalDeliveryIdentity != revision.sourceDeliveryIdentity) {
-		block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-	}
-	val payloadEffect = wal.canonicalCellPayloadEffect(revision, decodedPayload)
+	val walAuthentication = (
+		CellWalCarrierAuthenticator.authenticate(revision, wal)
+			as? CellWalCarrierAuthentication.Authenticated
+		) ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	val authenticatedAggregate = walAuthentication.carrier.childQualification?.aggregate
 		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-	if (!revision.matchesCellPayloadEffect(payloadEffect)) {
-		block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-	}
 
 	val sessionDao = sourceSessionDao()
 	val run = sessionDao.serviceRun(revision.serviceRunId)
@@ -1396,12 +1565,10 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 		!authorizationEnd.isExactSettlementOf(revision.consentEffectEndNanos)
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 
-	val earliestWall = earliestCoveredWallTime(
-		revision.observedWallTimeMs,
-		revision.wallTimeUncertaintyMs,
-		revision.observedElapsedNanos,
-		revision.coverageIntervalStartNanos,
-	)
+	val earliestWall = CellWalCarrierAuthenticator.retentionLowerBound(
+		revision,
+		walAuthentication.carrier,
+	) ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	val latestWall = runCatching {
 		Math.addExact(revision.observedWallTimeMs, revision.wallTimeUncertaintyMs)
 	}.getOrNull() ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
@@ -1434,36 +1601,16 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 			sessionSegmentId = revision.sessionSegmentId,
 			capturedSources = capturedSources,
 			controlSources = controlSources,
-			sourceInstanceId = revision.sourceInstanceId,
-			registrationGeneration = revision.registrationGeneration,
-			configurationRevision = revision.configurationRevision,
-			physicalConfigurationFingerprint = revision.physicalConfigurationFingerprint,
-			authorizationRevision = revision.authorizationRevision,
-			authorizationFingerprint = revision.authorizationFingerprint,
 			purposeEligibilityMask = revision.purposeEligibilityMask,
-			sourcePolicyRevision = revision.sourcePolicyRevision,
 			captureConsentEpoch = revision.captureConsentEpoch,
-			manifestRevision = revision.manifestRevision,
-			lifecycleLeaseGeneration = revision.lifecycleLeaseGeneration,
 			collectedDataEpoch = revision.collectedDataEpoch,
 			scopeDeletionGeneration = revision.scopeDeletionGeneration,
-			clockDomainId = revision.clockDomainId,
 			storedZoneId = revision.storedZoneId,
 			structuralEpochDay = revision.structuralEpochDay,
-			providerAcceptanceStartNanos = revision.providerAcceptanceStartNanos,
-			providerAcceptanceEndNanos = revision.providerAcceptanceEndNanos,
-			authorizationEffectStartNanos = revision.authorizationEffectStartNanos,
-			authorizationEffectEndNanos = revision.authorizationEffectEndNanos,
-			consentEffectStartNanos = revision.consentEffectStartNanos,
-			consentEffectEndNanos = revision.consentEffectEndNanos,
-			sessionRunEffectStartNanos = revision.sessionRunEffectStartNanos,
-			sessionRunEffectEndNanos = revision.sessionRunEffectEndNanos,
-			deletionEffectStartNanos = revision.deletionEffectStartNanos,
-			deletionEffectEndNanos = revision.deletionEffectEndNanos,
-			maximumObservationAgeNanos = revision.maximumObservationAgeNanos,
 		),
-		aggregate = payloadEffect.aggregate,
+		aggregate = authenticatedAggregate.toHistoricalAggregate(),
 		walCreatedAtMs = wal.createdAtMs,
+		retentionLowerBoundMs = earliestWall,
 	)
 }
 
@@ -1684,7 +1831,7 @@ private fun authenticateAggregateDependencies(
 				revision.factKind != CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE
 			} || dependent.factKind != CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY ||
 			ownerAuthority == null || dependentAuthority == null ||
-			ownerAuthority != dependentAuthority ||
+			!dependentAuthority.canReuseAggregateFrom(ownerAuthority) ||
 			!referenced.hasFiniteAggregateReuseAuthority() ||
 			dependentAggregate == null || !referenced.matchesIdentityFreeAggregate(dependentAggregate)
 		) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
@@ -1752,10 +1899,11 @@ private suspend fun AppDatabase.authenticateCellDeletionGenerations(
 
 private fun affectedDependencyClosure(
 	lineages: List<CellCapturedLineage>,
+	canonicalRetentionLowerBoundById: Map<String, Long>,
 	beforeMs: Long,
 ): Set<String> {
 	val selected = lineages.filter { lineage ->
-		lineage.earliestPossibleWallTimeMs < beforeMs
+		canonicalRetentionLowerBoundById.getValue(lineage.logicalFactId) < beforeMs
 	}.mapTo(mutableSetOf(), CellCapturedLineage::logicalFactId)
 	if (selected.isEmpty()) return emptySet()
 	val dependentsByOwner = lineages.filter { lineage -> lineage.aggregateOwnerLogicalFactId != null }
@@ -1921,6 +2069,105 @@ private suspend fun AppDatabase.loadCellDeletionGenerations(
 	return rows
 }
 
+private suspend fun AppDatabase.loadCellCapturedRetentionProofsForSourceErase(
+	limits: CellCapturedMaintenanceLimits,
+): List<CapturedRadioFactRetentionProofEntity> {
+	val rows = mutableListOf<CapturedRadioFactRetentionProofEntity>()
+	var afterAdmissionOrdinal: Long? = null
+	var afterLogicalFactId: String? = null
+	while (true) {
+		currentCoroutineContext().ensureActive()
+		val remaining = limits.maximumLogicalFacts - rows.size
+		if (remaining <= 0) {
+			if (capturedRadioFactRetentionProofDao().sourceErasePage(
+					CELL_SOURCE,
+					afterAdmissionOrdinal,
+					afterLogicalFactId,
+					1,
+				).isNotEmpty()
+			) throw CellCapturedMaintenanceLimitExceeded()
+			break
+		}
+		val pageSize = minOf(remaining, limits.revisionPageSize)
+		val page = capturedRadioFactRetentionProofDao().sourceErasePage(
+			CELL_SOURCE,
+			afterAdmissionOrdinal,
+			afterLogicalFactId,
+			pageSize,
+		)
+		if (page.isEmpty()) break
+		rows += page
+		afterAdmissionOrdinal = page.last().sourceAdmissionOrdinal
+		afterLogicalFactId = page.last().logicalFactId
+		if (page.size < pageSize) break
+	}
+	return rows
+}
+
+private suspend fun AppDatabase.loadCellSourceEventRetentionProofsForSourceErase(
+	limits: CellCapturedMaintenanceLimits,
+): List<SourceEventRetentionProofEntity> {
+	val rows = mutableListOf<SourceEventRetentionProofEntity>()
+	var afterAdmissionOrdinal: Long? = null
+	while (true) {
+		currentCoroutineContext().ensureActive()
+		val remaining = limits.maximumWalEvents - rows.size
+		if (remaining <= 0) {
+			if (sourceEventRetentionProofDao().sourceCaptureErasePage(
+					CELL_SOURCE,
+					SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+					afterAdmissionOrdinal,
+					1,
+				).isNotEmpty()
+			) throw CellCapturedMaintenanceLimitExceeded()
+			break
+		}
+		val pageSize = minOf(remaining, limits.revisionPageSize)
+		val page = sourceEventRetentionProofDao().sourceCaptureErasePage(
+			CELL_SOURCE,
+			SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			afterAdmissionOrdinal,
+			pageSize,
+		)
+		if (page.isEmpty()) break
+		rows += page
+		afterAdmissionOrdinal = page.last().sourceAdmissionOrdinal
+		if (page.size < pageSize) break
+	}
+	return rows
+}
+
+private suspend fun AppDatabase.loadCellSourceEventRetentionScopeProofsForSourceErase(
+	limits: CellCapturedMaintenanceLimits,
+): List<SourceEventRetentionScopeProofEntity> {
+	val rows = mutableListOf<SourceEventRetentionScopeProofEntity>()
+	var afterScopeDigest: String? = null
+	while (true) {
+		currentCoroutineContext().ensureActive()
+		val remaining = limits.maximumDeletionGenerations - rows.size
+		if (remaining <= 0) {
+			if (sourceEventRetentionScopeProofDao().sourceErasePage(
+					CELL_SOURCE,
+					afterScopeDigest,
+					1,
+				).isNotEmpty()
+			) throw CellCapturedMaintenanceLimitExceeded()
+			break
+		}
+		val pageSize = minOf(remaining, limits.revisionPageSize)
+		val page = sourceEventRetentionScopeProofDao().sourceErasePage(
+			CELL_SOURCE,
+			afterScopeDigest,
+			pageSize,
+		)
+		if (page.isEmpty()) break
+		rows += page
+		afterScopeDigest = page.last().logicalRunScopeDigest
+		if (page.size < pageSize) break
+	}
+	return rows
+}
+
 /**
  * Audits every retained current-epoch Cell WAL carrier without retaining its payload in memory.
  * Capture-authorized carriers keep a run fence discoverable even after product retention removed
@@ -1997,6 +2244,10 @@ internal suspend fun AppDatabase.loadCapturedCellWalScopesForDeletion(
 				scope,
 				wal.sourceInstanceId,
 				wal.registrationGeneration,
+				requireNotNull(wal.sourcePolicyRevision),
+				requireNotNull(wal.captureConsentEpoch),
+				wal.capturedCollectedDataEpoch,
+				wal.integrityIdentity,
 				earliestCoveredWallTime(
 					requireNotNull(wal.wallTimeMs),
 					requireNotNull(wal.wallTimeUncertaintyMs),
@@ -2104,6 +2355,10 @@ internal suspend fun AppDatabase.loadPortableCapturedCellWalScopes(
 			scope,
 			wal.sourceInstanceId,
 			wal.registrationGeneration,
+			requireNotNull(wal.sourcePolicyRevision),
+			requireNotNull(wal.captureConsentEpoch),
+			wal.capturedCollectedDataEpoch,
+			wal.integrityIdentity,
 			earliestCoveredWallTime(
 				requireNotNull(wal.wallTimeMs),
 				requireNotNull(wal.wallTimeUncertaintyMs),
@@ -2476,224 +2731,32 @@ private fun SessionManifestSourceEntity.isExactCapturedCellWalBinding(
 	writerBindingGeneration == SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION
 
 private fun earliestCoveredWallTime(
-	observedWallTimeMs: Long,
+	walObservedWallTimeMs: Long,
 	uncertaintyMs: Long,
-	observedElapsedNanos: Long,
+	walObservedElapsedNanos: Long,
 	coverageStartNanos: Long,
-): Long = runCatching {
-	val coverageSpanNanos = Math.subtractExact(observedElapsedNanos, coverageStartNanos)
-	require(coverageSpanNanos >= 0L)
-	val coverageSpanMs = coverageSpanNanos / NANOS_PER_MILLISECOND
-	Math.subtractExact(
-		Math.subtractExact(observedWallTimeMs, coverageSpanMs),
-		uncertaintyMs,
-	).also { require(it >= 0L) }
-}.getOrElse { block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE) }
+): Long = CanonicalRetentionBounds.cellCoverage(
+	walObservedWallTimeMs = walObservedWallTimeMs,
+	wallTimeUncertaintyMs = uncertaintyMs,
+	walObservedElapsedRealtimeNanos = walObservedElapsedNanos,
+	coverageStartElapsedRealtimeNanos = coverageStartNanos,
+) ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 
 private fun providerWallInterval(wal: SourceEventWalEntity): LongRange? {
 	val startNanos = wal.observedIntervalStartNanos ?: return null
 	val wallTimeMs = wal.wallTimeMs ?: return null
 	val uncertaintyMs = wal.wallTimeUncertaintyMs ?: return null
 	return runCatching {
-		val spanNanos = Math.subtractExact(wal.observedElapsedNanos, startNanos)
-		require(spanNanos >= 0L && uncertaintyMs >= 0L)
-		val earliest = Math.subtractExact(
-			Math.subtractExact(wallTimeMs, spanNanos / NANOS_PER_MILLISECOND),
-			uncertaintyMs,
-		)
+		val earliest = CanonicalRetentionBounds.cellCoverage(
+			walObservedWallTimeMs = wallTimeMs,
+			wallTimeUncertaintyMs = uncertaintyMs,
+			walObservedElapsedRealtimeNanos = wal.observedElapsedNanos,
+			coverageStartElapsedRealtimeNanos = startNanos,
+		) ?: return null
 		val latest = Math.addExact(wallTimeMs, uncertaintyMs)
-		require(earliest >= 0L)
 		earliest..latest
 	}.getOrNull()
 }
-
-/** Exact production v1 callback bytes; raw subscription and radio identity are never accepted. */
-private fun SourceEventWalEntity.decodeCanonicalCellPayload(): List<CellHistoricalObservation>? = runCatching {
-	require(payloadVersion == CELL_PAYLOAD_VERSION)
-	val decoded = DataInputStream(ByteArrayInputStream(payload)).use { input ->
-		require(input.readInt() == CELL_PAYLOAD_TYPE)
-		require(input.readNullableCellInt() == null)
-		val childCount = input.readInt()
-		require(childCount in 1..MAX_CELL_CHILDREN_PER_DELIVERY)
-		val children = List(childCount) {
-			CellHistoricalObservation(
-				identifierToken = input.readUTF(),
-				radioType = input.readUTF(),
-				registered = input.readBoolean(),
-				signalLevelDbm = input.readNullableCellInt(),
-				providerTimestampNanos = input.readNullableCellLong(),
-			)
-		}
-		require(input.readInt() == CELL_REFRESH_OUTCOME_CALLBACK)
-		require(input.available() == 0)
-		children
-	}
-	require(decoded.all { child ->
-		child.identifierToken.isEmpty() && child.providerTimestampNanos != null &&
-			requireNotNull(child.providerTimestampNanos) > 0L
-	})
-	require(encodeCanonicalCellPayload(decoded).contentEquals(payload))
-	val providerTimes = decoded.map { child -> requireNotNull(child.providerTimestampNanos) }
-	require(providerTimes.minOrNull() == observedIntervalStartNanos)
-	require(providerTimes.maxOrNull() == observedElapsedNanos)
-	decoded
-}.getOrNull()
-
-/**
- * Deterministically replays the source classifier's identity-free product effect. Maintenance
- * cannot authenticate a fact merely because its WAL header and a self-rehashed fact agree.
- */
-private fun SourceEventWalEntity.canonicalCellPayloadEffect(
-	revision: CellCapturedFactRevisionEntity,
-	decoded: List<CellHistoricalObservation>,
-): CellHistoricalPayloadEffect? = runCatching {
-	val capturedStart = maxOf(
-		revision.providerAcceptanceStartNanos,
-		revision.authorizationEffectStartNanos,
-		revision.consentEffectStartNanos,
-		revision.sessionRunEffectStartNanos,
-		revision.deletionEffectStartNanos,
-	)
-	val capturedEnd = minOf(
-		revision.providerAcceptanceEndNanos,
-		revision.authorizationEffectEndNanos,
-		revision.consentEffectEndNanos,
-		revision.sessionRunEffectEndNanos,
-		revision.deletionEffectEndNanos,
-	)
-	require(capturedEnd > capturedStart)
-
-	val accepted = mutableListOf<CellHistoricalObservation>()
-	var stale = 0
-	var future = 0
-	var unsupported = 0
-	for (child in decoded) {
-		val providerTime = requireNotNull(child.providerTimestampNanos)
-		when {
-			providerTime > receivedElapsedNanos -> future++
-			providerTime < capturedStart || providerTime >= capturedEnd ||
-				receivedElapsedNanos - providerTime > revision.maximumObservationAgeNanos -> stale++
-			child.radioTechnology == null -> unsupported++
-			else -> accepted += child
-		}
-	}
-	require(accepted.isNotEmpty())
-	CellHistoricalPayloadEffect(
-		providerIntervalStartNanos = accepted.minOf { child -> requireNotNull(child.providerTimestampNanos) },
-		providerIntervalEndNanos = accepted.maxOf { child -> requireNotNull(child.providerTimestampNanos) },
-		submittedChildCount = decoded.size,
-		acceptedChildCount = accepted.size,
-		staleChildCount = stale,
-		futureTimeChildCount = future,
-		missingTimeChildCount = 0,
-		unsupportedTechnologyChildCount = unsupported,
-		childCompleteness = if (accepted.size == decoded.size) {
-			CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_COMPLETE
-		} else {
-			CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_PARTIAL
-		},
-		aggregate = accepted.toIdentityFreeAggregate(),
-	)
-}.getOrNull()
-
-private fun encodeCanonicalCellPayload(children: List<CellHistoricalObservation>): ByteArray =
-	ByteArrayOutputStream().use { buffer ->
-		DataOutputStream(buffer).use { output ->
-			output.writeInt(CELL_PAYLOAD_TYPE)
-			output.writeNullableCellInt(null)
-			output.writeInt(children.size)
-			children.forEach { child ->
-				output.writeUTF(child.identifierToken)
-				output.writeUTF(child.radioType)
-				output.writeBoolean(child.registered)
-				output.writeNullableCellInt(child.signalLevelDbm)
-				output.writeNullableCellLong(child.providerTimestampNanos)
-			}
-			output.writeInt(CELL_REFRESH_OUTCOME_CALLBACK)
-		}
-		buffer.toByteArray()
-	}
-
-private fun DataInputStream.readNullableCellInt(): Int? = if (readBoolean()) readInt() else null
-
-private fun DataInputStream.readNullableCellLong(): Long? = if (readBoolean()) readLong() else null
-
-private fun DataOutputStream.writeNullableCellInt(value: Int?) {
-	writeBoolean(value != null)
-	if (value != null) writeInt(value)
-}
-
-private fun DataOutputStream.writeNullableCellLong(value: Long?) {
-	writeBoolean(value != null)
-	if (value != null) writeLong(value)
-}
-
-private fun List<CellHistoricalObservation>.toIdentityFreeAggregate(): CellHistoricalIdentityFreeAggregate {
-	val technologyCounts = groupingBy { child -> requireNotNull(child.radioTechnology) }.eachCount()
-	val qualityCounts = groupingBy(CellHistoricalObservation::qualityLevel).eachCount()
-	val unknown = qualityCounts[null] ?: 0
-	val noneOrUnknown = qualityCounts[0] ?: 0
-	val poor = qualityCounts[1] ?: 0
-	val known = size - unknown
-	val weak = Math.addExact(noneOrUnknown, poor)
-	return CellHistoricalIdentityFreeAggregate(
-		observationCount = size,
-		registeredObservationCount = count(CellHistoricalObservation::registered),
-		gsmCount = technologyCounts[CELL_TECHNOLOGY_GSM] ?: 0,
-		cdmaCount = technologyCounts[CELL_TECHNOLOGY_CDMA] ?: 0,
-		wcdmaCount = technologyCounts[CELL_TECHNOLOGY_WCDMA] ?: 0,
-		tdscdmaCount = technologyCounts[CELL_TECHNOLOGY_TDSCDMA] ?: 0,
-		lteCount = technologyCounts[CELL_TECHNOLOGY_LTE] ?: 0,
-		nrCount = technologyCounts[CELL_TECHNOLOGY_NR] ?: 0,
-		qualityUnknownCount = unknown,
-		qualityNoneOrUnknownCount = noneOrUnknown,
-		qualityPoorCount = poor,
-		qualityModerateCount = qualityCounts[2] ?: 0,
-		qualityGoodCount = qualityCounts[3] ?: 0,
-		qualityGreatCount = qualityCounts[4] ?: 0,
-		weakObservationCount = weak,
-		knownQualityObservationCount = known,
-		allKnownQualityIsWeak = known > 0 && weak == known,
-	)
-}
-
-private fun CellHistoricalObservation.toProviderDeliveryIdentityFact() =
-	CellProviderDeliveryIdentityFact(
-		radioType = radioType,
-		registered = registered,
-		signalLevelDbm = signalLevelDbm,
-		providerTimestampNanos = requireNotNull(providerTimestampNanos),
-	)
-
-private val CellHistoricalObservation.radioTechnology: String?
-	get() = radioType.uppercase().takeIf { technology -> technology in CELL_RADIO_TECHNOLOGIES }
-
-private val CellHistoricalObservation.qualityLevel: Int?
-	get() = when {
-		signalLevelDbm == null || signalLevelDbm == Int.MAX_VALUE -> null
-		signalLevelDbm <= -120 -> 0
-		signalLevelDbm <= -110 -> 1
-		signalLevelDbm <= -100 -> 2
-		signalLevelDbm <= -90 -> 3
-		else -> 4
-	}
-
-private fun CellCapturedFactRevisionEntity.matchesCellPayloadEffect(
-	effect: CellHistoricalPayloadEffect,
-): Boolean = coverageIntervalStartNanos == effect.providerIntervalStartNanos &&
-	coverageIntervalEndNanos == effect.providerIntervalEndNanos &&
-	submittedChildCount == effect.submittedChildCount &&
-	acceptedChildCount == effect.acceptedChildCount && staleChildCount == effect.staleChildCount &&
-	futureTimeChildCount == effect.futureTimeChildCount &&
-	missingTimeChildCount == effect.missingTimeChildCount &&
-	clockUnverifiableChildCount == 0 && authorityMismatchChildCount == 0 &&
-	unsupportedTechnologyChildCount == effect.unsupportedTechnologyChildCount &&
-	subscriptionCompleteness == CellCapturedFactRevisionEntity.SUBSCRIPTION_COMPLETENESS_UNKNOWN &&
-	childCompleteness == effect.childCompleteness && when (factKind) {
-		CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE -> matchesIdentityFreeAggregate(effect.aggregate)
-		CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY -> true
-		else -> false
-	}
 
 private fun CellCapturedFactRevisionEntity.matchesIdentityFreeAggregate(
 	aggregate: CellHistoricalIdentityFreeAggregate,
@@ -2708,6 +2771,27 @@ private fun CellCapturedFactRevisionEntity.matchesIdentityFreeAggregate(
 	qualityGreatCount == aggregate.qualityGreatCount && weakObservationCount == aggregate.weakObservationCount &&
 	knownQualityObservationCount == aggregate.knownQualityObservationCount &&
 	allKnownQualityIsWeak == aggregate.allKnownQualityIsWeak
+
+private fun CellWalIdentityFreeAggregate.toHistoricalAggregate() =
+	CellHistoricalIdentityFreeAggregate(
+		observationCount = observationCount,
+		registeredObservationCount = registeredObservationCount,
+		gsmCount = gsmCount,
+		cdmaCount = cdmaCount,
+		wcdmaCount = wcdmaCount,
+		tdscdmaCount = tdscdmaCount,
+		lteCount = lteCount,
+		nrCount = nrCount,
+		qualityUnknownCount = qualityUnknownCount,
+		qualityNoneOrUnknownCount = qualityNoneOrUnknownCount,
+		qualityPoorCount = qualityPoorCount,
+		qualityModerateCount = qualityModerateCount,
+		qualityGoodCount = qualityGoodCount,
+		qualityGreatCount = qualityGreatCount,
+		weakObservationCount = weakObservationCount,
+		knownQualityObservationCount = knownQualityObservationCount,
+		allKnownQualityIsWeak = allKnownQualityIsWeak,
+	)
 
 private fun LogicalTrackingSessionEntity.hasValidHistoricalCellShape(
 	expectedBootId: String,
@@ -2818,7 +2902,6 @@ private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-25
 internal data class CellCapturedLineage(
 	val logicalFactId: String,
 	val revisions: List<CellCapturedFactRevisionEntity>,
-	val earliestPossibleWallTimeMs: Long,
 	val aggregateOwnerLogicalFactId: String?,
 	val aggregateOwnerSemanticRevision: Long?,
 ) {
@@ -2831,6 +2914,22 @@ internal data class CellCapturedLineage(
 internal data class CellCapturedRunScope(
 	val logicalTrackingId: String,
 	val serviceRunId: String,
+)
+
+private fun CellCapturedRunScope.retainedIdentity(
+	collectedDataEpoch: Long,
+): RetainedCaptureScopeIdentity = RetainedCaptureScopeIdentity(
+	sourceKind = CELL_SOURCE,
+	logicalTrackingId = logicalTrackingId,
+	serviceRunId = serviceRunId,
+	collectedDataEpoch = collectedDataEpoch,
+	scopeDeletionGeneration = 0L,
+	logicalRunScopeDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+		CELL_SOURCE,
+		CAPTURE_PURPOSE,
+		logicalTrackingId,
+		serviceRunId,
+	),
 )
 
 internal data class CellHistoricalPlan(
@@ -2892,70 +2991,18 @@ internal data class CellCapturedWalCarrier(
 	val scope: CellCapturedRunScope,
 	val sourceInstanceId: String,
 	val registrationGeneration: Long,
-	val earliestPossibleWallTimeMs: Long,
-)
-
-/** Exact source-local product authority required by one-hop aggregate reuse. */
-private data class CellAggregateReuseAuthority(
-	val logicalTrackingId: String,
-	val serviceRunId: String,
-	val sessionSegmentId: Long,
-	val capturedSources: Set<Int>,
-	val controlSources: Set<Int>,
-	val sourceInstanceId: String,
-	val registrationGeneration: Long,
-	val configurationRevision: Long,
-	val physicalConfigurationFingerprint: String,
-	val authorizationRevision: Long,
-	val authorizationFingerprint: String,
-	val purposeEligibilityMask: Long,
 	val sourcePolicyRevision: Long,
 	val captureConsentEpoch: Long,
-	val manifestRevision: Long,
-	val lifecycleLeaseGeneration: Long,
 	val collectedDataEpoch: Long,
-	val scopeDeletionGeneration: Long,
-	val clockDomainId: String,
-	val storedZoneId: String,
-	val structuralEpochDay: Long,
-	val providerAcceptanceStartNanos: Long,
-	val providerAcceptanceEndNanos: Long,
-	val authorizationEffectStartNanos: Long,
-	val authorizationEffectEndNanos: Long,
-	val consentEffectStartNanos: Long,
-	val consentEffectEndNanos: Long,
-	val sessionRunEffectStartNanos: Long,
-	val sessionRunEffectEndNanos: Long,
-	val deletionEffectStartNanos: Long,
-	val deletionEffectEndNanos: Long,
-	val maximumObservationAgeNanos: Long,
+	val walIntegrityIdentity: String,
+	val earliestPossibleWallTimeMs: Long,
 )
 
 private data class AuthenticatedCellFactAuthority(
 	val reuseAuthority: CellAggregateReuseAuthority,
 	val aggregate: CellHistoricalIdentityFreeAggregate,
 	val walCreatedAtMs: Long,
-)
-
-private data class CellHistoricalObservation(
-	val identifierToken: String,
-	val radioType: String,
-	val registered: Boolean,
-	val signalLevelDbm: Int?,
-	val providerTimestampNanos: Long?,
-)
-
-private data class CellHistoricalPayloadEffect(
-	val providerIntervalStartNanos: Long,
-	val providerIntervalEndNanos: Long,
-	val submittedChildCount: Int,
-	val acceptedChildCount: Int,
-	val staleChildCount: Int,
-	val futureTimeChildCount: Int,
-	val missingTimeChildCount: Int,
-	val unsupportedTechnologyChildCount: Int,
-	val childCompleteness: String,
-	val aggregate: CellHistoricalIdentityFreeAggregate,
+	val retentionLowerBoundMs: Long,
 )
 
 internal data class CellHistoricalIdentityFreeAggregate(
@@ -2981,6 +3028,8 @@ internal data class CellHistoricalIdentityFreeAggregate(
 internal data class CellCapturedFactAudit(
 	val lineages: List<CellCapturedLineage>,
 	val lineagesById: Map<String, CellCapturedLineage>,
+	val cursorsById: Map<String, CellCapturedFactCursorEntity>,
+	val canonicalRetentionLowerBoundById: Map<String, Long>,
 	val aggregateById: Map<String, CellHistoricalIdentityFreeAggregate>,
 	val generationByScope: Map<CellCapturedRunScope, CellCaptureDeletionGenerationEntity>,
 	val latestDurableTimeMs: Long,
@@ -3009,6 +3058,7 @@ private const val WRITER_ID = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_
 private const val WRITER_VERSION = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION
 private const val CAPTURED_REGISTRATION_PLAN_ATTRIBUTION = 0
 private const val INSERT_IGNORED = -1L
+private const val FIRST_DELETION_GENERATION = 1L
 private const val DELETE_BATCH_SIZE = 128
 private const val CURSOR_PAGE_SIZE = 256
 private const val DELETION_GENERATION_PAGE_SIZE = 256
@@ -3016,28 +3066,10 @@ private const val WAL_PAGE_SIZE = 256
 private const val NANOS_PER_MILLISECOND = 1_000_000L
 private const val CELL_PLAN_FORMAT_VERSION = 1
 private const val CELL_PLAN_PAYLOAD_VERSION = 1
-private const val CELL_PAYLOAD_VERSION = 1
-private const val CELL_PAYLOAD_TYPE = 8
-private const val CELL_REFRESH_OUTCOME_CALLBACK = 0
-private const val MAX_CELL_CHILDREN_PER_DELIVERY = 256
 private const val CELL_PLAN_SOURCE_NAME = "CELL"
 private const val CELL_MODE_OBSERVE_CHANGES = "OBSERVE_CHANGES"
 private const val CELL_MODE_OBSERVE_AND_SPARSE_REFRESH = "OBSERVE_AND_SPARSE_REFRESH"
 private const val MAX_CELL_PLAN_SUBSCRIPTIONS = 10_000
-private const val CELL_TECHNOLOGY_GSM = "GSM"
-private const val CELL_TECHNOLOGY_CDMA = "CDMA"
-private const val CELL_TECHNOLOGY_WCDMA = "WCDMA"
-private const val CELL_TECHNOLOGY_TDSCDMA = "TDSCDMA"
-private const val CELL_TECHNOLOGY_LTE = "LTE"
-private const val CELL_TECHNOLOGY_NR = "NR"
-private val CELL_RADIO_TECHNOLOGIES = setOf(
-	CELL_TECHNOLOGY_GSM,
-	CELL_TECHNOLOGY_CDMA,
-	CELL_TECHNOLOGY_WCDMA,
-	CELL_TECHNOLOGY_TDSCDMA,
-	CELL_TECHNOLOGY_LTE,
-	CELL_TECHNOLOGY_NR,
-)
 private val LOWERCASE_SHA_256 = Regex("^[0-9a-f]{64}$")
 
 private val CELL_CAPTURE_MODES = setOf(

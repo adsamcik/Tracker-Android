@@ -4,23 +4,40 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.persistPressureFactRetentionAuthority
+import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.PressureWalClosureKind
+import com.adsamcik.tracker.shared.base.database.data.PressureWalPayload
+import com.adsamcik.tracker.shared.base.database.data.PressureWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.PressureWalSensorAccuracy
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureResult
@@ -47,6 +64,9 @@ import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailab
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import io.mockk.mockk
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
+import java.security.MessageDigest
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -77,7 +97,16 @@ class PressureHistorySelectorTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState())
-		selector = PressureHistorySelector(database, executableLaneAuthority())
+		database.sourcePolicyDao().ensureAuthority(
+			SourcePolicyAuthorityEntity(
+				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+				currentPolicyRevision = 1L,
+				legacySettingsFingerprint = null,
+				updatedAtMs = 1L,
+			),
+		)
+		insertPressurePlan()
+		selector = pressureSelectorAtBoot(BOOT_ID)
 	}
 
 	@After
@@ -123,7 +152,11 @@ class PressureHistorySelectorTest {
 			database = database,
 			stepsSelector = StepsSegmentHistorySelector(database, authority),
 			logicalHistoryReader = mockk(relaxed = true),
-			pressureSelector = PressureHistorySelector(database, authority),
+			pressureSelector = PressureHistorySelector(
+				database,
+				authority,
+				BootClockDomainProvider { BOOT_ID },
+			),
 			activityHistoryRepository = activityHistoryRepository(),
 			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
 		)
@@ -369,13 +402,24 @@ class PressureHistorySelectorTest {
 		}
 
 		withTimeout(5_000L) { initialEmission.await() }
-		database.pressureFactRevisionDao().insert(
-			pressureFact(
-				binding = pressureBinding(),
-				semanticRevision = 1L,
-				admissionOrdinal = 1L,
-			),
+		val binding = pressureBinding()
+		val fact = pressureFact(
+			binding = binding,
+			semanticRevision = 1L,
+			admissionOrdinal = 1L,
 		)
+		val wal = pressureWal(fact)
+		insertPressureWalAuthority(
+			fact = fact,
+			wal = wal,
+			binding = binding,
+			manifest = requireNotNull(
+				database.sourceSessionDao().manifest(LOGICAL_ID, 1L),
+			),
+			run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID)),
+		)
+		database.sourceEventWalDao().insertIgnoringDuplicate(wal)
+		database.pressureFactRevisionDao().insert(fact)
 
 		val emissions = withTimeout(5_000L) { collection.await() }
 		emissions.first() shouldBe emptyList()
@@ -564,9 +608,7 @@ class PressureHistorySelectorTest {
 	fun retentionMarkerMakesSurvivingPressureFactsExplicitlyPartial() = runTest {
 		val fixture = insertFixture(factSemanticRevision = 1L)
 		establishPressureRetentionFloor()
-		database.sourceDeletionFenceDao().upsert(
-			pressureRetentionMarker(fixture.logicalId, fixture.runId),
-		)
+		installPressureRetentionLoss(fixture)
 
 		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
 		val public = result.toPublicPressureSessionHistory().pressure
@@ -584,9 +626,7 @@ class PressureHistorySelectorTest {
 	fun fullyPrunedRetentionMarkerIsPartialWithoutFabricatedPressure() = runTest {
 		val fixture = insertFixture(factSemanticRevision = null, laneCursor = 1L)
 		establishPressureRetentionFloor()
-		database.sourceDeletionFenceDao().upsert(
-			pressureRetentionMarker(fixture.logicalId, fixture.runId),
-		)
+		installPressureRetentionLoss(fixture)
 		val repository = DefaultTrackingHistoryRepository(
 			database = database,
 			stepsSelector = mockk(relaxed = true),
@@ -622,6 +662,11 @@ class PressureHistorySelectorTest {
 	fun corruptRetentionMarkerFailsClosed() = runTest {
 		val fixture = insertFixture(factSemanticRevision = null, laneCursor = 1L)
 		establishPressureRetentionFloor()
+		database.persistPressureFactRetentionAuthority(
+			revisions = listOf(pressureRetainedFact(fixture)),
+			retainedFromMs = RUN_START_MS,
+			retainedAtMs = 10_000L,
+		)
 		database.sourceDeletionFenceDao().upsert(
 			pressureRetentionMarker(
 				logicalTrackingId = fixture.logicalId,
@@ -649,13 +694,49 @@ class PressureHistorySelectorTest {
 	}
 
 	@Test
+	fun corruptExactRetentionAuthorityFailsClosed() = runTest {
+		val fixture = insertFixture(factSemanticRevision = null, laneCursor = 1L)
+		establishPressureRetentionFloor()
+		installPressureRetentionLoss(fixture)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE pressure_fact_retention_authority SET lineage_effect_checksum = ? " +
+				"WHERE service_run_id = ?",
+			arrayOf("corrupt", fixture.runId),
+		)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		result.materialization shouldBe PressureHistoryMaterialization.FAILED
+		result.coverage shouldBe PressureHistoryCoverage.UNKNOWN
+		result.windows shouldBe emptyList()
+		result.reasons shouldBe setOf(PressureHistoryReason.RETENTION_TRUNCATION_MARKER_INVALID)
+	}
+
+	@Test
+	fun corruptRetainedRevisionAuthorityFailsClosed() = runTest {
+		val fixture = insertFixture(factSemanticRevision = null, laneCursor = 1L)
+		establishPressureRetentionFloor()
+		installPressureRetentionLoss(fixture)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE pressure_fact_retention_revision_authority SET effect_checksum = ? " +
+				"WHERE logical_fact_id = ?",
+			arrayOf("corrupt", pressureRetainedFact(fixture).logicalFactId),
+		)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		result.materialization shouldBe PressureHistoryMaterialization.FAILED
+		result.coverage shouldBe PressureHistoryCoverage.UNKNOWN
+		result.windows shouldBe emptyList()
+		result.reasons shouldBe setOf(PressureHistoryReason.RETENTION_TRUNCATION_MARKER_INVALID)
+	}
+
+	@Test
 	fun retentionLossOnOneReplacementKeepsSurvivingSiblingFacts() = runTest {
 		val first = insertFixture(factSemanticRevision = null, laneCursor = 2L)
 		val replacement = insertReplacementFixture()
 		establishPressureRetentionFloor()
-		database.sourceDeletionFenceDao().upsert(
-			pressureRetentionMarker(first.logicalId, first.runId),
-		)
+		installPressureRetentionLoss(first)
 
 		val logical = selector.selectLogicalBySegmentIds(listOf(first.segmentId)).single()
 		val public = requireNotNull(logical.toPublicPressureOnlyEntryOrNull()).pressure
@@ -673,12 +754,8 @@ class PressureHistorySelectorTest {
 		val first = insertFixture(factSemanticRevision = null, laneCursor = 2L)
 		val replacement = insertReplacementFixture(includeFact = false)
 		establishPressureRetentionFloor()
-		database.sourceDeletionFenceDao().upsert(
-			pressureRetentionMarker(first.logicalId, first.runId),
-		)
-		database.sourceDeletionFenceDao().upsert(
-			pressureRetentionMarker(replacement.logicalId, replacement.runId),
-		)
+		installPressureRetentionLoss(first)
+		installPressureRetentionLoss(replacement)
 		val repository = DefaultTrackingHistoryRepository(
 			database = database,
 			stepsSelector = mockk(relaxed = true),
@@ -1003,6 +1080,393 @@ class PressureHistorySelectorTest {
 	}
 
 	@Test
+	fun `Pressure correction revision gap fails closed`() = runTest {
+		val fixture = insertFixture(
+			factSemanticRevision = 1L,
+			completenessAdmissionOrdinal = 3L,
+			laneCursor = 3L,
+		)
+		val first = currentPressureFact()
+		val correction = pressureCorrection(
+			first = first,
+			semanticRevision = 3L,
+			admissionOrdinal = 3L,
+			sourceEventId = "pressure-gap-revision",
+			timeOffsetMs = 2_000L,
+		)
+		database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(correction))
+		database.pressureFactRevisionDao().insert(correction)
+		val completeness = database.trackingHistoryReadDao().completeness(listOf(RUN_ID)).single()
+		database.sourceSessionDao().saveCompleteness(
+			completeness.copy(lastSourceSequence = correction.lastProviderSequence),
+		)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		result.materialization shouldBe PressureHistoryMaterialization.FAILED
+		result.windows shouldBe emptyList()
+		result.reasons shouldBe setOf(PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE)
+	}
+
+	@Test
+	fun `Pressure correction carrier admissions must increase with revision`() = runTest {
+		val fixture = insertFixture(
+			factSemanticRevision = 1L,
+			factAdmissionOrdinal = 2L,
+			completenessAdmissionOrdinal = 2L,
+			laneCursor = 2L,
+		)
+		val first = currentPressureFact()
+		val correction = pressureCorrection(
+			first = first,
+			semanticRevision = 2L,
+			admissionOrdinal = 1L,
+			sourceEventId = "pressure-non-increasing-admission",
+			timeOffsetMs = 1_000L,
+		)
+		database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(correction))
+		database.pressureFactRevisionDao().insert(correction)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		result.materialization shouldBe PressureHistoryMaterialization.FAILED
+		result.windows shouldBe emptyList()
+		result.reasons shouldBe setOf(PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE)
+	}
+
+	@Test
+	fun `current Pressure correction binds its own exact WAL carrier`() = runTest {
+		val fixture = insertFixture(
+			factSemanticRevision = 1L,
+			completenessAdmissionOrdinal = 2L,
+			laneCursor = 2L,
+		)
+		val binding = pressureBinding()
+		val first = requireNotNull(
+			database.pressureFactRevisionDao().latest(
+				SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+				"${SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID}:$SOURCE_EVENT_ID",
+			),
+		)
+		val unsignedCorrection = pressureFact(
+			binding = binding,
+			semanticRevision = 2L,
+			admissionOrdinal = 2L,
+			sourceEventId = "pressure-correction-event",
+		).copy(
+			logicalFactId = first.logicalFactId,
+			mutationId = "${first.logicalFactId}:2",
+			firstProviderSequence = 5L,
+			lastProviderSequence = 8L,
+			intervalStartTimeMs = first.intervalStartTimeMs + 500L,
+			intervalEndTimeMs = first.intervalEndTimeMs + 500L,
+			windowStartElapsedRealtimeNanos =
+				first.windowStartElapsedRealtimeNanos + 500_000_000L,
+			windowEndElapsedRealtimeNanos =
+				first.windowEndElapsedRealtimeNanos + 500_000_000L,
+			meanHectopascals = 1_002.0,
+			appliedAtMs = first.appliedAtMs + 500L,
+			effectChecksum = "pending",
+		)
+		val correction = unsignedCorrection.copy(
+			effectChecksum = PressureFactRevisionIntegrity.effectChecksum(
+				unsignedCorrection,
+				binding,
+			),
+		)
+		database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(correction))
+		database.pressureFactRevisionDao().insert(correction)
+
+		val completeness = database.trackingHistoryReadDao().completeness(listOf(RUN_ID)).single()
+		database.sourceSessionDao().saveCompleteness(
+			completeness.copy(lastSourceSequence = correction.lastProviderSequence),
+		)
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		result.availability shouldBe PressureHistoryAvailability.AVAILABLE
+		result.windows.size shouldBe 1
+		result.windows.single().semanticRevision shouldBe 2L
+		result.windows.single().sourceAdmissionOrdinal shouldBe 2L
+	}
+
+	@Test
+	fun `acknowledged floor hides current Pressure head when an authenticated older revision crosses`() =
+		runTest {
+			val fixture = insertFixture(
+				factSemanticRevision = 1L,
+				completenessAdmissionOrdinal = 2L,
+				laneCursor = 2L,
+			)
+			val binding = pressureBinding()
+			val first = requireNotNull(
+				database.pressureFactRevisionDao().latest(
+					SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+					SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+					"${SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID}:$SOURCE_EVENT_ID",
+				),
+			)
+			val unsignedCorrection = pressureFact(
+				binding = binding,
+				semanticRevision = 2L,
+				admissionOrdinal = 2L,
+				sourceEventId = "pressure-retention-head",
+			).copy(
+				logicalFactId = first.logicalFactId,
+				mutationId = "${first.logicalFactId}:2",
+				firstProviderSequence = 5L,
+				lastProviderSequence = 8L,
+				intervalStartTimeMs = first.intervalStartTimeMs + 500L,
+				intervalEndTimeMs = first.intervalEndTimeMs + 500L,
+				windowStartElapsedRealtimeNanos =
+					first.windowStartElapsedRealtimeNanos + 500_000_000L,
+				windowEndElapsedRealtimeNanos =
+					first.windowEndElapsedRealtimeNanos + 500_000_000L,
+				appliedAtMs = first.appliedAtMs + 500L,
+				effectChecksum = "pending",
+			)
+			val correction = unsignedCorrection.copy(
+				effectChecksum = PressureFactRevisionIntegrity.effectChecksum(
+					unsignedCorrection,
+					binding,
+				),
+			)
+			database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(correction))
+			database.pressureFactRevisionDao().insert(correction)
+			val completeness = database.trackingHistoryReadDao().completeness(listOf(RUN_ID)).single()
+			database.sourceSessionDao().saveCompleteness(
+				completeness.copy(lastSourceSequence = correction.lastProviderSequence),
+			)
+			database.sourceEvidenceStateDao().updateLifecycle(
+				epoch = 1L,
+				retainedFromMs = first.intervalStartTimeMs,
+				updatedAtMs = correction.appliedAtMs + 1L,
+			)
+
+			val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+			result.windows shouldBe emptyList()
+			result.evidence shouldBe PressureHistoryEvidence.NO_OBSERVATION
+			result.coverage shouldBe PressureHistoryCoverage.PARTIAL
+			PressureHistoryReason.RETENTION_CROSSES_SEGMENT in result.reasons shouldBe true
+			PressureHistoryReason.RETENTION_TRUNCATED in result.reasons shouldBe true
+		}
+
+	@Test
+	fun `rehashed Pressure WAL cannot replace captured provider authorization config or lease`() =
+		runTest {
+			val fixture = insertFixture(factSemanticRevision = 1L)
+			val original = requireNotNull(
+				database.sourceEventWalDao().getByEventId(SOURCE_EVENT_ID),
+			)
+			val mismatches = listOf(
+				original.copy(sourceInstanceId = "rehashed-pressure-instance"),
+				original.copy(authorizationRevision = 2L),
+				original.copy(authorizationFingerprint = "b".repeat(64)),
+				original.copy(
+					configRevision = 2L,
+					physicalConfigurationFingerprint = "c".repeat(64),
+				),
+				original.copy(lifecycleLeaseGeneration = 2L),
+			)
+
+			for (mismatch in mismatches) {
+				replacePressureWal(rehashPressureWal(mismatch))
+
+				val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+				result.windows shouldBe emptyList()
+				result.reasons shouldBe
+					setOf(PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED)
+				replacePressureWal(original)
+			}
+		}
+
+	@Test
+	fun `reboot-retired process-bound Pressure registration retains valid history`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		retirePressureRegistrationWithoutObservableBoundary()
+
+		val result = requireNotNull(
+			pressureSelectorAtBoot(CURRENT_BOOT_ID).selectBySegmentId(fixture.segmentId),
+		)
+
+		result.availability shouldBe PressureHistoryAvailability.AVAILABLE
+		result.materialization shouldBe PressureHistoryMaterialization.READY
+		result.windows.single().sourceAdmissionOrdinal shouldBe 1L
+	}
+
+	@Test
+	fun `same-boot retired Pressure registration still requires retirement boundaries`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		retirePressureRegistrationWithoutObservableBoundary()
+
+		val result = requireNotNull(
+			pressureSelectorAtBoot(BOOT_ID).selectBySegmentId(fixture.segmentId),
+		)
+
+		result.windows shouldBe emptyList()
+		result.reasons shouldBe setOf(PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED)
+	}
+
+	@Test
+	fun `non-process-bound Pressure registration cannot use reboot retirement shape`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		retirePressureRegistrationWithoutObservableBoundary()
+		replacePressureRegistration { registration ->
+			registration.copy(
+				providerResidency =
+					ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+				providerProcessIncarnationId = null,
+			)
+		}
+
+		val result = requireNotNull(
+			pressureSelectorAtBoot(CURRENT_BOOT_ID).selectBySegmentId(fixture.segmentId),
+		)
+
+		result.windows shouldBe emptyList()
+		result.reasons shouldBe setOf(PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED)
+	}
+
+	@Test
+	fun `reboot-retired Pressure registration requires exact terminal reconciliation marker`() =
+		runTest {
+			val fixture = insertFixture(factSemanticRevision = 1L)
+			retirePressureRegistrationWithoutObservableBoundary()
+			replacePressureRegistration { registration ->
+				registration.copy(failureCode = "ORDERLY_STOP")
+			}
+
+			val result = requireNotNull(
+				pressureSelectorAtBoot(CURRENT_BOOT_ID).selectBySegmentId(fixture.segmentId),
+			)
+
+			result.windows shouldBe emptyList()
+			result.reasons shouldBe
+				setOf(PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED)
+		}
+
+	@Test
+	fun `reboot-retired Pressure registration cannot reuse current-boot provider identity`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		val retired = retirePressureRegistrationWithoutObservableBoundary()
+		database.sourceBrokerDao().insertRegistration(
+			retired.copy(
+				registrationGeneration = retired.registrationGeneration + 1L,
+				clockDomainId = CURRENT_BOOT_ID,
+				providerProcessIncarnationId = "current-pressure-process",
+				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+				reservedAtMs = RUN_END_MS + 1L,
+				reservedElapsedRealtimeNanos = 1L,
+				acceptedAtMs = RUN_END_MS + 1L,
+				acceptedElapsedRealtimeNanos = 1L,
+				retiredAtMs = null,
+				retiredElapsedRealtimeNanos = null,
+				failureCode = null,
+			),
+		)
+
+		val result = requireNotNull(
+			pressureSelectorAtBoot(CURRENT_BOOT_ID).selectBySegmentId(fixture.segmentId),
+		)
+
+		result.windows shouldBe emptyList()
+		result.reasons shouldBe setOf(PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED)
+	}
+
+	@Test
+	fun `Pressure proof accepts minimum-delay and unavailable-FIFO clamping`() = runTest {
+		replacePressurePlan(50_000, 60_000_000)
+		val fixture = insertFixture(
+			factSemanticRevision = 1L,
+			factEffectiveSamplePeriodMicros = 200_000,
+			factEffectiveMaximumReportLatencyMicros = 0,
+			factExpectedSampleCount = 1,
+		)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		result.availability shouldBe PressureHistoryAvailability.AVAILABLE
+		result.windows.single().effectiveSamplePeriodMicros shouldBe 200_000
+		result.windows.single().effectiveMaximumReportLatencyMicros shouldBe 0
+	}
+
+	@Test
+	fun `Pressure proof rejects an unproven faster effective sampling interval`() = runTest {
+		replacePressurePlan(100_000, 0)
+		val fixture = insertFixture(
+			factSemanticRevision = 1L,
+			factEffectiveSamplePeriodMicros = 50_000,
+		)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		result.windows shouldBe emptyList()
+		result.reasons shouldBe setOf(PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED)
+	}
+
+	@Test
+	fun `Pressure proof rejects arbitrary nonzero effective report latency`() = runTest {
+		replacePressurePlan(50_000, 60_000_000)
+		val fixture = insertFixture(
+			factSemanticRevision = 1L,
+			factEffectiveMaximumReportLatencyMicros = 1_000,
+		)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		result.windows shouldBe emptyList()
+		result.reasons shouldBe setOf(PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED)
+	}
+
+	@Test
+	fun `Pressure proof accepts exact desired sampling and latency fingerprint`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		result.availability shouldBe PressureHistoryAvailability.AVAILABLE
+		result.materialization shouldBe PressureHistoryMaterialization.READY
+		result.windows.single().effectiveSamplePeriodMicros shouldBe 50_000
+		result.windows.single().effectiveMaximumReportLatencyMicros shouldBe 0
+	}
+
+	@Test
+	fun `rehashed canonical Pressure WAL with unchanged identity cannot authorize history fact`() =
+		runTest {
+			val fixture = insertFixture(factSemanticRevision = 1L)
+			val fact = requireNotNull(
+				database.pressureFactRevisionDao().latest(
+					SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+					SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+					"${SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID}:$SOURCE_EVENT_ID",
+				),
+			)
+			val changedWal = pressureWal(
+				fact.copy(
+					meanHectopascals = 1_002.0,
+				),
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET payload = ?, payload_checksum = ?, " +
+					"delivery_identity = ?, integrity_identity = ? WHERE event_id = ?",
+				arrayOf(
+					changedWal.payload,
+					changedWal.payloadChecksum,
+					changedWal.deliveryIdentity,
+					changedWal.integrityIdentity,
+					SOURCE_EVENT_ID,
+				),
+			)
+
+			val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+			result.availability shouldBe PressureHistoryAvailability.UNAVAILABLE
+			result.reasons shouldBe setOf(PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED)
+		}
+
+	@Test
 	fun correctionEscapingSelectedPhysicalRunFailsClosed() = runTest {
 		val fixture = insertFixture(factSemanticRevision = 1L)
 		val first = pressureFact(pressureBinding(), semanticRevision = 1L, admissionOrdinal = 1L)
@@ -1254,9 +1718,7 @@ class PressureHistorySelectorTest {
 	fun portablePressureMarkerOnlyEntryPreservesLossWithoutNumericValue() = runTest {
 		val fixture = insertFixture(factSemanticRevision = null, laneCursor = 1L)
 		establishPressureRetentionFloor()
-		database.sourceDeletionFenceDao().upsert(
-			pressureRetentionMarker(fixture.logicalId, fixture.runId),
-		)
+		installPressureRetentionLoss(fixture)
 
 		val result = PortablePressureRoomReader(database, selector).read(exportRequest())
 		val run = (result as PortablePressureSnapshot.Ready).entries.single().runs.single()
@@ -1271,9 +1733,7 @@ class PressureHistorySelectorTest {
 	fun portablePressureRetainedWindowKeepsAuthenticatedRetentionLossPartial() = runTest {
 		val fixture = insertFixture(factSemanticRevision = 1L, laneCursor = 1L)
 		establishPressureRetentionFloor()
-		database.sourceDeletionFenceDao().upsert(
-			pressureRetentionMarker(fixture.logicalId, fixture.runId),
-		)
+		installPressureRetentionLoss(fixture)
 
 		val result = PortablePressureRoomReader(database, selector).read(exportRequest())
 		val run = (result as PortablePressureSnapshot.Ready).entries.single().runs.single()
@@ -1503,6 +1963,8 @@ class PressureHistorySelectorTest {
 		laneRetentionRequired: Boolean = true,
 		laneStatus: String = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
 		factExpectedSampleCount: Int = 4,
+		factEffectiveSamplePeriodMicros: Int = 50_000,
+		factEffectiveMaximumReportLatencyMicros: Int = 0,
 		factClosureKind: String = PressureFactRevisionEntity.CLOSURE_TARGET_ELAPSED,
 		factQualification: String = PressureFactRevisionEntity.QUALIFICATION_COMPLETE,
 		unavailablePressure: Boolean = false,
@@ -1510,6 +1972,7 @@ class PressureHistorySelectorTest {
 		val segment = segment()
 		database.sessionSegmentDao().insert(segment)
 		val run = serviceRun()
+		database.sourceSessionDao().insertSession(logicalSession())
 		database.sourceSessionDao().insertServiceRun(run)
 		val binding = pressureBinding()
 		val unsignedManifest = SessionManifestVersionEntity(
@@ -1579,16 +2042,21 @@ class PressureHistorySelectorTest {
 			),
 		)
 		factSemanticRevision?.let { revision ->
-			database.pressureFactRevisionDao().insert(
-				pressureFact(
-					binding = binding,
-					semanticRevision = revision,
-					admissionOrdinal = factAdmissionOrdinal,
-					expectedSampleCount = factExpectedSampleCount,
-					closureKind = factClosureKind,
-					qualification = factQualification,
-				),
+			val fact = pressureFact(
+				binding = binding,
+				semanticRevision = revision,
+				admissionOrdinal = factAdmissionOrdinal,
+				expectedSampleCount = factExpectedSampleCount,
+				effectiveSamplePeriodMicros = factEffectiveSamplePeriodMicros,
+				effectiveMaximumReportLatencyMicros =
+					factEffectiveMaximumReportLatencyMicros,
+				closureKind = factClosureKind,
+				qualification = factQualification,
 			)
+			val wal = pressureWal(fact)
+			insertPressureWalAuthority(fact, wal, binding, manifest, run)
+			database.sourceEventWalDao().insertIgnoringDuplicate(wal)
+			database.pressureFactRevisionDao().insert(fact)
 		}
 		return PressureFixture(segment.id, LOGICAL_ID, RUN_ID)
 	}
@@ -1666,20 +2134,40 @@ class PressureHistorySelectorTest {
 			),
 		)
 		if (includeFact) {
-			database.pressureFactRevisionDao().insert(
-				pressureFact(
-					binding = binding,
-					semanticRevision = 1L,
-					admissionOrdinal = 2L,
-					sourceEventId = "pressure-event-2",
-					serviceRunId = REPLACEMENT_RUN_ID,
+			val fact = pressureFact(
+				binding = binding,
+				semanticRevision = 1L,
+				admissionOrdinal = 2L,
+				sourceEventId = "pressure-event-2",
+				serviceRunId = REPLACEMENT_RUN_ID,
+				manifestRevision = 2L,
+				intervalStartTimeMs = REPLACEMENT_PRESSURE_START_MS,
+				intervalEndTimeMs = REPLACEMENT_PRESSURE_END_MS,
+				windowStartElapsedRealtimeNanos = REPLACEMENT_PRESSURE_START_ELAPSED_NANOS,
+				windowEndElapsedRealtimeNanos = REPLACEMENT_PRESSURE_END_ELAPSED_NANOS,
+			)
+			val wal = pressureWal(fact)
+			insertPressureWalAuthority(
+				fact,
+				wal,
+				binding,
+				unsignedManifest.copy(
+					manifestChecksum = SessionManifestIntegrity.compute(
+						unsignedManifest,
+						listOf(binding),
+					),
+				),
+				serviceRun(
+					runId = REPLACEMENT_RUN_ID,
+					segmentId = segmentId,
+					startTimeMs = REPLACEMENT_RUN_START_MS,
+					endTimeMs = REPLACEMENT_RUN_END_MS,
+					startElapsedNanos = REPLACEMENT_RUN_START_ELAPSED_NANOS,
 					manifestRevision = 2L,
-					intervalStartTimeMs = REPLACEMENT_PRESSURE_START_MS,
-					intervalEndTimeMs = REPLACEMENT_PRESSURE_END_MS,
-					windowStartElapsedRealtimeNanos = REPLACEMENT_PRESSURE_START_ELAPSED_NANOS,
-					windowEndElapsedRealtimeNanos = REPLACEMENT_PRESSURE_END_ELAPSED_NANOS,
 				),
 			)
+			database.sourceEventWalDao().insertIgnoringDuplicate(wal)
+			database.pressureFactRevisionDao().insert(fact)
 		}
 		return PressureFixture(segment.id, LOGICAL_ID, REPLACEMENT_RUN_ID)
 	}
@@ -1703,8 +2191,15 @@ class PressureHistorySelectorTest {
 			endTimeMs = endTimeMs,
 		)
 		database.sessionSegmentDao().insert(segment)
-		database.sourceSessionDao().insertServiceRun(
-			serviceRun(
+		database.sourceSessionDao().insertSession(
+			logicalSession(
+				logicalTrackingId = logicalTrackingId,
+				startTimeMs = startTimeMs,
+				startElapsedNanos = startElapsedNanos,
+				endTimeMs = endTimeMs,
+			),
+		)
+		val run = serviceRun(
 				runId = serviceRunId,
 				logicalTrackingId = logicalTrackingId,
 				segmentId = segmentId,
@@ -1712,8 +2207,8 @@ class PressureHistorySelectorTest {
 				endTimeMs = endTimeMs,
 				startElapsedNanos = startElapsedNanos,
 				manifestRevision = 1L,
-			),
-		)
+			)
+		database.sourceSessionDao().insertServiceRun(run)
 		val binding = pressureBinding(logicalTrackingId = logicalTrackingId)
 		val unsignedManifest = SessionManifestVersionEntity(
 			logicalTrackingId = logicalTrackingId,
@@ -1732,11 +2227,10 @@ class PressureHistorySelectorTest {
 			changeReason = "TEST_INDEPENDENT",
 			manifestChecksum = "",
 		)
-		database.sourceSessionDao().insertManifest(
-			unsignedManifest.copy(
-				manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, listOf(binding)),
-			),
+		val manifest = unsignedManifest.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, listOf(binding)),
 		)
+		database.sourceSessionDao().insertManifest(manifest)
 		database.sourceSessionDao().insertManifestSources(listOf(binding))
 		val admissionOrdinal = 10L + index
 		database.sourceSessionDao().saveCompleteness(
@@ -1756,21 +2250,23 @@ class PressureHistorySelectorTest {
 				updatedAtMs = endTimeMs,
 			),
 		)
-		database.pressureFactRevisionDao().insert(
-			pressureFact(
-				binding = binding,
-				semanticRevision = 1L,
-				admissionOrdinal = admissionOrdinal,
-				sourceEventId = "pressure-event-independent-$index",
-				logicalTrackingId = logicalTrackingId,
-				serviceRunId = serviceRunId,
-				collectedDataEpoch = factCollectedDataEpoch,
-				intervalStartTimeMs = startTimeMs + 100L,
-				intervalEndTimeMs = startTimeMs + 250L,
-				windowStartElapsedRealtimeNanos = startElapsedNanos + 100_000_000L,
-				windowEndElapsedRealtimeNanos = startElapsedNanos + 250_000_000L,
-			),
+		val fact = pressureFact(
+			binding = binding,
+			semanticRevision = 1L,
+			admissionOrdinal = admissionOrdinal,
+			sourceEventId = "pressure-event-independent-$index",
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			collectedDataEpoch = factCollectedDataEpoch,
+			intervalStartTimeMs = startTimeMs + 100L,
+			intervalEndTimeMs = startTimeMs + 250L,
+			windowStartElapsedRealtimeNanos = startElapsedNanos + 100_000_000L,
+			windowEndElapsedRealtimeNanos = startElapsedNanos + 250_000_000L,
 		)
+		val wal = pressureWal(fact)
+		insertPressureWalAuthority(fact, wal, binding, manifest, run)
+		database.sourceEventWalDao().insertIgnoringDuplicate(wal)
+		database.pressureFactRevisionDao().insert(fact)
 		return PressureFixture(segmentId, logicalTrackingId, serviceRunId)
 	}
 
@@ -1918,6 +2414,299 @@ class PressureHistorySelectorTest {
 		changeReason = "TEST",
 	)
 
+	private suspend fun insertPressurePlan() {
+		val bytes = pressurePlanPayload(
+			hardwareSamplePeriodMicros = 50_000,
+			maximumReportLatencyMicros = 0,
+		)
+		database.sourcePlanStateDao().insertRevision(
+			AcquisitionPlanRevisionEntity(
+				revision = 1L,
+				planId = "pressure-test-plan",
+				createdAtMs = 1L,
+				status = "APPLIED",
+				sourcePolicyRevision = 1L,
+			),
+		)
+		database.sourcePlanStateDao().insertDesiredPlans(
+			listOf(
+				SourceDesiredPlanEntity(
+					revision = 1L,
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+					payloadVersion = 1,
+					payload = bytes,
+					payloadChecksum = sha256(bytes),
+				),
+			),
+		)
+	}
+
+	private suspend fun replacePressurePlan(
+		hardwareSamplePeriodMicros: Int,
+		maximumReportLatencyMicros: Int,
+	) {
+		val bytes = pressurePlanPayload(
+			hardwareSamplePeriodMicros,
+			maximumReportLatencyMicros,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_desired_plan SET payload = ?, payload_checksum = ? " +
+				"WHERE revision = 1 AND source_kind = ?",
+			arrayOf(
+				bytes,
+				sha256(bytes),
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			),
+		)
+	}
+
+	private fun pressurePlanPayload(
+		hardwareSamplePeriodMicros: Int,
+		maximumReportLatencyMicros: Int,
+	): ByteArray = ByteArrayOutputStream().use { buffer ->
+		DataOutputStream(buffer).use { output ->
+			output.writeInt(1)
+			output.writeUTF("PRESSURE")
+			output.writeLong(1L)
+			output.writeBoolean(true)
+			output.writeInt(hardwareSamplePeriodMicros)
+			output.writeInt(maximumReportLatencyMicros)
+			output.writeLong(200L)
+			output.writeBoolean(false)
+		}
+		buffer.toByteArray()
+	}
+
+	private fun logicalSession(
+		logicalTrackingId: String = LOGICAL_ID,
+		startTimeMs: Long = RUN_START_MS,
+		startElapsedNanos: Long = RUN_START_ELAPSED_NANOS,
+		endTimeMs: Long = REPLACEMENT_RUN_END_MS,
+	) = LogicalTrackingSessionEntity(
+		logicalTrackingId = logicalTrackingId,
+		state = "FINALIZED",
+		lifecycleRevision = 1L,
+		desiredPlanRevision = 1L,
+		rolloutRevision = ROLLOUT_REVISION,
+		startOrigin = MANUAL_START_ORIGIN,
+		clockDomainId = BOOT_ID,
+		startedAtMs = startTimeMs,
+		startedElapsedNanos = startElapsedNanos,
+		cutoffAtMs = endTimeMs,
+		cutoffElapsedNanos = Long.MAX_VALUE - 1L,
+		completedAtMs = endTimeMs,
+		finalAdmissionOrdinal = Long.MAX_VALUE - 1L,
+		failureCode = null,
+		sessionMode = MANUAL_SESSION_MODE,
+		currentManifestRevision = null,
+		currentIntentRevision = null,
+		currentServiceRunId = null,
+		lifecycleLeaseGeneration = 1L,
+		lifecycleBootId = BOOT_ID,
+		automationEpoch = null,
+	)
+
+	@Suppress("LongMethod")
+	private suspend fun insertPressureWalAuthority(
+		fact: PressureFactRevisionEntity,
+		wal: SourceEventWalEntity,
+		binding: SessionManifestSourceEntity,
+		manifest: SessionManifestVersionEntity,
+		run: SourceServiceRunEntity,
+	) {
+		val broker = database.sourceBrokerDao()
+		val demand = pressureDemand(fact)
+		broker.insertDemands(listOf(demand))
+		if (broker.registration(
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				wal.registrationGeneration,
+			) == null
+		) {
+			broker.insertRegistration(
+				ProviderRegistrationGenerationEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+					registrationGeneration = wal.registrationGeneration,
+					sourceInstanceId = wal.sourceInstanceId,
+					ownerScope = SourceProviderPurposeScope.sharedOwnerScope(
+						SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+					),
+					clockDomainId = wal.clockDomainId,
+					physicalConfigurationFingerprint =
+						requireNotNull(wal.physicalConfigurationFingerprint),
+					collectedDataEpoch = wal.capturedCollectedDataEpoch,
+					providerResidency =
+						ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+					providerProcessIncarnationId = "pressure-process",
+					status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+					reservedAtMs = manifest.effectiveWallTimeMs,
+					reservedElapsedRealtimeNanos = manifest.effectiveElapsedRealtimeNanos,
+					acceptedAtMs = manifest.effectiveWallTimeMs,
+					acceptedElapsedRealtimeNanos = manifest.effectiveElapsedRealtimeNanos,
+					retiredAtMs = null,
+					retiredElapsedRealtimeNanos = null,
+					failureCode = null,
+				),
+			)
+		}
+		if (broker.authorizationRevision(
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				wal.registrationGeneration,
+				requireNotNull(wal.authorizationRevision),
+			).isEmpty()
+		) {
+			broker.insertAuthorizations(
+				SourceBrokerAuthorization.rows(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+					registrationGeneration = wal.registrationGeneration,
+					authorizationRevision = requireNotNull(wal.authorizationRevision),
+					demands = listOf(demand),
+					effectiveBootId = BOOT_ID,
+					effectiveElapsedRealtimeNanos = manifest.effectiveElapsedRealtimeNanos,
+					effectiveWallTimeMs = manifest.effectiveWallTimeMs,
+				),
+			)
+		}
+		val actionId = "pressure-start:${fact.logicalTrackingId}:${fact.manifestRevision}"
+		if (database.sourceSessionDao().lifecycleAction(actionId) == null) {
+			database.sourceSessionDao().insertLifecycleActions(
+				listOf(
+					LifecycleDesiredActionEntity(
+						actionId = actionId,
+						logicalTrackingId = fact.logicalTrackingId,
+						serviceRunId = fact.serviceRunId,
+						manifestRevision = fact.manifestRevision,
+						actionRevision = fact.manifestRevision,
+						actionFamily = "SOURCE_RUNTIME",
+						sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+						desiredState = "STARTED",
+						desiredPlanRevision = requireNotNull(wal.configRevision),
+						sourcePolicyRevision = fact.sourcePolicyRevision,
+						consentEpoch = fact.captureConsentEpoch,
+						startOrigin = manifest.startOrigin,
+						bootId = fact.clockDomainId,
+						leaseGeneration = requireNotNull(wal.lifecycleLeaseGeneration),
+						requestedAtMs = manifest.effectiveWallTimeMs,
+						requestedElapsedRealtimeNanos = manifest.effectiveElapsedRealtimeNanos,
+						status = "START_ACCEPTED",
+						attemptCount = 1,
+						acknowledgedAtMs = manifest.effectiveWallTimeMs,
+						acknowledgedElapsedRealtimeNanos =
+							manifest.effectiveElapsedRealtimeNanos + 1L,
+						failureCode = null,
+						retryTrigger = null,
+						sourceInstanceId = wal.sourceInstanceId,
+						registrationGeneration = wal.registrationGeneration,
+					),
+				),
+			)
+		}
+		binding.writerOwnerGeneration shouldBe
+			SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+		run.leaseGeneration shouldBe requireNotNull(wal.lifecycleLeaseGeneration)
+	}
+
+	private suspend fun retirePressureRegistrationWithoutObservableBoundary():
+		ProviderRegistrationGenerationEntity = replacePressureRegistration { registration ->
+			registration.copy(
+				status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+				retiredAtMs = null,
+				retiredElapsedRealtimeNanos = null,
+				failureCode = ProviderRegistrationGenerationEntity
+					.FAILURE_PRIOR_PROCESS_INCARNATION_ENDED,
+			)
+		}
+
+	private suspend fun replacePressureRegistration(
+		transform: (ProviderRegistrationGenerationEntity) ->
+			ProviderRegistrationGenerationEntity,
+	): ProviderRegistrationGenerationEntity = database.withTransaction {
+		val dao = database.sourceBrokerDao()
+		val current = requireNotNull(
+			dao.registration(SourceDestinationOwnerEntity.SOURCE_PRESSURE, 1L),
+		)
+		val replacement = transform(current)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM provider_registration_generation " +
+				"WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf(
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				current.registrationGeneration,
+			),
+		)
+		dao.insertRegistration(replacement)
+		replacement
+	}
+
+	private fun pressureSelectorAtBoot(bootId: String) = PressureHistorySelector(
+		database,
+		executableLaneAuthority(),
+		BootClockDomainProvider { bootId },
+	)
+
+	private fun pressureDemand(fact: PressureFactRevisionEntity) = SourceDemandEntity(
+		demandId = "pressure-demand:${fact.logicalTrackingId}:${fact.manifestRevision}",
+		consumerId = "session:${fact.logicalTrackingId}",
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+		logicalTrackingId = fact.logicalTrackingId,
+		serviceRunId = fact.serviceRunId,
+		manifestRevision = fact.manifestRevision,
+		lifecycleLeaseGeneration = 1L,
+		sourcePolicyRevision = fact.sourcePolicyRevision,
+		consentEpoch = fact.captureConsentEpoch,
+		persistenceEligible = true,
+		qosCode = 1,
+		minimumAcquisitionSpec =
+			"pressure:v1:max_sample_period_us=1000000;" +
+				"max_report_latency_us=60000000;max_window_ms=60000",
+		adaptiveReductionAllowed = true,
+		maximumAgeMs = 60_000L,
+		desiredLatencyMs = 60_000L,
+		requestedDeliveryLatencyMs = 60_000L,
+		requestedBootId = BOOT_ID,
+		requestedElapsedRealtimeNanos = pressureAuthorityElapsedNanos(fact),
+		requestedAtMs = pressureAuthorityWallTimeMs(fact),
+		status = SourceDemandEntity.STATUS_ACTIVE,
+		retireBootId = null,
+		retireElapsedRealtimeNanos = null,
+		retiredAtMs = null,
+	)
+
+	private fun pressureRegistrationGeneration(fact: PressureFactRevisionEntity): Long = when {
+		fact.serviceRunId == RUN_ID -> 1L
+		fact.serviceRunId == REPLACEMENT_RUN_ID -> 2L
+		else -> fact.sourceAdmissionOrdinal
+	}
+
+	private fun pressureSourceInstance(fact: PressureFactRevisionEntity): String =
+		"pressure-provider:${fact.serviceRunId}"
+
+	private fun pressureAuthorityElapsedNanos(fact: PressureFactRevisionEntity): Long =
+		when (fact.serviceRunId) {
+			RUN_ID -> RUN_START_ELAPSED_NANOS
+			REPLACEMENT_RUN_ID -> REPLACEMENT_RUN_START_ELAPSED_NANOS
+			else -> fact.windowStartElapsedRealtimeNanos - 100_000_000L
+		}
+
+	private fun pressureAuthorityWallTimeMs(fact: PressureFactRevisionEntity): Long =
+		when (fact.serviceRunId) {
+			RUN_ID -> RUN_START_MS
+			REPLACEMENT_RUN_ID -> REPLACEMENT_RUN_START_MS
+			else -> fact.intervalStartTimeMs - 100L
+		}
+
+	private fun pressurePhysicalFingerprint(
+		samplePeriodMicros: Int,
+		maximumReportLatencyMicros: Int,
+	): String = sha256(
+		listOf(
+			"PRESSURE",
+			true,
+			samplePeriodMicros,
+			maximumReportLatencyMicros,
+		).joinToString("\u001f").toByteArray(Charsets.UTF_8),
+	)
+
 	private fun lane(
 		cursor: Long,
 		activationOrdinal: Long = 1L,
@@ -1958,6 +2747,8 @@ class PressureHistorySelectorTest {
 		windowEndElapsedRealtimeNanos: Long = PRESSURE_END_ELAPSED_NANOS,
 		collectedDataEpoch: Long = 0L,
 		expectedSampleCount: Int = 4,
+		effectiveSamplePeriodMicros: Int = 50_000,
+		effectiveMaximumReportLatencyMicros: Int = 0,
 		closureKind: String = PressureFactRevisionEntity.CLOSURE_TARGET_ELAPSED,
 		qualification: String = PressureFactRevisionEntity.QUALIFICATION_COMPLETE,
 	): PressureFactRevisionEntity {
@@ -1991,14 +2782,20 @@ class PressureHistorySelectorTest {
 			slopeHectopascalsPerSecond = 20.0,
 			rSquared = 1.0,
 			sensorAccuracy = PressureFactRevisionEntity.SENSOR_ACCURACY_HIGH,
-			effectiveSamplePeriodMicros = 50_000,
-			effectiveMaximumReportLatencyMicros = 0,
+			effectiveSamplePeriodMicros = effectiveSamplePeriodMicros,
+			effectiveMaximumReportLatencyMicros = effectiveMaximumReportLatencyMicros,
 			targetWindowDurationNanos = 200_000_000L,
 			expectedSampleCount = expectedSampleCount,
 			maximumInterSampleGapNanos = 50_000_000L,
 			closureKind = closureKind,
 			qualification = qualification,
-			sourceQualityFlags = 0L,
+			sourceQualityFlags = if (
+				qualification == PressureFactRevisionEntity.QUALIFICATION_PARTIAL
+			) {
+				1L shl 6
+			} else {
+				0L
+			},
 			sourceQualityConfidence = 1f,
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
@@ -2015,6 +2812,181 @@ class PressureHistorySelectorTest {
 		)
 	}
 
+	private suspend fun currentPressureFact(): PressureFactRevisionEntity = requireNotNull(
+		database.pressureFactRevisionDao().latest(
+			SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+			"${SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID}:$SOURCE_EVENT_ID",
+		),
+	)
+
+	private fun pressureCorrection(
+		first: PressureFactRevisionEntity,
+		semanticRevision: Long,
+		admissionOrdinal: Long,
+		sourceEventId: String,
+		timeOffsetMs: Long,
+	): PressureFactRevisionEntity {
+		val offsetNanos = Math.multiplyExact(timeOffsetMs, 1_000_000L)
+		val firstProviderSequence = Math.addExact(
+			first.firstProviderSequence,
+			Math.multiplyExact(semanticRevision - 1L, first.sampleCount.toLong()),
+		)
+		val unsigned = first.copy(
+			semanticRevision = semanticRevision,
+			mutationId = "${first.logicalFactId}:$semanticRevision",
+			sourceEventId = sourceEventId,
+			sourceAdmissionOrdinal = admissionOrdinal,
+			intervalStartTimeMs = Math.addExact(first.intervalStartTimeMs, timeOffsetMs),
+			intervalEndTimeMs = Math.addExact(first.intervalEndTimeMs, timeOffsetMs),
+			windowStartElapsedRealtimeNanos =
+				Math.addExact(first.windowStartElapsedRealtimeNanos, offsetNanos),
+			windowEndElapsedRealtimeNanos =
+				Math.addExact(first.windowEndElapsedRealtimeNanos, offsetNanos),
+			firstProviderSequence = firstProviderSequence,
+			lastProviderSequence = Math.addExact(
+				firstProviderSequence,
+				first.sampleCount.toLong() - 1L,
+			),
+			appliedAtMs = Math.addExact(first.appliedAtMs, timeOffsetMs),
+			effectChecksum = "pending",
+		)
+		return unsigned.copy(
+			effectChecksum = PressureFactRevisionIntegrity.effectChecksum(
+				unsigned,
+				pressureBinding(),
+			),
+		)
+	}
+
+	private suspend fun replacePressureWal(wal: SourceEventWalEntity) {
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_event_wal WHERE event_id = ?",
+			arrayOf(wal.eventId),
+		)
+		database.sourceEventWalDao().insertIgnoringDuplicate(wal)
+	}
+
+	private fun rehashPressureWal(wal: SourceEventWalEntity): SourceEventWalEntity {
+		val payloadBound = wal.copy(
+			payloadChecksum = wal.calculatedPayloadChecksum(),
+			integrityIdentity = "pending",
+		)
+		return payloadBound.copy(
+			integrityIdentity = payloadBound.calculatedIntegrityIdentity(),
+		)
+	}
+
+	private fun pressureWal(fact: PressureFactRevisionEntity): SourceEventWalEntity {
+		val payload = PressureWalPayload(
+			sampleCount = fact.sampleCount,
+			meanHectopascals = fact.meanHectopascals,
+			sumSquaredDeviations = fact.sumSquaredDeviations,
+			minimumHectopascals = fact.minimumHectopascals,
+			maximumHectopascals = fact.maximumHectopascals,
+			windowStartElapsedRealtimeNanos = fact.windowStartElapsedRealtimeNanos,
+			windowEndElapsedRealtimeNanos = fact.windowEndElapsedRealtimeNanos,
+			firstProviderSequence = fact.firstProviderSequence,
+			lastProviderSequence = fact.lastProviderSequence,
+			firstHectopascals = fact.firstHectopascals,
+			lastHectopascals = fact.lastHectopascals,
+			slopeHectopascalsPerSecond = fact.slopeHectopascalsPerSecond,
+			rSquared = fact.rSquared,
+			sensorAccuracy = PressureWalSensorAccuracy.valueOf(fact.sensorAccuracy),
+			effectiveSamplePeriodMicros = fact.effectiveSamplePeriodMicros,
+			effectiveMaximumReportLatencyMicros = fact.effectiveMaximumReportLatencyMicros,
+			targetWindowDurationNanos = fact.targetWindowDurationNanos,
+			expectedSampleCount = fact.expectedSampleCount,
+			maximumInterSampleGapNanos = fact.maximumInterSampleGapNanos,
+			closureKind = PressureWalClosureKind.valueOf(fact.closureKind),
+		)
+		val bytes = PressureWalPayloadCodec.encode(payload)
+		val demand = pressureDemand(fact)
+		val registrationGeneration = pressureRegistrationGeneration(fact)
+		val unsigned = SourceEventWalEntity(
+			admissionOrdinal = fact.sourceAdmissionOrdinal,
+			eventId = fact.sourceEventId,
+			providerDedupKey = null,
+			deliveryIdentity = pressureDeliveryIdentity(payload),
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 1,
+			logicalTrackingId = fact.logicalTrackingId,
+			serviceRunId = fact.serviceRunId,
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			sourceInstanceId = pressureSourceInstance(fact),
+			registrationGeneration = registrationGeneration,
+			physicalConfigurationFingerprint = pressurePhysicalFingerprint(
+				fact.effectiveSamplePeriodMicros,
+				fact.effectiveMaximumReportLatencyMicros,
+			),
+			authorizationRevision = registrationGeneration,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			authorizationFingerprint = SourceBrokerAuthorization.fingerprint(listOf(demand)),
+			sourceSequence = fact.lastProviderSequence,
+			configRevision = 1L,
+			planAttribution = 0,
+			clockDomainId = fact.clockDomainId,
+			observedElapsedNanos = fact.windowEndElapsedRealtimeNanos,
+			observedIntervalStartNanos = fact.windowStartElapsedRealtimeNanos,
+			receivedElapsedNanos = fact.windowEndElapsedRealtimeNanos + 1L,
+			receivedWallTimeMs = fact.intervalEndTimeMs + 1L,
+			wallTimeMs = fact.intervalEndTimeMs,
+			wallTimeUncertaintyMs = fact.wallTimeUncertaintyMs,
+			capturedCollectedDataEpoch = fact.collectedDataEpoch,
+			activityAutomationEpoch = null,
+			sourcePolicyRevision = fact.sourcePolicyRevision,
+			captureConsentEpoch = fact.captureConsentEpoch,
+			sessionManifestRevision = fact.manifestRevision,
+			lifecycleLeaseGeneration = 1L,
+			acquiredAtMs = fact.intervalEndTimeMs,
+			qualityFlags = if (
+				fact.qualification == PressureFactRevisionEntity.QUALIFICATION_PARTIAL
+			) {
+				1L shl 6
+			} else {
+				0L
+			},
+			qualityConfidence = fact.sourceQualityConfidence,
+			payloadVersion = fact.payloadVersion,
+			payload = bytes,
+			payloadChecksum = "",
+			integrityIdentity = "pending",
+			createdAtMs = fact.intervalEndTimeMs + 1L,
+		)
+		val checksummed = unsigned.copy(payloadChecksum = unsigned.calculatedPayloadChecksum())
+		return checksummed.copy(integrityIdentity = checksummed.calculatedIntegrityIdentity())
+	}
+
+	private fun pressureDeliveryIdentity(payload: PressureWalPayload): String {
+		val canonical = buildString {
+			append("pressure-window-v1|")
+			append(BOOT_ID.length)
+			append(':')
+			append(BOOT_ID)
+			append("|start:")
+			append(payload.windowStartElapsedRealtimeNanos)
+			append("|end:")
+			append(payload.windowEndElapsedRealtimeNanos)
+			append("|count:")
+			append(payload.sampleCount)
+			append("|mean-bits:")
+			append(payload.meanHectopascals.toRawBits())
+			append("|m2-bits:")
+			append(payload.sumSquaredDeviations.toRawBits())
+			append("|min-bits:")
+			append(payload.minimumHectopascals.toRawBits())
+			append("|max-bits:")
+			append(payload.maximumHectopascals.toRawBits())
+		}
+		return MessageDigest.getInstance("SHA-256")
+			.digest(canonical.toByteArray(Charsets.UTF_8))
+			.joinToString("") { byte -> "%02x".format(byte) }
+	}
+
+	private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+		.digest(bytes)
+		.joinToString("") { byte -> "%02x".format(byte) }
+
 	private fun pressureFence(
 		logicalTrackingId: String,
 		serviceRunId: String,
@@ -2027,6 +2999,37 @@ class PressureHistorySelectorTest {
 		collectedDataEpoch = 0L,
 		deletedAtMs = 10_000L,
 	)
+
+	private suspend fun installPressureRetentionLoss(fixture: PressureFixture) {
+		database.persistPressureFactRetentionAuthority(
+			revisions = listOf(pressureRetainedFact(fixture)),
+			retainedFromMs = RUN_START_MS,
+			retainedAtMs = 10_000L,
+		)
+		database.sourceDeletionFenceDao().upsert(
+			pressureRetentionMarker(fixture.logicalId, fixture.runId),
+		)
+	}
+
+	private fun pressureRetainedFact(
+		fixture: PressureFixture,
+	): PressureFactRevisionEntity {
+		val binding = pressureBinding(logicalTrackingId = fixture.logicalId)
+		val retainedEventId = "retained-${fixture.runId}"
+		val retainedFact = pressureFact(
+			binding = binding,
+			semanticRevision = 1L,
+			admissionOrdinal = if (fixture.runId == RUN_ID) 101L else 102L,
+			sourceEventId = retainedEventId,
+			logicalTrackingId = fixture.logicalId,
+			serviceRunId = fixture.runId,
+			intervalStartTimeMs = RUN_START_MS - 200L,
+			intervalEndTimeMs = RUN_START_MS - 50L,
+			windowStartElapsedRealtimeNanos = PRESSURE_START_ELAPSED_NANOS,
+			windowEndElapsedRealtimeNanos = PRESSURE_END_ELAPSED_NANOS,
+		)
+		return retainedFact
+	}
 
 	private fun pressureRetentionMarker(
 		logicalTrackingId: String,
@@ -2088,6 +3091,7 @@ class PressureHistorySelectorTest {
 		const val REPLACEMENT_SEGMENT_ID = 42L
 		const val REPLACEMENT_RUN_ID = "run-pressure-2"
 		const val BOOT_ID = "boot-pressure"
+		const val CURRENT_BOOT_ID = "boot-pressure-current"
 		const val SOURCE_EVENT_ID = "pressure-event"
 		const val MANUAL_SESSION_MODE = "MANUAL"
 		const val MANUAL_START_ORIGIN = "MANUAL_FOREGROUND_START"

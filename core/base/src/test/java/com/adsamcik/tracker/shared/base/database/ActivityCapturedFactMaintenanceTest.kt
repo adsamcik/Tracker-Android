@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
@@ -107,6 +108,45 @@ class ActivityCapturedFactMaintenanceTest {
 		database.activityCapturedFactDao().revisionCount() shouldBe 0L
 		database.activityCapturedFactDao().cursorCount() shouldBe 0L
 	}
+
+	@Test
+	fun `lifecycle and query reverse lookup preserve original evidence for latest gap correction`() =
+		runTest {
+			seedCapturedActivity(
+				semanticRevisions = 2,
+				latestGapOnlyCorrection = true,
+			)
+
+			val heads = database.activityCapturedFactDao().currentRevisionsForWriterAdmission(
+				writerProjectionId = WRITER_ID,
+				writerProjectionVersion = WRITER_VERSION,
+				sourceAdmissionOrdinal = 1L,
+				limit = 2,
+			)
+			val latest = heads.single()
+			val lineage = database.activityCapturedFactDao().revisionsForWindow(
+				writerProjectionId = WRITER_ID,
+				writerProjectionVersion = WRITER_VERSION,
+				logicalWindowId = latest.logicalWindowId,
+				limit = 3,
+			)
+
+			latest.semanticRevision shouldBe 2L
+			latest.coverage shouldBe "NONE"
+			ActivityCapturedFactIntegrity.hasCompleteRevisionLineage(lineage) shouldBe true
+			database.activityCapturedFactDao().evidence(
+				WRITER_ID,
+				WRITER_VERSION,
+				latest.logicalWindowId,
+				1L,
+			).single().sourceEventId shouldBe "activity-event-1"
+			database.activityCapturedFactDao().evidence(
+				WRITER_ID,
+				WRITER_VERSION,
+				latest.logicalWindowId,
+				2L,
+			) shouldBe emptyList()
+		}
 
 	@Test
 	fun `revision overflow blocks retention before any lineage mutation`() = runTest {
@@ -1649,6 +1689,7 @@ class ActivityCapturedFactMaintenanceTest {
 		providerActive: Boolean = false,
 		sessionRunEffectEndNanos: Long = 500L,
 		gapOnly: Boolean = false,
+		latestGapOnlyCorrection: Boolean = false,
 		sharedControlAuthorization: Boolean = false,
 		historicalCaptureMaximumAgeMs: Long = 1_000L,
 		historicalControlMaximumAgeMs: Long = 1_000L,
@@ -2052,7 +2093,7 @@ class ActivityCapturedFactMaintenanceTest {
 				semanticRevision = ordinal.toLong(),
 				complete = ordinal == 2,
 				sessionRunEffectEndNanos = sessionRunEffectEndNanos,
-				gapOnly = gapOnly,
+				gapOnly = gapOnly || latestGapOnlyCorrection && ordinal == semanticRevisions,
 				authorizationFingerprint = authorizationFingerprint,
 				purposeEligibilityMask = purposeEligibilityMask,
 			)

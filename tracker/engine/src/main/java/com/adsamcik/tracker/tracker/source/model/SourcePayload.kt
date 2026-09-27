@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.source.model
 
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 
 interface SourcePayload {
@@ -270,7 +271,7 @@ data class CellSnapshotPayload(
 }
 
 /** First payload revision that freezes the observation-time structural zone for radio products. */
-internal const val RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION = 5
+internal const val RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION = CELL_WAL_PAYLOAD_VERSION
 
 data class CellObservationEvidence(
 	val identifierToken: String,

@@ -26,6 +26,7 @@ import com.adsamcik.tracker.stats.api.TripPlausibility
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.time.elapsedRealtimeAge
 import com.adsamcik.tracker.tracker.presentation.SessionPresentationBinding
 import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
 import kotlinx.coroutines.CoroutineScope
@@ -38,7 +39,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
-import kotlin.math.max
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 internal class SessionTrackerComponent(
 	private val isUserInitiated: Boolean,
@@ -98,8 +100,10 @@ internal class SessionTrackerComponent(
 	) {
 		sessionMutex.withLock {
 			mutableSession.run {
+				// The activity component may correct the recognition result using location speed.
+				val effectiveActivity = collectionData.activity ?: cycle.activity
 				if (cycle.activityFresh) {
-					cycle.activity?.let { activity ->
+					effectiveActivity?.let { activity ->
 						recordActivityEvidence(activity)
 					}
 				}
@@ -113,10 +117,14 @@ internal class SessionTrackerComponent(
 				distance?.let {
 					distanceInM += it
 
-					cycle.activity?.let { activity ->
+					effectiveActivity?.let { activity ->
 						validateActivity(
-							distance, cycle.elapsedRealtimeNanos,
-							activity.groupedActivity
+							distance = distance,
+							activityAge = elapsedRealtimeAge(
+								nowElapsedRealtimeNanos = cycle.elapsedRealtimeNanos,
+								observedElapsedRealtimeNanos = cycle.activitySourceElapsedRealtimeNanos,
+							),
+							groupedActivity = activity.groupedActivity,
 						)
 					}
 				}
@@ -142,13 +150,14 @@ internal class SessionTrackerComponent(
 
 	private fun MutableTrackerSession.validateActivity(
 		distance: Float,
-		elapsedRealtimeNanos: Long,
+		activityAge: Duration?,
 		groupedActivity: GroupedActivity
 	) {
-		if (elapsedRealtimeNanos < max(
-				Time.SECOND_IN_NANOSECONDS * 20,
-				minUpdateDelayInSeconds * 2 * Time.SECOND_IN_NANOSECONDS
-			) ||
+		val freshnessWindow = maxOf(
+			20.seconds,
+			minUpdateDelayInSeconds.coerceAtLeast(0).seconds * 2,
+		)
+		if ((activityAge != null && activityAge <= freshnessWindow) ||
 			distance <= minDistanceInMeters * 2f
 		) {
 

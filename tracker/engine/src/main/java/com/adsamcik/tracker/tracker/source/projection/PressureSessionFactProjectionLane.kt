@@ -3,8 +3,12 @@ package com.adsamcik.tracker.tracker.source.projection
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventProjectionEligibilityRow
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.MAX_PRESSURE_RETENTION_REVISION_AUTHORITIES
+import com.adsamcik.tracker.shared.base.database.data.MAX_PRESSURE_WAL_PAYLOAD_BYTES
+import com.adsamcik.tracker.shared.base.database.data.PressureWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -503,6 +507,82 @@ class PressureSessionFactProjectionLane private constructor(
 	private suspend fun insertOrVerifyExactReplay(
 		candidate: PressureFactRevisionEntity,
 	): PressureFactAdmission {
+		val retainedByFact = database.pressureFactRetentionAuthorityDao().get(
+			candidate.writerProjectionId,
+			candidate.writerProjectionVersion,
+			candidate.logicalFactId,
+		)
+		val revisionDao = database.pressureFactRetentionRevisionAuthorityDao()
+		val retainedByEvent = revisionDao.byEventId(
+			writerProjectionId = candidate.writerProjectionId,
+			writerProjectionVersion = candidate.writerProjectionVersion,
+			sourceEventId = candidate.sourceEventId,
+			limit = 2,
+		)
+		val retainedByAdmission = revisionDao.byAdmissionOrdinal(
+			writerProjectionId = candidate.writerProjectionId,
+			writerProjectionVersion = candidate.writerProjectionVersion,
+			sourceAdmissionOrdinal = candidate.sourceAdmissionOrdinal,
+			limit = 2,
+		)
+		if (retainedByEvent.size > 1 || retainedByAdmission.size > 1) {
+			throw PressureSessionFactIdentityCollisionException(
+				admissionOrdinal = candidate.sourceAdmissionOrdinal,
+				failureCode = "PRESSURE_RETENTION_AUTHORITY_COLLISION",
+			)
+		}
+		val retainedRevisionIdentities = listOfNotNull(
+			retainedByEvent.singleOrNull(),
+			retainedByAdmission.singleOrNull(),
+		).distinct()
+		val retainedLineageKeys = buildSet {
+			retainedByFact?.let { authority ->
+				add(Triple(
+					authority.writerProjectionId,
+					authority.writerProjectionVersion,
+					authority.logicalFactId,
+				))
+			}
+			retainedRevisionIdentities.forEach { authority ->
+				add(Triple(
+					authority.writerProjectionId,
+					authority.writerProjectionVersion,
+					authority.logicalFactId,
+				))
+			}
+		}
+		if (retainedLineageKeys.size > 1) {
+			throw PressureSessionFactIdentityCollisionException(
+				admissionOrdinal = candidate.sourceAdmissionOrdinal,
+				failureCode = "PRESSURE_RETENTION_AUTHORITY_COLLISION",
+			)
+		}
+		if (retainedLineageKeys.isNotEmpty()) {
+			val (writerId, writerVersion, factId) = retainedLineageKeys.single()
+			val retentionAuthority = database.pressureFactRetentionAuthorityDao().get(
+				writerId,
+				writerVersion,
+				factId,
+			)
+			val revisionAuthorities = revisionDao.forLineage(
+				writerId,
+				writerVersion,
+				factId,
+				MAX_PRESSURE_RETENTION_REVISION_AUTHORITIES + 1,
+			)
+			if (retentionAuthority == null ||
+				!retentionAuthority.authenticatesRevisionAuthorities(revisionAuthorities)
+			) {
+				throw PressureSessionFactIdentityCollisionException(
+					admissionOrdinal = candidate.sourceAdmissionOrdinal,
+					failureCode = "PRESSURE_RETENTION_AUTHORITY_CORRUPT",
+				)
+			}
+			throw PressureSessionFactIdentityCollisionException(
+				admissionOrdinal = candidate.sourceAdmissionOrdinal,
+				failureCode = "PRESSURE_RETENTION_RESURRECTION_REJECTED",
+			)
+		}
 		val dao = database.pressureFactRevisionDao()
 		if (dao.insert(candidate) != INSERT_IGNORED) {
 			return PressureFactAdmission.INSERTED
@@ -551,6 +631,10 @@ class PressureSessionFactProjectionLane private constructor(
 			admissionOrdinal,
 			code,
 		)
+		val wal = database.sourceEventWalDao().boundedPayloadByEventId(
+			eventId.value,
+			MAX_PRESSURE_WAL_PAYLOAD_BYTES,
+		) ?: poison("PRESSURE_WAL_CARRIER_MISSING")
 
 		if (evidence.payloadVersion != PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION) {
 			poison("PRESSURE_PAYLOAD_VERSION_UNSUPPORTED")
@@ -645,7 +729,8 @@ class PressureSessionFactProjectionLane private constructor(
 		}
 		val startTimeMs = endTimeMs - durationMs
 		if (evidenceState.retainedFromMs?.let { retainedFrom ->
-			earliestPossiblePressureWallTimeMs(startTimeMs, uncertaintyMs) < retainedFrom
+			CanonicalRetentionBounds.pressure(startTimeMs, uncertaintyMs)
+				?.let { lowerBound -> lowerBound < retainedFrom } ?: true
 		} == true) {
 			return null
 		}
@@ -700,21 +785,20 @@ class PressureSessionFactProjectionLane private constructor(
 				effectChecksum = "pending-pressure-effect",
 				appliedAtMs = endTimeMs,
 			)
-			unsigned.copy(
+			val candidate = unsigned.copy(
 				effectChecksum = PressureFactRevisionIntegrity.effectChecksum(
 					unsigned,
 					manifestBinding,
 				),
 			)
+			if (!PressureWalCarrierAuthenticator.authenticates(candidate, wal, manifestBinding)) {
+				poison("PRESSURE_WAL_CARRIER_MISMATCH")
+			}
+			candidate
 		} catch (_: IllegalArgumentException) {
 			poison("PRESSURE_FACT_INVARIANT_MISMATCH")
 		}
 	}
-
-	private fun earliestPossiblePressureWallTimeMs(
-		wallTimeMs: Long,
-		uncertaintyMs: Long,
-	): Long = if (uncertaintyMs > wallTimeMs) 0L else wallTimeMs - uncertaintyMs
 
 	private suspend fun resolveManifestBinding(
 		key: PressureManifestKey,

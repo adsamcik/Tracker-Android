@@ -2,6 +2,7 @@ package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerLookupKey
 import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateState
 import com.adsamcik.tracker.shared.base.database.dao.hasValidStepsFactCandidateState
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -17,6 +18,9 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.StepsSessionCompletenessIntegrity
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import javax.inject.Inject
@@ -366,6 +370,16 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		// The batch is provisionally anchored by either retained membership value. Validate each
 		// complete carrier/state pair before trusting checksum-covered attribution for filtering.
 		val rawFactStates = snapshot.factStatesByRun[serviceRunId].orEmpty()
+		if (rawFactStates.isNotEmpty() &&
+			snapshot.carrierAuthorityState == StepsCarrierAuthorityState.UNAVAILABLE
+		) {
+			return unavailable(StepsHistoryReason.CANDIDATE_PROVENANCE_INCOMPLETE)
+		}
+		if (rawFactStates.isNotEmpty() &&
+			snapshot.carrierAuthorityState == StepsCarrierAuthorityState.UNVERIFIABLE
+		) {
+			return failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED)
+		}
 		if (rawFactStates.any { scoped -> !hasValidStepsFactCandidateState(scoped) } ||
 			rawFactStates.any { scoped ->
 				scoped.state?.operation == StepFactRevisionEntity.OPERATION_RETRACT
@@ -411,7 +425,8 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 				nextManifest?.effectiveElapsedRealtimeNanos?.let { nextEffective ->
 					startElapsed >= nextEffective || endElapsed >= nextEffective
 				} == true ||
-				lane.activatedRolloutRevision > manifest.rolloutRevision
+				lane.activatedRolloutRevision > manifest.rolloutRevision ||
+				!snapshot.authenticatesExactCarrier(scope)
 		}) return failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED)
 		val canonicalRunFacts = rawFactStates.map { scoped -> requireNotNull(scoped.scopeCarrier) }
 		if (!StepFactRevisionIntegrity.hasValidCanonicalLiveWalRunTimeline(
@@ -570,6 +585,41 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		projectionId = source.writerProjectionId,
 		projectionVersion = source.writerProjectionVersion,
 		bindingGeneration = source.writerBindingGeneration,
+	)
+
+	private fun StepsHistoryBatchSnapshot.authenticatesExactCarrier(
+		fact: StepFactRevisionEntity,
+	): Boolean {
+		val eventId = fact.sourceEventId ?: return false
+		val wal = walByEventId[eventId] ?: return false
+		val walKey = wal.stepsWalOwnerKey()
+		val factKey = fact.stepsFactOwnerKey()
+		return StepsWalCarrierAuthenticator.authenticates(
+			fact,
+			wal,
+			countDomainOwners[walKey],
+			countDomainOwners[factKey],
+		)
+	}
+
+	private fun com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+		.stepsWalOwnerKey() = StepsCountDomainOwnerLookupKey(
+			ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+			ownerIdentity = StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(
+				admissionOrdinal,
+				eventId,
+			),
+			ownerRevision = 1L,
+		)
+
+	private fun StepFactRevisionEntity.stepsFactOwnerKey() = StepsCountDomainOwnerLookupKey(
+		ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+		ownerIdentity = StepsCountDomainReceiptIntegrity.sessionFactOwnerIdentity(
+			writerProjectionId,
+			writerProjectionVersion,
+			logicalFactId,
+		),
+		ownerRevision = semanticRevision,
 	)
 
 	private fun sessionCaptureModeMask(sessionMode: String): Long? = when (sessionMode) {

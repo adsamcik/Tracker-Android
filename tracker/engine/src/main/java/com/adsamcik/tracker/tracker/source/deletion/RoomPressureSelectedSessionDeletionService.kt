@@ -3,10 +3,13 @@ package com.adsamcik.tracker.tracker.source.deletion
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.PressureFactLineageProof
+import com.adsamcik.tracker.shared.base.database.PressureFactProofAuthenticator
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryLockedDays
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.MAX_PRESSURE_WAL_PAYLOAD_BYTES
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -17,6 +20,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
@@ -54,6 +58,11 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 	private val beforeMutation: suspend () -> Unit = {},
 	private val afterFenceInstalled: suspend () -> Unit = {},
 	private val afterFactBatchDeleted: suspend (deletedCount: Long) -> Unit = {},
+	private val afterFactPageScanned: suspend (
+		pageCount: Int,
+		factCount: Long,
+		residentLineageRevisionCount: Int,
+	) -> Unit = { _, _, _ -> },
 ) : PressureSessionDeletion {
 	@Inject
 	constructor(
@@ -199,13 +208,39 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 			scopeKind = proposedFence.scopeKind,
 			scopeIdentityDigest = proposedFence.scopeIdentityDigest,
 		) ?: throw ConcurrentPressureDeletionStateException()
-		if (fence.scopeIdentityDigest != scopeDigest) {
+		if (fence.sourceKind != SourceDestinationOwnerEntity.SOURCE_PRESSURE ||
+			fence.purpose != PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE ||
+			fence.scopeKind != SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN ||
+			fence.scopeIdentityDigest != scopeDigest ||
+			fence.fenceGeneration < FIRST_PRESSURE_DELETION_GENERATION ||
+			fence.collectedDataEpoch != scope.collectedDataEpoch ||
+			fence.deletedAtMs > deletedAtMs
+		) {
 			throw ConcurrentPressureDeletionStateException()
 		}
 		afterFenceInstalled()
 
 		val deletedFacts = deleteValidatedFactsInBatches(logicalTrackingId, serviceRunId)
 		if (deletedFacts != scope.factCount) {
+			throw ConcurrentPressureDeletionStateException()
+		}
+		if (database.pressureFactRetentionRevisionAuthorityDao().deleteForExactRun(
+				logicalTrackingId,
+				serviceRunId,
+			).toLong() != scope.retentionRevisionAuthorityCount ||
+			database.pressureFactRetentionAuthorityDao().deleteExactRun(
+				logicalTrackingId,
+				serviceRunId,
+			).toLong() != scope.retentionAuthorityCount ||
+			database.pressureFactRetentionRevisionAuthorityDao().countForExactRun(
+				logicalTrackingId,
+				serviceRunId,
+			) != 0L ||
+			database.pressureFactRetentionAuthorityDao().countForExactRun(
+				logicalTrackingId,
+				serviceRunId,
+			) != 0L
+		) {
 			throw ConcurrentPressureDeletionStateException()
 		}
 		database.skiRunSegmentDao().deleteBySession(segment.id)
@@ -471,6 +506,26 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 			is FactScopeValidation.Ready -> factValidation.factCount
 			is FactScopeValidation.Unsupported -> return unsupportedScope(factValidation.reason)
 		}
+		val retainedValidation = validateRetainedAuthority(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			collectedDataEpoch = evidenceState.collectedDataEpoch,
+			retainedFromMs = evidenceState.retainedFromMs,
+			allowedPolicyConsentPairs = manifests.zip(captureBindings)
+				.mapTo(hashSetOf()) { (manifest, binding) ->
+					manifest.sourcePolicyRevision to binding.consentEpoch
+				},
+			zonesByManifest = zonesByManifest,
+			affectedDays = affectedDays,
+		)
+		val retainedCounts = when (retainedValidation) {
+			is RetainedScopeValidation.Ready -> retainedValidation
+			is RetainedScopeValidation.Unsupported ->
+				return unsupportedScope(retainedValidation.reason)
+		}
+		if (factCount == 0L && retainedCounts.parentCount == 0L) {
+			return unsupportedScope(PressureSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH)
+		}
 		val affectedDaySet = affectedDays.toSet()
 		val dailySummaries = database.dailySummaryDao()
 			.getBetween(affectedDays.first(), affectedDays.last())
@@ -484,6 +539,8 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 				currentServiceRunId = logicalSession.currentServiceRunId,
 				serviceRun = serviceRun,
 				factCount = factCount,
+				retentionAuthorityCount = retainedCounts.parentCount,
+				retentionRevisionAuthorityCount = retainedCounts.revisionCount,
 				collectedDataEpoch = evidenceState.collectedDataEpoch,
 				zoneId = segmentZone,
 				affectedDays = affectedDays.toList(),
@@ -657,9 +714,12 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 				PressureSessionDeletionUnsupportedReason.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
 			)
 		}
+		var currentLineageKey: PressureFactLineageKey? = null
+		val currentLineage = mutableListOf<PressureFactRevisionEntity>()
+		val currentLineageWalByEventId = linkedMapOf<String, SourceEventWalEntity>()
 		var cursor: PressureFactCursor? = null
-		var previousFact: PressureFactRevisionEntity? = null
 		var factCount = 0L
+		var factPageCount = 0
 		while (true) {
 			currentCoroutineContext().ensureActive()
 			val page = cursor?.let { after ->
@@ -680,6 +740,22 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 			if (page.isEmpty()) {
 				break
 			}
+			factPageCount = try {
+				Math.addExact(factPageCount, 1)
+			} catch (_: ArithmeticException) {
+				return FactScopeValidation.Unsupported(
+					PressureSessionDeletionUnsupportedReason.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
+				)
+			}
+			if (factPageCount > MAX_SELECTED_FACT_PAGES) {
+				return FactScopeValidation.Unsupported(
+					PressureSessionDeletionUnsupportedReason.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
+				)
+			}
+			val pageWalByEventId = loadPressureWalCarriers(page)
+				?: return FactScopeValidation.Unsupported(
+					PressureSessionDeletionUnsupportedReason.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
+				)
 			for (fact in page) {
 				val nextCursor = PressureFactCursor(fact)
 				if (cursor?.let { previous -> nextCursor <= previous } == true) {
@@ -688,10 +764,23 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 					)
 				}
 				cursor = nextCursor
-				if (!continuesValidCorrectionLineage(previousFact, fact)) {
-					return FactScopeValidation.Unsupported(
-						PressureSessionDeletionUnsupportedReason.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
-					)
+				val lineageKey = PressureFactLineageKey(fact)
+				val startsLineage = lineageKey != currentLineageKey
+				if (startsLineage) {
+					if (!authenticateCompletedPressureLineage(
+							currentLineage,
+							currentLineageWalByEventId,
+							bindingsByRevision,
+						)
+					) {
+						return FactScopeValidation.Unsupported(
+							PressureSessionDeletionUnsupportedReason
+								.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
+						)
+					}
+					currentLineage.clear()
+					currentLineageWalByEventId.clear()
+					currentLineageKey = lineageKey
 				}
 				val manifest = manifestsByRevision[fact.manifestRevision]
 				val binding = bindingsByRevision[fact.manifestRevision]
@@ -716,7 +805,7 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 						PressureSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH,
 					)
 				}
-				if (!factHasExactIdentityAndChecksum(fact, binding)) {
+				if (!factHasExactIdentityAndChecksum(fact, binding, startsLineage)) {
 					return FactScopeValidation.Unsupported(
 						PressureSessionDeletionUnsupportedReason.FACT_INTEGRITY_FAILED,
 					)
@@ -745,7 +834,24 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 						PressureSessionDeletionUnsupportedReason.AFFECTED_DAY_RANGE_TOO_LARGE,
 					)
 				}
-				previousFact = fact
+				if (currentLineage.size >= MAX_PRESSURE_LINEAGE_REVISIONS) {
+					return FactScopeValidation.Unsupported(
+						PressureSessionDeletionUnsupportedReason
+							.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
+					)
+				}
+				currentLineage += fact
+				val wal = pageWalByEventId[fact.sourceEventId]
+					?: return FactScopeValidation.Unsupported(
+						PressureSessionDeletionUnsupportedReason
+							.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
+					)
+				if (currentLineageWalByEventId.put(fact.sourceEventId, wal) != null) {
+					return FactScopeValidation.Unsupported(
+						PressureSessionDeletionUnsupportedReason
+							.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
+					)
+				}
 				factCount = try {
 					Math.addExact(factCount, 1L)
 				} catch (_: ArithmeticException) {
@@ -754,6 +860,7 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 					)
 				}
 			}
+			afterFactPageScanned(factPageCount, factCount, currentLineage.size)
 			if (page.size < FACT_PAGE_SIZE) {
 				break
 			}
@@ -763,55 +870,160 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 				PressureSessionDeletionUnsupportedReason.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
 			)
 		}
-		return if (factCount > 0L) {
-			FactScopeValidation.Ready(factCount)
-		} else {
-			FactScopeValidation.Unsupported(
-				PressureSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH,
+		if (!authenticateCompletedPressureLineage(
+				currentLineage,
+				currentLineageWalByEventId,
+				bindingsByRevision,
+			)
+		) {
+			return FactScopeValidation.Unsupported(
+				PressureSessionDeletionUnsupportedReason.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
 			)
 		}
+		return if (factCount > 0L) {
+			FactScopeValidation.Ready(factCount)
+		} else FactScopeValidation.Ready(0L)
 	}
 
-	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "ReturnCount")
-	private fun continuesValidCorrectionLineage(
-		previous: PressureFactRevisionEntity?,
-		current: PressureFactRevisionEntity,
-	): Boolean {
-		val sameLogicalFact = previous != null &&
-			previous.writerProjectionId == current.writerProjectionId &&
-			previous.writerProjectionVersion == current.writerProjectionVersion &&
-			previous.logicalFactId == current.logicalFactId
-		if (!sameLogicalFact) {
-			return current.semanticRevision == FIRST_SEMANTIC_REVISION
+	@Suppress("LongParameterList", "ReturnCount")
+	private suspend fun validateRetainedAuthority(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		collectedDataEpoch: Long,
+		retainedFromMs: Long?,
+		allowedPolicyConsentPairs: Set<Pair<Long, Long>>,
+		zonesByManifest: Map<Long, ZoneId>,
+		affectedDays: MutableSet<Long>,
+	): RetainedScopeValidation {
+		val parentDao = database.pressureFactRetentionAuthorityDao()
+		val revisionDao = database.pressureFactRetentionRevisionAuthorityDao()
+		val parents = parentDao.forExactRun(
+			logicalTrackingId,
+			serviceRunId,
+			MAX_SELECTED_RETENTION_AUTHORITIES + 1,
+		)
+		if (parents.size > MAX_SELECTED_RETENTION_AUTHORITIES ||
+			parentDao.hasLiveFactCollisionForExactRun(logicalTrackingId, serviceRunId)
+		) {
+			return retainedScopeUnsupported()
 		}
-		val prior = requireNotNull(previous)
-		val expectedRevision = try {
-			Math.addExact(prior.semanticRevision, 1L)
-		} catch (_: ArithmeticException) {
-			return false
+		if (parents.isEmpty()) {
+			return if (revisionDao.countForExactRun(logicalTrackingId, serviceRunId) == 0L) {
+				RetainedScopeValidation.Ready(0L, 0L)
+			} else {
+				retainedScopeUnsupported()
+			}
 		}
-		return current.semanticRevision == expectedRevision &&
-			current.sourceAdmissionOrdinal > prior.sourceAdmissionOrdinal &&
-			current.sourceEventId == prior.sourceEventId &&
-			current.writerBindingGeneration == prior.writerBindingGeneration &&
-			current.logicalTrackingId == prior.logicalTrackingId &&
-			current.serviceRunId == prior.serviceRunId && current.purpose == prior.purpose &&
-			current.collectedDataEpoch == prior.collectedDataEpoch
+		if (retainedFromMs == null) return retainedScopeUnsupported()
+		var revisionCount = 0L
+		for (parent in parents) {
+			currentCoroutineContext().ensureActive()
+			if (!parent.hasValidStoredIntegrity() ||
+				parent.logicalTrackingId != logicalTrackingId ||
+				parent.serviceRunId != serviceRunId ||
+				parent.collectedDataEpoch != collectedDataEpoch ||
+				parent.retainedFromMs > retainedFromMs
+			) {
+				return retainedScopeUnsupported()
+			}
+			val revisions = revisionDao.forLineage(
+				parent.writerProjectionId,
+				parent.writerProjectionVersion,
+				parent.logicalFactId,
+				MAX_PRESSURE_LINEAGE_REVISIONS + 1,
+			)
+			if (!parent.authenticatesRevisionAuthorities(revisions) ||
+				revisions.any { revision ->
+					(revision.sourcePolicyRevision to revision.captureConsentEpoch) !in
+						allowedPolicyConsentPairs
+				}
+			) {
+				return retainedScopeUnsupported()
+			}
+			revisionCount = try {
+				Math.addExact(revisionCount, revisions.size.toLong())
+			} catch (_: ArithmeticException) {
+				return retainedScopeUnsupported()
+			}
+			if (revisionCount > MAX_SELECTED_RETENTION_REVISION_AUTHORITIES) {
+				return retainedScopeUnsupported()
+			}
+			for (zone in zonesByManifest.values.distinct()) {
+				affectedEpochDays(
+					parent.lineageIntervalStartMs,
+					parent.lineageIntervalEndMs,
+					zone,
+				)?.let(affectedDays::addAll) ?: return retainedScopeUnsupported()
+			}
+			plausiblyPersistedEpochDays(
+				parent.lineageIntervalStartMs,
+				parent.lineageIntervalEndMs,
+			)?.let(affectedDays::addAll) ?: return retainedScopeUnsupported()
+			if (affectedDays.size.toLong() > MAX_AFFECTED_DAYS) {
+				return retainedScopeUnsupported()
+			}
+		}
+		if (revisionDao.countForExactRun(logicalTrackingId, serviceRunId) != revisionCount) {
+			return retainedScopeUnsupported()
+		}
+		return RetainedScopeValidation.Ready(parents.size.toLong(), revisionCount)
 	}
+
+	private fun retainedScopeUnsupported() = RetainedScopeValidation.Unsupported(
+		PressureSessionDeletionUnsupportedReason.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
+	)
+
+	private fun authenticateCompletedPressureLineage(
+		revisions: List<PressureFactRevisionEntity>,
+		walByEventId: Map<String, SourceEventWalEntity>,
+		bindingsByManifestRevision: Map<Long, SessionManifestSourceEntity>,
+	): Boolean = revisions.isEmpty() ||
+		PressureFactProofAuthenticator.authenticateStoredLineage(
+			revisions = revisions,
+			walByEventId = walByEventId,
+			bindingsByManifestRevision = bindingsByManifestRevision,
+		) is PressureFactLineageProof.Authenticated
 
 	@Suppress("LongMethod") // Every frozen Pressure effect field participates in integrity.
 	private fun factHasExactIdentityAndChecksum(
 		fact: PressureFactRevisionEntity,
 		binding: SessionManifestSourceEntity,
+		requiresOriginalLogicalFactId: Boolean,
 	): Boolean {
 		val expectedLogicalFactId =
 			"${SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID}:${fact.sourceEventId}"
-		if (fact.logicalFactId != expectedLogicalFactId ||
-			fact.mutationId != "$expectedLogicalFactId:${fact.semanticRevision}"
+		if ((requiresOriginalLogicalFactId &&
+				(fact.semanticRevision != 1L || fact.logicalFactId != expectedLogicalFactId)) ||
+			fact.mutationId != "${fact.logicalFactId}:${fact.semanticRevision}"
 		) {
 			return false
 		}
 		return PressureFactRevisionIntegrity.hasValidEffectChecksum(fact, binding)
+	}
+
+	private suspend fun loadPressureWalCarriers(
+		revisions: List<PressureFactRevisionEntity>,
+	): Map<String, SourceEventWalEntity>? {
+		val expectedEventIds =
+			revisions.mapTo(linkedSetOf(), PressureFactRevisionEntity::sourceEventId)
+		val walRows = mutableListOf<SourceEventWalEntity>()
+		for (eventIds in expectedEventIds
+			.chunked(PRESSURE_WAL_ID_BATCH_SIZE)
+		) {
+			walRows += database.sourceEventWalDao().boundedPayloadsByEventIds(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				eventIds = eventIds,
+				maximumPayloadBytes = MAX_PRESSURE_WAL_PAYLOAD_BYTES,
+				limit = eventIds.size,
+			)
+		}
+		val walByEventId = walRows.associateBy(SourceEventWalEntity::eventId)
+		if (walRows.size != walByEventId.size ||
+			walByEventId.keys != expectedEventIds
+		) {
+			return null
+		}
+		return walByEventId
 	}
 
 	private fun affectedEpochDays(
@@ -870,6 +1082,16 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 		) : FactScopeValidation
 	}
 
+	private sealed interface RetainedScopeValidation {
+		data class Ready(
+			val parentCount: Long,
+			val revisionCount: Long,
+		) : RetainedScopeValidation
+		data class Unsupported(
+			val reason: PressureSessionDeletionUnsupportedReason,
+		) : RetainedScopeValidation
+	}
+
 	private data class ManifestFactSlice(
 		val startTimeMs: Long,
 		val endTimeMs: Long,
@@ -900,6 +1122,18 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 		)
 	}
 
+	private data class PressureFactLineageKey(
+		val writerProjectionId: String,
+		val writerProjectionVersion: Int,
+		val logicalFactId: String,
+	) {
+		constructor(fact: PressureFactRevisionEntity) : this(
+			fact.writerProjectionId,
+			fact.writerProjectionVersion,
+			fact.logicalFactId,
+		)
+	}
+
 	private data class SelectedScope(
 		val segment: SessionSegment,
 		val logicalTrackingId: String,
@@ -907,6 +1141,8 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 		val currentServiceRunId: String?,
 		val serviceRun: SourceServiceRunEntity,
 		val factCount: Long,
+		val retentionAuthorityCount: Long,
+		val retentionRevisionAuthorityCount: Long,
 		val collectedDataEpoch: Long,
 		val zoneId: ZoneId,
 		val affectedDays: List<Long>,
@@ -915,13 +1151,17 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 
 	private companion object {
 		const val FIRST_PRESSURE_DELETION_GENERATION = 1L
-		const val FIRST_SEMANTIC_REVISION = 1L
 		const val MIN_CAPTURE_QOS_CODE = 1
 		const val MAX_CAPTURE_QOS_CODE = 3
 		const val MAX_AFFECTED_DAYS = 370L
 		const val MAX_SELECTED_MANIFESTS = 256
 		const val MAX_SELECTED_MANIFEST_SOURCES = 3_072
 		const val FACT_PAGE_SIZE = 256
+		const val MAX_SELECTED_FACT_PAGES = 16_384
+		const val MAX_PRESSURE_LINEAGE_REVISIONS = 8_192
+		const val MAX_SELECTED_RETENTION_AUTHORITIES = 16_384
+		const val MAX_SELECTED_RETENTION_REVISION_AUTHORITIES = 4_194_304L
+		const val PRESSURE_WAL_ID_BATCH_SIZE = 128
 		const val POLICY_RECONCILIATION_ORIGIN = "POLICY_RECONCILIATION"
 		val KNOWN_SOURCE_KINDS = SourceKind.entries.mapTo(hashSetOf(), SourceKind::stableCode)
 		val TERMINAL_SESSION_STATES = setOf("FINALIZED", "FAILED", "CLOSED")

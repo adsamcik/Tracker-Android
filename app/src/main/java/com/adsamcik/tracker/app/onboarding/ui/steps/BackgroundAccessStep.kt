@@ -43,8 +43,8 @@ import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 
 /**
  * Optional onboarding step that helps the user keep tracking alive in the
- * background interruptions by excluding the app from battery optimization (and, on Samsung,
- * the "Sleeping apps" list). Skippable — the Continue action proceeds regardless.
+ * background by exposing Android's reported restriction state and public settings route.
+ * Skippable — the Continue action proceeds regardless.
  */
 @Composable
 fun BackgroundAccessStep(
@@ -100,7 +100,7 @@ fun BackgroundAccessStep(
 		Spacer(modifier = Modifier.height(RidgelineSpacing.Md))
 
 		Text(
-			text = stringResource(R.string.setup_background_access_subtitle),
+			text = stringResource(R.string.setup_background_access_platform_subtitle),
 			style = MaterialTheme.typography.bodyMedium,
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
 		)

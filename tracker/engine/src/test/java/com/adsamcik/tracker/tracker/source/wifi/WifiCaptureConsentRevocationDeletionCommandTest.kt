@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
@@ -717,12 +718,13 @@ class WifiCaptureConsentRevocationDeletionCommandTest {
 			capturedCollectedDataEpoch = COLLECTED_DATA_EPOCH,
 			acquiredAtMs = INGRESS_OBSERVED_AT_MS,
 			quality = SourceQuality(),
-			payloadVersion = 2,
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION,
 			payload = WifiResultSnapshotPayload(
 				accessPoints = accessPoints,
 				platformTimestampMs =
 					INGRESS_OBSERVED_ELAPSED_NANOS / NANOS_PER_MILLISECOND,
 				resultAgeMs = null,
+				observationZoneId = "UTC",
 			),
 		)
 		return SourceDeliveryCandidate(

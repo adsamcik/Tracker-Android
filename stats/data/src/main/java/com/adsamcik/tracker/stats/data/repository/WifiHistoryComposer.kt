@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -28,6 +31,9 @@ import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerat
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.WifiWalCarrierAuthentication
+import com.adsamcik.tracker.shared.base.database.data.WifiWalCarrierAuthenticator
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryBand
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
@@ -207,7 +213,12 @@ internal object WifiHistoryComposer {
 		val evidence = snapshot.evidenceState
 			?: return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED)
 		val admissions = snapshot.admissions.filter { it.serviceRunId in runIds }
-		if (admissions.any { !it.isValidHistoryCarrier(logicalId, snapshot, manifestsByRun, evidence) }) {
+		if (admissions.any {
+				WifiWalCarrierAuthenticator.authenticate(it) !is
+					WifiWalCarrierAuthentication.Authenticated ||
+					!it.isValidHistoryCarrier(logicalId, snapshot, manifestsByRun, evidence)
+			}
+		) {
 			return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 		}
 		val admissionsByEventId = admissions.associateBy(SourceEventWalEntity::eventId)
@@ -237,9 +248,16 @@ internal object WifiHistoryComposer {
 				?: return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED)
 			val wal = admissionsByEventId[latest.sourceEventId]
 				?: return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
+			val walAuthentication = WifiWalCarrierAuthenticator.authenticate(latest, wal)
+				as? WifiWalCarrierAuthentication.Authenticated
 			if (admissionsByOrdinal[latest.sourceAdmissionOrdinal] != wal ||
 				admissionsByDelivery[latest.sourceDeliveryIdentity] != wal ||
-				!latest.matchesExactWalCarrier(wal)
+				walAuthentication == null ||
+				!WifiWalCarrierAuthenticator.authenticatesAggregate(
+					aggregate,
+					walAuthentication.carrier,
+					latest,
+				)
 			) return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 			val priorFact = factOwnerByEvent.putIfAbsent(latest.sourceEventId, latest.logicalFactId)
 			if (priorFact != null && priorFact != latest.logicalFactId) {
@@ -374,8 +392,25 @@ internal object WifiHistoryComposer {
 		val plan = configRevision?.let(snapshot.desiredPlans::get)?.let(WifiHistoryPlanIntegrity::decode)
 			?: return false
 		val provider = snapshot.providerRegistrations[registrationGeneration] ?: return false
-		val providerStart = provider.acceptedElapsedRealtimeNanos ?: return false
-		val providerEnd = provider.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE
+		val providerAuthentication = ProviderRegistrationIntervalAuthenticator.authenticate(
+			registration = provider,
+			expectedSourceKind = WIFI_SOURCE,
+			expectedRegistrationGeneration = registrationGeneration,
+			expectedSourceInstanceId = sourceInstanceId,
+			expectedClockDomainId = clockDomainId,
+			expectedPhysicalConfigurationFingerprint =
+				physicalConfigurationFingerprint ?: return false,
+			expectedCollectedDataEpoch = capturedCollectedDataEpoch,
+			expectedProviderResidency =
+				ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+			observedStartNanos = observedIntervalStartNanos ?: return false,
+			observedEndNanos = observedElapsedNanos,
+			observedWallTimeMs = wallTimeMs ?: return false,
+			currentClockDomainId = snapshot.currentClockDomainId,
+			currentProviderRegistrations = snapshot.currentProviderRegistrations,
+		) as? ProviderRegistrationIntervalAuthentication.Authenticated ?: return false
+		val providerStart = providerAuthentication.interval.startInclusiveNanos
+		val providerEnd = providerAuthentication.interval.endExclusiveNanos
 		val authorizationRevision = authorizationRevision ?: return false
 		val authorization = snapshot.authorizationsByRegistration[registrationGeneration].orEmpty()
 			.filter { it.authorizationRevision == authorizationRevision }
@@ -410,13 +445,12 @@ internal object WifiHistoryComposer {
 			capturedCollectedDataEpoch == evidence.collectedDataEpoch &&
 			admissionOrdinal > evidence.deletedSourceEventHighWaterOrdinal && deliveryUnitIndex == 0 &&
 			deliveryUnitCount == 1 && LOWERCASE_SHA_256.matches(deliveryIdentity.orEmpty()) &&
-			payloadVersion == WIFI_PROVIDER_PAYLOAD_VERSION && hasQualifiedIntegrity() &&
+			payloadVersion == WIFI_WAL_PAYLOAD_VERSION && hasQualifiedIntegrity() &&
 			provider.sourceKind == WIFI_SOURCE && provider.sourceInstanceId == sourceInstanceId &&
 			provider.ownerScope == "source-broker:$WIFI_SOURCE" &&
 			provider.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
 			provider.clockDomainId == clockDomainId && provider.collectedDataEpoch == capturedCollectedDataEpoch &&
 			provider.physicalConfigurationFingerprint == physicalConfigurationFingerprint &&
-			provider.hasValidHistoricalShape() &&
 			provider.acceptedAtMs?.let { accepted -> action.acknowledgedAtMs?.let { accepted <= it } } == true &&
 			providerStart <= requireNotNull(action.acknowledgedElapsedRealtimeNanos) &&
 			providerStart <= observedStart &&
@@ -426,23 +460,6 @@ internal object WifiHistoryComposer {
 			(snapshot.deletionGenerations[logicalId to serviceRunId]?.generation ?: 0L) == 0L &&
 			(logicalId to serviceRunId) !in snapshot.deletedScopes && earliestWall >= 0L &&
 			evidence.retainedFromMs?.let { earliestWall >= it } != false
-	}
-
-	private fun ProviderRegistrationGenerationEntity.hasValidHistoricalShape(): Boolean {
-		val acceptedWall = acceptedAtMs ?: return false
-		val acceptedElapsed = acceptedElapsedRealtimeNanos ?: return false
-		val statusShape = when (status) {
-			ProviderRegistrationGenerationEntity.STATUS_ACTIVE -> retiredAtMs == null &&
-				retiredElapsedRealtimeNanos == null && failureCode == null
-			ProviderRegistrationGenerationEntity.STATUS_RETIRING -> retiredAtMs != null &&
-				retiredElapsedRealtimeNanos != null && !failureCode.isNullOrBlank()
-			ProviderRegistrationGenerationEntity.STATUS_RETIRED -> retiredAtMs != null &&
-				retiredElapsedRealtimeNanos != null && failureCode?.isNotBlank() != false
-			else -> false
-		}
-		return statusShape && reservedAtMs <= acceptedWall && reservedElapsedRealtimeNanos <= acceptedElapsed &&
-			retiredAtMs?.let { it >= acceptedWall } != false &&
-			retiredElapsedRealtimeNanos?.let { it >= acceptedElapsed } != false
 	}
 
 	private fun hasExactWalAuthorization(
@@ -528,14 +545,12 @@ internal object WifiHistoryComposer {
 		ordered: List<WifiCapturedFactRevisionEntity>,
 		snapshot: WifiHistorySnapshot,
 	): WifiCapturedFactRevisionEntity? {
-		if (ordered.isEmpty() || ordered.map(WifiCapturedFactRevisionEntity::semanticRevision) !=
-			(1L..ordered.size.toLong()).toList()
-		) return null
-		if (ordered.any { !WifiCapturedFactRevisionIntegrity.hasValidEffectChecksum(it) }) return null
-		if (ordered.zipWithNext().any { (previous, next) -> !next.isExactSuccessorOf(previous) }) return null
+		if (!WifiCapturedFactRevisionIntegrity.hasValidRetainedLineage(ordered)) return null
 		val latest = ordered.last()
 		val cursor = snapshot.cursors.singleOrNull { it.logicalFactId == latest.logicalFactId }
-		return latest.takeIf { cursor?.matches(it) == true }
+		return latest.takeIf { candidate ->
+			cursor?.let { WifiCapturedFactRevisionIntegrity.cursorAuthenticatesCurrent(it, candidate) } == true
+		}
 	}
 
 	private fun resolveAggregate(
@@ -550,12 +565,22 @@ internal object WifiHistoryComposer {
 			val owner = ownerLineage.singleOrNull { it.semanticRevision == ownerRevision } ?: return null
 			val currentOwner = validateLineage(ownerLineage.sortedBy(WifiCapturedFactRevisionEntity::semanticRevision),
 				snapshot) ?: return null
+			val ownerCursor = snapshot.cursors.singleOrNull { cursor ->
+				cursor.writerProjectionId == owner.writerProjectionId &&
+					cursor.writerProjectionVersion == owner.writerProjectionVersion &&
+					cursor.logicalFactId == owner.logicalFactId
+			} ?: return null
 			owner.takeIf {
 				it.factKind == WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE && it.aggregateShapeIsValid() &&
 				ownerLineage.all { revision ->
 					revision.factKind == WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE
 				} && currentOwner.logicalFactId == ownerId &&
-					fact.aggregateOwnerCursorRevision == currentOwner.semanticRevision &&
+					ownerRevision == currentOwner.semanticRevision &&
+					WifiCapturedFactRevisionIntegrity.coverageOnlyOwnerCursorAuthenticates(
+						fact,
+						it,
+						ownerCursor,
+					) &&
 					it.hasCompatibleAggregateAuthority(fact, snapshot)
 			}
 		}
@@ -582,8 +607,24 @@ internal object WifiHistoryComposer {
 			?: return false
 		val header = snapshot.planHeaders[fact.configurationRevision] ?: return false
 		val provider = snapshot.providerRegistrations[fact.registrationGeneration] ?: return false
-		val providerStart = provider.acceptedElapsedRealtimeNanos ?: return false
-		val providerEnd = provider.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE
+		val providerAuthentication = ProviderRegistrationIntervalAuthenticator.authenticate(
+			registration = provider,
+			expectedSourceKind = WIFI_SOURCE,
+			expectedRegistrationGeneration = fact.registrationGeneration,
+			expectedSourceInstanceId = fact.sourceInstanceId,
+			expectedClockDomainId = fact.clockDomainId,
+			expectedPhysicalConfigurationFingerprint = fact.physicalConfigurationFingerprint,
+			expectedCollectedDataEpoch = fact.collectedDataEpoch,
+			expectedProviderResidency =
+				ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+			observedStartNanos = fact.observedIntervalStartNanos,
+			observedEndNanos = fact.observedElapsedNanos,
+			observedWallTimeMs = fact.observedWallTimeMs,
+			currentClockDomainId = snapshot.currentClockDomainId,
+			currentProviderRegistrations = snapshot.currentProviderRegistrations,
+		) as? ProviderRegistrationIntervalAuthentication.Authenticated ?: return false
+		val providerStart = providerAuthentication.interval.startInclusiveNanos
+		val providerEnd = providerAuthentication.interval.endExclusiveNanos
 		val authorizations = snapshot.authorizationsByRegistration[fact.registrationGeneration].orEmpty()
 		val session = snapshot.sessions[fact.logicalTrackingId] ?: return false
 		val sessionEnd = session.cutoffElapsedNanos.takeIf { session.lifecycleBootId == fact.clockDomainId }
@@ -650,25 +691,11 @@ internal object WifiHistoryComposer {
 		fact: WifiCapturedFactRevisionEntity,
 		expectedFingerprint: String,
 	): Boolean {
-		val acceptedWall = acceptedAtMs ?: return false
-		val acceptedElapsed = acceptedElapsedRealtimeNanos ?: return false
-		val validShape = when (status) {
-			ProviderRegistrationGenerationEntity.STATUS_ACTIVE -> retiredAtMs == null &&
-				retiredElapsedRealtimeNanos == null && failureCode == null
-			ProviderRegistrationGenerationEntity.STATUS_RETIRING -> retiredAtMs != null &&
-				retiredElapsedRealtimeNanos != null && !failureCode.isNullOrBlank()
-			ProviderRegistrationGenerationEntity.STATUS_RETIRED -> retiredAtMs != null &&
-				retiredElapsedRealtimeNanos != null && failureCode?.isNotBlank() != false
-			else -> false
-		}
-		return validShape && sourceKind == WIFI_SOURCE && registrationGeneration == fact.registrationGeneration &&
+		return sourceKind == WIFI_SOURCE && registrationGeneration == fact.registrationGeneration &&
 			sourceInstanceId == fact.sourceInstanceId && ownerScope == "source-broker:$WIFI_SOURCE" &&
 			providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
 			clockDomainId == fact.clockDomainId && collectedDataEpoch == fact.collectedDataEpoch &&
-			physicalConfigurationFingerprint == expectedFingerprint && reservedAtMs <= acceptedWall &&
-			reservedElapsedRealtimeNanos <= acceptedElapsed &&
-			retiredAtMs?.let { it >= acceptedWall } != false &&
-			retiredElapsedRealtimeNanos?.let { it >= acceptedElapsed } != false
+			physicalConfigurationFingerprint == expectedFingerprint
 	}
 
 	private fun hasExactAuthorization(
@@ -824,47 +851,6 @@ internal object WifiHistoryComposer {
 		return captured to control
 	}
 
-	private fun WifiCapturedFactRevisionEntity.isExactSuccessorOf(
-		previous: WifiCapturedFactRevisionEntity,
-	): Boolean = fixedCorrectionAuthority() == previous.fixedCorrectionAuthority() &&
-		providerAcceptanceEndNanos.settles(previous.providerAcceptanceEndNanos) &&
-		authorizationEffectEndNanos.settles(previous.authorizationEffectEndNanos) &&
-		sessionRunEffectEndNanos.settles(previous.sessionRunEffectEndNanos)
-
-	@Suppress("LongMethod")
-	private fun WifiCapturedFactRevisionEntity.fixedCorrectionAuthority(): List<Any?> = listOf(
-		writerProjectionId, writerProjectionVersion, writerBindingGeneration, writerOwnerGeneration,
-		logicalFactId, factKind, aggregateOwnerLogicalFactId, aggregateOwnerSemanticRevision,
-		aggregateOwnerCursorRevision, logicalTrackingId, serviceRunId, sessionSegmentId, purpose,
-		capturedSourceCodes, controlSourceCodes, sourceEventId, sourceAdmissionOrdinal, walIntegrityIdentity,
-		payloadChecksum, sourceDeliveryIdentity, deliveryUnitIndex, deliveryUnitCount, sourceSequence,
-		planAttribution, sourceInstanceId, registrationGeneration, configurationRevision,
-		physicalConfigurationFingerprint, authorizationRevision, authorizationFingerprint,
-		purposeEligibilityMask, sourcePolicyRevision, captureConsentEpoch, manifestRevision,
-		lifecycleLeaseGeneration, collectedDataEpoch, scopeDeletionGeneration, clockDomainId, storedZoneId,
-		planPayloadVersion, planPayloadChecksum, maximumObservationAgeNanos, resultContract,
-		registrationAppliedAtNanos, providerAcceptanceStartNanos, authorizationEffectStartNanos,
-		sessionRunEffectStartNanos, observedIntervalStartNanos, observedElapsedNanos, receivedElapsedNanos,
-		coverageIntervalStartNanos, coverageIntervalEndNanos, observedWallTimeMs, wallTimeUncertaintyMs,
-		acquiredAtMs, qualityFlags, qualityConfidence, availability, submittedResultCount,
-		acceptedResultCount, staleResultCount, clockUnverifiableResultCount, malformedResultCount,
-		coverageCompleteness, observationCount, twoPointFourGhzCount, fiveGhzCount, sixGhzCount,
-		otherBandCount, strongestSignalDbm, weakestSignalDbm, signalSumDbm,
-	)
-
-	private fun Long.settles(previous: Long): Boolean =
-		this == previous || previous == Long.MAX_VALUE && this < Long.MAX_VALUE
-
-	private fun WifiCapturedFactCursorEntity.matches(fact: WifiCapturedFactRevisionEntity): Boolean =
-		writerProjectionId == fact.writerProjectionId && writerProjectionVersion == fact.writerProjectionVersion &&
-		logicalFactId == fact.logicalFactId && logicalTrackingId == fact.logicalTrackingId &&
-		serviceRunId == fact.serviceRunId && sessionSegmentId == fact.sessionSegmentId &&
-		writerOwnerGeneration == fact.writerOwnerGeneration && collectedDataEpoch == fact.collectedDataEpoch &&
-		scopeDeletionGeneration == fact.scopeDeletionGeneration && latestSemanticRevision == fact.semanticRevision &&
-		latestMutationId == fact.mutationId && latestEffectChecksum == fact.effectChecksum &&
-		latestSourceAdmissionOrdinal == fact.sourceAdmissionOrdinal && cursorRevision == fact.semanticRevision &&
-		updatedAtMs == fact.appliedAtMs
-
 	private fun hasValidCompleteness(
 		rows: List<SourceSessionCompletenessEntity>,
 		logicalId: String,
@@ -911,45 +897,6 @@ internal object WifiHistoryComposer {
 			}
 		}
 	}
-
-	private fun WifiCapturedFactRevisionEntity.matchesExactWalCarrier(
-		wal: SourceEventWalEntity,
-	): Boolean = wal.sourceKind == WIFI_SOURCE &&
-		wal.payloadVersion == WIFI_PROVIDER_PAYLOAD_VERSION &&
-		wal.payloadChecksum == wal.calculatedPayloadChecksum() &&
-		wal.integrityIdentity == wal.calculatedIntegrityIdentity() &&
-		sourceEventId == wal.eventId &&
-		sourceAdmissionOrdinal == wal.admissionOrdinal &&
-		walIntegrityIdentity == wal.integrityIdentity &&
-		payloadChecksum == wal.payloadChecksum &&
-		sourceDeliveryIdentity == wal.deliveryIdentity &&
-		deliveryUnitIndex == wal.deliveryUnitIndex &&
-		deliveryUnitCount == wal.deliveryUnitCount &&
-		sourceSequence == wal.sourceSequence &&
-		logicalTrackingId == wal.logicalTrackingId &&
-		serviceRunId == wal.serviceRunId &&
-		sourceInstanceId == wal.sourceInstanceId &&
-		registrationGeneration == wal.registrationGeneration &&
-		configurationRevision == wal.configRevision &&
-		physicalConfigurationFingerprint == wal.physicalConfigurationFingerprint &&
-		authorizationRevision == wal.authorizationRevision &&
-		authorizationFingerprint == wal.authorizationFingerprint &&
-		purposeEligibilityMask == wal.authorizationPurposeEligibilityMask &&
-		sourcePolicyRevision == wal.sourcePolicyRevision &&
-		captureConsentEpoch == wal.captureConsentEpoch &&
-		manifestRevision == wal.sessionManifestRevision &&
-		lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration &&
-		collectedDataEpoch == wal.capturedCollectedDataEpoch &&
-		clockDomainId == wal.clockDomainId &&
-		observedIntervalStartNanos == wal.observedIntervalStartNanos &&
-		observedElapsedNanos == wal.observedElapsedNanos &&
-		receivedElapsedNanos == wal.receivedElapsedNanos &&
-		observedWallTimeMs == wal.wallTimeMs &&
-		wallTimeUncertaintyMs == wal.wallTimeUncertaintyMs &&
-		acquiredAtMs == wal.acquiredAtMs &&
-		qualityFlags == wal.qualityFlags &&
-		qualityConfidence == wal.qualityConfidence &&
-		wal.planAttribution == CAPTURED_PLAN_ORDINAL
 
 	private fun hasValidSessionSettlement(
 		session: LogicalTrackingSessionEntity,
@@ -1003,12 +950,13 @@ internal object WifiHistoryComposer {
 			presentationAcknowledgement != SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE
 	}
 
-	private fun earliestPossibleWallTimeMs(fact: WifiCapturedFactRevisionEntity): Long = Math.subtractExact(
-		Math.subtractExact(fact.observedWallTimeMs,
-			Math.subtractExact(fact.observedElapsedNanos, fact.coverageIntervalStartNanos) /
-				NANOS_PER_MILLISECOND),
-		fact.wallTimeUncertaintyMs,
-	)
+	private fun earliestPossibleWallTimeMs(fact: WifiCapturedFactRevisionEntity): Long =
+		requireNotNull(CanonicalRetentionBounds.wifiCoverage(
+			coverageEndWallTimeMs = fact.observedWallTimeMs,
+			wallTimeUncertaintyMs = fact.wallTimeUncertaintyMs,
+			coverageStartElapsedRealtimeNanos = fact.coverageIntervalStartNanos,
+			coverageEndElapsedRealtimeNanos = fact.coverageIntervalEndNanos,
+		))
 
 	private fun isExactWifiWriter(source: SessionManifestSourceEntity): Boolean =
 		source.sourceKind == WIFI_SOURCE && source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
@@ -1130,7 +1078,6 @@ internal object WifiHistoryComposer {
 	private const val WIFI_RESULT_CONTRACT = "ANDROID_SCAN_RESULTS_V1"
 	private const val WIFI_BROADCAST_FLOOR = "wifi:v1:required=BROADCAST_CALLBACK"
 	private const val CAPTURED_PLAN_ORDINAL = 0
-	private const val WIFI_PROVIDER_PAYLOAD_VERSION = 2
 	private const val MANUAL_CAPTURE_MASK = 1L
 	private const val AUTOMATIC_CAPTURE_MASK = 2L
 	private const val ALL_CAPTURE_MASK = MANUAL_CAPTURE_MASK or AUTOMATIC_CAPTURE_MASK
@@ -1218,6 +1165,8 @@ internal data class WifiHistorySnapshot(
 	val planHeaders: Map<Long, AcquisitionPlanRevisionEntity>,
 	val desiredPlans: Map<Long, SourceDesiredPlanEntity>,
 	val providerRegistrations: Map<Long, ProviderRegistrationGenerationEntity>,
+	val currentProviderRegistrations: List<ProviderRegistrationGenerationEntity>,
+	val currentClockDomainId: String?,
 	val authorizationsByRegistration: Map<Long, List<SourceAuthorizationEntity>>,
 	val demands: Map<String, SourceDemandEntity>,
 	val startActions: List<LifecycleDesiredActionEntity>,
@@ -1244,6 +1193,8 @@ internal data class WifiHistorySnapshot(
 			planHeaders = emptyMap(),
 			desiredPlans = emptyMap(),
 			providerRegistrations = emptyMap(),
+			currentProviderRegistrations = emptyList(),
+			currentClockDomainId = null,
 			authorizationsByRegistration = emptyMap(),
 			demands = emptyMap(),
 			startActions = emptyList(),

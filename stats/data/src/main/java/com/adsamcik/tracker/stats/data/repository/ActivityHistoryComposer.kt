@@ -1,8 +1,14 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthenticator
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationActualObservation
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationFactWindow
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedPlanIntegrity
+import com.adsamcik.tracker.shared.base.database.data.ActivityWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
@@ -189,6 +195,7 @@ internal object ActivityHistoryComposer {
 			snapshot.terminalFailures.isNotEmpty()
 		) return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 		val effective = mutableListOf<ActivityCapturedWindowRevisionEntity>()
+		val minimumWallTimeByWindow = mutableMapOf<String, Long?>()
 		for ((_, lineage) in relevantLineages) {
 			val ordered = lineage.sortedBy(ActivityCapturedWindowRevisionEntity::semanticRevision)
 			val latest = validateLineage(ordered, snapshot)
@@ -203,6 +210,19 @@ internal object ActivityHistoryComposer {
 			val desiredPlan = snapshot.desiredPlans[latest.configurationRevision]
 			val provider = snapshot.providerRegistrations[latest.registrationGeneration]
 			val authorizations = snapshot.authorizationsByRegistration[latest.registrationGeneration].orEmpty()
+			val lineageEvidence = ordered.flatMap { revision ->
+				snapshot.evidenceByRevision[revisionKey(revision)].orEmpty()
+			}
+			val actualObservations = lineageEvidence.mapNotNull { evidence ->
+				snapshot.walByEventId[evidence.sourceEventId]?.wallTimeMs?.let { wallTimeMs ->
+					ProviderRegistrationActualObservation(
+						elapsedRealtimeNanos = evidence.providerElapsedRealtimeNanos,
+						wallTimeMs = wallTimeMs,
+						coverageEndExclusiveNanos =
+							evidence.coverageEndExclusiveElapsedRealtimeNanos,
+					)
+				}
+			}
 			val nextManifest = manifests.values.singleOrNull { candidate ->
 				candidate.serviceRunId == latest.serviceRunId &&
 					candidate.manifestRevision == latest.manifestRevision + 1L
@@ -213,30 +233,30 @@ internal object ActivityHistoryComposer {
 				provider == null ||
 				!factHasExactAuthority(
 					latest, manifest, nextManifest, binding, run, plan, desiredPlan, provider,
-					authorizations, expectedSessionRunEnd,
+					authorizations, expectedSessionRunEnd, actualObservations, snapshot,
 				)) {
 				return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 			}
-			val factEvidence = snapshot.evidenceByRevision[revisionKey(latest)].orEmpty()
 			val targetOrdinal = targetByRun[latest.serviceRunId]
-			if (targetOrdinal == null || factEvidence.any { row -> row.sourceAdmissionOrdinal < lane.activationOrdinal ||
+			if (targetOrdinal == null || lineageEvidence.any { row ->
+				row.sourceAdmissionOrdinal < lane.activationOrdinal ||
 				row.sourceAdmissionOrdinal > targetOrdinal }) {
 				return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 			}
+			minimumWallTimeByWindow[latest.logicalWindowId] =
+				CanonicalRetentionBounds.activityLineage(
+					ordered.flatMap { revision ->
+						snapshot.fragmentsByRevision[revisionKey(revision)].orEmpty()
+					},
+				)
 			effective += latest
 		}
 		val retainedFrom = evidenceState.retainedFromMs
-		val crossesRetention = try {
-			retainedFrom != null && effective.any { revision ->
-				snapshot.fragmentsByRevision[revisionKey(revision)].orEmpty().any { fragment ->
-					fragment.fragmentKind == ActivityCapturedFragmentEntity.KIND_BAND &&
-						minimumPossibleWallTime(fragment) < retainedFrom
-				}
+		if (retainedFrom != null && effective.any { revision ->
+				val minimumWallTime = minimumWallTimeByWindow[revision.logicalWindowId]
+				minimumWallTime == null || minimumWallTime < retainedFrom
 			}
-		} catch (_: ArithmeticException) {
-			return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
-		}
-		if (crossesRetention) {
+		) {
 			return unavailableWithIntent(ActivityHistoryCause.RETENTION_LIMIT)
 		}
 		if (effective.isNotEmpty() && completeness.any { it.registrationGeneration == 0L }) {
@@ -434,16 +454,20 @@ internal object ActivityHistoryComposer {
 		ordered: List<ActivityCapturedWindowRevisionEntity>,
 		snapshot: ActivityHistorySnapshot,
 	): ActivityCapturedWindowRevisionEntity? {
-		if (ordered.isEmpty() || ordered.map(ActivityCapturedWindowRevisionEntity::semanticRevision) !=
-			(1L..ordered.size.toLong()).toList() || ordered.any { !sameCorrectionAuthority(ordered.first(), it) }) {
+		if (!ActivityCapturedFactIntegrity.hasCompleteRevisionLineage(ordered)) {
 			return null
 		}
 		if (ordered.any { revision ->
+			val evidence = snapshot.evidenceByRevision[revisionKey(revision)].orEmpty()
 			!ActivityCapturedFactIntegrity.verify(
 				revision,
 				snapshot.fragmentsByRevision[revisionKey(revision)].orEmpty(),
-				snapshot.evidenceByRevision[revisionKey(revision)].orEmpty(),
-			)
+				evidence,
+			) || evidence.any { row ->
+				snapshot.walByEventId[row.sourceEventId]?.let { wal ->
+					ActivityWalCarrierAuthenticator.authenticates(revision, row, wal)
+				} != true
+			}
 		}) return null
 		val latest = ordered.last()
 		val matchingCursors = snapshot.cursors.filter { cursor ->
@@ -453,40 +477,6 @@ internal object ActivityHistoryComposer {
 		}
 		return latest.takeIf { matchingCursors.singleOrNull()?.matches(latest) == true }
 	}
-
-	@Suppress("ComplexCondition", "LongMethod")
-	private fun sameCorrectionAuthority(
-		first: ActivityCapturedWindowRevisionEntity,
-		candidate: ActivityCapturedWindowRevisionEntity,
-	): Boolean = first.writerProjectionId == candidate.writerProjectionId &&
-		first.writerProjectionVersion == candidate.writerProjectionVersion &&
-		first.writerBindingGeneration == candidate.writerBindingGeneration &&
-		first.writerOwnerGeneration == candidate.writerOwnerGeneration &&
-		first.logicalWindowId == candidate.logicalWindowId &&
-		first.logicalTrackingId == candidate.logicalTrackingId &&
-		first.serviceRunId == candidate.serviceRunId && first.sessionSegmentId == candidate.sessionSegmentId &&
-		first.purpose == candidate.purpose && first.sourceInstanceId == candidate.sourceInstanceId &&
-		first.registrationGeneration == candidate.registrationGeneration &&
-		first.configurationRevision == candidate.configurationRevision &&
-		first.physicalConfigurationFingerprint == candidate.physicalConfigurationFingerprint &&
-		first.authorizationRevision == candidate.authorizationRevision &&
-		first.authorizationFingerprint == candidate.authorizationFingerprint &&
-		first.purposeEligibilityMask == candidate.purposeEligibilityMask &&
-		first.sourcePolicyRevision == candidate.sourcePolicyRevision &&
-		first.captureConsentEpoch == candidate.captureConsentEpoch &&
-		first.manifestRevision == candidate.manifestRevision &&
-		first.lifecycleLeaseGeneration == candidate.lifecycleLeaseGeneration &&
-		first.collectedDataEpoch == candidate.collectedDataEpoch &&
-		first.clockDomainId == candidate.clockDomainId && first.storedZoneId == candidate.storedZoneId &&
-		first.providerAcceptanceStartNanos == candidate.providerAcceptanceStartNanos &&
-		first.providerAcceptanceEndNanos == candidate.providerAcceptanceEndNanos &&
-		first.authorizationEffectStartNanos == candidate.authorizationEffectStartNanos &&
-		first.authorizationEffectEndNanos == candidate.authorizationEffectEndNanos &&
-		first.sessionRunEffectStartNanos == candidate.sessionRunEffectStartNanos &&
-		first.sessionRunEffectEndNanos == candidate.sessionRunEffectEndNanos &&
-		first.windowStartElapsedRealtimeNanos == candidate.windowStartElapsedRealtimeNanos &&
-		first.windowEndElapsedRealtimeNanos == candidate.windowEndElapsedRealtimeNanos &&
-		first.scopeDeletionGeneration == candidate.scopeDeletionGeneration
 
 	private fun ActivityCapturedWindowCursorEntity.matches(
 		revision: ActivityCapturedWindowRevisionEntity,
@@ -509,7 +499,28 @@ internal object ActivityHistoryComposer {
 		provider: ProviderRegistrationGenerationEntity,
 		authorizations: List<SourceAuthorizationEntity>,
 		expectedSessionRunEndNanos: Long,
-	): Boolean = fact.sessionSegmentId == run.sessionSegmentId && fact.logicalTrackingId == run.logicalTrackingId &&
+		actualObservations: List<ProviderRegistrationActualObservation>,
+		snapshot: ActivityHistorySnapshot,
+	): Boolean {
+		val providerAuthentication = ProviderRegistrationIntervalAuthenticator.authenticateFactWindow(
+			registration = provider,
+			expectedSourceKind = ACTIVITY_SOURCE,
+			expectedRegistrationGeneration = fact.registrationGeneration,
+			expectedSourceInstanceId = fact.sourceInstanceId,
+			expectedClockDomainId = fact.clockDomainId,
+			expectedPhysicalConfigurationFingerprint = fact.physicalConfigurationFingerprint,
+			expectedCollectedDataEpoch = fact.collectedDataEpoch,
+			expectedProviderResidency =
+				ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+			factWindow = ProviderRegistrationFactWindow(
+				startInclusiveNanos = fact.windowStartElapsedRealtimeNanos,
+				endExclusiveNanos = fact.windowEndElapsedRealtimeNanos,
+				actualObservations = actualObservations,
+			),
+			currentClockDomainId = snapshot.currentClockDomainId,
+			currentProviderRegistrations = snapshot.currentProviderRegistrations,
+		) as? ProviderRegistrationIntervalAuthentication.Authenticated ?: return false
+		return fact.sessionSegmentId == run.sessionSegmentId && fact.logicalTrackingId == run.logicalTrackingId &&
 		fact.serviceRunId == run.serviceRunId && fact.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
 		fact.manifestRevision == manifest.manifestRevision && fact.sourcePolicyRevision == manifest.sourcePolicyRevision &&
 		fact.captureConsentEpoch == binding.consentEpoch && fact.lifecycleLeaseGeneration == run.leaseGeneration &&
@@ -534,8 +545,9 @@ internal object ActivityHistoryComposer {
 		provider.physicalConfigurationFingerprint == fact.physicalConfigurationFingerprint &&
 		provider.collectedDataEpoch == fact.collectedDataEpoch &&
 		provider.acceptedElapsedRealtimeNanos == fact.providerAcceptanceStartNanos &&
-		(provider.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE) == fact.providerAcceptanceEndNanos &&
+		providerAuthentication.interval.endExclusiveNanos == fact.providerAcceptanceEndNanos &&
 		hasExactAuthorization(fact, authorizations) && isActivityWriter(binding)
+	}
 
 	private fun hasExactAuthorization(
 		fact: ActivityCapturedWindowRevisionEntity,
@@ -720,14 +732,6 @@ internal object ActivityHistoryComposer {
 			requireNotNull(confidenceObservationCount),
 		)
 		else -> error("Unknown Activity confidence kind")
-	}
-
-	private fun minimumPossibleWallTime(fragment: ActivityCapturedFragmentEntity): Long {
-		val start = Math.subtractExact(requireNotNull(fragment.startWallTimeMs),
-			requireNotNull(fragment.startWallTimeUncertaintyMs))
-		val end = Math.subtractExact(requireNotNull(fragment.endWallTimeMs),
-			requireNotNull(fragment.endWallTimeUncertaintyMs))
-		return minOf(start, end)
 	}
 
 	private fun List<ActivityCapturedWindowRevisionEntity>.sumExact(

@@ -148,6 +148,58 @@ internal fun createTrackingOwnerValidationTriggers(database: SupportSQLiteDataba
 			""".trimIndent(),
 		)
 	}
+
+	if (database.hasColumns(
+			"pressure_fact_retention_authority",
+			setOf("writer_projection_id", "writer_projection_version", "logical_fact_id"),
+		) && database.hasColumns(
+			"pressure_fact_retention_revision_authority",
+			setOf(
+				"writer_projection_id",
+				"writer_projection_version",
+				"logical_fact_id",
+				"source_event_id",
+				"source_admission_ordinal",
+			),
+		) && database.hasColumns(
+			"pressure_fact_revision",
+			setOf(
+				"writer_projection_id",
+				"writer_projection_version",
+				"logical_fact_id",
+				"source_event_id",
+				"source_admission_ordinal",
+			),
+		)
+	) {
+		database.execSQL(
+			"""
+			CREATE TRIGGER IF NOT EXISTS reject_pressure_fact_retention_resurrection
+			BEFORE INSERT ON pressure_fact_revision
+			WHEN EXISTS (
+				SELECT 1
+				FROM pressure_fact_retention_authority AS retained
+				WHERE retained.writer_projection_id = NEW.writer_projection_id
+				  AND retained.writer_projection_version = NEW.writer_projection_version
+				  AND retained.logical_fact_id = NEW.logical_fact_id
+			)
+			OR EXISTS (
+				SELECT 1
+				FROM pressure_fact_retention_revision_authority AS retained_revision
+				WHERE retained_revision.writer_projection_id = NEW.writer_projection_id
+				  AND retained_revision.writer_projection_version = NEW.writer_projection_version
+				  AND (
+				    retained_revision.logical_fact_id = NEW.logical_fact_id
+				    OR retained_revision.source_event_id = NEW.source_event_id
+				    OR retained_revision.source_admission_ordinal = NEW.source_admission_ordinal
+				  )
+			)
+			BEGIN
+				SELECT RAISE(ABORT, 'Pressure retention authority rejects fact resurrection');
+			END
+			""".trimIndent(),
+		)
+	}
 }
 
 private fun SupportSQLiteDatabase.hasColumns(

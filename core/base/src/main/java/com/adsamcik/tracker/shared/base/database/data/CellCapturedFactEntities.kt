@@ -583,6 +583,68 @@ private fun cellDeletionDigest(namespace: String, vararg values: Any?): String {
 
 private val CELL_DELETION_SHA_256 = Regex("[0-9a-f]{64}")
 
+/**
+ * Product/privacy authority that permits an identity-free Cell aggregate to be reused.
+ *
+ * Physical provider, registration, configuration, authorization, manifest, and lifecycle
+ * revisions are authenticated for each fact independently and intentionally do not participate in
+ * reuse compatibility.
+ */
+data class CellAggregateReuseAuthority(
+	val logicalTrackingId: String,
+	val serviceRunId: String,
+	val sessionSegmentId: Long,
+	val capturedSources: Set<Int>,
+	val controlSources: Set<Int>,
+	val purposeEligibilityMask: Long,
+	val captureConsentEpoch: Long,
+	val collectedDataEpoch: Long,
+	val scopeDeletionGeneration: Long,
+	val storedZoneId: String,
+	val structuralEpochDay: Long,
+) {
+	init {
+		require(logicalTrackingId.isNotBlank() && serviceRunId.isNotBlank())
+		require(sessionSegmentId > 0L)
+		require(SourceDestinationOwnerEntity.SOURCE_CELL in capturedSources)
+		require(capturedSources.intersect(controlSources).isEmpty())
+		require(purposeEligibilityMask and SourceBrokerPurpose.ALL_MASK == purposeEligibilityMask)
+		require(purposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L)
+		require(captureConsentEpoch >= 0L && collectedDataEpoch >= 0L)
+		require(scopeDeletionGeneration >= 0L && storedZoneId.isNotBlank())
+	}
+
+	fun canReuseAggregateFrom(other: CellAggregateReuseAuthority): Boolean =
+		logicalTrackingId == other.logicalTrackingId &&
+			serviceRunId == other.serviceRunId &&
+			sessionSegmentId == other.sessionSegmentId &&
+			capturedSources == other.capturedSources &&
+			controlSources == other.controlSources &&
+			purposeEligibilityMask == other.purposeEligibilityMask &&
+			captureConsentEpoch == other.captureConsentEpoch &&
+			collectedDataEpoch == other.collectedDataEpoch &&
+			scopeDeletionGeneration == other.scopeDeletionGeneration &&
+			storedZoneId == other.storedZoneId &&
+			structuralEpochDay == other.structuralEpochDay
+}
+
+fun CellCapturedFactRevisionEntity.aggregateReuseAuthority(
+	capturedSources: Set<Int>,
+	controlSources: Set<Int>,
+): CellAggregateReuseAuthority = CellAggregateReuseAuthority(
+	logicalTrackingId = logicalTrackingId,
+	serviceRunId = serviceRunId,
+	sessionSegmentId = sessionSegmentId,
+	capturedSources = capturedSources,
+	controlSources = controlSources,
+	purposeEligibilityMask = purposeEligibilityMask,
+	captureConsentEpoch = captureConsentEpoch,
+	collectedDataEpoch = collectedDataEpoch,
+	scopeDeletionGeneration = scopeDeletionGeneration,
+	storedZoneId = storedZoneId,
+	structuralEpochDay = structuralEpochDay,
+)
+
 /** Complete retained-effect digest and stable identities for Cell fact revisions. */
 object CellCapturedFactRevisionIntegrity {
 	fun logicalFactId(
@@ -608,6 +670,88 @@ object CellCapturedFactRevisionIntegrity {
 
 	fun hasValidEffectChecksum(fact: CellCapturedFactRevisionEntity): Boolean =
 		fact.effectChecksum == effectChecksum(fact)
+
+	fun hasValidRetainedLineage(
+		ordered: List<CellCapturedFactRevisionEntity>,
+	): Boolean =
+		ordered.isNotEmpty() &&
+			ordered.map(CellCapturedFactRevisionEntity::semanticRevision) ==
+			(1L..ordered.size.toLong()).toList() &&
+			ordered.all(::hasValidEffectChecksum) &&
+			ordered.zipWithNext().all { (previous, next) ->
+				next.isExactSuccessorOf(previous)
+			}
+
+	fun cursorAuthenticatesCurrent(
+		cursor: CellCapturedFactCursorEntity,
+		fact: CellCapturedFactRevisionEntity,
+	): Boolean =
+		cursor.writerProjectionId == fact.writerProjectionId &&
+			cursor.writerProjectionVersion == fact.writerProjectionVersion &&
+			cursor.logicalFactId == fact.logicalFactId &&
+			cursor.logicalTrackingId == fact.logicalTrackingId &&
+			cursor.serviceRunId == fact.serviceRunId &&
+			cursor.sessionSegmentId == fact.sessionSegmentId &&
+			cursor.writerOwnerGeneration == fact.writerOwnerGeneration &&
+			cursor.collectedDataEpoch == fact.collectedDataEpoch &&
+			cursor.scopeDeletionGeneration == fact.scopeDeletionGeneration &&
+			cursor.latestSemanticRevision == fact.semanticRevision &&
+			cursor.latestMutationId == fact.mutationId &&
+			cursor.latestEffectChecksum == fact.effectChecksum &&
+			cursor.latestSourceAdmissionOrdinal == fact.sourceAdmissionOrdinal &&
+			cursor.cursorRevision == fact.semanticRevision &&
+			cursor.updatedAtMs == fact.appliedAtMs
+
+	fun coverageOnlyOwnerCursorAuthenticates(
+		dependent: CellCapturedFactRevisionEntity,
+		owner: CellCapturedFactRevisionEntity,
+		ownerCursor: CellCapturedFactCursorEntity,
+	): Boolean =
+		dependent.factKind == CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY &&
+			owner.factKind == CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE &&
+			dependent.aggregateOwnerLogicalFactId == owner.logicalFactId &&
+			dependent.aggregateOwnerSemanticRevision == owner.semanticRevision &&
+			cursorAuthenticatesCurrent(ownerCursor, owner)
+
+	private fun CellCapturedFactRevisionEntity.isExactSuccessorOf(
+		previous: CellCapturedFactRevisionEntity,
+	): Boolean =
+		supersedesSemanticRevision == previous.semanticRevision &&
+			fixedCorrectionAuthority() == previous.fixedCorrectionAuthority() &&
+			providerAcceptanceEndNanos.settles(previous.providerAcceptanceEndNanos) &&
+			authorizationEffectEndNanos.settles(previous.authorizationEffectEndNanos) &&
+			consentEffectEndNanos.settles(previous.consentEffectEndNanos) &&
+			sessionRunEffectEndNanos.settles(previous.sessionRunEffectEndNanos) &&
+			deletionEffectEndNanos.settles(previous.deletionEffectEndNanos)
+
+	@Suppress("LongMethod")
+	private fun CellCapturedFactRevisionEntity.fixedCorrectionAuthority(): List<Any?> = listOf(
+		writerProjectionId, writerProjectionVersion, writerBindingGeneration, writerOwnerGeneration,
+		logicalFactId, logicalTrackingId, serviceRunId, sessionSegmentId, purpose,
+		sourceDeliveryIdentity, sourceEventId, sourceAdmissionOrdinal, walIntegrityIdentity,
+		payloadChecksum, deliveryUnitIndex, deliveryUnitCount, sourceSequence, planAttribution,
+		payloadVersion, canonicalProviderSemanticsDigest, sourceInstanceId, registrationGeneration,
+		configurationRevision, physicalConfigurationFingerprint, authorizationRevision,
+		authorizationFingerprint, purposeEligibilityMask, sourcePolicyRevision, captureConsentEpoch,
+		manifestRevision, lifecycleLeaseGeneration, collectedDataEpoch, scopeDeletionGeneration,
+		clockDomainId, storedZoneId, structuralEpochDay, providerAcceptanceStartNanos,
+		authorizationEffectStartNanos, consentEffectStartNanos, sessionRunEffectStartNanos,
+		deletionEffectStartNanos, maximumObservationAgeNanos, observedIntervalStartNanos,
+		observedElapsedNanos, receivedElapsedNanos, observedWallTimeMs, wallTimeUncertaintyMs,
+		acquiredAtMs, createdAtMs, qualityFlags, qualityConfidence, factKind,
+		aggregateOwnerLogicalFactId, aggregateOwnerSemanticRevision, coverageIntervalStartNanos,
+		coverageIntervalEndNanos, availability, submittedChildCount, acceptedChildCount,
+		staleChildCount, futureTimeChildCount, missingTimeChildCount,
+		clockUnverifiableChildCount, authorityMismatchChildCount, unsupportedTechnologyChildCount,
+		subscriptionCompleteness, childCompleteness, observationCount, registeredObservationCount,
+		gsmCount, cdmaCount, wcdmaCount, tdscdmaCount, lteCount, nrCount, qualityUnknownCount,
+		qualityNoneOrUnknownCount, qualityPoorCount, qualityModerateCount, qualityGoodCount,
+		qualityGreatCount, weakObservationCount, knownQualityObservationCount,
+		allKnownQualityIsWeak,
+	)
+
+	private fun Long.settles(previous: Long): Boolean =
+		this == previous || previous == Long.MAX_VALUE && this < Long.MAX_VALUE
 
 	private fun CellCapturedFactRevisionEntity.effectParts(): List<Any?> = listOf(
 		writerProjectionId, writerProjectionVersion, writerBindingGeneration, writerOwnerGeneration,

@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.shared.base.database
 
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
+import com.adsamcik.tracker.shared.base.database.data.MAX_PRESSURE_WAL_PAYLOAD_BYTES
+import com.adsamcik.tracker.shared.base.database.data.PressureFactRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentity
@@ -84,6 +87,11 @@ internal suspend fun AppDatabase.pruneAuthenticatedPressureFactsAffectedByRetent
 	markedAtMs: Long,
 	limits: PressureRetentionTraversalLimits,
 	checkpoint: suspend (PressureRetentionCheckpoint) -> Unit,
+	afterFactPageScanned: suspend (
+		pageCount: Int,
+		factCount: Int,
+		residentLineageRevisionCount: Int,
+	) -> Unit = { _, _, _ -> },
 ): Int = withTransaction {
 	require(beforeMs >= 0L)
 	require(collectedDataEpoch >= 0L)
@@ -124,42 +132,63 @@ internal suspend fun AppDatabase.pruneAuthenticatedPressureFactsAffectedByRetent
 		}
 		candidateRunIds.forEach { serviceRunId ->
 			val authority = authorities.getValue(serviceRunId)
-			val selected = authenticatePressureRetentionRun(
+			var markerInstalled = false
+			val pendingDeletes = mutableListOf<Pair<String, Int>>()
+			suspend fun flushPendingDeletes() {
+				if (pendingDeletes.isEmpty()) return
+				currentCoroutineContext().ensureActive()
+				val expectedDeleted = pendingDeletes.fold(0) { total, (_, count) ->
+					Math.addExact(total, count)
+				}
+				val actualDeleted = factDao.deleteExactLineages(
+					logicalTrackingId = authority.run.logicalTrackingId,
+					serviceRunId = authority.run.serviceRunId,
+					writerProjectionId =
+						SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+					writerProjectionVersion =
+						SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+					logicalFactIds = pendingDeletes.map { (logicalFactId, _) -> logicalFactId },
+				)
+				check(actualDeleted == expectedDeleted) {
+					"Authenticated Pressure retention lineage batch changed during pruning"
+				}
+				deleted = Math.addExact(deleted, actualDeleted)
+				pendingDeletes.clear()
+				checkpoint(PressureRetentionCheckpoint.DELETE_BATCH_APPLIED)
+			}
+			authenticatePressureRetentionRun(
 				authority = authority,
 				beforeMs = beforeMs,
 				collectedDataEpoch = collectedDataEpoch,
 				budget = budget,
 				checkpoint = checkpoint,
-			)
-			checkpoint(PressureRetentionCheckpoint.RUN_AUTHENTICATED)
-			if (selected.revisionCountByLogicalFactId.isEmpty()) return@forEach
-			markPressureRetentionTruncation(
-				logicalTrackingId = authority.run.logicalTrackingId,
-				serviceRunId = authority.run.serviceRunId,
-				collectedDataEpoch = collectedDataEpoch,
-				markedAtMs = markedAtMs,
-			)
-			checkpoint(PressureRetentionCheckpoint.RUN_MARKED)
-			selected.revisionCountByLogicalFactId.entries
-				.chunked(RETENTION_FACT_DELETE_BATCH_SIZE)
-				.forEach { batch ->
-					val expectedDeleted = batch.fold(0) { total, entry ->
-						Math.addExact(total, entry.value)
-					}
-					val actualDeleted = factDao.deleteExactLineages(
-						logicalTrackingId = authority.run.logicalTrackingId,
-						serviceRunId = authority.run.serviceRunId,
-						writerProjectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
-						writerProjectionVersion =
-							SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
-						logicalFactIds = batch.map { entry -> entry.key },
+				afterFactPageScanned = afterFactPageScanned,
+				onAffectedLineage = { lineage ->
+					currentCoroutineContext().ensureActive()
+					val retentionAuthority = persistPressureFactRetentionAuthority(
+						revisions = lineage,
+						retainedFromMs = beforeMs,
+						retainedAtMs = markedAtMs,
 					)
-					check(actualDeleted == expectedDeleted) {
-						"Authenticated Pressure retention lineage changed during pruning"
+					checkpoint(PressureRetentionCheckpoint.RETENTION_AUTHORITY_INSERTED)
+					if (!markerInstalled) {
+						markPressureRetentionTruncation(
+							logicalTrackingId = authority.run.logicalTrackingId,
+							serviceRunId = authority.run.serviceRunId,
+							collectedDataEpoch = collectedDataEpoch,
+							markedAtMs = markedAtMs,
+						)
+						markerInstalled = true
+						checkpoint(PressureRetentionCheckpoint.RUN_MARKED)
 					}
-					deleted = Math.addExact(deleted, actualDeleted)
-					checkpoint(PressureRetentionCheckpoint.DELETE_BATCH_APPLIED)
-				}
+					pendingDeletes += retentionAuthority.logicalFactId to lineage.size
+					if (pendingDeletes.size >= RETENTION_FACT_DELETE_BATCH_SIZE) {
+						flushPendingDeletes()
+					}
+				},
+			)
+			flushPendingDeletes()
+			checkpoint(PressureRetentionCheckpoint.RUN_AUTHENTICATED)
 		}
 		afterServiceRunId = candidateRunIds.last()
 		if (candidateRunIds.size < RETENTION_RUN_PAGE_SIZE) break
@@ -300,6 +329,12 @@ private suspend fun AppDatabase.authenticatePressureRetentionRun(
 	collectedDataEpoch: Long,
 	budget: PressureRetentionTraversalBudget,
 	checkpoint: suspend (PressureRetentionCheckpoint) -> Unit,
+	afterFactPageScanned: suspend (
+		pageCount: Int,
+		factCount: Int,
+		residentLineageRevisionCount: Int,
+	) -> Unit = { _, _, _ -> },
+	onAffectedLineage: suspend (List<PressureFactRevisionEntity>) -> Unit = {},
 	expectedWriter: PressureCandidateWriterAuthority = DEFAULT_PRESSURE_CANDIDATE_WRITER,
 ): AuthenticatedPressureRetentionSelection {
 	val factDao = pressureFactRevisionDao()
@@ -326,14 +361,36 @@ private suspend fun AppDatabase.authenticatePressureRetentionRun(
 		.mapIndexed { index, manifest ->
 			manifest.manifestRevision to orderedManifests.getOrNull(index + 1)
 		}.toMap()
-	val revisionCountByLogicalFactId = linkedMapOf<String, Int>()
-	val affectedLogicalFactIds = linkedSetOf<String>()
+	var currentLineageKey: PressureRetentionLineageKey? = null
+	val currentLineage = mutableListOf<PressureFactRevisionEntity>()
+	val currentLineageWalByEventId = linkedMapOf<String, SourceEventWalEntity>()
+	var authenticatedRevisionCount = 0
 	var cursor: PressureRetentionFactCursor? = null
-	var previousFact: PressureFactRevisionEntity? = null
 	var factCount = 0
-	var lineageCount = 0
+	var pageCount = 0
 	var latestDurableTimeMs = 0L
+	suspend fun authenticateCurrentLineage() {
+		if (currentLineage.isEmpty()) return
+		check(authenticatePressureRetentionLineage(
+			currentLineage,
+			currentLineageWalByEventId,
+			authority.bindings,
+		)) {
+			"Pressure retention correction lineage or WAL authority is invalid"
+		}
+		checkpoint(PressureRetentionCheckpoint.LINEAGE_AUTHENTICATED)
+		val retentionLowerBoundMs = CanonicalRetentionBounds.pressureLineage(currentLineage)
+		check(retentionLowerBoundMs != null) {
+			"Pressure retention correction lineage has no canonical wall-time lower bound"
+		}
+		if (beforeMs == Long.MAX_VALUE || retentionLowerBoundMs < beforeMs) {
+			onAffectedLineage(currentLineage)
+		}
+		authenticatedRevisionCount =
+			Math.addExact(authenticatedRevisionCount, currentLineage.size)
+	}
 	while (true) {
+		currentCoroutineContext().ensureActive()
 		val page = cursor?.let { after ->
 			factDao.exactServiceRunPageAfter(
 				logicalTrackingId = run.logicalTrackingId,
@@ -350,12 +407,15 @@ private suspend fun AppDatabase.authenticatePressureRetentionRun(
 			limit = RETENTION_FACT_PAGE_SIZE,
 		)
 		if (page.isEmpty()) break
-		factCount = Math.addExact(factCount, page.size)
-		check(factCount <= budget.limits.maximumFactRevisionsPerRun) {
-			"Pressure retention run fact revision budget exceeded"
+		pageCount = Math.addExact(pageCount, 1)
+		check(pageCount <= budget.maximumFactPagesPerRun) {
+			"Pressure retention run fact page budget exceeded"
 		}
+		budget.consumeFactPage()
+		factCount = Math.addExact(factCount, page.size)
 		budget.consumeFactRevisions(page.size)
 		checkpoint(PressureRetentionCheckpoint.FACT_PAGE_LOADED)
+		val pageWalByEventId = loadPressureRetentionWalCarriers(page)
 		for (fact in page) {
 			val nextCursor = PressureRetentionFactCursor(fact)
 			check(cursor == null || nextCursor > requireNotNull(cursor)) {
@@ -365,6 +425,14 @@ private suspend fun AppDatabase.authenticatePressureRetentionRun(
 			val manifest = authority.manifests[fact.manifestRevision]
 			val binding = authority.bindings[fact.manifestRevision]
 			val nextManifest = nextManifestByRevision[fact.manifestRevision]
+			val lineageKey = PressureRetentionLineageKey(fact)
+			val startsLineage = lineageKey != currentLineageKey
+			if (startsLineage) {
+				authenticateCurrentLineage()
+				currentLineage.clear()
+				currentLineageWalByEventId.clear()
+				currentLineageKey = lineageKey
+			}
 			check(manifest != null && binding != null &&
 				fact.logicalTrackingId == run.logicalTrackingId &&
 				fact.serviceRunId == run.serviceRunId &&
@@ -377,42 +445,35 @@ private suspend fun AppDatabase.authenticatePressureRetentionRun(
 				fact.windowStartElapsedRealtimeNanos >= manifest.effectiveElapsedRealtimeNanos &&
 				nextManifest?.let { next ->
 					fact.windowEndElapsedRealtimeNanos <= next.effectiveElapsedRealtimeNanos
-				} != false && hasValidPressureFactIdentity(fact, binding, expectedWriter) &&
-				continuesValidPressureCorrection(previousFact, fact, authority.manifests)
+				} != false &&
+				hasValidPressureFactIdentity(
+					fact = fact,
+					binding = binding,
+					requiresOriginalLogicalFactId = startsLineage,
+					expectedWriter = expectedWriter,
+				)
 			) { "Pressure retention fact authority or correction lineage is invalid" }
-			val startsLineage = previousFact?.let { previous ->
-				previous.logicalFactId != fact.logicalFactId ||
-					previous.writerProjectionId != fact.writerProjectionId ||
-					previous.writerProjectionVersion != fact.writerProjectionVersion
-			} != false
 			if (startsLineage) {
-				lineageCount = Math.addExact(lineageCount, 1)
-				check(lineageCount <= budget.limits.maximumFactLineagesPerRun) {
-					"Pressure retention run fact lineage budget exceeded"
-				}
 				budget.consumeFactLineage()
 			}
-			previousFact = fact
-			latestDurableTimeMs = maxOf(latestDurableTimeMs, fact.appliedAtMs)
-			revisionCountByLogicalFactId[fact.logicalFactId] = Math.addExact(
-				revisionCountByLogicalFactId[fact.logicalFactId] ?: 0,
-				1,
-			)
-			if (beforeMs == Long.MAX_VALUE ||
-				earliestPossibleWallTimeMs(
-					fact.intervalStartTimeMs,
-					fact.wallTimeUncertaintyMs,
-				) < beforeMs
-			) {
-				affectedLogicalFactIds += fact.logicalFactId
+			check(currentLineage.size < budget.limits.maximumLineageRevisions) {
+				"Pressure retention correction lineage revision budget exceeded"
 			}
+			currentLineage += fact
+			val wal = requireNotNull(pageWalByEventId[fact.sourceEventId])
+			check(currentLineageWalByEventId.put(fact.sourceEventId, wal) == null) {
+				"Pressure retention correction lineage reuses a WAL event identity"
+			}
+			latestDurableTimeMs = maxOf(latestDurableTimeMs, fact.appliedAtMs)
 		}
+		afterFactPageScanned(pageCount, factCount, currentLineage.size)
+		currentCoroutineContext().ensureActive()
 		if (page.size < RETENTION_FACT_PAGE_SIZE) break
 	}
 	check(factCount > 0) { "Pressure retention candidate run has no fact revisions" }
+	authenticateCurrentLineage()
 	return AuthenticatedPressureRetentionSelection(
-		revisionCountByLogicalFactId = revisionCountByLogicalFactId
-			.filterKeys(affectedLogicalFactIds::contains),
+		authenticatedRevisionCount = authenticatedRevisionCount,
 		latestDurableTimeMs = latestDurableTimeMs,
 	)
 }
@@ -443,6 +504,7 @@ private fun hasValidPressureCaptureAuthority(
 private fun hasValidPressureFactIdentity(
 	fact: PressureFactRevisionEntity,
 	binding: SessionManifestSourceEntity,
+	requiresOriginalLogicalFactId: Boolean,
 	expectedWriter: PressureCandidateWriterAuthority = DEFAULT_PRESSURE_CANDIDATE_WRITER,
 ): Boolean {
 	val expectedLogicalFactId =
@@ -450,43 +512,45 @@ private fun hasValidPressureFactIdentity(
 	return fact.writerProjectionId == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID &&
 		fact.writerProjectionVersion == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION &&
 		fact.writerBindingGeneration == expectedWriter.bindingGeneration &&
-		fact.logicalFactId == expectedLogicalFactId &&
-		fact.mutationId == "$expectedLogicalFactId:${fact.semanticRevision}" &&
+		(!requiresOriginalLogicalFactId ||
+			(fact.semanticRevision == 1L && fact.logicalFactId == expectedLogicalFactId)) &&
+		fact.mutationId == "${fact.logicalFactId}:${fact.semanticRevision}" &&
 		PressureFactRevisionIntegrity.hasValidEffectChecksum(fact, binding)
 }
 
-@Suppress("ComplexCondition")
-private fun continuesValidPressureCorrection(
-	previous: PressureFactRevisionEntity?,
-	current: PressureFactRevisionEntity,
-	manifestsByRevision: Map<Long, SessionManifestVersionEntity>,
-): Boolean {
-	val sameLineage = previous != null && previous.logicalFactId == current.logicalFactId &&
-		previous.writerProjectionId == current.writerProjectionId &&
-		previous.writerProjectionVersion == current.writerProjectionVersion
-	if (!sameLineage) return current.semanticRevision == FIRST_SEMANTIC_REVISION
-	val prior = requireNotNull(previous)
-	val expectedRevision = try {
-		Math.addExact(prior.semanticRevision, 1L)
-	} catch (_: ArithmeticException) {
-		return false
+private fun authenticatePressureRetentionLineage(
+	revisions: List<PressureFactRevisionEntity>,
+	walByEventId: Map<String, SourceEventWalEntity>,
+	bindingsByManifestRevision: Map<Long, SessionManifestSourceEntity>,
+): Boolean =
+	PressureFactProofAuthenticator.authenticateStoredLineage(
+		revisions = revisions,
+		walByEventId = walByEventId,
+		bindingsByManifestRevision = bindingsByManifestRevision,
+	) is PressureFactLineageProof.Authenticated
+
+private suspend fun AppDatabase.loadPressureRetentionWalCarriers(
+	revisions: List<PressureFactRevisionEntity>,
+): Map<String, SourceEventWalEntity> {
+	val expectedEventIds = revisions.mapTo(linkedSetOf(), PressureFactRevisionEntity::sourceEventId)
+	val walRows = mutableListOf<SourceEventWalEntity>()
+	for (eventIds in expectedEventIds
+		.chunked(PRESSURE_RETENTION_WAL_ID_BATCH_SIZE)
+	) {
+		walRows += sourceEventWalDao().boundedPayloadsByEventIds(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			eventIds = eventIds,
+			maximumPayloadBytes = MAX_PRESSURE_WAL_PAYLOAD_BYTES,
+			limit = eventIds.size,
+		)
 	}
-	val priorManifest = manifestsByRevision[prior.manifestRevision] ?: return false
-	val currentManifest = manifestsByRevision[current.manifestRevision] ?: return false
-	return current.semanticRevision == expectedRevision &&
-		current.sourceAdmissionOrdinal > prior.sourceAdmissionOrdinal &&
-		current.sourceEventId == prior.sourceEventId &&
-		current.writerBindingGeneration == prior.writerBindingGeneration &&
-		current.logicalTrackingId == prior.logicalTrackingId &&
-		current.serviceRunId == prior.serviceRunId && current.purpose == prior.purpose &&
-		current.collectedDataEpoch == prior.collectedDataEpoch &&
-		current.manifestRevision == prior.manifestRevision &&
-		current.sourcePolicyRevision == prior.sourcePolicyRevision &&
-		current.captureConsentEpoch == prior.captureConsentEpoch &&
-		current.clockDomainId == prior.clockDomainId &&
-		current.wallTimeUncertaintyMs == prior.wallTimeUncertaintyMs &&
-		currentManifest.effectiveBootId == priorManifest.effectiveBootId &&
-		currentManifest.zoneId == priorManifest.zoneId
+	val walByEventId = walRows.associateBy(SourceEventWalEntity::eventId)
+	if (walRows.size != walByEventId.size ||
+		walByEventId.keys != expectedEventIds
+	) {
+		error("Pressure retention lineage WAL authority is missing or ambiguous")
+	}
+	return walByEventId
 }
 
 private fun hasValidZone(zoneId: String): Boolean = try {
@@ -499,14 +563,7 @@ private fun hasValidZone(zoneId: String): Boolean = try {
 internal fun earliestPossiblePressureWallTimeMs(
 	wallTimeMs: Long,
 	uncertaintyMs: Long,
-): Long {
-	require(wallTimeMs >= 0L)
-	require(uncertaintyMs >= 0L)
-	return if (uncertaintyMs > wallTimeMs) 0L else wallTimeMs - uncertaintyMs
-}
-
-private fun earliestPossibleWallTimeMs(wallTimeMs: Long, uncertaintyMs: Long): Long =
-	earliestPossiblePressureWallTimeMs(wallTimeMs, uncertaintyMs)
+): Long = requireNotNull(CanonicalRetentionBounds.pressure(wallTimeMs, uncertaintyMs))
 
 enum class PressureSourceEraseLocalFailureReason {
 	SOURCE_EVIDENCE_AUTHORITY_CHANGED,
@@ -537,6 +594,8 @@ data class PressureSourceEraseLocalScope(
 
 data class PressureSourceEraseLocalAudit(
 	val factRevisionCount: Int,
+	val retentionAuthorityCount: Int,
+	val retentionRevisionAuthorityCount: Int,
 	val walEventCount: Int,
 	val legacySampleCount: Int,
 	val legacySampleWitnesses: List<PressureLegacySampleEraseWitness>,
@@ -545,14 +604,22 @@ data class PressureSourceEraseLocalAudit(
 	val writerFence: PressureSourceEraseWriterFence,
 ) {
 	init {
-		listOf(factRevisionCount, walEventCount, legacySampleCount).forEach { require(it >= 0) }
+		listOf(
+			factRevisionCount,
+			retentionAuthorityCount,
+			retentionRevisionAuthorityCount,
+			walEventCount,
+			legacySampleCount,
+		).forEach { require(it >= 0) }
 		require(legacySampleWitnesses.size == legacySampleCount)
 		require(scopes.distinct().size == scopes.size)
 		require(latestDurableTimeMs >= 0L)
 	}
 
 	val requiresHardwareAuthority: Boolean
-		get() = factRevisionCount > 0 || walEventCount > 0 || legacySampleCount > 0
+		get() = factRevisionCount > 0 || retentionAuthorityCount > 0 ||
+			retentionRevisionAuthorityCount > 0 ||
+			walEventCount > 0 || legacySampleCount > 0
 }
 
 data class PressureSourceEraseWriterFence(
@@ -656,6 +723,8 @@ private suspend fun AppDatabase.authenticatePressureSourceEraseWriterFence(
 data class PressureSourceEraseLocalLimits(
 	val maximumRuns: Int = 2_048,
 	val maximumFactRevisions: Int = 131_072,
+	val maximumRetentionAuthorities: Int = Int.MAX_VALUE,
+	val maximumRetentionRevisionAuthorities: Int = Int.MAX_VALUE,
 	val maximumWalEvents: Int = 65_536,
 	val maximumLegacySamples: Int = 65_536,
 	val maximumDirectDemands: Int = 256,
@@ -665,6 +734,8 @@ data class PressureSourceEraseLocalLimits(
 		listOf(
 			maximumRuns,
 			maximumFactRevisions,
+			maximumRetentionAuthorities,
+			maximumRetentionRevisionAuthorities,
 			maximumWalEvents,
 			maximumLegacySamples,
 			maximumDirectDemands,
@@ -696,6 +767,8 @@ suspend fun AppDatabase.pressureSourceEraseRequiresHardwareAuthority(
 		retiring.size > limits.maximumNonterminalRegistrations
 	) failPressureErase(PressureSourceEraseLocalFailureReason.MAINTENANCE_BOUND_EXCEEDED)
 	return pressureFactRevisionDao().count() > 0L ||
+		pressureFactRetentionAuthorityDao().count() > 0L ||
+		pressureFactRetentionRevisionAuthorityDao().count() > 0L ||
 		pressureFactRevisionDao().sourceEraseWalCount() > 0L ||
 		pressureFactRevisionDao().legacyPressureSampleCount() > 0L ||
 		demands.any {
@@ -736,6 +809,14 @@ suspend fun AppDatabase.auditPressureSourceEraseLocalAuthorityInTransaction(
 
 	val factDao = pressureFactRevisionDao()
 	val factCount = boundedInt(factDao.count(), limits.maximumFactRevisions)
+	val retentionAuthorityCount = boundedInt(
+		pressureFactRetentionAuthorityDao().count(),
+		limits.maximumRetentionAuthorities,
+	)
+	val retentionRevisionAuthorityCount = boundedInt(
+		pressureFactRetentionRevisionAuthorityDao().count(),
+		limits.maximumRetentionRevisionAuthorities,
+	)
 	val walCount = boundedInt(factDao.sourceEraseWalCount(), limits.maximumWalEvents)
 	val legacySampleCount = boundedInt(
 		factDao.legacyPressureSampleCount(),
@@ -766,18 +847,24 @@ suspend fun AppDatabase.auditPressureSourceEraseLocalAuthorityInTransaction(
 	if (currentRegistrations.isNotEmpty() || retiringRegistrations.isNotEmpty()) {
 		failPressureErase(PressureSourceEraseLocalFailureReason.CAPTURE_PROVIDER_NOT_QUIESCED)
 	}
-	if ((factCount > 0 || walCount > 0) && candidateWriter == null) {
+	if ((factCount > 0 || retentionAuthorityCount > 0 ||
+			retentionRevisionAuthorityCount > 0 || walCount > 0) && candidateWriter == null
+	) {
 		failPressureErase(PressureSourceEraseLocalFailureReason.DESTINATION_OWNER_CHANGED)
 	}
-	if (!requireRevokedAuthority && factCount == 0 && walCount == 0 && legacySampleCount == 0) {
+	if (!requireRevokedAuthority && factCount == 0 && retentionAuthorityCount == 0 &&
+		retentionRevisionAuthorityCount == 0 && walCount == 0 && legacySampleCount == 0
+	) {
 		return PressureSourceEraseLocalAudit(
-			0,
-			0,
-			0,
-			emptyList(),
-			emptyList(),
-			evidence.updatedAtMs,
-			verifiedWriterFence,
+			factRevisionCount = 0,
+			retentionAuthorityCount = 0,
+			retentionRevisionAuthorityCount = 0,
+			walEventCount = 0,
+			legacySampleCount = 0,
+			legacySampleWitnesses = emptyList(),
+			scopes = emptyList(),
+			latestDurableTimeMs = evidence.updatedAtMs,
+			writerFence = verifiedWriterFence,
 		)
 	}
 
@@ -804,20 +891,25 @@ suspend fun AppDatabase.auditPressureSourceEraseLocalAuthorityInTransaction(
 		revokedConsent.effectiveElapsedRealtimeNanos != policy.effectiveElapsedRealtimeNanos ||
 		revokedConsent.effectiveWallTimeMs != policy.effectiveWallTimeMs
 	) failPressureErase(PressureSourceEraseLocalFailureReason.CAPTURE_CONSENT_STILL_ELIGIBLE)
-	if (factCount == 0 && walCount == 0 && legacySampleCount == 0) {
+	if (factCount == 0 && retentionAuthorityCount == 0 &&
+		retentionRevisionAuthorityCount == 0 && walCount == 0 &&
+		legacySampleCount == 0
+	) {
 		return PressureSourceEraseLocalAudit(
-			0,
-			0,
-			0,
-			emptyList(),
-			emptyList(),
-			maxOf(
+			factRevisionCount = 0,
+			retentionAuthorityCount = 0,
+			retentionRevisionAuthorityCount = 0,
+			walEventCount = 0,
+			legacySampleCount = 0,
+			legacySampleWitnesses = emptyList(),
+			scopes = emptyList(),
+			latestDurableTimeMs = maxOf(
 				evidence.updatedAtMs,
 				policyAuthority.updatedAtMs,
 				policy.effectiveWallTimeMs,
 				revokedConsent.effectiveWallTimeMs,
 			),
-			verifiedWriterFence,
+			writerFence = verifiedWriterFence,
 		)
 	}
 
@@ -852,13 +944,93 @@ suspend fun AppDatabase.auditPressureSourceEraseLocalAuthorityInTransaction(
 		revokedConsent.effectiveWallTimeMs,
 		factDao.latestLegacyPressureSampleTimeMs() ?: 0L,
 	)
+	var afterRetentionLogicalFactId: String? = null
+	var authenticatedRetentionAuthorityCount = 0
+	var authenticatedRetentionRevisionAuthorityCount = 0
+	while (true) {
+		val page = afterRetentionLogicalFactId?.let { cursor ->
+			pressureFactRetentionAuthorityDao().pageForWriterAfter(
+				writerProjectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+				writerProjectionVersion =
+					SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+				afterLogicalFactId = cursor,
+				limit = PRESSURE_RETENTION_AUTHORITY_PAGE_SIZE,
+			)
+		} ?: pressureFactRetentionAuthorityDao().firstPageForWriter(
+			writerProjectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+			writerProjectionVersion =
+				SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+			limit = PRESSURE_RETENTION_AUTHORITY_PAGE_SIZE,
+		)
+		if (page.isEmpty()) break
+		if (page != page.sortedBy(PressureFactRetentionAuthorityEntity::logicalFactId) ||
+			page.any { authority ->
+				!authority.hasValidStoredIntegrity() ||
+					authority.collectedDataEpoch != expectedCollectedDataEpoch ||
+					afterRetentionLogicalFactId?.let {
+						authority.logicalFactId <= it
+					} == true
+			}
+		) failPressureErase(PressureSourceEraseLocalFailureReason.FACT_AUTHORITY_UNVERIFIABLE)
+		page.forEach { authority ->
+			val revisionAuthorities = pressureFactRetentionRevisionAuthorityDao().forLineage(
+				writerProjectionId = authority.writerProjectionId,
+				writerProjectionVersion = authority.writerProjectionVersion,
+				logicalFactId = authority.logicalFactId,
+				limit = MAX_PRESSURE_LINEAGE_REVISIONS + 1,
+			)
+			if (!authority.authenticatesRevisionAuthorities(revisionAuthorities)) {
+				failPressureErase(
+					PressureSourceEraseLocalFailureReason.FACT_AUTHORITY_UNVERIFIABLE,
+				)
+			}
+			authenticatedRetentionRevisionAuthorityCount = try {
+				Math.addExact(
+					authenticatedRetentionRevisionAuthorityCount,
+					revisionAuthorities.size,
+				)
+			} catch (_: ArithmeticException) {
+				failPressureErase(
+					PressureSourceEraseLocalFailureReason.MAINTENANCE_BOUND_EXCEEDED,
+				)
+			}
+			if (authenticatedRetentionRevisionAuthorityCount >
+				limits.maximumRetentionRevisionAuthorities
+			) {
+				failPressureErase(
+					PressureSourceEraseLocalFailureReason.MAINTENANCE_BOUND_EXCEEDED,
+				)
+			}
+			scopes += PressureSourceEraseLocalScope(
+				authority.logicalTrackingId,
+				authority.serviceRunId,
+			)
+			latestDurableTimeMs = maxOf(latestDurableTimeMs, authority.retainedAtMs)
+		}
+		authenticatedRetentionAuthorityCount = try {
+			Math.addExact(authenticatedRetentionAuthorityCount, page.size)
+		} catch (_: ArithmeticException) {
+			failPressureErase(PressureSourceEraseLocalFailureReason.MAINTENANCE_BOUND_EXCEEDED)
+		}
+		if (authenticatedRetentionAuthorityCount > limits.maximumRetentionAuthorities ||
+			scopes.size > limits.maximumRuns
+		) failPressureErase(PressureSourceEraseLocalFailureReason.MAINTENANCE_BOUND_EXCEEDED)
+		afterRetentionLogicalFactId = page.last().logicalFactId
+		if (page.size < PRESSURE_RETENTION_AUTHORITY_PAGE_SIZE) break
+	}
+	if (authenticatedRetentionAuthorityCount != retentionAuthorityCount) {
+		failPressureErase(PressureSourceEraseLocalFailureReason.FACT_AUTHORITY_UNVERIFIABLE)
+	}
+	if (authenticatedRetentionRevisionAuthorityCount != retentionRevisionAuthorityCount) {
+		failPressureErase(PressureSourceEraseLocalFailureReason.FACT_AUTHORITY_UNVERIFIABLE)
+	}
 	var afterServiceRunId: String? = null
 	while (true) {
 		val runIds = factDao.retentionServiceRunIdPage(afterServiceRunId, RETENTION_RUN_PAGE_SIZE)
 		if (runIds.isEmpty()) break
-		if (runIds != runIds.distinct().sorted() ||
-			scopes.size + runIds.size > limits.maximumRuns
-		) failPressureErase(PressureSourceEraseLocalFailureReason.MAINTENANCE_BOUND_EXCEEDED)
+		if (runIds != runIds.distinct().sorted()) {
+			failPressureErase(PressureSourceEraseLocalFailureReason.MAINTENANCE_BOUND_EXCEEDED)
+		}
 		budget.consumeRuns(runIds.size)
 		val authorities = try {
 			loadPressureRetentionAuthorities(
@@ -890,9 +1062,7 @@ suspend fun AppDatabase.auditPressureSourceEraseLocalAuthorityInTransaction(
 			authenticatedFactCount = try {
 				Math.addExact(
 					authenticatedFactCount,
-					selection.revisionCountByLogicalFactId.values.fold(0) { total, count ->
-						Math.addExact(total, count)
-					},
+					selection.authenticatedRevisionCount,
 				)
 			} catch (_: ArithmeticException) {
 				failPressureErase(PressureSourceEraseLocalFailureReason.MAINTENANCE_BOUND_EXCEEDED)
@@ -902,6 +1072,9 @@ suspend fun AppDatabase.auditPressureSourceEraseLocalAuthorityInTransaction(
 				authority.run.logicalTrackingId,
 				authority.run.serviceRunId,
 			)
+			if (scopes.size > limits.maximumRuns) {
+				failPressureErase(PressureSourceEraseLocalFailureReason.MAINTENANCE_BOUND_EXCEEDED)
+			}
 		}
 		afterServiceRunId = runIds.last()
 		if (runIds.size < RETENTION_RUN_PAGE_SIZE) break
@@ -965,6 +1138,8 @@ suspend fun AppDatabase.auditPressureSourceEraseLocalAuthorityInTransaction(
 	}
 	return PressureSourceEraseLocalAudit(
 		factRevisionCount = factCount,
+		retentionAuthorityCount = retentionAuthorityCount,
+		retentionRevisionAuthorityCount = retentionRevisionAuthorityCount,
 		walEventCount = walCount,
 		legacySampleCount = legacySampleCount,
 		legacySampleWitnesses = legacyWitnesses,
@@ -984,7 +1159,10 @@ suspend fun AppDatabase.installPressureSourceEraseLocalFencesInTransaction(
 	if (audit.writerFence.collectedDataEpoch != expectedCollectedDataEpoch) {
 		failPressureErase(PressureSourceEraseLocalFailureReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
 	}
-	if ((audit.factRevisionCount > 0 || audit.walEventCount > 0) && candidateWriter == null) {
+	if ((audit.factRevisionCount > 0 || audit.retentionAuthorityCount > 0 ||
+			audit.retentionRevisionAuthorityCount > 0 || audit.walEventCount > 0) &&
+		candidateWriter == null
+	) {
 		failPressureErase(PressureSourceEraseLocalFailureReason.DESTINATION_OWNER_CHANGED)
 	}
 	audit.scopes.forEach { scope ->
@@ -1017,9 +1195,14 @@ suspend fun AppDatabase.deletePressureSourceEraseLocalPayloadInTransaction(
 ) {
 	val factDao = pressureFactRevisionDao()
 	if (factDao.deleteFactsForSourceErase() != audit.factRevisionCount ||
+		pressureFactRetentionRevisionAuthorityDao().deleteAll() !=
+		audit.retentionRevisionAuthorityCount ||
+		pressureFactRetentionAuthorityDao().deleteAll() != audit.retentionAuthorityCount ||
+		pressureFactRetentionRevisionAuthorityDao().count() != 0L ||
 		factDao.deleteSourceEraseWal() != audit.walEventCount ||
 		factDao.deleteLegacyPressureSamplesForSourceErase() != audit.legacySampleCount ||
-		factDao.count() != 0L || factDao.sourceEraseWalCount() != 0L ||
+		factDao.count() != 0L || pressureFactRetentionAuthorityDao().count() != 0L ||
+		factDao.sourceEraseWalCount() != 0L ||
 		factDao.legacyPressureSampleCount() != 0L
 	) failPressureErase(PressureSourceEraseLocalFailureReason.FACT_AUTHORITY_UNVERIFIABLE)
 }
@@ -1150,6 +1333,18 @@ private data class PressureRetentionManifestKey(
 	val manifestRevision: Long,
 )
 
+private data class PressureRetentionLineageKey(
+	val writerProjectionId: String,
+	val writerProjectionVersion: Int,
+	val logicalFactId: String,
+) {
+	constructor(fact: PressureFactRevisionEntity) : this(
+		fact.writerProjectionId,
+		fact.writerProjectionVersion,
+		fact.logicalFactId,
+	)
+}
+
 private data class PressureRetentionAuthority(
 	val run: SourceServiceRunEntity,
 	val manifests: Map<Long, SessionManifestVersionEntity>,
@@ -1158,7 +1353,7 @@ private data class PressureRetentionAuthority(
 )
 
 private data class AuthenticatedPressureRetentionSelection(
-	val revisionCountByLogicalFactId: Map<String, Int>,
+	val authenticatedRevisionCount: Int,
 	val latestDurableTimeMs: Long,
 )
 
@@ -1166,6 +1361,8 @@ internal enum class PressureRetentionCheckpoint {
 	TRANSACTION_STARTED,
 	RUN_PAGE_LOADED,
 	FACT_PAGE_LOADED,
+	LINEAGE_AUTHENTICATED,
+	RETENTION_AUTHORITY_INSERTED,
 	RUN_AUTHENTICATED,
 	RUN_MARKED,
 	DELETE_BATCH_APPLIED,
@@ -1174,22 +1371,20 @@ internal enum class PressureRetentionCheckpoint {
 internal data class PressureRetentionTraversalLimits(
 	val maximumRuns: Long,
 	val maximumTraversalRows: Long,
-	val maximumFactRevisions: Long,
+	val maximumFactPages: Long,
 	val maximumFactLineages: Long,
-	val maximumFactRevisionsPerRun: Int,
-	val maximumFactLineagesPerRun: Int,
+	val maximumFactPagesPerRun: Int,
+	val maximumLineageRevisions: Int,
 ) {
 	init {
 		require(maximumRuns > 0L)
 		require(maximumTraversalRows > 0L)
-		require(maximumFactRevisions > 0L)
+		require(maximumFactPages > 0L)
 		require(maximumFactLineages > 0L)
-		require(maximumFactRevisionsPerRun > 0)
-		require(maximumFactLineagesPerRun > 0)
-		require(maximumFactLineages <= maximumFactRevisions)
-		require(maximumFactRevisionsPerRun.toLong() <= maximumFactRevisions)
-		require(maximumFactLineagesPerRun.toLong() <= maximumFactLineages)
-		require(maximumFactLineagesPerRun <= maximumFactRevisionsPerRun)
+		require(maximumFactPagesPerRun > 0)
+		require(maximumLineageRevisions > 0)
+		require(maximumFactPagesPerRun.toLong() <= maximumFactPages)
+		require(maximumLineageRevisions <= MAX_PRESSURE_LINEAGE_REVISIONS)
 	}
 }
 
@@ -1198,8 +1393,10 @@ private class PressureRetentionTraversalBudget(
 ) {
 	private var runCount = 0L
 	private var traversalRowCount = 0L
-	private var factRevisionCount = 0L
+	private var factPageCount = 0L
 	private var factLineageCount = 0L
+	val maximumFactPagesPerRun: Int
+		get() = limits.maximumFactPagesPerRun
 
 	fun consumeRuns(count: Int) {
 		require(count >= 0)
@@ -1214,11 +1411,14 @@ private class PressureRetentionTraversalBudget(
 
 	fun consumeFactRevisions(count: Int) {
 		require(count >= 0)
-		factRevisionCount = Math.addExact(factRevisionCount, count.toLong())
-		check(factRevisionCount <= limits.maximumFactRevisions) {
-			"Pressure retention transaction fact revision budget exceeded"
-		}
 		consumeTraversalRows(count)
+	}
+
+	fun consumeFactPage() {
+		factPageCount = Math.addExact(factPageCount, 1L)
+		check(factPageCount <= limits.maximumFactPages) {
+			"Pressure retention transaction fact page budget exceeded"
+		}
 	}
 
 	fun consumeFactLineage() {
@@ -1265,20 +1465,22 @@ private const val INSERT_IGNORED = -1L
 private const val RETENTION_RUN_PAGE_SIZE = 8
 private const val RETENTION_FACT_PAGE_SIZE = 256
 private const val RETENTION_FACT_DELETE_BATCH_SIZE = 128
+private const val PRESSURE_RETENTION_WAL_ID_BATCH_SIZE = 128
+private const val MAX_PRESSURE_LINEAGE_REVISIONS = 8_192
 private const val PRESSURE_ERASE_WAL_PAGE_SIZE = 256
 private const val PRESSURE_ERASE_LEGACY_PAGE_SIZE = 256
+private const val PRESSURE_RETENTION_AUTHORITY_PAGE_SIZE = 256
 private const val MAX_PRESSURE_ERASE_WAL_PAYLOAD_BYTES = 64 * 1_024
 private const val MAX_MANIFESTS_PER_RUN = 256
 private const val MAX_SOURCES_PER_MANIFEST = 12
-private const val FIRST_SEMANTIC_REVISION = 1L
 private const val MIN_CAPTURE_QOS = 1
 private const val MAX_CAPTURE_QOS = 3
 
-private val DEFAULT_PRESSURE_RETENTION_TRAVERSAL_LIMITS = PressureRetentionTraversalLimits(
+internal val DEFAULT_PRESSURE_RETENTION_TRAVERSAL_LIMITS = PressureRetentionTraversalLimits(
 	maximumRuns = 2_048L,
-	maximumTraversalRows = 262_144L,
-	maximumFactRevisions = 131_072L,
-	maximumFactLineages = 65_536L,
-	maximumFactRevisionsPerRun = 65_536,
-	maximumFactLineagesPerRun = 32_768,
+	maximumTraversalRows = 8_388_608L,
+	maximumFactPages = 32_768L,
+	maximumFactLineages = 4_194_304L,
+	maximumFactPagesPerRun = 4_096,
+	maximumLineageRevisions = MAX_PRESSURE_LINEAGE_REVISIONS,
 )

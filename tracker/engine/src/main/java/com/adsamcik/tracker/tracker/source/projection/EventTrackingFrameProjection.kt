@@ -55,7 +55,11 @@ internal fun AdmittedSourceEvent<out SourcePayload>.toEventTrackingFrame(): Trac
 	)
 }
 
-/** Frozen conversion contract emitted by `event-tracking-frame` v1 in released database v27. */
+/**
+ * Frozen conversion contract emitted by `event-tracking-frame` v1 in released database v27.
+ * Location is deliberately excluded: a compatibility frame must not make a second route-acceptance
+ * decision alongside the protected canonical location handoff.
+ */
 internal fun releasedV1EventTrackingFrame(
 	eventId: String,
 	timestampMs: Long,

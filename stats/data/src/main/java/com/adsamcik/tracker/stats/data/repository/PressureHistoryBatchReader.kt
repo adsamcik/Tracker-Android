@@ -1,8 +1,13 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.PressureFactProofSnapshot
+import com.adsamcik.tracker.shared.base.database.loadPressureFactProofSnapshot
+import com.adsamcik.tracker.shared.base.database.data.PressureFactRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.PressureFactRetentionRevisionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.MAX_PRESSURE_WAL_PAYLOAD_BYTES
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
@@ -11,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
@@ -26,6 +32,7 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 	segments: List<SessionSegment>,
 	logicalMembershipFailures: Map<String, PressureHistoryReason> = emptyMap(),
 	factRevisionBudget: Int = MAX_PRESSURE_FACT_REVISIONS,
+	currentClockDomainId: String? = null,
 ): PressureHistoryBatchSnapshot {
 	require(segments.isNotEmpty())
 	require(factRevisionBudget > 0)
@@ -72,6 +79,47 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 		factRevisionBudget = factRevisionBudget,
 	)
 	val pressureFacts = pressureFactLoad.revisions
+	val retentionAuthorities = if (serviceRunIds.isEmpty()) {
+		emptyList()
+	} else {
+		database.pressureFactRetentionAuthorityDao().forServiceRuns(
+			serviceRunIds = serviceRunIds,
+			limit = if (factRevisionBudget == Int.MAX_VALUE) {
+				Int.MAX_VALUE
+			} else {
+				factRevisionBudget + 1
+			},
+		)
+	}
+	val retentionAuthorityOverflow = retentionAuthorities.size > factRevisionBudget
+	val retentionRevisionAuthorities = if (serviceRunIds.isEmpty()) {
+		emptyList()
+	} else {
+		database.pressureFactRetentionRevisionAuthorityDao().forServiceRuns(
+			serviceRunIds = serviceRunIds,
+			limit = if (factRevisionBudget == Int.MAX_VALUE) {
+				Int.MAX_VALUE
+			} else {
+				factRevisionBudget + 1
+			},
+		)
+	}
+	val retentionRevisionAuthorityOverflow =
+		retentionRevisionAuthorities.size > factRevisionBudget
+	val retentionRunByLineage = retentionAuthorities.associate { authority ->
+		Triple(
+			authority.writerProjectionId,
+			authority.writerProjectionVersion,
+			authority.logicalFactId,
+		) to authority.serviceRunId
+	}
+	val pressureWalByEventId = loadPressureWalCarriers(database, pressureFacts)
+	val pressureFactProof = database.loadPressureFactProofSnapshot(
+		facts = pressureFacts,
+		walByEventId = pressureWalByEventId,
+		sourceOverflow = pressureFactLoad.overflow,
+		currentClockDomainId = currentClockDomainId,
+	)
 	val invalidFactScopeLogicalIds = invalidFactScopeLogicalIds(segments, pressureFacts)
 	val scopeDigests = segments.mapNotNull { segment ->
 		val logicalTrackingId = segment.logicalTrackingId?.takeIf(String::isNotBlank)
@@ -163,10 +211,25 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 		retentionTruncationFencesByDigest = retentionTruncationFences.associateBy {
 			it.scopeIdentityDigest
 		},
+		retentionAuthoritiesByRun = retentionAuthorities.take(factRevisionBudget)
+			.groupBy(PressureFactRetentionAuthorityEntity::serviceRunId),
+		retentionRevisionAuthoritiesByRun = retentionRevisionAuthorities
+			.take(factRevisionBudget)
+			.groupBy { authority ->
+				retentionRunByLineage[Triple(
+					authority.writerProjectionId,
+					authority.writerProjectionVersion,
+					authority.logicalFactId,
+				)].orEmpty()
+			},
 		factRevisionsByRun = pressureFacts.groupBy(PressureFactRevisionEntity::serviceRunId),
+		walByEventId = pressureWalByEventId,
+		factProof = pressureFactProof,
 		invalidFactScopeLogicalIds = invalidFactScopeLogicalIds,
 		logicalMembershipFailures = logicalMembershipFailures,
 		factRevisionOverflow = pressureFactLoad.overflow,
+		retentionAuthorityOverflow = retentionAuthorityOverflow,
+		retentionRevisionAuthorityOverflow = retentionRevisionAuthorityOverflow,
 		completenessByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId),
 		productLanes = productLanes.associateBy { lane ->
 			PressureLaneKey(lane.bindingGeneration, lane.projectionId, lane.projectionVersion)
@@ -175,6 +238,25 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 		terminalFailureOverflow = terminalFailureOverflow,
 		evidenceState = database.sourceEvidenceStateDao().get(),
 	)
+}
+
+private suspend fun loadPressureWalCarriers(
+	database: AppDatabase,
+	facts: List<PressureFactRevisionEntity>,
+): Map<String, SourceEventWalEntity> {
+	val eventIds = facts.map(PressureFactRevisionEntity::sourceEventId).distinct()
+	if (eventIds.isEmpty()) return emptyMap()
+	val rows = mutableListOf<SourceEventWalEntity>()
+	for (batch in eventIds.chunked(PRESSURE_QUERY_ID_BATCH_SIZE)) {
+		currentCoroutineContext().ensureActive()
+		rows += database.sourceEventWalDao().boundedPayloadsByEventIds(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			eventIds = batch,
+			maximumPayloadBytes = MAX_PRESSURE_WAL_PAYLOAD_BYTES,
+			limit = batch.size,
+		)
+	}
+	return rows.associateBy(SourceEventWalEntity::eventId)
 }
 
 private suspend fun loadPressureHistoryFactRevisions(
@@ -412,10 +494,17 @@ internal data class PressureHistoryBatchSnapshot(
 	val pressureCaptureConsents: Map<Long, SourceConsentEpochEntity>,
 	val deletionFenceDigests: Set<String>,
 	val retentionTruncationFencesByDigest: Map<String, SourceDeletionFenceEntity>,
+	val retentionAuthoritiesByRun: Map<String, List<PressureFactRetentionAuthorityEntity>>,
+	val retentionRevisionAuthoritiesByRun:
+		Map<String, List<PressureFactRetentionRevisionAuthorityEntity>>,
 	val factRevisionsByRun: Map<String, List<PressureFactRevisionEntity>>,
+	val walByEventId: Map<String, SourceEventWalEntity>,
+	val factProof: PressureFactProofSnapshot,
 	val invalidFactScopeLogicalIds: Set<String>,
 	val logicalMembershipFailures: Map<String, PressureHistoryReason>,
 	val factRevisionOverflow: Boolean,
+	val retentionAuthorityOverflow: Boolean,
+	val retentionRevisionAuthorityOverflow: Boolean,
 	val completenessByRun: Map<String, List<SourceSessionCompletenessEntity>>,
 	val productLanes: Map<PressureLaneKey, SourceProductProjectionLaneEntity>,
 	val terminalFailures: List<SourceProjectionFailureEntity>,

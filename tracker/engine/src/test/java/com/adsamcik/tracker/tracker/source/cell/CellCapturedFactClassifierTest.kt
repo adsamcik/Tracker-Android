@@ -7,6 +7,7 @@ import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
+import com.adsamcik.tracker.tracker.source.model.RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
@@ -17,6 +18,36 @@ import io.kotest.matchers.shouldBe
 import org.junit.Test
 
 class CellCapturedFactClassifierTest {
+	@Test
+	fun `aggregate reuse permits independently authenticated physical registration changes`() {
+		val owner = authority()
+		val dependent = owner.copy(
+			sourceInstanceId = SourceInstanceId("cell-instance-2"),
+			registrationGeneration = owner.registrationGeneration + 1L,
+			configurationRevision = owner.configurationRevision + 1L,
+			physicalConfigurationFingerprint = "cell-config-2",
+			authorizationRevision = owner.authorizationRevision + 1L,
+			authorizationFingerprint = "b".repeat(64),
+			sourcePolicyRevision = owner.sourcePolicyRevision + 1L,
+			sessionManifestRevision = owner.sessionManifestRevision + 1L,
+			lifecycleLeaseGeneration = owner.lifecycleLeaseGeneration + 1L,
+		)
+
+		dependent.canReuseAggregateFrom(owner) shouldBe true
+	}
+
+	@Test
+	fun `aggregate reuse rejects incompatible privacy authority`() {
+		val owner = authority()
+
+		owner.copy(captureConsentEpoch = owner.captureConsentEpoch + 1L)
+			.canReuseAggregateFrom(owner) shouldBe false
+		owner.copy(controlSources = setOf(SourceKind.ACTIVITY))
+			.canReuseAggregateFrom(owner) shouldBe false
+		owner.copy(scopeDeletionGeneration = owner.scopeDeletionGeneration + 1L)
+			.canReuseAggregateFrom(owner) shouldBe false
+	}
+
 	@Test
 	fun `only callback deliveries can produce facts`() {
 		CellObservationOrigin.entries.filterNot {
@@ -160,6 +191,26 @@ class CellCapturedFactClassifierTest {
 		classify(
 			original.copy(
 				walEvidence = wal.copy(sourceKind = SourceKind.WIFI).withValidWalIntegrity(),
+			),
+			authority,
+		) shouldBe rejected(CellFactRejection.WAL_PROVENANCE_UNVERIFIABLE)
+	}
+
+	@Test
+	fun `Cell-only provider envelope rejects dedup and Activity automation authority`() {
+		val authority = authority()
+		val original = input(authority = authority)
+		val wal = requireNotNull(original.walEvidence)
+
+		classify(
+			original.copy(
+				walEvidence = wal.copy(providerDedupKey = "not-cell").withValidWalIntegrity(),
+			),
+			authority,
+		) shouldBe rejected(CellFactRejection.WAL_PROVENANCE_UNVERIFIABLE)
+		classify(
+			original.copy(
+				walEvidence = wal.copy(activityAutomationEpoch = 1L).withValidWalIntegrity(),
 			),
 			authority,
 		) shouldBe rejected(CellFactRejection.WAL_PROVENANCE_UNVERIFIABLE)
@@ -339,7 +390,12 @@ class CellCapturedFactClassifierTest {
 		deliveryIdentityOverride: SourceDeliveryIdentity? = null,
 	): CellObservationInput {
 		if (outcome != CellProviderOutcome.DELIVERED) return CellObservationInput(origin, outcome, null)
-		val payload = CellSnapshotPayload(null, observations, CellRefreshOutcome.CALLBACK)
+		val payload = CellSnapshotPayload(
+			null,
+			observations,
+			CellRefreshOutcome.CALLBACK,
+			authority.zoneId,
+		)
 		val encoded = DefaultSourcePayloadCodec().encode(payload, CELL_PAYLOAD_VERSION)
 		val providerTimes = observations.mapNotNull(CellObservationEvidence::providerTimestampNanos)
 		val observed = providerTimes.maxOrNull() ?: RECEIVED_ELAPSED_NANOS
@@ -380,8 +436,9 @@ class CellCapturedFactClassifierTest {
 				observedElapsedRealtimeNanos = observed,
 				receivedElapsedRealtimeNanos = RECEIVED_ELAPSED_NANOS,
 				observedWallTimeMs = OBSERVED_WALL_TIME_MS,
-				wallTimeUncertaintyMs = 25L,
+				wallTimeUncertaintyMs = 1L,
 			),
+			receivedWallTimeMs = null,
 			acquiredAtMs = OBSERVED_WALL_TIME_MS,
 			qualityFlags = 0L,
 			qualityConfidence = null,
@@ -413,7 +470,7 @@ class CellCapturedFactClassifierTest {
 	private fun rejected(reason: CellFactRejection) = CellCapturedFactClassification.Rejected(reason)
 
 	private companion object {
-		const val CELL_PAYLOAD_VERSION = 1
+		const val CELL_PAYLOAD_VERSION = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 		const val RECEIVED_ELAPSED_NANOS = 10_000_000_000L
 		const val OBSERVED_WALL_TIME_MS = 100_000L
 	}

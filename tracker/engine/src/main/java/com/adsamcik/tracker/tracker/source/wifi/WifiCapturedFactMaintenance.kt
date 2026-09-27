@@ -2,12 +2,17 @@ package com.adsamcik.tracker.tracker.source.wifi
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.persistCapturedRadioFactRetentionProofs
 import com.adsamcik.tracker.shared.base.database.dao.WifiPortableWalIdentityRow
 import com.adsamcik.tracker.shared.base.database.dao.WifiWalMaintenanceKey
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
+import com.adsamcik.tracker.shared.base.database.data.CapturedRadioFactRetentionProofEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.RetainedCaptureEventIdentity
+import com.adsamcik.tracker.shared.base.database.data.RetainedCaptureScopeIdentity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
@@ -22,6 +27,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionProofEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionScopeProofEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
@@ -31,6 +38,8 @@ import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerat
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.MAX_WIFI_WAL_PAYLOAD_BYTES
+import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.stats.api.repository.WifiCapturedPortableFormatV1
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
@@ -64,6 +73,7 @@ internal enum class WifiCapturedMaintenanceCheckpoint {
 	REVISION_PAGE_LOADED,
 	WAL_AUTHENTICATED,
 	LINEAGE_AUTHENTICATED,
+	RETENTION_PROOF_PERSISTED,
 	DELETION_FENCES_INSTALLED,
 	PAYLOAD_REMOVED,
 }
@@ -207,6 +217,9 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				}
 				val selectedIds = affectedDependencyClosure(audit.lineages, beforeMs)
 				if (selectedIds.isEmpty()) return@withTransaction WifiCapturedRetentionResult.NoChange
+				val directlyExpiredIds = audit.lineages.filter { lineage ->
+					lineage.earliestPossibleWallTimeMs < beforeMs
+				}.mapTo(hashSetOf(), WifiCapturedLineage::logicalFactId)
 				val selected = selectedIds.map(audit.lineagesById::getValue)
 					.dependencySafeDeletionOrder()
 				if (audit.lineages.any { lineage ->
@@ -215,6 +228,32 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				}) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 
 				val dao = database.wifiCapturedFactDao()
+				val retentionProofs = selected.map { lineage ->
+					val fact = lineage.revisions.last()
+					val owner = lineage.aggregateOwnerLogicalFactId?.let { ownerId ->
+						audit.lineagesById[ownerId]?.revisions?.last()
+					}
+					val ownerCursor = owner?.let { audit.cursorsById[it.logicalFactId] }
+					CapturedRadioFactRetentionProofEntity.createWifi(
+						fact = fact,
+						cursor = audit.cursorsById.getValue(fact.logicalFactId),
+						aggregateOwner = owner,
+						aggregateOwnerCursor = ownerCursor,
+						retainedFromMs = beforeMs,
+						retainedAtMs = markedAtMs,
+						reason = if (fact.logicalFactId in directlyExpiredIds) {
+							CapturedRadioFactRetentionProofEntity.REASON_DIRECT_FLOOR
+						} else {
+							CapturedRadioFactRetentionProofEntity.REASON_DEPENDENCY_CLOSURE
+						},
+					)
+				}
+				try {
+					database.persistCapturedRadioFactRetentionProofs(retentionProofs)
+				} catch (_: IllegalStateException) {
+					block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+				}
+				checkpoint(WifiCapturedMaintenanceCheckpoint.RETENTION_PROOF_PERSISTED)
 				var removedRevisions = 0
 				selected.chunked(DELETE_BATCH_SIZE).forEach { batch ->
 					currentCoroutineContext().ensureActive()
@@ -364,44 +403,172 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				if (deletedAtMs < audit.latestDurableTimeMs) {
 					block(WifiCapturedSourceDeletionBlockedReason.STALE_REQUEST)
 				}
-				val scopes = (audit.lineages.map(WifiCapturedLineage::scope) + audit.wal.scopes).distinct()
-				val scopesNeedingFence = scopes.filter { scope ->
-					audit.generationByScope[scope] == null
+				val retainedProofs = loadCapturedRetentionProofsForSourceErase(limits)
+				val retainedEventProofs = loadSourceEventRetentionProofsForSourceErase(limits)
+				val retainedScopeProofs = loadSourceEventRetentionScopeProofsForSourceErase(limits)
+				val scopeAuthorities = linkedMapOf<WifiCapturedRunScope, RetainedCaptureScopeIdentity>()
+				val eventAuthorities = mutableMapOf<String, RetainedCaptureEventIdentity>()
+				fun registerScope(
+					identity: RetainedCaptureScopeIdentity,
+					eventIdentity: RetainedCaptureEventIdentity? = null,
+				) {
+					if (!identity.isCanonicalFor(WIFI_SOURCE, expectedCollectedDataEpoch)) {
+						block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+					}
+					val scope = WifiCapturedRunScope(
+						identity.logicalTrackingId,
+						identity.serviceRunId,
+					)
+					val retainedScope = scopeAuthorities.putIfAbsent(scope, identity)
+					if (retainedScope != null && retainedScope != identity) {
+						block(WifiCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+					}
+					if (retainedScope == null &&
+						scopeAuthorities.size > limits.maximumDeletionGenerations
+					) throw WifiCapturedMaintenanceLimitExceeded()
+					if (eventIdentity != null &&
+						eventIdentity.sourceAdmissionOrdinal <=
+						expectedDeletedSourceEventHighWaterOrdinal
+					) block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+					if (eventIdentity != null) {
+						val retained = eventAuthorities.putIfAbsent(
+							eventIdentity.eventId,
+							eventIdentity,
+						)
+						if (retained != null && retained != eventIdentity) {
+							block(WifiCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+						}
+					}
 				}
-				if (audit.lineages.isEmpty() && scopesNeedingFence.isEmpty()) {
-					return@withTransaction WifiCapturedSourceDeletionResult.AlreadyDeleted
+				for (scope in audit.lineages.map(WifiCapturedLineage::scope) + audit.wal.scopes) {
+					registerScope(scope.retainedIdentity(expectedCollectedDataEpoch))
 				}
-				for (scope in scopesNeedingFence) {
+				for ((eventId, wal) in audit.wal.captureByEventId) {
+					val scope = wal.scope.retainedIdentity(expectedCollectedDataEpoch)
+					registerScope(
+						scope,
+						RetainedCaptureEventIdentity(
+							eventId = eventId,
+							sourceAdmissionOrdinal = wal.evidence.sourceAdmissionOrdinal,
+							sourcePolicyRevision = wal.evidence.sourcePolicyRevision,
+							captureConsentEpoch = wal.evidence.captureConsentEpoch,
+							walIntegrityIdentity = wal.evidence.walIntegrityIdentity,
+							scope = scope,
+						),
+					)
+				}
+				for (proof in retainedProofs) {
+					val eventIdentity = proof.authenticatedCaptureEvent(
+						expectedSourceKind = WIFI_SOURCE,
+						expectedCollectedDataEpoch = expectedCollectedDataEpoch,
+						currentRetainedFromMs = evidence.retainedFromMs,
+						deletedAtMs = deletedAtMs,
+					) ?: block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+					registerScope(eventIdentity.scope, eventIdentity)
+				}
+				val scopeProofsByDigest =
+					retainedScopeProofs.associateBy(
+						SourceEventRetentionScopeProofEntity::logicalRunScopeDigest,
+					)
+				if (scopeProofsByDigest.size != retainedScopeProofs.size) {
+					block(WifiCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+				}
+				for (proof in retainedScopeProofs) {
+					val identity = proof.authenticatedCaptureScope(
+						expectedSourceKind = WIFI_SOURCE,
+						expectedCollectedDataEpoch = expectedCollectedDataEpoch,
+						expectedDeletedSourceEventHighWaterOrdinal =
+							expectedDeletedSourceEventHighWaterOrdinal,
+					) ?: block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+					registerScope(identity)
+				}
+				for (proof in retainedEventProofs) {
+					val eventIdentity = proof.authenticatedCaptureEvent(
+						expectedSourceKind = WIFI_SOURCE,
+						expectedCollectedDataEpoch = expectedCollectedDataEpoch,
+					) ?: block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+					val scopeProof = proof.logicalRunScopeDigest?.let(scopeProofsByDigest::get)
+					if (scopeProof?.authenticatesRetainedEvent(proof) != true) {
+						block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+					}
+					registerScope(eventIdentity.scope, eventIdentity)
+				}
+				val scopesNeedingAuthority = mutableListOf<RetainedCaptureScopeIdentity>()
+				for (identity in scopeAuthorities.values) {
+					currentCoroutineContext().ensureActive()
+					val scope = WifiCapturedRunScope(
+						identity.logicalTrackingId,
+						identity.serviceRunId,
+					)
+					val generation = audit.generationByScope[scope]
+					val fence = database.sourceDeletionFenceDao().get(
+						WIFI_SOURCE,
+						CAPTURE_PURPOSE,
+						SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+						identity.logicalRunScopeDigest,
+					)
+					if (generation == null && fence == null) {
+						scopesNeedingAuthority += identity
+						continue
+					}
+					if (generation == null || fence == null ||
+						generation.logicalTrackingId != identity.logicalTrackingId ||
+						generation.serviceRunId != identity.serviceRunId ||
+						generation.collectedDataEpoch != expectedCollectedDataEpoch ||
+						generation.generation != FIRST_DELETION_GENERATION ||
+						fence != SourceDeletionFenceEntity.createLogicalServiceRun(
+							WIFI_SOURCE,
+							CAPTURE_PURPOSE,
+							identity.logicalTrackingId,
+							identity.serviceRunId,
+							FIRST_DELETION_GENERATION,
+							expectedCollectedDataEpoch,
+							generation.updatedAtMs,
+						)
+					) block(WifiCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+				}
+				if (audit.lineages.isEmpty() && scopesNeedingAuthority.isEmpty() &&
+					retainedProofs.isEmpty() && retainedEventProofs.isEmpty() &&
+					retainedScopeProofs.isEmpty()
+				) return@withTransaction WifiCapturedSourceDeletionResult.AlreadyDeleted
+				for (identity in scopesNeedingAuthority) {
 					currentCoroutineContext().ensureActive()
 					val fence = SourceDeletionFenceEntity.createLogicalServiceRun(
 						WIFI_SOURCE,
 						CAPTURE_PURPOSE,
-						scope.logicalTrackingId,
-						scope.serviceRunId,
+						identity.logicalTrackingId,
+						identity.serviceRunId,
 						FIRST_DELETION_GENERATION,
 						expectedCollectedDataEpoch,
 						deletedAtMs,
 					)
-					if (database.sourceDeletionFenceDao().insertIfAbsent(fence) == INSERT_IGNORED) {
-						val retained = database.sourceDeletionFenceDao().get(
+					if (database.sourceDeletionFenceDao().insertIfAbsent(fence) == INSERT_IGNORED &&
+						database.sourceDeletionFenceDao().get(
 							fence.sourceKind,
 							fence.purpose,
 							fence.scopeKind,
 							fence.scopeIdentityDigest,
-						)
-						if (retained != fence) {
-							block(WifiCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
-						}
-					}
-					dao.insertDeletionGeneration(
-						WifiCaptureDeletionGenerationEntity(
-							scope.logicalTrackingId,
-							scope.serviceRunId,
-							expectedCollectedDataEpoch,
-							FIRST_DELETION_GENERATION,
-							deletedAtMs,
-						),
+						) != fence
+					) block(WifiCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+					val generation = WifiCaptureDeletionGenerationEntity(
+						identity.logicalTrackingId,
+						identity.serviceRunId,
+						expectedCollectedDataEpoch,
+						FIRST_DELETION_GENERATION,
+						deletedAtMs,
 					)
+					dao.insertDeletionGeneration(generation)
+					if (dao.deletionGeneration(
+							identity.logicalTrackingId,
+							identity.serviceRunId,
+						) != generation ||
+						database.sourceDeletionFenceDao().get(
+							fence.sourceKind,
+							fence.purpose,
+							fence.scopeKind,
+							fence.scopeIdentityDigest,
+						) != fence
+					) block(WifiCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
 				}
 				checkpoint(WifiCapturedMaintenanceCheckpoint.DELETION_FENCES_INSTALLED)
 
@@ -417,6 +584,43 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				if (dao.revisionCount() != 0L || dao.cursorCount() != 0L) {
 					block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 				}
+				database.capturedRadioFactRetentionProofDao().deleteSource(WIFI_SOURCE)
+				if (database.capturedRadioFactRetentionProofDao().allForSource(WIFI_SOURCE).isNotEmpty()) {
+					block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+				}
+				if (retainedEventProofs.isNotEmpty()) {
+					val eventIds = retainedEventProofs.map(SourceEventRetentionProofEntity::eventId)
+					val deletedProofs = eventIds.chunked(DELETE_BATCH_SIZE).sumOf { batch ->
+						database.sourceEventRetentionProofDao().deleteExactSourceEvents(
+							WIFI_SOURCE,
+							batch,
+						)
+					}
+					if (deletedProofs != eventIds.size) {
+						block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+					}
+				}
+				if (database.sourceEventRetentionProofDao().captureProofCount(
+						WIFI_SOURCE,
+						SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+					) != 0L
+				) block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+				if (retainedScopeProofs.isNotEmpty()) {
+					val scopeDigests =
+						retainedScopeProofs.map(SourceEventRetentionScopeProofEntity::logicalRunScopeDigest)
+					val deletedScopes = scopeDigests.chunked(DELETE_BATCH_SIZE).sumOf { batch ->
+						database.sourceEventRetentionScopeProofDao().deleteExactSourceScopes(
+							WIFI_SOURCE,
+							batch,
+						)
+					}
+					if (deletedScopes != scopeDigests.size) {
+						block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+					}
+				}
+				if (database.sourceEventRetentionScopeProofDao().countForSource(WIFI_SOURCE) != 0L) {
+					block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+				}
 				check(database.sourceEvidenceStateDao().incrementRevision(deletedAtMs) == 1) {
 					"Unable to publish captured Wi-Fi source deletion"
 				}
@@ -424,7 +628,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				WifiCapturedSourceDeletionResult.Deleted(
 					audit.lineages.size,
 					revisionCount,
-					scopesNeedingFence.size,
+					scopesNeedingAuthority.size,
 				)
 			}
 		} catch (blocked: WifiCapturedSourceDeletionBlockedException) {
@@ -547,6 +751,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		return WifiCapturedAudit(
 			lineages = lineages,
 			lineagesById = lineagesById,
+			cursorsById = cursors,
 			aggregateById = aggregateById,
 			generationByScope = generationByScope,
 			wal = wal,
@@ -1021,6 +1226,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		return WifiCapturedAudit(
 			lineages = lineages,
 			lineagesById = lineagesById,
+			cursorsById = cursors,
 			aggregateById = aggregateById,
 			generationByScope = generations.associateBy { generation ->
 				WifiCapturedRunScope(generation.logicalTrackingId, generation.serviceRunId)
@@ -1145,6 +1351,105 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			rows += page
 			afterLogicalTrackingId = page.last().logicalTrackingId
 			afterServiceRunId = page.last().serviceRunId
+			if (page.size < pageSize) break
+		}
+		return rows
+	}
+
+	private suspend fun loadCapturedRetentionProofsForSourceErase(
+		limits: WifiCapturedMaintenanceLimits,
+	): List<CapturedRadioFactRetentionProofEntity> {
+		val rows = mutableListOf<CapturedRadioFactRetentionProofEntity>()
+		var afterAdmissionOrdinal: Long? = null
+		var afterLogicalFactId: String? = null
+		while (true) {
+			currentCoroutineContext().ensureActive()
+			val remaining = limits.maximumLogicalFacts - rows.size
+			if (remaining <= 0) {
+				if (database.capturedRadioFactRetentionProofDao().sourceErasePage(
+						WIFI_SOURCE,
+						afterAdmissionOrdinal,
+						afterLogicalFactId,
+						1,
+					).isNotEmpty()
+				) throw WifiCapturedMaintenanceLimitExceeded()
+				break
+			}
+			val pageSize = minOf(remaining, limits.revisionPageSize)
+			val page = database.capturedRadioFactRetentionProofDao().sourceErasePage(
+				WIFI_SOURCE,
+				afterAdmissionOrdinal,
+				afterLogicalFactId,
+				pageSize,
+			)
+			if (page.isEmpty()) break
+			rows += page
+			afterAdmissionOrdinal = page.last().sourceAdmissionOrdinal
+			afterLogicalFactId = page.last().logicalFactId
+			if (page.size < pageSize) break
+		}
+		return rows
+	}
+
+	private suspend fun loadSourceEventRetentionProofsForSourceErase(
+		limits: WifiCapturedMaintenanceLimits,
+	): List<SourceEventRetentionProofEntity> {
+		val rows = mutableListOf<SourceEventRetentionProofEntity>()
+		var afterAdmissionOrdinal: Long? = null
+		while (true) {
+			currentCoroutineContext().ensureActive()
+			val remaining = limits.maximumWalEvents - rows.size
+			if (remaining <= 0) {
+				if (database.sourceEventRetentionProofDao().sourceCaptureErasePage(
+						WIFI_SOURCE,
+						SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+						afterAdmissionOrdinal,
+						1,
+					).isNotEmpty()
+				) throw WifiCapturedMaintenanceLimitExceeded()
+				break
+			}
+			val pageSize = minOf(remaining, limits.revisionPageSize)
+			val page = database.sourceEventRetentionProofDao().sourceCaptureErasePage(
+				WIFI_SOURCE,
+				SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+				afterAdmissionOrdinal,
+				pageSize,
+			)
+			if (page.isEmpty()) break
+			rows += page
+			afterAdmissionOrdinal = page.last().sourceAdmissionOrdinal
+			if (page.size < pageSize) break
+		}
+		return rows
+	}
+
+	private suspend fun loadSourceEventRetentionScopeProofsForSourceErase(
+		limits: WifiCapturedMaintenanceLimits,
+	): List<SourceEventRetentionScopeProofEntity> {
+		val rows = mutableListOf<SourceEventRetentionScopeProofEntity>()
+		var afterScopeDigest: String? = null
+		while (true) {
+			currentCoroutineContext().ensureActive()
+			val remaining = limits.maximumDeletionGenerations - rows.size
+			if (remaining <= 0) {
+				if (database.sourceEventRetentionScopeProofDao().sourceErasePage(
+						WIFI_SOURCE,
+						afterScopeDigest,
+						1,
+					).isNotEmpty()
+				) throw WifiCapturedMaintenanceLimitExceeded()
+				break
+			}
+			val pageSize = minOf(remaining, limits.revisionPageSize)
+			val page = database.sourceEventRetentionScopeProofDao().sourceErasePage(
+				WIFI_SOURCE,
+				afterScopeDigest,
+				pageSize,
+			)
+			if (page.isEmpty()) break
+			rows += page
+			afterScopeDigest = page.last().logicalRunScopeDigest
 			if (page.size < pageSize) break
 		}
 		return rows
@@ -1833,6 +2138,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				observedStart,
 				wal.observedElapsedNanos,
 				wal.receivedElapsedNanos,
+				requireNotNull(wal.receivedWallTimeMs),
 				wallTime,
 				wallUncertainty,
 			),
@@ -2595,13 +2901,12 @@ private fun WifiCapturedFactRevisionEntity.stableCorrectionParts(): List<Any?> =
 )
 
 private fun WifiCapturedFactRevisionEntity.earliestCoveredWallTimeMs(): Long? = runCatching {
-	val elapsedSpanNanos = Math.subtractExact(observedElapsedNanos, coverageIntervalStartNanos)
-	val spanMs = elapsedSpanNanos / NANOS_PER_MILLISECOND
-	val roundingMs = if (elapsedSpanNanos % NANOS_PER_MILLISECOND == 0L) 0L else 1L
-	Math.subtractExact(
-		Math.subtractExact(observedWallTimeMs, spanMs),
-		Math.addExact(wallTimeUncertaintyMs, roundingMs),
-	).takeIf { it >= 0L }
+	CanonicalRetentionBounds.wifiCoverage(
+		coverageEndWallTimeMs = observedWallTimeMs,
+		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+		coverageStartElapsedRealtimeNanos = coverageIntervalStartNanos,
+		coverageEndElapsedRealtimeNanos = coverageIntervalEndNanos,
+	)
 }.getOrNull()
 
 private fun SourceEventWalEntity.hasExactSharedProducerEnvelope(): Boolean =
@@ -2610,8 +2915,10 @@ private fun SourceEventWalEntity.hasExactSharedProducerEnvelope(): Boolean =
 		activityAutomationEpoch == null && observedIntervalStartNanos != null &&
 		requireNotNull(observedIntervalStartNanos) > 0L &&
 		observedElapsedNanos >= requireNotNull(observedIntervalStartNanos) &&
-		receivedElapsedNanos >= observedElapsedNanos && wallTimeMs != null &&
-		requireNotNull(wallTimeMs) >= 0L && wallTimeUncertaintyMs == PRODUCER_WALL_UNCERTAINTY_MS &&
+		receivedElapsedNanos >= observedElapsedNanos &&
+		wallTimeMs?.let { wall -> receivedWallTimeMs?.let { it >= wall } } == true &&
+		requireNotNull(wallTimeMs) >= 0L &&
+		wallTimeUncertaintyMs == PRODUCER_WALL_UNCERTAINTY_MS &&
 		acquiredAtMs == wallTimeMs && createdAtMs >= 0L && qualityFlags == 0L &&
 		qualityConfidence == null
 
@@ -2855,6 +3162,22 @@ internal data class WifiCapturedRunScope(
 	val serviceRunId: String,
 )
 
+private fun WifiCapturedRunScope.retainedIdentity(
+	collectedDataEpoch: Long,
+): RetainedCaptureScopeIdentity = RetainedCaptureScopeIdentity(
+	sourceKind = WIFI_SOURCE,
+	logicalTrackingId = logicalTrackingId,
+	serviceRunId = serviceRunId,
+	collectedDataEpoch = collectedDataEpoch,
+	scopeDeletionGeneration = 0L,
+	logicalRunScopeDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+		WIFI_SOURCE,
+		CAPTURE_PURPOSE,
+		logicalTrackingId,
+		serviceRunId,
+	),
+)
+
 internal data class WifiAggregateReuseAuthority(
 	val logicalTrackingId: String,
 	val serviceRunId: String,
@@ -3063,6 +3386,7 @@ private class WifiPortableQueryCounter {
 internal data class WifiCapturedAudit(
 	val lineages: List<WifiCapturedLineage>,
 	val lineagesById: Map<String, WifiCapturedLineage>,
+	val cursorsById: Map<String, WifiCapturedFactCursorEntity>,
 	val aggregateById: Map<String, WifiIdentityFreeAggregate>,
 	val generationByScope: Map<WifiCapturedRunScope, WifiCaptureDeletionGenerationEntity>,
 	val wal: WifiCapturedWalAudit,
@@ -3187,7 +3511,7 @@ private const val WRITER_VERSION = SourceDestinationOwnerEntity.WIFI_FACT_PROJEC
 private const val CAPTURED_PLAN_ATTRIBUTION = 0
 private const val RECEIVE_TIME_ONLY_PLAN_ATTRIBUTION = 1
 private const val PLAN_PAYLOAD_VERSION = 1
-private const val WIFI_PAYLOAD_VERSION = 2
+private const val WIFI_PAYLOAD_VERSION = WIFI_WAL_PAYLOAD_VERSION
 private const val FIRST_DELETION_GENERATION = 1L
 private const val INSERT_IGNORED = -1L
 private const val DELETE_BATCH_SIZE = 128
@@ -3222,6 +3546,5 @@ private val WIFI_PROVIDER_ITEM_ORDER = compareBy<WifiAccessPointEvidence>(
 	WifiAccessPointEvidence::signalLevelDbm,
 	WifiAccessPointEvidence::providerTimestampNanos,
 )
-private val MAX_CANONICAL_WIFI_PAYLOAD_BYTES = 4 + 4 +
-	(WifiIdentityFreeResultContract.ANDROID_SCAN_RESULTS_V1.maximumAccessPointCount * 19) + 9 + 1
+private const val MAX_CANONICAL_WIFI_PAYLOAD_BYTES = MAX_WIFI_WAL_PAYLOAD_BYTES
 private val DEFAULT_LIMITS = WifiCapturedMaintenanceLimits()

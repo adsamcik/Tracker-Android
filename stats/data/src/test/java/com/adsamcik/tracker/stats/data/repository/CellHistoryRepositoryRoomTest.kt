@@ -19,6 +19,13 @@ import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEn
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedDeletedRunEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.CELL_REFRESH_OUTCOME_CALLBACK
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.CellProviderDeliveryIdentityFact
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayload
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadObservation
+import com.adsamcik.tracker.shared.base.database.data.canonicalCellProviderDeliveryIdentity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -34,12 +41,16 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
+import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
 import com.adsamcik.tracker.stats.api.repository.CellHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.CellHistoryPage
@@ -54,6 +65,18 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDayComplet
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
+import com.adsamcik.tracker.stats.api.repository.MaterializedProofState
+import com.adsamcik.tracker.stats.api.repository.SourceEvidenceIdentity
+import com.adsamcik.tracker.stats.api.repository.SourceFactIdentity
+import com.adsamcik.tracker.stats.api.repository.SourceFactLookupRequest
+import com.adsamcik.tracker.stats.api.repository.SourceFactLookupResult
+import com.adsamcik.tracker.stats.api.repository.SourceProofCompleteness
+import com.adsamcik.tracker.stats.api.repository.SourceProofCoverage
+import com.adsamcik.tracker.stats.api.repository.SourceProofKey
+import com.adsamcik.tracker.stats.api.repository.SourceProofLineage
+import com.adsamcik.tracker.stats.api.repository.SourceProofReason
+import com.adsamcik.tracker.stats.api.repository.SourceProofScope
+import com.adsamcik.tracker.stats.api.repository.SourceProofWriterIdentity
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -89,6 +112,185 @@ class CellHistoryRepositoryRoomTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `writer admission reverse lookup selects cursor authenticated revision two`() = runTest {
+		val run = buildGroup(901, 1, setOf(0)).runs.single()
+		val lineage = run.facts.groupBy(CellCapturedFactRevisionEntity::logicalFactId)
+			.values.single { revisions -> revisions.size == 2 }
+			.sortedBy(CellCapturedFactRevisionEntity::semanticRevision)
+		lineage.forEach { database.cellCapturedFactDao().insertRevision(it) }
+		database.cellCapturedFactDao().insertCursor(cursor(lineage.last()))
+
+		database.cellCapturedFactDao().currentRevisionsForWriterAdmission(
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+			lineage.first().sourceAdmissionOrdinal,
+			2,
+		) shouldBe listOf(lineage.last())
+	}
+
+	@Test
+	fun `corrected current Cell revision remains queryable through its exact WAL carrier`() = runTest {
+		val group = buildGroup(904, 1, setOf(0))
+		persist(listOf(group))
+		val corrected = group.runs.single().facts.single { fact ->
+			fact.factKind == CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE &&
+				fact.semanticRevision == 2L
+		}
+
+		val result = RoomSourceFactLookupReader(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		).lookup(cellFactLookupRequest(corrected))
+
+		val found = result as SourceFactLookupResult.Found
+		found.state.lineage.semanticRevision shouldBe 2L
+		found.state.lineage.cursorRevision shouldBe 2L
+	}
+
+	@Test
+	fun `coverage-only Cell query authenticates its exact current aggregate owner`() = runTest {
+		val group = buildGroup(906, 1, setOf(0))
+		persist(listOf(group))
+		val dependent = group.runs.single().facts.single { fact ->
+			fact.factKind == CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY
+		}
+
+		val result = RoomSourceFactLookupReader(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		).lookup(cellFactLookupRequest(dependent))
+
+		(result as SourceFactLookupResult.Found).state.lineage.factIdentity?.value shouldBe
+			dependent.logicalFactId
+	}
+
+	@Test
+	fun `coverage-only Cell query rejects a stale aggregate owner cursor`() = runTest {
+		val group = buildGroup(907, 1, setOf(0))
+		persist(listOf(group))
+		val dependent = group.runs.single().facts.single { fact ->
+			fact.factKind == CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY
+		}
+		val owner = group.runs.single().facts
+			.filter { it.factKind == CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE }
+			.maxBy(CellCapturedFactRevisionEntity::semanticRevision)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_fact_cursor SET latest_semantic_revision = ? " +
+				"WHERE logical_fact_id = ?",
+			arrayOf(owner.semanticRevision - 1L, owner.logicalFactId),
+		)
+
+		RoomSourceFactLookupReader(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		).lookup(cellFactLookupRequest(dependent)) shouldBe
+			SourceFactLookupResult.NotFound(SourceProofReason.STALE)
+	}
+
+	@Test
+	fun `rehashed Cell fact and cursor cannot replace recorded WAL identity or payload`() = runTest {
+		val group = buildGroup(905, 1, setOf(0))
+		persist(listOf(group))
+		val ownerLineage = group.runs.single().facts
+			.filter { it.factKind == CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE }
+			.sortedBy(CellCapturedFactRevisionEntity::semanticRevision)
+		val originalWal = requireNotNull(
+			database.sourceEventWalDao().getByEventId(ownerLineage.first().sourceEventId),
+		)
+		val arbitraryPayload = "forged-cell-payload".toByteArray(Charsets.UTF_8)
+		val payloadForged = originalWal.copy(
+			payload = arbitraryPayload,
+			payloadChecksum = originalWal.copy(payload = arbitraryPayload).calculatedPayloadChecksum(),
+			integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
+		)
+		val forgedWal = payloadForged.copy(
+			integrityIdentity = payloadForged.calculatedIntegrityIdentity(),
+		)
+		val forgedLineage = ownerLineage.map { fact ->
+			val unsigned = fact.copy(
+				walIntegrityIdentity = forgedWal.integrityIdentity,
+				payloadChecksum = forgedWal.payloadChecksum,
+				effectChecksum = ZERO_SHA,
+			)
+			unsigned.copy(
+				effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(unsigned),
+			)
+		}
+		val forgedCurrent = forgedLineage.last()
+		database.withTransaction {
+			val dao = database.cellCapturedFactDao()
+			dao.deleteExactCursors(
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				listOf(forgedCurrent.logicalFactId),
+			)
+			dao.deleteExactRevisionLineages(
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				listOf(forgedCurrent.logicalFactId),
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET payload = ?, payload_checksum = ?, " +
+					"integrity_identity = ? WHERE event_id = ?",
+				arrayOf(
+					forgedWal.payload,
+					forgedWal.payloadChecksum,
+					forgedWal.integrityIdentity,
+					forgedWal.eventId,
+				),
+			)
+			forgedLineage.forEach { dao.insertRevision(it) }
+			dao.insertCursor(cursor(forgedCurrent))
+		}
+
+		val exact = RoomSourceFactLookupReader(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		).lookup(cellFactLookupRequest(forgedCurrent))
+		(exact as SourceFactLookupResult.Failed).reason shouldBe
+			SourceProofReason.INTEGRITY_FAILURE
+		val history = repository { true }.session(group.runs.single().segment.id)
+		val entry = (history as CellHistoryQuery.Found).entry
+		entry.state shouldBe CellHistoryProductState.FAILED
+		entry.causes shouldBe setOf(CellHistoryCause.WRITER_PROVENANCE_INVALID)
+		entry.observations shouldBe emptyList()
+	}
+
+	@Test
+	fun `writer admission reverse lookup exposes ambiguous current heads for fail closed handling`() =
+		runTest {
+			val firstLineage = buildGroup(902, 1, setOf(0)).runs.single().facts
+				.groupBy(CellCapturedFactRevisionEntity::logicalFactId)
+				.values.single { revisions -> revisions.size == 2 }
+				.sortedBy(CellCapturedFactRevisionEntity::semanticRevision)
+			val secondLineage = buildGroup(903, 1, setOf(0)).runs.single().facts
+				.groupBy(CellCapturedFactRevisionEntity::logicalFactId)
+				.values.single { revisions -> revisions.size == 2 }
+				.sortedBy(CellCapturedFactRevisionEntity::semanticRevision)
+				.map { fact ->
+					val unsigned = fact.copy(
+						sourceAdmissionOrdinal = firstLineage.first().sourceAdmissionOrdinal,
+						effectChecksum = ZERO_SHA,
+					)
+					unsigned.copy(
+						effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(unsigned),
+					)
+				}
+			(firstLineage + secondLineage).forEach {
+				database.cellCapturedFactDao().insertRevision(it)
+			}
+			database.cellCapturedFactDao().insertCursor(cursor(firstLineage.last()))
+			database.cellCapturedFactDao().insertCursor(cursor(secondLineage.last()))
+
+			database.cellCapturedFactDao().currentRevisionsForWriterAdmission(
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				firstLineage.first().sourceAdmissionOrdinal,
+				2,
+			).size shouldBe 2
+		}
 
 	@Test
 	fun `selected and recent expand thirty three replacement runs in one Room transaction`() = runTest {
@@ -802,6 +1004,49 @@ class CellHistoryRepositoryRoomTest {
 		entry.state shouldBe CellHistoryProductState.UNAVAILABLE
 		entry.causes shouldBe setOf(CellHistoryCause.RETENTION_LIMIT)
 		entry.observations shouldBe emptyList()
+
+		RoomSourceFactLookupReader(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		).lookup(cellFactLookupRequest(dependent)) shouldBe
+			SourceFactLookupResult.Deleted(SourceProofReason.RETENTION_EXPIRED)
+	}
+
+	@Test
+	fun `prior boot active Cell provider cannot authenticate history`() = runTest {
+		val group = boundarylessProviderGroup(
+			status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+			failureCode = null,
+		)
+		persist(listOf(group))
+
+		val entry = (
+			repository({ true }, currentClockDomainId = "boot-current")
+				.session(group.runs.single().segment.id) as CellHistoryQuery.Found
+			).entry
+
+		entry.state shouldBe CellHistoryProductState.FAILED
+		entry.causes shouldBe setOf(CellHistoryCause.WRITER_PROVENANCE_INVALID)
+		entry.observations shouldBe emptyList()
+	}
+
+	@Test
+	fun `reconciled prior boot Cell provider authenticates history`() = runTest {
+		val group = boundarylessProviderGroup(
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			failureCode = ProviderRegistrationGenerationEntity
+				.FAILURE_PRIOR_PROCESS_INCARNATION_ENDED,
+		)
+		persist(listOf(group))
+
+		val entry = (
+			repository({ true }, currentClockDomainId = "boot-current")
+				.session(group.runs.single().segment.id) as CellHistoryQuery.Found
+			).entry
+
+		entry.state shouldBe CellHistoryProductState.PARTIAL
+		entry.causes shouldBe setOf(CellHistoryCause.SUBSCRIPTION_GROUPING_UNKNOWN)
+		entry.observations shouldHaveSize 2
 	}
 
 	@Test
@@ -816,10 +1061,15 @@ class CellHistoryRepositoryRoomTest {
 		}
 	}
 
-	private fun repository(authority: () -> Boolean) = DefaultCellHistoryRepository(
+	private fun repository(
+		authority: () -> Boolean,
+		currentClockDomainId: String? = null,
+	) = DefaultCellHistoryRepository(
 		database,
 		SourceProductLaneExecutionAuthority { authority() },
 		UnconfinedTestDispatcher(),
+		{ _ -> },
+		currentClockDomainId?.let { bootId -> BootClockDomainProvider { bootId } },
 	)
 
 	private suspend fun assertInvalidLocalSelection(
@@ -864,6 +1114,10 @@ class CellHistoryRepositoryRoomTest {
 		target.sourceProjectionStateDao().installProductLane(lane(runs.flatMap(BuiltRun::facts)
 			.maxOfOrNull(CellCapturedFactRevisionEntity::sourceAdmissionOrdinal) ?: 1L))
 		runs.forEach { sessionDao.saveCompleteness(it.completeness) }
+		runs.flatMap(BuiltRun::facts)
+			.distinctBy(CellCapturedFactRevisionEntity::sourceEventId)
+			.map(::walFor)
+			.forEach { target.sourceEventWalDao().insertAbortingOnUnexpectedConflict(it) }
 		runs.flatMap(BuiltRun::facts).sortedWith(compareBy(
 			CellCapturedFactRevisionEntity::logicalFactId,
 			CellCapturedFactRevisionEntity::semanticRevision,
@@ -1110,12 +1364,14 @@ class CellHistoryRepositoryRoomTest {
 		admissionOrdinal: Long,
 		coverageOffset: Long,
 	): CellCapturedFactRevisionEntity {
-		val deliveryIdentity = sha256("delivery-$admissionOrdinal")
+		val providerTime = authority.spec.startElapsedNanos + coverageOffset
+		val payload = cellPayload(providerTime)
+		val deliveryIdentity = canonicalDeliveryIdentity(payload, BOOT_ID)
 		val logicalFactId = CellCapturedFactRevisionIntegrity.logicalFactId(
 			deliveryIdentity, authority.logicalId, authority.spec.runId, authority.segmentId,
 			authority.spec.manifestRevision, 0L, 0L,
 		)
-		return CellCapturedFactRevisionEntity(
+		val unsigned = CellCapturedFactRevisionEntity(
 			writerProjectionId = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
 			writerProjectionVersion = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
 			writerBindingGeneration = SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION,
@@ -1134,13 +1390,13 @@ class CellHistoryRepositoryRoomTest {
 			sourceDeliveryIdentity = deliveryIdentity,
 			sourceEventId = "cell-event-$admissionOrdinal",
 			sourceAdmissionOrdinal = admissionOrdinal,
-			walIntegrityIdentity = sha256("wal-$admissionOrdinal"),
-			payloadChecksum = sha256("payload-$admissionOrdinal"),
+			walIntegrityIdentity = ZERO_SHA,
+			payloadChecksum = ZERO_SHA,
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 1,
 			sourceSequence = admissionOrdinal,
 			planAttribution = CellCapturedFactRevisionEntity.PLAN_ATTRIBUTION_CAPTURED_REGISTRATION,
-			payloadVersion = 1,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
 			canonicalProviderSemanticsDigest = deliveryIdentity,
 			sourceInstanceId = "cell-instance-${authority.spec.globalRevision}",
 			registrationGeneration = authority.spec.globalRevision,
@@ -1180,7 +1436,7 @@ class CellHistoryRepositoryRoomTest {
 			acquiredAtMs = authority.spec.startWallMs + coverageOffset / 1_000_000L,
 			createdAtMs = authority.spec.startWallMs + coverageOffset / 1_000_000L,
 			qualityFlags = 0L,
-			qualityConfidence = 1f,
+			qualityConfidence = null,
 			availability = CellCapturedFactRevisionEntity.AVAILABILITY_AVAILABLE,
 			submittedChildCount = 1,
 			acceptedChildCount = 1,
@@ -1211,6 +1467,11 @@ class CellHistoryRepositoryRoomTest {
 			allKnownQualityIsWeak = false,
 			effectChecksum = ZERO_SHA,
 			appliedAtMs = authority.spec.startWallMs + coverageOffset / 1_000_000L,
+		)
+		val wal = walFor(unsigned)
+		return unsigned.copy(
+			walIntegrityIdentity = wal.integrityIdentity,
+			payloadChecksum = wal.payloadChecksum,
 		)
 	}
 
@@ -1288,6 +1549,42 @@ class CellHistoryRepositoryRoomTest {
 		return unsigned.copy(effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(unsigned))
 	}
 
+	private fun boundarylessProviderGroup(
+		status: String,
+		failureCode: String?,
+	): Group {
+		val original = buildGroup(groupIndex = 81, runCount = 1, factRunIndexes = setOf(0))
+		val built = original.runs.single()
+		val provider = requireNotNull(built.provider).copy(
+			status = status,
+			retiredAtMs = null,
+			retiredElapsedRealtimeNanos = null,
+			failureCode = failureCode,
+		)
+		val facts = built.facts.map { fact ->
+			val unsigned = fact.copy(
+				providerAcceptanceEndNanos = Long.MAX_VALUE,
+				effectChecksum = ZERO_SHA,
+			)
+			unsigned.copy(
+				effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(unsigned),
+			)
+		}
+		val currentFacts = facts.groupBy(CellCapturedFactRevisionEntity::logicalFactId)
+			.values.map { lineage ->
+				lineage.maxBy(CellCapturedFactRevisionEntity::semanticRevision)
+			}
+		return original.copy(
+			runs = listOf(
+				built.copy(
+					provider = provider,
+					facts = facts,
+					cursors = currentFacts.map(::cursor),
+				),
+			),
+		)
+	}
+
 	private fun cursor(fact: CellCapturedFactRevisionEntity) = CellCapturedFactCursorEntity(
 		writerProjectionId = fact.writerProjectionId,
 		writerProjectionVersion = fact.writerProjectionVersion,
@@ -1308,6 +1605,124 @@ class CellHistoryRepositoryRoomTest {
 
 	private fun ownerCursor(group: Group): CellCapturedFactCursorEntity = group.runs.single().cursors
 		.single { cursor -> cursor.latestSemanticRevision == 2L }
+
+	private fun cellFactLookupRequest(
+		fact: CellCapturedFactRevisionEntity,
+	): SourceFactLookupRequest = SourceFactLookupRequest(
+		key = SourceProofKey(
+			source = TrackingSource.CELL,
+			purpose = TrackingPurpose.SESSION_CAPTURE,
+			evidenceIdentity = SourceEvidenceIdentity(fact.sourceEventId),
+			sourcePolicyRevision = fact.sourcePolicyRevision,
+			captureConsentEpoch = fact.captureConsentEpoch,
+			collectedDataEpoch = fact.collectedDataEpoch,
+			scope = SourceProofScope.Run(fact.logicalTrackingId, fact.serviceRunId),
+		),
+		materialized = MaterializedProofState(
+			lineage = SourceProofLineage(
+				evidenceIdentity = SourceEvidenceIdentity(fact.sourceEventId),
+				sourceAdmissionOrdinal = fact.sourceAdmissionOrdinal,
+				sourceEvidenceRevision = 0L,
+				factIdentity = SourceFactIdentity(fact.logicalFactId),
+				semanticRevision = fact.semanticRevision,
+				writer = SourceProofWriterIdentity(
+					fact.writerProjectionId,
+					fact.writerProjectionVersion,
+					fact.writerBindingGeneration,
+					fact.writerOwnerGeneration,
+				),
+				cursorRevision = fact.semanticRevision,
+			),
+			coverage = if (fact.coverageIntervalEndNanos > fact.coverageIntervalStartNanos) {
+				SourceProofCoverage.ProviderInterval(
+					fact.coverageIntervalStartNanos,
+					fact.coverageIntervalEndNanos,
+				)
+			} else {
+				SourceProofCoverage.ProviderPoint(fact.coverageIntervalStartNanos)
+			},
+			completeness = when (fact.childCompleteness) {
+				CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_COMPLETE ->
+					SourceProofCompleteness.COMPLETE
+				CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_PARTIAL ->
+					SourceProofCompleteness.PARTIAL
+				else -> SourceProofCompleteness.UNKNOWN
+			},
+		),
+	)
+
+	private fun walFor(fact: CellCapturedFactRevisionEntity): SourceEventWalEntity {
+		val payload = cellPayload(fact.observedElapsedNanos)
+		val encoded = CellWalPayloadCodec.encode(payload)
+		val unsigned = SourceEventWalEntity(
+			admissionOrdinal = fact.sourceAdmissionOrdinal,
+			eventId = fact.sourceEventId,
+			providerDedupKey = null,
+			deliveryIdentity = fact.sourceDeliveryIdentity,
+			deliveryUnitIndex = fact.deliveryUnitIndex,
+			deliveryUnitCount = fact.deliveryUnitCount,
+			logicalTrackingId = fact.logicalTrackingId,
+			serviceRunId = fact.serviceRunId,
+			sourceKind = CELL_SOURCE,
+			sourceInstanceId = fact.sourceInstanceId,
+			registrationGeneration = fact.registrationGeneration,
+			physicalConfigurationFingerprint = fact.physicalConfigurationFingerprint,
+			authorizationRevision = fact.authorizationRevision,
+			authorizationPurposeEligibilityMask = fact.purposeEligibilityMask,
+			authorizationFingerprint = fact.authorizationFingerprint,
+			sourceSequence = fact.sourceSequence,
+			configRevision = fact.configurationRevision,
+			planAttribution = 0,
+			clockDomainId = fact.clockDomainId,
+			observedElapsedNanos = fact.observedElapsedNanos,
+			observedIntervalStartNanos = fact.observedIntervalStartNanos,
+			receivedElapsedNanos = fact.receivedElapsedNanos,
+			wallTimeMs = fact.observedWallTimeMs,
+			wallTimeUncertaintyMs = fact.wallTimeUncertaintyMs,
+			capturedCollectedDataEpoch = fact.collectedDataEpoch,
+			sourcePolicyRevision = fact.sourcePolicyRevision,
+			captureConsentEpoch = fact.captureConsentEpoch,
+			sessionManifestRevision = fact.manifestRevision,
+			lifecycleLeaseGeneration = fact.lifecycleLeaseGeneration,
+			acquiredAtMs = fact.acquiredAtMs,
+			qualityFlags = fact.qualityFlags,
+			qualityConfidence = fact.qualityConfidence,
+			payloadVersion = fact.payloadVersion,
+			payload = encoded.toByteArray(),
+			payloadChecksum = encoded.checksum,
+			integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
+			createdAtMs = fact.createdAtMs,
+		)
+		return unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
+	}
+
+	private fun cellPayload(providerTimeNanos: Long) = CellWalPayload(
+		subscriptionId = null,
+		observations = listOf(
+			CellWalPayloadObservation(
+				identifierToken = "",
+				radioType = "LTE",
+				registered = true,
+				signalLevelDbm = -95,
+				providerTimestampNanos = providerTimeNanos,
+			),
+		),
+		refreshOutcomeCode = CELL_REFRESH_OUTCOME_CALLBACK,
+		observationZoneId = ZONE_ID,
+	)
+
+	private fun canonicalDeliveryIdentity(payload: CellWalPayload, clockDomainId: String): String =
+		canonicalCellProviderDeliveryIdentity(
+			clockDomainId,
+			payload.observations.map { observation ->
+				CellProviderDeliveryIdentityFact(
+					radioType = observation.radioType,
+					registered = observation.registered,
+					signalLevelDbm = observation.signalLevelDbm,
+					providerTimestampNanos = requireNotNull(observation.providerTimestampNanos),
+				)
+			},
+		)
 
 	private suspend fun assertRecentFactIntegrityFailure() {
 		val page = repository { true }.recent(1) as CellHistoryPage.Available

@@ -2,9 +2,14 @@ package com.adsamcik.tracker.tracker.source.activity
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
+import com.adsamcik.tracker.shared.base.database.authenticateHistoricalProviderRegistration
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalPayloadPreflightRow
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityWalCarrierAuthentication
+import com.adsamcik.tracker.shared.base.database.data.ActivityWalCarrierAuthenticator
+import com.adsamcik.tracker.shared.base.database.data.ActivityWalPayload
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -18,8 +23,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntit
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
-import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
@@ -31,7 +36,6 @@ import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
-import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.model.sourceQualityFromStableFlags
 import java.nio.ByteBuffer
@@ -112,11 +116,24 @@ internal sealed interface ActivityCapturedWalAdmissionResult {
  */
 internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 	private val database: AppDatabase,
-	private val payloadCodec: SourcePayloadCodec,
 	private val planCodec: SourcePlanCodec,
+	private val bootClockDomainProvider: BootClockDomainProvider,
 ) {
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	suspend fun admit(eventId: SourceEventId): ActivityCapturedWalAdmissionResult =
+		admit(eventId, requireCurrentDestinationOwner = true)
+
+	/** Historical proof authenticates immutable fact provenance instead of mutable current ownership. */
+	internal suspend fun admitHistorical(
+		eventId: SourceEventId,
+	): ActivityCapturedWalAdmissionResult =
+		admit(eventId, requireCurrentDestinationOwner = false)
+
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	private suspend fun admit(
+		eventId: SourceEventId,
+		requireCurrentDestinationOwner: Boolean,
+	): ActivityCapturedWalAdmissionResult =
 		database.withTransaction transaction@{
 			val walDao = database.sourceEventWalDao()
 			val selectedPreflight = walDao.payloadPreflightByEventId(eventId.value)
@@ -257,15 +274,17 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				}
 			} == true) return@transaction rejected(ActivityCapturedWalAdmissionRejection.RETAINED_EVIDENCE)
 
-			val owner = database.sourceDestinationOwnerDao().get(
-				SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
-				SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
-			)
-			if (owner?.owner != SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS ||
-				owner.ownerGeneration != SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
-			) return@transaction rejected(
-				ActivityCapturedWalAdmissionRejection.DESTINATION_OWNER_MISMATCH,
-			)
+			if (requireCurrentDestinationOwner) {
+				val owner = database.sourceDestinationOwnerDao().get(
+					SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+					SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+				)
+				if (owner?.owner != SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS ||
+					owner.ownerGeneration != SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+				) return@transaction rejected(
+					ActivityCapturedWalAdmissionRejection.DESTINATION_OWNER_MISMATCH,
+				)
+			}
 
 			val planDao = database.sourcePlanStateDao()
 			val planHeader = planDao.revision(configurationRevision)
@@ -294,20 +313,32 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			)
 
 			val brokerDao = database.sourceBrokerDao()
-			val registration = brokerDao.registration(ACTIVITY_SOURCE, selected.registrationGeneration)
-				?: return@transaction rejected(ActivityCapturedWalAdmissionRejection.REGISTRATION_MISMATCH)
-			val registrationStart = registration.acceptedElapsedRealtimeNanos
-			if (registrationStart == null || registration.sourceInstanceId != selected.sourceInstanceId ||
-				registration.clockDomainId != selected.clockDomainId ||
-				registration.physicalConfigurationFingerprint != physicalFingerprint ||
-				registration.collectedDataEpoch != selected.capturedCollectedDataEpoch ||
-				registration.status !in ACCEPTED_REGISTRATION_STATUSES ||
-				registrationStart > selected.observedElapsedNanos ||
-				registration.retiredElapsedRealtimeNanos?.let { selected.observedElapsedNanos >= it } == true
-			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.REGISTRATION_MISMATCH)
-			val registrationEnd = registration.retiredElapsedRealtimeNanos
-			if (registrationEnd == null ||
-				registration.captureCallbackBarrierAuthorizationRevision < authorizationRevision
+			val registrationAuthentication = database.authenticateHistoricalProviderRegistration(
+				sourceKind = ACTIVITY_SOURCE,
+				registrationGeneration = selected.registrationGeneration,
+				sourceInstanceId = selected.sourceInstanceId,
+				clockDomainId = selected.clockDomainId,
+				physicalConfigurationFingerprint = physicalFingerprint,
+				collectedDataEpoch = selected.capturedCollectedDataEpoch,
+				expectedProviderResidency =
+					ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+				observedStartNanos = selected.observedElapsedNanos,
+				observedEndNanos = selected.observedElapsedNanos,
+				observedWallTimeMs = requireNotNull(selected.wallTimeMs),
+				currentClockDomainId = bootClockDomainProvider.current(),
+			)
+			val authenticatedRegistration =
+				registrationAuthentication as?
+					ProviderRegistrationIntervalAuthentication.Authenticated
+			if (authenticatedRegistration == null) {
+				return@transaction rejected(
+					ActivityCapturedWalAdmissionRejection.REGISTRATION_MISMATCH,
+				)
+			}
+			val registration = authenticatedRegistration.registration
+			val registrationStart = authenticatedRegistration.interval.startInclusiveNanos
+			val registrationEnd = authenticatedRegistration.interval.endExclusiveNanos
+			if (registration.captureCallbackBarrierAuthorizationRevision < authorizationRevision
 			) return@transaction unavailable(
 				ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
 			)
@@ -619,36 +650,16 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			val expectedSequence = runCatching {
 				Math.addExact(firstSequence, index.toLong())
 			}.getOrNull() ?: return null
-			if (!wal.hasQualifiedIntegrity() || wal.sourceKind != ACTIVITY_SOURCE ||
+			if (wal.sourceKind != ACTIVITY_SOURCE ||
 				wal.deliveryIdentity != selected.deliveryIdentity ||
 				wal.deliveryUnitCount != declaredCount || wal.deliveryUnitIndex != index ||
 				!wal.hasSameDeliveryAuthorityAs(selected) ||
 				wal.sourceSequence !in 1..MAX_DURABLE_SOURCE_SEQUENCE ||
-				wal.sourceSequence != expectedSequence ||
-				wal.observedIntervalStartNanos != wal.observedElapsedNanos ||
-				wal.observedElapsedNanos < 0L ||
-				wal.receivedElapsedNanos < wal.observedElapsedNanos ||
-				wal.wallTimeMs == null || wal.wallTimeMs < 0L ||
-				wal.wallTimeUncertaintyMs == null || wal.wallTimeUncertaintyMs < 0L ||
-				wal.acquiredAtMs < 0L ||
-				wal.payloadVersion != ACTIVITY_PAYLOAD_VERSION
+				wal.sourceSequence != expectedSequence
 			) return null
-			val payload = runCatching {
-				payloadCodec.decode(SourceKind.ACTIVITY, wal.payloadVersion, wal.payload)
-			}.getOrNull()
-			if (payload !is ActivityTransitionPayload && payload !is ActivityRecognitionPayload) return null
-			val canonicalPayload = runCatching {
-				payloadCodec.encode(payload, wal.payloadVersion)
-			}.getOrNull() ?: return null
-			if (!canonicalPayload.bytes.contentEquals(wal.payload) ||
-				canonicalPayload.checksum != wal.payloadChecksum ||
-				payload.providerTimeOrNull() != wal.observedElapsedNanos ||
-				wal.observedElapsedNanos > wal.receivedElapsedNanos ||
-				wal.qualityFlags and KNOWN_QUALITY_FLAGS != wal.qualityFlags ||
-				runCatching {
-					sourceQualityFromStableFlags(wal.qualityFlags, wal.qualityConfidence)
-				}.isFailure
-			) return null
+			val authenticated = ActivityWalCarrierAuthenticator.authenticate(wal)
+				as? ActivityWalCarrierAuthentication.Authenticated ?: return null
+			val payload = authenticated.carrier.payload.toSourcePayload()
 			DecodedActivityWalUnit(wal, payload)
 		}
 	}
@@ -660,6 +671,7 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 		if (units.zipWithNext().any { (left, right) -> left.canonicalKey > right.canonicalKey }) {
 			return DeliveryIdentityVerdict.MISMATCH
 		}
+
 		val sameTimeTransitions = units.indices
 			.filter { units[it].payload is ActivityTransitionPayload }
 			.groupBy { units[it].providerTime }
@@ -976,7 +988,6 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 
 	private companion object {
 		const val ACTIVITY_SOURCE = 2
-		const val ACTIVITY_PAYLOAD_VERSION = 1
 		const val SOURCE_PLAN_PAYLOAD_VERSION = 1
 		const val MAX_DELIVERY_UNITS = 256
 		const val MAX_ACTIVITY_PAYLOAD_BYTES = 21
@@ -1007,13 +1018,20 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			"ACTIVE" to LIFECYCLE_STOPPING,
 			LIFECYCLE_STOPPING to LIFECYCLE_STOPPING,
 		)
-		val ACCEPTED_REGISTRATION_STATUSES = setOf(
-			ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
-			ProviderRegistrationGenerationEntity.STATUS_RETIRING,
-			ProviderRegistrationGenerationEntity.STATUS_RETIRED,
-		)
-		val KNOWN_QUALITY_FLAGS = SourceQualityFlag.entries.fold(0L) { mask, flag -> mask or flag.bit }
 	}
+}
+
+private fun ActivityWalPayload.toSourcePayload(): SourcePayload = when (this) {
+	is ActivityWalPayload.Transition -> ActivityTransitionPayload(
+		activityType = activityType,
+		transitionType = transitionType,
+		providerElapsedRealtimeNanos = providerElapsedRealtimeNanos,
+	)
+	is ActivityWalPayload.Recognition -> ActivityRecognitionPayload(
+		activityType = activityType,
+		confidencePercent = confidencePercent,
+		providerElapsedRealtimeNanos = providerElapsedRealtimeNanos,
+	)
 }
 
 private fun SourcePayload.providerTimeOrNull(): Long? = when (this) {

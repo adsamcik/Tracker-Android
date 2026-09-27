@@ -46,6 +46,12 @@ object TrackerTraceboxTemplates {
 	)
 	val APPLICATION_RESOURCE_MEASUREMENT_FAILED =
 		LogTemplate.of("Application resource measurement failed")
+	val APPLICATION_PLATFORM_RESTRICTION_MEASUREMENT = LogTemplate.of(
+		"Platform restriction: foreground {}, entries {}, battery exempt known {}, exempt {}, background restriction known {}, restricted {}, standby bucket known {}, bucket {}",
+	)
+	val APPLICATION_LOCATION_CAPABILITY_MEASUREMENT = LogTemplate.of(
+		"Location capability: foreground {}, entries {}, service {}, enabled known {}, enabled {}, GPS present known {}, present {}, GPS enabled known {}, enabled {}, network present known {}, present {}, network enabled known {}, enabled {}",
+	)
 	val APPLICATION_REPEATED_LOW_MEMORY_EXITS = LogTemplate.of(
 		"Application observed repeated low-memory exits: count {}, window hours {}",
 	)

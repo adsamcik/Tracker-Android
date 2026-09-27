@@ -93,6 +93,27 @@ sealed interface DashboardLiveSessionPresentation {
 		}
 	}
 
+	/** Exact multi-source capture without Location. Every source retains its own product state. */
+	data class SourceSetWithoutLocation(
+		val segmentId: Long,
+		val capturedSources: Set<HistorySource>,
+		val steps: DashboardLiveStepsValue? = null,
+		val activity: DashboardLiveActivityValue? = null,
+		val pressure: DashboardLivePressureValue? = null,
+		val wifi: DashboardRadioHistoryValue? = null,
+		val cell: DashboardRadioHistoryValue? = null,
+	) : DashboardLiveSessionPresentation {
+		init {
+			require(segmentId > 0L)
+			require(capturedSources.size >= 2 && HistorySource.LOCATION !in capturedSources)
+			require(steps == null || HistorySource.STEPS in capturedSources)
+			require(activity == null || HistorySource.ACTIVITY in capturedSources)
+			require(pressure == null || HistorySource.PRESSURE in capturedSources)
+			require(wifi == null || HistorySource.WIFI in capturedSources && wifi.source == HistorySource.WIFI)
+			require(cell == null || HistorySource.CELL in capturedSources && cell.source == HistorySource.CELL)
+		}
+	}
+
 	/** The history stream failed or returned a different segment than the requested binding. */
 	data class HistoryUnavailable(
 		val segmentId: Long,

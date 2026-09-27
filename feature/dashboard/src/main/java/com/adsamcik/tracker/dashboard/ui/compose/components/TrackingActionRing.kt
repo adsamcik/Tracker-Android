@@ -78,13 +78,13 @@ internal fun TrackingActionRing(
 		goalProgress.dailySteps is QualifiedStepCount.Ready
 
 	val fabContentDescription = when {
-		!hasPermission -> stringResource(R.string.dashboard_cd_start_tracking_permission)
 		isTracking -> stringResource(R.string.dashboard_cd_stop_tracking)
+		!hasPermission -> stringResource(R.string.dashboard_cd_start_tracking_permission)
 		else -> stringResource(R.string.dashboard_cd_start_tracking)
 	}
 	val fabClickLabel = when {
-		!hasPermission -> stringResource(R.string.dashboard_action_enable_location)
 		isTracking -> stringResource(R.string.dashboard_cd_stop_tracking)
+		!hasPermission -> stringResource(R.string.dashboard_action_enable_location)
 		else -> stringResource(R.string.dashboard_cd_start_tracking)
 	}
 
@@ -102,26 +102,30 @@ internal fun TrackingActionRing(
 				hasPermission = hasPermission,
 				goalProgress = goalProgress,
 				compact = compact,
-				onClick = { if (!hasPermission) onRequestPermission() else onToggleTracking() },
+				onClick = {
+					if (isTracking || hasPermission) onToggleTracking() else onRequestPermission()
+				},
 			)
 		} else {
 			StandaloneActionButton(
 				isTracking = isTracking,
 				hasPermission = hasPermission,
 				compact = compact,
-				onClick = { if (!hasPermission) onRequestPermission() else onToggleTracking() },
+				onClick = {
+					if (isTracking || hasPermission) onToggleTracking() else onRequestPermission()
+				},
 			)
 		}
 
 		// Status badge
 		val statusText = when {
-			!hasPermission -> stringResource(R.string.dashboard_ring_enable_location)
 			isTracking -> stringResource(R.string.dashboard_cd_stop_tracking)
+			!hasPermission -> stringResource(R.string.dashboard_ring_enable_location)
 			else -> stringResource(R.string.dashboard_ring_start_tracking)
 		}
 		val statusColor = when {
-			!hasPermission -> MaterialTheme.colorScheme.onSurfaceVariant
 			isTracking -> MaterialTheme.colorScheme.error
+			!hasPermission -> MaterialTheme.colorScheme.onSurfaceVariant
 			else -> MaterialTheme.colorScheme.primary
 		}
 		Text(
@@ -178,13 +182,13 @@ private fun RingsWithAction(
 
 	// Color scheme shifts when tracking
 	val primaryRingColor = when {
-		!hasPermission -> MaterialTheme.colorScheme.surfaceVariant
 		isTracking -> MaterialTheme.colorScheme.error
+		!hasPermission -> MaterialTheme.colorScheme.surfaceVariant
 		else -> MaterialTheme.colorScheme.primary
 	}
 	val secondaryRingColor = when {
-		!hasPermission -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
 		isTracking -> MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+		!hasPermission -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
 		else -> MaterialTheme.colorScheme.tertiary
 	}
 	val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
@@ -262,8 +266,8 @@ private fun StandaloneActionButton(
 ) {
 	val sizing = if (compact) TrackingActionRingSizing.Compact else TrackingActionRingSizing.Default
 	val containerColor = when {
-		!hasPermission -> MaterialTheme.colorScheme.surfaceVariant
 		isTracking -> MaterialTheme.colorScheme.errorContainer
+		!hasPermission -> MaterialTheme.colorScheme.surfaceVariant
 		else -> MaterialTheme.colorScheme.primaryContainer
 	}
 
@@ -296,13 +300,13 @@ private fun ActionIcon(
 	modifier: Modifier = Modifier,
 ) {
 	val icon: ImageVector = when {
-		!hasPermission -> Icons.Default.LocationOff
 		isTracking -> Icons.Default.Stop
+		!hasPermission -> Icons.Default.LocationOff
 		else -> Icons.Default.PlayArrow
 	}
 	val tint = when {
-		!hasPermission -> MaterialTheme.colorScheme.onSurfaceVariant
 		isTracking -> MaterialTheme.colorScheme.error
+		!hasPermission -> MaterialTheme.colorScheme.onSurfaceVariant
 		else -> MaterialTheme.colorScheme.primary
 	}
 

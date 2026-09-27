@@ -310,6 +310,84 @@ object WifiCapturedFactRevisionIntegrity {
 	fun hasValidEffectChecksum(fact: WifiCapturedFactRevisionEntity): Boolean =
 		fact.effectChecksum == effectChecksum(fact)
 
+	fun hasValidRetainedLineage(
+		ordered: List<WifiCapturedFactRevisionEntity>,
+	): Boolean =
+		ordered.isNotEmpty() &&
+			ordered.map(WifiCapturedFactRevisionEntity::semanticRevision) ==
+			(1L..ordered.size.toLong()).toList() &&
+			ordered.all(::hasValidEffectChecksum) &&
+			ordered.zipWithNext().all { (previous, next) ->
+				next.isExactSuccessorOf(previous)
+			}
+
+	fun cursorAuthenticatesCurrent(
+		cursor: WifiCapturedFactCursorEntity,
+		fact: WifiCapturedFactRevisionEntity,
+	): Boolean =
+		cursor.writerProjectionId == fact.writerProjectionId &&
+			cursor.writerProjectionVersion == fact.writerProjectionVersion &&
+			cursor.logicalFactId == fact.logicalFactId &&
+			cursor.logicalTrackingId == fact.logicalTrackingId &&
+			cursor.serviceRunId == fact.serviceRunId &&
+			cursor.sessionSegmentId == fact.sessionSegmentId &&
+			cursor.writerOwnerGeneration == fact.writerOwnerGeneration &&
+			cursor.collectedDataEpoch == fact.collectedDataEpoch &&
+			cursor.scopeDeletionGeneration == fact.scopeDeletionGeneration &&
+			cursor.latestSemanticRevision == fact.semanticRevision &&
+			cursor.latestMutationId == fact.mutationId &&
+			cursor.latestEffectChecksum == fact.effectChecksum &&
+			cursor.latestSourceAdmissionOrdinal == fact.sourceAdmissionOrdinal &&
+			cursor.cursorRevision == fact.semanticRevision &&
+			cursor.updatedAtMs == fact.appliedAtMs
+
+	fun coverageOnlyOwnerCursorAuthenticates(
+		dependent: WifiCapturedFactRevisionEntity,
+		owner: WifiCapturedFactRevisionEntity,
+		ownerCursor: WifiCapturedFactCursorEntity,
+	): Boolean =
+		dependent.factKind == WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY &&
+			owner.factKind == WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE &&
+			dependent.aggregateOwnerLogicalFactId == owner.logicalFactId &&
+			dependent.aggregateOwnerSemanticRevision == owner.semanticRevision &&
+			dependent.aggregateOwnerCursorRevision == owner.semanticRevision &&
+			cursorAuthenticatesCurrent(ownerCursor, owner)
+
+	private fun WifiCapturedFactRevisionEntity.isExactSuccessorOf(
+		previous: WifiCapturedFactRevisionEntity,
+	): Boolean =
+		supersedesSemanticRevision == previous.semanticRevision &&
+			fixedCorrectionAuthority() == previous.fixedCorrectionAuthority() &&
+			providerAcceptanceEndNanos.settles(previous.providerAcceptanceEndNanos) &&
+			authorizationEffectEndNanos.settles(previous.authorizationEffectEndNanos) &&
+			sessionRunEffectEndNanos.settles(previous.sessionRunEffectEndNanos)
+
+	@Suppress("LongMethod")
+	private fun WifiCapturedFactRevisionEntity.fixedCorrectionAuthority(): List<Any?> = listOf(
+		writerProjectionId, writerProjectionVersion, writerBindingGeneration, writerOwnerGeneration,
+		logicalFactId, factKind, aggregateOwnerLogicalFactId, aggregateOwnerSemanticRevision,
+		aggregateOwnerCursorRevision, logicalTrackingId, serviceRunId, sessionSegmentId, purpose,
+		capturedSourceCodes, controlSourceCodes, sourceEventId, sourceAdmissionOrdinal,
+		walIntegrityIdentity, payloadChecksum, sourceDeliveryIdentity, deliveryUnitIndex,
+		deliveryUnitCount, sourceSequence, planAttribution, sourceInstanceId, registrationGeneration,
+		configurationRevision, physicalConfigurationFingerprint, authorizationRevision,
+		authorizationFingerprint, purposeEligibilityMask, sourcePolicyRevision, captureConsentEpoch,
+		manifestRevision, lifecycleLeaseGeneration, collectedDataEpoch, scopeDeletionGeneration,
+		clockDomainId, storedZoneId, planPayloadVersion, planPayloadChecksum,
+		maximumObservationAgeNanos, resultContract, registrationAppliedAtNanos,
+		providerAcceptanceStartNanos, authorizationEffectStartNanos, sessionRunEffectStartNanos,
+		observedIntervalStartNanos, observedElapsedNanos, receivedElapsedNanos,
+		coverageIntervalStartNanos, coverageIntervalEndNanos, observedWallTimeMs,
+		wallTimeUncertaintyMs, acquiredAtMs, qualityFlags, qualityConfidence, availability,
+		submittedResultCount, acceptedResultCount, staleResultCount, clockUnverifiableResultCount,
+		malformedResultCount, coverageCompleteness, observationCount, twoPointFourGhzCount,
+		fiveGhzCount, sixGhzCount, otherBandCount, strongestSignalDbm, weakestSignalDbm,
+		signalSumDbm,
+	)
+
+	private fun Long.settles(previous: Long): Boolean =
+		this == previous || previous == Long.MAX_VALUE && this < Long.MAX_VALUE
+
 	private fun WifiCapturedFactRevisionEntity.effectParts(): List<Any?> = listOf(
 		writerProjectionId, writerProjectionVersion, writerBindingGeneration, writerOwnerGeneration,
 		logicalFactId, semanticRevision, supersedesSemanticRevision, mutationId, factKind,

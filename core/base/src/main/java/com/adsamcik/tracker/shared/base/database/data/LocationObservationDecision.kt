@@ -39,6 +39,15 @@ data class LocationObservationDecision(
 	val reason: String? = null,
 	@ColumnInfo(name = "decision_version")
 	val decisionVersion: Int = CURRENT_DECISION_VERSION,
+	/** Immutable destination-writer provenance captured in the canonical commit transaction. */
+	@ColumnInfo(name = "writer_projection_id")
+	val writerProjectionId: String? = null,
+	@ColumnInfo(name = "writer_projection_version")
+	val writerProjectionVersion: Int? = null,
+	@ColumnInfo(name = "writer_binding_generation")
+	val writerBindingGeneration: Long? = null,
+	@ColumnInfo(name = "writer_owner_generation")
+	val writerOwnerGeneration: Long? = null,
 	/** WAL identity of the accepted `location_sample`, if one was written. */
 	@ColumnInfo(name = "accepted_sample_source_signal_id")
 	val acceptedSampleSourceSignalId: String? = null,
@@ -52,6 +61,20 @@ data class LocationObservationDecision(
 	@ColumnInfo(name = "source_revision", defaultValue = "0")
 	val sourceRevision: Long = 0L,
 ) {
+	init {
+		val writerProvenance = listOf(
+			writerProjectionId,
+			writerProjectionVersion,
+			writerBindingGeneration,
+			writerOwnerGeneration,
+		)
+		require(writerProvenance.all { it == null } || writerProvenance.all { it != null })
+		require(writerProjectionId == null || writerProjectionId.isNotBlank())
+		require(writerProjectionVersion == null || writerProjectionVersion > 0)
+		require(writerBindingGeneration == null || writerBindingGeneration > 0L)
+		require(writerOwnerGeneration == null || writerOwnerGeneration > 0L)
+	}
+
 	companion object {
 		const val CURRENT_DECISION_VERSION = 1
 		const val ACCEPTED = "ACCEPTED"

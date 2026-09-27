@@ -8,6 +8,7 @@ import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.source.coordinator.StepsSessionFactWriterTransitionCoordinator
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
+import com.adsamcik.tracker.tracker.source.lifecycle.SourceLifecycleProofCoordinator
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
@@ -25,6 +26,7 @@ internal interface TrackingInfrastructureIntegrationEntryPoint {
 	fun collectedDataLifecycleStore(): CollectedDataLifecycleStore
 	fun durableSourceIngress(): DurableSourceIngress
 	fun retentionAuthorityProducer(): RetentionAuthorityProducer
+	fun sourceLifecycleProofCoordinator(): SourceLifecycleProofCoordinator
 	fun stepsWriterTransitionCoordinator(): StepsSessionFactWriterTransitionCoordinator
 	fun trackingHistoryRepository(): TrackingHistoryRepository
 	fun trackingParamsRepository(): TrackingParamsRepository

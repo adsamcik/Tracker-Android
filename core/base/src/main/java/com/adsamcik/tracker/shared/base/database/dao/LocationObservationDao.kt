@@ -16,6 +16,9 @@ interface LocationObservationDao : BaseDao<LocationObservation> {
 	@Query("SELECT COUNT(*) FROM location_observation")
 	suspend fun countAll(): Long
 
+	@Query("SELECT * FROM location_observation WHERE id > :afterId ORDER BY id LIMIT :limit")
+	suspend fun retentionPage(afterId: Long, limit: Int): List<LocationObservation>
+
 	@Query("SELECT EXISTS(SELECT 1 FROM location_observation WHERE source_event_id = :sourceEventId)")
 	suspend fun existsBySourceEventId(sourceEventId: String): Boolean
 
@@ -114,6 +117,12 @@ interface LocationObservationDao : BaseDao<LocationObservation> {
 
 	@Query("DELETE FROM location_observation WHERE fix_time_ms < :beforeMs")
 	suspend fun deleteOlderThan(beforeMs: Long): Int
+
+	@Query("DELETE FROM location_observation WHERE source_event_id IN (:sourceEventIds)")
+	suspend fun deleteBySourceEventIds(sourceEventIds: List<String>): Int
+
+	@Query("DELETE FROM location_observation WHERE id IN (:ids)")
+	suspend fun deleteExactIds(ids: List<Long>): Int
 
 	/** Deletes only evidence covered by both the temporal checkpoint and its observation watermark. */
 	@Query("DELETE FROM location_observation WHERE fix_time_ms < :beforeMs AND id <= :throughId")

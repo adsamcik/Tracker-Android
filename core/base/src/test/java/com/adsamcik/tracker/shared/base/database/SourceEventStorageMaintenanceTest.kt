@@ -3,7 +3,9 @@ package com.adsamcik.tracker.shared.base.database
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionProofEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import io.kotest.matchers.shouldBe
@@ -21,11 +23,12 @@ import kotlin.test.assertFailsWith
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SourceEventStorageMaintenanceTest {
+	private lateinit var context: Application
 	private lateinit var database: AppDatabase
 
 	@Before
 	fun setUp() {
-		val context: Application = ApplicationProvider.getApplicationContext()
+		context = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 	}
 
@@ -281,37 +284,468 @@ class SourceEventStorageMaintenanceTest {
 		database.sourceEventWalDao().getByAdmissionOrdinal(3L)?.eventId shouldBe "event-4"
 	}
 
+	@Test
+	fun `retention proof is exact idempotent and bounded per source`() = runTest {
+		repeat(3) { index ->
+			insertEvent(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
+				admissionOrdinal = index + 1L,
+				authenticSteps = true,
+				eventId = "location-event-$index",
+			)
+		}
+
+		database.pruneSourceEventStorageBeforeWithSourceOperations(
+			createdBeforeMs = 100L,
+			batchSize = 10,
+			verifyCollectedDataAccess = {},
+			sourceKinds = listOf(SourceDestinationOwnerEntity.SOURCE_LOCATION),
+			maximumRetentionProofsPerSource = 2,
+		)
+		val proofs = database.sourceEventRetentionProofDao()
+			.allForSource(SourceDestinationOwnerEntity.SOURCE_LOCATION)
+		proofs.map(SourceEventRetentionProofEntity::sourceAdmissionOrdinal) shouldBe listOf(2L, 3L)
+		proofs.all(SourceEventRetentionProofEntity::hasValidStoredIntegrity) shouldBe true
+
+		insertEvent(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
+			admissionOrdinal = 3L,
+			authenticSteps = true,
+			eventId = "location-event-2",
+		)
+		database.pruneSourceEventStorageBeforeWithSourceOperations(
+			createdBeforeMs = 100L,
+			batchSize = 10,
+			verifyCollectedDataAccess = {},
+			sourceKinds = listOf(SourceDestinationOwnerEntity.SOURCE_LOCATION),
+			maximumRetentionProofsPerSource = 2,
+		)
+		database.sourceEventRetentionProofDao()
+			.allForSource(SourceDestinationOwnerEntity.SOURCE_LOCATION) shouldBe proofs
+		database.sourceEventWalDao().getByEventId("location-event-2") shouldBe null
+	}
+
+	@Test
+	fun `retention proof binds the complete capture authority before WAL deletion`() = runTest {
+		insertEvent(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_WIFI,
+			admissionOrdinal = 1L,
+			authenticSteps = false,
+			eventId = "capture-retention-event",
+			captureAuthority = true,
+		)
+		val retainedWal = requireNotNull(
+			database.sourceEventWalDao().getByEventId("capture-retention-event"),
+		)
+
+		database.pruneSourceEventStorageBeforeWithSourceOperations(
+			createdBeforeMs = 100L,
+			batchSize = 10,
+			verifyCollectedDataAccess = {},
+			sourceKinds = listOf(SourceDestinationOwnerEntity.SOURCE_WIFI),
+		)
+
+		val proof = requireNotNull(
+			database.sourceEventRetentionProofDao().get(
+				SourceDestinationOwnerEntity.SOURCE_WIFI,
+				"capture-retention-event",
+			),
+		)
+		proof.hasValidStoredIntegrity() shouldBe true
+		proof.authenticates(
+			expectedSourceKind = SourceDestinationOwnerEntity.SOURCE_WIFI,
+			expectedEventId = "capture-retention-event",
+			expectedPurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			expectedSourcePolicyRevision = 1L,
+			expectedCaptureConsentEpoch = 1L,
+			expectedCollectedDataEpoch = 0L,
+			expectedScopeDeletionGeneration = 0L,
+			expectedLogicalRunScopeDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_WIFI,
+				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				logicalTrackingId = "logical-capture-retention-event",
+				serviceRunId = "run-capture-retention-event",
+			),
+		) shouldBe true
+		proof.logicalTrackingId shouldBe "logical-capture-retention-event"
+		proof.serviceRunId shouldBe "run-capture-retention-event"
+		proof.scopeDeletionGeneration shouldBe 0L
+		proof.walPayloadChecksum shouldBe retainedWal.payloadChecksum
+		proof.authenticatedCaptureScope(
+			SourceDestinationOwnerEntity.SOURCE_WIFI,
+			0L,
+		)?.logicalRunScopeDigest shouldBe proof.logicalRunScopeDigest
+		val scopeProof = requireNotNull(
+			database.sourceEventRetentionScopeProofDao().get(
+				SourceDestinationOwnerEntity.SOURCE_WIFI,
+				requireNotNull(proof.logicalRunScopeDigest),
+			),
+		)
+		scopeProof.sourcePolicyRevision shouldBe 1L
+		scopeProof.captureConsentEpoch shouldBe 1L
+		scopeProof.collectedDataEpoch shouldBe 0L
+		scopeProof.authenticatesRetainedEvent(proof) shouldBe true
+		val reboundWal = retainedWal.copy(
+			clockDomainId = "other-boot",
+			sessionManifestRevision = 2L,
+			lifecycleLeaseGeneration = 2L,
+			sourceInstanceId = "other-provider",
+			registrationGeneration = 2L,
+			physicalConfigurationFingerprint = "c".repeat(64),
+			authorizationRevision = 2L,
+			authorizationFingerprint = "d".repeat(64),
+			configRevision = 2L,
+			integrityIdentity = "",
+		)
+		val rebound = SourceEventRetentionProofEntity.createFromWal(
+			reboundWal.copy(integrityIdentity = reboundWal.calculatedIntegrityIdentity()),
+		)
+		(proof.proofAuthorityFingerprint == rebound.proofAuthorityFingerprint) shouldBe false
+		database.sourceEventWalDao().getByEventId("capture-retention-event") shouldBe null
+	}
+
+	@Test
+	fun `retention proof survives reopen and full clear removes it behind the new epoch`() = runTest {
+		val name = "source-event-retention-proof-reopen"
+		context.deleteDatabase(name)
+		var fileDatabase = AppDatabase.fileBuilder(context, name).allowMainThreadQueries().build()
+		try {
+			val payload = byteArrayOf(1)
+			val unsigned = SourceEventWalEntity(
+				admissionOrdinal = 1L,
+				eventId = "reopen-event",
+				providerDedupKey = "reopen-dedup",
+				logicalTrackingId = "reopen-logical",
+				serviceRunId = "reopen-run",
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_WIFI,
+				sourceInstanceId = "reopen-instance",
+				registrationGeneration = 1L,
+				physicalConfigurationFingerprint = "a".repeat(64),
+				authorizationRevision = 1L,
+				authorizationPurposeEligibilityMask =
+					SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+				authorizationFingerprint = "b".repeat(64),
+				sourceSequence = 1L,
+				configRevision = 1L,
+				planAttribution = 0,
+				clockDomainId = "reopen-boot",
+				observedElapsedNanos = 1L,
+				receivedElapsedNanos = 2L,
+				receivedWallTimeMs = 10L,
+				wallTimeMs = 10L,
+				wallTimeUncertaintyMs = 0L,
+				capturedCollectedDataEpoch = 0L,
+				sourcePolicyRevision = 1L,
+				captureConsentEpoch = 1L,
+				sessionManifestRevision = 1L,
+				lifecycleLeaseGeneration = 1L,
+				acquiredAtMs = 10L,
+				qualityFlags = 0L,
+				qualityConfidence = null,
+				payloadVersion = 1,
+				payload = payload,
+				payloadChecksum = payload.sha256(),
+				createdAtMs = 10L,
+			)
+			fileDatabase.sourceEventWalDao().insertIgnoringDuplicate(
+				unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity()),
+			)
+			fileDatabase.pruneSourceEventStorageBeforeWithSourceOperations(
+				createdBeforeMs = 100L,
+				batchSize = 10,
+				verifyCollectedDataAccess = {},
+				sourceKinds = listOf(SourceDestinationOwnerEntity.SOURCE_WIFI),
+			)
+			fileDatabase.close()
+			fileDatabase = AppDatabase.fileBuilder(context, name).allowMainThreadQueries().build()
+
+			fileDatabase.sourceEventRetentionProofDao().get(
+				SourceDestinationOwnerEntity.SOURCE_WIFI,
+				"reopen-event",
+			)?.hasValidStoredIntegrity() shouldBe true
+			fileDatabase.sourceEventRetentionScopeProofDao()
+				.countForSource(SourceDestinationOwnerEntity.SOURCE_WIFI) shouldBe 1L
+
+			AppDatabase.deleteAllCollectedData(
+				database = fileDatabase,
+				operationId = "retention-proof-full-clear",
+				collectedDataEpoch = 1L,
+				retainedFromMs = null,
+				updatedAtMs = 200L,
+			)
+			fileDatabase.sourceEventRetentionProofDao().countAll() shouldBe 0L
+			fileDatabase.sourceEventRetentionScopeProofDao().countAll() shouldBe 0L
+			fileDatabase.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 1L
+		} finally {
+			fileDatabase.close()
+			context.deleteDatabase(name)
+		}
+	}
+
+	@Test
+	fun `corrupt rehashed and stale WAL snapshots cannot mint retention proof`() = runTest {
+		insertEvent(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			admissionOrdinal = 1L,
+			authenticSteps = false,
+			eventId = "snapshot-event",
+			captureAuthority = true,
+		)
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId("snapshot-event"))
+		val candidate = database.sourceEventWalDao().retentionProofCandidatesForProjectedSourceBatch(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			safeOrdinal = 1L,
+			createdBeforeMs = 100L,
+			limit = 1,
+		).single()
+
+		candidate.authenticatesRetentionWal(wal) shouldBe true
+		val corrupt = wal.copy(payload = byteArrayOf(9))
+		candidate.authenticatesRetentionWal(corrupt) shouldBe false
+		assertFailsWith<IllegalArgumentException> {
+			SourceEventRetentionProofEntity.createFromWal(corrupt)
+		}
+		val checksumRehashed = corrupt.copy(payloadChecksum = corrupt.calculatedPayloadChecksum())
+		candidate.authenticatesRetentionWal(checksumRehashed) shouldBe false
+		assertFailsWith<IllegalArgumentException> {
+			SourceEventRetentionProofEntity.createFromWal(checksumRehashed)
+		}
+		val fullyRehashed = checksumRehashed.copy(
+			integrityIdentity = checksumRehashed.calculatedIntegrityIdentity(),
+		)
+		fullyRehashed.hasQualifiedIntegrity() shouldBe true
+		candidate.authenticatesRetentionWal(fullyRehashed) shouldBe false
+		assertFailsWith<IllegalArgumentException> {
+			candidate.createAuthenticatedRetentionProof(fullyRehashed)
+		}
+		val staleAuthority = wal.copy(captureConsentEpoch = 2L)
+		candidate.authenticatesRetentionWal(staleAuthority) shouldBe false
+		assertFailsWith<IllegalArgumentException> {
+			SourceEventRetentionProofEntity.createFromWal(staleAuthority)
+		}
+
+		database.sourceEventRetentionProofDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `event proof trimming retains every capture run scope beyond 4096 events`() = runTest {
+		val rows = (1L..4_097L).map { ordinal ->
+			event(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_WIFI,
+				admissionOrdinal = ordinal,
+				authenticSteps = false,
+				eventId = "scope-event-$ordinal",
+				captureAuthority = true,
+			)
+		}
+		rows.chunked(256).forEach { batch ->
+			database.sourceEventWalDao().insertDeliveryUnits(batch).size shouldBe batch.size
+		}
+
+		database.pruneSourceEventStorageBeforeWithSourceOperations(
+			createdBeforeMs = 100L,
+			batchSize = 256,
+			verifyCollectedDataAccess = {},
+			sourceKinds = listOf(SourceDestinationOwnerEntity.SOURCE_WIFI),
+		)
+
+		database.sourceEventRetentionProofDao()
+			.allForSource(SourceDestinationOwnerEntity.SOURCE_WIFI).size shouldBe 4_096
+		database.sourceEventRetentionScopeProofDao()
+			.countForSource(SourceDestinationOwnerEntity.SOURCE_WIFI) shouldBe 4_097L
+		val firstScope = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+			SourceDestinationOwnerEntity.SOURCE_WIFI,
+			SourceBrokerPurpose.SESSION_CAPTURE,
+			"logical-scope-event-1",
+			"run-scope-event-1",
+		)
+		database.sourceEventRetentionScopeProofDao().get(
+			SourceDestinationOwnerEntity.SOURCE_WIFI,
+			firstScope,
+		)?.hasValidStoredIntegrity() shouldBe true
+
+		database.sourceEventWalDao().insertIgnoringDuplicate(rows.first()) shouldBe 1L
+		database.pruneSourceEventStorageBeforeWithSourceOperations(
+			createdBeforeMs = 100L,
+			batchSize = 1,
+			verifyCollectedDataAccess = {},
+			sourceKinds = listOf(SourceDestinationOwnerEntity.SOURCE_WIFI),
+		)
+		database.sourceEventRetentionScopeProofDao()
+			.countForSource(SourceDestinationOwnerEntity.SOURCE_WIFI) shouldBe 4_097L
+		database.sourceEventRetentionScopeProofDao().get(
+			SourceDestinationOwnerEntity.SOURCE_WIFI,
+			firstScope,
+		)?.hasValidStoredIntegrity() shouldBe true
+	}
+
+	@Test
+	fun `conflicting capture authority for one retained run scope fails closed`() = runTest {
+		val first = event(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_WIFI,
+			admissionOrdinal = 1L,
+			authenticSteps = false,
+			eventId = "scope-conflict-first",
+			captureAuthority = true,
+		)
+		database.sourceEventWalDao().insertIgnoringDuplicate(first) shouldBe 1L
+		database.pruneSourceEventStorageBeforeWithSourceOperations(
+			createdBeforeMs = 100L,
+			batchSize = 10,
+			verifyCollectedDataAccess = {},
+			sourceKinds = listOf(SourceDestinationOwnerEntity.SOURCE_WIFI),
+		)
+		val conflictingUnsigned = first.copy(
+			admissionOrdinal = 2L,
+			eventId = "scope-conflict-second",
+			providerDedupKey = "dedup-scope-conflict-second",
+			sourceInstanceId = "instance-scope-conflict-second",
+			sourceSequence = 2L,
+			sourcePolicyRevision = 2L,
+			integrityIdentity = "",
+		)
+		val conflicting = conflictingUnsigned.copy(
+			integrityIdentity = conflictingUnsigned.calculatedIntegrityIdentity(),
+		)
+		database.sourceEventWalDao().insertIgnoringDuplicate(conflicting) shouldBe 2L
+
+		val result = database.pruneSourceEventStorageBeforeWithSourceOperations(
+			createdBeforeMs = 100L,
+			batchSize = 10,
+			verifyCollectedDataAccess = {},
+			sourceKinds = listOf(SourceDestinationOwnerEntity.SOURCE_WIFI),
+		)
+
+		(result as SourceEventStoragePruneResult.Deferred).sourceDebt.single().reason shouldBe
+			SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE
+		database.sourceEventWalDao().getByEventId("scope-conflict-second") shouldBe conflicting
+		database.sourceEventRetentionProofDao().get(
+			SourceDestinationOwnerEntity.SOURCE_WIFI,
+			"scope-conflict-second",
+		) shouldBe null
+		database.sourceEventRetentionScopeProofDao()
+			.countForSource(SourceDestinationOwnerEntity.SOURCE_WIFI) shouldBe 1L
+	}
+
+	@Test
+	fun `conflicting retention proof rolls back its source WAL deletion`() = runTest {
+		insertEvent(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
+			admissionOrdinal = 1L,
+			authenticSteps = true,
+			eventId = "conflicting-proof-event",
+		)
+		val wal = requireNotNull(
+			database.sourceEventWalDao().getByEventId("conflicting-proof-event"),
+		)
+		database.sourceEventRetentionProofDao().insertAll(
+			listOf(
+				SourceEventRetentionProofEntity.createFromWal(
+					wal.copy(
+						admissionOrdinal = 2L,
+						sourceSequence = 2L,
+						integrityIdentity = "",
+					).let { conflicting ->
+						conflicting.copy(
+							integrityIdentity = conflicting.calculatedIntegrityIdentity(),
+						)
+					},
+				),
+			),
+		)
+
+		val result = database.pruneSourceEventStorageBeforeWithSourceOperations(
+			createdBeforeMs = 100L,
+			batchSize = 10,
+			verifyCollectedDataAccess = {},
+			sourceKinds = listOf(SourceDestinationOwnerEntity.SOURCE_LOCATION),
+		)
+
+		result shouldBe SourceEventStoragePruneResult.Deferred(
+			walEventsDeleted = 0,
+			deliveredEffectsDeleted = 0,
+			orphanedDeliveredEffectsDeleted = 0,
+			sourceOutcomes = listOf(
+				SourceEventStorageSourcePruneOutcome.Blocked(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
+					reason =
+						SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
+					walEventsDeleted = 0,
+					deliveredEffectsDeleted = 0,
+				),
+			),
+			sourceDebt = listOf(
+				SourceEventStorageSourcePruneOutcome.Blocked(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
+					reason =
+						SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
+					walEventsDeleted = 0,
+					deliveredEffectsDeleted = 0,
+				),
+			),
+		)
+		database.sourceEventWalDao().getByEventId("conflicting-proof-event")?.admissionOrdinal shouldBe
+			1L
+	}
+
 	private suspend fun insertEvent(
 		sourceKind: Int,
 		admissionOrdinal: Long,
 		authenticSteps: Boolean,
+		eventId: String = "event-$sourceKind",
+		captureAuthority: Boolean = false,
 	) {
+		val row = event(
+			sourceKind = sourceKind,
+			admissionOrdinal = admissionOrdinal,
+			authenticSteps = authenticSteps,
+			eventId = eventId,
+			captureAuthority = captureAuthority,
+		)
+		database.sourceEventWalDao().insertIgnoringDuplicate(row) shouldBe admissionOrdinal
+	}
+
+	private fun event(
+		sourceKind: Int,
+		admissionOrdinal: Long,
+		authenticSteps: Boolean,
+		eventId: String,
+		captureAuthority: Boolean,
+	): SourceEventWalEntity {
 		val payload = byteArrayOf(sourceKind.toByte())
 		val unsigned = SourceEventWalEntity(
 			admissionOrdinal = admissionOrdinal,
-			eventId = "event-$sourceKind",
-			providerDedupKey = "dedup-$sourceKind",
-			logicalTrackingId = null,
-			serviceRunId = null,
+			eventId = eventId,
+			providerDedupKey = "dedup-$eventId",
+			logicalTrackingId = "logical-$eventId".takeIf { captureAuthority },
+			serviceRunId = "run-$eventId".takeIf { captureAuthority },
 			sourceKind = sourceKind,
-			sourceInstanceId = "instance-$sourceKind",
+			sourceInstanceId = "instance-$eventId",
 			registrationGeneration = 1L,
 			physicalConfigurationFingerprint =
-				if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps) {
+				if (captureAuthority ||
+					sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps
+				) {
 					"a".repeat(64)
 				} else {
 					null
 				},
 			authorizationRevision =
-				if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps) 1L else null,
+				if (captureAuthority ||
+					sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps
+				) 1L else null,
 			authorizationPurposeEligibilityMask =
-				if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps) {
+				if (captureAuthority) {
+					SourceBrokerPurpose.MASK_SESSION_CAPTURE
+				} else if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps) {
 					SourceBrokerPurpose.MASK_CONTROL_AUTOSTART
 				} else {
 					0L
 				},
 			authorizationFingerprint =
-				if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps) {
+				if (captureAuthority ||
+					sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps
+				) {
 					"b".repeat(64)
 				} else {
 					null
@@ -327,9 +761,15 @@ class SourceEventStorageMaintenanceTest {
 			wallTimeUncertaintyMs = 0L,
 			capturedCollectedDataEpoch = 0L,
 			sourcePolicyRevision =
-				if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps) 1L else null,
+				if (captureAuthority ||
+					sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps
+				) 1L else null,
+			captureConsentEpoch = 1L.takeIf { captureAuthority },
+			sessionManifestRevision = 1L.takeIf { captureAuthority },
 			lifecycleLeaseGeneration =
-				if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps) 1L else null,
+				if (captureAuthority ||
+					sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps
+				) 1L else null,
 			acquiredAtMs = 10L,
 			qualityFlags = 0L,
 			qualityConfidence = null,
@@ -338,8 +778,7 @@ class SourceEventStorageMaintenanceTest {
 			payloadChecksum = payload.sha256(),
 			createdAtMs = 10L,
 		)
-		val row = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
-		database.sourceEventWalDao().insertIgnoringDuplicate(row) shouldBe admissionOrdinal
+		return unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
 	}
 
 	private suspend fun insertDeliveredOutbox(sourceKind: Int, admissionOrdinal: Long) {
