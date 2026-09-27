@@ -1861,6 +1861,10 @@ source-reviewed IMPLEMENTED_UNVALIDATED only; tests uncompiled/unrun, no validat
   publication, with actual writer/maintenance/correction-lineage/fence/delayed-replay sources.
 - [x] Author carried eligible grant admission for retiring Wi-Fi/Cell demands, independently proving
   consent-before-original-demand wall/same-boot elapsed time and actual revocation cutoff.
+- [x] Reconcile carried consent in native ambient Steps day/public fact and timeline reads plus
+  availability/materialization. Author actual corrected-lineage/future-grant/no-fact read cases.
+- [x] Reconcile imported Steps source-fence reopening under exact later eligible consent carried
+  through quality policy; author actual erase/regrant/read/future-grant/deleted-day replay cases.
 - [ ] Confirm historical Location behavior across Off/reconfiguration/re-enable and reconcile current
   read/retention-approval/canonical-association cleanup without erasing authorized siblings.
 - [ ] Implement exact Activity capture and ambient Steps callback settlement with surviving sibling

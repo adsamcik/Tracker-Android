@@ -32,6 +32,23 @@ then-current five production/six test files and accurately open checklist/contra
 inspection found the same existing Activity timestamp regression; its capture erase/retention
 publication and actual correction-lineage/CONTROL-demand regression sources were accepted by
 affected independent static review with no blocking finding. Exact scope fence times, provider
-guards and the selected-session deletion path remain unchanged. All six test files are authored, uncompiled and unrun. Activity's preserved CONTROL demand is not a live-host
-test, and Pressure whole-source audit is not a narrower-purpose erase. Full retained authority is
+guards and the selected-session deletion path remain unchanged. All six cleanup test files are
+authored, uncompiled and unrun. Activity's preserved CONTROL demand is not a live-host test, and Pressure whole-source audit is not a narrower-purpose erase. Full retained authority is
 not complete; no activation, convergence freeze, dev/v10 integration or push.
+
+## Native ambient Steps followup
+
+The cleanup slice was committed as cf80908b56. Two native Steps reader sources and the actual day/
+public Room read fixture/test source correct carried-consent equality in facts, timelines and
+availability/materialization. These sources and accurate registry/checklist/trace changes were
+accepted by independent affected review without blocking findings. Tests remain uncompiled/unrun; remaining
+historical demand/monotonic composition stays open. No new Off/history behavior is implemented.
+
+The imported source-fence reopening checks in the actual Steps importer/history reader also had
+policy equality despite carried consent. Exact completed-delete/later eligible epoch/reopened epoch
+and deleted-day fencing remain; only false quality-policy equality is corrected. Existing actual
+erase/regrant/import/read/replay regression source now covers quality changes before/after reopen
+and a future issuance blocked before mutation. Independent static review accepted the combined
+four production/two test sources and documentation with no blocking finding. Imported source
+fences still require completed deletion and exact later/reopened epoch; old deleted days cannot
+replay. All authored source remains IMPLEMENTED_UNVALIDATED; no execution gate was run.

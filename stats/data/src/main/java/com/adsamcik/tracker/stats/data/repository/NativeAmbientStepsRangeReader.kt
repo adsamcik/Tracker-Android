@@ -334,7 +334,7 @@ internal class NativeAmbientStepsRangeReader(
 		val enabled = policy != null && consent != null && policy.enabled &&
 			policy.ambientPersistenceEligible && policy.ambientConsentEpoch == consent.epoch &&
 			consent.eligible && consent.persistenceEligible &&
-			consent.policyRevision == policy.policyRevision
+			consent.policyRevision <= policy.policyRevision
 		if (!enabled) return emptySet()
 		val cursor = activeCursors.singleOrNull()
 		if (cursor == null || cursor.collectedDataEpoch != evidence.collectedDataEpoch ||
@@ -450,7 +450,7 @@ private fun AmbientStepsFactRevisionEntity.hasValidNativeHistoryAuthority(
 		policy.effectiveWallTimeMs <= start &&
 		consent != null && consent.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
 		consent.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
-		consent.epoch == ambientConsentEpoch && consent.policyRevision == sourcePolicyRevision &&
+		consent.epoch == ambientConsentEpoch && consent.policyRevision <= policy.policyRevision &&
 		consent.eligible && consent.persistenceEligible && consent.effectiveWallTimeMs <= start
 }
 
@@ -602,7 +602,7 @@ private data class NativeAmbientStoredAuthority(
 			policy.effectiveWallTimeMs <= boundaryMs &&
 			consent.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
 			consent.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
-			consent.epoch == ambientConsentEpoch && consent.policyRevision == sourcePolicyRevision &&
+			consent.epoch == ambientConsentEpoch && consent.policyRevision <= policy.policyRevision &&
 			consent.eligible && consent.persistenceEligible && consent.effectiveWallTimeMs <= boundaryMs
 	}
 }

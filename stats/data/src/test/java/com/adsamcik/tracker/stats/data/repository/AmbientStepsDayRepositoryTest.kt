@@ -26,6 +26,7 @@ import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRead
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRead
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRequest
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryValue
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
 import io.kotest.matchers.shouldBe
@@ -87,6 +88,76 @@ class AmbientStepsDayRepositoryTest {
 		val afterRetraction = readSnapshot().page
 		afterRetraction.days shouldBe emptyList()
 		afterRetraction.materialization shouldBe AmbientStepsProductMaterialization.MATERIALIZING
+	}
+
+	@Test
+	fun `carried ambient consent keeps day and public correction lineage exact`() = runTest {
+		val fingerprint = seedPublicAuthority(cursor().copy(sourcePolicyRevision = 2L))
+		val initial = fact(10L, authorizationFingerprint = fingerprint, sourcePolicyRevision = 2L)
+		database.ambientStepsFactRevisionDao().insert(initial) shouldBe 1L
+
+		val page = readSnapshot().page
+		page.availability shouldBe AmbientStepsProductAvailability.AVAILABLE
+		page.days.single().total shouldBe AmbientStepsNumericValue.Exact(10L)
+		val request = AmbientStepsHistoryRangeRequest(listOf(AmbientStepsStructuralDay(0L, "UTC")))
+		val public = historyRepository().readRange(request) as AmbientStepsHistoryRead.Snapshot
+		public.days.single().total shouldBe AmbientStepsHistoryValue.Exact(10L)
+
+		val corrected = signed(initial.copy(
+			semanticRevision = 2L,
+			mutationId = AmbientStepsFactIntegrity.mutationId(
+				initial.logicalFactId, 2L, AmbientStepsFactRevisionEntity.OPERATION_UPSERT,
+			),
+			stepCount = 12L,
+			observedAtMs = DAY_END + 1L,
+			appliedAtMs = DAY_END + 1L,
+		))
+		database.ambientStepsFactRevisionDao().insert(corrected) shouldBe 2L
+		readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Exact(12L)
+		val correctedPublic = historyRepository().readRange(request) as AmbientStepsHistoryRead.Snapshot
+		correctedPublic.days.single().total shouldBe AmbientStepsHistoryValue.Exact(12L)
+		correctedPublic.days.single().factOrigins.single().correctionRevision shouldBe 2L
+	}
+
+	@Test
+	fun `future or late ambient consent cannot authenticate carried policy facts`() = runTest {
+		val fingerprint = seedPublicAuthority(cursor().copy(sourcePolicyRevision = 2L))
+		database.ambientStepsFactRevisionDao().insert(
+			fact(10L, authorizationFingerprint = fingerprint, sourcePolicyRevision = 2L),
+		) shouldBe 1L
+		val request = AmbientStepsHistoryRangeRequest(listOf(AmbientStepsStructuralDay(0L, "UTC")))
+
+		for ((revision, effectiveWallTimeMs) in listOf(3L to 0L, 1L to 1L)) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_consent_epoch SET policy_revision = ?, effective_wall_time_ms = ? " +
+					"WHERE source_kind = ? AND purpose = ? AND epoch = 1",
+				arrayOf(revision, effectiveWallTimeMs, SourceDestinationOwnerEntity.SOURCE_STEPS,
+					SourceBrokerPurpose.AMBIENT_PRODUCT),
+			)
+			readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Unavailable(
+				setOf(AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE),
+			)
+			historyRepository().readRange(request) shouldBe AmbientStepsHistoryRead.Unavailable(
+				AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
+			)
+			database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
+		}
+	}
+
+	@Test
+	fun `carried consent with no facts remains available and materializing`() = runTest {
+		seedPublicAuthority(cursor().copy(sourcePolicyRevision = 2L))
+
+		val page = readSnapshot().page
+		page.availability shouldBe AmbientStepsProductAvailability.AVAILABLE
+		page.materialization shouldBe AmbientStepsProductMaterialization.MATERIALIZING
+		page.days shouldBe emptyList()
+		val public = historyRepository().readRange(
+			AmbientStepsHistoryRangeRequest(listOf(AmbientStepsStructuralDay(0L, "UTC"))),
+		) as AmbientStepsHistoryRead.Snapshot
+		public.days.single().total shouldBe AmbientStepsHistoryValue.Unavailable(
+			setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.MATERIALIZING),
+		)
 	}
 
 	@Test
@@ -507,12 +578,15 @@ class AmbientStepsDayRepositoryTest {
 		database.sourcePolicyDao().ensureAuthority(
 			SourcePolicyAuthorityEntity(
 				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
-				currentPolicyRevision = 1L,
+				currentPolicyRevision = stateCursor.sourcePolicyRevision,
 				legacySettingsFingerprint = null,
 				updatedAtMs = 1L,
 			),
 		)
-		database.sourcePolicyDao().insertPolicies(listOf(policy(1L)))
+		database.sourcePolicyDao().insertPolicies(
+			listOf(policy(1L), policy(stateCursor.sourcePolicyRevision))
+				.distinctBy(SourcePolicyEntity::policyRevision),
+		)
 		database.sourcePolicyDao().insertConsentEpochs(listOf(consent()))
 		database.ambientStepsFactRevisionDao().insertRetentionAuthority(
 			AmbientStepsRetentionAuthorityIntegrity.create(
@@ -520,7 +594,7 @@ class AmbientStepsDayRepositoryTest {
 				1L,
 				AmbientStepsRetentionAuthorityEntity.STATE_ACTIVE,
 				RETENTION_POLICY_ID,
-				1L,
+				stateCursor.sourcePolicyRevision,
 				1L,
 				7L,
 				initialAuthorizationBootId,
@@ -538,6 +612,7 @@ class AmbientStepsDayRepositoryTest {
 						initialAuthorizationEffectiveTimeMs,
 						initialAuthorizationBootId,
 						initialAuthorizationEffectiveElapsedRealtimeNanos,
+						sourcePolicyRevision = stateCursor.sourcePolicyRevision,
 					),
 				)
 				if (stateCursor.authorizationRevision != 1L) {
@@ -546,6 +621,7 @@ class AmbientStepsDayRepositoryTest {
 							stateCursor.authorizationRevision,
 							stateCursor.authorizationFingerprint,
 							stateCursor.authorizationEffectiveWallTimeMs,
+							sourcePolicyRevision = stateCursor.sourcePolicyRevision,
 						),
 					)
 				}
@@ -566,7 +642,7 @@ class AmbientStepsDayRepositoryTest {
 			serviceRunId = null,
 			manifestRevision = null,
 			lifecycleLeaseGeneration = null,
-			sourcePolicyRevision = 1L,
+			sourcePolicyRevision = stateCursor.sourcePolicyRevision,
 			consentEpoch = 1L,
 			persistenceEligible = true,
 			qosCode = 1,
@@ -650,6 +726,7 @@ class AmbientStepsDayRepositoryTest {
 		effectiveWallTimeMs: Long,
 		effectiveBootId: String = "boot-a",
 		effectiveElapsedRealtimeNanos: Long = effectiveWallTimeMs * 1_000_000L,
+		sourcePolicyRevision: Long = 1L,
 	) = SourceAuthorizationEntity(
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 		registrationGeneration = 1L,
@@ -660,7 +737,7 @@ class AmbientStepsDayRepositoryTest {
 		demandId = "ambient-$revision",
 		consumerId = "ambient-importer",
 		purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
-		sourcePolicyRevision = 1L,
+		sourcePolicyRevision = sourcePolicyRevision,
 		consentEpoch = 1L,
 		persistenceEligible = true,
 		effectiveBootId = effectiveBootId,
@@ -791,6 +868,7 @@ class AmbientStepsDayRepositoryTest {
 		continuitySegmentGeneration: Long = 1L,
 		authorizationRevision: Long = 1L,
 		authorizationFingerprint: String = "a".repeat(64),
+		sourcePolicyRevision: Long = 1L,
 	): AmbientStepsFactRevisionEntity {
 		val dayStartTimeMs = epochDay * DAY_END
 		val dayEndTimeMs = dayStartTimeMs + DAY_END
@@ -824,7 +902,7 @@ class AmbientStepsDayRepositoryTest {
 				structuralDayEndTimeMs = dayEndTimeMs,
 				stepCount = count,
 				purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
-				sourcePolicyRevision = 1L,
+				sourcePolicyRevision = sourcePolicyRevision,
 				ambientConsentEpoch = 1L,
 				collectedDataEpoch = 7L,
 				scopeDeletionGeneration = 0L,

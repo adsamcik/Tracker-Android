@@ -504,3 +504,15 @@ current code conflicts with the plan; no answer received or inferred. The earlie
 target and automatic owner contracts remain unanswered and dependent changes are unapplied.
 Full retained authority and the assembly gate stay open. See ../../retained-authority/2026-09-27/
 IMPLEMENTATION_TRACE.md, CONTRACT_DECISIONS.md and REVIEW_RECEIPT.md.
+
+Followup from committed cf80908b56: approved carried-consent semantics also correct the six native
+ambient Steps day/public fact/timeline and current availability/materialization equality checks.
+Two reader sources and one existing Room fixture/test source are authored; exact source/purpose/
+epoch/persistence, historical wall boundaries, retention/count-domain/correction and cursor checks
+remain. Actual public/day corrected-lineage, future/late grant and no-fact materialization cases are
+accepted by independent static review without blocking findings. Imported source-fence regrant
+checks then received the same settled carried-consent correction in actual import/history paths;
+the existing erase/regrant test now exercises before/after quality changes, future grant rejection
+and deleted-day replay exclusion. Independent static review accepted the combined four production/
+two test sources plus documentation without blocking findings; full historical monotonic demand
+composition remains open. No tests/compilation/validation or new design is inferred.

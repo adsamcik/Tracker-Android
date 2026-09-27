@@ -37,6 +37,19 @@ Existing Wi-Fi cleanup already accepts an exact latest revoked epoch issued befo
    monotonic time must precede the original demand. Future grant policy revisions are rejected.
    Cell uses the actual revoked consent issuance revision as the cutoff, not a later sibling policy.
 
+4. `AmbientStepsDayRepository.kt` and `NativeAmbientStepsRangeReader.kt`: historical facts and
+   authority timelines accept referenced eligible consent issued at or before the exact historical
+   policy revision. Current availability/materialization uses the same carried-epoch check. Existing
+   exact epoch/source/purpose/persistence, historical effective wall time, cursor, correction,
+   retention and count-domain checks remain. This does not change background Off/history
+   semantics. No new acquisition authority is issued by a read.
+5. `RoomImportPortableAmbientSteps.kt` and `DefaultAmbientStepsHistoryRepository.kt`: an already
+   completed imported source deletion can reopen only under the exact later eligible epoch. That
+   epoch may be carried through newer quality policies, without closing it again. Still require
+   the correct collected-data epoch, completed deletion, referenced latest eligible consent,
+   issuance no later than policy, epoch newer than revocation and the stored reopened epoch for
+   reads. Exact deleted-day and lineage fences remain; old archives do not return through regrant.
+
 These changes implement already-approved purpose independence and carried-consent semantics.
 They add no schema, dependency, generic authority framework or new erase/restore UX.
 
@@ -61,6 +74,15 @@ They add no schema, dependency, generic authority framework or new erase/restore
 - `tracker/engine/.../WifiWalQualificationAdapterTest.kt`: actual writer-produced facts,
   maintenance erase/retention, exact fence and rejected delayed replay retain a newer heartbeat.
 
+- `stats/data/.../AmbientStepsDayRepositoryTest.kt`: actual day/public reads under policy 2 with
+  consent from policy 1, complete corrected lineage, future/late grant rejection without mutation,
+  and available/materializing rather than false disabled/covered-zero when no facts exist. The
+  existing fixture now derives its policy/demand/authorization/retention revision from the cursor.
+
+- `stats/data/.../RoomImportedAmbientStepsTransferTest.kt`: extend actual erase/regrant/import/read
+  sequence with carried quality policies before and after reopening, rejected future issuance
+  without a reopen/payload mutation, exact retained imported totals and deleted-day replay blocked.
+
 Tests are **uncompiled and unrun**. Activity's fixture preserves a CONTROL demand without a live
 physical provider; it does not establish live Activity sibling-host continuation.
 
@@ -75,7 +97,7 @@ physical provider; it does not establish live Activity sibling-host continuation
 | Ambient erase | Ambient Wi-Fi/Cell maintenance rejects remaining persistent ambient authorization, installs replay footprints and removes only its own lineage scope. | Ambient Steps blanket owner-scope check can block cleanup while capture survives. Use exact acknowledged purpose retirement; do not bypass it merely because policy is off. |
 | Location purpose storage | `LocationPurposeDao.kt` removes ambient associations and deletes accepted samples only after their last association. Shared callback can retain one sample through multiple exact purposes. | Capture-association erase is absent; direct sample deletion cascades both purposes. Route capture-specific actions through association scope before enabling dual-purpose actions. |
 | Location Off/read semantics | Policy Off/envelope change invokes `removeLocationAmbientPurposeInCurrentTransaction`; retention revoke also calls it. `LocationReadScope.AMBIENT` requires current consent/policy/retention authority. | This conflicts with the plan's future-collection-versus-erase distinction. Confirmation is pending; dependent historical read/deletion changes are unapplied. |
-| Ambient Steps reads | `AmbientStepsDayRepository.kt` and `NativeAmbientStepsRangeReader.kt` still have consent-policy equality in historical fact/demand authentication. | Reconcile carried historical consent and temporal proof without weakening count-domain/coverage/retention authority; maintain honest unknown coverage. |
+| Ambient Steps reads | `AmbientStepsDayRepository.kt` and `NativeAmbientStepsRangeReader.kt` now accept carried historical consent through fact/timeline checks and current availability/materialization. | Imported source-fence reopening now also preserves a carried exact later eligible epoch. Complete historical demand/monotonic temporal composition; preserve count-domain/coverage/retention authority and honest unknown coverage. |
 | Replay/import | `AmbientWifiMaintenance.kt` and Cell equivalent install verified replay footprints before complete lineage removal; imported source readers authenticate portable lineage without issuing local provider/consent authority. | Complete remaining six-source re-admission/read/effect retraction boundaries and delayed callbacks across erase/retention/re-enable; imports never become native motion or trigger authority. |
 | Full erase | `app/.../settings/CollectedDataDeletionService.kt` persists an operation, closes admission, settles provider/writer fences, advances durable epoch, clears payload and reconciles rearm. Room keeps high-water/deletion receipts. | Preserve its broader explicit scope and recovery debt; full erase is distinct from retiring one purpose. Feature leases and file/archive paths remain subject to their open contracts. |
 | Restore | `DatabaseExporter.kt` copies actual databases individually; it excludes non-database settings/files and is not a coherent full-app snapshot. Protected `DatabaseImport.kt` rejects Tracker backups rather than merging native operational tables. | Implement complete all-data backup/restore after the pending replacement-versus-empty-target decision and owned-store manifest. Restore historical proof, not current leases/permissions/CONTROL/recovery/URI grants. Re-arm remains explicit. |
@@ -92,7 +114,7 @@ target decision. Earlier shared-radio admission, native aggregate Steps and runt
 contracts remain pending; this task does not silently resolve them.
 
 Next: confirm historical Location semantics, finish purpose-specific Activity/Steps settlement,
-Location capture-association actions, historical Steps authentication, CONTROL expiry and complete
+Location capture-association actions, remaining Steps historical demand/monotonic authentication, CONTROL expiry and complete
 backup/restore. Author focused regression sources for each applied behavior, including sibling
 survival, correction/replay zero effect, stale consent/epoch, interrupted erase/restore and no
 operational authority resurrection. Obtain complete fresh static review before convergence.

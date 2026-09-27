@@ -1053,7 +1053,7 @@ private class ImportedAmbientStepsRangeReader(
 			policy != null && consent != null && policy.enabled &&
 			policy.ambientPersistenceEligible && policy.ambientConsentEpoch == consent.epoch &&
 			consent.eligible && consent.persistenceEligible &&
-			consent.policyRevision == policy.policyRevision &&
+			consent.policyRevision <= policy.policyRevision &&
 			consent.epoch > fence.revokedConsentEpoch &&
 			fence.reopenedConsentEpoch == consent.epoch
 		return !reset

@@ -2498,13 +2498,68 @@ class RoomImportedAmbientStepsTransferTest {
 			),
 		) shouldBe DeleteImportedAmbientStepsAfterConsentResetResult.Complete
 		seedSecondEligibleConsent(database)
+		val carriedPolicy = policyForConsent(
+			policyRevision = 6L,
+			consentEpoch = SECOND_ELIGIBLE_CONSENT_EPOCH,
+			eligible = true,
+			changeReason = "quality change carries reset consent",
+		).copy(qosCode = 2)
+		database.sourcePolicyDao().insertPolicies(listOf(carriedPolicy))
+		database.sourcePolicyDao().compareAndSetAuthority(
+			expectedBootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			expectedRevision = 5L,
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			newRevision = 6L,
+			legacySettingsFingerprint = null,
+			updatedAtMs = 6L,
+		) shouldBe 1
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_consent_epoch SET policy_revision = 7 " +
+				"WHERE source_kind = ? AND purpose = ? AND epoch = ?",
+			arrayOf(SourceDestinationOwnerEntity.SOURCE_STEPS, SourceBrokerPurpose.AMBIENT_PRODUCT,
+				SECOND_ELIGIBLE_CONSENT_EPOCH),
+		)
+		importer(database).importArchive(
+			request(later, jobId = "future-reset", archiveKey = "future-reset"),
+		) shouldBe ImportPortableAmbientStepsResult.Blocked(
+			PortableAmbientStepsImportBlockedReason.SOURCE_DELETED,
+		)
+		database.importedAmbientStepsDao().sourceFence()?.reopenedConsentEpoch shouldBe null
+		database.importedAmbientStepsDao().dayRevisionCount() shouldBe 0L
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_consent_epoch SET policy_revision = 5 " +
+				"WHERE source_kind = ? AND purpose = ? AND epoch = ?",
+			arrayOf(SourceDestinationOwnerEntity.SOURCE_STEPS, SourceBrokerPurpose.AMBIENT_PRODUCT,
+				SECOND_ELIGIBLE_CONSENT_EPOCH),
+		)
 		importer(database).importArchive(
 			request(later, jobId = "after-reset", archiveKey = "after-reset"),
 		) shouldBe applied(later, 1)
+		database.importedAmbientStepsDao().sourceFence()?.reopenedConsentEpoch shouldBe
+			SECOND_ELIGIBLE_CONSENT_EPOCH
+		(history(database).readRange(historyRequest(later)) as
+			AmbientStepsHistoryRead.Snapshot).days.single().total shouldBe AmbientStepsHistoryValue.Exact(3L)
+		val nextQualityPolicy = carriedPolicy.copy(policyRevision = 7L,
+			effectiveElapsedRealtimeNanos = 7L, effectiveWallTimeMs = 7L, qosCode = 3)
+		database.sourcePolicyDao().insertPolicies(listOf(nextQualityPolicy))
+		database.sourcePolicyDao().compareAndSetAuthority(
+			expectedBootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			expectedRevision = 6L,
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			newRevision = 7L,
+			legacySettingsFingerprint = null,
+			updatedAtMs = 7L,
+		) shouldBe 1
+		(history(database).readRange(historyRequest(later)) as
+			AmbientStepsHistoryRead.Snapshot).days.single().total shouldBe AmbientStepsHistoryValue.Exact(3L)
 		val subsequent = archive(completeDay(LocalDate.of(2026, 6, 4), 4L))
 		importer(database).importArchive(
 			request(subsequent, jobId = "after-reset-2", archiveKey = "after-reset-2"),
 		) shouldBe applied(subsequent, 1)
+		(history(database).readRange(historyRequest(subsequent)) as
+			AmbientStepsHistoryRead.Snapshot).days.single().total shouldBe AmbientStepsHistoryValue.Exact(4L)
+		database.importedAmbientStepsDao().sourceFence()?.reopenedConsentEpoch shouldBe
+			SECOND_ELIGIBLE_CONSENT_EPOCH
 		importer(database).importArchive(
 			request(archive, jobId = "old-replay", archiveKey = "old-replay"),
 		) shouldBe ImportPortableAmbientStepsResult.Blocked(

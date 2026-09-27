@@ -595,7 +595,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			!eligiblePolicy.ambientPersistenceEligible ||
 			eligiblePolicy.ambientConsentEpoch != eligibleConsent.epoch ||
 			!eligibleConsent.eligible || !eligibleConsent.persistenceEligible ||
-			eligibleConsent.policyRevision != eligiblePolicy.policyRevision ||
+			eligibleConsent.policyRevision > eligiblePolicy.policyRevision ||
 			eligibleConsent.epoch <= fence.revokedConsentEpoch
 		) {
 			blocked(PortableAmbientStepsImportBlockedReason.SOURCE_DELETED)

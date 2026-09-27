@@ -574,7 +574,7 @@ internal class AmbientStepsDayRepository @Inject constructor(
 		val eligible = policy.enabled && policy.ambientPersistenceEligible &&
 			policy.ambientConsentEpoch != null && consent != null && consent.eligible &&
 			consent.persistenceEligible && consent.epoch == policy.ambientConsentEpoch &&
-			consent.policyRevision == policy.policyRevision
+			consent.policyRevision <= policy.policyRevision
 		if (!eligible) {
 			return AmbientStepsProductAvailability.DISABLED to
 				AmbientStepsProductMaterialization.NOT_APPLICABLE
@@ -673,7 +673,7 @@ private fun AmbientStepsFactRevisionEntity.hasValidReadAuthority(
 		policy.effectiveWallTimeMs <= start &&
 		consent != null && consent.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
 		consent.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && consent.epoch == ambientConsentEpoch &&
-		consent.policyRevision == sourcePolicyRevision && consent.eligible && consent.persistenceEligible &&
+		consent.policyRevision <= policy.policyRevision && consent.eligible && consent.persistenceEligible &&
 		consent.effectiveWallTimeMs <= start
 }
 
@@ -702,7 +702,7 @@ private data class AmbientStepsStoredAuthority(
 			policy.effectiveWallTimeMs <= boundaryTimeMs &&
 			consent.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
 			consent.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
-			consent.epoch == ambientConsentEpoch && consent.policyRevision == sourcePolicyRevision &&
+			consent.epoch == ambientConsentEpoch && consent.policyRevision <= policy.policyRevision &&
 			consent.eligible && consent.persistenceEligible && consent.effectiveWallTimeMs <= boundaryTimeMs
 	}
 }

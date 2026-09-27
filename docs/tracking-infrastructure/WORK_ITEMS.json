@@ -5442,18 +5442,20 @@
       "evidence": {
         "retained_authority_2026_09_27": {
           "candidate_base": "15f639b68d76b79f3a06b63275ec1575ab72f00f",
-          "state": "source-reviewed IMPLEMENTED_UNVALIDATED bounded cleanup corrections; whole retained data authority open",
+          "state": "source-reviewed cleanup and native/imported Steps corrections; IMPLEMENTED_UNVALIDATED; whole retained data authority open",
           "trace": "retained-authority/2026-09-27/IMPLEMENTATION_TRACE.md",
           "implemented": [
             "latest revoked capture consent survives later policy revisions for Cell, Activity and Pressure cleanup; future consent remains blocked",
             "Cell capture erase and retention use source-specific clocks and preserve a newer shared evidence heartbeat",
             "retiring Wifi/Cell demands accept carried grants only before original demand time and actual revoked policy revision",
-            "existing Wifi and Activity erase/retention preserve newer shared evidence heartbeat with actual writer/mutation/correction/replay regression sources"
+            "existing Wifi and Activity erase/retention preserve newer shared evidence heartbeat with actual writer/mutation/correction/replay regression sources",
+            "native ambient Steps fact/timeline reads and availability/materialization accept carried consent without changing Off/history behavior",
+            "imported Steps completed source fence reopens under carried later eligible epoch and stays open across quality change while old deleted days remain fenced"
           ],
           "remaining": [
             "historical Location access versus background Off/reconfiguration contract confirmation and dependent reads/cleanup",
             "purpose-specific Activity/Steps callback settlement and Location capture-association erase",
-            "ambient Steps carried-consent read authentication and remaining purpose retention/replay composition",
+            "ambient Steps historical demand monotonic authentication and remaining purpose retention/replay composition",
             "CONTROL owner and approved 48h expiry with independent capture proof survival",
             "full backup restore target decision, complete durable-store snapshot/replacement and operational authority reset"
           ],
@@ -5463,7 +5465,9 @@
             "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellCaptureConsentRevocationDeletionCommandTest.kt",
             "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/deletion/RoomPressureSelectedSessionDeletionServiceTest.kt",
             "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiCaptureConsentRevocationDeletionCommandTest.kt",
-            "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt"
+            "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+            "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+            "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportedAmbientStepsTransferTest.kt"
           ],
           "validation": "deferred; sources uncompiled/unrun; no activation, freeze, integration or push",
           "review_receipt": "retained-authority/2026-09-27/REVIEW_RECEIPT.md"
