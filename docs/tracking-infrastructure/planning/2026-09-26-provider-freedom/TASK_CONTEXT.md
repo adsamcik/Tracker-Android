@@ -286,3 +286,22 @@ Pending question sent through the question tool:
 
 Options: "Approve truthful aggregate identity (recommended)"; "Keep aggregate Steps proof separate".
 No answer has been received or inferred. Dependent shared proof-contract changes remain unapplied.
+
+## 28. Shared Wi-Fi/Cell admission — 2026-09-27
+
+> **Fix shared Wi-Fi/Cell admission.** Qualify individual items for each purpose so stricter session requirements cannot discard valid background observations or lend consent backward.
+
+This is the approved corrective scope of `RUNTIME_GAP_CLOSURE.md` section 5.2a. Current input
+trace and a concrete marker proposal are in `../../shared-radio/2026-09-27/CONTRACT_DECISION.md`.
+Independent reviewer confirmed that selected and preserved RADIO V2 inputs both use payload 5
+and lack a durable shared-item contract marker; capture writer generation cannot act as an
+ambient-only physical semantics switch.
+
+Question tool request:
+
+> The approved plan requires preserving old radio behavior, but neither the selected code nor preserved V2 drafts has a version marker for the new per-item rule. I recommend adding an explicit versioned shared-radio contract carried by immutable requests/demands and WAL snapshots, with old records unchanged and provider activation still deferred. Approve this contract addition? AGENTS.md requires confirmation of new architecture/data contracts; the concrete proposal is docs/tracking-infrastructure/shared-radio/2026-09-27/CONTRACT_DECISION.md.
+
+Options: "Approve explicit versioned contract (Recommended)"; "Apply correction to existing contracts too".
+No answer has been received or inferred. Common pure qualifier/test-source extraction proceeds as
+authorized preparatory implementation; no caller, stored contract or activation changes are applied.
+The full checklist item remains open. Implementation-only restrictions and protected paths apply.

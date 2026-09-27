@@ -16,6 +16,9 @@ open; validation and integration are deferred. The historical registry below is 
 - [ ] Complete source lifecycle proof: authenticate observation identity, registration,
   authorization, sequence and product lineage consistently across all six sources. In progress
   on `codex/source-native-map-context-root`; includes supported sessionless ambient purposes.
+- [ ] Fix shared Wi-Fi/Cell admission: qualify each item by its destination's historical authority
+  and age, preserve valid background subsets, and prohibit backward consent. Versioned contract
+  confirmation and end-to-end wiring remain open; see `shared-radio/2026-09-27/CONTRACT_DECISION.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.
@@ -48,6 +51,21 @@ Radio/coordinator review is recorded in
 `lifecycle-proof/2026-09-27/SOURCE_TRACE.md`. Test sources have not been compiled or executed.
 All remaining lifecycle slices keep
 `WI-LIFECYCLE-PRODUCT-PROOF-001` and `TODO-LIFE-003/004/005` open.
+
+### Shared radio admission slices
+
+- [ ] Confirm the explicit shared-item contract marker while preserving legacy payload 5 semantics.
+- [x] Extract and independently review the common pure per-item authority/age qualifier and focused
+  Wi-Fi/Cell regression sources. Committed as `b9fdbae62c`, **IMPLEMENTED_UNVALIDATED**;
+  see `shared-radio/2026-09-27/REVIEW_RECEIPT.md`.
+- [ ] Wire bounded historical timeline reconstruction and lawful item union into physical
+  normalization and durable admission for the confirmed contract.
+- [ ] Derive destination-specific counts, intervals, wall times and completeness in projection,
+  retained proof/maintenance, history and exact replay using the same qualification rule.
+- [ ] Complete independent static review of the entire shared-admission change and record evidence.
+
+The pure qualifier alone does not fix production admission. It has no current runtime/ingress/
+projector callers. No checked source slice implies tests passed or activation is authorized.
 
 ## 2026-09-20 authority and Steps P5 integration ledger
 

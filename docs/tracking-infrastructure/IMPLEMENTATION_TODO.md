@@ -11,6 +11,11 @@ Current bounded completion marks and remaining source slices are maintained in
 are **IMPLEMENTED_UNVALIDATED** on `codex/source-native-map-context-root`; no assembly freeze,
 validation, provider/writer activation or new `dev/v10` integration is implied.
 
+Shared radio admission is now tracked explicitly in `WORK_ITEM_TRACKING.md`. Preparatory pure
+qualification is source-reviewed at `b9fdbae62c`; the whole correction remains open pending
+the shared-item contract decision and complete admission/projection/maintenance/replay wiring.
+See `shared-radio/2026-09-27/CONTRACT_DECISION.md` and `REVIEW_RECEIPT.md` in that folder.
+
 ## 2026-09-20 exact authority and Steps P5 completions
 
 - [x] `integration-retention-authority-20260919` —
