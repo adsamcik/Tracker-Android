@@ -2,6 +2,15 @@
 
 Last updated: 2026-09-27
 
+## 2026-09-27 unified history continuation
+
+Global range/continuation/merge and bounded selected-reader groundwork is authored on the candidate,
+**IMPLEMENTED_UNVALIDATED**; whole unified history remains open. Historical Location visibility and
+exact Activity/Pressure local ownership lookup are pending questions. Production facade, paging,
+calendar, timeline and detail integration are not claimed complete. See
+`unified-history/2026-09-27/IMPLEMENTATION_TRACE.md` and the current `WORK_ITEM_TRACKING.md` checklist.
+Implementation-only, no activation/freeze/gates/dev-v10 integration/push still applies.
+
 ## 2026-09-27 lifecycle continuation
 
 Current bounded completion marks and remaining source slices are maintained in

@@ -77,6 +77,37 @@ class ImportedStepsProductRoomTest {
 	@After
 	fun tearDown() = database.close()
 
+    @Test
+    fun `exact selected import is reauthenticated and missing or corrupt evidence is typed`() = runTest {
+        val original = entry(listOf(run('2', 10L, 20L, 9L)))
+        val reader = ImportedStepsProductReader(database)
+        database.withTransaction { reader.selectedInTransaction(original.identity.value) } shouldBe
+            ImportedStepsRecentRead.Unavailable(
+                com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsReadFailure.MISSING)
+        seed(original)
+        val found = database.withTransaction { reader.selectedInTransaction(original.identity.value) }
+            as ImportedStepsRecentRead.Ready
+        found.entries.single().physicalMembers.single().steps.count shouldBe 9L
+        mutate("UPDATE imported_steps_run SET retained_checksum = '${"0".repeat(64)}' WHERE session_segment_id = 41")
+        database.withTransaction { reader.selectedInTransaction(original.identity.value) } shouldBe
+            ImportedStepsRecentRead.Unavailable(
+                com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsReadFailure.INTEGRITY)
+    }
+
+    @Test
+    fun `exact selected import keeps independently surviving deleted-entry siblings`() = runTest {
+        val original = entry(listOf(run('2', 10L, 20L, 9L), run('3', 30L, 40L, 4L)))
+        seed(original)
+        mutate("DELETE FROM step_fact_revision WHERE service_run_id = '${original.runs.first().identity.value}'")
+        mutate("DELETE FROM imported_steps_run WHERE session_segment_id = 41")
+        mutate("DELETE FROM session_segment WHERE id = 41")
+        val selected = database.withTransaction {
+            ImportedStepsProductReader(database).selectedInTransaction(original.identity.value)
+        } as ImportedStepsRecentRead.Ready
+        selected.entries.single().physicalMembers.map { it.segmentId } shouldBe listOf(42L)
+        selected.entries.single().physicalMembers.single().steps.count shouldBe 4L
+    }
+
 	@Test
 	fun `source-aware assembly preserves exact imported Steps origin instead of a physical row`() = runTest {
 		seed(entry(listOf(run('2', 10L, 20L, 9L), run('3', 30L, 40L, 4L))))

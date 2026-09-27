@@ -74,6 +74,21 @@ internal class ImportedStepsProductReader(
 		return ImportedStepsRetainedRead.Ready(entries, failures)
 	}
 
+    suspend fun selectedInTransaction(identity: String): ImportedStepsRecentRead {
+        return when (val read = retained.readEntriesInTransaction(listOf(identity))) {
+            is ImportedStepsRetainedRead.Unverifiable -> ImportedStepsRecentRead.Unavailable(read.reason)
+            is ImportedStepsRetainedRead.Ready -> {
+                val failure = read.unverifiableEntries[identity]
+                when {
+                    failure != null -> ImportedStepsRecentRead.Unavailable(failure)
+                    read.entries.size != 1 || read.entries.single().metadata.identity != identity ->
+                        ImportedStepsRecentRead.Unavailable(ImportedStepsReadFailure.MISSING)
+                    else -> ImportedStepsRecentRead.Ready(read.entries.map { it.toListEntry() })
+                }
+            }
+        }
+    }
+
 	suspend fun recentInTransaction(limit: Int): List<ImportedStepsHistoryEntry> {
 		require(limit in 1..100)
 		val entries = database.importedStepsDao().recentEntries(limit)

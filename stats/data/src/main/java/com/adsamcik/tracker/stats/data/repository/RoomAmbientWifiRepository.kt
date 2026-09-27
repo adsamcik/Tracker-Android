@@ -79,36 +79,7 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 		withContext(ioDispatcher) {
 			try {
 				database.withTransaction {
-					val dao = database.ambientWifiFactDao()
-					val local = if (AmbientWifiOrigin.LOCAL_DEVICE in request.origins) {
-						dao.effectiveLocalForDay(
-							request.structuralEpochDay,
-							request.storedZoneId,
-							request.limit + 1,
-						)
-					} else emptyList()
-					val imported = if (AmbientWifiOrigin.PORTABLE_IMPORT in request.origins) {
-						dao.importedForDay(
-							request.structuralEpochDay,
-							request.storedZoneId,
-							request.limit + 1,
-						)
-					} else emptyList()
-					val gaps = if (AmbientWifiOrigin.LOCAL_DEVICE in request.origins) {
-						dao.gapsForDay(
-							request.structuralEpochDay,
-							request.storedZoneId,
-							request.limit + 1,
-						)
-					} else emptyList()
-					val importedGaps = if (AmbientWifiOrigin.PORTABLE_IMPORT in request.origins) {
-						dao.importedGapsForDay(
-							request.structuralEpochDay,
-							request.storedZoneId,
-							request.limit + 1,
-						)
-					} else emptyList()
-					compose(local, imported, gaps, importedGaps, request.limit)
+					readDayInTransaction(request)
 				}
 			} catch (cancelled: CancellationException) {
 				throw cancelled
@@ -116,6 +87,40 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 				AmbientWifiReadResult.StorageUnavailable
 			}
 		}
+
+	/** Caller owns the shared history snapshot; this read does not start collection. */
+	internal suspend fun readDayInTransaction(request: AmbientWifiDayReadRequest): AmbientWifiReadResult {
+		val dao = database.ambientWifiFactDao()
+		val local = if (AmbientWifiOrigin.LOCAL_DEVICE in request.origins) {
+			dao.effectiveLocalForDay(
+				request.structuralEpochDay,
+				request.storedZoneId,
+				request.limit + 1,
+			)
+		} else emptyList()
+		val imported = if (AmbientWifiOrigin.PORTABLE_IMPORT in request.origins) {
+			dao.importedForDay(
+				request.structuralEpochDay,
+				request.storedZoneId,
+				request.limit + 1,
+			)
+		} else emptyList()
+		val gaps = if (AmbientWifiOrigin.LOCAL_DEVICE in request.origins) {
+			dao.gapsForDay(
+				request.structuralEpochDay,
+				request.storedZoneId,
+				request.limit + 1,
+			)
+		} else emptyList()
+		val importedGaps = if (AmbientWifiOrigin.PORTABLE_IMPORT in request.origins) {
+			dao.importedGapsForDay(
+				request.structuralEpochDay,
+				request.storedZoneId,
+				request.limit + 1,
+			)
+		} else emptyList()
+		return compose(local, imported, gaps, importedGaps, request.limit)
+	}
 
 	private suspend fun compose(
 		local: List<AmbientWifiEffectiveLocalRow>,

@@ -81,36 +81,7 @@ internal class RoomAmbientCellRepository @Inject constructor(
 		withContext(ioDispatcher) {
 			try {
 				database.withTransaction {
-					val dao = database.ambientCellFactDao()
-					val local = if (AmbientCellOrigin.LOCAL_DEVICE in request.origins) {
-						dao.effectiveLocalForDay(
-							request.structuralEpochDay,
-							request.storedZoneId,
-							request.limit + 1,
-						)
-					} else emptyList()
-					val imported = if (AmbientCellOrigin.PORTABLE_IMPORT in request.origins) {
-						dao.importedForDay(
-							request.structuralEpochDay,
-							request.storedZoneId,
-							request.limit + 1,
-						)
-					} else emptyList()
-					val gaps = if (AmbientCellOrigin.LOCAL_DEVICE in request.origins) {
-						dao.gapsForDay(
-							request.structuralEpochDay,
-							request.storedZoneId,
-							request.limit + 1,
-						)
-					} else emptyList()
-					val importedGaps = if (AmbientCellOrigin.PORTABLE_IMPORT in request.origins) {
-						dao.importedGapsForDay(
-							request.structuralEpochDay,
-							request.storedZoneId,
-							request.limit + 1,
-						)
-					} else emptyList()
-					compose(local, imported, gaps, importedGaps, request.limit)
+					readDayInTransaction(request)
 				}
 			} catch (cancelled: CancellationException) {
 				throw cancelled
@@ -118,6 +89,40 @@ internal class RoomAmbientCellRepository @Inject constructor(
 				AmbientCellReadResult.StorageUnavailable
 			}
 		}
+
+	/** Caller owns the shared history snapshot; this read does not start collection. */
+	internal suspend fun readDayInTransaction(request: AmbientCellDayReadRequest): AmbientCellReadResult {
+		val dao = database.ambientCellFactDao()
+		val local = if (AmbientCellOrigin.LOCAL_DEVICE in request.origins) {
+			dao.effectiveLocalForDay(
+				request.structuralEpochDay,
+				request.storedZoneId,
+				request.limit + 1,
+			)
+		} else emptyList()
+		val imported = if (AmbientCellOrigin.PORTABLE_IMPORT in request.origins) {
+			dao.importedForDay(
+				request.structuralEpochDay,
+				request.storedZoneId,
+				request.limit + 1,
+			)
+		} else emptyList()
+		val gaps = if (AmbientCellOrigin.LOCAL_DEVICE in request.origins) {
+			dao.gapsForDay(
+				request.structuralEpochDay,
+				request.storedZoneId,
+				request.limit + 1,
+			)
+		} else emptyList()
+		val importedGaps = if (AmbientCellOrigin.PORTABLE_IMPORT in request.origins) {
+			dao.importedGapsForDay(
+				request.structuralEpochDay,
+				request.storedZoneId,
+				request.limit + 1,
+			)
+		} else emptyList()
+		return compose(local, imported, gaps, importedGaps, request.limit)
+	}
 
 	private suspend fun compose(
 		local: List<AmbientCellEffectiveLocalRow>,

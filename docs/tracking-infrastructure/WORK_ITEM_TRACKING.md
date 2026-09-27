@@ -63,6 +63,11 @@ open; validation and integration are deferred. The historical registry below is 
   grouping-only removal and epoch/revision/retention/full-clear fences authored and independently
   source-reviewed, **IMPLEMENTED_UNVALIDATED**. Whole structural contents and portable annotation
   import/export remain separate assembly work. See `session-organization/2026-09-27/IMPLEMENTATION_TRACE.md`.
+- [ ] Implement unified history: global range/key/merge contract, bounded native/imported candidate
+  discovery and exact/sessionless source-reader seams authored, **IMPLEMENTED_UNVALIDATED**.
+  Production facade/paging/calendar/timeline/detail wiring and complete retained Location proof remain
+  open. Historical Location visibility and exact local ownership indexing await tool-question answers.
+  See `unified-history/2026-09-27/IMPLEMENTATION_TRACE.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.
@@ -427,3 +432,20 @@ print(len(data['work_items']), len(ids))
 One Location reviewer accidentally invoked `git diff --check`; it produced no output and
 changed no files. It is recorded as a process deviation, not validation evidence. No compile,
 test, Gradle, lint, schema, device or CI gate has started for the current assembly.
+
+### Unified history foundation continuation (2026-09-27)
+
+Whole unified-history requirement remains unchecked. Completed source slices after independent
+static acceptance are recorded in `unified-history/2026-09-27/REVIEW_RECEIPT.md`; test sources are
+unexecuted. No broad WI/source-day/consumer completion, runtime claim, freeze, provider activation
+or new local dev/v10 integration is inferred from these preparatory source APIs.
+
+- [x] Author and statically review range/filter/global consumed-key contract and bounded merge.
+- [x] Author and statically review native/legacy and five-import candidate range discovery.
+- [x] Author and statically review selected logical/imported Steps and sessionless background seams.
+- [x] Author focused merge/Room/selected-origin regression sources (unexecuted).
+- [ ] Resolve historical Location visibility and exact local ownership-index decisions.
+- [ ] Implement complete qualified range facade, invalidation and production paging/DI.
+- [ ] Wire calendar, timeline and exact detail consumers; author full-source/UI regression sources.
+
+Checked foundation lines describe source/static-review evidence only, IMPLEMENTED_UNVALIDATED.

@@ -10,6 +10,13 @@ import kotlinx.coroutines.flow.Flow
  * writer, repairs a projection, or writes a derived summary.
  */
 interface TrackingHistoryRepository {
+    /** Bounded source-qualified history for arbitrary days and ranges. */
+    suspend fun readRange(request: HistoryRangeRequest): HistoryRangeRead =
+        HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
+
+    fun observeRange(request: HistoryRangeRequest): Flow<HistoryRangeRead> =
+        kotlinx.coroutines.flow.flow { emit(readRange(request)) }
+
 	/**
 	 * Resolves one exact already-materialized source fact through the same production history
 	 * qualification boundary used by session presentation.

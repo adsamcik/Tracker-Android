@@ -223,11 +223,27 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		AmbientStepsHistoryRead.StorageUnavailable -> AmbientStepsNumericRangeRead.StorageUnavailable
 	}
 
+	/** Sessionless source product only; capture remains represented by native recording rows. */
+	internal suspend fun readBackgroundInCurrentTransaction(
+		request: AmbientStepsHistoryRangeRequest,
+		expectedSourceEvidenceRevision: Long,
+		includeLocal: Boolean = true,
+		includeImported: Boolean = true,
+	): AmbientStepsHistoryRead = readRangeInCurrentTransaction(
+		request,
+		expectedSourceEvidenceRevision,
+		includeSessions = false,
+		includeLocal = includeLocal,
+		includeImported = includeImported,
+	)
+
 	@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
 	private suspend fun readRangeInCurrentTransaction(
 		request: AmbientStepsHistoryRangeRequest,
 		expectedSourceEvidenceRevision: Long,
 		includeSessions: Boolean,
+		includeLocal: Boolean = true,
+		includeImported: Boolean = true,
 	): AmbientStepsHistoryRead {
 		require(expectedSourceEvidenceRevision >= 0L)
 		val evidence = database.sourceEvidenceStateDao().get()
@@ -241,7 +257,9 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 			AmbientStepsHistoryUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
 		) }
 		val range = AmbientStepsRequestedRange(days)
-		val native = when (val read = NativeAmbientStepsRangeReader(database).read(range, evidence)) {
+		val native = if (!includeLocal) {
+			NativeAmbientStepsRangeRead.Ready(emptyMap(), emptyMap(), emptySet(), emptySet())
+		} else when (val read = NativeAmbientStepsRangeReader(database).read(range, evidence)) {
 			is NativeAmbientStepsRangeRead.Ready -> read
 			is NativeAmbientStepsRangeRead.DependencyOverflow ->
 				return AmbientStepsHistoryRead.DependencyOverflow(read.dependency)
@@ -250,7 +268,9 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 					AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
 				)
 		}
-		val imported = when (
+		val imported = if (!includeImported) {
+			ImportedAmbientStepsRangeRead.Ready(emptyMap(), emptyMap(), emptyMap(), emptyMap())
+		} else when (
 			val read = ImportedAmbientStepsRangeReader(database, importedDao).read(range, evidence)
 		) {
 			is ImportedAmbientStepsRangeRead.Ready -> read

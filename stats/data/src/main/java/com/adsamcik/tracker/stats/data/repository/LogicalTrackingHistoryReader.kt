@@ -234,6 +234,19 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 			)
 		}
 
+    /** Typed selected membership; source products must still authenticate each member's authority. */
+    internal suspend fun selectedLogicalMembersInTransaction(logicalId: String): SelectedLogicalHistoryRead {
+        require(logicalId.isNotBlank())
+        if (database.sourceSessionDao().session(logicalId) == null) return SelectedLogicalHistoryRead.NotFound
+        return try {
+            val members = loadLogicalMemberEvidence(listOf(logicalId))
+            if (members.isEmpty()) SelectedLogicalHistoryRead.Unavailable(HistoryPageDependencyLimit.LOGICAL_MEMBERSHIP)
+            else SelectedLogicalHistoryRead.Content(members)
+        } catch (overflow: LogicalHistoryPageDependencyOverflow) {
+            SelectedLogicalHistoryRead.Unavailable(overflow.limit)
+        }
+    }
+
 	private suspend fun loadLogicalMemberEvidence(
 		logicalIds: List<String>,
 	): List<HistoricalSegmentEvidence> {
@@ -391,3 +404,9 @@ internal class LogicalHistoryPageDependencyOverflow(
 internal enum class HistoryPageDependencyLimit { CANDIDATE_SCAN, LOGICAL_MEMBERSHIP }
 
 private enum class StepsOnlyDiscoveryMode { ORDINARY, EXACT_INTENT }
+
+internal sealed interface SelectedLogicalHistoryRead {
+    data class Content(val members: List<HistoricalSegmentEvidence>) : SelectedLogicalHistoryRead
+    data object NotFound : SelectedLogicalHistoryRead
+    data class Unavailable(val dependency: HistoryPageDependencyLimit) : SelectedLogicalHistoryRead
+}

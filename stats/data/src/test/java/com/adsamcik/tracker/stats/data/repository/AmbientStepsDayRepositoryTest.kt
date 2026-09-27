@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import androidx.room.withTransaction
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -59,6 +60,60 @@ class AmbientStepsDayRepositoryTest {
 
 	@After
 	fun tearDown() = database.close()
+
+    @Test
+    fun `shared background read does not reintroduce captured legacy steps`() = runTest {
+        seedAuthority()
+        database.ambientStepsFactRevisionDao().insert(fact(10L))
+        database.sessionSegmentDao().insert(com.adsamcik.tracker.shared.base.database.data.SessionSegment(
+            startTimeMs = 0L, endTimeMs = DAY_END, distanceM = 0f, steps = 999,
+            primaryActivity = null, activityConfidence = null, sampleCount = 1,
+            source = com.adsamcik.tracker.shared.model.SegmentSource.USER_CREATED,
+            inferenceVersion = null, createdAt = DAY_END))
+        val read = database.withTransaction {
+            historyRepository().readBackgroundInCurrentTransaction(
+                AmbientStepsHistoryRangeRequest(listOf(AmbientStepsStructuralDay(0L, "UTC"))),
+                requireNotNull(database.sourceEvidenceStateDao().get()).revision,
+            )
+        } as AmbientStepsHistoryRead.Snapshot
+        read.days.single().total shouldBe AmbientStepsHistoryValue.Exact(10L)
+        read.days.single().inSession shouldBe emptyList()
+    }
+
+    @Test
+    fun `imported-only shared background read excludes native counts`() = runTest {
+        seedAuthority()
+        database.ambientStepsFactRevisionDao().insert(fact(10L))
+        val read = database.withTransaction {
+            historyRepository().readBackgroundInCurrentTransaction(
+                AmbientStepsHistoryRangeRequest(listOf(AmbientStepsStructuralDay(0L, "UTC"))),
+                requireNotNull(database.sourceEvidenceStateDao().get()).revision,
+                includeLocal = false,
+            )
+        } as AmbientStepsHistoryRead.Snapshot
+        read.days.single().total.count shouldBe null
+        read.days.single().factOrigins shouldBe emptyList()
+    }
+
+    @Test
+    fun `excluded corrupt local facts do not contaminate imported-only background read`() = runTest {
+        seedAuthority()
+        database.ambientStepsFactRevisionDao().insert(fact(10L).copy(effectChecksum = "0".repeat(64)))
+        val request = AmbientStepsHistoryRangeRequest(listOf(AmbientStepsStructuralDay(0L, "UTC")))
+        val revision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+        val included = database.withTransaction {
+            historyRepository().readBackgroundInCurrentTransaction(request, revision, includeImported = false)
+        }
+        included shouldBe AmbientStepsHistoryRead.Unavailable(
+            AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE)
+        val excluded = database.withTransaction {
+            historyRepository().readBackgroundInCurrentTransaction(request, revision, includeLocal = false)
+        } as AmbientStepsHistoryRead.Snapshot
+        excluded.days.single().factOrigins shouldBe emptyList()
+        excluded.days.single().total.count shouldBe null
+        // Read selection is not erasure: the independently stored local lineage remains untouched.
+        database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
+    }
 
 	@Test
 	fun `one snapshot composes corrected fact and retraction never leaves a stale total`() = runTest {

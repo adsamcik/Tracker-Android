@@ -27,6 +27,14 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 @Dao
 @Suppress("LargeClass") // Cohesive batched history reads; a second Room DAO has no independent owner.
 interface TrackingHistoryReadDao {
+    /** Code-owned, bound key-only discovery. Qualification always occurs in the same transaction. */
+    @androidx.room.RawQuery
+    suspend fun unifiedHistoryCandidates(query: androidx.sqlite.db.SupportSQLiteQuery): List<UnifiedHistoryCandidate>
+
+    @androidx.room.RawQuery
+    suspend fun unifiedHistoryZones(query: androidx.sqlite.db.SupportSQLiteQuery): List<String>
+
+
 	/**
 	 * Evidence-bearing logical-entry candidate page with an opt-in exact Steps-intent seed.
 	 *
@@ -1385,3 +1393,10 @@ data class UnvalidatedStepFactRevision(
 		}
 	}
 }
+
+/** Browse-only candidate; none of these coarse columns grants product or action authority. */
+data class UnifiedHistoryCandidate(
+    val category: String, val identity: String, val startTimeMs: Long,
+    val endTimeMs: Long?, val zoneId: String?, val epochDay: Long?, val segmentId: Long?,
+    val candidateConflict: Boolean, val temporalUncertain: Boolean,
+)

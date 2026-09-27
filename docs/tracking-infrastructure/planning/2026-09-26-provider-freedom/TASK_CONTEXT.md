@@ -567,3 +567,29 @@ were corrected and regression sources authored. Reviewer reports no remaining bl
 local/native/legacy annotation source. Whole structural source contents, portable organization
 selectors/import/export/file assembly, generated schema and executed evidence remain separate.
 See ../../session-organization/2026-09-27/IMPLEMENTATION_TRACE.md and REVIEW_RECEIPT.md.
+
+## 40. Unified history request (2026-09-27)
+
+Original user text:
+
+> **Implement unified history.** Finish bounded day/range queries, paging, calendar, timeline and detail views across native, background and imported observations.
+
+All earlier original user messages/follow-ups/decisions and supplied AGENTS apply. IMPLEMENTATION_ONLY:
+production/test-source authorship, static review and local IMPLEMENTED_UNVALIDATED checkpoints only;
+no Gradle/compilation/tests/lint/Detekt/schema/diff-check/emulator/device/UI evaluator/battery/CI/release/
+rollout validation, activation, final input freeze, new dev/v10 integration or push. Candidate
+codex/source-native-map-context-root base835302e86c; main13f1a99871 unchanged. Protected paths preserved.
+
+Global browse contract/consumed-frontier merge, bounded native/imported key discovery and selected/
+sessionless source seams are authored. Independent review-only unified_history_review inherits full
+original context and inspected code/diff/test sources. Concrete contract/membership/collision/time
+findings corrected; no executed evidence. Whole facade/UI/retained source integration remains open.
+
+Two questions were presented through request_user_input_async: historical Location visibility after
+collection-off/permission loss, and approve exact local opaque ownership index for Activity/Pressure
+imports instead of whole-history scans. Both recommendations await explicit answers; elapsed time
+is not approval. Supplied AGENTS requires confirmation for changed storage/behavior decisions.
+
+Resume from ../../unified-history/2026-09-27/IMPLEMENTATION_TRACE.md and REVIEW_RECEIPT.md. Never treat
+API defaults, coarse seeds, authored tests or static foundation acceptance as implemented full history,
+source/action authority, device readiness, or approval to execute the final assembly gate.
