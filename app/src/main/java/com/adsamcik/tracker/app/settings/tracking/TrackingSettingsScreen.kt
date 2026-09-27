@@ -176,14 +176,16 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 		onBalanceSelected = trackingVm::adoptBalanceProfile,
 		onSourceBalanceSelected = trackingVm::setSourceBalanceOverride,
         onAutoTrackingModeChanged = { mode ->
-            if (mode > 0 && uiState.automaticControlAvailability.isOperational &&
-				!uiState.activityPermissionGranted &&
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-            ) {
-                pendingAutoTrackingMode = mode
-                autoTrackingPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-            } else {
-                trackingVm.setAutoTrackingMode(mode)
+            trackingVm.setAutoTrackingMode(mode) {
+                val current = trackingVm.uiState.value
+                if (mode > 0 && current.automaticControlAvailability.isOperational &&
+                    !current.activityPermissionGranted &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                    lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+                ) {
+                    pendingAutoTrackingMode = mode
+                    autoTrackingPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                }
             }
         },
         onTransitionDetectionChanged = { trackingVm.setTransitionDetectionEnabled(it) },

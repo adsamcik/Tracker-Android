@@ -869,8 +869,8 @@ foreground acceptance, then only Steps `SESSION_CAPTURE` and nonpersistent Activ
 with AUTO-005's control-data minimization, retention, deletion, and export boundary.
 
 TI-D183/TI-B245 additionally pin every immutable automatic-trigger field at the service-validation
-boundary. AUTO-005 remains open because the repository deliberately has no approved fixed lifetime
-for control-only Activity WAL/outbox evidence. TI-D184/TI-B246 close AUTO-007's authored recovery
+boundary. AUTO-005 remains open: the user approved 48h on 2026-09-27, but CONTROL owner composition,
+expiry/admission/prune implementation and evidence are incomplete. TI-D184/TI-B246 close AUTO-007's authored recovery
 boundary: automatic stop and bounded cleanup remain source-owned, valid same-boot manual authority
 is the only restart survivor, old-boot and force-stop authority is finalized, and even a same-boot
 automatic descriptor cannot revive its interrupted session. TI-D185/TI-B247 close AUTO-008 with
@@ -878,8 +878,8 @@ linked production-seam contracts: the exact
 automatic trigger reaches the Steps runtime, real Room ingress admits baseline plus positive delta,
 the canonical generation-2 writer materializes both facts, and the production history/export
 facades expose only qualified Steps while retaining Activity solely as declared control. No command
-has executed those contracts yet. Automatic Steps now has only AUTO-005's fixed control-evidence
-retention decision outstanding.
+has executed those contracts yet. These historical source slices do not establish current automatic
+availability; see the 2026-09-27 automatic continuation for owner, retention and capability gaps.
 
 ### Default-off Ambient Steps
 
@@ -1783,3 +1783,27 @@ was changed by this planning slice; this does not close TODO-LOC-* or the assemb
 Details: background-steps/2026-09-27/IMPLEMENTATION_TRACE.md and SCHEDULING_CONTRACT.md.
 The whole item remains open. No scheduler, read permission contract, activation or dev/v10
 integration was changed; test sources are uncompiled/unrun under IMPLEMENTATION_ONLY.
+
+## 2026-09-27 automatic tracking continuation
+
+- [x] TODO-AUTO-TRACE Trace Activity CONTROL callback/immutable action, shared start coordinator,
+  exact requested/accepted manifests, per-mode lane availability, settings and onboarding.
+- [x] TODO-AUTO-INTENT Author saved automatic choice preservation, after-save permission opportunity,
+  stale-save launch fencing and actual-permission refresh without restoring old mode after Off.
+- [x] TODO-AUTO-SIBLING Author source-local Location background eligibility without vetoing a runnable
+  Steps sibling; retain exact final accepted capture and foreground-service checks.
+- [ ] TODO-AUTO-CONTROL-OWNER Compose an exact issued-lease owner without circular published-Ready
+  bootstrap, through existing CONTROL dispatcher/Activity arbiter and acknowledged compensation.
+- [ ] TODO-AUTO-CONTROL-EXPIRY Implement approved 48h control-only expiry/admission/prune and captured
+  Activity proof survival; startup/maintenance/export boundaries must agree before activation.
+- [ ] TODO-AUTO-CAPABILITY Confirm and implement truthful provider/Transition/permission/capture/
+  implementation availability and repair while preserving saved intent and manual functionality.
+- [ ] TODO-AUTO-BINDINGS Finish immutable automatic Activity/Pressure/Wi-Fi/Cell binding contracts and
+  exact writer/query lineage; preserve manual-only generations and prior unresolved radio contracts.
+- [ ] TODO-AUTO-COMPLETE-TEST-SOURCES Author complete CONTROL TTL/owner and all supported automatic
+  only-X, stale callback, permission/provider loss, stop/recovery and product-nonleakage cases.
+- [ ] TODO-AUTO-FINAL-REVIEW Independently review the whole applied automatic slice at convergence.
+
+Details: automatic/2026-09-27/IMPLEMENTATION_TRACE.md and CONTRACT_DECISIONS.md.
+Checked slices describe authored and statically reviewed source only, not successful execution.
+Whole integration and assembly gate remain open; no provider/writer activation or dev/v10 change.

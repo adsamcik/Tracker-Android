@@ -403,3 +403,22 @@ confirmation is pending. No reply is inferred. Dependent scheduler/worker/budget
 unapplied. The existing native aggregate importer has real semantic revisions, not fabricated WAL
 ordinals; the separately pending generic native-product proof question remains open.
 See ../../background-steps/2026-09-27/IMPLEMENTATION_TRACE.md and SCHEDULING_CONTRACT.md.
+
+## 34. Automatic tracking integration request (2026-09-27)
+
+Original user text:
+
+> **Complete automatic tracking integration.** Keep trigger authority separate from capture, use the same collection flow, and expose unsupported automatic capabilities accurately.
+
+Full original user messages and supplied AGENTS.md apply. IMPLEMENTATION_ONLY continues: bounded
+production/test-source authorship and static review only. No Gradle, compilation, tests/lint/Detekt/
+schema/diff-check/device/UI/battery/CI/release/rollout validation, activation, push or new dev/v10
+integration. Preserve protected paths/drafts. Candidate starts at 047423c6a3; main remains 13f1a99871.
+
+Independent review-only automatic_integration_review inherits all user messages/requirements,
+inspects approved product/runtime decisions, relevant current code and exact diff/test source;
+no recursive delegation. Approved desired-intent and sibling-isolation corrections can proceed.
+New detailed capability presentation and concrete CONTROL owner/expiry composition were asked
+through the question tool as required by AGENTS.md; no answer received or inferred. 48h lifetime
+itself stays settled. Dependent contracts remain unapplied; no blanket automatic support claimed.
+See ../../automatic/2026-09-27/IMPLEMENTATION_TRACE.md and CONTRACT_DECISIONS.md.

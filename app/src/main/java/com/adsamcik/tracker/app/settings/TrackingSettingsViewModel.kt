@@ -149,6 +149,7 @@ class TrackingSettingsViewModel @Inject constructor(
     val uiState: StateFlow<TrackingSettingsUiState> = _uiState.asStateFlow()
     private var latestParams: TrackingParamsState? = null
 	private var locationIntentGeneration = 0L
+	private var automaticIntentGeneration = 0L
 	private val locationPermissionRequests = Channel<LocationSettingsPermissionRequest>(Channel.BUFFERED)
 	val locationPermissionEvents = locationPermissionRequests.receiveAsFlow()
 	private var latestPurposeAvailability = purposeAvailabilityReader.availability.value
@@ -391,12 +392,14 @@ class TrackingSettingsViewModel @Inject constructor(
      * this state, but registration remains contained until the separate control-retention policy
      * availability boundary reports that automatic control is operational.
      */
-    fun setAutoTrackingMode(mode: Int) {
+    fun setAutoTrackingMode(mode: Int, onSaved: () -> Unit = {}) {
         require(mode in AUTO_TRACKING_MODE_DISABLED..AUTO_TRACKING_MODE_ALL_MOVEMENT) {
             "Unsupported automatic tracking mode: $mode"
         }
+		val intentGeneration = ++automaticIntentGeneration
 		launchSourcePolicyMutation(
 			afterCommittedMutation = {
+				if (intentGeneration != automaticIntentGeneration) return@launchSourcePolicyMutation
 				val published =
 					purposeAvailabilityReader.availability.value.automaticControl as?
 						AutomaticTrackingOperationalAvailability.Ready
@@ -408,18 +411,24 @@ class TrackingSettingsViewModel @Inject constructor(
 					} catch (_: Exception) {
 						false
 					}
+				if (intentGeneration != automaticIntentGeneration) return@launchSourcePolicyMutation
 				val effectiveMode = mode.takeIf { current && context.hasActivityPermission }
 					?: AUTO_TRACKING_MODE_DISABLED
 				activityWatcherController.applyAutoTrackingMode(effectiveMode)
+				if (intentGeneration == automaticIntentGeneration) onSaved()
 			},
 		) {
             trackingParamsRepository.update { copy(autoTrackingMode = mode) }
 		}
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun onAutoTrackingPermissionResult(requestedMode: Int, granted: Boolean) {
-        _uiState.update { it.copy(activityPermissionGranted = granted) }
-        if (granted) setAutoTrackingMode(requestedMode)
+        require(requestedMode in AUTO_TRACKING_MODE_DISABLED..AUTO_TRACKING_MODE_ALL_MOVEMENT)
+        // The choice was saved before launch. A late grant is capability, never permission to
+        // restore the request's old mode after the user has selected Off or another mode.
+        refreshPermissionState()
+        retrySourcePolicyReconciliation()
     }
 
     fun setNotificationStyled(enabled: Boolean) {

@@ -694,11 +694,11 @@ class TrackingSettingsViewModelTest {
 			}
 
         @Test
-        fun `granted auto tracking permission applies requested mode`() = runTest(testDispatcher) {
+        fun `granted auto tracking permission preserves the choice saved before launch`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
-            vm.setAutoTrackingMode(0)
+            vm.setAutoTrackingMode(2)
             advanceUntilIdle()
             vm.onAutoTrackingPermissionResult(requestedMode = 2, granted = true)
             advanceUntilIdle()
@@ -708,18 +708,98 @@ class TrackingSettingsViewModelTest {
         }
 
         @Test
-        fun `denied auto tracking permission preserves current mode`() = runTest(testDispatcher) {
+        fun `denied auto tracking permission preserves saved requested mode`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
-            vm.setAutoTrackingMode(0)
+            vm.setAutoTrackingMode(2)
             advanceUntilIdle()
+            permissionsGranted = false
             vm.onAutoTrackingPermissionResult(requestedMode = 2, granted = false)
             advanceUntilIdle()
 
-            vm.uiState.value.autoTrackingMode shouldBe 0
+            vm.uiState.value.autoTrackingMode shouldBe 2
             vm.uiState.value.activityPermissionGranted shouldBe false
         }
+
+		@Test
+		fun `automatic permission callback refreshes actual grant instead of trusting stale result`() = runTest(testDispatcher) {
+			val vm = createViewModel()
+			advanceUntilIdle()
+			vm.setAutoTrackingMode(2)
+			advanceUntilIdle()
+			permissionsGranted = false
+
+			vm.onAutoTrackingPermissionResult(requestedMode = 2, granted = true)
+			advanceUntilIdle()
+
+			vm.uiState.value.activityPermissionGranted shouldBe false
+			vm.uiState.value.autoTrackingMode shouldBe 2
+		}
+
+		@Test
+		fun `late automatic permission grant cannot restore mode after Off`() = runTest(testDispatcher) {
+			val vm = createViewModel()
+			advanceUntilIdle()
+			vm.setAutoTrackingMode(2)
+			advanceUntilIdle()
+			vm.setAutoTrackingMode(0)
+			advanceUntilIdle()
+
+			vm.onAutoTrackingPermissionResult(requestedMode = 2, granted = true)
+			advanceUntilIdle()
+
+			paramsFlow.value.autoTrackingMode shouldBe 0
+			vm.uiState.value.autoTrackingMode shouldBe 0
+		}
+
+		@Test
+		fun `late automatic permission grant cannot replace a newer movement choice`() = runTest(testDispatcher) {
+			val vm = createViewModel()
+			advanceUntilIdle()
+			vm.setAutoTrackingMode(2)
+			advanceUntilIdle()
+			vm.setAutoTrackingMode(1)
+			advanceUntilIdle()
+
+			vm.onAutoTrackingPermissionResult(requestedMode = 2, granted = true)
+			advanceUntilIdle()
+
+			paramsFlow.value.autoTrackingMode shouldBe 1
+		}
+
+		@Test
+		fun `automatic permission opportunity follows saved intent`() = runTest(testDispatcher) {
+			val vm = createViewModel()
+			advanceUntilIdle()
+			var observedSavedMode: Int? = null
+
+			vm.setAutoTrackingMode(2) { observedSavedMode = paramsFlow.value.autoTrackingMode }
+			advanceUntilIdle()
+
+			observedSavedMode shouldBe 2
+		}
+
+		@Test
+		fun `superseded automatic save cannot request permission for old choice`() = runTest(testDispatcher) {
+			val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+			coEvery { trackingParamsRepository.update(any()) } coAnswers {
+				@Suppress("UNCHECKED_CAST")
+				val block = invocation.args[0] as (TrackingParamsState.() -> TrackingParamsState)
+				paramsFlow.value = block(paramsFlow.value)
+				if (paramsFlow.value.autoTrackingMode == 2) release.await()
+			}
+			val vm = createViewModel()
+			advanceUntilIdle()
+			var permissionRequested = false
+			vm.setAutoTrackingMode(2) { permissionRequested = true }
+			vm.setAutoTrackingMode(0)
+			release.complete(Unit)
+			advanceUntilIdle()
+
+			permissionRequested shouldBe false
+			paramsFlow.value.autoTrackingMode shouldBe 0
+		}
     }
 
     // =========================================================================

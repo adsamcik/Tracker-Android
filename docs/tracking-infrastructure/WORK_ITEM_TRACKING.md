@@ -35,6 +35,10 @@ open; validation and integration are deferred. The historical registry below is 
   execution permission, finite recovery and predecessor drain wiring remain open. A retention
   high-water correction and focused regression sources are authored, **IMPLEMENTED_UNVALIDATED**.
   See `background-steps/2026-09-27/IMPLEMENTATION_TRACE.md` and `SCHEDULING_CONTRACT.md`.
+- [ ] Complete automatic tracking integration: shared capture/trigger authority traced; saved-intent,
+  late-permission and denied-Location sibling corrections authored, **IMPLEMENTED_UNVALIDATED**.
+  CONTROL owner/48h enforcement, capability presentation and remaining automatic source bindings
+  stay open. See `automatic/2026-09-27/IMPLEMENTATION_TRACE.md` and `CONTRACT_DECISIONS.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.

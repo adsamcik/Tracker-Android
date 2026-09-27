@@ -310,7 +310,8 @@ class SetupViewModel @Inject constructor(
                 wifiEnabled = s.wifiEnabled,
                 cellEnabled = s.cellEnabled,
                 barometerEnabled = false, // Pressure is not offered during setup; quality must not select it.
-                autoTrackingMode = effectiveMode,
+                // Permission availability limits execution, not the user's saved automatic intent.
+                autoTrackingMode = s.autoTrackingMode,
                 transitionDetectionEnabled = preset.useTransitionDetection,
                 notificationStyled = true,
                 minDistanceMeters = preset.minDistanceMeters,

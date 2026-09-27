@@ -644,7 +644,10 @@ class BackgroundTrackingApiLogicTest {
 	inner class AutomaticStartEligibility {
 		@Test
 		fun `configured location requires background access for an automatic start`() {
-			val params = TrackingParamsState(locationEnabled = true)
+			val params = TrackingParamsState(
+				locationEnabled = true, activityEnabled = false, stepsEnabled = false,
+				wifiEnabled = false, cellEnabled = false, barometerEnabled = false,
+			)
 
 			isAutomaticStartEligible(
 				params = params,
@@ -655,7 +658,10 @@ class BackgroundTrackingApiLogicTest {
 
 		@Test
 		fun `background location grant permits an automatic location start`() {
-			val params = TrackingParamsState(locationEnabled = true)
+			val params = TrackingParamsState(
+				locationEnabled = true, activityEnabled = false, stepsEnabled = false,
+				wifiEnabled = false, cellEnabled = false, barometerEnabled = false,
+			)
 
 			isAutomaticStartEligible(
 				params = params,
@@ -680,6 +686,33 @@ class BackgroundTrackingApiLogicTest {
 				locationAvailable = true,
 				backgroundLocationAvailable = false,
 			) shouldBe true
+		}
+
+		@Test
+		fun `denied requested Location cannot veto a runnable Steps sibling`() {
+			val params = TrackingParamsState(
+				locationEnabled = true, activityEnabled = false, stepsEnabled = true,
+				wifiEnabled = false, cellEnabled = false, barometerEnabled = false,
+			)
+			isAutomaticStartEligible(
+				params = params,
+				locationAvailable = false,
+				backgroundLocationAvailable = false,
+				stepsAvailable = true,
+			) shouldBe true
+			isAutomaticStartEligible(
+				params = params,
+				locationAvailable = true,
+				backgroundLocationAvailable = false,
+				stepsAvailable = true,
+			) shouldBe true
+			isAutomaticStartEligible(
+				params = params,
+				locationAvailable = true,
+				backgroundLocationAvailable = false,
+				stepsAvailable = false,
+			) shouldBe false
+			params.locationEnabled shouldBe true
 		}
 	}
 

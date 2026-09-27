@@ -1651,9 +1651,9 @@ internal fun hasAnythingToTrack(
 )
 
 /**
- * An automatic callback is a background start. If its configured plan includes location, Android
- * 10+ background access must be effective before dispatching the service; foreground/coarse access
- * alone remains valid for a later user-initiated manual session.
+ * An automatic callback is a background start. Location participates only with background access;
+ * an unavailable Location sibling cannot block other runnable requested participants. The exact
+ * accepted capture/FGS envelope is still checked before dispatch and at service preparation.
  */
 internal fun isAutomaticStartEligible(
 	params: TrackingParamsState,
@@ -1665,10 +1665,9 @@ internal fun isAutomaticStartEligible(
 	cellAvailable: Boolean = true,
 	barometerAvailable: Boolean = true,
 ): Boolean {
-	if (params.locationEnabled && (!locationAvailable || !backgroundLocationAvailable)) return false
 	return hasAnythingToTrack(
 		params = params,
-		locationAvailable = locationAvailable,
+		locationAvailable = locationAvailable && backgroundLocationAvailable,
 		activityAvailable = activityAvailable,
 		stepsAvailable = stepsAvailable,
 		wifiAvailable = wifiAvailable,

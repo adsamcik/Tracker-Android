@@ -137,7 +137,7 @@ class SetupViewModelCompletionRobolectricTest {
 	}
 
 	@Test
-	fun `declined background access preserves manual location and disables automatic mode`() =
+	fun `declined background access preserves manual location and saved automatic intent`() =
 		runTest(testDispatcher) {
 			currentCapabilities = preciseCapabilities(backgroundGranted = false)
 			val vm = SetupViewModel(
@@ -159,9 +159,34 @@ class SetupViewModelCompletionRobolectricTest {
 			advanceUntilIdle()
 
 			paramsFlow.value.locationEnabled shouldBe true
-			paramsFlow.value.autoTrackingMode shouldBe 0
+			paramsFlow.value.autoTrackingMode shouldBe 2
 			vm.state.value.backgroundLocationDeclined shouldBe true
 			vm.state.value.manualLocationOnly shouldBe true
+		}
+
+	@Test
+	fun `denied activity permission does not erase saved automatic intent at completion`() =
+		runTest(testDispatcher) {
+			every { appContext.hasSelfPermission(android.Manifest.permission.ACTIVITY_RECOGNITION) } returns false
+			val vm = SetupViewModel(
+				appContext = appContext,
+				savedStateHandle = SavedStateHandle(),
+				dispatchers = dispatchers,
+				onboardingRepository = onboardingRepository,
+				activityWatcherController = activityWatcherController,
+				dataRetentionScheduler = dataRetentionScheduler,
+				trackingParamsRepository = trackingParamsRepository,
+				onlineMapTilesRepository = onlineMapTilesRepository,
+			)
+			vm.setAutoTrackingMode(2)
+			vm.onActivityPermissionResult(false)
+
+			vm.completeSetup { }
+			advanceUntilIdle()
+
+			paramsFlow.value.autoTrackingMode shouldBe 2
+			vm.state.value.activityPermissionGranted shouldBe false
+			io.mockk.verify { activityWatcherController.poke(autoTracking = 0) }
 		}
 }
 
