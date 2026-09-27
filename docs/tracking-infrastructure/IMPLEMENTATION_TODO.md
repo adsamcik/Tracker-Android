@@ -2,6 +2,15 @@
 
 Last updated: 2026-09-27
 
+## 2026-09-27 optional map enrichment continuation
+
+Approved temporal/scope/uncertainty matcher and native fact/receipt/authority observer coverage are
+authored and independently statically reviewed, **IMPLEMENTED_UNVALIDATED**. The shared authenticated
+paired reader, native display, both-input layer/cache dependencies and explicit gaps/limits remain
+open. Display placement and prior historical Location semantics await tool-question answers. See
+`optional-map-enrichment/2026-09-27/IMPLEMENTATION_TRACE.md` and `WORK_ITEM_TRACKING.md`.
+Implementation-only: no validation, activation, freeze, new dev/v10 integration or push.
+
 ## 2026-09-27 metrics, actions and effects continuation
 
 Unknown/malformed metric rejection and native original Activity/validated closed Pressure header

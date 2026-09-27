@@ -624,3 +624,36 @@ these questions; continue authorized independent implementation while awaiting r
 Resume from ../../metrics-actions-effects/2026-09-27/IMPLEMENTATION_TRACE.md and REVIEW_RECEIPT.md.
 Never infer final convergence, on-device readiness, provider activation or integration approval from
 static acceptance, authored tests or a local checkpoint.
+
+## 42. Optional map enrichment request (2026-09-27)
+
+Original user text:
+
+> **Finish optional map enrichment.** Connect qualified Location context to Wi-Fi/Cell displays, preserve uncertainty and gaps, and invalidate results when either source changes.
+
+All earlier original requests, supplied AGENTS and approved decisions remain applicable. Phase is
+IMPLEMENTATION_ONLY: source/test authorship, static review and candidate IMPLEMENTED_UNVALIDATED
+checkpoints only. No Gradle/compile/executed tests/lint/Detekt/schema/diff-check/device/UI/battery/CI/
+release/rollout validation, input freeze, provider/writer activation, new dev/v10 integration or push.
+Main13f1a99871 unchanged; candidate starts616619e32b. Protected paths, refs and drafts preserved.
+
+Question: May I use Wi-Fi's exact-or-bracketed Location fixes within30 seconds, Cell's preceding fix
+within60 seconds, and retain coarse fixes with their accuracy shown instead of adding a100m cutoff?
+Both sources independently qualify for the same purpose and compatible ownership/clock; missing
+context leaves radio history intact. Exact answer: Approve the proposed join rules (Recommended).
+
+Question: May I use one read-only enrichment API in stats/api implemented in stats/data, authenticating
+Location receipts/purpose grants and native radio facts in a bounded paired Room snapshot with
+explicit gaps/limits, reusable by history/maps and never starting tracking? Exact answer:
+Use a shared source-owned reader (Recommended). These specific approvals supersede the map timing/
+accuracy recommendation's prior proposal status, not unrelated outstanding decisions.
+
+The earlier native observed-point display-placement question remains unanswered. Prior historical
+Location collection-off/permission visibility, ownership-index, period/open-interval and restore
+questions remain unanswered; elapsed time is not approval. Continue authorized independent work.
+
+Review-only map_enrichment_review inherits original messages, code/diff, test-source inventory and
+approved decisions. Matcher/observer/actual Room test sources received narrow static acceptance;
+reader and native rendering/cache routing remain incomplete. No complete retained Location facade
+exists; visibility-only or checksum-only conversion cannot qualify joins. Resume from
+../../optional-map-enrichment/2026-09-27/IMPLEMENTATION_TRACE.md and REVIEW_RECEIPT.md.

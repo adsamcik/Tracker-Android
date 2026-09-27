@@ -74,6 +74,11 @@ open; validation and integration are deferred. The historical registry below is 
   Qualified six-source summaries/consumers, period/open-interval contracts, native portable bounds,
   source action selectors/dispatch and non-Steps effects/retraction remain open. See
   `metrics-actions-effects/2026-09-27/IMPLEMENTATION_TRACE.md`.
+- [ ] Finish optional map enrichment: approved temporal/scope/uncertainty matcher and native
+  fact/receipt/authority observer coverage authored and independently source-reviewed,
+  **IMPLEMENTED_UNVALIDATED**. Shared authenticated paired reader, native rendering, both-input
+  layer/cache routing and explicit gap/limit presentation remain open. Display choice awaits
+  tool-answer confirmation; see `optional-map-enrichment/2026-09-27/IMPLEMENTATION_TRACE.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.
@@ -477,3 +482,21 @@ and independent static review only, **IMPLEMENTED_UNVALIDATED**:
 
 See `metrics-actions-effects/2026-09-27/IMPLEMENTATION_TRACE.md` and `REVIEW_RECEIPT.md`.
 No executed checks, provider activation, assembly freeze, new dev/v10 integration or push.
+
+### Optional map enrichment continuation (2026-09-27)
+
+Whole enrichment requirement remains unchecked. Narrow checked slices mean authored source and
+independent static review only, **IMPLEMENTED_UNVALIDATED**.
+
+- [x] Confirm temporal/accuracy join rules and shared source-owned paired-reader architecture.
+- [x] Author conservative Wi-Fi30s/Cell60s matching, exact purpose/scope boundaries and uncertainty.
+- [x] Extend committed Room invalidation to native fact/cursor/receipt and retained-authority inputs.
+- [x] Author matcher, observer classification and actual Room registration/commit regression sources.
+- [ ] Implement complete retained Location and native radio authentication in one bounded snapshot.
+- [ ] Confirm native observed-point display placement; preserve legacy identity/estimate semantics.
+- [ ] Wire native displays and both-input map layer/cache dependencies, gaps and limit outcomes.
+- [ ] Author authenticated paired-reader, privacy/correction and MapStore/display regression sources.
+- [ ] Finish whole-scope independent static review and deferred final convergence evidence.
+
+See `optional-map-enrichment/2026-09-27/IMPLEMENTATION_TRACE.md` and `REVIEW_RECEIPT.md`.
+No validation, input freeze, provider activation, new dev/v10 integration or push.
