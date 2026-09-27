@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
@@ -222,6 +223,13 @@ internal data class PressureHistorySummary(
 	}
 }
 
+/** Descriptive original closed interval; this metadata never qualifies Pressure observations. */
+internal data class PressureOriginalClosedBounds(val startTimeMs: Long, val endTimeMs: Long) {
+	init {
+		require(startTimeMs >= 0L && endTimeMs >= startTimeMs)
+	}
+}
+
 /**
  * One logical tracking entry composed only from explicitly identified physical replacement runs.
  *
@@ -231,6 +239,7 @@ internal data class PressureHistorySummary(
 internal data class PressureLogicalHistoryEntry(
 	val identity: PressureHistoryEntryIdentity,
 	val physicalMembers: List<PressurePhysicalHistory>,
+	val originalClosedBounds: PressureOriginalClosedBounds? = null,
 ) {
 	init {
 		require(physicalMembers.isNotEmpty())
@@ -321,17 +330,42 @@ private fun HistoricalCaptureAuthority.hasExactPressureProvenance(
 
 /** Explicit logical identity only; wall-time proximity never groups replacement runs. */
 internal object PressureLogicalHistoryComposer {
-	fun compose(physical: List<PressurePhysicalHistory>): List<PressureLogicalHistoryEntry> =
+	fun compose(
+		physical: List<PressurePhysicalHistory>,
+		sessions: Map<String, LogicalTrackingSessionEntity> = emptyMap(),
+	): List<PressureLogicalHistoryEntry> =
 		physical.groupBy(PressurePhysicalHistory::pressureEntryIdentity)
 			.map { (identity, members) ->
 				PressureLogicalHistoryEntry(
 					identity = identity,
 					physicalMembers = members.sortedWith(pressurePhysicalMemberOrder),
+					originalClosedBounds = (identity as? PressureHistoryEntryIdentity.Logical)
+						?.let { logical ->
+							sessions[logical.logicalTrackingId]
+								?.originalClosedPressureBounds(logical.logicalTrackingId)
+						},
 				)
 			}.sortedWith(compareBy(
 				{ it.physicalMembers.first().segment.startTimeMs },
 				{ it.physicalMembers.first().segment.id },
 			))
+}
+
+/** Missing/open/inconsistent headers remain unresolved, without clearing independently valid windows. */
+private fun LogicalTrackingSessionEntity.originalClosedPressureBounds(
+	logicalId: String,
+): PressureOriginalClosedBounds? {
+	val cutoff = cutoffAtMs ?: return null
+	val cutoffElapsed = cutoffElapsedNanos ?: return null
+	val completed = completedAtMs ?: return null
+	val finalOrdinal = finalAdmissionOrdinal ?: return null
+	if (logicalTrackingId != logicalId || state !in setOf("FINALIZED", "FAILED", "CLOSED") ||
+		lifecycleRevision <= 0L || desiredPlanRevision <= 0L || rolloutRevision <= 0L ||
+		startedAtMs < 0L || cutoff < startedAtMs || completed < startedAtMs ||
+		startedElapsedNanos < 0L || cutoffElapsed < startedElapsedNanos ||
+		finalOrdinal < 0L || currentServiceRunId != null
+	) return null
+	return PressureOriginalClosedBounds(startedAtMs, cutoff)
 }
 
 private val PressurePhysicalHistory.pressureEntryIdentity: PressureHistoryEntryIdentity

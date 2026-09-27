@@ -1042,6 +1042,46 @@ class ActivityHistoryComposerTest {
 	}
 
 	@Test
+	fun `native display keeps logical start and cutoff instead of surviving physical extent or drain`() {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val session = original.sessions.getValue(LOGICAL_ID)
+		val earlierStart = session.startedAtMs - 100L
+		val laterCutoff = requireNotNull(session.cutoffAtMs) + 100L
+		val snapshot = original.copy(sessions = mapOf(LOGICAL_ID to session.copy(
+			startedAtMs = earlierStart,
+			cutoffAtMs = laterCutoff,
+			completedAtMs = laterCutoff + 10_000L,
+		)))
+		val before = ActivityHistoryComposer.composeRecent(original, EXECUTION_AUTHORITY).single().entry
+		val after = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+		after.startTime shouldBe EpochMs(earlierStart)
+		after.endTime shouldBe EpochMs(laterCutoff)
+		after.fragments shouldBe before.fragments
+		after.activeTime shouldBe before.activeTime
+		ActivityHistoryComposer.composeSelected(snapshot.expansion.segments.single(), snapshot,
+			EXECUTION_AUTHORITY)?.endTime shouldBe EpochMs(laterCutoff)
+	}
+
+	@Test
+	fun `closed logical invalid bounds are not normalized into qualified Activity time`() {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val session = original.sessions.getValue(LOGICAL_ID)
+		val invalidSessions = listOf(
+			session.copy(cutoffAtMs = session.startedAtMs - 1L),
+			session.copy(cutoffAtMs = null),
+			session.copy(startedAtMs = -1L),
+		)
+		for (invalidSession in invalidSessions) {
+			val snapshot = original.copy(sessions = mapOf(LOGICAL_ID to invalidSession))
+			val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+			entry.state shouldBe ActivityHistoryProductState.FAILED
+			entry.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+			entry.activeTime shouldBe null
+			entry.fragments shouldBe emptyList()
+		}
+	}
+
+	@Test
 	fun `replacement runs compose as one logical entry with exact uncovered intervals`() {
 		val snapshot = fixture(
 			listOf(RunSpec(1L, "run-a", "Europe/Prague"), RunSpec(2L, "run-b", "UTC")),
@@ -1294,6 +1334,7 @@ class ActivityHistoryComposerTest {
 		val snapshot = initial.copy(
 			sessions = mapOf(LOGICAL_ID to initial.sessions.getValue(LOGICAL_ID).copy(
 				state = "ACTIVE",
+				startedAtMs = initial.sessions.getValue(LOGICAL_ID).startedAtMs - 100L,
 				cutoffAtMs = null,
 				cutoffElapsedNanos = null,
 				completedAtMs = null,
@@ -1311,6 +1352,10 @@ class ActivityHistoryComposerTest {
 		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
 
 		entry.state shouldBe ActivityHistoryProductState.MATERIALIZING
+		entry.startTime shouldBe EpochMs(snapshot.sessions.getValue(LOGICAL_ID).startedAtMs)
+		entry.endTime shouldBe EpochMs(initial.expansion.segments.single().endTimeMs)
+		entry.causes shouldBe setOf(ActivityHistoryCause.SESSION_ACTIVE,
+			ActivityHistoryCause.MATERIALIZATION_BEHIND)
 		entry.activeTime shouldBe null
 		entry.fragments shouldBe emptyList()
 	}
@@ -1328,13 +1373,14 @@ class ActivityHistoryComposerTest {
 		val terminalBoundary = requireNotNull(initial.sessions.getValue(LOGICAL_ID).cutoffElapsedNanos)
 		val stoppingSession = initial.sessions.getValue(LOGICAL_ID).copy(
 			state = "STOPPING",
+			startedAtMs = initial.sessions.getValue(LOGICAL_ID).startedAtMs - 100L,
 			completedAtMs = null,
 			finalAdmissionOrdinal = null,
 			currentServiceRunId = stoppingRun.serviceRunId,
 			currentManifestRevision = 1L,
 			lifecycleLeaseGeneration = stoppingRun.leaseGeneration,
 			lifecycleBootId = stoppingRun.bootId,
-			cutoffAtMs = terminalBoundary,
+			cutoffAtMs = terminalBoundary + 100L,
 			cutoffElapsedNanos = terminalBoundary,
 		)
 		val snapshot = initial.copy(
@@ -1350,6 +1396,8 @@ class ActivityHistoryComposerTest {
 		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
 
 		entry.state shouldBe ActivityHistoryProductState.MATERIALIZING
+		entry.startTime shouldBe EpochMs(stoppingSession.startedAtMs)
+		entry.endTime shouldBe EpochMs(requireNotNull(stoppingSession.cutoffAtMs))
 		entry.causes shouldBe setOf(ActivityHistoryCause.SESSION_ACTIVE,
 			ActivityHistoryCause.MATERIALIZATION_BEHIND)
 		entry.activeTime shouldBe null

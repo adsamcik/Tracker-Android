@@ -593,3 +593,34 @@ is not approval. Supplied AGENTS requires confirmation for changed storage/behav
 Resume from ../../unified-history/2026-09-27/IMPLEMENTATION_TRACE.md and REVIEW_RECEIPT.md. Never treat
 API defaults, coarse seeds, authored tests or static foundation acceptance as implemented full history,
 source/action authority, device readiness, or approval to execute the final assembly gate.
+
+## 41. Metrics, actions and effects request (2026-09-27)
+
+Original user text:
+
+> **Complete metrics, actions and effects.** Provide truthful summaries for all six sources, exact Steps totals, original Activity/Pressure bounds, supported actions and correction/deletion retraction.
+
+All earlier original user messages, supplied AGENTS and approved decisions remain applicable.
+IMPLEMENTATION_ONLY: source/test authorship, static review and local IMPLEMENTED_UNVALIDATED
+checkpoints only. No Gradle/compile/tests/lint/Detekt/schema/diff-check/emulator/device/UI evaluator/
+battery/CI/release/rollout validation, activation, input freeze, new dev/v10 integration or push.
+Candidate codex/source-native-map-context-root based2c307247e6; main13f1a99871 unchanged. Protected
+paths, source refs and excluded drafts preserved.
+
+Unknown/malformed metric rejection and original native Activity/validated closed Pressure header
+mapping authored. Independent review-only metrics_actions_effects_review inherits original full
+context and inspected code, exact diff and unexecuted test sources; no blocking regression found
+for narrow repairs after requested active/STOPPING/negative-start cases were authored. Exact Steps
+numeric/goal correction machinery remains preserved, not newly executed/proven.
+
+Complete qualified summaries/consumers, portable native original bounds, exact source actions and
+non-Steps prospective effects/retraction remain incomplete. Two new tool questions await explicit
+answers: reject unsupported periods vs expose actual period in expanded result API; separately
+qualify missing/open original recording bounds while retaining independent observations vs omit
+those records from summaries. Prior historical Location and exact ownership-index questions remain
+pending. Elapsed time is not approval. Do not claim the full request is complete or fully blocked by
+these questions; continue authorized independent implementation while awaiting required choices.
+
+Resume from ../../metrics-actions-effects/2026-09-27/IMPLEMENTATION_TRACE.md and REVIEW_RECEIPT.md.
+Never infer final convergence, on-device readiness, provider activation or integration approval from
+static acceptance, authored tests or a local checkpoint.

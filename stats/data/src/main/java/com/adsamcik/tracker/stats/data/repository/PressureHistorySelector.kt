@@ -254,6 +254,7 @@ internal class PressureHistorySelector private constructor(
 		)
 		return PressureLogicalHistoryComposer.compose(
 			selectManyWithSnapshot(expansion.segments, snapshot),
+			sessions = snapshot.sessions,
 		)
 	}
 

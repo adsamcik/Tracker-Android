@@ -193,6 +193,60 @@ class PressureHistorySelectorTest {
 	}
 
 	@Test
+	fun nativePressureHeaderKeepsOriginalClosedBoundsWithoutChangingWindowsOrRecency() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		val before = selector.selectLogicalBySegmentIds(listOf(fixture.segmentId)).single()
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
+		val originalStart = RUN_START_MS - 100L
+		val originalCutoff = REPLACEMENT_RUN_END_MS + 100L
+		database.sourceSessionDao().updateSession(session.copy(
+			startedAtMs = originalStart,
+			cutoffAtMs = originalCutoff,
+			completedAtMs = originalCutoff + 10_000L,
+		)) shouldBe 1
+
+		val after = selector.selectLogicalBySegmentIds(listOf(fixture.segmentId)).single()
+		val public = requireNotNull(after.toPublicPressureOnlyEntryOrNull())
+
+		after.originalClosedBounds shouldBe PressureOriginalClosedBounds(originalStart, originalCutoff)
+		public.startTime.raw shouldBe originalStart
+		public.endTime.raw shouldBe originalCutoff
+		after.windows shouldBe before.windows
+		after.summary shouldBe before.summary
+		after.qualifiedSources shouldBe before.qualifiedSources
+		after.recencyMember shouldBe before.recencyMember
+		public.pressure.hasQualifiedRetainedProof shouldBe true
+	}
+
+	@Test
+	fun unresolvedPressureHeadersDoNotInventOriginalBoundsOrRetractValidObservations() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		val selected = selector.selectLogicalBySegmentIds(listOf(fixture.segmentId)).single()
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
+		val invalid = listOf(
+			emptyMap(),
+			mapOf(LOGICAL_ID to session.copy(logicalTrackingId = "unrelated-logical")),
+			mapOf(LOGICAL_ID to session.copy(startedAtMs = -1L)),
+			mapOf(LOGICAL_ID to session.copy(cutoffAtMs = RUN_START_MS - 1L)),
+			mapOf(LOGICAL_ID to session.copy(cutoffAtMs = null)),
+			mapOf(LOGICAL_ID to session.copy(cutoffElapsedNanos = null)),
+			mapOf(LOGICAL_ID to session.copy(cutoffElapsedNanos = session.startedElapsedNanos - 1L)),
+			mapOf(LOGICAL_ID to session.copy(completedAtMs = null)),
+			mapOf(LOGICAL_ID to session.copy(finalAdmissionOrdinal = null)),
+			mapOf(LOGICAL_ID to session.copy(currentServiceRunId = RUN_ID)),
+			mapOf(LOGICAL_ID to session.copy(state = "ACTIVE", cutoffAtMs = null,
+				cutoffElapsedNanos = null, completedAtMs = null, currentServiceRunId = RUN_ID)),
+		)
+		for (sessions in invalid) {
+			val entry = PressureLogicalHistoryComposer.compose(selected.physicalMembers, sessions).single()
+			entry.originalClosedBounds shouldBe null
+			entry.windows shouldBe selected.windows
+			entry.summary shouldBe selected.summary
+			entry.qualifiedSources shouldBe selected.qualifiedSources
+		}
+	}
+
+	@Test
 	fun sourceAwarePageKeepsPhysicalCandidateWhenExactPressureProjectionFailed() = runTest {
 		val fixture = insertFixture(factSemanticRevision = 1L)
 		database.sourceProjectionStateDao().saveFailure(

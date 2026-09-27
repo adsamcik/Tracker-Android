@@ -68,6 +68,12 @@ open; validation and integration are deferred. The historical registry below is 
   Production facade/paging/calendar/timeline/detail wiring and complete retained Location proof remain
   open. Historical Location visibility and exact local ownership indexing await tool-question answers.
   See `unified-history/2026-09-27/IMPLEMENTATION_TRACE.md`.
+- [ ] Complete metrics, actions and effects: unknown/malformed metric rejection and original native
+  Activity/validated closed Pressure header repairs authored and independently statically reviewed,
+  **IMPLEMENTED_UNVALIDATED**. Exact Steps numeric/goal retraction machinery traced and preserved.
+  Qualified six-source summaries/consumers, period/open-interval contracts, native portable bounds,
+  source action selectors/dispatch and non-Steps effects/retraction remain open. See
+  `metrics-actions-effects/2026-09-27/IMPLEMENTATION_TRACE.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.
@@ -449,3 +455,25 @@ or new local dev/v10 integration is inferred from these preparatory source APIs.
 - [ ] Wire calendar, timeline and exact detail consumers; author full-source/UI regression sources.
 
 Checked foundation lines describe source/static-review evidence only, IMPLEMENTED_UNVALIDATED.
+
+### Metrics, actions and effects continuation (2026-09-27)
+
+Whole work item remains unchecked. These narrow checked slices describe production/test-source
+and independent static review only, **IMPLEMENTED_UNVALIDATED**:
+
+- [x] Reject unknown metric IDs without fabricated zero and malformed windows without DAO reads.
+- [x] Map source-qualified native Activity display to original logical start/cutoff; author active,
+  STOPPING, invalid-bound, selected/recent and unchanged-evidence regression sources.
+- [x] Carry validated original closed Pressure headers in the bounded transactional reader; retain
+  independent windows/qualification/recency and author Room/unresolved-header regression sources.
+- [x] Trace all six summary/action/effect consumers and independently review these narrow repairs.
+- [ ] Resolve unsupported-period and uncertain/open original interval API/UI decisions.
+- [ ] Complete qualified six-source summary facade, actual scope/coverage/origin and UI/file consumers.
+- [ ] Complete native portable original bounds with exact format/collision compatibility handling.
+- [ ] Implement exact native Steps/Pressure logical/mixed selectors and supported source actions.
+- [ ] Complete prospective logical source-qualified effects and correction/deletion retraction,
+  preserving previous confirmed receipts and organization no-effect.
+- [ ] Complete whole-scope source review and deferred final convergence evidence after assembly.
+
+See `metrics-actions-effects/2026-09-27/IMPLEMENTATION_TRACE.md` and `REVIEW_RECEIPT.md`.
+No executed checks, provider activation, assembly freeze, new dev/v10 integration or push.

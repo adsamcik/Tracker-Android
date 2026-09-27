@@ -3,6 +3,7 @@ package com.adsamcik.tracker.stats.data.repository
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.PressureFactProofSnapshot
 import com.adsamcik.tracker.shared.base.database.loadPressureFactProofSnapshot
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRetentionRevisionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
@@ -72,6 +73,10 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 	val logicalTrackingIds = segments.mapNotNull(SessionSegment::logicalTrackingId)
 		.filter(String::isNotBlank)
 		.distinct()
+	val sessions = logicalTrackingIds.chunked(PRESSURE_QUERY_ID_BATCH_SIZE).flatMap { identities ->
+		currentCoroutineContext().ensureActive()
+		database.sourceSessionDao().sessions(identities)
+	}
 	val pressureFactLoad = loadPressureHistoryFactRevisions(
 		database = database,
 		serviceRunIds = serviceRunIds,
@@ -200,6 +205,7 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 	}
 	val terminalFailureOverflow = terminalFailures.size > MAX_PRESSURE_TERMINAL_FAILURES
 	return PressureHistoryBatchSnapshot(
+		sessions = sessions.associateBy(LogicalTrackingSessionEntity::logicalTrackingId),
 		serviceRuns = serviceRuns.associateBy(SourceServiceRunEntity::serviceRunId),
 		manifestsByRun = manifests.groupBy(SessionManifestVersionEntity::serviceRunId),
 		sourcesByManifest = manifestSources.groupBy { source ->
@@ -510,6 +516,7 @@ internal data class PressureHistoryBatchSnapshot(
 	val terminalFailures: List<SourceProjectionFailureEntity>,
 	val terminalFailureOverflow: Boolean,
 	val evidenceState: SourceEvidenceState?,
+	val sessions: Map<String, LogicalTrackingSessionEntity> = emptyMap(),
 )
 
 private const val PRESSURE_FACT_PAGE_SIZE = 400

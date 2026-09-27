@@ -32,8 +32,10 @@ internal fun PressureLogicalHistoryEntry.toPublicPressureOnlyEntryOrNull(): Pres
 	return PressureOnlyHistoryEntry(
 		key = TrackingHistoryEntryKey("pressure:logical:${logicalIdentity.logicalTrackingId}"),
 		origin = PressureHistoryOrigin.Local,
-		startTime = EpochMs(physicalMembers.minOf { it.segment.startTimeMs }),
-		endTime = EpochMs(physicalMembers.maxOf { it.segment.endTimeMs }),
+		startTime = EpochMs(originalClosedBounds?.startTimeMs
+			?: physicalMembers.minOf { it.segment.startTimeMs }),
+		endTime = EpochMs(originalClosedBounds?.endTimeMs
+			?: physicalMembers.maxOf { it.segment.endTimeMs }),
 		pressure = physicalMembers.toPublicPressureHistory(),
 	)
 }

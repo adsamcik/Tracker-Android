@@ -84,8 +84,30 @@ internal object ActivityHistoryComposer {
 				)
 			}.toList()
 
-	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	/** Presentation bounds belong to the logical recording, never its surviving physical members. */
 	private fun composeGroup(
+		logicalId: String,
+		snapshot: ActivityHistorySnapshot,
+		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
+	): ActivityHistoryEntry? {
+		val composed = composeGroupEvidence(logicalId, snapshot, laneExecutionAuthority) ?: return null
+		if (composed.state == ActivityHistoryProductState.FAILED) return composed
+		val session = snapshot.sessions[logicalId] ?: return composed
+		val start = session.startedAtMs
+		val cutoff = session.cutoffAtMs
+		val end = cutoff ?: composed.endTime.raw
+		if (start < 0L || end < start ||
+			(session.state in TERMINAL_RUN_STATES &&
+				(cutoff == null || session.cutoffElapsedNanos == null))
+		) {
+			return failed(logicalId, members(logicalId, snapshot),
+				ActivityHistoryCause.WRITER_PROVENANCE_INVALID, composed.capturesOnlyActivity)
+		}
+		return composed.copy(startTime = EpochMs(start), endTime = EpochMs(end))
+	}
+
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	private fun composeGroupEvidence(
 		logicalId: String,
 		snapshot: ActivityHistorySnapshot,
 		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
