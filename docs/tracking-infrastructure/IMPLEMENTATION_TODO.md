@@ -1745,3 +1745,19 @@ Pressure elevation, or a second simultaneous canonical Location writer.
 
 Details: provider-host/2026-09-27/IMPLEMENTATION_TRACE.md and CONTRACT_DECISIONS.md. Earlier pending
 contracts stay pending. Main dev/v10 remains unchanged. No validation or activation is authorized.
+
+## 2026-09-27 passive background Location continuation
+
+- [x] TODO-PASSIVE-TRACE Trace current purpose, shared owner, callback backend, process residency,
+  ingress, WAL qualification and recovery boundaries. Static inspection only.
+- [ ] TODO-PASSIVE-CONTRACT Confirm concrete FLP/framework PI and bounded receiver/residency contract.
+- [ ] TODO-PASSIVE-OWNER Implement passive system transport within the existing physical owner,
+  exact retirement/recovery and active/passive transition acknowledgement.
+- [ ] TODO-PASSIVE-ADMISSION Implement authenticated bounded receiver and residency-aware existing
+  qualification/materialization, including historical per-fix authority and replay fencing.
+- [ ] TODO-PASSIVE-RECOVERY Wire safe passive rearm, interruption/suppression and deletion settlement.
+- [ ] TODO-PASSIVE-TEST-SOURCES Author focused unit/Room/receiver/recovery contract cases.
+- [ ] TODO-PASSIVE-REVIEW Independently review the complete applied slice before local checkpoint.
+
+Concrete trace: passive-location/2026-09-27/CONTRACT_AND_TRACE.md. No passive production behavior
+was changed by this planning slice; this does not close TODO-LOC-* or the assembly gate.

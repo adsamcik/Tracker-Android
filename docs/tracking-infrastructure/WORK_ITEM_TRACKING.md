@@ -27,6 +27,10 @@ open; validation and integration are deferred. The historical registry below is 
 - [ ] Finish shared provider and host ownership: bounded claimant, retirement, capture/host type and
   control-state fixes authored; optional radio hosting and feature Location leases remain pending
   contract confirmation. See `provider-host/2026-09-27/IMPLEMENTATION_TRACE.md`.
+- [ ] Complete passive background Location: source trace and concrete system-residency/receiver/
+  recovery contract prepared; confirmation and dependent implementation remain open. See
+  `passive-location/2026-09-27/CONTRACT_AND_TRACE.md`. Process-bound passive callbacks do not
+  establish system-rearmable delivery.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.

@@ -362,3 +362,24 @@ cache-only sunrise refresh from already-authorized collection. No answer has bee
 inferred; dependent work is unapplied. See ../../provider-host/2026-09-27/CONTRACT_DECISIONS.md.
 Earlier shared-item WAL, aggregate Steps identity, radio recovery and backup restore decisions
 remain pending. Whole ownership completion and convergence gate remain open.
+
+## 32. Passive background Location request (2026-09-27)
+
+Original user text:
+
+> **Complete passive background Location.** Add system-rearmable delivery, authenticated receiver admission, recovery and safe transitions to the existing active Location owner.
+
+IMPLEMENTATION_ONLY continues: source authorship and static review only, no Gradle, compilation,
+test/lint/Detekt/schema/diff-check/device/UI/battery/CI/release/rollout gates, activation, push or
+new dev/v10 integration. Preserve protected paths and drafts. Candidate starts at f0a36cef2c;
+main dev/v10 remains 13f1a99871. Independent review-only passive_location_review inherits the full
+original user packet, approved requirements and implementation-only boundary; no recursive work.
+
+A concrete FLP plus framework passive PendingIntent contract through the existing owner, existing
+SYSTEM_REARMABLE storage, a non-exported 5s/64-fix receiver, exact retire-before-replace and safe
+current-authority recovery was asked via the question tool, as required by user AGENTS.md.
+No answer was received or inferred. Dependent production/test-source implementation is unapplied.
+See ../../passive-location/2026-09-27/CONTRACT_AND_TRACE.md. Earlier pending decisions stay pending.
+Current source already includes a durable observed-user-stop gate distinct from the positive
+force-stop process guard; the new passive receiver/recovery must reuse both. Whole passive Location
+and the assembly gate remain open.
