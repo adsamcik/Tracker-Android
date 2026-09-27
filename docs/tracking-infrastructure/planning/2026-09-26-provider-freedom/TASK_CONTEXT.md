@@ -268,3 +268,21 @@ Work continues on the existing candidate from63ef296026, preserving original ref
 ## 26. Reconciliation result — 2026-09-27
 
 Current final input selection is `../../reconciliation/2026-09-27/SELECTION_MANIFEST.json`. Continue ROOT with latest compatible V1 lifecycle/proof families, committed source-aware UI and six committed audit corrections. Preserve whole LOCATION/RADIO V2 inputs until exact-generation proof/history/retention transport is assembled. Exclude old Location reader/pruner that rejects ROOT ambient receipts; preserve originals for bounded common-purpose adaptation. All56 live draft bytes are archived locally and original worktrees/refs remain untouched. This supersedes older planned source-selection wording only; it changes no approved product contract. Input reconciliation is IMPLEMENTED_UNVALIDATED; no global freeze, validation, activation, dev/v10 integration or push.
+
+## 27. Source lifecycle proof continuation — 2026-09-27
+
+> Please update the checklist as things are completed.
+> **Complete source lifecycle proof.** Authenticate observation identity, registration, authorization, sequence and product lineage consistently across all six sources.
+
+The live completion checklist is `../../WORK_ITEM_TRACKING.md`. The current six-source trace,
+bounded corrections and independent static review receipt are in
+`../../lifecycle-proof/2026-09-27/SOURCE_TRACE.md`. Whole lifecycle proof remains incomplete;
+written test sources have not been compiled or executed. The candidate remains isolated and
+the implementation-only phase remains binding.
+
+Pending question sent through the question tool:
+
+> Ambient Steps comes from system aggregate windows, so it has no WAL event or admission number. I recommend letting lifecycle proof carry its real provider-window/mutation identity, registration and revision, while WAL-backed sources retain their exact event/sequence proof. This avoids inventing identity and preserves one shared proof API. Approve this contract adjustment? Repository AGENTS.md requires confirmation of new architecture/data-contract decisions.
+
+Options: "Approve truthful aggregate identity (recommended)"; "Keep aggregate Steps proof separate".
+No answer has been received or inferred. Dependent shared proof-contract changes remain unapplied.

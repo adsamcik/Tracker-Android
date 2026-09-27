@@ -24,20 +24,21 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 data class SourceLifecycleProofSnapshot(
 	val proofs: Map<TrackingSource, SourceLifecycleProof>,
 ) {
 	init {
-		require(proofs.keys == TrackingSource.entries.toSet())
+		require(proofs.all { (source, proof) -> proof.key.source == source })
 	}
 }
 
 /**
  * App-scoped read-only proof observer.
  *
- * Room invalidation is only a conflated wake-up signal. One six-source reconstruction runs to
+ * Room invalidation is only a conflated wake-up signal. One requested-source reconstruction runs to
  * completion while at most the latest pending invalidation remains queued. Every emission is
  * reconstructed from durable state; there is no polling, timer, provider demand, repair, cursor
  * advance, or write.
@@ -64,11 +65,13 @@ class SourceLifecycleProofCoordinator internal constructor(
 
 	private val descriptorsBySource = descriptors.associateBy(SourceLifecycleProofDescriptor::source)
 		.also { bySource ->
+			require(descriptors.size == TrackingSource.entries.size)
 			require(bySource.keys == TrackingSource.entries.toSet())
 		}
 
 	fun observe(keys: Set<SourceProofKey>): Flow<SourceLifecycleProofSnapshot> {
-		requireCompleteKeySet(keys)
+		requireUniqueSourceKeys(keys)
+		if (keys.isEmpty()) return flowOf(SourceLifecycleProofSnapshot(emptyMap()))
 		return invalidations.conflate()
 			.map {
 				snapshot(keys)
@@ -77,20 +80,19 @@ class SourceLifecycleProofCoordinator internal constructor(
 	}
 
 	internal suspend fun snapshot(keys: Set<SourceProofKey>): SourceLifecycleProofSnapshot {
-		val keysBySource = requireCompleteKeySet(keys)
+		val keysBySource = requireUniqueSourceKeys(keys)
 		return SourceLifecycleProofSnapshot(
-			TrackingSource.entries.associateWith { source ->
+			TrackingSource.entries.filter { it in keysBySource }.associateWith { source ->
 				evaluateIsolated(keysBySource.getValue(source))
 			},
 		)
 	}
 
-	private fun requireCompleteKeySet(
+	private fun requireUniqueSourceKeys(
 		keys: Set<SourceProofKey>,
 	): Map<TrackingSource, SourceProofKey> {
 		val keysBySource = keys.associateBy(SourceProofKey::source)
-		require(keys.size == TrackingSource.entries.size)
-		require(keysBySource.keys == TrackingSource.entries.toSet())
+		require(keys.size == keysBySource.size) { "Each source must have one exact requested evidence key" }
 		return keysBySource
 	}
 
@@ -107,7 +109,15 @@ class SourceLifecycleProofCoordinator internal constructor(
 			)
 		}
 		val recording = try {
-			adapter.recording(key)
+			if (adapter.source != key.source) {
+				failed(SourceProofStage.RECORDING, reason = SourceProofReason.WRONG_SOURCE)
+			} else {
+				adapter.recording(key).let { result ->
+					if (result is SourceProofResult.Proven && result.state.lineage.evidenceIdentity != key.evidenceIdentity) {
+						failed(SourceProofStage.RECORDING, reason = SourceProofReason.FACT_IDENTITY_MISMATCH)
+					} else result
+				}
+			}
 		} catch (failure: Exception) {
 			if (failure is CancellationException) throw failure
 			failed(SourceProofStage.RECORDING)
@@ -122,7 +132,14 @@ class SourceLifecycleProofCoordinator internal constructor(
 		}
 
 		val materialized = try {
-			adapter.materialized(key, recording.state)
+			adapter.materialized(key, recording.state).let { result ->
+				if (result is SourceProofResult.Proven &&
+					(result.state.lineage.evidenceIdentity != key.evidenceIdentity ||
+						result.state.lineage.sourceAdmissionOrdinal != recording.state.lineage.sourceAdmissionOrdinal ||
+						result.state.lineage.sourceEvidenceRevision < recording.state.lineage.sourceEvidenceRevision)) {
+					failed(SourceProofStage.MATERIALIZED, recording.state.lineage, SourceProofReason.FACT_IDENTITY_MISMATCH)
+				} else result
+			}
 		} catch (failure: Exception) {
 			if (failure is CancellationException) throw failure
 			failed(SourceProofStage.MATERIALIZED, recording.state.lineage)
@@ -139,7 +156,7 @@ class SourceLifecycleProofCoordinator internal constructor(
 		val queryable = try {
 			queryRepository.lookup(
 				SourceFactLookupRequest(key, materialized.state),
-			).toProofResult(materialized.state)
+			).toProofResult(key, materialized.state)
 		} catch (failure: Exception) {
 			if (failure is CancellationException) throw failure
 			failed(SourceProofStage.QUERYABLE, materialized.state.lineage)
@@ -148,9 +165,14 @@ class SourceLifecycleProofCoordinator internal constructor(
 	}
 
 	private fun SourceFactLookupResult.toProofResult(
+		key: SourceProofKey,
 		materialized: MaterializedProofState,
 	): SourceProofResult<QueryableProofState> = when (this) {
-		is SourceFactLookupResult.Found -> SourceProofResult.Proven(state)
+		is SourceFactLookupResult.Found -> if (state.lineage != materialized.lineage ||
+			state.coverage != materialized.coverage || state.completeness != materialized.completeness ||
+			state.readSnapshot.collectedDataEpoch != key.collectedDataEpoch) {
+			failed(SourceProofStage.QUERYABLE, materialized.lineage, SourceProofReason.FACT_IDENTITY_MISMATCH)
+		} else SourceProofResult.Proven(state)
 		is SourceFactLookupResult.NotFound -> SourceProofResult.Pending(
 			SourceProofStage.QUERYABLE,
 			reason,
@@ -186,9 +208,10 @@ class SourceLifecycleProofCoordinator internal constructor(
 	private fun failed(
 		stage: SourceProofStage,
 		lineage: com.adsamcik.tracker.stats.api.repository.SourceProofLineage? = null,
+		reason: SourceProofReason = SourceProofReason.REPOSITORY_FAILURE,
 	) = SourceProofResult.Failed(
 		stage,
-		SourceProofReason.REPOSITORY_FAILURE,
+		reason,
 		lineage,
 	)
 

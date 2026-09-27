@@ -46,6 +46,157 @@ import org.junit.Test
 
 class SourceLifecycleProofCoordinatorTest {
 	@Test
+	fun `empty observation emits without subscribing to database invalidation`() = runTest {
+		val subscriptions = AtomicInteger()
+		val counters = CallCounters()
+		val coordinator = SourceLifecycleProofCoordinator(
+			invalidations = callbackFlow {
+				subscriptions.incrementAndGet()
+				trySend(Unit)
+				awaitClose {}
+			},
+			descriptors = successfulDescriptors(counters),
+			queryRepository = successfulQueryRepository(counters),
+			ioDispatcher = StandardTestDispatcher(testScheduler),
+		)
+
+		coordinator.observe(emptySet()).first().proofs shouldBe emptyMap()
+		subscriptions.get() shouldBe 0
+		counters.adapterCreations.get() shouldBe 0
+		counters.queries.get() shouldBe 0
+	}
+
+	@Test
+	fun `adapter for another source cannot establish recording`() = runTest {
+		val counters = CallCounters()
+		val key = keys().first()
+		val descriptors = successfulDescriptors(counters).mapTo(linkedSetOf()) { descriptor ->
+			if (descriptor.source != key.source) descriptor else SourceLifecycleProofDescriptor(
+				key.source,
+				SourceLifecycleProofAdapterFactory { successfulAdapter(TrackingSource.CELL, counters) },
+			)
+		}
+
+		val proof = coordinator(descriptors, successfulQueryRepository(counters))
+			.snapshot(setOf(key)).proofs.getValue(key.source)
+
+		(proof.recording as SourceProofResult.Failed).reason shouldBe SourceProofReason.WRONG_SOURCE
+		(proof.queryable as SourceProofResult.Failed).reason shouldBe SourceProofReason.WRONG_SOURCE
+		counters.recording.get() shouldBe 0
+		counters.materialized.get() shouldBe 0
+		counters.queries.get() shouldBe 0
+	}
+
+	@Test
+	fun `recording cannot substitute another evidence identity`() = runTest {
+		val counters = CallCounters()
+		val key = keys().first()
+		val descriptors = successfulDescriptors(counters).mapTo(linkedSetOf()) { descriptor ->
+			if (descriptor.source != key.source) descriptor else SourceLifecycleProofDescriptor(
+				key.source,
+				SourceLifecycleProofAdapterFactory {
+					object : SourceLifecycleProofAdapter by successfulAdapter(key.source, counters) {
+						override suspend fun recording(key: SourceProofKey): SourceProofResult<RecordingProofState> =
+							SourceProofResult.Proven(recordingState(key).let { state ->
+								state.copy(lineage = state.lineage.copy(evidenceIdentity = SourceEvidenceIdentity("other-event")))
+							})
+					}
+				},
+			)
+		}
+
+		val proof = coordinator(descriptors, successfulQueryRepository(counters))
+			.snapshot(setOf(key)).proofs.getValue(key.source)
+
+		(proof.recording as SourceProofResult.Failed).reason shouldBe SourceProofReason.FACT_IDENTITY_MISMATCH
+		counters.materialized.get() shouldBe 0
+		counters.queries.get() shouldBe 0
+	}
+
+	@Test
+	fun `materialization cannot substitute evidence admission or regress evidence revision`() = runTest {
+		for (substitution in 0..2) {
+			val counters = CallCounters()
+			val key = keys().first()
+			val descriptors = successfulDescriptors(counters).mapTo(linkedSetOf()) { descriptor ->
+				if (descriptor.source != key.source) descriptor else SourceLifecycleProofDescriptor(
+					key.source,
+					SourceLifecycleProofAdapterFactory {
+						object : SourceLifecycleProofAdapter by successfulAdapter(key.source, counters) {
+							override suspend fun materialized(
+								key: SourceProofKey,
+								recording: RecordingProofState,
+							): SourceProofResult<MaterializedProofState> {
+								val state = materializedState(key, recording)
+								val lineage = when (substitution) {
+									0 -> state.lineage.copy(evidenceIdentity = SourceEvidenceIdentity("other-event"))
+									1 -> state.lineage.copy(sourceAdmissionOrdinal = recording.lineage.sourceAdmissionOrdinal + 1L)
+									else -> state.lineage.copy(sourceEvidenceRevision = recording.lineage.sourceEvidenceRevision - 1L)
+								}
+								return SourceProofResult.Proven(state.copy(lineage = lineage))
+							}
+						}
+					},
+				)
+			}
+
+			val proof = coordinator(descriptors, successfulQueryRepository(counters))
+				.snapshot(setOf(key)).proofs.getValue(key.source)
+
+			(proof.recording is SourceProofResult.Proven) shouldBe true
+			(proof.materialized as SourceProofResult.Failed).reason shouldBe SourceProofReason.FACT_IDENTITY_MISMATCH
+			(proof.materialized as SourceProofResult.Failed).lineage shouldBe recordingState(key).lineage
+			counters.queries.get() shouldBe 0
+		}
+	}
+
+	@Test
+	fun `every source subset proves only its selected sources including empty tracking`() = runTest {
+		val allKeys = keys().toList()
+		for (mask in 0 until (1 shl allKeys.size)) {
+			val selected = allKeys.filterIndexed { index, _ -> mask and (1 shl index) != 0 }.toSet()
+			val counters = CallCounters()
+			val result = coordinator(successfulDescriptors(counters), successfulQueryRepository(counters)).snapshot(selected)
+			result.proofs.keys shouldBe selected.map { it.source }.toSet()
+			result.proofs.values.all { it.queryable is SourceProofResult.Proven } shouldBe true
+			counters.adapterCreations.get() shouldBe selected.size
+			counters.recording.get() shouldBe selected.size
+			counters.materialized.get() shouldBe selected.size
+			counters.queries.get() shouldBe selected.size
+			counters.providerStarts.get() shouldBe 0
+			counters.writes.get() shouldBe 0
+		}
+	}
+
+	@Test
+	fun `different evidence keys for one source cannot silently replace each other`() = runTest {
+		val key = keys().first()
+		val counters = CallCounters()
+		assertFailsWith<IllegalArgumentException> {
+			coordinator(successfulDescriptors(counters), successfulQueryRepository(counters))
+				.snapshot(setOf(key, key.copy(evidenceIdentity = SourceEvidenceIdentity("another-event"))))
+		}
+		counters.adapterCreations.get() shouldBe 0
+	}
+
+	@Test
+	fun `query cannot substitute another fact or data epoch for a proven materialization`() = runTest {
+		for (replaceEpoch in listOf(false, true)) {
+			val counters = CallCounters()
+			val query = SourceFactQueryRepository { request ->
+				val original = found(request).state
+				SourceFactLookupResult.Found(if (replaceEpoch) {
+					original.copy(readSnapshot = TrackingHistoryReadSnapshot(8L, 11L))
+				} else original.copy(lineage = original.lineage.copy(factIdentity = SourceFactIdentity("other-fact"))))
+			}
+			val key = keys().first()
+			val proof = coordinator(successfulDescriptors(counters), query).snapshot(setOf(key)).proofs.getValue(key.source)
+			(proof.materialized is SourceProofResult.Proven) shouldBe true
+			(proof.queryable as SourceProofResult.Failed).reason shouldBe SourceProofReason.FACT_IDENTITY_MISMATCH
+		}
+	}
+
+	@Test
 	fun `all six sources preserve one evidence fact lineage through queryable`() = runTest {
 		val counters = CallCounters()
 		val coordinator = coordinator(

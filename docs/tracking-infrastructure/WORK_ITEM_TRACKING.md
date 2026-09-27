@@ -30,14 +30,23 @@ No checked item above establishes runtime success, provider activation or whole-
 - [x] Shared historical provider-registration authentication for ambient Location, including boot,
   residency, wall/elapsed lifetime and epoch boundaries; bounded authorization lookup. Authored
   inconsistent acceptance-wall and prior-boot open-registration cases.
+- [x] Independent requested-source proof observation, including empty and solo configurations;
+  exact stage identity/epoch continuity, with authored tests for all 64 source subsets.
+- [x] Bounded ambient radio WAL reads, exact sequence identity, deleted-admission fencing and
+  reconstructed historical authorization at the callback observation; real authorization fixtures.
+- [x] Shared callback registration lifetime proof for ambient Wi-Fi/Cell: exact process residency,
+  boot, wall/elapsed boundaries and epoch; authored acceptance-wall and prior-boot rejection cases.
 - [ ] Authenticate ambient radio physical carriers and independently qualify each provider item.
 - [ ] Purpose-aware RECORDING/MATERIALIZED/QUERYABLE adapters for supported ambient sources.
 - [ ] Native aggregate Steps identity/registration/revision/count-domain proof without fabricated WAL identity.
 - [ ] Trace immutable automatic writer generations through admission, receipts and production queries.
 - [ ] Final fresh static review of the complete lifecycle slice and evidence receipt.
 
-The first two slices received independent static review, including a corrected Activity tail fixture.
-Their test sources have not been compiled or executed. All remaining lifecycle slices keep
+The sequence/Location slice is committed as `9ad1a05b1a` after independent static review, including
+a corrected Activity tail fixture. The radio slice is committed as `0b177a0d21`.
+Radio/coordinator review is recorded in
+`lifecycle-proof/2026-09-27/SOURCE_TRACE.md`. Test sources have not been compiled or executed.
+All remaining lifecycle slices keep
 `WI-LIFECYCLE-PRODUCT-PROOF-001` and `TODO-LIFE-003/004/005` open.
 
 ## 2026-09-20 authority and Steps P5 integration ledger
