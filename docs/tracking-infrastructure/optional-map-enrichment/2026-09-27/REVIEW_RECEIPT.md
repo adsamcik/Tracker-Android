@@ -22,3 +22,24 @@ complete, and static acceptance or authored tests establish no compilation/runti
 
 Reader implementation, ambient retained-authority completeness, production rendering, both-input
 layer dependencies and whole-scope source review remain open. Resume from IMPLEMENTATION_TRACE.md.
+
+## Second bounded source/API checkpoint
+
+The same independent review-only agent inspected the actual API, core content helper, both writer
+substitutions and all focused unexecuted regression sources. Shared checksum extraction is
+byte-identical to the existing encoded SHA256. The content check explicitly cannot authenticate
+provider/sequence/purpose; no new storage or proof version was introduced. API uses existing native
+4096-row evidence bound and original typed Wi-Fi/Cell quality, with no inferred identities or grants.
+
+The reviewer found one concrete contract omission: a single purpose's dependency overflow must
+preserve valid sibling results. Purpose-scoped DEPENDENCY_LIMIT and both-direction regression
+sources were authored; global DependencyLimit now explicitly means a whole-request failure.
+Returned observations are documented as purpose associations, not distinct scans/device points.
+Recheck accepted the affected code/test/docs, with no remaining blocker for this bounded slice.
+
+Independent adversarial source trace confirmed the complete original Location physical/purpose
+tuple cannot be reconstructed after WAL pruning from current canonical/compact retention objects.
+The new durable proof-storage choice remains unanswered and unapplied; display placement and prior
+historical Location behavior remain pending. Existing ambient facades and portable conversion are
+not retained-authorization seams. No complete reader, DI or native renderer exists in this slice.
+Tests are authored, not compiled or executed. Whole enrichment and assembly gates remain open.

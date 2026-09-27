@@ -492,6 +492,9 @@ independent static review only, **IMPLEMENTED_UNVALIDATED**.
 - [x] Author conservative Wi-Fi30s/Cell60s matching, exact purpose/scope boundaries and uncertainty.
 - [x] Extend committed Room invalidation to native fact/cursor/receipt and retained-authority inputs.
 - [x] Author matcher, observer classification and actual Room registration/commit regression sources.
+- [x] Author and independently statically review the approved shared API and reused canonical
+  checksum source; local IMPLEMENTED_UNVALIDATED checkpoint, no reader/DI/renderer activation.
+- [ ] Resolve durable full Location receipt/purpose-proof storage versus original-event-only gaps.
 - [ ] Implement complete retained Location and native radio authentication in one bounded snapshot.
 - [ ] Confirm native observed-point display placement; preserve legacy identity/estimate semantics.
 - [ ] Wire native displays and both-input map layer/cache dependencies, gaps and limit outcomes.

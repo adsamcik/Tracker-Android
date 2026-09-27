@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalPayloadPrefli
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
 import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptIntegrity
 import com.adsamcik.tracker.shared.base.database.data.LocationSamplePurposeAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.ProtectedLocationCanonicalReceiptCodec as SharedProtectedLocationCanonicalReceiptCodec
@@ -1374,8 +1375,7 @@ private suspend fun AppDatabase.recordLocationCapturePurposeInCurrentTransaction
 		sourceSignalId = requireNotNull(sample.sourceSignalId),
 		sourceAdmissionOrdinal = evidence.sourceAdmissionOrdinal,
 		walIntegrityIdentity = evidence.walIntegrityIdentity,
-		canonicalContentChecksum = MessageDigest.getInstance("SHA-256")
-			.digest(sample.canonicalReceiptBytes()).joinToString("") { "%02x".format(it) },
+		canonicalContentChecksum = LocationAcceptedReceiptIntegrity.canonicalChecksum(sample),
 		sourceInstanceId = authority.sourceInstanceId.value,
 		registrationGeneration = authority.registrationGeneration,
 		sourceSequence = evidence.sourceSequence,

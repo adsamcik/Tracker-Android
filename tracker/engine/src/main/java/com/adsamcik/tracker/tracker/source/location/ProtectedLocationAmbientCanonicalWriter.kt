@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptIntegrity
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
 import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
@@ -226,7 +227,7 @@ internal suspend fun AppDatabase.recordLocationAmbientPurpose(command: LocationA
 	val wal = command.wal
 	val a = command.authority
 	val common = LocationAcceptedReceiptEntity(sample.id, wal.eventId, requireNotNull(sample.sourceSignalId),
-		wal.admissionOrdinal, wal.integrityIdentity, locationContentDigest(sample.canonicalReceiptBytes()),
+		wal.admissionOrdinal, wal.integrityIdentity, LocationAcceptedReceiptIntegrity.canonicalChecksum(sample),
 		wal.sourceInstanceId, wal.registrationGeneration, wal.sourceSequence, requireNotNull(wal.deliveryIdentity),
 		requireNotNull(wal.deliveryUnitIndex), requireNotNull(wal.deliveryUnitCount), ProtectedLocationCanonicalHandoff.WRITER_ID,
 		ProtectedLocationCanonicalHandoff.WRITER_VERSION, requireNotNull(wal.configRevision), requireNotNull(wal.physicalConfigurationFingerprint),

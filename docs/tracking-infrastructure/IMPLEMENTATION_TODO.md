@@ -7,7 +7,10 @@ Last updated: 2026-09-27
 Approved temporal/scope/uncertainty matcher and native fact/receipt/authority observer coverage are
 authored and independently statically reviewed, **IMPLEMENTED_UNVALIDATED**. The shared authenticated
 paired reader, native display, both-input layer/cache dependencies and explicit gaps/limits remain
-open. Display placement and prior historical Location semantics await tool-question answers. See
+open. The approved shared API and canonical-content helper are authored and independently source-reviewed
+for a local IMPLEMENTED_UNVALIDATED checkpoint; the API has no reader implementation/DI binding. Full Location identity cannot be verified after WAL pruning from the existing
+carrier; the proposed durable receipt/grant proof storage decision awaits a tool answer, alongside
+display placement and prior historical Location semantics. See
 `optional-map-enrichment/2026-09-27/IMPLEMENTATION_TRACE.md` and `WORK_ITEM_TRACKING.md`.
 Implementation-only: no validation, activation, freeze, new dev/v10 integration or push.
 

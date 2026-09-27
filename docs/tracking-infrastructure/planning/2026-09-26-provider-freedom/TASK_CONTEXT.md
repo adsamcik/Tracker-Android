@@ -657,3 +657,20 @@ approved decisions. Matcher/observer/actual Room test sources received narrow st
 reader and native rendering/cache routing remain incomplete. No complete retained Location facade
 exists; visibility-only or checksum-only conversion cannot qualify joins. Resume from
 ../../optional-map-enrichment/2026-09-27/IMPLEMENTATION_TRACE.md and REVIEW_RECEIPT.md.
+
+Continuation from d685b73664: approved shared native enrichment API and canonical-content helper/test
+sources authored. Both canonical writers reuse the identical sample checksum; no full authority
+proof, reader implementation, DI, renderer, schema change or provider activation is inferred.
+Root and independent review confirmed an exact registration/sequence/purpose binding gap after WAL
+pruning: canonical content/compact retention scope proof cannot reconstruct the complete original
+authority fingerprint. New question asks approval for versioned full accepted-receipt and each
+purpose-grant integrity proof, written atomically by the qualified writer, preserving older records
+as unavailable unless original evidence survives; alternative is original-event-only enrichment
+with older gaps. No answer received, no dependent storage/migration/proof-writer implemented.
+Existing shared API approval is not approval to invent missing durable proof authority.
+
+Ambient local facade authority/owner/lineage gaps and portable export's post-snapshot lineage race
+are confirmed. Existing maintenance accepts revoked retention authority for cleanup; it is not a
+display qualification helper. No native ambient DELETED revision exists; erase purges families and
+uses deletion markers/replay footprints. Preserve independent surviving purposes. Whole task and
+assembly gate remain open; all tests unexecuted under IMPLEMENTATION_ONLY.
