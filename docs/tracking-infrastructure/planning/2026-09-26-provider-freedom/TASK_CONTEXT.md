@@ -221,3 +221,34 @@ The image used session-only Location. Code review also established actual propos
 > Implement the proposed plan.
 
 This approves the immediately preceding All-day adaptive Location plan, reproduced in ADAPTIVE_LOCATION_IMPLEMENTATION.md. It does not lift the repository IMPLEMENTATION_ONLY phase, authorize candidate activation/push, or implicitly approve unrelated pending choices in the broader package.
+
+## 23. Close unresolved design decisions — 2026-09-27
+
+User requests following the implementation checkpoint:
+
+> What is remaining from our mplementation work, did you make sure all is commited into dev/v10?
+
+> Can you write me step by step work items that we need to complete as a markdown list?
+
+> **Close unresolved design decisions.** Resolve the documented CONTROL retention lifetime, optional Wi-Fi/Cell notification hosting, and remaining file/archive behavior.
+
+The user then answered the four tool questions:
+
+> 1. 48 hours retention
+> 2. Yes
+> 3. I don't get what this is about
+> 4. The point of database export was a clean way to backup all data
+
+The questions concerned (1) CONTROL-only lifetime, (2) optional default-off “Keep running with notification” for Wi-Fi/Cell, (3) selected portable files/geographic interchange with truthful time/scope, and (4) retaining raw database archives as advanced exports without complete restore. Therefore 48h and the host option are approved; file-format confusion is not approval; the archive-only recommendation is superseded by the all-data-backup requirement.
+
+Follow-up question tool, still pending:
+
+> For selected-data exports, I recommend a Tracker file that preserves the selected data and session labels, alongside GPX/KML for other apps. Exports would show when a whole day or measurement must be included, and imports would never invent missing timestamps. Is that the behavior you want, separately from full backup?
+
+Options: Yes—Tracker files plus GPX/KML (Recommended); Keep selected exports to the existing formats for now.
+
+> For full backup, I recommend saving all durable Tracker data and settings, excluding temporary caches and files bundled with the app. Restore would replace existing Tracker data after confirmation, recover safely if interrupted, and leave tracking stopped until the user starts it. Should restore support replacing existing data, or only work in an empty app?
+
+Options: Allow replacement after confirmation (Recommended); Restore only into an empty app.
+
+DECISION_CLOSURE contains the concrete proposal and current source evidence. No complete backup/restore implementation, recurring schedule migration, validation or integration is authorized merely by recording this decision packet. Phase remains IMPLEMENTATION_ONLY.

@@ -4,6 +4,8 @@
 
 This is the current entry point and replaces the previous approval packet. Current detailed contracts are Runtime, Data, Product, Assembly and the five-level profile table linked below. Other planning reports are historical source evidence, not additional mechanisms to implement. This pass changes the proposal only; it neither implements providers nor opens deferred validation.
 
+**2026-09-27 decision update:** [DECISION_CLOSURE.md](DECISION_CLOSURE.md) records approved 48-hour CONTROL retention and optional default-off Wi-Fi/Cell notification hosting. The user requires a clean backup of all data; the earlier raw-archive-only/no-restore proposal is superseded. Selected-data export and full-backup restore behavior await focused confirmation. These decisions do not approve the entire remaining implementation package.
+
 ## 1. The product
 
 Users choose what to collect. One engine runs selected supported sources, adapts their effort, and stores qualified observations. A live session requests more detail and supplies an organizational interval. Ending it preserves separately enabled background collection. A session added later is an annotation over existing data.
@@ -116,16 +118,16 @@ Explicit My location/games use temporary shared nonpersisting Location leases wi
 | Reimport | Same-file retry uses existing receipts; another file creates a new local annotation and never updates local edits. Source receipts deduplicate observations |
 | Selection | Disclose whole-entry/day expansion; never invent clipped Steps or aggregate windows. Imported annotation selects only its listed source entries |
 | Schedules | No LastSession fallback to all history/older entries. Keep compatible Location increments; pause misleading JSON incremental and sensitive raw archives for review |
-| Raw database archive | Explicit reviewed actual file set, all file content and some DB-backed preferences; not complete app restore or a filtered portable export |
+| Full backup | User requires all-data backup. Proposed complete durable-data/settings/files snapshot and recoverable restore in DECISION_CLOSURE D4; restore choice pending. Existing database-only archives are legacy evidence, not a complete backup |
 | Cancel/clear | Existing output cleanup with actual residual/pending status, exact app-owned paths, durable watermark only after success; external copies cannot be recalled |
 
-CONTROL is ineligible after the proposed24h TTL, with active-store rows pruned at the next permitted cleanup. This is not forensic erasure: SQLite free pages/WAL, older database files and external archives can contain residue. Raw archive disclosure must remain accurate after cleanup. No secure-delete/VACUUM/encryption redesign is added.
+CONTROL is ineligible after the approved 48h TTL, with active-store rows pruned at the next permitted cleanup. Trigger freshness remains much shorter. This is not forensic erasure: SQLite free pages/WAL, older database files and external archives can contain residue. Backup disclosure must remain accurate after cleanup. No secure-delete/VACUUM/encryption redesign is added.
 
 ## 9. Implementation, alternatives and proof
 
 All original D1–D7/P1–P8 obligations remain accounted for in the current contracts; the unnecessary mechanisms above are replaced, not silently deferred. Required passive Location, Activity/Pressure, effects, privacy and source-only paths remain in scope. Rejected alternatives include a second policy engine, source-wide battery downgrades, replicated organization metadata, mass backfill, generic all-source format replacement and a new pause framework.
 
-The remaining meaningful product alternatives are CONTROL cleanup lifetime, passive/opportunistic-only versus optional visible hosting, and explicitly choosing different initial profile constants. The recommended package retains24h CONTROL, optional hosts off by default, and the stated initial profiles. These are proposals until approved.
+CONTROL retention is settled at 48h; the optional visible Wi-Fi/Cell host is approved off by default. Selected-data file behavior and full-backup restore behavior remain in DECISION_CLOSURE. The stated initial profiles and other unapproved detailed choices remain proposals; do not treat these focused replies as blanket approval.
 
 [Assembly contract](ASSEMBLY_GAP_CLOSURE.md) maps all 25 prerequisites and exact candidate dispositions. The [input receipt](PLAN_CLOSURE_INPUTS.json) records seven checkouts and preserved source hashes at the prior checkpoint; it is not an assembly freeze. [Review history](PLAN_REVIEW.md) records the initial review and the later adversarial corrections.
 
