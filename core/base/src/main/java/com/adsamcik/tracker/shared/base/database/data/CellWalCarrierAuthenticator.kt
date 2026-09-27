@@ -360,7 +360,7 @@ object CellWalCarrierAuthenticator {
 				!authority.contains(providerTime) ||
 					carrier.receivedElapsedNanos - providerTime >
 					authority.maximumObservationAgeNanos -> CellWalChildDisposition.STALE
-				observation.radioType !in SUPPORTED_CELL_RADIO_TYPES ->
+				!observation.hasSupportedCellProductShape() ->
 					CellWalChildDisposition.UNSUPPORTED_TECHNOLOGY
 				else -> CellWalChildDisposition.ACCEPTED
 			}
@@ -668,6 +668,9 @@ private val CELL_WAL_OBSERVATION_ORDER = compareBy<CellWalPayloadObservation>(
 	CellWalPayloadObservation::signalLevelDbm,
 	CellWalPayloadObservation::providerTimestampNanos,
 )
+internal fun CellWalPayloadObservation.hasSupportedCellProductShape(): Boolean =
+	radioType in SUPPORTED_CELL_RADIO_TYPES
+
 private val SUPPORTED_CELL_RADIO_TYPES = setOf("GSM", "CDMA", "WCDMA", "TDSCDMA", "LTE", "NR")
 private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
 private const val CAPTURED_REGISTRATION_PLAN_ORDINAL = 0

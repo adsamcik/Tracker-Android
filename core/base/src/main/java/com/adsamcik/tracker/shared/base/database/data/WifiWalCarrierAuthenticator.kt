@@ -386,8 +386,7 @@ object WifiWalCarrierAuthenticator {
 		val dispositions = payload.observations.map { observation ->
 			val providerTime = requireNotNull(observation.providerTimestampNanos)
 			when {
-				observation.frequencyMhz !in WIFI_MIN_FREQUENCY_MHZ..WIFI_MAX_FREQUENCY_MHZ ||
-					observation.signalLevelDbm !in WIFI_MIN_SIGNAL_DBM..WIFI_MAX_SIGNAL_DBM ->
+				!observation.hasSupportedWifiProductShape() ->
 					WifiWalChildDisposition.MALFORMED
 				providerTime > wal.receivedElapsedNanos ->
 					WifiWalChildDisposition.CLOCK_UNVERIFIABLE
@@ -717,12 +716,16 @@ private fun rejected(reason: WifiWalCarrierFailure) =
 private enum class WifiBand { TWO_POINT_FOUR_GHZ, FIVE_GHZ, SIX_GHZ, OTHER }
 
 private const val TYPE_WIFI_RESULTS = 7
-private const val MAX_WIFI_WAL_CHILDREN = 64
+internal const val MAX_WIFI_WAL_CHILDREN = 64
 private const val MAX_WIFI_ZONE_ID_LENGTH = 64
 private const val NANOS_PER_MILLISECOND = 1_000_000L
 private const val CAPTURED_REGISTRATION_PLAN_ATTRIBUTION = 0
 private const val WIFI_PROVIDER_WALL_UNCERTAINTY_MS = 1L
 private const val WIFI_RESULT_CONTRACT = "ANDROID_SCAN_RESULTS_V1"
+internal fun WifiWalPayloadObservation.hasSupportedWifiProductShape(): Boolean =
+	frequencyMhz in WIFI_MIN_FREQUENCY_MHZ..WIFI_MAX_FREQUENCY_MHZ &&
+		signalLevelDbm in WIFI_MIN_SIGNAL_DBM..WIFI_MAX_SIGNAL_DBM
+
 private const val WIFI_MIN_FREQUENCY_MHZ = 2_400
 private const val WIFI_MAX_FREQUENCY_MHZ = 7_125
 private const val WIFI_MIN_SIGNAL_DBM = -200
