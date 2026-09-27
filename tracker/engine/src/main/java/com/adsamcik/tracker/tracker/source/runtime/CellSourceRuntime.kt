@@ -85,6 +85,7 @@ class CellSourceRuntime @Inject internal constructor(
 	private val _capabilities = MutableStateFlow(capabilitiesNow())
 	override val capabilities: StateFlow<SourceCapabilities> = _capabilities
 	private val lifecycleMutex = Mutex()
+	private val providerOperationMutex = Mutex()
 	private val callbackLock = Any()
 	private var registration: SourceRegistration? = null
 	private var callbackToken: CellCallbackToken? = null
@@ -226,14 +227,16 @@ class CellSourceRuntime @Inject internal constructor(
 				return@withLock sharedCutoffUnavailable(activeRegistration)
 			}
 			val completion = CompletableDeferred<RuntimeAdmissionSnapshot>()
-			val barrier = synchronized(callbackLock) {
-				if (!accepting || registration !== activeRegistration ||
-					callbackToken !== activeToken || queue !== activeQueue
-				) {
-					return@synchronized null
+			val barrier = providerOperationMutex.withLock {
+				synchronized(callbackLock) {
+					if (!accepting || registration !== activeRegistration ||
+						callbackToken !== activeToken || queue !== activeQueue
+					) {
+						return@synchronized null
+					}
+					accepting = false
+					callbackSequence
 				}
-				accepting = false
-				callbackSequence
 			} ?: return@withLock sharedCutoffUnavailable(activeRegistration)
 			try {
 				activeQueue.submit(CellRuntimeInput.SharedCutoff(completion))
@@ -349,14 +352,16 @@ class CellSourceRuntime @Inject internal constructor(
 				CellCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
 			)
 		}
-		val closed = synchronized(callbackLock) {
-			if (!accepting || registration !== activeRegistration || callbackToken !== activeToken ||
-				queue !== activeQueue
-			) {
-				false
-			} else {
-				accepting = false
-				true
+		val closed = providerOperationMutex.withLock {
+			synchronized(callbackLock) {
+				if (!accepting || registration !== activeRegistration || callbackToken !== activeToken ||
+					queue !== activeQueue
+				) {
+					false
+				} else {
+					accepting = false
+					true
+				}
 			}
 		}
 		if (!closed) return@withLock CellCaptureDeletionBarrierResult.Retryable(
@@ -526,14 +531,16 @@ class CellSourceRuntime @Inject internal constructor(
 		val application = CellPrerequisiteEvaluator.evaluate(plan, deviceStateProvider.cell())
 		_capabilities.value = capabilitiesNow()
 		if (application.status == SourceApplyStatus.BLOCKED) return null
-		val refreshBoundary = synchronized(callbackLock) {
-			if (!accepting || callbackToken !== activeCallbackToken || registration !== activeRegistration) {
-				return null
+		val refreshBoundary = providerOperationMutex.withLock {
+			synchronized(callbackLock) {
+				if (!accepting || callbackToken !== activeCallbackToken || registration !== activeRegistration) {
+					return null
+				}
+				// A provider callback either captures the old immutable context before this boundary or
+				// is rejected until the refreshed durable authorization and callback context are installed.
+				accepting = false
+				SystemClock.elapsedRealtimeNanos()
 			}
-			// A provider callback either captures the old immutable context before this boundary or
-			// is rejected until the refreshed durable authorization and callback context are installed.
-			accepting = false
-			SystemClock.elapsedRealtimeNanos()
 		}
 		val refreshed = runCatchingNonCancellation {
 			registrations.refreshActiveAuthorization(
@@ -749,15 +756,17 @@ class CellSourceRuntime @Inject internal constructor(
 
 	private suspend fun settleShutdownLocked(cutoff: SessionCutoff?): SourceStopAck {
 		val activeRegistration = registration ?: return unavailableAck(cutoff)
-		synchronized(callbackLock) { cutoffElapsedNanos = cutoff?.elapsedRealtimeNanos }
 		wakeups.cancel(REFRESH_WAKEUP_ID)
 		wakeups.cancel(TIMEOUT_WAKEUP_ID)
 		val barrier: Long
 		val retirementBoundary: Long
-		synchronized(callbackLock) {
-			accepting = false
-			barrier = callbackSequence
-			retirementBoundary = SystemClock.elapsedRealtimeNanos()
+		providerOperationMutex.withLock {
+			synchronized(callbackLock) {
+				cutoffElapsedNanos = cutoff?.elapsedRealtimeNanos
+				accepting = false
+				barrier = callbackSequence
+				retirementBoundary = SystemClock.elapsedRealtimeNanos()
+			}
 		}
 		val retirement = retireProviderRegistration(
 			activeRegistration,
@@ -915,6 +924,7 @@ class CellSourceRuntime @Inject internal constructor(
 		token: CellCallbackToken,
 		snapshot: CellBackendSnapshot,
 		outcome: CellRefreshOutcome,
+		request: CellRefreshRequest? = null,
 	) {
 		synchronized(callbackLock) {
 			if (!accepting || callbackToken !== token) return
@@ -933,6 +943,7 @@ class CellSourceRuntime @Inject internal constructor(
 					receivedElapsedNanos = receivedElapsedNanos,
 					receivedWallTimeMs = receivedWallTimeMs,
 					context = context,
+					request = request,
 				),
 			) == true
 			if (!accepted) {
@@ -969,7 +980,7 @@ class CellSourceRuntime @Inject internal constructor(
 	) {
 		var lastRefreshAtMs = Long.MIN_VALUE
 		var backoff = RuntimeBackoffState()
-		var awaitingRefresh = false
+		var outstandingRequest: CellRefreshRequest? = null
 		val replayGateBySubscription = mutableMapOf<Int?, BoundedReplayIdentityGate>()
 		var refreshAttempts = 0
 		var qualifiedEvidenceReceived = false
@@ -985,7 +996,7 @@ class CellSourceRuntime @Inject internal constructor(
 			val state = deviceStateProvider.cell()
 			if (!prerequisiteGate.allows(context.plan) ||
 				!shouldScheduleCellRefresh(context.plan.mode, state.refreshApiAvailable) ||
-				!canRequestRefresh(context)
+				!canRequestRefresh(context) || outstandingRequest != null
 			) {
 				wakeups.cancel(REFRESH_WAKEUP_ID)
 				return
@@ -1004,7 +1015,7 @@ class CellSourceRuntime @Inject internal constructor(
 						.coerceIn(0L, MAX_COALESCE_WINDOW_MS),
 				),
 			) {
-				enqueueControl(CellRuntimeInput.Refresh)
+				enqueueControl(CellRuntimeInput.Refresh(context, earliest))
 			}
 		}
 
@@ -1065,45 +1076,73 @@ class CellSourceRuntime @Inject internal constructor(
 							input.callbackSequence,
 						)
 					}
-					if (awaitingRefresh) {
-						awaitingRefresh = false
+					val request = outstandingRequest
+					if (request != null && input.request === request &&
+						request.context.registration.samePhysicalRegistrationAs(input.context.registration) &&
+						request.responses.record(input.snapshot.subscriptionId,
+							input.receivedElapsedNanos / NANOS_PER_MILLISECOND)
+					) {
+						outstandingRequest = null
 						wakeups.cancel(TIMEOUT_WAKEUP_ID)
 						backoff = backoff.succeeded()
 					}
 					scheduleRefresh()
 				}
-				CellRuntimeInput.Refresh -> {
-					val context = currentCallbackContext(activeToken) ?: return@inputLoop
-					if (!canRequestRefresh(context) || !prerequisiteGate.allows(context.plan)) {
+				is CellRuntimeInput.Refresh -> {
+					// Lifecycle fences share this mutex. Never hold callbackLock across Android:
+					// providers can synchronously dispatch a callback on another thread.
+					val execution = providerOperationMutex.withLock {
+						val subscriptions = backend.registeredSubscriptionIds
+						val request = synchronized(callbackLock) {
+							val context = currentCallbackContextLocked()
+							val now = SystemClock.elapsedRealtime()
+							if (!accepting || callbackToken !== activeToken || context == null ||
+								context.registration !== input.context.registration ||
+								context.plan != input.context.plan || outstandingRequest != null ||
+								now < input.earliestElapsedMs || !canRequestRefresh(context) ||
+								!prerequisiteGate.allows(context.plan) ||
+								!shouldScheduleCellRefresh(context.plan.mode, deviceStateProvider.cell().refreshApiAvailable)
+							) return@synchronized null
+							refreshAttempts++
+							lastRefreshAtMs = now
+							CellRefreshRequest(context, CellRefreshResponses(
+								subscriptions, now + REFRESH_TIMEOUT_MS,
+							)).also { outstandingRequest = it }
+						} ?: return@withLock null
+						val outcome = runCatchingNonCancellation {
+							backend.requestRefresh { snapshot ->
+								onBackendSnapshot(activeToken, snapshot, CellRefreshOutcome.CALLBACK, request)
+							}
+						}.getOrDefault(CellRefreshRequestOutcome.PROVIDER_FAILED)
+						request to outcome
+					}
+					if (execution == null) {
 						scheduleRefresh()
 						return@inputLoop
 					}
-					refreshAttempts++
-					lastRefreshAtMs = SystemClock.elapsedRealtime()
-					when (backend.requestRefresh { snapshot ->
-						onBackendSnapshot(activeToken, snapshot, CellRefreshOutcome.CALLBACK)
-					}) {
+					val (request, outcome) = execution
+					when (outcome) {
 						CellRefreshRequestOutcome.REQUESTED -> {
-							awaitingRefresh = true
-							val timeoutAt = SystemClock.elapsedRealtime() + REFRESH_TIMEOUT_MS
 							wakeups.schedule(
-								sourceWakeupRequest(TIMEOUT_WAKEUP_ID, source, timeoutAt, 0L),
-							) { enqueueControl(CellRuntimeInput.Timeout) }
+								sourceWakeupRequest(TIMEOUT_WAKEUP_ID, source, request.responses.deadlineElapsedMs, 0L),
+							) { enqueueControl(CellRuntimeInput.Timeout(request)) }
 						}
 						CellRefreshRequestOutcome.NOT_SUPPORTED -> {
+							outstandingRequest = null
 							backoff = backoff.succeeded()
 						}
-						CellRefreshRequestOutcome.PERMISSION_BLOCKED -> {
-							backoff = backoff.failed()
-						}
+						CellRefreshRequestOutcome.PERMISSION_BLOCKED,
 						CellRefreshRequestOutcome.PROVIDER_FAILED -> {
+							outstandingRequest = null
 							backoff = backoff.failed()
 						}
 					}
 					scheduleRefresh()
 				}
-				CellRuntimeInput.Timeout -> if (awaitingRefresh) {
-					awaitingRefresh = false
+				is CellRuntimeInput.Timeout -> if (outstandingRequest === input.request &&
+					SystemClock.elapsedRealtime() >= input.request.responses.deadlineElapsedMs
+				) {
+					outstandingRequest = null
 					backoff = backoff.failed()
 					scheduleRefresh()
 				}
@@ -1256,8 +1295,8 @@ class CellSourceRuntime @Inject internal constructor(
 	private sealed interface CellRuntimeInput {
 		data object Started : CellRuntimeInput
 		data object PlanChanged : CellRuntimeInput
-		data object Refresh : CellRuntimeInput
-		data object Timeout : CellRuntimeInput
+		data class Refresh(val context: CellCallbackContext, val earliestElapsedMs: Long) : CellRuntimeInput
+		data class Timeout(val request: CellRefreshRequest) : CellRuntimeInput
 		data class CaptureBarrier(
 			val completion: CompletableDeferred<Unit>,
 		) : CellRuntimeInput
@@ -1271,6 +1310,7 @@ class CellSourceRuntime @Inject internal constructor(
 			val receivedElapsedNanos: Long,
 			val receivedWallTimeMs: Long,
 			val context: CellCallbackContext,
+			val request: CellRefreshRequest? = null,
 		) : CellRuntimeInput
 	}
 
@@ -1317,6 +1357,24 @@ private fun SourceRegistrationRetirementToken.sameRetirementAs(
 	retiredElapsedRealtimeNanos == other.retiredElapsedRealtimeNanos
 
 private enum class CellProviderRetirement { NOT_DURABLE, PENDING, COMPLETE }
+
+private class CellRefreshRequest(
+	val context: CellCallbackContext,
+	val responses: CellRefreshResponses,
+)
+
+/** One refresh fans out over actual registered SIMs; unsolicited callbacks never own it. */
+internal class CellRefreshResponses(
+	subscriptionIds: Set<Int?>,
+	val deadlineElapsedMs: Long,
+) {
+	private val remaining = subscriptionIds.toMutableSet()
+
+	fun record(subscriptionId: Int?, receivedElapsedMs: Long): Boolean {
+		if (receivedElapsedMs > deadlineElapsedMs || !remaining.remove(subscriptionId)) return false
+		return remaining.isEmpty()
+	}
+}
 
 private data class CellCallbackContext(
 	val registration: SourceRegistration,

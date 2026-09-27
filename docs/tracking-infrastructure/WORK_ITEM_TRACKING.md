@@ -21,6 +21,9 @@ open; validation and integration are deferred. The historical registry below is 
   confirmation and end-to-end wiring remain open; see `shared-radio/2026-09-27/CONTRACT_DECISION.md`.
 - [x] Complete five-level configuration across sources: production and focused test sources
   authored and independently source-reviewed, **IMPLEMENTED_UNVALIDATED**. See `five-level/2026-09-27/IMPLEMENTATION_TRACE.md`.
+- [ ] Implement source-specific power behavior: independent Steps reporting/request-ownership
+  fixes and focused test sources authored; durable intent budget, carried cooldown and profile
+  freshness remain open pending the recovery contract. See `source-power/2026-09-27/IMPLEMENTATION_TRACE.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.
@@ -68,6 +71,24 @@ All remaining lifecycle slices keep
 
 The pure qualifier alone does not fix production admission. It has no current runtime/ingress/
 projector callers. No checked source slice implies tests passed or activation is authorized.
+
+### Source-specific power slices
+
+- [x] Preserve requested Steps hardware reporting within the actual demand limit; no sensor/backend
+  switching or checkpoint-driven registration restart. Production/test source slice authored.
+- [x] Fence queued Wi-Fi/Cell attempts by immutable owner/plan/deadline and live prerequisites;
+  preserve passive observations. Production/test source slice authored.
+- [x] Exact Cell request callback/SIM/timeout ownership; no inferred Wi-Fi request attribution.
+- [ ] Confirm the versioned durable radio checkpoint and transactional reservation contract.
+- [ ] Preserve spent intent allowance/cooldown across profile, authorization, physical, SIM and
+  recovery changes; operational cleanup cannot refund it.
+- [ ] Separate adopted-profile 60s desired freshness from useful provider item age.
+- [ ] Author durable contract/Room cases and independently review the complete power slice.
+
+The checked slices above are IMPLEMENTED_UNVALIDATED source work. The whole task remains open;
+its initial/final bounded static review is recorded in `source-power/2026-09-27/REVIEW_RECEIPT.md`.
+No checkpoint proposal is implicitly approved. Existing per-registration budget reset paths remain
+until its dependent slice is completed.
 
 ## 2026-09-20 authority and Steps P5 integration ledger
 

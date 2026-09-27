@@ -86,6 +86,16 @@ class CellSourceBackendTest {
 	}
 
 	@Test
+	fun `refresh with no physical registrations does not report a request`() {
+		val subject = backend(mockk(relaxed = true)) { _, manager ->
+			CellProviderRegistration(manager, mockk(relaxed = true), null) { }
+		}
+
+		assertTrue(subject.registeredSubscriptionIds.isEmpty())
+		assertEquals(CellRefreshRequestOutcome.PROVIDER_FAILED, subject.requestRefresh { })
+	}
+
+	@Test
 	fun `refresh request propagates cancellation and fatal errors`() {
 		val baseManager = mockk<TelephonyManager>(relaxed = true)
 		val subscriptionManager = mockk<TelephonyManager>(relaxed = true)

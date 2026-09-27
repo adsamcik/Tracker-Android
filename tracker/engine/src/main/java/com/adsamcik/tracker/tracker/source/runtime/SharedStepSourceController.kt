@@ -257,7 +257,10 @@ class SharedStepSourceController @Inject internal constructor(
 		return StepsPlan(
 			revision = attachedSessionPlan?.revision ?: demands.maxOf(SourceDemandEntity::sourcePolicyRevision),
 			enabled = true,
-			maximumReportLatencyMs = demands.minOf(SourceDemandEntity::desiredLatencyMs),
+			maximumReportLatencyMs = minOf(
+				attachedSessionPlan?.maximumReportLatencyMs ?: Long.MAX_VALUE,
+				demands.minOf(SourceDemandEntity::desiredLatencyMs),
+			),
 			projectionCheckpointIntervalMs = attachedSessionPlan?.projectionCheckpointIntervalMs
 				?: demands.minOf(SourceDemandEntity::maximumAgeMs),
 			movementPolicyNeedsLowLatency = attachedSessionPlan?.movementPolicyNeedsLowLatency ?: false,

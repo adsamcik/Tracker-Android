@@ -21,6 +21,9 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import java.time.Duration
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
@@ -1330,6 +1333,93 @@ class CellSourceRuntimeTest {
 		assertTrue(oldAdmissions.isEmpty())
 		assertEquals(2L, newAdmissions.single().authorizationRevision)
 		assertEquals(2L, newAdmissions.single().configRevision)
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `queued refresh cannot execute after passive downgrade`() = runTest {
+		val active = cellPlan(mode = CellMode.OBSERVE_AND_SPARSE_REFRESH)
+		val passive = active.copy(revision = 2L, mode = CellMode.OBSERVE_CHANGES)
+		val initial = registration(active, 1L)
+		val retained = registration(passive, 2L).copy(
+			physicalConfigurationFingerprint = initial.physicalConfigurationFingerprint,
+		)
+		val fixture = runtimeFixture(this, active, listOf(initial))
+		coEvery { fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any()) } returns retained
+		var scheduled: (suspend () -> Unit)? = null
+		coEvery { fixture.wakeups.schedule(any(), any()) } answers { scheduled = secondArg(); Unit }
+		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
+		fixture.start(sink)
+		runCurrent()
+		val oldWakeup = requireNotNull(scheduled)
+
+		assertTrue(fixture.runtime.refreshShared(passive, sink) is SourceApplyResult.Applied)
+		oldWakeup()
+		runCurrent()
+
+		verify(exactly = 0) { fixture.backend.requestRefresh(any()) }
+		verify(exactly = 1) { fixture.backend.start(any(), any()) }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `passive callback cannot settle requested refresh and duplicate wakeup cannot spend twice`() = runTest {
+		val fixture = runtimeFixture(this, cellPlan(mode = CellMode.OBSERVE_AND_SPARSE_REFRESH))
+		val actions = mutableMapOf<String, suspend () -> Unit>()
+		val cancelled = mutableListOf<String>()
+		coEvery { fixture.wakeups.schedule(any(), any()) } answers {
+			actions[firstArg<com.adsamcik.tracker.tracker.source.coordinator.WakeupRequest>().id] = secondArg()
+			Unit
+		}
+		coEvery { fixture.wakeups.cancel(any()) } answers { cancelled += firstArg<String>(); Unit }
+		var response: ((CellBackendSnapshot) -> Unit)? = null
+		every { fixture.backend.registeredSubscriptionIds } returns setOf(1)
+		every { fixture.backend.requestRefresh(any()) } answers {
+			response = firstArg()
+			CellRefreshRequestOutcome.REQUESTED
+		}
+		fixture.start(cellCandidateSink { SourceAdmissionHandoff.Durable(1L) })
+		runCurrent()
+		val attempt = requireNotNull(actions["cell-sparse-refresh"])
+		attempt()
+		attempt()
+		runCurrent()
+		cancelled.clear()
+
+		fixture.emit(freshProviderDelivery())
+		runCurrent()
+		assertFalse("cell-refresh-timeout" in cancelled)
+		verify(exactly = 1) { fixture.backend.requestRefresh(any()) }
+
+		requireNotNull(response)(freshProviderDelivery())
+		runCurrent()
+		assertTrue("cell-refresh-timeout" in cancelled)
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `refresh can synchronously wait for callback on another thread without holding ingress lock`() = runTest {
+		val fixture = runtimeFixture(this, cellPlan(mode = CellMode.OBSERVE_AND_SPARSE_REFRESH))
+		var scheduled: (suspend () -> Unit)? = null
+		coEvery { fixture.wakeups.schedule(any(), any()) } answers { scheduled = secondArg(); Unit }
+		every { fixture.backend.registeredSubscriptionIds } returns setOf(1)
+		every { fixture.backend.requestRefresh(any()) } answers {
+			val callback = firstArg<(CellBackendSnapshot) -> Unit>()
+			val snapshot = freshProviderDelivery()
+			val delivered = CountDownLatch(1)
+			val worker = thread(isDaemon = true) { callback(snapshot); delivered.countDown() }
+			assertTrue(delivered.await(2L, TimeUnit.SECONDS))
+			worker.join(2_000L)
+			CellRefreshRequestOutcome.REQUESTED
+		}
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		fixture.start(cellCandidateSink { admitted += it; SourceAdmissionHandoff.Durable(1L) })
+		runCurrent()
+
+		requireNotNull(scheduled)()
+		runCurrent()
+
+		assertEquals(1, admitted.size)
 		fixture.runtime.close()
 	}
 

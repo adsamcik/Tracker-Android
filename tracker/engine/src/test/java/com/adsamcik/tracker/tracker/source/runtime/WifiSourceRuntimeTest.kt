@@ -1101,6 +1101,53 @@ class WifiSourceRuntimeTest {
 	}
 
 	@Test
+	fun `queued Wi-Fi attempt respects newly entered Doze and passive observations continue`() = runTest {
+		val fixture = runtimeFixture(this, runtimePlan = plan(1L).copy(mode = WifiMode.ACTIVE_ATTEMPTS))
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		fixture.start(wifiCandidateSink { admitted += it; SourceAdmissionHandoff.Durable(1L) })
+		runCurrent()
+		fixture.state = fixture.state.copy(deviceIdle = true)
+
+		fixture.fireScheduledWakeup()
+		fixture.emit(resultEvent(receivedNanos = 10_000_000L))
+		runCurrent()
+
+		verify(exactly = 0) { fixture.backend.requestScan() }
+		assertEquals(1, admitted.size)
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `old Wi-Fi authorization wakeup cannot spend a successor allowance`() = runTest {
+		val initialPlan = plan(1L).copy(mode = WifiMode.ACTIVE_ATTEMPTS)
+		val successorPlan = initialPlan.copy(revision = 2L)
+		val initial = registration(initialPlan, 1L)
+		val successor = registration(successorPlan, 2L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial))
+		coEvery { fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any()) } returns successor
+		every { fixture.backend.requestScan() } returns WifiRequestOutcome.ACCEPTED
+		val actions = mutableListOf<suspend () -> Unit>()
+		coEvery { fixture.wakeups.schedule(any(), any()) } answers { actions += secondArg<suspend () -> Unit>(); Unit }
+		val sink = wifiCandidateSink { SourceAdmissionHandoff.Durable(1L) }
+		fixture.start(sink)
+		runCurrent()
+		val oldWakeup = actions.single()
+
+		assertTrue(fixture.runtime.reconfigure(successorPlan, sink) is SourceApplyResult.Applied)
+		oldWakeup()
+		runCurrent()
+
+		verify(exactly = 0) { fixture.backend.requestScan() }
+		assertEquals(3, actions.size) // Initial, successor, then reconciliation after stale rejection.
+		val successorWakeup = actions.last()
+		successorWakeup()
+		successorWakeup()
+		runCurrent()
+		verify(exactly = 1) { fixture.backend.requestScan() }
+		fixture.runtime.close()
+	}
+
+	@Test
 	fun `active scan may synchronously publish a callback without callback-lock deadlock`() = runTest {
 		val activePlan = plan(1L).copy(mode = WifiMode.ACTIVE_ATTEMPTS)
 		val fixture = runtimeFixture(this, runtimePlan = activePlan)
@@ -1120,7 +1167,8 @@ class WifiSourceRuntimeTest {
 
 		verify(exactly = 1) { fixture.backend.requestScan() }
 		assertEquals(1, admitted.size)
-		assertEquals(PlanAttribution.LINKED_ATTEMPT, admitted.single().planAttribution)
+		assertEquals(PlanAttribution.RECEIVE_TIME_ONLY, admitted.single().planAttribution)
+		assertNull(admitted.single().configRevision)
 		fixture.runtime.close()
 	}
 

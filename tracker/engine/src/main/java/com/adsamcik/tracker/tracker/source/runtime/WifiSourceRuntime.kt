@@ -37,7 +37,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.UUID
 import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -951,7 +950,6 @@ class WifiSourceRuntime @Inject internal constructor(
 		inputs: WifiCallbackLane<WifiRuntimeInput>,
 		physicalRegistration: SourceRegistration,
 	) {
-		var pendingAttemptId: String? = null
 		var lastAttemptAtMs = Long.MIN_VALUE
 		var backoff = RuntimeBackoffState()
 		val replayGate = BoundedReplayIdentityGate()
@@ -982,10 +980,12 @@ class WifiSourceRuntime @Inject internal constructor(
 				plan.minimumAttemptIntervalMs,
 				backoff.delayMs(plan.backoff),
 			)
+			val attemptRegistration = synchronized(callbackLock) { registration } ?: return
 			wakeups.schedule(
 				sourceWakeupRequest(WAKEUP_ID, source, earliest, attemptWindow(plan.minimumAttemptIntervalMs)),
 			) {
-				enqueueControl(physicalRegistration, WifiRuntimeInput.Attempt)
+				enqueueControl(physicalRegistration,
+					WifiRuntimeInput.Attempt(attemptRegistration, plan, earliest))
 			}
 		}
 
@@ -997,32 +997,33 @@ class WifiSourceRuntime @Inject internal constructor(
 				when (input) {
 				is WifiRuntimeInput.CaptureBarrier -> input.completion.complete(Unit)
 				is WifiRuntimeInput.SharedCutoff -> input.completion.complete(metrics.snapshot())
-				WifiRuntimeInput.Attempt -> {
+				is WifiRuntimeInput.Attempt -> {
 					val execution = providerOperationMutex.withLock {
 						val plan = synchronized(callbackLock) {
 							currentDirectAttemptPlanLocked(inputs, physicalRegistration)
 						} ?: return@withLock null
-						if (!prerequisiteGate.allows(plan)) return@withLock null
+						val application = prerequisiteGate.application(plan) ?: return@withLock null
+						if (application.status == SourceApplyStatus.BLOCKED ||
+							application.activeAttemptsDeferred) return@withLock null
 						val requestAllowed = synchronized(callbackLock) {
-							currentDirectAttemptPlanLocked(inputs, physicalRegistration) == plan &&
+							registration === input.registration && plan == input.plan &&
+								SystemClock.elapsedRealtime() >= input.earliestElapsedMs &&
+								currentDirectAttemptPlanLocked(inputs, physicalRegistration) == plan &&
 								acquisitionBudget.consumeRequest()
-					}
+						}
 						if (!requestAllowed) return@withLock null
-						val attemptId = UUID.randomUUID().toString()
 						lastAttemptAtMs = SystemClock.elapsedRealtime()
 						WifiAttemptExecution(
-							attemptId,
 							runCatchingNonCancellation { backend.requestScan() }
 								.getOrDefault(WifiRequestOutcome.PROVIDER_FAILED),
 						)
 					}
 					if (execution == null) {
-						wakeups.cancel(WAKEUP_ID)
+						scheduleAttempt()
 						return@inputLoop
 					}
 					when (execution.outcome) {
 						WifiRequestOutcome.ACCEPTED -> {
-							pendingAttemptId = execution.attemptId
 							backoff = backoff.succeeded()
 						}
 						WifiRequestOutcome.THROTTLED -> {
@@ -1054,11 +1055,12 @@ class WifiSourceRuntime @Inject internal constructor(
 				is WifiRuntimeInput.Backend -> when (val event = input.event) {
 					WifiBackendEvent.IdleStateChanged -> scheduleAttempt()
 					is WifiBackendEvent.Results -> {
-						val linkedAttempt = pendingAttemptId
 						if (event.resultsUpdated != false && event.snapshot != null) {
+							// Android broadcasts carry no app request identity. A subsequent
+							// passive/queued result must not be labelled as caused by our scan.
 							val admitted = admitSnapshot(
 								event.snapshot, input.registration, input.sink, input.plan,
-								input.callbackSequence, linkedAttempt,
+								input.callbackSequence, null,
 								replayGate,
 								event.receivedElapsedRealtimeNanos, event.receivedWallTimeMs,
 							)
@@ -1068,7 +1070,6 @@ class WifiSourceRuntime @Inject internal constructor(
 								wakeups.cancel(WAKEUP_ID)
 							}
 						}
-						pendingAttemptId = null
 					}
 				}
 				}
@@ -1355,7 +1356,11 @@ class WifiSourceRuntime @Inject internal constructor(
 			snapshot?.accessPoints?.isNotEmpty() == true
 
 	private sealed interface WifiRuntimeInput {
-		data object Attempt : WifiRuntimeInput
+		data class Attempt(
+			val registration: SourceRegistration,
+			val plan: WifiPlan,
+			val earliestElapsedMs: Long,
+		) : WifiRuntimeInput
 		data class Reconfigured(val registration: SourceRegistration) : WifiRuntimeInput
 		data class CaptureBarrier(
 			val completion: CompletableDeferred<Unit>,
@@ -1373,7 +1378,6 @@ class WifiSourceRuntime @Inject internal constructor(
 	}
 
 	private data class WifiAttemptExecution(
-		val attemptId: String,
 		val outcome: WifiRequestOutcome,
 	)
 

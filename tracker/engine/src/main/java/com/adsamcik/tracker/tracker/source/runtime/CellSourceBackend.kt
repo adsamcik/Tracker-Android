@@ -124,10 +124,14 @@ internal class AndroidCellSourceBackend internal constructor(
 		return success
 	}
 
+	internal val registeredSubscriptionIds: Set<Int?>
+		get() = synchronized(this) { registrations.keys.toSet() }
+
 	@Synchronized
 	@SuppressLint("MissingPermission")
 	fun requestRefresh(callback: (CellBackendSnapshot) -> Unit): CellRefreshRequestOutcome {
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return CellRefreshRequestOutcome.NOT_SUPPORTED
+		if (registrations.isEmpty()) return CellRefreshRequestOutcome.PROVIDER_FAILED
 		return try {
 			registrations.forEach { (subscriptionId, registration) ->
 				registration.manager.requestCellInfoUpdate(

@@ -92,6 +92,38 @@ class SharedStepSourceControllerTest {
 	}
 
 	@Test
+	fun `useful Steps floor never slows the requested hardware report latency`() = runTest {
+		val capture = demand(SourceBrokerPurpose.SESSION_CAPTURE, "session:logical-1")
+			.copy(maximumAgeMs = 300_000L, desiredLatencyMs = 300_000L)
+		coEvery { broker.authorizationDemands(SourceKind.STEPS) } returns listOf(capture)
+		val focused = StepsPlan(9L, true, 5_000L, 2_000L, true)
+
+		assertIs<SourceStartResult.Started>(subject.start(focused, mockk()))
+
+		coVerify(exactly = 1) {
+			physical.reconfigure(match {
+				it.maximumReportLatencyMs == 5_000L &&
+					it.projectionCheckpointIntervalMs == 2_000L && it.movementPolicyNeedsLowLatency
+			}, unboundSink)
+		}
+	}
+
+	@Test
+	fun `a stricter Steps demand still limits hardware batching`() = runTest {
+		val capture = demand(SourceBrokerPurpose.SESSION_CAPTURE, "session:logical-1")
+			.copy(desiredLatencyMs = 5_000L)
+		coEvery { broker.authorizationDemands(SourceKind.STEPS) } returns listOf(capture)
+
+		assertIs<SourceStartResult.Started>(
+			subject.start(StepsPlan(9L, true, 60_000L, 15_000L, false), mockk()),
+		)
+
+		coVerify(exactly = 1) {
+			physical.reconfigure(match { it.maximumReportLatencyMs == 5_000L }, unboundSink)
+		}
+	}
+
+	@Test
 	fun `session disable returns the physical generation stop acknowledgement`() = runTest {
 		val capture = demand(SourceBrokerPurpose.SESSION_CAPTURE, "session:logical-1")
 		coEvery { broker.authorizationDemands(SourceKind.STEPS) } returns listOf(capture)

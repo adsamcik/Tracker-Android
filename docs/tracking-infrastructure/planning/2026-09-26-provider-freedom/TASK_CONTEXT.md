@@ -324,3 +324,19 @@ review is mandatory before a local IMPLEMENTED_UNVALIDATED commit. No Gradle, co
 lint, Detekt, schema generation/drift, diff-check, device, UI, battery, CI, release, rollout,
 provider/writer activation, push or integration is permitted in this implementation-only phase.
 See `../../five-level/2026-09-27/IMPLEMENTATION_TRACE.md` for the trace and evidence boundary.
+
+
+## 30. Source-specific power implementation request (2026-09-27)
+
+Original user text:
+
+> **Implement source-specific power behavior.** Preserve cheap Steps continuity and passive radio callbacks; enforce finite active radio budgets, cooldowns and request ownership without replenishing budgets through reconfiguration.
+
+User-provided AGENTS.md remains binding: implementation-only until assembly freeze; test source
+required but no execution/gates; preserve protected root paths, source refs and drafts. Independent
+review-only agent required; no recursive delegation, activation, push or new dev/v10 integration.
+
+The approved finite-attempt policy remains unchanged. A new versioned radio power checkpoint
+contract in existing runtime-state storage was proposed explicitly through a question tool;
+confirmation is pending. Its dependent persistence work is unapplied. Independent Steps quality
+and radio request-fencing source fixes may proceed; entire source-power item remains open.

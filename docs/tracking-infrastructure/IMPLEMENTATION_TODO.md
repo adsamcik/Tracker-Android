@@ -25,6 +25,14 @@ legacy/custom absence is preserved, and only actual accepted live participants r
 focus. This is IMPLEMENTED_UNVALIDATED candidate work, not a convergence freeze, activation,
 executed gate or new dev/v10 integration.
 
+## 2026-09-27 source-specific power continuation
+
+Bounded Steps reporting and Wi-Fi/Cell request-ownership source changes are traced in
+`source-power/2026-09-27/IMPLEMENTATION_TRACE.md`. The whole task remains open pending its
+explicit radio recovery contract, durable intent reservation/cooldown and profile-freshness
+wiring. See the current checklist in WORK_ITEM_TRACKING.md; no written source case implies a
+passed test, assembly freeze, activation, new dev/v10 integration or whole-task completion.
+
 ## 2026-09-20 exact authority and Steps P5 completions
 
 - [x] `integration-retention-authority-20260919` —
