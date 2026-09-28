@@ -532,6 +532,10 @@ No validation, input freeze, provider activation, new dev/v10 integration or pus
 - [x] Author the source-owned Location point exporter with exact date selection, stable point IDs,
   sessionless and coordinate-free point coverage, plus Room SQL origin test source. The format is
   not registered until import and route-break behavior are complete. **IMPLEMENTED_UNVALIDATED**.
+- [x] Author the source-specific captured Wi-Fi/Cell date decision used by the upcoming file
+  adapters: calendar-day windows account for time-zone changes, only same-source scans or recorded
+  gaps select a crossing session, and turning expansion off requires the complete entry and its
+  timing evidence to fit. Focused test source is written. **IMPLEMENTED_UNVALIDATED**.
 - [ ] Finish combined Wi-Fi/Cell file adapters, source-owned range selection and
   `.trackerlocation` export/import with overlap deduplication.
 - [ ] Complete whole-scope review and deferred convergence/device verification.
