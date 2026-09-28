@@ -419,6 +419,7 @@ internal fun TrackingDiagnosticEventRequest.toRecordedEvent(
 		persistedEnvelopeCountBucket = persistedEnvelopeCountBucket,
 	)
 	is TrackingDiagnosticEventContext -> error("Event context cannot be recorded directly")
+	is RecordedTrackingDiagnosticEvent -> error("Recorded event cannot be recorded again")
 }
 
 internal sealed interface RecordedTrackingDiagnosticEvent : TrackingDiagnosticEventRequest {

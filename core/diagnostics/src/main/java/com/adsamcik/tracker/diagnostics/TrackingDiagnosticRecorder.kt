@@ -118,7 +118,7 @@ class TrackingDiagnosticRecorder private constructor(
 		}
 	}
 
-	inner class OperationScope private constructor(
+	inner class OperationScope internal constructor(
 		private val owner: TrackingDiagnosticRecorder,
 		private val source: TrackingDiagnosticSource,
 		private val purpose: TrackingDiagnosticPurpose,
@@ -130,7 +130,7 @@ class TrackingDiagnosticRecorder private constructor(
 		private var active = true
 
 		@Synchronized
-		private fun consume(
+		internal fun consume(
 			owner: TrackingDiagnosticRecorder,
 			event: TrackingDiagnosticEventRequest,
 			nowNanos: Long,
@@ -188,7 +188,7 @@ class TrackingDiagnosticRecorder private constructor(
 		}
 
 		@Synchronized
-		private fun invalidate() {
+		internal fun invalidate() {
 			active = false
 		}
 
@@ -207,7 +207,7 @@ class TrackingDiagnosticRecorder private constructor(
 		fun create(): TrackingDiagnosticScopeOpaque
 	}
 
-	private sealed interface ScopeConsumption {
+	internal sealed interface ScopeConsumption {
 		data class Accepted(
 			val eventCount: Int,
 			val elapsedNanos: Long,

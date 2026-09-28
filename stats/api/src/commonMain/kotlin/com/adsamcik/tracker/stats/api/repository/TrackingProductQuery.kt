@@ -14,7 +14,7 @@ interface TrackingProductQuery {
 
 /** Exact public scope for one bounded product read. */
 sealed interface TrackingProductQueryScope {
-	internal val canonicalValue: String
+	val canonicalValue: String
 
 	/** Absolute wall-time scope; stored-zone membership remains attached to returned products. */
 	data class WallRange(

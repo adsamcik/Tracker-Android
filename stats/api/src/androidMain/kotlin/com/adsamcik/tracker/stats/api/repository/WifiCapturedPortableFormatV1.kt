@@ -289,7 +289,10 @@ val PORTABLE_WIFI_OBSERVATION_ORDER: Comparator<PortableCapturedWifiObservationV
 	)
 
 val PORTABLE_WIFI_RUN_ORDER: Comparator<PortableCapturedWifiRunV1> =
-	compareBy<PortableCapturedWifiRunV1>(PortableCapturedWifiRunV1::startTimeMs) { it.identity.value }
+	compareBy<PortableCapturedWifiRunV1>(
+		PortableCapturedWifiRunV1::startTimeMs,
+		{ it.identity.value },
+	)
 
 /** Canonical binary hashing kept next to the sole Wi-Fi v1 format. */
 @Suppress("TooManyFunctions")
