@@ -337,7 +337,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 				"operation_id, product_kind, product_identity, product_revision, graph_identity, " +
 				"source_schema_version, source_receipt_identity, source_archive_identity, " +
 				"source_archive_content_checksum) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			arrayOf(
+			arrayOf<Any?>(
 				operationId,
 				binding.productKind,
 				binding.productIdentity,
@@ -375,7 +375,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 				"source_archive_content_checksum FROM $BINDING_TABLE " +
 				"WHERE operation_id = ? AND product_kind = ? AND product_identity = ? " +
 				"ORDER BY product_revision LIMIT ?",
-			arrayOf(operationId, productKind, productIdentity, limit),
+			arrayOf<Any?>(operationId, productKind, productIdentity, limit),
 		).use { cursor ->
 			buildList {
 				while (cursor.moveToNext()) {
@@ -483,7 +483,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 				"graph_identity, source_receipt_identity, source_archive_content_checksum, " +
 				"has_stored_binding, source_receipt_observed) " +
 				"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			arrayOf(
+			arrayOf<Any?>(
 				operationId,
 				product.metadata.identity,
 				product.metadata.contentChecksum,
@@ -668,7 +668,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 					"latest_graph_identity, latest_owner_revision, latest_graph_revision, " +
 					"latest_is_bound, latest_compare_product_identity, explicit_lineage_length" +
 					") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
-				arrayOf(
+				arrayOf<Any?>(
 					operationId,
 					ownerKind,
 					ownerIdentity,
@@ -718,7 +718,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 						"latest_owner_revision = ?, latest_graph_revision = ?, " +
 						"latest_is_bound = ?, latest_compare_product_identity = ? " +
 						"WHERE operation_id = ? AND owner_kind = ? AND owner_identity = ?",
-					arrayOf(
+					arrayOf<Any?>(
 						rank.graphIdentity,
 						rank.ownerRevision,
 						rank.graphRevision,
@@ -767,7 +767,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 					"operation_id, owner_kind, owner_identity, owner_revision, scope_identity, operation, " +
 					"receipt_identity, owner_effect_checksum, source_linked_at_ms, legacy_ambient" +
 					") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-				arrayOf(
+				arrayOf<Any?>(
 					operationId,
 					revision.ownerKind.name,
 					revision.ownerIdentity.value,
@@ -789,7 +789,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 					"UPDATE $REVISION_TABLE SET legacy_ambient = 1 " +
 						"WHERE operation_id = ? AND owner_kind = ? " +
 						"AND owner_identity = ? AND owner_revision = ?",
-					arrayOf(
+					arrayOf<Any?>(
 						operationId,
 						revision.ownerKind.name,
 						revision.ownerIdentity.value,
@@ -829,7 +829,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 				"INSERT INTO $EXPLICIT_TABLE (" +
 					"operation_id, owner_kind, owner_identity, lineage_ordinal, owner_revision" +
 					") VALUES (?, ?, ?, ?, ?)",
-				arrayOf(
+				arrayOf<Any?>(
 					operationId,
 					ownerKind,
 					ownerIdentity,
@@ -842,7 +842,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 			sqlite.execSQL(
 				"UPDATE $OWNER_TABLE SET explicit_lineage_length = ? " +
 					"WHERE operation_id = ? AND owner_kind = ? AND owner_identity = ?",
-				arrayOf(lineage.size, operationId, ownerKind, ownerIdentity),
+				arrayOf<Any?>(lineage.size, operationId, ownerKind, ownerIdentity),
 			)
 		}
 	}
@@ -922,7 +922,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		val arguments = if (afterKind == null) {
 			arrayOf<Any>(operationId, OWNER_INSTALL_PAGE_SIZE)
 		} else {
-			arrayOf(
+			arrayOf<Any?>(
 				operationId,
 				afterKind,
 				afterKind,
@@ -969,7 +969,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 			"source_linked_at_ms, legacy_ambient FROM $REVISION_TABLE " +
 			"WHERE operation_id = ? AND owner_kind = ? " +
 			"AND owner_identity = ? AND owner_revision = ?",
-		arrayOf(operationId, ownerKind, ownerIdentity, ownerRevision),
+		arrayOf<Any?>(operationId, ownerKind, ownerIdentity, ownerRevision),
 	).use { cursor ->
 		if (!cursor.moveToFirst()) null else StagedFullClearRevision(
 			ownerKind = ownerKind,
@@ -1015,7 +1015,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		"SELECT owner_revision FROM $EXPLICIT_TABLE " +
 			"WHERE operation_id = ? AND owner_kind = ? " +
 			"AND owner_identity = ? AND lineage_ordinal = ?",
-		arrayOf(operationId, ownerKind, ownerIdentity, ordinal),
+		arrayOf<Any?>(operationId, ownerKind, ownerIdentity, ordinal),
 	).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null }
 
 	private fun explicitContainsRevision(
@@ -1026,7 +1026,7 @@ private class AuthenticatedFullClearOwnerFenceStaging(
 		"SELECT 1 FROM $EXPLICIT_TABLE WHERE operation_id = ? " +
 			"AND owner_kind = ? AND owner_identity = ? " +
 			"AND owner_revision = ? LIMIT 1",
-		arrayOf(operationId, ownerKind, ownerIdentity, ownerRevision),
+		arrayOf<Any?>(operationId, ownerKind, ownerIdentity, ownerRevision),
 	).use { it.moveToFirst() }
 
 	private fun tableRowCount(table: String): Long = sqlite.query(

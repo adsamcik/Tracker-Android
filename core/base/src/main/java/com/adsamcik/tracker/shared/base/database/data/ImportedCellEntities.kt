@@ -539,7 +539,7 @@ data class ImportedCellEntryDeletionReceiptEntity(
 					value.subscriptionGrouping,
 					value.effectChecksum,
 				)
-			}.toTypedArray(),
+			}.toTypedArray<Any?>(),
 		)
 
 		@Suppress("LongParameterList")

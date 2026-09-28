@@ -152,7 +152,7 @@ internal fun SupportSQLiteDatabase.authenticateLegacyV27StepsWalForCollectedData
 				"AND (authorization_purpose_eligibility_mask = 0 OR " +
 				"typeof(authorization_purpose_eligibility_mask) != 'integer') " +
 				"ORDER BY rowid LIMIT $LEGACY_FULL_CLEAR_PAGE_SIZE",
-			arrayOf(
+			arrayOf<Any?>(
 				lowerBoundRowId,
 				lowerBoundRowId,
 				maximumRowId,
@@ -603,7 +603,7 @@ private fun SupportSQLiteDatabase.requireLegacyBlockedProjectionRegistration(
 		"SELECT activation_ordinal, retention_required, status, created_at_ms " +
 			"FROM source_projection_registration WHERE projection_id = ? " +
 			"AND projection_version = ? ORDER BY rowid LIMIT 2",
-		arrayOf(target.projectionId, target.projectionVersion),
+		arrayOf<Any?>(target.projectionId, target.projectionVersion),
 	).use { cursor ->
 		if (target.initialRegistrationStatus == LEGACY_V27_NOT_REGISTERED_AT_MIGRATION) {
 			requireLegacy(isSupportedIdentity)
@@ -635,7 +635,7 @@ private fun SupportSQLiteDatabase.requireLegacyBlockedProjectionCheckpoint(
 		"SELECT contiguous_admission_ordinal, state_version, updated_at_ms " +
 			"FROM source_projection_checkpoint WHERE projection_id = ? " +
 			"AND projection_version = ? ORDER BY rowid LIMIT 2",
-		arrayOf(target.projectionId, target.projectionVersion),
+		arrayOf<Any?>(target.projectionId, target.projectionVersion),
 	).use { cursor ->
 		if (!cursor.moveToFirst()) {
 			requireLegacy(
@@ -733,7 +733,7 @@ private fun SupportSQLiteDatabase.requireLegacyProjectionDrainCompletion(
 		scalarLegacyLong(
 			"SELECT COUNT(*) FROM source_product_projection_lane WHERE source_kind = ? " +
 				"AND status = 'ACTIVE' AND activation_ordinal <= ?",
-			arrayOf(
+			arrayOf<Any?>(
 				SourceDestinationOwnerEntity.SOURCE_STEPS,
 				authority.cutoffAdmissionOrdinal,
 			),
@@ -893,7 +893,7 @@ private fun SupportSQLiteDatabase.requireNoLiveLegacyWalOwner(
 			"SELECT COUNT(*) FROM provider_registration_generation WHERE source_kind = ? " +
 				"AND source_instance_id = ? AND registration_generation = ? " +
 				"AND status IN ('RESERVED', 'ACTIVE', 'RETIRING')",
-			arrayOf(
+			arrayOf<Any?>(
 				SourceDestinationOwnerEntity.SOURCE_STEPS,
 				sourceInstanceId,
 				registrationGeneration,

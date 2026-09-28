@@ -363,7 +363,7 @@ internal object FinalV28SchemaAssemblyRoomCallback : RoomDatabase.Callback() {
 internal fun createFinalV28SchemaAssemblyMarker(database: SupportSQLiteDatabase) {
 	database.execSQL(
 		"INSERT INTO room_master_table(id, identity_hash) VALUES (?, ?)",
-		arrayOf(FINAL_V28_MARKER_ID, FINAL_V28_ASSEMBLY_ID),
+		arrayOf<Any?>(FINAL_V28_MARKER_ID, FINAL_V28_ASSEMBLY_ID),
 	)
 }
 

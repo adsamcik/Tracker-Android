@@ -179,7 +179,7 @@ data class PressureFactRetentionRevisionAuthorityEntity(
 						revision.captureConsentEpoch,
 						revision.effectChecksum,
 					)
-				}.toTypedArray(),
+				}.toTypedArray<Any?>(),
 		)
 
 		internal fun authoritySetChecksum(
@@ -196,7 +196,7 @@ data class PressureFactRetentionRevisionAuthorityEntity(
 						authority.captureConsentEpoch,
 						authority.revisionEffectChecksum,
 					)
-				}.toTypedArray(),
+				}.toTypedArray<Any?>(),
 		)
 
 		private fun checksum(vararg values: Any?): String {

@@ -502,8 +502,8 @@ internal suspend fun AppDatabase.deleteCapturedActivityFactsAfterConsentReset(
 			}
 			val scopes = audit.lineages.map { lineage ->
 				ActivityCapturedRunScope(
-					lineage.revisions.first().logicalTrackingId,
-					lineage.revisions.first().serviceRunId,
+					lineage.revisions.first().revision.logicalTrackingId,
+					lineage.revisions.first().revision.serviceRunId,
 				)
 			}.distinct()
 			for (scope in scopes) {

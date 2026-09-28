@@ -1166,7 +1166,7 @@ private suspend fun <T> loadExpectedChunkedRows(
 	}
 	val loaded = mutableListOf<T>()
 	var remaining = expectedRows
-	for (batch in identities.chunked(SQLITE_BIND_BATCH)) {
+	for (batch in identities.chunked(IMPORTED_ACTIVITY_SQLITE_BIND_BATCH)) {
 		currentCoroutineContext().ensureActive()
 		val limit = Math.addExact(remaining.toExpectedRowCount(), 1)
 		scanBudget.consumeQuery()
@@ -1180,6 +1180,8 @@ private suspend fun <T> loadExpectedChunkedRows(
 	if (remaining != 0L) throw ImportedActivityProductPreflightMismatch()
 	return loaded
 }
+
+private const val IMPORTED_ACTIVITY_SQLITE_BIND_BATCH = 400
 
 private fun Long.toExpectedRowCount(): Int {
 	if (this !in 0L..Int.MAX_VALUE.toLong()) {

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.data.RetentionWorkExecutionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.hasReachedRetentionPhase
@@ -260,7 +261,7 @@ suspend fun AppDatabase.retentionFloorSettlementForExecution(
 		val ownerReceipt = retentionWorkExecutionReceiptDao().get(operation.workExecutionId)
 			?: retentionWorkExecutionReceiptDao().latest(operation.workExecutionId)
 		if (
-			ownerReceipt?.state in setOf(
+			ownerReceipt != null && ownerReceipt.state in setOf(
 				com.adsamcik.tracker.shared.base.database.data
 					.RetentionWorkExecutionReceiptEntity.STATE_OPEN,
 				com.adsamcik.tracker.shared.base.database.data

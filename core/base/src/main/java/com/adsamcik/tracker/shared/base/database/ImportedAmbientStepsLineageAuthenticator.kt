@@ -4,6 +4,7 @@ import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveDayEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsFactEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsGapEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsIdentity

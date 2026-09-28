@@ -342,6 +342,7 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 		authenticated to authenticated.toPortableLocalOwners(
 			incomingIdentities = null,
 			protectedIdentities = protectedIdentities,
+			retainedFromMs = requireNotNull(sourceEvidenceStateDao().get()).retainedFromMs,
 		)
 	} catch (@Suppress("SwallowedException") _: AmbientStepsMaintenanceLimitExceeded) {
 		return@withTransaction blocked(

@@ -364,5 +364,5 @@ interface AmbientStepsFactRevisionDao {
 	fun deleteAll()
 
 	@Query("DELETE FROM ambient_steps_retention_authority")
-	suspend fun deleteAllRetentionAuthorities()
+	fun deleteAllRetentionAuthorities()
 }

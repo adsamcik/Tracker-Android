@@ -305,7 +305,7 @@ private fun loadAndAuthenticatePermanentOwner(
 			"original_collected_data_epoch, fence_generation, fenced_at_ms, fence_reason, " +
 			"effect_checksum FROM imported_pressure_identity_fence WHERE entry_identity = ? " +
 			"ORDER BY identity_kind, protected_identity LIMIT ?",
-		arrayOf(identity, fenceLimit),
+		arrayOf<Any?>(identity, fenceLimit),
 	).use { cursor ->
 		buildList {
 			while (cursor.moveToNext()) {
@@ -418,7 +418,7 @@ private fun loadAndAuthenticateLiveLineage(
 			"collected_data_epoch, import_job_id, import_entry_key, import_source_name, " +
 			"received_at_ms FROM imported_pressure_entry_revision WHERE identity = ? " +
 			"ORDER BY import_revision LIMIT ?",
-		arrayOf(identity, MAX_REVISIONS + 1),
+		arrayOf<Any?>(identity, MAX_REVISIONS + 1),
 	).use { cursor ->
 		buildList {
 			while (cursor.moveToNext()) {
@@ -458,7 +458,7 @@ private fun loadAndAuthenticateLiveLineage(
 			"entry_identity, entry_import_revision, entry_content_checksum, collected_data_epoch " +
 			"FROM imported_pressure_receipt WHERE entry_identity = ? " +
 			"ORDER BY entry_import_revision, import_job_id, import_entry_key LIMIT ?",
-		arrayOf(identity, MAX_RECEIPTS + 1),
+		arrayOf<Any?>(identity, MAX_RECEIPTS + 1),
 	).use { cursor ->
 		buildList {
 			while (cursor.moveToNext()) {
@@ -533,7 +533,7 @@ private fun loadRuns(
 		"captured_for_whole_run, availability, coverage, retention_loss, collected_data_epoch, " +
 		"scope_deletion_generation FROM imported_pressure_run WHERE entry_identity = ? " +
 		"ORDER BY entry_import_revision, start_time_ms, identity LIMIT ?",
-	arrayOf(identity, MAX_RUN_ROWS + 1),
+	arrayOf<Any?>(identity, MAX_RUN_ROWS + 1),
 ).use { cursor ->
 	buildList {
 		while (cursor.moveToNext()) {
@@ -572,7 +572,7 @@ private fun loadWindows(
 		"source_quality_flags, source_quality_confidence, stored_zone_id " +
 		"FROM imported_pressure_window WHERE entry_identity = ? " +
 		"ORDER BY entry_import_revision, run_identity, interval_start_time_ms, identity LIMIT ?",
-	arrayOf(identity, MAX_WINDOW_ROWS + 1),
+	arrayOf<Any?>(identity, MAX_WINDOW_ROWS + 1),
 ).use { cursor ->
 	buildList {
 		while (cursor.moveToNext()) {
@@ -666,7 +666,7 @@ private fun loadAndAuthenticateRetainedLineage(
 		"SELECT protected_identity, entry_identity, identity_kind " +
 			"FROM imported_pressure_retained_identity WHERE entry_identity = ? " +
 			"ORDER BY identity_kind, protected_identity LIMIT ?",
-		arrayOf(identity, receipt.protectedIdentityCount + 1),
+		arrayOf<Any?>(identity, receipt.protectedIdentityCount + 1),
 	).use { cursor ->
 		buildList {
 			while (cursor.moveToNext()) {
@@ -704,7 +704,7 @@ private fun loadAndAuthenticateEntryDeletion(
 	val fences = sqlite.query(
 		"SELECT protected_identity FROM imported_pressure_identity_fence " +
 			"WHERE entry_identity = ? ORDER BY protected_identity LIMIT ?",
-		arrayOf(identity, deletion.identityFenceCount + 1),
+		arrayOf<Any?>(identity, deletion.identityFenceCount + 1),
 	).use { cursor ->
 		buildList {
 			while (cursor.moveToNext()) add(loadIdentityFence(sqlite, cursor.getString(0)))

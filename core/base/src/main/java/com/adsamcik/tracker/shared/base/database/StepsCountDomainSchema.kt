@@ -670,7 +670,9 @@ object StepsCountDomainSchema {
 					val catalogName = catalog.mapAsciiLowercaseToUppercase() to
 						name.mapAsciiLowercaseToUppercase()
 					if (!catalogNames.add(catalogName)) return null
-					EXPECTED_TRIGGER_NAMES.singleOrNull(name::equalsAsciiIgnoreCase)?.let {
+					EXPECTED_TRIGGER_NAMES.singleOrNull { expected ->
+						name.equalsAsciiIgnoreCase(expected)
+					}?.let {
 						if (!expectedIdentities.add(it)) return null
 					}
 					roomInvalidation?.let(roomInvalidationTriggers::add)
@@ -860,14 +862,14 @@ object StepsCountDomainSchema {
 		query("PRAGMA database_list").use { cursor ->
 			val sequenceIndex = cursor.getColumnIndexOrThrow("seq")
 			val nameIndex = cursor.getColumnIndexOrThrow("name")
-			buildList {
+			buildList<DatabaseCatalog> {
 				val sequences = mutableSetOf<Int>()
 				while (cursor.moveToNext()) {
 					val sequence = cursor.getInt(sequenceIndex)
 					val name = cursor.getString(nameIndex)
 					if (sequence < 0 || !sequences.add(sequence) ||
 						name.isEmpty() || name.length > MAX_SQL_TOKEN_LENGTH ||
-						any { existing -> name.equalsAsciiIgnoreCase(existing.name) }
+						this.any { existing -> name.equalsAsciiIgnoreCase(existing.name) }
 					) return null
 					add(DatabaseCatalog(sequence, name))
 				}
@@ -1084,17 +1086,17 @@ object StepsCountDomainSchema {
 
 	private fun List<SqlToken>.withoutCreateIfNotExists(): List<SqlToken> {
 		val objectKeywordIndex = when {
-			getOrNull(0).keyword != "CREATE" -> return this
-			getOrNull(1).keyword in setOf("TABLE", "INDEX", "TRIGGER") -> 1
-			getOrNull(1).keyword == "UNIQUE" && getOrNull(2).keyword == "INDEX" -> 2
-			getOrNull(1).keyword in setOf("TEMP", "TEMPORARY") &&
-				getOrNull(2).keyword == "TRIGGER" -> 2
+			getOrNull(0)?.keyword != "CREATE" -> return this
+			getOrNull(1)?.keyword in setOf("TABLE", "INDEX", "TRIGGER") -> 1
+			getOrNull(1)?.keyword == "UNIQUE" && getOrNull(2)?.keyword == "INDEX" -> 2
+			getOrNull(1)?.keyword in setOf("TEMP", "TEMPORARY") &&
+				getOrNull(2)?.keyword == "TRIGGER" -> 2
 			else -> return this
 		}
 		val optionalClauseStart = objectKeywordIndex + 1
-		if (getOrNull(optionalClauseStart).keyword != "IF" ||
-			getOrNull(optionalClauseStart + 1).keyword != "NOT" ||
-			getOrNull(optionalClauseStart + 2).keyword != "EXISTS"
+		if (getOrNull(optionalClauseStart)?.keyword != "IF" ||
+			getOrNull(optionalClauseStart + 1)?.keyword != "NOT" ||
+			getOrNull(optionalClauseStart + 2)?.keyword != "EXISTS"
 		) return this
 		return filterIndexed { index, _ ->
 			index !in optionalClauseStart..optionalClauseStart + 2

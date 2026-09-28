@@ -215,7 +215,8 @@ private fun AmbientStepsRetentionDecision.scope(): String = when (this) {
 
 private fun AmbientStepsRetentionDecision.requireValid() {
 	require(expectedCollectedDataEpoch >= 0L)
-	require(expectedRetainedFromMs == null || expectedRetainedFromMs >= 0L)
+	val retainedFromMs = expectedRetainedFromMs
+	require(retainedFromMs == null || retainedFromMs >= 0L)
 	require(effectiveBootId.isNotBlank())
 	require(effectiveElapsedRealtimeNanos >= 0L && effectiveWallTimeMs >= 0L)
 	when (this) {

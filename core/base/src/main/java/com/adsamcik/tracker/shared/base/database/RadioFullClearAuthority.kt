@@ -133,7 +133,7 @@ private fun reepochSourceDeletionFences(
 	sqlite.forEachBounded(
 		"SELECT * FROM source_deletion_fence WHERE source_kind = ? " +
 			"AND purpose = ? ORDER BY scope_identity_digest",
-		arrayOf(sourceKind, SessionManifestPurposeCode.SESSION_CAPTURE),
+		arrayOf<Any?>(sourceKind, SessionManifestPurposeCode.SESSION_CAPTURE),
 	) { cursor ->
 		val current = cursor.sourceDeletionFence()
 		check(current.collectedDataEpoch == oldEpoch)
@@ -181,7 +181,7 @@ private fun fenceLiveSourceRuns(
 		  AND source.persistence_eligible = 1
 		ORDER BY run.logical_tracking_id, run.service_run_id
 		""".trimIndent(),
-		arrayOf(sourceKind, SessionManifestPurposeCode.SESSION_CAPTURE),
+		arrayOf<Any?>(sourceKind, SessionManifestPurposeCode.SESSION_CAPTURE),
 	) { cursor ->
 		val fence = SourceDeletionFenceEntity.createLogicalServiceRun(
 			sourceKind = sourceKind,
@@ -203,7 +203,7 @@ private fun insertOrAuthenticateSourceFence(
 	val stored = sqlite.query(
 		"SELECT * FROM source_deletion_fence WHERE source_kind = ? AND purpose = ? " +
 			"AND scope_kind = ? AND scope_identity_digest = ? LIMIT 1",
-		arrayOf(
+		arrayOf<Any?>(
 			expected.sourceKind,
 			expected.purpose,
 			expected.scopeKind,
@@ -333,7 +333,7 @@ private fun fenceLiveImportedWifi(
 		sqlite.forEachBounded(
 			"SELECT * FROM imported_wifi_run WHERE entry_identity = ? " +
 				"AND entry_import_revision = ? ORDER BY identity",
-			arrayOf(entry.identity, entry.importRevision),
+			arrayOf<Any?>(entry.identity, entry.importRevision),
 		) { runCursor ->
 			val run = runCursor.importedWifiRun()
 			check(run.collectedDataEpoch == oldEpoch)
@@ -978,7 +978,7 @@ private fun sourceDeletionFence(
 ): SourceDeletionFenceEntity? = sqlite.query(
 	"SELECT * FROM source_deletion_fence WHERE source_kind = ? AND purpose = ? " +
 		"AND scope_kind = ? AND scope_identity_digest = ? LIMIT 1",
-	arrayOf(
+	arrayOf<Any?>(
 		sourceKind,
 		SessionManifestPurposeCode.SESSION_CAPTURE,
 		SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,

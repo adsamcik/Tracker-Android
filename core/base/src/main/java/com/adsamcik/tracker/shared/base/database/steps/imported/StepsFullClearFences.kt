@@ -102,7 +102,7 @@ private fun authenticateAndReepochRetainedStepsFences(
 ) {
 	val storedCount = sqlite.query(
 		"SELECT COUNT(*) FROM source_deletion_fence WHERE source_kind = ? AND purpose = ?",
-		arrayOf(
+		arrayOf<Any?>(
 			SourceDestinationOwnerEntity.SOURCE_STEPS,
 			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 		),
@@ -114,7 +114,7 @@ private fun authenticateAndReepochRetainedStepsFences(
 	val distinctScopeCount = sqlite.query(
 		"SELECT COUNT(DISTINCT scope_identity_digest) FROM source_deletion_fence " +
 			"WHERE source_kind = ? AND purpose = ?",
-		arrayOf(
+		arrayOf<Any?>(
 			SourceDestinationOwnerEntity.SOURCE_STEPS,
 			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 		),
@@ -130,7 +130,7 @@ private fun authenticateAndReepochRetainedStepsFences(
 		"SELECT source_kind, purpose, scope_kind, scope_identity_digest, fence_generation, " +
 			"collected_data_epoch, deleted_at_ms, effect_checksum FROM source_deletion_fence " +
 			"WHERE source_kind = ? AND purpose = ? ORDER BY scope_identity_digest",
-		arrayOf(
+		arrayOf<Any?>(
 			SourceDestinationOwnerEntity.SOURCE_STEPS,
 			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 		),
@@ -191,7 +191,7 @@ private fun readStepsFenceOrNull(
 		"collected_data_epoch, deleted_at_ms, effect_checksum FROM source_deletion_fence " +
 		"WHERE source_kind = ? AND purpose = ? AND scope_kind = ? " +
 		"AND scope_identity_digest = ? LIMIT 1",
-	arrayOf(
+	arrayOf<Any?>(
 		SourceDestinationOwnerEntity.SOURCE_STEPS,
 		StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 		SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,

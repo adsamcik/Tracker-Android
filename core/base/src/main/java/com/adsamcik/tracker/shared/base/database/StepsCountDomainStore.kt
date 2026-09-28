@@ -2042,7 +2042,7 @@ class StepsCountDomainStore(
 			sqlite.longForQuery(
 				"SELECT COUNT(*) FROM main.step_fact_revision " +
 					"WHERE source_admission_ordinal = ? OR source_event_id = ?",
-				arrayOf(wal.admissionOrdinal, wal.eventId),
+				arrayOf<Any?>(wal.admissionOrdinal, wal.eventId),
 			) != 0L
 		) {
 			throw CountDomainStoredEvidenceException()
@@ -2483,10 +2483,6 @@ class StepsCountDomainStore(
 	private companion object {
 		const val COMPLETENESS_COVERAGE_VERSION = 1
 		const val MAX_OWNER_LOOKUP = 512
-		const val OWNER_QUERY_CHUNK = 100
-		const val LATEST_QUERY_CHUNK = 200
-		const val RECEIPT_QUERY_CHUNK = 400
-		const val MARKER_QUERY_CHUNK = 200
 		const val MAX_MAINTENANCE_OWNER_BATCH = 400
 		const val MAX_WAL_PRUNE_BATCH = 2_048
 		const val MAX_COMPLETENESS_TIMELINE = 64
@@ -2708,7 +2704,7 @@ private fun SupportSQLiteDatabase.queryOwner(
 		"SELECT * FROM main.steps_count_domain_owner_revision WHERE " +
 			"owner_kind = ? AND scope_identity = ? AND owner_identity = ? " +
 			"AND owner_revision = ? LIMIT 2",
-		arrayOf(ownerKind, scopeIdentity, ownerIdentity, ownerRevision),
+		arrayOf<Any?>(ownerKind, scopeIdentity, ownerIdentity, ownerRevision),
 	).use { cursor ->
 		if (!cursor.moveToFirst()) return@use null
 		val owner = cursor.toStepsCountDomainOwner()
@@ -2769,7 +2765,7 @@ private fun SupportSQLiteDatabase.queryCompletenessMarker(
 	return query(
 		"SELECT * FROM main.steps_count_domain_completeness_marker " +
 			"WHERE owner_identity = ? AND owner_revision = ? LIMIT 2",
-		arrayOf(ownerIdentity, ownerRevision),
+		arrayOf<Any?>(ownerIdentity, ownerRevision),
 	).use { cursor ->
 		if (!cursor.moveToFirst()) return@use null
 		val marker = cursor.toStepsCountDomainCompletenessMarker()
@@ -2789,7 +2785,7 @@ private fun SupportSQLiteDatabase.queryOwnerChunk(
 	return query(
 		"SELECT * FROM main.steps_count_domain_owner_revision WHERE $predicate " +
 			"ORDER BY owner_kind, owner_identity, owner_revision LIMIT ${keys.size + 1}",
-		arguments.toTypedArray(),
+		arguments.toTypedArray<Any?>(),
 	).use { cursor ->
 		buildList {
 			while (cursor.moveToNext()) add(cursor.toStepsCountDomainOwner())
@@ -2828,7 +2824,7 @@ private fun SupportSQLiteDatabase.queryCompletenessMarkerChunk(
 		return query(
 			"SELECT * FROM main.steps_count_domain_completeness_marker WHERE $predicate " +
 				"ORDER BY owner_identity, owner_revision LIMIT ${owners.size + 1}",
-			arguments.toTypedArray(),
+			arguments.toTypedArray<Any?>(),
 		).use { cursor ->
 			buildList {
 				while (cursor.moveToNext()) add(cursor.toStepsCountDomainCompletenessMarker())
@@ -3214,7 +3210,7 @@ private fun SupportSQLiteDatabase.requireAuthenticMissingCountDomainOwnerKeys(
 		}
 		val hidden = query(
 			"SELECT 1 FROM main.steps_count_domain_owner_revision WHERE ($predicate) LIMIT 1",
-			arguments.toTypedArray(),
+			arguments.toTypedArray<Any?>(),
 		).use { cursor -> cursor.moveToFirst() }
 		if (hidden) throw CountDomainStoredEvidenceException()
 	}
@@ -3227,7 +3223,7 @@ private fun SupportSQLiteDatabase.hasExactCountDomainOwner(
 		"WHERE typeof(owner_kind) = 'text' AND owner_kind = ? " +
 		"AND typeof(owner_identity) = 'text' AND owner_identity = ? " +
 		"AND typeof(owner_revision) = 'integer' AND owner_revision = ?",
-	arrayOf(key.ownerKind, key.ownerIdentity, key.ownerRevision),
+	arrayOf<Any?>(key.ownerKind, key.ownerIdentity, key.ownerRevision),
 ).let { count ->
 	if (count !in 0L..1L) throw CountDomainStoredEvidenceException()
 	count == 1L
@@ -3276,7 +3272,7 @@ private fun SupportSQLiteDatabase.hasExactOwnerlessStepsWalAttributionStorage(
 		"AND typeof(payload_checksum) = 'text' " +
 		"AND typeof(integrity_identity) = 'text' " +
 		"AND typeof(created_at_ms) = 'integer'",
-	arrayOf(wal.admissionOrdinal, OWNERLESS_STEPS_CAPTURED_REGISTRATION_PLAN_ATTRIBUTION),
+	arrayOf<Any?>(wal.admissionOrdinal, OWNERLESS_STEPS_CAPTURED_REGISTRATION_PLAN_ATTRIBUTION),
 ) == 1L
 
 private fun SupportSQLiteDatabase.hasExactOwnerlessStepsProviderRegistrationStorage(
@@ -3302,7 +3298,7 @@ private fun SupportSQLiteDatabase.hasExactOwnerlessStepsProviderRegistrationStor
 		"AND typeof(retired_elapsed_realtime_nanos) IN ('null', 'integer') " +
 		"AND typeof(failure_code) IN ('null', 'text') " +
 		"AND typeof(capture_callback_barrier_authorization_revision) = 'integer'",
-	arrayOf(registration.sourceKind, registration.registrationGeneration),
+	arrayOf<Any?>(registration.sourceKind, registration.registrationGeneration),
 ) == 1L
 
 @Suppress("ComplexCondition")
@@ -3437,7 +3433,7 @@ private fun SupportSQLiteDatabase.hasMalformedStepsWalPruneLaneAttribution(): Bo
 			"typeof(source_kind) != 'integer' OR source_kind != ? OR " +
 			"typeof(projection_id) != 'text' OR projection_id != ? OR " +
 			"typeof(projection_version) != 'integer' OR projection_version != ?) LIMIT 1)",
-		arrayOf(
+		arrayOf<Any?>(
 			SourceDestinationOwnerEntity.SOURCE_STEPS,
 			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
 			SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -3467,7 +3463,7 @@ private fun SupportSQLiteDatabase.hasExactStepsWalPruneLaneStorage(
 		"AND typeof(terminal_at_ms) IN ('null', 'integer') " +
 		"AND typeof(installed_at_ms) = 'integer' " +
 		"AND typeof(updated_at_ms) = 'integer'",
-	arrayOf(lane.sourceKind, lane.bindingGeneration),
+	arrayOf<Any?>(lane.sourceKind, lane.bindingGeneration),
 ) == 1L
 
 @Suppress("ComplexCondition")
@@ -3686,7 +3682,7 @@ private fun SupportSQLiteDatabase.requireAuthenticCountDomainMarkerKeys(
 				"substr(owner_identity, 1, 7) != 'sha256:' OR " +
 				"substr(owner_identity, 8) GLOB '*[^0-9a-f]*' OR " +
 				"typeof(owner_revision) != 'integer' OR owner_revision <= 0) LIMIT 1",
-			arguments.toTypedArray(),
+			arguments.toTypedArray<Any?>(),
 		).use { cursor -> cursor.moveToFirst() }
 		if (invalid) throw CountDomainStoredEvidenceException()
 	}
@@ -3980,7 +3976,7 @@ private suspend fun SupportSQLiteDatabase.queryCountDomainMaintenanceCandidates(
 		}
 		val arguments = page.flatMap { key ->
 			listOf(key.ownerKind, key.ownerIdentity, key.ownerRevision)
-		}.toTypedArray()
+		}.toTypedArray<Any?>()
 		query(
 			"SELECT * FROM main.steps_count_domain_owner_revision WHERE $predicate",
 			arguments,
@@ -4073,6 +4069,10 @@ private fun StepsCountDomainOwnerRevisionEntity.hasAuthenticMaintenanceDependenc
 	}
 }
 
+private const val OWNER_QUERY_CHUNK = 100
+private const val LATEST_QUERY_CHUNK = 200
+private const val RECEIPT_QUERY_CHUNK = 400
+private const val MARKER_QUERY_CHUNK = 200
 private const val COUNT_DOMAIN_MAINTENANCE_PAGE_SIZE = 64
 private const val COUNT_DOMAIN_MAINTENANCE_RECEIPT_CHUNK = 400
 private const val COUNT_DOMAIN_MAINTENANCE_MARKER_CHUNK = 200

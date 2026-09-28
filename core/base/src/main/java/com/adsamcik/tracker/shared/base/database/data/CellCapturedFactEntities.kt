@@ -427,7 +427,7 @@ data class CellCapturedEntryDeletionReceiptEntity(
 						value.deletedAtMs,
 						value.effectChecksum,
 					)
-				}.toTypedArray(),
+				}.toTypedArray<Any?>(),
 			)
 
 		private fun checksum(

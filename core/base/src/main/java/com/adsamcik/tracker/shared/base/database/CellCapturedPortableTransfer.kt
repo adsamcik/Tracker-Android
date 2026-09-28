@@ -4,6 +4,7 @@ package com.adsamcik.tracker.shared.base.database
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -539,7 +540,7 @@ class RoomExportPortableCapturedCell(
 	): ExportPortableCapturedCellResult = withContext(ioDispatcher) {
 		val snapshot = try {
 			database.withTransaction {
-				readPortableCapturedCellEntry(request, laneExecutionAuthority)
+				database.readPortableCapturedCellEntry(request, laneExecutionAuthority)
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -1129,7 +1130,14 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 	if (retainedWal.any { it.eventId !in factEventIds }) return result(unverifiableWriter())
 
 	val timeRetainedLineages = selectedLineages.filter { lineage ->
-		retainedFloor == null || lineage.earliestPossibleWallTimeMs >= retainedFloor
+		retainedFloor == null || lineage.revisions.minOf { revision ->
+			requireNotNull(CanonicalRetentionBounds.cellCoverage(
+				walObservedWallTimeMs = revision.observedWallTimeMs,
+				wallTimeUncertaintyMs = revision.wallTimeUncertaintyMs,
+				walObservedElapsedRealtimeNanos = revision.observedElapsedNanos,
+				coverageStartElapsedRealtimeNanos = revision.coverageIntervalStartNanos,
+			))
+		} >= retainedFloor
 	}
 	val timeRetainedIds = timeRetainedLineages.mapTo(mutableSetOf(), CellCapturedLineage::logicalFactId)
 	// Never export a coverage-only correction whose authenticated aggregate owner was lost at the
@@ -1260,7 +1268,7 @@ private fun CellCapturedFactRevisionEntity.toPortableObservation(
 		knownQualityObservationCount = aggregate.knownQualityObservationCount,
 		allKnownQualityIsWeak = aggregate.allKnownQualityIsWeak,
 		qualityFlags = qualityFlags,
-		qualityConfidence = qualityConfidence,
+		qualityConfidence = qualityConfidence?.toDouble(),
 	)
 	return payload.toValue(CellCapturedPortableIntegrity.observationChecksum(payload))
 }

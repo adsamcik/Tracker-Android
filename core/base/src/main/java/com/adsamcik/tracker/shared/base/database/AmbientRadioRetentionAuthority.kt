@@ -403,7 +403,8 @@ private fun AmbientRadioRetentionDecision.opaquePolicyId(
 
 private fun AmbientRadioRetentionDecision.requireValid() {
 	require(expectedCollectedDataEpoch >= 0L)
-	require(expectedRetainedFromMs == null || expectedRetainedFromMs >= 0L)
+	val retainedFromMs = expectedRetainedFromMs
+	require(retainedFromMs == null || retainedFromMs >= 0L)
 	require(effectiveBootId.isNotBlank())
 	require(effectiveElapsedRealtimeNanos >= 0L && effectiveWallTimeMs >= 0L)
 	when (this) {

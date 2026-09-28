@@ -70,7 +70,8 @@ class AmbientStepsPortableLocalOriginReader(
 		require(incomingIdentities == null || incomingIdentities.isNotEmpty())
 		val factDao = database.ambientStepsFactRevisionDao()
 		val stateDao = database.ambientStepsImportStateDao()
-		val evidenceEpoch = database.sourceEvidenceStateDao().get()?.collectedDataEpoch
+		val evidence = database.sourceEvidenceStateDao().get()
+		val evidenceEpoch = evidence?.collectedDataEpoch
 		val preservedRows = if (incomingIdentities == null) {
 			database.authenticatedNativeReplayFootprints(
 				checkNotNull(evidenceEpoch) {
@@ -113,6 +114,7 @@ class AmbientStepsPortableLocalOriginReader(
 			preservedRows.mapTo(mutableSetOf()) {
 				it.protectedIdentity
 			},
+			checkNotNull(evidence).retainedFromMs,
 		)
 		return (preserved + owners).distinct()
 	}
@@ -133,6 +135,7 @@ class AmbientStepsPortableLocalOriginReader(
 internal fun AmbientStepsMaintenanceAudit.toPortableLocalOwners(
 	incomingIdentities: Set<String>?,
 	protectedIdentities: Set<String>,
+	retainedFromMs: Long?,
 ): List<AmbientStepsPortableLocalOwner> {
 	val effectiveFacts = mutableListOf<AmbientStepsFactRevisionEntity>()
 	val structuralFacts = mutableListOf<AmbientStepsFactRevisionEntity>()
@@ -226,7 +229,7 @@ internal fun AmbientStepsMaintenanceAudit.toPortableLocalOwners(
 				if (part.endTimeMs > day.startTimeMs &&
 					part.startTimeMs < day.endTimeMs
 				) {
-					part.clip(day, evidence.retainedFromMs)?.takeIf { portable ->
+					part.clip(day, retainedFromMs)?.takeIf { portable ->
 						incomingIdentities == null ||
 							portable.identity.value in incomingIdentities
 					}?.let { portable ->
