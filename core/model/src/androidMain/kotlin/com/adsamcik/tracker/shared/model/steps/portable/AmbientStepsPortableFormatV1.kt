@@ -451,7 +451,7 @@ object AmbientStepsPortableIntegrity {
 			}
 			is Collection<*> -> {
 				update("L${value.size}[".toByteArray(Charsets.UTF_8))
-				value.forEach(::appendCanonical)
+				value.forEach { item -> appendCanonical(item) }
 				update("];".toByteArray(Charsets.UTF_8))
 			}
 			else -> error("Unsupported canonical Ambient Steps value ${value::class.java.name}")
