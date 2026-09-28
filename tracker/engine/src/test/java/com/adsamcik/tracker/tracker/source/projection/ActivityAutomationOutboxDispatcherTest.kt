@@ -33,10 +33,12 @@ class ActivityAutomationOutboxDispatcherTest {
 	private val dao = mockk<SourceProjectionStateDao>()
 	private val validator = mockk<ActivityAutomationEffectValidator>()
 	private val consumer = mockk<ActivityAutomationEffectConsumer>()
-	private val subject = ActivityAutomationOutboxDispatcher(database, validator, consumer)
+	private val retention = mockk<ActivityControlRetentionMaintenance>()
+	private val subject = ActivityAutomationOutboxDispatcher(database, validator, consumer, retention)
 	private val failures = mutableMapOf<Long, SourceProjectionFailureEntity>()
 
 	init {
+		coEvery { retention.pruneDue() } returns false
 		every { database.sourceProjectionStateDao() } returns dao
 		coEvery { validator.validate(any()) } returns ActivityAutomationEffectValidation.Eligible(8, 3)
 		coEvery { dao.failure(any(), any(), any()) } answers {
@@ -58,6 +60,25 @@ class ActivityAutomationOutboxDispatcherTest {
 		TrackingStartDispatchResult.Terminal("STALE_AUTHORITY")
 			.toAutomationDeliveryResult() shouldBe
 			ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
+	}
+
+	@Test
+	fun `fresh transition callback spends no time pruning historical CONTROL`() = runTest {
+		coEvery { dao.pendingOutbox(any(), any(), any(), any()) } returns emptyList()
+
+		subject.drainToQuiescence(
+			startPermit = ActivityAutomationStartPermit.FreshTransitionCallback(setOf(1L)),
+		) shouldBe ActivityAutomationDrainResult.Complete(0, 0)
+
+		coVerify(exactly = 0) { retention.pruneDue() }
+	}
+
+	@Test
+	fun `failed historical cleanup does not block current effect drain`() = runTest {
+		coEvery { retention.pruneDue() } throws IllegalStateException("old row unavailable")
+		coEvery { dao.pendingOutbox(any(), any(), any(), any()) } returns emptyList()
+
+		subject.drainToQuiescence() shouldBe ActivityAutomationDrainResult.Complete(0, 0)
 	}
 
 	@Test

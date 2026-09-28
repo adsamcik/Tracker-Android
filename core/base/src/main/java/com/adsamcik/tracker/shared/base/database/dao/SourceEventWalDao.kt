@@ -774,6 +774,42 @@ interface SourceEventWalDao {
 	@Query("SELECT COALESCE(SUM(LENGTH(payload)), 0) FROM source_event_wal")
 	suspend fun payloadBytes(): Long
 
+	/** Activity CONTROL carrier, including shared carriers after capture projections have drained. */
+	@Query(
+		"SELECT * FROM source_event_wal AS wal WHERE source_kind = 2 " +
+			"AND (authorization_purpose_eligibility_mask & 3) != 0 " +
+			"AND admission_ordinal <= :safeOrdinal " +
+			"AND ((authorization_purpose_eligibility_mask & 4) = 0 OR EXISTS (" +
+			"SELECT 1 FROM source_product_projection_lane AS lane WHERE lane.source_kind = 2 " +
+			"AND lane.projection_id = 'activity-session-facts' " +
+			"AND lane.projection_version = 1 AND lane.product_stage = 'EVENT_CANONICAL' " +
+			"AND lane.activation_ordinal <= wal.admission_ordinal " +
+			"AND lane.contiguous_admission_ordinal >= wal.admission_ordinal " +
+			"AND ((lane.status = 'ACTIVE' AND lane.retention_required = 1) OR " +
+			"(lane.status = 'RETIRED' AND lane.retention_required = 0 " +
+			"AND lane.terminal_disposition = 'CONTAINED_AFTER_DRAIN' " +
+			"AND lane.capture_admission_cutoff_ordinal = lane.contiguous_admission_ordinal)) " +
+			")) " +
+			"AND (clock_domain_id != :currentBootId OR received_elapsed_nanos < 0 " +
+			"OR received_elapsed_nanos > :nowElapsedNanos " +
+			"OR received_elapsed_nanos <= :cutoffElapsedNanos) " +
+			"ORDER BY admission_ordinal LIMIT :limit",
+	)
+	suspend fun expiredControlActivityRows(
+		safeOrdinal: Long,
+		currentBootId: String,
+		nowElapsedNanos: Long,
+		cutoffElapsedNanos: Long,
+		limit: Int,
+	): List<SourceEventWalEntity>
+
+	@Query(
+		"DELETE FROM source_event_wal WHERE source_kind = 2 " +
+			"AND (authorization_purpose_eligibility_mask & 3) != 0 " +
+			"AND admission_ordinal IN (:ordinals)",
+	)
+	suspend fun deleteControlActivityRows(ordinals: List<Long>): Int
+
 	@Query(
 		"SELECT DISTINCT source_kind FROM source_event_wal " +
 			"WHERE admission_ordinal <= :safeOrdinal ORDER BY source_kind",

@@ -12,6 +12,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
 import com.adsamcik.tracker.app.event.PrecisionUpgradeDomainEventConsumer
+import com.adsamcik.tracker.app.maintenance.ActivityControlCleanupWorker
 import com.adsamcik.tracker.app.startup.ModuleInitializerCoordinator
 import com.adsamcik.tracker.app.startup.ApplicationStartupStateStore
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
@@ -233,6 +234,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 	private fun initializeDatabaseMaintenance() {
 		val schedulingFailure = listOfNotNull(
 			maintenanceSchedulingFailure { GoalResetScheduler.ensureScheduled(this) },
+			maintenanceSchedulingFailure { ActivityControlCleanupWorker.schedule(this) },
 			// Retire the unsafe legacy six-hour empty-segment cleanup. Component-owned teardown
 			// remains the only writer that may remove its preinserted session row.
 			maintenanceSchedulingFailure { DatabaseMaintenanceWorker.cancel(this) },

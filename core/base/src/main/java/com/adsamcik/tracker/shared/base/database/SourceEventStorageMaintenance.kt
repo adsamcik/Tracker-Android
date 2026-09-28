@@ -131,6 +131,76 @@ suspend fun AppDatabase.pruneSourceEventStorageBefore(
 	verifyCollectedDataAccess = verifyCollectedDataAccess,
 )
 
+/**
+ * Retires Activity rows with CONTROL authorization. The elapsed clock is the
+ * authority on the current boot; an older or unprovable boot is expired conservatively. The
+ * source/global projection checkpoints and durable receipt are preserved exactly as in ordinary
+ * WAL maintenance. A shared captured carrier is selected only after its product projection
+ * checkpoint is safe, and receives an exact retained capture proof before its raw row is removed.
+ */
+suspend fun AppDatabase.pruneExpiredControlActivityWalBatch(
+	currentBootId: String,
+	nowElapsedNanos: Long,
+	nowWallMs: Long,
+	limit: Int = 128,
+	verifyCollectedDataAccess: suspend () -> Unit = {},
+): Int {
+	require(currentBootId.isNotBlank())
+	require(nowElapsedNanos >= 0L && nowWallMs >= 0L)
+	require(limit in 1..256)
+	val cutoffElapsedNanos = if (nowElapsedNanos >= ACTIVITY_CONTROL_RETENTION_NANOS) {
+		nowElapsedNanos - ACTIVITY_CONTROL_RETENTION_NANOS
+	} else {
+		-1L
+	}
+	return withTransaction {
+		verifyCollectedDataAccess()
+		try {
+			val globalSafeOrdinal = sourceEventStorageGlobalSafeOrdinal()
+			val safeOrdinal = globalSafeOrdinal
+			if (safeOrdinal <= 0L) return@withTransaction 0
+			val rows = sourceEventWalDao().expiredControlActivityRows(
+				safeOrdinal = safeOrdinal,
+				currentBootId = currentBootId,
+				nowElapsedNanos = nowElapsedNanos,
+				cutoffElapsedNanos = cutoffElapsedNanos,
+				limit = limit,
+			)
+			if (rows.isEmpty()) return@withTransaction 0
+			check(rows.all { it.hasQualifiedIntegrity() }) {
+				"Expired Activity CONTROL carrier cannot be authenticated"
+			}
+			val proofs = rows.map { row -> SourceEventRetentionProofEntity.createFromWal(row) }
+			val proofDao = sourceEventRetentionProofDao()
+			val insertions = proofDao.insertAll(proofs)
+			check(insertions.size == proofs.size)
+			proofs.forEachIndexed { index, proof ->
+				if (insertions[index] == -1L) {
+					val stored = proofDao.get(proof.sourceKind, proof.eventId)
+					check(stored != null && stored == proof && stored.hasValidStoredIntegrity()) {
+						"Expired Activity CONTROL receipt collision"
+					}
+				}
+			}
+			val ordinals = rows.map(SourceEventWalEntity::admissionOrdinal)
+			val outboxDao = sourceProjectionStateDao()
+			outboxDao.terminalizeActivityControlOutboxForOrdinals(
+				ordinals, "ACTIVITY_CONTROL_RETENTION_EXPIRED", nowWallMs,
+			)
+			outboxDao.deleteActivityControlOutboxForOrdinals(ordinals)
+			check(sourceEventWalDao().deleteControlActivityRows(ordinals) == rows.size)
+			proofDao.deleteProofsWithLiveWal(SourceDestinationOwnerEntity.SOURCE_ACTIVITY)
+			proofDao.trimSourceToNewest(
+				SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+				MAX_SOURCE_EVENT_RETENTION_PROOFS_PER_SOURCE,
+			)
+			rows.size
+		} finally {
+			verifyCollectedDataAccess()
+		}
+	}
+}
+
 internal suspend fun AppDatabase.pruneSourceEventStorageBeforeWithSourceOperations(
 	createdBeforeMs: Long,
 	batchSize: Int,
@@ -507,4 +577,5 @@ private val RETAINED_CAPTURE_SCOPE_SOURCE_KINDS = setOf(
 )
 
 private const val DEFAULT_SOURCE_EVENT_PRUNE_BATCH_SIZE = 1_000
+const val ACTIVITY_CONTROL_RETENTION_NANOS = 48L * 60L * 60L * 1_000_000_000L
 internal const val MAX_SOURCE_EVENT_RETENTION_PROOFS_PER_SOURCE = 4_096

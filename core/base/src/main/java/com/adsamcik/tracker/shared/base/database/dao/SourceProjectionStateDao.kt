@@ -506,6 +506,24 @@ interface SourceProjectionStateDao {
 	suspend fun outbox(stableId: String): SourceProjectionOutboxEntity?
 
 	@Query(
+		"SELECT * FROM source_projection_outbox WHERE projection_id = 'activity-automation' " +
+			"AND projection_version = 4 AND effect_kind = 'activity-automation-v1' " +
+			"AND payload_version = 4 AND admission_ordinal > :afterOrdinal " +
+			"ORDER BY admission_ordinal ASC LIMIT :limit",
+	)
+	suspend fun activityAutomationOutboxPage(
+		afterOrdinal: Long,
+		limit: Int,
+	): List<SourceProjectionOutboxEntity>
+
+	@Query(
+		"DELETE FROM source_projection_outbox WHERE stable_id = :stableId " +
+			"AND projection_id = 'activity-automation' AND projection_version = 4 " +
+			"AND effect_kind = 'activity-automation-v1' AND payload_version = 4",
+	)
+	suspend fun deleteActivityAutomationOutbox(stableId: String): Int
+
+	@Query(
 		"UPDATE source_projection_outbox SET delivered_at_ms = :deliveredAtMs " +
 			"WHERE stable_id = :stableId AND delivered_at_ms IS NULL " +
 			"AND terminal_disposition IS NULL",
@@ -522,6 +540,28 @@ interface SourceProjectionStateDao {
 		disposition: String,
 		terminalAtMs: Long,
 	): Int
+
+	@Query(
+		"UPDATE source_projection_outbox SET terminal_disposition = :disposition, " +
+			"terminal_at_ms = :terminalAtMs WHERE projection_id = 'activity-automation' " +
+			"AND projection_version = 4 AND effect_kind = 'activity-automation-v1' " +
+			"AND payload_version = 4 " +
+			"AND admission_ordinal IN (:ordinals) AND delivered_at_ms IS NULL " +
+			"AND terminal_disposition IS NULL",
+	)
+	suspend fun terminalizeActivityControlOutboxForOrdinals(
+		ordinals: List<Long>,
+		disposition: String,
+		terminalAtMs: Long,
+	): Int
+
+	@Query(
+		"DELETE FROM source_projection_outbox WHERE projection_id = 'activity-automation' " +
+			"AND projection_version = 4 AND effect_kind = 'activity-automation-v1' " +
+			"AND payload_version = 4 " +
+			"AND admission_ordinal IN (:ordinals)",
+	)
+	suspend fun deleteActivityControlOutboxForOrdinals(ordinals: List<Long>): Int
 
 	@Query(
 		"UPDATE source_projection_outbox SET terminal_disposition = :disposition, " +

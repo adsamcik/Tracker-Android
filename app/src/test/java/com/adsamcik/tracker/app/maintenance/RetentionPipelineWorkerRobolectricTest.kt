@@ -204,6 +204,32 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	@Test
+	fun `completed execution retries CONTROL debt but canceled execution does not`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val maintenance = mockk<com.adsamcik.tracker.tracker.source.projection.ActivityControlRetentionMaintenance> {
+			coEvery { pruneDue() } returns true
+		}
+		val coordinator = mockk<RetentionWorkExecutionCoordinator> {
+			coEvery { begin(any(), any(), any(), any(), any()) } returnsMany listOf(
+				RetentionWorkExecutionStartResult.AlreadyCompleted,
+				RetentionWorkExecutionStartResult.CancellationRequested,
+				RetentionWorkExecutionStartResult.SupersededByFullDeletion,
+			)
+		}
+		fun pendingWorker() = worker(
+			context = context,
+			store = mockk(relaxed = true),
+			db = mockk(relaxed = true),
+			activityControlRetentionMaintenance = maintenance,
+			workExecutionCoordinator = coordinator,
+		)
+
+		pendingWorker().doWork() shouldBe ListenableWorker.Result.retry()
+		pendingWorker().doWork() shouldBe ListenableWorker.Result.success()
+		pendingWorker().doWork() shouldBe ListenableWorker.Result.success()
+	}
+
+	@Test
 	fun `owner observing cancellation stops before destructive pipeline work and cannot finalize`() =
 		runTest {
 			val context = ApplicationProvider.getApplicationContext<Context>()
@@ -1539,6 +1565,10 @@ class RetentionPipelineWorkerRobolectricTest {
 		trackingStartupGate: TrackingStartupGate = READY_STARTUP_GATE,
 		stepsProjectionLaneProvider: Provider<StepsSessionFactProjectionLane> =
 			Provider { mockk(relaxed = true) },
+		activityControlRetentionMaintenance:
+			com.adsamcik.tracker.tracker.source.projection.ActivityControlRetentionMaintenance = mockk {
+				coEvery { pruneDue() } returns false
+			},
 		importedActivityRetentionProvider: Provider<RoomTruncateImportedActivityRetention> = Provider {
 			mockk {
 				coEvery { truncate(any()) } returns TruncateImportedActivityRetentionResult.NoChange
@@ -1569,6 +1599,7 @@ class RetentionPipelineWorkerRobolectricTest {
 					migrationBackupRepository,
 					trackingStartupGate,
 					stepsProjectionLaneProvider,
+					activityControlRetentionMaintenance,
 					importedActivityRetentionProvider,
 
 					cellCapturedRetentionService,

@@ -39,6 +39,7 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
+import com.adsamcik.tracker.tracker.source.projection.ActivityControlRetentionMaintenance
 import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionService
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -55,6 +56,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
     private val migrationBackupRepository: DatabaseMigrationBackupRepository,
 	private val trackingStartupGate: TrackingStartupGate,
 	private val stepsSessionFactProjectionLaneProvider: Provider<StepsSessionFactProjectionLane>,
+	private val activityControlRetentionMaintenance: ActivityControlRetentionMaintenance,
 	private val importedActivityRetentionProvider: Provider<RoomTruncateImportedActivityRetention>,
 
 	private val cellCapturedRetentionService: CellCapturedRetentionService,
@@ -72,6 +74,15 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		} catch (_: Exception) {
 			return Result.retry()
 		}
+		// CONTROL cleanup has its own debt. A malformed or busy Activity row must not postpone
+		// independently approved history retention or settlement work.
+		val controlCleanupPending = try {
+			activityControlRetentionMaintenance.pruneDue()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			true
+		}
 		val execution = when (val started = try {
 			workExecutionCoordinator.begin(
 				database = appDatabase,
@@ -87,7 +98,8 @@ class RetentionPipelineWorker @AssistedInject constructor(
 		}) {
 			is RetentionWorkExecutionStartResult.Open -> started.receipt
 			is RetentionWorkExecutionStartResult.Retryable -> return Result.retry()
-			RetentionWorkExecutionStartResult.AlreadyCompleted,
+			RetentionWorkExecutionStartResult.AlreadyCompleted ->
+				return if (controlCleanupPending) Result.retry() else Result.success()
 			RetentionWorkExecutionStartResult.CancellationRequested,
 			RetentionWorkExecutionStartResult.AbandonedByCancellation,
 			RetentionWorkExecutionStartResult.SupersededByFullDeletion ->
@@ -110,7 +122,8 @@ class RetentionPipelineWorker @AssistedInject constructor(
 					completedAtMs = maxOf(System.currentTimeMillis(), execution.startedAtMs),
 				)
 			) {
-				RetentionWorkExecutionCompletionResult.Completed,
+				RetentionWorkExecutionCompletionResult.Completed ->
+					if (controlCleanupPending) Result.retry() else Result.success()
 				RetentionWorkExecutionCompletionResult.CancellationRequested,
 				RetentionWorkExecutionCompletionResult.AbandonedByCancellation,
 				RetentionWorkExecutionCompletionResult.SupersededByFullDeletion,

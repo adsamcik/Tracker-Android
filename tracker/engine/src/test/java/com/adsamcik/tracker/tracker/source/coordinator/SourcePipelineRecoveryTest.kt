@@ -11,6 +11,7 @@ import com.adsamcik.tracker.tracker.api.ActivityAutomationStartContext
 import com.adsamcik.tracker.tracker.source.activity.ActivityCapturedFactProjectionLane
 import com.adsamcik.tracker.tracker.source.cell.CellSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationOutboxDispatcher
+import com.adsamcik.tracker.tracker.source.projection.ActivityControlRetentionMaintenance
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEffectConsumer
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEffectValidation
@@ -330,7 +331,10 @@ class SourcePipelineRecoveryTest {
 		val dao = mockk<SourceProjectionStateDao>()
 		val validator = mockk<ActivityAutomationEffectValidator>()
 		val consumer = mockk<ActivityAutomationEffectConsumer>()
-		val dispatcher = ActivityAutomationOutboxDispatcher(database, validator, consumer)
+		val dispatcher = ActivityAutomationOutboxDispatcher(
+			database, validator, consumer,
+			mockk<ActivityControlRetentionMaintenance>(relaxed = true),
+		)
 		val composed = SourcePipelineRecovery(legacy, coordinator, activityLane, dispatcher)
 		val effect = transitionEffect(9L)
 		every { database.sourceProjectionStateDao() } returns dao
@@ -375,7 +379,10 @@ class SourcePipelineRecoveryTest {
 		val dao = mockk<SourceProjectionStateDao>()
 		val validator = mockk<ActivityAutomationEffectValidator>()
 		val consumer = mockk<ActivityAutomationEffectConsumer>()
-		val dispatcher = ActivityAutomationOutboxDispatcher(database, validator, consumer)
+		val dispatcher = ActivityAutomationOutboxDispatcher(
+			database, validator, consumer,
+			mockk<ActivityControlRetentionMaintenance>(relaxed = true),
+		)
 		val composed = SourcePipelineRecovery(legacy, coordinator, activityLane, dispatcher)
 		val effect = transitionEffect(9L)
 		every { database.sourceProjectionStateDao() } returns dao
@@ -422,7 +429,10 @@ class SourcePipelineRecoveryTest {
 		val dao = mockk<SourceProjectionStateDao>()
 		val validator = mockk<ActivityAutomationEffectValidator>()
 		val consumer = mockk<ActivityAutomationEffectConsumer>()
-		val dispatcher = ActivityAutomationOutboxDispatcher(database, validator, consumer)
+		val dispatcher = ActivityAutomationOutboxDispatcher(
+			database, validator, consumer,
+			mockk<ActivityControlRetentionMaintenance>(relaxed = true),
+		)
 		val composed = SourcePipelineRecovery(legacy, coordinator, activityLane, dispatcher)
 		val effect = transitionEffect(9L)
 		every { database.sourceProjectionStateDao() } returns dao

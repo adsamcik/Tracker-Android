@@ -101,6 +101,7 @@ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEffectCo
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEffectValidator
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationOutboxDispatcher
+import com.adsamcik.tracker.tracker.source.projection.ActivityControlRetentionMaintenance
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.source.runtime.ProviderCoverage
@@ -7905,6 +7906,7 @@ class AuthoritativeSessionCoordinatorTest {
 				mockk<ActivityAutomationEpochAuthority>(relaxed = true),
 			),
 			consumer,
+			mockk<ActivityControlRetentionMaintenance>(relaxed = true),
 		)
 
 		actionRepository.validateForService(trigger)

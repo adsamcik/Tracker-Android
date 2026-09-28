@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionProofEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import io.kotest.matchers.shouldBe
 import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
@@ -34,6 +35,76 @@ class SourceEventStorageMaintenanceTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `control expiry waits for the exact capture lane before retiring shared raw Activity`() = runTest {
+		val source = SourceDestinationOwnerEntity.SOURCE_ACTIVITY
+		fun signed(row: SourceEventWalEntity) =
+			row.copy(integrityIdentity = row.calculatedIntegrityIdentity())
+		val expired = signed(event(source, 1L, true, "expired-control", false).copy(
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			clockDomainId = "previous-boot",
+		))
+		val capturedSibling = signed(event(source, 2L, true, "captured-sibling", true).copy(
+			authorizationPurposeEligibilityMask =
+				SourceBrokerPurpose.MASK_CONTROL_AUTOSTART or
+					SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			clockDomainId = "previous-boot",
+		))
+		val now = ACTIVITY_CONTROL_RETENTION_NANOS + 100L
+		val fresh = signed(event(source, 3L, true, "fresh-control", false).copy(
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			clockDomainId = "current-boot",
+			observedElapsedNanos = now - 2L,
+			receivedElapsedNanos = now - 1L,
+		))
+		listOf(expired, capturedSibling, fresh).forEach { row ->
+			database.sourceEventWalDao().insertIgnoringDuplicate(row) shouldBe row.admissionOrdinal
+		}
+		database.pruneExpiredControlActivityWalBatch("current-boot", now, 100L) shouldBe 1
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L) shouldBe null
+		database.sourceEventWalDao().getByAdmissionOrdinal(2L)?.eventId shouldBe "captured-sibling"
+		database.sourceEventWalDao().getByAdmissionOrdinal(3L)?.eventId shouldBe "fresh-control"
+		database.sourceEventRetentionProofDao().get(source, "expired-control")?.hasValidStoredIntegrity() shouldBe true
+		database.sourceProjectionStateDao().installProductLane(SourceProductProjectionLaneEntity(
+			sourceKind = source,
+			bindingGeneration = 1L,
+			projectionId = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
+			projectionVersion = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION,
+			captureModeMask = 1L,
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			activatedRolloutRevision = 1L,
+			activationOrdinal = 1L,
+			contiguousAdmissionOrdinal = 1L,
+			retentionRequired = true,
+			status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+			installedAtMs = 10L,
+			updatedAtMs = 10L,
+		))
+		database.pruneExpiredControlActivityWalBatch("current-boot", now, 100L) shouldBe 0
+		database.sourceEventWalDao().getByAdmissionOrdinal(2L)?.eventId shouldBe "captured-sibling"
+		database.sourceProjectionStateDao().advanceProductLaneCursor(
+			source, 1L, SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION,
+			1L, 2L, 20L,
+		) shouldBe 1
+		database.sourceProjectionStateDao().fenceProductLaneCaptureAdmission(
+			source, 1L, SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION,
+			2L, 21L,
+		) shouldBe 1
+		database.sourceProjectionStateDao().retireFencedProductLane(
+			source, 1L, SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION,
+			2L, 2L, SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN, 22L,
+		) shouldBe 1
+		database.pruneExpiredControlActivityWalBatch("current-boot", now, 100L) shouldBe 1
+		database.sourceEventWalDao().getByAdmissionOrdinal(2L) shouldBe null
+		val capturedProof = requireNotNull(database.sourceEventRetentionProofDao().get(source, "captured-sibling"))
+		capturedProof.hasValidStoredIntegrity() shouldBe true
+		capturedProof.purposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE shouldBe
+			SourceBrokerPurpose.MASK_SESSION_CAPTURE
+	}
 
 	@Test
 	fun `blocked Steps batch rolls back locally while every other source commits`() = runTest {

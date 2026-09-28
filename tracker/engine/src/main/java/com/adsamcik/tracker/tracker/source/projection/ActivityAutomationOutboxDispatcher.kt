@@ -38,6 +38,7 @@ class ActivityAutomationOutboxDispatcher @Inject internal constructor(
 	private val database: AppDatabase,
 	private val validator: ActivityAutomationEffectValidator,
 	private val consumer: ActivityAutomationEffectConsumer,
+	private val retentionMaintenance: ActivityControlRetentionMaintenance,
 ) : ActivityAutomationDrainSignal {
 	private val drainMutex = Mutex()
 	private val _drainRequired = MutableStateFlow(true)
@@ -67,8 +68,9 @@ class ActivityAutomationOutboxDispatcher @Inject internal constructor(
 		elapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
 	): Int = runSerializedDrain {
 		require(limit > 0)
+		val moreExpiredControl = pruneControlOutsideFreshCallback(startPermit)
 		val batch = drainBatch(limit, startPermit, elapsedRealtimeNanos)
-		_drainRequired.value = batch.retryBlocked || batch.selectedCount == limit
+		_drainRequired.value = moreExpiredControl || batch.retryBlocked || batch.selectedCount == limit
 		batch.deliveredCount
 	}
 
@@ -85,6 +87,7 @@ class ActivityAutomationOutboxDispatcher @Inject internal constructor(
 	): ActivityAutomationDrainResult = runSerializedDrain {
 		require(batchSize > 0)
 		require(maxBatches > 0)
+		val moreExpiredControl = pruneControlOutsideFreshCallback(startPermit)
 		var deliveredCount = 0
 		var terminalCount = 0
 		repeat(maxBatches) {
@@ -99,8 +102,11 @@ class ActivityAutomationOutboxDispatcher @Inject internal constructor(
 				)
 			}
 			if (batch.selectedCount < batchSize) {
-				_drainRequired.value = false
-				return@runSerializedDrain ActivityAutomationDrainResult.Complete(
+				_drainRequired.value = moreExpiredControl
+				return@runSerializedDrain if (moreExpiredControl) ActivityAutomationDrainResult.MorePending(
+					deliveredCount = deliveredCount,
+					terminalCount = terminalCount,
+				) else ActivityAutomationDrainResult.Complete(
 					deliveredCount = deliveredCount,
 					terminalCount = terminalCount,
 				)
@@ -272,6 +278,21 @@ class ActivityAutomationOutboxDispatcher @Inject internal constructor(
 	} catch (failure: Throwable) {
 		_drainRequired.value = true
 		throw failure
+	}
+
+	private suspend fun pruneControlOutsideFreshCallback(
+		startPermit: ActivityAutomationStartPermit,
+	): Boolean {
+		if (startPermit is ActivityAutomationStartPermit.FreshTransitionCallback) return false
+		return try {
+			retentionMaintenance.pruneDue()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			// A later maintenance/startup pass can retry. Do not spin the effect driver on
+			// one damaged historical row or block a fresh automatic start.
+			false
+		}
 	}
 
 	private fun decode(
