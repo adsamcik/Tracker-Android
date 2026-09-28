@@ -76,16 +76,13 @@ internal class RoomDeleteImportedAmbientStepsDay internal constructor(
 				}
 				when (dao.fence(request.dayIdentity.value)?.fenceKind) {
 					ImportedAmbientStepsDayFenceEntity.FENCE_RETENTION ->
-						return@withPermanentAmbientStepsMaintenanceMapping
-							DeleteImportedAmbientStepsDayResult.Retained
+						return@withPermanentAmbientStepsMaintenanceMapping DeleteImportedAmbientStepsDayResult.Retained
 					null -> Unit
-					else -> return@withPermanentAmbientStepsMaintenanceMapping
-						DeleteImportedAmbientStepsDayResult.AlreadyDeleted
+					else -> return@withPermanentAmbientStepsMaintenanceMapping DeleteImportedAmbientStepsDayResult.AlreadyDeleted
 				}
 				val lineage = authenticate(request.dayIdentity.value, state)
 				if (lineage.revisions.isEmpty()) {
-					return@withPermanentAmbientStepsMaintenanceMapping
-						DeleteImportedAmbientStepsDayResult.NotFound
+					return@withPermanentAmbientStepsMaintenanceMapping DeleteImportedAmbientStepsDayResult.NotFound
 				}
 				val removed = fenceAndDelete(
 					lineage,
@@ -189,8 +186,7 @@ internal class RoomTruncateImportedAmbientStepsRetention internal constructor(
 					blocked(ImportedAmbientStepsMutationBlockedReason.SOURCE_DELETION_PENDING)
 				}
 				val candidate = dao.nextRetentionCandidate(request.retainedFromMs)
-					?: return@withPermanentAmbientStepsMaintenanceMapping
-						TruncateImportedAmbientStepsRetentionResult.Complete
+					?: return@withPermanentAmbientStepsMaintenanceMapping TruncateImportedAmbientStepsRetentionResult.Complete
 				val lineage = authenticateLineage(dao, candidate.dayIdentity, state)
 				if (lineage.latest.header != candidate ||
 					candidate.structuralDayStartTimeMs >= request.retainedFromMs
@@ -278,8 +274,7 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 								request.deletedAtMs,
 							)
 						}
-						return@withPermanentAmbientStepsMaintenanceMapping
-							DeleteImportedAmbientStepsAfterConsentResetResult.Complete
+						return@withPermanentAmbientStepsMaintenanceMapping DeleteImportedAmbientStepsAfterConsentResetResult.Complete
 					}
 				val lineage = authenticateLineage(dao, candidate.dayIdentity, state)
 				if (lineage.latest.header != candidate) {

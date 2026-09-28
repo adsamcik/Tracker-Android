@@ -391,7 +391,7 @@ internal object ActivityHistoryComposer {
 				session.lifecycleBootId == currentRun.bootId
 		}
 		return session.cutoffAtMs != null && session.cutoffElapsedNanos != null &&
-			session.completedAtMs != null && session.completedAtMs >= session.startedAtMs &&
+			session.completedAtMs?.let { it >= session.startedAtMs } == true &&
 		session.finalAdmissionOrdinal?.let { finalOrdinal ->
 			targetOrdinal == null || targetOrdinal <= finalOrdinal
 		} == true &&

@@ -461,8 +461,6 @@ internal object PressureHistoryPageComposer {
 		val originOrder: Int,
 	)
 
-	private companion object {
-		const val LOCAL_ORIGIN_ORDER = 0
-		const val IMPORTED_ORIGIN_ORDER = 1
-	}
+	private const val LOCAL_ORIGIN_ORDER = 0
+	private const val IMPORTED_ORIGIN_ORDER = 1
 }

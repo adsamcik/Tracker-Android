@@ -897,8 +897,7 @@ private class ImportedAmbientStepsRangeReader(
 			val retained = retainedFloor != null && (
 				candidate.structuralDayEndTimeMs <= retainedFloor ||
 					candidate.structuralDayStartTimeMs < retainedFloor &&
-					(candidate.retainedFromTimeMs == null ||
-						candidate.retainedFromTimeMs < retainedFloor)
+					(candidate.retainedFromTimeMs?.let { it < retainedFloor } ?: true)
 				)
 			if (retained) {
 				dispositions[AmbientStepsHistoryKey(

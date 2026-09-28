@@ -199,8 +199,7 @@ class GameDomainEventConsumer @Inject constructor(
 			row.authorityRevision == expectedRevision &&
 			row.authorityDigest == expectedDigest &&
 			row.lastTierIndex >= definition.tierIndex &&
-			row.qualifiedNotificationClaimedTierIndex != null &&
-			row.qualifiedNotificationClaimedTierIndex >= definition.tierIndex
+			row.qualifiedNotificationClaimedTierIndex?.let { it >= definition.tierIndex } == true
 	}
 
 	private fun onAchievementUnlocked(event: DomainEvent.AchievementUnlocked) {

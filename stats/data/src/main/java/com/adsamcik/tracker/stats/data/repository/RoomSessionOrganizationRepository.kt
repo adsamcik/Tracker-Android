@@ -113,7 +113,7 @@ class RoomSessionOrganizationRepository @Inject constructor(
 
 	override fun pagingSource(fromMs: Long?, toMs: Long?): PagingSource<Int, OrganizedSession> =
 		object : PagingSource<Int, OrganizedSession>() {
-			private val observer = object : InvalidationTracker.Observer(*metadataTables) {
+			private val observer = object : InvalidationTracker.Observer(metadataTables) {
 				override fun onInvalidated(tables: Set<String>) { invalidate() }
 			}
 			init {

@@ -42,12 +42,13 @@ internal class PressureHistorySelector private constructor(
 		database: AppDatabase,
 		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 		bootClockDomainProvider: BootClockDomainProvider,
-	) : this(database, laneExecutionAuthority, { bootClockDomainProvider.current() })
+	) : this(database, laneExecutionAuthority,
+		currentClockDomainId = { bootClockDomainProvider.current() })
 
 	internal constructor(
 		database: AppDatabase,
 		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
-	) : this(database, laneExecutionAuthority, { null })
+	) : this(database, laneExecutionAuthority, currentClockDomainId = { null })
 
 	internal suspend fun selectBySegmentId(segmentId: Long): PressurePhysicalHistory? =
 		selectPhysicalBySegmentIds(listOf(segmentId))[segmentId]

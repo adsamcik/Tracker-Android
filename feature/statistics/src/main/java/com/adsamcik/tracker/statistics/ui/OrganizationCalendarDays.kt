@@ -12,6 +12,6 @@ internal fun organizationCalendarDays(read: SessionOrganizationRead?, month: Yea
 	return (1..month.lengthOfMonth()).map { month.atDay(it) }.filterTo(mutableSetOf()) { day ->
 		val from = day.atStartOfDay(zone).toInstant().toEpochMilli()
 		val to = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-		sessions.any { it.fromMs?.let { start -> start < to && (it.toMs == null || it.toMs > from) } == true }
+		sessions.any { it.fromMs?.let { start -> start < to && (it.toMs?.let { end -> end > from } ?: true) } == true }
 	}
 }

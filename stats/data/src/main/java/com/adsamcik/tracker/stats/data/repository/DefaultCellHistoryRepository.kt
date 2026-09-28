@@ -24,6 +24,7 @@ import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
@@ -448,15 +449,15 @@ internal class DefaultCellHistoryRepository internal constructor(
 				localPortableEntriesByIdentity = localPortableEntries,
 				limit = local.size + imported.size,
 			).map { entry ->
-				when (entry.origin) {
+				when (val origin = entry.origin) {
 					CellHistoryOrigin.Local -> CellSourceComposedEntry.Local(
 						localBySelection[entry.selection]
 							?: throw ImportedCellHistoryCompositionFailure(),
 					)
 					is CellHistoryOrigin.Imported -> CellSourceComposedEntry.Imported(
 						entry = entry,
-						selection = entry.origin.selection,
-						recency = importedRecencyBySelection[entry.origin.selection]
+						selection = origin.selection,
+						recency = importedRecencyBySelection[origin.selection]
 							?: throw ImportedCellHistoryCompositionFailure(),
 					)
 				}
@@ -1504,7 +1505,7 @@ private fun List<CellLogicalHistoryCandidate>.hasValidRangeKeyset(
 		if (beforeStartTimeMs != null && beforeSegmentId != null) {
 			add(beforeStartTimeMs to beforeSegmentId)
 		}
-		addAll(map { it.logicalRecencyStartMs to it.logicalRecencySegmentId })
+		addAll(this@hasValidRangeKeyset.map { it.logicalRecencyStartMs to it.logicalRecencySegmentId })
 	}
 	return cursors.zipWithNext().all { (left, right) ->
 		left.first > right.first || left.first == right.first && left.second > right.second
@@ -1518,10 +1519,9 @@ private fun CellHistoryEntry.toRangeEntry(
 	if (scope is CellHistoryRangeScope.WallTime &&
 		(startTime.raw >= scope.toExclusive.raw || endTime.raw <= scope.fromInclusive.raw)
 	) return null
-	if (scope is CellHistoryRangeScope.StructuralDays &&
-		origin is CellHistoryOrigin.Imported
-	) {
-		val identity = origin.selection.identity.value
+	val importedOrigin = origin as? CellHistoryOrigin.Imported
+	if (scope is CellHistoryRangeScope.StructuralDays && importedOrigin != null) {
+		val identity = importedOrigin.selection.identity.value
 		if (!importedStructuralMemberships.containsKey(identity)) {
 			throw ImportedCellHistoryCompositionFailure()
 		}

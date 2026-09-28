@@ -427,7 +427,7 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		validateSourceAwarePageRequest(candidateSegmentIds, limit)
 		val stableCandidateSegmentIds = candidateSegmentIds.toList()
 		return historyInvalidations().mapLatest { invalidatedTables ->
-			if (LIFECYCLE_DESIRED_ACTION_TABLE in invalidatedTables) {
+			if ("lifecycle_desired_action" in invalidatedTables) {
 				integrationObserver.record(
 					TrackingHistoryIntegrationCheckpoint
 						.SOURCE_AWARE_LIFECYCLE_INVALIDATION_READ,

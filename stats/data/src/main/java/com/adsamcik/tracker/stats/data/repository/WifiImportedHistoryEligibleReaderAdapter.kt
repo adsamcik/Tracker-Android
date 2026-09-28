@@ -160,7 +160,8 @@ internal class WifiImportedHistoryEligibleReaderAdapter internal constructor(
 				is ReadLocalPortableCapturedWifiResult.Outcome ->
 					WifiImportedEligibilityDecision.Unavailable(
 						if (local.result is ExportPortableCapturedWifiResult.Unverifiable &&
-							local.result.reason == PortableWifiUnverifiableReason.DEPENDENCY_OVERFLOW
+							(local.result as ExportPortableCapturedWifiResult.Unverifiable).reason ==
+							PortableWifiUnverifiableReason.DEPENDENCY_OVERFLOW
 						) {
 							readBudgetExceeded
 						} else {
@@ -221,13 +222,12 @@ private fun ImportedWifiProductRecentPage.isValidAfter(
 	if (candidates.map(ImportedWifiProductCandidate::identity).distinct().size != candidates.size) {
 		return false
 	}
-	val cursors = buildList {
-		if (request.beforeNewestMemberStartTimeMs != null &&
-			request.beforeNewestMemberIdentity != null
-		) {
+	val cursors = buildList<Pair<Long, String>> {
+		val beforeStart = request.beforeNewestMemberStartTimeMs
+		val beforeIdentity = request.beforeNewestMemberIdentity
+		if (beforeStart != null && beforeIdentity != null) {
 			add(
-				request.beforeNewestMemberStartTimeMs to
-					request.beforeNewestMemberIdentity.value,
+				beforeStart to beforeIdentity.value,
 			)
 		}
 		addAll(candidates.map {

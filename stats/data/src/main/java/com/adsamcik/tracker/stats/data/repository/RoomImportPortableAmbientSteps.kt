@@ -189,7 +189,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		checkpoint(ImportedAmbientStepsWriteCheckpoint.TRANSACTION_STARTED)
 		val state = storedValue { database.sourceEvidenceStateDao().get() }
 			?: unverifiable(PortableAmbientStepsImportUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING)
-		if (state.retainedFromMs != null && state.retainedFromMs < 0L) storedCorrupt()
+		if (state.retainedFromMs?.let { it < 0L } == true) storedCorrupt()
 		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch) {
 			blocked(PortableAmbientStepsImportBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
 		}
@@ -343,7 +343,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			}
 			checkpoint(ImportedAmbientStepsWriteCheckpoint.LINEAGE_AUTHENTICATED)
 			val baseline = lineage.revisions.firstOrNull()?.day
-			if (baseline != null && !day.hasSameStructuralAuthority(baseline)) {
+			if (baseline != null && !day.hasSameStructuralAuthorityAs(baseline)) {
 				blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
 			}
 			val archiveCount = lineage.archiveDays.asSequence()
@@ -1296,7 +1296,7 @@ private fun StructuralAmbientStepsDayKey(
 private fun PortableAmbientStepsDayV1.crossesLocalRetentionFloor(floor: Long): Boolean {
 	if (structuralDayEndTimeMs <= floor) return true
 	if (structuralDayStartTimeMs < floor &&
-		(retainedFromTimeMs == null || retainedFromTimeMs < floor)
+		(retainedFromTimeMs?.let { it < floor } ?: true)
 	) return true
 	return facts.any { it.intervalStartTimeMs < floor } ||
 		gaps.any { it.intervalStartTimeMs < floor }

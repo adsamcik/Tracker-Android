@@ -35,10 +35,11 @@ internal class StepsGoalNotificationDispatcher @Inject constructor(
 		return try {
 			startupGate.withReadyGenerationOperation(expectedGeneration) {
 				val claim = claim(effectIdentity, effectRevision, claimedAtMs)
-				if (claim !is NotificationClaim.Claimed) return@withReadyGenerationOperation claim.result
+				if (claim !is NotificationClaim.Claimed) {
+					return@withReadyGenerationOperation claim.result
+				}
 				if (!notificationsEnabled) {
-					return@withReadyGenerationOperation
-						StepsGoalNotificationDispatchResult.CLAIMED_SUPPRESSED_DISABLED
+					return@withReadyGenerationOperation StepsGoalNotificationDispatchResult.CLAIMED_SUPPRESSED_DISABLED
 				}
 				try {
 					context.notificationManager.notify(

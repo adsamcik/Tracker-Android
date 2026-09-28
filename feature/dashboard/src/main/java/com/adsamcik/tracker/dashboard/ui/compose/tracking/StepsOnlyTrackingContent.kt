@@ -165,9 +165,11 @@ internal fun TrackingHistoryResolutionContent(
 				)
 			}
 		}
+	}
+}
 
-		@Composable
-		private fun historyUnavailableMessage(
+@Composable
+private fun historyUnavailableMessage(
 			source: HistorySource?,
 			reason: TrackingHistoryUnavailableReason?,
 		): String {
@@ -211,8 +213,6 @@ internal fun TrackingHistoryResolutionContent(
 				else -> stringResource(R.string.dashboard_live_history_unavailable)
 			}
 		}
-	}
-}
 
 @Composable
 private fun DashboardLiveStepsValue.metricValue(): String = when (this) {

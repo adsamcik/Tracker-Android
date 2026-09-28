@@ -84,13 +84,15 @@ internal class DefaultActivityHistoryRepository private constructor(
 		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 		@IoDispatcher ioDispatcher: CoroutineDispatcher,
 		bootClockDomainProvider: BootClockDomainProvider,
-	) : this(database, laneExecutionAuthority, ioDispatcher, bootClockDomainProvider::current)
+	) : this(database, laneExecutionAuthority, ioDispatcher,
+		currentClockDomainProvider = bootClockDomainProvider::current)
 
 	internal constructor(
 		database: AppDatabase,
 		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 		ioDispatcher: CoroutineDispatcher,
-	) : this(database, laneExecutionAuthority, ioDispatcher, null)
+	) : this(database, laneExecutionAuthority, ioDispatcher,
+		currentClockDomainProvider = null)
 
 	private val importedProductReader = ImportedActivityProductReader(database)
 	private val rangeIssuer = Any()
@@ -263,7 +265,8 @@ internal class DefaultActivityHistoryRepository private constructor(
 					)
 				}
 			}.sortedWith(ACTIVITY_SOURCE_COMPOSITION_ORDER)
-			val localFrontier = local.takeIf { localPage.hasMore }?.lastOrNull()?.orderKey()
+			val localFrontier = local.takeIf { localPage.hasMore }?.lastOrNull()
+				?.let { ActivitySourceComposedEntry.Local(it).orderKey() }
 			val importedFrontier = imported.takeIf { importedHasMore }
 				?.lastOrNull()?.orderKey()
 			val safe = combined.takeWhile { entry ->

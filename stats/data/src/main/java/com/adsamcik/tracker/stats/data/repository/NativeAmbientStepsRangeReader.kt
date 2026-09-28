@@ -434,7 +434,7 @@ private fun AmbientStepsFactRevisionEntity.hasValidNativeHistoryAuthority(
 	return AmbientStepsFactIntegrity.hasValidEffectChecksum(this) &&
 		writerOwnerGeneration == ownerGeneration &&
 		collectedDataEpoch == evidence.collectedDataEpoch &&
-		(evidence.retainedFromMs == null || start >= evidence.retainedFromMs) &&
+		(evidence.retainedFromMs?.let { start >= it } ?: true) &&
 		historyKeyOrNull() == day.historyKey &&
 		structuralDayStartTimeMs == day.startTimeMs &&
 		structuralDayEndTimeMs == day.endTimeMs &&

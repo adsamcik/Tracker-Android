@@ -114,7 +114,7 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 			?: return ImportedAmbientStepsSnapshot.Unverifiable(
 				ImportedAmbientStepsReadFailure.SOURCE_EVIDENCE_UNAVAILABLE,
 			)
-		if (state.retainedFromMs != null && state.retainedFromMs < 0L) {
+		if (state.retainedFromMs?.let { it < 0L } == true) {
 			return ImportedAmbientStepsSnapshot.Unverifiable(
 				ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
 			)
@@ -190,8 +190,7 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 			if (candidates.any { candidate ->
 					candidate.structuralDayEndTimeMs <= floor ||
 						candidate.structuralDayStartTimeMs < floor &&
-						(candidate.retainedFromTimeMs == null ||
-							candidate.retainedFromTimeMs < floor)
+						(candidate.retainedFromTimeMs?.let { it < floor } ?: true)
 				}
 			) return ImportedAmbientStepsSnapshot.Retained
 		}

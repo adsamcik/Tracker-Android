@@ -899,7 +899,7 @@ internal class RoomErasePressureSource internal constructor(
 		requireEntryDeletion: Boolean,
 	) {
 		requireOwnerTextWithinBounds(footprint.totalTextBytes)
-		if (footprint.entryDeletionCount != if (requireEntryDeletion) 1L else 0L ||
+		if (footprint.entryDeletionCount != (if (requireEntryDeletion) 1L else 0L) ||
 			footprint.entryMarkerCount != 1L ||
 			footprint.identityFenceCount !in 1L..limits.maximumIdentityFences.toLong() ||
 			footprint.runDeletionCount !in 0L..limits.maximumRunDeletions.toLong()
