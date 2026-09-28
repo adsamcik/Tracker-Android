@@ -37,6 +37,7 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityDataS
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityBootstrapCoordinator
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationDebt
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationFailure
@@ -613,6 +614,10 @@ class DefaultCollectedDataDeletionService(
 			}
 			exportPlanStore.resetAllWatermarks()
 			deleteDiagnostics()
+			Preferences(context).editSuspend {
+				remove("SunSetLatitude")
+				remove("SunSetLongitude")
+			}
 			OwnedTransferFiles.clearForFullDeletion(context)
 			// Enqueue the durable recovery owner while the deletion marker and process barrier still
 			// fence Room/providers. It will make one attempt only after this generation is Ready.

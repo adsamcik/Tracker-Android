@@ -69,7 +69,6 @@ room = "2.8.4"
 componentsRecycler = "1.0.0"
 componentSlider = "2.1.0"
 spotlight = "2.2.3"
-suncalc = "3.11"
 javaxInject = "1"
 licensesdialog = "2.2.0"
 simplify = "1.0.0"
@@ -210,9 +209,8 @@ gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 components-recycler = { group = "com.github.adsamcik", name = "Recycler", version.ref = "componentsRecycler" }
 component-slider = { group = "com.github.adsamcik", name = "slider", version.ref = "componentSlider" }
 
-# Intro & SunCalc
+# Intro
 spotlight = { group = "com.github.adsamcik", name = "spotlight", version.ref = "spotlight" }
-suncalc = { group = "org.shredzone.commons", name = "commons-suncalc", version.ref = "suncalc" }
 # Compose
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 compose-material3 = { group = "androidx.compose.material3", name = "material3" }

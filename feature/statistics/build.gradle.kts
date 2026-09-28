@@ -28,7 +28,6 @@ dependencies {
 
     // Arrow
     implementation(libs.arrow.core)
-    implementation(libs.suncalc)
 
     // Core
     implementation(libs.kotlinx.coroutines.android)

@@ -145,6 +145,10 @@ class CollectedDataDeletionServiceTest {
 
 	@Test
 	fun `delete clears every database`() = runTest {
+		Preferences(context).editSuspend {
+			setDouble("SunSetLatitude", 50.0)
+			setDouble("SunSetLongitude", 14.0)
+		}
 		var appDeletionCount = 0
 		var capturedEpoch: Long? = null
 		var capturedRetainedFromMs: Long? = null
@@ -174,6 +178,8 @@ class CollectedDataDeletionServiceTest {
 		capturedEpoch shouldBe 1L
 		capturedRetainedFromMs shouldBe 1L
 		markerFile.exists() shouldBe false
+		Preferences(context).fetchLong("SunSetLatitude", Long.MIN_VALUE) shouldBe Long.MIN_VALUE
+		Preferences(context).fetchLong("SunSetLongitude", Long.MIN_VALUE) shouldBe Long.MIN_VALUE
 		RETIRED_DATABASE_NAMES.forEach {
 			context.getDatabasePath(it).exists() shouldBe false
 		}

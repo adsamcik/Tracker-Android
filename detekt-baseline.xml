@@ -3660,7 +3660,6 @@
     <ID>TrailingWhitespace:StatsScreen.kt:com.adsamcik.tracker.statistics.fragment.StatsScreen.kt</ID>
     <ID>TrailingWhitespace:StatsScreenTestHost.kt:com.adsamcik.tracker.statistics.test.StatsScreenTestHost.kt</ID>
     <ID>TrailingWhitespace:StepIntervalDao.kt:com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao.kt</ID>
-    <ID>TrailingWhitespace:SunSetRise.kt:com.adsamcik.tracker.statistics.util.SunSetRise.kt</ID>
     <ID>TrailingWhitespace:TrackerApiEntryPoint.kt:com.adsamcik.tracker.tracker.api.TrackerApiEntryPoint.kt</ID>
     <ID>TrailingWhitespace:TrackerComponents.kt:com.adsamcik.tracker.tracker.ui.compose.TrackerComponents.kt</ID>
     <ID>TrailingWhitespace:TrackerDashboard.kt:com.adsamcik.tracker.tracker.ui.compose.TrackerDashboard.kt</ID>
@@ -4719,7 +4718,6 @@
     <ID>UndocumentedPublicClass:StepsSessionFactProjectionLane.kt:StepsSessionFactDrainResult$Inactive : StepsSessionFactDrainResult</ID>
     <ID>UndocumentedPublicClass:StepsSessionFactProjectionLane.kt:StepsSessionFactProjectionLane$Companion</ID>
     <ID>UndocumentedPublicClass:StreamingVerticalRateCalculator.kt:StreamingVerticalRateUpdate</ID>
-    <ID>UndocumentedPublicClass:SunSetRise.kt:SunSetRise$Companion</ID>
     <ID>UndocumentedPublicClass:TemporalHeatmap.kt:TemporalHeatmapAggregator$Companion</ID>
     <ID>UndocumentedPublicClass:TemporalHeatmap.kt:TemporalHeatmapEncoder$Companion</ID>
     <ID>UndocumentedPublicClass:TestDataScreen.kt:TestDataUiState</ID>
