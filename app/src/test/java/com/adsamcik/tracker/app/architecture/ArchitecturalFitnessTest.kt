@@ -254,22 +254,6 @@ class ArchitecturalFitnessTest {
 			}.shouldBeEmpty()
 		}
 
-		private fun orderedMarkerViolations(
-			source: String,
-			contract: String,
-			markers: List<String>,
-		): List<String> {
-			var nextIndex = 0
-			markers.forEach { marker ->
-				val markerIndex = source.indexOf(marker, startIndex = nextIndex)
-				if (markerIndex < 0) {
-					return listOf("$contract -> missing or out-of-order marker: $marker")
-				}
-				nextIndex = markerIndex + marker.length
-			}
-			return emptyList()
-		}
-
 		@Test
 		fun `repository and in-app privacy policies preserve the Tracebox product contract`() {
 			val repositoryPolicy = projectRoot.resolve("privacypolicy.md").readText()
@@ -2605,4 +2589,18 @@ class ArchitecturalFitnessTest {
 			"feature/map/src/test/java/com/adsamcik/tracker/map/presentation/sensors/LocationAndSensorsManagerTest.kt:",
 		)
 	}
+}
+
+private fun orderedMarkerViolations(
+	source: String,
+	contract: String,
+	markers: List<String>,
+): List<String> {
+	var nextIndex = 0
+	markers.forEach { marker ->
+		val markerIndex = source.indexOf(marker, startIndex = nextIndex)
+		if (markerIndex < 0) return listOf("$contract -> missing or out-of-order marker: $marker")
+		nextIndex = markerIndex + marker.length
+	}
+	return emptyList()
 }

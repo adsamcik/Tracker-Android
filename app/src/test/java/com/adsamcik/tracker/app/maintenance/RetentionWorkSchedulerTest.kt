@@ -30,11 +30,9 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.google.common.util.concurrent.SettableFuture
 import io.kotest.matchers.shouldBe
-import io.mockk.capture
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
-import io.mockk.firstArg
 import io.mockk.mockk
 import io.mockk.verify
 import java.util.concurrent.TimeUnit

@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerat
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -1830,7 +1831,7 @@ class RoomImportPortableCapturedCellTest {
 		sql.execSQL("UPDATE imported_cell_observation SET coverage_start_time_ms = ?, observed_time_ms = ?, " +
 			"latest_possible_time_ms = ?, wall_time_uncertainty_ms = ?, known_quality_observation_count = ?, " +
 			"weak_observation_count = ?, all_known_quality_is_weak = ?, content_checksum = ? WHERE entry_identity = ?",
-			arrayOf(observation.coverageStartTimeMs, observation.observedTimeMs, observation.latestPossibleTimeMs,
+			arrayOf<Any?>(observation.coverageStartTimeMs, observation.observedTimeMs, observation.latestPossibleTimeMs,
 				observation.wallTimeUncertaintyMs, observation.knownQualityObservationCount, observation.weakObservationCount,
 				if (observation.allKnownQualityIsWeak) 1 else 0, observationChecksum, entry.identity.value))
 		sql.execSQL("UPDATE imported_cell_run SET content_checksum = ? WHERE entry_identity = ?", arrayOf(runChecksum, entry.identity.value))

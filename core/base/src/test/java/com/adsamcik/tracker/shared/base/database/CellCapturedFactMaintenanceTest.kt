@@ -146,7 +146,7 @@ class CellCapturedFactMaintenanceTest {
 			"UPDATE provider_registration_generation " +
 				"SET capture_callback_barrier_authorization_revision = ? " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(AUTHORIZATION_REVISION, CELL_SOURCE, REGISTRATION_GENERATION),
+			arrayOf<Any?>(AUTHORIZATION_REVISION, CELL_SOURCE, REGISTRATION_GENERATION),
 		)
 
 		database.pruneCapturedCellFactsAffectedByRetentionFloor(
@@ -294,7 +294,7 @@ class CellCapturedFactMaintenanceTest {
 			"UPDATE cell_captured_fact_revision SET gsm_count = ?, lte_count = ?, effect_checksum = ? " +
 				"WHERE writer_projection_id = ? AND writer_projection_version = ? " +
 				"AND logical_fact_id = ? AND semantic_revision = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				forged.gsmCount,
 				forged.lteCount,
 				forged.effectChecksum,
@@ -307,7 +307,7 @@ class CellCapturedFactMaintenanceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE cell_captured_fact_cursor SET latest_effect_checksum = ? " +
 				"WHERE writer_projection_id = ? AND writer_projection_version = ? AND logical_fact_id = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				forged.effectChecksum,
 				forged.writerProjectionId,
 				forged.writerProjectionVersion,
@@ -403,7 +403,7 @@ class CellCapturedFactMaintenanceTest {
 				"quality_poor_count = ?, quality_good_count = ?, weak_observation_count = ?, " +
 				"effect_checksum = ? WHERE writer_projection_id = ? AND writer_projection_version = ? " +
 				"AND logical_fact_id = ? AND semantic_revision = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				tamperedFact.walIntegrityIdentity,
 				tamperedFact.payloadChecksum,
 				tamperedFact.registeredObservationCount,
@@ -422,7 +422,7 @@ class CellCapturedFactMaintenanceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE cell_captured_fact_cursor SET latest_effect_checksum = ? " +
 				"WHERE writer_projection_id = ? AND writer_projection_version = ? AND logical_fact_id = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				tamperedFact.effectChecksum,
 				tamperedFact.writerProjectionId,
 				tamperedFact.writerProjectionVersion,
@@ -505,7 +505,7 @@ class CellCapturedFactMaintenanceTest {
 			"UPDATE cell_captured_fact_revision SET authorization_effect_end_nanos = ?, " +
 				"consent_effect_end_nanos = ?, effect_checksum = ? WHERE writer_projection_id = ? " +
 				"AND writer_projection_version = ? AND logical_fact_id = ? AND semantic_revision = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				correctedOwner.authorizationEffectEndNanos,
 				correctedOwner.consentEffectEndNanos,
 				correctedOwner.effectChecksum,
@@ -518,7 +518,7 @@ class CellCapturedFactMaintenanceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE cell_captured_fact_cursor SET latest_effect_checksum = ? " +
 				"WHERE writer_projection_id = ? AND writer_projection_version = ? AND logical_fact_id = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				correctedOwner.effectChecksum,
 				correctedOwner.writerProjectionId,
 				correctedOwner.writerProjectionVersion,
@@ -646,7 +646,7 @@ class CellCapturedFactMaintenanceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET reserved_at_ms = accepted_at_ms + 1 " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(CELL_SOURCE, REGISTRATION_GENERATION),
+			arrayOf<Any?>(CELL_SOURCE, REGISTRATION_GENERATION),
 		)
 
 		database.pruneCapturedCellFactsAffectedByRetentionFloor(
@@ -667,7 +667,7 @@ class CellCapturedFactMaintenanceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET status = 'ACTIVE' " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(CELL_SOURCE, REGISTRATION_GENERATION),
+			arrayOf<Any?>(CELL_SOURCE, REGISTRATION_GENERATION),
 		)
 
 		database.pruneCapturedCellFactsAffectedByRetentionFloor(
@@ -687,7 +687,7 @@ class CellCapturedFactMaintenanceTest {
 			"UPDATE provider_registration_generation " +
 				"SET capture_callback_barrier_authorization_revision = ? " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(AUTHORIZATION_REVISION + 1L, CELL_SOURCE, REGISTRATION_GENERATION),
+			arrayOf<Any?>(AUTHORIZATION_REVISION + 1L, CELL_SOURCE, REGISTRATION_GENERATION),
 		)
 
 		database.pruneCapturedCellFactsAffectedByRetentionFloor(
@@ -1161,7 +1161,7 @@ class CellCapturedFactMaintenanceTest {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_consent_epoch SET effective_wall_time_ms = ?, effective_elapsed_realtime_nanos = ?, " +
 					"policy_revision = ? WHERE source_kind = ? AND purpose = ? AND epoch = ?",
-				arrayOf(wall, elapsed, revision, CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, CONSENT_EPOCH),
+				arrayOf<Any?>(wall, elapsed, revision, CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, CONSENT_EPOCH),
 			)
 			database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
 				DELETION_TIME_MS) shouldBe CellCapturedSourceDeletionResult.Blocked(
@@ -1174,7 +1174,7 @@ class CellCapturedFactMaintenanceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_consent_epoch SET effective_wall_time_ms = ?, effective_elapsed_realtime_nanos = ?, " +
 				"policy_revision = 1 WHERE source_kind = ? AND purpose = ? AND epoch = ?",
-			arrayOf(RUN_START_WALL_MS, POLICY_START_NANOS, CELL_SOURCE,
+			arrayOf<Any?>(RUN_START_WALL_MS, POLICY_START_NANOS, CELL_SOURCE,
 				SourceBrokerPurpose.SESSION_CAPTURE, CONSENT_EPOCH),
 		)
 		database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
@@ -1188,7 +1188,7 @@ class CellCapturedFactMaintenanceTest {
 		seedCapturedCell(revokedCapture = true)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_consent_epoch SET policy_revision = ? WHERE source_kind = ? AND purpose = ? AND epoch = ?",
-			arrayOf(REVOKED_POLICY_REVISION + 1L, CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE,
+			arrayOf<Any?>(REVOKED_POLICY_REVISION + 1L, CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE,
 				REVOKED_CONSENT_EPOCH),
 		)
 		database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
@@ -1243,7 +1243,7 @@ class CellCapturedFactMaintenanceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_demand SET status = 'RETIRING', retire_boot_id = ?, " +
 				"retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
-			arrayOf(BOOT_ID, REVOKED_POLICY_NANOS, REVOKED_POLICY_WALL_MS, demandId),
+			arrayOf<Any?>(BOOT_ID, REVOKED_POLICY_NANOS, REVOKED_POLICY_WALL_MS, demandId),
 		)
 
 		database.deleteCapturedCellFactsAfterConsentReset(
@@ -1268,7 +1268,7 @@ class CellCapturedFactMaintenanceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_demand SET status = 'RETIRING', retire_boot_id = ?, " +
 				"retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
-			arrayOf(BOOT_ID, RUN_START_NANOS - 1L, REVOKED_POLICY_WALL_MS, demandId),
+			arrayOf<Any?>(BOOT_ID, RUN_START_NANOS - 1L, REVOKED_POLICY_WALL_MS, demandId),
 		)
 
 		database.deleteCapturedCellFactsAfterConsentReset(
@@ -1421,7 +1421,7 @@ class CellCapturedFactMaintenanceTest {
 			"UPDATE provider_registration_generation " +
 				"SET reserved_elapsed_realtime_nanos = accepted_elapsed_realtime_nanos + 1 " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(CELL_SOURCE, REGISTRATION_GENERATION),
+			arrayOf<Any?>(CELL_SOURCE, REGISTRATION_GENERATION),
 		)
 
 		database.deleteCapturedCellFactsAfterConsentReset(
@@ -1963,7 +1963,7 @@ class CellCapturedFactMaintenanceTest {
 		seedCapturedCell(withPortableExportState = true)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE session_segment SET service_run_id = ? WHERE id = ?",
-			arrayOf("mismatched-cell-run", SEGMENT_ID),
+			arrayOf<Any?>("mismatched-cell-run", SEGMENT_ID),
 		)
 
 		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
@@ -2294,7 +2294,7 @@ class CellCapturedFactMaintenanceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET failure_code = ? " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf("FORGED_STOP", CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
+			arrayOf<Any?>("FORGED_STOP", CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
 		)
 
 		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
@@ -2310,7 +2310,7 @@ class CellCapturedFactMaintenanceTest {
 			"UPDATE provider_registration_generation SET reserved_elapsed_realtime_nanos = ? " +
 				"WHERE source_kind = ? " +
 				"AND registration_generation = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				REGISTRATION_END_NANOS - 2L,
 				CELL_SOURCE,
 				REPLACEMENT_REGISTRATION_GENERATION,
@@ -2345,7 +2345,7 @@ class CellCapturedFactMaintenanceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET reserved_elapsed_realtime_nanos = ? " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				REGISTRATION_END_NANOS - 1L,
 				CELL_SOURCE,
 				REPLACEMENT_REGISTRATION_GENERATION + 1L,
@@ -2682,7 +2682,7 @@ class CellCapturedFactMaintenanceTest {
 		) shouldBe CellCapturedSourceDeletionResult.Deleted(1, 1, 1)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_deletion_fence SET effect_checksum = ? WHERE source_kind = ?",
-			arrayOf(ZERO_CHECKSUM, CELL_SOURCE),
+			arrayOf<Any?>(ZERO_CHECKSUM, CELL_SOURCE),
 		)
 
 		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
@@ -2763,7 +2763,7 @@ class CellCapturedFactMaintenanceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE cell_captured_fact_revision SET effect_checksum = ? " +
 				"WHERE logical_fact_id = ? AND semantic_revision = ?",
-			arrayOf(ZERO_CHECKSUM, fact.logicalFactId, fact.semanticRevision),
+			arrayOf<Any?>(ZERO_CHECKSUM, fact.logicalFactId, fact.semanticRevision),
 		)
 		var sinkReached = false
 
@@ -3023,7 +3023,7 @@ class CellCapturedFactMaintenanceTest {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_product_projection_lane SET contiguous_admission_ordinal = ? " +
 					"WHERE source_kind = ? AND binding_generation = ?",
-				arrayOf(
+				arrayOf<Any?>(
 					throughOrdinal,
 					CELL_SOURCE,
 					SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION,
@@ -3040,7 +3040,7 @@ class CellCapturedFactMaintenanceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_product_projection_lane SET contiguous_admission_ordinal = ? " +
 				"WHERE source_kind = ? AND binding_generation = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				throughOrdinal,
 				CELL_SOURCE,
 				SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION,
@@ -3286,7 +3286,7 @@ class CellCapturedFactMaintenanceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_demand SET retire_boot_id = ?, retire_elapsed_realtime_nanos = ?, " +
 				"retired_at_ms = ? WHERE demand_id = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				BOOT_ID,
 				REPLACEMENT_RUN_START_NANOS,
 				REPLACEMENT_RUN_START_WALL_MS,

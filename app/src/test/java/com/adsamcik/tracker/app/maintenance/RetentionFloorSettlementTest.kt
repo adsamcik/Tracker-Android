@@ -694,12 +694,15 @@ class RetentionFloorSettlementTest {
 				collectedDataEpoch = 0L,
 				requestedAtMs = FLOOR,
 			)
-			AppDatabase.deleteAllCollectedData(
-				database = database,
-				operationId = "newer-full-deletion",
-				collectedDataEpoch = 1L,
-				retainedFromMs = FLOOR,
-				updatedAtMs = FLOOR + 1L,
+			database.collectedDataDeletionOperationDao().insert(
+				CollectedDataDeletionOperationEntity(
+					operationId = "newer-full-deletion",
+					targetCollectedDataEpoch = 1L,
+					retainedFromMs = FLOOR,
+					deletedAtMs = FLOOR + 1L,
+					phase = CollectedDataDeletionOperationEntity.PHASE_DATABASE_CLEARED,
+					updatedAtMs = FLOOR + 1L,
+				),
 			)
 			val settled = RetentionFloorSettlementResult.Settled(
 				lifecycle = CollectedDataLifecycleSnapshot(0L, FLOOR),

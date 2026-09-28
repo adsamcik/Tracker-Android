@@ -70,10 +70,8 @@ import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionService
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
-import io.mockk.firstArg
 import io.mockk.mockk
-import io.mockk.secondArg
-import io.mockk.thirdArg
+import io.mockk.verify
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.StandardTestDispatcher

@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.base.database.data
 
 import java.security.MessageDigest
-import kotlin.test.Test
+import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue

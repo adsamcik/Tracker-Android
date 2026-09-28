@@ -18,7 +18,8 @@ class SourceWalCarrierAuthenticatorTest {
 		val steps = stepsWal(stepsPayload()).resigned(sourceSequence = 0L)
 		val pressure = pressureWal(pressurePayload()).resigned(sourceSequence = 0L)
 		assertIs<ActivityWalCarrierAuthentication.Authenticated>(ActivityWalCarrierAuthenticator.authenticate(activity))
-		assertIs<StepsWalCarrierAuthentication.Authenticated>(StepsWalCarrierAuthenticator.authenticate(steps))
+		val stepsResult = StepsWalCarrierAuthenticator.authenticate(steps)
+		assertIs<StepsWalCarrierAuthentication.Authenticated>(stepsResult, stepsResult.toString())
 		assertIs<PressureWalCarrierAuthentication.Authenticated>(PressureWalCarrierAuthenticator.authenticate(pressure))
 	}
 
@@ -42,7 +43,10 @@ class SourceWalCarrierAuthenticatorTest {
 
 		val differentPayload = pressurePayload().copy(
 			meanHectopascals = 1_001.5,
-			sumSquaredDeviations = 4.5,
+			minimumHectopascals = 1_001f,
+			maximumHectopascals = 1_002f,
+			firstHectopascals = 1_001f,
+			lastHectopascals = 1_002f,
 		)
 		val rehashed = pressureWal(differentPayload)
 

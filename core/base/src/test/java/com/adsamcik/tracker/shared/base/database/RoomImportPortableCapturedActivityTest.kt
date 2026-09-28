@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetentionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -778,7 +779,7 @@ class RoomImportPortableCapturedActivityTest {
 				FROM imported_activity_entry_revision
 				WHERE identity = ? AND import_revision = 1
 				""".trimIndent(),
-				arrayOf(
+				arrayOf<Any?>(
 					revision,
 					revision - 1L,
 					"overflow-job-$revision",
@@ -995,7 +996,7 @@ class RoomImportPortableCapturedActivityTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE imported_activity_deletion_generation SET generation = ?, effect_checksum = ? " +
 				"WHERE run_identity = ?",
-			arrayOf(unsupported.generation, unsupported.effectChecksum, runIdentity),
+			arrayOf<Any?>(unsupported.generation, unsupported.effectChecksum, runIdentity),
 		)
 		deleter(testScheduler).delete(replay) shouldBe DeleteSelectedImportedActivityResult.Unverifiable(
 			ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
@@ -1098,7 +1099,7 @@ class RoomImportPortableCapturedActivityTest {
 		sqlite.execSQL(
 			"DELETE FROM imported_activity_window WHERE entry_identity = ? AND " +
 				"entry_import_revision = ? AND run_identity = ? AND identity = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				foreignRunOwner.entryIdentity,
 				foreignRunOwner.entryImportRevision,
 				foreignRunOwner.runIdentity,
@@ -1150,7 +1151,7 @@ class RoomImportPortableCapturedActivityTest {
 		sqlite.execSQL(
 			"UPDATE source_deletion_fence SET scope_identity_digest = ? " +
 				"WHERE source_kind = ? AND purpose = ? AND scope_kind = ? AND scope_identity_digest = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				selectedScope.value,
 				foreignFence.sourceKind,
 				foreignFence.purpose,
@@ -1264,7 +1265,7 @@ class RoomImportPortableCapturedActivityTest {
 			  entry_identity, entry_import_revision, entry_content_checksum, collected_data_epoch
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			""".trimIndent(),
-			arrayOf(
+			arrayOf<Any?>(
 				"orphan-job",
 				"orphan-entry",
 				"orphan-source",
@@ -1458,7 +1459,7 @@ class RoomImportPortableCapturedActivityTest {
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"INSERT INTO imported_activity_deletion_generation VALUES (?, ?, ?, ?, ?)",
-			arrayOf(
+			arrayOf<Any?>(
 				unsupported.runIdentity,
 				unsupported.collectedDataEpoch,
 				unsupported.generation,

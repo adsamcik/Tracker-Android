@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.shared.base.database.data
 
-import kotlin.test.Test
+import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull

@@ -81,11 +81,8 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
-import io.mockk.firstArg
 import io.mockk.mockk
-import io.mockk.secondArg
 import io.mockk.slot
-import io.mockk.thirdArg
 import io.mockk.verify
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
@@ -1837,6 +1834,43 @@ class RetentionPipelineWorkerRobolectricTest {
 			}
 
 			override suspend fun get(): SourceEvidenceState? = storedState
+
+			override suspend fun incrementRevisionForExactLifecycle(
+				expectedRevision: Long,
+				expectedCollectedDataEpoch: Long,
+				expectedRetainedFromMs: Long?,
+				updatedAtMs: Long,
+			): Int {
+				val current = storedState ?: return 0
+				if (current.revision != expectedRevision ||
+					current.collectedDataEpoch != expectedCollectedDataEpoch ||
+					current.retainedFromMs != expectedRetainedFromMs
+				) return 0
+				storedState = current.copy(revision = current.revision + 1L, updatedAtMs = updatedAtMs)
+				return 1
+			}
+
+			override suspend fun updateLifecycleForExactState(
+				expectedRevision: Long,
+				expectedEpoch: Long,
+				expectedRetainedFromMs: Long?,
+				epoch: Long,
+				retainedFromMs: Long?,
+				updatedAtMs: Long,
+			): Int {
+				val current = storedState ?: return 0
+				if (current.revision != expectedRevision ||
+					current.collectedDataEpoch != expectedEpoch ||
+					current.retainedFromMs != expectedRetainedFromMs
+				) return 0
+				storedState = current.copy(
+					revision = current.revision + 1L,
+					collectedDataEpoch = epoch,
+					retainedFromMs = retainedFromMs,
+					updatedAtMs = updatedAtMs,
+				)
+				return 1
+			}
 
 			override suspend fun updateLifecycle(
 				epoch: Long,

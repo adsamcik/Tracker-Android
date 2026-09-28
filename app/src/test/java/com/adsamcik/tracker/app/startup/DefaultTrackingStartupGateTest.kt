@@ -246,7 +246,14 @@ class DefaultTrackingStartupGateTest {
 		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
 		coEvery { collectedDataDeletionService.reconcilePendingDeletion() } returns
 			CollectedDataDeletionCompletion.Retryable(
-				CollectedDataDeletionReconciliationFailure.PurposeSettings,
+				CollectedDataDeletionReconciliationFailure.PurposeSettings(
+					com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt(listOf(
+						com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailure(
+							null,
+							com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailureReason.OWNER_RECONCILIATION_FAILED,
+						),
+					)),
+				),
 			)
 
 		gate.reconcile() shouldBe TrackingStartupResult.RetryableFailure(

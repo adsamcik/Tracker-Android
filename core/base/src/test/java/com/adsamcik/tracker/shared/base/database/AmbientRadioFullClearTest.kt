@@ -6,12 +6,13 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiReplayFootprintEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiFactEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
-import kotlin.test.Test
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -24,7 +25,7 @@ import org.robolectric.RobolectricTestRunner
 class AmbientRadioFullClearTest {
 	private lateinit var database: AppDatabase
 
-	@BeforeTest
+	@Before
 	fun setUp() = runTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
@@ -33,7 +34,7 @@ class AmbientRadioFullClearTest {
 		)
 	}
 
-	@AfterTest
+	@After
 	fun tearDown() {
 		database.close()
 	}

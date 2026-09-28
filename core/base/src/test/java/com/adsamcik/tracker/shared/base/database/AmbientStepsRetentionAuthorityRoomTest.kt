@@ -10,9 +10,9 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTim
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
-import kotlin.test.Test
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
@@ -24,13 +24,13 @@ import org.robolectric.RobolectricTestRunner
 class AmbientStepsRetentionAuthorityRoomTest {
 	private lateinit var database: AppDatabase
 
-	@BeforeTest
+	@Before
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 	}
 
-	@AfterTest
+	@After
 	fun tearDown() {
 		database.close()
 	}

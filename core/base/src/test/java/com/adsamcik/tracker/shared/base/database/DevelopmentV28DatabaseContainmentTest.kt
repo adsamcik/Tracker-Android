@@ -1270,7 +1270,7 @@ class DevelopmentV28DatabaseContainmentTest {
 						if (markerValue != null) {
 							db.execSQL(
 								"INSERT INTO room_master_table(id, identity_hash) VALUES (?, ?)",
-								arrayOf(FINAL_V28_MARKER_ID, markerValue),
+								arrayOf<Any?>(FINAL_V28_MARKER_ID, markerValue),
 							)
 						} else if (includeMarker) {
 							createFinalV28SchemaAssemblyMarker(db)

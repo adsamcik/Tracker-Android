@@ -13,7 +13,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import io.kotest.matchers.shouldBe
 import java.security.MessageDigest
-import kotlin.test.Test
+import org.junit.Test
 import kotlin.test.assertIs
 
 @Suppress("LongMethod", "MagicNumber")

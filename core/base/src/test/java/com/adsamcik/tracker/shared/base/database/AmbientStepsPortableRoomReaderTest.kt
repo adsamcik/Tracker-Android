@@ -56,10 +56,11 @@ class AmbientStepsPortableRoomReaderTest {
 		val result = AmbientStepsPortableRoomReader(database).read(
 			AmbientStepsPortableReadRequest(1L, DAY_END),
 			AmbientStepsPortableReadLimits(),
-		) { checkpoint ->
+			checkpoint = { checkpoint ->
 			database.inTransaction() shouldBe true
 			checkpoints += checkpoint
-		}
+			},
+		)
 
 		val archive = (result as AmbientStepsPortableSnapshot.Ready).archive
 		checkpoints shouldContainExactly listOf(
@@ -267,7 +268,8 @@ class AmbientStepsPortableRoomReaderTest {
 		reader.read(
 			AmbientStepsPortableReadRequest(0L, DAY_END),
 			AmbientStepsPortableReadLimits(maximumFacts = 1),
-		) {} shouldBe AmbientStepsPortableSnapshot.Unverifiable(
+			checkpoint = {},
+		) shouldBe AmbientStepsPortableSnapshot.Unverifiable(
 			AmbientStepsPortableReadFailure.DEPENDENCY_OVERFLOW,
 		)
 
@@ -275,11 +277,12 @@ class AmbientStepsPortableRoomReaderTest {
 			reader.read(
 				AmbientStepsPortableReadRequest(0L, DAY_END),
 				AmbientStepsPortableReadLimits(),
-			) { checkpoint ->
+				checkpoint = { checkpoint ->
 				if (checkpoint == AmbientStepsPortableReadCheckpoint.AUTHORITY_AUTHENTICATED) {
 					throw CancellationException("cancel before assembly")
 				}
-			}
+				},
+			)
 		}.exceptionOrNull()
 		(cancelled is CancellationException) shouldBe true
 	}

@@ -320,7 +320,7 @@ class ImportedStepsRetainedReaderTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_deletion_fence SET effect_checksum = 'corrupt' " +
 				"WHERE source_kind = ? AND purpose = ? AND scope_identity_digest = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				SourceDestinationOwnerEntity.SOURCE_STEPS,
 				StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 				corruptScope,
@@ -343,7 +343,7 @@ class ImportedStepsRetainedReaderTest {
 		database.openHelper.writableDatabase.query(
 			"SELECT collected_data_epoch, effect_checksum FROM source_deletion_fence " +
 				"WHERE source_kind = ? AND purpose = ? AND scope_identity_digest = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				SourceDestinationOwnerEntity.SOURCE_STEPS,
 				StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 				corruptScope,

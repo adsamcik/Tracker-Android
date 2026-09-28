@@ -2,7 +2,7 @@ package com.adsamcik.tracker.shared.base.database.data
 
 import java.time.LocalDate
 import java.time.ZoneId
-import kotlin.test.Test
+import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse

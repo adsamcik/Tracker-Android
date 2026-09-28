@@ -242,7 +242,7 @@ class ImportedActivityRetentionTemporalSchemaTest {
 			) VALUES (?, 7, 3, 100, 200, 1, 'content', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, 1,
 				1, 1, 1, 1, 'run-set', 1, 'fence-set', 4, 'identity-set', 'lineage', ?)
 			""".trimIndent(),
-			arrayOf(
+			arrayOf<Any?>(
 				entryIdentity,
 				startTimeMs,
 				endTimeMs,

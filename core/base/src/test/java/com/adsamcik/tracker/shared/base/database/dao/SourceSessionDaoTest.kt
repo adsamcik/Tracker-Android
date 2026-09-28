@@ -117,7 +117,7 @@ class SourceSessionDaoTest {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE session_manifest_source SET $assignment " +
 					"WHERE logical_tracking_id = ? AND manifest_revision = ?",
-				arrayOf(LOGICAL_ID, 1L),
+				arrayOf<Any?>(LOGICAL_ID, 1L),
 			)
 
 			dao.rawManifestSources(LOGICAL_ID, 1L, limit = 2)

@@ -231,7 +231,7 @@ class LegacyV27StepsWalRetentionTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE legacy_v27_projection_target SET required_through_ordinal = 2 " +
 				"WHERE projection_id = ? AND projection_version = ?",
-			arrayOf(UNSUPPORTED_PROJECTION_ID, UNSUPPORTED_PROJECTION_VERSION),
+			arrayOf<Any?>(UNSUPPORTED_PROJECTION_ID, UNSUPPORTED_PROJECTION_VERSION),
 		)
 
 		shouldThrow<IllegalStateException> {
@@ -259,7 +259,7 @@ class LegacyV27StepsWalRetentionTest {
 		val location = insertLocationWal("location-blocked-mixed", 3L)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET payload_checksum = ? WHERE admission_ordinal = ?",
-			arrayOf("0".repeat(64), legacy.admissionOrdinal),
+			arrayOf<Any?>("0".repeat(64), legacy.admissionOrdinal),
 		)
 
 		shouldThrow<IllegalStateException> {
@@ -579,7 +579,7 @@ class LegacyV27StepsWalRetentionTest {
 		val legacy = insertLegacyStepsWal("legacy-malformed", 1L)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET integrity_identity = ? WHERE admission_ordinal = ?",
-			arrayOf(SourceEventWalEntity.LEGACY_CHECKSUM_MISMATCH, legacy.admissionOrdinal),
+			arrayOf<Any?>(SourceEventWalEntity.LEGACY_CHECKSUM_MISMATCH, legacy.admissionOrdinal),
 		)
 
 		database.pruneSourceEventStorageBefore(createdBeforeMs = 100L)
@@ -679,9 +679,9 @@ class LegacyV27StepsWalRetentionTest {
 				failureCode = null,
 			),
 		)
-		legacyTargets(cutoff, pending = true).forEach(
-			database.legacyV27ProjectionDrainDao()::saveTarget,
-		)
+		legacyTargets(cutoff, pending = true).forEach { target ->
+			database.legacyV27ProjectionDrainDao().saveTarget(target)
+		}
 		registerPendingEventFrame()
 	}
 
@@ -702,9 +702,9 @@ class LegacyV27StepsWalRetentionTest {
 				failureCode = "LEGACY_V27_STORAGE_RETRYABLE",
 			),
 		)
-		legacyTargets(cutoff, pending = true).forEach(
-			database.legacyV27ProjectionDrainDao()::saveTarget,
-		)
+		legacyTargets(cutoff, pending = true).forEach { target ->
+			database.legacyV27ProjectionDrainDao().saveTarget(target)
+		}
 		registerPendingEventFrame()
 	}
 
@@ -725,9 +725,9 @@ class LegacyV27StepsWalRetentionTest {
 				failureCode = "UNSUPPORTED_LEGACY_PROJECTION",
 			),
 		)
-		legacyTargets(cutoff, pending = true).forEach(
-			database.legacyV27ProjectionDrainDao()::saveTarget,
-		)
+		legacyTargets(cutoff, pending = true).forEach { target ->
+			database.legacyV27ProjectionDrainDao().saveTarget(target)
+		}
 		database.legacyV27ProjectionDrainDao().saveTarget(
 			LegacyV27ProjectionTargetEntity(
 				projectionId = UNSUPPORTED_PROJECTION_ID,
@@ -794,9 +794,9 @@ class LegacyV27StepsWalRetentionTest {
 			cutoff = cutoff,
 			pending = false,
 			eventFrameRegistered = eventFrameRegistered,
-		).forEach(
-			database.legacyV27ProjectionDrainDao()::saveTarget,
-		)
+		).forEach { target ->
+			database.legacyV27ProjectionDrainDao().saveTarget(target)
+		}
 		if (eventFrameRegistered) {
 			database.sourceProjectionStateDao().register(
 				SourceProjectionRegistrationEntity(

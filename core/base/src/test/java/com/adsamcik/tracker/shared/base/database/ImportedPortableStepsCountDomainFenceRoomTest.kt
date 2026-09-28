@@ -1341,7 +1341,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 				"source_schema_version, source_receipt_identity, source_archive_identity, " +
 				"source_archive_content_checksum, consumed" +
 				") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			arrayOf(
+			arrayOf<Any?>(
 				operationId,
 				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
 				"sha256:" + "1".repeat(64),

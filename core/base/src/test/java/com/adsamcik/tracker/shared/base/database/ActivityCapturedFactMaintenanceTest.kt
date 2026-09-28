@@ -274,7 +274,7 @@ class ActivityCapturedFactMaintenanceTest {
 		seedCapturedActivity(revokedCapture = true)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_consent_epoch SET policy_revision = 3 WHERE source_kind = ? AND purpose = ? AND epoch = 1",
-			arrayOf(ACTIVITY_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE),
+			arrayOf<Any?>(ACTIVITY_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE),
 		)
 		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
 			ActivityCapturedSourceDeletionResult.Blocked(
@@ -1852,6 +1852,7 @@ class ActivityCapturedFactMaintenanceTest {
 			semanticRevisions = semanticRevisions,
 			sessionRunEffectEndNanos = sessionRunEffectEndNanos,
 			gapOnly = gapOnly,
+			latestGapOnlyCorrection = latestGapOnlyCorrection,
 			authorizationFingerprint = SourceBrokerAuthorization.fingerprint(authorizationDemands),
 			purposeEligibilityMask = SourceBrokerAuthorization.purposeMask(authorizationDemands),
 		)
@@ -2123,6 +2124,7 @@ class ActivityCapturedFactMaintenanceTest {
 		semanticRevisions: Int,
 		sessionRunEffectEndNanos: Long,
 		gapOnly: Boolean,
+		latestGapOnlyCorrection: Boolean,
 		authorizationFingerprint: String,
 		purposeEligibilityMask: Long,
 	) {
@@ -2153,7 +2155,7 @@ class ActivityCapturedFactMaintenanceTest {
 				logicalTrackingId = LOGICAL_TRACKING_ID,
 				serviceRunId = SERVICE_RUN_ID,
 				sessionSegmentId = segmentId,
-				writerOwnerGeneration = 1L,
+				writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
 				latestSemanticRevision = latest.semanticRevision,
 				latestMutationId = latest.mutationId,
 				latestEffectChecksum = latest.effectChecksum,
@@ -2193,7 +2195,7 @@ class ActivityCapturedFactMaintenanceTest {
 			writerProjectionId = WRITER_ID,
 			writerProjectionVersion = WRITER_VERSION,
 			writerBindingGeneration = 1L,
-			writerOwnerGeneration = 1L,
+			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
 			logicalWindowId = logicalWindowId,
 			semanticRevision = semanticRevision,
 			supersedesSemanticRevision = semanticRevision.takeIf { it > 1L }?.minus(1L),
@@ -2418,7 +2420,7 @@ class ActivityCapturedFactMaintenanceTest {
 		qosCode = 1,
 		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
 		writerOwner = SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
-		writerOwnerGeneration = 1L,
+		writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
 		writerProjectionId = WRITER_ID,
 		writerProjectionVersion = WRITER_VERSION,
 		writerBindingGeneration = 1L,

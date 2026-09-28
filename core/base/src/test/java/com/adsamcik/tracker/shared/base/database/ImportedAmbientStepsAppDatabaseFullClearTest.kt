@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCount
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainOwnerFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsCoverage
@@ -102,11 +103,11 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 		}
 
 		val unrelated = fixture("unrelated", LocalDate.of(2026, 1, 2), EPOCH + 1L, 3L)
-		dao.protectedIdentityOwners(
+		val unrelatedOwners = dao.protectedIdentityOwners(
 			unrelated.protectedIdentities,
 			unrelated.protectedIdentities.size + 1,
 		)
-			shouldBe emptyList()
+		unrelatedOwners.isEmpty() shouldBe true
 		insertLineage(unrelated)
 		dao.loadAuthenticatedAmbientStepsLineage(
 			unrelated.day.identity.value,
@@ -326,7 +327,7 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 			ImportedPortableStepsCountDomainBindingEntity(
 				productKind =
 					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
-				productIdentity = identity(
+				productIdentity = AmbientStepsPortableOpaqueIdentity.derive(
 					AmbientStepsPortableIdentityKind.DAY,
 					"missing-session-product",
 				).value,
@@ -366,7 +367,7 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 			latestSourceRevision = owner.ownerRevision,
 			latestOwnerEffectChecksum = owner.ownerEffectChecksum.value,
 			productKind = ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
-			productIdentity = identity(
+			productIdentity = AmbientStepsPortableOpaqueIdentity.derive(
 				AmbientStepsPortableIdentityKind.DAY,
 				"other-day-product",
 			).value,
@@ -479,15 +480,15 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 		val startMs = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
 		val endMs = date.plusDays(1L).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
 		val retainedFromMs = startMs + (endMs - startMs) / 2L
-		val dayIdentity = identity(AmbientStepsPortableIdentityKind.DAY, "day-$tag")
+		val dayIdentity = AmbientStepsPortableOpaqueIdentity.derive(AmbientStepsPortableIdentityKind.DAY, "day-$tag")
 		val removedFact = PortableAmbientStepsFactV1.create(
-			identity(AmbientStepsPortableIdentityKind.FACT, "removed-$tag"),
+			AmbientStepsPortableOpaqueIdentity.derive(AmbientStepsPortableIdentityKind.FACT, "removed-$tag"),
 			startMs,
 			retainedFromMs,
 			4L,
 		)
 		val retainedFact = PortableAmbientStepsFactV1.create(
-			identity(AmbientStepsPortableIdentityKind.FACT, "retained-$tag"),
+			AmbientStepsPortableOpaqueIdentity.derive(AmbientStepsPortableIdentityKind.FACT, "retained-$tag"),
 			retainedFromMs,
 			endMs,
 			5L,
@@ -588,13 +589,13 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 		val startMs = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
 		val endMs = date.plusDays(1L).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
 		val fact = PortableAmbientStepsFactV1.create(
-			identity(AmbientStepsPortableIdentityKind.FACT, "fact-$tag"),
+			AmbientStepsPortableOpaqueIdentity.derive(AmbientStepsPortableIdentityKind.FACT, "fact-$tag"),
 			startMs,
 			endMs,
 			stepCount,
 		)
 		val day = PortableAmbientStepsDayV1.create(
-			identity = identity(AmbientStepsPortableIdentityKind.DAY, "day-$tag"),
+			identity = AmbientStepsPortableOpaqueIdentity.derive(AmbientStepsPortableIdentityKind.DAY, "day-$tag"),
 			structuralEpochDay = date.toEpochDay(),
 			storedZoneId = "UTC",
 			structuralDayStartTimeMs = startMs,

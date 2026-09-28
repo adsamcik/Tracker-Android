@@ -795,9 +795,9 @@ class PressureRetentionTruncationTest {
 
 	@Test
 	fun `production retention budget admits a million single revision lineages`() {
-		DEFAULT_PRESSURE_RETENTION_TRAVERSAL_LIMITS.maximumFactLineages >= 1_000_000L shouldBe true
-		DEFAULT_PRESSURE_RETENTION_TRAVERSAL_LIMITS.maximumFactPagesPerRun.toLong() *
-			RETENTION_PAGE_SIZE >= 1_000_000L shouldBe true
+		(DEFAULT_PRESSURE_RETENTION_TRAVERSAL_LIMITS.maximumFactLineages >= 1_000_000L) shouldBe true
+		(DEFAULT_PRESSURE_RETENTION_TRAVERSAL_LIMITS.maximumFactPagesPerRun.toLong() *
+			RETENTION_PAGE_SIZE >= 1_000_000L) shouldBe true
 		MAX_PRESSURE_RETENTION_REVISION_AUTHORITIES shouldBe 8_192
 	}
 

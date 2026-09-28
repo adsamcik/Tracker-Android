@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
+import com.adsamcik.tracker.shared.base.database.dao.StepsCountDomainAppendResult
+
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityIntegrity
@@ -258,7 +260,7 @@ class TrackingSourceFullClearAssemblyTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE wifi_selected_deletion_receipt SET retained_from_ms = ? " +
 				"WHERE selection_identity = ? AND origin = ?",
-			arrayOf(777L, wifi.entry, wifi.origin),
+			arrayOf<Any?>(777L, wifi.entry, wifi.origin),
 		)
 
 		shouldThrow<IllegalArgumentException> {

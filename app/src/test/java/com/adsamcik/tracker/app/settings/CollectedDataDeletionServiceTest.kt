@@ -58,8 +58,6 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
-import io.mockk.secondArg
-import io.mockk.thirdArg
 import io.mockk.verify
 import java.io.File
 import javax.inject.Provider
@@ -840,7 +838,7 @@ class CollectedDataDeletionServiceTest {
 			val retry = first.shouldBeInstanceOf<CollectedDataDeletionCompletion.Retryable>()
 			retry.failure shouldBe
 				CollectedDataDeletionReconciliationFailure.SourcePolicyAuthority(debt)
-			databaseOperations.single().value.phase shouldBe
+			databaseOperations.entries.single().value.phase shouldBe
 				CollectedDataDeletionOperationEntity.PHASE_WRITERS_REARMED
 			markerFile.exists() shouldBe true
 			startupDeletionBarrier.isClosed shouldBe true

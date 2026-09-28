@@ -996,7 +996,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 						"UPDATE steps_count_domain_owner_revision SET " +
 							"${mutation.column} = ${mutation.corruptSql} " +
 							"WHERE owner_effect_checksum = ? AND linked_at_ms = ?",
-						arrayOf(stored.owner.ownerEffectChecksum, stored.owner.linkedAtMs),
+						arrayOf<Any?>(stored.owner.ownerEffectChecksum, stored.owner.linkedAtMs),
 					)
 					store.readOwners(listOf(key)) shouldBe StepsCountDomainOwnerRead.Unverifiable
 					sqlite.execSQL(
@@ -1075,7 +1075,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				sqlite.execSQL(
 					"UPDATE steps_count_domain_receipt SET authority_revision = ? " +
 						"WHERE owner_identity = ?",
-					arrayOf(receipt.authorityRevision, receipt.ownerIdentity),
+					arrayOf<Any?>(receipt.authorityRevision, receipt.ownerIdentity),
 				)
 			}
 		}
@@ -1715,7 +1715,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE session_manifest_version SET manifest_checksum = 'malformed' " +
 				"WHERE logical_tracking_id = ? AND manifest_revision = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				requireNotNull(malformed.logicalTrackingId),
 				requireNotNull(malformed.sessionManifestRevision),
 			),
@@ -2197,7 +2197,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET retired_at_ms = NULL " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(SourceDestinationOwnerEntity.SOURCE_STEPS, wal.registrationGeneration),
+			arrayOf<Any?>(SourceDestinationOwnerEntity.SOURCE_STEPS, wal.registrationGeneration),
 		)
 
 		StepsCountDomainStore(database).pruneSessionWalForStorage(
@@ -2312,7 +2312,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				"UPDATE session_manifest_source SET writer_projection_id = ? " +
 					"WHERE logical_tracking_id = ? AND manifest_revision = ? " +
 					"AND source_kind = ? AND purpose = ?",
-				arrayOf(
+				arrayOf<Any?>(
 					SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
 					requireNotNull(wal.logicalTrackingId),
 					requireNotNull(wal.sessionManifestRevision),
@@ -2588,7 +2588,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 			sqlite.execSQL(
 				"INSERT INTO steps_count_domain_owner_revision VALUES " +
 					"('AMBIENT_FACT', ?, ?, 1, 'UNPROVEN', NULL, ?, ?)",
-				arrayOf(identity, identity, "3".repeat(64), index.toLong()),
+				arrayOf<Any?>(identity, identity, "3".repeat(64), index.toLong()),
 			)
 		}
 		val key = StepsCountDomainOwnerLookupKey(
@@ -2647,7 +2647,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		database.openHelper.writableDatabase.count(
 			"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
 				"WHERE owner_identity = ? AND owner_revision = ?",
-			arrayOf(key.ownerIdentity, key.ownerRevision),
+			arrayOf<Any?>(key.ownerIdentity, key.ownerRevision),
 		) shouldBe 1L
 	}
 
@@ -2674,7 +2674,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 			database.openHelper.writableDatabase.count(
 				"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
 					"WHERE owner_identity = ? AND owner_revision = ?",
-				arrayOf(key.ownerIdentity, key.ownerRevision),
+				arrayOf<Any?>(key.ownerIdentity, key.ownerRevision),
 			) shouldBe 1L
 			database.openHelper.writableDatabase.count(
 				"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
@@ -2698,7 +2698,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 					sqlite.execSQL(
 						"UPDATE steps_count_domain_owner_revision SET linked_at_ms = 2 " +
 							"WHERE owner_identity = ? AND owner_revision = ?",
-						arrayOf(second.ownerIdentity, second.ownerRevision),
+						arrayOf<Any?>(second.ownerIdentity, second.ownerRevision),
 					)
 					maintenance.removeOwners(listOf(second))
 				}
@@ -2845,7 +2845,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		database.openHelper.writableDatabase.count(
 			"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
 				"WHERE owner_identity = ? AND owner_revision = ?",
-			arrayOf(key.ownerIdentity, key.ownerRevision),
+			arrayOf<Any?>(key.ownerIdentity, key.ownerRevision),
 		) shouldBe 1L
 	}
 
@@ -3784,7 +3784,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 			sqlite.execSQL(
 				"INSERT INTO steps_count_domain_owner_revision VALUES " +
 					"('AMBIENT_FACT', ?, ?, ?, 'UNPROVEN', NULL, ?, ?)",
-				arrayOf(
+				arrayOf<Any?>(
 					scope,
 					identity,
 					revision,

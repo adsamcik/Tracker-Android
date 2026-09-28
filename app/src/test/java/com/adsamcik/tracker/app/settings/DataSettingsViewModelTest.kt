@@ -659,7 +659,14 @@ class DataSettingsViewModelTest {
             runTest(testDispatcher) {
                 coEvery { deletionService.deleteAll() } returns
                     CollectedDataDeletionCompletion.Retryable(
-                        CollectedDataDeletionReconciliationFailure.PurposeSettings,
+						CollectedDataDeletionReconciliationFailure.PurposeSettings(
+							TrackingPurposeSettingsReconciliationDebt(listOf(
+								TrackingPurposeSettingsReconciliationFailure(
+									AmbientTrackingSource.STEPS,
+									TrackingPurposeSettingsReconciliationFailureReason.OWNER_RECONCILIATION_FAILED,
+								),
+							)),
+						),
                     )
                 var result: DataDeletionResult? = null
                 val vm = createViewModel()

@@ -82,7 +82,7 @@ class ImportedStepsDaoTest {
 			"SELECT * FROM imported_steps_entry " +
 				"WHERE (start_time_ms, identity) < (?, ?) " +
 				"ORDER BY start_time_ms DESC, identity DESC LIMIT 1",
-			arrayOf(100L, ENTRY),
+			arrayOf<Any?>(100L, ENTRY),
 		)
 
 		firstPlan.any {
