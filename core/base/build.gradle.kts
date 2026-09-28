@@ -61,6 +61,7 @@ dependencies {
     // DB (api to expose RoomDatabase supertype to consumers of sbase)
     api(libs.androidx.room.runtime)
     implementation(libs.androidx.room.paging)
+    add("kspTestDebug", libs.androidx.room.compiler)
     androidTestImplementation(libs.androidx.room.testing)
 
     // Paging

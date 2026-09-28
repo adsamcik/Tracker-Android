@@ -31,6 +31,7 @@ import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import java.util.concurrent.Executor
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -315,6 +316,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	fun `only the exact Room 2_8_4 temporary invalidation log DDL is accepted`() {
 		installSchema()
 		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("DROP TABLE IF EXISTS temp.room_table_modification_log")
 		val spoofedDefinitions = listOf(
 			"CREATE TEMP TABLE room_table_modification_log (" +
 				"table_id INTEGER PRIMARY KEY CHECK(table_id >= 0), " +
@@ -985,7 +987,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				StoredFieldMutation("receipt_identity", "1", stored.owner.receiptIdentity),
 				StoredFieldMutation(
 					"owner_effect_checksum",
-					"NULL",
+					"X'01'",
 					stored.owner.ownerEffectChecksum,
 				),
 				StoredFieldMutation("linked_at_ms", "'41x'", stored.owner.linkedAtMs),
@@ -1016,7 +1018,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				StoredFieldMutation("domain_identity", "X'01'", receipt.domainIdentity),
 				StoredFieldMutation("owner_kind", "1", receipt.ownerKind),
 				StoredFieldMutation("scope_identity", "1.5", receipt.scopeIdentity),
-				StoredFieldMutation("owner_identity", "NULL", receipt.ownerIdentity),
+				StoredFieldMutation("owner_identity", "X'01'", receipt.ownerIdentity),
 				StoredFieldMutation("owner_revision", "'1x'", receipt.ownerRevision),
 				StoredFieldMutation(
 					"registration_generation",
@@ -1027,7 +1029,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				StoredFieldMutation("authority_revision", "'1x'", receipt.authorityRevision),
 				StoredFieldMutation(
 					"authority_fingerprint",
-					"NULL",
+					"X'01'",
 					receipt.authorityFingerprint,
 				),
 				StoredFieldMutation("coverage_kind", "1", receipt.coverageKind),
@@ -1129,12 +1131,12 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				StoredFieldMutation("owner_kind", "1", "SESSION_COMPLETENESS"),
 				StoredFieldMutation("owner_identity", "X'01'", ownerIdentity),
 				StoredFieldMutation("owner_revision", "'1x'", 1L),
-				StoredFieldMutation("terminal_state", "NULL", "UNPROVEN"),
+				StoredFieldMutation("terminal_state", "X'01'", "UNPROVEN"),
 				StoredFieldMutation("last_admission_ordinal", "'1x'", null),
 				StoredFieldMutation("last_source_sequence", "1.5", null),
 				StoredFieldMutation("provider_flush_outcome", "X'01'", "NOT_REQUESTED"),
 				StoredFieldMutation("registration_removal_outcome", "1", "REMOVED"),
-				StoredFieldMutation("registration_timeline_checksum", "NULL", timelineChecksum),
+				StoredFieldMutation("registration_timeline_checksum", "X'01'", timelineChecksum),
 				StoredFieldMutation("evidence_checksum", "1.5", evidenceChecksum),
 			)
 			for (mutation in mutations) {
@@ -1536,7 +1538,13 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	fun `first zero-based shadow Steps WAL observed before retirement prunes without an owner`() =
 		runTest {
 			installSchema()
-			val wal = insertWal("ownerless-shadow", 0L, payloadVersion = 7)
+			val wal = insertWal(
+				"ownerless-shadow",
+				0L,
+				payloadVersion = 7,
+				registrationGeneration = 1L,
+				configRevision = 1L,
+			)
 			installOwnerlessStepsWalAuthority(
 				wal = wal,
 				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
@@ -1557,7 +1565,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	@Test
 	fun `ownerless shadow Steps WAL pages 65 manifests without per-manifest source reads`() =
 		runTest {
-			val queries = mutableListOf<String>()
+			val queries = CopyOnWriteArrayList<String>()
 			database.close()
 			database = AppDatabase.inMemoryBuilder(
 				ApplicationProvider.getApplicationContext<Application>(),
@@ -1597,7 +1605,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 
 	@Test
 	fun `1000 ownerless revisions in one run use bounded manifest source queries`() = runTest {
-		val queries = mutableListOf<String>()
+		val queries = CopyOnWriteArrayList<String>()
 		database.close()
 		database = AppDatabase.inMemoryBuilder(
 			ApplicationProvider.getApplicationContext<Application>(),
@@ -1739,7 +1747,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 
 	@Test
 	fun `ownerless candidates cache one authenticated timeline per distinct run`() = runTest {
-		val queries = mutableListOf<String>()
+		val queries = CopyOnWriteArrayList<String>()
 		database.close()
 		database = AppDatabase.inMemoryBuilder(
 			ApplicationProvider.getApplicationContext<Application>(),
@@ -2344,6 +2352,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		val mixed = insertWal(
 			eventId = "mixed-capture-control",
 			sourceSequence = 2L,
+			payloadVersion = 7,
 			purposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE or
 				SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
 		)
@@ -2782,7 +2791,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 
 	@Test
 	fun `one maintenance snapshot audits once across multiple candidate batches`() = runTest {
-		val queries = mutableListOf<String>()
+		val queries = CopyOnWriteArrayList<String>()
 		database.close()
 		database = AppDatabase.inMemoryBuilder(
 			ApplicationProvider.getApplicationContext<Application>(),
@@ -2851,7 +2860,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 
 	@Test
 	fun `WAL maintenance audits once and keyset-pages multiple candidate batches`() = runTest {
-		val queries = mutableListOf<String>()
+		val queries = CopyOnWriteArrayList<String>()
 		database.close()
 		database = AppDatabase.inMemoryBuilder(
 			ApplicationProvider.getApplicationContext<Application>(),
