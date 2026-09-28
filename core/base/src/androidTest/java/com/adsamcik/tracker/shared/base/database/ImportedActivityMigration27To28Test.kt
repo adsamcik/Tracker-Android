@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.base.database
 
 import android.content.Context
 import androidx.room.testing.MigrationTestHelper
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -421,7 +422,7 @@ class ImportedActivityMigration27To28Test {
 				lineage_authority_checksum, effect_checksum
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			""".trimIndent(),
-			arrayOf(
+			arrayOf<Any?>(
 				value.entryIdentity,
 				value.collectedDataEpoch,
 				value.sourceEvidenceRevision,

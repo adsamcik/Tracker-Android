@@ -178,7 +178,7 @@ class TrackingOwnerValidationSchemaParityTest {
 				pressure_writer_owner, pressure_writer_owner_generation
 			) VALUES (?, 1, '{}', 1, ?, ?, ?, ?)
 			""".trimIndent(),
-			arrayOf(
+			arrayOf<Any?>(
 				signalId,
 				stepsOwner,
 				stepsGeneration,
@@ -211,7 +211,7 @@ class TrackingOwnerValidationSchemaParityTest {
 				0, 'run-deletions', 0, 'identity-fences', 'legacy-effect'
 			)
 			""".trimIndent(),
-			arrayOf(owner, generation),
+			arrayOf<Any?>(owner, generation),
 		)
 	}
 
