@@ -1098,13 +1098,13 @@ class AtomicTrackingPurposeAvailabilityStore :
 	override fun invalidateAmbient(source: AmbientTrackingSource) {
 		synchronized(lock) {
 			val priorAvailability = mutableAvailability.value.ambientSources.getValue(source)
-			ambientSlots[source] = ambientSlots[source]?.let { slot ->
+			ambientSlots[source]?.let { slot ->
 				val terminal = terminalTokens.getOrPut(
 					slot.identity.purposeLeaseIdentity.leaseToken(),
 				) {
 					slot.state.terminalRejection()
 				}
-				slot.copy(state = terminal.toSlotState())
+				ambientSlots[source] = slot.copy(state = terminal.toSlotState())
 			}
 			publishPending(
 				source,
@@ -1119,13 +1119,13 @@ class AtomicTrackingPurposeAvailabilityStore :
 	) {
 		synchronized(lock) {
 			val priorAvailability = mutableAvailability.value.ambientSources.getValue(source)
-			ambientSlots[source] = ambientSlots[source]?.let { slot ->
+			ambientSlots[source]?.let { slot ->
 				val terminal = terminalTokens.getOrPut(
 					slot.identity.purposeLeaseIdentity.leaseToken(),
 				) {
 					slot.state.terminalRejection()
 				}
-				slot.copy(state = terminal.toSlotState())
+				ambientSlots[source] = slot.copy(state = terminal.toSlotState())
 			}
 			mutableAvailability.value = mutableAvailability.value.copy(
 				ambientSources = mutableAvailability.value.ambientSources +

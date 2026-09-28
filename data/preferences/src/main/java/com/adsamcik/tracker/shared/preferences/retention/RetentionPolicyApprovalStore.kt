@@ -5,7 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
-import androidx.datastore.preferences.core.preferencesDataStore
+import androidx.datastore.preferences.preferencesDataStore
 import androidx.datastore.preferences.core.stringPreferencesKey
 import java.security.MessageDigest
 import java.util.UUID
@@ -154,15 +154,15 @@ internal class RetentionPolicyApprovalStore(
 				val revision = storedRevision + 1L
 				val opaquePolicyId = nextOpaquePolicyId()
 				require(opaquePolicyId.isNotBlank() && opaquePolicyId.length <= 256)
-				val pending = RetentionPolicyApprovalRecord.create(
+				val newPending = RetentionPolicyApprovalRecord.create(
 					status = RetentionPolicyApprovalStatus.PENDING,
 					configurationGeneration = generation,
 					revision = revision,
 					opaquePolicyId = opaquePolicyId,
 					configurationChecksum = configurationChecksum,
 				)
-				preferences.writePending(pending)
-				stage = RetentionPolicyStage(pending.policy, approvalRequired = true)
+				preferences.writePending(newPending)
+				stage = RetentionPolicyStage(newPending.policy, approvalRequired = true)
 			}
 			checkNotNull(stage)
 		}
