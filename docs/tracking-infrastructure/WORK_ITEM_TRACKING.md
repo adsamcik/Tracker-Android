@@ -509,6 +509,24 @@ independent static review only, **IMPLEMENTED_UNVALIDATED**.
 See `optional-map-enrichment/2026-09-27/IMPLEMENTATION_TRACE.md` and `REVIEW_RECEIPT.md`.
 No validation, input freeze, provider activation, new dev/v10 integration or push.
 
+### Source file transfers continuation (2026-09-28)
+
+- [x] Resolve source-focused export UI: one Wi-Fi choice and one Cell choice, each preserving
+  session and separately consented background data within its own single file.
+- [x] Resolve the date switch: default on for captured Wi-Fi/Cell, include only whole entries
+  with selected-source observation/gap evidence touching the dates; off excludes crossing entries.
+- [x] Resolve exact Location backup scope: include all saved points in selected dates, label
+  unknown origin honestly, accept structurally valid edited files and deduplicate by point ID.
+- [x] Author the ambient radio one-snapshot export correction and focused test source; independent
+  static review found no remaining narrow-slice issue. **IMPLEMENTED_UNVALIDATED**.
+- [ ] Finish captured Cell gap-only portable coverage, combined Wi-Fi/Cell file adapters,
+  source-owned range selection and `.trackerlocation` export/import with overlap deduplication.
+- [ ] Complete whole-scope review and deferred convergence/device verification.
+
+All tracked data remains in the app database until a person explicitly chooses Export. A chosen
+format produces one file. No validation, input freeze, provider activation, new dev/v10 integration
+or push.
+
 
 ### Settings and product surfaces continuation (2026-09-27)
 
@@ -519,7 +537,8 @@ Whole surface requirement remains unchecked. Checked source slices are authored 
 - [x] Author app-locale widget counts/duration/percent and legacy settings-unit corrections.
 - [x] Author localized existing notification/session action and calendar-selection semantics, plus focused regression sources.
 - [x] Finish independent static review of the narrow source diff and record the receipt.
-- [ ] Resolve concrete source Details/Pressure/selection, recovery and live presentation proposals.
+- [x] Resolve concrete source Details/Pressure/selection, recovery and live presentation proposals;
+  user approved all four plain-language choices on 2026-09-28. Implementation remains below.
 - [ ] Implement source-aware onboarding/settings, guarded completion and recoverable serialized saves.
 - [ ] Complete qualified history/metrics readers and wire Dashboard/Tracker/statistics presentation.
 - [ ] Complete qualified notifications/widgets, source capability/recovery states and accessible reorder.

@@ -1,8 +1,8 @@
-# Plain-language product decisions awaiting the user's answer
+# Plain-language product decisions
 
 Date: 2026-09-28. These four tool questions replace the earlier three technical questions;
-the earlier questions can be ignored. None has an answer yet. The supplied AGENTS.md requires
-confirmation before genuinely changing UI/behavior; do not treat a pending proposal as approval.
+the earlier questions can be ignored. The user approved all four recommended choices.
+The approvals authorize the specified behavior, not a claim that its implementation is complete.
 
 ## 1. Source setup and settings
 
@@ -14,7 +14,8 @@ with session/all-day participation and quality controls, preserving legacy/custo
 and independently consented sessionless all-day tracking. Unsupported modes remain explicit.
 
 Tool question: May I make these changes? Choices: Yes, use one six-source list and keep choices
-selected (Recommended); Keep the current setup choices and separate controls. State: unanswered.
+selected (Recommended); Keep the current setup choices and separate controls. State: approved,
+2026-09-28.
 
 ## 2. Setup and notification settings recovery
 
@@ -25,7 +26,7 @@ settings and retention preparation succeed.
 
 Tool question: May I use this recovery behavior? Choices: Yes, show errors and finish only after
 successful saves (Recommended); Keep current completion order; add error messages only.
-State: unanswered.
+State: approved, 2026-09-28.
 
 ## 3. What live surfaces display
 
@@ -35,7 +36,7 @@ show values only from trustworthy saved source data; use short Waiting, Partial 
 states otherwise; preserve notification customization.
 
 Tool question: May I use this display rule? Choices: Yes, show only trustworthy chosen-source data
-(Recommended); Keep the current layout; add status messages. State: unanswered. Approval would
+(Recommended); Keep the current layout; add status messages. State: approved, 2026-09-28. Approval does
 not establish currently unfinished data-reader/retained-authority correctness.
 
 ## 4. Accessible notification order
@@ -44,7 +45,7 @@ Current: notification items can only be reordered by dragging. Recommendation: k
 add Move up/Move down actions that change the same saved order for accessibility.
 
 Tool question: May I add those actions? Choices: Yes, add accessible Move actions (Recommended);
-Keep drag reordering only. State: unanswered.
+Keep drag reordering only. State: approved, 2026-09-28.
 
 Existing source freedom, consented sessionless ambient, five balance levels, 48-hour CONTROL
 retention and selected-format-only export remain settled. Earlier retained Location visibility/proof

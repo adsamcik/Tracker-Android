@@ -727,4 +727,53 @@ The previous three technical tool questions for settings/product surfaces were r
 plain-language, self-contained tool questions that each explain current behavior, the proposed
 change and alternatives. The old versions can be ignored. Their exact context and choices are
 recorded in ../../product-surfaces/2026-09-27/CONTRACT_DECISIONS.md. None has an answer yet;
-no dependent UI/behavior change is authorized by elapsed time. IMPLEMENTATION_ONLY continues.
+no dependent UI/behavior change was authorized by elapsed time. The user later approved all four
+recommended choices: one six-source list preserving unavailable choices, recoverable guarded saves,
+participating-source truthful live values, and accessible notification Move actions. The exact
+answers are in ../../product-surfaces/2026-09-27/CONTRACT_DECISIONS.md. IMPLEMENTATION_ONLY continues.
+
+## 45. Source file transfer request and export clarification (2026-09-28)
+
+Original user text:
+
+> **Complete source file transfers.** Finish missing radio adapters and exact `.trackerlocation`
+> export/import with provenance, gap preservation and overlapping-file deduplication.
+
+> Show me the questions again while you continue with your work
+
+The user clarified that all tracked observations remain in the app database. Optional source files
+are created only when Export is selected, as with existing GPX/JSON exports. The user approved
+offering optional Wi-Fi and Cell export formats. The user also rejected an example implying one
+Wi-Fi scan can last twenty minutes; scans are discrete, while a tracking session can contain scans
+on both sides of midnight. No claim of continuous Wi-Fi scanning may be made.
+
+The user's latest exact answer to a revised date-range question is:
+
+> I would design a smart selection, consult astra on the precise details but this should be on/off
+> feature that can intelligently include sessions that overlap days if it makes sense.
+
+The user then approved Astra's precise recommendation: the date switch starts on; when on, include
+a whole captured Wi-Fi/Cell entry only if that same source has a scan or recorded gap on the selected
+dates, disclosing out-of-range scans. When off, exclude crossing entries rather than slicing their
+identity. Background observations and Location points remain date-selected. The accepted
+selected-format-only export rule still applies.
+
+The user approved one Wi-Fi export choice and one Cell export choice, each including session and
+separately consented background data in a single chosen-source file with the original kinds marked
+inside. The user's product correction is exact: "Think like a user, they want things simple, they
+don't care about how we technically made the app, they care about what they want to export".
+The export picker should therefore present source names, not four implementation-specific radio
+file choices. This is a change from the earlier draft proposing four options.
+
+The user rejected proof-oriented exclusion for an exact Location backup: "Who cares this is user
+app if they so wish to change the backups they can". The user then approved exporting every saved
+Location point in selected dates, including older points with unknown original authority, marked
+honestly as unknown; import may accept a user-edited structurally valid file and deduplicates by
+original point identity. Import never starts tracking or grants recording permission. Do not infer
+that an edited file can prove original device provenance; retain its declared origin as user-file
+provenance where original proof is absent.
+
+Existing captured Cell gap-only export and ambient radio snapshot-consistency defects were found
+in static source review. The ambient radio consistency fix and focused test source were authored
+and independently reviewed with no remaining narrow-slice finding; they remain
+IMPLEMENTED_UNVALIDATED. The whole source file transfer request is incomplete.
