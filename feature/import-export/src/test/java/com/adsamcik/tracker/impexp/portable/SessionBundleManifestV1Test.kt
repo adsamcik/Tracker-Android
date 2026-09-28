@@ -46,6 +46,10 @@ class SessionBundleManifestV1Test {
 		shouldThrow<InvalidSessionBundle> {
 			codec.encode(base.copy(children = listOf(child.copy(path = "../steps.trackersteps"))))
 		}
+		shouldThrow<InvalidSessionBundle> {
+			codec.encode(base.copy(children = listOf(child.copy(
+				fromMs = 50, wholeEntries = false))))
+		}
 	}
 
 	@Test

@@ -152,7 +152,9 @@ internal object SessionBundleManifestCodecV1 {
 		manifest.children.forEach { child ->
 			if (!safePath.matches(child.path) || child.formatId.isBlank() || child.formatId.length > 80 ||
 				child.formatVersion < 1 || child.sizeBytes !in 1..MAX_CHILD_BYTES ||
-				!sha256.matches(child.sha256) || child.fromMs < 0L || child.toMs <= child.fromMs)
+				!sha256.matches(child.sha256) || child.fromMs < 0L || child.toMs <= child.fromMs ||
+				(!child.wholeEntries &&
+					(child.fromMs < manifest.fromMs || child.toMs > manifest.toMs)))
 				throw InvalidSessionBundle("Session data file details are invalid")
 			total += child.sizeBytes
 			if (total > MAX_TOTAL_BYTES) throw InvalidSessionBundle("Session data exceeds the file limit")
