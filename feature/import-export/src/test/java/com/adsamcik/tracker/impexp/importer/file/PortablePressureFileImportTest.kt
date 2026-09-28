@@ -194,7 +194,7 @@ class PortablePressureFileImportTest {
 
 		shouldThrow<PortablePressureImportReceiptContextException> {
 			importer.import(context, database, unbound)
-		}.let { failure -> failure is IOException shouldBe true }
+		}.let { failure -> (failure is IOException) shouldBe true }
 		dependencyCalls shouldBe 0
 		opens shouldBe 0
 	}
@@ -263,7 +263,7 @@ class PortablePressureFileImportTest {
 				database,
 				stream(bytes, jobId = "retry-job", receivedAtMs = 321L),
 			)
-		}.let { failure -> failure is IOException shouldBe true }
+		}.let { failure -> (failure is IOException) shouldBe true }
 		retryable.import(
 			context,
 			database,

@@ -83,7 +83,7 @@ class RoomSourcePolicyRepositoryTest {
             overallBalanceLevel = 3, locationProfileVersion = 1, locationBalanceLevel = 3))
         database.openHelper.writableDatabase.execSQL(
             "UPDATE source_policy SET overall_balance_level = 2, balance_level = 2 WHERE policy_revision = ? AND source_kind = ?",
-            arrayOf(initial.revision, TrackingSourceComponent.STEPS.stableCode))
+            arrayOf<Any?>(initial.revision, TrackingSourceComponent.STEPS.stableCode))
         (repository.currentState() is SourcePolicyAuthorityState.Invalid) shouldBe true
     }
 

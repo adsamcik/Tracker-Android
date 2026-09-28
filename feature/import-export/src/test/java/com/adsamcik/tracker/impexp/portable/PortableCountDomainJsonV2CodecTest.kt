@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.portable
 
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
+import com.adsamcik.tracker.shared.model.steps.portable.StepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV2
 import com.adsamcik.tracker.shared.model.steps.portable.identity
 import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain

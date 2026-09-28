@@ -273,7 +273,7 @@ class PortableStepsJsonV1CodecTest {
 
 		val expected = entry()
 		val canonical = encode(listOf(expected))
-		val escapedIdentity = expected.identity.value
+		val escapedIdentity = expected.identity.value.toCharArray()
 			.joinToString(separator = "") { character -> "\\u%04x".format(character.code) }
 		val escapedWire = canonical.decodeToString()
 			.replaceFirst(expected.identity.value, escapedIdentity)

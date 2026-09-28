@@ -67,8 +67,8 @@ class RoomTrackingDiagnosticStoreTest {
 		TrackingDiagnosticStorageLimits.GLOBAL_RATE_LIMIT shouldBe 240
 		TrackingDiagnosticStorageLimits.PER_SOURCE_RATE_LIMIT shouldBe 60
 		TrackingDiagnosticStorageLimits.MAX_PAGE_SIZE shouldBe 100
-		maximumValidStoredEncodingBytes() <=
-			TrackingDiagnosticStorageLimits.MAX_ENCODED_EVENT_BYTES shouldBe true
+		(maximumValidStoredEncodingBytes() <=
+			TrackingDiagnosticStorageLimits.MAX_ENCODED_EVENT_BYTES) shouldBe true
 	}
 
 	@Test

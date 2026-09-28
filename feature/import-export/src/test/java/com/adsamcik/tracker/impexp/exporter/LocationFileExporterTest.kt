@@ -36,7 +36,7 @@ class LocationFileExporterTest {
 
 	@After fun tearDown() = database.close()
 
-	@Test fun `saved Location points export without a tracking session and keep IDs across ranges`() = runBlocking {
+	@Test fun `saved Location points export without a tracking session and keep IDs across ranges`(): Unit = runBlocking {
 		database.locationSampleDao().insert(sample(1_000L))
 		database.locationSampleDao().insert(sample(2_000L))
 		val exporter = LocationFileExporter()
@@ -69,7 +69,7 @@ class LocationFileExporterTest {
 		row(true, true).fileOrigin() shouldBe LocationFileOrigin.BOTH
 	}
 
-	@Test fun `saved session point is labelled session by its stored purpose`() = runBlocking {
+	@Test fun `saved session point is labelled session by its stored purpose`(): Unit = runBlocking {
 		val sampleId = database.locationSampleDao().insert(sample(1_000L).copy(
 			sourceEventId = "event-1", sourceSignalId = "signal-1",
 		))

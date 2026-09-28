@@ -20,9 +20,9 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.booleans.shouldBeFalse
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
-import kotlin.test.Test
+import org.junit.After as AfterTest
+import org.junit.Before as BeforeTest
+import org.junit.Test
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlinx.coroutines.CompletableDeferred
@@ -186,14 +186,14 @@ class RetentionAuthorityProducerRoomTest {
 			lifecycle.retainedFromMs,
 			100L,
 		)
-		val failing = producer { source, scope ->
+		val failing = producer(beforeDecisionApply = { source, scope ->
 			if (
 				source == TrackingSourceComponent.WIFI &&
 				scope == RetentionAuthorityScope.PORTABLE_IMPORT
 			) {
 				error("portable authority storage unavailable")
 			}
-		}
+		})
 
 		val result = failing.reconcileCurrentSettings().single {
 			it.source == TrackingSourceComponent.WIFI &&
@@ -451,7 +451,7 @@ class RetentionAuthorityProducerRoomTest {
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val commitReady = CompletableDeferred<Unit>()
 		val releaseCommit = CompletableDeferred<Unit>()
-		val producer = producer { source, scope ->
+		val producer = producer(beforeDecisionApply = { source, scope ->
 			if (
 				source == TrackingSourceComponent.STEPS &&
 				scope == RetentionAuthorityScope.LIVE_AMBIENT
@@ -459,7 +459,7 @@ class RetentionAuthorityProducerRoomTest {
 				commitReady.complete(Unit)
 				releaseCommit.await()
 			}
-		}
+		})
 		val reconciliation = async {
 			producer.reconcileLiveAmbient(TrackingSourceComponent.STEPS)
 		}
@@ -1021,10 +1021,10 @@ class RetentionAuthorityProducerRoomTest {
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val arrival = CompletableDeferred<Unit>()
 		val release = CompletableDeferred<Unit>()
-		val first = producer { _, _ ->
+		val first = producer(beforeDecisionApply = { _, _ ->
 			arrival.complete(Unit)
 			release.await()
-		}
+		})
 		val second = producer()
 		val firstResult = async {
 			first.approvePortableImport(TrackingSourceComponent.STEPS)
