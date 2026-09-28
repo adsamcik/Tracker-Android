@@ -35,7 +35,7 @@ class MapDataChangeObserverRoomTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun completeNativeDependencyRegistrationAndCommittedEpochFenceInvalidateBothInputs() = runBlocking {
+	fun completeNativeDependencyRegistrationAndCommittedEpochFenceInvalidateBothInputs(): Unit = runBlocking {
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState())
 		val observer = MapDataChangeObserver(database)
 		val events = Channel<MapDataChange>(Channel.UNLIMITED)
