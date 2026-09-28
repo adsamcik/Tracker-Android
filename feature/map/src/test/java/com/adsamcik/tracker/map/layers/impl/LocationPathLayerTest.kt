@@ -5,6 +5,10 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.resetMain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -15,7 +19,10 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class LocationPathLayerTest {
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test fun isolatedFixesRemainPointsWithoutFabricatedConnectingLine() = runBlocking {
+        Dispatchers.setMain(Dispatchers.Unconfined)
+        try {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val layer = LocationPathLayer(segmentsProvider = { _, _ -> listOf(
             listOf(LatLngModel(50.0, 14.0)), listOf(LatLngModel(51.0, 15.0))) })
@@ -26,5 +33,8 @@ class LocationPathLayerTest {
         assertTrue(!line.geoJson.contains("LineString"))
         assertEquals(2, Regex("\"type\":\"Point\"").findAll(points.geoJson).count())
         layer.disable()
+        } finally {
+            Dispatchers.resetMain()
+        }
     }
 }
