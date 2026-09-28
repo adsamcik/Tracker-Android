@@ -28,6 +28,7 @@ import com.adsamcik.tracker.shared.base.time.Clock
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -167,15 +168,16 @@ class ExportPlanWorker @AssistedInject constructor(
             is ExportOutputResolution.Success -> resolved.output
         }
 
-        // Build lazy paging sequence from DB (same pattern as ImportExportComposeActivity)
-		requireReadyGeneration()
-        val locationSampleDao = appDatabase.locationSampleDao()
-        val fromMs = dateRange?.first ?: 0L
-        val toMs = dateRange?.last ?: Long.MAX_VALUE
         var recordCount = 0
         var maxTimeMs = 0L
         var maxId = 0L
-        val locationSequence = pagedLocationSequence(
+        val result = try {
+            // The destination already exists. Every subsequent failure must remove it.
+			requireReadyGeneration()
+            val locationSampleDao = appDatabase.locationSampleDao()
+            val fromMs = dateRange?.first ?: 0L
+            val toMs = dateRange?.last ?: Long.MAX_VALUE
+            val locationSequence = pagedLocationSequence(
             locationPurposeDao = appDatabase.locationPurposeDao(),
         locationSampleDao = locationSampleDao,
             fromMs = fromMs,
@@ -194,7 +196,6 @@ class ExportPlanWorker @AssistedInject constructor(
                 }
             }
 
-        val result = try {
             val outputStream = output.openOutputStream()
             if (outputStream == null) {
                 output.deletePartial()
@@ -219,7 +220,9 @@ class ExportPlanWorker @AssistedInject constructor(
 			requireReadyGeneration()
 			exportResult
         } catch (e: CancellationException) {
-            output.deletePartial()
+            withContext(NonCancellable + ioDispatcher) {
+                runCatching { output.deletePartial() }.exceptionOrNull()?.let(e::addSuppressed)
+            }
             throw e
         } catch (e: Exception) {
             output.deletePartial()
@@ -548,14 +551,14 @@ private sealed interface ExportOutputResolution {
     data class Failed(val error: String) : ExportOutputResolution
 }
 
-private interface ExportOutput {
+internal interface ExportOutput {
     val fileName: String
     fun openOutputStream(): OutputStream?
     fun length(): Long
     fun deletePartial()
 }
 
-private data class FileExportOutput(private val file: File) : ExportOutput {
+internal data class FileExportOutput(private val file: File) : ExportOutput {
     override val fileName: String = file.name
 
     override fun openOutputStream(): OutputStream = FileOutputStream(file)
@@ -563,11 +566,13 @@ private data class FileExportOutput(private val file: File) : ExportOutput {
     override fun length(): Long = file.length()
 
     override fun deletePartial() {
-        if (file.exists()) file.delete()
+        if (file.exists() && !file.delete()) {
+            throw java.io.IOException("Unfinished export remains at ${file.absolutePath}")
+        }
     }
 }
 
-private data class DocumentFileExportOutput(
+internal data class DocumentFileExportOutput(
     private val context: Context,
     private val document: DocumentFile,
     override val fileName: String,
@@ -577,6 +582,8 @@ private data class DocumentFileExportOutput(
     override fun length(): Long = document.length()
 
     override fun deletePartial() {
-        document.delete()
+        if (!document.delete()) {
+            throw java.io.IOException("Unfinished export remains at ${document.uri}")
+        }
     }
 }

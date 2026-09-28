@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -83,48 +84,72 @@ class ImportExportViewModel @Inject constructor(
     ) {
         beginExport()
         viewModelScope.launch {
-            var createdFile: DocumentFile? = null
-            val result = try {
-                withContext(dispatchers.io) {
-                    val actualFileName = getExportFileName(fileName, exporter, range, appContext)
-                    val finalFileName = if (forceOverride) {
-                        actualFileName
-                    } else {
-                        findAvailableFileName(directory, actualFileName, exporter.extension)
-                    }
-                    val fileNameWithExtension = "${finalFileName}.${exporter.extension}"
-                    val trimmedName = preventDoubleExtension(fileNameWithExtension, exporter)
-                    val destinationFile = directory.createFile(exporter.mimeType, trimmedName)
-                        ?: return@withContext ExportDocumentResult.Failure(
-                            ExportResult.Error(
-                                LocalizedString(R.string.export_error_stream_failed, fileNameWithExtension)
-                            )
-                        )
-                    createdFile = destinationFile
-
-                    when (val exportResult = exportToFile(destinationFile, exporter, range)) {
-                        is ExportResult.Success -> ExportDocumentResult.Success(
-                            fileNameWithExtension = fileNameWithExtension,
-                            baseFileName = finalFileName,
-                        )
-                        is ExportResult.Error -> {
-                            destinationFile.delete()
-                            ExportDocumentResult.Failure(exportResult)
-                        }
-                    }
-                }
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (_: Exception) {
-                withContext(dispatchers.io) {
-                    createdFile?.delete()
-                }
-                ExportDocumentResult.Failure(ExportResult.Error())
-            }
+            val result = exportDocument(directory, forceOverride, exporter, fileName, range)
             completeExport(result)
             onResult(result)
         }
     }
+
+    internal suspend fun exportDocument(
+        directory: DocumentFile,
+        forceOverride: Boolean,
+        exporter: Exporter,
+        fileName: String,
+        range: ClosedRange<ZonedDateTime>?,
+    ): ExportDocumentResult {
+        var createdFile: DocumentFile? = null
+        return try {
+            withContext(dispatchers.io) {
+                val actualFileName = getExportFileName(fileName, exporter, range, appContext)
+                val finalFileName = if (forceOverride) {
+                    actualFileName
+                } else {
+                    findAvailableFileName(directory, actualFileName, exporter.extension)
+                }
+                val fileNameWithExtension = "${finalFileName}.${exporter.extension}"
+                val trimmedName = preventDoubleExtension(fileNameWithExtension, exporter)
+                val destinationFile = directory.createFile(exporter.mimeType, trimmedName)
+                    ?: return@withContext ExportDocumentResult.Failure(
+                        ExportResult.Error(
+                            LocalizedString(R.string.export_error_stream_failed, fileNameWithExtension)
+                        )
+                    )
+                createdFile = destinationFile
+
+                when (val exportResult = exportToFile(destinationFile, exporter, range)) {
+                    is ExportResult.Success -> ExportDocumentResult.Success(
+                        fileNameWithExtension = fileNameWithExtension,
+                        baseFileName = finalFileName,
+                    )
+                    is ExportResult.Error -> {
+                        val removed = removePartialDocument(destinationFile)
+                        if (removed) ExportDocumentResult.Failure(exportResult)
+                        else unfinishedFileFailure(destinationFile)
+                    }
+                }
+            }
+        } catch (exception: CancellationException) {
+            createdFile?.let { file ->
+                if (!removePartialDocument(file)) {
+                    exception.addSuppressed(IllegalStateException("Unfinished export remains at ${file.uri}"))
+                }
+            }
+            throw exception
+        } catch (_: Exception) {
+            val file = createdFile
+            if (file != null && !removePartialDocument(file)) unfinishedFileFailure(file)
+            else ExportDocumentResult.Failure(ExportResult.Error())
+        }
+    }
+
+    private suspend fun removePartialDocument(file: DocumentFile): Boolean =
+        withContext(NonCancellable + dispatchers.io) {
+            runCatching { file.delete() }.getOrDefault(false)
+        }
+
+    private fun unfinishedFileFailure(file: DocumentFile) = ExportDocumentResult.Failure(
+        ExportResult.Error(LocalizedString(R.string.export_error_partial_file_remains, file.uri)),
+    )
 
     internal fun beginExport() {
         _uiState.update { it.copy(exportCompletionState = ExportCompletionState.Exporting) }

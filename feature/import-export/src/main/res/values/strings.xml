@@ -17,6 +17,7 @@
     <string name="export_pressure_sensitivity_message">This file contains pressure measurements and time windows that may reveal environmental context. It does not contain route coordinates or calibrated elevation. Only continue if you trust the destination.</string>
     <string name="export_error_no_uri">No export folder was selected</string>
     <string name="export_error_stream_failed">Could not create stream to file %s</string>
+    <string name="export_error_partial_file_remains">Export failed. The unfinished file could not be removed: %s</string>
     <string name="export_error_unknown">Export failed.</string>
     <string name="export_error_with_reason">Export failed: %s</string>
     <string name="export_file_name">File name</string>
