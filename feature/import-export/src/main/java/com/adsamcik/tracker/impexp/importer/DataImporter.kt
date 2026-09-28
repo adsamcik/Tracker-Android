@@ -15,13 +15,24 @@ import com.adsamcik.tracker.impexp.importer.archive.ArchiveEntryMetadata
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
 import com.adsamcik.tracker.impexp.importer.worker.ImportWorker
+import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.extension.openInputStream
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import java.io.IOException
 import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -29,16 +40,33 @@ import kotlinx.coroutines.sync.withLock
  * Exposes import start to other packages.
  */
 object DataImporter {
-	fun import(context: Context, fileUri: Uri) {
+	fun import(context: Context, fileUri: Uri, onStartFailure: (String) -> Unit = {}) {
 		persistReadPermission(context, fileUri)
-		val workRequest = OneTimeWorkRequestBuilder<ImportWorker>()
-			.setInputData(workDataOf(ImportWorker.ARG_FILE_URI to fileUri.toString()))
-			.build()
-		WorkManager.getInstance(context).enqueueUniqueWork(
-			UNIQUE_WORK_NAME,
-			ExistingWorkPolicy.APPEND_OR_REPLACE,
-			workRequest,
-		)
+		val graph = try { EntryPointAccessors.fromApplication(
+			context.applicationContext, ImportAdmissionEntryPoint::class.java,
+		) } catch (_: Exception) {
+			onStartFailure(context.getString(R.string.import_start_error))
+			return
+		}
+		graph.applicationScope().launch(graph.dispatchersProvider().io) {
+			try {
+				val admission = graph.collectedDataLifecycleStore().snapshot()
+				val workRequest = OneTimeWorkRequestBuilder<ImportWorker>()
+					.setInputData(importJobInput(fileUri.toString(), admission.epoch))
+					.build()
+				WorkManager.getInstance(context).enqueueUniqueWork(
+					UNIQUE_WORK_NAME,
+					ExistingWorkPolicy.APPEND_OR_REPLACE,
+					workRequest,
+				)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				withContext(graph.dispatchersProvider().main) {
+					onStartFailure(context.getString(R.string.import_start_error))
+				}
+			}
+		}
 	}
 
 	/** Stops a database-writing import before collected data is cleared. */
@@ -60,6 +88,20 @@ object DataImporter {
 	}
 
 	const val UNIQUE_WORK_NAME = "data-import"
+}
+
+internal fun importJobInput(fileUri: String, originalDataEpoch: Long) =
+	workDataOf(
+		ImportWorker.ARG_FILE_URI to fileUri,
+		ImportWorker.ARG_ORIGINAL_DATA_EPOCH to originalDataEpoch,
+	)
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+internal interface ImportAdmissionEntryPoint {
+	fun collectedDataLifecycleStore(): CollectedDataLifecycleStore
+	@ApplicationScope fun applicationScope(): CoroutineScope
+	fun dispatchersProvider(): DispatchersProvider
 }
 
 private class ImportReceiptPreconditionException(message: String) : IOException(message)

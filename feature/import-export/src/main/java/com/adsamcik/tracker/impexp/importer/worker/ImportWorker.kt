@@ -39,6 +39,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.extension.extension
 import com.adsamcik.tracker.shared.base.extension.openInputStream
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import java.io.IOException
 import java.util.Locale
@@ -55,6 +56,7 @@ class ImportWorker @AssistedInject constructor(
 	private val databaseProvider: Provider<AppDatabase>,
     private val dispatchers: DispatchersProvider,
 	private val trackingStartupGate: TrackingStartupGate,
+	private val collectedDataLifecycleStore: CollectedDataLifecycleStore,
 ) : CoroutineWorker(context, workerParams) {
 
     private val import = DataImport()
@@ -62,6 +64,7 @@ class ImportWorker @AssistedInject constructor(
 	private lateinit var database: AppDatabase
 	private lateinit var importJobRunner: ImportJobRunner
 	private var startupGeneration: Long = -1L
+	private var originalDataEpoch: Long = -1L
 
     private var errorCount: Int = 0
 
@@ -71,6 +74,11 @@ class ImportWorker @AssistedInject constructor(
 
     private suspend fun doWorkOnIo(): Result {
         val uriString = inputData.getString(ARG_FILE_URI) ?: return Result.failure()
+		originalDataEpoch = inputData.getLong(ARG_ORIGINAL_DATA_EPOCH, -1L)
+		if (originalDataEpoch < 0L) {
+			showErrorNotification(context.getString(R.string.import_cleared_error))
+			return Result.failure()
+		}
         val uri = Uri.parse(uriString)
         val file = DocumentFile.fromSingleUri(context, uri) ?: return Result.failure()
 
@@ -84,6 +92,10 @@ class ImportWorker @AssistedInject constructor(
 			}
 		}
 		if (!isReadyGeneration()) return Result.success()
+		if (!isCurrentDataEpoch()) {
+			showErrorNotification(context.getString(R.string.import_cleared_error))
+			return Result.failure()
+		}
 		database = databaseProvider.get()
 		if (!isReadyGeneration()) return Result.success()
 		importJobRunner = ImportJobRunner(
@@ -101,6 +113,10 @@ class ImportWorker @AssistedInject constructor(
             val sourceReadLimit = importSourceReadLimit(file.extension)
             val jobId = computeImportJobId(context, file, sourceReadLimit)
 			requireReadyGeneration()
+			if (!isCurrentDataEpoch()) {
+				showErrorNotification(context.getString(R.string.import_cleared_error))
+				return Result.failure()
+			}
             if (!importJobRunner.start(jobId, fileName, file.length())) {
                 val alreadyImported = ImportResult(skippedCount = 1)
                 showNotification(buildNotificationText(alreadyImported), false)
@@ -108,6 +124,10 @@ class ImportWorker @AssistedInject constructor(
             }
             val importResult = handleFile(file, jobId)
 			requireReadyGeneration()
+			if (!isCurrentDataEpoch()) {
+				showErrorNotification(context.getString(R.string.import_cleared_error))
+				return Result.failure()
+			}
             importJobRunner.completeIfSuccessful(jobId, importResult)
 
             finishImport(importResult)
@@ -226,6 +246,9 @@ class ImportWorker @AssistedInject constructor(
 
     @WorkerThread
     private suspend fun tryImport(stream: FileImportStream): ImportResult {
+		if (!isCurrentDataEpoch()) {
+			throw IOException("Import stopped because recorded data was cleared")
+		}
         val importer = importerFor(stream)
 
         if (importer != null) {
@@ -308,6 +331,9 @@ class ImportWorker @AssistedInject constructor(
         }
     }
 
+	private suspend fun isCurrentDataEpoch(): Boolean =
+		collectedDataLifecycleStore.snapshot().epoch == originalDataEpoch
+
 	private fun isReadyGeneration(): Boolean =
 		trackingStartupGate.isReady && trackingStartupGate.currentGeneration == startupGeneration
 
@@ -319,6 +345,7 @@ class ImportWorker @AssistedInject constructor(
         const val NOTIFICATION_ID: Int = 98784
         const val NOTIFICATION_ERROR_BASE_ID: Int = 98785
         const val ARG_FILE_URI: String = "filePath"
+		const val ARG_ORIGINAL_DATA_EPOCH: String = "originalCollectedDataEpoch"
         private const val DIRECT_ENTRY_KEY: String = "direct-source-v1"
     }
 

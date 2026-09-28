@@ -82,7 +82,9 @@ fun DataSettingsScreen() {
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            com.adsamcik.tracker.impexp.importer.DataImporter.import(context, uri)
+            com.adsamcik.tracker.impexp.importer.DataImporter.import(context, uri) { message ->
+                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            }
         }
     }
     val migrationBackupExportLauncher = rememberLauncherForActivityResult(

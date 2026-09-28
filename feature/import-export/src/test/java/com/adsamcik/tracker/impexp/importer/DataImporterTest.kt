@@ -12,6 +12,14 @@ import io.mockk.verify
 import org.junit.jupiter.api.Test
 
 class DataImporterTest {
+	@Test
+	fun `queued import retains its original data epoch across worker retries`() {
+		val input = importJobInput("content://tracker/session", 17L)
+		input.getString(com.adsamcik.tracker.impexp.importer.worker.ImportWorker.ARG_FILE_URI) shouldBe
+			"content://tracker/session"
+		input.getLong(com.adsamcik.tracker.impexp.importer.worker.ImportWorker.ARG_ORIGINAL_DATA_EPOCH,
+			-1L) shouldBe 17L
+	}
 
 	@Test
 	fun `persistReadPermission takes persistable permission for content uri`() {
