@@ -1,6 +1,6 @@
 # Tracking Infrastructure Work-Item Tracking
 
-Last updated: 2026-09-27
+Last updated: 2026-09-28
 
 ## Current provider completion checklist
 
@@ -49,8 +49,9 @@ open; validation and integration are deferred. The historical registry below is 
   See `temporary-location/2026-09-27/IMPLEMENTATION_TRACE.md` and `CONTRACT_DECISIONS.md`.
 - [ ] Complete retained data authority: carried capture-consent/retiring radio grant checks and
   Cell/Wi-Fi/Activity shared-heartbeat and native/imported Steps carried-consent corrections authored,
-  **IMPLEMENTED_UNVALIDATED**. Purpose settlement,
-  historical Location semantics, CONTROL expiry and full restore remain open. See
+  **IMPLEMENTED_UNVALIDATED**. CONTROL's 48-hour expiry and shared-carrier safeguards are now
+  source-authored at `6c5d299230` and `f9b45c7993`, without execution evidence. Purpose settlement,
+  historical Location semantics and full restore remain open. See
   `retained-authority/2026-09-27/IMPLEMENTATION_TRACE.md` and `CONTRACT_DECISIONS.md`.
 - [ ] Converge the schema and dependency wiring: typed Pressure trigger sentinel, exact selected
   index admission and count-domain/retention-proof invalidations corrected; actual Room observer
@@ -84,6 +85,11 @@ open; validation and integration are deferred. The historical registry below is 
   onboarding Pressure/selection, guarded recoveries and qualified live presentation await concrete
   confirmation. Tracker/statistics history, source-aware notifications/widgets and retained readers
   remain unfinished. See `product-surfaces/2026-09-27/IMPLEMENTATION_TRACE.md`.
+- [ ] Complete privacy cleanup: 48-hour CONTROL expiry, partial export cleanup and retryable
+  private transfer-copy cleanup are source-authored and independently statically reviewed,
+  **IMPLEMENTED_UNVALIDATED**. Existing database-only archive handling, completed private
+  export files, the manual-export/full-clear race and residual external-file presentation await
+  the pending user decisions. See `privacy-cleanup/2026-09-28/IMPLEMENTATION_TRACE.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.
