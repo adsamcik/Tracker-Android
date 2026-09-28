@@ -311,7 +311,7 @@ class ActivityCapturedFactWriterTest {
 	@Test
 	fun `historical registration plan binding cannot be overwritten by reconfiguration`() = runTest {
 		seedAuthority()
-		val replacementPlan = planCodec.encode(DEFAULT_ACTIVITY_PLAN.copy(revision = 2L))
+		val replacementPlan = SourcePlanCodec().encode(DEFAULT_ACTIVITY_PLAN.copy(revision = 2L))
 		val replacement = ActivityCapturedRegistrationPlanEntity.create(
 			sourceInstanceId = SOURCE_INSTANCE_ID,
 			registrationGeneration = 1L,

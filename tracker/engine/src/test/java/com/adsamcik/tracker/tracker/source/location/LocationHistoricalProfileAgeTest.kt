@@ -4,7 +4,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.coordinator.adaptiveLocationPlan
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
-import kotlin.test.Test
+import org.junit.Test
 import kotlin.test.assertEquals
 
 class LocationHistoricalProfileAgeTest {

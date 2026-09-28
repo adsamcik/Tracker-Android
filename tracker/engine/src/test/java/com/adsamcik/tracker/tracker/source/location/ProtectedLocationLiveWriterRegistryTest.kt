@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.tracker.source.location
 
-import kotlin.test.Test
+import org.junit.Test
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertSame

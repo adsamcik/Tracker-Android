@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
+
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.tracker.source.coordinator.adaptiveLocationPlan
@@ -12,7 +14,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import kotlin.test.Test
+import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
@@ -232,7 +234,7 @@ class SharedLocationSourceControllerTest {
 	)
 
 	private fun completeAck() = SourceStopAck(
-		SourceKind.LOCATION, null, null, 9L, 3L, 3L, 3L, 0L, null, null,
+		SourceKind.LOCATION, SourceInstanceId("location-test"), 1L, 9L, 3L, 3L, 3L, 0L, null, null,
 		RegistrationRemovalOutcome.NOT_REGISTERED, ProviderFlushOutcome.NOT_REQUESTED,
 		ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE, true, SourceStopStatus.COMPLETE,
 	)

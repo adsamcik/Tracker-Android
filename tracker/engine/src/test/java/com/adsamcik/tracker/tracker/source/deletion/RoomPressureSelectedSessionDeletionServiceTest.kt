@@ -248,7 +248,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE pressure_fact_revision SET writer_binding_generation = ? " +
 					"WHERE source_event_id = ?",
-				arrayOf(
+				arrayOf<Any?>(
 					SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
 					fixture.fact.sourceEventId,
 				),
@@ -328,7 +328,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			legacySettingsFingerprint = null, updatedAtMs = 2_600L))
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_consent_epoch SET policy_revision = 4 WHERE source_kind = ? AND purpose = ? AND epoch = 2",
-			arrayOf(SourceDestinationOwnerEntity.SOURCE_PRESSURE, SourceBrokerPurpose.SESSION_CAPTURE),
+			arrayOf<Any?>(SourceDestinationOwnerEntity.SOURCE_PRESSURE, SourceBrokerPurpose.SESSION_CAPTURE),
 		)
 		val failure = shouldThrow<PressureSourceEraseLocalFailure> {
 			database.withTransaction {
@@ -342,7 +342,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		exactFence(fixture) shouldBe null
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_consent_epoch SET policy_revision = 2 WHERE source_kind = ? AND purpose = ? AND epoch = 2",
-			arrayOf(SourceDestinationOwnerEntity.SOURCE_PRESSURE, SourceBrokerPurpose.SESSION_CAPTURE),
+			arrayOf<Any?>(SourceDestinationOwnerEntity.SOURCE_PRESSURE, SourceBrokerPurpose.SESSION_CAPTURE),
 		)
 		database.withTransaction {
 			val audit = database.auditPressureSourceEraseLocalAuthorityInTransaction(
@@ -372,8 +372,8 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 				database.auditPressureSourceEraseLocalAuthorityInTransaction(
 					expectedCollectedDataEpoch = COLLECTED_DATA_EPOCH,
 					expectedDeletedSourceEventHighWaterOrdinal = 0L,
-					expectedCurrentPolicyRevision = POLICY_REVISION,
-					expectedRevokedConsentEpoch = CONSENT_EPOCH,
+					expectedCurrentPolicyRevision = SOURCE_POLICY_REVISION,
+					expectedRevokedConsentEpoch = CAPTURE_CONSENT_EPOCH,
 					erasedAtMs = 3_000L,
 					verifiedWriterFence = containedPressureWriterFence(),
 				)
@@ -446,7 +446,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_product_projection_lane SET product_stage = ? " +
 					"WHERE source_kind = ?",
-				arrayOf(
+				arrayOf<Any?>(
 					SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
 					SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 				),
@@ -1958,8 +1958,8 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			logicalId,
 			runId,
 			admissionOrdinal,
-			manifest.effectiveWallTimeMs,
-			binding.writerBindingGeneration,
+			requireNotNull(manifest.effectiveWallTimeMs),
+			requireNotNull(binding.writerBindingGeneration),
 		)
 			.copy(
 				logicalFactId = logicalFactId,

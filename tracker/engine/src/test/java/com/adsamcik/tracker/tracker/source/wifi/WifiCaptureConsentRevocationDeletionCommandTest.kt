@@ -207,7 +207,7 @@ class WifiCaptureConsentRevocationDeletionCommandTest {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_consent_epoch SET effective_wall_time_ms = ?, effective_elapsed_realtime_nanos = ?, " +
 					"policy_revision = ? WHERE source_kind = ? AND purpose = ? AND epoch = ?",
-				arrayOf(wall, elapsed, revision, WIFI_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, CAPTURE_CONSENT_EPOCH),
+				arrayOf<Any?>(wall, elapsed, revision, WIFI_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, CAPTURE_CONSENT_EPOCH),
 			)
 			subject.delete(request()) shouldBe WifiCaptureConsentRevocationDeletionResult.Blocked(
 				WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
@@ -218,7 +218,7 @@ class WifiCaptureConsentRevocationDeletionCommandTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_consent_epoch SET effective_wall_time_ms = ?, effective_elapsed_realtime_nanos = ?, " +
 				"policy_revision = 1 WHERE source_kind = ? AND purpose = ? AND epoch = ?",
-			arrayOf(ELIGIBLE_AT_MS, ELIGIBLE_ELAPSED_NANOS, WIFI_SOURCE,
+			arrayOf<Any?>(ELIGIBLE_AT_MS, ELIGIBLE_ELAPSED_NANOS, WIFI_SOURCE,
 				SourceBrokerPurpose.SESSION_CAPTURE, CAPTURE_CONSENT_EPOCH),
 		)
 		subject.delete(request()) shouldBe WifiCaptureConsentRevocationDeletionResult.AlreadyDeleted
@@ -459,6 +459,7 @@ class WifiCaptureConsentRevocationDeletionCommandTest {
 				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
 				currentPolicyRevision = if (revoked) CURRENT_POLICY_REVISION else
 					ELIGIBLE_POLICY_REVISION,
+				legacySettingsFingerprint = null,
 				updatedAtMs = if (revoked) CURRENT_POLICY_AT_MS else ELIGIBLE_AT_MS,
 			),
 		)

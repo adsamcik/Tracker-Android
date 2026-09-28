@@ -135,7 +135,6 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
-import io.mockk.firstArg
 import io.mockk.mockk
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
@@ -1176,7 +1175,7 @@ class AuthoritativeSessionCoordinatorTest {
 				),
 			).shouldBeInstanceOf<SessionStartResult.Started>()
 
-			started.status shouldBe DesiredPlanStatus.DEGRADED
+			started.planStatus shouldBe DesiredPlanStatus.DEGRADED
 			started.applied.associateBy(AppliedSourcePlan::source).let { outcomes ->
 				outcomes.getValue(SourceKind.LOCATION).status shouldBe SourceApplyStatus.APPLIED
 				outcomes.getValue(SourceKind.STEPS).let { blocked ->
@@ -1313,7 +1312,7 @@ class AuthoritativeSessionCoordinatorTest {
 				1_300L,
 			).shouldBeInstanceOf<SessionStartResult.Started>()
 
-			started.status shouldBe DesiredPlanStatus.DEGRADED
+			started.planStatus shouldBe DesiredPlanStatus.DEGRADED
 			started.applied.associateBy(AppliedSourcePlan::source).let { outcomes ->
 				outcomes.getValue(SourceKind.LOCATION).status shouldBe SourceApplyStatus.APPLIED
 				outcomes.getValue(SourceKind.STEPS).let { blocked ->
@@ -1389,7 +1388,7 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 		retryObserved.await()
 
-		database.sourceSessionDao().serviceRun(request.serviceRunId)?.androidDeliveryState shouldBe
+		database.sourceSessionDao().serviceRun(requireNotNull(request.serviceRunId))?.androidDeliveryState shouldBe
 			AndroidStartDeliveryState.DELIVERED.name
 		locationProviderCalls shouldBe 0
 		stepsProviderCalls shouldBe 0
@@ -1449,7 +1448,7 @@ class AuthoritativeSessionCoordinatorTest {
 			1_100L,
 		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
 		val originalGeneration = requireNotNull(
-			database.sourceSessionDao().serviceRun(request.serviceRunId),
+			database.sourceSessionDao().serviceRun(requireNotNull(request.serviceRunId)),
 		).leaseGeneration
 		retryableReadsRemaining = 4
 
@@ -1468,7 +1467,7 @@ class AuthoritativeSessionCoordinatorTest {
 		accepting.await() shouldBe true
 		database.sourceProjectionStateDao().lease("tracking-session-coordinator")
 			?.generation shouldBe originalGeneration
-		database.sourceSessionDao().serviceRun(request.serviceRunId)
+		database.sourceSessionDao().serviceRun(requireNotNull(request.serviceRunId))
 			?.leaseGeneration shouldBe originalGeneration
 		subject.applyPreparedAndroidStart(
 			token,
@@ -1519,7 +1518,7 @@ class AuthoritativeSessionCoordinatorTest {
 			1_200L,
 		) shouldBe true
 		val generation = requireNotNull(
-			database.sourceSessionDao().serviceRun(request.serviceRunId),
+			database.sourceSessionDao().serviceRun(requireNotNull(request.serviceRunId)),
 		).leaseGeneration
 		unavailable = true
 
@@ -1547,7 +1546,7 @@ class AuthoritativeSessionCoordinatorTest {
 			1_400_000L,
 			1_400L,
 		).shouldBeInstanceOf<SessionStartResult.Started>()
-		database.sourceSessionDao().serviceRun(request.serviceRunId)
+		database.sourceSessionDao().serviceRun(requireNotNull(request.serviceRunId))
 			?.leaseGeneration shouldBe generation
 	}
 
@@ -2400,24 +2399,24 @@ class AuthoritativeSessionCoordinatorTest {
 		for (blankId in asciiBlankIds) {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_event_wal SET event_id = ? WHERE admission_ordinal = ?",
-				arrayOf(blankId, controlOrdinal),
+				arrayOf<Any?>(blankId, controlOrdinal),
 			)
 			read() shouldBe SourceRunHighWaterRead.Unverifiable
 		}
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET event_id = ? WHERE admission_ordinal = ?",
-			arrayOf(originalEventId, controlOrdinal),
+			arrayOf<Any?>(originalEventId, controlOrdinal),
 		)
 		for (blankId in asciiBlankIds) {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_event_wal SET service_run_id = ? WHERE admission_ordinal = ?",
-				arrayOf(blankId, controlOrdinal),
+				arrayOf<Any?>(blankId, controlOrdinal),
 			)
 			read(blankId) shouldBe SourceRunHighWaterRead.Unverifiable
 		}
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET service_run_id = ? WHERE admission_ordinal = ?",
-			arrayOf(serviceRunId, controlOrdinal),
+			arrayOf<Any?>(serviceRunId, controlOrdinal),
 		)
 		read() shouldBe SourceRunHighWaterRead.Ready(0L)
 	}
@@ -2551,24 +2550,24 @@ class AuthoritativeSessionCoordinatorTest {
 		for (blankId in asciiBlankIds) {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_event_wal SET event_id = ? WHERE admission_ordinal = ?",
-				arrayOf(blankId, controlOrdinal),
+				arrayOf<Any?>(blankId, controlOrdinal),
 			)
 			read() shouldBe SourceRunHighWaterRead.Unverifiable
 		}
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET event_id = ? WHERE admission_ordinal = ?",
-			arrayOf(originalEventId, controlOrdinal),
+			arrayOf<Any?>(originalEventId, controlOrdinal),
 		)
 		for (blankId in asciiBlankIds) {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_event_wal SET service_run_id = ? WHERE admission_ordinal = ?",
-				arrayOf(blankId, controlOrdinal),
+				arrayOf<Any?>(blankId, controlOrdinal),
 			)
 			read() shouldBe SourceRunHighWaterRead.Unverifiable
 		}
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET service_run_id = ? WHERE admission_ordinal = ?",
-			arrayOf(wrongServiceRunId, controlOrdinal),
+			arrayOf<Any?>(wrongServiceRunId, controlOrdinal),
 		)
 		read() shouldBe SourceRunHighWaterRead.Ready(captureOrdinal)
 	}
@@ -2803,7 +2802,7 @@ class AuthoritativeSessionCoordinatorTest {
 			sourceProductDrainRouter.requests shouldBe emptyList()
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_event_wal SET service_run_id = ? WHERE admission_ordinal = ?",
-				arrayOf(started.serviceRunId, admissionOrdinal),
+				arrayOf<Any?>(started.serviceRunId, admissionOrdinal),
 			)
 		}
 
@@ -3607,7 +3606,7 @@ class AuthoritativeSessionCoordinatorTest {
 				"INSERT INTO session_manifest_source(" +
 					"logical_tracking_id, manifest_revision, source_kind, purpose, consent_epoch, " +
 					"persistence_eligible, qos_code) VALUES (?, ?, ?, ?, ?, ?, ?)",
-				arrayOf(
+				arrayOf<Any?>(
 					started.logicalTrackingId,
 					1L,
 					10_000 + index,
@@ -3651,7 +3650,7 @@ class AuthoritativeSessionCoordinatorTest {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE session_manifest_source SET $assignment " +
 					"WHERE logical_tracking_id = ? AND manifest_revision = ?",
-				arrayOf(started.logicalTrackingId, 1L),
+				arrayOf<Any?>(started.logicalTrackingId, 1L),
 			)
 
 			subject.stop(
@@ -3724,7 +3723,7 @@ class AuthoritativeSessionCoordinatorTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_session_completeness SET last_admission_ordinal = 1.5 " +
 				"WHERE service_run_id = ? AND source_kind = ?",
-			arrayOf(started.serviceRunId, SourceKind.STEPS.stableCode),
+			arrayOf<Any?>(started.serviceRunId, SourceKind.STEPS.stableCode),
 		)
 		subject.stop(
 			SessionStopRequest(
@@ -4862,7 +4861,7 @@ class AuthoritativeSessionCoordinatorTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_run_retirement SET stop_status = 'COMPLETE' " +
 				"WHERE logical_tracking_id = ? AND service_run_id = ? AND source_kind = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				started.logicalTrackingId,
 				started.serviceRunId,
 				SourceKind.STEPS.stableCode,
@@ -5257,8 +5256,8 @@ class AuthoritativeSessionCoordinatorTest {
 			receipt.providerFlushOutcome shouldBe ProviderFlushOutcome.COMPLETE.name
 			receipt.appDrainComplete shouldBe true
 			receipt.stopStatus shouldBe SourceStopStatus.COMPLETE.name
+			receipt.actionId shouldBe runtime.shutdownClaims.last().actionId
 		}
-		runtime.shutdownClaims.last().actionId shouldBe requestedOwner.actionId
 	}
 
 	@Test
@@ -5429,7 +5428,7 @@ class AuthoritativeSessionCoordinatorTest {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_run_retirement SET $assignment " +
 					"WHERE logical_tracking_id = ? AND service_run_id = ? AND source_kind = ?",
-				arrayOf(
+				arrayOf<Any?>(
 					started.logicalTrackingId,
 					started.serviceRunId,
 					SourceKind.STEPS.stableCode,
@@ -5478,7 +5477,7 @@ class AuthoritativeSessionCoordinatorTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_run_retirement SET stop_status = 'PROCESS_RESTARTED' " +
 				"WHERE logical_tracking_id = ? AND service_run_id = ? AND source_kind = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				started.logicalTrackingId,
 				started.serviceRunId,
 				SourceKind.STEPS.stableCode,
@@ -5514,7 +5513,7 @@ class AuthoritativeSessionCoordinatorTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_run_retirement SET state = 'INTERRUPTED' " +
 				"WHERE logical_tracking_id = ? AND service_run_id = ? AND source_kind = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				started.logicalTrackingId,
 				started.serviceRunId,
 				SourceKind.LOCATION.stableCode,
@@ -5553,7 +5552,7 @@ class AuthoritativeSessionCoordinatorTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_run_retirement SET callback_entry_barrier_sequence = 4 " +
 				"WHERE logical_tracking_id = ? AND service_run_id = ? AND source_kind = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				started.logicalTrackingId,
 				started.serviceRunId,
 				SourceKind.STEPS.stableCode,
@@ -5595,7 +5594,7 @@ class AuthoritativeSessionCoordinatorTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_run_retirement SET provider_flush_outcome = NULL " +
 				"WHERE logical_tracking_id = ? AND service_run_id = ? AND source_kind = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				started.logicalTrackingId,
 				started.serviceRunId,
 				SourceKind.STEPS.stableCode,
@@ -7115,7 +7114,7 @@ class AuthoritativeSessionCoordinatorTest {
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM session_lifecycle_intent_version " +
 				"WHERE logical_tracking_id = ? AND intent_revision = ?",
-			arrayOf(prepared.logicalTrackingId, prepared.intentRevision + 1L),
+			arrayOf<Any?>(prepared.logicalTrackingId, prepared.intentRevision + 1L),
 		)
 
 		subject.claimAndroidStart(
@@ -8242,13 +8241,13 @@ class AuthoritativeSessionCoordinatorTest {
 			.manifestSources(prepared.logicalTrackingId, prepared.manifestRevision)
 		val stepsPolicy = requireNotNull(
 			database.sourcePolicyDao().policyAtRevision(
-				request.plan.sourcePolicyRevision,
+				requireNotNull(request.plan.sourcePolicyRevision),
 				SourceKind.STEPS.stableCode,
 			),
 		)
 		val activityPolicy = requireNotNull(
 			database.sourcePolicyDao().policyAtRevision(
-				request.plan.sourcePolicyRevision,
+				requireNotNull(request.plan.sourcePolicyRevision),
 				SourceKind.ACTIVITY.stableCode,
 			),
 		)

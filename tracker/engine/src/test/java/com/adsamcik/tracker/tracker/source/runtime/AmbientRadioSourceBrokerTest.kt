@@ -34,9 +34,9 @@ import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
 import com.adsamcik.tracker.tracker.source.model.SourceKind
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
-import kotlin.test.Test
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -54,7 +54,7 @@ class AmbientRadioSourceBrokerTest {
 	private lateinit var retentionReader: TestLiveAmbientRetentionAuthorityReader
 	private var elapsed = 10L
 
-	@BeforeTest
+	@Before
 	fun setUp() = runTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
@@ -96,7 +96,7 @@ class AmbientRadioSourceBrokerTest {
 		)
 	}
 
-	@AfterTest
+	@After
 	fun tearDown() {
 		database.close()
 	}

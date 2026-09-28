@@ -827,7 +827,7 @@ class ProtectedLocationCanonicalHandoffTest {
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM source_session_completeness WHERE logical_tracking_id = ? " +
 				"AND service_run_id = ? AND source_kind = ?",
-			arrayOf(LOGICAL_ID, RUN_ID, SourceKind.LOCATION.stableCode),
+			arrayOf<Any?>(LOGICAL_ID, RUN_ID, SourceKind.LOCATION.stableCode),
 		)
 		database.sourceSessionDao().saveCompleteness(
 			SourceSessionCompletenessEntity(

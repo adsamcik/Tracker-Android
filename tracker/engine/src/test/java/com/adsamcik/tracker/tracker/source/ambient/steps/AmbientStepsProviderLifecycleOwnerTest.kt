@@ -51,7 +51,7 @@ class AmbientStepsProviderLifecycleOwnerTest {
 		)
 		val subject = AmbientStepsProviderLifecycleOwner(
 			currentBoundary = { boundary(10L) },
-			reconcileDemand = { demand },
+			reconcileDemand = { _, _ -> demand },
 			reconcileRegistration = { _, _ ->
 				providerReconciled = true
 				AmbientStepsProviderRegistrationResult.Degraded(
@@ -82,7 +82,7 @@ class AmbientStepsProviderLifecycleOwnerTest {
 		var retireCount = 0
 		val subject = AmbientStepsProviderLifecycleOwner(
 			currentBoundary = { boundary },
-			reconcileDemand = { demand },
+			reconcileDemand = { _, _ -> demand },
 			reconcileRegistration = { _, _ ->
 				AmbientStepsProviderRegistrationResult.Failed(
 					AmbientStepsProvider.LOCAL_RECORDING_STEPS,

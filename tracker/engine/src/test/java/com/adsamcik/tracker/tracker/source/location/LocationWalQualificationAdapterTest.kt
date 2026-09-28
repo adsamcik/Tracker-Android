@@ -635,7 +635,7 @@ class LocationWalQualificationAdapterTest {
 				execSQL(
 					"DELETE FROM source_projection_join_state WHERE projection_id = ? " +
 						"AND projection_version = ?",
-					arrayOf(
+					arrayOf<Any?>(
 						ProtectedLocationCanonicalHandoff.WRITER_ID,
 						ProtectedLocationCanonicalHandoff.WRITER_VERSION,
 					),
@@ -645,7 +645,7 @@ class LocationWalQualificationAdapterTest {
 						"SET contiguous_admission_ordinal = ? " +
 						"WHERE source_kind = ? AND projection_id = ? " +
 						"AND projection_version = ?",
-					arrayOf(
+					arrayOf<Any?>(
 						ordinal - 1L,
 						SourceKind.LOCATION.stableCode,
 						ProtectedLocationCanonicalHandoff.WRITER_ID,
@@ -1066,7 +1066,7 @@ class LocationWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE session_manifest_source SET qos_code = ? WHERE logical_tracking_id = ? " +
 				"AND manifest_revision = ? AND source_kind = ?",
-			arrayOf(QOS_CODE - 1, LOGICAL_ID, MANIFEST_REVISION, LOCATION_SOURCE),
+			arrayOf<Any?>(QOS_CODE - 1, LOGICAL_ID, MANIFEST_REVISION, LOCATION_SOURCE),
 		)
 
 		assertEquals(
@@ -1124,7 +1124,7 @@ class LocationWalQualificationAdapterTest {
 	private fun replacePayloadWithZeroBlob(eventId: String, byteCount: Int) {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET payload = zeroblob(?) WHERE event_id = ?",
-			arrayOf(byteCount, eventId),
+			arrayOf<Any?>(byteCount, eventId),
 		)
 	}
 
@@ -1187,7 +1187,7 @@ class LocationWalQualificationAdapterTest {
 			deliveryPayloads = listOf(locationPayload(isMock = false)))
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET accepted_at_ms = ? WHERE source_kind = ?",
-			arrayOf(RECEIVED_WALL_MS + 1L, LOCATION_SOURCE),
+			arrayOf<Any?>(RECEIVED_WALL_MS + 1L, LOCATION_SOURCE),
 		)
 		assertEquals(LocationAmbientQualification.Rejected(LocationWalAdapterRejection.REGISTRATION_MISMATCH),
 			subject.qualifyAmbient(EVENT_ID))
@@ -1740,7 +1740,7 @@ class LocationWalQualificationAdapterTest {
 		assertIs<ProtectedLocationCanonicalReceipt.Complete>(
 			database.readProtectedLocationCanonicalReceipt(
 				qualified.command,
-				PROTECTED_LOCATION_ACQUISITION,
+				evaluated.acquisitionMetadata,
 			),
 		)
 		assertEquals(

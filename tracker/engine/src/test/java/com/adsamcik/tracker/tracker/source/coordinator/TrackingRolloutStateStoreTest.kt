@@ -48,8 +48,8 @@ class TrackingRolloutStateStoreTest {
 	@Test
 	fun `unassembled automatic location and radio contracts are not executable`() {
 		val catalog = ExecutableSourceLaneCatalog()
+		catalog.bindingFor(SourceKind.LOCATION, 1L, null, null) shouldBe null
 		listOf(
-			ExecutableSourceLaneCatalog.LOCATION_SESSION_CANONICAL_V1,
 			ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS,
 			ExecutableSourceLaneCatalog.CELL_SESSION_FACTS,
 		).forEach { binding ->

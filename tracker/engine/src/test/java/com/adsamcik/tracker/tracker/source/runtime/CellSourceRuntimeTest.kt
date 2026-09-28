@@ -1065,7 +1065,7 @@ class CellSourceRuntimeTest {
 		coVerify(exactly = 0) {
 			fixture.registrations.publishCellCaptureCallbackBarrier(any(), any())
 		}
-		verify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
+		coVerify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
 		verify(exactly = 0) { fixture.backend.stop() }
 		fixture.runtime.close()
 	}
@@ -1102,7 +1102,7 @@ class CellSourceRuntimeTest {
 			controlRegistration.purposeEligibilityMask,
 			admitted.single().registrationPurposeEligibilityMask,
 		)
-		verify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
+		coVerify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
 		verify(exactly = 0) { fixture.backend.stop() }
 		fixture.runtime.close()
 	}
@@ -1169,7 +1169,7 @@ class CellSourceRuntimeTest {
 			controlRegistration.purposeEligibilityMask,
 			admitted.single().registrationPurposeEligibilityMask,
 		)
-		verify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
+		coVerify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
 		verify(exactly = 0) { fixture.backend.stop() }
 		fixture.runtime.close()
 	}
@@ -1210,7 +1210,7 @@ class CellSourceRuntimeTest {
 		coVerify(exactly = 0) {
 			fixture.registrations.publishCellCaptureCallbackBarrier(any(), any())
 		}
-		verify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
+		coVerify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
 		verify(exactly = 0) { fixture.backend.stop() }
 		fixture.runtime.close()
 	}

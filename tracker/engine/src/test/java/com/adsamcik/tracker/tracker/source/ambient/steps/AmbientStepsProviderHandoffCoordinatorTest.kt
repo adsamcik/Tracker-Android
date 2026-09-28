@@ -318,7 +318,7 @@ class AmbientStepsProviderHandoffCoordinatorTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE ambient_steps_import_cursor SET authorization_fingerprint = ? " +
 				"WHERE registration_generation = ?",
-			arrayOf("f".repeat(64), successor.state.registrationGeneration),
+			arrayOf<Any?>("f".repeat(64), successor.state.registrationGeneration),
 		)
 
 		AmbientStepsProviderHandoffCoordinator(importer).execute(
@@ -511,6 +511,7 @@ class AmbientStepsProviderHandoffCoordinatorTest {
 	): AmbientStepsDemandResult.Active = broker.replaceAmbientStepsDemand(
 		consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
 		mechanism = mechanism,
+		leaseIdentity = retentionSnapshot.stepsTestLeaseIdentity(),
 		bootId = BOOT_ID,
 		elapsedRealtimeNanos = atMs,
 		wallTimeMs = atMs,

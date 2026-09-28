@@ -242,6 +242,7 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 		broker.replaceAmbientStepsDemand(
 			consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
 			mechanism = null,
+			leaseIdentity = retentionSnapshot.stepsTestLeaseIdentity(),
 			bootId = BOOT_ID,
 			elapsedRealtimeNanos = 120L,
 			wallTimeMs = 120L,
@@ -319,6 +320,7 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 		val result = broker.replaceAmbientStepsDemand(
 			consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
 			mechanism = mechanism,
+			leaseIdentity = retentionSnapshot.stepsTestLeaseIdentity(),
 			bootId = boundary.bootId,
 			elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
 			wallTimeMs = boundary.wallTimeMs,

@@ -148,6 +148,7 @@ class LocationSourceRuntimeTest {
 			listOf(location(50.0, 5_000_000_000L)),
 			receivedElapsedRealtimeNanos = 65_000_000_000L,
 			maximumEvidenceAgeNanos = profile.maximumEvidenceAgeNanos(),
+			cutoffElapsedRealtimeNanos = null,
 		)
 		assertEquals(1, batch.eligible.size)
 	}

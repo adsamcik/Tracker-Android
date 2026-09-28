@@ -951,6 +951,7 @@ class SourceBrokerTest {
 		val result = subject.replaceAmbientStepsDemand(
 			consumerId = "app:ambient:steps",
 			mechanism = AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+			leaseIdentity = ambientStepsIdentity(retention),
 			bootId = "boot-1",
 			elapsedRealtimeNanos = 100L,
 			wallTimeMs = 100L,
@@ -996,6 +997,7 @@ class SourceBrokerTest {
 		val healthConnect = (subject.replaceAmbientStepsDemand(
 			"app:ambient:steps",
 			AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+			ambientStepsIdentity(retention),
 			"boot-1",
 			100L,
 			100L,
@@ -1004,6 +1006,7 @@ class SourceBrokerTest {
 		val localRecording = (subject.replaceAmbientStepsDemand(
 			"app:ambient:steps",
 			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			ambientStepsIdentity(retention),
 			"boot-1",
 			100L,
 			100L,
@@ -1022,6 +1025,7 @@ class SourceBrokerTest {
 		val unchanged = subject.replaceAmbientStepsDemand(
 			"app:ambient:steps",
 			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			ambientStepsIdentity(retention),
 			"boot-1",
 			150L,
 			150L,
@@ -1042,6 +1046,7 @@ class SourceBrokerTest {
 		val rotated = subject.replaceAmbientStepsDemand(
 			"app:ambient:steps",
 			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			ambientStepsIdentity(retention),
 			"boot-1",
 			200L,
 			200L,
@@ -1070,6 +1075,7 @@ class SourceBrokerTest {
 		subject.replaceAmbientStepsDemand(
 			"app:ambient:steps",
 			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			ambientStepsIdentityWithoutRetention(),
 			"boot-1",
 			200L,
 			200L,
@@ -1085,6 +1091,7 @@ class SourceBrokerTest {
 		subject.replaceAmbientStepsDemand(
 			"app:ambient:steps",
 			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			ambientStepsIdentityWithoutRetention(),
 			"boot-1",
 			300L,
 			300L,
@@ -1109,6 +1116,7 @@ class SourceBrokerTest {
 		subject.replaceAmbientStepsDemand(
 			"app:ambient:steps",
 			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			ambientStepsIdentityWithoutRetention(),
 			"boot-1",
 			100L,
 			100L,
@@ -1717,6 +1725,40 @@ class SourceBrokerTest {
 		retiredAtMs = null,
 		sourceCallerAuthorityReference = reference,
 	)
+
+	private suspend fun ambientStepsIdentity(
+		retention: LiveAmbientRetentionSnapshot,
+	): AmbientReconciliationIdentity {
+		val grant = retention.grants.getValue(SourceKind.STEPS)
+		return AmbientReconciliationIdentity(
+			source = AmbientTrackingSource.STEPS,
+			policyRevision = grant.sourcePolicyRevision,
+			consentEpoch = grant.ambientConsentEpoch,
+			collectedDataEpoch = grant.collectedDataEpoch,
+			rolloutRevision = rolloutStore.load().revision,
+			ownerCasToken = "source-broker-test-steps-owner",
+			executionRevision = 1L,
+			retainedFromMs = grant.retainedFromMs,
+			retentionPolicyId = grant.opaquePolicyId,
+			retentionApprovalRevision = grant.approvalRevision,
+		)
+	}
+
+	private suspend fun ambientStepsIdentityWithoutRetention(): AmbientReconciliationIdentity {
+		val policyRevision = requireNotNull(database.sourcePolicyDao().authority()).currentPolicyRevision
+		val policy = requireNotNull(
+			database.sourcePolicyDao().policyAtRevision(policyRevision, SourceKind.STEPS.stableCode),
+		)
+		return AmbientReconciliationIdentity(
+			source = AmbientTrackingSource.STEPS,
+			policyRevision = policyRevision,
+			consentEpoch = policy.ambientConsentEpoch ?: 1L,
+			collectedDataEpoch = requireNotNull(database.sourceEvidenceStateDao().get()).collectedDataEpoch,
+			rolloutRevision = rolloutStore.load().revision,
+			ownerCasToken = "source-broker-test-steps-owner",
+			executionRevision = 1L,
+		)
+	}
 
 	private fun resetBroker(captureModes: Set<CaptureReachabilityMode>) {
 		if (::database.isInitialized) database.close()

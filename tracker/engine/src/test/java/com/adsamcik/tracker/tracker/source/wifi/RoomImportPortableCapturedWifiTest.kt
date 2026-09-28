@@ -22,6 +22,7 @@ import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductFailure
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
+import com.adsamcik.tracker.stats.api.repository.WifiCapturedPortableFormatV1
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiImportBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiImportUnverifiableReason
@@ -52,9 +53,11 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import java.io.File
+import java.security.MessageDigest
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executor
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -289,7 +292,7 @@ class RoomImportPortableCapturedWifiTest {
 					"latest_semantic_revision, latest_mutation_id, latest_effect_checksum, " +
 					"latest_source_admission_ordinal, cursor_revision, updated_at_ms) " +
 					"VALUES (?, ?, ?, ?, ?, 1, 1, ?, 0, 1, 'mutation', ?, 1, 1, 1000)",
-				arrayOf("projection", version, "cursor-fact", liveLogical, liveRun, EPOCH, "a".repeat(64)),
+				arrayOf<Any?>("projection", version, "cursor-fact", liveLogical, liveRun, EPOCH, "a".repeat(64)),
 			)
 		}
 		database.importedWifiDao().localObservationOwnerCount() shouldBe 1L
@@ -396,7 +399,7 @@ class RoomImportPortableCapturedWifiTest {
 				"latest_semantic_revision, latest_mutation_id, latest_effect_checksum, " +
 				"latest_source_admission_ordinal, cursor_revision, updated_at_ms) " +
 				"VALUES (?, 1, ?, 'contradictory-logical', 'contradictory-run', 1, 1, ?, 0, 1, 'mutation', ?, 1, 1, 1000)",
-			arrayOf("projection", repeated.logicalFactId, EPOCH, "a".repeat(64)),
+			arrayOf<Any?>("projection", repeated.logicalFactId, EPOCH, "a".repeat(64)),
 		)
 		importer(testScheduler).importEntry(request()) shouldBe ImportPortableCapturedWifiResult.Unverifiable(
 			PortableCapturedWifiImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
@@ -1004,7 +1007,7 @@ class RoomImportPortableCapturedWifiTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE imported_wifi_observation SET content_checksum = ?, strongest_signal_dbm = ? " +
 				"WHERE identity = ?",
-			arrayOf(corruptedDependent.contentChecksum.value, -39, dependent.identity.value),
+			arrayOf<Any?>(corruptedDependent.contentChecksum.value, -39, dependent.identity.value),
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE imported_wifi_run SET content_checksum = ?",
@@ -1465,11 +1468,11 @@ class RoomImportPortableCapturedWifiTest {
 				.DEPENDENCY_OVERFLOW,
 		)
 
-		val cancelling = deletionSubject { checkpoint ->
+		val cancelling = deletionSubject(checkpoint = { checkpoint ->
 			if (checkpoint == WifiSelectedDeletionCheckpoint.MARKERS_RECORDED) {
 				throw CancellationException("cancel after deletion markers")
 			}
-		}
+		})
 		shouldThrow<CancellationException> {
 			cancelling.delete(
 				DeleteSelectedWifiHistoryRequest(
@@ -1499,6 +1502,7 @@ class RoomImportPortableCapturedWifiTest {
 	@Test
 	fun `selected imported deletion receipt survives safe Room reopen and still blocks replay`(): Unit =
 		runBlocking {
+			val testScheduler = TestCoroutineScheduler()
 			val originalDatabase = database
 			val context: Application = ApplicationProvider.getApplicationContext()
 			val file = File(
@@ -1638,7 +1642,7 @@ class RoomImportPortableCapturedWifiTest {
 			DefaultSourcePayloadCodec(),
 			SourcePlanCodec(),
 		),
-		ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+		ioDispatcher = Dispatchers.Unconfined,
 		limits = limits,
 		checkpoint = checkpoint,
 	)
@@ -1866,6 +1870,10 @@ class RoomImportPortableCapturedWifiTest {
 			check(cursor.moveToFirst())
 			cursor.getLong(0)
 		}
+
+	private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
+		.digest(value.toByteArray(Charsets.UTF_8))
+		.joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
 
 	private companion object { const val EPOCH = 7L }
 }

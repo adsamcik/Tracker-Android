@@ -501,7 +501,7 @@ class SourceEventRetentionProofLifecycleTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_retention_proof SET effect_checksum = ? " +
 				"WHERE source_kind = ? AND event_id = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				"0".repeat(64),
 				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 				EVENT_ID,
@@ -550,7 +550,7 @@ class SourceEventRetentionProofLifecycleTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_retention_proof SET effect_checksum = ? " +
 				"WHERE source_kind = ? AND event_id = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				"0".repeat(64),
 				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 				EVENT_ID,
@@ -576,7 +576,7 @@ class SourceEventRetentionProofLifecycleTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_retention_proof SET source_admission_ordinal = 1 " +
 				"WHERE source_kind = ? AND event_id = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 				EVENT_ID,
 			),

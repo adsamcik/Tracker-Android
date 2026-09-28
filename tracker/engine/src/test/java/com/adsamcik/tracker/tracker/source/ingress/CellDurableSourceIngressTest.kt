@@ -123,7 +123,7 @@ class CellDurableSourceIngressTest {
 		val wal = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(ordinal))
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET accepted_at_ms = ? WHERE source_kind = ? AND registration_generation = 1",
-			arrayOf(requireNotNull(wal.wallTimeMs) + 1L, SourceKind.CELL.stableCode),
+			arrayOf<Any?>(requireNotNull(wal.wallTimeMs) + 1L, SourceKind.CELL.stableCode),
 		)
 
 		val result = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
@@ -157,7 +157,7 @@ class CellDurableSourceIngressTest {
 		val negative = original.copy(sourceSequence = -1L)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET source_sequence = ?, integrity_identity = ? WHERE admission_ordinal = ?",
-			arrayOf(-1L, negative.calculatedIntegrityIdentity(), ordinal))
+			arrayOf<Any?>(-1L, negative.calculatedIntegrityIdentity(), ordinal))
 		val result = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined, BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
 		(result as AmbientCellProjectionResult.Unverifiable).reason shouldBe AmbientCellProjectionUnverifiableReason.WAL_SHAPE
 		database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 0

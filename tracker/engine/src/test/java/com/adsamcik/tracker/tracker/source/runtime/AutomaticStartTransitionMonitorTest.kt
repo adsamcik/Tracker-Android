@@ -1,5 +1,9 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationFailureCode
+
+import io.mockk.every
+
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter

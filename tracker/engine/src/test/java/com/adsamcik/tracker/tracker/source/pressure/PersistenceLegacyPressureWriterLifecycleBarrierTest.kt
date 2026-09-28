@@ -237,7 +237,7 @@ class PersistenceLegacyPressureWriterLifecycleBarrierTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_destination_owner SET owner = ? " +
 				"WHERE source_kind = ? AND destination = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
 				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
@@ -505,7 +505,7 @@ class PersistenceLegacyPressureWriterLifecycleBarrierTest {
 			database.openHelper.writableDatabase.execSQL(
 				"DELETE FROM source_projection_registration WHERE projection_id = ? " +
 					"AND projection_version = ?",
-				arrayOf(
+				arrayOf<Any?>(
 					SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
 					SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
 				),
@@ -828,7 +828,7 @@ class PersistenceLegacyPressureWriterLifecycleBarrierTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_destination_owner SET owner = ?, owner_generation = ? " +
 				"WHERE source_kind = ? AND destination = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				owner,
 				generation,
 				SourceDestinationOwnerEntity.SOURCE_PRESSURE,

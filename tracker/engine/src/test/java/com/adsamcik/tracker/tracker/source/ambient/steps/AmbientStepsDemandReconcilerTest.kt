@@ -16,6 +16,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
+import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionFloor
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
@@ -30,6 +31,7 @@ import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailability
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurpose
@@ -54,7 +56,7 @@ class AmbientStepsDemandReconcilerTest {
 	private lateinit var database: AppDatabase
 	private lateinit var broker: SourceBroker
 	private lateinit var policyRepository: RoomSourcePolicyRepository
-	private lateinit var rolloutStore: TrackingRolloutStateStore
+	private lateinit var rolloutStore: RoomTrackingRolloutStateStore
 	private lateinit var retentionReader: TestLiveAmbientRetentionAuthorityReader
 	private var retentionSnapshot: LiveAmbientRetentionSnapshot? = null
 	private var elapsed = 10L
@@ -159,8 +161,8 @@ class AmbientStepsDemandReconcilerTest {
 			val grant = requireNotNull(retentionSnapshot).grants.getValue(SourceKind.STEPS)
 			val identity = AmbientReconciliationIdentity.from(
 				TrackingPurposeLeaseIdentity(
-					sourcePurpose =
-						TrackingSource.STEPS.forPurpose(TrackingPurpose.AMBIENT_PRODUCT),
+					source = TrackingSource.STEPS,
+					purpose = TrackingPurpose.AMBIENT_PRODUCT,
 					policyRevision = policy.revision,
 					consentEpoch =
 						requireNotNull(policy[TrackingSourceComponent.STEPS].ambientConsentEpoch),
@@ -237,8 +239,8 @@ class AmbientStepsDemandReconcilerTest {
 		val oldGrant = requireNotNull(retentionSnapshot).grants.getValue(SourceKind.STEPS)
 		val oldIdentity = AmbientReconciliationIdentity.from(
 			TrackingPurposeLeaseIdentity(
-				sourcePurpose =
-					TrackingSource.STEPS.forPurpose(TrackingPurpose.AMBIENT_PRODUCT),
+				source = TrackingSource.STEPS,
+				purpose = TrackingPurpose.AMBIENT_PRODUCT,
 				policyRevision = policy.revision,
 				consentEpoch =
 					requireNotNull(policy[TrackingSourceComponent.STEPS].ambientConsentEpoch),
@@ -481,7 +483,8 @@ class AmbientStepsDemandReconcilerTest {
 
 	private fun readyAmbientStepsReader(): CurrentTrackingPurposeAvailabilityReader {
 		val identity = TrackingPurposeLeaseIdentity(
-			sourcePurpose = TrackingSource.STEPS.forPurpose(TrackingPurpose.AMBIENT_PRODUCT),
+			source = TrackingSource.STEPS,
+			purpose = TrackingPurpose.AMBIENT_PRODUCT,
 			policyRevision = 1L,
 			consentEpoch = 1L,
 			collectedDataEpoch = 3L,

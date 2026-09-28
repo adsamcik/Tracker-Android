@@ -26,7 +26,7 @@ import com.adsamcik.tracker.tracker.source.runtime.StoredSourceCallerOrigin
 import com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher
 
 internal class FakeSourceCallerDemandDispatcher(
-	database: AppDatabase,
+	private val database: AppDatabase,
 	private val broker: SourceBroker,
 ) : SourceCallerDemandDispatcher by TestPurposeSourceCallerDemandDispatcher(broker) {
 	private val repository = RoomSourceCallerAcceptedAuthorityRepository(database)

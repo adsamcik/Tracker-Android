@@ -97,7 +97,7 @@ class SourceAcquisitionFloorTest {
 				enabled = true,
 				maximumReportLatencyMs = 300_000L,
 				projectionCheckpointIntervalMs = 1_000L,
-				hardwareBatchingAvailable = false,
+				movementPolicyNeedsLowLatency = false,
 			).satisfies(contract.toDemand()) shouldBe false
 		}
 	}

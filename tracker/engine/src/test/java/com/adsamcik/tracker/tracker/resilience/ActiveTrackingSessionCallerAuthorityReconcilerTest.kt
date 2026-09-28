@@ -37,13 +37,13 @@ class ActiveTrackingSessionCallerAuthorityReconcilerTest {
 			val predecessor = reference("caller-predecessor")
 			val successor = reference("caller-successor")
 			val initial = descriptor(predecessor)
-			val store = RecordingStore(initial) { _, replacement ->
+			val store = RecordingStore(initial, onReplace = { _, replacement ->
 				events += if (replacement.pendingRetirementSourceCallerAuthorityReference != null) {
 					"descriptor-successor"
 				} else {
 					"descriptor-debt-cleared"
 				}
-			}
+			})
 			val authority = authority(successor)
 			coEvery {
 				coordinator.currentRecoverySourceCallerAuthority(LOGICAL_ID, SERVICE_RUN_ID)

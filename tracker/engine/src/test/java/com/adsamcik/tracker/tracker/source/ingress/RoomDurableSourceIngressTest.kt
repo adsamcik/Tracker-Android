@@ -660,7 +660,7 @@ class RoomDurableSourceIngressTest {
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM source_registration_state WHERE source_kind = ? AND owner_scope = ?",
-			arrayOf(SourceKind.ACTIVITY.stableCode, SOURCE_OWNER_SCOPE),
+			arrayOf<Any?>(SourceKind.ACTIVITY.stableCode, SOURCE_OWNER_SCOPE),
 		)
 		database.sourceRegistrationStateDao().insertIfAbsent(
 			SourceRegistrationStateEntity(
@@ -678,7 +678,7 @@ class RoomDurableSourceIngressTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET owner_scope = ? " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(exactOwner, SourceKind.ACTIVITY.stableCode, 1L),
+			arrayOf<Any?>(exactOwner, SourceKind.ACTIVITY.stableCode, 1L),
 		)
 		val delivery = delivery(
 			candidate(sequence = 700L, activityType = 3),

@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import io.kotest.matchers.nulls.shouldNotBeNull
+
 import android.app.Application
 import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
@@ -31,7 +33,6 @@ import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldNotBeNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.After

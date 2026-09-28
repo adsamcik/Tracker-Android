@@ -216,7 +216,7 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 		val guarded = mutate {
 			val snapshot = retentionSnapshot(
 				SourceKind.valueOf(request.source.name),
-				request.leaseIdentity.purposeLeaseIdentity,
+				request.leaseIdentity,
 				request.bootId,
 				request.elapsedRealtimeNanos,
 				request.wallTimeMs,

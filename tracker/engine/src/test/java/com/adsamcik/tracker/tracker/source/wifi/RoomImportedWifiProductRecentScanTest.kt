@@ -394,7 +394,8 @@ class RoomImportedWifiProductRecentScanTest {
 	private companion object {
 		const val EPOCH = 0L
 		val RECENCY_RUN_ORDER = compareBy<PortableCapturedWifiRunV1>(
-			PortableCapturedWifiRunV1::startTimeMs,
-		) { it.identity.value }
+			{ it.startTimeMs },
+			{ it.identity.value },
+		)
 	}
 }

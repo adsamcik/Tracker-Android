@@ -638,6 +638,9 @@ class StepsCountDomainProducerContractTest {
 			ambientConsentEpoch = 2L,
 			collectedDataEpoch = 7L,
 			scopeDeletionGeneration = 0L,
+			retentionScope = "LIVE_AMBIENT",
+			retentionPolicyId = "privacy:steps:ambient:v1",
+			retentionApprovalRevision = 1L,
 			effectChecksum = "0".repeat(64),
 			appliedAtMs = 2_000L,
 		)

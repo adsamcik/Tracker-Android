@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.source.projection
 
+import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
+
 import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider

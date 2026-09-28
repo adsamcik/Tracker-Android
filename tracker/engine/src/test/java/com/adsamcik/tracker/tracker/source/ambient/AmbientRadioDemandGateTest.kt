@@ -36,7 +36,7 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
-import kotlin.test.Test
+import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
@@ -59,7 +59,8 @@ class AmbientRadioDemandGateTest {
 			broker,
 			com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher(
 				broker,
-			) { false },
+				currentAuthority = { false },
+			),
 			controller,
 			BootClockDomainProvider { "boot-1" },
 		)
@@ -96,7 +97,8 @@ class AmbientRadioDemandGateTest {
 			broker,
 			com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher(
 				broker,
-			) { false },
+				currentAuthority = { false },
+			),
 			controller,
 			BootClockDomainProvider { "boot-1" },
 		)

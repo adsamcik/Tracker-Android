@@ -707,7 +707,9 @@ class ExactSourceCallerGuardTest {
 				.rejection.reason shouldBe SourceCallerRejectionReason.REPLAY_AUTHORITY_ESCALATION
 
 			fixture.current = setOf(
-				withLease(location) { it.copy(retainedFromMs = it.retainedFromMs + 1L) },
+				withLease(location) {
+					it.copy(retainedFromMs = requireNotNull(it.retainedFromMs) + 1L)
+				},
 			)
 			val legacyRetentionChange =
 				fixture.guard.accept(replay(receipt, legacy, setOf(location)))

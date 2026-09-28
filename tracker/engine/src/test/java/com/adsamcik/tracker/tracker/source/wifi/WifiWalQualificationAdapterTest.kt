@@ -373,7 +373,7 @@ class WifiWalQualificationAdapterTest {
 		installLiveReplacement()
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM session_manifest_version WHERE logical_tracking_id = ? AND manifest_revision = ?",
-			arrayOf(LOGICAL_ID, REPLACEMENT_MANIFEST_REVISION),
+			arrayOf<Any?>(LOGICAL_ID, REPLACEMENT_MANIFEST_REVISION),
 		)
 		assertEquals(
 			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
@@ -388,7 +388,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE session_manifest_version SET manifest_checksum = ? " +
 				"WHERE logical_tracking_id = ? AND manifest_revision = ?",
-			arrayOf("0".repeat(64), LOGICAL_ID, REPLACEMENT_MANIFEST_REVISION),
+			arrayOf<Any?>("0".repeat(64), LOGICAL_ID, REPLACEMENT_MANIFEST_REVISION),
 		)
 		assertEquals(
 			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
@@ -433,7 +433,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET collected_data_epoch = collected_data_epoch + 1 " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(WIFI_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
+			arrayOf<Any?>(WIFI_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
 		)
 
 		assertEquals(
@@ -465,7 +465,7 @@ class WifiWalQualificationAdapterTest {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE provider_registration_generation SET $assignment " +
 					"WHERE source_kind = ? AND registration_generation = ?",
-				arrayOf(WIFI_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
+				arrayOf<Any?>(WIFI_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
 			)
 			assertEquals(
 				WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
@@ -876,7 +876,7 @@ class WifiWalQualificationAdapterTest {
 		installValidFixture(candidateWriter = true)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? WHERE event_id = ?",
-			arrayOf(SourceBrokerPurpose.MASK_CONTROL_AUTOSTART, EVENT_ID.value),
+			arrayOf<Any?>(SourceBrokerPurpose.MASK_CONTROL_AUTOSTART, EVENT_ID.value),
 		)
 		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 
@@ -1055,7 +1055,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_destination_owner SET owner_generation = owner_generation + 1 " +
 				"WHERE source_kind = ? AND destination = ?",
-			arrayOf(WIFI_SOURCE, SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI),
+			arrayOf<Any?>(WIFI_SOURCE, SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI),
 		)
 
 		val changed = assertIs<WifiSessionFactDrainResult.AuthorityChanged>(
@@ -1162,7 +1162,7 @@ class WifiWalQualificationAdapterTest {
 			"INSERT INTO wifi_capture_deletion_generation(" +
 				"logical_tracking_id, service_run_id, collected_data_epoch, generation, updated_at_ms" +
 				") VALUES(?, ?, ?, ?, ?)",
-			arrayOf(LOGICAL_ID, RUN_ID, 0L, 1L, OBSERVED_WALL_MS),
+			arrayOf<Any?>(LOGICAL_ID, RUN_ID, 0L, 1L, OBSERVED_WALL_MS),
 		)
 
 		assertEquals(
@@ -1377,8 +1377,8 @@ class WifiWalQualificationAdapterTest {
 			val digest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
 				WIFI_SOURCE,
 				SourceBrokerPurpose.SESSION_CAPTURE,
-				LOGICAL_TRACKING_ID,
-				SERVICE_RUN_ID,
+				LOGICAL_ID,
+				RUN_ID,
 			)
 			assertEquals(
 				true,
@@ -1391,15 +1391,15 @@ class WifiWalQualificationAdapterTest {
 			)
 			assertEquals(
 				WifiCaptureDeletionGenerationEntity(
-					logicalTrackingId = LOGICAL_TRACKING_ID,
-					serviceRunId = SERVICE_RUN_ID,
+					logicalTrackingId = LOGICAL_ID,
+					serviceRunId = RUN_ID,
 					collectedDataEpoch = 0L,
 					generation = 1L,
 					updatedAtMs = DELETE_AT_MS,
 				),
 				database.wifiCapturedFactDao().deletionGeneration(
-					LOGICAL_TRACKING_ID,
-					SERVICE_RUN_ID,
+					LOGICAL_ID,
+					RUN_ID,
 				),
 			)
 			assertEquals(
@@ -1461,15 +1461,15 @@ class WifiWalQualificationAdapterTest {
 			)
 			assertEquals(
 				WifiCaptureDeletionGenerationEntity(
-					LOGICAL_TRACKING_ID,
-					SERVICE_RUN_ID,
+					LOGICAL_ID,
+					RUN_ID,
 					0L,
 					1L,
 					DELETE_AT_MS,
 				),
 				database.wifiCapturedFactDao().deletionGeneration(
-					LOGICAL_TRACKING_ID,
-					SERVICE_RUN_ID,
+					LOGICAL_ID,
+					RUN_ID,
 				),
 			)
 			assertEquals(
@@ -1532,7 +1532,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_retention_proof SET effect_checksum = 'corrupt' " +
 				"WHERE source_kind = ? AND event_id = ?",
-			arrayOf(WIFI_SOURCE, captureWal.eventId),
+			arrayOf<Any?>(WIFI_SOURCE, captureWal.eventId),
 		)
 		revokeCaptureConsent()
 
@@ -1856,13 +1856,13 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_demand SET status = 'RETIRED', retire_boot_id = ?, " +
 				"retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
-			arrayOf(BOOT_ID, SESSION_END_NANOS, SESSION_END_WALL_MS, "$DEMAND_ID-0"),
+			arrayOf<Any?>(BOOT_ID, SESSION_END_NANOS, SESSION_END_WALL_MS, "$DEMAND_ID-0"),
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET status = 'ACTIVE', retired_at_ms = NULL, " +
 				"retired_elapsed_realtime_nanos = NULL WHERE source_kind = ? " +
 				"AND registration_generation = ?",
-			arrayOf(WIFI_SOURCE, REGISTRATION_GENERATION),
+			arrayOf<Any?>(WIFI_SOURCE, REGISTRATION_GENERATION),
 		)
 		assertEquals(
 			WifiCapturedSourceDeletionResult.Blocked(
@@ -1887,7 +1887,7 @@ class WifiWalQualificationAdapterTest {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_demand SET status = 'RETIRING', retire_boot_id = ?, " +
 					"retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
-				arrayOf(
+				arrayOf<Any?>(
 					BOOT_ID,
 					SESSION_END_NANOS + 1L,
 					SESSION_END_WALL_MS + 1L,
@@ -1974,7 +1974,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_demand SET status = 'RETIRING', retire_boot_id = ?, " +
 				"retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				BOOT_ID,
 				SESSION_END_NANOS + 1L,
 				SESSION_END_WALL_MS + 1L,
@@ -2152,7 +2152,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_demand SET status = 'RETIRING', retire_boot_id = ?, " +
 				"retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				BOOT_ID,
 				SESSION_END_NANOS + 1L,
 				SESSION_END_WALL_MS + 1L,
@@ -2237,7 +2237,7 @@ class WifiWalQualificationAdapterTest {
 			8,
 		)
 		for (revision in sourceRevisions) {
-			val wal = requireNotNull(database.sourceEventWalDao().get(revision.sourceEventId))
+			val wal = requireNotNull(database.sourceEventWalDao().getByEventId(revision.sourceEventId))
 			assertEquals(wal.admissionOrdinal, revision.sourceAdmissionOrdinal)
 			assertEquals(wal.integrityIdentity, revision.walIntegrityIdentity)
 			assertEquals(wal.payloadChecksum, revision.payloadChecksum)
@@ -2470,7 +2470,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE session_segment SET primary_activity = ?, activity_confidence = ?, " +
 				"inference_version = ? WHERE id = ?",
-			arrayOf(7, 91, "activity-v1", SEGMENT_ID),
+			arrayOf<Any?>(7, 91, "activity-v1", SEGMENT_ID),
 		)
 		val facts = database.wifiCapturedFactDao().revisionCount()
 		val cursors = database.wifiCapturedFactDao().cursorCount()
@@ -2701,7 +2701,7 @@ class WifiWalQualificationAdapterTest {
 
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_consent_epoch SET eligible = 0 WHERE source_kind = ? AND purpose = ? AND epoch = ?",
-			arrayOf(WIFI_SOURCE, "CONTROL", CONTROL_CONSENT_EPOCH),
+			arrayOf<Any?>(WIFI_SOURCE, "CONTROL", CONTROL_CONSENT_EPOCH),
 		)
 		assertEquals(
 			ExportPortableCapturedWifiResult.Unverifiable(
@@ -2761,7 +2761,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM source_authorization WHERE source_kind = ? AND registration_generation = ? " +
 				"AND authorization_revision = ?",
-			arrayOf(WIFI_SOURCE, REGISTRATION_GENERATION, AUTHORIZATION_REVISION + 1L),
+			arrayOf<Any?>(WIFI_SOURCE, REGISTRATION_GENERATION, AUTHORIZATION_REVISION + 1L),
 		)
 
 		assertEquals(
@@ -3038,7 +3038,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_destination_owner SET owner_generation = owner_generation + 1 " +
 				"WHERE source_kind = ? AND destination = ?",
-			arrayOf(WIFI_SOURCE, SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI),
+			arrayOf<Any?>(WIFI_SOURCE, SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI),
 		)
 
 		assertEquals(
@@ -3198,7 +3198,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET physical_configuration_fingerprint = ? " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf("f".repeat(64), WIFI_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
+			arrayOf<Any?>("f".repeat(64), WIFI_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
 		)
 
 		assertEquals(
@@ -3231,7 +3231,7 @@ class WifiWalQualificationAdapterTest {
 		finalizeZeroCallbackReplacement(withGap = false)
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM source_authorization WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(WIFI_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
+			arrayOf<Any?>(WIFI_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
 		)
 
 		assertEquals(
@@ -3249,7 +3249,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM source_authorization WHERE source_kind = ? AND registration_generation = ? " +
 				"AND authorization_revision = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				WIFI_SOURCE,
 				REPLACEMENT_REGISTRATION_GENERATION,
 				AUTHORIZATION_REVISION + 2L,
@@ -3516,7 +3516,7 @@ class WifiWalQualificationAdapterTest {
 				"retired_elapsed_realtime_nanos = ?, failure_code = 'ORDERLY_STOP', " +
 				"capture_callback_barrier_authorization_revision = ? " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				completedAtMs,
 				completedElapsedNanos,
 				AUTHORIZATION_REVISION + 1L,
@@ -3575,7 +3575,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE session_manifest_version SET acquisition_plan_revision = ?, manifest_checksum = ? " +
 				"WHERE logical_tracking_id = ? AND manifest_revision = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				REPLACEMENT_PLAN_REVISION,
 				checksum,
 				LOGICAL_ID,
@@ -3597,7 +3597,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET physical_configuration_fingerprint = ? " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				plan.physicalConfigurationFingerprint(),
 				WIFI_SOURCE,
 				REPLACEMENT_REGISTRATION_GENERATION,
@@ -3757,7 +3757,7 @@ class WifiWalQualificationAdapterTest {
 				"accepted_elapsed_realtime_nanos = ?, retired_at_ms = ?, " +
 				"retired_elapsed_realtime_nanos = ?, failure_code = ? " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				registration.collectedDataEpoch,
 				registration.status,
 				registration.reservedAtMs,
@@ -3787,7 +3787,7 @@ class WifiWalQualificationAdapterTest {
 			"UPDATE provider_registration_generation SET status = 'RETIRING', retired_at_ms = ?, " +
 				"retired_elapsed_realtime_nanos = ?, failure_code = 'session-stop' " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				retiredAtMs,
 				retiredElapsedNanos,
 				WIFI_SOURCE,
@@ -3827,7 +3827,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ?, " +
 				"integrity_identity = ? WHERE event_id = ?",
-			arrayOf(purposeMask, rewritten.integrityIdentity, eventId.value),
+			arrayOf<Any?>(purposeMask, rewritten.integrityIdentity, eventId.value),
 		)
 	}
 
@@ -3904,7 +3904,7 @@ class WifiWalQualificationAdapterTest {
 		assertEquals(index.toLong(), database.sourceEventWalDao().insertIgnoringDuplicate(row))
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE logical_tracking_session SET final_admission_ordinal = ? WHERE logical_tracking_id = ?",
-			arrayOf(index, LOGICAL_ID),
+			arrayOf<Any?>(index, LOGICAL_ID),
 		)
 		return SourceEventId(row.eventId)
 	}
@@ -4088,7 +4088,7 @@ class WifiWalQualificationAdapterTest {
 		val capture = database.sourceBrokerDao().demandsByIds(listOf("$DEMAND_ID-0")).single()
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM source_authorization WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(WIFI_SOURCE, REGISTRATION_GENERATION),
+			arrayOf<Any?>(WIFI_SOURCE, REGISTRATION_GENERATION),
 		)
 		val initial = SourceBrokerAuthorization.rows(
 			sourceKind = WIFI_SOURCE,
@@ -4112,7 +4112,7 @@ class WifiWalQualificationAdapterTest {
 				"UPDATE provider_registration_generation SET status = 'ACTIVE', retired_at_ms = NULL, " +
 					"retired_elapsed_realtime_nanos = NULL, failure_code = NULL " +
 					"WHERE source_kind = ? AND registration_generation = ?",
-				arrayOf(WIFI_SOURCE, REGISTRATION_GENERATION),
+				arrayOf<Any?>(WIFI_SOURCE, REGISTRATION_GENERATION),
 			)
 		}
 		materializePortableFixture()
@@ -4133,7 +4133,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ?, " +
 				"authorization_fingerprint = ?, integrity_identity = ? WHERE event_id = ?",
-			arrayOf(purposeMask, fingerprint, rewritten.integrityIdentity, eventId),
+			arrayOf<Any?>(purposeMask, fingerprint, rewritten.integrityIdentity, eventId),
 		)
 	}
 

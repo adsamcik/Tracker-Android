@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+
 import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.shared.model.tracking.TrackingSourcePurposeIdentity
@@ -46,7 +47,6 @@ import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiActivationReq
 import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiDemandReconciler
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.firstArg
 import io.mockk.mockk
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -67,8 +67,7 @@ class TrackingPurposePublicationRuntimeTest {
 		runTest {
 			val store = AtomicTrackingPurposeAvailabilityStore()
 			val identity = TrackingPurposeLeaseIdentity(
-				source = TrackingSource.ACTIVITY,
-				purpose = TrackingPurpose.CONTROL,
+				sourcePurpose = TrackingSource.ACTIVITY.forPurpose(TrackingPurpose.CONTROL),
 				policyRevision = 12L,
 				consentEpoch = 5L,
 				collectedDataEpoch = 3L,
@@ -395,6 +394,7 @@ class TrackingPurposePublicationRuntimeTest {
 	@Test
 	fun `floor only rotation replaces the published lease identity`() = runTest {
 		val store = AtomicTrackingPurposeAvailabilityStore()
+		var token = 0
 		var authority = authority(
 			source = TrackingSource.STEPS,
 			purpose = TrackingPurpose.AMBIENT_PRODUCT,
@@ -753,6 +753,10 @@ class TrackingPurposePublicationRuntimeTest {
 			override suspend fun retireAfterRetentionAuthorityFailure(
 				previousLease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease?,
 			): Boolean = true
+
+			override suspend fun closeForCollectedDataDeletion(
+				previousLease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease?,
+			): Boolean = true
 		}
 		val runtime = DefaultTrackingPurposePublicationRuntime(
 			leaseIssuer = SerializedTrackingPurposeLeaseIssuer(
@@ -814,6 +818,10 @@ class TrackingPurposePublicationRuntimeTest {
 			}
 
 			override suspend fun retireAfterRetentionAuthorityFailure(
+				previousLease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease?,
+			): Boolean = true
+
+			override suspend fun closeForCollectedDataDeletion(
 				previousLease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease?,
 			): Boolean = true
 		}

@@ -192,7 +192,7 @@ class GuardedSourceCallerDemandDispatcherTest {
 		val accepted = dispatcher.dispatchSession(
 			sessionRequest(bindings = listOf(binding(TrackingSource.LOCATION))),
 		).shouldBeInstanceOf<SessionSourceDemandDispatchResult.Permitted>()
-		snapshot = snapshot.copy(
+		snapshot = SourceCallerAuthoritySnapshot(
 			currentDemandIdentities = setOf(
 				capture(TrackingSource.LOCATION).copy(
 					purposeLeaseIdentity = capture(TrackingSource.LOCATION)
@@ -200,6 +200,7 @@ class GuardedSourceCallerDemandDispatcherTest {
 						.copy(ownerCasToken = "replacement-owner"),
 				),
 			),
+			purposeAvailability = snapshot.purposeAvailability,
 		)
 
 		val rejected = dispatcher.authenticatePreparedSession(

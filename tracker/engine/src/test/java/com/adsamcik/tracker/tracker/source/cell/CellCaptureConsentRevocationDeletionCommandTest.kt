@@ -117,7 +117,7 @@ class CellCaptureConsentRevocationDeletionCommandTest {
 		installPolicy(revoked = true)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_consent_epoch SET policy_revision = ? WHERE source_kind = ? AND purpose = ? AND epoch = ?",
-			arrayOf(REVOKED_POLICY_REVISION + 1L, CELL_SOURCE,
+			arrayOf<Any?>(REVOKED_POLICY_REVISION + 1L, CELL_SOURCE,
 				SourceBrokerPurpose.SESSION_CAPTURE, REVOKED_CONSENT_EPOCH),
 		)
 		subject.delete(request()) shouldBe CellCaptureConsentRevocationDeletionResult.Blocked(

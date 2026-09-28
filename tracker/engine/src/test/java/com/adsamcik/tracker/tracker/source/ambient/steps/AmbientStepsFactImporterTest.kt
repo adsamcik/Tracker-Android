@@ -374,6 +374,7 @@ class AmbientStepsFactImporterTest {
 			broker.replaceAmbientStepsDemand(
 				consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
 				mechanism = null,
+				leaseIdentity = retentionSnapshot.stepsTestLeaseIdentity(),
 				bootId = BOOT_ID,
 				elapsedRealtimeNanos = 4_000L,
 				wallTimeMs = 4_000L,
@@ -537,6 +538,7 @@ class AmbientStepsFactImporterTest {
 		broker.replaceAmbientStepsDemand(
 			consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
 			mechanism = null,
+			leaseIdentity = retentionSnapshot.stepsTestLeaseIdentity(),
 			bootId = BOOT_ID,
 			elapsedRealtimeNanos = 3_500L,
 			wallTimeMs = 3_000L,
@@ -584,6 +586,7 @@ class AmbientStepsFactImporterTest {
 		broker.replaceAmbientStepsDemand(
 			consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
 			mechanism = null,
+			leaseIdentity = retentionSnapshot.stepsTestLeaseIdentity(),
 			bootId = BOOT_ID,
 			elapsedRealtimeNanos = 3_500L,
 			wallTimeMs = 3_000L,
@@ -627,6 +630,7 @@ class AmbientStepsFactImporterTest {
 		broker.replaceAmbientStepsDemand(
 			consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
 			mechanism = null,
+			leaseIdentity = retentionSnapshot.stepsTestLeaseIdentity(),
 			bootId = BOOT_ID,
 			elapsedRealtimeNanos = 3_500L,
 			wallTimeMs = 4_000L,
@@ -918,6 +922,7 @@ class AmbientStepsFactImporterTest {
 	): AmbientStepsDemandResult.Active = broker.replaceAmbientStepsDemand(
 		consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
 		mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+		leaseIdentity = retentionSnapshot.stepsTestLeaseIdentity(),
 		bootId = BOOT_ID,
 		elapsedRealtimeNanos = elapsed,
 		wallTimeMs = wall,
