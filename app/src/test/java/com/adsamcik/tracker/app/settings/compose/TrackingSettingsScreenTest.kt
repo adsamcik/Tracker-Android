@@ -1,5 +1,12 @@
 package com.adsamcik.tracker.app.settings.compose
 
+import android.content.Context
+import android.content.res.Configuration
+import android.os.LocaleList
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalContext
+import androidx.test.core.app.ApplicationProvider
+import java.util.Locale
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -719,6 +726,37 @@ class TrackingSettingsScreenTest {
         }
 
         composeTestRule.onNodeWithText("Location filters", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun legacyLocationFiltersUseTheAppLocaleForNumbersAndUnits() {
+        val application = ApplicationProvider.getApplicationContext<Context>()
+        val context = application.createConfigurationContext(
+            Configuration(application.resources.configuration).apply {
+                setLocales(LocaleList(Locale.forLanguageTag("ar-SA")))
+            },
+        )
+        composeTestRule.setContent {
+            CompositionLocalProvider(LocalContext provides context) {
+                AppTheme {
+                    TrackingSettingsContent(
+                        uiState = defaultUiState.copy(
+                            advancedSourceControlsEnabled = true,
+                            balanceProfileVersion = null,
+                            locationProfileVersion = null,
+                        ),
+                    )
+                }
+            }
+        }
+        val distance = context.getString(
+            com.adsamcik.tracker.shared.preferences.R.string.meter_abbr, "١٠",
+        )
+        val seconds = context.getString(com.adsamcik.tracker.shared.base.R.string.second_short, 2)
+        scrollTo(distance)
+        composeTestRule.onNodeWithText(distance).assertIsDisplayed()
+        scrollTo(seconds)
+        composeTestRule.onNodeWithText(seconds).assertIsDisplayed()
     }
 
     @Test

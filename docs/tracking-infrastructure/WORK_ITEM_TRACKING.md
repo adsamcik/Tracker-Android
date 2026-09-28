@@ -79,6 +79,11 @@ open; validation and integration are deferred. The historical registry below is 
   **IMPLEMENTED_UNVALIDATED**. Shared authenticated paired reader, native rendering, both-input
   layer/cache routing and explicit gap/limit presentation remain open. Display choice awaits
   tool-answer confirmation; see `optional-map-enrichment/2026-09-27/IMPLEMENTATION_TRACE.md`.
+- [ ] Finish settings and product surfaces: widget/app locale and existing-action accessibility
+  repairs with focused test sources authored, **IMPLEMENTED_UNVALIDATED**. Unified source controls,
+  onboarding Pressure/selection, guarded recoveries and qualified live presentation await concrete
+  confirmation. Tracker/statistics history, source-aware notifications/widgets and retained readers
+  remain unfinished. See `product-surfaces/2026-09-27/IMPLEMENTATION_TRACE.md`.
 - [ ] Finish the remaining production and test-source slices in the approved implementation plan.
 - [ ] Freeze the complete convergence input set and run the deferred validation batch.
 - [ ] Obtain authorized provider/device evidence and fresh final independent review.
@@ -502,4 +507,24 @@ independent static review only, **IMPLEMENTED_UNVALIDATED**.
 - [ ] Finish whole-scope independent static review and deferred final convergence evidence.
 
 See `optional-map-enrichment/2026-09-27/IMPLEMENTATION_TRACE.md` and `REVIEW_RECEIPT.md`.
+No validation, input freeze, provider activation, new dev/v10 integration or push.
+
+
+### Settings and product surfaces continuation (2026-09-27)
+
+Whole surface requirement remains unchecked. Checked source slices are authored only,
+**IMPLEMENTED_UNVALIDATED**; final assembly and runtime proof remain separate.
+
+- [x] Trace source setup/settings, Dashboard, Tracker, statistics, notifications and widgets.
+- [x] Author app-locale widget counts/duration/percent and legacy settings-unit corrections.
+- [x] Author localized existing notification/session action and calendar-selection semantics, plus focused regression sources.
+- [x] Finish independent static review of the narrow source diff and record the receipt.
+- [ ] Resolve concrete source Details/Pressure/selection, recovery and live presentation proposals.
+- [ ] Implement source-aware onboarding/settings, guarded completion and recoverable serialized saves.
+- [ ] Complete qualified history/metrics readers and wire Dashboard/Tracker/statistics presentation.
+- [ ] Complete qualified notifications/widgets, source capability/recovery states and accessible reorder.
+- [ ] Complete concise copy/localization/calendar/action accessibility across remaining surfaces.
+- [ ] Finish full-scope source review and deferred complete convergence/runtime/device evidence.
+
+See `product-surfaces/2026-09-27/IMPLEMENTATION_TRACE.md` and `CONTRACT_DECISIONS.md`.
 No validation, input freeze, provider activation, new dev/v10 integration or push.

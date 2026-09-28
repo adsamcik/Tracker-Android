@@ -1,5 +1,14 @@
 package com.adsamcik.tracker.statistics.ui.compose
 
+import android.content.Context
+import android.content.res.Configuration
+import android.os.LocaleList
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.test.core.app.ApplicationProvider
+import java.util.Locale
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.test.assertIsDisplayed
@@ -23,6 +32,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDate
+import java.time.format.TextStyle
 import java.time.YearMonth
 
 /**
@@ -52,6 +62,36 @@ class CalendarContentComposeTest {
 		source = SegmentSource.USER_CREATED,
 		createdAt = startTimeMs,
 	)
+
+	@Test
+	fun `calendar app locale and selection semantics preserve actual day action`() {
+		val application = ApplicationProvider.getApplicationContext<Context>()
+		val context = application.createConfigurationContext(
+			Configuration(application.resources.configuration).apply {
+				setLocales(LocaleList(Locale.forLanguageTag("ar-SA")))
+			},
+		)
+		val month = YearMonth.of(2024, 6)
+		var clickedDay: LocalDate? = null
+		composeTestRule.setContent {
+			CompositionLocalProvider(LocalContext provides context) {
+				MaterialTheme(colorScheme = lightColorScheme()) {
+					CalendarContent(
+						state = CalendarState(currentMonth = month, selectedDay = month.atDay(15)),
+						onDayClick = { clickedDay = it },
+						onNavigateToTripDetail = {},
+					)
+				}
+			}
+		}
+		val localizedMonth = month.month.getDisplayName(
+			TextStyle.FULL, context.resources.configuration.locales[0],
+		)
+		composeTestRule.onNodeWithText("$localizedMonth ٢٠٢٤").assertIsDisplayed()
+		composeTestRule.onNodeWithText("١٥").assertIsSelected()
+		composeTestRule.onNodeWithText("١٦").assertIsNotSelected().performClick()
+		clickedDay shouldBe month.atDay(16)
+	}
 
 	// ─── Basic rendering ─────────────────────────────────────────────────
 

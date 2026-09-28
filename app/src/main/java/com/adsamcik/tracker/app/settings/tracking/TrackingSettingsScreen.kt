@@ -285,6 +285,7 @@ internal fun TrackingSettingsContent(
     onSourceFrequencyChanged: (TrackingSourceComponent, SourceCollectionFrequency) -> Unit = { _, _ -> },
     onNotificationCustomize: () -> Unit = {},
 ) {
+    val context = LocalContext.current
     if (!uiState.isLoaded) return
     if (!uiState.sourcePolicyAvailable) {
         LazyColumn(
@@ -523,7 +524,12 @@ internal fun TrackingSettingsContent(
                         value = uiState.minDistance.toFloat(),
                         valueRange = 0f..200f,
                         steps = 19,
-                        valueLabel = { "${it.toInt()} m" },
+                        valueLabel = {
+                            context.getString(
+                                com.adsamcik.tracker.shared.preferences.R.string.meter_abbr,
+                                String.format(context.resources.configuration.locales[0], "%d", it.toInt()),
+                            )
+                        },
                         onValueChange = { onMinDistanceChanged(it.toInt()) },
                         helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_distance,
                     )
@@ -533,7 +539,7 @@ internal fun TrackingSettingsContent(
                         value = uiState.minTime.toFloat(),
                         valueRange = 0f..60f,
                         steps = 11,
-                        valueLabel = { "${it.toInt()} s" },
+                        valueLabel = { context.getString(com.adsamcik.tracker.shared.base.R.string.second_short, it.toInt()) },
                         onValueChange = { onMinTimeChanged(it.toInt()) },
                         helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_time,
                     )
@@ -543,7 +549,12 @@ internal fun TrackingSettingsContent(
                         value = uiState.requiredAccuracy.toFloat(),
                         valueRange = 10f..200f,
                         steps = 18,
-                        valueLabel = { "${it.toInt()} m" },
+                        valueLabel = {
+                            context.getString(
+                                com.adsamcik.tracker.shared.preferences.R.string.meter_abbr,
+                                String.format(context.resources.configuration.locales[0], "%d", it.toInt()),
+                            )
+                        },
                         onValueChange = { onRequiredAccuracyChanged(it.toInt()) },
                         helpTextRes = com.adsamcik.tracker.tracker.R.string.help_required_accuracy,
                     )

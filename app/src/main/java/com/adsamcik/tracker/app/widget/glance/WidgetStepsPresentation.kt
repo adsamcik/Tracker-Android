@@ -86,8 +86,8 @@ internal fun SessionHistoryQuery.toWidgetStepsPresentation(
 
 /** Compact localized value text; nonnumeric states stay visibly nonnumeric. */
 internal fun WidgetStepsPresentation.displayValue(context: Context): String = when (this) {
-    is WidgetStepsPresentation.Ready -> WidgetFormatters.formatSteps(count)
-    is WidgetStepsPresentation.Partial -> lowerBound?.let { "≥${WidgetFormatters.formatSteps(it)}" }
+    is WidgetStepsPresentation.Ready -> WidgetFormatters.formatSteps(count, context.resources.configuration.locales[0])
+    is WidgetStepsPresentation.Partial -> lowerBound?.let { "≥${WidgetFormatters.formatSteps(it, context.resources.configuration.locales[0])}" }
         ?: context.getString(R.string.widget_steps_partial)
     WidgetStepsPresentation.Materializing -> context.getString(R.string.widget_loading)
     WidgetStepsPresentation.NotCaptured -> context.getString(R.string.widget_steps_not_captured)

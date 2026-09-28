@@ -674,3 +674,57 @@ are confirmed. Existing maintenance accepts revoked retention authority for clea
 display qualification helper. No native ambient DELETED revision exists; erase purges families and
 uses deletion markers/replay footprints. Preserve independent surviving purposes. Whole task and
 assembly gate remain open; all tests unexecuted under IMPLEMENTATION_ONLY.
+
+
+## 43. Settings and product surfaces request (2026-09-27)
+
+Original user text:
+
+> **Finish settings and product surfaces.** Complete source-aware onboarding, Dashboard, Tracker,
+> statistics, notifications and widgets, including recovery states, concise copy, localization
+> and accessibility.
+
+All original task messages above and approved decisions remain in scope. User supplied full
+AGENTS.md again, including confirmation of new decisions and review-only independent subagent.
+IMPLEMENTATION_ONLY continues: production and test-source authorship/static inspection only;
+no Gradle/compilation/tests/lint/Detekt/schema drift/diff-check/device/UI/battery/CI/release/rollout,
+assembly freeze, provider/writer activation, new dev/v10 integration or push. Main13f1a99871 is
+unchanged; candidate startsc129fdacb8. Preserve protected paths, source refs and excluded drafts.
+
+Review-only product_surfaces_review inherited original messages and inspected settings/onboarding,
+Dashboard, Tracker, stats, notifications and widgets. It identified genuine cross-surface source
+reader/wiring and recovery gaps. Existing Tracker/Widget Stop paths already bypass manual-start
+permission checks; do not reintroduce the obsolete defect described in older proposal text.
+
+Three concrete question-tool proposals are pending: unified source Details controls/explicit
+Pressure-off setup choice and preserved unavailable selection; recoverable guarded setup and
+notification saves; qualified participating-source live presentation and accessible reorder.
+Exact questions/options are in ../../product-surfaces/2026-09-27/CONTRACT_DECISIONS.md. No answers
+received; no dependent new UI/behavior/architecture applied. Earlier unresolved decisions remain
+pending. Elapsed time is not consent. Routine existing-contract locale and real-action semantics
+repairs plus focused unexecuted test sources are authored; full surface request remains incomplete.
+
+Resume from ../../product-surfaces/2026-09-27/IMPLEMENTATION_TRACE.md and REVIEW_RECEIPT.md.
+Independent reviewer must inspect actual production/test diff and pending decisions; static
+review and authored tests do not establish runtime success or final assembly readiness.
+
+Routine continuation also uses configured app locale for calendar month/year/weekdays/day digits
+and exposes the already visibly selected day through accessibility semantics. Full-date/data
+qualification descriptions and source-aware history remain incomplete. Focused UI source checks
+selected/unselected days and actual date callback; no test executed. Reviewer caught system-default
+Steps expectations in three existing widget source cases; corrected to their Context locale.
+
+
+## 44. User correction: make questions self-contained (2026-09-28)
+
+Original user text:
+
+> Your questions are often unclear, use simple language and assume that each question must be
+> written in such a way that I can understand it without any additional context. I do not have
+> your context so the questions must contain all the context I need.
+
+The previous three technical tool questions for settings/product surfaces were replaced by four
+plain-language, self-contained tool questions that each explain current behavior, the proposed
+change and alternatives. The old versions can be ignored. Their exact context and choices are
+recorded in ../../product-surfaces/2026-09-27/CONTRACT_DECISIONS.md. None has an answer yet;
+no dependent UI/behavior change is authorized by elapsed time. IMPLEMENTATION_ONLY continues.

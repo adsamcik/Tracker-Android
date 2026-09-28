@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.app.widget.glance
 
 import android.content.Context
+import android.content.res.Configuration
+import android.os.LocaleList
+import java.util.Locale
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
@@ -35,6 +38,25 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ActiveSessionWidgetPresentationTest {
+	@Test
+	fun `widget counts duration and qualified Steps use the configured app locale`() {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val configured = context.createConfigurationContext(
+			Configuration(context.resources.configuration).apply {
+				setLocales(LocaleList(Locale.forLanguageTag("ar-SA")))
+			},
+		)
+		val stats = buildActiveSessionStats(
+			context = configured,
+			session = TrackerSessionSnapshot(id = 7L, start = 1_000L, collections = 1_234),
+			stepsPresentation = WidgetStepsPresentation.Ready(2_147_483_648L),
+			nowMillis = 61_000L,
+		)
+		stats.first { it.labelRes == R.string.widget_session_duration }.value shouldBe "١:٠٠"
+		stats.first { it.labelRes == R.string.widget_collections }.value shouldBe "١٬٢٣٤"
+		stats.first { it.labelRes == R.string.widget_session_steps }.value shouldBe "٢٬١٤٧٬٤٨٣٬٦٤٨"
+	}
+
 	@Test
 	fun `raw positive session Steps are ignored while truthful status remains`() {
 		val context = ApplicationProvider.getApplicationContext<Context>()
@@ -82,7 +104,7 @@ class ActiveSessionWidgetPresentationTest {
 				R.string.widget_collections,
 			)
 			stats.first { it.labelRes == R.string.widget_session_steps }.value shouldBe
-				WidgetFormatters.formatSteps(steps)
+				WidgetFormatters.formatSteps(steps, context.resources.configuration.locales[0])
 		}
 	}
 
@@ -159,7 +181,7 @@ class ActiveSessionWidgetPresentationTest {
 	@Test
 	fun `nonnumeric widget states never display fabricated zero`() {
 		val context = ApplicationProvider.getApplicationContext<Context>()
-		val zero = WidgetFormatters.formatSteps(0L)
+		val zero = WidgetFormatters.formatSteps(0L, context.resources.configuration.locales[0])
 		listOf(
 			WidgetStepsPresentation.Partial(),
 			WidgetStepsPresentation.Materializing,
@@ -171,7 +193,7 @@ class ActiveSessionWidgetPresentationTest {
 			(state.displayValue(context) == zero) shouldBe false
 		}
 		WidgetStepsPresentation.Partial(123L).displayValue(context) shouldBe
-			"≥${WidgetFormatters.formatSteps(123L)}"
+			"≥${WidgetFormatters.formatSteps(123L, context.resources.configuration.locales[0])}"
 		WidgetStepsPresentation.Partial().displayValue(context) shouldBe
 			context.getString(R.string.widget_steps_partial)
 		WidgetStepsPresentation.NotCaptured.displayValue(context) shouldBe

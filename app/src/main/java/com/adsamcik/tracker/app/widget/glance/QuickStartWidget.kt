@@ -52,7 +52,7 @@ class QuickStartWidget : GlanceAppWidget() {
             val session = controller.sessionFlow.value
             durationText = if (isRunning && session != null) {
                 val elapsed = System.currentTimeMillis() - session.start
-                WidgetFormatters.formatDuration(elapsed)
+                WidgetFormatters.formatDuration(elapsed, context.resources.configuration.locales[0])
             } else {
                 null
             }

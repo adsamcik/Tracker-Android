@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -66,7 +69,7 @@ class TrackerDashboardSessionCardsTest {
 		// The card should have semantic content description with session info
 		composeRule.onNodeWithContentDescription(
 			substring = true,
-			label = "Session overview"
+			label = "Session. "
 		).assertIsDisplayed()
 	}
 
@@ -88,7 +91,7 @@ class TrackerDashboardSessionCardsTest {
 		// Active badge should be present when tracking
 		composeRule.onNodeWithContentDescription(
 			substring = true,
-			label = "Session overview"
+			label = "Session. "
 		).assertIsDisplayed()
 	}
 
@@ -109,7 +112,7 @@ class TrackerDashboardSessionCardsTest {
 
 		composeRule.onNodeWithContentDescription(
 			substring = true,
-			label = "Session overview"
+			label = "Session. "
 		).assertIsDisplayed()
 	}
 
@@ -132,8 +135,10 @@ class TrackerDashboardSessionCardsTest {
 
 		composeRule.onNodeWithContentDescription(
 			substring = true,
-			label = "Session overview"
-		).performClick()
+			label = "Session. "
+		).assert(SemanticsMatcher("Copy is available as the real long-click action") {
+			it.config.getOrNull(SemanticsActions.OnLongClick)?.label == "Copy session summary"
+		}).performClick()
 		assertTrue("Detail click should pass session id", clickedId == 42L)
 	}
 

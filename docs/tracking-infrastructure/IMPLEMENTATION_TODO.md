@@ -1953,3 +1953,19 @@ IMPLEMENTATION_ONLY; source IMPLEMENTED_UNVALIDATED. Main dev/v10 unchanged.
 
 See session-organization/2026-09-27/IMPLEMENTATION_TRACE.md and REVIEW_RECEIPT.md. Authored tests
 are uncompiled and unrun. No new format, provider activation, final proof, integration or push.
+
+
+## 2026-09-27 settings and product surfaces slice
+
+IMPLEMENTATION_ONLY; authored production/test sources IMPLEMENTED_UNVALIDATED.
+
+- [x] Trace all requested surfaces and preserve already-correct central Start/Stop paths.
+- [x] Correct app-locale widget duration/count/percent and localized legacy settings units.
+- [x] Correct existing localized notification/session action and calendar-selection semantics; author regression sources.
+- [x] Complete independent static review of this bounded diff.
+- [ ] Resolve concrete source controls/Pressure/selection, guarded recovery and live UI proposals.
+- [ ] Finish qualified reader/facade dependencies and all source-aware surface consumers.
+- [ ] Finish recovery/copy/localization/accessibility and whole-scope review, then final convergence.
+
+See product-surfaces/2026-09-27/IMPLEMENTATION_TRACE.md and CONTRACT_DECISIONS.md.
+Full request remains incomplete. Main dev/v10 unchanged; no validation, activation or push.

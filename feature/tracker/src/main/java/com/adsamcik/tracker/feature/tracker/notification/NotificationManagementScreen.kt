@@ -236,7 +236,7 @@ fun NotificationManagementRoute(
 }
 
 @Composable
-private fun NotificationItemRow(
+internal fun NotificationItemRow(
 	item: TrackerNotificationSetting,
 	rowHeight: androidx.compose.ui.unit.Dp,
 	isDragging: Boolean,
@@ -269,15 +269,15 @@ private fun NotificationItemRow(
 			modifier = Modifier.weight(1f),
 		)
 		if (item.isInTitle) {
-			Icon(painterResource(id = R.drawable.ic_format_title), contentDescription = "Title", modifier = Modifier.size(20.dp))
+			Icon(painterResource(id = R.drawable.ic_format_title), contentDescription = stringResource(R.string.hint_customize_notification_show_in_title), modifier = Modifier.size(20.dp))
 		}
 		if (item.isInContent) {
 			Spacer(Modifier.width(4.dp))
-			Icon(painterResource(id = R.drawable.ic_subtitles_outline), contentDescription = "Content", modifier = Modifier.size(20.dp))
+			Icon(painterResource(id = R.drawable.ic_subtitles_outline), contentDescription = stringResource(R.string.hint_customize_notification_show_in_content), modifier = Modifier.size(20.dp))
 		}
 		Spacer(Modifier.width(8.dp))
 		IconButton(onClick = onEdit) {
-			Icon(Icons.Filled.Edit, contentDescription = "Edit")
+			Icon(Icons.Filled.Edit, contentDescription = stringResource(com.adsamcik.tracker.shared.base.R.string.generic_edit))
 		}
 	}
 }

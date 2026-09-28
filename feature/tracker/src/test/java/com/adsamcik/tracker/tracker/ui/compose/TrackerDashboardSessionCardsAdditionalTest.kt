@@ -88,7 +88,7 @@ class TrackerDashboardSessionCardsAdditionalTest {
 
 		composeRule.onNodeWithContentDescription(
 			substring = true,
-			label = "Session overview",
+			label = "Session. ",
 		).assertIsDisplayed()
 	}
 
@@ -135,7 +135,7 @@ class TrackerDashboardSessionCardsAdditionalTest {
 
 		composeRule.onNodeWithContentDescription(
 			substring = true,
-			label = "Session overview",
+			label = "Session. ",
 		).assertIsDisplayed()
 	}
 

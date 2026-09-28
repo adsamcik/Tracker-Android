@@ -160,14 +160,14 @@ private fun TodaySummaryContent(
                 presentation.durationMs?.let { durationMs ->
                     StatItem(
                         label = context.getString(R.string.widget_duration),
-                        value = WidgetFormatters.formatDuration(durationMs),
+                        value = WidgetFormatters.formatDuration(durationMs, context.resources.configuration.locales[0]),
                         modifier = GlanceModifier.defaultWeight(),
                     )
                 }
                 presentation.sessionCount?.let { sessionCount ->
                     StatItem(
                         label = context.getString(R.string.widget_sessions),
-                        value = sessionCount.toString(),
+                        value = String.format(context.resources.configuration.locales[0], "%,d", sessionCount),
                         modifier = GlanceModifier.defaultWeight(),
                     )
                 }
@@ -236,8 +236,8 @@ private fun GoalProgressBar(
 ) {
     val progressText = context.getString(
         R.string.widget_goal_progress,
-        WidgetFormatters.formatSteps(readySteps.value),
-        WidgetFormatters.formatSteps(goalProgress.goalSteps),
+        WidgetFormatters.formatSteps(readySteps.value, context.resources.configuration.locales[0]),
+        WidgetFormatters.formatSteps(goalProgress.goalSteps, context.resources.configuration.locales[0]),
     )
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
@@ -261,7 +261,9 @@ private fun GoalProgressBar(
         )
         Spacer(modifier = GlanceModifier.width(4.dp))
         Text(
-            text = WidgetFormatters.formatGoalProgress(requireNotNull(goalProgress.progress)),
+            text = WidgetFormatters.formatGoalProgress(
+                requireNotNull(goalProgress.progress), context.resources.configuration.locales[0],
+            ),
             style = TextStyle(
                 color = GlanceTheme.colors.primary,
                 fontSize = 12.sp,

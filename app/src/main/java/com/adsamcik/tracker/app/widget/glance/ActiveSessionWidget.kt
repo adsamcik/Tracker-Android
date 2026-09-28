@@ -319,7 +319,9 @@ internal fun buildActiveSessionStats(
     add(
         ActiveSessionStat(
             R.string.widget_session_duration,
-            WidgetFormatters.formatDuration(nowMillis - session.start),
+            WidgetFormatters.formatDuration(
+                nowMillis - session.start, context.resources.configuration.locales[0],
+            ),
         ),
     )
     add(
@@ -331,7 +333,7 @@ internal fun buildActiveSessionStats(
     add(
         ActiveSessionStat(
             R.string.widget_collections,
-            session.collections.toString(),
+            String.format(context.resources.configuration.locales[0], "%,d", session.collections),
         ),
     )
 }

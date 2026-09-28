@@ -43,7 +43,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -93,7 +92,7 @@ internal fun SessionOverviewCard(
         DateUtils.FORMAT_ABBREV_RELATIVE
     ).toString()
 
-    val generateSummary = remember(session, settings) {
+    val generateSummary = remember(session, settings, durationText, distanceText, sessionAge, context) {
         {
             buildString {
                 appendLine("Session Summary")
@@ -116,9 +115,10 @@ internal fun SessionOverviewCard(
             .fillMaxWidth()
             .combinedClickable(
                 onClick = { onDetailClick?.invoke(session.id) },
+                onLongClickLabel = stringResource(R.string.tracker_copy_session_summary),
                 onLongClick = {
                     val sessionSummary = generateSummary()
-                    copyToClipboard(context, haptics, "Session", sessionSummary)
+                    copyToClipboard(context, haptics, context.getString(R.string.tracker_session_card_title), sessionSummary)
                     scope.launch {
                         snackbarHostState.showSnackbar(
                             message = context.getString(R.string.tracker_session_summary_copied),
@@ -128,10 +128,11 @@ internal fun SessionOverviewCard(
                 }
             )
             .semantics {
-                contentDescription = "Session overview: $durationText duration, $distanceText distance"
-                onClick(label = context.getString(R.string.tracker_copy_session_summary)) {
-                    true
-                }
+                contentDescription = listOf(
+                    context.getString(R.string.tracker_session_card_title),
+                    context.getString(R.string.duration_value, durationText),
+                    context.getString(R.string.distance_value, distanceText),
+                ).joinToString(separator = ". ")
             },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer

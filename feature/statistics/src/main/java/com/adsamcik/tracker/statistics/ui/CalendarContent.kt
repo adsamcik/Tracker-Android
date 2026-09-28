@@ -38,6 +38,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -118,6 +120,7 @@ private fun MonthHeader(
 	onNextMonth: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
+	val locale = LocalContext.current.resources.configuration.locales[0]
 	Row(
 		modifier = modifier
 			.fillMaxWidth()
@@ -132,7 +135,7 @@ private fun MonthHeader(
 			)
 		}
 		Text(
-			text = "${yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${yearMonth.year}",
+			text = "${yearMonth.month.getDisplayName(TextStyle.FULL, locale)} ${String.format(locale, "%d", yearMonth.year)}",
 			style = MaterialTheme.typography.titleMedium,
 		)
 		IconButton(onClick = onNextMonth) {
@@ -153,12 +156,13 @@ private fun CalendarGrid(
 	onDayClick: (LocalDate) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
+	val locale = LocalContext.current.resources.configuration.locales[0]
 	Column(modifier = modifier.padding(horizontal = 16.dp)) {
 		// Day of week headers
 		Row(modifier = Modifier.fillMaxWidth()) {
 			for (day in DayOfWeek.entries) {
 				Text(
-					text = day.getDisplayName(TextStyle.NARROW, Locale.getDefault()),
+					text = day.getDisplayName(TextStyle.NARROW, locale),
 					modifier = Modifier.weight(1f),
 					textAlign = TextAlign.Center,
 					style = MaterialTheme.typography.labelSmall,
@@ -227,6 +231,7 @@ private fun CalendarCell(
 		else -> MaterialTheme.colorScheme.onSurface
 	}
 
+	val locale = LocalContext.current.resources.configuration.locales[0]
 	val description = stringResource(if (hasOrganization) R.string.organization_calendar_day else R.string.history_calendar_day, dayNum)
 	Box(
 		modifier = modifier
@@ -236,12 +241,15 @@ private fun CalendarCell(
 			.clip(CircleShape)
 			.background(bgColor)
 			.clickable(onClick = onClick)
-			.semantics { contentDescription = description },
+			.semantics {
+				contentDescription = description
+				selected = isSelected
+			},
 		contentAlignment = Alignment.Center,
 	) {
 		if (hasOrganization) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp).size(4.dp).background(textColor, CircleShape))
 		Text(
-			text = dayNum.toString(),
+			text = String.format(locale, "%d", dayNum),
 			style = if (isToday) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodySmall,
 			color = textColor,
 		)

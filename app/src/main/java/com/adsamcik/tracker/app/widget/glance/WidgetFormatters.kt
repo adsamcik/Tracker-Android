@@ -3,6 +3,7 @@ package com.adsamcik.tracker.app.widget.glance
 import android.content.Context
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.model.Location
+import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.abs
 
@@ -28,36 +29,38 @@ object WidgetFormatters {
     /**
      * Formats duration in milliseconds to HH:mm:ss or mm:ss.
      */
-    fun formatDuration(durationMs: Long): String {
-        if (durationMs < 0) return "0:00"
-        val totalSeconds = durationMs / 1000
+    fun formatDuration(durationMs: Long, locale: Locale = Locale.getDefault()): String {
+        val totalSeconds = durationMs.coerceAtLeast(0L) / 1000
         val hours = totalSeconds / 3600
         val minutes = (totalSeconds % 3600) / 60
         val seconds = totalSeconds % 60
         return if (hours > 0) {
-            String.format(Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
+            String.format(locale, "%d:%02d:%02d", hours, minutes, seconds)
         } else {
-            String.format(Locale.US, "%d:%02d", minutes, seconds)
+            String.format(locale, "%d:%02d", minutes, seconds)
         }
     }
 
     /**
      * Formats step count with thousands separator using user locale.
      */
-    fun formatSteps(steps: Int): String {
-        return String.format(Locale.getDefault(), "%,d", steps)
+    fun formatSteps(steps: Int, locale: Locale = Locale.getDefault()): String {
+        return String.format(locale, "%,d", steps)
     }
 
     /** Formats a durable Steps count without narrowing or overflowing it. */
-    fun formatSteps(steps: Long): String {
-        return String.format(Locale.getDefault(), "%,d", steps)
+    fun formatSteps(steps: Long, locale: Locale = Locale.getDefault()): String {
+        return String.format(locale, "%,d", steps)
     }
 
     /**
      * Formats goal progress as percentage string.
      */
-    fun formatGoalProgress(progress: Float): String {
-        return String.format(Locale.US, "%d%%", (progress * 100).toInt().coerceIn(0, 100))
+    fun formatGoalProgress(progress: Float, locale: Locale = Locale.getDefault()): String {
+        val percent = (progress * 100).toInt().coerceIn(0, 100)
+        return NumberFormat.getPercentInstance(locale).apply {
+            maximumFractionDigits = 0
+        }.format(percent / 100.0)
     }
 
     fun formatSpeed(context: Context, metersPerSecond: Float?): String {
