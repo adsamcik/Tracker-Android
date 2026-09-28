@@ -501,8 +501,20 @@ class SourceHistoryDetailPresenterTest {
 				gate.await()
 				WifiHistoryQuery.Found(entry)
 			}
-			override suspend fun recent(limit: Int) =
-				com.adsamcik.tracker.stats.api.repository.WifiHistoryPage.Available(emptyList())
+				override suspend fun recent(limit: Int) =
+					com.adsamcik.tracker.stats.api.repository.WifiHistoryPage.Available(emptyList())
+				override suspend fun range(
+					request: com.adsamcik.tracker.stats.api.repository.WifiHistoryRangeRequest,
+				) = com.adsamcik.tracker.stats.api.repository.WifiHistoryRangePage.Available(
+					entries = emptyList(),
+					continuation = null,
+				)
+				override suspend fun structuralDays(
+					request: com.adsamcik.tracker.stats.api.repository.WifiHistoryRangeRequest,
+				) = com.adsamcik.tracker.stats.api.repository.WifiHistoryStructuralDayPage.Available(
+					days = emptyList(),
+					continuation = null,
+				)
 		}
 		val latePresenter = SourceHistoryDetailPresenter(lateRepository, cellRepository)
 		val selection = SourceHistoryDetailSelection(

@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.game.progression.PlayerProgressionRepository
 import com.adsamcik.tracker.points.data.PointsAwarded
+import com.adsamcik.tracker.points.data.Points
 import com.adsamcik.tracker.points.database.PointsAwardedDao
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -267,6 +268,29 @@ class MiniGameRewardEnsurerTest {
 		override fun countBetween(from: Long, to: Long): Double = 0.0
 		override fun countBetweenFlow(from: Long, to: Long): Flow<Double> = flowOf(0.0)
 		override fun hasAwardAt(time: Long, source: String): Boolean = time to source in existing
+		override suspend fun getRevisionedEffect(source: String, effectKey: String): PointsAwarded? =
+			inserted.firstOrNull { it.source.value == source && it.effectKey == effectKey }
+		override suspend fun updateRevisionedEffect(
+			source: String,
+			effectKey: String,
+			effectRevision: Long,
+			time: Long,
+			value: Double,
+			effectValueMicros: Long,
+		): Int {
+			val index = inserted.indexOfFirst {
+				it.source.value == source && it.effectKey == effectKey &&
+					(it.effectRevision ?: Long.MAX_VALUE) <= effectRevision
+			}
+			if (index < 0) return 0
+			inserted[index] = inserted[index].copy(
+				time = time,
+				value = Points(value),
+				effectRevision = effectRevision,
+				effectValueMicros = effectValueMicros,
+			)
+			return 1
+		}
 		override suspend fun insert(obj: PointsAwarded): Long {
 			beforeInsert()
 			inserted += obj

@@ -1191,8 +1191,9 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 		activity = ActivityHistoryQuery.NotFound,
 		pressure = PressureSessionHistoryQuery.NotFound,
 	)
+}
 
-	private fun defaultActivityQuery(
+private fun defaultActivityQuery(
 		segmentId: Long,
 		capturesOnlyActivity: Boolean = false,
 	) = ActivityHistoryQuery.Found(
@@ -1210,7 +1211,7 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 		),
 	)
 
-	private fun defaultPressureQuery(session: SessionHistory) = PressureSessionHistoryQuery.Found(
+private fun defaultPressureQuery(session: SessionHistory) = PressureSessionHistoryQuery.Found(
 		PressureSessionHistory(
 			segmentId = session.segmentId,
 			capture = session.capture,
@@ -1219,7 +1220,7 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 		),
 	)
 
-	private fun missingStepsHistory() = StepsHistory(
+private fun missingStepsHistory() = StepsHistory(
 		count = null,
 		availability = HistoryAvailability.UNAVAILABLE,
 		evidence = HistoryEvidence.NONE,
@@ -1228,7 +1229,7 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 		causes = setOf(StepsHistoryCause.LEGACY_UNVERIFIED),
 	)
 
-	private fun missingPressureHistory() = PressureHistory(
+private fun missingPressureHistory() = PressureHistory(
 		availability = HistoryAvailability.UNAVAILABLE,
 		evidence = HistoryEvidence.NONE,
 		productState = HistoryProductState.DEGRADED,
@@ -1237,7 +1238,7 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 		causes = setOf(PressureHistoryCause.LEGACY_UNATTRIBUTED),
 	)
 
-	private fun physicalPressureSourceNotCaptured() = PressureHistory(
+private fun physicalPressureSourceNotCaptured() = PressureHistory(
 		availability = HistoryAvailability.UNAVAILABLE,
 		evidence = HistoryEvidence.NONE,
 		productState = HistoryProductState.FAILED,
@@ -1245,4 +1246,3 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 		windows = emptyList(),
 		causes = setOf(PressureHistoryCause.SOURCE_NOT_CAPTURED),
 	)
-}

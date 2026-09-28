@@ -137,7 +137,8 @@ class TrackerDashboardSessionCardsTest {
 			substring = true,
 			label = "Session. "
 		).assert(SemanticsMatcher("Copy is available as the real long-click action") {
-			it.config.getOrNull(SemanticsActions.OnLongClick)?.label == "Copy session summary"
+			runCatching { it.config[SemanticsActions.OnLongClick].label }.getOrNull() ==
+				"Copy session summary"
 		}).performClick()
 		assertTrue("Detail click should pass session id", clickedId == 42L)
 	}
