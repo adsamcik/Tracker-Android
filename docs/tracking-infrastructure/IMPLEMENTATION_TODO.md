@@ -1660,6 +1660,11 @@ use the same facade.
 - [ ] TODO-ASSEMBLY-009 Freeze convergence inputs and record expected failures, commands, device,
   and environment before lifting the implementation-only validation stop.
 
+The 2026-09-28 [pre-freeze input audit](convergence/2026-09-28/PRE_FREEZE_STATUS.md) pins the
+inspected commits, live drafts, schema inputs and authored test-source inventory. It found the
+assembly incomplete and did **not** freeze inputs or lift this stop. Keep TODO-ASSEMBLY-001 through
+TODO-ASSEMBLY-009 unchecked until their production and test-source requirements are actually met.
+
 ## Deferred validation and correction phase
 
 Do not execute any item in this section until TODO-ASSEMBLY-001 through TODO-ASSEMBLY-009 are

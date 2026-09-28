@@ -1,0 +1,2390 @@
+{
+  "generated_utc": "2026-09-28T10:56:19.775957+00:00",
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "PRE_FREEZE_BLOCKED",
+  "dev_v10": "13f1a99871b59d29b3d059f374fc415490da6943",
+  "released_main": "59fda665c7099d10b16aa60f505de88bd05d3131",
+  "candidate_branch": "codex/source-native-map-context-root",
+  "candidate_head": "03e724d096a96df19371097dc80d8988c8c6e344",
+  "candidate_commits_not_in_dev_v10": [
+    "037cd129550b4a5fe90dc3401d2d8b57d73af5b2",
+    "58afb5254518a192f42976a579decc9a2bebf304",
+    "de63ffded04464f48a3aee5c075d9831915918a9",
+    "d6a813e41e50a6a1fc380ec01dc6246e81611f27",
+    "2f8e342eea6bf003f67f7b566bc3799cf8f67e77",
+    "3f3f5c7a2bae6d1d56cd283b658cf1784cf1c5a5",
+    "2155b2cc5c9b17a114be09ff8c9348ca70251d4f",
+    "04487c78be925b2c3bdaafe200b627b1f259ec4a",
+    "2eeaaf9b78c0c1cb8143cfcc04c0554423c2cf82",
+    "f1f1b97f9a2113b176dd77799ac6b0827156c865",
+    "fa6f51e80a9747e69946bfbaaecf86c2ab312771",
+    "103e811919f1071695cbba1604189ae43fac0fc6",
+    "63ef296026e440e4a5667235fe0769a03004eb47",
+    "3a84f5878ae20c5ab85f2c0d45c38d80ed80f85e",
+    "dedc7df8f1abb25e4da0ded82c1909cebe197094",
+    "9ad1a05b1a50e2ffb802355ea3b5a7f54a9d43a0",
+    "0b177a0d21e17cc604d43d2ccd4172d08bdd9f8c",
+    "29a653a9e4aa2d95038835a51dbda44d8f9d211d",
+    "b9fdbae62c76fecf736a17ac2c4b5bf164a0fb8b",
+    "1d77cce2d11b334f79faf350c225797a311bdfd3",
+    "815a4285b0658ef9dc8b3949ab667d364c4030c5",
+    "b23b496e2fabd7eec5ddf8c93c1672b61ad9ed2f",
+    "f0a36cef2c33c95711a01c1a20c301e31f7a8f57",
+    "fee73e09c424acc479b1f6c262b525e4bfe5003e",
+    "047423c6a3266dcd5c115c72b34ad63464ce36ea",
+    "b3dc968a1b7fc5367895c712c0e5393435dedca8",
+    "ecf8c73de9515e1c0ebb2eadc7daf7bb39530cbd",
+    "15f639b68d76b79f3a06b63275ec1575ab72f00f",
+    "cf80908b56ef7a0559a0f643f2ee15d6eaf7fd22",
+    "a0b39fd96c2e031133660d390007f9a7eb55b1eb",
+    "5b57140041944aab6b4531adf7e71b424b8b9bfb",
+    "835302e86cebe43e43a0e2a1f03f072dc2deaa94",
+    "2c307247e655ad210e709d13c427a944caacf6e9",
+    "4ac05b6946308d69671e6003ba12695c19dabc11",
+    "616619e32bae8b7a4076114474063cf03ace5a33",
+    "d685b736649f87e1e6c4f890c55c2ec446f07d25",
+    "c129fdacb8b915e52f1a0981cd2f174dd3c8c7fb",
+    "fe460b7967d8ba3fc275540ae2febdb95bbec405",
+    "94ba76ccd8e961b7fe4eafe2a93fc6123c9f6966",
+    "52e081060fdfee07aa9ad2ffd55cc1b3d04e9c66",
+    "832bd836ce6c0c028286728efa023ffa606204b4",
+    "01461f9b2abce5e42de6d2a7fa0efa84341e8949",
+    "5973a2bfed4b26588b4308de76599ab0cbe2ed05",
+    "7ffd8cccf58cba7949fa2f58650148448ca0ad7f",
+    "162a1fef60341bd538cb82ab2f7349fb9ab5a22a",
+    "7dd412a1f2ba93469442a90bd0ff114e2454ab5c",
+    "279fe6813554ee6b505d217b16cb9473b7eb9167",
+    "2e44e919f99580981c7b8cf35cd5991cd914c021",
+    "258b843399d6c39c4e1e8d51d9c26b707a143f38",
+    "f93de14cccb26a8ee186d60dcbd2c836c2ada1ed",
+    "922557fd09adb43d1e680f3d38674290fd4667c0",
+    "ef0909d7467db03516f78bd95ccb49a5f3004f5e",
+    "06cfe4ec7431ab1f2135615b8057b2feb1b67d5d",
+    "a0f76dca7906371031b40d11e35f3918bcaff811",
+    "9e35b2272986c4a158d2b2ab69265b08111ca96e",
+    "2d7ebe57537a1e7746cdfd00f57bb041a74e998f",
+    "ca9d2618ac80c7c64beddbb7a15d627d074d7bd6",
+    "b310d15b83f82e12242e922e9aa49f87a5ba27b4",
+    "6c5d2992306f893c52eb514de9588dcdc628fc04",
+    "f9b45c7993c47825a7339ba234fe3d730ccbc02e",
+    "abed68821e6afb09ffdc679b942635ffe533da15",
+    "986c47bb54d3c606e86897c5ccd2dbfe17f08eef",
+    "3a5ce9131a6ce373e994dfed155d1eb0cda705a7",
+    "1cc79bf2f9abd1a061b337a111b2f721ed5433ba",
+    "1db870be5f7c2075dfb963c45663d7de12bef981",
+    "f5d39e8320f901f160bed17a6b72fb6104619b5a",
+    "2253fc9a717d86af9d0cc7e370ba7ac3cf93c6c5",
+    "22611458d1984ce6f658721ebe8d1b8c41cdf96d",
+    "1b98aef02d3db63c19bbb0f81967cd8aeb97a0b6",
+    "215191dea58eac6bee421d24c0cbcaca4fc77358",
+    "03e724d096a96df19371097dc80d8988c8c6e344"
+  ],
+  "candidate_changed_test_source_paths": [
+    "app/src/test/java/com/adsamcik/tracker/app/architecture/ArchitecturalFitnessTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/background/BatteryOptimizationHelperTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/maintenance/ActivityControlCleanupWorkerRobolectricTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/maintenance/ActivityRetentionWorkerRobolectricTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/maintenance/RetentionPipelineWorkerRobolectricTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/onboarding/ui/SetupViewModelCompletionRobolectricTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/onboarding/ui/SetupViewModelTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/settings/CollectedDataDeletionServiceTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/settings/DefaultCollectedDataWriterQuiescerTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/settings/OwnedTransferFilesTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModelTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/settings/compose/AdaptiveLocationSettingsTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/settings/compose/ExportFormatDialogTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/tracebox/TrackerRuntimeMeasurementsTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/ui/compose/HowToTrackStepTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionWidgetPresentationTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/widget/glance/WidgetFormattersTest.kt",
+    "core/base/src/androidTest/java/com/adsamcik/tracker/shared/base/database/AppDatabaseMigration27To28Test.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedFactMaintenanceTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CapturedRadioFactRetentionProofRoomTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ImportedSourceSchemaAssemblyTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/LegacyV26ImportTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/LocationFileIdentityRoomTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/OrganizationAnnotationLifecycleTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticatorTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/PressureRetentionTruncationTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ProviderRegistrationIntervalAuthenticatorTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RoomImportPortableCapturedCellTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenanceTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/StepsCountDomainSchemaAndMaintenanceTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/WifiCapturedFullClearTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRetentionAuthorityDaoTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/CanonicalRetentionBoundsTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/CellWalCarrierAuthenticatorTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/LocationAcceptedReceiptIntegrityTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/LocationPurposeAuthorityTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/RadioPurposeItemQualifierTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/SourceWalCarrierAuthenticatorTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticatorTest.kt",
+    "data/preferences/src/test/java/com/adsamcik/tracker/shared/preferences/retention/RetentionAuthorityProducerRoomTest.kt",
+    "data/preferences/src/test/java/com/adsamcik/tracker/shared/preferences/tracking/AuthoritativeTrackingParamsRepositoryTest.kt",
+    "data/preferences/src/test/java/com/adsamcik/tracker/shared/preferences/tracking/DefaultTrackingParamsRepositoryTest.kt",
+    "data/preferences/src/test/java/com/adsamcik/tracker/shared/preferences/tracking/RoomSourcePolicyRepositoryTest.kt",
+    "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelHistoryTest.kt",
+    "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelLiveStepsTest.kt",
+    "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelPermissionTest.kt",
+    "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelSessionInsightsTest.kt",
+    "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardScreenTest.kt",
+    "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/compose/components/TrackingActionRingTest.kt",
+    "feature/game/src/test/java/com/adsamcik/tracker/game/minigame/location/FusedMiniGameLocationSourceTest.kt",
+    "feature/game/src/test/java/com/adsamcik/tracker/game/minigame/location/LiveOrFusedMiniGameLocationSourceTest.kt",
+    "feature/import-export/src/androidTest/java/com/adsamcik/tracker/impexp/JsonExportScopeScreenTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/CapturedRadioDateSelectionTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/GpxExporterTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/JsonExporterRoomIntegrationTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/JsonExporterTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/LocationFileExporterTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PagedLocationSequenceTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/SessionBundleArchiveWriterTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ExportDocumentCleanupTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModelTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/automation/ExportOutputCleanupTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/automation/IncrementalExportTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/DataImporterTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/ImportJobRunnerTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/archive/SessionBundleStagerTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/LocationFileImportMapperTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorkerFailureTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/portable/LocationFileJsonV1Test.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/portable/SessionBundleManifestV1Test.kt",
+    "feature/map/src/test/java/com/adsamcik/tracker/map/data/RadioLocationContextResolverTest.kt",
+    "feature/map/src/test/java/com/adsamcik/tracker/map/layers/impl/LocationPathLayerTest.kt",
+    "feature/map/src/test/java/com/adsamcik/tracker/map/presentation/MapDataChangeObserverRoomTest.kt",
+    "feature/map/src/test/java/com/adsamcik/tracker/map/presentation/MapDataChangeObserverTest.kt",
+    "feature/map/src/test/java/com/adsamcik/tracker/map/presentation/MapStoreTest.kt",
+    "feature/map/src/test/java/com/adsamcik/tracker/map/presentation/sensors/LocationAndSensorsManagerTest.kt",
+    "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/SessionOrganizationViewModelTest.kt",
+    "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/OrganizationCalendarDaysTest.kt",
+    "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/SessionEditorTimeTest.kt",
+    "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/SessionOrganizationEditorComposeTest.kt",
+    "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/CalendarContentComposeTest.kt",
+    "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/util/SunSetRiseTest.kt",
+    "feature/tracker/src/test/java/com/adsamcik/tracker/feature/tracker/notification/NotificationManagementAccessibilityTest.kt",
+    "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardSessionCardsAdditionalTest.kt",
+    "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardSessionCardsTest.kt",
+    "sensor/activity/src/test/java/com/adsamcik/tracker/activity/api/registration/ActivityMotionAssistanceQualificationTest.kt",
+    "sensor/activity/src/test/java/com/adsamcik/tracker/activity/api/registration/DefaultActivityRegistrationArbiterTest.kt",
+    "sensor/activity/src/test/java/com/adsamcik/tracker/activity/receiver/ActivityMotionAssistanceRoutingTest.kt",
+    "sensor/activity/src/test/java/com/adsamcik/tracker/activity/receiver/ActivityReceiverTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/di/AmbientRadioBindingContractTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProviderTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedCellHistoryMapperTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureSourceFactQueryProofTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioPortableTransferTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportedAmbientStepsTransferTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomStepsCountDomainCompatibilityQueryRoomTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SessionOrganizationRoomTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SourceFactQueryRepositoryRoomTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/TrackingHistorySourceUnionRepositoryTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryCandidateQueriesRoomTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiImportedHistoryRepositoryTest.kt",
+    "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/ManualTrackingStartTest.kt",
+    "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/TrackingPurposeAvailabilityTest.kt",
+    "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/resilience/TrackingLifecycleCommandAuthorityTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApiLogicTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/SessionTrackerComponentTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/DefaultTrackerServiceControllerTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/di/SourcePipelineModuleTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/feed/DefaultTrackerLiveLocationFeedTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/policy/BatteryAwarePolicyPowerSaveTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/policy/BatteryAwarePolicyTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/resilience/SharedPreferencesTrackingLifecycleCommandAuthorityTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/BackgroundLocationHostTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinatorResumeTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/ForegroundServiceTypeCandidatesTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/TrackingOrchestratorIntegrationTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/TrackingShutdownSequenceTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactWriterTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedObservationAdmissionTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapterTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ambient/steps/AmbientStepsFactImporterTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellCaptureConsentRevocationDeletionCommandTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactClassifierTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/control/CollectionMotionControllerTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/control/LegacyLocationMotionScopeTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/control/LocationMotionAssistanceOwnerTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AdaptiveLocationPlanFingerprintTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/FakeSourceCallerDemandDispatcher.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/FiveLevelSourceConfigurationTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/RoomSourcePlanStoreTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SemanticAcquisitionPlanFactoryTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecoveryTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePlanCodecTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePlanResolverTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSessionTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStoreTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingSessionOwnershipStressTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingSettingsStatusProviderTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/deletion/RoomPressureSelectedSessionDeletionServiceTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceEventSinkTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/RoomDurableSourceIngressTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceEventRetentionProofLifecycleTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCatalogTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceMaterializationRevisionSelectionTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceRecordingHistoricalAuthorityRoomTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceRecordingQualificationTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationHistoricalProfileAgeTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationLiveWriterRegistryTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/model/SourceAcquisitionFloorTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomationOutboxDispatcherTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/ActivityControlRetentionMaintenanceTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/EventTrackingFrameProjectionTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/PressureSessionFactProjectionLaneTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/StepsSessionFactProjectionLaneTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/AmbientLocationPurposeOwnerTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/AmbientRadioSourceBrokerTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellRefreshResponsesTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceBackendTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/ExactSourceCallerGuardTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/FrameworkLocationProviderSelectionTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationCallbackHistoryTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceBackendTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceDeliveryTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedAmbientRadioSourceControllerTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedLocationSourceControllerTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedStepSourceControllerTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceBrokerTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepositoryTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/TestLiveAmbientRetentionAuthorityReader.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/TestPurposeSourceCallerDemandDispatcher.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/TrackingPurposePublicationRuntimeTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiCaptureConsentRevocationDeletionCommandTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactClassifierTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiHistoricalBalanceContractTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt"
+  ],
+  "candidate_changed_test_source_count": 196,
+  "schema_source_hashes": {
+    "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt": {
+      "sha256": "c1e6d26eab5eca7affe5ed644ed9a1fd1c091bfa54a339353d146eca439d6311",
+      "bytes": 61708
+    },
+    "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabaseMigrations.kt": {
+      "sha256": "fd24341fafda0cfbaad873630cc8e945a2af527cd508c7b10a35c2846f21989e",
+      "bytes": 164037
+    },
+    "core/base/schemas/com.adsamcik.tracker.shared.base.database.AppDatabase/28.json": {
+      "sha256": "1ca8e024cefe523bd9852a5a1b17db533661d26ab07d70c180060c714fe1a569",
+      "bytes": 329710
+    }
+  },
+  "worktree_branch_tips": [
+    {
+      "branch": "dev/v10",
+      "head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "merge_base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/radio-auto-capture",
+      "head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "merge_base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/audit-finding-fixes",
+      "head": "a8fd308df926bbaa3c8598cc04bdff463bf97e73",
+      "merge_base": "4ab17fc9c2af99cf9ad3a2efd2cb15968c1b4db4",
+      "commits_not_in_dev_v10": 21,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/audit-reconciliation-20260925",
+      "head": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "merge_base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "commits_not_in_dev_v10": 6,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/impl-broker-provider-bindings",
+      "head": "0e374345eb79b34529132fbea52d9797130648ac",
+      "merge_base": "0e374345eb79b34529132fbea52d9797130648ac",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/impl-lifecycle-product-proof",
+      "head": "f786563167df2990202a96835ff7535488acd77c",
+      "merge_base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "commits_not_in_dev_v10": 26,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/location-product-query-20260925",
+      "head": "1c17c27e15442b678e5e55139a55dd1ddc4b6b25",
+      "merge_base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "commits_not_in_dev_v10": 2,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/source-native-map-context-root",
+      "head": "03e724d096a96df19371097dc80d8988c8c6e344",
+      "merge_base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "commits_not_in_dev_v10": 71,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/ti-activity-range-product-20260915",
+      "head": "6dfa484128b43c6c47ca9a66571a607561227fe7",
+      "merge_base": "3dd1ff004a34beb339539c4961704919d781371c",
+      "commits_not_in_dev_v10": 21,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/ti-activity-source-actions-20260915",
+      "head": "35368a2996ee040002589df25ca26fcd87f87a65",
+      "merge_base": "b07680b70aced42abd40161326683b572f3eccb4",
+      "commits_not_in_dev_v10": 11,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/ti-ambient-file-integration-20260916",
+      "head": "bf260d7b1fc5d837bfe0c96fbfecfc0e48723cdd",
+      "merge_base": "bf260d7b1fc5d837bfe0c96fbfecfc0e48723cdd",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-ambient-steps-file-actions-20260915",
+      "head": "220a2721825272bdf84f5f8ece80c52f8dc37c50",
+      "merge_base": "3dd1ff004a34beb339539c4961704919d781371c",
+      "commits_not_in_dev_v10": 41,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/ti-ambient-steps-import-20260915",
+      "head": "876ca17547d6e3d48940d399057ffe121964780b",
+      "merge_base": "28d270cd99e76ea4a4448fd91c4837f68c09ac21",
+      "commits_not_in_dev_v10": 1,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/ti-ambient-steps-p5-portable-20260920",
+      "head": "fa552638c3ced4fe033081d2b945c793583c2391",
+      "merge_base": "fa552638c3ced4fe033081d2b945c793583c2391",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-ambient-steps-product-20260915",
+      "head": "0c4728c2b50efd5f68a6013d89f8b4408837d18b",
+      "merge_base": "5135db7c0b51ef07056509911edc025fd0caca83",
+      "commits_not_in_dev_v10": 9,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/ti-caller-guard-contract-wave0-20260916",
+      "head": "fb21dd3908284eb85495c647c38b9de050c65714",
+      "merge_base": "fb21dd3908284eb85495c647c38b9de050c65714",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-cell-import-product-20260915",
+      "head": "1ff5ebf7d18ddf6fed4741d256a2f4532040700c",
+      "merge_base": "28d270cd99e76ea4a4448fd91c4837f68c09ac21",
+      "commits_not_in_dev_v10": 19,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/ti-dev-v28-containment-wave1-20260917",
+      "head": "7e88cdfa0a8ddc07b982aa747fb8f84d9f3e9e92",
+      "merge_base": "7e88cdfa0a8ddc07b982aa747fb8f84d9f3e9e92",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-imported-schema-assembly-20260915",
+      "head": "a4ae2dd57b87c5f16bb172dc4266a3021adff5c9",
+      "merge_base": "a4ae2dd57b87c5f16bb172dc4266a3021adff5c9",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-observability-contract-wave0-20260916",
+      "head": "2cc213e753834dbdab2a7952274be5abe35c39f6",
+      "merge_base": "2cc213e753834dbdab2a7952274be5abe35c39f6",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-observability-recorder-wave1-20260917",
+      "head": "5f4df6c7ecbc803ad0577be221c82add1ecbca72",
+      "merge_base": "5f4df6c7ecbc803ad0577be221c82add1ecbca72",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-observability-store-wave1-20260917",
+      "head": "13eee220798c7c798d87776ae3f7f42422aba946",
+      "merge_base": "13eee220798c7c798d87776ae3f7f42422aba946",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-passive-ambient-radio-20260915",
+      "head": "1b2467e38edade32ef70a9262dad8f221c410733",
+      "merge_base": "b07680b70aced42abd40161326683b572f3eccb4",
+      "commits_not_in_dev_v10": 6,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/ti-portable-file-assembly-20260915",
+      "head": "aa9447e070e67e9a6802e940b2bae6c1e3da9a81",
+      "merge_base": "aa9447e070e67e9a6802e940b2bae6c1e3da9a81",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-portable-receipt-context-20260915",
+      "head": "ba73b7a6f3d3e49c413d54e253ad03802f6ccb59",
+      "merge_base": "ba73b7a6f3d3e49c413d54e253ad03802f6ccb59",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-pressure-file-actions-20260915",
+      "head": "8ba72248ba2b9ade2908947d1858ec6420e74c3d",
+      "merge_base": "b07680b70aced42abd40161326683b572f3eccb4",
+      "commits_not_in_dev_v10": 8,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/ti-pressure-import-maintenance-20260915",
+      "head": "7ce26646d3c68f42da8da4aed75634f17a55762d",
+      "merge_base": "28d270cd99e76ea4a4448fd91c4837f68c09ac21",
+      "commits_not_in_dev_v10": 14,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/ti-product-contract-wave0-20260916",
+      "head": "39eb94fa2d86d3af40ac3a2a89fda8873c967611",
+      "merge_base": "39eb94fa2d86d3af40ac3a2a89fda8873c967611",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-protected-location-handoff-20260915",
+      "head": "ffdef045b91dc5a2c467616db94d09ff1e05ddb8",
+      "merge_base": "8ad24c8d8420150127ca9d8661e0fc906a7e814f",
+      "commits_not_in_dev_v10": 54,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/ti-purpose-contract-wave0-20260916",
+      "head": "b66e02c13279acdae61424a05d493356476beb03",
+      "merge_base": "b66e02c13279acdae61424a05d493356476beb03",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-purpose-publication-wave1-20260917",
+      "head": "df89113603e20e676dade559ac2038bd962d3316",
+      "merge_base": "df89113603e20e676dade559ac2038bd962d3316",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-purpose-settings-20260915",
+      "head": "8943f299f812a903f68dbc172412da2c9982a4eb",
+      "merge_base": "8943f299f812a903f68dbc172412da2c9982a4eb",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-rearm-contract-wave0-20260916",
+      "head": "9f01b5d4117067755a32bf7b10b176eeb345311d",
+      "merge_base": "9f01b5d4117067755a32bf7b10b176eeb345311d",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-retention-authority-wave1-20260917",
+      "head": "352dc074bc7a45f536acd4bf7aa5ef87895bbdc0",
+      "merge_base": "352dc074bc7a45f536acd4bf7aa5ef87895bbdc0",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-runtime-settlement-20260915",
+      "head": "e71c739ea3899538e409bb8e807189ce331678e6",
+      "merge_base": "8ad24c8d8420150127ca9d8661e0fc906a7e814f",
+      "commits_not_in_dev_v10": 8,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/ti-shared-history-union-20260915",
+      "head": "98f2f567cecdd4ad6b55a252b313125df6a34564",
+      "merge_base": "98f2f567cecdd4ad6b55a252b313125df6a34564",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-source-caller-guard-wave1-20260917",
+      "head": "484839083510d3ce8a828e171dc6575b02d92855",
+      "merge_base": "484839083510d3ce8a828e171dc6575b02d92855",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-source-catalog-20260920",
+      "head": "15b4a45faeb77617cc524055dfa56389c92e04c3",
+      "merge_base": "15b4a45faeb77617cc524055dfa56389c92e04c3",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-source-detail-product-20260915",
+      "head": "cda6aff87cb87b9642bde8f352458d31a8cd57fd",
+      "merge_base": "cda6aff87cb87b9642bde8f352458d31a8cd57fd",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-source-history-consumers-20260915",
+      "head": "335df7ea571e2afe6f6d386a102c299ec78ac45c",
+      "merge_base": "335df7ea571e2afe6f6d386a102c299ec78ac45c",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-steps-p5-storage-wave2-20260917",
+      "head": "bc43dd972ac8f1a63a37827cf7c2eaad90db5600",
+      "merge_base": "bc43dd972ac8f1a63a37827cf7c2eaad90db5600",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/ti-wifi-import-product-20260915",
+      "head": "99c560062df223ba719a485532f044ac9d62a247",
+      "merge_base": "28d270cd99e76ea4a4448fd91c4837f68c09ac21",
+      "commits_not_in_dev_v10": 13,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/unified-tracking-surface",
+      "head": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "merge_base": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "commits_not_in_dev_v10": 2,
+      "ancestor_of_dev_v10": false
+    },
+    {
+      "branch": "codex/update-tracking-accounting-75fd",
+      "head": "62fa4196e52ceb4b874971e03b292ced09a43827",
+      "merge_base": "62fa4196e52ceb4b874971e03b292ced09a43827",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    },
+    {
+      "branch": "codex/review-ci-foundation",
+      "head": "c7c61b54880347c851bd39dcb1a04a5338fb9b2c",
+      "merge_base": "c7c61b54880347c851bd39dcb1a04a5338fb9b2c",
+      "commits_not_in_dev_v10": 0,
+      "ancestor_of_dev_v10": true
+    }
+  ],
+  "worktrees": [
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android",
+      "head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "branch": "refs/heads/dev/v10",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/.codex/worktrees/radio-auto-capture/Tracker-Android",
+      "head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "branch": "refs/heads/codex/radio-auto-capture",
+      "prunable": null,
+      "dirty": [
+        {
+          "status": " M",
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+          "sha256": "da01431540a8c89834c32cdf36eecd08af9ea62b232dece45e4d7c20f050aefe",
+          "bytes": 137283
+        },
+        {
+          "status": " M",
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
+          "sha256": "20efd9263e36ac494456382a119262d296eb997d3f227aff4713450df286c620",
+          "bytes": 83471
+        },
+        {
+          "status": " M",
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
+          "sha256": "a7f8601bc9e530e38a6cc62843a9becb93dd69e957f0f82fdacb81358c55a228",
+          "bytes": 31063
+        },
+        {
+          "status": " M",
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDestinationOwnerEntity.kt",
+          "sha256": "f2635b0141b0f7e9c66fe298c0da258d0b42f12a6ee00fc4980b339de8592e8c",
+          "bytes": 6187
+        },
+        {
+          "status": " M",
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt",
+          "sha256": "85352138cdb9c7fe868879788cc844c7eee6c2c68c2e8e6eee1442795df2103c",
+          "bytes": 20005
+        },
+        {
+          "status": " M",
+          "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/SourceWriterGenerationContractTest.kt",
+          "sha256": "ea0c128191e53aace77f58c49354646e2be3dde22fd7ccd104dc74ba4df2c2be",
+          "bytes": 3000
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/catalog/SourceProductFactories.kt",
+          "sha256": "4eeb01308372a8b77a58789103d6a58a20260da789543cbed7c082ed8f4f7be5",
+          "bytes": 19891
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt",
+          "sha256": "a63b71002fb5cbf55c33539d6f6de3e1a17664f5eb821ddd83b9760600ff3f7a",
+          "bytes": 55401
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellSessionFactProjectionLane.kt",
+          "sha256": "14b178e2b6464838dba6021ff6e820e051ab34451e040cb2cfc2a3aa171ba6a2",
+          "bytes": 25042
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+          "sha256": "7acb1c711aca4b9c4bb267463975a4e94a1377cd473f45911cc2f38085cbc61e",
+          "bytes": 360230
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStore.kt",
+          "sha256": "a1998261305c1f08d606fa1f5a2b69c6c62cd1a676b908684b5080d5fb16f8d5",
+          "bytes": 48263
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/deletion/RoomCellSelectedHistoryDeletion.kt",
+          "sha256": "c917515c2bd394e238374e58889e80aa4680903a73a06ca89bc5ed0243cd5058",
+          "bytes": 29665
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/RoomDeleteSelectedWifiHistory.kt",
+          "sha256": "2302a5e1d0a26bb54d7613af6b712a0d2ed8f04865c1cca3a25c7febb6acb975",
+          "bytes": 48001
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+          "sha256": "b5d945ce96764b62a811bc2aef6067487997623347f81aa97abc0559c522ff80",
+          "bytes": 153947
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+          "sha256": "f5127b49284cae293e8097c377ecbe8ce73eec6ce4dd7b05ab423a2cf382c16d",
+          "bytes": 37009
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt",
+          "sha256": "24de9417240dc307b5afe74a66dcd8d93b6b1743386ea3e0a599c7914e24b100",
+          "bytes": 60864
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiSessionFactProjectionLane.kt",
+          "sha256": "016b0284203218de8c743e975122da3dc855d5ae70a2051cc6ea57d71a9db3ef",
+          "bytes": 24899
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/catalog/DefaultSourceImplementationCatalogTest.kt",
+          "sha256": "ad62f568f81f3f3d1ac9b2c7648a938444de36e6cf9474b09beb99cdd3a4f440",
+          "bytes": 37359
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+          "sha256": "d5f96d8f4f43b205dc009f4726de36a5086306529f681028534c1733899b25e9",
+          "bytes": 69109
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+          "sha256": "0d20d6bd45c3a61afe0f13c5268b5c0b752211a84e5d2bbb1d868e09fc393aa3",
+          "bytes": 404536
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStoreTest.kt",
+          "sha256": "c66470b8e1b29f1ee3c1bc305051b594d9cb672a2e60e4d38e6b22a952c9e604",
+          "bytes": 47341
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+          "sha256": "9ca7e71e362a535e17b1bd58fd45f5b0983731b91622eb6d2291972befcf0350",
+          "bytes": 165722
+        }
+      ]
+    },
+    {
+      "path": "C:/Users/adam-/.codex/worktrees/source-native-map-context/Tracker-Android",
+      "head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "branch": null,
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/.codex/worktrees/unified-tracking-surface/Tracker-Android",
+      "head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "branch": null,
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-finding-fixes",
+      "head": "a8fd308df926bbaa3c8598cc04bdff463bf97e73",
+      "branch": "refs/heads/codex/audit-finding-fixes",
+      "prunable": null,
+      "dirty": [
+        {
+          "status": " M",
+          "path": ".github/workflows/android.yml",
+          "sha256": "891ba0b54335b05aac6406fea3bfaaa0c6df2f9075ed2799c8bc6706b9c559ec",
+          "bytes": 8178
+        },
+        {
+          "status": " M",
+          "path": "app/src/test/java/com/adsamcik/tracker/app/architecture/ArchitecturalFitnessTest.kt",
+          "sha256": "7c70f1eb026b90c227ef2e338479027de1bb5c473f62f4a7ab9fed22d5b351ce",
+          "bytes": 49269
+        },
+        {
+          "status": " M",
+          "path": "build.gradle.kts",
+          "sha256": "f12da34483a46dc2aad35b8119d9faa5851dd7e5b3abed2b74d676516533fb76",
+          "bytes": 7579
+        },
+        {
+          "status": " M",
+          "path": "tools/release_manifest.py",
+          "sha256": "900402a8632ea8318bbd16601cc0ec64c5b764d8c04807e5cf9d45d54c839182",
+          "bytes": 31962
+        },
+        {
+          "status": " M",
+          "path": "tools/release_validation.py",
+          "sha256": "553e43ffe2b64778b11680560ea6da8e12254dcb7a9b3c9d29c32d93745211c2",
+          "bytes": 12732
+        },
+        {
+          "status": " M",
+          "path": "tools/tests/test_release_manifest.py",
+          "sha256": "19f31bbfa172050dec9be103d6e3f2a9f7a3cc234c78597849760d43160b9863",
+          "bytes": 12450
+        }
+      ]
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/audit-reconciliation-20260925",
+      "head": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "branch": "refs/heads/codex/audit-reconciliation-20260925",
+      "prunable": null,
+      "dirty": [
+        {
+          "status": " M",
+          "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboard.kt",
+          "sha256": "9fec5877081dc667ad2ae302115ae623b6e733f50faf8823c0d32ff70af6bd07",
+          "bytes": 29887
+        },
+        {
+          "status": " M",
+          "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardProgressCards.kt",
+          "sha256": "0a4765c86e5bc84227d8881fcddebe22288ac12d2c7590c6a4c574073b011d2c",
+          "bytes": 17183
+        },
+        {
+          "status": " M",
+          "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt",
+          "sha256": "237c37367d3cf79649d86e2cd9fe8ffd389bca44e19d2c9030b66d39c0339500",
+          "bytes": 23302
+        },
+        {
+          "status": " M",
+          "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRouteViewModel.kt",
+          "sha256": "1cef8dda0d50893a1ca875f9875bb7c134b5871f2cd962995ff0a0231f43db1d",
+          "bytes": 2025
+        },
+        {
+          "status": " M",
+          "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardProgressCardsTest.kt",
+          "sha256": "9a271ba25c87dc38537f6bef064cd73c876b138badfd7ab8dac43a5d1521d4a6",
+          "bytes": 7042
+        },
+        {
+          "status": " M",
+          "path": "tracker/api-module/src/main/res/values/strings.xml",
+          "sha256": "89ca7e2b5b5860ee5f9dc743c42ae2dc85ba3766f96299c9926ba39ae171ca93",
+          "bytes": 15114
+        },
+        {
+          "status": "??",
+          "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/RecentTripsUiState.kt",
+          "sha256": "21bad47f1267d954a212f03605cd6d3601cd684525a95969e25cc8570f2a2a7c",
+          "bytes": 1780
+        },
+        {
+          "status": "??",
+          "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/RecentTripsUiStateTest.kt",
+          "sha256": "966b65c3abe769f764402231ecd5de4392e87655fbd5b58c6c4a63df0787d279",
+          "bytes": 2456
+        }
+      ]
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/impl-broker-provider-bindings",
+      "head": "0e374345eb79b34529132fbea52d9797130648ac",
+      "branch": "refs/heads/codex/impl-broker-provider-bindings",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/impl-lifecycle-product-proof",
+      "head": "f786563167df2990202a96835ff7535488acd77c",
+      "branch": "refs/heads/codex/impl-lifecycle-product-proof",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/location-product-query-20260925",
+      "head": "1c17c27e15442b678e5e55139a55dd1ddc4b6b25",
+      "branch": "refs/heads/codex/location-product-query-20260925",
+      "prunable": null,
+      "dirty": [
+        {
+          "status": " M",
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AdditionalTrackingSchema.kt",
+          "sha256": "ecd8582063481f73ab54cdf6bfac4847d2c713d10c6444535402e81a7a15f121",
+          "bytes": 36638
+        },
+        {
+          "status": " M",
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+          "sha256": "952c9a7890a62c22937079afbc0a8d7845273c6f0f47b96758af6045af13a8ae",
+          "bytes": 59864
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservation.kt",
+          "sha256": "b71404ebbf9725576666ffb147583f8d34229332b1431948bb786e574e6571fc",
+          "bytes": 11323
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+          "sha256": "7b0c58f7d47231fbf23db4d1eab7e4b4bdf64cd13e7c9c315db41764696e7631",
+          "bytes": 41072
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+          "sha256": "66476dbefd0f908e4e0ddd6e8b4af44672b5d4fb2d7cc366009312913a395132",
+          "bytes": 110343
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+          "sha256": "655c38422ac211e287fb2129d5ace854720bda9722460e01f05cdf873959b32e",
+          "bytes": 69076
+        },
+        {
+          "status": " M",
+          "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt",
+          "sha256": "a42e7881e692d7068334cefc11426b09d0f410d60717dd89bb8d2df70d5f2e6b",
+          "bytes": 58861
+        },
+        {
+          "status": "??",
+          "path": "core/base/src/androidTest/java/com/adsamcik/tracker/shared/base/database/LocationAcceptedProvenanceMigration27To28Test.kt",
+          "sha256": "a2332f9c3079821b1bcb1be9c9622baa31c8573a276437a9654a857023492fa2",
+          "bytes": 2082
+        },
+        {
+          "status": "??",
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationAcceptedProvenanceDao.kt",
+          "sha256": "86b9fe364014e752d3c430c03522b3e9489dbcb5dca58e5f9a2ef27d0e4f83f4",
+          "bytes": 3622
+        },
+        {
+          "status": "??",
+          "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationAcceptedProvenanceEntity.kt",
+          "sha256": "eba5a536161d3ffecd6c9d18d23c23682c998fc4f46901f41a29aa421e8dd271",
+          "bytes": 3188
+        }
+      ]
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/source-native-map-context-root",
+      "head": "03e724d096a96df19371097dc80d8988c8c6e344",
+      "branch": "refs/heads/codex/source-native-map-context-root",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-activity-actions-review-20260915",
+      "head": "b6a0b0933ff4a65d5c536ff0cda98d21fb983f41",
+      "branch": null,
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-activity-range-product-20260915",
+      "head": "6dfa484128b43c6c47ca9a66571a607561227fe7",
+      "branch": "refs/heads/codex/ti-activity-range-product-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-activity-source-actions-20260915",
+      "head": "35368a2996ee040002589df25ca26fcd87f87a65",
+      "branch": "refs/heads/codex/ti-activity-source-actions-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-ambient-file-integration-20260916",
+      "head": "bf260d7b1fc5d837bfe0c96fbfecfc0e48723cdd",
+      "branch": "refs/heads/codex/ti-ambient-file-integration-20260916",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-ambient-steps-file-actions-20260915",
+      "head": "220a2721825272bdf84f5f8ece80c52f8dc37c50",
+      "branch": "refs/heads/codex/ti-ambient-steps-file-actions-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-ambient-steps-import-20260915",
+      "head": "876ca17547d6e3d48940d399057ffe121964780b",
+      "branch": "refs/heads/codex/ti-ambient-steps-import-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-ambient-steps-p5-portable-20260920",
+      "head": "fa552638c3ced4fe033081d2b945c793583c2391",
+      "branch": "refs/heads/codex/ti-ambient-steps-p5-portable-20260920",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-ambient-steps-product-20260915",
+      "head": "0c4728c2b50efd5f68a6013d89f8b4408837d18b",
+      "branch": "refs/heads/codex/ti-ambient-steps-product-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-caller-guard-contract-wave0-20260916",
+      "head": "fb21dd3908284eb85495c647c38b9de050c65714",
+      "branch": "refs/heads/codex/ti-caller-guard-contract-wave0-20260916",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-cell-import-product-20260915",
+      "head": "1ff5ebf7d18ddf6fed4741d256a2f4532040700c",
+      "branch": "refs/heads/codex/ti-cell-import-product-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-cell-product-review-20260915",
+      "head": "1b67108c1990952d0c6a1008a2b058efd8926fa5",
+      "branch": null,
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-dev-v28-containment-wave1-20260917",
+      "head": "7e88cdfa0a8ddc07b982aa747fb8f84d9f3e9e92",
+      "branch": "refs/heads/codex/ti-dev-v28-containment-wave1-20260917",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-imported-schema-assembly-20260915",
+      "head": "a4ae2dd57b87c5f16bb172dc4266a3021adff5c9",
+      "branch": "refs/heads/codex/ti-imported-schema-assembly-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-observability-contract-wave0-20260916",
+      "head": "2cc213e753834dbdab2a7952274be5abe35c39f6",
+      "branch": "refs/heads/codex/ti-observability-contract-wave0-20260916",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-observability-recorder-wave1-20260917",
+      "head": "5f4df6c7ecbc803ad0577be221c82add1ecbca72",
+      "branch": "refs/heads/codex/ti-observability-recorder-wave1-20260917",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-observability-store-wave1-20260917",
+      "head": "13eee220798c7c798d87776ae3f7f42422aba946",
+      "branch": "refs/heads/codex/ti-observability-store-wave1-20260917",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-passive-ambient-radio-20260915",
+      "head": "1b2467e38edade32ef70a9262dad8f221c410733",
+      "branch": "refs/heads/codex/ti-passive-ambient-radio-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-portable-file-assembly-20260915",
+      "head": "aa9447e070e67e9a6802e940b2bae6c1e3da9a81",
+      "branch": "refs/heads/codex/ti-portable-file-assembly-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-portable-receipt-context-20260915",
+      "head": "ba73b7a6f3d3e49c413d54e253ad03802f6ccb59",
+      "branch": "refs/heads/codex/ti-portable-receipt-context-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-pressure-file-actions-20260915",
+      "head": "8ba72248ba2b9ade2908947d1858ec6420e74c3d",
+      "branch": "refs/heads/codex/ti-pressure-file-actions-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-pressure-import-maintenance-20260915",
+      "head": "7ce26646d3c68f42da8da4aed75634f17a55762d",
+      "branch": "refs/heads/codex/ti-pressure-import-maintenance-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-product-contract-wave0-20260916",
+      "head": "39eb94fa2d86d3af40ac3a2a89fda8873c967611",
+      "branch": "refs/heads/codex/ti-product-contract-wave0-20260916",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-protected-location-handoff-20260915",
+      "head": "ffdef045b91dc5a2c467616db94d09ff1e05ddb8",
+      "branch": "refs/heads/codex/ti-protected-location-handoff-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-purpose-contract-wave0-20260916",
+      "head": "b66e02c13279acdae61424a05d493356476beb03",
+      "branch": "refs/heads/codex/ti-purpose-contract-wave0-20260916",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-purpose-publication-wave1-20260917",
+      "head": "df89113603e20e676dade559ac2038bd962d3316",
+      "branch": "refs/heads/codex/ti-purpose-publication-wave1-20260917",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-purpose-settings-20260915",
+      "head": "8943f299f812a903f68dbc172412da2c9982a4eb",
+      "branch": "refs/heads/codex/ti-purpose-settings-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-rearm-contract-wave0-20260916",
+      "head": "9f01b5d4117067755a32bf7b10b176eeb345311d",
+      "branch": "refs/heads/codex/ti-rearm-contract-wave0-20260916",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-retention-authority-wave1-20260917",
+      "head": "352dc074bc7a45f536acd4bf7aa5ef87895bbdc0",
+      "branch": "refs/heads/codex/ti-retention-authority-wave1-20260917",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-runtime-settlement-20260915",
+      "head": "e71c739ea3899538e409bb8e807189ce331678e6",
+      "branch": "refs/heads/codex/ti-runtime-settlement-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-shared-history-union-20260915",
+      "head": "98f2f567cecdd4ad6b55a252b313125df6a34564",
+      "branch": "refs/heads/codex/ti-shared-history-union-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-source-caller-guard-wave1-20260917",
+      "head": "484839083510d3ce8a828e171dc6575b02d92855",
+      "branch": "refs/heads/codex/ti-source-caller-guard-wave1-20260917",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-source-catalog-20260920",
+      "head": "15b4a45faeb77617cc524055dfa56389c92e04c3",
+      "branch": "refs/heads/codex/ti-source-catalog-20260920",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-source-detail-product-20260915",
+      "head": "cda6aff87cb87b9642bde8f352458d31a8cd57fd",
+      "branch": "refs/heads/codex/ti-source-detail-product-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-source-history-consumers-20260915",
+      "head": "335df7ea571e2afe6f6d386a102c299ec78ac45c",
+      "branch": "refs/heads/codex/ti-source-history-consumers-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-steps-p5-storage-wave2-20260917",
+      "head": "bc43dd972ac8f1a63a37827cf7c2eaad90db5600",
+      "branch": "refs/heads/codex/ti-steps-p5-storage-wave2-20260917",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-wifi-import-product-20260915",
+      "head": "99c560062df223ba719a485532f044ac9d62a247",
+      "branch": "refs/heads/codex/ti-wifi-import-product-20260915",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-wifi-product-review-20260915",
+      "head": "99c560062df223ba719a485532f044ac9d62a247",
+      "branch": null,
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/ti-work-item-registry-review-20260915",
+      "head": "4c9bdc029e9d70ec4b2cf9479f633fad91271d5a",
+      "branch": null,
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/unified-tracking-surface",
+      "head": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "branch": "refs/heads/codex/unified-tracking-surface",
+      "prunable": null,
+      "dirty": [
+        {
+          "status": " M",
+          "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/data/DashboardHistoryRepository.kt",
+          "sha256": "e2f5633f61d3053f2141897f96e7159478bd72956ed578f0d3a495474bc9578a",
+          "bytes": 14851
+        },
+        {
+          "status": " M",
+          "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModel.kt",
+          "sha256": "5acede173363a73b6fc9f2ff144f87de6150549c78e7662eea382f7a596460e9",
+          "bytes": 25802
+        },
+        {
+          "status": " M",
+          "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt",
+          "sha256": "4792d20768e2ab08c8f716a48d9a3e11e970c10962c2aea082a1199061a04a6a",
+          "bytes": 25868
+        },
+        {
+          "status": " M",
+          "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/cards/IdleContent.kt",
+          "sha256": "d680e7b1a42072ad4a6e45ec1fe55746085e84656c89b8f4026f08c83f269700",
+          "bytes": 11645
+        },
+        {
+          "status": " M",
+          "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/state/DashboardUiState.kt",
+          "sha256": "5f89c5d4f2c4cad578d617234e7d924f7c1e24b17f05384b886ff467b6d22f4a",
+          "bytes": 7231
+        },
+        {
+          "status": " M",
+          "path": "feature/dashboard/src/main/res/values/strings.xml",
+          "sha256": "aab29c309f65b250cf39b680f7f478309c390a60dbad4c2da70e9250bcb8d1b4",
+          "bytes": 25000
+        },
+        {
+          "status": " M",
+          "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/data/DashboardHistoryRepositoryTest.kt",
+          "sha256": "9b579e4e36b061ae22b0abbef4b9ebf03f3113d8a9cde7d78352bbc922136a56",
+          "bytes": 28645
+        },
+        {
+          "status": "??",
+          "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/data/DashboardAmbientSummary.kt",
+          "sha256": "7d6314b10d497399812c4e52950d4700cec126c99a0e3e41118a9a3c0f1fe501",
+          "bytes": 5333
+        },
+        {
+          "status": "??",
+          "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/cards/AmbientSummaryCard.kt",
+          "sha256": "92f0154706fe2ccf747f8bf0964047598bb6ac2940ecdc0bc423c612f7dbb562",
+          "bytes": 2885
+        },
+        {
+          "status": "??",
+          "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/data/DashboardAmbientSummaryReaderTest.kt",
+          "sha256": "5a9e1426d2fc212c32f06f29a627c87f40ce32a83499edce333566a6c5c3decf",
+          "bytes": 4024
+        }
+      ]
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/update-tracking-accounting-75fd",
+      "head": "62fa4196e52ceb4b874971e03b292ced09a43827",
+      "branch": "refs/heads/codex/update-tracking-accounting-75fd",
+      "prunable": null,
+      "dirty": []
+    },
+    {
+      "path": "C:/Users/adam-/GitHub/Tracker-Android-wt-ci-foundation",
+      "head": "c7c61b54880347c851bd39dcb1a04a5338fb9b2c",
+      "branch": "refs/heads/codex/review-ci-foundation",
+      "prunable": "gitdir file points to non-existent location",
+      "dirty": []
+    }
+  ],
+  "local_branch_tips_captured_utc": "2026-09-28T11:00:43.167076+00:00",
+  "local_branch_tips": [
+    {
+      "branch": "codex/audit-finding-fixes",
+      "head": "a8fd308df926bbaa3c8598cc04bdff463bf97e73",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/audit-reconciliation-20260925",
+      "head": "4facc94f402eb991ed8c51597a563f30d963c5d6",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/impl-broker-provider-bindings",
+      "head": "0e374345eb79b34529132fbea52d9797130648ac",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/impl-lifecycle-product-proof",
+      "head": "f786563167df2990202a96835ff7535488acd77c",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/location-product-query-20260925",
+      "head": "1c17c27e15442b678e5e55139a55dd1ddc4b6b25",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/radio-auto-capture",
+      "head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/review-ci-foundation",
+      "head": "c7c61b54880347c851bd39dcb1a04a5338fb9b2c",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/source-native-map-context-root",
+      "head": "03e724d096a96df19371097dc80d8988c8c6e344",
+      "disposition": "inspected_candidate_not_frozen"
+    },
+    {
+      "branch": "codex/ti-activity-range-product-20260915",
+      "head": "6dfa484128b43c6c47ca9a66571a607561227fe7",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/ti-activity-recent-producer-20260915",
+      "head": "42278b2cf47744ab29b4c4d0c5c28782496ca409",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/ti-activity-source-actions-20260915",
+      "head": "35368a2996ee040002589df25ca26fcd87f87a65",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/ti-ambient-file-integration-20260916",
+      "head": "bf260d7b1fc5d837bfe0c96fbfecfc0e48723cdd",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-ambient-steps-file-actions-20260915",
+      "head": "220a2721825272bdf84f5f8ece80c52f8dc37c50",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/ti-ambient-steps-import-20260915",
+      "head": "876ca17547d6e3d48940d399057ffe121964780b",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/ti-ambient-steps-p5-portable-20260920",
+      "head": "fa552638c3ced4fe033081d2b945c793583c2391",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-ambient-steps-product-20260915",
+      "head": "0c4728c2b50efd5f68a6013d89f8b4408837d18b",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/ti-caller-guard-contract-wave0-20260916",
+      "head": "fb21dd3908284eb85495c647c38b9de050c65714",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-cell-import-product-20260915",
+      "head": "1ff5ebf7d18ddf6fed4741d256a2f4532040700c",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/ti-dev-v28-containment-wave1-20260917",
+      "head": "7e88cdfa0a8ddc07b982aa747fb8f84d9f3e9e92",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-imported-schema-assembly-20260915",
+      "head": "a4ae2dd57b87c5f16bb172dc4266a3021adff5c9",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-observability-contract-wave0-20260916",
+      "head": "2cc213e753834dbdab2a7952274be5abe35c39f6",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-observability-recorder-wave1-20260917",
+      "head": "5f4df6c7ecbc803ad0577be221c82add1ecbca72",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-observability-store-wave1-20260917",
+      "head": "13eee220798c7c798d87776ae3f7f42422aba946",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-passive-ambient-radio-20260915",
+      "head": "1b2467e38edade32ef70a9262dad8f221c410733",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/ti-portable-file-assembly-20260915",
+      "head": "aa9447e070e67e9a6802e940b2bae6c1e3da9a81",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-portable-receipt-context-20260915",
+      "head": "ba73b7a6f3d3e49c413d54e253ad03802f6ccb59",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-pressure-file-actions-20260915",
+      "head": "8ba72248ba2b9ade2908947d1858ec6420e74c3d",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/ti-pressure-import-maintenance-20260915",
+      "head": "7ce26646d3c68f42da8da4aed75634f17a55762d",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/ti-product-contract-wave0-20260916",
+      "head": "39eb94fa2d86d3af40ac3a2a89fda8873c967611",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-protected-location-handoff-20260915",
+      "head": "ffdef045b91dc5a2c467616db94d09ff1e05ddb8",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/ti-purpose-contract-wave0-20260916",
+      "head": "b66e02c13279acdae61424a05d493356476beb03",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-purpose-publication-wave1-20260917",
+      "head": "df89113603e20e676dade559ac2038bd962d3316",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-purpose-settings-20260915",
+      "head": "8943f299f812a903f68dbc172412da2c9982a4eb",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-rearm-contract-wave0-20260916",
+      "head": "9f01b5d4117067755a32bf7b10b176eeb345311d",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-retention-authority-wave1-20260917",
+      "head": "352dc074bc7a45f536acd4bf7aa5ef87895bbdc0",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-runtime-settlement-20260915",
+      "head": "e71c739ea3899538e409bb8e807189ce331678e6",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/ti-shared-history-union-20260915",
+      "head": "98f2f567cecdd4ad6b55a252b313125df6a34564",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-source-caller-guard-wave1-20260917",
+      "head": "484839083510d3ce8a828e171dc6575b02d92855",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-source-catalog-20260920",
+      "head": "15b4a45faeb77617cc524055dfa56389c92e04c3",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-source-detail-product-20260915",
+      "head": "cda6aff87cb87b9642bde8f352458d31a8cd57fd",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-source-history-consumers-20260915",
+      "head": "335df7ea571e2afe6f6d386a102c299ec78ac45c",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-steps-p5-storage-wave2-20260917",
+      "head": "bc43dd972ac8f1a63a37827cf7c2eaad90db5600",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "codex/ti-wifi-import-product-20260915",
+      "head": "99c560062df223ba719a485532f044ac9d62a247",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/unified-tracking-surface",
+      "head": "487a2fc98f562e5ca418e55a0d34b68d9596a206",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "codex/update-tracking-accounting-75fd",
+      "head": "62fa4196e52ceb4b874971e03b292ced09a43827",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "dev/v10",
+      "head": "13f1a99871b59d29b3d059f374fc415490da6943",
+      "disposition": "integration_base"
+    },
+    {
+      "branch": "handover/reviewed/impl-broker-provider-bindings-20260920",
+      "head": "f0d14b2e753da6bf34fdefec327e65e769ebc43e",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "handover/reviewed/ti-ambient-steps-p5-portable-20260920",
+      "head": "94901de49bde1ccc508532870ca4cec4bc55b824",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "handover/reviewed/ti-caller-authority-20260919",
+      "head": "484839083510d3ce8a828e171dc6575b02d92855",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "handover/reviewed/ti-retention-authority-20260919",
+      "head": "ad234dd27c5dddd19b3fc1e5bd7a1ad66646e38c",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "handover/reviewed/ti-source-catalog-20260920",
+      "head": "15b4a45faeb77617cc524055dfa56389c92e04c3",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "handover/reviewed/ti-steps-p5-assembled-20260919",
+      "head": "bc43dd972ac8f1a63a37827cf7c2eaad90db5600",
+      "disposition": "reachable_from_integration_base"
+    },
+    {
+      "branch": "handover/reviewed/ti-steps-p5-source-20260919",
+      "head": "4ad78ef8086cade4aedd6963e0af7432fba0fe36",
+      "disposition": "preserved_unreconciled_as_whole_branch"
+    },
+    {
+      "branch": "main",
+      "head": "59fda665c7099d10b16aa60f505de88bd05d3131",
+      "disposition": "released_reference_only"
+    }
+  ],
+  "released_main_schema": {
+    "version": 12,
+    "source_path": "sbase/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+    "source_git_blob": "040c8b00a03ec4f2397f87fdf7efeab890bf41a9",
+    "source_sha256": "4c09b31533303a70c3e2b1922d988591b3f63662bcc0089214ef3b3a52d30ebe",
+    "source_bytes": 3955,
+    "schema_path": "sbase/schemas/com.adsamcik.tracker.shared.base.database.AppDatabase/12.json",
+    "schema_git_blob": "f50bd97e622f54511f6ebb0c5a34f4ce74669992",
+    "schema_sha256": "0aa12ca5a69f2a9542ce6f3f4f9b75255f3b358ea68e113791fc66bd1b7d7831",
+    "schema_bytes": 16434,
+    "checked_in_entity_count": 7
+  },
+  "candidate_schema_declaration_entity_class_count_static": 197,
+  "candidate_checked_in_schema_entity_count_static": 79,
+  "candidate_changed_test_sources_with_status": [
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/architecture/ArchitecturalFitnessTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/background/BatteryOptimizationHelperTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/maintenance/ActivityControlCleanupWorkerRobolectricTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/maintenance/ActivityRetentionWorkerRobolectricTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/maintenance/RetentionPipelineWorkerRobolectricTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/onboarding/ui/SetupViewModelCompletionRobolectricTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/onboarding/ui/SetupViewModelTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/CollectedDataDeletionServiceTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/DefaultCollectedDataWriterQuiescerTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/OwnedTransferFilesTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModelTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/AdaptiveLocationSettingsTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/ExportFormatDialogTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/tracebox/TrackerRuntimeMeasurementsTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/ui/compose/HowToTrackStepTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionWidgetPresentationTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/WidgetFormattersTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "core/base/src/androidTest/java/com/adsamcik/tracker/shared/base/database/AppDatabaseMigration27To28Test.kt"
+    },
+    {
+      "status": "M",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedFactMaintenanceTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CapturedRadioFactRetentionProofRoomTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ImportedSourceSchemaAssemblyTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/LegacyV26ImportTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/LocationFileIdentityRoomTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/OrganizationAnnotationLifecycleTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticatorTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/PressureRetentionTruncationTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ProviderRegistrationIntervalAuthenticatorTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RoomImportPortableCapturedCellTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenanceTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/StepsCountDomainSchemaAndMaintenanceTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/WifiCapturedFullClearTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRetentionAuthorityDaoTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/CanonicalRetentionBoundsTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/CellWalCarrierAuthenticatorTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/LocationAcceptedReceiptIntegrityTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/LocationPurposeAuthorityTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/RadioPurposeItemQualifierTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/SourceWalCarrierAuthenticatorTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticatorTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "data/preferences/src/test/java/com/adsamcik/tracker/shared/preferences/retention/RetentionAuthorityProducerRoomTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "data/preferences/src/test/java/com/adsamcik/tracker/shared/preferences/tracking/AuthoritativeTrackingParamsRepositoryTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "data/preferences/src/test/java/com/adsamcik/tracker/shared/preferences/tracking/DefaultTrackingParamsRepositoryTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "data/preferences/src/test/java/com/adsamcik/tracker/shared/preferences/tracking/RoomSourcePolicyRepositoryTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelHistoryTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelLiveStepsTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelPermissionTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelSessionInsightsTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardScreenTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/compose/components/TrackingActionRingTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/game/src/test/java/com/adsamcik/tracker/game/minigame/location/FusedMiniGameLocationSourceTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/game/src/test/java/com/adsamcik/tracker/game/minigame/location/LiveOrFusedMiniGameLocationSourceTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/import-export/src/androidTest/java/com/adsamcik/tracker/impexp/JsonExportScopeScreenTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/CapturedRadioDateSelectionTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/GpxExporterTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/JsonExporterRoomIntegrationTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/JsonExporterTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/LocationFileExporterTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PagedLocationSequenceTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/SessionBundleArchiveWriterTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ExportDocumentCleanupTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModelTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/automation/ExportOutputCleanupTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/automation/IncrementalExportTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/DataImporterTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/ImportJobRunnerTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/archive/SessionBundleStagerTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/LocationFileImportMapperTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorkerFailureTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/portable/LocationFileJsonV1Test.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/portable/SessionBundleManifestV1Test.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/map/src/test/java/com/adsamcik/tracker/map/data/RadioLocationContextResolverTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/map/src/test/java/com/adsamcik/tracker/map/layers/impl/LocationPathLayerTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/map/src/test/java/com/adsamcik/tracker/map/presentation/MapDataChangeObserverRoomTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/map/src/test/java/com/adsamcik/tracker/map/presentation/MapDataChangeObserverTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/map/src/test/java/com/adsamcik/tracker/map/presentation/MapStoreTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/map/src/test/java/com/adsamcik/tracker/map/presentation/sensors/LocationAndSensorsManagerTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/SessionOrganizationViewModelTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/OrganizationCalendarDaysTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/SessionEditorTimeTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/SessionOrganizationEditorComposeTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/CalendarContentComposeTest.kt"
+    },
+    {
+      "status": "D",
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/util/SunSetRiseTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "feature/tracker/src/test/java/com/adsamcik/tracker/feature/tracker/notification/NotificationManagementAccessibilityTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardSessionCardsAdditionalTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardSessionCardsTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/api/registration/ActivityMotionAssistanceQualificationTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/api/registration/DefaultActivityRegistrationArbiterTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/receiver/ActivityMotionAssistanceRoutingTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/receiver/ActivityReceiverTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/di/AmbientRadioBindingContractTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProviderTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedCellHistoryMapperTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureSourceFactQueryProofTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioPortableTransferTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportedAmbientStepsTransferTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomStepsCountDomainCompatibilityQueryRoomTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SessionOrganizationRoomTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SourceFactQueryRepositoryRoomTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/TrackingHistorySourceUnionRepositoryTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryCandidateQueriesRoomTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiImportedHistoryRepositoryTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/ManualTrackingStartTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/TrackingPurposeAvailabilityTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/resilience/TrackingLifecycleCommandAuthorityTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApiLogicTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/SessionTrackerComponentTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/DefaultTrackerServiceControllerTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/di/SourcePipelineModuleTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/feed/DefaultTrackerLiveLocationFeedTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/policy/BatteryAwarePolicyPowerSaveTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/policy/BatteryAwarePolicyTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/resilience/SharedPreferencesTrackingLifecycleCommandAuthorityTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/BackgroundLocationHostTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinatorResumeTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/ForegroundServiceTypeCandidatesTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/TrackingOrchestratorIntegrationTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/TrackingShutdownSequenceTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactWriterTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedObservationAdmissionTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapterTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ambient/steps/AmbientStepsFactImporterTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellCaptureConsentRevocationDeletionCommandTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactClassifierTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/control/CollectionMotionControllerTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/control/LegacyLocationMotionScopeTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/control/LocationMotionAssistanceOwnerTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AdaptiveLocationPlanFingerprintTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/FakeSourceCallerDemandDispatcher.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/FiveLevelSourceConfigurationTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/RoomSourcePlanStoreTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SemanticAcquisitionPlanFactoryTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecoveryTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePlanCodecTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePlanResolverTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSessionTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStoreTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingSessionOwnershipStressTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingSettingsStatusProviderTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/deletion/RoomPressureSelectedSessionDeletionServiceTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceEventSinkTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/RoomDurableSourceIngressTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceEventRetentionProofLifecycleTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCatalogTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceMaterializationRevisionSelectionTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceRecordingHistoricalAuthorityRoomTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceRecordingQualificationTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationHistoricalProfileAgeTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationLiveWriterRegistryTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/model/SourceAcquisitionFloorTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomationOutboxDispatcherTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/ActivityControlRetentionMaintenanceTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/EventTrackingFrameProjectionTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/PressureSessionFactProjectionLaneTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/StepsSessionFactProjectionLaneTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/AmbientLocationPurposeOwnerTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/AmbientRadioSourceBrokerTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellRefreshResponsesTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceBackendTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/ExactSourceCallerGuardTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/FrameworkLocationProviderSelectionTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationCallbackHistoryTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceBackendTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceDeliveryTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedAmbientRadioSourceControllerTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedLocationSourceControllerTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedStepSourceControllerTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceBrokerTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepositoryTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/TestLiveAmbientRetentionAuthorityReader.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/TestPurposeSourceCallerDemandDispatcher.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/TrackingPurposePublicationRuntimeTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiCaptureConsentRevocationDeletionCommandTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactClassifierTest.kt"
+    },
+    {
+      "status": "A",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiHistoricalBalanceContractTest.kt"
+    },
+    {
+      "status": "M",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt"
+    }
+  ],
+  "candidate_changed_test_source_status_counts": {
+    "M": 131,
+    "A": 64,
+    "D": 1
+  }
+}
