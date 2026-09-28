@@ -76,7 +76,7 @@ internal class PortableActivityJsonV1Codec(
 	}
 
 	suspend fun decode(inputStream: InputStream): PortableActivityEnvelopeV1 {
-		val boundedInput = BoundedInputStream(inputStream, limits.maxFileBytes)
+		val boundedInput = ActivityBoundedInputStream(inputStream, limits.maxFileBytes)
 		val tokenLimitedInput = PortableJsonTokenLimitInputStream(boundedInput)
 		val reader = JsonReader(
 			InputStreamReader(tokenLimitedInput, Charsets.UTF_8),
@@ -120,7 +120,7 @@ internal class PortableActivityJsonV1Codec(
 		envelope: PortableActivityEnvelopeV1,
 	) {
 		val writer = JsonWriter(
-			OutputStreamWriter(BoundedOutputStream(outputStream, limits.maxFileBytes), Charsets.UTF_8),
+			OutputStreamWriter(ActivityBoundedOutputStream(outputStream, limits.maxFileBytes), Charsets.UTF_8),
 		).apply { isLenient = false }
 		try {
 			writer.beginObject()
@@ -797,7 +797,7 @@ internal class PortableActivityFormatException(
 	cause: Throwable? = null,
 ) : IllegalArgumentException(message, cause)
 
-private class BoundedInputStream(
+private class ActivityBoundedInputStream(
 	input: InputStream,
 	private val maximumBytes: Long,
 ) : FilterInputStream(input) {
@@ -831,7 +831,7 @@ private class ActivitySourceReadFailure(
 	val original: IOException,
 ) : RuntimeException(null, null, false, false)
 
-private class BoundedOutputStream(
+private class ActivityBoundedOutputStream(
 	output: OutputStream,
 	private val maximumBytes: Long,
 ) : FilterOutputStream(output) {

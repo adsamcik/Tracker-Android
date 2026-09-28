@@ -36,7 +36,7 @@ internal class SessionBundleArchiveWriter {
 			limits = FileBackedExportSpoolLimits(
 				maximumTotalBytes = SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES,
 			)).use { spool ->
-			when (spool.stage { staged ->
+			val stage = spool.stage { staged ->
 				ZipOutputStream(staged).use { zip ->
 					manifest.children.forEach { declared ->
 						val sourceFile = children.getValue(declared.path)
@@ -65,7 +65,8 @@ internal class SessionBundleArchiveWriter {
 					zip.write(manifestBytes)
 					zip.closeEntry()
 				}
-			}) {
+			}
+			when (stage) {
 				is FileBackedExportStage.Complete -> spool.copyTo(output)
 				FileBackedExportStage.EncodedSizeExceeded ->
 					throw InvalidSessionBundle("Session file exceeds the size limit")

@@ -41,7 +41,7 @@ internal class PortableAmbientStepsJsonV2Codec {
 					candidate.format,
 					candidate.schemaVersion,
 					candidate.contentChecksum,
-					candidate.days.map(PortableAmbientStepsDayV2::snapshot),
+					candidate.days.map { day -> day.snapshot() },
 				)
 			},
 		)

@@ -44,7 +44,7 @@ internal class PortableStepsJsonV2Codec {
 					candidate.format,
 					candidate.schemaVersion,
 					candidate.contentChecksum,
-					candidate.entries.map(PortableStepsEntryV2::snapshot),
+					candidate.entries.map { entry -> entry.snapshot() },
 				)
 			},
 		)
