@@ -14,6 +14,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.adsamcik.tracker.impexp.exporter.GpxExporter
 import com.adsamcik.tracker.impexp.exporter.KmlExporter
+import com.adsamcik.tracker.impexp.exporter.JsonExporter
 import com.adsamcik.tracker.impexp.exporter.activity.ImportExportComposeActivity
 import com.adsamcik.tracker.testing.accessibility.assertHasAccessibleText
 import com.adsamcik.tracker.testing.accessibility.assertMinTouchTargetSize
@@ -37,6 +38,17 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ImportExportScreenTest {
+	@Test
+	fun jsonExport_disclosesCompleteOverlappingSessionsBeforeSaving() {
+		val intent = createExportIntent(JsonExporter::class.java)
+		composeTestRule.activityRule.scenario.onActivity { activity ->
+			activity.intent = intent
+		}
+		composeTestRule.onNodeWithText(
+			context.getString(R.string.export_json_whole_session_scope),
+			useUnmergedTree = true,
+		).assertIsDisplayed()
+	}
 
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ImportExportComposeActivity>()

@@ -63,6 +63,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
+import com.adsamcik.tracker.impexp.exporter.JsonExporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
@@ -294,6 +295,13 @@ fun ExportScreen(
                                 )
                             }
                         }
+						if (exporter is JsonExporter) {
+							Text(
+								text = stringResource(R.string.export_json_whole_session_scope),
+								style = MaterialTheme.typography.bodySmall,
+								color = MaterialTheme.colorScheme.onSurfaceVariant,
+							)
+						}
                     }
                 }
             }

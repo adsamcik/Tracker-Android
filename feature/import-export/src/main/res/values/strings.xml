@@ -29,6 +29,7 @@
     <string name="export_share_button">Share</string>
     <string name="export_in_progress">Exporting…</string>
     <string name="export_completed">Export complete.</string>
+	<string name="export_json_whole_session_scope">JSON includes complete sessions that overlap these dates, so some locations, Wi-Fi scans and cell readings may fall outside your chosen dates. Other saved sources are not included.</string>
 
     <string name="import_notification_error_failed_open_database">Failed to open database file %s</string>
     <string name="import_notification_error_file_not_supported">File %s is not supported.</string>
