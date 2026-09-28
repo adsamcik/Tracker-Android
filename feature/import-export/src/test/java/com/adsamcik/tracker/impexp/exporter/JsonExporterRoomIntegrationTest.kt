@@ -304,6 +304,27 @@ class JsonExporterRoomIntegrationTest {
 	}
 
 	@Test
+	fun `json export includes legacy radio readings without a Trip or Location`() = runTest {
+		val timeMs = 40_000L
+		database.wifiObservationDao().insert(WifiObservation(
+			timeMs = timeMs, bssid = "00:11:22:33:44:55", ssid = "Tracker",
+			capabilities = "[WPA2]", frequency = 2_412, level = -50,
+			latE7 = null, lonE7 = null, provenance = CoordinateProvenance.UNKNOWN,
+			createdAt = timeMs,
+		))
+		val outputFile = createTempExportFile()
+		val exporter = JsonExporter(TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
+		outputFile.outputStream().use { stream ->
+			exporter.export(context, emptySequence(), stream, 35_000L..45_000L)
+				.shouldBeInstanceOf<ExportResult.Success>()
+		}
+		val records = JSONArray(outputFile.readText(Charsets.UTF_8))
+		records.length() shouldBe 1
+		records.getJSONObject(0).getJSONArray("wifiObservations").length() shouldBe 1
+		records.getJSONObject(0).has("session") shouldBe false
+	}
+
+	@Test
 	fun `composite cursor skips older ids and includes a newer id at the same timestamp`() = runTest {
 		val timeMs = 50_000L
 		val ids = locationSampleDao.insert(
