@@ -19,6 +19,7 @@ object OwnedTransferFiles {
         clearDirectory(context, context.cacheDir, "sharable", revokeShareGrant = true)
         clearDirectory(context, context.filesDir, "sharable", revokeShareGrant = true)
         clearDirectory(context, context.cacheDir, "portable-export-spool")
+        clearDirectory(context, context.filesDir, "exports")
         clearDirectory(context, context.cacheDir, "database-import")
         clearDirectory(context, context.cacheDir, "zip-import")
         try {

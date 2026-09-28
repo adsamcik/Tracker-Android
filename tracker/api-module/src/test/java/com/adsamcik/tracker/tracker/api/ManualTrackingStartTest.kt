@@ -80,6 +80,45 @@ class ManualTrackingStartTest {
 	}
 
 	@Test
+	fun `all six-source selections keep independent sources ready without Location permission`() {
+		val sources = TrackingCaptureSource.entries
+		val independentlyReady = setOf(
+			TrackingCaptureSource.ACTIVITY,
+			TrackingCaptureSource.STEPS,
+			TrackingCaptureSource.PRESSURE,
+		)
+		val locationPermissionSources = setOf(
+			TrackingCaptureSource.LOCATION,
+			TrackingCaptureSource.WIFI,
+			TrackingCaptureSource.CELL,
+		)
+		for (mask in 0 until (1 shl sources.size)) {
+			val selected = sources.filterIndexed { index, _ -> mask and (1 shl index) != 0 }.toSet()
+			val expected = when {
+				selected.any(independentlyReady::contains) -> ManualTrackingStartReadiness.Ready(8L)
+				selected.any(locationPermissionSources::contains) ->
+					ManualTrackingStartReadiness.RepairRequired(
+						ManualTrackingStartPrerequisite.PRECISE_LOCATION_PERMISSION,
+					)
+				else -> ManualTrackingStartReadiness.NoAvailableCaptureSource
+			}
+			withClue("selected=$selected") {
+				resolveManualTrackingStartReadiness(
+					rolloutRevision = 8L,
+					enabledSources = selected,
+					reachableSources = sources.toSet(),
+					supportedSources = sources.toSet(),
+					availableSources = selected intersect independentlyReady,
+					sourcesMissingPreciseLocationPermission = locationPermissionSources,
+					sourcesMissingActivityRecognitionPermission = emptySet(),
+					sourcesMissingReadPhoneStatePermission = emptySet(),
+					sourcesBlockedByLocationServices = emptySet(),
+				) shouldBe expected
+			}
+		}
+	}
+
+	@Test
 	fun `repair chooses the source with the fewest missing prerequisites`() {
 		resolveManualTrackingStartReadiness(
 			rolloutRevision = 8L,

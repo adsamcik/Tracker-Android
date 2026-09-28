@@ -30,14 +30,32 @@ class OwnedTransferFilesTest {
             parentFile!!.mkdirs()
             writeText("share")
         }
+        val completedPrivateExport = File(context.filesDir, "exports/complete.zip").apply {
+            parentFile!!.mkdirs()
+            writeText("completed")
+        }
+        val portableSpool = File(context.cacheDir, "portable-export-spool/unfinished.tmp").apply {
+            parentFile!!.mkdirs()
+            writeText("spool")
+        }
+        val sessionBundleCopy = File(context.cacheDir, "session-bundle-import/child.tmp").apply {
+            parentFile!!.mkdirs()
+            writeText("bundle")
+        }
         try {
             OwnedTransferFiles.clearForFullDeletion(context)
             databaseCopy.exists() shouldBe false
             zipCopy.exists() shouldBe false
             shareCopy.exists() shouldBe false
+            completedPrivateExport.exists() shouldBe false
+            portableSpool.exists() shouldBe false
+            sessionBundleCopy.exists() shouldBe false
             outside.readText() shouldBe "keep"
         } finally {
             outside.delete()
+            portableSpool.delete()
+            sessionBundleCopy.delete()
+            completedPrivateExport.delete()
         }
     }
 
@@ -54,4 +72,5 @@ class OwnedTransferFilesTest {
             unexpected.delete()
         }
     }
+
 }

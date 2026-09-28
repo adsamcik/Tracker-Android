@@ -558,6 +558,23 @@ All tracked data remains in the app database until a person explicitly chooses E
 format produces one file. No validation, input freeze, provider activation, new dev/v10 integration
 or push.
 
+### Assembly scenario coverage continuation (2026-09-28)
+
+The 25 prerequisites are traced in `assembly-coverage/2026-09-28/PREREQUISITE_TRACE.md`.
+Each remains pending; this is authored source and static review only,
+**IMPLEMENTED_UNVALIDATED**.
+
+- [x] Account for all 25 gate dependencies against present production and test source, including
+  source-only, subset, join/leave, lifecycle, privacy, recovery and migration categories.
+- [x] Author a six-source subset manual-start API readiness case with Location permission absent.
+- [x] Extend private full-clear cleanup and fixtures to export spool, session-bundle staging and
+  completed files in the default private export directory.
+- [ ] Complete the missing production and test chains listed for each prerequisite, including
+  actual Dashboard permission-resume fencing, active export cancellation, safe ownership for
+  custom private export folders and external residual notice.
+- [ ] Review the final one-input assembly, run the deferred convergence gates, and establish
+  emulator and on-device proof before marking any prerequisite complete.
+
 
 ### Settings and product surfaces continuation (2026-09-27)
 
