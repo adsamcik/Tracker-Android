@@ -44,6 +44,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `both pre reconciliation assembly markers are contained`() {
 		listOf(
+			"tracker-v28-session-organization-20260927",
 			"tracker-v28-adaptive-location-authority-20260926",
 			"tracker-v28-reconciled-source-inputs-20260927",
 			"tracker-v28-authenticated-retention-scope-proof-20260921",
@@ -53,6 +54,17 @@ class DevelopmentV28DatabaseContainmentTest {
 				includeFinalIndex = true, markerValue = marker)
 			preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28)
 		}
+	}
+
+	@Test
+	fun `claimed current assembly without Location file identity is contained without changing the file`() {
+		createFixture(CURRENT_DATABASE_VERSION, includeMarker = true, includeFinalTable = true,
+			includeFinalColumn = true, includeFinalIndex = true,
+			locationSchemaMutation = { it.execSQL("DROP TABLE location_file_identity") })
+		val file = context.getDatabasePath(DATABASE_NAME)
+		val before = file.readBytes().toList()
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA)
+		file.readBytes().toList() shouldBe before
 	}
 
 	@Test
@@ -920,6 +932,7 @@ class DevelopmentV28DatabaseContainmentTest {
 						if (includeFinalTable) {
                             db.execSQL("CREATE TABLE acquisition_plan_revision (balance_profile_version INTEGER)")
                             db.execSQL("CREATE TABLE source_desired_plan (requested_balance_level INTEGER, focus_requested INTEGER NOT NULL DEFAULT 0)")
+							createLocationFileIdentityTable(db)
 							createLocationPurposeTables(db)
 							db.execSQL("CREATE TABLE source_policy (balance_profile_version INTEGER, " +
 								"balance_level INTEGER, overall_balance_level INTEGER, source_balance_override INTEGER, location_background_mode INTEGER, " +

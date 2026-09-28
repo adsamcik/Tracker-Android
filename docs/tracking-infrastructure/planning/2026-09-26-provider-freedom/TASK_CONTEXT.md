@@ -782,3 +782,8 @@ Captured Cell gap-only transfer, zero-observation re-import/deletion, and retent
 cleanup now have authored source and focused tests, pending independent review and the deferred
 convergence gate. This retains source events while saved captured Wi-Fi/Cell facts still use them,
 then allows normal cleanup after fact retirement; it adds no export-only provenance store.
+Location export is a user choice about saved data. The file UI should say Location, Wi-Fi or Cell,
+show the selected dates and any coverage gaps in plain language, and avoid internal receipt/proof
+terminology. The Location file identity table only keeps repeated or overlapping imports from
+duplicating saved points; it is not a new capture or permission record. The edited same-ID point
+conflict policy remains a pending user decision.

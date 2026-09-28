@@ -315,6 +315,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			SessionActivity::class,
 			// Sessionless architecture entities
 			LocationSample::class,
+			com.adsamcik.tracker.shared.base.database.data.LocationFileIdentityEntity::class,
 			LocationObservation::class,
 			LocationProjectionObservationEntity::class,
 			LocationProjectionPointEntity::class,
@@ -549,6 +550,8 @@ abstract class AppDatabase : RoomDatabase() {
 	 * Provides access to raw location samples (sessionless tracking).
 	 */
 	abstract fun locationSampleDao(): LocationSampleDao
+
+	abstract fun locationFileIdentityDao(): com.adsamcik.tracker.shared.base.database.dao.LocationFileIdentityDao
 
 	abstract fun locationObservationDao(): LocationObservationDao
 

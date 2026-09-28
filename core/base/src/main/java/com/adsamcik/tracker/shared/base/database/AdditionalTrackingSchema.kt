@@ -5,6 +5,7 @@ package com.adsamcik.tracker.shared.base.database
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 internal fun createAdditionalTrackingTables(database: SupportSQLiteDatabase) {
+	createLocationFileIdentityTable(database)
 	createOrganizationAnnotationTable(database)
 	createCollectedDataDeletionOperationTable(database)
 	createRetentionWorkExecutionReceiptTable(database)
@@ -18,6 +19,20 @@ internal fun createAdditionalTrackingTables(database: SupportSQLiteDatabase) {
 	createLocationPurposeTables(database)
 	createAmbientRadioTables(database)
 	createRuntimeSettlementTables(database)
+}
+
+internal fun createLocationFileIdentityTable(database: SupportSQLiteDatabase) {
+	database.execSQL(
+		"CREATE TABLE IF NOT EXISTS location_file_identity (" +
+			"portable_id TEXT NOT NULL, sample_id INTEGER NOT NULL, " +
+			"imported INTEGER NOT NULL, reported_origin TEXT NOT NULL, " +
+			"PRIMARY KEY(portable_id), FOREIGN KEY(sample_id) REFERENCES location_sample(id) " +
+			"ON UPDATE NO ACTION ON DELETE CASCADE)",
+	)
+	database.execSQL(
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_location_file_sample " +
+			"ON location_file_identity(sample_id)",
+	)
 }
 
 private fun createCapturedRadioFactRetentionProofTable(database: SupportSQLiteDatabase) {

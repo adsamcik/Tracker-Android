@@ -78,6 +78,7 @@ class ImportedSourceSchemaAssemblyTest {
 
 	private companion object {
 		val TABLES = listOf(
+			"location_file_identity",
 			"organization_annotation",
 			"imported_pressure_retention_receipt",
 			"imported_pressure_retained_identity",

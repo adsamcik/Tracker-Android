@@ -515,8 +515,9 @@ private enum class FinalV28MarkerState {
 
 internal const val FINAL_V28_MARKER_ID = -280_917
 internal const val FINAL_V28_ASSEMBLY_ID =
-	"tracker-v28-session-organization-20260927"
+	"tracker-v28-location-file-identity-20260928"
 private val STALE_FINAL_V28_ASSEMBLY_IDS = setOf(
+	"tracker-v28-session-organization-20260927",
 	"tracker-v28-reconciled-source-inputs-20260927",
 	"tracker-v28-adaptive-location-authority-20260926",
 	"tracker-v28-authenticated-retention-scope-proof-20260921",
@@ -549,6 +550,7 @@ private val BASELINE_TABLES = setOf(
 	"pending_signal",
 )
 private val FINAL_V28_REQUIRED_TABLES = setOf(
+	"location_file_identity",
 	"imported_wifi_deletion_generation",
 	"ambient_steps_retention_authority",
 	"ambient_steps_native_replay_footprint",
@@ -585,6 +587,10 @@ private val FINAL_V28_REQUIRED_TABLES = setOf(
 )
 
 private val FINAL_V28_LOCATION_COLUMNS = listOf(
+	FinalV28ColumnSentinel("location_file_identity", "portable_id", "TEXT", true, 1),
+	FinalV28ColumnSentinel("location_file_identity", "sample_id", "INTEGER", true),
+	FinalV28ColumnSentinel("location_file_identity", "imported", "INTEGER", true),
+	FinalV28ColumnSentinel("location_file_identity", "reported_origin", "TEXT", true),
 	FinalV28ColumnSentinel("acquisition_plan_revision", "balance_profile_version", "INTEGER", false),
 	FinalV28ColumnSentinel("source_desired_plan", "requested_balance_level", "INTEGER", false),
 	FinalV28ColumnSentinel("source_desired_plan", "focus_requested", "INTEGER", true, defaultValue = "0"),
@@ -613,6 +619,7 @@ private val FINAL_V28_LOCATION_COLUMNS = listOf(
 	FinalV28ColumnSentinel("ambient_location_retention_authority", "effect_checksum", "TEXT", true),
 )
 private val FINAL_V28_LOCATION_INDEXES = listOf(
+	FinalV28IndexSentinel("location_file_identity", "idx_location_file_sample", listOf("sample_id"), true),
 	FinalV28IndexSentinel("location_accepted_receipt", "idx_location_receipt_event", listOf("source_event_id"), true),
 	FinalV28IndexSentinel("location_accepted_receipt", "idx_location_receipt_sequence", listOf("source_instance_id", "source_sequence"), true),
 	FinalV28IndexSentinel("location_sample_purpose_authority", "idx_location_purpose_authority", listOf("purpose", "authority_id", "sample_id"), false),

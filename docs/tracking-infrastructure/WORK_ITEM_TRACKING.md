@@ -522,6 +522,9 @@ No validation, input freeze, provider activation, new dev/v10 integration or pus
 - [x] Author captured Cell gap-only portable coverage, zero-observation re-import/deletion handling,
   and radio WAL retention while saved captured facts depend on it. Focused test sources are authored;
   this slice remains **IMPLEMENTED_UNVALIDATED**.
+- [x] Author a stable Location point ID association for overlap-safe file transfer. It is removed with
+  its saved point, does not grant tracking authority, and has Room/schema test source.
+  **IMPLEMENTED_UNVALIDATED**.
 - [ ] Finish combined Wi-Fi/Cell file adapters, source-owned range selection and
   `.trackerlocation` export/import with overlap deduplication.
 - [ ] Complete whole-scope review and deferred convergence/device verification.
