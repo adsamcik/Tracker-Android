@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.base.database
 
 import android.database.sqlite.SQLiteConstraintException
 import android.database.sqlite.SQLiteException
+import android.database.SQLException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletedIdentityEntity
@@ -95,6 +96,10 @@ class RoomDeleteSelectedImportedCell internal constructor(
 				ImportedCellDeletionRetryableReason.CONCURRENT_STATE_CHANGE,
 			)
 		} catch (_: SQLiteException) {
+			DeleteSelectedImportedCellResult.RetryableFailure(
+				ImportedCellDeletionRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		} catch (_: SQLException) {
 			DeleteSelectedImportedCellResult.RetryableFailure(
 				ImportedCellDeletionRetryableReason.STORAGE_UNAVAILABLE,
 			)

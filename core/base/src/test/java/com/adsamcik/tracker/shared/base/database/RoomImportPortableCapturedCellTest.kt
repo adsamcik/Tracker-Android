@@ -260,7 +260,7 @@ class RoomImportPortableCapturedCellTest {
 			ImportPortableCapturedCellResult.Applied(1L, 1, 3)
 
 		importer().importEntry(request(retargeted, "correction", "entry-2")) shouldBe
-			ImportPortableCapturedCellResult.Blocked(PortableCellImportBlockedReason.CORRECTION_CONFLICT)
+			ImportPortableCapturedCellResult.Blocked(PortableCellImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 	}
 
 	@Test
@@ -479,7 +479,7 @@ class RoomImportPortableCapturedCellTest {
 	}
 
 	@Test
-	fun `imported entry tombstone prevents resurrection before any hierarchy exists`() = runTest {
+	fun `incomplete imported entry tombstone prevents resurrection before any hierarchy exists`() = runTest {
 		seedEvidence()
 		val entry = entry()
 		database.importedCellDao().insertEntryDeletion(
@@ -491,8 +491,8 @@ class RoomImportPortableCapturedCellTest {
 			),
 		)
 
-		importer().importEntry(request(entry)) shouldBe ImportPortableCapturedCellResult.Blocked(
-			PortableCellImportBlockedReason.DELETED_ENTRY,
+		importer().importEntry(request(entry)) shouldBe ImportPortableCapturedCellResult.Unverifiable(
+			PortableCellImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
 		)
 	}
 
@@ -1582,8 +1582,10 @@ class RoomImportPortableCapturedCellTest {
 				entryKey = "cancel-entry-$index",
 			)) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
 		}
-		val reader = ImportedCellProductReader(database) { completedBatchCount ->
-			if (completedBatchCount == 1) throw CancellationException("cancel between batches")
+		var checkpointCount = 0
+		val reader = ImportedCellProductReader(database) { _ ->
+			checkpointCount++
+			if (checkpointCount == 2) throw CancellationException("cancel between batches")
 		}
 
 		shouldThrow<CancellationException> {

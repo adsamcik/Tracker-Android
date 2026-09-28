@@ -1436,6 +1436,14 @@ private fun PortableCellObservationPayload.toValue(
 	knownQualityObservationCount, allKnownQualityIsWeak, qualityFlags, qualityConfidence,
 )
 
+/** Compare correction content without constructing an observation with an invalid checksum. */
+internal fun PortableCapturedCellObservationV1.hasMaterialDifferenceFrom(
+	previous: PortableCapturedCellObservationV1,
+): Boolean = toPayload().copy(
+	semanticRevision = previous.semanticRevision,
+	supersedesSemanticRevision = previous.supersedesSemanticRevision,
+) != previous.toPayload()
+
 private fun PortableCapturedCellObservationV1.toPayload() = PortableCellObservationPayload(
 	identity, semanticRevision, supersedesSemanticRevision, aggregateOwnerIdentity,
 	aggregateOwnerSemanticRevision, coverageStartTimeMs, observedTimeMs, latestPossibleTimeMs,

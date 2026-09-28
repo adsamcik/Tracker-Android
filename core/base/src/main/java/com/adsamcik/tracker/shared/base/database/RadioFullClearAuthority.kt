@@ -658,17 +658,6 @@ private fun AppDatabase.fenceLiveImportedCell(
 				clearedAtMs,
 			)
 			insertOrAuthenticateImportedCellRunDeletion(sqlite, deletion)
-			insertOrAuthenticateSourceFence(
-				sqlite,
-				SourceDeletionFenceEntity.createForOriginalRunDigest(
-					SourceDestinationOwnerEntity.SOURCE_CELL,
-					SessionManifestPurposeCode.SESSION_CAPTURE,
-					run.deletionScopeDigest,
-					1L,
-					newEpoch,
-					clearedAtMs,
-				),
-			)
 			runDeletions += deletion
 		}
 		check(runDeletions.isNotEmpty())

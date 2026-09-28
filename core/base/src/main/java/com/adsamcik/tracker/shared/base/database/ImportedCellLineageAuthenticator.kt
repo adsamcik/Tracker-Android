@@ -328,14 +328,6 @@ internal fun PortableCapturedCellEntryV1.isMonotonicCorrectionOf(
 	return changed
 }
 
-private fun PortableCapturedCellObservationV1.hasMaterialDifferenceFrom(
-	previous: PortableCapturedCellObservationV1,
-): Boolean = copy(
-	semanticRevision = previous.semanticRevision,
-	supersedesSemanticRevision = previous.supersedesSemanticRevision,
-	contentChecksum = previous.contentChecksum,
-) != previous
-
 private val PORTABLE_OBSERVATION_ORDER = compareBy<PortableCapturedCellObservationV1>(
 	PortableCapturedCellObservationV1::coverageStartTimeMs,
 	PortableCapturedCellObservationV1::observedTimeMs,
