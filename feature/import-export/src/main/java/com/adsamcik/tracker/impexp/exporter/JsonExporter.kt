@@ -32,6 +32,9 @@ import javax.inject.Inject
 class JsonExporter @JvmOverloads @Inject constructor(
 	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 ) : CursorAwareExporter {
+	// JSON owns its database reads and can contain orphan Location or legacy radio rows
+	// even when the caller has no qualifying Location sequence.
+	override val requiresLocationData: Boolean = false
 	override val canSelectDateRange: Boolean = true
 	override val mimeType: String = "application/json"
 	override val extension: String = "json"

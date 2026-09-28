@@ -47,7 +47,7 @@ class ExportFormatDialogTest {
                 )
             }
         }
-        composeTestRule.onNodeWithText("GPX (Recommended)").assertIsDisplayed()
+        composeTestRule.onNodeWithText("GPX").assertIsDisplayed()
         composeTestRule.onNodeWithText("KML").assertIsDisplayed()
         composeTestRule.onNodeWithText("JSON").assertIsDisplayed()
         composeTestRule.onNodeWithText("Database").assertIsDisplayed()
@@ -64,13 +64,13 @@ class ExportFormatDialogTest {
             }
         }
         composeTestRule.onNodeWithText(
-            "Full-precision route points for GPS devices, fitness apps, and universal compatibility"
+            "Location points for GPS apps. Other tracking sources and coverage details are not included."
         ).assertIsDisplayed()
         composeTestRule.onNodeWithText(
-            "Full-precision route points for Google Earth and geographic visualization"
+            "Timed location points for maps. Other tracking sources and coverage details are not included."
         ).assertIsDisplayed()
         composeTestRule.onNodeWithText(
-            "Streaming locations and session summaries; import merges data and regenerates some metadata"
+            "Locations, legacy Wi-Fi and Cell readings, and session summaries. Includes whole sessions that overlap chosen dates; other sources are omitted."
         ).assertIsDisplayed()
         composeTestRule.onNodeWithText(
             "Raw SQLite backup with all data and settings; import merges compatible rows, not a full restore"
@@ -101,7 +101,7 @@ class ExportFormatDialogTest {
                 )
             }
         }
-        composeTestRule.onNodeWithText("GPX (Recommended)").performClick()
+        composeTestRule.onNodeWithText("GPX").performClick()
         composeTestRule.onNodeWithText("Continue export").performClick()
         assertEquals(ExportFormat.GPX, selectedFormat)
     }

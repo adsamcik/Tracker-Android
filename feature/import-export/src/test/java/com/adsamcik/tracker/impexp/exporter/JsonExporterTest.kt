@@ -19,6 +19,11 @@ class JsonExporterTest {
 
     private val exporter = JsonExporter()
 
+	@Test
+	fun `JSON does not require a Location preflight because it reads radio and orphan records itself`() {
+		exporter.requiresLocationData shouldBe false
+	}
+
     @Test
     fun `exports a valid empty session array`() {
         val output = export(emptySequence())
