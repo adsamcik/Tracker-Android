@@ -776,6 +776,7 @@ interface CellCapturedFactDao {
 	suspend fun logicalHistoryCandidatePage(
 		writerProjectionId: String,
 		writerProjectionVersion: Int,
+		cellSourceKind: Int,
 		limit: Int,
 		beforeStartTimeMs: Long?,
 		beforeSegmentId: Long?,
@@ -866,7 +867,6 @@ interface CellCapturedFactDao {
 	suspend fun logicalHistoryCandidatePageInWallRange(
 		writerProjectionId: String,
 		writerProjectionVersion: Int,
-		cellSourceKind: Int,
 		fromInclusiveMs: Long,
 		toExclusiveMs: Long,
 		limit: Int,

@@ -487,11 +487,11 @@ interface AmbientStepsImportStateDao {
 			"FROM ambient_steps_fact_revision AS state " +
 			"WHERE state.writer_id = successor.writer_id " +
 			"AND state.writer_version = successor.writer_version " +
-			"AND state.logical_fact_id = successor.logical_fact_id)), gap.gap_end_time_ms))) " +
-			"AND :newBootId = registration_clock_domain_id " +
+			"AND state.logical_fact_id = successor.logical_fact_id)), gap.gap_end_time_ms)) " +
 			"AND (:newSegmentStartTimeMs > imported_through_time_ms " +
 			"OR (:newSegmentStartTimeMs = imported_through_time_ms " +
-			"AND gap.gap_start_time_ms = gap.gap_end_time_ms)) " +
+			"AND gap.gap_start_time_ms = gap.gap_end_time_ms))) " +
+			"AND :newBootId = registration_clock_domain_id " +
 			"AND :newSegmentStartTimeMs % 1000 = 0 " +
 			"AND :newObservedAtMs >= :newSegmentStartTimeMs " +
 			"AND :newObservedAtMs >= last_observed_at_ms " +

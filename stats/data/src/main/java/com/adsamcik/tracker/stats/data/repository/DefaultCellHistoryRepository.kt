@@ -709,7 +709,6 @@ internal class DefaultCellHistoryRepository internal constructor(
 			val page = database.cellCapturedFactDao().logicalHistoryCandidatePageInWallRange(
 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
-				SourceDestinationOwnerEntity.SOURCE_CELL,
 				0L,
 				Long.MAX_VALUE,
 				pageLimit,
@@ -879,7 +878,6 @@ internal class DefaultCellHistoryRepository internal constructor(
 			val candidates = database.cellCapturedFactDao().logicalHistoryCandidatePageInWallRange(
 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
-				SourceDestinationOwnerEntity.SOURCE_CELL,
 				bounds.fromInclusiveMs,
 				bounds.toExclusiveMs,
 				pageLimit,
@@ -990,6 +988,7 @@ internal class DefaultCellHistoryRepository internal constructor(
 			val candidates = database.cellCapturedFactDao().logicalHistoryCandidatePage(
 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				SourceDestinationOwnerEntity.SOURCE_CELL,
 				pageLimit,
 				beforeStart,
 				beforeId,

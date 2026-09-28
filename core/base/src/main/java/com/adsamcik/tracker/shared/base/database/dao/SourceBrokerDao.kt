@@ -100,6 +100,9 @@ interface SourceBrokerDao {
 			AND registration.source_instance_id = :sourceInstanceId
 			AND registration.capture_callback_barrier_authorization_revision >=
 				:throughAuthorizationRevision
+		GROUP BY registration.source_kind,
+			registration.registration_generation,
+			registration.source_instance_id
 		HAVING COUNT(DISTINCT registration.registration_generation) = 1
 		ON CONFLICT(source_kind, registration_generation) DO UPDATE SET
 			source_instance_id = excluded.source_instance_id,
@@ -122,7 +125,7 @@ interface SourceBrokerDao {
 		capturePurposeMask: Long,
 		sealedElapsedRealtimeNanos: Long,
 		sealedAtMs: Long,
-	): Int
+	)
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertDemands(entities: List<SourceDemandEntity>): List<Long>
 

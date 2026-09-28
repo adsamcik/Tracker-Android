@@ -637,6 +637,7 @@ class CellWalQualificationAdapterTest {
 		val candidates = database.cellCapturedFactDao().logicalHistoryCandidatePage(
 			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
 			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+			SourceDestinationOwnerEntity.SOURCE_CELL,
 			10,
 			null,
 			null,

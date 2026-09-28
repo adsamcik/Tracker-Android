@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetentionR
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityZoneEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 
 /** Activity-specific imported-origin primitives. Admission owns all transaction semantics. */
 @Dao
@@ -111,7 +112,7 @@ abstract class ImportedActivityDao {
 		  FROM imported_activity_entry_revision
 		  GROUP BY identity
 		)
-		SELECT entry.identity,
+		SELECT entry.identity AS identity,
 		       entry.import_revision,
 		       entry.content_checksum,
 		       entry.start_time_ms,
@@ -129,7 +130,7 @@ abstract class ImportedActivityDao {
 		     AND entry.identity < COALESCE(:beforeIdentity, '')
 		   )
 		UNION ALL
-		SELECT retained.entry_identity,
+		SELECT retained.entry_identity AS identity,
 		       retained.latest_import_revision,
 		       retained.latest_content_checksum,
 		       retained.start_time_ms,
@@ -224,7 +225,7 @@ abstract class ImportedActivityDao {
 		  FROM imported_activity_entry_revision
 		  GROUP BY identity
 		)
-		SELECT entry.identity,
+		SELECT entry.identity AS identity,
 		       entry.import_revision,
 		       entry.content_checksum,
 		       entry.start_time_ms,
@@ -246,7 +247,7 @@ abstract class ImportedActivityDao {
 		    )
 		  )
 		UNION ALL
-		SELECT retained.entry_identity,
+		SELECT retained.entry_identity AS identity,
 		       retained.latest_import_revision,
 		       retained.latest_content_checksum,
 		       retained.start_time_ms,

@@ -902,7 +902,7 @@ class RoomDurableSourceIngressTest {
 			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 			sealedElapsedRealtimeNanos = 101L,
 			sealedAtMs = 1_001L,
-		) shouldBe 1
+		)
 
 		val delayed = delivery(candidate(sequence = 0L)).copy(
 			identity = sourceDeliveryIdentity("activity-after-seal".encodeToByteArray()),
@@ -994,7 +994,7 @@ class RoomDurableSourceIngressTest {
 			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 			sealedElapsedRealtimeNanos = 102L,
 			sealedAtMs = 1_002L,
-		) shouldBe 1
+		)
 
 		requireNotNull(
 			brokerDao.captureAdmissionBarrier(SourceKind.ACTIVITY.stableCode, 1L),
