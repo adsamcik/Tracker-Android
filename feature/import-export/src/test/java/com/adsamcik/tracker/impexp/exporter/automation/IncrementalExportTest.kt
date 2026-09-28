@@ -24,6 +24,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IncrementalExportTest {
+	@Test
+	fun lastSessionWithoutValidBounds_neverBecomesEntireHistory() {
+		val worker = worker()
+		assertEquals(ExportPlanWorker.ScopeDateRange.NoSession, worker.lastSessionScope(null, null))
+		assertEquals(ExportPlanWorker.ScopeDateRange.NoSession, worker.lastSessionScope(2_000L, 1_000L))
+		assertEquals(
+			ExportPlanWorker.ScopeDateRange.Selected(1_000L..2_000L),
+			worker.lastSessionScope(1_000L, 2_000L),
+		)
+	}
 
     @Test
     fun protoRoundTrip_preservesIncrementalFields() {

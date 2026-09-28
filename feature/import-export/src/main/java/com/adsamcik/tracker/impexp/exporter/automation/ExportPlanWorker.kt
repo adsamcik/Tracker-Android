@@ -114,6 +114,7 @@ class ExportPlanWorker @AssistedInject constructor(
                     // Do NOT update watermark on failure
                     Result.failure()
                 }
+				PlanExportResult.NoSession -> Result.success()
             }
         } catch (e: CancellationException) {
             throw e
@@ -138,7 +139,10 @@ class ExportPlanWorker @AssistedInject constructor(
         val exporter = resolveExporter(plan.format)
 
         // Resolve date range from scope
-        val scopeDateRange = resolveDateRange(plan.scope)
+        val scopeDateRange = when (val scope = resolveDateRange(plan.scope)) {
+			is ScopeDateRange.Selected -> scope.range
+			ScopeDateRange.NoSession -> return@withContext PlanExportResult.NoSession
+		}
 
         // Apply incremental watermark lower bound when applicable
         val exportRange = resolveExportRange(plan, exporter, scopeDateRange)
@@ -322,16 +326,17 @@ class ExportPlanWorker @AssistedInject constructor(
         maxId = result.maxId ?: fallbackMaxId,
     )
 
-    private suspend fun resolveDateRange(scope: ExportScope): LongRange? {
+    internal sealed interface ScopeDateRange {
+		data class Selected(val range: LongRange?) : ScopeDateRange
+		data object NoSession : ScopeDateRange
+	}
+
+    private suspend fun resolveDateRange(scope: ExportScope): ScopeDateRange {
         return when (scope) {
             ExportScope.LastSession -> {
 				requireReadyGeneration()
                 val trip = appDatabase.tripDao().getRecentTrips(1).firstOrNull()
-                if (trip != null) {
-                    trip.startTimeMs..trip.endTimeMs
-                } else {
-                    null
-                }
+				lastSessionScope(trip?.startTimeMs, trip?.endTimeMs)
             }
             is ExportScope.RollingWindow -> {
                 val now = clock.currentTimeMillis()
@@ -341,12 +346,19 @@ class ExportPlanWorker @AssistedInject constructor(
                     ExportScope.WindowUnit.MONTH -> 2_592_000_000L
                     ExportScope.WindowUnit.YEAR -> 31_536_000_000L
                 }
-                (now - windowMs)..now
+                ScopeDateRange.Selected((now - windowMs)..now)
             }
-            is ExportScope.FixedWindow -> scope.startEpochMillis..scope.endEpochMillis
-            ExportScope.EntireHistory -> null
+            is ExportScope.FixedWindow -> ScopeDateRange.Selected(scope.startEpochMillis..scope.endEpochMillis)
+            ExportScope.EntireHistory -> ScopeDateRange.Selected(null)
         }
     }
+
+	internal fun lastSessionScope(startMs: Long?, endMs: Long?): ScopeDateRange =
+		if (startMs == null || endMs == null || startMs < 0L || endMs < startMs) {
+			ScopeDateRange.NoSession
+		} else {
+			ScopeDateRange.Selected(startMs..endMs)
+		}
 
     private fun resolveExportOutput(
         plan: ExportBackupPlan,
@@ -445,6 +457,18 @@ class ExportPlanWorker @AssistedInject constructor(
 							errorMessage = result.error,
 							createdAt = completedAt,
 						)
+						PlanExportResult.NoSession -> ExportLogEntity(
+							format = plan.format.name,
+							scope = plan.scope.javaClass.simpleName,
+							fileName = "",
+							fileSizeBytes = 0,
+							recordCount = 0,
+							startedAt = startedAt,
+							completedAt = completedAt,
+							status = "NO_DATA",
+							errorMessage = "NO_SESSION",
+							createdAt = completedAt,
+						)
 					}
 					appDatabase.exportLogDao().insert(entity)
 				} finally {
@@ -505,6 +529,7 @@ class ExportPlanWorker @AssistedInject constructor(
 }
 
 private sealed interface PlanExportResult {
+	data object NoSession : PlanExportResult
     data class Success(
         val fileName: String,
         val fileSizeBytes: Long,
