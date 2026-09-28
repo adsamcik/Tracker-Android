@@ -525,6 +525,10 @@ No validation, input freeze, provider activation, new dev/v10 integration or pus
 - [x] Author a stable Location point ID association for overlap-safe file transfer. It is removed with
   its saved point, does not grant tracking authority, and has Room/schema test source.
   **IMPLEMENTED_UNVALIDATED**.
+- [x] Author the readable Location point file codec for saved measurements and descriptive origin,
+  with edited-value, unusual-legacy-value, incomplete-file and stable-ID test source. Its reader
+  requires transactional import; route-break handling and adapters remain open.
+  **IMPLEMENTED_UNVALIDATED**.
 - [ ] Finish combined Wi-Fi/Cell file adapters, source-owned range selection and
   `.trackerlocation` export/import with overlap deduplication.
 - [ ] Complete whole-scope review and deferred convergence/device verification.
