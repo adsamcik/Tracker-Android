@@ -3,8 +3,13 @@ package com.adsamcik.tracker.impexp.portable
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.json.JSONObject
-import org.junit.jupiter.api.Test
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class SessionBundleManifestV1Test {
 	private val codec = SessionBundleManifestCodecV1
 

@@ -18,7 +18,12 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class PortablePressureExporterTest {
 	@Test
 	fun `range export reads source only and preserves the sensitive Pressure warning`() = runTest {

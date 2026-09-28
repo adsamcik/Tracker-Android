@@ -637,11 +637,13 @@ class PortablePressureJsonV1CodecTest {
 		(propagatedEof === transportEof) shouldBe true
 		eofPrefixCount shouldBe 1
 		val genuinelyTruncated = bytes.copyOf(bytes.size - 1)
+		var truncatedPrefixCount = 0
 		shouldThrow<PortablePressureJsonException> {
 			PortablePressureJsonV1Codec().decode(ByteArrayInputStream(genuinelyTruncated)) {
-				error("Truncated document must not reach the sink")
+				truncatedPrefixCount++
 			}
 		}
+		truncatedPrefixCount shouldBe 1
 
 		val sinkFailure = shouldThrow<IOException> {
 			PortablePressureJsonV1Codec().decode(ByteArrayInputStream(bytes)) {

@@ -225,6 +225,19 @@ class DatabaseImportCollisionTest {
 		val sourceRoom = AppDatabase.testDatabase(context)
 		val targetRoom = AppDatabase.testDatabase(context)
 		try {
+			// These cases exercise synthetic merge tables. Production rejects a Tracker database
+			// as a merge source; remove its own triggers so only each case's injected schema is tested.
+			val source = sourceRoom.openHelper.writableDatabase
+			val inheritedTriggers = source.query(
+				"SELECT name FROM sqlite_master WHERE type = 'trigger'",
+			).use { cursor ->
+				buildList {
+					while (cursor.moveToNext()) add(cursor.getString(0))
+				}
+			}
+			inheritedTriggers.forEach { name ->
+				source.execSQL("DROP TRIGGER IF EXISTS `${name.replace("`", "``")}`")
+			}
 			block(sourceRoom, targetRoom)
 		} finally {
 			sourceRoom.close()

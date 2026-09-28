@@ -31,22 +31,27 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runCurrent
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class ImportJobRunnerTest {
 	private val context = mockk<Context>()
 	private lateinit var cacheDir: File
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		mockkStatic("com.adsamcik.tracker.shared.base.extension.FileExtensionsKt")
 		cacheDir = File("build/test-import-runner-${System.nanoTime()}").apply { mkdirs() }
 		every { context.cacheDir } returns cacheDir
 	}
 
-	@AfterEach
+	@After
 	fun tearDown() {
 		unmockkStatic("com.adsamcik.tracker.shared.base.extension.FileExtensionsKt")
 		cacheDir.deleteRecursively()

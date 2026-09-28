@@ -21,27 +21,27 @@ class CapturedRadioDateSelectionTest {
 
 	@Test fun `a crossing entry needs a scan or recorded gap on the selected day`() {
 		val previousDayOnly = decision(
-			observations = listOf(RadioObservationTime(80_000L, 80_000L, 80_000L)),
+			observations = listOf(RadioObservationTime(80_000_000L, 80_000_000L, 80_000_000L)),
 		)
 		previousDayOnly.include shouldBe false
 		previousDayOnly.excludedAcrossDates shouldBe false
 
 		val scanOnDay = decision(
 			observations = listOf(
-				RadioObservationTime(80_000L, 80_000L, 80_000L),
-				RadioObservationTime(100_000L, 100_000L, 100_000L),
+				RadioObservationTime(80_000_000L, 80_000_000L, 80_000_000L),
+				RadioObservationTime(100_000_000L, 100_000_000L, 100_000_000L),
 			),
 		)
 		scanOnDay.include shouldBe true
 		scanOnDay.observationsOutsideDates shouldBe 1
 
-		decision(recordedGaps = listOf(90_000L to 100_000L)).include shouldBe true
-		decision(recordedGaps = listOf(70_000L to 80_000L)).include shouldBe false
+		decision(recordedGaps = listOf(90_000_000L to 100_000_000L)).include shouldBe true
+		decision(recordedGaps = listOf(70_000_000L to 80_000_000L)).include shouldBe false
 	}
 
 	@Test fun `turning off cross-date sessions excludes the whole entry`() {
 		val excluded = decision(
-			observations = listOf(RadioObservationTime(100_000L, 100_000L, 100_000L)),
+			observations = listOf(RadioObservationTime(100_000_000L, 100_000_000L, 100_000_000L)),
 			includeSessionsAcrossDates = false,
 		)
 		excluded.include shouldBe false
@@ -49,16 +49,16 @@ class CapturedRadioDateSelectionTest {
 		excluded.observationsOutsideDates shouldBe 0
 
 		val contained = decision(
-			entryStartMs = 90_000L,
-			entryEndMs = 120_000L,
-			observations = listOf(RadioObservationTime(100_000L, 100_000L, 100_000L)),
+			entryStartMs = 90_000_000L,
+			entryEndMs = 120_000_000L,
+			observations = listOf(RadioObservationTime(100_000_000L, 100_000_000L, 100_000_000L)),
 			includeSessionsAcrossDates = false,
 		)
 		contained.include shouldBe true
 		decision(
-			entryStartMs = 90_000L,
+			entryStartMs = 90_000_000L,
 			entryEndMs = 172_800_000L,
-			observations = listOf(RadioObservationTime(100_000L, 100_000L, 100_000L)),
+			observations = listOf(RadioObservationTime(100_000_000L, 100_000_000L, 100_000_000L)),
 			includeSessionsAcrossDates = false,
 		).include shouldBe true
 	}
@@ -70,9 +70,9 @@ class CapturedRadioDateSelectionTest {
 		selected.include shouldBe true
 		selected.observationsOutsideDates shouldBe 1
 		decision(
-			entryStartMs = 90_000L,
-			entryEndMs = 100_000L,
-			observations = listOf(RadioObservationTime(86_399_000L, 90_000L, 90_000L)),
+			entryStartMs = 90_000_000L,
+			entryEndMs = 100_000_000L,
+			observations = listOf(RadioObservationTime(86_399_000L, 90_000_000L, 90_000_000L)),
 			includeSessionsAcrossDates = false,
 		).excludedAcrossDates shouldBe true
 	}
@@ -82,8 +82,8 @@ class CapturedRadioDateSelectionTest {
 		dates.contains(172_800_000L) shouldBe false
 		dates.overlaps(172_800_000L, 172_800_000L) shouldBe false
 		dates.overlaps(86_400_000L, 86_400_000L) shouldBe true
-		dates.containsWholeInterval(90_000L, 172_800_000L) shouldBe true
-		dates.containsWholePossibleTime(90_000L, 172_800_000L) shouldBe false
+		dates.containsWholeInterval(90_000_000L, 172_800_000L) shouldBe true
+		dates.containsWholePossibleTime(90_000_000L, 172_800_000L) shouldBe false
 		decision(recordedGaps = listOf(172_800_000L to 172_800_000L)).include shouldBe false
 	}
 
@@ -103,8 +103,8 @@ class CapturedRadioDateSelectionTest {
 	}
 
 	private fun decision(
-		entryStartMs: Long = 80_000L,
-		entryEndMs: Long = 110_000L,
+		entryStartMs: Long = 80_000_000L,
+		entryEndMs: Long = 110_000_000L,
 		observations: List<RadioObservationTime> = emptyList(),
 		recordedGaps: List<Pair<Long, Long>> = emptyList(),
 		includeSessionsAcrossDates: Boolean = true,

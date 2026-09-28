@@ -15,8 +15,13 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.zip.ZipInputStream
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Test
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class SessionBundleArchiveWriterTest {
 	@Test
 	fun `selected session format contains exactly declared typed data and its details`() = runTest {

@@ -28,7 +28,12 @@ import java.io.InputStream
 import java.time.LocalDate
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class PortableCountDomainJsonV2CodecTest {
 	@Test
 	fun `steps v2 round trip preserves product and canonical source graph`() = runTest {

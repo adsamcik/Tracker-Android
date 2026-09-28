@@ -56,7 +56,8 @@ internal class ZipArchiveExtractor(
 		val source = file.openInputStream(context) ?: return ZipArchiveClassification.GENERAL_IMPORT
 		try {
 			LimitedCountingInputStream(source, MAX_COMPRESSED_INPUT_BYTES).use { countedSource ->
-				validatedZipInputStream(countedSource).use { zipStream ->
+				val validated = validatedZipInputStream(countedSource)
+				validated.stream.use { zipStream ->
 				var totalBytesRead = 0L
 				var entryCount = 0
 				while (true) {
@@ -117,6 +118,9 @@ internal class ZipArchiveExtractor(
 						closeCompletedZipEntry(zipStream, entryReadSuccessfully, entryFailure)
 					}
 				}
+				if (entryCount == 0 && validated.hasLocalFileHeader) {
+					throw PermanentImportInputException("ZIP archive contains no entries.")
+				}
 			}
 			}
 		} catch (failure: ArchiveSourceReadFailure) {
@@ -148,7 +152,8 @@ internal class ZipArchiveExtractor(
 		val source = file.openInputStream(context) ?: return false
 		try {
 			LimitedCountingInputStream(source, MAX_COMPRESSED_INPUT_BYTES).use { countedSource ->
-				validatedZipInputStream(countedSource).use { zipStream ->
+				val validated = validatedZipInputStream(countedSource)
+				validated.stream.use { zipStream ->
 				var totalBytesWritten = 0L
 				var entryCount = 0
 				while (true) {
@@ -227,6 +232,9 @@ internal class ZipArchiveExtractor(
 					} finally {
 						closeCompletedZipEntry(zipStream, entryReadSuccessfully, entryFailure)
 					}
+				}
+				if (entryCount == 0 && validated.hasLocalFileHeader) {
+					throw PermanentImportInputException("ZIP archive contains no entries.")
 				}
 			}
 			}
@@ -429,9 +437,14 @@ internal class ZipArchiveExtractor(
 	private fun isTrackerDatabaseBackupManifest(bytes: ByteArray): Boolean =
 		TRACKER_BACKUP_MANIFEST_PREFIX.containsMatchIn(bytes.toString(Charsets.UTF_8))
 
+	private data class ValidatedZipInput(
+		val stream: ZipInputStream,
+		val hasLocalFileHeader: Boolean,
+	)
+
 	private fun validatedZipInputStream(
 		countedSource: LimitedCountingInputStream,
-	): ZipInputStream {
+	): ValidatedZipInput {
 		val source = PushbackInputStream(countedSource, ZIP_SIGNATURE_BYTES)
 		val signature = ByteArray(ZIP_SIGNATURE_BYTES)
 		var offset = 0
@@ -446,7 +459,10 @@ internal class ZipArchiveExtractor(
 		if (!isSupportedZipSignature(signature)) {
 			throw PermanentImportInputException("Import source is not a ZIP archive.")
 		}
-		return zipInputStreamFactory(source)
+		return ValidatedZipInput(
+			stream = zipInputStreamFactory(source),
+			hasLocalFileHeader = signature.contentEquals(ZIP_LOCAL_FILE_HEADER),
+		)
 	}
 
 	private fun isSupportedZipSignature(signature: ByteArray): Boolean =

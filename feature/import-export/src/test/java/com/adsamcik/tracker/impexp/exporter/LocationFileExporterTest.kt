@@ -56,6 +56,7 @@ class LocationFileExporterTest {
 		val point = export(LocationFileExporter(), 1_000L..1_000L).single()
 		point.measurement.latE7 shouldBe null
 		point.measurement.lonE7 shouldBe null
+		Unit
 	}
 
 	@Test fun `file origin labels are based on currently visible saved purposes`() {

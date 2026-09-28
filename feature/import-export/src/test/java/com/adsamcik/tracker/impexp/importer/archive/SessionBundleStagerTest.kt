@@ -27,22 +27,27 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class SessionBundleStagerTest {
 	private val context = mockk<Context>()
 	private lateinit var cache: File
 
-	@BeforeEach
+	@Before
 	fun setup() {
 		mockkStatic("com.adsamcik.tracker.shared.base.extension.FileExtensionsKt")
 		cache = File("build/test-session-bundle-${System.nanoTime()}").apply { mkdirs() }
 		every { context.cacheDir } returns cache
 	}
 
-	@AfterEach
+	@After
 	fun cleanup() {
 		unmockkStatic("com.adsamcik.tracker.shared.base.extension.FileExtensionsKt")
 		cache.deleteRecursively()
