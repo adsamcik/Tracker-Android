@@ -529,6 +529,9 @@ No validation, input freeze, provider activation, new dev/v10 integration or pus
   with edited-value, unusual-legacy-value, incomplete-file and stable-ID test source. Its reader
   requires transactional import; route-break handling and adapters remain open.
   **IMPLEMENTED_UNVALIDATED**.
+- [x] Author the source-owned Location point exporter with exact date selection, stable point IDs,
+  sessionless and coordinate-free point coverage, plus Room SQL origin test source. The format is
+  not registered until import and route-break behavior are complete. **IMPLEMENTED_UNVALIDATED**.
 - [ ] Finish combined Wi-Fi/Cell file adapters, source-owned range selection and
   `.trackerlocation` export/import with overlap deduplication.
 - [ ] Complete whole-scope review and deferred convergence/device verification.

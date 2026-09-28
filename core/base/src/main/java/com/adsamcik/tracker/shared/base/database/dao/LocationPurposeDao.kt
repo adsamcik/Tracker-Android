@@ -19,6 +19,9 @@ data class LocationPathSampleRow(
 	@androidx.room.ColumnInfo(name = "continuity_id") val continuityId: String?,
 	@androidx.room.ColumnInfo(name = "continuity_sequence") val continuitySequence: Long?,
 	@androidx.room.ColumnInfo(name = "ambient_only") val ambientOnly: Boolean,
+	@androidx.room.ColumnInfo(name = "has_session_purpose") val hasSessionPurpose: Boolean = false,
+	@androidx.room.ColumnInfo(name = "has_visible_background_purpose")
+	val hasVisibleBackgroundPurpose: Boolean = false,
 )
 
 /** Location authority only; this DAO never creates a canonical sample. */
@@ -55,7 +58,11 @@ interface LocationPurposeDao {
 	@Query("""
 		SELECT location_sample.*, lr.source_instance_id || ':' || lr.registration_generation AS continuity_id,
 		lr.source_sequence AS continuity_sequence,
-		NOT (${LocationReadScope.CAPTURE_OR_LEGACY}) AS ambient_only
+		NOT (${LocationReadScope.CAPTURE_OR_LEGACY}) AS ambient_only,
+		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp
+			WHERE lp.sample_id = location_sample.id AND lp.purpose = 'SESSION_CAPTURE'
+			AND lr.sample_id IS NOT NULL) AS has_session_purpose,
+		(${LocationReadScope.AMBIENT}) AS has_visible_background_purpose
 		FROM location_sample LEFT JOIN location_accepted_receipt lr ON lr.sample_id = location_sample.id
 		WHERE ${LocationReadScope.ALL_VISIBLE} AND time_ms >= :fromMs AND time_ms <= :toMs
 		AND (:ambientOnly = 0 OR NOT (${LocationReadScope.CAPTURE_OR_LEGACY}))
