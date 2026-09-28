@@ -20,6 +20,8 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationRes
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.app.maintenance.RetentionWorkScheduler
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
+import com.adsamcik.tracker.impexp.OwnedTransferCleanupException
+import com.adsamcik.tracker.impexp.OwnedTransferFiles
 import com.adsamcik.tracker.impexp.importer.DataImporter
 import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
@@ -168,6 +170,10 @@ sealed interface CollectedDataDeletionReconciliationFailure {
 		override val failureCode: String = "COLLECTED_DATA_DELETION_EXECUTION"
 	}
 
+	data class TransferFiles(val residualPath: String) : CollectedDataDeletionReconciliationFailure {
+		override val failureCode: String = "POST_DELETE_TRANSFER_FILES"
+	}
+
 	data class PostDeletionRecoveryEnqueue(
 		val failure: PostDeletionRecoveryScheduleFailure,
 	) : CollectedDataDeletionReconciliationFailure {
@@ -262,7 +268,6 @@ class DefaultCollectedDataWriterQuiescer(
 					DataImporter.cancel(context),
 					"data import",
 				)
-				DataImporter.clearSessionBundleStaging(context)
 				awaitCancellation(
 					PendingSignalDrainWork.cancel(context),
 					"pending-signal recovery",
@@ -492,6 +497,10 @@ class DefaultCollectedDataDeletionService(
 				operation()
 			} catch (cancelled: CancellationException) {
 				throw cancelled
+			} catch (failure: OwnedTransferCleanupException) {
+				CollectedDataDeletionCompletion.Retryable(
+					CollectedDataDeletionReconciliationFailure.TransferFiles(failure.residualPath),
+				)
 			} catch (_: Exception) {
 				CollectedDataDeletionCompletion.Retryable(
 					CollectedDataDeletionReconciliationFailure.DeletionExecution,
@@ -604,6 +613,7 @@ class DefaultCollectedDataDeletionService(
 			}
 			exportPlanStore.resetAllWatermarks()
 			deleteDiagnostics()
+			OwnedTransferFiles.clearForFullDeletion(context)
 			// Enqueue the durable recovery owner while the deletion marker and process barrier still
 			// fence Room/providers. It will make one attempt only after this generation is Ready.
 			when (

@@ -13,6 +13,8 @@ import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.security.MessageDigest
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -147,11 +149,12 @@ internal class SessionBundleStager(
 		fun clearOwnedStaging(context: Context) {
 			val cache = context.cacheDir.canonicalFile
 			val directory = File(cache, CACHE_DIRECTORY)
-			if (!directory.exists()) return
-			if (directory.canonicalFile.parentFile != cache || !directory.isDirectory)
+			if (!Files.exists(directory.toPath(), LinkOption.NOFOLLOW_LINKS)) return
+			if (directory.canonicalFile != directory.absoluteFile ||
+				directory.canonicalFile.parentFile != cache || !directory.isDirectory)
 				throw IOException("Session import cache cannot be cleaned safely")
 			directory.listFiles()?.forEach { candidate ->
-				if (!OWNED_FILE.matches(candidate.name) || !candidate.isFile ||
+				if (!candidate.isFile || candidate.canonicalFile != candidate.absoluteFile ||
 					candidate.canonicalFile.parentFile != directory.canonicalFile || !candidate.delete())
 					throw IOException("Session import cache could not be cleaned")
 			} ?: throw IOException("Session import cache could not be inspected")
@@ -163,7 +166,8 @@ internal class SessionBundleStager(
 			val directory = File(cache, CACHE_DIRECTORY).apply {
 				if (!isDirectory && !mkdirs()) throw IOException("Cannot prepare session import")
 			}
-			if (directory.canonicalFile.parentFile != cache)
+			if (directory.canonicalFile != directory.absoluteFile ||
+				directory.canonicalFile.parentFile != cache)
 				throw IOException("Session import cache is outside app storage")
 			cleanupStaleChildren(directory, System.currentTimeMillis())
 			return directory

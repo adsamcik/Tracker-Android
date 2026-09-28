@@ -215,6 +215,31 @@ class CollectedDataDeletionServiceTest {
 	}
 
 	@Test
+	fun `transfer cleanup failure keeps full clear pending for retry`() = runTest {
+		val unexpected = File(context.cacheDir, "database-import/unexpected-subfolder").apply {
+			mkdirs()
+		}
+		val nested = File(unexpected, "residual.db").apply {
+			writeText("residual")
+		}
+		try {
+			val service = createService { _, _, _, _ -> }
+			service.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+				CollectedDataDeletionReconciliationFailure.TransferFiles(unexpected.absolutePath),
+			)
+			markerFile.exists() shouldBe true
+			startupDeletionBarrier.isClosed shouldBe true
+			nested.delete() shouldBe true
+			unexpected.delete() shouldBe true
+			service.reconcilePendingDeletion() shouldBe CollectedDataDeletionCompletion.Complete
+			markerFile.exists() shouldBe false
+		} finally {
+			nested.delete()
+			unexpected.delete()
+		}
+	}
+
+	@Test
 	fun `unknown lifecycle DataStore acknowledgement keeps deletion fenced for exact retry`() =
 		runTest {
 			var lifecycleAttempts = 0
