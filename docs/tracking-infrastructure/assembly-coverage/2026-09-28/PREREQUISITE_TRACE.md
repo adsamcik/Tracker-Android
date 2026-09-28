@@ -20,7 +20,7 @@ exact unfinished work below remains part of the one assembly input set.
 | `WI-ACTIVITY-VERTICAL-001` | `ActivityCapturedFactProjectionLaneTest`, `ActivityHistoryComposerTest`, `ActivityControlRetentionMaintenanceTest` (`P`) | CONTROL owner, truthful automatic availability and selected actions/effects. Show each activity change at its observed timestamp without inventing duration. |
 | `WI-WIFI-VERTICAL-001` | `WifiWalQualificationAdapterTest`, ambient/captured radio transfer and shared controller tests (`P`) | Versioned per-item shared admission through writer/read/transfer, durable active-request budget, optional host and final source-only product. The newly approved available network names/access-point IDs need storage, history and export. |
 | `WI-CELL-VERTICAL-001` | `CellWalQualificationAdapterTest`, gap-only portable replay and shared controller tests (`P`) | Same per-item/host/budget chain; the newly approved available tower IDs need storage, history and export, while SIM/subscriber IDs stay excluded and capability gaps stay typed. |
-| `WI-SCHEMA-CONVERGENCE-001` | `AppDatabaseMigration27To28Test`, source migrations, `DevelopmentV28DatabaseContainmentTest` (`P`) | Final pending entities/contracts, generated schema and populated final-v28 migration/reopen/unknown-file proof. Preserve v27 and unknown files. |
+| `WI-SCHEMA-CONVERGENCE-001` | `AppDatabaseMigration27To28Test`, source migrations, `DevelopmentV28DatabaseContainmentTest` (`P`) | Final pending entities/contracts, generated schema and a populated migration/reopen proof from the released `main` schema 12 to the final schema. The v27/v28 tests cover unfinished candidate states, not a released baseline. Preserve unknown development files for recovery. |
 | `WI-AUTHORITY-PURPOSE-001` | `SourceBrokerTest`, `TrackingPurposePublicationRuntimeTest`, source consent/retention tests (`P`) | Complete historical per-item radio and passive Location authority; sibling-purpose erase and retained-read qualification. |
 | `WI-PURPOSE-PUBLICATION-001` | `TrackingPurposePublicationRuntimeTest`, source policy/authorization DAO tests (`P`) | Final atomic policy→demand→registration→receipt chain for all supported purposes and late-revoke race. |
 | `WI-BROKER-PROVIDER-OWNERSHIP-001` | `SharedLocationSourceControllerTest`, `SharedAmbientRadioSourceControllerTest`, `SharedStepSourceControllerTest` (`P`) | Feature Location leases, system passive retirement and optional radio host must join without a second physical owner. |
@@ -47,7 +47,7 @@ exact unfinished work below remains part of the one assembly input set.
 | Lifecycle | Exact admission/sequence and zero baseline, source proof, start budget, service redelivery, user-stop and CONTROL expiry have authored cases. | Implement approved late manual permission/Location Services result fencing after End/Off or source change, exact external actions, active/ambient automatic transitions and finalized owner generation/registration proof. |
 | Privacy | CONTROL plus captured/Ambient sibling retention, diagnostic redaction, partial export and temporary-file full clear have authored cases. This continuation adds spool, session-bundle staging and completed files in the default private-export directory to the full-clear fixture and cleanup. New scheduled private exports use this single owned directory even when a saved plan has a legacy custom path. | Implement approved data-only backup, active manual export cancellation during clear, safe cleanup or disclosure of older custom-folder files, edited-file conflict choice and external residual UX. |
 | Recovery | `SourcePipelineRecoveryTest`, provider handoff, retained-import and startup recovery cover bounded replay and several process/reboot failures. | System passive Location and scheduled background Steps recovery; durable radio active-attempt budget; joined-source FGS denial with truthful gaps. |
-| Migration | Populated v27→v28 and real Room reopen/full clear, source migrations and unknown development-v28 containment are authored. | Regenerate and inspect the one final schema only after all approved contracts land; add populated fixtures for any new table/column and verify every final read/erase path. |
+| Migration | Populated v27→v28 and real Room reopen/full clear, source migrations and unknown development-v28 containment are authored for unfinished candidate states. | Add a populated released-`main` schema-12 fixture, verify its path to the final schema, preserve unknown development files, and verify every final read/erase path. Regenerate and inspect the one final schema only after all approved contracts land. |
 
 The user resolved the per-item radio contract, spent active-request limits, optional host, passive
 Location fallback, CONTROL owner, external End/Off actions, and several file/privacy decisions.
@@ -58,8 +58,9 @@ providers and removal of the unused sunrise/sunset passive Location listener, wh
 production callers. The user also approved saving available network/tower details whenever their
 sources are enabled, excluding SIM/subscriber IDs. Recoverable older radio details must migrate
 into the new child-observation model; missing old details remain honestly absent. The user
-approved one Steps choice for all-day recording, including automatic migration of an older
-session-enabled Steps choice to all-day Steps when the new setting takes effect. Sessions annotate
+approved one Steps choice for all-day recording, including migration of the released `main`
+branch's single Steps choice to all-day Steps when the new setting takes effect. The two-switch
+Steps state is unfinished development work, not a released user setting. Sessions annotate
 their time and may prefer higher quality, but do not own or gate the daily Steps total. A supported
 on-device provider may fill background gaps; unsupported periods remain visible gaps. These are
 approved contracts, not completed implementation or executed evidence.

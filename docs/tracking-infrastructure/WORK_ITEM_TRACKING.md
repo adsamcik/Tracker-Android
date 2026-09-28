@@ -575,10 +575,15 @@ authored source and static review only, **IMPLEMENTED_UNVALIDATED**.
 - [x] Route new scheduled private exports to that one owned directory even when an older saved
   plan names a custom directory; reject path-like names and reserve distinct files when two plans
   export at the same time. Existing custom files stay pending.
+- [x] Author the durable lifecycle generation compare-and-reserve seam for a delayed Start, with
+  restart, Stop, duplicate-use and user-exit test source. The one-use ticket and UI wiring remain
+  pending; this seam alone does not prevent a Stop intent that has not reserved its command yet.
 - [ ] Complete the missing production and test chains listed for each prerequisite, including
-  actual Dashboard permission-resume fencing, one all-day Steps choice with the approved legacy
-  setting migration, active export cancellation, safe ownership for custom private export folders
-  and external residual notice.
+  actual Dashboard permission-resume fencing, one all-day Steps choice carrying forward the
+  released single Steps setting, active export cancellation, safe ownership for custom private
+  export folders and external residual notice.
+- [ ] Prove migration from the populated released `main` AppDatabase schema 12 and its one Steps
+  choice to the final schema. Existing v27/v28 fixtures cover unreleased candidate states only.
 - [ ] Review the final one-input assembly, run the deferred convergence gates, and establish
   emulator and on-device proof before marking any prerequisite complete.
 

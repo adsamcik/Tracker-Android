@@ -14,13 +14,17 @@ cases are now in `SCENARIOS.md`.
 The reviewer traced a real implementation gap in both Dashboard and Tracker: permission and
 Location Services callbacks can retry Start after a later End, Turn off or settings change.
 Widget/shortcut Dashboard navigation currently carries only an unqualified Boolean. The user
-approved one-use continuation of the original Start across screens, but the ticket, durable
-generation check and production tests are still pending.
+approved one-use continuation of the original Start across screens. The low-level durable
+generation compare-and-reserve seam and focused test source are authored but unvalidated;
+the ticket, UI wiring and full lifecycle tests are still pending.
 
-The reviewer also traced the two existing Steps settings and the startup policy seam. The user
-approved one all-day Steps choice and automatic migration of session-enabled Steps. The
-background-only legacy case has a pending user decision. No migration or UI change is claimed
-complete here.
+The reviewer also traced two Steps switches in the unfinished candidate and the startup policy
+seam. The user corrected the release baseline: the released `main` branch had one Steps switch
+and AppDatabase schema 12; the split candidate and v27/v28 schemas were never released. The
+approved new choice records Steps throughout the day and carries the released Steps selection
+forward. A final schema check corrected S23 so the released schema-12 fixture contains only
+its actual tables; Pressure, corrections and export ledgers belong to separate unfinished
+candidate fixtures. No migration or UI change is claimed complete here.
 
 All twenty-five assembly prerequisites remain pending until their final production/test chains
 and deferred convergence and device gates are completed.

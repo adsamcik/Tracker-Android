@@ -247,6 +247,18 @@ interface TrackingLifecycleCommandAuthority {
 
 	suspend fun reserveStart(): TrackingStartCommand?
 
+	/** Snapshot for a delayed user Start; negative means this authority cannot issue a ticket. */
+	fun latestCommandGeneration(): Long = -1L
+
+	/**
+	 * Reserves a delayed user Start only if no START, STOP or user-exit command appeared since
+	 * [expectedGeneration] was captured. Durable implementations must compare and reserve under
+	 * the same command gate. An authority without that operation fails closed.
+	 */
+	suspend fun reserveStartIfGeneration(
+		@Suppress("UNUSED_PARAMETER") expectedGeneration: Long,
+	): TrackingStartCommand? = null
+
 	/**
 	 * Atomically validates the command carried by an Android redelivery and, only while it remains
 	 * allowed, reserves a distinct command for the replacement service run. Implementations must

@@ -64,6 +64,16 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 		command.takeIf { writeState(updated) }
 	}
 
+	override fun latestCommandGeneration(): Long = commandState.lastGeneration
+
+	override suspend fun reserveStartIfGeneration(
+		expectedGeneration: Long,
+	): TrackingStartCommand? = commandGate.withLock {
+		if (commandState.lastGeneration != expectedGeneration) return@withLock null
+		val (updated, command) = commandState.issueStart()
+		command.takeIf { writeState(updated) }
+	}
+
 	override suspend fun reserveRedeliveryRecoveryStart(
 		redeliveredCommand: TrackingStartCommand,
 	): TrackingRedeliveryRecoveryReservation = commandGate.withLock {

@@ -33,6 +33,30 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
 	@After
 	fun tearDown() = clearStore()
 
+	@Test
+	fun `delayed Start reservation requires unchanged durable lifecycle generation`() = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		val firstTapGeneration = authority.latestCommandGeneration()
+		val first = requireNotNull(authority.reserveStartIfGeneration(firstTapGeneration))
+		authority.reserveStartIfGeneration(firstTapGeneration) shouldBe null
+		authority.latestCommandGeneration() shouldBe first.generation
+
+		val beforeStop = authority.latestCommandGeneration()
+		val stop = requireNotNull(authority.reserveStop(
+			TrackingStopCandidateReason.EXPLICIT_REQUEST,
+			requestedAtEpochMs = 1_000L,
+		))
+		authority.reserveStartIfGeneration(beforeStop) shouldBe null
+		authority.latestCommandGeneration() shouldBe stop.generation
+
+		val beforeExit = authority.latestCommandGeneration()
+		authority.recordUserRequestedExit("explicit-exit") shouldBe true
+		authority.reserveStartIfGeneration(beforeExit) shouldBe null
+		val reopened = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		reopened.latestCommandGeneration() shouldBe authority.latestCommandGeneration()
+		reopened.reserveStartIfGeneration(beforeExit) shouldBe null
+	}
+
     @Test
     fun `current manual Start acknowledges exit before entering startup lifecycle fence`() = runBlocking {
         val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
