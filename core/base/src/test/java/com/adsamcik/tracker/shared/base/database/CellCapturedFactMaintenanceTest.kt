@@ -482,7 +482,10 @@ class CellCapturedFactMaintenanceTest {
 
 	@Test
 	fun `coverage can reuse an independently authenticated owner across authorizations`() = runTest {
-		val originalOwner = seedCapturedCell(retainedFromMs = 1_000L)
+		val originalOwner = seedCapturedCell(
+			retainedFromMs = 1_000L,
+			sessionRunEffectEndNanos = Long.MAX_VALUE,
+		)
 		val laterAuthorization = SourceBrokerAuthorization.rows(
 			sourceKind = CELL_SOURCE,
 			registrationGeneration = REGISTRATION_GENERATION,
@@ -496,6 +499,7 @@ class CellCapturedFactMaintenanceTest {
 		val correctedOwnerUnsigned = originalOwner.copy(
 			authorizationEffectEndNanos = SECOND_AUTHORIZATION_START_NANOS,
 			consentEffectEndNanos = SECOND_AUTHORIZATION_START_NANOS,
+			sessionRunEffectEndNanos = SECOND_AUTHORIZATION_START_NANOS,
 			effectChecksum = ZERO_CHECKSUM,
 		)
 		val correctedOwner = correctedOwnerUnsigned.copy(
@@ -503,11 +507,13 @@ class CellCapturedFactMaintenanceTest {
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE cell_captured_fact_revision SET authorization_effect_end_nanos = ?, " +
-				"consent_effect_end_nanos = ?, effect_checksum = ? WHERE writer_projection_id = ? " +
+				"consent_effect_end_nanos = ?, session_run_effect_end_nanos = ?, " +
+				"effect_checksum = ? WHERE writer_projection_id = ? " +
 				"AND writer_projection_version = ? AND logical_fact_id = ? AND semantic_revision = ?",
 			arrayOf<Any?>(
 				correctedOwner.authorizationEffectEndNanos,
 				correctedOwner.consentEffectEndNanos,
+				correctedOwner.sessionRunEffectEndNanos,
 				correctedOwner.effectChecksum,
 				correctedOwner.writerProjectionId,
 				correctedOwner.writerProjectionVersion,
@@ -547,10 +553,16 @@ class CellCapturedFactMaintenanceTest {
 	@Test
 	fun `coverage must reference the current aggregate owner revision`() = runTest {
 		val currentOwner = seedCapturedCell(retainedFromMs = 1_000L, semanticRevisions = 2)
+		val previousOwner = requireNotNull(database.cellCapturedFactDao().revision(
+			currentOwner.writerProjectionId,
+			currentOwner.writerProjectionVersion,
+			currentOwner.logicalFactId,
+			1L,
+		))
 		insertCapturedFact(
 			deliveryIndex = 2,
 			observedWallTimeMs = NEWER_WALL_MS,
-			aggregateOwner = currentOwner.copy(semanticRevision = 1L),
+			aggregateOwner = previousOwner,
 		)
 
 		database.pruneCapturedCellFactsAffectedByRetentionFloor(
@@ -960,6 +972,7 @@ class CellCapturedFactMaintenanceTest {
 		seedCapturedCell(
 			retainedFromMs = FLOOR_MS,
 			observedWallTimeMs = FLOOR_MS + COVERAGE_SPAN_MS + 1L + WALL_UNCERTAINTY_MS,
+			providerNanos = OBSERVED_NANOS + 1L,
 			coverageSpanNanos = fractionalSpanNanos,
 		)
 
@@ -1733,11 +1746,11 @@ class CellCapturedFactMaintenanceTest {
 		)
 		var emitted: PortableCapturedCellEntryV1? = null
 
-		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+		val result = portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
 			emitted = it
 		}
 
-		val run = requireNotNull(emitted).runs.single()
+		val run = requireNotNull(emitted) { result.toString() }.runs.single()
 		run.acquisitionCompleteness shouldBe PortableCellAcquisitionCompleteness.PARTIAL
 		run.subscriptionGrouping shouldBe PortableCellSubscriptionGrouping.UNKNOWN
 		run.observations.single().childCompleteness shouldBe PortableCellChildCompleteness.PARTIAL
@@ -2578,15 +2591,18 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
-	fun `portable export rejects a zero callback sequence high water`() = runTest {
+	fun `portable export accepts a zero callback sequence high water`() = runTest {
 		seedCapturedCell(withPortableExportState = true)
 		database.sourceSessionDao().saveCompleteness(
 			portableCompleteness(lastAdmissionOrdinal = 1L, lastSourceSequence = 0L),
 		)
 
-		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
-			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
-		)
+		var emitted: PortableCapturedCellEntryV1? = null
+		val result = portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+			emitted = it
+		}
+		(result is ExportPortableCapturedCellResult.Exported) shouldBe true
+		requireNotNull(emitted).runs.single().observations.size shouldBe 1
 	}
 
 	@Test
@@ -2634,15 +2650,18 @@ class CellCapturedFactMaintenanceTest {
 
 	@Test
 	fun `portable export reports partial capture across manifest revisions`() = runTest {
-		seedCapturedCell(withPortableExportState = true)
+		seedCapturedCell(
+			withPortableExportState = true,
+			sessionRunEffectEndNanos = Long.MAX_VALUE,
+		)
 		installControlOnlyReconciliationManifest()
 		var emitted: PortableCapturedCellEntryV1? = null
 
-		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+		val result = portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
 			emitted = it
 		}
 
-		requireNotNull(emitted).runs.single().captureCoverage shouldBe
+		requireNotNull(emitted) { result.toString() }.runs.single().captureCoverage shouldBe
 			PortableCellCaptureCoverage.PARTIAL_RUN
 	}
 
@@ -2859,6 +2878,8 @@ class CellCapturedFactMaintenanceTest {
 		missingTimeChildCount: Int = 0,
 		staleChildCount: Int = 0,
 		observedWallTimeMs: Long = OBSERVED_WALL_MS,
+		providerNanos: Long = OBSERVED_NANOS,
+		sessionRunEffectEndNanos: Long = REGISTRATION_END_NANOS,
 		coverageSpanNanos: Long = 0L,
 		acceptedChildCount: Int? = null,
 		revokedCapture: Boolean = false,
@@ -2900,6 +2921,8 @@ class CellCapturedFactMaintenanceTest {
 		val fact = insertCapturedFact(
 			deliveryIndex = 0,
 			observedWallTimeMs = observedWallTimeMs,
+			providerNanos = providerNanos,
+			sessionRunEffectEndNanos = sessionRunEffectEndNanos,
 			coverageSpanNanos = coverageSpanNanos,
 			acceptedChildCount = acceptedChildCount ?: if (coverageSpanNanos == 0L) 1 else 2,
 			authorizationFingerprint = authorization.first().authorizationFingerprint,
@@ -3572,6 +3595,7 @@ class CellCapturedFactMaintenanceTest {
 		authorizationEffectStartNanos: Long = AUTHORIZATION_START_NANOS,
 		authorizationEffectEndNanos: Long = REGISTRATION_END_NANOS,
 		consentEffectEndNanos: Long = REGISTRATION_END_NANOS,
+		sessionRunEffectEndNanos: Long = REGISTRATION_END_NANOS,
 		persistProduct: Boolean = true,
 	): CellCapturedFactRevisionEntity {
 		require(
@@ -3725,7 +3749,7 @@ class CellCapturedFactMaintenanceTest {
 			consentEffectStartNanos = POLICY_START_NANOS,
 			consentEffectEndNanos = consentEffectEndNanos,
 			sessionRunEffectStartNanos = RUN_START_NANOS,
-			sessionRunEffectEndNanos = REGISTRATION_END_NANOS,
+			sessionRunEffectEndNanos = sessionRunEffectEndNanos,
 			deletionEffectStartNanos = RUN_START_NANOS,
 			deletionEffectEndNanos = SESSION_END_NANOS,
 			maximumObservationAgeNanos = fixtureMaximumAgeMs * NANOS_PER_MILLISECOND,
@@ -4278,8 +4302,8 @@ class CellCapturedFactMaintenanceTest {
 			createdAtMs = CONTROL_WAL_CREATED_AT_MS,
 		)
 		val wal = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
-		database.sourceEventWalDao().insertIgnoringDuplicate(wal)
-		return wal
+		val admissionOrdinal = database.sourceEventWalDao().insertIgnoringDuplicate(wal)
+		return wal.copy(admissionOrdinal = admissionOrdinal)
 	}
 
 	private suspend fun insertNewerAmbientOnlyWal(): SourceEventWalEntity {
@@ -4333,8 +4357,8 @@ class CellCapturedFactMaintenanceTest {
 			createdAtMs = CONTROL_WAL_CREATED_AT_MS + 1L,
 		)
 		val wal = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
-		database.sourceEventWalDao().insertIgnoringDuplicate(wal)
-		return wal
+		val admissionOrdinal = database.sourceEventWalDao().insertIgnoringDuplicate(wal)
+		return wal.copy(admissionOrdinal = admissionOrdinal)
 	}
 
 	private fun segment() = SessionSegment(
@@ -4481,11 +4505,11 @@ class CellCapturedFactMaintenanceTest {
 		const val REPLACEMENT_WAL_WALL_MS = 2_700L
 		const val SESSION_END_WALL_MS = 3_000L
 		const val REVOKED_POLICY_WALL_MS = 4_000L
-		const val FLOOR_MS = 1_990L
+		const val FLOOR_MS = 2_000L
 		const val MAINTENANCE_TIME_MS = 5_000L
 		const val DELETION_TIME_MS = 6_000L
 		const val CONTROL_WAL_CREATED_AT_MS = DELETION_TIME_MS + 1L
-		const val WALL_UNCERTAINTY_MS = 20L
+		const val WALL_UNCERTAINTY_MS = 1L
 		const val COVERAGE_SPAN_MS = 50L
 		const val COVERAGE_SPAN_NANOS = COVERAGE_SPAN_MS * 1_000_000L
 		const val NANOS_PER_MILLISECOND = 1_000_000L

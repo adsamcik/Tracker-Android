@@ -2387,6 +2387,9 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 	val authorizationRevision = requireNotNull(wal.authorizationRevision)
 	val authorizationFingerprint = requireNotNull(wal.authorizationFingerprint)
 	val observedStart = requireNotNull(wal.observedIntervalStartNanos)
+	// Earlier children may be stale. The delivery's latest observed child anchors its
+	// capture attribution; retained facts qualify their individual children separately.
+	val capturePoint = wal.observedElapsedNanos
 	if (observedStart < 0L || wal.observedElapsedNanos < observedStart ||
 		wal.receivedElapsedNanos < wal.observedElapsedNanos || wal.wallTimeMs == null ||
 		wal.wallTimeMs < 0L || wal.wallTimeUncertaintyMs == null || wal.wallTimeUncertaintyMs < 0L
@@ -2430,10 +2433,10 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 	val consent = sourcePolicyDao().consentEpoch(CELL_SOURCE, CAPTURE_PURPOSE, consentEpoch)
 	if (policy == null || consent == null || !policy.enabled || !policy.capturePersistenceEligible ||
 		policy.captureConsentEpoch != consentEpoch || policy.effectiveBootId != wal.clockDomainId ||
-		policy.effectiveElapsedRealtimeNanos > observedStart || !consent.eligible ||
+		policy.effectiveElapsedRealtimeNanos > capturePoint || !consent.eligible ||
 		!consent.persistenceEligible || consent.policyRevision > policyRevision ||
 		consent.effectiveBootId != wal.clockDomainId ||
-		consent.effectiveElapsedRealtimeNanos > observedStart
+		consent.effectiveElapsedRealtimeNanos > capturePoint
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 
 	val registration = sourceBrokerDao().registration(CELL_SOURCE, wal.registrationGeneration)
@@ -2448,7 +2451,7 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 	)
 	val registrationStart = registrationInterval.first
 	val registrationEnd = registrationInterval.last
-	if (observedStart < registrationStart || wal.observedElapsedNanos >= registrationEnd) {
+	if (capturePoint < registrationStart || capturePoint >= registrationEnd) {
 		block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	}
 
@@ -2459,12 +2462,6 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 	)
 	val authorization = authorizationRows.toAuthorizationSnapshotOrNull()
 		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-	val startAuthorization = boundedAuthorizationAt(
-		wal.registrationGeneration,
-		wal.clockDomainId,
-		observedStart,
-		limits,
-	)
 	val endAuthorization = boundedAuthorizationAt(
 		wal.registrationGeneration,
 		wal.clockDomainId,
@@ -2509,14 +2506,14 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 			effectiveWallTimeMs = authorization.members.first().effectiveWallTimeMs,
 		)
 	}.getOrNull()
-	if (authorization.isDenied || captureMember == null || startAuthorization != authorization ||
+	if (authorization.isDenied || captureMember == null ||
 		endAuthorization != authorization || demandIds.distinct().size != authorization.authorizedMembers.size ||
 		demands.size != authorization.authorizedMembers.size ||
 		recomputed?.sortedBy { it.memberId } != authorization.members.sortedBy { it.memberId } ||
 		authorization.authorizationFingerprint != authorizationFingerprint ||
 		authorization.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask ||
 		authorization.effectiveBootId != wal.clockDomainId ||
-		authorization.effectiveElapsedRealtimeNanos > observedStart ||
+		authorization.effectiveElapsedRealtimeNanos > capturePoint ||
 		wal.observedElapsedNanos >= authorizationEnd
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 
@@ -2528,7 +2525,7 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 		!run.hasValidHistoricalCellShape(session) ||
 		run.bootId != wal.clockDomainId || run.leaseGeneration != leaseGeneration ||
 		session.clockDomainId != wal.clockDomainId || session.lifecycleLeaseGeneration < leaseGeneration ||
-		run.startedElapsedNanos > observedStart ||
+		run.startedElapsedNanos > capturePoint ||
 		(session.finalAdmissionOrdinal != null && wal.admissionOrdinal > session.finalAdmissionOrdinal) ||
 		(session.cutoffAtMs == null) != (session.cutoffElapsedNanos == null) ||
 		wal.observedElapsedNanos >= (session.cutoffElapsedNanos ?: Long.MAX_VALUE)
@@ -2573,7 +2570,7 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 		manifest.serviceRunId != serviceRunId || manifest.sourcePolicyRevision != policyRevision ||
 		manifest.acquisitionPlanRevision != configurationRevision ||
 		manifest.effectiveBootId != wal.clockDomainId ||
-		manifest.effectiveElapsedRealtimeNanos > observedStart ||
+		manifest.effectiveElapsedRealtimeNanos > capturePoint ||
 		wal.observedElapsedNanos >= manifestEnd || manifest.zoneId.isBlank() ||
 		!hasValidZone(manifest.zoneId) || policy.qosCode != binding.qosCode || segment == null ||
 		segment.logicalTrackingId != logicalTrackingId || segment.serviceRunId != serviceRunId ||
