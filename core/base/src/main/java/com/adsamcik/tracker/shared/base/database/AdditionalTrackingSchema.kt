@@ -71,6 +71,11 @@ private fun createCapturedRadioFactRetentionProofTable(database: SupportSQLiteDa
 		"CREATE INDEX IF NOT EXISTS idx_captured_radio_retention_floor " +
 			"ON captured_radio_fact_retention_proof(source_kind, retained_from_ms)",
 	)
+	database.execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_captured_radio_retention_run_admission " +
+			"ON captured_radio_fact_retention_proof(source_kind, logical_tracking_id, " +
+			"service_run_id, collected_data_epoch, source_admission_ordinal)",
+	)
 }
 
 private fun createSourceEventRetentionProofTable(database: SupportSQLiteDatabase) {

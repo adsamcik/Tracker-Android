@@ -264,7 +264,6 @@ data class PortableCapturedCellEntryV1(
 			CellCapturedPortableFormatV1.MAX_OBSERVATIONS_PER_ENTRY)
 		require(startTimeMs == runs.minOf { it.startTimeMs } && endTimeMs == runs.maxOf { it.endTimeMs })
 		require(runs.any { it.captureCoverage != PortableCellCaptureCoverage.NOT_CAPTURED })
-		require(runs.any { it.availability == PortableCellRunAvailability.RETAINED })
 		require(CellCapturedPortableIntegrity.entryChecksum(this) == contentChecksum)
 	}
 }
@@ -441,7 +440,7 @@ sealed interface ImportPortableCapturedCellResult {
 		init {
 			require(importRevision > 0L)
 			require(physicalRunCount > 0)
-			require(observationCount > 0)
+			require(observationCount >= 0)
 		}
 	}
 
@@ -495,7 +494,7 @@ sealed interface ExportPortableCapturedCellResult {
 		val observationCount: Int,
 	) : ExportPortableCapturedCellResult {
 		init {
-			require(physicalRunCount > 0 && observationCount > 0)
+			require(physicalRunCount > 0 && observationCount >= 0)
 		}
 	}
 
@@ -1008,6 +1007,47 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		return result(if (selectedLineages.isEmpty()) ExportPortableCapturedCellResult.Deleted else unverifiableFact())
 	}
 	val retainedFloor = evidence.retainedFromMs
+	val retainedFactProofRunIds = mutableSetOf<String>()
+	if (retainedFloor != null) {
+		val lastAdmissionOrdinal = minOf(
+			lane.contiguousAdmissionOrdinal,
+			session.finalAdmissionOrdinal ?: Long.MAX_VALUE,
+			lane.captureAdmissionCutoffOrdinal ?: Long.MAX_VALUE,
+		)
+		if (lastAdmissionOrdinal >= lane.activationOrdinal) {
+			for (runId in selectedCapturedRunIdList) {
+				currentCoroutineContext().ensureActive()
+				val proof = capturedRadioFactRetentionProofDao().firstForCapturedRun(
+					CELL_SOURCE_KIND,
+					request.logicalTrackingId,
+					runId,
+					evidence.collectedDataEpoch,
+					lane.activationOrdinal,
+					lastAdmissionOrdinal,
+					retainedFloor,
+				) ?: continue
+				val scope = proof.authenticatedCaptureScope(
+					CELL_SOURCE_KIND,
+					evidence.collectedDataEpoch,
+					retainedFloor,
+					evidence.updatedAtMs,
+				)
+				val matchingManifest = manifestsByRun[runId].orEmpty().any { manifest ->
+					manifest.sourcePolicyRevision == proof.sourcePolicyRevision &&
+						sourcesByManifest[manifest.logicalTrackingId to manifest.manifestRevision]
+							.orEmpty().any { source ->
+								isPortableCellCaptureMembership(source) &&
+									source.consentEpoch == proof.captureConsentEpoch
+							}
+				}
+				if (scope == null || scope.logicalTrackingId != request.logicalTrackingId ||
+					scope.serviceRunId != runId || scope.scopeDeletionGeneration != 0L ||
+					scope.logicalRunScopeDigest != scopeDigestByRun[runId] || !matchingManifest
+				) return result(unverifiableWriter())
+				retainedFactProofRunIds += runId
+			}
+		}
+	}
 	val retainedWal = selectedWal.filter { carrier ->
 		retainedFloor == null || carrier.earliestPossibleWallTimeMs >= retainedFloor
 	}
@@ -1098,22 +1138,6 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 	val retainedLineages = timeRetainedLineages.filter { lineage ->
 		lineage.aggregateOwnerLogicalFactId == null || lineage.aggregateOwnerLogicalFactId in timeRetainedIds
 	}
-	if (retainedLineages.isEmpty()) {
-		return result(
-			if (selectedLineages.isNotEmpty() || selectedWal.size != retainedWal.size) {
-				ExportPortableCapturedCellResult.Unavailable(PortableCellUnavailableReason.RETENTION_LIMIT)
-			} else if (cellCompleteness.any {
-				it.stopStatus == "PERMISSION_LOST" || it.stopStatus == "PROVIDER_FAILED"
-			}) {
-				ExportPortableCapturedCellResult.Unavailable(
-					PortableCellUnavailableReason.PROVIDER_UNAVAILABLE,
-				)
-			} else {
-				ExportPortableCapturedCellResult.Unavailable(PortableCellUnavailableReason.NO_QUALIFIED_FACTS)
-			},
-		)
-	}
-
 	val retainedByRun = retainedLineages.groupBy { it.scope.serviceRunId }
 	val runsOut = runs.map { run ->
 		val segment = requireNotNull(segmentsById[run.sessionSegmentId])
@@ -1130,7 +1154,7 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 			lineages.size != selectedLineages.count { it.scope.serviceRunId == run.serviceRunId } ||
 			selectedWal.any { carrier ->
 				carrier.scope.serviceRunId == run.serviceRunId && carrier !in retainedWal
-			}
+			} || run.serviceRunId in retainedFactProofRunIds
 		val observations = lineages.map { lineage ->
 			val fact = lineage.revisions.last()
 			val aggregate = audit.aggregateById[fact.logicalFactId]

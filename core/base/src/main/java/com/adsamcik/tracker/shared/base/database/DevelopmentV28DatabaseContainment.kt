@@ -846,6 +846,13 @@ private val FINAL_V28_LIFECYCLE_PROOF_INDEXES = listOf(
 		unique = false,
 	),
 	FinalV28IndexSentinel(
+		FINAL_V28_CAPTURED_RADIO_RETENTION_PROOF_TABLE,
+		"idx_captured_radio_retention_run_admission",
+		listOf("source_kind", "logical_tracking_id", "service_run_id",
+			"collected_data_epoch", "source_admission_ordinal"),
+		unique = false,
+	),
+	FinalV28IndexSentinel(
 		"activity_captured_evidence",
 		"idx_activity_captured_evidence_writer_admission",
 		listOf("writer_projection_id", "writer_projection_version", "source_admission_ordinal"),

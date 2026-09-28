@@ -27,6 +27,11 @@ import java.security.MessageDigest
 			value = ["source_kind", "retained_from_ms"],
 			name = "idx_captured_radio_retention_floor",
 		),
+		Index(
+			value = ["source_kind", "logical_tracking_id", "service_run_id",
+				"collected_data_epoch", "source_admission_ordinal"],
+			name = "idx_captured_radio_retention_run_admission",
+		),
 	],
 )
 @Suppress("LongParameterList")

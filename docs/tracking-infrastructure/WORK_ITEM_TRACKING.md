@@ -519,8 +519,11 @@ No validation, input freeze, provider activation, new dev/v10 integration or pus
   unknown origin honestly, accept structurally valid edited files and deduplicate by point ID.
 - [x] Author the ambient radio one-snapshot export correction and focused test source; independent
   static review found no remaining narrow-slice issue. **IMPLEMENTED_UNVALIDATED**.
-- [ ] Finish captured Cell gap-only portable coverage, combined Wi-Fi/Cell file adapters,
-  source-owned range selection and `.trackerlocation` export/import with overlap deduplication.
+- [x] Author captured Cell gap-only portable coverage, zero-observation re-import/deletion handling,
+  and radio WAL retention while saved captured facts depend on it. Focused test sources are authored;
+  this slice remains **IMPLEMENTED_UNVALIDATED**.
+- [ ] Finish combined Wi-Fi/Cell file adapters, source-owned range selection and
+  `.trackerlocation` export/import with overlap deduplication.
 - [ ] Complete whole-scope review and deferred convergence/device verification.
 
 All tracked data remains in the app database until a person explicitly chooses Export. A chosen

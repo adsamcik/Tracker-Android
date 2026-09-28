@@ -41,6 +41,40 @@ class WifiCapturedFullClearTest {
 	}
 
 	@Test
+	fun `ordinary WAL cleanup keeps Wi-Fi events until their saved facts retire`() = runTest {
+		val graph = seedGraph()
+		val walDao = database.sourceEventWalDao()
+		walDao.retentionProofCandidatesForProjectedSourceBatch(
+			SourceDestinationOwnerEntity.SOURCE_WIFI, 2L, 2_000L, 10,
+		) shouldBe emptyList()
+		walDao.deleteProjectedSourceBatch(
+			SourceDestinationOwnerEntity.SOURCE_WIFI, 2L, 2_000L, 10,
+		) shouldBe 0
+		walDao.getByEventId(AGGREGATE_EVENT_ID)?.eventId shouldBe AGGREGATE_EVENT_ID
+		walDao.getByEventId(COVERAGE_EVENT_ID)?.eventId shouldBe COVERAGE_EVENT_ID
+
+		val factDao = database.wifiCapturedFactDao()
+		val ids = listOf(graph.aggregateHead.logicalFactId, graph.coverageHead.logicalFactId)
+		factDao.deleteExactCursors(
+			graph.aggregateHead.writerProjectionId, graph.aggregateHead.writerProjectionVersion, ids,
+		) shouldBe 2
+		factDao.deleteExactRevisionLineages(
+			graph.coverageHead.writerProjectionId, graph.coverageHead.writerProjectionVersion,
+			listOf(graph.coverageHead.logicalFactId),
+		) shouldBe 2
+		factDao.deleteExactRevisionLineages(
+			graph.aggregateHead.writerProjectionId, graph.aggregateHead.writerProjectionVersion,
+			listOf(graph.aggregateHead.logicalFactId),
+		) shouldBe 2
+		walDao.retentionProofCandidatesForProjectedSourceBatch(
+			SourceDestinationOwnerEntity.SOURCE_WIFI, 2L, 2_000L, 10,
+		).map { it.eventId }.toSet() shouldBe setOf(AGGREGATE_EVENT_ID, COVERAGE_EVENT_ID)
+		walDao.deleteProjectedSourceBatch(
+			SourceDestinationOwnerEntity.SOURCE_WIFI, 2L, 2_000L, 10,
+		) shouldBe 2
+	}
+
+	@Test
 	fun `suspend full clear deletes wifi dependents first and persists repeated empty state`() = runTest {
 		foreignKeysEnabled() shouldBe true
 		val graph = seedGraph()

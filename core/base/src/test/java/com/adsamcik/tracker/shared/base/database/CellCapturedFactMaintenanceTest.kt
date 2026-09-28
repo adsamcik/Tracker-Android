@@ -1774,17 +1774,55 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
-	fun `portable export reports retention loss before sink IO`() = runTest {
+	fun `portable export retains gap-only coverage after all Cell facts expire`() = runTest {
 		seedCapturedCell(retainedFromMs = FLOOR_MS, withPortableExportState = true)
-		var sinkReached = false
+		var emitted: PortableCapturedCellEntryV1? = null
 
-		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
-			sinkReached = true
-		} shouldBe ExportPortableCapturedCellResult.Unavailable(
-			PortableCellUnavailableReason.RETENTION_LIMIT,
+		val result = portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+			emitted = it
+		}
+		val value = requireNotNull(emitted)
+		result shouldBe ExportPortableCapturedCellResult.Exported(
+			value.identity, value.contentChecksum, 1, 0,
 		)
+		value.runs.single().availability shouldBe PortableCellRunAvailability.NO_RETAINED_OBSERVATION
+		value.runs.single().retentionLoss shouldBe true
+	}
 
-		sinkReached shouldBe false
+	@Test
+	fun `ordinary event cleanup waits for Cell fact retention then exports the gap`() = runTest {
+		val fact = seedCapturedCell(retainedFromMs = 1_000L, withPortableExportState = true)
+		database.pruneSourceEventStorageBefore(MAINTENANCE_TIME_MS + 1L)
+		database.sourceEventWalDao().getByEventId(fact.sourceEventId)?.eventId shouldBe
+			fact.sourceEventId
+		var retained: PortableCapturedCellEntryV1? = null
+		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+			retained = it
+		}
+		requireNotNull(retained).runs.single().apply {
+			observations.size shouldBe 1
+			retentionLoss shouldBe false
+		}
+		database.sourceEvidenceStateDao().updateLifecycle(0L, FLOOR_MS, MAINTENANCE_TIME_MS) shouldBe 1
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			beforeMs = FLOOR_MS,
+			expectedCollectedDataEpoch = 0L,
+			expectedDeletedSourceEventHighWaterOrdinal = 0L,
+			markedAtMs = MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
+		database.capturedRadioFactRetentionProofDao().countAll() shouldBe 1L
+		database.pruneSourceEventStorageBefore(MAINTENANCE_TIME_MS + 1L)
+		database.sourceEventWalDao().getByEventId(fact.sourceEventId) shouldBe null
+		var emitted: PortableCapturedCellEntryV1? = null
+		val result = portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+			emitted = it
+		}
+		val value = requireNotNull(emitted)
+		result shouldBe ExportPortableCapturedCellResult.Exported(
+			value.identity, value.contentChecksum, 1, 0,
+		)
+		value.runs.single().availability shouldBe PortableCellRunAvailability.NO_RETAINED_OBSERVATION
+		value.runs.single().retentionLoss shouldBe true
 	}
 
 	@Test
@@ -2609,7 +2647,7 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
-	fun `portable export rejects a retained aggregate dependent whose owner crossed retention`() = runTest {
+	fun `portable export keeps gap truth when aggregate owner crossed retention`() = runTest {
 		val owner = seedCapturedCell(
 			retainedFromMs = FLOOR_MS,
 			withPortableExportState = true,
@@ -2621,9 +2659,16 @@ class CellCapturedFactMaintenanceTest {
 		)
 		installPortableExportState(throughOrdinal = 2L, lastSourceSequence = 2L)
 
-		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unavailable(
-			PortableCellUnavailableReason.RETENTION_LIMIT,
+		var emitted: PortableCapturedCellEntryV1? = null
+		val result = portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+			emitted = it
+		}
+		val value = requireNotNull(emitted)
+		result shouldBe ExportPortableCapturedCellResult.Exported(
+			value.identity, value.contentChecksum, 1, 0,
 		)
+		value.runs.single().availability shouldBe PortableCellRunAvailability.NO_RETAINED_OBSERVATION
+		value.runs.single().retentionLoss shouldBe true
 	}
 
 	@Test

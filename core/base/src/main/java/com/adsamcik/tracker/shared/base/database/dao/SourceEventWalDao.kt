@@ -858,7 +858,8 @@ interface SourceEventWalDao {
 			"AND (run.state NOT IN ('FINALIZED', 'CLOSED', 'FAILED') OR " +
 			"(run.completed_at_ms IS NULL AND NOT (" +
 			V28_MIGRATION_TERMINAL_RUN_SQL + "))))" +
-			")) ORDER BY wal.created_at_ms, wal.admission_ordinal LIMIT :limit",
+			"))" + RETAINED_RADIO_FACT_PIN_SQL +
+			" ORDER BY wal.created_at_ms, wal.admission_ordinal LIMIT :limit",
 	)
 	suspend fun retentionProofCandidatesForProjectedSourceBatch(
 		sourceKind: Int,
@@ -928,7 +929,8 @@ interface SourceEventWalDao {
 			"AND (run.state NOT IN ('FINALIZED', 'CLOSED', 'FAILED') OR " +
 			"(run.completed_at_ms IS NULL AND NOT (" +
 			V28_MIGRATION_TERMINAL_RUN_SQL + "))))" +
-			")) ORDER BY wal.created_at_ms, wal.admission_ordinal LIMIT :limit)",
+			"))" + RETAINED_RADIO_FACT_PIN_SQL +
+			" ORDER BY wal.created_at_ms, wal.admission_ordinal LIMIT :limit)",
 	)
 	suspend fun deleteProjectedSourceBatch(
 		sourceKind: Int,
@@ -944,6 +946,20 @@ interface SourceEventWalDao {
 private const val STEPS_SOURCE_KIND_SQL = "3"
 private const val SESSION_CAPTURE_MASK_SQL = "4"
 private const val STEPS_WAL_ALLOWED_PURPOSE_MASK_SQL = "7"
+
+// A retained radio fact still needs its exact provider payload for source-owned export and
+// retention maintenance. Once the fact is retired, ordinary WAL expiry may remove its event.
+private const val RETAINED_RADIO_FACT_PIN_SQL =
+	" AND NOT (wal.source_kind = 6 AND EXISTS (" +
+		"SELECT 1 FROM cell_captured_fact_revision AS fact " +
+		"WHERE fact.writer_projection_id = 'cell-session-facts' " +
+		"AND fact.writer_projection_version = 1 " +
+		"AND fact.source_admission_ordinal = wal.admission_ordinal)) " +
+		"AND NOT (wal.source_kind = 5 AND EXISTS (" +
+		"SELECT 1 FROM wifi_captured_fact_revision AS fact " +
+		"WHERE fact.writer_projection_id = 'wifi-session-facts' " +
+		"AND fact.writer_projection_version = 1 " +
+		"AND fact.source_admission_ordinal = wal.admission_ordinal))"
 
 /** Covering projection used by duplicate admission checks so payload BLOBs are never read. */
 data class SourceEventIdentityRow(

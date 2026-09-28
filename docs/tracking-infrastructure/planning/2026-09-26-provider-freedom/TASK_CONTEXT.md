@@ -769,11 +769,16 @@ The user rejected proof-oriented exclusion for an exact Location backup: "Who ca
 app if they so wish to change the backups they can". The user then approved exporting every saved
 Location point in selected dates, including older points with unknown original authority, marked
 honestly as unknown; import may accept a user-edited structurally valid file and deduplicates by
-original point identity. Import never starts tracking or grants recording permission. Do not infer
-that an edited file can prove original device provenance; retain its declared origin as user-file
-provenance where original proof is absent.
+original point identity. Import never starts tracking or grants recording permission. The user
+added: "What proofs are you putting there, please don't overcomplicate the logic" and "Users don't
+care about internal implementations, they care about data." Keep the file and picker centered on
+saved points and dates; an edited file remains user-supplied data, with unknown origin when needed.
 
 Existing captured Cell gap-only export and ambient radio snapshot-consistency defects were found
 in static source review. The ambient radio consistency fix and focused test source were authored
 and independently reviewed with no remaining narrow-slice finding; they remain
 IMPLEMENTED_UNVALIDATED. The whole source file transfer request is incomplete.
+Captured Cell gap-only transfer, zero-observation re-import/deletion, and retention-aware radio WAL
+cleanup now have authored source and focused tests, pending independent review and the deferred
+convergence gate. This retains source events while saved captured Wi-Fi/Cell facts still use them,
+then allows normal cleanup after fact retirement; it adds no export-only provenance store.

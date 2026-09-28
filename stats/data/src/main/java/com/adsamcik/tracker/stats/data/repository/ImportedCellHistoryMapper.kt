@@ -6,7 +6,6 @@ import com.adsamcik.tracker.shared.base.database.PortableCapturedCellObservation
 import com.adsamcik.tracker.shared.base.database.PortableCellAcquisitionCompleteness
 import com.adsamcik.tracker.shared.base.database.PortableCellCaptureCoverage
 import com.adsamcik.tracker.shared.base.database.PortableCellChildCompleteness
-import com.adsamcik.tracker.shared.base.database.PortableCellRunAvailability
 import com.adsamcik.tracker.stats.api.repository.CellHistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
 import com.adsamcik.tracker.stats.api.repository.CellHistoryChildCompleteness
@@ -60,12 +59,6 @@ private fun ImportedCellProductEvaluation.Readable.toReadablePublicEntry(): Cell
 			} -> publicShell(
 				CellHistoryProductState.UNAVAILABLE,
 				CellHistoryCause.SOURCE_NOT_CAPTURED,
-			)
-			visibleRuns.any {
-				it.availability == PortableCellRunAvailability.NO_RETAINED_OBSERVATION
-			} -> publicShell(
-				CellHistoryProductState.UNAVAILABLE,
-				CellHistoryCause.PROVIDER_UNAVAILABLE,
 			)
 			else -> publicShell(
 				CellHistoryProductState.UNAVAILABLE,

@@ -764,7 +764,8 @@ private fun hasValidDeletedCellTopology(
 		it.identityKind == ImportedCellDeletedIdentityEntity.OBSERVATION
 	}
 	if (runs.size != receipt.expectedRunCount || scopes.size != receipt.expectedRunCount ||
-		observations.isEmpty() || observations.size > receipt.expectedObservationCount ||
+		(receipt.expectedObservationCount > 0 && observations.isEmpty()) ||
+		observations.size > receipt.expectedObservationCount ||
 		runs.map { it.protectedIdentity }.distinct().size != runs.size ||
 		scopes.map { it.protectedIdentity }.distinct().size != scopes.size ||
 		markers.singleOrNull {

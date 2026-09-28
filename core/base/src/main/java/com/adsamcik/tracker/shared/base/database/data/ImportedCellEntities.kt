@@ -425,8 +425,8 @@ data class ImportedCellEntryDeletionReceiptEntity(
 		require(expectedRevisionCount in 1..MAX_REVISIONS)
 		require(expectedReceiptCount in expectedRevisionCount..MAX_RECEIPTS)
 		require(expectedRunCount in 1..MAX_RUNS)
-		require(expectedObservationCount in 1..MAX_OBSERVATIONS)
-		require(expectedProtectedIdentityCount in 4..MAX_PROTECTED_IDENTITIES)
+		require(expectedObservationCount in 0..MAX_OBSERVATIONS)
+		require(expectedProtectedIdentityCount in 3..MAX_PROTECTED_IDENTITIES)
 		require(effectChecksum == checksum(
 			entryIdentity,
 			collectedDataEpoch,

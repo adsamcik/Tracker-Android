@@ -41,6 +41,25 @@ interface CapturedRadioFactRetentionProofDao {
 
 	@Query(
 		"SELECT * FROM captured_radio_fact_retention_proof " +
+			"WHERE source_kind = :sourceKind AND logical_tracking_id = :logicalTrackingId " +
+			"AND service_run_id = :serviceRunId AND collected_data_epoch = :collectedDataEpoch " +
+			"AND source_admission_ordinal >= :firstAdmissionOrdinal " +
+			"AND source_admission_ordinal <= :lastAdmissionOrdinal " +
+			"AND retained_from_ms <= :retainedFromMs " +
+			"ORDER BY source_admission_ordinal LIMIT 1",
+	)
+	suspend fun firstForCapturedRun(
+		sourceKind: Int,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		collectedDataEpoch: Long,
+		firstAdmissionOrdinal: Long,
+		lastAdmissionOrdinal: Long,
+		retainedFromMs: Long,
+	): CapturedRadioFactRetentionProofEntity?
+
+	@Query(
+		"SELECT * FROM captured_radio_fact_retention_proof " +
 			"WHERE source_kind = :sourceKind AND (:afterAdmissionOrdinal IS NULL OR " +
 			"source_admission_ordinal > :afterAdmissionOrdinal OR " +
 			"(source_admission_ordinal = :afterAdmissionOrdinal AND " +

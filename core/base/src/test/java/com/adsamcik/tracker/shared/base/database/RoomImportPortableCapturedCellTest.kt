@@ -87,6 +87,45 @@ class RoomImportPortableCapturedCellTest {
 	}
 
 	@Test
+	fun `gap-only Cell entry survives import replay and exact reexport`() = runTest {
+		seedEvidence()
+		val gap = entry(
+			logicalLocal = "gap-only",
+			runDefinitions = listOf(
+				RunDefinition(
+					"gap-only-run", 10L, 20L, emptyList(),
+					availability = PortableCellRunAvailability.NO_RETAINED_OBSERVATION,
+					completeness = PortableCellAcquisitionCompleteness.PARTIAL,
+					retentionLoss = true,
+				),
+			),
+		)
+		val admission = request(gap)
+		importer().importEntry(admission) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 0)
+		importer().importEntry(admission) shouldBe ImportPortableCapturedCellResult.Duplicate(1L)
+		importer().importEntry(request(gap, "overlapping-file", "same-gap")) shouldBe
+			ImportPortableCapturedCellResult.Duplicate(1L)
+		var exported: PortableCapturedCellEntryV1? = null
+		RoomReexportImportedPortableCapturedCell(database, Dispatchers.Unconfined).reexport(
+			ReexportImportedPortableCapturedCellRequest(gap.identity, 1L, gap.contentChecksum),
+		) { exported = it } shouldBe ExportPortableCapturedCellResult.Exported(
+			gap.identity, gap.contentChecksum, 1, 0,
+		)
+		exported shouldBe gap
+		database.importedCellDao().allObservationsForAdmission(gap.identity.value) shouldBe emptyList()
+		val deletion = DeleteSelectedImportedCellRequest(
+			gap.identity, 1L, gap.contentChecksum, EPOCH, 600L,
+		)
+		RoomDeleteSelectedImportedCell(database, Dispatchers.Unconfined).delete(deletion) shouldBe
+			DeleteSelectedImportedCellResult.Deleted(1, 1, 0)
+		database.importedCellDao().deletedIdentitiesForEntry(gap.identity.value, 4).size shouldBe 3
+		RoomDeleteSelectedImportedCell(database, Dispatchers.Unconfined).delete(deletion) shouldBe
+			DeleteSelectedImportedCellResult.AlreadyDeleted
+		importer().importEntry(request(gap, "resurrection", "entry-2")) shouldBe
+			ImportPortableCapturedCellResult.Blocked(PortableCellImportBlockedReason.DELETED_ENTRY)
+	}
+
+	@Test
 	fun `exact replay and alternate receipt are deterministic while receipt reuse conflicts`() = runTest {
 		seedEvidence()
 		val entry = entry()

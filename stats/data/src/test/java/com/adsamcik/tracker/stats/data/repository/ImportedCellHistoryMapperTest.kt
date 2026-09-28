@@ -88,6 +88,24 @@ class ImportedCellHistoryMapperTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `imported captured Cell with no scans does not claim a provider failure`() {
+		val value = cellEntryFromRuns(
+			logicalLocal = "no-scans",
+			runs = listOf(cellRun(
+				logicalLocal = "no-scans",
+				runLocal = "run",
+				observations = emptyList(),
+				acquisition = PortableCellAcquisitionCompleteness.PARTIAL,
+				startTimeMs = 10L,
+				endTimeMs = 20L,
+			)),
+		)
+		val public = readable(value, candidate(value)).toPublicCellEntry()
+		public.state shouldBe CellHistoryProductState.UNAVAILABLE
+		public.causes shouldBe setOf(CellHistoryCause.NO_QUALIFIED_FACTS)
+	}
+
+	@Test
 	fun `imported-only repository exposes opaque origin and exact identity-free quality truth`() = runTest {
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
 		val value = cellEntry(
@@ -1056,6 +1074,9 @@ private fun cellRun(
 	startTimeMs: Long,
 	endTimeMs: Long,
 ): PortableCapturedCellRunV1 {
+	val availability = if (observations.isEmpty()) {
+		PortableCellRunAvailability.NO_RETAINED_OBSERVATION
+	} else PortableCellRunAvailability.RETAINED
 	val runIdentity = PortableCellOpaqueIdentity.derive(
 		PortableCellIdentityKind.PHYSICAL_RUN,
 		runLocal,
@@ -1073,7 +1094,7 @@ private fun cellRun(
 		writeLong(startTimeMs)
 		writeLong(endTimeMs)
 		writeCellString(PortableCellCaptureCoverage.WHOLE_RUN.name)
-		writeCellString(PortableCellRunAvailability.RETAINED.name)
+		writeCellString(availability.name)
 		writeCellString(acquisition.name)
 		writeBoolean(false)
 		writeCellString(PortableCellSubscriptionGrouping.UNKNOWN.name)
@@ -1090,7 +1111,7 @@ private fun cellRun(
 		startTimeMs = startTimeMs,
 		endTimeMs = endTimeMs,
 		captureCoverage = PortableCellCaptureCoverage.WHOLE_RUN,
-		availability = PortableCellRunAvailability.RETAINED,
+		availability = availability,
 		acquisitionCompleteness = acquisition,
 		retentionLoss = false,
 		subscriptionGrouping = PortableCellSubscriptionGrouping.UNKNOWN,
