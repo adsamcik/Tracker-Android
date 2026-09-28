@@ -1,0 +1,55 @@
+# Final assembly scenarios
+
+**IMPLEMENTATION_ONLY.** These are the behavioral cases that the final source/test assembly must
+exercise. They are authored acceptance scenarios, not executed evidence. Provider-to-product cases
+need authenticated input, durable admission, retained read, product/file result, and retirement or
+deletion assertion where applicable. A mocked policy decision alone cannot close such a case.
+`PREREQUISITE_TRACE.md` records the twenty-five gate dependencies.
+
+## Solo sources and combinations
+
+| Case | Input and action | Required result |
+| --- | --- | --- |
+| S01 Location only | Start manual Location, receive an accepted fix, end; repeat with an automatic session and with consented sessionless Location. | Each owned path saves exactly one qualified fix with its real accuracy/time; history and Location file agree. No other source is required. End leaves authorized all-day Location running, if selected. |
+| S02 Steps only | Select Steps, receive a direct count-domain event at the initial zero baseline, continue across process loss and a sensor reboot, then mark a session interval and end it. | Daily total is exact from nonoverlapping qualified domains, including time outside the session. The session annotates its interval without taking ownership of the day total. Unsupported gaps are visible. |
+| S03 Wi-Fi only | Select Wi-Fi without Location, receive a passive callback and an optional budgeted fresh request, then end a session while all-day Wi-Fi remains selected. | The callback is retained without coordinates, with available network details under the newly approved contract; history/export show observations and gaps, never continuous scanning or a fake map point. |
+| S04 Cell only | Select Cell without Location, receive callbacks across supported subscriptions with one missing timestamp/permission case. | Accepted towers retain available IDs and signal; incomplete subscriptions or unsupported children remain explicit. No SIM/subscriber identity or invented position is stored. |
+| S05 Activity only | Start captured Activity without Location, receive a classification/change, end; separately use CONTROL for an automatic start with Activity capture off. | Chosen Activity appears at its observed timestamp. CONTROL can start an eligible session but creates no recorded Activity history by itself and expires after 48 hours. |
+| S06 Pressure only | Start Pressure without Location or Activity, receive a sample, end and read a date range. | Original hPa and observation time survive correction, history, stats and chosen file. No elevation or duration is inferred from one sample. |
+| S07 Every source subset | For each of the 64 six-source selections and five quality levels, evaluate participation and start readiness with and without Location permission. Exercise the actual Dashboard/service route for every solo source and representative mixed subsets. | Any available selected source remains usable; a blocked sibling reports its own repair. Route-level cases agree with the API decision and produce selected-source output. |
+| S08 Representative mixed subsets | Exercise Steps+Wi-Fi, Wi-Fi+Cell, Location+Cell, Activity+Pressure, and all six, including Location fixes just inside/outside approved radio join windows. | Each source keeps its own admission, purpose, retained data and delete scope. Optional Location context enriches radio only when both purposes and times qualify; its accuracy/uncertainty and a missing-context gap remain visible. |
+
+## Join, leave and control
+
+| Case | Input and action | Required result |
+| --- | --- | --- |
+| S09 Purpose join | Run consented all-day Wi-Fi/Cell/Location/Steps, start a session, and request temporary My location or game fixes. | One physical owner per source composes independent leases. Session quality increases only participating sources; temporary Location gets its own freshness request and does not create tracking history. |
+| S10 Purpose leave | End the session, then disable one all-day source in settings while another source and a temporary feature request remain. | End releases only capture demand. Disabling that source retires its all-day demand after acknowledgement; siblings and existing authorized history survive. No late callback gains withdrawn consent. |
+| S11 Controls on every surface | Invoke Start, End and Turn off from UI, notification, widget and shortcut while one session and all-day source are active. | All surfaces reach the same durable commands; End removes only session capture, Turn off fences all current collection while keeping preferences/history, and visible state follows the acknowledgement. |
+| S12 Permission continuation | Tap Start, open permission or Location Services repair, then change source choices or tap End/Turn off before the result returns. | Only the unchanged original Start may continue. A stale result never reserves a new start; a new explicit tap may start with current choices. |
+| S13 Automatic trigger and capture | Enable supported transition detection, then receive a qualifying transition with Steps alone, Activity+Pressure, and Wi-Fi+Cell capture selections; repeat with transition detection disabled. | Trigger authority remains separate from captured sources. Supported automatic sessions use the same per-source recording path as manual sessions. An intentional transition-detection Off state shows automatic start unavailable and never silently promotes continuous Activity samples into a start. |
+
+## Lifecycle, privacy and recovery
+
+| Case | Input and action | Required result |
+| --- | --- | --- |
+| S14 Provider retirement | Reconfigure or revoke a joined source while a callback, active radio request or system delivery is in flight. | The old generation stops before a replacement owns the provider. Late bytes keep their original purpose/clock identity or are rejected. Radio request allowance is not replenished by reconfiguration. |
+| S15 Process and reboot | Lose the process during joined capture, then reboot with consented background Steps and passive Location. | Supported system providers rearm or import bounded windows; deduplication uses real provider windows/count domains. Unsupported periods are gaps. No session or deleted data resurrects. |
+| S16 Foreground host refusal | Deny or fail required foreground hosting with several selected sources. | Hosted sources expose their own unavailable/gap state; cheap independent sources continue where Android permits. No source borrows another source's consent or service type. |
+| S17 Per-item radio consent | Put pre-session background children and session children in one Wi-Fi/Cell batch, then revoke one purpose and replay it. | Each child qualifies only under the consent effective at its observation time. A stricter session rule cannot discard a valid background child or claim it retroactively. Old batch versions retain their original interpretation. |
+| S18 Retention and erase | Expire CONTROL at 48 hours, retain a separately chosen Activity copy, then erase one source and finally clear all data during an export/import. | Purpose-specific retention preserves authorized siblings. Erase retracts its history, map context and effects; full clear cancels/waits for writers, removes owned private copies and prevents stale replay. External incomplete files are reported for later removal. |
+| S19 Import/export replay | Export each selected format, import the same file twice, import overlapping radio sessions with the cross-day switch on and off, and an edited Location file with repeated point IDs. | Each choice creates only its format and retains complete selected records/gaps. Cross-day inclusion follows same-source observation/gap evidence and discloses extra dates; Off excludes crossing sessions. Identical IDs deduplicate. Conflicting Location IDs are counted and resolved by one explicit keep-or-replace choice for the import. No import grants live tracking consent. |
+| S20 Backup and restore | Create a data-only backup, then restore after clear confirmation while other data and tracking exist. Interrupt the replacement and retry. | Recorded/imported observations, sessions, edits and necessary app-owned data files return exactly once; settings and schedules do not. A recoverable safety copy protects interrupted replacement, and tracking remains stopped until a new explicit Start. |
+| S21 Product mutation | Correct or delete a qualified observation used by day stats, map context or an earned effect. | All dependent products invalidate and recompute from retained authority; no duplicate rewards or stale point survives. Month/year statistics use that requested period rather than an all-time value. |
+| S22 Private export collision | Run two saved schedules with the same prefix, format and second while one old plan names a custom private directory. | New files use the one dedicated app-owned folder and reserve distinct names without overwriting. Clear all removes identified owned files; uncertain old custom-folder files are disclosed without deleting unrelated files. |
+
+## Schema and product presentation
+
+| Case | Input and action | Required result |
+| --- | --- | --- |
+| S23 Populated migration | Open a populated released v27 database with old Location, radio, Steps, Activity, Pressure, corrections and exports; migrate and reopen repeatedly. | Old rows remain readable. Recoverable radio details may become descriptive child observations marked as legacy origin; rows without detail retain honest summary/unknown coverage. Migration never fabricates a native receipt, recording authority or missing detail. Unknown development database files are preserved for recovery. |
+| S24 Bounded mixed history | Page across stored civil days/time zones with native, background, imported and retrospectively annotated entries, including a record at a day boundary. | Calendar, timeline and detail agree; bounded queries return stable pages and explicit limit/gap outcomes. Annotation edits change organization without changing underlying observation consent. |
+| S25 Source-aware surfaces | Open setup, Dashboard, Tracker, statistics, map, notifications and widgets with one source, no Location, a partial source and all six. | Live numbers reflect currently selected qualified sources; qualified saved history remains visible after a source is turned off. A missing source shows Waiting, Partial or Unavailable instead of a measured zero; map controls request Location only on explicit need; accessible actions have equivalent non-drag controls. |
+
+The next source slice must turn these contracts into focused executable tests at the production
+seams that still lack them. Final convergence and on-device proof are deferred by `AGENTS.md`.

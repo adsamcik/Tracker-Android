@@ -110,6 +110,7 @@ sealed interface ExportDestination {
     val shareAfterExport: Boolean
 
     data class PrivateStorage(
+        /** Retained for old plans/files; new scheduled outputs use Tracker's owned export folder. */
         val relativeDirectory: String = "exports",
         override val fileNamePrefix: String? = null,
         override val shareAfterExport: Boolean = false

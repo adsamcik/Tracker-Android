@@ -56,7 +56,10 @@ all-data backup without settings, and one dedicated future private-export folder
 notice for unidentifiable old custom files. The user approved supported on-device background Steps
 providers and removal of the unused sunrise/sunset passive Location listener, which has no
 production callers. The user also approved saving available network/tower details whenever their
-sources are enabled, excluding SIM/subscriber IDs. Unified all-day Steps settings are being
-resolved through the questions tool. Scenarios depending on that choice
-are listed here rather than encoded as tests for behavior the user has not chosen.
+sources are enabled, excluding SIM/subscriber IDs. Recoverable older radio details must migrate
+into the new child-observation model; missing old details remain honestly absent. The user
+approved one Steps choice for all-day recording. Sessions annotate their time and may prefer
+higher quality, but do not own or gate the daily Steps total. A supported on-device provider may
+fill background gaps; unsupported periods remain visible gaps. These are approved contracts,
+not completed implementation or executed evidence.
 This trace does not declare the assembly gate complete or permit the deferred validation batch.
