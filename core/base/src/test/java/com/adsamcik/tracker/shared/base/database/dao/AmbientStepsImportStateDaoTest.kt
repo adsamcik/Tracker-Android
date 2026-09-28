@@ -39,7 +39,7 @@ class AmbientStepsImportStateDaoTest {
 	@Test
 	fun `progress and segment transitions are monotonic compare and set`() = runTest {
 		val initial = cursor()
-		dao.insertCursor(initial) shouldBe 1L
+		dao.insertCursor(initial) shouldBe 7L
 		dao.insertCursor(initial) shouldBe -1L
 
 		dao.advanceExact(
@@ -122,7 +122,7 @@ class AmbientStepsImportStateDaoTest {
 	@Test
 	fun `same registration rotates authority at one exact non-gap boundary`() = runTest {
 		val initial = cursor().copy(importedThroughTimeMs = 6_000L, lastObservedAtMs = 7_000L, updatedAtMs = 7_000L)
-		dao.insertCursor(initial) shouldBe 1L
+		dao.insertCursor(initial) shouldBe 7L
 		val transition = authorityTransition()
 		dao.insertAuthorityTransition(transition) shouldBe 1L
 
@@ -202,7 +202,7 @@ class AmbientStepsImportStateDaoTest {
 
 	@Test
 	fun `untouched gap permits its exact segment transition`() = runTest {
-		dao.insertCursor(cursorAt(6_000L, 7_000L)) shouldBe 1L
+		dao.insertCursor(cursorAt(6_000L, 7_000L)) shouldBe 7L
 		dao.insertGap(gap()) shouldBe 1L
 
 		beginGapTransition(6_000L, 7_000L, 8_000L) shouldBe 1
@@ -210,7 +210,7 @@ class AmbientStepsImportStateDaoTest {
 
 	@Test
 	fun `partially covered gap permits transition over the exact remaining suffix`() = runTest {
-		dao.insertCursor(cursorAt(7_000L, 8_000L)) shouldBe 1L
+		dao.insertCursor(cursorAt(7_000L, 8_000L)) shouldBe 7L
 		dao.insertGap(gap()) shouldBe 1L
 		database.ambientStepsFactRevisionDao().insert(ambientFact(6_000L, 7_000L)) shouldBe 1L
 
@@ -220,7 +220,7 @@ class AmbientStepsImportStateDaoTest {
 
 	@Test
 	fun `fully covered gap blocks segment transition`() = runTest {
-		dao.insertCursor(cursorAt(6_000L, 7_000L)) shouldBe 1L
+		dao.insertCursor(cursorAt(6_000L, 7_000L)) shouldBe 7L
 		dao.insertGap(gap()) shouldBe 1L
 		database.ambientStepsFactRevisionDao().insert(ambientFact(6_000L, 8_000L)) shouldBe 1L
 
@@ -229,7 +229,7 @@ class AmbientStepsImportStateDaoTest {
 
 	@Test
 	fun `exact fact retraction restores segment transition eligibility`() = runTest {
-		dao.insertCursor(cursorAt(6_000L, 7_000L)) shouldBe 1L
+		dao.insertCursor(cursorAt(6_000L, 7_000L)) shouldBe 7L
 		dao.insertGap(gap()) shouldBe 1L
 		val coveringFact = ambientFact(6_000L, 8_000L)
 		database.ambientStepsFactRevisionDao().insert(coveringFact) shouldBe 1L
@@ -240,7 +240,7 @@ class AmbientStepsImportStateDaoTest {
 
 	@Test
 	fun `same high water requires a strictly newer observation and monotonic update time`() = runTest {
-		dao.insertCursor(cursor()) shouldBe 1L
+		dao.insertCursor(cursor()) shouldBe 7L
 		suspend fun advance(observedAtMs: Long, updatedAtMs: Long): Int =
 			dao.advanceExact(
 				registrationGeneration = 7L,
@@ -307,8 +307,8 @@ class AmbientStepsImportStateDaoTest {
 			registrationGeneration = 8L,
 			status = AmbientStepsImportCursorEntity.STATUS_RETIRED,
 		)
-		dao.insertCursor(active) shouldBe 1L
-		dao.insertCursor(retired) shouldBe 2L
+		dao.insertCursor(active) shouldBe 7L
+		dao.insertCursor(retired) shouldBe 8L
 
 		dao.activeCursors(2) shouldContainExactly listOf(active)
 		dao.cursors(listOf(8L, 7L)) shouldContainExactly listOf(active, retired)
