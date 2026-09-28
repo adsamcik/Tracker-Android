@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
+import java.io.IOException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AmbientRadioRetentionDecision
 import com.adsamcik.tracker.shared.base.database.AmbientWifiRetentionCommand
@@ -32,6 +33,8 @@ import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadRequest
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadResult
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientWifiRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientWifiResult
+import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientCellRequest
+import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientCellResult
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientCellRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientCellResult
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientWifiRequest
@@ -43,6 +46,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -99,10 +103,20 @@ class RoomAmbientRadioPortableTransferTest {
 					20_000L,
 					setOf(AmbientWifiOrigin.PORTABLE_IMPORT),
 				),
-			) { exported = it },
+			) {
+				assertEquals(false, database.inTransaction())
+				exported = it
+			},
 		)
 		assertEquals(listOf(1L, 2L), exported?.facts?.map { it.semanticRevision })
 		assertEquals(1, exported?.gaps?.size)
+		assertFailsWith<IOException> {
+			transfer.export(
+				ExportPortableAmbientWifiRequest(
+					0L, 20_000L, setOf(AmbientWifiOrigin.PORTABLE_IMPORT),
+				),
+			) { throw IOException("file write failed") }
+		}
 		assertEquals(
 			true,
 			database.ambientWifiFactDao().importedForArchive(corrected.archiveId, 10)
@@ -284,6 +298,27 @@ class RoomAmbientRadioPortableTransferTest {
 			),
 		)
 		assertEquals(AmbientCellOrigin.PORTABLE_IMPORT, read.facts.single().origin)
+		var exportedChecksum: String? = null
+		assertIs<ExportPortableAmbientCellResult.Exported>(
+			transfer.export(
+				ExportPortableAmbientCellRequest(
+					0L,
+					20_000L,
+					setOf(AmbientCellOrigin.PORTABLE_IMPORT),
+				),
+			) { output ->
+				assertEquals(false, database.inTransaction())
+				exportedChecksum = output.facts.single().contentChecksum
+			},
+		)
+		assertEquals(archive.facts.single().contentChecksum, exportedChecksum)
+		assertFailsWith<IOException> {
+			transfer.export(
+				ExportPortableAmbientCellRequest(
+					0L, 20_000L, setOf(AmbientCellOrigin.PORTABLE_IMPORT),
+				),
+			) { throw IOException("file write failed") }
+		}
 		assertEquals(
 			true,
 			database.ambientCellFactDao().importedForArchive(archive.archiveId, 10)

@@ -27,6 +27,7 @@ import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientCell
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientCellRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientCellResult
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientCellSink
+import com.adsamcik.tracker.stats.api.repository.PortableAmbientCellArchiveV1
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientCellFactV1
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientCellGapV1
 import javax.inject.Inject
@@ -61,8 +62,27 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 	override suspend fun export(
 		request: ExportPortableAmbientCellRequest,
 		sink: PortableAmbientCellSink,
-	): ExportPortableAmbientCellResult {
-		val read = repository.read(
+	): ExportPortableAmbientCellResult = withContext(ioDispatcher) {
+		val prepared = try {
+			database.withTransaction { prepareExportInTransaction(request) }
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return@withContext ExportPortableAmbientCellResult.StorageUnavailable
+		}
+		prepared.archive?.let { sink.emit(it) }
+		prepared.result
+	}
+
+	private data class PreparedExport(
+		val result: ExportPortableAmbientCellResult,
+		val archive: PortableAmbientCellArchiveV1? = null,
+	)
+
+	private suspend fun prepareExportInTransaction(
+		request: ExportPortableAmbientCellRequest,
+	): PreparedExport {
+		val read = repository.readInTransaction(
 			AmbientCellReadRequest(
 				request.fromInclusiveMs,
 				request.toExclusiveMs,
@@ -73,12 +93,12 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 		val snapshot = when (read) {
 			is AmbientCellReadResult.Snapshot -> read
 			AmbientCellReadResult.DependencyOverflow ->
-				return ExportPortableAmbientCellResult.DependencyOverflow
+				return PreparedExport(ExportPortableAmbientCellResult.DependencyOverflow)
 			AmbientCellReadResult.StorageUnavailable ->
-				return ExportPortableAmbientCellResult.StorageUnavailable
+				return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
 		}
 		if (snapshot.facts.isEmpty() && snapshot.gaps.isEmpty()) {
-			return ExportPortableAmbientCellResult.NoData
+			return PreparedExport(ExportPortableAmbientCellResult.NoData)
 		}
 		val localFactIds = snapshot.facts.filter {
 			it.origin == AmbientCellOrigin.LOCAL_DEVICE
@@ -89,7 +109,7 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 				AmbientCellPortableFormatV1.MAX_FACTS + 1,
 			).map { row ->
 				AmbientCellPortableIntegrity.createFact(
-					row.toApiFact() ?: return ExportPortableAmbientCellResult.StorageUnavailable,
+					row.toApiFact() ?: return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable),
 				)
 			}
 		}
@@ -100,9 +120,21 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 			loadFactRevisions(database.ambientCellFactDao(), importedFactIds)
 				.map(ImportedAmbientCellFactEntity::toPortableFact)
 		}
+		val localLatest = localFacts.groupBy(PortableAmbientCellFactV1::identity)
+		val importedLatest = importedFacts.groupBy(PortableAmbientCellFactV1::identity)
+		if (localLatest.keys != localFactIds.toSet() ||
+			importedLatest.keys != importedFactIds.toSet() ||
+			snapshot.facts.any { fact ->
+				val lineage = when (fact.origin) {
+					AmbientCellOrigin.LOCAL_DEVICE -> localLatest[fact.identity]
+					AmbientCellOrigin.PORTABLE_IMPORT -> importedLatest[fact.identity]
+				}
+				lineage?.lastOrNull()?.semanticRevision != fact.semanticRevision
+			}
+		) return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
 		val portableFacts = localFacts + importedFacts
 		if (portableFacts.size > AmbientCellPortableFormatV1.MAX_FACTS) {
-			return ExportPortableAmbientCellResult.DependencyOverflow
+			return PreparedExport(ExportPortableAmbientCellResult.DependencyOverflow)
 		}
 		val localGaps = snapshot.gaps.filter { it.origin == AmbientCellOrigin.LOCAL_DEVICE }
 			.map(AmbientCellPortableIntegrity::createGap)
@@ -113,9 +145,12 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 			loadGaps(database.ambientCellFactDao(), importedGapIds)
 				.map(ImportedAmbientCellGapEntity::toPortableGap)
 		}
+		if (importedGaps.map(PortableAmbientCellGapV1::identity).toSet() !=
+			importedGapIds.toSet()
+		) return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
 		val portableGaps = localGaps + importedGaps
 		if (portableGaps.size > AmbientCellPortableFormatV1.MAX_GAPS) {
-			return ExportPortableAmbientCellResult.DependencyOverflow
+			return PreparedExport(ExportPortableAmbientCellResult.DependencyOverflow)
 		}
 		val archiveId = AmbientCellPortableIntegrity.opaqueIdentity(
 			"archive",
@@ -134,10 +169,9 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 			portableFacts,
 			portableGaps,
 		)
-		sink.emit(archive)
-		return ExportPortableAmbientCellResult.Exported(
-			archive.facts.size,
-			archive.gaps.size,
+		return PreparedExport(
+			ExportPortableAmbientCellResult.Exported(archive.facts.size, archive.gaps.size),
+			archive,
 		)
 	}
 

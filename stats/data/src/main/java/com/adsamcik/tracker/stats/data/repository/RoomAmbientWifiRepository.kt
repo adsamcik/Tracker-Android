@@ -36,44 +36,47 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 	override suspend fun read(request: AmbientWifiReadRequest): AmbientWifiReadResult =
 		withContext(ioDispatcher) {
 			try {
-				database.withTransaction {
-					val dao = database.ambientWifiFactDao()
-					val local = if (AmbientWifiOrigin.LOCAL_DEVICE in request.origins) {
-						dao.effectiveLocalOverWindow(
-							request.fromInclusiveMs,
-							request.toExclusiveMs,
-							request.limit + 1,
-						)
-					} else emptyList()
-					val imported = if (AmbientWifiOrigin.PORTABLE_IMPORT in request.origins) {
-						dao.importedOverWindow(
-							request.fromInclusiveMs,
-							request.toExclusiveMs,
-							request.limit + 1,
-						)
-					} else emptyList()
-					val gaps = if (AmbientWifiOrigin.LOCAL_DEVICE in request.origins) {
-						dao.gapsOverWindow(
-							request.fromInclusiveMs,
-							request.toExclusiveMs,
-							request.limit + 1,
-						)
-					} else emptyList()
-					val importedGaps = if (AmbientWifiOrigin.PORTABLE_IMPORT in request.origins) {
-						dao.importedGapsOverWindow(
-							request.fromInclusiveMs,
-							request.toExclusiveMs,
-							request.limit + 1,
-						)
-					} else emptyList()
-					compose(local, imported, gaps, importedGaps, request.limit)
-				}
+				database.withTransaction { readInTransaction(request) }
 			} catch (cancelled: CancellationException) {
 				throw cancelled
 			} catch (_: Exception) {
 				AmbientWifiReadResult.StorageUnavailable
 			}
 		}
+
+	/** Caller owns the snapshot when it also needs the source lineage for export. */
+	internal suspend fun readInTransaction(request: AmbientWifiReadRequest): AmbientWifiReadResult {
+		val dao = database.ambientWifiFactDao()
+		val local = if (AmbientWifiOrigin.LOCAL_DEVICE in request.origins) {
+			dao.effectiveLocalOverWindow(
+				request.fromInclusiveMs,
+				request.toExclusiveMs,
+				request.limit + 1,
+			)
+		} else emptyList()
+		val imported = if (AmbientWifiOrigin.PORTABLE_IMPORT in request.origins) {
+			dao.importedOverWindow(
+				request.fromInclusiveMs,
+				request.toExclusiveMs,
+				request.limit + 1,
+			)
+		} else emptyList()
+		val gaps = if (AmbientWifiOrigin.LOCAL_DEVICE in request.origins) {
+			dao.gapsOverWindow(
+				request.fromInclusiveMs,
+				request.toExclusiveMs,
+				request.limit + 1,
+			)
+		} else emptyList()
+		val importedGaps = if (AmbientWifiOrigin.PORTABLE_IMPORT in request.origins) {
+			dao.importedGapsOverWindow(
+				request.fromInclusiveMs,
+				request.toExclusiveMs,
+				request.limit + 1,
+			)
+		} else emptyList()
+		return compose(local, imported, gaps, importedGaps, request.limit)
+	}
 
 	override suspend fun readDay(request: AmbientWifiDayReadRequest): AmbientWifiReadResult =
 		withContext(ioDispatcher) {

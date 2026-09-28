@@ -27,6 +27,7 @@ import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientWifi
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientWifiRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientWifiResult
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientWifiSink
+import com.adsamcik.tracker.stats.api.repository.PortableAmbientWifiArchiveV1
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientWifiFactV1
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientWifiGapV1
 import javax.inject.Inject
@@ -62,8 +63,27 @@ internal class RoomAmbientWifiPortableTransfer internal constructor(
 	override suspend fun export(
 		request: ExportPortableAmbientWifiRequest,
 		sink: PortableAmbientWifiSink,
-	): ExportPortableAmbientWifiResult {
-		val read = repository.read(
+	): ExportPortableAmbientWifiResult = withContext(ioDispatcher) {
+		val prepared = try {
+			database.withTransaction { prepareExportInTransaction(request) }
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return@withContext ExportPortableAmbientWifiResult.StorageUnavailable
+		}
+		prepared.archive?.let { sink.emit(it) }
+		prepared.result
+	}
+
+	private data class PreparedExport(
+		val result: ExportPortableAmbientWifiResult,
+		val archive: PortableAmbientWifiArchiveV1? = null,
+	)
+
+	private suspend fun prepareExportInTransaction(
+		request: ExportPortableAmbientWifiRequest,
+	): PreparedExport {
+		val read = repository.readInTransaction(
 			AmbientWifiReadRequest(
 				request.fromInclusiveMs,
 				request.toExclusiveMs,
@@ -74,12 +94,12 @@ internal class RoomAmbientWifiPortableTransfer internal constructor(
 		val snapshot = when (read) {
 			is AmbientWifiReadResult.Snapshot -> read
 			AmbientWifiReadResult.DependencyOverflow ->
-				return ExportPortableAmbientWifiResult.DependencyOverflow
+				return PreparedExport(ExportPortableAmbientWifiResult.DependencyOverflow)
 			AmbientWifiReadResult.StorageUnavailable ->
-				return ExportPortableAmbientWifiResult.StorageUnavailable
+				return PreparedExport(ExportPortableAmbientWifiResult.StorageUnavailable)
 		}
 		if (snapshot.facts.isEmpty() && snapshot.gaps.isEmpty()) {
-			return ExportPortableAmbientWifiResult.NoData
+			return PreparedExport(ExportPortableAmbientWifiResult.NoData)
 		}
 		val localFactIds = snapshot.facts.filter {
 			it.origin == AmbientWifiOrigin.LOCAL_DEVICE
@@ -90,7 +110,7 @@ internal class RoomAmbientWifiPortableTransfer internal constructor(
 				AmbientWifiPortableFormatV1.MAX_FACTS + 1,
 			).map { row ->
 				AmbientWifiPortableIntegrity.createFact(
-					row.toApiFact() ?: return ExportPortableAmbientWifiResult.StorageUnavailable,
+					row.toApiFact() ?: return PreparedExport(ExportPortableAmbientWifiResult.StorageUnavailable),
 				)
 			}
 		}
@@ -101,9 +121,21 @@ internal class RoomAmbientWifiPortableTransfer internal constructor(
 			loadFactRevisions(database.ambientWifiFactDao(), importedFactIds)
 				.map(ImportedAmbientWifiFactEntity::toPortableFact)
 		}
+		val localLatest = localFacts.groupBy(PortableAmbientWifiFactV1::identity)
+		val importedLatest = importedFacts.groupBy(PortableAmbientWifiFactV1::identity)
+		if (localLatest.keys != localFactIds.toSet() ||
+			importedLatest.keys != importedFactIds.toSet() ||
+			snapshot.facts.any { fact ->
+				val lineage = when (fact.origin) {
+					AmbientWifiOrigin.LOCAL_DEVICE -> localLatest[fact.identity]
+					AmbientWifiOrigin.PORTABLE_IMPORT -> importedLatest[fact.identity]
+				}
+				lineage?.lastOrNull()?.semanticRevision != fact.semanticRevision
+			}
+		) return PreparedExport(ExportPortableAmbientWifiResult.StorageUnavailable)
 		val portableFacts = localFacts + importedFacts
 		if (portableFacts.size > AmbientWifiPortableFormatV1.MAX_FACTS) {
-			return ExportPortableAmbientWifiResult.DependencyOverflow
+			return PreparedExport(ExportPortableAmbientWifiResult.DependencyOverflow)
 		}
 		val localGaps = snapshot.gaps.filter { it.origin == AmbientWifiOrigin.LOCAL_DEVICE }
 			.map(AmbientWifiPortableIntegrity::createGap)
@@ -114,9 +146,12 @@ internal class RoomAmbientWifiPortableTransfer internal constructor(
 			loadGaps(database.ambientWifiFactDao(), importedGapIds)
 				.map(ImportedAmbientWifiGapEntity::toPortableGap)
 		}
+		if (importedGaps.map(PortableAmbientWifiGapV1::identity).toSet() !=
+			importedGapIds.toSet()
+		) return PreparedExport(ExportPortableAmbientWifiResult.StorageUnavailable)
 		val portableGaps = localGaps + importedGaps
 		if (portableGaps.size > AmbientWifiPortableFormatV1.MAX_GAPS) {
-			return ExportPortableAmbientWifiResult.DependencyOverflow
+			return PreparedExport(ExportPortableAmbientWifiResult.DependencyOverflow)
 		}
 		val archiveId = AmbientWifiPortableIntegrity.opaqueIdentity(
 			"archive",
@@ -135,10 +170,9 @@ internal class RoomAmbientWifiPortableTransfer internal constructor(
 			portableFacts,
 			portableGaps,
 		)
-		sink.emit(archive)
-		return ExportPortableAmbientWifiResult.Exported(
-			archive.facts.size,
-			archive.gaps.size,
+		return PreparedExport(
+			ExportPortableAmbientWifiResult.Exported(archive.facts.size, archive.gaps.size),
+			archive,
 		)
 	}
 
