@@ -12,6 +12,7 @@ import androidx.room.withTransaction
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import com.adsamcik.tracker.impexp.OwnedTransferFiles
 import com.adsamcik.tracker.impexp.exporter.CursorAwareExporter
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
@@ -31,8 +32,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
+import java.io.File
 import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -370,11 +372,16 @@ class ExportPlanWorker @AssistedInject constructor(
     ): ExportOutputResolution {
         return when (val dest = plan.destination) {
             is ExportDestination.PrivateStorage -> {
-                val exportDir = File(applicationContext.filesDir, dest.relativeDirectory)
-                if (!exportDir.exists() && !exportDir.mkdirs()) {
-                    return ExportOutputResolution.Failed("Unable to create private export directory")
+                val exportFile = try {
+                    OwnedTransferFiles.reservePrivateScheduledExportFile(
+                        applicationContext, dest, fileName,
+                    )
+                } catch (_: IllegalArgumentException) {
+                    return ExportOutputResolution.Failed("Invalid private export destination")
+                } catch (_: IOException) {
+                    return ExportOutputResolution.Failed("Unable to resolve private export destination")
                 }
-                ExportOutputResolution.Success(FileExportOutput(File(exportDir, fileName)))
+                ExportOutputResolution.Success(FileExportOutput(exportFile))
             }
             is ExportDestination.DocumentTree -> {
                 if (!hasPersistedWritePermission(dest.treeUri)) {

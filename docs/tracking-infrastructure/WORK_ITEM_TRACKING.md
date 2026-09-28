@@ -45,7 +45,7 @@ open; validation and integration are deferred. The historical registry below is 
   continuation remain open. See `collection-controls/2026-09-27/IMPLEMENTATION_TRACE.md`.
 - [ ] Unify temporary Location consumers: valid map coordinates, unknown accuracy and actual game
   observation time corrections authored, **IMPLEMENTED_UNVALIDATED**. Independent shared-owner
-  feature leases, real observed freshness and map/sunrise lifetime confirmation remain open.
+  feature leases and real observed freshness remain open; the unused sunrise listener is removed.
   See `temporary-location/2026-09-27/IMPLEMENTATION_TRACE.md` and `CONTRACT_DECISIONS.md`.
 - [ ] Complete retained data authority: carried capture-consent/retiring radio grant checks and
   Cell/Wi-Fi/Activity shared-heartbeat and native/imported Steps carried-consent corrections authored,
@@ -171,10 +171,11 @@ until its dependent slice is completed.
   automatic decisions and deletion presentation cleanup; preserve writer's physical host-loss fence.
 - [x] Existing Location host ticket promotion uses the shared sub-five-second deadline; exact service
   attachment and accepted-ticket abandonment; authored delayed-authority/concurrent-ticket cases.
-- [ ] Confirm final per-radio saved notification-host contract and feature Location/sunrise subdesign.
+- [x] Confirm optional saved radio notification hosting and removal of unused sunrise/sunset code.
+- [x] Remove the unused sunrise/sunset passive listener, its tests and sole library dependency.
 - [ ] Implement multi-source host, source-specific options/notifications and final-host release.
-- [ ] Implement shared nonpersisting Map/game lease adapter, observed-time capability/freshness routing
-  and eliminate permanent sunrise provider. Live-feed baseline regression is fixed; existing generic
+- [ ] Implement shared nonpersisting Map/game lease adapter and observed-time capability/freshness
+  routing. Live-feed baseline regression is fixed; existing generic
   live capture still does not prove Location quality/capability until that adapter is complete.
 - [ ] Complete independent static review of the entire ownership slice after dependent work exists.
 
@@ -569,6 +570,9 @@ Each remains pending; this is authored source and static review only,
 - [x] Author a six-source subset manual-start API readiness case with Location permission absent.
 - [x] Extend private full-clear cleanup and fixtures to export spool, session-bundle staging and
   completed files in the default private export directory.
+- [x] Route new scheduled private exports to that one owned directory even when an older saved
+  plan names a custom directory; reject path-like names and reserve distinct files when two plans
+  export at the same time. Existing custom files stay pending.
 - [ ] Complete the missing production and test chains listed for each prerequisite, including
   actual Dashboard permission-resume fencing, active export cancellation, safe ownership for
   custom private export folders and external residual notice.

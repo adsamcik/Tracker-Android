@@ -3,8 +3,11 @@ package com.adsamcik.tracker.app.settings
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.impexp.OwnedTransferFiles
+import com.adsamcik.tracker.impexp.exporter.automation.ExportDestination
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import java.io.File
+import java.util.UUID
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -14,6 +17,46 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class OwnedTransferFilesTest {
     private val context = ApplicationProvider.getApplicationContext<Application>()
+
+    @Test
+    fun `new private scheduled exports ignore an older custom directory`() {
+        val target = OwnedTransferFiles.privateScheduledExportFile(
+            context,
+            ExportDestination.PrivateStorage(relativeDirectory = "backups"),
+            "tracker-export_20260928-120000.json",
+        )
+        target.parentFile!!.canonicalFile shouldBe File(context.filesDir, "exports").canonicalFile
+        shouldThrow<IllegalArgumentException> {
+            OwnedTransferFiles.privateScheduledExportFile(
+                context,
+                ExportDestination.PrivateStorage(relativeDirectory = "backups"),
+                "../other.json",
+            )
+        }
+    }
+
+    @Test
+    fun `two plans exporting in the same second reserve distinct private files`() {
+        val fileName = "tracker-export_${UUID.randomUUID()}.json"
+        val first = OwnedTransferFiles.reservePrivateScheduledExportFile(
+            context, ExportDestination.PrivateStorage(relativeDirectory = "old-a"), fileName,
+        )
+        try {
+            first.writeText("first plan")
+            val second = OwnedTransferFiles.reservePrivateScheduledExportFile(
+                context, ExportDestination.PrivateStorage(relativeDirectory = "old-b"), fileName,
+            )
+            try {
+                second.absolutePath shouldBe File(context.filesDir, "exports")
+                    .resolve(fileName.removeSuffix(".json") + "-1.json").absolutePath
+                first.readText() shouldBe "first plan"
+            } finally {
+                second.delete()
+            }
+        } finally {
+            first.delete()
+        }
+    }
 
     @Test
     fun `full clear removes only known private staging and share files`() {
