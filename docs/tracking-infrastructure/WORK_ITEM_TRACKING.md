@@ -536,6 +536,9 @@ No validation, input freeze, provider activation, new dev/v10 integration or pus
   adapters: calendar-day windows account for time-zone changes, only same-source scans or recorded
   gaps select a crossing session, and turning expansion off requires the complete entry and its
   timing evidence to fit. Focused test source is written. **IMPLEMENTED_UNVALIDATED**.
+- [x] Author the Location file import measurement mapping and focused test source. Imported
+  points retain their saved measured values without creating live tracking identity or permission.
+  The file adapter and overlap/conflict handling remain open. **IMPLEMENTED_UNVALIDATED**.
 - [ ] Finish combined Wi-Fi/Cell file adapters, source-owned range selection and
   `.trackerlocation` export/import with overlap deduplication.
 - [ ] Complete whole-scope review and deferred convergence/device verification.
