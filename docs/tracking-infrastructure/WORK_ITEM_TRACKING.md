@@ -539,6 +539,11 @@ No validation, input freeze, provider activation, new dev/v10 integration or pus
 - [x] Author the Location file import measurement mapping and focused test source. Imported
   points retain their saved measured values without creating live tracking identity or permission.
   The file adapter and overlap/conflict handling remain open. **IMPLEMENTED_UNVALIDATED**.
+- [x] Connect calendar-day selection to the Location file screen and exporter without changing
+  older time-range formats. The picker keeps the displayed day across time zones and selected
+  days include the full local day; focused test source is written. Static review of radio date
+  selection led to a midnight-boundary correction. Empty radio runs without an explicit gap marker
+  are not described as recorded gaps. **IMPLEMENTED_UNVALIDATED**.
 - [ ] Finish combined Wi-Fi/Cell file adapters, source-owned range selection and
   `.trackerlocation` export/import with overlap deduplication.
 - [ ] Complete whole-scope review and deferred convergence/device verification.

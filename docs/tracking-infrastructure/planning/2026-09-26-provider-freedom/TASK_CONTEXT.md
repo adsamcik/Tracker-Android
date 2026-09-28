@@ -787,3 +787,12 @@ show the selected dates and any coverage gaps in plain language, and avoid inter
 terminology. The Location file identity table only keeps repeated or overlapping imports from
 duplicating saved points; it is not a new capture or permission record. The edited same-ID point
 conflict policy remains a pending user decision.
+
+The user's further correction is: "Users don't care about internal implementations, they care about
+data." Native captured and background Wi-Fi/Cell transfer contracts currently contain timing,
+signal summaries and gap states, but the native radio source deliberately does not retain network
+or tower identifiers. Separate older `wifi_observation` and `cell_sample` rows may contain those
+details; those rows cannot be reliably attributed to a session or background purpose by time alone.
+A plain-language question about including those saved older details is pending. If included, keep
+them separately labelled with unknown original scope where necessary and do not add Location
+coordinates to the Wi-Fi or Cell file.

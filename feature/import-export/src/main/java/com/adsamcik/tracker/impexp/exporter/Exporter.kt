@@ -37,6 +37,10 @@ interface Exporter {
 	 */
 	val canSelectDateRange: Boolean
 
+	/** Date-only selection for source backups; the screen expands each chosen day in its zone. */
+	val selectsCalendarDates: Boolean
+		get() = false
+
 	/**
 	 * Mime type of result export file.
 	 */

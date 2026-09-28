@@ -30,6 +30,7 @@ internal fun selectCapturedWifiEntry(
 			)
 		}
 	},
+	// An empty run alone is not a recorded outage; only explicit loss/unresolved markers count.
 	recordedGaps = entry.runs.filter { run ->
 		run.captureCoverage != PortableWifiCaptureCoverage.NOT_CAPTURED &&
 			(run.retentionLoss || run.hasUnresolvedProviderRange)
@@ -54,6 +55,7 @@ internal fun selectCapturedCellEntry(
 			)
 		}
 	},
+	// An empty run alone is not a recorded outage; only explicit retained loss counts.
 	recordedGaps = entry.runs.filter { run ->
 		run.captureCoverage != PortableCellCaptureCoverage.NOT_CAPTURED && run.retentionLoss
 	}.map { run -> run.startTimeMs to run.endTimeMs },
@@ -78,10 +80,10 @@ internal fun decideCapturedRadioEntry(
 	val sourceTouchesDates = observations.any { observation ->
 		dates.touches(observation.firstPossibleMs, observation.lastPossibleMs)
 	} || recordedGaps.any { (start, end) -> dates.overlaps(start, end) }
-	val crossesDates = !dates.containsWhole(entryStartMs, entryEndMs) ||
+	val crossesDates = !dates.containsWholeInterval(entryStartMs, entryEndMs) ||
 		observations.any { observation ->
-			!dates.containsWhole(observation.firstPossibleMs, observation.lastPossibleMs)
-		} || recordedGaps.any { (start, end) -> !dates.containsWhole(start, end) }
+			!dates.containsWholePossibleTime(observation.firstPossibleMs, observation.lastPossibleMs)
+		} || recordedGaps.any { (start, end) -> !dates.containsWholeInterval(start, end) }
 	val include = sourceTouchesDates && (includeSessionsAcrossDates || !crossesDates)
 	return CapturedRadioDateDecision(
 		include = include,

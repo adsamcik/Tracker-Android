@@ -73,6 +73,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -134,6 +135,7 @@ fun ExportScreen(
     val fileNameState = rememberSaveable { mutableStateOf("") }
     val fileNameErrorState = rememberSaveable { mutableStateOf<String?>(null) }
     val canSelectDateRange = exporter.canSelectDateRange
+    val calendarDateFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
 
     val now = Time.now
     val monthBefore = now.minusMonths(1L)
@@ -239,7 +241,10 @@ fun ExportScreen(
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 OutlinedTextField(
-                                    value = rangeState.value.start.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)),
+                                    value = rangeState.value.start.format(
+                                        if (exporter.selectsCalendarDates) calendarDateFormatter
+                                        else DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
+                                    ),
                                     onValueChange = {},
                                     label = { Text(stringResource(id = R.string.settings_export_dialog_from)) },
                                     enabled = false,
@@ -262,7 +267,10 @@ fun ExportScreen(
                                     }
                                 )
                                 OutlinedTextField(
-                                    value = rangeState.value.endInclusive.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)),
+                                    value = rangeState.value.endInclusive.format(
+                                        if (exporter.selectsCalendarDates) calendarDateFormatter
+                                        else DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
+                                    ),
                                     onValueChange = {},
                                     label = { Text(stringResource(id = R.string.settings_export_dialog_to)) },
                                     enabled = false,
@@ -483,7 +491,11 @@ fun ExportScreen(
     // Date pickers
     if (showFromDatePicker.value) {
         val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = rangeState.value.start.toInstant().toEpochMilli()
+            initialSelectedDateMillis = if (exporter.selectsCalendarDates) {
+                calendarPickerSelectionMs(rangeState.value.start)
+            } else {
+                rangeState.value.start.toInstant().toEpochMilli()
+            }
         )
         DatePickerDialog(
             onDismissRequest = { showFromDatePicker.value = false },
@@ -492,8 +504,15 @@ fun ExportScreen(
                     onClick = {
                         val selectedMillis = datePickerState.selectedDateMillis
                         if (selectedMillis != null) {
-                            val selectedDate = Instant.ofEpochMilli(selectedMillis).atZone(ZoneId.systemDefault())
-                            rangeState.value = selectedDate..rangeState.value.endInclusive
+                            if (exporter.selectsCalendarDates) {
+                                val selectedDate = calendarPickerDay(selectedMillis, rangeState.value.start.zone)
+                                val end = rangeState.value.endInclusive
+                                    .takeUnless { it.isBefore(selectedDate) } ?: selectedDate
+                                rangeState.value = selectedDate..end
+                            } else {
+                                val selectedDate = Instant.ofEpochMilli(selectedMillis).atZone(ZoneId.systemDefault())
+                                rangeState.value = selectedDate..rangeState.value.endInclusive
+                            }
                         }
                         showFromDatePicker.value = false
                     }
@@ -513,7 +532,11 @@ fun ExportScreen(
 
     if (showToDatePicker.value) {
         val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = rangeState.value.endInclusive.toInstant().toEpochMilli()
+            initialSelectedDateMillis = if (exporter.selectsCalendarDates) {
+                calendarPickerSelectionMs(rangeState.value.endInclusive)
+            } else {
+                rangeState.value.endInclusive.toInstant().toEpochMilli()
+            }
         )
         DatePickerDialog(
             onDismissRequest = { showToDatePicker.value = false },
@@ -522,8 +545,15 @@ fun ExportScreen(
                     onClick = {
                         val selectedMillis = datePickerState.selectedDateMillis
                         if (selectedMillis != null) {
-                            val selectedDate = Instant.ofEpochMilli(selectedMillis).atZone(ZoneId.systemDefault())
-                            rangeState.value = rangeState.value.start..selectedDate
+                            if (exporter.selectsCalendarDates) {
+                                val selectedDate = calendarPickerDay(selectedMillis, rangeState.value.start.zone)
+                                val start = rangeState.value.start
+                                    .takeUnless { it.isAfter(selectedDate) } ?: selectedDate
+                                rangeState.value = start..selectedDate
+                            } else {
+                                val selectedDate = Instant.ofEpochMilli(selectedMillis).atZone(ZoneId.systemDefault())
+                                rangeState.value = rangeState.value.start..selectedDate
+                            }
                         }
                         showToDatePicker.value = false
                     }
@@ -541,6 +571,14 @@ fun ExportScreen(
         }
     }
 }
+
+/** Material's picker uses UTC-midnight dates even when the export screen shows a local zone. */
+internal fun calendarPickerSelectionMs(date: ZonedDateTime): Long =
+    date.toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+
+internal fun calendarPickerDay(selectedMs: Long, displayedZone: ZoneId): ZonedDateTime =
+    Instant.ofEpochMilli(selectedMs).atZone(ZoneOffset.UTC).toLocalDate()
+        .atStartOfDay(displayedZone)
 
 private suspend fun showExportError(
     snackBarHostState: SnackbarHostState,

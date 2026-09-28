@@ -13,6 +13,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import kotlinx.coroutines.CoroutineDispatcher
@@ -99,6 +100,29 @@ class ImportExportViewModelTest {
         verify(exactly = 0) { repository.pagedLocationSamples(any(), any(), any()) }
     }
 
+    @Test
+    fun `source calendar selection includes every hour of the chosen days`() = runTest(dispatcher) {
+        val viewModel = newViewModel()
+        val exporter = SourceOwnedExporter(calendarDates = true)
+        val zone = ZoneId.of("Europe/Prague")
+        val from = ZonedDateTime.of(2026, 3, 28, 14, 0, 0, 0, zone)
+        val to = ZonedDateTime.of(2026, 3, 29, 9, 0, 0, 0, zone)
+
+        viewModel.exportToStream(ByteArrayOutputStream(), exporter, from..to) shouldBe ExportResult.Success
+        exporter.receivedRange shouldBe
+            from.toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()..(
+                to.toLocalDate().plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1L
+            )
+    }
+
+    @Test
+    fun `calendar picker preserves the displayed day in either time zone`() {
+        for (zone in listOf(ZoneId.of("Europe/Prague"), ZoneId.of("America/Los_Angeles"))) {
+            val shown = ZonedDateTime.of(2026, 9, 28, 19, 0, 0, 0, zone)
+            calendarPickerDay(calendarPickerSelectionMs(shown), zone).toLocalDate() shouldBe shown.toLocalDate()
+        }
+    }
+
     private fun newViewModel() = newViewModel(
         dataRepository = mockk(relaxed = true),
     )
@@ -116,10 +140,11 @@ class ImportExportViewModelTest {
         },
     )
 
-    private class SourceOwnedExporter : Exporter {
+    private class SourceOwnedExporter(calendarDates: Boolean = false) : Exporter {
         override val requiresLocationData: Boolean = false
         override val containsSensitiveLocationData: Boolean = false
         override val canSelectDateRange: Boolean = true
+        override val selectsCalendarDates: Boolean = calendarDates
         override val mimeType: String = "application/test"
         override val extension: String = "test"
         var receivedRange: LongRange? = null

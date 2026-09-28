@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
+import com.adsamcik.tracker.impexp.exporter.SourceExportDates
 import com.adsamcik.tracker.impexp.exporter.data.ImportExportDataRepository
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -219,8 +220,16 @@ class ImportExportViewModel @Inject constructor(
         range: ClosedRange<ZonedDateTime>?,
     ): ExportResult = withContext(dispatchers.io) {
         if (exporter.canSelectDateRange && range != null) {
-            val fromMs = range.start.toEpochMillis()
-            val toMs = range.endInclusive.toEpochMillis()
+            val (fromMs, toMs) = if (exporter.selectsCalendarDates) {
+                val dates = SourceExportDates.of(
+                    range.start.toLocalDate(),
+                    range.endInclusive.toLocalDate(),
+                    range.start.zone,
+                )
+                dates.fromInclusiveMs to (dates.toExclusiveMs - 1L)
+            } else {
+                range.start.toEpochMillis() to range.endInclusive.toEpochMillis()
+            }
 
             val locationSequence = if (exporter.requiresLocationData) {
                 val totalCount = dataRepository.countLocationSamples(fromMs, toMs)

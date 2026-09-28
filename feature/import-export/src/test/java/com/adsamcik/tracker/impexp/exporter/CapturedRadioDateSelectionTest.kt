@@ -14,6 +14,9 @@ class CapturedRadioDateSelectionTest {
 		val autumn = SourceExportDates.of(LocalDate.of(2026, 10, 25), LocalDate.of(2026, 10, 25), zone)
 		(spring.toExclusiveMs - spring.fromInclusiveMs) shouldBe 23L * 60L * 60L * 1_000L
 		(autumn.toExclusiveMs - autumn.fromInclusiveMs) shouldBe 25L * 60L * 60L * 1_000L
+		val epochDay = SourceExportDates.of(LocalDate.of(1970, 1, 1), LocalDate.of(1970, 1, 1), zone)
+		(epochDay.fromInclusiveMs < 0L) shouldBe true
+		epochDay.contains(0L) shouldBe true
 	}
 
 	@Test fun `a crossing entry needs a scan or recorded gap on the selected day`() {
@@ -52,6 +55,12 @@ class CapturedRadioDateSelectionTest {
 			includeSessionsAcrossDates = false,
 		)
 		contained.include shouldBe true
+		decision(
+			entryStartMs = 90_000L,
+			entryEndMs = 172_800_000L,
+			observations = listOf(RadioObservationTime(100_000L, 100_000L, 100_000L)),
+			includeSessionsAcrossDates = false,
+		).include shouldBe true
 	}
 
 	@Test fun `uncertain scan timing can overlap but its saved timestamp remains outside`() {
@@ -73,7 +82,13 @@ class CapturedRadioDateSelectionTest {
 		dates.contains(172_800_000L) shouldBe false
 		dates.overlaps(172_800_000L, 172_800_000L) shouldBe false
 		dates.overlaps(86_400_000L, 86_400_000L) shouldBe true
+		dates.containsWholeInterval(90_000L, 172_800_000L) shouldBe true
+		dates.containsWholePossibleTime(90_000L, 172_800_000L) shouldBe false
 		decision(recordedGaps = listOf(172_800_000L to 172_800_000L)).include shouldBe false
+	}
+
+	@Test fun `absence of scans without a recorded gap does not select a crossing session`() {
+		decision().include shouldBe false
 	}
 
 	@Test fun `all history keeps an entry without inventing selected-date counts`() {

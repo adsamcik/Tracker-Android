@@ -9,7 +9,7 @@ internal data class SourceExportDates(
 	val toExclusiveMs: Long,
 ) {
 	init {
-		require(fromInclusiveMs >= 0L && toExclusiveMs > fromInclusiveMs)
+		require(toExclusiveMs > fromInclusiveMs)
 	}
 
 	fun contains(timeMs: Long): Boolean = timeMs >= fromInclusiveMs && timeMs < toExclusiveMs
@@ -23,8 +23,14 @@ internal data class SourceExportDates(
 		if (startMs == endMs) contains(startMs)
 		else startMs < toExclusiveMs && endMs > fromInclusiveMs
 
-	fun containsWhole(startMs: Long, endMs: Long): Boolean =
-		startMs >= fromInclusiveMs && endMs < toExclusiveMs
+	/** Captured run bounds and gaps end at [endMs], with no coverage after that instant. */
+	fun containsWholeInterval(startMs: Long, endMs: Long): Boolean =
+		startMs >= fromInclusiveMs &&
+			(if (startMs == endMs) contains(startMs) else endMs <= toExclusiveMs)
+
+	/** A scan's latest possible instant is inclusive. */
+	fun containsWholePossibleTime(firstMs: Long, lastMs: Long): Boolean =
+		firstMs >= fromInclusiveMs && lastMs < toExclusiveMs
 
 	companion object {
 		fun of(firstDay: LocalDate, lastDay: LocalDate, displayedZone: ZoneId): SourceExportDates {

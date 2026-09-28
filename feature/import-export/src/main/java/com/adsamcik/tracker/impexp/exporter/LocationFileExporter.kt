@@ -28,6 +28,7 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 	/** The source-owned reader admits coordinate-free points and reports its own empty selection. */
 	override val requiresLocationData: Boolean = false
 	override val canSelectDateRange: Boolean = true
+	override val selectsCalendarDates: Boolean = true
 	override val mimeType: String = LocationFileJsonV1.MIME_TYPE
 	override val extension: String = LocationFileJsonV1.EXTENSION
 
