@@ -214,6 +214,8 @@ object TrackingDiagnosticPrivacyValidator {
 
 			val compact = normalized.filter(Char::isLetterOrDigit)
 			val forbiddenReason = forbiddenAliases.firstNotNullOfOrNull { (reason, aliases) ->
+				reason.takeIf { compact in aliases }
+			} ?: forbiddenAliases.firstNotNullOfOrNull { (reason, aliases) ->
 				reason.takeIf { aliases.any(compact::contains) }
 			}
 			return TrackingDiagnosticPrivacyValidation.Rejected(

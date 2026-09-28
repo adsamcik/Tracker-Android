@@ -53,7 +53,7 @@ class TrackingDiagnosticRecorder private constructor(
 		source: TrackingDiagnosticSource,
 		purpose: TrackingDiagnosticPurpose,
 		operation: TrackingDiagnosticOperation,
-	): OperationScope = OperationScope(
+	): OperationScope = OperationScope.create(
 		owner = this,
 		source = source,
 		purpose = purpose,
@@ -118,7 +118,7 @@ class TrackingDiagnosticRecorder private constructor(
 		}
 	}
 
-	inner class OperationScope internal constructor(
+	class OperationScope private constructor(
 		private val owner: TrackingDiagnosticRecorder,
 		private val source: TrackingDiagnosticSource,
 		private val purpose: TrackingDiagnosticPurpose,
@@ -130,6 +130,7 @@ class TrackingDiagnosticRecorder private constructor(
 		private var active = true
 
 		@Synchronized
+		@JvmSynthetic
 		internal fun consume(
 			owner: TrackingDiagnosticRecorder,
 			event: TrackingDiagnosticEventRequest,
@@ -188,11 +189,26 @@ class TrackingDiagnosticRecorder private constructor(
 		}
 
 		@Synchronized
+		@JvmSynthetic
 		internal fun invalidate() {
 			active = false
 		}
 
 		override fun toString(): String = "TrackingDiagnosticOperationScope(opaque)"
+
+		companion object {
+			@JvmSynthetic
+			internal fun create(
+				owner: TrackingDiagnosticRecorder,
+				source: TrackingDiagnosticSource,
+				purpose: TrackingDiagnosticPurpose,
+				operation: TrackingDiagnosticOperation,
+				startedAtNanos: Long,
+				operationScope: TrackingDiagnosticScopeOpaque,
+			): OperationScope = OperationScope(
+				owner, source, purpose, operation, startedAtNanos, operationScope,
+			)
+		}
 	}
 
 	private fun interface NanoClock {

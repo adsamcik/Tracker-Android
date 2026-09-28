@@ -463,7 +463,7 @@ class TrackingDiagnosticContractTest {
 
 		val first = firstProcessEvents.single().operationScope.opaqueValue
 		val second = secondProcessEvents.single().operationScope.opaqueValue
-		first.substringBefore("_scope_") == second.substringBefore("_scope_") shouldBe false
+		(first.substringBefore("_scope_") == second.substringBefore("_scope_")) shouldBe false
 		first.substringAfter("_scope_") shouldBe second.substringAfter("_scope_")
 	}
 

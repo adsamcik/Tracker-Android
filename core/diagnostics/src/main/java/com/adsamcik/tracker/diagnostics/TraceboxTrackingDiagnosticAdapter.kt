@@ -34,7 +34,7 @@ internal class TraceboxTrackingDiagnosticAdapter internal constructor(
 			true
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (_: Throwable) {
+		} catch (_: Exception) {
 			false
 		}
 		if (writeSucceeded) return TrackingDiagnosticStorageResult.STORED
@@ -50,7 +50,7 @@ internal class TraceboxTrackingDiagnosticAdapter internal constructor(
 				failureReporter()
 			} catch (cancelled: CancellationException) {
 				throw cancelled
-			} catch (_: Throwable) {
+			} catch (_: Exception) {
 				Unit
 			}
 		} finally {
