@@ -58,8 +58,9 @@ providers and removal of the unused sunrise/sunset passive Location listener, wh
 production callers. The user also approved saving available network/tower details whenever their
 sources are enabled, excluding SIM/subscriber IDs. Recoverable older radio details must migrate
 into the new child-observation model; missing old details remain honestly absent. The user
-approved one Steps choice for all-day recording. Sessions annotate their time and may prefer
-higher quality, but do not own or gate the daily Steps total. A supported on-device provider may
-fill background gaps; unsupported periods remain visible gaps. These are approved contracts,
-not completed implementation or executed evidence.
+approved one Steps choice for all-day recording, including automatic migration of an older
+session-enabled Steps choice to all-day Steps when the new setting takes effect. Sessions annotate
+their time and may prefer higher quality, but do not own or gate the daily Steps total. A supported
+on-device provider may fill background gaps; unsupported periods remain visible gaps. These are
+approved contracts, not completed implementation or executed evidence.
 This trace does not declare the assembly gate complete or permit the deferred validation batch.

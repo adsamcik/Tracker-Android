@@ -575,8 +575,9 @@ Each remains pending; this is authored source and static review only,
   plan names a custom directory; reject path-like names and reserve distinct files when two plans
   export at the same time. Existing custom files stay pending.
 - [ ] Complete the missing production and test chains listed for each prerequisite, including
-  actual Dashboard permission-resume fencing, active export cancellation, safe ownership for
-  custom private export folders and external residual notice.
+  actual Dashboard permission-resume fencing, one all-day Steps choice with the approved legacy
+  setting migration, active export cancellation, safe ownership for custom private export folders
+  and external residual notice.
 - [ ] Review the final one-input assembly, run the deferred convergence gates, and establish
   emulator and on-device proof before marking any prerequisite complete.
 
