@@ -58,13 +58,20 @@ class SourceEventStorageMaintenanceTest {
 			observedElapsedNanos = now - 2L,
 			receivedElapsedNanos = now - 1L,
 		))
-		listOf(expired, capturedSibling, fresh).forEach { row ->
+		val ambientSibling = signed(event(source, 4L, true, "ambient-sibling", false).copy(
+			authorizationPurposeEligibilityMask =
+				SourceBrokerPurpose.MASK_CONTROL_AUTOSTART or
+					SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+			clockDomainId = "previous-boot",
+		))
+		listOf(expired, capturedSibling, fresh, ambientSibling).forEach { row ->
 			database.sourceEventWalDao().insertIgnoringDuplicate(row) shouldBe row.admissionOrdinal
 		}
 		database.pruneExpiredControlActivityWalBatch("current-boot", now, 100L) shouldBe 1
 		database.sourceEventWalDao().getByAdmissionOrdinal(1L) shouldBe null
 		database.sourceEventWalDao().getByAdmissionOrdinal(2L)?.eventId shouldBe "captured-sibling"
 		database.sourceEventWalDao().getByAdmissionOrdinal(3L)?.eventId shouldBe "fresh-control"
+		database.sourceEventWalDao().getByAdmissionOrdinal(4L)?.eventId shouldBe "ambient-sibling"
 		database.sourceEventRetentionProofDao().get(source, "expired-control")?.hasValidStoredIntegrity() shouldBe true
 		database.sourceProjectionStateDao().installProductLane(SourceProductProjectionLaneEntity(
 			sourceKind = source,
@@ -100,10 +107,35 @@ class SourceEventStorageMaintenanceTest {
 		) shouldBe 1
 		database.pruneExpiredControlActivityWalBatch("current-boot", now, 100L) shouldBe 1
 		database.sourceEventWalDao().getByAdmissionOrdinal(2L) shouldBe null
+		database.sourceEventWalDao().getByAdmissionOrdinal(4L)?.eventId shouldBe "ambient-sibling"
 		val capturedProof = requireNotNull(database.sourceEventRetentionProofDao().get(source, "captured-sibling"))
 		capturedProof.hasValidStoredIntegrity() shouldBe true
 		capturedProof.purposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE shouldBe
 			SourceBrokerPurpose.MASK_SESSION_CAPTURE
+	}
+
+	@Test
+	fun `unknown Activity effect version keeps its raw carrier for a newer reader`() = runTest {
+		val source = SourceDestinationOwnerEntity.SOURCE_ACTIVITY
+		val row = event(source, 1L, true, "future-effect", false).copy(
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			clockDomainId = "previous-boot",
+		).let { it.copy(integrityIdentity = it.calculatedIntegrityIdentity()) }
+		database.sourceEventWalDao().insertIgnoringDuplicate(row) shouldBe 1L
+		database.sourceProjectionStateDao().insertOutbox(SourceProjectionOutboxEntity(
+			stableId = "future-effect",
+			projectionId = "activity-automation",
+			projectionVersion = 5,
+			admissionOrdinal = 1L,
+			effectKind = "activity-automation-v1",
+			payloadVersion = 5,
+			payload = byteArrayOf(1),
+			createdAtMs = 10L,
+			deliveredAtMs = null,
+		)) shouldBe 1L
+
+		database.pruneExpiredControlActivityWalBatch("current-boot", 100L, 100L) shouldBe 0
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.eventId shouldBe "future-effect"
 	}
 
 	@Test

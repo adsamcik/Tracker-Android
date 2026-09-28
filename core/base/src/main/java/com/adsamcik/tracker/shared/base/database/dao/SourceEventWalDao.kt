@@ -778,6 +778,7 @@ interface SourceEventWalDao {
 	@Query(
 		"SELECT * FROM source_event_wal AS wal WHERE source_kind = 2 " +
 			"AND (authorization_purpose_eligibility_mask & 3) != 0 " +
+			"AND (authorization_purpose_eligibility_mask & 8) = 0 " +
 			"AND admission_ordinal <= :safeOrdinal " +
 			"AND ((authorization_purpose_eligibility_mask & 4) = 0 OR EXISTS (" +
 			"SELECT 1 FROM source_product_projection_lane AS lane WHERE lane.source_kind = 2 " +
@@ -790,6 +791,12 @@ interface SourceEventWalDao {
 			"AND lane.terminal_disposition = 'CONTAINED_AFTER_DRAIN' " +
 			"AND lane.capture_admission_cutoff_ordinal = lane.contiguous_admission_ordinal)) " +
 			")) " +
+			"AND NOT EXISTS (SELECT 1 FROM source_projection_outbox AS future_effect " +
+			"WHERE future_effect.admission_ordinal = wal.admission_ordinal " +
+			"AND future_effect.projection_id = 'activity-automation' " +
+			"AND (future_effect.projection_version != 4 OR " +
+			"future_effect.effect_kind != 'activity-automation-v1' OR " +
+			"future_effect.payload_version != 4)) " +
 			"AND (clock_domain_id != :currentBootId OR received_elapsed_nanos < 0 " +
 			"OR received_elapsed_nanos > :nowElapsedNanos " +
 			"OR received_elapsed_nanos <= :cutoffElapsedNanos) " +
