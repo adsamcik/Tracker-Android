@@ -1049,8 +1049,24 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 			}
 		}
 	}
+	val authenticatedCoverageByEventId = selectedLineages.groupBy { lineage ->
+		lineage.revisions.last().sourceEventId
+	}.mapValues { (_, lineages) ->
+		lineages.minOf { lineage ->
+			lineage.revisions.minOf { revision ->
+				requireNotNull(CanonicalRetentionBounds.cellCoverage(
+					walObservedWallTimeMs = revision.observedWallTimeMs,
+					wallTimeUncertaintyMs = revision.wallTimeUncertaintyMs,
+					walObservedElapsedRealtimeNanos = revision.observedElapsedNanos,
+					coverageStartElapsedRealtimeNanos = revision.coverageIntervalStartNanos,
+				))
+			}
+		}
+	}
 	val retainedWal = selectedWal.filter { carrier ->
-		retainedFloor == null || carrier.earliestPossibleWallTimeMs >= retainedFloor
+		retainedFloor == null ||
+			(authenticatedCoverageByEventId[carrier.eventId] ?: carrier.earliestPossibleWallTimeMs) >=
+			retainedFloor
 	}
 
 	val evidenceBackedSettlements = buildSet {

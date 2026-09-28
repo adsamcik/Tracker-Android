@@ -2564,7 +2564,7 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 		?: minOf(session.cutoffElapsedNanos ?: Long.MAX_VALUE, registrationEnd, authorizationEnd)
 	val segmentId = run.sessionSegmentId
 	val segment = segmentId?.let { sessionSegmentDao().getById(it) }
-	val wallInterval = providerWallInterval(wal)
+	val wallInterval = capturePointWallInterval(wal)
 		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	if (binding == null || !binding.isExactCapturedCellWalBinding(consentEpoch) ||
 		manifest.serviceRunId != serviceRunId || manifest.sourcePolicyRevision != policyRevision ||
@@ -2734,8 +2734,7 @@ private fun earliestCoveredWallTime(
 	coverageStartElapsedRealtimeNanos = coverageStartNanos,
 ) ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 
-private fun providerWallInterval(wal: SourceEventWalEntity): LongRange? {
-	val startNanos = wal.observedIntervalStartNanos ?: return null
+private fun capturePointWallInterval(wal: SourceEventWalEntity): LongRange? {
 	val wallTimeMs = wal.wallTimeMs ?: return null
 	val uncertaintyMs = wal.wallTimeUncertaintyMs ?: return null
 	return runCatching {
@@ -2743,7 +2742,7 @@ private fun providerWallInterval(wal: SourceEventWalEntity): LongRange? {
 			walObservedWallTimeMs = wallTimeMs,
 			wallTimeUncertaintyMs = uncertaintyMs,
 			walObservedElapsedRealtimeNanos = wal.observedElapsedNanos,
-			coverageStartElapsedRealtimeNanos = startNanos,
+			coverageStartElapsedRealtimeNanos = wal.observedElapsedNanos,
 		) ?: return null
 		val latest = Math.addExact(wallTimeMs, uncertaintyMs)
 		earliest..latest

@@ -2606,6 +2606,49 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `portable export does not treat a rejected stale child as retention loss`() = runTest {
+		seedCapturedCell(
+			retainedFromMs = 1_950L,
+			staleChildCount = 1,
+			withPortableExportState = true,
+		)
+		var emitted: PortableCapturedCellEntryV1? = null
+
+		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+			emitted = it
+		}
+
+		requireNotNull(emitted).runs.single().apply {
+			observations.size shouldBe 1
+			retentionLoss shouldBe false
+			observations.single().staleChildCount shouldBe 1
+		}
+	}
+
+	@Test
+	fun `consent deletion fences retained WAL with a pre-session stale child`() = runTest {
+		seedCapturedCell(
+			retainedFromMs = FLOOR_MS,
+			revokedCapture = true,
+			staleChildCount = 1,
+			observedWallTimeMs = RUN_START_WALL_MS + 1L,
+		)
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			beforeMs = FLOOR_MS,
+			expectedCollectedDataEpoch = 0L,
+			expectedDeletedSourceEventHighWaterOrdinal = 0L,
+			markedAtMs = MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
+
+		database.deleteCapturedCellFactsAfterConsentReset(
+			expectedCollectedDataEpoch = 0L,
+			expectedDeletedSourceEventHighWaterOrdinal = 0L,
+			expectedRevokedConsentEpoch = REVOKED_CONSENT_EPOCH,
+			deletedAtMs = DELETION_TIME_MS,
+		) shouldBe CellCapturedSourceDeletionResult.Deleted(0, 0, 1)
+	}
+
+	@Test
 	fun `portable export rejects a zero callback sequence gap boundary`() = runTest {
 		seedCapturedCell(withPortableExportState = true)
 		installCapturedReplacementRun(

@@ -410,7 +410,7 @@ class CellWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? " +
 				"WHERE event_id = ?",
-			arrayOf(SourceBrokerPurpose.MASK_CONTROL_AUTOSTART, EVENT_ID.value),
+			arrayOf<Any?>(SourceBrokerPurpose.MASK_CONTROL_AUTOSTART, EVENT_ID.value),
 		)
 		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 
@@ -892,7 +892,7 @@ class CellWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET retired_elapsed_realtime_nanos = ? " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(REGISTRATION_END_NANOS + 1L, CELL_SOURCE, REGISTRATION_GENERATION),
+			arrayOf<Any?>(REGISTRATION_END_NANOS + 1L, CELL_SOURCE, REGISTRATION_GENERATION),
 		)
 
 		assertEquals(
@@ -985,7 +985,7 @@ class CellWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE session_manifest_source SET qos_code = qos_code + 1 " +
 				"WHERE logical_tracking_id = ? AND manifest_revision = ?",
-			arrayOf(LOGICAL_ID, MANIFEST_REVISION),
+			arrayOf<Any?>(LOGICAL_ID, MANIFEST_REVISION),
 		)
 
 		assertEquals(
@@ -1039,7 +1039,7 @@ class CellWalQualificationAdapterTest {
 				database.openHelper.writableDatabase.execSQL(
 					"UPDATE source_destination_owner SET owner_generation = 2 " +
 						"WHERE source_kind = ? AND destination = ?",
-					arrayOf(
+					arrayOf<Any?>(
 						CELL_SOURCE,
 						SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
 					),
@@ -1198,6 +1198,31 @@ class CellWalQualificationAdapterTest {
 				requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value)),
 			),
 		)
+	}
+
+	@Test
+	fun `pre-registration child does not discard registered Cell observation`() = runTest {
+		val staleTime = REGISTRATION_START_NANOS - 1L
+		installValidFixture(
+			candidateWriter = true,
+			observations = listOf(
+				CellObservationEvidence("", "LTE", true, -100, staleTime),
+				CellObservationEvidence("", "NR", false, -85, OBSERVED_END_NANOS),
+			),
+		)
+
+		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val fact = requireNotNull(
+			database.cellCapturedFactDao().revision(
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				applied.logicalFactId,
+				applied.semanticRevision,
+			),
+		)
+		assertEquals(1, fact.acceptedChildCount)
+		assertEquals(1, fact.staleChildCount)
+		assertEquals(OBSERVED_END_NANOS, fact.coverageIntervalStartNanos)
 	}
 
 	private suspend fun installValidFixture(
@@ -1396,7 +1421,7 @@ class CellWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ?, " +
 				"integrity_identity = ? WHERE event_id = ?",
-			arrayOf(purposeMask, rewritten.integrityIdentity, eventId.value),
+			arrayOf<Any?>(purposeMask, rewritten.integrityIdentity, eventId.value),
 		)
 	}
 
@@ -1466,7 +1491,7 @@ class CellWalQualificationAdapterTest {
 				"latest_mutation_id = ?, latest_effect_checksum = ?, " +
 				"latest_source_admission_ordinal = ?, cursor_revision = cursor_revision + 1 " +
 				"WHERE logical_fact_id = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				revision.semanticRevision,
 				revision.mutationId,
 				revision.effectChecksum,
@@ -1481,7 +1506,7 @@ class CellWalQualificationAdapterTest {
 			"UPDATE provider_registration_generation SET status = 'RETIRED', retired_at_ms = ?, " +
 				"retired_elapsed_realtime_nanos = ? WHERE source_kind = ? " +
 				"AND registration_generation = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				SESSION_END_WALL_MS,
 				REGISTRATION_END_NANOS,
 				CELL_SOURCE,
@@ -1493,19 +1518,19 @@ class CellWalQualificationAdapterTest {
 				"cutoff_at_ms = ?, cutoff_elapsed_nanos = ?, completed_at_ms = ?, " +
 				"final_admission_ordinal = 1, current_service_run_id = NULL " +
 				"WHERE logical_tracking_id = ?",
-			arrayOf(SESSION_END_WALL_MS, SESSION_END_NANOS, SESSION_END_WALL_MS, LOGICAL_ID),
+			arrayOf<Any?>(SESSION_END_WALL_MS, SESSION_END_NANOS, SESSION_END_WALL_MS, LOGICAL_ID),
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_service_run SET state = 'FINALIZED', completed_at_ms = ?, " +
 				"completion_reason = 'USER_STOP', runtime_acknowledgement = 'STOP_ACCEPTED', " +
 				"run_revision = 2, presentation_acknowledgement = 'QUIESCED', " +
 				"presentation_acknowledged_at_ms = ? WHERE service_run_id = ?",
-			arrayOf(SESSION_END_WALL_MS, SESSION_END_WALL_MS, RUN_ID),
+			arrayOf<Any?>(SESSION_END_WALL_MS, SESSION_END_WALL_MS, RUN_ID),
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_demand SET status = 'RETIRED', retire_boot_id = ?, " +
 				"retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
-			arrayOf(BOOT_ID, SESSION_END_NANOS, SESSION_END_WALL_MS, DEMAND_ID),
+			arrayOf<Any?>(BOOT_ID, SESSION_END_NANOS, SESSION_END_WALL_MS, DEMAND_ID),
 		)
 	}
 
@@ -1528,7 +1553,7 @@ class CellWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE cell_captured_fact_revision SET registered_observation_count = ?, " +
 				"effect_checksum = ? WHERE logical_fact_id = ? AND semantic_revision = 1",
-			arrayOf(0, historical.effectChecksum, logicalFactId),
+			arrayOf<Any?>(0, historical.effectChecksum, logicalFactId),
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE cell_captured_fact_cursor SET latest_effect_checksum = ? " +
@@ -1579,7 +1604,7 @@ class CellWalQualificationAdapterTest {
 				"quality_great_count = NULL, weak_observation_count = NULL, " +
 				"known_quality_observation_count = NULL, all_known_quality_is_weak = NULL, " +
 				"effect_checksum = ? WHERE logical_fact_id = ? AND semantic_revision = 1",
-			arrayOf(
+			arrayOf<Any?>(
 				CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY,
 				ownerLogicalFactId,
 				1L,

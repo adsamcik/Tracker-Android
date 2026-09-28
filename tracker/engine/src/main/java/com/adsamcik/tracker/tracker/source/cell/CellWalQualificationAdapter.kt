@@ -215,7 +215,9 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			collectedDataEpoch = wal.capturedCollectedDataEpoch,
 			expectedProviderResidency =
 				ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
-			observedStartNanos = observedStart,
+			// The envelope establishes which registration delivered the latest observation.
+			// Earlier children are qualified individually against that registration below.
+			observedStartNanos = wal.observedElapsedNanos,
 			observedEndNanos = wal.observedElapsedNanos,
 			observedWallTimeMs = wallTime,
 			currentClockDomainId = bootClockDomainProvider.current(),
