@@ -562,8 +562,9 @@ or push.
 ### Assembly scenario coverage continuation (2026-09-28)
 
 The 25 prerequisites are traced in `assembly-coverage/2026-09-28/PREREQUISITE_TRACE.md`.
-Each remains pending; this is authored source and static review only,
-**IMPLEMENTED_UNVALIDATED**.
+The authored cases and independent static review are in `assembly-coverage/2026-09-28/SCENARIOS.md`
+and `assembly-coverage/2026-09-28/REVIEW_RECEIPT.md`. Each prerequisite remains pending; this is
+authored source and static review only, **IMPLEMENTED_UNVALIDATED**.
 
 - [x] Account for all 25 gate dependencies against present production and test source, including
   source-only, subset, join/leave, lifecycle, privacy, recovery and migration categories; author
