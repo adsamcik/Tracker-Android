@@ -32,6 +32,9 @@ class SessionBundleManifestV1Test {
 		shouldThrow<InvalidSessionBundle> {
 			codec.encode(base.copy(selectedOrigins = listOf("live-provider")))
 		}
+		shouldThrow<InvalidSessionBundle> {
+			codec.encode(base.copy(selectedSources = listOf("unknown-source")))
+		}
 	}
 
 	@Test

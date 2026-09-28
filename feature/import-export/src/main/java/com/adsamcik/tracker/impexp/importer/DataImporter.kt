@@ -282,20 +282,34 @@ internal class ImportJobRunner(
 		importMetadata: suspend () -> ImportResult,
 	): ImportResult = operationMutex.withLock {
 		var aggregate = ImportResult.EMPTY
-		bundle.children.forEach { child ->
-			child.importStream().use { stream ->
-				aggregate += processEntry(jobId, stream.receiptKey, stream.fileName,
-					transactionModeForChild(stream)) {
-					importChild(receiptBoundStream(jobId, stream))
+		try {
+			bundle.children.forEach { child ->
+				child.importStream().use { stream ->
+					aggregate += processEntry(jobId, stream.receiptKey, stream.fileName,
+						transactionModeForChild(stream)) {
+						importChild(receiptBoundStream(jobId, stream))
+					}
+				}
+				if (aggregate.failedCount > 0) return@withLock aggregate
+			}
+			bundle.metadataStream().use { metadata ->
+				aggregate + processEntry(jobId, metadata.receiptKey, metadata.fileName,
+					ImportTransactionMode.WORKER_MANAGED) {
+					val job = receiptStore.getJob(jobId)
+					if (job?.status != ImportJobReceiptEntity.STATUS_IN_PROGRESS ||
+						bundle.children.any { child ->
+							receiptStore.getEntry(jobId, child.receiptKey)?.status !=
+								ImportEntryReceiptEntity.STATUS_SUCCESS
+						}) {
+						throw ImportReceiptPreconditionException(
+							"Session import requires every source receipt in the current file job")
+					}
+					verifyCollectedDataAccess()
+					importMetadata()
 				}
 			}
-			if (aggregate.failedCount > 0) return@withLock aggregate
-		}
-		bundle.metadataStream().use { metadata ->
-			aggregate + processEntry(jobId, metadata.receiptKey, metadata.fileName,
-				ImportTransactionMode.WORKER_MANAGED) {
-				importMetadata()
-			}
+		} catch (failure: PermanentImportInputException) {
+			throw failure.withCommittedPrefix(aggregate)
 		}
 	}
 

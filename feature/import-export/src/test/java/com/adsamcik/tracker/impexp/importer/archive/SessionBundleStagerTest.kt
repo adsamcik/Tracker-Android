@@ -19,9 +19,13 @@ import io.mockk.unmockkStatic
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -42,6 +46,35 @@ class SessionBundleStagerTest {
 	fun cleanup() {
 		unmockkStatic("com.adsamcik.tracker.shared.base.extension.FileExtensionsKt")
 		cache.deleteRecursively()
+	}
+
+	@Test
+	fun `cancelled copy removes its partial private file`() = runTest {
+		val copyJob = Job()
+		val source = mockk<DocumentFile>()
+		val input = object : ByteArrayInputStream("first block".toByteArray()) {
+			override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+				super.read(buffer, offset, length).also { copyJob.cancel() }
+		}
+		every { source.openInputStream(context) } returns input
+		shouldThrow<CancellationException> {
+			withContext(copyJob) { SessionBundleStager().stageSource(context, source) }
+		}
+		File(cache, SessionBundleStager.CACHE_DIRECTORY).listFiles().orEmpty().size shouldBe 0
+	}
+
+	@Test
+	fun `failed temporary file cleanup is reported`() {
+		val nonEmptyDirectory = File(cache, "blocked-copy").apply {
+			mkdirs()
+			File(this, "remaining").writeText("x")
+		}
+		shouldThrow<IOException> { StagedSessionSource(nonEmptyDirectory).close() }
+		val manifest = SessionBundleManifestV1(null, null, 100, 200, "UTC", emptyList(),
+			emptyList(), emptyList())
+		val bundle = StagedSessionBundle(manifest, SessionBundleManifestCodecV1.encode(manifest),
+			listOf(StagedSessionChild("child", "receipt", nonEmptyDirectory, 1L, "a")))
+		shouldThrow<IOException> { bundle.close() }
 	}
 
 	@Test

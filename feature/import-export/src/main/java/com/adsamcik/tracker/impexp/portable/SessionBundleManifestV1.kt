@@ -48,7 +48,7 @@ internal object SessionBundleManifestCodecV1 {
 	const val MAX_ARCHIVE_BYTES = MAX_TOTAL_BYTES + MAX_MANIFEST_BYTES + MAX_CHILDREN * 1024L + 4096L
 	private val safePath = Regex("sources/[0-9]{1,2}/[a-z0-9-]{1,64}\\.[a-z0-9]{1,32}")
 	private val sha256 = Regex("[0-9a-f]{64}")
-	private val sourceName = Regex("[a-z][a-z0-9-]{0,31}")
+	private val sources = setOf("location", "steps", "wifi", "cell", "activity", "pressure")
 
 	fun encode(manifest: SessionBundleManifestV1): ByteArray {
 		validate(manifest)
@@ -136,7 +136,7 @@ internal object SessionBundleManifestCodecV1 {
 		if ((manifest.name?.length ?: 0) > 200 || (manifest.activityLabel?.length ?: 0) > 200)
 			throw InvalidSessionBundle("Session label is too long")
 		if (manifest.selectedSources.size > 6 || manifest.selectedSources.distinct().size != manifest.selectedSources.size ||
-			manifest.selectedSources.any { !sourceName.matches(it) })
+			manifest.selectedSources.any { it !in sources })
 			throw InvalidSessionBundle("Session source list is invalid")
 		if (manifest.selectedPurposes.distinct().size != manifest.selectedPurposes.size ||
 			manifest.selectedPurposes.any { it !in setOf("session", "background") } ||

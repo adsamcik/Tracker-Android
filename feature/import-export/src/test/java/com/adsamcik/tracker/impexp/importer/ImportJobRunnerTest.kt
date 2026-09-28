@@ -53,6 +53,61 @@ class ImportJobRunnerTest {
 	}
 
 	@Test
+	fun `bundle metadata rejects a missing child receipt inside its transaction`() = runTest {
+		val store = FakeImportReceiptStore()
+		val runner = ImportJobRunner(store)
+		val manifest = SessionBundleManifestV1(null, null, 100, 200, "UTC", emptyList(),
+			emptyList(), emptyList())
+		val bundle = StagedSessionBundle(manifest, SessionBundleManifestCodecV1.encode(manifest),
+			listOf(StagedSessionChild("child.trackersteps", "child", File(cacheDir, "child").apply {
+				writeText("data") }, 4L, "a")))
+		runner.start(JOB_ID, "walk.trackersession", 100L)
+		var published = false
+		assertFailsWith<IOException> {
+			runner.importSessionBundle(JOB_ID, bundle,
+				transactionModeForChild = { ImportTransactionMode.IMPORTER_MANAGED },
+				importChild = {
+					store.hiddenEntryKey = "child"
+					ImportResult(successCount = 1)
+				},
+				importMetadata = { published = true; ImportResult(successCount = 1) })
+		}
+		published shouldBe false
+		store.entryStatus(JOB_ID, "child") shouldBe ImportEntryReceiptEntity.STATUS_SUCCESS
+		store.entryStatus(JOB_ID, "session-bundle-metadata-v1") shouldBe null
+	}
+
+	@Test
+	fun `permanent bundle child failure reports its committed sibling`() = runTest {
+		val store = FakeImportReceiptStore()
+		val runner = ImportJobRunner(store)
+		val manifest = SessionBundleManifestV1(null, null, 100, 200, "UTC", emptyList(),
+			emptyList(), emptyList())
+		val bundle = StagedSessionBundle(manifest, SessionBundleManifestCodecV1.encode(manifest),
+			listOf(
+				StagedSessionChild("first.trackersteps", "first", File(cacheDir, "one").apply {
+					writeText("one") }, 3L, "a"),
+				StagedSessionChild("second.trackersteps", "second", File(cacheDir, "two").apply {
+					writeText("two") }, 3L, "b"),
+			))
+		runner.start(JOB_ID, "walk.trackersession", 100L)
+		val failure = assertFailsWith<PermanentImportInputException> {
+			runner.importSessionBundle(JOB_ID, bundle,
+				transactionModeForChild = { ImportTransactionMode.IMPORTER_MANAGED },
+				importChild = { stream ->
+					if (stream.receiptKey == "second")
+						throw PermanentImportInputException("Second source is invalid")
+					ImportResult(successCount = 1)
+				},
+				importMetadata = { error("Metadata must not be published") })
+		}
+		failure.toImportResult().successCount shouldBe 1
+		failure.toImportResult().failedCount shouldBe 1
+		store.entryStatus(JOB_ID, "first") shouldBe ImportEntryReceiptEntity.STATUS_SUCCESS
+		store.entryStatus(JOB_ID, "session-bundle-metadata-v1") shouldBe null
+	}
+
+	@Test
 	fun `original epoch change during metadata publication rolls back its receipt`() = runTest {
 		val store = FakeImportReceiptStore()
 		var epoch = 5L
@@ -591,6 +646,7 @@ class ImportJobRunnerTest {
 		val isInTransaction: Boolean get() = transactionDepth > 0
 		var lastPutWasTransactional: Boolean? = null
 			private set
+		var hiddenEntryKey: String? = null
 
 		override suspend fun <T> transaction(block: suspend () -> T): T {
 			val jobsBefore = jobs.toMap()
@@ -641,7 +697,7 @@ class ImportJobRunnerTest {
 		override suspend fun getEntry(
 			jobId: String,
 			entryKey: String,
-		): ImportEntryReceiptEntity? = entries[jobId to entryKey]
+		): ImportEntryReceiptEntity? = if (entryKey == hiddenEntryKey) null else entries[jobId to entryKey]
 
 		override suspend fun putEntry(entry: ImportEntryReceiptEntity) {
 			lastPutWasTransactional = isInTransaction
