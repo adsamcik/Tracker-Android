@@ -60,6 +60,26 @@ class SessionBundleArchiveWriterTest {
 		} finally { cache.deleteRecursively() }
 	}
 
+	@Test
+	fun `highly repetitive source remains importable under ZIP ratio limit`() = runTest {
+		val cache = File("build/test-session-write-${System.nanoTime()}").apply { mkdirs() }
+		try {
+			val context = mockk<Context> { every { cacheDir } returns cache }
+			val source = File(cache, "source.trackersteps").apply {
+				writeText("x".repeat(100_000))
+			}
+			val path = "sources/0/steps.trackersteps"
+			val output = ByteArrayOutputStream()
+			SessionBundleArchiveWriter().write(context, manifest(path, source),
+				mapOf(path to source), output)
+			ZipInputStream(ByteArrayInputStream(output.toByteArray())).use { zip ->
+				val entry = zip.nextEntry
+				entry.method shouldBe java.util.zip.ZipEntry.STORED
+				entry.size shouldBe source.length()
+			}
+		} finally { cache.deleteRecursively() }
+	}
+
 	private fun manifest(path: String, source: File): SessionBundleManifestV1 =
 		SessionBundleManifestV1("Walk", "Walking", 100, 200, "UTC", listOf("steps"),
 			listOf(SessionBundleChildV1(path, "portable-steps-v1", 1, source.length(),

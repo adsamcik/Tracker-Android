@@ -7,6 +7,7 @@ import com.adsamcik.tracker.impexp.portable.SessionBundleManifestV1
 import java.io.File
 import java.io.OutputStream
 import java.security.MessageDigest
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -28,14 +29,19 @@ internal class SessionBundleArchiveWriter {
 				throw InvalidSessionBundle("Session data changed before it could be saved")
 		}
 		FileBackedExportSpool(context, "session-bundle-",
-			SessionBundleManifestCodecV1.MAX_TOTAL_BYTES).use { spool ->
+			SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES,
+			limits = FileBackedExportSpoolLimits(
+				maximumTotalBytes = SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES,
+			)).use { spool ->
 			when (spool.stage { staged ->
 				ZipOutputStream(staged).use { zip ->
 					manifest.children.forEach { declared ->
-						zip.putNextEntry(ZipEntry(declared.path))
+						val sourceFile = children.getValue(declared.path)
+						zip.putNextEntry(storedEntry(declared.path, declared.sizeBytes,
+							sourceFile.crc32()))
 						val digest = MessageDigest.getInstance("SHA-256")
 						var count = 0L
-						children.getValue(declared.path).inputStream().buffered().use { source ->
+						sourceFile.inputStream().buffered().use { source ->
 							val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
 							while (true) {
 								val read = source.read(buffer)
@@ -51,7 +57,8 @@ internal class SessionBundleArchiveWriter {
 							throw InvalidSessionBundle("Session data changed before it could be saved")
 						zip.closeEntry()
 					}
-					zip.putNextEntry(ZipEntry(SessionBundleManifestCodecV1.MANIFEST_PATH))
+					zip.putNextEntry(storedEntry(SessionBundleManifestCodecV1.MANIFEST_PATH,
+						manifestBytes.size.toLong(), CRC32().apply { update(manifestBytes) }.value))
 					zip.write(manifestBytes)
 					zip.closeEntry()
 				}
@@ -74,6 +81,26 @@ internal class SessionBundleArchiveWriter {
 			}
 		}
 		return digest.digest().toHex()
+	}
+
+	private fun File.crc32(): Long {
+		val crc = CRC32()
+		inputStream().buffered().use { stream ->
+			val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+			while (true) {
+				val read = stream.read(buffer)
+				if (read < 0) break
+				crc.update(buffer, 0, read)
+			}
+		}
+		return crc.value
+	}
+
+	private fun storedEntry(path: String, size: Long, crc: Long): ZipEntry = ZipEntry(path).apply {
+		method = ZipEntry.STORED
+		this.size = size
+		compressedSize = size
+		this.crc = crc
 	}
 
 	private fun ByteArray.toHex(): String = joinToString("") { byte ->

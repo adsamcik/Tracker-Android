@@ -8,6 +8,7 @@ import com.adsamcik.tracker.impexp.importer.PermanentImportInputException
 import com.adsamcik.tracker.impexp.importer.computeImportJobId
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.PortableAmbientStepsFileImport
+import com.adsamcik.tracker.impexp.portable.InvalidSessionBundle
 import com.adsamcik.tracker.shared.base.extension.openInputStream
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -27,6 +28,12 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
 class ImportWorkerFailureTest {
+	@Test
+	fun `malformed session file is terminal instead of retrying forever`() {
+		classifyImportWorkerIOException(InvalidSessionBundle("Session data file was changed")) shouldBe
+			ImportWorkerIoDecision.Terminal(ImportResult(failedCount = 1,
+				errors = listOf("Session data file was changed")))
+	}
 	private val context = mockk<Context>()
 
 	@BeforeEach

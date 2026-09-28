@@ -16,6 +16,8 @@ internal data class SessionBundleManifestV1(
 	val selectedSources: List<String>,
 	val children: List<SessionBundleChildV1>,
 	val omissions: List<String>,
+	val selectedPurposes: List<String> = emptyList(),
+	val selectedOrigins: List<String> = emptyList(),
 )
 
 internal data class SessionBundleChildV1(
@@ -42,6 +44,8 @@ internal object SessionBundleManifestCodecV1 {
 	const val MAX_CHILDREN = 64
 	const val MAX_CHILD_BYTES = 64L * 1024 * 1024
 	const val MAX_TOTAL_BYTES = 256L * 1024 * 1024
+	/** Child allowance plus manifest and conservative ZIP header room. */
+	const val MAX_ARCHIVE_BYTES = MAX_TOTAL_BYTES + MAX_MANIFEST_BYTES + MAX_CHILDREN * 1024L + 4096L
 	private val safePath = Regex("sources/[0-9]{1,2}/[a-z0-9-]{1,64}\\.[a-z0-9]{1,32}")
 	private val sha256 = Regex("[0-9a-f]{64}")
 	private val sourceName = Regex("[a-z][a-z0-9-]{0,31}")
@@ -57,6 +61,8 @@ internal object SessionBundleManifestCodecV1 {
 			.put("toMs", manifest.toMs)
 			.put("zoneId", manifest.zoneId)
 			.put("selectedSources", JSONArray(manifest.selectedSources))
+			.put("selectedPurposes", JSONArray(manifest.selectedPurposes))
+			.put("selectedOrigins", JSONArray(manifest.selectedOrigins))
 			.put("omissions", JSONArray(manifest.omissions))
 		val children = JSONArray()
 		manifest.children.forEach { child ->
@@ -107,6 +113,8 @@ internal object SessionBundleManifestCodecV1 {
 				selectedSources = root.getJSONArray("selectedSources").strings(),
 				children = children,
 				omissions = root.getJSONArray("omissions").strings(),
+				selectedPurposes = root.getJSONArray("selectedPurposes").strings(),
+				selectedOrigins = root.getJSONArray("selectedOrigins").strings(),
 			)
 			validate(manifest)
 			manifest
@@ -130,6 +138,11 @@ internal object SessionBundleManifestCodecV1 {
 		if (manifest.selectedSources.size > 6 || manifest.selectedSources.distinct().size != manifest.selectedSources.size ||
 			manifest.selectedSources.any { !sourceName.matches(it) })
 			throw InvalidSessionBundle("Session source list is invalid")
+		if (manifest.selectedPurposes.distinct().size != manifest.selectedPurposes.size ||
+			manifest.selectedPurposes.any { it !in setOf("session", "background") } ||
+			manifest.selectedOrigins.distinct().size != manifest.selectedOrigins.size ||
+			manifest.selectedOrigins.any { it !in setOf("local", "imported") })
+			throw InvalidSessionBundle("Session data description is invalid")
 		if (manifest.omissions.size > 64 || manifest.omissions.any { it.length > 200 })
 			throw InvalidSessionBundle("Session missing-data list is invalid")
 		if (manifest.children.size > MAX_CHILDREN ||

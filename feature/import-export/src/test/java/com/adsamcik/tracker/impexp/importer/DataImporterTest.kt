@@ -13,6 +13,20 @@ import org.junit.jupiter.api.Test
 
 class DataImporterTest {
 	@Test
+	fun `clear cancels old asynchronous admission and rejects imports until reopened`() {
+		val fence = ImportAdmissionFence()
+		val old = fence.capture()!!
+		var enqueued = false
+		fence.pause { Unit }
+		fence.enqueueIfCurrent(old) { enqueued = true } shouldBe false
+		fence.capture() shouldBe null
+		fence.resume()
+		fence.enqueueIfCurrent(old) { enqueued = true } shouldBe false
+		val fresh = fence.capture()!!
+		fence.enqueueIfCurrent(fresh) { enqueued = true } shouldBe true
+		enqueued shouldBe true
+	}
+	@Test
 	fun `queued import retains its original data epoch across worker retries`() {
 		val input = importJobInput("content://tracker/session", 17L)
 		input.getString(com.adsamcik.tracker.impexp.importer.worker.ImportWorker.ARG_FILE_URI) shouldBe

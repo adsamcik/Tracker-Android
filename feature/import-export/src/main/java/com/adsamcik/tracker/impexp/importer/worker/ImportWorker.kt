@@ -26,6 +26,7 @@ import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveEntryMetadata
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveClassification
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
+import com.adsamcik.tracker.impexp.portable.InvalidSessionBundle
 import com.adsamcik.tracker.impexp.importer.file.DatabaseImportFailure
 import com.adsamcik.tracker.impexp.importer.file.FileImport
 import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
@@ -100,7 +101,7 @@ class ImportWorker @AssistedInject constructor(
 		if (!isReadyGeneration()) return Result.success()
 		importJobRunner = ImportJobRunner(
 			receiptStore = RoomImportReceiptStore(database),
-			verifyCollectedDataAccess = ::requireReadyGeneration,
+			verifyCollectedDataAccess = ::requireCurrentImportAuthority,
 		)
 
         showNotification(
@@ -135,6 +136,9 @@ class ImportWorker @AssistedInject constructor(
             throw e
 		} catch (_: StartupGenerationChangedException) {
 			Result.success()
+		} catch (_: ImportDataEpochChangedException) {
+			showErrorNotification(context.getString(R.string.import_cleared_error))
+			Result.failure()
         } catch (e: IOException) {
 			when (val decision = classifyImportWorkerIOException(e)) {
 				is ImportWorkerIoDecision.Terminal ->
@@ -341,6 +345,11 @@ class ImportWorker @AssistedInject constructor(
 		if (!isReadyGeneration()) throw StartupGenerationChangedException
 	}
 
+	private suspend fun requireCurrentImportAuthority() {
+		requireReadyGeneration()
+		if (!isCurrentDataEpoch()) throw ImportDataEpochChangedException
+	}
+
     companion object {
         const val NOTIFICATION_ID: Int = 98784
         const val NOTIFICATION_ERROR_BASE_ID: Int = 98785
@@ -350,6 +359,7 @@ class ImportWorker @AssistedInject constructor(
     }
 
 	private object StartupGenerationChangedException : RuntimeException()
+	private object ImportDataEpochChangedException : RuntimeException()
 
 }
 
@@ -361,6 +371,9 @@ internal sealed interface ImportWorkerIoDecision {
 internal fun classifyImportWorkerIOException(failure: IOException): ImportWorkerIoDecision =
 	if (failure is PermanentImportInputException) {
 		ImportWorkerIoDecision.Terminal(failure.toImportResult())
+	} else if (failure is InvalidSessionBundle) {
+		ImportWorkerIoDecision.Terminal(ImportResult(failedCount = 1,
+			errors = listOf(failure.message ?: "Session file is invalid")))
 	} else {
 		ImportWorkerIoDecision.Retry
 	}

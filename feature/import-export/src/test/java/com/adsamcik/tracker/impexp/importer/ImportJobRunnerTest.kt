@@ -4,6 +4,10 @@ import android.content.Context
 import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
+import com.adsamcik.tracker.impexp.importer.archive.StagedSessionBundle
+import com.adsamcik.tracker.impexp.importer.archive.StagedSessionChild
+import com.adsamcik.tracker.impexp.portable.SessionBundleManifestCodecV1
+import com.adsamcik.tracker.impexp.portable.SessionBundleManifestV1
 import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
 import com.adsamcik.tracker.impexp.importer.file.PortableAmbientStepsFileImport
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
@@ -46,6 +50,77 @@ class ImportJobRunnerTest {
 	fun tearDown() {
 		unmockkStatic("com.adsamcik.tracker.shared.base.extension.FileExtensionsKt")
 		cacheDir.deleteRecursively()
+	}
+
+	@Test
+	fun `original epoch change during metadata publication rolls back its receipt`() = runTest {
+		val store = FakeImportReceiptStore()
+		var epoch = 5L
+		val runner = ImportJobRunner(store, verifyCollectedDataAccess = {
+			if (epoch != 5L) throw IllegalStateException("recorded data was cleared")
+		})
+		val manifest = SessionBundleManifestV1("Walk", null, 100, 200, "UTC", emptyList(),
+			emptyList(), emptyList())
+		val bundle = StagedSessionBundle(manifest, SessionBundleManifestCodecV1.encode(manifest),
+			emptyList())
+		runner.start(JOB_ID, "walk.trackersession", 100L)
+		assertFailsWith<IllegalStateException> {
+			runner.importSessionBundle(JOB_ID, bundle,
+				transactionModeForChild = { ImportTransactionMode.IMPORTER_MANAGED },
+				importChild = { ImportResult(successCount = 1) },
+				importMetadata = {
+					epoch = 6L
+					ImportResult(successCount = 1)
+				})
+		}
+		store.entryStatus(JOB_ID, "session-bundle-metadata-v1") shouldBe null
+		store.jobStatus(JOB_ID) shouldBe ImportJobReceiptEntity.STATUS_IN_PROGRESS
+	}
+
+	@Test
+	fun `bundle retries failed child without repeating a committed sibling or publishing metadata early`() = runTest {
+		val store = FakeImportReceiptStore()
+		val runner = ImportJobRunner(store)
+		val firstFile = File(cacheDir, "first.bin").apply { writeText("one") }
+		val secondFile = File(cacheDir, "second.bin").apply { writeText("two") }
+		val manifest = SessionBundleManifestV1("Walk", null, 100, 200, "UTC",
+			listOf("steps"), emptyList(), emptyList())
+		val bundle = StagedSessionBundle(manifest, SessionBundleManifestCodecV1.encode(manifest),
+			listOf(
+				StagedSessionChild("first.trackersteps", "child-1", firstFile, 3L, "a"),
+				StagedSessionChild("second.trackersteps", "child-2", secondFile, 3L, "b"),
+			))
+		runner.start(JOB_ID, "walk.trackersession", 100L)
+		val calls = mutableMapOf<String, Int>()
+		var published = 0
+		suspend fun receive(): ImportResult = runner.importSessionBundle(
+			jobId = JOB_ID,
+			bundle = bundle,
+			transactionModeForChild = { ImportTransactionMode.IMPORTER_MANAGED },
+			importChild = { stream ->
+				calls[stream.receiptKey] = calls.getOrDefault(stream.receiptKey, 0) + 1
+				if (stream.receiptKey == "child-2" && calls.getValue("child-2") == 1)
+					ImportResult(failedCount = 1, errors = listOf("second failed"))
+				else ImportResult(successCount = 1)
+			},
+			importMetadata = {
+				store.isInTransaction shouldBe true
+				published++
+				ImportResult(successCount = 1)
+			},
+		)
+		val failed = receive()
+		failed.failedCount shouldBe 1
+		published shouldBe 0
+		store.entryStatus(JOB_ID, "child-1") shouldBe ImportEntryReceiptEntity.STATUS_SUCCESS
+		store.entryStatus(JOB_ID, "session-bundle-metadata-v1") shouldBe null
+
+		val retried = receive()
+		retried.failedCount shouldBe 0
+		calls shouldContainExactly mapOf("child-1" to 1, "child-2" to 2)
+		published shouldBe 1
+		store.entryStatus(JOB_ID, "session-bundle-metadata-v1") shouldBe
+			ImportEntryReceiptEntity.STATUS_SUCCESS
 	}
 
 	@Test

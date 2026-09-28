@@ -13,6 +13,8 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveEntryMetadata
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
+import com.adsamcik.tracker.impexp.importer.archive.SessionBundleStager
+import com.adsamcik.tracker.impexp.importer.archive.StagedSessionBundle
 import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
 import com.adsamcik.tracker.impexp.importer.worker.ImportWorker
 import com.adsamcik.tracker.impexp.R
@@ -40,7 +42,13 @@ import kotlinx.coroutines.sync.withLock
  * Exposes import start to other packages.
  */
 object DataImporter {
+	private val admissionFence = ImportAdmissionFence()
+
 	fun import(context: Context, fileUri: Uri, onStartFailure: (String) -> Unit = {}) {
+		val admissionGeneration = admissionFence.capture() ?: run {
+			onStartFailure(context.getString(R.string.import_start_error))
+			return
+		}
 		persistReadPermission(context, fileUri)
 		val graph = try { EntryPointAccessors.fromApplication(
 			context.applicationContext, ImportAdmissionEntryPoint::class.java,
@@ -54,11 +62,16 @@ object DataImporter {
 				val workRequest = OneTimeWorkRequestBuilder<ImportWorker>()
 					.setInputData(importJobInput(fileUri.toString(), admission.epoch))
 					.build()
-				WorkManager.getInstance(context).enqueueUniqueWork(
-					UNIQUE_WORK_NAME,
-					ExistingWorkPolicy.APPEND_OR_REPLACE,
-					workRequest,
-				)
+				val queued = admissionFence.enqueueIfCurrent(admissionGeneration) {
+					WorkManager.getInstance(context).enqueueUniqueWork(
+						UNIQUE_WORK_NAME,
+						ExistingWorkPolicy.APPEND_OR_REPLACE,
+						workRequest,
+					)
+				}
+				if (!queued) withContext(graph.dispatchersProvider().main) {
+					onStartFailure(context.getString(R.string.import_start_error))
+				}
 			} catch (cancelled: CancellationException) {
 				throw cancelled
 			} catch (_: Exception) {
@@ -71,7 +84,15 @@ object DataImporter {
 
 	/** Stops a database-writing import before collected data is cleared. */
 	fun cancel(context: Context): Operation =
-		WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME)
+		admissionFence.pause {
+			WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME)
+		}
+
+	/** The deletion coordinator calls this only after its writer boundary reopens. */
+	fun resumeAfterDataDeletion() = admissionFence.resume()
+
+	/** Clears only this importer's own temporary session files after cancellation. */
+	fun clearSessionBundleStaging(context: Context) = SessionBundleStager.clearOwnedStaging(context)
 
 	internal fun persistReadPermission(context: Context, fileUri: Uri): Boolean {
 		if (fileUri.scheme != ContentResolver.SCHEME_CONTENT) return false
@@ -88,6 +109,28 @@ object DataImporter {
 	}
 
 	const val UNIQUE_WORK_NAME = "data-import"
+}
+
+/** Serializes asynchronous import admission with the deletion coordinator's cancellation. */
+internal class ImportAdmissionFence {
+	private var generation = 0L
+	private var paused = false
+
+	@Synchronized fun capture(): Long? = generation.takeUnless { paused }
+
+	@Synchronized fun enqueueIfCurrent(captured: Long, enqueue: () -> Unit): Boolean {
+		if (paused || generation != captured) return false
+		enqueue()
+		return true
+	}
+
+	@Synchronized fun <T> pause(cancel: () -> T): T {
+		paused = true
+		generation = Math.addExact(generation, 1L)
+		return cancel()
+	}
+
+	@Synchronized fun resume() { paused = false }
 }
 
 internal fun importJobInput(fileUri: String, originalDataEpoch: Long) =
@@ -136,7 +179,7 @@ internal class PermanentImportInputException(
 
 internal class ImportJobRunner(
 	private val receiptStore: ImportReceiptStore,
-	private val verifyCollectedDataAccess: () -> Unit = {},
+	private val verifyCollectedDataAccess: suspend () -> Unit = {},
 	private val nowMs: () -> Long = System::currentTimeMillis,
 ) {
 	// One runner belongs to one uniquely scheduled ImportWorker. Completion cannot race its imports.
@@ -227,6 +270,32 @@ internal class ImportJobRunner(
 	): ImportResult = operationMutex.withLock {
 		processEntry(jobId, stream.receiptKey, stream.fileName, transactionMode) {
 			importEntry(receiptBoundStream(jobId, stream))
+		}
+	}
+
+	/** Child receipts keep valid source imports on failure; metadata publishes only after all children finish. */
+	suspend fun importSessionBundle(
+		jobId: String,
+		bundle: StagedSessionBundle,
+		transactionModeForChild: (FileImportStream) -> ImportTransactionMode,
+		importChild: suspend (FileImportStream) -> ImportResult,
+		importMetadata: suspend () -> ImportResult,
+	): ImportResult = operationMutex.withLock {
+		var aggregate = ImportResult.EMPTY
+		bundle.children.forEach { child ->
+			child.importStream().use { stream ->
+				aggregate += processEntry(jobId, stream.receiptKey, stream.fileName,
+					transactionModeForChild(stream)) {
+					importChild(receiptBoundStream(jobId, stream))
+				}
+			}
+			if (aggregate.failedCount > 0) return@withLock aggregate
+		}
+		bundle.metadataStream().use { metadata ->
+			aggregate + processEntry(jobId, metadata.receiptKey, metadata.fileName,
+				ImportTransactionMode.WORKER_MANAGED) {
+				importMetadata()
+			}
 		}
 	}
 

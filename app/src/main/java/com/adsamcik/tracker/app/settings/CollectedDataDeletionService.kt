@@ -262,6 +262,7 @@ class DefaultCollectedDataWriterQuiescer(
 					DataImporter.cancel(context),
 					"data import",
 				)
+				DataImporter.clearSessionBundleStaging(context)
 				awaitCancellation(
 					PendingSignalDrainWork.cancel(context),
 					"pending-signal recovery",
@@ -282,6 +283,7 @@ class DefaultCollectedDataWriterQuiescer(
 	}
 
 	override fun resume() {
+		DataImporter.resumeAfterDataDeletion()
 		if (restoreRetentionSchedule) {
 			retentionWorkScheduler.resumeAfterQuiescence()
 		}

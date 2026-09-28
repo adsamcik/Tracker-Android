@@ -14,10 +14,24 @@ class SessionBundleManifestV1Test {
 			name = "Evening walk", activityLabel = "Walk", fromMs = 100, toMs = 200,
 			zoneId = "Europe/Prague", selectedSources = listOf("steps"),
 			children = emptyList(), omissions = listOf("Steps were unavailable"),
+			selectedPurposes = listOf("session", "background"),
+			selectedOrigins = listOf("local", "imported"),
 		)
 		codec.decode(codec.encode(manifest)) shouldBe manifest
 		JSONObject(codec.encode(manifest).toString(Charsets.UTF_8)).getString("format") shouldBe
 			SessionBundleManifestCodecV1.FORMAT
+	}
+
+	@Test
+	fun `purpose and origin descriptions reject duplicate or unknown values`() {
+		val base = SessionBundleManifestV1(null, null, 100, 200, "UTC", emptyList(),
+			emptyList(), emptyList())
+		shouldThrow<InvalidSessionBundle> {
+			codec.encode(base.copy(selectedPurposes = listOf("session", "session")))
+		}
+		shouldThrow<InvalidSessionBundle> {
+			codec.encode(base.copy(selectedOrigins = listOf("live-provider")))
+		}
 	}
 
 	@Test

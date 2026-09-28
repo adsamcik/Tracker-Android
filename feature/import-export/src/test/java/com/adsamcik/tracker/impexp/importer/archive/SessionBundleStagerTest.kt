@@ -6,12 +6,15 @@ import com.adsamcik.tracker.impexp.portable.InvalidSessionBundle
 import com.adsamcik.tracker.impexp.portable.SessionBundleChildV1
 import com.adsamcik.tracker.impexp.portable.SessionBundleManifestCodecV1
 import com.adsamcik.tracker.impexp.portable.SessionBundleManifestV1
+import com.adsamcik.tracker.impexp.exporter.SessionBundleArchiveWriter
+import com.adsamcik.tracker.impexp.importer.computeImportJobId
 import com.adsamcik.tracker.shared.base.extension.openInputStream
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.verify
 import io.mockk.unmockkStatic
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -39,6 +42,26 @@ class SessionBundleStagerTest {
 	fun cleanup() {
 		unmockkStatic("com.adsamcik.tracker.shared.base.extension.FileExtensionsKt")
 		cache.deleteRecursively()
+	}
+
+	@Test
+	fun `picked session is copied once before hashing and importing`() = runTest {
+		val manifest = SessionBundleManifestV1("Walk", null, 100, 200, "UTC", emptyList(),
+			emptyList(), emptyList())
+		val archive = zip(listOf(SessionBundleManifestCodecV1.MANIFEST_PATH to
+			SessionBundleManifestCodecV1.encode(manifest)))
+		val picked = file(archive)
+		val stager = SessionBundleStager()
+		stager.stageSource(context, picked).use { privateCopy ->
+			computeImportJobId(context, privateCopy.document,
+				SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES).isNotBlank() shouldBe true
+			stager.stage(context, privateCopy.document).use { staged ->
+				staged.manifest shouldBe manifest
+			}
+		}
+		verify(exactly = 1) { picked.openInputStream(context) }
+		SessionBundleStager.clearOwnedStaging(context)
+		File(cache, SessionBundleStager.CACHE_DIRECTORY).exists() shouldBe false
 	}
 
 	@Test
@@ -75,6 +98,22 @@ class SessionBundleStagerTest {
 		))))
 		}
 		File(cache, SessionBundleStager.CACHE_DIRECTORY).listFiles().orEmpty().size shouldBe 0
+	}
+
+	@Test
+	fun `writer output with repetitive source passes the same bounded extractor`() = runTest {
+		val path = "sources/0/steps.trackersteps"
+		val source = File(cache, "large.trackersteps").apply { writeText("x".repeat(100_000)) }
+		val child = SessionBundleChildV1(path, "portable-steps-v1", 1, source.length(),
+			source.readBytes().sha256(), 100, 200, true)
+		val manifest = SessionBundleManifestV1(null, null, 100, 200, "UTC", listOf("steps"),
+			listOf(child), emptyList())
+		val output = ByteArrayOutputStream()
+		SessionBundleArchiveWriter().write(context, manifest, mapOf(path to source), output)
+		SessionBundleStager().stage(context, file(output.toByteArray())).use { staged ->
+			staged.manifest shouldBe manifest
+			staged.children.single().sizeBytes shouldBe source.length()
+		}
 	}
 
 	private fun file(bytes: ByteArray): DocumentFile {

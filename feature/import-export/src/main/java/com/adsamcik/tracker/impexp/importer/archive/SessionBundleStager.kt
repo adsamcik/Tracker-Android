@@ -7,6 +7,7 @@ import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.portable.InvalidSessionBundle
 import com.adsamcik.tracker.impexp.portable.SessionBundleManifestCodecV1
 import com.adsamcik.tracker.impexp.portable.SessionBundleManifestV1
+import com.adsamcik.tracker.shared.base.extension.openInputStream
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
@@ -17,10 +18,34 @@ import java.security.MessageDigest
 internal class SessionBundleStager(
 	private val extractor: ArchiveExtractor = ZipArchiveExtractor(),
 ) {
-	suspend fun stage(context: Context, file: DocumentFile): StagedSessionBundle {
-		val directory = File(context.cacheDir, CACHE_DIRECTORY).apply {
-			if (!isDirectory && !mkdirs()) throw InvalidSessionBundle("Cannot prepare session import")
+	/** Copy a picked document once; its private bytes supply both the job hash and child dispatch. */
+	fun stageSource(context: Context, source: DocumentFile): StagedSessionSource {
+		val directory = ownedDirectory(context)
+		val destination = File.createTempFile("session-source-", ".trackersession", directory)
+		try {
+			val input = source.openInputStream(context)
+				?: throw java.io.IOException("Cannot open session file")
+			input.use { stream -> destination.outputStream().use { output ->
+				val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+				var count = 0L
+				while (true) {
+					val read = stream.read(buffer)
+					if (read < 0) break
+					count += read
+					if (count > SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES)
+						throw InvalidSessionBundle("Session file exceeds the size limit")
+					output.write(buffer, 0, read)
+				}
+			} }
+			return StagedSessionSource(destination)
+		} catch (failure: Throwable) {
+			destination.delete()
+			throw failure
 		}
+	}
+
+	suspend fun stage(context: Context, file: DocumentFile): StagedSessionBundle {
+		val directory = ownedDirectory(context)
 		val staged = mutableMapOf<String, StagedSessionChild>()
 		var manifestBytes: ByteArray? = null
 		var totalBytes = 0L
@@ -101,12 +126,54 @@ internal class SessionBundleStager(
 
 	internal companion object {
 		const val CACHE_DIRECTORY = "session-bundle-import"
+		private const val STALE_CHILD_AGE_MS = 24L * 60L * 60L * 1_000L
+		private val OWNED_FILE = Regex("(?:session-child-[-0-9]+\\.tmp|session-source-[-0-9]+\\.trackersession)")
 		val TYPED_SOURCE_FORMAT_IDS = setOf(
 			"tracker-portable-location", "portable-steps-v1", "portable-ambient-steps-v1",
 			"portable-activity-v1", "portable-pressure-v1", "portable-wifi-v1",
 			"portable-cell-v1",
 		)
+
+		/** Full clear calls this after WorkManager has acknowledged import cancellation. */
+		fun clearOwnedStaging(context: Context) {
+			val cache = context.cacheDir.canonicalFile
+			val directory = File(cache, CACHE_DIRECTORY)
+			if (!directory.exists()) return
+			if (directory.canonicalFile.parentFile != cache || !directory.isDirectory)
+				throw InvalidSessionBundle("Session import cache cannot be cleaned safely")
+			directory.listFiles()?.forEach { candidate ->
+				if (!OWNED_FILE.matches(candidate.name) || !candidate.isFile ||
+					candidate.canonicalFile.parentFile != directory.canonicalFile || !candidate.delete())
+					throw InvalidSessionBundle("Session import cache could not be cleaned")
+			} ?: throw InvalidSessionBundle("Session import cache could not be inspected")
+			if (!directory.delete()) throw InvalidSessionBundle("Session import cache could not be cleaned")
+		}
+
+		private fun ownedDirectory(context: Context): File {
+			val cache = context.cacheDir.canonicalFile
+			val directory = File(cache, CACHE_DIRECTORY).apply {
+				if (!isDirectory && !mkdirs()) throw InvalidSessionBundle("Cannot prepare session import")
+			}
+			if (directory.canonicalFile.parentFile != cache)
+				throw InvalidSessionBundle("Session import cache is outside app storage")
+			cleanupStaleChildren(directory, System.currentTimeMillis())
+			return directory
+		}
+
+		private fun cleanupStaleChildren(directory: File, nowMs: Long) {
+			directory.listFiles()?.forEach { candidate ->
+				if (OWNED_FILE.matches(candidate.name) && candidate.isFile &&
+					candidate.canonicalFile.parentFile == directory.canonicalFile &&
+					candidate.lastModified() < nowMs - STALE_CHILD_AGE_MS && !candidate.delete())
+					throw InvalidSessionBundle("Old session import cache could not be cleaned")
+			} ?: throw InvalidSessionBundle("Session import cache could not be inspected")
+		}
 	}
+}
+
+internal class StagedSessionSource(val file: File) : Closeable {
+	val document: DocumentFile get() = DocumentFile.fromFile(file)
+	override fun close() { file.delete() }
 }
 
 internal class StagedSessionBundle(
