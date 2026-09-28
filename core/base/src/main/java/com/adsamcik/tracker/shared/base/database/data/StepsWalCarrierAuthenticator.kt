@@ -76,6 +76,7 @@ object StepsWalPayloadCodec {
 			require(payloadVersion in MINIMUM_STEPS_WAL_PAYLOAD_VERSION..STEPS_WAL_PAYLOAD_VERSION)
 			require(bytes.isNotEmpty() && bytes.size <= MAX_STEPS_WAL_PAYLOAD_BYTES)
 			val decoded = DataInputStream(ByteArrayInputStream(bytes)).use { input ->
+				require(input.readInt() == TYPE_STEP_WINDOW)
 				StepsWalPayload(
 					bootClockDomainId = input.readUTF(),
 					firstCumulativeCount = input.readLong(),
@@ -86,8 +87,11 @@ object StepsWalPayloadCodec {
 					firstProviderSequence = input.readLong(),
 					lastProviderSequence = input.readLong(),
 					boundaryKind = if (payloadVersion >= STEP_BOUNDARY_KIND_PAYLOAD_VERSION) {
-						input.readInt().let { wireCode ->
-							StepsWalBoundaryKind.entries.single { it.wireCode == wireCode }
+						when (input.readInt()) {
+							1 -> StepsWalBoundaryKind.BASELINE
+							2 -> StepsWalBoundaryKind.COVERED
+							3 -> StepsWalBoundaryKind.COUNTER_RESET
+							else -> error("Unsupported Steps boundary code")
 						}
 					} else if (input.readBoolean()) {
 						StepsWalBoundaryKind.LEGACY_AMBIGUOUS

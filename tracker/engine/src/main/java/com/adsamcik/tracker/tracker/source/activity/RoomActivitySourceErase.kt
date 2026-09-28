@@ -102,8 +102,7 @@ internal class RoomActivitySourceErase @Inject constructor(
 					retainedEntries = Math.addExact(retainedEntries, 1)
 					physicalRuns = Math.addExact(physicalRuns, next.physicalRunCount)
 				}
-				is EraseNextImportedActivityResult.Blocked -> return@withContext
-					ActivitySourceEraseResult.Blocked(
+				is EraseNextImportedActivityResult.Blocked -> return@withContext ActivitySourceEraseResult.Blocked(
 						reason = next.reason.toPublicReason(),
 						localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
 						importedEntriesErasedBeforeFailure = Math.addExact(
@@ -111,14 +110,12 @@ internal class RoomActivitySourceErase @Inject constructor(
 							retainedEntries,
 						),
 					)
-				is EraseNextImportedActivityResult.Unverifiable -> return@withContext
-					ActivitySourceEraseResult.Unverifiable(
+				is EraseNextImportedActivityResult.Unverifiable -> return@withContext ActivitySourceEraseResult.Unverifiable(
 						reason = next.reason.toPublicReason(),
 						localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
 						importedEntriesErasedBeforeFailure = Math.addExact(liveEntries, retainedEntries),
 					)
-				is EraseNextImportedActivityResult.RetryableFailure -> return@withContext
-					ActivitySourceEraseResult.RetryableFailure(
+				is EraseNextImportedActivityResult.RetryableFailure -> return@withContext ActivitySourceEraseResult.RetryableFailure(
 						reason = next.reason.toPublicReason(),
 						localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
 						importedEntriesErasedBeforeFailure = Math.addExact(liveEntries, retainedEntries),

@@ -151,8 +151,7 @@ internal class WifiCaptureConsentRevocationDeletionCommand @Inject constructor(
 			evidence.collectedDataEpoch != request.expectedCollectedDataEpoch ||
 			evidence.deletedSourceEventHighWaterOrdinal !=
 				request.expectedDeletedSourceEventHighWaterOrdinal
-		) return@withTransaction
-			WifiCapturedSourceDeletionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED
+		) return@withTransaction WifiCapturedSourceDeletionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED
 
 		val policyDao = database.sourcePolicyDao()
 		val authority = policyDao.authority()?.takeIf { current ->

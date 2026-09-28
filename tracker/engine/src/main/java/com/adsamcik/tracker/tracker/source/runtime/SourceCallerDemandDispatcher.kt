@@ -1518,21 +1518,21 @@ private fun List<SourceCallerAcceptedAuthorityEntity>.hasValidStoredAuthoritySha
 			row.policyRevision > 0L &&
 			row.consentEpoch > 0L &&
 			row.collectedDataEpoch >= 0L &&
-			(row.retainedFromMs == null || row.retainedFromMs >= 0L) &&
+			(row.retainedFromMs?.let { it >= 0L } ?: true) &&
 			row.rolloutRevision >= 0L &&
 			row.executionRevision > 0L &&
 			row.ownerCasToken.isNotBlank() &&
 			(row.logicalTrackingId == null) == (row.manifestRevision == null) &&
-			(row.logicalTrackingId == null || row.logicalTrackingId.isNotBlank()) &&
-			(row.manifestRevision == null || row.manifestRevision > 0L) &&
+			(row.logicalTrackingId?.isNotBlank() ?: true) &&
+			(row.manifestRevision?.let { it > 0L } ?: true) &&
 			row.status in setOf(
 				SourceCallerAcceptedAuthorityEntity.STATUS_ACTIVE,
 				SourceCallerAcceptedAuthorityEntity.STATUS_RETIRED,
 			) &&
 			row.createdAtMs >= 0L &&
 			(row.retiredAtMs == null) == (row.retireReason == null) &&
-			(row.retiredAtMs == null || row.retiredAtMs >= row.createdAtMs) &&
-			(row.retireReason == null || row.retireReason.isNotBlank()) &&
+			(row.retiredAtMs?.let { it >= row.createdAtMs } ?: true) &&
+			(row.retireReason?.isNotBlank() ?: true) &&
 			row.effectChecksum.isNotBlank()
 	}
 

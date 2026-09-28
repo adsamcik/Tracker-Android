@@ -130,7 +130,7 @@ interface SourceEventWalDao {
 			"acquired_at_ms, wall_time_ms, wall_time_uncertainty_ms, " +
 			"authorization_purpose_eligibility_mask, " +
 			"logical_tracking_id, service_run_id, source_instance_id, registration_generation, " +
-			"lifecycle_lease_generation " +
+			"lifecycle_lease_generation, source_sequence " +
 			"FROM source_event_wal " +
 			"WHERE admission_ordinal = :admissionOrdinal LIMIT 1",
 	)
@@ -1041,6 +1041,7 @@ data class SourceEventProjectionEligibilityRow(
 	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String,
 	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
 	@ColumnInfo(name = "lifecycle_lease_generation") val lifecycleLeaseGeneration: Long?,
+	@ColumnInfo(name = "source_sequence") val sourceSequence: Long,
 )
 
 /** Payload-free identity used to prove a decoded source projection page is complete. */

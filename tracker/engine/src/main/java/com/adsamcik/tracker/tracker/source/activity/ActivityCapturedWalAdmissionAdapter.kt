@@ -818,8 +818,8 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			completedAtMs?.let { completed -> completed < startedAtMs } == true
 		) return false
 		if (terminal || state == LIFECYCLE_STOPPING) {
-			if (cutoffAtMs == null || cutoffElapsedNanos == null || cutoffAtMs < startedAtMs ||
-				cutoffElapsedNanos < startedElapsedNanos
+			if (cutoffAtMs?.let { it < startedAtMs } != false ||
+				cutoffElapsedNanos?.let { it < startedElapsedNanos } != false
 		) return false
 		} else if (!stoppingRelationship && (cutoffAtMs != null || cutoffElapsedNanos != null)) {
 			return false

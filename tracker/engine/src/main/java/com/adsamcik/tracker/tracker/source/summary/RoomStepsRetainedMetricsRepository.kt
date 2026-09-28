@@ -18,7 +18,7 @@ import com.adsamcik.tracker.tracker.source.deletion.StepsDayRepairPreflight
 import com.adsamcik.tracker.tracker.source.deletion.StepsRetainedDayAuthorityDiscovery
 import com.adsamcik.tracker.tracker.source.deletion.stepsNumericReadQueryBounds
 import java.io.DataOutputStream
-import java.io.DigestOutputStream
+import java.security.DigestOutputStream
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -40,7 +40,7 @@ class RoomStepsRetainedMetricsRepository @Inject constructor(
 	override suspend fun readDecision(): StepsRetainedMetricsDecision = withContext(ioDispatcher) {
 		try {
 			database.useReaderConnection { connection ->
-				connection.deferredTransaction {
+				connection.deferredTransaction<StepsRetainedMetricsDecision> {
 					val before = database.sourceEvidenceStateDao().get()
 						?: return@deferredTransaction StepsRetainedMetricsDecision.StorageUnavailable
 					val retained = readRetainedDecision(before.retainedFromMs)

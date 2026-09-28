@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import kotlinx.coroutines.flow.first
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.R as BaseR
@@ -149,7 +150,7 @@ private fun SystemStatusSection(
     LaunchedEffect(Unit) {
         scope.launch(defaultDispatchers.io) {
             val workManager = WorkManager.getInstance(context)
-            val workInfos = workManager.getWorkInfosByTag("disableTillRecharge").get()
+			val workInfos = workManager.getWorkInfosByTagFlow("disableTillRecharge").first()
             hasRechargeJob = workInfos.any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING }
         }
     }

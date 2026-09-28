@@ -205,8 +205,9 @@ class RawLocationObservationRepair @Inject constructor(
 	private fun SourceEventWalEntity.isCurrentFor(state: SourceEvidenceState): Boolean =
 		capturedCollectedDataEpoch == state.collectedDataEpoch &&
 			admissionOrdinal > state.deletedSourceEventHighWaterOrdinal &&
-			(state.retainedFromMs == null ||
-				earliestPossibleWallTimeMs()?.let { it >= state.retainedFromMs } == true) &&
+			(state.retainedFromMs?.let { floor ->
+				earliestPossibleWallTimeMs()?.let { it >= floor } == true
+			} ?: true) &&
 			authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
 
 	private fun SourceEventWalEntity.earliestPossibleWallTimeMs(): Long? {

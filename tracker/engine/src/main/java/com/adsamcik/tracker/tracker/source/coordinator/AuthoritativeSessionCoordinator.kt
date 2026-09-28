@@ -6140,8 +6140,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			) ||
 			session.logicalTrackingId != retirement.logicalTrackingId ||
 			session.currentServiceRunId != retirement.serviceRunId ||
-			session.currentManifestRevision == null ||
-			session.currentManifestRevision < action.manifestRevision ||
+			session.currentManifestRevision?.let { it < action.manifestRevision } != false ||
 			session.state != SessionLifecycleState.STOPPING.name ||
 			session.cutoffElapsedNanos != retirement.cutoffElapsedRealtimeNanos ||
 			session.cutoffAtMs != retirement.cutoffWallTimeMs ||
@@ -6976,7 +6975,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 						action.manifestRevision,
 						action.actionRevision,
 						action.actionFamily,
-						action.sourceKind,
+						requireNotNull(action.sourceKind),
 						action.desiredState,
 						action.desiredPlanRevision,
 						action.sourcePolicyRevision,

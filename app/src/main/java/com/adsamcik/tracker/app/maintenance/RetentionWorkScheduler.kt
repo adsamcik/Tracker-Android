@@ -357,7 +357,7 @@ class RetentionWorkScheduler @Inject constructor(
 		uniqueWorkNames: Set<String>,
 		executionIds: Set<String>,
 	): WorkInfo? = try {
-		workManager.getWorkInfoById(requestId).await()
+		workManager.getWorkInfoByIdFlow(requestId).first()
 	} catch (cancelled: CancellationException) {
 		throw cancelled
 	} catch (error: Exception) {

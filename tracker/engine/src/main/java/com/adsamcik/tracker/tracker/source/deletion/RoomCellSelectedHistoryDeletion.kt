@@ -75,7 +75,7 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 		importedDeletion: DeleteSelectedImportedCell,
 		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 		@IoDispatcher ioDispatcher: CoroutineDispatcher,
-	) : this(database, importedDeletion, laneExecutionAuthority, ioDispatcher)
+	) : this(database, importedDeletion, laneExecutionAuthority, ioDispatcher, {}, {}, {})
 
 	override suspend fun delete(request: DeleteCellHistoryRequest): DeleteCellHistoryResult =
 		when (val selection = request.selection) {
@@ -149,7 +149,7 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 					DailySummaryAggregator(
 						database.dailySummaryDao(),
 						database.sessionSegmentDao(),
-						preflight.scope.lockZone,
+						zoneId = preflight.scope.lockZone,
 					).withDayLocks(preflight.scope.affectedDays) { lockedDays ->
 						database.withTransaction {
 							val current = selectedLocalScope(selection, requestedAtMs)
@@ -353,7 +353,7 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 			DailySummaryAggregator(
 				database.dailySummaryDao(),
 				database.sessionSegmentDao(),
-				plan.zoneId,
+				zoneId = plan.zoneId,
 			).repairDayFromSourceTotalsWhileLocked(
 				plan.epochDay,
 				lockedDays,

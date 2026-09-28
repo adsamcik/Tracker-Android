@@ -121,7 +121,7 @@ internal class AmbientCellFactProjector @Inject constructor(
 		val rows = database.sourceBrokerDao().authorizationRevisionBounded(
 			SourceKind.CELL.stableCode,
 			wal.registrationGeneration,
-			wal.authorizationRevision,
+			requireNotNull(wal.authorizationRevision),
 			MAX_AUTHORIZATION_MEMBERS + 1,
 		)
 		if (rows.size > MAX_AUTHORIZATION_MEMBERS) {

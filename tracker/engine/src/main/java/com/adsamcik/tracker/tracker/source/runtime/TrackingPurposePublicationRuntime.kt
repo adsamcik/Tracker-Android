@@ -458,7 +458,7 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 	}
 }
 
-private sealed interface AutomaticLeaseRefresh {
+internal sealed interface AutomaticLeaseRefresh {
 	data class Issued(
 		val lease: com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationLease,
 	) : AutomaticLeaseRefresh
@@ -470,7 +470,7 @@ private sealed interface AutomaticLeaseRefresh {
 	data object Rejected : AutomaticLeaseRefresh
 }
 
-private sealed interface AmbientLeaseRefresh {
+internal sealed interface AmbientLeaseRefresh {
 	data class Issued(
 		val lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
 	) : AmbientLeaseRefresh
@@ -1071,6 +1071,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 					expectedRetainedFromMs = null,
 					requireApproval = false,
 					requireOwner = false,
+					settlementOperationId = null,
 					expectedStartupGeneration = startupGeneration,
 				)
 			}

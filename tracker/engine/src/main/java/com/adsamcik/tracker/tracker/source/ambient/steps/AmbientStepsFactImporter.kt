@@ -849,7 +849,7 @@ internal class AmbientStepsFactImporter internal constructor(
 				preflight.successor.registration.registrationGeneration,
 			successorStartTimeMs = preflight.successorStartTimeMs,
 			drainDisposition = disposition,
-			drainedWindow = preflight.drainWindow.takeIf { aggregate != null },
+			drainedWindow = preflight.drainWindow?.providerWindow?.takeIf { aggregate != null },
 			logicalFactId = logicalFactId,
 			replayed = false,
 		)
@@ -1262,7 +1262,7 @@ internal class AmbientStepsFactImporter internal constructor(
 			!AmbientStepsRetentionAuthorityIntegrity.isAuthentic(retention) ||
 			!retention.isActive ||
 			retention.sourcePolicyRevision != policy.policyRevision ||
-			retention.ambientConsentEpoch != consent.epoch ||
+			retention.ambientConsentEpoch != requireNotNull(consent).epoch ||
 			retention.collectedDataEpoch != lifecycle.epoch ||
 			retention.retainedFromMs != lifecycle.retainedFromMs ||
 			retention.effectiveBootId != boundary.observedBootId ||
@@ -1977,9 +1977,8 @@ private fun ProviderRegistrationGenerationEntity.isAcceptedAmbientState(
 		providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE &&
 		providerProcessIncarnationId == null &&
 		status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE &&
-		acceptedAtMs != null && acceptedAtMs <= boundary.observedAtMs &&
-		acceptedElapsedRealtimeNanos != null &&
-		acceptedElapsedRealtimeNanos <= boundary.observedElapsedRealtimeNanos &&
+		acceptedAtMs?.let { it <= boundary.observedAtMs } == true &&
+		acceptedElapsedRealtimeNanos?.let { it <= boundary.observedElapsedRealtimeNanos } == true &&
 		clockDomainId == boundary.observedBootId &&
 		state.appliedRevision != null
 

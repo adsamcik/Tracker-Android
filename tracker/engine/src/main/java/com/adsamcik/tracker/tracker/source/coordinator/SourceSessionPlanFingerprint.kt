@@ -68,9 +68,9 @@ internal fun SourceSessionPlanInputs.planInputsFingerprint(
 		output.writeEnvironment(environment)
 		output.writeResolutionContext(resolutionContext)
 		output.writeDemands(demands)
-        if (settings.balanceProfileVersion != null) {
+        settings.balanceProfileVersion?.let { balanceProfileVersion ->
             output.writeString("source-balance-v1")
-            output.writeNullableLong(settings.balanceProfileVersion.toLong())
+            output.writeNullableLong(balanceProfileVersion.toLong())
             output.writeNullableLong(settings.overallBalanceLevel?.toLong())
             com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent.entries.forEach {
                 output.writeNullableLong(settings.sourceBalanceOverrides[it]?.toLong())

@@ -119,7 +119,7 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		val authorizationRows = database.sourceBrokerDao().authorizationRevisionBounded(
 			SourceKind.WIFI.stableCode,
 			wal.registrationGeneration,
-			wal.authorizationRevision,
+			requireNotNull(wal.authorizationRevision),
 			MAX_AUTHORIZATION_MEMBERS + 1,
 		)
 		if (authorizationRows.size > MAX_AUTHORIZATION_MEMBERS) {

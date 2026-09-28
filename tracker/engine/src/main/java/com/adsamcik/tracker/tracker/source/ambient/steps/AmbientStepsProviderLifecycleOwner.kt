@@ -115,7 +115,7 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 		} catch (_: RuntimeException) {
 			unavailable
 		}
-		try {
+		return try {
 			reconcileRegistration(demand, boundary).also { result ->
 				if (demand is AmbientStepsDemandReconciliation.DemandReady &&
 					result !is AmbientStepsProviderRegistrationResult.Active
@@ -148,8 +148,7 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 	): AmbientStepsProviderRegistrationResult = mutex.withLock {
 		require(settlementOperationId.isNotBlank())
 		val boundary = currentBoundary()
-		val guard = mutationLeaseGuard ?: return@withLock
-			reconcileRegistration(
+		val guard = mutationLeaseGuard ?: return@withLock reconcileRegistration(
 				reconcileSettlementDemand(boundary, lease, settlementOperationId),
 				boundary,
 			)

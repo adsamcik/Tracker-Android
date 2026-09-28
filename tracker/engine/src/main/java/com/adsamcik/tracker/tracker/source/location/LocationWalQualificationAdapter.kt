@@ -179,7 +179,8 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		val wall = wal.wallTimeMs ?: return@withTransaction reject(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
 		val uncertainty = wal.wallTimeUncertaintyMs ?: return@withTransaction reject(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
 		val earliest = runCatching { Math.subtractExact(wall, uncertainty) }.getOrNull()
-		if (earliest == null || earliest < 0 || uncertainty < 0 || wal.receivedWallTimeMs == null || wal.receivedWallTimeMs < 0 ||
+		if (earliest == null || earliest < 0 || uncertainty < 0 ||
+			wal.receivedWallTimeMs?.let { it < 0L } != false ||
 			runCatching { Math.addExact(wall, uncertainty) }.isFailure ||
 			wal.observedElapsedNanos <= 0 || wal.receivedElapsedNanos < wal.observedElapsedNanos ||
 			lifecycle.retainedFromMs?.let { earliest < it } == true
@@ -339,7 +340,8 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 				ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
 			observedStartNanos = wal.observedElapsedNanos,
 			observedEndNanos = wal.observedElapsedNanos,
-			observedWallTimeMs = wallTime,
+			observedWallTimeMs = wal.wallTimeMs
+				?: return@withTransaction rejected(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING),
 			currentClockDomainId = bootClockDomainProvider.current(),
 		)
 		val authenticatedRegistration = when (registrationAuthentication) {

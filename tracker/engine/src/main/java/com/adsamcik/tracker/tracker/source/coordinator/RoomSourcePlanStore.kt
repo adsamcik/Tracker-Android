@@ -211,7 +211,7 @@ class RoomSourcePlanStore @Inject constructor(
 	 * Any unknown version, malformed payload, checksum mismatch, source mismatch, or revision
 	 * mismatch invalidates the whole aggregate instead of falling back to the requested plan.
 	 */
-	suspend fun loadApplied(desiredRevision: Long): AppliedPlanRead = database.withTransaction {
+	internal suspend fun loadApplied(desiredRevision: Long): AppliedPlanRead = database.withTransaction {
 		val dao = database.sourcePlanStateDao()
 		val header = dao.revision(desiredRevision) ?: return@withTransaction AppliedPlanRead.Missing
 		loadCurrentAppliedInTransaction(
@@ -309,7 +309,7 @@ class RoomSourcePlanStore @Inject constructor(
 		}
 	}
 
-	suspend fun loadApplied(
+	internal suspend fun loadApplied(
 		states: Collection<SourceAppliedPlanStateEntity>,
 	): AppliedPlanRead = decodeAppliedStates(states)
 

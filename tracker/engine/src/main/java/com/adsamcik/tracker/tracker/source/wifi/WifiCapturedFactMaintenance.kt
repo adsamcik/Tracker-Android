@@ -1570,7 +1570,19 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			MAX_EXPECTED_DELIVERY_UNITS + 1,
 		)
 		return delivery.size <= MAX_EXPECTED_DELIVERY_UNITS &&
-			delivery.singleOrNull()?.let(::exactlyMatches) == true
+			delivery.singleOrNull()?.let { unit ->
+				unit.eventId == eventId && unit.admissionOrdinal == admissionOrdinal &&
+					unit.sourceSequence == sourceSequence &&
+					unit.deliveryUnitIndex == deliveryUnitIndex &&
+					unit.deliveryUnitCount == deliveryUnitCount &&
+					unit.sourceInstanceId == sourceInstanceId &&
+					unit.registrationGeneration == registrationGeneration &&
+					unit.physicalConfigurationFingerprint == physicalConfigurationFingerprint &&
+					unit.authorizationRevision == authorizationRevision &&
+					unit.observedElapsedNanos == observedElapsedNanos &&
+					unit.observedIntervalStartNanos == observedIntervalStartNanos &&
+					unit.payloadVersion == payloadVersion && unit.payloadChecksum == payloadChecksum
+			} == true
 	}
 
 	private fun SourceEventWalEntity.hasExactPortableSequenceAndDelivery(
@@ -1968,7 +1980,8 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			database.sourcePolicyDao().consentEpoch(WIFI_SOURCE, CAPTURE_PURPOSE, consentEpoch)
 		}
 		if (policy == null || consent == null || !policy.enabled || !policy.capturePersistenceEligible ||
-			policy.captureConsentEpoch != consentEpoch || policy.qosCode != captureMember.qosCode ||
+			policy.captureConsentEpoch != consentEpoch ||
+			policy.qosCode != demandsById[captureMember.demandId]?.qosCode ||
 			policy.effectiveBootId != wal.clockDomainId ||
 			policy.effectiveElapsedRealtimeNanos > observedStart || !consent.eligible ||
 			!consent.persistenceEligible || consent.policyRevision > policyRevision ||
@@ -2549,8 +2562,8 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			ProviderRegistrationGenerationEntity.STATUS_RETIRING ->
 				registration.retiredAtMs != null && registration.retiredElapsedRealtimeNanos != null &&
 					!registration.failureCode.isNullOrBlank() && run.state == "STOPPING" &&
-					registration.retiredAtMs >= acknowledgedWall &&
-					registration.retiredElapsedRealtimeNanos >= acknowledgedElapsed
+					registration.retiredAtMs?.let { it >= acknowledgedWall } == true &&
+					registration.retiredElapsedRealtimeNanos?.let { it >= acknowledgedElapsed } == true
 			else -> false
 		}
 		return validStatus && registration.sourceInstanceId == action.sourceInstanceId &&
@@ -2732,7 +2745,7 @@ private fun WifiCapturedFactRevisionEntity.matchesAuthenticatedWal(
 		sourceEventId == evidence.sourceEventId.value &&
 		sourceAdmissionOrdinal == evidence.sourceAdmissionOrdinal &&
 		walIntegrityIdentity == evidence.walIntegrityIdentity && payloadChecksum == evidence.payloadChecksum &&
-		sourceDeliveryIdentity == evidence.sourceDeliveryIdentity.value &&
+		sourceDeliveryIdentity == evidence.sourceDeliveryIdentity?.value &&
 		deliveryUnitIndex == evidence.deliveryUnitIndex && deliveryUnitCount == evidence.deliveryUnitCount &&
 		sourceSequence == evidence.sourceSequence && planAttribution == evidence.planAttribution.name &&
 		sourceInstanceId == authority.sourceInstanceId.value &&
@@ -2758,9 +2771,9 @@ private fun WifiCapturedFactRevisionEntity.matchesAuthenticatedWal(
 		authorizationEffectEndNanos == authority.temporalAuthority.authorizationEffect.endExclusiveNanos &&
 		sessionRunEffectStartNanos == authority.temporalAuthority.sessionRunEffect.startInclusiveNanos &&
 		sessionRunEffectEndNanos == authority.temporalAuthority.sessionRunEffect.endExclusiveNanos &&
-		observedIntervalStartNanos == evidence.observedIntervalStartElapsedRealtimeNanos &&
-		observedElapsedNanos == evidence.observedElapsedRealtimeNanos &&
-		receivedElapsedNanos == evidence.receivedElapsedRealtimeNanos &&
+		observedIntervalStartNanos == evidence.clock.observedIntervalStartElapsedRealtimeNanos &&
+		observedElapsedNanos == evidence.clock.observedElapsedRealtimeNanos &&
+		receivedElapsedNanos == evidence.clock.receivedElapsedRealtimeNanos &&
 		coverageIntervalStartNanos == coverage.providerIntervalStartElapsedRealtimeNanos &&
 		coverageIntervalEndNanos == coverage.providerIntervalEndElapsedRealtimeNanos &&
 		observedWallTimeMs == derived.observedWallTimeMs &&
@@ -3088,8 +3101,9 @@ private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(admissionOrdinal
 		(cutoffAtMs == null) != (cutoffElapsedNanos == null)
 	) return false
 	if (terminal || state == "STOPPING") {
-		if (cutoffAtMs == null || cutoffElapsedNanos == null || cutoffAtMs < startedAtMs ||
-			cutoffElapsedNanos < startedElapsedNanos
+		if (cutoffAtMs == null || cutoffElapsedNanos == null ||
+			cutoffAtMs?.let { it < startedAtMs } != false ||
+			cutoffElapsedNanos?.let { it < startedElapsedNanos } != false
 		) return false
 	} else if (cutoffAtMs != null || cutoffElapsedNanos != null) {
 		return false

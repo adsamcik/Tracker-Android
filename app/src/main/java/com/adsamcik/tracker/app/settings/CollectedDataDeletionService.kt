@@ -192,6 +192,11 @@ sealed interface CollectedDataDeletionReconciliationFailure {
 	}
 }
 
+private typealias CollectedDataProviderFenceDebt =
+	CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceDebt
+private typealias CollectedDataProviderFenceFailure =
+	CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure
+
 data class CollectedDataDeletionOperation(
 	val operationId: String,
 	val targetCollectedDataEpoch: Long,
@@ -786,13 +791,13 @@ class DefaultCollectedDataDeletionService(
 			is ProviderFenceAttempt.Completed -> attempt.value
 			ProviderFenceAttempt.Failed ->
 				return providerFenceRetry(
-					CollectedDataProviderFenceFailure.PurposeOwners(
+					CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.PurposeOwners(
 						unavailablePurposeDebt(),
 					),
 				)
 			ProviderFenceAttempt.TimedOut ->
 				return providerFenceRetry(
-					CollectedDataProviderFenceFailure.PurposeOwners(
+					CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.PurposeOwners(
 						inProgressPurposeDebt(),
 					),
 				)
@@ -804,7 +809,7 @@ class DefaultCollectedDataDeletionService(
 			original
 		} else {
 			providerFenceRetry(
-				CollectedDataProviderFenceFailure.PurposeOwners(
+				CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.PurposeOwners(
 					(result as TrackingPurposeSettingsReconciliationResult.Debt).debt,
 				),
 			)
@@ -826,15 +831,15 @@ class DefaultCollectedDataDeletionService(
 				is ProviderFenceAttempt.Completed -> {
 					val result = attempt.value
 					if (result.status != ActivityRegistrationStatus.APPLIED) {
-						failures += CollectedDataProviderFenceFailure.Activity(
+						failures += CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.Activity(
 							result.failureCode?.name ?: "UNKNOWN",
 						)
 					}
 				}
 				ProviderFenceAttempt.Failed ->
-					failures += CollectedDataProviderFenceFailure.Activity("UNAVAILABLE")
+					failures += CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.Activity("UNAVAILABLE")
 				ProviderFenceAttempt.TimedOut ->
-					failures += CollectedDataProviderFenceFailure.Activity("IN_PROGRESS")
+					failures += CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.Activity("IN_PROGRESS")
 			}
 		}
 		if (purposeDeletionFencer != null) {
@@ -846,15 +851,15 @@ class DefaultCollectedDataDeletionService(
 				is ProviderFenceAttempt.Completed -> {
 					val result = attempt.value
 					if (result is TrackingPurposeSettingsReconciliationResult.Debt) {
-						failures += CollectedDataProviderFenceFailure.PurposeOwners(result.debt)
+						failures += CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.PurposeOwners(result.debt)
 					}
 				}
 				ProviderFenceAttempt.Failed ->
-					failures += CollectedDataProviderFenceFailure.PurposeOwners(
+					failures += CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.PurposeOwners(
 						unavailablePurposeDebt(),
 					)
 				ProviderFenceAttempt.TimedOut ->
-					failures += CollectedDataProviderFenceFailure.PurposeOwners(
+					failures += CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.PurposeOwners(
 						inProgressPurposeDebt(),
 					)
 			}
@@ -862,9 +867,9 @@ class DefaultCollectedDataDeletionService(
 		when (runBoundedProviderFence(WRITER_FENCE_FLIGHT, pass) { writerQuiescer.quiesce() }) {
 			is ProviderFenceAttempt.Completed -> Unit
 			ProviderFenceAttempt.Failed ->
-				failures += CollectedDataProviderFenceFailure.WritersUnavailable
+				failures += CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.WritersUnavailable
 			ProviderFenceAttempt.TimedOut ->
-				failures += CollectedDataProviderFenceFailure.WritersInProgress
+				failures += CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.WritersInProgress
 		}
 		return failures.takeIf { it.isNotEmpty() }?.let {
 			CollectedDataDeletionCompletion.Retryable(
@@ -946,7 +951,7 @@ class DefaultCollectedDataDeletionService(
 			throw cancelled
 		} catch (_: Exception) {
 			providerFenceRetry(
-				CollectedDataProviderFenceFailure.StartupQuiescenceInProgress,
+				CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.StartupQuiescenceInProgress,
 			)
 		}
 
@@ -1245,7 +1250,7 @@ class DefaultCollectedDataDeletionService(
 		(
 			(this as? CollectedDataDeletionCompletion.Retryable)
 				?.failure as? CollectedDataDeletionReconciliationFailure.ProviderFence
-			)?.debt?.failures ?: listOf(CollectedDataProviderFenceFailure.WritersUnavailable)
+			)?.debt?.failures ?: listOf(CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.WritersUnavailable)
 
 	private suspend fun runProviderFenceProtocol(
 		dependencies: ProviderFenceDependencies,
@@ -1280,7 +1285,7 @@ class DefaultCollectedDataDeletionService(
 			try {
 				provider.get()
 			} catch (_: Exception) {
-				failures += CollectedDataProviderFenceFailure.Activity("RESOLUTION_FAILED")
+				failures += CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.Activity("RESOLUTION_FAILED")
 				null
 			}
 		}
@@ -1288,7 +1293,7 @@ class DefaultCollectedDataDeletionService(
 			try {
 				provider.get()
 			} catch (_: Exception) {
-				failures += CollectedDataProviderFenceFailure.PurposeOwners(
+				failures += CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.PurposeOwners(
 					unavailablePurposeDebt(),
 				)
 				null

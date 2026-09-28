@@ -11,6 +11,7 @@ import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
@@ -125,7 +126,7 @@ import javax.inject.Provider
  * If this invariant changes, the buffers **must** be guarded by a lock.
  */
 @Singleton
-class PersistenceProcessor @Inject constructor(
+class PersistenceProcessor @Inject internal constructor(
 	private val locationSampleDao: LocationSampleDao,
 	private val locationObservationDao: LocationObservationDao,
 	private val locationObservationDecisionDao: LocationObservationDecisionDao? = null,

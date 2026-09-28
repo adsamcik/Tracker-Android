@@ -329,8 +329,7 @@ class CellSourceRuntime @Inject internal constructor(
 		expectedCollectedDataEpoch: Long,
 	): CellCaptureDeletionBarrierResult = lifecycleMutex.withLock {
 		require(expectedCollectedDataEpoch >= 0L)
-		val activeRegistration = registration ?: return@withLock
-			CellCaptureDeletionBarrierResult.NoLocalProvider
+		val activeRegistration = registration ?: return@withLock CellCaptureDeletionBarrierResult.NoLocalProvider
 		if (activeRegistration.state.collectedDataEpoch != expectedCollectedDataEpoch) {
 			return@withLock CellCaptureDeletionBarrierResult.Blocked(
 				CellCaptureDeletionBarrierBlockedReason.STALE_LIFECYCLE,

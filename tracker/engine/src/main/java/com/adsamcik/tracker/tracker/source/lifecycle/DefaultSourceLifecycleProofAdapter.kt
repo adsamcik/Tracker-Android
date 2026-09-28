@@ -27,6 +27,7 @@ import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEn
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
+import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.data.MAX_ACTIVITY_WAL_PAYLOAD_BYTES
@@ -1021,7 +1022,7 @@ private class DefaultSourceLifecycleProofAdapter(
 			fact.sourceEventId != wal.eventId ||
 			fact.coverageKind != StepFactRevisionEntity.COVERAGE_COVERED ||
 			fact.effectiveStepCount == null ||
-			fact.effectiveStepCount <= 0L
+			fact.effectiveStepCount?.let { it <= 0L } != false
 		) {
 			return@withTransaction failed(
 				SourceProofStage.MATERIALIZED,
@@ -1086,7 +1087,7 @@ private class DefaultSourceLifecycleProofAdapter(
 			wal,
 			WriterExpectation(
 				SourceDestinationOwnerEntity.SOURCE_STEPS,
-				binding.writerOwnerGeneration,
+				requireNotNull(binding.writerOwnerGeneration),
 				fact.writerProjectionId,
 				fact.writerProjectionVersion,
 				fact.writerBindingGeneration,
@@ -1243,7 +1244,7 @@ private class DefaultSourceLifecycleProofAdapter(
 			currentWal,
 			WriterExpectation(
 				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
-				binding.writerOwnerGeneration,
+				requireNotNull(binding.writerOwnerGeneration),
 				fact.writerProjectionId,
 				fact.writerProjectionVersion,
 				fact.writerBindingGeneration,
@@ -2263,7 +2264,7 @@ private class DefaultSourceLifecycleProofAdapter(
 			consentEpoch == fact.captureConsentEpoch &&
 			outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS &&
 			writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS &&
-			writerOwnerGeneration > 0L &&
+			writerOwnerGeneration?.let { it > 0L } == true &&
 			writerProjectionId == fact.writerProjectionId &&
 			writerProjectionVersion == fact.writerProjectionVersion &&
 			writerBindingGeneration == fact.writerBindingGeneration
@@ -2274,7 +2275,7 @@ private class DefaultSourceLifecycleProofAdapter(
 			consentEpoch == fact.captureConsentEpoch &&
 			outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE &&
 			writerOwner == SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS &&
-			writerOwnerGeneration > 0L &&
+			writerOwnerGeneration?.let { it > 0L } == true &&
 			writerProjectionId == fact.writerProjectionId &&
 			writerProjectionVersion == fact.writerProjectionVersion &&
 			writerBindingGeneration == fact.writerBindingGeneration
@@ -2569,7 +2570,7 @@ private class DefaultSourceLifecycleProofAdapter(
 							recording.lineage,
 						)
 					}
-					if (lowerBound < lifecycle.retainedFromMs) {
+					if (lowerBound < requireNotNull(lifecycle.retainedFromMs)) {
 						return deleted(
 							SourceProofStage.MATERIALIZED,
 							SourceProofReason.RETENTION_EXPIRED,
@@ -2610,12 +2611,12 @@ private class DefaultSourceLifecycleProofAdapter(
 			else -> return null
 		}
 		val proof = database.capturedRadioFactRetentionProofDao().byEvent(
-			key.source.stableCode(),
+			key.source.stableCode,
 			key.evidenceIdentity.value,
 		) ?: return null
 		val scope = key.scope as SourceProofScope.Run
 		return if (proof.authenticatesRequest(
-				expectedSourceKind = key.source.stableCode(),
+				expectedSourceKind = key.source.stableCode,
 				expectedWriterProjectionId = expectation.projectionId,
 				expectedWriterProjectionVersion = expectation.projectionVersion,
 				expectedWriterBindingGeneration = expectation.bindingGeneration,
@@ -2631,7 +2632,7 @@ private class DefaultSourceLifecycleProofAdapter(
 				expectedScopeDeletionGeneration = 0L,
 				expectedLogicalRunScopeDigest =
 					SourceDeletionFenceEntity.logicalServiceRunIdentity(
-						key.source.stableCode(),
+						key.source.stableCode,
 						SourceBrokerPurpose.SESSION_CAPTURE,
 						scope.logicalTrackingId,
 						scope.serviceRunId,

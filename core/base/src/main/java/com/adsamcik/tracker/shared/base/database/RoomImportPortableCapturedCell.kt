@@ -4,6 +4,7 @@ package com.adsamcik.tracker.shared.base.database
 
 import android.database.sqlite.SQLiteConstraintException
 import android.database.sqlite.SQLiteException
+import android.database.SQLException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellLiveFactOwner
@@ -54,6 +55,10 @@ class RoomImportPortableCapturedCell internal constructor(
 				PortableCellImportRetryableReason.CONCURRENT_STATE_CHANGE,
 			)
 		} catch (_: SQLiteException) {
+			ImportPortableCapturedCellResult.RetryableFailure(
+				PortableCellImportRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		} catch (_: SQLException) {
 			ImportPortableCapturedCellResult.RetryableFailure(
 				PortableCellImportRetryableReason.STORAGE_UNAVAILABLE,
 			)

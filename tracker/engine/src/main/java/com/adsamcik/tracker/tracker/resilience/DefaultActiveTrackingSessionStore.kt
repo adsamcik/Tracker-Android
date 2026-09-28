@@ -414,13 +414,13 @@ private fun ActiveTrackingSessionDescriptor.toProto(): ActiveTrackingSessionProt
 			pendingRetirementSourceCallerAuthorityReference?.value.orEmpty(),
 		)
 		.apply {
-			catalogReconfigurationDebt?.let { debt ->
+			this@toProto.catalogReconfigurationDebt?.let { debt ->
 				setCatalogReconfigurationDebt(debt.toProto())
 			}
-			appliedSourcePlanIdentity?.let { identity ->
+			this@toProto.appliedSourcePlanIdentity?.let { identity ->
 				setAppliedSourcePlanIdentity(identity.toProto())
 			}
-			desiredSourcePlanIdentity?.let { identity ->
+			this@toProto.desiredSourcePlanIdentity?.let { identity ->
 				setDesiredSourcePlanIdentity(identity.toProto())
 			}
 		}

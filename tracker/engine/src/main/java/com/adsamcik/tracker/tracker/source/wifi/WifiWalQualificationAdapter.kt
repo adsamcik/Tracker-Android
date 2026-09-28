@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEnti
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
@@ -837,8 +838,8 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 			ProviderRegistrationGenerationEntity.STATUS_RETIRING ->
 				registration.retiredAtMs != null && registration.retiredElapsedRealtimeNanos != null &&
 					!registration.failureCode.isNullOrBlank() && run.state == "STOPPING" &&
-					registration.retiredAtMs >= acknowledgedWall &&
-					registration.retiredElapsedRealtimeNanos >= acknowledgedElapsed
+					registration.retiredAtMs?.let { it >= acknowledgedWall } == true &&
+					registration.retiredElapsedRealtimeNanos?.let { it >= acknowledgedElapsed } == true
 			else -> false
 		}
 		if (!hasValidStatusShape) return false
@@ -995,7 +996,8 @@ private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(admissionOrdinal
 	if ((cutoffAtMs == null) != (cutoffElapsedNanos == null)) return false
 	if (terminal || state == "STOPPING") {
 		if (cutoffAtMs == null || cutoffElapsedNanos == null ||
-			cutoffAtMs < startedAtMs || cutoffElapsedNanos < startedElapsedNanos
+			cutoffAtMs?.let { it < startedAtMs } != false ||
+			cutoffElapsedNanos?.let { it < startedElapsedNanos } != false
 		) return false
 	} else if (cutoffAtMs != null || cutoffElapsedNanos != null) {
 		return false

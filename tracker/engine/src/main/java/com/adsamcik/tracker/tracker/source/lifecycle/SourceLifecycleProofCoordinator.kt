@@ -218,7 +218,7 @@ class SourceLifecycleProofCoordinator internal constructor(
 }
 
 internal fun AppDatabase.lifecycleInvalidations(): Flow<Unit> = callbackFlow {
-	val observer = object : InvalidationTracker.Observer(*SOURCE_LIFECYCLE_PROOF_OBSERVED_TABLES) {
+	val observer = object : InvalidationTracker.Observer(SOURCE_LIFECYCLE_PROOF_OBSERVED_TABLES) {
 		override fun onInvalidated(tables: Set<String>) {
 			trySend(Unit)
 		}

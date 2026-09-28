@@ -50,7 +50,7 @@ internal class ProtectedLocationAmbientCanonicalWriter @Inject constructor(
 		try {
 			val existing = persistence.hasCommittedProtectedAmbientLocation(command)
 			if (existing) return@withLock ProtectedLocationCanonicalWriteResult.Committed
-			val before = database.withTransaction { loadLocationAmbientCurationState(command) }
+			val before = database.withTransaction { database.loadLocationAmbientCurationState(command) }
 			val component = LocationTrackerComponent(trackingParamsRepository = null, dispatchers = dispatchers)
 			val metadata = command.acquisitionMetadata
 			val curation = metadata.toCanonicalCurationContext(before)

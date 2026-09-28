@@ -49,7 +49,8 @@ class AndroidAmbientStepsCapabilityResolver @Inject constructor(
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
 			return HealthConnectAmbientStepsAvailability.PLATFORM_TOO_OLD
 		}
-		if (SdkExtensions.getExtensionVersion(Build.VERSION_CODES.UPSIDE_DOWN_CAKE) <
+		if (Build.VERSION.SDK_INT < 37 &&
+			SdkExtensions.getExtensionVersion(Build.VERSION_CODES.UPSIDE_DOWN_CAKE) <
 			MOBILE_STEPS_MIN_EXTENSION
 		) {
 			return HealthConnectAmbientStepsAvailability.EXTENSION_TOO_OLD
@@ -120,6 +121,6 @@ class AndroidAmbientStepsCapabilityResolver @Inject constructor(
 	)
 
 	private companion object {
-		const val MOBILE_STEPS_MIN_EXTENSION = 20
+		const val MOBILE_STEPS_MIN_EXTENSION = 22
 	}
 }

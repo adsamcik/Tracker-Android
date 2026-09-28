@@ -316,7 +316,7 @@ class RoomDurableSourceIngress @Inject constructor(
 						barrier.sourceInstanceId == candidate.sourceInstanceId.value &&
 							barrier.throughAuthorizationRevision >=
 								observedTimeAuthorization.authorizationRevision &&
-							candidate.authorizationPurposeEligibilityMask and
+							observedTimeAuthorization.purposeEligibilityMask and
 								SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
 					} == true
 				) {
@@ -793,7 +793,7 @@ class RoomDurableSourceIngress @Inject constructor(
 							barrier.sourceInstanceId == evidence.sourceInstanceId.value &&
 								barrier.throughAuthorizationRevision >=
 									qualifiedTimeAuthorization.authorizationRevision &&
-								evidence.authorizationPurposeEligibilityMask and
+								qualifiedTimeAuthorization.purposeEligibilityMask and
 									SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
 						} == true
 					) {

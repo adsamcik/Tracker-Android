@@ -1,8 +1,12 @@
 package com.adsamcik.tracker.tracker.source.ambient.steps
 
 import android.content.Context
+import android.annotation.SuppressLint
+import android.health.connect.DeviceDataSource
+import android.health.connect.HealthConnectException
 import android.health.connect.HealthConnectManager
 import android.os.Build
+import android.os.OutcomeReceiver
 import android.os.ext.SdkExtensions
 import androidx.annotation.RequiresApi
 import androidx.health.connect.client.HealthConnectClient
@@ -20,6 +24,9 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 
 /** One exact, second-aligned provider aggregation window. Absence is not covered zero. */
@@ -153,20 +160,36 @@ internal class LocalRecordingAmbientStepsProviderReader internal constructor(
 }
 
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+@SuppressLint("NewApi")
 private suspend fun aggregateCurrentDeviceSteps(
 	context: Context,
 	window: AmbientStepsProviderReadWindow,
 ): Long? {
 	check(
-		SdkExtensions.getExtensionVersion(Build.VERSION_CODES.UPSIDE_DOWN_CAKE) >=
+		Build.VERSION.SDK_INT >= 37 ||
+			SdkExtensions.getExtensionVersion(Build.VERSION_CODES.UPSIDE_DOWN_CAKE) >=
 			HEALTH_CONNECT_CURRENT_DEVICE_MIN_EXTENSION,
 	) { "Health Connect current-device origin API is unavailable" }
 	val manager = requireNotNull(context.getSystemService(HealthConnectManager::class.java)) {
 		"Health Connect manager is unavailable"
 	}
-	val currentDeviceOrigin = requireNotNull(
-		manager.currentDeviceDataSource?.deviceDataOrigin?.packageName,
-	) { "Health Connect current-device origin is unavailable" }
+	val currentDeviceOrigin = suspendCancellableCoroutine<String> { continuation ->
+		manager.getCurrentDeviceDataSource(
+			context.mainExecutor,
+			object : OutcomeReceiver<DeviceDataSource, HealthConnectException> {
+				override fun onResult(result: DeviceDataSource) {
+					if (continuation.isActive) {
+						continuation.resume(result.deviceDataOrigin.packageName)
+					}
+				}
+
+				override fun onError(error: HealthConnectException) {
+					if (continuation.isActive) continuation.resumeWithException(error)
+				}
+			},
+		)
+	}.takeIf(String::isNotBlank)
+		?: error("Health Connect current-device origin is unavailable")
 	val origins = setOf(DataOrigin(LEGACY_ANDROID_HEALTH_ORIGIN), DataOrigin(currentDeviceOrigin))
 	val response = HealthConnectClient.getOrCreate(context).aggregate(
 		AggregateRequest(
@@ -205,5 +228,5 @@ private suspend fun readLocalRecordingSteps(
 	}
 }
 
-private const val HEALTH_CONNECT_CURRENT_DEVICE_MIN_EXTENSION = 11
+private const val HEALTH_CONNECT_CURRENT_DEVICE_MIN_EXTENSION = 22
 private const val LEGACY_ANDROID_HEALTH_ORIGIN = "android"

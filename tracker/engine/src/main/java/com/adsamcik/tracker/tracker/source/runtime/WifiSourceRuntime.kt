@@ -343,8 +343,7 @@ class WifiSourceRuntime @Inject internal constructor(
 		expectedCollectedDataEpoch: Long,
 	): WifiCaptureDeletionBarrierResult = lifecycleMutex.withLock {
 		require(expectedCollectedDataEpoch >= 0L)
-		val activeRegistration = registration ?: return@withLock
-			WifiCaptureDeletionBarrierResult.NoLocalProvider
+		val activeRegistration = registration ?: return@withLock WifiCaptureDeletionBarrierResult.NoLocalProvider
 		if (activeRegistration.state.collectedDataEpoch != expectedCollectedDataEpoch) {
 			return@withLock WifiCaptureDeletionBarrierResult.Blocked(
 				WifiCaptureDeletionBarrierBlockedReason.STALE_LIFECYCLE,

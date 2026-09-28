@@ -434,9 +434,10 @@ class RetentionFloorSettlement @Inject constructor(
 							return@withPermit RetentionFloorSettlementCompletionResult
 								.StartupGenerationChanged
 						}
+						val currentDurable = durable
 						durable = permit.commitRoomMutation {
 							database.advanceRetentionFloorSettlementPhase(
-								operation = durable,
+								operation = currentDurable,
 								expectedPhase = CollectedDataDeletionOperationEntity
 									.PHASE_RETENTION_PROVIDER_RECONCILED,
 								newPhase = CollectedDataDeletionOperationEntity

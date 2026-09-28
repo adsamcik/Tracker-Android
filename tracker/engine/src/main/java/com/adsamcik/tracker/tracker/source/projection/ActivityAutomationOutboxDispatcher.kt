@@ -557,11 +557,7 @@ internal class BackgroundTrackingActivityAutomationEffectConsumer @Inject constr
 				return ActivityAutomationDeliveryResult.RETRY
 			is ActivityAutomaticStartReserveResult.Existing -> when (reservation.action.status) {
 				com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
-					.STATUS_START_REQUESTED -> if (
-						startContext == ActivityAutomationStartContext.DURABLE_REPLAY
-					) {
-						return ActivityAutomationDeliveryResult.RETRY
-					}
+					.STATUS_START_REQUESTED -> return ActivityAutomationDeliveryResult.RETRY
 				com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
 					.STATUS_LIFECYCLE_INTENT_ACCEPTED ->
 					return ActivityAutomationDeliveryResult.LIFECYCLE_INTENT_ACCEPTED

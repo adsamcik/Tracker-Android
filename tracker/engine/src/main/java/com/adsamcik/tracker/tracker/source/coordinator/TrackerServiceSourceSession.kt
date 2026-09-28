@@ -544,14 +544,14 @@ class TrackerServiceSourceSession @Inject constructor(
 		val requestedInputs = inputs
 		val requestedInputsFingerprint = session.inputsFingerprint(requestedInputs)
 		val appliedIdentity = session.appliedSourcePlanIdentity
-		val desiredIdentity = session.desiredSourcePlanIdentity
+		val previousDesiredIdentity = session.desiredSourcePlanIdentity
 		if (session.lastAppliedInputsFingerprint == requestedInputsFingerprint &&
 			session.catalogReconfigurationDebt == null &&
 			appliedIdentity != null &&
-			desiredIdentity != null &&
-			appliedIdentity == desiredIdentity &&
+			previousDesiredIdentity != null &&
+			appliedIdentity == previousDesiredIdentity &&
 			appliedIdentity.inputsFingerprint == requestedInputsFingerprint &&
-			desiredIdentity.inputsFingerprint == requestedInputsFingerprint
+			previousDesiredIdentity.inputsFingerprint == requestedInputsFingerprint
 		) {
 			return@withLock SourceSessionReconfigureOutcome.Unchanged
 		}

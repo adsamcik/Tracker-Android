@@ -315,6 +315,7 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 					ACTIVITY_CONTEXT_MAX_AGE_NANOS
 			}
 			.maxByOrNull(ActivityEvidence::elapsedRealtimeNanos)
+	}
 
 	private fun ActivitySnapshot.matchesBootDomain(bootClockDomainId: String?): Boolean =
 		bootClockDomainId == null ||

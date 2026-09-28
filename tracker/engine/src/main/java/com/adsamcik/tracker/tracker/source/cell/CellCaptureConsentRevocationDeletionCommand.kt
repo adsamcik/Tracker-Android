@@ -150,8 +150,7 @@ internal class CellCaptureConsentRevocationDeletionCommand @Inject constructor(
 			evidence.collectedDataEpoch != request.expectedCollectedDataEpoch ||
 			evidence.deletedSourceEventHighWaterOrdinal !=
 				request.expectedDeletedSourceEventHighWaterOrdinal
-		) return@withTransaction
-			CellCapturedSourceDeletionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED
+		) return@withTransaction CellCapturedSourceDeletionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED
 
 		val policyDao = database.sourcePolicyDao()
 		val authority = policyDao.authority()?.takeIf { current ->

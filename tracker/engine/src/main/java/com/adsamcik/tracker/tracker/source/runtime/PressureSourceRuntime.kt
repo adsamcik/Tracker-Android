@@ -281,8 +281,7 @@ class PressureSourceRuntime @Inject constructor(
 		require(expectedCollectedDataEpoch >= 0L)
 		fenceCapacityResume()
 		return lifecycleMutex.withLock {
-			val activeRegistration = registration ?: return@withLock
-				PressureProviderEraseSettlement.NoLocalProvider
+			val activeRegistration = registration ?: return@withLock PressureProviderEraseSettlement.NoLocalProvider
 			if (activeRegistration.state.collectedDataEpoch != expectedCollectedDataEpoch) {
 				return@withLock PressureProviderEraseSettlement.StaleLifecycle
 			}
