@@ -165,7 +165,7 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 		assertNativeAuthorityCorruption {
 			database.openHelper.writableDatabase.execSQL(
 				"DELETE FROM source_destination_owner WHERE source_kind = ? AND destination = ?",
-				arrayOf(
+				arrayOf<Any?>(
 					SourceDestinationOwnerEntity.SOURCE_STEPS,
 					SourceDestinationOwnerEntity.DESTINATION_AMBIENT_STEPS,
 				),
@@ -179,7 +179,7 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE provider_registration_generation SET source_instance_id = 'corrupt' " +
 					"WHERE source_kind = ? AND registration_generation = ?",
-				arrayOf(SourceDestinationOwnerEntity.SOURCE_STEPS, REGISTRATION),
+				arrayOf<Any?>(SourceDestinationOwnerEntity.SOURCE_STEPS, REGISTRATION),
 			)
 		}
 	}
@@ -245,7 +245,7 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 
 		importer().importArchive(request(fixture.archive)) shouldBe
 			ImportPortableAmbientStepsResult.Blocked(
-				PortableAmbientStepsImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
+				PortableAmbientStepsImportBlockedReason.LOCAL_ORIGIN_OVERLAP,
 			)
 		database.importedAmbientStepsDao().archiveCount() shouldBe 0L
 	}
