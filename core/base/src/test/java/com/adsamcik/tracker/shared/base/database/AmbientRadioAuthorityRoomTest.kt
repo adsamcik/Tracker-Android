@@ -31,9 +31,11 @@ import kotlin.test.assertNull
 import kotlinx.coroutines.test.runTest
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /** Focused Room authority/retention source; execution is deferred to final convergence. */
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class AmbientRadioAuthorityRoomTest {
 	private lateinit var database: AppDatabase
 

@@ -405,11 +405,12 @@ interface AmbientWifiFactDao {
 			"SELECT MAX(history.semantic_revision) FROM ambient_wifi_fact_revision AS history " +
 			"WHERE history.logical_fact_id = latest.logical_fact_id) " +
 			"AND latest.observed_wall_time_ms < :beforeMs " +
-			"UNION SELECT aggregate_owner_logical_fact_id FROM ambient_wifi_fact_revision AS child " +
-			"JOIN selected ON selected.logical_fact_id = child.logical_fact_id " +
-			"WHERE child.aggregate_owner_logical_fact_id IS NOT NULL " +
-			"UNION SELECT child.logical_fact_id FROM ambient_wifi_fact_revision AS child " +
-			"JOIN selected ON child.aggregate_owner_logical_fact_id = selected.logical_fact_id) " +
+			"UNION SELECT CASE WHEN child.logical_fact_id = selected.logical_fact_id " +
+			"THEN child.aggregate_owner_logical_fact_id ELSE child.logical_fact_id END " +
+			"FROM selected JOIN ambient_wifi_fact_revision AS child " +
+			"ON child.logical_fact_id = selected.logical_fact_id " +
+			"OR child.aggregate_owner_logical_fact_id = selected.logical_fact_id " +
+			"WHERE child.aggregate_owner_logical_fact_id IS NOT NULL) " +
 			"SELECT logical_fact_id FROM selected ORDER BY logical_fact_id LIMIT :limit",
 	)
 	suspend fun localFactIdsBefore(

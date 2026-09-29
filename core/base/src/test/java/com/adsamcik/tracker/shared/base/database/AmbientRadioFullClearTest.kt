@@ -19,9 +19,11 @@ import kotlin.test.assertNull
 import kotlinx.coroutines.test.runTest
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /** Source-preserving full-clear contract for parent-owned AppDatabase integration. */
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class AmbientRadioFullClearTest {
 	private lateinit var database: AppDatabase
 
