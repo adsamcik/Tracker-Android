@@ -479,6 +479,32 @@ class TrackingSettingsScreenTest {
 	}
 
 	@Test
+	fun turnOffTrackingActionIsAvailableEvenWhenSettingsCannotLoad() {
+		var clicks = 0
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(
+					uiState = defaultUiState.copy(sourcePolicyAvailable = false),
+					onTurnOffTracking = { clicks++ },
+				)
+			}
+		}
+		composeTestRule.onNodeWithTag("turnOffTracking").performScrollTo().performClick()
+		clicks shouldBe 1
+	}
+
+	@Test
+	fun turnOffTrackingShowsAStatusInsteadOfOfferingASecondStop() {
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(defaultUiState.copy(trackingTurnedOff = true))
+			}
+		}
+		scrollTo("Tracking is off. Your choices and saved data are kept.")
+		composeTestRule.onNodeWithTag("turnOffTracking").assertDoesNotExist()
+	}
+
+	@Test
 	fun missingHealthConnectGrantShowsRepairOnTheSingleStepsChoice() {
 		var repairRequested = false
 		val availability = defaultUiState.ambientSourceAvailability +

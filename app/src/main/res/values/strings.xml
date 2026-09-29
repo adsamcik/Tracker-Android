@@ -414,6 +414,11 @@
     <string name="settings_activity_source_summary">Recognizes walking, cycling, driving, and stillness to label trips and reduce unnecessary collection.</string>
     <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Tracks steps throughout the day. Trips organize this same step history.</string>
     <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Checking step collection.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Turn off tracking</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">Turning off…</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Stop sessions, all-day recording and automatic starts. Your choices and saved data stay.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Tracking is off. Your choices and saved data are kept.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Could not turn off tracking. Try again.</string>
     <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Records air pressure changes.</string>
     <string name="settings_wifi_source_summary">Records nearby Wi-Fi networks to add local context. Data stays on this device.</string>
     <string name="settings_cell_source_summary">Records nearby cell towers to add location context. Data stays on this device.</string>

@@ -48,12 +48,16 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.api.TrackingSource
+import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.api.TrackingTurnOffResult
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -330,6 +334,33 @@ class TrackingSettingsViewModelTest {
 			activityPermissionProbe = { permissionsGranted },
 		)
     }
+
+	@Test
+	fun `Turn off keeps chosen sources and reports retry when durable command is unavailable`() =
+		runTest(testDispatcher) {
+			mockkObject(TrackerServiceApi)
+			try {
+				coEvery { TrackerServiceApi.turnOffTrackingAndAwait(context, any()) } returnsMany
+					listOf(TrackingTurnOffResult.UNAVAILABLE, TrackingTurnOffResult.COMPLETE)
+				val vm = createViewModel()
+				advanceUntilIdle()
+				val chosenSteps = paramsFlow.value.stepsEnabled
+
+				vm.turnOffTracking()
+				advanceUntilIdle()
+				vm.uiState.value.turnOffTrackingFailed shouldBe true
+				vm.uiState.value.trackingTurnedOff shouldBe false
+
+				vm.turnOffTracking()
+				advanceUntilIdle()
+				vm.uiState.value.turnOffTrackingFailed shouldBe false
+				vm.uiState.value.trackingTurnedOff shouldBe true
+				paramsFlow.value.stepsEnabled shouldBe chosenSteps
+				coVerify(exactly = 2) { TrackerServiceApi.turnOffTrackingAndAwait(context, any()) }
+			} finally {
+				unmockkObject(TrackerServiceApi)
+			}
+		}
 
 	@Test
 	fun `Health Connect repair rechecks the shared Steps owner without changing selection`() =

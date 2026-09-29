@@ -350,6 +350,11 @@
     <string name="settings_steps_unavailable">Senzor počítadla kroků není v tomto zařízení k dispozici.</string>
     <string name="settings_steps_source_summary">Zaznamenává kroky po celý den. Výlety uspořádají stejnou historii.</string>
     <string name="settings_steps_status_checking">Ověřování zaznamenávání kroků.</string>
+    <string name="settings_turn_off_tracking">Vypnout sledování</string>
+    <string name="settings_turning_off_tracking">Vypínání…</string>
+    <string name="settings_turn_off_tracking_explanation">Zastaví záznamy, celodenní sběr i automatické spouštění. Vaše volby a uložená data zůstanou zachována.</string>
+    <string name="settings_tracking_is_off">Sledování je vypnuté. Vaše volby a uložená data zůstaly zachovány.</string>
+    <string name="settings_turn_off_tracking_failed">Sledování se nepodařilo vypnout. Zkuste to znovu.</string>
     <string name="settings_barometer_source_summary">Zaznamenává změny tlaku vzduchu.</string>
     <string name="settings_steps_allow_health_connect">Povolit kroky v Health Connect</string>
     <string name="settings_steps_health_connect_repair_failed">Přístup k Health Connect se nepodařilo ověřit. Zkuste to znovu.</string>

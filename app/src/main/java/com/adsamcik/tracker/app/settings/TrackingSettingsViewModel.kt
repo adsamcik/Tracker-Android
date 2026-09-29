@@ -52,6 +52,8 @@ import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.api.TRACKING_TURN_OFF_EXIT_PREFIX
+import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.api.TrackingTurnOffResult
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -125,6 +127,9 @@ data class TrackingSettingsUiState(
     val runtimeFailureCode: String? = null,
     val ambientStepsSettingsFailure: AmbientStepsSettingsReconciliationFailure? = null,
 	val stepsProviderRepairFailed: Boolean = false,
+	val trackingTurnedOff: Boolean = false,
+	val turnOffTrackingInProgress: Boolean = false,
+	val turnOffTrackingFailed: Boolean = false,
 	val sourcePolicyReconciliationDebt: SourcePolicyRevisionReconciliationDebt? = null,
     val runtimeTelemetry: TrackingCoordinatorMetrics = TrackingCoordinatorMetrics.ZERO,
 )
@@ -237,6 +242,29 @@ class TrackingSettingsViewModel internal constructor(
             )
         }
     }
+
+	fun turnOffTracking() {
+		if (_uiState.value.turnOffTrackingInProgress) return
+		_uiState.update { it.copy(turnOffTrackingInProgress = true, turnOffTrackingFailed = false) }
+		viewModelScope.launch {
+			val result = try {
+				TrackerServiceApi.turnOffTrackingAndAwait(context)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				TrackingTurnOffResult.UNAVAILABLE
+			}
+			_uiState.update { current ->
+				current.copy(
+					trackingTurnedOff = result == TrackingTurnOffResult.COMPLETE ||
+						result == TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING,
+					turnOffTrackingFailed = result == TrackingTurnOffResult.UNAVAILABLE,
+					turnOffTrackingInProgress = false,
+				)
+			}
+			refreshPermissionState()
+		}
+	}
 
 	/** Re-probe the existing Steps owner after the Health Connect permission screen closes. */
 	fun refreshStepsProviderPermissionState() {
@@ -601,6 +629,9 @@ class TrackingSettingsViewModel internal constructor(
                 sourcePlans = if (runtimeStatus.active) runtimeStatus.requestedPlans else preview.requestedPlans,
                 sourceFrequencyOptions = preview.frequencyOptions,
                 trackingActive = runtimeStatus.active,
+				trackingTurnedOff = if (lifecycleCommandAuthority == null) it.trackingTurnedOff
+					else lifecycleCommandAuthority.pendingCollectionResumeExitId
+						?.startsWith(TRACKING_TURN_OFF_EXIT_PREFIX) == true,
 				sourcePolicyAvailable = params.sourcePolicyRevision != null,
 				sourcePolicyRevision = params.sourcePolicyRevision,
 				runtimeSourcePolicyRevision = runtimeStatus.sourcePolicyRevision,

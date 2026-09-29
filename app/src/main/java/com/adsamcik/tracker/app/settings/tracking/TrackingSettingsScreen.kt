@@ -182,6 +182,7 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 
     TrackingSettingsContent(
         uiState = uiState,
+        onTurnOffTracking = trackingVm::turnOffTracking,
         onPresetSelected = { trackingVm.applyPreset(it) },
 		onBalanceSelected = trackingVm::adoptBalanceProfile,
 		onSourceBalanceSelected = trackingVm::setSourceBalanceOverride,
@@ -294,6 +295,7 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 @Composable
 internal fun TrackingSettingsContent(
     uiState: TrackingSettingsUiState,
+    onTurnOffTracking: () -> Unit = {},
     onPresetSelected: (TrackingPreset) -> Unit = {},
 	onBalanceSelected: (Int) -> Unit = {},
 	onSourceBalanceSelected: (TrackingSourceComponent, Int?) -> Unit = { _, _ -> },
@@ -366,6 +368,7 @@ internal fun TrackingSettingsContent(
                     }
                 }
             }
+            item { TrackingTurnOffSetting(uiState, onTurnOffTracking) }
         }
         return
     }
@@ -420,6 +423,7 @@ internal fun TrackingSettingsContent(
                 icon = Icons.AutoMirrored.Filled.DirectionsRun,
             )
         }
+        item { TrackingTurnOffSetting(uiState, onTurnOffTracking) }
         item {
             AutoTrackingModeSelector(
                 selectedMode = uiState.autoTrackingMode.coerceIn(0, 2),
@@ -799,6 +803,50 @@ private fun StepsHealthConnectRepair(
 			modifier = Modifier.testTag("stepsHealthConnectRepairError"),
 		)
 	}
+}
+
+@Composable
+private fun TrackingTurnOffSetting(
+    state: TrackingSettingsUiState,
+    onTurnOffTracking: () -> Unit,
+) {
+    SettingsGroupCard {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = stringResource(
+                    if (state.trackingTurnedOff) {
+                        com.adsamcik.tracker.R.string.settings_tracking_is_off
+                    } else {
+                        com.adsamcik.tracker.R.string.settings_turn_off_tracking_explanation
+                    },
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (!state.trackingTurnedOff) {
+                TextButton(
+                    onClick = onTurnOffTracking,
+                    enabled = !state.turnOffTrackingInProgress,
+                    modifier = Modifier.testTag("turnOffTracking"),
+                ) {
+                    Text(stringResource(
+                        if (state.turnOffTrackingInProgress) {
+                            com.adsamcik.tracker.R.string.settings_turning_off_tracking
+                        } else {
+                            com.adsamcik.tracker.R.string.settings_turn_off_tracking
+                        },
+                    ))
+                }
+            }
+            if (state.turnOffTrackingFailed) {
+                Text(
+                    text = stringResource(com.adsamcik.tracker.R.string.settings_turn_off_tracking_failed),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.testTag("turnOffTrackingError"),
+                )
+            }
+        }
+    }
 }
 
 @Composable
