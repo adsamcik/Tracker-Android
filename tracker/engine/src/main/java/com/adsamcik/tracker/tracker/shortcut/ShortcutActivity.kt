@@ -7,6 +7,7 @@ import androidx.lifecycle.lifecycleScope
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartRepairNavigation
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartResult
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.api.TrackingTurnOffResult
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts.ShortcutAction
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -46,7 +47,15 @@ class ShortcutActivity : ComponentActivity() {
 				if (result != ManualTrackingStartResult.ENQUEUED) openDashboardForRepair()
 			}
 			ShortcutAction.STOP_COLLECTION -> {
-				TrackerServiceApi.stopService(this)
+				TrackerServiceApi.stopServiceAndAwaitQuiescence(this)
+			}
+			ShortcutAction.TURN_OFF_TRACKING -> {
+				when (TrackerServiceApi.turnOffTrackingAndAwait(this)) {
+					TrackingTurnOffResult.UNAVAILABLE,
+					TrackingTurnOffResult.SUPERSEDED_BY_NEW_START -> openDashboardForRepair()
+					TrackingTurnOffResult.COMPLETE,
+					TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING -> Unit
+				}
 			}
 		}
 	}

@@ -1297,8 +1297,8 @@ internal class TrackerService : CoreService() {
 	private fun updateLiveTrackingShortcut(active: Boolean) {
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) return
 		Shortcuts.updateShortcut(this, ShortcutData(Shortcuts.TRACKING_ID,
-			if (active) R.string.shortcut_stop_tracking else R.string.shortcut_start_tracking,
-			if (active) R.string.shortcut_stop_tracking_long else R.string.shortcut_start_tracking_long,
+			if (active) R.string.shortcut_end_session else R.string.shortcut_start_tracking,
+			if (active) R.string.shortcut_end_session_long else R.string.shortcut_start_tracking_long,
 			if (active) com.adsamcik.tracker.shared.base.R.drawable.ic_pause_circle_filled_black_24dp
 			else com.adsamcik.tracker.shared.base.R.drawable.ic_play_circle_filled_black_24dp,
 			if (active) Shortcuts.ShortcutAction.STOP_COLLECTION else Shortcuts.ShortcutAction.START_COLLECTION))

@@ -44,10 +44,9 @@ object Shortcuts {
 	@Synchronized
 	fun initializeShortcuts(context: Context) {
 		if (isInitialized) return
-		isInitialized = true
 
 		val shortcutManager = context.shortcutManager
-		val shortcuts = ArrayList<ShortcutInfo>(1)
+		val shortcuts = ArrayList<ShortcutInfo>(2)
 		val entryPoint = EntryPointAccessors.fromApplication(
 			context.applicationContext,
 			ShortcutsEntryPoint::class.java
@@ -72,16 +71,29 @@ object Shortcuts {
 							context,
 							ShortcutData(
 									TRACKING_ID,
-									R.string.shortcut_stop_tracking,
-									R.string.shortcut_stop_tracking_long,
+								R.string.shortcut_end_session,
+								R.string.shortcut_end_session_long,
 									com.adsamcik.tracker.shared.base.R.drawable.ic_pause_circle_filled_black_24dp,
 									ShortcutAction.STOP_COLLECTION
 							)
 					)
 			)
 		}
+		shortcuts.add(
+			createShortcut(
+				context,
+				ShortcutData(
+					TRACKING_OFF_ID,
+					R.string.shortcut_turn_off_tracking,
+					R.string.shortcut_turn_off_tracking_long,
+					com.adsamcik.tracker.shared.base.R.drawable.ic_stop_black_24dp,
+					ShortcutAction.TURN_OFF_TRACKING,
+				),
+			),
+		)
 
 		shortcutManager.dynamicShortcuts = shortcuts
+		isInitialized = true
 	}
 
 
@@ -136,6 +148,9 @@ object Shortcuts {
 	 */
 	enum class ShortcutAction {
 		START_COLLECTION,
-		STOP_COLLECTION
+		STOP_COLLECTION,
+		TURN_OFF_TRACKING,
 	}
+
+	const val TRACKING_OFF_ID: String = "TrackingOff"
 }
