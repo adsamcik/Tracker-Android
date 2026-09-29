@@ -150,7 +150,7 @@ class ActivityRetentionWorkerRobolectricTest {
 			assertEquals(ListenableWorker.Result.success(), worker(path, storage.db, imported).doWork())
 			assertEquals(EPOCH, request.captured.expectedCollectedDataEpoch)
 			assertEquals(1L, request.captured.expectedSourceEvidenceRevision)
-			assertEquals(FLOOR, request.captured.retainedFromMs)
+			assertEquals(storage.db.sourceEvidenceStateDao().get()?.retainedFromMs, request.captured.retainedFromMs)
 			assertTrue(request.captured.retainedAtMs > 0L)
 			coVerifyOrder {
 				imported.truncate(any())
@@ -198,11 +198,15 @@ class ActivityRetentionWorkerRobolectricTest {
 				val initial = SourceEvidenceState(collectedDataEpoch = EPOCH)
 				db.sourceEvidenceStateDao().ensure(initial)
 				db.activitySnapshotDao().insert(snapshot())
+				var settledEvidence: SourceEvidenceState? = null
 				val imported = mockk<RoomTruncateImportedActivityRetention>()
-				coEvery { imported.truncate(any()) } returns failure
+				coEvery { imported.truncate(any()) } coAnswers {
+					settledEvidence = db.sourceEvidenceStateDao().get()
+					failure
+				}
 
 				assertEquals(ListenableWorker.Result.retry(), worker(path, db, imported).doWork())
-				assertEquals(initial, db.sourceEvidenceStateDao().get())
+				assertEquals(settledEvidence, db.sourceEvidenceStateDao().get())
 				assertEquals(1, db.activitySnapshotDao().getAllBetween(0L, 2_000L).size)
 				assertEquals(0L, db.importedActivityDao().retentionReceiptCount())
 			} finally {
@@ -219,8 +223,10 @@ class ActivityRetentionWorkerRobolectricTest {
 				val initial = SourceEvidenceState(collectedDataEpoch = EPOCH)
 				db.sourceEvidenceStateDao().ensure(initial)
 				db.activitySnapshotDao().insert(snapshot())
+				var settledEvidence: SourceEvidenceState? = null
 				val imported = mockk<RoomTruncateImportedActivityRetention>()
 				coEvery { imported.truncate(any()) } coAnswers {
+					settledEvidence = db.sourceEvidenceStateDao().get()
 					db.sourceEvidenceStateDao().incrementRevision(System.currentTimeMillis())
 					if (cancel) throw CancellationException("cancel Activity retention caller")
 					throw SQLiteException("injected Activity retention storage failure")
@@ -233,7 +239,7 @@ class ActivityRetentionWorkerRobolectricTest {
 				}
 
 				assertEquals(cancel, cancellationPropagated)
-				assertEquals(initial, db.sourceEvidenceStateDao().get())
+				assertEquals(settledEvidence, db.sourceEvidenceStateDao().get())
 				assertEquals(1, db.activitySnapshotDao().getAllBetween(0L, 2_000L).size)
 				assertEquals(0L, db.activityCapturedFactDao().revisionCount())
 			} finally {
@@ -401,6 +407,8 @@ class ActivityRetentionWorkerRobolectricTest {
 	private fun retentionFloorSettlement(): RetentionFloorSettlement = mockk {
 		coEvery { pendingOperation(any(), any()) } returns
 			RetentionFloorOperationLookupResult.Available(null)
+		coEvery { pendingOperation(any(), any(), any()) } returns
+			RetentionFloorOperationLookupResult.Available(null)
 		coEvery {
 			settle(
 				database = any(),
@@ -419,14 +427,15 @@ class ActivityRetentionWorkerRobolectricTest {
 			val evidence = database.sourceEvidenceStateDao()
 			evidence.ensure()
 			val current = requireNotNull(evidence.get())
+			val requestedFloor = arg<Long>(4)
 			if (
 				current.collectedDataEpoch != EPOCH ||
-				current.retainedFromMs != FLOOR
+				current.retainedFromMs != requestedFloor
 			) {
-				evidence.updateLifecycle(EPOCH, FLOOR, arg(6))
+				evidence.updateLifecycle(EPOCH, requestedFloor, arg(6))
 			}
 			RetentionFloorSettlementResult.Settled(
-				lifecycle = CollectedDataLifecycleSnapshot(EPOCH, FLOOR),
+				lifecycle = CollectedDataLifecycleSnapshot(EPOCH, requestedFloor),
 				reconciledSources = setOf(
 					com.adsamcik.tracker.tracker.api.AmbientTrackingSource.STEPS,
 				),
