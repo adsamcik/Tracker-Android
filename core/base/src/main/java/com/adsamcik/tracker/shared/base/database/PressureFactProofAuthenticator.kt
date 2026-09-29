@@ -27,6 +27,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntit
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -906,10 +907,12 @@ private fun SessionManifestSourceEntity.isExactPressureFactWriter(): Boolean =
 		persistenceEligible &&
 		outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE &&
 		writerOwner == SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS &&
-		writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
+		SourceWriterGenerationContract.bindingGenerationForCanonicalOwner(
+			writerOwnerGeneration ?: 0L,
+		) == writerBindingGeneration &&
 		writerProjectionId == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID &&
 		writerProjectionVersion == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION &&
-		writerBindingGeneration == SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION
+		writerBindingGeneration != null
 
 @Suppress("ComplexCondition")
 private fun ProviderRegistrationGenerationEntity.authenticates(

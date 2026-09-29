@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import io.kotest.matchers.shouldBe
 import java.security.MessageDigest
 import org.junit.Test
@@ -95,6 +96,59 @@ class PressureFactProofAuthenticatorTest {
 			expectation(duplicateAdmission[0]),
 		) shouldBe PressureFactLineageProof.Rejected(
 			PressureFactProofFailure.LINEAGE_INCOMPLETE,
+		)
+	}
+
+	@Test
+	fun `later canonical Pressure writer generation authenticates only its matching binding`() {
+		val bindingGeneration = 2L
+		val canonicalOwner =
+			SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration)
+		val currentBinding = binding().copy(
+			writerOwnerGeneration = canonicalOwner,
+			writerBindingGeneration = bindingGeneration,
+		)
+		val lineage = correctionLineage().map { original ->
+			val unsigned = original.copy(
+				writerBindingGeneration = bindingGeneration,
+				effectChecksum = "pending",
+			)
+			unsigned.copy(
+				effectChecksum = PressureFactRevisionIntegrity.effectChecksum(
+					unsigned,
+					currentBinding,
+				),
+			)
+		}
+		val walByEventId = lineage.associate { fact -> fact.sourceEventId to wal(fact) }
+		val expected = expectation(lineage.last()).copy(
+			writerOwnerGeneration = canonicalOwner,
+		)
+
+		PressureFactProofAuthenticator.authenticateStoredLineage(
+			revisions = lineage,
+			walByEventId = walByEventId,
+			bindingsByManifestRevision = mapOf(MANIFEST_REVISION to currentBinding),
+			expectation = expected,
+		) shouldBe PressureFactLineageProof.Authenticated(lineage.last(), lineage)
+		PressureFactProofAuthenticator.authenticateStoredLineage(
+			revisions = lineage,
+			walByEventId = walByEventId,
+			bindingsByManifestRevision = mapOf(MANIFEST_REVISION to binding()),
+			expectation = expected,
+		) shouldBe PressureFactLineageProof.Rejected(
+			PressureFactProofFailure.INTEGRITY_MISMATCH,
+		)
+		PressureFactProofAuthenticator.authenticateStoredLineage(
+			revisions = lineage,
+			walByEventId = walByEventId.toMutableMap().also { carriers ->
+				val first = lineage.first().sourceEventId
+				carriers[first] = carriers.getValue(first).copy(integrityIdentity = "tampered")
+			},
+			bindingsByManifestRevision = mapOf(MANIFEST_REVISION to currentBinding),
+			expectation = expected,
+		) shouldBe PressureFactLineageProof.Rejected(
+			PressureFactProofFailure.INTEGRITY_MISMATCH,
 		)
 	}
 
