@@ -22,6 +22,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import java.io.ByteArrayOutputStream
 import java.io.File
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -134,6 +135,35 @@ class LegacyV26ImportTest {
 		count(raw, "pressure_fact_retention_revision_authority") shouldBe 0L
 		count(raw, "activity_captured_registration_plan") shouldBe 0L
 		count(raw, "activity_captured_window_revision") shouldBe 0L
+	}
+
+	@Test
+	fun `populated released v12 database imports its observations without altering the original`() {
+		createReleasedV12Database()
+
+		val active = openActive()
+		active.version shouldBe CURRENT_DATABASE_VERSION
+		hasCompletedLegacyImport(active) shouldBe true
+		count(active, "location_sample") shouldBe 1L
+		count(active, "location_observation") shouldBe 1L
+		count(active, "activity_snapshot") shouldBe 1L
+		count(active, "session_segment") shouldBe 1L
+		count(active, "wifi_observation") shouldBe 1L
+		count(active, "cell_sample") shouldBe 1L
+		count(active, "legacy_wifi_child") shouldBe 1L
+		count(active, "legacy_cell_child") shouldBe 1L
+		stringValue(active, "SELECT ssid FROM legacy_wifi_child") shouldBe "Released network"
+		longValue(active, "SELECT cell_id FROM legacy_cell_child") shouldBe 314159L
+
+		SQLiteDatabase.openDatabase(
+			context.getDatabasePath(LEGACY_DATABASE_NAME).path,
+			null,
+			SQLiteDatabase.OPEN_READONLY,
+		).use { original ->
+			original.version shouldBe 12
+			androidCount(original, "wifi_data") shouldBe 1L
+			androidCount(original, "cell_location") shouldBe 1L
+		}
 	}
 
 	@Test
@@ -644,6 +674,60 @@ class LegacyV26ImportTest {
 			seed(raw)
 		} finally {
 			helper.close()
+		}
+	}
+
+	private fun createReleasedV12Database() {
+		val relativeSchema = "schemas/com.adsamcik.tracker.shared.base.database.AppDatabase/12.json"
+		val schemaFile = sequenceOf(File(relativeSchema), File("core/base/$relativeSchema"))
+			.firstOrNull(File::isFile) ?: error("Missing committed released v12 Room schema")
+		val schema = JSONObject(schemaFile.readText()).getJSONObject("database")
+		schema.getInt("version") shouldBe 12
+		schema.getString("identityHash") shouldBe "603376ce119f1b4f1d3e4866aec15b4e"
+		val target = context.getDatabasePath(LEGACY_DATABASE_NAME)
+		target.parentFile?.mkdirs()
+		SQLiteDatabase.openOrCreateDatabase(target, null).use { released ->
+			val entities = schema.getJSONArray("entities")
+			for (index in 0 until entities.length()) {
+				val entity = entities.getJSONObject(index)
+				val table = entity.getString("tableName")
+				released.execSQL(entity.getString("createSql").replace("${'$'}{TABLE_NAME}", table))
+				val indices = entity.getJSONArray("indices")
+				for (indexOfIndex in 0 until indices.length()) {
+					released.execSQL(
+						indices.getJSONObject(indexOfIndex).getString("createSql")
+							.replace("${'$'}{TABLE_NAME}", table),
+					)
+				}
+			}
+			val setup = schema.getJSONArray("setupQueries")
+			for (index in 0 until setup.length()) released.execSQL(setup.getString(index))
+			released.execSQL("INSERT INTO activity(id, name, iconName) VALUES (7, 'Walk', 'walk')")
+			released.execSQL("""
+				INSERT INTO location_data(id, time, lat, lon, activity, confidence)
+				VALUES (101, 1700100000000, 50.1, 14.2, 7, 90)
+			""".trimIndent())
+			released.execSQL("""
+				INSERT INTO tracker_session(id, start, `end`, user_initiated, collections,
+					distance, distance_on_foot, distance_in_vehicle, steps, session_activity_id)
+				VALUES (201, 1700099900000, 1700100100000, 1, 2, 125.0, 125.0, 0.0, 20, 7)
+			""".trimIndent())
+			released.execSQL("""
+				INSERT INTO wifi_data(bssid, longitude, latitude, altitude, first_seen, last_seen,
+					ssid, capabilities, frequency, level)
+				VALUES ('02:00:00:00:00:01', 14.2, 50.1, 220.0, 1700100000000,
+					1700100001000, 'Released network', '[WPA2]', 2412, -55)
+			""".trimIndent())
+			released.execSQL("INSERT INTO network_operator(mcc, mnc, name) VALUES ('230', '01', 'Carrier')")
+			released.execSQL("""
+				INSERT INTO cell_location(id, time, mcc, mnc, cell_id, type, asu, lat, lon, alt)
+				VALUES (301, 1700100002000, '230', '01', 314159, 1, 18, 50.1, 14.2, 220.0)
+			""".trimIndent())
+			released.execSQL("""
+				INSERT INTO location_wifi_count(id, time, count, lat, lon, alt)
+				VALUES (401, 1700100003000, 3, 50.1, 14.2, 220.0)
+			""".trimIndent())
+			released.version = 12
 		}
 	}
 
