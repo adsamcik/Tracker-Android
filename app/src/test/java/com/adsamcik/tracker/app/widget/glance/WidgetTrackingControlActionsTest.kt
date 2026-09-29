@@ -15,6 +15,7 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
 import io.mockk.verify
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -78,6 +79,31 @@ class WidgetTrackingControlActionsTest {
             TurnOffTrackingAction().onAction(context, glanceId, parameters)
 
             verify(exactly = 2) {
+                ManualTrackingStartRepairNavigation.createDashboardIntent(context, false)
+            }
+            coVerify(exactly = 0) { TrackerServiceApi.requestManualTrackingStart(context) }
+        } finally {
+            unmockkObject(TrackerServiceApi, WidgetUpdateScheduler, ManualTrackingStartRepairNavigation)
+        }
+    }
+
+    @Test
+    fun `stalled End returns from widget action and opens repair without replaying Start`() = runTest {
+        mockkObject(TrackerServiceApi, WidgetUpdateScheduler, ManualTrackingStartRepairNavigation)
+        try {
+            every { TrackerServiceApi.hasLiveCapture(context) } returns true
+            coEvery { TrackerServiceApi.stopServiceAndAwaitQuiescence(context, any()) } coAnswers {
+                delay(20_000L)
+                TrackingStopQuiescenceResult.HANDLED
+            }
+            every {
+                ManualTrackingStartRepairNavigation.createDashboardIntent(context, false)
+            } returns mockk<Intent>()
+            coEvery { WidgetUpdateScheduler.updateAllWidgets(context) } returns Unit
+
+            ToggleTrackingAction().onAction(context, glanceId, parameters)
+
+            verify(exactly = 1) {
                 ManualTrackingStartRepairNavigation.createDashboardIntent(context, false)
             }
             coVerify(exactly = 0) { TrackerServiceApi.requestManualTrackingStart(context) }

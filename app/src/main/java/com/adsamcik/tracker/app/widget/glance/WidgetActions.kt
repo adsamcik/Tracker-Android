@@ -12,6 +12,7 @@ import com.adsamcik.tracker.tracker.api.TrackingStopQuiescenceResult
 import com.adsamcik.tracker.tracker.api.TrackingTurnOffResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Starts or ends a session without changing all-day tracking choices. */
 class ToggleTrackingAction : ActionCallback {
@@ -24,7 +25,9 @@ class ToggleTrackingAction : ActionCallback {
         try {
             val isRunning = TrackerServiceApi.hasLiveCapture(context)
             if (isRunning) {
-                if (TrackerServiceApi.stopServiceAndAwaitQuiescence(context) !=
+                if (withTimeoutOrNull(STOP_ACTION_TIMEOUT_MS) {
+                    TrackerServiceApi.stopServiceAndAwaitQuiescence(context)
+                } !=
                     TrackingStopQuiescenceResult.HANDLED
                 ) openDashboard(context, reevaluateManualStart = false)
             } else {
@@ -48,6 +51,7 @@ class ToggleTrackingAction : ActionCallback {
 
     private companion object {
         const val STATE_PROPAGATION_DELAY_MS = 500L
+        const val STOP_ACTION_TIMEOUT_MS = 8_000L
     }
 }
 

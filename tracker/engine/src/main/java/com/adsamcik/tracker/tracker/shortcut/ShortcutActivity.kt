@@ -12,6 +12,7 @@ import com.adsamcik.tracker.tracker.api.TrackingTurnOffResult
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts.ShortcutAction
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * ShortcutActivity handles shortcut actions with no UI.
@@ -50,7 +51,9 @@ class ShortcutActivity : ComponentActivity() {
 				}
 			}
 			ShortcutAction.STOP_COLLECTION -> {
-				if (TrackerServiceApi.stopServiceAndAwaitQuiescence(this) !=
+				if (withTimeoutOrNull(STOP_ACTION_TIMEOUT_MS) {
+					TrackerServiceApi.stopServiceAndAwaitQuiescence(this@ShortcutActivity)
+				} !=
 					TrackingStopQuiescenceResult.HANDLED
 				) openDashboardForRepair(reevaluateManualStart = false)
 			}
@@ -71,5 +74,9 @@ class ShortcutActivity : ComponentActivity() {
 			this,
 			reevaluateManualStart = reevaluateManualStart,
 		)?.let { startActivity(it) }
+	}
+
+	private companion object {
+		const val STOP_ACTION_TIMEOUT_MS = 8_000L
 	}
 }
