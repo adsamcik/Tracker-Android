@@ -53,6 +53,7 @@ internal interface TrackerServiceApiEntryPoint {
 	fun activityWatcherController(): ActivityWatcherController
 	fun inactiveTrackingSessionStopHandler(): InactiveTrackingSessionStopHandler
 	fun trackingLifecycleCommandAuthority(): TrackingLifecycleCommandAuthority
+	fun trackingTurnOffController(): TrackingTurnOffController
 	fun trackingStartRequestCoordinator(): TrackingStartRequestCoordinator
 	@ApplicationScope fun applicationScope(): CoroutineScope
 }
@@ -107,6 +108,7 @@ object TrackerServiceApi {
 	@Volatile
 	private var cachedEntryPoint: TrackerServiceApiEntryPoint? = null
 
+	private val turnOffRecoveryInFlight = mutableSetOf<String>()
 	private fun getEntryPoint(context: Context): TrackerServiceApiEntryPoint {
 		cachedEntryPoint?.let { return it }
 		return synchronized(this) {
@@ -634,6 +636,146 @@ object TrackerServiceApi {
 		val appContext = context.applicationContext
 		val entryPoint = getEntryPoint(appContext)
 		val authority = entryPoint.trackingLifecycleCommandAuthority()
+	/** Stops every tracking purpose while retaining the person's source choices and saved data. */
+	fun turnOffTracking(context: Context) {
+		val entryPoint = getEntryPoint(context.applicationContext)
+		entryPoint.applicationScope().launch {
+			try {
+				turnOffTrackingAndAwait(context.applicationContext)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				// The durable command remains available for retry through the awaitable API.
+			}
+		}
+	}
+
+	/** Awaitable form for screens that need to show a retryable cleanup result. */
+	suspend fun turnOffTrackingAndAwait(
+		context: Context,
+		expectedStartGeneration: Long? = null,
+	): TrackingTurnOffResult {
+		val appContext = context.applicationContext
+		val entryPoint = getEntryPoint(appContext)
+		val controller = entryPoint.trackingTurnOffController()
+		val reserved = try {
+			controller.reserveAndFence(expectedStartGeneration)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			null
+		}
+		if (reserved == null) {
+			if (expectedStartGeneration != null) {
+				return if (entryPoint.trackingLifecycleCommandAuthority()
+					.latestCommandGeneration() != expectedStartGeneration
+				) TrackingTurnOffResult.SUPERSEDED_BY_NEW_START
+				else TrackingTurnOffResult.UNAVAILABLE
+			}
+			val pendingExitId = entryPoint.trackingLifecycleCommandAuthority()
+				.pendingCollectionResumeExitId
+				?.takeIf { it.startsWith(TRACKING_TURN_OFF_EXIT_PREFIX) }
+				?: return TrackingTurnOffResult.UNAVAILABLE
+			scheduleTurnOffRecovery(entryPoint, pendingExitId)
+			return TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING
+		}
+		val result = finishPendingTurnOff(entryPoint, reserved.exitId)
+		if (result == TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING) {
+			scheduleTurnOffRecovery(entryPoint, reserved.exitId)
+		}
+		return result
+	}
+
+	/** Called after startup STOP reconciliation, outside its non-reentrant operation lock. */
+	suspend fun reconcilePendingTurnOffAfterStartup(context: Context): Boolean {
+		val appContext = context.applicationContext
+		val entryPoint = getEntryPoint(appContext)
+		val pendingExitId = entryPoint.trackingLifecycleCommandAuthority()
+			.pendingCollectionResumeExitId
+			?.takeIf { it.startsWith(TRACKING_TURN_OFF_EXIT_PREFIX) }
+			?: return true
+		return finishPendingTurnOff(entryPoint, pendingExitId) !=
+			TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING
+	}
+
+	private suspend fun finishPendingTurnOff(
+		entryPoint: TrackerServiceApiEntryPoint,
+		exitId: String,
+	): TrackingTurnOffResult {
+		val authority = entryPoint.trackingLifecycleCommandAuthority()
+		if (authority.pendingCollectionResumeExitId != exitId) {
+			return TrackingTurnOffResult.SUPERSEDED_BY_NEW_START
+		}
+		val pendingStop = authority.latestUnhandledStop()
+		if (pendingStop != null) {
+			val stop = try {
+				withContext(NonCancellable) {
+					withTimeoutOrNull(TURN_OFF_STOP_TIMEOUT_MILLIS) {
+						reserveRouteAndAwaitDurableStop(
+							reserve = { pendingStop },
+							deliverToRunningService = TrackerRuntimeStopDispatcher::dispatch,
+							finalizeInactiveService = { command ->
+								entryPoint.inactiveTrackingSessionStopHandler()
+									.finalizeStoredSession(command)
+							},
+							isCurrent = authority::isStopCurrent,
+							isActionable = authority::isStopActionable,
+						)
+					}
+				}
+			} catch (_: Exception) {
+				null
+			}
+			if (stop == TrackingStopQuiescenceResult.SUPERSEDED) {
+				return TrackingTurnOffResult.SUPERSEDED_BY_NEW_START
+			}
+			if (stop != TrackingStopQuiescenceResult.HANDLED) {
+				return TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING
+			}
+		}
+		val ownersClosed = withContext(NonCancellable) {
+			try {
+				entryPoint.trackingTurnOffController().closeOwnersAfterSessionStop(exitId)
+			} catch (_: Exception) {
+				false
+			}
+		}
+		return when (ownersClosed) {
+			null -> TrackingTurnOffResult.SUPERSEDED_BY_NEW_START
+			true -> TrackingTurnOffResult.COMPLETE
+			false -> TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING
+		}
+	}
+
+	private fun scheduleTurnOffRecovery(
+		entryPoint: TrackerServiceApiEntryPoint,
+		exitId: String,
+	) {
+		synchronized(turnOffRecoveryInFlight) {
+			if (!turnOffRecoveryInFlight.add(exitId)) return
+		}
+		entryPoint.applicationScope().launch {
+			try {
+				var retryDelayMs = TURN_OFF_RETRY_INITIAL_DELAY_MILLIS
+				while (entryPoint.trackingLifecycleCommandAuthority()
+					.pendingCollectionResumeExitId == exitId) {
+					val result = try {
+						finishPendingTurnOff(entryPoint, exitId)
+					} catch (cancelled: CancellationException) {
+						throw cancelled
+					} catch (_: Exception) {
+						TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING
+					}
+					if (result != TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING) break
+					delay(retryDelayMs)
+					retryDelayMs = (retryDelayMs * 2L).coerceAtMost(TURN_OFF_RETRY_MAX_DELAY_MILLIS)
+				}
+			} finally {
+				synchronized(turnOffRecoveryInFlight) { turnOffRecoveryInFlight.remove(exitId) }
+			}
+		}
+	}
+
 		return reserveRouteAndAwaitDurableStop(
 			reserve = {
 				authority.reserveStop(
@@ -739,3 +881,6 @@ private const val ACTIVITY_CALLBACK_CLEANUP_WINDOW_NANOS = 7_750L * NANOS_PER_MI
 private const val ACTIVITY_AUTOMATION_EVIDENCE_MAX_AGE_NANOS = 60_000L * NANOS_PER_MILLISECOND
 private const val DEFAULT_START_COMPENSATION_TIMEOUT_MS = 250L
 private const val STOP_QUIESCENCE_POLL_MILLIS = 25L
+private const val TURN_OFF_STOP_TIMEOUT_MILLIS = 15_000L
+private const val TURN_OFF_RETRY_INITIAL_DELAY_MILLIS = 1_000L
+private const val TURN_OFF_RETRY_MAX_DELAY_MILLIS = 30_000L

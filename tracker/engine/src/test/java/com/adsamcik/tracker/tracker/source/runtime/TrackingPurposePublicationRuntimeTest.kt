@@ -47,6 +47,7 @@ import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiActivationReq
 import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiDemandReconciler
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -62,6 +63,22 @@ import javax.inject.Provider
 
 @Suppress("LargeClass", "LongMethod")
 class TrackingPurposePublicationRuntimeTest {
+	@Test
+	fun `Turn off gate denies new ambient and automatic owner leases before policy reads`() = runTest {
+		val gate = mockk<TrackingStartupGate>()
+		every { gate.permitsNewCollection } returns false
+		val policies = mockk<SourcePolicyRepository>()
+		val reader = CurrentTrackingPurposeAuthorityReader(
+			policies,
+			mockk(),
+			mockk(),
+			mockk(),
+			Provider { gate },
+		)
+		reader.read(TrackingSource.STEPS.forPurpose(TrackingPurpose.AMBIENT_PRODUCT), 1L) shouldBe null
+		reader.read(TrackingSource.ACTIVITY.forPurpose(TrackingPurpose.CONTROL), 1L) shouldBe null
+		coVerify(exactly = 0) { policies.currentState() }
+	}
 	@Test
 	fun `current projection invalidates ready on lifecycle or rollout change without params emission`() =
 		runTest {

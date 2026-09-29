@@ -31,6 +31,7 @@ import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReporter
 import com.adsamcik.tracker.tracker.api.TrackingPurposeDeletionFencer
+import com.adsamcik.tracker.tracker.api.TrackingPurposeUserStopFencer
 import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
 import com.adsamcik.tracker.tracker.api.TrackingPurposeReconciliationRetryScheduler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
@@ -152,6 +153,7 @@ internal class CurrentTrackingPurposeAuthorityReader @Inject constructor(
 	private val collectedDataLifecycleStore: CollectedDataLifecycleStore,
 	private val rolloutStateStore: TrackingRolloutStateStore,
 	private val retentionAuthorityReader: RetentionAuthorityProducer,
+	private val trackingStartupGateProvider: Provider<TrackingStartupGate>? = null,
 ) : TrackingPurposeAuthorityReader {
 	override suspend fun read(
 		sourcePurpose: TrackingSourcePurposeIdentity,
@@ -174,6 +176,7 @@ internal class CurrentTrackingPurposeAuthorityReader @Inject constructor(
 		settlementOperationId: String?,
 	): TrackingPurposeAuthoritySnapshot? {
 		require(registeredExecutionRevision >= 0L)
+		if (trackingStartupGateProvider?.get()?.permitsNewCollection == false) return null
 		repeat(AUTHORITY_READ_ATTEMPTS) {
 			val first = readOnce(
 				sourcePurpose,
@@ -185,7 +188,9 @@ internal class CurrentTrackingPurposeAuthorityReader @Inject constructor(
 				registeredExecutionRevision,
 				settlementOperationId,
 			) ?: return null
-			if (first == second) return first
+			if (first == second) return first.takeIf {
+				trackingStartupGateProvider?.get()?.permitsNewCollection != false
+			}
 		}
 		return null
 	}
@@ -195,6 +200,7 @@ internal class CurrentTrackingPurposeAuthorityReader @Inject constructor(
 		registeredExecutionRevision: Long,
 		settlementOperationId: String?,
 	): TrackingPurposeAuthoritySnapshot? {
+		if (trackingStartupGateProvider?.get()?.permitsNewCollection == false) return null
 		val policyState = sourcePolicyRepository.currentState()
 		val policySnapshot = (policyState as? SourcePolicyAuthorityState.Active)?.snapshot
 			?: return null
@@ -500,7 +506,8 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 ) : TrackingPurposeSettingsReconciler,
 	TrackingPurposeSourceOwnerRegistrar,
 	TrackingRetentionFloorReconciler,
-	TrackingPurposeDeletionFencer {
+	TrackingPurposeDeletionFencer,
+	TrackingPurposeUserStopFencer {
 	@Inject
 	constructor(
 		leaseIssuer: SerializedTrackingPurposeLeaseIssuer,
@@ -640,7 +647,17 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 	}
 
 	override suspend fun fenceForCollectedDataDeletion():
-		TrackingPurposeSettingsReconciliationResult {
+		TrackingPurposeSettingsReconciliationResult = closeAllOwners(
+		com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+	)
+
+	override suspend fun closeForUserStop(): TrackingPurposeSettingsReconciliationResult = closeAllOwners(
+		com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason.USER_TURNED_OFF,
+	)
+
+	private suspend fun closeAllOwners(
+		unavailableReason: com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason,
+	): TrackingPurposeSettingsReconciliationResult {
 		ensureBuiltInAmbientOwners(AmbientTrackingSource.entries.toSet())
 		val failures = mutableListOf<TrackingPurposeSettingsReconciliationFailure>()
 		automaticOperationMutex.withLock {
@@ -672,7 +689,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		}
 		sources.sortedBy { it.ordinal }.forEach { source ->
 			val failure = ambientOperationMutexes.getValue(source).withLock {
-				closeAmbientForCollectedDataDeletionLocked(source)
+				closeAmbientForCollectedDataDeletionLocked(source, unavailableReason)
 			}
 			if (failure == null) {
 				Unit
@@ -1531,6 +1548,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 
 	private suspend fun closeAmbientForCollectedDataDeletionLocked(
 		source: AmbientTrackingSource,
+		unavailableReason: com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason,
 	): TrackingRetentionFloorReconciliationFailureReason? {
 		val owner = ownerMutex.withLock { ambientOwners[source] }
 			?: return TrackingRetentionFloorReconciliationFailureReason.OWNER_MISSING
@@ -1553,8 +1571,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		}
 		reporter.publishAmbientUnavailable(
 			source,
-			com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
-				.RETENTION_POLICY_UNAVAILABLE,
+			unavailableReason,
 		)
 		if (cleanup == OwnerCleanup.COMPLETE) {
 			leaseIssuer.clearAmbient(source)

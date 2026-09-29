@@ -253,6 +253,21 @@ class TrackingSettingsViewModelTest {
 	}
 
 	@Test
+	fun `Location settings edit cannot resume explicit Turn off`() = runTest(testDispatcher) {
+		val lifecycle = mockk<TrackingLifecycleCommandAuthority>(relaxed = true)
+		every { lifecycle.pendingCollectionResumeExitId } returns "turn-off:prior-command"
+		val vm = TrackingSettingsViewModel(context, trackingParamsRepository, trackingStatusProvider,
+			activityWatcherController, purposeAvailabilityReader,
+			lifecycleCommandAuthority = lifecycle,
+			activityPermissionProbe = { permissionsGranted })
+		vm.setAmbientLocationEnabled(true)
+		advanceUntilIdle()
+		paramsFlow.value.ambientLocationEnabled shouldBe true
+		vm.uiState.value.locationSettingsSaveFailed shouldBe false
+		coVerify(exactly = 0) { lifecycle.resumeCollectionAfterUserExit(any()) }
+	}
+
+	@Test
 	fun `changed pending user exit remains blocked when explicit resume CAS loses`() = runTest(testDispatcher) {
 		val lifecycle = mockk<TrackingLifecycleCommandAuthority>(relaxed = true)
 		every { lifecycle.pendingCollectionResumeExitId } returns "exit-1"

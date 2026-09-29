@@ -80,6 +80,13 @@ data class TrackingLifecycleCommandState(
 
 	fun observeUserExit(exitId: String): TrackingLifecycleCommandState {
 		require(exitId.isNotBlank())
+		// Android's later process-exit report must not turn an explicit all-source stop
+		// into a settings-resumable recovery receipt.
+		if (collectionResumeRequired && handledUserExitId?.startsWith(
+			com.adsamcik.tracker.tracker.api.TRACKING_TURN_OFF_EXIT_PREFIX,
+		) == true && !exitId.startsWith(
+			com.adsamcik.tracker.tracker.api.TRACKING_TURN_OFF_EXIT_PREFIX,
+		)) return this
 		return if (handledUserExitId == exitId) this else copy(
 			lastGeneration = nextGeneration(),
 			handledUserExitId = exitId, collectionResumeRequired = true)
@@ -237,6 +244,20 @@ interface TrackingLifecycleCommandAuthority {
 	val pendingCollectionResumeExitId: String? get() = null
 	val collectionResumeBoundary: TrackingCollectionResumeBoundary? get() = null
 	suspend fun recordUserRequestedExit(exitId: String): Boolean = false
+	/** Holds the command gate from durable Off through the all-source Room fence and STOP reservation. */
+	suspend fun reserveTurnOff(
+		exitId: String,
+		requestedAtEpochMs: Long,
+		requestedElapsedRealtimeNanos: Long,
+		expectedStartGeneration: Long? = null,
+		fenceSources: suspend () -> Unit,
+	): TrackingTurnOffReservation? = null
+
+	/** A newer explicit Start supersedes Off; otherwise owner shutdown is serialized with it. */
+	suspend fun withPendingTurnOff(
+		exitId: String,
+		closeOwners: suspend () -> Boolean,
+	): Boolean? = null
 	suspend fun resumeCollectionAfterUserExit(expectedExitId: String): Boolean = false
 
     /** Atomic exact-Start resume; call before acquiring the startup operation's lifecycle lock. */
@@ -367,3 +388,8 @@ interface TrackingLifecycleCommandAuthority {
 
 	suspend fun markStopHandled(command: TrackingStopCommand): Boolean
 }
+
+data class TrackingTurnOffReservation(
+	val exitId: String,
+	val stop: TrackingStopCommand,
+)

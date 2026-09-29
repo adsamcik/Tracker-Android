@@ -273,6 +273,8 @@ internal fun ambientOperationalSummary(
 	}
 	return stringResource(
 		when (availability.reason) {
+			AmbientSourceUnavailableReason.USER_TURNED_OFF ->
+				com.adsamcik.tracker.R.string.settings_ambient_user_turned_off
 			AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED ->
 				com.adsamcik.tracker.R.string.settings_location_request_adjusted
 			AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE ->

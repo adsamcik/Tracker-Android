@@ -101,6 +101,7 @@ enum class AmbientSourceUnavailableReason(
 	val stableCode: String,
 	val containmentReason: TrackingDecisionContainmentReason? = null,
 ) {
+	USER_TURNED_OFF("AMBIENT_USER_TURNED_OFF"),
 	RETENTION_POLICY_UNAVAILABLE(
 		"AMBIENT_RETENTION_POLICY_UNAVAILABLE",
 		TrackingDecisionContainmentReason.RETENTION_AUTHORITY_UNAVAILABLE,
@@ -803,6 +804,11 @@ fun interface TrackingPurposeDeletionFencer {
 	suspend fun fenceForCollectedDataDeletion(): TrackingPurposeSettingsReconciliationResult
 }
 
+/** Physically closes app-scoped owners after an explicit user stop; retained data is untouched. */
+fun interface TrackingPurposeUserStopFencer {
+	suspend fun closeForUserStop(): TrackingPurposeSettingsReconciliationResult
+}
+
 fun interface TrackingRetentionFloorReconciler {
 	suspend fun reconcile(
 		expectedStartupGeneration: Long,
@@ -1313,6 +1319,7 @@ private fun AmbientTrackingSource.permissionReason(
 private fun AmbientTrackingSource.unavailableReasons(): Set<AmbientSourceUnavailableReason> {
 	val source = this
 	return buildSet {
+		add(AmbientSourceUnavailableReason.USER_TURNED_OFF)
 		add(AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE)
 		add(AmbientSourceUnavailableReason.ROLLOUT_CONTAINED)
 		add(AmbientSourceUnavailableReason.PLATFORM_UNAVAILABLE)

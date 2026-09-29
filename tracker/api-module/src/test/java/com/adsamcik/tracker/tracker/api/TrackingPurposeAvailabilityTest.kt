@@ -8,6 +8,17 @@ import org.junit.jupiter.api.Test
 
 class TrackingPurposeAvailabilityTest {
 	@Test
+	fun `user stop is an honest unavailable state for every ambient source`() {
+		AmbientTrackingSource.entries.forEach { source ->
+			val stopped = AmbientSourceOperationalAvailability.unavailable(
+				source, AmbientSourceUnavailableReason.USER_TURNED_OFF,
+			)
+			stopped.state shouldBe AmbientSourceOperationalState.UNAVAILABLE
+			stopped.reason shouldBe AmbientSourceUnavailableReason.USER_TURNED_OFF
+			stopped.isOperational.shouldBeFalse()
+		}
+	}
+	@Test
 	fun `safe default contains automatic control but waits for each ambient owner`() {
 		val snapshot = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT
 

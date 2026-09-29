@@ -31,6 +31,13 @@ import com.adsamcik.tracker.tracker.api.TrackingStartPreparationResult
 import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
 import com.adsamcik.tracker.tracker.api.TrackingStartRequest
 import com.adsamcik.tracker.tracker.api.TrackingStartRequestCoordinator
+import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
+import com.adsamcik.tracker.tracker.api.TrackingPurposeReconciliationRetryScheduler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailure
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailureReason
 import com.adsamcik.tracker.tracker.api.isRetryable
 import com.adsamcik.tracker.tracker.api.activityTransitionCallbackCleanupDeadlineElapsedRealtimeNanos
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
@@ -99,6 +106,12 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 	private val activityAutomationEpochAuthority: ActivityAutomationEpochAuthority,
 	private val trackingLifecycleCommandAuthority: TrackingLifecycleCommandAuthority,
 	private val sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,
+	private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler =
+		TrackingPurposeSettingsReconciler {
+			TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
+		},
+	private val purposeReconciliationRetryScheduler: TrackingPurposeReconciliationRetryScheduler =
+		TrackingPurposeReconciliationRetryScheduler { false },
 	private val activeTrackingSessionCallerAuthorityReconciler:
 		ActiveTrackingSessionCallerAuthorityReconciler,
 	private val batteryAwarePolicy: BatteryAwarePolicy = BatteryAwarePolicy(context),
@@ -117,20 +130,75 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		}
         // The startup lease holds the lifecycle authority's non-reentrant mutex. Resume must
         // be ordered before entering it, with the exact current Start as the durable authority.
-        trackingLifecycleCommandAuthority.pendingCollectionResumeExitId?.let { exitId ->
+		var resumedCollection = false
+		trackingLifecycleCommandAuthority.pendingCollectionResumeExitId?.let { exitId ->
             if (!request.isUserInitiated || request.isAmbient || request.automaticTrigger != null ||
                 request.recoveryDescriptor != null ||
                 !trackingLifecycleCommandAuthority.resumeCollectionForManualStart(exitId, request.command)
-            ) return TrackingStartPreparationResult.Rejected("TRACKING_EXPLICIT_RESUME_REQUIRED")
-        }
+			) return TrackingStartPreparationResult.Rejected("TRACKING_EXPLICIT_RESUME_REQUIRED")
+			resumedCollection = true
+		}
 		val startupGeneration = trackingStartupGate.currentGeneration
-		return trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
-			prepareUnderReadyGeneration(
-				request = request,
-				exactContinuationAuthority = exactContinuationAuthority,
-				startupGeneration = startupGeneration,
-			)
-		} ?: retryableStartRejection("TRACKING_STARTUP_GENERATION_CLOSED")
+		val prepared = try {
+			trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+				prepareUnderReadyGeneration(
+					request = request,
+					exactContinuationAuthority = exactContinuationAuthority,
+					startupGeneration = startupGeneration,
+				)
+			} ?: retryableStartRejection("TRACKING_STARTUP_GENERATION_CLOSED")
+		} catch (failure: Throwable) {
+			if (resumedCollection) restoreTurnOffAfterUnpreparedStart(request.command)
+			throw failure
+		}
+		if (resumedCollection && prepared !is TrackingStartPreparationResult.Prepared) {
+			// A rejected exact Start is not permission to restart all-day collection.
+			restoreTurnOffAfterUnpreparedStart(request.command)
+			return prepared
+		}
+		if (resumedCollection && prepared is TrackingStartPreparationResult.Prepared) {
+			// Off changed no source preference, so its exact Start must re-publish the
+			// independently chosen all-day purposes after the durable resume boundary.
+			try {
+				val reconciliation = purposeSettingsReconciler.reconcileCurrentSettings()
+				if (reconciliation is TrackingPurposeSettingsReconciliationResult.Debt) {
+					purposeReconciliationRetryScheduler.schedule(reconciliation.debt)
+				}
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				// A session Start remains usable when an independent all-day owner is in
+				// recovery. The existing purpose retry worker repairs that owner.
+				try {
+					purposeReconciliationRetryScheduler.schedule(
+						TrackingPurposeSettingsReconciliationDebt(listOf(
+							TrackingPurposeSettingsReconciliationFailure(
+								source = null,
+								reason = TrackingPurposeSettingsReconciliationFailureReason
+									.OWNER_RECONCILIATION_FAILED,
+							),
+						)),
+					)
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (_: Exception) {
+					// The next startup and source-settings reconciliation can also repair it.
+				}
+			}
+		}
+		return prepared
+	}
+
+	private suspend fun restoreTurnOffAfterUnpreparedStart(command: TrackingStartCommand) {
+		withContext(NonCancellable) {
+			try {
+				TrackerServiceApi.turnOffTrackingAndAwait(
+					context, expectedStartGeneration = command.generation,
+				)
+			} catch (_: Exception) {
+				// The startup gate and durable stop recovery surface any storage failure.
+			}
+		}
 	}
 
 	/**

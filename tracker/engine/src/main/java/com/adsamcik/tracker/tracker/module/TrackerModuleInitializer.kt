@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationCoordinator
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationResult
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
+import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryScheduler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
@@ -64,7 +65,12 @@ class TrackerModuleInitializer @Inject constructor(
 			while (true) {
 				try {
 					handoffTrackerInitializationAfterAuthorization(
-						reconcileStartup = { trackingStartupGate.reconcile() },
+						reconcileStartup = {
+							reconcileStartupAndPendingTurnOff(
+								{ trackingStartupGate.reconcile() },
+								{ TrackerServiceApi.reconcilePendingTurnOffAfterStartup(context) },
+							)
+						},
 						currentReadyGeneration = { trackingStartupGate.currentGeneration },
 						awaitAuthorizationAfterReady = {
 							trackingStartupGuard.awaitAutoRecoveryAuthorizationAfterStartupReady(context)
@@ -108,6 +114,8 @@ class TrackerModuleInitializer @Inject constructor(
 						TrackerDiagnosticWarningCode
 							.AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED,
 					)
+					delay(STARTUP_AUTHORITY_RETRY_DELAY_MS)
+				} catch (_: TrackerTurnOffRecoveryPendingException) {
 					delay(STARTUP_AUTHORITY_RETRY_DELAY_MS)
 				}
 			}
@@ -180,6 +188,20 @@ internal sealed interface TrackerStartupAuthorityResult {
 private class TrackerStartupAuthorityPendingException(
 	val result: TrackerStartupAuthorityResult,
 ) : IllegalStateException("Tracker startup authority remains unavailable")
+
+private class TrackerTurnOffRecoveryPendingException :
+	IllegalStateException("Explicit tracking shutdown cleanup remains pending")
+
+internal suspend fun reconcileStartupAndPendingTurnOff(
+	reconcileStartup: suspend () -> TrackingStartupResult,
+	recoverPendingTurnOff: suspend () -> Boolean,
+): TrackingStartupResult {
+	val startup = reconcileStartup()
+	if (startup is TrackingStartupResult.Ready && !recoverPendingTurnOff()) {
+		throw TrackerTurnOffRecoveryPendingException()
+	}
+	return startup
+}
 
 private const val STARTUP_AUTHORITY_RETRY_DELAY_MS = 1_000L
 

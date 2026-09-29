@@ -562,6 +562,15 @@ class BackgroundTrackingApiLogicTest {
 		}
 
 		@Test
+		fun `Turn off masks automatic control while keeping its configured mode`() {
+			effectiveAutomaticControlMode(
+				GroupedActivity.ON_FOOT.ordinal,
+				controlEligible = true,
+				permitsNewCollection = false,
+			) shouldBe GroupedActivity.STILL.ordinal
+		}
+
+		@Test
 		fun `automatic recognition start requires full confidence without a Steps fallback`() {
 			hasRequiredAutomaticStartConfidence(confidence = 75, requiredConfidence = 75) shouldBe true
 			hasRequiredAutomaticStartConfidence(confidence = 74, requiredConfidence = 75) shouldBe false

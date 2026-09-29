@@ -49,6 +49,7 @@ import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailability
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
+import com.adsamcik.tracker.tracker.api.TRACKING_TURN_OFF_EXIT_PREFIX
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -333,7 +334,8 @@ class TrackingSettingsViewModel internal constructor(
 		mutation: suspend () -> Unit,
 	) {
 		val generation = ++locationIntentGeneration
-		val expectedExitId = lifecycleCommandAuthority?.pendingCollectionResumeExitId.takeIf { resumeAfterUserExit }
+		val expectedExitId = lifecycleCommandAuthority?.pendingCollectionResumeExitId
+			?.takeIf { resumeAfterUserExit && !it.startsWith(TRACKING_TURN_OFF_EXIT_PREFIX) }
 		_uiState.update { it.copy(locationSettingsSaveFailed = false) }
 		viewModelScope.launch {
 			try {

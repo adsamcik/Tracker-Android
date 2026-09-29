@@ -36,6 +36,38 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackerModuleInitializerTest {
 	@Test
+	fun `startup retries pending explicit Off cleanup before tracker initialization`() = runTest {
+		val ready = TrackingStartupResult.Ready(
+			legacyRecoveryPartial = false, liveCompletedThroughOrdinal = 1L,
+		)
+		var cleanupCalls = 0
+		shouldThrow<IllegalStateException> {
+			reconcileStartupAndPendingTurnOff(
+				reconcileStartup = { ready },
+				recoverPendingTurnOff = { cleanupCalls += 1; false },
+			)
+		}
+		cleanupCalls shouldBe 1
+		reconcileStartupAndPendingTurnOff(
+			reconcileStartup = { ready },
+			recoverPendingTurnOff = { cleanupCalls += 1; true },
+		) shouldBe ready
+		cleanupCalls shouldBe 2
+	}
+
+	@Test
+	fun `startup does not attempt Off owner cleanup before storage is Ready`() = runTest {
+		val blocked = TrackingStartupResult.Blocked(
+			com.adsamcik.tracker.shared.base.startup.TrackingStartupStage.STORAGE,
+			"STORAGE_BLOCKED",
+		)
+		reconcileStartupAndPendingTurnOff(
+			reconcileStartup = { blocked },
+			recoverPendingTurnOff = { error("must wait for storage") },
+		) shouldBe blocked
+	}
+
+	@Test
 	fun `startup waits for bootstrap reissue debt before purpose ownership`() = runTest {
 		var purposeCalls = 0
 		val sourceDebt = SourcePolicyRevisionReconciliationResult.Retryable(

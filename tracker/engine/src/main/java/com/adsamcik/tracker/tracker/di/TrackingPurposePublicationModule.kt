@@ -6,10 +6,12 @@ import com.adsamcik.tracker.tracker.api.SourceCallerGuard
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReporter
 import com.adsamcik.tracker.tracker.api.TrackingPurposeDeletionFencer
+import com.adsamcik.tracker.tracker.api.TrackingPurposeUserStopFencer
 import com.adsamcik.tracker.tracker.api.TrackingPurposeReconciliationRetryScheduler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSourceOwnerRegistrar
 import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciler
+import com.adsamcik.tracker.tracker.api.TrackingTurnOffController
 import com.adsamcik.tracker.tracker.source.runtime.AmbientStepsPurposeOwner
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityReader
@@ -28,6 +30,7 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceCallerDemandDispatcher
 import com.adsamcik.tracker.tracker.source.runtime.TransactionalSourceCallerGuard
 import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeAuthorityReader
 import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeOwnerCasTokenFactory
+import com.adsamcik.tracker.tracker.service.DefaultTrackingTurnOffController
 import com.adsamcik.tracker.tracker.worker.TrackingPurposeReconciliationWorkScheduler
 import dagger.Binds
 import dagger.Module
@@ -54,6 +57,16 @@ internal abstract class TrackingPurposePublicationModule {
 	internal abstract fun bindDeletionFencer(
 		impl: DefaultTrackingPurposePublicationRuntime,
 	): TrackingPurposeDeletionFencer
+
+	@Binds
+	internal abstract fun bindUserStopFencer(
+		impl: DefaultTrackingPurposePublicationRuntime,
+	): TrackingPurposeUserStopFencer
+
+	@Binds
+	internal abstract fun bindTurnOffController(
+		impl: DefaultTrackingTurnOffController,
+	): TrackingTurnOffController
 
 	@Binds
 	internal abstract fun bindReconciliationRetryScheduler(

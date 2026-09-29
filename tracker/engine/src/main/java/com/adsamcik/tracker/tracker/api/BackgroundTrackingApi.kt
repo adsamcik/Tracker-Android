@@ -82,6 +82,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Hilt EntryPoint for accessing dependencies from BackgroundTrackingApi singleton
@@ -147,6 +148,7 @@ object BackgroundTrackingApi {
 	private const val DEFAULT_ACTIVITY_FREQ_SECONDS = 10
 	private const val SOURCE_POLICY_RETRY_DELAY_MILLIS = 250L
 	private const val AUTOMATIC_CONTAINMENT_MAX_RETRY_DELAY_MILLIS = 30_000L
+	private const val AUTOMATIC_USER_STOP_TIMEOUT_MS = 20_000L
 	@Volatile
 	private var currentPurposeAvailability = CurrentTrackingPurposeAvailability.SAFE_DEFAULT
 	@Volatile
@@ -867,7 +869,11 @@ object BackgroundTrackingApi {
 			val changed = frequencySeconds != activityFreqSeconds
 			activityFreqSeconds = frequencySeconds
 			if (changed && isActive) {
-				reinitializeRequest(ctx, cachedParamsSnapshot().transitionDetectionEnabled)
+				if (entryPoint.trackingStartupGate().permitsNewCollection) {
+					reinitializeRequest(ctx, cachedParamsSnapshot().transitionDetectionEnabled)
+				} else {
+					disable(ctx)
+				}
 			} else {
 				getWatcherController(ctx).poke()
 			}
@@ -933,6 +939,19 @@ object BackgroundTrackingApi {
 		return recoveryCompletion.await()
 	}
 
+	/** Retires the legacy Android Activity request for an explicit all-source stop. */
+	suspend fun stopAutomaticControlForUser(context: Context): Boolean {
+		val ctx = context.applicationContext
+		val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
+		return withContext(mainImmediate) {
+			initialize(ctx)
+			val completion = CompletableDeferred<AutomaticControlRecoveryResult>()
+			disable(ctx, completion)
+			withTimeoutOrNull(AUTOMATIC_USER_STOP_TIMEOUT_MS) { completion.await() } ==
+				AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
+		}
+	}
+
 	private fun handleTrackingActivityPreferenceChange(
 		value: Int,
 		recoveryCompletion: CompletableDeferred<AutomaticControlRecoveryResult>? = null,
@@ -941,7 +960,11 @@ object BackgroundTrackingApi {
 		// A preference change changes the continuation predicate, so an old incompatible reading
 		// must never finish a grace timer under a different policy.
 		cancelAutomaticStopGrace()
-		val effectiveValue = effectiveAutomaticControlMode(value, activityControlEligible)
+		val effectiveValue = effectiveAutomaticControlMode(
+			value,
+			activityControlEligible,
+			getEntryPoint(context).trackingStartupGate().permitsNewCollection,
+		)
 		if (recoveryCompletion != null) {
 			when {
 				effectiveValue == GroupedActivity.STILL.ordinal || !context.hasActivityPermission ->
@@ -1009,7 +1032,11 @@ object BackgroundTrackingApi {
 	private fun handleTransitionPreferenceChange(enabled: Boolean) {
 		val context = appContext ?: return
 		if (isActive) {
-			reinitializeRequest(context, enabled)
+			if (getEntryPoint(context).trackingStartupGate().permitsNewCollection) {
+				reinitializeRequest(context, enabled)
+			} else {
+				disable(context)
+			}
 		}
 	}
 
@@ -1035,6 +1062,7 @@ object BackgroundTrackingApi {
 				autoTrackingMode = effectiveAutomaticControlMode(
 					cachedParamsSnapshot().autoTrackingMode,
 					activityControlEligible,
+					getEntryPoint(ctx).trackingStartupGate().permitsNewCollection,
 				),
 			)
 		) {
@@ -1679,8 +1707,12 @@ internal fun isAutomaticStartEligible(
 /** Action to take when the auto-tracking activity requirement preference changes. */
 internal enum class AutoTrackingPreferenceAction { NONE, ENABLE, DISABLE, REINITIALIZE }
 
-internal fun effectiveAutomaticControlMode(configuredMode: Int, controlEligible: Boolean): Int =
-	configuredMode.takeIf { controlEligible } ?: GroupedActivity.STILL.ordinal
+internal fun effectiveAutomaticControlMode(
+	configuredMode: Int,
+	controlEligible: Boolean,
+	permitsNewCollection: Boolean = true,
+): Int = configuredMode.takeIf { controlEligible && permitsNewCollection }
+	?: GroupedActivity.STILL.ordinal
 
 internal fun effectiveAutomaticControlEligibility(
 	controlConsentEligible: Boolean,

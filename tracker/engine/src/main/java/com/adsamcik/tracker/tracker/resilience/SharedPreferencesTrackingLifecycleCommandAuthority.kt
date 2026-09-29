@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.base.time.AndroidBootClockDomainProvider
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.tracker.api.TRACKING_TURN_OFF_EXIT_PREFIX
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.NonCancellable
@@ -37,7 +38,54 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 		updated == commandState || writeState(updated)
 	}
 
+	override suspend fun reserveTurnOff(
+		exitId: String,
+		requestedAtEpochMs: Long,
+		requestedElapsedRealtimeNanos: Long,
+		expectedStartGeneration: Long?,
+		fenceSources: suspend () -> Unit,
+	): TrackingTurnOffReservation? = commandGate.withLock {
+		require(exitId.startsWith(TRACKING_TURN_OFF_EXIT_PREFIX))
+		require(requestedAtEpochMs >= 0L && requestedElapsedRealtimeNanos >= 0L)
+		if (expectedStartGeneration != null &&
+			(commandState.lastGeneration != expectedStartGeneration ||
+				commandState.latestStartGeneration != expectedStartGeneration ||
+				commandState.collectionResumeRequired)
+		) return@withLock null
+		withContext(NonCancellable) {
+			val stopped = commandState.observeUserExit(exitId)
+			val (next, command) = stopped.issueStop(
+				TrackingStopCandidateReason.EXPLICIT_REQUEST,
+				requestedAtEpochMs,
+				bootClockDomainProvider.current(),
+				requestedElapsedRealtimeNanos,
+			)
+			// One committed preference edit is both the Off latch and actionable STOP.
+			// A crash before the Room fence is repaired from this command on startup.
+			if (!writeState(next)) return@withContext null
+			try {
+				fenceSources()
+			} catch (_: Exception) {
+				// The post-STOP owner closure repeats this idempotent Room fence.
+			}
+			TrackingTurnOffReservation(exitId, command)
+		}
+	}
+
+	override suspend fun withPendingTurnOff(
+		exitId: String,
+		closeOwners: suspend () -> Boolean,
+	): Boolean? = commandGate.withLock {
+		if (!exitId.startsWith(TRACKING_TURN_OFF_EXIT_PREFIX) ||
+			commandState.handledUserExitId != exitId ||
+			!commandState.collectionResumeRequired ||
+			commandState.latestUnhandledStop() != null
+		) return@withLock null
+		withContext(NonCancellable) { closeOwners() }
+	}
+
 	override suspend fun resumeCollectionAfterUserExit(expectedExitId: String): Boolean = commandGate.withLock {
+		if (expectedExitId.startsWith(TRACKING_TURN_OFF_EXIT_PREFIX)) return@withLock false
 		if (commandState.handledUserExitId != expectedExitId) return@withLock false
 		val updated = commandState.resumeCollection(expectedExitId, TrackingCollectionResumeBoundary(
 			System.currentTimeMillis(), bootClockDomainProvider.current(), SystemClock.elapsedRealtimeNanos()))
