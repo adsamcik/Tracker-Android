@@ -65,6 +65,12 @@ Authored tests, static review and isolated commits do not satisfy those chains.
   subsets, joins, lifecycle, privacy and recovery. (`WI-SCHEMA-CONVERGENCE-001`,
   `WI-INTEGRATION-SCENARIOS-001`)
 
+  A populated released-v12 fixture and importer test are already authored but
+  unrun. Static review found that the importer still leaves old Wi-Fi count rows,
+  carrier names and some one-reading sessions in the original database; it also
+  accepts unrecognized development database versions. Preserve the original until
+  those rows have a verified destination or the user has exported the old file.
+
 ## Convergence and device proof
 
 - [ ] Reconcile every committed candidate and preserved draft with a selected
