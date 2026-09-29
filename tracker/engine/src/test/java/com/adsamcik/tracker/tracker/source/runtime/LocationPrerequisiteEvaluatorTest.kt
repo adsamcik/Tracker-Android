@@ -13,6 +13,20 @@ class LocationPrerequisiteEvaluatorTest {
 	private val evaluator = LocationPrerequisiteEvaluator()
 
 	@Test
+	fun `passive system delivery requires background permission but no foreground service`() {
+		val passive = plan(mode = LocationMode.PASSIVE).copy(passiveSystemDelivery = true)
+		val noService = device().copy(foregroundServiceLocationCapability = false,
+			backgroundForegroundServiceStartLegal = false)
+		val ready = evaluator.evaluate(passive, noService,
+			LocationStartContext.AUTOMATIC_BACKGROUND_START)
+		assertEquals(LocationPlanApplicationStatus.APPLIED, ready.status)
+		val blocked = evaluator.evaluate(passive, noService.copy(backgroundLocationPermission = false),
+			LocationStartContext.SESSION_ALREADY_FOREGROUND)
+		assertEquals(LocationPlanApplicationStatus.BLOCKED, blocked.status)
+		assertTrue(SourceDegradedReason.PERMISSION_MISSING in blocked.reasons)
+	}
+
+	@Test
 	fun `coarse-only high accuracy degrades to balanced but remains applicable`() {
 		val result = evaluator.evaluate(plan(), device(fine = false), LocationStartContext.SESSION_ALREADY_FOREGROUND)
 

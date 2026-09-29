@@ -28,6 +28,7 @@ data class EncodedSourcePlan(val bytes: ByteArray, val checksum: String, val for
 class SourcePlanCodec @Inject constructor() {
 	fun encode(plan: SourcePlan): EncodedSourcePlan {
 		val formatVersion = when {
+			plan is LocationPlan && plan.passiveSystemDelivery -> 4
 			plan is LocationPlan && plan.adaptiveProfileVersion != null -> 2
 			plan is ActivityPlan && plan.adaptiveProfileVersion != null -> 3
 			else -> FORMAT_VERSION
@@ -48,6 +49,7 @@ class SourcePlanCodec @Inject constructor() {
 						writeNullableLong(plan.probeDurationMs)
 						writeBoolean(plan.preciseLocationAvailable)
 						plan.adaptiveProfileVersion?.let { writeInt(it) }
+						if (plan.passiveSystemDelivery) writeBoolean(true)
 					}
 					is ActivityPlan -> with(output) {
 						writeUTF(plan.mode.name)
@@ -96,9 +98,11 @@ class SourcePlanCodec @Inject constructor() {
 		require(bytes.size in 1..MAX_PAYLOAD_BYTES) { "Source-plan payload size is invalid" }
 		return DataInputStream(ByteArrayInputStream(bytes)).use { input ->
 			val formatVersion = input.readInt()
-			require(formatVersion in 1..3) { "Unsupported source-plan format" }
+			require(formatVersion in 1..4) { "Unsupported source-plan format" }
 			val source = SourceKind.valueOf(input.readUTF())
-			require(formatVersion == FORMAT_VERSION || (formatVersion == 2 && source == SourceKind.LOCATION) || (formatVersion == 3 && source == SourceKind.ACTIVITY)) { "Source-plan format does not match source" }
+			require(formatVersion == FORMAT_VERSION ||
+				(formatVersion in setOf(2, 4) && source == SourceKind.LOCATION) ||
+				(formatVersion == 3 && source == SourceKind.ACTIVITY)) { "Source-plan format does not match source" }
 			val revision = input.readLong()
 			when (source) {
 				SourceKind.LOCATION -> LocationPlan(
@@ -112,6 +116,7 @@ class SourcePlanCodec @Inject constructor() {
 					input.readNullableLong(),
 					input.readBoolean(),
 					if (formatVersion == 2) input.readInt() else null,
+					if (formatVersion == 4) input.readBoolean().also { require(it) } else false,
 				)
 				SourceKind.ACTIVITY -> ActivityPlan(
 					revision,

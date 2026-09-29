@@ -9,6 +9,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.adaptiveLocationPlan
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationMode
+import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.mockk.coEvery
@@ -24,6 +25,19 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 
 class SharedLocationSourceControllerTest {
+	@Test
+	fun `temporary high quality lease changes passive transport without changing durable purpose`() {
+		val background = LocationPlan(9, LocationBackend.FUSED, LocationMode.PASSIVE,
+			120_000, 0, 0f, 0, preciseLocationAvailable = true,
+			passiveSystemDelivery = true)
+		val temporary = LocationPlan(0, LocationBackend.FUSED, LocationMode.HIGH_ACCURACY,
+			2_000, 500, 0f, 0, preciseLocationAvailable = true)
+		val joined = joinUiLocationPlan(background, temporary)
+
+		assertEquals(LocationMode.HIGH_ACCURACY, joined.mode)
+		assertEquals(false, joined.passiveSystemDelivery)
+		assertEquals(background, joinUiLocationPlan(background, null))
+	}
 	private val physical = mockk<LocationSourceRuntime>()
 	private val broker = mockk<SourceBroker>()
 	private val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
@@ -66,6 +80,16 @@ class SharedLocationSourceControllerTest {
 		coVerify(exactly = 0) { physical.refreshShared(any(), any(), any(), any()) }
 		subject.releaseUiLease(id)
 		coVerify(exactly = 1) { physical.closeShared() }
+	}
+
+	@Test
+	fun `cold ambient demand is not retired for a temporary map lease`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(false))
+		assertNull(subject.acquireUiLease(UiLocationRequest("map", 2_000L,
+			highAccuracy = true)))
+		coVerify(exactly = 0) { physical.closeShared() }
+		coVerify(exactly = 0) { physical.applyUiOnly(any()) }
 	}
 
 	@Test

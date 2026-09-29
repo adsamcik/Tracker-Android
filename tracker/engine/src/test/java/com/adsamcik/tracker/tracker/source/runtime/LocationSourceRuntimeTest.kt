@@ -588,6 +588,7 @@ class LocationSourceRuntimeTest {
 				frameworkBackend = frameworkBackend,
 				prerequisiteEvaluator = LocationPrerequisiteEvaluator(),
 				deviceStateProvider = stateProvider,
+				passiveBackend = mockk(relaxed = true),
 			)
 			var committedSequence = 0L
 			val admit: suspend (SourceDeliveryCandidate, Int) -> SourceDeliveryAdmissionHandoff = { _, _ ->
@@ -916,6 +917,7 @@ class LocationSourceRuntimeTest {
 			deviceStateProvider = object : LocationDeviceStateProvider {
 				override fun snapshot(): LocationDeviceState = locationState()
 			},
+			passiveBackend = mockk(relaxed = true),
 		)
 		val sink = RecordingLocationSink()
 
@@ -1453,6 +1455,7 @@ class LocationSourceRuntimeTest {
 				deviceStateProvider = object : LocationDeviceStateProvider {
 					override fun snapshot(): LocationDeviceState = locationState()
 				},
+				passiveBackend = mockk(relaxed = true),
 			),
 			plan = plan,
 			sink = sink,
@@ -1506,6 +1509,7 @@ class LocationSourceRuntimeTest {
 			deviceStateProvider = object : LocationDeviceStateProvider {
 				override fun snapshot(): LocationDeviceState = locationState()
 			},
+			passiveBackend = mockk(relaxed = true),
 		)
 		return LocationRuntimeFixture(
 			runtime = runtime,
@@ -1520,6 +1524,7 @@ class LocationSourceRuntimeTest {
 
 	private fun stubRetirementRepository(registrations: SourceRegistrationRepository) {
 		coEvery { registrations.pendingRetirements(SourceKind.LOCATION) } returns emptyList()
+		coEvery { registrations.systemLocationRegistrations() } returns emptyList()
 		coEvery {
 			registrations.beginRetirement(any(), any(), any(), any())
 		} answers {
@@ -1565,6 +1570,7 @@ class LocationSourceRuntimeTest {
 		deviceStateProvider = object : LocationDeviceStateProvider {
 			override fun snapshot(): LocationDeviceState = locationState()
 		},
+		passiveBackend = mockk(relaxed = true),
 	)
 
 	private fun sessionCutoff(elapsedRealtimeNanos: Long): SessionCutoff = SessionCutoff(

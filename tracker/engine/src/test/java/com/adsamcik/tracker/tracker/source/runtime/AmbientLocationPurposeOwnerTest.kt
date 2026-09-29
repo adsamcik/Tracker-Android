@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.content.Context
+import android.Manifest
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.preferences.tracking.LocationBackgroundMode
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -8,6 +10,7 @@ import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalState
+import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReporter
 import com.adsamcik.tracker.tracker.api.TrackingPurposeReconciliationRetryScheduler
 import com.adsamcik.tracker.tracker.service.BackgroundLocationHost
@@ -25,6 +28,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -40,17 +45,43 @@ class AmbientLocationPurposeOwnerTest {
 		"owner", 1, null, "retention", 1)
 	private val lease = AmbientReconciliationLease(identity)
 
-	private fun subject(): AmbientLocationPurposeOwner {
+	private fun subject(mode: LocationBackgroundMode = LocationBackgroundMode.ADAPTIVE,
+		context: Context = mockk(relaxed = true)): AmbientLocationPurposeOwner {
 		every { settings.data } returns MutableStateFlow(TrackingParamsState(sourcePolicyRevision = 2,
 			ambientLocationEnabled = true, locationEnabled = false, locationProfileVersion = 1,
-			locationBalanceLevel = 3, locationBackgroundMode = LocationBackgroundMode.ADAPTIVE))
+			locationBalanceLevel = 3, locationBackgroundMode = mode))
 		every { host.active } returns MutableStateFlow(null)
 		coEvery { caller.dispatchAmbientLocation(any()) } returns GuardedPurposeDemandResult.Applied(
 			AmbientLocationDemandResult.Active(mockk()), null)
-		return AmbientLocationPurposeOwner(mockk<Context>(relaxed = true), broker, caller, host, runtime,
+		return AmbientLocationPurposeOwner(context, broker, caller, host, runtime,
 			settings, mockk(), SourcePlanResolver(), object : BootClockDomainProvider {
 				override fun current() = "boot"
 			}, reporter, retries, mockk())
+	}
+
+	@Test
+	fun `passive only uses the shared owner without acquiring a foreground host`() = runTest {
+		val context = RuntimeEnvironment.getApplication()
+		Shadows.shadowOf(context).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION,
+			Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+		val demand = mockk<SourceDemandEntity>()
+		every { demand.consumerId } returns "ambient:location"
+		every { demand.sourcePolicyRevision } returns 2L
+		every { demand.consentEpoch } returns 3L
+		every { demand.desiredLatencyMs } returns 120_000L
+		coEvery { broker.authorizationDemands(any()) } returns listOf(demand)
+		coEvery { runtime.reconcileAmbientJoin(any(), 2) } returns
+			AmbientLocationRuntimeJoinResult.Active(null, null)
+		val owner = subject(LocationBackgroundMode.PASSIVE_ONLY, context)
+
+		val result = owner.reconcile(lease)
+
+		assertEquals(AmbientSourceOperationalState.READY, result.state)
+		assertEquals(AmbientAcquisitionMechanism.PASSIVE_LOCATION, result.mechanism)
+		coVerify(exactly = 0) { host.acquire(any()) }
+		coVerify(exactly = 1) { runtime.reconcileAmbientJoin(match {
+			it?.passiveSystemDelivery == true && it.mode == com.adsamcik.tracker.tracker.source.model.LocationMode.PASSIVE
+		}, 2) }
 	}
 
 	@Test

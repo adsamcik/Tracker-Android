@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.app.Application
+import android.location.Location
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -9,6 +10,8 @@ import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState
 import com.adsamcik.tracker.shared.base.database.fenceSourcePurposesInTransaction
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -20,6 +23,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
+import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
@@ -35,10 +40,19 @@ import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.ingress.AdmissionFailureCode
+import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
+import com.adsamcik.tracker.tracker.source.ingress.DeliveryAdmissionResult
+import com.adsamcik.tracker.tracker.source.ingress.RoomDurableSourceIngress
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
+import javax.inject.Provider
+import kotlin.test.assertIs
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.CompletableDeferred
@@ -1597,6 +1611,207 @@ class SourceRegistrationRepositoryTest {
 			reserved.state.registrationGeneration))
 		database.sourceBrokerDao().insertRegistration(row.copy(registrationGeneration = row.registrationGeneration + 1L))
 		shouldThrow<IllegalStateException> { subject.recordLocationPlan(reserved, plan) }
+	}
+
+	@Test
+	fun `cold passive Location delivery stops at Off and never borrows a later consent`() = runTest {
+		val plan = installPassiveLocationRegistrationForTest()
+		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
+		subject.recordLocationPlan(reserved, plan)
+		subject.markAccepted(reserved, 120L, 120L)
+		val row = requireNotNull(database.sourceBrokerDao().registration(SourceKind.LOCATION.stableCode,
+			reserved.state.registrationGeneration))
+		val identity = requireNotNull(subject.passiveLocationIdentity(row))
+		subject.passiveLocationAdmissionAt(identity, 130L).shouldNotBeNull()
+
+		val policyDao = database.sourcePolicyDao()
+		val enabled = requireNotNull(policyDao.policyAtRevision(6L, SourceKind.LOCATION.stableCode))
+		policyDao.insertPolicies(policyDao.policiesAtRevision(6L).map { policy ->
+			if (policy.sourceKind != SourceKind.LOCATION.stableCode) policy.copy(policyRevision = 7L)
+			else enabled.copy(policyRevision = 7L, enabled = false,
+				ambientPersistenceEligible = false, ambientConsentEpoch = null,
+				effectiveElapsedRealtimeNanos = 140L, effectiveWallTimeMs = 140L,
+				changeReason = "TEST_OFF")
+		})
+		policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(
+			SourceKind.LOCATION.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT, 9L, false,
+			false, 7L, "boot-7", 140L, 140L, "TEST_OFF")))
+		policyDao.compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE, 6L,
+			SourcePolicyAuthorityEntity.STATE_ACTIVE, 7L, null, 140L) shouldBe 1
+		// Even a provider fix observed before Off is a new receiver delivery now.
+		subject.passiveLocationAdmissionAt(identity, 130L) shouldBe null
+
+		policyDao.insertPolicies(policyDao.policiesAtRevision(7L).map { policy ->
+			if (policy.sourceKind != SourceKind.LOCATION.stableCode) policy.copy(policyRevision = 8L)
+			else enabled.copy(policyRevision = 8L, ambientConsentEpoch = 10L,
+				effectiveElapsedRealtimeNanos = 150L, effectiveWallTimeMs = 150L,
+				changeReason = "TEST_ON_AGAIN")
+		})
+		policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(
+			SourceKind.LOCATION.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT, 10L, true,
+			true, 8L, "boot-7", 150L, 150L, "TEST_ON_AGAIN")))
+		policyDao.compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE, 7L,
+			SourcePolicyAuthorityEntity.STATE_ACTIVE, 8L, null, 150L) shouldBe 1
+		subject.passiveLocationAdmissionAt(identity, 130L) shouldBe null
+	}
+
+	@Test
+	fun `cold passive Location delivery requires live retention and original data epoch`() = runTest {
+		val plan = installPassiveLocationRegistrationForTest()
+		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
+		subject.recordLocationPlan(reserved, plan)
+		subject.markAccepted(reserved, 120L, 120L)
+		val row = requireNotNull(database.sourceBrokerDao().registration(SourceKind.LOCATION.stableCode,
+			reserved.state.registrationGeneration))
+		val identity = requireNotNull(subject.passiveLocationIdentity(row))
+		subject.passiveLocationAdmissionAt(identity, 130L).shouldNotBeNull()
+		database.locationPurposeDao().insertRetentionAuthority(
+			AmbientLocationRetentionAuthorityIntegrity.create(
+				AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT, 2L,
+				AmbientLocationRetentionAuthorityEntity.STATE_REVOKED,
+				"privacy:location:ambient:v1", 6L, 8L, 3L, "boot-7", 140L, 140L))
+		subject.passiveLocationAdmissionAt(identity, 130L) shouldBe null
+		lifecycleStore.beginFullDeletion(150L)
+		subject.passiveLocationAdmissionAt(identity, 130L) shouldBe null
+	}
+
+	@Test
+	fun `unaccepted system Location reservation cannot be reused as an active request`() = runTest {
+		val plan = installPassiveLocationRegistrationForTest()
+		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
+		val row = requireNotNull(database.sourceBrokerDao().registration(SourceKind.LOCATION.stableCode,
+			reserved.state.registrationGeneration))
+		subject.canReuseSystemLocation(row, plan.physicalConfigurationFingerprint()) shouldBe false
+		subject.abandonUnplannedSystemLocationReservation(row) shouldBe true
+		database.sourceBrokerDao().registration(SourceKind.LOCATION.stableCode,
+			row.registrationGeneration)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_FAILED
+	}
+
+	@Test
+	fun `passive Location ingress fences Off atomically after receiver precheck`() = runTest {
+		val plan = installPassiveLocationRegistrationForTest()
+		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
+		subject.recordLocationPlan(reserved, plan)
+		subject.markAccepted(reserved, 120L, 120L)
+		val row = requireNotNull(database.sourceBrokerDao().registration(SourceKind.LOCATION.stableCode,
+			reserved.state.registrationGeneration))
+		val identity = requireNotNull(subject.passiveLocationIdentity(row))
+		val startup = mockk<TrackingStartupGate>()
+		coEvery { startup.reconcileAdmission(any()) } returns TrackingAdmissionStartupResult.Ready
+		every { startup.permitsNewCollection } returns true
+		every { startup.collectionResumeBoundary } returns null
+		every { startup.currentGeneration } returns 1L
+		every { startup.isReadyGeneration(1L) } returns true
+		val catalog = ExecutableSourceLaneCatalog.explicit(ExecutableSourceLaneBinding(
+			SourceKind.LOCATION, 1L, "test-location-product", 1,
+			setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)))
+		val ingress = RoomDurableSourceIngress(database, lifecycleStore,
+			DefaultSourcePayloadCodec(), catalog, Provider { startup })
+		suspend fun delivery(observed: Long): com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate {
+			val fix = Location("passive").apply {
+				latitude = 50.0 + observed / 1_000.0
+				longitude = 14.0
+				accuracy = 10f
+				time = observed
+				elapsedRealtimeNanos = observed
+			}
+			val attribution = requireNotNull(subject.passiveLocationAdmissionAt(identity, observed)).attribution
+			return locationDeliveryCandidate(listOf(fix), listOf(observed), observed + 5L,
+				observed + 5L, attribution, approximate = false)
+		}
+		// Capture is Off in this fixture; independently selected ambient Location still records.
+		val admittedDelivery = delivery(130L)
+		assertIs<DeliveryAdmissionResult.Admitted>(ingress.admit(admittedDelivery))
+		val pending = delivery(131L)
+		val policyDao = database.sourcePolicyDao()
+		val enabled = requireNotNull(policyDao.policyAtRevision(6L, SourceKind.LOCATION.stableCode))
+		policyDao.insertPolicies(policyDao.policiesAtRevision(6L).map { policy ->
+			if (policy.sourceKind != SourceKind.LOCATION.stableCode) policy.copy(policyRevision = 7L)
+			else enabled.copy(policyRevision = 7L, ambientPersistenceEligible = false,
+				ambientConsentEpoch = null, effectiveElapsedRealtimeNanos = 140L,
+				effectiveWallTimeMs = 140L, changeReason = "TEST_OFF")
+		})
+		policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(
+			SourceKind.LOCATION.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT, 9L, false,
+			false, 7L, "boot-7", 140L, 140L, "TEST_OFF")))
+		policyDao.compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE, 6L,
+			SourcePolicyAuthorityEntity.STATE_ACTIVE, 7L, null, 140L) shouldBe 1
+		database.locationPurposeDao().insertRetentionAuthority(
+			AmbientLocationRetentionAuthorityIntegrity.create(
+				AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT, 2L,
+				AmbientLocationRetentionAuthorityEntity.STATE_REVOKED,
+				"privacy:location:ambient:v1", 6L, 8L, 3L, "boot-7", 140L, 140L))
+		val rejected = assertIs<DeliveryAdmissionResult.PermanentFailure>(ingress.admit(pending))
+		rejected.code shouldBe AdmissionFailureCode.STALE_SOURCE_POLICY
+		assertIs<DeliveryAdmissionResult.Duplicate>(ingress.admit(admittedDelivery))
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `passive Location ingress fences retention revoke after receiver precheck`() = runTest {
+		val plan = installPassiveLocationRegistrationForTest()
+		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
+		subject.recordLocationPlan(reserved, plan)
+		subject.markAccepted(reserved, 120L, 120L)
+		val row = requireNotNull(database.sourceBrokerDao().registration(SourceKind.LOCATION.stableCode,
+			reserved.state.registrationGeneration))
+		val identity = requireNotNull(subject.passiveLocationIdentity(row))
+		val fix = Location("passive").apply {
+			latitude = 50.0
+			longitude = 14.0
+			accuracy = 10f
+			time = 130L
+			elapsedRealtimeNanos = 130L
+		}
+		val attribution = requireNotNull(subject.passiveLocationAdmissionAt(identity, 130L)).attribution
+		val pending = locationDeliveryCandidate(listOf(fix), listOf(130L), 135L, 135L,
+			attribution, approximate = false)
+		val startup = mockk<TrackingStartupGate>()
+		coEvery { startup.reconcileAdmission(any()) } returns TrackingAdmissionStartupResult.Ready
+		every { startup.permitsNewCollection } returns true
+		every { startup.collectionResumeBoundary } returns null
+		every { startup.currentGeneration } returns 1L
+		every { startup.isReadyGeneration(1L) } returns true
+		val catalog = ExecutableSourceLaneCatalog.explicit(ExecutableSourceLaneBinding(
+			SourceKind.LOCATION, 1L, "test-location-product", 1,
+			setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)))
+		val ingress = RoomDurableSourceIngress(database, lifecycleStore,
+			DefaultSourcePayloadCodec(), catalog, Provider { startup })
+		// Retention is revoked after the receiver's precheck but before ingress obtains its
+		// WAL transaction. A still-enabled source cannot save this fresh delivery.
+		database.locationPurposeDao().insertRetentionAuthority(
+			AmbientLocationRetentionAuthorityIntegrity.create(
+				AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT, 2L,
+				AmbientLocationRetentionAuthorityEntity.STATE_REVOKED,
+				"privacy:location:ambient:v1", 6L, 8L, 3L, "boot-7", 140L, 140L))
+		val rejected = assertIs<DeliveryAdmissionResult.PermanentFailure>(ingress.admit(pending))
+		rejected.code shouldBe AdmissionFailureCode.STALE_SOURCE_POLICY
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	private suspend fun installPassiveLocationRegistrationForTest(): LocationPlan {
+		val policyDao = database.sourcePolicyDao()
+		val location = requireNotNull(policyDao.policyAtRevision(5L, SourceKind.LOCATION.stableCode))
+		policyDao.insertPolicies(policyDao.policiesAtRevision(5L).map { policy ->
+			if (policy.sourceKind != SourceKind.LOCATION.stableCode) policy.copy(policyRevision = 6L)
+			else location.copy(policyRevision = 6L, enabled = false,
+				capturePersistenceEligible = false, captureConsentEpoch = null,
+				ambientPersistenceEligible = true, ambientConsentEpoch = 8L,
+				effectiveElapsedRealtimeNanos = 90L,
+				effectiveWallTimeMs = 90L, changeReason = "TEST_PASSIVE_LOCATION")
+		})
+		policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(
+			SourceKind.LOCATION.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT, 8L, true,
+			true, 6L, "boot-7", 90L, 90L, "TEST_PASSIVE_LOCATION")))
+		policyDao.compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE, 5L,
+			SourcePolicyAuthorityEntity.STATE_ACTIVE, 6L, null, 90L) shouldBe 1
+		retentionReader.installCurrent(database, TrackingSourceComponent.LOCATION, 6L, 8L, 3L,
+			"boot-7", 90L, 90L)
+		database.sourceBrokerDao().insertDemands(listOf(demand(
+			"passive-location", "app:ambient:location", SourceBrokerPurpose.AMBIENT_PRODUCT,
+			null, null, true, SourceKind.LOCATION).copy(sourcePolicyRevision = 6L)))
+		return LocationPlan(6L, LocationBackend.FRAMEWORK, LocationMode.PASSIVE,
+			30_000L, 0L, 0f, 0L, null, true, passiveSystemDelivery = true)
 	}
 
 	private fun demand(

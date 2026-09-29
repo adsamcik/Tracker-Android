@@ -19,9 +19,23 @@ import org.junit.Test
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import com.adsamcik.tracker.tracker.source.model.providerItemMaximumAgeMs
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 
 class SourcePlanCodecTest {
 	private val subject = SourcePlanCodec()
+
+	@Test
+	fun `passive system delivery has distinct v4 bytes and physical fingerprint`() {
+		val callback = LocationPlan(11, LocationBackend.FRAMEWORK, LocationMode.PASSIVE,
+			120_000, 0, 0f, 0, preciseLocationAvailable = false)
+		val rearmable = callback.copy(passiveSystemDelivery = true)
+		val encoded = subject.encode(rearmable)
+
+		encoded.formatVersion shouldBe 4
+		subject.decode(encoded.bytes) shouldBe rearmable
+		(subject.encode(callback).bytes.contentEquals(encoded.bytes)) shouldBe false
+		(callback.physicalConfigurationFingerprint() == rearmable.physicalConfigurationFingerprint()) shouldBe false
+	}
 
 	@Test
 	fun `legacy Location bytes retain exact format while adaptive target preserves stable age through codec`() {

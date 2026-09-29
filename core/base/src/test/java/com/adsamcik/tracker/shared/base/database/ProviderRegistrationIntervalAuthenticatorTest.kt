@@ -354,6 +354,34 @@ class ProviderRegistrationIntervalAuthenticatorTest {
 	}
 
 	@Test
+	fun `prior boot Location system request keeps historical proof only after exact removal`() {
+		val removed = registration(SourceDestinationOwnerEntity.SOURCE_LOCATION).copy(
+			providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+			providerProcessIncarnationId = null,
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			failureCode = ProviderRegistrationGenerationEntity.FAILURE_PRIOR_BOOT_SYSTEM_REMOVED,
+		)
+		fun verify(row: ProviderRegistrationGenerationEntity,
+			current: List<ProviderRegistrationGenerationEntity> = emptyList(),
+		) = ProviderRegistrationIntervalAuthenticator.authenticate(
+			registration = row, expectedSourceKind = row.sourceKind,
+			expectedRegistrationGeneration = row.registrationGeneration,
+			expectedSourceInstanceId = row.sourceInstanceId,
+			expectedClockDomainId = row.clockDomainId,
+			expectedPhysicalConfigurationFingerprint = row.physicalConfigurationFingerprint,
+			expectedCollectedDataEpoch = row.collectedDataEpoch,
+			expectedProviderResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+			observedStartNanos = 150, observedEndNanos = 199, observedWallTimeMs = 19,
+			currentClockDomainId = CURRENT_BOOT, currentProviderRegistrations = current)
+		assertIs<ProviderRegistrationIntervalAuthentication.Authenticated>(verify(removed))
+		assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(verify(removed.copy(
+			failureCode = "REMOVAL_UNCONFIRMED")))
+		assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(verify(removed,
+			listOf(removed.copy(clockDomainId = CURRENT_BOOT,
+				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE))))
+	}
+
+	@Test
 	fun `wrong residency and non-observing statuses are rejected`() {
 		val active = registration(SourceDestinationOwnerEntity.SOURCE_PRESSURE)
 		assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(

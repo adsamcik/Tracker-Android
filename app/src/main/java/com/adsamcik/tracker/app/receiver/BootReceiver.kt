@@ -23,7 +23,7 @@ class BootReceiver : BroadcastReceiver() {
 			BootReceiverEntryPoint::class.java,
 		)
 		// BroadcastReceiver execution stays bounded. The unique worker owns startup recovery,
-		// lock hydration, and accepted-or-terminal Activity control reconciliation.
+		// lock hydration, Activity control, and current background-source reconciliation.
 		entryPoint.bootTrackingRecoveryScheduler().enqueue()
 	}
 }

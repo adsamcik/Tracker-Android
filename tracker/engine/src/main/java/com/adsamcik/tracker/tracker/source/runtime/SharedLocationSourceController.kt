@@ -93,6 +93,12 @@ class SharedLocationSourceController @Inject constructor(
 			val result = applyEffective(durable, sessionClaim, demands)
 			return result is SourceApplyResult.Applied || result is SourceApplyResult.Degraded
 		} else {
+			// A cold system Location request can outlive this controller's in-memory plan.
+			// Never retire an as-yet-unjoined durable demand for a temporary UI request.
+			if (sourceBroker.authorizationDemands(source).any { demand ->
+				demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT ||
+					demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+			}) return false
 			val nextUiPlan = uiPlan()
 			if (nextUiPlan == null) {
 				return physicalRuntime.closeShared().toOwnedShutdown() is OwnedSourceShutdown.Released
@@ -535,6 +541,7 @@ internal fun joinUiLocationPlan(durable: LocationPlan, ui: LocationPlan?): Locat
 		maximumBatchDelayMs = 0L,
 		probeDurationMs = null,
 		preciseLocationAvailable = durable.preciseLocationAvailable || ui.preciseLocationAvailable,
+		passiveSystemDelivery = false,
 	)
 }
 

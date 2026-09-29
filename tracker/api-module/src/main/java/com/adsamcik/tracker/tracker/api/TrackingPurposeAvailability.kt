@@ -157,7 +157,8 @@ data class AmbientSourceOperationalAvailability(
 						reason ==
 						AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL) ||
 						(source == AmbientTrackingSource.LOCATION &&
-							mechanism == AmbientAcquisitionMechanism.ADAPTIVE_LOCATION &&
+							mechanism in setOf(AmbientAcquisitionMechanism.ADAPTIVE_LOCATION,
+								AmbientAcquisitionMechanism.PASSIVE_LOCATION) &&
 							reason == AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED),
 				) {
 					"Operational degradation requires an acknowledged source-specific mechanism"

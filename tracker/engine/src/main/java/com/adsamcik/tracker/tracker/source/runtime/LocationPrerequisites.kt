@@ -69,16 +69,19 @@ class LocationPrerequisiteEvaluator @Inject constructor() {
 			reasons += SourceDegradedReason.PROVIDER_UNAVAILABLE
 		}
 		if (!device.coarsePermission && !device.finePermission) reasons += SourceDegradedReason.PERMISSION_MISSING
+		if (plan.passiveSystemDelivery && device.apiLevel >= Build.VERSION_CODES.Q &&
+			!device.backgroundLocationPermission
+		) reasons += SourceDegradedReason.PERMISSION_MISSING
 		if (plan.backend == LocationBackend.FUSED && !device.fusedProviderAvailable) {
 			reasons += SourceDegradedReason.PROVIDER_UNAVAILABLE
 		}
-		if (!device.foregroundServiceLocationCapability) {
+		if (!plan.passiveSystemDelivery && !device.foregroundServiceLocationCapability) {
 			reasons += SourceDegradedReason.FOREGROUND_CAPABILITY_MISSING
 		}
-		if (startContext == LocationStartContext.AUTOMATIC_BACKGROUND_START &&
+		if (!plan.passiveSystemDelivery && startContext == LocationStartContext.AUTOMATIC_BACKGROUND_START &&
 			!device.backgroundForegroundServiceStartLegal
 		) reasons += SourceDegradedReason.BACKGROUND_START_ILLEGAL
-		if (device.apiLevel >= Build.VERSION_CODES.Q &&
+		if (!plan.passiveSystemDelivery && device.apiLevel >= Build.VERSION_CODES.Q &&
 			startContext == LocationStartContext.AUTOMATIC_BACKGROUND_START &&
 			!device.backgroundLocationPermission
 		) reasons += SourceDegradedReason.PERMISSION_MISSING
@@ -86,7 +89,7 @@ class LocationPrerequisiteEvaluator @Inject constructor() {
 		val hardBlocked = reasons.isNotEmpty()
 		if (hardBlocked) {
 			return LocationPlanApplication(
-				plan.copy(mode = LocationMode.DISABLED),
+				plan.copy(mode = LocationMode.DISABLED, passiveSystemDelivery = false),
 				LocationPlanApplicationStatus.BLOCKED,
 				reasons,
 			)

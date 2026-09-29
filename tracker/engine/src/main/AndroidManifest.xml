@@ -57,5 +57,9 @@
             android:name="com.adsamcik.tracker.tracker.receiver.TrackerTimeUnlockReceiver"
             android:exported="false"/>
 
+        <receiver
+            android:name="com.adsamcik.tracker.tracker.source.runtime.PassiveLocationReceiver"
+            android:exported="false" />
+
     </application>
 </manifest>

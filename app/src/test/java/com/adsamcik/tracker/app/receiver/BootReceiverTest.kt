@@ -10,6 +10,12 @@ import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryResult
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailure
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailureReason
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
@@ -137,6 +143,80 @@ class BootReceiverTest {
 		lockCount shouldBe 1
 		rearmCount shouldBe 1
 		drainCount shouldBe 1
+	}
+
+	@Test
+	fun `Ready boot reconciles ambient Location after locks and control`() = runTest {
+		val order = mutableListOf<String>()
+		runBootTrackingRecovery(
+			startupGeneration = 3L,
+			currentGeneration = { 3L },
+			isReady = { true },
+			isSuppressed = { false },
+			reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+			initializeLocks = { order += "locks" },
+			rearmAutomaticControl = {
+				order += "automatic"
+				AutomaticControlRecoveryResult.ACCEPTED
+			},
+			reconcileCurrentPurposes = {
+				order += "purposes"
+				TrackingPurposeSettingsReconciliationResult.Complete(
+					setOf(AmbientTrackingSource.LOCATION),
+				)
+			},
+			drainActivityAutomationEffects = {
+				order += "effects"
+				ActivityAutomationDrainResult.Complete(0, 0)
+			},
+		) shouldBe BootTrackingRecoveryOutcome.COMPLETE
+		order shouldBe listOf("locks", "automatic", "purposes", "effects")
+	}
+
+	@Test
+	fun `ambient Location recovery debt has a bounded boot wake budget`() = runTest {
+		val outcome = runBootTrackingRecovery(
+			startupGeneration = 3L,
+			currentGeneration = { 3L },
+			isReady = { true },
+			isSuppressed = { false },
+			reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+			initializeLocks = {},
+			rearmAutomaticControl = { AutomaticControlRecoveryResult.ACCEPTED },
+			reconcileCurrentPurposes = {
+				TrackingPurposeSettingsReconciliationResult.Debt(
+					TrackingPurposeSettingsReconciliationDebt(listOf(
+						TrackingPurposeSettingsReconciliationFailure(
+							AmbientTrackingSource.LOCATION,
+							TrackingPurposeSettingsReconciliationFailureReason.OWNER_RECONCILIATION_FAILED,
+						),
+					)),
+				)
+			},
+		)
+		outcome shouldBe BootTrackingRecoveryOutcome.OPTIONAL_PURPOSE_RETRY
+		outcome.shouldRetry(0) shouldBe true
+		outcome.shouldRetry(2) shouldBe false
+	}
+
+	@Test
+	fun `boot never reconciles ambient purposes before startup Ready`() = runTest {
+		var purposeCalls = 0
+		runBootTrackingRecovery(
+			startupGeneration = 3L,
+			currentGeneration = { 3L },
+			isReady = { false },
+			isSuppressed = { false },
+			reconcileStartup = { TrackingStartupResult.Blocked(
+				TrackingStartupStage.LEGACY_V27, "PERMANENT_FAILURE") },
+			initializeLocks = {},
+			rearmAutomaticControl = { AutomaticControlRecoveryResult.ACCEPTED },
+			reconcileCurrentPurposes = {
+				purposeCalls++
+				TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
+			},
+		) shouldBe BootTrackingRecoveryOutcome.COMPLETE
+		purposeCalls shouldBe 0
 	}
 
 	@Test
@@ -327,6 +407,7 @@ class BootReceiverTest {
 			trackingStartupGuard = startupGuard,
 			lockManager = lockManager,
 			sourcePipelineRecovery = mockk(relaxed = true),
+			purposeSettingsReconciler = mockk<TrackingPurposeSettingsReconciler>(relaxed = true),
 		)
 
 		worker(0).doWork() shouldBe ListenableWorker.Result.retry()

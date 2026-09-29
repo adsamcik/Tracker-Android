@@ -23,8 +23,13 @@ data class LocationPlan(
 	val preciseLocationAvailable: Boolean,
 	/** Null preserves the exact legacy codec and cadence-derived validity contract. */
 	val adaptiveProfileVersion: Int? = null,
+	/** Distinguishes system-rearmable passive delivery from legacy process callbacks. */
+	val passiveSystemDelivery: Boolean = false,
 ) : SourcePlan {
-	init { require(adaptiveProfileVersion == null || adaptiveProfileVersion == 1) }
+	init {
+		require(adaptiveProfileVersion == null || adaptiveProfileVersion == 1)
+		require(!passiveSystemDelivery || (mode == LocationMode.PASSIVE && adaptiveProfileVersion == null))
+	}
 	override val source: SourceKind = SourceKind.LOCATION
 	override val enabled: Boolean get() = mode != LocationMode.DISABLED
 }
@@ -243,7 +248,7 @@ fun SourcePlan.physicalConfigurationFingerprint(): String {
 		is LocationPlan -> listOf(
 			source, backend, mode, requestedIntervalMs, minimumUpdateIntervalMs,
 			minimumDisplacementMeters, maximumBatchDelayMs, probeDurationMs, preciseLocationAvailable,
-		)
+		) + if (passiveSystemDelivery) listOf("SYSTEM_REARMABLE_PENDING_INTENT_V1") else emptyList()
 		is ActivityPlan -> listOf(
 			source, mode, desiredDetectionLatencyMs, confidenceThresholdPercent,
 			transitionTypes.sorted().joinToString(","),

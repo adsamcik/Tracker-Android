@@ -593,6 +593,54 @@ interface SourceBrokerDao {
 		currentProcessId: String,
 	): List<ProviderRegistrationGenerationEntity>
 
+	/** A rearmable Location handle can outlive its creating process. Always read with an overflow row. */
+	@Query("SELECT * FROM provider_registration_generation WHERE source_kind = 1 " +
+		"AND provider_residency = 'SYSTEM_REARMABLE' " +
+		"AND status IN ('RESERVED', 'ACTIVE', 'RETIRING') " +
+		"ORDER BY registration_generation LIMIT :limit")
+	suspend fun nonterminalSystemLocationRegistrations(limit: Int): List<ProviderRegistrationGenerationEntity>
+
+	@Query("UPDATE provider_registration_generation SET status = 'RETIRING', " +
+		"retired_at_ms = COALESCE(retired_at_ms, :retiredAtMs), " +
+		"retired_elapsed_realtime_nanos = COALESCE(retired_elapsed_realtime_nanos, :retiredElapsedNanos), " +
+		"failure_code = COALESCE(failure_code, :reason) " +
+		"WHERE source_kind = 1 AND registration_generation = :generation " +
+		"AND source_instance_id = :instanceId AND provider_residency = 'SYSTEM_REARMABLE' " +
+		"AND status IN ('RESERVED', 'ACTIVE')")
+	suspend fun markSystemLocationRetiring(
+		generation: Long, instanceId: String, retiredAtMs: Long, retiredElapsedNanos: Long,
+		reason: String,
+	): Int
+
+	@Query("UPDATE provider_registration_generation SET status = 'RETIRED' " +
+		"WHERE source_kind = 1 AND registration_generation = :generation " +
+		"AND source_instance_id = :instanceId AND provider_residency = 'SYSTEM_REARMABLE' " +
+		"AND status = 'RETIRING' AND retired_at_ms = :retiredAtMs " +
+		"AND retired_elapsed_realtime_nanos = :retiredElapsedNanos")
+	suspend fun completeSystemLocationRetirement(
+		generation: Long, instanceId: String, retiredAtMs: Long, retiredElapsedNanos: Long,
+	): Int
+
+	@Query("UPDATE provider_registration_generation SET status = 'FAILED', " +
+		"retired_at_ms = :failedAtMs, retired_elapsed_realtime_nanos = :failedElapsedNanos, " +
+		"failure_code = :reason WHERE source_kind = 1 AND registration_generation = :generation " +
+		"AND source_instance_id = :instanceId AND provider_residency = 'SYSTEM_REARMABLE' " +
+		"AND status = 'RESERVED'")
+	suspend fun failUnacceptedSystemLocationReservation(
+		generation: Long, instanceId: String, failedAtMs: Long, failedElapsedNanos: Long,
+		reason: String,
+	): Int
+
+	/** A prior boot has no comparable current elapsed clock. Exact removal precedes this update. */
+	@Query("UPDATE provider_registration_generation SET status = 'RETIRED', " +
+		"failure_code = :reason " +
+		"WHERE source_kind = 1 AND registration_generation = :generation " +
+		"AND source_instance_id = :instanceId AND provider_residency = 'SYSTEM_REARMABLE' " +
+		"AND clock_domain_id != :currentBootId AND status IN ('RESERVED', 'ACTIVE', 'RETIRING')")
+	suspend fun completeRemovedPriorBootSystemLocation(
+		generation: Long, instanceId: String, currentBootId: String, reason: String,
+	): Int
+
 	@Query(
 		"SELECT EXISTS(SELECT 1 FROM provider_registration_generation " +
 			"WHERE source_kind = :sourceKind AND provider_residency = 'PROCESS_BOUND' " +

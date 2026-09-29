@@ -32,6 +32,8 @@ import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.DemandReason
 import com.adsamcik.tracker.tracker.source.model.EvidenceQuality
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
+import com.adsamcik.tracker.tracker.source.model.LocationMode
+import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.SourceDemand
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
@@ -74,10 +76,23 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 				return@withLock unavailable(lease, AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE)
 			}
 			if (!params.ambientLocationEnabled ||
-				params.locationBackgroundMode != LocationBackgroundMode.ADAPTIVE
+				params.locationBackgroundMode !in setOf(LocationBackgroundMode.ADAPTIVE,
+					LocationBackgroundMode.PASSIVE_ONLY)
 			) {
 				check(retireLocked(lease)) { "Location purpose retirement remains pending" }
 				return@withLock unavailable(lease, AmbientSourceUnavailableReason.ROLLOUT_CONTAINED)
+			}
+			if (params.locationBackgroundMode == LocationBackgroundMode.PASSIVE_ONLY &&
+				Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+				ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) !=
+				PackageManager.PERMISSION_GRANTED
+			) {
+				check(retireLocked(lease)) { "Location permission loss cleanup remains pending" }
+				return@withLock AmbientSourceOperationalAvailability(
+					AmbientTrackingSource.LOCATION, AmbientSourceOperationalState.PERMISSION_REQUIRED,
+					AmbientAcquisitionMechanism.PASSIVE_LOCATION,
+					AmbientSourceUnavailableReason.BACKGROUND_LOCATION_PERMISSION_REQUIRED,
+					lastIdentity = lease.purposeLeaseIdentity)
 			}
 			var acceptedDemand = false
 			try {
@@ -87,18 +102,27 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 				if (demand == null) return@withLock unavailable(lease, AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE)
 				acceptedDemand = true
 				current = lease
-				if (host.acquire(lease.identity) !is BackgroundLocationHostResult.Active) {
+				val passive = params.locationBackgroundMode == LocationBackgroundMode.PASSIVE_ONLY
+				val oldHostIdentity = host.active.value?.identity.takeIf { passive }
+				if (!passive && host.acquire(lease.identity) !is BackgroundLocationHostResult.Active) {
 					check(retireLocked(lease)) { "Location host failure cleanup remains pending" }
 					return@withLock unavailable(lease, AmbientSourceUnavailableReason.PLATFORM_UNAVAILABLE)
 				}
 				val outcome = applyPlanLocked(lease)
+				if (oldHostIdentity != null && host.active.value?.identity == oldHostIdentity &&
+					!host.release(oldHostIdentity)) {
+					check(retireLocked(lease)) { "Location host cleanup remains pending" }
+					return@withLock unavailable(lease, AmbientSourceUnavailableReason.PLATFORM_UNAVAILABLE)
+				}
 				when (outcome) {
 					is AmbientLocationRuntimeJoinResult.Active -> AmbientSourceOperationalAvailability.ready(
-						AmbientTrackingSource.LOCATION, AmbientAcquisitionMechanism.ADAPTIVE_LOCATION,
+						AmbientTrackingSource.LOCATION, if (passive) AmbientAcquisitionMechanism.PASSIVE_LOCATION
+						else AmbientAcquisitionMechanism.ADAPTIVE_LOCATION,
 						lease.purposeLeaseIdentity)
 					is AmbientLocationRuntimeJoinResult.Degraded -> AmbientSourceOperationalAvailability(
 						source = AmbientTrackingSource.LOCATION, state = AmbientSourceOperationalState.DEGRADED,
-						mechanism = AmbientAcquisitionMechanism.ADAPTIVE_LOCATION,
+						mechanism = if (passive) AmbientAcquisitionMechanism.PASSIVE_LOCATION
+						else AmbientAcquisitionMechanism.ADAPTIVE_LOCATION,
 						reason = AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED,
 						operationalIdentity = lease.purposeLeaseIdentity)
 					else -> {
@@ -116,7 +140,9 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 	suspend fun refreshActivePlan() = mutex.withLock {
 		val lease = current ?: return@withLock
 		try {
-			if (host.active.value?.identity != lease.identity) {
+			val params = settings.data.first()
+			if (params.locationBackgroundMode == LocationBackgroundMode.ADAPTIVE &&
+				host.active.value?.identity != lease.identity) {
 				retireLocked(lease)
 				requestReconciliation()
 				return@withLock
@@ -165,8 +191,10 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 	private suspend fun applyPlanLocked(lease: AmbientReconciliationLease): AmbientLocationRuntimeJoinResult {
 		val params = settings.data.first()
 		if (params.sourcePolicyRevision != lease.identity.policyRevision || !params.ambientLocationEnabled ||
-			params.locationBackgroundMode != LocationBackgroundMode.ADAPTIVE ||
-			host.active.value?.identity != lease.identity
+			params.locationBackgroundMode !in setOf(LocationBackgroundMode.PASSIVE_ONLY,
+				LocationBackgroundMode.ADAPTIVE) ||
+			(params.locationBackgroundMode == LocationBackgroundMode.ADAPTIVE &&
+				host.active.value?.identity != lease.identity)
 		) {
 			retireLocked(lease)
 			return AmbientLocationRuntimeJoinResult.Inactive(null)
@@ -175,8 +203,22 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 			it.consumerId == AMBIENT_LOCATION_CONSUMER_ID && it.sourcePolicyRevision == lease.identity.policyRevision &&
 				it.consentEpoch == lease.identity.consentEpoch
 		} ?: return AmbientLocationRuntimeJoinResult.Inactive(null)
-		val level = requireNotNull(params.locationBalanceLevel)
 		val revision = lease.identity.policyRevision
+		if (params.locationBackgroundMode == LocationBackgroundMode.PASSIVE_ONLY) {
+			return runtime.reconcileAmbientJoin(LocationPlan(
+				revision = revision,
+				backend = LocationBackend.FUSED,
+				mode = LocationMode.PASSIVE,
+				requestedIntervalMs = demand.desiredLatencyMs.coerceAtLeast(1L),
+				minimumUpdateIntervalMs = 0L,
+				minimumDisplacementMeters = 0f,
+				maximumBatchDelayMs = 0L,
+				preciseLocationAvailable = ContextCompat.checkSelfPermission(context,
+					Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED,
+				passiveSystemDelivery = true,
+			), revision)
+		}
+		val level = requireNotNull(params.locationBalanceLevel)
 		val desired = adaptiveLocationPlan(level, revision, TrackerTimerManager.getSelectedLocationBackend(context),
 			ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 		val power = context.getSystemService(PowerManager::class.java)

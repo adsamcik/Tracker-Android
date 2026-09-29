@@ -4,6 +4,7 @@ import android.content.Context
 import android.location.Location
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
@@ -61,6 +62,7 @@ class LocationSourceRuntime @Inject internal constructor(
 	private val frameworkBackend: FrameworkLocationSourceBackend,
 	private val prerequisiteEvaluator: LocationPrerequisiteEvaluator,
 	private val deviceStateProvider: LocationDeviceStateProvider,
+	private val passiveBackend: RearmablePassiveLocationBackend,
 ) : ClaimedSourceRuntime<LocationPlan> {
 	override val source = SourceKind.LOCATION
 	private val _capabilities = MutableStateFlow(currentCapabilities())
@@ -113,6 +115,9 @@ class LocationSourceRuntime @Inject internal constructor(
 	internal suspend fun applyUiOnly(plan: LocationPlan): Boolean = lifecycleMutex.withLock {
 		require(plan.enabled)
 		if (currentPlan != null || registration != null) return@withLock false
+		// A cold surviving passive request still owns Location until ambient reconciliation.
+		if (runCatchingNonCancellation { registrations.systemLocationRegistrations() }
+			.getOrNull()?.isNotEmpty() != false) return@withLock false
 		val application = prerequisiteEvaluator.evaluate(
 			plan,
 			deviceStateProvider.snapshot(),
@@ -311,6 +316,11 @@ class LocationSourceRuntime @Inject internal constructor(
 				retryable = true,
 			)
 		}
+		if (!plan.enabled && !settleSystemLocationBeforePlanLocked(null)) {
+			return@withLock SourceApplyResult.Failed(
+				appliedState(source, plan.revision, null, SourceApplyStatus.FAILED,
+					SystemClock.elapsedRealtimeNanos()), retryable = true)
+		}
 		if (!plan.enabled) {
 			return@withLock SourceApplyResult.Applied(
 				appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
@@ -413,6 +423,11 @@ class LocationSourceRuntime @Inject internal constructor(
 				appDrainComplete = false,
 				status = SourceStopStatus.PROVIDER_FAILED,
 			)
+			!settleSystemLocationBeforePlanLocked(null) -> unavailableAck(null).copy(
+				registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
+				appDrainComplete = false,
+				status = SourceStopStatus.PROVIDER_FAILED,
+			)
 			else -> terminalStopAck ?: unavailableAck(null)
 		}
 	}
@@ -427,7 +442,7 @@ class LocationSourceRuntime @Inject internal constructor(
 					retryOwnedRetirementLocked()
 				}
 			} else {
-				reconcilePendingRetirementLocked()
+				if (reconcilePendingRetirementLocked()) settleSystemLocationBeforePlanLocked(null)
 			}
 		}
 	}
@@ -494,14 +509,12 @@ class LocationSourceRuntime @Inject internal constructor(
 		}
 		try {
 			val refreshed = runCatchingNonCancellation {
-				registrations.refreshActiveAuthorization(
-					source,
-					activeRegistration,
-					plan.revision,
-					physicalFingerprint,
-					System.currentTimeMillis(),
-					refreshBoundary,
-				)
+				if (effectivePlan.passiveSystemDelivery) {
+					registrations.refreshSystemRearmableLocation(activeRegistration, effectivePlan,
+						System.currentTimeMillis(), refreshBoundary)
+				} else registrations.refreshActiveAuthorization(
+					source, activeRegistration, plan.revision, physicalFingerprint,
+					System.currentTimeMillis(), refreshBoundary)
 			}.getOrElse { return null } ?: return null
 			if (refreshed.requiresProviderAcceptance ||
 				refreshed.state.sourceInstanceId != activeRegistration.state.sourceInstanceId ||
@@ -591,7 +604,7 @@ class LocationSourceRuntime @Inject internal constructor(
 			appliedState(source, plan.revision, null, SourceApplyStatus.BLOCKED, SystemClock.elapsedRealtimeNanos())
 				.copy(degradedReasons = application.reasons),
 		)
-		val backend: LocationSourceBackendController = when (application.plan.backend) {
+		val backend: LocationSourceBackendController = if (application.plan.passiveSystemDelivery) passiveBackend else when (application.plan.backend) {
 			LocationBackend.FUSED -> fusedBackend
 			LocationBackend.FRAMEWORK -> frameworkBackend
 		}
@@ -601,13 +614,14 @@ class LocationSourceRuntime @Inject internal constructor(
 				.copy(degradedReasons = application.reasons + SourceDegradedReason.PROVIDER_UNAVAILABLE),
 		)
 		val backendFallback = effectivePlan.mode != application.plan.mode
+		if (!settleSystemLocationBeforePlanLocked(effectivePlan)) return SourceStartResult.Failed(
+			appliedState(source, plan.revision, null, SourceApplyStatus.FAILED,
+				SystemClock.elapsedRealtimeNanos()), retryable = true)
 		val nextRegistration = runCatchingNonCancellation {
-			registrations.begin(
-				source,
-				plan.revision,
-				effectivePlan.physicalConfigurationFingerprint(),
-				System.currentTimeMillis(),
-			)
+			if (effectivePlan.passiveSystemDelivery) {
+				registrations.beginSystemRearmableLocation(effectivePlan, System.currentTimeMillis())
+			} else registrations.begin(source, plan.revision,
+				effectivePlan.physicalConfigurationFingerprint(), System.currentTimeMillis())
 		}.getOrElse {
 			return SourceStartResult.Failed(
 				appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()),
@@ -637,6 +651,11 @@ class LocationSourceRuntime @Inject internal constructor(
 		ownerClaim = claim
 		val startOutcome = try {
 			registrations.recordLocationPlan(nextRegistration, effectivePlan)
+			if (effectivePlan.passiveSystemDelivery) passiveBackend.prepare(
+				PassiveLocationIdentity(effectivePlan.backend, nextRegistration.state.sourceInstanceId,
+					nextRegistration.state.registrationGeneration, nextRegistration.state.clockDomainId,
+					nextRegistration.physicalConfigurationFingerprint,
+					nextRegistration.state.collectedDataEpoch))
 			backend.start(effectivePlan) { locations -> onLocationBatch(nextCallbackToken, locations) }
 		} catch (cancelled: CancellationException) {
 			cleanupFailedStart(nextRegistration, backend, nextQueue, "PROVIDER_REGISTRATION_CANCELLED")
@@ -750,6 +769,30 @@ class LocationSourceRuntime @Inject internal constructor(
 			setOf(SourceDegradedReason.PROVIDER_FALLBACK)
 		} else emptySet())
 		return if (approximate) SourceStartResult.Degraded(state) else SourceStartResult.Started(state)
+	}
+
+	/** Settle an orphaned PendingIntent before the same physical owner changes transport. */
+	private suspend fun settleSystemLocationBeforePlanLocked(next: LocationPlan?): Boolean {
+		val rows = runCatchingNonCancellation { registrations.systemLocationRegistrations() }
+			.getOrNull() ?: return false
+		if (rows.size > 1) return false
+		val row = rows.singleOrNull() ?: return true
+		if (next?.passiveSystemDelivery == true &&
+			registrations.canReuseSystemLocation(row, next.physicalConfigurationFingerprint())) return true
+		val identity = registrations.passiveLocationIdentity(row)
+		if (identity == null) return registrations.abandonUnplannedSystemLocationReservation(row)
+		if (passiveBackend.hasRetainedRegistration && !passiveBackend.retains(identity)) return false
+		val sameBoot = row.clockDomainId ==
+			runCatchingNonCancellation { registrations.currentBootId() }.getOrNull()
+		val token = if (sameBoot) registrations.beginSystemLocationRetirement(
+			row, RETIRE_REASON_RECONFIGURE) ?: return false else null
+		val removed = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
+			passiveBackend.removeExact(identity)
+		} ?: RegistrationRemovalOutcome.FAILED
+		if (removed != RegistrationRemovalOutcome.REMOVED &&
+			removed != RegistrationRemovalOutcome.NOT_REGISTERED) return false
+		return if (token != null) registrations.completeRetirement(token)
+		else registrations.completeRemovedPriorBootSystemLocation(row)
 	}
 
 	private suspend fun cleanupFailedStart(
@@ -1064,6 +1107,34 @@ class LocationSourceRuntime @Inject internal constructor(
 			LocationRetirementDurability.PENDING,
 			RegistrationRemovalOutcome.FAILED,
 		)
+		if (token.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE) {
+			if (fusedBackend.hasRetainedRegistration || frameworkBackend.hasRetainedRegistration) {
+				return LocationRetirementAttempt(LocationRetirementDurability.PENDING,
+					RegistrationRemovalOutcome.FAILED)
+			}
+			val row = runCatchingNonCancellation { registrations.systemLocationRegistrations() }
+				.getOrNull()?.singleOrNull { it.registrationGeneration == token.registrationGeneration &&
+					it.sourceInstanceId == token.sourceInstanceId.value }
+			val identity = row?.let { registrations.passiveLocationIdentity(it) }
+				?: return LocationRetirementAttempt(LocationRetirementDurability.PENDING,
+					RegistrationRemovalOutcome.FAILED)
+			if (passiveBackend.hasRetainedRegistration && !passiveBackend.retains(identity)) {
+				return LocationRetirementAttempt(LocationRetirementDurability.PENDING,
+					RegistrationRemovalOutcome.FAILED)
+			}
+			val removal = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
+				passiveBackend.removeExact(identity)
+			} ?: RegistrationRemovalOutcome.FAILED
+			if (removal != RegistrationRemovalOutcome.REMOVED &&
+				removal != RegistrationRemovalOutcome.NOT_REGISTERED
+			) return LocationRetirementAttempt(LocationRetirementDurability.PENDING, removal)
+			val complete = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
+				registrations.completeRetirement(token)
+			} == true
+			if (complete) pendingRetirementToken = null
+			return LocationRetirementAttempt(if (complete) LocationRetirementDurability.COMPLETE
+				else LocationRetirementDurability.PENDING, removal)
+		}
 		val retainedBackends = knownRetainedBackends ?: retainedBackendsOrNull()
 			?: return LocationRetirementAttempt(
 				LocationRetirementDurability.PENDING,
@@ -1107,6 +1178,7 @@ class LocationSourceRuntime @Inject internal constructor(
 		buildList {
 			if (fusedBackend.hasRetainedRegistration) add(fusedBackend)
 			if (frameworkBackend.hasRetainedRegistration) add(frameworkBackend)
+			if (passiveBackend.hasRetainedRegistration) add(passiveBackend)
 		}
 	}.getOrNull()
 

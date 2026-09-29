@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 
 data class ProviderRegistrationObservationInterval(
 	val startInclusiveNanos: Long,
@@ -248,6 +249,20 @@ object ProviderRegistrationIntervalAuthenticator {
 				Long.MAX_VALUE
 			}
 			registration.status == ProviderRegistrationGenerationEntity.STATUS_RETIRED -> {
+				if (registration.providerResidency ==
+					ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE) {
+					if (registration.sourceKind != SourceDestinationOwnerEntity.SOURCE_LOCATION ||
+						registration.failureCode !=
+						ProviderRegistrationGenerationEntity.FAILURE_PRIOR_BOOT_SYSTEM_REMOVED ||
+						currentClockDomainId == null || registration.clockDomainId == currentClockDomainId ||
+						currentProviderRegistrations.any { current ->
+							current.sourceKind == registration.sourceKind &&
+								current.sourceInstanceId == registration.sourceInstanceId
+						}
+					) return rejected(ProviderRegistrationIntervalFailure.INVALID_INTERVAL)
+					return ProviderRegistrationIntervalAuthentication.Authenticated(registration,
+						ProviderRegistrationObservationInterval(acceptedElapsedNanos, Long.MAX_VALUE))
+				}
 				val processIncarnationId = registration.providerProcessIncarnationId
 				?: return rejected(ProviderRegistrationIntervalFailure.INVALID_INTERVAL)
 				if (registration.providerResidency !=

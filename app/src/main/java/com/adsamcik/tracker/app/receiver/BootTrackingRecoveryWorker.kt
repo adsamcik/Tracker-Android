@@ -13,6 +13,8 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryResult
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryScheduler
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
@@ -33,6 +35,7 @@ class BootTrackingRecoveryWorker @AssistedInject constructor(
 	private val trackingStartupGuard: TrackingStartupGuard,
 	private val lockManager: LockManager,
 	private val sourcePipelineRecovery: SourcePipelineRecovery,
+	private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler,
 ) : CoroutineWorker(appContext, params) {
 	override suspend fun doWork(): Result {
 		val outcome = try {
@@ -50,6 +53,7 @@ class BootTrackingRecoveryWorker @AssistedInject constructor(
 						applicationContext,
 					)
 				},
+				reconcileCurrentPurposes = purposeSettingsReconciler::reconcileCurrentSettings,
 				withReadyGenerationOperation = { generation, operation ->
 					trackingStartupGate.withReadyGenerationOperation(generation, operation)
 				},
@@ -75,12 +79,16 @@ internal enum class BootTrackingRecoveryOutcome {
 	DURABLE_RETRY,
 	/** Automatic control, including its durable outbox, receives a battery-bounded wake budget. */
 	OPTIONAL_CONTROL_RETRY,
+	/** Purpose reconciliation also owns a bounded boot wake budget and a durable retry debt. */
+	OPTIONAL_PURPOSE_RETRY,
 }
 
 internal fun BootTrackingRecoveryOutcome.shouldRetry(runAttemptCount: Int): Boolean = when (this) {
 	BootTrackingRecoveryOutcome.COMPLETE -> false
 	BootTrackingRecoveryOutcome.DURABLE_RETRY -> true
 	BootTrackingRecoveryOutcome.OPTIONAL_CONTROL_RETRY ->
+		runAttemptCount + 1 < OPTIONAL_CONTROL_MAX_ATTEMPTS
+	BootTrackingRecoveryOutcome.OPTIONAL_PURPOSE_RETRY ->
 		runAttemptCount + 1 < OPTIONAL_CONTROL_MAX_ATTEMPTS
 }
 
@@ -92,6 +100,9 @@ internal suspend fun runBootTrackingRecovery(
 	reconcileStartup: suspend () -> TrackingStartupResult,
 	initializeLocks: suspend () -> Unit,
 	rearmAutomaticControl: suspend () -> AutomaticControlRecoveryResult,
+	reconcileCurrentPurposes: suspend () -> TrackingPurposeSettingsReconciliationResult = {
+		TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
+	},
 	withReadyGenerationOperation: suspend (
 		expectedGeneration: Long,
 		operation: suspend () -> AutomaticControlRecoveryResult?,
@@ -149,6 +160,16 @@ internal suspend fun runBootTrackingRecovery(
 	if (!isReady() || currentGeneration() != startupGeneration || isSuppressed()) {
 		return BootTrackingRecoveryOutcome.COMPLETE
 	}
+	val purposesPending = try {
+		reconcileCurrentPurposes() is TrackingPurposeSettingsReconciliationResult.Debt
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		true
+	}
+	if (!isReady() || currentGeneration() != startupGeneration || isSuppressed()) {
+		return BootTrackingRecoveryOutcome.COMPLETE
+	}
 	val drain = try {
 		drainActivityAutomationEffects()
 	} catch (cancelled: CancellationException) {
@@ -161,6 +182,7 @@ internal suspend fun runBootTrackingRecovery(
 			BootTrackingRecoveryOutcome.OPTIONAL_CONTROL_RETRY
 		control == AutomaticControlRecoveryResult.RETRYABLE ->
 			BootTrackingRecoveryOutcome.OPTIONAL_CONTROL_RETRY
+		purposesPending -> BootTrackingRecoveryOutcome.OPTIONAL_PURPOSE_RETRY
 		else -> BootTrackingRecoveryOutcome.COMPLETE
 	}
 }

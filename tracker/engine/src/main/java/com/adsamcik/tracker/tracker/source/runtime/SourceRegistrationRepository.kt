@@ -15,6 +15,10 @@ import com.adsamcik.tracker.shared.base.database.publishStepsCountDomainEvidence
 import com.adsamcik.tracker.shared.base.database.withMonotonicStepsCountDomainRevision
 import com.adsamcik.tracker.shared.base.database.dao.PriorProcessRegistrationReconciliationResult
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -56,10 +60,19 @@ internal data class SourceRegistrationRetirementToken(
 	val source: SourceKind,
 	val sourceInstanceId: SourceInstanceId,
 	val registrationGeneration: Long,
-	val processIncarnationId: String,
+	val processIncarnationId: String?,
 	val retiredAtMs: Long,
 	val retiredElapsedRealtimeNanos: Long,
 	val reason: String?,
+	val providerResidency: String = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+	val clockDomainId: String? = null,
+	val physicalConfigurationFingerprint: String? = null,
+	val collectedDataEpoch: Long? = null,
+)
+
+internal data class PassiveLocationAdmission(
+	val attribution: LocationDeliveryAttribution,
+	val approximate: Boolean,
 )
 
 internal enum class CellCaptureCallbackBarrierBlockedReason {
@@ -205,6 +218,194 @@ class SourceRegistrationRepository @Inject constructor(
 		purposeEligibilityMask = purposeEligibilityMask,
 	)
 
+	/** Sessionless passive Location reserves the same shared owner with system residency. */
+	internal suspend fun beginSystemRearmableLocation(
+		plan: LocationPlan,
+		updatedAtMs: Long,
+		updatedElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
+	): SourceRegistration {
+		require(plan.passiveSystemDelivery)
+		return beginInternal(SourceKind.LOCATION, plan.revision,
+			plan.physicalConfigurationFingerprint(), updatedAtMs, updatedElapsedRealtimeNanos,
+			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+			ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE)
+	}
+
+	internal suspend fun systemLocationRegistrations(): List<ProviderRegistrationGenerationEntity> =
+		database.sourceBrokerDao().nonterminalSystemLocationRegistrations(2)
+
+	internal fun currentBootId(): String = clockDomainProvider.current()
+
+	internal suspend fun canReuseSystemLocation(
+		row: ProviderRegistrationGenerationEntity,
+		fingerprint: String,
+	): Boolean {
+		val current = database.sourceRegistrationStateDao().get(row.sourceKind, row.ownerScope)
+		return row.clockDomainId == clockDomainProvider.current() &&
+			row.collectedDataEpoch == lifecycleStore.snapshot().epoch &&
+			row.physicalConfigurationFingerprint == fingerprint &&
+			row.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE &&
+			current?.registrationGeneration == row.registrationGeneration &&
+			current?.sourceInstanceId == row.sourceInstanceId
+	}
+
+	internal suspend fun abandonUnplannedSystemLocationReservation(
+		row: ProviderRegistrationGenerationEntity,
+	): Boolean {
+		if (row.status != ProviderRegistrationGenerationEntity.STATUS_RESERVED ||
+			database.locationPurposeDao().latestRegistrationPlan(row.registrationGeneration) != null
+		) return false
+		if (row.clockDomainId != clockDomainProvider.current()) {
+			return completeRemovedPriorBootSystemLocation(row)
+		}
+		return database.sourceBrokerDao().failUnacceptedSystemLocationReservation(
+			row.registrationGeneration, row.sourceInstanceId, System.currentTimeMillis(),
+			SystemClock.elapsedRealtimeNanos(), "UNPLANNED_PASSIVE_LOCATION_RESERVATION") == 1
+	}
+
+	/** Reconstruct only an exact, authenticated v4 request; an unknown handle fences replacement. */
+	internal suspend fun passiveLocationIdentity(
+		row: ProviderRegistrationGenerationEntity,
+	): PassiveLocationIdentity? {
+		if (row.sourceKind != SourceKind.LOCATION.stableCode ||
+			row.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE
+		) return null
+		val stored = database.locationPurposeDao().latestRegistrationPlan(row.registrationGeneration)
+			?: return null
+		if (stored.registrationGeneration != row.registrationGeneration ||
+			stored.sourceInstanceId != row.sourceInstanceId ||
+			stored.physicalConfigurationFingerprint != row.physicalConfigurationFingerprint ||
+			stored.payloadVersion != 4 ||
+			LocationRegistrationPlanIntegrity.checksum(stored) != stored.effectChecksum
+		) return null
+		val plan = runCatching { SourcePlanCodec().decode(stored.payload) as? LocationPlan }.getOrNull()
+			?: return null
+		val encoded = runCatching { SourcePlanCodec().encode(plan) }.getOrNull()
+			?: return null
+		if (!plan.passiveSystemDelivery || encoded.formatVersion != 4 ||
+			!encoded.bytes.contentEquals(stored.payload) || encoded.checksum != stored.payloadChecksum ||
+			plan.physicalConfigurationFingerprint() != row.physicalConfigurationFingerprint
+		) return null
+		return PassiveLocationIdentity(plan.backend, row.sourceInstanceId,
+			row.registrationGeneration, row.clockDomainId,
+			row.physicalConfigurationFingerprint, row.collectedDataEpoch)
+	}
+
+	/** Authorize each delivered fix at its provider time; result extras carry no authority. */
+	internal suspend fun passiveLocationAdmissionAt(
+		identity: PassiveLocationIdentity,
+		observedElapsedRealtimeNanos: Long,
+	): PassiveLocationAdmission? {
+		if (observedElapsedRealtimeNanos <= 0L || identity.bootId != clockDomainProvider.current() ||
+			identity.collectedDataEpoch != lifecycleStore.snapshot().epoch) return null
+		return database.withTransaction {
+			val dao = database.sourceBrokerDao()
+			val row = dao.registrationAtObservedTime(SourceKind.LOCATION.stableCode,
+				identity.generation, identity.sourceInstanceId, identity.bootId,
+				identity.fingerprint, observedElapsedRealtimeNanos) ?: return@withTransaction null
+			if (row.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE ||
+				row.collectedDataEpoch != identity.collectedDataEpoch ||
+				!SourceProviderPurposeScope.supportsPurpose(row.sourceKind, row.ownerScope,
+					SourceBrokerPurpose.AMBIENT_PRODUCT) ||
+				SourceProviderPurposeScope.supportsPurpose(row.sourceKind, row.ownerScope,
+					SourceBrokerPurpose.SESSION_CAPTURE)
+			) return@withTransaction null
+			val rows = dao.authorizationAtBounded(row.sourceKind, row.registrationGeneration,
+				identity.bootId, observedElapsedRealtimeNanos, 17)
+			if (rows.isEmpty() || rows.size > 16) return@withTransaction null
+			val authorization = runCatching { rows.toAuthorizationSnapshotOrNull() }.getOrNull()
+				?: return@withTransaction null
+			val ambientMember = authorization.authorizedMembers.singleOrNull {
+				it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && it.persistenceEligible &&
+					it.logicalTrackingId == null && it.serviceRunId == null
+			} ?: return@withTransaction null
+			// A cold provider result is a new delivery. Historical authority proves its observed
+			// time, while this live fence prevents Off or a new consent epoch from admitting it.
+			val policyDao = database.sourcePolicyDao()
+			val authority = policyDao.authority()
+				?.takeIf { it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE }
+				?: return@withTransaction null
+			val currentPolicy = policyDao.policyAtRevision(authority.currentPolicyRevision,
+				SourceKind.LOCATION.stableCode) ?: return@withTransaction null
+			val currentConsent = policyDao.latestConsentEpoch(SourceKind.LOCATION.stableCode,
+				SourceBrokerPurpose.AMBIENT_PRODUCT)
+			val currentRetention = database.locationPurposeDao().latestRetentionAuthority(
+				AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT)
+			if (!currentPolicy.hasExactEligibleAmbientConsentReference(currentConsent) ||
+				currentPolicy.ambientConsentEpoch != ambientMember.consentEpoch ||
+				currentRetention == null || !currentRetention.isActive ||
+				!AmbientLocationRetentionAuthorityIntegrity.isAuthentic(currentRetention) ||
+				currentRetention.ambientConsentEpoch != ambientMember.consentEpoch ||
+				currentRetention.collectedDataEpoch != identity.collectedDataEpoch ||
+				currentRetention.opaquePolicyId != ambientMember.liveAmbientRetentionPolicyId ||
+				currentRetention.approvalRevision != ambientMember.liveAmbientRetentionApprovalRevision ||
+				currentRetention.retainedFromMs != database.sourceEvidenceStateDao().get()?.retainedFromMs
+			) return@withTransaction null
+			if (authorization.isDenied || authorization.effectiveBootId != identity.bootId ||
+				authorization.purposeEligibilityMask != SourceBrokerPurpose.MASK_AMBIENT_PRODUCT
+			) return@withTransaction null
+			val ids = authorization.authorizedMembers.mapNotNull { it.demandId }
+			val demands = dao.demandsByIds(ids)
+			val expected = runCatching { SourceBrokerAuthorization.rows(row.sourceKind,
+				row.registrationGeneration, authorization.authorizationRevision, demands,
+				authorization.effectiveBootId, authorization.effectiveElapsedRealtimeNanos,
+				rows.first().effectiveWallTimeMs) }.getOrNull()
+			if (ids.size != authorization.authorizedMembers.size || ids.distinct().size != ids.size ||
+				demands.size != ids.size || expected?.sortedBy { it.memberId } !=
+				rows.sortedBy { it.memberId }) return@withTransaction null
+			val stored = database.locationPurposeDao().registrationPlan(identity.generation,
+				ambientMember.sourcePolicyRevision ?: return@withTransaction null,
+				authorization.authorizationRevision) ?: return@withTransaction null
+			if (stored.sourceInstanceId != identity.sourceInstanceId ||
+				stored.physicalConfigurationFingerprint != identity.fingerprint ||
+				stored.payloadVersion != 4 ||
+				LocationRegistrationPlanIntegrity.checksum(stored) != stored.effectChecksum
+			) return@withTransaction null
+			val plan = runCatching { SourcePlanCodec().decode(stored.payload) as? LocationPlan }.getOrNull()
+				?: return@withTransaction null
+			val encoded = runCatching { SourcePlanCodec().encode(plan) }.getOrNull()
+				?: return@withTransaction null
+			if (!plan.passiveSystemDelivery || plan.backend != identity.backend ||
+				plan.revision != stored.configurationRevision || encoded.formatVersion != 4 ||
+				!encoded.bytes.contentEquals(stored.payload) || encoded.checksum != stored.payloadChecksum ||
+				plan.physicalConfigurationFingerprint() != identity.fingerprint
+			) return@withTransaction null
+			PassiveLocationAdmission(LocationDeliveryAttribution(
+				SourceInstanceId(identity.sourceInstanceId), identity.generation, identity.fingerprint,
+				authorization.authorizationRevision, authorization.purposeEligibilityMask,
+				authorization.authorizationFingerprint, plan.revision, identity.bootId,
+				identity.collectedDataEpoch), !plan.preciseLocationAvailable)
+		}
+	}
+
+	internal suspend fun beginSystemLocationRetirement(
+		row: ProviderRegistrationGenerationEntity,
+		reason: String,
+	): SourceRegistrationRetirementToken? {
+		if (row.sourceKind != SourceKind.LOCATION.stableCode ||
+			row.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE ||
+			row.clockDomainId != clockDomainProvider.current()) return null
+		val dao = database.sourceBrokerDao()
+		if (row.status != ProviderRegistrationGenerationEntity.STATUS_RETIRING) {
+			dao.markSystemLocationRetiring(row.registrationGeneration, row.sourceInstanceId,
+				System.currentTimeMillis(), SystemClock.elapsedRealtimeNanos(), reason)
+		}
+		return dao.registration(row.sourceKind, row.registrationGeneration)
+			?.takeIf { it.sourceInstanceId == row.sourceInstanceId &&
+				it.status == ProviderRegistrationGenerationEntity.STATUS_RETIRING }
+			?.toRetirementToken()
+	}
+
+	internal suspend fun completeRemovedPriorBootSystemLocation(
+		row: ProviderRegistrationGenerationEntity,
+	): Boolean {
+		val currentBootId = clockDomainProvider.current()
+		if (row.clockDomainId == currentBootId) return false
+		return database.sourceBrokerDao().completeRemovedPriorBootSystemLocation(
+			row.registrationGeneration, row.sourceInstanceId, currentBootId,
+			ProviderRegistrationGenerationEntity.FAILURE_PRIOR_BOOT_SYSTEM_REMOVED) == 1
+	}
+
 	private suspend fun beginInternal(
 		source: SourceKind,
 		appliedRevision: Long,
@@ -212,6 +413,7 @@ class SourceRegistrationRepository @Inject constructor(
 		updatedAtMs: Long,
 		updatedElapsedRealtimeNanos: Long,
 		purposeEligibilityMask: Long,
+		providerResidency: String = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
 	): SourceRegistration {
 		require(source != SourceKind.ACTIVITY) {
 			"Activity registrations are system-rearmable and must use ActivityRegistrationArbiter"
@@ -224,6 +426,9 @@ class SourceRegistrationRepository @Inject constructor(
 		val lifecycle = lifecycleStore.snapshot()
 		val clockDomainId = clockDomainProvider.current()
 		val processIncarnationId = processIncarnationIdProvider.current()
+		require(providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
+			(source == SourceKind.LOCATION &&
+				providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE))
 		val ownerScope = if (purposeEligibilityMask == SourceBrokerPurpose.ALL_MASK) {
 			SourceProviderPurposeScope.sharedOwnerScope(source.stableCode)
 		} else {
@@ -255,6 +460,19 @@ class SourceRegistrationRepository @Inject constructor(
 					currentProcessId = processIncarnationId,
 				),
 			) { "Pending provider removal must complete before a replacement can be reserved" }
+			if (source == SourceKind.LOCATION) {
+				val system = brokerDao.nonterminalSystemLocationRegistrations(2)
+				val systemPointer = database.sourceRegistrationStateDao().get(source.stableCode, ownerScope)
+				check(system.size <= 1 && system.none { row ->
+					providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE ||
+					row.status == ProviderRegistrationGenerationEntity.STATUS_RETIRING ||
+					row.ownerScope != ownerScope ||
+					systemPointer?.registrationGeneration != row.registrationGeneration ||
+					systemPointer?.sourceInstanceId != row.sourceInstanceId ||
+					row.physicalConfigurationFingerprint != physicalConfigurationFingerprint ||
+					row.clockDomainId != clockDomainId || row.collectedDataEpoch != lifecycle.epoch
+				}) { "Rearmable Location removal must be acknowledged before replacement" }
+			}
 			val demands = SourceProviderPurposeScope.selectDemands(
 				source.stableCode,
 				ownerScope,
@@ -293,9 +511,10 @@ class SourceRegistrationRepository @Inject constructor(
 			if (current != null && currentPhysical != null &&
 				current.clockDomainId == clockDomainId &&
 				current.collectedDataEpoch == lifecycle.epoch &&
-				currentPhysical.providerResidency ==
-					ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
-				currentPhysical.providerProcessIncarnationId == processIncarnationId &&
+				currentPhysical.providerResidency == providerResidency &&
+				(currentPhysical.providerProcessIncarnationId ==
+					if (providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND)
+						processIncarnationId else null) &&
 				currentPhysical.status in setOf(
 					ProviderRegistrationGenerationEntity.STATUS_RESERVED,
 					ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
@@ -365,8 +584,9 @@ class SourceRegistrationRepository @Inject constructor(
 					clockDomainId = next.clockDomainId,
 					physicalConfigurationFingerprint = physicalConfigurationFingerprint,
 					collectedDataEpoch = lifecycle.epoch,
-					providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
-					providerProcessIncarnationId = processIncarnationId,
+					providerResidency = providerResidency,
+					providerProcessIncarnationId = processIncarnationId.takeIf {
+						providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND },
 					status = ProviderRegistrationGenerationEntity.STATUS_RESERVED,
 					reservedAtMs = updatedAtMs,
 					reservedElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
@@ -436,6 +656,19 @@ class SourceRegistrationRepository @Inject constructor(
 		purposeEligibilityMask = purposeEligibilityMask,
 	)
 
+	internal suspend fun refreshSystemRearmableLocation(
+		expectedRegistration: SourceRegistration,
+		plan: LocationPlan,
+		updatedAtMs: Long,
+		updatedElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
+	): SourceRegistration? {
+		require(plan.passiveSystemDelivery)
+		return refreshActiveAuthorizationInternal(SourceKind.LOCATION, expectedRegistration,
+			plan.revision, plan.physicalConfigurationFingerprint(), updatedAtMs,
+			updatedElapsedRealtimeNanos, SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+			ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE)
+	}
+
 	private suspend fun refreshActiveAuthorizationInternal(
 		source: SourceKind,
 		expectedRegistration: SourceRegistration,
@@ -444,6 +677,7 @@ class SourceRegistrationRepository @Inject constructor(
 		updatedAtMs: Long,
 		updatedElapsedRealtimeNanos: Long,
 		purposeEligibilityMask: Long,
+		providerResidency: String = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
 	): SourceRegistration? {
 		require(source != SourceKind.ACTIVITY) {
 			"Activity registrations are system-rearmable and must use ActivityRegistrationArbiter"
@@ -512,9 +746,10 @@ class SourceRegistrationRepository @Inject constructor(
 				current.collectedDataEpoch != expectedRegistration.state.collectedDataEpoch ||
 				current.clockDomainId != clockDomainId ||
 				current.collectedDataEpoch != lifecycle.epoch ||
-				currentPhysical.providerResidency !=
-					ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
-				currentPhysical.providerProcessIncarnationId != processIncarnationId ||
+				currentPhysical.providerResidency != providerResidency ||
+				currentPhysical.providerProcessIncarnationId !=
+					processIncarnationId.takeIf { providerResidency ==
+						ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND } ||
 				currentPhysical.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE ||
 				expectedRegistration.physicalConfigurationFingerprint !=
 					physicalConfigurationFingerprint ||
@@ -897,6 +1132,14 @@ class SourceRegistrationRepository @Inject constructor(
 		require(failureCode.isNotBlank())
 		require(failedAtMs >= 0L)
 		require(failedElapsedRealtimeNanos >= 0L)
+		val physical = database.sourceBrokerDao().registration(
+			registration.state.sourceKind, registration.state.registrationGeneration)
+		if (physical?.providerResidency ==
+			ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE) {
+			return database.sourceBrokerDao().failUnacceptedSystemLocationReservation(
+				registration.state.registrationGeneration, registration.state.sourceInstanceId,
+				failedAtMs, failedElapsedRealtimeNanos, failureCode) == 1
+		}
 		return database.sourceBrokerDao().failUnacceptedCurrentProcessReservation(
 			sourceKind = registration.state.sourceKind,
 			registrationGeneration = registration.state.registrationGeneration,
@@ -924,13 +1167,24 @@ class SourceRegistrationRepository @Inject constructor(
 		require(reason.isNotBlank())
 		require(retiredAtMs >= 0L)
 		require(retiredElapsedRealtimeNanos >= 0L)
-		val processIncarnationId = processIncarnationIdProvider.current()
-		val retiring = checkNotNull(
-			database.sourceBrokerDao().beginCurrentProcessRegistrationRetirement(
+		val brokerDao = database.sourceBrokerDao()
+		val physical = checkNotNull(brokerDao.registration(registration.state.sourceKind,
+			registration.state.registrationGeneration))
+		check(physical.sourceInstanceId == registration.state.sourceInstanceId)
+		val retiring = if (physical.providerResidency ==
+			ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE) {
+			brokerDao.markSystemLocationRetiring(registration.state.registrationGeneration,
+				registration.state.sourceInstanceId, retiredAtMs, retiredElapsedRealtimeNanos, reason)
+			checkNotNull(brokerDao.registration(registration.state.sourceKind,
+				registration.state.registrationGeneration)).also {
+				check(it.status == ProviderRegistrationGenerationEntity.STATUS_RETIRING)
+			}
+		} else checkNotNull(
+			brokerDao.beginCurrentProcessRegistrationRetirement(
 				sourceKind = registration.state.sourceKind,
 				registrationGeneration = registration.state.registrationGeneration,
 				sourceInstanceId = registration.state.sourceInstanceId,
-				currentProcessId = processIncarnationId,
+				currentProcessId = processIncarnationIdProvider.current(),
 				retiredAtMs = retiredAtMs,
 				retiredElapsedRealtimeNanos = retiredElapsedRealtimeNanos,
 				reason = reason,
@@ -940,6 +1194,13 @@ class SourceRegistrationRepository @Inject constructor(
 	}
 
 	internal suspend fun completeRetirement(token: SourceRegistrationRetirementToken): Boolean {
+		if (token.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE) {
+			val dao = database.sourceBrokerDao()
+			return dao.completeSystemLocationRetirement(token.registrationGeneration,
+				token.sourceInstanceId.value, token.retiredAtMs, token.retiredElapsedRealtimeNanos) == 1 ||
+				dao.registration(token.source.stableCode, token.registrationGeneration)?.status ==
+					ProviderRegistrationGenerationEntity.STATUS_RETIRED
+		}
 		val currentProcessId = processIncarnationIdProvider.current()
 		if (token.processIncarnationId != currentProcessId) return false
 		val dao = database.sourceBrokerDao()
@@ -967,10 +1228,16 @@ class SourceRegistrationRepository @Inject constructor(
 		require(source != SourceKind.ACTIVITY) {
 			"Activity registrations are system-rearmable and must use ActivityRegistrationArbiter"
 		}
-		return database.sourceBrokerDao().pendingCurrentProcessProviderRemovals(
+		val process = database.sourceBrokerDao().pendingCurrentProcessProviderRemovals(
 			sourceKind = source.stableCode,
 			currentProcessId = processIncarnationIdProvider.current(),
 		).map { it.toRetirementToken() }
+		val system = if (source == SourceKind.LOCATION) {
+			database.sourceBrokerDao().nonterminalSystemLocationRegistrations(2)
+				.filter { it.status == ProviderRegistrationGenerationEntity.STATUS_RETIRING }
+				.map { it.toRetirementToken() }
+		} else emptyList()
+		return process + system
 	}
 
 	suspend fun markFailed(
@@ -1009,16 +1276,19 @@ class SourceRegistrationRepository @Inject constructor(
 
 	private fun ProviderRegistrationGenerationEntity.toRetirementToken():
 		SourceRegistrationRetirementToken {
-		check(providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND)
 		check(status == ProviderRegistrationGenerationEntity.STATUS_RETIRING)
 		return SourceRegistrationRetirementToken(
 			source = SourceKind.entries.single { it.stableCode == sourceKind },
 			sourceInstanceId = SourceInstanceId(sourceInstanceId),
 			registrationGeneration = registrationGeneration,
-			processIncarnationId = requireNotNull(providerProcessIncarnationId),
+			processIncarnationId = providerProcessIncarnationId,
 			retiredAtMs = requireNotNull(retiredAtMs),
 			retiredElapsedRealtimeNanos = requireNotNull(retiredElapsedRealtimeNanos),
 			reason = failureCode,
+			providerResidency = providerResidency,
+			clockDomainId = clockDomainId,
+			physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+			collectedDataEpoch = collectedDataEpoch,
 		)
 	}
 
