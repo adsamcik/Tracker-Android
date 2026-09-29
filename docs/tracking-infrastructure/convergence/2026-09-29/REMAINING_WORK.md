@@ -72,11 +72,15 @@ Authored tests, static review and isolated commits do not satisfy those chains.
   source-authored at `9f9468af3c` and the shortcut End/Turn off actions at
   `fde45fa227`, both **IMPLEMENTED_UNVALIDATED**. Widget End/Turn off action
   routing and Start-replay fencing were source-authored at `a895c494e4`,
-  **IMPLEMENTED_UNVALIDATED**; widget layouts and notification actions remain
-  drafts. Dashboard's permission callback still issues a new Start without a
+  **IMPLEMENTED_UNVALIDATED**. Notification End/Off receiver routing was
+  source-authored at `e4d01dbf7d` without an unscoped timeout retry, and
+  shortcut/widget End waits were bounded at `b083e4f2c0`; all remain
+  **IMPLEMENTED_UNVALIDATED**. Widget layouts and notification action selection
+  remain drafts. Dashboard's permission callback still issues a new Start without a
   saved, one-use request tied to the original source choices and Stop generation;
-  external Start repair therefore remains incomplete. No real Stop or device
-  behavior has been measured.
+  both in-app and external Start repair therefore remain incomplete. The
+  already-open Dashboard also leaves the external Start extra unconsumed until a
+  later recreation. No real Stop or device behavior has been measured.
 - [ ] **Retained data and files:** purpose-scoped consent, correction, erase,
   retention, replay and restore; source file transfers and session bundles;
   one selected format per export; truthful geographic date/session scope; all-data
