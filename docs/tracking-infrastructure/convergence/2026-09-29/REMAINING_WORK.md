@@ -70,8 +70,10 @@ Authored tests, static review and isolated commits do not satisfy those chains.
   startup cleanup retry were source-authored at `3cfe9ff81c` with focused
   tests, **IMPLEMENTED_UNVALIDATED**. The Settings Turn off action was
   source-authored at `9f9468af3c` and the shortcut End/Turn off actions at
-  `fde45fa227`, both **IMPLEMENTED_UNVALIDATED**. Notification and widget
-  actions remain drafts; no real Stop or device behavior has been measured.
+  `fde45fa227`, both **IMPLEMENTED_UNVALIDATED**. Widget End/Turn off action
+  routing and Start-replay fencing were source-authored at `a895c494e4`,
+  **IMPLEMENTED_UNVALIDATED**; widget layouts and notification actions remain
+  drafts. No real Stop or device behavior has been measured.
 - [ ] **Retained data and files:** purpose-scoped consent, correction, erase,
   retention, replay and restore; source file transfers and session bundles;
   one selected format per export; truthful geographic date/session scope; all-data
