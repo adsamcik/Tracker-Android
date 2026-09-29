@@ -1,0 +1,74 @@
+package com.adsamcik.tracker.shared.base.database.data
+
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+
+enum class RadioChildPurpose { SESSION, BACKGROUND }
+
+data class RadioChildOwner(
+	val purpose: RadioChildPurpose,
+	val writerId: String,
+	val writerVersion: Int,
+	val logicalFactId: String,
+	val semanticRevision: Long,
+	val itemIndex: Int,
+)
+
+data class WifiChildChecksumInput(
+	val owner: RadioChildOwner,
+	val providerTimestampNanos: Long,
+	val observedWallTimeMs: Long,
+	val wallTimeUncertaintyMs: Long,
+	val bssid: String?,
+	val ssid: String?,
+	val frequencyMhz: Int,
+	val signalDbm: Int,
+) {
+	override fun toString(): String = "WifiChildChecksumInput"
+}
+
+data class CellChildChecksumInput(
+	val owner: RadioChildOwner,
+	val providerTimestampNanos: Long,
+	val observedWallTimeMs: Long,
+	val wallTimeUncertaintyMs: Long,
+	val towerIdentity: String?,
+	val radioType: String,
+	val registered: Boolean,
+	val signalDbm: Int?,
+) {
+	override fun toString(): String = "CellChildChecksumInput"
+}
+
+/** Stable checksums bind detail content to one purpose-owned fact revision. */
+object RadioObservationChildIntegrity {
+	fun wifi(input: WifiChildChecksumInput): String = digest(
+		listOf("wifi-child-v1") + ownerParts(input.owner) + listOf(
+			input.providerTimestampNanos, input.observedWallTimeMs, input.wallTimeUncertaintyMs,
+			input.bssid, input.ssid, input.frequencyMhz, input.signalDbm,
+		),
+	)
+
+	fun cell(input: CellChildChecksumInput): String = digest(
+		listOf("cell-child-v1") + ownerParts(input.owner) + listOf(
+			input.providerTimestampNanos, input.observedWallTimeMs, input.wallTimeUncertaintyMs,
+			input.towerIdentity, input.radioType, input.registered, input.signalDbm,
+		),
+	)
+
+	private fun ownerParts(owner: RadioChildOwner): List<Any?> = listOf(
+		owner.purpose.name, owner.writerId, owner.writerVersion, owner.logicalFactId,
+		owner.semanticRevision, owner.itemIndex,
+	)
+
+	private fun digest(parts: List<Any?>): String {
+		val sha256 = MessageDigest.getInstance("SHA-256")
+		parts.forEach { part ->
+			val bytes = part?.toString()?.toByteArray(StandardCharsets.UTF_8)
+			sha256.update(ByteBuffer.allocate(Int.SIZE_BYTES).putInt(bytes?.size ?: -1).array())
+			if (bytes != null) sha256.update(bytes)
+		}
+		return sha256.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
+	}
+}
