@@ -78,6 +78,8 @@ open; validation and integration are deferred. The historical registry below is 
 - [ ] Complete metrics, actions and effects: unknown/malformed metric rejection and original native
   Activity/validated closed Pressure header repairs authored and independently statically reviewed,
   **IMPLEMENTED_UNVALIDATED**. Exact Steps numeric/goal retraction machinery traced and preserved.
+  Conflicting saved local-day zone authority now reports Calendar unavailable rather than a generic
+  source-data error (`f5b92efb0e`, focused Room sources `587751d386`), **IMPLEMENTED_UNVALIDATED**.
   Qualified six-source summaries/consumers, period/open-interval contracts, native portable bounds,
   source action selectors/dispatch and non-Steps effects/retraction remain open. See
   `metrics-actions-effects/2026-09-27/IMPLEMENTATION_TRACE.md`.
