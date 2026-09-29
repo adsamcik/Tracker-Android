@@ -7,6 +7,7 @@ import androidx.lifecycle.lifecycleScope
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartRepairNavigation
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartResult
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.api.TrackingStopQuiescenceResult
 import com.adsamcik.tracker.tracker.api.TrackingTurnOffResult
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts.ShortcutAction
 import kotlinx.coroutines.CancellationException
@@ -34,7 +35,7 @@ class ShortcutActivity : ComponentActivity() {
 			} catch (cancelled: CancellationException) {
 				throw cancelled
 			} catch (_: RuntimeException) {
-				openDashboardForRepair()
+				openDashboardForRepair(reevaluateManualStart = action == ShortcutAction.START_COLLECTION)
 			}
 			finish()
 		}
@@ -44,15 +45,20 @@ class ShortcutActivity : ComponentActivity() {
 		when (action) {
 			ShortcutAction.START_COLLECTION -> {
 				val result = TrackerServiceApi.requestManualTrackingStart(this)
-				if (result != ManualTrackingStartResult.ENQUEUED) openDashboardForRepair()
+				if (result != ManualTrackingStartResult.ENQUEUED) {
+					openDashboardForRepair(reevaluateManualStart = true)
+				}
 			}
 			ShortcutAction.STOP_COLLECTION -> {
-				TrackerServiceApi.stopServiceAndAwaitQuiescence(this)
+				if (TrackerServiceApi.stopServiceAndAwaitQuiescence(this) !=
+					TrackingStopQuiescenceResult.HANDLED
+				) openDashboardForRepair(reevaluateManualStart = false)
 			}
 			ShortcutAction.TURN_OFF_TRACKING -> {
 				when (TrackerServiceApi.turnOffTrackingAndAwait(this)) {
 					TrackingTurnOffResult.UNAVAILABLE,
-					TrackingTurnOffResult.SUPERSEDED_BY_NEW_START -> openDashboardForRepair()
+					TrackingTurnOffResult.SUPERSEDED_BY_NEW_START ->
+						openDashboardForRepair(reevaluateManualStart = false)
 					TrackingTurnOffResult.COMPLETE,
 					TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING -> Unit
 				}
@@ -60,7 +66,10 @@ class ShortcutActivity : ComponentActivity() {
 		}
 	}
 
-	private fun openDashboardForRepair() {
-		ManualTrackingStartRepairNavigation.createDashboardIntent(this)?.let { startActivity(it) }
+	private fun openDashboardForRepair(reevaluateManualStart: Boolean) {
+		ManualTrackingStartRepairNavigation.createDashboardIntent(
+			this,
+			reevaluateManualStart = reevaluateManualStart,
+		)?.let { startActivity(it) }
 	}
 }

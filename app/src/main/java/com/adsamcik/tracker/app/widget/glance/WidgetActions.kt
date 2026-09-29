@@ -8,29 +8,32 @@ import androidx.glance.appwidget.action.ActionCallback
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartRepairNavigation
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartResult
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.api.TrackingStopQuiescenceResult
+import com.adsamcik.tracker.tracker.api.TrackingTurnOffResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
-/**
- * Glance ActionCallback that toggles tracking on/off.
- * Uses TrackerServiceApi static methods which internally use Hilt EntryPoint.
- */
+/** Starts or ends a session without changing all-day tracking choices. */
 class ToggleTrackingAction : ActionCallback {
     override suspend fun onAction(
         context: Context,
         glanceId: GlanceId,
         parameters: ActionParameters,
     ) {
+        var attemptedStart = false
         try {
             val isRunning = TrackerServiceApi.hasLiveCapture(context)
             if (isRunning) {
-                TrackerServiceApi.stopService(context)
+                if (TrackerServiceApi.stopServiceAndAwaitQuiescence(context) !=
+                    TrackingStopQuiescenceResult.HANDLED
+                ) openDashboard(context, reevaluateManualStart = false)
             } else {
+                attemptedStart = true
                 val result = TrackerServiceApi.requestManualTrackingStart(context)
                 if (result != ManualTrackingStartResult.ENQUEUED) {
-                    ManualTrackingStartRepairNavigation.createDashboardIntent(context)
-                        ?.let { context.startActivity(it) }
+                    openDashboard(context, reevaluateManualStart = true)
                 }
+                attemptedStart = false
             }
             // Allow state to propagate before refreshing widgets.
             delay(STATE_PROPAGATION_DELAY_MS)
@@ -39,14 +42,45 @@ class ToggleTrackingAction : ActionCallback {
             throw cancelled
         } catch (_: Exception) {
             // Bring the user to the foreground repair surface when background prerequisites fail.
-            ManualTrackingStartRepairNavigation.createDashboardIntent(context)
-                ?.let { context.startActivity(it) }
+            openDashboard(context, reevaluateManualStart = attemptedStart)
         }
     }
 
     private companion object {
         const val STATE_PROPAGATION_DELAY_MS = 500L
     }
+}
+
+/** Stops all collection, including all-day sources and automatic starts. */
+class TurnOffTrackingAction : ActionCallback {
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters,
+    ) {
+        try {
+            when (TrackerServiceApi.turnOffTrackingAndAwait(context)) {
+                TrackingTurnOffResult.UNAVAILABLE,
+                TrackingTurnOffResult.SUPERSEDED_BY_NEW_START ->
+                    openDashboard(context, reevaluateManualStart = false)
+                TrackingTurnOffResult.COMPLETE,
+                TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING -> Unit
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            openDashboard(context, reevaluateManualStart = false)
+        } finally {
+            WidgetUpdateScheduler.updateAllWidgets(context)
+        }
+    }
+}
+
+private fun openDashboard(context: Context, reevaluateManualStart: Boolean) {
+    ManualTrackingStartRepairNavigation.createDashboardIntent(
+        context,
+        reevaluateManualStart = reevaluateManualStart,
+    )?.let { context.startActivity(it) }
 }
 
 /**

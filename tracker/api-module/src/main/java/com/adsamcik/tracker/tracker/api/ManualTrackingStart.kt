@@ -59,11 +59,18 @@ object ManualTrackingStartRepairNavigation {
 	private const val EXTRA_REEVALUATE_MANUAL_START =
 		"com.adsamcik.tracker.extra.REEVALUATE_MANUAL_START"
 
-	fun createDashboardIntent(context: Context): Intent? =
+	fun createDashboardIntent(
+		context: Context,
+		reevaluateManualStart: Boolean = true,
+	): Intent? =
 		context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
 			addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
 			putExtra(EXTRA_NAVIGATE_TO, TARGET_DASHBOARD)
-			putExtra(EXTRA_REEVALUATE_MANUAL_START, true)
+			if (reevaluateManualStart) {
+				putExtra(EXTRA_REEVALUATE_MANUAL_START, true)
+			} else {
+				removeExtra(EXTRA_REEVALUATE_MANUAL_START)
+			}
 		}
 
 	/** Consumes the one-shot request while leaving the stable Dashboard destination untouched. */
