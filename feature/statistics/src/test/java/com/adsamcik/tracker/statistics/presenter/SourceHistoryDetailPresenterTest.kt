@@ -63,23 +63,28 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withContext
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class SourceHistoryDetailPresenterTest {
 	private val dispatcher = StandardTestDispatcher()
 	private val wifiRepository = mockk<WifiHistoryRepository>()
 	private val cellRepository = mockk<CellHistoryRepository>()
 	private val presenter = SourceHistoryDetailPresenter(wifiRepository, cellRepository)
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		Dispatchers.setMain(dispatcher)
 	}
 
-	@AfterEach
+	@After
 	fun tearDown() {
 		Dispatchers.resetMain()
 	}

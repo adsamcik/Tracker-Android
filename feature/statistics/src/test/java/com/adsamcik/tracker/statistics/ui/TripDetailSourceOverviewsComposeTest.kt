@@ -106,8 +106,10 @@ class TripDetailSourceOverviewsComposeTest {
 		}
 
 		composeRule.onNodeWithText(text(R.string.trip_detail_activity_unavailable))
+			.performScrollTo()
 			.assertIsDisplayed()
 		composeRule.onNodeWithText(text(R.string.trip_detail_activity_unavailable_explanation))
+			.performScrollTo()
 			.assertIsDisplayed()
 		composeRule.onNodeWithText(text(R.string.trip_detail_activity_timeline))
 			.assertDoesNotExist()
@@ -277,13 +279,14 @@ class TripDetailSourceOverviewsComposeTest {
 			}
 		}
 
-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_partial)).assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_radio_partial))
+			.performScrollTo().assertIsDisplayed()
 		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_exact))
-			.assertIsDisplayed()
+			.performScrollTo().assertIsDisplayed()
 		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_exact_explanation))
-			.assertIsDisplayed()
+			.performScrollTo().assertIsDisplayed()
 		composeRule.onNodeWithText(text(R.string.trip_detail_radio_coverage_partial))
-			.assertIsDisplayed()
+			.performScrollTo().assertIsDisplayed()
 		composeRule.onNodeWithText(text(R.string.trip_detail_wifi_retained_results))
 			.performScrollTo()
 			.assertIsDisplayed()
@@ -305,7 +308,8 @@ class TripDetailSourceOverviewsComposeTest {
 			}
 		}
 
-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_waiting)).assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_radio_waiting))
+			.performScrollTo().assertIsDisplayed()
 		composeRule.onNodeWithText("0").assertDoesNotExist()
 	}
 
@@ -320,9 +324,10 @@ class TripDetailSourceOverviewsComposeTest {
 			}
 		}
 
-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_partial)).assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_radio_partial))
+			.performScrollTo().assertIsDisplayed()
 		composeRule.onNodeWithText(text(R.string.trip_detail_radio_coverage_partial))
-			.assertIsDisplayed()
+			.performScrollTo().assertIsDisplayed()
 		composeRule.onAllNodesWithText("unique tower", substring = true, ignoreCase = true)
 			.assertCountEquals(0)
 		composeRule.onAllNodesWithText("SIM", substring = true, ignoreCase = true)
@@ -344,14 +349,15 @@ class TripDetailSourceOverviewsComposeTest {
 		}
 
 		composeRule.onNodeWithText(text(R.string.trip_detail_source_origin_imported))
-			.assertIsDisplayed()
+			.performScrollTo().assertIsDisplayed()
 		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_imported))
-			.assertIsDisplayed()
+			.performScrollTo().assertIsDisplayed()
 		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_imported_explanation))
-			.assertIsDisplayed()
-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_deleted)).assertIsDisplayed()
+			.performScrollTo().assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_radio_deleted))
+			.performScrollTo().assertIsDisplayed()
 		composeRule.onNodeWithText(text(R.string.trip_detail_radio_deleted_explanation))
-			.assertIsDisplayed()
+			.performScrollTo().assertIsDisplayed()
 		composeRule.onNodeWithText("0").assertDoesNotExist()
 	}
 

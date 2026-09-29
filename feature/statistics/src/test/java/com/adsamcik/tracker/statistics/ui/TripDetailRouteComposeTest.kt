@@ -263,7 +263,7 @@ class TripDetailRouteComposeTest {
 	fun `unavailable and failed Pressure remain distinct nonnumeric states`() {
 		composeTestRule.setContent {
 			MaterialTheme(colorScheme = lightColorScheme()) {
-				Column {
+				Column(Modifier.verticalScroll(rememberScrollState())) {
 					TripDetailPressureCard(
 						pressureHistory(
 							availability = HistoryAvailability.UNAVAILABLE,
