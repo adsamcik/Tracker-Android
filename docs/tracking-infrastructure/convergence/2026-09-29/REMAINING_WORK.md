@@ -54,6 +54,11 @@ Authored tests, static review and isolated commits do not satisfy those chains.
   trigger/capture separation; joined-source continuity; process/boot/service
   recovery, FGS refusal and user-stop fencing. (`WI-LIFECYCLE-RUNTIME-001`,
   `WI-LIFECYCLE-PRODUCT-PROOF-001`, `WI-CROSS-SOURCE-RECOVERY-001`)
+
+  The durable all-purpose Turn off command, atomic Off/STOP reservation and
+  startup cleanup retry were source-authored at `3cfe9ff81c` with focused
+  tests, **IMPLEMENTED_UNVALIDATED**. App, notification, widget and shortcut
+  actions are still unwired; no real Stop or device behavior has been measured.
 - [ ] **Retained data and files:** purpose-scoped consent, correction, erase,
   retention, replay and restore; source file transfers and session bundles;
   one selected format per export; truthful geographic date/session scope; all-data
