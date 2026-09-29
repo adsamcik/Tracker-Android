@@ -42,6 +42,11 @@ Authored tests, static review and isolated commits do not satisfy those chains.
   restart/cooldown/passive-continuity tests, **IMPLEMENTED_UNVALIDATED**;
   provider and battery behavior is still unmeasured. (`WI-WIFI-VERTICAL-001`,
   `WI-CELL-VERTICAL-001`)
+
+  Purpose-owned radio child checksums and the development v29 child schema,
+  legacy-row copy, containment and invalidation were source-authored at
+  `b1d9c1e99f` and `78e3bd35e0`, **IMPLEMENTED_UNVALIDATED**. Product writers,
+  readers and files still need the final chain and schema/gate validation.
 - [ ] **Shared authority and runtime:** final atomic policy/demand/registration/
   receipt/publication path; authenticated source callers; one physical owner per
   source; independent purpose lifetimes; five-level quality without changing
