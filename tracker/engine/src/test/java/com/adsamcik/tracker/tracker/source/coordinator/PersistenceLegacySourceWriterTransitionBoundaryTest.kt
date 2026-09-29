@@ -83,7 +83,7 @@ class PersistenceLegacySourceWriterTransitionBoundaryTest {
 		}
 
 	@Test
-	fun `incomplete pending recovery blocks transition and unsupported sources remain unavailable`() =
+	fun `incomplete pending recovery blocks pressure and radio transitions`() =
 		runTest {
 			val lease = ExclusiveTrackingPersistenceLifecycleLease()
 			val persistence = mockk<PersistenceProcessor>()
@@ -102,9 +102,13 @@ class PersistenceLegacySourceWriterTransitionBoundaryTest {
 				operationRan = true
 				"unexpected"
 			} shouldBe null
+			boundary.runIfQuiescent(SourceKind.CELL) {
+				operationRan = true
+				"unexpected"
+			} shouldBe null
 
 			operationRan shouldBe false
-			coVerify(exactly = 1) { persistence.drainOrphanedSignals() }
+			coVerify(exactly = 3) { persistence.drainOrphanedSignals() }
 			SourcePipelineModule.provideLegacySourceWriterTransitionBoundary(boundary) shouldBe boundary
 		}
 

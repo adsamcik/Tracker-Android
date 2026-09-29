@@ -113,6 +113,68 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 	}
 
 	@Test
+	fun `Wifi activation waits for legacy radio drain before claiming its writer`() = runTest {
+		seedContainedRollout()
+		val requestedSources = mutableListOf<SourceKind>()
+		val activeLegacyWriter = object : LegacySourceWriterTransitionBoundary {
+			override suspend fun <T : Any> runIfQuiescent(
+				source: SourceKind,
+				operation: suspend () -> T,
+			): T? {
+				requestedSources += source
+				return null
+			}
+		}
+		val coordinator = WifiSessionFactWriterTransitionCoordinator(
+			database,
+			catalog,
+			dependencies(legacyWriterQuiescence = activeLegacyWriter),
+		)
+		coordinator.installInertCandidate(1L, 10L)
+		val blocked = coordinator.activateCandidate(2L, 11L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+
+		blocked.blocker shouldBe SourceWriterTransitionBlocker.LEGACY_WRITER_NOT_QUIESCENT
+		requestedSources shouldBe listOf(SourceKind.WIFI)
+		rollout().isAcquisitionReachable(SourceKind.WIFI) shouldBe false
+		database.sourceDestinationOwnerDao().get(
+			SourceDestinationOwnerEntity.SOURCE_WIFI,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
+		) shouldBe null
+	}
+
+	@Test
+	fun `Cell activation waits for legacy radio drain before claiming its writer`() = runTest {
+		seedContainedRollout()
+		val requestedSources = mutableListOf<SourceKind>()
+		val activeLegacyWriter = object : LegacySourceWriterTransitionBoundary {
+			override suspend fun <T : Any> runIfQuiescent(
+				source: SourceKind,
+				operation: suspend () -> T,
+			): T? {
+				requestedSources += source
+				return null
+			}
+		}
+		val coordinator = CellSessionFactWriterTransitionCoordinator(
+			database,
+			catalog,
+			dependencies(legacyWriterQuiescence = activeLegacyWriter),
+		)
+		coordinator.installInertCandidate(1L, 10L)
+		val blocked = coordinator.activateCandidate(2L, 11L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+
+		blocked.blocker shouldBe SourceWriterTransitionBlocker.LEGACY_WRITER_NOT_QUIESCENT
+		requestedSources shouldBe listOf(SourceKind.CELL)
+		rollout().isAcquisitionReachable(SourceKind.CELL) shouldBe false
+		database.sourceDestinationOwnerDao().get(
+			SourceDestinationOwnerEntity.SOURCE_CELL,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+		) shouldBe null
+	}
+
+	@Test
 	fun `Pressure activation waits outside coordinator lease until live teardown releases persistence`() =
 		runTest {
 			seedContainedRollout()

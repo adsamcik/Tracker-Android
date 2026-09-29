@@ -29,6 +29,11 @@ internal class PersistenceLegacySourceWriterTransitionBoundary @Inject construct
 	}
 
 	private companion object {
-		val SUPPORTED_SOURCES = setOf(SourceKind.ACTIVITY, SourceKind.PRESSURE)
+		val SUPPORTED_SOURCES = setOf(
+			SourceKind.ACTIVITY,
+			SourceKind.PRESSURE,
+			SourceKind.WIFI,
+			SourceKind.CELL,
+		)
 	}
 }

@@ -1524,6 +1524,43 @@ class PersistenceProcessorTest {
 		}
 
 		@Test
+		fun `source owned radio writers fence later legacy writes but acknowledge their WAL`() = runTest {
+			coEvery {
+				sourceDestinationOwnerDao.get(
+					SourceDestinationOwnerEntity.SOURCE_WIFI,
+					SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
+				)
+			} returns SourceDestinationOwnerEntity(
+				SourceDestinationOwnerEntity.SOURCE_WIFI,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
+				SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS,
+				SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				1_000L,
+			)
+			coEvery {
+				sourceDestinationOwnerDao.get(
+					SourceDestinationOwnerEntity.SOURCE_CELL,
+					SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+				)
+			} returns SourceDestinationOwnerEntity(
+				SourceDestinationOwnerEntity.SOURCE_CELL,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+				SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
+				SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				1_000L,
+			)
+
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+			processor.onSignal(signalWithWifi())
+			processor.onSignal(signalWithCells())
+			processor.onFlush()
+
+			coVerify(exactly = 0) { wifiDao.insert(any<Collection<WifiObservation>>()) }
+			coVerify(exactly = 0) { cellDao.insert(any<Collection<CellSample>>()) }
+			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(1L, 2L)) }
+		}
+
+		@Test
 		fun `onFlush writes buffered pressure to DAO`() = runTest {
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
 

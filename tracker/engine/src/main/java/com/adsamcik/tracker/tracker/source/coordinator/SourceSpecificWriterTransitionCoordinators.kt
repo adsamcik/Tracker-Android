@@ -1130,7 +1130,7 @@ internal enum class SourceWriterTransitionSpec(
 		null,
 		SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS,
 		CONTAINED_WIFI_SESSION_OWNER,
-		false,
+		true,
 	),
 	CELL(
 		SourceKind.CELL,
@@ -1139,7 +1139,7 @@ internal enum class SourceWriterTransitionSpec(
 		null,
 		SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
 		CONTAINED_CELL_SESSION_OWNER,
-		false,
+		true,
 	),
 }
 

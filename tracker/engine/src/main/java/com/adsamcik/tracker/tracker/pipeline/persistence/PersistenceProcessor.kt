@@ -1045,8 +1045,20 @@ class PersistenceProcessor @Inject internal constructor(
 		val decisions = locationDecisionBuffer.filterNot {
 			it.hasStaleSourceSignal(staleSourceSignalIds)
 		}
-		val cells = cellBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
-		val wifi = wifiBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
+		// The legacy pipeline has no radio destination owner. Once a source-owned radio fact
+		// writer has claimed its destination, a later legacy cycle must not publish a second
+		// copy through cell_sample/wifi_observation. The transition first drains the legacy
+		// WAL under the persistence lifecycle lease, so this check also fences later retries.
+		val cellCandidates = cellBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
+		val wifiCandidates = wifiBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
+		val cells = if (cellCandidates.isNotEmpty() && legacyRadioDestinationIsUnclaimed(
+				SourceDestinationOwnerEntity.SOURCE_CELL,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+			)) cellCandidates else emptyList()
+		val wifi = if (wifiCandidates.isNotEmpty() && legacyRadioDestinationIsUnclaimed(
+				SourceDestinationOwnerEntity.SOURCE_WIFI,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
+			)) wifiCandidates else emptyList()
 		val steps = stepBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
 		val activities = activityBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
 		val admissionsBySignal = pendingAdmissions.values.associateBy(PendingAdmission::sourceSignalId)
@@ -1145,6 +1157,9 @@ class PersistenceProcessor @Inject internal constructor(
 			activitySnapshotDao.insert(chunk)
 		}
 	}
+
+	private suspend fun legacyRadioDestinationIsUnclaimed(sourceKind: Int, destination: String): Boolean =
+		sourceDestinationOwnerDao.get(sourceKind, destination) == null
 
 	private suspend fun requireExistingLocationDestinationOwner(hasLocationMutation: Boolean) {
 		if (!hasLocationMutation) return
