@@ -42,9 +42,10 @@ import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientWifiResult
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientCellImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientWifiArchiveV1
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientWifiImportReceipt
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
-import kotlin.test.Test
+import io.kotest.matchers.shouldBe
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
@@ -52,21 +53,23 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /** Room-backed portable lineage scenarios; execution remains deferred to convergence. */
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class RoomAmbientRadioPortableTransferTest {
 	private lateinit var database: AppDatabase
 	private val dispatcher = UnconfinedTestDispatcher()
 
-	@BeforeTest
+	@Before
 	fun setUp() = runTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		installImportAuthority(database)
 	}
 
-	@AfterTest
+	@After
 	fun tearDown() {
 		database.close()
 	}
@@ -359,16 +362,28 @@ class RoomAmbientRadioPortableTransferTest {
 				1,
 				database.sourceEvidenceStateDao().updateLifecycle(4L, 1_500L, 11_000L),
 			)
-
-			val result = assertIs<AmbientWifiRetentionResult.Pruned>(
-				database.pruneAmbientWifi(
-					AmbientWifiRetentionCommand(
-						beforeMs = 1_500L,
-						expectedCollectedDataEpoch = 4L,
-						appliedAtMs = 12_000L,
+			assertIs<com.adsamcik.tracker.shared.base.database.AmbientRadioRetentionAuthorityResult.Applied>(
+				database.applyAmbientWifiRetentionDecision(
+					AmbientRadioRetentionDecision.GrantPortableImport(
+						"privacy:wifi:import:v1",
+						4L,
+						"boot-1",
+						2L,
+						11_001L,
+						expectedPreviousApprovalRevision = 1L,
+						expectedRetainedFromMs = 1_500L,
 					),
 				),
 			)
+
+			val result = database.pruneAmbientWifi(
+				AmbientWifiRetentionCommand(
+					beforeMs = 1_500L,
+					expectedCollectedDataEpoch = 4L,
+					appliedAtMs = 12_000L,
+				),
+			)
+			check(result is AmbientWifiRetentionResult.Pruned) { "Expected Wi-Fi prune, got $result" }
 
 			assertEquals(0, result.importedArchives)
 			assertEquals(
