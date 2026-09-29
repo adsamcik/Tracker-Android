@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryValue
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericHistoryDay
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericRangeRead
@@ -170,6 +171,22 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		ambientRepository.read(request()) shouldBe StepsNumericSummary.Ready(
 			listOf(StepsNumericDay(DAY, 12L)),
 		)
+	}
+
+	@Test
+	fun `ambient calendar conflict is reported as calendar unavailable`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L)
+		val ambientRepository = RoomStepsNumericSummaryRepository(
+			database,
+			Dispatchers.IO,
+			FakeAmbientStepsTransactionReader { _, _ ->
+				AmbientStepsNumericRangeRead.Unavailable(
+					AmbientStepsHistoryUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
+				)
+			},
+		)
+
+		ambientRepository.read(request()) shouldBe calendarUnavailable()
 	}
 
 	@Test

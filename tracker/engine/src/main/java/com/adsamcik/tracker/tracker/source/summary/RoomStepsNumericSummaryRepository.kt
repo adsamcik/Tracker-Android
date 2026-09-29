@@ -304,7 +304,7 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 			return StepsNumericWindowDraft(
 				decisionWindow(
 					request,
-					sourceEvidenceUnavailable(),
+					calendarUnavailable(),
 					StepsNumericCalendarAuthority.Unavailable,
 				),
 				baseComposition = null,
@@ -341,7 +341,9 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 				return StepsNumericWindowDraft(
 					decisionWindow(
 						request,
-						sourceEvidenceUnavailable(),
+						if (discovery.reason ==
+							AmbientStepsHistoryUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE
+						) calendarUnavailable() else sourceEvidenceUnavailable(),
 						StepsNumericCalendarAuthority.Unavailable,
 					),
 					baseComposition = null,
@@ -554,9 +556,15 @@ private fun StepsNumericWindowDraft.withAmbientSteps(
 			}
 			mergeAmbientNumericDays(baseComposition, selected)
 		}
-		is AmbientStepsNumericRangeRead.DependencyOverflow,
-		is AmbientStepsNumericRangeRead.Unavailable,
-		-> sourceEvidenceUnavailable()
+		is AmbientStepsNumericRangeRead.DependencyOverflow -> sourceEvidenceUnavailable()
+		is AmbientStepsNumericRangeRead.Unavailable ->
+			if (ambient.reason == AmbientStepsHistoryUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE) {
+				StepsNumericSummary.Unverifiable(
+					StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
+				)
+			} else {
+				sourceEvidenceUnavailable()
+			}
 		AmbientStepsNumericRangeRead.StorageUnavailable -> return decision
 	}
 	return decision.copyWithSummary(merged)
