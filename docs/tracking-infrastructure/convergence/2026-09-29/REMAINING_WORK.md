@@ -53,6 +53,10 @@ Authored tests, static review and isolated commits do not satisfy those chains.
   legacy-row copy, containment and invalidation were source-authored at
   `b1d9c1e99f` and `78e3bd35e0`, **IMPLEMENTED_UNVALIDATED**. Product writers,
   readers and files still need the final chain and schema/gate validation.
+  The bounded one-source Wi-Fi/Cell file value and JSON codec with authored
+  round-trip and malformed-file tests were source-authored at `b32c60d107`,
+  **IMPLEMENTED_UNVALIDATED**. The exporter/importer adapters, original-data
+  checks, user-facing format selection and actual round trip remain pending.
 - [ ] **Shared authority and runtime:** final atomic policy/demand/registration/
   receipt/publication path; authenticated source callers; one physical owner per
   source; independent purpose lifetimes; five-level quality without changing
