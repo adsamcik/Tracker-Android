@@ -16,6 +16,11 @@ Authored tests, static review and isolated commits do not satisfy those chains.
   manual and automatic session annotation, selected history, summaries, goals,
   export, deletion and Stop. (`WI-STEPS-MANUAL-001`, `WI-STEPS-AUTOMATIC-001`,
   `WI-STEPS-AMBIENT-001`, `WI-STEPS-NUMERIC-001`)
+
+  Six-source first-run setup and the single all-day Steps policy choice were
+  source-authored at `b5ba0a6f9e` with recovery and permission tests,
+  **IMPLEMENTED_UNVALIDATED**. The Tracker settings surface, provider-to-day
+  query and export chains still need assembly.
 - [ ] **Location:** compose one physical owner for active, rearmable passive and
   temporary user-requested leases; retire old registrations before replacement;
   finish authenticated cold delivery, durable delivery-gap reporting, historical
