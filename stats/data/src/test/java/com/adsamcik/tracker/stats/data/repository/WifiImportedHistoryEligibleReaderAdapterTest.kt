@@ -122,11 +122,13 @@ class WifiImportedHistoryEligibleReaderAdapterTest {
 		page.entries.map { it.recency.newestMemberTieIdentity } shouldBe expected.map {
 			ImportedHistoryRecencyTieIdentity(it.newestMemberIdentity.value)
 		}
-		page.entries.indexOfFirst {
+		val olderIndex = page.entries.indexOfFirst {
 			it.selection == readable(olderEnvelopeNewerMember).candidate.selection
-		} < page.entries.indexOfFirst {
+		}
+		val newerIndex = page.entries.indexOfFirst {
 			it.selection == readable(newerEnvelopeOlderMember).candidate.selection
-		} shouldBe true
+		}
+		(olderIndex < newerIndex) shouldBe true
 	}
 
 	@Test
@@ -366,9 +368,10 @@ class WifiImportedHistoryEligibleReaderAdapterTest {
 			val remaining = ordered.filter { evaluation ->
 				val start = evaluation.candidate.newestMemberStartTimeMs
 				val identity = evaluation.candidate.newestMemberIdentity.value
-				request.beforeNewestMemberStartTimeMs == null ||
-					start < request.beforeNewestMemberStartTimeMs ||
-					start == request.beforeNewestMemberStartTimeMs &&
+				val beforeStart = request.beforeNewestMemberStartTimeMs
+				beforeStart == null ||
+					start < beforeStart ||
+					start == beforeStart &&
 					identity < requireNotNull(request.beforeNewestMemberIdentity).value
 			}
 			val selected = remaining.take(minOf(request.limit, maximumRowsPerPage))

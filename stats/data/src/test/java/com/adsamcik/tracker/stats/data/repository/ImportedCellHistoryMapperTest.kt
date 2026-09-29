@@ -866,11 +866,12 @@ class ImportedCellHistoryMapperTest {
 				database,
 				SourceProductLaneExecutionAuthority { false },
 				Dispatchers.Unconfined,
-			) { completedPageCount ->
-				if (completedPageCount == 1) {
-					throw CancellationException("cancel before second eligible Cell page")
-				}
-			}
+				sharedHistoryPageCheckpoint = { completedPageCount ->
+					if (completedPageCount == 1) {
+						throw CancellationException("cancel before second eligible Cell page")
+					}
+				},
+			)
 			shouldThrow<CancellationException> {
 				database.withTransaction {
 					cancelling.recentImportedEligibleForSharedHistoryInTransaction(40)
@@ -990,7 +991,7 @@ class ImportedCellHistoryMapperTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE imported_cell_observation SET known_quality_observation_count = ?, " +
 				"content_checksum = ? WHERE entry_identity = ?",
-			arrayOf(knownQualityObservationCount, observationChecksum, entry.identity.value),
+			arrayOf<Any?>(knownQualityObservationCount, observationChecksum, entry.identity.value),
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE imported_cell_run SET content_checksum = ? WHERE entry_identity = ?",

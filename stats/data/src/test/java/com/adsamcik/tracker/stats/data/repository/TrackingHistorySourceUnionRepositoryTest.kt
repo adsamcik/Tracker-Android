@@ -37,6 +37,8 @@ import com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection
 import com.adsamcik.tracker.stats.api.repository.ImportedPressureHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluator
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangePage
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentPage
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentPageEvaluator
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentRequest
@@ -63,6 +65,8 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryReader
+import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryResult
 import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelection
 import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
 import com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey
@@ -654,6 +658,10 @@ class TrackingHistorySourceUnionRepositoryTest {
 			override suspend fun selectRecentInTransaction(
 				limit: Int,
 			): List<ImportedWifiProductEvaluation> = emptyList()
+
+			override suspend fun selectRangeInTransaction(
+				request: ImportedWifiProductRangeRequest,
+			): ImportedWifiProductRangePage = ImportedWifiProductRangePage(emptyList(), false)
 		},
 		localPortableReader = object : ReadLocalPortableCapturedWifi {
 			override suspend fun readInTransaction(

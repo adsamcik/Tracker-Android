@@ -18,6 +18,7 @@ import com.adsamcik.tracker.stats.api.repository.OrganizationEditProblem
 import com.adsamcik.tracker.stats.api.repository.OrganizationInterval
 import com.adsamcik.tracker.stats.api.repository.OrganizationMutationResult
 import com.adsamcik.tracker.stats.api.repository.OrganizationSessionId
+import com.adsamcik.tracker.stats.api.repository.OrganizedSession
 import com.adsamcik.tracker.stats.api.repository.SessionOrganizationRead
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
@@ -174,7 +175,8 @@ class SessionOrganizationRoomTest {
 		ids.distinct().size shouldBe 125
 		val refresh = source.load(PagingSource.LoadParams.Refresh(50, 100, false)) as PagingSource.LoadResult.Page<Int, OrganizedSession>
 		val prepend = source.load(PagingSource.LoadParams.Prepend(refresh.prevKey!!, 50, false)) as PagingSource.LoadResult.Page<Int, OrganizedSession>
-		(prepend.data + refresh.data).map { it.id }.toSet().size shouldBe 125
+		val mergedIds = (prepend.data + refresh.data).map { session -> session.id }
+		mergedIds.toSet().size shouldBe 125
 		source.invalidate()
 	}
 

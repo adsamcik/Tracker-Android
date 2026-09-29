@@ -204,7 +204,7 @@ class ImportedPressureFullClearAuthorityTest {
 			  fence_reason, effect_checksum
 			) VALUES (?, 'ENTRY', ?, NULL, ?, 1, ?, 'FULL_CLEAR', CAST(zeroblob(?) AS TEXT))
 			""".trimIndent(),
-			arrayOf(identity, identity, EPOCH, 4_000L, oversized),
+			arrayOf<Any?>(identity, identity, EPOCH, 4_000L, oversized),
 		)
 
 		shouldThrow<RuntimeException> {
@@ -240,7 +240,7 @@ class ImportedPressureFullClearAuthorityTest {
 				  CAST(zeroblob(?) AS TEXT), ?, 1, ?, 0, ?, 0, ?, ?
 				)
 				""".trimIndent(),
-				arrayOf(oversized, EPOCH, 4_000L, checksum, checksum, checksum),
+				arrayOf<Any?>(oversized, EPOCH, 4_000L, checksum, checksum, checksum),
 			)
 
 			shouldThrow<RuntimeException> {
@@ -280,7 +280,7 @@ class ImportedPressureFullClearAuthorityTest {
 			  1, ?, ?, ?
 			)
 			""".trimIndent(),
-			arrayOf(
+			arrayOf<Any?>(
 				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 				oversized,
 				EPOCH,
