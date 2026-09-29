@@ -291,8 +291,9 @@ import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportRoomCallback
 import com.adsamcik.tracker.shared.base.database.legacy.LEGACY_IMPORT_JOB_ID
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 
-/** Last schema shipped on the stable active database file. Its contract is immutable. */
-internal const val LAST_RELEASED_ACTIVE_DATABASE_VERSION = 27
+/** The new active filename began at this unreleased schema; released `main` used legacy v12. */
+internal const val INITIAL_ACTIVE_DATABASE_VERSION = 27
+internal const val LAST_RELEASED_LEGACY_DATABASE_VERSION = 12
 
 /** Current development schema. Version 28 has not shipped and may still be refined in place. */
 internal const val CURRENT_DATABASE_VERSION = 28
@@ -303,9 +304,9 @@ internal const val CURRENT_DATABASE_VERSION = 28
  *
  * CURRENT VERSION: 28 (App versionCode: 400 - UNRELEASED)
  *
- * Version 26 shipped in versionCode 385. Version 27 established the stable active database file
- * and is now the frozen compatibility boundary. Version 28 is the first additive in-place
- * migration on that file. See AppDatabaseMigrations.kt for the full history and migration rules.
+ * Released `main` used v12 in `main_database`. Versions 13-28 are development schemas.
+ * Version 27 introduced the new active filename; its recognized local files migrate in place.
+ * See AppDatabaseMigrations.kt for the full history and migration rules.
  */
 @Database(
 		version = CURRENT_DATABASE_VERSION,

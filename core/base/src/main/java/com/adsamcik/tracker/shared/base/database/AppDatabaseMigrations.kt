@@ -1384,7 +1384,7 @@ internal const val V28_MIGRATION_TERMINAL_RUN_SQL =
 		"run.runtime_failure_code = '$V28_MIGRATION_INTERRUPTION_REASON'"
 
 val MIGRATION_27_28: Migration = object : Migration(
-	LAST_RELEASED_ACTIVE_DATABASE_VERSION,
+	INITIAL_ACTIVE_DATABASE_VERSION,
 	CURRENT_DATABASE_VERSION,
 ) {
 	override fun migrate(db: SupportSQLiteDatabase) {

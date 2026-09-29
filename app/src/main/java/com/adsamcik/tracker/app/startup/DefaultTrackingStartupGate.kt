@@ -753,8 +753,8 @@ class DefaultTrackingStartupGate @Inject constructor(
 			TrackingDatabaseContainmentReason.INCOMPLETE_FINAL_V28_SCHEMA
 		ActiveDatabaseBlockReason.UNREADABLE_DATABASE ->
 			TrackingDatabaseContainmentReason.UNREADABLE_DATABASE
-		ActiveDatabaseBlockReason.RELEASED_V27_MIGRATION_VALIDATION_FAILED ->
-			TrackingDatabaseContainmentReason.RELEASED_V27_MIGRATION_VALIDATION_FAILED
+		ActiveDatabaseBlockReason.DEVELOPMENT_V27_MIGRATION_VALIDATION_FAILED ->
+			TrackingDatabaseContainmentReason.DEVELOPMENT_V27_MIGRATION_VALIDATION_FAILED
 		ActiveDatabaseBlockReason.FINAL_V28_OPEN_VALIDATION_FAILED ->
 			TrackingDatabaseContainmentReason.FINAL_V28_OPEN_VALIDATION_FAILED
 	}

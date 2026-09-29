@@ -22,7 +22,7 @@ import java.io.IOException
  */
 sealed interface ActiveDatabasePreflightResult {
 	data object Fresh : ActiveDatabasePreflightResult
-	data object ReleasedV27 : ActiveDatabasePreflightResult
+	data object KnownDevelopmentV27 : ActiveDatabasePreflightResult
 	data object FinalV28 : ActiveDatabasePreflightResult
 	data class Retryable(val reason: ActiveDatabaseRetryableReason) : ActiveDatabasePreflightResult
 	data class Blocked(val reason: ActiveDatabaseBlockReason) : ActiveDatabasePreflightResult
@@ -40,7 +40,7 @@ enum class ActiveDatabaseBlockReason(val failureCode: String) {
 	INVALID_FINAL_V28_MARKER("INVALID_FINAL_V28_MARKER"),
 	INCOMPLETE_FINAL_V28_SCHEMA("INCOMPLETE_FINAL_V28_SCHEMA"),
 	UNREADABLE_DATABASE("UNREADABLE_DATABASE"),
-	RELEASED_V27_MIGRATION_VALIDATION_FAILED("RELEASED_V27_MIGRATION_VALIDATION_FAILED"),
+	DEVELOPMENT_V27_MIGRATION_VALIDATION_FAILED("DEVELOPMENT_V27_MIGRATION_VALIDATION_FAILED"),
 	FINAL_V28_OPEN_VALIDATION_FAILED("FINAL_V28_OPEN_VALIDATION_FAILED"),
 }
 
@@ -97,7 +97,7 @@ class ActiveDatabasePreflight internal constructor(
 		if (version == 0 && !database.hasApplicationTables()) {
 			return ActiveDatabasePreflightResult.Fresh
 		}
-		if (version != LAST_RELEASED_ACTIVE_DATABASE_VERSION &&
+		if (version != INITIAL_ACTIVE_DATABASE_VERSION &&
 			version != CURRENT_DATABASE_VERSION
 		) {
 			return ActiveDatabasePreflightResult.Blocked(
@@ -109,8 +109,8 @@ class ActiveDatabasePreflight internal constructor(
 				ActiveDatabaseBlockReason.UNRECOGNIZED_DATABASE_SCHEMA,
 			)
 		}
-		if (version == LAST_RELEASED_ACTIVE_DATABASE_VERSION) {
-			return ActiveDatabasePreflightResult.ReleasedV27
+		if (version == INITIAL_ACTIVE_DATABASE_VERSION) {
+			return ActiveDatabasePreflightResult.KnownDevelopmentV27
 		}
 		val markerState = try {
 			database.finalV28MarkerState()
@@ -264,8 +264,8 @@ internal class DevelopmentV28ContainmentOpenHelperFactory(
 				}
 				if (failure is DatabaseMigrationBackupException) throw failure
 				val reason = when (state) {
-					ActiveDatabasePreflightResult.ReleasedV27 ->
-						ActiveDatabaseBlockReason.RELEASED_V27_MIGRATION_VALIDATION_FAILED
+					ActiveDatabasePreflightResult.KnownDevelopmentV27 ->
+						ActiveDatabaseBlockReason.DEVELOPMENT_V27_MIGRATION_VALIDATION_FAILED
 					ActiveDatabasePreflightResult.FinalV28 ->
 						ActiveDatabaseBlockReason.FINAL_V28_OPEN_VALIDATION_FAILED
 					else -> null

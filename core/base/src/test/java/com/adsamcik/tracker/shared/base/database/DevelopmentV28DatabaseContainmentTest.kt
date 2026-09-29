@@ -109,10 +109,10 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
-	fun `released v27 routes to the normal migration path`() {
-		createFixture(version = LAST_RELEASED_ACTIVE_DATABASE_VERSION)
+	fun `known development v27 routes to the normal migration path`() {
+		createFixture(version = INITIAL_ACTIVE_DATABASE_VERSION)
 
-		preflight() shouldBe ActiveDatabasePreflightResult.ReleasedV27
+		preflight() shouldBe ActiveDatabasePreflightResult.KnownDevelopmentV27
 	}
 
 	@Test
@@ -775,8 +775,8 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
-	fun `released v27 migration failure is contained without replacing the source file`() {
-		createFixture(version = LAST_RELEASED_ACTIVE_DATABASE_VERSION)
+	fun `development v27 migration failure is contained without replacing the source file`() {
+		createFixture(version = INITIAL_ACTIVE_DATABASE_VERSION)
 		val helper = DevelopmentV28ContainmentOpenHelperFactory(
 			context = context,
 			databaseName = DATABASE_NAME,
@@ -803,14 +803,14 @@ class DevelopmentV28DatabaseContainmentTest {
 		}
 
 		failure.reason shouldBe
-			ActiveDatabaseBlockReason.RELEASED_V27_MIGRATION_VALIDATION_FAILED
+			ActiveDatabaseBlockReason.DEVELOPMENT_V27_MIGRATION_VALIDATION_FAILED
 		helper.close()
-		preflight() shouldBe ActiveDatabasePreflightResult.ReleasedV27
+		preflight() shouldBe ActiveDatabasePreflightResult.KnownDevelopmentV27
 	}
 
 	@Test
 	fun `database contention is retryable and a later preflight succeeds`() {
-		createFixture(version = LAST_RELEASED_ACTIVE_DATABASE_VERSION)
+		createFixture(version = INITIAL_ACTIVE_DATABASE_VERSION)
 		var delegateOpened = false
 		val guardedHelper = DevelopmentV28ContainmentOpenHelperFactory(
 			context = context,
@@ -821,7 +821,7 @@ class DevelopmentV28DatabaseContainmentTest {
 				.name(DATABASE_NAME)
 				.callback(
 					object : SupportSQLiteOpenHelper.Callback(
-						LAST_RELEASED_ACTIVE_DATABASE_VERSION,
+						INITIAL_ACTIVE_DATABASE_VERSION,
 					) {
 						override fun onCreate(db: SupportSQLiteDatabase) =
 							error("Expected existing v27 fixture")
@@ -858,7 +858,7 @@ class DevelopmentV28DatabaseContainmentTest {
 			lockingDatabase.close()
 		}
 
-		preflight() shouldBe ActiveDatabasePreflightResult.ReleasedV27
+		preflight() shouldBe ActiveDatabasePreflightResult.KnownDevelopmentV27
 		guardedHelper.readableDatabase
 		delegateOpened shouldBe true
 		guardedHelper.close()
@@ -1339,7 +1339,7 @@ class DevelopmentV28DatabaseContainmentTest {
 
 	private fun createCorruptFileFamily(): Map<File, String> {
 		val files = databaseFileFamily()
-		createFixture(version = LAST_RELEASED_ACTIVE_DATABASE_VERSION)
+		createFixture(version = INITIAL_ACTIVE_DATABASE_VERSION)
 		RandomAccessFile(files.first(), "rw").use { database ->
 			database.seek(0L)
 			database.write("not-a-sqlite-header".encodeToByteArray())
