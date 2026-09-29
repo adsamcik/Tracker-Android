@@ -3,6 +3,8 @@ package com.adsamcik.tracker.app.tracking
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
@@ -10,8 +12,10 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -19,10 +23,15 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsWalBoundaryKind
+import com.adsamcik.tracker.shared.base.database.data.StepsWalPayload
+import com.adsamcik.tracker.shared.base.database.data.StepsWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.STEPS_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
@@ -40,6 +49,7 @@ import com.adsamcik.tracker.stats.data.metric.DefaultMetricDirtyTracker
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -126,7 +136,7 @@ class PortableStepsProductionRoundTripTest {
 			destination,
 			FixedLifecycleStore(),
 			ReadyStartupGate,
-			FixedClock(10_000L),
+			FixedClock(END_MS + 10_000L),
 			Dispatchers.Unconfined,
 			DefaultMetricDirtyTracker(),
 			destinationExporter,
@@ -183,9 +193,9 @@ class PortableStepsProductionRoundTripTest {
 				startOrigin = "AUTOMATIC_BACKGROUND_START",
 				clockDomainId = "boot-1",
 				startedAtMs = START_MS,
-				startedElapsedNanos = START_MS,
+				startedElapsedNanos = START_ELAPSED_NS,
 				cutoffAtMs = END_MS,
-				cutoffElapsedNanos = END_MS,
+				cutoffElapsedNanos = END_ELAPSED_NS,
 				completedAtMs = END_MS,
 				finalAdmissionOrdinal = 1L,
 				failureCode = null,
@@ -205,7 +215,7 @@ class PortableStepsProductionRoundTripTest {
 				rolloutRevision = 1L,
 				foregroundCapabilityFlags = 0L,
 				startedAtMs = START_MS,
-				startedElapsedNanos = START_MS,
+				startedElapsedNanos = START_ELAPSED_NS,
 				completedAtMs = END_MS,
 				completionReason = "STOPPED",
 				bootId = "boot-1",
@@ -257,7 +267,7 @@ class PortableStepsProductionRoundTripTest {
 			rolloutRevision = 1L,
 			startOrigin = "AUTOMATIC_BACKGROUND_START",
 			effectiveBootId = "boot-1",
-			effectiveElapsedRealtimeNanos = START_MS,
+			effectiveElapsedRealtimeNanos = START_ELAPSED_NS,
 			effectiveWallTimeMs = START_MS,
 			zoneId = "Europe/Prague",
 			automationEpoch = 1L,
@@ -300,10 +310,10 @@ class PortableStepsProductionRoundTripTest {
 			writerProjectionVersion = WRITER_VERSION,
 			writerBindingGeneration = BINDING_GENERATION,
 			operation = StepFactRevisionEntity.OPERATION_UPSERT,
-			intervalStartTimeMs = START_MS + 10L,
-			intervalEndTimeMs = END_MS - 10L,
-			intervalStartElapsedRealtimeNanos = START_MS + 10L,
-			intervalEndElapsedRealtimeNanos = END_MS - 10L,
+			intervalStartTimeMs = START_MS,
+			intervalEndTimeMs = END_MS,
+			intervalStartElapsedRealtimeNanos = START_ELAPSED_NS,
+			intervalEndElapsedRealtimeNanos = END_ELAPSED_NS,
 			clockDomainId = "boot-1",
 			bootClockDomainId = "boot-1",
 			cumulativeStepCountStart = 100L,
@@ -322,15 +332,77 @@ class PortableStepsProductionRoundTripTest {
 			effectChecksum = "pending",
 			appliedAtMs = END_MS,
 		)
-		source.stepFactRevisionDao().insert(
-			unsignedFact.copy(effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsignedFact)),
+		val fact = unsignedFact.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsignedFact),
 		)
+		source.stepFactRevisionDao().insert(fact)
+		val sourceInstanceId = "steps-$RUN_ID"
+		val digest = MessageDigest.getInstance("SHA-256")
+			.digest(sourceInstanceId.toByteArray(Charsets.UTF_8))
+			.joinToString("") { byte -> "%02x".format(byte) }
+		val token = StepsCounterDomainToken.opaque("sha256:$digest")
+		val payload = StepsWalPayload(
+			bootClockDomainId = "boot-1",
+			firstCumulativeCount = 100L,
+			lastCumulativeCount = 112L,
+			deltaCount = 12L,
+			windowStartElapsedRealtimeNanos = START_ELAPSED_NS,
+			windowEndElapsedRealtimeNanos = END_ELAPSED_NS,
+			firstProviderSequence = 1L,
+			lastProviderSequence = 1L,
+			boundaryKind = StepsWalBoundaryKind.COVERED,
+			counterEpochGeneration = 1L,
+			counterDomainToken = token,
+		)
+		val unsignedWal = SourceEventWalEntity(
+			admissionOrdinal = 1L,
+			eventId = "event-1",
+			providerDedupKey = "steps:$RUN_ID:event-1",
+			logicalTrackingId = LOGICAL_ID,
+			serviceRunId = RUN_ID,
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			sourceInstanceId = sourceInstanceId,
+			registrationGeneration = 1L,
+			physicalConfigurationFingerprint = "f".repeat(64),
+			authorizationRevision = 1L,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			authorizationFingerprint = "a".repeat(64),
+			sourceSequence = 1L,
+			configRevision = 1L,
+			planAttribution = 0,
+			clockDomainId = "boot-1",
+			observedElapsedNanos = END_ELAPSED_NS,
+			observedIntervalStartNanos = START_ELAPSED_NS,
+			receivedElapsedNanos = END_ELAPSED_NS,
+			receivedWallTimeMs = END_MS,
+			wallTimeMs = END_MS,
+			wallTimeUncertaintyMs = 0L,
+			capturedCollectedDataEpoch = 0L,
+			sourcePolicyRevision = 1L,
+			captureConsentEpoch = 1L,
+			sessionManifestRevision = 1L,
+			lifecycleLeaseGeneration = 1L,
+			acquiredAtMs = END_MS,
+			qualityFlags = 0L,
+			qualityConfidence = null,
+			payloadVersion = STEPS_WAL_PAYLOAD_VERSION,
+			payload = StepsWalPayloadCodec.encode(payload, STEPS_WAL_PAYLOAD_VERSION),
+			payloadChecksum = "",
+			integrityIdentity = "pending",
+			createdAtMs = END_MS,
+		)
+		val checksummedWal = unsignedWal.copy(payloadChecksum = unsignedWal.calculatedPayloadChecksum())
+		val wal = checksummedWal.copy(integrityIdentity = checksummedWal.calculatedIntegrityIdentity())
+		source.sourceEventWalDao().insertIgnoringDuplicate(wal)
+		val countDomainStore = StepsCountDomainStore(source)
+		countDomainStore.recordSessionWal(wal, token) shouldBe StepsCountDomainWriteResult.INSERTED
+		countDomainStore.recordSessionFact(fact) shouldBe StepsCountDomainWriteResult.INSERTED
 		source.sourceSessionDao().saveCompleteness(
 			SourceSessionCompletenessEntity(
 				logicalTrackingId = LOGICAL_ID,
 				serviceRunId = RUN_ID,
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-				sourceInstanceId = "steps-1",
+				sourceInstanceId = "steps-$RUN_ID",
 				registrationGeneration = 1L,
 				lastAdmissionOrdinal = 1L,
 				lastSourceSequence = 1L,
@@ -413,8 +485,10 @@ class PortableStepsProductionRoundTripTest {
 		const val LOGICAL_ID = "round-trip-logical"
 		const val RUN_ID = "round-trip-run"
 		const val SEGMENT_ID = 41L
-		const val START_MS = 1_000L
-		const val END_MS = 2_000L
+		const val START_MS = 86_401_000L
+		const val END_MS = 86_402_000L
+		const val START_ELAPSED_NS = START_MS * 1_000_000L
+		const val END_ELAPSED_NS = END_MS * 1_000_000L
 		const val WRITER_ID = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID
 		const val WRITER_VERSION = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION
 		const val BINDING_GENERATION =
