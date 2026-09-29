@@ -37,6 +37,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
@@ -70,6 +71,7 @@ import com.adsamcik.tracker.stats.api.repository.SourceEvidenceIdentity
 import com.adsamcik.tracker.stats.api.repository.SourceFactIdentity
 import com.adsamcik.tracker.stats.api.repository.SourceFactLookupRequest
 import com.adsamcik.tracker.stats.api.repository.SourceFactLookupResult
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.SourceProofCompleteness
 import com.adsamcik.tracker.stats.api.repository.SourceProofCoverage
 import com.adsamcik.tracker.stats.api.repository.SourceProofKey
@@ -179,7 +181,7 @@ class CellHistoryRepositoryRoomTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE cell_captured_fact_cursor SET latest_semantic_revision = ? " +
 				"WHERE logical_fact_id = ?",
-			arrayOf(owner.semanticRevision - 1L, owner.logicalFactId),
+			arrayOf<Any?>(owner.semanticRevision - 1L, owner.logicalFactId),
 		)
 
 		RoomSourceFactLookupReader(
@@ -356,10 +358,14 @@ class CellHistoryRepositoryRoomTest {
 			val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
 			persist(listOf(group))
 			val authority = SourceProductLaneExecutionAuthority { database.inTransaction() }
-			val portable = database.withTransaction {
+			val localRead = database.withTransaction {
 				RoomReadLocalPortableCapturedCell(database, authority)
 					.readInTransaction(group.session.logicalTrackingId)
-			} as ReadLocalPortableCapturedCellResult.Ready
+			}
+			check(localRead is ReadLocalPortableCapturedCellResult.Ready) {
+				"Local Cell fixture could not be read: $localRead"
+			}
+			val portable = localRead
 			RoomImportPortableCapturedCell(
 				database,
 				UnconfinedTestDispatcher(testScheduler),
@@ -497,9 +503,10 @@ class CellHistoryRepositoryRoomTest {
 				database,
 				SourceProductLaneExecutionAuthority { database.inTransaction() },
 				UnconfinedTestDispatcher(testScheduler),
-			) { completedPageCount ->
-				checkpoints += completedPageCount
-			}
+				sharedHistoryPageCheckpoint = { completedPageCount ->
+					checkpoints += completedPageCount
+				},
+			)
 
 			database.withTransaction {
 				repository.recentImportedEligibleForSharedHistoryInTransaction(32)
@@ -754,7 +761,7 @@ class CellHistoryRepositoryRoomTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE session_manifest_version SET manifest_checksum = ? " +
 				"WHERE logical_tracking_id = ? AND manifest_revision = ?",
-			arrayOf(checksum, group.session.logicalTrackingId, run.manifest.manifestRevision),
+			arrayOf<Any?>(checksum, group.session.logicalTrackingId, run.manifest.manifestRevision),
 		)
 		val repository = repository { true }
 
@@ -801,7 +808,7 @@ class CellHistoryRepositoryRoomTest {
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_service_run SET session_segment_id = ? WHERE service_run_id = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				second.runs.single().segment.id,
 				first.runs.single().run.serviceRunId,
 			),
@@ -944,7 +951,7 @@ class CellHistoryRepositoryRoomTest {
 		val cursor = ownerCursor(group)
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM cell_captured_fact_revision WHERE logical_fact_id = ? AND semantic_revision = ?",
-			arrayOf(cursor.logicalFactId, cursor.latestSemanticRevision),
+			arrayOf<Any?>(cursor.logicalFactId, cursor.latestSemanticRevision),
 		)
 
 		assertRecentFactIntegrityFailure()
@@ -964,7 +971,7 @@ class CellHistoryRepositoryRoomTest {
 		corruptions.forEach { (column, value) ->
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE cell_captured_fact_cursor SET $column = ? WHERE logical_fact_id = ?",
-				arrayOf(value, cursor.logicalFactId),
+				arrayOf<Any?>(value, cursor.logicalFactId),
 			)
 			assertRecentFactIntegrityFailure()
 			restoreCursorHead(cursor)
@@ -1021,7 +1028,7 @@ class CellHistoryRepositoryRoomTest {
 		persist(listOf(group))
 
 		val entry = (
-			repository({ true }, currentClockDomainId = "boot-current")
+			repository(currentClockDomainId = "boot-current", authority = { true })
 				.session(group.runs.single().segment.id) as CellHistoryQuery.Found
 			).entry
 
@@ -1040,7 +1047,7 @@ class CellHistoryRepositoryRoomTest {
 		persist(listOf(group))
 
 		val entry = (
-			repository({ true }, currentClockDomainId = "boot-current")
+			repository(currentClockDomainId = "boot-current", authority = { true })
 				.session(group.runs.single().segment.id) as CellHistoryQuery.Found
 			).entry
 
@@ -1062,8 +1069,8 @@ class CellHistoryRepositoryRoomTest {
 	}
 
 	private fun repository(
-		authority: () -> Boolean,
 		currentClockDomainId: String? = null,
+		authority: () -> Boolean,
 	) = DefaultCellHistoryRepository(
 		database,
 		SourceProductLaneExecutionAuthority { authority() },
@@ -1097,6 +1104,15 @@ class CellHistoryRepositoryRoomTest {
 		val brokerDao = target.sourceBrokerDao()
 		val factDao = target.cellCapturedFactDao()
 		target.sourceEvidenceStateDao().ensure(evidenceState)
+		target.sourceDestinationOwnerDao().insertIfAbsent(
+			SourceDestinationOwnerEntity(
+				sourceKind = CELL_SOURCE,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+				owner = SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
+				ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				updatedAtMs = 0L,
+			),
+		)
 		groups.map(Group::session).forEach { sessionDao.insertSession(it) }
 		target.sessionSegmentDao().insert(runs.map(BuiltRun::segment))
 		runs.sortedBy { it.run.startedAtMs }.forEach { sessionDao.insertServiceRun(it.run) }
@@ -1301,7 +1317,8 @@ class CellHistoryRepositoryRoomTest {
 		)
 		if (!spec.hasFact) {
 			return BuiltRun(segment, run, manifest, source, policy, consent, planHeader, desiredPlan,
-				emptyList(), null, emptyList(), emptyList(), completeness(logicalId, spec, null))
+				emptyList(), null, emptyList(), emptyList(), emptyList(),
+				completeness(logicalId, spec, null))
 		}
 		val demand = demand(logicalId, spec, runEndElapsed, runEndWall)
 		val authorization = SourceBrokerAuthorization.rows(
@@ -1737,7 +1754,7 @@ class CellHistoryRepositoryRoomTest {
 			"UPDATE cell_captured_fact_cursor SET latest_semantic_revision = ?, " +
 				"latest_mutation_id = ?, latest_effect_checksum = ?, " +
 				"latest_source_admission_ordinal = ? WHERE logical_fact_id = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				cursor.latestSemanticRevision,
 				cursor.latestMutationId,
 				cursor.latestEffectChecksum,
@@ -1786,8 +1803,7 @@ class CellHistoryRepositoryRoomTest {
 			lastAdmissionOrdinal = lastOrdinal,
 			lastSourceSequence = lastOrdinal,
 			appDrainComplete = true,
-			providerCoverage = if (lastOrdinal == null) "PROVIDER_COMPLETENESS_UNOBSERVABLE" else
-				"CALLBACKS_ENTERED_BEFORE_BARRIER",
+			providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
 			stopStatus = "COMPLETE",
 			unresolvedSequenceStart = null,
 			unresolvedSequenceEnd = null,

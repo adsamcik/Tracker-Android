@@ -232,13 +232,9 @@ internal object ImportedCellLineageAuthenticator {
 				) corrupt()
 				val ownerIdentity = dependent.aggregateOwnerIdentity?.value ?: return@forEach
 				val owner = byIdentity[ownerIdentity] ?: corrupt()
+				// A later coverage callback reuses content, but keeps its own time and zone.
 				if (owner.aggregateOwnerIdentity != null ||
 					owner.semanticRevision != dependent.aggregateOwnerSemanticRevision ||
-					owner.coverageStartTimeMs != dependent.coverageStartTimeMs ||
-					owner.observedTimeMs != dependent.observedTimeMs ||
-					owner.latestPossibleTimeMs != dependent.latestPossibleTimeMs ||
-					owner.wallTimeUncertaintyMs != dependent.wallTimeUncertaintyMs ||
-					owner.storedZoneId != dependent.storedZoneId ||
 					!dependent.hasSameIdentityFreeAggregateAs(owner)
 				) corrupt()
 			}
