@@ -194,18 +194,21 @@ class ActivityHistoryComposerTest {
 		val recent = repository.recent(1)
 
 		val selectedEntry = (selected as ActivityHistoryQuery.Found).entry
-		val recentEntry = (recent as ActivityHistoryPage.Available).entries.single()
+		check(recent is ActivityHistoryPage.Available) { "Expected recent Activity page: $recent" }
+		val recentEntry = recent.entries.single()
 		selectedEntry.endTime shouldBe EpochMs(17_500L)
 		recentEntry.endTime shouldBe EpochMs(17_500L)
 		recentEntry.startTime shouldBe EpochMs(1_000L)
-		recentEntry.activeTime?.knownActiveDurationNanos shouldBe 3_300L
+		checkNotNull(recentEntry.activeTime) {
+			"Expected Activity values; state=${recentEntry.state}, causes=${recentEntry.causes}"
+		}.knownActiveDurationNanos shouldBe 3_300L
 		recentEntry.storedZoneIds shouldBe setOf("UTC", "Europe/Prague")
 		recentEntry shouldBe selectedEntry
 	}
 
 	@Test
 	fun `range exposes exact Activity only intent before its first fact`() = runTest {
-		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "Pacific/Kiritimati"))).copy(
+		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "Asia/Tokyo"))).copy(
 			revisions = emptyList(),
 			cursors = emptyList(),
 			fragmentsByRevision = emptyMap(),
@@ -226,7 +229,7 @@ class ActivityHistoryComposerTest {
 		ranged.entry.capturesOnlyActivity shouldBe true
 		ranged.entry.activeTime shouldBe null
 		ranged.entry.fragments shouldBe emptyList()
-		ranged.structuralDays.single().storedZoneId shouldBe "Pacific/Kiritimati"
+		ranged.structuralDays.single().storedZoneId shouldBe "Asia/Tokyo"
 	}
 
 	@Test
@@ -456,11 +459,7 @@ class ActivityHistoryComposerTest {
 		val first = reidentifyPortable(readLocalPortableEntry(firstTemplate), "first")
 		database.clearAllTables()
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
-		val secondTemplate = fixture(listOf(RunSpec(2L, "second", "UTC")))
-		persistPortableFixture(secondTemplate)
-		val second = reidentifyPortable(readLocalPortableEntry(secondTemplate), "second")
-		database.clearAllTables()
-		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+		val second = shiftPortable(first, 1_000L, "second")
 		importPortable(first, testScheduler)
 		importPortable(second, testScheduler)
 		val repository = activityRepository(testScheduler)
@@ -578,12 +577,13 @@ class ActivityHistoryComposerTest {
 			val template = fixture(listOf(RunSpec(1L, "retained", "Europe/Prague")))
 			persistPortableFixture(template)
 			val imported = reidentifyPortable(readLocalPortableEntry(template), "retained")
+			val retainedFromMs = firstRecordedActivityTime(imported) + 1L
 			database.clearAllTables()
 			database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
 			importPortable(imported, testScheduler)
 			database.sourceEvidenceStateDao().updateLifecycle(
 				epoch = 0L,
-				retainedFromMs = imported.startTimeMs + 1L,
+				retainedFromMs = retainedFromMs,
 				updatedAtMs = 30_000L,
 			) shouldBe 1
 			RoomTruncateImportedActivityRetention(
@@ -593,7 +593,7 @@ class ActivityHistoryComposerTest {
 				TruncateImportedActivityRetentionRequest(
 					expectedCollectedDataEpoch = 0L,
 					expectedSourceEvidenceRevision = 1L,
-					retainedFromMs = imported.startTimeMs + 1L,
+					retainedFromMs = retainedFromMs,
 					retainedAtMs = 30_001L,
 				),
 			) shouldBe TruncateImportedActivityRetentionResult.Truncated(1, 1, 1, 1, 1)
@@ -700,7 +700,7 @@ class ActivityHistoryComposerTest {
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 			).copy(
 				persistenceEligible = true,
-				outputDestination = SourceDestinationOwnerEntity.DESTINATION_PRESSURE_FACTS,
+				outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
 				writerOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
 				writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
 				writerProjectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
@@ -724,12 +724,13 @@ class ActivityHistoryComposerTest {
 		val snapshot = fixture(listOf(RunSpec(1L, "retained", "UTC")))
 		persistPortableFixture(snapshot)
 		val portable = readLocalPortableEntry(snapshot)
+		val retainedFromMs = firstRecordedActivityTime(portable) + 1L
 		database.clearAllTables()
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
 		importPortable(portable, testScheduler)
 		database.sourceEvidenceStateDao().updateLifecycle(
 			epoch = 0L,
-			retainedFromMs = portable.startTimeMs + 1L,
+			retainedFromMs = retainedFromMs,
 			updatedAtMs = 30_000L,
 		) shouldBe 1
 		RoomTruncateImportedActivityRetention(
@@ -739,7 +740,7 @@ class ActivityHistoryComposerTest {
 			TruncateImportedActivityRetentionRequest(
 				expectedCollectedDataEpoch = 0L,
 				expectedSourceEvidenceRevision = 1L,
-				retainedFromMs = portable.startTimeMs + 1L,
+				retainedFromMs = retainedFromMs,
 				retainedAtMs = 30_001L,
 			),
 		) shouldBe TruncateImportedActivityRetentionResult.Truncated(1, 1, 1, 1, 1)
@@ -770,12 +771,13 @@ class ActivityHistoryComposerTest {
 		val snapshot = fixture(listOf(RunSpec(1L, "legacy-retained", "Europe/Prague")))
 		persistPortableFixture(snapshot)
 		val portable = readLocalPortableEntry(snapshot)
+		val retainedFromMs = firstRecordedActivityTime(portable) + 1L
 		database.clearAllTables()
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
 		importPortable(portable, testScheduler)
 		database.sourceEvidenceStateDao().updateLifecycle(
 			epoch = 0L,
-			retainedFromMs = portable.startTimeMs + 1L,
+			retainedFromMs = retainedFromMs,
 			updatedAtMs = 30_000L,
 		) shouldBe 1
 		RoomTruncateImportedActivityRetention(
@@ -785,7 +787,7 @@ class ActivityHistoryComposerTest {
 			TruncateImportedActivityRetentionRequest(
 				expectedCollectedDataEpoch = 0L,
 				expectedSourceEvidenceRevision = 1L,
-				retainedFromMs = portable.startTimeMs + 1L,
+				retainedFromMs = retainedFromMs,
 				retainedAtMs = 30_001L,
 			),
 		) shouldBe TruncateImportedActivityRetentionResult.Truncated(1, 1, 1, 1, 1)
@@ -940,6 +942,7 @@ class ActivityHistoryComposerTest {
 
 		database.close()
 		setUp()
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
 		importPortable(
 			reidentifyPortable(portable, "foreign").copy(
 				runs = portable.runs,
@@ -1655,6 +1658,7 @@ class ActivityHistoryComposerTest {
 			registrationGeneration = later.registrationGeneration,
 			configurationRevision = firstPlan.configurationRevision,
 			desiredPlanPayloadVersion = firstPlan.desiredPlanPayloadVersion,
+			desiredPlanPayload = firstPlan.desiredPlanPayload,
 			desiredPlanPayloadChecksum = firstPlan.desiredPlanPayloadChecksum,
 			physicalConfigurationFingerprint = firstPlan.physicalConfigurationFingerprint,
 			appliedAtElapsedRealtimeNanos = firstPlan.appliedAtElapsedRealtimeNanos,
@@ -1922,9 +1926,37 @@ class ActivityHistoryComposerTest {
 	}
 
 	private fun fixture(specs: List<RunSpec>): ActivityHistorySnapshot {
-		val built = specs.map(::buildRun)
-		val sessionStart = built.minOf { it.run.startedElapsedNanos }
-		val sessionEnd = built.maxOf { requireNotNull(it.run.completedAtMs) }
+		val initialRuns = specs.map(::buildRun)
+		val sessionStart = initialRuns.minOf { it.run.startedElapsedNanos }
+		val sessionEnd = initialRuns.maxOf { requireNotNull(it.run.completedAtMs) }
+		val built = initialRuns.map { original ->
+			val unsigned = original.revision.copy(
+				sessionRunEffectEndNanos = sessionEnd,
+				logicalWindowId = "pending",
+				mutationId = "pending",
+				effectChecksum = ZERO_SHA,
+			)
+			val logicalWindowId = ActivityCapturedFactIntegrity.logicalWindowId(unsigned)
+			val identified = unsigned.copy(
+				logicalWindowId = logicalWindowId,
+				mutationId = ActivityCapturedFactIntegrity.mutationId(logicalWindowId, 1L),
+			)
+			val fragment = original.fragment.copy(logicalWindowId = logicalWindowId)
+			val evidence = original.evidence.map { it.copy(logicalWindowId = logicalWindowId) }
+			val revision = identified.copy(
+				effectChecksum = ActivityCapturedFactIntegrity.effectChecksum(identified, listOf(fragment), evidence),
+			)
+			original.copy(
+				revision = revision,
+				fragment = fragment,
+				evidence = evidence,
+				cursor = original.cursor.copy(
+					logicalWindowId = logicalWindowId,
+					latestMutationId = revision.mutationId,
+					latestEffectChecksum = revision.effectChecksum,
+				),
+			)
+		}
 		return ActivityHistorySnapshot(
 			expansion = ActivityMembershipExpansion(built.map(BuiltRun::segment), emptyMap(), false),
 			sessions = mapOf(LOGICAL_ID to LogicalTrackingSessionEntity(
@@ -2064,24 +2096,37 @@ class ActivityHistoryComposerTest {
 		val prior = original.revisions.single()
 		val unsigned = prior.copy(
 			providerAcceptanceEndNanos = Long.MAX_VALUE,
+			logicalWindowId = "pending",
+			mutationId = "pending",
 			effectChecksum = ZERO_SHA,
 		)
+		val logicalWindowId = ActivityCapturedFactIntegrity.logicalWindowId(unsigned)
+		val identified = unsigned.copy(
+			logicalWindowId = logicalWindowId,
+			mutationId = ActivityCapturedFactIntegrity.mutationId(logicalWindowId, 1L),
+		)
 		val fragments = original.fragmentsByRevision.getValue(revisionKey(prior))
+			.map { it.copy(logicalWindowId = logicalWindowId) }
 		val evidence = original.evidenceByRevision.getValue(revisionKey(prior))
-		val revision = unsigned.copy(
+			.map { it.copy(logicalWindowId = logicalWindowId) }
+		val revision = identified.copy(
 			effectChecksum = ActivityCapturedFactIntegrity.effectChecksum(
-				unsigned,
+				identified,
 				fragments,
 				evidence,
 			),
 		)
 		val cursor = original.cursors.single().copy(
+			logicalWindowId = logicalWindowId,
+			latestMutationId = revision.mutationId,
 			latestEffectChecksum = revision.effectChecksum,
 			updatedAtMs = revision.appliedAtMs,
 		)
 		return original.copy(
 			revisions = listOf(revision),
 			cursors = listOf(cursor),
+			fragmentsByRevision = mapOf(revisionKey(revision) to fragments),
+			evidenceByRevision = mapOf(revisionKey(revision) to evidence),
 			providerRegistrations = mapOf(provider.registrationGeneration to provider),
 			currentProviderRegistrations = if (currentProviderVisible) listOf(provider) else emptyList(),
 			currentClockDomainId = "boot-current",
@@ -2353,8 +2398,17 @@ class ActivityHistoryComposerTest {
 		val result = RoomReadLocalPortableCapturedActivity(database, EXECUTION_AUTHORITY).read(
 			ExportPortableCapturedActivityRequest(start, end),
 		)
-		return (result as ReadLocalPortableCapturedActivityResult.Ready).envelope.entries.single()
+		check(result is ReadLocalPortableCapturedActivityResult.Ready) {
+			"Local Activity fixture could not be read: $result"
+		}
+		return result.envelope.entries.single()
 	}
+
+	private fun firstRecordedActivityTime(entry: PortableActivityEntryV1): Long =
+		entry.runs.flatMap { it.windows }
+			.flatMap { it.fragments }
+			.filterIsInstance<PortableActivityFragmentV1.Band>()
+			.minOf(PortableActivityFragmentV1.Band::startWallTimeMs)
 
 	private suspend fun importPortable(
 		entry: PortableActivityEntryV1,
@@ -3039,8 +3093,7 @@ class ActivityHistoryComposerTest {
 			admissionOrdinal = evidence.sourceAdmissionOrdinal,
 			eventId = evidence.sourceEventId,
 			providerDedupKey = null,
-			deliveryIdentity = "d".repeat(63) +
-				('0'.code + (evidence.sourceAdmissionOrdinal % 10L).toInt()).toChar(),
+			deliveryIdentity = evidence.sourceAdmissionOrdinal.toString(16).padStart(64, 'd'),
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 1,
 			logicalTrackingId = revision.logicalTrackingId,
@@ -3242,6 +3295,7 @@ class ActivityHistoryComposerTest {
 		const val SOURCE_LOCATION = 1
 		const val LOGICAL_ID = "logical-activity"
 		const val ACTIVITY_BOOT_ID = "boot-activity"
+		val ZERO_SHA = "0".repeat(64)
 		val EXECUTION_AUTHORITY = SourceProductLaneExecutionAuthority { true }
 	}
 }

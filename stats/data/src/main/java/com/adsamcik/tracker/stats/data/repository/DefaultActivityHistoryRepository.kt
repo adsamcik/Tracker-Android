@@ -226,7 +226,11 @@ internal class DefaultActivityHistoryRepository private constructor(
 			)
 		}
 		val localProtectedIdentities = try {
-			loadValueFreeLocalProtectedOwnership(local, localPortableEntries)
+			if (hasImportedOwnership) {
+				loadValueFreeLocalProtectedOwnership(local, localPortableEntries)
+			} else {
+				emptyMap()
+			}
 		} catch (_: ImportedActivityHistoryCompositionFailure) {
 			return ActivitySourceComposedPage.Failed(
 				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
