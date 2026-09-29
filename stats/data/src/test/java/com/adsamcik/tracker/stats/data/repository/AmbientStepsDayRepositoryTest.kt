@@ -63,19 +63,21 @@ class AmbientStepsDayRepositoryTest {
 
     @Test
     fun `shared background read does not reintroduce captured legacy steps`() = runTest {
-        seedAuthority()
-        database.ambientStepsFactRevisionDao().insert(fact(10L))
+        val fingerprint = seedPublicAuthority()
+        database.ambientStepsFactRevisionDao().insert(fact(10L, authorizationFingerprint = fingerprint))
         database.sessionSegmentDao().insert(com.adsamcik.tracker.shared.base.database.data.SessionSegment(
             startTimeMs = 0L, endTimeMs = DAY_END, distanceM = 0f, steps = 999,
             primaryActivity = null, activityConfidence = null, sampleCount = 1,
             source = com.adsamcik.tracker.shared.model.SegmentSource.USER_CREATED,
             inferenceVersion = null, createdAt = DAY_END))
-        val read = database.withTransaction {
+        val result = database.withTransaction {
             historyRepository().readBackgroundInCurrentTransaction(
                 AmbientStepsHistoryRangeRequest(listOf(AmbientStepsStructuralDay(0L, "UTC"))),
                 requireNotNull(database.sourceEvidenceStateDao().get()).revision,
             )
-        } as AmbientStepsHistoryRead.Snapshot
+        }
+        check(result is AmbientStepsHistoryRead.Snapshot) { "Expected ambient snapshot, got $result" }
+        val read = result
         read.days.single().total shouldBe AmbientStepsHistoryValue.Exact(10L)
         read.days.single().inSession shouldBe emptyList()
     }
@@ -186,7 +188,7 @@ class AmbientStepsDayRepositoryTest {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_consent_epoch SET policy_revision = ?, effective_wall_time_ms = ? " +
 					"WHERE source_kind = ? AND purpose = ? AND epoch = 1",
-				arrayOf(revision, effectiveWallTimeMs, SourceDestinationOwnerEntity.SOURCE_STEPS,
+				arrayOf<Any?>(revision, effectiveWallTimeMs, SourceDestinationOwnerEntity.SOURCE_STEPS,
 					SourceBrokerPurpose.AMBIENT_PRODUCT),
 			)
 			readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Unavailable(
@@ -526,7 +528,7 @@ class AmbientStepsDayRepositoryTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_authorization SET authorization_fingerprint = ? " +
 				"WHERE source_kind = ? AND registration_generation = 1 AND authorization_revision = 1",
-			arrayOf("f".repeat(64), SourceDestinationOwnerEntity.SOURCE_STEPS),
+			arrayOf<Any?>("f".repeat(64), SourceDestinationOwnerEntity.SOURCE_STEPS),
 		)
 
 		readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Unavailable(
