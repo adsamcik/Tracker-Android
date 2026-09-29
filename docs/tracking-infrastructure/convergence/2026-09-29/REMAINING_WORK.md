@@ -106,6 +106,11 @@ Authored tests, static review and isolated commits do not satisfy those chains.
   statistics, concise copy, localization, accessibility and recovery.
   (`WI-SOURCE-ACTIONS-EXPLANATION-001`, `WI-SHARED-HISTORY-DAY-RANGE-001`,
   `WI-UI-SURFACES-001`)
+
+  Notification customization now has authored load/save retry, ordered latest-state
+  persistence and accessibility reorder actions in the candidate. This is
+  **IMPLEMENTED_UNVALIDATED**; its tests and the full source-to-notification
+  chain still require the final convergence and device proof.
 - [ ] **Schema and scenarios:** assemble final entities/DAOs/indexes/triggers/
   migrations/DI and generated schema; migrate a populated released `main` v12
   database, contain unknown development databases, and author provider-to-fact-

@@ -89,6 +89,11 @@
     <string name="settings_location_enabled_title">Location</string>
     <string name="settings_notification_customize_summary">Change what should and in which order appear in the tracking notification.</string>
     <string name="settings_notification_customize_title">Customize notification</string>
+    <string name="settings_notification_move_up">Move up</string>
+    <string name="settings_notification_move_down">Move down</string>
+    <string name="settings_notification_load_failed">Could not load notification settings.</string>
+    <string name="settings_notification_save_failed">Changes were not saved.</string>
+    <string name="settings_notification_retry">Retry</string>
     <string name="settings_notification_styled_summary">Use your app style color for notifications.</string>
     <string name="settings_notification_styled_title">Colored notifications</string>
     <string name="ski_notification_title">Ski stats</string>

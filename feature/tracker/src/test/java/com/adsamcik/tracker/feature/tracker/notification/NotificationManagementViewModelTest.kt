@@ -6,6 +6,7 @@ import com.adsamcik.tracker.tracker.notification.TrackerNotificationSettingsRepo
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -72,6 +73,47 @@ class NotificationManagementViewModelTest {
 		repository.saved.single().shouldContainExactly(viewModel.items)
 	}
 
+	@Test
+	fun `failed load can be retried without losing the screen`() = runTest(dispatcher) {
+		val repository = FakeTrackerNotificationSettingsRepository(settings()).apply { failNextLoad = true }
+		val viewModel = viewModel(repository)
+		viewModel.load()
+		viewModel.loadFailed shouldBe true
+		viewModel.load()
+		viewModel.loadFailed shouldBe false
+		viewModel.items.shouldContainExactly(settings())
+		repository.loadCount shouldBe 2
+	}
+
+	@Test
+	fun `failed save retains edits and retry saves current settings`() = runTest(dispatcher) {
+		val repository = FakeTrackerNotificationSettingsRepository(settings()).apply { failNextSave = true }
+		val viewModel = viewModel(repository)
+		viewModel.load()
+		viewModel.moveItemAndPersist(0, 1)
+		viewModel.saveFailed shouldBe true
+		viewModel.items.map(TrackerNotificationSetting::id)
+			.shouldContainExactly("altitude", "activity", "battery")
+		viewModel.retrySave()
+		viewModel.saveFailed shouldBe false
+		repository.saved.single().shouldContainExactly(viewModel.items)
+	}
+
+	@Test
+	fun `rapid edits cannot let an older save overwrite the latest choice`() = runTest(dispatcher) {
+		val firstSave = CompletableDeferred<Unit>()
+		val repository = FakeTrackerNotificationSettingsRepository(settings()).apply { firstSaveGate = firstSave }
+		val viewModel = viewModel(repository)
+		viewModel.load()
+		viewModel.moveItemAndPersist(0, 1)
+		viewModel.moveItemAndPersist(1, 2)
+		firstSave.complete(Unit)
+		viewModel.items.map(TrackerNotificationSetting::id)
+			.shouldContainExactly("altitude", "battery", "activity")
+		repository.saved.size shouldBe 2
+		repository.saved.last().shouldContainExactly(viewModel.items)
+	}
+
 	private fun viewModel(
 		repository: TrackerNotificationSettingsRepository,
 	) = NotificationManagementViewModel(
@@ -103,15 +145,30 @@ private class FakeTrackerNotificationSettingsRepository(
 	var loadCount = 0
 		private set
 	val saved = mutableListOf<List<TrackerNotificationSetting>>()
+	var failNextLoad = false
+	var failNextSave = false
+	var firstSaveGate: CompletableDeferred<Unit>? = null
 
 	override suspend fun loadSettings(): List<TrackerNotificationSetting> {
 		loadCount += 1
+		if (failNextLoad) {
+			failNextLoad = false
+			error("load unavailable")
+		}
 		return loaded
 	}
 
 	override suspend fun saveSettings(
 		settingsInDisplayOrder: List<TrackerNotificationSetting>,
 	) {
+		firstSaveGate?.let { gate ->
+			firstSaveGate = null
+			gate.await()
+		}
+		if (failNextSave) {
+			failNextSave = false
+			error("save unavailable")
+		}
 		saved += settingsInDisplayOrder
 	}
 }

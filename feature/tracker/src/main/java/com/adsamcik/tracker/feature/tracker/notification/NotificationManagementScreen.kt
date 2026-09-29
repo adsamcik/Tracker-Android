@@ -45,8 +45,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -56,6 +60,8 @@ import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationSetting
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationSettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -67,18 +73,55 @@ class NotificationManagementViewModel @Inject constructor(
 ) : ViewModel() {
 	internal var items: List<TrackerNotificationSetting> by mutableStateOf(emptyList())
 		private set
-	private var hasStartedLoading = false
+	private var isLoading = false
+	internal var loadFailed by mutableStateOf(false)
+		private set
+	internal var saveFailed by mutableStateOf(false)
+		private set
+	private var revision = 0L
+	private val saves = Channel<Pair<Long, List<TrackerNotificationSetting>>>(Channel.CONFLATED)
+
+	init {
+		viewModelScope.launch(dispatchers.io) {
+			for ((savedRevision, settings) in saves) {
+				try {
+					settingsRepository.saveSettings(settings)
+					withContext(dispatchers.main) {
+						if (savedRevision == revision) saveFailed = false
+					}
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (_: Exception) {
+					withContext(dispatchers.main) {
+						if (savedRevision == revision) saveFailed = true
+					}
+				}
+			}
+		}
+	}
 
 	var draggingIndex by mutableStateOf<Int?>(null)
 		private set
 
 	fun load() {
-		if (hasStartedLoading) return
-		hasStartedLoading = true
+		if (isLoading || items.isNotEmpty()) return
+		isLoading = true
+		loadFailed = false
 		viewModelScope.launch(dispatchers.io) {
-			val loadedSettings = settingsRepository.loadSettings()
-			withContext(dispatchers.main) {
-				items = loadedSettings
+			try {
+				val loadedSettings = settingsRepository.loadSettings()
+				check(loadedSettings.isNotEmpty()) { "Notification settings catalog is empty" }
+				withContext(dispatchers.main) {
+					items = loadedSettings
+					isLoading = false
+				}
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				withContext(dispatchers.main) {
+					isLoading = false
+					loadFailed = true
+				}
 			}
 		}
 	}
@@ -86,7 +129,7 @@ class NotificationManagementViewModel @Inject constructor(
 	fun setDragging(index: Int?) { draggingIndex = index }
 
 	fun moveItem(from: Int, to: Int) {
-		if (from == to) return
+		if (from == to || from !in items.indices || to !in items.indices) return
 		val mutable = items.toMutableList()
 		val item = mutable.removeAt(from)
 		mutable.add(to, item)
@@ -96,6 +139,17 @@ class NotificationManagementViewModel @Inject constructor(
 
 	fun persistOrder() {
 		persist(items)
+	}
+
+	fun moveItemAndPersist(from: Int, to: Int) {
+		if (from == to || from !in items.indices || to !in items.indices) return
+		moveItem(from, to)
+		persistOrder()
+		draggingIndex = null
+	}
+
+	fun retrySave() {
+		if (saveFailed) persist(items)
 	}
 
 	fun updateFlags(id: String, inTitle: Boolean, inContent: Boolean) {
@@ -111,9 +165,9 @@ class NotificationManagementViewModel @Inject constructor(
 	}
 
 	private fun persist(settings: List<TrackerNotificationSetting>) {
-		viewModelScope.launch(dispatchers.io) {
-			settingsRepository.saveSettings(settings)
-		}
+		revision += 1
+		saveFailed = false
+		saves.trySend(revision to settings)
 	}
 }
 
@@ -139,7 +193,14 @@ fun NotificationManagementRoute(
 	) { padding ->
 		if (items.isEmpty()) {
 			Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-				CircularProgressIndicator()
+				if (viewModel.loadFailed) {
+					Column(horizontalAlignment = Alignment.CenterHorizontally) {
+						Text(stringResource(R.string.settings_notification_load_failed))
+						TextButton(onClick = viewModel::load) { Text(stringResource(R.string.settings_notification_retry)) }
+					}
+				} else {
+					CircularProgressIndicator()
+				}
 			}
 		} else {
 			val rowHeight = 72.dp
@@ -150,6 +211,14 @@ fun NotificationManagementRoute(
 					.padding(padding),
 				contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
 			) {
+				if (viewModel.saveFailed) {
+					item {
+						Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+							Text(stringResource(R.string.settings_notification_save_failed), modifier = Modifier.weight(1f))
+							TextButton(onClick = viewModel::retrySave) { Text(stringResource(R.string.settings_notification_retry)) }
+						}
+					}
+				}
 				item {
 					Text(
 						text = stringResource(R.string.settings_notification_customize_summary),
@@ -169,6 +238,10 @@ fun NotificationManagementRoute(
 									rowHeight = rowHeight,
 									isDragging = isDragging,
 									onEdit = { editTarget = item },
+									canMoveUp = index > 0,
+									canMoveDown = index < items.lastIndex,
+									onMoveUp = { viewModel.moveItemAndPersist(index, index - 1) },
+									onMoveDown = { viewModel.moveItemAndPersist(index, index + 1) },
 									modifier = Modifier.pointerInput(items) {
 										detectDragGesturesAfterLongPress(
 											onDragStart = { viewModel.setDragging(index) },
@@ -241,11 +314,24 @@ internal fun NotificationItemRow(
 	rowHeight: androidx.compose.ui.unit.Dp,
 	isDragging: Boolean,
 	onEdit: () -> Unit,
+	canMoveUp: Boolean,
+	canMoveDown: Boolean,
+	onMoveUp: () -> Unit,
+	onMoveDown: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val bg = if (isDragging) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent
+	val moveUpLabel = stringResource(R.string.settings_notification_move_up)
+	val moveDownLabel = stringResource(R.string.settings_notification_move_down)
 	Row(
 		modifier
+			.testTag("notification_item_${item.id}")
+			.semantics {
+				customActions = buildList {
+					if (canMoveUp) add(CustomAccessibilityAction(moveUpLabel) { onMoveUp(); true })
+					if (canMoveDown) add(CustomAccessibilityAction(moveDownLabel) { onMoveDown(); true })
+				}
+			}
 			.fillMaxWidth()
 			.heightIn(min = rowHeight)
 			.background(bg)
@@ -259,7 +345,7 @@ internal fun NotificationItemRow(
 			modifier = Modifier.size(40.dp),
 		) {
 			Box(contentAlignment = Alignment.Center) {
-				Icon(Icons.Filled.DragIndicator, contentDescription = "Drag", modifier = Modifier.size(22.dp))
+				Icon(Icons.Filled.DragIndicator, contentDescription = null, modifier = Modifier.size(22.dp))
 			}
 		}
 		Spacer(Modifier.width(12.dp))

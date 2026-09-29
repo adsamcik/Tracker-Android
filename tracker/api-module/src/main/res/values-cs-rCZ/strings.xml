@@ -66,6 +66,11 @@
     <string name="settings_location_enabled_title">Poloha</string>
     <string name="settings_notification_customize_summary">Možnosti nastavení co se má zobrazit a v jakém pořadí v notifikaci.</string>
     <string name="settings_notification_customize_title">Přizpůsobení notifikace</string>
+    <string name="settings_notification_move_up">Posunout nahoru</string>
+    <string name="settings_notification_move_down">Posunout dolů</string>
+    <string name="settings_notification_load_failed">Nastavení oznámení se nepodařilo načíst.</string>
+    <string name="settings_notification_save_failed">Změny se nepodařilo uložit.</string>
+    <string name="settings_notification_retry">Zkusit znovu</string>
     <string name="settings_notification_styled_summary">Využívat barvu vzhledu aplikace pro notifikace?</string>
     <string name="settings_notification_styled_title">Barevné notifikace</string>
     <string name="ski_notification_title">Lyžařské statistiky</string>

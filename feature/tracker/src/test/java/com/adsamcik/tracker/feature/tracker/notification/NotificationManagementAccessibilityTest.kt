@@ -9,7 +9,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.tracker.R
@@ -37,6 +39,7 @@ class NotificationManagementAccessibilityTest {
             },
         )
         var edits = 0
+        var movesDown = 0
         composeRule.setContent {
             CompositionLocalProvider(LocalContext provides context) {
                 MaterialTheme {
@@ -50,6 +53,10 @@ class NotificationManagementAccessibilityTest {
                         rowHeight = 72.dp,
                         isDragging = false,
                         onEdit = { edits += 1 },
+                        canMoveUp = false,
+                        canMoveDown = true,
+                        onMoveUp = {},
+                        onMoveDown = { movesDown += 1 },
                     )
                 }
             }
@@ -64,5 +71,10 @@ class NotificationManagementAccessibilityTest {
             context.getString(com.adsamcik.tracker.shared.base.R.string.generic_edit),
         ).performClick()
         assertEquals(1, edits)
+        val actions = composeRule.onNodeWithTag("notification_item_duration")
+            .fetchSemanticsNode().config[SemanticsProperties.CustomActions]
+        assertEquals(listOf(context.getString(R.string.settings_notification_move_down)), actions.map { it.label })
+        composeRule.runOnIdle { actions.single().action() }
+        assertEquals(1, movesDown)
     }
 }
