@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
+import com.adsamcik.tracker.shared.base.location.UiLocationRequest
 
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
@@ -15,6 +16,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.Test
+import kotlin.test.assertFailsWith
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
@@ -37,6 +39,8 @@ class SharedLocationSourceControllerTest {
 			SourceCapabilities(true, true, true, null, null),
 		)
 		every { sinkFactory.unbound } returns sink
+		every { physical.prepareUiLease() } returns Unit
+		every { physical.failUiLeases() } returns Unit
 		coEvery { physical.shutdownIfOwned(any(), any()) } returns OwnedSourceShutdown.NotOwned
 		coEvery { broker.authorizationDemands(SourceKind.LOCATION) } answers { demands }
 		coEvery { physical.refreshShared(any(), sink, any(), any()) } answers {
@@ -46,6 +50,65 @@ class SharedLocationSourceControllerTest {
 			))
 		}
 		return SharedLocationSourceController(physical, broker, sinkFactory)
+	}
+
+	@Test
+	fun `temporary map lease works without a durable purpose and does not create one`() = runTest {
+		val subject = subject()
+		coEvery { physical.applyUiOnly(any()) } returns true
+		coEvery { physical.closeShared() } returns completeAck()
+		val id = requireNotNull(subject.acquireUiLease(
+			UiLocationRequest("map-location-indicator", 2_000L, highAccuracy = true),
+		))
+		coVerify(exactly = 1) { physical.applyUiOnly(match {
+			it.mode == LocationMode.HIGH_ACCURACY && it.requestedIntervalMs == 2_000L
+		}) }
+		coVerify(exactly = 0) { physical.refreshShared(any(), any(), any(), any()) }
+		subject.releaseUiLease(id)
+		coVerify(exactly = 1) { physical.closeShared() }
+	}
+
+	@Test
+	fun `broker read failure cannot create an uncoordinated physical UI request`() = runTest {
+		val subject = subject()
+		coEvery { broker.authorizationDemands(SourceKind.LOCATION) } throws
+			IllegalStateException("SourceBroker unavailable")
+		assertFailsWith<IllegalStateException> {
+			subject.acquireUiLease(UiLocationRequest("map", 2_000L))
+		}
+		coVerify(exactly = 0) { physical.applyUiOnly(any()) }
+		coVerify(exactly = 0) { physical.refreshShared(any(), any(), any(), any()) }
+	}
+
+	@Test
+	fun `broker failure during lease release fences temporary consumers and retires physical work`() = runTest {
+		val subject = subject()
+		coEvery { physical.applyUiOnly(any()) } returns true
+		coEvery { physical.closeShared() } returns completeAck()
+		val lease = requireNotNull(subject.acquireUiLease(UiLocationRequest("map", 2_000L)))
+		coEvery { broker.authorizationDemands(SourceKind.LOCATION) } throws
+			IllegalStateException("SourceBroker unavailable")
+		assertFailsWith<IllegalStateException> { subject.releaseUiLease(lease) }
+		coVerify(exactly = 1) { physical.closeShared() }
+		io.mockk.verify(exactly = 1) { physical.failUiLeases() }
+	}
+
+	@Test
+	fun `temporary game lease raises low quality tracking then restores its plan`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(false))
+		val lowPower = baseline.copy(mode = LocationMode.LOW_POWER, requestedIntervalMs = 60_000L)
+		assertIs<AmbientLocationRuntimeJoinResult.Active>(subject.reconcileAmbientJoin(lowPower, 2L))
+		val id = requireNotNull(subject.acquireUiLease(
+			UiLocationRequest("mini-game-location", 1_000L, 500L, highAccuracy = true,
+				maximumAgeMillis = 2_000L),
+		))
+		coVerify(exactly = 1) { physical.refreshShared(match {
+			it.mode == LocationMode.HIGH_ACCURACY && it.requestedIntervalMs == 1_000L &&
+				it.maximumBatchDelayMs == 0L
+		}, sink, null, 120_000L) }
+		subject.releaseUiLease(id)
+		coVerify(exactly = 2) { physical.refreshShared(lowPower, sink, null, 120_000L) }
 	}
 
 	@Test
@@ -168,6 +231,16 @@ class SharedLocationSourceControllerTest {
 		assertEquals(focus, joinLocationPlans(focus, baseline.copy(mode = LocationMode.DISABLED)))
 		assertEquals(baseline, joinLocationPlans(focus.copy(mode = LocationMode.DISABLED), baseline))
 		assertNull(joinLocationPlans(baseline.copy(adaptiveProfileVersion = null), focus)?.adaptiveProfileVersion)
+	}
+
+	@Test
+	fun `foreground UI demand never reduces a durable high accuracy plan`() {
+		val uiBalanced = baseline.copy(mode = LocationMode.BALANCED, requestedIntervalMs = 2_000L,
+			maximumBatchDelayMs = 0L)
+		val joined = joinUiLocationPlan(focus.copy(mode = LocationMode.PROBE), uiBalanced)
+		assertEquals(LocationMode.HIGH_ACCURACY, joined.mode)
+		assertEquals(0L, joined.maximumBatchDelayMs)
+		assertEquals(2_000L, joined.requestedIntervalMs)
 	}
 
 	@Test

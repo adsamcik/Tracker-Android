@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.game.minigame
 
 import com.adsamcik.tracker.game.minigame.location.FusedMiniGameLocationSource
-import com.adsamcik.tracker.game.minigame.location.LiveOrFusedMiniGameLocationSource
 import com.adsamcik.tracker.game.minigame.location.MiniGameLocationSource
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -41,18 +40,10 @@ internal abstract class MiniGameModule {
 		impl: com.adsamcik.tracker.game.minigame.switchback.SwitchbackGame,
 	): MiniGame
 
-	/**
-	 * Live-location feed for mini-game sessions.
-	 *
-	 * Bound to [LiveOrFusedMiniGameLocationSource] which prefers the tracker
-	 * service's existing GPS stream when it is running (zero extra battery
-	 * cost) and transparently falls back to [FusedMiniGameLocationSource]
-	 * when the tracker is off, so mini-games remain playable without
-	 * enabling background tracking.
-	 */
+	/** Every game lease can raise the shared physical request to its required quality. */
 	@dagger.Binds
 	abstract fun bindMiniGameLocationSource(
-		impl: LiveOrFusedMiniGameLocationSource,
+		impl: FusedMiniGameLocationSource,
 	): MiniGameLocationSource
 }
 

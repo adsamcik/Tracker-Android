@@ -38,6 +38,7 @@ class LocationAndSensorsManager(
                 tag = "map-location-indicator",
                 intervalMillis = LOCATION_UPDATE_INTERVAL_MS,
                 highAccuracy = highAccuracy && context.hasPreciseLocationPermission,
+                maximumAgeMillis = 10_000L,
             ),
         ).mapNotNull { location ->
             if (!location.latitude.isFinite() || location.latitude !in -90.0..90.0 ||

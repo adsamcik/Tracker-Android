@@ -38,8 +38,12 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -88,6 +92,122 @@ class LocationSourceRuntime @Inject internal constructor(
 	private var providerRetirementCompletedWhileActorRetained = false
 	private var ownerClaim: SourceRuntimeClaim? = null
 	private val permissionGate = LocationPermissionGate(deviceStateProvider)
+	private val uiEvents = MutableSharedFlow<UiLocationEvent>(
+		replay = 1,
+		extraBufferCapacity = 32,
+		onBufferOverflow = BufferOverflow.DROP_OLDEST,
+	)
+	internal val uiLocationEvents: SharedFlow<UiLocationEvent> = uiEvents.asSharedFlow()
+	internal fun prepareUiLease() { uiEvents.tryEmit(UiLocationEvent.Ready) }
+	internal fun failUiLeases() { uiEvents.tryEmit(UiLocationEvent.Unavailable) }
+	internal fun uiPermissionGranted(): Boolean = hasCurrentLocationPermission()
+	internal fun uiProviderAvailable(): Boolean = synchronized(callbackLock) {
+		uiOnlyAccepting || acceptingCallbacks || callbackContextRefresh != null
+	}
+	private var uiOnlyBackend: LocationSourceBackendController? = null
+	private var uiOnlyPlan: LocationPlan? = null
+	private var uiOnlyToken: LocationCallbackToken? = null
+	private var uiOnlyAccepting = false
+
+	/** A UI-only request never reserves a durable source registration or sends to the WAL. */
+	internal suspend fun applyUiOnly(plan: LocationPlan): Boolean = lifecycleMutex.withLock {
+		require(plan.enabled)
+		if (currentPlan != null || registration != null) return@withLock false
+		val application = prerequisiteEvaluator.evaluate(
+			plan,
+			deviceStateProvider.snapshot(),
+			LocationStartContext.SESSION_ALREADY_FOREGROUND,
+		)
+		if (application.status == LocationPlanApplicationStatus.BLOCKED) {
+			stopUiOnlyLocked()
+			return@withLock false
+		}
+		val backend = when (application.plan.backend) {
+			LocationBackend.FUSED -> fusedBackend
+			LocationBackend.FRAMEWORK -> frameworkBackend
+		}
+		val effective = backend.resolvePlan(application.plan) ?: run {
+			stopUiOnlyLocked()
+			return@withLock false
+		}
+		if (uiOnlyAccepting && uiOnlyBackend === backend &&
+			uiOnlyPlan?.physicalConfigurationFingerprint() ==
+				effective.physicalConfigurationFingerprint()) return@withLock true
+		if (!stopUiOnlyLocked()) return@withLock false
+		if (!reconcilePendingRetirementLocked()) return@withLock false
+		val token = LocationCallbackToken()
+		uiOnlyBackend = backend
+		synchronized(callbackLock) {
+			uiOnlyToken = token
+			uiOnlyAccepting = true
+		}
+		val outcome = try {
+			withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
+				backend.start(effective) { locations -> onUiOnlyBatch(token, locations) }
+			} ?: LocationBackendStartOutcome.CLEANUP_REQUIRED
+		} catch (cancelled: CancellationException) {
+			withContext(NonCancellable) { stopUiOnlyLocked() }
+			throw cancelled
+		} catch (fatal: Error) {
+			withContext(NonCancellable) { stopUiOnlyLocked() }
+			throw fatal
+		} catch (_: Exception) {
+			LocationBackendStartOutcome.CLEANUP_REQUIRED
+		}
+		if (outcome == LocationBackendStartOutcome.BLOCKED_BY_RETAINED_REGISTRATION) {
+			// The backend rejected this attempt before publication; its retained handle belongs
+			// to the durable retirement path, not to this temporary lease.
+			uiOnlyBackend = null
+			synchronized(callbackLock) {
+				uiOnlyAccepting = false
+				uiOnlyToken = null
+			}
+			return@withLock false
+		}
+		if (outcome != LocationBackendStartOutcome.STARTED) {
+			stopUiOnlyLocked()
+			return@withLock false
+		}
+		uiOnlyPlan = effective
+		true
+	}
+
+	internal suspend fun stopUiOnly(): Boolean = lifecycleMutex.withLock { stopUiOnlyLocked() }
+
+	private suspend fun stopUiOnlyLocked(): Boolean {
+		synchronized(callbackLock) {
+			uiOnlyAccepting = false
+			uiOnlyToken = null
+		}
+		val backend = uiOnlyBackend ?: return true
+		val removed = withContext(NonCancellable) {
+			withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) { backend.stop() }
+		} ?: RegistrationRemovalOutcome.FAILED
+		if (removed != RegistrationRemovalOutcome.REMOVED &&
+			removed != RegistrationRemovalOutcome.NOT_REGISTERED) {
+			uiEvents.tryEmit(UiLocationEvent.Unavailable)
+			return false
+		}
+		if (backend.hasRetainedRegistration) {
+			uiEvents.tryEmit(UiLocationEvent.Unavailable)
+			return false
+		}
+		uiOnlyBackend = null
+		uiOnlyPlan = null
+		return true
+	}
+
+	private fun onUiOnlyBatch(token: LocationCallbackToken, locations: List<Location>) {
+		if (!hasCurrentLocationPermission()) {
+			uiEvents.tryEmit(UiLocationEvent.Unavailable)
+			applicationScope.launch { stopUiOnly() }
+			return
+		}
+		synchronized(callbackLock) {
+			if (!uiOnlyAccepting || uiOnlyToken !== token) return
+			locations.forEach { location -> uiEvents.tryEmit(UiLocationEvent.Fix(Location(location))) }
+		}
+	}
 
 	override suspend fun start(plan: LocationPlan, sink: SourceEventSink): SourceStartResult =
 		startWithClaim(null, plan, sink)
@@ -106,6 +226,10 @@ class LocationSourceRuntime @Inject internal constructor(
 		plan: LocationPlan,
 		sink: SourceEventSink,
 	): SourceStartResult = lifecycleMutex.withLock {
+		if (!stopUiOnlyLocked()) return@withLock SourceStartResult.Failed(
+			appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()),
+			retryable = true,
+		)
 		if (currentPlan != null) {
 			require(!isAcceptingCallbacks()) { "Location source is already started" }
 			if (!retryOwnedRetirementLocked()) {
@@ -154,6 +278,10 @@ class LocationSourceRuntime @Inject internal constructor(
 		sink: SourceEventSink,
 		maximumEvidenceAgeMs: Long? = null,
 	): SourceApplyResult = lifecycleMutex.withLock {
+		if (!stopUiOnlyLocked()) return@withLock SourceApplyResult.Failed(
+			appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()),
+			retryable = true,
+		)
 		if (isAcceptingCallbacks()) {
 			refreshCompatibleLocked(claim, plan, sink, maximumEvidenceAgeMs)?.let { refreshed ->
 				return@withLock refreshed
@@ -266,6 +394,11 @@ class LocationSourceRuntime @Inject internal constructor(
 	}
 
 	internal suspend fun closeShared(): SourceStopAck = lifecycleMutex.withLock {
+		if (currentPlan == null && !stopUiOnlyLocked()) return@withLock unavailableAck(null).copy(
+			registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
+			appDrainComplete = false,
+			status = SourceStopStatus.PROVIDER_FAILED,
+		)
 		when {
 			currentPlan != null && (isAcceptingCallbacks() || hasUnretiredCallbackLane()) ->
 				shutdownLocked(null, RETIRE_REASON_RUNTIME_CLOSE)
@@ -286,6 +419,7 @@ class LocationSourceRuntime @Inject internal constructor(
 
 	override suspend fun close() {
 		lifecycleMutex.withLock {
+			stopUiOnlyLocked()
 			if (currentPlan != null) {
 				if (isAcceptingCallbacks()) {
 					shutdownLocked(null, RETIRE_REASON_RUNTIME_CLOSE)
@@ -788,6 +922,7 @@ class LocationSourceRuntime @Inject internal constructor(
 		backend: LocationSourceBackendController,
 	) = lifecycleMutex.withLock {
 		if (actor !== failedActor || registration !== failedRegistration || activeBackend !== backend) return@withLock
+		uiEvents.tryEmit(UiLocationEvent.Unavailable)
 		if (terminalStopAck == null) {
 			settleShutdownLocked(null, RETIRE_REASON_ACTOR_FAILURE)
 		}
@@ -1008,13 +1143,18 @@ class LocationSourceRuntime @Inject internal constructor(
 	}
 
 	private fun onLocationBatch(callbackGeneration: LocationCallbackToken, locations: List<Location>) {
-		if (locations.isEmpty() || !hasCurrentLocationPermission()) return
+		if (locations.isEmpty()) return
+		if (!hasCurrentLocationPermission()) {
+			uiEvents.tryEmit(UiLocationEvent.Unavailable)
+			return
+		}
 		val receivedElapsed = SystemClock.elapsedRealtimeNanos()
 		val receivedWall = System.currentTimeMillis()
 		synchronized(callbackLock) {
 			val context = callbackContext
 			val pendingContext = callbackContextRefresh
 			if ((!acceptingCallbacks && pendingContext == null) || callbackToken !== callbackGeneration || context == null) return
+			locations.forEach { location -> uiEvents.tryEmit(UiLocationEvent.Fix(Location(location))) }
 			val callbackSequence = ++callbackEntrySequence
 			val outcome = queue?.offer(
 				RawLocationBatch(
@@ -1304,6 +1444,12 @@ internal data class LocationCallbackContext(
 		require(minimumObservedElapsedRealtimeNanos >= 0L)
 		require(maximumObservedExclusive >= minimumObservedElapsedRealtimeNanos)
 	}
+}
+
+internal sealed interface UiLocationEvent {
+	data object Ready : UiLocationEvent
+	data class Fix(val location: Location) : UiLocationEvent
+	data object Unavailable : UiLocationEvent
 }
 
 /** Metadata refreshes preserve observation time, including batches delivered after a purpose joins. */

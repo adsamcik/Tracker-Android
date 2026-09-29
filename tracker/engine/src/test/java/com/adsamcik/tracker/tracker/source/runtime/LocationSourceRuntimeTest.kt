@@ -32,6 +32,9 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -51,6 +54,47 @@ import org.robolectric.shadows.ShadowSystemClock
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
 class LocationSourceRuntimeTest {
+	@Test
+	fun `synchronous first UI fix remains available when feature collector subscribes after start`() = runTest {
+		val fixture = locationRuntimeFixture(backgroundScope, callbacksDuringStart = 1)
+		fixture.runtime.prepareUiLease()
+		assertTrue(fixture.runtime.applyUiOnly(fixture.plan))
+		assertTrue(fixture.runtime.uiLocationEvents.first() is UiLocationEvent.Fix)
+		assertTrue(fixture.sink.deliveries.isEmpty())
+		assertTrue(fixture.runtime.stopUiOnly())
+	}
+
+	@Test
+	fun `UI-only location owns one provider without a durable registration or WAL delivery`() = runTest {
+		val fixture = locationRuntimeFixture(backgroundScope)
+		val received = mutableListOf<UiLocationEvent>()
+		val collector = backgroundScope.launch {
+			fixture.runtime.uiLocationEvents.collect { received += it }
+		}
+		runCurrent()
+		assertTrue(fixture.runtime.applyUiOnly(fixture.plan))
+		fixture.providerCallback()(listOf(location(50.0, SystemClock.elapsedRealtimeNanos())))
+		runCurrent()
+		assertEquals(1, received.size)
+		assertTrue(received.single() is UiLocationEvent.Fix)
+		assertTrue(fixture.sink.deliveries.isEmpty())
+		coVerify(exactly = 0) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
+		assertTrue(fixture.runtime.stopUiOnly())
+		fixture.providerCallback()(listOf(location(51.0, SystemClock.elapsedRealtimeNanos())))
+		runCurrent()
+		assertEquals(1, received.size)
+		collector.cancel()
+	}
+
+	@Test
+	fun `UI-only removal failure fences a replacement provider`() = runTest {
+		val fixture = locationRuntimeFixture(backgroundScope)
+		assertTrue(fixture.runtime.applyUiOnly(fixture.plan))
+		coEvery { fixture.fusedBackend.stop() } returns RegistrationRemovalOutcome.FAILED
+		assertTrue(!fixture.runtime.applyUiOnly(fixture.plan.copy(requestedIntervalMs = 1_000L)))
+		coVerify(exactly = 1) { fixture.fusedBackend.start(any(), any()) }
+		coVerify(exactly = 0) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
+	}
 	@Test
 	fun `stop receipt reports committed WAL sequence independently of callback count`() = runTest {
 		for (unitCount in listOf(1, 3)) {

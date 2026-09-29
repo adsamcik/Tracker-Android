@@ -894,8 +894,8 @@ fun MapScreen(
         LocationAndSensorsManager(appContext, uiLocationProvider)
     }
 
-    LaunchedEffect(locationManager, hasLocationPermission, overlayMode, isMapVisible) {
-        if (!isMapVisible || !hasLocationPermission || overlayMode) return@LaunchedEffect
+    LaunchedEffect(locationManager, hasLocationPermission, overlayMode, isMapVisible, state.isFollowing) {
+        if (!isMapVisible || !hasLocationPermission || overlayMode || !state.isFollowing) return@LaunchedEffect
         runCatchingCancellable {
             locationManager.locationUpdates(highAccuracy = true).collectLatest { (lat, lng, accuracy) ->
                 store.dispatch(
@@ -908,8 +908,8 @@ fun MapScreen(
         }.getOrNull()
     }
 
-    LaunchedEffect(locationManager, overlayMode, isMapVisible) {
-        if (!isMapVisible || overlayMode) return@LaunchedEffect
+    LaunchedEffect(locationManager, overlayMode, isMapVisible, state.isFollowing) {
+        if (!isMapVisible || overlayMode || !state.isFollowing) return@LaunchedEffect
         runCatchingCancellable {
             locationManager.bearingUpdates().collectLatest { bearing ->
                 store.dispatch(MapEvent.SetBearing(bearing))

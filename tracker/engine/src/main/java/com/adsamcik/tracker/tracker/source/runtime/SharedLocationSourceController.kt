@@ -1,18 +1,23 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.os.SystemClock
+import com.adsamcik.tracker.shared.base.location.UiLocationRequest
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.LocationMode
+import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * The single logical join owner for session and Ambient Location demand.
@@ -35,6 +40,85 @@ class SharedLocationSourceController @Inject constructor(
 	private var ambientAttached = false
 	private var baselinePlan: LocationPlan? = null
 	private var baselinePolicyRevision: Long? = null
+	private val uiLeases = linkedMapOf<Long, UiLocationRequest>()
+	private var nextUiLeaseId = 0L
+	internal val uiLocationEvents: SharedFlow<UiLocationEvent> get() = physicalRuntime.uiLocationEvents
+	internal fun uiPermissionGranted(): Boolean = physicalRuntime.uiPermissionGranted()
+	internal fun uiProviderAvailable(): Boolean = physicalRuntime.uiProviderAvailable()
+
+	/** Temporary feature demand; no broker purpose, registration, WAL, or retained observation. */
+	internal suspend fun acquireUiLease(request: UiLocationRequest): Long? = mutex.withLock {
+		require(request.tag.isNotBlank() && request.intervalMillis > 0L &&
+			request.minUpdateIntervalMillis in 0L..request.intervalMillis &&
+			request.minimumDisplacementMeters.isFinite() &&
+			request.minimumDisplacementMeters >= 0f &&
+			request.maximumAgeMillis in 1L..60_000L)
+		val leaseId = ++nextUiLeaseId
+		uiLeases[leaseId] = request
+		physicalRuntime.prepareUiLease()
+		val accepted = try {
+			reconcileAfterUiLeaseChange()
+		} catch (failure: Throwable) {
+			uiLeases.remove(leaseId)
+			withContext(NonCancellable) { runCatching { reconcileAfterUiLeaseChange() } }
+			throw failure
+		}
+		if (!accepted) {
+			uiLeases.remove(leaseId)
+			withContext(NonCancellable) { runCatching { reconcileAfterUiLeaseChange() } }
+			return@withLock null
+		}
+		leaseId
+	}
+
+	internal suspend fun releaseUiLease(leaseId: Long) = mutex.withLock {
+		if (uiLeases.remove(leaseId) == null) return@withLock
+		try {
+			if (!reconcileAfterUiLeaseChange()) physicalRuntime.failUiLeases()
+		} catch (failure: Throwable) {
+			// If authority cannot be read, stop physical work rather than keep an
+			// elevated request alive after its explicit consumer has gone away.
+			uiLeases.clear()
+			physicalRuntime.failUiLeases()
+			withContext(NonCancellable) { runCatching { physicalRuntime.closeShared() } }
+			throw failure
+		}
+		Unit
+	}
+
+	private suspend fun reconcileAfterUiLeaseChange(): Boolean {
+		val demands = selectedDemands()
+		val durable = effectivePlan(demands)
+		if (durable != null) {
+			val result = applyEffective(durable, sessionClaim, demands)
+			return result is SourceApplyResult.Applied || result is SourceApplyResult.Degraded
+		} else {
+			val nextUiPlan = uiPlan()
+			if (nextUiPlan == null) {
+				return physicalRuntime.closeShared().toOwnedShutdown() is OwnedSourceShutdown.Released
+			}
+			if (physicalRuntime.applyUiOnly(nextUiPlan)) return true
+			val retired = physicalRuntime.closeShared()
+			return retired.toOwnedShutdown() is OwnedSourceShutdown.Released &&
+				physicalRuntime.applyUiOnly(nextUiPlan)
+		}
+	}
+
+	private fun uiPlan(): LocationPlan? {
+		val requests = uiLeases.values
+		if (requests.isEmpty()) return null
+		return LocationPlan(
+			revision = 0L,
+			backend = LocationBackend.FUSED,
+			mode = if (requests.any(UiLocationRequest::highAccuracy)) LocationMode.HIGH_ACCURACY
+				else LocationMode.BALANCED,
+			requestedIntervalMs = requests.minOf(UiLocationRequest::intervalMillis),
+			minimumUpdateIntervalMs = requests.minOf(UiLocationRequest::minUpdateIntervalMillis),
+			minimumDisplacementMeters = requests.minOf(UiLocationRequest::minimumDisplacementMeters),
+			maximumBatchDelayMs = 0L,
+			preciseLocationAvailable = requests.any(UiLocationRequest::highAccuracy),
+		)
+	}
 
 	override suspend fun start(plan: LocationPlan, sink: SourceEventSink): SourceStartResult =
 		mutex.withLock { startLocked(null, plan, sink) }
@@ -134,7 +218,11 @@ class SharedLocationSourceController @Inject constructor(
 			val demands = selectedDemands()
 			val effective = effectivePlan(demands)
 			return if (effective == null) {
-				physicalRuntime.reconfigure(plan, unboundSink)
+				val retired = physicalRuntime.closeShared()
+				if (retired.toOwnedShutdown() is OwnedSourceShutdown.Released &&
+					(uiPlan() == null || physicalRuntime.applyUiOnly(requireNotNull(uiPlan())))) {
+					SourceApplyResult.Applied(disabledState(plan), stopAck = retired)
+				} else SourceApplyResult.Failed(disabledState(plan), retryable = true, stopAck = retired)
 			} else {
 				applyEffective(effective, claim = null, demands = demands)
 			}
@@ -205,10 +293,12 @@ class SharedLocationSourceController @Inject constructor(
 		if (ambientPlan == null) {
 			return physicalRuntime.quiesce(cutoff).withSessionMembership(retiringClaim).also {
 				if (it.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) sessionPlan = priorPlan
+				else uiPlan()?.let { temporary -> physicalRuntime.applyUiOnly(temporary) }
 			}
 		}
 		val maximumAgeMs = demands.maxOf(SourceDemandEntity::maximumAgeMs)
-		val refreshed = physicalRuntime.refreshShared(ambientPlan, unboundSink, null, maximumAgeMs)
+		val physicalAmbientPlan = joinUiLocationPlan(ambientPlan, uiPlan())
+		val refreshed = physicalRuntime.refreshShared(physicalAmbientPlan, unboundSink, null, maximumAgeMs)
 		val acknowledgement = if (
 			refreshed is SourceApplyResult.Applied || refreshed is SourceApplyResult.Degraded
 		) {
@@ -217,7 +307,7 @@ class SharedLocationSourceController @Inject constructor(
 		} else {
 			val stopped = physicalRuntime.quiesce(cutoff)
 			if (stopped.toOwnedShutdown() is OwnedSourceShutdown.Released) {
-				val restart = physicalRuntime.reconfigureShared(ambientPlan, unboundSink, null, maximumAgeMs)
+				val restart = physicalRuntime.reconfigureShared(physicalAmbientPlan, unboundSink, null, maximumAgeMs)
 				ambientAttached =
 					restart is SourceApplyResult.Applied || restart is SourceApplyResult.Degraded
 			}
@@ -278,6 +368,15 @@ class SharedLocationSourceController @Inject constructor(
 		}
 		val effective = effectivePlan(demands)
 		if (effective == null) {
+			if (uiPlan() != null) {
+				val temporaryStillActive = reconcileAfterUiLeaseChange()
+				return@withLock if (temporaryStillActive) {
+					ambientAttached = false
+					AmbientLocationRuntimeJoinResult.Inactive(providerKey = null)
+				} else AmbientLocationRuntimeJoinResult.Unavailable(
+					providerKey = null, reasons = emptySet(), retryable = true,
+				)
+			}
 			val acknowledgement = physicalRuntime.closeShared()
 			return@withLock if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
 				ambientAttached = false
@@ -330,7 +429,9 @@ class SharedLocationSourceController @Inject constructor(
 		if (ambientDemand) return@withLock false
 		ambientAttached = false
 		if (sessionPlan != null) return@withLock false
-		physicalRuntime.closeShared().toOwnedShutdown() is OwnedSourceShutdown.Released
+		val released = physicalRuntime.closeShared().toOwnedShutdown() is OwnedSourceShutdown.Released
+		if (released) uiPlan()?.let { temporary -> physicalRuntime.applyUiOnly(temporary) }
+		released
 	}
 
 	override suspend fun close() = mutex.withLock {
@@ -349,7 +450,9 @@ class SharedLocationSourceController @Inject constructor(
 		val demands = selectedDemands()
 		val effective = effectivePlan(demands)
 		if (effective == null) {
-			physicalRuntime.close()
+			val temporary = uiPlan()
+			if (temporary == null) physicalRuntime.close()
+			else reconcileAfterUiLeaseChange()
 			ambientAttached = false
 		} else {
 			val result = applyEffective(effective, claim = null, demands = demands)
@@ -389,8 +492,9 @@ class SharedLocationSourceController @Inject constructor(
 		demands: List<SourceDemandEntity>,
 	): SourceApplyResult {
 		val maximumAgeMs = demands.maxOf(SourceDemandEntity::maximumAgeMs)
-		return physicalRuntime.refreshShared(plan, unboundSink, claim, maximumAgeMs)
-			?: physicalRuntime.reconfigureShared(plan, unboundSink, claim, maximumAgeMs)
+		val physicalPlan = joinUiLocationPlan(plan, uiPlan())
+		return physicalRuntime.refreshShared(physicalPlan, unboundSink, claim, maximumAgeMs)
+			?: physicalRuntime.reconfigureShared(physicalPlan, unboundSink, claim, maximumAgeMs)
 	}
 
 	private fun disabledState(plan: LocationPlan) = appliedState(
@@ -415,6 +519,23 @@ class SharedLocationSourceController @Inject constructor(
 		is SourceApplyResult.Failed -> SourceStartResult.Failed(state, retryable)
 		is SourceApplyResult.RolledBack -> SourceStartResult.Failed(state, retryable = true)
 	}
+}
+
+/** Explicit foreground use can raise the physical request without granting a durable purpose. */
+internal fun joinUiLocationPlan(durable: LocationPlan, ui: LocationPlan?): LocationPlan {
+	if (ui == null) return durable
+	return durable.copy(
+		backend = ui.backend,
+		mode = if (ui.mode == LocationMode.HIGH_ACCURACY ||
+			durable.mode == LocationMode.HIGH_ACCURACY || durable.mode == LocationMode.PROBE
+		) LocationMode.HIGH_ACCURACY else LocationMode.BALANCED,
+		requestedIntervalMs = minOf(durable.requestedIntervalMs, ui.requestedIntervalMs),
+		minimumUpdateIntervalMs = minOf(durable.minimumUpdateIntervalMs, ui.minimumUpdateIntervalMs),
+		minimumDisplacementMeters = minOf(durable.minimumDisplacementMeters, ui.minimumDisplacementMeters),
+		maximumBatchDelayMs = 0L,
+		probeDurationMs = null,
+		preciseLocationAvailable = durable.preciseLocationAvailable || ui.preciseLocationAvailable,
+	)
 }
 
 /** One physical request covers both independently authorized purposes; passive adds no acquisition. */

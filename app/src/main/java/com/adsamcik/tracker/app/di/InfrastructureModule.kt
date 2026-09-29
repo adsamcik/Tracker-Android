@@ -71,9 +71,9 @@ import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryScheduler
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.tracker.source.coordinator.StepsSessionFactWriterTransitionCoordinator
-import com.adsamcik.tracker.shared.base.location.DefaultUiLocationProvider
 import com.adsamcik.tracker.shared.base.location.UiLocationProvider
-import com.google.android.gms.location.LocationServices
+import com.adsamcik.tracker.tracker.source.runtime.SharedUiLocationProvider
+import com.adsamcik.tracker.tracker.source.runtime.SharedLocationSourceController
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -88,8 +88,6 @@ import javax.inject.Provider
 import dev.tracebox.api.DeleteReport
 import dev.tracebox.api.DeleteRequest
 import kotlinx.coroutines.withContext
-import android.location.LocationManager
-import com.adsamcik.tracker.shared.base.assist.Assist
 
 /**
  * Hilt module providing core infrastructure dependencies.
@@ -106,12 +104,10 @@ object InfrastructureModule {
     @Provides
     @Singleton
     fun provideUiLocationProvider(
-        @ApplicationContext context: Context,
-    ): UiLocationProvider = DefaultUiLocationProvider(
-        client = LocationServices.getFusedLocationProviderClient(context),
+        owner: SharedLocationSourceController,
+    ): UiLocationProvider = SharedUiLocationProvider(
+        owner = owner,
         processLifecycle = ProcessLifecycleOwner.get().lifecycle,
-        locationManager = context.getSystemService(LocationManager::class.java),
-        fusedAvailable = { Assist.isPlayServicesAvailable(context) },
     )
 
     /**

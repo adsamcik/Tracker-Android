@@ -193,6 +193,8 @@ class FusedMiniGameLocationSourceTest {
 		requestSlot.captured.minUpdateIntervalMillis shouldBe 3_000L
 		requestSlot.captured.minimumDisplacementMeters shouldBe 10f
 		requestSlot.captured.highAccuracy shouldBe false
+		requestSlot.captured.maximumAgeMillis shouldBe 5_000L
+		requestSlot.captured.cancelOnAppBackground shouldBe false
 	}
 
 	private fun grantFineLocation() {

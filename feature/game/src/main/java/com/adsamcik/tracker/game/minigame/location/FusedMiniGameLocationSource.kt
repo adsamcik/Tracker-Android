@@ -16,11 +16,9 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.mapNotNull
 
 /**
- * Default standalone mini-game source backed by the shared fused/framework UI provider.
+ * Mini-game source backed by the app's shared Location owner.
  *
- * Self-contained: does not depend on TrackerService. Each subscription opens its
- * own update stream and tears it down on cancellation, so leaving the session
- * screen guarantees no background sensor activity.
+ * Each subscription holds an independent temporary lease and releases it on cancellation.
  *
  * No raw samples are persisted by this class — they are forwarded to the
  * collector and forgotten.
@@ -47,6 +45,9 @@ internal class FusedMiniGameLocationSource @Inject constructor(
 				minUpdateIntervalMillis = request.minUpdateIntervalMillis,
 				minimumDisplacementMeters = request.minUpdateDistanceMeters,
 				highAccuracy = request.priority == Priority.PRIORITY_HIGH_ACCURACY,
+				maximumAgeMillis = if (request.intervalMillis >= 2_500L) 5_000L
+					else maxOf(1_000L, request.intervalMillis * 2L),
+				cancelOnAppBackground = false,
 			),
 		).mapNotNull { location ->
 			// An absent observation time is not evidence that this is a new fix.
