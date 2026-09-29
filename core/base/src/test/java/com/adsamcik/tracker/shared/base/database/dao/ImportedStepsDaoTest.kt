@@ -59,16 +59,18 @@ class ImportedStepsDaoTest {
 	}
 
 	@Test
-	fun `missing exact parent is rejected and full collected clear cascades all origin metadata`() = runTest {
+	fun `missing exact parent is rejected and full collected clear preserves unverifiable origin metadata`() = runTest {
 		shouldThrow<SQLiteConstraintException> { dao.insertRun(run()) }
 		shouldThrow<SQLiteConstraintException> { dao.insertManifest(manifest()) }
 		dao.insertEntry(entry())
 		dao.insertRun(run())
 		dao.insertManifest(manifest())
-		AppDatabase.deleteAllCollectedData(database, 2L, null, 50L)
-		dao.entry(ENTRY) shouldBe null
-		dao.run(RUN) shouldBe null
-		dao.manifests(RUN) shouldBe emptyList()
+		shouldThrow<IllegalStateException> {
+			AppDatabase.deleteAllCollectedData(database, 2L, null, 50L)
+		}
+		dao.entry(ENTRY) shouldBe entry()
+		dao.run(RUN) shouldBe run()
+		dao.manifests(RUN) shouldBe listOf(manifest())
 	}
 
 	@Test

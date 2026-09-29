@@ -523,8 +523,8 @@ class PressureRetentionTruncationTest {
 			eventId = "pressure-old-revision-current",
 			semanticRevision = 3L,
 		)
-		database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(intermediate))
-		database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(current))
+		check(database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(intermediate)) > 0L)
+		check(database.sourceEventWalDao().insertIgnoringDuplicate(pressureWal(current)) > 0L)
 		database.pressureFactRevisionDao().insert(intermediate)
 		database.pressureFactRevisionDao().insert(current)
 
@@ -1107,16 +1107,17 @@ class PressureRetentionTruncationTest {
 			eventId,
 			semanticRevision,
 		)
-		val wallOffsetMs = RETENTION_FLOOR_MS + 100L - correction.intervalStartTimeMs
+		val retainedStartMs = RETENTION_FLOOR_MS + 100L + semanticRevision - 2L
+		val wallOffsetMs = retainedStartMs - correction.intervalStartTimeMs
 		val elapsedOffsetNanos = wallOffsetMs * 1_000_000L
 		val unsigned = correction.copy(
-			intervalStartTimeMs = RETENTION_FLOOR_MS + 100L,
-			intervalEndTimeMs = RETENTION_FLOOR_MS + 100L + WINDOW_MS,
+			intervalStartTimeMs = retainedStartMs,
+			intervalEndTimeMs = retainedStartMs + WINDOW_MS,
 			windowStartElapsedRealtimeNanos =
 				correction.windowStartElapsedRealtimeNanos + elapsedOffsetNanos,
 			windowEndElapsedRealtimeNanos =
 				correction.windowEndElapsedRealtimeNanos + elapsedOffsetNanos,
-			appliedAtMs = RETENTION_FLOOR_MS + 100L + WINDOW_MS,
+			appliedAtMs = retainedStartMs + WINDOW_MS,
 			effectChecksum = "pending",
 		)
 		return unsigned.copy(

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
+import android.database.sqlite.SQLiteConstraintException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
@@ -65,7 +66,6 @@ class AmbientStepsPortableRoomReaderTest {
 		val archive = (result as AmbientStepsPortableSnapshot.Ready).archive
 		checkpoints shouldContainExactly listOf(
 			AmbientStepsPortableReadCheckpoint.TRANSACTION_STARTED,
-			AmbientStepsPortableReadCheckpoint.AUTHORITY_AUTHENTICATED,
 			AmbientStepsPortableReadCheckpoint.SNAPSHOT_ASSEMBLED,
 		)
 		archive.days.single().run {
@@ -237,7 +237,8 @@ class AmbientStepsPortableRoomReaderTest {
 			AmbientStepsPortableReadRequest(0L, DAY_END),
 		) shouldBe AmbientStepsPortableSnapshot.NoData
 
-		(database.ambientStepsFactRevisionDao().insert(fact) >= 0L) shouldBe true
+		(runCatching { database.ambientStepsFactRevisionDao().insert(fact) }.exceptionOrNull()
+			is SQLiteConstraintException) shouldBe true
 		AmbientStepsPortableRoomReader(database).read(
 			AmbientStepsPortableReadRequest(0L, DAY_END),
 		) shouldBe AmbientStepsPortableSnapshot.NoData
@@ -278,7 +279,7 @@ class AmbientStepsPortableRoomReaderTest {
 				AmbientStepsPortableReadRequest(0L, DAY_END),
 				AmbientStepsPortableReadLimits(),
 				checkpoint = { checkpoint ->
-				if (checkpoint == AmbientStepsPortableReadCheckpoint.AUTHORITY_AUTHENTICATED) {
+				if (checkpoint == AmbientStepsPortableReadCheckpoint.SNAPSHOT_ASSEMBLED) {
 					throw CancellationException("cancel before assembly")
 				}
 				},
@@ -660,7 +661,7 @@ class AmbientStepsPortableRoomReaderTest {
 				startTimeMs,
 				endTimeMs,
 				endTimeMs,
-				0L,
+				structuralEpochDay,
 				"UTC",
 				structuralDayStartTimeMs,
 				structuralDayEndTimeMs,

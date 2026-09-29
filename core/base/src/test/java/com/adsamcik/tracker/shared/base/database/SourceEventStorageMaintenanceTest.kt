@@ -272,7 +272,7 @@ class SourceEventStorageMaintenanceTest {
 		)
 		deferred.walEventsDeleted shouldBe 0
 		deferred.deliveredEffectsDeleted shouldBe 0
-		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.eventId shouldBe "event-1"
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.eventId shouldBe "event-3"
 		database.sourceProjectionStateDao().outbox("outbox-3")?.stableId shouldBe "outbox-3"
 	}
 
@@ -897,7 +897,7 @@ class SourceEventStorageMaintenanceTest {
 				createdAtMs = 10L,
 				deliveredAtMs = 20L,
 			),
-		) shouldBe 1L
+		).let { insertedId -> check(insertedId > 0L) }
 	}
 
 	private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")

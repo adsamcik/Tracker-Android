@@ -369,7 +369,7 @@ class ActivityCapturedFactMaintenanceTest {
 			ActivityCapturedSourceDeletionResult.Blocked(
 				ActivityCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
 			)
-		database.activityCapturedFactDao().fragmentCount() shouldBe 1L
+		database.activityCapturedFactDao().fragmentCount() shouldBe 2L
 	}
 
 	@Test
@@ -449,7 +449,7 @@ class ActivityCapturedFactMaintenanceTest {
 
 	@Test
 	fun `portable re-export emits one entry for exact local and imported origins`() = runTest {
-		seedCapturedActivity()
+		seedCapturedActivity(semanticRevisions = 2)
 		val local = (portableReader().read(
 			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
 		) as PortableCapturedActivitySnapshot.Ready).envelope.entries.single()
@@ -470,7 +470,7 @@ class ActivityCapturedFactMaintenanceTest {
 
 	@Test
 	fun `portable re-export rejects divergent local and imported origins sharing an identity`() = runTest {
-		seedCapturedActivity()
+		seedCapturedActivity(semanticRevisions = 2)
 		val local = (portableReader().read(
 			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
 		) as PortableCapturedActivitySnapshot.Ready).envelope.entries.single()
@@ -494,7 +494,7 @@ class ActivityCapturedFactMaintenanceTest {
 
 	@Test
 	fun `portable re-export rejects a foreign entry reusing local run ownership`() = runTest {
-		seedCapturedActivity()
+		seedCapturedActivity(semanticRevisions = 2)
 		val local = (portableReader().read(
 			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
 		) as PortableCapturedActivitySnapshot.Ready).envelope.entries.single()
@@ -554,7 +554,7 @@ class ActivityCapturedFactMaintenanceTest {
 
 	@Test
 	fun `portable range selects a complete group through an overlapping factless replacement`() = runTest {
-		seedCapturedActivity()
+		seedCapturedActivity(sessionRunEffectEndNanos = 900L)
 		installTerminalReplacement(capturesActivity = false)
 
 		val snapshot = portableReader().read(
@@ -570,7 +570,7 @@ class ActivityCapturedFactMaintenanceTest {
 
 	@Test
 	fun `portable range uses exact half-open replacement boundaries`() = runTest {
-		seedCapturedActivity()
+		seedCapturedActivity(sessionRunEffectEndNanos = 900L)
 		installTerminalReplacement(capturesActivity = false)
 
 		portableReader().read(
@@ -582,7 +582,7 @@ class ActivityCapturedFactMaintenanceTest {
 
 	@Test
 	fun `portable range rejects a corrupt overlapping replacement binding`() = runTest {
-		seedCapturedActivity()
+		seedCapturedActivity(sessionRunEffectEndNanos = 900L)
 		installTerminalReplacement(capturesActivity = false)
 		corruptWithoutForeignKeys(
 			"UPDATE session_segment SET service_run_id = 'foreign-run' " +
@@ -759,6 +759,7 @@ class ActivityCapturedFactMaintenanceTest {
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 2,
 			receivedElapsedNanos = 220L,
+			bypassDuplicateAdmissionPreflight = true,
 		)
 
 		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
@@ -1232,7 +1233,7 @@ class ActivityCapturedFactMaintenanceTest {
 
 	@Test
 	fun `portable export authenticates a factless replacement provider before emission`() = runTest {
-		seedCapturedActivity()
+		seedCapturedActivity(sessionRunEffectEndNanos = 900L)
 		installTerminalReplacement(capturesActivity = true)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET owner_scope = 'foreign-owner' " +
@@ -1574,6 +1575,7 @@ class ActivityCapturedFactMaintenanceTest {
 		acquiredAtMs: Long = wallTimeMs,
 		capturedCollectedDataEpoch: Long = 0L,
 		createdAtMs: Long = acquiredAtMs,
+		bypassDuplicateAdmissionPreflight: Boolean = false,
 	) {
 		val payload = byteArrayOf(ordinal.toByte())
 		val checksum = sha256(payload)
@@ -1617,7 +1619,12 @@ class ActivityCapturedFactMaintenanceTest {
 			createdAtMs = createdAtMs,
 		)
 		val sealed = unsealed.copy(integrityIdentity = unsealed.calculatedIntegrityIdentity())
-		database.sourceEventWalDao().insertIgnoringDuplicate(sealed) shouldBe ordinal
+		val inserted = if (bypassDuplicateAdmissionPreflight) {
+			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(sealed)
+		} else {
+			database.sourceEventWalDao().insertIgnoringDuplicate(sealed)
+		}
+		inserted shouldBe ordinal
 	}
 
 	@Test
@@ -1850,6 +1857,7 @@ class ActivityCapturedFactMaintenanceTest {
 		insertFactLineage(
 			segmentId = segmentId,
 			semanticRevisions = semanticRevisions,
+			providerActive = providerActive,
 			sessionRunEffectEndNanos = sessionRunEffectEndNanos,
 			gapOnly = gapOnly,
 			latestGapOnlyCorrection = latestGapOnlyCorrection,
@@ -2122,6 +2130,7 @@ class ActivityCapturedFactMaintenanceTest {
 	private suspend fun insertFactLineage(
 		segmentId: Long,
 		semanticRevisions: Int,
+		providerActive: Boolean,
 		sessionRunEffectEndNanos: Long,
 		gapOnly: Boolean,
 		latestGapOnlyCorrection: Boolean,
@@ -2134,6 +2143,7 @@ class ActivityCapturedFactMaintenanceTest {
 			persistedRevision(
 				segmentId = segmentId,
 				semanticRevision = ordinal.toLong(),
+				providerActive = providerActive,
 				complete = ordinal == 2,
 				sessionRunEffectEndNanos = sessionRunEffectEndNanos,
 				gapOnly = gapOnly || latestGapOnlyCorrection && ordinal == semanticRevisions,
@@ -2169,6 +2179,7 @@ class ActivityCapturedFactMaintenanceTest {
 	private fun persistedRevision(
 		segmentId: Long,
 		semanticRevision: Long,
+		providerActive: Boolean,
 		complete: Boolean,
 		sessionRunEffectEndNanos: Long,
 		gapOnly: Boolean,
@@ -2179,6 +2190,7 @@ class ActivityCapturedFactMaintenanceTest {
 			sessionRunEffectEndNanos,
 			authorizationFingerprint,
 			purposeEligibilityMask,
+			providerActive,
 		)
 		val fragments = if (gapOnly) {
 			listOf(gapFragment(logicalWindowId, semanticRevision, 0, 200L, 400L))
@@ -2219,7 +2231,7 @@ class ActivityCapturedFactMaintenanceTest {
 			clockDomainId = BOOT_ID,
 			storedZoneId = "Europe/Prague",
 			providerAcceptanceStartNanos = 100L,
-			providerAcceptanceEndNanos = 1_000L,
+			providerAcceptanceEndNanos = if (providerActive) Long.MAX_VALUE else 1_000L,
 			authorizationEffectStartNanos = 150L,
 			authorizationEffectEndNanos = Long.MAX_VALUE,
 			sessionRunEffectStartNanos = 100L,
@@ -2721,6 +2733,7 @@ class ActivityCapturedFactMaintenanceTest {
 		sessionRunEffectEndNanos: Long,
 		authorizationFingerprint: String,
 		purposeEligibilityMask: Long,
+		providerActive: Boolean,
 	): String = digest(
 		"activity-captured-window-v1",
 		listOf(
@@ -2740,7 +2753,7 @@ class ActivityCapturedFactMaintenanceTest {
 			"0",
 			BOOT_ID,
 			"100",
-			"1000",
+			(if (providerActive) Long.MAX_VALUE else 1_000L).toString(),
 			"150",
 			Long.MAX_VALUE.toString(),
 			"100",

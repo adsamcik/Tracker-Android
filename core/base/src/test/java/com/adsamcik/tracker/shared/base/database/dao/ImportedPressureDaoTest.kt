@@ -4,6 +4,7 @@ import android.app.Application
 import android.database.sqlite.SQLiteConstraintException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.createTrackingOwnerValidationTriggers
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
@@ -154,10 +155,18 @@ class ImportedPressureDaoTest {
 					),
 				),
 			)
-			database.openHelper.writableDatabase.execSQL(
-				"UPDATE imported_pressure_source_erase " +
-					"SET legacy_write_fence_owner = 'UNKNOWN_PRESSURE_OWNER' WHERE id = 1",
-			)
+			val sqlite = database.openHelper.writableDatabase
+			sqlite.execSQL("DROP TRIGGER validate_imported_pressure_source_erase_owner_update")
+			sqlite.execSQL("PRAGMA ignore_check_constraints = ON")
+			try {
+				sqlite.execSQL(
+					"UPDATE imported_pressure_source_erase " +
+						"SET legacy_write_fence_owner = 'UNKNOWN_PRESSURE_OWNER' WHERE id = 1",
+				)
+			} finally {
+				sqlite.execSQL("PRAGMA ignore_check_constraints = OFF")
+				createTrackingOwnerValidationTriggers(sqlite)
+			}
 
 			shouldThrow<IllegalArgumentException> {
 				AppDatabase.deleteAllCollectedData(database, 8L, null, 4_000L)

@@ -523,8 +523,10 @@ class SourceEventWalDaoTest {
 			SourceProjectionCheckpointEntity("activity-control", 1, 0, 1, 0),
 		)
 		val wal = database.sourceEventWalDao()
-		wal.insertIgnoringDuplicate(event("activity-1", 1).copy(sourceKind = 2, createdAtMs = 10)) shouldBe 1L
-		wal.insertIgnoringDuplicate(event("activity-2", 2).copy(sourceKind = 2, createdAtMs = 10)) shouldBe 2L
+		wal.insertIgnoringDuplicate(event("activity-1", 1).copy(sourceKind = 2, createdAtMs = 10)
+			.let { row -> row.copy(integrityIdentity = row.calculatedIntegrityIdentity()) }) shouldBe 1L
+		wal.insertIgnoringDuplicate(event("activity-2", 2).copy(sourceKind = 2, createdAtMs = 10)
+			.let { row -> row.copy(integrityIdentity = row.calculatedIntegrityIdentity()) }) shouldBe 2L
 		projection.insertOutbox(
 			SourceProjectionOutboxEntity(
 				stableId = "activity-control:activity-1",
@@ -580,7 +582,7 @@ class SourceEventWalDaoTest {
 	}
 
 	@Test
-	fun `stalled steps lane retains only steps wal and receipts across interleaved sources`() = runTest {
+	fun `stalled activity lane retains only activity wal and receipts across interleaved sources`() = runTest {
 		val projection = database.sourceProjectionStateDao()
 		projection.register(
 			SourceProjectionRegistrationEntity(
@@ -603,7 +605,7 @@ class SourceEventWalDaoTest {
 		)
 		listOf(
 			Triple(1, "location-points", 6L),
-			Triple(3, "steps-interval", 0L),
+			Triple(2, "activity-observation", 0L),
 			Triple(5, "wifi-observation", 6L),
 		).forEach { (sourceKind, projectionId, checkpoint) ->
 			projection.installProductLane(
@@ -626,10 +628,10 @@ class SourceEventWalDaoTest {
 		}
 		val wal = database.sourceEventWalDao()
 		listOf(
-			Triple("steps-1", 3, "steps-interval"),
+			Triple("activity-1", 2, "activity-observation"),
 			Triple("location-2", 1, "location-points"),
 			Triple("wifi-3", 5, "wifi-observation"),
-			Triple("steps-4", 3, "steps-interval"),
+			Triple("activity-4", 2, "activity-observation"),
 			Triple("location-5", 1, "location-points"),
 			Triple("wifi-6", 5, "wifi-observation"),
 		).forEachIndexed { index, (eventId, sourceKind, projectionId) ->
@@ -637,10 +639,9 @@ class SourceEventWalDaoTest {
 			wal.insertIgnoringDuplicate(
 				event(eventId, ordinal).copy(
 					sourceKind = sourceKind,
-					authorizationPurposeEligibilityMask =
-						if (sourceKind == 3) SourceBrokerPurpose.MASK_CONTROL_AUTOSTART else 0L,
+					authorizationPurposeEligibilityMask = 0L,
 					createdAtMs = 10,
-				),
+				).let { row -> row.copy(integrityIdentity = row.calculatedIntegrityIdentity()) },
 			) shouldBe ordinal
 			projection.insertOutbox(
 				SourceProjectionOutboxEntity(
@@ -661,18 +662,18 @@ class SourceEventWalDaoTest {
 
 		firstPrune.walEventsDeleted shouldBe 4
 		firstPrune.deliveredEffectsDeleted shouldBe 4
-		wal.getByEventId("steps-1")?.eventId shouldBe "steps-1"
-		wal.getByEventId("steps-4")?.eventId shouldBe "steps-4"
+		wal.getByEventId("activity-1")?.eventId shouldBe "activity-1"
+		wal.getByEventId("activity-4")?.eventId shouldBe "activity-4"
 		wal.getByEventId("location-2") shouldBe null
 		wal.getByEventId("wifi-3") shouldBe null
-		projection.outbox("steps-interval:steps-1")?.stableId shouldBe
-			"steps-interval:steps-1"
+		projection.outbox("activity-observation:activity-1")?.stableId shouldBe
+			"activity-observation:activity-1"
 		projection.outbox("location-points:location-2") shouldBe null
 
 		projection.advanceProductLaneCursor(
-			sourceKind = 3,
+			sourceKind = 2,
 			bindingGeneration = 1,
-			projectionId = "steps-interval",
+			projectionId = "activity-observation",
 			projectionVersion = 1,
 			expectedCurrentOrdinal = 0,
 			throughOrdinal = 6,
@@ -682,9 +683,9 @@ class SourceEventWalDaoTest {
 
 		secondPrune.walEventsDeleted shouldBe 2
 		secondPrune.deliveredEffectsDeleted shouldBe 2
-		wal.getByEventId("steps-1") shouldBe null
-		wal.getByEventId("steps-4") shouldBe null
-		projection.outbox("steps-interval:steps-1") shouldBe null
+		wal.getByEventId("activity-1") shouldBe null
+		wal.getByEventId("activity-4") shouldBe null
+		projection.outbox("activity-observation:activity-1") shouldBe null
 	}
 
 	@Test
@@ -1328,7 +1329,7 @@ class SourceEventWalDaoTest {
 		qualityConfidence = null,
 		payloadVersion = 1,
 		payload = byteArrayOf(1),
-		payloadChecksum = "checksum-$eventId",
+		payloadChecksum = byteArrayOf(1).sha256(),
 		createdAtMs = 10,
-	)
+	).let { row -> row.copy(integrityIdentity = row.calculatedIntegrityIdentity()) }
 }

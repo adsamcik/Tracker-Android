@@ -40,6 +40,7 @@ class LocationFileIdentityRoomTest {
 		val otherSampleId = database.locationSampleDao().insert(sample().copy(timeMs = 2_000L))
 		dao.insertIfAbsent(assigned.copy(sampleId = otherSampleId)) shouldBe -1L
 		dao.bySampleId(otherSampleId) shouldBe null
+		Unit
 	}
 
 	@Test fun `point deletion also removes its file identity`() = runBlocking {
@@ -48,6 +49,7 @@ class LocationFileIdentityRoomTest {
 		dao.insertIfAbsent(LocationFileIdentityEntity("point-a", saved.id, true, "session"))
 		database.locationSampleDao().delete(saved)
 		dao.byPortableId("point-a") shouldBe null
+		Unit
 	}
 
 	private fun sample() = LocationSample(

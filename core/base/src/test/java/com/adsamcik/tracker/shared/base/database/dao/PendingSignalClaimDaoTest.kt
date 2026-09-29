@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database.dao
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.createTrackingOwnerValidationTriggers
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.QuarantinedSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -100,20 +101,28 @@ class PendingSignalClaimDaoTest {
 			stepsWriterOwnerGeneration = 1L,
 		)
 
-		pendingDao.insertAll(listOf(stamped("generation-only")))
-		database.openHelper.writableDatabase.execSQL(
-			"UPDATE pending_signal SET steps_writer_owner = NULL " +
-				"WHERE signal_id = 'generation-only'",
-		)
-		pendingDao.hasStepsWriterCommand() shouldBe true
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("DROP TRIGGER validate_pending_signal_writer_owners_update")
+		sqlite.execSQL("PRAGMA ignore_check_constraints = ON")
+		try {
+			pendingDao.insertAll(listOf(stamped("generation-only")))
+			sqlite.execSQL(
+				"UPDATE pending_signal SET steps_writer_owner = NULL " +
+					"WHERE signal_id = 'generation-only'",
+			)
+			pendingDao.hasStepsWriterCommand() shouldBe true
 
-		pendingDao.deleteAll()
-		pendingDao.insertAll(listOf(stamped("owner-only")))
-		database.openHelper.writableDatabase.execSQL(
-			"UPDATE pending_signal SET steps_writer_owner_generation = NULL " +
-				"WHERE signal_id = 'owner-only'",
-		)
-		pendingDao.hasStepsWriterCommand() shouldBe true
+			pendingDao.deleteAll()
+			pendingDao.insertAll(listOf(stamped("owner-only")))
+			sqlite.execSQL(
+				"UPDATE pending_signal SET steps_writer_owner_generation = NULL " +
+					"WHERE signal_id = 'owner-only'",
+			)
+			pendingDao.hasStepsWriterCommand() shouldBe true
+		} finally {
+			sqlite.execSQL("PRAGMA ignore_check_constraints = OFF")
+			createTrackingOwnerValidationTriggers(sqlite)
+		}
 	}
 
 	@Test

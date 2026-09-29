@@ -150,7 +150,7 @@ class WifiCapturedFullClearTest {
 		val graph = seedGraph()
 		database.openHelper.writableDatabase.execSQL(
 			"CREATE TRIGGER reject_wifi_deletion_generation " +
-				"BEFORE DELETE ON wifi_capture_deletion_generation " +
+			"BEFORE DELETE ON wifi_captured_fact_revision " +
 				"BEGIN SELECT RAISE(ABORT, '$ROLLBACK_TRIGGER_MARKER'); END",
 		)
 

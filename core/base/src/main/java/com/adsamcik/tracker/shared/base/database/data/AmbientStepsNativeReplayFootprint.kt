@@ -38,7 +38,7 @@ data class AmbientStepsNativeReplayFootprintEntity(
 		const val KIND_FACT = "FACT"
 		const val KIND_GAP = "GAP"
 		private val IDENTITY_KINDS = setOf(KIND_DAY, KIND_FACT, KIND_GAP)
-		private val DIGEST = Regex("[0-9a-f]{64}")
+		private val DIGEST = Regex("sha256:[0-9a-f]{64}")
 	}
 }
 

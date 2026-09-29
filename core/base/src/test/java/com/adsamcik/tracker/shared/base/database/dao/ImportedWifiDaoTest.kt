@@ -136,7 +136,11 @@ class ImportedWifiDaoTest {
 			4,
 		).toSet() shouldBe
 			deletionProtected.toSet()
-		dao.selectedDeletionProtectedIdentityOwners(listOf("9".repeat(64)), 4).size shouldBe 1
+		dao.selectedDeletionProtectedIdentityOwners(listOf("9".repeat(64)), 4)
+			.map { it.identityKind }.toSet() shouldBe setOf(
+			WifiSelectedDeletionProtectedIdentityEntity.KIND_RUN,
+			WifiSelectedDeletionProtectedIdentityEntity.KIND_DELETION_SCOPE,
+		)
 		dao.authorityOwners(
 			listOf(ENTRY, RUN, OBSERVATION, SCOPE, "8".repeat(64), "9".repeat(64), "a".repeat(64)),
 			32,

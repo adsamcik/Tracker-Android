@@ -408,13 +408,13 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
-	fun `stale exact source deletion scope is stored evidence corruption`() = runTest {
+	fun `older exact source deletion scope still blocks admission`() = runTest {
 		val deletionScope = PortableActivityDeletionScopeDigest.derive(LOGICAL_TRACKING_ID, SERVICE_RUN_ID)
 		val request = request(entry(deletionScope = deletionScope))
 		database.sourceDeletionFenceDao().insertIfAbsent(sourceDeletionFence(epoch = EPOCH - 1L))
 
-		importer(testScheduler).importEntry(request) shouldBe ImportPortableCapturedActivityResult.Unverifiable(
-			PortableActivityImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		importer(testScheduler).importEntry(request) shouldBe ImportPortableCapturedActivityResult.Blocked(
+			PortableActivityImportBlockedReason.DELETED_SCOPE,
 		)
 		rowCount("imported_activity_entry_revision") shouldBe 0L
 		rowCount("imported_activity_receipt") shouldBe 0L
@@ -1524,12 +1524,14 @@ class RoomImportPortableCapturedActivityTest {
 		deleter(testScheduler).delete(deleteRequest(value, deletedAtMs = 100L)) shouldBe
 			DeleteSelectedImportedActivityResult.NotFound
 
-		val closed = newDatabase()
-		closed.close()
-		deleter(testScheduler, closed).delete(deleteRequest(value, deletedAtMs = 100L)) shouldBe
+		val unavailable = newDatabase()
+		unavailable.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+		unavailable.openHelper.writableDatabase.execSQL("DROP TABLE imported_activity_entry_revision")
+		deleter(testScheduler, unavailable).delete(deleteRequest(value, deletedAtMs = 100L)) shouldBe
 			DeleteSelectedImportedActivityResult.RetryableFailure(
 				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
 			)
+		unavailable.close()
 	}
 
 	@Test
@@ -2373,20 +2375,22 @@ class RoomImportPortableCapturedActivityTest {
 			imported.entry.runs.single().deletionScopeDigest.value,
 		) shouldBe false
 
-		val closed = newDatabase()
+		val unavailable = newDatabase()
+		unavailable.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
 		val failing = RoomEraseNextImportedActivity(
-			closed,
+			unavailable,
 			RoomDeleteSelectedImportedActivity(
-				closed,
+				unavailable,
 				UnconfinedTestDispatcher(testScheduler),
 			),
 			UnconfinedTestDispatcher(testScheduler),
 		)
-		closed.close()
+		unavailable.openHelper.writableDatabase.execSQL("DROP TABLE imported_activity_entry_revision")
 		failing.eraseNext(EPOCH, 100L) shouldBe
 			EraseNextImportedActivityResult.RetryableFailure(
 				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
 			)
+		unavailable.close()
 	}
 
 	@Test
@@ -2568,18 +2572,19 @@ class RoomImportPortableCapturedActivityTest {
 
 	@Test
 	fun `portable re-export maps imported storage failure without invoking the sink`() = runTest {
-		val closed = newDatabase()
-		closed.close()
+		val unavailable = newDatabase()
+		unavailable.openHelper.writableDatabase.execSQL("DROP TABLE imported_activity_entry_revision")
 		var sinkCalls = 0
 
 		RoomExportPortableCapturedActivity(
-			closed,
+			unavailable,
 			SourceProductLaneExecutionAuthority { false },
 			UnconfinedTestDispatcher(testScheduler),
 		).export(ExportPortableCapturedActivityRequest(999L, 2_001L)) {
 			sinkCalls++
 		} shouldBe ExportPortableCapturedActivityResult.StorageUnavailable
 		sinkCalls shouldBe 0
+		unavailable.close()
 	}
 
 	private fun importer(

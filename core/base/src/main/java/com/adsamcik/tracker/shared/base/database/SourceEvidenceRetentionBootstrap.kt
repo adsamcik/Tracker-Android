@@ -151,6 +151,8 @@ private val RETENTION_BOOTSTRAP_NON_EVIDENCE_TABLES = setOf(
 	"activity",
 	"android_metadata",
 	"room_master_table",
+	// Structural contract marker installed at database creation; it is not a captured fact.
+	StepsCountDomainSchema.SCHEMA_MARKER_TABLE,
 	"source_evidence_state",
 	"source_destination_owner",
 	"source_policy_authority",

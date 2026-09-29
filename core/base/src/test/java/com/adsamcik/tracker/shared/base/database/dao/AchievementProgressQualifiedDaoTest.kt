@@ -82,6 +82,7 @@ class AchievementProgressQualifiedDaoTest {
 			lastTierIndex = 2,
 			lastValue = 30.0,
 			updatedAt = 200L,
+			lastUnlockedAt = 200L,
 		)
 	}
 

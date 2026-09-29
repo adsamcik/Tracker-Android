@@ -295,7 +295,7 @@ class ImportedStepsRetainedReaderTest {
 		val portable = seed()
 		database.openHelper.writableDatabase.execSQL("UPDATE imported_steps_run SET deletion_scope_digest = 'corrupt' WHERE identity = ?",
 			arrayOf(portable.runs.first().identity.value))
-		shouldThrow<IllegalArgumentException> { AppDatabase.deleteAllCollectedData(database, 2L, null, 500L) }
+		shouldThrow<IllegalStateException> { AppDatabase.deleteAllCollectedData(database, 2L, null, 500L) }
 		database.sourceEvidenceStateDao().get().shouldNotBeNull().collectedDataEpoch shouldBe 1L
 		database.importedStepsDao().entry(portable.identity.value).shouldNotBeNull()
 		database.stepFactRevisionDao().countAll() shouldBe 4L
@@ -327,7 +327,7 @@ class ImportedStepsRetainedReaderTest {
 			),
 		)
 
-		shouldThrow<IllegalArgumentException> {
+		shouldThrow<IllegalStateException> {
 			AppDatabase.deleteAllCollectedData(database, 2L, null, 500L)
 		}
 
@@ -397,7 +397,7 @@ class ImportedStepsRetainedReaderTest {
 			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 			scope.value,
 			4L,
-			1L,
+			0L,
 			50L,
 		)
 		database.sourceDeletionFenceDao().insertIfAbsent(retained)

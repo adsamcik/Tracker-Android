@@ -99,11 +99,37 @@ class CollectedDataDeletionOperationRoomTest {
 			val context = ApplicationProvider.getApplicationContext<Application>()
 			val database = AppDatabase.testDatabase(context)
 			try {
+				val plan = RetentionFloorDestructivePlan(
+					workerKind = RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE,
+					requestedAtMs = 2_000L,
+					requestedRetainedFromMs = 1_000L,
+					rawRetentionCutoffMs = 1_000L,
+					sourceEventRetentionCutoffMs = 1_000L,
+					wifiCellRetentionCutoffMs = 1_000L,
+					tripRetentionCutoffMs = 1_000L,
+					dailySummaryRetentionCutoffDay = 0L,
+					explorationRetentionCutoffMs = 1_000L,
+					operationalRetentionCutoffMs = 1_000L,
+				)
+				val execution = (
+					database.beginOrResumeRetentionWorkExecution(
+						workRequestId = "retention-retry-work",
+						workerKind = plan.workerKind,
+						runAttemptCount = 0,
+						startedAtMs = 2_000L,
+					) as RetentionWorkExecutionStartResult.Open
+				).receipt
+				val attached = (
+					database.attachRetentionDestructivePlan(execution, plan) as
+						RetentionWorkExecutionPlanResult.Attached
+				).receipt
 				val first = database.prepareOrResumeRetentionFloorSettlement(
 					operationId = "retention-operation-original",
 					requestedRetainedFromMs = 1_000L,
 					collectedDataEpoch = 0L,
 					requestedAtMs = 2_000L,
+					workExecutionId = attached.executionId,
+					destructivePlan = plan,
 				)
 
 				database.prepareOrResumeRetentionFloorSettlement(
