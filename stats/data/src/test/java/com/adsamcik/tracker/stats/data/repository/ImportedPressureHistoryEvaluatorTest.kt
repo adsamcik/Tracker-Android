@@ -249,7 +249,7 @@ class ImportedPressureHistoryEvaluatorTest {
 				second,
 				receipt("collision-job-b", "collision-entry-b"),
 			)) shouldBe ImportPortablePressureResult.Applied(1L, 2, 0)
-			retainImportedEntries()
+			retainImportedEntries(testScheduler)
 			val collidingRun = first.runs.maxWith(pressureSourceRecencyRunOrder)
 			rehashRetainedRecency(second.identity.value, collidingRun)
 
@@ -311,7 +311,7 @@ class ImportedPressureHistoryEvaluatorTest {
 			live,
 			receipt("mixed-live-job", "mixed-live-entry"),
 		)) shouldBe ImportPortablePressureResult.Applied(1L, 2, 0)
-		retainImportedEntries()
+		retainImportedEntries(testScheduler)
 		database.importedPressureDao().retentionReceipt(retained.identity.value)?.entryIdentity shouldBe
 			retained.identity.value
 		database.importedPressureDao().latestEntryRevision(live.identity.value)?.identity shouldBe
@@ -365,7 +365,7 @@ class ImportedPressureHistoryEvaluatorTest {
 					receipt("export-collision-job-$index", "export-collision-entry-$index"),
 				)) shouldBe ImportPortablePressureResult.Applied(1L, 2, 0)
 			}
-			retainImportedEntries()
+			retainImportedEntries(testScheduler)
 			rehashRetainedRecency(
 				collisionSecond.identity.value,
 				collisionFirst.runs.maxWith(pressureSourceRecencyRunOrder),
@@ -789,6 +789,18 @@ class ImportedPressureHistoryEvaluatorTest {
 		val writer = importer(database, testScheduler)
 		writer.importEntry(request) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
 		val runIdentity = request.entry.runs.single().identity.value
+		val fence = com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
+			.create(
+				runIdentity,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.RUN,
+				request.entry.identity.value,
+				runIdentity,
+				EPOCH,
+				60L,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
+					.REASON_SELECTED_DELETE,
+			)
+		database.importedPressureDao().insertIdentityFences(listOf(fence))
 		database.importedPressureDao().insertDeletionGeneration(
 			ImportedPressureDeletionGenerationEntity.create(
 				runIdentity = runIdentity,
@@ -959,7 +971,7 @@ class ImportedPressureHistoryEvaluatorTest {
 				FROM imported_pressure_entry_revision
 				WHERE identity = ? AND import_revision = 1
 				""".trimIndent(),
-				arrayOf(
+				arrayOf<Any?>(
 					revision,
 					revision - 1L,
 					"overflow-job-$revision",
@@ -969,6 +981,21 @@ class ImportedPressureHistoryEvaluatorTest {
 				),
 			)
 		}
+		sqlite.execSQL(
+			"""
+			INSERT INTO imported_pressure_run (
+			  entry_identity, entry_import_revision, identity, start_time_ms, end_time_ms,
+			  captured_for_whole_run, availability, coverage, retention_loss,
+			  collected_data_epoch, scope_deletion_generation
+			)
+			SELECT entry_identity, 17, identity, start_time_ms, end_time_ms,
+			       captured_for_whole_run, availability, coverage, retention_loss,
+			       collected_data_epoch, scope_deletion_generation
+			FROM imported_pressure_run
+			WHERE entry_identity = ? AND entry_import_revision = 1
+			""".trimIndent(),
+			arrayOf(request.entry.identity.value),
+		)
 
 		val selected = evaluate(database).single()
 		selected shouldBe ImportedPressureHistoryEvaluation.Unverifiable(
@@ -1066,11 +1093,11 @@ class ImportedPressureHistoryEvaluatorTest {
 		return queries
 	}
 
-	private suspend fun retainImportedEntries() {
+	private suspend fun retainImportedEntries(scheduler: TestCoroutineScheduler) {
 		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_100L, 50L) shouldBe 1
 		val result = RoomTruncateImportedPressureRetention(
 			database,
-			UnconfinedTestDispatcher(testScheduler),
+			UnconfinedTestDispatcher(scheduler),
 			{},
 		).truncate(
 			TruncateImportedPressureRetentionRequest(EPOCH, 1L, 1_100L, 50L),
@@ -1121,7 +1148,7 @@ class ImportedPressureHistoryEvaluatorTest {
 			"UPDATE imported_pressure_retention_receipt SET recency_start_time_ms = ?, " +
 				"recency_end_time_ms = ?, recency_tie_identity = ?, effect_checksum = ? " +
 				"WHERE entry_identity = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				forged.recencyStartTimeMs,
 				forged.recencyEndTimeMs,
 				forged.recencyTieIdentity,

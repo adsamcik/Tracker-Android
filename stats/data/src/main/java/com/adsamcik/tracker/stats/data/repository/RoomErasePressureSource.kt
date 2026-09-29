@@ -313,9 +313,10 @@ internal class RoomErasePressureSource internal constructor(
 		}
 		val previousErase = dao.sourceErase()
 		val previousAuthority = previousErase?.let {
+			val authority = authenticateSourceEraseAuthority(it, state)
 			collectLocalSourceEraseFences()
 			collectPermanentImportedAuthority()
-			authenticateSourceEraseAuthority(it, state)
+			authority
 		}
 		if (previousErase != null && previousErase.toBarrierToken() != verifiedBarrierToken) {
 			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)

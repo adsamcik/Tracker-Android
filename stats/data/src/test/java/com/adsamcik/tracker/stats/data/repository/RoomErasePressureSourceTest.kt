@@ -51,6 +51,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import java.security.MessageDigest
@@ -149,7 +150,7 @@ class RoomErasePressureSourceTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE imported_pressure_source_erase SET legacy_write_fence_owner = NULL, " +
 				"effect_checksum = ? WHERE id = ?",
-			arrayOf(ownerlessV1Checksum(current), ImportedPressureSourceEraseEntity.SINGLETON_ID),
+			arrayOf<Any?>(ownerlessV1Checksum(current), ImportedPressureSourceEraseEntity.SINGLETON_ID),
 		)
 
 		requireNotNull(database.importedPressureDao().sourceErase()).legacyWriteFenceOwner shouldBe null
@@ -177,7 +178,7 @@ class RoomErasePressureSourceTest {
 			  fence_reason, effect_checksum
 			) VALUES (?, 'ENTRY', ?, NULL, ?, 1, ?, 'FULL_CLEAR', CAST(zeroblob(?) AS TEXT))
 			""".trimIndent(),
-			arrayOf(identity, identity, EPOCH, ERASED_AT_MS, oversized),
+			arrayOf<Any?>(identity, identity, EPOCH, ERASED_AT_MS, oversized),
 		)
 
 		subject(testScheduler).erase(request()) shouldBe ErasePressureSourceResult.Unverifiable(
@@ -208,7 +209,7 @@ class RoomErasePressureSourceTest {
 				  CAST(zeroblob(?) AS TEXT), ?, 1, ?, 0, ?, 0, ?, ?
 				)
 				""".trimIndent(),
-				arrayOf(oversized, EPOCH, ERASED_AT_MS, checksum, checksum, checksum),
+				arrayOf<Any?>(oversized, EPOCH, ERASED_AT_MS, checksum, checksum, checksum),
 			)
 
 			subject(testScheduler).erase(request()) shouldBe ErasePressureSourceResult.Unverifiable(
@@ -243,7 +244,7 @@ class RoomErasePressureSourceTest {
 			  1, ?, ?, ?
 			)
 			""".trimIndent(),
-			arrayOf(
+			arrayOf<Any?>(
 				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 				oversized,
 				EPOCH,
@@ -475,7 +476,7 @@ class RoomErasePressureSourceTest {
 				"UPDATE provider_registration_generation SET status = 'RETIRED', " +
 					"retired_at_ms = ?, retired_elapsed_realtime_nanos = ? " +
 					"WHERE source_kind = ? AND registration_generation = 1",
-				arrayOf(
+				arrayOf<Any?>(
 					ERASED_AT_MS - 1L,
 					ERASED_AT_MS - 1L,
 					SourceDestinationOwnerEntity.SOURCE_PRESSURE,
@@ -492,7 +493,8 @@ class RoomErasePressureSourceTest {
 				fencedLocalRunCount = 0,
 			)
 			database.pressureFactRevisionDao().legacyPressureSampleCount() shouldBe 0L
-			database.locationSampleDao().getAllBetween(0L, 2_000L).single().altitudeM shouldBe 456f
+			database.locationSampleDao().getAllBetweenFlowLimited(0L, 2_000L, 10)
+				.first().single().altitudeM shouldBe 456f
 			barrier.calls shouldBe 2
 			barrier.verifications shouldBe 3
 			database.openHelper.writableDatabase.execSQL(

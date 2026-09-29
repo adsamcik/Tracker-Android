@@ -268,13 +268,9 @@ class RoomImportPortablePressureTest {
 		val request = request()
 		val importer = importer(testScheduler)
 		importer.importEntry(request)
-		database.importedPressureDao().insertDeletionGeneration(
-			ImportedPressureDeletionGenerationEntity.create(
-				runIdentity = request.entry.runs.single().identity.value,
-				collectedDataEpoch = EPOCH,
-				generation = 1L,
-				deletedAtMs = 50L,
-			),
+		insertRunDeletionAuthority(
+			request.entry.runs.single().identity.value,
+			request.entry.identity.value,
 		)
 
 		importer.importEntry(request) shouldBe ImportPortablePressureResult.Blocked(
@@ -287,13 +283,10 @@ class RoomImportPortablePressureTest {
 		runTest {
 			val importer = importer(testScheduler)
 			val (first, second) = seedDistinctRunRevisions(importer)
-			database.importedPressureDao().insertDeletionGeneration(
-				ImportedPressureDeletionGenerationEntity.create(
-					runIdentity = first.entry.runs.single().identity.value,
-					collectedDataEpoch = EPOCH,
-					generation = 1L,
-					deletedAtMs = 60L,
-				),
+			insertRunDeletionAuthority(
+				first.entry.runs.single().identity.value,
+				first.entry.identity.value,
+				deletedAtMs = 60L,
 			)
 			val alternateReceipt = second.copy(
 				receipt = receipt(jobId = "job-alternate", receivedAtMs = 60L),
@@ -431,7 +424,7 @@ class RoomImportPortablePressureTest {
 		importer(testScheduler).importEntry(first)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE imported_pressure_entry_revision SET collected_data_epoch = ? WHERE identity = ?",
-			arrayOf(EPOCH + 1L, first.entry.identity.value),
+			arrayOf<Any?>(EPOCH + 1L, first.entry.identity.value),
 		)
 		importer(testScheduler).importEntry(first) shouldBe ImportPortablePressureResult.Unverifiable(
 			PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
@@ -565,7 +558,7 @@ class RoomImportPortablePressureTest {
 				"INSERT INTO imported_pressure_deletion_generation " +
 					"(run_identity, collected_data_epoch, generation, deleted_at_ms, effect_checksum) " +
 					"VALUES (?, ?, 1, 50, ?)",
-				arrayOf(runIdentity, EPOCH, "sha256:${"0".repeat(64)}"),
+				arrayOf<Any?>(runIdentity, EPOCH, "sha256:${"0".repeat(64)}"),
 			)
 
 			importer.importEntry(imported) shouldBe ImportPortablePressureResult.Unverifiable(
@@ -671,7 +664,7 @@ class RoomImportPortablePressureTest {
 		corruptions.forEach { (column, value) ->
 			sqlite.execSQL(
 				"UPDATE imported_pressure_entry_revision SET $column = ? WHERE identity = ?",
-				arrayOf(value, entryIdentity),
+				arrayOf<Any?>(value, entryIdentity),
 			)
 			importer.importEntry(request) shouldBe ImportPortablePressureResult.Unverifiable(
 				PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
@@ -683,7 +676,7 @@ class RoomImportPortablePressureTest {
 			}
 			sqlite.execSQL(
 				"UPDATE imported_pressure_entry_revision SET $column = ? WHERE identity = ?",
-				arrayOf(restored, entryIdentity),
+				arrayOf<Any?>(restored, entryIdentity),
 			)
 		}
 		sqlite.execSQL(
@@ -964,6 +957,7 @@ class RoomImportPortablePressureTest {
 	private suspend fun insertRunDeletionAuthority(
 		runIdentity: String,
 		entryIdentity: String,
+		deletedAtMs: Long = 50L,
 	) {
 		val fence =
 			com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.create(
@@ -972,13 +966,13 @@ class RoomImportPortablePressureTest {
 				entryIdentity,
 				runIdentity,
 				EPOCH,
-				50L,
+				deletedAtMs,
 				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
 					.REASON_SELECTED_DELETE,
 			)
 		database.importedPressureDao().insertIdentityFences(listOf(fence))
 		database.importedPressureDao().insertDeletionGeneration(
-			ImportedPressureDeletionGenerationEntity.create(runIdentity, EPOCH, 1L, 50L),
+			ImportedPressureDeletionGenerationEntity.create(runIdentity, EPOCH, 1L, deletedAtMs),
 		)
 	}
 

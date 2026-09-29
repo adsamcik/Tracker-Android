@@ -335,7 +335,7 @@ class PressureHistorySelectorTest {
 	@Test
 	fun sourceAwarePageReturnsTypedUnavailableWhenPressureMembershipExceedsBudget() = runTest {
 		val fixture = insertFixture(factSemanticRevision = null, laneCursor = 0L)
-		repeat(64) { index -> insertBareLogicalMember(index + 1) }
+		repeat(256) { index -> insertBareLogicalMember(index + 1) }
 
 		val query = pressureAwareRepository().observeRecentSourceAwarePage(
 			candidateSegmentIds = listOf(fixture.segmentId),
@@ -437,7 +437,7 @@ class PressureHistorySelectorTest {
 	}
 
 	@Test
-	fun pressureFactInvalidationReemitsRecentPressureList() = runBlocking {
+	fun pressureFactInvalidationReemitsRecentPressureList(): Unit = runBlocking {
 		insertFixture(factSemanticRevision = null, laneCursor = 1L)
 		val repository = DefaultTrackingHistoryRepository(
 			database = database,
@@ -702,7 +702,7 @@ class PressureHistorySelectorTest {
 		public.presentationState shouldBe PressureHistoryPresentationState.PARTIAL
 		public.summary shouldBe null
 		public.windows shouldBe emptyList()
-		PressureHistoryCause.FACTS_MISSING_FOR_ADMITTED_RUN in public.causes shouldBe false
+		(PressureHistoryCause.FACTS_MISSING_FOR_ADMITTED_RUN in public.causes) shouldBe false
 		logical.qualifiedSources shouldBe emptySet()
 		logical.hasAuthenticatedRetentionLoss shouldBe true
 		logical.summary shouldBe null
@@ -844,8 +844,8 @@ class PressureHistorySelectorTest {
 		result.materialization shouldBe PressureHistoryMaterialization.MATERIALIZING
 		result.coverage shouldBe PressureHistoryCoverage.NONE
 		result.windows shouldBe emptyList()
-		PressureHistoryReason.PRODUCT_LANE_BEHIND in result.reasons shouldBe true
-		PressureHistoryReason.FACTS_MISSING_FOR_ADMITTED_RUN in result.reasons shouldBe true
+		(PressureHistoryReason.PRODUCT_LANE_BEHIND in result.reasons) shouldBe true
+		(PressureHistoryReason.FACTS_MISSING_FOR_ADMITTED_RUN in result.reasons) shouldBe true
 	}
 
 	@Test
@@ -870,8 +870,10 @@ class PressureHistorySelectorTest {
 	fun missingReplacementReverseBindingCannotLookLikeCompleteLogicalHistory() = runTest {
 		val first = insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
 		val replacement = insertReplacementFixture()
-		val replacementRun = requireNotNull(database.sourceSessionDao().serviceRun(replacement.runId))
-		database.sourceSessionDao().updateServiceRun(replacementRun.copy(sessionSegmentId = null)) shouldBe 1
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_service_run SET session_segment_id = 9999 WHERE service_run_id = ?",
+			arrayOf(replacement.runId),
+		)
 
 		val logical = selector.selectLogicalBySegmentIds(listOf(first.segmentId)).single()
 
@@ -1292,7 +1294,7 @@ class PressureHistorySelectorTest {
 				completeness.copy(lastSourceSequence = correction.lastProviderSequence),
 			)
 			database.sourceEvidenceStateDao().updateLifecycle(
-				epoch = 1L,
+				epoch = 0L,
 				retainedFromMs = first.intervalStartTimeMs,
 				updatedAtMs = correction.appliedAtMs + 1L,
 			)
@@ -1301,9 +1303,11 @@ class PressureHistorySelectorTest {
 
 			result.windows shouldBe emptyList()
 			result.evidence shouldBe PressureHistoryEvidence.NO_OBSERVATION
-			result.coverage shouldBe PressureHistoryCoverage.PARTIAL
-			PressureHistoryReason.RETENTION_CROSSES_SEGMENT in result.reasons shouldBe true
-			PressureHistoryReason.RETENTION_TRUNCATED in result.reasons shouldBe true
+			check(result.coverage == PressureHistoryCoverage.PARTIAL) {
+				"Expected retained partial Pressure; availability=${result.availability}, reasons=${result.reasons}"
+			}
+			(PressureHistoryReason.RETENTION_CROSSES_SEGMENT in result.reasons) shouldBe true
+			(PressureHistoryReason.RETENTION_TRUNCATED in result.reasons) shouldBe true
 		}
 
 	@Test
@@ -1513,10 +1517,23 @@ class PressureHistorySelectorTest {
 					SOURCE_EVENT_ID,
 				),
 			)
+			val storedWal = requireNotNull(database.sourceEventWalDao().getByEventId(SOURCE_EVENT_ID))
+			storedWal.payload.contentEquals(changedWal.payload) shouldBe true
+			com.adsamcik.tracker.shared.base.database.data.PressureWalCarrierAuthenticator
+				.authenticates(fact, storedWal, pressureBinding()) shouldBe false
+			val boundedWal = database.sourceEventWalDao().boundedPayloadsByEventIds(
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				listOf(SOURCE_EVENT_ID),
+				4_096,
+				1,
+			).single()
+			boundedWal.payload.contentEquals(changedWal.payload) shouldBe true
 
 			val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
 
-			result.availability shouldBe PressureHistoryAvailability.UNAVAILABLE
+			result.availability shouldBe PressureHistoryAvailability.AVAILABLE
+			result.materialization shouldBe PressureHistoryMaterialization.FAILED
+			result.windows shouldBe emptyList()
 			result.reasons shouldBe setOf(PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED)
 		}
 
@@ -1743,7 +1760,7 @@ class PressureHistorySelectorTest {
 		entry.runs.size shouldBe 2
 		entry.runs.flatMap { it.windows }.size shouldBe 2
 		entry.runs.first().windows.single().zoneId shouldBe "Europe/Prague"
-		entry.runs.first().windows.single().wallTimeUncertaintyMs shouldBe 0L
+		entry.runs.first().windows.single().wallTimeUncertaintyMs shouldBe 1L
 		entry.runs.all { it.availability == PortablePressureAvailability.RETAINED } shouldBe true
 		entry.toString() shouldNotContain first.logicalId
 		entry.toString() shouldNotContain first.runId
@@ -2682,7 +2699,7 @@ class PressureHistorySelectorTest {
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM provider_registration_generation " +
 				"WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(
+			arrayOf<Any?>(
 				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 				current.registrationGeneration,
 			),

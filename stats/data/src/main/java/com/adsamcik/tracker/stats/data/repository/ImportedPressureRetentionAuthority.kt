@@ -295,14 +295,15 @@ private fun ImportedPressureRetainedFootprint.validate(
 		receiptCount != 1L || markerCount != expectedMarkerCount.toLong() ->
 			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
 		identityFenceCount != markerCount || entryDeletionCount !in 0L..1L ||
-			runDeletionCount > identityFenceCount ||
-			listOf(
-				receiptTextBytes,
-				markerTextBytes,
-				identityFenceTextBytes,
-				entryDeletionTextBytes,
-				runDeletionTextBytes,
-			).any { it < 0L } ||
+			runDeletionCount > identityFenceCount ->
+			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
+		listOf(
+			receiptTextBytes,
+			markerTextBytes,
+			identityFenceTextBytes,
+			entryDeletionTextBytes,
+			runDeletionTextBytes,
+		).any { it < 0L } ||
 			totalTextBytes > maximumTextBytes ->
 			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW
 		else -> null

@@ -165,7 +165,7 @@ internal class PressureHistorySelector private constructor(
 		memberBudget: Int = PRESSURE_DISCOVERY_MEMBER_BUDGET,
 		requireSourceExhaustionAtLimit: Boolean = false,
 	): PressureOnlyDiscoveryResult {
-		require(limit in 1..candidateBudget)
+		require(limit > 0)
 		require(candidateBudget > 0 && memberBudget > 0)
 		val accepted = linkedMapOf<PressureHistoryEntryIdentity, PressureLogicalHistoryEntry>()
 		var beforeLogicalRecencyStartMs: Long? = null
@@ -705,6 +705,7 @@ internal class PressureHistorySelector private constructor(
 			it.qualification == PressureFactRevisionEntity.QUALIFICATION_PARTIAL
 		}) reasons += PressureHistoryReason.PARTIAL_FACT
 		if (targetOrdinal != null && revisions.isEmpty() &&
+			targetOrdinal >= lane.activationOrdinal &&
 			!retentionCrossesSegment && !retentionTruncated
 		) {
 			reasons += PressureHistoryReason.FACTS_MISSING_FOR_ADMITTED_RUN

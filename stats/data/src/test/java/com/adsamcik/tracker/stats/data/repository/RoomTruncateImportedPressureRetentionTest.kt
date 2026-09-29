@@ -6,6 +6,7 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
@@ -285,7 +286,7 @@ class RoomTruncateImportedPressureRetentionTest {
 		database.openHelper.writableDatabase.execSQL(
 		"UPDATE imported_pressure_retention_receipt SET run_deletion_count = ?, " +
 			"run_deletion_set_checksum = ?, effect_checksum = ? WHERE entry_identity = ?",
-		arrayOf(
+		arrayOf<Any?>(
 			forged.runDeletionCount,
 			forged.runDeletionSetChecksum,
 			forged.effectChecksum,
@@ -345,7 +346,7 @@ class RoomTruncateImportedPressureRetentionTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE imported_pressure_entry_revision SET content_checksum = " +
 				"CAST(zeroblob(?) AS TEXT) WHERE identity = ?",
-			arrayOf(oversized, imported.entry.identity.value),
+			arrayOf<Any?>(oversized, imported.entry.identity.value),
 		)
 
 		subject(testScheduler).truncate(request()) shouldBe
@@ -354,8 +355,13 @@ class RoomTruncateImportedPressureRetentionTest {
 			)
 		database.importedPressureDao().identityFenceCount() shouldBe 0L
 		database.importedPressureDao().retentionReceiptCount() shouldBe 0L
-		database.importedPressureDao().entryRevisionsForAdmission(imported.entry.identity.value)
-			.size shouldBe 1
+		database.openHelper.readableDatabase.query(
+			"SELECT COUNT(*) FROM imported_pressure_entry_revision WHERE identity = ?",
+			arrayOf(imported.entry.identity.value),
+		).use { cursor ->
+			cursor.moveToFirst() shouldBe true
+			cursor.getLong(0) shouldBe 1L
+		}
 	}
 
 	@Test
@@ -370,7 +376,7 @@ class RoomTruncateImportedPressureRetentionTest {
 			"UPDATE imported_pressure_identity_fence SET effect_checksum = " +
 				"CAST(zeroblob(?) AS TEXT) " +
 				"WHERE entry_identity = ? AND identity_kind = 'WINDOW'",
-			arrayOf(oversized, imported.entry.identity.value),
+			arrayOf<Any?>(oversized, imported.entry.identity.value),
 		)
 
 		subject(testScheduler).truncate(request(expectedRevision = 2L)) shouldBe
@@ -391,7 +397,16 @@ class RoomTruncateImportedPressureRetentionTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE imported_pressure_entry_revision SET content_checksum = " +
 				"CAST(zeroblob(?) AS TEXT) WHERE identity = ?",
-			arrayOf(oversized, imported.entry.identity.value),
+			arrayOf<Any?>(oversized, imported.entry.identity.value),
+		)
+		database.sourceDestinationOwnerDao().insertIfAbsent(
+			SourceDestinationOwnerEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+				owner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+				ownerGeneration = SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION,
+				updatedAtMs = RETAINED_AT_MS,
+			),
 		)
 
 		RoomErasePressureSource(
@@ -444,7 +459,7 @@ class RoomTruncateImportedPressureRetentionTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE imported_pressure_identity_fence SET effect_checksum = CAST(zeroblob(?) AS TEXT) " +
 				"WHERE entry_identity = ? AND identity_kind = 'WINDOW'",
-			arrayOf(oversized, imported.entry.identity.value),
+			arrayOf<Any?>(oversized, imported.entry.identity.value),
 		)
 
 		RoomDeleteImportedPressureEntry(
