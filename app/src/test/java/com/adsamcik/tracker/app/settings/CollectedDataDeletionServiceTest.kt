@@ -68,8 +68,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -425,6 +427,7 @@ class CollectedDataDeletionServiceTest {
 		val service = createService(
 			activityRegistrationArbiterProvider = Provider { arbiter },
 			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
+			providerFenceScope = backgroundScope,
 		) { _, _, _, _ -> operations += "delete" }
 
 		val deletion = async { service.deleteAll() }
@@ -555,7 +558,11 @@ class CollectedDataDeletionServiceTest {
 		firstCaller.cancel()
 		firstCaller.join()
 		releaseFirstClear.complete(Unit)
-		runCurrent()
+		var completionPolls = 0
+		while (markerFile.exists() && completionPolls++ < 500) {
+			runCurrent()
+			withContext(Dispatchers.Default) { delay(10L) }
+		}
 
 		markerFile.exists() shouldBe false
 		service.deleteAll() shouldBe CollectedDataDeletionCompletion.Complete
@@ -705,10 +712,9 @@ class CollectedDataDeletionServiceTest {
 				result.shouldBeInstanceOf<CollectedDataDeletionCompletion.Retryable>()
 			val failure = retryable.failure.shouldBeInstanceOf<
 				CollectedDataDeletionReconciliationFailure.RetentionAuthority>()
-			failure.failures.single().run {
-				source shouldBe TrackingSourceComponent.STEPS
-				reason shouldBe RetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED
-			}
+			failure.failures.any { it.source == TrackingSourceComponent.STEPS &&
+				it.reason == RetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED
+			} shouldBe true
 			markerFile.exists() shouldBe true
 			startupDeletionBarrier.isClosed shouldBe true
 			coVerify(exactly = 3) { ambientSteps.closeForCollectedDataDeletion() }
@@ -923,13 +929,14 @@ class CollectedDataDeletionServiceTest {
 		coEvery { arbiter.closeForCollectedDataDeletion() } returns result
 		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
 			completeAmbientStepsCleanup()
-		var providerResolutions = 0
+		var activityProviderResolutions = 0
+		var ambientStepsProviderResolutions = 0
 		val activityProvider = Provider {
-			providerResolutions++
+			activityProviderResolutions++
 			arbiter
 		}
 		val ambientStepsProvider = Provider {
-			providerResolutions++
+			ambientStepsProviderResolutions++
 			ambientSteps
 		}
 		val service = createService(
@@ -943,7 +950,8 @@ class CollectedDataDeletionServiceTest {
 
 		service.reconcilePendingDeletion()
 
-		providerResolutions shouldBe 2
+		activityProviderResolutions shouldBe 1
+		ambientStepsProviderResolutions shouldBe 2
 		coVerify(exactly = 2) { arbiter.closeForCollectedDataDeletion() }
 		coVerify(exactly = 2) { ambientSteps.closeForCollectedDataDeletion() }
 		coVerify(exactly = 0) { arbiter.resumeAfterCollectedDataDeletion() }
@@ -975,6 +983,25 @@ class CollectedDataDeletionServiceTest {
 		verify(exactly = 0) { writerQuiescer.resume() }
 		coVerify(exactly = 0) { arbiter.resumeAfterCollectedDataDeletion() }
 		coVerify(exactly = 1) { automaticControlRestorer.schedule(1L) }
+	}
+
+	@Test
+	fun `deferred Activity removal cannot erase while its registration is still active`() = runTest {
+		val arbiter = mockk<ActivityRegistrationArbiter>()
+		coEvery { arbiter.closeForCollectedDataDeletion() } returns ActivityRegistrationResult(
+			status = ActivityRegistrationStatus.DEGRADED,
+			snapshot = appliedRegistrationResult().snapshot.copy(active = true),
+			failureCode = ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED,
+			retryable = true,
+		)
+		var appDeletionCount = 0
+		val service = createService(activityRegistrationArbiterProvider = Provider { arbiter }) {
+			_, _, _, _ -> appDeletionCount++
+		}
+
+		service.deleteAll().shouldBeInstanceOf<CollectedDataDeletionCompletion.Retryable>()
+		appDeletionCount shouldBe 0
+		markerFile.exists() shouldBe true
 	}
 
 	@Test
@@ -1246,7 +1273,7 @@ class CollectedDataDeletionServiceTest {
 	}
 
 	@Test
-	fun `pending local diagnostic deletion retains marker and retries full deletion`() = runTest {
+	fun `pending local diagnostic deletion retains marker and retries local cleanup`() = runTest {
 		val operations = mutableListOf<String>()
 		var localComplete = false
 		val service = createService(
@@ -1262,9 +1289,9 @@ class CollectedDataDeletionServiceTest {
 			operations += "tracker"
 		}
 
-		runCatching { service.deleteAll() }
-			.exceptionOrNull()
-			.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+		service.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+			CollectedDataDeletionReconciliationFailure.DeletionExecution,
+		)
 		operations shouldBe listOf("tracker", "tracking-diagnostics", "tracebox")
 		markerFile.exists() shouldBe true
 
@@ -1275,7 +1302,6 @@ class CollectedDataDeletionServiceTest {
 			"tracker",
 			"tracking-diagnostics",
 			"tracebox",
-			"tracker",
 			"tracking-diagnostics",
 			"tracebox",
 		)

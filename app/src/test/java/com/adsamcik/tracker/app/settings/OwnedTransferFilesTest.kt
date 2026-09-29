@@ -2,6 +2,7 @@ package com.adsamcik.tracker.app.settings
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import androidx.core.content.FileProvider
 import com.adsamcik.tracker.impexp.OwnedTransferFiles
 import com.adsamcik.tracker.impexp.exporter.automation.ExportDestination
 import io.kotest.assertions.throwables.shouldThrow
@@ -9,9 +10,11 @@ import io.kotest.matchers.shouldBe
 import java.io.File
 import java.util.UUID
 import org.junit.Test
+import org.junit.Assume.assumeTrue
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -69,10 +72,6 @@ class OwnedTransferFilesTest {
             parentFile!!.mkdirs()
             writeText("zip")
         }
-        val shareCopy = File(context.cacheDir, "sharable/share.json").apply {
-            parentFile!!.mkdirs()
-            writeText("share")
-        }
         val completedPrivateExport = File(context.filesDir, "exports/complete.zip").apply {
             parentFile!!.mkdirs()
             writeText("completed")
@@ -89,7 +88,6 @@ class OwnedTransferFilesTest {
             OwnedTransferFiles.clearForFullDeletion(context)
             databaseCopy.exists() shouldBe false
             zipCopy.exists() shouldBe false
-            shareCopy.exists() shouldBe false
             completedPrivateExport.exists() shouldBe false
             portableSpool.exists() shouldBe false
             sessionBundleCopy.exists() shouldBe false
@@ -99,6 +97,25 @@ class OwnedTransferFilesTest {
             portableSpool.delete()
             sessionBundleCopy.delete()
             completedPrivateExport.delete()
+        }
+    }
+
+    @Test
+    fun `full clear revokes and removes an app-owned shared file`() {
+        // AndroidX FileProvider uses '/' when matching canonical roots; Windows Robolectric uses '\\'.
+        assumeTrue(File.separatorChar == '/')
+        ReflectionHelpers.getStaticField<MutableMap<String, *>>(
+            FileProvider::class.java, "sCache",
+        ).remove("${context.packageName}.fileprovider")
+        val shareCopy = File(context.cacheDir, "sharable/share.json").apply {
+            parentFile!!.mkdirs()
+            writeText("share")
+        }
+        try {
+            OwnedTransferFiles.clearForFullDeletion(context)
+            shareCopy.exists() shouldBe false
+        } finally {
+            shareCopy.delete()
         }
     }
 

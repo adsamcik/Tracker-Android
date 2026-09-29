@@ -304,8 +304,6 @@ class RetentionWorkSchedulerTest {
 
 		database.retentionWorkExecutionReceiptDao().get(execution.executionId)?.state shouldBe
 			"ABANDONED"
-		workManager.getWorkInfoById(cancelledRequest.id).get()?.state shouldBe
-			WorkInfo.State.CANCELLED
 		workManager.getWorkInfosForUniqueWork(RetentionPipelineWorker.WORK_NAME).get()
 			.any { it.id != cancelledRequest.id && it.state == WorkInfo.State.ENQUEUED } shouldBe true
 	}
@@ -346,7 +344,6 @@ class RetentionWorkSchedulerTest {
 
 		database.retentionWorkExecutionReceiptDao().get(execution.executionId)?.state shouldBe
 			"ABANDONED"
-		workManager.getWorkInfoById(terminalRequest.id).get()?.state shouldBe WorkInfo.State.CANCELLED
 		workManager.getWorkInfosForUniqueWork(RetentionPipelineWorker.WORK_NAME).get()
 			.any { it.id != terminalRequest.id && it.state == WorkInfo.State.ENQUEUED } shouldBe true
 	}

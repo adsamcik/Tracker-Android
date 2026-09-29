@@ -11,6 +11,7 @@ import androidx.work.WorkManager
 import androidx.work.await
 import com.adsamcik.tracker.activity.api.ActivityRecognitionApi
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationFailureCode
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.tracker.api.TrackingPurposeDeletionFencer
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
@@ -60,7 +61,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
@@ -399,7 +400,7 @@ class DefaultCollectedDataDeletionService(
 	private val currentTimeMillis: () -> Long = System::currentTimeMillis,
 	private val providerFenceTimeoutMs: Long = PROVIDER_FENCE_TIMEOUT_MS,
 	private val providerFenceScope: CoroutineScope =
-		CoroutineScope(SupervisorJob() + Dispatchers.Default),
+		CoroutineScope(SupervisorJob() + DefaultDispatchersProvider.default),
 ) : CollectedDataDeletionService {
 	private val deletionMutex = Mutex()
 	private val providerFenceFlightMutex = Mutex()
@@ -830,7 +831,11 @@ class DefaultCollectedDataDeletionService(
 			) {
 				is ProviderFenceAttempt.Completed -> {
 					val result = attempt.value
-					if (result.status != ActivityRegistrationStatus.APPLIED) {
+					val durablyDeferredRemoval =
+						result.status == ActivityRegistrationStatus.DEGRADED &&
+							result.failureCode == ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED &&
+							result.retryable && !result.snapshot.active
+					if (result.status != ActivityRegistrationStatus.APPLIED && !durablyDeferredRemoval) {
 						failures += CollectedDataDeletionReconciliationFailure.CollectedDataProviderFenceFailure.Activity(
 							result.failureCode?.name ?: "UNKNOWN",
 						)
