@@ -1,6 +1,6 @@
 # Tracking Infrastructure Work-Item Tracking
 
-Last updated: 2026-09-28
+Last updated: 2026-09-29
 
 ## Current provider completion checklist
 
@@ -8,8 +8,10 @@ These marks describe source implementation and static review only. The assembly 
 open; validation and integration are deferred. The historical registry below is preserved.
 
 - [x] Close settled design decisions: CONTROL retention is 48 hours; optional passive Wi-Fi/Cell
-  notification hosting is approved; export produces only the selected format. Backup restore
-  target restrictions remain a separate unresolved decision in `planning/2026-09-26-provider-freedom/DECISION_CLOSURE.md`.
+  notification hosting is approved; export produces only the selected format. The user also
+  approved a data-only backup and replacement restore after confirmation, with a recoverable
+  safety copy and tracking stopped until an explicit Start. The closed-database restart path
+  is awaiting its separate answer; older planning text about empty-target-only restore is stale.
 - [x] Reconcile implementation inputs: candidate `dedc7df8f1` records final selected versions,
   all overlaps, original refs and exact preserved live drafts. See
   `reconciliation/2026-09-27/README.md` and `SELECTION_MANIFEST.json`.
@@ -18,7 +20,11 @@ open; validation and integration are deferred. The historical registry below is 
   on `codex/source-native-map-context-root`; includes supported sessionless ambient purposes.
 - [ ] Fix shared Wi-Fi/Cell admission: qualify each item by its destination's historical authority
   and age, preserve valid background subsets, and prohibit backward consent. Versioned contract
-  confirmation and end-to-end wiring remain open; see `shared-radio/2026-09-27/CONTRACT_DECISION.md`.
+  and end-to-end wiring remain open. New batches were approved as versioned; shared physical Cell
+  freshness now keeps observations useful to either active purpose at `8e162c13a0`, with an
+  authored focused test, **IMPLEMENTED_UNVALIDATED**. The matching Wi-Fi source slice is authored
+  but not yet committed. Cross-authorization callback routing awaits its user answer; see
+  `shared-radio/2026-09-27/CONTRACT_DECISION.md`.
 - [x] Complete five-level configuration across sources: production and focused test sources
   authored and independently source-reviewed, **IMPLEMENTED_UNVALIDATED**. See `five-level/2026-09-27/IMPLEMENTATION_TRACE.md`.
 - [ ] Implement source-specific power behavior: independent Steps reporting/request-ownership
