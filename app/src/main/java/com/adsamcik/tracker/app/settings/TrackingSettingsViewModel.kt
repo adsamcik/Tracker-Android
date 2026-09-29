@@ -49,6 +49,8 @@ import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailability
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.api.TRACKING_TURN_OFF_EXIT_PREFIX
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -86,7 +88,7 @@ data class TrackingSettingsUiState(
 	val locationBackgroundMode: LocationBackgroundMode? = null,
 	val locationMotionAssistanceEnabled: Boolean = false,
 	val locationSettingsSaveFailed: Boolean = false,
-	val ambientStepsEnabled: Boolean = false,
+	val ambientStepsEnabled: Boolean = stepsEnabled,
 	val ambientWifiEnabled: Boolean = false,
 	val ambientCellEnabled: Boolean = false,
 	val ambientSourceAvailability: Map<AmbientTrackingSource, AmbientSourceOperationalAvailability> =
@@ -122,6 +124,7 @@ data class TrackingSettingsUiState(
     val appliedPlanRevision: Long? = null,
     val runtimeFailureCode: String? = null,
     val ambientStepsSettingsFailure: AmbientStepsSettingsReconciliationFailure? = null,
+	val stepsProviderRepairFailed: Boolean = false,
 	val sourcePolicyReconciliationDebt: SourcePolicyRevisionReconciliationDebt? = null,
     val runtimeTelemetry: TrackingCoordinatorMetrics = TrackingCoordinatorMetrics.ZERO,
 )
@@ -144,6 +147,10 @@ class TrackingSettingsViewModel internal constructor(
 		SourcePolicyRevisionReconciliationCoordinator =
 		UnavailableSourcePolicyRevisionReconciliationCoordinator,
 	private val lifecycleCommandAuthority: TrackingLifecycleCommandAuthority? = null,
+	private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler =
+		TrackingPurposeSettingsReconciler {
+			TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
+		},
 	private val activityPermissionProbe: () -> Boolean,
 ) : ViewModel() {
 	@Inject constructor(
@@ -155,6 +162,10 @@ class TrackingSettingsViewModel internal constructor(
 		sourcePolicyReconciliationCoordinator: SourcePolicyRevisionReconciliationCoordinator =
 			UnavailableSourcePolicyRevisionReconciliationCoordinator,
 		lifecycleCommandAuthority: TrackingLifecycleCommandAuthority? = null,
+		purposeSettingsReconciler: TrackingPurposeSettingsReconciler =
+			TrackingPurposeSettingsReconciler {
+				TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
+			},
 	) : this(
 		context,
 		trackingParamsRepository,
@@ -163,6 +174,7 @@ class TrackingSettingsViewModel internal constructor(
 		purposeAvailabilityReader,
 		sourcePolicyReconciliationCoordinator,
 		lifecycleCommandAuthority,
+		purposeSettingsReconciler,
 		{ context.hasActivityPermission },
 	)
 
@@ -225,6 +237,27 @@ class TrackingSettingsViewModel internal constructor(
             )
         }
     }
+
+	/** Re-probe the existing Steps owner after the Health Connect permission screen closes. */
+	fun refreshStepsProviderPermissionState() {
+		viewModelScope.launch {
+			val failed = try {
+				val result = purposeSettingsReconciler.reconcileCurrentSettings()
+				result is TrackingPurposeSettingsReconciliationResult.Debt &&
+					result.debt.failures.any {
+						it.source == null || it.source == AmbientTrackingSource.STEPS
+					}
+			} catch (cancelled: kotlinx.coroutines.CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				true
+			} catch (_: LinkageError) {
+				true
+			}
+			_uiState.update { it.copy(stepsProviderRepairFailed = failed) }
+			refreshPermissionState()
+		}
+	}
 
     fun setLocationEnabled(enabled: Boolean) {
 		launchSourcePolicyMutation(markCustomPreset = true) {
@@ -358,12 +391,6 @@ class TrackingSettingsViewModel internal constructor(
 				}
 				locationPermissionRequests.send(LocationSettingsPermissionRequest(permission, generation))
 			}
-		}
-	}
-
-	fun setAmbientStepsEnabled(enabled: Boolean) {
-		launchSourcePolicyMutation {
-			trackingParamsRepository.setAmbientStepsEnabled(enabled)
 		}
 	}
 
@@ -562,7 +589,8 @@ class TrackingSettingsViewModel internal constructor(
                 hasValidSources = params.hasAnyCaptureSource(
                     locationAvailable = capabilities.hasForegroundLocation,
                     activityAvailable = activityPermissionGranted,
-                    stepsAvailable = activityPermissionGranted && stepCounterAvailable,
+					stepsAvailable = (activityPermissionGranted && stepCounterAvailable) ||
+						purposeAvailability.ambientSources.getValue(AmbientTrackingSource.STEPS).isOperational,
                     wifiAvailable = wifiPermissionGranted,
                     cellAvailable = cellPermissionGranted,
                     barometerAvailable = barometerAvailable,

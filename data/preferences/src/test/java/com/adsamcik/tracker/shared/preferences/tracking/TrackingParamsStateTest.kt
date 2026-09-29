@@ -25,10 +25,10 @@ class TrackingParamsStateTest {
 		}
 
 		@Test
-		fun `default state has every approved ambient product disabled`() {
+		fun `default Steps choice includes all-day collection while other ambient choices stay off`() {
 			val state = TrackingParamsState()
 			state.ambientLocationEnabled shouldBe false
-			state.ambientStepsEnabled shouldBe false
+			state.ambientStepsEnabled shouldBe true
 			state.ambientWifiEnabled shouldBe false
 			state.ambientCellEnabled shouldBe false
 		}

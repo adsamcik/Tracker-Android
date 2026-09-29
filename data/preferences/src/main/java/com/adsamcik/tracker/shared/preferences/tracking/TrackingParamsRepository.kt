@@ -80,9 +80,9 @@ interface TrackingParamsRepository {
     suspend fun setWifiEnabled(enabled: Boolean)
     suspend fun setCellEnabled(enabled: Boolean)
     suspend fun setBarometerEnabled(enabled: Boolean)
-	/** Changes only sessionless Ambient Steps consent; live session Steps remain independent. */
+	/** Compatibility entry point; Steps have one all-day choice. */
 	suspend fun setAmbientStepsEnabled(enabled: Boolean) {
-		update { copy(ambientStepsEnabled = enabled) }
+		setStepsEnabled(enabled)
 	}
 	/** Changes only sessionless Ambient Location consent; live session Location remains independent. */
 	suspend fun setAmbientLocationEnabled(enabled: Boolean) {

@@ -97,7 +97,6 @@ internal fun AutomaticTrackingAvailabilityCard(
 internal fun AmbientSourcePurposeSettings(
 	uiState: TrackingSettingsUiState,
 	onLocationEnabledChanged: (Boolean) -> Unit,
-	onStepsEnabledChanged: (Boolean) -> Unit,
 	onWifiEnabledChanged: (Boolean) -> Unit,
 	onCellEnabledChanged: (Boolean) -> Unit,
 	onLocationModeChanged: (LocationBackgroundMode) -> Unit = {},
@@ -123,18 +122,6 @@ internal fun AmbientSourcePurposeSettings(
 				containerColor = MaterialTheme.colorScheme.surfaceContainer,
 			),
 		) {
-			AmbientSourceSettingItem(
-				source = AmbientTrackingSource.STEPS,
-				title = stringResource(
-					com.adsamcik.tracker.R.string.settings_ambient_steps_title,
-				),
-				enabledIntent = uiState.ambientStepsEnabled,
-				availability = uiState.ambientSourceAvailability.getValue(
-					AmbientTrackingSource.STEPS,
-				),
-				onEnabledChanged = onStepsEnabledChanged,
-			)
-			HorizontalDivider()
 			AdaptiveLocationSettings(
 				state = uiState,
 				onEnabledChanged = onLocationEnabledChanged,

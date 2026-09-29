@@ -42,7 +42,7 @@ private object TrackingParamsSerializer : Serializer<TrackingParamsProto> {
 		.setCellFrequency(SourceCollectionFrequency.OFF.stableCode)
 		.setSourceSettingsVersion(TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION)
 		.setAmbientLocationEnabled(PreferenceKeys.AMBIENT_LOCATION_ENABLED_DEFAULT)
-		.setAmbientStepsEnabled(PreferenceKeys.AMBIENT_STEPS_ENABLED_DEFAULT)
+		.setAmbientStepsEnabled(PreferenceKeys.STEPS_ENABLED_DEFAULT)
 		.setAmbientWifiEnabled(PreferenceKeys.AMBIENT_WIFI_ENABLED_DEFAULT)
 		.setAmbientCellEnabled(PreferenceKeys.AMBIENT_CELL_ENABLED_DEFAULT)
         .setLegacyMigrated(false)
@@ -91,7 +91,8 @@ class DefaultTrackingParamsRepository(
         withContext(io) {
             ensureMigrated()
             context.trackingParamsDataStore.updateData { current ->
-                val newState = current.toDomain().block()
+                val requested = current.toDomain().block()
+                val newState = requested.copy(ambientStepsEnabled = requested.stepsEnabled)
                 newState.toProto()
             }
         }
@@ -116,6 +117,7 @@ class DefaultTrackingParamsRepository(
     override suspend fun setStepsEnabled(enabled: Boolean) = update {
 		copy(
 			stepsEnabled = enabled,
+			ambientStepsEnabled = enabled,
 			sourceCollectionSettings = sourceCollectionSettings.copy(
 				steps = sourceCollectionSettings.steps.let { if (balanceProfileVersion != null) it else it.forEnabled(enabled) },
 			),
@@ -169,6 +171,7 @@ class DefaultTrackingParamsRepository(
 			locationEnabled = if (component == TrackingSourceComponent.LOCATION) frequency != SourceCollectionFrequency.OFF else locationEnabled,
 			activityEnabled = if (component == TrackingSourceComponent.ACTIVITY) frequency != SourceCollectionFrequency.OFF else activityEnabled,
 			stepsEnabled = if (component == TrackingSourceComponent.STEPS) frequency != SourceCollectionFrequency.OFF else stepsEnabled,
+			ambientStepsEnabled = if (component == TrackingSourceComponent.STEPS) frequency != SourceCollectionFrequency.OFF else ambientStepsEnabled,
 			barometerEnabled = if (component == TrackingSourceComponent.PRESSURE) frequency != SourceCollectionFrequency.OFF else barometerEnabled,
 			wifiEnabled = if (component == TrackingSourceComponent.WIFI) frequency != SourceCollectionFrequency.OFF else wifiEnabled,
 			cellEnabled = if (component == TrackingSourceComponent.CELL) frequency != SourceCollectionFrequency.OFF else cellEnabled,
@@ -333,7 +336,7 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
             PreferenceKeys.BAROMETER_ENABLED_DEFAULT
         },
 		ambientLocationEnabled = ambientLocationEnabled,
-		ambientStepsEnabled = ambientStepsEnabled,
+		ambientStepsEnabled = stepsEnabled,
 		ambientWifiEnabled = ambientWifiEnabled,
 		ambientCellEnabled = ambientCellEnabled,
         balanceProfileVersion = if (hasBalanceProfileVersion()) balanceProfileVersion else null,
@@ -401,7 +404,7 @@ private fun TrackingParamsState.toProto(): TrackingParamsProto =
 		.setAdvancedSourceControlsEnabled(advancedSourceControlsEnabled)
 		.setSourceSettingsVersion(TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION)
 		.setAmbientLocationEnabled(ambientLocationEnabled)
-		.setAmbientStepsEnabled(ambientStepsEnabled)
+		.setAmbientStepsEnabled(stepsEnabled)
 		.setAmbientWifiEnabled(ambientWifiEnabled)
 		.setAmbientCellEnabled(ambientCellEnabled)
 		.apply {
@@ -498,7 +501,7 @@ private fun TrackingParamsProto.withCurrentSourceSettings(): TrackingParamsProto
 				PreferenceKeys.AMBIENT_LOCATION_ENABLED_DEFAULT
 			},
 		)
-		.setAmbientStepsEnabled(ambientStepsEnabled)
+		.setAmbientStepsEnabled(stepsEnabled)
 		.setAmbientWifiEnabled(
 			if (sourceSettingsVersion >= 3) {
 				ambientWifiEnabled

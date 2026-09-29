@@ -10,11 +10,8 @@ import androidx.test.core.app.ApplicationProvider
 import java.util.Locale
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
-import androidx.compose.ui.test.assertIsOn
-import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
@@ -375,13 +372,12 @@ class TrackingSettingsScreenTest {
     }
 
 	@Test
-	fun ambientSourceSettingsAreIndependentDefaultOffSwitchesWithGapAndRetentionCopy() {
+	fun nonStepsAmbientSourceSettingsAreIndependentDefaultOffSwitchesWithGapAndRetentionCopy() {
 		composeTestRule.setContent {
 			AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
 		}
 
 		mapOf(
-			"steps" to "Steps outside trips",
 			"location" to "All-day Location",
 			"wifi" to "Wi-Fi outside trips",
 			"cell" to "Cell outside trips",
@@ -407,27 +403,23 @@ class TrackingSettingsScreenTest {
 	}
 
 	@Test
-	fun ambientToggleChangesOnlySavedIntentAndAnnouncesUnavailableOperationalState() {
+	fun stepsChoiceShowsAllDayAvailabilityWithoutASecondToggle() {
 		var requested: Boolean? = null
 		composeTestRule.setContent {
 			AppTheme {
 				TrackingSettingsContent(
-					uiState = defaultUiState.copy(ambientStepsEnabled = true),
-					onAmbientStepsEnabledChanged = { requested = it },
+					uiState = defaultUiState.copy(stepsEnabled = true),
+					onStepsEnabledChanged = { requested = it },
 				)
 			}
 		}
 
-		scrollTo("Steps outside trips")
-		composeTestRule.onNodeWithTag("ambientSource-steps")
-			.assertIsOn()
-			.assert(hasStateDescription("Saved on; not operational"))
-			.performClick()
+		scrollTo("Step count")
+		composeTestRule.onNodeWithText("Steps outside trips").assertDoesNotExist()
+		composeTestRule.onNodeWithText("Step count").performClick()
 		requested shouldBe false
-		composeTestRule.onNodeWithText(
-			"Waiting for the source owner",
-			substring = true,
-		).assertIsDisplayed()
+		composeTestRule.onNodeWithText("Checking step collection.", substring = true)
+			.assertIsDisplayed()
 	}
 
 	@Test
@@ -444,7 +436,7 @@ class TrackingSettingsScreenTest {
 			AppTheme {
 				TrackingSettingsContent(
 					uiState = defaultUiState.copy(
-						ambientStepsEnabled = true,
+						stepsEnabled = true,
 						ambientSourceAvailability = availability,
 					),
 				)
@@ -459,7 +451,36 @@ class TrackingSettingsScreenTest {
 	}
 
 	@Test
-	fun missingHealthConnectGrantNeverAdvertisesLocalRecordingFallback() {
+	fun turnOffTrackingExplainsThatChoicesAndHistoryRemain() {
+		val availability = defaultUiState.ambientSourceAvailability +
+			(
+				AmbientTrackingSource.STEPS to AmbientSourceOperationalAvailability(
+					source = AmbientTrackingSource.STEPS,
+					state = AmbientSourceOperationalState.UNAVAILABLE,
+					reason = AmbientSourceUnavailableReason.USER_TURNED_OFF,
+				)
+			)
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(
+					uiState = defaultUiState.copy(
+						stepsEnabled = true,
+						ambientSourceAvailability = availability,
+					),
+				)
+			}
+		}
+
+		scrollTo("Tracking is off. Your choices and saved data are kept.")
+		composeTestRule.onNodeWithText(
+			"Tracking is off. Your choices and saved data are kept.",
+			substring = true,
+		).assertIsDisplayed()
+	}
+
+	@Test
+	fun missingHealthConnectGrantShowsRepairOnTheSingleStepsChoice() {
+		var repairRequested = false
 		val availability = defaultUiState.ambientSourceAvailability +
 			(
 				AmbientTrackingSource.STEPS to AmbientSourceOperationalAvailability(
@@ -474,22 +495,25 @@ class TrackingSettingsScreenTest {
 			AppTheme {
 				TrackingSettingsContent(
 					uiState = defaultUiState.copy(
-						ambientStepsEnabled = true,
+						stepsEnabled = true,
 						ambientSourceAvailability = availability,
 					),
+					onHealthConnectStepsPermission = { repairRequested = true },
 				)
 			}
 		}
 
-		scrollTo("Grant Steps access in Health Connect")
+		scrollTo("Allow Steps access in Health Connect")
 		composeTestRule.onNodeWithText(
-			"will not silently switch to Local Recording",
+			"to fill gaps when Tracker is closed",
 			substring = true,
 		).assertIsDisplayed()
+		composeTestRule.onNodeWithTag("stepsHealthConnectRepair").performScrollTo().performClick()
+		repairRequested shouldBe true
 	}
 
 	@Test
-	fun localRecordingReadinessExplainsThatHealthConnectIsGenuinelyUnavailable() {
+	fun localRecordingReadinessAppearsOnTheSingleStepsChoice() {
 		val availability = defaultUiState.ambientSourceAvailability +
 			(
 				AmbientTrackingSource.STEPS to AmbientSourceOperationalAvailability(
@@ -503,16 +527,16 @@ class TrackingSettingsScreenTest {
 			AppTheme {
 				TrackingSettingsContent(
 					uiState = defaultUiState.copy(
-						ambientStepsEnabled = true,
+						stepsEnabled = true,
 						ambientSourceAvailability = availability,
 					),
 				)
 			}
 		}
 
-		scrollTo("Health Connect is genuinely unavailable")
+		scrollTo("Step recording is ready")
 		composeTestRule.onNodeWithText(
-			"Local Recording is ready",
+			"Some periods may still have gaps",
 			substring = true,
 		).assertIsDisplayed()
 	}
@@ -535,18 +559,17 @@ class TrackingSettingsScreenTest {
 			AppTheme {
 				TrackingSettingsContent(
 					uiState = defaultUiState.copy(
-						ambientStepsEnabled = true,
+						stepsEnabled = true,
 						ambientSourceAvailability = availability,
 					),
 				)
 			}
 		}
 
-		scrollTo("Optional background access may reduce gaps")
-		composeTestRule.onNodeWithTag("ambientSource-steps")
-			.assert(hasStateDescription("Saved on; operational availability reported"))
+		scrollTo("Background access may reduce gaps")
+		composeTestRule.onNodeWithText("Step count").assertExists()
 		composeTestRule.onNodeWithText(
-			"does not promise a cadence",
+			"Background access may reduce gaps",
 			substring = true,
 		).assertIsDisplayed()
 	}
@@ -565,20 +588,20 @@ class TrackingSettingsScreenTest {
 			AppTheme {
 				TrackingSettingsContent(
 					uiState = defaultUiState.copy(
-						ambientStepsEnabled = true,
+						stepsEnabled = true,
 						ambientSourceAvailability = availability,
 					),
 				)
 			}
 		}
 
-		scrollTo("Health Connect mobile Steps is unavailable")
-		composeTestRule.onNodeWithTag("ambientSource-steps")
-			.assert(hasStateDescription("Saved on; not operational"))
+		scrollTo("No supported all-day step provider is available")
+		composeTestRule.onNodeWithText("Step count").assertExists()
 		composeTestRule.onNodeWithText(
-			"no approved continuity provider is ready",
+			"No supported all-day step provider is available",
 			substring = true,
 		).assertIsDisplayed()
+		composeTestRule.onNodeWithTag("stepsHealthConnectRepair").assertDoesNotExist()
 	}
 
     @Test

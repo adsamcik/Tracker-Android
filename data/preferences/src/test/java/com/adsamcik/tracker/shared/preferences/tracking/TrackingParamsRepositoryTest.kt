@@ -36,7 +36,7 @@ class TrackingParamsRepositoryTest {
 		}
 
 		override suspend fun setStepsEnabled(enabled: Boolean) {
-			_data.value = _data.value.copy(stepsEnabled = enabled)
+			_data.value = _data.value.copy(stepsEnabled = enabled, ambientStepsEnabled = enabled)
 		}
 
 		override suspend fun setWifiEnabled(enabled: Boolean) {
@@ -144,7 +144,7 @@ class TrackingParamsRepositoryTest {
 		}
 
 		@Test
-		fun `approved ambient setters update only their independent intents`() = runTest {
+		fun `Steps compatibility setter uses the same choice as session capture`() = runTest {
 			repository.setAmbientLocationEnabled(true)
 			repository.setAmbientStepsEnabled(true)
 			repository.setAmbientWifiEnabled(true)
@@ -159,6 +159,10 @@ class TrackingParamsRepositoryTest {
 			state.stepsEnabled shouldBe true
 			state.wifiEnabled shouldBe false
 			state.cellEnabled shouldBe false
+			repository.setAmbientStepsEnabled(false)
+			val stepsOff = repository.data.first()
+			stepsOff.stepsEnabled shouldBe false
+			stepsOff.ambientStepsEnabled shouldBe false
 		}
 
 		@Test

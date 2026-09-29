@@ -45,6 +45,8 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeAuthorityRevision
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAuthorityVector
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.api.TrackingSource
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
@@ -142,7 +144,9 @@ class TrackingSettingsViewModelTest {
             paramsFlow.value = paramsFlow.value.copy(activityEnabled = firstArg())
         }
         coEvery { trackingParamsRepository.setStepsEnabled(any()) } answers {
-            paramsFlow.value = paramsFlow.value.copy(stepsEnabled = firstArg())
+            paramsFlow.value = paramsFlow.value.copy(
+				stepsEnabled = firstArg(), ambientStepsEnabled = firstArg(),
+			)
         }
         coEvery { trackingParamsRepository.setWifiEnabled(any()) } answers {
             paramsFlow.value = paramsFlow.value.copy(wifiEnabled = firstArg())
@@ -179,9 +183,6 @@ class TrackingSettingsViewModelTest {
 		}
 		coEvery { trackingParamsRepository.setLocationMotionAssistanceEnabled(any()) } answers {
 			paramsFlow.value = paramsFlow.value.copy(locationMotionAssistanceEnabled = firstArg())
-		}
-		coEvery { trackingParamsRepository.setAmbientStepsEnabled(any()) } answers {
-			paramsFlow.value = paramsFlow.value.copy(ambientStepsEnabled = firstArg())
 		}
 		coEvery { trackingParamsRepository.setAmbientWifiEnabled(any()) } answers {
 			paramsFlow.value = paramsFlow.value.copy(ambientWifiEnabled = firstArg())
@@ -329,6 +330,38 @@ class TrackingSettingsViewModelTest {
 			activityPermissionProbe = { permissionsGranted },
 		)
     }
+
+	@Test
+	fun `Health Connect repair rechecks the shared Steps owner without changing selection`() =
+		runTest(testDispatcher) {
+			var reconciliations = 0
+			var fail = false
+			val vm = TrackingSettingsViewModel(
+				context,
+				trackingParamsRepository,
+				trackingStatusProvider,
+				activityWatcherController,
+				purposeAvailabilityReader,
+				purposeSettingsReconciler = TrackingPurposeSettingsReconciler {
+					reconciliations++
+					if (fail) throw IllegalStateException("provider unavailable")
+					TrackingPurposeSettingsReconciliationResult.Complete(setOf(AmbientTrackingSource.STEPS))
+				},
+				activityPermissionProbe = { permissionsGranted },
+			)
+			paramsFlow.value = paramsFlow.value.copy(stepsEnabled = true)
+			vm.refreshStepsProviderPermissionState()
+			advanceUntilIdle()
+			reconciliations shouldBe 1
+			paramsFlow.value.stepsEnabled shouldBe true
+			vm.uiState.value.stepsProviderRepairFailed shouldBe false
+			fail = true
+			vm.refreshStepsProviderPermissionState()
+			advanceUntilIdle()
+			reconciliations shouldBe 2
+			vm.uiState.value.stepsProviderRepairFailed shouldBe true
+			paramsFlow.value.stepsEnabled shouldBe true
+		}
 
     @Test
     fun `late source grants refresh actual capability and cannot revive selections`() = runTest(testDispatcher) {
@@ -534,13 +567,12 @@ class TrackingSettingsViewModelTest {
         }
 
 		@Test
-		fun `ambient settings persist intent without claiming operational readiness`() =
+		fun `ambient radio and Location settings persist intent without claiming operational readiness`() =
 			runTest(testDispatcher) {
 				val vm = createViewModel()
 				advanceUntilIdle()
 
 				vm.setAmbientLocationEnabled(true)
-				vm.setAmbientStepsEnabled(true)
 				vm.setAmbientWifiEnabled(true)
 				vm.setAmbientCellEnabled(true)
 				advanceUntilIdle()

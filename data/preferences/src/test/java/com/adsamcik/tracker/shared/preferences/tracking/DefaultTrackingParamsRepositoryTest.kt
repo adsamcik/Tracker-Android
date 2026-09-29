@@ -198,16 +198,15 @@ class DefaultTrackingParamsRepositoryTest {
     }
 
 	@Test
-	fun `approved ambient intents are default off and persist independently from capture`() = runTest {
+	fun `Steps choice mirrors all-day consent while other ambient intents stay independent`() = runTest {
 		val repo = DefaultTrackingParamsRepository(context, Dispatchers.IO)
 
 		val defaults = repo.data.first()
 		assertFalse(defaults.ambientLocationEnabled)
-		assertFalse(defaults.ambientStepsEnabled)
+		assertTrue(defaults.ambientStepsEnabled)
 		assertFalse(defaults.ambientWifiEnabled)
 		assertFalse(defaults.ambientCellEnabled)
 		repo.setAmbientLocationEnabled(true)
-		repo.setAmbientStepsEnabled(true)
 		repo.setAmbientWifiEnabled(true)
 		repo.setAmbientCellEnabled(true)
 		repo.setLocationEnabled(false)
@@ -217,7 +216,7 @@ class DefaultTrackingParamsRepositoryTest {
 
 		val enabled = repo.data.first()
 		assertTrue(enabled.ambientLocationEnabled)
-		assertTrue(enabled.ambientStepsEnabled)
+		assertFalse(enabled.ambientStepsEnabled)
 		assertTrue(enabled.ambientWifiEnabled)
 		assertTrue(enabled.ambientCellEnabled)
 		assertFalse(enabled.locationEnabled)
@@ -225,12 +224,11 @@ class DefaultTrackingParamsRepositoryTest {
 		assertFalse(enabled.wifiEnabled)
 		assertFalse(enabled.cellEnabled)
 		assertTrue(readTrackingProto().ambientLocationEnabled)
-		assertTrue(readTrackingProto().ambientStepsEnabled)
+		assertFalse(readTrackingProto().ambientStepsEnabled)
 		assertTrue(readTrackingProto().ambientWifiEnabled)
 		assertTrue(readTrackingProto().ambientCellEnabled)
 
 		repo.setAmbientLocationEnabled(false)
-		repo.setAmbientStepsEnabled(false)
 		repo.setAmbientWifiEnabled(false)
 		repo.setAmbientCellEnabled(false)
 		val disabled = repo.data.first()
@@ -245,7 +243,7 @@ class DefaultTrackingParamsRepositoryTest {
 	}
 
 	@Test
-	fun `version two proto migration preserves ambient Steps and defaults new ambient intents off`() =
+	fun `version two proto migration derives all-day Steps from the single Steps choice`() =
 		runTest {
 			writeTrackingProto(
 				TrackingParamsProto.newBuilder()
@@ -261,13 +259,13 @@ class DefaultTrackingParamsRepositoryTest {
 			val state = DefaultTrackingParamsRepository(context, Dispatchers.IO).data.first()
 
 			assertFalse(state.ambientLocationEnabled)
-			assertTrue(state.ambientStepsEnabled)
+			assertFalse(state.ambientStepsEnabled)
 			assertFalse(state.ambientWifiEnabled)
 			assertFalse(state.ambientCellEnabled)
 			val persisted = readTrackingProto()
 			assertEquals(TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION, persisted.sourceSettingsVersion)
 			assertFalse(persisted.ambientLocationEnabled)
-			assertTrue(persisted.ambientStepsEnabled)
+			assertFalse(persisted.ambientStepsEnabled)
 			assertFalse(persisted.ambientWifiEnabled)
 			assertFalse(persisted.ambientCellEnabled)
 		}
