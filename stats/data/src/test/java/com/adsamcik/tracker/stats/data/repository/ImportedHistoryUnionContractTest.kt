@@ -103,18 +103,9 @@ class ImportedHistoryUnionContractTest {
 	}
 
 	@Test
-	fun `Activity eligible entry rejects imported source-only intent`() {
-		val entry = activityEntry(capturesOnlyActivity = true)
-
+	fun `imported Activity entry rejects source-only intent`() {
 		shouldThrow<IllegalArgumentException> {
-			ActivityImportedHistoryEligibleEntry(
-				entry = entry,
-				selector = entry.key,
-				identity = PortableActivityOpaqueIdentity("a".repeat(64)),
-				importRevision = 1L,
-				contentChecksum = PortableActivityDigest("b".repeat(64)),
-				recency = recency(HistorySource.ACTIVITY, 150L, "activity-run"),
-			)
+			activityEntry(capturesOnlyActivity = true)
 		}
 	}
 
