@@ -127,7 +127,7 @@ class AmbientStepsDayComposerTest {
 	fun `matching provider proof still requires exact ambient coverage of session`() {
 		val result = composeAmbientStepsDay(
 			day,
-			listOf(fact(0L, 30L, 30L), fact(40L, DAY_END, 20L)),
+			listOf(fact(0L, 30L, 30L), fact(40L, DAY_END, 20L, "b")),
 			emptyList(),
 			listOf(session(20L, 40L, 10L)),
 		)
