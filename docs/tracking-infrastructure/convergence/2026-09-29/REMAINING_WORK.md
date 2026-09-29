@@ -19,8 +19,10 @@ Authored tests, static review and isolated commits do not satisfy those chains.
 
   Six-source first-run setup and the single all-day Steps policy choice were
   source-authored at `b5ba0a6f9e` with recovery and permission tests,
-  **IMPLEMENTED_UNVALIDATED**. The Tracker settings surface, provider-to-day
-  query and export chains still need assembly.
+  **IMPLEMENTED_UNVALIDATED**. The Tracker settings surface and Health Connect
+  repair action were source-authored at `372d0264f6` with focused tests,
+  **IMPLEMENTED_UNVALIDATED**. The provider-to-day query and export chains
+  still need assembly.
 - [ ] **Location:** compose one physical owner for active, rearmable passive and
   temporary user-requested leases; retire old registrations before replacement;
   finish authenticated cold delivery, durable delivery-gap reporting, historical
