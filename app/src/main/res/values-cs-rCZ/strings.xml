@@ -246,8 +246,12 @@
     <string name="widget_loading">Načítání…</string>
     <string name="widget_quick_start_name">Rychlý start Trackeru</string>
     <string name="widget_quick_start_description">Jedním klepnutím spusťte nebo zastavte sledování polohy.</string>
-    <string name="widget_start_tracking">Spustit sledování</string>
+    <string name="widget_start_tracking">Spustit záznam</string>
     <string name="widget_stop_tracking">Zastavit sledování</string>
+    <string name="widget_end_session">Ukončit záznam</string>
+    <string name="widget_end_short">Ukončit</string>
+    <string name="widget_turn_off_tracking">Vypnout sledování</string>
+    <string name="widget_turn_off_short">Vypnout</string>
     <string name="widget_tracking_active">Sledování je aktivní</string>
     <string name="widget_today_summary_name">Dnešní souhrn</string>
     <string name="widget_today_summary_description">Zobrazte si na první pohled dnešní statistiky sledování.</string>
@@ -258,9 +262,9 @@
     <string name="widget_duration">Doba trvání</string>
     <string name="widget_no_data_today">Dnes nejsou k dispozici žádná sledovaná data</string>
     <string name="widget_active_session_name">Aktivní relace</string>
-    <string name="widget_active_session_description">Sledujte aktuální relaci v reálném čase.</string>
+    <string name="widget_active_session_description">Zobrazte aktuální záznam a dostupné údaje. Spusťte nebo ukončete záznam či vypněte sledování.</string>
     <string name="widget_no_active_session">Žádná aktivní relace</string>
-    <string name="widget_tap_to_start">Klepnutím spusťte sledování</string>
+    <string name="widget_tap_to_start">Klepnutím spusťte záznam</string>
     <string name="widget_session_distance">Vzdálenost relace</string>
     <string name="widget_session_steps">Kroky relace</string>
     <string name="widget_session_duration">Doba trvání relace</string>

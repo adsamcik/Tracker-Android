@@ -148,36 +148,55 @@ private fun ActiveSessionContent(
 
 @Composable
 private fun IdleContent(context: Context) {
-    Column(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .clickable(actionRunCallback<ToggleTrackingAction>()),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Row(
+        modifier = GlanceModifier.fillMaxSize(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Image(
-            provider = ImageProvider(R.drawable.ic_widget_play),
-            contentDescription = context.getString(R.string.widget_start_tracking),
-            modifier = GlanceModifier.size(48.dp),
-            colorFilter = ColorFilter.tint(GlanceTheme.colors.primary),
-        )
-        Spacer(modifier = GlanceModifier.height(8.dp))
-        Text(
-            text = context.getString(R.string.widget_no_active_session),
-            style = TextStyle(
-                color = GlanceTheme.colors.onSurfaceVariant,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-            ),
-        )
-        Spacer(modifier = GlanceModifier.height(4.dp))
-        Text(
-            text = context.getString(R.string.widget_tap_to_start),
-            style = TextStyle(
-                color = GlanceTheme.colors.onSurfaceVariant,
-                fontSize = 12.sp,
-            ),
-        )
+        Column(
+            modifier = GlanceModifier.defaultWeight()
+                .clickable(actionRunCallback<ToggleTrackingAction>()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Image(
+                provider = ImageProvider(R.drawable.ic_widget_play),
+                contentDescription = context.getString(R.string.widget_start_tracking),
+                modifier = GlanceModifier.size(48.dp),
+                colorFilter = ColorFilter.tint(GlanceTheme.colors.primary),
+            )
+            Spacer(modifier = GlanceModifier.height(8.dp))
+            Text(
+                text = context.getString(R.string.widget_no_active_session),
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurfaceVariant,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+            )
+            Spacer(modifier = GlanceModifier.height(4.dp))
+            Text(
+                text = context.getString(R.string.widget_tap_to_start),
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurfaceVariant,
+                    fontSize = 12.sp,
+                ),
+            )
+        }
+        Column(
+            modifier = GlanceModifier.width(72.dp)
+                .clickable(actionRunCallback<TurnOffTrackingAction>()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Image(
+                provider = ImageProvider(R.drawable.ic_widget_stop),
+                contentDescription = context.getString(R.string.widget_turn_off_tracking),
+                modifier = GlanceModifier.size(32.dp),
+                colorFilter = ColorFilter.tint(GlanceTheme.colors.error),
+            )
+            Text(
+                text = context.getString(R.string.widget_turn_off_short),
+                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 11.sp),
+            )
+        }
     }
 }
 
@@ -210,7 +229,7 @@ private fun TrackingContent(
                 ),
             )
         }
-        // Stop button - 48dp touch target
+        // Keep End distinct from the all-purpose Turn off control.
         Column(
             modifier = GlanceModifier
                 .size(48.dp)
@@ -220,9 +239,31 @@ private fun TrackingContent(
         ) {
             Image(
                 provider = ImageProvider(R.drawable.ic_widget_stop),
-                contentDescription = context.getString(R.string.widget_stop_tracking),
-                modifier = GlanceModifier.size(32.dp),
+                contentDescription = context.getString(R.string.widget_end_session),
+                modifier = GlanceModifier.size(24.dp),
                 colorFilter = ColorFilter.tint(GlanceTheme.colors.error),
+            )
+            Text(
+                text = context.getString(R.string.widget_end_short),
+                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 10.sp),
+            )
+        }
+        Column(
+            modifier = GlanceModifier.width(64.dp)
+                .height(48.dp)
+                .clickable(actionRunCallback<TurnOffTrackingAction>()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Image(
+                provider = ImageProvider(R.drawable.ic_widget_stop),
+                contentDescription = context.getString(R.string.widget_turn_off_tracking),
+                modifier = GlanceModifier.size(24.dp),
+                colorFilter = ColorFilter.tint(GlanceTheme.colors.error),
+            )
+            Text(
+                text = context.getString(R.string.widget_turn_off_short),
+                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 10.sp),
             )
         }
     }

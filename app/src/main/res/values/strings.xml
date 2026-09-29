@@ -486,8 +486,12 @@
     <string name="widget_loading">Loading…</string>
     <string name="widget_quick_start_name">Tracker Quick Start</string>
     <string name="widget_quick_start_description">Start or stop location tracking with a single tap.</string>
-    <string name="widget_start_tracking">Start Tracking</string>
+    <string name="widget_start_tracking">Start session</string>
     <string name="widget_stop_tracking">Stop Tracking</string>
+    <string name="widget_end_session" tools:ignore="MissingTranslation">End session</string>
+    <string name="widget_end_short" tools:ignore="MissingTranslation">End</string>
+    <string name="widget_turn_off_tracking" tools:ignore="MissingTranslation">Turn off tracking</string>
+    <string name="widget_turn_off_short" tools:ignore="MissingTranslation">Turn off</string>
     <string name="widget_tracking_active">Tracking Active</string>
 
     <string name="widget_today_summary_name">Today\'s Summary</string>
@@ -505,9 +509,9 @@
     <string name="widget_no_data_today">No tracking data today</string>
 
     <string name="widget_active_session_name">Active Session</string>
-    <string name="widget_active_session_description">Monitor your current tracking session in real time.</string>
+    <string name="widget_active_session_description">See the current session and available stats. Start, end or turn off tracking.</string>
     <string name="widget_no_active_session">No active session</string>
-    <string name="widget_tap_to_start">Tap to start tracking</string>
+    <string name="widget_tap_to_start">Tap to start a session</string>
     <string name="widget_session_distance">Session Distance</string>
     <string name="widget_session_steps">Session Steps</string>
     <string name="widget_session_duration">Session Duration</string>
