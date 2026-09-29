@@ -321,7 +321,10 @@ class CellHistoryRepositoryRoomTest {
 		selectedEntry.observations shouldHaveSize 2
 		selectedEntry.observations.all { it.localSourceEventId != null } shouldBe true
 		selectedEntry.state shouldBe CellHistoryProductState.PARTIAL
-		selectedEntry.causes shouldBe setOf(CellHistoryCause.SUBSCRIPTION_GROUPING_UNKNOWN)
+		selectedEntry.causes shouldBe setOf(
+			CellHistoryCause.ACQUISITION_INCOMPLETE,
+			CellHistoryCause.SUBSCRIPTION_GROUPING_UNKNOWN,
+		)
 		val grouped = database.withTransaction {
 			repository.selectBySegmentIdsInTransaction(
 				listOf(group.runs.first().segment.id, group.runs.last().segment.id),
@@ -713,8 +716,8 @@ class CellHistoryRepositoryRoomTest {
 				),
 			) as CellHistoryRangePage.Available
 
-			range.entries.single().entry.state shouldBe CellHistoryProductState.UNAVAILABLE
-			range.entries.single().entry.causes shouldBe setOf(CellHistoryCause.PROVIDER_UNAVAILABLE)
+			range.entries.single().entry.state shouldBe CellHistoryProductState.MISSING
+			range.entries.single().entry.causes shouldBe setOf(CellHistoryCause.NO_QUALIFIED_FACTS)
 			range.entries.single().entry.observations shouldBe emptyList()
 			range.entries.single().structuralDayCompleteness shouldBe
 				CellHistoryStructuralDayCompleteness.UNAVAILABLE
@@ -724,7 +727,7 @@ class CellHistoryRepositoryRoomTest {
 			sourcePage.entries.single().let { composed ->
 				composed.capturesOnlyCell shouldBe true
 				composed.physicalSegmentIds shouldBe listOf(segment.id)
-				composed.entry.state shouldBe CellHistoryProductState.UNAVAILABLE
+				composed.entry.state shouldBe CellHistoryProductState.MISSING
 				composed.entry.observations shouldBe emptyList()
 			}
 		}
@@ -785,11 +788,8 @@ class CellHistoryRepositoryRoomTest {
 			arrayOf(moved),
 		)
 
-		val page = repository { true }.recent(1) as CellHistoryPage.Available
-
-		page.entries.single().state shouldBe CellHistoryProductState.FAILED
-		page.entries.single().causes shouldBe setOf(CellHistoryCause.FACT_INTEGRITY_FAILED)
-		page.entries.single().observations shouldBe emptyList()
+		repository { true }.recent(1) shouldBe
+			CellHistoryPage.Failed(CellHistoryCause.FACT_INTEGRITY_FAILED)
 	}
 
 	@Test
@@ -1052,8 +1052,11 @@ class CellHistoryRepositoryRoomTest {
 			).entry
 
 		entry.state shouldBe CellHistoryProductState.PARTIAL
-		entry.causes shouldBe setOf(CellHistoryCause.SUBSCRIPTION_GROUPING_UNKNOWN)
-		entry.observations shouldHaveSize 2
+		entry.causes shouldBe setOf(
+			CellHistoryCause.ACQUISITION_INCOMPLETE,
+			CellHistoryCause.SUBSCRIPTION_GROUPING_UNKNOWN,
+		)
+		entry.observations shouldHaveSize 1
 	}
 
 	@Test
@@ -1578,7 +1581,11 @@ class CellHistoryRepositoryRoomTest {
 			retiredElapsedRealtimeNanos = null,
 			failureCode = failureCode,
 		)
-		val facts = built.facts.map { fact ->
+		// Reusing an aggregate requires a bounded owner. A prior-boot provider has no
+		// observed stop boundary, so this fixture keeps its independent aggregate.
+		val facts = built.facts.filter {
+			it.factKind == CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE
+		}.map { fact ->
 			val unsigned = fact.copy(
 				providerAcceptanceEndNanos = Long.MAX_VALUE,
 				effectChecksum = ZERO_SHA,
@@ -1592,11 +1599,18 @@ class CellHistoryRepositoryRoomTest {
 				lineage.maxBy(CellCapturedFactRevisionEntity::semanticRevision)
 			}
 		return original.copy(
+			session = original.session.copy(finalAdmissionOrdinal = facts.maxOf {
+				it.sourceAdmissionOrdinal
+			}),
 			runs = listOf(
 				built.copy(
 					provider = provider,
 					facts = facts,
 					cursors = currentFacts.map(::cursor),
+					completeness = built.completeness.copy(
+						lastAdmissionOrdinal = facts.maxOf { it.sourceAdmissionOrdinal },
+						lastSourceSequence = facts.maxOf { it.sourceSequence },
+					),
 				),
 			),
 		)
@@ -1835,7 +1849,7 @@ class CellHistoryRepositoryRoomTest {
 		projectionId = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
 		projectionVersion = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
 		captureModeMask = 1L,
-		productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+		productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
 		activatedRolloutRevision = ROLLOUT_REVISION,
 		activationOrdinal = 1L,
 		contiguousAdmissionOrdinal = throughOrdinal,

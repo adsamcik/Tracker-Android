@@ -319,7 +319,13 @@ internal class DefaultCellHistoryRepository internal constructor(
 	override suspend fun recent(limit: Int): CellHistoryPage {
 		require(limit in 1..MAX_RESULTS)
 		return withContext(ioDispatcher) {
-			database.withTransaction { composeRecent(limit) }
+			try {
+				database.withTransaction { composeRecent(limit) }
+			} catch (cancelled: kotlinx.coroutines.CancellationException) {
+				throw cancelled
+			} catch (_: RuntimeException) {
+				CellHistoryPage.Failed(CellHistoryCause.FACT_INTEGRITY_FAILED)
+			}
 		}
 	}
 
@@ -710,6 +716,7 @@ internal class DefaultCellHistoryRepository internal constructor(
 			val page = database.cellCapturedFactDao().logicalHistoryCandidatePageInWallRange(
 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				SourceDestinationOwnerEntity.SOURCE_CELL,
 				0L,
 				Long.MAX_VALUE,
 				pageLimit,
@@ -879,6 +886,7 @@ internal class DefaultCellHistoryRepository internal constructor(
 			val candidates = database.cellCapturedFactDao().logicalHistoryCandidatePageInWallRange(
 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				SourceDestinationOwnerEntity.SOURCE_CELL,
 				bounds.fromInclusiveMs,
 				bounds.toExclusiveMs,
 				pageLimit,
