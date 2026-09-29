@@ -212,6 +212,25 @@ internal object WifiHistoryComposer {
 		) return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 		val evidence = snapshot.evidenceState
 			?: return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED)
+		// An entirely erased or expired entry has no values to authenticate for display.
+		// Keep the strict carrier checks below for every entry that can still show data.
+		if (related.isNotEmpty() && related.all { fact ->
+				fact.collectedDataEpoch != evidence.collectedDataEpoch ||
+					fact.sourceAdmissionOrdinal <= evidence.deletedSourceEventHighWaterOrdinal
+			}) {
+			publishStructuralRuns(structuralRunShells)
+			return unavailable(logicalId, segments, zones,
+				WifiHistoryCause.PRIVACY_EPOCH_MISMATCH, capturesOnlyWifi)
+		}
+		val retainedFromMs = evidence.retainedFromMs
+		if (related.isNotEmpty() && retainedFromMs != null &&
+			related.all { fact -> runCatching { earliestPossibleWallTimeMs(fact) < retainedFromMs }
+				.getOrDefault(false) }
+		) {
+			publishStructuralRuns(structuralRunShells)
+			return unavailable(logicalId, segments, zones,
+				WifiHistoryCause.RETENTION_LIMIT, capturesOnlyWifi)
+		}
 		val admissions = snapshot.admissions.filter { it.serviceRunId in runIds }
 		if (admissions.any {
 				WifiWalCarrierAuthenticator.authenticate(it) !is
