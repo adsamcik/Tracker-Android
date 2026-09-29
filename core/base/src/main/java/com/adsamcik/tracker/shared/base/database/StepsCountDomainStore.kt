@@ -1601,7 +1601,7 @@ class StepsCountDomainStore(
 		safeOrdinal: Long,
 		createdBeforeMs: Long,
 		limit: Int,
-		beforeWalDeletion: suspend (List<SourceEventRetentionProofCandidateRow>) -> Unit = {},
+		beforeWalDeletion: suspend (Int, List<SourceEventRetentionProofCandidateRow>) -> Unit = { _, _ -> },
 	): StepsCountDomainMaintenanceResult = authenticateCountDomainMaintenance {
 		withOwnerMaintenance { session ->
 			pruneSessionWalForStorageAuthenticated(
@@ -1673,7 +1673,7 @@ class StepsCountDomainStore(
 		createdBeforeMs: Long,
 		limit: Int,
 		session: OwnerMaintenanceSession,
-		beforeWalDeletion: suspend (List<SourceEventRetentionProofCandidateRow>) -> Unit,
+		beforeWalDeletion: suspend (Int, List<SourceEventRetentionProofCandidateRow>) -> Unit,
 	): StepsCountDomainMaintenanceResult {
 		require(safeOrdinal >= 0L)
 		require(createdBeforeMs >= 0L)
@@ -1718,8 +1718,19 @@ class StepsCountDomainStore(
 					-> throw CountDomainStoredEvidenceException()
 				}
 			}
-			beforeWalDeletion(candidates.map(StepsWalPruneCandidate::retentionProofAuthority))
 			val legacy = candidates.filter(StepsWalPruneCandidate::isLegacyV27)
+			val current = candidates.filterNot(StepsWalPruneCandidate::isLegacyV27)
+			// Migrated v27 rows carry their own authenticated drain authority rather than
+			// the current WAL integrity envelope used by retained event proofs.
+			session.requireActiveSnapshot()
+			val changesBeforeProofs = sqlite.totalChanges()
+			beforeWalDeletion(
+				candidates.size,
+				current.map(StepsWalPruneCandidate::retentionProofAuthority),
+			)
+			// The proof callback runs inside this owning transaction. Account for its exact
+			// Room writes before the next guarded WAL mutation snapshot.
+			session.acceptOwnedChanges(Math.subtractExact(sqlite.totalChanges(), changesBeforeProofs))
 			legacy.chunked(WAL_PRUNE_CANDIDATE_PAGE_SIZE).forEach { chunk ->
 				currentCoroutineContext().ensureActive()
 				session.requireActiveSnapshot()
@@ -1735,7 +1746,6 @@ class StepsCountDomainStore(
 				session.acceptOwnedChanges(Math.addExact(deleted.toLong(), invalidationEffect))
 				removedWalRows += deleted
 			}
-			val current = candidates.filterNot(StepsWalPruneCandidate::isLegacyV27)
 			current.chunked(WAL_PRUNE_CANDIDATE_PAGE_SIZE).forEach { chunk ->
 				currentCoroutineContext().ensureActive()
 				session.requireActiveSnapshot()

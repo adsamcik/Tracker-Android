@@ -46,6 +46,7 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsSessionMode
 import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import io.kotest.matchers.shouldBe
 import java.util.concurrent.Executor
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
@@ -177,7 +178,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 	@Test
 	fun `full clear pages deterministic staging owners without heap wide revision queries`() =
 		runTest {
-			val queries = mutableListOf<String>()
+			val queries = CopyOnWriteArrayList<String>()
 			database.close()
 			database = AppDatabase.inMemoryBuilder(
 				ApplicationProvider.getApplicationContext<Application>(),
@@ -229,7 +230,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 	@Test
 	fun `full clear authenticates one session product at a time and rolls back a late receipt conflict`() =
 		runTest {
-			val queries = mutableListOf<String>()
+			val queries = CopyOnWriteArrayList<String>()
 			database.close()
 			database = AppDatabase.inMemoryBuilder(
 				ApplicationProvider.getApplicationContext<Application>(),
@@ -1224,7 +1225,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			registrationGeneration = 1L,
 			collectedDataEpoch = 7L,
 			authorityRevision = 1L,
-			authorityFingerprint = PortableCountDomainDigest("sha256:" + "a".repeat(64)),
+			authorityFingerprint = PortableCountDomainDigest("a".repeat(64)),
 			coverage = PortableCountDomainCoverage.COVERED,
 			coverageVersion = 1,
 			countDomainVersion = 1,
@@ -1261,7 +1262,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			),
 		)
 
-		assertFailsWith<IllegalStateException> {
+		assertFailsWith<IllegalArgumentException> {
 			database.withTransaction {
 				database.preserveImportedPortableCountDomainFullClearFences(
 					TEST_OPERATION_ID,
@@ -1458,7 +1459,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			completenessMarkers = template.completenessMarkers,
 			roots = template.roots,
 		)
-		val latestEffect = PortableCountDomainDigest("sha256:" + "d".repeat(64))
+		val latestEffect = PortableCountDomainDigest("d".repeat(64))
 		val latestReceipt = sessionFactReceipt(originalOwner, 2L, latestEffect)
 		val latestOwner = PortableCountDomainOwnerRevisionV2(
 			ownerKind = originalOwner.ownerKind,
@@ -1494,7 +1495,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			it.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT &&
 				it.ownerRevision == 1L
 		}
-		val conflictingEffect = PortableCountDomainDigest("sha256:" + "c".repeat(64))
+		val conflictingEffect = PortableCountDomainDigest("c".repeat(64))
 		val receipt = sessionFactReceipt(firstOwner, 1L, conflictingEffect)
 		return PortableCountDomainGraphV2.create(
 			receipts = listOf(receipt),
@@ -1530,7 +1531,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			it.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT &&
 				it.ownerRevision == 1L
 		}
-		val conflictingEffect = PortableCountDomainDigest("sha256:" + "e".repeat(64))
+		val conflictingEffect = PortableCountDomainDigest("e".repeat(64))
 		val conflictingReceipt = sessionFactReceipt(firstOwner, 1L, conflictingEffect)
 		return PortableCountDomainGraphV2.create(
 			receipts = latest.receipts.filterNot {
@@ -1629,7 +1630,7 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 		registrationGeneration = 1L,
 		collectedDataEpoch = 7L,
 		authorityRevision = revision,
-		authorityFingerprint = PortableCountDomainDigest("sha256:" + "a".repeat(64)),
+		authorityFingerprint = PortableCountDomainDigest("a".repeat(64)),
 		coverage = PortableCountDomainCoverage.COVERED,
 		coverageVersion = 1,
 		countDomainVersion = 1,

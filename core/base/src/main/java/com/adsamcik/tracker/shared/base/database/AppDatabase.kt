@@ -1028,6 +1028,14 @@ abstract class AppDatabase : RoomDatabase() {
 					legacyStepsFullClearFence,
 				)
 			}
+			// Reconcile imported owners while their retained source entries are still live.
+			// Installing source-deletion fences first would make the reader report DELETION.
+			database.preserveImportedPortableCountDomainFullClearFences(
+				operationId = operationId,
+				oldCollectedDataEpoch = oldState.collectedDataEpoch,
+				newCollectedDataEpoch = newCollectedDataEpoch,
+				fencedAtMs = updatedAtMs,
+			)
 
 			preserveImportedPressureFullClearAuthority(
 				sqlite = sqlite,
@@ -1072,12 +1080,6 @@ abstract class AppDatabase : RoomDatabase() {
 				newCollectedDataEpoch = newCollectedDataEpoch,
 				sourceEvidenceRevision = nextRevision,
 				clearedAtMs = updatedAtMs,
-			)
-			database.preserveImportedPortableCountDomainFullClearFences(
-				operationId = operationId,
-				oldCollectedDataEpoch = oldState.collectedDataEpoch,
-				newCollectedDataEpoch = newCollectedDataEpoch,
-				fencedAtMs = updatedAtMs,
 			)
 			check(
 				clearStepsCountDomainEvidenceInCurrentTransaction(

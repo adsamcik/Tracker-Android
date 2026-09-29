@@ -1026,7 +1026,7 @@ class LegacyV27StepsWalRetentionTest {
 		admissionOrdinal: Long,
 	): SourceEventWalEntity {
 		val payload = byteArrayOf(1)
-		val row = SourceEventWalEntity(
+		val unsigned = SourceEventWalEntity(
 			admissionOrdinal = admissionOrdinal,
 			eventId = eventId,
 			providerDedupKey = "location-dedup-$eventId",
@@ -1052,6 +1052,7 @@ class LegacyV27StepsWalRetentionTest {
 			payloadChecksum = payload.sha256(),
 			createdAtMs = 30L,
 		)
+		val row = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
 		database.sourceEventWalDao().insertIgnoringDuplicate(row) shouldBe admissionOrdinal
 		return row
 	}

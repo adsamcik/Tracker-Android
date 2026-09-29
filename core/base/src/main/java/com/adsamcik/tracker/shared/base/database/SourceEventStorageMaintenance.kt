@@ -375,9 +375,9 @@ private suspend fun AppDatabase.pruneSourceEventStorageBatch(
 				safeOrdinal = sourceSafeOrdinal,
 				createdBeforeMs = createdBeforeMs,
 				limit = batchSize,
-				beforeWalDeletion = { candidates ->
-					candidateCount = candidates.size
-					requireRetentionProofs(sourceKind, candidates)
+				beforeWalDeletion = { totalCandidateCount, currentCandidates ->
+					candidateCount = totalCandidateCount
+					requireRetentionProofs(sourceKind, currentCandidates)
 				},
 			)
 		) {

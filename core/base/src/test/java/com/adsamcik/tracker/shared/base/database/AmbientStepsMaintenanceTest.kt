@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
+import android.database.sqlite.SQLiteConstraintException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
@@ -19,6 +20,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.assertions.throwables.shouldThrow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -100,9 +102,10 @@ class AmbientStepsMaintenanceTest {
 		database.ambientStepsImportStateDao().countGaps() shouldBe 0L
 		database.ambientStepsImportStateDao().countAuthorityTransitions() shouldBe 0L
 
-		// A delayed exact old UPSERT may physically reappear, but the higher redacted revision remains
-		// authoritative and product discovery cannot resurrect it.
-		(database.ambientStepsFactRevisionDao().insert(first) >= 0L) shouldBe true
+		// A delayed old UPSERT is rejected after the terminal retraction.
+		shouldThrow<SQLiteConstraintException> {
+			database.ambientStepsFactRevisionDao().insert(first)
+		}
 		database.ambientStepsFactRevisionDao().latestEffectiveForDay(
 			AmbientStepsFactRevisionEntity.WRITER_ID,
 			AmbientStepsFactRevisionEntity.WRITER_VERSION,
@@ -140,9 +143,12 @@ class AmbientStepsMaintenanceTest {
 			owner.contentChecksum shouldBe null
 		}
 
-		// Delayed exact rows may physically return, but the terminal higher revision remains the
-		// effective state and supplies cleanup authority after source-deletion removed the cursor.
-		listOf(first, correction).forEach { database.ambientStepsFactRevisionDao().insert(it) }
+		// Terminal owner authority rejects delayed rows even after the import cursor is removed.
+		listOf(first, correction).forEach { fact ->
+			shouldThrow<SQLiteConstraintException> {
+				database.ambientStepsFactRevisionDao().insert(fact)
+			}
+		}
 		database.ambientStepsFactRevisionDao().latestEffectiveForDay(
 			AmbientStepsFactRevisionEntity.WRITER_ID,
 			AmbientStepsFactRevisionEntity.WRITER_VERSION,
@@ -154,7 +160,7 @@ class AmbientStepsMaintenanceTest {
 			EPOCH,
 			REVOKED_CONSENT,
 			MAINTENANCE_TIME + 1L,
-		) shouldBe AmbientStepsSourceDeletionResult.Deleted(0, 2)
+		) shouldBe AmbientStepsSourceDeletionResult.AlreadyDeleted
 		database.ambientStepsFactRevisionDao().revisions(
 			AmbientStepsFactRevisionEntity.WRITER_ID,
 			AmbientStepsFactRevisionEntity.WRITER_VERSION,
@@ -170,22 +176,27 @@ class AmbientStepsMaintenanceTest {
 	}
 
 	@Test
-	fun `retention may remove a complete replayed terminal lineage behind its floor`() = runTest {
+	fun `retention preserves a payload free terminal lineage when old replay is ignored`() = runTest {
 		val fixture = seed(revoked = true, retainedFromMs = 1_500L)
 		val first = fixture.fact(0L, 1_000L, 4L)
 		val correction = fixture.correction(first, endTimeMs = 2_000L, stepCount = 5L)
 		listOf(first, correction).forEach { database.ambientStepsFactRevisionDao().insert(it) }
 		database.deleteAmbientStepsAfterConsentReset(EPOCH, REVOKED_CONSENT, MAINTENANCE_TIME) shouldBe
 			AmbientStepsSourceDeletionResult.Deleted(1, 2)
-		listOf(first, correction).forEach { database.ambientStepsFactRevisionDao().insert(it) }
+		listOf(first, correction).forEach { fact ->
+			shouldThrow<SQLiteConstraintException> {
+				database.ambientStepsFactRevisionDao().insert(fact)
+			}
+		}
 
 		database.pruneAuthenticatedAmbientStepsFactsAffectedByRetentionFloor(
 			beforeMs = 1_500L,
 			collectedDataEpoch = EPOCH,
 			markedAtMs = MAINTENANCE_TIME + 1L,
-		) shouldBe 3
+		) shouldBe 0
 
-		database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
+		database.ambientStepsFactRevisionDao().countPayloadBearingRows() shouldBe 0L
 		database.sourceEvidenceStateDao().get()?.retainedFromMs shouldBe 1_500L
 	}
 

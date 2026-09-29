@@ -140,7 +140,7 @@ class ImportedStepsRetentionTest {
 		}
 
 	@Test
-	fun `ambiguous previously truncated v1 session rolls back without rebinding`() = runTest {
+	fun `existing compatible selected deletion remains terminal while v1 graph rebinds`() = runTest {
 		val entry = seed()
 		val originalGraph = installLegacyGraph(entry)
 		val removedFact = simulatePreGraphFenceFactTruncation(entry)
@@ -173,17 +173,19 @@ class ImportedStepsRetentionTest {
 		)
 		val retained = ready(entry)
 
-		assertFailsWith<IllegalArgumentException> {
-			database.loadAuthenticatedImportedSessionCountDomainBinding(retained)
-		}
+		val rebound = database.loadAuthenticatedImportedSessionCountDomainBinding(retained)
+			.shouldNotBeNull()
+		rebound.graph shouldBe retained.legacyUnprovenCountDomainGraph()
 
 		database.importedPortableStepsCountDomainDao().binding(
 			ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
 			entry.identity.value,
 			1L,
-		)?.graphIdentity shouldBe originalGraph.identity.value
-		database.importedPortableStepsCountDomainDao()
-			.graph(retained.legacyUnprovenCountDomainGraph().identity.value) shouldBe null
+		)?.graphIdentity shouldBe rebound.graph.identity.value
+		database.importedPortableStepsCountDomainDao().ownerFences(
+			listOf(removedOwner.ownerIdentity.value),
+			2,
+		).single().fenceKind shouldBe ImportedPortableStepsCountDomainOwnerFenceEntity.FENCE_SELECTED_DELETE
 	}
 
 	@Test

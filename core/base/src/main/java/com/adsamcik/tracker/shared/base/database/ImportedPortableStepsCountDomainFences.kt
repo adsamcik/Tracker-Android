@@ -227,7 +227,7 @@ internal suspend fun AppDatabase.reconcilePreviouslyTruncatedLegacySessionBindin
 		} else {
 			require(root.ownerKind == PortableCountDomainOwnerKind.SESSION_FACT)
 			val run = liveRuns[root.containerIdentity.value] ?: return false
-			val fence = databaseRetentionFence(entry, run.identity, run.deletionScopeDigest)
+			val fence = databaseRetentionFence(entry, run.deletionScopeDigest)
 				?: return false
 			fenceByRun[run.identity] = fence
 		}
@@ -282,7 +282,6 @@ internal suspend fun AppDatabase.reconcilePreviouslyTruncatedLegacySessionBindin
 
 private suspend fun AppDatabase.databaseRetentionFence(
 	entry: RetainedImportedStepsEntry,
-	runIdentity: String,
 	deletionScopeDigest: String,
 ): SourceDeletionFenceEntity? {
 	val fence = sourceDeletionFenceDao().get(
@@ -291,12 +290,15 @@ private suspend fun AppDatabase.databaseRetentionFence(
 		SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
 		deletionScopeDigest,
 	) ?: return null
+	// Imported runs retain their original portable digest. Local session IDs cannot rederive it.
 	return fence.takeIf {
-		StepFactRevisionIntegrity.isRetentionTruncationFence(
-			it,
-			entry.metadata.identity,
-			runIdentity,
-			entry.metadata.collectedDataEpoch,
+		it == SourceDeletionFenceEntity.createForOriginalRunDigest(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+			scopeIdentityDigest = deletionScopeDigest,
+			fenceGeneration = 1L,
+			collectedDataEpoch = entry.metadata.collectedDataEpoch,
+			deletedAtMs = it.deletedAtMs,
 		)
 	}
 }
