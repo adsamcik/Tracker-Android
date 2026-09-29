@@ -102,6 +102,30 @@ class GpxExporterTest {
         Regex("<trkseg>").findAll(out.toString(Charsets.UTF_8.name())).count() shouldBe 2
     }
 
+    @Test
+    fun `older points without continuity keys expose long and reversed gaps`() = runTest {
+        val points = sequenceOf(
+            createTestLocation(1_000L, 50.0, 14.0),
+            createTestLocation(2_000L, 50.001, 14.0),
+            createTestLocation(200_000L, 50.002, 14.0),
+            createTestLocation(199_000L, 50.003, 14.0),
+        )
+        val out = ByteArrayOutputStream()
+        exporter.export(mockContext, points, out, null)
+        val xml = out.toString(Charsets.UTF_8.name())
+        Regex("<trkseg>").findAll(xml).count() shouldBe 3
+        Regex("<trkpt ").findAll(xml).count() shouldBe 4
+    }
+
+    @Test
+    fun `unkeyed background and session points are separate routes`() = runTest {
+        val first = createTestLocation(1_000L, 50.0, 14.0).copy(sessionless = true)
+        val second = createTestLocation(2_000L, 50.001, 14.0).copy(sessionless = false)
+        val out = ByteArrayOutputStream()
+        exporter.export(mockContext, sequenceOf(first, second), out, null)
+        Regex("<trkseg>").findAll(out.toString(Charsets.UTF_8.name())).count() shouldBe 2
+    }
+
     @Nested
     @DisplayName("Properties")
     inner class Properties {

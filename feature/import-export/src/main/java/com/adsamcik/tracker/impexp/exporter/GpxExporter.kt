@@ -59,7 +59,13 @@ class GpxExporter : Exporter {
 							sample.routeSequence != old.routeSequence?.plus(1) || sample.clockDomainId != old.clockDomainId ||
 							sample.elapsedRealtimeNanos <= old.elapsedRealtimeNanos ||
 							sample.elapsedRealtimeNanos - old.elapsedRealtimeNanos > 120_000_000_000L)
-					if (nativeBoundary) writer.write("</trkseg><trkseg>")
+					// Older and imported points have no native continuity key. A long or reversed
+					// wall-clock interval cannot truthfully be drawn as one continuous route.
+					val unkeyedBoundary = old != null && old.routeContinuityId == null &&
+						sample.routeContinuityId == null && (old.timeMs < 0L || sample.timeMs < 0L ||
+							sample.timeMs <= old.timeMs ||
+							sample.timeMs - old.timeMs > 120_000L || old.sessionless != sample.sessionless)
+					if (nativeBoundary || unkeyedBoundary) writer.write("</trkseg><trkseg>")
 					writeTrackPoint(writer, sample)
 					previous = sample
 				}
