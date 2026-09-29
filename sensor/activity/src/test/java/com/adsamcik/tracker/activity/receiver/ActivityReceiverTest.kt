@@ -13,6 +13,7 @@ import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.C
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_AUTOMATIC_TRANSITION_TYPES
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_CLOCK_DOMAIN_ID
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_COLLECTED_DATA_EPOCH
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_DURABLE_RECOGNITION_ELIGIBLE
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_REGISTRATION_GENERATION
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_SOURCE_INSTANCE_ID
@@ -146,6 +147,7 @@ class ActivityReceiverTest {
 			every { elapsedRealtimeMillis } returns providerElapsedRealtimeMillis
 		}
 		val intent: Intent = mockk(relaxed = true)
+		every { intent.getBooleanExtra(EXTRA_DURABLE_RECOGNITION_ELIGIBLE, true) } returns true
 
 		every { ActivityRecognitionResult.hasResult(intent) } returns true
 		every { ActivityRecognitionResult.extractResult(intent) } returns result
@@ -183,6 +185,7 @@ class ActivityReceiverTest {
 			every { transitionEvents } returns transitions
 		}
 		val intent: Intent = mockk(relaxed = true)
+		every { intent.getBooleanExtra(EXTRA_DURABLE_RECOGNITION_ELIGIBLE, true) } returns true
 
 		every { ActivityRecognitionResult.hasResult(intent) } returns true
 		every { ActivityRecognitionResult.extractResult(intent) } returns activityResult

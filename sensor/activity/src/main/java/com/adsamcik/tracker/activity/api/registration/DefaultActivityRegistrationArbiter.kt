@@ -1194,6 +1194,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			identity.sourceInstanceId,
 			throughRevision,
 		) == 1) { "Activity registration changed before its callback barrier acknowledgement" }
+		if (throughRevision == 0L) return
 		dao.sealCaptureAdmissionBarrier(
 			sourceKind = ACTIVITY_SOURCE_KIND,
 			registrationGeneration = identity.registrationGeneration,

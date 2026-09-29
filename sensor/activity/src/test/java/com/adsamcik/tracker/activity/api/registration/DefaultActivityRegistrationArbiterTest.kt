@@ -892,10 +892,16 @@ class DefaultActivityRegistrationArbiterTest {
 			demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false),
 		)
 		database.sourceBrokerDao().insertDemands(demands)
+		val plan = capturedPlan(configurationRevision = 11L, fingerprint = "capture-control-plan")
+		installDesiredPlan(plan)
 
 		val result = subject.setDemand(
 			ActivityRegistrationOwner.ACTIVE_SESSION,
-			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5, planRevision = 11L),
+			ActivityRegistrationDemand(
+				continuousRecognitionIntervalSeconds = 5,
+				planRevision = plan.configurationRevision,
+				capturedPlan = plan,
+			),
 		)
 
 		result.status shouldBe ActivityRegistrationStatus.APPLIED

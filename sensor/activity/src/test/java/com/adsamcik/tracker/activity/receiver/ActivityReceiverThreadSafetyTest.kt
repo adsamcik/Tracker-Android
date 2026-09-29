@@ -3,6 +3,7 @@ package com.adsamcik.tracker.activity.receiver
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_DURABLE_RECOGNITION_ELIGIBLE
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.ingress.ActivityDurableSelection
 import com.adsamcik.tracker.activity.api.ingress.ActivityIngressResult
@@ -122,7 +123,10 @@ class ActivityReceiverThreadSafetyTest {
 				try {
 					barrier.await(5, TimeUnit.SECONDS)
 					repeat(iterationsPerThread) {
-						receiver.onReceive(mockContext, mockk(relaxed = true))
+						val intent = mockk<Intent>(relaxed = true) {
+							every { getBooleanExtra(EXTRA_DURABLE_RECOGNITION_ELIGIBLE, true) } returns true
+						}
+						receiver.onReceive(mockContext, intent)
 					}
 				} catch (e: Throwable) {
 					errors.add(e)
