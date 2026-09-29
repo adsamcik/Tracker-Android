@@ -31,6 +31,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
@@ -64,7 +65,7 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainRecei
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainRootV2
 import com.adsamcik.tracker.shared.model.steps.portable.identity
 import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
-import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsAfterConsentResetRequest
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsAfterConsentResetResult
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsDayRequest
@@ -939,7 +940,7 @@ class RoomImportedAmbientStepsTransferTest {
 		val originalGraph = original.withExplicitUnprovenCountDomain().countDomainGraph
 		val retainedGraph = retained.withExplicitUnprovenCountDomain(2L).countDomainGraph
 
-		AppDatabase.deleteAllCollectedData(
+		AppDatabase.deleteAllCollectedDataForTesting(
 			database,
 			operationId = "legacy-ambient-upgrade-clear",
 			collectedDataEpoch = EPOCH + 1L,
@@ -1439,7 +1440,7 @@ class RoomImportedAmbientStepsTransferTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE imported_ambient_steps_fact SET step_count = ?, content_checksum = ? " +
 				"WHERE fact_identity = ?",
-			arrayOf(corruptCount, rehashed.value, fact.identity.value),
+			arrayOf<Any?>(corruptCount, rehashed.value, fact.identity.value),
 		)
 
 		importer(database).importArchive(request) shouldBe
@@ -1662,20 +1663,29 @@ class RoomImportedAmbientStepsTransferTest {
 		val initial = archive(completeDay(LocalDate.of(2026, 1, 3), 5L))
 		val request = historyRequest(initial)
 		val repository = history(database)
-		val emissions = async {
-			repository.observeRange(request).take(3).toList()
+		val initialObserved = CompletableDeferred<Unit>()
+		val firstImportObserved = CompletableDeferred<Unit>()
+		val emissions = async(Dispatchers.Default) {
+			repository.observeRange(request).onEach { snapshot ->
+				when ((snapshot as? AmbientStepsHistoryRead.Snapshot)?.days?.singleOrNull()?.total) {
+					AmbientStepsHistoryValue.Exact(5L) -> firstImportObserved.complete(Unit)
+					else -> initialObserved.complete(Unit)
+				}
+			}.take(3).toList()
 		}
-		yield()
+		withContext(Dispatchers.Default) { withTimeout(5_000L) { initialObserved.await() } }
 		importer(database).importArchive(
 			request(initial, jobId = "observe-initial", archiveKey = "observe-initial"),
 		) shouldBe applied(initial, 1)
-		yield()
+		withContext(Dispatchers.Default) { withTimeout(5_000L) { firstImportObserved.await() } }
 		val correction = archive(completeDay(LocalDate.of(2026, 1, 3), 9L))
 		importer(database).importArchive(
 			request(correction, jobId = "observe-correction", archiveKey = "observe-correction"),
 		) shouldBe applied(correction, 1)
 
-		val snapshots = emissions.await().map { it as AmbientStepsHistoryRead.Snapshot }
+		val snapshots = withContext(Dispatchers.Default) {
+			withTimeout(5_000L) { emissions.await() }
+		}.map { it as AmbientStepsHistoryRead.Snapshot }
 		snapshots[0].days.single().total shouldBe AmbientStepsHistoryValue.Unavailable(
 			setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.NO_EVIDENCE),
 		)
@@ -2111,8 +2121,20 @@ class RoomImportedAmbientStepsTransferTest {
 			numeric.read(request) shouldBe StepsNumericSummary.Ready(
 				listOf(StepsNumericDay(day.structuralEpochDay, 5L)),
 			)
-			val observed = async { numeric.observe(request).take(3).toList() }
-			yield()
+			val firstObserved = CompletableDeferred<Unit>()
+			val correctedObserved = CompletableDeferred<Unit>()
+			val observed = async(Dispatchers.Default) {
+				numeric.observe(request).onEach { value ->
+					when (value) {
+						StepsNumericSummary.Ready(listOf(StepsNumericDay(day.structuralEpochDay, 5L))) ->
+							firstObserved.complete(Unit)
+						StepsNumericSummary.Ready(listOf(StepsNumericDay(day.structuralEpochDay, 8L))) ->
+							correctedObserved.complete(Unit)
+						else -> Unit
+					}
+				}.take(3).toList()
+			}
+			withContext(Dispatchers.Default) { withTimeout(5_000L) { firstObserved.await() } }
 
 			val correction = archive(
 				completeDay(LocalDate.of(2026, 10, 25), 8L, "Europe/Prague"),
@@ -2120,7 +2142,7 @@ class RoomImportedAmbientStepsTransferTest {
 			importer(database).importArchive(
 				request(correction, jobId = "numeric-correction", archiveKey = "numeric-correction"),
 			) shouldBe applied(correction, 1)
-			yield()
+			withContext(Dispatchers.Default) { withTimeout(5_000L) { correctedObserved.await() } }
 			numeric.read(request) shouldBe StepsNumericSummary.Ready(
 				listOf(StepsNumericDay(day.structuralEpochDay, 8L)),
 			)
@@ -2139,7 +2161,7 @@ class RoomImportedAmbientStepsTransferTest {
 			numeric.read(request) shouldBe StepsNumericSummary.Unverifiable(
 				StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
 			)
-			observed.await() shouldBe listOf(
+			withContext(Dispatchers.Default) { withTimeout(5_000L) { observed.await() } } shouldBe listOf(
 				StepsNumericSummary.Ready(
 					listOf(StepsNumericDay(day.structuralEpochDay, 5L)),
 				),
@@ -2184,7 +2206,7 @@ class RoomImportedAmbientStepsTransferTest {
 				calendarZoneId = "UTC",
 			)
 			numeric.read(request) shouldBe StepsNumericSummary.Unverifiable(
-				StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+				StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
 			)
 		}
 
@@ -2545,7 +2567,7 @@ class RoomImportedAmbientStepsTransferTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_consent_epoch SET policy_revision = 7 " +
 				"WHERE source_kind = ? AND purpose = ? AND epoch = ?",
-			arrayOf(SourceDestinationOwnerEntity.SOURCE_STEPS, SourceBrokerPurpose.AMBIENT_PRODUCT,
+			arrayOf<Any?>(SourceDestinationOwnerEntity.SOURCE_STEPS, SourceBrokerPurpose.AMBIENT_PRODUCT,
 				SECOND_ELIGIBLE_CONSENT_EPOCH),
 		)
 		importer(database).importArchive(
@@ -2558,7 +2580,7 @@ class RoomImportedAmbientStepsTransferTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_consent_epoch SET policy_revision = 5 " +
 				"WHERE source_kind = ? AND purpose = ? AND epoch = ?",
-			arrayOf(SourceDestinationOwnerEntity.SOURCE_STEPS, SourceBrokerPurpose.AMBIENT_PRODUCT,
+			arrayOf<Any?>(SourceDestinationOwnerEntity.SOURCE_STEPS, SourceBrokerPurpose.AMBIENT_PRODUCT,
 				SECOND_ELIGIBLE_CONSENT_EPOCH),
 		)
 		importer(database).importArchive(
@@ -3095,7 +3117,7 @@ class RoomImportedAmbientStepsTransferTest {
 				database.openHelper.writableDatabase.execSQL(
 					"UPDATE imported_ambient_steps_fact SET step_count = ?, " +
 						"content_checksum = ? WHERE fact_identity = ?",
-					arrayOf(Long.MAX_VALUE, checksum, fact.identity.value),
+					arrayOf<Any?>(Long.MAX_VALUE, checksum, fact.identity.value),
 				)
 			}
 
@@ -3311,7 +3333,7 @@ class RoomImportedAmbientStepsTransferTest {
 	): PortableAmbientStepsDayV1 {
 		val (start, end) = dayBounds(date, zoneId)
 		val fact = PortableAmbientStepsFactV1.create(
-			identity(AmbientStepsPortableIdentityKind.FACT, "fact-${date.toEpochDay()}"),
+			identity(AmbientStepsPortableIdentityKind.FACT, "fact-${date.toEpochDay()}-$zoneId"),
 			start,
 			end,
 			count,
@@ -3425,10 +3447,10 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	private fun countIdentity(value: Char) =
-		PortableCountDomainOpaqueIdentity("sha256:" + value.toString().repeat(64))
+		PortableCountDomainOpaqueIdentity("sha256:" + value.code.toString(16).padStart(2, '0').repeat(32))
 
 	private fun countDigest(value: Char) =
-		PortableCountDomainDigest("sha256:" + value.toString().repeat(64))
+		PortableCountDomainDigest(value.code.toString(16).padStart(2, '0').repeat(32))
 
 	private fun partialDay(
 		date: LocalDate,
@@ -4185,7 +4207,7 @@ class RoomImportedAmbientStepsTransferTest {
 	private fun openNamed(context: Application): AppDatabase = AppDatabase.fileBuilder(
 		context,
 		REOPEN_DATABASE,
-	).openHelperFactory(SQLiteXSupportSQLiteOpenHelperFactory())
+	).openHelperFactory(FrameworkSQLiteOpenHelperFactory())
 		.allowMainThreadQueries()
 		.build()
 
