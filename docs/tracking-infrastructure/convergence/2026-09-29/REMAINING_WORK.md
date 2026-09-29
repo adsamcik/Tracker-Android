@@ -32,7 +32,10 @@ Authored tests, static review and isolated commits do not satisfy those chains.
   durable finite active-request allowance, optional notification host, source-only
   history/map/one-format file, overlap deduplication, capability gaps and Stop.
   Preserve sibling purposes and omit SIM/subscriber IDs. Radio child/file work is
-  currently draft source, not assembled evidence. (`WI-WIFI-VERTICAL-001`,
+  currently draft source, not assembled evidence. The durable one-request-per-
+  session active-radio allowance is source-authored at `a2a4cddc91` with
+  restart/cooldown/passive-continuity tests, **IMPLEMENTED_UNVALIDATED**;
+  provider and battery behavior is still unmeasured. (`WI-WIFI-VERTICAL-001`,
   `WI-CELL-VERTICAL-001`)
 - [ ] **Shared authority and runtime:** final atomic policy/demand/registration/
   receipt/publication path; authenticated source callers; one physical owner per
