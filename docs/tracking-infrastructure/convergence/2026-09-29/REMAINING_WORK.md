@@ -75,8 +75,10 @@ Authored tests, static review and isolated commits do not satisfy those chains.
   **IMPLEMENTED_UNVALIDATED**. Notification End/Off receiver routing was
   source-authored at `e4d01dbf7d` without an unscoped timeout retry, and
   shortcut/widget End waits were bounded at `b083e4f2c0`; all remain
-  **IMPLEMENTED_UNVALIDATED**. Widget layouts and notification action selection
-  remain drafts. Dashboard's permission callback still issues a new Start without a
+  **IMPLEMENTED_UNVALIDATED**. The larger session widget received distinct,
+  localized End/Turn off controls at `8023ea7422`, also
+  **IMPLEMENTED_UNVALIDATED**. The compact widget layout and notification action
+  selection remain drafts. Dashboard's permission callback still issues a new Start without a
   saved, one-use request tied to the original source choices and Stop generation;
   both in-app and external Start repair therefore remain incomplete. The
   already-open Dashboard also leaves the external Start extra unconsumed until a
