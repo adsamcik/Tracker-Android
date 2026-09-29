@@ -290,10 +290,13 @@ class DataSettingsViewModelTest {
                     awaitItem()
                     vm.setAutoCleanupEnabled(true)
                     var state = awaitItem()
-                    while (state.purposeSettingsReconciliationDebt == null) state = awaitItem()
+                    while (state.purposeSettingsReconciliationDebt == null ||
+                        state.ambientStepsLifecycleFailure == null
+                    ) state = awaitItem()
                     state.purposeSettingsReconciliationDebt shouldBe debt
                     state.ambientStepsLifecycleFailure shouldBe
                         AmbientStepsSettingsReconciliationFailure.DURABLE_AUTHORITY_REJECTED
+                    cancelAndIgnoreRemainingEvents()
                 }
             }
 
@@ -402,7 +405,10 @@ class DataSettingsViewModelTest {
                 awaitItem()
                 vm.setDataRetentionYears(3)
                 var state = awaitItem()
-                while (state.retentionPolicyFailure == null) state = awaitItem()
+                while (state.retentionPolicyFailure == null ||
+                    state.retentionPolicyApprovalStatus != RetentionPolicyApprovalStatus.PENDING ||
+                    state.ambientStepsLifecycleFailure == null
+                ) state = awaitItem()
                 state.retentionPolicyApprovalStatus shouldBe
                     RetentionPolicyApprovalStatus.PENDING
                 state.retentionPolicyFailure shouldBe
@@ -426,7 +432,9 @@ class DataSettingsViewModelTest {
                     awaitItem()
                     vm.setAutoCleanupEnabled(true)
                     var state = awaitItem()
-                    while (state.retentionPolicyFailure == null) state = awaitItem()
+                    while (state.retentionPolicyFailure == null ||
+                        state.retentionPolicyApprovalStatus != RetentionPolicyApprovalStatus.PENDING
+                    ) state = awaitItem()
                     state.autoCleanupEnabled shouldBe false
                     state.retentionPolicyApprovalStatus shouldBe
                         RetentionPolicyApprovalStatus.PENDING

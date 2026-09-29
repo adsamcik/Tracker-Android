@@ -133,7 +133,7 @@ data class LocationSettingsPermissionRequest(
 )
 
 @HiltViewModel
-class TrackingSettingsViewModel @Inject constructor(
+class TrackingSettingsViewModel internal constructor(
     @ApplicationContext private val context: Context,
     private val trackingParamsRepository: TrackingParamsRepository,
     private val trackingStatusProvider: TrackingSettingsStatusProvider,
@@ -143,7 +143,27 @@ class TrackingSettingsViewModel @Inject constructor(
 		SourcePolicyRevisionReconciliationCoordinator =
 		UnavailableSourcePolicyRevisionReconciliationCoordinator,
 	private val lifecycleCommandAuthority: TrackingLifecycleCommandAuthority? = null,
+	private val activityPermissionProbe: () -> Boolean,
 ) : ViewModel() {
+	@Inject constructor(
+		@ApplicationContext context: Context,
+		trackingParamsRepository: TrackingParamsRepository,
+		trackingStatusProvider: TrackingSettingsStatusProvider,
+		activityWatcherController: ActivityWatcherController,
+		purposeAvailabilityReader: CurrentTrackingPurposeAvailabilityReader,
+		sourcePolicyReconciliationCoordinator: SourcePolicyRevisionReconciliationCoordinator =
+			UnavailableSourcePolicyRevisionReconciliationCoordinator,
+		lifecycleCommandAuthority: TrackingLifecycleCommandAuthority? = null,
+	) : this(
+		context,
+		trackingParamsRepository,
+		trackingStatusProvider,
+		activityWatcherController,
+		purposeAvailabilityReader,
+		sourcePolicyReconciliationCoordinator,
+		lifecycleCommandAuthority,
+		{ context.hasActivityPermission },
+	)
 
     private val _uiState = MutableStateFlow(TrackingSettingsUiState())
     val uiState: StateFlow<TrackingSettingsUiState> = _uiState.asStateFlow()
@@ -418,7 +438,7 @@ class TrackingSettingsViewModel @Inject constructor(
 						false
 					}
 				if (intentGeneration != automaticIntentGeneration) return@launchSourcePolicyMutation
-				val effectiveMode = mode.takeIf { current && context.hasActivityPermission }
+				val effectiveMode = mode.takeIf { current && activityPermissionProbe() }
 					?: AUTO_TRACKING_MODE_DISABLED
 				activityWatcherController.applyAutoTrackingMode(effectiveMode)
 				if (intentGeneration == automaticIntentGeneration) onSaved()
@@ -488,7 +508,7 @@ class TrackingSettingsViewModel @Inject constructor(
         val wifiPermissionGranted = capabilities.hasWifiScanPermissions
         val cellPermissionGranted = context.hasCellScanPermission
         val barometerAvailable = context.hasPressureSensor
-        val activityPermissionGranted = context.hasActivityPermission
+        val activityPermissionGranted = activityPermissionProbe()
         val stepCounterAvailable = context.hasStepCounterSensor
         val preview = trackingStatusProvider.preview(params, previewEnvironment(capabilities))
         val estimate = preview.batteryEstimate
@@ -649,10 +669,10 @@ class TrackingSettingsViewModel @Inject constructor(
                         hardwareAvailable = packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION),
                         permissionGranted = capabilities.hasForegroundLocation,
                     ),
-                    SourceKind.ACTIVITY to SourceConstraint(permissionGranted = context.hasActivityPermission),
+                    SourceKind.ACTIVITY to SourceConstraint(permissionGranted = activityPermissionProbe()),
                     SourceKind.STEPS to SourceConstraint(
                         hardwareAvailable = context.hasStepCounterSensor,
-                        permissionGranted = context.hasActivityPermission,
+                        permissionGranted = activityPermissionProbe(),
                     ),
                     SourceKind.PRESSURE to SourceConstraint(hardwareAvailable = context.hasPressureSensor),
                     SourceKind.WIFI to SourceConstraint(

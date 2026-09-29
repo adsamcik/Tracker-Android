@@ -51,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -285,7 +286,9 @@ internal fun TrackingSettingsContent(
     onSourceFrequencyChanged: (TrackingSourceComponent, SourceCollectionFrequency) -> Unit = { _, _ -> },
     onNotificationCustomize: () -> Unit = {},
 ) {
-    val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
+    val meterAbbreviation = stringResource(com.adsamcik.tracker.shared.preferences.R.string.meter_abbr)
+    val secondAbbreviation = stringResource(com.adsamcik.tracker.shared.base.R.string.second_short)
     if (!uiState.isLoaded) return
     if (!uiState.sourcePolicyAvailable) {
         LazyColumn(
@@ -525,10 +528,8 @@ internal fun TrackingSettingsContent(
                         valueRange = 0f..200f,
                         steps = 19,
                         valueLabel = {
-                            context.getString(
-                                com.adsamcik.tracker.shared.preferences.R.string.meter_abbr,
-                                String.format(context.resources.configuration.locales[0], "%d", it.toInt()),
-                            )
+                            String.format(locale, meterAbbreviation,
+                                String.format(locale, "%d", it.toInt()))
                         },
                         onValueChange = { onMinDistanceChanged(it.toInt()) },
                         helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_distance,
@@ -539,7 +540,7 @@ internal fun TrackingSettingsContent(
                         value = uiState.minTime.toFloat(),
                         valueRange = 0f..60f,
                         steps = 11,
-                        valueLabel = { context.getString(com.adsamcik.tracker.shared.base.R.string.second_short, it.toInt()) },
+                        valueLabel = { String.format(locale, secondAbbreviation, it.toInt()) },
                         onValueChange = { onMinTimeChanged(it.toInt()) },
                         helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_time,
                     )
@@ -550,10 +551,8 @@ internal fun TrackingSettingsContent(
                         valueRange = 10f..200f,
                         steps = 18,
                         valueLabel = {
-                            context.getString(
-                                com.adsamcik.tracker.shared.preferences.R.string.meter_abbr,
-                                String.format(context.resources.configuration.locales[0], "%d", it.toInt()),
-                            )
+                            String.format(locale, meterAbbreviation,
+                                String.format(locale, "%d", it.toInt()))
                         },
                         onValueChange = { onRequiredAccuracyChanged(it.toInt()) },
                         helpTextRes = com.adsamcik.tracker.tracker.R.string.help_required_accuracy,
@@ -755,16 +754,18 @@ private fun AdvancedDataSourceSettings(
 				checked = uiState.locationEnabled,
 				onCheckedChange = onLocationEnabledChanged,
 			)
-		} else SourceFrequencySettingsItem(
-            title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_location_enabled_title),
-            description = stringResource(com.adsamcik.tracker.R.string.settings_location_source_compact),
-            iconRes = com.adsamcik.tracker.R.drawable.ic_tracking_source_location,
-            frequency = uiState.sourceCollectionSettings.location,
-            status = uiState.sourceStatuses[SourceKind.LOCATION],
-            plan = uiState.sourcePlans[SourceKind.LOCATION],
-            optionPlans = uiState.sourceFrequencyOptions[SourceKind.LOCATION].orEmpty(),
-            onFrequencySelected = { onSourceFrequencyChanged(TrackingSourceComponent.LOCATION, it) },
-        )
+		} else {
+			SourceFrequencySettingsItem(
+				title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_location_enabled_title),
+				description = stringResource(com.adsamcik.tracker.R.string.settings_location_source_compact),
+				iconRes = com.adsamcik.tracker.R.drawable.ic_tracking_source_location,
+				frequency = uiState.sourceCollectionSettings.location,
+				status = uiState.sourceStatuses[SourceKind.LOCATION],
+				plan = uiState.sourcePlans[SourceKind.LOCATION],
+				optionPlans = uiState.sourceFrequencyOptions[SourceKind.LOCATION].orEmpty(),
+				onFrequencySelected = { onSourceFrequencyChanged(TrackingSourceComponent.LOCATION, it) },
+			)
+		}
         SettingsRowDivider()
         SourceFrequencySettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),

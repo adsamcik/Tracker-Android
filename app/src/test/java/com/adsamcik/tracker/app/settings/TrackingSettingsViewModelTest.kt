@@ -240,7 +240,9 @@ class TrackingSettingsViewModelTest {
 		every { lifecycle.pendingCollectionResumeExitId } returns "exit-1"
 		coEvery { lifecycle.resumeCollectionAfterUserExit("exit-1") } returns true
 		val vm = TrackingSettingsViewModel(context, trackingParamsRepository, trackingStatusProvider,
-			activityWatcherController, purposeAvailabilityReader, lifecycleCommandAuthority = lifecycle)
+			activityWatcherController, purposeAvailabilityReader,
+			lifecycleCommandAuthority = lifecycle,
+			activityPermissionProbe = { permissionsGranted })
 		advanceUntilIdle()
 		vm.refreshPermissionState()
 		coVerify(exactly = 0) { lifecycle.resumeCollectionAfterUserExit(any()) }
@@ -256,7 +258,9 @@ class TrackingSettingsViewModelTest {
 		every { lifecycle.pendingCollectionResumeExitId } returns "exit-1"
 		coEvery { lifecycle.resumeCollectionAfterUserExit("exit-1") } returns false
 		val vm = TrackingSettingsViewModel(context, trackingParamsRepository, trackingStatusProvider,
-			activityWatcherController, purposeAvailabilityReader, lifecycleCommandAuthority = lifecycle)
+			activityWatcherController, purposeAvailabilityReader,
+			lifecycleCommandAuthority = lifecycle,
+			activityPermissionProbe = { permissionsGranted })
 		vm.setAmbientLocationEnabled(true)
 		advanceUntilIdle()
 		vm.uiState.value.locationSettingsSaveFailed shouldBe true
@@ -305,9 +309,10 @@ class TrackingSettingsViewModelTest {
             trackingParamsRepository,
             trackingStatusProvider,
             activityWatcherController,
-            purposeAvailabilityReader,
+			purposeAvailabilityReader,
 			sourcePolicyReconciliationCoordinator,
-        )
+			activityPermissionProbe = { permissionsGranted },
+		)
     }
 
     @Test
@@ -578,6 +583,7 @@ class TrackingSettingsViewModelTest {
 					trackingStatusProvider,
 					activityWatcherController,
 					purposeAvailabilityReader,
+					activityPermissionProbe = { permissionsGranted },
 				)
 				val control = purposeIdentity(
 					source = TrackingSource.ACTIVITY,
@@ -1024,11 +1030,11 @@ class TrackingSettingsViewModelTest {
 
         @Test
         fun `preset compatibility actions select quality without changing sources consent or custom settings`() = runTest(testDispatcher) {
+			val vm = createViewModel()
             paramsFlow.value = paramsFlow.value.copy(locationEnabled = false, wifiEnabled = true, cellEnabled = false,
                 ambientWifiEnabled = true, ambientStepsEnabled = true, autoTrackingMode = 0,
                 minTimeSeconds = 17, minDistanceMeters = 43, requiredAccuracyMeters = 71, presetName = "CUSTOM")
             val original = paramsFlow.value
-            val vm = createViewModel()
             advanceUntilIdle()
             listOf(TrackingPreset.POWER_SAVE to 1, TrackingPreset.BALANCED to 3, TrackingPreset.HIGH_ACCURACY to 5).forEach { (preset, level) ->
                 vm.applyPreset(preset)
@@ -1085,7 +1091,8 @@ class TrackingSettingsViewModelTest {
                     trackingStatusProvider,
                     activityWatcherController,
 					purposeAvailabilityReader,
-                )
+					activityPermissionProbe = { permissionsGranted },
+				)
                 advanceUntilIdle()
                 vm.uiState.value.wifiEnabled shouldBe true
 

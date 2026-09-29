@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.LocaleList
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.test.core.app.ApplicationProvider
 import java.util.Locale
@@ -12,8 +13,11 @@ import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -126,7 +130,9 @@ class TrackingSettingsScreenTest {
         composeTestRule.setContent {
             AppTheme { TrackingSettingsContent(defaultUiState, onBalanceSelected = { selected = it }) }
         }
-        composeTestRule.onNodeWithTag("trackingBalance").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("trackingSettingsList")
+            .performScrollToNode(hasTestTag("trackingBalance"))
+        composeTestRule.onNodeWithTag("trackingBalance").performClick()
         (1..5).forEach { composeTestRule.onNodeWithTag("trackingBalance-$it").assertIsDisplayed() }
         composeTestRule.onNodeWithTag("trackingBalance-2").performClick()
         selected shouldBe 2
@@ -143,7 +149,9 @@ class TrackingSettingsScreenTest {
             AppTheme { TrackingSettingsContent(state, onSourceBalanceSelected = { source, level -> selected = source to level },
                 onWifiEnabledChanged = { participationChanges++ }, onAmbientWifiEnabledChanged = { participationChanges++ }) }
         }
-        composeTestRule.onNodeWithTag("sourceBalance-WIFI").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("trackingSettingsList")
+            .performScrollToNode(hasTestTag("sourceBalance-WIFI"))
+        composeTestRule.onNodeWithTag("sourceBalance-WIFI").performClick()
         composeTestRule.onNodeWithTag("sourceBalance-WIFI-inherit").assertIsDisplayed()
         composeTestRule.onNodeWithTag("sourceBalance-WIFI-5").performClick()
         selected shouldBe (TrackingSourceComponent.WIFI to 5)
@@ -248,10 +256,12 @@ class TrackingSettingsScreenTest {
 
 		scrollTo("Automatic tracking isn’t available")
 		composeTestRule.onNodeWithTag("automaticTrackingUnavailable").assertIsDisplayed()
+		scrollTo("CONTROL_RETENTION_POLICY_UNAVAILABLE")
 		composeTestRule.onNodeWithText(
 			"CONTROL_RETENTION_POLICY_UNAVAILABLE",
 			substring = true,
 		).assertIsDisplayed()
+		scrollTo("Manual tracking is unchanged.")
 		composeTestRule.onNodeWithText("Manual tracking is unchanged.", substring = true)
 			.assertIsDisplayed()
 		composeTestRule.onNodeWithText("Battery-efficient motion detection", substring = true)
@@ -266,6 +276,7 @@ class TrackingSettingsScreenTest {
                     uiState = defaultUiState.copy(
                         autoTrackingMode = 0,
                         autoTrackingEnabled = false,
+						automaticTrackingOperational = false,
                     ),
                 )
             }
@@ -385,10 +396,10 @@ class TrackingSettingsScreenTest {
 			.assertIsDisplayed()
 		scrollTo("does not claim always-on collection")
 		composeTestRule.onNodeWithTag("ambientRetentionExplanation").assertIsDisplayed()
-		composeTestRule.onNodeWithText(
+		composeTestRule.onAllNodesWithText(
 			"Current collection status is waiting for source-owner reconciliation",
 			substring = true,
-		).assertIsDisplayed()
+		).onFirst().assertExists()
 		composeTestRule.onNodeWithText(
 			"Collection stays off because the product retention policy",
 			substring = true,
@@ -617,7 +628,15 @@ class TrackingSettingsScreenTest {
             cell = SourceCollectionFrequency.RESPONSIVE,
         )
         val plans = SemanticAcquisitionPlanFactory().create(
-            settings = TrackingParamsState(sourceCollectionSettings = responsive),
+            settings = TrackingParamsState(
+                locationEnabled = true,
+                activityEnabled = true,
+                stepsEnabled = true,
+                barometerEnabled = true,
+                wifiEnabled = true,
+                cellEnabled = true,
+                sourceCollectionSettings = responsive,
+            ),
             revision = 0L,
             createdAtMs = 0L,
             environment = SourcePlanEnvironment(LocationBackend.FUSED, true, emptySet()),
@@ -737,7 +756,10 @@ class TrackingSettingsScreenTest {
             },
         )
         composeTestRule.setContent {
-            CompositionLocalProvider(LocalContext provides context) {
+            CompositionLocalProvider(
+                LocalContext provides context,
+                LocalConfiguration provides context.resources.configuration,
+            ) {
                 AppTheme {
                     TrackingSettingsContent(
                         uiState = defaultUiState.copy(
