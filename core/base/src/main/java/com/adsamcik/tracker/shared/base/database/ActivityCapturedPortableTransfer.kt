@@ -2710,7 +2710,7 @@ private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-25
 	.joinToString(separator = "") { byte -> "%02x".format(byte) }
 
 private fun ActivityCapturedPortableWalTargetRow.calculatedIntegrityIdentity(): String {
-	val canonical = listOf(
+	val legacyCanonical = listOf(
 		deliveryIdentity,
 		deliveryUnitIndex,
 		deliveryUnitCount,
@@ -2744,7 +2744,12 @@ private fun ActivityCapturedPortableWalTargetRow.calculatedIntegrityIdentity(): 
 		qualityConfidence,
 		payloadVersion,
 		payloadChecksum,
-	).joinToString(separator = "") { value ->
+	)
+	val canonical = (if (receivedWallTimeMs == null) {
+		legacyCanonical
+	} else {
+		legacyCanonical + receivedWallTimeMs
+	}).joinToString(separator = "") { value ->
 		val text = value?.toString()
 		if (text == null) "-1:" else "${text.length}:$text"
 	}

@@ -788,7 +788,7 @@ interface ActivityCapturedFactDao {
 			"physical_configuration_fingerprint, authorization_revision, " +
 			"authorization_purpose_eligibility_mask, authorization_fingerprint, source_sequence, " +
 			"config_revision, plan_attribution, clock_domain_id, observed_elapsed_nanos, " +
-			"observed_interval_start_nanos, received_elapsed_nanos, wall_time_ms, " +
+			"observed_interval_start_nanos, received_elapsed_nanos, received_wall_time_ms, wall_time_ms, " +
 			"wall_time_uncertainty_ms, captured_collected_data_epoch, activity_automation_epoch, " +
 			"source_policy_revision, capture_consent_epoch, session_manifest_revision, " +
 			"lifecycle_lease_generation, acquired_at_ms, quality_flags, quality_confidence, " +
@@ -812,7 +812,7 @@ interface ActivityCapturedFactDao {
 			"physical_configuration_fingerprint, authorization_revision, " +
 			"authorization_purpose_eligibility_mask, authorization_fingerprint, source_sequence, " +
 			"config_revision, plan_attribution, clock_domain_id, observed_elapsed_nanos, " +
-			"observed_interval_start_nanos, received_elapsed_nanos, wall_time_ms, " +
+			"observed_interval_start_nanos, received_elapsed_nanos, received_wall_time_ms, wall_time_ms, " +
 			"wall_time_uncertainty_ms, captured_collected_data_epoch, activity_automation_epoch, " +
 			"source_policy_revision, capture_consent_epoch, session_manifest_revision, " +
 			"lifecycle_lease_generation, acquired_at_ms, quality_flags, quality_confidence, " +
@@ -1116,6 +1116,7 @@ data class ActivityCapturedPortableWalTargetRow(
 	@ColumnInfo(name = "observed_elapsed_nanos") val observedElapsedNanos: Long,
 	@ColumnInfo(name = "observed_interval_start_nanos") val observedIntervalStartNanos: Long?,
 	@ColumnInfo(name = "received_elapsed_nanos") val receivedElapsedNanos: Long,
+	@ColumnInfo(name = "received_wall_time_ms") val receivedWallTimeMs: Long?,
 	@ColumnInfo(name = "wall_time_ms") val wallTimeMs: Long?,
 	@ColumnInfo(name = "wall_time_uncertainty_ms") val wallTimeUncertaintyMs: Long?,
 	@ColumnInfo(name = "captured_collected_data_epoch") val capturedCollectedDataEpoch: Long,
