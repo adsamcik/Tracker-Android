@@ -187,8 +187,17 @@ class JsonImportTest {
 		capturedSamples[0].lonE7 shouldBe (14.0 * 1e7).roundToInt()
 		capturedSamples[0].altitudeM shouldBe 200.0f
 		capturedSamples[0].speedMps shouldBe 3.5f
+		capturedSamples[0].quality.name shouldBe "MEDIUM"
 		capturedSamples[1].latE7 shouldBe (50.1 * 1e7).roundToInt()
+		capturedSamples[1].quality.name shouldBe "HIGH"
 	} }
+
+	@Test
+	fun `JSON quality is preserved when supplied and otherwise unknown without accuracy`() = runTest {
+		val json = """[{"schemaVersion":3,"locations":[{"timeMs":1700000000000,"quality":"LOW"},{"timeMs":1700000000001}]}]"""
+		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
+		capturedSamples.map { it.quality.name } shouldBe listOf("LOW", "COARSE")
+	}
 
 	@Test
 	fun `imports JSON schema 3 altitude contract without conflating raw and processed altitude`() = runTest {

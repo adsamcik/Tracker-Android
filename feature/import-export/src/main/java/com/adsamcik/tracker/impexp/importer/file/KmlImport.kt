@@ -125,7 +125,8 @@ internal class KmlImport(
         speedMps = null,
         speedAccuracyMps = null,
         provider = "import",
-        quality = SampleQuality.MEDIUM,
+        // KML provides no accuracy measurement; do not invent medium precision.
+        quality = SampleQuality.COARSE,
         motionState = null,
         policy = null,
         bucketId = null,

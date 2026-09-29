@@ -113,6 +113,7 @@ class GpxImportTest {
 			capturedSamples[0].altitudeDatum shouldBe AltitudeDatum.UNKNOWN_LEGACY
 			capturedSamples[0].altitudeSource shouldBe AltitudeSource.IMPORTED
 			capturedSamples[0].altitudeConversionStatus shouldBe AltitudeConversionStatus.UNKNOWN_LEGACY
+			capturedSamples[0].quality.name shouldBe "COARSE"
 			capturedSamples[1].latE7 shouldBe (50.1 * 1e7).roundToInt()
 			capturedSamples[1].lonE7 shouldBe (14.1 * 1e7).roundToInt()
 		}

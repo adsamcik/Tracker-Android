@@ -71,6 +71,7 @@ class KmlImportTest {
 		capturedSamples shouldHaveSize 2
 		capturedSamples[0].timeMs shouldBe 1_700_000_000_000L
 		capturedSamples[1].timeMs shouldBe 1_700_000_060_000L
+		capturedSamples.first().quality.name shouldBe "COARSE"
 		capturedSamples.first().altitudeDatum shouldBe AltitudeDatum.UNKNOWN_LEGACY
 		capturedSamples.first().altitudeSource shouldBe AltitudeSource.IMPORTED
 		capturedSamples.first().altitudeConversionStatus shouldBe AltitudeConversionStatus.UNKNOWN_LEGACY

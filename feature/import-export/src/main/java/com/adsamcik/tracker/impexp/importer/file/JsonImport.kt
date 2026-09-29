@@ -272,6 +272,7 @@ internal class JsonImport(
 		var altitudeCalibrationVersion = 0
 		var speed: Float? = null
 		var accuracy: Float? = null
+		var reportedQuality: SampleQuality? = null
 
 		reader.beginObject()
 		while (reader.hasNext()) {
@@ -297,6 +298,9 @@ internal class JsonImport(
 				"altitudeCalibrationVersion" -> altitudeCalibrationVersion = reader.nextInt()
 				"spd", "speedMps" -> speed = readNullableDouble(reader)?.toFloat()
 				"acc", "horizontalAccuracyM" -> accuracy = readNullableDouble(reader)?.toFloat()
+				"quality" -> reportedQuality = readNullableString(reader)?.let { value ->
+					SampleQuality.entries.firstOrNull { it.name.equals(value, ignoreCase = true) }
+				}
 				"act" -> reader.nextInt()
 				"actConf" -> reader.nextInt()
 				else -> reader.skipValue()
@@ -307,6 +311,13 @@ internal class JsonImport(
 		if (time == 0L) return null
 		if (time < MIN_VALID_TIMESTAMP || time > MAX_VALID_TIMESTAMP) return null
 		val coordinates = coordinatesE7OrNull(lat, lon)
+		val measuredAccuracy = accuracy?.takeIf { it.isFinite() && it >= 0f }
+		val quality = reportedQuality ?: when {
+			measuredAccuracy == null -> SampleQuality.COARSE
+			measuredAccuracy < 10f -> SampleQuality.HIGH
+			measuredAccuracy < 50f -> SampleQuality.MEDIUM
+			else -> SampleQuality.LOW
+		}
 
 		return LocationSample(
 			timeMs = time,
@@ -315,12 +326,12 @@ internal class JsonImport(
 			lonE7 = coordinates?.second,
 			altitudeM = alt?.takeIf(Double::isFinite)?.toFloat(),
 			rawGpsAltitudeM = rawGpsAltitude?.takeIf(Double::isFinite)?.toFloat(),
-			hAccM = accuracy,
+			hAccM = measuredAccuracy,
 			vAccM = null,
 			speedMps = speed,
 			speedAccuracyMps = null,
 			provider = "import",
-			quality = SampleQuality.MEDIUM,
+			quality = quality,
 			motionState = null,
 			policy = null,
 			bucketId = null,
