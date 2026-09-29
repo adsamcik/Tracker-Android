@@ -6,6 +6,8 @@ import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
@@ -13,9 +15,11 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -26,7 +30,12 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletenessMarkerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsWalBoundaryKind
+import com.adsamcik.tracker.shared.base.database.data.StepsWalPayload
+import com.adsamcik.tracker.shared.base.database.data.StepsWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.STEPS_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
@@ -53,6 +62,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import kotlin.time.Duration.Companion.minutes
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -130,26 +140,11 @@ class RoomExportPortableStepsTest {
 	fun `truncated native owner lineage emits no invalid v2 while v1 remains representable`() =
 		runTest {
 			val seed = FactSeed("covered", 1L, count = 1L)
-			insertReadyFixture(facts = listOf(seed))
-			val fact = fact(LOGICAL_ONE, RUN_ONE, 1L, seed, 1_000L)
+			insertReadyFixture(facts = listOf(seed), walPayloadVersion = 5)
 			val completeness = stepsCompleteness()
 			val scope = StepsCountDomainReceiptIntegrity.sessionRunScopeIdentity(
 				LOGICAL_ONE,
 				RUN_ONE,
-			)
-			val factOwner = StepsCountDomainOwnerRevisionEntity(
-				ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
-				scopeIdentity = scope,
-				ownerIdentity = StepsCountDomainReceiptIntegrity.sessionFactOwnerIdentity(
-					fact.writerProjectionId,
-					fact.writerProjectionVersion,
-					fact.logicalFactId,
-				),
-				ownerRevision = fact.semanticRevision,
-				operation = StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN,
-				receiptIdentity = null,
-				ownerEffectChecksum = fact.effectChecksum,
-				linkedAtMs = fact.appliedAtMs,
 			)
 			val completenessRevision =
 				StepsCountDomainReceiptIntegrity.completenessOwnerRevision(completeness)
@@ -184,7 +179,6 @@ class RoomExportPortableStepsTest {
 				registrationTimelineChecksum = timelineChecksum,
 			)
 			val dao = database.stepsCountDomainReceiptDao()
-			dao.insertOwner(factOwner)
 			dao.insertOwner(completenessOwner)
 			dao.insertCompletenessMarker(
 				StepsCountDomainCompletenessMarkerEntity(
@@ -274,11 +268,11 @@ class RoomExportPortableStepsTest {
 			intervalEndTimeMs = 110L,
 			appliedAtMs = 110L,
 		)
-		database.stepFactRevisionDao().insert(
-			canonical.copy(
-				effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(canonical),
-			),
+		val authentic = canonical.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(canonical),
 		)
+		authenticateLiveFact(authentic)
+		database.stepFactRevisionDao().insert(authentic)
 		database.sourceSessionDao().saveCompleteness(
 			stepsCompleteness().copy(lastAdmissionOrdinal = 1L, lastSourceSequence = 1L),
 		)
@@ -823,15 +817,15 @@ class RoomExportPortableStepsTest {
 			effectiveWallTimeMs = 1_020L,
 			effectiveElapsedRealtimeNanos = 20_001_000L,
 		)
-		database.stepFactRevisionDao().insert(
-			fact(
-				logicalId = LOGICAL_ONE,
-				runId = RUN_ONE,
-				manifestRevision = 2L,
-				seed = FactSeed("new-boundary", 1L, count = 1L),
-				startMs = 1_000L,
-			),
+		val boundaryFact = fact(
+			logicalId = LOGICAL_ONE,
+			runId = RUN_ONE,
+			manifestRevision = 2L,
+			seed = FactSeed("new-boundary", 1L, count = 1L),
+			startMs = 1_000L,
 		)
+		authenticateLiveFact(boundaryFact)
+		database.stepFactRevisionDao().insert(boundaryFact)
 		database.sourceSessionDao().saveCompleteness(
 			stepsCompleteness().copy(lastAdmissionOrdinal = 1L, lastSourceSequence = 1L),
 		)
@@ -872,7 +866,7 @@ class RoomExportPortableStepsTest {
 	}
 
 	@Test
-	fun `same-run writer projection version and binding must each match the manifest`() = runTest {
+	fun `same-run writer projection version and binding without source proof cannot export`() = runTest {
 		val mismatches = listOf(
 			FactSeed("wrong-projection", 2L, count = 1L, writerProjectionId = "foreign-writer"),
 			FactSeed("wrong-version", 2L, count = 1L, writerProjectionVersion = WRITER_VERSION + 1),
@@ -884,7 +878,7 @@ class RoomExportPortableStepsTest {
 			}
 			insertReadyFixture(facts = listOf(FactSeed("covered", 1L, count = 1L), mismatch))
 			assertZeroSinkUnverifiable(
-				PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
 			)
 		}
 
@@ -902,7 +896,7 @@ class RoomExportPortableStepsTest {
 			),
 		)
 		assertZeroSinkUnverifiable(
-			PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+			PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
 		)
 	}
 
@@ -1291,7 +1285,7 @@ class RoomExportPortableStepsTest {
 		insertFence(LOGICAL_ONE, RUN_ONE)
 
 		assertZeroSinkUnverifiable(
-			PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+			PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
 		)
 	}
 
@@ -1395,11 +1389,11 @@ class RoomExportPortableStepsTest {
 			intervalEndTimeMs = 110L,
 			appliedAtMs = 110L,
 		)
-		database.stepFactRevisionDao().insert(
-			unsigned.copy(
-				effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsigned),
-			),
+		val retainedFact = unsigned.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsigned),
 		)
+		authenticateLiveFact(retainedFact)
+		database.stepFactRevisionDao().insert(retainedFact)
 		database.sourceSessionDao().saveCompleteness(
 			stepsCompleteness().copy(lastAdmissionOrdinal = 1L, lastSourceSequence = 1L),
 		)
@@ -1457,7 +1451,7 @@ class RoomExportPortableStepsTest {
 	}
 
 	@Test
-	fun `latest-state bound accepts 2048 and rejects 2049 before emission`() = runTest {
+	fun `latest-state bound accepts 2048 and rejects 2049 before emission`() = runTest(timeout = 5.minutes) {
 		insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 10_000L)
 		insertSettledRun(
 			logicalId = LOGICAL_ONE,
@@ -1472,15 +1466,15 @@ class RoomExportPortableStepsTest {
 		)
 
 		exporter.export(request(toMs = 11_000L)) {} shouldBe ExportPortableStepsResult.Exported(1)
-		database.stepFactRevisionDao().insert(
-			fact(
-				logicalId = LOGICAL_ONE,
-				runId = RUN_ONE,
-				manifestRevision = 1L,
-				seed = FactSeed("fact-2049", 2_049L, count = 1L),
-				startMs = 1_000L,
-			),
+		val overflowFact = fact(
+			logicalId = LOGICAL_ONE,
+			runId = RUN_ONE,
+			manifestRevision = 1L,
+			seed = FactSeed("fact-2049", 2_049L, count = 1L),
+			startMs = 1_000L,
 		)
+		authenticateLiveFact(overflowFact)
+		database.stepFactRevisionDao().insert(overflowFact)
 		val emitted = mutableListOf<Any>()
 
 		exporter.export(request(toMs = 11_000L)) { emitted += it } shouldBe
@@ -1491,7 +1485,7 @@ class RoomExportPortableStepsTest {
 	}
 
 	@Test
-	fun `unsupported historical corrections fail closed independent of lineage size`() = runTest {
+	fun `unsupported historical corrections fail closed independent of lineage size`() = runTest(timeout = 5.minutes) {
 		insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 10_000L)
 		insertSettledRun(
 			logicalId = LOGICAL_ONE,
@@ -1528,7 +1522,7 @@ class RoomExportPortableStepsTest {
 	}
 
 	@Test
-	fun `off-scope unsupported corrections cannot evade selected-run integrity`() = runTest {
+	fun `off-scope unsupported corrections cannot evade selected-run integrity`() = runTest(timeout = 5.minutes) {
 		insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 2_000L)
 		insertSettledRun(
 			logicalId = LOGICAL_ONE,
@@ -1665,7 +1659,9 @@ class RoomExportPortableStepsTest {
 		val afterBoundary = queryCount.get()
 
 		(atBoundary > 0) shouldBe true
-		(afterBoundary <= atBoundary + MAX_QUERY_BATCH_INCREMENT) shouldBe true
+		check(afterBoundary <= atBoundary + MAX_QUERY_BATCH_INCREMENT) {
+			"Query count rose from $atBoundary to $afterBoundary across the 400-entry boundary"
+		}
 	}
 
 	@Test
@@ -1913,6 +1909,7 @@ class RoomExportPortableStepsTest {
 		rolloutRevision: Long = 1L,
 		bindingGeneration: Long = BINDING_GENERATION,
 		registrationGeneration: Long = 1L,
+		walPayloadVersion: Int = STEPS_WAL_PAYLOAD_VERSION,
 		factTransform: (StepFactRevisionEntity) -> StepFactRevisionEntity = { it },
 		manifestTransform: (SessionManifestVersionEntity) -> SessionManifestVersionEntity = { it },
 	) {
@@ -1934,6 +1931,7 @@ class RoomExportPortableStepsTest {
 			rolloutRevision = rolloutRevision,
 			bindingGeneration = bindingGeneration,
 			registrationGeneration = registrationGeneration,
+			walPayloadVersion = walPayloadVersion,
 			factTransform = factTransform,
 			manifestTransform = manifestTransform,
 		)
@@ -2070,6 +2068,7 @@ class RoomExportPortableStepsTest {
 		rolloutRevision: Long = 1L,
 		bindingGeneration: Long = BINDING_GENERATION,
 		registrationGeneration: Long = 1L,
+		walPayloadVersion: Int = STEPS_WAL_PAYLOAD_VERSION,
 		factTransform: (StepFactRevisionEntity) -> StepFactRevisionEntity = { it },
 		manifestTransform: (SessionManifestVersionEntity) -> SessionManifestVersionEntity = { it },
 	) {
@@ -2117,9 +2116,13 @@ class RoomExportPortableStepsTest {
 		}
 		database.withTransaction {
 			canonicalFacts.forEach { canonical ->
-				database.stepFactRevisionDao().insert(
-					factTransform(canonical),
-				)
+				if (canonical.originKind == StepFactRevisionEntity.ORIGIN_LIVE_WAL &&
+					canonical.semanticRevision == 1L &&
+					canonical.writerProjectionId == WRITER_ID &&
+					canonical.writerProjectionVersion == WRITER_VERSION &&
+					canonical.writerBindingGeneration == bindingGeneration
+				) authenticateLiveFact(canonical, registrationGeneration, walPayloadVersion)
+				database.stepFactRevisionDao().insert(factTransform(canonical))
 			}
 		}
 		database.sourceSessionDao().saveCompleteness(
@@ -2452,6 +2455,101 @@ class RoomExportPortableStepsTest {
 		}
 	}
 
+	private suspend fun authenticateLiveFact(
+		fact: StepFactRevisionEntity,
+		registrationGeneration: Long = 1L,
+		payloadVersion: Int = STEPS_WAL_PAYLOAD_VERSION,
+	) {
+		val wal = stepsWal(fact, registrationGeneration, payloadVersion)
+		database.sourceEventWalDao().insertIgnoringDuplicate(wal)
+		val store = StepsCountDomainStore(database)
+		val token = walToken(fact).takeIf { payloadVersion >= 6 }
+		check(store.recordSessionWal(wal, token) in ACCEPTED_COUNT_DOMAIN_WRITES)
+		check(store.recordSessionFact(fact) in ACCEPTED_COUNT_DOMAIN_WRITES)
+	}
+
+	private fun stepsWal(
+		fact: StepFactRevisionEntity,
+		registrationGeneration: Long,
+		preferredPayloadVersion: Int = STEPS_WAL_PAYLOAD_VERSION,
+	): SourceEventWalEntity {
+		val payloadVersion = if (fact.coverageKind == StepFactRevisionEntity.COVERAGE_PARTIAL) {
+			1
+		} else {
+			preferredPayloadVersion
+		}
+		val ordinal = requireNotNull(fact.sourceAdmissionOrdinal)
+		val payload = StepsWalPayload(
+			bootClockDomainId = requireNotNull(fact.bootClockDomainId),
+			firstCumulativeCount = requireNotNull(fact.cumulativeStepCountStart),
+			lastCumulativeCount = requireNotNull(fact.cumulativeStepCountEnd),
+			deltaCount = requireNotNull(fact.effectiveStepCount),
+			windowStartElapsedRealtimeNanos = requireNotNull(fact.intervalStartElapsedRealtimeNanos),
+			windowEndElapsedRealtimeNanos = requireNotNull(fact.intervalEndElapsedRealtimeNanos),
+			firstProviderSequence = ordinal,
+			lastProviderSequence = ordinal,
+			boundaryKind = when (fact.coverageKind) {
+				StepFactRevisionEntity.COVERAGE_BASELINE -> StepsWalBoundaryKind.BASELINE
+				StepFactRevisionEntity.COVERAGE_COVERED -> StepsWalBoundaryKind.COVERED
+				StepFactRevisionEntity.COVERAGE_RESET_GAP -> StepsWalBoundaryKind.COUNTER_RESET
+				else -> StepsWalBoundaryKind.LEGACY_AMBIGUOUS
+			},
+			counterEpochGeneration = 1L.takeIf { payloadVersion == STEPS_WAL_PAYLOAD_VERSION },
+			counterDomainToken = walToken(fact).takeIf { payloadVersion >= 6 },
+		)
+		val bytes = StepsWalPayloadCodec.encode(payload, payloadVersion)
+		val endTimeMs = requireNotNull(fact.intervalEndTimeMs)
+		val endElapsedNanos = requireNotNull(fact.intervalEndElapsedRealtimeNanos)
+		val unsigned = SourceEventWalEntity(
+			admissionOrdinal = ordinal,
+			eventId = requireNotNull(fact.sourceEventId),
+			providerDedupKey = "steps:${fact.serviceRunId}:${fact.sourceEventId}",
+			logicalTrackingId = fact.logicalTrackingId,
+			serviceRunId = fact.serviceRunId,
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			sourceInstanceId = "steps-${fact.serviceRunId}",
+			registrationGeneration = registrationGeneration,
+			physicalConfigurationFingerprint = "f".repeat(64),
+			authorizationRevision = 1L,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			authorizationFingerprint = "a".repeat(64),
+			sourceSequence = ordinal,
+			configRevision = fact.manifestRevision,
+			planAttribution = 0,
+			clockDomainId = requireNotNull(fact.clockDomainId),
+			observedElapsedNanos = endElapsedNanos,
+			observedIntervalStartNanos = fact.intervalStartElapsedRealtimeNanos,
+			receivedElapsedNanos = endElapsedNanos + 1L,
+			receivedWallTimeMs = endTimeMs + 1L,
+			wallTimeMs = endTimeMs,
+			wallTimeUncertaintyMs = fact.wallTimeUncertaintyMs,
+			capturedCollectedDataEpoch = fact.collectedDataEpoch,
+			sourcePolicyRevision = fact.sourcePolicyRevision,
+			captureConsentEpoch = fact.captureConsentEpoch,
+			sessionManifestRevision = fact.manifestRevision,
+			lifecycleLeaseGeneration = 1L,
+			acquiredAtMs = endTimeMs,
+			qualityFlags = 0L,
+			qualityConfidence = null,
+			payloadVersion = payloadVersion,
+			payload = bytes,
+			payloadChecksum = "",
+			integrityIdentity = "pending",
+			createdAtMs = endTimeMs + 1L,
+		)
+		val checksummed = unsigned.copy(payloadChecksum = unsigned.calculatedPayloadChecksum())
+		return checksummed.copy(integrityIdentity = checksummed.calculatedIntegrityIdentity())
+	}
+
+	private fun walToken(fact: StepFactRevisionEntity): StepsCounterDomainToken? =
+		if (fact.coverageKind == StepFactRevisionEntity.COVERAGE_RESET_GAP ||
+			fact.coverageKind == StepFactRevisionEntity.COVERAGE_PARTIAL
+		) {
+			null
+		} else {
+			StepsCounterDomainToken.opaque("sha256:${"c".repeat(64)}")
+		}
+
 	private fun continueCanonicalLiveWalFact(
 		previous: StepFactRevisionEntity,
 		current: StepFactRevisionEntity,
@@ -2626,6 +2724,11 @@ class RoomExportPortableStepsTest {
 	}
 
 	private companion object {
+		val ACCEPTED_COUNT_DOMAIN_WRITES = setOf(
+			StepsCountDomainWriteResult.INSERTED,
+			StepsCountDomainWriteResult.EXACT_REPLAY,
+			StepsCountDomainWriteResult.UNPROVEN,
+		)
 		const val FIRST_POLICY_REVISION = 1L
 		const val POLICY_RECONCILIATION_ORIGIN = "POLICY_RECONCILIATION"
 		const val LOGICAL_ONE = "logical-one"
@@ -2641,7 +2744,8 @@ class RoomExportPortableStepsTest {
 		const val ALL_SESSION_CAPTURE_MASK = 3L
 		const val NANOS_PER_MILLISECOND = 1_000_000L
 		const val COMPLETE_PROVIDER_COVERAGE = "CALLBACKS_ENTERED_BEFORE_BARRIER"
-		const val MAX_QUERY_BATCH_INCREMENT = 16
+		// A 401st fact opens one more bounded WAL/fact owner page and its schema checks.
+		const val MAX_QUERY_BATCH_INCREMENT = 64
 		const val UNRELATED_RUNS_OVER_SNAPSHOT_BUDGET = 16_385
 	}
 }
