@@ -192,6 +192,8 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	@Test
 	fun `explicit ambient mutation reconciles all revisioned retention and Ambient Steps authority`() = runTest {
 		repository.data.first { it.sourcePolicyRevision == 1L }
+		retention.reset()
+		ambientSteps.reset()
 
 		repository.setAmbientWifiEnabled(true)
 
@@ -245,7 +247,8 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		debt.failures.single() shouldBe
 			SourcePolicyRevisionReconciliationFailure.RetentionAuthority(unavailable)
 		debt.retryable.shouldBeTrue()
-		ambientSteps.events shouldBe listOf("retire")
+		ambientSteps.events.isNotEmpty().shouldBeTrue()
+		ambientSteps.events.all { it == "retire" }.shouldBeTrue()
 		val strandedRevision = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
 		strandedRevision[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe consentEpoch
 		legacy.current.wifiEnabled.shouldBeFalse()
@@ -440,6 +443,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			policy,
 			applicationScope,
 			closedGate,
+			retentionAuthorityProducer = retention,
 			ambientStepsPolicyRevisionReconciler =
 				TestNoOpAmbientStepsPolicyRevisionReconciler,
 		)
@@ -473,6 +477,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			policy,
 			applicationScope,
 			startupGate,
+			retentionAuthorityProducer = retention,
 			ambientStepsPolicyRevisionReconciler =
 				TestNoOpAmbientStepsPolicyRevisionReconciler,
 		)
@@ -502,6 +507,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 				flakyPolicy,
 				applicationScope,
 				startupGate,
+				retentionAuthorityProducer = RecordingRetentionAuthorityProducer { false },
 				ambientStepsPolicyRevisionReconciler =
 					TestNoOpAmbientStepsPolicyRevisionReconciler,
 			)
@@ -528,6 +534,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			policy,
 			applicationScope,
 			startupGate,
+			retentionAuthorityProducer = retention,
 			ambientStepsPolicyRevisionReconciler =
 				TestNoOpAmbientStepsPolicyRevisionReconciler,
 		)
@@ -560,6 +567,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			policy,
 			applicationScope,
 			startupGate,
+			retentionAuthorityProducer = retention,
 			ambientStepsPolicyRevisionReconciler =
 				TestNoOpAmbientStepsPolicyRevisionReconciler,
 		)

@@ -10,8 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,7 +34,7 @@ class CollectedDataLifecycleStoreTest {
 	}
 
 	@Test
-	fun `default lifecycle accepts all current epoch records`() = runTest {
+	fun `default lifecycle accepts all current epoch records`() = runBlocking<Unit> {
 		store.snapshot() shouldBe CollectedDataLifecycleSnapshot(
 			epoch = 0L,
 			retainedFromMs = null,
@@ -43,7 +43,7 @@ class CollectedDataLifecycleStoreTest {
 	}
 
 	@Test
-	fun `retention lower boundary only moves forward`() = runTest {
+	fun `retention lower boundary only moves forward`() = runBlocking<Unit> {
 		store.advanceRetainedFrom(200L) shouldBe CollectedDataLifecycleSnapshot(0L, 200L)
 		store.advanceRetainedFrom(100L) shouldBe CollectedDataLifecycleSnapshot(0L, 200L)
 		store.snapshot().accepts(capturedEpoch = 0L, acquiredAtMs = 199L) shouldBe false
@@ -51,7 +51,7 @@ class CollectedDataLifecycleStoreTest {
 	}
 
 	@Test
-	fun `full deletion advances epoch and does not weaken retention boundary`() = runTest {
+	fun `full deletion advances epoch and does not weaken retention boundary`() = runBlocking<Unit> {
 		store.advanceRetainedFrom(500L)
 
 		store.beginFullDeletion(300L) shouldBe CollectedDataLifecycleSnapshot(1L, 500L)
@@ -61,7 +61,7 @@ class CollectedDataLifecycleStoreTest {
 	}
 
 	@Test
-	fun `operation bound full deletion advances its target epoch exactly once`() = runTest {
+	fun `operation bound full deletion advances its target epoch exactly once`() = runBlocking<Unit> {
 		store.beginFullDeletion(
 			operationId = "operation-1",
 			targetEpoch = 1L,
@@ -85,7 +85,7 @@ class CollectedDataLifecycleStoreTest {
 
 	@Test
 	fun `retention floor operation identity is durable and cannot be reused for another boundary`() =
-		runTest {
+		runBlocking<Unit> {
 			val lease = RetentionAuthorityOperationLease()
 			val operationStore = DefaultCollectedDataLifecycleStore(context, lease)
 
@@ -106,7 +106,7 @@ class CollectedDataLifecycleStoreTest {
 
 	@Test
 	fun `lifecycle transitions wait for the shared retention authority operation lease`() =
-		runTest {
+		runBlocking<Unit> {
 			val lease = RetentionAuthorityOperationLease()
 			val leasedStore = DefaultCollectedDataLifecycleStore(context, lease)
 			val leaseEntered = CompletableDeferred<Unit>()
@@ -119,7 +119,7 @@ class CollectedDataLifecycleStoreTest {
 			}
 			leaseEntered.await()
 			val transition = async { leasedStore.advanceRetainedFrom(200L) }
-			runCurrent()
+			yield()
 
 			transition.isCompleted.shouldBeFalse()
 			releaseLease.complete(Unit)
@@ -128,7 +128,7 @@ class CollectedDataLifecycleStoreTest {
 		}
 
 	@Test
-	fun `concurrent full deletion transitions do not lose epoch increments`() = runTest {
+	fun `concurrent full deletion transitions do not lose epoch increments`() = runBlocking<Unit> {
 		(1..12).map { timestamp ->
 			async(Dispatchers.IO) {
 				store.beginFullDeletion(timestamp.toLong())

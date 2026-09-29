@@ -456,7 +456,10 @@ suspend fun resetRetentionConfigForTests(context: Context) {
     context.retentionConfigDataStore.updateData {
         RetentionConfigProto.getDefaultInstance()
     }
-    RetentionPolicyApprovalStore(context, kotlinx.coroutines.Dispatchers.IO).resetForTests()
+    RetentionPolicyApprovalStore(
+        context,
+        com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider.io,
+    ).resetForTests()
 }
 
 private fun RetentionConfigProto.toDomain(): RetentionConfigState {

@@ -342,7 +342,8 @@ class RetentionConfigStoreTest {
 				releaseReconciliation.await()
 			}
 		}
-		reconciliationEntered.await() shouldBe approved.stage.policy
+		reconciliationEntered.await() shouldBe
+			assertIs<RetentionConfigurationApprovalResult.Approved>(approved.approval).policy
 		val replacement = async {
 			store.updateWithApproval(
 				block = { copy(autoPurgeEnabled = false, rawDataRetentionDays = 7) },
@@ -399,7 +400,8 @@ class RetentionConfigStoreTest {
 			runCurrent()
 
 			replacement.isCompleted shouldBe false
-			admitted.policy shouldBe approved.stage.policy
+			admitted.policy shouldBe
+				assertIs<RetentionConfigurationApprovalResult.Approved>(approved.approval).policy
 			releaseOperation.complete(Unit)
 			assertIs<ExactApprovedRetentionOperationResult.Completed<*>>(operation.await())
 			val replaced = replacement.await()

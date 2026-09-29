@@ -26,18 +26,25 @@ import org.junit.Test
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class RetentionAuthorityProducerRoomTest {
 	private lateinit var database: AppDatabase
 	private lateinit var policies: RoomSourcePolicyRepository
@@ -75,7 +82,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `default reject and unresolved policy write no grant`() = runTest {
+	fun `default reject and unresolved policy write no grant`() = runBlocking<Unit> {
 		bootstrap(ambientWifi = true)
 
 		val result = producer().reconcileLiveAmbient(TrackingSourceComponent.WIFI)
@@ -88,7 +95,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `portable import is separate and requires no local provider consent`() = runTest {
+	fun `portable import is separate and requires no local provider consent`() = runBlocking<Unit> {
 		bootstrap()
 		approvedPolicy = approved("policy-1", revision = 1L)
 
@@ -113,7 +120,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `cold reconciliation preserves a current approved portable grant`() = runTest {
+	fun `cold reconciliation preserves a current approved portable grant`() = runBlocking<Unit> {
 		bootstrap()
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val producer = producer()
@@ -134,7 +141,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `floor settlement reissues every previously active portable import scope`() = runTest {
+	fun `floor settlement reissues every previously active portable import scope`() = runBlocking<Unit> {
 		bootstrap()
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val producer = producer()
@@ -174,7 +181,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `unavailable portable import reissue remains typed settlement debt`() = runTest {
+	fun `unavailable portable import reissue remains typed settlement debt`() = runBlocking<Unit> {
 		bootstrap()
 		approvedPolicy = approved("policy-1", revision = 1L)
 		assertIs<RetentionAuthorityResult.Applied>(
@@ -205,7 +212,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `cold reconciliation reports disabled durable ambient sources as revoked`() = runTest {
+	fun `cold reconciliation reports disabled durable ambient sources as revoked`() = runBlocking<Unit> {
 		bootstrap()
 
 		val results = producer().reconcileCurrentSettings().filter {
@@ -226,7 +233,7 @@ class RetentionAuthorityProducerRoomTest {
 
 	@Test
 	fun `pristine database bootstraps exact lifecycle and grants Ambient Steps retention`() =
-		runTest {
+		runBlocking<Unit> {
 			lifecycle = CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = 1_234L)
 			removeSourceEvidenceState()
 			bootstrap(ambientSteps = true)
@@ -254,7 +261,7 @@ class RetentionAuthorityProducerRoomTest {
 		}
 
 	@Test
-	fun `missing evidence state with collected rows fails closed as conflicting`() = runTest {
+	fun `missing evidence state with collected rows fails closed as conflicting`() = runBlocking<Unit> {
 		removeSourceEvidenceState()
 		database.stepIntervalDao().insert(
 			StepInterval(
@@ -284,7 +291,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `WAL sequence high water without rows rejects pristine bootstrap`() = runTest {
+	fun `WAL sequence high water without rows rejects pristine bootstrap`() = runBlocking<Unit> {
 		removeSourceEvidenceState()
 		database.openHelper.writableDatabase.execSQL(
 			"INSERT OR REPLACE INTO sqlite_sequence(name, seq) VALUES ('source_event_wal', 7)",
@@ -303,7 +310,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `malformed id two evidence singleton rejects pristine bootstrap`() = runTest {
+	fun `malformed id two evidence singleton rejects pristine bootstrap`() = runBlocking<Unit> {
 		removeSourceEvidenceState()
 		database.openHelper.writableDatabase.execSQL(
 			"INSERT INTO source_evidence_state " +
@@ -330,7 +337,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `nondefault player profile rejects pristine bootstrap`() = runTest {
+	fun `nondefault player profile rejects pristine bootstrap`() = runBlocking<Unit> {
 		removeSourceEvidenceState()
 		database.openHelper.writableDatabase.execSQL("DELETE FROM player_profile")
 		database.openHelper.writableDatabase.execSQL(
@@ -352,7 +359,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `exact default player profile scaffold permits pristine bootstrap`() = runTest {
+	fun `exact default player profile scaffold permits pristine bootstrap`() = runBlocking<Unit> {
 		removeSourceEvidenceState()
 		database.openHelper.writableDatabase.execSQL("DELETE FROM player_profile")
 		database.openHelper.writableDatabase.execSQL(
@@ -373,7 +380,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `minigame score rejects pristine bootstrap`() = runTest {
+	fun `minigame score rejects pristine bootstrap`() = runBlocking<Unit> {
 		removeSourceEvidenceState()
 		database.openHelper.writableDatabase.execSQL(
 			"INSERT INTO minigame_score (game_id, score, xp_awarded, played_at) " +
@@ -393,7 +400,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `source evidence epoch mismatch cannot grant Ambient Steps retention`() = runTest {
+	fun `source evidence epoch mismatch cannot grant Ambient Steps retention`() = runBlocking<Unit> {
 		check(database.sourceEvidenceStateDao().updateLifecycle(3L, null, 2L) == 1)
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
@@ -411,7 +418,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `concurrent retained boundary transition prevents a stale grant`() = runTest {
+	fun `concurrent retained boundary transition prevents a stale grant`() = runBlocking<Unit> {
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val transitionEntered = CompletableDeferred<Unit>()
@@ -430,7 +437,7 @@ class RetentionAuthorityProducerRoomTest {
 					it.scope == RetentionAuthorityScope.LIVE_AMBIENT
 			}
 		}
-		runCurrent()
+		yield()
 		reconciliation.isCompleted.shouldBeFalse()
 		releaseTransition.complete(Unit)
 		transition.await()
@@ -446,7 +453,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `delayed Room commit cannot publish a stale source policy grant`() = runTest {
+	fun `delayed Room commit cannot publish a stale source policy grant`() = runBlocking<Unit> {
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val commitReady = CompletableDeferred<Unit>()
@@ -484,7 +491,7 @@ class RetentionAuthorityProducerRoomTest {
 
 	@Test
 	fun `concurrent pristine lifecycle transition completes before exact bootstrap and grant`() =
-		runTest {
+		runBlocking<Unit> {
 			removeSourceEvidenceState()
 			bootstrap(ambientSteps = true)
 			approvedPolicy = approved("policy-1", revision = 1L)
@@ -507,7 +514,7 @@ class RetentionAuthorityProducerRoomTest {
 						it.scope == RetentionAuthorityScope.LIVE_AMBIENT
 				}
 			}
-			runCurrent()
+			yield()
 			reconciliation.isCompleted.shouldBeFalse()
 			releaseTransition.complete(Unit)
 			transition.await()
@@ -528,7 +535,7 @@ class RetentionAuthorityProducerRoomTest {
 		}
 
 	@Test
-	fun `retained boundary is authenticated by current authority reads`() = runTest {
+	fun `retained boundary is authenticated by current authority reads`() = runBlocking<Unit> {
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val producer = producer()
@@ -569,7 +576,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `DataStore floor ahead of Room makes the previous grant unavailable`() = runTest {
+	fun `DataStore floor ahead of Room makes the previous grant unavailable`() = runBlocking<Unit> {
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val producer = producer()
@@ -596,7 +603,7 @@ class RetentionAuthorityProducerRoomTest {
 
 	@Test
 	fun `late DataStore floor cannot admit ingress while its Room settlement journal is pending`() =
-		runTest {
+		runBlocking<Unit> {
 			bootstrap(ambientSteps = true)
 			approvedPolicy = approved("policy-1", revision = 1L)
 			val producer = producer()
@@ -639,7 +646,7 @@ class RetentionAuthorityProducerRoomTest {
 		}
 
 	@Test
-	fun `floor only reissue rotates the exact retention approval revision`() = runTest {
+	fun `floor only reissue rotates the exact retention approval revision`() = runBlocking<Unit> {
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val producer = producer()
@@ -673,7 +680,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `held operation permit supports floor guard and exact authority reissue`() = runTest {
+	fun `held operation permit supports floor guard and exact authority reissue`() = runBlocking<Unit> {
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val producer = producer()
@@ -700,7 +707,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `lease owned Room bridge supports the library transaction coroutine`() = runTest {
+	fun `lease owned Room bridge supports the library transaction coroutine`() = runBlocking<Unit> {
 		operationLease.withPermit { permit ->
 			permit.commitRoomMutation {
 				database.withTransaction {
@@ -712,7 +719,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `operation permit cannot escape its lexical lease scope`() = runTest {
+	fun `operation permit cannot escape its lexical lease scope`() = runBlocking<Unit> {
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val producer = producer()
@@ -728,7 +735,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `operation permit cannot transfer to a child coroutine`() = runTest {
+	fun `operation permit cannot transfer to a child coroutine`() = runBlocking<Unit> {
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val producer = producer()
@@ -744,22 +751,26 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `operation permit cannot transfer to a detached child during its scope`() = runTest {
+	fun `operation permit cannot transfer to a detached child during its scope`() = runBlocking<Unit> {
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val producer = producer()
 
 		operationLease.withPermit { permit ->
-			val detached = backgroundScope.async {
-				producer.reconcileCurrentSettings(permit)
+			val detached = CoroutineScope(SupervisorJob() + Dispatchers.Default).async {
+				try {
+					producer.reconcileCurrentSettings(permit)
+					null
+				} catch (failure: IllegalArgumentException) {
+					failure
+				}
 			}
-			runCurrent()
-			assertFailsWith<IllegalArgumentException> { detached.await() }
+			assertIs<IllegalArgumentException>(detached.await())
 		}
 	}
 
 	@Test
-	fun `captured Room bridge cannot start after lease release`() = runTest {
+	fun `captured Room bridge cannot start after lease release`() = runBlocking<Unit> {
 		lateinit var escaped: RetentionAuthorityOperationPermit
 		var mutationStarted = false
 
@@ -776,7 +787,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `lease release waits through Room commit and bridge post check`() = runTest {
+	fun `lease release waits through Room commit and bridge post check`() = runBlocking<Unit> {
 		val commitEntered = CompletableDeferred<Unit>()
 		val releaseCommit = CompletableDeferred<Unit>()
 		var leaseReleased = false
@@ -794,7 +805,7 @@ class RetentionAuthorityProducerRoomTest {
 		}
 
 		commitEntered.await()
-		runCurrent()
+		yield()
 		leaseReleased shouldBe false
 		releaseCommit.complete(Unit)
 		owner.await()
@@ -863,7 +874,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `operation permit cannot transfer through shared NonCancellable context`() = runTest {
+	fun `operation permit cannot transfer through shared NonCancellable context`() = runBlocking<Unit> {
 		operationLease.withPermit { permit ->
 			assertFailsWith<IllegalArgumentException> {
 				withContext(NonCancellable) {
@@ -874,7 +885,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `shielded operation permit cannot transfer to a NonCancellable child`() = runTest {
+	fun `shielded operation permit cannot transfer to a NonCancellable child`() = runBlocking<Unit> {
 		operationLease.withPermit(cancellationShielded = true) { permit ->
 			val child = async(NonCancellable) {
 				permit.validate()
@@ -884,7 +895,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `unreadable lifecycle cannot initialize fresh source evidence`() = runTest {
+	fun `unreadable lifecycle cannot initialize fresh source evidence`() = runBlocking<Unit> {
 		removeSourceEvidenceState()
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
@@ -902,7 +913,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `policy consent and collected data changes rotate live approval`() = runTest {
+	fun `policy consent and collected data changes rotate live approval`() = runBlocking<Unit> {
 		bootstrap(ambientWifi = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val producer = producer()
@@ -959,7 +970,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `source revoke leaves unrelated source approval unchanged`() = runTest {
+	fun `source revoke leaves unrelated source approval unchanged`() = runBlocking<Unit> {
 		bootstrap(ambientWifi = true, ambientCell = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val producer = producer()
@@ -988,7 +999,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `revoke and live import scopes remain isolated`() = runTest {
+	fun `revoke and live import scopes remain isolated`() = runBlocking<Unit> {
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val producer = producer()
@@ -1016,7 +1027,7 @@ class RetentionAuthorityProducerRoomTest {
 
 	@Test
 	fun `shared operation lease serializes concurrent producers before Room authority apply`() =
-		runTest {
+		runBlocking<Unit> {
 		bootstrap()
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val arrival = CompletableDeferred<Unit>()
@@ -1033,7 +1044,7 @@ class RetentionAuthorityProducerRoomTest {
 		val secondResult = async {
 			second.approvePortableImport(TrackingSourceComponent.STEPS)
 		}
-		runCurrent()
+		yield()
 		secondResult.isCompleted.shouldBeFalse()
 		release.complete(Unit)
 
@@ -1046,7 +1057,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `pending configuration stays fail closed until exact Room grants are approved`() = runTest {
+	fun `pending configuration stays fail closed until exact Room grants are approved`() = runBlocking<Unit> {
 		bootstrap(ambientWifi = true)
 		val pendingPolicy = approvedPolicy(
 			"pending-policy",
@@ -1088,7 +1099,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `pending configuration revokes prior live grant before publication`() = runTest {
+	fun `pending configuration revokes prior live grant before publication`() = runBlocking<Unit> {
 		bootstrap(ambientWifi = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		producer().reconcileLiveAmbient(TrackingSourceComponent.WIFI)
@@ -1117,7 +1128,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `location retention binds its own consent without writing other sources`() = runTest {
+	fun `location retention binds its own consent without writing other sources`() = runBlocking<Unit> {
 		bootstrap(ambientLocation = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 
@@ -1144,7 +1155,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `prior boot grant is rejected and reconciled onto current clock domain`() = runTest {
+	fun `prior boot grant is rejected and reconciled onto current clock domain`() = runBlocking<Unit> {
 		bootstrap(ambientWifi = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val producer = producer()
@@ -1172,7 +1183,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `reboot reissue preserves consent created under an older policy revision`() = runTest {
+	fun `reboot reissue preserves consent created under an older policy revision`() = runBlocking<Unit> {
 		val settings = TrackingParamsState(
 			ambientWifiEnabled = true,
 			legacySettingsMigrationCompleted = true,
@@ -1206,7 +1217,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `unrelated policy revision rejects stale Ambient Steps authority until reissued`() = runTest {
+	fun `unrelated policy revision rejects stale Ambient Steps authority until reissued`() = runBlocking<Unit> {
 		val settings = TrackingParamsState(
 			ambientStepsEnabled = true,
 			legacySettingsMigrationCompleted = true,
@@ -1247,7 +1258,7 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
-	fun `reader predicate binds current boot and exact retention identity`() = runTest {
+	fun `reader predicate binds current boot and exact retention identity`() = runBlocking<Unit> {
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
 		val producer = producer()

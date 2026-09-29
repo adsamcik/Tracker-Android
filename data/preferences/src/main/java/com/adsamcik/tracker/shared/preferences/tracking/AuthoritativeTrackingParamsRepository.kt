@@ -103,8 +103,19 @@ class AuthoritativeTrackingParamsRepository(
 			is SourcePolicyAuthorityState.Active -> {
 				var failurePublished = false
 				while (true) {
-					when (reconcilePolicyRevision(authority.snapshot)) {
+					// A mutation may have reconciled this revision before its legacy mirror completes.
+					// Publish that exact revision without waiting for the mirror's mutation lock.
+					val alreadyReconciled = isReconciledAtReadyGeneration(authority.snapshot)
+					val result = if (alreadyReconciled) {
+						SourcePolicyRevisionReconciliationResult.Complete(authority.snapshot)
+					} else {
+						mutationMutex.withLock { reconcilePolicyRevision(authority.snapshot) }
+					}
+					when (result) {
 						is SourcePolicyRevisionReconciliationResult.Complete -> {
+							if (alreadyReconciled && !isReconciledAtReadyGeneration(authority.snapshot)) {
+								continue
+							}
 							val projection = legacyState.withPolicy(authority.snapshot)
 							emit(projection)
 							scheduleLegacyMirrorRepair(legacyState, authority.snapshot)
@@ -377,6 +388,12 @@ class AuthoritativeTrackingParamsRepository(
 					),
 				).also(::publishReconciliationResult)
 		}
+		val generation = trackingStartupGate.currentGeneration
+		if (mutableReconciliationState.value is SourcePolicyRevisionReconciliationState.Complete &&
+			!trackingStartupGate.isReadyGeneration(generation)
+		) {
+			startupGenerationUnavailable(snapshot.revision, generation)
+		}
 		return SourcePolicyRevisionReconciliationResult.Complete(snapshot)
 	}
 
@@ -389,6 +406,15 @@ class AuthoritativeTrackingParamsRepository(
 		return trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
 			reconcilePolicyRevisionAtReadyGeneration(effective, startupGeneration)
 		} ?: startupGenerationUnavailable(effective.revision, startupGeneration)
+	}
+
+	private fun isReconciledAtReadyGeneration(snapshot: SourcePolicySnapshot): Boolean {
+		val generation = trackingStartupGate.currentGeneration
+		val state = mutableReconciliationState.value
+		return state is SourcePolicyRevisionReconciliationState.Complete &&
+			state.policyRevision == snapshot.revision &&
+			lastCompletedStartupGeneration == generation &&
+			trackingStartupGate.isReadyGeneration(generation)
 	}
 
 	private suspend fun reconcilePolicyRevisionAtReadyGeneration(

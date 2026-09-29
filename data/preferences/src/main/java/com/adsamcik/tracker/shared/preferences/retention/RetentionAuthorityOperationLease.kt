@@ -1,10 +1,10 @@
 package com.adsamcik.tracker.shared.preferences.retention
 
 import java.util.concurrent.atomic.AtomicBoolean
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
@@ -31,7 +31,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 class RetentionAuthorityOperationLease(
 	internal val ownedSuspensionTimeoutMs: Long = DEFAULT_OWNED_SUSPENSION_TIMEOUT_MS,
 	private val completionScope: CoroutineScope =
-		CoroutineScope(SupervisorJob() + Dispatchers.IO),
+		CoroutineScope(SupervisorJob() + DefaultDispatchersProvider.io),
 ) {
 	private val mutex = Mutex()
 	private val dataStoreFlightMonitor = Any()
