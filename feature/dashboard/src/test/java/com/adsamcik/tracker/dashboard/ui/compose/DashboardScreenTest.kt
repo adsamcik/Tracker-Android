@@ -210,6 +210,8 @@ class DashboardScreenTest {
 
 		composeRule.onNodeWithTag("dashboard_source_set_tracking").assertIsDisplayed()
 		composeRule.onNodeWithText("Sources in this session").assertIsDisplayed()
+		composeRule.onNodeWithTag("dashboard_source_set_tracking")
+			.performScrollToNode(hasText("42"))
 		composeRule.onNodeWithText("42").assertIsDisplayed()
 		composeRule.onNodeWithTag("dashboard_source_set_tracking")
 			.performScrollToNode(hasText("2 retained scan results"))
