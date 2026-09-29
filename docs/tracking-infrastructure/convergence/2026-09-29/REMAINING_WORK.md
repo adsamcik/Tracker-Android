@@ -110,7 +110,12 @@ Authored tests, static review and isolated commits do not satisfy those chains.
   Notification customization now has authored load/save retry, ordered latest-state
   persistence and accessibility reorder actions in the candidate. This is
   **IMPLEMENTED_UNVALIDATED**; its tests and the full source-to-notification
-  chain still require the final convergence and device proof.
+  chain still require the final convergence and device proof. Interim independent
+  review found that leaving during a pending save could lose edits and that
+  reordering could cancel its own drag. Corrections and regression sources are
+  in the working tree; the unsaved-exit behavior awaits a user decision before
+  that follow-up is committed. The interim review is not the required final
+  review of validated code and device results.
 - [ ] **Schema and scenarios:** assemble final entities/DAOs/indexes/triggers/
   migrations/DI and generated schema; migrate a populated released `main` v12
   database, contain unknown development databases, and author provider-to-fact-
