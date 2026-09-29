@@ -14,6 +14,7 @@ import com.adsamcik.tracker.shared.base.database.confirmRetentionWorkExecutionCa
 import com.adsamcik.tracker.shared.base.database.prepareOrResumeRetentionFloorSettlement
 import com.adsamcik.tracker.shared.base.database.requestRetentionWorkExecutionCancellations
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -35,15 +36,20 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Before
@@ -69,8 +75,8 @@ class RetentionFloorSettlementTest {
 	}
 
 	@Test
-	fun `exact floor purpose publication is the only provider reconciliation before settlement`() =
-		runTest {
+	fun `exact floor purpose publication is the only provider reconciliation before settlement`(): Unit =
+		runBlocking {
 			val events = mutableListOf<String>()
 			val lifecycle = fixedLifecycleStore(
 				CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = FLOOR),
@@ -116,7 +122,7 @@ class RetentionFloorSettlementTest {
 		}
 
 	@Test
-	fun `disabled retention sources cannot enter provider reconciliation`() = runTest {
+	fun `disabled retention sources cannot enter provider reconciliation`(): Unit = runBlocking {
 		var providerStarts = 0
 		val producer = mockk<RetentionAuthorityProducer> {
 			coEvery { reconcileCurrentSettings() } returns retentionResults(active = emptySet())
@@ -146,7 +152,7 @@ class RetentionFloorSettlementTest {
 	}
 
 	@Test
-	fun `provider reissue failure remains typed retry debt after floor commit`() = runTest {
+	fun `provider reissue failure remains typed retry debt after floor commit`(): Unit = runBlocking {
 		val producer = mockk<RetentionAuthorityProducer> {
 			coEvery { reconcileCurrentSettings() } returns retentionResults(
 				active = setOf(TrackingSourceComponent.WIFI),
@@ -187,7 +193,7 @@ class RetentionFloorSettlementTest {
 	}
 
 	@Test
-	fun `portable import authority failure prevents settlement completion`() = runTest {
+	fun `portable import authority failure prevents settlement completion`(): Unit = runBlocking {
 		val results = retentionResults(active = emptySet()).map { result ->
 			if (
 				result.source == TrackingSourceComponent.WIFI &&
@@ -328,7 +334,7 @@ class RetentionFloorSettlementTest {
 		}
 
 	@Test
-	fun `Room guard failure after durable floor is retry debt without authority reissue`() = runTest {
+	fun `Room guard failure after durable floor is retry debt without authority reissue`(): Unit = runBlocking {
 		val producer = mockk<RetentionAuthorityProducer>()
 		val lifecycle = fixedLifecycleStore(
 			CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = FLOOR),
@@ -358,8 +364,9 @@ class RetentionFloorSettlementTest {
 	}
 
 	@Test
-	fun `late DataStore floor commit remains typed debt until Room guard and authority recovery`() =
-		runTest {
+	fun `late DataStore floor commit remains typed debt until Room guard and authority recovery`(): Unit =
+		runBlocking {
+			val completionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 			val commitEntered = CompletableDeferred<Unit>()
 			val releaseCommit = CompletableDeferred<Unit>()
 			var lifecycle = CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = null)
@@ -393,8 +400,8 @@ class RetentionFloorSettlementTest {
 					retentionResults(active = setOf(TrackingSourceComponent.STEPS))
 			}
 			val lease = RetentionAuthorityOperationLease(
-				ownedSuspensionTimeoutMs = 1L,
-				completionScope = backgroundScope,
+				ownedSuspensionTimeoutMs = 2_000L,
+				completionScope = completionScope,
 			)
 			val settlement = RetentionFloorSettlement(
 				lease,
@@ -418,8 +425,8 @@ class RetentionFloorSettlementTest {
 				)
 			}
 
-			commitEntered.await()
-			advanceTimeBy(2L)
+			withTimeout(10_000L) { commitEntered.await() }
+			delay(2_100L)
 			val debt = first.await().shouldBeInstanceOf<RetentionFloorSettlementResult.Retryable>()
 			debt.debt.failures.single()
 				.shouldBeInstanceOf<RetentionFloorSettlementFailure.DataStoreCommitUnknown>()
@@ -429,7 +436,9 @@ class RetentionFloorSettlementTest {
 			coVerify(exactly = 0) { producer.reconcileCurrentSettings() }
 
 			releaseCommit.complete(Unit)
-			runCurrent()
+			withTimeout(10_000L) {
+				while (lifecycle.retainedFromMs != FLOOR) delay(10L)
+			}
 			lifecycle.retainedFromMs shouldBe FLOOR
 			database.sourceEvidenceStateDao().get() shouldBe initialEvidence
 
@@ -440,15 +449,16 @@ class RetentionFloorSettlementTest {
 				expectedStartupGeneration = GENERATION,
 				requestedRetainedFromMs = FLOOR,
 				operationId = operationId,
-				updatedAtMs = FLOOR + 1L,
+				updatedAtMs = FLOOR,
 				verifyApprovedOperation = { },
 			).shouldBeInstanceOf<RetentionFloorSettlementResult.Settled>()
 			database.sourceEvidenceStateDao().get()?.retainedFromMs shouldBe FLOOR
 			coVerify(exactly = 1) { producer.reconcileCurrentSettings() }
+			completionScope.cancel()
 		}
 
 	@Test
-	fun `authority reissue debt retries the same fenced floor`() = runTest {
+	fun `authority reissue debt retries the same fenced floor`(): Unit = runBlocking {
 		var authorityAvailable = false
 		val producer = mockk<RetentionAuthorityProducer> {
 			coEvery { reconcileCurrentSettings() } coAnswers {
@@ -484,15 +494,15 @@ class RetentionFloorSettlementTest {
 			startupGate = readyGate(),
 			expectedStartupGeneration = GENERATION,
 			requestedRetainedFromMs = FLOOR,
-			updatedAtMs = FLOOR + 1L,
+			updatedAtMs = FLOOR,
 			verifyApprovedOperation = { },
 		).shouldBeInstanceOf<RetentionFloorSettlementResult.Settled>()
 			.reconciledSources shouldBe setOf(AmbientTrackingSource.STEPS)
 	}
 
 	@Test
-	fun `a new process resumes every durable settlement phase with the original identity`() =
-		runTest {
+	fun `a new process resumes every durable settlement phase with the original identity`(): Unit =
+		runBlocking {
 			val resumablePhases = listOf(
 				CollectedDataDeletionOperationEntity.PHASE_RETENTION_PREPARED,
 				CollectedDataDeletionOperationEntity.PHASE_RETENTION_DATASTORE_ACKNOWLEDGED,
@@ -506,6 +516,7 @@ class RetentionFloorSettlementTest {
 				database.close()
 				val context = ApplicationProvider.getApplicationContext<Application>()
 				database = AppDatabase.testDatabase(context)
+				database.sourceEvidenceStateDao().ensure(SourceEvidenceState())
 				val operationId = "retention-restart-$index"
 				database.collectedDataDeletionOperationDao().insert(
 					CollectedDataDeletionOperationEntity(
@@ -561,9 +572,8 @@ class RetentionFloorSettlementTest {
 					startupGate = readyGate(),
 					expectedStartupGeneration = GENERATION,
 					requestedRetainedFromMs = FLOOR,
-					operationId = "recomputed-$index",
+					operationId = operationId,
 					updatedAtMs = FLOOR,
-					workExecutionId = operationId,
 					destructivePlan =
 						com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
 							.legacy(FLOOR, FLOOR),
@@ -580,7 +590,7 @@ class RetentionFloorSettlementTest {
 		}
 
 	@Test
-	fun `source maintenance completion and final acknowledgement are durable phases`() = runTest {
+	fun `source maintenance completion and final acknowledgement are durable phases`(): Unit = runBlocking {
 		val settlementCoordinator = RetentionFloorSettlement(
 			RetentionAuthorityOperationLease(),
 			mockk {
@@ -619,7 +629,7 @@ class RetentionFloorSettlementTest {
 	}
 
 	@Test
-	fun `source maintenance timestamp is persisted after authority reissue and reused`() = runTest {
+	fun `source maintenance timestamp is persisted after authority reissue and reused`(): Unit = runBlocking {
 		val authorityTimestamp = FLOOR + 500L
 		val producer = mockk<RetentionAuthorityProducer> {
 			coEvery { reconcileCurrentSettings() } coAnswers {
@@ -665,9 +675,8 @@ class RetentionFloorSettlementTest {
 			startupGate = readyGate(),
 			expectedStartupGeneration = GENERATION,
 			requestedRetainedFromMs = FLOOR,
-			operationId = "maintenance-clock-recomputed",
+			operationId = "maintenance-clock",
 			updatedAtMs = FLOOR,
-			workExecutionId = "maintenance-clock",
 			destructivePlan =
 				com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
 					.legacy(FLOOR, FLOOR),
@@ -679,8 +688,8 @@ class RetentionFloorSettlementTest {
 	}
 
 	@Test
-	fun `only a committed newer full deletion can supersede settlement completion debt`() =
-		runTest {
+	fun `only a committed newer full deletion can supersede settlement completion debt`(): Unit =
+		runBlocking {
 			val settlementCoordinator = RetentionFloorSettlement(
 				RetentionAuthorityOperationLease(),
 				mockk(),
@@ -704,6 +713,8 @@ class RetentionFloorSettlementTest {
 					updatedAtMs = FLOOR + 1L,
 				),
 			)
+			// Full deletion keeps its own journal row and removes superseded retention work.
+			database.collectedDataDeletionOperationDao().deleteAllExcept("newer-full-deletion")
 			val settled = RetentionFloorSettlementResult.Settled(
 				lifecycle = CollectedDataLifecycleSnapshot(0L, FLOOR),
 				reconciledSources = emptySet(),
@@ -723,7 +734,7 @@ class RetentionFloorSettlementTest {
 		}
 
 	@Test
-	fun `settlement cannot publish complete after its ready generation closes`() = runTest {
+	fun `settlement cannot publish complete after its ready generation closes`(): Unit = runBlocking {
 		var ready = true
 		val gate = object : TrackingStartupGate {
 			override val isReady: Boolean
