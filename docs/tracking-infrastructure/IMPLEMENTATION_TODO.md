@@ -1974,3 +1974,19 @@ IMPLEMENTATION_ONLY; authored production/test sources IMPLEMENTED_UNVALIDATED.
 
 See product-surfaces/2026-09-27/IMPLEMENTATION_TRACE.md and CONTRACT_DECISIONS.md.
 Full request remains incomplete. Main dev/v10 unchanged; no validation, activation or push.
+
+## 2026-09-29 geographic file correction checkpoint
+
+IMPLEMENTATION_ONLY; the following authored sources are IMPLEMENTED_UNVALIDATED.
+
+- [x] Reject KML points without a real timestamp and multi-point KML lines without a time for
+  each point. Accept timestamped Points in either property order; retain their exact time and
+  coordinates without creating a synthetic session. Author focused importer test source.
+- [x] Split GPX route segments for unkeyed older/imported points when time moves backward,
+  exceeds the existing two-minute gap, or crosses between session and background membership.
+  Keep each point; author focused exporter test source.
+- [ ] Finish exact source-aware scheduled LastSession and incremental scope, selected-format
+  disclosures, complete geographic/file integration, final independent review and convergence.
+
+These checks record source authorship and static review only; compilation, execution, schema,
+device proof, final integration and push remain deferred.
