@@ -19,6 +19,7 @@ import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.impexp.exporter.pagedLocationSequence
 import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.OrganizationSessionRow
 import com.adsamcik.tracker.shared.base.database.data.ExportLogEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
@@ -271,9 +272,13 @@ class ExportPlanWorker @AssistedInject constructor(
         exporter: Exporter,
         scopeDateRange: LongRange?,
     ): ResolvedExportRange {
+        // A JSON record contains an entire session, so a point watermark can skip a
+        // changed Wi-Fi/Cell session or silently repeat points outside the cursor.
+        // LastSession is a complete chosen session, never a moving point delta.
         val supportsIncremental = plan.incrementalEnabled &&
             exporter.canSelectDateRange &&
-            plan.format != ExportFormat.DATABASE
+            plan.format in setOf(ExportFormat.GPX, ExportFormat.KML) &&
+            plan.scope != ExportScope.LastSession
         if (!supportsIncremental) {
             return ResolvedExportRange(
                 dateRange = scopeDateRange,
@@ -339,9 +344,7 @@ class ExportPlanWorker @AssistedInject constructor(
     private suspend fun resolveDateRange(scope: ExportScope): ScopeDateRange {
         return when (scope) {
             ExportScope.LastSession -> {
-				requireReadyGeneration()
-                val trip = appDatabase.tripDao().getRecentTrips(1).firstOrNull()
-				lastSessionScope(trip?.startTimeMs, trip?.endTimeMs)
+                latestCompletedSessionScope()
             }
             is ExportScope.RollingWindow -> {
                 val now = clock.currentTimeMillis()
@@ -357,6 +360,31 @@ class ExportPlanWorker @AssistedInject constructor(
             ExportScope.EntireHistory -> ScopeDateRange.Selected(null)
         }
     }
+
+    private suspend fun latestCompletedSessionScope(): ScopeDateRange {
+        // Organization is the shared session list. It includes source-only and
+        // retrospectively added sessions, which a legacy Trip query misses.
+        var offset = 0
+        while (true) {
+            requireReadyGeneration()
+            val page = appDatabase.organizationAnnotationDao().visible(
+                fromMs = null,
+                toMs = null,
+                limit = SESSION_SELECTION_PAGE_SIZE,
+                offset = offset,
+            )
+            firstCompletedSessionScope(page)?.let { return it }
+            if (page.size < SESSION_SELECTION_PAGE_SIZE) return ScopeDateRange.NoSession
+            offset = Math.addExact(offset, page.size)
+        }
+    }
+
+    internal fun firstCompletedSessionScope(rows: List<OrganizationSessionRow>): ScopeDateRange.Selected? =
+        rows.firstOrNull { row ->
+            row.isCompleted && !row.isActive && !row.timeUncertain &&
+                row.fromMs != null && row.toMs != null &&
+                row.fromMs >= 0L && row.toMs >= row.fromMs
+        }?.let { row -> ScopeDateRange.Selected(requireNotNull(row.fromMs)..requireNotNull(row.toMs)) }
 
 	internal fun lastSessionScope(startMs: Long?, endMs: Long?): ScopeDateRange =
 		if (startMs == null || endMs == null || startMs < 0L || endMs < startMs) {
@@ -532,6 +560,7 @@ class ExportPlanWorker @AssistedInject constructor(
         const val KEY_PLAN_ID = "plan_id"
 		const val KEY_FAILURE_REASON = "failure_reason"
         private const val PAGE_SIZE = 5000
+        private const val SESSION_SELECTION_PAGE_SIZE = 64
         private const val EXPORT_NOTIFICATION_ID_BASE = 904_000
     }
 

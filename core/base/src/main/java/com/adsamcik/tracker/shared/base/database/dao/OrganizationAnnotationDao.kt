@@ -29,6 +29,8 @@ interface OrganizationAnnotationDao {
 				COALESCE(a.start_time_ms, l.started_at_ms, s.start_time_ms) AS fromMs,
 				COALESCE(a.end_time_ms, l.cutoff_at_ms, s.end_time_ms) AS toMs,
 				CASE WHEN l.state NOT IN ('FINALIZED','CLOSED','FAILED') THEN 1 ELSE 0 END AS isActive,
+				CASE WHEN l.logical_tracking_id IS NOT NULL THEN CASE WHEN l.state IN ('FINALIZED','CLOSED') THEN 1 ELSE 0 END
+					WHEN s.id IS NOT NULL OR a.recording_adapter_key IS NULL THEN 1 ELSE 0 END AS isCompleted,
 				COALESCE(s.id, (SELECT MIN(r.session_segment_id) FROM source_service_run r
 					WHERE r.logical_tracking_id = l.logical_tracking_id)) AS originalSegmentId,
 				CASE WHEN a.start_time_ms IS NOT NULL AND a.end_time_ms IS NOT NULL THEN 0
@@ -42,6 +44,7 @@ interface OrganizationAnnotationDao {
 			SELECT NULL, 'logical:' || l.logical_tracking_id, 0, NULL, NULL, (SELECT m.zone_id FROM session_manifest_version m WHERE m.logical_tracking_id = l.logical_tracking_id ORDER BY m.manifest_revision LIMIT 1),
 				l.started_at_ms, l.cutoff_at_ms,
 				CASE WHEN l.state NOT IN ('FINALIZED','CLOSED','FAILED') THEN 1 ELSE 0 END,
+				CASE WHEN l.state IN ('FINALIZED','CLOSED') THEN 1 ELSE 0 END,
 				(SELECT MIN(r.session_segment_id) FROM source_service_run r
 					WHERE r.logical_tracking_id = l.logical_tracking_id),
 				CASE WHEN l.started_at_ms < 0 OR l.started_elapsed_nanos < 0 OR l.clock_domain_id IN ('', 'LEGACY_UNKNOWN') OR (l.state IN ('FINALIZED','CLOSED','FAILED') AND (l.cutoff_at_ms IS NULL OR l.cutoff_at_ms <= l.started_at_ms OR l.cutoff_elapsed_nanos IS NULL OR l.cutoff_elapsed_nanos < l.started_elapsed_nanos)) THEN 1 ELSE 0 END
@@ -50,7 +53,7 @@ interface OrganizationAnnotationDao {
 				WHERE a.recording_adapter_key = 'logical:' || l.logical_tracking_id)
 			UNION ALL
 			SELECT NULL, 'segment:' || s.id, 0, NULL, NULL, NULL,
-				s.start_time_ms, s.end_time_ms, 0, s.id,
+				s.start_time_ms, s.end_time_ms, 0, 1, s.id,
 				CASE WHEN s.start_time_ms < 0 OR s.end_time_ms <= s.start_time_ms THEN 1 ELSE 0 END
 			FROM session_segment s
 			WHERE s.logical_tracking_id IS NULL AND s.service_run_id IS NULL
@@ -88,6 +91,7 @@ interface OrganizationAnnotationDao {
 data class OrganizationSessionRow(
 	val localId: String?, val adapterKey: String?, val revision: Long,
 	val name: String?, val activityLabelId: Long?, val displayZoneId: String?,
-	val fromMs: Long?, val toMs: Long?, val isActive: Boolean, val originalSegmentId: Long?,
+	val fromMs: Long?, val toMs: Long?, val isActive: Boolean, val isCompleted: Boolean,
+	val originalSegmentId: Long?,
 	val timeUncertain: Boolean,
 )

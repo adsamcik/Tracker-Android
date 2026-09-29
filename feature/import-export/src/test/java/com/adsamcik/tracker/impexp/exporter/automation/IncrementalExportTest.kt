@@ -9,6 +9,7 @@ import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.impexp.exporter.proto.ExportBackupPlanProto
 import com.adsamcik.tracker.impexp.exporter.proto.ExportFormatProto
 import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.base.database.dao.OrganizationSessionRow
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
@@ -24,6 +25,65 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IncrementalExportTest {
+	@Test
+	fun lastSessionSelection_usesLatestFinishedSourceOrRetrospectiveSessionWithRealBounds() {
+		val worker = worker()
+		val active = organizationRow("logical:active", 4_000L, null, isActive = true)
+		val uncertain = organizationRow("logical:uncertain", 3_000L, 3_500L, timeUncertain = true)
+		val failed = organizationRow("logical:failed", 2_800L, 2_900L, isCompleted = false)
+		val sourceOnly = organizationRow("logical:source-only", 2_000L, 2_500L)
+		val retrospective = organizationRow(null, 1_000L, 1_500L)
+		assertEquals(
+			ExportPlanWorker.ScopeDateRange.Selected(2_000L..2_500L),
+			worker.firstCompletedSessionScope(listOf(active, uncertain, failed, sourceOnly, retrospective)),
+		)
+		assertEquals(
+			ExportPlanWorker.ScopeDateRange.Selected(1_000L..1_500L),
+			worker.firstCompletedSessionScope(listOf(retrospective)),
+		)
+		assertEquals(null, worker.firstCompletedSessionScope(listOf(active, uncertain, failed)))
+	}
+
+	@Test
+	fun incrementalExport_neverSplitsJsonRecordsOrLastSession() {
+		val worker = worker()
+		val json = worker.resolveExportRange(
+			buildTestPlan(lastWatermarkMs = 3_000L, format = ExportFormat.JSON),
+			dateRangeExporter(),
+			1_000L..5_000L,
+		)
+		assertEquals(1_000L..5_000L, json.dateRange)
+		assertFalse(json.isDelta)
+		assertFalse(json.shouldAdvanceWatermark)
+		val lastSession = worker.resolveExportRange(
+			buildTestPlan(lastWatermarkMs = 3_000L).copy(scope = ExportScope.LastSession),
+			dateRangeExporter(),
+			1_000L..5_000L,
+		)
+		assertEquals(1_000L..5_000L, lastSession.dateRange)
+		assertFalse(lastSession.isDelta)
+		assertFalse(lastSession.shouldAdvanceWatermark)
+	}
+
+	private fun organizationRow(
+		key: String?, from: Long, to: Long?, isActive: Boolean = false,
+		isCompleted: Boolean = true,
+		timeUncertain: Boolean = false,
+	) = OrganizationSessionRow(
+		localId = if (key == null) "manual" else null,
+		adapterKey = key,
+		revision = 1L,
+		name = null,
+		activityLabelId = null,
+		displayZoneId = null,
+		fromMs = from,
+		toMs = to,
+		isActive = isActive,
+		isCompleted = isCompleted,
+		originalSegmentId = null,
+		timeUncertain = timeUncertain,
+	)
+
 	@Test
 	fun lastSessionWithoutValidBounds_neverBecomesEntireHistory() {
 		val worker = worker()
