@@ -1169,6 +1169,24 @@ class WifiSourceRuntimeTest {
 		coEvery { fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any()) } returns successor
 		every { fixture.backend.requestScan() } returns WifiRequestOutcome.ACCEPTED
 		val actions = mutableListOf<suspend () -> Unit>()
+	@Test
+	fun `spent durable Wi-Fi allowance does not call the active provider but keeps passive results`() = runTest {
+		val allowance = testRadioActiveRequestAllowance()
+		coEvery { allowance.reserve(any(), any(), any(), any(), any(), any()) } returns
+			RadioActiveRequestDecision.Spent
+		val fixture = runtimeFixture(this, runtimePlan = plan(1L).copy(mode = WifiMode.ACTIVE_ATTEMPTS),
+			allowance = allowance)
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		fixture.start(wifiCandidateSink { admitted += it; SourceAdmissionHandoff.Durable(1L) })
+		runCurrent()
+		fixture.fireScheduledWakeup()
+		fixture.emit(resultEvent(receivedNanos = 10_000_000L))
+		runCurrent()
+		verify(exactly = 0) { fixture.backend.requestScan() }
+		assertEquals(1, admitted.size)
+		fixture.runtime.close()
+	}
+
 		coEvery { fixture.wakeups.schedule(any(), any()) } answers { actions += secondArg<suspend () -> Unit>(); Unit }
 		val sink = wifiCandidateSink { SourceAdmissionHandoff.Durable(1L) }
 		fixture.start(sink)
@@ -2021,6 +2039,7 @@ class WifiSourceRuntimeTest {
 		var scheduledAction: (suspend () -> Unit)? = null
 		every { stateProvider.wifi() } answers { state }
 		coEvery { registrations.begin(any(), any(), any(), any(), any()) } returnsMany registrationsToReturn
+		allowance: RadioActiveRequestAllowance = testRadioActiveRequestAllowance(),
 		coEvery { registrations.pendingRetirements(SourceKind.WIFI) } returns emptyList()
 		coEvery {
 			registrations.beginRetirement(any(), any(), any(), any())
@@ -2037,7 +2056,7 @@ class WifiSourceRuntimeTest {
 		coEvery { wakeups.schedule(any(), any()) } answers {
 			scheduledAction = secondArg<suspend () -> Unit>()
 		}
-		val runtime = WifiSourceRuntime(scope, registrations, backend, stateProvider, wakeups)
+		val runtime = WifiSourceRuntime(scope, registrations, backend, stateProvider, wakeups, allowance)
 		return RuntimeFixture(
 			runtime, registrations, backend, wakeups, runtimePlan,
 			{ requireNotNull(callback) }, { scheduledAction }, state,

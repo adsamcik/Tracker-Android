@@ -80,6 +80,7 @@ class CellSourceRuntime @Inject internal constructor(
 	private val backend: AndroidCellSourceBackend,
 	private val deviceStateProvider: AndroidConnectivityDeviceStateProvider,
 	private val wakeups: CoalescingSourceWakeupScheduler,
+	private val activeRequestAllowance: RadioActiveRequestAllowance,
 ) : ClaimedSourceRuntime<CellPlan> {
 	override val source = SourceKind.CELL
 	private val _capabilities = MutableStateFlow(capabilitiesNow())
@@ -999,6 +1000,16 @@ class CellSourceRuntime @Inject internal constructor(
 		val replayGateBySubscription = mutableMapOf<Int?, BoundedReplayIdentityGate>()
 		var refreshAttempts = 0
 		var qualifiedEvidenceReceived = false
+		var budgetSessionId: String? = null
+
+		fun updateSessionBudget(context: CellCallbackContext) {
+			val currentId = context.registration.singleCaptureSessionId()
+			if (currentId != budgetSessionId) {
+				budgetSessionId = currentId
+				refreshAttempts = 0
+				qualifiedEvidenceReceived = false
+			}
+		}
 
 		fun canRequestRefresh(context: CellCallbackContext): Boolean =
 			refreshAttempts < MAX_REFRESH_ATTEMPTS_PER_REGISTRATION &&
@@ -1008,6 +1019,7 @@ class CellSourceRuntime @Inject internal constructor(
 
 		suspend fun scheduleRefresh() {
 			val context = currentCallbackContext(activeToken) ?: return
+			updateSessionBudget(context)
 			val state = deviceStateProvider.cell()
 			if (!prerequisiteGate.allows(context.plan) ||
 				!shouldScheduleCellRefresh(context.plan.mode, state.refreshApiAvailable) ||
@@ -1017,12 +1029,22 @@ class CellSourceRuntime @Inject internal constructor(
 				return
 			}
 			val now = SystemClock.elapsedRealtime()
+			val sessionId = context.registration.singleCaptureSessionId()
+				?: run { wakeups.cancel(REFRESH_WAKEUP_ID); return }
+			val allowance = activeRequestAllowance.inspect(
+				source, sessionId, context.plan.minimumRefreshAttemptIntervalMs,
+				context.registration.state.clockDomainId, now, System.currentTimeMillis(),
+			)
+			if (allowance !is RadioActiveRequestDecision.ReadyAt) {
+				wakeups.cancel(REFRESH_WAKEUP_ID)
+				return
+			}
 			val earliest = nextAttemptDeadlineMs(
 				now,
 				lastRefreshAtMs.takeUnless { it == Long.MIN_VALUE },
 				context.plan.minimumRefreshAttemptIntervalMs,
 				backoff.delayMs(context.plan.backoff),
-			)
+			).coerceAtLeast(allowance.elapsedRealtimeMs)
 			wakeups.schedule(
 				sourceWakeupRequest(
 					REFRESH_WAKEUP_ID, source, earliest,
@@ -1118,12 +1140,32 @@ class CellSourceRuntime @Inject internal constructor(
 								!prerequisiteGate.allows(context.plan) ||
 								!shouldScheduleCellRefresh(context.plan.mode, deviceStateProvider.cell().refreshApiAvailable)
 							) return@synchronized null
-							refreshAttempts++
-							lastRefreshAtMs = now
 							CellRefreshRequest(context, CellRefreshResponses(
 								subscriptions, now + REFRESH_TIMEOUT_MS,
-							)).also { outstandingRequest = it }
+							))
 						} ?: return@withLock null
+						val sessionId = request.context.registration.singleCaptureSessionId()
+							?: return@withLock null
+						val now = SystemClock.elapsedRealtime()
+						val allowance = activeRequestAllowance.reserve(
+							source, sessionId, request.context.plan.minimumRefreshAttemptIntervalMs,
+							request.context.registration.state.clockDomainId, now,
+							System.currentTimeMillis(),
+						)
+						if (allowance !is RadioActiveRequestDecision.ReadyAt ||
+							allowance.elapsedRealtimeMs > now) return@withLock null
+						val stillCurrent = synchronized(callbackLock) {
+							val context = currentCallbackContextLocked()
+							if (context?.registration !== request.context.registration ||
+								context.plan != request.context.plan || outstandingRequest != null) false
+							else {
+								refreshAttempts++
+								lastRefreshAtMs = now
+								outstandingRequest = request
+								true
+							}
+						}
+						if (!stillCurrent) return@withLock null
 						val outcome = runCatchingNonCancellation {
 							backend.requestRefresh { snapshot ->
 								onBackendSnapshot(activeToken, snapshot, CellRefreshOutcome.CALLBACK, request)

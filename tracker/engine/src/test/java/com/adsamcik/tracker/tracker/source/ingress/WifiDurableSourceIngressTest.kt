@@ -1336,7 +1336,8 @@ class WifiDurableSourceIngressTest {
 		val roomCandidate = CompletableDeferred<SourceDeliveryCandidate>()
 		val roomResult = CompletableDeferred<SourceDeliveryAdmissionHandoff>()
 		return WifiRetryRuntimeFixture(
-			runtime = WifiSourceRuntime(scope, registrations, backend, stateProvider, wakeups),
+			runtime = WifiSourceRuntime(scope, registrations, backend, stateProvider, wakeups,
+				com.adsamcik.tracker.tracker.source.runtime.testRadioActiveRequestAllowance()),
 			plan = wifiRetryPlan(),
 			sink = wifiRetrySink(attempted, roomCandidate, roomResult),
 			callback = { callback },
@@ -1367,7 +1368,8 @@ class WifiDurableSourceIngressTest {
 			deviceIdle = false,
 		)
 		return WifiCutoffRuntimeFixture(
-			runtime = WifiSourceRuntime(scope, registrations, backend, stateProvider, wakeups),
+			runtime = WifiSourceRuntime(scope, registrations, backend, stateProvider, wakeups,
+				com.adsamcik.tracker.tracker.source.runtime.testRadioActiveRequestAllowance()),
 			plan = wifiRetryPlan(),
 			callback = { callback },
 		)

@@ -79,6 +79,7 @@ class WifiSourceRuntime @Inject internal constructor(
 	private val backend: AndroidWifiSourceBackend,
 	private val deviceStateProvider: AndroidConnectivityDeviceStateProvider,
 	private val wakeups: CoalescingSourceWakeupScheduler,
+	private val activeRequestAllowance: RadioActiveRequestAllowance,
 ) : ClaimedSourceRuntime<WifiPlan> {
 	override val source = SourceKind.WIFI
 	private val _capabilities = MutableStateFlow(capabilitiesNow())
@@ -999,13 +1000,24 @@ class WifiSourceRuntime @Inject internal constructor(
 				return
 			}
 			val now = SystemClock.elapsedRealtime()
+			val activeRegistration = synchronized(callbackLock) { registration } ?: return
+			val sessionId = activeRegistration.singleCaptureSessionId()
+				?: run { wakeups.cancel(WAKEUP_ID); return }
+			val allowance = activeRequestAllowance.inspect(
+				source, sessionId, plan.minimumAttemptIntervalMs,
+				activeRegistration.state.clockDomainId, now, System.currentTimeMillis(),
+			)
+			if (allowance !is RadioActiveRequestDecision.ReadyAt) {
+				wakeups.cancel(WAKEUP_ID)
+				return
+			}
 			val earliest = nextAttemptDeadlineMs(
 				now,
 				lastAttemptAtMs.takeUnless { it == Long.MIN_VALUE },
 				plan.minimumAttemptIntervalMs,
 				backoff.delayMs(plan.backoff),
-			)
-			val attemptRegistration = synchronized(callbackLock) { registration } ?: return
+			).coerceAtLeast(allowance.elapsedRealtimeMs)
+			val attemptRegistration = activeRegistration
 			wakeups.schedule(
 				sourceWakeupRequest(WAKEUP_ID, source, earliest, attemptWindow(plan.minimumAttemptIntervalMs)),
 			) {
@@ -1030,6 +1042,19 @@ class WifiSourceRuntime @Inject internal constructor(
 						val application = prerequisiteGate.application(plan) ?: return@withLock null
 						if (application.status == SourceApplyStatus.BLOCKED ||
 							application.activeAttemptsDeferred) return@withLock null
+						val sessionId = input.registration.singleCaptureSessionId()
+							?: return@withLock null
+						val now = SystemClock.elapsedRealtime()
+						if (now < input.earliestElapsedMs || synchronized(callbackLock) {
+							registration !== input.registration || plan != input.plan ||
+								currentDirectAttemptPlanLocked(inputs, physicalRegistration) != plan
+						}) return@withLock null
+						val allowance = activeRequestAllowance.reserve(
+							source, sessionId, plan.minimumAttemptIntervalMs,
+							input.registration.state.clockDomainId, now, System.currentTimeMillis(),
+						)
+						if (allowance !is RadioActiveRequestDecision.ReadyAt ||
+							allowance.elapsedRealtimeMs > now) return@withLock null
 						val requestAllowed = synchronized(callbackLock) {
 							registration === input.registration && plan == input.plan &&
 								SystemClock.elapsedRealtime() >= input.earliestElapsedMs &&
@@ -1068,7 +1093,8 @@ class WifiSourceRuntime @Inject internal constructor(
 						SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
 					val hasDirectCapture = input.registration.purposeEligibilityMask and
 						SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
-					if (hadDirectCapture != hasDirectCapture) {
+					if (hadDirectCapture != hasDirectCapture ||
+						budgetRegistration.singleCaptureSessionId() != input.registration.singleCaptureSessionId()) {
 						acquisitionBudget = DirectAcquisitionBudget(
 							maximumAttempts = MAX_ACTIVE_ATTEMPTS_PER_REGISTRATION,
 							directCaptureRequested = hasDirectCapture,

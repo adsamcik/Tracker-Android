@@ -130,6 +130,7 @@ class SourcePipelineModuleTest {
 				wifiBackend,
 				deviceState,
 				wakeups,
+				com.adsamcik.tracker.tracker.source.runtime.testRadioActiveRequestAllowance(),
 			)
 			val cellRuntime = CellSourceRuntime(
 				backgroundScope,
@@ -137,6 +138,7 @@ class SourcePipelineModuleTest {
 				cellBackend,
 				deviceState,
 				wakeups,
+				com.adsamcik.tracker.tracker.source.runtime.testRadioActiveRequestAllowance(),
 			)
 			val broker = mockk<SourceBroker>()
 			val sinkFactory = mockk<DurableSourceEventSinkFactory>()

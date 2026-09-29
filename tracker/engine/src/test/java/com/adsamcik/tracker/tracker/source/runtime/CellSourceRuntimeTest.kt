@@ -1420,6 +1420,26 @@ class CellSourceRuntimeTest {
 			response = firstArg()
 			CellRefreshRequestOutcome.REQUESTED
 		}
+	@Test
+	fun `spent durable Cell allowance blocks refresh while callbacks remain admitted`() = runTest {
+		val allowance = testRadioActiveRequestAllowance()
+		coEvery { allowance.reserve(any(), any(), any(), any(), any(), any()) } returns
+			RadioActiveRequestDecision.Spent
+		val fixture = runtimeFixture(this, cellPlan(mode = CellMode.OBSERVE_AND_SPARSE_REFRESH),
+			allowance = allowance)
+		var scheduled: (suspend () -> Unit)? = null
+		coEvery { fixture.wakeups.schedule(any(), any()) } answers { scheduled = secondArg(); Unit }
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		fixture.start(cellCandidateSink { admitted += it; SourceAdmissionHandoff.Durable(1L) })
+		runCurrent()
+		requireNotNull(scheduled)()
+		fixture.emit(freshProviderDelivery())
+		runCurrent()
+		verify(exactly = 0) { fixture.backend.requestRefresh(any()) }
+		assertEquals(1, admitted.size)
+		fixture.runtime.close()
+	}
+
 		fixture.start(cellCandidateSink { SourceAdmissionHandoff.Durable(1L) })
 		runCurrent()
 		val attempt = requireNotNull(actions["cell-sparse-refresh"])
@@ -1580,6 +1600,7 @@ class CellSourceRuntimeTest {
 		coEvery {
 			registrations.beginRetirement(any(), any(), any(), any())
 		} answers {
+		allowance: RadioActiveRequestAllowance = testRadioActiveRequestAllowance(),
 			retirementToken(firstArg(), secondArg(), thirdArg(), arg(3))
 		}
 		coEvery { registrations.completeRetirement(any()) } returns true
@@ -1590,7 +1611,7 @@ class CellSourceRuntimeTest {
 		}
 		every { backend.stop() } returns true
 		every { backend.hasRetainedRegistrations } returns false
-		val runtime = CellSourceRuntime(scope, registrations, backend, stateProvider, wakeups)
+		val runtime = CellSourceRuntime(scope, registrations, backend, stateProvider, wakeups, allowance)
 		return RuntimeFixture(
 			runtime,
 			registrations,
