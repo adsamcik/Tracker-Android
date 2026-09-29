@@ -350,7 +350,9 @@ class SharedCellSourceController @Inject constructor(
 			mode = capturePlan?.mode ?: CellMode.OBSERVE_CHANGES,
 			minimumRefreshAttemptIntervalMs =
 				capturePlan?.minimumRefreshAttemptIntervalMs ?: Long.MAX_VALUE,
-			maximumAcceptableCachedAgeMs = demands.minOf(SourceDemandEntity::maximumAgeMs),
+			// Preserve readings useful to any owner; product qualification applies each
+			// demand's own age limit before that owner receives a fact.
+			maximumAcceptableCachedAgeMs = demands.maxOf(SourceDemandEntity::maximumAgeMs),
 			subscriptionIds = capturePlan?.subscriptionIds ?: ambientSubscriptionIds,
 			backoff = capturePlan?.backoff ?: RetryBackoff(0L, 0L),
 		)
