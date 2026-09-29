@@ -129,8 +129,9 @@ suspend fun AppDatabase.applyAmbientLocationRetentionDecision(
 			decision.expectedRetainedFromMs,
 		)
 		dao.insertRetentionAuthority(value)
-		if (decision is AmbientRadioRetentionDecision.Revoke) removeLocationAmbientPurposeInCurrentTransaction()
-		else if (decision.expectedRetainedFromMs != current?.retainedFromMs) {
+		// Revoke closes new collection; it does not retract previously authorized points.
+		// The exact current retention floor still prunes expired background associations.
+		if (decision.expectedRetainedFromMs != current?.retainedFromMs) {
 			decision.expectedRetainedFromMs?.let { pruneLocationAmbientPurposeInCurrentTransaction(it) }
 		}
 		if (

@@ -2,7 +2,11 @@ package com.adsamcik.tracker.tracker.source.location
 
 import android.app.Application
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.AmbientRadioRetentionAuthorityResult
+import com.adsamcik.tracker.shared.base.database.AmbientRadioRetentionDecision
+import com.adsamcik.tracker.shared.base.database.applyAmbientLocationRetentionDecision
 import com.adsamcik.tracker.shared.base.database.removeLocationAmbientPurposeInCurrentTransaction
+import com.adsamcik.tracker.shared.base.database.pruneLocationAmbientPurposeInCurrentTransaction
 import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationRegistrationPlanIntegrity
@@ -1236,6 +1240,82 @@ class LocationWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `turning ambient Location off keeps its saved point and prior admitted WAL`() = runTest {
+		installValidFixture(ambientOnly = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		val command = assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(EVENT_ID)).command
+		installProtectedHandoffAuthority(command.wal.admissionOrdinal)
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val writer = ProtectedLocationAmbientCanonicalWriter(context, database, dispatchers,
+			newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)))
+		assertEquals(ProtectedLocationCanonicalWriteResult.Committed, writer.write(command))
+		val (previous, previousConsent) = turnAmbientLocationOff()
+		val policyDao = database.sourcePolicyDao()
+		assertEquals(1L, database.locationSampleDao().countAll())
+		assertEquals(1, database.locationPurposeDao().visiblePathChunk(0, Long.MAX_VALUE, null, null, 10).size)
+		assertEquals(1, database.locationPurposeDao().savedFileChunk(0, Long.MAX_VALUE, null, null, 10).size)
+		assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(EVENT_ID))
+		policyDao.insertPolicies(listOf(previous.copy(
+			policyRevision = POLICY_REVISION + 2L,
+			ambientPersistenceEligible = true,
+			ambientConsentEpoch = CONSENT_EPOCH + 2L,
+			effectiveElapsedRealtimeNanos = RECEIVED_NANOS + 2L,
+			effectiveWallTimeMs = RECEIVED_WALL_MS + 2L,
+			changeReason = "TEST_ON_AGAIN",
+		)))
+		policyDao.insertConsentEpochs(listOf(previousConsent.copy(
+			epoch = CONSENT_EPOCH + 2L,
+			policyRevision = POLICY_REVISION + 2L,
+			effectiveElapsedRealtimeNanos = RECEIVED_NANOS + 2L,
+			effectiveWallTimeMs = RECEIVED_WALL_MS + 2L,
+			changeReason = "TEST_ON_AGAIN",
+		)))
+		assertEquals(1, policyDao.compareAndSetAuthority(
+			expectedBootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			expectedRevision = POLICY_REVISION + 1L,
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			newRevision = POLICY_REVISION + 2L,
+			legacySettingsFingerprint = null,
+			updatedAtMs = RECEIVED_WALL_MS + 2L,
+		))
+		database.locationPurposeDao().insertRetentionAuthority(AmbientLocationRetentionAuthorityIntegrity.create(
+			AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT, 3,
+			AmbientLocationRetentionAuthorityEntity.STATE_ACTIVE, "location-retention",
+			POLICY_REVISION + 2L, CONSENT_EPOCH + 2L, 0, BOOT_ID,
+			RECEIVED_NANOS + 2L, RECEIVED_WALL_MS + 2L, null,
+		))
+		assertEquals(1, database.locationPurposeDao().visiblePathChunk(0, Long.MAX_VALUE, null, null, 10).size)
+		assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(EVENT_ID))
+		val floor = requireNotNull(database.locationPurposeDao().receiptByEvent(EVENT_ID.value))
+			.observedWallTimeMs + 1L
+		database.withTransaction {
+			database.sourceEvidenceStateDao().updateLifecycle(0, floor, floor)
+			database.pruneLocationAmbientPurposeInCurrentTransaction(floor)
+		}
+		assertEquals(0L, database.locationSampleDao().countAll())
+		assertEquals(emptyList(), database.locationPurposeDao().visiblePathChunk(0, Long.MAX_VALUE, null, null, 10))
+		assertIs<LocationAmbientQualification.Rejected>(subject.qualifyAmbient(EVENT_ID))
+	}
+
+	@Test
+	fun `pre admitted ambient Location first materializes after tracking is turned off`() = runTest {
+		installValidFixture(ambientOnly = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		val command = assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(EVENT_ID)).command
+		installProtectedHandoffAuthority(command.wal.admissionOrdinal)
+		turnAmbientLocationOff()
+		assertEquals(0L, database.locationSampleDao().countAll())
+		val historical = assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(EVENT_ID)).command
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val writer = ProtectedLocationAmbientCanonicalWriter(context, database, dispatchers,
+			newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)))
+
+		assertEquals(ProtectedLocationCanonicalWriteResult.Committed, writer.write(historical))
+		assertEquals(1L, database.locationSampleDao().countAll())
+		assertEquals(1, database.locationPurposeDao().visiblePathChunk(0, Long.MAX_VALUE, null, null, 10).size)
+	}
+
+	@Test
 	fun `one physical delivery preserves ambient-only old unit and dual-purpose fresh unit`() = runTest {
 		installValidFixture(mixedPurposes = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
 			deliveryPayloads = listOf(locationPayload(false), locationPayload(false)),
@@ -1477,6 +1557,52 @@ class LocationWalQualificationAdapterTest {
 				),
 			),
 		)
+	}
+
+	private suspend fun turnAmbientLocationOff(): Pair<SourcePolicyEntity, SourceConsentEpochEntity> {
+		val policyDao = database.sourcePolicyDao()
+		val previous = requireNotNull(policyDao.policyAtRevision(POLICY_REVISION, LOCATION_SOURCE))
+		val previousConsent = requireNotNull(policyDao.consentEpoch(LOCATION_SOURCE,
+			SourceBrokerPurpose.AMBIENT_PRODUCT, CONSENT_EPOCH))
+		policyDao.insertPolicies(listOf(previous.copy(
+			policyRevision = POLICY_REVISION + 1L,
+			enabled = false,
+			capturePersistenceEligible = false,
+			captureConsentEpoch = null,
+			ambientPersistenceEligible = false,
+			ambientConsentEpoch = null,
+			effectiveElapsedRealtimeNanos = RECEIVED_NANOS + 1L,
+			effectiveWallTimeMs = RECEIVED_WALL_MS + 1L,
+			changeReason = "TEST_OFF",
+		)))
+		policyDao.insertConsentEpochs(listOf(previousConsent.copy(
+			epoch = CONSENT_EPOCH + 1L,
+			eligible = false,
+			persistenceEligible = false,
+			policyRevision = POLICY_REVISION + 1L,
+			effectiveElapsedRealtimeNanos = RECEIVED_NANOS + 1L,
+			effectiveWallTimeMs = RECEIVED_WALL_MS + 1L,
+			changeReason = "TEST_OFF",
+		)))
+		assertEquals(1, policyDao.compareAndSetAuthority(
+			expectedBootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			expectedRevision = POLICY_REVISION,
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			newRevision = POLICY_REVISION + 1L,
+			legacySettingsFingerprint = null,
+			updatedAtMs = RECEIVED_WALL_MS + 1L,
+		))
+		assertIs<AmbientRadioRetentionAuthorityResult.Applied>(database.applyAmbientLocationRetentionDecision(
+			AmbientRadioRetentionDecision.Revoke(
+				scope = AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				expectedCollectedDataEpoch = 0,
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = RECEIVED_NANOS + 1L,
+				effectiveWallTimeMs = RECEIVED_WALL_MS + 1L,
+				expectedPreviousApprovalRevision = 1,
+			),
+		))
+		return previous to previousConsent
 	}
 
 	private suspend fun installLaterStricterLocationPolicy() {

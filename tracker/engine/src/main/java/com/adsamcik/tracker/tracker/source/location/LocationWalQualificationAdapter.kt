@@ -212,6 +212,9 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		} ?: return@withTransaction LocationAmbientQualification.NotEligible
 		val demand = demands.singleOrNull { it.demandId == member.demandId }
 			?: return@withTransaction reject(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
+		val plan = try { actualRegistrationPlan(wal) } catch (failure: LocationPhysicalEvidenceRejected) {
+			return@withTransaction reject(failure.reason)
+		} ?: return@withTransaction reject(LocationWalAdapterRejection.MISSING_HISTORICAL_PLAN)
 		val registrationProof = database.authenticateHistoricalProviderRegistration(
 			sourceKind = LOCATION_SOURCE,
 			registrationGeneration = wal.registrationGeneration,
@@ -219,7 +222,9 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			clockDomainId = wal.clockDomainId,
 			physicalConfigurationFingerprint = requireNotNull(wal.physicalConfigurationFingerprint),
 			collectedDataEpoch = wal.capturedCollectedDataEpoch,
-			expectedProviderResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+			expectedProviderResidency = if (plan.passiveSystemDelivery)
+				ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE else
+				ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
 			observedStartNanos = wal.observedElapsedNanos,
 			observedEndNanos = wal.observedElapsedNanos,
 			observedWallTimeMs = wall,
@@ -233,29 +238,18 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		val policy = policyDao.policyAtRevision(demand.sourcePolicyRevision, LOCATION_SOURCE)
 			?: return@withTransaction reject(LocationWalAdapterRejection.MISSING_POLICY)
 		val consent = policyDao.consentEpoch(LOCATION_SOURCE, SourceBrokerPurpose.AMBIENT_PRODUCT, demand.consentEpoch)
-		val currentPolicy = policyDao.authority()?.takeIf { it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE }
-			?.let { policyDao.policyAtRevision(it.currentPolicyRevision, LOCATION_SOURCE) }
-		val currentConsent = policyDao.latestConsentEpoch(LOCATION_SOURCE, SourceBrokerPurpose.AMBIENT_PRODUCT)
-		if (!policy.hasExactEligibleAmbientConsentReference(consent) || currentPolicy == null ||
-			!currentPolicy.hasExactEligibleAmbientConsentReference(currentConsent) ||
-			currentPolicy.ambientConsentEpoch != demand.consentEpoch ||
+		if (!policy.hasExactEligibleAmbientConsentReference(consent) ||
 			(policy.effectiveBootId == wal.clockDomainId && policy.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos) || consent == null ||
 			(consent.effectiveBootId == wal.clockDomainId && consent.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos)
 		) return@withTransaction reject(LocationWalAdapterRejection.CONSENT_MISMATCH)
 		val retention = database.locationPurposeDao().retentionAuthorityAt(
 			AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT, wal.clockDomainId, wal.observedElapsedNanos)
-		val currentRetention = database.locationPurposeDao().latestRetentionAuthority(AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT)
-		if (retention == null || currentRetention == null || !retention.isActive || !currentRetention.isActive ||
-			!AmbientLocationRetentionAuthorityIntegrity.isAuthentic(retention) || !AmbientLocationRetentionAuthorityIntegrity.isAuthentic(currentRetention) ||
+		if (retention == null || !retention.isActive ||
+			!AmbientLocationRetentionAuthorityIntegrity.isAuthentic(retention) ||
 			retention.approvalRevision != demand.liveAmbientRetentionApprovalRevision || retention.opaquePolicyId != demand.liveAmbientRetentionPolicyId ||
 			retention.sourcePolicyRevision != demand.sourcePolicyRevision || retention.ambientConsentEpoch != demand.consentEpoch ||
-			retention.collectedDataEpoch != wal.capturedCollectedDataEpoch || currentRetention.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
-			currentRetention.ambientConsentEpoch != demand.consentEpoch || currentRetention.retainedFromMs != lifecycle.retainedFromMs ||
-			currentRetention.opaquePolicyId != retention.opaquePolicyId || retention.effectiveWallTimeMs > wall
+			retention.collectedDataEpoch != wal.capturedCollectedDataEpoch || retention.effectiveWallTimeMs > wall
 		) return@withTransaction reject(LocationWalAdapterRejection.RETAINED_EVIDENCE)
-		val plan = try { actualRegistrationPlan(wal) } catch (failure: LocationPhysicalEvidenceRejected) {
-			return@withTransaction reject(failure.reason)
-		} ?: return@withTransaction reject(LocationWalAdapterRejection.MISSING_HISTORICAL_PLAN)
 		val maximumAccuracy = policy.locationRequiredAccuracyMeters?.toFloat()
 			?: return@withTransaction reject(LocationWalAdapterRejection.POLICY_MISMATCH)
 		val maximumAge = runCatching { Math.multiplyExact(demand.maximumAgeMs, 1_000_000L) }.getOrDefault(Long.MAX_VALUE)
@@ -691,7 +685,11 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			?: return null
 		val plan = runCatching { planCodec.decode(stored.payload) as? LocationPlan }.getOrNull()
 		val encoded = plan?.let { runCatching { planCodec.encode(it) }.getOrNull() }
-		if (stored.sourceInstanceId != wal.sourceInstanceId || stored.payloadVersion != (if (plan?.adaptiveProfileVersion != null) 2 else PLAN_PAYLOAD_VERSION) ||
+		if (stored.sourceInstanceId != wal.sourceInstanceId || stored.payloadVersion != when {
+			plan?.passiveSystemDelivery == true -> 4
+			plan?.adaptiveProfileVersion != null -> 2
+			else -> PLAN_PAYLOAD_VERSION
+		} ||
 			stored.physicalConfigurationFingerprint != wal.physicalConfigurationFingerprint || plan == null ||
 			!plan.enabled || !plan.hasSupportedHistoricalShape() || plan.revision != revision || encoded == null ||
 			!encoded.bytes.contentEquals(stored.payload) || encoded.checksum != stored.payloadChecksum ||

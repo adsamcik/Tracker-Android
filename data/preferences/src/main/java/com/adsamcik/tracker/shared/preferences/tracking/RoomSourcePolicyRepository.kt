@@ -3,7 +3,6 @@ package com.adsamcik.tracker.shared.preferences.tracking
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.fenceSourcePurposesInTransaction
-import com.adsamcik.tracker.shared.base.database.removeLocationAmbientPurposeInCurrentTransaction
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
@@ -295,9 +294,8 @@ class RoomSourcePolicyRepository(
 					previous.ambientPersistenceEligible != requested ||
 					(requested && previous.locationBackgroundMode != desired.getValue(source).locationBackgroundMode)
 				if (changed) {
-					if (source == TrackingSourceComponent.LOCATION && previous.ambientConsentEpoch != null) {
-						database.removeLocationAmbientPurposeInCurrentTransaction()
-					}
+					// A settings change fences future ambient admission. Saved observations
+					// retain the purpose that authorized them until erase or retention.
 					val epoch = nextConsentEpoch(source, SourcePurpose.AMBIENT_PRODUCT)
 					dao.insertConsentEpochs(
 						listOf(
@@ -405,9 +403,6 @@ class RoomSourcePolicyRepository(
 			}
 
 			val nextRevision = checkedNextRevision(current.revision)
-			if (source == TrackingSourceComponent.LOCATION && purpose == SourcePurpose.AMBIENT_PRODUCT && currentlyEligible) {
-				database.removeLocationAmbientPurposeInCurrentTransaction()
-			}
 			val nextEpoch = nextConsentEpoch(source, purpose)
 			dao.insertConsentEpochs(
 				listOf(

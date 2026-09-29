@@ -3,23 +3,22 @@ package com.adsamcik.tracker.shared.base.database.dao
 /** Fixed SQL fragments: callers cannot supply identifiers or authority predicates. */
 object LocationReadScope {
 	const val CAPTURE_OR_LEGACY = "(NOT EXISTS (SELECT 1 FROM location_accepted_receipt lr WHERE lr.sample_id = location_sample.id) OR EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id AND lp.purpose = 'SESSION_CAPTURE'))"
-	// A capture toggle is not a historical-read gate. Ambient revocation is independently scoped.
+	// Historical visibility follows the exact grant saved with each point. A later
+	// source toggle or live-retention revoke stops new acquisition, not old reads.
 	const val AMBIENT = """EXISTS (
 		SELECT 1 FROM location_accepted_receipt lr
 		JOIN location_sample_purpose_authority lp ON lp.sample_id = lr.sample_id
 		JOIN source_evidence_state e ON e.id = 1 AND e.collected_data_epoch = lr.collected_data_epoch
-		JOIN source_policy_authority pa ON pa.id = 1 AND pa.bootstrap_state = 'ACTIVE'
-		JOIN source_policy p ON p.policy_revision = pa.current_policy_revision AND p.source_kind = 1
+		JOIN source_policy p ON p.policy_revision = lp.source_policy_revision AND p.source_kind = 1
 		JOIN source_consent_epoch c ON c.source_kind = 1 AND c.purpose = 'AMBIENT_PRODUCT' AND c.epoch = lp.consent_epoch
 		JOIN ambient_location_retention_authority r ON r.scope = 'LIVE_AMBIENT'
+			AND r.approval_revision = lp.retention_approval_revision
 		WHERE lr.sample_id = location_sample.id AND lp.purpose = 'AMBIENT_PRODUCT'
 		AND p.ambient_persistence_eligible = 1 AND p.ambient_consent_epoch = lp.consent_epoch
 		AND c.eligible = 1 AND c.persistence_eligible = 1
-		AND c.epoch = (SELECT MAX(epoch) FROM source_consent_epoch WHERE source_kind = 1 AND purpose = 'AMBIENT_PRODUCT')
-		AND r.approval_revision = (SELECT MAX(approval_revision) FROM ambient_location_retention_authority WHERE scope = 'LIVE_AMBIENT')
 		AND r.state = 'ACTIVE' AND r.collected_data_epoch = lr.collected_data_epoch
+		AND r.source_policy_revision = lp.source_policy_revision
 		AND r.ambient_consent_epoch = lp.consent_epoch AND r.opaque_policy_id = lp.retention_policy_id
-		AND r.retained_from_ms IS e.retained_from_ms
 		AND (e.retained_from_ms IS NULL OR lr.observed_wall_time_ms - lr.wall_time_uncertainty_ms >= e.retained_from_ms)
 		AND lr.source_admission_ordinal > e.deleted_source_event_high_water_ordinal
 		AND NOT EXISTS (SELECT 1 FROM collected_data_deletion_operation WHERE phase IN ('RETENTION_PREPARED', 'RETENTION_DATASTORE_ACKNOWLEDGED', 'RETENTION_ROOM_GUARD_COMMITTED', 'RETENTION_AUTHORITY_REISSUED', 'RETENTION_PROVIDER_RECONCILED', 'RETENTION_SOURCE_MAINTENANCE_COMPLETED'))

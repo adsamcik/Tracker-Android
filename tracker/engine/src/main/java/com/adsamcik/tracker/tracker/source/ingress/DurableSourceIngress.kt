@@ -11,6 +11,8 @@ import com.adsamcik.tracker.shared.base.database.dao.SourceEventIdentityRow
 import com.adsamcik.tracker.shared.base.database.dao.SourceDeliveryUnitIdentityRow
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
@@ -19,12 +21,15 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity.Compa
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity.Companion.LEGACY_CHECKSUM_VERIFIED
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity.Companion.LEGACY_PENDING_CHECKSUM
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
@@ -514,6 +519,43 @@ class RoomDurableSourceIngress @Inject constructor(
 		}
 	}
 
+	/** Called only from the delivery WAL transaction for a cold, system-hosted Location fix. */
+	private suspend fun hasLivePassiveLocationAuthority(
+		registration: ProviderRegistrationGenerationEntity,
+		authorization: SourceAuthorizationSnapshot,
+		evidenceState: SourceEvidenceState,
+	): Boolean {
+		if (!SourceProviderPurposeScope.supportsPurpose(registration.sourceKind, registration.ownerScope,
+				SourceBrokerPurpose.AMBIENT_PRODUCT) ||
+			SourceProviderPurposeScope.supportsPurpose(registration.sourceKind, registration.ownerScope,
+				SourceBrokerPurpose.SESSION_CAPTURE) ||
+			authorization.purposeEligibilityMask != SourceBrokerPurpose.MASK_AMBIENT_PRODUCT
+		) return false
+		val ambient = authorization.authorizedMembers.singleOrNull { member ->
+			member.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && member.persistenceEligible &&
+				member.logicalTrackingId == null && member.serviceRunId == null
+		} ?: return false
+		val policyDao = database.sourcePolicyDao()
+		val authority = policyDao.authority()
+			?.takeIf { it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE }
+			?: return false
+		val currentPolicy = policyDao.policyAtRevision(authority.currentPolicyRevision,
+			SourceKind.LOCATION.stableCode) ?: return false
+		val currentConsent = policyDao.latestConsentEpoch(SourceKind.LOCATION.stableCode,
+			SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val retention = database.locationPurposeDao().latestRetentionAuthority(
+			AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT) ?: return false
+		return currentPolicy.hasExactEligibleAmbientConsentReference(currentConsent) &&
+			currentPolicy.ambientConsentEpoch == ambient.consentEpoch &&
+			retention.isActive && AmbientLocationRetentionAuthorityIntegrity.isAuthentic(retention) &&
+			retention.sourcePolicyRevision == ambient.sourcePolicyRevision &&
+			retention.ambientConsentEpoch == ambient.consentEpoch &&
+			retention.opaquePolicyId == ambient.liveAmbientRetentionPolicyId &&
+			retention.approvalRevision == ambient.liveAmbientRetentionApprovalRevision &&
+			retention.collectedDataEpoch == evidenceState.collectedDataEpoch &&
+			retention.retainedFromMs == evidenceState.retainedFromMs
+	}
+
 	override suspend fun admit(delivery: SourceDeliveryCandidate): DeliveryAdmissionResult =
 		admitDeliveryInternal(delivery, checkpoint = null)
 
@@ -784,6 +826,17 @@ class RoomDurableSourceIngress @Inject constructor(
 					if (!qualifiedTimeAuthorization.matchesCapturedEnvelope(evidence)) {
 						emptyDeliveryFailure = AdmissionFailureCode.STALE_SOURCE_POLICY
 						continue
+					}
+					// The cold passive receiver checks the live toggle before calling ingress.
+					// Repeat that fence here, in the WAL transaction: Off may commit between
+					// the receiver check and this admission.
+					if (evidence.source == SourceKind.LOCATION &&
+						registration.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE &&
+						!hasLivePassiveLocationAuthority(registration, qualifiedTimeAuthorization, evidenceState)
+					) {
+						return@transaction DeliveryAdmissionResult.PermanentFailure(
+							AdmissionFailureCode.STALE_SOURCE_POLICY,
+						)
 					}
 					if (evidence.source == SourceKind.ACTIVITY &&
 						brokerDao.captureAdmissionBarrier(
