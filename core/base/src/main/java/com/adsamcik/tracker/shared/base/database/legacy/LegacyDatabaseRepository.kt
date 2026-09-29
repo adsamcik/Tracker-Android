@@ -45,8 +45,9 @@ data class LegacyDatabaseState(
 	val externallyExported: Boolean,
 ) {
 	val canDelete: Boolean
-		get() = database != null &&
-			(importStatus == LegacyImportStatus.COMPLETE || externallyExported)
+		// A completed import does not yet preserve every released legacy table.
+		// Keep the original until the person has a separate, completed copy.
+		get() = database != null && externallyExported
 }
 
 class LegacyDatabaseException(
@@ -170,12 +171,12 @@ class LegacyDatabaseRepository(
 		}
 	}
 
-	/** Deletes only the legacy database family, and only after import or external export. */
+	/** Deletes only the legacy database family, and only after external export. */
 	fun delete(): Long = PROCESS_LOCK.withLock {
 		val state = currentState()
 		if (!state.canDelete) {
 			throw LegacyDatabaseException(
-				"The legacy database must be imported or exported before it can be deleted",
+				"The legacy database must be exported before it can be deleted",
 			)
 		}
 		val files = databaseFamily(databaseFile)

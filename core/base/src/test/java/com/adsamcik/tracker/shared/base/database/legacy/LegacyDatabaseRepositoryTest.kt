@@ -93,6 +93,24 @@ class LegacyDatabaseRepositoryTest {
 		state.lastError shouldBe "IllegalStateException"
 	}
 
+	@Test
+	fun `completed import alone keeps the legacy vault while some tables are not imported`() {
+		createLegacyDatabase()
+		repository.markRunning(26)
+		repository.markCopied(LegacyImportReport(
+			sourceVersion = 26,
+			importedRows = mapOf("sample" to 1L),
+			skippedRows = emptyMap(),
+		))
+		repository.markComplete()
+
+		val state = repository.currentState()
+		state.importStatus shouldBe LegacyImportStatus.COMPLETE
+		state.canDelete shouldBe false
+		shouldThrow<LegacyDatabaseException> { repository.delete() }
+		context.getDatabasePath(LEGACY_DATABASE_NAME).isFile shouldBe true
+	}
+
 	private fun createLegacyDatabase() {
 		SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(LEGACY_DATABASE_NAME), null).use {
 			it.version = 26
