@@ -60,9 +60,11 @@ definition, architecture invariants, required final proof, or six-source complet
 
 ## Program truth
 
-- Database v28 has never shipped. We may reshape `MIGRATION_27_28` and schema `28.json` directly,
-  but the migration must preserve every released v27 user fact and must be executed against a
-  populated v27 database before schema freeze.
+- Released `main` uses schema v12 in `main_database`; the new active database file and its
+  v27/v28 schemas have not shipped. The final schema must import every recoverable released-v12
+  user fact from a populated v12 database and preserve unrecognized development files. Candidate
+  v27/v28 migrations also need populated fixtures for existing local development data before
+  schema freeze. Historical rows below describe earlier candidate assumptions, not release facts.
 - Keep the proportional safety spine: one policy authority, immutable intent, direct purpose
   demands, one physical owner per source, qualified source-native delivery, one mutation owner,
   source-local projection, typed facts, and one production history facade.
