@@ -35,7 +35,10 @@ For Wi-Fi and Cell, repeat with Location independently enabled. A qualified
 Location fix may add an **observed device position** in the existing radio map
 view, with its uncertainty. Disable Location and verify radio collection and
 history continue, map context becomes unavailable, and no radio action starts
-Location. Deleting either source invalidates only affected context/results.
+Location. Android may still require a location-related permission or Location
+Services to expose radio readings; record that separately from whether the
+Location tracking source is selected. Deleting either source invalidates only
+affected context/results.
 
 ## Joined lifecycle and recovery
 
