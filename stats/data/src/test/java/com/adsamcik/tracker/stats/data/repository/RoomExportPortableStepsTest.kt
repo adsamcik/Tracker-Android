@@ -46,6 +46,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsTransferRetryableR
 import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV1
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import java.security.MessageDigest
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
@@ -2547,7 +2548,11 @@ class RoomExportPortableStepsTest {
 		) {
 			null
 		} else {
-			StepsCounterDomainToken.opaque("sha256:${"c".repeat(64)}")
+			val sourceInstanceId = "steps-${fact.serviceRunId}"
+			val digest = MessageDigest.getInstance("SHA-256")
+				.digest(sourceInstanceId.toByteArray(Charsets.UTF_8))
+				.joinToString(separator = "") { byte -> "%02x".format(byte) }
+			StepsCounterDomainToken.opaque("sha256:$digest")
 		}
 
 	private fun continueCanonicalLiveWalFact(
