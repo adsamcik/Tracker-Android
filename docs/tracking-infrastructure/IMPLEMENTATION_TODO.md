@@ -1985,8 +1985,13 @@ IMPLEMENTATION_ONLY; the following authored sources are IMPLEMENTED_UNVALIDATED.
 - [x] Split GPX route segments for unkeyed older/imported points when time moves backward,
   exceeds the existing two-minute gap, or crosses between session and background membership.
   Keep each point; author focused exporter test source.
+- [x] In `488f013de8`, select scheduled LastSession from the shared finished-session list,
+  including source-only and retrospective sessions; exclude active, failed and uncertain times.
+  Disable point-cursor deltas for whole JSON records and LastSession. Author focused Room and
+  scheduler test source. IMPLEMENTED_UNVALIDATED.
 - [ ] Finish exact source-aware scheduled LastSession and incremental scope, selected-format
-  disclosures, complete geographic/file integration, final independent review and convergence.
+  disclosures and JSON single-session identity, complete geographic/file integration, final
+  independent review and convergence.
 
 These checks record source authorship and static review only; compilation, execution, schema,
 device proof, final integration and push remain deferred.
