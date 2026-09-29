@@ -18,6 +18,7 @@ class LegacySourceSettingsUnavailableException : IllegalStateException(
 /** Room-backed single runtime authority for source enablement, QoS, persistence, and consent. */
 class RoomSourcePolicyRepository(
 	private val database: AppDatabase,
+	private val setupCompleted: suspend () -> Boolean = { true },
 	private val effectiveTimeProvider: SourcePolicyEffectiveTimeProvider,
 ) : SourcePolicyRepository {
 	private val dao get() = database.sourcePolicyDao()
@@ -40,6 +41,7 @@ class RoomSourcePolicyRepository(
 		if (!settings.legacySettingsMigrationCompleted) {
 			throw LegacySourceSettingsUnavailableException()
 		}
+		val setupComplete = setupCompleted()
 		return database.withTransaction {
 			ensureAuthority()
 			val authority = requireNotNull(dao.authority())
@@ -56,8 +58,8 @@ class RoomSourcePolicyRepository(
 
 			val revision = 1L
 			val desired = desiredCapturePolicies(settings)
-			val automaticControlEligible = settings.automaticControlEligible()
-			val ambientEligibleSources = settings.ambientEnabledSources()
+			val automaticControlEligible = setupComplete && settings.automaticControlEligible()
+			val ambientEligibleSources = settings.ambientEnabledSources(setupComplete)
 			val initialConsentRows = buildList {
 				TrackingSourceComponent.entries.forEach { source ->
 					SourcePurpose.entries.forEach { purpose ->
@@ -159,15 +161,20 @@ class RoomSourcePolicyRepository(
 		reason: String,
 	): SourcePolicySnapshot {
 		require(reason.isNotBlank()) { "Policy change reason must not be blank" }
+		val setupComplete = setupCompleted()
 		return database.withTransaction {
 			val current = activeSnapshotAtExpectedRevision(expectedPolicyRevision)
 			val authority = requireNotNull(dao.authority())
 			val desired = desiredCapturePolicies(settings)
-			val automaticControlEligible = settings.automaticControlEligible()
+			val automaticControlEligible = setupComplete && settings.automaticControlEligible()
 			val previousAutomaticControlEligible =
 				current[CONTROL_SOURCE].controlConsentEpoch != null
 			val requestedAmbientEligibility = TrackingSourceComponent.entries.associateWith { source ->
-				settings.ambientEnabled(source)
+				settings.ambientEnabled(
+					source,
+					setupComplete || (source == TrackingSourceComponent.STEPS &&
+						current[source].ambientConsentEpoch != null),
+				)
 			}
 			val captureChanged = TrackingSourceComponent.entries.any { source ->
 				val old = current[source]
@@ -374,8 +381,22 @@ class RoomSourcePolicyRepository(
 			"Persistent CONTROL consent is unavailable until its retention policy is approved"
 		}
 		require(reason.isNotBlank()) { "Consent change reason must not be blank" }
+		val setupComplete = if (eligible && (
+			(source == TrackingSourceComponent.STEPS && purpose == SourcePurpose.AMBIENT_PRODUCT) ||
+			(source == CONTROL_SOURCE && purpose == SourcePurpose.CONTROL)
+		)) setupCompleted() else true
 		return database.withTransaction {
 			val current = activeSnapshotAtExpectedRevision(expectedPolicyRevision)
+			if (source == TrackingSourceComponent.STEPS && purpose == SourcePurpose.AMBIENT_PRODUCT && eligible) {
+				require(setupComplete || current[source].ambientConsentEpoch != null) {
+					"All-day Steps requires completed setup"
+				}
+			}
+			if (source == CONTROL_SOURCE && purpose == SourcePurpose.CONTROL && eligible) {
+				require(setupComplete || current[source].controlConsentEpoch != null) {
+					"Automatic tracking requires completed setup"
+				}
+			}
 			val old = current[source]
 			val oldEpoch = old.consentEpoch(purpose)
 			val oldPersistence = old.persistenceEligible(purpose)
@@ -725,7 +746,7 @@ class RoomSourcePolicyRepository(
 			"automatic-control:${settings.automaticControlEligible()}:" +
 			"mode:${settings.autoTrackingMode}:transitions:${settings.transitionDetectionEnabled}|" +
 			"ambient-location:${settings.ambientLocationEnabled}|" +
-			"ambient-steps:${settings.ambientStepsEnabled}|" +
+			"ambient-steps:${settings.stepsEnabled}|" +
 			"ambient-wifi:${settings.ambientWifiEnabled}|" +
 			"ambient-cell:${settings.ambientCellEnabled}" +
 			(if (settings.locationProfileVersion == null && settings.locationBackgroundMode == null &&
@@ -789,14 +810,19 @@ private fun TrackingParamsState.frequency(source: TrackingSourceComponent): Sour
 
 private fun TrackingParamsState.automaticControlEligible(): Boolean = autoTrackingMode > 0
 
-private fun TrackingParamsState.ambientEnabledSources(): Set<TrackingSourceComponent> =
-	TrackingSourceComponent.entries.filterTo(mutableSetOf()) { source -> ambientEnabled(source) }
+private fun TrackingParamsState.ambientEnabledSources(setupCompleted: Boolean): Set<TrackingSourceComponent> =
+	TrackingSourceComponent.entries.filterTo(mutableSetOf()) { source ->
+		ambientEnabled(source, setupCompleted)
+	}
 
-private fun TrackingParamsState.ambientEnabled(source: TrackingSourceComponent): Boolean {
+private fun TrackingParamsState.ambientEnabled(
+	source: TrackingSourceComponent,
+	setupCompleted: Boolean,
+): Boolean {
 	if (!source.supportsPurpose(SourcePurpose.AMBIENT_PRODUCT)) return false
 	return when (source) {
 		TrackingSourceComponent.LOCATION -> ambientLocationEnabled
-		TrackingSourceComponent.STEPS -> ambientStepsEnabled
+		TrackingSourceComponent.STEPS -> setupCompleted && captureParticipates(TrackingSourceComponent.STEPS)
 		TrackingSourceComponent.WIFI -> ambientWifiEnabled
 		TrackingSourceComponent.CELL -> ambientCellEnabled
 		TrackingSourceComponent.ACTIVITY,

@@ -8,6 +8,9 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.health.connect.client.PermissionController
+import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.StepsRecord
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.AnimationSpec
@@ -38,6 +41,7 @@ import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material.icons.filled.Wifi
@@ -71,6 +75,11 @@ import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import com.adsamcik.tracker.shared.utils.style.compose.tweenStandard
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsCapability
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsPermission
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProvider
+import com.adsamcik.tracker.tracker.source.ambient.steps.HealthConnectAmbientStepsAvailability
+import com.adsamcik.tracker.tracker.source.ambient.steps.LocalRecordingAmbientStepsAvailability
 
 /**
  * Step 3 – What to Collect.
@@ -86,6 +95,7 @@ fun WhatToCollectStep(
     onLocationPrecisionChange: (LocationPrecisionMode) -> Unit,
     onActivityEnabledChange: (Boolean) -> Unit,
     onStepsEnabledChange: (Boolean) -> Unit,
+	onPressureEnabledChange: (Boolean) -> Unit = {},
     onWifiEnabledChange: (Boolean) -> Unit,
     onCellEnabledChange: (Boolean) -> Unit,
     onLocationPermissionResult: (Map<String, Boolean>) -> Unit,
@@ -93,6 +103,8 @@ fun WhatToCollectStep(
     onNotificationPermissionResult: (Boolean) -> Unit,
     onWifiPermissionResult: (Map<String, Boolean>) -> Unit,
     onCellPermissionResult: (Boolean) -> Unit,
+    onStepsProviderPermissionResult: () -> Unit = {},
+    onStepsProviderPermissionRequestFailed: () -> Unit = {},
     onComplete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -107,6 +119,9 @@ fun WhatToCollectStep(
     ) { granted ->
         onActivityPermissionResult(granted)
     }
+	val healthConnectStepsLauncher = rememberLauncherForActivityResult(
+		PermissionController.createRequestPermissionResultContract(),
+	) { onStepsProviderPermissionResult() }
 
     val notificationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -203,12 +218,13 @@ fun WhatToCollectStep(
         )
 
         PermissionDeniedSlot(
-            visible = state.activityPermissionDenied,
+            visible = state.activityPermissionDenied &&
+			(state.activityEnabled || state.autoTrackingMode > 0),
             sourceName = stringResource(R.string.setup_source_activity),
             testTag = "setup_perm_activity_denied",
         )
 
-        Reveal(visible = state.needsActivityPermission) {
+        Reveal(visible = state.activityEnabled || state.autoTrackingMode > 0) {
             Column(modifier = Modifier.padding(top = RidgelineSpacing.Sm)) {
                 if (!state.activityPermissionGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     PermissionExplanation(
@@ -238,23 +254,104 @@ fun WhatToCollectStep(
             title = stringResource(R.string.setup_source_steps),
             description = stringResource(
                 if (state.stepCounterAvailable) {
-                    R.string.setup_source_steps_desc
+                    R.string.setup_steps_all_day_summary
                 } else {
-                    R.string.settings_steps_unavailable
+                    R.string.setup_steps_no_direct_sensor
                 },
             ),
             enabled = state.stepsEnabled,
             onToggle = onStepsEnabledChange,
-            available = state.stepCounterAvailable,
         )
+		PermissionDeniedSlot(
+			visible = state.activityPermissionDenied && state.stepsNeedsMotionPermission &&
+				!state.activityEnabled && state.autoTrackingMode == 0,
+			sourceName = stringResource(R.string.setup_source_steps),
+			testTag = "setup_perm_steps_denied",
+		)
+		Reveal(visible = state.stepsNeedsMotionPermission &&
+			!state.activityEnabled && state.autoTrackingMode == 0 &&
+			!state.activityPermissionGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q,
+		) {
+			PermissionExplanation(
+				explanation = stringResource(R.string.setup_perm_steps_why),
+				grantContentDescription = stringResource(R.string.setup_perm_grant_steps_content_description),
+				rationaleTestTag = "setup_perm_steps_rationale",
+				grantButtonTestTag = "setup_perm_steps_grant",
+				onGrant = { activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION) },
+			)
+		}
+		if (state.stepsEnabled) {
+			val provider = state.stepsProviderCapability
+			when {
+				provider is AmbientStepsCapability.PermissionRequired &&
+					provider.provider == AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS &&
+					AmbientStepsPermission.HEALTH_CONNECT_READ_STEPS in provider.requiredPermissions -> {
+					PermissionExplanation(
+						explanation = stringResource(R.string.setup_steps_health_connect_why),
+						grantContentDescription = stringResource(R.string.settings_steps_allow_health_connect),
+						rationaleTestTag = "setup_steps_health_connect_rationale",
+						grantButtonTestTag = "setup_steps_health_connect_grant",
+						onGrant = {
+							try {
+								healthConnectStepsLauncher.launch(setOf(
+									HealthPermission.getReadPermission(StepsRecord::class),
+								))
+							} catch (_: RuntimeException) {
+								onStepsProviderPermissionRequestFailed()
+							} catch (_: LinkageError) {
+								onStepsProviderPermissionRequestFailed()
+							}
+						},
+					)
+				}
+				!state.stepCounterAvailable && provider !is AmbientStepsCapability.PermissionRequired -> Text(
+					text = stringResource(when (provider) {
+						is AmbientStepsCapability.ReadyForRegistration -> R.string.setup_steps_provider_ready
+						is AmbientStepsCapability.Unavailable -> if (
+							provider.healthConnect == HealthConnectAmbientStepsAvailability.PROBE_FAILED ||
+							provider.localRecording == LocalRecordingAmbientStepsAvailability.PROBE_FAILED
+						) R.string.settings_ambient_steps_health_connect_probe_failed
+						else R.string.settings_ambient_steps_health_connect_unavailable
+						else -> R.string.setup_steps_provider_checking
+					}),
+					style = MaterialTheme.typography.bodySmall,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+					modifier = Modifier.testTag("setup_steps_provider_state"),
+				)
+			}
+			if (state.stepsProviderRepairFailed) Text(
+				text = stringResource(R.string.settings_steps_health_connect_repair_failed),
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.error,
+				modifier = Modifier.testTag("setup_steps_provider_repair_error"),
+			)
+		}
 
         Spacer(modifier = Modifier.height(RidgelineSpacing.Md))
+
+		// --- Pressure ---
+		DataSourceCard(
+			icon = Icons.Default.Speed,
+			title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_barometer_enabled_title),
+			description = stringResource(
+				if (state.pressureSensorAvailable) {
+					R.string.settings_barometer_source_summary
+				} else {
+					R.string.settings_barometer_unavailable
+				},
+			),
+			enabled = state.pressureEnabled,
+			onToggle = onPressureEnabledChange,
+			modifier = Modifier.testTag("setup_source_pressure"),
+		)
+
+		Spacer(modifier = Modifier.height(RidgelineSpacing.Md))
 
         // --- WiFi ---
         DataSourceCard(
             icon = Icons.Default.Wifi,
             title = stringResource(R.string.setup_source_wifi),
-            description = stringResource(R.string.setup_source_wifi_desc),
+            description = stringResource(R.string.setup_wifi_independent_summary),
             enabled = state.wifiEnabled,
             onToggle = onWifiEnabledChange,
         )
@@ -289,7 +386,7 @@ fun WhatToCollectStep(
         DataSourceCard(
             icon = Icons.Default.CellTower,
             title = stringResource(R.string.setup_source_cell),
-            description = stringResource(R.string.setup_source_cell_desc),
+            description = stringResource(R.string.setup_cell_independent_summary),
             enabled = state.cellEnabled,
             onToggle = onCellEnabledChange,
         )
@@ -411,8 +508,7 @@ private fun ColumnScope.Reveal(
 }
 
 /**
- * Animated slot that surfaces a recoverable alert when a source was auto-disabled
- * because the user denied its runtime permission.
+ * Animated slot that surfaces a recoverable alert when a selected source lacks permission.
  */
 @Composable
 private fun ColumnScope.PermissionDeniedSlot(
@@ -460,7 +556,7 @@ private fun PermissionDeniedAlert(
             )
 
             Text(
-                text = stringResource(R.string.permission_disabled_due_to_denial, sourceName),
+                text = stringResource(R.string.permission_selected_but_unavailable, sourceName),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier

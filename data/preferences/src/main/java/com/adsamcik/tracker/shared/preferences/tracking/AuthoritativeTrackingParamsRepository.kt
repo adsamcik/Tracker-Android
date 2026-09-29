@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.shareIn
@@ -46,6 +47,7 @@ class AuthoritativeTrackingParamsRepository(
 	private val retentionAuthorityProducer: RetentionAuthorityProducer =
 		UnavailableRetentionAuthorityProducer,
 	private val ambientStepsPolicyRevisionReconciler: AmbientStepsPolicyRevisionReconciler,
+	private val setupCompleted: Flow<Boolean> = flowOf(true),
 ) : TrackingParamsRepository,
 	SourcePolicyRevisionReconciliationCoordinator,
 	SourcePolicyAuthorityBootstrapCoordinator {
@@ -64,8 +66,10 @@ class AuthoritativeTrackingParamsRepository(
 	private val policyData: Flow<TrackingParamsState> = combine(
 		legacy.data,
 		sourcePolicyRepository.states,
-		::Pair,
-	).transformLatest { (legacyState, authority) ->
+		setupCompleted,
+	) { legacyState, authority, isSetupComplete ->
+		Triple(legacyState, authority, isSetupComplete)
+	}.transformLatest { (legacyState, authority, isSetupComplete) ->
 		if (
 			authority == SourcePolicyAuthorityState.Uninitialized &&
 			legacyState.legacySettingsMigrationCompleted
@@ -102,23 +106,37 @@ class AuthoritativeTrackingParamsRepository(
 		when (authority) {
 			is SourcePolicyAuthorityState.Active -> {
 				var failurePublished = false
+				var effectiveSnapshot = authority.snapshot
 				while (true) {
+					try {
+						effectiveSnapshot = mutationMutex.withLock {
+							convergeSetupChoices(effectiveSnapshot, legacyState, isSetupComplete)
+						}
+					} catch (_: Exception) {
+						currentCoroutineContext().ensureActive()
+						if (!failurePublished) {
+							emit(legacyState.withSourcesFailClosed())
+							failurePublished = true
+						}
+						delay(AUTHORITY_RETRY_DELAY_MS)
+						continue
+					}
 					// A mutation may have reconciled this revision before its legacy mirror completes.
 					// Publish that exact revision without waiting for the mirror's mutation lock.
-					val alreadyReconciled = isReconciledAtReadyGeneration(authority.snapshot)
+					val alreadyReconciled = isReconciledAtReadyGeneration(effectiveSnapshot)
 					val result = if (alreadyReconciled) {
-						SourcePolicyRevisionReconciliationResult.Complete(authority.snapshot)
+						SourcePolicyRevisionReconciliationResult.Complete(effectiveSnapshot)
 					} else {
-						mutationMutex.withLock { reconcilePolicyRevision(authority.snapshot) }
+						mutationMutex.withLock { reconcilePolicyRevision(effectiveSnapshot) }
 					}
 					when (result) {
 						is SourcePolicyRevisionReconciliationResult.Complete -> {
-							if (alreadyReconciled && !isReconciledAtReadyGeneration(authority.snapshot)) {
+							if (alreadyReconciled && !isReconciledAtReadyGeneration(effectiveSnapshot)) {
 								continue
 							}
-							val projection = legacyState.withPolicy(authority.snapshot)
+							val projection = legacyState.withPolicy(effectiveSnapshot)
 							emit(projection)
-							scheduleLegacyMirrorRepair(legacyState, authority.snapshot)
+							scheduleLegacyMirrorRepair(legacyState, effectiveSnapshot)
 							return@transformLatest
 						}
 						is SourcePolicyRevisionReconciliationResult.Retryable,
@@ -172,8 +190,8 @@ class AuthoritativeTrackingParamsRepository(
 				"Source settings cannot change while SourcePolicy is unavailable"
 			}
 			val current = legacy.data.first().withPolicy(authority.snapshot)
-			val requested = current.block()
-				.normalizeSourceMutationFrom(current)
+			val normalized = current.block().normalizeSourceMutationFrom(current)
+			val requested = normalized.copy(ambientStepsEnabled = normalized.stepsEnabled)
 				.copy(legacySettingsMigrationCompleted = true)
 			val effective = sourcePolicyRepository.replaceCaptureSettings(
 				expectedPolicyRevision = authority.snapshot.revision,
@@ -232,6 +250,7 @@ class AuthoritativeTrackingParamsRepository(
 
 	override suspend fun setStepsEnabled(enabled: Boolean) = update {
 		withSourceEnabled(TrackingSourceComponent.STEPS, enabled)
+			.copy(ambientStepsEnabled = enabled)
 	}
 
 	override suspend fun setWifiEnabled(enabled: Boolean) = update {
@@ -249,8 +268,7 @@ class AuthoritativeTrackingParamsRepository(
 	override suspend fun setAmbientLocationEnabled(enabled: Boolean) =
 		setAmbientEnabled(TrackingSourceComponent.LOCATION, enabled)
 
-	override suspend fun setAmbientStepsEnabled(enabled: Boolean) =
-		setAmbientEnabled(TrackingSourceComponent.STEPS, enabled)
+	override suspend fun setAmbientStepsEnabled(enabled: Boolean) = setStepsEnabled(enabled)
 
 	override suspend fun setAmbientWifiEnabled(enabled: Boolean) =
 		setAmbientEnabled(TrackingSourceComponent.WIFI, enabled)
@@ -359,7 +377,15 @@ class AuthoritativeTrackingParamsRepository(
 		SourcePolicyRevisionReconciliationResult {
 		val authority = sourcePolicyRepository.currentState()
 		val snapshot = when (authority) {
-			is SourcePolicyAuthorityState.Active -> authority.snapshot
+			is SourcePolicyAuthorityState.Active -> try {
+				mutationMutex.withLock {
+					convergeSetupChoices(authority.snapshot, legacy.data.first(), setupCompleted.first())
+				}
+			} catch (cancelled: kotlin.coroutines.cancellation.CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				return sourcePolicyUnavailable()
+			}
 			SourcePolicyAuthorityState.Uninitialized -> try {
 				sourcePolicyRepository.bootstrapFromLegacy(
 					legacy.verifiedSnapshotForPolicyBootstrap(),
@@ -367,14 +393,7 @@ class AuthoritativeTrackingParamsRepository(
 			} catch (cancelled: kotlin.coroutines.cancellation.CancellationException) {
 				throw cancelled
 			} catch (_: Exception) {
-				return SourcePolicyRevisionReconciliationResult.Retryable(
-					SourcePolicyRevisionReconciliationDebt(
-						policyRevision = null,
-						failures = listOf(
-							SourcePolicyRevisionReconciliationFailure.SourcePolicyUnavailable,
-						),
-					),
-				).also(::publishReconciliationResult)
+				return sourcePolicyUnavailable()
 			}
 			is SourcePolicyAuthorityState.Invalid ->
 				return SourcePolicyRevisionReconciliationResult.Unverifiable(
@@ -396,6 +415,39 @@ class AuthoritativeTrackingParamsRepository(
 		}
 		return SourcePolicyRevisionReconciliationResult.Complete(snapshot)
 	}
+
+	private suspend fun convergeSetupChoices(
+		observed: SourcePolicySnapshot,
+		legacyState: TrackingParamsState,
+		isSetupComplete: Boolean,
+	): SourcePolicySnapshot {
+		val steps = observed[TrackingSourceComponent.STEPS]
+		val stepsNeedReconciliation =
+			(steps.ambientConsentEpoch != null && steps.ambientPersistenceEligible) != steps.enabled
+		val controlIsEligible =
+			observed[TrackingSourceComponent.ACTIVITY].controlConsentEpoch != null
+		val controlShouldBeEligible = isSetupComplete && legacyState.autoTrackingMode > 0
+		val controlNeedsReconciliation = controlIsEligible != controlShouldBeEligible
+		if (!controlNeedsReconciliation &&
+			(!stepsNeedReconciliation || (steps.enabled && !isSetupComplete))
+		) return observed
+		val current = (sourcePolicyRepository.currentState() as? SourcePolicyAuthorityState.Active)
+			?.snapshot ?: return observed
+		if (current.revision != observed.revision) return current
+		return sourcePolicyRepository.replaceCaptureSettings(
+			expectedPolicyRevision = current.revision,
+			settings = legacyState.withPolicy(current).copy(ambientStepsEnabled = steps.enabled),
+			reason = REASON_SETUP_CHOICE_RECONCILIATION,
+		)
+	}
+
+	private fun sourcePolicyUnavailable(): SourcePolicyRevisionReconciliationResult.Retryable =
+		SourcePolicyRevisionReconciliationResult.Retryable(
+			SourcePolicyRevisionReconciliationDebt(
+				policyRevision = null,
+				failures = listOf(SourcePolicyRevisionReconciliationFailure.SourcePolicyUnavailable),
+			),
+		).also(::publishReconciliationResult)
 
 	private suspend fun reconcilePolicyRevision(
 		effective: SourcePolicySnapshot,
@@ -556,10 +608,10 @@ class AuthoritativeTrackingParamsRepository(
 		const val AUTHORITY_RETRY_DELAY_MS = 250L
 		const val MIRROR_RETRY_DELAY_MS = 250L
 		const val REASON_USER_SETTINGS = "USER_SOURCE_SETTINGS"
+		const val REASON_SETUP_CHOICE_RECONCILIATION = "SETUP_CHOICE_RECONCILIATION"
 		const val REASON_USER_AMBIENT_SETTINGS = "USER_AMBIENT_PRODUCT_SETTINGS"
 		val APPROVED_AMBIENT_SOURCES = setOf(
 			TrackingSourceComponent.LOCATION,
-			TrackingSourceComponent.STEPS,
 			TrackingSourceComponent.WIFI,
 			TrackingSourceComponent.CELL,
 		)
@@ -805,8 +857,7 @@ private fun TrackingParamsState.withPolicy(snapshot: SourcePolicySnapshot): Trac
 			steps.sourceBalanceOverride, pressure.sourceBalanceOverride, wifi.sourceBalanceOverride, cell.sourceBalanceOverride),
 		locationBackgroundMode = location.locationBackgroundMode,
 		locationMotionAssistanceEnabled = location.locationMotionAssistanceEnabled,
-		ambientStepsEnabled = steps.ambientConsentEpoch != null &&
-			steps.ambientPersistenceEligible,
+		ambientStepsEnabled = steps.enabled,
 		ambientWifiEnabled = wifi.ambientConsentEpoch != null &&
 			wifi.ambientPersistenceEligible,
 		ambientCellEnabled = cell.ambientConsentEpoch != null &&
@@ -858,6 +909,7 @@ private fun TrackingParamsState.withSourceEnabled(
         locationEnabled = if (source == TrackingSourceComponent.LOCATION) enabled else locationEnabled,
         activityEnabled = if (source == TrackingSourceComponent.ACTIVITY) enabled else activityEnabled,
         stepsEnabled = if (source == TrackingSourceComponent.STEPS) enabled else stepsEnabled,
+		ambientStepsEnabled = if (source == TrackingSourceComponent.STEPS) enabled else ambientStepsEnabled,
         barometerEnabled = if (source == TrackingSourceComponent.PRESSURE) enabled else barometerEnabled,
         wifiEnabled = if (source == TrackingSourceComponent.WIFI) enabled else wifiEnabled,
         cellEnabled = if (source == TrackingSourceComponent.CELL) enabled else cellEnabled,
@@ -884,6 +936,7 @@ private fun TrackingParamsState.withSourceFrequency(
 		locationEnabled = if (source == TrackingSourceComponent.LOCATION) enabled else locationEnabled,
 		activityEnabled = if (source == TrackingSourceComponent.ACTIVITY) enabled else activityEnabled,
 		stepsEnabled = if (source == TrackingSourceComponent.STEPS) enabled else stepsEnabled,
+		ambientStepsEnabled = if (source == TrackingSourceComponent.STEPS) enabled else ambientStepsEnabled,
 		barometerEnabled = if (source == TrackingSourceComponent.PRESSURE) enabled else barometerEnabled,
 		wifiEnabled = if (source == TrackingSourceComponent.WIFI) enabled else wifiEnabled,
 		cellEnabled = if (source == TrackingSourceComponent.CELL) enabled else cellEnabled,
@@ -899,7 +952,7 @@ private fun TrackingParamsState.withSourceFrequency(
 private fun TrackingParamsState.normalizeSourceMutationFrom(
 	previous: TrackingParamsState,
 ): TrackingParamsState {
-	if (balanceProfileVersion != null) return this
+	if (balanceProfileVersion != null) return copy(ambientStepsEnabled = stepsEnabled)
 	var normalized = this
 	TrackingSourceComponent.entries.forEach { source ->
 		val previousEnabled = previous.enabled(source)
@@ -917,7 +970,7 @@ private fun TrackingParamsState.normalizeSourceMutationFrom(
 		}
 		normalized = normalized.withSourceFrequency(source, resolvedFrequency)
 	}
-	return normalized
+	return normalized.copy(ambientStepsEnabled = normalized.stepsEnabled)
 }
 
 private fun TrackingParamsState.enabled(source: TrackingSourceComponent): Boolean = when (source) {

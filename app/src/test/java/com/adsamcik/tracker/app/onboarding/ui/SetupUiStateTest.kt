@@ -101,6 +101,17 @@ class SetupUiStateTest {
 			assertTrue(state.needsActivityPermission)
 		}
 
+		@Test
+		fun `Steps without direct sensor does not request sensor permission`() {
+			val state = SetupUiState(
+				autoTrackingMode = AUTO_TRACKING_MODE_DISABLED,
+				activityEnabled = false,
+				stepsEnabled = true,
+				stepCounterAvailable = false,
+			)
+			assertFalse(state.needsActivityPermission)
+		}
+
         @Test
         fun `background location needed when in-motion auto-tracking enabled and location on`() {
             val state = SetupUiState(autoTrackingMode = AUTO_TRACKING_MODE_IN_MOTION, locationEnabled = true)

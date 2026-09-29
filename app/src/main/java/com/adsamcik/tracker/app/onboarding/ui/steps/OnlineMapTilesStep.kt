@@ -27,6 +27,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.app.onboarding.data.SetupCompletionError
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 
 /**
@@ -47,12 +48,29 @@ fun OnlineMapTilesStep(
 	enabled: Boolean,
 	onEnabledChange: (Boolean) -> Unit,
 	onComplete: () -> Unit,
+	completionInProgress: Boolean = false,
+	completionError: SetupCompletionError? = null,
 	modifier: Modifier = Modifier,
 ) {
 	SetupStepScaffold(
-		actionText = stringResource(R.string.setup_start_exploring),
+		actionText = stringResource(
+			when {
+				completionInProgress -> R.string.setup_finishing
+				completionError != null -> R.string.setup_retry
+				else -> R.string.setup_start_exploring
+			},
+		),
 		actionTestTag = "setup_cta_online_tiles_complete",
 		onAction = onComplete,
+		actionEnabled = !completionInProgress,
+		actionMessage = completionError?.let { error ->
+			stringResource(
+				when (error) {
+					SetupCompletionError.SETTINGS -> R.string.setup_settings_save_failed
+					SetupCompletionError.RETENTION -> R.string.setup_retention_prepare_failed
+				},
+			)
+		},
 		modifier = modifier,
 		bottomPaddingTestTag = "setup_online_tiles_scroll_bottom_padding",
 	) {
@@ -80,6 +98,7 @@ fun OnlineMapTilesStep(
 			title = stringResource(R.string.setup_online_tiles_on_title),
 			description = stringResource(R.string.setup_online_tiles_on_desc),
 			selected = enabled,
+			choiceEnabled = !completionInProgress,
 			onSelect = { onEnabledChange(true) },
 			testTag = "setup_online_tiles_on_choice",
 		)
@@ -91,6 +110,7 @@ fun OnlineMapTilesStep(
 			title = stringResource(R.string.setup_online_tiles_off_title),
 			description = stringResource(R.string.setup_online_tiles_off_desc),
 			selected = !enabled,
+			choiceEnabled = !completionInProgress,
 			onSelect = { onEnabledChange(false) },
 			testTag = "setup_online_tiles_off_choice",
 		)
@@ -110,6 +130,7 @@ fun OnlineMapTilesStep(
 			style = MaterialTheme.typography.bodySmall,
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
 		)
+
 	}
 }
 
@@ -119,6 +140,7 @@ private fun ChoiceCard(
 	title: String,
 	description: String,
 	selected: Boolean,
+	choiceEnabled: Boolean,
 	onSelect: () -> Unit,
 	testTag: String,
 	modifier: Modifier = Modifier,
@@ -128,6 +150,7 @@ private fun ChoiceCard(
 			.fillMaxWidth()
 			.selectable(
 				selected = selected,
+				enabled = choiceEnabled,
 				onClick = onSelect,
 				role = Role.RadioButton,
 			)
@@ -163,6 +186,7 @@ private fun ChoiceCard(
 
 			RadioButton(
 				selected = selected,
+				enabled = choiceEnabled,
 				onClick = null,
 			)
 		}

@@ -14,10 +14,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.utils.style.compose.PrimaryActionButton
@@ -31,6 +36,8 @@ internal fun SetupStepScaffold(
     actionText: String,
     actionTestTag: String,
     onAction: () -> Unit,
+    actionEnabled: Boolean = true,
+    actionMessage: String? = null,
     modifier: Modifier = Modifier,
     bottomPaddingTestTag: String? = null,
     content: @Composable ColumnScope.() -> Unit,
@@ -55,9 +62,23 @@ internal fun SetupStepScaffold(
             )
         }
 
+		if (actionMessage != null) {
+			Text(
+				text = actionMessage,
+				style = MaterialTheme.typography.bodyMedium,
+				color = MaterialTheme.colorScheme.error,
+				modifier = Modifier
+					.fillMaxWidth()
+					.padding(bottom = 12.dp)
+					.semantics { liveRegion = LiveRegionMode.Polite }
+					.testTag("setup_completion_error"),
+			)
+		}
+
         PrimaryActionButton(
             text = actionText,
             onClick = onAction,
+			enabled = actionEnabled,
             modifier = Modifier
                 .fillMaxWidth()
                 .onSizeChanged { size ->

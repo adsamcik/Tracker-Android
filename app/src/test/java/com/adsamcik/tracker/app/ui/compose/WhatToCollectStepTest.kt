@@ -7,6 +7,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -20,6 +21,11 @@ import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
 import com.adsamcik.tracker.app.onboarding.ui.steps.WhatToCollectStep
 import com.adsamcik.tracker.app.onboarding.ui.steps.wifiScanPermissions
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsCapability
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsPermission
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProvider
+import com.adsamcik.tracker.tracker.source.ambient.steps.HealthConnectAmbientStepsAvailability
+import com.adsamcik.tracker.tracker.source.ambient.steps.LocalRecordingAmbientStepsAvailability
 import io.kotest.matchers.shouldBe
 import kotlin.test.assertTrue
 import org.junit.Rule
@@ -223,4 +229,134 @@ class WhatToCollectStepTest {
         composeTestRule.onNodeWithText("cell tower IDs", substring = true)
             .assertExists()
     }
+
+	@Test
+	fun pressureIsOffUntilChosenAndRemainsSelectableWithoutADeviceSensor() {
+		var chosen: Boolean? = null
+		val state = SetupUiState(pressureSensorAvailable = false)
+		state.pressureEnabled shouldBe false
+		composeTestRule.setContent {
+			AppTheme {
+				WhatToCollectStep(
+					state = state,
+					onLocationEnabledChange = {},
+					onLocationPrecisionChange = {},
+					onActivityEnabledChange = {},
+					onStepsEnabledChange = {},
+					onPressureEnabledChange = { chosen = it },
+					onWifiEnabledChange = {},
+					onCellEnabledChange = {},
+					onLocationPermissionResult = {},
+					onActivityPermissionResult = {},
+					onNotificationPermissionResult = {},
+					onWifiPermissionResult = {},
+					onCellPermissionResult = {},
+					onComplete = {},
+				)
+			}
+		}
+		composeTestRule.onNodeWithTag("setup_source_pressure")
+			.performScrollTo().performClick()
+		chosen shouldBe true
+	}
+
+	@Test
+	fun deniedWifiShowsRepairWhileTheSourceRemainsSelected() {
+		composeTestRule.setContent {
+			AppTheme {
+				WhatToCollectStep(
+					state = SetupUiState(wifiEnabled = true, wifiPermissionDenied = true),
+					onLocationEnabledChange = {},
+					onLocationPrecisionChange = {},
+					onActivityEnabledChange = {},
+					onStepsEnabledChange = {},
+					onWifiEnabledChange = {},
+					onCellEnabledChange = {},
+					onLocationPermissionResult = {},
+					onActivityPermissionResult = {},
+					onNotificationPermissionResult = {},
+					onWifiPermissionResult = {},
+					onCellPermissionResult = {},
+					onComplete = {},
+				)
+			}
+		}
+		composeTestRule.onNodeWithTag("setup_perm_wifi_denied_text").performScrollTo()
+		composeTestRule.onNodeWithText("selected but cannot collect", substring = true)
+			.assertIsDisplayed()
+	}
+
+	@Test
+	fun stepsOnlyExplainsMotionPermissionUnderSteps() {
+		composeTestRule.setContent {
+			AppTheme {
+				WhatToCollectStep(
+					state = SetupUiState(autoTrackingMode = 0, activityEnabled = false),
+					onLocationEnabledChange = {}, onLocationPrecisionChange = {},
+					onActivityEnabledChange = {}, onStepsEnabledChange = {},
+					onWifiEnabledChange = {}, onCellEnabledChange = {},
+					onLocationPermissionResult = {}, onActivityPermissionResult = {},
+					onNotificationPermissionResult = {}, onWifiPermissionResult = {},
+					onCellPermissionResult = {}, onComplete = {},
+				)
+			}
+		}
+		composeTestRule.onNodeWithTag("setup_perm_steps_grant").performScrollTo().assertIsDisplayed()
+		composeTestRule.onNodeWithTag("setup_perm_activity_rationale").assertDoesNotExist()
+	}
+
+	@Test
+	fun sensorlessStepsOffersHealthConnectRepairWhenItNeedsPermission() {
+		composeTestRule.setContent {
+			AppTheme {
+				WhatToCollectStep(
+					state = SetupUiState(
+						autoTrackingMode = 0,
+						activityEnabled = false,
+						stepCounterAvailable = false,
+						stepsProviderCapability = AmbientStepsCapability.PermissionRequired(
+							AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS,
+							setOf(AmbientStepsPermission.HEALTH_CONNECT_READ_STEPS),
+						),
+					),
+					onLocationEnabledChange = {}, onLocationPrecisionChange = {},
+					onActivityEnabledChange = {}, onStepsEnabledChange = {},
+					onWifiEnabledChange = {}, onCellEnabledChange = {},
+					onLocationPermissionResult = {}, onActivityPermissionResult = {},
+					onNotificationPermissionResult = {}, onWifiPermissionResult = {},
+					onCellPermissionResult = {}, onComplete = {},
+				)
+			}
+		}
+		composeTestRule.onNodeWithTag("setup_steps_health_connect_grant")
+			.performScrollTo().assertIsDisplayed()
+	}
+
+	@Test
+	fun sensorlessStepsReportsWhenNoSupportedProviderExists() {
+		composeTestRule.setContent {
+			AppTheme {
+				WhatToCollectStep(
+					state = SetupUiState(
+						autoTrackingMode = 0, activityEnabled = false,
+						stepCounterAvailable = false,
+						stepsProviderCapability = AmbientStepsCapability.Unavailable(
+							HealthConnectAmbientStepsAvailability.SDK_UNAVAILABLE,
+							LocalRecordingAmbientStepsAvailability.PLAY_SERVICES_MISSING,
+						),
+					),
+					onLocationEnabledChange = {}, onLocationPrecisionChange = {},
+					onActivityEnabledChange = {}, onStepsEnabledChange = {},
+					onWifiEnabledChange = {}, onCellEnabledChange = {},
+					onLocationPermissionResult = {}, onActivityPermissionResult = {},
+					onNotificationPermissionResult = {}, onWifiPermissionResult = {},
+					onCellPermissionResult = {}, onComplete = {},
+				)
+			}
+		}
+		composeTestRule.onNodeWithTag("setup_steps_provider_state")
+			.performScrollTo().assertIsDisplayed()
+		composeTestRule.onNodeWithText("No supported all-day step provider", substring = true)
+			.assertIsDisplayed()
+	}
 }

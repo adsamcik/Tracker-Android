@@ -25,6 +25,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
     <!--
         INTERNET re-enabled (was previously stripped via tools:node="remove"). Every byte of
         egress now flows through `com.adsamcik.tracker.network.NetworkGateway`, which is
@@ -88,6 +93,27 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name="com.adsamcik.tracker.app.settings.tracking.HealthConnectPermissionsRationaleActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+            <meta-data
+                android:name="health_permissions"
+                android:resource="@array/health_permissions" />
+        </activity>
+        <activity-alias
+            android:name="com.adsamcik.tracker.app.settings.tracking.HealthConnectPermissionUsageActivity"
+            android:exported="true"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
+            android:targetActivity="com.adsamcik.tracker.app.settings.tracking.HealthConnectPermissionsRationaleActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
         
         <activity
             android:name="com.adsamcik.tracker.app.activity.licenses.ThirdPartyLicensesActivity"

@@ -18,6 +18,11 @@ import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
+import com.adsamcik.tracker.tracker.source.ambient.steps.AndroidAmbientStepsCapabilityResolver
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsCapability
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsImportAccess
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsPermission
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProvider
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -101,6 +106,7 @@ class SetupViewModelTest {
 
     private fun createViewModel(
         savedStateHandle: SavedStateHandle = SavedStateHandle(),
+		stepsResolver: AndroidAmbientStepsCapabilityResolver? = null,
     ) = SetupViewModel(
         appContext = appContext,
         savedStateHandle = savedStateHandle,
@@ -110,7 +116,33 @@ class SetupViewModelTest {
         dataRetentionScheduler = dataRetentionScheduler,
         trackingParamsRepository = trackingParamsRepository,
         onlineMapTilesRepository = onlineMapTilesRepository,
+		stepsCapabilityResolver = stepsResolver,
     )
+
+	@Test
+	fun `setup refreshes step provider permission without changing the Steps choice`() {
+		val resolver = mockk<AndroidAmbientStepsCapabilityResolver>()
+		coEvery { resolver.resolve() } returns AmbientStepsCapability.PermissionRequired(
+			AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS,
+			setOf(AmbientStepsPermission.HEALTH_CONNECT_READ_STEPS),
+		)
+		val vm = createViewModel(stepsResolver = resolver)
+		vm.state.value.stepsEnabled shouldBe true
+		vm.state.value.stepsProviderCapability shouldBe AmbientStepsCapability.PermissionRequired(
+			AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS,
+			setOf(AmbientStepsPermission.HEALTH_CONNECT_READ_STEPS),
+		)
+		coEvery { resolver.resolve() } returns AmbientStepsCapability.ReadyForRegistration(
+			AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS,
+			AmbientStepsImportAccess.FOREGROUND_ONLY,
+		)
+		vm.refreshStepsProviderAvailability()
+		vm.state.value.stepsEnabled shouldBe true
+		vm.state.value.stepsProviderCapability shouldBe AmbientStepsCapability.ReadyForRegistration(
+			AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS,
+			AmbientStepsImportAccess.FOREGROUND_ONLY,
+		)
+	}
 
     @Test
     fun `all five setup levels survive draft recreation without changing source choices`() {
@@ -128,6 +160,15 @@ class SetupViewModelTest {
         createViewModel(SavedStateHandle(mapOf("setup_tracking_preset" to "HIGH_PRECISION"))).state.value.balanceLevel shouldBe 5
         createViewModel().state.value.balanceLevel shouldBe 3
     }
+
+	@Test
+	fun `Pressure starts off and a chosen value survives setup draft recreation`() {
+		val saved = SavedStateHandle()
+		val vm = createViewModel(saved)
+		vm.state.value.pressureEnabled shouldBe false
+		vm.setPressureEnabled(true)
+		createViewModel(saved).state.value.pressureEnabled shouldBe true
+	}
 
     @Nested
     @DisplayName("Initial state")
@@ -377,6 +418,14 @@ class SetupViewModelTest {
             vm.state.value.stepsEnabled shouldBe false
         }
 
+		@Test
+		fun `missing direct step sensor does not erase chosen all-day Steps`() {
+			val vm = createViewModel()
+			vm.state.value.stepCounterAvailable shouldBe false
+			vm.setStepsEnabled(true)
+			vm.state.value.stepsEnabled shouldBe true
+		}
+
         @Test
         fun `setWifiEnabled updates state`() {
             val vm = createViewModel()
@@ -538,43 +587,45 @@ class SetupViewModelTest {
         }
 
         @Test
-        fun `denied location permission disables location and flags alert`() {
+        fun `denied location permission preserves the choice and flags repair`() {
             val vm = createViewModel()
             vm.setLocationEnabled(true)
             vm.onLocationPermissionResult(locationResults())
             val state = vm.state.value
-            state.locationEnabled shouldBe false
+            state.locationEnabled shouldBe true
             state.locationPermissionGranted shouldBe false
             state.locationPermissionDenied shouldBe true
         }
 
         @Test
-        fun `denied activity permission disables activity and flags alert`() {
+        fun `denied activity permission preserves activity and Steps choices and flags alert`() {
             val vm = createViewModel()
             vm.setActivityEnabled(true)
+			vm.setStepsEnabled(true)
             vm.onActivityPermissionResult(false)
             val state = vm.state.value
-            state.activityEnabled shouldBe false
+			state.activityEnabled shouldBe true
+			state.stepsEnabled shouldBe true
             state.activityPermissionDenied shouldBe true
         }
 
         @Test
-        fun `denied wifi permission disables wifi and flags alert`() {
+        fun `denied wifi permission preserves the choice and flags repair`() {
             val vm = createViewModel()
             vm.setWifiEnabled(true)
             vm.onWifiPermissionResult(wifiResults())
             val state = vm.state.value
-            state.wifiEnabled shouldBe false
+            state.wifiEnabled shouldBe true
             state.wifiPermissionDenied shouldBe true
         }
 
         @Test
-        fun `denied cell permission disables cell and flags alert`() {
+        fun `denied cell permission preserves the choice and flags repair`() {
             val vm = createViewModel()
             vm.setCellEnabled(true)
             vm.onCellPermissionResult(false)
             val state = vm.state.value
-            state.cellEnabled shouldBe false
+            state.cellEnabled shouldBe true
             state.cellPermissionDenied shouldBe true
         }
 

@@ -4,6 +4,8 @@ import com.adsamcik.tracker.app.maintenance.RetentionWorkCancellationPendingExce
 import com.adsamcik.tracker.app.maintenance.RetentionWorkScheduler
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigurationApprovalResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
@@ -23,6 +25,7 @@ class DataRetentionScheduler @Inject constructor(
     private val retentionConfigStore: RetentionConfigStore,
     @ApplicationScope private val appScope: CoroutineScope,
 	private val retentionWorkScheduler: RetentionWorkScheduler,
+	private val retentionAuthorityProducer: RetentionAuthorityProducer,
 ) {
     private var observationJob: Job? = null
 
@@ -37,6 +40,28 @@ class DataRetentionScheduler @Inject constructor(
             .onEach { syncScheduling() }
             .launchIn(appScope)
     }
+
+	/** Completes first-run retention approval and scheduling before setup is marked complete. */
+	suspend fun prepareForSetupCompletion() {
+		val result = retentionConfigStore.updateWithApproval(
+			block = { this },
+			prepare = { stage ->
+				retentionAuthorityProducer.preparePendingConfiguration(
+					stage.policy.configurationGeneration,
+				)
+			},
+			approve = { stage ->
+				retentionAuthorityProducer.reconcilePendingConfiguration(
+					stage.policy.configurationGeneration,
+				)
+			},
+		)
+		check(
+			result.approval is RetentionConfigurationApprovalResult.Approved ||
+				result.approval is RetentionConfigurationApprovalResult.AlreadyApproved,
+		) { "Retention configuration is not ready" }
+		retentionWorkScheduler.reconcileCurrentPreference(retentionConfigStore)
+	}
 
     private suspend fun syncScheduling() {
         try {

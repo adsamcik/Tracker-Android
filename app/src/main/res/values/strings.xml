@@ -388,15 +388,18 @@
     <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Collection stays off because the product retention policy is not yet available.</string>
     <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Waiting for the source owner to report operational availability; no provider is started from this setting alone.</string>
     <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Collection is safely contained by the current rollout.</string>
-    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Grant Steps access in Health Connect. Tracker will not silently switch to Local Recording when this grant is missing.</string>
-    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Health Connect can import while Tracker is foreground-capable. Optional background access may reduce gaps but does not promise a cadence.</string>
-    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Health Connect mobile Steps is unavailable and no approved continuity provider is ready.</string>
-    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Update Health Connect before mobile Steps can be used.</string>
-    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Health Connect availability could not be verified, so Tracker will not fall back from an uncertain result.</string>
-    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Health Connect is genuinely unavailable. Local Recording requires Activity Recognition permission.</string>
-    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Health Connect is genuinely unavailable and Local Recording is not available.</string>
-    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect mobile Steps is ready for source-owner reconciliation; coverage may still have explicit gaps.</string>
-    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Health Connect is genuinely unavailable, so Local Recording is ready for source-owner reconciliation; coverage may still have explicit gaps.</string>
+    <string name="settings_ambient_user_turned_off">Tracking is off. Your choices and saved data are kept.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Allow Steps access in Health Connect to fill gaps when Tracker is closed.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Allow Steps in Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Could not check Health Connect access. Try again.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Steps can be imported when Tracker runs. Background access may reduce gaps.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">No supported all-day step provider is available.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Update Health Connect to use it for Steps.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Could not check the step provider. Try again later.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Allow Activity Recognition to record steps on this device.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Step recording is unavailable on this device.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect is ready. Some periods may still have gaps.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Step recording is ready. Some periods may still have gaps.</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Background Location access is needed to collect between sessions. Your session capture choice stays independent.</string>
     <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android’s Wi-Fi scan permission requirements are not met. Granting them does not enable Location capture.</string>
     <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android’s Cell callback permission requirements are not met. Granting them does not enable Location capture.</string>
@@ -409,13 +412,14 @@
     <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Saved on; not operational</string>
     <string name="settings_location_source_summary">Records your route, distance, and speed. Usually the largest battery cost.</string>
     <string name="settings_activity_source_summary">Recognizes walking, cycling, driving, and stillness to label trips and reduce unnecessary collection.</string>
-    <string name="settings_steps_source_summary">Records step counts while walking or running using your phone’s step sensor.</string>
-    <string name="settings_barometer_source_summary">Uses air pressure to improve altitude and elevation changes.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Tracks steps throughout the day. Trips organize this same step history.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Checking step collection.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Records air pressure changes.</string>
     <string name="settings_wifi_source_summary">Records nearby Wi-Fi networks to add local context. Data stays on this device.</string>
     <string name="settings_cell_source_summary">Records nearby cell towers to add location context. Data stays on this device.</string>
     <string name="settings_location_source_compact">Route, distance, and speed</string>
     <string name="settings_activity_source_compact">Movement type and stillness</string>
-    <string name="settings_steps_source_compact">Walking and running steps</string>
+    <string name="settings_steps_source_compact">Steps throughout the day</string>
     <string name="settings_barometer_source_compact">Altitude and elevation</string>
     <string name="settings_wifi_source_compact">Nearby network context</string>
     <string name="settings_cell_source_compact">Nearby tower context</string>
@@ -556,10 +560,19 @@
     <string name="setup_source_activity_desc">Detect whether you\'re walking, running, cycling, or driving.</string>
     <string name="setup_source_steps">Steps</string>
     <string name="setup_source_steps_desc">Count your steps using the device pedometer.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Track steps throughout the day. Trips organize the same history.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">No direct step sensor. Tracker will check for an on-device step source.</string>
+    <string name="setup_perm_steps_why">Allow motion access to count steps on this device throughout the day.</string>
+    <string name="setup_perm_grant_steps_content_description">Allow motion access for Steps</string>
+    <string name="setup_steps_health_connect_why">Allow Steps in Health Connect to fill gaps when Tracker is closed.</string>
+    <string name="setup_steps_provider_ready">An on-device step source is ready. Some periods may still have gaps.</string>
+    <string name="setup_steps_provider_checking">Checking available step sources…</string>
     <string name="setup_source_wifi">WiFi Networks</string>
     <string name="setup_source_wifi_desc">Log nearby WiFi networks to improve location accuracy.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Record nearby Wi-Fi networks, with or without Location tracking.</string>
     <string name="setup_source_cell">Cell Towers</string>
     <string name="setup_source_cell_desc">Log cell tower info for location context.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Record nearby cell towers, with or without Location tracking.</string>
     <string name="setup_perm_location_why">Required to record your routes and show them on the map. Location stays on this device — nothing is sent to a server.</string>
     <string name="setup_perm_location_bg_why">To keep recording your route when you switch apps or the screen turns off, Tracker needs to access your location in the background. The recorded location stays on this device — nothing is sent to a server. On the next system prompt please pick "Allow all the time" to enable auto-tracking; "While using the app" keeps Tracker working when its screen is open only.</string>
     <string name="setup_perm_activity_why">Lets Tracker detect what you\'re doing (walking, cycling, driving, still) so auto-tracking can pause when you\'re not moving and save battery. Activity data stays on this device — nothing is sent to a server.</string>
@@ -576,6 +589,7 @@
     <string name="setup_perm_granted">Granted ✓</string>
     <string name="permission_grant_in_settings">Allow in Settings →</string>
     <string name="permission_disabled_due_to_denial">%1$s disabled because permission was denied. Grant in Settings to enable.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s is selected but cannot collect until permission is granted.</string>
 
     <string name="settings_wifi_permission_required">Requires Wi-Fi/location permission. Toggle on to grant — no Wi-Fi data is recorded until then, and recorded data stays on this device.</string>
     <string name="settings_cell_permission_required">Requires phone state and precise location permission. Toggle on to grant — no cell data is recorded until then, and recorded data stays on this device.</string>
@@ -583,6 +597,10 @@
     <string name="settings_activity_permission_required">Requires activity recognition permission. Toggle on to grant.</string>
     <string name="settings_steps_unavailable">Step counter sensor is not available on this device.</string>
     <string name="setup_start_exploring">Start Exploring</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">Finishing setup…</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Retry</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Could not save setup. Your choices are still here.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Could not prepare saved data. Your choices are still here.</string>
     <string name="setup_continue">Continue</string>
     <string name="setup_step_indicator">Step %1$d of %2$d</string>
 

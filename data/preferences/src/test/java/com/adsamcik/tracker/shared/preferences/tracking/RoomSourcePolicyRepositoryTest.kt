@@ -171,9 +171,12 @@ class RoomSourcePolicyRepositoryTest {
 			policy.controlConsentEpoch shouldBe 1L.takeIf {
 				policy.source == TrackingSourceComponent.ACTIVITY
 			}
-			policy.ambientConsentEpoch shouldBe null
+			policy.ambientConsentEpoch shouldBe 1L.takeIf {
+				policy.source == TrackingSourceComponent.STEPS
+			}
 			policy.controlPersistenceEligible.shouldBeFalse()
-			policy.ambientPersistenceEligible.shouldBeFalse()
+			policy.ambientPersistenceEligible shouldBe
+				(policy.source == TrackingSourceComponent.STEPS)
 		}
 	}
 
@@ -188,7 +191,7 @@ class RoomSourcePolicyRepositoryTest {
 	}
 
 	@Test
-	fun `explicit ambient Steps bootstrap grants only persistent ambient consent`() = runTest {
+	fun `legacy ambient-only Steps intent cannot enable all-day collection`() = runTest {
 		val snapshot = repository.bootstrapFromLegacy(
 			readySettings().copy(
 				stepsEnabled = false,
@@ -202,8 +205,8 @@ class RoomSourcePolicyRepositoryTest {
 		val steps = snapshot[TrackingSourceComponent.STEPS]
 		steps.enabled.shouldBeFalse()
 		steps.captureConsentEpoch shouldBe null
-		steps.ambientConsentEpoch shouldBe 1L
-		steps.ambientPersistenceEligible.shouldBeTrue()
+		steps.ambientConsentEpoch shouldBe null
+		steps.ambientPersistenceEligible.shouldBeFalse()
 		snapshot.policies.values
 			.filter { it.source != TrackingSourceComponent.STEPS }
 			.forEach { policy ->
@@ -215,7 +218,82 @@ class RoomSourcePolicyRepositoryTest {
 				TrackingSourceComponent.STEPS.stableCode,
 				SourcePurpose.AMBIENT_PRODUCT.stableName,
 			)
-			.map { it.epoch to it.eligible } shouldBe listOf(0L to false, 1L to true)
+			.map { it.epoch to it.eligible } shouldBe listOf(0L to false)
+	}
+
+	@Test
+	fun `first run Steps preference grants all-day consent only after setup completes`() = runTest {
+		var setupComplete = false
+		repository = RoomSourcePolicyRepository(
+			database = database,
+			setupCompleted = { setupComplete },
+		) {
+			SourcePolicyEffectiveTime("boot-7", elapsedNanos++, wallTimeMs++)
+		}
+		val pending = repository.bootstrapFromLegacy(readySettings())
+		val pendingSteps = pending[TrackingSourceComponent.STEPS]
+		pendingSteps.enabled.shouldBeTrue()
+		pendingSteps.captureConsentEpoch shouldBe 1L
+		pendingSteps.ambientConsentEpoch shouldBe null
+		pending[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe null
+		shouldThrow<IllegalArgumentException> {
+			repository.setNonCaptureConsent(
+				pending.revision,
+				TrackingSourceComponent.STEPS,
+				SourcePurpose.AMBIENT_PRODUCT,
+				eligible = true,
+				persistenceEligible = true,
+				reason = "PREMATURE_GRANT",
+			)
+		}
+
+		setupComplete = true
+		val active = repository.replaceCaptureSettings(
+			pending.revision,
+			readySettings(),
+			"SETUP_COMPLETED",
+		)
+		active[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe 1L
+		active[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe 1L
+		active[TrackingSourceComponent.STEPS].ambientPersistenceEligible.shouldBeTrue()
+		active[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe 1L
+	}
+
+	@Test
+	fun `automatic control cannot be granted through either policy mutation before setup completes`() = runTest {
+		var setupComplete = false
+		repository = RoomSourcePolicyRepository(
+			database = database,
+			setupCompleted = { setupComplete },
+		) { SourcePolicyEffectiveTime("boot-7", elapsedNanos++, wallTimeMs++) }
+		val pending = repository.bootstrapFromLegacy(readySettings().copy(autoTrackingMode = 2))
+		pending[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe null
+
+		val stillPending = repository.replaceCaptureSettings(
+			pending.revision,
+			readySettings().copy(autoTrackingMode = 1),
+			"SETTINGS_BEFORE_SETUP_COMPLETION",
+		)
+		stillPending[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe null
+		shouldThrow<IllegalArgumentException> {
+			repository.setNonCaptureConsent(
+				stillPending.revision,
+				TrackingSourceComponent.ACTIVITY,
+				SourcePurpose.CONTROL,
+				eligible = true,
+				persistenceEligible = false,
+				reason = "PREMATURE_CONTROL_GRANT",
+			)
+		}
+		repository.currentState() shouldBe SourcePolicyAuthorityState.Active(stillPending)
+
+		setupComplete = true
+		val active = repository.replaceCaptureSettings(
+			stillPending.revision,
+			readySettings().copy(autoTrackingMode = 1),
+			"SETUP_COMPLETED",
+		)
+		active[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe 1L
 	}
 
 	@Test
@@ -292,32 +370,27 @@ class RoomSourcePolicyRepositoryTest {
 	}
 
 	@Test
-	fun `ambient Steps revoke and regrant rotate only ambient consent`() = runTest {
+	fun `Steps choice rotates session and all-day consent together`() = runTest {
 		val first = repository.bootstrapFromLegacy(readySettings())
-		val granted = repository.replaceCaptureSettings(
-			expectedPolicyRevision = first.revision,
-			settings = readySettings().copy(ambientStepsEnabled = true),
-			reason = "TEST_AMBIENT_STEPS_GRANT",
-		)
 		val revoked = repository.replaceCaptureSettings(
-			expectedPolicyRevision = granted.revision,
-			settings = readySettings().copy(ambientStepsEnabled = false),
-			reason = "TEST_AMBIENT_STEPS_REVOKE",
+			expectedPolicyRevision = first.revision,
+			settings = settingsWithoutSteps(),
+			reason = "TEST_STEPS_OFF",
 		)
 		val regranted = repository.replaceCaptureSettings(
 			expectedPolicyRevision = revoked.revision,
-			settings = readySettings().copy(ambientStepsEnabled = true),
-			reason = "TEST_AMBIENT_STEPS_REGRANT",
+			settings = readySettings(),
+			reason = "TEST_STEPS_ON",
 		)
 
 		val originalCaptureEpoch = first[TrackingSourceComponent.STEPS].captureConsentEpoch
-		granted[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe 1L
-		granted[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe originalCaptureEpoch
+		first[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe 1L
 		revoked[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe null
 		revoked[TrackingSourceComponent.STEPS].ambientPersistenceEligible.shouldBeFalse()
-		revoked[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe originalCaptureEpoch
+		revoked[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe null
 		regranted[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe 3L
-		regranted[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe originalCaptureEpoch
+		regranted[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe 3L
+		originalCaptureEpoch shouldBe 1L
 		database.sourcePolicyDao()
 			.consentHistory(
 				TrackingSourceComponent.STEPS.stableCode,
@@ -334,13 +407,8 @@ class RoomSourcePolicyRepositoryTest {
 	@Test
 	fun `ambient Steps revoke atomically retires demand and denies its live registration`() = runTest {
 		val first = repository.bootstrapFromLegacy(readySettings())
-		val granted = repository.replaceCaptureSettings(
-			expectedPolicyRevision = first.revision,
-			settings = readySettings().copy(ambientStepsEnabled = true),
-			reason = "TEST_AMBIENT_STEPS_GRANT",
-		)
 		installLiveAuthority(
-			snapshot = granted,
+			snapshot = first,
 			source = TrackingSourceComponent.STEPS,
 			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
 		)
@@ -348,8 +416,8 @@ class RoomSourcePolicyRepositoryTest {
 		wallTimeMs = 4_000L
 
 		val revoked = repository.replaceCaptureSettings(
-			expectedPolicyRevision = granted.revision,
-			settings = readySettings(),
+			expectedPolicyRevision = first.revision,
+			settings = settingsWithoutSteps(),
 			reason = "TEST_AMBIENT_STEPS_FENCE",
 		)
 
@@ -357,9 +425,8 @@ class RoomSourcePolicyRepositoryTest {
 		demand.status shouldBe SourceDemandEntity.STATUS_RETIRING
 		demand.retireBootId shouldBe TEST_BOOT_ID
 		demand.retireElapsedRealtimeNanos shouldBe 400L
-		revoked[TrackingSourceComponent.STEPS].enabled.shouldBeTrue()
-		revoked[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe
-			first[TrackingSourceComponent.STEPS].captureConsentEpoch
+		revoked[TrackingSourceComponent.STEPS].enabled.shouldBeFalse()
+		revoked[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe null
 		database.sourceBrokerDao().authorizationAt(
 			TrackingSourceComponent.STEPS.stableCode,
 			TEST_REGISTRATION_GENERATION,

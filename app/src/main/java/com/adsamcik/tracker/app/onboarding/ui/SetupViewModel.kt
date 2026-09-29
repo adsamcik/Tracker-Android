@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.app.onboarding.data.SetupStep
+import com.adsamcik.tracker.app.onboarding.data.SetupCompletionError
 import com.adsamcik.tracker.app.onboarding.data.SetupUiState
 import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
@@ -25,12 +26,18 @@ import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
+import com.adsamcik.tracker.tracker.source.ambient.steps.AndroidAmbientStepsCapabilityResolver
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsCapability
+import com.adsamcik.tracker.tracker.source.ambient.steps.HealthConnectAmbientStepsAvailability
+import com.adsamcik.tracker.tracker.source.ambient.steps.LocalRecordingAmbientStepsAvailability
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -53,10 +60,12 @@ class SetupViewModel @Inject constructor(
     private val dataRetentionScheduler: DataRetentionScheduler,
     private val trackingParamsRepository: TrackingParamsRepository,
     private val onlineMapTilesRepository: OnlineMapTilesRepository,
+	private val stepsCapabilityResolver: AndroidAmbientStepsCapabilityResolver? = null,
 ) : ViewModel() {
 
     private val restoredDraft = savedStateHandle.restoreDraft(
             stepCounterAvailable = appContext.hasStepCounterSensor,
+			pressureSensorAvailable = appContext.hasPressureSensor,
         )
     private val _state = MutableStateFlow(
         restoredDraft.withCapabilities(
@@ -64,6 +73,36 @@ class SetupViewModel @Inject constructor(
         ),
     )
     val state: StateFlow<SetupUiState> = _state.asStateFlow()
+	private var stepsCapabilityJob: Job? = null
+
+	init { refreshStepsProviderAvailability() }
+
+	fun refreshStepsProviderAvailability() {
+		val resolver = stepsCapabilityResolver ?: return
+		stepsCapabilityJob?.cancel()
+		stepsCapabilityJob = viewModelScope.launch(dispatchers.io) {
+			val capability = try {
+				resolver.resolve()
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				AmbientStepsCapability.Unavailable(
+					HealthConnectAmbientStepsAvailability.PROBE_FAILED,
+					LocalRecordingAmbientStepsAvailability.PROBE_FAILED,
+				)
+			} catch (_: LinkageError) {
+				AmbientStepsCapability.Unavailable(
+					HealthConnectAmbientStepsAvailability.PROBE_FAILED,
+					LocalRecordingAmbientStepsAvailability.PROBE_FAILED,
+				)
+			}
+			_state.update { it.copy(stepsProviderCapability = capability, stepsProviderRepairFailed = false) }
+		}
+	}
+
+	fun onStepsProviderPermissionRequestFailed() {
+		_state.update { it.copy(stepsProviderRepairFailed = true) }
+	}
 
     // region Step navigation
 
@@ -76,6 +115,7 @@ class SetupViewModel @Inject constructor(
     }
 
     fun goToPreviousStep() {
+		if (_state.value.completionInProgress) return
         updateState { current ->
             val prevIndex = current.currentStep.index - 1
             val prev = SetupStep.fromIndex(prevIndex) ?: return@updateState current
@@ -121,8 +161,12 @@ class SetupViewModel @Inject constructor(
     }
 
     fun setStepsEnabled(enabled: Boolean) {
-        updateState { it.copy(stepsEnabled = enabled && it.stepCounterAvailable) }
+        updateState { it.copy(stepsEnabled = enabled) }
     }
+
+	fun setPressureEnabled(enabled: Boolean) {
+		updateState { it.copy(pressureEnabled = enabled) }
+	}
 
     fun setWifiEnabled(enabled: Boolean) {
         updateState { it.copy(wifiEnabled = enabled, wifiPermissionDenied = false) }
@@ -147,12 +191,9 @@ class SetupViewModel @Inject constructor(
             if (capabilities.hasForegroundLocation) {
                 it.withCapabilities(capabilities).copy(locationPermissionDenied = false)
             } else {
-                // Honor the user's intent: if they want to collect a source but deny its
-                // permission, disable that collection and alert them rather than silently
-                // leaving a toggle on that records nothing.
+                // Keep the person's choice; admission remains blocked until permission is granted.
                 it.withCapabilities(capabilities).copy(
-                    locationEnabled = false,
-                    locationPermissionDenied = true,
+                    locationPermissionDenied = it.locationEnabled,
                 )
             }
         }
@@ -174,15 +215,22 @@ class SetupViewModel @Inject constructor(
 	}
 
 	/** Re-read Settings grants/revocations and precise-to-approximate changes on every resume. */
-	fun refreshPermissionCapabilities() {
+    fun refreshPermissionCapabilities() {
 		updateState { current ->
 			val capabilities = appContext.trackingPermissionCapabilities(current.permissionHistory)
+			val activityGranted = appContext.hasActivityPermission
+			val cellGranted = appContext.hasCellScanPermission
 			current.withCapabilities(capabilities).copy(
 				locationPermissionDenied = current.locationPermissionDenied &&
 					!capabilities.hasForegroundLocation,
 				wifiPermissionDenied = current.wifiPermissionDenied && !capabilities.hasWifiScanPermissions,
+				activityPermissionGranted = activityGranted,
+				activityPermissionDenied = current.activityPermissionDenied && !activityGranted,
+				cellPermissionGranted = cellGranted,
+				cellPermissionDenied = current.cellPermissionDenied && !cellGranted,
 			)
 		}
+		refreshStepsProviderAvailability()
 	}
 
     fun onActivityPermissionResult(granted: Boolean) {
@@ -192,12 +240,11 @@ class SetupViewModel @Inject constructor(
             } else {
                 it.copy(
                     activityPermissionGranted = false,
-                    activityEnabled = false,
-                    stepsEnabled = false,
-                    activityPermissionDenied = true,
+                    activityPermissionDenied = it.needsActivityPermission,
                 )
             }
-        }
+		}
+		refreshStepsProviderAvailability()
     }
 
     fun onNotificationPermissionResult(granted: Boolean) {
@@ -220,8 +267,7 @@ class SetupViewModel @Inject constructor(
                 it.withCapabilities(capabilities).copy(wifiPermissionDenied = false)
             } else {
                 it.withCapabilities(capabilities).copy(
-                    wifiEnabled = false,
-                    wifiPermissionDenied = true,
+                    wifiPermissionDenied = it.wifiEnabled,
                 )
             }
         }
@@ -234,8 +280,7 @@ class SetupViewModel @Inject constructor(
             } else {
                 it.copy(
                     cellPermissionGranted = false,
-                    cellEnabled = false,
-                    cellPermissionDenied = true,
+                    cellPermissionDenied = it.cellEnabled,
                 )
             }
         }
@@ -246,6 +291,7 @@ class SetupViewModel @Inject constructor(
     // region Step 4 – Online Map Tiles
 
     fun setOnlineMapTilesEnabled(enabled: Boolean) {
+		if (_state.value.completionInProgress) return
         updateState { it.copy(onlineMapTilesEnabled = enabled) }
     }
 
@@ -260,21 +306,42 @@ class SetupViewModel @Inject constructor(
      * @param onDone called on the main thread after preferences are written.
      */
     fun completeSetup(onDone: () -> Unit) {
+		val draft = _state.value
+		if (draft.completionInProgress) return
+		_state.update { it.copy(completionInProgress = true, completionError = null) }
         viewModelScope.launch {
-            runCatchingCancellable {
-                val s = _state.value
-                withContext(dispatchers.io) {
-                    applyPreferences(s)
-                    onboardingRepository.markCompleted()
-                }
+            var failureKind = SetupCompletionError.RETENTION
+            val result = runCatchingCancellable {
+				withContext(dispatchers.io) {
+					dataRetentionScheduler.prepareForSetupCompletion()
+				}
                 dataRetentionScheduler.initialize()
-                onDone()
-            }.getOrNull()
+				failureKind = SetupCompletionError.SETTINGS
+				val effectiveMode = withContext(dispatchers.io) { applyPreferences(draft) }
+				withContext(dispatchers.io) { onboardingRepository.markCompleted() }
+				effectiveMode
+            }
+			if (result.isSuccess) {
+				// Automatic authority is admitted only after the completed setup marker.
+				val effectiveMode = result.getOrThrow()
+				try {
+					activityWatcherController.poke(autoTracking = effectiveMode)
+					if (effectiveMode > 0) activityWatcherController.poke()
+				} catch (_: Exception) {
+					// The watcher bridge is best effort; setup and Room authority are committed.
+				}
+				_state.update { it.copy(completionInProgress = false, completionError = null) }
+				onDone()
+			} else {
+				_state.update {
+					it.copy(completionInProgress = false, completionError = failureKind)
+				}
+			}
         }
     }
 
     @Suppress("DEPRECATION")
-    private suspend fun applyPreferences(s: SetupUiState) {
+    private suspend fun applyPreferences(s: SetupUiState): Int {
         val preferences = Preferences(appContext)
         val preset = s.trackingPreset.settings
         val capabilities = appContext.trackingPermissionCapabilities(s.permissionHistory)
@@ -309,7 +376,7 @@ class SetupViewModel @Inject constructor(
                 stepsEnabled = s.stepsEnabled,
                 wifiEnabled = s.wifiEnabled,
                 cellEnabled = s.cellEnabled,
-                barometerEnabled = false, // Pressure is not offered during setup; quality must not select it.
+				barometerEnabled = s.pressureEnabled,
                 // Permission availability limits execution, not the user's saved automatic intent.
                 autoTrackingMode = s.autoTrackingMode,
                 transitionDetectionEnabled = preset.useTransitionDetection,
@@ -331,11 +398,7 @@ class SetupViewModel @Inject constructor(
         // bundled offline map before completing setup.
         onlineMapTilesRepository.setEnabled(s.onlineMapTilesEnabled)
 
-        // Poke activity watcher so it picks up the new settings immediately
-        activityWatcherController.poke(autoTracking = effectiveMode)
-        if (effectiveMode > 0) {
-            activityWatcherController.poke()
-        }
+        return effectiveMode
     }
 
     // endregion
@@ -361,6 +424,7 @@ class SetupViewModel @Inject constructor(
         savedStateHandle[KEY_LOCATION_PRECISION] = state.locationPrecision.name
         savedStateHandle[KEY_ACTIVITY_ENABLED] = state.activityEnabled
         savedStateHandle[KEY_STEPS_ENABLED] = state.stepsEnabled
+		savedStateHandle[KEY_PRESSURE_ENABLED] = state.pressureEnabled
         savedStateHandle[KEY_WIFI_ENABLED] = state.wifiEnabled
         savedStateHandle[KEY_CELL_ENABLED] = state.cellEnabled
         savedStateHandle[KEY_FOREGROUND_LOCATION_EVER_GRANTED] =
@@ -379,7 +443,10 @@ class SetupViewModel @Inject constructor(
         savedStateHandle[KEY_ONLINE_MAP_TILES_ENABLED] = state.onlineMapTilesEnabled
     }
 
-    private fun SavedStateHandle.restoreDraft(stepCounterAvailable: Boolean): SetupUiState = SetupUiState(
+    private fun SavedStateHandle.restoreDraft(
+		stepCounterAvailable: Boolean,
+		pressureSensorAvailable: Boolean,
+	): SetupUiState = SetupUiState(
         currentStep = get<Int>(KEY_STEP)?.let(SetupStep::fromIndex) ?: SetupStep.Welcome,
         autoTrackingMode = get<Int>(KEY_AUTO_TRACKING_MODE) ?: 1,
         trackingPreset = get<String>(KEY_TRACKING_PRESET)
@@ -397,6 +464,8 @@ class SetupViewModel @Inject constructor(
         activityEnabled = get<Boolean>(KEY_ACTIVITY_ENABLED) ?: true,
         stepsEnabled = get<Boolean>(KEY_STEPS_ENABLED) ?: true,
         stepCounterAvailable = stepCounterAvailable,
+		pressureEnabled = get<Boolean>(KEY_PRESSURE_ENABLED) ?: false,
+		pressureSensorAvailable = pressureSensorAvailable,
         wifiEnabled = get<Boolean>(KEY_WIFI_ENABLED) ?: false,
         cellEnabled = get<Boolean>(KEY_CELL_ENABLED) ?: false,
         permissionHistory = PermissionGrantHistory(
@@ -424,6 +493,7 @@ class SetupViewModel @Inject constructor(
         const val KEY_LOCATION_PRECISION = "setup_location_precision"
         const val KEY_ACTIVITY_ENABLED = "setup_activity_enabled"
         const val KEY_STEPS_ENABLED = "setup_steps_enabled"
+		const val KEY_PRESSURE_ENABLED = "setup_pressure_enabled"
         const val KEY_WIFI_ENABLED = "setup_wifi_enabled"
         const val KEY_CELL_ENABLED = "setup_cell_enabled"
         const val KEY_FOREGROUND_LOCATION_EVER_GRANTED = "setup_foreground_location_ever_granted"

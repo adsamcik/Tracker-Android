@@ -172,10 +172,13 @@ fun SetupRoute(
                         onLocationPrecisionChange = viewModel::setLocationPrecision,
                         onActivityEnabledChange = viewModel::setActivityEnabled,
                         onStepsEnabledChange = viewModel::setStepsEnabled,
+						onPressureEnabledChange = viewModel::setPressureEnabled,
                         onWifiEnabledChange = viewModel::setWifiEnabled,
                         onCellEnabledChange = viewModel::setCellEnabled,
                         onLocationPermissionResult = viewModel::onLocationPermissionResult,
                         onActivityPermissionResult = viewModel::onActivityPermissionResult,
+						onStepsProviderPermissionResult = viewModel::refreshStepsProviderAvailability,
+						onStepsProviderPermissionRequestFailed = viewModel::onStepsProviderPermissionRequestFailed,
                         onNotificationPermissionResult = viewModel::onNotificationPermissionResult,
                         onWifiPermissionResult = viewModel::onWifiPermissionResult,
                         onCellPermissionResult = viewModel::onCellPermissionResult,
@@ -191,6 +194,8 @@ fun SetupRoute(
 
                     SetupStep.OnlineMapTiles -> OnlineMapTilesStep(
                         enabled = state.onlineMapTilesEnabled,
+						completionInProgress = state.completionInProgress,
+						completionError = state.completionError,
                         onEnabledChange = viewModel::setOnlineMapTilesEnabled,
                         onComplete = {
                             viewModel.completeSetup(onDone = onSetupComplete)

@@ -144,18 +144,19 @@ class AuthoritativeTrackingParamsRepositoryTest {
 
 		val effective = repository.data.first()
 		effective.stepsEnabled.shouldBeFalse()
+		effective.ambientStepsEnabled.shouldBeFalse()
 		effective.sourceCollectionSettings.steps shouldBe SourceCollectionFrequency.OFF
 		legacy.current.stepsEnabled.shouldBeFalse()
 		val active = policy.currentState() as SourcePolicyAuthorityState.Active
 		active.snapshot[TrackingSourceComponent.STEPS].enabled.shouldBeFalse()
+		active.snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe null
 	}
 
 	@Test
-	fun `approved ambient mutations commit independent persistent consent and mirror`() = runTest {
+	fun `other ambient mutations commit independent persistent consent and mirror`() = runTest {
 		repository.data.first { it.sourcePolicyRevision == 1L }
 		val approved = listOf(
 			TrackingSourceComponent.LOCATION,
-			TrackingSourceComponent.STEPS,
 			TrackingSourceComponent.WIFI,
 			TrackingSourceComponent.CELL,
 		)
@@ -187,6 +188,81 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			revoked.ambientPersistenceEligible.shouldBeFalse()
 		}
 
+	}
+
+	@Test
+	fun `one Steps choice grants and revokes both capture and all-day consent`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+		val initial = (policy.currentState() as SourcePolicyAuthorityState.Active)
+			.snapshot[TrackingSourceComponent.STEPS]
+		initial.enabled.shouldBeTrue()
+		initial.ambientConsentEpoch shouldBe 1L
+
+		repository.setStepsEnabled(false)
+		val off = (policy.currentState() as SourcePolicyAuthorityState.Active)
+			.snapshot[TrackingSourceComponent.STEPS]
+		off.enabled.shouldBeFalse()
+		off.captureConsentEpoch shouldBe null
+		off.ambientConsentEpoch shouldBe null
+		legacy.current.ambientStepsEnabled.shouldBeFalse()
+
+		repository.setAmbientStepsEnabled(true)
+		val on = (policy.currentState() as SourcePolicyAuthorityState.Active)
+			.snapshot[TrackingSourceComponent.STEPS]
+		on.enabled.shouldBeTrue()
+		on.captureConsentEpoch shouldBe 3L
+		on.ambientConsentEpoch shouldBe 3L
+	}
+
+	@Test
+	fun `finishing setup activates selected all-day Steps without another toggle`() = runTest {
+		val isolatedDatabase = AppDatabase.inMemoryBuilder(
+			ApplicationProvider.getApplicationContext<Application>(),
+		).allowMainThreadQueries().build()
+		val isolatedScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+		try {
+			val setupComplete = MutableStateFlow(false)
+			val isolatedLegacy = FakeTrackingParamsRepository(
+				TrackingParamsState(legacySettingsMigrationCompleted = true, autoTrackingMode = 2),
+			)
+			val isolatedPolicy = RoomSourcePolicyRepository(
+				database = isolatedDatabase,
+				setupCompleted = { setupComplete.value },
+			) { SourcePolicyEffectiveTime("setup-boot", 10L, 20L) }
+			val isolatedRetention = RecordingRetentionAuthorityProducer {
+				val current = isolatedPolicy.currentState() as SourcePolicyAuthorityState.Active
+				current.snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch != null
+			}
+			val isolatedRepository = AuthoritativeTrackingParamsRepository(
+				legacy = isolatedLegacy,
+				sourcePolicyRepository = isolatedPolicy,
+				applicationScope = isolatedScope,
+				trackingStartupGate = startupGate,
+				retentionAuthorityProducer = isolatedRetention,
+				ambientStepsPolicyRevisionReconciler = RecordingAmbientStepsPolicyRevisionReconciler(),
+				setupCompleted = setupComplete,
+			)
+			val pending = isolatedRepository.data.first { it.sourcePolicyRevision == 1L }
+			pending.stepsEnabled.shouldBeTrue()
+			pending.ambientStepsEnabled.shouldBeTrue()
+			isolatedPolicy.currentState().let { state ->
+				val snapshot = (state as SourcePolicyAuthorityState.Active).snapshot
+				snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe null
+				snapshot[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe null
+			}
+
+			setupComplete.value = true
+			isolatedRepository.data.first { it.sourcePolicyRevision == 2L }
+			val active = (isolatedPolicy.currentState() as SourcePolicyAuthorityState.Active)
+				.snapshot[TrackingSourceComponent.STEPS]
+			active.captureConsentEpoch shouldBe 1L
+			active.ambientConsentEpoch shouldBe 1L
+			(isolatedPolicy.currentState() as SourcePolicyAuthorityState.Active)
+				.snapshot[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe 1L
+		} finally {
+			isolatedScope.cancel()
+			isolatedDatabase.close()
+		}
 	}
 
 	@Test

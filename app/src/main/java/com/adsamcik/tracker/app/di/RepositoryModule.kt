@@ -45,6 +45,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Provider
+import kotlinx.coroutines.flow.first
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 
@@ -129,6 +130,7 @@ abstract class RepositoryModule {
 			sourcePolicyRepository: SourcePolicyRepository,
 			@ApplicationScope applicationScope: CoroutineScope,
 			trackingStartupGate: TrackingStartupGate,
+			onboardingRepository: OnboardingRepository,
 			retentionAuthorityProducer: RetentionAuthorityProducer,
 			purposeSettingsReconciler: Provider<TrackingPurposeSettingsReconciler>,
 		): AuthoritativeTrackingParamsRepository = AuthoritativeTrackingParamsRepository(
@@ -139,6 +141,7 @@ abstract class RepositoryModule {
 			sourcePolicyRepository = sourcePolicyRepository,
 			applicationScope = applicationScope,
 			trackingStartupGate = trackingStartupGate,
+			setupCompleted = onboardingRepository.isCompleted,
 			retentionAuthorityProducer = retentionAuthorityProducer,
 			ambientStepsPolicyRevisionReconciler =
 				object : AmbientStepsPolicyRevisionReconciler {
@@ -175,8 +178,10 @@ abstract class RepositoryModule {
 			database: AppDatabase,
 			clock: Clock,
 			bootClockDomainProvider: BootClockDomainProvider,
+			onboardingRepository: OnboardingRepository,
 		): SourcePolicyRepository = RoomSourcePolicyRepository(
 			database = database,
+			setupCompleted = { onboardingRepository.isCompleted.first() },
 			effectiveTimeProvider = AndroidSourcePolicyEffectiveTimeProvider(
 				bootClockDomainProvider,
 				clock,

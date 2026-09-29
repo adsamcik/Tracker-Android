@@ -4,6 +4,11 @@ import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.shared.base.extension.PermissionGrantHistory
 import com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilities
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsCapability
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsPermission
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProvider
+
+enum class SetupCompletionError { SETTINGS, RETENTION }
 
 /**
  * Immutable UI state for the first-time setup wizard.
@@ -23,6 +28,10 @@ data class SetupUiState(
     val activityEnabled: Boolean = true,
     val stepsEnabled: Boolean = true,
     val stepCounterAvailable: Boolean = true,
+	val stepsProviderCapability: AmbientStepsCapability? = null,
+	val stepsProviderRepairFailed: Boolean = false,
+	val pressureEnabled: Boolean = false,
+	val pressureSensorAvailable: Boolean = true,
     val wifiEnabled: Boolean = false,
     val cellEnabled: Boolean = false,
 
@@ -33,9 +42,7 @@ data class SetupUiState(
     val notificationPermissionGranted: Boolean = false,
     val cellPermissionGranted: Boolean = false,
 
-    // Denial alerts — set when the user asked to collect a source but denied its
-    // runtime permission. The source is auto-disabled and the UI surfaces a
-    // recoverable inline alert until the user re-toggles it.
+    // Denial alerts keep selected sources visible while offering a permission repair.
     val locationPermissionDenied: Boolean = false,
     val backgroundLocationDeclined: Boolean = false,
     val activityPermissionDenied: Boolean = false,
@@ -44,6 +51,8 @@ data class SetupUiState(
 
     // Step 4 – Online Map Tiles (recommended for the easiest map experience)
     val onlineMapTilesEnabled: Boolean = true,
+	val completionInProgress: Boolean = false,
+	val completionError: SetupCompletionError? = null,
 ) {
 	init { require(balanceLevel in 1..5) }
 	val locationPermissionGranted: Boolean
@@ -65,9 +74,16 @@ data class SetupUiState(
     val progress: Float
         get() = (currentStep.index + 1).toFloat() / SetupStep.totalSteps
 
-    /** True when auto-tracking requires activity recognition permission. */
+    /** Activity and direct/local-provider Steps share Android's motion permission. */
     val needsActivityPermission: Boolean
-        get() = autoTrackingMode > 0 || activityEnabled || stepsEnabled
+        get() = autoTrackingMode > 0 || activityEnabled || stepsNeedsMotionPermission
+
+	val stepsNeedsMotionPermission: Boolean
+		get() = stepsEnabled && (stepCounterAvailable ||
+			(stepsProviderCapability as? AmbientStepsCapability.PermissionRequired)?.let {
+				it.provider == AmbientStepsProvider.LOCAL_RECORDING_STEPS &&
+					AmbientStepsPermission.ACTIVITY_RECOGNITION in it.requiredPermissions
+			} == true)
 
     /** True when location tracking is enabled and needs foreground permission. */
     val needsLocationPermission: Boolean
