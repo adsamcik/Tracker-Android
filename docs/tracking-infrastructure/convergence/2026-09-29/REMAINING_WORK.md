@@ -52,6 +52,13 @@ Authored tests, static review and isolated commits do not satisfy those chains.
   backup excluding settings; cancelled/unfinished/private-file cleanup and
   legacy-file disclosure. (`WI-CROSS-SOURCE-PRIVACY-001`,
   `WI-SHARED-FILE-ASSEMBLY-001`)
+
+  The current data-backup draft enumerates durable files and hashes them, but
+  `DatabaseExporter` does not yet own the writer barrier its contract requires.
+  It holds database transaction locks while copying the whole archive; the
+  effect on live provider admission and the interrupted-restore path remain
+  unproved. Treat this as unfinished data handling, not a verified backup.
+
 - [ ] **Product:** bounded day/range/calendar/timeline/detail queries over all
   sources; truthful source-only Dashboard/Tracker/statistics/notifications/widgets;
   qualified Location enrichment for radio views; source-aware actions, period
