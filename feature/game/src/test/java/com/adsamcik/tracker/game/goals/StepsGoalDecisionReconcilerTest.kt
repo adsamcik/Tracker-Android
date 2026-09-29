@@ -159,7 +159,8 @@ class StepsGoalDecisionReconcilerTest {
 				StepsGoalPeriodDecisionWriteResult.INSERTED,
 			)
 		database.stepsGoalEffectDao().get(dailyIdentity()) shouldBe null
-		database.stepsGoalEffectDao().get(weeklyIdentity())?.qualifiedSteps shouldBe 8_000L
+		// The 8,000 observed Steps are capped at the configured 6,000 daily weekly contribution.
+		database.stepsGoalEffectDao().get(weeklyIdentity())?.qualifiedSteps shouldBe 6_000L
 		GOAL_ACHIEVEMENT_METRICS.forEach { metric ->
 			database.achievementProgressDao().getByMetric(metric.storageKey)?.authorityState shouldBe
 				AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING

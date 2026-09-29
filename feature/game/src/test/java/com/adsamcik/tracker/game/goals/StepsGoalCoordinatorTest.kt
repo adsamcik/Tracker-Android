@@ -24,17 +24,20 @@ import com.adsamcik.tracker.stats.api.repository.StepsNumericDecisionRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDecisionWindow
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
-import com.adsamcik.tracker.testing.TestDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -69,7 +72,7 @@ class StepsGoalCoordinatorTest {
 		val settings = GoalsSettingsState.defaults().copy(notificationsEnabled = false)
 		val settingsRepository = mockk<GoalsSettingsRepository>()
 		every { settingsRepository.data } returns MutableStateFlow(settings)
-		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val dispatchers = TestDispatchersProvider(Dispatchers.IO)
 		val dirtyTracker = RecordingMetricDirtyTracker()
 		val progression = PlayerProgressionRepository(
 			appDatabase,
@@ -113,25 +116,38 @@ class StepsGoalCoordinatorTest {
 				ReadyGate,
 			),
 		)
-		backgroundScope.launch { coordinator.run() }
+		val coordinatorJob = launch(Dispatchers.Default) { coordinator.run() }
+		try {
+			val authority = stepsCalendarAuthority(Time.now, Locale.getDefault())
+			val identity = StepsGoalEffectEntity.identity(
+				StepsGoalEffectEntity.PERIOD_DAY,
+				authority.today.toEpochDay(),
+			)
+			withContext(Dispatchers.IO) {
+				withTimeout(10_000L) {
+					while (true) {
+						val current = appDatabase.stepsGoalEffectDao().get(identity)
+						if (current != null &&
+							current.notificationClaimedRevision == current.effectRevision
+						) break
+						delay(10L)
+					}
+				}
+			}
 
-		advanceUntilIdle()
-
-		val authority = stepsCalendarAuthority(Time.now, Locale.getDefault())
-		val identity = StepsGoalEffectEntity.identity(
-			StepsGoalEffectEntity.PERIOD_DAY,
-			authority.today.toEpochDay(),
-		)
-		val effect = requireNotNull(appDatabase.stepsGoalEffectDao().get(identity))
-		effect.decisionState shouldBe StepsGoalEffectEntity.STATE_READY_COMPLETE
-		effect.pointsAppliedRevision shouldBe effect.effectRevision
-		effect.xpAppliedRevision shouldBe effect.effectRevision
-		effect.notificationClaimedRevision shouldBe effect.effectRevision
-		pointsDatabase.pointsAwardedDao()
-			.getRevisionedEffect(AwardSource.GOAL.value, identity)
-			?.effectValueMicros shouldBe settings.dailyStepGoal.toLong() * 10_000L
-		appDatabase.xpLedgerDao().getRevisionedEffect("GOAL", identity)?.amount shouldBe 50
-		appDatabase.playerProfileDao().get()?.totalXp shouldBe 50L
+			val effect = requireNotNull(appDatabase.stepsGoalEffectDao().get(identity))
+			effect.decisionState shouldBe StepsGoalEffectEntity.STATE_READY_COMPLETE
+			effect.pointsAppliedRevision shouldBe effect.effectRevision
+			effect.xpAppliedRevision shouldBe effect.effectRevision
+			effect.notificationClaimedRevision shouldBe effect.effectRevision
+			pointsDatabase.pointsAwardedDao()
+				.getRevisionedEffect(AwardSource.GOAL.value, identity)
+				?.effectValueMicros shouldBe settings.dailyStepGoal.toLong() * 10_000L
+			appDatabase.xpLedgerDao().getRevisionedEffect("GOAL", identity)?.amount shouldBe 50
+			appDatabase.playerProfileDao().get()?.totalXp shouldBe 50L
+		} finally {
+			coordinatorJob.cancelAndJoin()
+		}
 	}
 
 	private data object ReadyDecisionRepository : StepsNumericDecisionRepository {

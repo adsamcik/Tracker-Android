@@ -195,9 +195,9 @@ class StepsGoalAchievementReconcilerTest {
 			database.stepsGoalEffectDao().recordDecision(effect(day, sourceRevision = 4L, digest = 'd'))
 		}
 		reconciler.reconcile(500L) shouldBe StepsGoalAchievementReconcileResult.Applied(true)
-		(events.persisted.last() as DomainEvent.AchievementUnlocked).achievementId shouldBe
-			"goal_streak_7"
-		events.persisted.size shouldBe 2
+		events.persisted.map { (it as DomainEvent.AchievementUnlocked).achievementId }.toSet() shouldBe
+			setOf("goal_streak_3", "goal_streak_7", "perfect_weeks_1")
+		events.persisted.size shouldBe 3
 	}
 
 	@Test
