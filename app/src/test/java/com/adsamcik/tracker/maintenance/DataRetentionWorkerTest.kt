@@ -37,6 +37,7 @@ import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetenti
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.QuarantinedSignalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
@@ -449,8 +450,8 @@ class DataRetentionWorkerTest {
 			attributedSegmentId = database.sessionSegmentDao().insert(attributedSegment)
 			insertExpiredStepsHistory(database, attributedSegmentId)
 			val (imported, importedSegmentId) = seedExpiredImportedSteps(database, 1L)
-			database.sourceEventWalDao().insertIgnoringDuplicate(staleRawCellEvent())
-			database.sourceEventWalDao().insertIgnoringDuplicate(staleRawWifiEvent())
+			database.sourceEventWalDao().insertIgnoringDuplicate(staleRawCellEvent().withValidIntegrity())
+			database.sourceEventWalDao().insertIgnoringDuplicate(staleRawWifiEvent().withValidIntegrity())
 			database.quarantinedSignalDao().insert(
 				QuarantinedSignalEntity(
 					sourcePendingId = 1L,
@@ -1027,7 +1028,13 @@ class DataRetentionWorkerTest {
 				destructivePlan = any(),
 				verifyApprovedOperation = any(),
 			)
-		} answers {
+		} coAnswers {
+			val evidence = arg<AppDatabase>(0).sourceEvidenceStateDao()
+			evidence.ensure()
+			val current = evidence.get()
+			if (current != null && (current.collectedDataEpoch != 1L || current.retainedFromMs != 3L)) {
+				evidence.updateLifecycle(1L, 3L, arg(6))
+			}
 			RetentionFloorSettlementResult.Settled(
 				lifecycle = CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 3L),
 				reconciledSources = setOf(
@@ -1225,6 +1232,14 @@ class DataRetentionWorkerTest {
 		authorizationFingerprint = "wifi-capture",
 		sourceSequence = 2L,
 	)
+
+	private fun SourceEventWalEntity.withValidIntegrity(): SourceEventWalEntity {
+		val withPayloadChecksum = copy(
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			payloadChecksum = calculatedPayloadChecksum(),
+		)
+		return withPayloadChecksum.copy(integrityIdentity = withPayloadChecksum.calculatedIntegrityIdentity())
+	}
 
 	private suspend fun insertExpiredStepsHistory(
 		database: AppDatabase,

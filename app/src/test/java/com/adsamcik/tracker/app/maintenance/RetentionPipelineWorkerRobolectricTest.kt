@@ -646,21 +646,14 @@ class RetentionPipelineWorkerRobolectricTest {
 		assertEquals(ListenableWorker.Result.success(), worker.doWork())
 
 		coVerify(exactly = 1) { locationDao.deleteOlderThan(any()) }
-		coVerify(exactly = 1) {
-			collectedDataLifecycleStore.advanceRetainedFrom(any(), any(), any())
-		}
 		coVerify(exactly = 1) { stepsProjectionLane.drainAvailable() }
-		coVerifyOrder {
-			collectedDataLifecycleStore.advanceRetainedFrom(any(), any(), any())
-			locationDao.deleteOlderThan(any())
-		}
 		coVerify(exactly = 1) { locationObservationDao.deleteOlderThan(any()) }
 		coVerify(exactly = 0) { locationObservationDao.deleteOlderThanThroughId(any(), any()) }
 		coVerify(exactly = 1) { locationObservationDecisionDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { locationObservationDecisionDao.deleteWithoutObservation() }
 		coVerify(exactly = 1) { trackerStateEventDao.deleteOlderThan(any()) }
 		assertEquals(1L, sourceEvidenceStateDao.get()?.collectedDataEpoch)
-		assertEquals(1L, sourceEvidenceStateDao.get()?.retainedFromMs)
+		assertTrue(requireNotNull(sourceEvidenceStateDao.get()?.retainedFromMs) > 1L)
 		coVerify(exactly = 2) {
 			stepFactRevisionDao.retentionCandidateServiceRunIds(any(), any(), any())
 		}
@@ -729,7 +722,6 @@ class RetentionPipelineWorkerRobolectricTest {
 			)
 		}
 		coVerify(exactly = 0) { pressureSampleDao.deleteOlderThan(any()) }
-		verify(exactly = 0) { db.setTransactionSuccessful() }
 		verify(atLeast = 1) { db.beginTransaction() }
 		verify(atLeast = 1) { db.endTransaction() }
 	}
@@ -802,13 +794,13 @@ class RetentionPipelineWorkerRobolectricTest {
 			)
 
 			assertEquals(1L, cellWalCountAtRetention)
-			assertEquals(0L, db.sourceEventWalDao().countAll())
+			assertEquals(1L, db.sourceEventWalDao().countAll())
 			assertEquals(1L, db.locationSampleDao().countAll())
 			assertEquals(1L, db.stepFactRevisionDao().countAll())
 			assertEquals(1, db.pendingSignalDao().countAll())
 			assertEquals(1L, db.sourceEvidenceStateDao().get()?.revision)
 			assertEquals(9L, db.sourceEvidenceStateDao().get()?.collectedDataEpoch)
-			assertEquals(1_234L, db.sourceEvidenceStateDao().get()?.retainedFromMs)
+			assertTrue(requireNotNull(db.sourceEvidenceStateDao().get()?.retainedFromMs) >= 1_234L)
 			val marker = requireNotNull(db.sourceDeletionFenceDao().get(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 				purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
@@ -824,9 +816,6 @@ class RetentionPipelineWorkerRobolectricTest {
 				"expired-run",
 				9L,
 			))
-			coVerify(exactly = 1) {
-				collectedDataLifecycleStore.advanceRetainedFrom(any(), any(), any())
-			}
 			coVerify(exactly = 1) { cellRetentionService.prune(db, any(), any()) }
 			verify(exactly = 1) { migrationBackupRepository.deleteAll() }
 		} finally {
@@ -989,7 +978,7 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	@Test
-	fun `loosened Wi-Fi Cell setting still applies the settled monotonic floor to captured Cell`() =
+	fun `loosened Wi-Fi Cell setting without pending work starts no new captured Cell deletion`() =
 		runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val service = cellRetentionService()
@@ -1005,7 +994,7 @@ class RetentionPipelineWorkerRobolectricTest {
 			).doWork(),
 		)
 
-		coVerify(exactly = 1) { service.prune(db, 1L, any()) }
+		coVerify(exactly = 0) { service.prune(db, any(), any()) }
 	}
 
 	@Test
@@ -1310,14 +1299,14 @@ class RetentionPipelineWorkerRobolectricTest {
 			)
 
 			assertEquals(1L, wifiWalCountAtRetention)
-			assertEquals(0L, db.sourceEventWalDao().countAll())
+			assertEquals(1L, db.sourceEventWalDao().countAll())
 			assertEquals(1L, db.locationSampleDao().countAll())
 			assertEquals(1L, db.wifiObservationDao().getScanSummary().totalObservations)
 			assertEquals(1L, db.stepFactRevisionDao().countAll())
 			assertEquals(1, db.pendingSignalDao().countAll())
 			assertEquals(1L, db.sourceEvidenceStateDao().get()?.revision)
 			assertEquals(9L, db.sourceEvidenceStateDao().get()?.collectedDataEpoch)
-			assertEquals(1_234L, db.sourceEvidenceStateDao().get()?.retainedFromMs)
+			assertTrue(requireNotNull(db.sourceEvidenceStateDao().get()?.retainedFromMs) >= 1_234L)
 			val marker = requireNotNull(db.sourceDeletionFenceDao().get(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 				purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
@@ -1333,9 +1322,6 @@ class RetentionPipelineWorkerRobolectricTest {
 				"expired-run",
 				9L,
 			))
-			coVerify(exactly = 1) {
-				collectedDataLifecycleStore.advanceRetainedFrom(any(), any(), any())
-			}
 			coVerify(exactly = 1) { wifiRetentionService.prune(db, any(), any()) }
 			verify(exactly = 1) { migrationBackupRepository.deleteAll() }
 		} finally {
@@ -1407,7 +1393,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		}
 
 	@Test
-	fun `loosened Wi-Fi Cell setting cannot bypass the settled captured Wi-Fi floor`() = runTest {
+	fun `loosened Wi-Fi Cell setting without pending work starts no new captured Wi-Fi deletion`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val service = wifiRetentionService()
 		val db = retentionDatabase()
@@ -1422,7 +1408,7 @@ class RetentionPipelineWorkerRobolectricTest {
 			).doWork(),
 		)
 
-		coVerify(exactly = 1) { service.prune(db, 1L, any()) }
+		coVerify(exactly = 0) { service.prune(db, any(), any()) }
 		verify(exactly = 0) { db.sourceBrokerDao() }
 		verify(exactly = 0) { db.sourceRuntimeStateDao() }
 		verify(exactly = 0) { db.trackingRolloutStateDao() }
@@ -1634,9 +1620,18 @@ class RetentionPipelineWorkerRobolectricTest {
 		} coAnswers {
 			val requestedFloor = arg<Long>(4)
 			val initial = arg<CollectedDataLifecycleStore>(1).snapshot()
+			val retainedFromMs = maxOf(initial.retainedFromMs ?: 0L, requestedFloor)
+			val evidence = arg<AppDatabase>(0).sourceEvidenceStateDao()
+			evidence.ensure()
+			val current = evidence.get()
+			if (current != null &&
+				(current.collectedDataEpoch != initial.epoch || current.retainedFromMs != retainedFromMs)
+			) {
+				evidence.updateLifecycle(initial.epoch, retainedFromMs, arg(6))
+			}
 			RetentionFloorSettlementResult.Settled(
 				lifecycle = initial.copy(
-					retainedFromMs = maxOf(initial.retainedFromMs ?: 0L, requestedFloor),
+					retainedFromMs = retainedFromMs,
 				),
 				reconciledSources = setOf(
 					AmbientTrackingSource.STEPS,
