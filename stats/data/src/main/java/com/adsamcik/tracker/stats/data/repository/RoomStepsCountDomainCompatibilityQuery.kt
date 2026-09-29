@@ -82,11 +82,7 @@ internal class RoomStepsCountDomainCompatibilityQuery @Inject constructor(
 				}
 				continue
 			}
-			when (val read = if (nativeKeys.isEmpty()) {
-				StepsCountDomainOwnerRead.Ready(emptyMap(), emptyMap())
-			} else {
-				store.readOwners(nativeKeys)
-			}) {
+			when (val read = store.readOwners(nativeKeys)) {
 				StepsCountDomainOwnerRead.SchemaUnavailable ->
 					chunk.forEach {
 						results[it.index] = StepsCountDomainCompatibilityResult.Unproven

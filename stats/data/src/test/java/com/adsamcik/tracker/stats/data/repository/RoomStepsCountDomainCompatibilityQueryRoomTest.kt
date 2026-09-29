@@ -372,7 +372,7 @@ class RoomStepsCountDomainCompatibilityQueryRoomTest {
 		val sqlite = database.openHelper.writableDatabase
 		sqlite.execSQL(
 			"INSERT INTO steps_count_domain_receipt VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			arrayOf(
+			arrayOf<Any?>(
 				receiptIdentity,
 				domainIdentity,
 				ownerKind,
@@ -392,12 +392,12 @@ class RoomStepsCountDomainCompatibilityQueryRoomTest {
 		)
 		sqlite.execSQL(
 			"INSERT INTO steps_count_domain_owner_revision VALUES (?, ?, ?, ?, 'BIND', ?, ?, 1)",
-			arrayOf(ownerKind, scopeIdentity, ownerIdentity, 1L, receiptIdentity, effect),
+			arrayOf<Any?>(ownerKind, scopeIdentity, ownerIdentity, 1L, receiptIdentity, effect),
 		)
 		marker?.let {
 			sqlite.execSQL(
 				"INSERT INTO steps_count_domain_completeness_marker VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-				arrayOf(
+				arrayOf<Any?>(
 					it.ownerKind,
 					it.ownerIdentity,
 					it.ownerRevision,
