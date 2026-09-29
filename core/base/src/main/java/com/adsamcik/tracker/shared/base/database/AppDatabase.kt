@@ -29,6 +29,7 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSamplePurposeAutho
 import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.dao.AmbientWifiFactDao
 import com.adsamcik.tracker.shared.base.database.dao.CellCapturedFactDao
+import com.adsamcik.tracker.shared.base.database.dao.RadioObservationChildDao
 import com.adsamcik.tracker.shared.base.database.dao.CapturedRadioFactRetentionProofDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.CollectedDataDeletionOperationDao
@@ -37,6 +38,7 @@ import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportReceiptDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedRadioChildDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.dao.LegacyV27ProjectionDrainDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
@@ -81,6 +83,7 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellDeletionMarkerEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellChildEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellGapEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellReplayFootprintEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityEntity
@@ -94,6 +97,7 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiDeletionMarkerEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiChildEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiGapEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiReplayFootprintEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityEntity
@@ -102,6 +106,9 @@ import com.adsamcik.tracker.shared.base.database.data.CellCapturedDeletedRunEnti
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedChildEntity
+import com.adsamcik.tracker.shared.base.database.data.LegacyCellChildEntity
+import com.adsamcik.tracker.shared.base.database.data.LegacyWifiChildEntity
 import com.adsamcik.tracker.shared.base.database.data.CapturedRadioFactRetentionProofEntity
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
@@ -115,6 +122,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionE
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellObservationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellChildEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellRunEntity
 import com.adsamcik.tracker.shared.base.database.data.LiveStatsEntity
@@ -152,10 +160,12 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFe
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureSourceEraseEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureSourceEraseWitnessEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellFactEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellChildEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellGapEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellTombstoneEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiFactEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiChildEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiGapEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiTombstoneEntity
@@ -196,6 +206,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedWifiDeletionGenera
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiObservationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiChildEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunZoneEntity
@@ -215,6 +226,7 @@ import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiCapturedChildEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionProtectedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
@@ -295,16 +307,16 @@ import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 internal const val INITIAL_ACTIVE_DATABASE_VERSION = 27
 internal const val LAST_RELEASED_LEGACY_DATABASE_VERSION = 12
 
-/** Current development schema. Version 28 has not shipped and may still be refined in place. */
-internal const val CURRENT_DATABASE_VERSION = 28
+/** Current development schema. Versions 28 and 29 have not shipped. */
+internal const val CURRENT_DATABASE_VERSION = 29
 
 /**
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 28 (App versionCode: 400 - UNRELEASED)
+ * CURRENT VERSION: 29 (UNRELEASED)
  *
- * Released `main` used v12 in `main_database`. Versions 13-28 are development schemas.
+ * Released `main` used v12 in `main_database`. Versions 13-29 are development schemas.
  * Version 27 introduced the new active filename; its recognized local files migrate in place.
  * See AppDatabaseMigrations.kt for the full history and migration rules.
  */
@@ -391,6 +403,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ActivityCapturedEvidenceEntity::class,
 			ActivityCapturedWindowCursorEntity::class,
 			CellCapturedFactRevisionEntity::class,
+			CellCapturedChildEntity::class,
 			CellCapturedFactCursorEntity::class,
 			CapturedRadioFactRetentionProofEntity::class,
 			CellCaptureDeletionGenerationEntity::class,
@@ -400,11 +413,13 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedCellReceiptEntity::class,
 			ImportedCellRunEntity::class,
 			ImportedCellObservationEntity::class,
+			ImportedCellChildEntity::class,
 			ImportedCellEntryDeletionEntity::class,
 			ImportedCellDeletionGenerationEntity::class,
 			ImportedCellEntryDeletionReceiptEntity::class,
 			ImportedCellDeletedIdentityEntity::class,
 			WifiCapturedFactRevisionEntity::class,
+			WifiCapturedChildEntity::class,
 			WifiCapturedFactCursorEntity::class,
 			WifiCaptureDeletionGenerationEntity::class,
 			ImportedWifiEntryRevisionEntity::class,
@@ -412,6 +427,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedWifiRunEntity::class,
 			ImportedWifiRunZoneEntity::class,
 			ImportedWifiObservationEntity::class,
+			ImportedWifiChildEntity::class,
 			ImportedWifiEntryDeletionEntity::class,
 			ImportedWifiDeletionGenerationEntity::class,
 			WifiSelectedDeletionReceiptEntity::class,
@@ -423,10 +439,12 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			LocationAcceptedReceiptEntity::class,
 			LocationSamplePurposeAuthorityEntity::class,
 			AmbientWifiFactRevisionEntity::class,
+			AmbientWifiChildEntity::class,
 			AmbientWifiFactCursorEntity::class,
 			AmbientWifiGapEntity::class,
 			AmbientWifiDeletionMarkerEntity::class,
 			ImportedAmbientWifiFactEntity::class,
+			ImportedAmbientWifiChildEntity::class,
 			ImportedAmbientWifiGapEntity::class,
 			ImportedAmbientWifiReceiptEntity::class,
 			ImportedAmbientWifiTombstoneEntity::class,
@@ -434,10 +452,12 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			AmbientCellAuthorityEntity::class,
 			AmbientCellRetentionAuthorityEntity::class,
 			AmbientCellFactRevisionEntity::class,
+			AmbientCellChildEntity::class,
 			AmbientCellFactCursorEntity::class,
 			AmbientCellGapEntity::class,
 			AmbientCellDeletionMarkerEntity::class,
 			ImportedAmbientCellFactEntity::class,
+			ImportedAmbientCellChildEntity::class,
 			ImportedAmbientCellGapEntity::class,
 			ImportedAmbientCellReceiptEntity::class,
 			ImportedAmbientCellTombstoneEntity::class,
@@ -446,7 +466,9 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			SourceDestinationOwnerEntity::class,
 			ActivitySnapshot::class,
 			CellSample::class,
+			LegacyCellChildEntity::class,
 			WifiObservation::class,
+			LegacyWifiChildEntity::class,
 			TrackerRun::class,
 			TrackerStateEvent::class,
 			SourceEvidenceState::class,
@@ -583,6 +605,8 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Default-off sessionless Cell evidence; access alone creates no demand. */
 	abstract fun ambientCellFactDao(): AmbientCellFactDao
+	abstract fun radioObservationChildDao(): RadioObservationChildDao
+	abstract fun importedRadioChildDao(): ImportedRadioChildDao
 
 	/** Desired, revisioned source-qualified goal effects; no provider or award is started by access. */
 	abstract fun stepsGoalEffectDao(): StepsGoalEffectDao
@@ -824,7 +848,7 @@ abstract class AppDatabase : RoomDatabase() {
 			MIGRATION_25_26,
 		)
 		/** Normal in-place migrations for the stable v27+ active database filename. */
-		internal val activeMigrations: Array<Migration> = arrayOf(MIGRATION_27_28)
+		internal val activeMigrations: Array<Migration> = arrayOf(MIGRATION_27_28, MIGRATION_28_29)
 
 		override fun delegateOpenHelperFactory(): SupportSQLiteOpenHelper.Factory =
 			SQLiteXSupportSQLiteOpenHelperFactory(
@@ -844,6 +868,7 @@ abstract class AppDatabase : RoomDatabase() {
 			addMigrations(*activeMigrations)
 			addCallback(TrackingOwnerValidationRoomCallback)
 			addCallback(FinalV28SchemaAssemblyRoomCallback)
+			addCallback(RadioObservationChildRoomCallback)
 		}
 
 		fun fileBuilder(context: Context, name: String): Builder<AppDatabase> =
@@ -956,6 +981,21 @@ abstract class AppDatabase : RoomDatabase() {
 			}
 		}
 
+		/** Runs the exact collected-data clear against a caller-owned Room test database. */
+		suspend fun deleteAllCollectedDataForTesting(
+			database: AppDatabase,
+			operationId: String,
+			collectedDataEpoch: Long,
+			retainedFromMs: Long?,
+			updatedAtMs: Long,
+		): CollectedDataDeletionOperationEntity = deleteAllCollectedData(
+			database = database,
+			operationId = operationId,
+			collectedDataEpoch = collectedDataEpoch,
+			retainedFromMs = retainedFromMs,
+			updatedAtMs = updatedAtMs,
+		)
+
 		suspend fun readCollectedDataDeletionOperation(
 			context: Context,
 			operationId: String,
@@ -1064,6 +1104,10 @@ abstract class AppDatabase : RoomDatabase() {
 				newRetainedFromMs = nextRetainedFromMs,
 				clearedAtMs = updatedAtMs,
 			)
+			database.radioObservationChildDao().deleteAllWifiBackground()
+			database.radioObservationChildDao().deleteAllCellBackground()
+			database.importedRadioChildDao().deleteAllWifiBackground()
+			database.importedRadioChildDao().deleteAllCellBackground()
 			check(
 				database.clearAmbientWifiProductInCurrentFullClearTransaction(
 					oldState.collectedDataEpoch,
@@ -1234,17 +1278,23 @@ abstract class AppDatabase : RoomDatabase() {
 			database.activityCapturedFactDao().deleteAllRevisions()
 			database.activityCapturedFactDao().deleteAllRegistrationPlanBindings()
 			database.cellCapturedFactDao().deleteAllCursors()
+			database.radioObservationChildDao().deleteAllCellSession()
 			database.cellCapturedFactDao().deleteAllRevisions()
+			database.importedRadioChildDao().deleteAllCellSession()
 			database.importedCellDao().deleteAllReceipts()
 			database.importedCellDao().deleteAllEntries()
 			database.wifiCapturedFactDao().deleteAllCursors()
+			database.radioObservationChildDao().deleteAllWifiSession()
 			// Wi-Fi coverage revisions reference aggregate owners through an immediate RESTRICT FK.
 			database.wifiCapturedFactDao().deleteAllDependentRevisions()
 			database.wifiCapturedFactDao().deleteAllRevisions()
+			database.importedRadioChildDao().deleteAllWifiSession()
 			database.importedWifiDao().deleteAllReceipts()
 			database.importedWifiDao().deleteAllEntryRevisions()
 			database.stepIntervalDao().deleteAll()
 			database.activitySnapshotDao().deleteAll()
+			database.radioObservationChildDao().deleteAllLegacyCell()
+			database.radioObservationChildDao().deleteAllLegacyWifi()
 			database.cellSampleDao().deleteAll()
 			database.wifiObservationDao().deleteAll()
 			database.trackerRunDao().deleteAll()

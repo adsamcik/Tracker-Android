@@ -1385,7 +1385,7 @@ internal const val V28_MIGRATION_TERMINAL_RUN_SQL =
 
 val MIGRATION_27_28: Migration = object : Migration(
 	INITIAL_ACTIVE_DATABASE_VERSION,
-	CURRENT_DATABASE_VERSION,
+	28,
 ) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		createImportedPressureMaintenanceTables(db)

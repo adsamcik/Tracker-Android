@@ -50,7 +50,7 @@ class DevelopmentV28DatabaseContainmentTest {
 			"tracker-v28-authenticated-retention-scope-proof-20260921",
 		).forEach { marker ->
 			deleteFixture()
-			createFixture(CURRENT_DATABASE_VERSION, includeFinalTable = true, includeFinalColumn = true,
+			createFixture(28, includeFinalTable = true, includeFinalColumn = true,
 				includeFinalIndex = true, markerValue = marker)
 			preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28)
 		}
@@ -58,7 +58,7 @@ class DevelopmentV28DatabaseContainmentTest {
 
 	@Test
 	fun `claimed current assembly without Location file identity is contained without changing the file`() {
-		createFixture(CURRENT_DATABASE_VERSION, includeMarker = true, includeFinalTable = true,
+		createFixture(28, includeMarker = true, includeFinalTable = true,
 			includeFinalColumn = true, includeFinalIndex = true,
 			locationSchemaMutation = { it.execSQL("DROP TABLE location_file_identity") })
 		val file = context.getDatabasePath(DATABASE_NAME)
@@ -69,7 +69,7 @@ class DevelopmentV28DatabaseContainmentTest {
 
 	@Test
 	fun `pre adaptive Location development marker is stale`() {
-		createFixture(CURRENT_DATABASE_VERSION, includeFinalTable = true, includeFinalColumn = true,
+		createFixture(28, includeFinalTable = true, includeFinalColumn = true,
 			includeFinalIndex = true, markerValue = "tracker-v28-applied-source-plan-state-20260920")
 		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28)
 	}
@@ -84,7 +84,7 @@ class DevelopmentV28DatabaseContainmentTest {
 		)
 		mutations.forEach { mutate ->
 			deleteFixture()
-			createFixture(CURRENT_DATABASE_VERSION, includeMarker = true, includeFinalTable = true, includeFinalColumn = true,
+			createFixture(28, includeMarker = true, includeFinalTable = true, includeFinalColumn = true,
 				includeFinalIndex = true, stepsSchemaMutation = mutate)
 			val before = context.getDatabasePath(DATABASE_NAME).readBytes().toList()
 			preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA)
@@ -94,7 +94,7 @@ class DevelopmentV28DatabaseContainmentTest {
 
 	@Test
 	fun `claimed current assembly without Location purpose authority is contained`() {
-		createFixture(CURRENT_DATABASE_VERSION, includeMarker = true, includeFinalTable = true,
+		createFixture(28, includeMarker = true, includeFinalTable = true,
 			includeFinalColumn = true, includeFinalIndex = true,
 			locationSchemaMutation = { it.execSQL("DROP TABLE location_sample_purpose_authority") })
 		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA)
@@ -102,7 +102,7 @@ class DevelopmentV28DatabaseContainmentTest {
 
 	@Test
 	fun `claimed current assembly without unique Location receipt identity is contained`() {
-		createFixture(CURRENT_DATABASE_VERSION, includeMarker = true, includeFinalTable = true,
+		createFixture(28, includeMarker = true, includeFinalTable = true,
 			includeFinalColumn = true, includeFinalIndex = true,
 			locationSchemaMutation = { it.execSQL("DROP INDEX idx_location_receipt_event") })
 		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA)
@@ -118,7 +118,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `fresh final v28 marker is accepted on every reopen`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -132,7 +132,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `development v28 without the final marker is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeFinalTable = true,
 			includeFinalColumn = true,
 			includeFinalIndex = true,
@@ -146,7 +146,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `pre-retention final v28 marker is classified as stale`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeFinalTable = true,
 			includeFinalColumn = true,
 			includeFinalIndex = true,
@@ -161,7 +161,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `pre-radio-receipt retention marker is classified as stale`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeFinalTable = true,
 			includeFinalColumn = true,
 			includeFinalIndex = true,
@@ -176,7 +176,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `pre Steps count-domain caller authority marker is classified as stale`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeFinalTable = true,
 			includeFinalColumn = true,
 			includeFinalIndex = true,
@@ -191,7 +191,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `pre disk staging v28 marker is classified as stale`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeFinalTable = true,
 			includeFinalColumn = true,
 			includeFinalIndex = true,
@@ -206,7 +206,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `previous portable staging marker is classified as stale`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeFinalTable = true,
 			includeFinalColumn = true,
 			includeFinalIndex = true,
@@ -221,7 +221,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `pre retention proof lifecycle marker is classified as stale`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeFinalTable = true,
 			includeFinalColumn = true,
 			includeFinalIndex = true,
@@ -236,7 +236,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 missing an indispensable final table is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalColumn = true,
 		)
@@ -251,7 +251,7 @@ class DevelopmentV28DatabaseContainmentTest {
 		APPLIED_PLAN_PAYLOAD_COLUMNS.forEach { missingColumn ->
 			deleteFixture()
 			createFixture(
-				version = CURRENT_DATABASE_VERSION,
+				version = 28,
 				includeMarker = true,
 				includeFinalTable = true,
 				includeFinalColumn = true,
@@ -268,7 +268,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `pre-retention v28 missing retention sentinels is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeRetentionTables = false,
@@ -284,7 +284,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 missing source event retention proof is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -302,7 +302,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 with incomplete source event retention authority is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -331,7 +331,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 missing retained source scope authority is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -349,7 +349,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 missing exact Pressure lineage retention authority is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -367,7 +367,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 missing Pressure retained revision authority is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -385,7 +385,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 missing Pressure retention resurrection trigger is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -403,7 +403,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `same named Pressure retention trigger on another table is preserved and contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -452,7 +452,7 @@ class DevelopmentV28DatabaseContainmentTest {
 		definitions.forEach { (name, definition) ->
 			deleteFixture()
 			createFixture(
-				version = CURRENT_DATABASE_VERSION,
+				version = 28,
 				includeMarker = true,
 				includeFinalTable = true,
 				includeFinalColumn = true,
@@ -474,7 +474,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 missing an indispensable final column is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalIndex = true,
@@ -488,7 +488,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 missing the retained radio receipt floor is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -504,7 +504,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 missing an indispensable final index is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -518,7 +518,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `pre caller authority v28 is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -534,7 +534,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 missing a Steps count-domain table is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -552,7 +552,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 missing an exact Steps count-domain column is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -573,7 +573,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 missing an exact Steps count-domain index is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -591,7 +591,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 missing portable Steps disk staging is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -609,7 +609,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 with ascending imported Steps traversal index is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -631,7 +631,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `marked v28 missing an exact Steps count-domain trigger is contained`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -649,7 +649,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `unknown v28 schema is not mistaken for stale Tracker development data`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeBaseline = false,
 		)
 
@@ -732,7 +732,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `blocked preflight never opens or changes the database file`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeFinalTable = true,
 			includeFinalColumn = true,
 			includeFinalIndex = true,
@@ -867,7 +867,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	@Test
 	fun `guarded delegate contention remains retryable`() {
 		createFixture(
-			version = CURRENT_DATABASE_VERSION,
+			version = 28,
 			includeMarker = true,
 			includeFinalTable = true,
 			includeFinalColumn = true,
@@ -906,6 +906,34 @@ class DevelopmentV28DatabaseContainmentTest {
 	private fun preflight(): ActiveDatabasePreflightResult =
 		ActiveDatabasePreflight(databaseFile()).inspect()
 
+	@Test
+	fun `fresh v29 database carries radio child tables and legacy copy triggers`() {
+		val database = AppDatabase.fileBuilder(context, DATABASE_NAME)
+			.allowMainThreadQueries()
+			.build()
+		try {
+			database.openHelper.writableDatabase
+		} finally {
+			database.close()
+		}
+		preflight() shouldBe ActiveDatabasePreflightResult.FinalV29
+	}
+
+	@Test
+	fun `v29 database missing a radio child table is blocked before Room opens`() {
+		val database = AppDatabase.fileBuilder(context, DATABASE_NAME)
+			.allowMainThreadQueries()
+			.build()
+		try {
+			database.openHelper.writableDatabase.execSQL("DROP TABLE legacy_wifi_child")
+		} finally {
+			database.close()
+		}
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA,
+		)
+	}
+
 	private fun createFixture(
 		version: Int,
 		includeBaseline: Boolean = true,
@@ -928,10 +956,10 @@ class DevelopmentV28DatabaseContainmentTest {
 				.callback(object : SupportSQLiteOpenHelper.Callback(version) {
 					override fun onCreate(db: SupportSQLiteDatabase) {
 						if (includeBaseline) {
-							db.execSQL(
-								"CREATE TABLE room_master_table " +
-									"(id INTEGER PRIMARY KEY, identity_hash TEXT)",
-							)
+								db.execSQL(
+									"CREATE TABLE room_master_table " +
+										"(id INTEGER PRIMARY KEY, identity_hash TEXT)",
+								)
 							db.execSQL("CREATE TABLE activity (id INTEGER PRIMARY KEY)")
 							db.execSQL("CREATE TABLE tracker_run (id INTEGER PRIMARY KEY)")
 							val finalColumn = if (includeFinalColumn) {

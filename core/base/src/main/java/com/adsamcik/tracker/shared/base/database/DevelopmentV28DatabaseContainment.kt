@@ -24,6 +24,7 @@ sealed interface ActiveDatabasePreflightResult {
 	data object Fresh : ActiveDatabasePreflightResult
 	data object KnownDevelopmentV27 : ActiveDatabasePreflightResult
 	data object FinalV28 : ActiveDatabasePreflightResult
+	data object FinalV29 : ActiveDatabasePreflightResult
 	data class Retryable(val reason: ActiveDatabaseRetryableReason) : ActiveDatabasePreflightResult
 	data class Blocked(val reason: ActiveDatabaseBlockReason) : ActiveDatabasePreflightResult
 }
@@ -39,9 +40,11 @@ enum class ActiveDatabaseBlockReason(val failureCode: String) {
 	UNRECOGNIZED_DATABASE_SCHEMA("UNRECOGNIZED_DATABASE_SCHEMA"),
 	INVALID_FINAL_V28_MARKER("INVALID_FINAL_V28_MARKER"),
 	INCOMPLETE_FINAL_V28_SCHEMA("INCOMPLETE_FINAL_V28_SCHEMA"),
+	INCOMPLETE_FINAL_V29_SCHEMA("INCOMPLETE_FINAL_V29_SCHEMA"),
 	UNREADABLE_DATABASE("UNREADABLE_DATABASE"),
 	DEVELOPMENT_V27_MIGRATION_VALIDATION_FAILED("DEVELOPMENT_V27_MIGRATION_VALIDATION_FAILED"),
 	FINAL_V28_OPEN_VALIDATION_FAILED("FINAL_V28_OPEN_VALIDATION_FAILED"),
+	FINAL_V29_OPEN_VALIDATION_FAILED("FINAL_V29_OPEN_VALIDATION_FAILED"),
 }
 
 class ActiveDatabaseOpenBlockedException(
@@ -98,7 +101,7 @@ class ActiveDatabasePreflight internal constructor(
 			return ActiveDatabasePreflightResult.Fresh
 		}
 		if (version != INITIAL_ACTIVE_DATABASE_VERSION &&
-			version != CURRENT_DATABASE_VERSION
+			version != 28 && version != CURRENT_DATABASE_VERSION
 		) {
 			return ActiveDatabasePreflightResult.Blocked(
 				ActiveDatabaseBlockReason.UNSUPPORTED_DATABASE_VERSION,
@@ -203,7 +206,16 @@ class ActiveDatabasePreflight internal constructor(
 				ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
 			)
 		}
-		return ActiveDatabasePreflightResult.FinalV28
+		if (version == 28) return ActiveDatabasePreflightResult.FinalV28
+		if (!FINAL_V29_RADIO_CHILD_COLUMNS.all { (table, columns) -> database.hasExactColumns(table, columns) } ||
+			!FINAL_V29_RADIO_CHILD_INDEXES.all(database::hasExactIndex) ||
+			!FINAL_V29_RADIO_MIRROR_TRIGGERS.all(database::hasTrigger)
+		) {
+			return ActiveDatabasePreflightResult.Blocked(
+				ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA,
+			)
+		}
+		return ActiveDatabasePreflightResult.FinalV29
 	}
 }
 
@@ -268,6 +280,8 @@ internal class DevelopmentV28ContainmentOpenHelperFactory(
 						ActiveDatabaseBlockReason.DEVELOPMENT_V27_MIGRATION_VALIDATION_FAILED
 					ActiveDatabasePreflightResult.FinalV28 ->
 						ActiveDatabaseBlockReason.FINAL_V28_OPEN_VALIDATION_FAILED
+					ActiveDatabasePreflightResult.FinalV29 ->
+						ActiveDatabaseBlockReason.FINAL_V29_OPEN_VALIDATION_FAILED
 					else -> null
 				}
 				if (reason != null) throw ActiveDatabaseOpenBlockedException(reason, failure)
@@ -1167,6 +1181,61 @@ private val FINAL_V28_STEPS_TRIGGERS = listOf(
 		StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER,
 		"ambient_steps_fact_revision",
 	),
+)
+
+private val FINAL_V29_LEGACY_STAMP_COLUMNS = listOf(
+	"source_time_ms", "source_elapsed_realtime_nanos", "source_first_elapsed_realtime_nanos",
+	"received_time_ms", "received_elapsed_realtime_nanos", "source_sequence",
+	"source_first_sequence", "clock_domain_id", "boot_clock_domain_id", "source_age_ms",
+	"time_uncertainty_ms", "capability_flags", "permission_precision",
+)
+private val FINAL_V29_SESSION_CHILD_KEY = listOf(
+	"writer_projection_id", "writer_projection_version", "logical_fact_id", "semantic_revision", "item_index",
+)
+private val FINAL_V29_BACKGROUND_CHILD_KEY = listOf(
+	"writer_id", "writer_version", "logical_fact_id", "semantic_revision", "item_index",
+)
+private val FINAL_V29_RADIO_CHILD_CLOCK = listOf(
+	"provider_timestamp_nanos", "observed_wall_time_ms", "wall_time_uncertainty_ms",
+)
+private val FINAL_V29_RADIO_CHILD_COLUMNS = mapOf(
+	"wifi_captured_child" to FINAL_V29_SESSION_CHILD_KEY + FINAL_V29_RADIO_CHILD_CLOCK +
+		listOf("bssid", "ssid", "frequency_mhz", "signal_dbm", "content_checksum"),
+	"cell_captured_child" to FINAL_V29_SESSION_CHILD_KEY + FINAL_V29_RADIO_CHILD_CLOCK +
+		listOf("tower_identity", "radio_type", "registered", "signal_dbm", "content_checksum"),
+	"ambient_wifi_child" to FINAL_V29_BACKGROUND_CHILD_KEY + FINAL_V29_RADIO_CHILD_CLOCK +
+		listOf("bssid", "ssid", "frequency_mhz", "signal_dbm", "content_checksum"),
+	"ambient_cell_child" to FINAL_V29_BACKGROUND_CHILD_KEY + FINAL_V29_RADIO_CHILD_CLOCK +
+		listOf("tower_identity", "radio_type", "registered", "signal_dbm", "content_checksum"),
+	"legacy_wifi_child" to listOf(
+		"legacy_row_id", "time_ms", "bssid", "ssid", "capabilities", "frequency", "level",
+		"lat_e7", "lon_e7", "provenance", "created_at", "source_signal_id", "source_item_index",
+	) + FINAL_V29_LEGACY_STAMP_COLUMNS,
+	"legacy_cell_child" to listOf(
+		"legacy_row_id", "time_ms", "cell_id", "lac", "mcc", "mnc", "network_type",
+		"signal_strength", "lat_e7", "lon_e7", "provenance", "created_at",
+		"source_signal_id", "source_item_index",
+	) + FINAL_V29_LEGACY_STAMP_COLUMNS,
+)
+private val FINAL_V29_RADIO_CHILD_INDEXES = listOf(
+	FinalV28IndexSentinel("wifi_captured_child", "idx_wifi_captured_child_time", listOf("observed_wall_time_ms"), false),
+	FinalV28IndexSentinel("wifi_captured_child", "idx_wifi_captured_child_identity_time", listOf("bssid", "observed_wall_time_ms"), false),
+	FinalV28IndexSentinel("cell_captured_child", "idx_cell_captured_child_time", listOf("observed_wall_time_ms"), false),
+	FinalV28IndexSentinel("cell_captured_child", "idx_cell_captured_child_identity_time", listOf("tower_identity", "observed_wall_time_ms"), false),
+	FinalV28IndexSentinel("ambient_wifi_child", "idx_ambient_wifi_child_time", listOf("observed_wall_time_ms"), false),
+	FinalV28IndexSentinel("ambient_wifi_child", "idx_ambient_wifi_child_identity_time", listOf("bssid", "observed_wall_time_ms"), false),
+	FinalV28IndexSentinel("ambient_cell_child", "idx_ambient_cell_child_time", listOf("observed_wall_time_ms"), false),
+	FinalV28IndexSentinel("ambient_cell_child", "idx_ambient_cell_child_identity_time", listOf("tower_identity", "observed_wall_time_ms"), false),
+	FinalV28IndexSentinel("legacy_wifi_child", "idx_legacy_wifi_child_time", listOf("time_ms"), false),
+	FinalV28IndexSentinel("legacy_cell_child", "idx_legacy_cell_child_time", listOf("time_ms"), false),
+)
+private val FINAL_V29_RADIO_MIRROR_TRIGGERS = listOf(
+	FinalV28TriggerSentinel("mirror_legacy_wifi_child_insert", "wifi_observation"),
+	FinalV28TriggerSentinel("mirror_legacy_wifi_child_update", "wifi_observation"),
+	FinalV28TriggerSentinel("mirror_legacy_wifi_child_delete", "wifi_observation"),
+	FinalV28TriggerSentinel("mirror_legacy_cell_child_insert", "cell_sample"),
+	FinalV28TriggerSentinel("mirror_legacy_cell_child_update", "cell_sample"),
+	FinalV28TriggerSentinel("mirror_legacy_cell_child_delete", "cell_sample"),
 )
 
 private data class FinalV28IndexSentinel(
