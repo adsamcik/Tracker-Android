@@ -886,6 +886,22 @@ class DefaultActivityRegistrationArbiterTest {
 	}
 
 	@Test
+	fun `control-only registration does not publish a capture admission barrier`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		val started = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+		started.status shouldBe ActivityRegistrationStatus.APPLIED
+		val identity = requireNotNull(started.snapshot.identity)
+		database.sourceBrokerDao().captureAdmissionBarrier(
+			ACTIVITY_SOURCE_KIND, identity.registrationGeneration,
+		) shouldBe null
+	}
+
+	@Test
 	fun `reservation snapshots exact authorization before provider is active`() = runTest {
 		val demands = listOf(
 			demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 3L, true),
