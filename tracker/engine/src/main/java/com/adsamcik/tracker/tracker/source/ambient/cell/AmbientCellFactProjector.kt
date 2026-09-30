@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.ambient.cell
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.qualifyCellPurposeItems
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
 import com.adsamcik.tracker.shared.base.database.authenticateHistoricalProviderRegistration
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -10,21 +11,31 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegr
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellChildEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellGapEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellReplayFootprintEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
-import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.MAX_CELL_WAL_PAYLOAD_BYTES
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.LEGACY_CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.CellProviderDeliveryIdentityFact
+import com.adsamcik.tracker.shared.base.database.data.CellChildChecksumInput
+import com.adsamcik.tracker.shared.base.database.data.RadioChildOwner
+import com.adsamcik.tracker.shared.base.database.data.RadioChildPurpose
+import com.adsamcik.tracker.shared.base.database.data.RadioObservationChildIntegrity
+import com.adsamcik.tracker.shared.base.database.data.canonicalCellProviderDeliveryIdentity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
 import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
-import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
+import com.adsamcik.tracker.tracker.source.cell.toCellWalPayload
 import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -102,6 +113,28 @@ internal class AmbientCellFactProjector @Inject constructor(
 				AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
 			)
 		}
+		val decodedPayload = runCatching {
+			payloadCodec.decode(SourceKind.CELL, wal.payloadVersion, wal.payload)
+		}.getOrNull() as? CellSnapshotPayload
+		val perReading = wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION
+		val providerTimes = if (perReading) {
+			val provider = database.sourceBrokerDao().registration(wal.sourceKind, wal.registrationGeneration)
+				?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.REGISTRATION_MISMATCH)
+			val start = provider.acceptedElapsedRealtimeNanos
+				?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.REGISTRATION_MISMATCH)
+			val end = provider.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE
+			val observations = decodedPayload?.observations
+				?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.PAYLOAD_UNVERIFIABLE)
+			observations.mapNotNull { it.providerTimestampNanos }
+				.filter { it >= start && it < end && it <= wal.receivedElapsedNanos }
+				.takeIf { it.isNotEmpty() }
+				?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.REGISTRATION_MISMATCH)
+		} else null
+		val providerObservedStart = providerTimes?.minOrNull() ?: wal.observedElapsedNanos
+		val providerObservedEnd = providerTimes?.maxOrNull() ?: wal.observedElapsedNanos
+		val providerObservedWall = runCatching { Math.subtractExact(observedWallTimeMs,
+			Math.subtractExact(wal.observedElapsedNanos, providerObservedEnd) / NANOS_PER_MILLISECOND)
+		}.getOrNull() ?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.CLOCK_UNVERIFIABLE)
 		val registrationAuthentication = database.authenticateHistoricalProviderRegistration(
 			sourceKind = wal.sourceKind,
 			registrationGeneration = wal.registrationGeneration,
@@ -110,57 +143,67 @@ internal class AmbientCellFactProjector @Inject constructor(
 			physicalConfigurationFingerprint = requireNotNull(wal.physicalConfigurationFingerprint),
 			collectedDataEpoch = wal.capturedCollectedDataEpoch,
 			expectedProviderResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
-			observedStartNanos = wal.observedElapsedNanos,
-			observedEndNanos = wal.observedElapsedNanos,
-			observedWallTimeMs = observedWallTimeMs,
+			observedStartNanos = providerObservedStart,
+			observedEndNanos = providerObservedEnd,
+			observedWallTimeMs = providerObservedWall,
 			currentClockDomainId = bootClockDomainProvider.current(),
 		)
 		if (registrationAuthentication !is ProviderRegistrationIntervalAuthentication.Authenticated) {
 			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.REGISTRATION_MISMATCH)
 		}
-		val rows = database.sourceBrokerDao().authorizationRevisionBounded(
-			SourceKind.CELL.stableCode,
-			wal.registrationGeneration,
-			requireNotNull(wal.authorizationRevision),
-			MAX_AUTHORIZATION_MEMBERS + 1,
+		val payload = decodedPayload ?: return cellUnverifiable(
+			AmbientCellProjectionUnverifiableReason.PAYLOAD_UNVERIFIABLE,
 		)
-		if (rows.size > MAX_AUTHORIZATION_MEMBERS) {
-			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.DEPENDENCY_OVERFLOW)
-		}
-		val authorization = runCatching { rows.toAuthorizationSnapshotOrNull() }.getOrNull()
-			?: return cellUnverifiable(
-				AmbientCellProjectionUnverifiableReason.AUTHORIZATION_MISSING,
-			)
-		val demandIds = authorization.authorizedMembers.mapNotNull { it.demandId }
-		val demands = database.sourceBrokerDao().demandsByIds(demandIds)
-		val reconstructed = runCatching {
-			SourceBrokerAuthorization.rows(wal.sourceKind, wal.registrationGeneration,
-				requireNotNull(wal.authorizationRevision), demands, authorization.effectiveBootId,
-				authorization.effectiveElapsedRealtimeNanos, authorization.members.first().effectiveWallTimeMs)
+		val authenticDeliveryIdentity = runCatching {
+			canonicalCellProviderDeliveryIdentity(wal.clockDomainId,
+				payload.observations.map { observation ->
+					CellProviderDeliveryIdentityFact(observation.radioType, observation.registered,
+						observation.signalLevelDbm, requireNotNull(observation.providerTimestampNanos),
+						observation.identifierToken)
+				}, wal.payloadVersion)
 		}.getOrNull()
-		val observedAuthorization = database.sourceBrokerDao().authorizationAtBounded(wal.sourceKind,
-			wal.registrationGeneration, wal.clockDomainId, wal.observedElapsedNanos, MAX_AUTHORIZATION_MEMBERS + 1)
-			.toAuthorizationSnapshotOrNull()
-		if (authorization.isDenied || demandIds.size != authorization.authorizedMembers.size ||
-			demandIds.distinct().size != demandIds.size || demands.size != demandIds.size ||
-			reconstructed?.sortedBy { it.memberId } != authorization.members.sortedBy { it.memberId } ||
-			observedAuthorization != authorization) {
-			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.AUTHORIZATION_MISMATCH)
+		if (authenticDeliveryIdentity != deliveryIdentity) {
+			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.DELIVERY_IDENTITY)
 		}
-		if (authorization.authorizationRevision != wal.authorizationRevision ||
-			authorization.authorizationFingerprint != wal.authorizationFingerprint ||
-			authorization.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask ||
-			authorization.effectiveBootId != wal.clockDomainId ||
-			authorization.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos
-		) {
-			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.AUTHORIZATION_MISMATCH)
+		val purposeItems = database.qualifyCellPurposeItems(
+			wal, payload.toCellWalPayload(), registrationAuthentication.interval.startInclusiveNanos,
+			registrationAuthentication.interval.endExclusiveNanos,
+		) ?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.AUTHORIZATION_MISMATCH)
+		val candidates = if (perReading) purposeItems.historicalMembers()
+			else purposeItems.callbackAuthorization.authorizedMembers
+		val members = candidates.filter { member ->
+			member.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && member.persistenceEligible &&
+				member.logicalTrackingId == null && member.serviceRunId == null &&
+				(!perReading || purposeItems.forDemand(requireNotNull(member.demandId)).isNotEmpty())
 		}
-		val ambient = authorization.authorizedMembers.singleOrNull { member ->
-			member.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
-				member.persistenceEligible &&
-				member.logicalTrackingId == null &&
-				member.serviceRunId == null
-		} ?: return AmbientCellProjectionResult.NotAmbientEligible
+		if (members.isEmpty()) return AmbientCellProjectionResult.NotAmbientEligible
+		if (!perReading && members.size != 1) return cellUnverifiable(
+			AmbientCellProjectionUnverifiableReason.AUTHORIZATION_MISMATCH)
+		val results = members.map { member ->
+			projectGroup(wal, payload, lifecycle, member,
+				if (perReading) purposeItems.forDemand(requireNotNull(member.demandId))
+				else payload.observations.indices.toList(), observedWallTimeMs)
+		}
+		return results.singleOrNull() ?: AmbientCellProjectionResult.Groups(results)
+	}
+
+	@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
+	private suspend fun projectGroup(
+		wal: SourceEventWalEntity,
+		payload: CellSnapshotPayload,
+		lifecycle: SourceEvidenceState,
+		ambient: SourceAuthorizationEntity,
+		purposeIndexes: List<Int>,
+		observedWallTimeMs: Long,
+	): AmbientCellProjectionResult {
+		val deliveryIdentity = requireNotNull(wal.deliveryIdentity)
+		val purposeDemandId = ambient.demandId.takeIf { wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION }
+		val purposeTimes = purposeIndexes.map { requireNotNull(payload.observations[it].providerTimestampNanos) }
+		val purposeStart = purposeTimes.min()
+		val purposeEnd = purposeTimes.max()
+		val policyTime = if (purposeDemandId != null) purposeStart else purposeEnd
+		val purposeWallTimeMs = cellItemWallTime(wal.observedElapsedNanos, observedWallTimeMs, purposeEnd)
+			?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.CLOCK_UNVERIFIABLE)
 		val sourcePolicyRevision = requireNotNull(ambient.sourcePolicyRevision)
 		val ambientConsentEpoch = requireNotNull(ambient.consentEpoch)
 		val policyAuthority = database.sourcePolicyDao().authority()
@@ -173,18 +216,6 @@ internal class AmbientCellFactProjector @Inject constructor(
 			SourceBrokerPurpose.AMBIENT_PRODUCT,
 			ambientConsentEpoch,
 		)
-		val currentPolicy = policyAuthority?.takeIf {
-			it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
-		}?.let {
-			database.sourcePolicyDao().policyAtRevision(
-				it.currentPolicyRevision,
-				SourceKind.CELL.stableCode,
-			)
-		}
-		val currentConsent = database.sourcePolicyDao().latestConsentEpoch(
-			SourceKind.CELL.stableCode,
-			SourceBrokerPurpose.AMBIENT_PRODUCT,
-		)
 		if (policyAuthority == null ||
 			policyAuthority.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
 			policy == null ||
@@ -192,24 +223,20 @@ internal class AmbientCellFactProjector @Inject constructor(
 			!policy.hasExactEligibleAmbientConsentReference(consent) ||
 			!policy.isEffectiveAtOrBefore(
 				wal.clockDomainId,
-				wal.observedElapsedNanos,
-				observedWallTimeMs,
+				policyTime,
+				purposeWallTimeMs,
 			) ||
 			!consent.isEffectiveAtOrBefore(
 				wal.clockDomainId,
-				wal.observedElapsedNanos,
-				observedWallTimeMs,
-			) ||
-			currentPolicy == null ||
-			currentConsent == null ||
-			currentPolicy.ambientConsentEpoch != ambientConsentEpoch ||
-			!currentPolicy.hasExactEligibleAmbientConsentReference(currentConsent)
+				policyTime,
+				purposeWallTimeMs,
+			)
 		) {
 			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.POLICY_MISMATCH)
 		}
 		val authority = database.ambientCellFactDao().authorityAt(
 			wal.clockDomainId,
-			wal.observedElapsedNanos,
+			purposeEnd,
 		)
 		if (authority == null ||
 			!AmbientCellAuthorityIntegrity.isAuthentic(authority) ||
@@ -227,19 +254,14 @@ internal class AmbientCellFactProjector @Inject constructor(
 			)
 		}
 		val currentAuthority = database.ambientCellFactDao().latestAuthority()
-		if (currentAuthority == null ||
-			!AmbientCellAuthorityIntegrity.isAuthentic(currentAuthority) ||
-			!currentAuthority.isActive ||
-			currentAuthority.collectedDataEpoch != wal.capturedCollectedDataEpoch
-		) {
-			return cellUnverifiable(
-				AmbientCellProjectionUnverifiableReason.AMBIENT_AUTHORITY_MISMATCH,
-			)
+		if (currentAuthority == null || !AmbientCellAuthorityIntegrity.isAuthentic(currentAuthority) ||
+			currentAuthority.collectedDataEpoch != wal.capturedCollectedDataEpoch) {
+			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.AMBIENT_AUTHORITY_MISMATCH)
 		}
 		val retention = database.ambientCellFactDao().retentionAuthorityAt(
 			AmbientCellRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
 			wal.clockDomainId,
-			wal.observedElapsedNanos,
+			purposeEnd,
 		)
 		if (retention == null ||
 			!AmbientCellRetentionAuthorityIntegrity.isAuthentic(retention) ||
@@ -256,24 +278,11 @@ internal class AmbientCellFactProjector @Inject constructor(
 			)
 		}
 		val currentRetention = database.ambientCellFactDao().latestRetentionAuthority(
-			AmbientCellRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
-		)
-		if (currentRetention == null ||
-			!AmbientCellRetentionAuthorityIntegrity.isAuthentic(currentRetention) ||
-			!currentRetention.isActive ||
-			currentRetention.opaquePolicyId != retention.opaquePolicyId ||
-			currentRetention.approvalRevision != retention.approvalRevision ||
-			currentRetention.sourcePolicyRevision != sourcePolicyRevision ||
-			currentRetention.ambientConsentEpoch != ambientConsentEpoch ||
+			AmbientCellRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT)
+		if (currentRetention == null || !AmbientCellRetentionAuthorityIntegrity.isAuthentic(currentRetention) ||
 			currentRetention.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
-			currentRetention.retainedFromMs != lifecycle.retainedFromMs ||
-			currentRetention.effectiveBootId != wal.clockDomainId ||
-			currentRetention.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos ||
-			currentRetention.effectiveWallTimeMs > observedWallTimeMs
-		) {
-			return cellUnverifiable(
-				AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
-			)
+			currentRetention.retainedFromMs != lifecycle.retainedFromMs) {
+			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH)
 		}
 		val deletionMarker = database.ambientCellFactDao()
 			.latestDeletionMarker(wal.capturedCollectedDataEpoch)
@@ -281,30 +290,40 @@ internal class AmbientCellFactProjector @Inject constructor(
 			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.DELETED_SCOPE)
 		}
 		val deletionGeneration = deletionMarker?.deletionGeneration ?: 0L
-		if (authority.scopeDeletionGeneration != deletionGeneration) {
+		if (authority.scopeDeletionGeneration != deletionGeneration ||
+			currentAuthority.scopeDeletionGeneration != deletionGeneration) {
 			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.DELETED_SCOPE)
 		}
-		if (currentAuthority.scopeDeletionGeneration != deletionGeneration) {
-			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.DELETED_SCOPE)
+		val zone = payload.observationZoneId?.let { runCatching { ZoneId.of(it) }.getOrNull() }
+			?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.OBSERVATION_ZONE_UNVERIFIABLE)
+		val acceptedIndexes = if (purposeDemandId == null) purposeIndexes else purposeIndexes.filter { index ->
+			val providerTime = payload.observations[index].providerTimestampNanos ?: return@filter false
+			val itemWallTime = cellItemWallTime(wal.observedElapsedNanos, observedWallTimeMs, providerTime)
+			providerTime >= policy.effectiveElapsedRealtimeNanos &&
+				providerTime >= consent.effectiveElapsedRealtimeNanos &&
+				providerTime >= authority.effectiveElapsedRealtimeNanos &&
+				providerTime >= retention.effectiveElapsedRealtimeNanos &&
+				itemWallTime != null &&
+				retention.retainedFromMs?.let { itemWallTime >= it } != false &&
+				lifecycle.retainedFromMs?.let { itemWallTime >= it } != false
 		}
-		val payload = runCatching {
-			payloadCodec.decode(SourceKind.CELL, wal.payloadVersion, wal.payload)
-		}.getOrNull() as? CellSnapshotPayload ?: return cellUnverifiable(
-			AmbientCellProjectionUnverifiableReason.PAYLOAD_UNVERIFIABLE,
-		)
-		val zone = payload.observationZoneId?.let {
-			runCatching { ZoneId.of(it) }.getOrNull()
-		} ?: return cellUnverifiable(
-			AmbientCellProjectionUnverifiableReason.OBSERVATION_ZONE_UNVERIFIABLE,
-		)
-		val aggregate = AmbientCellAggregate.from(payload)
-			?: return recordUnverifiableGap(wal, authority, zone)
+		if (acceptedIndexes.isEmpty()) return AmbientCellProjectionResult.NotAmbientEligible
+		val acceptedTimes = acceptedIndexes.map { index ->
+			requireNotNull(payload.observations[index].providerTimestampNanos)
+		}
+		val productObservedElapsedNanos = acceptedTimes.max()
+		val productWallTimeMs = requireNotNull(cellItemWallTime(
+			wal.observedElapsedNanos, observedWallTimeMs, productObservedElapsedNanos,
+		))
+		val aggregate = AmbientCellAggregate.from(payload, wal.payloadVersion, acceptedIndexes)
+			?: return recordUnverifiableGap(wal, authority, zone, productWallTimeMs)
 		val dao = database.ambientCellFactDao()
 		val logicalFactId = AmbientCellFactIntegrity.logicalFactId(
 			deliveryIdentity,
 			ambientConsentEpoch,
 			wal.capturedCollectedDataEpoch,
 			authority.scopeDeletionGeneration,
+			purposeDemandId,
 		)
 		val factFootprint = dao.replayFootprint(
 			AmbientCellReplayFootprintEntity.KIND_LOCAL_FACT,
@@ -325,6 +344,20 @@ internal class AmbientCellFactProjector @Inject constructor(
 			logicalFactId,
 		)
 		if (existingCursor?.latestSourceAdmissionOrdinal == wal.admissionOrdinal) {
+			val existingFact = dao.revision(AmbientCellFactRevisionEntity.WRITER_ID,
+				AmbientCellFactRevisionEntity.WRITER_VERSION, logicalFactId,
+				existingCursor.latestSemanticRevision)
+				?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.WRITE_CONFLICT)
+			if (AmbientCellFactIntegrity.effectChecksum(existingFact) != existingFact.effectChecksum ||
+				existingFact.purposeDemandId != purposeDemandId) {
+				return cellUnverifiable(AmbientCellProjectionUnverifiableReason.WRITE_CONFLICT)
+			}
+			if (wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION &&
+				database.radioObservationChildDao().cellBackgroundChildren(existingFact.writerId,
+					existingFact.writerVersion, logicalFactId, existingFact.semanticRevision, 65) !=
+					backgroundChildren(existingFact, payload, wal, acceptedIndexes)) {
+				return cellUnverifiable(AmbientCellProjectionUnverifiableReason.WRITE_CONFLICT)
+			}
 			return AmbientCellProjectionResult.Duplicate(logicalFactId)
 		}
 		if (existingCursor != null) {
@@ -338,14 +371,14 @@ internal class AmbientCellFactProjector @Inject constructor(
 			authority.scopeDeletionGeneration,
 			wal.admissionOrdinal,
 		)
-		val unchanged = prior?.toAggregate() == aggregate
-		val wallTimeMs = observedWallTimeMs
+		val unchanged = wal.payloadVersion != CELL_WAL_PAYLOAD_VERSION && prior?.toAggregate() == aggregate
+		val wallTimeMs = productWallTimeMs
 		val day = Instant.ofEpochMilli(wallTimeMs).atZone(zone).toLocalDate()
 		val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
 		val dayEnd = day.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli()
-		val intervalStart = wal.observedIntervalStartNanos ?: wal.observedElapsedNanos
+		val intervalStart = acceptedTimes.min()
 		val coverageStart = (
-			wallTimeMs - (wal.observedElapsedNanos - intervalStart)
+			wallTimeMs - (productObservedElapsedNanos - intervalStart)
 				.coerceAtLeast(0L) / NANOS_PER_MILLISECOND
 			).coerceAtLeast(dayStart)
 		val draft = AmbientCellFactRevisionEntity(
@@ -387,11 +420,12 @@ internal class AmbientCellFactProjector @Inject constructor(
 			structuralDayStartTimeMs = dayStart,
 			structuralDayEndTimeMs = dayEnd,
 			observedIntervalStartNanos = intervalStart,
-			observedElapsedNanos = wal.observedElapsedNanos,
+			observedElapsedNanos = productObservedElapsedNanos,
 			receivedElapsedNanos = wal.receivedElapsedNanos,
 			coverageStartTimeMs = coverageStart,
 			observedWallTimeMs = wallTimeMs,
-			wallTimeUncertaintyMs = wal.wallTimeUncertaintyMs ?: 0L,
+			wallTimeUncertaintyMs = Math.addExact(wal.wallTimeUncertaintyMs ?: 0L,
+				if ((wal.observedElapsedNanos - productObservedElapsedNanos) % NANOS_PER_MILLISECOND == 0L) 0L else 1L),
 			coverageCompleteness =
 				AmbientCellFactRevisionEntity.COMPLETENESS_UNVERIFIABLE,
 			subscriptionCompleteness = AmbientCellFactRevisionEntity.SUBSCRIPTION_UNKNOWN,
@@ -414,10 +448,13 @@ internal class AmbientCellFactProjector @Inject constructor(
 			qualityConfidence = wal.qualityConfidence,
 			effectChecksum = ZERO_DIGEST,
 			appliedAtMs = maxOf(wal.createdAtMs, wallTimeMs),
+			purposeDemandId = purposeDemandId,
 		)
 		val fact = draft.copy(effectChecksum = AmbientCellFactIntegrity.effectChecksum(draft))
-		if (dao.insertRevision(fact) == -1L) {
-			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.WRITE_CONFLICT)
+		check(dao.insertRevision(fact) != -1L)
+		if (wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+			database.radioObservationChildDao().insertCellBackground(
+				backgroundChildren(fact, payload, wal, acceptedIndexes))
 		}
 		val cursor = AmbientCellFactCursorEntity(
 			fact.writerId,
@@ -432,9 +469,7 @@ internal class AmbientCellFactProjector @Inject constructor(
 			1L,
 			fact.appliedAtMs,
 		)
-		if (dao.insertCursor(cursor) == -1L) {
-			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.WRITE_CONFLICT)
-		}
+		check(dao.insertCursor(cursor) != -1L)
 		check(database.sourceEvidenceStateDao().incrementRevision(fact.appliedAtMs) == 1)
 		return if (unchanged) {
 			AmbientCellProjectionResult.CoverageCompacted(logicalFactId)
@@ -443,13 +478,55 @@ internal class AmbientCellFactProjector @Inject constructor(
 		}
 	}
 
+	private fun backgroundChildren(
+		fact: AmbientCellFactRevisionEntity,
+		payload: CellSnapshotPayload,
+		wal: SourceEventWalEntity,
+		acceptedIndexes: List<Int>,
+	): List<AmbientCellChildEntity> {
+		return acceptedIndexes.map { index ->
+				val observation = payload.observations[index]
+				val providerTime = requireNotNull(observation.providerTimestampNanos)
+				val itemWallTime = requireNotNull(cellItemWallTime(
+					wal.observedElapsedNanos, requireNotNull(wal.wallTimeMs), providerTime,
+				))
+				val itemUncertainty = Math.addExact(
+					wal.wallTimeUncertaintyMs ?: 0L,
+					if ((wal.observedElapsedNanos - providerTime) % 1_000_000L == 0L) 0L else 1L,
+				)
+				val owner = RadioChildOwner(
+					RadioChildPurpose.BACKGROUND, fact.writerId, fact.writerVersion,
+					fact.logicalFactId, fact.semanticRevision, index,
+				)
+				val input = CellChildChecksumInput(
+					owner, providerTime, itemWallTime, itemUncertainty,
+					observation.identifierToken.ifEmpty { null }, observation.radioType,
+					observation.registered, observation.signalLevelDbm,
+				)
+				AmbientCellChildEntity(
+					writerId = fact.writerId,
+					writerVersion = fact.writerVersion,
+					logicalFactId = fact.logicalFactId,
+					semanticRevision = fact.semanticRevision,
+					itemIndex = index,
+					providerTimestampNanos = providerTime,
+					observedWallTimeMs = itemWallTime,
+					wallTimeUncertaintyMs = itemUncertainty,
+					towerIdentity = input.towerIdentity,
+					radioType = observation.radioType,
+					registered = observation.registered,
+					signalDbm = observation.signalLevelDbm,
+					contentChecksum = RadioObservationChildIntegrity.cell(input),
+				)
+			}
+	}
+
 	private suspend fun recordUnverifiableGap(
 		wal: SourceEventWalEntity,
 		authority: AmbientCellAuthorityEntity,
 		zone: ZoneId,
+		wallTimeMs: Long,
 	): AmbientCellProjectionResult {
-		val wallTimeMs = wal.wallTimeMs
-			?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.CLOCK_UNVERIFIABLE)
 		val day = Instant.ofEpochMilli(wallTimeMs).atZone(zone).toLocalDate()
 		val gapId = AmbientCellAuthorityIntegrity.digest(
 			"ambient-cell-gap-v1",
@@ -497,22 +574,31 @@ internal class AmbientCellFactProjector @Inject constructor(
 		val qualities: List<Int>,
 	) {
 		companion object {
-			fun from(payload: CellSnapshotPayload): AmbientCellAggregate? {
-				if (payload.subscriptionId != null ||
+			fun from(
+				payload: CellSnapshotPayload,
+				payloadVersion: Int,
+				acceptedIndexes: List<Int>,
+			): AmbientCellAggregate? {
+				val observations = acceptedIndexes.map { index ->
+					payload.observations.getOrNull(index) ?: return null
+				}
+				if (payloadVersion !in LEGACY_CELL_WAL_PAYLOAD_VERSION..CELL_WAL_PAYLOAD_VERSION ||
+					payload.subscriptionId != null ||
 					payload.refreshOutcome != CellRefreshOutcome.CALLBACK ||
-					payload.observations.isEmpty() ||
-					payload.observations.any {
-						it.identifierToken.isNotEmpty() ||
+					observations.isEmpty() ||
+					observations.any {
+						(payloadVersion == LEGACY_CELL_WAL_PAYLOAD_VERSION &&
+							it.identifierToken.isNotEmpty()) ||
 							it.providerTimestampNanos == null ||
 							it.providerTimestampNanos <= 0L ||
 							it.radioType !in TECHNOLOGIES
 					}
 				) return null
 				val technologies = TECHNOLOGIES.associateWith { technology ->
-					payload.observations.count { it.radioType == technology }
+					observations.count { it.radioType == technology }
 				}
 				val qualities = IntArray(6)
-				payload.observations.forEach { observation ->
+				observations.forEach { observation ->
 					val bucket = when (val signal = observation.signalLevelDbm) {
 						null -> 0
 						in Int.MIN_VALUE..-111 -> 1
@@ -524,8 +610,8 @@ internal class AmbientCellFactProjector @Inject constructor(
 					qualities[bucket]++
 				}
 				return AmbientCellAggregate(
-					payload.observations.size,
-					payload.observations.count { it.registered },
+					observations.size,
+					observations.count { it.registered },
 					technologies,
 					qualities.toList(),
 				)
@@ -558,7 +644,6 @@ internal class AmbientCellFactProjector @Inject constructor(
 	}
 
 	private companion object {
-		const val MAX_AUTHORIZATION_MEMBERS = 64
 		const val FIRST_WRITER_OWNER_GENERATION = 1L
 		const val NANOS_PER_MILLISECOND = 1_000_000L
 		const val ZERO_DIGEST =
@@ -569,6 +654,7 @@ internal class AmbientCellFactProjector @Inject constructor(
 }
 
 internal sealed interface AmbientCellProjectionResult {
+	data class Groups(val results: List<AmbientCellProjectionResult>) : AmbientCellProjectionResult
 	data class FactWritten(val logicalFactId: String) : AmbientCellProjectionResult
 	data class CoverageCompacted(val logicalFactId: String) : AmbientCellProjectionResult
 	data class Duplicate(val logicalFactId: String) : AmbientCellProjectionResult
@@ -603,3 +689,13 @@ internal enum class AmbientCellProjectionUnverifiableReason {
 
 private fun cellUnverifiable(reason: AmbientCellProjectionUnverifiableReason) =
 	AmbientCellProjectionResult.Unverifiable(reason)
+
+private fun cellItemWallTime(
+	callbackElapsedNanos: Long,
+	callbackWallTimeMs: Long,
+	itemElapsedNanos: Long,
+): Long? {
+	if (itemElapsedNanos <= 0L || itemElapsedNanos > callbackElapsedNanos) return null
+	val ageMs = (callbackElapsedNanos - itemElapsedNanos) / 1_000_000L
+	return callbackWallTimeMs.takeIf { it >= ageMs }?.minus(ageMs)
+}

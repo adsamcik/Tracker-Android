@@ -24,6 +24,10 @@ description of its earlier input; this file records subsequent repair progress.
   `/root/adversary_product_0930`, exact paths in `START_CONTINUATION_FILES.json`.
 - `7c01f7f5ca`: bounded successful exports and observed Activity variety; source
   review repaired failed/no-data export counting. Other period metrics remain open.
+- `c808b3af1f`: all-day Steps execution, enable/open copies and settings recovery;
+  independent static review and exact manifest in `STEPS_EXECUTION_SOURCE_REVIEW.md`.
+- `65a9be4125`: notification failed-save recovery, retained edits and accessible
+  move actions, with resource text for all declared locales.
 
 All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 
@@ -43,7 +47,9 @@ All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
   group identities/checksums with nullable legacy compatibility; background writers
   project each group, preserve product clocks/details and verify duplicate children;
   development migration and mixed-group/replay/legacy test source.
-- [ ] Independent static review and coherent commits of the slices above.
+- [x] Independent static review and coherent commits of Start, Steps execution,
+  settings/notification recovery and bounded export/Activity period queries.
+- [ ] Commit reviewed background grouping and retained Wi-Fi qualification slices.
 
 ## Remaining in these slices
 
@@ -51,10 +57,19 @@ All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
   progress. A tool proposal is pending; no dependent change is authorized yet.
 - [ ] Propagate v6 item qualification through retained capture maintenance,
   portable replay and history; preserve v5 contracts.
+- [ ] Recheck the ambient physical-lifetime correction and implement correct local
+  day grouping after the pending user answer; finish strict native detail reads.
+- [ ] Complete historical session radio capture groups after the pending contract
+  answer; a single current callback capture tuple remains insufficient.
+- [ ] Review and commit independent optional Wi-Fi/Cell service hosting and
+  sessionless Steps motion hints; add the host preference migration/default.
+- [ ] Review and commit original-job epoch propagation through every source import.
 - [ ] Complete period discovery streak and revisit season counting after the
   precise period rules are settled; finish the longest-trip period scope.
 - [ ] Close all remaining runtime/history/map/effect/transfer/cleanup gaps from
   R05–R18 and the full prerequisite trace.
+- [ ] Wire session bundle export/import, bounded annotation selectors and existing
+  receipts; the user-facing Export session placement/source choices are pending.
 - [ ] Select remaining preserved draft companions, reconcile branches and record
   exact final input/schema/test inventory before freezing.
 - [ ] Run the single convergence batch only after every production/test slice

@@ -19,6 +19,8 @@ private val legacyStampColumnDefinitions = legacyStampFields.joinToString(",\n")
 /** Add purpose-owned radio children without changing the meaning of existing aggregate facts. */
 val MIGRATION_28_29: Migration = object : Migration(28, 29) {
 	override fun migrate(db: SupportSQLiteDatabase) {
+		db.execSQL("ALTER TABLE ambient_wifi_fact_revision ADD COLUMN purpose_demand_id TEXT DEFAULT NULL")
+		db.execSQL("ALTER TABLE ambient_cell_fact_revision ADD COLUMN purpose_demand_id TEXT DEFAULT NULL")
 		createRadioObservationChildTables(db)
 		copyKnownLegacyRadioRows(db)
 		installLegacyRadioChildMirrors(db)

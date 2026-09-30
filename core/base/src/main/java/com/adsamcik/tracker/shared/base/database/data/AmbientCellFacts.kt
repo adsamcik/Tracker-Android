@@ -7,7 +7,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
-/** Identity-free, sessionless Cell aggregate or compact fresh-unchanged coverage fact. */
+/** Sessionless Cell aggregate from an independently qualified part of a physical delivery. */
 @Entity(
 	tableName = "ambient_cell_fact_revision",
 	primaryKeys = ["writer_id", "writer_version", "logical_fact_id", "semantic_revision"],
@@ -97,6 +97,7 @@ data class AmbientCellFactRevisionEntity(
 	@ColumnInfo(name = "quality_confidence") val qualityConfidence: Float?,
 	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
 	@ColumnInfo(name = "applied_at_ms") val appliedAtMs: Long,
+	@ColumnInfo(name = "purpose_demand_id", defaultValue = "NULL") val purposeDemandId: String? = null,
 ) {
 	init {
 		require(writerId == WRITER_ID && writerVersion == WRITER_VERSION)
@@ -117,7 +118,9 @@ data class AmbientCellFactRevisionEntity(
 		require(physicalConfigurationFingerprint.isNotBlank())
 		require(authorizationRevision > 0L)
 		require(AmbientCellAuthorityIntegrity.isDigest(authorizationFingerprint))
-		require(purposeEligibilityMask and SourceBrokerPurpose.MASK_AMBIENT_PRODUCT != 0L)
+		require(purposeDemandId?.isNotBlank() != false)
+		require(purposeDemandId != null ||
+			purposeEligibilityMask and SourceBrokerPurpose.MASK_AMBIENT_PRODUCT != 0L)
 		require(sourcePolicyRevision > 0L && ambientConsentEpoch >= 0L)
 		require(retentionPolicyId.isNotBlank() && retentionApprovalRevision > 0L)
 		require(collectedDataEpoch >= 0L && scopeDeletionGeneration >= 0L)
@@ -139,6 +142,7 @@ data class AmbientCellFactRevisionEntity(
 				ambientConsentEpoch,
 				collectedDataEpoch,
 				scopeDeletionGeneration,
+				purposeDemandId,
 			),
 		)
 		require(AmbientCellAuthorityIntegrity.isDigest(effectChecksum))
@@ -683,13 +687,14 @@ object AmbientCellFactIntegrity {
 		ambientConsentEpoch: Long,
 		collectedDataEpoch: Long,
 		scopeDeletionGeneration: Long,
-	): String = AmbientCellAuthorityIntegrity.digest(
-		"ambient-cell-fact-v1",
-		sourceDeliveryIdentity,
-		ambientConsentEpoch,
-		collectedDataEpoch,
-		scopeDeletionGeneration,
-	)
+		purposeDemandId: String? = null,
+	): String = if (purposeDemandId == null) {
+		AmbientCellAuthorityIntegrity.digest("ambient-cell-fact-v1", sourceDeliveryIdentity,
+			ambientConsentEpoch, collectedDataEpoch, scopeDeletionGeneration)
+	} else {
+		AmbientCellAuthorityIntegrity.digest("ambient-cell-fact-v2", sourceDeliveryIdentity,
+			ambientConsentEpoch, collectedDataEpoch, scopeDeletionGeneration, purposeDemandId)
+	}
 
 	fun mutationId(logicalFactId: String, semanticRevision: Long): String =
 		AmbientCellAuthorityIntegrity.digest(
@@ -759,7 +764,11 @@ object AmbientCellFactIntegrity {
 			value.qualityFlags,
 			value.qualityConfidence,
 			value.appliedAtMs,
-		)
+		).let { legacy ->
+			value.purposeDemandId?.let { demand ->
+				AmbientCellAuthorityIntegrity.digest("ambient-cell-effect-v2", legacy, demand)
+			} ?: legacy
+		}
 
 	fun deletionChecksum(value: AmbientCellDeletionMarkerEntity): String =
 		deletionChecksum(

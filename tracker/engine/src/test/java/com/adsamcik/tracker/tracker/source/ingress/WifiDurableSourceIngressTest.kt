@@ -283,53 +283,7 @@ class WifiDurableSourceIngressTest {
 
 	@Test
 	fun `shared broker controller sink projector and Room reader form one ambient chain`() = runTest {
-		installWifiPolicy(includeAmbient = true)
-		database.sourcePolicyDao().insertConsentEpochs(
-			listOf(
-				SourceConsentEpochEntity(
-					SourceKind.WIFI.stableCode,
-					SourceBrokerPurpose.AMBIENT_PRODUCT,
-					1L,
-					eligible = true,
-					persistenceEligible = true,
-					policyRevision = 1L,
-					effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
-					effectiveElapsedRealtimeNanos = 6_000_000L,
-					effectiveWallTimeMs = 100L,
-					changeReason = "TEST_AMBIENT_CHAIN",
-				),
-			),
-		)
-		database.applyAmbientWifiRetentionDecision(
-			AmbientRadioRetentionDecision.GrantLiveAmbient(
-				"privacy:wifi:ambient:v1",
-				0L,
-				1L,
-				1L,
-				BOOT_CLOCK_DOMAIN_ID,
-				6_000_000L,
-				100L,
-			),
-		)
-		database.ambientWifiFactDao().insertAuthority(
-			AmbientWifiAuthorityIntegrity.create(
-				1L,
-				AmbientWifiAuthorityEntity.STATE_ACTIVE,
-				1L,
-				1L,
-				"privacy:wifi:ambient:v1",
-				1L,
-				0L,
-				0L,
-				BOOT_CLOCK_DOMAIN_ID,
-				6_000_000L,
-				100L,
-				1L,
-				"ambient-chain-owner",
-				1L,
-				WIFI_DEMAND_ID,
-			),
-		)
+		installAmbientWifiProduct()
 		val physical = mockk<WifiSourceRuntime>()
 		every { physical.capabilities } returns MutableStateFlow(
 			SourceCapabilities(true, false, false, null, null),
@@ -674,6 +628,137 @@ class WifiDurableSourceIngressTest {
 			AdmissionFailureCode.IDENTITY_COLLISION,
 		)
 		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `retained v5 Wi-Fi preserves its full callback summary across an older demand boundary`() = runTest {
+		installAmbientWifiProduct()
+		val ordinal = ingress.admit(wifiDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION,
+			10_000_000L, accessPoints = listOf(
+				WifiAccessPointEvidence("", 2_412, -61, 7_000_000L),
+				WifiAccessPointEvidence("", 5_180, -45, 9_000_000L)),
+			payloadVersion = LEGACY_WIFI_WAL_PAYLOAD_VERSION))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>().units.single().admissionOrdinal
+		val broker = database.sourceBrokerDao()
+		val first = broker.demandsByIds(listOf(WIFI_DEMAND_ID)).single()
+		val second = first.copy(demandId = "wifi-retained-v5-callback", requestedElapsedRealtimeNanos = 8_000_000L,
+			requestedAtMs = 8L)
+		broker.insertDemands(listOf(second))
+		database.ambientWifiFactDao().retireExactAmbientDemand(first.demandId, first.consumerId,
+			first.sourceKind, requireNotNull(first.sourcePolicyRevision), requireNotNull(first.consentEpoch),
+			BOOT_CLOCK_DOMAIN_ID, 8_000_000L, 8L) shouldBe 1
+		val rows = SourceBrokerAuthorization.rows(SourceKind.WIFI.stableCode, 1L, 2L,
+			listOf(second), BOOT_CLOCK_DOMAIN_ID, 8_000_000L, 8L)
+		broker.insertAuthorizations(rows)
+		database.ambientWifiFactDao().insertAuthority(AmbientWifiAuthorityIntegrity.create(
+			2L, AmbientWifiAuthorityEntity.STATE_ACTIVE, 1L, 1L, "privacy:wifi:ambient:v1", 1L,
+			0L, 0L, BOOT_CLOCK_DOMAIN_ID, 8_000_000L, 8L, 1L, "retained-v5", 2L, second.demandId))
+		// Reconstruct already saved v5 data. New live v5 ingress still rejects a split boundary.
+		val retained = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(ordinal)).copy(
+			authorizationRevision = 2L, configRevision = 2L,
+			authorizationFingerprint = rows.first().authorizationFingerprint)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_revision = 2, config_revision = 2, " +
+				"authorization_fingerprint = ?, integrity_identity = ? WHERE admission_ordinal = ?",
+			arrayOf<Any?>(retained.authorizationFingerprint, retained.calculatedIntegrityIdentity(), ordinal))
+		val projector = AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+		projector.project(ordinal).shouldBeInstanceOf<AmbientWifiProjectionResult.FactWritten>()
+		val fact = database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single().fact
+		fact.purposeDemandId shouldBe null
+		fact.observationCount shouldBe 2
+		fact.observedElapsedNanos shouldBe 9_000_000L
+		database.radioObservationChildDao().wifiBackgroundChildren(fact.writerId, fact.writerVersion,
+			fact.logicalFactId, fact.semanticRevision, 65).size shouldBe 0
+		projector.project(ordinal).shouldBeInstanceOf<AmbientWifiProjectionResult.Duplicate>()
+	}
+
+	@Test
+	fun `one Wi-Fi delivery saves both background demand groups with their exact clocks and details`() = runTest {
+		installAmbientWifiProduct()
+		val broker = database.sourceBrokerDao()
+		val first = broker.demandsByIds(listOf(WIFI_DEMAND_ID)).single()
+		val second = first.copy(demandId = "wifi-second-group", requestedElapsedRealtimeNanos = 8_000_000L,
+			requestedAtMs = 8L)
+		broker.insertDemands(listOf(second))
+		database.ambientWifiFactDao().retireExactAmbientDemand(first.demandId, first.consumerId,
+			first.sourceKind, requireNotNull(first.sourcePolicyRevision), requireNotNull(first.consentEpoch),
+			BOOT_CLOCK_DOMAIN_ID, 8_000_000L, 8L) shouldBe 1
+		val rows = SourceBrokerAuthorization.rows(SourceKind.WIFI.stableCode, 1L, 2L,
+			listOf(second), BOOT_CLOCK_DOMAIN_ID, 8_000_000L, 8L)
+		broker.insertAuthorizations(rows)
+		ambientEligibilityFingerprint = rows.first().authorizationFingerprint
+		database.ambientWifiFactDao().insertAuthority(AmbientWifiAuthorityIntegrity.create(
+			2L, AmbientWifiAuthorityEntity.STATE_ACTIVE, 1L, 1L, "privacy:wifi:ambient:v1", 1L,
+			0L, 0L, BOOT_CLOCK_DOMAIN_ID, 8_000_000L, 8L, 1L, "second-group", 2L, second.demandId))
+		val ordinal = ingress.admit(wifiDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION,
+			10_000_000L, accessPoints = listOf(
+				WifiAccessPointEvidence("old-ap", 2_412, -61, 7_000_000L),
+				WifiAccessPointEvidence("new-ap", 5_180, -45, 9_000_000L)),
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION)).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+			.units.single().admissionOrdinal
+		val projector = AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+		projector.project(ordinal).shouldBeInstanceOf<AmbientWifiProjectionResult.Groups>()
+			.results.size shouldBe 2
+		val facts = database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10)
+			.map { it.fact }.associateBy { it.purposeDemandId }
+		facts.keys shouldBe setOf(first.demandId, second.demandId)
+		facts.getValue(first.demandId).observedElapsedNanos shouldBe 7_000_000L
+		facts.getValue(first.demandId).observedWallTimeMs shouldBe 98L
+		facts.getValue(second.demandId).observedElapsedNanos shouldBe 9_000_000L
+		facts.getValue(first.demandId).observationCount shouldBe 1
+		facts.getValue(second.demandId).observationCount shouldBe 1
+		val children = facts.values.flatMap { fact ->
+			database.radioObservationChildDao().wifiBackgroundChildren(fact.writerId, fact.writerVersion,
+				fact.logicalFactId, fact.semanticRevision, 65)
+		}
+		children.map { it.bssid }.toSet() shouldBe setOf("old-ap", "new-ap")
+		projector.project(ordinal).shouldBeInstanceOf<AmbientWifiProjectionResult.Groups>()
+			.results.forEach { it.shouldBeInstanceOf<AmbientWifiProjectionResult.Duplicate>() }
+		database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 2
+	}
+
+	@Test
+	fun `background Wi-Fi writer keeps a historical reading when callback authorization is denied`() = runTest {
+		installAmbientWifiProduct()
+		val denied = SourceBrokerAuthorization.rows(SourceKind.WIFI.stableCode, 1L, 2L,
+			emptyList(), BOOT_CLOCK_DOMAIN_ID, 8_000_000L, 8L)
+		database.sourceBrokerDao().insertAuthorizations(denied)
+		val ordinal = ingress.admit(wifiDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION,
+			10_000_000L, accessPoints = listOf(WifiAccessPointEvidence("historical-ap", 2_412, -61, 7_000_000L)),
+			purposeEligibilityMask = 0L, eligibilityFingerprint = denied.single().authorizationFingerprint,
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION)).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+			.units.single().admissionOrdinal
+		AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+			.shouldBeInstanceOf<AmbientWifiProjectionResult.FactWritten>()
+		val fact = database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single().fact
+		fact.purposeEligibilityMask shouldBe 0L
+		fact.purposeDemandId shouldBe WIFI_DEMAND_ID
+		fact.observedElapsedNanos shouldBe 7_000_000L
+		AmbientWifiFactIntegrity.effectChecksum(fact) shouldBe fact.effectChecksum
+	}
+
+	@Test
+	fun `background Wi-Fi keeps valid readings beside readings after physical retirement`() = runTest {
+		installAmbientWifiProduct()
+		database.sourceBrokerDao().finishRegistration(SourceKind.WIFI.stableCode, 1L, WIFI_SOURCE_INSTANCE_ID,
+			ProviderRegistrationGenerationEntity.STATUS_RETIRED, 100L, 8_000_000L, "TEST_RETIRED") shouldBe 1
+		val ordinal = ingress.admit(wifiDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION,
+			10_000_000L, accessPoints = listOf(
+				WifiAccessPointEvidence("valid-ap", 2_412, -61, 7_000_000L),
+				WifiAccessPointEvidence("late-ap", 5_180, -45, 9_000_000L)),
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION)).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+			.units.single().admissionOrdinal
+		AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+			.shouldBeInstanceOf<AmbientWifiProjectionResult.FactWritten>()
+		val fact = database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single().fact
+		fact.observedElapsedNanos shouldBe 7_000_000L
+		fact.observationCount shouldBe 1
+		database.radioObservationChildDao().wifiBackgroundChildren(fact.writerId, fact.writerVersion,
+			fact.logicalFactId, fact.semanticRevision, 65).single().bssid shouldBe "valid-ap"
 	}
 
 	@Test
@@ -1567,6 +1652,56 @@ class WifiDurableSourceIngressTest {
 		receivedElapsedRealtimeNanos = 10_000_000L,
 		receivedWallTimeMs = 1_000L,
 	)
+
+	private suspend fun installAmbientWifiProduct() {
+		installWifiPolicy(includeAmbient = true)
+		database.sourcePolicyDao().insertConsentEpochs(
+			listOf(
+				SourceConsentEpochEntity(
+					SourceKind.WIFI.stableCode,
+					SourceBrokerPurpose.AMBIENT_PRODUCT,
+					1L,
+					eligible = true,
+					persistenceEligible = true,
+					policyRevision = 1L,
+					effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
+					effectiveElapsedRealtimeNanos = 6_000_000L,
+					effectiveWallTimeMs = 100L,
+					changeReason = "TEST_AMBIENT_CHAIN",
+				),
+			),
+		)
+		database.applyAmbientWifiRetentionDecision(
+			AmbientRadioRetentionDecision.GrantLiveAmbient(
+				"privacy:wifi:ambient:v1",
+				0L,
+				1L,
+				1L,
+				BOOT_CLOCK_DOMAIN_ID,
+				6_000_000L,
+				100L,
+			),
+		)
+		database.ambientWifiFactDao().insertAuthority(
+			AmbientWifiAuthorityIntegrity.create(
+				1L,
+				AmbientWifiAuthorityEntity.STATE_ACTIVE,
+				1L,
+				1L,
+				"privacy:wifi:ambient:v1",
+				1L,
+				0L,
+				0L,
+				BOOT_CLOCK_DOMAIN_ID,
+				6_000_000L,
+				100L,
+				1L,
+				"ambient-chain-owner",
+				1L,
+				WIFI_DEMAND_ID,
+			),
+		)
+	}
 
 	private fun wifiDeliveryCandidate(
 		registrationGeneration: Long,

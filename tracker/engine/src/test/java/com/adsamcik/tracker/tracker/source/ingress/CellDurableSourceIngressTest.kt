@@ -147,6 +147,191 @@ class CellDurableSourceIngressTest {
 	}
 
 	@Test
+	fun `retained v5 Cell preserves its full callback summary across an older demand boundary`() = runTest {
+		installAmbientCellProduct()
+		val ordinal = ingress.admit(cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION,
+			100_000_000L, payloadVersion = LEGACY_CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC",
+			observationsOverride = listOf(
+				CellObservationEvidence("", "LTE", true, -91, 70_000_000L),
+				CellObservationEvidence("", "LTE", true, -85, 90_000_000L))))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>().units.single().admissionOrdinal
+		val broker = database.sourceBrokerDao()
+		val first = broker.demandsByIds(listOf(CELL_DEMAND_ID)).single()
+		val second = first.copy(demandId = "cell-retained-v5-callback", requestedElapsedRealtimeNanos = 80_000_000L,
+			requestedAtMs = 80L)
+		broker.insertDemands(listOf(second))
+		database.ambientCellFactDao().retireExactAmbientDemand(first.demandId, first.consumerId,
+			first.sourceKind, requireNotNull(first.sourcePolicyRevision), requireNotNull(first.consentEpoch),
+			BOOT_CLOCK_DOMAIN_ID, 80_000_000L, 80L) shouldBe 1
+		val rows = SourceBrokerAuthorization.rows(SourceKind.CELL.stableCode, 1L, 2L,
+			listOf(second), BOOT_CLOCK_DOMAIN_ID, 80_000_000L, 80L)
+		broker.insertAuthorizations(rows)
+		database.ambientCellFactDao().insertAuthority(AmbientCellAuthorityIntegrity.create(
+			2L, AmbientCellAuthorityEntity.STATE_ACTIVE, 1L, 1L, "privacy:cell:ambient:v1", 1L,
+			0L, 0L, BOOT_CLOCK_DOMAIN_ID, 80_000_000L, 80L, 1L, "retained-v5", 2L, second.demandId))
+		// This is a retained-data compatibility fixture, not a newly admitted mixed v5 batch.
+		val retained = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(ordinal)).copy(
+			authorizationRevision = 2L, configRevision = 2L,
+			authorizationFingerprint = rows.first().authorizationFingerprint)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_revision = 2, config_revision = 2, " +
+				"authorization_fingerprint = ?, integrity_identity = ? WHERE admission_ordinal = ?",
+			arrayOf<Any?>(retained.authorizationFingerprint, retained.calculatedIntegrityIdentity(), ordinal))
+		val projector = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.FactWritten>()
+		val fact = database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single().fact
+		fact.purposeDemandId shouldBe null
+		fact.observationCount shouldBe 2
+		fact.observedElapsedNanos shouldBe 90_000_000L
+		database.radioObservationChildDao().cellBackgroundChildren(fact.writerId, fact.writerVersion,
+			fact.logicalFactId, fact.semanticRevision, 65).size shouldBe 0
+		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.Duplicate>()
+	}
+
+	@Test
+	fun `one Cell delivery saves every background group and replay retains exact tower details`() = runTest {
+		installAmbientCellProduct()
+		val broker = database.sourceBrokerDao()
+		val first = broker.demandsByIds(listOf(CELL_DEMAND_ID)).single()
+		val second = first.copy(demandId = "cell-second-group", requestedElapsedRealtimeNanos = 80_000_000L,
+			requestedAtMs = 80L)
+		broker.insertDemands(listOf(second))
+		database.ambientCellFactDao().retireExactAmbientDemand(first.demandId, first.consumerId,
+			first.sourceKind, requireNotNull(first.sourcePolicyRevision), requireNotNull(first.consentEpoch),
+			BOOT_CLOCK_DOMAIN_ID, 80_000_000L, 80L) shouldBe 1
+		val rows = SourceBrokerAuthorization.rows(SourceKind.CELL.stableCode, 1L, 2L,
+			listOf(second), BOOT_CLOCK_DOMAIN_ID, 80_000_000L, 80L)
+		broker.insertAuthorizations(rows)
+		ambientEligibilityFingerprint = rows.first().authorizationFingerprint
+		database.ambientCellFactDao().insertAuthority(AmbientCellAuthorityIntegrity.create(
+			2L, AmbientCellAuthorityEntity.STATE_ACTIVE, 1L, 1L, "privacy:cell:ambient:v1", 1L,
+			0L, 0L, BOOT_CLOCK_DOMAIN_ID, 80_000_000L, 80L, 1L, "second-group", 2L, second.demandId))
+		val ordinal = ingress.admit(cellDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION,
+			100_000_000L, payloadVersion = CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC",
+			observationsOverride = listOf(
+				CellObservationEvidence("old-tower", "LTE", true, -91, 70_000_000L),
+				CellObservationEvidence("new-tower", "LTE", true, -85, 90_000_000L))))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>().units.single().admissionOrdinal
+		val projector = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+		database.openHelper.writableDatabase.execSQL(
+			"CREATE TRIGGER fail_second_ambient_group BEFORE INSERT ON ambient_cell_fact_revision " +
+				"WHEN NEW.purpose_demand_id = 'cell-second-group' BEGIN " +
+				"SELECT RAISE(ABORT, 'injected group write failure'); END",
+		)
+		projector.project(ordinal) shouldBe AmbientCellProjectionResult.RetryableFailure
+		database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 0
+		database.openHelper.writableDatabase.query("SELECT count(*) FROM ambient_cell_child").use { cursor ->
+			cursor.moveToFirst() shouldBe true
+			cursor.getLong(0) shouldBe 0L
+		}
+		database.openHelper.writableDatabase.execSQL("DROP TRIGGER fail_second_ambient_group")
+		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.Groups>()
+			.results.size shouldBe 2
+		val facts = database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10)
+			.map { it.fact }.associateBy { it.purposeDemandId }
+		facts.keys shouldBe setOf(first.demandId, second.demandId)
+		facts.getValue(first.demandId).observedElapsedNanos shouldBe 70_000_000L
+		facts.getValue(first.demandId).observedWallTimeMs shouldBe 80L
+		facts.getValue(second.demandId).observedElapsedNanos shouldBe 90_000_000L
+		facts.values.forEach { it.observationCount shouldBe 1 }
+		val children = facts.values.flatMap { fact ->
+			database.radioObservationChildDao().cellBackgroundChildren(fact.writerId, fact.writerVersion,
+				fact.logicalFactId, fact.semanticRevision, 65)
+		}
+		children.map { it.towerIdentity }.toSet() shouldBe setOf("old-tower", "new-tower")
+		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.Groups>()
+			.results.forEach { it.shouldBeInstanceOf<AmbientCellProjectionResult.Duplicate>() }
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM ambient_cell_child WHERE logical_fact_id = ?",
+			arrayOf(facts.getValue(first.demandId).logicalFactId))
+		val replay = projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.Groups>()
+		replay.results.first() shouldBe AmbientCellProjectionResult.Unverifiable(
+			AmbientCellProjectionUnverifiableReason.WRITE_CONFLICT)
+		replay.results.last().shouldBeInstanceOf<AmbientCellProjectionResult.Duplicate>()
+		database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 2
+	}
+
+	@Test
+	fun `background Cell writer accepts a historical group with a denied callback`() = runTest {
+		installAmbientCellProduct()
+		val denied = SourceBrokerAuthorization.rows(SourceKind.CELL.stableCode, 1L, 2L,
+			emptyList(), BOOT_CLOCK_DOMAIN_ID, 105L, 105L)
+		database.sourceBrokerDao().insertAuthorizations(denied)
+		val original = cellDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION, 110L,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC", towerIdentifierToken = "tower")
+		val candidate = original.copy(units = original.units.map { unit -> unit.copy(
+			evidence = unit.evidence.copy(registrationPurposeEligibilityMask = 0L,
+				registrationEligibilityFingerprint = denied.single().authorizationFingerprint)) })
+		val ordinal = ingress.admit(candidate).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+			.units.single().admissionOrdinal
+		AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+			.shouldBeInstanceOf<AmbientCellProjectionResult.FactWritten>()
+		val fact = database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single().fact
+		fact.purposeEligibilityMask shouldBe 0L
+		fact.purposeDemandId shouldBe CELL_DEMAND_ID
+		AmbientCellFactIntegrity.effectChecksum(fact) shouldBe fact.effectChecksum
+	}
+
+	@Test
+	fun `background Cell keeps valid readings beside readings after physical retirement`() = runTest {
+		installAmbientCellProduct()
+		database.sourceBrokerDao().finishRegistration(SourceKind.CELL.stableCode, 1L, CELL_SOURCE_INSTANCE_ID,
+			ProviderRegistrationGenerationEntity.STATUS_RETIRED, 100L, 80_000_000L, "TEST_RETIRED") shouldBe 1
+		val ordinal = ingress.admit(cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION,
+			100_000_000L, payloadVersion = CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC",
+			observationsOverride = listOf(
+				CellObservationEvidence("valid-tower", "LTE", true, -91, 70_000_000L),
+				CellObservationEvidence("late-tower", "LTE", true, -85, 90_000_000L))))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>().units.single().admissionOrdinal
+		AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+			.shouldBeInstanceOf<AmbientCellProjectionResult.FactWritten>()
+		val fact = database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single().fact
+		fact.observedElapsedNanos shouldBe 70_000_000L
+		fact.observationCount shouldBe 1
+		database.radioObservationChildDao().cellBackgroundChildren(fact.writerId, fact.writerVersion,
+			fact.logicalFactId, fact.semanticRevision, 65).single().towerIdentity shouldBe "valid-tower"
+	}
+
+	@Test
+	fun `background Cell gaps keep each qualified groups observation time`() = runTest {
+		installAmbientCellProduct()
+		val broker = database.sourceBrokerDao()
+		val first = broker.demandsByIds(listOf(CELL_DEMAND_ID)).single()
+		val second = first.copy(demandId = "cell-second-group", requestedElapsedRealtimeNanos = 80_000_000L,
+			requestedAtMs = 80L)
+		broker.insertDemands(listOf(second))
+		database.ambientCellFactDao().retireExactAmbientDemand(first.demandId, first.consumerId,
+			first.sourceKind, requireNotNull(first.sourcePolicyRevision), requireNotNull(first.consentEpoch),
+			BOOT_CLOCK_DOMAIN_ID, 80_000_000L, 80L) shouldBe 1
+		val rows = SourceBrokerAuthorization.rows(SourceKind.CELL.stableCode, 1L, 2L,
+			listOf(second), BOOT_CLOCK_DOMAIN_ID, 80_000_000L, 80L)
+		broker.insertAuthorizations(rows)
+		ambientEligibilityFingerprint = rows.first().authorizationFingerprint
+		database.ambientCellFactDao().insertAuthority(AmbientCellAuthorityIntegrity.create(
+			2L, AmbientCellAuthorityEntity.STATE_ACTIVE, 1L, 1L, "privacy:cell:ambient:v1", 1L,
+			0L, 0L, BOOT_CLOCK_DOMAIN_ID, 80_000_000L, 80L, 1L, "second-group", 2L, second.demandId))
+		val ordinal = ingress.admit(cellDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION,
+			100_000_000L, payloadVersion = CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC",
+			subscriptionId = 1, observationsOverride = listOf(
+				CellObservationEvidence("old-tower", "LTE", true, -91, 70_000_000L),
+				CellObservationEvidence("new-tower", "LTE", true, -85, 90_000_000L))))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>().units.single().admissionOrdinal
+		val projector = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.Groups>()
+		val gaps = database.ambientCellFactDao().gapsOverWindow(0L, 1_000L, 10)
+		gaps.map { it.gapStartTimeMs } shouldBe listOf(80L, 100L)
+		gaps.map { it.gapEndTimeMs } shouldBe listOf(81L, 101L)
+		database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 0
+		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.Groups>()
+		database.ambientCellFactDao().gapsOverWindow(0L, 1_000L, 10).size shouldBe 2
+	}
+
+	@Test
 	fun `v6 Cell admits a mixed revision delivery without changing its raw readings`() = runTest {
 		installCellAuthorization(1L, 2L, 75L)
 		val observations = listOf(
@@ -313,83 +498,7 @@ class CellDurableSourceIngressTest {
 
 	@Test
 	fun `shared Cell controller drives real WAL projector and Room reader`() = runTest {
-		database.sourcePolicyDao().ensureAuthority(
-			SourcePolicyAuthorityEntity(
-				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
-				currentPolicyRevision = 1L,
-				legacySettingsFingerprint = null,
-				updatedAtMs = 1L,
-			),
-		)
-		database.sourcePolicyDao().insertPolicies(
-			listOf(
-				SourcePolicyEntity(
-					1L,
-					SourceKind.CELL.stableCode,
-					enabled = true,
-					qosCode = 2,
-					locationMinTimeSeconds = null,
-					locationMinDistanceMeters = null,
-					locationRequiredAccuracyMeters = null,
-					capturePersistenceEligible = false,
-					controlPersistenceEligible = false,
-					ambientPersistenceEligible = true,
-					captureConsentEpoch = null,
-					controlConsentEpoch = null,
-					ambientConsentEpoch = 1L,
-					effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
-					effectiveElapsedRealtimeNanos = 50L,
-					effectiveWallTimeMs = 50L,
-					changeReason = "TEST_AMBIENT_CHAIN",
-				),
-			),
-		)
-		database.sourcePolicyDao().insertConsentEpochs(
-			listOf(
-				SourceConsentEpochEntity(
-					SourceKind.CELL.stableCode,
-					SourceBrokerPurpose.AMBIENT_PRODUCT,
-					1L,
-					eligible = true,
-					persistenceEligible = true,
-					policyRevision = 1L,
-					effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
-					effectiveElapsedRealtimeNanos = 50L,
-					effectiveWallTimeMs = 50L,
-					changeReason = "TEST_AMBIENT_CHAIN",
-				),
-			),
-		)
-		database.applyAmbientCellRetentionDecision(
-			AmbientRadioRetentionDecision.GrantLiveAmbient(
-				"privacy:cell:ambient:v1",
-				0L,
-				1L,
-				1L,
-				BOOT_CLOCK_DOMAIN_ID,
-				50L,
-				50L,
-			),
-		)
-		database.ambientCellFactDao().insertAuthority(
-			AmbientCellAuthorityIntegrity.create(
-				1L,
-				AmbientCellAuthorityEntity.STATE_ACTIVE,
-				1L,
-				1L,
-				"privacy:cell:ambient:v1",
-				1L,
-				0L,
-				0L,
-				BOOT_CLOCK_DOMAIN_ID,
-				50L,
-				50L,
-				1L,
-				"ambient-cell-owner",
-				1L,
-				CELL_DEMAND_ID,
-			),
-		)
+		installAmbientCellProduct()
 		val physical = mockk<CellSourceRuntime>()
 		every { physical.capabilities } returns MutableStateFlow(
 			SourceCapabilities(true, false, false, null, null),
@@ -520,7 +629,7 @@ class CellDurableSourceIngressTest {
 			database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
 			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID },
 		).project(identified.admissionOrdinals.single())
-			.shouldBeInstanceOf<AmbientCellProjectionResult.CoverageCompacted>()
+			.shouldBeInstanceOf<AmbientCellProjectionResult.FactWritten>()
 		val identifiedChildren = database.radioObservationChildDao().cellBackgroundChildren(
 			com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity.WRITER_ID,
 			com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity.WRITER_VERSION,
@@ -603,6 +712,86 @@ class CellDurableSourceIngressTest {
 			AmbientCellProjectionResult.Unverifiable(
 				AmbientCellProjectionUnverifiableReason.DELETED_SCOPE,
 			)
+	}
+
+	private suspend fun installAmbientCellProduct() {
+		database.sourcePolicyDao().ensureAuthority(
+			SourcePolicyAuthorityEntity(
+				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+				currentPolicyRevision = 1L,
+				legacySettingsFingerprint = null,
+				updatedAtMs = 1L,
+			),
+		)
+		database.sourcePolicyDao().insertPolicies(
+			listOf(
+				SourcePolicyEntity(
+					1L,
+					SourceKind.CELL.stableCode,
+					enabled = true,
+					qosCode = 2,
+					locationMinTimeSeconds = null,
+					locationMinDistanceMeters = null,
+					locationRequiredAccuracyMeters = null,
+					capturePersistenceEligible = false,
+					controlPersistenceEligible = false,
+					ambientPersistenceEligible = true,
+					captureConsentEpoch = null,
+					controlConsentEpoch = null,
+					ambientConsentEpoch = 1L,
+					effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
+					effectiveElapsedRealtimeNanos = 50L,
+					effectiveWallTimeMs = 50L,
+					changeReason = "TEST_AMBIENT_CHAIN",
+				),
+			),
+		)
+		database.sourcePolicyDao().insertConsentEpochs(
+			listOf(
+				SourceConsentEpochEntity(
+					SourceKind.CELL.stableCode,
+					SourceBrokerPurpose.AMBIENT_PRODUCT,
+					1L,
+					eligible = true,
+					persistenceEligible = true,
+					policyRevision = 1L,
+					effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
+					effectiveElapsedRealtimeNanos = 50L,
+					effectiveWallTimeMs = 50L,
+					changeReason = "TEST_AMBIENT_CHAIN",
+				),
+			),
+		)
+		database.applyAmbientCellRetentionDecision(
+			AmbientRadioRetentionDecision.GrantLiveAmbient(
+				"privacy:cell:ambient:v1",
+				0L,
+				1L,
+				1L,
+				BOOT_CLOCK_DOMAIN_ID,
+				50L,
+				50L,
+			),
+		)
+		database.ambientCellFactDao().insertAuthority(
+			AmbientCellAuthorityIntegrity.create(
+				1L,
+				AmbientCellAuthorityEntity.STATE_ACTIVE,
+				1L,
+				1L,
+				"privacy:cell:ambient:v1",
+				1L,
+				0L,
+				0L,
+				BOOT_CLOCK_DOMAIN_ID,
+				50L,
+				50L,
+				1L,
+				"ambient-cell-owner",
+				1L,
+				CELL_DEMAND_ID,
+			),
+		)
 	}
 
 	private fun cellDeliveryCandidate(

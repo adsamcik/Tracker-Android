@@ -7,7 +7,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
-/** Identity-free, sessionless Wi-Fi product evidence derived from one exact durable source WAL row. */
+/** Sessionless Wi-Fi product evidence derived from an independently qualified part of a delivery. */
 @Entity(
 	tableName = "ambient_wifi_fact_revision",
 	primaryKeys = ["writer_id", "writer_version", "logical_fact_id", "semantic_revision"],
@@ -90,6 +90,7 @@ data class AmbientWifiFactRevisionEntity(
 	@ColumnInfo(name = "quality_confidence") val qualityConfidence: Float?,
 	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
 	@ColumnInfo(name = "applied_at_ms") val appliedAtMs: Long,
+	@ColumnInfo(name = "purpose_demand_id", defaultValue = "NULL") val purposeDemandId: String? = null,
 ) {
 	init {
 		require(writerId == WRITER_ID && writerVersion == WRITER_VERSION)
@@ -112,7 +113,10 @@ data class AmbientWifiFactRevisionEntity(
 		require(physicalConfigurationFingerprint.isNotBlank())
 		require(authorizationRevision > 0L)
 		require(AmbientWifiAuthorityIntegrity.isDigest(authorizationFingerprint))
-		require(purposeEligibilityMask and SourceBrokerPurpose.MASK_AMBIENT_PRODUCT != 0L)
+		require(purposeDemandId?.isNotBlank() != false)
+		// New groups preserve the exact callback header, including a later deny-all revision.
+		require(purposeDemandId != null ||
+			purposeEligibilityMask and SourceBrokerPurpose.MASK_AMBIENT_PRODUCT != 0L)
 		require(sourcePolicyRevision > 0L && ambientConsentEpoch >= 0L)
 		require(retentionPolicyId.isNotBlank() && retentionApprovalRevision > 0L)
 		require(collectedDataEpoch >= 0L && scopeDeletionGeneration >= 0L)
@@ -133,6 +137,7 @@ data class AmbientWifiFactRevisionEntity(
 				ambientConsentEpoch,
 				collectedDataEpoch,
 				scopeDeletionGeneration,
+				purposeDemandId,
 			),
 		)
 		require(AmbientWifiAuthorityIntegrity.isDigest(effectChecksum))
@@ -635,13 +640,14 @@ object AmbientWifiFactIntegrity {
 		ambientConsentEpoch: Long,
 		collectedDataEpoch: Long,
 		scopeDeletionGeneration: Long,
-	): String = AmbientWifiAuthorityIntegrity.digest(
-		"ambient-wifi-fact-v1",
-		sourceDeliveryIdentity,
-		ambientConsentEpoch,
-		collectedDataEpoch,
-		scopeDeletionGeneration,
-	)
+		purposeDemandId: String? = null,
+	): String = if (purposeDemandId == null) {
+		AmbientWifiAuthorityIntegrity.digest("ambient-wifi-fact-v1", sourceDeliveryIdentity,
+			ambientConsentEpoch, collectedDataEpoch, scopeDeletionGeneration)
+	} else {
+		AmbientWifiAuthorityIntegrity.digest("ambient-wifi-fact-v2", sourceDeliveryIdentity,
+			ambientConsentEpoch, collectedDataEpoch, scopeDeletionGeneration, purposeDemandId)
+	}
 
 	fun mutationId(logicalFactId: String, semanticRevision: Long): String =
 		AmbientWifiAuthorityIntegrity.digest(
@@ -704,7 +710,11 @@ object AmbientWifiFactIntegrity {
 			value.qualityFlags,
 			value.qualityConfidence,
 			value.appliedAtMs,
-		)
+		).let { legacy ->
+			value.purposeDemandId?.let { demand ->
+				AmbientWifiAuthorityIntegrity.digest("ambient-wifi-effect-v2", legacy, demand)
+			} ?: legacy
+		}
 
 	fun deletionChecksum(value: AmbientWifiDeletionMarkerEntity): String =
 		deletionChecksum(

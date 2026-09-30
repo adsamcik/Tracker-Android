@@ -54,6 +54,8 @@ class RadioObservationChildMigrationTest {
 		try {
 			val db = helper.writableDatabase
 			MIGRATION_28_29.migrate(db)
+			readLong(db, "SELECT count(*) FROM pragma_table_info('ambient_wifi_fact_revision') WHERE name='purpose_demand_id'") shouldBe 1L
+			readLong(db, "SELECT count(*) FROM pragma_table_info('ambient_cell_fact_revision') WHERE name='purpose_demand_id'") shouldBe 1L
 			readString(db, "SELECT bssid FROM legacy_wifi_child WHERE legacy_row_id=7") shouldBe "aa:bb"
 			readString(db, "SELECT ssid FROM legacy_wifi_child WHERE legacy_row_id=7") shouldBe "Cafe"
 			readLong(db, "SELECT lat_e7 FROM legacy_wifi_child WHERE legacy_row_id=7") shouldBe 500000000L
@@ -64,7 +66,7 @@ class RadioObservationChildMigrationTest {
 			readString(db, "SELECT provenance FROM legacy_cell_child WHERE legacy_row_id=8") shouldBe "NEAREST_LOCATION"
 			readLong(db, "SELECT source_time_ms FROM legacy_cell_child WHERE legacy_row_id=8") shouldBe 1002L
 			db.execSQL("INSERT INTO wifi_captured_fact_revision VALUES ('writer',1,'session-fact',1)")
-			db.execSQL("INSERT INTO ambient_wifi_fact_revision VALUES ('writer',1,'background-fact',1)")
+			db.execSQL("INSERT INTO ambient_wifi_fact_revision (writer_id,writer_version,logical_fact_id,semantic_revision) VALUES ('writer',1,'background-fact',1)")
 			val checksum = "a".repeat(64)
 			db.execSQL("INSERT INTO wifi_captured_child VALUES " +
 				"('writer',1,'session-fact',1,0,100,1000,5,'aa:bb','Cafe',2412,-63,'$checksum')")
