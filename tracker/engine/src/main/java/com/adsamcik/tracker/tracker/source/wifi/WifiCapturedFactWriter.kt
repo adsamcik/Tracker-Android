@@ -10,6 +10,10 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.MAX_WIFI_WAL_PAYLOAD_BYTES
+import com.adsamcik.tracker.shared.base.database.data.WifiWalCarrierAuthenticator
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
@@ -32,6 +36,7 @@ internal enum class WifiCapturedWriteRejection {
 	AGGREGATE_OWNER_HAS_DEPENDENTS,
 	IDENTITY_COLLISION,
 	CURSOR_CHANGED,
+	CHILD_EVIDENCE_MISMATCH,
 }
 
 internal enum class WifiCapturedWriteCheckpoint { QUALIFIED, REVISION_INSERTED, CURSOR_ADVANCED }
@@ -86,7 +91,7 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			is WifiWalAdapterResult.Rejected -> WifiCapturedWriteResult.AdapterRejected(result.reason)
 			is WifiWalAdapterResult.Evaluated -> {
 				checkpoint(WifiCapturedWriteCheckpoint.QUALIFIED)
-				writeClassification(result.classification, checkpoint)
+				writeClassification(result.classification, result.wal, checkpoint)
 			}
 		}
 	}
@@ -169,17 +174,22 @@ internal class WifiCapturedFactWriter @Inject constructor(
 
 	private suspend fun writeClassification(
 		classification: WifiCapturedFactClassification,
+		wal: SourceEventWalEntity,
 		checkpoint: suspend (WifiCapturedWriteCheckpoint) -> Unit,
 	): WifiCapturedWriteResult = when (classification) {
-		is WifiCapturedFactClassification.FreshChanged -> writeFact(classification.fact, checkpoint)
-		is WifiCapturedFactClassification.FreshUnchanged -> writeFact(classification.fact, checkpoint)
-		is WifiCapturedFactClassification.Replay -> writeReplay(classification)
+		is WifiCapturedFactClassification.FreshChanged ->
+			writeFact(classification.fact, wal, classification.acceptedItemIndexes, checkpoint)
+		is WifiCapturedFactClassification.FreshUnchanged ->
+			writeFact(classification.fact, wal, classification.acceptedItemIndexes, checkpoint)
+		is WifiCapturedFactClassification.Replay -> writeReplay(classification, wal)
 		else -> WifiCapturedWriteResult.NoEvidence(classification)
 	}
 
 	@Suppress("LongMethod", "CyclomaticComplexMethod")
 	private suspend fun writeFact(
 		fact: WifiCapturedFact,
+		wal: SourceEventWalEntity,
+		acceptedIndexes: List<Int>,
 		checkpoint: suspend (WifiCapturedWriteCheckpoint) -> Unit,
 	): WifiCapturedWriteResult {
 		val authority = fact.authority
@@ -209,6 +219,13 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			cursor.cursorRevision
 		}
 		val mapped = WifiCapturedPersistence.map(fact, owner.ownerGeneration, ownerCursorRevision)
+		val children = if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
+			WifiPurposeChildren.session(mapped, wal, acceptedIndexes)
+				?: reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
+		} else emptyList()
+		if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION &&
+			children.size != mapped.acceptedResultCount
+		) reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
 		requireNoRetainedFactProof(mapped, state.retainedFromMs)
 		if (mapped.earliestCoveredWallTimeMs()?.let { earliest ->
 			state.retainedFromMs?.let { earliest < it }
@@ -225,6 +242,12 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			if (!cursor.matchesCurrentRevision(existing)) {
 				reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 			}
+			if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION &&
+				database.radioObservationChildDao().wifiSessionChildren(
+					WRITER_ID, WRITER_VERSION, mapped.logicalFactId, mapped.semanticRevision,
+					MAX_CHILDREN + 1,
+				) != children
+			) reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
 			return WifiCapturedWriteResult.Unchanged(
 				mapped.logicalFactId,
 				mapped.semanticRevision,
@@ -262,6 +285,7 @@ internal class WifiCapturedFactWriter @Inject constructor(
 		if (dao.insertRevision(mapped) == INSERT_IGNORED) {
 			reject(WifiCapturedWriteRejection.IDENTITY_COLLISION)
 		}
+		if (children.isNotEmpty()) database.radioObservationChildDao().insertWifiSession(children)
 		checkpoint(WifiCapturedWriteCheckpoint.REVISION_INSERTED)
 		currentCoroutineContext().ensureActive()
 		val nextCursorRevision = Math.addExact(current?.cursorRevision ?: 0L, 1L)
@@ -290,6 +314,7 @@ internal class WifiCapturedFactWriter @Inject constructor(
 
 	private suspend fun writeReplay(
 		replay: WifiCapturedFactClassification.Replay,
+		wal: SourceEventWalEntity,
 	): WifiCapturedWriteResult {
 		val logicalFactId = replay.reference.logicalFactId()
 		val dao = database.wifiCapturedFactDao()
@@ -298,6 +323,14 @@ internal class WifiCapturedFactWriter @Inject constructor(
 		val cursor = dao.cursor(WRITER_ID, WRITER_VERSION, logicalFactId)
 			?: reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 		if (!cursor.matchesCurrentRevision(row)) reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		val children = if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
+			database.radioObservationChildDao().wifiSessionChildren(
+				WRITER_ID, WRITER_VERSION, logicalFactId, row.semanticRevision, MAX_CHILDREN + 1,
+			)
+		} else emptyList()
+		if (!WifiWalCarrierAuthenticator.authenticates(row, wal, children)) {
+			reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
+		}
 		requireCurrentWriteAuthority(row)
 		return WifiCapturedWriteResult.Unchanged(logicalFactId, row.semanticRevision, cursor.cursorRevision)
 	}
@@ -399,6 +432,18 @@ internal class WifiCapturedFactWriter @Inject constructor(
 				!WifiCapturedFactRevisionIntegrity.hasValidEffectChecksum(revision) ||
 				(older != null && !revision.isAuthenticatedSuccessorOf(older))
 			) reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			val wal = database.sourceEventWalDao().boundedPayloadByEventId(
+				revision.sourceEventId, MAX_WIFI_WAL_PAYLOAD_BYTES,
+			) ?: reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
+			if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
+				val children = database.radioObservationChildDao().wifiSessionChildren(
+					WRITER_ID, WRITER_VERSION, revision.logicalFactId,
+					revision.semanticRevision, MAX_CHILDREN + 1,
+				)
+				if (!WifiWalCarrierAuthenticator.authenticates(revision, wal, children)) {
+					reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
+				}
+			}
 		}
 	}
 
@@ -535,6 +580,7 @@ internal class WifiCapturedFactWriter @Inject constructor(
 		const val WRITER_ID = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID
 		const val WRITER_VERSION = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION
 		const val MAX_FACT_REVISIONS = 256
+		const val MAX_CHILDREN = 64
 		const val INSERT_IGNORED = -1L
 	}
 }

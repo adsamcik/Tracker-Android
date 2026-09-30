@@ -157,7 +157,8 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 				is ReadLocalPortableCapturedWifiResult.Outcome -> true
 			}
 		}
-		return WifiHistoryQuery.Found(evaluation.toPublicWifiEntry(originConflict))
+		return WifiHistoryQuery.Found(database.withImportedWifiDetails(evaluation,
+			evaluation.toPublicWifiEntry(originConflict)))
 	}
 
 	@Suppress("LongMethod", "ReturnCount")
@@ -292,12 +293,20 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			return WifiSourceRecentPage.Failed(WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT)
 		}
 		return try {
-			WifiHistoryOriginComposer.composeSourceRecent(
+			val composed = WifiHistoryOriginComposer.composeSourceRecent(
 				live = live.entries,
 				imported = imported,
 				localPortableByLogicalId = localPortable,
 				limit = limit,
 			)
+			if (composed is WifiSourceRecentPage.Available) {
+				val bySelection = imported.associateBy { it.candidate.selection }
+				WifiSourceRecentPage.Available(composed.entries.map { row ->
+					if (row is WifiSourceRecentEntry.Imported) row.copy(entry =
+						database.withImportedWifiDetails(requireNotNull(bySelection[row.selection]),
+							row.entry)) else row
+				})
+			} else composed
 		} catch (_: ImportedWifiHistoryCompositionFailure) {
 			WifiSourceRecentPage.Failed(WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT)
 		} catch (_: ArithmeticException) {
@@ -521,7 +530,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			WifiRangeWorkItem.Imported(
 				startTimeMs = evaluation.candidate.newestMemberStartTimeMs,
 				identity = evaluation.candidate.newestMemberIdentity.value,
-				entry = publicEntry,
+				entry = publicEntry?.let { database.withImportedWifiDetails(evaluation, it) },
 				structuralRuns = publicEntry?.let {
 					evaluation.authenticatedStructuralRuns(it)
 				}.orEmpty(),
@@ -752,6 +761,17 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			MAX_CURSORS + 1,
 		)
 		val factIds = revisions.map(WifiCapturedFactRevisionEntity::logicalFactId).distinct()
+		var childOverflow = false
+		val currentChildren = factIds.chunked(WIFI_CHILD_FACT_CHUNK).flatMap { ids ->
+			currentCoroutineContext().ensureActive()
+			val rows = database.radioObservationChildDao().wifiCurrentSessionChildrenByFactIds(
+				SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
+				ids, ids.size * MAX_WIFI_CHILDREN + 1,
+			)
+			if (rows.size > ids.size * MAX_WIFI_CHILDREN) childOverflow = true
+			rows.take(ids.size * MAX_WIFI_CHILDREN)
+		}
 		val referencedCursorLoad = loadChunked(factIds, MAX_CURSORS) { ids, limit ->
 			factDao.historyCursors(ids, limit)
 		}
@@ -852,7 +872,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			demands.size > MAX_DEMANDS || actions.size > MAX_ACTIONS ||
 			admissions.size > MAX_ADMISSION_ROWS ||
 			fences.size > MAX_DELETION_FENCES || lanes.size > MAX_LANES ||
-			failures.size > MAX_TERMINAL_FAILURES
+			failures.size > MAX_TERMINAL_FAILURES || childOverflow
 		return WifiHistorySnapshot(
 			expansion = expansion,
 			sessions = sessions.associateBy(LogicalTrackingSessionEntity::logicalTrackingId),
@@ -865,6 +885,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			consents = consents.take(MAX_CONSENTS).associateBy(SourceConsentEpochEntity::epoch),
 			completenessByRun = completeness.take(MAX_COMPLETENESS).groupBy { it.serviceRunId },
 			revisions = revisions.take(MAX_FACT_REVISIONS),
+			childrenByRevision = currentChildren.groupBy { it.logicalFactId to it.semanticRevision },
 			cursors = cursors.take(MAX_CURSORS),
 			deletionGenerations = generations.take(MAX_DELETION_GENERATIONS)
 				.associateBy { it.logicalTrackingId to it.serviceRunId },
@@ -981,6 +1002,8 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 		const val MAX_LOGICAL_MEMBERS = 128
 		const val FACT_PAGE_SIZE = 256
 		const val MAX_FACT_REVISIONS = 4_096
+		const val WIFI_CHILD_FACT_CHUNK = 64
+		const val MAX_WIFI_CHILDREN = 64
 		const val MAX_CURSORS = 4_096
 		const val MAX_SESSIONS = 128
 		const val MAX_MANIFESTS = 512

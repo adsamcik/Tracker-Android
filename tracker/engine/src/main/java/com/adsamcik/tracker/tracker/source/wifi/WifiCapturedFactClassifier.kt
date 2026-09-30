@@ -133,6 +133,7 @@ internal data class WifiObservationInput(
 	val origin: WifiObservationOrigin,
 	val outcome: WifiProviderOutcome,
 	val walEvidence: WifiWalObservationEvidence?,
+	val qualifiedItemIndexes: Set<Int>? = null,
 )
 
 internal enum class WifiFactRejection {
@@ -157,8 +158,14 @@ internal enum class WifiFactRejection {
 }
 
 internal sealed interface WifiCapturedFactClassification {
-	data class FreshChanged(val fact: WifiCapturedFact.Aggregate) : WifiCapturedFactClassification
-	data class FreshUnchanged(val fact: WifiCapturedFact.CoverageOnly) : WifiCapturedFactClassification
+	data class FreshChanged(
+		val fact: WifiCapturedFact.Aggregate,
+		val acceptedItemIndexes: List<Int> = emptyList(),
+	) : WifiCapturedFactClassification
+	data class FreshUnchanged(
+		val fact: WifiCapturedFact.CoverageOnly,
+		val acceptedItemIndexes: List<Int> = emptyList(),
+	) : WifiCapturedFactClassification
 	data object Absent : WifiCapturedFactClassification
 	data object Stale : WifiCapturedFactClassification
 	data object Failed : WifiCapturedFactClassification
@@ -226,6 +233,9 @@ internal object WifiCapturedFactClassifier {
 			return rejected(WifiFactRejection.PAYLOAD_TOO_LARGE)
 		}
 		val payload = decodeWalPayload(wal) ?: return walPayloadRejection(wal)
+		if (input.qualifiedItemIndexes?.any { it !in payload.accessPoints.indices } == true) {
+			return rejected(WifiFactRejection.PROVIDER_DELIVERY_SHAPE_UNVERIFIABLE)
+		}
 		if (!wal.clock.isValidFor(expectedAuthority)) {
 			return WifiCapturedFactClassification.ClockUnverifiable
 		}
@@ -301,6 +311,7 @@ internal object WifiCapturedFactClassifier {
 			evidenceBinding = evidenceBinding,
 			priorFact = priorFact,
 			correctionBase = correctionBase,
+			qualifiedItemIndexes = input.qualifiedItemIndexes,
 		)
 	}
 
@@ -314,9 +325,12 @@ internal object WifiCapturedFactClassifier {
 		evidenceBinding: WifiCapturedEvidenceBinding,
 		priorFact: WifiReusableFact?,
 		correctionBase: WifiReusableFact?,
+		qualifiedItemIndexes: Set<Int>?,
 	): WifiCapturedFactClassification {
-		val itemClassifications = payload.accessPoints.map { accessPoint ->
-			accessPoint to if (authority.acquisitionConfiguration.resultContract.accepts(
+		val itemClassifications = payload.accessPoints.mapIndexed { index, accessPoint ->
+			accessPoint to if (qualifiedItemIndexes != null && index !in qualifiedItemIndexes) {
+				ProviderTimeClassification.STALE
+			} else if (authority.acquisitionConfiguration.resultContract.accepts(
 					accessPoint.frequencyMhz,
 					accessPoint.signalLevelDbm,
 				)
@@ -330,8 +344,10 @@ internal object WifiCapturedFactClassifier {
 				ProviderTimeClassification.MALFORMED
 			}
 		}
-		val accepted = itemClassifications.filter { it.second == ProviderTimeClassification.FRESH }
-			.map(Pair<WifiAccessPointEvidence, ProviderTimeClassification>::first)
+		val acceptedIndexes = itemClassifications.indices.filter { index ->
+			itemClassifications[index].second == ProviderTimeClassification.FRESH
+		}
+		val accepted = acceptedIndexes.map { index -> itemClassifications[index].first }
 		val staleCount = itemClassifications.count { it.second == ProviderTimeClassification.STALE }
 		val unverifiableCount = itemClassifications.count {
 			it.second == ProviderTimeClassification.CLOCK_UNVERIFIABLE
@@ -408,6 +424,7 @@ internal object WifiCapturedFactClassifier {
 					observedAggregate = aggregate,
 					reusesAggregate = directAggregateOwner,
 				),
+				acceptedIndexes,
 			)
 		} else {
 			WifiCapturedFactClassification.FreshChanged(
@@ -421,6 +438,7 @@ internal object WifiCapturedFactClassifier {
 					coverage = coverage,
 					aggregate = aggregate,
 				),
+				acceptedIndexes,
 			)
 		}
 	}

@@ -459,8 +459,12 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			request.deletedAtMs,
 		)
 		checkpoint(WifiSelectedDeletionCheckpoint.MARKERS_RECORDED)
-		for (lineageBatch in audit.lineages.dependencySafeDeletionOrder().chunked(DELETE_BATCH_SIZE)) {
+		for (lineageBatch in audit.lineages.dependencySafeDeletionBatches(DELETE_BATCH_SIZE)) {
 			val ids = lineageBatch.map(WifiCapturedLineage::logicalFactId)
+			ids.forEach { id -> database.radioObservationChildDao().deleteWifiSessionFact(
+				SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION, id,
+			) }
 			if (database.wifiCapturedFactDao().deleteExactCursors(
 					SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
 					SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,

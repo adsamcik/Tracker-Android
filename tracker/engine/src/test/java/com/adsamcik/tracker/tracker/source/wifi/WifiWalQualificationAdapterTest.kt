@@ -28,6 +28,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionScopeP
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_WIFI_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
@@ -271,7 +272,7 @@ class WifiWalQualificationAdapterTest {
 
 		assertEquals(
 			WifiWalAdapterResult.Rejected(
-				WifiWalAdapterRejection.HISTORICAL_DEMAND_CONTRACT_UNVERIFIABLE,
+				WifiWalAdapterRejection.AUTHORIZATION_MISMATCH,
 			),
 			subject.qualify(EVENT_ID),
 		)
@@ -303,7 +304,10 @@ class WifiWalQualificationAdapterTest {
 
 	@Test
 	fun `plan result age must satisfy every authorized demand`() = runTest {
-		installValidFixture(plan = wifiPlan().copy(maximumAcceptableResultAgeMs = 2_000L))
+		installValidFixture(
+			plan = wifiPlan().copy(maximumAcceptableResultAgeMs = 2_000L),
+			lastDemandMaximumAgeMs = 1_000L,
+		)
 
 		assertEquals(
 			WifiWalAdapterResult.Rejected(
@@ -586,6 +590,94 @@ class WifiWalQualificationAdapterTest {
 		assertEquals(
 			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.BEFORE_RETENTION_FLOOR),
 			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `v6 maintenance and portable export preserve readings across authorization rotation`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		rotateV6Callback(OBSERVED_START_NANOS + 50_000_000L)
+		installPortableClosingAuthorization(authorizationRevision = 3L)
+		materializePortableFixture()
+		val fact = requireNotNull(database.wifiCapturedFactDao().revision(
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
+			assertIs<WifiCapturedWriteResult.Unchanged>(writer.write(EVENT_ID)).logicalFactId, 1L,
+		))
+		assertEquals(2, fact.acceptedResultCount)
+		assertEquals(OBSERVED_START_NANOS, fact.authorizationEffectStartNanos)
+		val exports = mutableListOf<PortableCapturedWifiEntryV1>()
+		assertIs<ExportPortableCapturedWifiResult.Exported>(portableExporter().export(
+			ExportPortableCapturedWifiRequest(LOGICAL_ID),
+		) { exports += it })
+		assertEquals(1, exports.single().runs.single().observations.size)
+		assertRetainedV6LineageCanBeAudited()
+	}
+
+	@Test
+	fun `v6 new capture authorization cannot claim an older reading`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_authorization")
+		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(
+			WIFI_SOURCE, REGISTRATION_GENERATION, AUTHORIZATION_REVISION, emptyList(),
+			BOOT_ID, AUTHORIZATION_START_NANOS, RUN_START_WALL_MS,
+		))
+		rotateV6Callback(OBSERVED_START_NANOS + 50_000_000L)
+		val evaluated = assertIs<WifiWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		val fact = assertIs<WifiCapturedFactClassification.FreshChanged>(evaluated.classification).fact
+		assertEquals(listOf(1), evaluated.qualifiedItemIndexes)
+		assertEquals(1, fact.coverage.acceptedResultCount)
+		assertEquals(1, fact.coverage.staleResultCount)
+		assertEquals(OBSERVED_END_NANOS, fact.authority.temporalAuthority.authorizationEffect.startInclusiveNanos)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		assertRetainedV6LineageCanBeAudited()
+	}
+
+	@Test
+	fun `v6 callback revision must be the revision effective at receipt`() = runTest {
+		installValidFixture(payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		installPortableClosingAuthorization(effectiveElapsedRealtimeNanos = OBSERVED_END_NANOS + 1L)
+		assertEquals(WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.AUTHORIZATION_MISMATCH),
+			subject.qualify(EVENT_ID))
+	}
+
+	@Test
+	fun `v6 cached reading before physical registration does not discard its valid sibling`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION,
+			accessPoints = listOf(
+				WifiAccessPointEvidence("", 2_412, -80, RUN_START_NANOS - 100_000_000L),
+				WifiAccessPointEvidence("", 5_180, -60, OBSERVED_END_NANOS),
+			))
+		val evaluated = assertIs<WifiWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		assertEquals(listOf(1), evaluated.qualifiedItemIndexes)
+		assertEquals(1, assertIs<WifiCapturedFactClassification.FreshChanged>(evaluated.classification)
+			.fact.coverage.acceptedResultCount)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		assertRetainedV6LineageCanBeAudited()
+	}
+
+	private suspend fun assertRetainedV6LineageCanBeAudited() {
+		val floor = OBSERVED_WALL_MS - 1_000L
+		val markedAt = OBSERVED_WALL_MS + 10_000L
+		assertTrue(database.sourceEvidenceStateDao().synchronizeLifecycle(0L, floor, markedAt))
+		assertEquals(WifiCapturedRetentionResult.NoChange,
+			maintenance.pruneAffectedByRetentionFloor(floor, 0L, 0L, markedAt))
+	}
+
+	private suspend fun rotateV6Callback(effectiveNanos: Long) {
+		val demands = database.sourceBrokerDao().demandsByIds(listOf("$DEMAND_ID-0"))
+		val rows = SourceBrokerAuthorization.rows(WIFI_SOURCE, REGISTRATION_GENERATION, 2L, demands,
+			BOOT_ID, effectiveNanos, OBSERVED_WALL_MS)
+		database.sourceBrokerDao().insertAuthorizations(rows)
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val unsigned = wal.copy(authorizationRevision = 2L,
+			authorizationPurposeEligibilityMask = rows.first().purposeEligibilityMask,
+			authorizationFingerprint = rows.first().authorizationFingerprint)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_revision = ?, authorization_purpose_eligibility_mask = ?, " +
+				"authorization_fingerprint = ?, integrity_identity = ? WHERE event_id = ?",
+			arrayOf(2L, unsigned.authorizationPurposeEligibilityMask, unsigned.authorizationFingerprint,
+				unsigned.calculatedIntegrityIdentity(), EVENT_ID.value),
 		)
 	}
 
@@ -902,7 +994,7 @@ class WifiWalQualificationAdapterTest {
 
 		val repeated = assertTerminalWifiLaneFailure(lane)
 
-		assertEquals("WIFI_ADAPTER_WAL_INTEGRITY_MISMATCH", repeated.failureCode)
+		assertEquals("WIFI_ADAPTER_PAYLOAD_MISMATCH", repeated.failureCode)
 	}
 
 	@Test
@@ -920,7 +1012,7 @@ class WifiWalQualificationAdapterTest {
 
 		val repeated = assertTerminalWifiLaneFailure(lane)
 
-		assertEquals("WIFI_ADAPTER_WAL_INTEGRITY_MISMATCH", repeated.failureCode)
+		assertEquals("WIFI_ADAPTER_PAYLOAD_MISMATCH", repeated.failureCode)
 	}
 
 	@Test
@@ -937,7 +1029,7 @@ class WifiWalQualificationAdapterTest {
 
 		val repeated = assertTerminalWifiLaneFailure(lane)
 
-		assertEquals("WIFI_ADAPTER_WAL_INTEGRITY_MISMATCH", repeated.failureCode)
+		assertEquals("WIFI_ADAPTER_PAYLOAD_MISMATCH", repeated.failureCode)
 	}
 
 	@Test
@@ -954,7 +1046,7 @@ class WifiWalQualificationAdapterTest {
 
 		val repeated = assertTerminalWifiLaneFailure(lane)
 
-		assertEquals("WIFI_ADAPTER_WAL_INTEGRITY_MISMATCH", repeated.failureCode)
+		assertEquals("WIFI_ADAPTER_PAYLOAD_MISMATCH", repeated.failureCode)
 		assertEquals(1, database.sourceEvidenceStateDao().updateAfterFullDeletion(
 			epoch = 0L,
 			retainedFromMs = null,
@@ -2388,6 +2480,7 @@ class WifiWalQualificationAdapterTest {
 	fun `selected native deletion accepts production source sequence zero`() = runTest {
 		installValidFixture(candidateWriter = true, sourceSequence = 0L)
 		installPortableClosingAuthorization()
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 		assertIs<WifiSessionFactDrainResult.Complete>(
 			WifiSessionFactProjectionLane(database, subject, writer).drainAvailable(),
 		)
@@ -2587,6 +2680,7 @@ class WifiWalQualificationAdapterTest {
 	fun `selected native deletion blocks active capture without treating quiescence as ownership`() =
 		runTest {
 			installValidFixture(candidateWriter = true)
+			setLiveLifecyclePair("ACTIVE", "ACTIVE")
 			val exporter = portableExporter()
 			val deletion = RoomDeleteSelectedWifiHistory(
 				database,
@@ -3914,6 +4008,7 @@ class WifiWalQualificationAdapterTest {
 		purpose: String,
 	): SourceEventWalEntity {
 		require(index > 1)
+		val observationOffsetNanos = index - 1L
 		val demand = nonCaptureDemand(index, purpose).copy(
 			status = SourceDemandEntity.STATUS_RETIRED,
 			retireBootId = BOOT_ID,
@@ -3948,8 +4043,8 @@ class WifiWalQualificationAdapterTest {
 		)
 		database.sourceBrokerDao().insertAuthorizations(authorizationRows)
 		val accessPoints = listOf(
-			WifiAccessPointEvidence("", 2_412, -80, NONCAPTURE_OBSERVED_START_NANOS),
-			WifiAccessPointEvidence("", 5_180, -60, NONCAPTURE_OBSERVED_END_NANOS),
+			WifiAccessPointEvidence("", 2_412, -80, NONCAPTURE_OBSERVED_START_NANOS + observationOffsetNanos),
+			WifiAccessPointEvidence("", 5_180, -60, NONCAPTURE_OBSERVED_END_NANOS + observationOffsetNanos),
 		)
 		val payload = WifiResultSnapshotPayload(
 			accessPoints = accessPoints,
@@ -3977,8 +4072,8 @@ class WifiWalQualificationAdapterTest {
 			configRevision = null,
 			planAttribution = PlanAttribution.RECEIVE_TIME_ONLY.ordinal,
 			clockDomainId = BOOT_ID,
-			observedElapsedNanos = NONCAPTURE_OBSERVED_END_NANOS,
-			observedIntervalStartNanos = NONCAPTURE_OBSERVED_START_NANOS,
+			observedElapsedNanos = NONCAPTURE_OBSERVED_END_NANOS + observationOffsetNanos,
+			observedIntervalStartNanos = NONCAPTURE_OBSERVED_START_NANOS + observationOffsetNanos,
 			receivedElapsedNanos = NONCAPTURE_RECEIVED_NANOS,
 			receivedWallTimeMs = NONCAPTURE_WALL_TIME_MS + 100L,
 			wallTimeMs = NONCAPTURE_WALL_TIME_MS,
@@ -4139,7 +4234,8 @@ class WifiWalQualificationAdapterTest {
 
 	private suspend fun assertExactWal(expected: SourceEventWalEntity) {
 		val actual = requireNotNull(database.sourceEventWalDao().getByEventId(expected.eventId))
-		assertEquals(expected.copy(payload = byteArrayOf()), actual.copy(payload = byteArrayOf()))
+		val excludedPayload = byteArrayOf()
+		assertEquals(expected.copy(payload = excludedPayload), actual.copy(payload = excludedPayload))
 		assertEquals(true, expected.payload.contentEquals(actual.payload))
 	}
 
@@ -4271,6 +4367,7 @@ class WifiWalQualificationAdapterTest {
 		lastDemandAcquisitionSpec: String? = null,
 		requestedDeliveryLatencyMs: Long? = null,
 		candidateWriter: Boolean = false,
+		payloadVersion: Int = PAYLOAD_VERSION,
 	) {
 		database.sourceEvidenceStateDao().ensure(evidenceState)
 		insertPlan(plan)
@@ -4334,11 +4431,11 @@ class WifiWalQualificationAdapterTest {
 			resultAgeMs = null,
 			observationZoneId = ZONE_ID,
 		)
-		val encodedPayload = payloadCodec.encode(payload, PAYLOAD_VERSION)
+		val encodedPayload = payloadCodec.encode(payload, payloadVersion)
 		val deliveryIdentity = deliveryIdentityOverride ?: wifiProviderDeliveryIdentity(
 			BOOT_ID,
 			accessPoints,
-			PAYLOAD_VERSION,
+			payloadVersion,
 		).value
 		val unsignedWal = SourceEventWalEntity(
 			eventId = EVENT_ID.value,
@@ -4374,7 +4471,7 @@ class WifiWalQualificationAdapterTest {
 			acquiredAtMs = OBSERVED_WALL_MS,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = PAYLOAD_VERSION,
+			payloadVersion = payloadVersion,
 			payload = encodedPayload.bytes,
 			payloadChecksum = encodedPayload.checksum,
 			createdAtMs = OBSERVED_WALL_MS + 1L,
